@@ -68,10 +68,13 @@ export const Route = createFileRoute("/demo/api/tanchat")({
                   apiKey: process.env.AI_KEY!,
                 }),
                 openAi: new OpenAIAdapter({
-                  apiKey: process.env.OPENAI_API_KEY!,
+                  apiKey: process.env.AI_KEY!,
                 }),
               },
-
+              fallbacks: [{
+                adapter: "openAi",
+                model: "gpt-4"
+              }]
             }
           );
 
@@ -83,8 +86,15 @@ export const Route = createFileRoute("/demo/api/tanchat")({
 
           // streamChat automatically handles tool execution!
           const stream = ai.streamChat({
-            model: "gpt-oss:20b",
-            adapter: "ollama",
+            model: "gpt-4o",
+            adapter: "openAi",
+            fallbacks: [
+              {
+                adapter: "ollama",
+                model: "gpt-oss:20b"
+              }
+
+            ],
             messages: allMessages,
             temperature: 0.7,
             tools,
