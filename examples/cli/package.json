@@ -39,7 +39,6 @@
     "dotenv": "^16.4.5",
     "inquirer": "^9.2.19",
     "ora": "^8.0.1"
-
   },
   "devDependencies": {
     "@types/inquirer": "^9.0.7",
