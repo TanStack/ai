@@ -32,13 +32,13 @@
   "author": "",
   "license": "MIT",
   "dependencies": {
-    "@tanstack/ai": "workspace:*",
-    "@anthropic-ai/sdk": "^0.24.0"
+    "@anthropic-ai/sdk": "^0.24.0",
+    "@tanstack/ai": "workspace:*"
   },
   "devDependencies": {
-    "@types/node": "^20.11.30",
+    "@types/node": "^22.10.2",
     "tsdown": "^0.15.9",
-    "typescript": "^5.4.2"
+    "typescript": "^5.7.2"
   },
   "peerDependencies": {
     "@tanstack/ai": "workspace:*"

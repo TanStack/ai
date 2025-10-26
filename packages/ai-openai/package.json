@@ -36,9 +36,9 @@
     "openai": "^4.47.1"
   },
   "devDependencies": {
-    "@types/node": "^20.11.30",
+    "@types/node": "^22.10.2",
     "tsdown": "^0.15.9",
-    "typescript": "^5.4.2"
+    "typescript": "^5.7.2"
   },
   "peerDependencies": {
     "@tanstack/ai": "workspace:*"

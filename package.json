@@ -19,9 +19,9 @@
     "demo:tools": "cd examples/cli && pnpm tools"
   },
   "devDependencies": {
-    "@types/node": "^20.11.30",
+    "@types/node": "^22.10.2",
     "tsdown": "^0.15.9",
-    "typescript": "^5.4.2",
-    "vitest": "^1.4.0"
+    "typescript": "^5.7.2",
+    "vitest": "^3.0.5"
   }
 }
