@@ -2,6 +2,13 @@
   "name": "@tanstack/ai",
   "version": "0.1.0",
   "description": "Core TanStack AI library - Open source AI SDK",
+  "author": "",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/TanStack/ai.git",
+    "directory": "packages/ai"
+  },
   "type": "module",
   "module": "./dist/index.js",
   "types": "./dist/index.d.ts",
@@ -30,8 +37,6 @@
     "chat",
     "embeddings"
   ],
-  "author": "",
-  "license": "MIT",
   "devDependencies": {
     "@types/node": "^22.10.2",
     "tsdown": "^0.15.9",

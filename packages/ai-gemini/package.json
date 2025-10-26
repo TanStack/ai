@@ -2,6 +2,13 @@
   "name": "@tanstack/ai-gemini",
   "version": "0.1.0",
   "description": "Google Gemini adapter for TanStack AI",
+  "author": "",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/TanStack/ai.git",
+    "directory": "packages/ai-gemini"
+  },
   "type": "module",
   "module": "./dist/index.js",
   "types": "./dist/index.d.ts",
@@ -29,8 +36,6 @@
     "tanstack",
     "adapter"
   ],
-  "author": "",
-  "license": "MIT",
   "dependencies": {
     "@google/generative-ai": "^0.11.0",
     "@tanstack/ai": "workspace:*"

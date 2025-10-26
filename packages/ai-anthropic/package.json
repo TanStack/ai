@@ -2,6 +2,13 @@
   "name": "@tanstack/ai-anthropic",
   "version": "0.1.0",
   "description": "Anthropic Claude adapter for TanStack AI",
+  "author": "",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/TanStack/ai.git",
+    "directory": "packages/ai-anthropic"
+  },
   "type": "module",
   "module": "./dist/index.js",
   "types": "./dist/index.d.ts",
@@ -29,8 +36,6 @@
     "tanstack",
     "adapter"
   ],
-  "author": "",
-  "license": "MIT",
   "dependencies": {
     "@anthropic-ai/sdk": "^0.24.0",
     "@tanstack/ai": "workspace:*"

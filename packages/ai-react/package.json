@@ -2,6 +2,13 @@
   "name": "@tanstack/ai-react",
   "version": "0.1.0",
   "description": "React hooks for TanStack AI",
+  "author": "",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/TanStack/ai.git",
+    "directory": "packages/ai-react"
+  },
   "type": "module",
   "module": "./dist/index.js",
   "types": "./dist/index.d.ts",
@@ -30,8 +37,6 @@
     "chat",
     "streaming"
   ],
-  "author": "",
-  "license": "MIT",
   "dependencies": {
     "@tanstack/ai": "workspace:*"
   },
