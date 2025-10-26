@@ -4,12 +4,12 @@
   "private": true,
   "description": "CLI demo for TanStack AI library",
   "type": "module",
-  "main": "dist/index.js",
+  "module": "dist/index.js",
   "bin": {
     "tanstack-ai": "./dist/index.js"
   },
   "scripts": {
-    "build": "tsup",
+    "build": "tsdown",
     "dev": "tsx src/index.ts",
     "dev:watch": "tsx watch src/index.ts",
     "start": "node dist/index.js",
@@ -43,7 +43,7 @@
   "devDependencies": {
     "@types/node": "^20.11.30",
     "@types/inquirer": "^9.0.7",
-    "tsup": "^8.0.2",
+    "tsdown": "^0.15.9",
     "tsx": "^4.7.1",
     "typescript": "^5.4.2"
   }

@@ -9,8 +9,12 @@ import type {
   EmbeddingResult,
   ImageGenerationOptions,
   ImageGenerationResult,
+  Message,
   Tool,
+  ToolCall,
 } from "./types";
+import { createRequire } from 'node:module';
+const require = createRequire(import.meta.url);
 
 type AdapterMap = Record<string, AIAdapter<readonly string[], readonly string[], any>>;
 
@@ -281,9 +285,9 @@ export class AI<T extends AdapterMap = AdapterMap, TTools extends ToolRegistry =
    * Prepend system prompts to messages if provided
    */
   private prependSystemPrompts(
-    messages: import("./types").Message[],
+    messages: Message[],
     systemPrompts?: string[]
-  ): import("./types").Message[] {
+  ): Message[] {
     const promptsToUse = systemPrompts ?? this.systemPrompts;
 
     if (!promptsToUse || promptsToUse.length === 0) {
@@ -294,7 +298,7 @@ export class AI<T extends AdapterMap = AdapterMap, TTools extends ToolRegistry =
     const hasSystemMessage = messages[0]?.role === "system";
 
     // Create system messages from prompts
-    const systemMessages: import("./types").Message[] = promptsToUse.map(content => ({
+    const systemMessages: Message[] = promptsToUse.map(content => ({
       role: "system" as const,
       content,
     }));
@@ -724,7 +728,7 @@ export class AI<T extends AdapterMap = AdapterMap, TTools extends ToolRegistry =
     while (iteration < maxIterations) {
       iteration++;
 
-      const toolCalls: import("./types").ToolCall[] = [];
+      const toolCalls: ToolCall[] = [];
       const toolCallsMap = new Map<
         number,
         { id: string; name: string; args: string }

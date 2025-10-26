@@ -3,14 +3,12 @@
   "version": "0.1.0",
   "description": "Ollama adapter for TanStack AI",
   "type": "module",
-  "main": "./dist/index.js",
   "module": "./dist/index.js",
   "types": "./dist/index.d.ts",
   "exports": {
     ".": {
       "types": "./dist/index.d.ts",
-      "import": "./dist/index.js",
-      "require": "./dist/index.cjs"
+      "import": "./dist/index.js"
     }
   },
   "files": [
@@ -18,8 +16,8 @@
     "src"
   ],
   "scripts": {
-    "build": "tsup",
-    "dev": "tsup --watch",
+    "build": "tsdown",
+    "dev": "tsdown --watch",
     "clean": "rm -rf dist node_modules",
     "typecheck": "tsc --noEmit",
     "lint": "tsc --noEmit"
@@ -40,7 +38,7 @@
   },
   "devDependencies": {
     "@types/node": "^20.11.30",
-    "tsup": "^8.0.2",
+    "tsdown": "^0.15.9",
     "typescript": "^5.4.2"
   },
   "peerDependencies": {
