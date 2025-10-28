@@ -118,13 +118,20 @@ type ExtractModelId<T> = ExtractRawModelId<T> extends infer Raw
  */
 // Overload 1: Curried form with provider options type
 export function wrapExternalProvider<
-  TProviderOptions extends Record<string, any>
+  TChatProviderOptions extends Record<string, any>
 >(): <TProvider extends { (modelId: any, ...args: any[]): ExternalLanguageModel }>(
   provider: TProvider
 ) => BaseAdapter<
   readonly [ExtractModelId<TProvider>],
   readonly string[],
-  TProviderOptions
+  readonly string[],
+  readonly string[],
+  readonly string[],
+  TChatProviderOptions,
+  Record<string, any>,
+  Record<string, any>,
+  Record<string, any>,
+  Record<string, any>
 >;
 
 // Overload 2: Direct form without provider options type
@@ -135,12 +142,19 @@ export function wrapExternalProvider<
 ): BaseAdapter<
   readonly [ExtractModelId<TProvider>],
   readonly string[],
+  readonly string[],
+  readonly string[],
+  readonly string[],
+  Record<string, any>,
+  Record<string, any>,
+  Record<string, any>,
+  Record<string, any>,
   Record<string, any>
 >;
 
 // Implementation
 export function wrapExternalProvider<
-  TProviderOptions extends Record<string, any> = Record<string, any>,
+  TChatProviderOptions extends Record<string, any> = Record<string, any>,
   TProvider extends { (modelId: any, ...args: any[]): ExternalLanguageModel } = any
 >(provider?: TProvider): any {
   if (provider) {
@@ -148,12 +162,29 @@ export function wrapExternalProvider<
     const providerName = (provider as any).name || 'external';
     const models = [] as unknown as readonly [ExtractModelId<TProvider>];
     const imageModels = [] as unknown as readonly string[];
+    const embeddingModels = [] as unknown as readonly string[];
+    const audioModels = [] as unknown as readonly string[];
+    const videoModels = [] as unknown as readonly string[];
 
-    return new ExternalAdapterWrapper<readonly [ExtractModelId<TProvider>], Record<string, any>>(
+    return new ExternalAdapterWrapper<
+      readonly [ExtractModelId<TProvider>],
+      readonly string[],
+      readonly string[],
+      readonly string[],
+      readonly string[],
+      Record<string, any>,
+      Record<string, any>,
+      Record<string, any>,
+      Record<string, any>,
+      Record<string, any>
+    >(
       provider,
       providerName,
       models,
-      imageModels
+      imageModels,
+      embeddingModels,
+      audioModels,
+      videoModels
     ) as any;
   } else {
     // Curried call
@@ -163,38 +194,83 @@ export function wrapExternalProvider<
       const providerName = (prov as any).name || 'external';
       const models = [] as unknown as readonly [ExtractModelId<TProv>];
       const imageModels = [] as unknown as readonly string[];
+      const embeddingModels = [] as unknown as readonly string[];
+      const audioModels = [] as unknown as readonly string[];
+      const videoModels = [] as unknown as readonly string[];
 
-      return new ExternalAdapterWrapper<readonly [ExtractModelId<TProv>], TProviderOptions>(
+      return new ExternalAdapterWrapper<
+        readonly [ExtractModelId<TProv>],
+        readonly string[],
+        readonly string[],
+        readonly string[],
+        readonly string[],
+        TChatProviderOptions,
+        Record<string, any>,
+        Record<string, any>,
+        Record<string, any>,
+        Record<string, any>
+      >(
         prov,
         providerName,
         models,
-        imageModels
+        imageModels,
+        embeddingModels,
+        audioModels,
+        videoModels
       ) as any;
     };
   }
 }
 
 class ExternalAdapterWrapper<
-  TModels extends readonly string[],
-  TProviderOptions extends Record<string, any>
-> extends BaseAdapter<TModels, readonly string[], TProviderOptions> {
+  TChatModels extends readonly string[],
+  TImageModels extends readonly string[],
+  TEmbeddingModels extends readonly string[],
+  TAudioModels extends readonly string[],
+  TVideoModels extends readonly string[],
+  TChatProviderOptions extends Record<string, any>,
+  TImageProviderOptions extends Record<string, any>,
+  TEmbeddingProviderOptions extends Record<string, any>,
+  TAudioProviderOptions extends Record<string, any>,
+  TVideoProviderOptions extends Record<string, any>
+> extends BaseAdapter<
+  TChatModels,
+  TImageModels,
+  TEmbeddingModels,
+  TAudioModels,
+  TVideoModels,
+  TChatProviderOptions,
+  TImageProviderOptions,
+  TEmbeddingProviderOptions,
+  TAudioProviderOptions,
+  TVideoProviderOptions
+> {
   name: string;
-  models: TModels;
-  imageModels?: readonly string[];
+  models: TChatModels;
+  imageModels?: TImageModels;
+  embeddingModels?: TEmbeddingModels;
+  audioModels?: TAudioModels;
+  videoModels?: TVideoModels;
 
   private provider: (modelId: any, ...args: any[]) => ExternalLanguageModel;
 
   constructor(
     provider: (modelId: any, ...args: any[]) => ExternalLanguageModel,
     name: string,
-    models: TModels,
-    imageModels: readonly string[]
+    models: TChatModels,
+    imageModels: TImageModels,
+    embeddingModels: TEmbeddingModels,
+    audioModels: TAudioModels,
+    videoModels: TVideoModels
   ) {
     super({});
     this.provider = provider;
     this.name = name;
     this.models = models;
     this.imageModels = imageModels.length > 0 ? imageModels : undefined;
+    this.embeddingModels = embeddingModels.length > 0 ? embeddingModels : undefined;
+    this.audioModels = audioModels.length > 0 ? audioModels : undefined;
+    this.videoModels = videoModels.length > 0 ? videoModels : undefined;
   }
 
   // Convert our Message format to external provider format

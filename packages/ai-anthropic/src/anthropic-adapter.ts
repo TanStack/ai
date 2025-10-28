@@ -31,6 +31,9 @@ const ANTHROPIC_MODELS = [
 ] as const;
 
 const ANTHROPIC_IMAGE_MODELS = [] as const;
+const ANTHROPIC_EMBEDDING_MODELS = [] as const;
+const ANTHROPIC_AUDIO_MODELS = [] as const;
+const ANTHROPIC_VIDEO_MODELS = [] as const;
 
 export type AnthropicModel = (typeof ANTHROPIC_MODELS)[number];
 
@@ -57,11 +60,21 @@ export interface AnthropicProviderOptions {
 export class AnthropicAdapter extends BaseAdapter<
   typeof ANTHROPIC_MODELS,
   typeof ANTHROPIC_IMAGE_MODELS,
-  AnthropicProviderOptions
+  typeof ANTHROPIC_EMBEDDING_MODELS,
+  typeof ANTHROPIC_AUDIO_MODELS,
+  typeof ANTHROPIC_VIDEO_MODELS,
+  AnthropicProviderOptions,
+  Record<string, any>,
+  Record<string, any>,
+  Record<string, any>,
+  Record<string, any>
 > {
   name = "anthropic" as const;
   models = ANTHROPIC_MODELS;
   imageModels = ANTHROPIC_IMAGE_MODELS;
+  embeddingModels = ANTHROPIC_EMBEDDING_MODELS;
+  audioModels = ANTHROPIC_AUDIO_MODELS;
+  videoModels = ANTHROPIC_VIDEO_MODELS;
   private client: Anthropic;
 
   constructor(config: AnthropicAdapterConfig) {

@@ -9,22 +9,55 @@ import type {
   EmbeddingResult,
   ImageGenerationOptions,
   ImageGenerationResult,
+  AudioTranscriptionOptions,
+  AudioTranscriptionResult,
+  TextToSpeechOptions,
+  TextToSpeechResult,
+  VideoGenerationOptions,
+  VideoGenerationResult,
   Tool,
 } from "./types";
 
-type AdapterMap = Record<string, AIAdapter<readonly string[], readonly string[], any>>;
+type AdapterMap = Record<string, AIAdapter<readonly string[], readonly string[], readonly string[], readonly string[], readonly string[], any, any, any, any, any>>;
 
-// Extract model type from an adapter
-type ExtractModels<T> = T extends AIAdapter<infer M, any, any> ? M[number] : string;
+// Extract chat model type from an adapter
+type ExtractModels<T> = T extends AIAdapter<infer M, any, any, any, any, any, any, any, any, any> ? M[number] : string;
 
 // Extract image model type from an adapter
-type ExtractImageModels<T> = T extends AIAdapter<any, infer M, any> ? M[number] : string;
+type ExtractImageModels<T> = T extends AIAdapter<any, infer M, any, any, any, any, any, any, any, any> ? M[number] : string;
 
-// Extract provider options type from an adapter
-type ExtractProviderOptions<T> = T extends AIAdapter<any, any, infer P> ? P : Record<string, any>;
+// Extract audio model type from an adapter
+type ExtractAudioModels<T> = T extends AIAdapter<any, any, any, infer M, any, any, any, any, any, any> ? M[number] : string;
 
-// Helper to get provider options for a specific adapter (no nesting)
-type GetProviderOptionsForAdapter<TAdapter extends AIAdapter<any, any, any>> = ExtractProviderOptions<TAdapter>;// Type for a single fallback configuration (discriminated union)
+// Extract video model type from an adapter
+type ExtractVideoModels<T> = T extends AIAdapter<any, any, any, any, infer M, any, any, any, any, any> ? M[number] : string;
+
+// Extract chat provider options type from an adapter
+type ExtractChatProviderOptions<T> = T extends AIAdapter<any, any, any, any, any, infer P, any, any, any, any> ? P : Record<string, any>;
+
+// Extract image provider options type from an adapter
+type ExtractImageProviderOptions<T> = T extends AIAdapter<any, any, any, any, any, any, infer P, any, any, any> ? P : Record<string, any>;
+
+// Extract audio provider options type from an adapter
+type ExtractAudioProviderOptions<T> = T extends AIAdapter<any, any, any, any, any, any, any, any, infer P, any> ? P : Record<string, any>;
+
+// Extract video provider options type from an adapter
+type ExtractVideoProviderOptions<T> = T extends AIAdapter<any, any, any, any, any, any, any, any, any, infer P> ? P : Record<string, any>;
+
+// Helper to get provider options for a specific adapter (no nesting) - for backwards compatibility
+type GetProviderOptionsForAdapter<TAdapter extends AIAdapter<any, any, any, any, any, any, any, any, any, any>> = ExtractChatProviderOptions<TAdapter>;
+
+// Helper to get chat provider options for a specific adapter
+type GetChatProviderOptionsForAdapter<TAdapter extends AIAdapter<any, any, any, any, any, any, any, any, any, any>> = ExtractChatProviderOptions<TAdapter>;
+
+// Helper to get image provider options for a specific adapter
+type GetImageProviderOptionsForAdapter<TAdapter extends AIAdapter<any, any, any, any, any, any, any, any, any, any>> = ExtractImageProviderOptions<TAdapter>;
+
+// Helper to get audio provider options for a specific adapter
+type GetAudioProviderOptionsForAdapter<TAdapter extends AIAdapter<any, any, any, any, any, any, any, any, any, any>> = ExtractAudioProviderOptions<TAdapter>;
+
+// Helper to get video provider options for a specific adapter
+type GetVideoProviderOptionsForAdapter<TAdapter extends AIAdapter<any, any, any, any, any, any, any, any, any, any>> = ExtractVideoProviderOptions<TAdapter>;// Type for a single fallback configuration (discriminated union)
 type AdapterFallback<TAdapters extends AdapterMap> = {
   [K in keyof TAdapters & string]: {
     adapter: K;
@@ -38,7 +71,7 @@ type AdapterFallback<TAdapters extends AdapterMap> = {
 
 // Type for a single image fallback configuration
 type ImageAdapterFallback<TAdapters extends AdapterMap> = {
-  [K in keyof TAdapters & string]: TAdapters[K] extends AIAdapter<any, infer ImageModels, any>
+  [K in keyof TAdapters & string]: TAdapters[K] extends AIAdapter<any, infer ImageModels, any, any, any, any, any, any, any, any>
   ? ImageModels extends readonly string[]
   ? ImageModels['length'] extends 0
   ? never
@@ -48,7 +81,7 @@ type ImageAdapterFallback<TAdapters extends AdapterMap> = {
     /**
      * Provider-specific options for this fallback. Type-safe based on the adapter.
      */
-    providerOptions?: GetProviderOptionsForAdapter<TAdapters[K]>;
+    providerOptions?: GetImageProviderOptionsForAdapter<TAdapters[K]>;
   }
   : never
   : never;
@@ -108,10 +141,10 @@ type ChatOptionsWithAdapter<TAdapters extends AdapterMap, TTools extends ToolReg
      */
     systemPrompts?: string[];
     /**
-     * Provider-specific options. Type-safe based on the selected adapter.
-     * For example: { openai: { reasoningSummary: 'detailed' } }
+     * Provider-specific options for chat. Type-safe based on the selected adapter.
+     * For example: { reasoningEffort: 'high', parallelToolCalls: true }
      */
-    providerOptions?: GetProviderOptionsForAdapter<TAdapters[K]>;
+    providerOptions?: GetChatProviderOptionsForAdapter<TAdapters[K]>;
   };
 }[keyof TAdapters & string];
 
@@ -187,7 +220,7 @@ type EmbeddingOptionsWithFallback<TAdapters extends AdapterMap> = Omit<
 };
 
 type ImageGenerationOptionsWithAdapter<TAdapters extends AdapterMap> = {
-  [K in keyof TAdapters & string]: TAdapters[K] extends AIAdapter<any, infer ImageModels, any>
+  [K in keyof TAdapters & string]: TAdapters[K] extends AIAdapter<any, infer ImageModels, any, any, any, any, any, any, any, any>
   ? ImageModels extends readonly string[]
   ? ImageModels['length'] extends 0
   ? never
@@ -199,9 +232,9 @@ type ImageGenerationOptionsWithAdapter<TAdapters extends AdapterMap> = {
      */
     fallbacks?: ReadonlyArray<ImageAdapterFallback<TAdapters>>;
     /**
-     * Provider-specific options. Type-safe based on the selected adapter.
+     * Provider-specific options for image generation. Type-safe based on the selected adapter.
      */
-    providerOptions?: GetProviderOptionsForAdapter<TAdapters[K]>;
+    providerOptions?: GetImageProviderOptionsForAdapter<TAdapters[K]>;
   }
   : never
   : never;
@@ -216,6 +249,51 @@ type ImageGenerationOptionsWithFallback<TAdapters extends AdapterMap> = Omit<
    */
   fallbacks: ReadonlyArray<ImageAdapterFallback<TAdapters>>;
 };
+
+// Audio transcription types
+type AudioTranscriptionOptionsWithAdapter<TAdapters extends AdapterMap> = {
+  [K in keyof TAdapters & string]: TAdapters[K] extends AIAdapter<any, any, any, infer AudioModels, any, any, any, any, any, any>
+  ? AudioModels extends readonly string[]
+  ? AudioModels['length'] extends 0
+  ? never
+  : Omit<AudioTranscriptionOptions, "model" | "providerOptions"> & {
+    adapter: K;
+    model: ExtractAudioModels<TAdapters[K]>;
+    providerOptions?: GetAudioProviderOptionsForAdapter<TAdapters[K]>;
+  }
+  : never
+  : never;
+}[keyof TAdapters & string];
+
+// Text-to-speech types
+type TextToSpeechOptionsWithAdapter<TAdapters extends AdapterMap> = {
+  [K in keyof TAdapters & string]: TAdapters[K] extends AIAdapter<any, any, any, infer AudioModels, any, any, any, any, any, any>
+  ? AudioModels extends readonly string[]
+  ? AudioModels['length'] extends 0
+  ? never
+  : Omit<TextToSpeechOptions, "model" | "providerOptions"> & {
+    adapter: K;
+    model: ExtractAudioModels<TAdapters[K]>;
+    providerOptions?: GetAudioProviderOptionsForAdapter<TAdapters[K]>;
+  }
+  : never
+  : never;
+}[keyof TAdapters & string];
+
+// Video generation types
+type VideoGenerationOptionsWithAdapter<TAdapters extends AdapterMap> = {
+  [K in keyof TAdapters & string]: TAdapters[K] extends AIAdapter<any, any, any, any, infer VideoModels, any, any, any, any, any>
+  ? VideoModels extends readonly string[]
+  ? VideoModels['length'] extends 0
+  ? never
+  : Omit<VideoGenerationOptions, "model" | "providerOptions"> & {
+    adapter: K;
+    model: ExtractVideoModels<TAdapters[K]>;
+    providerOptions?: GetVideoProviderOptionsForAdapter<TAdapters[K]>;
+  }
+  : never
+  : never;
+}[keyof TAdapters & string];
 
 export class AI<T extends AdapterMap = AdapterMap, TTools extends ToolRegistry = ToolRegistry> {
   private adapters: T;
@@ -1098,14 +1176,119 @@ export class AI<T extends AdapterMap = AdapterMap, TTools extends ToolRegistry =
   }
 
   /**
+   * Transcribe audio to text (speech-to-text)
+   * 
+   * @example
+   * ```ts
+   * const result = await ai.audio({
+   *   adapter: 'openai',
+   *   model: 'whisper-1',
+   *   file: audioFile,
+   *   responseFormat: 'json'
+   * });
+   * ```
+   */
+  async audio(
+    options: AudioTranscriptionOptionsWithAdapter<T>
+  ): Promise<AudioTranscriptionResult> {
+    const { adapter, model, ...restOptions } = options;
+    const adapterInstance = this.getAdapter(adapter);
+
+    if (!adapterInstance.transcribeAudio) {
+      throw new Error(
+        `Adapter "${adapter}" does not support audio transcription. Available audio adapters: ${Object.entries(this.adapters)
+          .filter(([_, a]) => a.transcribeAudio)
+          .map(([name]) => name)
+          .join(", ") || "none"}`
+      );
+    }
+
+    return await adapterInstance.transcribeAudio({
+      ...restOptions,
+      model,
+    } as AudioTranscriptionOptions);
+  }
+
+  /**
+   * Generate speech from text (text-to-speech)
+   * 
+   * @example
+   * ```ts
+   * const result = await ai.speak({
+   *   adapter: 'openai',
+   *   model: 'tts-1',
+   *   input: 'Hello, world!',
+   *   voice: 'alloy'
+   * });
+   * ```
+   */
+  async speak(
+    options: TextToSpeechOptionsWithAdapter<T>
+  ): Promise<TextToSpeechResult> {
+    const { adapter, model, ...restOptions } = options;
+    const adapterInstance = this.getAdapter(adapter);
+
+    if (!adapterInstance.generateSpeech) {
+      throw new Error(
+        `Adapter "${adapter}" does not support text-to-speech. Available TTS adapters: ${Object.entries(this.adapters)
+          .filter(([_, a]) => a.generateSpeech)
+          .map(([name]) => name)
+          .join(", ") || "none"}`
+      );
+    }
+
+    return await adapterInstance.generateSpeech({
+      ...restOptions,
+      model,
+    } as TextToSpeechOptions);
+  }
+
+  /**
+   * Generate a video from a text prompt
+   * 
+   * @example
+   * ```ts
+   * const result = await ai.video({
+   *   adapter: 'openai',
+   *   model: 'sora-2',
+   *   prompt: 'A cat playing with a ball of yarn',
+   *   providerOptions: {
+   *     size: '1280x720',
+   *     seconds: 8
+   *   }
+   * });
+   * ```
+   */
+  async video(
+    options: VideoGenerationOptionsWithAdapter<T>
+  ): Promise<VideoGenerationResult> {
+    const { adapter, model, ...restOptions } = options;
+    const adapterInstance = this.getAdapter(adapter);
+
+    if (!adapterInstance.generateVideo) {
+      throw new Error(
+        `Adapter "${adapter}" does not support video generation. Available video adapters: ${Object.entries(this.adapters)
+          .filter(([_, a]) => a.generateVideo)
+          .map(([name]) => name)
+          .join(", ") || "none"}`
+      );
+    }
+
+    return await adapterInstance.generateVideo({
+      ...restOptions,
+      model,
+    } as VideoGenerationOptions);
+  }
+
+  /**
    * Add a new adapter
    */
   addAdapter<K extends string>(
     name: K,
-    adapter: AIAdapter<readonly string[], readonly string[]>
-  ): AI<T & Record<K, AIAdapter<readonly string[], readonly string[]>>> {
+    adapter: AIAdapter<readonly string[], readonly string[], readonly string[], readonly string[], readonly string[]>
+  ): AI<T & Record<K, AIAdapter<readonly string[], readonly string[], readonly string[], readonly string[], readonly string[]>>> {
     const newAdapters = { ...this.adapters, [name]: adapter } as T &
-      Record<K, AIAdapter<readonly string[], readonly string[]>>;
+      Record<K, AIAdapter<readonly string[], readonly string[], readonly string[], readonly string[], readonly string[]>>;
     return new AI({ adapters: newAdapters });
   }
 }

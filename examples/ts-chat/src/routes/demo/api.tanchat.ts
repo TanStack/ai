@@ -106,6 +106,7 @@ export const Route = createFileRoute("/demo/api/tanchat")({
     handlers: {
       POST: async ({ request }) => {
         const { messages } = await request.json();
+
         return ai.chat({
           model: "gpt-5",
           adapter: "externalOpenAi",

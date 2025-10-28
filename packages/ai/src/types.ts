@@ -239,16 +239,158 @@ export interface ImageGenerationResult {
   };
 }
 
+// Audio transcription types
+export interface AudioTranscriptionOptions {
+  model: string;
+  /** Audio file to transcribe (File, Blob, or Buffer) */
+  file: File | Blob | Buffer;
+  /** Optional prompt to guide the transcription */
+  prompt?: string;
+  /** Response format (json, text, srt, verbose_json, vtt, diarized_json) */
+  responseFormat?: string;
+  /** Temperature for sampling (0-1) */
+  temperature?: number;
+  /** Language of the audio (ISO-639-1 code) */
+  language?: string;
+  /** Provider-specific options */
+  providerOptions?: Record<string, any>;
+}
+
+export interface AudioTranscriptionResult {
+  id: string;
+  model: string;
+  /** Transcribed text */
+  text: string;
+  /** Language detected (if applicable) */
+  language?: string;
+  /** Duration in seconds */
+  duration?: number;
+  /** Segments with timestamps (if requested) */
+  segments?: Array<{
+    id: number;
+    start: number;
+    end: number;
+    text: string;
+    /** Speaker label (if diarization enabled) */
+    speaker?: string;
+    /** Words with timestamps */
+    words?: Array<{
+      word: string;
+      start: number;
+      end: number;
+    }>;
+  }>;
+  /** Log probabilities (if requested) */
+  logprobs?: Array<{
+    token: string;
+    logprob: number;
+  }>;
+}
+
+// Text-to-speech types
+export interface TextToSpeechOptions {
+  model: string;
+  /** Text to convert to speech */
+  input: string;
+  /** Voice to use (alloy, echo, fable, onyx, nova, shimmer, etc.) */
+  voice: string;
+  /** Audio format (mp3, opus, aac, flac, wav, pcm) */
+  responseFormat?: string;
+  /** Speed of the generated audio (0.25 to 4.0) */
+  speed?: number;
+  /** Provider-specific options */
+  providerOptions?: Record<string, any>;
+}
+
+export interface TextToSpeechResult {
+  id: string;
+  model: string;
+  /** Audio data as Buffer or Blob */
+  audio: Buffer | Blob;
+  /** Audio format */
+  format: string;
+  /** Duration in seconds (if available) */
+  duration?: number;
+}
+
+// Video generation types
+export interface VideoGenerationOptions {
+  model: string;
+  /** Text prompt describing the video */
+  prompt: string;
+  /** Number of seconds (duration) */
+  duration?: number;
+  /** Video resolution (e.g., "1920x1080", "1280x720") */
+  resolution?: string;
+  /** Frame rate (fps) */
+  fps?: number;
+  /** Seed for reproducible generation */
+  seed?: number;
+  /** Provider-specific options */
+  providerOptions?: Record<string, any>;
+}
+
+export interface VideoGenerationResult {
+  id: string;
+  model: string;
+  /** Video data as Buffer or Blob */
+  video: Buffer | Blob;
+  /** Video format (mp4, webm, etc.) */
+  format: string;
+  /** Duration in seconds */
+  duration?: number;
+  /** Video resolution */
+  resolution?: string;
+  /** Thumbnail as base64 (if available) */
+  thumbnail?: string;
+}
+
+/**
+ * AI adapter interface with support for endpoint-specific models and provider options.
+ * 
+ * Generic parameters:
+ * - TChatModels: Models that support chat/text completion
+ * - TImageModels: Models that support image generation
+ * - TEmbeddingModels: Models that support embeddings
+ * - TAudioModels: Models that support audio (transcription and text-to-speech)
+ * - TVideoModels: Models that support video generation
+ * - TChatProviderOptions: Provider-specific options for chat endpoint
+ * - TImageProviderOptions: Provider-specific options for image endpoint
+ * - TEmbeddingProviderOptions: Provider-specific options for embedding endpoint
+ * - TAudioProviderOptions: Provider-specific options for audio endpoint
+ * - TVideoProviderOptions: Provider-specific options for video endpoint
+ */
 export interface AIAdapter<
-  TModels extends readonly string[] = readonly string[],
+  TChatModels extends readonly string[] = readonly string[],
   TImageModels extends readonly string[] = readonly string[],
-  TProviderOptions extends Record<string, any> = Record<string, any>
+  TEmbeddingModels extends readonly string[] = readonly string[],
+  TAudioModels extends readonly string[] = readonly string[],
+  TVideoModels extends readonly string[] = readonly string[],
+  TChatProviderOptions extends Record<string, any> = Record<string, any>,
+  TImageProviderOptions extends Record<string, any> = Record<string, any>,
+  TEmbeddingProviderOptions extends Record<string, any> = Record<string, any>,
+  TAudioProviderOptions extends Record<string, any> = Record<string, any>,
+  TVideoProviderOptions extends Record<string, any> = Record<string, any>
 > {
   name: string;
-  models: TModels;
+  /** Models that support chat/text completion */
+  models: TChatModels;
+  /** Models that support image generation */
   imageModels?: TImageModels;
-  // Type-only property for provider options inference
-  _providerOptions?: TProviderOptions;
+  /** Models that support embeddings */
+  embeddingModels?: TEmbeddingModels;
+  /** Models that support audio (transcription and text-to-speech) */
+  audioModels?: TAudioModels;
+  /** Models that support video generation */
+  videoModels?: TVideoModels;
+
+  // Type-only properties for provider options inference
+  _providerOptions?: TChatProviderOptions; // Legacy - same as _chatProviderOptions
+  _chatProviderOptions?: TChatProviderOptions;
+  _imageProviderOptions?: TImageProviderOptions;
+  _embeddingProviderOptions?: TEmbeddingProviderOptions;
+  _audioProviderOptions?: TAudioProviderOptions;
+  _videoProviderOptions?: TVideoProviderOptions;
 
   // Chat methods
   chatCompletion(options: ChatCompletionOptions): Promise<ChatCompletionResult>;
@@ -273,6 +415,15 @@ export interface AIAdapter<
 
   // Image generation (optional)
   generateImage?(options: ImageGenerationOptions): Promise<ImageGenerationResult>;
+
+  // Audio transcription (optional)
+  transcribeAudio?(options: AudioTranscriptionOptions): Promise<AudioTranscriptionResult>;
+
+  // Text-to-speech (optional)
+  generateSpeech?(options: TextToSpeechOptions): Promise<TextToSpeechResult>;
+
+  // Video generation (optional)
+  generateVideo?(options: VideoGenerationOptions): Promise<VideoGenerationResult>;
 }
 
 export interface AIAdapterConfig {

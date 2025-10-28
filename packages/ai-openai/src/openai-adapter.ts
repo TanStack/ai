@@ -22,33 +22,108 @@ export interface OpenAIAdapterConfig extends AIAdapterConfig {
   baseURL?: string;
 }
 
-const OPENAI_MODELS = [
+// Chat/text completion models (from OpenAI docs - platform.openai.com/docs/models)
+const OPENAI_CHAT_MODELS = [
+  // Frontier models
+  "gpt-5",
+  "gpt-5-mini",
+  "gpt-5-nano",
+  "gpt-5-pro",
+  "gpt-4.1",
+  "gpt-4.1-mini",
+  "gpt-4.1-nano",
+  // Open-weight models
+  "gpt-oss-120b",
+  "gpt-oss-20b",
+  // Reasoning models
+  "o3",
+  "o3-pro",
+  "o3-mini",
+  "o4-mini",
+  "o3-deep-research",
+  "o4-mini-deep-research",
+  // Legacy and previous generation
   "gpt-4",
   "gpt-4-turbo",
   "gpt-4-turbo-preview",
   "gpt-4o",
   "gpt-4o-mini",
   "gpt-3.5-turbo",
-  "gpt-3.5-turbo-16k",
-  "gpt-3.5-turbo-instruct",
-  "text-embedding-ada-002",
-  "text-embedding-3-small",
-  "text-embedding-3-large",
+  // Audio-enabled chat models
+  "gpt-audio",
+  "gpt-audio-mini",
+  "gpt-4o-audio-preview",
+  "gpt-4o-mini-audio-preview",
+  // Realtime models
+  "gpt-realtime",
+  "gpt-realtime-mini",
+  "gpt-4o-realtime-preview",
+  "gpt-4o-mini-realtime-preview",
+  // ChatGPT models
+  "gpt-5-chat-latest",
+  "chatgpt-4o-latest",
+  // Specialized
+  "gpt-5-codex",
+  "codex-mini-latest",
+  // Preview models
+  "gpt-4o-search-preview",
+  "gpt-4o-mini-search-preview",
+  "computer-use-preview",
+  // Legacy reasoning (deprecated but still available)
+  "o1",
+  "o1-mini",
+  "o1-preview",
+  // Legacy base models
+  "davinci-002",
+  "babbage-002",
 ] as const;
 
+// Image generation models (from OpenAI docs)
 const OPENAI_IMAGE_MODELS = [
+  "gpt-image-1",
+  "gpt-image-1-mini",
   "dall-e-3",
   "dall-e-2",
 ] as const;
 
-export type OpenAIModel = (typeof OPENAI_MODELS)[number];
+// Embedding models (from OpenAI docs)
+const OPENAI_EMBEDDING_MODELS = [
+  "text-embedding-3-large",
+  "text-embedding-3-small",
+  "text-embedding-ada-002",
+] as const;
+
+// Audio models (transcription and text-to-speech)
+const OPENAI_AUDIO_MODELS = [
+  // Transcription models
+  "whisper-1",
+  "gpt-4o-transcribe",
+  "gpt-4o-mini-transcribe",
+  "gpt-4o-transcribe-diarize",
+  // Text-to-speech models
+  "tts-1",
+  "tts-1-hd",
+  "gpt-4o-mini-tts",
+] as const;
+
+// Video generation models (from OpenAI docs)
+const OPENAI_VIDEO_MODELS = [
+  "sora-2",
+  "sora-2-pro",
+] as const;
+
+export type OpenAIChatModel = (typeof OPENAI_CHAT_MODELS)[number];
 export type OpenAIImageModel = (typeof OPENAI_IMAGE_MODELS)[number];
+export type OpenAIEmbeddingModel = (typeof OPENAI_EMBEDDING_MODELS)[number];
+export type OpenAIAudioModel = (typeof OPENAI_AUDIO_MODELS)[number];
+export type OpenAIVideoModel = (typeof OPENAI_VIDEO_MODELS)[number];
 
 /**
  * OpenAI-specific provider options for chat/text generation
- * @see https://ai-sdk.dev/providers/ai-sdk-providers/openai
+ * Based on OpenAI Chat Completions API documentation
+ * @see https://platform.openai.com/docs/api-reference/chat/create
  */
-export interface OpenAIProviderOptions {
+export interface OpenAIChatProviderOptions {
   /** Whether to use parallel tool calls. Defaults to true */
   parallelToolCalls?: boolean;
   /** Whether to store the generation. Defaults to true */
@@ -94,28 +169,130 @@ export interface OpenAIProviderOptions {
   maxCompletionTokens?: number;
   /** Image detail level: 'high' | 'low' | 'auto' (for images in messages) */
   imageDetail?: 'high' | 'low' | 'auto';
+  /** Web search options */
+  webSearchOptions?: {
+    enabled?: boolean;
+  };
 }
 
 /**
+ * Legacy alias for backward compatibility
+ */
+export type OpenAIProviderOptions = OpenAIChatProviderOptions;
+
+/**
  * OpenAI-specific provider options for image generation
+ * Based on OpenAI Images API documentation
+ * @see https://platform.openai.com/docs/api-reference/images/create
  */
 export interface OpenAIImageProviderOptions {
-  /** Image quality: 'standard' | 'hd' (dall-e-3 only) */
+  /** Image quality: 'standard' | 'hd' (dall-e-3, gpt-image-1 only) */
   quality?: 'standard' | 'hd';
   /** Image style: 'natural' | 'vivid' (dall-e-3 only) */
   style?: 'natural' | 'vivid';
-  /** Seed for reproducibility (dall-e-3 only) */
+  /** Seed for reproducibility (dall-e-3, gpt-image-1 only) */
   seed?: number;
+  /** Background: 'transparent' | 'opaque' (gpt-image-1 only) */
+  background?: 'transparent' | 'opaque';
+  /** Output format: 'png' | 'webp' | 'jpeg' (gpt-image-1 only) */
+  outputFormat?: 'png' | 'webp' | 'jpeg';
+}
+
+/**
+ * OpenAI-specific provider options for embeddings
+ * Based on OpenAI Embeddings API documentation
+ * @see https://platform.openai.com/docs/api-reference/embeddings/create
+ */
+export interface OpenAIEmbeddingProviderOptions {
+  /** Encoding format for embeddings: 'float' | 'base64' */
+  encodingFormat?: 'float' | 'base64';
+  /** Unique identifier for end-user (for abuse monitoring) */
+  user?: string;
+  /** Number of dimensions (only for text-embedding-3 models) */
+  dimensions?: number;
+}
+
+/**
+ * OpenAI-specific provider options for audio transcription
+ * Based on OpenAI Audio API documentation
+ * @see https://platform.openai.com/docs/api-reference/audio/createTranscription
+ */
+export interface OpenAIAudioTranscriptionProviderOptions {
+  /** Optional prompt to guide the transcription */
+  prompt?: string;
+  /** Language of the audio (ISO-639-1 format, e.g., 'en', 'es') */
+  language?: string;
+  /** Temperature for sampling (0-1) */
+  temperature?: number;
+  /** Response format: 'json' | 'text' | 'srt' | 'verbose_json' | 'vtt' | 'diarized_json' */
+  responseFormat?: 'json' | 'text' | 'srt' | 'verbose_json' | 'vtt' | 'diarized_json';
+  /** Timestamp granularities: 'word' | 'segment' (whisper-1 only) */
+  timestampGranularities?: Array<'word' | 'segment'>;
+  /** Chunking strategy for long audio (gpt-4o-transcribe-diarize): 'auto' or VAD config */
+  chunkingStrategy?: 'auto' | { type: 'vad'; threshold?: number; prefix_padding_ms?: number; silence_duration_ms?: number };
+  /** Known speaker names for diarization (gpt-4o-transcribe-diarize) */
+  knownSpeakerNames?: string[];
+  /** Known speaker reference audio as data URLs (gpt-4o-transcribe-diarize) */
+  knownSpeakerReferences?: string[];
+  /** Whether to enable streaming (gpt-4o-transcribe, gpt-4o-mini-transcribe only) */
+  stream?: boolean;
+  /** Include log probabilities (gpt-4o-transcribe, gpt-4o-mini-transcribe only) */
+  logprobs?: boolean;
+}
+
+/**
+ * OpenAI-specific provider options for text-to-speech
+ * Based on OpenAI Audio API documentation
+ * @see https://platform.openai.com/docs/api-reference/audio/createSpeech
+ */
+export interface OpenAITextToSpeechProviderOptions {
+  /** Voice to use: 'alloy' | 'ash' | 'ballad' | 'coral' | 'echo' | 'sage' | 'shimmer' | 'verse' */
+  voice: 'alloy' | 'ash' | 'ballad' | 'coral' | 'echo' | 'sage' | 'shimmer' | 'verse';
+  /** Audio format: 'mp3' | 'opus' | 'aac' | 'flac' | 'wav' | 'pcm' */
+  responseFormat?: 'mp3' | 'opus' | 'aac' | 'flac' | 'wav' | 'pcm';
+  /** Speed of the generated audio (0.25 to 4.0) */
+  speed?: number;
+}
+
+/**
+ * Combined audio provider options (transcription + text-to-speech)
+ */
+export type OpenAIAudioProviderOptions = OpenAIAudioTranscriptionProviderOptions & OpenAITextToSpeechProviderOptions;
+
+/**
+ * OpenAI-specific provider options for video generation
+ * Based on OpenAI Video API documentation
+ * @see https://platform.openai.com/docs/guides/video-generation
+ */
+export interface OpenAIVideoProviderOptions {
+  /** Video size/resolution: '1280x720' | '1920x1080' | etc. */
+  size?: string;
+  /** Video duration in seconds (e.g., 4, 8, 12) */
+  seconds?: number | string;
+  /** Input reference image (File, Blob, or Buffer) for first frame */
+  inputReference?: File | Blob | Buffer;
+  /** Remix video ID to modify an existing video */
+  remixVideoId?: string;
 }
 
 export class OpenAIAdapter extends BaseAdapter<
-  typeof OPENAI_MODELS,
+  typeof OPENAI_CHAT_MODELS,
   typeof OPENAI_IMAGE_MODELS,
-  OpenAIProviderOptions
+  typeof OPENAI_EMBEDDING_MODELS,
+  typeof OPENAI_AUDIO_MODELS,
+  typeof OPENAI_VIDEO_MODELS,
+  OpenAIChatProviderOptions,
+  OpenAIImageProviderOptions,
+  OpenAIEmbeddingProviderOptions,
+  OpenAIAudioProviderOptions,
+  OpenAIVideoProviderOptions
 > {
   name = "openai" as const;
-  models = OPENAI_MODELS;
+  models = OPENAI_CHAT_MODELS;
   imageModels = OPENAI_IMAGE_MODELS;
+  embeddingModels = OPENAI_EMBEDDING_MODELS;
+  audioModels = OPENAI_AUDIO_MODELS;
+  videoModels = OPENAI_VIDEO_MODELS;
   private client: OpenAI;
 
   constructor(config: OpenAIAdapterConfig) {
@@ -133,7 +310,7 @@ export class OpenAIAdapter extends BaseAdapter<
   async chatCompletion(
     options: ChatCompletionOptions
   ): Promise<ChatCompletionResult> {
-    const providerOpts = options.providerOptions as OpenAIProviderOptions | undefined;
+    const providerOpts = options.providerOptions as OpenAIChatProviderOptions | undefined;
 
     const requestParams: any = {
       model: options.model || "gpt-3.5-turbo",
@@ -304,7 +481,7 @@ export class OpenAIAdapter extends BaseAdapter<
   async *chatStream(
     options: ChatCompletionOptions
   ): AsyncIterable<import("@tanstack/ai").StreamChunk> {
-    const providerOpts = options.providerOptions as OpenAIProviderOptions | undefined;
+    const providerOpts = options.providerOptions as OpenAIChatProviderOptions | undefined;
 
     // Debug: Log incoming options
     if (process.env.DEBUG_TOOLS) {
@@ -675,6 +852,178 @@ export class OpenAIAdapter extends BaseAdapter<
         model,
         timestamp: Date.now(),
       },
+    };
+  }
+
+  async transcribeAudio(
+    options: import("@tanstack/ai").AudioTranscriptionOptions
+  ): Promise<import("@tanstack/ai").AudioTranscriptionResult> {
+    const providerOpts = options.providerOptions as OpenAIAudioTranscriptionProviderOptions | undefined;
+
+    const formData = new FormData();
+    formData.append("file", options.file);
+    formData.append("model", options.model);
+
+    if (options.prompt || providerOpts?.prompt) {
+      formData.append("prompt", options.prompt || providerOpts!.prompt!);
+    }
+
+    if (options.language || providerOpts?.language) {
+      formData.append("language", options.language || providerOpts!.language!);
+    }
+
+    if (options.temperature !== undefined || providerOpts?.temperature !== undefined) {
+      formData.append("temperature", String(options.temperature ?? providerOpts?.temperature ?? 0));
+    }
+
+    const responseFormat = options.responseFormat || providerOpts?.responseFormat || "json";
+    formData.append("response_format", responseFormat);
+
+    // Add timestamp granularities if specified (whisper-1 only)
+    if (providerOpts?.timestampGranularities) {
+      providerOpts.timestampGranularities.forEach(gran => {
+        formData.append("timestamp_granularities[]", gran);
+      });
+    }
+
+    // Add diarization options if specified
+    if (providerOpts?.chunkingStrategy) {
+      formData.append("chunking_strategy", typeof providerOpts.chunkingStrategy === 'string'
+        ? providerOpts.chunkingStrategy
+        : JSON.stringify(providerOpts.chunkingStrategy));
+    }
+
+    if (providerOpts?.knownSpeakerNames) {
+      providerOpts.knownSpeakerNames.forEach(name => {
+        formData.append("known_speaker_names[]", name);
+      });
+    }
+
+    if (providerOpts?.knownSpeakerReferences) {
+      providerOpts.knownSpeakerReferences.forEach(ref => {
+        formData.append("known_speaker_references[]", ref);
+      });
+    }
+
+    const response = await this.client.audio.transcriptions.create(formData as any);
+
+    // Parse response based on format
+    if (typeof response === 'string') {
+      return {
+        id: this.generateId(),
+        model: options.model,
+        text: response,
+      };
+    }
+
+    return {
+      id: this.generateId(),
+      model: options.model,
+      text: (response as any).text || "",
+      language: (response as any).language,
+      duration: (response as any).duration,
+      segments: (response as any).segments,
+      logprobs: (response as any).logprobs,
+    };
+  }
+
+  async generateSpeech(
+    options: import("@tanstack/ai").TextToSpeechOptions
+  ): Promise<import("@tanstack/ai").TextToSpeechResult> {
+    const providerOpts = options.providerOptions as OpenAITextToSpeechProviderOptions | undefined;
+
+    const voice = options.voice || providerOpts?.voice;
+    if (!voice) {
+      throw new Error("Voice parameter is required for text-to-speech");
+    }
+
+    const response = await this.client.audio.speech.create({
+      model: options.model,
+      input: options.input,
+      voice: voice as any,
+      response_format: (options.responseFormat || providerOpts?.responseFormat || "mp3") as any,
+      speed: options.speed || providerOpts?.speed,
+    });
+
+    const buffer = Buffer.from(await response.arrayBuffer());
+
+    const format = (options.responseFormat || providerOpts?.responseFormat || "mp3") as "mp3" | "opus" | "aac" | "flac" | "wav" | "pcm";
+
+    return {
+      id: this.generateId(),
+      model: options.model,
+      audio: buffer,
+      format,
+    };
+  }
+
+  async generateVideo(
+    options: import("@tanstack/ai").VideoGenerationOptions
+  ): Promise<import("@tanstack/ai").VideoGenerationResult> {
+    const providerOpts = options.providerOptions as OpenAIVideoProviderOptions | undefined;
+
+    // Start video generation
+    const createParams: any = {
+      model: options.model,
+      prompt: options.prompt,
+    };
+
+    // Add provider-specific options
+    if (providerOpts?.size || options.resolution) {
+      createParams.size = providerOpts?.size || options.resolution;
+    }
+
+    if (providerOpts?.seconds !== undefined || options.duration !== undefined) {
+      createParams.seconds = String(providerOpts?.seconds ?? options.duration);
+    }
+
+    if (providerOpts?.inputReference) {
+      createParams.input_reference = providerOpts.inputReference;
+    }
+
+    let video: any;
+
+    // Check if this is a remix
+    if (providerOpts?.remixVideoId) {
+      video = await (this.client as any).videos.remix(providerOpts.remixVideoId, {
+        prompt: options.prompt,
+      });
+    } else {
+      video = await (this.client as any).videos.create(createParams);
+    }
+
+    // Poll for completion
+    while (video.status === 'queued' || video.status === 'in_progress') {
+      await new Promise(resolve => setTimeout(resolve, 5000)); // Poll every 5 seconds
+      video = await (this.client as any).videos.retrieve(video.id);
+    }
+
+    if (video.status === 'failed') {
+      throw new Error(`Video generation failed: ${video.error?.message || 'Unknown error'}`);
+    }
+
+    // Download video content
+    const videoContent = await (this.client as any).videos.downloadContent(video.id);
+    const buffer = Buffer.from(await videoContent.arrayBuffer());
+
+    // Optionally download thumbnail
+    let thumbnail: string | undefined;
+    try {
+      const thumbnailContent = await (this.client as any).videos.downloadContent(video.id, { variant: 'thumbnail' });
+      const thumbBuffer = Buffer.from(await thumbnailContent.arrayBuffer());
+      thumbnail = `data:image/webp;base64,${thumbBuffer.toString('base64')}`;
+    } catch (e) {
+      // Thumbnail download failed, continue without it
+    }
+
+    return {
+      id: video.id,
+      model: options.model,
+      video: buffer,
+      format: 'mp4',
+      duration: parseInt(video.seconds) || options.duration,
+      resolution: video.size || options.resolution,
+      thumbnail,
     };
   }
 
