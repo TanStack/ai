@@ -1,2 +1,2 @@
-export { AnthropicAdapter } from "./anthropic-adapter";
-export type { AnthropicAdapterConfig } from "./anthropic-adapter";
+export { Anthropic, createAnthropic, anthropic, type AnthropicConfig } from "./anthropic-adapter";
+

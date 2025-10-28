@@ -1,2 +1,2 @@
-export { OpenAIAdapter } from "./openai-adapter";
-export type { OpenAIAdapterConfig } from "./openai-adapter";
+export { OpenAI, createOpenAI, openai, type OpenAIConfig } from "./openai-adapter";
+

@@ -1,7 +1,6 @@
-import OpenAI from "openai";
+import OpenAI_SDK from "openai";
 import {
   BaseAdapter,
-  type AIAdapterConfig,
   type ChatCompletionOptions,
   type ChatCompletionResult,
   type ChatCompletionChunk,
@@ -16,7 +15,7 @@ import {
   type ImageData,
 } from "@tanstack/ai";
 
-export interface OpenAIAdapterConfig extends AIAdapterConfig {
+export interface OpenAIConfig {
   apiKey: string;
   organization?: string;
   baseURL?: string;
@@ -275,7 +274,7 @@ export interface OpenAIVideoProviderOptions {
   remixVideoId?: string;
 }
 
-export class OpenAIAdapter extends BaseAdapter<
+export class OpenAI extends BaseAdapter<
   typeof OPENAI_CHAT_MODELS,
   typeof OPENAI_IMAGE_MODELS,
   typeof OPENAI_EMBEDDING_MODELS,
@@ -293,17 +292,14 @@ export class OpenAIAdapter extends BaseAdapter<
   embeddingModels = OPENAI_EMBEDDING_MODELS;
   audioModels = OPENAI_AUDIO_MODELS;
   videoModels = OPENAI_VIDEO_MODELS;
-  private client: OpenAI;
+  private client: OpenAI_SDK;
 
-  constructor(config: OpenAIAdapterConfig) {
-    super(config);
-    this.client = new OpenAI({
+  constructor(config: OpenAIConfig) {
+    super({});
+    this.client = new OpenAI_SDK({
       apiKey: config.apiKey,
       organization: config.organization,
       baseURL: config.baseURL,
-      timeout: config.timeout,
-      maxRetries: config.maxRetries,
-      defaultHeaders: config.headers,
     });
   }
 
@@ -800,7 +796,7 @@ export class OpenAIAdapter extends BaseAdapter<
     for (let i = 0; i < numCalls; i++) {
       const imagesThisCall = Math.min(maxPerCall, numImages - allImages.length);
 
-      const requestParams: OpenAI.Images.ImageGenerateParams = {
+      const requestParams: OpenAI_SDK.Images.ImageGenerateParams = {
         model,
         prompt: options.prompt,
         n: imagesThisCall,
@@ -1070,4 +1066,59 @@ export class OpenAIAdapter extends BaseAdapter<
 
     return prompt;
   }
+}
+
+/**
+ * Creates an OpenAI adapter with simplified configuration
+ * @param apiKey - Your OpenAI API key
+ * @returns A fully configured OpenAI adapter instance
+ * 
+ * @example
+ * ```typescript
+ * const openai = createOpenAI("sk-...");
+ * 
+ * const ai = new AI({
+ *   adapters: {
+ *     openai,
+ *   }
+ * });
+ * ```
+ */
+export function createOpenAI(
+  apiKey: string,
+  config?: Omit<OpenAIConfig, "apiKey">
+): OpenAI {
+  return new OpenAI({ apiKey, ...config });
+}
+
+/**
+ * Create an OpenAI adapter with automatic API key detection from environment variables.
+ * 
+ * Looks for `OPENAI_API_KEY` in:
+ * - `process.env` (Node.js)
+ * - `window.env` (Browser with injected env)
+ * 
+ * @param config - Optional configuration (excluding apiKey which is auto-detected)
+ * @returns Configured OpenAI adapter instance
+ * @throws Error if OPENAI_API_KEY is not found in environment
+ * 
+ * @example
+ * ```typescript
+ * // Automatically uses OPENAI_API_KEY from environment
+ * const aiInstance = ai(openai());
+ * ```
+ */
+export function openai(config?: Omit<OpenAIConfig, "apiKey">): OpenAI {
+  const env = typeof globalThis !== "undefined" && (globalThis as any).window?.env
+    ? (globalThis as any).window.env
+    : typeof process !== "undefined" ? process.env : undefined;
+  const key = env?.OPENAI_API_KEY;
+
+  if (!key) {
+    throw new Error(
+      "OPENAI_API_KEY is required. Please set it in your environment variables or use createOpenAI(apiKey, config) instead."
+    );
+  }
+
+  return createOpenAI(key, config);
 }

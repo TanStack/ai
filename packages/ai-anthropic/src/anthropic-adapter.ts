@@ -1,7 +1,6 @@
-import Anthropic from "@anthropic-ai/sdk";
+import Anthropic_SDK from "@anthropic-ai/sdk";
 import {
   BaseAdapter,
-  type AIAdapterConfig,
   type ChatCompletionOptions,
   type ChatCompletionResult,
   type ChatCompletionChunk,
@@ -15,7 +14,7 @@ import {
   type StreamChunk,
 } from "@tanstack/ai";
 
-export interface AnthropicAdapterConfig extends AIAdapterConfig {
+export interface AnthropicConfig {
   apiKey: string;
 }
 
@@ -57,7 +56,7 @@ export interface AnthropicProviderOptions {
   sendReasoning?: boolean;
 }
 
-export class AnthropicAdapter extends BaseAdapter<
+export class Anthropic extends BaseAdapter<
   typeof ANTHROPIC_MODELS,
   typeof ANTHROPIC_IMAGE_MODELS,
   typeof ANTHROPIC_EMBEDDING_MODELS,
@@ -75,16 +74,12 @@ export class AnthropicAdapter extends BaseAdapter<
   embeddingModels = ANTHROPIC_EMBEDDING_MODELS;
   audioModels = ANTHROPIC_AUDIO_MODELS;
   videoModels = ANTHROPIC_VIDEO_MODELS;
-  private client: Anthropic;
+  private client: Anthropic_SDK;
 
-  constructor(config: AnthropicAdapterConfig) {
-    super(config);
-    this.client = new Anthropic({
+  constructor(config: AnthropicConfig) {
+    super({});
+    this.client = new Anthropic_SDK({
       apiKey: config.apiKey,
-      baseURL: config.baseUrl,
-      timeout: config.timeout,
-      maxRetries: config.maxRetries,
-      defaultHeaders: config.headers,
     });
   }
 
@@ -526,4 +521,59 @@ export class AnthropicAdapter extends BaseAdapter<
 
     return prompt;
   }
+}
+
+/**
+ * Creates an Anthropic adapter with simplified configuration
+ * @param apiKey - Your Anthropic API key
+ * @returns A fully configured Anthropic adapter instance
+ * 
+ * @example
+ * ```typescript
+ * const anthropic = createAnthropic("sk-ant-...");
+ * 
+ * const ai = new AI({
+ *   adapters: {
+ *     anthropic,
+ *   }
+ * });
+ * ```
+ */
+export function createAnthropic(
+  apiKey: string,
+  config?: Omit<AnthropicConfig, "apiKey">
+): Anthropic {
+  return new Anthropic({ apiKey, ...config });
+}
+
+/**
+ * Create an Anthropic adapter with automatic API key detection from environment variables.
+ * 
+ * Looks for `ANTHROPIC_API_KEY` in:
+ * - `process.env` (Node.js)
+ * - `window.env` (Browser with injected env)
+ * 
+ * @param config - Optional configuration (excluding apiKey which is auto-detected)
+ * @returns Configured Anthropic adapter instance
+ * @throws Error if ANTHROPIC_API_KEY is not found in environment
+ * 
+ * @example
+ * ```typescript
+ * // Automatically uses ANTHROPIC_API_KEY from environment
+ * const aiInstance = ai(anthropic());
+ * ```
+ */
+export function anthropic(config?: Omit<AnthropicConfig, "apiKey">): Anthropic {
+  const env = typeof globalThis !== "undefined" && (globalThis as any).window?.env
+    ? (globalThis as any).window.env
+    : typeof process !== "undefined" ? process.env : undefined;
+  const key = env?.ANTHROPIC_API_KEY;
+
+  if (!key) {
+    throw new Error(
+      "ANTHROPIC_API_KEY is required. Please set it in your environment variables or use createAnthropic(apiKey, config) instead."
+    );
+  }
+
+  return createAnthropic(key, config);
 }

@@ -1,8 +1,7 @@
-import { Ollama } from "ollama";
+import { Ollama as OllamaSDK } from "ollama";
 import {
   BaseAdapter,
   convertLegacyStream,
-  type AIAdapterConfig,
   type ChatCompletionOptions,
   type ChatCompletionResult,
   type ChatCompletionChunk,
@@ -15,7 +14,7 @@ import {
   type StreamChunk,
 } from "@tanstack/ai";
 
-export interface OllamaAdapterConfig extends AIAdapterConfig {
+export interface OllamaConfig {
   host?: string;
 }
 
@@ -36,21 +35,35 @@ const OLLAMA_MODELS = [
 ] as const;
 
 const OLLAMA_IMAGE_MODELS = [] as const;
+const OLLAMA_EMBEDDING_MODELS = [] as const;
+const OLLAMA_AUDIO_MODELS = [] as const;
+const OLLAMA_VIDEO_MODELS = [] as const;
 
 export type OllamaModel = (typeof OLLAMA_MODELS)[number];
 
-export class OllamaAdapter extends BaseAdapter<
+export class Ollama extends BaseAdapter<
   typeof OLLAMA_MODELS,
-  typeof OLLAMA_IMAGE_MODELS
+  typeof OLLAMA_IMAGE_MODELS,
+  typeof OLLAMA_EMBEDDING_MODELS,
+  typeof OLLAMA_AUDIO_MODELS,
+  typeof OLLAMA_VIDEO_MODELS,
+  Record<string, any>,
+  Record<string, any>,
+  Record<string, any>,
+  Record<string, any>,
+  Record<string, any>
 > {
   name = "ollama";
   models = OLLAMA_MODELS;
   imageModels = OLLAMA_IMAGE_MODELS;
-  private client: Ollama;
+  embeddingModels = OLLAMA_EMBEDDING_MODELS;
+  audioModels = OLLAMA_AUDIO_MODELS;
+  videoModels = OLLAMA_VIDEO_MODELS;
+  private client: OllamaSDK;
 
-  constructor(config: OllamaAdapterConfig = {}) {
-    super(config);
-    this.client = new Ollama({
+  constructor(config: OllamaConfig = {}) {
+    super({});
+    this.client = new OllamaSDK({
       host: config.host || "http://localhost:11434",
     });
   }
@@ -275,4 +288,56 @@ export class OllamaAdapter extends BaseAdapter<
     // Rough approximation: 1 token ≈ 4 characters
     return Math.ceil(text.length / 4);
   }
+}
+
+/**
+ * Creates an Ollama adapter with simplified configuration
+ * @param host - Optional Ollama server host (defaults to http://localhost:11434)
+ * @returns A fully configured Ollama adapter instance
+ * 
+ * @example
+ * ```typescript
+ * const ollama = createOllama();
+ * // or with custom host
+ * const ollama = createOllama("http://localhost:11434");
+ * 
+ * const ai = new AI({
+ *   adapters: {
+ *     ollama,
+ *   }
+ * });
+ * ```
+ */
+export function createOllama(
+  host?: string,
+  config?: Omit<OllamaConfig, "host">
+): Ollama {
+  return new Ollama({ host, ...config });
+}
+
+/**
+ * Create an Ollama adapter with automatic host detection from environment variables.
+ * 
+ * Looks for `OLLAMA_HOST` in:
+ * - `process.env` (Node.js)
+ * - `window.env` (Browser with injected env)
+ * 
+ * Falls back to default Ollama host if not found.
+ * 
+ * @param config - Optional configuration (excluding host which is auto-detected)
+ * @returns Configured Ollama adapter instance
+ * 
+ * @example
+ * ```typescript
+ * // Automatically uses OLLAMA_HOST from environment or defaults to http://localhost:11434
+ * const aiInstance = ai(ollama());
+ * ```
+ */
+export function ollama(config?: Omit<OllamaConfig, "host">): Ollama {
+  const env = typeof globalThis !== "undefined" && (globalThis as any).window?.env
+    ? (globalThis as any).window.env
+    : typeof process !== "undefined" ? process.env : undefined;
+  const host = env?.OLLAMA_HOST;
+
+  return createOllama(host, config);
 }

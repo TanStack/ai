@@ -1,2 +1,2 @@
-export { OllamaAdapter } from "./ollama-adapter";
-export type { OllamaAdapterConfig } from "./ollama-adapter";
+export { Ollama, createOllama, ollama, type OllamaConfig } from "./ollama-adapter";
+

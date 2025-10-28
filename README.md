@@ -6,11 +6,93 @@ A powerful, open-source AI SDK with a unified interface across multiple provider
 
 - **Multi-Provider Support** - OpenAI, Anthropic, Ollama, Google Gemini
 - **Unified API** - Same interface across all providers
+- **Standalone Functions** - Direct type-safe functions that infer from adapters
+- **AI Class with Multiple Adapters** - Manage multiple providers with fallbacks
 - **Structured Streaming** - JSON chunks with token deltas, tool calls, and usage stats
 - **Tool/Function Calling** - First-class support for AI function calling (OpenAI & Anthropic)
 - **React Hooks** - Simple `useChat` hook with v5 API (you control input state)
 - **TypeScript First** - Full type safety throughout
 - **Zero Lock-in** - Switch providers at runtime without code changes
+
+## Quick Start
+
+### Standalone Functions (Recommended for Simple Use Cases)
+
+The easiest way to use the SDK - just pass an adapter and get full type inference:
+
+```typescript
+import { chat } from "@tanstack/ai";
+import { openai } from "@tanstack/ai-openai";
+
+// Type-safe chat with automatic inference from adapter
+const result = await chat({
+  adapter: openai(), // Automatically uses OPENAI_API_KEY from env
+  model: "gpt-4", // <-- Autocompletes with OpenAI models
+  messages: [{ role: "user", content: "Hello!" }],
+  providerOptions: { // <-- Typed as OpenAI-specific options!
+    reasoningEffort: "high",
+    parallelToolCalls: true,
+  }
+});
+
+console.log(result.content);
+```
+
+**Why use standalone functions?**
+- ✅ **Type Inference** - Model and providerOptions types are inferred from the adapter
+- ✅ **Simplicity** - No class instantiation needed
+- ✅ **Direct** - Call the function you need with the adapter you want
+- ✅ **Flexible** - Easy to switch adapters on a per-call basis
+
+Available standalone functions:
+- `chat()` - Chat completion
+- `chatStream()` - Streaming chat with AsyncIterable
+- `summarize()` - Text summarization
+- `embed()` - Generate embeddings
+- `image()` - Image generation
+- `audio()` - Audio transcription
+- `speak()` - Text-to-speech
+- `video()` - Video generation
+
+### AI Class (For Reusable Instances with Tools)
+
+For applications that need to register tools or system prompts once and reuse them:
+
+```typescript
+import { ai } from "@tanstack/ai";
+import { openai } from "@tanstack/ai-openai";
+
+// Create an AI instance with tools and system prompts
+const aiInstance = ai(openai(), {
+  tools: {
+    getWeather: tool({
+      type: "function",
+      function: {
+        name: "getWeather",
+        description: "Get weather for a location",
+        parameters: { /* ... */ }
+      },
+      execute: async (args) => { /* ... */ }
+    })
+  },
+  systemPrompts: ["You are a helpful assistant."]
+});
+
+// Use the instance - tools and system prompts are automatically included
+await aiInstance.chat({
+  model: "gpt-4",
+  messages: [{ role: "user", content: "What's the weather?" }],
+  tools: ["getWeather"], // Reference by name
+});
+```
+
+**Why use the AI class?**
+- ✅ **Tools Registry** - Register tools once, use everywhere
+- ✅ **System Prompts** - Set default system prompts
+- ✅ **Reusable** - Configure once, use many times
+- ✅ **Adapter Switching** - Use `setAdapter()` to switch providers
+
+Choose the approach that fits your needs - both offer full type safety!
 
 ## Installation
 

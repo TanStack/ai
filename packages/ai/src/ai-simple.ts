@@ -28,25 +28,36 @@ type ExtractImageProviderOptions<T> = T extends AIAdapter<any, any, any, any, an
 type ExtractAudioProviderOptions<T> = T extends AIAdapter<any, any, any, any, any, any, any, any, infer P, any> ? P : Record<string, any>;
 type ExtractVideoProviderOptions<T> = T extends AIAdapter<any, any, any, any, any, any, any, any, any, infer P> ? P : Record<string, any>;
 
+// Type for tool registry - maps tool names to their Tool definitions
+type ToolRegistry = Record<string, Tool>;
+
+// Extract tool names from a registry
+type ToolNames<TTools extends ToolRegistry> = keyof TTools & string;
+
 // Config for single adapter
 type AIConfig<
-  TAdapter extends AIAdapter<any, any, any, any, any, any, any, any, any, any>
+  TAdapter extends AIAdapter<any, any, any, any, any, any, any, any, any, any>,
+  TTools extends ToolRegistry = ToolRegistry
 > = {
   adapter: TAdapter;
+  tools?: TTools;
   systemPrompts?: string[];
 };
 
 /**
  * AI class - simplified to work with a single adapter only
  */
-class AI<
-  TAdapter extends AIAdapter<any, any, any, any, any, any, any, any, any, any> = AIAdapter<any, any, any, any, any, any, any, any, any, any>
+export class AI<
+  TAdapter extends AIAdapter<any, any, any, any, any, any, any, any, any, any> = AIAdapter<any, any, any, any, any, any, any, any, any, any>,
+  TTools extends ToolRegistry = ToolRegistry
 > {
   private adapter: TAdapter;
+  private tools: TTools;
   private systemPrompts: string[];
 
-  constructor(config: AIConfig<TAdapter>) {
+  constructor(config: AIConfig<TAdapter, TTools>) {
     this.adapter = config.adapter;
+    this.tools = (config.tools || {}) as TTools;
     this.systemPrompts = config.systemPrompts || [];
   }
 
@@ -54,16 +65,19 @@ class AI<
    * Complete a chat conversation
    */
   async chat<const TAs extends "promise" | "stream" | "response" = "promise">(
-    options: Omit<ChatCompletionOptions, "model" | "providerOptions"> & {
+    options: Omit<ChatCompletionOptions, "model" | "tools" | "providerOptions"> & {
       model: ExtractModels<TAdapter>;
       as?: TAs;
-      tools?: ReadonlyArray<Tool>;
+      tools?: ReadonlyArray<ToolNames<TTools>>;
       systemPrompts?: string[];
       providerOptions?: ExtractChatProviderOptions<TAdapter>;
     }
   ): Promise<TAs extends "stream" ? AsyncIterable<StreamChunk> : TAs extends "response" ? Response : ChatCompletionResult> {
     const asOption = (options.as || "promise") as "promise" | "stream" | "response";
     const { model, tools, systemPrompts, providerOptions, ...restOptions } = options;
+
+    // Convert tool names to tool objects
+    const toolObjects = tools ? this.getToolsByNames(tools) : undefined;
 
     // Prepend system prompts to messages
     const messages = this.prependSystemPrompts(restOptions.messages, systemPrompts);
@@ -74,7 +88,7 @@ class AI<
         ...restOptions,
         messages,
         model: model as string,
-        tools,
+        tools: toolObjects,
         providerOptions: providerOptions as any,
       }) as any;
     } else if (asOption === "response") {
@@ -82,7 +96,7 @@ class AI<
         ...restOptions,
         messages,
         model: model as string,
-        tools,
+        tools: toolObjects,
         providerOptions: providerOptions as any,
       });
       return this.streamToResponse(stream) as any;
@@ -91,7 +105,7 @@ class AI<
         ...restOptions,
         messages,
         model: model as string,
-        tools,
+        tools: toolObjects,
         providerOptions: providerOptions as any,
       }) as any;
     }
@@ -211,7 +225,37 @@ class AI<
     });
   }
 
+  /**
+   * Get the current adapter
+   */
+  getAdapter(): TAdapter {
+    return this.adapter;
+  }
+
+  /**
+   * Set a new adapter
+   */
+  setAdapter<NewAdapter extends AIAdapter<any, any, any, any, any, any, any, any, any, any>>(
+    adapter: NewAdapter
+  ): AI<NewAdapter, TTools> {
+    return new AI({
+      adapter,
+      tools: this.tools,
+      systemPrompts: this.systemPrompts,
+    });
+  }
+
   // Private helper methods
+
+  private getToolsByNames(toolNames: ReadonlyArray<string>): Tool[] {
+    return toolNames.map((name) => {
+      const tool = this.tools[name];
+      if (!tool) {
+        throw new Error(`Tool "${name}" not found in registry`);
+      }
+      return tool;
+    });
+  }
 
   private prependSystemPrompts(
     messages: ChatCompletionOptions["messages"],
@@ -262,13 +306,15 @@ class AI<
  * Create an AI instance with a single adapter and proper type inference
  */
 export function ai<
-  TAdapter extends AIAdapter<any, any, any, any, any, any, any, any, any, any>
+  TAdapter extends AIAdapter<any, any, any, any, any, any, any, any, any, any>,
+  TTools extends ToolRegistry = ToolRegistry
 >(
   adapter: TAdapter,
-  config?: { systemPrompts?: string[] }
-): AI<TAdapter> {
+  config?: { tools?: TTools; systemPrompts?: string[] }
+): AI<TAdapter, TTools> {
   return new AI({
     adapter,
+    tools: config?.tools,
     systemPrompts: config?.systemPrompts,
   });
 }
