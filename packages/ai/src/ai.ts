@@ -31,12 +31,12 @@ type ExtractVideoProviderOptions<T> = T extends AIAdapter<any, any, any, any, an
 
 // Helper type to compute chat return type based on the "as" option
 type ChatReturnType<
-  TOptions extends { as?: "promise" | "stream" | "response"; responseFormat?: ResponseFormat<any> }
+  TOptions extends { as?: "promise" | "stream" | "response"; output?: ResponseFormat<any> }
 > = TOptions["as"] extends "stream"
   ? AsyncIterable<StreamChunk>
   : TOptions["as"] extends "response"
   ? Response
-  : TOptions["responseFormat"] extends ResponseFormat<infer TData>
+  : TOptions["output"] extends ResponseFormat<infer TData>
   ? ChatCompletionResult<TData>
   : ChatCompletionResult;
 
@@ -67,18 +67,18 @@ class AI<
    * 
    * @param options Chat options with discriminated union on "as" property
    * @param options.as - Response mode: "promise" (default), "stream", or "response"
-   * @param options.responseFormat - Optional structured output (only with as="promise")
+   * @param options.output - Optional structured output (only available with as="promise")
    * 
    * @example
    * // Promise mode with structured output
    * const result = await ai.chat({
    *   model: 'gpt-4',
    *   messages: [...],
-   *   responseFormat: { type: 'json', jsonSchema: schema }
+   *   output: { type: 'json', jsonSchema: schema }
    * });
    * 
    * @example
-   * // Stream mode
+   * // Stream mode (output not available)
    * const stream = await ai.chat({
    *   model: 'gpt-4',
    *   messages: [...],
@@ -86,7 +86,7 @@ class AI<
    * });
    * 
    * @example
-   * // Response mode
+   * // Response mode (output not available)
    * const response = await ai.chat({
    *   model: 'gpt-4',
    *   messages: [...],
@@ -97,17 +97,15 @@ class AI<
     TOptions extends (
       | {
         as: "stream";
-        responseFormat?: never;
         providerOptions?: ExtractChatProviderOptions<TAdapter>;
       }
       | {
         as: "response";
-        responseFormat?: never;
         providerOptions?: ExtractChatProviderOptions<TAdapter>;
       }
       | {
         as?: "promise";
-        responseFormat?: ResponseFormat<any>;
+        output?: ResponseFormat<any>;
         providerOptions?: ExtractChatProviderOptions<TAdapter>;
       }
     )
@@ -119,7 +117,11 @@ class AI<
     } & TOptions
   ): Promise<ChatReturnType<TOptions>> {
     const asOption = (options.as || "promise") as "promise" | "stream" | "response";
-    const { model, tools, systemPrompts, responseFormat, providerOptions, ...restOptions } = options;
+    const { model, tools, systemPrompts, providerOptions, ...restOptions } = options;
+
+    // Extract output if it exists (only in promise mode)
+    const output = (options as any).output as ResponseFormat | undefined;
+    const responseFormat = output;
 
     // Prepend system prompts to messages
     const messages = this.prependSystemPrompts(restOptions.messages, systemPrompts);
@@ -154,8 +156,8 @@ class AI<
         providerOptions: providerOptions as any,
       });
 
-      // If responseFormat is provided, parse the content as structured data
-      if (responseFormat && result.content) {
+      // If output is provided, parse the content as structured data
+      if (output && result.content) {
         try {
           const data = JSON.parse(result.content);
           return {

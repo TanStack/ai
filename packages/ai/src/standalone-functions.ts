@@ -38,32 +38,30 @@ type BaseChatOptions<TAdapter extends AIAdapter<any, any, any, any, any, any, an
 // Create a discriminated union type based on the "as" property
 type ChatOptionsUnion<
   TAdapter extends AIAdapter<any, any, any, any, any, any, any, any, any, any>,
-  TResponseFormat extends ResponseFormat<any> | undefined = undefined
+  TOutput extends ResponseFormat<any> | undefined = undefined
 > =
   | (BaseChatOptions<TAdapter> & {
     as: "stream";
-    responseFormat?: never;
     providerOptions?: ExtractChatProviderOptionsFromAdapter<TAdapter>;
   })
   | (BaseChatOptions<TAdapter> & {
     as: "response";
-    responseFormat?: never;
     providerOptions?: ExtractChatProviderOptionsFromAdapter<TAdapter>;
   })
   | (BaseChatOptions<TAdapter> & {
     as?: "promise";
-    responseFormat?: TResponseFormat;
+    output?: TOutput;
     providerOptions?: ExtractChatProviderOptionsFromAdapter<TAdapter>;
   });
 
 // Helper type to compute the return type based on the "as" option
 type ChatReturnType<
-  TOptions extends { as?: "promise" | "stream" | "response"; responseFormat?: ResponseFormat<any> }
+  TOptions extends { as?: "promise" | "stream" | "response"; output?: ResponseFormat<any> }
 > = TOptions["as"] extends "stream"
   ? AsyncIterable<StreamChunk>
   : TOptions["as"] extends "response"
   ? Response
-  : TOptions["responseFormat"] extends ResponseFormat<infer TData>
+  : TOptions["output"] extends ResponseFormat<infer TData>
   ? ChatCompletionResult<TData>
   : ChatCompletionResult;
 
@@ -73,7 +71,7 @@ type ChatReturnType<
  * @param options Chat options with discriminated union on "as" property
  * @param options.adapter - AI adapter instance to use
  * @param options.as - Response mode: "promise" (default), "stream", or "response"
- * @param options.responseFormat - Optional structured output (only with as="promise")
+ * @param options.output - Optional structured output (only available with as="promise")
  * 
  * @example
  * // Promise mode with structured output
@@ -81,11 +79,11 @@ type ChatReturnType<
  *   adapter: openai(),
  *   model: 'gpt-4',
  *   messages: [...],
- *   responseFormat: { type: 'json', jsonSchema: schema }
+ *   output: { type: 'json', jsonSchema: schema }
  * });
  * 
  * @example
- * // Stream mode
+ * // Stream mode (output not available)
  * const stream = await chat({
  *   adapter: openai(),
  *   model: 'gpt-4',
@@ -94,7 +92,7 @@ type ChatReturnType<
  * });
  * 
  * @example
- * // Response mode
+ * // Response mode (output not available)
  * const response = await chat({
  *   adapter: openai(),
  *   model: 'gpt-4',
@@ -108,8 +106,12 @@ export async function chat<
 >(
   options: BaseChatOptions<TAdapter> & TOptions
 ): Promise<ChatReturnType<TOptions>> {
-  const { adapter, model, messages, as, responseFormat, providerOptions, ...restOptions } = options;
+  const { adapter, model, messages, as, providerOptions, ...restOptions } = options;
   const asOption = (as || "promise") as "promise" | "stream" | "response";
+
+  // Extract output if it exists (only in promise mode)
+  const output = (options as any).output as ResponseFormat | undefined;
+  const responseFormat = output;
 
   if (asOption === "stream") {
     return adapter.chatStream({
@@ -140,8 +142,8 @@ export async function chat<
     providerOptions: providerOptions as any,
   });
 
-  // If responseFormat is provided, parse the content as structured data
-  if (responseFormat && result.content) {
+  // If output is provided, parse the content as structured data
+  if (output && result.content) {
     try {
       const data = JSON.parse(result.content);
       return {

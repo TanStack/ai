@@ -23,7 +23,7 @@ await chat({
   messages: [],
   adapter: openai(), // Type inference starts here
   model: "gpt-4o",
-  as: "stream",
+  as: "promise",
   tools: [tool({
     type: "function",
     function: {
@@ -39,9 +39,11 @@ await chat({
       return "Example tool executed";
     },
   })],
+  output: guitarSchema,
   providerOptions: {
     webSearchOptions: {
       enabled: false,
+
     }
   }
 });
