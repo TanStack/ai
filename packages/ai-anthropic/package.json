@@ -2,15 +2,20 @@
   "name": "@tanstack/ai-anthropic",
   "version": "0.1.0",
   "description": "Anthropic Claude adapter for TanStack AI",
+  "author": "",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/TanStack/ai.git",
+    "directory": "packages/ai-anthropic"
+  },
   "type": "module",
-  "main": "./dist/index.js",
   "module": "./dist/index.js",
   "types": "./dist/index.d.ts",
   "exports": {
     ".": {
       "types": "./dist/index.d.ts",
-      "import": "./dist/index.js",
-      "require": "./dist/index.cjs"
+      "import": "./dist/index.js"
     }
   },
   "files": [
@@ -18,8 +23,8 @@
     "src"
   ],
   "scripts": {
-    "build": "tsup",
-    "dev": "tsup --watch",
+    "build": "tsdown",
+    "dev": "tsdown --watch",
     "clean": "rm -rf dist node_modules",
     "typecheck": "tsc --noEmit",
     "lint": "tsc --noEmit"
@@ -31,16 +36,14 @@
     "tanstack",
     "adapter"
   ],
-  "author": "",
-  "license": "MIT",
   "dependencies": {
-    "@tanstack/ai": "workspace:*",
-    "@anthropic-ai/sdk": "^0.24.0"
+    "@anthropic-ai/sdk": "^0.24.0",
+    "@tanstack/ai": "workspace:*"
   },
   "devDependencies": {
-    "@types/node": "^20.11.30",
-    "tsup": "^8.0.2",
-    "typescript": "^5.4.2"
+    "@types/node": "^22.10.2",
+    "tsdown": "^0.15.9",
+    "typescript": "^5.7.2"
   },
   "peerDependencies": {
     "@tanstack/ai": "workspace:*"

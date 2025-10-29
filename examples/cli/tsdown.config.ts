@@ -1,14 +1,13 @@
-import { defineConfig } from "tsup";
+import { defineConfig } from "tsdown";
 
 export default defineConfig({
-  entry: ["src/index.ts"],
+  entry: ["./src/index.ts"],
   format: ["esm"],
-  dts: false,
+  unbundle: false,
+  dts: true,
   sourcemap: true,
   clean: true,
   minify: false,
-  splitting: false,
-  shims: true,
   banner: {
     js: "#!/usr/bin/env node",
   },

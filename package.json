@@ -1,9 +1,13 @@
 {
-  "name": "tanstack-ai-monorepo",
-  "version": "1.0.0",
+  "name": "root",
   "private": true,
-  "description": "TanStack AI - Open source AI SDK",
-  "scripts": {
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/TanStack/ai.git"
+  },
+  "packageManager": "pnpm@10.17.0",
+  "type": "module",
+    "scripts": {
     "build": "pnpm run -r build",
     "dev": "pnpm run -r --parallel dev",
     "test": "pnpm run -r test",
@@ -14,21 +18,10 @@
     "cli:build": "cd examples/cli && pnpm build && pnpm start",
     "demo:tools": "cd examples/cli && pnpm tools"
   },
-  "keywords": [
-    "ai",
-    "openai",
-    "anthropic",
-    "ollama",
-    "gemini",
-    "tanstack"
-  ],
-  "author": "",
-  "license": "MIT",
-  "packageManager": "pnpm@10.12.3",
   "devDependencies": {
-    "@types/node": "^20.11.30",
-    "typescript": "^5.4.2",
-    "vitest": "^1.4.0",
-    "tsup": "^8.0.2"
+    "@types/node": "^22.10.2",
+    "tsdown": "^0.15.9",
+    "typescript": "^5.7.2",
+    "vitest": "^3.0.5"
   }
 }

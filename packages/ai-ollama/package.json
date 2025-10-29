@@ -2,15 +2,20 @@
   "name": "@tanstack/ai-ollama",
   "version": "0.1.0",
   "description": "Ollama adapter for TanStack AI",
+  "author": "",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/TanStack/ai.git",
+    "directory": "packages/ai-ollama"
+  },
   "type": "module",
-  "main": "./dist/index.js",
   "module": "./dist/index.js",
   "types": "./dist/index.d.ts",
   "exports": {
     ".": {
       "types": "./dist/index.d.ts",
-      "import": "./dist/index.js",
-      "require": "./dist/index.cjs"
+      "import": "./dist/index.js"
     }
   },
   "files": [
@@ -18,8 +23,8 @@
     "src"
   ],
   "scripts": {
-    "build": "tsup",
-    "dev": "tsup --watch",
+    "build": "tsdown",
+    "dev": "tsdown --watch",
     "clean": "rm -rf dist node_modules",
     "typecheck": "tsc --noEmit",
     "lint": "tsc --noEmit"
@@ -32,16 +37,14 @@
     "tanstack",
     "adapter"
   ],
-  "author": "",
-  "license": "MIT",
   "dependencies": {
     "@tanstack/ai": "workspace:*",
     "ollama": "^0.5.0"
   },
   "devDependencies": {
-    "@types/node": "^20.11.30",
-    "tsup": "^8.0.2",
-    "typescript": "^5.4.2"
+    "@types/node": "^22.10.2",
+    "tsdown": "^0.15.9",
+    "typescript": "^5.7.2"
   },
   "peerDependencies": {
     "@tanstack/ai": "workspace:*"

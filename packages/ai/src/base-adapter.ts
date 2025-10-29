@@ -6,6 +6,7 @@ import type {
   ChatCompletionChunk,
   TextGenerationOptions,
   TextGenerationResult,
+  StreamChunk,
   SummarizationOptions,
   SummarizationResult,
   EmbeddingOptions,
@@ -69,7 +70,7 @@ export abstract class BaseAdapter<
   ): AsyncIterable<ChatCompletionChunk>;
   abstract chatStream(
     options: ChatCompletionOptions
-  ): AsyncIterable<import("./types").StreamChunk>;
+  ): AsyncIterable<StreamChunk>;
   abstract generateText(
     options: TextGenerationOptions
   ): Promise<TextGenerationResult>;
