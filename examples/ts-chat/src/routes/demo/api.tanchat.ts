@@ -1,13 +1,29 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { ai, tool, chat, } from "@tanstack/ai";
+import { ai, tool, chat, responseFormat } from "@tanstack/ai";
 import { openai } from "@tanstack/ai-openai";
 import guitars from "@/data/example-guitars";
 
+// Create a typed response format for guitar info
+const guitarSchema = responseFormat({
+  name: "guitar_info",
+  schema: {
+    type: "object",
+    properties: {
+      id: { type: "string" },
+      name: { type: "string" },
+      price: { type: "number" },
+    },
+    required: ["id", "name"],
+    additionalProperties: false,
+  } as const,
+});
+
 // Example of standalone function usage
-chat({
+await chat({
   messages: [],
   adapter: openai(), // Type inference starts here
   model: "gpt-4o",
+  as: "stream",
   tools: [tool({
     type: "function",
     function: {
@@ -29,6 +45,12 @@ chat({
     }
   }
 });
+
+// ✅ res.data is now properly typed with autocomplete!
+// res.data.id (string)
+// res.data.name (string)
+// res.data.price (number)
+
 
 const SYSTEM_PROMPT = `You are a helpful assistant for a store that sells guitars.
 
@@ -95,15 +117,20 @@ export const Route = createFileRoute("/demo/api/tanchat")({
   server: {
     handlers: {
       POST: async ({ request }) => {
-        const { messages } = await request.json();
 
-        return aiInstance.chat({
+        const { messages } = await request.json();
+        const response = aiInstance.chat({
           messages,
           as: "response",
           model: "gpt-4o",
           tools: [getGuitarsTool, recommendGuitarTool],
           systemPrompts: [SYSTEM_PROMPT],
+          providerOptions: {
+            store: true,
+            parallelToolCalls: true,
+          }
         });
+        return response;
       },
     },
   },

@@ -16,6 +16,7 @@ import type {
   VideoGenerationOptions,
   VideoGenerationResult,
   Tool,
+  ResponseFormat,
 } from "./types";
 
 // Extract types from a single adapter
@@ -27,6 +28,17 @@ type ExtractChatProviderOptions<T> = T extends AIAdapter<any, any, any, any, any
 type ExtractImageProviderOptions<T> = T extends AIAdapter<any, any, any, any, any, any, infer P, any, any, any> ? P : Record<string, any>;
 type ExtractAudioProviderOptions<T> = T extends AIAdapter<any, any, any, any, any, any, any, any, infer P, any> ? P : Record<string, any>;
 type ExtractVideoProviderOptions<T> = T extends AIAdapter<any, any, any, any, any, any, any, any, any, infer P> ? P : Record<string, any>;
+
+// Helper type to compute chat return type based on the "as" option
+type ChatReturnType<
+  TOptions extends { as?: "promise" | "stream" | "response"; responseFormat?: ResponseFormat<any> }
+> = TOptions["as"] extends "stream"
+  ? AsyncIterable<StreamChunk>
+  : TOptions["as"] extends "response"
+  ? Response
+  : TOptions["responseFormat"] extends ResponseFormat<infer TData>
+  ? ChatCompletionResult<TData>
+  : ChatCompletionResult;
 
 // Config for single adapter
 type AIConfig<
@@ -51,19 +63,63 @@ class AI<
   }
 
   /**
-   * Complete a chat conversation
+   * Complete a chat conversation with optional structured output
+   * 
+   * @param options Chat options with discriminated union on "as" property
+   * @param options.as - Response mode: "promise" (default), "stream", or "response"
+   * @param options.responseFormat - Optional structured output (only with as="promise")
+   * 
+   * @example
+   * // Promise mode with structured output
+   * const result = await ai.chat({
+   *   model: 'gpt-4',
+   *   messages: [...],
+   *   responseFormat: { type: 'json', jsonSchema: schema }
+   * });
+   * 
+   * @example
+   * // Stream mode
+   * const stream = await ai.chat({
+   *   model: 'gpt-4',
+   *   messages: [...],
+   *   as: "stream"
+   * });
+   * 
+   * @example
+   * // Response mode
+   * const response = await ai.chat({
+   *   model: 'gpt-4',
+   *   messages: [...],
+   *   as: "response"
+   * });
    */
-  async chat<const TAs extends "promise" | "stream" | "response" = "promise">(
-    options: Omit<ChatCompletionOptions, "model" | "providerOptions"> & {
+  async chat<
+    TOptions extends (
+      | {
+        as: "stream";
+        responseFormat?: never;
+        providerOptions?: ExtractChatProviderOptions<TAdapter>;
+      }
+      | {
+        as: "response";
+        responseFormat?: never;
+        providerOptions?: ExtractChatProviderOptions<TAdapter>;
+      }
+      | {
+        as?: "promise";
+        responseFormat?: ResponseFormat<any>;
+        providerOptions?: ExtractChatProviderOptions<TAdapter>;
+      }
+    )
+  >(
+    options: Omit<ChatCompletionOptions, "model" | "providerOptions" | "responseFormat" | "as"> & {
       model: ExtractModels<TAdapter>;
-      as?: TAs;
       tools?: ReadonlyArray<Tool>;
       systemPrompts?: string[];
-      providerOptions?: ExtractChatProviderOptions<TAdapter>;
-    }
-  ): Promise<TAs extends "stream" ? AsyncIterable<StreamChunk> : TAs extends "response" ? Response : ChatCompletionResult> {
+    } & TOptions
+  ): Promise<ChatReturnType<TOptions>> {
     const asOption = (options.as || "promise") as "promise" | "stream" | "response";
-    const { model, tools, systemPrompts, providerOptions, ...restOptions } = options;
+    const { model, tools, systemPrompts, responseFormat, providerOptions, ...restOptions } = options;
 
     // Prepend system prompts to messages
     const messages = this.prependSystemPrompts(restOptions.messages, systemPrompts);
@@ -75,6 +131,7 @@ class AI<
         messages,
         model: model as string,
         tools,
+        responseFormat,
         providerOptions: providerOptions as any,
       }) as any;
     } else if (asOption === "response") {
@@ -83,17 +140,36 @@ class AI<
         messages,
         model: model as string,
         tools,
+        responseFormat,
         providerOptions: providerOptions as any,
       });
       return this.streamToResponse(stream) as any;
     } else {
-      return this.adapter.chatCompletion({
+      const result = await this.adapter.chatCompletion({
         ...restOptions,
         messages,
         model: model as string,
         tools,
+        responseFormat,
         providerOptions: providerOptions as any,
-      }) as any;
+      });
+
+      // If responseFormat is provided, parse the content as structured data
+      if (responseFormat && result.content) {
+        try {
+          const data = JSON.parse(result.content);
+          return {
+            ...result,
+            content: result.content,
+            data,
+          } as any;
+        } catch (error) {
+          // If parsing fails, return the result as-is
+          return result as any;
+        }
+      }
+
+      return result as any;
     }
   }
 

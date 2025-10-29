@@ -15,6 +15,7 @@ import type {
   TextToSpeechResult,
   VideoGenerationOptions,
   VideoGenerationResult,
+  ResponseFormat,
 } from "./types";
 
 // Extract types from a single adapter
@@ -27,38 +28,134 @@ type ExtractImageProviderOptionsFromAdapter<T> = T extends AIAdapter<any, any, a
 type ExtractAudioProviderOptionsFromAdapter<T> = T extends AIAdapter<any, any, any, any, any, any, any, any, infer P, any> ? P : Record<string, any>;
 type ExtractVideoProviderOptionsFromAdapter<T> = T extends AIAdapter<any, any, any, any, any, any, any, any, any, infer P> ? P : Record<string, any>;
 
+// Base options shared across all modes
+type BaseChatOptions<TAdapter extends AIAdapter<any, any, any, any, any, any, any, any, any, any>> =
+  Omit<ChatCompletionOptions, "model" | "providerOptions" | "responseFormat" | "as"> & {
+    adapter: TAdapter;
+    model: ExtractModelsFromAdapter<TAdapter>;
+  };
+
+// Create a discriminated union type based on the "as" property
+type ChatOptionsUnion<
+  TAdapter extends AIAdapter<any, any, any, any, any, any, any, any, any, any>,
+  TResponseFormat extends ResponseFormat<any> | undefined = undefined
+> =
+  | (BaseChatOptions<TAdapter> & {
+    as: "stream";
+    responseFormat?: never;
+    providerOptions?: ExtractChatProviderOptionsFromAdapter<TAdapter>;
+  })
+  | (BaseChatOptions<TAdapter> & {
+    as: "response";
+    responseFormat?: never;
+    providerOptions?: ExtractChatProviderOptionsFromAdapter<TAdapter>;
+  })
+  | (BaseChatOptions<TAdapter> & {
+    as?: "promise";
+    responseFormat?: TResponseFormat;
+    providerOptions?: ExtractChatProviderOptionsFromAdapter<TAdapter>;
+  });
+
+// Helper type to compute the return type based on the "as" option
+type ChatReturnType<
+  TOptions extends { as?: "promise" | "stream" | "response"; responseFormat?: ResponseFormat<any> }
+> = TOptions["as"] extends "stream"
+  ? AsyncIterable<StreamChunk>
+  : TOptions["as"] extends "response"
+  ? Response
+  : TOptions["responseFormat"] extends ResponseFormat<infer TData>
+  ? ChatCompletionResult<TData>
+  : ChatCompletionResult;
+
 /**
  * Standalone chat function with type inference from adapter
+ * 
+ * @param options Chat options with discriminated union on "as" property
+ * @param options.adapter - AI adapter instance to use
+ * @param options.as - Response mode: "promise" (default), "stream", or "response"
+ * @param options.responseFormat - Optional structured output (only with as="promise")
+ * 
+ * @example
+ * // Promise mode with structured output
+ * const result = await chat({
+ *   adapter: openai(),
+ *   model: 'gpt-4',
+ *   messages: [...],
+ *   responseFormat: { type: 'json', jsonSchema: schema }
+ * });
+ * 
+ * @example
+ * // Stream mode
+ * const stream = await chat({
+ *   adapter: openai(),
+ *   model: 'gpt-4',
+ *   messages: [...],
+ *   as: "stream"
+ * });
+ * 
+ * @example
+ * // Response mode
+ * const response = await chat({
+ *   adapter: openai(),
+ *   model: 'gpt-4',
+ *   messages: [...],
+ *   as: "response"
+ * });
  */
 export async function chat<
   TAdapter extends AIAdapter<any, any, any, any, any, any, any, any, any, any>,
-  TAs extends "promise" | "stream" = "promise"
+  TOptions extends ChatOptionsUnion<TAdapter, any>
 >(
-  options: Omit<ChatCompletionOptions, "model" | "providerOptions"> & {
-    adapter: TAdapter;
-    model: ExtractModelsFromAdapter<TAdapter>;
-    as?: TAs;
-    providerOptions?: ExtractChatProviderOptionsFromAdapter<TAdapter>;
-  }
-): Promise<TAs extends "stream" ? AsyncIterable<StreamChunk> : ChatCompletionResult> {
-  const { adapter, model, messages, as, providerOptions, ...restOptions } = options;
-  const asOption = (as || "promise") as "promise" | "stream";
+  options: BaseChatOptions<TAdapter> & TOptions
+): Promise<ChatReturnType<TOptions>> {
+  const { adapter, model, messages, as, responseFormat, providerOptions, ...restOptions } = options;
+  const asOption = (as || "promise") as "promise" | "stream" | "response";
 
   if (asOption === "stream") {
     return adapter.chatStream({
       ...restOptions,
       model: model as string,
       messages,
+      responseFormat,
       providerOptions: providerOptions as any,
     }) as any;
   }
 
-  return adapter.chatCompletion({
+  if (asOption === "response") {
+    const stream = adapter.chatStream({
+      ...restOptions,
+      model: model as string,
+      messages,
+      responseFormat,
+      providerOptions: providerOptions as any,
+    });
+    return streamToResponse(stream) as any;
+  }
+
+  const result = await adapter.chatCompletion({
     ...restOptions,
     model: model as string,
     messages,
+    responseFormat,
     providerOptions: providerOptions as any,
-  }) as any;
+  });
+
+  // If responseFormat is provided, parse the content as structured data
+  if (responseFormat && result.content) {
+    try {
+      const data = JSON.parse(result.content);
+      return {
+        ...result,
+        content: result.content,
+        data,
+      } as any;
+    } catch (error) {
+      // If parsing fails, return the result as-is
+      return result as any;
+    }
+  }
+
+  return result as any;
 }
 
 /**
@@ -206,5 +303,35 @@ export async function video<
     model: model as string,
     prompt,
     providerOptions: providerOptions as any,
+  });
+}
+
+/**
+ * Helper function to convert a stream to a Response object
+ */
+function streamToResponse(stream: AsyncIterable<StreamChunk>): Response {
+  const encoder = new TextEncoder();
+
+  const readableStream = new ReadableStream({
+    async start(controller) {
+      try {
+        for await (const chunk of stream) {
+          const data = `data: ${JSON.stringify(chunk)}\n\n`;
+          controller.enqueue(encoder.encode(data));
+        }
+        controller.enqueue(encoder.encode("data: [DONE]\n\n"));
+        controller.close();
+      } catch (error) {
+        controller.error(error);
+      }
+    },
+  });
+
+  return new Response(readableStream, {
+    headers: {
+      "Content-Type": "text/event-stream",
+      "Cache-Control": "no-cache",
+      Connection: "keep-alive",
+    },
   });
 }

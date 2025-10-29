@@ -29,6 +29,18 @@ export interface ToolConfig {
   [key: string]: Tool
 }
 
+export interface ResponseFormat<TData = any> {
+  type: "json_object" | "json_schema";
+  json_schema?: {
+    name: string;
+    description?: string;
+    schema: Record<string, any>; // JSON Schema
+    strict?: boolean;
+  };
+  // Type-only property to carry the inferred data type
+  __data?: TData;
+}
+
 export interface ChatCompletionOptions {
   model: string;
   messages: Message[];
@@ -44,6 +56,7 @@ export interface ChatCompletionOptions {
   | "auto"
   | "none"
   | { type: "function"; function: { name: string } };
+  responseFormat?: ResponseFormat;
   maxIterations?: number; // For automatic tool execution (default: 5)
   metadata?: Record<string, any>;
   /** Provider-specific options (e.g., { openai: OpenAIProviderOptions }) */
@@ -117,7 +130,7 @@ export interface ChatCompletionChunk {
   };
 }
 
-export interface ChatCompletionResult {
+export interface ChatCompletionResult<TData = never> {
   id: string;
   model: string;
   content: string | null;
@@ -129,6 +142,7 @@ export interface ChatCompletionResult {
     completionTokens: number;
     totalTokens: number;
   };
+  data?: TData;
 }
 
 export interface TextGenerationOptions {
