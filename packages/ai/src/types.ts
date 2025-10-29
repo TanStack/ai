@@ -16,12 +16,18 @@ export interface Message {
 }
 
 export interface Tool {
+  /** Always "function" - indicates this is a function tool */
   type: "function";
+  /** Function definition and metadata */
   function: {
+    /** Unique name of the function (used by the model to call it) */
     name: string;
+    /** Clear description of what the function does (helps the model decide when to use it) */
     description: string;
-    parameters: Record<string, any>; // JSON Schema
+    /** JSON Schema describing the function's parameters */
+    parameters: Record<string, any>;
   };
+  /** Optional function to execute when the model calls this tool. Returns the result as a string. */
   execute?: (args: any) => Promise<string> | string;
 }
 
@@ -30,11 +36,17 @@ export interface ToolConfig {
 }
 
 export interface ResponseFormat<TData = any> {
+  /** Type of structured output: "json_object" for any JSON or "json_schema" for schema-validated JSON */
   type: "json_object" | "json_schema";
+  /** JSON schema specification (required when type is "json_schema") */
   json_schema?: {
+    /** Unique name for the schema */
     name: string;
+    /** Optional description of what the schema represents */
     description?: string;
-    schema: Record<string, any>; // JSON Schema
+    /** JSON Schema definition for the expected output structure */
+    schema: Record<string, any>;
+    /** Whether to enforce strict schema validation (recommended: true) */
     strict?: boolean;
   };
   // Type-only property to carry the inferred data type
@@ -42,24 +54,38 @@ export interface ResponseFormat<TData = any> {
 }
 
 export interface ChatCompletionOptions {
+  /** The model to use for chat completion */
   model: string;
+  /** Array of messages in the conversation */
   messages: Message[];
+  /** Controls randomness in the output (0-2). Lower values make output more focused and deterministic. */
   temperature?: number;
+  /** Maximum number of tokens to generate in the completion */
   maxTokens?: number;
+  /** Nucleus sampling parameter (0-1). Alternative to temperature for controlling randomness. */
   topP?: number;
+  /** Penalizes new tokens based on their frequency in the text so far (-2.0 to 2.0). Positive values decrease repetition. */
   frequencyPenalty?: number;
+  /** Penalizes new tokens based on whether they appear in the text so far (-2.0 to 2.0). Positive values encourage new topics. */
   presencePenalty?: number;
+  /** Up to 4 sequences where the API will stop generating further tokens */
   stopSequences?: string[];
+  /** Whether to stream the response incrementally */
   stream?: boolean;
+  /** Array of tools/functions that the model can call */
   tools?: Tool[];
+  /** Controls which (if any) tool is called. Can be "auto", "none", or specify a particular function */
   toolChoice?:
   | "auto"
   | "none"
   | { type: "function"; function: { name: string } };
+  /** Structured output format specification. Use with responseFormat() helper for type-safe outputs. */
   responseFormat?: ResponseFormat;
-  maxIterations?: number; // For automatic tool execution (default: 5)
+  /** Maximum number of automatic tool execution iterations (default: 5) */
+  maxIterations?: number;
+  /** Additional metadata to attach to the request */
   metadata?: Record<string, any>;
-  /** Provider-specific options (e.g., { openai: OpenAIProviderOptions }) */
+  /** Provider-specific options (e.g., OpenAI's store, parallel_tool_calls, etc.) */
   providerOptions?: Record<string, any>;
 }
 
