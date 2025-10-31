@@ -4,6 +4,7 @@ export { tool } from "./tool-utils";
 export { responseFormat, responseFormat as output, jsonObject } from "./schema-utils";
 export { convertLegacyStream } from "./stream-utils";
 export { BaseAdapter } from "./base-adapter";
+export { ToolCallManager } from "./tool-call-manager";
 export * from "./types";
 export * from "./external-provider-wrapper";
 

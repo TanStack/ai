@@ -12,6 +12,16 @@ The `chat()` method in TanStack AI includes an **automatic tool execution loop**
 
 **You don't need to manually execute tools or manage conversation state** - the SDK handles everything!
 
+## Architecture
+
+The tool execution loop is implemented using the `ToolCallManager` class, which:
+- **Accumulates tool calls** from streaming chunks
+- **Validates tool calls** (ensures IDs and names are present)
+- **Executes tools** and emits `tool_result` chunks
+- **Returns tool result messages** for adding to conversation
+
+This separation makes the code maintainable and testable.
+
 ## How It Works
 
 ### Step-by-Step Flow
@@ -351,6 +361,86 @@ if (result.toolCalls) {
 ```
 
 **For most use cases, use `chat()` with automatic tool execution!**
+
+## ToolCallManager Class
+
+The tool execution logic is implemented in the `ToolCallManager` class for better maintainability and testability.
+
+### Public API
+
+```typescript
+class ToolCallManager {
+  constructor(tools: ReadonlyArray<Tool>);
+  
+  // Add a streaming tool call chunk
+  addToolCallChunk(chunk: ToolCallChunk): void;
+  
+  // Check if there are complete tool calls
+  hasToolCalls(): boolean;
+  
+  // Get all validated tool calls
+  getToolCalls(): ToolCall[];
+  
+  // Execute tools and yield tool_result chunks
+  async *executeTools(doneChunk): AsyncGenerator<ToolResultStreamChunk, Message[]>;
+  
+  // Clear for next iteration
+  clear(): void;
+}
+```
+
+### Usage in chat() method
+
+```typescript
+async *chat(options) {
+  const toolCallManager = new ToolCallManager(options.tools || []);
+  
+  while (iterationCount < maxIterations) {
+    // Stream chunks
+    for await (const chunk of adapter.chatStream()) {
+      yield chunk;
+      
+      if (chunk.type === "tool_call") {
+        toolCallManager.addToolCallChunk(chunk); // Accumulate
+      }
+    }
+    
+    // Execute if needed
+    if (toolCallManager.hasToolCalls()) {
+      const toolResults = yield* toolCallManager.executeTools(doneChunk);
+      messages = [...messages, ...toolResults];
+      toolCallManager.clear(); // Clear for next iteration
+      continue;
+    }
+    
+    break;
+  }
+}
+```
+
+### Benefits
+
+- ✅ **Testable** - Unit tests for tool execution logic
+- ✅ **Maintainable** - Tool logic separate from chat logic
+- ✅ **Reusable** - Can be used in other contexts
+- ✅ **Clean** - Single responsibility principle
+
+### Unit Tests
+
+The `ToolCallManager` has comprehensive unit tests. Run them with:
+
+```bash
+cd packages/ai
+pnpm test
+```
+
+See `packages/ai/src/tool-call-manager.test.ts` for test scenarios:
+- Accumulating streaming chunks
+- Filtering incomplete tool calls
+- Executing tools
+- Error handling
+- Multiple tool calls
+- Clearing state
 
 ## License
 

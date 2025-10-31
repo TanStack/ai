@@ -15,17 +15,68 @@ The chat API was previously unified using an `as` configuration option. The curr
 
 ```typescript
 class AI<TAdapter> {
-  // Streaming method
-  chat(options): AsyncIterable<StreamChunk> {
-    return this.adapter.chatStream(options);
+  // Streaming method with automatic tool execution loop
+  async *chat(options): AsyncIterable<StreamChunk> {
+    // Manages tool execution internally using ToolCallManager
+    const toolCallManager = new ToolCallManager(options.tools || []);
+    
+    while (iterationCount < maxIterations) {
+      // Stream from adapter
+      for await (const chunk of this.adapter.chatStream(options)) {
+        yield chunk;
+        
+        // Track tool calls
+        if (chunk.type === "tool_call") {
+          toolCallManager.addToolCallChunk(chunk);
+        }
+      }
+      
+      // Execute tools if needed
+      if (shouldExecuteTools && toolCallManager.hasToolCalls()) {
+        const toolResults = yield* toolCallManager.executeTools(doneChunk);
+        messages = [...messages, ...toolResults];
+        continue; // Next iteration
+      }
+      
+      break; // Done
+    }
   }
 
-  // Promise-based method
+  // Promise-based method (no tool execution loop)
   async chatCompletion(options): Promise<ChatCompletionResult> {
     return this.adapter.chatCompletion(options);
   }
 }
 ```
+
+### ToolCallManager Class
+
+The tool execution logic is extracted into a dedicated `ToolCallManager` class:
+
+```typescript
+class ToolCallManager {
+  // Accumulate tool calls from streaming chunks
+  addToolCallChunk(chunk): void;
+  
+  // Check if there are tool calls to execute
+  hasToolCalls(): boolean;
+  
+  // Get all complete tool calls
+  getToolCalls(): ToolCall[];
+  
+  // Execute tools and yield tool_result chunks
+  async *executeTools(doneChunk): AsyncGenerator<ToolResultStreamChunk, Message[]>;
+  
+  // Clear for next iteration
+  clear(): void;
+}
+```
+
+**Benefits:**
+- ✅ **Separation of concerns** - tool logic isolated from chat logic
+- ✅ **Testable** - ToolCallManager can be unit tested independently
+- ✅ **Maintainable** - changes to tool execution don't affect chat method
+- ✅ **Reusable** - can be used in other contexts if needed
 
 ### Benefits of Separate Methods
 
@@ -87,7 +138,7 @@ See `docs/MIGRATION_UNIFIED_CHAT.md` for migration guide from the `as` option AP
 ✅ **All features still supported**:
 - Discriminated union types for adapter-model pairs
 - Fallback mechanism (single-with-fallbacks or fallbacks-only)
-- Tool execution with auto-execution
+- **Automatic tool execution loop** (via `ToolCallManager`)
 - Error chunk detection for streaming
 - Type-safe model selection
 
@@ -95,20 +146,38 @@ See `docs/MIGRATION_UNIFIED_CHAT.md` for migration guide from the `as` option AP
 - Streaming behavior matches old `streamChat()` method
 - Promise behavior matches old `chat()` method
 - Error handling and fallbacks work identically
+- **Tool execution now handled by `ToolCallManager` class**
 
 ## Files Changed
 
 ### Core Implementation
 - ✅ `packages/ai/src/ai.ts`
   - Removed `as` option from `chat()` method
-  - Made `chat()` streaming-only
+  - Made `chat()` streaming-only with automatic tool execution loop
   - Added `chatCompletion()` method for promise-based calls
   - Removed `streamToResponse()` private method (use `toStreamResponse()` from `stream-to-response.ts`)
+  - Refactored to use `ToolCallManager` for tool execution
+
+- ✅ `packages/ai/src/tool-call-manager.ts` (NEW)
+  - Encapsulates tool call accumulation, validation, and execution
+  - Independently testable
+  - Yields `tool_result` chunks during execution
+  - Returns tool result messages for conversation history
+
+- ✅ `packages/ai/src/types.ts`
+  - Added `ToolResultStreamChunk` type
+  - Added `"tool_result"` to `StreamChunkType` union
+  - Updated `StreamChunk` union to include `ToolResultStreamChunk`
 
 ### Documentation
-- ✅ `docs/UNIFIED_CHAT_API.md` - Updated API documentation
+- ✅ `docs/UNIFIED_CHAT_API.md` - Updated API documentation with tool execution details
 - ✅ `docs/MIGRATION_UNIFIED_CHAT.md` - Migration guide
 - ✅ `docs/UNIFIED_CHAT_QUICK_REFERENCE.md` - Quick reference updated
+- ✅ `docs/TOOL_EXECUTION_LOOP.md` (NEW) - Comprehensive tool execution guide
+- ✅ `README.md` - Updated with tool execution loop documentation
+- ✅ `examples/cli/README.md` - Updated with automatic tool execution details
+- ✅ `packages/ai-react/README.md` - Updated backend examples with tool execution
+- ✅ `packages/ai-client/README.md` - Added backend example with tool execution
 
 ## Benefits of Current Approach
 
@@ -119,6 +188,9 @@ See `docs/MIGRATION_UNIFIED_CHAT.md` for migration guide from the `as` option AP
 5. **Type Safety Maintained** - All discriminated unions still work
 6. **Backward Compatible Migration** - Easy to migrate from old API
 7. **Fallbacks Everywhere** - Both methods support same fallback mechanism
+8. **Automatic Tool Execution** - `chat()` handles tool calling in a loop via `ToolCallManager`
+9. **Testable Architecture** - Tool execution logic isolated in separate class
+10. **Clean Separation** - `chat()` for streaming+tools, `chatCompletion()` for promises+structured output
 
 ## Testing Recommendations
 
@@ -129,10 +201,14 @@ Test scenarios:
 4. ✅ Stream mode with fallbacks
 5. ✅ HTTP response mode with primary adapter
 6. ✅ HTTP response mode with fallbacks
-7. ✅ Tool execution in both modes
-8. ✅ Error chunk detection triggers fallbacks
-9. ✅ Type inference for both methods
-10. ✅ Fallback-only mode (no primary adapter)
+7. ✅ Automatic tool execution in `chat()` (via `ToolCallManager`)
+8. ✅ Manual tool handling in `chatCompletion()`
+9. ✅ Error chunk detection triggers fallbacks
+10. ✅ Type inference for both methods
+11. ✅ Fallback-only mode (no primary adapter)
+12. ✅ `ToolCallManager` unit tests (accumulation, validation, execution)
+13. ✅ Multi-round tool execution (up to `maxIterations`)
+14. ✅ Tool execution error handling
 
 ## Next Steps
 
@@ -143,6 +219,19 @@ Test scenarios:
    - `chat({ as: "response" })` → `chat()` + `toStreamResponse()`
 2. **Update imports**: Add `toStreamResponse` import if needed
 3. **Test fallback behavior**: Verify seamless failover in all modes
+
+### Testing ToolCallManager
+
+The `ToolCallManager` class is independently testable. See `packages/ai/src/tool-call-manager.test.ts` for unit tests.
+
+Test scenarios:
+- ✅ Accumulating streaming tool call chunks
+- ✅ Filtering incomplete tool calls
+- ✅ Executing tools with valid arguments
+- ✅ Handling tool execution errors
+- ✅ Handling tools without execute functions
+- ✅ Multiple tool calls in one iteration
+- ✅ Clearing tool calls between iterations
 
 ### Future Enhancements
 - Consider adding structured output support to streaming

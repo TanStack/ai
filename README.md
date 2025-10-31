@@ -673,18 +673,32 @@ pnpm dev
 # Type checking
 pnpm typecheck
 
+# Run tests
+pnpm test
+
+# Run tests for a specific package
+cd packages/ai && pnpm test
+
 # Clean build artifacts
 pnpm clean
 ```
 
 ## Documentation
 
+### User Guides
 - 📖 [Tool Execution Loop](docs/TOOL_EXECUTION_LOOP.md) - How automatic tool execution works
 - 📖 [Unified Chat API](docs/UNIFIED_CHAT_API.md) - `chat()` vs `chatCompletion()` methods
 - 📖 [Quick Reference](docs/UNIFIED_CHAT_QUICK_REFERENCE.md) - Quick API reference
 - 📖 [Tool Registry](docs/TOOL_REGISTRY.md) - Define tools once, use everywhere
 - 📖 [Type Safety](docs/TYPE_SAFETY.md) - Type-safe multi-adapter usage
-- 📖 [CLI Example](examples/cli/README.md) - Interactive command-line interface
+
+### Examples
+- 📖 [CLI Example](examples/cli/README.md) - Interactive command-line interface with tool calling
+
+### Implementation Details
+- 📖 [Implementation Summary](docs/IMPLEMENTATION_SUMMARY.md) - Architecture overview
+- 📖 [Unified Chat Implementation](docs/UNIFIED_CHAT_IMPLEMENTATION.md) - `chat()` and `chatCompletion()` implementation
+- 📖 [Migration Guide](docs/MIGRATION_UNIFIED_CHAT.md) - Migrating from `as` option API
 
 ## Contributing
 

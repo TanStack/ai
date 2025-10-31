@@ -24,6 +24,40 @@ This implementation adds two major features to the AI SDK:
 - Detailed error reporting from all failed adapters
 - Works with all methods (chat, stream, generate, summarize, embed)
 
+## Tool Execution Architecture
+
+The `chat()` method includes an automatic tool execution loop implemented via the `ToolCallManager` class:
+
+```typescript
+// In AI.chat() method
+const toolCallManager = new ToolCallManager(tools || []);
+
+while (iterationCount < maxIterations) {
+  // Stream chunks and accumulate tool calls
+  for await (const chunk of adapter.chatStream()) {
+    if (chunk.type === "tool_call") {
+      toolCallManager.addToolCallChunk(chunk);
+    }
+  }
+  
+  // Execute tools if model requested them
+  if (shouldExecuteTools && toolCallManager.hasToolCalls()) {
+    const toolResults = yield* toolCallManager.executeTools(doneChunk);
+    messages = [...messages, ...toolResults];
+    continue; // Next iteration
+  }
+  
+  break; // No tools to execute, done
+}
+```
+
+**ToolCallManager handles:**
+- ✅ Accumulating streaming tool call chunks
+- ✅ Validating tool calls (ID and name present)
+- ✅ Executing tool `execute` functions
+- ✅ Yielding `tool_result` chunks
+- ✅ Creating tool result messages
+
 ## Architecture
 
 ### Type System
@@ -52,8 +86,9 @@ type ChatOptionsWithFallback<TAdapters> = {
 
 1. **BaseAdapter** - Abstract class with generic model list
 2. **AIAdapter Interface** - Includes `models` property with generic type
-3. **AI Class** - Main class with fallback logic
-4. **Adapter Implementations** - OpenAI, Anthropic, Gemini, Ollama with model lists
+3. **AI Class** - Main class with fallback logic and tool execution loop
+4. **ToolCallManager** - Handles tool call accumulation, validation, and execution
+5. **Adapter Implementations** - OpenAI, Anthropic, Gemini, Ollama with model lists
 
 ### Fallback Logic
 
@@ -308,6 +343,28 @@ await ai.chat({ adapters: [], model: "gpt-4", messages: [] });
 expect(mockAdapter1.chatCompletion).toHaveBeenCalled();
 expect(mockAdapter2.chatCompletion).toHaveBeenCalled();
 ```
+
+### Test ToolCallManager
+
+The `ToolCallManager` class has comprehensive unit tests:
+
+```bash
+cd packages/ai
+pnpm test
+```
+
+Test coverage includes:
+- ✅ Accumulating streaming tool call chunks (name, arguments)
+- ✅ Filtering incomplete tool calls (missing ID or name)
+- ✅ Executing tools with parsed arguments
+- ✅ Handling tool execution errors gracefully
+- ✅ Handling tools without execute functions
+- ✅ Multiple tool calls in one iteration
+- ✅ Clearing state between iterations
+- ✅ Emitting tool_result chunks
+- ✅ Creating tool result messages
+
+See `packages/ai/src/tool-call-manager.test.ts` for implementation.
 
 ## Performance Considerations
 
