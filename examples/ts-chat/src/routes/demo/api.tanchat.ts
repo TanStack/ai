@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { ai, tool, chat, responseFormat } from "@tanstack/ai";
+import { ai, tool, chat, responseFormat, } from "@tanstack/ai";
 import { openai } from "@tanstack/ai-openai";
 import guitars from "@/data/example-guitars";
 
@@ -20,10 +20,9 @@ const guitarSchema = responseFormat({
 
 // Example of standalone function usage
 await chat({
-  messages: [],
   adapter: openai(), // Type inference starts here
   model: "gpt-4o",
-  as: "promise",
+  messages: [],
   tools: [tool({
     type: "function",
     function: {
@@ -39,28 +38,21 @@ await chat({
       return "Example tool executed";
     },
   })],
-  output: guitarSchema,
+  options: {
+    responseFormat: guitarSchema,
+  },
   providerOptions: {
     webSearchOptions: {
       enabled: false,
-
     }
-  }
+  },
+  as: "promise",
 });
 
 // ✅ res.data is now properly typed with autocomplete!
 // res.data.id (string)
 // res.data.name (string)
 // res.data.price (number)
-
-
-const SYSTEM_PROMPT = `You are a helpful assistant for a store that sells guitars.
-
-You can use the following tools to help the user:
-
-- getGuitars: Get all guitars from the database
-- recommendGuitar: Recommend a guitar to the user
-`;
 
 // Define tools with the exact Tool structure
 const getGuitarsTool = tool({
@@ -101,13 +93,19 @@ const recommendGuitarTool = tool({
   },
   execute: async (args) => {
     // ✅ args is automatically typed as { id: string; name?: boolean }
-    return JSON.stringify({ id: args.id });
+    return JSON.stringify({ id: args.name });
   },
 });
 
 // Create AI instance with single adapter
 const aiInstance = ai(openai());
 
+
+aiInstance.chat({
+  model: "chatgpt-4o-latest",
+  messages: [],
+  tools: [getGuitarsTool]
+})
 
 
 export const Route = createFileRoute("/demo/api/tanchat")({
@@ -119,19 +117,23 @@ export const Route = createFileRoute("/demo/api/tanchat")({
   server: {
     handlers: {
       POST: async ({ request }) => {
-
         const { messages } = await request.json();
+
         const response = aiInstance.chat({
-          messages,
-          as: "response",
           model: "gpt-4o",
+          messages,
           tools: [getGuitarsTool, recommendGuitarTool],
-          systemPrompts: [SYSTEM_PROMPT],
+          options: {
+            responseFormat: guitarSchema,
+          },
           providerOptions: {
             store: true,
             parallelToolCalls: true,
-          }
+            strictJsonSchema: true
+          },
+          as: "response",
         });
+
         return response;
       },
     },

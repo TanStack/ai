@@ -3,6 +3,7 @@ import type {
   ChatCompletionOptions,
   ChatCompletionResult,
   StreamChunk,
+  Tool,
   SummarizationOptions,
   SummarizationResult,
   EmbeddingOptions,
@@ -15,8 +16,6 @@ import type {
   TextToSpeechResult,
   VideoGenerationOptions,
   VideoGenerationResult,
-  Tool,
-  ResponseFormat,
 } from "./types";
 
 // Extract types from a single adapter
@@ -31,13 +30,11 @@ type ExtractVideoProviderOptions<T> = T extends AIAdapter<any, any, any, any, an
 
 // Helper type to compute chat return type based on the "as" option
 type ChatReturnType<
-  TOptions extends { as?: "promise" | "stream" | "response"; output?: ResponseFormat<any> }
+  TOptions extends { as?: "promise" | "stream" | "response" }
 > = TOptions["as"] extends "stream"
   ? AsyncIterable<StreamChunk>
   : TOptions["as"] extends "response"
   ? Response
-  : TOptions["output"] extends ResponseFormat<infer TData>
-  ? ChatCompletionResult<TData>
   : ChatCompletionResult;
 
 // Config for single adapter
@@ -65,99 +62,96 @@ class AI<
   /**
    * Complete a chat conversation with optional structured output
    * 
-   * @param options Chat options with discriminated union on "as" property
-   * @param options.as - Response mode: "promise" (default), "stream", or "response"
-   * @param options.output - Optional structured output (only available with as="promise")
+   * @param config Chat configuration with model and messages at root level
+   * @param config.model - Model identifier (strongly typed based on adapter)
+   * @param config.messages - Array of messages in the conversation
+   * @param config.tools - Tools available for the model to call
+   * @param config.options - Common options (temperature, maxTokens, etc.)
+   * @param config.providerOptions - Provider-specific options
+   * @param config.as - Response mode: "promise" (default), "stream", or "response"
    * 
-   * @example
-   * // Promise mode with structured output
-   * const result = await ai.chat({
-   *   model: 'gpt-4',
-   *   messages: [...],
-   *   output: { type: 'json', jsonSchema: schema }
+   * @example Basic usage
+   * ```typescript
+   * const result = await aiInstance.chat({
+   *   model: "gpt-4",
+   *   messages: [{ role: "user", content: "Hello!" }],
+   *   options: {
+   *     temperature: 0.7,
+   *   }
    * });
+   * ```
    * 
-   * @example
-   * // Stream mode (output not available)
-   * const stream = await ai.chat({
-   *   model: 'gpt-4',
-   *   messages: [...],
+   * @example With tools
+   * ```typescript
+   * const result = await aiInstance.chat({
+   *   model: "gpt-4",
+   *   messages: [{ role: "user", content: "Hello!" }],
+   *   tools: [weatherTool],
+   *   options: {
+   *     temperature: 0.7,
+   *   }
+   * });
+   * ```
+   * 
+   * @example Streaming
+   * ```typescript
+   * const stream = await aiInstance.chat({
+   *   model: "gpt-4",
+   *   messages: [{ role: "user", content: "Hello!" }],
    *   as: "stream"
    * });
+   * ```
    * 
-   * @example
-   * // Response mode (output not available)
-   * const response = await ai.chat({
-   *   model: 'gpt-4',
-   *   messages: [...],
-   *   as: "response"
+   * @example With provider options
+   * ```typescript
+   * const result = await aiInstance.chat({
+   *   model: "gpt-4",
+   *   messages: [{ role: "user", content: "Hello!" }],
+   *   options: {
+   *     temperature: 0.7,
+   *   },
+   *   providerOptions: {
+   *     reasoningEffort: "high",
+   *   }
    * });
+   * ```
    */
   async chat<
-    TOptions extends (
-      | {
-        as: "stream";
-        providerOptions?: ExtractChatProviderOptions<TAdapter>;
-      }
-      | {
-        as: "response";
-        providerOptions?: ExtractChatProviderOptions<TAdapter>;
-      }
-      | {
-        as?: "promise";
-        output?: ResponseFormat<any>;
-        providerOptions?: ExtractChatProviderOptions<TAdapter>;
-      }
-    )
+    TOptions extends { as?: "promise" | "stream" | "response" }
   >(
-    options: Omit<ChatCompletionOptions, "model" | "providerOptions" | "responseFormat" | "as"> & {
+    config: {
       model: ExtractModels<TAdapter>;
-      tools?: ReadonlyArray<Tool>;
-      systemPrompts?: string[];
+      messages: ChatCompletionOptions["messages"];
+      tools?: Tool[];
+      options?: Omit<ChatCompletionOptions, "model" | "messages" | "providerOptions" | "tools">;
+      providerOptions?: ExtractChatProviderOptions<TAdapter>;
     } & TOptions
   ): Promise<ChatReturnType<TOptions>> {
-    const asOption = (options.as || "promise") as "promise" | "stream" | "response";
-    const { model, tools, systemPrompts, providerOptions, ...restOptions } = options;
+    const { model, messages, tools, options = {}, providerOptions, as: asOption = "promise" } = config;
 
-    // Extract output if it exists (only in promise mode)
-    const output = (options as any).output as ResponseFormat | undefined;
-    const responseFormat = output;
+    // Prepend system prompts from instance configuration
+    const finalMessages = this.prependSystemPrompts(messages);
 
-    // Prepend system prompts to messages
-    const messages = this.prependSystemPrompts(restOptions.messages, systemPrompts);
+    // Build the full ChatCompletionOptions
+    const chatOptions: ChatCompletionOptions = {
+      ...options,
+      model: model as string,
+      messages: finalMessages,
+      tools: tools as any,
+      providerOptions: providerOptions as any,
+    };
 
     // Route to appropriate handler based on "as" option
     if (asOption === "stream") {
-      return this.adapter.chatStream({
-        ...restOptions,
-        messages,
-        model: model as string,
-        tools,
-        responseFormat,
-        providerOptions: providerOptions as any,
-      }) as any;
+      return this.adapter.chatStream(chatOptions) as any;
     } else if (asOption === "response") {
-      const stream = this.adapter.chatStream({
-        ...restOptions,
-        messages,
-        model: model as string,
-        tools,
-        responseFormat,
-        providerOptions: providerOptions as any,
-      });
+      const stream = this.adapter.chatStream(chatOptions);
       return this.streamToResponse(stream) as any;
     } else {
-      const result = await this.adapter.chatCompletion({
-        ...restOptions,
-        messages,
-        model: model as string,
-        tools,
-        responseFormat,
-        providerOptions: providerOptions as any,
-      });
+      const result = await this.adapter.chatCompletion(chatOptions);
 
-      // If output is provided, parse the content as structured data
-      if (output && result.content) {
+      // If responseFormat is provided, parse the content as structured data
+      if (options.responseFormat && result.content) {
         try {
           const data = JSON.parse(result.content);
           return {
@@ -177,114 +171,180 @@ class AI<
 
   /**
    * Summarize text
+   * 
+   * @example
+   * ```typescript
+   * const result = await aiInstance.summarize({
+   *   model: "gpt-4",
+   *   text: "Long text to summarize..."
+   * });
+   * ```
    */
-  async summarize(
-    options: Omit<SummarizationOptions, "model"> & {
-      model: ExtractModels<TAdapter>;
-    }
-  ): Promise<SummarizationResult> {
-    const { model, ...restOptions } = options;
+  async summarize(config: {
+    model: ExtractModels<TAdapter>;
+    text: string;
+    options?: Omit<SummarizationOptions, "model" | "text">;
+  }): Promise<SummarizationResult> {
+    const { model, text, options = {} } = config;
     return this.adapter.summarize({
-      ...restOptions,
+      ...options,
       model: model as string,
+      text,
     });
   }
 
   /**
    * Generate embeddings
+   * 
+   * @example
+   * ```typescript
+   * const result = await aiInstance.embed({
+   *   model: "text-embedding-3-small",
+   *   input: "Text to embed"
+   * });
+   * ```
    */
-  async embed(
-    options: Omit<EmbeddingOptions, "model"> & {
-      model: ExtractModels<TAdapter>;
-    }
-  ): Promise<EmbeddingResult> {
-    const { model, ...restOptions } = options;
+  async embed(config: {
+    model: ExtractModels<TAdapter>;
+    input: string | string[];
+    options?: Omit<EmbeddingOptions, "model" | "input">;
+  }): Promise<EmbeddingResult> {
+    const { model, input, options = {} } = config;
     return this.adapter.createEmbeddings({
-      ...restOptions,
+      ...options,
       model: model as string,
+      input,
     });
   }
 
   /**
    * Generate an image
+   * 
+   * @example
+   * ```typescript
+   * const result = await aiInstance.image({
+   *   model: "dall-e-3",
+   *   prompt: "A futuristic city",
+   *   providerOptions: {
+   *     size: "1024x1024"
+   *   }
+   * });
+   * ```
    */
-  async image(
-    options: Omit<ImageGenerationOptions, "model" | "providerOptions"> & {
-      model: ExtractImageModels<TAdapter>;
-      providerOptions?: ExtractImageProviderOptions<TAdapter>;
-    }
-  ): Promise<ImageGenerationResult> {
+  async image(config: {
+    model: ExtractImageModels<TAdapter>;
+    prompt: string;
+    options?: Omit<ImageGenerationOptions, "model" | "prompt" | "providerOptions">;
+    providerOptions?: ExtractImageProviderOptions<TAdapter>;
+  }): Promise<ImageGenerationResult> {
     if (!this.adapter.generateImage) {
       throw new Error(`Adapter ${this.adapter.name} does not support image generation`);
     }
 
-    const { model, providerOptions, ...restOptions } = options;
+    const { model, prompt, options = {}, providerOptions } = config;
     return this.adapter.generateImage({
-      ...restOptions,
+      ...options,
       model: model as string,
+      prompt,
       providerOptions: providerOptions as any,
     });
   }
 
   /**
    * Transcribe audio
+   * 
+   * @example
+   * ```typescript
+   * const result = await aiInstance.audio({
+   *   model: "whisper-1",
+   *   file: audioBlob,
+   *   providerOptions: {
+   *     language: "en"
+   *   }
+   * });
+   * ```
    */
-  async audio(
-    options: Omit<AudioTranscriptionOptions, "model" | "providerOptions"> & {
-      model: ExtractAudioModels<TAdapter>;
-      providerOptions?: ExtractAudioProviderOptions<TAdapter>;
-    }
-  ): Promise<AudioTranscriptionResult> {
+  async audio(config: {
+    model: ExtractAudioModels<TAdapter>;
+    file: Blob | Buffer;
+    options?: Omit<AudioTranscriptionOptions, "model" | "file" | "providerOptions">;
+    providerOptions?: ExtractAudioProviderOptions<TAdapter>;
+  }): Promise<AudioTranscriptionResult> {
     if (!this.adapter.transcribeAudio) {
       throw new Error(`Adapter ${this.adapter.name} does not support audio transcription`);
     }
 
-    const { model, providerOptions, ...restOptions } = options;
+    const { model, file, options = {}, providerOptions } = config;
     return this.adapter.transcribeAudio({
-      ...restOptions,
+      ...options,
       model: model as string,
+      file,
       providerOptions: providerOptions as any,
     });
   }
 
   /**
    * Generate speech from text
+   * 
+   * @example
+   * ```typescript
+   * const result = await aiInstance.speak({
+   *   model: "tts-1",
+   *   input: "Hello, world!",
+   *   voice: "alloy"
+   * });
+   * ```
    */
-  async speak(
-    options: Omit<TextToSpeechOptions, "model" | "providerOptions"> & {
-      model: ExtractModels<TAdapter>;
-      providerOptions?: ExtractChatProviderOptions<TAdapter>;
-    }
-  ): Promise<TextToSpeechResult> {
+  async speak(config: {
+    model: ExtractModels<TAdapter>;
+    input: string;
+    voice: string;
+    options?: Omit<TextToSpeechOptions, "model" | "input" | "voice" | "providerOptions">;
+    providerOptions?: ExtractChatProviderOptions<TAdapter>;
+  }): Promise<TextToSpeechResult> {
     if (!this.adapter.generateSpeech) {
       throw new Error(`Adapter ${this.adapter.name} does not support text-to-speech`);
     }
 
-    const { model, providerOptions, ...restOptions } = options;
+    const { model, input, voice, options = {}, providerOptions } = config;
     return this.adapter.generateSpeech({
-      ...restOptions,
+      ...options,
       model: model as string,
+      input,
+      voice,
       providerOptions: providerOptions as any,
     });
   }
 
   /**
    * Generate a video
+   * 
+   * @example
+   * ```typescript
+   * const result = await aiInstance.video({
+   *   model: "video-model",
+   *   prompt: "A cat playing piano",
+   *   providerOptions: {
+   *     duration: 5
+   *   }
+   * });
+   * ```
    */
-  async video(
-    options: Omit<VideoGenerationOptions, "model" | "providerOptions"> & {
-      model: ExtractVideoModels<TAdapter>;
-      providerOptions?: ExtractVideoProviderOptions<TAdapter>;
-    }
-  ): Promise<VideoGenerationResult> {
+  async video(config: {
+    model: ExtractVideoModels<TAdapter>;
+    prompt: string;
+    options?: Omit<VideoGenerationOptions, "model" | "prompt" | "providerOptions">;
+    providerOptions?: ExtractVideoProviderOptions<TAdapter>;
+  }): Promise<VideoGenerationResult> {
     if (!this.adapter.generateVideo) {
       throw new Error(`Adapter ${this.adapter.name} does not support video generation`);
     }
 
-    const { model, providerOptions, ...restOptions } = options;
+    const { model, prompt, options = {}, providerOptions } = config;
     return this.adapter.generateVideo({
-      ...restOptions,
+      ...options,
       model: model as string,
+      prompt,
       providerOptions: providerOptions as any,
     });
   }
@@ -292,15 +352,13 @@ class AI<
   // Private helper methods
 
   private prependSystemPrompts(
-    messages: ChatCompletionOptions["messages"],
-    systemPrompts?: string[]
+    messages: ChatCompletionOptions["messages"]
   ): ChatCompletionOptions["messages"] {
-    const prompts = systemPrompts || this.systemPrompts;
-    if (!prompts || prompts.length === 0) {
+    if (!this.systemPrompts || this.systemPrompts.length === 0) {
       return messages;
     }
 
-    const systemMessages = prompts.map((content) => ({
+    const systemMessages = this.systemPrompts.map((content) => ({
       role: "system" as const,
       content,
     }));

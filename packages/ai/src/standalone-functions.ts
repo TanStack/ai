@@ -3,6 +3,9 @@ import type {
   ChatCompletionOptions,
   ChatCompletionResult,
   StreamChunk,
+  CommonChatOptions,
+  Message,
+  Tool,
   SummarizationOptions,
   SummarizationResult,
   EmbeddingOptions,
@@ -15,10 +18,9 @@ import type {
   TextToSpeechResult,
   VideoGenerationOptions,
   VideoGenerationResult,
-  ResponseFormat,
 } from "./types";
 
-// Extract types from a single adapter
+// Extract types from adapter
 type ExtractModelsFromAdapter<T> = T extends AIAdapter<infer M, any, any, any, any, any, any, any, any, any> ? M[number] : never;
 type ExtractImageModelsFromAdapter<T> = T extends AIAdapter<any, infer M, any, any, any, any, any, any, any, any> ? M[number] : never;
 type ExtractAudioModelsFromAdapter<T> = T extends AIAdapter<any, any, any, infer M, any, any, any, any, any, any> ? M[number] : never;
@@ -28,136 +30,132 @@ type ExtractImageProviderOptionsFromAdapter<T> = T extends AIAdapter<any, any, a
 type ExtractAudioProviderOptionsFromAdapter<T> = T extends AIAdapter<any, any, any, any, any, any, any, any, infer P, any> ? P : Record<string, any>;
 type ExtractVideoProviderOptionsFromAdapter<T> = T extends AIAdapter<any, any, any, any, any, any, any, any, any, infer P> ? P : Record<string, any>;
 
-// Base options shared across all modes
-type BaseChatOptions<TAdapter extends AIAdapter<any, any, any, any, any, any, any, any, any, any>> =
-  Omit<ChatCompletionOptions, "model" | "providerOptions" | "responseFormat" | "as"> & {
-    adapter: TAdapter;
-    model: ExtractModelsFromAdapter<TAdapter>;
-  };
-
-// Create a discriminated union type based on the "as" property
-type ChatOptionsUnion<
-  TAdapter extends AIAdapter<any, any, any, any, any, any, any, any, any, any>,
-  TOutput extends ResponseFormat<any> | undefined = undefined
-> =
-  | (BaseChatOptions<TAdapter> & {
-    as: "stream";
-    providerOptions?: ExtractChatProviderOptionsFromAdapter<TAdapter>;
-  })
-  | (BaseChatOptions<TAdapter> & {
-    as: "response";
-    providerOptions?: ExtractChatProviderOptionsFromAdapter<TAdapter>;
-  })
-  | (BaseChatOptions<TAdapter> & {
-    as?: "promise";
-    output?: TOutput;
-    providerOptions?: ExtractChatProviderOptionsFromAdapter<TAdapter>;
-  });
-
-// Helper type to compute the return type based on the "as" option
+// Helper type to compute chat return type based on the "as" option
 type ChatReturnType<
-  TOptions extends { as?: "promise" | "stream" | "response"; output?: ResponseFormat<any> }
+  TOptions extends { as?: "promise" | "stream" | "response" }
 > = TOptions["as"] extends "stream"
   ? AsyncIterable<StreamChunk>
   : TOptions["as"] extends "response"
   ? Response
-  : TOptions["output"] extends ResponseFormat<infer TData>
-  ? ChatCompletionResult<TData>
   : ChatCompletionResult;
 
 /**
- * Standalone chat function with type inference from adapter
+ * Chat options with model and messages at root level
+ */
+export interface ChatOptions<
+  TAdapter extends AIAdapter<any, any, any, any, any, any, any, any, any, any>
+> {
+  /** Adapter instance (e.g., openai(), anthropic(), ollama()) */
+  adapter: TAdapter;
+
+  /** Model identifier (strongly typed based on adapter) */
+  model: ExtractModelsFromAdapter<TAdapter>;
+
+  /** Array of messages in the conversation */
+  messages: Message[];
+
+  /** Tools available for the model to call */
+  tools?: Tool[];
+
+  /** Common options (temperature, maxTokens, etc.) */
+  options?: Omit<CommonChatOptions, "model" | "messages" | "providerOptions" | "tools">;
+
+  /** Provider-specific options (strongly typed based on adapter) */
+  providerOptions?: ExtractChatProviderOptionsFromAdapter<TAdapter>;
+
+  /** Response mode: "promise" (default), "stream", or "response" */
+  as?: "promise" | "stream" | "response";
+}
+
+/**
+ * Chat completion - main entry point for conversational AI
  * 
- * @param options Chat options with discriminated union on "as" property
- * @param options.adapter - AI adapter instance to use
- * @param options.as - Response mode: "promise" (default), "stream", or "response"
- * @param options.output - Optional structured output (only available with as="promise")
- * 
- * @example
- * // Promise mode with structured output
+ * @example Basic usage
+ * ```typescript
  * const result = await chat({
- *   adapter: openai(),
- *   model: 'gpt-4',
- *   messages: [...],
- *   output: { type: 'json', jsonSchema: schema }
+ *   adapter: openai({ apiKey: process.env.OPENAI_API_KEY }),
+ *   model: "gpt-4",
+ *   messages: [{ role: "user", content: "Hello!" }],
+ *   options: {
+ *     temperature: 0.7,
+ *   }
  * });
+ * ```
  * 
- * @example
- * // Stream mode (output not available)
+ * @example With provider-specific options
+ * ```typescript
+ * const result = await chat({
+ *   adapter: openai({ apiKey: process.env.OPENAI_API_KEY }),
+ *   model: "gpt-4",
+ *   messages: [{ role: "user", content: "Hello!" }],
+ *   options: {
+ *     temperature: 0.7,
+ *   },
+ *   providerOptions: {
+ *     reasoningEffort: "high",
+ *     store: true,
+ *   }
+ * });
+ * ```
+ * 
+ * @example Streaming
+ * ```typescript
  * const stream = await chat({
- *   adapter: openai(),
- *   model: 'gpt-4',
- *   messages: [...],
+ *   adapter: openai({ apiKey: process.env.OPENAI_API_KEY }),
+ *   model: "gpt-4",
+ *   messages: [{ role: "user", content: "Hello!" }],
  *   as: "stream"
  * });
  * 
- * @example
- * // Response mode (output not available)
- * const response = await chat({
- *   adapter: openai(),
- *   model: 'gpt-4',
- *   messages: [...],
- *   as: "response"
- * });
+ * for await (const chunk of stream) {
+ *   if (chunk.type === "content") {
+ *     console.log(chunk.delta);
+ *   }
+ * }
+ * ```
  */
 export async function chat<
-  TAdapter extends AIAdapter<any, any, any, any, any, any, any, any, any, any>,
-  TOptions extends ChatOptionsUnion<TAdapter, any>
+  TAdapter extends AIAdapter<any, any, any, any, any, any, any, any, any, any>
 >(
-  options: BaseChatOptions<TAdapter> & TOptions
-): Promise<ChatReturnType<TOptions>> {
-  const { adapter, model, messages, as, providerOptions, ...restOptions } = options;
-  const asOption = (as || "promise") as "promise" | "stream" | "response";
+  config: ChatOptions<TAdapter>
+): Promise<ChatReturnType<ChatOptions<TAdapter>>> {
+  const { adapter, model, messages, tools, options = {}, providerOptions, as: asOption = "promise" } = config;
 
-  // Extract output if it exists (only in promise mode)
-  const output = (options as any).output as ResponseFormat | undefined;
-  const responseFormat = output;
-
-  if (asOption === "stream") {
-    return adapter.chatStream({
-      ...restOptions,
-      model: model as string,
-      messages,
-      responseFormat,
-      providerOptions: providerOptions as any,
-    }) as any;
-  }
-
-  if (asOption === "response") {
-    const stream = adapter.chatStream({
-      ...restOptions,
-      model: model as string,
-      messages,
-      responseFormat,
-      providerOptions: providerOptions as any,
-    });
-    return streamToResponse(stream) as any;
-  }
-
-  const result = await adapter.chatCompletion({
-    ...restOptions,
+  // Build the full ChatCompletionOptions
+  const chatOptions: ChatCompletionOptions = {
+    ...options,
     model: model as string,
-    messages,
-    responseFormat,
+    messages: messages,
+    tools: tools as any,
     providerOptions: providerOptions as any,
-  });
+  };
 
-  // If output is provided, parse the content as structured data
-  if (output && result.content) {
-    try {
-      const data = JSON.parse(result.content);
-      return {
-        ...result,
-        content: result.content,
-        data,
-      } as any;
-    } catch (error) {
-      // If parsing fails, return the result as-is
-      return result as any;
+  // Route to appropriate handler based on "as" option
+  if (asOption === "stream") {
+    return adapter.chatStream(chatOptions) as any;
+  } else if (asOption === "response") {
+    const stream = adapter.chatStream(chatOptions);
+    return streamToResponse(stream) as any;
+  } else {
+    const result = await adapter.chatCompletion(chatOptions);
+
+    // If responseFormat is provided, parse the content as structured data
+    if (options.responseFormat && result.content) {
+      try {
+        const data = JSON.parse(result.content);
+        return {
+          ...result,
+          content: result.content,
+          data,
+        } as any;
+      } catch (error) {
+        // If parsing fails, return the result as-is
+        return result as any;
+      }
     }
-  }
 
-  return result as any;
+    return result as any;
+  }
 }
 
 /**

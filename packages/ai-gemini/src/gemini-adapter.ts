@@ -30,16 +30,102 @@ const GEMINI_MODELS = [
 ] as const;
 
 const GEMINI_IMAGE_MODELS = [] as const;
+const GEMINI_EMBEDDING_MODELS = [] as const;
+const GEMINI_AUDIO_MODELS = [] as const;
+const GEMINI_VIDEO_MODELS = [] as const;
 
 export type GeminiModel = (typeof GEMINI_MODELS)[number];
 
+/**
+ * Gemini-specific provider options
+ * Based on Google Generative AI SDK
+ * @see https://ai.google.dev/api/rest/v1/GenerationConfig
+ */
+export interface GeminiProviderOptions {
+  /** Number of candidate responses to generate */
+  candidateCount?: number;
+  /** Safety settings for content filtering */
+  safetySettings?: Array<{
+    category: string;
+    threshold: string;
+  }>;
+  /** Response MIME type */
+  responseMimeType?: string;
+  /** Response schema for structured output */
+  responseSchema?: any;
+}
+
+/**
+ * Maps common options to Gemini-specific format
+ * Handles translation of normalized options to Gemini's API format
+ */
+function mapCommonOptionsToGemini(
+  options: ChatCompletionOptions,
+  providerOpts?: GeminiProviderOptions
+): any {
+  const generationConfig: any = {
+    temperature: options.temperature,
+    topP: options.topP,
+    maxOutputTokens: options.maxTokens,
+    stopSequences: options.stopSequences,
+  };
+
+  // Map common penalties
+  if (options.presencePenalty !== undefined) {
+    generationConfig.presencePenalty = options.presencePenalty;
+  }
+  if (options.frequencyPenalty !== undefined) {
+    generationConfig.frequencyPenalty = options.frequencyPenalty;
+  }
+
+  // Apply Gemini-specific provider options
+  if (providerOpts) {
+    if (providerOpts.candidateCount) {
+      generationConfig.candidateCount = providerOpts.candidateCount;
+    }
+    if (providerOpts.responseMimeType) {
+      generationConfig.responseMimeType = providerOpts.responseMimeType;
+    }
+    if (providerOpts.responseSchema) {
+      generationConfig.responseSchema = providerOpts.responseSchema;
+    }
+  }
+
+  // Map response format to Gemini's responseMimeType
+  if (options.responseFormat) {
+    if (options.responseFormat.type === "json_object") {
+      generationConfig.responseMimeType = "application/json";
+    } else if (options.responseFormat.type === "json_schema" && options.responseFormat.json_schema) {
+      generationConfig.responseMimeType = "application/json";
+      generationConfig.responseSchema = options.responseFormat.json_schema.schema;
+    }
+  }
+
+  return {
+    model: options.model || "gemini-pro",
+    generationConfig,
+    safetySettings: providerOpts?.safetySettings,
+  };
+}
+
 export class GeminiAdapter extends BaseAdapter<
   typeof GEMINI_MODELS,
-  typeof GEMINI_IMAGE_MODELS
+  typeof GEMINI_IMAGE_MODELS,
+  readonly string[],
+  readonly string[],
+  readonly string[],
+  GeminiProviderOptions,
+  Record<string, any>,
+  Record<string, any>,
+  Record<string, any>,
+  Record<string, any>
 > {
   name = "gemini";
   models = GEMINI_MODELS;
   imageModels = GEMINI_IMAGE_MODELS;
+  embeddingModels = GEMINI_EMBEDDING_MODELS;
+  audioModels = GEMINI_AUDIO_MODELS;
+  videoModels = GEMINI_VIDEO_MODELS;
   private client: GoogleGenerativeAI;
 
   constructor(config: GeminiAdapterConfig) {
@@ -50,14 +136,15 @@ export class GeminiAdapter extends BaseAdapter<
   async chatCompletion(
     options: ChatCompletionOptions
   ): Promise<ChatCompletionResult> {
+    const providerOpts = options.providerOptions as GeminiProviderOptions | undefined;
+
+    // Map common options to Gemini format
+    const mappedOptions = mapCommonOptionsToGemini(options, providerOpts);
+
     const model = this.client.getGenerativeModel({
-      model: options.model || "gemini-pro",
-      generationConfig: {
-        temperature: options.temperature,
-        topP: options.topP,
-        maxOutputTokens: options.maxTokens,
-        stopSequences: options.stopSequences,
-      },
+      model: mappedOptions.model,
+      generationConfig: mappedOptions.generationConfig,
+      safetySettings: mappedOptions.safetySettings,
     });
 
     const history = this.formatMessagesForGemini(options.messages.slice(0, -1));
@@ -91,14 +178,15 @@ export class GeminiAdapter extends BaseAdapter<
   async *chatCompletionStream(
     options: ChatCompletionOptions
   ): AsyncIterable<ChatCompletionChunk> {
+    const providerOpts = options.providerOptions as GeminiProviderOptions | undefined;
+
+    // Map common options to Gemini format
+    const mappedOptions = mapCommonOptionsToGemini(options, providerOpts);
+
     const model = this.client.getGenerativeModel({
-      model: options.model || "gemini-pro",
-      generationConfig: {
-        temperature: options.temperature,
-        topP: options.topP,
-        maxOutputTokens: options.maxTokens,
-        stopSequences: options.stopSequences,
-      },
+      model: mappedOptions.model,
+      generationConfig: mappedOptions.generationConfig,
+      safetySettings: mappedOptions.safetySettings,
     });
 
     const history = this.formatMessagesForGemini(options.messages.slice(0, -1));

@@ -15,19 +15,85 @@ export interface Message {
   toolCallId?: string;
 }
 
+/**
+ * Tool/Function definition for function calling.
+ * 
+ * Tools allow the model to interact with external systems, APIs, or perform computations.
+ * The model will decide when to call tools based on the user's request and the tool descriptions.
+ * 
+ * @see https://platform.openai.com/docs/guides/function-calling
+ * @see https://docs.anthropic.com/claude/docs/tool-use
+ */
 export interface Tool {
-  /** Always "function" - indicates this is a function tool */
+  /**
+   * Type of tool - currently only "function" is supported.
+   * 
+   * Future versions may support additional tool types.
+   */
   type: "function";
-  /** Function definition and metadata */
+
+  /**
+   * Function definition and metadata.
+   */
   function: {
-    /** Unique name of the function (used by the model to call it) */
+    /**
+     * Unique name of the function (used by the model to call it).
+     * 
+     * Should be descriptive and follow naming conventions (e.g., snake_case or camelCase).
+     * Must be unique within the tools array.
+     * 
+     * @example "get_weather", "search_database", "sendEmail"
+     */
     name: string;
-    /** Clear description of what the function does (helps the model decide when to use it) */
+
+    /**
+     * Clear description of what the function does.
+     * 
+     * This is crucial - the model uses this to decide when to call the function.
+     * Be specific about what the function does, what parameters it needs, and what it returns.
+     * 
+     * @example "Get the current weather in a given location. Returns temperature, conditions, and forecast."
+     */
     description: string;
-    /** JSON Schema describing the function's parameters */
+
+    /**
+     * JSON Schema describing the function's parameters.
+     * 
+     * Defines the structure and types of arguments the function accepts.
+     * The model will generate arguments matching this schema.
+     * 
+     * @see https://json-schema.org/
+     * 
+     * @example
+     * {
+     *   type: "object",
+     *   properties: {
+     *     location: { type: "string", description: "City name or coordinates" },
+     *     unit: { type: "string", enum: ["celsius", "fahrenheit"] }
+     *   },
+     *   required: ["location"]
+     * }
+     */
     parameters: Record<string, any>;
   };
-  /** Optional function to execute when the model calls this tool. Returns the result as a string. */
+
+  /**
+   * Optional function to execute when the model calls this tool.
+   * 
+   * If provided, the SDK will automatically execute the function with the model's arguments
+   * and feed the result back to the model. This enables autonomous tool use loops.
+   * 
+   * Returns the result as a string (or Promise<string>) to send back to the model.
+   * 
+   * @param args - The arguments parsed from the model's tool call (matches the parameters schema)
+   * @returns Result string to send back to the model
+   * 
+   * @example
+   * execute: async (args) => {
+   *   const weather = await fetchWeather(args.location);
+   *   return JSON.stringify(weather);
+   * }
+   */
   execute?: (args: any) => Promise<string> | string;
 }
 
@@ -35,59 +101,365 @@ export interface ToolConfig {
   [key: string]: Tool
 }
 
+/**
+ * Structured output format specification.
+ * 
+ * Constrains the model's output to match a specific JSON structure.
+ * Useful for extracting structured data, form filling, or ensuring consistent response formats.
+ * 
+ * @see https://platform.openai.com/docs/guides/structured-outputs
+ * @see https://sdk.vercel.ai/docs/ai-sdk-core/structured-outputs
+ * 
+ * @template TData - TypeScript type of the expected data structure (for type safety)
+ */
 export interface ResponseFormat<TData = any> {
-  /** Type of structured output: "json_object" for any JSON or "json_schema" for schema-validated JSON */
+  /**
+   * Type of structured output.
+   * 
+   * - "json_object": Forces the model to output valid JSON (any structure)
+   * - "json_schema": Validates output against a provided JSON Schema (strict structure)
+   * 
+   * @see https://platform.openai.com/docs/api-reference/chat/create#chat-create-response_format
+   */
   type: "json_object" | "json_schema";
-  /** JSON schema specification (required when type is "json_schema") */
+
+  /**
+   * JSON schema specification (required when type is "json_schema").
+   * 
+   * Defines the exact structure the model's output must conform to.
+   * OpenAI's structured outputs will guarantee the output matches this schema.
+   */
   json_schema?: {
-    /** Unique name for the schema */
+    /**
+     * Unique name for the schema.
+     * 
+     * Used to identify the schema in logs and debugging.
+     * Should be descriptive (e.g., "user_profile", "search_results").
+     */
     name: string;
-    /** Optional description of what the schema represents */
+
+    /**
+     * Optional description of what the schema represents.
+     * 
+     * Helps document the purpose of this structured output.
+     * 
+     * @example "User profile information including name, email, and preferences"
+     */
     description?: string;
-    /** JSON Schema definition for the expected output structure */
+
+    /**
+     * JSON Schema definition for the expected output structure.
+     * 
+     * Must be a valid JSON Schema (draft 2020-12 or compatible).
+     * The model's output will be validated against this schema.
+     * 
+     * @see https://json-schema.org/
+     * 
+     * @example
+     * {
+     *   type: "object",
+     *   properties: {
+     *     name: { type: "string" },
+     *     age: { type: "number" },
+     *     email: { type: "string", format: "email" }
+     *   },
+     *   required: ["name", "email"],
+     *   additionalProperties: false
+     * }
+     */
     schema: Record<string, any>;
-    /** Whether to enforce strict schema validation (recommended: true) */
+
+    /**
+     * Whether to enforce strict schema validation.
+     * 
+     * When true (recommended), the model guarantees output will match the schema exactly.
+     * When false, the model will "best effort" match the schema.
+     * 
+     * Default: true (for providers that support it)
+     * 
+     * @see https://platform.openai.com/docs/guides/structured-outputs#strict-mode
+     */
     strict?: boolean;
   };
-  // Type-only property to carry the inferred data type
+
+  /**
+   * Type-only property to carry the inferred data type.
+   * 
+   * This is never set at runtime - it only exists for TypeScript type inference.
+   * Allows the SDK to know what type to expect when parsing the response.
+   * 
+   * @internal
+   */
   __data?: TData;
 }
 
-export interface ChatCompletionOptions {
-  /** The model to use for chat completion */
+/**
+ * Common options interface - normalized across all providers
+ * Based on Vercel AI SDK pattern for consistency
+ * 
+ * @see https://sdk.vercel.ai/docs/ai-sdk-core/generating-text
+ */
+export interface CommonChatOptions {
+  /**
+   * The model identifier to use for chat completion.
+   * 
+   * Examples: "gpt-4", "claude-3-5-sonnet-20241022", "llama2"
+   * 
+   * @see https://platform.openai.com/docs/models (OpenAI)
+   * @see https://docs.anthropic.com/claude/docs/models-overview (Anthropic)
+   * @see https://ollama.com/library (Ollama)
+   * @see https://ai.google.dev/gemini-api/docs/models/gemini (Gemini)
+   */
   model: string;
-  /** Array of messages in the conversation */
+
+  /**
+   * Array of messages forming the conversation history.
+   * Each message has a role (system/user/assistant/tool) and content.
+   * 
+   * @see https://platform.openai.com/docs/api-reference/chat/create#chat-create-messages
+   * @see https://docs.anthropic.com/claude/reference/messages_post#body-messages
+   */
   messages: Message[];
-  /** Controls randomness in the output (0-2). Lower values make output more focused and deterministic. */
+
+  // Sampling parameters
+  /**
+   * Controls randomness in the output (0.0-2.0 for most providers).
+   * 
+   * - Lower values (e.g., 0.2): More focused, deterministic, and conservative
+   * - Medium values (e.g., 0.7): Balanced creativity and coherence
+   * - Higher values (e.g., 1.5): More creative, diverse, and random
+   * 
+   * Default: 1.0 for most providers
+   * 
+   * @see https://platform.openai.com/docs/api-reference/chat/create#chat-create-temperature
+   * @see https://docs.anthropic.com/claude/reference/messages_post#body-temperature
+   */
   temperature?: number;
-  /** Maximum number of tokens to generate in the completion */
+
+  /**
+   * Maximum number of tokens to generate in the completion.
+   * 
+   * Limits the length of the model's response. The exact behavior varies by provider:
+   * - OpenAI: Counts both prompt and completion tokens towards context limit
+   * - Anthropic: Separate from input token count
+   * 
+   * Note: One token ≈ 4 characters for English text
+   * 
+   * @see https://platform.openai.com/docs/api-reference/chat/create#chat-create-max_tokens
+   * @see https://docs.anthropic.com/claude/reference/messages_post#body-max_tokens
+   */
   maxTokens?: number;
-  /** Nucleus sampling parameter (0-1). Alternative to temperature for controlling randomness. */
+
+  /**
+   * Nucleus sampling parameter (0.0-1.0).
+   * 
+   * An alternative to temperature for controlling randomness. The model considers
+   * the tokens with top_p probability mass. For example, 0.1 means only tokens
+   * comprising the top 10% probability mass are considered.
+   * 
+   * Recommended: Alter either temperature OR top_p, but not both.
+   * 
+   * @see https://platform.openai.com/docs/api-reference/chat/create#chat-create-top_p
+   * @see https://docs.anthropic.com/claude/reference/messages_post#body-top_p
+   */
   topP?: number;
-  /** Penalizes new tokens based on their frequency in the text so far (-2.0 to 2.0). Positive values decrease repetition. */
+
+  /**
+   * Penalizes new tokens based on their frequency in the text so far (-2.0 to 2.0).
+   * 
+   * Positive values decrease the model's likelihood of repeating the same line verbatim.
+   * - Positive values: Reduce repetition
+   * - Negative values: Increase repetition
+   * - 0: No penalty (default)
+   * 
+   * @see https://platform.openai.com/docs/api-reference/chat/create#chat-create-frequency_penalty
+   * @see https://docs.anthropic.com/claude/reference/messages_post (not directly supported, handled via prompting)
+   */
   frequencyPenalty?: number;
-  /** Penalizes new tokens based on whether they appear in the text so far (-2.0 to 2.0). Positive values encourage new topics. */
+
+  /**
+   * Penalizes new tokens based on whether they appear in the text so far (-2.0 to 2.0).
+   * 
+   * Positive values increase the model's likelihood to talk about new topics.
+   * - Positive values: Encourage new topics
+   * - Negative values: Stay on existing topics
+   * - 0: No penalty (default)
+   * 
+   * @see https://platform.openai.com/docs/api-reference/chat/create#chat-create-presence_penalty
+   */
   presencePenalty?: number;
-  /** Up to 4 sequences where the API will stop generating further tokens */
+
+  /**
+   * Random seed for deterministic generation (integer).
+   * 
+   * When provided, the model will make a best effort to generate the same output
+   * for the same inputs. Useful for reproducible results and testing.
+   * 
+   * Note: Determinism is not guaranteed across model versions or providers.
+   * 
+   * @see https://platform.openai.com/docs/api-reference/chat/create#chat-create-seed
+   * @see https://github.com/ollama/ollama/blob/main/docs/modelfile.md#parameter (Ollama)
+   */
+  seed?: number;
+
+  // Control parameters
+  /**
+   * Sequences where the API will stop generating further tokens.
+   * 
+   * Up to 4 sequences where the model will stop generating. The returned text
+   * will not contain the stop sequence.
+   * 
+   * @see https://platform.openai.com/docs/api-reference/chat/create#chat-create-stop
+   * @see https://docs.anthropic.com/claude/reference/messages_post#body-stop_sequences
+   */
   stopSequences?: string[];
-  /** Whether to stream the response incrementally */
+
+  /**
+   * Whether to stream the response incrementally using Server-Sent Events (SSE).
+   * 
+   * When true, tokens are sent as they're generated rather than waiting for completion.
+   * Useful for providing real-time feedback in chat interfaces.
+   * 
+   * Default: false
+   * 
+   * @see https://platform.openai.com/docs/api-reference/chat/create#chat-create-stream
+   * @see https://docs.anthropic.com/claude/reference/messages-streaming
+   */
   stream?: boolean;
-  /** Array of tools/functions that the model can call */
+
+  // Tool/Function calling
+  /**
+   * Array of tools/functions that the model can call.
+   * 
+   * Tools allow the model to interact with external APIs and perform actions.
+   * Each tool must have a unique name and a JSON Schema describing its parameters.
+   * 
+   * @see https://platform.openai.com/docs/guides/function-calling
+   * @see https://docs.anthropic.com/claude/docs/tool-use
+   */
   tools?: Tool[];
-  /** Controls which (if any) tool is called. Can be "auto", "none", or specify a particular function */
+
+  /**
+   * Controls which (if any) tool is called by the model.
+   * 
+   * Options:
+   * - "auto": Model decides whether to call a tool and which one (default)
+   * - "none": Model will not call any tools
+   * - "required": Model must call at least one tool
+   * - Object: Forces the model to call a specific tool
+   * 
+   * @see https://platform.openai.com/docs/api-reference/chat/create#chat-create-tool_choice
+   * @see https://docs.anthropic.com/claude/docs/tool-use#controlling-claudes-output
+   */
   toolChoice?:
   | "auto"
   | "none"
+  | "required"
   | { type: "function"; function: { name: string } };
-  /** Structured output format specification. Use with responseFormat() helper for type-safe outputs. */
-  responseFormat?: ResponseFormat;
-  /** Maximum number of automatic tool execution iterations (default: 5) */
+
+  /**
+   * Whether to enable parallel tool calls.
+   * 
+   * When true, the model can call multiple tools simultaneously in a single response.
+   * This can be more efficient but may be complex to handle.
+   * 
+   * Default: true (when supported by provider)
+   * 
+   * @see https://platform.openai.com/docs/api-reference/chat/create#chat-create-parallel_tool_calls
+   */
+  parallelToolCalls?: boolean;
+
+  /**
+   * Maximum number of automatic tool execution iterations.
+   * 
+   * When tools have an execute() function, the SDK will automatically run them
+   * and feed results back to the model. This controls how many times this loop
+   * can occur to prevent infinite loops.
+   * 
+   * Default: 5
+   */
   maxIterations?: number;
-  /** Additional metadata to attach to the request */
+
+  // Output format
+  /**
+   * Structured output format specification.
+   * 
+   * Constrains the model's output to match a specific JSON structure.
+   * Use with responseFormat() helper for type-safe outputs.
+   * 
+   * - "json_object": Any valid JSON object
+   * - "json_schema": JSON that conforms to a provided schema (with validation)
+   * 
+   * @see https://platform.openai.com/docs/guides/structured-outputs
+   * @see https://docs.anthropic.com/claude/docs/tool-use (Anthropic uses tools for structured output)
+   */
+  responseFormat?: ResponseFormat;
+
+  // Advanced features
+  /**
+   * Additional metadata to attach to the request.
+   * 
+   * Can be used for tracking, logging, or filtering requests.
+   * Limited to 16 key-value pairs, keys max 64 chars, values max 512 chars (OpenAI).
+   * 
+   * @see https://platform.openai.com/docs/api-reference/chat/create#chat-create-metadata
+   */
   metadata?: Record<string, any>;
-  /** Provider-specific options (e.g., OpenAI's store, parallel_tool_calls, etc.) */
+
+  /**
+   * Unique identifier for the end-user.
+   * 
+   * Used for abuse monitoring and tracking. Can help providers detect and prevent abuse.
+   * Should be a unique identifier for your end-user (not your app's API key).
+   * 
+   * @see https://platform.openai.com/docs/api-reference/chat/create#chat-create-user
+   */
+  user?: string;
+
+  /**
+   * AbortSignal for request cancellation.
+   * 
+   * Allows you to cancel an in-progress request using an AbortController.
+   * Useful for implementing timeouts or user-initiated cancellations.
+   * 
+   * @example
+   * const controller = new AbortController();
+   * setTimeout(() => controller.abort(), 5000); // Cancel after 5 seconds
+   * await chat({ ..., abortSignal: controller.signal });
+   * 
+   * @see https://developer.mozilla.org/en-US/docs/Web/API/AbortSignal
+   */
+  abortSignal?: AbortSignal;
+
+  /**
+   * Custom HTTP headers to include in the request.
+   * 
+   * Useful for adding authorization, tracking, or custom headers required by proxies.
+   * 
+   * @example
+   * headers: { "X-Custom-Header": "value" }
+   */
+  headers?: Record<string, string>;
+
+  /**
+   * Provider-specific options that don't fit into common options.
+   * 
+   * Each provider has unique features (e.g., OpenAI's store, Anthropic's thinking).
+   * These are strongly typed when using a specific adapter.
+   * 
+   * @see OpenAIChatProviderOptions for OpenAI-specific options
+   * @see AnthropicProviderOptions for Anthropic-specific options
+   * @see OllamaProviderOptions for Ollama-specific options
+   * @see GeminiProviderOptions for Gemini-specific options
+   */
   providerOptions?: Record<string, any>;
 }
+
+/**
+ * Chat completion options - extends common options
+ * This is the main interface used throughout the SDK
+ */
+export interface ChatCompletionOptions extends CommonChatOptions { }
 
 export type StreamChunkType = "content" | "tool_call" | "done" | "error";
 
