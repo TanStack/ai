@@ -26,32 +26,32 @@ yarn add @tanstack/ai-client
 ## Basic Usage
 
 ```typescript
-import { ChatClient } from '@tanstack/ai-client';
+import { ChatClient } from "@tanstack/ai-client";
 
 // Create a client instance
 const client = new ChatClient({
-  api: '/api/chat',
+  api: "/api/chat",
   onMessagesChange: (messages) => {
-    console.log('Messages updated:', messages);
+    console.log("Messages updated:", messages);
   },
   onLoadingChange: (isLoading) => {
-    console.log('Loading state:', isLoading);
+    console.log("Loading state:", isLoading);
   },
   onErrorChange: (error) => {
-    console.log('Error:', error);
+    console.log("Error:", error);
   },
 });
 
 // Send a message
-await client.sendMessage('Hello, AI!');
+await client.sendMessage("Hello, AI!");
 
 // Get current messages
 const messages = client.getMessages();
 
 // Append a message manually
 await client.append({
-  role: 'user',
-  content: 'Another message',
+  role: "user",
+  content: "Another message",
 });
 
 // Reload the last response
@@ -76,13 +76,13 @@ The main class for managing chat interactions.
 interface ChatClientOptions {
   // API endpoint (default: "/api/chat")
   api?: string;
-  
+
   // Initial messages
   initialMessages?: ChatMessage[];
-  
+
   // Unique chat identifier
   id?: string;
-  
+
   // Callbacks
   onResponse?: (response: Response) => void | Promise<void>;
   onChunk?: (chunk: StreamChunk) => void;
@@ -91,7 +91,7 @@ interface ChatClientOptions {
   onMessagesChange?: (messages: ChatMessage[]) => void;
   onLoadingChange?: (isLoading: boolean) => void;
   onErrorChange?: (error: Error | undefined) => void;
-  
+
   // Request configuration
   headers?: Record<string, string> | Headers;
   body?: Record<string, any>;
@@ -149,15 +149,15 @@ This package is used by framework-specific packages like `@tanstack/ai-react`, w
 ### Example: Custom React Hook
 
 ```typescript
-import { ChatClient } from '@tanstack/ai-client';
-import { useState, useRef, useCallback } from 'react';
+import { ChatClient } from "@tanstack/ai-client";
+import { useState, useRef, useCallback } from "react";
 
 function useCustomChat(options) {
   const [messages, setMessages] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
-  
+
   const clientRef = useRef(null);
-  
+
   if (!clientRef.current) {
     clientRef.current = new ChatClient({
       ...options,
@@ -165,11 +165,11 @@ function useCustomChat(options) {
       onLoadingChange: setIsLoading,
     });
   }
-  
+
   const sendMessage = useCallback((content) => {
     return clientRef.current.sendMessage(content);
   }, []);
-  
+
   return { messages, isLoading, sendMessage };
 }
 ```
@@ -185,22 +185,23 @@ import { toStreamResponse } from "@tanstack/ai/stream-to-response";
 
 export async function POST(request: Request) {
   const { messages } = await request.json();
-  
+
   // chat() automatically executes tools in a loop
   const stream = chat({
     adapter: openai(),
     model: "gpt-4o",
     messages,
     tools: [weatherTool], // Tools are auto-executed when called
-    maxIterations: 5, // Max tool execution rounds
+    agentLoopStrategy: maxIterations(5), // Control loop behavior
   });
-  
+
   // Stream includes tool_call and tool_result chunks
   return toStreamResponse(stream);
 }
 ```
 
 The client will receive:
+
 - `content` chunks - text from the model
 - `tool_call` chunks - when model calls a tool (auto-executed by SDK)
 - `tool_result` chunks - results from tool execution (auto-emitted by SDK)
@@ -209,4 +210,3 @@ The client will receive:
 ## License
 
 MIT
-

@@ -20,7 +20,7 @@ const stream = ai.chat({
   model: "gpt-4",
   messages: [{ role: "user", content: "Hello" }],
   tools: [weatherTool], // Optional: auto-executed when called
-  maxIterations: 5, // Optional: max tool execution rounds
+  agentLoopStrategy: maxIterations(5), // Optional: control loop
 });
 for await (const chunk of stream) {
   if (chunk.type === "content") process.stdout.write(chunk.delta);
@@ -31,15 +31,15 @@ for await (const chunk of stream) {
 
 ## Quick Comparison
 
-| Feature | chatCompletion | chat |
-|---------|----------------|------|
-| **Return Type** | `Promise<ChatCompletionResult>` | `AsyncIterable<StreamChunk>` |
-| **When to Use** | Need complete response | Real-time streaming |
-| **Async/Await** | ✅ Yes | ✅ Yes (for await) |
-| **Fallbacks** | ✅ Yes | ✅ Yes |
-| **Tool Execution** | ❌ No (manual) | ✅ **Automatic loop** |
-| **Type-Safe Models** | ✅ Yes | ✅ Yes |
-| **Structured Output** | ✅ Yes | ❌ No |
+| Feature               | chatCompletion                  | chat                         |
+| --------------------- | ------------------------------- | ---------------------------- |
+| **Return Type**       | `Promise<ChatCompletionResult>` | `AsyncIterable<StreamChunk>` |
+| **When to Use**       | Need complete response          | Real-time streaming          |
+| **Async/Await**       | ✅ Yes                          | ✅ Yes (for await)           |
+| **Fallbacks**         | ✅ Yes                          | ✅ Yes                       |
+| **Tool Execution**    | ❌ No (manual)                  | ✅ **Automatic loop**        |
+| **Type-Safe Models**  | ✅ Yes                          | ✅ Yes                       |
+| **Structured Output** | ✅ Yes                          | ❌ No                        |
 
 ## Common Patterns
 
@@ -51,16 +51,16 @@ import { toStreamResponse } from "@tanstack/ai/stream-to-response";
 export const Route = createAPIFileRoute("/api/chat")({
   POST: async ({ request }) => {
     const { messages } = await request.json();
-    
+
     const stream = ai.chat({
       adapter: "openAi",
       model: "gpt-4o",
       messages,
-      fallbacks: [{ adapter: "ollama", model: "llama2" }]
+      fallbacks: [{ adapter: "ollama", model: "llama2" }],
     });
 
     return toStreamResponse(stream);
-  }
+  },
 });
 ```
 
@@ -105,13 +105,15 @@ const tools = [
     function: {
       name: "get_weather",
       description: "Get weather for a location",
-      parameters: { /* ... */ }
+      parameters: {
+        /* ... */
+      },
     },
     execute: async (args: any) => {
       // SDK automatically calls this when model calls the tool
       return JSON.stringify({ temp: 72, condition: "sunny" });
-    }
-  }
+    },
+  },
 ];
 
 // Stream mode with automatic tool execution
@@ -121,7 +123,7 @@ const stream = ai.chat({
   messages: [{ role: "user", content: "What's the weather in SF?" }],
   tools, // Tools with execute functions are auto-executed
   toolChoice: "auto",
-  maxIterations: 5, // Max tool execution rounds (default: 5)
+  agentLoopStrategy: maxIterations(5), // Control loop behavior
 });
 
 for await (const chunk of stream) {
@@ -136,6 +138,7 @@ for await (const chunk of stream) {
 ```
 
 **How it works:**
+
 1. Model decides to call a tool → `tool_call` chunk
 2. SDK executes `tool.execute()` → `tool_result` chunk
 3. SDK adds result to messages → continues conversation
@@ -226,7 +229,7 @@ const result = await ai.chat({
   adapter: "openai",
   model: "gpt-4",
   messages: [],
-  as: "promise"
+  as: "promise",
 });
 
 // Streaming
@@ -234,7 +237,7 @@ const stream = ai.chat({
   adapter: "openai",
   model: "gpt-4",
   messages: [],
-  as: "stream"
+  as: "stream",
 });
 
 // HTTP Response
@@ -242,7 +245,7 @@ const response = ai.chat({
   adapter: "openai",
   model: "gpt-4",
   messages: [],
-  as: "response"
+  as: "response",
 });
 ```
 
@@ -253,14 +256,14 @@ const response = ai.chat({
 const result = await ai.chatCompletion({
   adapter: "openai",
   model: "gpt-4",
-  messages: []
+  messages: [],
 });
 
 // Streaming - use chat()
 const stream = ai.chat({
   adapter: "openai",
   model: "gpt-4",
-  messages: []
+  messages: [],
 });
 
 // HTTP Response - use chat() + toStreamResponse()
@@ -269,7 +272,7 @@ import { toStreamResponse } from "@tanstack/ai/stream-to-response";
 const stream = ai.chat({
   adapter: "openai",
   model: "gpt-4",
-  messages: []
+  messages: [],
 });
 return toStreamResponse(stream);
 ```
@@ -280,7 +283,11 @@ TypeScript automatically infers the correct return type:
 
 ```typescript
 // Type: Promise<ChatCompletionResult>
-const promise = ai.chatCompletion({ adapter: "openai", model: "gpt-4", messages: [] });
+const promise = ai.chatCompletion({
+  adapter: "openai",
+  model: "gpt-4",
+  messages: [],
+});
 
 // Type: AsyncIterable<StreamChunk>
 const stream = ai.chat({ adapter: "openai", model: "gpt-4", messages: [] });
@@ -305,15 +312,15 @@ try {
 
 ## Cheat Sheet
 
-| What You Want | Use This | Example |
-|---------------|----------|---------|
-| Complete response | `chatCompletion()` | `const result = await ai.chatCompletion({...})` |
-| Custom streaming | `chat()` | `for await (const chunk of ai.chat({...}))` |
-| API endpoint | `chat()` + `toStreamResponse()` | `return toStreamResponse(ai.chat({...}))` |
-| With fallbacks | Add `fallbacks: [...]` | `fallbacks: [{ adapter: "ollama", model: "llama2" }]` |
-| With tools | Add `tools: [...]` | `tools: [{...}, {...}], toolChoice: "auto"` |
-| Multiple adapters | Use `fallbacks` only | `fallbacks: [{ adapter: "a", model: "m1" }, {...}]` |
-| Structured output | Use `chatCompletion()` with `output` | `chatCompletion({..., output: schema })` |
+| What You Want     | Use This                             | Example                                               |
+| ----------------- | ------------------------------------ | ----------------------------------------------------- |
+| Complete response | `chatCompletion()`                   | `const result = await ai.chatCompletion({...})`       |
+| Custom streaming  | `chat()`                             | `for await (const chunk of ai.chat({...}))`           |
+| API endpoint      | `chat()` + `toStreamResponse()`      | `return toStreamResponse(ai.chat({...}))`             |
+| With fallbacks    | Add `fallbacks: [...]`               | `fallbacks: [{ adapter: "ollama", model: "llama2" }]` |
+| With tools        | Add `tools: [...]`                   | `tools: [{...}, {...}], toolChoice: "auto"`           |
+| Multiple adapters | Use `fallbacks` only                 | `fallbacks: [{ adapter: "a", model: "m1" }, {...}]`   |
+| Structured output | Use `chatCompletion()` with `output` | `chatCompletion({..., output: schema })`              |
 
 ## Documentation
 

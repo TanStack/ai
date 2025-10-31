@@ -15,6 +15,7 @@ The `chat()` method in TanStack AI includes an **automatic tool execution loop**
 ## Architecture
 
 The tool execution loop is implemented using the `ToolCallManager` class, which:
+
 - **Accumulates tool calls** from streaming chunks
 - **Validates tool calls** (ensures IDs and names are present)
 - **Executes tools** and emits `tool_result` chunks
@@ -92,10 +93,10 @@ const tools = [
         type: "object",
         properties: {
           location: { type: "string" },
-          unit: { type: "string", enum: ["celsius", "fahrenheit"] }
+          unit: { type: "string", enum: ["celsius", "fahrenheit"] },
         },
-        required: ["location"]
-      }
+        required: ["location"],
+      },
     },
     execute: async (args) => {
       // This is called automatically by the SDK
@@ -103,11 +104,11 @@ const tools = [
       return JSON.stringify({
         temperature: weather.temp,
         conditions: weather.conditions,
-        unit: args.unit || "celsius"
+        unit: args.unit || "celsius",
       });
-    }
+    },
   }),
-  
+
   tool({
     type: "function",
     function: {
@@ -116,28 +117,28 @@ const tools = [
       parameters: {
         type: "object",
         properties: {
-          expression: { type: "string" }
+          expression: { type: "string" },
         },
-        required: ["expression"]
-      }
+        required: ["expression"],
+      },
     },
     execute: async (args) => {
       // This is called automatically by the SDK
       const result = evaluateExpression(args.expression);
       return JSON.stringify({ result });
-    }
-  })
+    },
+  }),
 ];
 
 // Use with chat - tools are automatically executed
 const stream = chat({
   adapter: openai(),
   model: "gpt-4o",
-  messages: [
-    { role: "user", content: "What's the weather in Paris?" }
-  ],
+  messages: [{ role: "user", content: "What's the weather in Paris?" }],
   tools,
-  maxIterations: 5, // Max tool execution rounds (default: 5)
+  agentLoopStrategy: maxIterations(5), // Control loop behavior
+  // Or use custom strategy:
+  // agentLoopStrategy: ({ iterationCount, messages }) => iterationCount < 10,
 });
 
 // Handle the stream
@@ -188,9 +189,87 @@ All handled automatically by the SDK!
 
 ## Configuration
 
-### `maxIterations`
+### Agent Loop Strategies
 
-Control how many rounds of tool execution are allowed (default: 5):
+Control when the tool execution loop stops using `agentLoopStrategy` (or legacy `maxIterations`):
+
+#### Built-in Strategies
+
+```typescript
+import { maxIterations, untilFinishReason, combineStrategies } from "@tanstack/ai";
+
+// 1. Max iterations (default behavior)
+const stream = chat({
+  adapter: openai(),
+  model: "gpt-4o",
+  messages: [...],
+  tools: [...],
+  agentLoopStrategy: maxIterations(3), // Max 3 rounds
+});
+
+// 2. Until specific finish reason
+const stream = chat({
+  adapter: openai(),
+  model: "gpt-4o",
+  messages: [...],
+  tools: [...],
+  agentLoopStrategy: untilFinishReason(["stop", "length"]),
+});
+
+// 3. Combine multiple strategies
+const stream = chat({
+  adapter: openai(),
+  model: "gpt-4o",
+  messages: [...],
+  tools: [...],
+  agentLoopStrategy: combineStrategies([
+    maxIterations(10),
+    ({ messages }) => messages.length < 100, // Custom condition
+  ]),
+});
+```
+
+#### Custom Strategies
+
+Create your own strategy function:
+
+```typescript
+// Simple custom strategy
+const myStrategy: AgentLoopStrategy = ({ iterationCount }) => {
+  return iterationCount < 5;
+};
+
+// Advanced custom strategy
+const advancedStrategy: AgentLoopStrategy = ({
+  iterationCount,
+  messages,
+  finishReason
+}) => {
+  // Stop if too many iterations
+  if (iterationCount >= 10) return false;
+
+  // Stop if conversation too long
+  if (messages.length > 50) return false;
+
+  // Stop on specific finish reasons
+  if (finishReason === "length") return false;
+
+  // Otherwise continue
+  return true;
+};
+
+const stream = chat({
+  adapter: openai(),
+  model: "gpt-4o",
+  messages: [...],
+  tools: [...],
+  agentLoopStrategy: advancedStrategy,
+});
+```
+
+#### Legacy: maxIterations
+
+For backwards compatibility, you can still use `maxIterations` as a number:
 
 ```typescript
 const stream = chat({
@@ -198,11 +277,23 @@ const stream = chat({
   model: "gpt-4o",
   messages: [...],
   tools: [...],
-  maxIterations: 3, // Max 3 rounds of tool execution
+  maxIterations: 3, // Deprecated: use agentLoopStrategy: maxIterations(3) instead
 });
 ```
 
-This prevents infinite loops if the model keeps calling tools.
+This is equivalent to `agentLoopStrategy: maxIterations(3)`.
+
+### Agent Loop Strategy Types
+
+```typescript
+export interface AgentLoopState {
+  iterationCount: number; // Current iteration (0-indexed)
+  messages: Message[]; // Current conversation messages
+  finishReason: string | null; // Last finish reason from model
+}
+
+export type AgentLoopStrategy = (state: AgentLoopState) => boolean;
+```
 
 ### `toolChoice`
 
@@ -281,7 +372,7 @@ import { toStreamResponse } from "@tanstack/ai/stream-to-response";
 
 export async function POST(request: Request) {
   const { messages } = await request.json();
-  
+
   const stream = chat({
     adapter: openai(),
     model: "gpt-4o",
@@ -289,7 +380,7 @@ export async function POST(request: Request) {
     tools: [weatherTool, calculateTool],
     maxIterations: 5,
   });
-  
+
   // Client receives tool_call and tool_result chunks
   return toStreamResponse(stream);
 }
@@ -298,8 +389,8 @@ export async function POST(request: Request) {
 **Client-side:**
 
 ```typescript
-const response = await fetch('/api/chat', {
-  method: 'POST',
+const response = await fetch("/api/chat", {
+  method: "POST",
   body: JSON.stringify({ messages }),
 });
 
@@ -309,13 +400,13 @@ const reader = response.body.getReader();
 
 ## Comparison: chat() vs chatCompletion()
 
-| Feature | `chat()` | `chatCompletion()` |
-|---------|----------|-------------------|
-| **Tool Execution** | ✅ Automatic loop | ❌ Manual (returns tool calls) |
-| **Streaming** | ✅ Yes | ❌ No |
-| **Tool Results** | ✅ Emitted as chunks | ❌ Not executed |
-| **Conversation Continue** | ✅ Automatic | ❌ Manual |
-| **Use Case** | Real-time UIs, APIs | Batch processing, manual control |
+| Feature                   | `chat()`             | `chatCompletion()`               |
+| ------------------------- | -------------------- | -------------------------------- |
+| **Tool Execution**        | ✅ Automatic loop    | ❌ Manual (returns tool calls)   |
+| **Streaming**             | ✅ Yes               | ❌ No                            |
+| **Tool Results**          | ✅ Emitted as chunks | ❌ Not executed                  |
+| **Conversation Continue** | ✅ Automatic         | ❌ Manual                        |
+| **Use Case**              | Real-time UIs, APIs  | Batch processing, manual control |
 
 ### When to use `chatCompletion()`
 
@@ -336,7 +427,7 @@ if (result.toolCalls) {
     // Manual execution
     const tool = tools.find(t => t.function.name === toolCall.function.name);
     const result = await tool.execute(JSON.parse(toolCall.function.arguments));
-    
+
     // You must add result to messages and call chatCompletion again
     messages.push({
       role: "assistant",
@@ -348,7 +439,7 @@ if (result.toolCalls) {
       content: result,
       toolCallId: toolCall.id
     });
-    
+
     // Call again with updated messages
     const nextResult = await chatCompletion({
       adapter: openai(),
@@ -371,19 +462,21 @@ The tool execution logic is implemented in the `ToolCallManager` class for bette
 ```typescript
 class ToolCallManager {
   constructor(tools: ReadonlyArray<Tool>);
-  
+
   // Add a streaming tool call chunk
   addToolCallChunk(chunk: ToolCallChunk): void;
-  
+
   // Check if there are complete tool calls
   hasToolCalls(): boolean;
-  
+
   // Get all validated tool calls
   getToolCalls(): ToolCall[];
-  
+
   // Execute tools and yield tool_result chunks
-  async *executeTools(doneChunk): AsyncGenerator<ToolResultStreamChunk, Message[]>;
-  
+  async *executeTools(
+    doneChunk
+  ): AsyncGenerator<ToolResultStreamChunk, Message[]>;
+
   // Clear for next iteration
   clear(): void;
 }
@@ -394,17 +487,17 @@ class ToolCallManager {
 ```typescript
 async *chat(options) {
   const toolCallManager = new ToolCallManager(options.tools || []);
-  
+
   while (iterationCount < maxIterations) {
     // Stream chunks
     for await (const chunk of adapter.chatStream()) {
       yield chunk;
-      
+
       if (chunk.type === "tool_call") {
         toolCallManager.addToolCallChunk(chunk); // Accumulate
       }
     }
-    
+
     // Execute if needed
     if (toolCallManager.hasToolCalls()) {
       const toolResults = yield* toolCallManager.executeTools(doneChunk);
@@ -412,7 +505,7 @@ async *chat(options) {
       toolCallManager.clear(); // Clear for next iteration
       continue;
     }
-    
+
     break;
   }
 }
@@ -435,6 +528,7 @@ pnpm test
 ```
 
 See `packages/ai/src/tool-call-manager.test.ts` for test scenarios:
+
 - Accumulating streaming chunks
 - Filtering incomplete tool calls
 - Executing tools
@@ -445,5 +539,3 @@ See `packages/ai/src/tool-call-manager.test.ts` for test scenarios:
 ## License
 
 MIT
-
-

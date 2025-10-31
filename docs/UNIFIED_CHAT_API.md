@@ -14,7 +14,7 @@ The chat API provides two methods for different use cases:
 1. **Model calls a tool** → SDK executes it automatically
 2. **SDK emits chunks** for tool calls and results (`tool_call`, `tool_result`)
 3. **SDK adds results** to messages and continues conversation
-4. **Loop repeats** until model stops calling tools (up to `maxIterations`, default: 5)
+4. **Loop repeats** until stopped by `agentLoopStrategy` (default: `maxIterations(5)`)
 
 **You don't need to manually execute tools or manage conversation state** - the SDK handles everything internally!
 
@@ -30,15 +30,15 @@ const result = await ai.chat({
   adapter: "openai",
   model: "gpt-4",
   messages: [{ role: "user", content: "Hello" }],
-  as: "promise"
+  as: "promise",
 });
 
 // For streaming
 const stream = ai.chat({
-  adapter: "openai", 
+  adapter: "openai",
   model: "gpt-4",
   messages: [{ role: "user", content: "Hello" }],
-  as: "stream"
+  as: "stream",
 });
 for await (const chunk of stream) {
   console.log(chunk);
@@ -47,9 +47,9 @@ for await (const chunk of stream) {
 // For HTTP response
 const response = ai.chat({
   adapter: "openai",
-  model: "gpt-4", 
+  model: "gpt-4",
   messages: [{ role: "user", content: "Hello" }],
-  as: "response"
+  as: "response",
 });
 return response;
 ```
@@ -61,14 +61,14 @@ return response;
 const result = await ai.chatCompletion({
   adapter: "openai",
   model: "gpt-4",
-  messages: [{ role: "user", content: "Hello" }]
+  messages: [{ role: "user", content: "Hello" }],
 });
 
 // For streaming - use chat()
 const stream = ai.chat({
   adapter: "openai",
   model: "gpt-4",
-  messages: [{ role: "user", content: "Hello" }]
+  messages: [{ role: "user", content: "Hello" }],
 });
 for await (const chunk of stream) {
   console.log(chunk);
@@ -80,7 +80,7 @@ import { toStreamResponse } from "@tanstack/ai/stream-to-response";
 const stream = ai.chat({
   adapter: "openai",
   model: "gpt-4",
-  messages: [{ role: "user", content: "Hello" }]
+  messages: [{ role: "user", content: "Hello" }],
 });
 return toStreamResponse(stream);
 ```
@@ -97,7 +97,7 @@ const result = await ai.chatCompletion({
   model: "gpt-4",
   messages: [
     { role: "system", content: "You are a helpful assistant." },
-    { role: "user", content: "What is TypeScript?" }
+    { role: "user", content: "What is TypeScript?" },
   ],
   temperature: 0.7,
 });
@@ -116,7 +116,7 @@ const stream = ai.chat({
   model: "gpt-4",
   messages: [{ role: "user", content: "Write a story" }],
   tools: [weatherTool], // Optional: tools are auto-executed
-  maxIterations: 5, // Optional: max tool execution rounds
+  agentLoopStrategy: maxIterations(5), // Optional: control loop
 });
 
 for await (const chunk of stream) {
@@ -134,6 +134,7 @@ for await (const chunk of stream) {
 ```
 
 **Chunk Types:**
+
 - `content` - Text content from the model (use `chunk.delta` for streaming)
 - `tool_call` - Model is calling a tool (emitted by model, auto-executed by SDK)
 - `tool_result` - Tool execution result (emitted after SDK executes tool)
@@ -175,8 +176,8 @@ const result = await ai.chatCompletion({
   messages: [{ role: "user", content: "Hello" }],
   fallbacks: [
     { adapter: "anthropic", model: "claude-3-sonnet-20240229" },
-    { adapter: "ollama", model: "llama2" }
-  ]
+    { adapter: "ollama", model: "llama2" },
+  ],
 });
 
 // Stream mode with fallbacks
@@ -184,9 +185,7 @@ const stream = ai.chat({
   adapter: "openai",
   model: "gpt-4",
   messages: [{ role: "user", content: "Hello" }],
-  fallbacks: [
-    { adapter: "anthropic", model: "claude-3-sonnet-20240229" }
-  ]
+  fallbacks: [{ adapter: "anthropic", model: "claude-3-sonnet-20240229" }],
 });
 
 // HTTP response with fallbacks (seamless failover in HTTP streaming!)
@@ -194,9 +193,7 @@ const stream = ai.chat({
   adapter: "openai",
   model: "gpt-4",
   messages: [{ role: "user", content: "Hello" }],
-  fallbacks: [
-    { adapter: "ollama", model: "llama2" }
-  ]
+  fallbacks: [{ adapter: "ollama", model: "llama2" }],
 });
 return toStreamResponse(stream);
 ```
@@ -215,17 +212,17 @@ const tools = [
       parameters: {
         type: "object",
         properties: {
-          location: { type: "string" }
+          location: { type: "string" },
         },
-        required: ["location"]
-      }
+        required: ["location"],
+      },
     },
     execute: async (args: { location: string }) => {
       // This function is automatically called by the SDK
       const weather = await fetchWeatherAPI(args.location);
       return JSON.stringify(weather);
-    }
-  }
+    },
+  },
 ];
 
 // Streaming chat with automatic tool execution
@@ -235,7 +232,7 @@ const stream = ai.chat({
   messages: [{ role: "user", content: "What's the weather in SF?" }],
   tools, // Tools with execute functions are auto-executed
   toolChoice: "auto",
-  maxIterations: 5, // Max tool execution rounds (default: 5)
+  agentLoopStrategy: maxIterations(5), // Control loop behavior
 });
 
 for await (const chunk of stream) {
@@ -267,11 +264,13 @@ for await (const chunk of stream) {
 7. SDK emits `done` chunk
 
 **Key Points:**
+
 - ✅ Tools are **automatically executed** by the SDK (you don't call `execute`)
 - ✅ Tool results are **automatically added** to messages
 - ✅ Conversation **automatically continues** after tool execution
-- ✅ Loop repeats until model stops calling tools or hits `maxIterations`
+- ✅ Loop controlled by `agentLoopStrategy` (default: `maxIterations(5)`)
 - ✅ All you do is handle chunks for display
+- ✅ Custom strategies available for advanced control
 
 **Promise Mode (No Tool Execution):**
 
@@ -300,7 +299,11 @@ TypeScript automatically infers the correct return type:
 
 ```typescript
 // Type: Promise<ChatCompletionResult>
-const promise = ai.chatCompletion({ adapter: "openai", model: "gpt-4", messages: [] });
+const promise = ai.chatCompletion({
+  adapter: "openai",
+  model: "gpt-4",
+  messages: [],
+});
 
 // Type: AsyncIterable<StreamChunk>
 const stream = ai.chat({ adapter: "openai", model: "gpt-4", messages: [] });
@@ -334,13 +337,11 @@ export const Route = createAPIFileRoute("/api/chat")({
       toolChoice: "auto",
       maxIterations: 5,
       temperature: 0.7,
-      fallbacks: [
-        { adapter: "ollama", model: "llama2" }
-      ]
+      fallbacks: [{ adapter: "ollama", model: "llama2" }],
     });
 
     return toStreamResponse(stream);
-  }
+  },
 });
 ```
 
@@ -349,7 +350,7 @@ Client-side consumption:
 ```typescript
 const response = await fetch("/api/chat", {
   method: "POST",
-  body: JSON.stringify({ messages, tools })
+  body: JSON.stringify({ messages, tools }),
 });
 
 const reader = response.body!.getReader();
@@ -361,12 +362,12 @@ while (true) {
 
   const text = decoder.decode(value);
   const lines = text.split("\n\n");
-  
+
   for (const line of lines) {
     if (line.startsWith("data: ")) {
       const data = line.slice(6);
       if (data === "[DONE]") continue;
-      
+
       const chunk = JSON.parse(data);
       if (chunk.type === "content") {
         console.log(chunk.delta); // Stream content to UI
@@ -379,6 +380,7 @@ while (true) {
 ## Summary
 
 The unified chat API provides:
+
 - **Two methods**: `chat()` for streaming, `chatCompletion()` for promises
 - **Same options** across both methods
 - **Built-in HTTP streaming** helper (`toStreamResponse`)

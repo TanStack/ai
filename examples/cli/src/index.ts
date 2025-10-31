@@ -19,6 +19,20 @@ import { AVAILABLE_TOOLS, listTools } from "./tools.js";
 // Load environment variables
 dotenv.config();
 
+// Handle Ctrl+D (EOF) and readline closure gracefully
+process.on("uncaughtException", (error: any) => {
+  if (
+    error.code === "ERR_USE_AFTER_CLOSE" &&
+    error.message?.includes("readline")
+  ) {
+    // Silently exit on readline closure (Ctrl+D)
+    console.log(chalk.yellow("\n\nGoodbye! 👋"));
+    process.exit(0);
+  }
+  // Re-throw other uncaught exceptions
+  throw error;
+});
+
 const program = new Command();
 
 program
@@ -113,30 +127,45 @@ async function promptForApiKey(
     console.log(chalk.cyan(`📝 Get your API key at: ${apiUrl}\n`));
   }
 
-  const { apiKey } = await inquirer.prompt([
-    {
-      type: "password",
-      name: "apiKey",
-      message: `Enter your ${provider} API key:`,
-      mask: "*",
-      validate: (input) => {
-        if (!input || input.trim().length === 0) {
-          return "API key is required";
-        }
-        return true;
+  let apiKey: string;
+  try {
+    const result = await inquirer.prompt([
+      {
+        type: "password",
+        name: "apiKey",
+        message: `Enter your ${provider} API key:`,
+        mask: "*",
+        validate: (input) => {
+          if (!input || input.trim().length === 0) {
+            return "API key is required";
+          }
+          return true;
+        },
       },
-    },
-  ]);
+    ]);
+    apiKey = result.apiKey;
+  } catch (error) {
+    // Handle Ctrl+D (EOF) gracefully
+    console.log(chalk.yellow("\nCancelled."));
+    process.exit(0);
+  }
 
   // Ask if they want to save it
-  const { saveKey } = await inquirer.prompt([
-    {
-      type: "confirm",
-      name: "saveKey",
-      message: "Would you like to save this API key to your .env file?",
-      default: true,
-    },
-  ]);
+  let saveKey: boolean;
+  try {
+    const result = await inquirer.prompt([
+      {
+        type: "confirm",
+        name: "saveKey",
+        message: "Would you like to save this API key to your .env file?",
+        default: true,
+      },
+    ]);
+    saveKey = result.saveKey;
+  } catch (error) {
+    // Handle Ctrl+D (EOF) gracefully - default to not saving
+    saveKey = false;
+  }
 
   if (saveKey) {
     const saved = await saveApiKeyToEnv(envVarName, apiKey);
@@ -326,13 +355,21 @@ Do not attempt to answer these questions without using the tools. Always call th
   }
 
   while (true) {
-    const { prompt } = await inquirer.prompt([
-      {
-        type: "input",
-        name: "prompt",
-        message: chalk.green("You:"),
-      },
-    ]);
+    let prompt: string;
+    try {
+      const result = await inquirer.prompt([
+        {
+          type: "input",
+          name: "prompt",
+          message: chalk.green("You:"),
+        },
+      ]);
+      prompt = result.prompt;
+    } catch (error) {
+      // Handle Ctrl+D (EOF) gracefully
+      console.log(chalk.yellow("\n\nGoodbye! 👋"));
+      break;
+    }
 
     if (prompt.toLowerCase() === "exit") {
       console.log(chalk.yellow("\nGoodbye! 👋"));
@@ -511,14 +548,20 @@ async function runGenerate(options: any) {
 
   let prompt = options.prompt;
   if (!prompt) {
-    const result = await inquirer.prompt([
-      {
-        type: "input",
-        name: "prompt",
-        message: "Enter your prompt:",
-      },
-    ]);
-    prompt = result.prompt;
+    try {
+      const result = await inquirer.prompt([
+        {
+          type: "input",
+          name: "prompt",
+          message: "Enter your prompt:",
+        },
+      ]);
+      prompt = result.prompt;
+    } catch (error) {
+      // Handle Ctrl+D (EOF) gracefully
+      console.log(chalk.yellow("\nCancelled."));
+      return;
+    }
   }
 
   const spinner = ora("Generating...").start();
@@ -548,14 +591,20 @@ async function runSummarize(options: any) {
 
   let text = options.text;
   if (!text) {
-    const result = await inquirer.prompt([
-      {
-        type: "editor",
-        name: "text",
-        message: "Enter the text to summarize:",
-      },
-    ]);
-    text = result.text;
+    try {
+      const result = await inquirer.prompt([
+        {
+          type: "editor",
+          name: "text",
+          message: "Enter the text to summarize:",
+        },
+      ]);
+      text = result.text;
+    } catch (error) {
+      // Handle Ctrl+D (EOF) gracefully
+      console.log(chalk.yellow("\nCancelled."));
+      return;
+    }
   }
 
   const spinner = ora("Summarizing...").start();
@@ -585,14 +634,20 @@ async function runEmbed(options: any) {
 
   let text = options.text;
   if (!text) {
-    const result = await inquirer.prompt([
-      {
-        type: "input",
-        name: "text",
-        message: "Enter the text to embed:",
-      },
-    ]);
-    text = result.text;
+    try {
+      const result = await inquirer.prompt([
+        {
+          type: "input",
+          name: "text",
+          message: "Enter the text to embed:",
+        },
+      ]);
+      text = result.text;
+    } catch (error) {
+      // Handle Ctrl+D (EOF) gracefully
+      console.log(chalk.yellow("\nCancelled."));
+      return;
+    }
   }
 
   const spinner = ora("Generating embeddings...").start();

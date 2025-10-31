@@ -32,7 +32,7 @@ export interface Tool {
 }
 
 export interface ToolConfig {
-  [key: string]: Tool
+  [key: string]: Tool;
 }
 
 export interface ResponseFormat<TData = any> {
@@ -52,6 +52,32 @@ export interface ResponseFormat<TData = any> {
   // Type-only property to carry the inferred data type
   __data?: TData;
 }
+
+/**
+ * State passed to agent loop strategy for determining whether to continue
+ */
+export interface AgentLoopState {
+  /** Current iteration count (0-indexed) */
+  iterationCount: number;
+  /** Current messages array */
+  messages: Message[];
+  /** Finish reason from the last response */
+  finishReason: string | null;
+}
+
+/**
+ * Strategy function that determines whether the agent loop should continue
+ *
+ * @param state - Current state of the agent loop
+ * @returns true to continue looping, false to stop
+ *
+ * @example
+ * ```typescript
+ * // Continue for up to 5 iterations
+ * const strategy: AgentLoopStrategy = ({ iterationCount }) => iterationCount < 5;
+ * ```
+ */
+export type AgentLoopStrategy = (state: AgentLoopState) => boolean;
 
 export interface ChatCompletionOptions {
   /** The model to use for chat completion */
@@ -76,20 +102,25 @@ export interface ChatCompletionOptions {
   tools?: Tool[];
   /** Controls which (if any) tool is called. Can be "auto", "none", or specify a particular function */
   toolChoice?:
-  | "auto"
-  | "none"
-  | { type: "function"; function: { name: string } };
+    | "auto"
+    | "none"
+    | { type: "function"; function: { name: string } };
   /** Structured output format specification. Use with responseFormat() helper for type-safe outputs. */
   responseFormat?: ResponseFormat;
-  /** Maximum number of automatic tool execution iterations (default: 5) */
-  maxIterations?: number;
+  /** Strategy for determining when to stop the agent loop. Defaults to maxIterations(5) */
+  agentLoopStrategy?: AgentLoopStrategy;
   /** Additional metadata to attach to the request */
   metadata?: Record<string, any>;
   /** Provider-specific options (e.g., OpenAI's store, parallel_tool_calls, etc.) */
   providerOptions?: Record<string, any>;
 }
 
-export type StreamChunkType = "content" | "tool_call" | "tool_result" | "done" | "error";
+export type StreamChunkType =
+  | "content"
+  | "tool_call"
+  | "tool_result"
+  | "done"
+  | "error";
 
 export interface BaseStreamChunk {
   type: StreamChunkType;
@@ -394,7 +425,7 @@ export interface VideoGenerationResult {
 
 /**
  * AI adapter interface with support for endpoint-specific models and provider options.
- * 
+ *
  * Generic parameters:
  * - TChatModels: Models that support chat/text completion
  * - TImageModels: Models that support image generation
@@ -461,16 +492,22 @@ export interface AIAdapter<
   createEmbeddings(options: EmbeddingOptions): Promise<EmbeddingResult>;
 
   // Image generation (optional)
-  generateImage?(options: ImageGenerationOptions): Promise<ImageGenerationResult>;
+  generateImage?(
+    options: ImageGenerationOptions
+  ): Promise<ImageGenerationResult>;
 
   // Audio transcription (optional)
-  transcribeAudio?(options: AudioTranscriptionOptions): Promise<AudioTranscriptionResult>;
+  transcribeAudio?(
+    options: AudioTranscriptionOptions
+  ): Promise<AudioTranscriptionResult>;
 
   // Text-to-speech (optional)
   generateSpeech?(options: TextToSpeechOptions): Promise<TextToSpeechResult>;
 
   // Video generation (optional)
-  generateVideo?(options: VideoGenerationOptions): Promise<VideoGenerationResult>;
+  generateVideo?(
+    options: VideoGenerationOptions
+  ): Promise<VideoGenerationResult>;
 }
 
 export interface AIAdapterConfig {

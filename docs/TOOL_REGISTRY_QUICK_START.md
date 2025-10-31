@@ -1,6 +1,6 @@
 # Tool Registry API - Quick Start
 
-> **🔄 Automatic Tool Execution:** The `chat()` method automatically executes tools in a loop. When the model calls a tool, the SDK executes it, adds the result to messages, and continues the conversation automatically (up to `maxIterations`, default: 5). You don't need to manually handle tool execution!
+> **🔄 Automatic Tool Execution:** The `chat()` method automatically executes tools in a loop. When the model calls a tool, the SDK executes it, adds the result to messages, and continues the conversation automatically (controlled by `agentLoopStrategy`, default: `maxIterations(5)`). You don't need to manually handle tool execution!
 >
 > **📚 See also:** [Complete Tool Execution Loop Documentation](TOOL_EXECUTION_LOOP.md)
 
@@ -81,14 +81,14 @@ const result = await ai.chat({
 
 ✅ **Autocomplete** - IDE suggests available tool names  
 ✅ **Validation** - TypeScript catches typos at compile time  
-✅ **Runtime checks** - Errors if tool doesn't exist  
+✅ **Runtime checks** - Errors if tool doesn't exist
 
 ```typescript
 // ✅ Valid
-tools: ["get_weather", "calculate"]
+tools: ["get_weather", "calculate"];
 
 // ❌ TypeScript Error
-tools: ["invalid_tool"]
+tools: ["invalid_tool"];
 ```
 
 ## Benefits vs Old API
@@ -127,7 +127,7 @@ const stream = ai.chat({
   messages: [...],
   tools: ["get_weather", "calculate"],
   toolChoice: "auto",
-  maxIterations: 5, // Optional: max tool execution rounds
+  agentLoopStrategy: maxIterations(5), // Optional: control loop
 });
 
 for await (const chunk of stream) {
@@ -142,6 +142,7 @@ for await (const chunk of stream) {
 ```
 
 **What happens internally:**
+
 1. Model decides to call a tool → `tool_call` chunk emitted
 2. SDK executes the tool's `execute` function automatically
 3. SDK emits `tool_result` chunk with the result

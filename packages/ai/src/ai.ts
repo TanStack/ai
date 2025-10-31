@@ -19,6 +19,7 @@ import type {
   ResponseFormat,
 } from "./types";
 import { ToolCallManager } from "./tool-call-manager";
+import { maxIterations as maxIterationsStrategy } from "./agent-loop-strategies";
 
 // Extract types from a single adapter
 type ExtractModels<T> = T extends AIAdapter<
@@ -205,9 +206,11 @@ class AI<
       tools,
       systemPrompts,
       providerOptions,
-      maxIterations = 5,
+      agentLoopStrategy,
       ...restOptions
     } = options;
+
+    const shouldContinueLoop = agentLoopStrategy || maxIterationsStrategy(5);
 
     // Prepend system prompts to messages
     let messages = this.prependSystemPrompts(
@@ -217,8 +220,9 @@ class AI<
 
     let iterationCount = 0;
     const toolCallManager = new ToolCallManager(tools || []);
+    let lastFinishReason: string | null = null;
 
-    while (iterationCount < maxIterations) {
+    do {
       let accumulatedContent = "";
       let doneChunk = null;
 
@@ -249,6 +253,7 @@ class AI<
         // Track done chunk
         if (chunk.type === "done") {
           doneChunk = chunk;
+          lastFinishReason = chunk.finishReason;
         }
 
         // Forward errors
@@ -286,12 +291,18 @@ class AI<
         toolCallManager.clear();
 
         iterationCount++;
-        continue; // Continue loop to get next response with updated messages
+        // Continue to next iteration (checked by while condition)
+      } else {
+        // Not tool_calls or no tools to execute, we're done
+        break;
       }
-
-      // Not tool_calls or no tools to execute, we're done
-      break;
-    }
+    } while (
+      shouldContinueLoop({
+        iterationCount,
+        messages,
+        finishReason: lastFinishReason,
+      })
+    );
   }
 
   /**

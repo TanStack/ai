@@ -117,15 +117,15 @@ import { toStreamResponse } from "@tanstack/ai/stream-to-response";
 
 export async function POST(request: Request) {
   const { messages } = await request.json();
-  
+
   const stream = chat({
     adapter: openai(),
     model: "gpt-4o",
     messages,
     tools: [weatherTool], // Optional: auto-executed in loop
-    maxIterations: 5, // Optional: max tool execution rounds
+    agentLoopStrategy: maxIterations(5), // Optional: control loop
   });
-  
+
   // Convert to HTTP streaming response with SSE headers
   return toStreamResponse(stream);
 }
@@ -334,7 +334,6 @@ export const Route = createFileRoute("/api/chat")({
             model: "claude-3-5-sonnet-20241022",
             messages,
             tools, // Tools with execute functions
-            maxIterations: 5,
           })
         );
       },

@@ -31,10 +31,11 @@ for await (const chunk of chat({
   adapter: openai(), // Automatically uses OPENAI_API_KEY from env
   model: "gpt-4o", // <-- Autocompletes with OpenAI models
   messages: [{ role: "user", content: "Hello!" }],
-  providerOptions: { // <-- Typed as OpenAI-specific options!
+  providerOptions: {
+    // <-- Typed as OpenAI-specific options!
     store: true,
     parallelToolCalls: true,
-  }
+  },
 })) {
   if (chunk.type === "content") {
     console.log(chunk.delta); // Stream tokens as they arrive
@@ -43,12 +44,14 @@ for await (const chunk of chat({
 ```
 
 **Why use standalone functions?**
+
 - ✅ **Type Inference** - Model and providerOptions types are inferred from the adapter
 - ✅ **Simplicity** - No class instantiation needed
 - ✅ **Direct** - Call the function you need with the adapter you want
 - ✅ **Flexible** - Easy to switch adapters on a per-call basis
 
 Available standalone functions:
+
 - `chat()` - Streaming chat with **automatic tool execution loop**
 - `chatCompletion()` - Promise-based chat with optional structured output
 - `summarize()` - Text summarization
@@ -69,7 +72,7 @@ import { openai } from "@tanstack/ai-openai";
 // Create an AI instance with system prompts
 const aiInstance = ai({
   adapter: openai(),
-  systemPrompts: ["You are a helpful assistant."]
+  systemPrompts: ["You are a helpful assistant."],
 });
 
 // Use the instance - system prompts are automatically prepended
@@ -85,6 +88,7 @@ for await (const chunk of aiInstance.chat({
 ```
 
 **Why use the AI class?**
+
 - ✅ **System Prompts** - Set default system prompts
 - ✅ **Reusable** - Configure once, use many times
 - ✅ **Type Safety** - Full type inference from adapter
@@ -143,7 +147,6 @@ npm install @tanstack/ai-gemini
 npm install @tanstack/ai-react
 ```
 
- 
 ## API Reference
 
 ### Standalone Functions
@@ -153,8 +156,9 @@ npm install @tanstack/ai-react
 Stream a chat conversation with **automatic tool execution loop**. Returns `AsyncIterable<StreamChunk>`.
 
 **Important:** When tools are provided, the `chat()` method automatically:
+
 - Executes tools when the model calls them
-- Emits `tool_result` chunks with execution results  
+- Emits `tool_result` chunks with execution results
 - Adds tool results to messages and continues conversation
 - Repeats until complete (up to `maxIterations`, default: 5)
 
@@ -165,7 +169,7 @@ const stream = chat({
   model: "gpt-4o",
   messages: [{ role: "user", content: "Hello!" }],
   tools: [weatherTool], // Optional: auto-executed when called
-  maxIterations: 5, // Optional: max tool execution rounds
+  agentLoopStrategy: maxIterations(5), // Optional: control loop behavior
 });
 
 for await (const chunk of stream) {
@@ -191,7 +195,9 @@ const result = await chatCompletion({
   messages: [{ role: "user", content: "Hello!" }],
   temperature: 0.7,
   maxTokens: 1000,
-  providerOptions: { /* provider-specific options */ }
+  providerOptions: {
+    /* provider-specific options */
+  },
 });
 
 // With structured output
@@ -199,7 +205,9 @@ const structuredResult = await chatCompletion({
   adapter: openai(),
   model: "gpt-4o",
   messages: [{ role: "user", content: "Hello!" }],
-  output: responseFormat({ /* schema */ })
+  output: responseFormat({
+    /* schema */
+  }),
 });
 ```
 
@@ -313,6 +321,7 @@ const aiInstance = ai({
 Stream a chat conversation. Returns `AsyncIterable<StreamChunk>`. System prompts are automatically prepended.
 
 **Important:** This method runs an **automatic tool execution loop**. When tools are provided and the model calls them, the SDK:
+
 - Executes the tool's `execute` function
 - Adds the result to messages
 - Continues the conversation automatically
@@ -323,7 +332,7 @@ const stream = aiInstance.chat({
   model: "gpt-4o",
   messages: [{ role: "user", content: "Hello!" }],
   tools: [weatherTool], // Optional: tools are auto-executed
-  maxIterations: 5, // Optional: max tool execution rounds
+  agentLoopStrategy: maxIterations(5), // Optional: control loop behavior
 });
 
 for await (const chunk of stream) {
@@ -438,12 +447,32 @@ The `chat()` method automatically handles tool execution in a loop:
 2. **SDK executes** the tool's `execute` function → emits `tool_result` chunks
 3. **SDK adds** tool results to messages and **continues** the conversation
 4. **Model responds** with the final answer based on tool results
-5. Repeats until no more tools are needed (up to `maxIterations`, default: 5)
+5. Repeats until no more tools are needed (controlled by `agentLoopStrategy` or `maxIterations`)
 
 **You don't need to manage tool execution** - the SDK handles everything internally. Just provide tools with `execute` functions and the loop runs automatically.
 
+**Advanced:** Control the loop with `agentLoopStrategy`:
+
+```typescript
+import { maxIterations, combineStrategies } from "@tanstack/ai";
+
+// Simple: max 10 iterations
+agentLoopStrategy: maxIterations(10);
+
+// Custom: stop based on any condition
+agentLoopStrategy: ({ iterationCount, messages, finishReason }) => {
+  return iterationCount < 10 && messages.length < 100;
+};
+
+// Combined: multiple conditions
+agentLoopStrategy: combineStrategies([
+  maxIterations(10),
+  ({ messages }) => messages.length < 50,
+]);
+```
+
 **📚 See also:** [Complete Tool Execution Loop Documentation](docs/TOOL_EXECUTION_LOOP.md)
- 
+
 ### React Hooks
 
 #### useChat
@@ -455,14 +484,14 @@ import { useChat } from "@tanstack/ai-react";
 
 function ChatComponent() {
   const {
-    messages,      // Current message list
-    sendMessage,   // Send a message
-    isLoading,     // Is generating response
-    error,         // Current error
-    append,        // Add message programmatically
-    reload,        // Reload last response
-    stop,          // Stop generation
-    clear,         // Clear all messages
+    messages, // Current message list
+    sendMessage, // Send a message
+    isLoading, // Is generating response
+    error, // Current error
+    append, // Add message programmatically
+    reload, // Reload last response
+    stop, // Stop generation
+    clear, // Clear all messages
   } = useChat({
     api: "/api/chat",
     onChunk: (chunk) => console.log(chunk),
@@ -488,7 +517,12 @@ function ChatComponent() {
           }
         }}
       />
-      <button onClick={() => { sendMessage(input); setInput(""); }}>
+      <button
+        onClick={() => {
+          sendMessage(input);
+          setInput("");
+        }}
+      >
         Send
       </button>
     </div>
@@ -614,6 +648,7 @@ for await (const chunk of stream) {
 7. **Loop repeats** if model calls more tools (up to `maxIterations`)
 
 **Key Points:**
+
 - ✅ Tools are executed **automatically** by the SDK
 - ✅ Tool results are **automatically** added to conversation
 - ✅ The conversation **automatically continues** until complete
@@ -639,7 +674,7 @@ export const Route = createFileRoute("/api/chat")({
           model: "gpt-4o",
           messages,
           tools: [weatherTool], // Optional: auto-executed in loop
-          maxIterations: 5, // Optional: max tool execution rounds
+          agentLoopStrategy: maxIterations(5), // Optional: control loop
         });
 
         // Convert stream to Response with SSE headers
@@ -652,12 +687,12 @@ export const Route = createFileRoute("/api/chat")({
 ```
 
 **The `chat()` method automatically handles tool execution:**
+
 - When the model calls a tool, the SDK executes it on the server
 - Tool results are emitted as `tool_result` chunks
 - The conversation continues automatically until complete
 - Clients receive both `tool_call` and `tool_result` chunks in the stream
 
-  
 ## Development
 
 ```bash
@@ -686,16 +721,20 @@ pnpm clean
 ## Documentation
 
 ### User Guides
+
 - 📖 [Tool Execution Loop](docs/TOOL_EXECUTION_LOOP.md) - How automatic tool execution works
+- 📖 [Agent Loop Strategies](docs/AGENT_LOOP_STRATEGIES.md) - Control the tool execution loop
 - 📖 [Unified Chat API](docs/UNIFIED_CHAT_API.md) - `chat()` vs `chatCompletion()` methods
 - 📖 [Quick Reference](docs/UNIFIED_CHAT_QUICK_REFERENCE.md) - Quick API reference
 - 📖 [Tool Registry](docs/TOOL_REGISTRY.md) - Define tools once, use everywhere
 - 📖 [Type Safety](docs/TYPE_SAFETY.md) - Type-safe multi-adapter usage
 
 ### Examples
+
 - 📖 [CLI Example](examples/cli/README.md) - Interactive command-line interface with tool calling
 
 ### Implementation Details
+
 - 📖 [Implementation Summary](docs/IMPLEMENTATION_SUMMARY.md) - Architecture overview
 - 📖 [Unified Chat Implementation](docs/UNIFIED_CHAT_IMPLEMENTATION.md) - `chat()` and `chatCompletion()` implementation
 - 📖 [Migration Guide](docs/MIGRATION_UNIFIED_CHAT.md) - Migrating from `as` option API
