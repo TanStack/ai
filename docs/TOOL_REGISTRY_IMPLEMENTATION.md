@@ -1,5 +1,7 @@
 # Tool Registry API - Implementation Summary
 
+> **🔄 Automatic Tool Execution Loop:** This document describes how tools are registered and referenced. Remember that the `chat()` method automatically executes tools in a loop - when the model calls a tool, the SDK executes it, adds the result to messages, and continues the conversation automatically (up to `maxIterations`, default: 5).
+
 ## Overview
 
 Successfully refactored the AI API to support a **tool registry** where tools are defined once in the constructor and then referenced by name in a type-safe manner throughout the application.

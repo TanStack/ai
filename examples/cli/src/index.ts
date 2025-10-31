@@ -28,7 +28,9 @@ program
 
 program
   .command("chat")
-  .description("Interactive chat with AI models")
+  .description(
+    "Interactive chat with AI models (supports tools/function calling)"
+  )
   .option(
     "-p, --provider <provider>",
     "AI provider (openai, anthropic, ollama, gemini)",
@@ -40,6 +42,7 @@ program
     "API key (can also be set via environment variable)"
   )
   .option("-d, --debug", "Show raw JSON stream chunks (for debugging)")
+  .option("--tools", "Enable tool/function calling (OpenAI and Anthropic only)")
   .action(async (options) => {
     await runChat(options);
   });
@@ -97,24 +100,6 @@ program
   .option("--text <text>", "Text to embed")
   .action(async (options) => {
     await runEmbed(options);
-  });
-
-program
-  .command("tools")
-  .description("Interactive chat with tool/function calling")
-  .option(
-    "-p, --provider <provider>",
-    "AI provider (openai, anthropic)",
-    "openai"
-  )
-  .option("-m, --model <model>", "Model to use")
-  .option(
-    "-k, --api-key <key>",
-    "API key (can also be set via environment variable)"
-  )
-  .option("-d, --debug", "Show raw JSON stream chunks (for debugging)")
-  .action(async (options) => {
-    await runTools(options);
   });
 
 async function promptForApiKey(
@@ -273,21 +258,71 @@ async function runChat(options: any) {
   console.log(chalk.cyan("\n=== TanStack AI CLI ==="));
   console.log(chalk.gray(`Provider: ${options.provider}`));
 
+  const enableTools = options.tools || false;
+  const supportsTools =
+    options.provider === "openai" || options.provider === "anthropic";
+
+  if (enableTools && !supportsTools) {
+    console.log(
+      chalk.yellow(
+        "\n⚠️  Tool calling is currently only supported with OpenAI and Anthropic."
+      )
+    );
+    console.log(chalk.gray("Continuing without tools...\n"));
+  }
+
+  // Enable adapter-level debugging if CLI debug is on
+  if (options.debug) {
+    process.env.DEBUG_TOOLS = "true";
+  }
+
   const adapter = await createAdapter(options.provider, options.apiKey);
   const aiInstance = ai(adapter);
 
   console.log(chalk.green(`\n✅ Connected to ${options.provider}\n`));
   console.log(chalk.cyan(`🤖 TanStack AI Chat`));
-  console.log(chalk.gray('Type "exit" to quit\n'));
+  if (enableTools && supportsTools) {
+    console.log(chalk.magenta("🛠️  Tool calling enabled"));
+  }
+  console.log(chalk.gray('Type "exit" to quit'));
+  if (enableTools && supportsTools) {
+    console.log(chalk.gray('Type "tools" to list available tools'));
+  }
+  console.log("");
 
   const messages: Message[] = [];
 
+  // Add system prompt
   if (options.provider === "openai" || options.provider === "anthropic") {
-    messages.push({
-      role: "system",
-      content:
-        "You are a helpful AI assistant powered by TanStack AI, an open-source AI SDK.",
-    });
+    if (enableTools && supportsTools) {
+      messages.push({
+        role: "system",
+        content: `You are a helpful AI assistant with access to the following tools:
+
+${listTools()}
+
+IMPORTANT: You MUST use the appropriate tool when the user asks for:
+- Weather information → use get_weather
+- Mathematical calculations → use calculate  
+- Search queries → use search
+- Time information → use get_current_time
+
+Do not attempt to answer these questions without using the tools. Always call the appropriate tool to get accurate, real-time information.`,
+      });
+    } else {
+      messages.push({
+        role: "system",
+        content:
+          "You are a helpful AI assistant powered by TanStack AI, an open-source AI SDK.",
+      });
+    }
+  }
+
+  // Show available tools if enabled
+  if (enableTools && supportsTools) {
+    console.log(chalk.magenta("Available tools:"));
+    console.log(chalk.gray(listTools()));
+    console.log("");
   }
 
   while (true) {
@@ -304,14 +339,26 @@ async function runChat(options: any) {
       break;
     }
 
+    if (enableTools && supportsTools && prompt.toLowerCase() === "tools") {
+      console.log(chalk.magenta("\nAvailable tools:"));
+      console.log(chalk.gray(listTools()));
+      console.log("");
+      continue;
+    }
+
     messages.push({ role: "user", content: prompt });
 
     const spinner = ora("Thinking...").start();
 
     try {
-      const model = options.model || getDefaultModel(options.provider);
+      const model =
+        options.model ||
+        (enableTools && supportsTools && options.provider === "anthropic"
+          ? "claude-3-5-sonnet-20241022"
+          : enableTools && supportsTools && options.provider === "openai"
+          ? "gpt-3.5-turbo-0125"
+          : getDefaultModel(options.provider));
 
-      // Use structured streaming for ALL providers
       spinner.text = "Assistant:";
       spinner.stopAndPersist({ symbol: chalk.blue("🤖") });
 
@@ -323,12 +370,21 @@ async function runChat(options: any) {
       }
 
       // Stream with structured JSON chunks
-      for await (const chunk of aiInstance.chat({
+      const chatOptions: any = {
         model: model as string,
         messages,
         temperature: 0.7,
         maxTokens: 1000,
-      })) {
+      };
+
+      // Add tools if enabled and supported
+      if (enableTools && supportsTools) {
+        chatOptions.tools = AVAILABLE_TOOLS;
+        chatOptions.toolChoice = "auto";
+        chatOptions.maxIterations = 5;
+      }
+
+      for await (const chunk of aiInstance.chat(chatOptions)) {
         // Debug mode: show raw JSON
         if (options.debug) {
           console.log(chalk.gray(JSON.stringify(chunk)));
@@ -336,17 +392,60 @@ async function runChat(options: any) {
 
         if (chunk.type === "content") {
           // Write the delta (new token) to stdout
-          if (!options.debug) {
+          if (!options.debug && chunk.delta) {
             process.stdout.write(chunk.delta);
           }
           fullContent = chunk.content;
         } else if (chunk.type === "tool_call") {
-          // Handle tool calls
-          const toolName = chunk.toolCall.function.name;
-          const toolArgs = chunk.toolCall.function.arguments;
-          console.log(chalk.cyan(`\n🔧 Tool call: ${toolName}`));
-          if (toolArgs) {
-            console.log(chalk.gray(`   Arguments: ${toolArgs}`));
+          // Show tool being called with arguments
+          if (!options.debug && chunk.toolCall.function.name) {
+            console.log(
+              chalk.magenta(
+                `\n🔧 Calling tool: ${chalk.bold(chunk.toolCall.function.name)}`
+              )
+            );
+            // Try to parse and display arguments nicely
+            if (chunk.toolCall.function.arguments) {
+              try {
+                const args = JSON.parse(chunk.toolCall.function.arguments);
+                console.log(
+                  chalk.gray(
+                    `   Arguments: ${JSON.stringify(args, null, 2)
+                      .split("\n")
+                      .join("\n   ")}`
+                  )
+                );
+              } catch {
+                // Arguments might be incomplete during streaming, just show what we have
+                if (chunk.toolCall.function.arguments.length > 0) {
+                  console.log(
+                    chalk.gray(
+                      `   Arguments: ${chunk.toolCall.function.arguments}`
+                    )
+                  );
+                }
+              }
+            }
+          }
+          // Don't track tool calls - the chat method handles them internally
+        } else if (chunk.type === "tool_result") {
+          // Show tool result
+          if (!options.debug) {
+            console.log(chalk.green(`✓ Tool result:`));
+            // Try to parse and display result nicely
+            try {
+              const result = JSON.parse(chunk.content);
+              console.log(
+                chalk.gray(
+                  `   ${JSON.stringify(result, null, 2)
+                    .split("\n")
+                    .join("\n   ")}`
+                )
+              );
+            } catch {
+              // Not JSON, just show the content
+              console.log(chalk.gray(`   ${chunk.content}`));
+            }
           }
         } else if (chunk.type === "done") {
           // Show token usage
@@ -390,11 +489,15 @@ async function runChat(options: any) {
         console.log(chalk.gray(`[Tokens: ${totalTokens}]\n`));
       }
 
-      // Add the full response to conversation history
-      messages.push({
-        role: "assistant",
-        content: fullContent,
-      });
+      // Update conversation history
+      // The chat method handles all tool execution internally
+      // We only add the final assistant response
+      if (fullContent) {
+        messages.push({
+          role: "assistant",
+          content: fullContent,
+        });
+      }
     } catch (error) {
       spinner.stop();
       console.error(chalk.red("\nError:"), error);
@@ -516,167 +619,6 @@ async function runEmbed(options: any) {
   } catch (error) {
     spinner.stop();
     console.error(chalk.red("\nError:"), error);
-  }
-}
-
-async function runTools(options: any) {
-  console.log(chalk.cyan("\n=== TanStack AI - Tool Calling Demo ==="));
-  console.log(chalk.gray(`Provider: ${options.provider}`));
-
-  if (options.provider !== "openai" && options.provider !== "anthropic") {
-    console.log(
-      chalk.yellow(
-        "\n⚠️  Tool calling is currently only supported with OpenAI and Anthropic."
-      )
-    );
-    console.log(chalk.gray("Ollama and Gemini coming soon!\n"));
-    return;
-  }
-
-  // Enable adapter-level debugging if CLI debug is on
-  if (options.debug) {
-    process.env.DEBUG_TOOLS = "true";
-  }
-
-  const adapter = await createAdapter(options.provider, options.apiKey);
-  const aiInstance = ai(adapter);
-
-  console.log(chalk.green(`\n✅ Connected to ${options.provider}\n`));
-  console.log(chalk.cyan("🛠️  TanStack AI - Function Calling"));
-  console.log(
-    chalk.gray('Type "exit" to quit, "tools" to list available tools\n')
-  );
-
-  console.log(chalk.magenta("Available tools:"));
-  console.log(chalk.gray(listTools()));
-  console.log("");
-
-  console.log(chalk.yellow("💡 Try these prompts:"));
-  console.log(chalk.gray("  - What's 123 * 456?"));
-  console.log(chalk.gray("  - What's the weather in Paris?"));
-  console.log(chalk.gray("  - Search for React tutorials"));
-  console.log(chalk.gray("  - What time is it in Tokyo?"));
-  console.log("");
-
-  const messages: Message[] = [
-    {
-      role: "system",
-      content: `You are a helpful AI assistant with access to the following tools:
-
-${listTools()}
-
-IMPORTANT: You MUST use the appropriate tool when the user asks for:
-- Weather information → use get_weather
-- Mathematical calculations → use calculate  
-- Search queries → use search
-- Time information → use get_current_time
-
-Do not attempt to answer these questions without using the tools. Always call the appropriate tool to get accurate, real-time information.`,
-    },
-  ];
-
-  while (true) {
-    const { prompt } = await inquirer.prompt([
-      {
-        type: "input",
-        name: "prompt",
-        message: chalk.green("You:"),
-      },
-    ]);
-
-    if (prompt.toLowerCase() === "exit") {
-      console.log(chalk.yellow("\nGoodbye! 👋"));
-      break;
-    }
-
-    if (prompt.toLowerCase() === "tools") {
-      console.log(chalk.magenta("\nAvailable tools:"));
-      console.log(chalk.gray(listTools()));
-      console.log("");
-      continue;
-    }
-
-    messages.push({ role: "user", content: prompt });
-
-    const spinner = ora("Thinking...").start();
-
-    try {
-      const model =
-        options.model ||
-        (options.provider === "anthropic"
-          ? "claude-3-5-sonnet-20241022"
-          : "gpt-3.5-turbo-0125");
-
-      spinner.text = "Assistant:";
-      spinner.stopAndPersist({ symbol: chalk.blue("🤖") });
-
-      let fullContent = "";
-      let totalTokens = 0;
-
-      if (options.debug) {
-        console.log(chalk.gray("\n--- Streaming JSON Chunks ---\n"));
-      }
-
-      // streamChat automatically executes tools!
-      for await (const chunk of aiInstance.chat({
-        model: model as string,
-        messages,
-        temperature: 0.7,
-        maxTokens: 1000,
-        tools: AVAILABLE_TOOLS,
-        toolChoice: "auto",
-        maxIterations: 5,
-      })) {
-        if (options.debug) {
-          console.log(chalk.gray(JSON.stringify(chunk)));
-        }
-
-        if (chunk.type === "content") {
-          // Tool execution messages
-          if (
-            chunk.content.startsWith("[Tool ") &&
-            chunk.content.includes("executed]")
-          ) {
-            if (!options.debug) {
-              const toolName = chunk.content.match(
-                /\[Tool (\w+) executed\]/
-              )?.[1];
-              console.log(chalk.cyan(`\n🔧 Executed tool: ${toolName}`));
-            }
-          } else if (!options.debug && chunk.delta) {
-            // Regular content
-            process.stdout.write(chunk.delta);
-            fullContent = chunk.content;
-          } else if (chunk.delta) {
-            fullContent = chunk.content;
-          }
-        } else if (chunk.type === "tool_call") {
-          // Show tool being called
-          if (!options.debug && chunk.toolCall.function.name) {
-            console.log(
-              chalk.magenta(`\n→ Calling ${chunk.toolCall.function.name}...`)
-            );
-          }
-        } else if (chunk.type === "done") {
-          if (chunk.usage) {
-            totalTokens = chunk.usage.totalTokens;
-          }
-        } else if (chunk.type === "error") {
-          console.error(chalk.red(`\n❌ Error: ${chunk.error.message}`));
-        }
-      }
-
-      if (!options.debug) {
-        console.log("\n");
-      }
-
-      if (totalTokens > 0 && !options.debug) {
-        console.log(chalk.gray(`[Tokens: ${totalTokens}]\n`));
-      }
-    } catch (error) {
-      spinner.stop();
-      console.error(chalk.red("\nError:"), error);
-    }
   }
 }
 

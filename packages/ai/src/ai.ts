@@ -3,6 +3,9 @@ import type {
   ChatCompletionOptions,
   ChatCompletionResult,
   StreamChunk,
+  DoneStreamChunk,
+  ToolCall,
+  Message,
   SummarizationOptions,
   SummarizationResult,
   EmbeddingOptions,
@@ -174,7 +177,7 @@ class AI<
   }
 
   /**
-   * Stream a chat conversation
+   * Stream a chat conversation with automatic tool execution
    *
    * @param options Chat options for streaming
    *
@@ -188,7 +191,7 @@ class AI<
    *   console.log(chunk);
    * }
    */
-  chat(
+  async *chat(
     options: Omit<
       ChatCompletionOptions,
       "model" | "providerOptions" | "responseFormat"
@@ -199,23 +202,204 @@ class AI<
       providerOptions?: ExtractChatProviderOptions<TAdapter>;
     }
   ): AsyncIterable<StreamChunk> {
-    const { model, tools, systemPrompts, providerOptions, ...restOptions } =
-      options;
+    const {
+      model,
+      tools,
+      systemPrompts,
+      providerOptions,
+      maxIterations = 5,
+      ...restOptions
+    } = options;
 
     // Prepend system prompts to messages
-    const messages = this.prependSystemPrompts(
+    let messages = this.prependSystemPrompts(
       restOptions.messages,
       systemPrompts
     );
 
-    return this.adapter.chatStream({
-      ...restOptions,
-      messages,
-      model: model as string,
-      tools,
-      responseFormat: undefined,
-      providerOptions: providerOptions as any,
-    });
+    let iterationCount = 0;
+
+    while (iterationCount < maxIterations) {
+      let accumulatedContent = "";
+      const toolCallsMap = new Map<number, ToolCall>();
+      let doneChunk: DoneStreamChunk | null = null;
+
+      // Stream the current iteration
+      // IMPORTANT: Extract messages from restOptions to avoid passing stale messages
+      const { messages: _, ...restOptionsWithoutMessages } = restOptions;
+      for await (const chunk of this.adapter.chatStream({
+        ...restOptionsWithoutMessages,
+        messages,
+        model: model as string,
+        tools,
+        responseFormat: undefined,
+        providerOptions: providerOptions as any,
+      })) {
+        // Forward all chunks to the caller
+        yield chunk;
+
+        // Track content
+        if (chunk.type === "content") {
+          accumulatedContent = chunk.content;
+        }
+
+        // Track tool calls
+        if (chunk.type === "tool_call") {
+          const index = chunk.index ?? 0;
+          const existing = toolCallsMap.get(index);
+          if (!existing) {
+            // Only create entry if we have a tool call ID and name
+            if (chunk.toolCall.id && chunk.toolCall.function.name) {
+              toolCallsMap.set(index, {
+                id: chunk.toolCall.id,
+                type: "function",
+                function: {
+                  name: chunk.toolCall.function.name,
+                  arguments: chunk.toolCall.function.arguments || "",
+                },
+              });
+            }
+          } else {
+            // Update name if it wasn't set before
+            if (chunk.toolCall.function.name && !existing.function.name) {
+              existing.function.name = chunk.toolCall.function.name;
+            }
+            // Accumulate arguments for streaming tool calls
+            if (chunk.toolCall.function.arguments) {
+              existing.function.arguments += chunk.toolCall.function.arguments;
+            }
+          }
+        }
+
+        // Track done chunk
+        if (chunk.type === "done") {
+          doneChunk = chunk;
+        }
+
+        // Forward errors
+        if (chunk.type === "error") {
+          return; // Stop on error
+        }
+      }
+
+      // Check if we need to execute tools
+      if (
+        doneChunk?.finishReason === "tool_calls" &&
+        tools &&
+        tools.length > 0
+      ) {
+        // Filter out incomplete tool calls (must have name and id)
+        const toolCallsArray = Array.from(toolCallsMap.values()).filter(
+          (tc) =>
+            tc.id && tc.function.name && tc.function.name.trim().length > 0
+        );
+
+        if (toolCallsArray.length > 0) {
+          // Add assistant message with tool calls
+          messages = [
+            ...messages,
+            {
+              role: "assistant",
+              content: accumulatedContent || null,
+              toolCalls: toolCallsArray,
+            },
+          ];
+
+          // Execute tools and add results
+          // IMPORTANT: We must execute ALL tools and add results for ALL tool_call_ids
+          const toolResults: Message[] = [];
+          const toolCallIds = new Set<string>();
+
+          // Process tool calls in order to maintain order for tool results
+          for (const toolCall of toolCallsArray) {
+            // Track which tool call IDs we're processing
+            if (!toolCall.id) {
+              throw new Error(
+                `Tool call missing ID: ${JSON.stringify(toolCall)}`
+              );
+            }
+            toolCallIds.add(toolCall.id);
+
+            const tool = tools.find(
+              (t) => t.function.name === toolCall.function.name
+            );
+
+            let toolResultContent: string;
+            if (tool?.execute) {
+              try {
+                // Parse arguments - by the time we get the done chunk, arguments should be complete JSON
+                let args: any;
+                try {
+                  args = JSON.parse(toolCall.function.arguments);
+                } catch (parseError) {
+                  throw new Error(
+                    `Failed to parse tool arguments as JSON: ${toolCall.function.arguments}`
+                  );
+                }
+
+                const result = await tool.execute(args);
+
+                toolResultContent =
+                  typeof result === "string" ? result : JSON.stringify(result);
+              } catch (error: any) {
+                // If tool execution fails, add error message
+                toolResultContent = `Error executing tool: ${error.message}`;
+              }
+            } else {
+              // Tool doesn't have execute function, add placeholder
+              toolResultContent = `Tool ${toolCall.function.name} does not have an execute function`;
+            }
+
+            // Emit tool_result chunk so callers can track tool execution
+            yield {
+              type: "tool_result",
+              id: doneChunk.id,
+              model: doneChunk.model,
+              timestamp: Date.now(),
+              toolCallId: toolCall.id,
+              content: toolResultContent,
+            };
+
+            // Add tool result message - MUST have toolCallId matching the tool call
+            toolResults.push({
+              role: "tool",
+              content: toolResultContent,
+              toolCallId: toolCall.id,
+            });
+          }
+
+          // Verify we have a tool result for every tool call
+          if (toolResults.length !== toolCallsArray.length) {
+            throw new Error(
+              `Mismatch: ${toolCallsArray.length} tool calls but ${toolResults.length} tool results`
+            );
+          }
+
+          // Verify all tool call IDs have corresponding results
+          const resultToolCallIds = new Set(
+            toolResults.map((tr) => tr.toolCallId).filter(Boolean)
+          );
+          const missingIds = Array.from(toolCallIds).filter(
+            (id) => !resultToolCallIds.has(id)
+          );
+          if (missingIds.length > 0) {
+            throw new Error(
+              `Missing tool results for tool_call_ids: ${missingIds.join(", ")}`
+            );
+          }
+
+          // CRITICAL: Add tool results to messages BEFORE continuing to next iteration
+          // The adapter expects every tool_call_id to have a corresponding tool message
+          messages = [...messages, ...toolResults];
+
+          iterationCount++;
+          continue; // Continue loop to get next response with updated messages
+        }
+      }
+
+      // Not tool_calls or no tools to execute, we're done
+      break;
+    }
   }
 
   /**

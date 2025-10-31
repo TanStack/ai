@@ -11,6 +11,8 @@ Framework-agnostic headless client for TanStack AI chat functionality.
 - Testing and automation
 - Any JavaScript/TypeScript environment
 
+**Note:** The backend should use `@tanstack/ai`'s `chat()` method which **automatically handles tool execution in a loop**. The client receives tool execution events via the stream.
+
 ## Installation
 
 ```bash
@@ -171,6 +173,38 @@ function useCustomChat(options) {
   return { messages, isLoading, sendMessage };
 }
 ```
+
+## Backend Example
+
+Your backend should use `@tanstack/ai`'s `chat()` method with automatic tool execution:
+
+```typescript
+import { chat } from "@tanstack/ai";
+import { openai } from "@tanstack/ai-openai";
+import { toStreamResponse } from "@tanstack/ai/stream-to-response";
+
+export async function POST(request: Request) {
+  const { messages } = await request.json();
+  
+  // chat() automatically executes tools in a loop
+  const stream = chat({
+    adapter: openai(),
+    model: "gpt-4o",
+    messages,
+    tools: [weatherTool], // Tools are auto-executed when called
+    maxIterations: 5, // Max tool execution rounds
+  });
+  
+  // Stream includes tool_call and tool_result chunks
+  return toStreamResponse(stream);
+}
+```
+
+The client will receive:
+- `content` chunks - text from the model
+- `tool_call` chunks - when model calls a tool (auto-executed by SDK)
+- `tool_result` chunks - results from tool execution (auto-emitted by SDK)
+- `done` chunk - conversation complete
 
 ## License
 

@@ -89,7 +89,7 @@ export interface ChatCompletionOptions {
   providerOptions?: Record<string, any>;
 }
 
-export type StreamChunkType = "content" | "tool_call" | "done" | "error";
+export type StreamChunkType = "content" | "tool_call" | "tool_result" | "done" | "error";
 
 export interface BaseStreamChunk {
   type: StreamChunkType;
@@ -118,6 +118,12 @@ export interface ToolCallStreamChunk extends BaseStreamChunk {
   index: number;
 }
 
+export interface ToolResultStreamChunk extends BaseStreamChunk {
+  type: "tool_result";
+  toolCallId: string;
+  content: string;
+}
+
 export interface DoneStreamChunk extends BaseStreamChunk {
   type: "done";
   finishReason: "stop" | "length" | "content_filter" | "tool_calls" | null;
@@ -139,6 +145,7 @@ export interface ErrorStreamChunk extends BaseStreamChunk {
 export type StreamChunk =
   | ContentStreamChunk
   | ToolCallStreamChunk
+  | ToolResultStreamChunk
   | DoneStreamChunk
   | ErrorStreamChunk;
 

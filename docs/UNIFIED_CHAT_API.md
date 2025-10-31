@@ -4,8 +4,21 @@
 
 The chat API provides two methods for different use cases:
 
-- **`chat()`** - Returns `AsyncIterable<StreamChunk>` - streaming chunks for manual handling
+- **`chat()`** - Returns `AsyncIterable<StreamChunk>` - streaming with **automatic tool execution loop**
 - **`chatCompletion()`** - Returns `Promise<ChatCompletionResult>` - standard non-streaming chat with optional structured output
+
+### 🔄 Automatic Tool Execution in `chat()`
+
+**IMPORTANT:** The `chat()` method runs an automatic tool execution loop. When you provide tools with `execute` functions:
+
+1. **Model calls a tool** → SDK executes it automatically
+2. **SDK emits chunks** for tool calls and results (`tool_call`, `tool_result`)
+3. **SDK adds results** to messages and continues conversation
+4. **Loop repeats** until model stops calling tools (up to `maxIterations`, default: 5)
+
+**You don't need to manually execute tools or manage conversation state** - the SDK handles everything internally!
+
+**📚 See also:** [Complete Tool Execution Loop Documentation](TOOL_EXECUTION_LOOP.md)
 
 ## Migration Guide
 
@@ -95,26 +108,37 @@ console.log(`Tokens used: ${result.usage.totalTokens}`);
 
 ### 2. Stream Mode (chat)
 
-Manual streaming for custom handling:
+Streaming with automatic tool execution loop:
 
 ```typescript
 const stream = ai.chat({
   adapter: "openai",
   model: "gpt-4",
-  messages: [{ role: "user", content: "Write a story" }]
+  messages: [{ role: "user", content: "Write a story" }],
+  tools: [weatherTool], // Optional: tools are auto-executed
+  maxIterations: 5, // Optional: max tool execution rounds
 });
 
 for await (const chunk of stream) {
   if (chunk.type === "content") {
-    process.stdout.write(chunk.delta);
+    process.stdout.write(chunk.delta); // Stream text response
   } else if (chunk.type === "tool_call") {
-    console.log(`Tool: ${chunk.toolCall.function.name}`);
+    console.log(`→ Calling tool: ${chunk.toolCall.function.name}`);
+  } else if (chunk.type === "tool_result") {
+    console.log(`✓ Tool result: ${chunk.content}`);
   } else if (chunk.type === "done") {
     console.log(`\nFinished: ${chunk.finishReason}`);
     console.log(`Tokens: ${chunk.usage?.totalTokens}`);
   }
 }
 ```
+
+**Chunk Types:**
+- `content` - Text content from the model (use `chunk.delta` for streaming)
+- `tool_call` - Model is calling a tool (emitted by model, auto-executed by SDK)
+- `tool_result` - Tool execution result (emitted after SDK executes tool)
+- `done` - Stream complete (includes `finishReason` and token usage)
+- `error` - An error occurred
 
 ### 3. HTTP Response Mode
 
@@ -177,9 +201,9 @@ const stream = ai.chat({
 return toStreamResponse(stream);
 ```
 
-## Tool Execution
+## Tool Execution with Automatic Loop
 
-Tool execution works in both modes:
+**The `chat()` method automatically executes tools in a loop** - no manual management needed!
 
 ```typescript
 const tools = [
@@ -192,51 +216,82 @@ const tools = [
         type: "object",
         properties: {
           location: { type: "string" }
-        }
+        },
+        required: ["location"]
       }
     },
     execute: async (args: { location: string }) => {
-      return JSON.stringify({ temp: 72, condition: "sunny" });
+      // This function is automatically called by the SDK
+      const weather = await fetchWeatherAPI(args.location);
+      return JSON.stringify(weather);
     }
   }
 ];
 
-// Promise mode - waits for all tool executions to complete
+// Streaming chat with automatic tool execution
+const stream = ai.chat({
+  adapter: "openai",
+  model: "gpt-4",
+  messages: [{ role: "user", content: "What's the weather in SF?" }],
+  tools, // Tools with execute functions are auto-executed
+  toolChoice: "auto",
+  maxIterations: 5, // Max tool execution rounds (default: 5)
+});
+
+for await (const chunk of stream) {
+  if (chunk.type === "content") {
+    process.stdout.write(chunk.delta); // Stream text response
+  } else if (chunk.type === "tool_call") {
+    // Model decided to call a tool - SDK will execute it automatically
+    console.log(`→ Calling: ${chunk.toolCall.function.name}`);
+  } else if (chunk.type === "tool_result") {
+    // SDK executed the tool and got a result
+    console.log(`✓ Result: ${chunk.content}`);
+  } else if (chunk.type === "done") {
+    console.log(`Finished: ${chunk.finishReason}`);
+  }
+}
+```
+
+**🔄 What Happens Internally:**
+
+1. User asks: "What's the weather in SF?"
+2. Model decides to call `get_weather` tool
+   - SDK emits `tool_call` chunk
+3. **SDK automatically executes** `tools[0].execute({ location: "SF" })`
+   - SDK emits `tool_result` chunk
+4. SDK adds assistant message (with tool call) + tool result to messages
+5. **SDK automatically continues** conversation by calling model again
+6. Model responds: "The weather in SF is sunny, 72°F"
+   - SDK emits `content` chunks
+7. SDK emits `done` chunk
+
+**Key Points:**
+- ✅ Tools are **automatically executed** by the SDK (you don't call `execute`)
+- ✅ Tool results are **automatically added** to messages
+- ✅ Conversation **automatically continues** after tool execution
+- ✅ Loop repeats until model stops calling tools or hits `maxIterations`
+- ✅ All you do is handle chunks for display
+
+**Promise Mode (No Tool Execution):**
+
+The `chatCompletion()` method does NOT execute tools - it returns the model's response immediately:
+
+```typescript
+// chatCompletion does not execute tools
 const result = await ai.chatCompletion({
   adapter: "openai",
   model: "gpt-4",
   messages: [{ role: "user", content: "What's the weather in SF?" }],
   tools,
-  toolChoice: "auto",
-  maxIterations: 5,
 });
 
-// Stream mode - see tool execution happen in real-time
-const stream = ai.chat({
-  adapter: "openai",
-  model: "gpt-4",
-  messages: [{ role: "user", content: "What's the weather in SF?" }],
-  tools,
-  toolChoice: "auto",
-  maxIterations: 5,
-});
-
-for await (const chunk of stream) {
-  if (chunk.type === "tool_call") {
-    console.log(`Calling tool: ${chunk.toolCall.function.name}`);
-  }
+// If model wanted to call a tool, result.toolCalls will contain the calls
+// but they won't be executed. This is useful if you want manual control.
+if (result.toolCalls) {
+  console.log("Model wants to call:", result.toolCalls);
+  // You would execute manually and call chatCompletion again
 }
-
-// Response mode - stream tool execution to client
-const stream = ai.chat({
-  adapter: "openai",
-  model: "gpt-4",
-  messages: [{ role: "user", content: "What's the weather in SF?" }],
-  tools,
-  toolChoice: "auto",
-  maxIterations: 5,
-});
-return toStreamResponse(stream);
 ```
 
 ## Type Safety

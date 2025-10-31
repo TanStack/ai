@@ -1,5 +1,9 @@
 # Tool Registry API - Quick Start
 
+> **🔄 Automatic Tool Execution:** The `chat()` method automatically executes tools in a loop. When the model calls a tool, the SDK executes it, adds the result to messages, and continues the conversation automatically (up to `maxIterations`, default: 5). You don't need to manually handle tool execution!
+>
+> **📚 See also:** [Complete Tool Execution Loop Documentation](TOOL_EXECUTION_LOOP.md)
+
 ## In 3 Steps
 
 ### 1. Define Tools in Constructor
@@ -114,6 +118,8 @@ ai.chat({
 
 ## With Streaming
 
+The `chat()` method automatically executes tools and emits chunks for each step:
+
 ```typescript
 const stream = ai.chat({
   adapter: "openai",
@@ -121,14 +127,26 @@ const stream = ai.chat({
   messages: [...],
   tools: ["get_weather", "calculate"],
   toolChoice: "auto",
+  maxIterations: 5, // Optional: max tool execution rounds
 });
 
 for await (const chunk of stream) {
-  if (chunk.type === "tool_call") {
-    console.log(`Calling: ${chunk.toolCall.function.name}`);
+  if (chunk.type === "content") {
+    process.stdout.write(chunk.delta); // Stream text content
+  } else if (chunk.type === "tool_call") {
+    console.log(`→ Calling: ${chunk.toolCall.function.name}`);
+  } else if (chunk.type === "tool_result") {
+    console.log(`✓ Tool result: ${chunk.content}`);
   }
 }
 ```
+
+**What happens internally:**
+1. Model decides to call a tool → `tool_call` chunk emitted
+2. SDK executes the tool's `execute` function automatically
+3. SDK emits `tool_result` chunk with the result
+4. SDK adds tool result to messages and continues conversation
+5. Model responds with final answer based on tool results
 
 ## With HTTP Response
 

@@ -10,7 +10,7 @@ A powerful, open-source AI SDK with a unified interface across multiple provider
 - **AI Class** - Reusable instances with system prompts
 - **Structured Outputs** - Type-safe JSON responses with `responseFormat()` helper
 - **Structured Streaming** - JSON chunks with token deltas and metadata
-- **Tool/Function Calling** - First-class support with automatic execution
+- **Tool/Function Calling** - Automatic execution loop - no manual tool management needed
 - **React Hooks** - Simple `useChat` hook for building chat UIs
 - **TypeScript First** - Full type safety with inference from adapters
 - **Zero Lock-in** - Switch providers at runtime without code changes
@@ -26,7 +26,8 @@ import { chat } from "@tanstack/ai";
 import { openai } from "@tanstack/ai-openai";
 
 // Type-safe chat with automatic inference from adapter
-const result = await chat({
+// chat() streams responses with automatic tool execution
+for await (const chunk of chat({
   adapter: openai(), // Automatically uses OPENAI_API_KEY from env
   model: "gpt-4o", // <-- Autocompletes with OpenAI models
   messages: [{ role: "user", content: "Hello!" }],
@@ -34,9 +35,11 @@ const result = await chat({
     store: true,
     parallelToolCalls: true,
   }
-});
-
-console.log(result.content);
+})) {
+  if (chunk.type === "content") {
+    console.log(chunk.delta); // Stream tokens as they arrive
+  }
+}
 ```
 
 **Why use standalone functions?**
@@ -46,7 +49,8 @@ console.log(result.content);
 - ✅ **Flexible** - Easy to switch adapters on a per-call basis
 
 Available standalone functions:
-- `chat()` - Chat completion with streaming and structured outputs
+- `chat()` - Streaming chat with **automatic tool execution loop**
+- `chatCompletion()` - Promise-based chat with optional structured output
 - `summarize()` - Text summarization
 - `embed()` - Generate embeddings
 - `image()` - Image generation
@@ -69,10 +73,15 @@ const aiInstance = ai({
 });
 
 // Use the instance - system prompts are automatically prepended
-await aiInstance.chat({
+// chat() returns a stream with automatic tool execution
+for await (const chunk of aiInstance.chat({
   model: "gpt-4o",
   messages: [{ role: "user", content: "Hello!" }],
-});
+})) {
+  if (chunk.type === "content") {
+    process.stdout.write(chunk.delta);
+  }
+}
 ```
 
 **Why use the AI class?**
@@ -141,7 +150,13 @@ npm install @tanstack/ai-react
 
 #### `chat(options)`
 
-Stream a chat conversation. Returns `AsyncIterable<StreamChunk>`.
+Stream a chat conversation with **automatic tool execution loop**. Returns `AsyncIterable<StreamChunk>`.
+
+**Important:** When tools are provided, the `chat()` method automatically:
+- Executes tools when the model calls them
+- Emits `tool_result` chunks with execution results  
+- Adds tool results to messages and continues conversation
+- Repeats until complete (up to `maxIterations`, default: 5)
 
 ```typescript
 // Streaming mode
@@ -149,11 +164,17 @@ const stream = chat({
   adapter: openai(),
   model: "gpt-4o",
   messages: [{ role: "user", content: "Hello!" }],
+  tools: [weatherTool], // Optional: auto-executed when called
+  maxIterations: 5, // Optional: max tool execution rounds
 });
 
 for await (const chunk of stream) {
   if (chunk.type === "content") {
     console.log(chunk.delta); // Incremental token
+  } else if (chunk.type === "tool_call") {
+    console.log("Calling:", chunk.toolCall.function.name);
+  } else if (chunk.type === "tool_result") {
+    console.log("Tool result:", chunk.content);
   }
 }
 ```
@@ -291,14 +312,28 @@ const aiInstance = ai({
 
 Stream a chat conversation. Returns `AsyncIterable<StreamChunk>`. System prompts are automatically prepended.
 
+**Important:** This method runs an **automatic tool execution loop**. When tools are provided and the model calls them, the SDK:
+- Executes the tool's `execute` function
+- Adds the result to messages
+- Continues the conversation automatically
+- Repeats up to `maxIterations` (default: 5)
+
 ```typescript
 const stream = aiInstance.chat({
   model: "gpt-4o",
   messages: [{ role: "user", content: "Hello!" }],
+  tools: [weatherTool], // Optional: tools are auto-executed
+  maxIterations: 5, // Optional: max tool execution rounds
 });
 
 for await (const chunk of stream) {
-  console.log(chunk);
+  if (chunk.type === "content") {
+    console.log(chunk.delta); // Text content
+  } else if (chunk.type === "tool_call") {
+    console.log("Calling tool:", chunk.toolCall.function.name);
+  } else if (chunk.type === "tool_result") {
+    console.log("Tool result:", chunk.content);
+  }
 }
 ```
 
@@ -380,16 +415,34 @@ const weatherTool = tool({
   },
 });
 
-// Use with chat
-const result = await chat({
+// Use with streaming chat - tools are automatically executed in a loop
+for await (const chunk of chat({
   adapter: openai(),
   model: "gpt-4o",
   messages: [{ role: "user", content: "What's the weather in Paris?" }],
   tools: [weatherTool],
-});
+})) {
+  if (chunk.type === "content") {
+    process.stdout.write(chunk.delta);
+  } else if (chunk.type === "tool_result") {
+    console.log("Tool executed:", chunk.content);
+  }
+}
 ```
 
-**Note:** When using streaming (`chat()`), tools with `execute` functions are automatically called and their results are added to the conversation.
+**🔄 Automatic Tool Execution Loop:**
+
+The `chat()` method automatically handles tool execution in a loop:
+
+1. **Model decides** to call a tool → emits `tool_call` chunks
+2. **SDK executes** the tool's `execute` function → emits `tool_result` chunks
+3. **SDK adds** tool results to messages and **continues** the conversation
+4. **Model responds** with the final answer based on tool results
+5. Repeats until no more tools are needed (up to `maxIterations`, default: 5)
+
+**You don't need to manage tool execution** - the SDK handles everything internally. Just provide tools with `execute` functions and the loop runs automatically.
+
+**📚 See also:** [Complete Tool Execution Loop Documentation](docs/TOOL_EXECUTION_LOOP.md)
  
 ### React Hooks
 
@@ -503,10 +556,13 @@ const result2 = await chat({
 
 ### Tool Calling
 
+The `chat()` method includes an **automatic tool execution loop** that handles all tool calling internally.
+
 ```typescript
 import { chat, tool } from "@tanstack/ai";
 import { openai } from "@tanstack/ai-openai";
 
+// Define a tool with an execute function
 const weatherTool = tool({
   type: "function",
   function: {
@@ -521,7 +577,9 @@ const weatherTool = tool({
     },
   },
   execute: async (args) => {
-    return JSON.stringify({ temp: 72, condition: "sunny" });
+    // This function is automatically called by the SDK
+    const weather = await fetchWeatherAPI(args.location);
+    return JSON.stringify(weather);
   },
 });
 
@@ -530,15 +588,37 @@ const stream = chat({
   model: "gpt-4o",
   messages: [{ role: "user", content: "What's the weather in Paris?" }],
   tools: [weatherTool],
+  maxIterations: 5, // Optional: max tool execution rounds (default: 5)
 });
 
-// Tool is automatically executed and results are added to conversation
+// The SDK automatically executes tools and emits chunks for each step
 for await (const chunk of stream) {
   if (chunk.type === "content") {
-    process.stdout.write(chunk.delta);
+    process.stdout.write(chunk.delta); // Stream text response
+  } else if (chunk.type === "tool_call") {
+    console.log(`→ Calling: ${chunk.toolCall.function.name}`);
+  } else if (chunk.type === "tool_result") {
+    console.log(`✓ Result: ${chunk.content}`);
   }
 }
 ```
+
+**🔄 How the Automatic Tool Execution Loop Works:**
+
+1. **User sends message** → "What's the weather in Paris?"
+2. **Model decides** to call `getWeather` tool → `tool_call` chunk emitted
+3. **SDK automatically executes** `weatherTool.execute()` → `tool_result` chunk emitted
+4. **SDK adds** assistant message (with tool call) + tool result message to messages
+5. **SDK continues** conversation by calling the model again with updated messages
+6. **Model responds** with final answer → "The weather in Paris is sunny, 72°F"
+7. **Loop repeats** if model calls more tools (up to `maxIterations`)
+
+**Key Points:**
+- ✅ Tools are executed **automatically** by the SDK
+- ✅ Tool results are **automatically** added to conversation
+- ✅ The conversation **automatically continues** until complete
+- ✅ You only need to handle the stream chunks for display
+- ✅ No manual tool execution or message management required
 
 ### HTTP Endpoint (TanStack Start)
 
@@ -558,15 +638,24 @@ export const Route = createFileRoute("/api/chat")({
           adapter: openai(),
           model: "gpt-4o",
           messages,
+          tools: [weatherTool], // Optional: auto-executed in loop
+          maxIterations: 5, // Optional: max tool execution rounds
         });
 
         // Convert stream to Response with SSE headers
+        // Tool execution happens automatically, results are streamed to client
         return toStreamResponse(stream);
       },
     },
   },
 });
 ```
+
+**The `chat()` method automatically handles tool execution:**
+- When the model calls a tool, the SDK executes it on the server
+- Tool results are emitted as `tool_result` chunks
+- The conversation continues automatically until complete
+- Clients receive both `tool_call` and `tool_result` chunks in the stream
 
   
 ## Development
@@ -587,6 +676,15 @@ pnpm typecheck
 # Clean build artifacts
 pnpm clean
 ```
+
+## Documentation
+
+- 📖 [Tool Execution Loop](docs/TOOL_EXECUTION_LOOP.md) - How automatic tool execution works
+- 📖 [Unified Chat API](docs/UNIFIED_CHAT_API.md) - `chat()` vs `chatCompletion()` methods
+- 📖 [Quick Reference](docs/UNIFIED_CHAT_QUICK_REFERENCE.md) - Quick API reference
+- 📖 [Tool Registry](docs/TOOL_REGISTRY.md) - Define tools once, use everywhere
+- 📖 [Type Safety](docs/TYPE_SAFETY.md) - Type-safe multi-adapter usage
+- 📖 [CLI Example](examples/cli/README.md) - Interactive command-line interface
 
 ## Contributing
 

@@ -1,5 +1,9 @@
 # Unified Chat API - Quick Reference
 
+> **🔄 Automatic Tool Execution:** The `chat()` method runs an automatic tool execution loop. Tools with `execute` functions are automatically called, results are added to messages, and the conversation continues - all handled internally by the SDK!
+>
+> **📚 See also:** [Complete Tool Execution Loop Documentation](TOOL_EXECUTION_LOOP.md)
+
 ## Two Methods for Different Use Cases
 
 ```typescript
@@ -10,14 +14,18 @@ const result = await ai.chatCompletion({
   messages: [{ role: "user", content: "Hello" }],
 });
 
-// 2. CHAT - Returns AsyncIterable<StreamChunk>
+// 2. CHAT - Returns AsyncIterable<StreamChunk> with automatic tool execution loop
 const stream = ai.chat({
   adapter: "openai",
   model: "gpt-4",
   messages: [{ role: "user", content: "Hello" }],
+  tools: [weatherTool], // Optional: auto-executed when called
+  maxIterations: 5, // Optional: max tool execution rounds
 });
 for await (const chunk of stream) {
-  console.log(chunk);
+  if (chunk.type === "content") process.stdout.write(chunk.delta);
+  else if (chunk.type === "tool_call") console.log("Calling tool...");
+  else if (chunk.type === "tool_result") console.log("Tool executed!");
 }
 ```
 
@@ -26,10 +34,10 @@ for await (const chunk of stream) {
 | Feature | chatCompletion | chat |
 |---------|----------------|------|
 | **Return Type** | `Promise<ChatCompletionResult>` | `AsyncIterable<StreamChunk>` |
-| **When to Use** | Need complete response | Custom stream handling |
+| **When to Use** | Need complete response | Real-time streaming |
 | **Async/Await** | ✅ Yes | ✅ Yes (for await) |
 | **Fallbacks** | ✅ Yes | ✅ Yes |
-| **Tool Execution** | ✅ Yes | ✅ Yes |
+| **Tool Execution** | ❌ No (manual) | ✅ **Automatic loop** |
 | **Type-Safe Models** | ✅ Yes | ✅ Yes |
 | **Structured Output** | ✅ Yes | ❌ No |
 
@@ -86,7 +94,9 @@ await saveToDatabase(result.content);
 
 ## With Tools
 
-Both methods support tools:
+### Automatic Execution (chat)
+
+The `chat()` method **automatically executes tools in a loop**:
 
 ```typescript
 const tools = [
@@ -98,43 +108,57 @@ const tools = [
       parameters: { /* ... */ }
     },
     execute: async (args: any) => {
+      // SDK automatically calls this when model calls the tool
       return JSON.stringify({ temp: 72, condition: "sunny" });
     }
   }
 ];
 
-// Promise mode
+// Stream mode with automatic tool execution
+const stream = ai.chat({
+  adapter: "openai",
+  model: "gpt-4",
+  messages: [{ role: "user", content: "What's the weather in SF?" }],
+  tools, // Tools with execute functions are auto-executed
+  toolChoice: "auto",
+  maxIterations: 5, // Max tool execution rounds (default: 5)
+});
+
+for await (const chunk of stream) {
+  if (chunk.type === "content") {
+    process.stdout.write(chunk.delta);
+  } else if (chunk.type === "tool_call") {
+    console.log(`→ Calling: ${chunk.toolCall.function.name}`);
+  } else if (chunk.type === "tool_result") {
+    console.log(`✓ Result: ${chunk.content}`);
+  }
+}
+```
+
+**How it works:**
+1. Model decides to call a tool → `tool_call` chunk
+2. SDK executes `tool.execute()` → `tool_result` chunk
+3. SDK adds result to messages → continues conversation
+4. Repeats until complete (up to `maxIterations`)
+
+### Manual Execution (chatCompletion)
+
+The `chatCompletion()` method does NOT execute tools automatically:
+
+```typescript
+// chatCompletion returns tool calls but doesn't execute them
 const result = await ai.chatCompletion({
   adapter: "openai",
   model: "gpt-4",
   messages: [{ role: "user", content: "What's the weather in SF?" }],
   tools,
-  toolChoice: "auto",
-  maxIterations: 5,
 });
 
-// Stream mode
-const stream = ai.chat({
-  adapter: "openai",
-  model: "gpt-4",
-  messages: [{ role: "user", content: "What's the weather in SF?" }],
-  tools,
-  toolChoice: "auto",
-  maxIterations: 5,
-});
-
-// HTTP response (for API)
-import { toStreamResponse } from "@tanstack/ai/stream-to-response";
-
-const stream = ai.chat({
-  adapter: "openai",
-  model: "gpt-4",
-  messages: [{ role: "user", content: "What's the weather in SF?" }],
-  tools,
-  toolChoice: "auto",
-  maxIterations: 5,
-});
-return toStreamResponse(stream);
+// Check if model wants to call tools
+if (result.toolCalls) {
+  console.log("Model wants to call:", result.toolCalls);
+  // You must execute manually and call chatCompletion again
+}
 ```
 
 ## With Fallbacks

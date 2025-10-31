@@ -9,7 +9,7 @@ An interactive command-line interface for the TanStack AI library, demonstrating
 - ✅ **Key Validation**: Validates API keys before proceeding
 - 🔄 **Multi-Provider Support**: OpenAI, Anthropic, Ollama, and Google Gemini
 - 💬 **Interactive Chat**: Real-time conversation with AI models (streaming for ALL providers)
-- 🛠️ **Tool/Function Calling**: AI can call functions with automatic execution
+- 🛠️ **Tool/Function Calling**: Automatic execution loop - SDK handles all tool calling
 - 📝 **Text Generation**: Generate text from prompts
 - 📊 **Summarization**: Summarize long texts in various styles
 - 🔢 **Embeddings**: Generate text embeddings for semantic search
@@ -65,6 +65,14 @@ pnpm dev chat --provider anthropic
 pnpm dev chat --provider ollama
 pnpm dev chat --provider gemini
 
+# With tool/function calling enabled (OpenAI & Anthropic only)
+pnpm dev chat --provider openai --tools
+pnpm dev chat --provider anthropic --tools
+
+# With debug mode to see JSON chunks
+pnpm dev chat --provider openai --debug
+pnpm dev chat --provider openai --tools --debug
+
 # Or use the built version
 pnpm start chat --provider openai
 ```
@@ -89,32 +97,54 @@ pnpm dev embed --provider openai --text "Text to create embeddings for"
 
 ### Tool/Function Calling
 
+The `chat` command supports **automatic tool execution** when used with the `--tools` flag.
+
+**🔄 Automatic Tool Execution Loop:**
+The TanStack AI SDK automatically handles tool execution - when the model decides to call a tool, the SDK:
+1. Executes the tool's function
+2. Adds the result to the conversation
+3. Continues the conversation with the model
+4. Repeats until complete (up to 5 iterations)
+
 ```bash
-# Interactive tool calling demo (OpenAI & Anthropic)
-pnpm dev tools --provider openai
-pnpm dev tools --provider anthropic
+# Enable tool calling (OpenAI & Anthropic only)
+pnpm dev chat --provider openai --tools
+pnpm dev chat --provider anthropic --tools
 
-# With debug mode to see JSON chunks
-pnpm dev tools --provider openai --debug
-pnpm dev tools --provider anthropic --debug
-
-# Or quick shortcut
-pnpm tools
+# With debug mode to see JSON chunks and internal loop
+pnpm dev chat --provider openai --tools --debug
 ```
+
+When tools are enabled, you can:
+- Type `tools` to list available tools
+- Ask questions that trigger tool calls (weather, calculations, search, time)
+- See tool calls and results in real-time as the SDK executes them automatically
 
 Example interaction:
 
 ```
 You: What's 847 * 392?
 🤖
-🔧 Executing 1 tool call(s)...
-  → calculate({"expression": "847 * 392"})
-✓ calculate completed
-
-🤖 The result is 332,024.
+🔧 Calling tool: calculate
+   Arguments: {
+     "expression": "847 * 392"
+   }
+✓ Tool result:
+   {
+     "result": 332024
+   }
+🤖 The result of 847 × 392 is 332,024.
 
 [Tokens: 156]
 ```
+
+Available tools:
+- `get_weather` - Get current weather for a location
+- `calculate` - Perform mathematical calculations
+- `search` - Search for information on a topic
+- `get_current_time` - Get the current date and time
+
+**Note:** All tool execution happens automatically in the TanStack AI SDK. The CLI just displays what's happening - it doesn't execute tools itself.
 
 ## API Key Sources
 
@@ -171,8 +201,6 @@ pnpm chat      # Quick chat with default provider
 pnpm generate  # Quick text generation
 pnpm summarize # Quick summarization
 pnpm embed     # Quick embeddings
-pnpm tools     # Tool calling demo
-```
 
 ## Security Notes
 

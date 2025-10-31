@@ -97,7 +97,7 @@ interface UseChatReturn {
 
 ### Backend Endpoint
 
-Your backend should:
+Your backend should use the `chat()` method which **automatically handles tool execution in a loop**:
 
 1. Receive POST requests with this body:
 
@@ -108,13 +108,40 @@ Your backend should:
 }
 ```
 
-2. Stream back `StreamChunk` objects as newline-delimited JSON or Server-Sent Events:
+2. Use `chat()` to stream responses (with automatic tool execution):
+
+```typescript
+import { chat } from "@tanstack/ai";
+import { openai } from "@tanstack/ai-openai";
+import { toStreamResponse } from "@tanstack/ai/stream-to-response";
+
+export async function POST(request: Request) {
+  const { messages } = await request.json();
+  
+  const stream = chat({
+    adapter: openai(),
+    model: "gpt-4o",
+    messages,
+    tools: [weatherTool], // Optional: auto-executed in loop
+    maxIterations: 5, // Optional: max tool execution rounds
+  });
+  
+  // Convert to HTTP streaming response with SSE headers
+  return toStreamResponse(stream);
+}
+```
+
+The response streams `StreamChunk` objects as Server-Sent Events:
 
 ```
 data: {"type":"content","delta":"Hello","content":"Hello",...}
+data: {"type":"tool_call","toolCall":{...},...}
+data: {"type":"tool_result","toolCallId":"...","content":"...",...}
 data: {"type":"content","delta":" world","content":"Hello world",...}
 data: {"type":"done","finishReason":"stop","usage":{...}}
 ```
+
+**Note:** The `chat()` method automatically executes tools and emits `tool_result` chunks - you don't need to handle tool execution manually!
 
 ### Advanced Usage
 
