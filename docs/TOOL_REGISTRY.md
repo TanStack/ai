@@ -264,7 +264,6 @@ const stream = ai.chat({
   tools: ["get_weather", "calculate"],
   toolChoice: "auto",
   maxIterations: 5,
-  as: "stream" as const,
 });
 
 for await (const chunk of stream) {
@@ -283,19 +282,22 @@ for await (const chunk of stream) {
 Perfect for API endpoints:
 
 ```typescript
+import { toStreamResponse } from "@tanstack/ai/stream-to-response";
+
 export const Route = createAPIFileRoute("/api/chat")({
   POST: async ({ request }): Promise<Response> => {
     const { messages } = await request.json();
     
-    return ai.chat({
+    const stream = ai.chat({
       adapter: "openai",
       model: "gpt-4o",
       messages,
       tools: ["get_weather", "search_database", "send_email"],
       toolChoice: "auto",
       maxIterations: 5,
-      as: "response" as const,
     });
+
+    return toStreamResponse(stream);
   }
 });
 ```

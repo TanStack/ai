@@ -20,23 +20,123 @@ import type {
 } from "./types";
 
 // Extract types from a single adapter
-type ExtractModels<T> = T extends AIAdapter<infer M, any, any, any, any, any, any, any, any, any> ? M[number] : string;
-type ExtractImageModels<T> = T extends AIAdapter<any, infer M, any, any, any, any, any, any, any, any> ? M[number] : string;
-type ExtractAudioModels<T> = T extends AIAdapter<any, any, any, infer M, any, any, any, any, any, any> ? M[number] : string;
-type ExtractVideoModels<T> = T extends AIAdapter<any, any, any, any, infer M, any, any, any, any, any> ? M[number] : string;
-type ExtractChatProviderOptions<T> = T extends AIAdapter<any, any, any, any, any, infer P, any, any, any, any> ? P : Record<string, any>;
-type ExtractImageProviderOptions<T> = T extends AIAdapter<any, any, any, any, any, any, infer P, any, any, any> ? P : Record<string, any>;
-type ExtractAudioProviderOptions<T> = T extends AIAdapter<any, any, any, any, any, any, any, any, infer P, any> ? P : Record<string, any>;
-type ExtractVideoProviderOptions<T> = T extends AIAdapter<any, any, any, any, any, any, any, any, any, infer P> ? P : Record<string, any>;
+type ExtractModels<T> = T extends AIAdapter<
+  infer M,
+  any,
+  any,
+  any,
+  any,
+  any,
+  any,
+  any,
+  any,
+  any
+>
+  ? M[number]
+  : string;
+type ExtractImageModels<T> = T extends AIAdapter<
+  any,
+  infer M,
+  any,
+  any,
+  any,
+  any,
+  any,
+  any,
+  any,
+  any
+>
+  ? M[number]
+  : string;
+type ExtractAudioModels<T> = T extends AIAdapter<
+  any,
+  any,
+  any,
+  infer M,
+  any,
+  any,
+  any,
+  any,
+  any,
+  any
+>
+  ? M[number]
+  : string;
+type ExtractVideoModels<T> = T extends AIAdapter<
+  any,
+  any,
+  any,
+  any,
+  infer M,
+  any,
+  any,
+  any,
+  any,
+  any
+>
+  ? M[number]
+  : string;
+type ExtractChatProviderOptions<T> = T extends AIAdapter<
+  any,
+  any,
+  any,
+  any,
+  any,
+  infer P,
+  any,
+  any,
+  any,
+  any
+>
+  ? P
+  : Record<string, any>;
+type ExtractImageProviderOptions<T> = T extends AIAdapter<
+  any,
+  any,
+  any,
+  any,
+  any,
+  any,
+  infer P,
+  any,
+  any,
+  any
+>
+  ? P
+  : Record<string, any>;
+type ExtractAudioProviderOptions<T> = T extends AIAdapter<
+  any,
+  any,
+  any,
+  any,
+  any,
+  any,
+  any,
+  any,
+  infer P,
+  any
+>
+  ? P
+  : Record<string, any>;
+type ExtractVideoProviderOptions<T> = T extends AIAdapter<
+  any,
+  any,
+  any,
+  any,
+  any,
+  any,
+  any,
+  any,
+  any,
+  infer P
+>
+  ? P
+  : Record<string, any>;
 
-// Helper type to compute chat return type based on the "as" option
-type ChatReturnType<
-  TOptions extends { as?: "promise" | "stream" | "response"; output?: ResponseFormat<any> }
-> = TOptions["as"] extends "stream"
-  ? AsyncIterable<StreamChunk>
-  : TOptions["as"] extends "response"
-  ? Response
-  : TOptions["output"] extends ResponseFormat<infer TData>
+// Helper type to compute chatCompletion return type based on output option
+type ChatCompletionReturnType<
+  TOptions extends { output?: ResponseFormat<any> }
+> = TOptions["output"] extends ResponseFormat<infer TData>
   ? ChatCompletionResult<TData>
   : ChatCompletionResult;
 
@@ -52,7 +152,18 @@ type AIConfig<
  * AI class - simplified to work with a single adapter only
  */
 class AI<
-  TAdapter extends AIAdapter<any, any, any, any, any, any, any, any, any, any> = AIAdapter<any, any, any, any, any, any, any, any, any, any>
+  TAdapter extends AIAdapter<
+    any,
+    any,
+    any,
+    any,
+    any,
+    any,
+    any,
+    any,
+    any,
+    any
+  > = AIAdapter<any, any, any, any, any, any, any, any, any, any>
 > {
   private adapter: TAdapter;
   private systemPrompts: string[];
@@ -63,116 +174,124 @@ class AI<
   }
 
   /**
+   * Stream a chat conversation
+   *
+   * @param options Chat options for streaming
+   *
+   * @example
+   * // Stream mode
+   * const stream = await ai.chat({
+   *   model: 'gpt-4',
+   *   messages: [...]
+   * });
+   * for await (const chunk of stream) {
+   *   console.log(chunk);
+   * }
+   */
+  chat(
+    options: Omit<
+      ChatCompletionOptions,
+      "model" | "providerOptions" | "responseFormat"
+    > & {
+      model: ExtractModels<TAdapter>;
+      tools?: ReadonlyArray<Tool>;
+      systemPrompts?: string[];
+      providerOptions?: ExtractChatProviderOptions<TAdapter>;
+    }
+  ): AsyncIterable<StreamChunk> {
+    const { model, tools, systemPrompts, providerOptions, ...restOptions } =
+      options;
+
+    // Prepend system prompts to messages
+    const messages = this.prependSystemPrompts(
+      restOptions.messages,
+      systemPrompts
+    );
+
+    return this.adapter.chatStream({
+      ...restOptions,
+      messages,
+      model: model as string,
+      tools,
+      responseFormat: undefined,
+      providerOptions: providerOptions as any,
+    });
+  }
+
+  /**
    * Complete a chat conversation with optional structured output
-   * 
-   * @param options Chat options with discriminated union on "as" property
-   * @param options.as - Response mode: "promise" (default), "stream", or "response"
-   * @param options.output - Optional structured output (only available with as="promise")
-   * 
+   *
+   * @param options Chat options for promise-based completion
+   * @param options.output - Optional structured output
+   *
    * @example
    * // Promise mode with structured output
-   * const result = await ai.chat({
+   * const result = await ai.chatCompletion({
    *   model: 'gpt-4',
    *   messages: [...],
    *   output: { type: 'json', jsonSchema: schema }
    * });
-   * 
+   *
    * @example
-   * // Stream mode (output not available)
-   * const stream = await ai.chat({
+   * // Promise mode without structured output
+   * const result = await ai.chatCompletion({
    *   model: 'gpt-4',
-   *   messages: [...],
-   *   as: "stream"
-   * });
-   * 
-   * @example
-   * // Response mode (output not available)
-   * const response = await ai.chat({
-   *   model: 'gpt-4',
-   *   messages: [...],
-   *   as: "response"
+   *   messages: [...]
    * });
    */
-  async chat<
-    TOptions extends (
-      | {
-        as: "stream";
-        providerOptions?: ExtractChatProviderOptions<TAdapter>;
-      }
-      | {
-        as: "response";
-        providerOptions?: ExtractChatProviderOptions<TAdapter>;
-      }
-      | {
-        as?: "promise";
-        output?: ResponseFormat<any>;
-        providerOptions?: ExtractChatProviderOptions<TAdapter>;
-      }
-    )
+  async chatCompletion<
+    TOptions extends {
+      output?: ResponseFormat<any>;
+      providerOptions?: ExtractChatProviderOptions<TAdapter>;
+    }
   >(
-    options: Omit<ChatCompletionOptions, "model" | "providerOptions" | "responseFormat" | "as"> & {
+    options: Omit<
+      ChatCompletionOptions,
+      "model" | "providerOptions" | "responseFormat"
+    > & {
       model: ExtractModels<TAdapter>;
       tools?: ReadonlyArray<Tool>;
       systemPrompts?: string[];
     } & TOptions
-  ): Promise<ChatReturnType<TOptions>> {
-    const asOption = (options.as || "promise") as "promise" | "stream" | "response";
-    const { model, tools, systemPrompts, providerOptions, ...restOptions } = options;
+  ): Promise<ChatCompletionReturnType<TOptions>> {
+    const { model, tools, systemPrompts, providerOptions, ...restOptions } =
+      options;
 
-    // Extract output if it exists (only in promise mode)
+    // Extract output if it exists
     const output = (options as any).output as ResponseFormat | undefined;
     const responseFormat = output;
 
     // Prepend system prompts to messages
-    const messages = this.prependSystemPrompts(restOptions.messages, systemPrompts);
+    const messages = this.prependSystemPrompts(
+      restOptions.messages,
+      systemPrompts
+    );
 
-    // Route to appropriate handler based on "as" option
-    if (asOption === "stream") {
-      return this.adapter.chatStream({
-        ...restOptions,
-        messages,
-        model: model as string,
-        tools,
-        responseFormat,
-        providerOptions: providerOptions as any,
-      }) as any;
-    } else if (asOption === "response") {
-      const stream = this.adapter.chatStream({
-        ...restOptions,
-        messages,
-        model: model as string,
-        tools,
-        responseFormat,
-        providerOptions: providerOptions as any,
-      });
-      return this.streamToResponse(stream) as any;
-    } else {
-      const result = await this.adapter.chatCompletion({
-        ...restOptions,
-        messages,
-        model: model as string,
-        tools,
-        responseFormat,
-        providerOptions: providerOptions as any,
-      });
+    const result = await this.adapter.chatCompletion({
+      ...restOptions,
+      messages,
+      model: model as string,
+      tools,
+      responseFormat,
+      providerOptions: providerOptions as any,
+    });
 
-      // If output is provided, parse the content as structured data
-      if (output && result.content) {
-        try {
-          const data = JSON.parse(result.content);
-          return {
-            ...result,
-            content: result.content,
-            data,
-          } as any;
-        } catch (error) {
-          // If parsing fails, return the result as-is
-          return result as any;
-        }
+    // If output is provided, parse the content as structured data
+    if (output && result.content) {
+      try {
+        const data = JSON.parse(result.content);
+        return {
+          ...result,
+          content: result.content,
+          data,
+        } as any;
+      } catch (error) {
+        // If parsing fails, return the result as-is
+        return result as any;
       }
-
-      return result as any;
     }
+
+    return result as any;
   }
 
   /**
@@ -215,7 +334,9 @@ class AI<
     }
   ): Promise<ImageGenerationResult> {
     if (!this.adapter.generateImage) {
-      throw new Error(`Adapter ${this.adapter.name} does not support image generation`);
+      throw new Error(
+        `Adapter ${this.adapter.name} does not support image generation`
+      );
     }
 
     const { model, providerOptions, ...restOptions } = options;
@@ -236,7 +357,9 @@ class AI<
     }
   ): Promise<AudioTranscriptionResult> {
     if (!this.adapter.transcribeAudio) {
-      throw new Error(`Adapter ${this.adapter.name} does not support audio transcription`);
+      throw new Error(
+        `Adapter ${this.adapter.name} does not support audio transcription`
+      );
     }
 
     const { model, providerOptions, ...restOptions } = options;
@@ -257,7 +380,9 @@ class AI<
     }
   ): Promise<TextToSpeechResult> {
     if (!this.adapter.generateSpeech) {
-      throw new Error(`Adapter ${this.adapter.name} does not support text-to-speech`);
+      throw new Error(
+        `Adapter ${this.adapter.name} does not support text-to-speech`
+      );
     }
 
     const { model, providerOptions, ...restOptions } = options;
@@ -278,7 +403,9 @@ class AI<
     }
   ): Promise<VideoGenerationResult> {
     if (!this.adapter.generateVideo) {
-      throw new Error(`Adapter ${this.adapter.name} does not support video generation`);
+      throw new Error(
+        `Adapter ${this.adapter.name} does not support video generation`
+      );
     }
 
     const { model, providerOptions, ...restOptions } = options;
@@ -307,33 +434,6 @@ class AI<
 
     return [...systemMessages, ...messages];
   }
-
-  private streamToResponse(stream: AsyncIterable<StreamChunk>): Response {
-    const encoder = new TextEncoder();
-
-    const readableStream = new ReadableStream({
-      async start(controller) {
-        try {
-          for await (const chunk of stream) {
-            const data = `data: ${JSON.stringify(chunk)}\n\n`;
-            controller.enqueue(encoder.encode(data));
-          }
-          controller.enqueue(encoder.encode("data: [DONE]\n\n"));
-          controller.close();
-        } catch (error) {
-          controller.error(error);
-        }
-      },
-    });
-
-    return new Response(readableStream, {
-      headers: {
-        "Content-Type": "text/event-stream",
-        "Cache-Control": "no-cache",
-        Connection: "keep-alive",
-      },
-    });
-  }
 }
 
 /**
@@ -341,10 +441,7 @@ class AI<
  */
 export function ai<
   TAdapter extends AIAdapter<any, any, any, any, any, any, any, any, any, any>
->(
-  adapter: TAdapter,
-  config?: { systemPrompts?: string[] }
-): AI<TAdapter> {
+>(adapter: TAdapter, config?: { systemPrompts?: string[] }): AI<TAdapter> {
   return new AI({
     adapter,
     systemPrompts: config?.systemPrompts,

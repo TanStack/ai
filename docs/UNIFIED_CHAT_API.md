@@ -2,60 +2,27 @@
 
 ## Overview
 
-The `chat()` method has been unified to support three different return types through the `as` configuration option:
+The chat API provides two methods for different use cases:
 
-- **`"promise"`** (default): Returns `Promise<ChatCompletionResult>` - standard non-streaming chat
-- **`"stream"`**: Returns `AsyncIterable<StreamChunk>` - streaming chunks for manual handling
-- **`"response"`**: Returns `Response` - HTTP response with proper streaming headers (SSE format)
-
-This eliminates the need for separate `chat()` and `streamChat()` methods.
+- **`chat()`** - Returns `AsyncIterable<StreamChunk>` - streaming chunks for manual handling
+- **`chatCompletion()`** - Returns `Promise<ChatCompletionResult>` - standard non-streaming chat with optional structured output
 
 ## Migration Guide
 
-### Before (Separate Methods)
+### Before (Using `as` option)
 
 ```typescript
 // For non-streaming
 const result = await ai.chat({
   adapter: "openai",
   model: "gpt-4",
-  messages: [{ role: "user", content: "Hello" }]
-});
-
-// For streaming
-const stream = ai.streamChat({
-  adapter: "openai", 
-  model: "gpt-4",
-  messages: [{ role: "user", content: "Hello" }]
-});
-for await (const chunk of stream) {
-  console.log(chunk);
-}
-
-// For HTTP response
-import { toStreamResponse } from "@ts-poc/ai";
-const stream = ai.streamChat({
-  adapter: "openai",
-  model: "gpt-4", 
-  messages: [{ role: "user", content: "Hello" }]
-});
-return toStreamResponse(stream);
-```
-
-### After (Unified Method)
-
-```typescript
-// For non-streaming (default, "as" is optional)
-const result = await ai.chat({
-  adapter: "openai",
-  model: "gpt-4",
   messages: [{ role: "user", content: "Hello" }],
-  as: "promise" // or omit this line - "promise" is the default
+  as: "promise"
 });
 
 // For streaming
 const stream = ai.chat({
-  adapter: "openai",
+  adapter: "openai", 
   model: "gpt-4",
   messages: [{ role: "user", content: "Hello" }],
   as: "stream"
@@ -64,23 +31,55 @@ for await (const chunk of stream) {
   console.log(chunk);
 }
 
-// For HTTP response (no need to import toStreamResponse!)
-return ai.chat({
+// For HTTP response
+const response = ai.chat({
   adapter: "openai",
-  model: "gpt-4",
+  model: "gpt-4", 
   messages: [{ role: "user", content: "Hello" }],
   as: "response"
 });
+return response;
+```
+
+### After (Separate Methods)
+
+```typescript
+// For non-streaming - use chatCompletion()
+const result = await ai.chatCompletion({
+  adapter: "openai",
+  model: "gpt-4",
+  messages: [{ role: "user", content: "Hello" }]
+});
+
+// For streaming - use chat()
+const stream = ai.chat({
+  adapter: "openai",
+  model: "gpt-4",
+  messages: [{ role: "user", content: "Hello" }]
+});
+for await (const chunk of stream) {
+  console.log(chunk);
+}
+
+// For HTTP response - use chat() + toStreamResponse()
+import { toStreamResponse } from "@tanstack/ai/stream-to-response";
+
+const stream = ai.chat({
+  adapter: "openai",
+  model: "gpt-4",
+  messages: [{ role: "user", content: "Hello" }]
+});
+return toStreamResponse(stream);
 ```
 
 ## Usage Examples
 
-### 1. Promise Mode (Default)
+### 1. Promise Mode (chatCompletion)
 
 Standard non-streaming chat completion:
 
 ```typescript
-const result = await ai.chat({
+const result = await ai.chatCompletion({
   adapter: "openai",
   model: "gpt-4",
   messages: [
@@ -88,14 +87,13 @@ const result = await ai.chat({
     { role: "user", content: "What is TypeScript?" }
   ],
   temperature: 0.7,
-  // as: "promise" is implicit
 });
 
 console.log(result.content);
 console.log(`Tokens used: ${result.usage.totalTokens}`);
 ```
 
-### 2. Stream Mode
+### 2. Stream Mode (chat)
 
 Manual streaming for custom handling:
 
@@ -103,8 +101,7 @@ Manual streaming for custom handling:
 const stream = ai.chat({
   adapter: "openai",
   model: "gpt-4",
-  messages: [{ role: "user", content: "Write a story" }],
-  as: "stream"
+  messages: [{ role: "user", content: "Write a story" }]
 });
 
 for await (const chunk of stream) {
@@ -119,40 +116,39 @@ for await (const chunk of stream) {
 }
 ```
 
-### 3. Response Mode (HTTP Streaming)
+### 3. HTTP Response Mode
 
 Perfect for API endpoints:
 
 ```typescript
+import { toStreamResponse } from "@tanstack/ai/stream-to-response";
+
 // TanStack Start API Route
 export const POST = async ({ request }: { request: Request }) => {
   const { messages } = await request.json();
 
-  // Returns a Response object with proper SSE headers
-  return ai.chat({
+  const stream = ai.chat({
     adapter: "openai",
     model: "gpt-4o",
     messages,
     temperature: 0.7,
-    as: "response", // ← Returns Response directly!
-    fallbacks: [
-      { adapter: "ollama", model: "llama2" }
-    ]
   });
+
+  // Convert stream to Response with SSE headers
+  return toStreamResponse(stream);
 };
 ```
 
 ## With Fallbacks
 
-All three modes support fallbacks:
+Both methods support fallbacks:
 
 ```typescript
 // Promise mode with fallbacks
-const result = await ai.chat({
+const result = await ai.chatCompletion({
   adapter: "openai",
   model: "gpt-4",
   messages: [{ role: "user", content: "Hello" }],
-  as: "promise",
   fallbacks: [
     { adapter: "anthropic", model: "claude-3-sonnet-20240229" },
     { adapter: "ollama", model: "llama2" }
@@ -164,27 +160,26 @@ const stream = ai.chat({
   adapter: "openai",
   model: "gpt-4",
   messages: [{ role: "user", content: "Hello" }],
-  as: "stream",
   fallbacks: [
     { adapter: "anthropic", model: "claude-3-sonnet-20240229" }
   ]
 });
 
-// Response mode with fallbacks (seamless failover in HTTP streaming!)
-return ai.chat({
+// HTTP response with fallbacks (seamless failover in HTTP streaming!)
+const stream = ai.chat({
   adapter: "openai",
   model: "gpt-4",
   messages: [{ role: "user", content: "Hello" }],
-  as: "response",
   fallbacks: [
     { adapter: "ollama", model: "llama2" }
   ]
 });
+return toStreamResponse(stream);
 ```
 
 ## Tool Execution
 
-Tool execution works in all three modes:
+Tool execution works in both modes:
 
 ```typescript
 const tools = [
@@ -207,14 +202,13 @@ const tools = [
 ];
 
 // Promise mode - waits for all tool executions to complete
-const result = await ai.chat({
+const result = await ai.chatCompletion({
   adapter: "openai",
   model: "gpt-4",
   messages: [{ role: "user", content: "What's the weather in SF?" }],
   tools,
   toolChoice: "auto",
   maxIterations: 5,
-  as: "promise"
 });
 
 // Stream mode - see tool execution happen in real-time
@@ -225,7 +219,6 @@ const stream = ai.chat({
   tools,
   toolChoice: "auto",
   maxIterations: 5,
-  as: "stream"
 });
 
 for await (const chunk of stream) {
@@ -235,53 +228,50 @@ for await (const chunk of stream) {
 }
 
 // Response mode - stream tool execution to client
-return ai.chat({
+const stream = ai.chat({
   adapter: "openai",
   model: "gpt-4",
   messages: [{ role: "user", content: "What's the weather in SF?" }],
   tools,
   toolChoice: "auto",
   maxIterations: 5,
-  as: "response"
 });
+return toStreamResponse(stream);
 ```
 
 ## Type Safety
 
-TypeScript automatically infers the correct return type based on the `as` option:
+TypeScript automatically infers the correct return type:
 
 ```typescript
 // Type: Promise<ChatCompletionResult>
-const promise = ai.chat({ adapter: "openai", model: "gpt-4", messages: [] });
+const promise = ai.chatCompletion({ adapter: "openai", model: "gpt-4", messages: [] });
 
 // Type: AsyncIterable<StreamChunk>
-const stream = ai.chat({ adapter: "openai", model: "gpt-4", messages: [], as: "stream" });
-
-// Type: Response
-const response = ai.chat({ adapter: "openai", model: "gpt-4", messages: [], as: "response" });
+const stream = ai.chat({ adapter: "openai", model: "gpt-4", messages: [] });
 ```
 
 ## Benefits
 
-1. **Simpler API**: One method instead of two
-2. **Consistent Interface**: Same options across all modes
-3. **HTTP Streaming Made Easy**: No need to manually call `toStreamResponse()`
-4. **Fallbacks Everywhere**: All modes support the same fallback mechanism
+1. **Clearer API**: Separate methods for different use cases
+2. **Consistent Interface**: Same options across both methods
+3. **HTTP Streaming Made Easy**: Use `toStreamResponse()` helper
+4. **Fallbacks Everywhere**: Both methods support the same fallback mechanism
 5. **Type Safety**: TypeScript infers the correct return type
-6. **Backward Compatible**: Default behavior (promise) matches old `chat()` method
+6. **Structured Outputs**: Available in `chatCompletion()` method
 
 ## Real-World Example: TanStack Start API
 
 ```typescript
 import { createAPIFileRoute } from "@tanstack/start/api";
 import { ai } from "~/lib/ai-client";
+import { toStreamResponse } from "@tanstack/ai/stream-to-response";
 
 export const Route = createAPIFileRoute("/api/chat")({
   POST: async ({ request }) => {
     const { messages, tools } = await request.json();
 
-    // That's it! Just return the result - it's already a Response
-    return ai.chat({
+    const stream = ai.chat({
       adapter: "openAi",
       model: "gpt-4o",
       messages,
@@ -289,11 +279,12 @@ export const Route = createAPIFileRoute("/api/chat")({
       toolChoice: "auto",
       maxIterations: 5,
       temperature: 0.7,
-      as: "response", // ← Returns Response with SSE headers
       fallbacks: [
         { adapter: "ollama", model: "llama2" }
       ]
     });
+
+    return toStreamResponse(stream);
   }
 });
 ```
@@ -332,11 +323,10 @@ while (true) {
 
 ## Summary
 
-The unified `chat()` API provides:
-- **One method** for all chat use cases
-- **Three modes**: promise, stream, response
-- **Same options** across all modes
-- **Built-in HTTP streaming** (no manual conversion needed)
-- **Full fallback support** in all modes
+The unified chat API provides:
+- **Two methods**: `chat()` for streaming, `chatCompletion()` for promises
+- **Same options** across both methods
+- **Built-in HTTP streaming** helper (`toStreamResponse`)
+- **Full fallback support** in both methods
 - **Type-safe** return types
 - **Simpler code** for common patterns

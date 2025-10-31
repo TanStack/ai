@@ -1,69 +1,19 @@
-import type { Message, StreamChunk } from "@tanstack/ai";
+import type { Message } from "@tanstack/ai";
+import type {
+  ChatClientOptions,
+  ChatMessage,
+  ChatRequestBody,
+} from "@tanstack/ai-client";
 
-export interface ChatMessage extends Message {
-  id: string;
-  createdAt?: Date;
-}
+// Re-export types from ai-client
+export type { ChatMessage, ChatRequestBody };
 
-export interface UseChatOptions {
-  /**
-   * The API endpoint to send messages to
-   * @default "/api/chat"
-   */
-  api?: string;
-
-  /**
-   * Initial messages to populate the chat
-   */
-  initialMessages?: ChatMessage[];
-
-  /**
-   * Unique identifier for this chat instance
-   * Used for managing multiple chats
-   */
-  id?: string;
-
-  /**
-   * Callback when a response is received
-   */
-  onResponse?: (response: Response) => void | Promise<void>;
-
-  /**
-   * Callback when a stream chunk is received
-   */
-  onChunk?: (chunk: StreamChunk) => void;
-
-  /**
-   * Callback when the response is finished
-   */
-  onFinish?: (message: ChatMessage) => void;
-
-  /**
-   * Callback when an error occurs
-   */
-  onError?: (error: Error) => void;
-
-  /**
-   * Additional headers to send with the request
-   */
-  headers?: Record<string, string> | Headers;
-
-  /**
-   * Additional body parameters to send
-   */
-  body?: Record<string, any>;
-
-  /**
-   * Credentials mode for fetch
-   * @default "same-origin"
-   */
-  credentials?: "omit" | "same-origin" | "include";
-
-  /**
-   * Custom fetch implementation
-   */
-  fetch?: typeof fetch;
-}
+// UseChatOptions is the same as ChatClientOptions
+// (we omit the state change callbacks since React hooks manage that internally)
+export type UseChatOptions = Omit<
+  ChatClientOptions,
+  "onMessagesChange" | "onLoadingChange" | "onErrorChange"
+>;
 
 export interface UseChatReturn {
   /**
@@ -110,9 +60,4 @@ export interface UseChatReturn {
    * Clear all messages
    */
   clear: () => void;
-}
-
-export interface ChatRequestBody {
-  messages: Message[];
-  data?: Record<string, any>;
 }

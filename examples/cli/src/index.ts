@@ -3,12 +3,11 @@ import inquirer from "inquirer";
 import chalk from "chalk";
 import ora from "ora";
 import * as dotenv from "dotenv";
-import { AI } from "@tanstack/ai";
-import { OpenAIAdapter } from "@tanstack/ai-openai";
-import { AnthropicAdapter } from "@tanstack/ai-anthropic";
-import { OllamaAdapter } from "@tanstack/ai-ollama";
-import { GeminiAdapter } from "@tanstack/ai-gemini";
-import type { AIAdapter, Message, ToolCall } from "@tanstack/ai";
+import { ai } from "@tanstack/ai";
+import { createOpenAI } from "@tanstack/ai-openai";
+import { createAnthropic } from "@tanstack/ai-anthropic";
+import { createOllama } from "@tanstack/ai-ollama";
+import type { AIAdapter, Message, TextGenerationResult } from "@tanstack/ai";
 import {
   getApiKeyUrl,
   saveApiKeyToEnv,
@@ -50,7 +49,7 @@ program
   .description("Generate text from a prompt")
   .option(
     "-p, --provider <provider>",
-    "AI provider (openai, anthropic, ollama, gemini)",
+    "AI provider (openai, anthropic, ollama)",
     "openai"
   )
   .option("-m, --model <model>", "Model to use")
@@ -68,7 +67,7 @@ program
   .description("Summarize text")
   .option(
     "-p, --provider <provider>",
-    "AI provider (openai, anthropic, ollama, gemini)",
+    "AI provider (openai, anthropic, ollama)",
     "openai"
   )
   .option("-m, --model <model>", "Model to use")
@@ -89,11 +88,7 @@ program
 program
   .command("embed")
   .description("Generate embeddings for text")
-  .option(
-    "-p, --provider <provider>",
-    "AI provider (openai, ollama, gemini)",
-    "openai"
-  )
+  .option("-p, --provider <provider>", "AI provider (openai, ollama)", "openai")
   .option("-m, --model <model>", "Model to use")
   .option(
     "-k, --api-key <key>",
@@ -197,7 +192,7 @@ async function createAdapter(
             openaiKey = await promptForApiKey("OpenAI", "OPENAI_API_KEY");
             apiKey = undefined; // Clear to force re-prompt if needed
           }
-          adapter = new OpenAIAdapter({ apiKey: openaiKey });
+          adapter = createOpenAI(openaiKey);
           break;
 
         case "anthropic":
@@ -209,7 +204,7 @@ async function createAdapter(
             );
             apiKey = undefined;
           }
-          adapter = new AnthropicAdapter({ apiKey: anthropicKey });
+          adapter = createAnthropic(anthropicKey);
           break;
 
         case "ollama":
@@ -217,19 +212,7 @@ async function createAdapter(
           const ollamaHost =
             process.env.OLLAMA_HOST || "http://localhost:11434";
           console.log(chalk.gray(`\nConnecting to Ollama at ${ollamaHost}\n`));
-          adapter = new OllamaAdapter({ host: ollamaHost });
-          break;
-
-        case "gemini":
-          let geminiKey = apiKey || process.env.GOOGLE_API_KEY;
-          if (!geminiKey || attempts > 0) {
-            geminiKey = await promptForApiKey(
-              "Google Gemini",
-              "GOOGLE_API_KEY"
-            );
-            apiKey = undefined;
-          }
-          adapter = new GeminiAdapter({ apiKey: geminiKey });
+          adapter = createOllama(ollamaHost);
           break;
 
         default:
@@ -291,7 +274,7 @@ async function runChat(options: any) {
   console.log(chalk.gray(`Provider: ${options.provider}`));
 
   const adapter = await createAdapter(options.provider, options.apiKey);
-  const ai = new AI(adapter);
+  const aiInstance = ai(adapter);
 
   console.log(chalk.green(`\n✅ Connected to ${options.provider}\n`));
   console.log(chalk.cyan(`🤖 TanStack AI Chat`));
@@ -340,8 +323,8 @@ async function runChat(options: any) {
       }
 
       // Stream with structured JSON chunks
-      for await (const chunk of ai.streamChat({
-        model,
+      for await (const chunk of aiInstance.chat({
+        model: model as string,
         messages,
         temperature: 0.7,
         maxTokens: 1000,
@@ -421,7 +404,7 @@ async function runChat(options: any) {
 
 async function runGenerate(options: any) {
   const adapter = await createAdapter(options.provider, options.apiKey);
-  const ai = new AI(adapter);
+  const aiInstance = ai(adapter);
 
   let prompt = options.prompt;
   if (!prompt) {
@@ -439,12 +422,12 @@ async function runGenerate(options: any) {
 
   try {
     const model = options.model || getDefaultModel(options.provider, "text");
-    const response = await ai.generateText({
-      model,
-      prompt,
+    const response = (await aiInstance.chatCompletion({
+      model: model as string,
       temperature: 0.7,
       maxTokens: 500,
-    });
+      messages: [{ role: "user", content: prompt }],
+    })) as unknown as TextGenerationResult;
 
     spinner.stop();
     console.log(chalk.cyan("\n📝 Generated Text:\n"));
@@ -458,7 +441,7 @@ async function runGenerate(options: any) {
 
 async function runSummarize(options: any) {
   const adapter = await createAdapter(options.provider, options.apiKey);
-  const ai = new AI(adapter);
+  const aiInstance = ai(adapter);
 
   let text = options.text;
   if (!text) {
@@ -476,7 +459,7 @@ async function runSummarize(options: any) {
 
   try {
     const model = options.model || getDefaultModel(options.provider);
-    const response = await ai.summarize({
+    const response = await aiInstance.summarize({
       model,
       text,
       style: options.style,
@@ -495,7 +478,7 @@ async function runSummarize(options: any) {
 
 async function runEmbed(options: any) {
   const adapter = await createAdapter(options.provider, options.apiKey);
-  const ai = new AI(adapter);
+  const aiInstance = ai(adapter);
 
   let text = options.text;
   if (!text) {
@@ -513,7 +496,7 @@ async function runEmbed(options: any) {
 
   try {
     const model = options.model || getDefaultEmbeddingModel(options.provider);
-    const response = await ai.embed({
+    const response = await aiInstance.embed({
       model,
       input: text,
     });
@@ -556,7 +539,7 @@ async function runTools(options: any) {
   }
 
   const adapter = await createAdapter(options.provider, options.apiKey);
-  const ai = new AI(adapter);
+  const aiInstance = ai(adapter);
 
   console.log(chalk.green(`\n✅ Connected to ${options.provider}\n`));
   console.log(chalk.cyan("🛠️  TanStack AI - Function Calling"));
@@ -635,8 +618,8 @@ Do not attempt to answer these questions without using the tools. Always call th
       }
 
       // streamChat automatically executes tools!
-      for await (const chunk of ai.streamChat({
-        model,
+      for await (const chunk of aiInstance.chat({
+        model: model as string,
         messages,
         temperature: 0.7,
         maxTokens: 1000,

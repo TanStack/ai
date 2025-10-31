@@ -143,7 +143,6 @@ const stream = ai.chat({
   model: "gpt-4",
   messages: [...],
   tools: ["get_weather", "calculate"],
-  as: "stream" as const,
 });
 
 for await (const chunk of stream) {
@@ -154,13 +153,16 @@ for await (const chunk of stream) {
 ### With HTTP Response
 
 ```typescript
-return ai.chat({
+import { toStreamResponse } from "@tanstack/ai/stream-to-response";
+
+const stream = ai.chat({
   adapter: "openai",
   model: "gpt-4",
   messages: [...],
   tools: ["get_weather", "search_products"],
-  as: "response" as const,
 });
+
+return toStreamResponse(stream);
 ```
 
 ## Real-World Example: api.tanchat.ts
@@ -203,7 +205,6 @@ const ai = new AI({
 ai.chat({
   messages: [...],
   tools: ["getGuitars", "recommendGuitar"], // ← Type-safe names!
-  as: "response" as const,
 });
 ```
 

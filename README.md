@@ -141,11 +141,30 @@ npm install @tanstack/ai-react
 
 #### `chat(options)`
 
-Complete a chat conversation with optional streaming and structured output.
+Stream a chat conversation. Returns `AsyncIterable<StreamChunk>`.
 
 ```typescript
-// Promise mode (default)
-const result = await chat({
+// Streaming mode
+const stream = chat({
+  adapter: openai(),
+  model: "gpt-4o",
+  messages: [{ role: "user", content: "Hello!" }],
+});
+
+for await (const chunk of stream) {
+  if (chunk.type === "content") {
+    console.log(chunk.delta); // Incremental token
+  }
+}
+```
+
+#### `chatCompletion(options)`
+
+Complete a chat conversation with optional structured output. Returns `Promise<ChatCompletionResult>`.
+
+```typescript
+// Promise mode with structured output
+const result = await chatCompletion({
   adapter: openai(),
   model: "gpt-4o",
   messages: [{ role: "user", content: "Hello!" }],
@@ -154,29 +173,13 @@ const result = await chat({
   providerOptions: { /* provider-specific options */ }
 });
 
-// Streaming mode
-const stream = await chat({
+// With structured output
+const structuredResult = await chatCompletion({
   adapter: openai(),
   model: "gpt-4o",
   messages: [{ role: "user", content: "Hello!" }],
-  as: "stream", // Returns AsyncIterable<StreamChunk>
+  output: responseFormat({ /* schema */ })
 });
-
-for await (const chunk of stream) {
-  if (chunk.type === "content") {
-    console.log(chunk.delta); // Incremental token
-  }
-}
-
-// Response mode (for HTTP endpoints)
-const response = await chat({
-  adapter: openai(),
-  model: "gpt-4o",
-  messages: [{ role: "user", content: "Hello!" }],
-  as: "response", // Returns Response with SSE headers
-});
-
-return response; // Can be returned directly from API routes
 ```
 
 #### `summarize(options)`
@@ -286,13 +289,27 @@ const aiInstance = ai({
 
 ##### `chat(options)`
 
-Same as standalone `chat()` function, but system prompts are automatically prepended.
+Stream a chat conversation. Returns `AsyncIterable<StreamChunk>`. System prompts are automatically prepended.
 
 ```typescript
-await aiInstance.chat({
+const stream = aiInstance.chat({
   model: "gpt-4o",
   messages: [{ role: "user", content: "Hello!" }],
-  as: "promise", // or "stream" or "response"
+});
+
+for await (const chunk of stream) {
+  console.log(chunk);
+}
+```
+
+##### `chatCompletion(options)`
+
+Complete a chat conversation with optional structured output. Returns `Promise<ChatCompletionResult>`. System prompts are automatically prepended.
+
+```typescript
+const result = await aiInstance.chatCompletion({
+  model: "gpt-4o",
+  messages: [{ role: "user", content: "Hello!" }],
 });
 ```
 
@@ -372,7 +389,7 @@ const result = await chat({
 });
 ```
 
-**Note:** When using streaming (`as: "stream"`), tools with `execute` functions are automatically called and their results are added to the conversation.
+**Note:** When using streaming (`chat()`), tools with `execute` functions are automatically called and their results are added to the conversation.
  
 ### React Hooks
 
@@ -446,11 +463,10 @@ console.log(result.content);
 ### Streaming
 
 ```typescript
-const stream = await chat({
+const stream = chat({
   adapter: openai(),
   model: "gpt-4o",
   messages: [{ role: "user", content: "Tell me a story" }],
-  as: "stream",
 });
 
 for await (const chunk of stream) {
@@ -509,12 +525,11 @@ const weatherTool = tool({
   },
 });
 
-const stream = await chat({
+const stream = chat({
   adapter: openai(),
   model: "gpt-4o",
   messages: [{ role: "user", content: "What's the weather in Paris?" }],
   tools: [weatherTool],
-  as: "stream",
 });
 
 // Tool is automatically executed and results are added to conversation
@@ -530,6 +545,7 @@ for await (const chunk of stream) {
 ```typescript
 import { createFileRoute } from "@tanstack/react-router";
 import { chat } from "@tanstack/ai";
+import { toStreamResponse } from "@tanstack/ai/stream-to-response";
 import { openai } from "@tanstack/ai-openai";
 
 export const Route = createFileRoute("/api/chat")({
@@ -538,13 +554,14 @@ export const Route = createFileRoute("/api/chat")({
       POST: async ({ request }) => {
         const { messages } = await request.json();
 
-        // Returns Response with SSE headers automatically
-        return await chat({
+        const stream = chat({
           adapter: openai(),
           model: "gpt-4o",
           messages,
-          as: "response",
         });
+
+        // Convert stream to Response with SSE headers
+        return toStreamResponse(stream);
       },
     },
   },

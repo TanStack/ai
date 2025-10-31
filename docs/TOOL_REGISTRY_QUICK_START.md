@@ -121,7 +121,6 @@ const stream = ai.chat({
   messages: [...],
   tools: ["get_weather", "calculate"],
   toolChoice: "auto",
-  as: "stream" as const,
 });
 
 for await (const chunk of stream) {
@@ -134,15 +133,18 @@ for await (const chunk of stream) {
 ## With HTTP Response
 
 ```typescript
+import { toStreamResponse } from "@tanstack/ai/stream-to-response";
+
 // Perfect for API endpoints!
-return ai.chat({
+const stream = ai.chat({
   adapter: "openai",
   model: "gpt-4",
   messages: [...],
   tools: ["get_weather", "search_products", "send_email"],
   toolChoice: "auto",
-  as: "response" as const,
 });
+
+return toStreamResponse(stream);
 ```
 
 ## Pro Tips

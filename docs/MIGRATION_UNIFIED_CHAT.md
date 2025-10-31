@@ -1,39 +1,14 @@
-# Migration Example: api.tanchat.ts
+# Migration Guide: From `as` Option to Separate Methods
 
-## Before (Using streamChat)
+## Overview
 
-```typescript
-import { createAPIFileRoute } from "@tanstack/start/api";
-import { toStreamResponse } from "@ts-poc/ai";
-import { ai } from "~/lib/ai-client";
+The `as` option has been removed from the `chat()` method. Instead, use:
+- **`chat()`** - For streaming (returns `AsyncIterable<StreamChunk>`)
+- **`chatCompletion()`** - For promise-based completion (returns `Promise<ChatCompletionResult>`)
 
-export const Route = createAPIFileRoute("/api/tanchat")({
-  POST: async ({ request }) => {
-    const { messages, tools } = await request.json();
+## Migration Examples
 
-    // Old way: Call streamChat and manually convert to Response
-    const stream = ai.streamChat({
-      model: "gpt-4o",
-      adapter: "openAi",
-      fallbacks: [
-        {
-          adapter: "ollama",
-          model: "gpt-oss:20b"
-        }
-      ],
-      messages: allMessages,
-      temperature: 0.7,
-      toolChoice: "auto",
-      maxIterations: 5,
-    });
-
-    // Had to manually convert to Response
-    return toStreamResponse(stream);
-  }
-});
-```
-
-## After (Using Unified chat with as: "response")
+### Before (Using `as` option)
 
 ```typescript
 import { createAPIFileRoute } from "@tanstack/start/api";
@@ -43,8 +18,7 @@ export const Route = createAPIFileRoute("/api/tanchat")({
   POST: async ({ request }) => {
     const { messages, tools } = await request.json();
 
-    // New way: Just return chat() with as: "response"
-    // No need to import toStreamResponse!
+    // Old way: Using as: "response"
     return ai.chat({
       model: "gpt-4o",
       adapter: "openAi",
@@ -58,60 +32,129 @@ export const Route = createAPIFileRoute("/api/tanchat")({
       temperature: 0.7,
       toolChoice: "auto",
       maxIterations: 5,
-      as: "response", // ← This returns a Response object directly!
+      as: "response", // ← Old way
     });
+  }
+});
+```
+
+### After (Using separate methods)
+
+```typescript
+import { createAPIFileRoute } from "@tanstack/start/api";
+import { ai } from "~/lib/ai-client";
+import { toStreamResponse } from "@tanstack/ai/stream-to-response";
+
+export const Route = createAPIFileRoute("/api/tanchat")({
+  POST: async ({ request }) => {
+    const { messages, tools } = await request.json();
+
+    // New way: Use chat() + toStreamResponse()
+    const stream = ai.chat({
+      model: "gpt-4o",
+      adapter: "openAi",
+      fallbacks: [
+        {
+          adapter: "ollama",
+          model: "gpt-oss:20b"
+        }
+      ],
+      messages: allMessages,
+      temperature: 0.7,
+      toolChoice: "auto",
+      maxIterations: 5,
+    });
+
+    return toStreamResponse(stream);
   }
 });
 ```
 
 ## Key Changes
 
-1. **Removed import**: No need to import `toStreamResponse` anymore
-2. **Changed method**: `streamChat()` → `chat()`
-3. **Added option**: `as: "response"` - tells chat() to return a Response object
-4. **Removed conversion**: No manual `toStreamResponse(stream)` call needed
+1. **Removed**: `as: "response"` option
+2. **Changed**: `chat()` now always returns `AsyncIterable<StreamChunk>`
+3. **Added**: `chatCompletion()` method for promise-based calls
+4. **Added**: Import `toStreamResponse()` helper for HTTP responses
 
-## Benefits
+## Migration Patterns
 
-✅ **Simpler code**: One less import, one less function call  
-✅ **Same functionality**: Still returns SSE-formatted Response  
-✅ **Same fallback behavior**: OpenAI → Ollama failover still works  
-✅ **Same tool execution**: Tools are still executed automatically  
-✅ **Type-safe**: TypeScript knows it returns a Response  
+### Pattern 1: Non-streaming (Promise mode)
 
-## Other Modes Available
-
-If you need different behavior:
-
+**Before:**
 ```typescript
-// Get a promise with the complete response (non-streaming)
 const result = await ai.chat({
-  adapter: "openAi",
-  model: "gpt-4o",
-  messages,
-  as: "promise", // or omit - it's the default
+  adapter: "openai",
+  model: "gpt-4",
+  messages: [],
+  as: "promise", // or omit - it was the default
 });
-console.log(result.content);
+```
 
-// Get a stream for custom handling
+**After:**
+```typescript
+const result = await ai.chatCompletion({
+  adapter: "openai",
+  model: "gpt-4",
+  messages: [],
+});
+```
+
+### Pattern 2: Streaming
+
+**Before:**
+```typescript
 const stream = ai.chat({
-  adapter: "openAi",
-  model: "gpt-4o",
-  messages,
+  adapter: "openai",
+  model: "gpt-4",
+  messages: [],
   as: "stream",
 });
-for await (const chunk of stream) {
-  // Custom chunk handling
-}
+```
+
+**After:**
+```typescript
+const stream = ai.chat({
+  adapter: "openai",
+  model: "gpt-4",
+  messages: [],
+});
+// No as option needed - chat() is now streaming-only
+```
+
+### Pattern 3: HTTP Response
+
+**Before:**
+```typescript
+return ai.chat({
+  adapter: "openai",
+  model: "gpt-4",
+  messages: [],
+  as: "response",
+});
+```
+
+**After:**
+```typescript
+import { toStreamResponse } from "@tanstack/ai/stream-to-response";
+
+const stream = ai.chat({
+  adapter: "openai",
+  model: "gpt-4",
+  messages: [],
+});
+
+return toStreamResponse(stream);
 ```
 
 ## Complete Example
 
-Here's your complete updated file:
+Here's a complete updated file:
 
 ```typescript
 import { createAPIFileRoute } from "@tanstack/start/api";
 import { ai } from "~/lib/ai-client";
+import { toStreamResponse } from "@tanstack/ai/stream-to-response";
 
 const SYSTEM_PROMPT = `You are a helpful AI assistant...`;
 
@@ -125,8 +168,8 @@ export const Route = createAPIFileRoute("/api/tanchat")({
         ? messages
         : [{ role: "system", content: SYSTEM_PROMPT }, ...messages];
 
-      // That's it! Just return chat() with as: "response"
-      return ai.chat({
+      // Use chat() for streaming, then convert to Response
+      const stream = ai.chat({
         adapter: "openAi",
         model: "gpt-4o",
         messages: allMessages,
@@ -134,7 +177,6 @@ export const Route = createAPIFileRoute("/api/tanchat")({
         tools,
         toolChoice: "auto",
         maxIterations: 5,
-        as: "response", // ← Returns Response with SSE headers
         fallbacks: [
           {
             adapter: "ollama",
@@ -142,6 +184,8 @@ export const Route = createAPIFileRoute("/api/tanchat")({
           }
         ]
       });
+
+      return toStreamResponse(stream);
     } catch (error: any) {
       return new Response(
         JSON.stringify({ error: error.message }),
@@ -154,6 +198,15 @@ export const Route = createAPIFileRoute("/api/tanchat")({
   }
 });
 ```
+
+## Benefits
+
+✅ **Simpler code**: Clearer intent with separate methods  
+✅ **Same functionality**: Still returns SSE-formatted Response  
+✅ **Same fallback behavior**: OpenAI → Ollama failover still works  
+✅ **Same tool execution**: Tools are still executed automatically  
+✅ **Type-safe**: TypeScript knows exact return types  
+✅ **Better naming**: `chatCompletion()` clearly indicates promise-based completion
 
 ## Testing
 
@@ -177,4 +230,4 @@ while (true) {
 }
 ```
 
-Everything works exactly the same, just with cleaner API code! 🎉
+Everything works exactly the same, just with a cleaner API! 🎉

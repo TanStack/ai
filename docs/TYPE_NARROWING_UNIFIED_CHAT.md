@@ -1,28 +1,32 @@
-# Type Narrowing in Unified Chat API
+# Type Narrowing in Chat API
+
+> **Note**: This document describes type narrowing with the current API using separate methods. The previous `as` option approach has been replaced with `chat()` for streaming and `chatCompletion()` for promise-based completion.
 
 ## Overview
 
-The unified `chat()` method uses TypeScript **function overloads** to provide precise type narrowing based on the `as` parameter. This means TypeScript knows the exact return type at compile time!
+The chat API uses separate methods, which provides automatic type narrowing without needing discriminated unions or const assertions:
+
+- **`chat()`** - Always returns `AsyncIterable<StreamChunk>`
+- **`chatCompletion()`** - Always returns `Promise<ChatCompletionResult>`
+
+TypeScript automatically knows the exact return type based on which method you call!
 
 ## Type Narrowing Rules
 
-| `as` Value | Return Type | Usage |
-|------------|-------------|-------|
-| `"promise"` | `Promise<ChatCompletionResult>` | Can `await`, access `.content`, `.usage`, etc. |
-| `"stream"` | `AsyncIterable<StreamChunk>` | Can use `for await...of`, iterate chunks |
-| `"response"` | `Response` | Can access `.headers`, `.body`, `.status`, etc. |
-| `undefined` (default) | `Promise<ChatCompletionResult>` | Same as `"promise"` |
+| Method | Return Type | Usage |
+|--------|-------------|-------|
+| `chat()` | `AsyncIterable<StreamChunk>` | Can use `for await...of`, iterate chunks |
+| `chatCompletion()` | `Promise<ChatCompletionResult>` | Can `await`, access `.content`, `.usage`, etc. |
 
 ## Examples with Type Checking
 
-### 1. Promise Mode - Type is `Promise<ChatCompletionResult>`
+### 1. Promise Mode (chatCompletion) - Type is `Promise<ChatCompletionResult>`
 
 ```typescript
-const result = ai.chat({
+const result = ai.chatCompletion({
   adapter: "openai",
   model: "gpt-4",
   messages: [{ role: "user", content: "Hello" }],
-  as: "promise",
 });
 
 // TypeScript knows result is Promise<ChatCompletionResult>
@@ -37,14 +41,13 @@ console.log(resolved.usage.totalTokens);
 console.log(resolved.headers); // Type error!
 ```
 
-### 2. Stream Mode - Type is `AsyncIterable<StreamChunk>`
+### 2. Stream Mode (chat) - Type is `AsyncIterable<StreamChunk>`
 
 ```typescript
 const stream = ai.chat({
   adapter: "openai",
   model: "gpt-4",
   messages: [{ role: "user", content: "Hello" }],
-  as: "stream",
 });
 
 // TypeScript knows stream is AsyncIterable<StreamChunk>
@@ -62,15 +65,18 @@ console.log(stream.content); // Type error!
 console.log(stream.headers); // Type error!
 ```
 
-### 3. Response Mode - Type is `Response`
+### 3. HTTP Response Mode
 
 ```typescript
-const response = ai.chat({
+import { toStreamResponse } from "@tanstack/ai/stream-to-response";
+
+const stream = ai.chat({
   adapter: "openai",
   model: "gpt-4",
   messages: [{ role: "user", content: "Hello" }],
-  as: "response",
 });
+
+const response = toStreamResponse(stream);
 
 // TypeScript knows response is Response
 // ✅ These work - properties exist on Response
@@ -83,24 +89,6 @@ const contentType = response.headers.get("Content-Type");
 
 // ❌ TypeScript error - content doesn't exist on Response
 console.log(response.content); // Type error!
-
-// ❌ TypeScript error - usage doesn't exist on Response
-console.log(response.usage); // Type error!
-```
-
-### 4. Default (No `as`) - Type is `Promise<ChatCompletionResult>`
-
-```typescript
-const result = ai.chat({
-  adapter: "openai",
-  model: "gpt-4",
-  messages: [{ role: "user", content: "Hello" }],
-  // No "as" specified - defaults to "promise"
-});
-
-// TypeScript knows result is Promise<ChatCompletionResult>
-const resolved = await result;
-console.log(resolved.content); // ✅ Works!
 ```
 
 ## Function Return Type Inference
@@ -110,13 +98,16 @@ TypeScript correctly infers return types in functions:
 ### API Handler - Returns `Response`
 
 ```typescript
+import { toStreamResponse } from "@tanstack/ai/stream-to-response";
+
 function apiHandler() {
-  return ai.chat({
+  const stream = ai.chat({
     adapter: "openai",
     model: "gpt-4",
     messages: [...],
-    as: "response",
   });
+  
+  return toStreamResponse(stream);
   // TypeScript infers: function apiHandler(): Response ✅
 }
 ```
@@ -124,22 +115,26 @@ function apiHandler() {
 ### Type-safe API Handler
 
 ```typescript
+import { toStreamResponse } from "@tanstack/ai/stream-to-response";
+
 function apiHandler(): Response {
-  return ai.chat({
+  const stream = ai.chat({
     adapter: "openai",
     model: "gpt-4",
     messages: [...],
-    as: "response", // ✅ Correct - returns Response
   });
+  
+  return toStreamResponse(stream); // ✅ Correct - returns Response
 }
 
 function wrongApiHandler(): Response {
-  return ai.chat({
+  const result = ai.chatCompletion({
     adapter: "openai",
     model: "gpt-4",
     messages: [...],
-    as: "promise", // ❌ TypeScript error - returns Promise, not Response
   });
+  
+  return result; // ❌ TypeScript error - returns Promise, not Response
 }
 ```
 
@@ -151,7 +146,6 @@ async function* streamHandler() {
     adapter: "openai",
     model: "gpt-4",
     messages: [...],
-    as: "stream",
   });
   
   // TypeScript knows stream is AsyncIterable<StreamChunk>
@@ -165,11 +159,10 @@ async function* streamHandler() {
 
 ```typescript
 // Promise with fallbacks - Type: Promise<ChatCompletionResult>
-const promise = ai.chat({
+const promise = ai.chatCompletion({
   adapter: "openai",
   model: "gpt-4",
   messages: [...],
-  as: "promise",
   fallbacks: [{ adapter: "ollama", model: "llama2" }]
 });
 const resolved = await promise;
@@ -180,141 +173,52 @@ const stream = ai.chat({
   adapter: "openai",
   model: "gpt-4",
   messages: [...],
-  as: "stream",
   fallbacks: [{ adapter: "ollama", model: "llama2" }]
 });
 for await (const chunk of stream) {
   console.log(chunk.type); // ✅ Works
 }
-
-// Response with fallbacks - Type: Response
-const response = ai.chat({
-  adapter: "openai",
-  model: "gpt-4",
-  messages: [...],
-  as: "response",
-  fallbacks: [{ adapter: "ollama", model: "llama2" }]
-});
-console.log(response.headers); // ✅ Works
-```
-
-## Dynamic Mode (Runtime Decision)
-
-When the mode is determined at runtime, TypeScript uses a union type:
-
-```typescript
-function dynamicChat(mode: "promise" | "stream" | "response") {
-  const result = ai.chat({
-    adapter: "openai",
-    model: "gpt-4",
-    messages: [...],
-    as: mode,
-  });
-  
-  // Type: Promise<ChatCompletionResult> | AsyncIterable<StreamChunk> | Response
-  // This is correct - TypeScript doesn't know which at compile time
-  
-  // Use type guards to narrow
-  if (mode === "promise") {
-    // result is Promise<ChatCompletionResult>
-    const resolved = await result;
-    console.log(resolved.content);
-  } else if (mode === "stream") {
-    // result is AsyncIterable<StreamChunk>
-    for await (const chunk of result as AsyncIterable<any>) {
-      console.log(chunk.type);
-    }
-  } else {
-    // result is Response
-    console.log((result as Response).headers);
-  }
-}
-```
-
-## Const Assertions for Better Inference
-
-Use `as const` for better type narrowing:
-
-```typescript
-const mode = "stream" as const;
-
-const result = ai.chat({
-  adapter: "openai",
-  model: "gpt-4",
-  messages: [...],
-  as: mode, // TypeScript knows this is exactly "stream"
-});
-
-// Type is correctly narrowed to AsyncIterable<StreamChunk>
-for await (const chunk of result) {
-  console.log(chunk.type); // ✅ Works without cast
-}
-```
-
-## Real-World Example: TanStack Start API
-
-```typescript
-import { createAPIFileRoute } from "@tanstack/start/api";
-import { ai } from "~/lib/ai-client";
-
-export const Route = createAPIFileRoute("/api/chat")({
-  POST: async ({ request }): Promise<Response> => {
-    const { messages } = await request.json();
-    
-    // TypeScript knows this returns Response ✅
-    return ai.chat({
-      adapter: "openAi",
-      model: "gpt-4o",
-      messages,
-      as: "response", // ← Type is narrowed to Response
-      fallbacks: [
-        { adapter: "ollama", model: "llama2" }
-      ]
-    });
-  }
-});
 ```
 
 ## How It Works (Technical Details)
 
-The `chat()` method uses TypeScript function overloads:
+With separate methods, TypeScript doesn't need function overloads or conditional types:
 
 ```typescript
-class AI<T extends AdapterMap> {
-  // Overload 1: Stream mode
-  chat(options: {...} & { as: "stream" }): AsyncIterable<StreamChunk>;
+class AI<TAdapter> {
+  // Simple method signatures - no overloads needed!
+  chat(options: ChatOptions): AsyncIterable<StreamChunk> {
+    return this.adapter.chatStream(options);
+  }
   
-  // Overload 2: Response mode
-  chat(options: {...} & { as: "response" }): Response;
-  
-  // Overload 3: Promise mode (explicit)
-  chat(options: {...} & { as?: "promise" }): Promise<ChatCompletionResult>;
-  
-  // Overload 4: Promise mode (implicit - no "as")
-  chat(options: {...}): Promise<ChatCompletionResult>;
-  
-  // Implementation (accepts all, returns union)
-  chat(options: {...}): Promise<ChatCompletionResult> | AsyncIterable<StreamChunk> | Response {
-    // Implementation...
+  async chatCompletion(options: ChatOptions): Promise<ChatCompletionResult> {
+    return this.adapter.chatCompletion(options);
   }
 }
 ```
 
-TypeScript's overload resolution picks the most specific matching signature based on the `as` parameter value!
+TypeScript's type inference is straightforward:
+- Call `chat()` → get `AsyncIterable<StreamChunk>`
+- Call `chatCompletion()` → get `Promise<ChatCompletionResult>`
+
+No need for `as const` assertions or discriminated unions!
 
 ## Benefits
 
-1. **Type Safety**: Catch errors at compile time, not runtime
-2. **IntelliSense**: Get correct autocomplete for each mode
-3. **Refactoring**: TypeScript catches breaking changes automatically
-4. **Documentation**: Types serve as inline documentation
-5. **Confidence**: Know exactly what you're getting back
+✅ **Type Safety**: TypeScript knows exact return type at compile time  
+✅ **IntelliSense**: Autocomplete shows correct properties for each method  
+✅ **Compile-Time Errors**: Catch type mismatches before runtime  
+✅ **Refactoring Safety**: Changes are caught automatically  
+✅ **Self-Documenting**: Methods serve as inline documentation  
+✅ **Simpler**: No need for const assertions or overloads
 
 ## Summary
 
-✅ **`as: "promise"`** → `Promise<ChatCompletionResult>` - Await and access `.content`, `.usage`  
-✅ **`as: "stream"`** → `AsyncIterable<StreamChunk>` - Iterate with `for await...of`  
-✅ **`as: "response"`** → `Response` - Access `.headers`, `.body`, `.status`  
-✅ **No `as`** → `Promise<ChatCompletionResult>` - Same as `"promise"`  
+The separate methods API provides perfect type narrowing automatically:
 
-TypeScript enforces these types at compile time, providing complete type safety! 🎉
+| Code | Return Type |
+|------|-------------|
+| `chat()` | `AsyncIterable<StreamChunk>` |
+| `chatCompletion()` | `Promise<ChatCompletionResult>` |
+
+TypeScript enforces these types at compile time, providing complete type safety without any special syntax! 🎉
