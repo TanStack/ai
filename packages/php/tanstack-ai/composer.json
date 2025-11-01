@@ -1,0 +1,37 @@
+{
+  "name": "tanstack/ai",
+  "description": "PHP utilities for TanStack AI - Convert provider events to StreamChunk format",
+  "type": "library",
+  "license": "MIT",
+  "keywords": [
+    "ai",
+    "tanstack",
+    "sdk",
+    "llm",
+    "chat",
+    "streaming"
+  ],
+  "authors": [
+    {
+      "name": "TanStack"
+    }
+  ],
+  "require": {
+    "php": ">=8.1"
+  },
+  "require-dev": {
+    "phpunit/phpunit": "^10.0"
+  },
+  "autoload": {
+    "psr-4": {
+      "TanStack\\AI\\": "src/"
+    }
+  },
+  "autoload-dev": {
+    "psr-4": {
+      "TanStack\\AI\\Tests\\": "tests/"
+    }
+  },
+  "minimum-stability": "dev",
+  "prefer-stable": true
+}

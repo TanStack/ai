@@ -1,0 +1,40 @@
+{
+    "name": "tanstack/ai-php-example",
+    "description": "PHP Slim Framework example for TanStack AI",
+    "type": "project",
+    "repositories": [
+        {
+            "type": "path",
+            "url": "../../packages/php/tanstack-ai"
+        }
+    ],
+    "require": {
+        "php": ">=8.1",
+        "slim/slim": "^4.12",
+        "slim/psr7": "^1.6",
+        "vlucas/phpdotenv": "^5.5",
+        "monolog/monolog": "^3.0",
+        "anthropic-ai/sdk": "^0.3.0",
+        "openai-php/client": "^0.10.0",
+        "tanstack/ai": "@dev",
+        "symfony/http-client": "^7.3"
+    },
+    "require-dev": {
+        "slim/psr7": "^1.6"
+    },
+    "autoload": {
+        "psr-4": {
+            "TanStack\\AI\\Example\\": "src/"
+        }
+    },
+    "scripts": {
+        "start": "php -S 0.0.0.0:8000 -t public public/index.php",
+        "start-anthropic": "php -S 0.0.0.0:8000 -t public public/anthropic-server.php",
+        "start-openai": "php -S 0.0.0.0:8001 -t public public/openai-server.php"
+    },
+    "config": {
+        "allow-plugins": {
+            "php-http/discovery": true
+        }
+    }
+}
