@@ -783,6 +783,8 @@ pnpm clean
 
 - 📖 [Tool Execution Loop](docs/TOOL_EXECUTION_LOOP.md) - How automatic tool execution works
 - 📖 [Agent Loop Strategies](docs/AGENT_LOOP_STRATEGIES.md) - Control the tool execution loop
+- 📖 [Connection Adapters Guide](docs/CONNECTION_ADAPTERS_GUIDE.md) - Complete guide with examples
+- 📖 [Connection Adapters API](packages/ai-client/CONNECTION_ADAPTERS.md) - API reference
 - 📖 [Unified Chat API](docs/UNIFIED_CHAT_API.md) - `chat()` vs `chatCompletion()` methods
 - 📖 [Quick Reference](docs/UNIFIED_CHAT_QUICK_REFERENCE.md) - Quick API reference
 - 📖 [Tool Registry](docs/TOOL_REGISTRY.md) - Define tools once, use everywhere

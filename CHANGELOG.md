@@ -1,6 +1,109 @@
 # Changelog
 
-## Recent Refactoring (October 2025)
+## Recent Refactoring (November 2025)
+
+### Connection Adapters Added
+
+**New Feature:** `@tanstack/ai-client` now supports flexible connection adapters instead of being hardcoded to fetch.
+
+**Before:**
+```typescript
+const client = new ChatClient({
+  api: "/api/chat",
+  headers: { "Authorization": "Bearer token" }
+});
+```
+
+**After (New API):**
+```typescript
+import { ChatClient, fetchServerSentEvents } from "@tanstack/ai-client";
+
+const client = new ChatClient({
+  connection: fetchServerSentEvents("/api/chat", {
+    headers: { "Authorization": "Bearer token" }
+  }),
+});
+```
+
+**Benefits:**
+- ✅ Support SSE, HTTP streams, WebSockets, server functions, etc.
+- ✅ Easy to test with custom adapters
+- ✅ **Backward compatible** - legacy API still works
+
+**Built-in Adapters:**
+- `fetchServerSentEvents(url, options)` - For SSE (default)
+- `fetchHttpStream(url, options)` - For newline-delimited JSON  
+- `stream(factory)` - For direct async iterables (server functions)
+
+**With React:**
+```typescript
+import { useChat, fetchServerSentEvents } from "@tanstack/ai-react";
+
+const chat = useChat({
+  connection: fetchServerSentEvents("/api/chat"),
+});
+```
+
+**Create Custom Adapters:**
+```typescript
+import type { ConnectionAdapter } from "@tanstack/ai-client";
+
+const wsAdapter: ConnectionAdapter = {
+  async *connect(messages, data) {
+    const ws = new WebSocket("wss://api.example.com");
+    // ... WebSocket logic
+  },
+  abort() { ws.close(); }
+};
+
+const chat = useChat({ connection: wsAdapter });
+```
+
+**Documentation:**
+- 📖 [Connection Adapters Guide](docs/CONNECTION_ADAPTERS_GUIDE.md) - Complete guide
+- 📖 [Connection Adapters API](packages/ai-client/CONNECTION_ADAPTERS.md) - API reference
+
+### Agent Loop Strategies
+
+**New Feature:** `agentLoopStrategy` parameter replaces `maxIterations` with a flexible strategy pattern.
+
+**Before:**
+```typescript
+const stream = ai.chat({
+  model: "gpt-4",
+  messages: [...],
+  tools: [...],
+  maxIterations: 5,
+});
+```
+
+**After:**
+```typescript
+import { maxIterations, untilFinishReason, combineStrategies } from "@tanstack/ai";
+
+const stream = ai.chat({
+  model: "gpt-4",
+  messages: [...],
+  tools: [...],
+  agentLoopStrategy: maxIterations(5), // Or custom strategy
+});
+```
+
+**Built-in Strategies:**
+- `maxIterations(max)` - Continue for max iterations
+- `untilFinishReason(reasons)` - Stop on specific finish reasons
+- `combineStrategies(strategies)` - Combine multiple strategies
+
+### ToolCallManager Class
+
+**Refactoring:** Tool execution logic extracted into separate `ToolCallManager` class.
+
+**Benefits:**
+- ✅ Reduced `chat()` method size from ~180 lines to ~85 lines
+- ✅ Independently testable
+- ✅ Cleaner separation of concerns
+
+## Previous Refactoring (October 2025)
 
 ### Breaking Changes
 

@@ -6,7 +6,7 @@ import rehypeRaw from "rehype-raw";
 import rehypeSanitize from "rehype-sanitize";
 import rehypeHighlight from "rehype-highlight";
 import remarkGfm from "remark-gfm";
-import { useChat } from "@tanstack/ai-react";
+import { useChat, fetchServerSentEvents } from "@tanstack/ai-react";
 import type { ChatMessage } from "@tanstack/ai-react";
 
 import GuitarRecommendation from "@/components/example-GuitarRecommendation";
@@ -121,7 +121,7 @@ function Messages({ messages }: { messages: Array<ChatMessage> }) {
 
 function ChatPage() {
   const { messages, sendMessage, isLoading } = useChat({
-    api: "/demo/api/tanchat",
+    connection: fetchServerSentEvents("/demo/api/tanchat"),
   });
   const [input, setInput] = useState("");
 

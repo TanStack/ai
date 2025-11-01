@@ -47,6 +47,7 @@ OPENAI_API_KEY=your_openai_api_key
 - 📝 Rich markdown formatting with syntax highlighting
 - 🎯 Customizable system prompts for tailored AI behavior
 - 🔄 Real-time streaming responses with Server-Sent Events
+- 🔌 **Connection adapters** - flexible streaming architecture
 - 🛠️ **Automatic tool execution loop** - tools are executed automatically by the SDK
 - 🎸 Tool/function calling with guitar recommendations
 
@@ -72,6 +73,8 @@ OPENAI_API_KEY=your_openai_api_key
 - **State Management**: TanStack Store
 - **Styling**: Tailwind CSS
 - **AI Integration**: TanStack AI with OpenAI GPT-4o
+- **Chat Client**: `@tanstack/ai-react` with connection adapters
+- **Streaming**: Server-Sent Events via `fetchServerSentEvents`
 - **Tool Execution**: Automatic loop with `ToolCallManager`
 
 ## Routing

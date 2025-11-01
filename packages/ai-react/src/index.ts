@@ -5,3 +5,12 @@ export type {
   ChatMessage,
   ChatRequestBody,
 } from "./types";
+
+// Re-export connection adapters from ai-client for convenience
+export {
+  fetchServerSentEvents,
+  fetchHttpStream,
+  stream,
+  type ConnectionAdapter,
+  type FetchConnectionOptions,
+} from "@tanstack/ai-client";

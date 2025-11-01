@@ -1,44 +1,45 @@
 import type { Message } from "@tanstack/ai";
-import type { ChatMessage, ChatClientOptions, ChatRequestBody } from "./types";
-import {
-  createResponseStreamSource,
-  processStream,
-  type StreamEventHandlers,
-} from "./stream";
+import type { ChatMessage, ChatClientOptions } from "./types";
+import type { ConnectionAdapter } from "./connection-adapters";
+import { fetchServerSentEvents } from "./connection-adapters";
+import { processStream, type StreamEventHandlers } from "./stream";
 
 export class ChatClient {
   private messages: ChatMessage[] = [];
   private isLoading: boolean = false;
   private error: Error | undefined = undefined;
-  private abortController: AbortController | null = null;
+  private connection: ConnectionAdapter;
   private uniqueId: string;
+  private body?: Record<string, any>;
 
-  private options: Required<
-    Pick<
-      ChatClientOptions,
-      | "api"
-      | "credentials"
-      | "onResponse"
-      | "onChunk"
-      | "onFinish"
-      | "onError"
-      | "onMessagesChange"
-      | "onLoadingChange"
-      | "onErrorChange"
-    >
-  > & {
-    headers?: Record<string, string> | Headers;
-    body?: Record<string, any>;
-    fetch: typeof fetch;
+  private callbacks: {
+    onResponse: (response?: Response) => void | Promise<void>;
+    onChunk: (chunk: any) => void;
+    onFinish: (message: ChatMessage) => void;
+    onError: (error: Error) => void;
+    onMessagesChange: (messages: ChatMessage[]) => void;
+    onLoadingChange: (isLoading: boolean) => void;
+    onErrorChange: (error: Error | undefined) => void;
   };
 
   constructor(options: ChatClientOptions = {}) {
     this.uniqueId = options.id || this.generateUniqueId();
     this.messages = options.initialMessages || [];
+    this.body = options.body;
 
-    this.options = {
-      api: options.api || "/api/chat",
-      credentials: options.credentials || "same-origin",
+    // Use provided connection adapter or create default one from legacy options
+    if (options.connection) {
+      this.connection = options.connection;
+    } else {
+      // Legacy support: create fetchServerSentEvents adapter from old options
+      const api = options.api || "/api/chat";
+      this.connection = fetchServerSentEvents(api, {
+        headers: options.headers,
+        credentials: options.credentials,
+      });
+    }
+
+    this.callbacks = {
       onResponse: options.onResponse || (() => {}),
       onChunk: options.onChunk || (() => {}),
       onFinish: options.onFinish || (() => {}),
@@ -46,12 +47,6 @@ export class ChatClient {
       onMessagesChange: options.onMessagesChange || (() => {}),
       onLoadingChange: options.onLoadingChange || (() => {}),
       onErrorChange: options.onErrorChange || (() => {}),
-      headers: options.headers,
-      body: options.body,
-      // Bind fetch to globalThis to work in both browser and Node.js/SSR
-      fetch:
-        options.fetch ||
-        ((...args: Parameters<typeof fetch>) => fetch(...args)),
     };
   }
 
@@ -67,21 +62,21 @@ export class ChatClient {
 
   private setMessages(messages: ChatMessage[]): void {
     this.messages = messages;
-    this.options.onMessagesChange(messages);
+    this.callbacks.onMessagesChange(messages);
   }
 
   private setIsLoading(isLoading: boolean): void {
     this.isLoading = isLoading;
-    this.options.onLoadingChange(isLoading);
+    this.callbacks.onLoadingChange(isLoading);
   }
 
   private setError(error: Error | undefined): void {
     this.error = error;
-    this.options.onErrorChange(error);
+    this.callbacks.onErrorChange(error);
   }
 
-  private async processResponseStream(
-    response: Response
+  private async processStream(
+    source: AsyncIterable<any>
   ): Promise<ChatMessage> {
     const assistantMessageId = this.generateMessageId();
     const assistantMessage: ChatMessage = {
@@ -94,14 +89,11 @@ export class ChatClient {
     // Add the assistant message placeholder
     this.setMessages([...this.messages, assistantMessage]);
 
-    // Create stream source from response
-    const source = createResponseStreamSource(response);
-
     // Define handlers for stream events
     const handlers: StreamEventHandlers = {
       onChunk: (chunk) => {
         // Call the user's onChunk callback
-        this.options.onChunk(chunk);
+        this.callbacks.onChunk(chunk);
       },
       onContent: (content) => {
         // Update the assistant message with new content
@@ -175,69 +167,27 @@ export class ChatClient {
     this.setIsLoading(true);
     this.setError(undefined);
 
-    // Create abort controller for this request
-    const abortController = new AbortController();
-    this.abortController = abortController;
-
     try {
-      // Prepare request body
-      const requestBody: ChatRequestBody = {
-        messages: this.messages.map((msg) => ({
-          role: msg.role,
-          content: msg.content,
-          name: msg.name,
-          toolCalls: msg.toolCalls,
-          toolCallId: msg.toolCallId,
-        })),
-        data: this.options.body,
-      };
+      // Prepare messages for connection adapter
+      const messagesToSend = this.messages.map((msg) => ({
+        role: msg.role,
+        content: msg.content,
+        name: msg.name,
+        toolCalls: msg.toolCalls,
+        toolCallId: msg.toolCallId,
+      }));
 
-      console.log("[ChatClient] Making POST request to:", this.options.api);
-      console.log("[ChatClient] Request body:", requestBody);
+      // Call onResponse callback (no Response object for non-fetch adapters)
+      await this.callbacks.onResponse();
 
-      // Make the request
-      const requestHeaders: Record<string, string> = {
-        "Content-Type": "application/json",
-      };
+      // Connect and get stream from connection adapter
+      const stream = this.connection.connect(messagesToSend, this.body);
 
-      // Add custom headers
-      if (this.options.headers) {
-        if (this.options.headers instanceof Headers) {
-          this.options.headers.forEach((value, key) => {
-            requestHeaders[key] = value;
-          });
-        } else {
-          Object.assign(requestHeaders, this.options.headers);
-        }
-      }
-
-      let response;
-      try {
-        response = await this.options.fetch(this.options.api, {
-          method: "POST",
-          headers: requestHeaders,
-          body: JSON.stringify(requestBody),
-          credentials: this.options.credentials,
-          signal: abortController.signal,
-        });
-      } catch (error) {
-        throw error;
-      }
-
-      if (!response.ok) {
-        throw new Error(
-          `HTTP error! status: ${response.status} ${response.statusText}`
-        );
-      }
-
-      // Call onResponse callback
-      await this.options.onResponse(response);
-
-      // Process the streaming response
-      const assistantMessage = await this.processResponseStream(response);
+      // Process the stream
+      const assistantMessage = await this.processStream(stream);
 
       // Call onFinish callback
-      this.options.onFinish(assistantMessage);
+      this.callbacks.onFinish(assistantMessage);
     } catch (err) {
       if (err instanceof Error) {
         if (err.name === "AbortError") {
@@ -246,11 +196,10 @@ export class ChatClient {
         }
 
         this.setError(err);
-        this.options.onError(err);
+        this.callbacks.onError(err);
       }
     } finally {
       this.setIsLoading(false);
-      this.abortController = null;
     }
   }
 
@@ -292,11 +241,10 @@ export class ChatClient {
   }
 
   stop(): void {
-    if (this.abortController) {
-      this.abortController.abort();
-      this.abortController = null;
-      this.setIsLoading(false);
+    if (this.connection.abort) {
+      this.connection.abort();
     }
+    this.setIsLoading(false);
   }
 
   clear(): void {

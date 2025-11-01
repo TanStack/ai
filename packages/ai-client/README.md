@@ -11,7 +11,61 @@ Framework-agnostic headless client for TanStack AI chat functionality.
 - Testing and automation
 - Any JavaScript/TypeScript environment
 
+**Connection Adapters:** Flexible streaming support for SSE, HTTP streams, server functions, and more! See [CONNECTION_ADAPTERS.md](CONNECTION_ADAPTERS.md) for details.
+
 **Note:** The backend should use `@tanstack/ai`'s `chat()` method which **automatically handles tool execution in a loop**. The client receives tool execution events via the stream.
+
+## Connection Adapters
+
+Connection adapters provide a flexible way to connect to different types of streaming backends.
+
+### `fetchServerSentEvents(url, options?)`
+
+For Server-Sent Events (SSE) format - the standard for HTTP streaming:
+
+```typescript
+import { ChatClient, fetchServerSentEvents } from "@tanstack/ai-client";
+
+const client = new ChatClient({
+  connection: fetchServerSentEvents("/api/chat", {
+    headers: { "Authorization": "Bearer token" },
+    credentials: "include",
+  }),
+});
+```
+
+**Use when:** Your backend uses `toStreamResponse()` from `@tanstack/ai`
+
+### `fetchHttpStream(url, options?)`
+
+For raw HTTP streaming with newline-delimited JSON:
+
+```typescript
+import { ChatClient, fetchHttpStream } from "@tanstack/ai-client";
+
+const client = new ChatClient({
+  connection: fetchHttpStream("/api/chat", {
+    headers: { "Authorization": "Bearer token" },
+  }),
+});
+```
+
+**Use when:** Your backend streams newline-delimited JSON directly
+
+### `stream(factory)`
+
+For direct async iterables (e.g., TanStack Start server functions):
+
+```typescript
+import { ChatClient, stream } from "@tanstack/ai-client";
+import { serverChatFunction } from "./server";
+
+const client = new ChatClient({
+  connection: stream((messages, data) => serverChatFunction({ messages, data })),
+});
+```
+
+**Use when:** You're calling server functions directly (not via HTTP)
 
 ## Installation
 

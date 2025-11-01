@@ -14,4 +14,11 @@ export {
   type StreamResult,
   type ToolCall,
 } from "./stream";
+export {
+  fetchServerSentEvents,
+  fetchHttpStream,
+  stream,
+  type ConnectionAdapter,
+  type FetchConnectionOptions,
+} from "./connection-adapters";
 

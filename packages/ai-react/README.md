@@ -5,7 +5,7 @@ React hooks for building AI chat interfaces with TanStack AI.
 ## Installation
 
 ```bash
-npm install @tanstack/ai-react @tanstack/ai
+npm install @tanstack/ai-react @tanstack/ai-client
 ```
 
 ## useChat Hook
@@ -65,17 +65,25 @@ function ChatComponent() {
 
 ```typescript
 interface UseChatOptions {
+  // Connection adapter (recommended)
+  connection?: ConnectionAdapter;
+  
+  // Legacy options (deprecated, use connection adapters instead)
   api?: string; // API endpoint (default: "/api/chat")
+  headers?: Record<string, string> | Headers;
+  credentials?: "omit" | "same-origin" | "include";
+  fetch?: typeof fetch;
+  
+  // Configuration
   initialMessages?: ChatMessage[]; // Starting messages
   id?: string; // Unique chat ID
-  onResponse?: (response: Response) => void;
+  body?: Record<string, any>; // Extra data to send
+  
+  // Callbacks
+  onResponse?: (response?: Response) => void;
   onChunk?: (chunk: StreamChunk) => void;
   onFinish?: (message: ChatMessage) => void;
   onError?: (error: Error) => void;
-  headers?: Record<string, string> | Headers;
-  body?: Record<string, any>; // Extra data to send
-  credentials?: "omit" | "same-origin" | "include";
-  fetch?: typeof fetch; // Custom fetch implementation
 }
 ```
 
@@ -93,6 +101,47 @@ interface UseChatReturn {
   setMessages: (messages) => void; // Set messages manually
   clear: () => void; // Clear all messages
 }
+```
+
+## Connection Adapters
+
+Connection adapters provide flexible streaming for different scenarios. See the complete guides:
+
+- 📖 [Connection Adapters Guide](../../docs/CONNECTION_ADAPTERS_GUIDE.md) - Complete guide with examples
+- 📖 [Connection Adapters API](../ai-client/CONNECTION_ADAPTERS.md) - API reference
+
+### Quick Examples
+
+**SSE (Most Common):**
+```typescript
+import { useChat, fetchServerSentEvents } from "@tanstack/ai-react";
+
+const chat = useChat({
+  connection: fetchServerSentEvents("/api/chat"),
+});
+```
+
+**Server Functions:**
+```typescript
+import { useChat, stream } from "@tanstack/ai-react";
+
+const chat = useChat({
+  connection: stream((messages) => serverChatFunction({ messages })),
+});
+```
+
+**Custom (e.g., WebSockets):**
+```typescript
+import { useChat } from "@tanstack/ai-react";
+import type { ConnectionAdapter } from "@tanstack/ai-client";
+
+const wsAdapter: ConnectionAdapter = {
+  async *connect(messages) {
+    // Your WebSocket logic
+  },
+};
+
+const chat = useChat({ connection: wsAdapter });
 ```
 
 ### Backend Endpoint

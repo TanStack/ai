@@ -1,4 +1,5 @@
 import type { Message, StreamChunk } from "@tanstack/ai";
+import type { ConnectionAdapter } from "./connection-adapters";
 
 export interface ChatMessage extends Message {
   id: string;
@@ -7,6 +8,13 @@ export interface ChatMessage extends Message {
 
 export interface ChatClientOptions {
   /**
+   * Connection adapter for streaming
+   * Use fetchServerSentEvents(), fetchHttpStream(), or stream() to create adapters
+   */
+  connection?: ConnectionAdapter;
+  
+  /**
+   * @deprecated Use connection adapter instead
    * The API endpoint to send messages to
    * @default "/api/chat"
    */
@@ -26,7 +34,7 @@ export interface ChatClientOptions {
   /**
    * Callback when a response is received
    */
-  onResponse?: (response: Response) => void | Promise<void>;
+  onResponse?: (response?: Response) => void | Promise<void>;
 
   /**
    * Callback when a stream chunk is received
@@ -59,6 +67,7 @@ export interface ChatClientOptions {
   onErrorChange?: (error: Error | undefined) => void;
 
   /**
+   * @deprecated Use connection adapter instead
    * Additional headers to send with the request
    */
   headers?: Record<string, string> | Headers;
@@ -69,12 +78,14 @@ export interface ChatClientOptions {
   body?: Record<string, any>;
 
   /**
+   * @deprecated Use connection adapter instead
    * Credentials mode for fetch
    * @default "same-origin"
    */
   credentials?: "omit" | "same-origin" | "include";
 
   /**
+   * @deprecated Use connection adapter instead
    * Custom fetch implementation
    */
   fetch?: typeof fetch;
