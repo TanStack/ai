@@ -20,11 +20,18 @@ import { ImmediateStrategy } from "./chunk-strategies";
 
 /**
  * Default parser - expects chunks in the format emitted by processStream
+ * Supports both new format (StreamChunk) and legacy format (from stream.ts)
  */
 class DefaultStreamParser implements StreamParser {
   async *parse(stream: AsyncIterable<any>): AsyncIterable<StreamChunk> {
     for await (const chunk of stream) {
-      // Handle text content
+      // Already in StreamChunk format - pass through
+      if (chunk.type === "text" || chunk.type === "tool-call-delta") {
+        yield chunk as StreamChunk;
+        continue;
+      }
+
+      // Legacy format: Convert "content" to "text"
       if (chunk.type === "content" && chunk.content) {
         yield {
           type: "text",
@@ -32,11 +39,11 @@ class DefaultStreamParser implements StreamParser {
         };
       }
 
-      // Handle tool call deltas
-      if (chunk.type === "tool-call-delta" && chunk.toolCall) {
+      // Legacy format: Convert "tool_call" to "tool-call-delta"
+      if ((chunk.type === "tool_call" || chunk.type === "tool-call-delta") && chunk.toolCall) {
         yield {
           type: "tool-call-delta",
-          toolCallIndex: chunk.index,
+          toolCallIndex: chunk.index ?? chunk.toolCallIndex,
           toolCall: chunk.toolCall,
         };
       }
@@ -94,9 +101,10 @@ export class StreamProcessor {
     // Stream ended - finalize everything
     this.finalizeStream();
 
+    const toolCalls = this.getCompletedToolCalls();
     return {
       content: this.textContent,
-      toolCalls: this.getCompletedToolCalls(),
+      toolCalls: toolCalls.length > 0 ? toolCalls : undefined,
     };
   }
 

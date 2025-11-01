@@ -1,6 +1,6 @@
 import { describe, it, expect, vi } from "vitest";
-import { ToolCallManager } from "./tool-call-manager";
-import type { Tool, DoneStreamChunk } from "./types";
+import { ToolCallManager } from "../src/tool-call-manager";
+import type { Tool, DoneStreamChunk } from "../src/types";
 
 describe("ToolCallManager", () => {
   const mockDoneChunk: DoneStreamChunk = {
@@ -319,3 +319,4 @@ describe("ToolCallManager", () => {
     expect(toolResults[1].toolCallId).toBe("call_calc");
   });
 });
+

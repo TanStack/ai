@@ -3,8 +3,8 @@ import {
   maxIterations,
   untilFinishReason,
   combineStrategies,
-} from "./agent-loop-strategies";
-import type { AgentLoopState } from "./types";
+} from "../src/agent-loop-strategies";
+import type { AgentLoopState } from "../src/types";
 
 describe("Agent Loop Strategies", () => {
   const createState = (

@@ -111,10 +111,17 @@ const client = new ChatClient({
 
 ## Testing
 
-Run the POC test:
+Run the test suite:
 
 ```bash
-npx tsx packages/ai-client/src/stream/poc-test.ts
+cd packages/typescript/ai-client
+pnpm test
+```
+
+Or run tests in watch mode:
+
+```bash
+pnpm test:watch
 ```
 
 ## Next Steps
