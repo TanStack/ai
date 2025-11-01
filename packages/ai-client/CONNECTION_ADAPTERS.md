@@ -190,29 +190,6 @@ const client = new ChatClient({
 });
 ```
 
-## Migration from Legacy API
-
-**Old way:**
-```typescript
-const client = new ChatClient({
-  api: "/api/chat",
-  headers: { "Authorization": "Bearer token" },
-  credentials: "include",
-});
-```
-
-**New way:**
-```typescript
-const client = new ChatClient({
-  connection: fetchServerSentEvents("/api/chat", {
-    headers: { "Authorization": "Bearer token" },
-    credentials: "include",
-  }),
-});
-```
-
-**Both still work!** The legacy API creates a `fetchServerSentEvents` adapter automatically for backwards compatibility.
-
 ## Benefits
 
 ✅ **Flexibility** - Support SSE, HTTP streams, WebSockets, server functions, etc.
@@ -220,8 +197,6 @@ const client = new ChatClient({
 ✅ **Testability** - Easy to mock with custom adapters
 
 ✅ **Type Safety** - Full TypeScript support
-
-✅ **Backward Compatible** - Legacy API still works
 
 ✅ **Extensible** - Create custom adapters for any streaming scenario
 

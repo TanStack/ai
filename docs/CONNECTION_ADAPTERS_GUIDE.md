@@ -276,62 +276,6 @@ function createGraphQLSubscriptionAdapter(
 }
 ```
 
-## Migration Guide
-
-### From Legacy API
-
-**Old:**
-```typescript
-const chat = useChat({
-  api: "/api/chat",
-  headers: { "Authorization": "Bearer token" },
-  credentials: "include",
-});
-```
-
-**New:**
-```typescript
-import { useChat, fetchServerSentEvents } from "@tanstack/ai-react";
-
-const chat = useChat({
-  connection: fetchServerSentEvents("/api/chat", {
-    headers: { "Authorization": "Bearer token" },
-    credentials: "include",
-  }),
-});
-```
-
-**Note:** The legacy API still works! It automatically creates a `fetchServerSentEvents` adapter internally.
-
-### From Custom Fetch
-
-**Old:**
-```typescript
-const chat = useChat({
-  api: "/api/chat",
-  fetch: customFetch,
-});
-```
-
-**New:**
-```typescript
-// Create custom adapter with custom fetch
-const customAdapter: ConnectionAdapter = {
-  async *connect(messages, data) {
-    const response = await customFetch("/api/chat", {
-      method: "POST",
-      body: JSON.stringify({ messages, data }),
-    });
-    
-    // Parse SSE response
-    const reader = response.body?.getReader();
-    // ... (SSE parsing logic)
-  },
-};
-
-const chat = useChat({ connection: customAdapter });
-```
-
 ## Use Cases
 
 ### 1. Standard HTTP API
@@ -407,7 +351,7 @@ const mockConnection = stream(async function* () {
   yield { type: "done", finishReason: "stop" };
 });
 
-render(<Chat connection={mockConnection} />);
+const client = new ChatClient({ connection: mockConnection });
 ```
 
 ### 3. Type Safety
@@ -433,15 +377,6 @@ Direct streams bypass HTTP overhead:
 const chat = useChat({
   connection: stream((messages) => directServerFunction(messages)),
 });
-```
-
-### 5. Backward Compatibility
-
-Legacy API still works:
-
-```typescript
-// This still works and creates a fetchServerSentEvents adapter
-const chat = useChat({ api: "/api/chat" });
 ```
 
 ## Advanced Examples

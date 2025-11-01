@@ -1,0 +1,17 @@
+{
+  "name": "vanilla-chat",
+  "private": true,
+  "type": "module",
+  "version": "0.1.0",
+  "scripts": {
+    "dev": "vite --port 3000",
+    "build": "vite build",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "@tanstack/ai-client": "workspace:*"
+  },
+  "devDependencies": {
+    "vite": "^7.1.7"
+  }
+}

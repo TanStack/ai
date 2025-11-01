@@ -1,5 +1,6 @@
 import type { Message, StreamChunk } from "@tanstack/ai";
 import type { ConnectionAdapter } from "./connection-adapters";
+import type { ChunkStrategy, StreamParser } from "./stream/types";
 
 export interface ChatMessage extends Message {
   id: string;
@@ -11,14 +12,7 @@ export interface ChatClientOptions {
    * Connection adapter for streaming
    * Use fetchServerSentEvents(), fetchHttpStream(), or stream() to create adapters
    */
-  connection?: ConnectionAdapter;
-  
-  /**
-   * @deprecated Use connection adapter instead
-   * The API endpoint to send messages to
-   * @default "/api/chat"
-   */
-  api?: string;
+  connection: ConnectionAdapter;
 
   /**
    * Initial messages to populate the chat
@@ -30,6 +24,11 @@ export interface ChatClientOptions {
    * Used for managing multiple chats
    */
   id?: string;
+
+  /**
+   * Additional body parameters to send
+   */
+  body?: Record<string, any>;
 
   /**
    * Callback when a response is received
@@ -67,32 +66,25 @@ export interface ChatClientOptions {
   onErrorChange?: (error: Error | undefined) => void;
 
   /**
-   * @deprecated Use connection adapter instead
-   * Additional headers to send with the request
+   * Stream processing options (optional)
+   * Configure chunking strategy and custom parsers
    */
-  headers?: Record<string, string> | Headers;
+  streamProcessor?: {
+    /**
+     * Strategy for when to emit text updates
+     * Defaults to ImmediateStrategy (every chunk)
+     */
+    chunkStrategy?: ChunkStrategy;
 
-  /**
-   * Additional body parameters to send
-   */
-  body?: Record<string, any>;
-
-  /**
-   * @deprecated Use connection adapter instead
-   * Credentials mode for fetch
-   * @default "same-origin"
-   */
-  credentials?: "omit" | "same-origin" | "include";
-
-  /**
-   * @deprecated Use connection adapter instead
-   * Custom fetch implementation
-   */
-  fetch?: typeof fetch;
+    /**
+     * Custom stream parser
+     * Override to handle different stream formats
+     */
+    parser?: StreamParser;
+  };
 }
 
 export interface ChatRequestBody {
   messages: Message[];
   data?: Record<string, any>;
 }
-

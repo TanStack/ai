@@ -1,9 +1,5 @@
 export { ChatClient } from "./chat-client";
-export type {
-  ChatMessage,
-  ChatClientOptions,
-  ChatRequestBody,
-} from "./types";
+export type { ChatMessage, ChatClientOptions, ChatRequestBody } from "./types";
 export {
   createResponseStreamSource,
   processStream,
@@ -21,4 +17,19 @@ export {
   type ConnectionAdapter,
   type FetchConnectionOptions,
 } from "./connection-adapters";
-
+export {
+  StreamProcessor,
+  ImmediateStrategy,
+  PunctuationStrategy,
+  BatchStrategy,
+  WordBoundaryStrategy,
+  CompositeStrategy,
+  DebounceStrategy,
+  type StreamChunk,
+  type ProcessedEvent,
+  type ChunkStrategy,
+  type StreamParser,
+  type StreamProcessorOptions,
+  type StreamProcessorHandlers,
+  type ToolCallState,
+} from "./stream/index";

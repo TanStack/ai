@@ -4,17 +4,9 @@
 
 ### Connection Adapters Added
 
-**New Feature:** `@tanstack/ai-client` now supports flexible connection adapters instead of being hardcoded to fetch.
+**New Feature:** `@tanstack/ai-client` now uses flexible connection adapters for streaming.
 
-**Before:**
-```typescript
-const client = new ChatClient({
-  api: "/api/chat",
-  headers: { "Authorization": "Bearer token" }
-});
-```
-
-**After (New API):**
+**API:**
 ```typescript
 import { ChatClient, fetchServerSentEvents } from "@tanstack/ai-client";
 
@@ -28,7 +20,7 @@ const client = new ChatClient({
 **Benefits:**
 - ✅ Support SSE, HTTP streams, WebSockets, server functions, etc.
 - ✅ Easy to test with custom adapters
-- ✅ **Backward compatible** - legacy API still works
+- ✅ Extensible for any streaming scenario
 
 **Built-in Adapters:**
 - `fetchServerSentEvents(url, options)` - For SSE (default)

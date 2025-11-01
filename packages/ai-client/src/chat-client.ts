@@ -1,8 +1,9 @@
 import type { Message } from "@tanstack/ai";
 import type { ChatMessage, ChatClientOptions } from "./types";
 import type { ConnectionAdapter } from "./connection-adapters";
-import { fetchServerSentEvents } from "./connection-adapters";
 import { processStream, type StreamEventHandlers } from "./stream";
+import { StreamProcessor } from "./stream/processor";
+import type { ChunkStrategy, StreamParser } from "./stream/types";
 
 export class ChatClient {
   private messages: ChatMessage[] = [];
@@ -11,6 +12,10 @@ export class ChatClient {
   private connection: ConnectionAdapter;
   private uniqueId: string;
   private body?: Record<string, any>;
+  private streamProcessorConfig?: {
+    chunkStrategy?: ChunkStrategy;
+    parser?: StreamParser;
+  };
 
   private callbacks: {
     onResponse: (response?: Response) => void | Promise<void>;
@@ -22,22 +27,12 @@ export class ChatClient {
     onErrorChange: (error: Error | undefined) => void;
   };
 
-  constructor(options: ChatClientOptions = {}) {
+  constructor(options: ChatClientOptions) {
     this.uniqueId = options.id || this.generateUniqueId();
     this.messages = options.initialMessages || [];
     this.body = options.body;
-
-    // Use provided connection adapter or create default one from legacy options
-    if (options.connection) {
-      this.connection = options.connection;
-    } else {
-      // Legacy support: create fetchServerSentEvents adapter from old options
-      const api = options.api || "/api/chat";
-      this.connection = fetchServerSentEvents(api, {
-        headers: options.headers,
-        credentials: options.credentials,
-      });
-    }
+    this.connection = options.connection;
+    this.streamProcessorConfig = options.streamProcessor;
 
     this.callbacks = {
       onResponse: options.onResponse || (() => {}),
@@ -89,6 +84,122 @@ export class ChatClient {
     // Add the assistant message placeholder
     this.setMessages([...this.messages, assistantMessage]);
 
+    // Use new StreamProcessor if configured
+    if (this.streamProcessorConfig) {
+      return this.processStreamWithProcessor(source, assistantMessageId);
+    }
+
+    // Legacy processing (backward compatible)
+    return this.processStreamLegacy(source, assistantMessageId);
+  }
+
+  /**
+   * Process stream using the new StreamProcessor
+   */
+  private async processStreamWithProcessor(
+    source: AsyncIterable<any>,
+    assistantMessageId: string
+  ): Promise<ChatMessage> {
+    const processor = new StreamProcessor({
+      chunkStrategy: this.streamProcessorConfig?.chunkStrategy,
+      parser: this.streamProcessorConfig?.parser,
+      handlers: {
+        onTextUpdate: (content) => {
+          // Update the assistant message with new content
+          this.setMessages(
+            this.messages.map((msg) =>
+              msg.id === assistantMessageId ? { ...msg, content } : msg
+            )
+          );
+        },
+        onToolCallStart: (index, id, name) => {
+          // Initialize tool call in the message
+          this.setMessages(
+            this.messages.map((msg) => {
+              if (msg.id === assistantMessageId) {
+                const existingToolCalls = msg.toolCalls || [];
+                const updatedToolCalls = [...existingToolCalls];
+
+                updatedToolCalls[index] = {
+                  id,
+                  type: "function",
+                  function: {
+                    name,
+                    arguments: "",
+                  },
+                };
+
+                return { ...msg, toolCalls: updatedToolCalls };
+              }
+              return msg;
+            })
+          );
+        },
+        onToolCallDelta: (index, args) => {
+          // Append arguments to the tool call (delta is just the new chunk)
+          this.setMessages(
+            this.messages.map((msg) => {
+              if (msg.id === assistantMessageId) {
+                const existingToolCalls = msg.toolCalls || [];
+                const updatedToolCalls = [...existingToolCalls];
+
+                if (updatedToolCalls[index]) {
+                  updatedToolCalls[index].function.arguments += args;
+                }
+
+                return { ...msg, toolCalls: updatedToolCalls };
+              }
+              return msg;
+            })
+          );
+        },
+        onToolCallComplete: (_index, _id, _name, _args) => {
+          // Tool call is complete - final state is already set via deltas
+          // This event can be used for logging or side effects
+        },
+        onStreamEnd: (content, toolCalls) => {
+          // Stream finished - final update
+          const finalMessage: ChatMessage = {
+            id: assistantMessageId,
+            role: "assistant",
+            content,
+            createdAt: new Date(),
+            ...(toolCalls && { toolCalls }),
+          };
+
+          this.setMessages(
+            this.messages.map((msg) =>
+              msg.id === assistantMessageId ? finalMessage : msg
+            )
+          );
+        },
+      },
+    });
+
+    const result = await processor.process(source);
+
+    // Return the final message
+    const finalMessage = this.messages.find(
+      (msg) => msg.id === assistantMessageId
+    );
+    return (
+      finalMessage || {
+        id: assistantMessageId,
+        role: "assistant",
+        content: result.content,
+        createdAt: new Date(),
+        ...(result.toolCalls && { toolCalls: result.toolCalls }),
+      }
+    );
+  }
+
+  /**
+   * Legacy stream processing (backward compatible)
+   */
+  private async processStreamLegacy(
+    source: AsyncIterable<any>,
+    assistantMessageId: string
+  ): Promise<ChatMessage> {
     // Define handlers for stream events
     const handlers: StreamEventHandlers = {
       onChunk: (chunk) => {

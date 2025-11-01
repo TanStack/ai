@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>TanStack AI - Vanilla Chat</title>
+  <link rel="stylesheet" href="/src/style.css">
+</head>
+<body>
+  <div class="container">
+    <header>
+      <h1>💬 TanStack AI Chat</h1>
+      <p>Vanilla JavaScript + FastAPI Example</p>
+    </header>
+
+    <div class="chat-container">
+      <div id="messages" class="messages"></div>
+      
+      <div class="input-container">
+        <form id="chat-form">
+          <textarea 
+            id="message-input" 
+            placeholder="Type your message..."
+            rows="1"
+          ></textarea>
+          <button type="submit" id="send-button" disabled>
+            <span>Send</span>
+          </button>
+        </form>
+      </div>
+
+      <div id="error" class="error" style="display: none;"></div>
+    </div>
+  </div>
+
+  <script type="module" src="/src/main.js"></script>
+</body>
+</html>
+
+

@@ -65,14 +65,8 @@ function ChatComponent() {
 
 ```typescript
 interface UseChatOptions {
-  // Connection adapter (recommended)
-  connection?: ConnectionAdapter;
-  
-  // Legacy options (deprecated, use connection adapters instead)
-  api?: string; // API endpoint (default: "/api/chat")
-  headers?: Record<string, string> | Headers;
-  credentials?: "omit" | "same-origin" | "include";
-  fetch?: typeof fetch;
+  // Connection adapter (required)
+  connection: ConnectionAdapter;
   
   // Configuration
   initialMessages?: ChatMessage[]; // Starting messages
