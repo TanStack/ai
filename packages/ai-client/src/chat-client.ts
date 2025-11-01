@@ -48,7 +48,10 @@ export class ChatClient {
       onErrorChange: options.onErrorChange || (() => {}),
       headers: options.headers,
       body: options.body,
-      fetch: options.fetch || fetch,
+      // Bind fetch to globalThis to work in both browser and Node.js/SSR
+      fetch:
+        options.fetch ||
+        ((...args: Parameters<typeof fetch>) => fetch(...args)),
     };
   }
 
@@ -189,6 +192,9 @@ export class ChatClient {
         data: this.options.body,
       };
 
+      console.log("[ChatClient] Making POST request to:", this.options.api);
+      console.log("[ChatClient] Request body:", requestBody);
+
       // Make the request
       const requestHeaders: Record<string, string> = {
         "Content-Type": "application/json",
@@ -205,13 +211,18 @@ export class ChatClient {
         }
       }
 
-      const response = await this.options.fetch(this.options.api, {
-        method: "POST",
-        headers: requestHeaders,
-        body: JSON.stringify(requestBody),
-        credentials: this.options.credentials,
-        signal: abortController.signal,
-      });
+      let response;
+      try {
+        response = await this.options.fetch(this.options.api, {
+          method: "POST",
+          headers: requestHeaders,
+          body: JSON.stringify(requestBody),
+          credentials: this.options.credentials,
+          signal: abortController.signal,
+        });
+      } catch (error) {
+        throw error;
+      }
 
       if (!response.ok) {
         throw new Error(

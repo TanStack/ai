@@ -75,7 +75,7 @@ for await (const chunk of stream) {
 }
 
 // For HTTP response - use chat() + toStreamResponse()
-import { toStreamResponse } from "@tanstack/ai/stream-to-response";
+import { toStreamResponse } from "@tanstack/ai";
 
 const stream = ai.chat({
   adapter: "openai",
@@ -146,7 +146,7 @@ for await (const chunk of stream) {
 Perfect for API endpoints:
 
 ```typescript
-import { toStreamResponse } from "@tanstack/ai/stream-to-response";
+import { toStreamResponse } from "@tanstack/ai";
 
 // TanStack Start API Route
 export const POST = async ({ request }: { request: Request }) => {
@@ -323,7 +323,7 @@ const stream = ai.chat({ adapter: "openai", model: "gpt-4", messages: [] });
 ```typescript
 import { createAPIFileRoute } from "@tanstack/start/api";
 import { ai } from "~/lib/ai-client";
-import { toStreamResponse } from "@tanstack/ai/stream-to-response";
+import { toStreamResponse } from "@tanstack/ai";
 
 export const Route = createAPIFileRoute("/api/chat")({
   POST: async ({ request }) => {

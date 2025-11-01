@@ -43,7 +43,7 @@ export const Route = createAPIFileRoute("/api/tanchat")({
 ```typescript
 import { createAPIFileRoute } from "@tanstack/start/api";
 import { ai } from "~/lib/ai-client";
-import { toStreamResponse } from "@tanstack/ai/stream-to-response";
+import { toStreamResponse } from "@tanstack/ai";
 
 export const Route = createAPIFileRoute("/api/tanchat")({
   POST: async ({ request }) => {
@@ -136,7 +136,7 @@ return ai.chat({
 
 **After:**
 ```typescript
-import { toStreamResponse } from "@tanstack/ai/stream-to-response";
+import { toStreamResponse } from "@tanstack/ai";
 
 const stream = ai.chat({
   adapter: "openai",
@@ -154,7 +154,7 @@ Here's a complete updated file:
 ```typescript
 import { createAPIFileRoute } from "@tanstack/start/api";
 import { ai } from "~/lib/ai-client";
-import { toStreamResponse } from "@tanstack/ai/stream-to-response";
+import { toStreamResponse } from "@tanstack/ai";
 
 const SYSTEM_PROMPT = `You are a helpful AI assistant...`;
 

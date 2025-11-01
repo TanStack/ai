@@ -155,7 +155,7 @@ for await (const chunk of stream) {
 ### With HTTP Response
 
 ```typescript
-import { toStreamResponse } from "@tanstack/ai/stream-to-response";
+import { toStreamResponse } from "@tanstack/ai";
 
 const stream = ai.chat({
   adapter: "openai",

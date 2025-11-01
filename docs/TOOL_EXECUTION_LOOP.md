@@ -368,7 +368,7 @@ Perfect for API endpoints - tool execution happens on server, results stream to 
 ```typescript
 import { chat } from "@tanstack/ai";
 import { openai } from "@tanstack/ai-openai";
-import { toStreamResponse } from "@tanstack/ai/stream-to-response";
+import { toStreamResponse } from "@tanstack/ai";
 
 export async function POST(request: Request) {
   const { messages } = await request.json();

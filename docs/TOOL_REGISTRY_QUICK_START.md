@@ -152,7 +152,7 @@ for await (const chunk of stream) {
 ## With HTTP Response
 
 ```typescript
-import { toStreamResponse } from "@tanstack/ai/stream-to-response";
+import { toStreamResponse } from "@tanstack/ai";
 
 // Perfect for API endpoints!
 const stream = ai.chat({

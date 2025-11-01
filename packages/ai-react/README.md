@@ -111,9 +111,8 @@ Your backend should use the `chat()` method which **automatically handles tool e
 2. Use `chat()` to stream responses (with automatic tool execution):
 
 ```typescript
-import { chat } from "@tanstack/ai";
+import { chat, toStreamResponse } from "@tanstack/ai";
 import { openai } from "@tanstack/ai-openai";
-import { toStreamResponse } from "@tanstack/ai/stream-to-response";
 
 export async function POST(request: Request) {
   const { messages } = await request.json();

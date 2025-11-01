@@ -68,7 +68,7 @@ console.log(stream.headers); // Type error!
 ### 3. HTTP Response Mode
 
 ```typescript
-import { toStreamResponse } from "@tanstack/ai/stream-to-response";
+import { toStreamResponse } from "@tanstack/ai";
 
 const stream = ai.chat({
   adapter: "openai",
@@ -98,7 +98,7 @@ TypeScript correctly infers return types in functions:
 ### API Handler - Returns `Response`
 
 ```typescript
-import { toStreamResponse } from "@tanstack/ai/stream-to-response";
+import { toStreamResponse } from "@tanstack/ai";
 
 function apiHandler() {
   const stream = ai.chat({
@@ -115,7 +115,7 @@ function apiHandler() {
 ### Type-safe API Handler
 
 ```typescript
-import { toStreamResponse } from "@tanstack/ai/stream-to-response";
+import { toStreamResponse } from "@tanstack/ai";
 
 function apiHandler(): Response {
   const stream = ai.chat({

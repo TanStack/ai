@@ -61,6 +61,14 @@ Available standalone functions:
 - `speak()` - Text-to-speech
 - `video()` - Video generation
 
+Helper functions:
+
+- `toStreamResponse()` - Convert chat stream to HTTP Response with SSE headers
+- `toServerSentEventsStream()` - Convert chat stream to ReadableStream in Server-Sent Events format
+- `tool()` - Create a tool with execute function
+- `responseFormat()` - Create typed response format for structured output
+- `maxIterations()`, `untilFinishReason()`, `combineStrategies()` - Agent loop strategy helpers
+
 ### AI Class (For Reusable Instances)
 
 For applications that need to configure system prompts once and reuse them:
@@ -154,6 +162,8 @@ npm install @tanstack/ai-react
 #### `chat(options)`
 
 Stream a chat conversation with **automatic tool execution loop**. Returns `AsyncIterable<StreamChunk>`.
+
+Use with `toStreamResponse()` or `toServerSentEventsStream()` for HTTP streaming.
 
 **Important:** When tools are provided, the `chat()` method automatically:
 
@@ -362,6 +372,56 @@ const result = await aiInstance.chatCompletion({
 All standalone functions are available as methods on the AI instance.
 
 ### Helper Functions
+
+#### `toStreamResponse(stream, init?)`
+
+Convert a chat stream to an HTTP Response with Server-Sent Events headers.
+
+```typescript
+import { chat, toStreamResponse } from "@tanstack/ai";
+import { openai } from "@tanstack/ai-openai";
+
+export async function POST(request: Request) {
+  const { messages } = await request.json();
+  
+  const stream = chat({
+    adapter: openai(),
+    model: "gpt-4o",
+    messages,
+  });
+  
+  // Returns Response with SSE headers and streaming body
+  return toStreamResponse(stream);
+}
+```
+
+#### `toServerSentEventsStream(stream)`
+
+Convert a chat stream to a ReadableStream in Server-Sent Events format.
+
+Useful when you need the ReadableStream directly (for custom response handling):
+
+```typescript
+import { chat, toServerSentEventsStream } from "@tanstack/ai";
+import { openai } from "@tanstack/ai-openai";
+
+const stream = chat({
+  adapter: openai(),
+  model: "gpt-4o",
+  messages: [...],
+});
+
+// Get ReadableStream in SSE format
+const readableStream = toServerSentEventsStream(stream);
+
+// Use with custom Response
+return new Response(readableStream, {
+  headers: {
+    "Content-Type": "text/event-stream",
+    "X-Custom-Header": "value",
+  },
+});
+```
 
 #### `responseFormat(config)`
 
@@ -659,8 +719,7 @@ for await (const chunk of stream) {
 
 ```typescript
 import { createFileRoute } from "@tanstack/react-router";
-import { chat } from "@tanstack/ai";
-import { toStreamResponse } from "@tanstack/ai/stream-to-response";
+import { chat, toStreamResponse } from "@tanstack/ai";
 import { openai } from "@tanstack/ai-openai";
 
 export const Route = createFileRoute("/api/chat")({

@@ -179,9 +179,8 @@ function useCustomChat(options) {
 Your backend should use `@tanstack/ai`'s `chat()` method with automatic tool execution:
 
 ```typescript
-import { chat } from "@tanstack/ai";
+import { chat, toStreamResponse } from "@tanstack/ai";
 import { openai } from "@tanstack/ai-openai";
-import { toStreamResponse } from "@tanstack/ai/stream-to-response";
 
 export async function POST(request: Request) {
   const { messages } = await request.json();

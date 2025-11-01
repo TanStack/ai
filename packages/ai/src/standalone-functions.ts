@@ -17,6 +17,7 @@ import type {
   VideoGenerationResult,
   ResponseFormat,
 } from "./types";
+import { ai as AI } from "./ai";
 
 // Extract types from a single adapter
 type ExtractModelsFromAdapter<T> = T extends AIAdapter<infer M, any, any, any, any, any, any, any, any, any> ? M[number] : never;
@@ -28,136 +29,108 @@ type ExtractImageProviderOptionsFromAdapter<T> = T extends AIAdapter<any, any, a
 type ExtractAudioProviderOptionsFromAdapter<T> = T extends AIAdapter<any, any, any, any, any, any, any, any, infer P, any> ? P : Record<string, any>;
 type ExtractVideoProviderOptionsFromAdapter<T> = T extends AIAdapter<any, any, any, any, any, any, any, any, any, infer P> ? P : Record<string, any>;
 
-// Base options shared across all modes
-type BaseChatOptions<TAdapter extends AIAdapter<any, any, any, any, any, any, any, any, any, any>> =
-  Omit<ChatCompletionOptions, "model" | "providerOptions" | "responseFormat" | "as"> & {
+// Chat streaming options
+type ChatStreamOptions<TAdapter extends AIAdapter<any, any, any, any, any, any, any, any, any, any>> =
+  Omit<ChatCompletionOptions, "model" | "providerOptions" | "responseFormat"> & {
     adapter: TAdapter;
     model: ExtractModelsFromAdapter<TAdapter>;
+    providerOptions?: ExtractChatProviderOptionsFromAdapter<TAdapter>;
   };
 
-// Create a discriminated union type based on the "as" property
-type ChatOptionsUnion<
+// Chat completion options with optional structured output
+type ChatCompletionOptionsWithAdapter<
   TAdapter extends AIAdapter<any, any, any, any, any, any, any, any, any, any>,
   TOutput extends ResponseFormat<any> | undefined = undefined
-> =
-  | (BaseChatOptions<TAdapter> & {
-    as: "stream";
-    providerOptions?: ExtractChatProviderOptionsFromAdapter<TAdapter>;
-  })
-  | (BaseChatOptions<TAdapter> & {
-    as: "response";
-    providerOptions?: ExtractChatProviderOptionsFromAdapter<TAdapter>;
-  })
-  | (BaseChatOptions<TAdapter> & {
-    as?: "promise";
+> = Omit<ChatCompletionOptions, "model" | "providerOptions" | "responseFormat"> & {
+    adapter: TAdapter;
+    model: ExtractModelsFromAdapter<TAdapter>;
     output?: TOutput;
     providerOptions?: ExtractChatProviderOptionsFromAdapter<TAdapter>;
-  });
+  };
 
-// Helper type to compute the return type based on the "as" option
-type ChatReturnType<
-  TOptions extends { as?: "promise" | "stream" | "response"; output?: ResponseFormat<any> }
-> = TOptions["as"] extends "stream"
-  ? AsyncIterable<StreamChunk>
-  : TOptions["as"] extends "response"
-  ? Response
-  : TOptions["output"] extends ResponseFormat<infer TData>
-  ? ChatCompletionResult<TData>
-  : ChatCompletionResult;
+// Helper type for chatCompletion return type
+type ChatCompletionReturnType<TOutput extends ResponseFormat<any> | undefined> = 
+  TOutput extends ResponseFormat<infer TData>
+    ? ChatCompletionResult<TData>
+    : ChatCompletionResult;
 
 /**
- * Standalone chat function with type inference from adapter
+ * Standalone chat streaming function with type inference from adapter
+ * Returns an async iterable of StreamChunks for streaming responses
+ * Includes automatic tool execution loop
  * 
- * @param options Chat options with discriminated union on "as" property
+ * @param options Chat options
  * @param options.adapter - AI adapter instance to use
- * @param options.as - Response mode: "promise" (default), "stream", or "response"
- * @param options.output - Optional structured output (only available with as="promise")
+ * @param options.model - Model name (autocompletes based on adapter)
+ * @param options.messages - Conversation messages
+ * @param options.tools - Optional tools for function calling (auto-executed)
+ * @param options.agentLoopStrategy - Optional strategy for controlling tool execution loop
  * 
  * @example
- * // Promise mode with structured output
- * const result = await chat({
+ * ```typescript
+ * const stream = chat({
  *   adapter: openai(),
- *   model: 'gpt-4',
- *   messages: [...],
- *   output: { type: 'json', jsonSchema: schema }
+ *   model: 'gpt-4o',
+ *   messages: [{ role: 'user', content: 'Hello!' }],
+ *   tools: [weatherTool], // Optional: auto-executed when called
  * });
  * 
- * @example
- * // Stream mode (output not available)
- * const stream = await chat({
- *   adapter: openai(),
- *   model: 'gpt-4',
- *   messages: [...],
- *   as: "stream"
- * });
- * 
- * @example
- * // Response mode (output not available)
- * const response = await chat({
- *   adapter: openai(),
- *   model: 'gpt-4',
- *   messages: [...],
- *   as: "response"
- * });
+ * for await (const chunk of stream) {
+ *   if (chunk.type === 'content') {
+ *     console.log(chunk.delta);
+ *   }
+ * }
+ * ```
  */
-export async function chat<
-  TAdapter extends AIAdapter<any, any, any, any, any, any, any, any, any, any>,
-  TOptions extends ChatOptionsUnion<TAdapter, any>
+export function chat<
+  TAdapter extends AIAdapter<any, any, any, any, any, any, any, any, any, any>
 >(
-  options: BaseChatOptions<TAdapter> & TOptions
-): Promise<ChatReturnType<TOptions>> {
-  const { adapter, model, messages, as, providerOptions, ...restOptions } = options;
-  const asOption = (as || "promise") as "promise" | "stream" | "response";
+  options: ChatStreamOptions<TAdapter>
+): AsyncIterable<StreamChunk> {
+  const { adapter, ...restOptions } = options;
+  const aiInstance = new AI({ adapter });
+  return aiInstance.chat(restOptions as any);
+}
 
-  // Extract output if it exists (only in promise mode)
-  const output = (options as any).output as ResponseFormat | undefined;
-  const responseFormat = output;
-
-  if (asOption === "stream") {
-    return adapter.chatStream({
-      ...restOptions,
-      model: model as string,
-      messages,
-      responseFormat,
-      providerOptions: providerOptions as any,
-    }) as any;
-  }
-
-  if (asOption === "response") {
-    const stream = adapter.chatStream({
-      ...restOptions,
-      model: model as string,
-      messages,
-      responseFormat,
-      providerOptions: providerOptions as any,
-    });
-    return streamToResponse(stream) as any;
-  }
-
-  const result = await adapter.chatCompletion({
-    ...restOptions,
-    model: model as string,
-    messages,
-    responseFormat,
-    providerOptions: providerOptions as any,
-  });
-
-  // If output is provided, parse the content as structured data
-  if (output && result.content) {
-    try {
-      const data = JSON.parse(result.content);
-      return {
-        ...result,
-        content: result.content,
-        data,
-      } as any;
-    } catch (error) {
-      // If parsing fails, return the result as-is
-      return result as any;
-    }
-  }
-
-  return result as any;
+/**
+ * Standalone chat completion function with type inference from adapter
+ * Returns a promise with optional structured output
+ * Does NOT include automatic tool execution loop
+ * 
+ * @param options Chat completion options
+ * @param options.adapter - AI adapter instance to use
+ * @param options.model - Model name (autocompletes based on adapter)
+ * @param options.messages - Conversation messages
+ * @param options.output - Optional structured output format
+ * 
+ * @example
+ * ```typescript
+ * // Promise mode without structured output
+ * const result = await chatCompletion({
+ *   adapter: openai(),
+ *   model: 'gpt-4o',
+ *   messages: [{ role: 'user', content: 'Hello!' }],
+ * });
+ * 
+ * // Promise mode with structured output
+ * const result = await chatCompletion({
+ *   adapter: openai(),
+ *   model: 'gpt-4o',
+ *   messages: [...],
+ *   output: responseFormat({ type: 'json_schema', json_schema: {...} })
+ * });
+ * console.log(result.data); // Typed based on schema
+ * ```
+ */
+export async function chatCompletion<
+  TAdapter extends AIAdapter<any, any, any, any, any, any, any, any, any, any>,
+  TOutput extends ResponseFormat<any> | undefined = undefined
+>(
+  options: ChatCompletionOptionsWithAdapter<TAdapter, TOutput>
+): Promise<ChatCompletionReturnType<TOutput>> {
+  const { adapter, ...restOptions } = options;
+  const aiInstance = new AI({ adapter });
+  return aiInstance.chatCompletion(restOptions as any) as any;
 }
 
 /**

@@ -73,7 +73,7 @@ export async function* createResponseStreamSource(
           yield parsed;
         } catch (parseError) {
           // Skip non-JSON lines or malformed chunks
-          console.warn("Failed to parse chunk:", data, parseError);
+          console.warn("Failed to parse stream chunk:", data);
         }
       }
     }

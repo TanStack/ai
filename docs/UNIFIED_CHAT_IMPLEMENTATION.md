@@ -114,7 +114,7 @@ for await (const chunk of stream) {
 ### 3. HTTP Response Mode
 
 ```typescript
-import { toStreamResponse } from "@tanstack/ai/stream-to-response";
+import { toStreamResponse } from "@tanstack/ai";
 
 const stream = ai.chat({
   adapter: "openai",

@@ -215,17 +215,23 @@ describe("ToolCallManager", () => {
       index: 0,
     });
 
-    const generator = manager.executeTools(mockDoneChunk);
-    const chunks = [];
-
-    for await (const chunk of generator) {
-      chunks.push(chunk);
+    // Properly consume the generator
+    async function* consumeGenerator() {
+      const results = yield* manager.executeTools(mockDoneChunk);
+      return results;
     }
-
-    const toolResults = await generator.next();
+    
+    const gen = consumeGenerator();
+    const chunks = [];
+    let next = await gen.next();
+    while (!next.done) {
+      chunks.push(next.value);
+      next = await gen.next();
+    }
+    const toolResults = next.value;
 
     expect(chunks[0].content).toContain("does not have an execute function");
-    expect(toolResults.value[0].content).toContain(
+    expect(toolResults[0].content).toContain(
       "does not have an execute function"
     );
   });

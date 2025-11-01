@@ -46,7 +46,7 @@ for await (const chunk of stream) {
 ### API Endpoint (TanStack Start)
 
 ```typescript
-import { toStreamResponse } from "@tanstack/ai/stream-to-response";
+import { toStreamResponse } from "@tanstack/ai";
 
 export const Route = createAPIFileRoute("/api/chat")({
   POST: async ({ request }) => {
@@ -191,7 +191,7 @@ const stream = ai.chat({
 });
 
 // HTTP response with fallbacks (seamless HTTP failover!)
-import { toStreamResponse } from "@tanstack/ai/stream-to-response";
+import { toStreamResponse } from "@tanstack/ai";
 
 const stream = ai.chat({
   adapter: "openai",
@@ -267,7 +267,7 @@ const stream = ai.chat({
 });
 
 // HTTP Response - use chat() + toStreamResponse()
-import { toStreamResponse } from "@tanstack/ai/stream-to-response";
+import { toStreamResponse } from "@tanstack/ai";
 
 const stream = ai.chat({
   adapter: "openai",

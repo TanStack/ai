@@ -1,6 +1,7 @@
 export { ai } from "./ai";
 export {
   chat,
+  chatCompletion,
   summarize,
   embed,
   image,
@@ -15,6 +16,10 @@ export {
   jsonObject,
 } from "./schema-utils";
 export { convertLegacyStream } from "./stream-utils";
+export {
+  toServerSentEventsStream,
+  toStreamResponse,
+} from "./stream-to-response";
 export { BaseAdapter } from "./base-adapter";
 export { ToolCallManager } from "./tool-call-manager";
 export {

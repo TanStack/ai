@@ -293,7 +293,7 @@ for await (const chunk of stream) {
 Perfect for API endpoints:
 
 ```typescript
-import { toStreamResponse } from "@tanstack/ai/stream-to-response";
+import { toStreamResponse } from "@tanstack/ai";
 
 export const Route = createAPIFileRoute("/api/chat")({
   POST: async ({ request }): Promise<Response> => {
