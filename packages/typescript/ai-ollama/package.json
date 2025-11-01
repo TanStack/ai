@@ -1,13 +1,13 @@
 {
-  "name": "@tanstack/ai-gemini",
+  "name": "@tanstack/ai-ollama",
   "version": "0.1.0",
-  "description": "Google Gemini adapter for TanStack AI",
+  "description": "Ollama adapter for TanStack AI",
   "author": "",
   "license": "MIT",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/TanStack/ai.git",
-    "directory": "packages/ai-gemini"
+    "directory": "packages/typescript/ai-ollama"
   },
   "type": "module",
   "module": "./dist/index.js",
@@ -31,14 +31,15 @@
   },
   "keywords": [
     "ai",
-    "gemini",
-    "google",
+    "ollama",
+    "llama",
+    "mistral",
     "tanstack",
     "adapter"
   ],
   "dependencies": {
-    "@google/generative-ai": "^0.11.0",
-    "@tanstack/ai": "workspace:*"
+    "@tanstack/ai": "workspace:*",
+    "ollama": "^0.5.0"
   },
   "devDependencies": {
     "@types/node": "^22.10.2",

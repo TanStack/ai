@@ -68,16 +68,16 @@ cp env.example .env
 6. **Run the server:**
 
 ```bash
-python main.py
+python anthropic-server.py
 ```
 
 Or using uvicorn directly:
 
 ```bash
-uvicorn main:app --reload --port 8080
+uvicorn anthropic-server:app --reload --port 8000
 ```
 
-The server will start on `http://localhost:8080`
+The server will start on `http://localhost:8000`
 
 ### Deactivating the Virtual Environment
 
@@ -132,7 +132,7 @@ This server is compatible with the TypeScript TanStack AI client:
 import { ChatClient, fetchServerSentEvents } from "@tanstack/ai-client";
 
 const client = new ChatClient({
-  connection: fetchServerSentEvents("http://localhost:8080/chat"),
+  connection: fetchServerSentEvents("http://localhost:8000/chat"),
 });
 
 await client.sendMessage("Hello!");
@@ -140,14 +140,14 @@ await client.sendMessage("Hello!");
 
 ## StreamChunk Format
 
-The `tanstack_ai_converter.py` module converts provider events to the following `StreamChunk` types:
+The `tanstack-ai` package converts provider events to the following `StreamChunk` types:
 
 - **`content`**: Text content updates with delta and accumulated content
 - **`tool_call`**: Tool/function call events with incremental arguments
 - **`done`**: Stream completion with finish reason and usage stats
 - **`error`**: Error events
 
-See `packages/ai/src/types.ts` for the full TypeScript type definitions.
+See `packages/typescript/ai/src/types.ts` for the full TypeScript type definitions.
 
 ## Supported Providers
 
@@ -161,26 +161,20 @@ To add OpenAI support, import `StreamChunkConverter` with `provider="openai"` an
 
 ```
 python-fastapi/
-├── main.py                    # FastAPI server (concise example)
-├── tanstack_ai_converter.py  # Converts provider events to TanStack AI format
-├── message_formatters.py      # Message format conversion utilities
-├── requirements.txt           # Python dependencies
-├── env.example                # Environment variables template
-└── README.md                  # This file
+├── anthropic-server.py  # FastAPI server example
+├── requirements.txt      # Python dependencies (includes tanstack-ai package)
+├── env.example       # Environment variables template
+└── README.md         # This file
 ```
 
 ## Architecture
 
-The server is split into focused modules:
+The server uses the `tanstack-ai` package located at `packages/python/tanstack-ai/`:
 
-- **`main.py`**: Handles FastAPI setup, Anthropic client initialization, and HTTP endpoints
-- **`tanstack_ai_converter.py`**: Converts streaming events from providers (Anthropic, OpenAI) to TanStack AI `StreamChunk` format
-- **`message_formatters.py`**: Utilities for converting between TanStack AI and provider message formats
+- **`anthropic-server.py`**: Handles FastAPI setup, Anthropic client initialization, and HTTP endpoints
+- **`tanstack-ai` package**: Provides `StreamChunkConverter`, message formatters, and SSE utilities for converting provider events to TanStack AI format
 
-This separation makes it easy to:
-- Add support for new providers (just implement a converter method)
-- Reuse the converter in other projects
-- Keep the main server file clean and focused
+The converter package is installed as an editable dependency, making it easy to develop and test changes.
 
 ## Notes
 

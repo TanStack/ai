@@ -1,13 +1,13 @@
 {
-  "name": "@tanstack/ai-ollama",
+  "name": "@tanstack/ai-client",
   "version": "0.1.0",
-  "description": "Ollama adapter for TanStack AI",
+  "description": "Framework-agnostic headless client for TanStack AI",
   "author": "",
   "license": "MIT",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/TanStack/ai.git",
-    "directory": "packages/ai-ollama"
+    "directory": "packages/typescript/ai-client"
   },
   "type": "module",
   "module": "./dist/index.js",
@@ -31,22 +31,19 @@
   },
   "keywords": [
     "ai",
-    "ollama",
-    "llama",
-    "mistral",
+    "client",
+    "headless",
     "tanstack",
-    "adapter"
+    "chat",
+    "streaming"
   ],
   "dependencies": {
-    "@tanstack/ai": "workspace:*",
-    "ollama": "^0.5.0"
+    "@tanstack/ai": "workspace:*"
   },
   "devDependencies": {
     "@types/node": "^22.10.2",
     "tsdown": "^0.15.9",
     "typescript": "^5.7.2"
-  },
-  "peerDependencies": {
-    "@tanstack/ai": "workspace:*"
   }
 }
+

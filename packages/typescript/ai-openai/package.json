@@ -7,7 +7,7 @@
   "repository": {
     "type": "git",
     "url": "git+https://github.com/TanStack/ai.git",
-    "directory": "packages/ai-openai"
+    "directory": "packages/typescript/ai-openai"
   },
   "type": "module",
   "module": "./dist/index.js",

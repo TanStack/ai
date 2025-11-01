@@ -1,13 +1,13 @@
 {
-  "name": "@tanstack/ai-client",
+  "name": "@tanstack/ai",
   "version": "0.1.0",
-  "description": "Framework-agnostic headless client for TanStack AI",
+  "description": "Core TanStack AI library - Open source AI SDK",
   "author": "",
   "license": "MIT",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/TanStack/ai.git",
-    "directory": "packages/ai-client"
+    "directory": "packages/typescript/ai"
   },
   "type": "module",
   "module": "./dist/index.js",
@@ -25,25 +25,24 @@
   "scripts": {
     "build": "tsdown",
     "dev": "tsdown --watch",
+    "test": "vitest run",
+    "test:watch": "vitest",
     "clean": "rm -rf dist node_modules",
     "typecheck": "tsc --noEmit",
     "lint": "tsc --noEmit"
   },
   "keywords": [
     "ai",
-    "client",
-    "headless",
     "tanstack",
+    "sdk",
+    "llm",
     "chat",
-    "streaming"
+    "embeddings"
   ],
-  "dependencies": {
-    "@tanstack/ai": "workspace:*"
-  },
   "devDependencies": {
     "@types/node": "^22.10.2",
     "tsdown": "^0.15.9",
-    "typescript": "^5.7.2"
+    "typescript": "^5.7.2",
+    "vitest": "^3.0.5"
   }
 }
-

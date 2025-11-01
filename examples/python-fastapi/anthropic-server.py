@@ -3,7 +3,7 @@ FastAPI server example for TanStack AI
 Streams Anthropic API events in SSE format compatible with TanStack AI client
 """
 import os
-import json
+import logging
 from typing import List, Dict, Any, Optional
 
 from dotenv import load_dotenv
@@ -13,12 +13,17 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from anthropic import AsyncAnthropic
 
-from tanstack_ai_converter import StreamChunkConverter
-from message_formatters import format_messages_for_anthropic
+from tanstack_ai import StreamChunkConverter, format_messages_for_anthropic, format_sse_chunk, format_sse_done
+
+# Configure logging
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+)
+logger = logging.getLogger(__name__)
 
 # Load environment variables from .env file
 load_dotenv()
-
 
 # Initialize FastAPI app
 app = FastAPI(title="TanStack AI Python FastAPI Example")
@@ -68,11 +73,10 @@ print(f"{'='*60}")
 print(f"✅ ANTHROPIC_API_KEY loaded: {mask_api_key(ANTHROPIC_API_KEY)}")
 print(f"   Key length: {len(ANTHROPIC_API_KEY)} characters")
 print(f"🌐 Server will start on: http://0.0.0.0:8000")
-print(f"   (Note: If running with uvicorn manually, use: uvicorn main:app --reload --port 8000)")
+print(f"   (Note: If running with uvicorn manually, use: uvicorn anthropic-server:app --reload --port 8000)")
 print(f"{'='*60}\n")
 
 client = AsyncAnthropic(api_key=ANTHROPIC_API_KEY)
-
 
 # Request/Response models
 class Message(BaseModel):
@@ -82,11 +86,9 @@ class Message(BaseModel):
     toolCalls: Optional[List[Dict[str, Any]]] = None
     toolCallId: Optional[str] = None
 
-
 class ChatRequest(BaseModel):
     messages: List[Message]
     data: Optional[Dict[str, Any]] = None
-
 
 @app.post("/chat")
 async def chat_endpoint(request: ChatRequest):
@@ -95,17 +97,25 @@ async def chat_endpoint(request: ChatRequest):
     Compatible with TanStack AI client's fetchServerSentEvents adapter
     """
     try:
+        logger.info(f"📥 POST /chat received - {len(request.messages)} messages")
+        
         # Convert messages to Anthropic format
         system_message, anthropic_messages = format_messages_for_anthropic(request.messages)
+        logger.info(f"✅ Converted {len(anthropic_messages)} messages to Anthropic format")
+        if system_message:
+            logger.info(f"📝 System message: {system_message[:50]}..." if len(system_message) > 50 else f"📝 System message: {system_message}")
         
         # Default model - claude-3-haiku-20240307 is confirmed to work
         model = request.data.get("model") if request.data and request.data.get("model") else "claude-3-haiku-20240307"
+        logger.info(f"🤖 Using model: {model}")
         
         # Initialize converter (specify provider for better performance)
         converter = StreamChunkConverter(model=model, provider="anthropic")
         
         async def generate_stream():
             """Generate SSE stream from Anthropic events"""
+            event_count = 0
+            chunk_count = 0
             try:
                 # Stream from Anthropic
                 stream_params = {
@@ -117,22 +127,37 @@ async def chat_endpoint(request: ChatRequest):
                 if system_message is not None and system_message.strip():
                     stream_params["system"] = system_message
                 
+                logger.info(f"🚀 Starting Anthropic stream with params: model={model}, messages={len(anthropic_messages)}, system={'yes' if system_message else 'no'}")
+                
                 async with client.messages.stream(**stream_params) as stream:
+                    logger.info("✅ Anthropic stream opened, starting to receive events...")
                     async for event in stream:
+                        event_count += 1
+                        event_type = getattr(event, 'type', type(event).__name__)
+                        logger.debug(f"📨 Received Anthropic event #{event_count}: {event_type}")
+                        
                         # Convert Anthropic event to StreamChunk format using TanStack converter
                         chunks = await converter.convert_event(event)
                         
                         for chunk in chunks:
-                            yield f"data: {json.dumps(chunk)}\n\n"
+                            chunk_count += 1
+                            chunk_type = chunk.get("type", "unknown")
+                            logger.debug(f"📤 Sending chunk #{chunk_count} (type: {chunk_type})")
+                            yield format_sse_chunk(chunk)
+                
+                logger.info(f"✅ Stream complete - {event_count} events, {chunk_count} chunks sent")
                 
                 # Send completion marker
-                yield "data: [DONE]\n\n"
+                logger.info("📤 Sending [DONE] marker")
+                yield format_sse_done()
                 
             except Exception as e:
+                logger.error(f"❌ Error in stream: {type(e).__name__}: {str(e)}", exc_info=True)
                 # Send error chunk
                 error_chunk = await converter.convert_error(e)
-                yield f"data: {json.dumps(error_chunk)}\n\n"
+                yield format_sse_chunk(error_chunk)
         
+        logger.info("📡 Returning StreamingResponse")
         return StreamingResponse(
             generate_stream(),
             media_type="text/event-stream",
@@ -144,14 +169,13 @@ async def chat_endpoint(request: ChatRequest):
         )
     
     except Exception as e:
+        logger.error(f"❌ Error in chat_endpoint: {type(e).__name__}: {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
-
 
 @app.get("/health")
 async def health_check():
     """Health check endpoint"""
-    return {"status": "ok", "service": "tanstack-ai-python-fastapi"}
-
+    return {"status": "ok", "service": "tanstack-ai-fastapi"}
 
 if __name__ == "__main__":
     import uvicorn

@@ -1,13 +1,13 @@
 {
-  "name": "@tanstack/ai-react",
+  "name": "@tanstack/ai-gemini",
   "version": "0.1.0",
-  "description": "React hooks for TanStack AI",
+  "description": "Google Gemini adapter for TanStack AI",
   "author": "",
   "license": "MIT",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/TanStack/ai.git",
-    "directory": "packages/ai-react"
+    "directory": "packages/typescript/ai-gemini"
   },
   "type": "module",
   "module": "./dist/index.js",
@@ -31,26 +31,21 @@
   },
   "keywords": [
     "ai",
-    "react",
-    "hooks",
+    "gemini",
+    "google",
     "tanstack",
-    "chat",
-    "streaming"
+    "adapter"
   ],
   "dependencies": {
-    "@tanstack/ai": "workspace:*",
-    "@tanstack/ai-client": "workspace:*"
+    "@google/generative-ai": "^0.11.0",
+    "@tanstack/ai": "workspace:*"
   },
   "devDependencies": {
     "@types/node": "^22.10.2",
-    "@types/react": "^18.2.66",
-    "react": "^18.2.0",
     "tsdown": "^0.15.9",
     "typescript": "^5.7.2"
   },
   "peerDependencies": {
-    "@tanstack/ai": "workspace:*",
-    "@tanstack/ai-client": "workspace:*",
-    "react": ">=18.0.0"
+    "@tanstack/ai": "workspace:*"
   }
 }
