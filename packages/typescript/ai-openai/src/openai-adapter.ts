@@ -479,6 +479,12 @@ export class OpenAI extends BaseAdapter<
   ): AsyncIterable<import("@tanstack/ai").StreamChunk> {
     const providerOpts = options.providerOptions as OpenAIChatProviderOptions | undefined;
 
+    // Track tool call metadata by unique ID
+    // OpenAI streams tool calls with deltas - first chunk has ID/name, subsequent chunks only have args
+    // We assign our own indices as we encounter unique tool call IDs
+    const toolCallMetadata = new Map<string, { index: number; name: string }>();
+    let nextIndex = 0;
+
     // Debug: Log incoming options
     if (process.env.DEBUG_TOOLS) {
       console.error(
@@ -635,20 +641,63 @@ export class OpenAI extends BaseAdapter<
         // Handle tool calls
         if (delta?.tool_calls) {
           for (const toolCall of delta.tool_calls) {
+            // First chunk of a tool call has ID and name
+            // Subsequent chunks only have argument fragments
+            if (toolCall.id) {
+              // New tool call - assign it the next index
+              toolCallMetadata.set(toolCall.id, {
+                index: nextIndex++,
+                name: toolCall.function?.name || "",
+              });
+            }
+            
+            // Find which tool call these deltas belong to
+            // For the first chunk, we just added it above
+            // For subsequent chunks, we need to find it by OpenAI's index field
+            let toolCallId: string;
+            let toolCallName: string;
+            let actualIndex: number;
+            
+            if (toolCall.id) {
+              // First chunk - use the ID we just tracked
+              toolCallId = toolCall.id;
+              const meta = toolCallMetadata.get(toolCallId)!;
+              toolCallName = meta.name;
+              actualIndex = meta.index;
+            } else {
+              // Delta chunk - find by OpenAI's index
+              // OpenAI uses index to group deltas for the same tool call
+              const openAIIndex = typeof toolCall.index === 'number' ? toolCall.index : 0;
+              
+              // Find the tool call ID that was assigned this OpenAI index
+              const entry = Array.from(toolCallMetadata.entries())[openAIIndex];
+              if (entry) {
+                const [id, meta] = entry;
+                toolCallId = id;
+                toolCallName = meta.name;
+                actualIndex = meta.index;
+              } else {
+                // Fallback if we can't find it
+                toolCallId = `call_${Date.now()}`;
+                toolCallName = "";
+                actualIndex = openAIIndex;
+              }
+            }
+            
             yield {
               type: "tool_call",
               id: chunk.id,
               model: chunk.model,
               timestamp,
               toolCall: {
-                id: toolCall.id || `call_${Date.now()}`,
+                id: toolCallId,
                 type: "function",
                 function: {
-                  name: toolCall.function?.name || "",
+                  name: toolCallName,
                   arguments: toolCall.function?.arguments || "",
                 },
               },
-              index: toolCall.index || 0,
+              index: actualIndex,
             };
           }
         }

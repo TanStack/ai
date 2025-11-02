@@ -3,12 +3,27 @@ import { ai, tool, toStreamResponse, maxIterations } from "@tanstack/ai";
 import { openai } from "@tanstack/ai-openai";
 import guitars from "@/data/example-guitars";
 
-const SYSTEM_PROMPT = `You are a helpful assistant for a store that sells guitars.
+const SYSTEM_PROMPT = `You are a helpful assistant for a guitar store.
 
-You can use the following tools to help the user:
+CRITICAL INSTRUCTIONS - YOU MUST FOLLOW THIS EXACT WORKFLOW:
 
-- getGuitars: Get all guitars from the database
-- recommendGuitar: Recommend a guitar to the user
+When a user asks for a guitar recommendation:
+1. FIRST: Use the getGuitars tool (no parameters needed)
+2. SECOND: Use the recommendGuitar tool with the ID of the guitar you want to recommend
+3. NEVER write a recommendation directly - ALWAYS use the recommendGuitar tool
+
+IMPORTANT:
+- The recommendGuitar tool will display the guitar in a special, appealing format
+- You MUST use recommendGuitar for ANY guitar recommendation
+- ONLY recommend guitars from our inventory (use getGuitars first)
+- The recommendGuitar tool has a buy button - this is how customers purchase
+- Do NOT describe the guitar yourself - let the recommendGuitar tool do it
+
+Example workflow:
+User: "I want an acoustic guitar"
+Step 1: Call getGuitars()
+Step 2: Call recommendGuitar(id: "6") 
+Step 3: Done - do NOT add any text after calling recommendGuitar
 `;
 
 // Define tools with the exact Tool structure
@@ -32,24 +47,21 @@ const recommendGuitarTool = tool({
   type: "function",
   function: {
     name: "recommendGuitar",
-    description: "Use this tool to recommend a guitar to the user",
+    description:
+      "REQUIRED tool to display a guitar recommendation to the user. This tool MUST be used whenever recommending a guitar - do NOT write recommendations yourself. This displays the guitar in a special appealing format with a buy button.",
     parameters: {
       type: "object",
       properties: {
         id: {
           type: "string",
-          description: "The id of the guitar to recommend",
-        },
-        name: {
-          type: "boolean",
-          description: "Whether to include the name in the response",
+          description:
+            "The ID of the guitar to recommend (from the getGuitars results)",
         },
       },
       required: ["id"],
     },
   },
   execute: async (args) => {
-    // ✅ args is automatically typed as { id: string; name?: boolean }
     return JSON.stringify({ id: args.id });
   },
 });
@@ -78,17 +90,15 @@ export const Route = createFileRoute("/api/tanchat")({
         const { messages } = await request.json();
 
         try {
-          // Use chat() with toStreamResponse() for HTTP streaming
-          // Tools are automatically executed by the SDK in a loop
           const stream = aiInstance.chat({
             messages,
             model: "gpt-4o",
             tools: [getGuitarsTool, recommendGuitarTool],
             systemPrompts: [SYSTEM_PROMPT],
-            agentLoopStrategy: maxIterations(5), // Control tool execution loop
+            agentLoopStrategy: maxIterations(20),
             providerOptions: {
               store: true,
-              parallelToolCalls: true,
+              parallelToolCalls: false, // Force sequential tool calls
             },
           });
 

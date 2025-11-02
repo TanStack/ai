@@ -27,8 +27,8 @@ import { defaultJSONParser } from "../loose-json-parser";
 class DefaultStreamParser implements StreamParser {
   async *parse(stream: AsyncIterable<any>): AsyncIterable<StreamChunk> {
     for await (const chunk of stream) {
-      // Already in StreamChunk format - pass through
-      if (chunk.type === "text" || chunk.type === "tool-call-delta") {
+      // Pass through known chunk types
+      if (chunk.type === "text" || chunk.type === "tool-call-delta" || chunk.type === "done") {
         yield chunk as StreamChunk;
         continue;
       }
@@ -74,9 +74,8 @@ export class StreamProcessor {
 
   // State
   private textContent: string = "";
-  private pendingTextChunks: string = "";
-  private toolCalls: Map<number, InternalToolCallState> = new Map();
-  private lastToolCallIndex: number = -1;
+  private toolCalls: Map<string, InternalToolCallState> = new Map(); // Track by ID, not index
+  private toolCallOrder: string[] = []; // Track order of tool call IDs
 
   constructor(options: StreamProcessorOptions) {
     this.chunkStrategy = options.chunkStrategy || new ImmediateStrategy();
@@ -124,6 +123,12 @@ export class StreamProcessor {
       case "tool-call-delta":
         this.handleToolCallDelta(chunk.toolCallIndex!, chunk.toolCall!);
         break;
+      
+      case "done":
+        // Response finished - just mark tool calls as complete
+        // DON'T reset text - it might come after this event!
+        this.completeAllToolCalls();
+        break;
     }
   }
 
@@ -134,14 +139,12 @@ export class StreamProcessor {
     // Text arriving means all current tool calls are complete
     this.completeAllToolCalls();
 
-    // Accumulate text
-    this.textContent += content;
-    this.pendingTextChunks += content;
+    // Don't accumulate - the content field already has the full text!
+    // Just store it directly
+    this.textContent = content;
 
-    // Check if we should emit based on strategy
-    if (this.chunkStrategy.shouldEmit(content, this.textContent)) {
-      this.emitTextUpdate();
-    }
+    // Always emit - content is already accumulated
+    this.emitTextUpdate();
   }
 
   /**
@@ -151,15 +154,8 @@ export class StreamProcessor {
     index: number,
     toolCall: { id: string; function: { name: string; arguments: string } }
   ): void {
-    // If we're starting a new tool call at a different index, complete previous ones
-    if (index !== this.lastToolCallIndex && this.lastToolCallIndex !== -1) {
-      // New tool call index means previous tool calls at other indices are complete
-      this.completeToolCallsExcept(index);
-    }
-
-    this.lastToolCallIndex = index;
-
-    const existingToolCall = this.toolCalls.get(index);
+    const toolCallId = toolCall.id;
+    const existingToolCall = this.toolCalls.get(toolCallId);
 
     if (!existingToolCall) {
       // New tool call starting
@@ -182,18 +178,22 @@ export class StreamProcessor {
         );
       }
 
-      this.toolCalls.set(index, newToolCall);
+      this.toolCalls.set(toolCallId, newToolCall);
+      this.toolCallOrder.push(toolCallId); // Track order
+
+      // Get actual index for this tool call (based on order)
+      const actualIndex = this.toolCallOrder.indexOf(toolCallId);
 
       // Emit start event (legacy)
       this.handlers.onToolCallStart?.(
-        index,
+        actualIndex,
         toolCall.id,
         toolCall.function.name
       );
 
       // Emit state change event
       this.handlers.onToolCallStateChange?.(
-        index,
+        actualIndex,
         toolCall.id,
         toolCall.function.name,
         initialState,
@@ -203,7 +203,7 @@ export class StreamProcessor {
 
       // Emit initial delta (legacy)
       if (toolCall.function.arguments) {
-        this.handlers.onToolCallDelta?.(index, toolCall.function.arguments);
+        this.handlers.onToolCallDelta?.(actualIndex, toolCall.function.arguments);
       }
     } else {
       // Continuing existing tool call
@@ -221,9 +221,12 @@ export class StreamProcessor {
         existingToolCall.arguments
       );
 
+      // Get actual index for this tool call
+      const actualIndex = this.toolCallOrder.indexOf(toolCallId);
+
       // Emit state change event
       this.handlers.onToolCallStateChange?.(
-        index,
+        actualIndex,
         existingToolCall.id,
         existingToolCall.name,
         existingToolCall.state,
@@ -233,17 +236,18 @@ export class StreamProcessor {
 
       // Emit delta (legacy)
       if (toolCall.function.arguments) {
-        this.handlers.onToolCallDelta?.(index, toolCall.function.arguments);
+        this.handlers.onToolCallDelta?.(actualIndex, toolCall.function.arguments);
       }
     }
   }
 
   /**
-   * Complete all tool calls except the specified index
+   * Complete all tool calls except the specified ID
    */
-  private completeToolCallsExcept(exceptIndex: number): void {
-    this.toolCalls.forEach((toolCall, index) => {
-      if (index !== exceptIndex && toolCall.state !== "input-complete") {
+  private completeToolCallsExcept(exceptId: string): void {
+    this.toolCalls.forEach((toolCall, id) => {
+      if (id !== exceptId && toolCall.state !== "input-complete") {
+        const index = this.toolCallOrder.indexOf(id);
         this.completeToolCall(index, toolCall);
       }
     });
@@ -253,8 +257,9 @@ export class StreamProcessor {
    * Complete all tool calls
    */
   private completeAllToolCalls(): void {
-    this.toolCalls.forEach((toolCall, index) => {
+    this.toolCalls.forEach((toolCall, id) => {
       if (toolCall.state !== "input-complete") {
+        const index = this.toolCallOrder.indexOf(id);
         this.completeToolCall(index, toolCall);
       }
     });
@@ -292,10 +297,7 @@ export class StreamProcessor {
    * Emit pending text update
    */
   private emitTextUpdate(): void {
-    if (this.pendingTextChunks) {
-      this.handlers.onTextUpdate?.(this.textContent);
-      this.pendingTextChunks = "";
-    }
+    this.handlers.onTextUpdate?.(this.textContent);
   }
 
   /**
@@ -337,9 +339,8 @@ export class StreamProcessor {
    */
   private reset(): void {
     this.textContent = "";
-    this.pendingTextChunks = "";
     this.toolCalls.clear();
-    this.lastToolCallIndex = -1;
+    this.toolCallOrder = [];
     this.chunkStrategy.reset?.();
   }
 }
