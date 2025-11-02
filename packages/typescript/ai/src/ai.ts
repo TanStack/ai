@@ -534,3 +534,6 @@ export function ai<
     systemPrompts: config?.systemPrompts,
   });
 }
+
+// Export AI class for type inference in other packages
+export { AI };

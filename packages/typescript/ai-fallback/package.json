@@ -1,0 +1,54 @@
+{
+  "name": "@tanstack/ai-fallback",
+  "version": "0.1.0",
+  "description": "Fallback wrapper for TanStack AI - automatically try multiple adapters in sequence",
+  "author": "",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/TanStack/ai.git",
+    "directory": "packages/typescript/ai-fallback"
+  },
+  "type": "module",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist",
+    "src"
+  ],
+  "scripts": {
+    "build": "tsdown",
+    "dev": "tsdown --watch",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "clean": "rm -rf dist node_modules",
+    "typecheck": "tsc --noEmit",
+    "lint": "tsc --noEmit"
+  },
+  "keywords": [
+    "ai",
+    "fallback",
+    "tanstack",
+    "adapter",
+    "retry"
+  ],
+  "dependencies": {
+    "@tanstack/ai": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.2",
+    "tsdown": "^0.15.9",
+    "typescript": "^5.7.2",
+    "vitest": "^3.0.5"
+  },
+  "peerDependencies": {
+    "@tanstack/ai": "workspace:*"
+  }
+}
+
