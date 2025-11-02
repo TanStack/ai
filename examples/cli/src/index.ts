@@ -7,7 +7,7 @@ import { ai } from "@tanstack/ai";
 import { createOpenAI } from "@tanstack/ai-openai";
 import { createAnthropic } from "@tanstack/ai-anthropic";
 import { createOllama } from "@tanstack/ai-ollama";
-import type { AIAdapter, Message, TextGenerationResult } from "@tanstack/ai";
+import type { AIAdapter, ModelMessage, TextGenerationResult } from "@tanstack/ai";
 import {
   getApiKeyUrl,
   saveApiKeyToEnv,
@@ -319,7 +319,7 @@ async function runChat(options: any) {
   }
   console.log("");
 
-  const messages: Message[] = [];
+  const messages: ModelMessage[] = [];
 
   // Add system prompt
   if (options.provider === "openai" || options.provider === "anthropic") {

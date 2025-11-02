@@ -1,7 +1,7 @@
 import type {
   Tool,
   ToolCall,
-  Message,
+  ModelMessage,
   DoneStreamChunk,
   ToolResultStreamChunk,
 } from "./types";
@@ -110,9 +110,9 @@ export class ToolCallManager {
    */
   async *executeTools(
     doneChunk: DoneStreamChunk
-  ): AsyncGenerator<ToolResultStreamChunk, Message[], void> {
+  ): AsyncGenerator<ToolResultStreamChunk, ModelMessage[], void> {
     const toolCallsArray = this.getToolCalls();
-    const toolResults: Message[] = [];
+    const toolResults: ModelMessage[] = [];
 
     for (const toolCall of toolCallsArray) {
       const tool = this.tools.find(

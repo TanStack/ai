@@ -1,6 +1,6 @@
 import { useState, useCallback, useRef, useEffect, useId } from "react";
 import { ChatClient } from "@tanstack/ai-client";
-import type { Message } from "@tanstack/ai";
+import type { ModelMessage } from "@tanstack/ai";
 import type { UseChatOptions, UseChatReturn, ChatMessage } from "./types";
 
 export function useChat(options: UseChatOptions = {}): UseChatReturn {
@@ -49,7 +49,7 @@ export function useChat(options: UseChatOptions = {}): UseChatReturn {
   );
 
   const append = useCallback(
-    async (message: Message | ChatMessage) => {
+    async (message: ModelMessage | ChatMessage) => {
       await client.append(message);
     },
     [client]

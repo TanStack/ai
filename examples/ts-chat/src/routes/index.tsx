@@ -1,121 +1,193 @@
-import { createFileRoute } from '@tanstack/react-router'
+import { useEffect, useRef, useState } from "react";
+import { createFileRoute } from "@tanstack/react-router";
+import { Send } from "lucide-react";
+import ReactMarkdown from "react-markdown";
+import rehypeRaw from "rehype-raw";
+import rehypeSanitize from "rehype-sanitize";
+import rehypeHighlight from "rehype-highlight";
+import remarkGfm from "remark-gfm";
+import { useChat, fetchServerSentEvents } from "@tanstack/ai-react";
+import type { ChatMessage } from "@tanstack/ai-react";
 
-import {
-  Zap,
-  Server,
-  Route as RouteIcon,
-  Shield,
-  Waves,
-  Sparkles,
-} from 'lucide-react'
+import GuitarRecommendation from "@/components/example-GuitarRecommendation";
 
-export const Route = createFileRoute('/')({
-  component: App,
-})
+import "./tanchat.css";
 
-function App() {
-  const features = [
-    {
-      icon: <Zap className="w-12 h-12 text-cyan-400" />,
-      title: 'Powerful Server Functions',
-      description:
-        'Write server-side code that seamlessly integrates with your client components. Type-safe, secure, and simple.',
-    },
-    {
-      icon: <Server className="w-12 h-12 text-cyan-400" />,
-      title: 'Flexible Server Side Rendering',
-      description:
-        'Full-document SSR, streaming, and progressive enhancement out of the box. Control exactly what renders where.',
-    },
-    {
-      icon: <RouteIcon className="w-12 h-12 text-cyan-400" />,
-      title: 'API Routes',
-      description:
-        'Build type-safe API endpoints alongside your application. No separate backend needed.',
-    },
-    {
-      icon: <Shield className="w-12 h-12 text-cyan-400" />,
-      title: 'Strongly Typed Everything',
-      description:
-        'End-to-end type safety from server to client. Catch errors before they reach production.',
-    },
-    {
-      icon: <Waves className="w-12 h-12 text-cyan-400" />,
-      title: 'Full Streaming Support',
-      description:
-        'Stream data from server to client progressively. Perfect for AI applications and real-time updates.',
-    },
-    {
-      icon: <Sparkles className="w-12 h-12 text-cyan-400" />,
-      title: 'Next Generation Ready',
-      description:
-        'Built from the ground up for modern web applications. Deploy anywhere JavaScript runs.',
-    },
-  ]
+function InitalLayout({ children }: { children: React.ReactNode }) {
+  return (
+    <div className="flex-1 flex items-center justify-center px-4">
+      <div className="text-center max-w-3xl mx-auto w-full">
+        <h1 className="text-6xl font-bold mb-4 bg-linear-to-r from-orange-500 to-red-600 text-transparent bg-clip-text uppercase">
+          <span className="text-white">TanStack</span> Chat
+        </h1>
+        <p className="text-gray-400 mb-6 w-2/3 mx-auto text-lg">
+          You can ask me about anything, I might or might not have a good
+          answer, but you can still ask.
+        </p>
+        {children}
+      </div>
+    </div>
+  );
+}
+
+function ChattingLayout({ children }: { children: React.ReactNode }) {
+  return (
+    <div className="absolute bottom-0 right-0 left-64 bg-gray-900/80 backdrop-blur-sm border-t border-orange-500/10">
+      <div className="max-w-3xl mx-auto w-full px-4 py-3">{children}</div>
+    </div>
+  );
+}
+
+function Messages({ messages }: { messages: Array<ChatMessage> }) {
+  const messagesContainerRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (messagesContainerRef.current) {
+      messagesContainerRef.current.scrollTop =
+        messagesContainerRef.current.scrollHeight;
+    }
+  }, [messages]);
+
+  if (!messages.length) {
+    return null;
+  }
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-slate-900 via-slate-800 to-slate-900">
-      <section className="relative py-20 px-6 text-center overflow-hidden">
-        <div className="absolute inset-0 bg-gradient-to-r from-cyan-500/10 via-blue-500/10 to-purple-500/10"></div>
-        <div className="relative max-w-5xl mx-auto">
-          <div className="flex items-center justify-center gap-6 mb-6">
-            <img
-              src="/tanstack-circle-logo.png"
-              alt="TanStack Logo"
-              className="w-24 h-24 md:w-32 md:h-32"
-            />
-            <h1 className="text-6xl md:text-7xl font-bold text-white">
-              <span className="text-gray-300">TANSTACK</span>{' '}
-              <span className="bg-gradient-to-r from-cyan-400 to-blue-400 bg-clip-text text-transparent">
-                START
-              </span>
-            </h1>
-          </div>
-          <p className="text-2xl md:text-3xl text-gray-300 mb-4 font-light">
-            The framework for next generation AI applications
-          </p>
-          <p className="text-lg text-gray-400 max-w-3xl mx-auto mb-8">
-            Full-stack framework powered by TanStack Router for React and Solid.
-            Build modern applications with server functions, streaming, and type
-            safety.
-          </p>
-          <div className="flex flex-col items-center gap-4">
-            <a
-              href="https://tanstack.com/start"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="px-8 py-3 bg-cyan-500 hover:bg-cyan-600 text-white font-semibold rounded-lg transition-colors shadow-lg shadow-cyan-500/50"
-            >
-              Documentation
-            </a>
-            <p className="text-gray-400 text-sm mt-2">
-              Begin your TanStack Start journey by editing{' '}
-              <code className="px-2 py-1 bg-slate-700 rounded text-cyan-400">
-                /src/routes/index.tsx
-              </code>
-            </p>
-          </div>
-        </div>
-      </section>
+    <div ref={messagesContainerRef} className="flex-1 overflow-y-auto pb-24">
+      <div className="max-w-3xl mx-auto w-full px-4">
+        {messages.map(({ id, role, parts }) => {
+          // Extract content from text parts
+          const textContent = parts
+            .filter((p) => p.type === "text")
+            .map((p) => p.content)
+            .join("");
 
-      <section className="py-16 px-6 max-w-7xl mx-auto">
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {features.map((feature, index) => (
+          // Extract tool calls from tool-call parts
+          const toolCallParts = parts.filter((p) => p.type === "tool-call");
+
+          return (
             <div
-              key={index}
-              className="bg-slate-800/50 backdrop-blur-sm border border-slate-700 rounded-xl p-6 hover:border-cyan-500/50 transition-all duration-300 hover:shadow-lg hover:shadow-cyan-500/10"
+              key={id}
+              className={`p-4 ${
+                role === "assistant"
+                  ? "bg-linear-to-r from-orange-500/5 to-red-600/5"
+                  : "bg-transparent"
+              }`}
             >
-              <div className="mb-4">{feature.icon}</div>
-              <h3 className="text-xl font-semibold text-white mb-3">
-                {feature.title}
-              </h3>
-              <p className="text-gray-400 leading-relaxed">
-                {feature.description}
-              </p>
+              <div className="flex items-start gap-4 max-w-3xl mx-auto w-full">
+                {role === "assistant" ? (
+                  <div className="w-8 h-8 rounded-lg bg-linear-to-r from-orange-500 to-red-600 mt-2 flex items-center justify-center text-sm font-medium text-white flex-shrink-0">
+                    AI
+                  </div>
+                ) : (
+                  <div className="w-8 h-8 rounded-lg bg-gray-700 flex items-center justify-center text-sm font-medium text-white flex-shrink-0">
+                    Y
+                  </div>
+                )}
+                <div className="flex-1">
+                  {/* Text content */}
+                  {textContent && (
+                    <div className="flex-1 min-w-0 text-white prose dark:prose-invert max-w-none">
+                      <ReactMarkdown
+                        rehypePlugins={[
+                          rehypeRaw,
+                          rehypeSanitize,
+                          rehypeHighlight,
+                          remarkGfm,
+                        ]}
+                      >
+                        {textContent}
+                      </ReactMarkdown>
+                    </div>
+                  )}
+
+                  {/* Tool calls - show guitar recommendations */}
+                  {toolCallParts.map((toolCallPart) => {
+                    if (
+                      toolCallPart.type === "tool-call" &&
+                      toolCallPart.name === "recommendGuitar"
+                    ) {
+                      try {
+                        const args = JSON.parse(toolCallPart.arguments);
+                        return (
+                          <div
+                            key={toolCallPart.id}
+                            className="max-w-[80%] mx-auto mt-2"
+                          >
+                            <GuitarRecommendation id={args.id} />
+                          </div>
+                        );
+                      } catch {
+                        return null;
+                      }
+                    }
+                    return null;
+                  })}
+                </div>
+              </div>
             </div>
-          ))}
-        </div>
-      </section>
+          );
+        })}
+      </div>
     </div>
-  )
+  );
 }
+
+function ChatPage() {
+  const { messages, sendMessage, isLoading } = useChat({
+    connection: fetchServerSentEvents("/api/tanchat"),
+  });
+  const [input, setInput] = useState("");
+
+  const Layout = messages.length ? ChattingLayout : InitalLayout;
+
+  return (
+    <div className="relative flex h-[calc(100vh-32px)] bg-gray-900">
+      <div className="flex-1 flex flex-col">
+        <Messages messages={messages} />
+
+        <Layout>
+          <div className="relative max-w-xl mx-auto">
+            <textarea
+              value={input}
+              onChange={(e) => setInput(e.target.value)}
+              placeholder="Type something clever (or don't, we won't judge)..."
+              className="w-full rounded-lg border border-orange-500/20 bg-gray-800/50 pl-4 pr-12 py-3 text-sm text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-orange-500/50 focus:border-transparent resize-none overflow-hidden shadow-lg"
+              rows={1}
+              style={{ minHeight: "44px", maxHeight: "200px" }}
+              disabled={isLoading}
+              onInput={(e) => {
+                const target = e.target as HTMLTextAreaElement;
+                target.style.height = "auto";
+                target.style.height = Math.min(target.scrollHeight, 200) + "px";
+              }}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" && !e.shiftKey && input.trim()) {
+                  e.preventDefault();
+                  sendMessage(input);
+                  setInput("");
+                }
+              }}
+            />
+            <button
+              onClick={() => {
+                if (input.trim()) {
+                  sendMessage(input);
+                  setInput("");
+                }
+              }}
+              disabled={!input.trim() || isLoading}
+              className="absolute right-2 top-1/2 -translate-y-1/2 p-2 text-orange-500 hover:text-orange-400 disabled:text-gray-500 transition-colors focus:outline-none"
+            >
+              <Send className="w-4 h-4" />
+            </button>
+          </div>
+        </Layout>
+      </div>
+    </div>
+  );
+}
+
+export const Route = createFileRoute("/")({
+  component: ChatPage,
+});

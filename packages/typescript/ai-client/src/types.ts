@@ -1,11 +1,64 @@
-import type { Message, StreamChunk } from "@tanstack/ai";
+import type { ModelMessage, StreamChunk } from "@tanstack/ai";
 import type { ConnectionAdapter } from "./connection-adapters";
 import type { ChunkStrategy, StreamParser } from "./stream/types";
 
-export interface ChatMessage extends Message {
+/**
+ * Tool call states - track the lifecycle of a tool call
+ */
+export type ToolCallState =
+  | "awaiting-input" // Received start but no arguments yet
+  | "input-streaming" // Partial arguments received
+  | "input-complete"; // All arguments received
+
+/**
+ * Tool result states - track the lifecycle of a tool result
+ */
+export type ToolResultState =
+  | "streaming" // Placeholder for future streamed output
+  | "complete" // Result is complete
+  | "error"; // Error occurred
+
+/**
+ * Message parts - building blocks of UIMessage
+ */
+export interface TextPart {
+  type: "text";
+  content: string;
+}
+
+export interface ToolCallPart {
+  type: "tool-call";
   id: string;
+  name: string;
+  arguments: string; // JSON string (may be incomplete)
+  state: ToolCallState;
+}
+
+export interface ToolResultPart {
+  type: "tool-result";
+  toolCallId: string;
+  content: string;
+  state: ToolResultState;
+  error?: string; // Error message if state is "error"
+}
+
+export type MessagePart = TextPart | ToolCallPart | ToolResultPart;
+
+/**
+ * UIMessage - Domain-specific message format optimized for building chat UIs
+ * Contains parts that can be text, tool calls, or tool results
+ */
+export interface UIMessage {
+  id: string;
+  role: "system" | "user" | "assistant";
+  parts: MessagePart[];
   createdAt?: Date;
 }
+
+/**
+ * ChatMessage - Alias for UIMessage for backward compatibility
+ */
+export type ChatMessage = UIMessage;
 
 export interface ChatClientOptions {
   /**
@@ -85,6 +138,6 @@ export interface ChatClientOptions {
 }
 
 export interface ChatRequestBody {
-  messages: Message[];
+  messages: ModelMessage[];
   data?: Record<string, any>;
 }

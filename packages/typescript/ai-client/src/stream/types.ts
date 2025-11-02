@@ -2,10 +2,13 @@
  * Stream Processor Types
  *
  * Core types for the stream processing system that handles:
- * - Tool call lifecycle tracking
+ * - Tool call lifecycle tracking with states
  * - Text content chunking strategies
  * - Parallel tool call support
+ * - Partial JSON parsing for incomplete tool arguments
  */
+
+import type { ToolCallState as ToolState, ToolResultState } from "../types";
 
 /**
  * Raw events that come from the stream
@@ -72,6 +75,25 @@ export interface ChunkStrategy {
  */
 export interface StreamProcessorHandlers {
   onTextUpdate?: (content: string) => void;
+  
+  // Enhanced tool call handlers with state tracking
+  onToolCallStateChange?: (
+    index: number,
+    id: string,
+    name: string,
+    state: ToolState,
+    args: string,
+    parsedArgs?: any
+  ) => void;
+  
+  onToolResultStateChange?: (
+    toolCallId: string,
+    content: string,
+    state: ToolResultState,
+    error?: string
+  ) => void;
+  
+  // Legacy handlers (still supported)
   onToolCallStart?: (index: number, id: string, name: string) => void;
   onToolCallDelta?: (index: number, args: string) => void;
   onToolCallComplete?: (
@@ -98,14 +120,18 @@ export interface StreamProcessorOptions {
   chunkStrategy?: ChunkStrategy;
   parser?: StreamParser;
   handlers: StreamProcessorHandlers;
+  jsonParser?: {
+    parse(jsonString: string): any;
+  };
 }
 
 /**
  * Internal state for a tool call being tracked
  */
-export interface ToolCallState {
+export interface InternalToolCallState {
   id: string;
   name: string;
   arguments: string;
-  complete: boolean;
+  state: ToolState;
+  parsedArguments?: any; // Parsed (potentially incomplete) JSON
 }

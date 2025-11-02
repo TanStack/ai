@@ -1,5 +1,18 @@
 export { ChatClient } from "./chat-client";
-export type { ChatMessage, ChatClientOptions, ChatRequestBody } from "./types";
+export type {
+  // Core message types
+  UIMessage,
+  MessagePart,
+  TextPart,
+  ToolCallPart,
+  ToolResultPart,
+  ToolCallState,
+  ToolResultState,
+  // Legacy/compatibility types
+  ChatMessage,
+  ChatClientOptions,
+  ChatRequestBody,
+} from "./types";
 export {
   createResponseStreamSource,
   processStream,
@@ -31,5 +44,16 @@ export {
   type StreamParser,
   type StreamProcessorOptions,
   type StreamProcessorHandlers,
-  type ToolCallState,
+  type InternalToolCallState,
 } from "./stream/index";
+export {
+  uiMessageToModelMessages,
+  modelMessageToUIMessage,
+  modelMessagesToUIMessages,
+} from "./message-converters";
+export {
+  parsePartialJSON,
+  PartialJSONParser,
+  defaultJSONParser,
+  type JSONParser,
+} from "./loose-json-parser";

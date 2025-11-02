@@ -54,7 +54,7 @@ const recommendGuitarTool = tool({
   },
 });
 
-export const Route = createFileRoute("/demo/api/tanchat")({
+export const Route = createFileRoute("/api/tanchat")({
   server: {
     handlers: {
       POST: async ({ request }) => {

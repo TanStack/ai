@@ -12,11 +12,13 @@ import type {
   StreamChunk,
   StreamProcessorOptions,
   StreamProcessorHandlers,
-  ToolCallState,
+  InternalToolCallState,
   ChunkStrategy,
   StreamParser,
 } from "./types";
+import type { ToolCallState } from "../types";
 import { ImmediateStrategy } from "./chunk-strategies";
+import { defaultJSONParser } from "../loose-json-parser";
 
 /**
  * Default parser - expects chunks in the format emitted by processStream
@@ -68,17 +70,19 @@ export class StreamProcessor {
   private chunkStrategy: ChunkStrategy;
   private parser: StreamParser;
   private handlers: StreamProcessorHandlers;
+  private jsonParser: { parse(jsonString: string): any };
 
   // State
   private textContent: string = "";
   private pendingTextChunks: string = "";
-  private toolCalls: Map<number, ToolCallState> = new Map();
+  private toolCalls: Map<number, InternalToolCallState> = new Map();
   private lastToolCallIndex: number = -1;
 
   constructor(options: StreamProcessorOptions) {
     this.chunkStrategy = options.chunkStrategy || new ImmediateStrategy();
     this.parser = options.parser || new DefaultStreamParser();
     this.handlers = options.handlers;
+    this.jsonParser = options.jsonParser || defaultJSONParser;
   }
 
   /**
@@ -159,31 +163,75 @@ export class StreamProcessor {
 
     if (!existingToolCall) {
       // New tool call starting
-      const newToolCall: ToolCallState = {
+      const initialState: ToolCallState = toolCall.function.arguments
+        ? "input-streaming"
+        : "awaiting-input";
+
+      const newToolCall: InternalToolCallState = {
         id: toolCall.id,
         name: toolCall.function.name,
         arguments: toolCall.function.arguments,
-        complete: false,
+        state: initialState,
+        parsedArguments: undefined,
       };
+
+      // Try to parse the arguments
+      if (toolCall.function.arguments) {
+        newToolCall.parsedArguments = this.jsonParser.parse(
+          toolCall.function.arguments
+        );
+      }
 
       this.toolCalls.set(index, newToolCall);
 
-      // Emit start event
+      // Emit start event (legacy)
       this.handlers.onToolCallStart?.(
         index,
         toolCall.id,
         toolCall.function.name
       );
 
-      // Emit initial delta
+      // Emit state change event
+      this.handlers.onToolCallStateChange?.(
+        index,
+        toolCall.id,
+        toolCall.function.name,
+        initialState,
+        toolCall.function.arguments,
+        newToolCall.parsedArguments
+      );
+
+      // Emit initial delta (legacy)
       if (toolCall.function.arguments) {
         this.handlers.onToolCallDelta?.(index, toolCall.function.arguments);
       }
     } else {
       // Continuing existing tool call
+      const wasAwaitingInput = existingToolCall.state === "awaiting-input";
+      
       existingToolCall.arguments += toolCall.function.arguments;
+      
+      // Update state
+      if (wasAwaitingInput && toolCall.function.arguments) {
+        existingToolCall.state = "input-streaming";
+      }
 
-      // Emit delta
+      // Try to parse the updated arguments
+      existingToolCall.parsedArguments = this.jsonParser.parse(
+        existingToolCall.arguments
+      );
+
+      // Emit state change event
+      this.handlers.onToolCallStateChange?.(
+        index,
+        existingToolCall.id,
+        existingToolCall.name,
+        existingToolCall.state,
+        existingToolCall.arguments,
+        existingToolCall.parsedArguments
+      );
+
+      // Emit delta (legacy)
       if (toolCall.function.arguments) {
         this.handlers.onToolCallDelta?.(index, toolCall.function.arguments);
       }
@@ -195,7 +243,7 @@ export class StreamProcessor {
    */
   private completeToolCallsExcept(exceptIndex: number): void {
     this.toolCalls.forEach((toolCall, index) => {
-      if (index !== exceptIndex && !toolCall.complete) {
+      if (index !== exceptIndex && toolCall.state !== "input-complete") {
         this.completeToolCall(index, toolCall);
       }
     });
@@ -206,7 +254,7 @@ export class StreamProcessor {
    */
   private completeAllToolCalls(): void {
     this.toolCalls.forEach((toolCall, index) => {
-      if (!toolCall.complete) {
+      if (toolCall.state !== "input-complete") {
         this.completeToolCall(index, toolCall);
       }
     });
@@ -215,9 +263,23 @@ export class StreamProcessor {
   /**
    * Mark a tool call as complete and emit event
    */
-  private completeToolCall(index: number, toolCall: ToolCallState): void {
-    toolCall.complete = true;
+  private completeToolCall(index: number, toolCall: InternalToolCallState): void {
+    toolCall.state = "input-complete";
 
+    // Try final parse
+    toolCall.parsedArguments = this.jsonParser.parse(toolCall.arguments);
+
+    // Emit state change event
+    this.handlers.onToolCallStateChange?.(
+      index,
+      toolCall.id,
+      toolCall.name,
+      "input-complete",
+      toolCall.arguments,
+      toolCall.parsedArguments
+    );
+
+    // Emit complete event (legacy)
     this.handlers.onToolCallComplete?.(
       index,
       toolCall.id,
@@ -259,7 +321,7 @@ export class StreamProcessor {
    */
   private getCompletedToolCalls(): any[] {
     return Array.from(this.toolCalls.values())
-      .filter((tc) => tc.complete)
+      .filter((tc) => tc.state === "input-complete")
       .map((tc) => ({
         id: tc.id,
         type: "function",

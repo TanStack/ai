@@ -23,5 +23,5 @@ export type {
   StreamParser,
   StreamProcessorOptions,
   StreamProcessorHandlers,
-  ToolCallState,
+  InternalToolCallState,
 } from "./types";

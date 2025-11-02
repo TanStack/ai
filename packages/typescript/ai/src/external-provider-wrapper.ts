@@ -40,7 +40,7 @@ import type {
   EmbeddingResult,
   ImageGenerationOptions,
   ImageGenerationResult,
-  Message,
+  ModelMessage,
   StreamChunk,
 } from "./types";
 import { BaseAdapter } from "./base-adapter";
@@ -273,8 +273,8 @@ class ExternalAdapterWrapper<
     this.videoModels = videoModels.length > 0 ? videoModels : undefined;
   }
 
-  // Convert our Message format to external provider format
-  private convertMessages(messages: Message[]): any[] {
+  // Convert our ModelMessage format to external provider format
+  private convertMessages(messages: ModelMessage[]): any[] {
     return messages.map(msg => {
       if (msg.role === 'system') {
         return { role: 'system', content: msg.content };

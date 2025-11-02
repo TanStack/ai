@@ -1,9 +1,9 @@
-import type { Message } from "./types";
+import type { ModelMessage } from "./types";
 
 /**
  * Format messages for display
  */
-export function formatMessage(message: Message): string {
+export function formatMessage(message: ModelMessage): string {
   return `[${message.role.toUpperCase()}]: ${message.content}`;
 }
 
@@ -26,21 +26,21 @@ export function truncateText(text: string, maxLength: number): string {
 /**
  * Create a system message
  */
-export function systemMessage(content: string): Message {
+export function systemMessage(content: string): ModelMessage {
   return { role: "system", content };
 }
 
 /**
  * Create a user message
  */
-export function userMessage(content: string, name?: string): Message {
+export function userMessage(content: string, name?: string): ModelMessage {
   return { role: "user", content, name };
 }
 
 /**
  * Create an assistant message
  */
-export function assistantMessage(content: string): Message {
+export function assistantMessage(content: string): ModelMessage {
   return { role: "assistant", content };
 }
 

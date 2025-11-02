@@ -1,4 +1,6 @@
-import type { StreamChunk } from "@tanstack/ai";
+import type { StreamChunk, ModelMessage } from "@tanstack/ai";
+import type { UIMessage } from "./types";
+import { uiMessageToModelMessages } from "./message-converters";
 
 /**
  * Connection adapter interface - converts a connection into a stream of chunks
@@ -6,11 +8,11 @@ import type { StreamChunk } from "@tanstack/ai";
 export interface ConnectionAdapter {
   /**
    * Connect and return an async iterable of StreamChunks
-   * @param messages - The messages to send (for adapters that need them)
+   * @param messages - The messages to send (UIMessages or ModelMessages)
    * @param data - Additional data to send
    */
   connect(
-    messages: any[],
+    messages: UIMessage[] | ModelMessage[],
     data?: Record<string, any>
   ): AsyncIterable<StreamChunk>;
 
@@ -55,6 +57,18 @@ export function fetchServerSentEvents(
     async *connect(messages, data) {
       abortController = new AbortController();
 
+      // Convert UIMessages to ModelMessages if needed
+      const modelMessages: ModelMessage[] = [];
+      for (const msg of messages) {
+        if ('parts' in msg) {
+          // UIMessage - convert to ModelMessages
+          modelMessages.push(...uiMessageToModelMessages(msg as UIMessage));
+        } else {
+          // Already ModelMessage
+          modelMessages.push(msg as ModelMessage);
+        }
+      }
+
       const requestHeaders: Record<string, string> = {
         "Content-Type": "application/json",
       };
@@ -73,7 +87,7 @@ export function fetchServerSentEvents(
       const response = await fetch(url, {
         method: "POST",
         headers: requestHeaders,
-        body: JSON.stringify({ messages, data }),
+        body: JSON.stringify({ messages: modelMessages, data }),
         credentials: options.credentials || "same-origin",
         signal: options.signal || abortController.signal,
       });
@@ -155,6 +169,18 @@ export function fetchHttpStream(
     async *connect(messages, data) {
       abortController = new AbortController();
 
+      // Convert UIMessages to ModelMessages if needed
+      const modelMessages: ModelMessage[] = [];
+      for (const msg of messages) {
+        if ('parts' in msg) {
+          // UIMessage - convert to ModelMessages
+          modelMessages.push(...uiMessageToModelMessages(msg as UIMessage));
+        } else {
+          // Already ModelMessage
+          modelMessages.push(msg as ModelMessage);
+        }
+      }
+
       const requestHeaders: Record<string, string> = {
         "Content-Type": "application/json",
       };
@@ -173,7 +199,7 @@ export function fetchHttpStream(
       const response = await fetch(url, {
         method: "POST",
         headers: requestHeaders,
-        body: JSON.stringify({ messages, data }),
+        body: JSON.stringify({ messages: modelMessages, data }),
         credentials: options.credentials || "same-origin",
         signal: options.signal || abortController.signal,
       });
@@ -255,13 +281,25 @@ export function fetchHttpStream(
  */
 export function stream(
   streamFactory: (
-    messages: any[],
+    messages: ModelMessage[],
     data?: Record<string, any>
   ) => AsyncIterable<StreamChunk>
 ): ConnectionAdapter {
   return {
     async *connect(messages, data) {
-      yield* streamFactory(messages, data);
+      // Convert UIMessages to ModelMessages if needed
+      const modelMessages: ModelMessage[] = [];
+      for (const msg of messages) {
+        if ('parts' in msg) {
+          // UIMessage - convert to ModelMessages
+          modelMessages.push(...uiMessageToModelMessages(msg as UIMessage));
+        } else {
+          // Already ModelMessage
+          modelMessages.push(msg as ModelMessage);
+        }
+      }
+      
+      yield* streamFactory(modelMessages, data);
     },
   };
 }

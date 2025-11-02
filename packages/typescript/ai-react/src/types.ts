@@ -1,4 +1,4 @@
-import type { Message } from "@tanstack/ai";
+import type { ModelMessage } from "@tanstack/ai";
 import type {
   ChatClientOptions,
   ChatMessage,
@@ -29,7 +29,7 @@ export interface UseChatReturn {
   /**
    * Append a message to the conversation
    */
-  append: (message: Message | ChatMessage) => Promise<void>;
+  append: (message: ModelMessage | ChatMessage) => Promise<void>;
 
   /**
    * Reload the last assistant message

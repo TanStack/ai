@@ -7,7 +7,7 @@ export interface ToolCall {
   };
 }
 
-export interface Message {
+export interface ModelMessage {
   role: "system" | "user" | "assistant" | "tool";
   content: string | null;
   name?: string;
@@ -60,7 +60,7 @@ export interface AgentLoopState {
   /** Current iteration count (0-indexed) */
   iterationCount: number;
   /** Current messages array */
-  messages: Message[];
+  messages: ModelMessage[];
   /** Finish reason from the last response */
   finishReason: string | null;
 }
@@ -83,7 +83,7 @@ export interface ChatCompletionOptions {
   /** The model to use for chat completion */
   model: string;
   /** Array of messages in the conversation */
-  messages: Message[];
+  messages: ModelMessage[];
   /** Controls randomness in the output (0-2). Lower values make output more focused and deterministic. */
   temperature?: number;
   /** Maximum number of tokens to generate in the completion */

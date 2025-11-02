@@ -1,12 +1,13 @@
-import type { Message } from "@tanstack/ai";
-import type { ChatMessage, ChatClientOptions } from "./types";
+import type { ModelMessage } from "@tanstack/ai";
+import type { UIMessage, MessagePart, ToolCallPart, ToolResultPart, ChatClientOptions } from "./types";
 import type { ConnectionAdapter } from "./connection-adapters";
 import { processStream, type StreamEventHandlers } from "./stream";
 import { StreamProcessor } from "./stream/processor";
 import type { ChunkStrategy, StreamParser } from "./stream/types";
+import { uiMessageToModelMessages } from "./message-converters";
 
 export class ChatClient {
-  private messages: ChatMessage[] = [];
+  private messages: UIMessage[] = [];
   private isLoading: boolean = false;
   private error: Error | undefined = undefined;
   private connection: ConnectionAdapter;
@@ -20,9 +21,9 @@ export class ChatClient {
   private callbacks: {
     onResponse: (response?: Response) => void | Promise<void>;
     onChunk: (chunk: any) => void;
-    onFinish: (message: ChatMessage) => void;
+    onFinish: (message: UIMessage) => void;
     onError: (error: Error) => void;
-    onMessagesChange: (messages: ChatMessage[]) => void;
+    onMessagesChange: (messages: UIMessage[]) => void;
     onLoadingChange: (isLoading: boolean) => void;
     onErrorChange: (error: Error | undefined) => void;
   };
@@ -55,7 +56,7 @@ export class ChatClient {
       .substring(7)}`;
   }
 
-  private setMessages(messages: ChatMessage[]): void {
+  private setMessages(messages: UIMessage[]): void {
     this.messages = messages;
     this.callbacks.onMessagesChange(messages);
   }
@@ -72,12 +73,12 @@ export class ChatClient {
 
   private async processStream(
     source: AsyncIterable<any>
-  ): Promise<ChatMessage> {
+  ): Promise<UIMessage> {
     const assistantMessageId = this.generateMessageId();
-    const assistantMessage: ChatMessage = {
+    const assistantMessage: UIMessage = {
       id: assistantMessageId,
       role: "assistant",
-      content: "",
+      parts: [],
       createdAt: new Date(),
     };
 
@@ -94,112 +95,125 @@ export class ChatClient {
   }
 
   /**
-   * Process stream using the new StreamProcessor
+   * Process stream using the new StreamProcessor with parts-based messages
    */
   private async processStreamWithProcessor(
     source: AsyncIterable<any>,
     assistantMessageId: string
-  ): Promise<ChatMessage> {
+  ): Promise<UIMessage> {
     const processor = new StreamProcessor({
       chunkStrategy: this.streamProcessorConfig?.chunkStrategy,
       parser: this.streamProcessorConfig?.parser,
       handlers: {
         onTextUpdate: (content) => {
-          // Update the assistant message with new content
-          this.setMessages(
-            this.messages.map((msg) =>
-              msg.id === assistantMessageId ? { ...msg, content } : msg
-            )
-          );
-        },
-        onToolCallStart: (index, id, name) => {
-          // Initialize tool call in the message
+          // Update the text part in the message
           this.setMessages(
             this.messages.map((msg) => {
               if (msg.id === assistantMessageId) {
-                const existingToolCalls = msg.toolCalls || [];
-                const updatedToolCalls = [...existingToolCalls];
+                const parts = [...msg.parts];
+                const textPartIndex = parts.findIndex(p => p.type === "text");
+                
+                if (textPartIndex >= 0) {
+                  parts[textPartIndex] = { type: "text", content };
+                } else {
+                  parts.push({ type: "text", content });
+                }
+                
+                return { ...msg, parts };
+              }
+              return msg;
+            })
+          );
+        },
+        onToolCallStateChange: (index, id, name, state, args) => {
+          // Update or create tool call part with state
+          this.setMessages(
+            this.messages.map((msg) => {
+              if (msg.id === assistantMessageId) {
+                const parts = [...msg.parts];
+                const toolCallParts = parts.filter((p): p is ToolCallPart => p.type === "tool-call");
+                const existingPartIndex = parts.findIndex(
+                  (p): p is ToolCallPart => p.type === "tool-call" && toolCallParts.indexOf(p as ToolCallPart) === index
+                );
 
-                updatedToolCalls[index] = {
+                const toolCallPart: ToolCallPart = {
+                  type: "tool-call",
                   id,
-                  type: "function",
-                  function: {
-                    name,
-                    arguments: "",
-                  },
+                  name,
+                  arguments: args,
+                  state,
                 };
 
-                return { ...msg, toolCalls: updatedToolCalls };
+                if (existingPartIndex >= 0) {
+                  parts[existingPartIndex] = toolCallPart;
+                } else {
+                  parts.push(toolCallPart);
+                }
+
+                return { ...msg, parts };
               }
               return msg;
             })
           );
         },
-        onToolCallDelta: (index, args) => {
-          // Append arguments to the tool call (delta is just the new chunk)
+        onToolResultStateChange: (toolCallId, content, state, error) => {
+          // Update or create tool result part
           this.setMessages(
             this.messages.map((msg) => {
               if (msg.id === assistantMessageId) {
-                const existingToolCalls = msg.toolCalls || [];
-                const updatedToolCalls = [...existingToolCalls];
+                const parts = [...msg.parts];
+                const resultPartIndex = parts.findIndex(
+                  (p): p is ToolResultPart => p.type === "tool-result" && p.toolCallId === toolCallId
+                );
 
-                if (updatedToolCalls[index]) {
-                  updatedToolCalls[index].function.arguments += args;
+                const toolResultPart: ToolResultPart = {
+                  type: "tool-result",
+                  toolCallId,
+                  content,
+                  state,
+                  ...(error && { error }),
+                };
+
+                if (resultPartIndex >= 0) {
+                  parts[resultPartIndex] = toolResultPart;
+                } else {
+                  parts.push(toolResultPart);
                 }
 
-                return { ...msg, toolCalls: updatedToolCalls };
+                return { ...msg, parts };
               }
               return msg;
             })
           );
         },
-        onToolCallComplete: (_index, _id, _name, _args) => {
-          // Tool call is complete - final state is already set via deltas
-          // This event can be used for logging or side effects
-        },
-        onStreamEnd: (content, toolCalls) => {
-          // Stream finished - final update
-          const finalMessage: ChatMessage = {
-            id: assistantMessageId,
-            role: "assistant",
-            content,
-            createdAt: new Date(),
-            ...(toolCalls && { toolCalls }),
-          };
-
-          this.setMessages(
-            this.messages.map((msg) =>
-              msg.id === assistantMessageId ? finalMessage : msg
-            )
-          );
+        onStreamEnd: () => {
+          // Stream finished - parts are already updated
         },
       },
     });
 
-    const result = await processor.process(source);
+    await processor.process(source);
 
     // Return the final message
     const finalMessage = this.messages.find(
       (msg) => msg.id === assistantMessageId
     );
-    return (
-      finalMessage || {
-        id: assistantMessageId,
-        role: "assistant",
-        content: result.content,
-        createdAt: new Date(),
-        ...(result.toolCalls && { toolCalls: result.toolCalls }),
-      }
-    );
+    
+    return finalMessage || {
+      id: assistantMessageId,
+      role: "assistant",
+      parts: [],
+      createdAt: new Date(),
+    };
   }
 
   /**
-   * Legacy stream processing (backward compatible)
+   * Legacy stream processing (backward compatible) - now using parts
    */
   private async processStreamLegacy(
     source: AsyncIterable<any>,
     assistantMessageId: string
-  ): Promise<ChatMessage> {
+  ): Promise<UIMessage> {
     // Define handlers for stream events
     const handlers: StreamEventHandlers = {
       onChunk: (chunk) => {
@@ -207,36 +221,56 @@ export class ChatClient {
         this.callbacks.onChunk(chunk);
       },
       onContent: (content) => {
-        // Update the assistant message with new content
-        this.setMessages(
-          this.messages.map((msg) =>
-            msg.id === assistantMessageId ? { ...msg, content } : msg
-          )
-        );
-      },
-      onToolCall: (index, toolCall) => {
-        // Update the assistant message with tool call
+        // Update the text part in the message
         this.setMessages(
           this.messages.map((msg) => {
             if (msg.id === assistantMessageId) {
-              const existingToolCalls = msg.toolCalls || [];
-              const updatedToolCalls = [...existingToolCalls];
+              const parts = [...msg.parts];
+              const textPartIndex = parts.findIndex(p => p.type === "text");
+              
+              if (textPartIndex >= 0) {
+                parts[textPartIndex] = { type: "text", content };
+              } else {
+                parts.push({ type: "text", content });
+              }
+              
+              return { ...msg, parts };
+            }
+            return msg;
+          })
+        );
+      },
+      onToolCall: (index, toolCall) => {
+        // Update the tool call part in the message
+        this.setMessages(
+          this.messages.map((msg) => {
+            if (msg.id === assistantMessageId) {
+              const parts = [...msg.parts];
+              const toolCallParts = parts.filter((p): p is ToolCallPart => p.type === "tool-call");
+              const existingPartIndex = parts.findIndex(
+                (p): p is ToolCallPart => p.type === "tool-call" && toolCallParts.indexOf(p as ToolCallPart) === index
+              );
 
-              if (!updatedToolCalls[index]) {
-                updatedToolCalls[index] = {
-                  id: toolCall.id,
-                  type: "function",
-                  function: {
-                    name: toolCall.function.name,
-                    arguments: toolCall.function.arguments,
-                  },
+              if (existingPartIndex >= 0) {
+                // Update existing
+                const existing = parts[existingPartIndex] as ToolCallPart;
+                parts[existingPartIndex] = {
+                  ...existing,
+                  arguments: existing.arguments + toolCall.function.arguments,
+                  state: "input-streaming",
                 };
               } else {
-                updatedToolCalls[index].function.arguments +=
-                  toolCall.function.arguments;
+                // Create new
+                parts.push({
+                  type: "tool-call",
+                  id: toolCall.id,
+                  name: toolCall.function.name,
+                  arguments: toolCall.function.arguments,
+                  state: toolCall.function.arguments ? "input-streaming" : "awaiting-input",
+                });
               }
 
-              return { ...msg, toolCalls: updatedToolCalls };
+              return { ...msg, parts };
             }
             return msg;
           })
@@ -247,13 +281,30 @@ export class ChatClient {
     // Process the stream
     const result = await processStream(source, handlers);
 
-    // Create final message with accumulated content and tool calls
-    const finalMessage: ChatMessage = {
+    // Create final parts
+    const finalParts: MessagePart[] = [];
+    
+    if (result.content) {
+      finalParts.push({ type: "text", content: result.content });
+    }
+    
+    if (result.toolCalls && result.toolCalls.length > 0) {
+      for (const tc of result.toolCalls) {
+        finalParts.push({
+          type: "tool-call",
+          id: tc.id,
+          name: tc.function.name,
+          arguments: tc.function.arguments,
+          state: "input-complete",
+        });
+      }
+    }
+
+    const finalMessage: UIMessage = {
       id: assistantMessageId,
       role: "assistant",
-      content: result.content,
+      parts: finalParts,
       createdAt: new Date(),
-      ...(result.toolCalls && { toolCalls: result.toolCalls }),
     };
 
     // Update with final message
@@ -266,33 +317,68 @@ export class ChatClient {
     return finalMessage;
   }
 
-  async append(message: Message | ChatMessage): Promise<void> {
-    const chatMessage: ChatMessage = {
-      ...(message as ChatMessage),
-      id: (message as ChatMessage).id || this.generateMessageId(),
-      createdAt: (message as ChatMessage).createdAt || new Date(),
-    };
+  async append(message: UIMessage | ModelMessage): Promise<void> {
+    // Convert ModelMessage to UIMessage if needed
+    let uiMessage: UIMessage;
+    
+    if ('parts' in message) {
+      // Already a UIMessage
+      uiMessage = {
+        ...message,
+        id: message.id || this.generateMessageId(),
+        createdAt: message.createdAt || new Date(),
+      };
+    } else {
+      // ModelMessage - convert to UIMessage
+      const parts: MessagePart[] = [];
+      if (message.content) {
+        parts.push({ type: "text", content: message.content });
+      }
+      if (message.toolCalls) {
+        for (const tc of message.toolCalls) {
+          parts.push({
+            type: "tool-call",
+            id: tc.id,
+            name: tc.function.name,
+            arguments: tc.function.arguments,
+            state: "input-complete",
+          });
+        }
+      }
+      if (message.role === "tool" && message.toolCallId) {
+        parts.push({
+          type: "tool-result",
+          toolCallId: message.toolCallId,
+          content: message.content || "",
+          state: "complete",
+        });
+      }
+      
+      uiMessage = {
+        id: this.generateMessageId(),
+        role: message.role === "tool" ? "assistant" : message.role,
+        parts,
+        createdAt: new Date(),
+      };
+    }
 
-    // Add user message immediately
-    this.setMessages([...this.messages, chatMessage]);
+    // Add message immediately
+    this.setMessages([...this.messages, uiMessage]);
     this.setIsLoading(true);
     this.setError(undefined);
 
     try {
-      // Prepare messages for connection adapter
-      const messagesToSend = this.messages.map((msg) => ({
-        role: msg.role,
-        content: msg.content,
-        name: msg.name,
-        toolCalls: msg.toolCalls,
-        toolCallId: msg.toolCallId,
-      }));
+      // Convert UIMessages to ModelMessages for connection adapter
+      const modelMessages: ModelMessage[] = [];
+      for (const msg of this.messages) {
+        modelMessages.push(...uiMessageToModelMessages(msg));
+      }
 
       // Call onResponse callback (no Response object for non-fetch adapters)
       await this.callbacks.onResponse();
 
       // Connect and get stream from connection adapter
-      const stream = this.connection.connect(messagesToSend, this.body);
+      const stream = this.connection.connect(modelMessages, this.body);
 
       // Process the stream
       const assistantMessage = await this.processStream(stream);
@@ -319,10 +405,10 @@ export class ChatClient {
       return;
     }
 
-    const userMessage: ChatMessage = {
+    const userMessage: UIMessage = {
       id: this.generateMessageId(),
       role: "user",
-      content: content.trim(),
+      parts: [{ type: "text", content: content.trim() }],
       createdAt: new Date(),
     };
 
@@ -363,7 +449,7 @@ export class ChatClient {
     this.setError(undefined);
   }
 
-  getMessages(): ChatMessage[] {
+  getMessages(): UIMessage[] {
     return this.messages;
   }
 
@@ -375,7 +461,7 @@ export class ChatClient {
     return this.error;
   }
 
-  setMessagesManually(messages: ChatMessage[]): void {
+  setMessagesManually(messages: UIMessage[]): void {
     this.setMessages(messages);
   }
 }

@@ -40,7 +40,8 @@
     "streaming"
   ],
   "dependencies": {
-    "@tanstack/ai": "workspace:*"
+    "@tanstack/ai": "workspace:*",
+    "partial-json": "^0.1.7"
   },
   "devDependencies": {
     "@types/node": "^22.10.2",

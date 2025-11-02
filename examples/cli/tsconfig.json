@@ -8,10 +8,10 @@
   "include": ["src/**/*.ts", "src/**/*.tsx"],
   "exclude": ["node_modules", "dist", "**/*.config.ts"],
   "references": [
-    { "path": "../../packages/ai" },
-    { "path": "../../packages/ai-openai" },
-    { "path": "../../packages/ai-anthropic" },
-    { "path": "../../packages/ai-ollama" },
-    { "path": "../../packages/ai-gemini" }
+    { "path": "../../packages/typescript/ai" },
+    { "path": "../../packages/typescript/ai-openai" },
+    { "path": "../../packages/typescript/ai-anthropic" },
+    { "path": "../../packages/typescript/ai-ollama" },
+    { "path": "../../packages/typescript/ai-gemini" }
   ]
 }
