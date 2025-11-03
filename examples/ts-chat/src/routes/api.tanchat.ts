@@ -49,34 +49,6 @@ export const Route = createFileRoute("/api/tanchat")({
 
         const { messages } = await request.json();
 
-        // Extract approvals and client tool results from messages
-        const approvals = new Map<string, boolean>();
-        const clientToolResults = new Map<string, any>();
-
-        // Look for approval responses and client tool outputs in the last assistant message
-        const lastMessage = messages[messages.length - 1];
-        if (lastMessage?.role === "assistant" && lastMessage.parts) {
-          for (const part of lastMessage.parts) {
-            // Handle approval responses
-            if (
-              part.type === "tool-call" &&
-              part.state === "approval-responded" &&
-              part.approval
-            ) {
-              approvals.set(part.approval.id, part.approval.approved);
-            }
-
-            // Handle client tool outputs
-            if (
-              part.type === "tool-call" &&
-              part.output !== undefined &&
-              !part.approval
-            ) {
-              clientToolResults.set(part.id, part.output);
-            }
-          }
-        }
-
         try {
           const stream = aiInstance.chat({
             messages,
@@ -84,8 +56,6 @@ export const Route = createFileRoute("/api/tanchat")({
             tools: allTools,
             systemPrompts: [SYSTEM_PROMPT],
             agentLoopStrategy: maxIterations(20),
-            approvals,
-            clientToolResults,
             providerOptions: {
               store: true,
               parallelToolCalls: false, // Force sequential tool calls

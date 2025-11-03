@@ -115,10 +115,6 @@ export interface ChatCompletionOptions {
   metadata?: Record<string, any>;
   /** Provider-specific options (e.g., OpenAI's store, parallel_tool_calls, etc.) */
   providerOptions?: Record<string, any>;
-  /** Map of approval responses (approval.id -> approved boolean) */
-  approvals?: Map<string, boolean>;
-  /** Map of client-side tool execution results (toolCallId -> result) */
-  clientToolResults?: Map<string, any>;
 }
 
 export type StreamChunkType =

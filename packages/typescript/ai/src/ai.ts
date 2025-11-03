@@ -282,12 +282,42 @@ class AI<
           },
         ];
 
+        // Extract approvals and client tool results from messages
+        const approvals = new Map<string, boolean>();
+        const clientToolResults = new Map<string, any>();
+        
+        // Look for approval responses and client tool outputs in assistant messages
+        for (const msg of messages) {
+          if (msg.role === "assistant" && (msg as any).parts) {
+            const parts = (msg as any).parts;
+            for (const part of parts) {
+              // Handle approval responses
+              if (
+                part.type === "tool-call" &&
+                part.state === "approval-responded" &&
+                part.approval
+              ) {
+                approvals.set(part.approval.id, part.approval.approved);
+              }
+
+              // Handle client tool outputs
+              if (
+                part.type === "tool-call" &&
+                part.output !== undefined &&
+                !part.approval
+              ) {
+                clientToolResults.set(part.id, part.output);
+              }
+            }
+          }
+        }
+
         // Execute tools using new executor
         const executionResult = await executeToolCalls(
           toolCallsArray,
           tools,
-          options.approvals,
-          options.clientToolResults
+          approvals,
+          clientToolResults
         );
 
         // Check if we need approvals or client execution
