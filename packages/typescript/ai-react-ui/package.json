@@ -26,6 +26,14 @@
     "headless",
     "components"
   ],
+  "dependencies": {
+    "react-markdown": "^10.1.0",
+    "rehype-highlight": "^7.0.0",
+    "rehype-raw": "^7.0.0",
+    "rehype-sanitize": "^6.0.0",
+    "remark-gfm": "^4.0.1",
+    "highlight.js": "^11.11.1"
+  },
   "peerDependencies": {
     "react": "^18.0.0 || ^19.0.0",
     "react-dom": "^18.0.0 || ^19.0.0",

@@ -30,6 +30,7 @@ export { ChatMessages, type ChatMessagesProps } from "./chat-messages";
 export { ChatMessage, type ChatMessageProps } from "./chat-message";
 export { ChatInput, type ChatInputProps, type ChatInputRenderProps } from "./chat-input";
 export { ToolApproval, type ToolApprovalProps, type ToolApprovalRenderProps } from "./tool-approval";
+export { TextPart, type TextPartProps } from "./text-part";
 
 // Compound component pattern
 import { Chat } from "./chat";
@@ -53,7 +54,7 @@ export type {
   MessagePart,
   ToolCallPart,
   ToolResultPart,
-  TextPart,
+  TextPart as TextPartType,
   ConnectionAdapter,
   UseChatOptions,
   UseChatReturn,

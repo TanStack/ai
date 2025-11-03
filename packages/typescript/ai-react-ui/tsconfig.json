@@ -6,7 +6,8 @@
     "jsx": "react-jsx",
     "declaration": true,
     "declarationMap": true,
-    "composite": true
+    "composite": true,
+    "lib": ["ES2022", "DOM"]
   },
   "include": ["src/**/*"],
   "exclude": ["node_modules", "dist"]
