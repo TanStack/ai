@@ -129,7 +129,9 @@ const result = await chat({
   adapter: openai(),
   model: "gpt-4o",
   messages: [{ role: "user", content: "Recommend a guitar" }],
-  output: guitarSchema, // Only available in promise mode
+  options: {
+    responseFormat: guitarSchema, // Only available in promise mode
+  },
 });
 
 // ✅ res.data is now fully typed!
@@ -140,6 +142,11 @@ if (result.data) {
 ```
 
 ## Installation
+
+> Note
+>
+> - Structured outputs via `options.responseFormat` are only available in promise mode. When using `as: "stream"` or `as: "response"`, structured JSON is not parsed and you receive raw text/stream.
+> - On successful parsing, `result.data` is populated and typed; if parsing fails, `result.data` will be `undefined` and `result.content` will contain the raw model output.
 
 ```bash
 # Core library
@@ -318,8 +325,7 @@ const result = await video({
 import { ai } from "@tanstack/ai";
 import { openai } from "@tanstack/ai-openai";
 
-const aiInstance = ai({
-  adapter: openai(),
+const aiInstance = ai(openai(), {
   systemPrompts: ["You are a helpful assistant."],
 });
 ```
@@ -383,13 +389,13 @@ import { openai } from "@tanstack/ai-openai";
 
 export async function POST(request: Request) {
   const { messages } = await request.json();
-  
+
   const stream = chat({
     adapter: openai(),
     model: "gpt-4o",
     messages,
   });
-  
+
   // Returns Response with SSE headers and streaming body
   return toStreamResponse(stream);
 }
@@ -448,14 +454,17 @@ const result = await chat({
   adapter: openai(),
   model: "gpt-4o",
   messages: [{ role: "user", content: "Tell me about John Doe" }],
-  output: schema,
+  options: {
+    responseFormat: schema,
+  },
 });
 
-// result.data is typed based on the schema
+// result.data is typed based on the schema (promise mode only)
 if (result.data) {
   console.log(result.data.name); // string
   console.log(result.data.age); // number
 }
+// If parsing fails, `result.data` will be undefined and `result.content` will contain raw text.
 ```
 
 #### `tool(config)`

@@ -15,41 +15,151 @@ import type {
   TextToSpeechResult,
   VideoGenerationOptions,
   VideoGenerationResult,
-  ResponseFormat,
 } from "./types";
 import { ai as AI } from "./ai";
 
-// Extract types from a single adapter
-type ExtractModelsFromAdapter<T> = T extends AIAdapter<infer M, any, any, any, any, any, any, any, any, any> ? M[number] : never;
-type ExtractImageModelsFromAdapter<T> = T extends AIAdapter<any, infer M, any, any, any, any, any, any, any, any> ? M[number] : never;
-type ExtractAudioModelsFromAdapter<T> = T extends AIAdapter<any, any, any, infer M, any, any, any, any, any, any> ? M[number] : never;
-type ExtractVideoModelsFromAdapter<T> = T extends AIAdapter<any, any, any, any, infer M, any, any, any, any, any> ? M[number] : never;
-type ExtractChatProviderOptionsFromAdapter<T> = T extends AIAdapter<any, any, any, any, any, infer P, any, any, any, any> ? P : Record<string, any>;
-type ExtractImageProviderOptionsFromAdapter<T> = T extends AIAdapter<any, any, any, any, any, any, infer P, any, any, any> ? P : Record<string, any>;
-type ExtractAudioProviderOptionsFromAdapter<T> = T extends AIAdapter<any, any, any, any, any, any, any, any, infer P, any> ? P : Record<string, any>;
-type ExtractVideoProviderOptionsFromAdapter<T> = T extends AIAdapter<any, any, any, any, any, any, any, any, any, infer P> ? P : Record<string, any>;
+// Extract types from adapter
+type ExtractModelsFromAdapter<T> = T extends AIAdapter<
+  infer M,
+  any,
+  any,
+  any,
+  any,
+  any,
+  any,
+  any,
+  any,
+  any
+>
+  ? M[number]
+  : never;
+type ExtractImageModelsFromAdapter<T> = T extends AIAdapter<
+  any,
+  infer M,
+  any,
+  any,
+  any,
+  any,
+  any,
+  any,
+  any,
+  any
+>
+  ? M[number]
+  : never;
+type ExtractAudioModelsFromAdapter<T> = T extends AIAdapter<
+  any,
+  any,
+  any,
+  infer M,
+  any,
+  any,
+  any,
+  any,
+  any,
+  any
+>
+  ? M[number]
+  : never;
+type ExtractVideoModelsFromAdapter<T> = T extends AIAdapter<
+  any,
+  any,
+  any,
+  any,
+  infer M,
+  any,
+  any,
+  any,
+  any,
+  any
+>
+  ? M[number]
+  : never;
+type ExtractChatProviderOptionsFromAdapter<T> = T extends AIAdapter<
+  any,
+  any,
+  any,
+  any,
+  any,
+  infer P,
+  any,
+  any,
+  any,
+  any
+>
+  ? P
+  : Record<string, any>;
+type ExtractImageProviderOptionsFromAdapter<T> = T extends AIAdapter<
+  any,
+  any,
+  any,
+  any,
+  any,
+  any,
+  infer P,
+  any,
+  any,
+  any
+>
+  ? P
+  : Record<string, any>;
+type ExtractAudioProviderOptionsFromAdapter<T> = T extends AIAdapter<
+  any,
+  any,
+  any,
+  any,
+  any,
+  any,
+  any,
+  any,
+  infer P,
+  any
+>
+  ? P
+  : Record<string, any>;
+type ExtractVideoProviderOptionsFromAdapter<T> = T extends AIAdapter<
+  any,
+  any,
+  any,
+  any,
+  any,
+  any,
+  any,
+  any,
+  any,
+  infer P
+>
+  ? P
+  : Record<string, any>;
 
 // Chat streaming options
-type ChatStreamOptions<TAdapter extends AIAdapter<any, any, any, any, any, any, any, any, any, any>> =
-  Omit<ChatCompletionOptions, "model" | "providerOptions" | "responseFormat"> & {
-    adapter: TAdapter;
-    model: ExtractModelsFromAdapter<TAdapter>;
-    providerOptions?: ExtractChatProviderOptionsFromAdapter<TAdapter>;
-  };
+type ChatStreamOptions<
+  TAdapter extends AIAdapter<any, any, any, any, any, any, any, any, any, any>
+> = Omit<
+  ChatCompletionOptions,
+  "model" | "providerOptions" | "responseFormat"
+> & {
+  adapter: TAdapter;
+  model: ExtractModelsFromAdapter<TAdapter>;
+  providerOptions?: ExtractChatProviderOptionsFromAdapter<TAdapter>;
+};
 
 // Chat completion options with optional structured output
 type ChatCompletionOptionsWithAdapter<
   TAdapter extends AIAdapter<any, any, any, any, any, any, any, any, any, any>,
   TOutput extends ResponseFormat<any> | undefined = undefined
-> = Omit<ChatCompletionOptions, "model" | "providerOptions" | "responseFormat"> & {
-    adapter: TAdapter;
-    model: ExtractModelsFromAdapter<TAdapter>;
-    output?: TOutput;
-    providerOptions?: ExtractChatProviderOptionsFromAdapter<TAdapter>;
-  };
+> = Omit<
+  ChatCompletionOptions,
+  "model" | "providerOptions" | "responseFormat"
+> & {
+  adapter: TAdapter;
+  model: ExtractModelsFromAdapter<TAdapter>;
+  output?: TOutput;
+  providerOptions?: ExtractChatProviderOptionsFromAdapter<TAdapter>;
+};
 
 // Helper type for chatCompletion return type
-type ChatCompletionReturnType<TOutput extends ResponseFormat<any> | undefined> = 
+type ChatCompletionReturnType<TOutput extends ResponseFormat<any> | undefined> =
   TOutput extends ResponseFormat<infer TData>
     ? ChatCompletionResult<TData>
     : ChatCompletionResult;
@@ -58,14 +168,14 @@ type ChatCompletionReturnType<TOutput extends ResponseFormat<any> | undefined> =
  * Standalone chat streaming function with type inference from adapter
  * Returns an async iterable of StreamChunks for streaming responses
  * Includes automatic tool execution loop
- * 
+ *
  * @param options Chat options
  * @param options.adapter - AI adapter instance to use
  * @param options.model - Model name (autocompletes based on adapter)
  * @param options.messages - Conversation messages
  * @param options.tools - Optional tools for function calling (auto-executed)
  * @param options.agentLoopStrategy - Optional strategy for controlling tool execution loop
- * 
+ *
  * @example
  * ```typescript
  * const stream = chat({
@@ -74,7 +184,8 @@ type ChatCompletionReturnType<TOutput extends ResponseFormat<any> | undefined> =
  *   messages: [{ role: 'user', content: 'Hello!' }],
  *   tools: [weatherTool], // Optional: auto-executed when called
  * });
- * 
+ * ```
+ *
  * for await (const chunk of stream) {
  *   if (chunk.type === 'content') {
  *     console.log(chunk.delta);
@@ -84,9 +195,7 @@ type ChatCompletionReturnType<TOutput extends ResponseFormat<any> | undefined> =
  */
 export function chat<
   TAdapter extends AIAdapter<any, any, any, any, any, any, any, any, any, any>
->(
-  options: ChatStreamOptions<TAdapter>
-): AsyncIterable<StreamChunk> {
+>(options: ChatStreamOptions<TAdapter>): AsyncIterable<StreamChunk> {
   const { adapter, ...restOptions } = options;
   const aiInstance = new AI({ adapter });
   return aiInstance.chat(restOptions as any);
@@ -96,13 +205,13 @@ export function chat<
  * Standalone chat completion function with type inference from adapter
  * Returns a promise with optional structured output
  * Does NOT include automatic tool execution loop
- * 
+ *
  * @param options Chat completion options
  * @param options.adapter - AI adapter instance to use
  * @param options.model - Model name (autocompletes based on adapter)
  * @param options.messages - Conversation messages
  * @param options.output - Optional structured output format
- * 
+ *
  * @example
  * ```typescript
  * // Promise mode without structured output
@@ -111,7 +220,7 @@ export function chat<
  *   model: 'gpt-4o',
  *   messages: [{ role: 'user', content: 'Hello!' }],
  * });
- * 
+ *
  * // Promise mode with structured output
  * const result = await chatCompletion({
  *   adapter: openai(),
@@ -189,7 +298,9 @@ export async function image<
   const { adapter, model, prompt, providerOptions } = options;
 
   if (!adapter.generateImage) {
-    throw new Error(`Adapter ${adapter.name} does not support image generation`);
+    throw new Error(
+      `Adapter ${adapter.name} does not support image generation`
+    );
   }
 
   return adapter.generateImage({
@@ -215,7 +326,9 @@ export async function audio<
   const { adapter, model, file, providerOptions, ...restOptions } = options;
 
   if (!adapter.transcribeAudio) {
-    throw new Error(`Adapter ${adapter.name} does not support audio transcription`);
+    throw new Error(
+      `Adapter ${adapter.name} does not support audio transcription`
+    );
   }
 
   return adapter.transcribeAudio({
@@ -240,7 +353,8 @@ export async function speak<
     providerOptions?: ExtractChatProviderOptionsFromAdapter<TAdapter>;
   }
 ): Promise<TextToSpeechResult> {
-  const { adapter, model, input, voice, providerOptions, ...restOptions } = options;
+  const { adapter, model, input, voice, providerOptions, ...restOptions } =
+    options;
 
   if (!adapter.generateSpeech) {
     throw new Error(`Adapter ${adapter.name} does not support text-to-speech`);
@@ -271,42 +385,14 @@ export async function video<
   const { adapter, model, prompt, providerOptions } = options;
 
   if (!adapter.generateVideo) {
-    throw new Error(`Adapter ${adapter.name} does not support video generation`);
+    throw new Error(
+      `Adapter ${adapter.name} does not support video generation`
+    );
   }
 
   return adapter.generateVideo({
     model: model as string,
     prompt,
     providerOptions: providerOptions as any,
-  });
-}
-
-/**
- * Helper function to convert a stream to a Response object
- */
-function streamToResponse(stream: AsyncIterable<StreamChunk>): Response {
-  const encoder = new TextEncoder();
-
-  const readableStream = new ReadableStream({
-    async start(controller) {
-      try {
-        for await (const chunk of stream) {
-          const data = `data: ${JSON.stringify(chunk)}\n\n`;
-          controller.enqueue(encoder.encode(data));
-        }
-        controller.enqueue(encoder.encode("data: [DONE]\n\n"));
-        controller.close();
-      } catch (error) {
-        controller.error(error);
-      }
-    },
-  });
-
-  return new Response(readableStream, {
-    headers: {
-      "Content-Type": "text/event-stream",
-      "Cache-Control": "no-cache",
-      Connection: "keep-alive",
-    },
   });
 }

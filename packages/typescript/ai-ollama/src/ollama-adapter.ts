@@ -41,13 +41,99 @@ const OLLAMA_VIDEO_MODELS = [] as const;
 
 export type OllamaModel = (typeof OLLAMA_MODELS)[number];
 
+/**
+ * Ollama-specific provider options
+ * Based on Ollama API options
+ * @see https://github.com/ollama/ollama/blob/main/docs/api.md
+ */
+export interface OllamaProviderOptions {
+  /** Number of tokens to keep from the prompt */
+  num_keep?: number;
+  /** Number of tokens from context to consider for next token prediction */
+  top_k?: number;
+  /** Minimum probability for nucleus sampling */
+  min_p?: number;
+  /** Tail-free sampling parameter */
+  tfs_z?: number;
+  /** Typical probability sampling parameter */
+  typical_p?: number;
+  /** Number of previous tokens to consider for repetition penalty */
+  repeat_last_n?: number;
+  /** Penalty for repeating tokens */
+  repeat_penalty?: number;
+  /** Enable Mirostat sampling (0=disabled, 1=Mirostat, 2=Mirostat 2.0) */
+  mirostat?: number;
+  /** Target entropy for Mirostat */
+  mirostat_tau?: number;
+  /** Learning rate for Mirostat */
+  mirostat_eta?: number;
+  /** Enable penalize_newline */
+  penalize_newline?: boolean;
+  /** Enable NUMA support */
+  numa?: boolean;
+  /** Context window size */
+  num_ctx?: number;
+  /** Batch size for prompt processing */
+  num_batch?: number;
+  /** Number of GQA groups (for some models) */
+  num_gqa?: number;
+  /** Number of GPU layers to use */
+  num_gpu?: number;
+  /** GPU to use for inference */
+  main_gpu?: number;
+  /** Use memory-mapped model */
+  use_mmap?: boolean;
+  /** Use memory-locked model */
+  use_mlock?: boolean;
+  /** Number of threads to use */
+  num_thread?: number;
+}
+
+/**
+ * Maps common options to Ollama-specific format
+ * Handles translation of normalized options to Ollama's API format
+ */
+function mapCommonOptionsToOllama(
+  options: ChatCompletionOptions,
+  providerOpts?: OllamaProviderOptions
+): any {
+  const ollamaOptions: any = {
+    temperature: options.temperature,
+    top_p: options.topP,
+    num_predict: options.maxTokens,
+    stop: options.stopSequences,
+  };
+
+  // Map common options
+  if (options.frequencyPenalty !== undefined) {
+    ollamaOptions.frequency_penalty = options.frequencyPenalty;
+  }
+  if (options.presencePenalty !== undefined) {
+    ollamaOptions.presence_penalty = options.presencePenalty;
+  }
+  if (options.seed !== undefined) {
+    ollamaOptions.seed = options.seed;
+  }
+
+  // Apply Ollama-specific provider options
+  if (providerOpts) {
+    Object.assign(ollamaOptions, providerOpts);
+  }
+
+  return {
+    model: options.model || "llama2",
+    options: ollamaOptions,
+    stream: options.stream || false,
+  };
+}
+
 export class Ollama extends BaseAdapter<
   typeof OLLAMA_MODELS,
   typeof OLLAMA_IMAGE_MODELS,
   typeof OLLAMA_EMBEDDING_MODELS,
   typeof OLLAMA_AUDIO_MODELS,
   typeof OLLAMA_VIDEO_MODELS,
-  Record<string, any>,
+  OllamaProviderOptions,
   Record<string, any>,
   Record<string, any>,
   Record<string, any>,
@@ -71,18 +157,18 @@ export class Ollama extends BaseAdapter<
   async chatCompletion(
     options: ChatCompletionOptions
   ): Promise<ChatCompletionResult> {
+    const providerOpts = options.providerOptions as OllamaProviderOptions | undefined;
+
+    // Map common options to Ollama format
+    const mappedOptions = mapCommonOptionsToOllama(options, providerOpts);
+
     const response = await this.client.chat({
-      model: options.model || "llama2",
+      model: mappedOptions.model,
       messages: options.messages.map((msg) => ({
         role: msg.role as "user" | "assistant" | "system",
         content: msg.content || "",
       })),
-      options: {
-        temperature: options.temperature,
-        top_p: options.topP,
-        num_predict: options.maxTokens,
-        stop: options.stopSequences,
-      },
+      options: mappedOptions.options,
       stream: false,
     });
 
@@ -109,18 +195,18 @@ export class Ollama extends BaseAdapter<
   async *chatCompletionStream(
     options: ChatCompletionOptions
   ): AsyncIterable<ChatCompletionChunk> {
+    const providerOpts = options.providerOptions as OllamaProviderOptions | undefined;
+
+    // Map common options to Ollama format
+    const mappedOptions = mapCommonOptionsToOllama(options, providerOpts);
+
     const response = await this.client.chat({
-      model: options.model || "llama2",
+      model: mappedOptions.model,
       messages: options.messages.map((msg) => ({
         role: msg.role as "user" | "assistant" | "system",
         content: msg.content || "",
       })),
-      options: {
-        temperature: options.temperature,
-        top_p: options.topP,
-        num_predict: options.maxTokens,
-        stop: options.stopSequences,
-      },
+      options: mappedOptions.options,
       stream: true,
     });
 

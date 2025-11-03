@@ -41,12 +41,12 @@ export type AnthropicModel = (typeof ANTHROPIC_MODELS)[number];
  * @see https://ai-sdk.dev/providers/ai-sdk-providers/anthropic
  */
 export interface AnthropicProviderOptions {
-  /** Enable reasoning with budget tokens */
+  /** Enable extended thinking with budget tokens */
   thinking?: {
     type: 'enabled';
     budgetTokens: number;
   };
-  /** Cache control for prompt caching */
+  /** Prompt caching configuration (beta) */
   cacheControl?: {
     type: 'ephemeral';
     /** Cache TTL: '5m' (default) | '1h' */
@@ -54,6 +54,79 @@ export interface AnthropicProviderOptions {
   };
   /** Include reasoning content in requests. Defaults to true */
   sendReasoning?: boolean;
+}
+
+/**
+ * Maps common options to Anthropic-specific format
+ * Handles translation of normalized options to Anthropic's API format
+ */
+function mapCommonOptionsToAnthropic(
+  options: ChatCompletionOptions,
+  providerOpts?: AnthropicProviderOptions
+): any {
+  const requestParams: any = {
+    model: options.model,
+    max_tokens: options.maxTokens || 1024,
+    temperature: options.temperature,
+    top_p: options.topP,
+    stop_sequences: options.stopSequences,
+    stream: options.stream || false,
+  };
+
+  if (options.metadata) {
+    requestParams.metadata = options.metadata;
+  }
+
+  // Map tools if provided
+  if (options.tools && options.tools.length > 0) {
+    requestParams.tools = options.tools.map((t) => ({
+      name: t.function.name,
+      description: t.function.description,
+      input_schema: t.function.parameters,
+    }));
+
+    // Map tool choice
+    if (options.toolChoice) {
+      if (options.toolChoice === "auto") {
+        requestParams.tool_choice = { type: "auto" };
+      } else if (options.toolChoice === "required") {
+        requestParams.tool_choice = { type: "any" };
+      } else if (typeof options.toolChoice === "object") {
+        requestParams.tool_choice = {
+          type: "tool",
+          name: options.toolChoice.function.name,
+        };
+      }
+      // "none" is not supported by Anthropic, just omit tools instead
+    }
+  }
+
+  // Apply Anthropic-specific provider options
+  if (providerOpts) {
+    if (providerOpts.thinking) {
+      requestParams.thinking = providerOpts.thinking;
+    }
+    // Note: cacheControl and sendReasoning are applied at the message/tool level,
+    // not at the top-level request
+  }
+
+  // Custom headers and abort signal handled at HTTP client level
+  if (options.headers) {
+    requestParams._headers = options.headers;
+  }
+  if (options.abortSignal) {
+    requestParams._abortSignal = options.abortSignal;
+  }
+
+  // Anthropic uses user_id in metadata, not top-level user
+  if (options.user) {
+    if (!requestParams.metadata) {
+      requestParams.metadata = {};
+    }
+    requestParams.metadata.user_id = options.user;
+  }
+
+  return requestParams;
 }
 
 export class Anthropic extends BaseAdapter<
@@ -89,44 +162,34 @@ export class Anthropic extends BaseAdapter<
     const providerOpts = options.providerOptions as AnthropicProviderOptions | undefined;
     const { systemMessage, messages } = this.formatMessages(options.messages);
 
-    const requestParams: any = {
-      model: options.model || "claude-3-sonnet-20240229",
-      messages: messages as any,
-      system: systemMessage,
-      max_tokens: options.maxTokens || 1024,
-      temperature: options.temperature,
-      top_p: options.topP,
-      stop_sequences: options.stopSequences,
-      stream: false,
-    };
+    // Map common options to Anthropic format using the centralized mapping function
+    const requestParams = mapCommonOptionsToAnthropic(options, providerOpts);
 
-    // Apply Anthropic-specific provider options
-    if (providerOpts) {
-      if (providerOpts.thinking) {
-        requestParams.thinking = providerOpts.thinking;
-      }
-      // Note: cacheControl and sendReasoning are applied at the message/tool level
+    // Add formatted messages and system message
+    requestParams.messages = messages as any;
+    requestParams.system = systemMessage;
+
+    // Force stream to false for non-streaming
+    requestParams.stream = false;
+
+    // Set default model if not provided
+    if (!requestParams.model) {
+      requestParams.model = "claude-3-sonnet-20240229";
     }
 
-    // Add tools if provided
-    if (options.tools && options.tools.length > 0) {
-      requestParams.tools = options.tools.map((t) => ({
-        name: t.function.name,
-        description: t.function.description,
-        input_schema: t.function.parameters,
-      }));
+    // Extract custom headers and abort signal
+    const customHeaders = requestParams._headers;
+    const abortSignal = requestParams._abortSignal;
+    delete requestParams._headers;
+    delete requestParams._abortSignal;
 
-      if (options.toolChoice && typeof options.toolChoice === "object") {
-        requestParams.tool_choice = {
-          type: "tool",
-          name: options.toolChoice.function.name,
-        };
-      } else if (options.toolChoice === "auto") {
-        requestParams.tool_choice = { type: "auto" };
+    const response = await this.client.messages.create(
+      requestParams,
+      {
+        headers: customHeaders as Record<string, string> | undefined,
+        signal: abortSignal as AbortSignal | undefined,
       }
-    }
-
-    const response = await this.client.messages.create(requestParams);
+    );
 
     // Extract text content
     const textContent = response.content
@@ -164,18 +227,40 @@ export class Anthropic extends BaseAdapter<
   async *chatCompletionStream(
     options: ChatCompletionOptions
   ): AsyncIterable<ChatCompletionChunk> {
+    const providerOpts = options.providerOptions as AnthropicProviderOptions | undefined;
     const { systemMessage, messages } = this.formatMessages(options.messages);
 
-    const stream = await this.client.messages.create({
-      model: options.model || "claude-3-sonnet-20240229",
-      messages: messages as any,
-      system: systemMessage,
-      max_tokens: options.maxTokens || 1024,
-      temperature: options.temperature,
-      top_p: options.topP,
-      stop_sequences: options.stopSequences,
-      stream: true,
-    });
+    // Map common options to Anthropic format
+    const requestParams = mapCommonOptionsToAnthropic(options, providerOpts);
+
+    // Add formatted messages and system message
+    requestParams.messages = messages as any;
+    requestParams.system = systemMessage;
+
+    // Force stream to true
+    requestParams.stream = true;
+
+    // Set default model if not provided
+    if (!requestParams.model) {
+      requestParams.model = "claude-3-sonnet-20240229";
+    }
+
+    // Extract custom headers and abort signal
+    const customHeaders = requestParams._headers;
+    const abortSignal = requestParams._abortSignal;
+    delete requestParams._headers;
+    delete requestParams._abortSignal;
+
+    const streamResult = await this.client.messages.create(
+      requestParams,
+      {
+        headers: customHeaders as Record<string, string> | undefined,
+        signal: abortSignal as AbortSignal | undefined,
+      }
+    );
+
+    // TypeScript doesn't know this is a Stream when stream:true, but it is at runtime
+    const stream = streamResult as unknown as AsyncIterable<any>;
 
     for await (const chunk of stream) {
       if (
@@ -205,43 +290,34 @@ export class Anthropic extends BaseAdapter<
     const providerOpts = options.providerOptions as AnthropicProviderOptions | undefined;
     const { systemMessage, messages } = this.formatMessages(options.messages);
 
-    const requestParams: any = {
-      model: options.model || "claude-3-sonnet-20240229",
-      messages: messages as any,
-      system: systemMessage,
-      max_tokens: options.maxTokens || 1024,
-      temperature: options.temperature,
-      top_p: options.topP,
-      stop_sequences: options.stopSequences,
-      stream: true,
-    };
+    // Map common options to Anthropic format using the centralized mapping function
+    const requestParams = mapCommonOptionsToAnthropic(options, providerOpts);
 
-    // Apply Anthropic-specific provider options
-    if (providerOpts) {
-      if (providerOpts.thinking) {
-        requestParams.thinking = providerOpts.thinking;
-      }
+    // Add formatted messages and system message
+    requestParams.messages = messages as any;
+    requestParams.system = systemMessage;
+
+    // Force stream to true
+    requestParams.stream = true;
+
+    // Set default model if not provided
+    if (!requestParams.model) {
+      requestParams.model = "claude-3-sonnet-20240229";
     }
 
-    // Add tools if provided
-    if (options.tools && options.tools.length > 0) {
-      requestParams.tools = options.tools.map((t) => ({
-        name: t.function.name,
-        description: t.function.description,
-        input_schema: t.function.parameters,
-      }));
+    // Extract custom headers and abort signal
+    const customHeaders = requestParams._headers;
+    const abortSignal = requestParams._abortSignal;
+    delete requestParams._headers;
+    delete requestParams._abortSignal;
 
-      if (options.toolChoice && typeof options.toolChoice === "object") {
-        requestParams.tool_choice = {
-          type: "tool",
-          name: options.toolChoice.function.name,
-        };
-      } else if (options.toolChoice === "auto") {
-        requestParams.tool_choice = { type: "auto" };
+    const stream = (await this.client.messages.create(
+      requestParams,
+      {
+        headers: customHeaders as Record<string, string> | undefined,
+        signal: abortSignal as AbortSignal | undefined,
       }
-    }
-
-    const stream = (await this.client.messages.create(requestParams)) as any;
+    )) as any;
 
     let accumulatedContent = "";
     const timestamp = Date.now();
