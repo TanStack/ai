@@ -27,7 +27,7 @@
 // Main components
 export { Chat, useChatContext, type ChatProps } from "./chat";
 export { ChatMessages, type ChatMessagesProps } from "./chat-messages";
-export { ChatMessage, type ChatMessageProps } from "./chat-message";
+export { ChatMessage, type ChatMessageProps, type ToolCallRenderProps } from "./chat-message";
 export { ChatInput, type ChatInputProps, type ChatInputRenderProps } from "./chat-input";
 export { ToolApproval, type ToolApprovalProps, type ToolApprovalRenderProps } from "./tool-approval";
 export { TextPart, type TextPartProps } from "./text-part";

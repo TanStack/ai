@@ -1,28 +1,36 @@
 import type { ReactNode } from "react";
 import type { UIMessage, MessagePart } from "@tanstack/ai-react";
 
+export interface ToolCallRenderProps {
+  id: string;
+  name: string;
+  arguments: string;
+  state: string;
+  approval?: any;
+  output?: any;
+}
+
 export interface ChatMessageProps {
   /** The message to render */
   message: UIMessage;
-  /** CSS class name */
+  /** Base CSS class name */
   className?: string;
-  /** Custom part renderers */
-  partRenderers?: {
-    text?: (props: { content: string }) => ReactNode;
-    toolCall?: (props: {
-      id: string;
-      name: string;
-      arguments: string;
-      state: string;
-      approval?: any;
-      output?: any;
-    }) => ReactNode;
-    toolResult?: (props: {
-      toolCallId: string;
-      content: string;
-      state: string;
-    }) => ReactNode;
-  };
+  /** Additional className for user messages */
+  userClassName?: string;
+  /** Additional className for assistant messages */
+  assistantClassName?: string;
+  /** Custom renderer for text parts */
+  textPartRenderer?: (props: { content: string }) => ReactNode;
+  /** Named tool renderers - use the tool name as the key */
+  toolsRenderer?: Record<string, (props: ToolCallRenderProps) => ReactNode>;
+  /** Default tool renderer when tool name not found in toolsRenderer */
+  defaultToolRenderer?: (props: ToolCallRenderProps) => ReactNode;
+  /** Custom renderer for tool result parts */
+  toolResultRenderer?: (props: {
+    toolCallId: string;
+    content: string;
+    state: string;
+  }) => ReactNode;
 }
 
 /**
@@ -33,19 +41,50 @@ export interface ChatMessageProps {
  * - tool-call parts: rendered with state, approvals, etc.
  * - tool-result parts: rendered with results
  *
- * @example
+ * @example Basic usage
  * ```tsx
  * <Chat.Message message={message} />
+ * ```
+ *
+ * @example With role-based styling
+ * ```tsx
+ * <ChatMessage
+ *   message={message}
+ *   className="flex"
+ *   userClassName="justify-end"
+ *   assistantClassName="justify-start"
+ * />
+ * ```
+ *
+ * @example With named tool renderers
+ * ```tsx
+ * <ChatMessage
+ *   message={message}
+ *   toolsRenderer={{
+ *     recommendGuitar: ({ id, arguments: args }) => <GuitarCard {...JSON.parse(args)} />,
+ *     weatherLookup: ({ id, arguments: args }) => <WeatherWidget {...JSON.parse(args)} />,
+ *   }}
+ *   defaultToolRenderer={() => null}
+ * />
  * ```
  */
 export function ChatMessage({
   message,
-  className,
-  partRenderers,
+  className = "",
+  userClassName = "",
+  assistantClassName = "",
+  textPartRenderer,
+  toolsRenderer,
+  defaultToolRenderer,
+  toolResultRenderer,
 }: ChatMessageProps) {
+  // Combine classes based on role
+  const roleClassName = message.role === "user" ? userClassName : message.role === "assistant" ? assistantClassName : "";
+  const combinedClassName = [className, roleClassName].filter(Boolean).join(" ");
+
   return (
     <div
-      className={className}
+      className={combinedClassName || undefined}
       data-message-id={message.id}
       data-message-role={message.role}
       data-message-created={message.createdAt.toISOString()}
@@ -54,7 +93,10 @@ export function ChatMessage({
         <MessagePart
           key={`${message.id}-part-${index}`}
           part={part}
-          partRenderers={partRenderers}
+          textPartRenderer={textPartRenderer}
+          toolsRenderer={toolsRenderer}
+          defaultToolRenderer={defaultToolRenderer}
+          toolResultRenderer={toolResultRenderer}
         />
       ))}
     </div>
@@ -63,15 +105,21 @@ export function ChatMessage({
 
 function MessagePart({
   part,
-  partRenderers,
+  textPartRenderer,
+  toolsRenderer,
+  defaultToolRenderer,
+  toolResultRenderer,
 }: {
   part: MessagePart;
-  partRenderers?: ChatMessageProps["partRenderers"];
+  textPartRenderer?: ChatMessageProps["textPartRenderer"];
+  toolsRenderer?: ChatMessageProps["toolsRenderer"];
+  defaultToolRenderer?: ChatMessageProps["defaultToolRenderer"];
+  toolResultRenderer?: ChatMessageProps["toolResultRenderer"];
 }) {
   // Text part
   if (part.type === "text") {
-    if (partRenderers?.text) {
-      return <>{partRenderers.text({ content: part.content })}</>;
+    if (textPartRenderer) {
+      return <>{textPartRenderer({ content: part.content })}</>;
     }
     return (
       <div data-part-type="text" data-part-content>
@@ -82,21 +130,26 @@ function MessagePart({
 
   // Tool call part
   if (part.type === "tool-call") {
-    if (partRenderers?.toolCall) {
-      return (
-        <>
-          {partRenderers.toolCall({
-            id: part.id,
-            name: part.name,
-            arguments: part.arguments,
-            state: part.state,
-            approval: part.approval,
-            output: part.output,
-          })}
-        </>
-      );
+    const toolProps: ToolCallRenderProps = {
+      id: part.id,
+      name: part.name,
+      arguments: part.arguments,
+      state: part.state,
+      approval: part.approval,
+      output: part.output,
+    };
+
+    // Check if there's a specific renderer for this tool
+    if (toolsRenderer?.[part.name]) {
+      return <>{toolsRenderer[part.name](toolProps)}</>;
     }
 
+    // Use default tool renderer if provided
+    if (defaultToolRenderer) {
+      return <>{defaultToolRenderer(toolProps)}</>;
+    }
+
+    // Fallback to built-in default renderer
     return (
       <div
         data-part-type="tool-call"
@@ -133,10 +186,10 @@ function MessagePart({
 
   // Tool result part
   if (part.type === "tool-result") {
-    if (partRenderers?.toolResult) {
+    if (toolResultRenderer) {
       return (
         <>
-          {partRenderers.toolResult({
+          {toolResultRenderer({
             toolCallId: part.toolCallId,
             content: part.content,
             state: part.state,
