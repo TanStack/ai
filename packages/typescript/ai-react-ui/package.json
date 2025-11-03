@@ -1,0 +1,45 @@
+{
+  "name": "@tanstack/ai-react-ui",
+  "version": "0.0.1",
+  "description": "Headless React components for building AI chat interfaces",
+  "main": "./dist/index.js",
+  "module": "./dist/index.mjs",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "import": "./dist/index.mjs",
+      "require": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    }
+  },
+  "scripts": {
+    "build": "tsdown",
+    "dev": "tsdown --watch",
+    "test": "vitest"
+  },
+  "keywords": [
+    "tanstack",
+    "ai",
+    "react",
+    "chat",
+    "ui",
+    "headless",
+    "components"
+  ],
+  "peerDependencies": {
+    "react": "^18.0.0 || ^19.0.0",
+    "react-dom": "^18.0.0 || ^19.0.0",
+    "@tanstack/ai-react": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/react": "^18.2.0",
+    "@types/react-dom": "^18.2.0",
+    "tsdown": "^0.15.9",
+    "typescript": "^5.6.3",
+    "vitest": "^2.1.8"
+  },
+  "files": [
+    "dist"
+  ]
+}
+
