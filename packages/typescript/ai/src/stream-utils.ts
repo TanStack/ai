@@ -1,10 +1,10 @@
 import type { ChatCompletionChunk, StreamChunk } from "./types";
 
 /**
- * Converts legacy ChatCompletionChunk stream to new StreamChunk format
- * This is a helper for adapters that haven't implemented the new streaming yet
+ * Converts ChatCompletionChunk stream to StreamChunk format
+ * This is a helper for adapters using the simpler ChatCompletionChunk format
  */
-export async function* convertLegacyStream(
+export async function* convertChatCompletionStream(
   stream: AsyncIterable<ChatCompletionChunk>,
   _model: string
 ): AsyncIterable<StreamChunk> {

@@ -1,13 +1,13 @@
 import { useState, useCallback, useRef, useEffect, useId } from "react";
 import { ChatClient } from "@tanstack/ai-client";
 import type { ModelMessage } from "@tanstack/ai";
-import type { UseChatOptions, UseChatReturn, ChatMessage } from "./types";
+import type { UseChatOptions, UseChatReturn, UIMessage } from "./types";
 
 export function useChat(options: UseChatOptions = {}): UseChatReturn {
   const hookId = useId();
   const clientId = options.id || hookId;
 
-  const [messages, setMessages] = useState<ChatMessage[]>(
+  const [messages, setMessages] = useState<UIMessage[]>(
     options.initialMessages || []
   );
   const [isLoading, setIsLoading] = useState(false);
@@ -20,7 +20,7 @@ export function useChat(options: UseChatOptions = {}): UseChatReturn {
     clientRef.current = new ChatClient({
       ...options,
       id: clientId,
-      onMessagesChange: (newMessages: ChatMessage[]) => {
+      onMessagesChange: (newMessages: UIMessage[]) => {
         setMessages(newMessages);
       },
       onLoadingChange: (newIsLoading: boolean) => {
@@ -49,7 +49,7 @@ export function useChat(options: UseChatOptions = {}): UseChatReturn {
   );
 
   const append = useCallback(
-    async (message: ModelMessage | ChatMessage) => {
+    async (message: ModelMessage | UIMessage) => {
       await client.append(message);
     },
     [client]
@@ -68,8 +68,28 @@ export function useChat(options: UseChatOptions = {}): UseChatReturn {
   }, [client]);
 
   const setMessagesManually = useCallback(
-    (newMessages: ChatMessage[]) => {
+    (newMessages: UIMessage[]) => {
       client.setMessagesManually(newMessages);
+    },
+    [client]
+  );
+
+  const addToolResult = useCallback(
+    async (result: {
+      toolCallId: string;
+      tool: string;
+      output: any;
+      state?: "output-available" | "output-error";
+      errorText?: string;
+    }) => {
+      await client.addToolResult(result);
+    },
+    [client]
+  );
+
+  const addToolApprovalResponse = useCallback(
+    async (response: { id: string; approved: boolean }) => {
+      await client.addToolApprovalResponse(response);
     },
     [client]
   );
@@ -84,5 +104,7 @@ export function useChat(options: UseChatOptions = {}): UseChatReturn {
     error,
     setMessages: setMessagesManually,
     clear,
+    addToolResult,
+    addToolApprovalResponse,
   };
 }

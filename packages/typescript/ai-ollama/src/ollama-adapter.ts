@@ -1,7 +1,7 @@
 import { Ollama as OllamaSDK } from "ollama";
 import {
   BaseAdapter,
-  convertLegacyStream,
+  convertChatCompletionStream,
   type ChatCompletionOptions,
   type ChatCompletionResult,
   type ChatCompletionChunk,
@@ -138,9 +138,9 @@ export class Ollama extends BaseAdapter<
   async *chatStream(
     options: ChatCompletionOptions
   ): AsyncIterable<StreamChunk> {
-    // Use legacy stream converter for now
+    // Use stream converter for now
     // TODO: Implement native structured streaming for Ollama
-    yield* convertLegacyStream(
+    yield* convertChatCompletionStream(
       this.chatCompletionStream(options),
       options.model || "llama2"
     );

@@ -1,7 +1,7 @@
 import { GoogleGenerativeAI, Content } from "@google/generative-ai";
 import {
   BaseAdapter,
-  convertLegacyStream,
+  convertChatCompletionStream,
   type AIAdapterConfig,
   type ChatCompletionOptions,
   type ChatCompletionResult,
@@ -123,9 +123,9 @@ export class GeminiAdapter extends BaseAdapter<
   async *chatStream(
     options: ChatCompletionOptions
   ): AsyncIterable<StreamChunk> {
-    // Use legacy stream converter for now
+    // Use stream converter for now
     // TODO: Implement native structured streaming for Gemini
-    yield* convertLegacyStream(
+    yield* convertChatCompletionStream(
       this.chatCompletionStream(options),
       options.model || "gemini-pro"
     );

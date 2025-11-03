@@ -10,6 +10,7 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as ApiTestChatRouteImport } from './routes/api.test-chat'
 import { Route as ApiTanchatRouteImport } from './routes/api.tanchat'
 import { Route as ExampleGuitarsIndexRouteImport } from './routes/example.guitars/index'
 import { Route as ExampleGuitarsGuitarIdRouteImport } from './routes/example.guitars/$guitarId'
@@ -17,6 +18,11 @@ import { Route as ExampleGuitarsGuitarIdRouteImport } from './routes/example.gui
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiTestChatRoute = ApiTestChatRouteImport.update({
+  id: '/api/test-chat',
+  path: '/api/test-chat',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiTanchatRoute = ApiTanchatRouteImport.update({
@@ -38,12 +44,14 @@ const ExampleGuitarsGuitarIdRoute = ExampleGuitarsGuitarIdRouteImport.update({
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/api/tanchat': typeof ApiTanchatRoute
+  '/api/test-chat': typeof ApiTestChatRoute
   '/example/guitars/$guitarId': typeof ExampleGuitarsGuitarIdRoute
   '/example/guitars': typeof ExampleGuitarsIndexRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/api/tanchat': typeof ApiTanchatRoute
+  '/api/test-chat': typeof ApiTestChatRoute
   '/example/guitars/$guitarId': typeof ExampleGuitarsGuitarIdRoute
   '/example/guitars': typeof ExampleGuitarsIndexRoute
 }
@@ -51,6 +59,7 @@ export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/api/tanchat': typeof ApiTanchatRoute
+  '/api/test-chat': typeof ApiTestChatRoute
   '/example/guitars/$guitarId': typeof ExampleGuitarsGuitarIdRoute
   '/example/guitars/': typeof ExampleGuitarsIndexRoute
 }
@@ -59,14 +68,21 @@ export interface FileRouteTypes {
   fullPaths:
     | '/'
     | '/api/tanchat'
+    | '/api/test-chat'
     | '/example/guitars/$guitarId'
     | '/example/guitars'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/api/tanchat' | '/example/guitars/$guitarId' | '/example/guitars'
+  to:
+    | '/'
+    | '/api/tanchat'
+    | '/api/test-chat'
+    | '/example/guitars/$guitarId'
+    | '/example/guitars'
   id:
     | '__root__'
     | '/'
     | '/api/tanchat'
+    | '/api/test-chat'
     | '/example/guitars/$guitarId'
     | '/example/guitars/'
   fileRoutesById: FileRoutesById
@@ -74,6 +90,7 @@ export interface FileRouteTypes {
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   ApiTanchatRoute: typeof ApiTanchatRoute
+  ApiTestChatRoute: typeof ApiTestChatRoute
   ExampleGuitarsGuitarIdRoute: typeof ExampleGuitarsGuitarIdRoute
   ExampleGuitarsIndexRoute: typeof ExampleGuitarsIndexRoute
 }
@@ -85,6 +102,13 @@ declare module '@tanstack/react-router' {
       path: '/'
       fullPath: '/'
       preLoaderRoute: typeof IndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/test-chat': {
+      id: '/api/test-chat'
+      path: '/api/test-chat'
+      fullPath: '/api/test-chat'
+      preLoaderRoute: typeof ApiTestChatRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/tanchat': {
@@ -114,6 +138,7 @@ declare module '@tanstack/react-router' {
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   ApiTanchatRoute: ApiTanchatRoute,
+  ApiTestChatRoute: ApiTestChatRoute,
   ExampleGuitarsGuitarIdRoute: ExampleGuitarsGuitarIdRoute,
   ExampleGuitarsIndexRoute: ExampleGuitarsIndexRoute,
 }

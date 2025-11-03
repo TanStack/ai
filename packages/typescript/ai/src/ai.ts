@@ -19,6 +19,7 @@ import type {
   ResponseFormat,
 } from "./types";
 import { ToolCallManager } from "./tool-call-manager";
+import { executeToolCalls } from "./agent/executor";
 import { maxIterations as maxIterationsStrategy } from "./agent-loop-strategies";
 
 // Extract types from a single adapter
@@ -281,11 +282,75 @@ class AI<
           },
         ];
 
-        // Execute tools and yield tool_result chunks
-        const toolResults = yield* toolCallManager.executeTools(doneChunk);
+        // Execute tools using new executor
+        const executionResult = await executeToolCalls(
+          toolCallsArray,
+          tools,
+          options.approvals,
+          options.clientToolResults
+        );
 
-        // Add tool results to messages
-        messages = [...messages, ...toolResults];
+        // Check if we need approvals or client execution
+        if (
+          executionResult.needsApproval.length > 0 ||
+          executionResult.needsClientExecution.length > 0
+        ) {
+          // Emit special chunks for client
+          for (const approval of executionResult.needsApproval) {
+            yield {
+              type: "approval-requested",
+              id: doneChunk.id,
+              model: doneChunk.model,
+              timestamp: Date.now(),
+              toolCallId: approval.toolCallId,
+              toolName: approval.toolName,
+              input: approval.input,
+              approval: {
+                id: approval.approvalId,
+                needsApproval: true as const,
+              },
+            };
+          }
+
+          for (const clientTool of executionResult.needsClientExecution) {
+            yield {
+              type: "tool-input-available",
+              id: doneChunk.id,
+              model: doneChunk.model,
+              timestamp: Date.now(),
+              toolCallId: clientTool.toolCallId,
+              toolName: clientTool.toolName,
+              input: clientTool.input,
+            };
+          }
+
+          // STOP the loop - wait for client to respond
+          return;
+        }
+
+        // Execute completed tools - emit tool_result chunks
+        for (const result of executionResult.results) {
+          const resultChunk = {
+            type: "tool_result" as const,
+            id: doneChunk.id,
+            model: doneChunk.model,
+            timestamp: Date.now(),
+            toolCallId: result.toolCallId,
+            content: JSON.stringify(result.result),
+          };
+          
+          yield resultChunk;
+
+          // Add to messages
+          messages = [
+            ...messages,
+            {
+              role: "tool" as const,
+              content: resultChunk.content,
+              toolCallId: result.toolCallId,
+            },
+          ];
+        }
 
         // Clear tool calls for next iteration
         toolCallManager.clear();

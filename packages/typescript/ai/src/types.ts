@@ -29,6 +29,8 @@ export interface Tool {
   };
   /** Optional function to execute when the model calls this tool. Returns the result as a string. */
   execute?: (args: any) => Promise<string> | string;
+  /** If true, tool execution requires user approval before running. Works with both server and client tools. */
+  needsApproval?: boolean;
 }
 
 export interface ToolConfig {
@@ -113,6 +115,10 @@ export interface ChatCompletionOptions {
   metadata?: Record<string, any>;
   /** Provider-specific options (e.g., OpenAI's store, parallel_tool_calls, etc.) */
   providerOptions?: Record<string, any>;
+  /** Map of approval responses (approval.id -> approved boolean) */
+  approvals?: Map<string, boolean>;
+  /** Map of client-side tool execution results (toolCallId -> result) */
+  clientToolResults?: Map<string, any>;
 }
 
 export type StreamChunkType =
@@ -120,7 +126,9 @@ export type StreamChunkType =
   | "tool_call"
   | "tool_result"
   | "done"
-  | "error";
+  | "error"
+  | "approval-requested"
+  | "tool-input-available";
 
 export interface BaseStreamChunk {
   type: StreamChunkType;
@@ -173,14 +181,35 @@ export interface ErrorStreamChunk extends BaseStreamChunk {
   };
 }
 
+export interface ApprovalRequestedStreamChunk extends BaseStreamChunk {
+  type: "approval-requested";
+  toolCallId: string;
+  toolName: string;
+  input: any;
+  approval: {
+    id: string;
+    needsApproval: true;
+  };
+}
+
+export interface ToolInputAvailableStreamChunk extends BaseStreamChunk {
+  type: "tool-input-available";
+  toolCallId: string;
+  toolName: string;
+  input: any;
+}
+
 export type StreamChunk =
   | ContentStreamChunk
   | ToolCallStreamChunk
   | ToolResultStreamChunk
   | DoneStreamChunk
-  | ErrorStreamChunk;
+  | ErrorStreamChunk
+  | ApprovalRequestedStreamChunk
+  | ToolInputAvailableStreamChunk;
 
-// Legacy support - keep for backwards compatibility
+// Simple streaming format for basic chat completions
+// Converted to StreamChunk format by convertChatCompletionStream()
 export interface ChatCompletionChunk {
   id: string;
   model: string;
@@ -463,7 +492,7 @@ export interface AIAdapter<
   videoModels?: TVideoModels;
 
   // Type-only properties for provider options inference
-  _providerOptions?: TChatProviderOptions; // Legacy - same as _chatProviderOptions
+  _providerOptions?: TChatProviderOptions; // Alias for _chatProviderOptions
   _chatProviderOptions?: TChatProviderOptions;
   _imageProviderOptions?: TImageProviderOptions;
   _embeddingProviderOptions?: TEmbeddingProviderOptions;
@@ -473,12 +502,12 @@ export interface AIAdapter<
   // Chat methods
   chatCompletion(options: ChatCompletionOptions): Promise<ChatCompletionResult>;
 
-  // Legacy streaming (kept for backwards compatibility)
+  // Simple streaming (returns ChatCompletionChunk - text only, no tool calls)
   chatCompletionStream(
     options: ChatCompletionOptions
   ): AsyncIterable<ChatCompletionChunk>;
 
-  // New structured streaming with JSON chunks
+  // Structured streaming with JSON chunks (supports tool calls and rich content)
   chatStream(options: ChatCompletionOptions): AsyncIterable<StreamChunk>;
 
   // Text generation methods

@@ -14,6 +14,7 @@
     "@ai-sdk/provider-utils": "^3.0.12",
     "@tailwindcss/vite": "^4.0.6",
     "@tanstack/ai": "workspace:*",
+    "@tanstack/ai-client": "workspace:*",
     "@tanstack/ai-anthropic": "workspace:*",
     "@tanstack/ai-ollama": "workspace:*",
     "@tanstack/ai-openai": "workspace:*",

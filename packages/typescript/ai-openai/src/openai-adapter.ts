@@ -175,7 +175,7 @@ export interface OpenAIChatProviderOptions {
 }
 
 /**
- * Legacy alias for backward compatibility
+ * Alias for OpenAIChatProviderOptions
  */
 export type OpenAIProviderOptions = OpenAIChatProviderOptions;
 

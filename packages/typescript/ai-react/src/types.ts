@@ -1,12 +1,12 @@
 import type { ModelMessage } from "@tanstack/ai";
 import type {
   ChatClientOptions,
-  ChatMessage,
+  UIMessage,
   ChatRequestBody,
 } from "@tanstack/ai-client";
 
 // Re-export types from ai-client
-export type { ChatMessage, ChatRequestBody };
+export type { UIMessage, ChatRequestBody };
 
 // UseChatOptions is the same as ChatClientOptions
 // (we omit the state change callbacks since React hooks manage that internally)
@@ -19,7 +19,7 @@ export interface UseChatReturn {
   /**
    * Current messages in the conversation
    */
-  messages: ChatMessage[];
+  messages: UIMessage[];
 
   /**
    * Send a message and get a response
@@ -29,7 +29,26 @@ export interface UseChatReturn {
   /**
    * Append a message to the conversation
    */
-  append: (message: ModelMessage | ChatMessage) => Promise<void>;
+  append: (message: ModelMessage | UIMessage) => Promise<void>;
+
+  /**
+   * Add the result of a client-side tool execution
+   */
+  addToolResult: (result: {
+    toolCallId: string;
+    tool: string;
+    output: any;
+    state?: "output-available" | "output-error";
+    errorText?: string;
+  }) => Promise<void>;
+
+  /**
+   * Respond to a tool approval request
+   */
+  addToolApprovalResponse: (response: {
+    id: string; // approval.id, not toolCallId
+    approved: boolean;
+  }) => Promise<void>;
 
   /**
    * Reload the last assistant message
@@ -54,7 +73,7 @@ export interface UseChatReturn {
   /**
    * Set messages manually
    */
-  setMessages: (messages: ChatMessage[]) => void;
+  setMessages: (messages: UIMessage[]) => void;
 
   /**
    * Clear all messages

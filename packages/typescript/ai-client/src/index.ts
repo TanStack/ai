@@ -8,8 +8,7 @@ export type {
   ToolResultPart,
   ToolCallState,
   ToolResultState,
-  // Legacy/compatibility types
-  ChatMessage,
+  // Client configuration types
   ChatClientOptions,
   ChatRequestBody,
 } from "./types";

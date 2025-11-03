@@ -21,19 +21,26 @@ import { ImmediateStrategy } from "./chunk-strategies";
 import { defaultJSONParser } from "../loose-json-parser";
 
 /**
- * Default parser - expects chunks in the format emitted by processStream
- * Supports both new format (StreamChunk) and legacy format (from stream.ts)
+ * Default parser - converts adapter StreamChunk format to processor format
+ * Adapters emit chunks with types: "content", "tool_call", "done"
+ * Processor expects chunks with types: "text", "tool-call-delta", "done"
  */
 class DefaultStreamParser implements StreamParser {
   async *parse(stream: AsyncIterable<any>): AsyncIterable<StreamChunk> {
     for await (const chunk of stream) {
-      // Pass through known chunk types
-      if (chunk.type === "text" || chunk.type === "tool-call-delta" || chunk.type === "done") {
+      // Pass through known processor format chunks
+      if (
+        chunk.type === "text" || 
+        chunk.type === "tool-call-delta" || 
+        chunk.type === "done" ||
+        chunk.type === "approval-requested" ||
+        chunk.type === "tool-input-available"
+      ) {
         yield chunk as StreamChunk;
         continue;
       }
 
-      // Legacy format: Convert "content" to "text"
+      // Convert adapter format: "content" to "text"
       if (chunk.type === "content" && chunk.content) {
         yield {
           type: "text",
@@ -41,7 +48,7 @@ class DefaultStreamParser implements StreamParser {
         };
       }
 
-      // Legacy format: Convert "tool_call" to "tool-call-delta"
+      // Convert adapter format: "tool_call" to "tool-call-delta"
       if ((chunk.type === "tool_call" || chunk.type === "tool-call-delta") && chunk.toolCall) {
         yield {
           type: "tool-call-delta",
@@ -129,6 +136,23 @@ export class StreamProcessor {
         // DON'T reset text - it might come after this event!
         this.completeAllToolCalls();
         break;
+      
+      case "approval-requested":
+        this.handlers.onApprovalRequested?.(
+          chunk.toolCallId!,
+          chunk.toolName!,
+          chunk.input!,
+          chunk.approval!.id
+        );
+        break;
+      
+      case "tool-input-available":
+        this.handlers.onToolInputAvailable?.(
+          chunk.toolCallId!,
+          chunk.toolName!,
+          chunk.input!
+        );
+        break;
     }
   }
 
@@ -184,7 +208,7 @@ export class StreamProcessor {
       // Get actual index for this tool call (based on order)
       const actualIndex = this.toolCallOrder.indexOf(toolCallId);
 
-      // Emit start event (legacy)
+      // Emit lifecycle event
       this.handlers.onToolCallStart?.(
         actualIndex,
         toolCall.id,
@@ -201,7 +225,7 @@ export class StreamProcessor {
         newToolCall.parsedArguments
       );
 
-      // Emit initial delta (legacy)
+      // Emit initial delta
       if (toolCall.function.arguments) {
         this.handlers.onToolCallDelta?.(actualIndex, toolCall.function.arguments);
       }
@@ -234,7 +258,7 @@ export class StreamProcessor {
         existingToolCall.parsedArguments
       );
 
-      // Emit delta (legacy)
+      // Emit delta
       if (toolCall.function.arguments) {
         this.handlers.onToolCallDelta?.(actualIndex, toolCall.function.arguments);
       }
@@ -284,7 +308,7 @@ export class StreamProcessor {
       toolCall.parsedArguments
     );
 
-    // Emit complete event (legacy)
+    // Emit complete event
     this.handlers.onToolCallComplete?.(
       index,
       toolCall.id,

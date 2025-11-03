@@ -234,7 +234,7 @@ const processor = new StreamProcessor({
 - ✅ `ToolCallState`, `ToolResultState` - State types
 - ✅ `uiMessageToModelMessages`, `modelMessageToUIMessage`, `modelMessagesToUIMessages` - Converters
 - ✅ `parsePartialJSON`, `PartialJSONParser`, `JSONParser` - JSON parsing utilities
-- ✅ `ChatMessage` - Now an alias for `UIMessage`
+- ✅ `UIMessage` - Domain-specific message format optimized for building chat UIs
 
 ## Breaking Changes
 

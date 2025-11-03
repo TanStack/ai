@@ -220,21 +220,21 @@ const stream = chat({
 });
 ```
 
-## Backwards Compatibility
+## Simplified Syntax
 
-The old `maxIterations` option still works:
+For convenience, you can use the `maxIterations` option directly:
 
 ```typescript
-// Old way (still supported)
+// Simplified syntax
 const stream = chat({
   adapter: openai(),
   model: "gpt-4o",
   messages: [...],
   tools: [...],
-  maxIterations: 5, // Deprecated but still works
+  maxIterations: 5, // Shorthand for agentLoopStrategy: maxIterations(5)
 });
 
-// New way (recommended)
+// Explicit strategy (more flexible)
 const stream = chat({
   adapter: openai(),
   model: "gpt-4o",

@@ -6,8 +6,12 @@ import rehypeRaw from "rehype-raw";
 import rehypeSanitize from "rehype-sanitize";
 import rehypeHighlight from "rehype-highlight";
 import remarkGfm from "remark-gfm";
-import { useChat, fetchServerSentEvents } from "@tanstack/ai-react";
-import type { ChatMessage } from "@tanstack/ai";
+import {
+  useChat,
+  fetchServerSentEvents,
+  type UIMessage,
+} from "@tanstack/ai-react";
+import { uiMessageToModelMessages } from "@tanstack/ai-client";
 
 import GuitarRecommendation from "@/components/example-GuitarRecommendation";
 
@@ -19,7 +23,16 @@ function ChatInputArea({ children }: { children: React.ReactNode }) {
   );
 }
 
-function Messages({ messages }: { messages: Array<ChatMessage> }) {
+function Messages({
+  messages,
+  addToolApprovalResponse,
+}: {
+  messages: Array<UIMessage>;
+  addToolApprovalResponse: (response: {
+    id: string;
+    approved: boolean;
+  }) => Promise<void>;
+}) {
   const messagesContainerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -81,15 +94,67 @@ function Messages({ messages }: { messages: Array<ChatMessage> }) {
                     );
                   }
 
+                  // Approval UI
                   if (
                     part.type === "tool-call" &&
-                    part.name === "recommendGuitar"
+                    part.state === "approval-requested" &&
+                    part.approval
+                  ) {
+                    return (
+                      <div
+                        key={part.id}
+                        className="p-4 bg-yellow-500/10 border border-yellow-500/20 rounded-lg mt-2"
+                      >
+                        <p className="text-white font-medium mb-2">
+                          🔒 Approval Required: {part.name}
+                        </p>
+                        <div className="text-gray-300 text-sm mb-3">
+                          <pre className="bg-gray-800 p-2 rounded text-xs overflow-x-auto">
+                            {JSON.stringify(
+                              JSON.parse(part.arguments),
+                              null,
+                              2
+                            )}
+                          </pre>
+                        </div>
+                        <div className="flex gap-2">
+                          <button
+                            onClick={() =>
+                              addToolApprovalResponse({
+                                id: part.approval!.id,
+                                approved: true,
+                              })
+                            }
+                            className="px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg text-sm font-medium transition-colors"
+                          >
+                            ✓ Approve
+                          </button>
+                          <button
+                            onClick={() =>
+                              addToolApprovalResponse({
+                                id: part.approval!.id,
+                                approved: false,
+                              })
+                            }
+                            className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg text-sm font-medium transition-colors"
+                          >
+                            ✗ Deny
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  }
+
+                  // Guitar recommendation card
+                  if (
+                    part.type === "tool-call" &&
+                    part.name === "recommendGuitar" &&
+                    part.output
                   ) {
                     try {
-                      const args = JSON.parse(part.arguments);
                       return (
                         <div key={part.id} className="mt-2">
-                          <GuitarRecommendation id={args.id} />
+                          <GuitarRecommendation id={part.output.id} />
                         </div>
                       );
                     } catch {
@@ -113,7 +178,7 @@ function DebugPanel({
   chunks,
   onClearChunks,
 }: {
-  messages: Array<ChatMessage>;
+  messages: Array<UIMessage>;
   chunks: any[];
   onClearChunks: () => void;
 }) {
@@ -250,11 +315,96 @@ function DebugPanel({
 
 function ChatPage() {
   const [chunks, setChunks] = useState<any[]>([]);
+  const [endpoint, setEndpoint] = useState<"/api/tanchat" | "/api/test-chat">(
+    "/api/test-chat"
+  );
 
-  const { messages, sendMessage, isLoading } = useChat({
-    connection: fetchServerSentEvents("/api/tanchat"),
+  const {
+    messages,
+    sendMessage,
+    isLoading,
+    addToolResult,
+    addToolApprovalResponse,
+  } = useChat({
+    connection: {
+      async *connect(msgs, data) {
+        // For test endpoint, send UIMessages directly (preserve parts for approval extraction)
+        // For real endpoint, convert to ModelMessages
+        const body =
+          endpoint === "/api/test-chat"
+            ? { messages: msgs } // Send UIMessages with parts
+            : {
+                messages: msgs.flatMap((m) =>
+                  "parts" in m ? uiMessageToModelMessages(m) : [m]
+                ),
+              };
+
+        const response = await fetch(endpoint, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(body),
+        });
+
+        if (!response.ok || !response.body) {
+          throw new Error(`HTTP error! status: ${response.status}`);
+        }
+
+        const reader = response.body.getReader();
+        const decoder = new TextDecoder();
+        let buffer = "";
+
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+
+          buffer += decoder.decode(value, { stream: true });
+          const lines = buffer.split("\n");
+          buffer = lines.pop() || "";
+
+          for (const line of lines) {
+            if (line.startsWith("data: ")) {
+              const data = line.slice(6);
+              if (data === "[DONE]") continue;
+              try {
+                yield JSON.parse(data);
+              } catch (e) {
+                console.error("Failed to parse SSE data:", e);
+              }
+            }
+          }
+        }
+      },
+      abort: () => {},
+    },
     onChunk: (chunk: any) => {
       setChunks((prev) => [...prev, chunk]);
+    },
+    onToolCall: async ({ toolCallId, toolName, input }) => {
+      // Handle client-side tool execution
+      switch (toolName) {
+        case "getPersonalGuitarPreference":
+          // Pure client tool - executes immediately
+          return { preference: "acoustic" };
+
+        case "recommendGuitar":
+          // Client tool for UI display
+          return { id: input.id };
+
+        case "addToWishList":
+          // Hybrid: client execution AFTER approval
+          // Only runs after user approves
+          const wishList = JSON.parse(localStorage.getItem("wishList") || "[]");
+          wishList.push(input.guitarId);
+          localStorage.setItem("wishList", JSON.stringify(wishList));
+          return {
+            success: true,
+            guitarId: input.guitarId,
+            totalItems: wishList.length,
+          };
+
+        default:
+          throw new Error(`Unknown client tool: ${toolName}`);
+      }
     },
   });
   const [input, setInput] = useState("");
@@ -272,45 +422,119 @@ function ChatPage() {
           <p className="text-gray-400 text-sm mt-1">
             Parts-based UIMessages with tool states
           </p>
+
+          {/* Endpoint Selector */}
+          <div className="mt-3">
+            <label className="text-gray-400 text-xs font-medium mb-1 block">
+              Endpoint:
+            </label>
+            <div className="flex gap-2">
+              <button
+                onClick={() => setEndpoint("/api/test-chat")}
+                className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
+                  endpoint === "/api/test-chat"
+                    ? "bg-orange-500 text-white"
+                    : "bg-gray-800 text-gray-400 hover:text-white"
+                }`}
+              >
+                🧪 Test (Stub LLM)
+              </button>
+              <button
+                onClick={() => setEndpoint("/api/tanchat")}
+                className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
+                  endpoint === "/api/tanchat"
+                    ? "bg-orange-500 text-white"
+                    : "bg-gray-800 text-gray-400 hover:text-white"
+                }`}
+              >
+                🤖 Real (GPT-4o)
+              </button>
+            </div>
+          </div>
         </div>
 
-        <Messages messages={messages} />
+        <Messages
+          messages={messages}
+          addToolApprovalResponse={addToolApprovalResponse}
+        />
 
         <ChatInputArea>
-          <div className="relative">
-            <textarea
-              value={input}
-              onChange={(e) => setInput(e.target.value)}
-              placeholder="Type something clever (or don't, we won't judge)..."
-              className="w-full rounded-lg border border-orange-500/20 bg-gray-800/50 pl-4 pr-12 py-3 text-sm text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-orange-500/50 focus:border-transparent resize-none overflow-hidden shadow-lg"
-              rows={1}
-              style={{ minHeight: "44px", maxHeight: "200px" }}
-              disabled={isLoading}
-              onInput={(e) => {
-                const target = e.target as HTMLTextAreaElement;
-                target.style.height = "auto";
-                target.style.height = Math.min(target.scrollHeight, 200) + "px";
-              }}
-              onKeyDown={(e) => {
-                if (e.key === "Enter" && !e.shiftKey && input.trim()) {
-                  e.preventDefault();
-                  sendMessage(input);
-                  setInput("");
-                }
-              }}
-            />
-            <button
-              onClick={() => {
-                if (input.trim()) {
-                  sendMessage(input);
-                  setInput("");
-                }
-              }}
-              disabled={!input.trim() || isLoading}
-              className="absolute right-2 top-1/2 -translate-y-1/2 p-2 text-orange-500 hover:text-orange-400 disabled:text-gray-500 transition-colors focus:outline-none"
-            >
-              <Send className="w-4 h-4" />
-            </button>
+          <div className="space-y-3">
+            <div className="relative">
+              <textarea
+                value={input}
+                onChange={(e) => setInput(e.target.value)}
+                placeholder="Type something clever (or don't, we won't judge)..."
+                className="w-full rounded-lg border border-orange-500/20 bg-gray-800/50 pl-4 pr-12 py-3 text-sm text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-orange-500/50 focus:border-transparent resize-none overflow-hidden shadow-lg"
+                rows={1}
+                style={{ minHeight: "44px", maxHeight: "200px" }}
+                disabled={isLoading}
+                onInput={(e) => {
+                  const target = e.target as HTMLTextAreaElement;
+                  target.style.height = "auto";
+                  target.style.height =
+                    Math.min(target.scrollHeight, 200) + "px";
+                }}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" && !e.shiftKey && input.trim()) {
+                    e.preventDefault();
+                    sendMessage(input);
+                    setInput("");
+                  }
+                }}
+              />
+              <button
+                onClick={() => {
+                  if (input.trim()) {
+                    sendMessage(input);
+                    setInput("");
+                  }
+                }}
+                disabled={!input.trim() || isLoading}
+                className="absolute right-2 top-1/2 -translate-y-1/2 p-2 text-orange-500 hover:text-orange-400 disabled:text-gray-500 transition-colors focus:outline-none"
+              >
+                <Send className="w-4 h-4" />
+              </button>
+            </div>
+
+            {/* Quick test buttons - only show for stub LLM */}
+            {endpoint === "/api/test-chat" && (
+              <div className="flex flex-col gap-1.5">
+                <p className="text-xs text-gray-500 font-medium">
+                  Quick Tests:
+                </p>
+                <div className="grid grid-cols-2 gap-1.5">
+                  <button
+                    onClick={() => sendMessage("what's my preference?")}
+                    disabled={isLoading}
+                    className="px-2 py-1.5 text-xs bg-gray-800 hover:bg-gray-700 text-gray-300 rounded border border-gray-700 disabled:opacity-50 transition-colors text-left"
+                  >
+                    🎸 Get Preference
+                  </button>
+                  <button
+                    onClick={() => sendMessage("recommend an acoustic guitar")}
+                    disabled={isLoading}
+                    className="px-2 py-1.5 text-xs bg-gray-800 hover:bg-gray-700 text-gray-300 rounded border border-gray-700 disabled:opacity-50 transition-colors text-left"
+                  >
+                    💡 Recommend
+                  </button>
+                  <button
+                    onClick={() => sendMessage("add to wish list")}
+                    disabled={isLoading}
+                    className="px-2 py-1.5 text-xs bg-gray-800 hover:bg-gray-700 text-gray-300 rounded border border-gray-700 disabled:opacity-50 transition-colors text-left"
+                  >
+                    ❤️ Wish List
+                  </button>
+                  <button
+                    onClick={() => sendMessage("add to cart")}
+                    disabled={isLoading}
+                    className="px-2 py-1.5 text-xs bg-gray-800 hover:bg-gray-700 text-gray-300 rounded border border-gray-700 disabled:opacity-50 transition-colors text-left"
+                  >
+                    🛒 Add to Cart
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
         </ChatInputArea>
       </div>

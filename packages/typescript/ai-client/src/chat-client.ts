@@ -26,6 +26,11 @@ export class ChatClient {
     onMessagesChange: (messages: UIMessage[]) => void;
     onLoadingChange: (isLoading: boolean) => void;
     onErrorChange: (error: Error | undefined) => void;
+    onToolCall?: (args: {
+      toolCallId: string;
+      toolName: string;
+      input: any;
+    }) => Promise<any>;
   };
 
   constructor(options: ChatClientOptions) {
@@ -44,6 +49,7 @@ export class ChatClient {
       onMessagesChange: options.onMessagesChange || (() => {}),
       onLoadingChange: options.onLoadingChange || (() => {}),
       onErrorChange: options.onErrorChange || (() => {}),
+      onToolCall: options.onToolCall,
     };
   }
 
@@ -197,6 +203,77 @@ export class ChatClient {
               return msg;
             })
           );
+        },
+        onApprovalRequested: async (toolCallId, toolName, input, approvalId) => {
+          // Update tool call part to show it needs approval
+          this.setMessages(
+            this.messages.map((msg) => {
+              if (msg.id === assistantMessageId) {
+                const parts = [...msg.parts];
+                const toolCallPart = parts.find(
+                  (p): p is ToolCallPart => p.type === "tool-call" && p.id === toolCallId
+                ) as ToolCallPart;
+
+                if (toolCallPart) {
+                  toolCallPart.state = "approval-requested";
+                  toolCallPart.approval = {
+                    id: approvalId,
+                    needsApproval: true,
+                  };
+                }
+
+                return { ...msg, parts };
+              }
+              return msg;
+            })
+          );
+        },
+        onToolInputAvailable: async (toolCallId, toolName, input) => {
+          // If onToolCall callback exists, execute immediately
+          if (this.callbacks.onToolCall) {
+            try {
+              const output = await this.callbacks.onToolCall({
+                toolCallId,
+                toolName,
+                input,
+              });
+
+              // Add result and trigger auto-send
+              await this.addToolResult({
+                toolCallId,
+                tool: toolName,
+                output,
+                state: "output-available",
+              });
+            } catch (error: any) {
+              await this.addToolResult({
+                toolCallId,
+                tool: toolName,
+                output: null,
+                state: "output-error",
+                errorText: error.message,
+              });
+            }
+          } else {
+            // No callback - just mark as input-complete (UI should handle)
+            this.setMessages(
+              this.messages.map((msg) => {
+                if (msg.id === assistantMessageId) {
+                  const parts = [...msg.parts];
+                  const toolCallPart = parts.find(
+                    (p): p is ToolCallPart => p.type === "tool-call" && p.id === toolCallId
+                  ) as ToolCallPart;
+
+                  if (toolCallPart) {
+                    toolCallPart.state = "input-complete";
+                  }
+
+                  return { ...msg, parts };
+                }
+                return msg;
+              })
+            );
+          }
         },
         onStreamEnd: () => {
           // Stream finished - parts are already updated
@@ -358,6 +435,123 @@ export class ChatClient {
   clear(): void {
     this.setMessages([]);
     this.setError(undefined);
+  }
+
+  /**
+   * Add the result of a client-side tool execution
+   */
+  async addToolResult(result: {
+    toolCallId: string;
+    tool: string;
+    output: any;
+    state?: "output-available" | "output-error";
+    errorText?: string;
+  }): Promise<void> {
+    // Update the tool call part with the output
+    this.setMessages(
+      this.messages.map((msg) => {
+        const parts = [...msg.parts];
+        const toolCallPart = parts.find(
+          (p): p is ToolCallPart => p.type === "tool-call" && p.id === result.toolCallId
+        ) as ToolCallPart;
+
+        if (toolCallPart) {
+          toolCallPart.output = result.output;
+          toolCallPart.state = result.state || "input-complete";
+          
+          if (result.errorText) {
+            toolCallPart.output = { error: result.errorText };
+          }
+        }
+
+        return { ...msg, parts };
+      })
+    );
+
+    // Check if we should auto-send
+    if (this.shouldAutoSend()) {
+      // Continue the flow without adding a new message
+      await this.continueFlow();
+    }
+  }
+
+  /**
+   * Respond to a tool approval request
+   */
+  async addToolApprovalResponse(response: {
+    id: string; // approval.id, not toolCallId
+    approved: boolean;
+  }): Promise<void> {
+    // Find and update the tool call part with approval decision
+    this.setMessages(
+      this.messages.map((msg) => {
+        const parts = [...msg.parts];
+        const toolCallPart = parts.find(
+          (p): p is ToolCallPart =>
+            p.type === "tool-call" &&
+            p.approval?.id === response.id
+        ) as ToolCallPart;
+
+        if (toolCallPart && toolCallPart.approval) {
+          toolCallPart.approval.approved = response.approved;
+          toolCallPart.state = "approval-responded";
+        }
+
+        return { ...msg, parts };
+      })
+    );
+
+    // Check if we should auto-send
+    if (this.shouldAutoSend()) {
+      // Continue the flow without adding a new message
+      await this.continueFlow();
+    }
+  }
+
+  /**
+   * Continue the agent flow with current messages (for approvals/tool results)
+   */
+  private async continueFlow(): Promise<void> {
+    if (this.isLoading) return;
+
+    try {
+      this.setIsLoading(true);
+      this.setError(undefined);
+
+      // Process the current conversation state
+      await this.processStream(
+        this.connection.connect(this.messages, this.body)
+      );
+    } catch (err: any) {
+      this.setError(err);
+      this.callbacks.onError(err);
+    } finally {
+      this.setIsLoading(false);
+    }
+  }
+
+  /**
+   * Check if all tool calls are complete and we should auto-send
+   */
+  private shouldAutoSend(): boolean {
+    const lastAssistant = [...this.messages]
+      .reverse()
+      .find((m) => m.role === "assistant");
+
+    if (!lastAssistant) return false;
+
+    const toolParts = lastAssistant.parts.filter(
+      (p): p is ToolCallPart => p.type === "tool-call"
+    );
+
+    if (toolParts.length === 0) return false;
+
+    // All tool calls must be in a terminal state
+    return toolParts.every(
+      (part) =>
+        part.state === "approval-responded" ||
+        (part.output !== undefined && !part.approval) // Has output and no approval needed
+    );
   }
 
   getMessages(): UIMessage[] {

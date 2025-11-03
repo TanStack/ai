@@ -8,7 +8,9 @@ import type { ChunkStrategy, StreamParser } from "./stream/types";
 export type ToolCallState =
   | "awaiting-input" // Received start but no arguments yet
   | "input-streaming" // Partial arguments received
-  | "input-complete"; // All arguments received
+  | "input-complete" // All arguments received
+  | "approval-requested" // Waiting for user approval
+  | "approval-responded"; // User has approved/denied
 
 /**
  * Tool result states - track the lifecycle of a tool result
@@ -32,6 +34,14 @@ export interface ToolCallPart {
   name: string;
   arguments: string; // JSON string (may be incomplete)
   state: ToolCallState;
+  /** Approval metadata if tool requires user approval */
+  approval?: {
+    id: string; // Unique approval ID
+    needsApproval: boolean; // Always true if present
+    approved?: boolean; // User's decision (undefined until responded)
+  };
+  /** Tool execution output (for client tools or after approval) */
+  output?: any;
 }
 
 export interface ToolResultPart {
@@ -55,11 +65,6 @@ export interface UIMessage {
   createdAt?: Date;
 }
 
-/**
- * ChatMessage - Alias for UIMessage for backward compatibility
- */
-export type ChatMessage = UIMessage;
-
 export interface ChatClientOptions {
   /**
    * Connection adapter for streaming
@@ -70,7 +75,7 @@ export interface ChatClientOptions {
   /**
    * Initial messages to populate the chat
    */
-  initialMessages?: ChatMessage[];
+  initialMessages?: UIMessage[];
 
   /**
    * Unique identifier for this chat instance
@@ -96,7 +101,7 @@ export interface ChatClientOptions {
   /**
    * Callback when the response is finished
    */
-  onFinish?: (message: ChatMessage) => void;
+  onFinish?: (message: UIMessage) => void;
 
   /**
    * Callback when an error occurs
@@ -106,7 +111,7 @@ export interface ChatClientOptions {
   /**
    * Callback when messages change
    */
-  onMessagesChange?: (messages: ChatMessage[]) => void;
+  onMessagesChange?: (messages: UIMessage[]) => void;
 
   /**
    * Callback when loading state changes
@@ -117,6 +122,16 @@ export interface ChatClientOptions {
    * Callback when error state changes
    */
   onErrorChange?: (error: Error | undefined) => void;
+
+  /**
+   * Callback when a client-side tool needs to be executed
+   * Tool has no execute function - client must provide the result
+   */
+  onToolCall?: (args: {
+    toolCallId: string;
+    toolName: string;
+    input: any;
+  }) => Promise<any>;
 
   /**
    * Stream processing options (optional)

@@ -14,7 +14,7 @@ import type { ToolCallState as ToolState, ToolResultState } from "../types";
  * Raw events that come from the stream
  */
 export interface StreamChunk {
-  type: "text" | "tool-call-delta" | "done";
+  type: "text" | "tool-call-delta" | "done" | "approval-requested" | "tool-input-available";
   content?: string;
   toolCallIndex?: number;
   toolCall?: {
@@ -24,6 +24,15 @@ export interface StreamChunk {
       arguments: string;
     };
   };
+  // For approval-requested
+  approval?: {
+    id: string;
+    needsApproval: boolean;
+  };
+  // For tool-input-available and approval-requested
+  toolCallId?: string;
+  toolName?: string;
+  input?: any;
 }
 
 /**
@@ -93,7 +102,7 @@ export interface StreamProcessorHandlers {
     error?: string
   ) => void;
   
-  // Legacy handlers (still supported)
+  // Additional handlers for detailed lifecycle events
   onToolCallStart?: (index: number, id: string, name: string) => void;
   onToolCallDelta?: (index: number, args: string) => void;
   onToolCallComplete?: (
@@ -101,6 +110,17 @@ export interface StreamProcessorHandlers {
     id: string,
     name: string,
     args: string
+  ) => void;
+  onApprovalRequested?: (
+    toolCallId: string,
+    toolName: string,
+    input: any,
+    approvalId: string
+  ) => void;
+  onToolInputAvailable?: (
+    toolCallId: string,
+    toolName: string,
+    input: any
   ) => void;
   onStreamEnd?: (content: string, toolCalls?: any[]) => void;
 }

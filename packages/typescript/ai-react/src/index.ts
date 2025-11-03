@@ -2,7 +2,7 @@ export { useChat } from "./use-chat";
 export type {
   UseChatOptions,
   UseChatReturn,
-  ChatMessage,
+  UIMessage,
   ChatRequestBody,
 } from "./types";
 

@@ -69,14 +69,14 @@ interface UseChatOptions {
   connection: ConnectionAdapter;
   
   // Configuration
-  initialMessages?: ChatMessage[]; // Starting messages
+  initialMessages?: UIMessage[]; // Starting messages
   id?: string; // Unique chat ID
   body?: Record<string, any>; // Extra data to send
   
   // Callbacks
   onResponse?: (response?: Response) => void;
   onChunk?: (chunk: StreamChunk) => void;
-  onFinish?: (message: ChatMessage) => void;
+  onFinish?: (message: UIMessage) => void;
   onError?: (error: Error) => void;
 }
 ```
@@ -85,7 +85,7 @@ interface UseChatOptions {
 
 ```typescript
 interface UseChatReturn {
-  messages: ChatMessage[]; // Current conversation
+  messages: UIMessage[]; // Current conversation
   sendMessage: (content: string) => Promise<void>; // Send a message
   append: (message) => Promise<void>; // Add message programmatically
   reload: () => Promise<void>; // Reload last response
@@ -390,7 +390,7 @@ All types are fully exported:
 
 ```typescript
 import type {
-  ChatMessage,
+  UIMessage,
   UseChatOptions,
   UseChatReturn,
   ChatRequestBody,

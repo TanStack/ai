@@ -132,7 +132,7 @@ interface ChatClientOptions {
   api?: string;
 
   // Initial messages
-  initialMessages?: ChatMessage[];
+  initialMessages?: UIMessage[];
 
   // Unique chat identifier
   id?: string;
@@ -140,9 +140,9 @@ interface ChatClientOptions {
   // Callbacks
   onResponse?: (response: Response) => void | Promise<void>;
   onChunk?: (chunk: StreamChunk) => void;
-  onFinish?: (message: ChatMessage) => void;
+  onFinish?: (message: UIMessage) => void;
   onError?: (error: Error) => void;
-  onMessagesChange?: (messages: ChatMessage[]) => void;
+  onMessagesChange?: (messages: UIMessage[]) => void;
   onLoadingChange?: (isLoading: boolean) => void;
   onErrorChange?: (error: Error | undefined) => void;
 
@@ -157,14 +157,14 @@ interface ChatClientOptions {
 #### Methods
 
 - `sendMessage(content: string): Promise<void>` - Send a text message
-- `append(message: Message | ChatMessage): Promise<void>` - Append any message
+- `append(message: Message | UIMessage): Promise<void>` - Append any message
 - `reload(): Promise<void>` - Reload the last assistant response
 - `stop(): void` - Stop the current streaming response
 - `clear(): void` - Clear all messages
-- `getMessages(): ChatMessage[]` - Get current messages
+- `getMessages(): UIMessage[]` - Get current messages
 - `getIsLoading(): boolean` - Get loading state
 - `getError(): Error | undefined` - Get current error
-- `setMessagesManually(messages: ChatMessage[]): void` - Manually set messages
+- `setMessagesManually(messages: UIMessage[]): void` - Manually set messages
 
 ## Stream Abstraction
 

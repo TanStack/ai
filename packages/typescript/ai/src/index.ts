@@ -15,7 +15,7 @@ export {
   responseFormat as output,
   jsonObject,
 } from "./schema-utils";
-export { convertLegacyStream } from "./stream-utils";
+export { convertChatCompletionStream } from "./stream-utils";
 export {
   toServerSentEventsStream,
   toStreamResponse,

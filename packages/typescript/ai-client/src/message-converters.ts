@@ -43,7 +43,12 @@ export function uiMessageToModelMessages(
   const toolCalls =
     toolCallParts.length > 0
       ? toolCallParts
-          .filter((p) => p.state === "input-complete") // Only include completed tool calls
+          .filter(
+            (p) =>
+              p.state === "input-complete" ||
+              p.state === "approval-responded" ||
+              (p.output !== undefined) // Include if has output (client tool result)
+          )
           .map((p) => ({
             id: p.id,
             type: "function" as const,

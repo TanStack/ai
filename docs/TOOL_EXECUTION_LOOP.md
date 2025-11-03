@@ -267,9 +267,9 @@ const stream = chat({
 });
 ```
 
-#### Legacy: maxIterations
+#### Alternative: maxIterations
 
-For backwards compatibility, you can still use `maxIterations` as a number:
+You can also use `maxIterations` as a number for convenience:
 
 ```typescript
 const stream = chat({
@@ -277,7 +277,7 @@ const stream = chat({
   model: "gpt-4o",
   messages: [...],
   tools: [...],
-  maxIterations: 3, // Deprecated: use agentLoopStrategy: maxIterations(3) instead
+  maxIterations: 3, // Shorthand for agentLoopStrategy: maxIterations(3)
 });
 ```
 
