@@ -10,12 +10,9 @@
 │  Loading State, Error State                                    │
 │                                                                 │
 │  ┌───────────────────────────────────────────────────────┐     │
-│  │         processStream() - Router                       │     │
+│  │         processStream()                                │     │
 │  │                                                        │     │
-│  │  if (streamProcessorConfig)                           │     │
 │  │    → processStreamWithProcessor()                     │     │
-│  │  else                                                  │     │
-│  │    → processStreamLegacy()                            │     │
 │  └───────────────────────────────────────────────────────┘     │
 │                           │                                     │
 │                           ▼                                     │

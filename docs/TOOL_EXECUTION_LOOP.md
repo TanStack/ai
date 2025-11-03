@@ -191,7 +191,7 @@ All handled automatically by the SDK!
 
 ### Agent Loop Strategies
 
-Control when the tool execution loop stops using `agentLoopStrategy` (or legacy `maxIterations`):
+Control when the tool execution loop stops using `agentLoopStrategy`:
 
 #### Built-in Strategies
 

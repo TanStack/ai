@@ -5,13 +5,17 @@ A powerful, open-source AI SDK with a unified interface across multiple provider
 ## Features
 
 - **Multi-Provider Support** - OpenAI, Anthropic, Ollama, Google Gemini
+- **Multi-Language Support** - TypeScript, Python, and PHP packages
 - **Unified API** - Same interface across all providers
 - **Standalone Functions** - Direct type-safe functions that infer from adapters
 - **AI Class** - Reusable instances with system prompts
+- **Framework-Agnostic Client** - Headless chat client for any JavaScript environment
+- **Automatic Fallback** - Try multiple adapters in sequence until one succeeds
 - **Structured Outputs** - Type-safe JSON responses with `responseFormat()` helper
 - **Structured Streaming** - JSON chunks with token deltas and metadata
+- **Stream Processing** - Smart chunking strategies for optimal UX (punctuation, word boundaries, etc.)
 - **Tool/Function Calling** - Automatic execution loop - no manual tool management needed
-- **React Hooks** - Simple `useChat` hook for building chat UIs
+- **React Hooks & Components** - Simple `useChat` hook and pre-built UI components
 - **TypeScript First** - Full type safety with inference from adapters
 - **Zero Lock-in** - Switch providers at runtime without code changes
 
@@ -148,6 +152,8 @@ if (result.data) {
 > - Structured outputs via `options.responseFormat` are only available in promise mode. When using `as: "stream"` or `as: "response"`, structured JSON is not parsed and you receive raw text/stream.
 > - On successful parsing, `result.data` is populated and typed; if parsing fails, `result.data` will be `undefined` and `result.content` will contain the raw model output.
 
+### TypeScript/JavaScript
+
 ```bash
 # Core library
 npm install @tanstack/ai
@@ -158,8 +164,31 @@ npm install @tanstack/ai-anthropic
 npm install @tanstack/ai-ollama
 npm install @tanstack/ai-gemini
 
+# Framework-agnostic client (for frontend/headless usage)
+npm install @tanstack/ai-client
+
+# Automatic fallback wrapper
+npm install @tanstack/ai-fallback
+
 # React hooks (for frontend chat UIs)
 npm install @tanstack/ai-react
+
+# React UI components (pre-built chat components)
+npm install @tanstack/ai-react-ui
+```
+
+### Python
+
+```bash
+# Python utilities for stream conversion and message formatting
+pip install tanstack-ai
+```
+
+### PHP
+
+```bash
+# PHP utilities for stream conversion and message formatting
+composer require tanstack/ai
 ```
 
 ## API Reference
@@ -761,6 +790,99 @@ export const Route = createFileRoute("/api/chat")({
 - The conversation continues automatically until complete
 - Clients receive both `tool_call` and `tool_result` chunks in the stream
 
+## Multi-Language Support
+
+TanStack AI provides utilities for multiple programming languages, making it easy to build AI-powered applications in your preferred environment.
+
+### Python (`tanstack-ai`)
+
+Build AI servers with Python using FastAPI, Flask, or any other framework:
+
+```python
+from tanstack_ai import StreamChunkConverter, format_messages_for_anthropic, format_sse_chunk
+from anthropic import Anthropic
+
+# Convert messages to provider format
+system_message, anthropic_messages = format_messages_for_anthropic(messages)
+
+# Initialize converter
+converter = StreamChunkConverter(model="claude-3-haiku-20240307", provider="anthropic")
+
+# Stream and convert events
+async for event in anthropic_stream:
+    chunks = await converter.convert_event(event)
+    for chunk in chunks:
+        yield format_sse_chunk(chunk)
+```
+
+**Features:**
+- Message formatting for Anthropic and OpenAI
+- Stream chunk conversion from provider events
+- SSE formatting utilities
+- Type-safe with Pydantic models
+
+**See:** [Python Package README](packages/python/tanstack-ai/README.md) | [Python FastAPI Example](examples/python-fastapi/README.md)
+
+### PHP (`tanstack/ai`)
+
+Build AI servers with PHP using Slim, Laravel, or any other framework:
+
+```php
+use TanStack\AI\StreamChunkConverter;
+use TanStack\AI\MessageFormatters;
+use TanStack\AI\SSEFormatter;
+
+// Convert messages to provider format
+[$systemMessage, $anthropicMessages] = MessageFormatters::formatMessagesForAnthropic($messages);
+
+// Initialize converter
+$converter = new StreamChunkConverter(
+    model: "claude-3-haiku-20240307",
+    provider: "anthropic"
+);
+
+// Stream and convert events
+foreach ($anthropicStream as $event) {
+    $chunks = $converter->convertEvent($event);
+    foreach ($chunks as $chunk) {
+        echo SSEFormatter::formatChunk($chunk);
+    }
+}
+```
+
+**Features:**
+- Message formatting for Anthropic and OpenAI
+- Stream chunk conversion from provider events
+- SSE formatting utilities
+- PHP 8.1+ with named arguments and type safety
+
+**See:** [PHP Package README](packages/php/tanstack-ai/README.md) | [PHP Slim Example](examples/php-slim/README.md)
+
+### TypeScript Client (`@tanstack/ai-client`)
+
+Use the framework-agnostic client to connect to any backend (Python, PHP, Node.js, etc.):
+
+```typescript
+import { ChatClient, fetchServerSentEvents } from "@tanstack/ai-client";
+
+const client = new ChatClient({
+  connection: fetchServerSentEvents("http://localhost:8000/chat"),
+  onMessagesChange: (messages) => {
+    console.log("Messages:", messages);
+  },
+});
+
+await client.sendMessage("Hello!");
+```
+
+**Features:**
+- Connection adapters for SSE, HTTP streams, and server functions
+- Stream processing with smart chunking strategies
+- Framework-agnostic (use with React, Vue, Svelte, vanilla JS, etc.)
+- Automatic tool call handling
+
+**See:** [@tanstack/ai-client README](packages/typescript/ai-client/README.md) | [Vanilla Chat Example](examples/vanilla-chat/README.md)
+
 ## Development
 
 ```bash
@@ -793,7 +915,8 @@ pnpm clean
 - 📖 [Tool Execution Loop](docs/TOOL_EXECUTION_LOOP.md) - How automatic tool execution works
 - 📖 [Agent Loop Strategies](docs/AGENT_LOOP_STRATEGIES.md) - Control the tool execution loop
 - 📖 [Connection Adapters Guide](docs/CONNECTION_ADAPTERS_GUIDE.md) - Complete guide with examples
-- 📖 [Connection Adapters API](packages/ai-client/CONNECTION_ADAPTERS.md) - API reference
+- 📖 [Connection Adapters API](packages/typescript/ai-client/docs/CONNECTION_ADAPTERS.md) - API reference
+- 📖 [Stream Processing Quick Start](packages/typescript/ai-client/docs/STREAM_QUICKSTART.md) - Smart chunking strategies
 - 📖 [Unified Chat API](docs/UNIFIED_CHAT_API.md) - `chat()` vs `chatCompletion()` methods
 - 📖 [Quick Reference](docs/UNIFIED_CHAT_QUICK_REFERENCE.md) - Quick API reference
 - 📖 [Tool Registry](docs/TOOL_REGISTRY.md) - Define tools once, use everywhere
@@ -801,7 +924,34 @@ pnpm clean
 
 ### Examples
 
+#### TypeScript
+
 - 📖 [CLI Example](examples/cli/README.md) - Interactive command-line interface with tool calling
+- 📖 [TanStack Chat (ts-chat)](examples/ts-chat/README.md) - Full-stack chat app with TanStack Start, Router, and Store
+- 📖 [Vanilla Chat](examples/vanilla-chat/README.md) - Framework-free chat with `@tanstack/ai-client`
+
+#### Python
+
+- 📖 [Python FastAPI Server](examples/python-fastapi/README.md) - FastAPI server streaming AI responses in SSE format
+
+#### PHP
+
+- 📖 [PHP Slim Framework Server](examples/php-slim/README.md) - Slim Framework server with Anthropic and OpenAI support
+
+### Package Documentation
+
+#### TypeScript Packages
+
+- 📖 [@tanstack/ai-client](packages/typescript/ai-client/README.md) - Framework-agnostic headless client
+- 📖 [@tanstack/ai-fallback](packages/typescript/ai-fallback/README.md) - Automatic fallback wrapper
+
+#### Python Packages
+
+- 📖 [tanstack-ai (Python)](packages/python/tanstack-ai/README.md) - Python stream conversion and message formatting
+
+#### PHP Packages
+
+- 📖 [tanstack/ai (PHP)](packages/php/tanstack-ai/README.md) - PHP stream conversion and message formatting
 
 ### Implementation Details
 

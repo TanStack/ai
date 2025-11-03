@@ -1,295 +1,437 @@
-# Type Safety Examples
+# TanStack AI Examples
 
-This directory contains comprehensive examples demonstrating the type-safe multi-adapter AI API.
-
-## Files Overview
-
-### 📚 Learning & Reference
-
-- **`type-safety-demo.ts`** - Quick reference showing valid and invalid usage patterns
-- **`visual-error-examples.ts`** - Shows exact TypeScript errors you'll encounter
-- **`model-safety-demo.ts`** - Comprehensive working examples with all features
-- **`all-adapters-type-safety.ts`** - Examples using all four adapters (OpenAI, Anthropic, Gemini, Ollama)
-
-### 🎯 Practical Examples
-
-- **`multi-adapter-example.ts`** - Real-world multi-adapter setup and usage
-- Other example files in this directory
+This directory contains comprehensive examples demonstrating TanStack AI across multiple languages and frameworks.
 
 ## Quick Start
 
-### 1. Type Safety Basics
+Choose an example based on your use case:
 
-```typescript
-import { AI } from "@tanstack/ai";
-import { OpenAIAdapter } from "@tanstack/ai-openai";
-import { AnthropicAdapter } from "@tanstack/ai-anthropic";
+- **Want a full-stack TypeScript app?** → [TanStack Chat (ts-chat)](#tanstack-chat-ts-chat)
+- **Want a simple CLI tool?** → [CLI Example](#cli-example)
+- **Need a vanilla JS frontend?** → [Vanilla Chat](#vanilla-chat)
+- **Building a Python backend?** → [Python FastAPI Server](#python-fastapi-server)
+- **Building a PHP backend?** → [PHP Slim Framework Server](#php-slim-framework-server)
 
-const ai = new AI({
-  adapters: {
-    openai: new OpenAIAdapter({ apiKey: "..." }),
-    anthropic: new AnthropicAdapter({ apiKey: "..." }),
-  },
-});
+## TypeScript Examples
 
-// ✅ Valid
-await ai.chat({
-  adapter: "openai",
-  model: "gpt-4", // TypeScript knows this is valid
-  messages: [{ role: "user", content: "Hello!" }],
-});
+### TanStack Chat (ts-chat)
 
-// ❌ TypeScript Error
-await ai.chat({
-  adapter: "anthropic",
-  model: "gpt-4", // Error: gpt-4 not valid for Anthropic
-  messages: [{ role: "user", content: "Hello!" }],
-});
-```
+A full-featured chat application built with the TanStack ecosystem.
 
-### 2. What You Get
+**Tech Stack:**
+- TanStack Start (full-stack React framework)
+- TanStack Router (type-safe routing)
+- TanStack Store (state management)
+- `@tanstack/ai` (AI backend)
+- `@tanstack/ai-react` (React hooks)
+- `@tanstack/ai-client` (headless client)
 
-- ✅ **Compile-time safety** - Errors caught during development
-- ✅ **IDE autocomplete** - See valid models as you type
-- ✅ **Refactoring confidence** - TypeScript flags incompatibilities
-- ✅ **Self-documenting** - Types show available models
+**Features:**
+- ✅ Real-time streaming with OpenAI GPT-4o
+- ✅ Automatic tool execution loop
+- ✅ Rich markdown rendering
+- ✅ Conversation management
+- ✅ Modern UI with Tailwind CSS
 
-### 3. Adapter-Specific Models
-
-| Adapter | Example Models |
-|---------|---------------|
-| OpenAI | `gpt-4`, `gpt-4o`, `gpt-3.5-turbo` |
-| Anthropic | `claude-3-5-sonnet-20241022`, `claude-3-opus-20240229` |
-| Gemini | `gemini-pro`, `gemini-1.5-pro`, `gemini-1.5-flash` |
-| Ollama | `llama3`, `mistral`, `mixtral` |
-
-## Example Files Explained
-
-### `type-safety-demo.ts`
-
-**Best for**: Quick reference
-
-Contains commented examples showing:
-- Valid usage for each adapter
-- Invalid usage (commented out)
-- What autocomplete shows
-- Key benefits
-
-```typescript
-// See valid examples
-ai.chat({ adapter: "openai", model: "gpt-4", messages: [] }); // ✅
-
-// See invalid examples (commented)
-// ai.chat({ adapter: "anthropic", model: "gpt-4", messages: [] }); // ❌
-```
-
-### `visual-error-examples.ts`
-
-**Best for**: Understanding errors
-
-Shows exactly what TypeScript errors you'll see:
-- Full error messages
-- Where errors appear
-- How to fix them
-
-```typescript
-/*
-ai.chat({
-  adapter: "anthropic",
-  model: "gpt-4",
-  //     ^^^^^^
-  //     TypeScript Error:
-  //     Type '"gpt-4"' is not assignable to type 
-  //     '"claude-3-5-sonnet-20241022" | "claude-3-5-sonnet-20240620" | ...'
-  messages: [],
-});
-*/
-```
-
-### `model-safety-demo.ts`
-
-**Best for**: Complete feature overview
-
-Working examples of:
-- Valid usage patterns
-- Invalid usage (commented)
-- All API methods (chat, stream, embed, etc.)
-- Real-world scenarios
-
-### `all-adapters-type-safety.ts`
-
-**Best for**: Multi-provider applications
-
-Shows:
-- Using all four adapters together
-- Switching between adapters
-- Provider-specific models
-- Intelligent routing based on task
-
-## Running Examples
-
-### Prerequisites
-
+**Getting Started:**
 ```bash
-# Install dependencies
+cd examples/ts-chat
 pnpm install
-
-# Set up environment variables
-cp .env.example .env
-# Edit .env with your API keys
+cp env.example .env
+# Edit .env and add your OPENAI_API_KEY
+pnpm start
 ```
 
-### Run Examples
+📖 [Full Documentation](ts-chat/README.md)
 
+---
+
+### CLI Example
+
+An interactive command-line interface for AI interactions.
+
+**Features:**
+- ✅ Multi-provider support (OpenAI, Anthropic, Ollama, Gemini)
+- ✅ Interactive chat with streaming
+- ✅ Automatic tool/function calling
+- ✅ Smart API key management
+- ✅ Debug mode for development
+
+**Getting Started:**
 ```bash
-# Run any example
-pnpm tsx examples/type-safety-demo.ts
-
-# Or with Node
-node --loader ts-node/esm examples/type-safety-demo.ts
+cd examples/cli
+pnpm install
+pnpm dev chat --provider openai
 ```
 
-## Key Concepts
+**Available Commands:**
+- `chat` - Interactive chat with streaming
+- `generate` - One-shot text generation
+- `summarize` - Text summarization
+- `embed` - Generate embeddings
 
-### 1. Adapter Selection
+📖 [Full Documentation](cli/README.md)
 
-When you specify an adapter, TypeScript knows which models are available:
+---
 
+### Vanilla Chat
+
+A framework-free chat application using pure JavaScript and `@tanstack/ai-client`.
+
+**Tech Stack:**
+- Vanilla JavaScript (no frameworks!)
+- `@tanstack/ai-client` (headless client)
+- Vite (dev server)
+- Connects to Python FastAPI backend
+
+**Features:**
+- ✅ Pure vanilla JavaScript
+- ✅ Real-time streaming messages
+- ✅ Beautiful, responsive UI
+- ✅ No framework dependencies
+
+**Getting Started:**
+```bash
+# Start the Python backend first
+cd examples/python-fastapi
+python anthropic-server.py
+
+# Then start the frontend
+cd examples/vanilla-chat
+pnpm install
+pnpm dev
+```
+
+Open `http://localhost:3000`
+
+📖 [Full Documentation](vanilla-chat/README.md)
+
+---
+
+## Python Examples
+
+### Python FastAPI Server
+
+A FastAPI server that streams AI responses in Server-Sent Events (SSE) format, compatible with TanStack AI clients.
+
+**Features:**
+- ✅ FastAPI with SSE streaming
+- ✅ Converts Anthropic/OpenAI events to `StreamChunk` format
+- ✅ Compatible with `@tanstack/ai-client`
+- ✅ Tool call support
+- ✅ Type-safe with Pydantic
+
+**Getting Started:**
+```bash
+cd examples/python-fastapi
+
+# Create virtual environment
+python3 -m venv venv
+source venv/bin/activate  # On Windows: venv\Scripts\activate
+
+# Install dependencies
+pip install -r requirements.txt
+
+# Set up environment
+cp env.example .env
+# Edit .env and add your ANTHROPIC_API_KEY or OPENAI_API_KEY
+
+# Run the server
+python anthropic-server.py  # or openai-server.py
+```
+
+**API Endpoints:**
+- `POST /chat` - Stream chat responses in SSE format
+- `GET /health` - Health check
+
+**Usage with TypeScript Client:**
 ```typescript
-ai.chat({
-  adapter: "openai", // TypeScript: "This is OpenAI"
-  model: "..." // TypeScript: "Show only OpenAI models"
-})
+import { ChatClient, fetchServerSentEvents } from "@tanstack/ai-client";
+
+const client = new ChatClient({
+  connection: fetchServerSentEvents("http://localhost:8000/chat"),
+});
+
+await client.sendMessage("Hello!");
 ```
 
-### 2. Type Extraction
+📖 [Full Documentation](python-fastapi/README.md)
 
-The system extracts model types from each adapter:
+---
 
+## PHP Examples
+
+### PHP Slim Framework Server
+
+A PHP Slim Framework server that streams AI responses in SSE format, with support for both Anthropic and OpenAI.
+
+**Features:**
+- ✅ Slim Framework with SSE streaming
+- ✅ Converts Anthropic/OpenAI events to `StreamChunk` format
+- ✅ Compatible with `@tanstack/ai-client`
+- ✅ Tool call support
+- ✅ PHP 8.1+ with type safety
+
+**Getting Started:**
+```bash
+cd examples/php-slim
+
+# Install dependencies
+composer install
+
+# Set up environment
+cp env.example .env
+# Edit .env and add your ANTHROPIC_API_KEY and/or OPENAI_API_KEY
+
+# Run the server
+composer start-anthropic  # Runs on port 8000
+# or
+composer start-openai     # Runs on port 8001
+```
+
+**API Endpoints:**
+- `POST /chat` - Stream chat responses in SSE format
+- `GET /health` - Health check
+
+**Usage with TypeScript Client:**
 ```typescript
-type OpenAIModels = ExtractModels<OpenAIAdapter>
-// Result: "gpt-4" | "gpt-4o" | "gpt-3.5-turbo" | ...
+import { ChatClient, fetchServerSentEvents } from "@tanstack/ai-client";
 
-type AnthropicModels = ExtractModels<AnthropicAdapter>
-// Result: "claude-3-5-sonnet-20241022" | "claude-3-opus-20240229" | ...
+const client = new ChatClient({
+  connection: fetchServerSentEvents("http://localhost:8000/chat"),
+});
+
+await client.sendMessage("Hello!");
 ```
 
-### 3. Conditional Types
+📖 [Full Documentation](php-slim/README.md)
 
-The `model` field type changes based on the `adapter` field:
+---
 
-```typescript
-// When adapter is "openai"
-model: "gpt-4" | "gpt-4o" | "gpt-3.5-turbo" | ...
+## Architecture Patterns
 
-// When adapter is "anthropic"
-model: "claude-3-5-sonnet-20241022" | "claude-3-opus-20240229" | ...
+### Full-Stack TypeScript
+
+Use TanStack AI end-to-end in TypeScript:
+
 ```
+Frontend (React)
+  ↓ (useChat hook)
+@tanstack/ai-react
+  ↓ (ChatClient)
+@tanstack/ai-client
+  ↓ (SSE/HTTP)
+Backend (TanStack Start API Route)
+  ↓ (chat() function)
+@tanstack/ai
+  ↓ (adapter)
+AI Provider (OpenAI/Anthropic/etc.)
+```
+
+**Example:** [TanStack Chat (ts-chat)](ts-chat/README.md)
+
+### Multi-Language Backend
+
+Use Python or PHP for the backend, TypeScript for the frontend:
+
+```
+Frontend (Vanilla JS/React/Vue/etc.)
+  ↓ (ChatClient)
+@tanstack/ai-client
+  ↓ (SSE/HTTP)
+Backend (Python FastAPI or PHP Slim)
+  ↓ (tanstack-ai or tanstack/ai)
+Stream Conversion & Message Formatting
+  ↓ (provider SDK)
+AI Provider (OpenAI/Anthropic/etc.)
+```
+
+**Examples:** 
+- [Python FastAPI](python-fastapi/README.md) + [Vanilla Chat](vanilla-chat/README.md)
+- [PHP Slim](php-slim/README.md) + any frontend with `@tanstack/ai-client`
+
+### CLI Tool
+
+Use TanStack AI in command-line applications:
+
+```
+CLI
+  ↓ (chat() function)
+@tanstack/ai
+  ↓ (adapter)
+AI Provider (OpenAI/Anthropic/Ollama/Gemini)
+```
+
+**Example:** [CLI Example](cli/README.md)
+
+---
 
 ## Common Patterns
 
-### Pattern 1: Switch Providers Easily
+### Server-Sent Events (SSE) Streaming
 
+All examples use SSE for real-time streaming:
+
+**Backend (TypeScript):**
 ```typescript
-// Development: use local Ollama
-const devAI = new AI({
-  adapters: { ollama: new OllamaAdapter() }
+import { chat, toStreamResponse } from "@tanstack/ai";
+import { openai } from "@tanstack/ai-openai";
+
+const stream = chat({
+  adapter: openai(),
+  model: "gpt-4o",
+  messages,
 });
 
-// Production: use OpenAI
-const prodAI = new AI({
-  adapters: { openai: new OpenAIAdapter({ apiKey: "..." }) }
-});
-
-// Both are type-safe!
+return toStreamResponse(stream);
 ```
 
-### Pattern 2: Multi-Provider Fallback
+**Backend (Python):**
+```python
+from tanstack_ai import StreamChunkConverter, format_sse_chunk
+
+async for event in anthropic_stream:
+    chunks = await converter.convert_event(event)
+    for chunk in chunks:
+        yield format_sse_chunk(chunk)
+```
+
+**Backend (PHP):**
+```php
+use TanStack\AI\StreamChunkConverter;
+use TanStack\AI\SSEFormatter;
+
+foreach ($anthropicStream as $event) {
+    $chunks = $converter->convertEvent($event);
+    foreach ($chunks as $chunk) {
+        echo SSEFormatter::formatChunk($chunk);
+    }
+}
+```
+
+**Frontend:**
+```typescript
+import { ChatClient, fetchServerSentEvents } from "@tanstack/ai-client";
+
+const client = new ChatClient({
+  connection: fetchServerSentEvents("/api/chat"),
+});
+```
+
+### Automatic Tool Execution
+
+The TypeScript backend (`@tanstack/ai`) automatically handles tool execution:
 
 ```typescript
-const ai = new AI({
-  adapters: {
-    primary: new OpenAIAdapter({ apiKey: "..." }),
-    fallback: new AnthropicAdapter({ apiKey: "..." }),
+import { chat, tool } from "@tanstack/ai";
+
+const weatherTool = tool({
+  function: {
+    name: "getWeather",
+    description: "Get weather for a location",
+    parameters: { /* ... */ },
+  },
+  execute: async (args) => {
+    // This is called automatically by the SDK
+    return JSON.stringify({ temp: 72, condition: "sunny" });
   },
 });
 
-try {
-  return await ai.chat({
-    adapter: "primary",
-    model: "gpt-4", // ✅ Type-safe
-    messages,
-  });
-} catch {
-  return await ai.chat({
-    adapter: "fallback",
-    model: "claude-3-5-sonnet-20241022", // ✅ Type-safe
-    messages,
-  });
-}
-```
-
-### Pattern 3: Task-Based Routing
-
-```typescript
-function getAdapter(task: string): "openai" | "anthropic" {
-  return task === "code" ? "openai" : "anthropic";
-}
-
-const adapter = getAdapter(userTask);
-await ai.chat({
-  adapter,
-  model: adapter === "openai" ? "gpt-4" : "claude-3-5-sonnet-20241022",
+const stream = chat({
+  adapter: openai(),
+  model: "gpt-4o",
   messages,
+  tools: [weatherTool],  // SDK executes these automatically
 });
 ```
 
-## Troubleshooting
+Clients receive:
+- `content` chunks - text from the model
+- `tool_call` chunks - when the model calls a tool
+- `tool_result` chunks - results from tool execution
+- `done` chunk - conversation complete
 
-### Error: Model not assignable to type
+---
 
-**Cause**: Using a model that's not supported by the selected adapter
+## Development Tips
 
-**Solution**: Check which models are available for your adapter:
-- OpenAI: `gpt-4`, `gpt-4o`, `gpt-3.5-turbo`, etc.
-- Anthropic: `claude-3-5-sonnet-20241022`, etc.
-- Gemini: `gemini-pro`, `gemini-1.5-pro`, etc.
-- Ollama: `llama3`, `mistral`, etc.
+### Running Multiple Examples
 
-### Error: Adapter not found
+You can run backend and frontend examples together:
 
-**Cause**: Using an adapter name that doesn't exist in your configuration
+```bash
+# Terminal 1: Start Python backend
+cd examples/python-fastapi
+python anthropic-server.py
 
-**Solution**: Check `ai.adapterNames` or your initial configuration
+# Terminal 2: Start vanilla frontend
+cd examples/vanilla-chat
+pnpm dev
 
-### No Autocomplete
+# Terminal 3: Start ts-chat (full-stack)
+cd examples/ts-chat
+pnpm start
+```
 
-**Cause**: TypeScript might not be inferring types correctly
+### Environment Variables
 
-**Solution**: 
-1. Ensure you're using TypeScript 4.5+
-2. Restart your IDE/TypeScript server
-3. Check that adapters are created with `as const` arrays
+Each example has an `env.example` file. Copy it to `.env` and add your API keys:
 
-## Best Practices
+```bash
+# TypeScript examples
+OPENAI_API_KEY=sk-...
+ANTHROPIC_API_KEY=sk-ant-...
 
-1. **Use const assertions** for model arrays: `as const`
-2. **Define adapters once** at app initialization
-3. **Use autocomplete** to discover available models
-4. **Let TypeScript guide you** when switching adapters
-5. **Add custom adapters** following the same pattern
+# Python examples  
+ANTHROPIC_API_KEY=sk-ant-...
+OPENAI_API_KEY=sk-...
 
-## Further Reading
+# PHP examples
+ANTHROPIC_API_KEY=sk-ant-...
+OPENAI_API_KEY=sk-...
+```
 
-- `../docs/TYPE_SAFETY.md` - Complete type safety guide
-- `../IMPLEMENTATION_SUMMARY.md` - Technical implementation details
-- Adapter READMEs in `../packages/ai-*/README.md`
+### Building for Production
+
+**TypeScript:**
+```bash
+pnpm build
+```
+
+**Python:**
+```bash
+# Use a production ASGI server
+uvicorn anthropic-server:app --host 0.0.0.0 --port 8000
+```
+
+**PHP:**
+```bash
+# Use a production web server (Apache, Nginx, etc.)
+# See php-slim/README.md for deployment details
+```
+
+---
 
 ## Contributing
 
-When adding examples:
-1. Show both valid and invalid usage
-2. Include TypeScript error messages
-3. Explain the "why" not just the "how"
-4. Test that examples actually work
-5. Keep examples focused and concise
+When adding new examples:
+
+1. **Create a README.md** with setup instructions
+2. **Add an env.example** file with required environment variables
+3. **Document the tech stack** and key features
+4. **Include usage examples** with code snippets
+5. **Update this README** to list your example
+
+---
+
+## Learn More
+
+- 📖 [Main README](../README.md) - Project overview
+- 📖 [Documentation](../docs/) - Comprehensive guides
+- 📖 [TypeScript Packages](../packages/typescript/) - Core libraries
+- 📖 [Python Package](../packages/python/tanstack-ai/) - Python utilities
+- 📖 [PHP Package](../packages/php/tanstack-ai/) - PHP utilities
+
+---
+
+Built with ❤️ by the TanStack community
