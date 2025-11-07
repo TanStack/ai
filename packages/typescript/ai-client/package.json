@@ -41,6 +41,7 @@
   ],
   "dependencies": {
     "@tanstack/ai": "workspace:*",
+    "@tanstack/ai-devtools-client": "workspace:*",
     "partial-json": "^0.1.7"
   },
   "devDependencies": {
@@ -50,4 +51,3 @@
     "vitest": "^3.0.5"
   }
 }
-

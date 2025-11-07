@@ -39,6 +39,9 @@
     "chat",
     "embeddings"
   ],
+  "dependencies": {
+    "@tanstack/ai-devtools-client": "workspace:*"
+  },
   "devDependencies": {
     "@types/node": "^22.10.2",
     "tsdown": "^0.15.9",

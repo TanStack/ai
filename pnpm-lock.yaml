@@ -223,6 +223,10 @@ importers:
         version: 7.1.9(@types/node@22.18.8)(jiti@2.6.1)(lightningcss@1.30.2)(terser@5.44.0)(tsx@4.20.6)(yaml@2.8.1)
 
   packages/typescript/ai:
+    dependencies:
+      '@tanstack/ai-devtools-client':
+        specifier: workspace:*
+        version: link:../ai-devtools-client
     devDependencies:
       '@types/node':
         specifier: ^22.10.2
@@ -261,6 +265,9 @@ importers:
       '@tanstack/ai':
         specifier: workspace:*
         version: link:../ai
+      '@tanstack/ai-devtools-client':
+        specifier: workspace:*
+        version: link:../ai-devtools-client
       partial-json:
         specifier: ^0.1.7
         version: 0.1.7
@@ -305,6 +312,25 @@ importers:
       vite-plugin-solid:
         specifier: ^2.11.8
         version: 2.11.10(solid-js@1.9.10)(vite@7.1.9(@types/node@22.18.8)(jiti@2.6.1)(lightningcss@1.30.2)(terser@5.44.0)(tsx@4.20.6)(yaml@2.8.1))
+
+  packages/typescript/ai-devtools-client:
+    dependencies:
+      '@tanstack/devtools-event-client':
+        specifier: ^0.3.4
+        version: 0.3.4
+    devDependencies:
+      '@types/node':
+        specifier: ^22.10.2
+        version: 22.18.8
+      tsdown:
+        specifier: ^0.15.9
+        version: 0.15.9(typescript@5.9.3)
+      typescript:
+        specifier: ^5.7.2
+        version: 5.9.3
+      vitest:
+        specifier: ^3.0.5
+        version: 3.2.4(@types/debug@4.1.12)(@types/node@22.18.8)(jiti@2.6.1)(jsdom@27.0.0(postcss@8.5.6))(lightningcss@1.30.2)(terser@5.44.0)(tsx@4.20.6)(yaml@2.8.1)
 
   packages/typescript/ai-fallback:
     dependencies:

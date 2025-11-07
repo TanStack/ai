@@ -17,6 +17,7 @@ import type {
   VideoGenerationResult,
 } from "./types";
 import { ai as AI } from "./ai";
+import { aiDevtoolsEventClient } from "@tanstack/ai-devtools-client";
 
 // Extract types from adapter
 type ExtractModelsFromAdapter<T> = T extends AIAdapter<
@@ -161,8 +162,8 @@ type ChatCompletionOptionsWithAdapter<
 // Helper type for chatCompletion return type
 type ChatCompletionReturnType<TOutput extends ResponseFormat<any> | undefined> =
   TOutput extends ResponseFormat<infer TData>
-    ? ChatCompletionResult<TData>
-    : ChatCompletionResult;
+  ? ChatCompletionResult<TData>
+  : ChatCompletionResult;
 
 /**
  * Standalone chat streaming function with type inference from adapter
@@ -198,6 +199,14 @@ export function chat<
 >(options: ChatStreamOptions<TAdapter>): AsyncIterable<StreamChunk> {
   const { adapter, ...restOptions } = options;
   const aiInstance = new AI({ adapter });
+
+  aiDevtoolsEventClient.emit("standalone-chat-started", {
+    timestamp: Date.now(),
+    adapterName: adapter.name,
+    model: options.model as string,
+    streaming: true,
+  });
+
   return aiInstance.chat(restOptions as any);
 }
 
@@ -237,8 +246,16 @@ export async function chatCompletion<
 >(
   options: ChatCompletionOptionsWithAdapter<TAdapter, TOutput>
 ): Promise<ChatCompletionReturnType<TOutput>> {
-  const { adapter, ...restOptions } = options;
+  const { adapter, output, ...restOptions } = options;
   const aiInstance = new AI({ adapter });
+
+  aiDevtoolsEventClient.emit("standalone-chat-completion-started", {
+    timestamp: Date.now(),
+    adapterName: adapter.name,
+    model: options.model as string,
+    hasOutput: !!output,
+  });
+
   return aiInstance.chatCompletion(restOptions as any) as any;
 }
 

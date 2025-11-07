@@ -1,0 +1,51 @@
+{
+  "name": "@tanstack/ai-devtools-client",
+  "version": "0.1.0",
+  "description": "Event client for TanStack AI Devtools",
+  "author": "",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/TanStack/ai.git",
+    "directory": "packages/typescript/ai-devtools-client"
+  },
+  "type": "module",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist",
+    "src"
+  ],
+  "scripts": {
+    "build": "tsdown",
+    "dev": "tsdown --watch",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "clean": "rm -rf dist node_modules",
+    "typecheck": "tsc --noEmit",
+    "lint": "tsc --noEmit"
+  },
+  "keywords": [
+    "ai",
+    "tanstack",
+    "sdk",
+    "llm",
+    "devtools",
+    "event-client"
+  ],
+  "dependencies": {
+    "@tanstack/devtools-event-client": "^0.3.4"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.2",
+    "tsdown": "^0.15.9",
+    "typescript": "^5.7.2",
+    "vitest": "^3.0.5"
+  }
+}
