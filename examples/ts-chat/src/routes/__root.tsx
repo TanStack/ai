@@ -51,6 +51,9 @@ function RootDocument({ children }: { children: React.ReactNode }) {
             },
             aiDevtoolsPlugin(),
           ]}
+          eventBusConfig={{
+            connectToServerBus: true,
+          }}
         />
         <Scripts />
       </body>

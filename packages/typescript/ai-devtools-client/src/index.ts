@@ -108,7 +108,7 @@ export interface ChatSession {
   updatedAt: string;
 }
 
-interface EventMap {
+export interface AIDevtoolsEventMap {
   // Core devtools events
   "tanstack-ai-devtools:ready": {
     packageJson: PackageJson | null;
@@ -362,7 +362,7 @@ interface EventMap {
   };
 }
 
-export class AiDevtoolsEventClient extends EventClient<EventMap> {
+export class AiDevtoolsEventClient extends EventClient<AIDevtoolsEventMap> {
   constructor() {
     super({
       pluginId: "tanstack-ai-devtools",

@@ -1,16 +1,16 @@
 import { Show, createSignal, onCleanup, onMount } from "solid-js";
 import { Header, HeaderLogo, MainPanel } from "@tanstack/devtools-ui";
 import { useStyles } from "../styles/use-styles";
-import { MessagesList } from "./MessagesList";
-import { ChunksList } from "./ChunksList";
-import { DebugDetails } from "./DebugDetails";
+import { ConversationsList } from "./ConversationsList";
+import { ConversationDetails } from "./ConversationDetails";
+import { initializeEventListeners, getAIStore, clearAllConversations } from "../store/ai-store";
 
 export default function Devtools() {
   const styles = useStyles();
+  const store = getAIStore();
   const [leftPanelWidth, setLeftPanelWidth] = createSignal(300);
   const [isDragging, setIsDragging] = createSignal(false);
-  const [selectedKey, setSelectedKey] = createSignal<string | null>(null);
-  const [activeTab, setActiveTab] = createSignal<"messages" | "chunks">("messages");
+  const [filterType, setFilterType] = createSignal<"all" | "client" | "server">("all");
 
   let dragStartX = 0;
   let dragStartWidth = 0;
@@ -43,12 +43,17 @@ export default function Devtools() {
   onMount(() => {
     document.addEventListener("mousemove", handleMouseMove);
     document.addEventListener("mouseup", handleMouseUp);
+
+    // Initialize event listeners for AI events
+    initializeEventListeners();
   });
 
   onCleanup(() => {
     document.removeEventListener("mousemove", handleMouseMove);
     document.removeEventListener("mouseup", handleMouseUp);
   });
+
+  const conversationCount = () => Object.keys(store.conversations).length;
 
   return (
     <MainPanel>
@@ -65,53 +70,74 @@ export default function Devtools() {
             "max-width": "800px",
           }}
         >
-          {/* Tab selector */}
+          {/* Filter tabs and action buttons */}
           <div
             style={{
               display: "flex",
+              "flex-direction": "column",
               gap: "8px",
               padding: "12px",
               "border-bottom": "1px solid var(--border-color)",
             }}
           >
-            <button
-              class={styles().actionButton}
-              style={{
-                background: activeTab() === "messages" ? "#ec4899" : undefined,
-                color: activeTab() === "messages" ? "white" : undefined,
-                "border-color": activeTab() === "messages" ? "#ec4899" : undefined,
-              }}
-              onClick={() => setActiveTab("messages")}
-            >
-              Messages
-            </button>
-            <button
-              class={styles().actionButton}
-              style={{
-                background: activeTab() === "chunks" ? "#ec4899" : undefined,
-                color: activeTab() === "chunks" ? "white" : undefined,
-                "border-color": activeTab() === "chunks" ? "#ec4899" : undefined,
-              }}
-              onClick={() => setActiveTab("chunks")}
-            >
-              Raw Chunks
-            </button>
+            <div style={{ display: "flex", gap: "6px", "flex-wrap": "wrap" }}>
+              <button
+                class={styles().actionButton}
+                style={{
+                  background: filterType() === "all" ? "#ec4899" : undefined,
+                  color: filterType() === "all" ? "white" : undefined,
+                  "border-color": filterType() === "all" ? "#ec4899" : undefined,
+                  "font-size": "11px",
+                }}
+                onClick={() => setFilterType("all")}
+              >
+                All
+              </button>
+              <button
+                class={styles().actionButton}
+                style={{
+                  background: filterType() === "client" ? "#ec4899" : undefined,
+                  color: filterType() === "client" ? "white" : undefined,
+                  "border-color": filterType() === "client" ? "#ec4899" : undefined,
+                  "font-size": "11px",
+                }}
+                onClick={() => setFilterType("client")}
+              >
+                Client
+              </button>
+              <button
+                class={styles().actionButton}
+                style={{
+                  background: filterType() === "server" ? "#ec4899" : undefined,
+                  color: filterType() === "server" ? "white" : undefined,
+                  "border-color": filterType() === "server" ? "#ec4899" : undefined,
+                  "font-size": "11px",
+                }}
+                onClick={() => setFilterType("server")}
+              >
+                Server
+              </button>
+            </div>
+            <div style={{ display: "flex", gap: "6px" }}>
+              <button
+                class={styles().actionButton}
+                style={{ flex: 1, "font-size": "11px" }}
+                onClick={() => clearAllConversations()}
+                disabled={conversationCount() === 0}
+              >
+                <div class={styles().actionDotRed} />
+                Clear All ({conversationCount()})
+              </button>
+            </div>
           </div>
 
-          {activeTab() === "messages" && <MessagesList selectedKey={selectedKey} setSelectedKey={setSelectedKey} />}
-          {activeTab() === "chunks" && <ChunksList selectedKey={selectedKey} setSelectedKey={setSelectedKey} />}
+          <ConversationsList filterType={filterType()} />
         </div>
 
         <div class={`${styles().dragHandle} ${isDragging() ? "dragging" : ""}`} onMouseDown={handleMouseDown} />
 
         <div class={styles().rightPanel} style={{ flex: 1 }}>
-          <Show
-            when={selectedKey() != null}
-            fallback={<div class={styles().noSelection}>Select a message or chunk to view details</div>}
-          >
-            <div class={styles().panelHeader}>Details</div>
-            <DebugDetails selectedKey={selectedKey()!} />
-          </Show>
+          <ConversationDetails />
         </div>
       </div>
     </MainPanel>
