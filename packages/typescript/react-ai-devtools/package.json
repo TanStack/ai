@@ -1,0 +1,60 @@
+{
+  "name": "@tanstack/react-ai-devtools",
+  "version": "0.1.8",
+  "description": "React Devtools for TanStack AI.",
+  "author": "tannerlinsley",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/TanStack/ai.git",
+    "directory": "packages/react-ai-devtools"
+  },
+  "homepage": "https://tanstack.com/ai",
+  "funding": {
+    "type": "github",
+    "url": "https://github.com/sponsors/tannerlinsley"
+  },
+  "scripts": {
+    "build": "tsdown",
+    "dev": "tsdown --watch",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "clean": "rm -rf dist node_modules",
+    "typecheck": "tsc --noEmit",
+    "lint": "tsc --noEmit"
+  },
+  "type": "module",
+  "types": "dist/index.d.ts",
+  "module": "dist/index.js",
+  "exports": {
+    ".": {
+      "import": {
+        "types": "./dist/index.d.ts",
+        "default": "./dist/index.js"
+      }
+    },
+    "./production": {
+      "import": {
+        "types": "./dist/production.d.ts",
+        "default": "./dist/production.js"
+      }
+    },
+    "./package.json": "./package.json"
+  },
+  "sideEffects": false,
+  "files": [
+    "dist",
+    "src"
+  ],
+  "dependencies": {
+    "@tanstack/devtools-utils": "^0.0.4",
+    "@tanstack/ai-devtools-core": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/react": "^19.0.7",
+    "react": "^19.0.0"
+  },
+  "peerDependencies": {
+    "react": "^17.0.0 || ^18.0.0 || ^19.0.0"
+  }
+}

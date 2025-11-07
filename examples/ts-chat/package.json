@@ -17,6 +17,7 @@
     "@tanstack/ai-client": "workspace:*",
     "@tanstack/ai-anthropic": "workspace:*",
     "@tanstack/ai-ollama": "workspace:*",
+    "@tanstack/react-ai-devtools": "workspace:*",
     "@tanstack/ai-openai": "workspace:*",
     "@tanstack/ai-react": "workspace:*",
     "@tanstack/ai-react-ui": "workspace:*",

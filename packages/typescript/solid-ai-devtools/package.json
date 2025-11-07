@@ -1,0 +1,61 @@
+{
+  "name": "@tanstack/solid-ai-devtools",
+  "version": "0.1.0",
+  "description": "Solid TanStack AI Devtools",
+  "author": "",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/TanStack/ai.git",
+    "directory": "packages/typescript/ai"
+  },
+  "type": "module",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./production": {
+      "import": {
+        "types": "./dist/production.d.ts",
+        "default": "./dist/production.js"
+      }
+    }
+  },
+  "files": [
+    "dist",
+    "src"
+  ],
+  "scripts": {
+    "build": "tsdown",
+    "dev": "tsdown --watch",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "clean": "rm -rf dist node_modules",
+    "typecheck": "tsc --noEmit",
+    "lint": "tsc --noEmit"
+  },
+  "keywords": [
+    "ai",
+    "tanstack",
+    "sdk",
+    "llm",
+    "chat",
+    "embeddings"
+  ],
+  "dependencies": {
+    "@tanstack/devtools-utils": "^0.0.4",
+    "@tanstack/ai-devtools-core": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.2",
+    "tsdown": "^0.15.9",
+    "typescript": "^5.7.2",
+    "vitest": "^3.0.5"
+  },
+  "peerDependencies": {
+    "solid-js": ">=1.9.7"
+  }
+}
