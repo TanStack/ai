@@ -1,7 +1,7 @@
 import { HeadContent, Scripts, createRootRoute } from "@tanstack/react-router";
 import { TanStackRouterDevtoolsPanel } from "@tanstack/react-router-devtools";
 import { TanStackDevtools } from "@tanstack/react-devtools";
-import { aiDevtoolsPlugin } from "@tanstack/react-ai-devtools";
+import { AiDevtoolsPanel, aiDevtoolsPlugin } from "@tanstack/react-ai-devtools";
 import Header from "../components/Header";
 
 import appCss from "../styles.css?url";

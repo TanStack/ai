@@ -10,27 +10,30 @@
     "directory": "packages/typescript/ai"
   },
   "type": "module",
-  "module": "./dist/index.js",
-  "types": "./dist/index.d.ts",
+  "types": "dist/esm/index.d.ts",
+  "module": "dist/esm/index.js",
   "exports": {
     ".": {
-      "types": "./dist/index.d.ts",
-      "import": "./dist/index.js"
+      "import": {
+        "types": "./dist/esm/index.d.ts",
+        "default": "./dist/esm/index.js"
+      }
     },
     "./production": {
       "import": {
-        "types": "./dist/production.d.ts",
-        "default": "./dist/production.js"
+        "types": "./dist/esm/production.d.ts",
+        "default": "./dist/esm/production.js"
       }
-    }
+    },
+    "./package.json": "./package.json"
   },
   "files": [
     "dist",
     "src"
   ],
   "scripts": {
-    "build": "tsdown",
-    "dev": "tsdown --watch",
+    "build": "vite build ",
+    "dev": "tsup --watch",
     "test": "vitest run",
     "test:watch": "vitest",
     "clean": "rm -rf dist node_modules",
@@ -47,16 +50,15 @@
   ],
   "dependencies": {
     "@tanstack/devtools-ui": "^0.4.3",
-    "@tanstack/devtools-utils": "^0.0.4",
+    "@tanstack/devtools-utils": "^0.0.6",
     "clsx": "^2.1.1",
     "goober": "^2.1.16",
     "solid-js": "^1.9.9"
   },
   "devDependencies": {
-    "@types/node": "^22.10.2",
-    "tsdown": "^0.15.9",
-    "tsup-preset-solid": "^2.2.0",
-    "typescript": "^5.7.2",
-    "vitest": "^3.0.5"
+    "@tanstack/config": "^0.22.0",
+    "solid-js": "^1.9.9",
+    "vite": "^7.1.6",
+    "vite-plugin-solid": "^2.11.8"
   }
 }

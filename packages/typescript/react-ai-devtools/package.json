@@ -47,7 +47,7 @@
     "src"
   ],
   "dependencies": {
-    "@tanstack/devtools-utils": "^0.0.4",
+    "@tanstack/devtools-utils": "^0.0.6",
     "@tanstack/ai-devtools-core": "workspace:*"
   },
   "devDependencies": {
