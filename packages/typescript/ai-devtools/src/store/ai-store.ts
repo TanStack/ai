@@ -1,67 +1,62 @@
 import { createStore } from "solid-js/store";
-import {
-  aiDevtoolsEventClient,
-  type ChatMessage,
-  type StreamChunk as BaseStreamChunk,
-} from "@tanstack/ai-devtools-client";
+import { aiDevtoolsEventClient } from "@tanstack/ai-devtools-client";
 
-// Extend the base types from ai-devtools-client for our store needs
-export interface Message extends Omit<ChatMessage, "timestamp"> {
-  timestamp: number; // Convert string to number for easier handling
-  conversationId: string;
+export interface MessagePart {
+  type: "text" | "tool-call" | "tool-result";
+  content?: string;
+  toolCallId?: string;
+  toolName?: string;
+  arguments?: string;
+  state?: string;
+  output?: any;
+  error?: string;
 }
 
-export interface StreamChunk {
+export interface Message {
   id: string;
-  streamId: string;
-  type: "content" | "tool_call" | "tool_result" | "done" | "error";
+  role: "user" | "assistant" | "system";
+  content: string;
   timestamp: number;
-  conversationId: string;
+  parts?: MessagePart[]; // Optional for now to maintain backwards compatibility
+  toolCalls?: Array<{
+    id: string;
+    name: string;
+    arguments: string;
+    state: string;
+    approvalRequired?: boolean;
+    approvalId?: string;
+  }>;
+  chunks?: Chunk[]; // Chunks associated with this message (for linking server chunks to client messages)
+  model?: string; // Model used for this message (for linking server chunks)
+}
+
+export interface Chunk {
+  id: string;
+  type: "content" | "tool_call" | "tool_result" | "done" | "error" | "approval";
+  timestamp: number;
+  messageId?: string; // Unique ID for grouping chunks from the same response
   content?: string;
   delta?: string;
   toolName?: string;
   toolCallId?: string;
   finishReason?: string;
   error?: string;
-  usage?: {
-    promptTokens: number;
-    completionTokens: number;
-    totalTokens: number;
-  };
-}
-
-export interface ToolCall {
-  id: string;
-  streamId: string;
-  conversationId: string;
-  toolName: string;
-  input: any;
-  result?: any;
-  state: "started" | "completed" | "failed";
-  timestamp: number;
-  duration?: number;
-  error?: string;
+  // Approval-specific fields
+  approvalId?: string;
+  input?: any;
 }
 
 export interface Conversation {
   id: string;
   type: "client" | "server";
-  status: "active" | "completed" | "error";
+  label: string;
+  messages: Message[];
+  chunks: Chunk[];
   model?: string;
   provider?: string;
-  messages: Message[];
-  chunks: StreamChunk[];
-  toolCalls: ToolCall[];
+  status: "active" | "completed" | "error";
   startedAt: number;
   completedAt?: number;
-  error?: string;
-  isLoading?: boolean;
-  clientId?: string;
-  requestId?: string;
-  streamId?: string;
-  totalTokens?: number;
-  promptTokens?: number;
-  completionTokens?: number;
 }
 
 export interface AIStoreState {
@@ -74,406 +69,829 @@ const [state, setState] = createStore<AIStoreState>({
   activeConversationId: null,
 });
 
-function getOrCreateConversation(
-  id: string,
-  type: "client" | "server",
-  timestamp: number
-): Conversation {
+function getOrCreateConversation(id: string, type: "client" | "server", label: string): void {
   if (!state.conversations[id]) {
-    console.log(`[AI Devtools] Creating new ${type} conversation:`, id);
-
-    // Create the full conversation object
-    const newConversation: Conversation = {
+    console.log(`[AI Devtools] Creating ${type} conversation:`, id);
+    setState("conversations", id, {
       id,
       type,
-      status: "active",
+      label,
       messages: [],
       chunks: [],
-      toolCalls: [],
-      startedAt: timestamp,
-    };
-
-    // Set it in the store
-    setState("conversations", id, newConversation);
-
+      status: "active",
+      startedAt: Date.now(),
+    });
     if (!state.activeConversationId) {
       setState("activeConversationId", id);
-      console.log("[AI Devtools] Auto-selected first conversation:", id);
     }
   }
-  return state.conversations[id]!;
 }
 
-function findConversationByStream(streamId: string): Conversation | undefined {
-  return Object.values(state.conversations).find(
-    (conv) => conv.streamId === streamId || conv.requestId === streamId
-  );
+function addMessage(conversationId: string, message: Message): void {
+  if (!state.conversations[conversationId]) {
+    console.warn(`[AI Devtools] Conversation ${conversationId} not found for message`);
+    return;
+  }
+  setState("conversations", conversationId, "messages", (msgs) => [...msgs, message]);
 }
 
-function findConversationByClient(clientId: string): Conversation | undefined {
-  return Object.values(state.conversations).find((conv) => conv.clientId === clientId);
+function addChunk(conversationId: string, chunk: Chunk): void {
+  if (!state.conversations[conversationId]) {
+    console.warn(`[AI Devtools] Conversation ${conversationId} not found for chunk`);
+    return;
+  }
+  setState("conversations", conversationId, "chunks", (chunks) => [...chunks, chunk]);
 }
 
-export function initializeEventListeners() {
-  console.log("[AI Devtools] Initializing event listeners...");
+// Add chunk to the last assistant message in a client conversation
+// OR create a new assistant message if the messageId is different
+function addChunkToMessage(conversationId: string, chunk: Chunk): void {
+  if (!state.conversations[conversationId]) {
+    console.warn(`[AI Devtools] Conversation ${conversationId} not found for chunk`);
+    return;
+  }
 
-  aiDevtoolsEventClient.on("ai-instance-created", (e) => {
-    console.log("[AI Devtools] AI Instance Created:", e);
-  });
+  const conv = state.conversations[conversationId];
 
-  aiDevtoolsEventClient.on("chat-started", (e) => {
-    console.log("[AI Devtools] Chat started:", e);
-    const convId = e.payload.requestId;
-    getOrCreateConversation(convId, "server", e.payload.timestamp);
-    setState("conversations", convId, {
-      requestId: e.payload.requestId,
-      model: e.payload.model,
-    });
-  });
+  // If chunk has a messageId, find or create a message with that ID
+  if (chunk.messageId) {
+    // First, try to find an existing message with this messageId
+    const messageIndex = conv.messages.findIndex((msg) => msg.id === chunk.messageId);
 
-  aiDevtoolsEventClient.on("chat-completed", (e) => {
-    const conv = findConversationByStream(e.payload.requestId);
-    if (conv) {
-      setState("conversations", conv.id, {
-        status: "completed",
-        completedAt: e.payload.timestamp,
-        totalTokens: e.payload.usage?.totalTokens,
-        promptTokens: e.payload.usage?.promptTokens,
-        completionTokens: e.payload.usage?.completionTokens,
-      });
-
-      setState("conversations", conv.id, "messages", (msgs) => [
-        ...msgs,
-        {
-          id: `msg-${e.payload.timestamp}`,
-          role: "assistant" as const,
-          content: e.payload.content,
-          timestamp: e.payload.timestamp,
-          conversationId: conv.id,
-        },
-      ]);
-    }
-  });
-
-  aiDevtoolsEventClient.on("chat-iteration", (e) => {
-    const conv = findConversationByStream(e.payload.requestId);
-    if (conv) {
-      console.log("Chat iteration:", e.payload.iterationNumber, "tools:", e.payload.toolCallCount);
-    }
-  });
-
-  aiDevtoolsEventClient.on("stream-started", (e) => {
-    console.log("[AI Devtools] Stream started:", e);
-    const convId = e.payload.streamId;
-    getOrCreateConversation(convId, "server", e.payload.timestamp);
-    setState("conversations", convId, {
-      streamId: e.payload.streamId,
-      model: e.payload.model,
-      provider: e.payload.provider,
-    });
-  });
-
-  aiDevtoolsEventClient.on("stream-chunk-content", (e) => {
-    const conv = findConversationByStream(e.payload.streamId);
-    if (conv) {
-      setState("conversations", conv.id, "chunks", (chunks) => [
-        ...chunks,
-        {
-          id: `chunk-${e.payload.timestamp}`,
-          streamId: e.payload.streamId,
-          type: "content" as const,
-          timestamp: e.payload.timestamp,
-          conversationId: conv.id,
-          content: e.payload.content,
-          delta: e.payload.delta,
-        },
-      ]);
-    }
-  });
-
-  aiDevtoolsEventClient.on("stream-chunk-tool-call", (e) => {
-    const conv = findConversationByStream(e.payload.streamId);
-    if (conv) {
-      setState("conversations", conv.id, "chunks", (chunks) => [
-        ...chunks,
-        {
-          id: `chunk-${e.payload.timestamp}`,
-          streamId: e.payload.streamId,
-          type: "tool_call" as const,
-          timestamp: e.payload.timestamp,
-          conversationId: conv.id,
-          toolName: e.payload.toolName,
-          toolCallId: e.payload.toolCallId,
-        },
-      ]);
-    }
-  });
-
-  aiDevtoolsEventClient.on("stream-chunk-tool-result", (e) => {
-    const conv = findConversationByStream(e.payload.streamId);
-    if (conv) {
-      setState("conversations", conv.id, "chunks", (chunks) => [
-        ...chunks,
-        {
-          id: `chunk-${e.payload.timestamp}`,
-          streamId: e.payload.streamId,
-          type: "tool_result" as const,
-          timestamp: e.payload.timestamp,
-          conversationId: conv.id,
-          toolCallId: e.payload.toolCallId,
-          content: e.payload.result,
-        },
-      ]);
-    }
-  });
-
-  aiDevtoolsEventClient.on("stream-chunk-done", (e) => {
-    const conv = findConversationByStream(e.payload.streamId);
-    if (conv) {
-      setState("conversations", conv.id, "chunks", (chunks) => [
-        ...chunks,
-        {
-          id: `chunk-${e.payload.timestamp}`,
-          streamId: e.payload.streamId,
-          type: "done" as const,
-          timestamp: e.payload.timestamp,
-          conversationId: conv.id,
-          finishReason: e.payload.finishReason || undefined,
-          usage: e.payload.usage,
-        },
-      ]);
-
-      setState("conversations", conv.id, {
-        totalTokens: e.payload.usage?.totalTokens,
-        promptTokens: e.payload.usage?.promptTokens,
-        completionTokens: e.payload.usage?.completionTokens,
-      });
-    }
-  });
-
-  aiDevtoolsEventClient.on("stream-chunk-error", (e) => {
-    const conv = findConversationByStream(e.payload.streamId);
-    if (conv) {
-      setState("conversations", conv.id, "chunks", (chunks) => [
-        ...chunks,
-        {
-          id: `chunk-${e.payload.timestamp}`,
-          streamId: e.payload.streamId,
-          type: "error" as const,
-          timestamp: e.payload.timestamp,
-          conversationId: conv.id,
-          error: e.payload.error,
-        },
-      ]);
-
-      setState("conversations", conv.id, {
-        status: "error",
-        error: e.payload.error,
-        completedAt: e.payload.timestamp,
-      });
-    }
-  });
-
-  aiDevtoolsEventClient.on("stream-ended", (e) => {
-    const conv = findConversationByStream(e.payload.streamId);
-    if (conv) {
-      setState("conversations", conv.id, {
-        status: "completed",
-        completedAt: e.payload.timestamp,
-      });
-    }
-  });
-
-  aiDevtoolsEventClient.on("tool-call-started", (e) => {
-    const conv = findConversationByStream(e.payload.streamId);
-    if (conv) {
-      setState("conversations", conv.id, "toolCalls", (tools) => [
-        ...tools,
-        {
-          id: e.payload.toolCallId,
-          streamId: e.payload.streamId,
-          conversationId: conv.id,
-          toolName: e.payload.toolName,
-          input: e.payload.input,
-          state: "started" as const,
-          timestamp: e.payload.timestamp,
-        },
-      ]);
-    }
-  });
-
-  aiDevtoolsEventClient.on("tool-call-completed", (e) => {
-    const conv = findConversationByStream(e.payload.streamId);
-    if (conv) {
-      const toolIndex = conv.toolCalls.findIndex((t) => t.id === e.payload.toolCallId);
-      if (toolIndex !== -1) {
-        setState("conversations", conv.id, "toolCalls", toolIndex, {
-          state: "completed",
-          result: e.payload.result,
-          duration: e.payload.duration,
-        });
-      }
-    }
-  });
-
-  aiDevtoolsEventClient.on("tool-call-failed", (e) => {
-    const conv = findConversationByStream(e.payload.streamId);
-    if (conv) {
-      const toolIndex = conv.toolCalls.findIndex((t) => t.id === e.payload.toolCallId);
-      if (toolIndex !== -1) {
-        setState("conversations", conv.id, "toolCalls", toolIndex, {
-          state: "failed",
-          error: e.payload.error,
-        });
-      }
-    }
-  });
-
-  aiDevtoolsEventClient.on("client-created", (e) => {
-    console.log("[AI Devtools] Client created:", e);
-    const convId = e.payload.clientId;
-    getOrCreateConversation(convId, "client", e.payload.timestamp);
-    setState("conversations", convId, {
-      clientId: e.payload.clientId,
-    });
-  });
-
-  aiDevtoolsEventClient.on("client-message-appended", (e) => {
-    console.log("[AI Devtools] Client message appended:", e);
-    const conv = findConversationByClient(e.payload.clientId);
-    if (conv) {
-      setState("conversations", conv.id, "messages", (msgs) => [
-        ...msgs,
-        {
-          id: e.payload.messageId,
-          role: e.payload.role as Message["role"],
-          content: e.payload.contentPreview,
-          timestamp: e.payload.timestamp,
-          conversationId: conv.id,
-        },
-      ]);
+    if (messageIndex !== -1) {
+      // Message exists, add chunk to it
+      setState(
+        "conversations",
+        conversationId,
+        "messages",
+        messageIndex,
+        "chunks",
+        (chunks) => [...(chunks || []), chunk]
+      );
+      return;
     } else {
-      console.warn("[AI Devtools] Could not find conversation for client:", e.payload.clientId);
+      // Message doesn't exist, create it
+      const newMessage: Message = {
+        id: chunk.messageId,
+        role: "assistant",
+        content: "", // Will be filled from accumulated chunks
+        timestamp: chunk.timestamp,
+        model: conv.model,
+        chunks: [chunk],
+      };
+      setState("conversations", conversationId, "messages", (msgs) => [...msgs, newMessage]);
+      return;
     }
+  }
+
+  // Fallback: Find the last assistant message (old behavior for backward compatibility)
+  for (let i = conv.messages.length - 1; i >= 0; i--) {
+    const message = conv.messages[i];
+    if (message && message.role === "assistant") {
+      setState(
+        "conversations",
+        conversationId,
+        "messages",
+        i,
+        "chunks",
+        (chunks) => [...(chunks || []), chunk]
+      );
+      return;
+    }
+  }
+
+  console.warn(`[AI Devtools] No assistant message found in conversation ${conversationId} to add chunk`);
+}
+
+const streamToConversation = new Map<string, string>();
+
+aiDevtoolsEventClient.on("client-created", (e) => {
+  const clientId = e.payload.clientId;
+  console.log(`[AI Devtools] 🎨 Client Created:`, clientId);
+  getOrCreateConversation(clientId, "client", `Client Chat (${clientId.substring(0, 8)})`);
+  setState("conversations", clientId, { model: undefined, provider: "Client" });
+});
+
+aiDevtoolsEventClient.on("client-message-sent", (e) => {
+  const clientId = e.payload.clientId;
+  console.log(`[AI Devtools] 📤 User Message:`, clientId, e.payload.content.substring(0, 50));
+  if (!state.conversations[clientId]) {
+    getOrCreateConversation(clientId, "client", `Client Chat (${clientId.substring(0, 8)})`);
+  }
+  addMessage(clientId, {
+    id: e.payload.messageId,
+    role: "user",
+    content: e.payload.content,
+    timestamp: e.payload.timestamp,
+  });
+  setState("conversations", clientId, "status", "active");
+});
+
+aiDevtoolsEventClient.on("client-message-appended", (e) => {
+  const clientId = e.payload.clientId;
+  const role = e.payload.role;
+
+  // Skip user messages - they're already added via client-message-sent
+  if (role === "user") {
+    console.log(`[AI Devtools] ⏭️  Skipping duplicate user message from message-appended`);
+    return;
+  }
+
+  console.log(`[AI Devtools] 💬 ${role} Message:`, clientId, e.payload.contentPreview?.substring(0, 50));
+  if (!state.conversations[clientId]) {
+    console.warn(`[AI Devtools] Client ${clientId} not found for message-appended`);
+    return;
+  }
+
+  // Only add assistant messages here, user messages come through client-message-sent
+  if (role === "assistant") {
+    addMessage(clientId, {
+      id: e.payload.messageId,
+      role: "assistant",
+      content: e.payload.contentPreview,
+      timestamp: e.payload.timestamp,
+    });
+  }
+});
+
+aiDevtoolsEventClient.on("client-loading-changed", (e) => {
+  const clientId = e.payload.clientId;
+  if (state.conversations[clientId]) {
+    setState("conversations", clientId, "status", e.payload.isLoading ? "active" : "completed");
+  }
+});
+
+aiDevtoolsEventClient.on("client-stopped", (e) => {
+  const clientId = e.payload.clientId;
+  if (state.conversations[clientId]) {
+    setState("conversations", clientId, {
+      status: "completed",
+      completedAt: e.payload.timestamp,
+    });
+  }
+});
+
+aiDevtoolsEventClient.on("client-messages-cleared", (e) => {
+  const clientId = e.payload.clientId;
+  if (state.conversations[clientId]) {
+    setState("conversations", clientId, "messages", []);
+    setState("conversations", clientId, "chunks", []);
+  }
+});
+
+aiDevtoolsEventClient.on("stream-started", (e) => {
+  const streamId = e.payload.streamId;
+  const model = e.payload.model;
+  const provider = e.payload.provider;
+  const clientId = e.payload.clientId; // Client ID passed from server
+
+  console.log(`[AI Devtools] 🌊 Stream Started:`, streamId, model, clientId ? `(linked to ${clientId})` : '');
+
+  // If clientId is provided, link directly to that client conversation
+  if (clientId && state.conversations[clientId]) {
+    console.log(`[AI Devtools] ↔️  Linking stream ${streamId} to client ${clientId} via clientId`);
+    streamToConversation.set(streamId, clientId);
+    setState("conversations", clientId, { model, provider, status: "active" });
+    return;
+  }
+
+  // Fallback: Try to find active client conversation
+  const activeClient = Object.values(state.conversations).find(
+    (c) => c.type === "client" && c.status === "active" && !c.model
+  );
+
+  if (activeClient) {
+    console.log(`[AI Devtools] ↔️  Linking stream ${streamId} to client ${activeClient.id} (fallback)`);
+    streamToConversation.set(streamId, activeClient.id);
+    setState("conversations", activeClient.id, { model, provider });
+  } else {
+    console.log(`[AI Devtools] 🖥️  Finding or creating server conversation for model: ${model}`);
+
+    // Try to find existing server conversation with the same model
+    const existingServerConv = Object.values(state.conversations).find(
+      (c) => c.type === "server" && c.model === model
+    );
+
+    if (existingServerConv) {
+      console.log(`[AI Devtools] ♻️  Reusing existing server conversation for model ${model}: ${existingServerConv.id}`);
+      streamToConversation.set(streamId, existingServerConv.id);
+      setState("conversations", existingServerConv.id, { status: "active" });
+    } else {
+      console.log(`[AI Devtools] ✨ Creating new server conversation for model ${model}`);
+      const serverId = `server-${model}`;
+      getOrCreateConversation(serverId, "server", `${model} Server`);
+      streamToConversation.set(streamId, serverId);
+      setState("conversations", serverId, { model, provider });
+    }
+  }
+});
+
+aiDevtoolsEventClient.on("stream-chunk-content", (e) => {
+  const streamId = e.payload.streamId;
+  const conversationId = streamToConversation.get(streamId);
+  if (!conversationId) {
+    console.warn(`[AI Devtools] No conversation found for stream ${streamId}`);
+    return;
+  }
+
+  const chunk: Chunk = {
+    id: `chunk-${Date.now()}-${Math.random()}`,
+    type: "content" as const,
+    messageId: e.payload.messageId,
+    content: e.payload.content,
+    delta: e.payload.delta,
+    timestamp: e.payload.timestamp,
+  };
+
+  // For client conversations, add chunks to messages. For server-only, keep in conversation chunks
+  const conv = state.conversations[conversationId];
+  if (conv && conv.type === "client") {
+    addChunkToMessage(conversationId, chunk);
+  } else {
+    addChunk(conversationId, chunk);
+  }
+});
+
+aiDevtoolsEventClient.on("stream-chunk-tool-call", (e) => {
+  const streamId = e.payload.streamId;
+  const conversationId = streamToConversation.get(streamId);
+  if (!conversationId) return;
+
+  const chunk: Chunk = {
+    id: `chunk-${Date.now()}-${Math.random()}`,
+    type: "tool_call" as const,
+    messageId: e.payload.messageId,
+    toolCallId: e.payload.toolCallId,
+    toolName: e.payload.toolName,
+    timestamp: e.payload.timestamp,
+  };
+
+  const conv = state.conversations[conversationId];
+  if (conv && conv.type === "client") {
+    addChunkToMessage(conversationId, chunk);
+  } else {
+    addChunk(conversationId, chunk);
+  }
+});
+
+aiDevtoolsEventClient.on("stream-chunk-tool-result", (e) => {
+  const streamId = e.payload.streamId;
+  const conversationId = streamToConversation.get(streamId);
+  if (!conversationId) return;
+
+  const chunk: Chunk = {
+    id: `chunk-${Date.now()}-${Math.random()}`,
+    type: "tool_result" as const,
+    messageId: e.payload.messageId,
+    toolCallId: e.payload.toolCallId,
+    content: e.payload.result,
+    timestamp: e.payload.timestamp,
+  };
+
+  const conv = state.conversations[conversationId];
+  if (conv && conv.type === "client") {
+    addChunkToMessage(conversationId, chunk);
+  } else {
+    addChunk(conversationId, chunk);
+  }
+});
+
+aiDevtoolsEventClient.on("stream-chunk-done", (e) => {
+  const streamId = e.payload.streamId;
+  const conversationId = streamToConversation.get(streamId);
+  if (!conversationId) return;
+
+  const chunk: Chunk = {
+    id: `chunk-${Date.now()}-${Math.random()}`,
+    type: "done" as const,
+    messageId: e.payload.messageId,
+    finishReason: e.payload.finishReason || undefined,
+    timestamp: e.payload.timestamp,
+  };
+
+  const conv = state.conversations[conversationId];
+  if (conv && conv.type === "client") {
+    addChunkToMessage(conversationId, chunk);
+  } else {
+    addChunk(conversationId, chunk);
+  }
+});
+
+aiDevtoolsEventClient.on("stream-chunk-error", (e) => {
+  const streamId = e.payload.streamId;
+  const conversationId = streamToConversation.get(streamId);
+  if (!conversationId) return;
+
+  const chunk: Chunk = {
+    id: `chunk-${Date.now()}-${Math.random()}`,
+    type: "error" as const,
+    messageId: e.payload.messageId,
+    error: e.payload.error,
+    timestamp: e.payload.timestamp,
+  };
+
+  const conv = state.conversations[conversationId];
+  if (conv && conv.type === "client") {
+    addChunkToMessage(conversationId, chunk);
+  } else {
+    addChunk(conversationId, chunk);
+  }
+
+  setState("conversations", conversationId, {
+    status: "error",
+    completedAt: e.payload.timestamp,
+  });
+});
+
+aiDevtoolsEventClient.on("stream-ended", (e) => {
+  const streamId = e.payload.streamId;
+  const conversationId = streamToConversation.get(streamId);
+  if (!conversationId) return;
+  console.log(`[AI Devtools] ✅ Stream Ended:`, streamId);
+  setState("conversations", conversationId, {
+    status: "completed",
+    completedAt: e.payload.timestamp,
+  });
+});
+
+aiDevtoolsEventClient.on("processor-text-updated", (e) => {
+  const streamId = e.payload.streamId;
+  console.log(`[AI Devtools] 🎯 processor-text-updated event received:`, {
+    streamId,
+    contentLength: e.payload.content?.length,
+    contentPreview: e.payload.content?.substring(0, 50),
   });
 
-  aiDevtoolsEventClient.on("client-message-sent", (e) => {
-    const conv = findConversationByClient(e.payload.clientId);
-    if (conv) {
-      setState("conversations", conv.id, "messages", (msgs) => [
-        ...msgs,
-        {
-          id: e.payload.messageId,
-          role: "user" as const,
-          content: e.payload.content,
-          timestamp: e.payload.timestamp,
-          conversationId: conv.id,
-        },
-      ]);
+  // Try to find conversation by streamId first
+  let conversationId = streamToConversation.get(streamId);
+  console.log(`[AI Devtools]   🔍 Lookup by streamId "${streamId}":`, conversationId || "NOT FOUND");
+
+  // If not found, this might be a client-generated streamId
+  // Find the most recent active client conversation
+  if (!conversationId) {
+    const activeClients = Object.values(state.conversations)
+      .filter((c) => c.type === "client" && c.status === "active")
+      .sort((a, b) => b.startedAt - a.startedAt);
+
+    console.log(`[AI Devtools]   🔍 Active client conversations:`, {
+      total: Object.keys(state.conversations).length,
+      activeClients: activeClients.length,
+      clients: activeClients.map(c => ({ id: c.id, status: c.status, messageCount: c.messages.length }))
+    });
+
+    if (activeClients.length > 0 && activeClients[0]) {
+      conversationId = activeClients[0].id;
+      // Map this client streamId to the conversation for future updates
+      streamToConversation.set(streamId, conversationId);
+      console.log(`[AI Devtools] 🔗 Linked client streamId ${streamId} to conversation ${conversationId}`);
     }
+  }
+
+  if (!conversationId) {
+    console.error(`[AI Devtools] ❌ NO CONVERSATION FOUND for stream ${streamId}`);
+    console.log(`[AI Devtools]   Available conversations:`, Object.keys(state.conversations));
+    return;
+  }
+
+  const conv = state.conversations[conversationId];
+  if (!conv) {
+    console.error(`[AI Devtools] ❌ Conversation ${conversationId} exists in map but not in state!`);
+    return;
+  }
+
+  console.log(`[AI Devtools] 🤖 Processing text for conversation ${conversationId}`);
+  console.log(`[AI Devtools]   Current messages:`, conv.messages.length);
+  console.log(`[AI Devtools]   Last message role:`, conv.messages[conv.messages.length - 1]?.role);
+
+  const lastMessage = conv.messages[conv.messages.length - 1];
+  if (lastMessage && lastMessage.role === "assistant") {
+    // Update existing assistant message
+    console.log(`[AI Devtools]    ↪️  Updating existing assistant message`);
+    setState(
+      "conversations",
+      conversationId,
+      "messages",
+      conv.messages.length - 1,
+      "content",
+      e.payload.content
+    );
+  } else {
+    // Create new assistant message
+    console.log(`[AI Devtools]    ➕ Creating new assistant message`);
+    addMessage(conversationId, {
+      id: `msg-assistant-${Date.now()}`,
+      role: "assistant",
+      content: e.payload.content,
+      timestamp: e.payload.timestamp,
+    });
+  }
+
+  console.log(`[AI Devtools]    ✅ Message processed. Total messages now:`, state.conversations[conversationId]?.messages.length);
+});
+
+// Client-side assistant message updates (simpler, uses clientId directly)
+aiDevtoolsEventClient.on("client-assistant-message-updated", (e) => {
+  const clientId = e.payload.clientId;
+  const messageId = e.payload.messageId;
+  const content = e.payload.content;
+
+  console.log(`[AI Devtools] 📨 client-assistant-message-updated:`, {
+    clientId,
+    messageId,
+    contentLength: content.length,
+    contentPreview: content.slice(0, 50) + (content.length > 50 ? '...' : '')
   });
 
-  aiDevtoolsEventClient.on("client-loading-changed", (e) => {
-    const conv = findConversationByClient(e.payload.clientId);
-    if (conv) {
-      setState("conversations", conv.id, {
-        isLoading: e.payload.isLoading,
-        status: e.payload.isLoading ? "active" : conv.status,
-      });
+  // Check if conversation exists
+  if (!state.conversations[clientId]) {
+    console.log(`[AI Devtools]   ❌ No conversation found for clientId:`, clientId);
+    return;
+  }
+
+  const conv = state.conversations[clientId];
+  console.log(`[AI Devtools]   ✅ Found conversation:`, clientId);
+  console.log(`[AI Devtools]   Current messages:`, conv.messages.length);
+
+  const lastMessage = conv.messages[conv.messages.length - 1];
+
+  if (lastMessage && lastMessage.role === "assistant" && lastMessage.id === messageId) {
+    // Update existing assistant message with same ID
+    console.log(`[AI Devtools]    ↪️  Updating existing assistant message (${messageId})`);
+    setState(
+      "conversations",
+      clientId,
+      "messages",
+      conv.messages.length - 1,
+      "content",
+      content
+    );
+    // Also update model if available
+    if (conv.model) {
+      setState(
+        "conversations",
+        clientId,
+        "messages",
+        conv.messages.length - 1,
+        "model",
+        conv.model
+      );
     }
+  } else if (lastMessage && lastMessage.role === "assistant" && lastMessage.id !== messageId) {
+    // Different assistant message ID - create new
+    console.log(`[AI Devtools]    ➕ Creating new assistant message (ID changed: ${lastMessage.id} -> ${messageId})`);
+    addMessage(clientId, {
+      id: messageId,
+      role: "assistant",
+      content: content,
+      timestamp: e.payload.timestamp,
+      model: conv.model, // Store model from conversation
+      chunks: [], // Initialize chunks array
+    });
+  } else {
+    // No assistant message or last message is user - create new
+    console.log(`[AI Devtools]    ➕ Creating new assistant message (${messageId})`);
+    addMessage(clientId, {
+      id: messageId,
+      role: "assistant",
+      content: content,
+      timestamp: e.payload.timestamp,
+      model: conv.model, // Store model from conversation
+      chunks: [], // Initialize chunks array
+    });
+  }
+
+  console.log(`[AI Devtools]    ✅ Assistant message processed. Total messages now:`, state.conversations[clientId]?.messages.length);
+});
+
+// Tool call state changes
+aiDevtoolsEventClient.on("processor-tool-call-state-changed", (e) => {
+  const streamId = e.payload.streamId;
+  const conversationId = streamToConversation.get(streamId);
+
+  if (!conversationId || !state.conversations[conversationId]) {
+    console.log(`[AI Devtools] 🔧 Tool call for unknown conversation (streamId: ${streamId})`);
+    return;
+  }
+
+  console.log(`[AI Devtools] 🔧 Tool call state changed:`, e.payload.toolName, e.payload.state);
+
+  const conv = state.conversations[conversationId];
+  const lastMessage = conv.messages[conv.messages.length - 1];
+
+  if (lastMessage && lastMessage.role === "assistant") {
+    const toolCalls = lastMessage.toolCalls || [];
+    const existingToolIndex = toolCalls.findIndex(t => t.id === e.payload.toolCallId);
+
+    const toolCall = {
+      id: e.payload.toolCallId,
+      name: e.payload.toolName,
+      arguments: JSON.stringify(e.payload.arguments, null, 2),
+      state: e.payload.state,
+    };
+
+    if (existingToolIndex >= 0) {
+      // Update existing tool call
+      setState(
+        "conversations",
+        conversationId,
+        "messages",
+        conv.messages.length - 1,
+        "toolCalls",
+        existingToolIndex,
+        toolCall
+      );
+    } else {
+      // Add new tool call
+      setState(
+        "conversations",
+        conversationId,
+        "messages",
+        conv.messages.length - 1,
+        "toolCalls",
+        [...toolCalls, toolCall]
+      );
+    }
+  }
+});
+
+// Client-side tool call updates (simpler, uses clientId directly)
+aiDevtoolsEventClient.on("client-tool-call-updated", (e) => {
+  const { clientId, messageId, toolCallId, toolName, state: toolCallState, arguments: args } = e.payload as {
+    clientId: string;
+    messageId: string;
+    toolCallId: string;
+    toolName: string;
+    state: string;
+    arguments: any;
+    timestamp: number;
+  };
+
+  console.log(`[AI Devtools] 🔧 client-tool-call-updated:`, {
+    clientId,
+    messageId,
+    toolCallId,
+    toolName,
+    state: toolCallState,
   });
 
-  aiDevtoolsEventClient.on("client-error-changed", (e) => {
-    const conv = findConversationByClient(e.payload.clientId);
-    if (conv) {
-      setState("conversations", conv.id, {
-        error: e.payload.error || undefined,
-        status: e.payload.error ? "error" : conv.status,
-      });
-    }
+  // Check if conversation exists
+  if (!state.conversations[clientId]) {
+    console.log(`[AI Devtools]   ❌ No conversation found for clientId:`, clientId);
+    return;
+  }
+
+  const conv = state.conversations[clientId];
+  console.log(`[AI Devtools]   ✅ Found conversation:`, clientId);
+
+  // Find the message by ID
+  const messageIndex = conv.messages.findIndex((m: Message) => m.id === messageId);
+  if (messageIndex === -1) {
+    console.log(`[AI Devtools]   ❌ No message found with ID:`, messageId);
+    return;
+  }
+
+  const message = conv.messages[messageIndex];
+  if (!message) {
+    console.log(`[AI Devtools]   ❌ Message is undefined at index:`, messageIndex);
+    return;
+  }
+
+  const toolCalls = message.toolCalls || [];
+  const existingToolIndex = toolCalls.findIndex((t: any) => t.id === toolCallId);
+
+  const toolCall = {
+    id: toolCallId,
+    name: toolName,
+    arguments: JSON.stringify(args, null, 2),
+    state: toolCallState,
+  };
+
+  if (existingToolIndex >= 0) {
+    // Update existing tool call
+    console.log(`[AI Devtools]   ↪️  Updating tool call: ${toolName} (${toolCallState})`);
+    setState(
+      "conversations",
+      clientId,
+      "messages",
+      messageIndex,
+      "toolCalls",
+      existingToolIndex,
+      toolCall
+    );
+  } else {
+    // Add new tool call
+    console.log(`[AI Devtools]   ➕ Adding new tool call: ${toolName} (${toolCallState})`);
+    setState(
+      "conversations",
+      clientId,
+      "messages",
+      messageIndex,
+      "toolCalls",
+      [...toolCalls, toolCall]
+    );
+  }
+});
+
+// Handle approval requests
+aiDevtoolsEventClient.on("stream-approval-requested", (e) => {
+  const { streamId, messageId, toolCallId, toolName, input, approvalId, timestamp } = e.payload;
+
+  console.log(`[AI Devtools] ⚠️ Approval requested:`, {
+    streamId,
+    messageId,
+    toolCallId,
+    toolName,
+    approvalId,
   });
 
-  aiDevtoolsEventClient.on("client-messages-cleared", (e) => {
-    const conv = findConversationByClient(e.payload.clientId);
-    if (conv) {
-      setState("conversations", conv.id, "messages", []);
-      setState("conversations", conv.id, "chunks", []);
-      setState("conversations", conv.id, "toolCalls", []);
-    }
-  });
+  // Find conversation by streamId
+  const conversationId = streamToConversation.get(streamId);
+  if (!conversationId) {
+    console.log(`[AI Devtools]   ❌ No conversation found for streamId:`, streamId);
+    return;
+  }
 
-  aiDevtoolsEventClient.on("client-stopped", (e) => {
-    const conv = findConversationByClient(e.payload.clientId);
-    if (conv) {
-      setState("conversations", conv.id, {
-        status: "completed",
-        isLoading: false,
-        completedAt: e.payload.timestamp,
-      });
-    }
-  });
+  const conv = state.conversations[conversationId];
+  if (!conv) {
+    console.log(`[AI Devtools]   ❌ No conversation found for conversationId:`, conversationId);
+    return;
+  }
 
-  aiDevtoolsEventClient.on("tool-result-added", (e) => {
-    const conv = findConversationByClient(e.payload.clientId);
-    if (conv) {
-      const toolIndex = conv.toolCalls.findIndex((t) => t.id === e.payload.toolCallId);
-      if (toolIndex !== -1) {
-        setState("conversations", conv.id, "toolCalls", toolIndex, {
-          result: e.payload.output,
-          state: e.payload.state === "output-error" ? "failed" : "completed",
-        });
-      } else {
-        setState("conversations", conv.id, "toolCalls", (tools) => [
-          ...tools,
-          {
-            id: e.payload.toolCallId,
-            streamId: "",
-            conversationId: conv.id,
-            toolName: e.payload.toolName,
-            input: undefined,
-            result: e.payload.output,
-            state: e.payload.state === "output-error" ? ("failed" as const) : ("completed" as const),
-            timestamp: e.payload.timestamp,
-          },
-        ]);
+  console.log(`[AI Devtools]   ✅ Found conversation:`, conversationId);
+
+  // Create an approval chunk
+  const chunk: Chunk = {
+    id: `chunk-${Date.now()}-${Math.random()}`,
+    type: "approval" as const,
+    messageId: messageId,
+    toolCallId,
+    toolName,
+    approvalId,
+    input,
+    timestamp,
+  };
+
+  // Add approval chunk
+  if (conv.type === "client") {
+    addChunkToMessage(conversationId, chunk);
+  } else {
+    addChunk(conversationId, chunk);
+  }
+
+  // Find the assistant message with this tool call
+  for (let i = conv.messages.length - 1; i >= 0; i--) {
+    const message = conv.messages[i];
+    if (!message) continue;
+
+    if (message.role === "assistant" && message.toolCalls) {
+      const toolCallIndex = message.toolCalls.findIndex((t: any) => t.id === toolCallId);
+      if (toolCallIndex >= 0) {
+        console.log(`[AI Devtools]   ✅ Found tool call in message ${message.id}, marking as requiring approval`);
+        setState(
+          "conversations",
+          conversationId,
+          "messages",
+          i,
+          "toolCalls",
+          toolCallIndex,
+          "approvalRequired",
+          true
+        );
+        setState(
+          "conversations",
+          conversationId,
+          "messages",
+          i,
+          "toolCalls",
+          toolCallIndex,
+          "approvalId",
+          approvalId
+        );
+        setState(
+          "conversations",
+          conversationId,
+          "messages",
+          i,
+          "toolCalls",
+          toolCallIndex,
+          "state",
+          "approval-requested"
+        );
+        return;
       }
     }
+  }
+
+  console.log(`[AI Devtools]   ❌ Tool call not found: ${toolCallId}`);
+});
+
+// Handle client-side approval requests (uses clientId instead of streamId)
+aiDevtoolsEventClient.on("client-approval-requested", (e) => {
+  const { clientId, messageId, toolCallId, toolName, input, approvalId } = e.payload as {
+    clientId: string;
+    messageId: string;
+    toolCallId: string;
+    toolName: string;
+    input: any;
+    approvalId: string;
+    timestamp: number;
+  };
+
+  console.log(`[AI Devtools] ⚠️ Client approval requested:`, {
+    clientId,
+    messageId,
+    toolCallId,
+    toolName,
+    approvalId,
   });
 
-  aiDevtoolsEventClient.on("processor-text-updated", (e) => {
-    const conv = findConversationByStream(e.payload.streamId);
-    if (conv) {
-      const lastMessage = conv.messages[conv.messages.length - 1];
-      if (lastMessage && lastMessage.role === "assistant") {
-        setState("conversations", conv.id, "messages", conv.messages.length - 1, {
-          content: e.payload.content,
-        });
-      } else {
-        setState("conversations", conv.id, "messages", (msgs) => [
-          ...msgs,
-          {
-            id: `msg-${e.payload.timestamp}`,
-            role: "assistant" as const,
-            content: e.payload.content,
-            timestamp: e.payload.timestamp,
-            conversationId: conv.id,
-          },
-        ]);
-      }
-    }
-  });
-}
+  // Check if conversation exists
+  if (!state.conversations[clientId]) {
+    console.log(`[AI Devtools]   ❌ No conversation found for clientId:`, clientId);
+    return;
+  }
 
-export function getAIStore() {
-  return state;
-}
+  const conv = state.conversations[clientId];
+  console.log(`[AI Devtools]   ✅ Found conversation:`, clientId);
 
-export function setActiveConversation(id: string | null) {
-  setState("activeConversationId", id);
-}
+  // Find the message by ID
+  const messageIndex = conv.messages.findIndex((m: Message) => m.id === messageId);
+  if (messageIndex === -1) {
+    console.log(`[AI Devtools]   ❌ No message found with ID:`, messageId);
+    return;
+  }
+
+  const message = conv.messages[messageIndex];
+  if (!message) {
+    console.log(`[AI Devtools]   ❌ Message is undefined at index:`, messageIndex);
+    return;
+  }
+
+  // Find the tool call
+  if (!message.toolCalls) {
+    console.log(`[AI Devtools]   ❌ No tool calls in message:`, messageId);
+    return;
+  }
+
+  const toolCallIndex = message.toolCalls.findIndex((t: any) => t.id === toolCallId);
+  if (toolCallIndex === -1) {
+    console.log(`[AI Devtools]   ❌ Tool call not found:`, toolCallId);
+    return;
+  }
+
+  console.log(`[AI Devtools]   ✅ Found tool call, marking as requiring approval`);
+
+  // Update the tool call to show approval required
+  setState(
+    "conversations",
+    clientId,
+    "messages",
+    messageIndex,
+    "toolCalls",
+    toolCallIndex,
+    "approvalRequired",
+    true
+  );
+  setState(
+    "conversations",
+    clientId,
+    "messages",
+    messageIndex,
+    "toolCalls",
+    toolCallIndex,
+    "approvalId",
+    approvalId
+  );
+  setState(
+    "conversations",
+    clientId,
+    "messages",
+    messageIndex,
+    "toolCalls",
+    toolCallIndex,
+    "state",
+    "approval-requested"
+  );
+});
+
+// Error tracking
+aiDevtoolsEventClient.on("client-error-changed", (e) => {
+  const clientId = e.payload.clientId;
+  if (state.conversations[clientId]) {
+    console.log(`[AI Devtools] ❌ Error in client ${clientId}:`, e.payload.error);
+    setState("conversations", clientId, "status", "error");
+  }
+});
 
 export function clearAllConversations() {
   setState("conversations", {});
   setState("activeConversationId", null);
+  streamToConversation.clear();
+  console.log("[AI Devtools] Cleared all conversations");
 }
 
+export function selectConversation(id: string) {
+  setState("activeConversationId", id);
+}
+
+export { state };

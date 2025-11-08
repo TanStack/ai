@@ -1,164 +1,110 @@
-import { Component, For, Show, onMount } from "solid-js";
+import { Component, For, Show } from "solid-js";
 import { useStyles } from "../styles/use-styles";
-import { getAIStore, setActiveConversation, type Conversation } from "../store/ai-store";
+import { state, selectConversation, type Conversation } from "../store/ai-store";
 
 export const ConversationsList: Component<{
   filterType: "all" | "client" | "server";
 }> = (props) => {
   const styles = useStyles();
-  const store = getAIStore();
-
-  // Add spinner animation to document head
-  onMount(() => {
-    if (!document.querySelector("#spinner-animation")) {
-      const style = document.createElement("style");
-      style.id = "spinner-animation";
-      style.textContent = `
-        @keyframes spin {
-          from { transform: rotate(0deg); }
-          to { transform: rotate(360deg); }
-        }
-      `;
-      document.head.appendChild(style);
-    }
-  });
 
   const filteredConversations = () => {
-    const conversations = Object.values(store.conversations);
-    if (props.filterType === "all") {
-      return conversations;
-    }
-    return conversations.filter((conv) => conv.type === props.filterType);
-  };
-
-  const getConversationTitle = (conv: Conversation) => {
-    if (conv.type === "client") {
-      return `Client: ${conv.clientId?.substring(0, 8) || "Unknown"}`;
-    } else {
-      return `Server: ${conv.model || "Unknown Model"}`;
-    }
-  };
-
-  const getConversationSubtitle = (conv: Conversation) => {
-    const messageCount = conv.messages.length;
-    const toolCount = conv.toolCalls.length;
-    const parts = [];
-
-    if (messageCount > 0) parts.push(`${messageCount} msg`);
-    if (toolCount > 0) parts.push(`${toolCount} tools`);
-    if (conv.totalTokens) parts.push(`${conv.totalTokens} tokens`);
-
-    return parts.join(" • ");
+    const conversations = Object.values(state.conversations);
+    if (props.filterType === "all") return conversations;
+    return conversations.filter((conv: Conversation) => conv.type === props.filterType);
   };
 
   const getStatusColor = (status: Conversation["status"]) => {
     switch (status) {
       case "active":
-        return "#3b82f6"; // blue
+        return "oklch(0.7 0.17 142)"; // green
       case "completed":
-        return "#10b981"; // green
+        return "oklch(0.65 0.1 260)"; // blue
       case "error":
-        return "#ef4444"; // red
+        return "oklch(0.65 0.2 25)"; // red
       default:
-        return "#6b7280"; // gray
+        return "oklch(0.6 0.05 200)";
     }
   };
 
   const getTypeColor = (type: Conversation["type"]) => {
     switch (type) {
       case "client":
-        return "#ec4899"; // pink
+        return "oklch(0.68 0.16 330)"; // pink
       case "server":
-        return "#8b5cf6"; // purple
+        return "oklch(0.68 0.15 280)"; // purple
       default:
-        return "#6b7280"; // gray
+        return "oklch(0.6 0.05 200)";
     }
+  };
+
+  const hasToolCalls = (conv: Conversation) => {
+    return conv.messages.some((msg) => msg.toolCalls && msg.toolCalls.length > 0);
+  };
+
+  const countToolCalls = (conv: Conversation) => {
+    return conv.messages.reduce((total, msg) => {
+      return total + (msg.toolCalls?.length || 0);
+    }, 0);
   };
 
   return (
     <div class={styles().utilList}>
-      <Show
-        when={filteredConversations().length > 0}
-        fallback={
+      <For each={filteredConversations()}>
+        {(conv: Conversation) => (
           <div
-            style={{
-              padding: "24px",
-              "text-align": "center",
-              color: "var(--text-secondary)",
-              "font-size": "13px",
-            }}
+            class={`${styles().utilRow} ${state.activeConversationId === conv.id ? styles().utilRowSelected : ""}`}
+            onClick={() => selectConversation(conv.id)}
           >
-            No conversations yet.
-            <br />
-            <span style={{ "font-size": "11px" }}>Start using TanStack AI to see activity here.</span>
-          </div>
-        }
-      >
-        <For each={filteredConversations()}>
-          {(conv) => (
-            <div
-              class={`${styles().utilRow} ${store.activeConversationId === conv.id ? styles().utilRowSelected : ""}`}
-              onClick={() => setActiveConversation(conv.id)}
-            >
-              <div style={{ display: "flex", "flex-direction": "column", gap: "4px", flex: 1 }}>
+            <div style={{ display: "flex", "align-items": "center", gap: "8px", flex: 1 }}>
+              <div style={{ display: "flex", "align-items": "center", gap: "4px" }}>
                 <div
                   style={{
-                    display: "flex",
-                    "align-items": "center",
-                    gap: "8px",
+                    width: "8px",
+                    height: "8px",
+                    "border-radius": "50%",
+                    background: getTypeColor(conv.type),
                   }}
-                >
+                />
+                <div style={{ "font-weight": 600 }}>{conv.label}</div>
+                <Show when={hasToolCalls(conv)}>
                   <div
                     style={{
-                      width: "8px",
-                      height: "8px",
-                      "border-radius": "50%",
-                      background: getTypeColor(conv.type),
-                      "flex-shrink": "0",
+                      display: "flex",
+                      "align-items": "center",
+                      gap: "3px",
+                      padding: "2px 6px",
+                      "border-radius": "4px",
+                      background: "oklch(0.35 0.1 280)",
+                      color: "oklch(0.8 0.12 280)",
+                      "font-size": "11px",
+                      "font-weight": "600",
                     }}
-                  />
-                  <div class={styles().utilKey} style={{ flex: 1 }}>
-                    {getConversationTitle(conv)}
+                    title={`${countToolCalls(conv)} tool call${countToolCalls(conv) !== 1 ? "s" : ""}`}
+                  >
+                    🔧 {countToolCalls(conv)}
                   </div>
-                  <div
-                    style={{
-                      width: "6px",
-                      height: "6px",
-                      "border-radius": "50%",
-                      background: getStatusColor(conv.status),
-                      "flex-shrink": "0",
-                    }}
-                  />
-                </div>
-                <div
-                  style={{
-                    display: "flex",
-                    "align-items": "center",
-                    gap: "8px",
-                    "padding-left": "16px",
-                  }}
-                >
-                  <div class={styles().utilStatus} style={{ "font-size": "11px" }}>
-                    {getConversationSubtitle(conv)}
-                  </div>
-                  <Show when={conv.isLoading}>
-                    <div
-                      style={{
-                        width: "10px",
-                        height: "10px",
-                        border: "2px solid #ec4899",
-                        "border-top-color": "transparent",
-                        "border-radius": "50%",
-                        animation: "spin 0.8s linear infinite",
-                      }}
-                    />
-                  </Show>
-                </div>
+                </Show>
               </div>
+              <div
+                style={{
+                  width: "6px",
+                  height: "6px",
+                  "border-radius": "50%",
+                  background: getStatusColor(conv.status),
+                  "margin-left": "auto",
+                }}
+              />
             </div>
-          )}
-        </For>
-      </Show>
+            <div style={{ display: "flex", "align-items": "center", gap: "8px", "font-size": "0.85em", opacity: 0.7 }}>
+              <div style={{ display: "flex", "align-items": "center", gap: "4px" }}>💬 {conv.messages.length}</div>
+              <div style={{ display: "flex", "align-items": "center", gap: "4px" }}>📦 {conv.chunks.length}</div>
+            </div>
+            <Show when={conv.status === "active"}>
+              <div style={{ "font-size": "0.85em", color: "oklch(0.7 0.17 142)" }}>⟳ Loading...</div>
+            </Show>
+          </div>
+        )}
+      </For>
     </div>
   );
 };

@@ -203,6 +203,7 @@ class AI<
       tools?: ReadonlyArray<Tool>;
       systemPrompts?: string[];
       providerOptions?: ExtractChatProviderOptions<TAdapter>;
+      __clientId?: string; // For devtools linking between client and server
     }
   ): AsyncIterable<StreamChunk> {
     const {
@@ -243,7 +244,7 @@ class AI<
     // Emit stream started event
     aiDevtoolsEventClient.emit("stream-started", {
       streamId,
-      model: model as string,
+      model,
       provider: this.adapter.name,
       timestamp: streamStartTime,
     });
@@ -252,6 +253,9 @@ class AI<
       let accumulatedContent = "";
       let doneChunk = null;
       let chunkCount = 0;
+
+      // Generate a unique messageId for this response/chunk group
+      const messageId = `msg-${Date.now()}-${Math.random().toString(36).substring(2, 11)}`;
 
       // Stream the current iteration
       // IMPORTANT: Extract messages from restOptions to avoid passing stale messages
@@ -273,6 +277,7 @@ class AI<
           accumulatedContent = chunk.content;
           aiDevtoolsEventClient.emit("stream-chunk-content", {
             streamId,
+            messageId,
             content: chunk.content,
             delta: chunk.delta,
             timestamp: Date.now(),
@@ -284,6 +289,7 @@ class AI<
           toolCallManager.addToolCallChunk(chunk);
           aiDevtoolsEventClient.emit("stream-chunk-tool-call", {
             streamId,
+            messageId,
             toolCallId: chunk.toolCall.id,
             toolName: chunk.toolCall.function.name,
             index: chunk.index,
@@ -296,6 +302,7 @@ class AI<
         if (chunk.type === "tool_result") {
           aiDevtoolsEventClient.emit("stream-chunk-tool-result", {
             streamId,
+            messageId,
             toolCallId: chunk.toolCallId,
             result: chunk.content,
             timestamp: Date.now(),
@@ -308,6 +315,7 @@ class AI<
           lastFinishReason = chunk.finishReason;
           aiDevtoolsEventClient.emit("stream-chunk-done", {
             streamId,
+            messageId,
             finishReason: chunk.finishReason,
             usage: chunk.usage,
             timestamp: Date.now(),
@@ -318,6 +326,7 @@ class AI<
         if (chunk.type === "error") {
           aiDevtoolsEventClient.emit("stream-chunk-error", {
             streamId,
+            messageId,
             error: chunk.error.message,
             timestamp: Date.now(),
           });
@@ -400,6 +409,7 @@ class AI<
           for (const approval of executionResult.needsApproval) {
             aiDevtoolsEventClient.emit("stream-approval-requested", {
               streamId,
+              messageId,
               toolCallId: approval.toolCallId,
               toolName: approval.toolName,
               input: approval.input,

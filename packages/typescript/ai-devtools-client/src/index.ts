@@ -1,5 +1,25 @@
 import { EventClient } from "@tanstack/devtools-event-client";
 
+/**
+ * Tool call states - track the lifecycle of a tool call
+ * Must match @tanstack/ai-client ToolCallState
+ */
+export type ToolCallState =
+  | "awaiting-input" // Received start but no arguments yet
+  | "input-streaming" // Partial arguments received
+  | "input-complete" // All arguments received
+  | "approval-requested" // Waiting for user approval
+  | "approval-responded"; // User has approved/denied
+
+/**
+ * Tool result states - track the lifecycle of a tool result
+ * Must match @tanstack/ai-client ToolResultState
+ */
+export type ToolResultState =
+  | "streaming" // Placeholder for future streamed output
+  | "complete" // Result is complete
+  | "error"; // Error occurred
+
 export interface PackageJson {
   name?: string;
   version?: string;
@@ -150,15 +170,18 @@ export interface AIDevtoolsEventMap {
     model: string;
     provider: string;
     timestamp: number;
+    clientId?: string; // Optional link to client conversation
   };
   "tanstack-ai-devtools:stream-chunk-content": {
     streamId: string;
+    messageId?: string; // Unique ID for grouping chunks from the same response
     content: string;
     delta?: string;
     timestamp: number;
   };
   "tanstack-ai-devtools:stream-chunk-tool-call": {
     streamId: string;
+    messageId?: string; // Unique ID for grouping chunks from the same response
     toolCallId: string;
     toolName: string;
     index: number;
@@ -167,12 +190,14 @@ export interface AIDevtoolsEventMap {
   };
   "tanstack-ai-devtools:stream-chunk-tool-result": {
     streamId: string;
+    messageId?: string; // Unique ID for grouping chunks from the same response
     toolCallId: string;
     result: string;
     timestamp: number;
   };
   "tanstack-ai-devtools:stream-chunk-done": {
     streamId: string;
+    messageId?: string; // Unique ID for grouping chunks from the same response
     finishReason: string | null;
     usage?: {
       promptTokens: number;
@@ -183,11 +208,13 @@ export interface AIDevtoolsEventMap {
   };
   "tanstack-ai-devtools:stream-chunk-error": {
     streamId: string;
+    messageId?: string; // Unique ID for grouping chunks from the same response
     error: string;
     timestamp: number;
   };
   "tanstack-ai-devtools:stream-approval-requested": {
     streamId: string;
+    messageId?: string; // Unique ID for grouping chunks from the same response
     toolCallId: string;
     toolName: string;
     input: any;
@@ -303,6 +330,7 @@ export interface AIDevtoolsEventMap {
     hasTools: boolean;
     streaming: boolean;
     timestamp: number;
+    clientId?: string; // Optional link to client conversation
   };
   "tanstack-ai-devtools:chat-completed": {
     requestId: string;
@@ -334,7 +362,7 @@ export interface AIDevtoolsEventMap {
     streamId: string;
     toolCallId: string;
     toolName: string;
-    state: "arguments-streaming" | "input-complete" | "approval-requested" | "approval-responded";
+    state: ToolCallState;
     arguments: any;
     timestamp: number;
   };
@@ -342,8 +370,38 @@ export interface AIDevtoolsEventMap {
     streamId: string;
     toolCallId: string;
     content: any;
-    state: "streaming" | "complete" | "error";
+    state: ToolResultState;
     error?: string;
+    timestamp: number;
+  };
+
+  // Client-side assistant message updates (bypasses streamId mapping)
+  "tanstack-ai-devtools:client-assistant-message-updated": {
+    clientId: string;
+    messageId: string;
+    content: string;
+    timestamp: number;
+  };
+
+  // Client-side tool call updates (bypasses streamId mapping)
+  "tanstack-ai-devtools:client-tool-call-updated": {
+    clientId: string;
+    messageId: string;
+    toolCallId: string;
+    toolName: string;
+    state: ToolCallState;
+    arguments: any;
+    timestamp: number;
+  };
+
+  // Client-side approval requests (bypasses streamId mapping)
+  "tanstack-ai-devtools:client-approval-requested": {
+    clientId: string;
+    messageId: string;
+    toolCallId: string;
+    toolName: string;
+    input: any;
+    approvalId: string;
     timestamp: number;
   };
 

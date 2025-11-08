@@ -3,11 +3,10 @@ import { Header, HeaderLogo, MainPanel } from "@tanstack/devtools-ui";
 import { useStyles } from "../styles/use-styles";
 import { ConversationsList } from "./ConversationsList";
 import { ConversationDetails } from "./ConversationDetails";
-import { initializeEventListeners, getAIStore, clearAllConversations } from "../store/ai-store";
+import { clearAllConversations, state } from "../store/ai-store";
 
 export default function Devtools() {
   const styles = useStyles();
-  const store = getAIStore();
   const [leftPanelWidth, setLeftPanelWidth] = createSignal(300);
   const [isDragging, setIsDragging] = createSignal(false);
   const [filterType, setFilterType] = createSignal<"all" | "client" | "server">("all");
@@ -43,9 +42,6 @@ export default function Devtools() {
   onMount(() => {
     document.addEventListener("mousemove", handleMouseMove);
     document.addEventListener("mouseup", handleMouseUp);
-
-    // Initialize event listeners for AI events
-    initializeEventListeners();
   });
 
   onCleanup(() => {
@@ -53,7 +49,7 @@ export default function Devtools() {
     document.removeEventListener("mouseup", handleMouseUp);
   });
 
-  const conversationCount = () => Object.keys(store.conversations).length;
+  const conversationCount = () => Object.keys(state.conversations).length;
 
   return (
     <MainPanel>

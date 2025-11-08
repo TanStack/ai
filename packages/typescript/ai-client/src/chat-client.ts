@@ -133,9 +133,17 @@ export class ChatClient {
       parser: this.streamProcessorConfig?.parser,
       handlers: {
         onTextUpdate: (content) => {
-          // Emit processor text update event
+          // Emit processor text update event with clientId for easier devtools tracking
           aiDevtoolsEventClient.emit("processor-text-updated", {
             streamId,
+            content,
+            timestamp: Date.now(),
+          });
+
+          // Also emit a client-specific event for devtools
+          aiDevtoolsEventClient.emit("client-assistant-message-updated", {
+            clientId: this.uniqueId,
+            messageId: assistantMessageId,
             content,
             timestamp: Date.now(),
           });
@@ -166,12 +174,23 @@ export class ChatClient {
           );
         },
         onToolCallStateChange: (_index, id, name, state, args) => {
-          // Emit processor tool call state change event
+          // Emit processor tool call state change event (for server-side tracking)
           aiDevtoolsEventClient.emit("processor-tool-call-state-changed", {
             streamId,
             toolCallId: id,
             toolName: name,
-            state: state as any, // Type narrowing needed here
+            state: state,
+            arguments: args,
+            timestamp: Date.now(),
+          });
+
+          // Also emit a client-specific tool call event (for client-side tracking)
+          aiDevtoolsEventClient.emit("client-tool-call-updated", {
+            clientId: this.uniqueId,
+            messageId: assistantMessageId,
+            toolCallId: id,
+            toolName: name,
+            state: state,
             arguments: args,
             timestamp: Date.now(),
           });
@@ -254,6 +273,17 @@ export class ChatClient {
           );
         },
         onApprovalRequested: async (toolCallId, toolName, input, approvalId) => {
+          // Emit client-side approval event for devtools
+          aiDevtoolsEventClient.emit("client-approval-requested", {
+            clientId: this.uniqueId,
+            messageId: assistantMessageId,
+            toolCallId,
+            toolName,
+            input,
+            approvalId,
+            timestamp: Date.now(),
+          });
+
           // Update tool call part to show it needs approval
           this.setMessages(
             this.messages.map((msg) => {
