@@ -15,8 +15,9 @@ import type {
   TextToSpeechResult,
   VideoGenerationOptions,
   VideoGenerationResult,
+  ResponseFormat,
 } from "./types";
-import { ai as AI } from "./ai";
+import { AI } from "./ai";
 import { aiDevtoolsEventClient } from "@tanstack/ai-devtools-client";
 
 // Extract types from adapter
