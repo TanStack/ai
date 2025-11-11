@@ -56,9 +56,9 @@ export const Route = createFileRoute("/api/tanchat")({
             tools: allTools,
             systemPrompts: [SYSTEM_PROMPT],
             agentLoopStrategy: maxIterations(20),
+
             providerOptions: {
               store: true,
-              parallelToolCalls: false, // Force sequential tool calls
             },
           });
 

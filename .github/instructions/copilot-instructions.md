@@ -15,3 +15,10 @@ When writing code, please follow these guidelines:
 
 If you get an error "address already in use :::42069 you should kill the process using that port.  
 
+If we add a new functionality add a section about it in the `docs/` folder explaining how to use it and update the `README.md` file to mention it.
+
+Write tests for any new functionality.
+
+When defining new types, first check if the types exist somewhere and re-use them, do not create new types that are similar to existing ones.
+
+When modifying existing functionality, ensure backward compatibility unless there's a strong reason to introduce breaking changes. If breaking changes are necessary, document them clearly in the relevant documentation files.

@@ -16,6 +16,10 @@
     ".": {
       "types": "./dist/index.d.ts",
       "import": "./dist/index.js"
+    },
+    "./event-client": {
+      "types": "./dist/event-client.d.ts",
+      "import": "./dist/event-client.js"
     }
   },
   "files": [
