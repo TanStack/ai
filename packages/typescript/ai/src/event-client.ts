@@ -1,245 +1,257 @@
-import { EventEmitter } from "events";
-import type { StreamChunk, ChatCompletionResult, ChatCompletionOptions, Tool } from "./types";
+import { EventClient } from "@tanstack/devtools-event-client";
 
 /**
- * Event payloads for AI observability
+ * Tool call states - track the lifecycle of a tool call
+ * Must match @tanstack/ai-client ToolCallState
  */
-export interface AIEventMap {
-  // Chat lifecycle events
-  "chat:started": {
-    type: "standalone" | "instance";
-    timestamp: number;
-    options: Omit<ChatCompletionOptions, "model" | "providerOptions" | "responseFormat"> & {
-      model: string;
-      tools?: ReadonlyArray<Tool>;
-      systemPrompts?: string[];
-      providerOptions?: Record<string, any>;
-    };
-  };
-  "chat:completed": {
-    type: "standalone" | "instance";
-    timestamp: number;
-    options: Omit<ChatCompletionOptions, "model" | "providerOptions" | "responseFormat"> & {
-      model: string;
-      tools?: ReadonlyArray<Tool>;
-      systemPrompts?: string[];
-      providerOptions?: Record<string, any>;
-    };
-    result: ChatCompletionResult;
-    duration: number;
-  };
-  "chat:iteration": {
-    type: "standalone" | "instance";
-    timestamp: number;
-    iteration: number;
-    reason: string;
-    model: string;
-    messageCount: number;
-  };
+export type ToolCallState =
+  | "awaiting-input" // Received start but no arguments yet
+  | "input-streaming" // Partial arguments received
+  | "input-complete" // All arguments received
+  | "approval-requested" // Waiting for user approval
+  | "approval-responded"; // User has approved/denied
 
-  // Stream lifecycle events
-  "stream:started": {
-    type: "standalone" | "instance";
-    timestamp: number;
-    messageId: string;
-    options: Omit<ChatCompletionOptions, "model" | "providerOptions" | "responseFormat"> & {
-      model: string;
-      tools?: ReadonlyArray<Tool>;
-      systemPrompts?: string[];
-      providerOptions?: Record<string, any>;
-    };
-  };
-  "stream:ended": {
-    type: "standalone" | "instance";
-    timestamp: number;
-    messageId: string;
-    model: string;
-    duration: number;
-    totalChunks?: number;
-  };
+/**
+ * Tool result states - track the lifecycle of a tool result
+ * Must match @tanstack/ai-client ToolResultState
+ */
+export type ToolResultState =
+  | "streaming" // Placeholder for future streamed output
+  | "complete" // Result is complete
+  | "error"; // Error occurred
 
-  // Stream chunk events - includes all chunk data
-  "stream:chunk": {
-    type: "standalone" | "instance";
-    timestamp: number;
-    messageId: string;
-    chunk: StreamChunk;
-  };
-
-  // Specific chunk type events for convenience
-  "stream:content": {
-    type: "standalone" | "instance";
-    timestamp: number;
-    messageId: string;
+export interface AIDevtoolsEventMap {
+  // AI Stream events - from @tanstack/ai package
+  "tanstack-ai-devtools:stream:started": {
+    streamId: string;
     model: string;
-    delta: string;
-    accumulatedContent?: string;
-  };
-  "stream:tool-call": {
-    type: "standalone" | "instance";
+    provider: string;
     timestamp: number;
-    messageId: string;
-    model: string;
-    toolCallId: string;
-    toolName: string;
-    arguments: string;
+    clientId?: string;
   };
-  "stream:tool-result": {
-    type: "standalone" | "instance";
-    timestamp: number;
-    messageId: string;
-    model: string;
-    toolCallId: string;
-    toolName: string;
+  "tanstack-ai-devtools:stream:chunk:content": {
+    streamId: string;
+    messageId?: string;
     content: string;
-  };
-  "stream:done": {
-    type: "standalone" | "instance";
+    delta?: string;
     timestamp: number;
-    messageId: string;
-    model: string;
+  };
+  "tanstack-ai-devtools:stream:chunk:tool-call": {
+    streamId: string;
+    messageId?: string;
+    toolCallId: string;
+    toolName: string;
+    index: number;
+    arguments: string;
+    timestamp: number;
+  };
+  "tanstack-ai-devtools:stream:chunk:tool-result": {
+    streamId: string;
+    messageId?: string;
+    toolCallId: string;
+    result: string;
+    timestamp: number;
+  };
+  "tanstack-ai-devtools:stream:chunk:done": {
+    streamId: string;
+    messageId?: string;
     finishReason: string | null;
     usage?: {
       promptTokens: number;
       completionTokens: number;
       totalTokens: number;
     };
-  };
-  "stream:error": {
-    type: "standalone" | "instance";
     timestamp: number;
-    messageId: string;
-    model: string;
-    error: {
-      message: string;
-      code?: string;
-    };
   };
-
-  // Tool events
-  "tool:approval-requested": {
-    type: "standalone" | "instance";
+  "tanstack-ai-devtools:stream:chunk:error": {
+    streamId: string;
+    messageId?: string;
+    error: string;
     timestamp: number;
-    messageId: string;
-    model: string;
+  };
+  "tanstack-ai-devtools:stream:approval-requested": {
+    streamId: string;
+    messageId?: string;
     toolCallId: string;
     toolName: string;
     input: any;
     approvalId: string;
-  };
-  "tool:input-available": {
-    type: "standalone" | "instance";
     timestamp: number;
-    messageId: string;
-    model: string;
+  };
+  "tanstack-ai-devtools:stream:tool-input-available": {
+    streamId: string;
     toolCallId: string;
     toolName: string;
     input: any;
-  };
-  "tool:completed": {
-    type: "standalone" | "instance";
     timestamp: number;
-    model: string;
+  };
+  "tanstack-ai-devtools:tool:call-completed": {
+    streamId: string;
     toolCallId: string;
     toolName: string;
     result: any;
     duration: number;
-  };
-
-  // Token usage events (fired on completion)
-  "usage:tokens": {
-    type: "standalone" | "instance";
     timestamp: number;
-    messageId?: string;
+  };
+  "tanstack-ai-devtools:stream:ended": {
+    streamId: string;
+    totalChunks: number;
+    duration: number;
+    timestamp: number;
+  };
+  "tanstack-ai-devtools:chat:started": {
+    requestId: string;
     model: string;
-    usage: {
+    messageCount: number;
+    hasTools: boolean;
+    streaming: boolean;
+    timestamp: number;
+    clientId?: string;
+  };
+  "tanstack-ai-devtools:chat:completed": {
+    requestId: string;
+    model: string;
+    content: string;
+    finishReason?: string;
+    usage?: {
       promptTokens: number;
       completionTokens: number;
       totalTokens: number;
     };
+    timestamp: number;
+  };
+  "tanstack-ai-devtools:chat:iteration": {
+    requestId: string;
+    iterationNumber: number;
+    messageCount: number;
+    toolCallCount: number;
+    timestamp: number;
+  };
+  "tanstack-ai-devtools:standalone:chat-started": {
+    adapterName: string;
+    model: string;
+    streaming: boolean;
+    timestamp: number;
+  };
+  "tanstack-ai-devtools:standalone:chat-completion-started": {
+    adapterName: string;
+    model: string;
+    hasOutput: boolean;
+    timestamp: number;
+  };
+
+  // Chat Client events - from @tanstack/ai-client package
+  "tanstack-ai-devtools:client:created": {
+    clientId: string;
+    initialMessageCount: number;
+    timestamp: number;
+  };
+  "tanstack-ai-devtools:client:message-appended": {
+    clientId: string;
+    messageId: string;
+    role: "user" | "assistant" | "system" | "tool";
+    contentPreview: string;
+    timestamp: number;
+  };
+  "tanstack-ai-devtools:client:message-sent": {
+    clientId: string;
+    messageId: string;
+    content: string;
+    timestamp: number;
+  };
+  "tanstack-ai-devtools:client:loading-changed": {
+    clientId: string;
+    isLoading: boolean;
+    timestamp: number;
+  };
+  "tanstack-ai-devtools:client:error-changed": {
+    clientId: string;
+    error: string | null;
+    timestamp: number;
+  };
+  "tanstack-ai-devtools:client:messages-cleared": {
+    clientId: string;
+    timestamp: number;
+  };
+  "tanstack-ai-devtools:client:reloaded": {
+    clientId: string;
+    fromMessageIndex: number;
+    timestamp: number;
+  };
+  "tanstack-ai-devtools:client:stopped": {
+    clientId: string;
+    timestamp: number;
+  };
+  "tanstack-ai-devtools:tool:result-added": {
+    clientId: string;
+    toolCallId: string;
+    toolName: string;
+    output: any;
+    state: "output-available" | "output-error";
+    timestamp: number;
+  };
+  "tanstack-ai-devtools:tool:approval-responded": {
+    clientId: string;
+    approvalId: string;
+    toolCallId: string;
+    approved: boolean;
+    timestamp: number;
+  };
+  "tanstack-ai-devtools:processor:text-updated": {
+    streamId: string;
+    content: string;
+    timestamp: number;
+  };
+  "tanstack-ai-devtools:processor:tool-call-state-changed": {
+    streamId: string;
+    toolCallId: string;
+    toolName: string;
+    state: ToolCallState;
+    arguments: any;
+    timestamp: number;
+  };
+  "tanstack-ai-devtools:processor:tool-result-state-changed": {
+    streamId: string;
+    toolCallId: string;
+    content: any;
+    state: ToolResultState;
+    error?: string;
+    timestamp: number;
+  };
+  "tanstack-ai-devtools:client:assistant-message-updated": {
+    clientId: string;
+    messageId: string;
+    content: string;
+    timestamp: number;
+  };
+  "tanstack-ai-devtools:client:tool-call-updated": {
+    clientId: string;
+    messageId: string;
+    toolCallId: string;
+    toolName: string;
+    state: ToolCallState;
+    arguments: any;
+    timestamp: number;
+  };
+  "tanstack-ai-devtools:client:approval-requested": {
+    clientId: string;
+    messageId: string;
+    toolCallId: string;
+    toolName: string;
+    input: any;
+    approvalId: string;
+    timestamp: number;
   };
 }
 
-/**
- * Type-safe event emitter for AI observability
- */
-class AIEventClient extends EventEmitter {
-  /**
-   * Subscribe to AI events with type safety
-   */
-  on<K extends keyof AIEventMap>(
-    event: K,
-    listener: (data: AIEventMap[K]) => void
-  ): this {
-    return super.on(event, listener);
-  }
-
-  /**
-   * Subscribe to AI events once with type safety
-   */
-  once<K extends keyof AIEventMap>(
-    event: K,
-    listener: (data: AIEventMap[K]) => void
-  ): this {
-    return super.once(event, listener);
-  }
-
-  /**
-   * Emit AI events with type safety
-   */
-  emit<K extends keyof AIEventMap>(event: K, data: AIEventMap[K]): boolean {
-    return super.emit(event, data);
-  }
-
-  /**
-   * Remove event listener with type safety
-   */
-  off<K extends keyof AIEventMap>(
-    event: K,
-    listener: (data: AIEventMap[K]) => void
-  ): this {
-    return super.off(event, listener);
-  }
-
-  /**
-   * Remove all listeners for an event or all events
-   */
-  removeAllListeners(event?: keyof AIEventMap): this {
-    return super.removeAllListeners(event);
+export class AiEventClient extends EventClient<AIDevtoolsEventMap> {
+  constructor() {
+    super({
+      pluginId: "tanstack-ai-devtools",
+    });
   }
 }
 
-/**
- * Global event client for AI observability and debugging
- * 
- * Subscribe to this event emitter to receive detailed information about:
- * - Chat completions (streaming and non-streaming)
- * - Stream chunks and content
- * - Tool calls and executions
- * - Token usage and costs
- * - Errors and finish reasons
- * 
- * @example
- * ```typescript
- * import { aiEventClient } from '@tanstack/ai/event-client';
- * 
- * // Listen to all stream chunks
- * aiEventClient.on('stream:chunk', (data) => {
- *   console.log('Chunk received:', data.chunk);
- * });
- * 
- * // Listen to token usage
- * aiEventClient.on('usage:tokens', (data) => {
- *   console.log('Tokens used:', data.usage.totalTokens);
- * });
- * 
- * // Listen to content deltas
- * aiEventClient.on('stream:content', (data) => {
- *   process.stdout.write(data.delta);
- * });
- * ```
- */
-export const aiEventClient = new AIEventClient();
+const aiEventClient = new AiEventClient();
 
-// Prevent too many listeners warning for observability use cases
-aiEventClient.setMaxListeners(100);
+export { aiEventClient };

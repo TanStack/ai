@@ -18,8 +18,7 @@ import type {
   ResponseFormat,
 } from "./types";
 import { AI } from "./ai";
-import { aiDevtoolsEventClient } from "@tanstack/ai-devtools-client";
-import { aiEventClient } from "./event-client";
+import { aiEventClient } from "./event-client.js";
 
 // Extract types from adapter
 type ExtractModelsFromAdapter<T> = T extends AIAdapter<
@@ -210,25 +209,11 @@ export function chat<
   } = options;
   const aiInstance = new AI({ adapter });
 
-  aiDevtoolsEventClient.emit("standalone-chat-started", {
+  aiEventClient.emit("standalone:chat-started", {
     timestamp: Date.now(),
     adapterName: adapter.name,
     model: model as string,
     streaming: true,
-  });
-
-  // Emit public chat started event
-  aiEventClient.emit("chat:started", {
-    type: "standalone",
-    timestamp: Date.now(),
-    options: {
-      model,
-      messages,
-      tools,
-      agentLoopStrategy,
-      ...restOptions,
-      providerOptions,
-    } as any,
   });
 
   return aiInstance.chat({
@@ -289,24 +274,11 @@ export async function chatCompletion<
   const aiInstance = new AI({ adapter });
   const startTime = Date.now();
 
-  aiDevtoolsEventClient.emit("standalone-chat-completion-started", {
+  aiEventClient.emit("standalone:chat-completion-started", {
     timestamp: startTime,
     adapterName: adapter.name,
     model: model as string,
     hasOutput: !!output,
-  });
-
-  // Emit public chat started event
-  aiEventClient.emit("chat:started", {
-    type: "standalone",
-    timestamp: startTime,
-    options: {
-      model,
-      messages,
-      tools,
-      ...restOptions,
-      providerOptions,
-    } as any,
   });
 
   const result = await aiInstance.chatCompletion({
@@ -317,30 +289,7 @@ export async function chatCompletion<
     providerOptions,
     output,
   }) as any;
-  const duration = Date.now() - startTime;
 
-  // Emit public chat completed event
-  aiEventClient.emit("chat:completed", {
-    type: "standalone",
-    timestamp: Date.now(),
-    options: {
-      model,
-      messages,
-      tools,
-      ...restOptions,
-      providerOptions,
-    } as any,
-    result,
-    duration,
-  });
-
-  // Emit token usage event
-  aiEventClient.emit("usage:tokens", {
-    type: "standalone",
-    timestamp: Date.now(),
-    model: options.model as string,
-    usage: result.usage,
-  });
 
   return result;
 }

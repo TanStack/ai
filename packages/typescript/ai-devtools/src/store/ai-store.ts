@@ -1,5 +1,5 @@
 import { createStore } from "solid-js/store";
-import { aiDevtoolsEventClient } from "@tanstack/ai-devtools-client";
+import { aiEventClient } from "@tanstack/ai/event-client";
 
 export interface MessagePart {
   type: "text" | "tool-call" | "tool-result";
@@ -165,14 +165,14 @@ function addChunkToMessage(conversationId: string, chunk: Chunk): void {
 
 const streamToConversation = new Map<string, string>();
 
-aiDevtoolsEventClient.on("client-created", (e) => {
+aiEventClient.on("client:created", (e) => {
   const clientId = e.payload.clientId;
   console.log(`[AI Devtools] 🎨 Client Created:`, clientId);
   getOrCreateConversation(clientId, "client", `Client Chat (${clientId.substring(0, 8)})`);
   setState("conversations", clientId, { model: undefined, provider: "Client" });
 });
 
-aiDevtoolsEventClient.on("client-message-sent", (e) => {
+aiEventClient.on("client:message-sent", (e) => {
   const clientId = e.payload.clientId;
   console.log(`[AI Devtools] 📤 User Message:`, clientId, e.payload.content.substring(0, 50));
   if (!state.conversations[clientId]) {
@@ -187,7 +187,7 @@ aiDevtoolsEventClient.on("client-message-sent", (e) => {
   setState("conversations", clientId, "status", "active");
 });
 
-aiDevtoolsEventClient.on("client-message-appended", (e) => {
+aiEventClient.on("client:message-appended", (e) => {
   const clientId = e.payload.clientId;
   const role = e.payload.role;
 
@@ -214,14 +214,14 @@ aiDevtoolsEventClient.on("client-message-appended", (e) => {
   }
 });
 
-aiDevtoolsEventClient.on("client-loading-changed", (e) => {
+aiEventClient.on("client:loading-changed", (e) => {
   const clientId = e.payload.clientId;
   if (state.conversations[clientId]) {
     setState("conversations", clientId, "status", e.payload.isLoading ? "active" : "completed");
   }
 });
 
-aiDevtoolsEventClient.on("client-stopped", (e) => {
+aiEventClient.on("client:stopped", (e) => {
   const clientId = e.payload.clientId;
   if (state.conversations[clientId]) {
     setState("conversations", clientId, {
@@ -231,7 +231,7 @@ aiDevtoolsEventClient.on("client-stopped", (e) => {
   }
 });
 
-aiDevtoolsEventClient.on("client-messages-cleared", (e) => {
+aiEventClient.on("client:messages-cleared", (e) => {
   const clientId = e.payload.clientId;
   if (state.conversations[clientId]) {
     setState("conversations", clientId, "messages", []);
@@ -239,7 +239,7 @@ aiDevtoolsEventClient.on("client-messages-cleared", (e) => {
   }
 });
 
-aiDevtoolsEventClient.on("stream-started", (e) => {
+aiEventClient.on("stream:started", (e) => {
   const streamId = e.payload.streamId;
   const model = e.payload.model;
   const provider = e.payload.provider;
@@ -286,7 +286,7 @@ aiDevtoolsEventClient.on("stream-started", (e) => {
   }
 });
 
-aiDevtoolsEventClient.on("stream-chunk-content", (e) => {
+aiEventClient.on("stream:chunk:content", (e) => {
   const streamId = e.payload.streamId;
   const conversationId = streamToConversation.get(streamId);
   if (!conversationId) {
@@ -312,7 +312,7 @@ aiDevtoolsEventClient.on("stream-chunk-content", (e) => {
   }
 });
 
-aiDevtoolsEventClient.on("stream-chunk-tool-call", (e) => {
+aiEventClient.on("stream:chunk:tool-call", (e) => {
   const streamId = e.payload.streamId;
   const conversationId = streamToConversation.get(streamId);
   if (!conversationId) return;
@@ -334,7 +334,7 @@ aiDevtoolsEventClient.on("stream-chunk-tool-call", (e) => {
   }
 });
 
-aiDevtoolsEventClient.on("stream-chunk-tool-result", (e) => {
+aiEventClient.on("stream:chunk:tool-result", (e) => {
   const streamId = e.payload.streamId;
   const conversationId = streamToConversation.get(streamId);
   if (!conversationId) return;
@@ -356,7 +356,7 @@ aiDevtoolsEventClient.on("stream-chunk-tool-result", (e) => {
   }
 });
 
-aiDevtoolsEventClient.on("stream-chunk-done", (e) => {
+aiEventClient.on("stream:chunk:done", (e) => {
   const streamId = e.payload.streamId;
   const conversationId = streamToConversation.get(streamId);
   if (!conversationId) return;
@@ -377,7 +377,7 @@ aiDevtoolsEventClient.on("stream-chunk-done", (e) => {
   }
 });
 
-aiDevtoolsEventClient.on("stream-chunk-error", (e) => {
+aiEventClient.on("stream:chunk:error", (e) => {
   const streamId = e.payload.streamId;
   const conversationId = streamToConversation.get(streamId);
   if (!conversationId) return;
@@ -403,7 +403,7 @@ aiDevtoolsEventClient.on("stream-chunk-error", (e) => {
   });
 });
 
-aiDevtoolsEventClient.on("stream-ended", (e) => {
+aiEventClient.on("stream:ended", (e) => {
   const streamId = e.payload.streamId;
   const conversationId = streamToConversation.get(streamId);
   if (!conversationId) return;
@@ -414,7 +414,7 @@ aiDevtoolsEventClient.on("stream-ended", (e) => {
   });
 });
 
-aiDevtoolsEventClient.on("processor-text-updated", (e) => {
+aiEventClient.on("processor:text-updated", (e) => {
   const streamId = e.payload.streamId;
   console.log(`[AI Devtools] 🎯 processor-text-updated event received:`, {
     streamId,
@@ -490,7 +490,7 @@ aiDevtoolsEventClient.on("processor-text-updated", (e) => {
 });
 
 // Client-side assistant message updates (simpler, uses clientId directly)
-aiDevtoolsEventClient.on("client-assistant-message-updated", (e) => {
+aiEventClient.on("client:assistant-message-updated", (e) => {
   const clientId = e.payload.clientId;
   const messageId = e.payload.messageId;
   const content = e.payload.content;
@@ -564,7 +564,7 @@ aiDevtoolsEventClient.on("client-assistant-message-updated", (e) => {
 });
 
 // Tool call state changes
-aiDevtoolsEventClient.on("processor-tool-call-state-changed", (e) => {
+aiEventClient.on("processor:tool-call-state-changed", (e) => {
   const streamId = e.payload.streamId;
   const conversationId = streamToConversation.get(streamId);
 
@@ -615,7 +615,7 @@ aiDevtoolsEventClient.on("processor-tool-call-state-changed", (e) => {
 });
 
 // Client-side tool call updates (simpler, uses clientId directly)
-aiDevtoolsEventClient.on("client-tool-call-updated", (e) => {
+aiEventClient.on("client:tool-call-updated", (e) => {
   const { clientId, messageId, toolCallId, toolName, state: toolCallState, arguments: args } = e.payload as {
     clientId: string;
     messageId: string;
@@ -693,7 +693,7 @@ aiDevtoolsEventClient.on("client-tool-call-updated", (e) => {
 });
 
 // Handle approval requests
-aiDevtoolsEventClient.on("stream-approval-requested", (e) => {
+aiEventClient.on("stream:approval-requested", (e) => {
   const { streamId, messageId, toolCallId, toolName, input, approvalId, timestamp } = e.payload;
 
   console.log(`[AI Devtools] ⚠️ Approval requested:`, {
@@ -786,7 +786,7 @@ aiDevtoolsEventClient.on("stream-approval-requested", (e) => {
 });
 
 // Handle client-side approval requests (uses clientId instead of streamId)
-aiDevtoolsEventClient.on("client-approval-requested", (e) => {
+aiEventClient.on("client:approval-requested", (e) => {
   const { clientId, messageId, toolCallId, toolName, input, approvalId } = e.payload as {
     clientId: string;
     messageId: string;
@@ -875,7 +875,7 @@ aiDevtoolsEventClient.on("client-approval-requested", (e) => {
 });
 
 // Error tracking
-aiDevtoolsEventClient.on("client-error-changed", (e) => {
+aiEventClient.on("client:error-changed", (e) => {
   const clientId = e.payload.clientId;
   if (state.conversations[clientId]) {
     console.log(`[AI Devtools] ❌ Error in client ${clientId}:`, e.payload.error);
@@ -895,3 +895,4 @@ export function selectConversation(id: string) {
 }
 
 export { state };
+

@@ -21,8 +21,7 @@ import type {
 import { ToolCallManager } from "./tool-call-manager";
 import { executeToolCalls } from "./agent/executor";
 import { maxIterations as maxIterationsStrategy } from "./agent-loop-strategies";
-import { aiDevtoolsEventClient } from "@tanstack/ai-devtools-client";
-import { aiEventClient } from "./event-client";
+import { aiEventClient } from "./event-client.js";
 
 // Extract types from a single adapter
 type ExtractModels<T> = T extends AIAdapter<
@@ -227,7 +226,7 @@ class AI<
     const streamId = `stream-${Date.now()}-${Math.random().toString(36).substring(7)}`;
 
     // Emit chat started event
-    aiDevtoolsEventClient.emit("chat-started", {
+    aiEventClient.emit("chat:started", {
       requestId,
       model: model as string,
       messageCount: inputMessages.length,
@@ -236,20 +235,6 @@ class AI<
       timestamp: Date.now(),
     });
 
-    // Emit public chat started event
-    aiEventClient.emit("chat:started", {
-      type: "instance",
-      timestamp: Date.now(),
-      options: {
-        model,
-        messages: inputMessages,
-        tools,
-        systemPrompts,
-        agentLoopStrategy,
-        ...options,
-        providerOptions,
-      } as any,
-    });
 
     const shouldContinueLoop = agentLoopStrategy || maxIterationsStrategy(5);
 
@@ -263,32 +248,16 @@ class AI<
     const toolCallManager = new ToolCallManager(tools || []);
     let lastFinishReason: string | null = null;
     const streamStartTime = Date.now();
-    let finalAccumulatedContent = "";
     let totalChunkCount = 0; // Track total chunks across all iterations
 
     // Emit stream started event
-    aiDevtoolsEventClient.emit("stream-started", {
+    aiEventClient.emit("stream:started", {
       streamId,
       model,
       provider: this.adapter.name,
       timestamp: streamStartTime,
     });
 
-    // Emit public stream started event
-    aiEventClient.emit("stream:started", {
-      type: "instance",
-      timestamp: streamStartTime,
-      messageId: streamId,
-      options: {
-        model,
-        messages,
-        tools,
-        systemPrompts,
-        agentLoopStrategy,
-        ...options,
-        providerOptions,
-      } as any,
-    });
 
     do {
       let accumulatedContent = "";
@@ -312,19 +281,11 @@ class AI<
         // Forward all chunks to the caller
         yield chunk;
 
-        // Emit public stream chunk event
-        aiEventClient.emit("stream:chunk", {
-          type: "instance",
-          timestamp: Date.now(),
-          messageId,
-          chunk,
-        });
 
         // Emit granular chunk events
         if (chunk.type === "content") {
           accumulatedContent = chunk.content;
-          finalAccumulatedContent = chunk.content;
-          aiDevtoolsEventClient.emit("stream-chunk-content", {
+          aiEventClient.emit("stream:chunk:content", {
             streamId,
             messageId,
             content: chunk.content,
@@ -333,20 +294,12 @@ class AI<
           });
 
           // Emit content event
-          aiEventClient.emit("stream:content", {
-            type: "instance",
-            timestamp: Date.now(),
-            messageId,
-            model: model as string,
-            delta: chunk.delta,
-            accumulatedContent: accumulatedContent,
-          });
         }
 
         // Track tool calls
         if (chunk.type === "tool_call") {
           toolCallManager.addToolCallChunk(chunk);
-          aiDevtoolsEventClient.emit("stream-chunk-tool-call", {
+          aiEventClient.emit("stream:chunk:tool-call", {
             streamId,
             messageId,
             toolCallId: chunk.toolCall.id,
@@ -357,20 +310,11 @@ class AI<
           });
 
           // Emit tool call event
-          aiEventClient.emit("stream:tool-call", {
-            type: "instance",
-            timestamp: Date.now(),
-            messageId,
-            model: model as string,
-            toolCallId: chunk.toolCall.id,
-            toolName: chunk.toolCall.function.name,
-            arguments: chunk.toolCall.function.arguments,
-          });
         }
 
         // Track tool results
         if (chunk.type === "tool_result") {
-          aiDevtoolsEventClient.emit("stream-chunk-tool-result", {
+          aiEventClient.emit("stream:chunk:tool-result", {
             streamId,
             messageId,
             toolCallId: chunk.toolCallId,
@@ -379,22 +323,13 @@ class AI<
           });
 
           // Emit tool result event
-          aiEventClient.emit("stream:tool-result", {
-            type: "instance",
-            timestamp: Date.now(),
-            messageId,
-            model: model as string,
-            toolCallId: chunk.toolCallId,
-            toolName: chunk.toolCallId, // We'd need to track the tool name better
-            content: chunk.content,
-          });
         }
 
         // Track done chunk
         if (chunk.type === "done") {
           doneChunk = chunk;
           lastFinishReason = chunk.finishReason;
-          aiDevtoolsEventClient.emit("stream-chunk-done", {
+          aiEventClient.emit("stream:chunk:done", {
             streamId,
             messageId,
             finishReason: chunk.finishReason,
@@ -403,19 +338,11 @@ class AI<
           });
 
           // Emit done event
-          aiEventClient.emit("stream:done", {
-            type: "instance",
-            timestamp: Date.now(),
-            messageId,
-            model: model as string,
-            finishReason: chunk.finishReason,
-            usage: chunk.usage,
-          });
         }
 
         // Forward errors
         if (chunk.type === "error") {
-          aiDevtoolsEventClient.emit("stream-chunk-error", {
+          aiEventClient.emit("stream:chunk:error", {
             streamId,
             messageId,
             error: chunk.error.message,
@@ -423,16 +350,6 @@ class AI<
           });
 
           // Emit error event
-          aiEventClient.emit("stream:error", {
-            type: "instance",
-            timestamp: Date.now(),
-            messageId,
-            model: model as string,
-            error: {
-              message: chunk.error.message,
-              code: chunk.error.code,
-            },
-          });
           return; // Stop on error
         }
       }
@@ -447,7 +364,7 @@ class AI<
         const toolCallsArray = toolCallManager.getToolCalls();
 
         // Emit iteration event
-        aiDevtoolsEventClient.emit("chat-iteration", {
+        aiEventClient.emit("chat:iteration", {
           requestId,
           iterationNumber: iterationCount + 1,
           messageCount: messages.length,
@@ -455,15 +372,6 @@ class AI<
           timestamp: Date.now(),
         });
 
-        // Emit public iteration event
-        aiEventClient.emit("chat:iteration", {
-          type: "instance",
-          timestamp: Date.now(),
-          iteration: iterationCount + 1,
-          reason: "tool_calls",
-          model: model as string,
-          messageCount: messages.length,
-        });
 
         // Add assistant message with tool calls
         messages = [
@@ -520,7 +428,7 @@ class AI<
         ) {
           // Emit special chunks for client
           for (const approval of executionResult.needsApproval) {
-            aiDevtoolsEventClient.emit("stream-approval-requested", {
+            aiEventClient.emit("stream:approval-requested", {
               streamId,
               messageId,
               toolCallId: approval.toolCallId,
@@ -530,17 +438,6 @@ class AI<
               timestamp: Date.now(),
             });
 
-            // Emit public approval requested event
-            aiEventClient.emit("tool:approval-requested", {
-              type: "instance",
-              timestamp: Date.now(),
-              messageId,
-              model: model as string,
-              toolCallId: approval.toolCallId,
-              toolName: approval.toolName,
-              input: approval.input,
-              approvalId: approval.approvalId,
-            });
 
             yield {
               type: "approval-requested",
@@ -558,7 +455,7 @@ class AI<
           }
 
           for (const clientTool of executionResult.needsClientExecution) {
-            aiDevtoolsEventClient.emit("stream-tool-input-available", {
+            aiEventClient.emit("stream:tool-input-available", {
               streamId,
               toolCallId: clientTool.toolCallId,
               toolName: clientTool.toolName,
@@ -566,16 +463,6 @@ class AI<
               timestamp: Date.now(),
             });
 
-            // Emit public tool input available event
-            aiEventClient.emit("tool:input-available", {
-              type: "instance",
-              timestamp: Date.now(),
-              messageId,
-              model: model as string,
-              toolCallId: clientTool.toolCallId,
-              toolName: clientTool.toolName,
-              input: clientTool.input,
-            });
 
             yield {
               type: "tool-input-available",
@@ -594,7 +481,7 @@ class AI<
 
         // Execute completed tools - emit tool_result chunks
         for (const result of executionResult.results) {
-          aiDevtoolsEventClient.emit("tool-call-completed", {
+          aiEventClient.emit("tool:call-completed", {
             streamId,
             toolCallId: result.toolCallId,
             toolName: result.toolCallId, // We'd need to track this better
@@ -603,16 +490,6 @@ class AI<
             timestamp: Date.now(),
           });
 
-          // Emit public tool completed event
-          aiEventClient.emit("tool:completed", {
-            type: "instance",
-            timestamp: Date.now(),
-            model: model as string,
-            toolCallId: result.toolCallId,
-            toolName: result.toolCallId, // We'd need to track this better
-            result: result.result,
-            duration: 0, // We'd need to track execution time
-          });
 
           const resultChunk = {
             type: "tool_result" as const,
@@ -654,43 +531,14 @@ class AI<
     );
 
     // Emit stream ended event
-    aiDevtoolsEventClient.emit("stream-ended", {
+    aiEventClient.emit("stream:ended", {
       streamId,
       totalChunks: totalChunkCount,
       duration: Date.now() - streamStartTime,
       timestamp: Date.now(),
     });
 
-    // Emit public stream ended event
-    aiEventClient.emit("stream:ended", {
-      type: "instance",
-      timestamp: Date.now(),
-      messageId: streamId,
-      model: model as string,
-      duration: Date.now() - streamStartTime,
-      totalChunks: totalChunkCount,
-    });
 
-    // Emit public chat completed event
-    const duration = Date.now() - streamStartTime;
-    aiEventClient.emit("chat:completed", {
-      type: "instance",
-      timestamp: Date.now(),
-      options: {
-        model,
-        messages,
-        tools,
-        systemPrompts,
-        agentLoopStrategy,
-        ...options,
-        providerOptions,
-      } as any,
-      result: {
-        content: finalAccumulatedContent,
-        finishReason: lastFinishReason || undefined,
-      } as any,
-      duration,
-    });
   }
 
   /**
@@ -743,10 +591,10 @@ class AI<
     } = params;
 
     const requestId = `chat-completion-${Date.now()}-${Math.random().toString(36).substring(7)}`;
-    const startTime = Date.now();
+
 
     // Emit chat started event
-    aiDevtoolsEventClient.emit("chat-started", {
+    aiEventClient.emit("chat:started", {
       requestId,
       model: model as string,
       messageCount: inputMessages.length,
@@ -755,19 +603,6 @@ class AI<
       timestamp: Date.now(),
     });
 
-    // Emit public chat started event
-    aiEventClient.emit("chat:started", {
-      type: "instance",
-      timestamp: Date.now(),
-      options: {
-        model,
-        messages: inputMessages,
-        tools,
-        systemPrompts,
-        ...options,
-        providerOptions,
-      } as any,
-    });
 
     // Extract output if it exists
     const output = (params as any).output as ResponseFormat | undefined;
@@ -789,7 +624,7 @@ class AI<
     });
 
     // Emit chat completed event
-    aiDevtoolsEventClient.emit("chat-completed", {
+    aiEventClient.emit("chat:completed", {
       requestId,
       model: model as string,
       content: result.content || "",
@@ -797,33 +632,8 @@ class AI<
       usage: result.usage,
       timestamp: Date.now(),
     });
-
-    const duration = Date.now() - startTime;
-
-    // Emit public chat completed event
-    aiEventClient.emit("chat:completed", {
-      type: "instance",
-      timestamp: Date.now(),
-      options: {
-        model,
-        messages,
-        tools,
-        systemPrompts,
-        ...options,
-        providerOptions,
-      } as any,
-      result,
-      duration,
-    });
-
     // Emit usage tokens event
     if (result.usage) {
-      aiEventClient.emit("usage:tokens", {
-        type: "instance",
-        timestamp: Date.now(),
-        model: model as string,
-        usage: result.usage,
-      });
     }
 
     // If output is provided, parse the content as structured data

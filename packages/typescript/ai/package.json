@@ -44,7 +44,7 @@
     "embeddings"
   ],
   "dependencies": {
-    "@tanstack/ai-devtools-client": "workspace:*"
+    "@tanstack/devtools-event-client": "^0.3.4"
   },
   "devDependencies": {
     "@types/node": "^22.10.2",

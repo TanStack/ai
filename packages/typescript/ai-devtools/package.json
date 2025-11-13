@@ -49,7 +49,7 @@
     "embeddings"
   ],
   "dependencies": {
-    "@tanstack/ai-devtools-client": "workspace:*",
+    "@tanstack/ai": "workspace:*",
     "@tanstack/devtools-ui": "^0.4.3",
     "@tanstack/devtools-utils": "^0.0.6",
     "clsx": "^2.1.1",

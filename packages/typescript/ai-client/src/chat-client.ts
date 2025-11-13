@@ -4,7 +4,7 @@ import type { ConnectionAdapter } from "./connection-adapters";
 import { StreamProcessor } from "./stream/processor";
 import type { ChunkStrategy, StreamParser } from "./stream/types";
 import { uiMessageToModelMessages } from "./message-converters";
-import { aiDevtoolsEventClient } from "@tanstack/ai-devtools-client";
+import { aiEventClient } from "@tanstack/ai/event-client";
 
 export class ChatClient {
   private messages: UIMessage[] = [];
@@ -53,7 +53,7 @@ export class ChatClient {
     };
 
     // Emit client created event
-    aiDevtoolsEventClient.emit("client-created", {
+    aiEventClient.emit("client:created", {
       clientId: this.uniqueId,
       initialMessageCount: this.messages.length,
       timestamp: Date.now(),
@@ -80,7 +80,7 @@ export class ChatClient {
     this.callbacks.onLoadingChange(isLoading);
 
     // Emit loading change event
-    aiDevtoolsEventClient.emit("client-loading-changed", {
+    aiEventClient.emit("client:loading-changed", {
       clientId: this.uniqueId,
       isLoading,
       timestamp: Date.now(),
@@ -92,7 +92,7 @@ export class ChatClient {
     this.callbacks.onErrorChange(error);
 
     // Emit error change event
-    aiDevtoolsEventClient.emit("client-error-changed", {
+    aiEventClient.emit("client:error-changed", {
       clientId: this.uniqueId,
       error: error?.message || null,
       timestamp: Date.now(),
@@ -134,14 +134,14 @@ export class ChatClient {
       handlers: {
         onTextUpdate: (content) => {
           // Emit processor text update event with clientId for easier devtools tracking
-          aiDevtoolsEventClient.emit("processor-text-updated", {
+          aiEventClient.emit("processor:text-updated", {
             streamId,
             content,
             timestamp: Date.now(),
           });
 
           // Also emit a client-specific event for devtools
-          aiDevtoolsEventClient.emit("client-assistant-message-updated", {
+          aiEventClient.emit("client:assistant-message-updated", {
             clientId: this.uniqueId,
             messageId: assistantMessageId,
             content,
@@ -175,7 +175,7 @@ export class ChatClient {
         },
         onToolCallStateChange: (_index, id, name, state, args) => {
           // Emit processor tool call state change event (for server-side tracking)
-          aiDevtoolsEventClient.emit("processor-tool-call-state-changed", {
+          aiEventClient.emit("processor:tool-call-state-changed", {
             streamId,
             toolCallId: id,
             toolName: name,
@@ -185,7 +185,7 @@ export class ChatClient {
           });
 
           // Also emit a client-specific tool call event (for client-side tracking)
-          aiDevtoolsEventClient.emit("client-tool-call-updated", {
+          aiEventClient.emit("client:tool-call-updated", {
             clientId: this.uniqueId,
             messageId: assistantMessageId,
             toolCallId: id,
@@ -234,7 +234,7 @@ export class ChatClient {
         },
         onToolResultStateChange: (toolCallId, content, state, error) => {
           // Emit processor tool result state change event
-          aiDevtoolsEventClient.emit("processor-tool-result-state-changed", {
+          aiEventClient.emit("processor:tool-result-state-changed", {
             streamId,
             toolCallId,
             content,
@@ -274,7 +274,7 @@ export class ChatClient {
         },
         onApprovalRequested: async (toolCallId, toolName, input, approvalId) => {
           // Emit client-side approval event for devtools
-          aiDevtoolsEventClient.emit("client-approval-requested", {
+          aiEventClient.emit("client:approval-requested", {
             clientId: this.uniqueId,
             messageId: assistantMessageId,
             toolCallId,
@@ -436,7 +436,7 @@ export class ChatClient {
       .join(" ")
       .substring(0, 100);
 
-    aiDevtoolsEventClient.emit("client-message-appended", {
+    aiEventClient.emit("client:message-appended", {
       clientId: this.uniqueId,
       messageId: uiMessage.id,
       role: uiMessage.role,
@@ -495,7 +495,7 @@ export class ChatClient {
     };
 
     // Emit message sent event
-    aiDevtoolsEventClient.emit("client-message-sent", {
+    aiEventClient.emit("client:message-sent", {
       clientId: this.uniqueId,
       messageId: userMessage.id,
       content: content.trim(),
@@ -520,7 +520,7 @@ export class ChatClient {
     if (lastUserMessageIndex === -1) return;
 
     // Emit reload event
-    aiDevtoolsEventClient.emit("client-reloaded", {
+    aiEventClient.emit("client:reloaded", {
       clientId: this.uniqueId,
       fromMessageIndex: lastUserMessageIndex,
       timestamp: Date.now(),
@@ -541,7 +541,7 @@ export class ChatClient {
     this.setIsLoading(false);
 
     // Emit stop event
-    aiDevtoolsEventClient.emit("client-stopped", {
+    aiEventClient.emit("client:stopped", {
       clientId: this.uniqueId,
       timestamp: Date.now(),
     });
@@ -552,7 +552,7 @@ export class ChatClient {
     this.setError(undefined);
 
     // Emit clear event
-    aiDevtoolsEventClient.emit("client-messages-cleared", {
+    aiEventClient.emit("client:messages-cleared", {
       clientId: this.uniqueId,
       timestamp: Date.now(),
     });
@@ -569,7 +569,7 @@ export class ChatClient {
     errorText?: string;
   }): Promise<void> {
     // Emit tool result added event
-    aiDevtoolsEventClient.emit("tool-result-added", {
+    aiEventClient.emit("tool:result-added", {
       clientId: this.uniqueId,
       toolCallId: result.toolCallId,
       toolName: result.tool,
@@ -627,7 +627,7 @@ export class ChatClient {
 
     if (foundToolCallId) {
       // Emit tool approval responded event
-      aiDevtoolsEventClient.emit("tool-approval-responded", {
+      aiEventClient.emit("tool:approval-responded", {
         clientId: this.uniqueId,
         approvalId: response.id,
         toolCallId: foundToolCallId,
@@ -724,3 +724,4 @@ export class ChatClient {
     this.setMessages(messages);
   }
 }
+

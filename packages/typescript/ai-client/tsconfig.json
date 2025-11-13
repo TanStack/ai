@@ -3,10 +3,10 @@
   "compilerOptions": {
     "outDir": "dist",
     "rootDir": ".",
+    "moduleResolution": "bundler",
     "lib": ["ES2022", "DOM"]
   },
   "include": ["src/**/*.ts", "tests/**/*.ts"],
   "exclude": ["node_modules", "dist", "**/*.config.ts"],
   "references": [{ "path": "../ai" }]
 }
-
