@@ -175,7 +175,7 @@ aiEventClient.on("client:created", (e) => {
   console.log(`[AI Devtools] 🎨 Client Created:`, clientId);
   getOrCreateConversation(clientId, "client", `Client Chat (${clientId.substring(0, 8)})`);
   setState("conversations", clientId, { model: undefined, provider: "Client" });
-});
+}, { withEventTarget: false });
 
 aiEventClient.on("client:message-sent", (e) => {
   const clientId = e.payload.clientId;
@@ -190,7 +190,7 @@ aiEventClient.on("client:message-sent", (e) => {
     timestamp: e.payload.timestamp,
   });
   setState("conversations", clientId, "status", "active");
-});
+}, { withEventTarget: false });
 
 aiEventClient.on("client:message-appended", (e) => {
   const clientId = e.payload.clientId;
@@ -217,14 +217,14 @@ aiEventClient.on("client:message-appended", (e) => {
       timestamp: e.payload.timestamp,
     });
   }
-});
+}, { withEventTarget: false });
 
 aiEventClient.on("client:loading-changed", (e) => {
   const clientId = e.payload.clientId;
   if (state.conversations[clientId]) {
     setState("conversations", clientId, "status", e.payload.isLoading ? "active" : "completed");
   }
-});
+}, { withEventTarget: false });
 
 aiEventClient.on("client:stopped", (e) => {
   const clientId = e.payload.clientId;
@@ -234,7 +234,7 @@ aiEventClient.on("client:stopped", (e) => {
       completedAt: e.payload.timestamp,
     });
   }
-});
+}, { withEventTarget: false });
 
 aiEventClient.on("client:messages-cleared", (e) => {
   const clientId = e.payload.clientId;
@@ -242,7 +242,7 @@ aiEventClient.on("client:messages-cleared", (e) => {
     setState("conversations", clientId, "messages", []);
     setState("conversations", clientId, "chunks", []);
   }
-});
+}, { withEventTarget: false });
 
 aiEventClient.on("stream:started", (e) => {
   const streamId = e.payload.streamId;
@@ -289,7 +289,7 @@ aiEventClient.on("stream:started", (e) => {
       setState("conversations", serverId, { model, provider });
     }
   }
-});
+}, { withEventTarget: false });
 
 aiEventClient.on("stream:chunk:content", (e) => {
   const streamId = e.payload.streamId;
@@ -315,7 +315,7 @@ aiEventClient.on("stream:chunk:content", (e) => {
   } else {
     addChunk(conversationId, chunk);
   }
-});
+}, { withEventTarget: false });
 
 aiEventClient.on("stream:chunk:tool-call", (e) => {
   const streamId = e.payload.streamId;
@@ -337,7 +337,7 @@ aiEventClient.on("stream:chunk:tool-call", (e) => {
   } else {
     addChunk(conversationId, chunk);
   }
-});
+}, { withEventTarget: false });
 
 aiEventClient.on("stream:chunk:tool-result", (e) => {
   const streamId = e.payload.streamId;
@@ -359,7 +359,7 @@ aiEventClient.on("stream:chunk:tool-result", (e) => {
   } else {
     addChunk(conversationId, chunk);
   }
-});
+}, { withEventTarget: false });
 
 aiEventClient.on("stream:chunk:done", (e) => {
   const streamId = e.payload.streamId;
@@ -385,7 +385,7 @@ aiEventClient.on("stream:chunk:done", (e) => {
   } else {
     addChunk(conversationId, chunk);
   }
-});
+}, { withEventTarget: false });
 
 aiEventClient.on("stream:chunk:error", (e) => {
   const streamId = e.payload.streamId;
@@ -411,7 +411,7 @@ aiEventClient.on("stream:chunk:error", (e) => {
     status: "error",
     completedAt: e.payload.timestamp,
   });
-});
+}, { withEventTarget: false });
 
 aiEventClient.on("stream:ended", (e) => {
   const streamId = e.payload.streamId;
@@ -422,7 +422,7 @@ aiEventClient.on("stream:ended", (e) => {
     status: "completed",
     completedAt: e.payload.timestamp,
   });
-});
+}, { withEventTarget: false });
 
 aiEventClient.on("processor:text-updated", (e) => {
   const streamId = e.payload.streamId;
@@ -497,7 +497,7 @@ aiEventClient.on("processor:text-updated", (e) => {
   }
 
   console.log(`[AI Devtools]    ✅ Message processed. Total messages now:`, state.conversations[conversationId]?.messages.length);
-});
+}, { withEventTarget: false });
 
 // Client-side assistant message updates (simpler, uses clientId directly)
 aiEventClient.on("client:assistant-message-updated", (e) => {
@@ -571,7 +571,7 @@ aiEventClient.on("client:assistant-message-updated", (e) => {
   }
 
   console.log(`[AI Devtools]    ✅ Assistant message processed. Total messages now:`, state.conversations[clientId]?.messages.length);
-});
+}, { withEventTarget: false });
 
 // Tool call state changes
 aiEventClient.on("processor:tool-call-state-changed", (e) => {
@@ -622,7 +622,7 @@ aiEventClient.on("processor:tool-call-state-changed", (e) => {
       );
     }
   }
-});
+}, { withEventTarget: false });
 
 // Client-side tool call updates (simpler, uses clientId directly)
 aiEventClient.on("client:tool-call-updated", (e) => {
@@ -700,7 +700,7 @@ aiEventClient.on("client:tool-call-updated", (e) => {
       [...toolCalls, toolCall]
     );
   }
-});
+}, { withEventTarget: false });
 
 // Handle approval requests
 aiEventClient.on("stream:approval-requested", (e) => {
@@ -793,7 +793,7 @@ aiEventClient.on("stream:approval-requested", (e) => {
   }
 
   console.log(`[AI Devtools]   ❌ Tool call not found: ${toolCallId}`);
-});
+}, { withEventTarget: false });
 
 // Handle client-side approval requests (uses clientId instead of streamId)
 aiEventClient.on("client:approval-requested", (e) => {
@@ -882,7 +882,7 @@ aiEventClient.on("client:approval-requested", (e) => {
     "state",
     "approval-requested"
   );
-});
+}, { withEventTarget: false });
 
 // Error tracking
 aiEventClient.on("client:error-changed", (e) => {
@@ -891,7 +891,7 @@ aiEventClient.on("client:error-changed", (e) => {
     console.log(`[AI Devtools] ❌ Error in client ${clientId}:`, e.payload.error);
     setState("conversations", clientId, "status", "error");
   }
-});
+}, { withEventTarget: false });
 
 export function clearAllConversations() {
   setState("conversations", {});
