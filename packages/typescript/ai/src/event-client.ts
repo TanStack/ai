@@ -127,6 +127,16 @@ export interface AIDevtoolsEventMap {
     toolCallCount: number;
     timestamp: number;
   };
+  "tanstack-ai-devtools:usage:tokens": {
+    requestId: string;
+    model: string;
+    usage: {
+      promptTokens: number;
+      completionTokens: number;
+      totalTokens: number;
+    };
+    timestamp: number;
+  };
   "tanstack-ai-devtools:standalone:chat-started": {
     adapterName: string;
     model: string;

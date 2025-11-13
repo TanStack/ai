@@ -98,6 +98,24 @@ export const ConversationsList: Component<{
             <div style={{ display: "flex", "align-items": "center", gap: "8px", "font-size": "0.85em", opacity: 0.7 }}>
               <div style={{ display: "flex", "align-items": "center", gap: "4px" }}>💬 {conv.messages.length}</div>
               <div style={{ display: "flex", "align-items": "center", gap: "4px" }}>📦 {conv.chunks.length}</div>
+              <Show when={conv.usage}>
+                <div
+                  style={{
+                    display: "flex",
+                    "align-items": "center",
+                    gap: "4px",
+                    padding: "2px 6px",
+                    "border-radius": "4px",
+                    background: "oklch(0.35 0.08 220)",
+                    color: "oklch(0.75 0.12 220)",
+                    "font-size": "11px",
+                    "font-weight": "600",
+                  }}
+                  title={`Prompt: ${conv.usage?.promptTokens || 0} | Completion: ${conv.usage?.completionTokens || 0}`}
+                >
+                  🎯 {conv.usage?.totalTokens || 0}
+                </div>
+              </Show>
             </div>
             <Show when={conv.status === "active"}>
               <div style={{ "font-size": "0.85em", color: "oklch(0.7 0.17 142)" }}>⟳ Loading...</div>

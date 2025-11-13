@@ -632,8 +632,15 @@ class AI<
       usage: result.usage,
       timestamp: Date.now(),
     });
+
     // Emit usage tokens event
     if (result.usage) {
+      aiEventClient.emit("usage:tokens", {
+        requestId,
+        model: model as string,
+        usage: result.usage,
+        timestamp: Date.now(),
+      });
     }
 
     // If output is provided, parse the content as structured data

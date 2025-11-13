@@ -57,6 +57,11 @@ export interface Conversation {
   status: "active" | "completed" | "error";
   startedAt: number;
   completedAt?: number;
+  usage?: {
+    promptTokens: number;
+    completionTokens: number;
+    totalTokens: number;
+  };
 }
 
 export interface AIStoreState {
@@ -368,6 +373,11 @@ aiEventClient.on("stream:chunk:done", (e) => {
     finishReason: e.payload.finishReason || undefined,
     timestamp: e.payload.timestamp,
   };
+
+  // Store usage information if available 
+  if (e.payload.usage) {
+    setState("conversations", conversationId, "usage", e.payload.usage);
+  }
 
   const conv = state.conversations[conversationId];
   if (conv && conv.type === "client") {

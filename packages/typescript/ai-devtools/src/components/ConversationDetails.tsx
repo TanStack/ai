@@ -116,6 +116,24 @@ export const ConversationDetails: Component = () => {
                 {conv().provider && ` • Provider: ${conv().provider}`}
                 {conv().completedAt && ` • Duration: ${formatDuration(conv().completedAt! - conv().startedAt)}`}
               </div>
+              <Show when={conv().usage}>
+                <div
+                  style={{
+                    "font-size": "11px",
+                    color: "var(--text-secondary)",
+                    display: "flex",
+                    "align-items": "center",
+                    gap: "8px",
+                  }}
+                >
+                  <span style={{ "font-weight": "600", color: "#3b82f6" }}>🎯 Tokens:</span>
+                  <span>Prompt: {conv().usage?.promptTokens.toLocaleString() || 0}</span>
+                  <span>•</span>
+                  <span>Completion: {conv().usage?.completionTokens.toLocaleString() || 0}</span>
+                  <span>•</span>
+                  <span style={{ "font-weight": "600" }}>Total: {conv().usage?.totalTokens.toLocaleString() || 0}</span>
+                </div>
+              </Show>
             </div>
           </div>
 
