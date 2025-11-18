@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
-import { Send } from "lucide-react";
+import { Send, Square } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import rehypeRaw from "rehype-raw";
 import rehypeSanitize from "rehype-sanitize";
@@ -315,8 +315,8 @@ function DebugPanel({
 function ChatPage() {
   const [chunks, setChunks] = useState<any[]>([]);
 
-  const { messages, sendMessage, isLoading, addToolApprovalResponse } = useChat(
-    {
+  const { messages, sendMessage, isLoading, addToolApprovalResponse, stop } =
+    useChat({
       connection: fetchServerSentEvents("/api/tanchat"),
       onChunk: (chunk: any) => {
         setChunks((prev) => [...prev, chunk]);
@@ -350,14 +350,13 @@ function ChatPage() {
             throw new Error(`Unknown client tool: ${toolName}`);
         }
       },
-    }
-  );
+    });
   const [input, setInput] = useState("");
 
   const clearChunks = () => setChunks([]);
 
   return (
-    <div className="flex h-screen bg-gray-900">
+    <div className="flex h-[calc(100vh-72px)]  bg-gray-900">
       {/* Left side - Chat (1/4 width) */}
       <div className="w-1/4 flex flex-col border-r border-orange-500/20">
         <div className="p-4 border-b border-orange-500/20">
@@ -376,6 +375,17 @@ function ChatPage() {
 
         <ChatInputArea>
           <div className="space-y-3">
+            {isLoading && (
+              <div className="flex items-center justify-center">
+                <button
+                  onClick={stop}
+                  className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg text-sm font-medium transition-colors flex items-center gap-2"
+                >
+                  <Square className="w-4 h-4 fill-current" />
+                  Stop
+                </button>
+              </div>
+            )}
             <div className="relative">
               <textarea
                 value={input}
