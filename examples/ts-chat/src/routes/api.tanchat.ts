@@ -50,13 +50,16 @@ export const Route = createFileRoute("/api/tanchat")({
         const { messages } = await request.json();
 
         try {
+          // Extract abort signal from request for proper cancellation handling
           const stream = aiInstance.chat({
             messages,
             model: "gpt-4o",
             tools: allTools,
             systemPrompts: [SYSTEM_PROMPT],
             agentLoopStrategy: maxIterations(20),
-
+            options: {
+              // abortSignal: request.signal, // TBD: figure out why this is not working
+            },
             providerOptions: {
               store: true,
             },

@@ -93,6 +93,9 @@ importers:
       '@tanstack/ai-client':
         specifier: workspace:*
         version: link:../../packages/typescript/ai-client
+      '@tanstack/ai-devtools-core':
+        specifier: workspace:*
+        version: link:../../packages/typescript/ai-devtools
       '@tanstack/ai-ollama':
         specifier: workspace:*
         version: link:../../packages/typescript/ai-ollama

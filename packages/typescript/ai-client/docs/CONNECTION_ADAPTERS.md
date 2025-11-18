@@ -10,12 +10,16 @@ A connection adapter is an object with a `connect()` method that returns an `Asy
 interface ConnectionAdapter {
   connect(
     messages: any[],
-    data?: Record<string, any>
+    data?: Record<string, any>,
+    abortSignal?: AbortSignal // Abort signal from ChatClient for cancellation
   ): AsyncIterable<StreamChunk>;
-  
-  abort?(): void; // Optional abort support
 }
 ```
+
+The `abortSignal` parameter is provided by `ChatClient` when it creates an `AbortController` for the request. When `stop()` is called, the signal is aborted and adapters should respect this by:
+1. Passing the signal to `fetch()` calls
+2. Checking `abortSignal?.aborted` in stream reading loops
+3. Breaking out of loops when aborted
 
 ## Built-in Adapters
 
@@ -154,11 +158,16 @@ import type { ConnectionAdapter } from "@tanstack/ai-client";
 
 // Example: WebSocket connection adapter
 function createWebSocketAdapter(url: string): ConnectionAdapter {
-  let ws: WebSocket | null = null;
-  
   return {
-    async *connect(messages, data) {
-      ws = new WebSocket(url);
+    async *connect(messages, data, abortSignal) {
+      const ws = new WebSocket(url);
+      
+      // Handle abort signal
+      if (abortSignal) {
+        abortSignal.addEventListener("abort", () => {
+          ws.close();
+        });
+      }
       
       return new Promise((resolve, reject) => {
         ws.onopen = () => {
@@ -166,6 +175,12 @@ function createWebSocketAdapter(url: string): ConnectionAdapter {
         };
         
         ws.onmessage = (event) => {
+          // Check if aborted before processing
+          if (abortSignal?.aborted) {
+            ws.close();
+            return;
+          }
+          
           const chunk = JSON.parse(event.data);
           // Yield chunks as they arrive
         };
@@ -173,13 +188,6 @@ function createWebSocketAdapter(url: string): ConnectionAdapter {
         ws.onerror = (error) => reject(error);
         ws.onclose = () => resolve();
       });
-    },
-    
-    abort() {
-      if (ws) {
-        ws.close();
-        ws = null;
-      }
     },
   };
 }

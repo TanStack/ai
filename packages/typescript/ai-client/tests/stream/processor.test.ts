@@ -528,5 +528,83 @@ describe("StreamProcessor", () => {
       expect(handlers.onStreamEnd).toHaveBeenCalledWith("Hello", undefined);
     });
   });
+
+  describe("Delta Content Handling", () => {
+    it("emits cumulative text for content+delta chunks", async () => {
+      const onTextUpdate = vi.fn();
+      const onStreamEnd = vi.fn();
+
+      const processor = new StreamProcessor({
+        handlers: {
+          onTextUpdate,
+          onStreamEnd,
+        },
+      });
+
+      const chunks = [
+        { type: "content", content: "", delta: "Hello" },
+        { type: "content", content: "Hello", delta: " world" },
+        { type: "content", content: "", delta: "!" },
+        { type: "done" },
+      ];
+
+      await processor.process((async function* () {
+        yield* chunks;
+      })());
+
+      expect(onTextUpdate).toHaveBeenCalledTimes(3);
+      expect(onTextUpdate.mock.calls.map((c) => c[0])).toEqual([
+        "Hello",
+        "Hello world",
+        "Hello world!",
+      ]);
+
+      expect(onStreamEnd).toHaveBeenCalledWith("Hello world!", undefined);
+    });
+
+    it("emits text when only delta is present", async () => {
+      const onTextUpdate = vi.fn();
+
+      const processor = new StreamProcessor({
+        handlers: {
+          onTextUpdate,
+        },
+      });
+
+      const chunks = [{ type: "content", delta: "Hi there" }, { type: "done" }];
+
+      await processor.process((async function* () {
+        yield* chunks;
+      })());
+
+      expect(onTextUpdate).toHaveBeenCalledTimes(1);
+      expect(onTextUpdate).toHaveBeenLastCalledWith("Hi there");
+    });
+
+    it("appends delta-only chunks to previous text", async () => {
+      const onTextUpdate = vi.fn();
+
+      const processor = new StreamProcessor({
+        handlers: {
+          onTextUpdate,
+        },
+      });
+
+      const chunks = [
+        { type: "content", delta: "Hello" },
+        { type: "content", delta: " world" },
+        { type: "done" },
+      ];
+
+      await processor.process((async function* () {
+        yield* chunks;
+      })());
+
+      expect(onTextUpdate.mock.calls.map((c) => c[0])).toEqual([
+        "Hello",
+        "Hello world",
+      ]);
+    });
+  });
 });
 

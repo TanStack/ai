@@ -11,7 +11,6 @@ import {
   fetchServerSentEvents,
   type UIMessage,
 } from "@tanstack/ai-react";
-import { uiMessageToModelMessages } from "@tanstack/ai-client";
 
 import GuitarRecommendation from "@/components/example-GuitarRecommendation";
 
@@ -315,98 +314,44 @@ function DebugPanel({
 
 function ChatPage() {
   const [chunks, setChunks] = useState<any[]>([]);
-  const [endpoint, setEndpoint] = useState<"/api/tanchat" | "/api/test-chat">(
-    "/api/test-chat"
-  );
 
-  const {
-    messages,
-    sendMessage,
-    isLoading,
-    addToolResult,
-    addToolApprovalResponse,
-  } = useChat({
-    connection: {
-      async *connect(msgs, data) {
-        // For test endpoint, send UIMessages directly (preserve parts for approval extraction)
-        // For real endpoint, convert to ModelMessages
-        const body =
-          endpoint === "/api/test-chat"
-            ? { messages: msgs } // Send UIMessages with parts
-            : {
-                messages: msgs.flatMap((m) =>
-                  "parts" in m ? uiMessageToModelMessages(m) : [m]
-                ),
-              };
+  const { messages, sendMessage, isLoading, addToolApprovalResponse } = useChat(
+    {
+      connection: fetchServerSentEvents("/api/tanchat"),
+      onChunk: (chunk: any) => {
+        setChunks((prev) => [...prev, chunk]);
+      },
+      onToolCall: async ({ toolName, input }) => {
+        // Handle client-side tool execution
+        switch (toolName) {
+          case "getPersonalGuitarPreference":
+            // Pure client tool - executes immediately
+            return { preference: "acoustic" };
 
-        const response = await fetch(endpoint, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(body),
-        });
+          case "recommendGuitar":
+            // Client tool for UI display
+            return { id: input.id };
 
-        if (!response.ok || !response.body) {
-          throw new Error(`HTTP error! status: ${response.status}`);
-        }
+          case "addToWishList":
+            // Hybrid: client execution AFTER approval
+            // Only runs after user approves
+            const wishList = JSON.parse(
+              localStorage.getItem("wishList") || "[]"
+            );
+            wishList.push(input.guitarId);
+            localStorage.setItem("wishList", JSON.stringify(wishList));
+            return {
+              success: true,
+              guitarId: input.guitarId,
+              totalItems: wishList.length,
+            };
 
-        const reader = response.body.getReader();
-        const decoder = new TextDecoder();
-        let buffer = "";
-
-        while (true) {
-          const { done, value } = await reader.read();
-          if (done) break;
-
-          buffer += decoder.decode(value, { stream: true });
-          const lines = buffer.split("\n");
-          buffer = lines.pop() || "";
-
-          for (const line of lines) {
-            if (line.startsWith("data: ")) {
-              const data = line.slice(6);
-              if (data === "[DONE]") continue;
-              try {
-                yield JSON.parse(data);
-              } catch (e) {
-                console.error("Failed to parse SSE data:", e);
-              }
-            }
-          }
+          default:
+            throw new Error(`Unknown client tool: ${toolName}`);
         }
       },
-      abort: () => {},
-    },
-    onChunk: (chunk: any) => {
-      setChunks((prev) => [...prev, chunk]);
-    },
-    onToolCall: async ({ toolCallId, toolName, input }) => {
-      // Handle client-side tool execution
-      switch (toolName) {
-        case "getPersonalGuitarPreference":
-          // Pure client tool - executes immediately
-          return { preference: "acoustic" };
-
-        case "recommendGuitar":
-          // Client tool for UI display
-          return { id: input.id };
-
-        case "addToWishList":
-          // Hybrid: client execution AFTER approval
-          // Only runs after user approves
-          const wishList = JSON.parse(localStorage.getItem("wishList") || "[]");
-          wishList.push(input.guitarId);
-          localStorage.setItem("wishList", JSON.stringify(wishList));
-          return {
-            success: true,
-            guitarId: input.guitarId,
-            totalItems: wishList.length,
-          };
-
-        default:
-          throw new Error(`Unknown client tool: ${toolName}`);
-      }
-    },
-  });
+    }
+  );
   const [input, setInput] = useState("");
 
   const clearChunks = () => setChunks([]);
@@ -422,35 +367,6 @@ function ChatPage() {
           <p className="text-gray-400 text-sm mt-1">
             Parts-based UIMessages with tool states
           </p>
-
-          {/* Endpoint Selector */}
-          <div className="mt-3">
-            <label className="text-gray-400 text-xs font-medium mb-1 block">
-              Endpoint:
-            </label>
-            <div className="flex gap-2">
-              <button
-                onClick={() => setEndpoint("/api/test-chat")}
-                className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
-                  endpoint === "/api/test-chat"
-                    ? "bg-orange-500 text-white"
-                    : "bg-gray-800 text-gray-400 hover:text-white"
-                }`}
-              >
-                🧪 Test (Stub LLM)
-              </button>
-              <button
-                onClick={() => setEndpoint("/api/tanchat")}
-                className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
-                  endpoint === "/api/tanchat"
-                    ? "bg-orange-500 text-white"
-                    : "bg-gray-800 text-gray-400 hover:text-white"
-                }`}
-              >
-                🤖 Real (GPT-4o)
-              </button>
-            </div>
-          </div>
         </div>
 
         <Messages
@@ -496,45 +412,6 @@ function ChatPage() {
                 <Send className="w-4 h-4" />
               </button>
             </div>
-
-            {/* Quick test buttons - only show for stub LLM */}
-            {endpoint === "/api/test-chat" && (
-              <div className="flex flex-col gap-1.5">
-                <p className="text-xs text-gray-500 font-medium">
-                  Quick Tests:
-                </p>
-                <div className="grid grid-cols-2 gap-1.5">
-                  <button
-                    onClick={() => sendMessage("what's my preference?")}
-                    disabled={isLoading}
-                    className="px-2 py-1.5 text-xs bg-gray-800 hover:bg-gray-700 text-gray-300 rounded border border-gray-700 disabled:opacity-50 transition-colors text-left"
-                  >
-                    🎸 Get Preference
-                  </button>
-                  <button
-                    onClick={() => sendMessage("recommend an acoustic guitar")}
-                    disabled={isLoading}
-                    className="px-2 py-1.5 text-xs bg-gray-800 hover:bg-gray-700 text-gray-300 rounded border border-gray-700 disabled:opacity-50 transition-colors text-left"
-                  >
-                    💡 Recommend
-                  </button>
-                  <button
-                    onClick={() => sendMessage("add to wish list")}
-                    disabled={isLoading}
-                    className="px-2 py-1.5 text-xs bg-gray-800 hover:bg-gray-700 text-gray-300 rounded border border-gray-700 disabled:opacity-50 transition-colors text-left"
-                  >
-                    ❤️ Wish List
-                  </button>
-                  <button
-                    onClick={() => sendMessage("add to cart")}
-                    disabled={isLoading}
-                    className="px-2 py-1.5 text-xs bg-gray-800 hover:bg-gray-700 text-gray-300 rounded border border-gray-700 disabled:opacity-50 transition-colors text-left"
-                  >
-                    🛒 Add to Cart
-                  </button>
-                </div>
-              </div>
-            )}
           </div>
         </ChatInputArea>
       </div>

@@ -10,7 +10,7 @@
   },
   "scripts": {
     "build": "tsdown",
-    "dev": "tsx src/index.ts",
+    "dev:cli": "tsx src/index.ts",
     "dev:watch": "tsx watch src/index.ts",
     "start": "node dist/index.js",
     "clean": "rm -rf dist node_modules",

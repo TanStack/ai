@@ -1,8 +1,4 @@
-import {
-  createContext,
-  useContext,
-  type ReactNode,
-} from "react";
+import { createContext, useContext, type ReactNode } from "react";
 import { useChat, type UseChatReturn } from "@tanstack/ai-react";
 import type { ConnectionAdapter, UIMessage } from "@tanstack/ai-react";
 
@@ -100,4 +96,3 @@ export function Chat({
     </ChatContext.Provider>
   );
 }
-

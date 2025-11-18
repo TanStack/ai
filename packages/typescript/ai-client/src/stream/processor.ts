@@ -16,7 +16,7 @@ import type {
   ChunkStrategy,
   StreamParser,
 } from "./types";
-import type { ToolCallState } from "../types";
+import type { ToolCallState, ToolResultState } from "../types";
 import { ImmediateStrategy } from "./chunk-strategies";
 import { defaultJSONParser } from "../loose-json-parser";
 
@@ -40,12 +40,33 @@ class DefaultStreamParser implements StreamParser {
         continue;
       }
 
-      // Convert adapter format: "content" to "text"
-      if (chunk.type === "content" && chunk.content) {
+      // Convert adapter format: "content" or "content delta" to "text"
+      if (
+        chunk.type === "content" &&
+        (chunk.content !== undefined || chunk.delta !== undefined)
+      ) {
         yield {
           type: "text",
-          content: chunk.content,
+          content: (chunk as any).content,
+          delta: (chunk as any).delta,
         };
+      }
+
+      // Convert adapter format: "tool_result" to processor format
+      if (chunk.type === "tool_result" || chunk.type === "tool-result") {
+        // Tool result chunks have toolCallId and content at the top level
+        const toolCallId = (chunk as any).toolCallId;
+        const content = (chunk as any).content;
+        const error = (chunk as any).error;
+        
+        if (toolCallId !== undefined) {
+          yield {
+            type: "tool-result",
+            toolCallId,
+            content: content || "",
+            error,
+          };
+        }
       }
 
       // Convert adapter format: "tool_call" to "tool-call-delta"
@@ -81,6 +102,7 @@ export class StreamProcessor {
 
   // State
   private textContent: string = "";
+  private lastEmittedText: string = "";
   private toolCalls: Map<string, InternalToolCallState> = new Map(); // Track by ID, not index
   private toolCallOrder: string[] = []; // Track order of tool call IDs
 
@@ -124,7 +146,7 @@ export class StreamProcessor {
   private processChunk(chunk: StreamChunk): void {
     switch (chunk.type) {
       case "text":
-        this.handleTextChunk(chunk.content!);
+        this.handleTextChunk(chunk.content, chunk.delta);
         break;
 
       case "tool-call-delta":
@@ -132,9 +154,21 @@ export class StreamProcessor {
         break;
       
       case "done":
-        // Response finished - just mark tool calls as complete
-        // DON'T reset text - it might come after this event!
+        // Response finished - complete any remaining tool calls
         this.completeAllToolCalls();
+        break;
+      
+      case "tool-result":
+        // Handle tool result chunk
+        if (chunk.toolCallId && chunk.content !== undefined) {
+          const state: ToolResultState = chunk.error ? "error" : "complete";
+          this.handlers.onToolResultStateChange?.(
+            chunk.toolCallId,
+            chunk.content || "",
+            state,
+            chunk.error
+          );
+        }
         break;
       
       case "approval-requested":
@@ -158,17 +192,50 @@ export class StreamProcessor {
 
   /**
    * Handle a text content chunk
+   * 
+   * IMPORTANT: We ALWAYS prefer delta over content when both are provided.
+   * Adapters should send deltas, not accumulated content. The processor
+   * maintains its own accumulation state to avoid conflicts with adapter state.
+   * 
+   * Only use content when delta is not available (for backwards compatibility).
    */
-  private handleTextChunk(content: string): void {
+  private handleTextChunk(content?: string, delta?: string): void {
     // Text arriving means all current tool calls are complete
     this.completeAllToolCalls();
 
-    // Don't accumulate - the content field already has the full text!
-    // Just store it directly
-    this.textContent = content;
+    const previous = this.textContent ?? "";
+    let nextText = previous;
 
-    // Always emit - content is already accumulated
-    this.emitTextUpdate();
+    // ALWAYS prefer delta - adapters should send deltas, not accumulated content
+    // The processor maintains its own accumulation state
+    if (delta !== undefined && delta !== "") {
+      nextText = previous + delta;
+    } else if (content !== undefined && content !== "") {
+      // Fallback: use content only if delta is not provided (backwards compatibility)
+      // If it starts with what we have, it's an extension/update
+      if (content.startsWith(previous)) {
+        nextText = content;
+      } else if (previous.startsWith(content)) {
+        // Previous is longer (shouldn't happen with proper adapters, but handle gracefully)
+        nextText = previous;
+      } else {
+        // No overlap - append (shouldn't happen with proper adapters)
+        nextText = previous + content;
+      }
+    }
+
+    this.textContent = nextText;
+
+    // Use delta for chunk strategy if available, otherwise use content or empty string
+    // This allows chunk strategies to make decisions based on the incremental change
+    const chunkPortion = delta ?? content ?? "";
+    const shouldEmit = this.chunkStrategy.shouldEmit(
+      chunkPortion,
+      this.textContent
+    );
+    if (shouldEmit && this.textContent !== this.lastEmittedText) {
+      this.emitTextUpdate();
+    }
   }
 
   /**
@@ -321,6 +388,7 @@ export class StreamProcessor {
    * Emit pending text update
    */
   private emitTextUpdate(): void {
+    this.lastEmittedText = this.textContent;
     this.handlers.onTextUpdate?.(this.textContent);
   }
 
@@ -331,8 +399,10 @@ export class StreamProcessor {
     // Complete any remaining tool calls
     this.completeAllToolCalls();
 
-    // Emit any pending text
-    this.emitTextUpdate();
+    // Emit any pending text if not already emitted
+    if (this.textContent !== this.lastEmittedText) {
+      this.emitTextUpdate();
+    }
 
     // Emit stream end
     const toolCalls = this.getCompletedToolCalls();
@@ -363,6 +433,7 @@ export class StreamProcessor {
    */
   private reset(): void {
     this.textContent = "";
+    this.lastEmittedText = "";
     this.toolCalls.clear();
     this.toolCallOrder = [];
     this.chunkStrategy.reset?.();

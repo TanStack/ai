@@ -1,5 +1,11 @@
 import type { ModelMessage } from "@tanstack/ai";
-import type { UIMessage, MessagePart, ToolCallPart, ToolResultPart, ChatClientOptions } from "./types";
+import type {
+  UIMessage,
+  MessagePart,
+  ToolCallPart,
+  ToolResultPart,
+  ChatClientOptions,
+} from "./types";
 import type { ConnectionAdapter } from "./connection-adapters";
 import { StreamProcessor } from "./stream/processor";
 import type { ChunkStrategy, StreamParser } from "./stream/types";
@@ -17,6 +23,7 @@ export class ChatClient {
     chunkStrategy?: ChunkStrategy;
     parser?: StreamParser;
   };
+  private abortController: AbortController | null = null;
 
   private callbacks: {
     onResponse: (response?: Response) => void | Promise<void>;
@@ -42,13 +49,13 @@ export class ChatClient {
     this.streamProcessorConfig = options.streamProcessor || {};
 
     this.callbacks = {
-      onResponse: options.onResponse || (() => { }),
-      onChunk: options.onChunk || (() => { }),
-      onFinish: options.onFinish || (() => { }),
-      onError: options.onError || (() => { }),
-      onMessagesChange: options.onMessagesChange || (() => { }),
-      onLoadingChange: options.onLoadingChange || (() => { }),
-      onErrorChange: options.onErrorChange || (() => { }),
+      onResponse: options.onResponse || (() => {}),
+      onChunk: options.onChunk || (() => {}),
+      onFinish: options.onFinish || (() => {}),
+      onError: options.onError || (() => {}),
+      onMessagesChange: options.onMessagesChange || (() => {}),
+      onLoadingChange: options.onLoadingChange || (() => {}),
+      onErrorChange: options.onErrorChange || (() => {}),
       onToolCall: options.onToolCall,
     };
 
@@ -99,9 +106,7 @@ export class ChatClient {
     });
   }
 
-  private async processStream(
-    source: AsyncIterable<any>
-  ): Promise<UIMessage> {
+  private async processStream(source: AsyncIterable<any>): Promise<UIMessage> {
     const assistantMessageId = this.generateMessageId();
     const assistantMessage: UIMessage = {
       id: assistantMessageId,
@@ -126,7 +131,9 @@ export class ChatClient {
   ): Promise<UIMessage> {
     // Collect raw chunks for debugging
     const rawChunks: any[] = [];
-    const streamId = `stream-${Date.now()}-${Math.random().toString(36).substring(7)}`;
+    const streamId = `stream-${Date.now()}-${Math.random()
+      .toString(36)
+      .substring(7)}`;
 
     const processor = new StreamProcessor({
       chunkStrategy: this.streamProcessorConfig?.chunkStrategy,
@@ -153,18 +160,26 @@ export class ChatClient {
             this.messages.map((msg) => {
               if (msg.id === assistantMessageId) {
                 let parts = [...msg.parts];
-                const textPartIndex = parts.findIndex(p => p.type === "text");
+                const textPartIndex = parts.findIndex((p) => p.type === "text");
 
                 // Always add/update text part at the end (after tool calls)
                 if (textPartIndex >= 0) {
                   parts[textPartIndex] = { type: "text", content };
                 } else {
                   // Remove existing parts temporarily to ensure order
-                  const toolCallParts = parts.filter(p => p.type === "tool-call");
-                  const otherParts = parts.filter(p => p.type !== "tool-call" && p.type !== "text");
+                  const toolCallParts = parts.filter(
+                    (p) => p.type === "tool-call"
+                  );
+                  const otherParts = parts.filter(
+                    (p) => p.type !== "tool-call" && p.type !== "text"
+                  );
 
                   // Rebuild: tool calls first, then other parts, then text
-                  parts = [...toolCallParts, ...otherParts, { type: "text", content }];
+                  parts = [
+                    ...toolCallParts,
+                    ...otherParts,
+                    { type: "text", content },
+                  ];
                 }
 
                 return { ...msg, parts };
@@ -202,7 +217,8 @@ export class ChatClient {
                 let parts = [...msg.parts];
                 // Find by ID, not index!
                 const existingPartIndex = parts.findIndex(
-                  (p): p is ToolCallPart => p.type === "tool-call" && p.id === id
+                  (p): p is ToolCallPart =>
+                    p.type === "tool-call" && p.id === id
                 );
 
                 const toolCallPart: ToolCallPart = {
@@ -218,7 +234,9 @@ export class ChatClient {
                   parts[existingPartIndex] = toolCallPart;
                 } else {
                   // Insert tool call before any text parts
-                  const textPartIndex = parts.findIndex(p => p.type === "text");
+                  const textPartIndex = parts.findIndex(
+                    (p) => p.type === "text"
+                  );
                   if (textPartIndex >= 0) {
                     parts.splice(textPartIndex, 0, toolCallPart);
                   } else {
@@ -249,7 +267,8 @@ export class ChatClient {
               if (msg.id === assistantMessageId) {
                 const parts = [...msg.parts];
                 const resultPartIndex = parts.findIndex(
-                  (p): p is ToolResultPart => p.type === "tool-result" && p.toolCallId === toolCallId
+                  (p): p is ToolResultPart =>
+                    p.type === "tool-result" && p.toolCallId === toolCallId
                 );
 
                 const toolResultPart: ToolResultPart = {
@@ -272,7 +291,12 @@ export class ChatClient {
             })
           );
         },
-        onApprovalRequested: async (toolCallId, toolName, input, approvalId) => {
+        onApprovalRequested: async (
+          toolCallId,
+          toolName,
+          input,
+          approvalId
+        ) => {
           // Emit client-side approval event for devtools
           aiEventClient.emit("client:approval-requested", {
             clientId: this.uniqueId,
@@ -290,7 +314,8 @@ export class ChatClient {
               if (msg.id === assistantMessageId) {
                 const parts = [...msg.parts];
                 const toolCallPart = parts.find(
-                  (p): p is ToolCallPart => p.type === "tool-call" && p.id === toolCallId
+                  (p): p is ToolCallPart =>
+                    p.type === "tool-call" && p.id === toolCallId
                 ) as ToolCallPart;
 
                 if (toolCallPart) {
@@ -340,7 +365,8 @@ export class ChatClient {
                 if (msg.id === assistantMessageId) {
                   const parts = [...msg.parts];
                   const toolCallPart = parts.find(
-                    (p): p is ToolCallPart => p.type === "tool-call" && p.id === toolCallId
+                    (p): p is ToolCallPart =>
+                      p.type === "tool-call" && p.id === toolCallId
                   ) as ToolCallPart;
 
                   if (toolCallPart) {
@@ -376,19 +402,21 @@ export class ChatClient {
       (msg) => msg.id === assistantMessageId
     );
 
-    return finalMessage || {
-      id: assistantMessageId,
-      role: "assistant",
-      parts: [],
-      createdAt: new Date(),
-    };
+    return (
+      finalMessage || {
+        id: assistantMessageId,
+        role: "assistant",
+        parts: [],
+        createdAt: new Date(),
+      }
+    );
   }
 
   async append(message: UIMessage | ModelMessage): Promise<void> {
     // Convert ModelMessage to UIMessage if needed
     let uiMessage: UIMessage;
 
-    if ('parts' in message) {
+    if ("parts" in message) {
       // Already a UIMessage
       uiMessage = {
         ...message,
@@ -431,8 +459,8 @@ export class ChatClient {
 
     // Emit message appended event
     const contentPreview = uiMessage.parts
-      .filter(p => p.type === "text")
-      .map(p => (p as any).content)
+      .filter((p) => p.type === "text")
+      .map((p) => (p as any).content)
       .join(" ")
       .substring(0, 100);
 
@@ -449,6 +477,9 @@ export class ChatClient {
     this.setIsLoading(true);
     this.setError(undefined);
 
+    // Create abort controller for this request
+    this.abortController = new AbortController();
+
     try {
       // Convert UIMessages to ModelMessages for connection adapter
       const modelMessages: ModelMessage[] = [];
@@ -459,8 +490,12 @@ export class ChatClient {
       // Call onResponse callback (no Response object for non-fetch adapters)
       await this.callbacks.onResponse();
 
-      // Connect and get stream from connection adapter
-      const stream = this.connection.connect(modelMessages, this.body);
+      // Connect and get stream from connection adapter, passing abort signal
+      const stream = this.connection.connect(
+        modelMessages,
+        this.body,
+        this.abortController.signal
+      );
 
       // Process the stream
       const assistantMessage = await this.processStream(stream);
@@ -478,6 +513,7 @@ export class ChatClient {
         this.callbacks.onError(err);
       }
     } finally {
+      this.abortController = null;
       this.setIsLoading(false);
     }
   }
@@ -535,8 +571,9 @@ export class ChatClient {
   }
 
   stop(): void {
-    if (this.connection.abort) {
-      this.connection.abort();
+    if (this.abortController) {
+      this.abortController.abort();
+      this.abortController = null;
     }
     this.setIsLoading(false);
 
@@ -583,7 +620,8 @@ export class ChatClient {
       this.messages.map((msg) => {
         const parts = [...msg.parts];
         const toolCallPart = parts.find(
-          (p): p is ToolCallPart => p.type === "tool-call" && p.id === result.toolCallId
+          (p): p is ToolCallPart =>
+            p.type === "tool-call" && p.id === result.toolCallId
         ) as ToolCallPart;
 
         if (toolCallPart) {
@@ -593,7 +631,8 @@ export class ChatClient {
           if (result.errorText) {
             toolCallPart.output = { error: result.errorText };
           }
-        } return { ...msg, parts };
+        }
+        return { ...msg, parts };
       })
     );
 
@@ -642,8 +681,7 @@ export class ChatClient {
         const parts = [...msg.parts];
         const toolCallPart = parts.find(
           (p): p is ToolCallPart =>
-            p.type === "tool-call" &&
-            p.approval?.id === response.id
+            p.type === "tool-call" && p.approval?.id === response.id
         ) as ToolCallPart;
 
         if (toolCallPart && toolCallPart.approval) {
@@ -668,18 +706,36 @@ export class ChatClient {
   private async continueFlow(): Promise<void> {
     if (this.isLoading) return;
 
+    // Create abort controller for this request
+    this.abortController = new AbortController();
+
     try {
       this.setIsLoading(true);
       this.setError(undefined);
 
-      // Process the current conversation state
+      // Convert UIMessages to ModelMessages for connection adapter
+      const modelMessages: ModelMessage[] = [];
+      for (const msg of this.messages) {
+        modelMessages.push(...uiMessageToModelMessages(msg));
+      }
+
+      // Process the current conversation state, passing abort signal
       await this.processStream(
-        this.connection.connect(this.messages, this.body)
+        this.connection.connect(
+          modelMessages,
+          this.body,
+          this.abortController.signal
+        )
       );
     } catch (err: any) {
+      if (err instanceof Error && err.name === "AbortError") {
+        // Request was aborted, ignore
+        return;
+      }
       this.setError(err);
       this.callbacks.onError(err);
     } finally {
+      this.abortController = null;
       this.setIsLoading(false);
     }
   }
@@ -724,4 +780,3 @@ export class ChatClient {
     this.setMessages(messages);
   }
 }
-

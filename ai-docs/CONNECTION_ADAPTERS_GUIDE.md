@@ -552,25 +552,38 @@ const connection: ConnectionAdapter = {
 
 ```typescript
 function createCustomAdapter(url: string): ConnectionAdapter {
-  let abortController: AbortController | null = null;
-  
   return {
-    async *connect(messages, data) {
-      abortController = new AbortController();
-      
+    async *connect(messages, data, abortSignal) {
+      // Use the provided abortSignal from ChatClient
       const response = await fetch(url, {
         method: "POST",
         body: JSON.stringify({ messages, data }),
-        signal: abortController.signal,
+        signal: abortSignal, // Pass abort signal to fetch
       });
       
-      // ... stream processing
-    },
-    
-    abort() {
-      if (abortController) {
-        abortController.abort();
-        abortController = null;
+      const reader = response.body?.getReader();
+      if (!reader) {
+        throw new Error("Response body is not readable");
+      }
+
+      try {
+        const decoder = new TextDecoder();
+        
+        while (true) {
+          // Check if aborted before reading
+          if (abortSignal?.aborted) {
+            break;
+          }
+
+          const { done, value } = await reader.read();
+          if (done) break;
+
+          // Process chunks...
+          const chunk = decoder.decode(value, { stream: true });
+          // Yield parsed chunks...
+        }
+      } finally {
+        reader.releaseLock();
       }
     },
   };

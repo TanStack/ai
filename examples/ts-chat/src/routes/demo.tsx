@@ -40,13 +40,13 @@ function DemoPage() {
   );
 
   return (
-    <div className="min-h-[92vh] flex flex-col">
+    <div className="h-[calc(100vh-72px)] flex flex-col bg-black">
       <Chat
         connection={fetchServerSentEvents("/api/tanchat")}
         onToolCall={handleToolCall}
-        className="flex-1 flex flex-col min-h-0"
+        className="flex-1 flex flex-col min-h-0 bg-black"
       >
-        <ChatMessages className="flex-1 overflow-y-auto px-6 py-8 space-y-6">
+        <ChatMessages className="flex-1 overflow-y-auto px-6 py-8 space-y-6 bg-black">
           {(message) => (
             <ChatMessage
               message={message}

@@ -14,8 +14,9 @@ import type { ToolCallState as ToolState, ToolResultState } from "../types";
  * Raw events that come from the stream
  */
 export interface StreamChunk {
-  type: "text" | "tool-call-delta" | "done" | "approval-requested" | "tool-input-available";
+  type: "text" | "tool-call-delta" | "done" | "approval-requested" | "tool-input-available" | "tool-result";
   content?: string;
+  delta?: string;
   toolCallIndex?: number;
   toolCall?: {
     id: string;
@@ -33,6 +34,8 @@ export interface StreamChunk {
   toolCallId?: string;
   toolName?: string;
   input?: any;
+  // For tool-result
+  error?: string;
 }
 
 /**

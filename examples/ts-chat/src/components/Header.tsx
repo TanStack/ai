@@ -57,7 +57,7 @@ export default function Header() {
             <span className="font-medium">Home</span>
           </Link>
 
-          {/* Demo Links Start */}
+          <hr />
 
           <Link
             to="/example/guitars"
@@ -71,8 +71,6 @@ export default function Header() {
             <Guitar size={20} />
             <span className="font-medium">Guitar Demo</span>
           </Link>
-
-          {/* Demo Links End */}
         </nav>
       </aside>
     </>

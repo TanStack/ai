@@ -309,9 +309,6 @@ describe("StreamProcessor - Tool Call Handling", () => {
 
     const result = await processor.process(createStream());
 
-    console.log("Result:", result);
-    console.log("Events:", events);
-
     // Expected: TWO tool calls with different IDs
     expect(result.toolCalls).toBeDefined();
     expect(result.toolCalls!.length).toBe(2);
