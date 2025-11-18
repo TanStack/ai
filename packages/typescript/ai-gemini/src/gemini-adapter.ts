@@ -14,24 +14,11 @@ import {
   type EmbeddingResult,
   type StreamChunk,
 } from "@tanstack/ai";
+import { GEMINI_MODELS, GEMINI_IMAGE_MODELS, GEMINI_EMBEDDING_MODELS, GEMINI_AUDIO_MODELS, GEMINI_VIDEO_MODELS } from "./model-meta";
 
 export interface GeminiAdapterConfig extends AIAdapterConfig {
   apiKey: string;
 }
-
-const GEMINI_MODELS = [
-  "gemini-pro",
-  "gemini-pro-vision",
-  "gemini-ultra",
-  "gemini-1.5-pro",
-  "gemini-1.5-flash",
-  "embedding-001",
-] as const;
-
-const GEMINI_IMAGE_MODELS = [] as const;
-const GEMINI_EMBEDDING_MODELS = [] as const;
-const GEMINI_AUDIO_MODELS = [] as const;
-const GEMINI_VIDEO_MODELS = [] as const;
 
 export type GeminiModel = (typeof GEMINI_MODELS)[number];
 
