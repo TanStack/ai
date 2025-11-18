@@ -221,7 +221,9 @@ class AI<
     } = params;
 
     // Extract abortSignal from options
-    const { abortSignal, ...restOptions } = options;
+    const { abortController, ...restOptions } = options;
+
+    const effectiveAbortController = abortController || new AbortController();
 
     const requestId = `chat-${Date.now()}-${Math.random()
       .toString(36)
@@ -261,7 +263,7 @@ class AI<
 
     do {
       // Check if aborted before starting iteration
-      if (abortSignal?.aborted) {
+      if (effectiveAbortController.signal.aborted) {
         break;
       }
 
@@ -280,12 +282,12 @@ class AI<
         messages,
         tools: tools as Tool[] | undefined,
         ...restOptions,
-        abortSignal,
+        abortController: effectiveAbortController,
         responseFormat: undefined,
         providerOptions: providerOptions as any,
       })) {
         // Check if aborted during iteration
-        if (abortSignal?.aborted) {
+        if (effectiveAbortController.signal.aborted) {
           break;
         }
         chunkCount++;
@@ -366,7 +368,7 @@ class AI<
       }
 
       // Check if aborted before tool execution
-      if (abortSignal?.aborted) {
+      if (effectiveAbortController.signal.aborted) {
         break;
       }
 
@@ -598,8 +600,9 @@ class AI<
       providerOptions,
     } = params;
 
-    // Extract abortSignal from options
-    const { abortSignal, ...restOptions } = options;
+    const { abortController, ...restOptions } = options;
+
+    const effectiveAbortController = abortController || new AbortController();
 
     const requestId = `chat-completion-${Date.now()}-${Math.random()
       .toString(36)
@@ -627,9 +630,9 @@ class AI<
       messages,
       tools: tools as Tool[] | undefined,
       ...restOptions,
-      abortSignal,
       responseFormat,
       providerOptions: providerOptions as any,
+      abortController: effectiveAbortController,
     });
 
     // Emit chat completed event
