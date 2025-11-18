@@ -257,17 +257,17 @@ https://platform.openai.com/docs/api-reference/responses/create#responses_create
   };
 }
 export const validateConversationAndPreviousResponseId = (
-  conversation: TextProviderOptions["conversation"],
-  previousResponseId: TextProviderOptions["previous_response_id"]
+  options: TextProviderOptions
 ) => {
-  if (conversation && previousResponseId) {
+  if (options.conversation && options.previous_response_id) {
     throw new Error(
       "Cannot use both 'conversation' and 'previous_response_id' in the same request."
     );
   }
 };
 
-export const validateMetadata = (metadata: TextProviderOptions["metadata"]) => {
+export const validateMetadata = (options: TextProviderOptions) => {
+  const metadata = options.metadata;
   const tooManyKeys = metadata && Object.keys(metadata).length > 16;
   if (tooManyKeys) {
     throw new Error("Metadata cannot have more than 16 key-value pairs.");

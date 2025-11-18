@@ -1,4 +1,5 @@
 interface ModelMeta {
+  name: string;
   supports: {
     input: ("text" | "image" | "audio" | "video")[];
     output: ("text" | "image" | "audio" | "video")[];
@@ -19,7 +20,9 @@ interface ModelMeta {
     };
   };
 }
-const GPT5_1: ModelMeta = {
+
+const GPT5_1 = {
+  name: "gpt-5.1",
   context_window: 400_000,
   max_output_tokens: 128_000,
   knowledge_cutoff: "2024-09-30",
@@ -39,9 +42,10 @@ const GPT5_1: ModelMeta = {
       normal: 10
     }
   }
-}
+} as const satisfies ModelMeta
 
-const GP5_1_CODEX: ModelMeta = {
+const GPT5_1_CODEX = {
+  name: "gpt-5.1-codex",
   context_window: 400_000,
   max_output_tokens: 128_000,
   knowledge_cutoff: "2024-09-30",
@@ -61,9 +65,10 @@ const GP5_1_CODEX: ModelMeta = {
       normal: 10
     }
   }
-}
+} as const satisfies ModelMeta
 
-const GPT5: ModelMeta = {
+const GPT5 = {
+  name: "gpt-5",
   context_window: 400_000,
   max_output_tokens: 128_000,
   knowledge_cutoff: "2024-09-30",
@@ -83,9 +88,10 @@ const GPT5: ModelMeta = {
       normal: 10
     }
   }
-}
+} as const satisfies ModelMeta
 
-const GPT5_MINI: ModelMeta = {
+const GPT5_MINI = {
+  name: "gpt-5-mini",
   context_window: 400_000,
   max_output_tokens: 128_000,
   knowledge_cutoff: "2024-05-31",
@@ -105,9 +111,10 @@ const GPT5_MINI: ModelMeta = {
       normal: 2
     }
   }
-}
+} as const satisfies ModelMeta
 
-const GPT5_NANO: ModelMeta = {
+const GPT5_NANO = {
+  name: "gpt-5-nano",
   context_window: 400_000,
   max_output_tokens: 128_000,
   knowledge_cutoff: "2024-05-31",
@@ -131,9 +138,10 @@ const GPT5_NANO: ModelMeta = {
     ],
     tools: ["web_search", "file_search", "mcp", "image_generation", "code_interpreter"]
   }
-}
+} as const satisfies ModelMeta
 
-const GPT5_PRO: ModelMeta = {
+const GPT5_PRO = {
+  name: "gpt-5-pro",
   context_window: 400_000,
   max_output_tokens: 272_000,
   knowledge_cutoff: "2024-09-30",
@@ -155,9 +163,10 @@ const GPT5_PRO: ModelMeta = {
       "function_calling",],
     tools: ["web_search", "file_search", "image_generation", "mcp"]
   }
-}
+} as const satisfies ModelMeta
 
-const GPT5_CODEX: ModelMeta = {
+const GPT5_CODEX = {
+  name: "gpt-5-codex",
   context_window: 400_000,
   max_output_tokens: 128_000,
   knowledge_cutoff: "2024-09-30",
@@ -180,10 +189,11 @@ const GPT5_CODEX: ModelMeta = {
       "function_calling"],
 
   }
-}
+} as const satisfies ModelMeta
 
 
-const SORA2: ModelMeta = {
+const SORA2 = {
+  name: "sora-2",
   pricing: {
     input: {
       normal: 0
@@ -200,9 +210,10 @@ const SORA2: ModelMeta = {
     features: [],
 
   }
-}
+} as const satisfies ModelMeta
 
-const SORA2_PRO: ModelMeta = {
+const SORA2_PRO = {
+  name: "sora-2-pro",
   pricing: {
     input: {
       normal: 0
@@ -219,9 +230,10 @@ const SORA2_PRO: ModelMeta = {
     features: [],
 
   }
-}
+} as const satisfies ModelMeta
 
-const GPT_IMAGE_1: ModelMeta = {
+const GPT_IMAGE_1 = {
+  name: "gpt-image-1",
   // todo fix for images
   pricing: {
     input: {
@@ -239,9 +251,10 @@ const GPT_IMAGE_1: ModelMeta = {
 
     features: [],
   }
-}
+} as const satisfies ModelMeta
 
-const GPT_IMAGE_1_MINI: ModelMeta = {
+const GPT_IMAGE_1_MINI = {
+  name: "gpt-image-1-mini",
   // todo fix for images
   pricing: {
     input: {
@@ -259,9 +272,10 @@ const GPT_IMAGE_1_MINI: ModelMeta = {
 
     features: [],
   }
-}
+} as const satisfies ModelMeta
 
-const O3_DEEP_RESEARCH: ModelMeta = {
+const O3_DEEP_RESEARCH = {
+  name: "o3-deep-research",
   context_window: 200_000,
   max_output_tokens: 100_000,
   knowledge_cutoff: "2024-01-01",
@@ -281,9 +295,10 @@ const O3_DEEP_RESEARCH: ModelMeta = {
     features: ["streaming"],
 
   }
-}
+} as const satisfies ModelMeta
 
-const O4_MINI_DEEP_RESEARCH: ModelMeta = {
+const O4_MINI_DEEP_RESEARCH = {
+  name: "o4-mini-deep-research",
   context_window: 200_000,
   max_output_tokens: 100_000,
   knowledge_cutoff: "2024-01-01",
@@ -303,9 +318,10 @@ const O4_MINI_DEEP_RESEARCH: ModelMeta = {
     features: ["streaming"],
 
   }
-}
+} as const satisfies ModelMeta
 
-const O3_PRO: ModelMeta = {
+const O3_PRO = {
+  name: "o3-pro",
   context_window: 200_000,
   max_output_tokens: 100_000,
   knowledge_cutoff: "2024-01-01",
@@ -324,9 +340,10 @@ const O3_PRO: ModelMeta = {
     features: ["function_calling", "structured_outputs"],
 
   }
-}
+} as const satisfies ModelMeta
 
-const GPT_AUDIO: ModelMeta = {
+const GPT_AUDIO = {
+  name: "gpt-audio",
   context_window: 128_000,
   max_output_tokens: 16_384,
   knowledge_cutoff: "2023-10-01",
@@ -347,10 +364,11 @@ const GPT_AUDIO: ModelMeta = {
     features: ["function_calling"],
 
   }
-}
+} as const satisfies ModelMeta
 
 
-const GPT_REALTIME: ModelMeta = {
+const GPT_REALTIME = {
+  name: "gpt-realtime",
   context_window: 32_000,
   max_output_tokens: 4_096,
   knowledge_cutoff: "2023-10-01",
@@ -371,9 +389,10 @@ const GPT_REALTIME: ModelMeta = {
     features: ["function_calling"],
 
   }
-}
+} as const satisfies ModelMeta
 
-const GPT_REALTIME_MINI: ModelMeta = {
+const GPT_REALTIME_MINI = {
+  name: "gpt-realtime-mini",
   context_window: 32_000,
   max_output_tokens: 4_096,
   knowledge_cutoff: "2023-10-01",
@@ -394,10 +413,11 @@ const GPT_REALTIME_MINI: ModelMeta = {
     features: ["function_calling"],
 
   }
-}
+} as const satisfies ModelMeta
 
 
-const GPT_AUDIO_MINI: ModelMeta = {
+const GPT_AUDIO_MINI = {
+  name: "gpt-audio-mini",
   context_window: 128_000,
   max_output_tokens: 16_384,
   knowledge_cutoff: "2023-10-01",
@@ -418,9 +438,10 @@ const GPT_AUDIO_MINI: ModelMeta = {
     features: ["function_calling"],
 
   }
-}
+} as const satisfies ModelMeta
 
-const O3: ModelMeta = {
+const O3 = {
+  name: "o3",
   context_window: 200_000,
   max_output_tokens: 100_000,
   knowledge_cutoff: "2024-01-01",
@@ -440,9 +461,10 @@ const O3: ModelMeta = {
     features: ["function_calling", "structured_outputs", "streaming"],
 
   }
-}
+} as const satisfies ModelMeta
 
-const O4_MINI: ModelMeta = {
+const O4_MINI = {
+  name: "o4-mini",
   context_window: 200_000,
   max_output_tokens: 100_000,
   knowledge_cutoff: "2024-01-01",
@@ -462,9 +484,10 @@ const O4_MINI: ModelMeta = {
     features: ["function_calling", "structured_outputs", "streaming", "fine_tuning"],
 
   }
-}
+} as const satisfies ModelMeta
 
-const GPT4_1: ModelMeta = {
+const GPT4_1 = {
+  name: "gpt-4.1",
   context_window: 1_047_576,
   max_output_tokens: 32_768,
   knowledge_cutoff: "2024-01-01",
@@ -490,9 +513,10 @@ const GPT4_1: ModelMeta = {
       "mcp"
     ]
   }
-}
+} as const satisfies ModelMeta
 
-const GPT4_1_MINI: ModelMeta = {
+const GPT4_1_MINI = {
+  name: "gpt-4.1-mini",
   context_window: 1_047_576,
   max_output_tokens: 32_768,
   knowledge_cutoff: "2024-01-01",
@@ -512,9 +536,10 @@ const GPT4_1_MINI: ModelMeta = {
     features: ["streaming", "function_calling", "structured_outputs", "fine_tuning"],
 
   }
-}
+} as const satisfies ModelMeta
 
-const GPT4_1_NANO: ModelMeta = {
+const GPT4_1_NANO = {
+  name: "gpt-4.1-nano",
   context_window: 1_047_576,
   max_output_tokens: 32_768,
   knowledge_cutoff: "2024-01-01",
@@ -534,9 +559,10 @@ const GPT4_1_NANO: ModelMeta = {
     features: ["streaming", "function_calling", "structured_outputs", "fine_tuning", "predicted_outcomes"],
 
   }
-}
+} as const satisfies ModelMeta
 
-const O1_PRO: ModelMeta = {
+const O1_PRO = {
+  name: "o1-pro",
   context_window: 200_000,
   max_output_tokens: 100_000,
   knowledge_cutoff: "2023-10-01",
@@ -556,9 +582,10 @@ const O1_PRO: ModelMeta = {
     features: ["function_calling", "structured_outputs",],
 
   }
-}
+} as const satisfies ModelMeta
 
-const COMPUTER_USE_PREVIEW: ModelMeta = {
+const COMPUTER_USE_PREVIEW = {
+  name: "computer-use-preview",
   context_window: 8_192,
   max_output_tokens: 1_024,
   knowledge_cutoff: "2023-10-01",
@@ -577,9 +604,10 @@ const COMPUTER_USE_PREVIEW: ModelMeta = {
     features: ["function_calling"],
 
   }
-}
+} as const satisfies ModelMeta
 
-const GPT_4O_MINI_SEARCH_PREVIEW: ModelMeta = {
+const GPT_4O_MINI_SEARCH_PREVIEW = {
+  name: "gpt-4o-mini-search-preview",
   context_window: 128_000,
   max_output_tokens: 16_384,
   knowledge_cutoff: "2023-10-01",
@@ -597,9 +625,10 @@ const GPT_4O_MINI_SEARCH_PREVIEW: ModelMeta = {
     endpoints: ["chat-completions",],
     features: ["streaming", "structured_outputs",],
   }
-}
+} as const satisfies ModelMeta
 
-const GPT_4O_SEARCH_PREVIEW: ModelMeta = {
+const GPT_4O_SEARCH_PREVIEW = {
+  name: "gpt-4o-search-preview",
   context_window: 128_000,
   max_output_tokens: 16_384,
   knowledge_cutoff: "2023-10-01",
@@ -617,9 +646,10 @@ const GPT_4O_SEARCH_PREVIEW: ModelMeta = {
     endpoints: ["chat-completions",],
     features: ["streaming", "structured_outputs",],
   }
-}
+} as const satisfies ModelMeta
 
-const O3_MINI: ModelMeta = {
+const O3_MINI = {
+  name: "o3-mini",
   context_window: 200_000,
   max_output_tokens: 100_000,
   knowledge_cutoff: "2023-10-01",
@@ -639,9 +669,10 @@ const O3_MINI: ModelMeta = {
     features: ["function_calling", "structured_outputs", "streaming"],
 
   }
-}
+} as const satisfies ModelMeta
 
-const GPT_4O_MINI_AUDIO: ModelMeta = {
+const GPT_4O_MINI_AUDIO = {
+  name: "gpt-4o-mini-audio",
   context_window: 128_000,
   max_output_tokens: 16_384,
   knowledge_cutoff: "2023-10-01",
@@ -661,9 +692,10 @@ const GPT_4O_MINI_AUDIO: ModelMeta = {
     endpoints: ["chat-completions"],
     features: ["function_calling", "streaming"],
   }
-}
+} as const satisfies ModelMeta
 
-const GPT_4O_MINI_REALTIME: ModelMeta = {
+const GPT_4O_MINI_REALTIME = {
+  name: "gpt-4o-mini-realtime",
   context_window: 16_000,
   max_output_tokens: 4_096,
   knowledge_cutoff: "2023-10-01",
@@ -683,9 +715,10 @@ const GPT_4O_MINI_REALTIME: ModelMeta = {
     endpoints: ["realtime"],
     features: ["function_calling",],
   }
-}
+} as const satisfies ModelMeta
 
-const O1: ModelMeta = {
+const O1 = {
+  name: "o1",
   context_window: 200_000,
   max_output_tokens: 100_000,
   knowledge_cutoff: "2023-10-01",
@@ -705,9 +738,10 @@ const O1: ModelMeta = {
     features: ["function_calling", "structured_outputs", "streaming"],
 
   }
-}
+} as const satisfies ModelMeta
 
-const OMNI_MODERATION: ModelMeta = {
+const OMNI_MODERATION = {
+  name: "omni-moderation",
   pricing: {
     input: {
       normal: 0
@@ -722,9 +756,10 @@ const OMNI_MODERATION: ModelMeta = {
     features: []
   },
 
-}
+} as const satisfies ModelMeta
 
-const GPT_4O: ModelMeta = {
+const GPT_4O = {
+  name: "gpt-4o",
   context_window: 128_000,
   max_output_tokens: 16_384,
   knowledge_cutoff: "2023-10-01",
@@ -744,10 +779,11 @@ const GPT_4O: ModelMeta = {
     endpoints: ["chat", "chat-completions", "assistants", "fine-tuning", "batch"],
     features: ["streaming", "function_calling", "structured_outputs", "distillation", "fine_tuning", "predicted_outcomes"],
   }
-}
+} as const satisfies ModelMeta
 
 
-const GPT_4O_AUDIO: ModelMeta = {
+const GPT_4O_AUDIO = {
+  name: "gpt-4o-audio",
   context_window: 128_000,
   max_output_tokens: 16_384,
   knowledge_cutoff: "2023-10-01",
@@ -767,9 +803,10 @@ const GPT_4O_AUDIO: ModelMeta = {
     endpoints: ["chat-completions",],
     features: ["streaming", "function_calling",],
   }
-}
+} as const satisfies ModelMeta
 
-const GPT_40_MINI: ModelMeta = {
+const GPT_40_MINI = {
+  name: "gpt-4o-mini",
   context_window: 128_000,
   max_output_tokens: 16_384,
   knowledge_cutoff: "2023-10-01",
@@ -788,9 +825,10 @@ const GPT_40_MINI: ModelMeta = {
     endpoints: ["chat", "chat-completions", "assistants", "fine-tuning", "batch"],
     features: ["streaming", "function_calling", "structured_outputs", "fine_tuning", "predicted_outcomes"],
   }
-}
+} as const satisfies ModelMeta
 
-const GPT__4O_REALTIME: ModelMeta = {
+const GPT__4O_REALTIME = {
+  name: "gpt-4o-realtime",
   context_window: 32_000,
   max_output_tokens: 4_096,
   knowledge_cutoff: "2023-10-01",
@@ -811,9 +849,10 @@ const GPT__4O_REALTIME: ModelMeta = {
     features: ["function_calling"],
 
   }
-}
+} as const satisfies ModelMeta
 
-const GPT_4_TURBO: ModelMeta = {
+const GPT_4_TURBO = {
+  name: "gpt-4-turbo",
   context_window: 128_000,
   max_output_tokens: 4_096,
   knowledge_cutoff: "2023-12-01",
@@ -832,9 +871,10 @@ const GPT_4_TURBO: ModelMeta = {
     features: ["function_calling", "streaming"],
 
   }
-}
+} as const satisfies ModelMeta
 
-const CHATGPT_40: ModelMeta = {
+const CHATGPT_40 = {
+  name: "chatgpt-4.0",
   context_window: 128_000,
   max_output_tokens: 4_096,
   knowledge_cutoff: "2023-10-01",
@@ -852,9 +892,10 @@ const CHATGPT_40: ModelMeta = {
     endpoints: ["chat", "chat-completions",],
     features: ["predicted_outcomes", "streaming"],
   }
-}
+} as const satisfies ModelMeta
 
-const GPT_5_1_CODEX_MINI: ModelMeta = {
+const GPT_5_1_CODEX_MINI = {
+  name: "gpt-5.1-codex-mini",
   context_window: 400_000,
   max_output_tokens: 128_000,
   knowledge_cutoff: "2024-09-30",
@@ -873,10 +914,11 @@ const GPT_5_1_CODEX_MINI: ModelMeta = {
     endpoints: ["chat",],
     features: ["streaming", "function_calling", "structured_outputs"],
   }
-}
+} as const satisfies ModelMeta
 
 
-const CODEX_MINI_LATEST: ModelMeta = {
+const CODEX_MINI_LATEST = {
+  name: "codex-mini-latest",
   context_window: 200_000,
   max_output_tokens: 100_000,
   knowledge_cutoff: "2024-06-01",
@@ -895,9 +937,10 @@ const CODEX_MINI_LATEST: ModelMeta = {
     endpoints: ["chat",],
     features: ["streaming", "function_calling", "structured_outputs"],
   }
-}
+} as const satisfies ModelMeta
 
-const DALL_E_2: ModelMeta = {
+const DALL_E_2 = {
+  name: "dall-e-2",
   pricing: {
     // todo image tokens
     input: {
@@ -914,9 +957,10 @@ const DALL_E_2: ModelMeta = {
     endpoints: ["image-generation", "image-edit",],
     features: [],
   }
-}
+} as const satisfies ModelMeta
 
-const DALL_E_3: ModelMeta = {
+const DALL_E_3 = {
+  name: "dall-e-3",
   pricing: {
     // todo image tokens
     input: {
@@ -933,9 +977,10 @@ const DALL_E_3: ModelMeta = {
     endpoints: ["image-generation", "image-edit",],
     features: [],
   }
-}
+} as const satisfies ModelMeta
 
-const GPT_3_5_TURBO: ModelMeta = {
+const GPT_3_5_TURBO = {
+  name: "gpt-3.5-turbo",
   context_window: 16_385,
   max_output_tokens: 4_096,
   knowledge_cutoff: "2021-09-01",
@@ -954,9 +999,10 @@ const GPT_3_5_TURBO: ModelMeta = {
     endpoints: ["chat", "chat-completions", "batch", "fine-tuning"],
     features: ["fine_tuning"],
   }
-}
+} as const satisfies ModelMeta
 
-const GPT_4: ModelMeta = {
+const GPT_4 = {
+  name: "gpt-4",
   context_window: 8_192,
   max_output_tokens: 8_192,
   knowledge_cutoff: "2023-12-01",
@@ -975,9 +1021,10 @@ const GPT_4: ModelMeta = {
     endpoints: ["chat", "chat-completions", "batch", "fine-tuning", "assistants"],
     features: ["fine_tuning", "streaming"],
   }
-}
+} as const satisfies ModelMeta
 
-const GPT_4O_MINI_TRANSCRIBE: ModelMeta = {
+const GPT_4O_MINI_TRANSCRIBE = {
+  name: "gpt-4o-mini-transcribe",
   context_window: 16_000,
   max_output_tokens: 2_000,
   knowledge_cutoff: "2024-01-01",
@@ -996,9 +1043,10 @@ const GPT_4O_MINI_TRANSCRIBE: ModelMeta = {
     endpoints: ["realtime", "transcription"],
     features: []
   }
-}
+} as const satisfies ModelMeta
 
-const GPT_4O_MINI_TTS: ModelMeta = {
+const GPT_4O_MINI_TTS = {
+  name: "gpt-4o-mini-tts",
   pricing: {
     // todo audio tokens
     input: {
@@ -1014,10 +1062,11 @@ const GPT_4O_MINI_TTS: ModelMeta = {
     endpoints: ["speech_generation"],
     features: []
   }
-}
+} as const satisfies ModelMeta
 
 
-const GPT_4O_TRANSCRIBE: ModelMeta = {
+const GPT_4O_TRANSCRIBE = {
+  name: "gpt-4o-transcribe",
   context_window: 16_000,
   max_output_tokens: 2_000,
   knowledge_cutoff: "2024-06-01",
@@ -1036,9 +1085,10 @@ const GPT_4O_TRANSCRIBE: ModelMeta = {
     endpoints: ["realtime", "transcription"],
     features: []
   }
-}
+} as const satisfies ModelMeta
 
-const GPT_4O_TRANSCRIBE_DIARIZE: ModelMeta = {
+const GPT_4O_TRANSCRIBE_DIARIZE = {
+  name: "gpt-4o-transcribe-diarize",
   context_window: 16_000,
   max_output_tokens: 2_000,
   knowledge_cutoff: "2024-06-01",
@@ -1057,9 +1107,10 @@ const GPT_4O_TRANSCRIBE_DIARIZE: ModelMeta = {
     endpoints: ["transcription"],
     features: []
   }
-}
+} as const satisfies ModelMeta
 
-const GPT_5_1_CHAT: ModelMeta = {
+const GPT_5_1_CHAT = {
+  name: "gpt-5.1-chat",
   context_window: 128_000,
   max_output_tokens: 16_384,
   knowledge_cutoff: "2024-09-30",
@@ -1078,9 +1129,10 @@ const GPT_5_1_CHAT: ModelMeta = {
     endpoints: ["chat", "chat-completions"],
     features: ["streaming", "function_calling", "structured_outputs"],
   }
-}
+} as const satisfies ModelMeta
 
-const GPT_5_CHAT: ModelMeta = {
+const GPT_5_CHAT = {
+  name: "gpt-5-chat",
   context_window: 128_000,
   max_output_tokens: 16_384,
   knowledge_cutoff: "2024-09-30",
@@ -1106,9 +1158,10 @@ const GPT_5_CHAT: ModelMeta = {
       "mcp"
     ]
   }
-}
+} as const satisfies ModelMeta
 
-const TEXT_EMBEDDING_3_LARGE: ModelMeta = {
+const TEXT_EMBEDDING_3_LARGE = {
+  name: "text-embedding-3-large",
   pricing: {
     // todo embedding tokens
     input: {
@@ -1124,9 +1177,10 @@ const TEXT_EMBEDDING_3_LARGE: ModelMeta = {
     endpoints: ["embedding", "batch"],
     features: []
   }
-}
+} as const satisfies ModelMeta
 
-const TEXT_EMBEDDING_3_SMALL: ModelMeta = {
+const TEXT_EMBEDDING_3_SMALL = {
+  name: "text-embedding-3-small",
   pricing: {
     // todo embedding tokens
     input: {
@@ -1142,10 +1196,11 @@ const TEXT_EMBEDDING_3_SMALL: ModelMeta = {
     endpoints: ["embedding", "batch"],
     features: []
   }
-}
+} as const satisfies ModelMeta
 
 
-const TEXT_EMBEDDING_3_ADA_002: ModelMeta = {
+const TEXT_EMBEDDING_3_ADA_002 = {
+  name: "text-embedding-3-ada-002",
   pricing: {
     // todo embedding tokens
     input: {
@@ -1161,9 +1216,10 @@ const TEXT_EMBEDDING_3_ADA_002: ModelMeta = {
     endpoints: ["embedding", "batch"],
     features: []
   }
-}
+} as const satisfies ModelMeta
 
-const TTS_1: ModelMeta = {
+const TTS_1 = {
+  name: "tts-1",
   pricing: {
     // todo figure out pricing
     input: {
@@ -1179,9 +1235,10 @@ const TTS_1: ModelMeta = {
     endpoints: ["speech_generation"],
     features: []
   }
-}
+} as const satisfies ModelMeta
 
-const TTS_1_HD: ModelMeta = {
+const TTS_1_HD = {
+  name: "tts-1-hd",
   pricing: {
     // todo figure out pricing
     input: {
@@ -1197,4 +1254,97 @@ const TTS_1_HD: ModelMeta = {
     endpoints: ["speech_generation"],
     features: []
   }
-}
+} as const satisfies ModelMeta
+
+// Chat/text completion models (based on endpoints: "chat" or "chat-completions")
+export const OPENAI_CHAT_MODELS = [
+  // Frontier models
+  GPT5_1.name,
+  GPT5_1_CODEX.name,
+  GPT5.name,
+  GPT5_MINI.name,
+  GPT5_NANO.name,
+  GPT5_PRO.name,
+  GPT5_CODEX.name,
+  // Reasoning models
+  O3.name,
+  O3_PRO.name,
+  O3_MINI.name,
+  O4_MINI.name,
+  O3_DEEP_RESEARCH.name,
+  O4_MINI_DEEP_RESEARCH.name,
+  // GPT-4 series
+  GPT4_1.name,
+  GPT4_1_MINI.name,
+  GPT4_1_NANO.name,
+  GPT_4.name,
+  GPT_4_TURBO.name,
+  GPT_4O.name,
+  GPT_40_MINI.name,
+  // GPT-3.5
+  GPT_3_5_TURBO.name,
+  // Audio-enabled chat models
+  GPT_AUDIO.name,
+  GPT_AUDIO_MINI.name,
+  GPT_4O_AUDIO.name,
+  GPT_4O_MINI_AUDIO.name,
+  // ChatGPT models
+  GPT_5_1_CHAT.name,
+  GPT_5_CHAT.name,
+  CHATGPT_40.name,
+  // Specialized
+  GPT_5_1_CODEX_MINI.name,
+  CODEX_MINI_LATEST.name,
+  // Preview models
+  GPT_4O_SEARCH_PREVIEW.name,
+  GPT_4O_MINI_SEARCH_PREVIEW.name,
+  COMPUTER_USE_PREVIEW.name,
+  // Legacy reasoning
+  O1.name,
+  O1_PRO.name,
+] as const;
+
+// Image generation models (based on endpoints: "image-generation" or "image-edit")
+export const OPENAI_IMAGE_MODELS = [
+  GPT_IMAGE_1.name,
+  GPT_IMAGE_1_MINI.name,
+  DALL_E_3.name,
+  DALL_E_2.name,
+] as const;
+
+// Embedding models (based on endpoints: "embedding")
+export const OPENAI_EMBEDDING_MODELS = [
+  TEXT_EMBEDDING_3_LARGE.name,
+  TEXT_EMBEDDING_3_SMALL.name,
+  TEXT_EMBEDDING_3_ADA_002.name,
+] as const;
+
+// Audio models (based on endpoints: "transcription", "speech_generation", or "realtime")
+export const OPENAI_AUDIO_MODELS = [
+  // Transcription models
+  GPT_4O_TRANSCRIBE.name,
+  GPT_4O_TRANSCRIBE_DIARIZE.name,
+  GPT_4O_MINI_TRANSCRIBE.name,
+  // Realtime models
+  GPT_REALTIME.name,
+  GPT_REALTIME_MINI.name,
+  GPT__4O_REALTIME.name,
+  GPT_4O_MINI_REALTIME.name,
+  // Text-to-speech models
+  GPT_4O_MINI_TTS.name,
+  TTS_1.name,
+  TTS_1_HD.name,
+] as const;
+
+// Transcription-only models (based on endpoints: "transcription")
+export const OPENAI_TRANSCRIPTION_MODELS = [
+  GPT_4O_TRANSCRIBE.name,
+  GPT_4O_TRANSCRIBE_DIARIZE.name,
+  GPT_4O_MINI_TRANSCRIBE.name,
+] as const;
+
+// Video generation models (based on endpoints: "video")
+export const OPENAI_VIDEO_MODELS = [
+  SORA2.name,
+  SORA2_PRO.name,
+] as const;

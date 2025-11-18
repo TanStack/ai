@@ -14,6 +14,7 @@ import {
   type ImageGenerationResult,
   type ImageData,
 } from "@tanstack/ai";
+import { OPENAI_CHAT_MODELS, OPENAI_IMAGE_MODELS, OPENAI_EMBEDDING_MODELS, OPENAI_AUDIO_MODELS, OPENAI_VIDEO_MODELS, OPENAI_TRANSCRIPTION_MODELS } from "./model-meta";
 
 export interface OpenAIConfig {
   apiKey: string;
@@ -22,102 +23,6 @@ export interface OpenAIConfig {
 }
 
 
-// Chat/text completion models (from OpenAI docs - platform.openai.com/docs/models)
-const OPENAI_CHAT_MODELS = [
-  // Frontier models
-  "gpt-5",
-  "gpt-5-mini",
-  "gpt-5-nano",
-  "gpt-5-pro",
-  "gpt-4.1",
-  "gpt-4.1-mini",
-  "gpt-4.1-nano",
-  // Open-weight models
-  "gpt-oss-120b",
-  "gpt-oss-20b",
-  // Reasoning models
-  "o3",
-  "o3-pro",
-  "o3-mini",
-  "o4-mini",
-  "o3-deep-research",
-  "o4-mini-deep-research",
-  // Legacy and previous generation
-  "gpt-4",
-  "gpt-4-turbo",
-  "gpt-4-turbo-preview",
-  "gpt-4o",
-  "gpt-4o-mini",
-  "gpt-3.5-turbo",
-  // Audio-enabled chat models
-  "gpt-audio",
-  "gpt-audio-mini",
-  "gpt-4o-audio-preview",
-  "gpt-4o-mini-audio-preview",
-  // Realtime models
-  "gpt-realtime",
-  "gpt-realtime-mini",
-  "gpt-4o-realtime-preview",
-  "gpt-4o-mini-realtime-preview",
-  // ChatGPT models
-  "gpt-5-chat-latest",
-  "chatgpt-4o-latest",
-  // Specialized
-  "gpt-5-codex",
-  "codex-mini-latest",
-  // Preview models
-  "gpt-4o-search-preview",
-  "gpt-4o-mini-search-preview",
-  "computer-use-preview",
-  // Legacy reasoning (deprecated but still available)
-  "o1",
-  "o1-mini",
-  "o1-preview",
-  // Legacy base models
-  "davinci-002",
-  "babbage-002",
-] as const;
-
-// Image generation models (from OpenAI docs)
-const OPENAI_IMAGE_MODELS = [
-  "gpt-image-1",
-  "gpt-image-1-mini",
-  "dall-e-3",
-  "dall-e-2",
-] as const;
-
-// Embedding models (from OpenAI docs)
-const OPENAI_EMBEDDING_MODELS = [
-  "text-embedding-3-large",
-  "text-embedding-3-small",
-  "text-embedding-ada-002",
-] as const;
-
-// Audio models (transcription and text-to-speech)
-const OPENAI_AUDIO_MODELS = [
-  // Transcription models
-  "whisper-1",
-  "gpt-4o-transcribe",
-  "gpt-4o-mini-transcribe",
-  "gpt-4o-transcribe-diarize",
-  // Text-to-speech models
-  "tts-1",
-  "tts-1-hd",
-  "gpt-4o-mini-tts",
-] as const;
-
-const OPENAI_TRANSCRIPTION_MODELS = [
-  "gpt-4o-transcribe",
-  "gpt-4o-mini-transcribe",
-  "gpt-4o-transcribe-diarize",
-  "whisper-1",
-] as const;
-
-// Video generation models (from OpenAI docs)
-const OPENAI_VIDEO_MODELS = [
-  "sora-2",
-  "sora-2-pro",
-] as const;
 
 export type OpenAIChatModel = (typeof OPENAI_CHAT_MODELS)[number];
 export type OpenAIImageModel = (typeof OPENAI_IMAGE_MODELS)[number];
