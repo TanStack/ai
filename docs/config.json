@@ -1,0 +1,91 @@
+{
+  "$schema": "https://raw.githubusercontent.com/TanStack/tanstack.com/main/tanstack-docs-config.schema.json",
+  "docSearch": {
+    "appId": "FQ0DQ6MA3C",
+    "apiKey": "8264730bab8a9b7fa6a0c85761d7a3fe",
+    "indexName": "tanstack"
+  },
+  "sections": [
+    {
+      "label": "Getting Started",
+      "children": [
+        {
+          "label": "Overview",
+          "to": "getting-started/overview"
+        },
+        {
+          "label": "Quick Start",
+          "to": "getting-started/quick-start"
+        }
+      ]
+    },
+    {
+      "label": "Guides",
+      "children": [
+        {
+          "label": "Tools",
+          "to": "guides/tools"
+        },
+        {
+          "label": "Server Tools",
+          "to": "guides/server-tools"
+        },
+        {
+          "label": "Client Tools",
+          "to": "guides/client-tools"
+        },
+        {
+          "label": "Tool Approval Flow",
+          "to": "guides/tool-approval"
+        },
+        {
+          "label": "Streaming",
+          "to": "guides/streaming"
+        },
+        {
+          "label": "Connection Adapters",
+          "to": "guides/connection-adapters"
+        }
+      ]
+    },
+    {
+      "label": "API",
+      "children": [
+        {
+          "label": "@tanstack/ai",
+          "to": "api/ai"
+        },
+        {
+          "label": "@tanstack/ai-client",
+          "to": "api/ai-client"
+        },
+        {
+          "label": "@tanstack/ai-react",
+          "to": "api/ai-react"
+        }
+      ]
+    },
+    {
+      "label": "Adapters",
+      "children": [
+        {
+          "label": "OpenAI",
+          "to": "adapters/openai"
+        },
+        {
+          "label": "Anthropic",
+          "to": "adapters/anthropic"
+        },
+        {
+          "label": "Google Gemini",
+          "to": "adapters/gemini"
+        },
+        {
+          "label": "Ollama",
+          "to": "adapters/ollama"
+        }
+      ]
+    }
+  ]
+}
+
