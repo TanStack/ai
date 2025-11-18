@@ -47,10 +47,33 @@ export const Route = createFileRoute("/api/tanchat")({
           );
         }
 
-        const { messages } = await request.json();
+        // Capture request signal before reading body (it may be aborted after body is consumed)
+        const requestSignal = request.signal;
+
+        // If request is already aborted, return early
+        if (requestSignal?.aborted) {
+          return new Response(null, { status: 499 }); // 499 = Client Closed Request
+        }
+
+        // Create a new AbortController for the streaming response
+        // This allows us to properly handle client disconnection
+        const abortController = new AbortController();
+        const streamAbortSignal = abortController.signal;
+
+        let messages;
+        try {
+          const body = await request.json();
+          messages = body.messages;
+        } catch (error: any) {
+          // If request was aborted during JSON parsing, return early
+          if (error.name === "AbortError" || requestSignal?.aborted) {
+            return new Response(null, { status: 499 }); // 499 = Client Closed Request
+          }
+          throw error; // Re-throw other errors
+        }
 
         try {
-          // Extract abort signal from request for proper cancellation handling
+          // Use the stream abort signal for proper cancellation handling
           const stream = aiInstance.chat({
             messages,
             model: "gpt-4o",
@@ -58,15 +81,19 @@ export const Route = createFileRoute("/api/tanchat")({
             systemPrompts: [SYSTEM_PROMPT],
             agentLoopStrategy: maxIterations(20),
             options: {
-              // abortSignal: request.signal, // TBD: figure out why this is not working
+              abortSignal: streamAbortSignal,
             },
             providerOptions: {
               store: true,
             },
           });
 
-          return toStreamResponse(stream);
+          return toStreamResponse(stream, undefined, abortController);
         } catch (error: any) {
+          // If request was aborted, return early (don't send error response)
+          if (error.name === "AbortError" || streamAbortSignal.aborted) {
+            return new Response(null, { status: 499 }); // 499 = Client Closed Request
+          }
           return new Response(
             JSON.stringify({
               error: error.message || "An error occurred",

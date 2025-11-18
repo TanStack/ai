@@ -9,6 +9,7 @@ import type { StreamChunk } from "./types";
  * - Stream ends with "data: [DONE]\n\n"
  *
  * @param stream - AsyncIterable of StreamChunks from chat()
+ * @param abortController - Optional AbortController to abort when stream is cancelled
  * @returns ReadableStream in Server-Sent Events format
  *
  * @example
@@ -19,7 +20,8 @@ import type { StreamChunk } from "./types";
  * ```
  */
 export function toServerSentEventsStream(
-  stream: AsyncIterable<StreamChunk>
+  stream: AsyncIterable<StreamChunk>,
+  abortController?: AbortController
 ): ReadableStream<Uint8Array> {
   const encoder = new TextEncoder();
 
@@ -27,6 +29,11 @@ export function toServerSentEventsStream(
     async start(controller) {
       try {
         for await (const chunk of stream) {
+          // Check if stream was cancelled/aborted
+          if (abortController?.signal.aborted) {
+            break;
+          }
+
           // Send each chunk as Server-Sent Events format
           controller.enqueue(
             encoder.encode(`data: ${JSON.stringify(chunk)}\n\n`)
@@ -37,6 +44,12 @@ export function toServerSentEventsStream(
         controller.enqueue(encoder.encode("data: [DONE]\n\n"));
         controller.close();
       } catch (error: any) {
+        // Don't send error if aborted
+        if (abortController?.signal.aborted) {
+          controller.close();
+          return;
+        }
+
         // Send error chunk
         controller.enqueue(
           encoder.encode(
@@ -52,6 +65,13 @@ export function toServerSentEventsStream(
         controller.close();
       }
     },
+    cancel() {
+      // When the ReadableStream is cancelled (e.g., client disconnects),
+      // abort the underlying stream
+      if (abortController) {
+        abortController.abort();
+      }
+    },
   });
 }
 
@@ -61,22 +81,30 @@ export function toServerSentEventsStream(
  *
  * @param stream - AsyncIterable of StreamChunks from chat()
  * @param init - Optional Response initialization options
+ * @param abortController - Optional AbortController to abort when client disconnects
  * @returns Response object with SSE headers and streaming body
  *
  * @example
  * ```typescript
  * export async function POST(request: Request) {
  *   const { messages } = await request.json();
- *   const stream = chat({ adapter: openai(), model: "gpt-4o", messages });
- *   return toStreamResponse(stream);
+ *   const abortController = new AbortController();
+ *   const stream = chat({
+ *     adapter: openai(),
+ *     model: "gpt-4o",
+ *     messages,
+ *     options: { abortSignal: abortController.signal }
+ *   });
+ *   return toStreamResponse(stream, undefined, abortController);
  * }
  * ```
  */
 export function toStreamResponse(
   stream: AsyncIterable<StreamChunk>,
-  init?: ResponseInit
+  init?: ResponseInit,
+  abortController?: AbortController
 ): Response {
-  return new Response(toServerSentEventsStream(stream), {
+  return new Response(toServerSentEventsStream(stream, abortController), {
     ...init,
     headers: {
       "Content-Type": "text/event-stream",
