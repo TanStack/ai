@@ -366,19 +366,19 @@ export interface ChatCompletionOptions {
   user?: string;
 
   /**
-   * AbortSignal for request cancellation.
+   * AbortController for request cancellation.
    *
    * Allows you to cancel an in-progress request using an AbortController.
    * Useful for implementing timeouts or user-initiated cancellations.
    *
    * @example
-   * const controller = new AbortController();
-   * setTimeout(() => controller.abort(), 5000); // Cancel after 5 seconds
-   * await chat({ ..., abortSignal: controller.signal });
+   * const abortController = new AbortController();
+   * setTimeout(() => abortController.abort(), 5000); // Cancel after 5 seconds
+   * await chat({ ..., abortController });
    *
-   * @see https://developer.mozilla.org/en-US/docs/Web/API/AbortSignal
+   * @see https://developer.mozilla.org/en-US/docs/Web/API/AbortController
    */
-  abortSignal?: AbortSignal;
+  abortController?: AbortController;
 
   /**
    * Custom HTTP headers to include in the request.

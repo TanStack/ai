@@ -1,6 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { ai, toStreamResponse, maxIterations } from "@tanstack/ai";
 import { openai } from "@tanstack/ai-openai";
+import { ollama } from "@tanstack/ai-ollama";
 import { allTools } from "@/lib/guitar-tools";
 
 const SYSTEM_PROMPT = `You are a helpful assistant for a guitar store.
@@ -31,7 +32,7 @@ export const Route = createFileRoute("/api/tanchat")({
     handlers: {
       POST: async ({ request }) => {
         // Create AI instance with OpenAI adapter
-        const aiInstance = ai(openai());
+        const aiInstance = ai(ollama());
 
         // Check for API key
         if (!process.env.OPENAI_API_KEY) {
@@ -55,33 +56,20 @@ export const Route = createFileRoute("/api/tanchat")({
           return new Response(null, { status: 499 }); // 499 = Client Closed Request
         }
 
-        // Create a new AbortController for the streaming response
-        // This allows us to properly handle client disconnection
         const abortController = new AbortController();
-        const streamAbortSignal = abortController.signal;
 
-        let messages;
-        try {
-          const body = await request.json();
-          messages = body.messages;
-        } catch (error: any) {
-          // If request was aborted during JSON parsing, return early
-          if (error.name === "AbortError" || requestSignal?.aborted) {
-            return new Response(null, { status: 499 }); // 499 = Client Closed Request
-          }
-          throw error; // Re-throw other errors
-        }
+        const { messages } = await request.json();
 
         try {
           // Use the stream abort signal for proper cancellation handling
           const stream = aiInstance.chat({
             messages,
-            model: "gpt-4o",
+            model: "smollm:latest",
             tools: allTools,
             systemPrompts: [SYSTEM_PROMPT],
             agentLoopStrategy: maxIterations(20),
             options: {
-              abortSignal: streamAbortSignal,
+              abortController,
             },
             providerOptions: {
               store: true,
@@ -91,7 +79,7 @@ export const Route = createFileRoute("/api/tanchat")({
           return toStreamResponse(stream, undefined, abortController);
         } catch (error: any) {
           // If request was aborted, return early (don't send error response)
-          if (error.name === "AbortError" || streamAbortSignal.aborted) {
+          if (error.name === "AbortError" || abortController.signal.aborted) {
             return new Response(null, { status: 499 }); // 499 = Client Closed Request
           }
           return new Response(
