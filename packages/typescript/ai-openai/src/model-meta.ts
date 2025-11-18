@@ -1348,3 +1348,7 @@ export const OPENAI_VIDEO_MODELS = [
   SORA2.name,
   SORA2_PRO.name,
 ] as const;
+
+export const OPENAI_MODERATION_MODELS = [
+  OMNI_MODERATION.name,
+] as const;

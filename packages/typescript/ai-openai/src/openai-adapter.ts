@@ -730,7 +730,7 @@ export class OpenAI extends BaseAdapter<
     options: TextGenerationOptions
   ): Promise<TextGenerationResult> {
     const response = await this.client.completions.create({
-      model: options.model || "gpt-3.5-turbo-instruct",
+      model: options.model,
       prompt: options.prompt,
       max_tokens: options.maxTokens,
       temperature: options.temperature,
