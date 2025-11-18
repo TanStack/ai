@@ -13,28 +13,12 @@ import {
   type Message,
   type StreamChunk,
 } from "@tanstack/ai";
+import { ANTHROPIC_AUDIO_MODELS, ANTHROPIC_EMBEDDING_MODELS, ANTHROPIC_IMAGE_MODELS, ANTHROPIC_MODELS, ANTHROPIC_VIDEO_MODELS } from "./model-meta";
 
 export interface AnthropicConfig {
   apiKey: string;
 }
 
-const ANTHROPIC_MODELS = [
-  "claude-3-5-sonnet-20241022",
-  "claude-3-5-sonnet-20240620",
-  "claude-3-opus-20240229",
-  "claude-3-sonnet-20240229",
-  "claude-3-haiku-20240307",
-  "claude-2.1",
-  "claude-2.0",
-  "claude-instant-1.2",
-] as const;
-
-const ANTHROPIC_IMAGE_MODELS = [] as const;
-const ANTHROPIC_EMBEDDING_MODELS = [] as const;
-const ANTHROPIC_AUDIO_MODELS = [] as const;
-const ANTHROPIC_VIDEO_MODELS = [] as const;
-
-export type AnthropicModel = (typeof ANTHROPIC_MODELS)[number];
 
 /**
  * Anthropic-specific provider options

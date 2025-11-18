@@ -345,9 +345,9 @@ export interface ChatCompletionOptions {
    * @see https://docs.anthropic.com/claude/docs/tool-use#controlling-claudes-output
    */
   toolChoice?:
-    | "auto"
-    | "none"
-    | { type: "function"; function: { name: string } };
+  | "auto"
+  | "none"
+  | { type: "function"; function: { name: string } };
   /** Structured output format specification. Use with responseFormat() helper for type-safe outputs. */
   responseFormat?: ResponseFormat;
   /** Strategy for determining when to stop the agent loop. Defaults to maxIterations(5) */
@@ -828,4 +828,28 @@ export interface AIAdapterConfig {
   timeout?: number;
   maxRetries?: number;
   headers?: Record<string, string>;
+}
+
+
+export interface ModelMeta {
+  name: string;
+  supports: {
+    input: ("text" | "image" | "audio" | "video")[];
+    output: ("text" | "image" | "audio" | "video")[];
+    endpoints: ("chat" | "chat-completions" | "assistants" | "speech_generation" | "image-generation" | "fine-tuning" | "batch" | "image-edit" | "moderation" | "translation" | "realtime" | "embedding" | "audio" | "video" | "transcription")[];
+    features: ("streaming" | "function_calling" | "structured_outputs" | "predicted_outcomes" | "distillation" | "fine_tuning")[];
+    tools?: ("web_search" | "file_search" | "image_generation" | "code_interpreter" | "mcp" | "computer_use")[];
+  };
+  context_window?: number;
+  max_output_tokens?: number;
+  knowledge_cutoff?: string;
+  pricing: {
+    input: {
+      normal: number;
+      cached?: number;
+    };
+    output: {
+      normal: number;
+    };
+  };
 }
