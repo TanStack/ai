@@ -49,14 +49,6 @@ export const Route = createFileRoute("/api/tanchat")({
           );
         }
 
-        // Capture request signal before reading body (it may be aborted after body is consumed)
-        const requestSignal = request.signal;
-
-        // If request is already aborted, return early
-        if (requestSignal?.aborted) {
-          return new Response(null, { status: 499 }); // 499 = Client Closed Request
-        }
-
         const abortController = new AbortController();
 
         const { messages } = await request.json();
