@@ -20,6 +20,37 @@ interface ModelMeta {
 }
 
 
+const GEMINI_3_PRO = {
+  name: "gemini-3-pro-preview",
+  max_input_tokens: 1_048_576,
+  max_output_tokens: 65_536,
+  knowledge_cutoff: "2025-01-01",
+  supports: {
+    input: ["text", "image", "audio", "video", "pdf"],
+    output: ["text"],
+    capabilities: [
+      "batch_api",
+      "caching",
+      "code_execution",
+      "file_search",
+      "function_calling",
+      "search_grounding",
+      "structured_output",
+      "thinking",
+      "url_context"
+    ]
+  },
+  pricing: {
+    input: {
+      normal: 2.5,
+    },
+    output: {
+      normal: 15
+    }
+  }
+} as const satisfies ModelMeta
+
+
 const GEMINI_2_5_PRO = {
   name: "gemini-2.5-pro",
   max_input_tokens: 1_048_576,
