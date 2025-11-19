@@ -59,7 +59,7 @@ function mapCommonOptionsToAnthropic(
     stream: options.stream || false,
     messages: [],
     tools: options.tools ? convertToolsToProviderFormat(options.tools) : undefined,
-    tool_choice:
+
   };
 
   if (options.metadata) {

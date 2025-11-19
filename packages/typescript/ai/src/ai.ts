@@ -1,6 +1,5 @@
 import type {
   AIAdapter,
-  ChatCompletionOptions,
   ChatCompletionResult,
   StreamChunk,
   SummarizationOptions,
@@ -17,6 +16,9 @@ import type {
   VideoGenerationResult,
   Tool,
   ResponseFormat,
+  ModelMessage,
+  AgentLoopStrategy,
+  ChatCompletionOptions,
 } from "./types";
 import { ToolCallManager } from "./tool-call-manager";
 import { executeToolCalls } from "./agent/executor";
@@ -193,16 +195,9 @@ class AI<
    *   console.log(chunk);
    * }
    */
-  async *chat(params: {
+  async *chat(params: Omit<ChatCompletionOptions, "model" | "providerOptions"> & {
     model: ExtractModels<TAdapter>;
-    messages: ChatCompletionOptions["messages"];
-    tools?: ReadonlyArray<Tool>;
-    systemPrompts?: string[];
-    agentLoopStrategy?: ChatCompletionOptions["agentLoopStrategy"];
-    options?: CommonOptions
     providerOptions?: ExtractChatProviderOptions<TAdapter>;
-    abortSignal?: AbortSignal;
-    __clientId?: string; // For devtools linking between client and server
   }): AsyncIterable<StreamChunk> {
     const {
       model,
@@ -276,7 +271,6 @@ class AI<
         tools: tools as Tool[] | undefined,
         ...restOptions,
         abortSignal,
-        responseFormat: undefined,
         providerOptions: providerOptions as any,
       })) {
         // Check if aborted during iteration
@@ -572,11 +566,8 @@ class AI<
       output?: ResponseFormat<any>;
     }
   >(
-    params: {
+    params: Omit<ChatCompletionOptions, "model" | "providerOptions" | "agentLoopStrategy"> & {
       model: ExtractModels<TAdapter>;
-      messages: ChatCompletionOptions["messages"];
-      tools?: ReadonlyArray<Tool>;
-      systemPrompts?: string[];
       options?: CommonOptions;
       providerOptions?: ExtractChatProviderOptions<TAdapter>;
     } & TOptions
@@ -588,10 +579,8 @@ class AI<
       systemPrompts,
       options = {},
       providerOptions,
+      abortSignal,
     } = params;
-
-    // Extract abortSignal from options
-    const { abortSignal, ...restOptions } = options;
 
     const requestId = `chat-completion-${Date.now()}-${Math.random()
       .toString(36)
@@ -609,7 +598,7 @@ class AI<
 
     // Extract output if it exists
     const output = (params as any).output as ResponseFormat | undefined;
-    const responseFormat = output;
+
 
     // Prepend system prompts to messages
     const messages = this.prependSystemPrompts(inputMessages, systemPrompts);
@@ -618,9 +607,8 @@ class AI<
       model: model as string,
       messages,
       tools: tools as Tool[] | undefined,
-      ...restOptions,
+      ...options,
       abortSignal,
-      responseFormat,
       providerOptions: providerOptions as any,
     });
 
@@ -787,9 +775,9 @@ class AI<
   // Private helper methods
 
   private prependSystemPrompts(
-    messages: ChatCompletionOptions["messages"],
+    messages: ModelMessage[],
     systemPrompts?: string[]
-  ): ChatCompletionOptions["messages"] {
+  ): ModelMessage[] {
     const prompts = systemPrompts || this.systemPrompts;
     if (!prompts || prompts.length === 0) {
       return messages;

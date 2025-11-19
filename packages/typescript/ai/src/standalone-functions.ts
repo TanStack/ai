@@ -200,11 +200,7 @@ export function chat<
 >(options: ChatStreamOptions<TAdapter>): AsyncIterable<StreamChunk> {
   const {
     adapter,
-    model,
-    messages,
-    tools,
-    agentLoopStrategy,
-    providerOptions,
+
     ...restOptions
   } = options;
   const aiInstance = new AI({ adapter });
@@ -212,17 +208,12 @@ export function chat<
   aiEventClient.emit("standalone:chat-started", {
     timestamp: Date.now(),
     adapterName: adapter.name,
-    model: model as string,
+    model: options.model as string,
     streaming: true,
   });
 
   return aiInstance.chat({
-    model,
-    messages,
-    tools,
-    agentLoopStrategy,
-    options: restOptions as any,
-    providerOptions,
+    ...restOptions
   });
 }
 
@@ -264,11 +255,7 @@ export async function chatCompletion<
 ): Promise<ChatCompletionReturnType<TOutput>> {
   const {
     adapter,
-    model,
-    messages,
-    tools,
-    output,
-    providerOptions,
+
     ...restOptions
   } = options;
   const aiInstance = new AI({ adapter });
@@ -277,17 +264,12 @@ export async function chatCompletion<
   aiEventClient.emit("standalone:chat-completion-started", {
     timestamp: startTime,
     adapterName: adapter.name,
-    model: model as string,
-    hasOutput: !!output,
+    model: options.model,
+    hasOutput: !!options.output,
   });
 
   const result = await aiInstance.chatCompletion({
-    model,
-    messages,
-    tools,
-    options: { ...restOptions } as any,
-    providerOptions,
-    output,
+    ...restOptions
   }) as any;
 
 
@@ -306,13 +288,9 @@ export async function summarize<
     text: string;
   }
 ): Promise<SummarizationResult> {
-  const { adapter, model, text, ...restOptions } = options;
+  const { adapter, ...restOptions } = options;
 
-  return adapter.summarize({
-    model: model as string,
-    text,
-    ...restOptions,
-  });
+  return adapter.summarize(restOptions);
 }
 
 /**
@@ -347,7 +325,7 @@ export async function image<
     providerOptions?: ExtractImageProviderOptionsFromAdapter<TAdapter>;
   }
 ): Promise<ImageGenerationResult> {
-  const { adapter, model, prompt, providerOptions } = options;
+  const { adapter, ...restOptions } = options;
 
   if (!adapter.generateImage) {
     throw new Error(
@@ -356,9 +334,7 @@ export async function image<
   }
 
   return adapter.generateImage({
-    model: model as string,
-    prompt,
-    providerOptions: providerOptions as any,
+    ...restOptions,
   });
 }
 
@@ -375,7 +351,7 @@ export async function audio<
     providerOptions?: ExtractAudioProviderOptionsFromAdapter<TAdapter>;
   }
 ): Promise<AudioTranscriptionResult> {
-  const { adapter, model, file, providerOptions, ...restOptions } = options;
+  const { adapter, ...restOptions } = options;
 
   if (!adapter.transcribeAudio) {
     throw new Error(
@@ -384,9 +360,7 @@ export async function audio<
   }
 
   return adapter.transcribeAudio({
-    model: model as string,
-    file,
-    providerOptions: providerOptions as any,
+
     ...restOptions,
   });
 }
@@ -405,7 +379,7 @@ export async function speak<
     providerOptions?: ExtractChatProviderOptionsFromAdapter<TAdapter>;
   }
 ): Promise<TextToSpeechResult> {
-  const { adapter, model, input, voice, providerOptions, ...restOptions } =
+  const { adapter, ...restOptions } =
     options;
 
   if (!adapter.generateSpeech) {
@@ -413,10 +387,6 @@ export async function speak<
   }
 
   return adapter.generateSpeech({
-    model: model as string,
-    input,
-    voice,
-    providerOptions: providerOptions as any,
     ...restOptions,
   });
 }
@@ -434,7 +404,7 @@ export async function video<
     providerOptions?: ExtractVideoProviderOptionsFromAdapter<TAdapter>;
   }
 ): Promise<VideoGenerationResult> {
-  const { adapter, model, prompt, providerOptions } = options;
+  const { adapter, ...restOptions } = options;
 
   if (!adapter.generateVideo) {
     throw new Error(
@@ -443,8 +413,6 @@ export async function video<
   }
 
   return adapter.generateVideo({
-    model: model as string,
-    prompt,
-    providerOptions: providerOptions as any,
+    ...restOptions,
   });
 }
