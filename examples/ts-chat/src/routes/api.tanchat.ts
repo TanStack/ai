@@ -1,6 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { ai, toStreamResponse, maxIterations } from "@tanstack/ai";
 import { openai } from "@tanstack/ai-openai";
+import { ollama } from "@tanstack/ai-ollama";
 import { allTools } from "@/lib/guitar-tools";
 
 const SYSTEM_PROMPT = `You are a helpful assistant for a guitar store.
@@ -31,7 +32,8 @@ export const Route = createFileRoute("/api/tanchat")({
     handlers: {
       POST: async ({ request }) => {
         // Create AI instance with OpenAI adapter
-        const aiInstance = ai(openai());
+        // const aiInstance = ai(openai());
+        const aiInstance = ai(ollama());
 
         // Check for API key
         if (!process.env.OPENAI_API_KEY) {
@@ -53,7 +55,8 @@ export const Route = createFileRoute("/api/tanchat")({
           // Extract abort signal from request for proper cancellation handling
           const stream = aiInstance.chat({
             messages,
-            model: "gpt-4o",
+            // model: "gpt-4o",
+            model: "smollm",
             tools: allTools,
             systemPrompts: [SYSTEM_PROMPT],
             agentLoopStrategy: maxIterations(20),

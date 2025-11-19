@@ -1,16 +1,25 @@
 import type { ModelMessage } from "@tanstack/ai";
-import type {
-  UIMessage,
-  MessagePart,
-  ToolCallPart,
-  ToolResultPart,
-  ChatClientOptions,
-} from "./types";
+import type { UIMessage, ToolCallPart, ChatClientOptions } from "./types";
 import type { ConnectionAdapter } from "./connection-adapters";
 import { StreamProcessor } from "./stream/processor";
 import type { ChunkStrategy, StreamParser } from "./stream/types";
-import { uiMessageToModelMessages } from "./message-converters";
-import { aiEventClient } from "@tanstack/ai/event-client";
+import {
+  uiMessageToModelMessages,
+  normalizeToUIMessage,
+} from "./message-converters";
+import {
+  updateTextPart,
+  updateToolCallPart,
+  updateToolResultPart,
+  updateToolCallApproval,
+  updateToolCallState,
+  updateToolCallWithOutput,
+  updateToolCallApprovalResponse,
+} from "./message-updaters";
+import {
+  ChatClientEventEmitter,
+  DefaultChatClientEventEmitter,
+} from "./events";
 
 export class ChatClient {
   private messages: UIMessage[] = [];
@@ -24,6 +33,7 @@ export class ChatClient {
     parser?: StreamParser;
   };
   private abortController: AbortController | null = null;
+  private events: ChatClientEventEmitter;
 
   private callbacks: {
     onResponse: (response?: Response) => void | Promise<void>;
@@ -41,12 +51,12 @@ export class ChatClient {
   };
 
   constructor(options: ChatClientOptions) {
-    this.uniqueId = options.id || this.generateUniqueId();
+    this.uniqueId = options.id || this.generateUniqueId("chat");
     this.messages = options.initialMessages || [];
     this.body = options.body;
     this.connection = options.connection;
-    // Always use StreamProcessor with default config
     this.streamProcessorConfig = options.streamProcessor || {};
+    this.events = new DefaultChatClientEventEmitter(this.uniqueId);
 
     this.callbacks = {
       onResponse: options.onResponse || (() => {}),
@@ -59,22 +69,15 @@ export class ChatClient {
       onToolCall: options.onToolCall,
     };
 
-    // Emit client created event
-    aiEventClient.emit("client:created", {
-      clientId: this.uniqueId,
-      initialMessageCount: this.messages.length,
-      timestamp: Date.now(),
-    });
+    this.events.clientCreated(this.messages.length);
   }
 
-  private generateUniqueId(): string {
-    return `chat-${Date.now()}-${Math.random().toString(36).substring(7)}`;
+  private generateUniqueId(prefix: string): string {
+    return `${prefix}-${Date.now()}-${Math.random().toString(36).substring(7)}`;
   }
 
   private generateMessageId(): string {
-    return `${this.uniqueId}-${Date.now()}-${Math.random()
-      .toString(36)
-      .substring(7)}`;
+    return this.generateUniqueId(this.uniqueId);
   }
 
   private setMessages(messages: UIMessage[]): void {
@@ -85,25 +88,13 @@ export class ChatClient {
   private setIsLoading(isLoading: boolean): void {
     this.isLoading = isLoading;
     this.callbacks.onLoadingChange(isLoading);
-
-    // Emit loading change event
-    aiEventClient.emit("client:loading-changed", {
-      clientId: this.uniqueId,
-      isLoading,
-      timestamp: Date.now(),
-    });
+    this.events.loadingChanged(isLoading);
   }
 
   private setError(error: Error | undefined): void {
     this.error = error;
     this.callbacks.onErrorChange(error);
-
-    // Emit error change event
-    aiEventClient.emit("client:error-changed", {
-      clientId: this.uniqueId,
-      error: error?.message || null,
-      timestamp: Date.now(),
-    });
+    this.events.errorChanged(error?.message || null);
   }
 
   private async processStream(source: AsyncIterable<any>): Promise<UIMessage> {
@@ -131,164 +122,57 @@ export class ChatClient {
   ): Promise<UIMessage> {
     // Collect raw chunks for debugging
     const rawChunks: any[] = [];
-    const streamId = `stream-${Date.now()}-${Math.random()
-      .toString(36)
-      .substring(7)}`;
+    const streamId = this.generateUniqueId("stream");
 
     const processor = new StreamProcessor({
       chunkStrategy: this.streamProcessorConfig?.chunkStrategy,
       parser: this.streamProcessorConfig?.parser,
       handlers: {
         onTextUpdate: (content) => {
-          // Emit processor text update event with clientId for easier devtools tracking
-          aiEventClient.emit("processor:text-updated", {
-            streamId,
-            content,
-            timestamp: Date.now(),
-          });
-
-          // Also emit a client-specific event for devtools
-          aiEventClient.emit("client:assistant-message-updated", {
-            clientId: this.uniqueId,
-            messageId: assistantMessageId,
-            content,
-            timestamp: Date.now(),
-          });
-
-          // Update the text part in the message
+          this.events.textUpdated(streamId, assistantMessageId, content);
           this.setMessages(
-            this.messages.map((msg) => {
-              if (msg.id === assistantMessageId) {
-                let parts = [...msg.parts];
-                const textPartIndex = parts.findIndex((p) => p.type === "text");
-
-                // Always add/update text part at the end (after tool calls)
-                if (textPartIndex >= 0) {
-                  parts[textPartIndex] = { type: "text", content };
-                } else {
-                  // Remove existing parts temporarily to ensure order
-                  const toolCallParts = parts.filter(
-                    (p) => p.type === "tool-call"
-                  );
-                  const otherParts = parts.filter(
-                    (p) => p.type !== "tool-call" && p.type !== "text"
-                  );
-
-                  // Rebuild: tool calls first, then other parts, then text
-                  parts = [
-                    ...toolCallParts,
-                    ...otherParts,
-                    { type: "text", content },
-                  ];
-                }
-
-                return { ...msg, parts };
-              }
-              return msg;
-            })
+            updateTextPart(this.messages, assistantMessageId, content)
           );
         },
         onToolCallStateChange: (_index, id, name, state, args) => {
-          // Emit processor tool call state change event (for server-side tracking)
-          aiEventClient.emit("processor:tool-call-state-changed", {
+          this.events.toolCallStateChanged(
             streamId,
-            toolCallId: id,
-            toolName: name,
-            state: state,
-            arguments: args,
-            timestamp: Date.now(),
-          });
-
-          // Also emit a client-specific tool call event (for client-side tracking)
-          aiEventClient.emit("client:tool-call-updated", {
-            clientId: this.uniqueId,
-            messageId: assistantMessageId,
-            toolCallId: id,
-            toolName: name,
-            state: state,
-            arguments: args,
-            timestamp: Date.now(),
-          });
+            assistantMessageId,
+            id,
+            name,
+            state,
+            args
+          );
 
           // Update or create tool call part with state
           this.setMessages(
-            this.messages.map((msg) => {
-              if (msg.id === assistantMessageId) {
-                let parts = [...msg.parts];
-                // Find by ID, not index!
-                const existingPartIndex = parts.findIndex(
-                  (p): p is ToolCallPart =>
-                    p.type === "tool-call" && p.id === id
-                );
-
-                const toolCallPart: ToolCallPart = {
-                  type: "tool-call",
-                  id,
-                  name,
-                  arguments: args,
-                  state,
-                };
-
-                if (existingPartIndex >= 0) {
-                  // Update existing tool call
-                  parts[existingPartIndex] = toolCallPart;
-                } else {
-                  // Insert tool call before any text parts
-                  const textPartIndex = parts.findIndex(
-                    (p) => p.type === "text"
-                  );
-                  if (textPartIndex >= 0) {
-                    parts.splice(textPartIndex, 0, toolCallPart);
-                  } else {
-                    parts.push(toolCallPart);
-                  }
-                }
-
-                return { ...msg, parts };
-              }
-              return msg;
+            updateToolCallPart(this.messages, assistantMessageId, {
+              id,
+              name,
+              arguments: args,
+              state,
             })
           );
         },
         onToolResultStateChange: (toolCallId, content, state, error) => {
-          // Emit processor tool result state change event
-          aiEventClient.emit("processor:tool-result-state-changed", {
+          this.events.toolResultStateChanged(
             streamId,
             toolCallId,
             content,
             state,
-            error,
-            timestamp: Date.now(),
-          });
+            error
+          );
 
           // Update or create tool result part
           this.setMessages(
-            this.messages.map((msg) => {
-              if (msg.id === assistantMessageId) {
-                const parts = [...msg.parts];
-                const resultPartIndex = parts.findIndex(
-                  (p): p is ToolResultPart =>
-                    p.type === "tool-result" && p.toolCallId === toolCallId
-                );
-
-                const toolResultPart: ToolResultPart = {
-                  type: "tool-result",
-                  toolCallId,
-                  content,
-                  state,
-                  ...(error && { error }),
-                };
-
-                if (resultPartIndex >= 0) {
-                  parts[resultPartIndex] = toolResultPart;
-                } else {
-                  parts.push(toolResultPart);
-                }
-
-                return { ...msg, parts };
-              }
-              return msg;
-            })
+            updateToolResultPart(
+              this.messages,
+              assistantMessageId,
+              toolCallId,
+              content,
+              state,
+              error
+            )
           );
         },
         onApprovalRequested: async (
@@ -297,39 +181,22 @@ export class ChatClient {
           input,
           approvalId
         ) => {
-          // Emit client-side approval event for devtools
-          aiEventClient.emit("client:approval-requested", {
-            clientId: this.uniqueId,
-            messageId: assistantMessageId,
+          this.events.approvalRequested(
+            assistantMessageId,
             toolCallId,
             toolName,
             input,
-            approvalId,
-            timestamp: Date.now(),
-          });
+            approvalId
+          );
 
           // Update tool call part to show it needs approval
           this.setMessages(
-            this.messages.map((msg) => {
-              if (msg.id === assistantMessageId) {
-                const parts = [...msg.parts];
-                const toolCallPart = parts.find(
-                  (p): p is ToolCallPart =>
-                    p.type === "tool-call" && p.id === toolCallId
-                ) as ToolCallPart;
-
-                if (toolCallPart) {
-                  toolCallPart.state = "approval-requested";
-                  toolCallPart.approval = {
-                    id: approvalId,
-                    needsApproval: true,
-                  };
-                }
-
-                return { ...msg, parts };
-              }
-              return msg;
-            })
+            updateToolCallApproval(
+              this.messages,
+              assistantMessageId,
+              toolCallId,
+              approvalId
+            )
           );
         },
         onToolInputAvailable: async (toolCallId, toolName, input) => {
@@ -361,22 +228,12 @@ export class ChatClient {
           } else {
             // No callback - just mark as input-complete (UI should handle)
             this.setMessages(
-              this.messages.map((msg) => {
-                if (msg.id === assistantMessageId) {
-                  const parts = [...msg.parts];
-                  const toolCallPart = parts.find(
-                    (p): p is ToolCallPart =>
-                      p.type === "tool-call" && p.id === toolCallId
-                  ) as ToolCallPart;
-
-                  if (toolCallPart) {
-                    toolCallPart.state = "input-complete";
-                  }
-
-                  return { ...msg, parts };
-                }
-                return msg;
-              })
+              updateToolCallState(
+                this.messages,
+                assistantMessageId,
+                toolCallId,
+                "input-complete"
+              )
             );
           }
         },
@@ -397,7 +254,6 @@ export class ChatClient {
 
     await processor.process(wrappedSource);
 
-    // Return the final message
     const finalMessage = this.messages.find(
       (msg) => msg.id === assistantMessageId
     );
@@ -413,64 +269,13 @@ export class ChatClient {
   }
 
   async append(message: UIMessage | ModelMessage): Promise<void> {
-    // Convert ModelMessage to UIMessage if needed
-    let uiMessage: UIMessage;
-
-    if ("parts" in message) {
-      // Already a UIMessage
-      uiMessage = {
-        ...message,
-        id: message.id || this.generateMessageId(),
-        createdAt: message.createdAt || new Date(),
-      };
-    } else {
-      // ModelMessage - convert to UIMessage
-      const parts: MessagePart[] = [];
-      if (message.content) {
-        parts.push({ type: "text", content: message.content });
-      }
-      if (message.toolCalls) {
-        for (const tc of message.toolCalls) {
-          parts.push({
-            type: "tool-call",
-            id: tc.id,
-            name: tc.function.name,
-            arguments: tc.function.arguments,
-            state: "input-complete",
-          });
-        }
-      }
-      if (message.role === "tool" && message.toolCallId) {
-        parts.push({
-          type: "tool-result",
-          toolCallId: message.toolCallId,
-          content: message.content || "",
-          state: "complete",
-        });
-      }
-
-      uiMessage = {
-        id: this.generateMessageId(),
-        role: message.role === "tool" ? "assistant" : message.role,
-        parts,
-        createdAt: new Date(),
-      };
-    }
+    // Normalize message to UIMessage with guaranteed id and createdAt
+    const uiMessage = normalizeToUIMessage(message, () =>
+      this.generateMessageId()
+    );
 
     // Emit message appended event
-    const contentPreview = uiMessage.parts
-      .filter((p) => p.type === "text")
-      .map((p) => (p as any).content)
-      .join(" ")
-      .substring(0, 100);
-
-    aiEventClient.emit("client:message-appended", {
-      clientId: this.uniqueId,
-      messageId: uiMessage.id,
-      role: uiMessage.role,
-      contentPreview,
-      timestamp: Date.now(),
-    });
+    this.events.messageAppended(uiMessage);
 
     // Add message immediately
     this.setMessages([...this.messages, uiMessage]);
@@ -497,7 +302,6 @@ export class ChatClient {
         this.abortController.signal
       );
 
-      // Process the stream
       const assistantMessage = await this.processStream(stream);
 
       // Call onFinish callback
@@ -530,13 +334,7 @@ export class ChatClient {
       createdAt: new Date(),
     };
 
-    // Emit message sent event
-    aiEventClient.emit("client:message-sent", {
-      clientId: this.uniqueId,
-      messageId: userMessage.id,
-      content: content.trim(),
-      timestamp: Date.now(),
-    });
+    this.events.messageSent(userMessage.id, content.trim());
 
     await this.append(userMessage);
   }
@@ -545,22 +343,13 @@ export class ChatClient {
     if (this.messages.length === 0) return;
 
     // Find the last user message
-    let lastUserMessageIndex = -1;
-    for (let i = this.messages.length - 1; i >= 0; i--) {
-      if (this.messages[i].role === "user") {
-        lastUserMessageIndex = i;
-        break;
-      }
-    }
+    const lastUserMessageIndex = this.messages.findLastIndex(
+      (m: UIMessage) => m.role === "user"
+    );
 
     if (lastUserMessageIndex === -1) return;
 
-    // Emit reload event
-    aiEventClient.emit("client:reloaded", {
-      clientId: this.uniqueId,
-      fromMessageIndex: lastUserMessageIndex,
-      timestamp: Date.now(),
-    });
+    this.events.reloaded(lastUserMessageIndex);
 
     // Remove all messages after the last user message
     const messagesToKeep = this.messages.slice(0, lastUserMessageIndex + 1);
@@ -576,23 +365,13 @@ export class ChatClient {
       this.abortController = null;
     }
     this.setIsLoading(false);
-
-    // Emit stop event
-    aiEventClient.emit("client:stopped", {
-      clientId: this.uniqueId,
-      timestamp: Date.now(),
-    });
+    this.events.stopped();
   }
 
   clear(): void {
     this.setMessages([]);
     this.setError(undefined);
-
-    // Emit clear event
-    aiEventClient.emit("client:messages-cleared", {
-      clientId: this.uniqueId,
-      timestamp: Date.now(),
-    });
+    this.events.messagesCleared();
   }
 
   /**
@@ -605,35 +384,22 @@ export class ChatClient {
     state?: "output-available" | "output-error";
     errorText?: string;
   }): Promise<void> {
-    // Emit tool result added event
-    aiEventClient.emit("tool:result-added", {
-      clientId: this.uniqueId,
-      toolCallId: result.toolCallId,
-      toolName: result.tool,
-      output: result.output,
-      state: result.state || "output-available",
-      timestamp: Date.now(),
-    });
+    this.events.toolResultAdded(
+      result.toolCallId,
+      result.tool,
+      result.output,
+      result.state || "output-available"
+    );
 
     // Update the tool call part with the output
     this.setMessages(
-      this.messages.map((msg) => {
-        const parts = [...msg.parts];
-        const toolCallPart = parts.find(
-          (p): p is ToolCallPart =>
-            p.type === "tool-call" && p.id === result.toolCallId
-        ) as ToolCallPart;
-
-        if (toolCallPart) {
-          toolCallPart.output = result.output;
-          toolCallPart.state = "input-complete";
-
-          if (result.errorText) {
-            toolCallPart.output = { error: result.errorText };
-          }
-        }
-        return { ...msg, parts };
-      })
+      updateToolCallWithOutput(
+        this.messages,
+        result.toolCallId,
+        result.output,
+        result.state === "output-error" ? "input-complete" : undefined,
+        result.errorText
+      )
     );
 
     // Check if we should auto-send
@@ -644,53 +410,46 @@ export class ChatClient {
   }
 
   /**
+   * Find the tool call ID for a given approval ID
+   */
+  private findToolCallIdByApprovalId(approvalId: string): string | undefined {
+    for (const msg of this.messages) {
+      const toolCallPart = msg.parts.find(
+        (p): p is ToolCallPart =>
+          p.type === "tool-call" && p.approval?.id === approvalId
+      ) as ToolCallPart | undefined;
+
+      if (toolCallPart) {
+        return toolCallPart.id;
+      }
+    }
+    return undefined;
+  }
+
+  /**
    * Respond to a tool approval request
    */
   async addToolApprovalResponse(response: {
     id: string; // approval.id, not toolCallId
     approved: boolean;
   }): Promise<void> {
-    // Find the tool call ID for this approval
-    let foundToolCallId: string | undefined;
-    for (const msg of this.messages) {
-      const toolCallPart = msg.parts.find(
-        (p): p is ToolCallPart =>
-          p.type === "tool-call" && p.approval?.id === response.id
-      ) as ToolCallPart | undefined;
-
-      if (toolCallPart) {
-        foundToolCallId = toolCallPart.id;
-        break;
-      }
-    }
+    const foundToolCallId = this.findToolCallIdByApprovalId(response.id);
 
     if (foundToolCallId) {
-      // Emit tool approval responded event
-      aiEventClient.emit("tool:approval-responded", {
-        clientId: this.uniqueId,
-        approvalId: response.id,
-        toolCallId: foundToolCallId,
-        approved: response.approved,
-        timestamp: Date.now(),
-      });
+      this.events.toolApprovalResponded(
+        response.id,
+        foundToolCallId,
+        response.approved
+      );
     }
 
     // Find and update the tool call part with approval decision
     this.setMessages(
-      this.messages.map((msg) => {
-        const parts = [...msg.parts];
-        const toolCallPart = parts.find(
-          (p): p is ToolCallPart =>
-            p.type === "tool-call" && p.approval?.id === response.id
-        ) as ToolCallPart;
-
-        if (toolCallPart && toolCallPart.approval) {
-          toolCallPart.approval.approved = response.approved;
-          toolCallPart.state = "approval-responded";
-        }
-
-        return { ...msg, parts };
-      })
+      updateToolCallApprovalResponse(
+        this.messages,
+        response.id,
+        response.approved
+      )
     );
 
     // Check if we should auto-send
@@ -744,9 +503,9 @@ export class ChatClient {
    * Check if all tool calls are complete and we should auto-send
    */
   private shouldAutoSend(): boolean {
-    const lastAssistant = [...this.messages]
-      .reverse()
-      .find((m) => m.role === "assistant");
+    const lastAssistant = this.messages.findLast(
+      (m: UIMessage) => m.role === "assistant"
+    );
 
     if (!lastAssistant) return false;
 
