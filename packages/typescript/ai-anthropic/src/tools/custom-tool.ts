@@ -1,4 +1,5 @@
 import { CacheControl } from "../text/text-provider-options";
+import type { Tool } from "@tanstack/ai";
 
 export interface CustomTool {
   /**
@@ -20,4 +21,33 @@ export interface CustomTool {
   }
 
   cache_control?: CacheControl | null
+}
+
+export function convertCustomToolToAdapterFormat(tool: Tool): CustomTool {
+  const metadata = tool.metadata as { cacheControl?: CacheControl | null };
+  return {
+    name: tool.function.name,
+    type: "custom",
+    description: tool.function.description,
+    input_schema: {
+      type: "object",
+      properties: (tool.function.parameters as any)?.properties || null,
+      required: (tool.function.parameters as any)?.required || null,
+    },
+    cache_control: metadata.cacheControl || null,
+  };
+}
+
+export function customTool(name: string, description: string, parameters: Record<string, any>, cacheControl?: CacheControl | null): Tool {
+  return {
+    type: "function",
+    function: {
+      name,
+      description,
+      parameters
+    },
+    metadata: {
+      cacheControl
+    }
+  }
 }

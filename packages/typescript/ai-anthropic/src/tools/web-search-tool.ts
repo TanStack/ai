@@ -1,4 +1,5 @@
 import { CacheControl } from "../text/text-provider-options";
+import type { Tool } from "@tanstack/ai";
 
 export interface WebSearchTool {
   name: "web_search";
@@ -62,6 +63,37 @@ export const validateUserLocation = (userLocation: WebSearchTool["user_location"
     }
     if (userLocation.timezone && (userLocation.timezone.length < 1 || userLocation.timezone.length > 255)) {
       throw new Error("user_location.timezone must be between 1 and 255 characters.");
+    }
+  }
+}
+
+export function convertWebSearchToolToAdapterFormat(tool: Tool): WebSearchTool {
+  const metadata = tool.metadata as { allowedDomains?: string[] | null; blockedDomains?: string[] | null; maxUses?: number | null; userLocation?: { type: "approximate"; city?: string | null; country?: string | null; region?: string | null; timezone?: string | null } | null; cacheControl?: CacheControl | null };
+  return {
+    name: "web_search",
+    type: "web_search_20250305",
+    allowed_domains: metadata.allowedDomains,
+    blocked_domains: metadata.blockedDomains,
+    max_uses: metadata.maxUses,
+    user_location: metadata.userLocation,
+    cache_control: metadata.cacheControl || null,
+  };
+}
+
+export function webSearchTool(config?: { allowedDomains?: string[] | null; blockedDomains?: string[] | null; maxUses?: number | null; userLocation?: { type: "approximate"; city?: string | null; country?: string | null; region?: string | null; timezone?: string | null } | null; cacheControl?: CacheControl | null }): Tool {
+  return {
+    type: "function",
+    function: {
+      name: "web_search",
+      description: "",
+      parameters: {}
+    },
+    metadata: {
+      allowedDomains: config?.allowedDomains,
+      blockedDomains: config?.blockedDomains,
+      maxUses: config?.maxUses,
+      userLocation: config?.userLocation,
+      cacheControl: config?.cacheControl
     }
   }
 }

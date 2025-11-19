@@ -97,6 +97,8 @@ export interface Tool {
   execute?: (args: any) => Promise<string> | string;
   /** If true, tool execution requires user approval before running. Works with both server and client tools. */
   needsApproval?: boolean;
+
+  metadata?: Record<string, any>;
 }
 
 export interface ToolConfig {
