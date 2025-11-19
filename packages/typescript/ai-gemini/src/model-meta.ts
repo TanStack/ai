@@ -605,6 +605,7 @@ const GEMINI_EMBEDDING = {
 } as const satisfies ModelMeta;
 
 export const GEMINI_MODELS = [
+  GEMINI_3_PRO.name,
   GEMINI_2_5_PRO.name,
   GEMINI_2_5_FLASH.name,
   GEMINI_2_5_FLASH_PREVIEW.name,
