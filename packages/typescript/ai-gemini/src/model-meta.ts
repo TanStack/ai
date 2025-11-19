@@ -644,3 +644,5 @@ export const GEMINI_VIDEO_MODELS = [
   VEO_3_FAST.name,
   VEO_2.name
 ] as const;
+
+export type GeminiChatModels = typeof GEMINI_MODELS[number];
