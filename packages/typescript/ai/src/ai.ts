@@ -577,10 +577,7 @@ class AI<
       messages: ChatCompletionOptions["messages"];
       tools?: ReadonlyArray<Tool>;
       systemPrompts?: string[];
-      options?: Omit<
-        ChatCompletionOptions,
-        "model" | "messages" | "tools" | "providerOptions" | "responseFormat"
-      >;
+      options?: CommonOptions;
       providerOptions?: ExtractChatProviderOptions<TAdapter>;
     } & TOptions
   ): Promise<ChatCompletionReturnType<TOptions>> {

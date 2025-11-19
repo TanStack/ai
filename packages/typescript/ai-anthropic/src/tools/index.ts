@@ -8,3 +8,6 @@ import { WebFetchTool } from "./web-fetch-tool";
 import { WebSearchTool } from "./web-search-tool";
 
 export type AnthropicTool = BashTool | CodeExecutionTool | ComputerUseTool | CustomTool | MemoryTool | TextEditorTool | WebFetchTool | WebSearchTool
+
+// Export individual tool types
+export type { BashTool, CodeExecutionTool, ComputerUseTool, CustomTool, MemoryTool, TextEditorTool, WebFetchTool, WebSearchTool };

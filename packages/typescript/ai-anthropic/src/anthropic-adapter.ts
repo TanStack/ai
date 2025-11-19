@@ -14,6 +14,8 @@ import {
   type StreamChunk,
 } from "@tanstack/ai";
 import { ANTHROPIC_AUDIO_MODELS, ANTHROPIC_EMBEDDING_MODELS, ANTHROPIC_IMAGE_MODELS, ANTHROPIC_MODELS, ANTHROPIC_VIDEO_MODELS } from "./model-meta";
+import { convertToolsToProviderFormat } from "./tools/tool-converter";
+import { TextProviderOptions } from "./text/text-provider-options";
 
 export interface AnthropicConfig {
   apiKey: string;
@@ -47,14 +49,17 @@ export interface AnthropicProviderOptions {
 function mapCommonOptionsToAnthropic(
   options: ChatCompletionOptions,
   providerOpts?: AnthropicProviderOptions
-): any {
-  const requestParams: any = {
+): TextProviderOptions {
+  const requestParams: TextProviderOptions = {
     model: options.model,
     max_tokens: options.maxTokens || 1024,
     temperature: options.temperature,
     top_p: options.topP,
     stop_sequences: options.stopSequences,
     stream: options.stream || false,
+    messages: [],
+    tools: options.tools ? convertToolsToProviderFormat(options.tools) : undefined,
+    tool_choice:
   };
 
   if (options.metadata) {
@@ -63,18 +68,12 @@ function mapCommonOptionsToAnthropic(
 
   // Map tools if provided
   if (options.tools && options.tools.length > 0) {
-    requestParams.tools = options.tools.map((t) => ({
-      name: t.function.name,
-      description: t.function.description,
-      input_schema: t.function.parameters,
-    }));
+
 
     // Map tool choice
     if (options.toolChoice) {
       if (options.toolChoice === "auto") {
         requestParams.tool_choice = { type: "auto" };
-      } else if (options.toolChoice === "required") {
-        requestParams.tool_choice = { type: "any" };
       } else if (typeof options.toolChoice === "object") {
         requestParams.tool_choice = {
           type: "tool",
