@@ -1,3 +1,5 @@
+import type { Tool } from "@tanstack/ai";
+
 export interface FileSearchTool {
   /**
    * The names of the fileSearchStores to retrieve from. Example: fileSearchStores/my-file-search-store-123
@@ -13,8 +15,29 @@ export interface FileSearchTool {
   topK?: number;
 }
 
-export const fileSearchTool = (config: FileSearchTool) => {
+export function convertFileSearchToolToAdapterFormat(tool: Tool) {
+  const metadata = tool.metadata as { fileSearchStoreNames: string[]; metadataFilter?: string; topK?: number };
   return {
-    "fileSearch": config
+    fileSearch: {
+      fileSearchStoreNames: metadata.fileSearchStoreNames,
+      metadataFilter: metadata.metadataFilter,
+      topK: metadata.topK
+    }
+  };
+}
+
+export function fileSearchTool(config: { fileSearchStoreNames: string[]; metadataFilter?: string; topK?: number }): Tool {
+  return {
+    type: "function",
+    function: {
+      name: "file_search",
+      description: "",
+      parameters: {}
+    },
+    metadata: {
+      fileSearchStoreNames: config.fileSearchStoreNames,
+      metadataFilter: config.metadataFilter,
+      topK: config.topK
+    }
   }
 }

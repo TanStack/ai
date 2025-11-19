@@ -1,3 +1,4 @@
+import type { Tool } from "@tanstack/ai";
 import { OpenAIImageModel } from "../openai-adapter";
 
 export interface ImageGenerationTool {
@@ -65,3 +66,44 @@ export const validatePartialImages = (value: number | undefined) => {
     throw new Error("partial_images must be between 0 and 3");
   }
 };
+
+/**
+ * Converts a standard Tool to OpenAI ImageGenerationTool format
+ */
+export function convertImageGenerationToolToAdapterFormat(tool: Tool): ImageGenerationTool {
+  const metadata = tool.metadata as ImageGenerationTool;
+  return {
+    type: "image_generation",
+    background: metadata.background,
+    input_fidelity: metadata.input_fidelity,
+    input_image_mask: metadata.input_image_mask,
+    model: metadata.model,
+    moderation: metadata.moderation,
+    output_compression: metadata.output_compression,
+    output_format: metadata.output_format,
+    partial_images: metadata.partial_images,
+    quality: metadata.quality,
+    size: metadata.size,
+  };
+}
+
+/**
+ * Creates a standard Tool from ImageGenerationTool parameters
+ */
+export function imageGenerationTool(
+  toolData: ImageGenerationTool
+): Tool {
+
+  validatePartialImages(toolData.partial_images);
+  return {
+    type: "function",
+    function: {
+      name: "image_generation",
+      description: "Generate images based on text descriptions",
+      parameters: {},
+    },
+    metadata: {
+      ...toolData
+    },
+  };
+}

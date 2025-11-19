@@ -1,13 +1,7 @@
-import { FunctionDeclarationsTool } from "@google/generative-ai";
+
 import { GeminiChatModels } from "../model-meta";
-import { CodeExecutionTool } from "../tools/code-execution-tool";
-import { ComputerUseTool } from "../tools/computer-use-tool";
-import { FileSearchTool } from "../tools/file-search-tool";
-import { GoogleMapsTool } from "../tools/google-maps-tool";
-import { GoogleSearchRetrievalTool } from "../tools/google-search-retriveal-tool";
-import { GoogleSearchTool } from "../tools/google-search-tool";
-import { UrlContextTool } from "../tools/url-context-tool";
 import { Schema } from "../tools/function-declaration-tool";
+import { GoogleGeminiTool } from "../tools";
 
 export interface TextProviderOptions {
   // path parameter
@@ -25,7 +19,7 @@ For single-turn queries, this is a single instance. For multi-turn queries like 
    * A list of Tools the Model may use to generate the next response.
    * A Tool is a piece of code that enables the system to interact with external systems to perform an action, or set of actions, outside of knowledge and scope of the Model. Supported Tools are Function and codeExecution. 
    */
-  tools?: CodeExecutionTool | ComputerUseTool | FileSearchTool | FunctionDeclarationsTool | GoogleMapsTool | GoogleSearchRetrievalTool | GoogleSearchTool | UrlContextTool[]
+  tools?: GoogleGeminiTool[];
   /**
    * Tool configuration for any Tool specified in the request.
    */

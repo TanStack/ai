@@ -1,3 +1,5 @@
+import type { Tool } from "@tanstack/ai";
+
 export interface MCPTool {
   type: "mcp"
   /**
@@ -63,4 +65,47 @@ export const validateMCPtool = (tool: MCPTool) => {
   if (tool.connector_id && tool.server_url) {
     throw new Error("Only one of server_url or connector_id can be provided.");
   }
+}
+
+/**
+ * Converts a standard Tool to OpenAI MCPTool format
+ */
+export function convertMCPToolToAdapterFormat(tool: Tool): MCPTool {
+  const metadata = tool.metadata as MCPTool;
+
+  const mcpTool: MCPTool = {
+    type: "mcp",
+    server_label: metadata.server_label,
+    allowed_tools: metadata.allowed_tools,
+    authorization: metadata.authorization,
+    connector_id: metadata.connector_id,
+    headers: metadata.headers,
+    require_approval: metadata.require_approval,
+    server_description: metadata.server_description,
+    server_url: metadata.server_url,
+  };
+
+  validateMCPtool(mcpTool);
+  return mcpTool;
+}
+
+/**
+ * Creates a standard Tool from MCPTool parameters
+ */
+export function mcpTool(
+  toolData: MCPTool
+): Tool {
+  validateMCPtool(toolData);
+
+  return {
+    type: "function",
+    function: {
+      name: "mcp",
+      description: toolData.server_description || "Model Context Protocol tool",
+      parameters: {},
+    },
+    metadata: {
+      ...toolData,
+    },
+  };
 }

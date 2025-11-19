@@ -1,3 +1,5 @@
+import type { Tool } from "@tanstack/ai";
+
 export interface ComputerUseTool {
   environment: "ENVIRONMENT_UNSPECIFIED" | "ENVIRONMENT_BROWSER";
   /**
@@ -6,8 +8,27 @@ export interface ComputerUseTool {
   excludedPredefinedFunctions?: string[];
 }
 
-export const computerUseTool = (config?: ComputerUseTool) => {
+export function convertComputerUseToolToAdapterFormat(tool: Tool) {
+  const metadata = tool.metadata as { environment: "ENVIRONMENT_UNSPECIFIED" | "ENVIRONMENT_BROWSER"; excludedPredefinedFunctions?: string[] };
   return {
-    "computerUse": config || {}
+    computerUse: {
+      environment: metadata.environment,
+      excludedPredefinedFunctions: metadata.excludedPredefinedFunctions
+    }
+  };
+}
+
+export function computerUseTool(config: { environment: "ENVIRONMENT_UNSPECIFIED" | "ENVIRONMENT_BROWSER"; excludedPredefinedFunctions?: string[] }): Tool {
+  return {
+    type: "function",
+    function: {
+      name: "computer_use",
+      description: "",
+      parameters: {}
+    },
+    metadata: {
+      environment: config.environment,
+      excludedPredefinedFunctions: config.excludedPredefinedFunctions
+    }
   }
 }
