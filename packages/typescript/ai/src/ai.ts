@@ -22,6 +22,7 @@ import { ToolCallManager } from "./tool-call-manager";
 import { executeToolCalls } from "./agent/executor";
 import { maxIterations as maxIterationsStrategy } from "./agent-loop-strategies";
 import { aiEventClient } from "./event-client.js";
+import { CommonOptions } from "./common-options";
 
 // Extract types from a single adapter
 type ExtractModels<T> = T extends AIAdapter<
@@ -198,16 +199,9 @@ class AI<
     tools?: ReadonlyArray<Tool>;
     systemPrompts?: string[];
     agentLoopStrategy?: ChatCompletionOptions["agentLoopStrategy"];
-    options?: Omit<
-      ChatCompletionOptions,
-      | "model"
-      | "messages"
-      | "tools"
-      | "providerOptions"
-      | "responseFormat"
-      | "agentLoopStrategy"
-    >;
+    options?: CommonOptions
     providerOptions?: ExtractChatProviderOptions<TAdapter>;
+    abortSignal?: AbortSignal;
     __clientId?: string; // For devtools linking between client and server
   }): AsyncIterable<StreamChunk> {
     const {
@@ -218,10 +212,11 @@ class AI<
       agentLoopStrategy,
       options = {},
       providerOptions,
+      abortSignal
     } = params;
 
     // Extract abortSignal from options
-    const { abortSignal, ...restOptions } = options;
+    const { ...restOptions } = options;
 
     const requestId = `chat-${Date.now()}-${Math.random()
       .toString(36)
