@@ -155,10 +155,6 @@ export class Anthropic extends BaseAdapter<
     // Force stream to false for non-streaming
     requestParams.stream = false;
 
-    // Set default model if not provided
-    if (!requestParams.model) {
-      requestParams.model = "claude-3-sonnet-20240229";
-    }
 
     // Extract custom headers and abort signal
     const customHeaders = requestParams._headers;

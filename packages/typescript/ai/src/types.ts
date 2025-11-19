@@ -228,7 +228,7 @@ export type AgentLoopStrategy = (state: AgentLoopState) => boolean;
 export interface ChatCompletionOptions {
   model: string;
   messages: ModelMessage[];
-  tools?: ReadonlyArray<Tool>;
+  tools?: Array<Tool>;
   systemPrompts?: string[];
   agentLoopStrategy?: AgentLoopStrategy;
   options?: CommonOptions;

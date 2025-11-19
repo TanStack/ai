@@ -13,8 +13,11 @@ import {
   type ImageGenerationOptions,
   type ImageGenerationResult,
   type ImageData,
+  StreamChunk,
 } from "@tanstack/ai";
 import { OPENAI_CHAT_MODELS, OPENAI_IMAGE_MODELS, OPENAI_EMBEDDING_MODELS, OPENAI_AUDIO_MODELS, OPENAI_VIDEO_MODELS, OPENAI_TRANSCRIPTION_MODELS } from "./model-meta";
+import { convertMessagesToInput, TextProviderOptions } from "./text/text-provider-options";
+import { convertToolsToProviderFormat } from "./tools";
 
 export interface OpenAIConfig {
   apiKey: string;
@@ -41,6 +44,7 @@ export interface OpenAIChatProviderOptions {
   // Storage and tracking
   /** Whether to store the generation. Defaults to false */
   store?: boolean;
+
 
   // Advanced features
   /** Modifies likelihood of specific tokens appearing (token_id: bias from -100 to 100) */
@@ -108,148 +112,20 @@ export interface OpenAIChatProviderOptions {
  * Maps common options to OpenAI-specific format
  * Handles translation of normalized options to OpenAI's API format
  */
-export function mapCommonOptionsToOpenAI(
+export function mapChatOptionsToOpenAI(
   options: ChatCompletionOptions,
-  providerOpts?: OpenAIChatProviderOptions
 ): OpenAIChatProviderOptions {
-  const requestParams: any = {
+  const providerOptions = options.providerOptions as Omit<TextProviderOptions, 'tools' | "metadata" | "temperature"> | undefined;
+  const requestParams: TextProviderOptions = {
     model: options.model,
-    messages: options.messages,
-    temperature: options.temperature,
-    max_tokens: options.maxTokens,
-    top_p: options.topP,
-    frequency_penalty: options.frequencyPenalty,
-    presence_penalty: options.presencePenalty,
-    stop: options.stopSequences,
-    stream: options.stream || false,
-    seed: options.seed,
+    temperature: options.options?.temperature,
+    max_output_tokens: options.options?.maxTokens,
+    top_p: options.options?.topP,
+    metadata: options.options?.metadata,
+    ...providerOptions,
+    input: convertMessagesToInput(options.messages),
+    tools: options.tools ? convertToolsToProviderFormat([...options.tools]) : undefined,
   };
-
-  if (options.metadata) {
-    requestParams.metadata = options.metadata;
-  }
-
-  // Map user identifier (common option)
-  if (options.user) {
-    requestParams.user = options.user;
-  }
-
-  // Map tools if provided
-  if (options.tools && options.tools.length > 0) {
-    requestParams.tools = options.tools.map((t) => ({
-      type: t.type,
-      function: {
-        name: t.function.name,
-        description: t.function.description,
-        parameters: t.function.parameters,
-        strict: providerOpts?.strictJsonSchema,
-      },
-    }));
-
-    // Map tool choice
-    if (options.toolChoice) {
-      if (options.toolChoice === "auto") {
-        requestParams.tool_choice = "auto";
-      } else if (options.toolChoice === "none") {
-        requestParams.tool_choice = "none";
-      } else if (options.toolChoice === "required") {
-        requestParams.tool_choice = "required";
-      } else if (typeof options.toolChoice === "object") {
-        requestParams.tool_choice = {
-          type: "function",
-          function: { name: options.toolChoice.function.name },
-        };
-      }
-    }
-  }
-
-  // Map response format
-  if (options.responseFormat) {
-    if (options.responseFormat.type === "json_object") {
-      requestParams.response_format = { type: "json_object" };
-    } else if (options.responseFormat.type === "json_schema" && options.responseFormat.json_schema) {
-      requestParams.response_format = {
-        type: "json_schema",
-        json_schema: {
-          name: options.responseFormat.json_schema.name,
-          description: options.responseFormat.json_schema.description,
-          schema: options.responseFormat.json_schema.schema,
-          strict: options.responseFormat.json_schema.strict ?? providerOpts?.strictJsonSchema ?? true,
-        },
-      };
-    }
-  }
-
-  // Apply OpenAI-specific provider options
-  if (providerOpts) {
-    // Storage and tracking
-    if (providerOpts.store !== undefined) {
-      requestParams.store = providerOpts.store;
-    }
-
-    // Advanced features
-    if (providerOpts.logitBias) {
-      requestParams.logit_bias = providerOpts.logitBias;
-    }
-    if (providerOpts.logprobs !== undefined) {
-      if (typeof providerOpts.logprobs === 'boolean') {
-        requestParams.logprobs = providerOpts.logprobs;
-      } else {
-        requestParams.logprobs = true;
-        requestParams.top_logprobs = providerOpts.logprobs;
-      }
-    }
-    if (providerOpts.topLogprobs !== undefined) {
-      requestParams.top_logprobs = providerOpts.topLogprobs;
-    }
-
-    // Reasoning models
-    if (providerOpts.reasoningEffort) {
-      requestParams.reasoning_effort = providerOpts.reasoningEffort;
-    }
-    if (providerOpts.maxCompletionTokens) {
-      requestParams.max_completion_tokens = providerOpts.maxCompletionTokens;
-    }
-
-    // Service configuration
-    if (providerOpts.serviceTier) {
-      requestParams.service_tier = providerOpts.serviceTier;
-    }
-
-    // Prediction/prefill
-    if (providerOpts.prediction) {
-      requestParams.prediction = providerOpts.prediction;
-    }
-
-    // Audio
-    if (providerOpts.audio) {
-      requestParams.audio = providerOpts.audio;
-    }
-    if (providerOpts.modalities) {
-      requestParams.modalities = providerOpts.modalities;
-    }
-
-    // Search
-    if (providerOpts.webSearchOptions) {
-      requestParams.web_search = providerOpts.webSearchOptions;
-    }
-
-    // Response configuration
-    if (providerOpts.n) {
-      requestParams.n = providerOpts.n;
-    }
-    if (providerOpts.streamOptions) {
-      requestParams.stream_options = providerOpts.streamOptions;
-    }
-  }
-
-  // Custom headers and abort signal handled at HTTP client level
-  if (options.headers) {
-    requestParams._headers = options.headers;
-  }
-  if (options.abortSignal) {
-    requestParams._abortSignal = options.abortSignal;
-  }
 
   return requestParams;
 }
@@ -365,136 +241,67 @@ export class OpenAI extends BaseAdapter<
   async chatCompletion(
     options: ChatCompletionOptions
   ): Promise<ChatCompletionResult> {
-    const providerOpts = options.providerOptions as OpenAIChatProviderOptions | undefined;
 
     // Map common options to OpenAI format using the centralized mapping function
-    const requestParams = mapCommonOptionsToOpenAI(options, providerOpts);
-
-    // Transform messages to OpenAI format
-    requestParams.messages = options.messages.map((msg) => {
-      if (msg.role === "tool" && msg.toolCallId) {
-        return {
-          role: "tool" as const,
-          content: msg.content || "",
-          tool_call_id: msg.toolCallId,
-        };
-      }
-      if (msg.role === "assistant" && msg.toolCalls) {
-        return {
-          role: "assistant" as const,
-          content: msg.content,
-          tool_calls: msg.toolCalls.map((tc) => ({
-            id: tc.id,
-            type: tc.type,
-            function: tc.function,
-          })),
-        };
-      }
-      return {
-        role: msg.role as "system" | "user" | "assistant",
-        content: msg.content || "",
-        name: msg.name,
-      };
-    });
-
-    // Force stream to false for non-streaming
-    requestParams.stream = false;
-
-    // Set default model if not provided
-    if (!requestParams.model) {
-      requestParams.model = "gpt-3.5-turbo";
-    }
+    const requestParams = mapChatOptionsToOpenAI(options);
 
     // Extract custom headers and abort signal (handled separately)
-    const customHeaders = requestParams._headers;
-    const abortSignal = requestParams._abortSignal;
-    delete requestParams._headers;
-    delete requestParams._abortSignal;
+    const abortSignal = options.abortSignal;
 
-    const response = await this.client.chat.completions.create(
-      requestParams,
+    const response = await this.client.responses.create(
       {
-        headers: customHeaders,
+        stream: false,
+        ...requestParams
+      },
+      {
         signal: abortSignal
       }
     );
 
-    const choice = response.choices[0];
+    // response.output is an array of output items
+    const outputItems = response.output;
+
+    // Find the message output item
+    const messageItem = outputItems.find((item: any) => item.type === 'message') as any;
+    const content = messageItem?.content?.[0]?.text || "";
+
+    // Find function call items
+    const functionCalls = outputItems.filter((item: any) => item.type === 'function_call');
+    const toolCalls = functionCalls.length > 0 ? functionCalls.map((fc: any) => ({
+      id: fc.call_id,
+      type: "function" as const,
+      function: {
+        name: fc.name,
+        arguments: JSON.stringify(fc.arguments)
+      }
+    })) : undefined;
 
     return {
       id: response.id,
       model: response.model,
-      content: choice.message.content,
+      content,
       role: "assistant",
-      finishReason: choice.finish_reason as any,
-      toolCalls: choice.message.tool_calls?.map((tc) => ({
-        id: tc.id,
-        type: tc.type,
-        function: tc.function,
-      })),
+      finishReason: messageItem?.status as any,
+      toolCalls,
       usage: {
-        promptTokens: response.usage?.prompt_tokens || 0,
-        completionTokens: response.usage?.completion_tokens || 0,
+        promptTokens: response.usage?.input_tokens || 0,
+        completionTokens: response.usage?.output_tokens || 0,
         totalTokens: response.usage?.total_tokens || 0,
-      },
+      }
     };
-  }
-
-  async *chatCompletionStream(
+  } async *chatCompletionStream(
     options: ChatCompletionOptions
   ): AsyncIterable<ChatCompletionChunk> {
-    const providerOpts = options.providerOptions as OpenAIChatProviderOptions | undefined;
-
     // Map common options to OpenAI format
-    const requestParams = mapCommonOptionsToOpenAI(options, providerOpts);
+    const requestParams = mapChatOptionsToOpenAI(options);
 
-    // Transform messages to OpenAI format
-    requestParams.messages = options.messages.map((msg) => {
-      if (msg.role === "tool" && msg.toolCallId) {
-        return {
-          role: "tool" as const,
-          content: msg.content || "",
-          tool_call_id: msg.toolCallId,
-        };
-      }
-      if (msg.role === "assistant" && msg.toolCalls) {
-        return {
-          role: "assistant" as const,
-          content: msg.content,
-          tool_calls: msg.toolCalls.map((tc) => ({
-            id: tc.id,
-            type: tc.type,
-            function: tc.function,
-          })),
-        };
-      }
-      return {
-        role: msg.role as "system" | "user" | "assistant",
-        content: msg.content || "",
-        name: msg.name,
-      };
-    });
-
-    // Force stream to true
-    requestParams.stream = true;
-
-    // Set default model if not provided
-    if (!requestParams.model) {
-      requestParams.model = "gpt-3.5-turbo";
-    }
-
-    // Extract custom headers and abort signal
-    const customHeaders = requestParams._headers;
-    const abortSignal = requestParams._abortSignal;
-    delete requestParams._headers;
-    delete requestParams._abortSignal;
+    const abortSignal = options.abortSignal;
 
     // Create with explicit streaming enabled - OpenAI SDK will return a Stream
-    const streamResult = await this.client.chat.completions.create(
-      requestParams,
+    const streamResult = await this.client.responses.create(
+      { ...requestParams, stream: true },
       {
-        headers: customHeaders as Record<string, string> | undefined,
-        signal: abortSignal as AbortSignal | undefined
+        signal: abortSignal
       }
     );
 
@@ -509,7 +316,7 @@ export class OpenAI extends BaseAdapter<
           model: chunk.model,
           content: delta.content,
           role: delta.role as "assistant" | undefined,
-          finishReason: chunk.choices[0]?.finish_reason as any,
+          finishReason: chunk.choices[0]?.finish_reason,
         };
       }
     }
@@ -517,8 +324,7 @@ export class OpenAI extends BaseAdapter<
 
   async *chatStream(
     options: ChatCompletionOptions
-  ): AsyncIterable<import("@tanstack/ai").StreamChunk> {
-    const providerOpts = options.providerOptions as OpenAIChatProviderOptions | undefined;
+  ): AsyncIterable<StreamChunk> {
 
     // Track tool call metadata by unique ID
     // OpenAI streams tool calls with deltas - first chunk has ID/name, subsequent chunks only have args
@@ -526,84 +332,18 @@ export class OpenAI extends BaseAdapter<
     const toolCallMetadata = new Map<string, { index: number; name: string }>();
     let nextIndex = 0;
 
-    // Debug: Log incoming options
-    if (process.env.DEBUG_TOOLS) {
-      console.error(
-        "[DEBUG chatStream] Received options.tools:",
-        options.tools ? `${options.tools.length} tools` : "undefined"
-      );
-      if (options.tools && options.tools.length > 0) {
-        console.error(
-          "[DEBUG chatStream] First tool:",
-          JSON.stringify(options.tools[0], null, 2)
-        );
-      }
-    }
-
     // Map common options to OpenAI format using the centralized mapping function
-    const requestParams = mapCommonOptionsToOpenAI(options, providerOpts);
+    const requestParams = mapChatOptionsToOpenAI(options);
 
-    // Transform messages to OpenAI format
-    requestParams.messages = options.messages.map((msg) => {
-      if (msg.role === "tool" && msg.toolCallId) {
-        return {
-          role: "tool" as const,
-          content: msg.content || "",
-          tool_call_id: msg.toolCallId,
-        };
-      }
-      if (msg.role === "assistant" && msg.toolCalls) {
-        return {
-          role: "assistant" as const,
-          content: msg.content,
-          tool_calls: msg.toolCalls.map((tc) => ({
-            id: tc.id,
-            type: tc.type,
-            function: tc.function,
-          })),
-        };
-      }
-      return {
-        role: msg.role as "system" | "user" | "assistant",
-        content: msg.content || "",
-        name: msg.name,
-      };
-    });
 
-    // Force stream to true
-    requestParams.stream = true;
+    const abortSignal = options.abortSignal;
 
-    // Set default model if not provided
-    if (!requestParams.model) {
-      requestParams.model = "gpt-3.5-turbo";
-    }
-
-    // Debug: Show final request structure
-    if (process.env.DEBUG_TOOLS) {
-      console.error(
-        "[DEBUG] Final request params keys:",
-        Object.keys(requestParams)
-      );
-      console.error("[DEBUG] Has tools property:", "tools" in requestParams);
-      if (requestParams.tools) {
-        console.error(
-          "[DEBUG] Sending tools to OpenAI:",
-          JSON.stringify(requestParams.tools, null, 2)
-        );
-        console.error("[DEBUG] Tool choice:", requestParams.tool_choice);
-      }
-    }
-
-    // Extract custom headers and abort signal
-    const customHeaders = requestParams._headers;
-    const abortSignal = requestParams._abortSignal;
-    delete requestParams._headers;
-    delete requestParams._abortSignal;
-
-    const stream = (await this.client.chat.completions.create(
-      requestParams,
+    const stream = (await this.client.responses.create(
       {
-        headers: customHeaders,
+        ...requestParams,
+        stream: true,
+      },
+      {
         signal: abortSignal
       }
     )) as any;
