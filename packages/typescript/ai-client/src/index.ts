@@ -13,16 +13,6 @@ export type {
   ChatRequestBody,
 } from "./types";
 export {
-  createResponseStreamSource,
-  processStream,
-  parseStreamChunk,
-  type StreamSource,
-  type StreamEvent,
-  type StreamEventHandlers,
-  type StreamResult,
-  type ToolCall,
-} from "./stream";
-export {
   fetchServerSentEvents,
   fetchHttpStream,
   stream,

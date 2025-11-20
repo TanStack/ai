@@ -1,6 +1,67 @@
 import type { StreamChunk, ModelMessage } from "@tanstack/ai";
 import type { UIMessage } from "./types";
-import { uiMessageToModelMessages } from "./message-converters";
+import { convertMessagesToModelMessages } from "./message-converters";
+
+/**
+ * Merge custom headers into request headers
+ */
+function mergeHeaders(
+  customHeaders?: Record<string, string> | Headers
+): Record<string, string> {
+  if (!customHeaders) {
+    return {};
+  }
+  if (customHeaders instanceof Headers) {
+    const result: Record<string, string> = {};
+    customHeaders.forEach((value, key) => {
+      result[key] = value;
+    });
+    return result;
+  }
+  return customHeaders;
+}
+
+/**
+ * Read lines from a stream (newline-delimited)
+ */
+async function* readStreamLines(
+  reader: ReadableStreamDefaultReader<Uint8Array>,
+  abortSignal?: AbortSignal
+): AsyncGenerator<string> {
+  try {
+    const decoder = new TextDecoder();
+    let buffer = "";
+
+    while (true) {
+      // Check if aborted before reading
+      if (abortSignal?.aborted) {
+        break;
+      }
+
+      const { done, value } = await reader.read();
+      if (done) break;
+
+      buffer += decoder.decode(value, { stream: true });
+      const lines = buffer.split("\n");
+
+      // Keep the last incomplete line in the buffer
+      buffer = lines.pop() || "";
+
+      for (const line of lines) {
+        if (line.trim()) {
+          yield line;
+        }
+      }
+    }
+
+    // Process any remaining data in the buffer
+    if (buffer.trim()) {
+      yield buffer;
+    }
+  } finally {
+    reader.releaseLock();
+  }
+}
 
 /**
  * Connection adapter interface - converts a connection into a stream of chunks
@@ -50,34 +111,12 @@ export function fetchServerSentEvents(
 ): ConnectionAdapter {
   return {
     async *connect(messages, data, abortSignal) {
-      // Convert UIMessages to ModelMessages if needed
-      const modelMessages: ModelMessage[] = [];
-      for (const msg of messages) {
-        if ("parts" in msg) {
-          // UIMessage - convert to ModelMessages
-          modelMessages.push(...uiMessageToModelMessages(msg as UIMessage));
-        } else {
-          // Already ModelMessage
-          modelMessages.push(msg as ModelMessage);
-        }
-      }
+      const modelMessages = convertMessagesToModelMessages(messages);
 
       const requestHeaders: Record<string, string> = {
         "Content-Type": "application/json",
+        ...mergeHeaders(options.headers),
       };
-
-      // Add custom headers
-      if (options.headers) {
-        if (options.headers instanceof Headers) {
-          options.headers.forEach((value, key) => {
-            requestHeaders[key] = value;
-          });
-        } else {
-          Object.assign(requestHeaders, options.headers);
-        }
-      }
-
-      console.log("url", url);
 
       const response = await fetch(url, {
         method: "POST",
@@ -99,38 +138,19 @@ export function fetchServerSentEvents(
         throw new Error("Response body is not readable");
       }
 
-      try {
-        const decoder = new TextDecoder();
+      for await (const line of readStreamLines(reader, abortSignal)) {
+        // Handle Server-Sent Events format
+        const data = line.startsWith("data: ") ? line.slice(6) : line;
 
-        while (true) {
-          // Check if aborted before reading
-          if (abortSignal?.aborted) {
-            break;
-          }
+        if (data === "[DONE]") continue;
 
-          const { done, value } = await reader.read();
-          if (done) break;
-
-          const chunk = decoder.decode(value, { stream: true });
-          const lines = chunk.split("\n").filter((line) => line.trim() !== "");
-
-          for (const line of lines) {
-            // Handle Server-Sent Events format
-            const data = line.startsWith("data: ") ? line.slice(6) : line;
-
-            if (data === "[DONE]") continue;
-
-            try {
-              const parsed: StreamChunk = JSON.parse(data);
-              yield parsed;
-            } catch (parseError) {
-              // Skip non-JSON lines or malformed chunks
-              console.warn("Failed to parse SSE chunk:", data);
-            }
-          }
+        try {
+          const parsed: StreamChunk = JSON.parse(data);
+          yield parsed;
+        } catch (parseError) {
+          // Skip non-JSON lines or malformed chunks
+          console.warn("Failed to parse SSE chunk:", data);
         }
-      } finally {
-        reader.releaseLock();
       }
     },
   };
@@ -159,31 +179,12 @@ export function fetchHttpStream(
   return {
     async *connect(messages, data, abortSignal) {
       // Convert UIMessages to ModelMessages if needed
-      const modelMessages: ModelMessage[] = [];
-      for (const msg of messages) {
-        if ("parts" in msg) {
-          // UIMessage - convert to ModelMessages
-          modelMessages.push(...uiMessageToModelMessages(msg as UIMessage));
-        } else {
-          // Already ModelMessage
-          modelMessages.push(msg as ModelMessage);
-        }
-      }
+      const modelMessages = convertMessagesToModelMessages(messages);
 
       const requestHeaders: Record<string, string> = {
         "Content-Type": "application/json",
+        ...mergeHeaders(options.headers),
       };
-
-      // Add custom headers
-      if (options.headers) {
-        if (options.headers instanceof Headers) {
-          options.headers.forEach((value, key) => {
-            requestHeaders[key] = value;
-          });
-        } else {
-          Object.assign(requestHeaders, options.headers);
-        }
-      }
 
       const response = await fetch(url, {
         method: "POST",
@@ -205,48 +206,13 @@ export function fetchHttpStream(
         throw new Error("Response body is not readable");
       }
 
-      try {
-        const decoder = new TextDecoder();
-        let buffer = "";
-
-        while (true) {
-          // Check if aborted before reading
-          if (abortSignal?.aborted) {
-            break;
-          }
-
-          const { done, value } = await reader.read();
-          if (done) break;
-
-          buffer += decoder.decode(value, { stream: true });
-          const lines = buffer.split("\n");
-
-          // Keep the last incomplete line in the buffer
-          buffer = lines.pop() || "";
-
-          for (const line of lines) {
-            if (!line.trim()) continue;
-
-            try {
-              const parsed: StreamChunk = JSON.parse(line);
-              yield parsed;
-            } catch (parseError) {
-              console.warn("Failed to parse HTTP stream chunk:", line);
-            }
-          }
+      for await (const line of readStreamLines(reader, abortSignal)) {
+        try {
+          const parsed: StreamChunk = JSON.parse(line);
+          yield parsed;
+        } catch (parseError) {
+          console.warn("Failed to parse HTTP stream chunk:", line);
         }
-
-        // Process any remaining data in the buffer
-        if (buffer.trim()) {
-          try {
-            const parsed: StreamChunk = JSON.parse(buffer);
-            yield parsed;
-          } catch (parseError) {
-            console.warn("Failed to parse final chunk:", buffer);
-          }
-        }
-      } finally {
-        reader.releaseLock();
       }
     },
   };
@@ -273,21 +239,8 @@ export function stream(
   ) => AsyncIterable<StreamChunk>
 ): ConnectionAdapter {
   return {
-    async *connect(messages, data, abortSignal) {
-      // Convert UIMessages to ModelMessages if needed
-      const modelMessages: ModelMessage[] = [];
-      for (const msg of messages) {
-        if ("parts" in msg) {
-          // UIMessage - convert to ModelMessages
-          modelMessages.push(...uiMessageToModelMessages(msg as UIMessage));
-        } else {
-          // Already ModelMessage
-          modelMessages.push(msg as ModelMessage);
-        }
-      }
-
-      // Note: abortSignal is available but streamFactory doesn't accept it
-      // Custom stream factories should handle abort signals themselves
+    async *connect(messages, data) {
+      const modelMessages = convertMessagesToModelMessages(messages);
       yield* streamFactory(modelMessages, data);
     },
   };

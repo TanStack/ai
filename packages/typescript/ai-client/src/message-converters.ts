@@ -8,6 +8,25 @@ import type {
 } from "./types";
 
 /**
+ * Convert UIMessages or ModelMessages to ModelMessages
+ */
+export function convertMessagesToModelMessages(
+  messages: UIMessage[] | ModelMessage[]
+): ModelMessage[] {
+  const modelMessages: ModelMessage[] = [];
+  for (const msg of messages) {
+    if ("parts" in msg) {
+      // UIMessage - convert to ModelMessages
+      modelMessages.push(...uiMessageToModelMessages(msg as UIMessage));
+    } else {
+      // Already ModelMessage
+      modelMessages.push(msg as ModelMessage);
+    }
+  }
+  return modelMessages;
+}
+
+/**
  * Convert a UIMessage to ModelMessage(s)
  *
  * This conversion handles the parts-based structure:
@@ -18,9 +37,7 @@ import type {
  * @param uiMessage - The UIMessage to convert
  * @returns An array of ModelMessages (may be multiple if tool results are present)
  */
-export function uiMessageToModelMessages(
-  uiMessage: UIMessage
-): ModelMessage[] {
+export function uiMessageToModelMessages(uiMessage: UIMessage): ModelMessage[] {
   const messages: ModelMessage[] = [];
 
   // Separate parts by type
@@ -47,7 +64,7 @@ export function uiMessageToModelMessages(
             (p) =>
               p.state === "input-complete" ||
               p.state === "approval-responded" ||
-              (p.output !== undefined) // Include if has output (client tool result)
+              p.output !== undefined // Include if has output (client tool result)
           )
           .map((p) => ({
             id: p.id,
@@ -77,7 +94,10 @@ export function uiMessageToModelMessages(
 
   // Add tool result messages (only completed ones)
   for (const toolResultPart of toolResultParts) {
-    if (toolResultPart.state === "complete" || toolResultPart.state === "error") {
+    if (
+      toolResultPart.state === "complete" ||
+      toolResultPart.state === "error"
+    ) {
       messages.push({
         role: "tool",
         content: toolResultPart.content,
@@ -164,7 +184,10 @@ export function modelMessagesToUIMessages(
 
     if (msg.role === "tool") {
       // Tool result - merge into the last assistant message if possible
-      if (currentAssistantMessage && currentAssistantMessage.role === "assistant") {
+      if (
+        currentAssistantMessage &&
+        currentAssistantMessage.role === "assistant"
+      ) {
         currentAssistantMessage.parts.push({
           type: "tool-result",
           toolCallId: msg.toolCallId!,
@@ -194,9 +217,36 @@ export function modelMessagesToUIMessages(
 }
 
 /**
+ * Normalize a message (UIMessage or ModelMessage) to a UIMessage
+ * Ensures the message has an ID and createdAt timestamp
+ *
+ * @param message - Either a UIMessage or ModelMessage
+ * @param generateId - Function to generate a message ID if needed
+ * @returns A UIMessage with guaranteed id and createdAt
+ */
+export function normalizeToUIMessage(
+  message: UIMessage | ModelMessage,
+  generateId: () => string
+): UIMessage {
+  if ("parts" in message) {
+    // Already a UIMessage
+    return {
+      ...message,
+      id: message.id || generateId(),
+      createdAt: message.createdAt || new Date(),
+    };
+  } else {
+    // ModelMessage - convert to UIMessage
+    return {
+      ...modelMessageToUIMessage(message, generateId()),
+      createdAt: new Date(),
+    };
+  }
+}
+
+/**
  * Generate a unique message ID
  */
 function generateMessageId(): string {
   return `msg-${Date.now()}-${Math.random().toString(36).substring(7)}`;
 }
-
