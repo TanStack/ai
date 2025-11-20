@@ -144,13 +144,13 @@ function extractChatCompletionResult(response: Anthropic_SDK.Messages.Message): 
   // Extract text content
   const textContent = response.content
     .filter((c) => c.type === "text")
-    .map((c: any) => c.text)
+    .map((c) => c.text)
     .join("");
 
   // Extract tool calls
   const toolCalls = response.content
     .filter((c) => c.type === "tool_use")
-    .map((c: any) => ({
+    .map((c) => ({
       id: c.id,
       type: "function" as const,
       function: {
@@ -164,6 +164,7 @@ function extractChatCompletionResult(response: Anthropic_SDK.Messages.Message): 
     model: response.model,
     content: textContent || null,
     role: "assistant",
+    // todo fix me
     finishReason: response.stop_reason as any,
     toolCalls: toolCalls.length > 0 ? toolCalls : undefined,
     usage: {
