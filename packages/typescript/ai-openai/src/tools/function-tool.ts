@@ -8,11 +8,25 @@ export type FunctionTool = OpenAI.Responses.FunctionTool
  * Converts a standard Tool to OpenAI FunctionTool format
  */
 export function convertFunctionToolToAdapterFormat(tool: Tool): FunctionTool {
-  const metadata = tool.metadata as Omit<FunctionTool, "type">;
+  // If tool has metadata (created via functionTool helper), use that
+  if (tool.metadata) {
+    const metadata = tool.metadata as Omit<FunctionTool, "type">;
+    return {
+      type: "function",
+      ...metadata
+    };
+  }
+  
+  // Otherwise, convert directly from tool.function (regular Tool structure)
+  // For Responses API, FunctionTool has name at top level, with function containing description and parameters
   return {
     type: "function",
-    ...metadata
-  };
+    name: tool.function.name,
+    function: {
+      description: tool.function.description,
+      parameters: tool.function.parameters,
+    },
+  } as FunctionTool;
 }
 
 /**

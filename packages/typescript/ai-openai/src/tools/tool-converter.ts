@@ -18,32 +18,53 @@ import { convertWebSearchToolToAdapterFormat } from "./web-search-tool";
  */
 export function convertToolsToProviderFormat(tools: Array<Tool>): Array<OpenAITool> {
   return tools.map((tool) => {
-    switch (tool.function.name) {
-      case "apply_patch":
-        return convertApplyPatchToolToAdapterFormat(tool);
-      case "code_interpreter":
-        return convertCodeInterpreterToolToAdapterFormat(tool);
-      case "computer_use_preview":
-        return convertComputerUseToolToAdapterFormat(tool);
-      case "file_search":
-        return convertFileSearchToolToAdapterFormat(tool);
-      case "function":
-        return convertFunctionToolToAdapterFormat(tool);
-      case "image_generation":
-        return convertImageGenerationToolToAdapterFormat(tool);
-      case "local_shell":
-        return convertLocalShellToolToAdapterFormat(tool);
-      case "mcp":
-        return convertMCPToolToAdapterFormat(tool);
-      case "shell":
-        return convertShellToolToAdapterFormat(tool);
-      case "web_search_preview":
-        return convertWebSearchPreviewToolToAdapterFormat(tool);
-      case "web_search":
-        return convertWebSearchToolToAdapterFormat(tool);
-      case "custom":
-      default:
-        return convertCustomToolToAdapterFormat(tool);
+    // Special tool names that map to specific OpenAI tool types
+    const specialToolNames = new Set([
+      "apply_patch",
+      "code_interpreter",
+      "computer_use_preview",
+      "file_search",
+      "image_generation",
+      "local_shell",
+      "mcp",
+      "shell",
+      "web_search_preview",
+      "web_search",
+      "custom",
+    ]);
+
+    const toolName = tool.function.name;
+
+    // If it's a special tool name, route to the appropriate converter
+    if (specialToolNames.has(toolName)) {
+      switch (toolName) {
+        case "apply_patch":
+          return convertApplyPatchToolToAdapterFormat(tool);
+        case "code_interpreter":
+          return convertCodeInterpreterToolToAdapterFormat(tool);
+        case "computer_use_preview":
+          return convertComputerUseToolToAdapterFormat(tool);
+        case "file_search":
+          return convertFileSearchToolToAdapterFormat(tool);
+        case "image_generation":
+          return convertImageGenerationToolToAdapterFormat(tool);
+        case "local_shell":
+          return convertLocalShellToolToAdapterFormat(tool);
+        case "mcp":
+          return convertMCPToolToAdapterFormat(tool);
+        case "shell":
+          return convertShellToolToAdapterFormat(tool);
+        case "web_search_preview":
+          return convertWebSearchPreviewToolToAdapterFormat(tool);
+        case "web_search":
+          return convertWebSearchToolToAdapterFormat(tool);
+        case "custom":
+          return convertCustomToolToAdapterFormat(tool);
+      }
     }
+
+    // For regular function tools (not special names), convert as function tool
+    // This handles tools like "getGuitars", "recommendGuitar", etc.
+    return convertFunctionToolToAdapterFormat(tool);
   });
 }

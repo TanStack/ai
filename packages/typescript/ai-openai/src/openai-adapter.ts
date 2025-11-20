@@ -12,8 +12,18 @@ import {
   type ImageData,
   StreamChunk,
 } from "@tanstack/ai";
-import { OPENAI_CHAT_MODELS, OPENAI_IMAGE_MODELS, OPENAI_EMBEDDING_MODELS, OPENAI_AUDIO_MODELS, OPENAI_VIDEO_MODELS, OpenAIImageModel } from "./model-meta";
-import { convertMessagesToInput, TextProviderOptions } from "./text/text-provider-options";
+import {
+  OPENAI_CHAT_MODELS,
+  OPENAI_IMAGE_MODELS,
+  OPENAI_EMBEDDING_MODELS,
+  OPENAI_AUDIO_MODELS,
+  OPENAI_VIDEO_MODELS,
+  OpenAIImageModel,
+} from "./model-meta";
+import {
+  convertMessagesToInput,
+  TextProviderOptions,
+} from "./text/text-provider-options";
 import { convertToolsToProviderFormat } from "./tools";
 
 export interface OpenAIConfig {
@@ -34,13 +44,13 @@ export type OpenAIProviderOptions = TextProviderOptions;
  */
 export interface OpenAIImageProviderOptions {
   /** Image quality: 'standard' | 'hd' (dall-e-3, gpt-image-1 only) */
-  quality?: 'standard' | 'hd';
+  quality?: "standard" | "hd";
   /** Image style: 'natural' | 'vivid' (dall-e-3 only) */
-  style?: 'natural' | 'vivid';
+  style?: "natural" | "vivid";
   /** Background: 'transparent' | 'opaque' (gpt-image-1 only) */
-  background?: 'transparent' | 'opaque';
+  background?: "transparent" | "opaque";
   /** Output format: 'png' | 'webp' | 'jpeg' (gpt-image-1 only) */
-  outputFormat?: 'png' | 'webp' | 'jpeg';
+  outputFormat?: "png" | "webp" | "jpeg";
 }
 
 /**
@@ -50,7 +60,7 @@ export interface OpenAIImageProviderOptions {
  */
 export interface OpenAIEmbeddingProviderOptions {
   /** Encoding format for embeddings: 'float' | 'base64' */
-  encodingFormat?: 'float' | 'base64';
+  encodingFormat?: "float" | "base64";
   /** Unique identifier for end-user (for abuse monitoring) */
   user?: string;
 }
@@ -62,9 +72,16 @@ export interface OpenAIEmbeddingProviderOptions {
  */
 export interface OpenAIAudioTranscriptionProviderOptions {
   /** Timestamp granularities: 'word' | 'segment' (whisper-1 only) */
-  timestampGranularities?: Array<'word' | 'segment'>;
+  timestampGranularities?: Array<"word" | "segment">;
   /** Chunking strategy for long audio (gpt-4o-transcribe-diarize): 'auto' or VAD config */
-  chunkingStrategy?: 'auto' | { type: 'vad'; threshold?: number; prefix_padding_ms?: number; silence_duration_ms?: number };
+  chunkingStrategy?:
+    | "auto"
+    | {
+        type: "vad";
+        threshold?: number;
+        prefix_padding_ms?: number;
+        silence_duration_ms?: number;
+      };
   /** Known speaker names for diarization (gpt-4o-transcribe-diarize) */
   knownSpeakerNames?: string[];
   /** Known speaker reference audio as data URLs (gpt-4o-transcribe-diarize) */
@@ -87,7 +104,8 @@ export interface OpenAITextToSpeechProviderOptions {
 /**
  * Combined audio provider options (transcription + text-to-speech)
  */
-export type OpenAIAudioProviderOptions = OpenAIAudioTranscriptionProviderOptions & OpenAITextToSpeechProviderOptions;
+export type OpenAIAudioProviderOptions =
+  OpenAIAudioTranscriptionProviderOptions & OpenAITextToSpeechProviderOptions;
 
 /**
  * OpenAI-specific provider options for video generation
@@ -133,7 +151,6 @@ export class OpenAI extends BaseAdapter<
   async chatCompletion(
     options: ChatCompletionOptions
   ): Promise<ChatCompletionResult> {
-
     // Map common options to OpenAI format using the centralized mapping function
     const providerOptions = this.mapChatOptionsToOpenAI(options);
 
@@ -144,7 +161,7 @@ export class OpenAI extends BaseAdapter<
       },
       {
         headers: options.request?.headers,
-        signal: options.request?.signal
+        signal: options.request?.signal,
       }
     );
 
@@ -154,7 +171,6 @@ export class OpenAI extends BaseAdapter<
   async *chatStream(
     options: ChatCompletionOptions
   ): AsyncIterable<StreamChunk> {
-
     // Track tool call metadata by unique ID
     // OpenAI streams tool calls with deltas - first chunk has ID/name, subsequent chunks only have args
     // We assign our own indices as we encounter unique tool call IDs
@@ -163,7 +179,6 @@ export class OpenAI extends BaseAdapter<
     // Map common options to OpenAI format using the centralized mapping function
     const requestParams = this.mapChatOptionsToOpenAI(options);
 
-
     const response = await this.client.responses.create(
       {
         ...requestParams,
@@ -171,16 +186,24 @@ export class OpenAI extends BaseAdapter<
       },
       {
         headers: options.request?.headers,
-        signal: options.request?.signal
+        signal: options.request?.signal,
       }
     );
-    const stream = response.toReadableStream()
 
-    yield* this.processOpenAIStreamChunks(stream, toolCallMetadata, options, () => this.generateId());
+    // The Responses API returns a stream that needs to be parsed
+    // response.toReadableStream() returns raw bytes with JSON lines
+    const rawStream = response.toReadableStream();
+
+    // Parse the Responses API stream (JSON lines format)
+    const parsedStream = this.parseResponsesStream(rawStream);
+
+    yield* this.processOpenAIStreamChunks(
+      parsedStream,
+      toolCallMetadata,
+      options,
+      () => this.generateId()
+    );
   }
-
-
-
 
   async summarize(options: SummarizationOptions): Promise<SummarizationResult> {
     const systemPrompt = this.buildSummarizationPrompt(options);
@@ -226,12 +249,15 @@ export class OpenAI extends BaseAdapter<
     };
   }
 
-  async generateImage(options: ImageGenerationOptions): Promise<ImageGenerationResult> {
+  async generateImage(
+    options: ImageGenerationOptions
+  ): Promise<ImageGenerationResult> {
     const numImages = options.n || 1;
     const model = options.model as OpenAIImageModel;
 
     // Determine max images per call based on model
-    const maxPerCall = options.maxImagesPerCall || (model === "dall-e-3" ? 1 : 10);
+    const maxPerCall =
+      options.maxImagesPerCall || (model === "dall-e-3" ? 1 : 10);
 
     // Calculate how many API calls we need
     const numCalls = Math.ceil(numImages / maxPerCall);
@@ -299,7 +325,9 @@ export class OpenAI extends BaseAdapter<
   async transcribeAudio(
     options: import("@tanstack/ai").AudioTranscriptionOptions
   ): Promise<import("@tanstack/ai").AudioTranscriptionResult> {
-    const providerOpts = options.providerOptions as OpenAIAudioTranscriptionProviderOptions | undefined;
+    const providerOpts = options.providerOptions as
+      | OpenAIAudioTranscriptionProviderOptions
+      | undefined;
 
     const formData = new FormData();
     formData.append("file", options.file);
@@ -322,34 +350,39 @@ export class OpenAI extends BaseAdapter<
 
     // Add timestamp granularities if specified (whisper-1 only)
     if (providerOpts?.timestampGranularities) {
-      providerOpts.timestampGranularities.forEach(gran => {
+      providerOpts.timestampGranularities.forEach((gran) => {
         formData.append("timestamp_granularities[]", gran);
       });
     }
 
     // Add diarization options if specified
     if (providerOpts?.chunkingStrategy) {
-      formData.append("chunking_strategy", typeof providerOpts.chunkingStrategy === 'string'
-        ? providerOpts.chunkingStrategy
-        : JSON.stringify(providerOpts.chunkingStrategy));
+      formData.append(
+        "chunking_strategy",
+        typeof providerOpts.chunkingStrategy === "string"
+          ? providerOpts.chunkingStrategy
+          : JSON.stringify(providerOpts.chunkingStrategy)
+      );
     }
 
     if (providerOpts?.knownSpeakerNames) {
-      providerOpts.knownSpeakerNames.forEach(name => {
+      providerOpts.knownSpeakerNames.forEach((name) => {
         formData.append("known_speaker_names[]", name);
       });
     }
 
     if (providerOpts?.knownSpeakerReferences) {
-      providerOpts.knownSpeakerReferences.forEach(ref => {
+      providerOpts.knownSpeakerReferences.forEach((ref) => {
         formData.append("known_speaker_references[]", ref);
       });
     }
 
-    const response = await this.client.audio.transcriptions.create(formData as any);
+    const response = await this.client.audio.transcriptions.create(
+      formData as any
+    );
 
     // Parse response based on format
-    if (typeof response === 'string') {
+    if (typeof response === "string") {
       return {
         id: this.generateId(),
         model: options.model,
@@ -386,7 +419,13 @@ export class OpenAI extends BaseAdapter<
 
     const buffer = Buffer.from(await response.arrayBuffer());
 
-    const format = (options.responseFormat || "mp3") as "mp3" | "opus" | "aac" | "flac" | "wav" | "pcm";
+    const format = (options.responseFormat || "mp3") as
+      | "mp3"
+      | "opus"
+      | "aac"
+      | "flac"
+      | "wav"
+      | "pcm";
 
     return {
       id: this.generateId(),
@@ -399,7 +438,9 @@ export class OpenAI extends BaseAdapter<
   async generateVideo(
     options: import("@tanstack/ai").VideoGenerationOptions
   ): Promise<import("@tanstack/ai").VideoGenerationResult> {
-    const providerOpts = options.providerOptions as OpenAIVideoProviderOptions | undefined;
+    const providerOpts = options.providerOptions as
+      | OpenAIVideoProviderOptions
+      | undefined;
 
     // Start video generation
     const createParams: any = {
@@ -424,33 +465,42 @@ export class OpenAI extends BaseAdapter<
 
     // Check if this is a remix
     if (providerOpts?.remixVideoId) {
-      video = await (this.client as any).videos.remix(providerOpts.remixVideoId, {
-        prompt: options.prompt,
-      });
+      video = await (this.client as any).videos.remix(
+        providerOpts.remixVideoId,
+        {
+          prompt: options.prompt,
+        }
+      );
     } else {
       video = await (this.client as any).videos.create(createParams);
     }
 
     // Poll for completion
-    while (video.status === 'queued' || video.status === 'in_progress') {
-      await new Promise(resolve => setTimeout(resolve, 5000)); // Poll every 5 seconds
+    while (video.status === "queued" || video.status === "in_progress") {
+      await new Promise((resolve) => setTimeout(resolve, 5000)); // Poll every 5 seconds
       video = await (this.client as any).videos.retrieve(video.id);
     }
 
-    if (video.status === 'failed') {
-      throw new Error(`Video generation failed: ${video.error?.message || 'Unknown error'}`);
+    if (video.status === "failed") {
+      throw new Error(
+        `Video generation failed: ${video.error?.message || "Unknown error"}`
+      );
     }
 
     // Download video content
-    const videoContent = await (this.client as any).videos.downloadContent(video.id);
+    const videoContent = await (this.client as any).videos.downloadContent(
+      video.id
+    );
     const buffer = Buffer.from(await videoContent.arrayBuffer());
 
     // Optionally download thumbnail
     let thumbnail: string | undefined;
     try {
-      const thumbnailContent = await (this.client as any).videos.downloadContent(video.id, { variant: 'thumbnail' });
+      const thumbnailContent = await (
+        this.client as any
+      ).videos.downloadContent(video.id, { variant: "thumbnail" });
       const thumbBuffer = Buffer.from(await thumbnailContent.arrayBuffer());
-      thumbnail = `data:image/webp;base64,${thumbBuffer.toString('base64')}`;
+      thumbnail = `data:image/webp;base64,${thumbBuffer.toString("base64")}`;
     } catch (e) {
       // Thumbnail download failed, continue without it
     }
@@ -459,7 +509,7 @@ export class OpenAI extends BaseAdapter<
       id: video.id,
       model: options.model,
       video: buffer,
-      format: 'mp4',
+      format: "mp4",
       duration: parseInt(video.seconds) || options.duration,
       resolution: video.size || options.resolution,
       thumbnail,
@@ -468,7 +518,7 @@ export class OpenAI extends BaseAdapter<
 
   private base64ToUint8Array(base64: string): Uint8Array {
     // Remove data URL prefix if present
-    const base64Data = base64.replace(/^data:image\/\w+;base64,/, '');
+    const base64Data = base64.replace(/^data:image\/\w+;base64,/, "");
 
     // Decode base64 to binary string
     const binaryString = atob(base64Data);
@@ -510,24 +560,34 @@ export class OpenAI extends BaseAdapter<
     return prompt;
   }
 
-  private mapOpenAIResponseToChatResult(response: OpenAI_SDK.Responses.Response): ChatCompletionResult {
+  private mapOpenAIResponseToChatResult(
+    response: OpenAI_SDK.Responses.Response
+  ): ChatCompletionResult {
     // response.output is an array of output items
     const outputItems = response.output;
 
     // Find the message output item
-    const messageItem = outputItems.find((item) => item.type === 'message');
-    const content = messageItem?.content?.[0].type === "output_text" ? messageItem?.content?.[0]?.text || "" : "";
+    const messageItem = outputItems.find((item) => item.type === "message");
+    const content =
+      messageItem?.content?.[0].type === "output_text"
+        ? messageItem?.content?.[0]?.text || ""
+        : "";
 
     // Find function call items
-    const functionCalls = outputItems.filter((item) => item.type === 'function_call');
-    const toolCalls = functionCalls.length > 0 ? functionCalls.map((fc) => ({
-      id: fc.call_id,
-      type: "function" as const,
-      function: {
-        name: fc.name,
-        arguments: JSON.stringify(fc.arguments)
-      }
-    })) : undefined;
+    const functionCalls = outputItems.filter(
+      (item) => item.type === "function_call"
+    );
+    const toolCalls =
+      functionCalls.length > 0
+        ? functionCalls.map((fc) => ({
+            id: fc.call_id,
+            type: "function" as const,
+            function: {
+              name: fc.name,
+              arguments: JSON.stringify(fc.arguments),
+            },
+          }))
+        : undefined;
 
     return {
       id: response.id,
@@ -540,12 +600,65 @@ export class OpenAI extends BaseAdapter<
         promptTokens: response.usage?.input_tokens || 0,
         completionTokens: response.usage?.output_tokens || 0,
         totalTokens: response.usage?.total_tokens || 0,
-      }
+      },
     };
   }
 
+  /**
+   * Parse Responses API stream - it's JSON lines (not SSE format)
+   * Each line is a complete JSON object
+   */
+  private async *parseResponsesStream(
+    stream: ReadableStream<Uint8Array>
+  ): AsyncIterable<any> {
+    const reader = stream.getReader();
+    const decoder = new TextDecoder();
+    let buffer = "";
+    let parsedCount = 0;
+
+    try {
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        // Decode the chunk and add to buffer
+        buffer += decoder.decode(value, { stream: true });
+
+        // Process complete lines (newline-separated JSON objects)
+        const lines = buffer.split("\n");
+        buffer = lines.pop() || ""; // Keep incomplete line in buffer
+
+        for (const line of lines) {
+          const trimmed = line.trim();
+          if (!trimmed) continue;
+
+          try {
+            const parsed = JSON.parse(trimmed);
+            parsedCount++;
+            yield parsed;
+          } catch (e) {
+            // Skip malformed JSON lines
+          }
+        }
+      }
+
+      // Process any remaining buffer
+      if (buffer.trim()) {
+        try {
+          const parsed = JSON.parse(buffer.trim());
+          parsedCount++;
+          yield parsed;
+        } catch (e) {
+          // Ignore parse errors for final buffer
+        }
+      }
+    } finally {
+      reader.releaseLock();
+    }
+  }
+
   private async *processOpenAIStreamChunks(
-    stream: ReadableStream,
+    stream: AsyncIterable<any>,
     toolCallMetadata: Map<string, { index: number; name: string }>,
     options: ChatCompletionOptions,
     generateId: () => string
@@ -553,83 +666,215 @@ export class OpenAI extends BaseAdapter<
     let accumulatedContent = "";
     const timestamp = Date.now();
     let nextIndex = 0;
+    let chunkCount = 0;
+
+    // Preserve response metadata across events
+    let responseId: string | null = null;
+    let model: string | null = null;
 
     try {
       for await (const chunk of stream) {
-        const delta = chunk.choices[0]?.delta;
-        const choice = chunk.choices[0];
+        chunkCount++;
+
+        // Responses API uses event-based streaming with types like:
+        // - response.created
+        // - response.in_progress
+        // - response.output_item.added
+        // - response.output_text.delta
+        // - response.done
+
+        let delta: any = null;
+        let finishReason: string | null = null;
+
+        // Handle Responses API event format
+        if (chunk.type) {
+          const eventType = chunk.type;
+
+          // Extract and preserve response metadata from response.created or response.in_progress
+          if (chunk.response) {
+            responseId = chunk.response.id;
+            model = chunk.response.model;
+          }
+
+          // Handle output text deltas (content streaming)
+          // For response.output_text.delta, chunk.delta is an array of characters/strings
+          if (eventType === "response.output_text.delta" && chunk.delta) {
+            // Delta is an array of characters/strings - join them together
+            if (Array.isArray(chunk.delta)) {
+              const textDelta = chunk.delta.join("");
+              if (textDelta) {
+                delta = { content: textDelta };
+              }
+            } else if (typeof chunk.delta === "string") {
+              // Fallback: if it's already a string
+              delta = { content: chunk.delta };
+            }
+          }
+
+          // Handle output item added (new items like function calls or complete messages)
+          if (eventType === "response.output_item.added" && chunk.item) {
+            const item = chunk.item;
+            if (item.type === "function_call") {
+              delta = delta || {};
+              delta.tool_calls = [
+                {
+                  id: item.call_id,
+                  function: {
+                    name: item.name,
+                    arguments: JSON.stringify(item.arguments || {}),
+                  },
+                },
+              ];
+            } else if (item.type === "message") {
+              // Extract content from message item
+              if (item.content && Array.isArray(item.content)) {
+                const textContent = item.content.find(
+                  (c: any) => c.type === "output_text"
+                );
+                if (textContent?.text) {
+                  // For message items added, the text might be incremental or complete
+                  // We'll treat it as a delta and accumulate
+                  const newContent = textContent.text;
+                  // If the new content is longer than accumulated, it's likely the full content
+                  // Otherwise, it's a delta
+                  if (
+                    newContent.length > accumulatedContent.length ||
+                    !accumulatedContent
+                  ) {
+                    delta = { content: newContent };
+                  } else {
+                    // It's a delta - extract just the new part
+                    const deltaText = newContent.slice(
+                      accumulatedContent.length
+                    );
+                    if (deltaText) {
+                      delta = { content: deltaText };
+                    }
+                  }
+                }
+              }
+              // Only set finish reason if status indicates completion (not "in_progress")
+              if (item.status && item.status !== "in_progress") {
+                finishReason = item.status;
+              }
+            }
+          }
+
+          // Handle response done
+          if (eventType === "response.done") {
+            finishReason = "stop";
+          }
+        } else if (chunk.output && Array.isArray(chunk.output)) {
+          // Legacy Responses API format with output array
+          const messageItem = chunk.output.find(
+            (item: any) => item.type === "message"
+          );
+          const functionCallItems = chunk.output.filter(
+            (item: any) => item.type === "function_call"
+          );
+
+          if (messageItem?.content) {
+            const textContent = messageItem.content.find(
+              (c: any) => c.type === "output_text"
+            );
+            if (textContent?.text) {
+              delta = { content: textContent.text };
+            }
+          }
+
+          if (functionCallItems.length > 0) {
+            delta = delta || {};
+            delta.tool_calls = functionCallItems.map((fc: any) => ({
+              id: fc.call_id,
+              function: {
+                name: fc.name,
+                arguments: JSON.stringify(fc.arguments || {}),
+              },
+            }));
+          }
+
+          if (messageItem?.status) {
+            finishReason = messageItem.status;
+          }
+        } else if (chunk.choices) {
+          // Chat Completions format (legacy)
+          delta = chunk.choices?.[0]?.delta;
+          finishReason = chunk.choices?.[0]?.finish_reason;
+        }
 
         // Handle content delta
         if (delta?.content) {
           accumulatedContent += delta.content;
           yield {
-            type: "content",
-            id: chunk.id,
-            model: chunk.model,
+            type: "content" as const,
+            id: responseId || chunk.id || generateId(),
+            model: model || chunk.model || options.model || "gpt-4o",
             timestamp,
             delta: delta.content,
             content: accumulatedContent,
-            role: "assistant",
+            role: "assistant" as const,
           };
         }
 
         // Handle tool calls
         if (delta?.tool_calls) {
           for (const toolCall of delta.tool_calls) {
-            // First chunk of a tool call has ID and name
-            // Subsequent chunks only have argument fragments
-            if (toolCall.id) {
-              // New tool call - assign it the next index
-              toolCallMetadata.set(toolCall.id, {
-                index: nextIndex++,
-                name: toolCall.function?.name || "",
-              });
-            }
-
-            // Find which tool call these deltas belong to
-            // For the first chunk, we just added it above
-            // For subsequent chunks, we need to find it by OpenAI's index field
+            // For Responses API, tool calls come as complete items, not deltas
+            // For Chat Completions, they come as deltas that need tracking
             let toolCallId: string;
             let toolCallName: string;
+            let toolCallArgs: string;
             let actualIndex: number;
 
             if (toolCall.id) {
-              // First chunk - use the ID we just tracked
+              // Complete tool call (Responses API format) or first delta (Chat Completions)
               toolCallId = toolCall.id;
+              toolCallName = toolCall.function?.name || "";
+              toolCallArgs =
+                typeof toolCall.function?.arguments === "string"
+                  ? toolCall.function.arguments
+                  : JSON.stringify(toolCall.function?.arguments || {});
+
+              // Track for index assignment
+              if (!toolCallMetadata.has(toolCallId)) {
+                toolCallMetadata.set(toolCallId, {
+                  index: nextIndex++,
+                  name: toolCallName,
+                });
+              }
               const meta = toolCallMetadata.get(toolCallId)!;
-              toolCallName = meta.name;
               actualIndex = meta.index;
             } else {
-              // Delta chunk - find by OpenAI's index
-              // OpenAI uses index to group deltas for the same tool call
-              const openAIIndex = typeof toolCall.index === 'number' ? toolCall.index : 0;
-
-              // Find the tool call ID that was assigned this OpenAI index
+              // Delta chunk (Chat Completions format) - find by index
+              const openAIIndex =
+                typeof toolCall.index === "number" ? toolCall.index : 0;
               const entry = Array.from(toolCallMetadata.entries())[openAIIndex];
               if (entry) {
                 const [id, meta] = entry;
                 toolCallId = id;
                 toolCallName = meta.name;
                 actualIndex = meta.index;
+                toolCallArgs = toolCall.function?.arguments || "";
               } else {
-                // Fallback if we can't find it
+                // Fallback
                 toolCallId = `call_${Date.now()}`;
                 toolCallName = "";
                 actualIndex = openAIIndex;
+                toolCallArgs = "";
               }
             }
 
             yield {
               type: "tool_call",
-              id: chunk.id,
-              model: chunk.model,
+              id: responseId || chunk.id || generateId(),
+              model: model || chunk.model || options.model || "gpt-4o",
               timestamp,
               toolCall: {
                 id: toolCallId,
                 type: "function",
                 function: {
                   name: toolCallName,
-                  arguments: toolCall.function?.arguments || "",
+                  arguments: toolCallArgs,
                 },
               },
               index: actualIndex,
@@ -637,20 +882,24 @@ export class OpenAI extends BaseAdapter<
           }
         }
 
-        // Handle completion
-        if (choice?.finish_reason) {
+        // Handle completion - only yield "done" for actual completion statuses
+        if (finishReason && finishReason !== "in_progress") {
+          // Get usage from chunk.response.usage (Responses API) or chunk.usage (Chat Completions)
+          const usage = chunk.response?.usage || chunk.usage;
+
           yield {
-            type: "done",
-            id: chunk.id,
-            model: chunk.model,
+            type: "done" as const,
+            id: responseId || chunk.id || generateId(),
+            model: model || chunk.model || options.model || "gpt-4o",
             timestamp,
-            finishReason: choice.finish_reason as any,
-            usage: chunk.usage
+            finishReason: finishReason as any,
+            usage: usage
               ? {
-                promptTokens: chunk.usage.prompt_tokens || 0,
-                completionTokens: chunk.usage.completion_tokens || 0,
-                totalTokens: chunk.usage.total_tokens || 0,
-              }
+                  promptTokens: usage.input_tokens || usage.prompt_tokens || 0,
+                  completionTokens:
+                    usage.output_tokens || usage.completion_tokens || 0,
+                  totalTokens: usage.total_tokens || 0,
+                }
               : undefined,
           };
         }
@@ -673,22 +922,45 @@ export class OpenAI extends BaseAdapter<
    * Maps common options to OpenAI-specific format
    * Handles translation of normalized options to OpenAI's API format
    */
-  private mapChatOptionsToOpenAI(
-    options: ChatCompletionOptions,
-  ) {
-    const providerOptions = options.providerOptions as Omit<TextProviderOptions, "max_output_tokens" | "tools" | "metadata" | "temperature" | "input" | "top_p"> | undefined;
-    const requestParams: Omit<TextProviderOptions, "stream"> = {
-      model: options.model,
-      temperature: options.options?.temperature,
-      max_output_tokens: options.options?.maxTokens,
-      top_p: options.options?.topP,
-      metadata: options.options?.metadata,
-      ...providerOptions,
-      input: convertMessagesToInput(options.messages),
-      tools: options.tools ? convertToolsToProviderFormat([...options.tools]) : undefined,
-    };
+  private mapChatOptionsToOpenAI(options: ChatCompletionOptions) {
+    try {
+      const providerOptions = options.providerOptions as
+        | Omit<
+            TextProviderOptions,
+            | "max_output_tokens"
+            | "tools"
+            | "metadata"
+            | "temperature"
+            | "input"
+            | "top_p"
+          >
+        | undefined;
 
-    return requestParams;
+      const input = convertMessagesToInput(options.messages);
+
+      const tools = options.tools
+        ? convertToolsToProviderFormat([...options.tools])
+        : undefined;
+
+      const requestParams: Omit<TextProviderOptions, "stream"> = {
+        model: options.model,
+        temperature: options.options?.temperature,
+        max_output_tokens: options.options?.maxTokens,
+        top_p: options.options?.topP,
+        metadata: options.options?.metadata,
+        ...providerOptions,
+        input,
+        tools,
+      };
+
+      return requestParams;
+    } catch (error: any) {
+      console.error(">>> mapChatOptionsToOpenAI: Fatal error <<<");
+      console.error(">>> Error message:", error?.message);
+      console.error(">>> Error stack:", error?.stack);
+      console.error(">>> Full error:", error);
+      throw error;
+    }
   }
 }
 
@@ -696,11 +968,11 @@ export class OpenAI extends BaseAdapter<
  * Creates an OpenAI adapter with simplified configuration
  * @param apiKey - Your OpenAI API key
  * @returns A fully configured OpenAI adapter instance
- * 
+ *
  * @example
  * ```typescript
  * const openai = createOpenAI("sk-...");
- * 
+ *
  * const ai = new AI({
  *   adapters: {
  *     openai,
@@ -717,15 +989,15 @@ export function createOpenAI(
 
 /**
  * Create an OpenAI adapter with automatic API key detection from environment variables.
- * 
+ *
  * Looks for `OPENAI_API_KEY` in:
  * - `process.env` (Node.js)
  * - `window.env` (Browser with injected env)
- * 
+ *
  * @param config - Optional configuration (excluding apiKey which is auto-detected)
  * @returns Configured OpenAI adapter instance
  * @throws Error if OPENAI_API_KEY is not found in environment
- * 
+ *
  * @example
  * ```typescript
  * // Automatically uses OPENAI_API_KEY from environment
@@ -733,9 +1005,12 @@ export function createOpenAI(
  * ```
  */
 export function openai(config?: Omit<OpenAIConfig, "apiKey">): OpenAI {
-  const env = typeof globalThis !== "undefined" && (globalThis as any).window?.env
-    ? (globalThis as any).window.env
-    : typeof process !== "undefined" ? process.env : undefined;
+  const env =
+    typeof globalThis !== "undefined" && (globalThis as any).window?.env
+      ? (globalThis as any).window.env
+      : typeof process !== "undefined"
+      ? process.env
+      : undefined;
   const key = env?.OPENAI_API_KEY;
 
   if (!key) {
