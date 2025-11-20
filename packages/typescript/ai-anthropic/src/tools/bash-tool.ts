@@ -1,6 +1,8 @@
 import { CacheControl } from "../text/text-provider-options";
 import type { Tool } from "@tanstack/ai";
 
+
+
 type BashToolType = "bash_20241022" | "bash_20250124";
 
 export interface BashTool {

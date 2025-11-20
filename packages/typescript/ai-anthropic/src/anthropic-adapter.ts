@@ -1,16 +1,14 @@
 import Anthropic_SDK from "@anthropic-ai/sdk";
+import type { MessageParam, Tool } from "@anthropic-ai/sdk/resources/messages";
 import {
   BaseAdapter,
   type ChatCompletionOptions,
   type ChatCompletionResult,
-  type ChatCompletionChunk,
-  type TextGenerationOptions,
-  type TextGenerationResult,
   type SummarizationOptions,
   type SummarizationResult,
   type EmbeddingOptions,
   type EmbeddingResult,
-  type Message,
+  type ModelMessage,
   type StreamChunk,
 } from "@tanstack/ai";
 import { ANTHROPIC_AUDIO_MODELS, ANTHROPIC_EMBEDDING_MODELS, ANTHROPIC_IMAGE_MODELS, ANTHROPIC_MODELS, ANTHROPIC_VIDEO_MODELS } from "./model-meta";
@@ -41,75 +39,246 @@ export interface AnthropicProviderOptions {
   /** Include reasoning content in requests. Defaults to true */
   sendReasoning?: boolean;
 }
-
 /**
  * Maps common options to Anthropic-specific format
  * Handles translation of normalized options to Anthropic's API format
  */
 function mapCommonOptionsToAnthropic(
   options: ChatCompletionOptions,
-  providerOpts?: AnthropicProviderOptions
-): TextProviderOptions {
+) {
+  const providerOptions = options.providerOptions as TextProviderOptions | undefined;
   const requestParams: TextProviderOptions = {
     model: options.model,
-    max_tokens: options.maxTokens || 1024,
-    temperature: options.temperature,
-    top_p: options.topP,
-    stop_sequences: options.stopSequences,
-    stream: options.stream || false,
-    messages: [],
-    tools: options.tools ? convertToolsToProviderFormat(options.tools) : undefined,
+    max_tokens: options.options?.maxTokens || 1024,
+    temperature: options.options?.temperature,
+    top_p: options.options?.topP,
+    messages: formatMessages(options.messages),
 
+    ...providerOptions
   };
+  const tools = options.tools ? convertToolsToProviderFormat(options.tools) : undefined;
+  return {
+    ...requestParams,
+    // SDK doesn't type it as it should
+    tools: tools as Tool[] | undefined,
+  };
+}
 
-  if (options.metadata) {
-    requestParams.metadata = options.metadata;
-  }
+type AnthropicContentBlocks = Extract<MessageParam["content"], Array<unknown>> extends Array<infer Block>
+  ? Block[]
+  : never;
+type AnthropicContentBlock = AnthropicContentBlocks extends Array<infer Block>
+  ? Block
+  : never;
 
-  // Map tools if provided
-  if (options.tools && options.tools.length > 0) {
+function formatMessages(messages: ModelMessage[]): TextProviderOptions["messages"] {
+  const formattedMessages: TextProviderOptions["messages"] = [];
 
+  for (const message of messages) {
+    const role = message.role ?? "user";
 
-    // Map tool choice
-    if (options.toolChoice) {
-      if (options.toolChoice === "auto") {
-        requestParams.tool_choice = { type: "auto" };
-      } else if (typeof options.toolChoice === "object") {
-        requestParams.tool_choice = {
-          type: "tool",
-          name: options.toolChoice.function.name,
+    if (role === "system") {
+      continue;
+    }
+
+    if (role === "tool" && message.toolCallId) {
+      formattedMessages.push({
+        role: "user",
+        content: [
+          {
+            type: "tool_result",
+            tool_use_id: message.toolCallId,
+            content: message.content ?? "",
+          },
+        ],
+      });
+      continue;
+    }
+
+    if (role === "assistant" && message.toolCalls?.length) {
+      const contentBlocks: AnthropicContentBlocks = [];
+
+      if (message.content) {
+        const textBlock: AnthropicContentBlock = {
+          type: "text",
+          text: message.content,
         };
+        contentBlocks.push(textBlock);
       }
-      // "none" is not supported by Anthropic, just omit tools instead
+
+      for (const toolCall of message.toolCalls) {
+        let parsedInput: unknown = {};
+        try {
+          parsedInput = toolCall.function.arguments ? JSON.parse(toolCall.function.arguments) : {};
+        } catch {
+          parsedInput = toolCall.function.arguments;
+        }
+
+        const toolUseBlock: AnthropicContentBlock = {
+          type: "tool_use",
+          id: toolCall.id,
+          name: toolCall.function.name,
+          input: parsedInput,
+        };
+        contentBlocks.push(toolUseBlock);
+      }
+
+      formattedMessages.push({
+        role: "assistant",
+        content: contentBlocks,
+      });
+
+      continue;
     }
+
+    formattedMessages.push({
+      role: role === "assistant" ? "assistant" : "user",
+      content: message.content ?? "",
+    });
   }
 
-  // Apply Anthropic-specific provider options
-  if (providerOpts) {
-    if (providerOpts.thinking) {
-      requestParams.thinking = providerOpts.thinking;
+  return formattedMessages;
+}
+
+function extractChatCompletionResult(response: Anthropic_SDK.Messages.Message): Omit<ChatCompletionResult, "data"> {
+  // Extract text content
+  const textContent = response.content
+    .filter((c) => c.type === "text")
+    .map((c: any) => c.text)
+    .join("");
+
+  // Extract tool calls
+  const toolCalls = response.content
+    .filter((c) => c.type === "tool_use")
+    .map((c: any) => ({
+      id: c.id,
+      type: "function" as const,
+      function: {
+        name: c.name,
+        arguments: JSON.stringify(c.input),
+      },
+    }));
+
+  return {
+    id: response.id,
+    model: response.model,
+    content: textContent || null,
+    role: "assistant",
+    finishReason: response.stop_reason as any,
+    toolCalls: toolCalls.length > 0 ? toolCalls : undefined,
+    usage: {
+      promptTokens: response.usage.input_tokens,
+      completionTokens: response.usage.output_tokens,
+      totalTokens: response.usage.input_tokens + response.usage.output_tokens,
+    },
+  };
+}
+
+async function* processAnthropicStream(
+  stream: AsyncIterable<Anthropic_SDK.Messages.MessageStreamEvent>,
+  model: string,
+  generateId: () => string
+): AsyncIterable<StreamChunk> {
+  let accumulatedContent = "";
+  const timestamp = Date.now();
+  const toolCallsMap = new Map<
+    number,
+    { id: string; name: string; input: string }
+  >();
+  let currentToolIndex = -1;
+
+  try {
+    for await (const event of stream) {
+      if (event.type === "content_block_start") {
+        if (event.content_block.type === "tool_use") {
+          currentToolIndex++;
+          toolCallsMap.set(currentToolIndex, {
+            id: event.content_block.id,
+            name: event.content_block.name,
+            input: "",
+          });
+        }
+      } else if (event.type === "content_block_delta") {
+        if (event.delta.type === "text_delta") {
+          const delta = event.delta.text;
+          accumulatedContent += delta;
+          yield {
+            type: "content",
+            id: generateId(),
+            model: model || "claude-3-sonnet-20240229",
+            timestamp,
+            delta,
+            content: accumulatedContent,
+            role: "assistant",
+          };
+        } else if (event.delta.type === "input_json_delta") {
+          // Tool input is being streamed
+          const existing = toolCallsMap.get(currentToolIndex);
+          if (existing) {
+            existing.input += event.delta.partial_json;
+
+            yield {
+              type: "tool_call",
+              id: generateId(),
+              model: model || "claude-3-sonnet-20240229",
+              timestamp,
+              toolCall: {
+                id: existing.id,
+                type: "function",
+                function: {
+                  name: existing.name,
+                  arguments: event.delta.partial_json,
+                },
+              },
+              index: currentToolIndex,
+            };
+          }
+        }
+      } else if (event.type === "message_stop") {
+        yield {
+          type: "done",
+          id: generateId(),
+          model: model || "claude-3-sonnet-20240229",
+          timestamp,
+          finishReason: "stop",
+        };
+      } else if (event.type === "message_delta") {
+        if (event.delta.stop_reason) {
+          yield {
+            type: "done",
+            id: generateId(),
+            model: model || "claude-3-sonnet-20240229",
+            timestamp,
+            finishReason:
+              event.delta.stop_reason === "tool_use"
+                ? "tool_calls"
+                : (event.delta.stop_reason as any),
+            // TODO Fix usage
+            usage: event.usage
+              ? {
+                promptTokens: 0,
+                completionTokens: event.usage.output_tokens || 0,
+                totalTokens:
+                  (0) +
+                  (event.usage.output_tokens || 0),
+              }
+              : undefined,
+          };
+        }
+      }
     }
-    // Note: cacheControl and sendReasoning are applied at the message/tool level,
-    // not at the top-level request
+  } catch (error: any) {
+    yield {
+      type: "error",
+      id: generateId(),
+      model: model || "claude-3-sonnet-20240229",
+      timestamp,
+      error: {
+        message: error.message || "Unknown error occurred",
+        code: error.code,
+      },
+    };
   }
-
-  // Custom headers and abort signal handled at HTTP client level
-  if (options.headers) {
-    requestParams._headers = options.headers;
-  }
-  if (options.abortSignal) {
-    requestParams._abortSignal = options.abortSignal;
-  }
-
-  // Anthropic uses user_id in metadata, not top-level user
-  if (options.user) {
-    if (!requestParams.metadata) {
-      requestParams.metadata = {};
-    }
-    requestParams.metadata.user_id = options.user;
-  }
-
-  return requestParams;
 }
 
 export class Anthropic extends BaseAdapter<
@@ -142,315 +311,38 @@ export class Anthropic extends BaseAdapter<
   async chatCompletion(
     options: ChatCompletionOptions
   ): Promise<ChatCompletionResult> {
-    const providerOpts = options.providerOptions as AnthropicProviderOptions | undefined;
-    const { systemMessage, messages } = this.formatMessages(options.messages);
+
 
     // Map common options to Anthropic format using the centralized mapping function
-    const requestParams = mapCommonOptionsToAnthropic(options, providerOpts);
+    const requestParams = mapCommonOptionsToAnthropic(options);
 
-    // Add formatted messages and system message
-    requestParams.messages = messages as any;
-    requestParams.system = systemMessage;
-
-    // Force stream to false for non-streaming
-    requestParams.stream = false;
-
-
-    // Extract custom headers and abort signal
-    const customHeaders = requestParams._headers;
-    const abortSignal = requestParams._abortSignal;
-    delete requestParams._headers;
-    delete requestParams._abortSignal;
 
     const response = await this.client.messages.create(
-      requestParams,
       {
-        headers: customHeaders as Record<string, string> | undefined,
-        signal: abortSignal as AbortSignal | undefined,
+        ...requestParams,
+        stream: false,
       }
     );
 
-    // Extract text content
-    const textContent = response.content
-      .filter((c) => c.type === "text")
-      .map((c: any) => c.text)
-      .join("");
-
-    // Extract tool calls
-    const toolCalls = response.content
-      .filter((c) => c.type === "tool_use")
-      .map((c: any) => ({
-        id: c.id,
-        type: "function" as const,
-        function: {
-          name: c.name,
-          arguments: JSON.stringify(c.input),
-        },
-      }));
-
-    return {
-      id: response.id,
-      model: response.model,
-      content: textContent || null,
-      role: "assistant",
-      finishReason: response.stop_reason as any,
-      toolCalls: toolCalls.length > 0 ? toolCalls : undefined,
-      usage: {
-        promptTokens: response.usage.input_tokens,
-        completionTokens: response.usage.output_tokens,
-        totalTokens: response.usage.input_tokens + response.usage.output_tokens,
-      },
-    };
+    return extractChatCompletionResult(response);
   }
 
-  async *chatCompletionStream(
-    options: ChatCompletionOptions
-  ): AsyncIterable<ChatCompletionChunk> {
-    const providerOpts = options.providerOptions as AnthropicProviderOptions | undefined;
-    const { systemMessage, messages } = this.formatMessages(options.messages);
 
-    // Map common options to Anthropic format
-    const requestParams = mapCommonOptionsToAnthropic(options, providerOpts);
-
-    // Add formatted messages and system message
-    requestParams.messages = messages as any;
-    requestParams.system = systemMessage;
-
-    // Force stream to true
-    requestParams.stream = true;
-
-    // Set default model if not provided
-    if (!requestParams.model) {
-      requestParams.model = "claude-3-sonnet-20240229";
-    }
-
-    // Extract custom headers and abort signal
-    const customHeaders = requestParams._headers;
-    const abortSignal = requestParams._abortSignal;
-    delete requestParams._headers;
-    delete requestParams._abortSignal;
-
-    const streamResult = await this.client.messages.create(
-      requestParams,
-      {
-        headers: customHeaders as Record<string, string> | undefined,
-        signal: abortSignal as AbortSignal | undefined,
-      }
-    );
-
-    // TypeScript doesn't know this is a Stream when stream:true, but it is at runtime
-    const stream = streamResult as unknown as AsyncIterable<any>;
-
-    for await (const chunk of stream) {
-      if (
-        chunk.type === "content_block_delta" &&
-        chunk.delta.type === "text_delta"
-      ) {
-        yield {
-          id: this.generateId(),
-          model: options.model || "claude-3-sonnet-20240229",
-          content: chunk.delta.text,
-          finishReason: null,
-        };
-      } else if (chunk.type === "message_stop") {
-        yield {
-          id: this.generateId(),
-          model: options.model || "claude-3-sonnet-20240229",
-          content: "",
-          finishReason: "stop",
-        };
-      }
-    }
-  }
 
   async *chatStream(
     options: ChatCompletionOptions
   ): AsyncIterable<StreamChunk> {
-    const providerOpts = options.providerOptions as AnthropicProviderOptions | undefined;
-    const { systemMessage, messages } = this.formatMessages(options.messages);
-
     // Map common options to Anthropic format using the centralized mapping function
-    const requestParams = mapCommonOptionsToAnthropic(options, providerOpts);
+    const requestParams = mapCommonOptionsToAnthropic(options);
 
-    // Add formatted messages and system message
-    requestParams.messages = messages as any;
-    requestParams.system = systemMessage;
+    const stream = await this.client.messages.create(
+      { ...requestParams, stream: true }
+    );
 
-    // Force stream to true
-    requestParams.stream = true;
-
-    // Set default model if not provided
-    if (!requestParams.model) {
-      requestParams.model = "claude-3-sonnet-20240229";
-    }
-
-    // Extract custom headers and abort signal
-    const customHeaders = requestParams._headers;
-    const abortSignal = requestParams._abortSignal;
-    delete requestParams._headers;
-    delete requestParams._abortSignal;
-
-    const stream = (await this.client.messages.create(
-      requestParams,
-      {
-        headers: customHeaders as Record<string, string> | undefined,
-        signal: abortSignal as AbortSignal | undefined,
-      }
-    )) as any;
-
-    let accumulatedContent = "";
-    const timestamp = Date.now();
-    const toolCallsMap = new Map<
-      number,
-      { id: string; name: string; input: string }
-    >();
-    let currentToolIndex = -1;
-
-    try {
-      for await (const event of stream) {
-        if (event.type === "content_block_start") {
-          if (event.content_block.type === "tool_use") {
-            currentToolIndex++;
-            toolCallsMap.set(currentToolIndex, {
-              id: event.content_block.id,
-              name: event.content_block.name,
-              input: "",
-            });
-          }
-        } else if (event.type === "content_block_delta") {
-          if (event.delta.type === "text_delta") {
-            const delta = event.delta.text;
-            accumulatedContent += delta;
-            yield {
-              type: "content",
-              id: this.generateId(),
-              model: options.model || "claude-3-sonnet-20240229",
-              timestamp,
-              delta,
-              content: accumulatedContent,
-              role: "assistant",
-            };
-          } else if (event.delta.type === "input_json_delta") {
-            // Tool input is being streamed
-            const existing = toolCallsMap.get(currentToolIndex);
-            if (existing) {
-              existing.input += event.delta.partial_json;
-
-              yield {
-                type: "tool_call",
-                id: this.generateId(),
-                model: options.model || "claude-3-sonnet-20240229",
-                timestamp,
-                toolCall: {
-                  id: existing.id,
-                  type: "function",
-                  function: {
-                    name: existing.name,
-                    arguments: event.delta.partial_json,
-                  },
-                },
-                index: currentToolIndex,
-              };
-            }
-          }
-        } else if (event.type === "message_stop") {
-          yield {
-            type: "done",
-            id: this.generateId(),
-            model: options.model || "claude-3-sonnet-20240229",
-            timestamp,
-            finishReason: "stop",
-          };
-        } else if (event.type === "message_delta") {
-          if (event.delta.stop_reason) {
-            yield {
-              type: "done",
-              id: this.generateId(),
-              model: options.model || "claude-3-sonnet-20240229",
-              timestamp,
-              finishReason:
-                event.delta.stop_reason === "tool_use"
-                  ? "tool_calls"
-                  : (event.delta.stop_reason as any),
-              usage: event.usage
-                ? {
-                  promptTokens: event.usage.input_tokens || 0,
-                  completionTokens: event.usage.output_tokens || 0,
-                  totalTokens:
-                    (event.usage.input_tokens || 0) +
-                    (event.usage.output_tokens || 0),
-                }
-                : undefined,
-            };
-          }
-        }
-      }
-    } catch (error: any) {
-      yield {
-        type: "error",
-        id: this.generateId(),
-        model: options.model || "claude-3-sonnet-20240229",
-        timestamp,
-        error: {
-          message: error.message || "Unknown error occurred",
-          code: error.code,
-        },
-      };
-    }
+    yield* processAnthropicStream(stream, options.model, () => this.generateId());
   }
 
-  async generateText(
-    options: TextGenerationOptions
-  ): Promise<TextGenerationResult> {
-    const response = await this.client.messages.create({
-      model: options.model || "claude-3-sonnet-20240229",
-      messages: [{ role: "user", content: options.prompt }],
-      max_tokens: options.maxTokens || 1024,
-      temperature: options.temperature,
-      top_p: options.topP,
-      stop_sequences: options.stopSequences,
-      stream: false,
-    });
 
-    const content = response.content
-      .map((c) => (c.type === "text" ? c.text : ""))
-      .join("");
-
-    return {
-      id: response.id,
-      model: response.model,
-      text: content,
-      finishReason: response.stop_reason as any,
-      usage: {
-        promptTokens: response.usage.input_tokens,
-        completionTokens: response.usage.output_tokens,
-        totalTokens: response.usage.input_tokens + response.usage.output_tokens,
-      },
-    };
-  }
-
-  async *generateTextStream(
-    options: TextGenerationOptions
-  ): AsyncIterable<string> {
-    const stream = await this.client.messages.create({
-      model: options.model || "claude-3-sonnet-20240229",
-      messages: [{ role: "user", content: options.prompt }],
-      max_tokens: options.maxTokens || 1024,
-      temperature: options.temperature,
-      top_p: options.topP,
-      stop_sequences: options.stopSequences,
-      stream: true,
-    });
-
-    for await (const chunk of stream) {
-      if (
-        chunk.type === "content_block_delta" &&
-        chunk.delta.type === "text_delta"
-      ) {
-        yield chunk.delta.text;
-      }
-    }
-  }
 
   async summarize(options: SummarizationOptions): Promise<SummarizationResult> {
     const systemPrompt = this.buildSummarizationPrompt(options);
@@ -486,67 +378,6 @@ export class Anthropic extends BaseAdapter<
     throw new Error(
       "Embeddings are not natively supported by Anthropic. Consider using OpenAI or another provider for embeddings."
     );
-  }
-
-  private formatMessages(messages: Message[]): {
-    systemMessage?: string;
-    messages: Array<any>;
-  } {
-    const systemMessages = messages.filter((m) => m.role === "system");
-    const nonSystemMessages = messages.filter((m) => m.role !== "system");
-
-    return {
-      systemMessage: systemMessages.map((m) => m.content || "").join("\n"),
-      messages: nonSystemMessages.map((m) => {
-        // Handle tool result messages
-        if (m.role === "tool" && m.toolCallId) {
-          return {
-            role: "user",
-            content: [
-              {
-                type: "tool_result",
-                tool_use_id: m.toolCallId,
-                content: m.content || "",
-              },
-            ],
-          };
-        }
-
-        // Handle assistant messages with tool calls
-        if (m.role === "assistant" && m.toolCalls && m.toolCalls.length > 0) {
-          const content: any[] = [];
-
-          // Add text content if present
-          if (m.content) {
-            content.push({
-              type: "text",
-              text: m.content,
-            });
-          }
-
-          // Add tool use blocks
-          for (const toolCall of m.toolCalls) {
-            content.push({
-              type: "tool_use",
-              id: toolCall.id,
-              name: toolCall.function.name,
-              input: JSON.parse(toolCall.function.arguments),
-            });
-          }
-
-          return {
-            role: "assistant",
-            content,
-          };
-        }
-
-        // Regular messages
-        return {
-          role: m.role === "assistant" ? "assistant" : "user",
-          content: m.content || "",
-        };
-      }),
-    };
   }
 
   private buildSummarizationPrompt(options: SummarizationOptions): string {

@@ -1,5 +1,5 @@
 import type { Tool } from "@tanstack/ai";
-import { AnthropicTool, CustomTool } from ".";
+import { AnthropicTool, } from ".";
 import { convertBashToolToAdapterFormat } from "./bash-tool";
 import { convertCodeExecutionToolToAdapterFormat } from "./code-execution-tool";
 import { convertComputerUseToolToAdapterFormat } from "./computer-use-tool";
