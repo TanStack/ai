@@ -1,13 +1,8 @@
-import { FunctionDeclarationsTool } from "@google/generative-ai";
+
 import { GeminiChatModels } from "../model-meta";
-import { CodeExecutionTool } from "../tools/code-execution-tool";
-import { ComputerUseTool } from "../tools/computer-use-tool";
-import { FileSearchTool } from "../tools/file-search-tool";
-import { GoogleMapsTool } from "../tools/google-maps-tool";
-import { GoogleSearchRetrievalTool } from "../tools/google-search-retriveal-tool";
-import { GoogleSearchTool } from "../tools/google-search-tool";
-import { UrlContextTool } from "../tools/url-context-tool";
 import { Schema } from "../tools/function-declaration-tool";
+import { GoogleGeminiTool } from "../tools";
+import { ContentListUnion } from "@google/genai";
 
 export interface TextProviderOptions {
   // path parameter
@@ -17,15 +12,12 @@ export interface TextProviderOptions {
 
 For single-turn queries, this is a single instance. For multi-turn queries like chat, this is a repeated field that contains the conversation history and the latest request.
    */
-  contents: string | {
-    role: "user" | "model";
-    parts: (TextPart | InlineDataPart | FunctionCallPart | FunctionResponsePart | FileDataPart | ExecutableCodePart | CodeExecutionResultPart)[]
-  }[];
+  contents: string | ContentListUnion;
   /**
    * A list of Tools the Model may use to generate the next response.
    * A Tool is a piece of code that enables the system to interact with external systems to perform an action, or set of actions, outside of knowledge and scope of the Model. Supported Tools are Function and codeExecution. 
    */
-  tools?: CodeExecutionTool | ComputerUseTool | FileSearchTool | FunctionDeclarationsTool | GoogleMapsTool | GoogleSearchRetrievalTool | GoogleSearchTool | UrlContextTool[]
+  tools?: GoogleGeminiTool[];
   /**
    * Tool configuration for any Tool specified in the request.
    */
@@ -271,111 +263,3 @@ Valid values are: de-DE, en-AU, en-GB, en-IN, en-US, es-US, fr-FR, hi-IN, pt-BR,
 }
 
 
-interface Part {
-  /**
-   *  Indicates if the part is thought from the model.
-   */
-  thought?: boolean;
-  /**
-   * An opaque signature for the thought so it can be reused in subsequent requests. A base64-encoded string.
-   */
-  thoughtSignature?: string;
-  /**
-   * Custom metadata associated with the Part. Agents using genai.Part as content representation may need to keep track of the additional information. For example it can be name of a file/source from which the Part originates or a way to multiplex multiple Part streams.
-   */
-  partMetadata?: Record<string, string>;
-  /**
-   * Media resolution for the input media.
-   */
-  mediaResolution?: {
-    level: "MEDIA_RESOLUTION_UNSPECIFIED" | "MEDIA_RESOLUTION_LOW" | "MEDIA_RESOLUTION_MEDIUM" | "MEDIA_RESOLUTION_HIGH";
-  }
-
-  videoMetadata?: {
-    /**
-     * A duration in seconds with up to nine fractional digits, ending with 's'. Example: "3.5s".
-     */
-    startOffset?: string;
-    /**
-     * A duration in seconds with up to nine fractional digits, ending with 's'. Example: "3.5s".
-     */
-    endOffset?: string;
-    /**
-     *  The frame rate of the video sent to the model. If not specified, the default value will be 1.0. The fps range is (0.0, 24.0].
-     */
-    fps?: number;
-  }
-}
-
-interface TextPart extends Part {
-  text: string;
-}
-
-interface InlineDataPart extends Part {
-  mimeType: string;
-  data: string; // base64-encoded string
-}
-
-interface FunctionCallPart extends Part {
-  functionCall: {
-    id?: string;
-    name: string;
-    args?: Record<string, any>;
-  };
-}
-
-interface FunctionResponsePart extends Part {
-  id?: string;
-  name: string;
-  /**
-   * The function response in JSON object format. Callers can use any keys of their choice that fit the function's syntax to return the function output, e.g. "output", "result", etc. In particular, if the function call failed to execute, the response can have an "error" key to return error details to the model.
-   */
-  response: Record<string, any>;
-  /**
-   * Ordered Parts that constitute a function response. Parts may have different IANA MIME types.
-   */
-  parts?: FunctionResponseSegment[];
-  /**
-   * Signals that function call continues, and more responses will be returned, turning the function call into a generator. Is only applicable to NON_BLOCKING function calls, is ignored otherwise. If set to false, future responses will not be considered. It is allowed to return empty response with willContinue=False to signal that the function call is finished. This may still trigger the model generation. To avoid triggering the generation and finish the function call, additionally set scheduling to SILENT.
-   */
-  willContinue?: boolean;
-  /**
-   * Specifies how the response should be scheduled in the conversation. Only applicable to NON_BLOCKING function calls, is ignored otherwise. Defaults to WHEN_IDLE.
-   * @default WHEN_IDLE
-   */
-  scheduling?: "SILENT" | "SCHEDULING_UNSPECIFIED" | "WHEN_IDLE" | "INTERRUPT";
-}
-
-interface FunctionResponseSegment {
-  inlineData?: {
-    mimeType: string;
-    data: string
-  }
-}
-
-interface FileDataPart extends Part {
-  mimeType?: string;
-  fileUri: string;
-}
-
-interface ExecutableCodePart extends Part {
-  /**
-   *  Programming language of the code.
-   */
-  language: "LANGUAGE_UNSPECIFIED" | "PYTHON";
-  /**
-   * The code to be executed
-   */
-  code: string;
-}
-
-interface CodeExecutionResultPart extends Part {
-  /**
-   * Outcome of the code execution.
-   */
-  outcome: "OUTCOME_UNSPECIFIED" | "OUTCOME_OK" | "OUTCOME_FAILED" | "OUTCOME_DEADLINE_EXCEEDED";
-  /**
-   * Contains stdout when code execution is successful, stderr or other description otherwise.
-   */
-  output?: string;
-}

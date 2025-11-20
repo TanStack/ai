@@ -1,3 +1,4 @@
+import { ModelMessage } from "@tanstack/ai";
 import { ApplyPatchTool } from "../tools/apply-patch-tool";
 import { CodeInterpreterTool } from "../tools/code-interpreter-tool";
 import { ComputerUseTool } from "../tools/computer-use-tool";
@@ -11,6 +12,7 @@ import { ShellTool } from "../tools/shell-tool";
 import { ToolChoice } from "../tools/tool-choice";
 import { WebSearchPreviewTool } from "../tools/web-search-preview-tool";
 import { WebSearchTool } from "../tools/web-search-tool";
+import OpenAI from "openai";
 
 /**
  * Options your SDK forwards to OpenAI when doing chat/responses.
@@ -42,13 +44,9 @@ https://platform.openai.com/docs/api-reference/responses/create#responses_create
   message.output_text.logprobs: Include logprobs with assistant messages.
   reasoning.encrypted_content: Includes an encrypted version of reasoning tokens in reasoning item outputs. This enables reasoning items to be used in multi-turn conversations when using the Responses API statelessly (like when the store parameter is set to false, or when an organization is enrolled in the zero data retention program).
   */
-  include?: ("web_search_call.action.sources" |
-    "code_interpreter_call.outputs" |
-    "computer_call_output.output.image_url" |
-    "file_search_call.results" |
-    "message.input_image.image_url" |
-    "message.output_text.logprobs" |
-    "reasoning.encrypted_content")[];
+  include?: OpenAI.Responses.ResponseIncludable[];
+
+  input: string | OpenAI.Responses.ResponseInput
   /**
    * A system (or developer) message inserted into the model's context.
 
@@ -194,68 +192,56 @@ https://platform.openai.com/docs/api-reference/responses/create#responses_create
    * Configuration options for a text response from the model. Can be plain text or structured JSON data. Learn more:
   https://platform.openai.com/docs/api-reference/responses/create#responses_create-text
    */
-  text?: {
-    format?: {
-      type: "text"
-    } | {
-      type: "json_schema";
-      json_schema: {
-        name: string;
-        schema: Record<string, unknown>;
-        strict?: boolean;
-      };
-    };
-    /**
-     * Constrains the verbosity of the model's response. Lower values will result in more concise responses, while higher values will result in more verbose responses.
-     * https://platform.openai.com/docs/api-reference/responses/create#responses_create-text-verbosity
-     */
-    verbosity?: "low" | "medium" | "high";
-    /**
-     * An integer between 0 and 20 specifying the number of most likely tokens to return at each token position, each with an associated log probability.
-     * https://platform.openai.com/docs/api-reference/responses/create#responses_create-top_logprobs
-     */
-    top_logprobs?: number;
-    /**
-     * An alternative to sampling with temperature, called nucleus sampling, where the model considers the results of the tokens with top_p probability mass. So 0.1 means only the tokens comprising the top 10% probability mass are considered.
-     * https://platform.openai.com/docs/api-reference/responses/create#responses_create-top_p
-     */
-    top_p?: number;
-    /**
-     * The truncation strategy to use for the model response.
-    
-    auto: If the input to this Response exceeds the model's context window size, the model will truncate the response to fit the context window by dropping items from the beginning of the conversation.
-    disabled (default): If the input size will exceed the context window size for a model, the request will fail with a 400 error.
-     */
-    truncation?: "auto" | "disabled";
-    /**
-         * Tools the model may call (functions, web_search, etc).
-         * Function tool example:
-         *   { type: "function", function: { name, description?, parameters: JSONSchema } }
-         * https://platform.openai.com/docs/guides/tools/tool-choice
-         * https://platform.openai.com/docs/guides/tools-web-search
-         */
-    tools?: Array<
-      FunctionTool | FileSearchTool | ComputerUseTool | WebSearchTool | MCPTool | CodeInterpreterTool | ImageGenerationTool | ShellTool | LocalShellTool | CustomTool | WebSearchPreviewTool | ApplyPatchTool
-    >;
-
-    /**
-    * Function/tool calling configuration. Supply tool schemas in `tools`
-    * and control selection here:
-    *  - "auto" | "none" | "required"
-    *  - { type: "tool", tool_name: string } (or model-specific shape)
-    * https://platform.openai.com/docs/guides/tools/tool-choice
-    * https://platform.openai.com/docs/api-reference/introduction (tools array)
+  text?: OpenAI.Responses.ResponseTextConfig
+  /**
+    * Constrains the verbosity of the model's response. Lower values will result in more concise responses, while higher values will result in more verbose responses.
+    * https://platform.openai.com/docs/api-reference/responses/create#responses_create-text-verbosity
     */
-    tool_choice?:
-    | "auto"
-    | "none"
-    | "required"
-    | ToolChoice;
+  verbosity?: "low" | "medium" | "high";
+  /**
+   * An integer between 0 and 20 specifying the number of most likely tokens to return at each token position, each with an associated log probability.
+   * https://platform.openai.com/docs/api-reference/responses/create#responses_create-top_logprobs
+   */
+  top_logprobs?: number;
+  /**
+   * An alternative to sampling with temperature, called nucleus sampling, where the model considers the results of the tokens with top_p probability mass. So 0.1 means only the tokens comprising the top 10% probability mass are considered.
+   * https://platform.openai.com/docs/api-reference/responses/create#responses_create-top_p
+   */
+  top_p?: number;
+  /**
+   * The truncation strategy to use for the model response.
+  
+  auto: If the input to this Response exceeds the model's context window size, the model will truncate the response to fit the context window by dropping items from the beginning of the conversation.
+  disabled (default): If the input size will exceed the context window size for a model, the request will fail with a 400 error.
+   */
+  truncation?: "auto" | "disabled";
+  /**
+       * Tools the model may call (functions, web_search, etc).
+       * Function tool example:
+       *   { type: "function", function: { name, description?, parameters: JSONSchema } }
+       * https://platform.openai.com/docs/guides/tools/tool-choice
+       * https://platform.openai.com/docs/guides/tools-web-search
+       */
+  tools?: Array<
+    FunctionTool | FileSearchTool | ComputerUseTool | WebSearchTool | MCPTool | CodeInterpreterTool | ImageGenerationTool | ShellTool | LocalShellTool | CustomTool | WebSearchPreviewTool | ApplyPatchTool
+  >;
 
-
-
-  };
+  /**
+  * Function/tool calling configuration. Supply tool schemas in `tools`
+  * and control selection here:
+  *  - "auto" | "none" | "required"
+  *  - { type: "tool", tool_name: string } (or model-specific shape)
+  * https://platform.openai.com/docs/guides/tools/tool-choice
+  * https://platform.openai.com/docs/api-reference/introduction (tools array)
+  */
+  tool_choice?:
+  | "auto"
+  | "none"
+  | "required"
+  | ToolChoice;
 }
+
+
 export const validateConversationAndPreviousResponseId = (
   options: TextProviderOptions
 ) => {
@@ -281,3 +267,82 @@ export const validateMetadata = (options: TextProviderOptions) => {
     throw new Error("Metadata values cannot be longer than 512 characters.");
   }
 };
+
+export function convertMessagesToInput(messages: ModelMessage[]): OpenAI.Responses.ResponseInput {
+  const result: OpenAI.Responses.ResponseInput = [];
+
+  for (const message of messages) {
+
+    // Handle tool messages - convert to FunctionToolCallOutput
+    if (message.role === "tool") {
+      result.push({
+        type: "function_call_output",
+        call_id: message.toolCallId || "",
+        output: typeof message.content === "string" ? message.content : JSON.stringify(message.content)
+      });
+      continue;
+    }
+
+    // Handle assistant messages
+    if (message.role === "assistant") {
+      // If the assistant message has tool calls, add them as FunctionToolCall objects
+      if (message.toolCalls && message.toolCalls.length > 0) {
+        for (const toolCall of message.toolCalls) {
+          result.push({
+            type: "function_call",
+            call_id: toolCall.id,
+            name: toolCall.function.name,
+            arguments: typeof toolCall.function.arguments === "string"
+              ? JSON.parse(toolCall.function.arguments)
+              : toolCall.function.arguments
+          });
+        }
+      }
+
+      // Add the assistant's text message if there is content
+      if (message.content) {
+        result.push({
+          type: "message",
+          role: "assistant",
+          content: [
+            {
+              type: "input_text",
+              text: message.content
+            }
+          ]
+        });
+      }
+
+      continue;
+    }
+
+    // Handle system messages
+    if (message.role === "system") {
+      result.push({
+        type: "message",
+        role: "system",
+        content: [
+          {
+            type: "input_text",
+            text: message.content || ""
+          }
+        ]
+      });
+      continue;
+    }
+
+    // Handle user messages (default case)
+    result.push({
+      type: "message",
+      role: "user",
+      content: [
+        {
+          type: "input_text",
+          text: message.content || ""
+        }
+      ]
+    });
+  }
+
+  return result;
+}

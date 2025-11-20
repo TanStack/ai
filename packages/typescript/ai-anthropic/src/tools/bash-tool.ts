@@ -1,17 +1,26 @@
-import { CacheControl } from "../text/text-provider-options";
+import { BetaToolBash20241022, BetaToolBash20250124 } from "@anthropic-ai/sdk/resources/beta";
+import type { Tool } from "@tanstack/ai";
 
-type BashToolType = "bash_20241022" | "bash_20250124";
+export type BashTool = BetaToolBash20241022 | BetaToolBash20250124
 
-export interface BashTool {
-  name: "bash";
-  type: BashToolType;
-  cache_control?: CacheControl | null
+
+
+export function createBashTool(config: BashTool): BashTool {
+  return config
 }
 
-export function createBashTool(type: BashToolType, cacheControl?: CacheControl | null): BashTool {
+export function convertBashToolToAdapterFormat(tool: Tool): BashTool {
+  const metadata = tool.metadata as BashTool;
+  return metadata
+}
+export function bashTool(config: BashTool): Tool {
   return {
-    name: "bash",
-    type,
-    cache_control: cacheControl || null
-  };
+    type: "function",
+    function: {
+      name: "bash",
+      description: "",
+      parameters: {}
+    },
+    metadata: config
+  }
 }

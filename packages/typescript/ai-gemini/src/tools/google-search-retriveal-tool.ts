@@ -1,3 +1,5 @@
+import type { Tool } from "@tanstack/ai";
+
 export interface GoogleSearchRetrievalTool {
   dynamicRetrievalConfig?: {
     /**
@@ -11,8 +13,23 @@ export interface GoogleSearchRetrievalTool {
   }
 }
 
-export const googleSearchRetrievalTool = (config?: GoogleSearchRetrievalTool) => {
+export function convertGoogleSearchRetrievalToolToAdapterFormat(tool: Tool) {
+  const metadata = tool.metadata as { dynamicRetrievalConfig?: { mode: "MODE_UNSPECIFIED" | "MODE_DYNAMIC"; dynamicThreshold?: number } };
   return {
-    "googleSearchRetrieval": config || {}
+    googleSearchRetrieval: metadata.dynamicRetrievalConfig ? { dynamicRetrievalConfig: metadata.dynamicRetrievalConfig } : {}
+  };
+}
+
+export function googleSearchRetrievalTool(config?: { dynamicRetrievalConfig?: { mode: "MODE_UNSPECIFIED" | "MODE_DYNAMIC"; dynamicThreshold?: number } }): Tool {
+  return {
+    type: "function",
+    function: {
+      name: "google_search_retrieval",
+      description: "",
+      parameters: {}
+    },
+    metadata: {
+      dynamicRetrievalConfig: config?.dynamicRetrievalConfig
+    }
   }
 }

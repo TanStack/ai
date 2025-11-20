@@ -1,18 +1,26 @@
-import { CacheControl } from "../text/text-provider-options";
+import { BetaCodeExecutionTool20250522, BetaCodeExecutionTool20250825 } from "@anthropic-ai/sdk/resources/beta";
+import type { Tool } from "@tanstack/ai";
 
-type CodeExecutionToolType = "code_execution_20250825" | "code_execution_20250522";
+export type CodeExecutionTool = BetaCodeExecutionTool20250522 | BetaCodeExecutionTool20250825
 
-export interface CodeExecutionTool {
-  name: "code_execution";
-  type: CodeExecutionToolType;
-  cache_control?: CacheControl | null
+export function createCodeExecutionTool(config: CodeExecutionTool): CodeExecutionTool {
+  return config
 }
 
-export function createCodeExecutionTool(type: CodeExecutionToolType, cacheControl?: CacheControl | null): CodeExecutionTool {
+export function convertCodeExecutionToolToAdapterFormat(tool: Tool): CodeExecutionTool {
+  const metadata = tool.metadata as CodeExecutionTool
+  return metadata
+}
+
+export function codeExecutionTool(config: CodeExecutionTool): Tool {
   return {
-    name: "code_execution",
-    type,
-    cache_control: cacheControl || null
-  };
+    type: "function",
+    function: {
+      name: "code_execution",
+      description: "",
+      parameters: {}
+    },
+    metadata: config
+  }
 }
 

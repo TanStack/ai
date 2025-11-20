@@ -1,20 +1,35 @@
-export interface FunctionTool {
-  type: "function";
-  /**
-   * The name of the function to call.
-   */
-  name: string;
-  /**
-   * A description of the function. Used by the model to determine whether or not to call the function.
-   */
-  description?: string;
-  /**
-   * Whether to enforce strict parameter validation.
-   * @default true
-   */
-  strict: boolean;
-  /**
-   * A JSON schema object describing the parameters of the function.
-   */
-  parameters?: Record<string, any>;
+import type { Tool } from "@tanstack/ai";
+import OpenAI from "openai";
+
+export type FunctionTool = OpenAI.Responses.FunctionTool
+
+
+/**
+ * Converts a standard Tool to OpenAI FunctionTool format
+ */
+export function convertFunctionToolToAdapterFormat(tool: Tool): FunctionTool {
+  const metadata = tool.metadata as Omit<FunctionTool, "type">;
+  return {
+    type: "function",
+    ...metadata
+  };
+}
+
+/**
+ * Creates a standard Tool from FunctionTool parameters
+ */
+export function functionTool(
+  config: Omit<FunctionTool, "type">
+): Tool {
+  return {
+    type: "function",
+    function: {
+      name: config.name,
+      description: config.description ?? "",
+      parameters: config.parameters ?? {},
+    },
+    metadata: {
+      ...config
+    },
+  };
 }

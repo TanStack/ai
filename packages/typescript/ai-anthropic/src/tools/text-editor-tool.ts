@@ -1,19 +1,31 @@
+import { ToolTextEditor20250124, ToolTextEditor20250429, ToolTextEditor20250728 } from "@anthropic-ai/sdk/resources/messages";
 import type { CacheControl } from "../text/text-provider-options";
+import type { Tool } from "@tanstack/ai";
 
-type TextEditorToolType = "text_editor_20241022" | "text_editor_20250124" | "text_editor_20250429";
+export type TextEditorTool = ToolTextEditor20250124 | ToolTextEditor20250429 | ToolTextEditor20250728
 
-export interface TextEditorTool {
-  name: "str_replace_editor";
-  type: TextEditorToolType;
-  cache_control?: CacheControl | null
+export function createTextEditorTool<T extends TextEditorTool>(config: T): T {
+  return config
 }
 
-export function createTextEditorTool(type: TextEditorToolType, cacheControl?: CacheControl | null): TextEditorTool {
+export function convertTextEditorToolToAdapterFormat(tool: Tool): TextEditorTool {
+  const metadata = tool.metadata as TextEditorTool
   return {
-    name: "str_replace_editor",
-    type,
-    cache_control: cacheControl || null
-  };
+    ...metadata,
+
+  }
+}
+
+export function textEditorTool<T extends TextEditorTool>(config: T): Tool {
+  return {
+    type: "function",
+    function: {
+      name: "str_replace_editor",
+      description: "",
+      parameters: {}
+    },
+    metadata: config
+  }
 }
 
 export interface TextEditor {

@@ -1352,3 +1352,11 @@ export const OPENAI_VIDEO_MODELS = [
 export const OPENAI_MODERATION_MODELS = [
   OMNI_MODERATION.name,
 ] as const;
+
+
+export type OpenAIChatModel = (typeof OPENAI_CHAT_MODELS)[number];
+export type OpenAIImageModel = (typeof OPENAI_IMAGE_MODELS)[number];
+export type OpenAIEmbeddingModel = (typeof OPENAI_EMBEDDING_MODELS)[number];
+export type OpenAIAudioModel = (typeof OPENAI_AUDIO_MODELS)[number];
+export type OpenAIVideoModel = (typeof OPENAI_VIDEO_MODELS)[number];
+export type OpenAITranscriptionModel = (typeof OPENAI_TRANSCRIPTION_MODELS)[number];

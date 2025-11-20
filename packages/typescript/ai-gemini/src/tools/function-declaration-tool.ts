@@ -1,4 +1,4 @@
-interface FunctionDeclarationTool {
+export interface FunctionDeclarationTool {
   /**
    * The name of the function. Must be a-z, A-Z, 0-9, or contain underscores, colons, dots, and dashes, with a maximum length of 64.
    */

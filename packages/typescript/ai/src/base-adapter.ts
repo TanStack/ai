@@ -3,9 +3,6 @@ import type {
   AIAdapterConfig,
   ChatCompletionOptions,
   ChatCompletionResult,
-  ChatCompletionChunk,
-  TextGenerationOptions,
-  TextGenerationResult,
   StreamChunk,
   SummarizationOptions,
   SummarizationResult,
@@ -65,18 +62,10 @@ export abstract class BaseAdapter<
   abstract chatCompletion(
     options: ChatCompletionOptions
   ): Promise<ChatCompletionResult>;
-  abstract chatCompletionStream(
-    options: ChatCompletionOptions
-  ): AsyncIterable<ChatCompletionChunk>;
   abstract chatStream(
     options: ChatCompletionOptions
   ): AsyncIterable<StreamChunk>;
-  abstract generateText(
-    options: TextGenerationOptions
-  ): Promise<TextGenerationResult>;
-  abstract generateTextStream(
-    options: TextGenerationOptions
-  ): AsyncIterable<string>;
+
   abstract summarize(
     options: SummarizationOptions
   ): Promise<SummarizationResult>;

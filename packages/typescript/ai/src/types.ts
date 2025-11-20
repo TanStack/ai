@@ -1,3 +1,5 @@
+import { CommonOptions } from "./common-options";
+
 export interface ToolCall {
   id: string;
   type: "function";
@@ -97,6 +99,8 @@ export interface Tool {
   execute?: (args: any) => Promise<string> | string;
   /** If true, tool execution requires user approval before running. Works with both server and client tools. */
   needsApproval?: boolean;
+
+  metadata?: Record<string, any>;
 }
 
 export interface ToolConfig {
@@ -221,187 +225,23 @@ export interface AgentLoopState {
  */
 export type AgentLoopStrategy = (state: AgentLoopState) => boolean;
 
-export interface ChatCompletionOptions {
-  /** The model to use for chat completion */
-  model: string;
-  /** Array of messages in the conversation */
+/**
+ * Options passed into the SDK and further piped to the AI provider.
+ */
+export interface ChatCompletionOptions<
+  TModel extends string = string,
+  TProviderOptions extends Record<string, any> = Record<string, any>,
+  TOutput extends ResponseFormat<any> | undefined = undefined
+> {
+  model: TModel;
   messages: ModelMessage[];
-  /** Controls randomness in the output (0-2). Lower values make output more focused and deterministic. */
-  temperature?: number;
-
-  /**
-   * Maximum number of tokens to generate in the completion.
-   *
-   * Limits the length of the model's response. The exact behavior varies by provider:
-   * - OpenAI: Counts both prompt and completion tokens towards context limit
-   * - Anthropic: Separate from input token count
-   *
-   * Note: One token ≈ 4 characters for English text
-   *
-   * @see https://platform.openai.com/docs/api-reference/chat/create#chat-create-max_tokens
-   * @see https://docs.anthropic.com/claude/reference/messages_post#body-max_tokens
-   */
-  maxTokens?: number;
-
-  /**
-   * Nucleus sampling parameter (0.0-1.0).
-   *
-   * An alternative to temperature for controlling randomness. The model considers
-   * the tokens with top_p probability mass. For example, 0.1 means only tokens
-   * comprising the top 10% probability mass are considered.
-   *
-   * Recommended: Alter either temperature OR top_p, but not both.
-   *
-   * @see https://platform.openai.com/docs/api-reference/chat/create#chat-create-top_p
-   * @see https://docs.anthropic.com/claude/reference/messages_post#body-top_p
-   */
-  topP?: number;
-
-  /**
-   * Penalizes new tokens based on their frequency in the text so far (-2.0 to 2.0).
-   *
-   * Positive values decrease the model's likelihood of repeating the same line verbatim.
-   * - Positive values: Reduce repetition
-   * - Negative values: Increase repetition
-   * - 0: No penalty (default)
-   *
-   * @see https://platform.openai.com/docs/api-reference/chat/create#chat-create-frequency_penalty
-   * @see https://docs.anthropic.com/claude/reference/messages_post (not directly supported, handled via prompting)
-   */
-  frequencyPenalty?: number;
-
-  /**
-   * Penalizes new tokens based on whether they appear in the text so far (-2.0 to 2.0).
-   *
-   * Positive values increase the model's likelihood to talk about new topics.
-   * - Positive values: Encourage new topics
-   * - Negative values: Stay on existing topics
-   * - 0: No penalty (default)
-   *
-   * @see https://platform.openai.com/docs/api-reference/chat/create#chat-create-presence_penalty
-   */
-  presencePenalty?: number;
-
-  /**
-   * Random seed for deterministic generation (integer).
-   *
-   * When provided, the model will make a best effort to generate the same output
-   * for the same inputs. Useful for reproducible results and testing.
-   *
-   * Note: Determinism is not guaranteed across model versions or providers.
-   *
-   * @see https://platform.openai.com/docs/api-reference/chat/create#chat-create-seed
-   * @see https://github.com/ollama/ollama/blob/main/docs/modelfile.md#parameter (Ollama)
-   */
-  seed?: number;
-
-  // Control parameters
-  /**
-   * Sequences where the API will stop generating further tokens.
-   *
-   * Up to 4 sequences where the model will stop generating. The returned text
-   * will not contain the stop sequence.
-   *
-   * @see https://platform.openai.com/docs/api-reference/chat/create#chat-create-stop
-   * @see https://docs.anthropic.com/claude/reference/messages_post#body-stop_sequences
-   */
-  stopSequences?: string[];
-
-  /**
-   * Whether to stream the response incrementally using Server-Sent Events (SSE).
-   *
-   * When true, tokens are sent as they're generated rather than waiting for completion.
-   * Useful for providing real-time feedback in chat interfaces.
-   *
-   * Default: false
-   *
-   * @see https://platform.openai.com/docs/api-reference/chat/create#chat-create-stream
-   * @see https://docs.anthropic.com/claude/reference/messages-streaming
-   */
-  stream?: boolean;
-
-  // Tool/Function calling
-  /**
-   * Array of tools/functions that the model can call.
-   *
-   * Tools allow the model to interact with external APIs and perform actions.
-   * Each tool must have a unique name and a JSON Schema describing its parameters.
-   *
-   * @see https://platform.openai.com/docs/guides/function-calling
-   * @see https://docs.anthropic.com/claude/docs/tool-use
-   */
-  tools?: Tool[];
-
-  /**
-   * Controls which (if any) tool is called by the model.
-   *
-   * Options:
-   * - "auto": Model decides whether to call a tool and which one (default)
-   * - "none": Model will not call any tools
-   * - "required": Model must call at least one tool
-   * - Object: Forces the model to call a specific tool
-   *
-   * @see https://platform.openai.com/docs/api-reference/chat/create#chat-create-tool_choice
-   * @see https://docs.anthropic.com/claude/docs/tool-use#controlling-claudes-output
-   */
-  toolChoice?:
-  | "auto"
-  | "none"
-  | { type: "function"; function: { name: string } };
-  /** Structured output format specification. Use with responseFormat() helper for type-safe outputs. */
-  responseFormat?: ResponseFormat;
-  /** Strategy for determining when to stop the agent loop. Defaults to maxIterations(5) */
+  tools?: Array<Tool>;
+  systemPrompts?: string[];
   agentLoopStrategy?: AgentLoopStrategy;
-  /** Additional metadata to attach to the request */
-  metadata?: Record<string, any>;
-
-  /**
-   * Unique identifier for the end-user.
-   *
-   * Used for abuse monitoring and tracking. Can help providers detect and prevent abuse.
-   * Should be a unique identifier for your end-user (not your app's API key).
-   *
-   * @see https://platform.openai.com/docs/api-reference/chat/create#chat-create-user
-   */
-  user?: string;
-
-  /**
-   * AbortSignal for request cancellation.
-   *
-   * Allows you to cancel an in-progress request using an AbortController.
-   * Useful for implementing timeouts or user-initiated cancellations.
-   *
-   * @example
-   * const controller = new AbortController();
-   * setTimeout(() => controller.abort(), 5000); // Cancel after 5 seconds
-   * await chat({ ..., abortSignal: controller.signal });
-   *
-   * @see https://developer.mozilla.org/en-US/docs/Web/API/AbortSignal
-   */
-  abortSignal?: AbortSignal;
-
-  /**
-   * Custom HTTP headers to include in the request.
-   *
-   * Useful for adding authorization, tracking, or custom headers required by proxies.
-   *
-   * @example
-   * headers: { "X-Custom-Header": "value" }
-   */
-  headers?: Record<string, string>;
-
-  /**
-   * Provider-specific options that don't fit into common options.
-   *
-   * Each provider has unique features (e.g., OpenAI's store, Anthropic's thinking).
-   * These are strongly typed when using a specific adapter.
-   *
-   * @see OpenAIChatProviderOptions for OpenAI-specific options
-   * @see AnthropicProviderOptions for Anthropic-specific options
-   * @see OllamaProviderOptions for Ollama-specific options
-   * @see GeminiProviderOptions for Gemini-specific options
-   */
-  providerOptions?: Record<string, any>;
+  options?: CommonOptions;
+  providerOptions?: TProviderOptions;
+  request?: Request | RequestInit;
+  output?: TOutput;
 }
 
 export type StreamChunkType =
@@ -482,6 +322,9 @@ export interface ToolInputAvailableStreamChunk extends BaseStreamChunk {
   input: any;
 }
 
+/**
+ * Chunk returned by the sdk during streaming chat completions.
+ */
 export type StreamChunk =
   | ContentStreamChunk
   | ToolCallStreamChunk
@@ -511,7 +354,7 @@ export interface ChatCompletionResult<TData = never> {
   model: string;
   content: string | null;
   role: "assistant";
-  finishReason: "stop" | "length" | "content_filter" | "tool_calls" | null;
+  finishReason: "in_progress" | "completed" | "incomplete" | undefined | null;
   toolCalls?: ToolCall[];
   usage: {
     promptTokens: number;
@@ -783,19 +626,10 @@ export interface AIAdapter<
   _videoProviderOptions?: TVideoProviderOptions;
 
   // Chat methods
-  chatCompletion(options: ChatCompletionOptions): Promise<ChatCompletionResult>;
-
-  // Simple streaming (returns ChatCompletionChunk - text only, no tool calls)
-  chatCompletionStream(
-    options: ChatCompletionOptions
-  ): AsyncIterable<ChatCompletionChunk>;
+  chatCompletion(options: ChatCompletionOptions<string, TChatProviderOptions>): Promise<ChatCompletionResult>;
 
   // Structured streaming with JSON chunks (supports tool calls and rich content)
-  chatStream(options: ChatCompletionOptions): AsyncIterable<StreamChunk>;
-
-  // Text generation methods
-  generateText(options: TextGenerationOptions): Promise<TextGenerationResult>;
-  generateTextStream(options: TextGenerationOptions): AsyncIterable<string>;
+  chatStream(options: ChatCompletionOptions<string, TChatProviderOptions>): AsyncIterable<StreamChunk>;
 
   // Summarization
   summarize(options: SummarizationOptions): Promise<SummarizationResult>;
