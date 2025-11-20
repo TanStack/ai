@@ -1,4 +1,4 @@
-import { GoogleGenerativeAI, Content } from "@google/generative-ai";
+import { GoogleGenerativeAI } from "@google/generative-ai";
 import {
   BaseAdapter,
   convertChatCompletionStream,
@@ -6,15 +6,16 @@ import {
   type ChatCompletionOptions,
   type ChatCompletionResult,
   type ChatCompletionChunk,
-  type TextGenerationOptions,
-  type TextGenerationResult,
   type SummarizationOptions,
   type SummarizationResult,
   type EmbeddingOptions,
   type EmbeddingResult,
+  type ModelMessage,
   type StreamChunk,
 } from "@tanstack/ai";
 import { GEMINI_MODELS, GEMINI_IMAGE_MODELS, GEMINI_EMBEDDING_MODELS, GEMINI_AUDIO_MODELS, GEMINI_VIDEO_MODELS } from "./model-meta";
+import { TextProviderOptions } from "./text/text-provider-options";
+import { convertToolsToProviderFormat } from "./tools/tool-converter";
 
 export interface GeminiAdapterConfig extends AIAdapterConfig {
   apiKey: string;
@@ -41,60 +42,86 @@ export interface GeminiProviderOptions {
   responseSchema?: any;
 }
 
+function formatMessages(messages: ModelMessage[]): Array<{ role: "user" | "model"; parts: Array<{ text?: string; functionCall?: { name: string; args: Record<string, any> }; functionResponse?: { name: string; response: Record<string, any> } }> }> {
+  return messages
+    .filter((m) => m.role !== "system") // Skip system messages
+    .map((msg) => {
+      const role: "user" | "model" = msg.role === "assistant" ? "model" : "user";
+      const parts: Array<{ text?: string; functionCall?: { name: string; args: Record<string, any> }; functionResponse?: { name: string; response: Record<string, any> } }> = [];
+
+      // Add text content if present
+      if (msg.content) {
+        parts.push({ text: msg.content });
+      }
+
+      // Handle tool calls (from assistant)
+      if (msg.role === "assistant" && msg.toolCalls?.length) {
+        for (const toolCall of msg.toolCalls) {
+          let parsedArgs: Record<string, any> = {};
+          try {
+            parsedArgs = toolCall.function.arguments
+              ? JSON.parse(toolCall.function.arguments)
+              : {};
+          } catch {
+            parsedArgs = toolCall.function.arguments as any;
+          }
+
+          parts.push({
+            functionCall: {
+              name: toolCall.function.name,
+              args: parsedArgs,
+            },
+          });
+        }
+      }
+
+      // Handle tool results (from tool role)
+      if (msg.role === "tool" && msg.toolCallId) {
+        parts.push({
+          functionResponse: {
+            name: msg.toolCallId, // Gemini uses function name here
+            response: {
+              content: msg.content || "",
+            },
+          },
+        });
+      }
+
+      return {
+        role,
+        parts: parts.length > 0 ? parts : [{ text: "" }],
+      };
+    });
+}
+
+
 /**
  * Maps common options to Gemini-specific format
  * Handles translation of normalized options to Gemini's API format
  */
 function mapCommonOptionsToGemini(
-  options: ChatCompletionOptions,
-  providerOpts?: GeminiProviderOptions
-): any {
-  const generationConfig: any = {
-    temperature: options.temperature,
-    topP: options.topP,
-    maxOutputTokens: options.maxTokens,
-    stopSequences: options.stopSequences,
+  options: ChatCompletionOptions
+): TextProviderOptions {
+  const providerOpts = options.providerOptions as TextProviderOptions | undefined;
+
+  const generationConfig: TextProviderOptions = {
+    ...providerOpts,
+    model: options.model as any,
+    generationConfig: {
+      temperature: options.options?.temperature,
+
+      topP: options.options?.topP,
+      maxOutputTokens: options.options?.maxTokens,
+      ...providerOpts?.generationConfig
+    },
+
+    systemInstruction: options.systemPrompts?.join("\n"),
+    contents: formatMessages(options.messages) as any,
   };
 
-  // Map common penalties
-  if (options.presencePenalty !== undefined) {
-    generationConfig.presencePenalty = options.presencePenalty;
-  }
-  if (options.frequencyPenalty !== undefined) {
-    generationConfig.frequencyPenalty = options.frequencyPenalty;
-  }
-
-  // Apply Gemini-specific provider options
-  if (providerOpts) {
-    if (providerOpts.candidateCount) {
-      generationConfig.candidateCount = providerOpts.candidateCount;
-    }
-    if (providerOpts.responseMimeType) {
-      generationConfig.responseMimeType = providerOpts.responseMimeType;
-    }
-    if (providerOpts.responseSchema) {
-      generationConfig.responseSchema = providerOpts.responseSchema;
-    }
-  }
-
-  // Map response format to Gemini's responseMimeType
-  if (options.responseFormat) {
-    if (options.responseFormat.type === "json_object") {
-      generationConfig.responseMimeType = "application/json";
-    } else if (
-      options.responseFormat.type === "json_schema" &&
-      options.responseFormat.json_schema
-    ) {
-      generationConfig.responseMimeType = "application/json";
-      generationConfig.responseSchema =
-        options.responseFormat.json_schema.schema;
-    }
-  }
-
   return {
-    model: options.model || "gemini-pro",
-    generationConfig,
-    safetySettings: providerOpts?.safetySettings,
+    ...generationConfig,
+    tools: options.tools ? convertToolsToProviderFormat(options.tools) : undefined,
   };
 }
 
@@ -126,24 +153,25 @@ export class GeminiAdapter extends BaseAdapter<
   async chatCompletion(
     options: ChatCompletionOptions
   ): Promise<ChatCompletionResult> {
-    const providerOpts = options.providerOptions as
-      | GeminiProviderOptions
-      | undefined;
-
     // Map common options to Gemini format
-    const mappedOptions = mapCommonOptionsToGemini(options, providerOpts);
+    const mappedOptions = mapCommonOptionsToGemini(options);
+    const contents = formatMessages(options.messages);
 
     const model = this.client.getGenerativeModel({
       model: mappedOptions.model,
       generationConfig: mappedOptions.generationConfig,
-      safetySettings: mappedOptions.safetySettings,
+      systemInstruction: mappedOptions.systemInstruction,
+      safetySettings: mappedOptions.safetySettings as any,
+      tools: mappedOptions.tools as any,
     });
 
-    const history = this.formatMessagesForGemini(options.messages.slice(0, -1));
-    const lastMessage = options.messages[options.messages.length - 1];
+    const history = contents.slice(0, -1);
+    const lastMessage = contents[contents.length - 1];
 
-    const chat = model.startChat({ history });
-    const result = await chat.sendMessage(lastMessage.content || "");
+    const chat = model.startChat({ history: history as any });
+    const result = await chat.sendMessage(
+      lastMessage.parts[0]?.text || (lastMessage.parts as any)
+    );
     const response = await result.response;
     const text = response.text();
 
@@ -170,24 +198,25 @@ export class GeminiAdapter extends BaseAdapter<
   async *chatCompletionStream(
     options: ChatCompletionOptions
   ): AsyncIterable<ChatCompletionChunk> {
-    const providerOpts = options.providerOptions as
-      | GeminiProviderOptions
-      | undefined;
-
     // Map common options to Gemini format
-    const mappedOptions = mapCommonOptionsToGemini(options, providerOpts);
+    const mappedOptions = mapCommonOptionsToGemini(options);
+    const contents = formatMessages(options.messages);
 
     const model = this.client.getGenerativeModel({
       model: mappedOptions.model,
       generationConfig: mappedOptions.generationConfig,
-      safetySettings: mappedOptions.safetySettings,
+      systemInstruction: mappedOptions.systemInstruction,
+      safetySettings: mappedOptions.safetySettings as any,
+      tools: mappedOptions.tools as any,
     });
 
-    const history = this.formatMessagesForGemini(options.messages.slice(0, -1));
-    const lastMessage = options.messages[options.messages.length - 1];
+    const history = contents.slice(0, -1);
+    const lastMessage = contents[contents.length - 1];
 
-    const chat = model.startChat({ history });
-    const result = await chat.sendMessageStream(lastMessage.content || "");
+    const chat = model.startChat({ history: history as any });
+    const result = await chat.sendMessageStream(
+      lastMessage.parts[0]?.text || (lastMessage.parts as any)
+    );
 
     for await (const chunk of result.stream) {
       const text = chunk.text();
@@ -213,61 +242,7 @@ export class GeminiAdapter extends BaseAdapter<
     );
   }
 
-  async generateText(
-    options: TextGenerationOptions
-  ): Promise<TextGenerationResult> {
-    const model = this.client.getGenerativeModel({
-      model: options.model || "gemini-pro",
-      generationConfig: {
-        temperature: options.temperature,
-        topP: options.topP,
-        maxOutputTokens: options.maxTokens,
-        stopSequences: options.stopSequences,
-      },
-    });
 
-    const result = await model.generateContent(options.prompt);
-    const response = await result.response;
-    const text = response.text();
-
-    const promptTokens = this.estimateTokens(options.prompt);
-    const completionTokens = this.estimateTokens(text);
-
-    return {
-      id: this.generateId(),
-      model: options.model || "gemini-pro",
-      text,
-      finishReason: (response.candidates?.[0]?.finishReason as any) || "stop",
-      usage: {
-        promptTokens,
-        completionTokens,
-        totalTokens: promptTokens + completionTokens,
-      },
-    };
-  }
-
-  async *generateTextStream(
-    options: TextGenerationOptions
-  ): AsyncIterable<string> {
-    const model = this.client.getGenerativeModel({
-      model: options.model || "gemini-pro",
-      generationConfig: {
-        temperature: options.temperature,
-        topP: options.topP,
-        maxOutputTokens: options.maxTokens,
-        stopSequences: options.stopSequences,
-      },
-    });
-
-    const result = await model.generateContentStream(options.prompt);
-
-    for await (const chunk of result.stream) {
-      const text = chunk.text();
-      if (text) {
-        yield text;
-      }
-    }
-  }
 
   async summarize(options: SummarizationOptions): Promise<SummarizationResult> {
     const prompt = this.buildSummarizationPrompt(options, options.text);
@@ -328,13 +303,6 @@ export class GeminiAdapter extends BaseAdapter<
         totalTokens: promptTokens,
       },
     };
-  }
-
-  private formatMessagesForGemini(messages: Message[]): Content[] {
-    return messages.map((msg) => ({
-      role: msg.role === "assistant" ? "model" : "user",
-      parts: [{ text: msg.content || "" }],
-    }));
   }
 
   private buildSummarizationPrompt(
