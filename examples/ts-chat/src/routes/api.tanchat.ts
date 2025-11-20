@@ -66,12 +66,11 @@ export const Route = createFileRoute("/api/tanchat")({
           const stream = aiInstance.chat({
             messages,
             model: "gpt-4o",
+            // model: "smollm",
             tools: allTools,
             systemPrompts: [SYSTEM_PROMPT],
             agentLoopStrategy: maxIterations(20),
-            options: {
-              abortController,
-            },
+            abortController,
             providerOptions: {
               store: true,
             },

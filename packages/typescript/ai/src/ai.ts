@@ -1,6 +1,5 @@
 import type {
   AIAdapter,
-  ChatCompletionOptions,
   ChatCompletionResult,
   StreamChunk,
   SummarizationOptions,
@@ -17,6 +16,8 @@ import type {
   VideoGenerationResult,
   Tool,
   ResponseFormat,
+  ModelMessage,
+  ChatCompletionOptions,
 } from "./types";
 import { ToolCallManager } from "./tool-call-manager";
 import { executeToolCalls } from "./agent/executor";
@@ -138,11 +139,10 @@ type ExtractVideoProviderOptions<T> = T extends AIAdapter<
   : Record<string, any>;
 
 // Helper type to compute chatCompletion return type based on output option
-type ChatCompletionReturnType<
-  TOptions extends { output?: ResponseFormat<any> }
-> = TOptions["output"] extends ResponseFormat<infer TData>
-  ? ChatCompletionResult<TData>
-  : ChatCompletionResult;
+type ChatCompletionReturnType<TOutput extends ResponseFormat<any> | undefined> =
+  TOutput extends ResponseFormat<infer TData>
+    ? ChatCompletionResult<TData>
+    : ChatCompletionResult;
 
 // Config for single adapter
 type AIConfig<
@@ -192,24 +192,12 @@ class AI<
    *   console.log(chunk);
    * }
    */
-  async *chat(params: {
-    model: ExtractModels<TAdapter>;
-    messages: ChatCompletionOptions["messages"];
-    tools?: ReadonlyArray<Tool>;
-    systemPrompts?: string[];
-    agentLoopStrategy?: ChatCompletionOptions["agentLoopStrategy"];
-    options?: Omit<
-      ChatCompletionOptions,
-      | "model"
-      | "messages"
-      | "tools"
-      | "providerOptions"
-      | "responseFormat"
-      | "agentLoopStrategy"
-    >;
-    providerOptions?: ExtractChatProviderOptions<TAdapter>;
-    __clientId?: string; // For devtools linking between client and server
-  }): AsyncIterable<StreamChunk> {
+  async *chat(
+    params: ChatCompletionOptions<
+      ExtractModels<TAdapter>,
+      ExtractChatProviderOptions<TAdapter>
+    >
+  ): AsyncIterable<StreamChunk> {
     const {
       model,
       messages: inputMessages,
@@ -218,12 +206,15 @@ class AI<
       agentLoopStrategy,
       options = {},
       providerOptions,
+      abortController,
     } = params;
 
-    // Extract abortSignal from options
-    const { abortController, ...restOptions } = options;
-
-    const effectiveAbortController = abortController || new AbortController();
+    // Combine abortController with request if both are provided
+    // Adapters call this the request controller and signal
+    const effectiveRequest = abortController
+      ? { signal: abortController.signal }
+      : undefined;
+    const effectiveSignal = abortController?.signal;
 
     const requestId = `chat-${Date.now()}-${Math.random()
       .toString(36)
@@ -263,7 +254,7 @@ class AI<
 
     do {
       // Check if aborted before starting iteration
-      if (effectiveAbortController.signal.aborted) {
+      if (effectiveSignal?.aborted) {
         break;
       }
 
@@ -281,13 +272,12 @@ class AI<
         model: model as string,
         messages,
         tools: tools as Tool[] | undefined,
-        ...restOptions,
-        abortController: effectiveAbortController,
-        responseFormat: undefined,
+        ...options,
+        request: effectiveRequest,
         providerOptions: providerOptions as any,
       })) {
         // Check if aborted during iteration
-        if (effectiveAbortController.signal.aborted) {
+        if (effectiveSignal?.aborted) {
           break;
         }
         chunkCount++;
@@ -368,7 +358,7 @@ class AI<
       }
 
       // Check if aborted before tool execution
-      if (effectiveAbortController.signal.aborted) {
+      if (effectiveSignal?.aborted) {
         break;
       }
 
@@ -575,22 +565,14 @@ class AI<
    * });
    */
   async chatCompletion<
-    TOptions extends {
-      output?: ResponseFormat<any>;
-    }
+    TOutput extends ResponseFormat<any> | undefined = undefined
   >(
-    params: {
-      model: ExtractModels<TAdapter>;
-      messages: ChatCompletionOptions["messages"];
-      tools?: ReadonlyArray<Tool>;
-      systemPrompts?: string[];
-      options?: Omit<
-        ChatCompletionOptions,
-        "model" | "messages" | "tools" | "providerOptions" | "responseFormat"
-      >;
-      providerOptions?: ExtractChatProviderOptions<TAdapter>;
-    } & TOptions
-  ): Promise<ChatCompletionReturnType<TOptions>> {
+    params: ChatCompletionOptions<
+      ExtractModels<TAdapter>,
+      ExtractChatProviderOptions<TAdapter>,
+      TOutput
+    >
+  ): Promise<ChatCompletionReturnType<TOutput>> {
     const {
       model,
       messages: inputMessages,
@@ -598,11 +580,15 @@ class AI<
       systemPrompts,
       options = {},
       providerOptions,
+      request,
+      abortController,
     } = params;
 
-    const { abortController, ...restOptions } = options;
-
-    const effectiveAbortController = abortController || new AbortController();
+    // Combine abortController with request if both are provided
+    // Adapters expect request?.signal, so we create a request object from abortController if needed
+    const effectiveRequest =
+      request ||
+      (abortController ? { signal: abortController.signal } : undefined);
 
     const requestId = `chat-completion-${Date.now()}-${Math.random()
       .toString(36)
@@ -619,20 +605,18 @@ class AI<
     });
 
     // Extract output if it exists
-    const output = (params as any).output as ResponseFormat | undefined;
-    const responseFormat = output;
+    const output = params.output;
 
     // Prepend system prompts to messages
     const messages = this.prependSystemPrompts(inputMessages, systemPrompts);
 
     const result = await this.adapter.chatCompletion({
-      model: model as string,
+      model: model,
       messages,
-      tools: tools as Tool[] | undefined,
-      ...restOptions,
-      responseFormat,
-      providerOptions: providerOptions as any,
-      abortController: effectiveAbortController,
+      tools,
+      ...options,
+      request: effectiveRequest,
+      providerOptions: providerOptions,
     });
 
     // Emit chat completed event
@@ -798,9 +782,9 @@ class AI<
   // Private helper methods
 
   private prependSystemPrompts(
-    messages: ChatCompletionOptions["messages"],
+    messages: ModelMessage[],
     systemPrompts?: string[]
-  ): ChatCompletionOptions["messages"] {
+  ): ModelMessage[] {
     const prompts = systemPrompts || this.systemPrompts;
     if (!prompts || prompts.length === 0) {
       return messages;

@@ -1,4 +1,4 @@
-export { ai, AI } from "./ai";
+export { ai } from "./ai";
 export {
   chat,
   chatCompletion,
@@ -27,5 +27,4 @@ export {
   untilFinishReason,
   combineStrategies,
 } from "./agent-loop-strategies";
-export * from "./types";
-export * from "./external-provider-wrapper";
+export * from "./types"; 

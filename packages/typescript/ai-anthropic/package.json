@@ -37,7 +37,7 @@
     "adapter"
   ],
   "dependencies": {
-    "@anthropic-ai/sdk": "^0.24.0",
+    "@anthropic-ai/sdk": "^0.70.0",
     "@tanstack/ai": "workspace:*"
   },
   "devDependencies": {
