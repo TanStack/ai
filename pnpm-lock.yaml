@@ -379,8 +379,8 @@ importers:
         specifier: workspace:*
         version: link:../ai
       openai:
-        specifier: ^4.47.1
-        version: 4.104.0(ws@8.18.3)(zod@3.25.76)
+        specifier: ^6.9.1
+        version: 6.9.1(ws@8.18.3)(zod@4.1.12)
     devDependencies:
       '@types/node':
         specifier: ^22.10.2
@@ -4424,12 +4424,12 @@ packages:
     resolution: {integrity: sha512-7x81NCL719oNbsq/3mh+hVrAWmFuEYUqrq/Iw3kUzH8ReypT9QQ0BLoJS7/G9k6N81XjW4qHWtjWwe/9eLy1EQ==}
     engines: {node: '>=12'}
 
-  openai@4.104.0:
-    resolution: {integrity: sha512-p99EFNsA/yX6UhVO93f5kJsDRLAg+CTA2RBqdHK4RtK8u5IJw32Hyb2dTGKbnnFmnuoBv5r7Z2CURI9sGZpSuA==}
+  openai@6.9.1:
+    resolution: {integrity: sha512-vQ5Rlt0ZgB3/BNmTa7bIijYFhz3YBceAA3Z4JuoMSBftBF9YqFHIEhZakSs+O/Ad7EaoEimZvHxD5ylRjN11Lg==}
     hasBin: true
     peerDependencies:
       ws: ^8.18.0
-      zod: ^3.23.8
+      zod: ^3.25 || ^4.0
     peerDependenciesMeta:
       ws:
         optional: true
@@ -10081,20 +10081,10 @@ snapshots:
       is-docker: 2.2.1
       is-wsl: 2.2.0
 
-  openai@4.104.0(ws@8.18.3)(zod@3.25.76):
-    dependencies:
-      '@types/node': 18.19.129
-      '@types/node-fetch': 2.6.13
-      abort-controller: 3.0.0
-      agentkeepalive: 4.6.0
-      form-data-encoder: 1.7.2
-      formdata-node: 4.4.1
-      node-fetch: 2.7.0
+  openai@6.9.1(ws@8.18.3)(zod@4.1.12):
     optionalDependencies:
       ws: 8.18.3
-      zod: 3.25.76
-    transitivePeerDependencies:
-      - encoding
+      zod: 4.1.12
 
   optionator@0.9.4:
     dependencies:

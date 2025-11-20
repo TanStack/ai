@@ -1,15 +1,7 @@
 import type { Tool } from "@tanstack/ai";
-import { UserLocation } from "./web-search-tool";
+import OpenAI from "openai";
 
-export interface WebSearchPreviewTool {
-  type: "web_search_preview" | "web_search_preview_2025_03_11";
-  /**
-   * High level guidance for the amount of context window space to use for the search. 
-   * @default "medium"
-   */
-  search_context_size?: "low" | "medium" | "high";
-  user_location?: UserLocation
-}
+export type WebSearchPreviewTool = OpenAI.Responses.WebSearchPreviewTool
 
 /**
  * Converts a standard Tool to OpenAI WebSearchPreviewTool format
@@ -29,6 +21,7 @@ export function convertWebSearchPreviewToolToAdapterFormat(tool: Tool): WebSearc
 export function webSearchPreviewTool(
   toolData: WebSearchPreviewTool
 ): Tool {
+
   return {
     type: "function",
     function: {
@@ -36,8 +29,6 @@ export function webSearchPreviewTool(
       description: "Search the web (preview version)",
       parameters: {},
     },
-    metadata: {
-      ...toolData,
-    },
+    metadata: toolData
   };
 }

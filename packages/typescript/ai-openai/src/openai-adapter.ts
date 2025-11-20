@@ -3,9 +3,6 @@ import {
   BaseAdapter,
   type ChatCompletionOptions,
   type ChatCompletionResult,
-  type ChatCompletionChunk,
-  type TextGenerationOptions,
-  type TextGenerationResult,
   type SummarizationOptions,
   type SummarizationResult,
   type EmbeddingOptions,
@@ -35,88 +32,173 @@ export type OpenAIVideoModel = (typeof OPENAI_VIDEO_MODELS)[number];
 export type OpenAITranscriptionModel = (typeof OPENAI_TRANSCRIPTION_MODELS)[number];
 
 
-/**
- * OpenAI-specific provider options for chat/text generation
- * Based on OpenAI Chat Completions API documentation
- * @see https://platform.openai.com/docs/api-reference/chat/create
- */
-export interface OpenAIChatProviderOptions {
-  // Storage and tracking
-  /** Whether to store the generation. Defaults to false */
-  store?: boolean;
+export function mapOpenAIResponseToChatResult(response: OpenAI_SDK.Responses.Response): ChatCompletionResult {
+  // response.output is an array of output items
+  const outputItems = response.output;
 
+  // Find the message output item
+  const messageItem = outputItems.find((item) => item.type === 'message');
+  const content = messageItem?.content?.[0].type === "output_text" ? messageItem?.content?.[0]?.text || "" : "";
 
-  // Advanced features
-  /** Modifies likelihood of specific tokens appearing (token_id: bias from -100 to 100) */
-  logitBias?: Record<number, number>;
-  /** Return log probabilities (true or number for top n logprobs) */
-  logprobs?: boolean | number;
-  /** Return top_logprobs most likely tokens (0-20) */
-  topLogprobs?: number;
+  // Find function call items
+  const functionCalls = outputItems.filter((item) => item.type === 'function_call');
+  const toolCalls = functionCalls.length > 0 ? functionCalls.map((fc) => ({
+    id: fc.call_id,
+    type: "function" as const,
+    function: {
+      name: fc.name,
+      arguments: JSON.stringify(fc.arguments)
+    }
+  })) : undefined;
 
-  // Reasoning models (o1, o3, o4-mini)
-  /** Reasoning effort for reasoning models: 'low' | 'medium' | 'high' */
-  reasoningEffort?: 'low' | 'medium' | 'high';
-  /** Maximum number of completion tokens for reasoning models */
-  maxCompletionTokens?: number;
-
-  // Structured outputs
-  /** Whether to use strict JSON schema validation */
-  strictJsonSchema?: boolean;
-
-  // Service configuration
-  /** Service tier: 'auto' | 'default' */
-  serviceTier?: 'auto' | 'default';
-
-  // Prediction/prefill
-  /** Parameters for prediction mode (content prefill) */
-  prediction?: {
-    type: 'content';
-    content: string | Array<{ type: 'text'; text: string }>;
-  };
-
-  // Audio (for audio-enabled models)
-  /** Audio output configuration */
-  audio?: {
-    voice: 'alloy' | 'echo' | 'fable' | 'onyx' | 'nova' | 'shimmer';
-    format: 'wav' | 'mp3' | 'flac' | 'opus' | 'pcm16';
-  };
-  /** Voice input for audio-enabled models */
-  modalities?: Array<'text' | 'audio'>;
-
-  // Prompt caching (beta)
-  /** Cache key for manual prompt caching control */
-  promptCacheKey?: string;
-
-  // Safety and moderation
-  /** Stable identifier for usage policy violation detection */
-  safetyIdentifier?: string;
-
-  // Search (preview feature)
-  /** Web search options for search-enabled models */
-  webSearchOptions?: {
-    enabled?: boolean;
-    mode?: 'auto' | 'always' | 'never';
-  };
-
-  // Response configuration
-  /** Number of completions to generate (default: 1) */
-  n?: number;
-  /** Whether to stream partial progress as server-sent events */
-  streamOptions?: {
-    includeUsage?: boolean;
+  return {
+    id: response.id,
+    model: response.model,
+    content,
+    role: "assistant",
+    finishReason: messageItem?.status,
+    toolCalls,
+    usage: {
+      promptTokens: response.usage?.input_tokens || 0,
+      completionTokens: response.usage?.output_tokens || 0,
+      totalTokens: response.usage?.total_tokens || 0,
+    }
   };
 }
 
+async function* processOpenAIStreamChunks(
+  stream: ReadableStream,
+  toolCallMetadata: Map<string, { index: number; name: string }>,
+  options: ChatCompletionOptions,
+  generateId: () => string
+): AsyncIterable<StreamChunk> {
+  let accumulatedContent = "";
+  const timestamp = Date.now();
+  let nextIndex = 0;
+
+  try {
+    for await (const chunk of stream) {
+      const delta = chunk.choices[0]?.delta;
+      const choice = chunk.choices[0];
+
+      // Handle content delta
+      if (delta?.content) {
+        accumulatedContent += delta.content;
+        yield {
+          type: "content",
+          id: chunk.id,
+          model: chunk.model,
+          timestamp,
+          delta: delta.content,
+          content: accumulatedContent,
+          role: "assistant",
+        };
+      }
+
+      // Handle tool calls
+      if (delta?.tool_calls) {
+        for (const toolCall of delta.tool_calls) {
+          // First chunk of a tool call has ID and name
+          // Subsequent chunks only have argument fragments
+          if (toolCall.id) {
+            // New tool call - assign it the next index
+            toolCallMetadata.set(toolCall.id, {
+              index: nextIndex++,
+              name: toolCall.function?.name || "",
+            });
+          }
+
+          // Find which tool call these deltas belong to
+          // For the first chunk, we just added it above
+          // For subsequent chunks, we need to find it by OpenAI's index field
+          let toolCallId: string;
+          let toolCallName: string;
+          let actualIndex: number;
+
+          if (toolCall.id) {
+            // First chunk - use the ID we just tracked
+            toolCallId = toolCall.id;
+            const meta = toolCallMetadata.get(toolCallId)!;
+            toolCallName = meta.name;
+            actualIndex = meta.index;
+          } else {
+            // Delta chunk - find by OpenAI's index
+            // OpenAI uses index to group deltas for the same tool call
+            const openAIIndex = typeof toolCall.index === 'number' ? toolCall.index : 0;
+
+            // Find the tool call ID that was assigned this OpenAI index
+            const entry = Array.from(toolCallMetadata.entries())[openAIIndex];
+            if (entry) {
+              const [id, meta] = entry;
+              toolCallId = id;
+              toolCallName = meta.name;
+              actualIndex = meta.index;
+            } else {
+              // Fallback if we can't find it
+              toolCallId = `call_${Date.now()}`;
+              toolCallName = "";
+              actualIndex = openAIIndex;
+            }
+          }
+
+          yield {
+            type: "tool_call",
+            id: chunk.id,
+            model: chunk.model,
+            timestamp,
+            toolCall: {
+              id: toolCallId,
+              type: "function",
+              function: {
+                name: toolCallName,
+                arguments: toolCall.function?.arguments || "",
+              },
+            },
+            index: actualIndex,
+          };
+        }
+      }
+
+      // Handle completion
+      if (choice?.finish_reason) {
+        yield {
+          type: "done",
+          id: chunk.id,
+          model: chunk.model,
+          timestamp,
+          finishReason: choice.finish_reason as any,
+          usage: chunk.usage
+            ? {
+              promptTokens: chunk.usage.prompt_tokens || 0,
+              completionTokens: chunk.usage.completion_tokens || 0,
+              totalTokens: chunk.usage.total_tokens || 0,
+            }
+            : undefined,
+        };
+      }
+    }
+  } catch (error: any) {
+    yield {
+      type: "error",
+      id: generateId(),
+      model: options.model || "gpt-3.5-turbo",
+      timestamp,
+      error: {
+        message: error.message || "Unknown error occurred",
+        code: error.code,
+      },
+    };
+  }
+}
 /**
  * Maps common options to OpenAI-specific format
  * Handles translation of normalized options to OpenAI's API format
  */
 export function mapChatOptionsToOpenAI(
   options: ChatCompletionOptions,
-): OpenAIChatProviderOptions {
-  const providerOptions = options.providerOptions as Omit<TextProviderOptions, 'tools' | "metadata" | "temperature"> | undefined;
-  const requestParams: TextProviderOptions = {
+) {
+  const providerOptions = options.providerOptions as Omit<TextProviderOptions, "max_output_tokens" | "tools" | "metadata" | "temperature" | "input" | "top_p"> | undefined;
+  const requestParams: Omit<TextProviderOptions, "stream"> = {
     model: options.model,
     temperature: options.options?.temperature,
     max_output_tokens: options.options?.maxTokens,
@@ -131,9 +213,9 @@ export function mapChatOptionsToOpenAI(
 }
 
 /**
- * Alias for OpenAIChatProviderOptions
+ * Alias for TextProviderOptions
  */
-export type OpenAIProviderOptions = OpenAIChatProviderOptions;
+export type OpenAIProviderOptions = TextProviderOptions;
 
 /**
  * OpenAI-specific provider options for image generation
@@ -215,7 +297,7 @@ export class OpenAI extends BaseAdapter<
   typeof OPENAI_EMBEDDING_MODELS,
   typeof OPENAI_AUDIO_MODELS,
   typeof OPENAI_VIDEO_MODELS,
-  OpenAIChatProviderOptions,
+  TextProviderOptions,
   OpenAIImageProviderOptions,
   OpenAIEmbeddingProviderOptions,
   OpenAIAudioProviderOptions,
@@ -243,7 +325,7 @@ export class OpenAI extends BaseAdapter<
   ): Promise<ChatCompletionResult> {
 
     // Map common options to OpenAI format using the centralized mapping function
-    const requestParams = mapChatOptionsToOpenAI(options);
+    const providerOptions = mapChatOptionsToOpenAI(options);
 
     // Extract custom headers and abort signal (handled separately)
     const abortSignal = options.abortSignal;
@@ -251,76 +333,17 @@ export class OpenAI extends BaseAdapter<
     const response = await this.client.responses.create(
       {
         stream: false,
-        ...requestParams
+        ...providerOptions,
       },
       {
         signal: abortSignal
       }
     );
 
-    // response.output is an array of output items
-    const outputItems = response.output;
-
-    // Find the message output item
-    const messageItem = outputItems.find((item: any) => item.type === 'message') as any;
-    const content = messageItem?.content?.[0]?.text || "";
-
-    // Find function call items
-    const functionCalls = outputItems.filter((item: any) => item.type === 'function_call');
-    const toolCalls = functionCalls.length > 0 ? functionCalls.map((fc: any) => ({
-      id: fc.call_id,
-      type: "function" as const,
-      function: {
-        name: fc.name,
-        arguments: JSON.stringify(fc.arguments)
-      }
-    })) : undefined;
-
-    return {
-      id: response.id,
-      model: response.model,
-      content,
-      role: "assistant",
-      finishReason: messageItem?.status as any,
-      toolCalls,
-      usage: {
-        promptTokens: response.usage?.input_tokens || 0,
-        completionTokens: response.usage?.output_tokens || 0,
-        totalTokens: response.usage?.total_tokens || 0,
-      }
-    };
-  } async *chatCompletionStream(
-    options: ChatCompletionOptions
-  ): AsyncIterable<ChatCompletionChunk> {
-    // Map common options to OpenAI format
-    const requestParams = mapChatOptionsToOpenAI(options);
-
-    const abortSignal = options.abortSignal;
-
-    // Create with explicit streaming enabled - OpenAI SDK will return a Stream
-    const streamResult = await this.client.responses.create(
-      { ...requestParams, stream: true },
-      {
-        signal: abortSignal
-      }
-    );
-
-    // TypeScript doesn't know this is a Stream when stream:true, but it is at runtime
-    const stream = streamResult as unknown as AsyncIterable<any>;
-
-    for await (const chunk of stream) {
-      const delta = chunk.choices[0]?.delta;
-      if (delta?.content) {
-        yield {
-          id: chunk.id,
-          model: chunk.model,
-          content: delta.content,
-          role: delta.role as "assistant" | undefined,
-          finishReason: chunk.choices[0]?.finish_reason,
-        };
-      }
-    }
+    return mapOpenAIResponseToChatResult(response);
   }
+
+
 
   async *chatStream(
     options: ChatCompletionOptions
@@ -330,7 +353,6 @@ export class OpenAI extends BaseAdapter<
     // OpenAI streams tool calls with deltas - first chunk has ID/name, subsequent chunks only have args
     // We assign our own indices as we encounter unique tool call IDs
     const toolCallMetadata = new Map<string, { index: number; name: string }>();
-    let nextIndex = 0;
 
     // Map common options to OpenAI format using the centralized mapping function
     const requestParams = mapChatOptionsToOpenAI(options);
@@ -338,7 +360,7 @@ export class OpenAI extends BaseAdapter<
 
     const abortSignal = options.abortSignal;
 
-    const stream = (await this.client.responses.create(
+    const response = await this.client.responses.create(
       {
         ...requestParams,
         stream: true,
@@ -346,177 +368,14 @@ export class OpenAI extends BaseAdapter<
       {
         signal: abortSignal
       }
-    )) as any;
+    );
+    const stream = response.toReadableStream()
 
-    let accumulatedContent = "";
-    const timestamp = Date.now();
-
-    try {
-      for await (const chunk of stream) {
-        const delta = chunk.choices[0]?.delta;
-        const choice = chunk.choices[0];
-
-        // Handle content delta
-        if (delta?.content) {
-          accumulatedContent += delta.content;
-          yield {
-            type: "content",
-            id: chunk.id,
-            model: chunk.model,
-            timestamp,
-            delta: delta.content,
-            content: accumulatedContent,
-            role: "assistant",
-          };
-        }
-
-        // Handle tool calls
-        if (delta?.tool_calls) {
-          for (const toolCall of delta.tool_calls) {
-            // First chunk of a tool call has ID and name
-            // Subsequent chunks only have argument fragments
-            if (toolCall.id) {
-              // New tool call - assign it the next index
-              toolCallMetadata.set(toolCall.id, {
-                index: nextIndex++,
-                name: toolCall.function?.name || "",
-              });
-            }
-
-            // Find which tool call these deltas belong to
-            // For the first chunk, we just added it above
-            // For subsequent chunks, we need to find it by OpenAI's index field
-            let toolCallId: string;
-            let toolCallName: string;
-            let actualIndex: number;
-
-            if (toolCall.id) {
-              // First chunk - use the ID we just tracked
-              toolCallId = toolCall.id;
-              const meta = toolCallMetadata.get(toolCallId)!;
-              toolCallName = meta.name;
-              actualIndex = meta.index;
-            } else {
-              // Delta chunk - find by OpenAI's index
-              // OpenAI uses index to group deltas for the same tool call
-              const openAIIndex = typeof toolCall.index === 'number' ? toolCall.index : 0;
-
-              // Find the tool call ID that was assigned this OpenAI index
-              const entry = Array.from(toolCallMetadata.entries())[openAIIndex];
-              if (entry) {
-                const [id, meta] = entry;
-                toolCallId = id;
-                toolCallName = meta.name;
-                actualIndex = meta.index;
-              } else {
-                // Fallback if we can't find it
-                toolCallId = `call_${Date.now()}`;
-                toolCallName = "";
-                actualIndex = openAIIndex;
-              }
-            }
-
-            yield {
-              type: "tool_call",
-              id: chunk.id,
-              model: chunk.model,
-              timestamp,
-              toolCall: {
-                id: toolCallId,
-                type: "function",
-                function: {
-                  name: toolCallName,
-                  arguments: toolCall.function?.arguments || "",
-                },
-              },
-              index: actualIndex,
-            };
-          }
-        }
-
-        // Handle completion
-        if (choice?.finish_reason) {
-          yield {
-            type: "done",
-            id: chunk.id,
-            model: chunk.model,
-            timestamp,
-            finishReason: choice.finish_reason as any,
-            usage: chunk.usage
-              ? {
-                promptTokens: chunk.usage.prompt_tokens || 0,
-                completionTokens: chunk.usage.completion_tokens || 0,
-                totalTokens: chunk.usage.total_tokens || 0,
-              }
-              : undefined,
-          };
-        }
-      }
-    } catch (error: any) {
-      yield {
-        type: "error",
-        id: this.generateId(),
-        model: options.model || "gpt-3.5-turbo",
-        timestamp,
-        error: {
-          message: error.message || "Unknown error occurred",
-          code: error.code,
-        },
-      };
-    }
+    yield* processOpenAIStreamChunks(stream, toolCallMetadata, options, () => this.generateId());
   }
 
-  async generateText(
-    options: TextGenerationOptions
-  ): Promise<TextGenerationResult> {
-    const response = await this.client.completions.create({
-      model: options.model,
-      prompt: options.prompt,
-      max_tokens: options.maxTokens,
-      temperature: options.temperature,
-      top_p: options.topP,
-      frequency_penalty: options.frequencyPenalty,
-      presence_penalty: options.presencePenalty,
-      stop: options.stopSequences,
-      stream: false,
-    });
 
-    const choice = response.choices[0];
 
-    return {
-      id: response.id,
-      model: response.model,
-      text: choice.text,
-      finishReason: choice.finish_reason as any,
-      usage: {
-        promptTokens: response.usage?.prompt_tokens || 0,
-        completionTokens: response.usage?.completion_tokens || 0,
-        totalTokens: response.usage?.total_tokens || 0,
-      },
-    };
-  }
-
-  async *generateTextStream(
-    options: TextGenerationOptions
-  ): AsyncIterable<string> {
-    const stream = await this.client.completions.create({
-      model: options.model || "gpt-3.5-turbo-instruct",
-      prompt: options.prompt,
-      max_tokens: options.maxTokens,
-      temperature: options.temperature,
-      top_p: options.topP,
-      frequency_penalty: options.frequencyPenalty,
-      presence_penalty: options.presencePenalty,
-      stop: options.stopSequences,
-      stream: true,
-    });
-
-    for await (const chunk of stream) {
-      if (chunk.choices[0]?.text) {
-        yield chunk.choices[0].text;
-      }
-    }
-  }
 
   async summarize(options: SummarizationOptions): Promise<SummarizationResult> {
     const systemPrompt = this.buildSummarizationPrompt(options);

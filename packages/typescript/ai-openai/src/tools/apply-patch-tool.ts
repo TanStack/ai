@@ -1,8 +1,9 @@
 import type { Tool } from "@tanstack/ai";
+import OpenAI from "openai";
 
-export interface ApplyPatchTool {
-  type: "apply_patch"
-}
+
+export type ApplyPatchTool = OpenAI.Responses.ApplyPatchTool;
+
 
 /**
  * Converts a standard Tool to OpenAI ApplyPatchTool format

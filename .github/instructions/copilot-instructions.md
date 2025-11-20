@@ -24,3 +24,5 @@ When defining new types, first check if the types exist somewhere and re-use the
 When modifying existing functionality, ensure backward compatibility unless there's a strong reason to introduce breaking changes. If breaking changes are necessary, document them clearly in the relevant documentation files.
 
 When subscribing to an event using `aiEventClient.on` in the devtools packages, always add the option `{ withEventTarget: false }` as the second argument to prevent over-subscriptions in the devtools.
+
+Under no circumstances should casting `as any` be used in the codebase. Always strive to find or create the appropriate type definitions. Avoid casting unless absolutely neccessary, and even then, prefer using `satisfies` for type assertions to maintain type safety.

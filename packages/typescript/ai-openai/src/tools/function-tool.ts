@@ -1,37 +1,17 @@
 import type { Tool } from "@tanstack/ai";
+import OpenAI from "openai";
 
-export interface FunctionTool {
-  type: "function";
-  /**
-   * The name of the function to call.
-   */
-  name: string;
-  /**
-   * A description of the function. Used by the model to determine whether or not to call the function.
-   */
-  description?: string;
-  /**
-   * Whether to enforce strict parameter validation.
-   * @default true
-   */
-  strict: boolean;
-  /**
-   * A JSON schema object describing the parameters of the function.
-   */
-  parameters?: Record<string, any>;
-}
+export type FunctionTool = OpenAI.Responses.FunctionTool
+
 
 /**
  * Converts a standard Tool to OpenAI FunctionTool format
  */
 export function convertFunctionToolToAdapterFormat(tool: Tool): FunctionTool {
-  const metadata = tool.metadata as { strict?: boolean };
+  const metadata = tool.metadata as Omit<FunctionTool, "type">;
   return {
     type: "function",
-    name: tool.function.name,
-    description: tool.function.description,
-    strict: metadata.strict ?? true,
-    parameters: tool.function.parameters,
+    ...metadata
   };
 }
 
@@ -39,20 +19,17 @@ export function convertFunctionToolToAdapterFormat(tool: Tool): FunctionTool {
  * Creates a standard Tool from FunctionTool parameters
  */
 export function functionTool(
-  name: string,
-  description: string,
-  parameters: Record<string, any> = {},
-  strict: boolean = true
+  config: Omit<FunctionTool, "type">
 ): Tool {
   return {
     type: "function",
     function: {
-      name,
-      description,
-      parameters,
+      name: config.name,
+      description: config.description ?? "",
+      parameters: config.parameters ?? {},
     },
     metadata: {
-      strict,
+      ...config
     },
   };
 }

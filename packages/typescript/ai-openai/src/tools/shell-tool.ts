@@ -1,8 +1,7 @@
 import type { Tool } from "@tanstack/ai";
+import OpenAI from "openai";
 
-export interface ShellTool {
-  type: "shell"
-}
+export type ShellTool = OpenAI.Responses.FunctionShellTool
 
 /**
  * Converts a standard Tool to OpenAI ShellTool format

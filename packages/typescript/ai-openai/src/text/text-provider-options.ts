@@ -12,312 +12,8 @@ import { ShellTool } from "../tools/shell-tool";
 import { ToolChoice } from "../tools/tool-choice";
 import { WebSearchPreviewTool } from "../tools/web-search-preview-tool";
 import { WebSearchTool } from "../tools/web-search-tool";
+import OpenAI from "openai";
 
-
-interface OutputMessage {
-  content: {
-    annotations: ({
-      file_id: string;
-      filename: string;
-      index: number;
-      type: "file_citation"
-    } | {
-      end_index: number;
-      start_index: number;
-      title: string;
-      url: string;
-      type: "url_citation"
-    } | {
-      container_id: string;
-      end_index: number;
-      file_id: string;
-      filename: string;
-      start_index: number;
-      type: "container_file_citation"
-    } | {
-      file_id: string;
-      index: number;
-      type: "file_path"
-    })[]
-    text: string;
-    type: "output_text"
-    logprobs: {
-      bytes: string[];
-      logprob: number
-      token: string
-      top_logprobs: {
-        bytes: string[];
-        logprob: number;
-        token: string;
-      }[]
-    }[]
-  } | {
-    refusal: string;
-    type: "refusal"
-  }
-}
-interface FileSearchToolCall {
-  id: string;
-  queries: string[];
-  status: "in_progress" | "searching" | "incomplete" | "failed";
-  type: "file_search_call"
-  results?: {
-    attributes?: Record<string, string>;
-    file_id?: string;
-    filename?: string;
-    score?: number;
-    text?: string;
-  }[];
-}
-
-interface ComputerUseToolCall {
-  action: {
-    button: string;
-    x: number;
-    y: number;
-    type: "left" | "right" | "wheel" | "back" | "forward";
-  } | {
-    type: "double_click"
-    x: number;
-    y: number;
-  } | {
-    type: "drag"
-    path: {
-      x: number;
-      y: number;
-    }[]
-  } | {
-    keys: string[];
-    type: "keypress"
-  } | {
-    type: "move",
-    x: number;
-    y: number;
-  } | {
-    type: "screenshot"
-  } | {
-    scroll_x: number;
-    scroll_y: number;
-    type: "scroll"
-    x: number;
-    y: number;
-  } | {
-    text: string;
-    type: "type"
-  } | {
-    type: "wait"
-  }
-  call_id: string;
-  id: string;
-  pending_safety_checks: {
-    id: string;
-    code?: string;
-    message?: string;
-  }[]
-  type: "computer_call"
-  status: "in_progress" | "incomplete" | "completed";
-}
-
-interface WebSearchToolCall {
-  id: string;
-  action: {
-    query: string;
-    type: string;
-    sources?: { type: "url", url: string }[]
-  } | {
-    type: string;
-    url: string;
-  } | {
-    pattern: string;
-    type: string
-    url: string;
-  }
-  status: "string";
-  type: "web_search_call"
-}
-
-interface FunctionToolCall {
-  id?: string;
-  status?: "in_progress" | "incomplete" | "completed"
-  type: "function_call"
-  name: string;
-  call_id: string;
-  arguments: {
-    [key: string]: any;
-  }
-}
-
-interface FunctionToolCallOutput {
-  call_id: string;
-  output: string | Content[]
-  type: "function_call_output"
-  id?: string;
-  status?: "in_progress" | "incomplete" | "completed"
-}
-
-interface Reasoning {
-  id: string;
-  summary: {
-    text: string;
-    type: "summary_text"
-  }[]
-  type: "reasoning"
-  content: {
-    text: string;
-    type: "reasoning_text"
-  }[]
-  encrypted_content?: string;
-  status: "in_progress" | "completed" | "incomplete";
-
-}
-
-interface ImageGenerationCall {
-  id: string;
-  result: string;
-  status: string;
-  type: "image_generation_call"
-}
-
-interface CodeInterpreterToolCall {
-  id: string;
-  code: string;
-  container_id: string;
-  outputs: ({
-    logs: string
-    type: "logs"
-  } | {
-    type: "image"
-    url: string
-  })[]
-  status: "in_progress" | "incomplete" | "completed" | "failed" | "interpreting";
-  type: "code_interpreter_call"
-}
-
-interface LocalShellCall {
-  call_id: string;
-  id: string;
-  status: string;
-  type: "local_shell_call"
-  action: {
-    working_directory?: string;
-    user?: string;
-    timeout_ms?: number;
-    type: "exec";
-    env: Record<string, string>;
-    command: string[];
-  }
-}
-
-interface LocalShellCallOutput {
-  id: string;
-  output: string;
-  type: "local_shell_call_output"
-  status?: "in_progress" | "incomplete" | "completed"
-}
-
-interface FunctionShellToolCall {
-  action: {
-    commands: string[];
-    max_output_length?: number;
-    timeout_ms?: number;
-  }
-  call_id: string;
-  type: "function_shell_call"
-  id?: string;
-  status?: "in_progress" | "incomplete" | "completed"
-}
-
-interface FunctionShellToolCallOutput {
-  call_id: string;
-  type: "function_shell_call_output"
-  id?: string;
-  max_output_length?: number;
-  output: {
-    stderr: string;
-    stdout: string;
-    outcome: {
-      type: "timeout"
-    } | {
-      type: "exit"
-      exit_code: number;
-    }
-  }[]
-}
-
-interface ApplyPatchToolCall {
-  call_id: string;
-  status: "in_progress" | "completed"
-  type: "apply_patch_call"
-  id?: string;
-  operation: string;
-}
-
-interface ApplyPatchToolCallOutput {
-  call_id: string;
-  status: "completed" | "failed"
-  type: "apply_patch_call_output"
-  id?: string;
-  output?: string
-}
-
-interface MCPListTools {
-  id: string;
-  server_label: string;
-  tools: {
-    input_schema: Record<string, any>;
-    name: string;
-  }[]
-  type: "mcp_list_tools"
-  error?: string;
-}
-
-interface MCPApprovalRequest {
-  arguments: string;
-  id: string;
-  name: string;
-  server_label: string;
-  type: "mcp_approval_request"
-}
-
-interface MCPApprovalResponse {
-  approval_request_id: string;
-  approve: boolean;
-  type: "mcp_approval_response"
-  id?: string;
-  reason?: string;
-}
-
-interface MCPToolCall {
-  arguments: string;
-  id: string;
-  name: string;
-  server_label: string;
-  type: "mcp_call"
-  approval_request_id?: string;
-  error?: string;
-  output?: string;
-  status: "in_progress" | "completed" | "calling" | "failed" | "incomplete"
-}
-
-interface CustomToolCallOutput {
-  call_id: string;
-  type: "custom_tool_call_output"
-  id?: string;
-  output: string | Content[]
-}
-
-interface CustomToolCall {
-  call_id: string;
-  input: string;
-  name: string;
-  type: "custom_tool_call"
-  id?: string;
-}
-
-interface ItemReference {
-  id: string;
-  type?: "item_reference"
-}
 /**
  * Options your SDK forwards to OpenAI when doing chat/responses.
  * Tip: gate these by model capability in your SDK, not just by presence.
@@ -348,25 +44,9 @@ https://platform.openai.com/docs/api-reference/responses/create#responses_create
   message.output_text.logprobs: Include logprobs with assistant messages.
   reasoning.encrypted_content: Includes an encrypted version of reasoning tokens in reasoning item outputs. This enables reasoning items to be used in multi-turn conversations when using the Responses API statelessly (like when the store parameter is set to false, or when an organization is enrolled in the zero data retention program).
   */
-  include?: ("web_search_call.action.sources" |
-    "code_interpreter_call.outputs" |
-    "computer_call_output.output.image_url" |
-    "file_search_call.results" |
-    "message.input_image.image_url" |
-    "message.output_text.logprobs" |
-    "reasoning.encrypted_content")[];
+  include?: OpenAI.Responses.ResponseIncludable[];
 
-  input: string | ({
-    type?: "message",
-    role: "user" | "system" | "assistant" | "developer";
-    content: string | Content
-  } | {
-    role: "user" | "system" | "developer";
-    content: Content
-    type?: "message";
-    status?: "in_progress" | "completed" | "incomplete";
-  } | OutputMessage | ComputerUseToolCall | FileSearchToolCall
-    | ItemReference | WebSearchToolCall | FunctionToolCall | FunctionShellToolCall | FunctionShellToolCallOutput | ApplyPatchToolCall | ApplyPatchToolCallOutput | MCPApprovalRequest | MCPApprovalResponse | MCPListTools | MCPTool | MCPToolCall | CustomToolCall | CustomToolCallOutput | CodeInterpreterToolCall | LocalShellCall | LocalShellCallOutput | ImageGenerationCall | Reasoning | FunctionToolCallOutput)[]
+  input: string | OpenAI.Responses.ResponseInput
   /**
    * A system (or developer) message inserted into the model's context.
 
@@ -512,18 +192,7 @@ https://platform.openai.com/docs/api-reference/responses/create#responses_create
    * Configuration options for a text response from the model. Can be plain text or structured JSON data. Learn more:
   https://platform.openai.com/docs/api-reference/responses/create#responses_create-text
    */
-  text?: {
-    format?: {
-      type: "text"
-    } | {
-      type: "json_schema";
-      json_schema: {
-        name: string;
-        schema: Record<string, unknown>;
-        strict?: boolean;
-      };
-    };
-  };
+  text?: OpenAI.Responses.ResponseTextConfig
   /**
     * Constrains the verbosity of the model's response. Lower values will result in more concise responses, while higher values will result in more verbose responses.
     * https://platform.openai.com/docs/api-reference/responses/create#responses_create-text-verbosity
@@ -571,29 +240,7 @@ https://platform.openai.com/docs/api-reference/responses/create#responses_create
   | "required"
   | ToolChoice;
 }
-interface FileContent {
-  type: "input_file"
-  file_data?: string; // base64-encoded file data
-  file_id?: string;
-  file_url?: string; // URL of a file or base64-encoded file data
-  filename?: string;
-}
 
-interface MessageContent {
-  text: string;
-  type: "input_text"
-}
-
-interface ImageContent {
-  detail: "high" | "auto" | "low";
-  type: "input_image"
-  file_id?: string;
-  /**
-     * URL of an image or base64-encoded image data
-     */
-  image_url?: string;
-}
-type Content = MessageContent | ImageContent | FileContent;
 
 export const validateConversationAndPreviousResponseId = (
   options: TextProviderOptions
@@ -621,14 +268,14 @@ export const validateMetadata = (options: TextProviderOptions) => {
   }
 };
 
-export function convertMessagesToInput(messages: ModelMessage[]): TextProviderOptions["input"] {
-  const result: Exclude<TextProviderOptions["input"], string> = [];
+export function convertMessagesToInput(messages: ModelMessage[]): OpenAI.Responses.ResponseInput {
+  const result: OpenAI.Responses.ResponseInput = [];
 
   for (const message of messages) {
     // Handle tool messages - convert to FunctionToolCallOutput
     if (message.role === "tool") {
       result.push({
-        type: "function_call_output" as const,
+        type: "function_call_output",
         call_id: message.toolCallId || "",
         output: typeof message.content === "string" ? message.content : JSON.stringify(message.content)
       });
@@ -637,28 +284,32 @@ export function convertMessagesToInput(messages: ModelMessage[]): TextProviderOp
 
     // Handle assistant messages
     if (message.role === "assistant") {
-      // Add the assistant's text message if there is content
-      if (message.content) {
-        result.push({
-          type: "message" as const,
-          role: "assistant" as const,
-          content: {
-            type: "input_text" as const,
-            text: message.content
-          }
-        });
-      }
-
       // If the assistant message has tool calls, add them as FunctionToolCall objects
       if (message.toolCalls && message.toolCalls.length > 0) {
         for (const toolCall of message.toolCalls) {
           result.push({
-            type: "function_call" as const,
+            type: "function_call",
             call_id: toolCall.id,
             name: toolCall.function.name,
-            arguments: JSON.parse(toolCall.function.arguments)
+            arguments: typeof toolCall.function.arguments === "string"
+              ? JSON.parse(toolCall.function.arguments)
+              : toolCall.function.arguments
           });
         }
+      }
+
+      // Add the assistant's text message if there is content
+      if (message.content) {
+        result.push({
+          type: "message",
+          role: "assistant",
+          content: [
+            {
+              type: "input_text",
+              text: message.content
+            }
+          ]
+        });
       }
 
       continue;
@@ -667,24 +318,28 @@ export function convertMessagesToInput(messages: ModelMessage[]): TextProviderOp
     // Handle system messages
     if (message.role === "system") {
       result.push({
-        type: "message" as const,
-        role: "system" as const,
-        content: {
-          type: "input_text" as const,
-          text: message.content || ""
-        }
+        type: "message",
+        role: "system",
+        content: [
+          {
+            type: "input_text",
+            text: message.content || ""
+          }
+        ]
       });
       continue;
     }
 
     // Handle user messages (default case)
     result.push({
-      type: "message" as const,
-      role: "user" as const,
-      content: {
-        type: "input_text" as const,
-        text: message.content || ""
-      }
+      type: "message",
+      role: "user",
+      content: [
+        {
+          type: "input_text",
+          text: message.content || ""
+        }
+      ]
     });
   }
 

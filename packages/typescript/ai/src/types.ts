@@ -343,7 +343,7 @@ export interface ChatCompletionResult<TData = never> {
   model: string;
   content: string | null;
   role: "assistant";
-  finishReason: "stop" | "length" | "content_filter" | "tool_calls" | null;
+  finishReason: "in_progress" | "completed" | "incomplete" | undefined | null;
   toolCalls?: ToolCall[];
   usage: {
     promptTokens: number;
