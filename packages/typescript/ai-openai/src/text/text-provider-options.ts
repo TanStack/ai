@@ -272,6 +272,7 @@ export function convertMessagesToInput(messages: ModelMessage[]): OpenAI.Respons
   const result: OpenAI.Responses.ResponseInput = [];
 
   for (const message of messages) {
+
     // Handle tool messages - convert to FunctionToolCallOutput
     if (message.role === "tool") {
       result.push({

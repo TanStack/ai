@@ -1,5 +1,5 @@
 import Anthropic_SDK from "@anthropic-ai/sdk";
-import type { MessageParam, Tool } from "@anthropic-ai/sdk/resources/messages";
+import type { MessageParam } from "@anthropic-ai/sdk/resources/messages";
 import {
   BaseAdapter,
   type ChatCompletionOptions,
@@ -39,30 +39,6 @@ export interface AnthropicProviderOptions {
   /** Include reasoning content in requests. Defaults to true */
   sendReasoning?: boolean;
 }
-/**
- * Maps common options to Anthropic-specific format
- * Handles translation of normalized options to Anthropic's API format
- */
-function mapCommonOptionsToAnthropic(
-  options: ChatCompletionOptions,
-) {
-  const providerOptions = options.providerOptions as TextProviderOptions | undefined;
-  const requestParams: TextProviderOptions = {
-    model: options.model,
-    max_tokens: options.options?.maxTokens || 1024,
-    temperature: options.options?.temperature,
-    top_p: options.options?.topP,
-    messages: formatMessages(options.messages),
-
-    ...providerOptions
-  };
-  const tools = options.tools ? convertToolsToProviderFormat(options.tools) : undefined;
-  return {
-    ...requestParams,
-    // SDK doesn't type it as it should
-    tools: tools as Tool[] | undefined,
-  };
-}
 
 type AnthropicContentBlocks = Extract<MessageParam["content"], Array<unknown>> extends Array<infer Block>
   ? Block[]
@@ -71,224 +47,13 @@ type AnthropicContentBlock = AnthropicContentBlocks extends Array<infer Block>
   ? Block
   : never;
 
-function formatMessages(messages: ModelMessage[]): TextProviderOptions["messages"] {
-  const formattedMessages: TextProviderOptions["messages"] = [];
-
-  for (const message of messages) {
-    const role = message.role ?? "user";
-
-    if (role === "system") {
-      continue;
-    }
-
-    if (role === "tool" && message.toolCallId) {
-      formattedMessages.push({
-        role: "user",
-        content: [
-          {
-            type: "tool_result",
-            tool_use_id: message.toolCallId,
-            content: message.content ?? "",
-          },
-        ],
-      });
-      continue;
-    }
-
-    if (role === "assistant" && message.toolCalls?.length) {
-      const contentBlocks: AnthropicContentBlocks = [];
-
-      if (message.content) {
-        const textBlock: AnthropicContentBlock = {
-          type: "text",
-          text: message.content,
-        };
-        contentBlocks.push(textBlock);
-      }
-
-      for (const toolCall of message.toolCalls) {
-        let parsedInput: unknown = {};
-        try {
-          parsedInput = toolCall.function.arguments ? JSON.parse(toolCall.function.arguments) : {};
-        } catch {
-          parsedInput = toolCall.function.arguments;
-        }
-
-        const toolUseBlock: AnthropicContentBlock = {
-          type: "tool_use",
-          id: toolCall.id,
-          name: toolCall.function.name,
-          input: parsedInput,
-        };
-        contentBlocks.push(toolUseBlock);
-      }
-
-      formattedMessages.push({
-        role: "assistant",
-        content: contentBlocks,
-      });
-
-      continue;
-    }
-
-    formattedMessages.push({
-      role: role === "assistant" ? "assistant" : "user",
-      content: message.content ?? "",
-    });
-  }
-
-  return formattedMessages;
-}
-
-function extractChatCompletionResult(response: Anthropic_SDK.Messages.Message): Omit<ChatCompletionResult, "data"> {
-  // Extract text content
-  const textContent = response.content
-    .filter((c) => c.type === "text")
-    .map((c) => c.text)
-    .join("");
-
-  // Extract tool calls
-  const toolCalls = response.content
-    .filter((c) => c.type === "tool_use")
-    .map((c) => ({
-      id: c.id,
-      type: "function" as const,
-      function: {
-        name: c.name,
-        arguments: JSON.stringify(c.input),
-      },
-    }));
-
-  return {
-    id: response.id,
-    model: response.model,
-    content: textContent || null,
-    role: "assistant",
-    // todo fix me
-    finishReason: response.stop_reason as any,
-    toolCalls: toolCalls.length > 0 ? toolCalls : undefined,
-    usage: {
-      promptTokens: response.usage.input_tokens,
-      completionTokens: response.usage.output_tokens,
-      totalTokens: response.usage.input_tokens + response.usage.output_tokens,
-    },
-  };
-}
-
-async function* processAnthropicStream(
-  stream: AsyncIterable<Anthropic_SDK.Messages.MessageStreamEvent>,
-  model: string,
-  generateId: () => string
-): AsyncIterable<StreamChunk> {
-  let accumulatedContent = "";
-  const timestamp = Date.now();
-  const toolCallsMap = new Map<
-    number,
-    { id: string; name: string; input: string }
-  >();
-  let currentToolIndex = -1;
-
-  try {
-    for await (const event of stream) {
-      if (event.type === "content_block_start") {
-        if (event.content_block.type === "tool_use") {
-          currentToolIndex++;
-          toolCallsMap.set(currentToolIndex, {
-            id: event.content_block.id,
-            name: event.content_block.name,
-            input: "",
-          });
-        }
-      } else if (event.type === "content_block_delta") {
-        if (event.delta.type === "text_delta") {
-          const delta = event.delta.text;
-          accumulatedContent += delta;
-          yield {
-            type: "content",
-            id: generateId(),
-            model: model || "claude-3-sonnet-20240229",
-            timestamp,
-            delta,
-            content: accumulatedContent,
-            role: "assistant",
-          };
-        } else if (event.delta.type === "input_json_delta") {
-          // Tool input is being streamed
-          const existing = toolCallsMap.get(currentToolIndex);
-          if (existing) {
-            existing.input += event.delta.partial_json;
-
-            yield {
-              type: "tool_call",
-              id: generateId(),
-              model: model || "claude-3-sonnet-20240229",
-              timestamp,
-              toolCall: {
-                id: existing.id,
-                type: "function",
-                function: {
-                  name: existing.name,
-                  arguments: event.delta.partial_json,
-                },
-              },
-              index: currentToolIndex,
-            };
-          }
-        }
-      } else if (event.type === "message_stop") {
-        yield {
-          type: "done",
-          id: generateId(),
-          model: model || "claude-3-sonnet-20240229",
-          timestamp,
-          finishReason: "stop",
-        };
-      } else if (event.type === "message_delta") {
-        if (event.delta.stop_reason) {
-          yield {
-            type: "done",
-            id: generateId(),
-            model: model || "claude-3-sonnet-20240229",
-            timestamp,
-            finishReason:
-              event.delta.stop_reason === "tool_use"
-                ? "tool_calls"
-                : (event.delta.stop_reason as any),
-            // TODO Fix usage
-            usage: event.usage
-              ? {
-                promptTokens: 0,
-                completionTokens: event.usage.output_tokens || 0,
-                totalTokens:
-                  (0) +
-                  (event.usage.output_tokens || 0),
-              }
-              : undefined,
-          };
-        }
-      }
-    }
-  } catch (error: any) {
-    yield {
-      type: "error",
-      id: generateId(),
-      model: model || "claude-3-sonnet-20240229",
-      timestamp,
-      error: {
-        message: error.message || "Unknown error occurred",
-        code: error.code,
-      },
-    };
-  }
-}
-
 export class Anthropic extends BaseAdapter<
   typeof ANTHROPIC_MODELS,
   typeof ANTHROPIC_IMAGE_MODELS,
   typeof ANTHROPIC_EMBEDDING_MODELS,
   typeof ANTHROPIC_AUDIO_MODELS,
   typeof ANTHROPIC_VIDEO_MODELS,
-  AnthropicProviderOptions,
+  TextProviderOptions,
   Record<string, any>,
   Record<string, any>,
   Record<string, any>,
@@ -315,32 +80,37 @@ export class Anthropic extends BaseAdapter<
 
 
     // Map common options to Anthropic format using the centralized mapping function
-    const requestParams = mapCommonOptionsToAnthropic(options);
+    const requestParams = this.mapCommonOptionsToAnthropic(options);
 
 
-    const response = await this.client.messages.create(
+    const response = await this.client.beta.messages.create(
       {
         ...requestParams,
+
         stream: false,
-      }
+      }, {
+      signal: options.request?.signal,
+      headers: options.request?.headers,
+    }
     );
 
-    return extractChatCompletionResult(response);
+    return this.extractChatCompletionResult(response);
   }
-
-
 
   async *chatStream(
     options: ChatCompletionOptions
   ): AsyncIterable<StreamChunk> {
     // Map common options to Anthropic format using the centralized mapping function
-    const requestParams = mapCommonOptionsToAnthropic(options);
+    const requestParams = this.mapCommonOptionsToAnthropic(options);
 
-    const stream = await this.client.messages.create(
-      { ...requestParams, stream: true }
+    const stream = await this.client.beta.messages.create(
+      { ...requestParams, stream: true }, {
+      signal: options.request?.signal,
+      headers: options.request?.headers,
+    }
     );
 
-    yield* processAnthropicStream(stream, options.model, () => this.generateId());
+    yield* this.processAnthropicStream(stream, options.model, () => this.generateId());
   }
 
 
@@ -407,6 +177,237 @@ export class Anthropic extends BaseAdapter<
     }
 
     return prompt;
+  }
+
+  /**
+   * Maps common options to Anthropic-specific format
+   * Handles translation of normalized options to Anthropic's API format
+   */
+  private mapCommonOptionsToAnthropic(
+    options: ChatCompletionOptions,
+  ) {
+    const providerOptions = options.providerOptions as TextProviderOptions | undefined;
+    const requestParams: TextProviderOptions = {
+      model: options.model,
+      max_tokens: options.options?.maxTokens || 1024,
+      temperature: options.options?.temperature,
+      top_p: options.options?.topP,
+      messages: this.formatMessages(options.messages),
+      tools: options.tools ? convertToolsToProviderFormat(options.tools) : undefined,
+      ...providerOptions
+    };
+    return requestParams
+  }
+
+  private formatMessages(messages: ModelMessage[]): TextProviderOptions["messages"] {
+    const formattedMessages: TextProviderOptions["messages"] = [];
+
+    for (const message of messages) {
+      const role = message.role ?? "user";
+
+      if (role === "system") {
+        continue;
+      }
+
+      if (role === "tool" && message.toolCallId) {
+        formattedMessages.push({
+          role: "user",
+          content: [
+            {
+              type: "tool_result",
+              tool_use_id: message.toolCallId,
+              content: message.content ?? "",
+            },
+          ],
+        });
+        continue;
+      }
+
+      if (role === "assistant" && message.toolCalls?.length) {
+        const contentBlocks: AnthropicContentBlocks = [];
+
+        if (message.content) {
+          const textBlock: AnthropicContentBlock = {
+            type: "text",
+            text: message.content,
+          };
+          contentBlocks.push(textBlock);
+        }
+
+        for (const toolCall of message.toolCalls) {
+          let parsedInput: unknown = {};
+          try {
+            parsedInput = toolCall.function.arguments ? JSON.parse(toolCall.function.arguments) : {};
+          } catch {
+            parsedInput = toolCall.function.arguments;
+          }
+
+          const toolUseBlock: AnthropicContentBlock = {
+            type: "tool_use",
+            id: toolCall.id,
+            name: toolCall.function.name,
+            input: parsedInput,
+          };
+          contentBlocks.push(toolUseBlock);
+        }
+
+        formattedMessages.push({
+          role: "assistant",
+          content: contentBlocks,
+        });
+
+        continue;
+      }
+
+      formattedMessages.push({
+        role: role === "assistant" ? "assistant" : "user",
+        content: message.content ?? "",
+      });
+    }
+
+    return formattedMessages;
+  }
+
+  private extractChatCompletionResult(response: Anthropic_SDK.Beta.BetaMessage): Omit<ChatCompletionResult, "data"> {
+    // Extract text content
+    const textContent = response.content
+      .filter((c) => c.type === "text")
+      .map((c) => c.text)
+      .join("");
+
+    // Extract tool calls
+    const toolCalls = response.content
+      .filter((c) => c.type === "tool_use")
+      .map((c) => ({
+        id: c.id,
+        type: "function" as const,
+        function: {
+          name: c.name,
+          arguments: JSON.stringify(c.input),
+        },
+      }));
+
+    return {
+      id: response.id,
+      model: response.model,
+      content: textContent || null,
+      role: "assistant",
+      // todo fix me
+      finishReason: response.stop_reason as any,
+      toolCalls: toolCalls.length > 0 ? toolCalls : undefined,
+      usage: {
+        promptTokens: response.usage.input_tokens,
+        completionTokens: response.usage.output_tokens,
+        totalTokens: response.usage.input_tokens + response.usage.output_tokens,
+      },
+    };
+  }
+
+  private async *processAnthropicStream(
+    stream: AsyncIterable<Anthropic_SDK.Beta.BetaRawMessageStreamEvent>,
+    model: string,
+    generateId: () => string
+  ): AsyncIterable<StreamChunk> {
+    let accumulatedContent = "";
+    const timestamp = Date.now();
+    const toolCallsMap = new Map<
+      number,
+      { id: string; name: string; input: string }
+    >();
+    let currentToolIndex = -1;
+
+    try {
+      for await (const event of stream) {
+        if (event.type === "content_block_start") {
+          if (event.content_block.type === "tool_use") {
+            currentToolIndex++;
+            toolCallsMap.set(currentToolIndex, {
+              id: event.content_block.id,
+              name: event.content_block.name,
+              input: "",
+            });
+          }
+        } else if (event.type === "content_block_delta") {
+          if (event.delta.type === "text_delta") {
+            const delta = event.delta.text;
+            accumulatedContent += delta;
+            yield {
+              type: "content",
+              id: generateId(),
+              model: model || "claude-3-sonnet-20240229",
+              timestamp,
+              delta,
+              content: accumulatedContent,
+              role: "assistant",
+            };
+          } else if (event.delta.type === "input_json_delta") {
+            // Tool input is being streamed
+            const existing = toolCallsMap.get(currentToolIndex);
+            if (existing) {
+              existing.input += event.delta.partial_json;
+
+              yield {
+                type: "tool_call",
+                id: generateId(),
+                model: model || "claude-3-sonnet-20240229",
+                timestamp,
+                toolCall: {
+                  id: existing.id,
+                  type: "function",
+                  function: {
+                    name: existing.name,
+                    arguments: event.delta.partial_json,
+                  },
+                },
+                index: currentToolIndex,
+              };
+            }
+          }
+        } else if (event.type === "message_stop") {
+          yield {
+            type: "done",
+            id: generateId(),
+            model: model || "claude-3-sonnet-20240229",
+            timestamp,
+            finishReason: "stop",
+          };
+        } else if (event.type === "message_delta") {
+          if (event.delta.stop_reason) {
+            yield {
+              type: "done",
+              id: generateId(),
+              model: model || "claude-3-sonnet-20240229",
+              timestamp,
+              finishReason:
+                event.delta.stop_reason === "tool_use"
+                  ? "tool_calls"
+                  : (event.delta.stop_reason as any),
+              // TODO Fix usage
+              usage: event.usage
+                ? {
+                  promptTokens: 0,
+                  completionTokens: event.usage.output_tokens || 0,
+                  totalTokens:
+                    (0) +
+                    (event.usage.output_tokens || 0),
+                }
+                : undefined,
+            };
+          }
+        }
+      }
+    } catch (error: any) {
+      yield {
+        type: "error",
+        id: generateId(),
+        model: model,
+        timestamp,
+        error: {
+          message: error.message || "Unknown error occurred",
+          code: error.code,
+        },
+      };
+    }
   }
 }
 

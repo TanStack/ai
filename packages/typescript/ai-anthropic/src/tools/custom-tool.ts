@@ -14,7 +14,7 @@ export interface CustomTool {
   /**
    * This defines the shape of the input that your tool accepts and that the model will produce.
    */
-  input_schema?: {
+  input_schema: {
     type: "object";
     properties: Record<string, any> | null;
     required?: string[] | null;

@@ -1,22 +1,15 @@
-import { CacheControl } from "../text/text-provider-options";
+import { BetaMemoryTool20250818 } from "@anthropic-ai/sdk/resources/beta";
 import type { Tool } from "@tanstack/ai";
 
-export interface MemoryTool {
-  name: "memory";
-  type: "memory_20250818";
-  cache_control?: CacheControl | null
-}
+export type MemoryTool = BetaMemoryTool20250818
+
 
 export function convertMemoryToolToAdapterFormat(tool: Tool): MemoryTool {
-  const metadata = tool.metadata as { cacheControl?: CacheControl | null };
-  return {
-    name: "memory",
-    type: "memory_20250818",
-    cache_control: metadata.cacheControl || null,
-  };
+  const metadata = tool.metadata as MemoryTool
+  return metadata
 }
 
-export function memoryTool(cacheControl?: CacheControl | null): Tool {
+export function memoryTool(cacheControl?: MemoryTool): Tool {
   return {
     type: "function",
     function: {

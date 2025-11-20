@@ -12,7 +12,7 @@ import {
   type ImageData,
   StreamChunk,
 } from "@tanstack/ai";
-import { OPENAI_CHAT_MODELS, OPENAI_IMAGE_MODELS, OPENAI_EMBEDDING_MODELS, OPENAI_AUDIO_MODELS, OPENAI_VIDEO_MODELS, OPENAI_TRANSCRIPTION_MODELS } from "./model-meta";
+import { OPENAI_CHAT_MODELS, OPENAI_IMAGE_MODELS, OPENAI_EMBEDDING_MODELS, OPENAI_AUDIO_MODELS, OPENAI_VIDEO_MODELS, OpenAIImageModel } from "./model-meta";
 import { convertMessagesToInput, TextProviderOptions } from "./text/text-provider-options";
 import { convertToolsToProviderFormat } from "./tools";
 
@@ -20,196 +20,6 @@ export interface OpenAIConfig {
   apiKey: string;
   organization?: string;
   baseURL?: string;
-}
-
-
-
-export type OpenAIChatModel = (typeof OPENAI_CHAT_MODELS)[number];
-export type OpenAIImageModel = (typeof OPENAI_IMAGE_MODELS)[number];
-export type OpenAIEmbeddingModel = (typeof OPENAI_EMBEDDING_MODELS)[number];
-export type OpenAIAudioModel = (typeof OPENAI_AUDIO_MODELS)[number];
-export type OpenAIVideoModel = (typeof OPENAI_VIDEO_MODELS)[number];
-export type OpenAITranscriptionModel = (typeof OPENAI_TRANSCRIPTION_MODELS)[number];
-
-
-export function mapOpenAIResponseToChatResult(response: OpenAI_SDK.Responses.Response): ChatCompletionResult {
-  // response.output is an array of output items
-  const outputItems = response.output;
-
-  // Find the message output item
-  const messageItem = outputItems.find((item) => item.type === 'message');
-  const content = messageItem?.content?.[0].type === "output_text" ? messageItem?.content?.[0]?.text || "" : "";
-
-  // Find function call items
-  const functionCalls = outputItems.filter((item) => item.type === 'function_call');
-  const toolCalls = functionCalls.length > 0 ? functionCalls.map((fc) => ({
-    id: fc.call_id,
-    type: "function" as const,
-    function: {
-      name: fc.name,
-      arguments: JSON.stringify(fc.arguments)
-    }
-  })) : undefined;
-
-  return {
-    id: response.id,
-    model: response.model,
-    content,
-    role: "assistant",
-    finishReason: messageItem?.status,
-    toolCalls,
-    usage: {
-      promptTokens: response.usage?.input_tokens || 0,
-      completionTokens: response.usage?.output_tokens || 0,
-      totalTokens: response.usage?.total_tokens || 0,
-    }
-  };
-}
-
-async function* processOpenAIStreamChunks(
-  stream: ReadableStream,
-  toolCallMetadata: Map<string, { index: number; name: string }>,
-  options: ChatCompletionOptions,
-  generateId: () => string
-): AsyncIterable<StreamChunk> {
-  let accumulatedContent = "";
-  const timestamp = Date.now();
-  let nextIndex = 0;
-
-  try {
-    for await (const chunk of stream) {
-      const delta = chunk.choices[0]?.delta;
-      const choice = chunk.choices[0];
-
-      // Handle content delta
-      if (delta?.content) {
-        accumulatedContent += delta.content;
-        yield {
-          type: "content",
-          id: chunk.id,
-          model: chunk.model,
-          timestamp,
-          delta: delta.content,
-          content: accumulatedContent,
-          role: "assistant",
-        };
-      }
-
-      // Handle tool calls
-      if (delta?.tool_calls) {
-        for (const toolCall of delta.tool_calls) {
-          // First chunk of a tool call has ID and name
-          // Subsequent chunks only have argument fragments
-          if (toolCall.id) {
-            // New tool call - assign it the next index
-            toolCallMetadata.set(toolCall.id, {
-              index: nextIndex++,
-              name: toolCall.function?.name || "",
-            });
-          }
-
-          // Find which tool call these deltas belong to
-          // For the first chunk, we just added it above
-          // For subsequent chunks, we need to find it by OpenAI's index field
-          let toolCallId: string;
-          let toolCallName: string;
-          let actualIndex: number;
-
-          if (toolCall.id) {
-            // First chunk - use the ID we just tracked
-            toolCallId = toolCall.id;
-            const meta = toolCallMetadata.get(toolCallId)!;
-            toolCallName = meta.name;
-            actualIndex = meta.index;
-          } else {
-            // Delta chunk - find by OpenAI's index
-            // OpenAI uses index to group deltas for the same tool call
-            const openAIIndex = typeof toolCall.index === 'number' ? toolCall.index : 0;
-
-            // Find the tool call ID that was assigned this OpenAI index
-            const entry = Array.from(toolCallMetadata.entries())[openAIIndex];
-            if (entry) {
-              const [id, meta] = entry;
-              toolCallId = id;
-              toolCallName = meta.name;
-              actualIndex = meta.index;
-            } else {
-              // Fallback if we can't find it
-              toolCallId = `call_${Date.now()}`;
-              toolCallName = "";
-              actualIndex = openAIIndex;
-            }
-          }
-
-          yield {
-            type: "tool_call",
-            id: chunk.id,
-            model: chunk.model,
-            timestamp,
-            toolCall: {
-              id: toolCallId,
-              type: "function",
-              function: {
-                name: toolCallName,
-                arguments: toolCall.function?.arguments || "",
-              },
-            },
-            index: actualIndex,
-          };
-        }
-      }
-
-      // Handle completion
-      if (choice?.finish_reason) {
-        yield {
-          type: "done",
-          id: chunk.id,
-          model: chunk.model,
-          timestamp,
-          finishReason: choice.finish_reason as any,
-          usage: chunk.usage
-            ? {
-              promptTokens: chunk.usage.prompt_tokens || 0,
-              completionTokens: chunk.usage.completion_tokens || 0,
-              totalTokens: chunk.usage.total_tokens || 0,
-            }
-            : undefined,
-        };
-      }
-    }
-  } catch (error: any) {
-    yield {
-      type: "error",
-      id: generateId(),
-      model: options.model || "gpt-3.5-turbo",
-      timestamp,
-      error: {
-        message: error.message || "Unknown error occurred",
-        code: error.code,
-      },
-    };
-  }
-}
-/**
- * Maps common options to OpenAI-specific format
- * Handles translation of normalized options to OpenAI's API format
- */
-export function mapChatOptionsToOpenAI(
-  options: ChatCompletionOptions,
-) {
-  const providerOptions = options.providerOptions as Omit<TextProviderOptions, "max_output_tokens" | "tools" | "metadata" | "temperature" | "input" | "top_p"> | undefined;
-  const requestParams: Omit<TextProviderOptions, "stream"> = {
-    model: options.model,
-    temperature: options.options?.temperature,
-    max_output_tokens: options.options?.maxTokens,
-    top_p: options.options?.topP,
-    metadata: options.options?.metadata,
-    ...providerOptions,
-    input: convertMessagesToInput(options.messages),
-    tools: options.tools ? convertToolsToProviderFormat([...options.tools]) : undefined,
-  };
-
-  return requestParams;
 }
 
 /**
@@ -325,10 +135,7 @@ export class OpenAI extends BaseAdapter<
   ): Promise<ChatCompletionResult> {
 
     // Map common options to OpenAI format using the centralized mapping function
-    const providerOptions = mapChatOptionsToOpenAI(options);
-
-    // Extract custom headers and abort signal (handled separately)
-    const abortSignal = options.abortSignal;
+    const providerOptions = this.mapChatOptionsToOpenAI(options);
 
     const response = await this.client.responses.create(
       {
@@ -336,11 +143,12 @@ export class OpenAI extends BaseAdapter<
         ...providerOptions,
       },
       {
-        signal: abortSignal
+        headers: options.request?.headers,
+        signal: options.request?.signal
       }
     );
 
-    return mapOpenAIResponseToChatResult(response);
+    return this.mapOpenAIResponseToChatResult(response);
   }
 
   async *chatStream(
@@ -353,10 +161,8 @@ export class OpenAI extends BaseAdapter<
     const toolCallMetadata = new Map<string, { index: number; name: string }>();
 
     // Map common options to OpenAI format using the centralized mapping function
-    const requestParams = mapChatOptionsToOpenAI(options);
+    const requestParams = this.mapChatOptionsToOpenAI(options);
 
-
-    const abortSignal = options.abortSignal;
 
     const response = await this.client.responses.create(
       {
@@ -364,12 +170,13 @@ export class OpenAI extends BaseAdapter<
         stream: true,
       },
       {
-        signal: abortSignal
+        headers: options.request?.headers,
+        signal: options.request?.signal
       }
     );
     const stream = response.toReadableStream()
 
-    yield* processOpenAIStreamChunks(stream, toolCallMetadata, options, () => this.generateId());
+    yield* this.processOpenAIStreamChunks(stream, toolCallMetadata, options, () => this.generateId());
   }
 
 
@@ -701,6 +508,187 @@ export class OpenAI extends BaseAdapter<
     }
 
     return prompt;
+  }
+
+  private mapOpenAIResponseToChatResult(response: OpenAI_SDK.Responses.Response): ChatCompletionResult {
+    // response.output is an array of output items
+    const outputItems = response.output;
+
+    // Find the message output item
+    const messageItem = outputItems.find((item) => item.type === 'message');
+    const content = messageItem?.content?.[0].type === "output_text" ? messageItem?.content?.[0]?.text || "" : "";
+
+    // Find function call items
+    const functionCalls = outputItems.filter((item) => item.type === 'function_call');
+    const toolCalls = functionCalls.length > 0 ? functionCalls.map((fc) => ({
+      id: fc.call_id,
+      type: "function" as const,
+      function: {
+        name: fc.name,
+        arguments: JSON.stringify(fc.arguments)
+      }
+    })) : undefined;
+
+    return {
+      id: response.id,
+      model: response.model,
+      content,
+      role: "assistant",
+      finishReason: messageItem?.status,
+      toolCalls,
+      usage: {
+        promptTokens: response.usage?.input_tokens || 0,
+        completionTokens: response.usage?.output_tokens || 0,
+        totalTokens: response.usage?.total_tokens || 0,
+      }
+    };
+  }
+
+  private async *processOpenAIStreamChunks(
+    stream: ReadableStream,
+    toolCallMetadata: Map<string, { index: number; name: string }>,
+    options: ChatCompletionOptions,
+    generateId: () => string
+  ): AsyncIterable<StreamChunk> {
+    let accumulatedContent = "";
+    const timestamp = Date.now();
+    let nextIndex = 0;
+
+    try {
+      for await (const chunk of stream) {
+        const delta = chunk.choices[0]?.delta;
+        const choice = chunk.choices[0];
+
+        // Handle content delta
+        if (delta?.content) {
+          accumulatedContent += delta.content;
+          yield {
+            type: "content",
+            id: chunk.id,
+            model: chunk.model,
+            timestamp,
+            delta: delta.content,
+            content: accumulatedContent,
+            role: "assistant",
+          };
+        }
+
+        // Handle tool calls
+        if (delta?.tool_calls) {
+          for (const toolCall of delta.tool_calls) {
+            // First chunk of a tool call has ID and name
+            // Subsequent chunks only have argument fragments
+            if (toolCall.id) {
+              // New tool call - assign it the next index
+              toolCallMetadata.set(toolCall.id, {
+                index: nextIndex++,
+                name: toolCall.function?.name || "",
+              });
+            }
+
+            // Find which tool call these deltas belong to
+            // For the first chunk, we just added it above
+            // For subsequent chunks, we need to find it by OpenAI's index field
+            let toolCallId: string;
+            let toolCallName: string;
+            let actualIndex: number;
+
+            if (toolCall.id) {
+              // First chunk - use the ID we just tracked
+              toolCallId = toolCall.id;
+              const meta = toolCallMetadata.get(toolCallId)!;
+              toolCallName = meta.name;
+              actualIndex = meta.index;
+            } else {
+              // Delta chunk - find by OpenAI's index
+              // OpenAI uses index to group deltas for the same tool call
+              const openAIIndex = typeof toolCall.index === 'number' ? toolCall.index : 0;
+
+              // Find the tool call ID that was assigned this OpenAI index
+              const entry = Array.from(toolCallMetadata.entries())[openAIIndex];
+              if (entry) {
+                const [id, meta] = entry;
+                toolCallId = id;
+                toolCallName = meta.name;
+                actualIndex = meta.index;
+              } else {
+                // Fallback if we can't find it
+                toolCallId = `call_${Date.now()}`;
+                toolCallName = "";
+                actualIndex = openAIIndex;
+              }
+            }
+
+            yield {
+              type: "tool_call",
+              id: chunk.id,
+              model: chunk.model,
+              timestamp,
+              toolCall: {
+                id: toolCallId,
+                type: "function",
+                function: {
+                  name: toolCallName,
+                  arguments: toolCall.function?.arguments || "",
+                },
+              },
+              index: actualIndex,
+            };
+          }
+        }
+
+        // Handle completion
+        if (choice?.finish_reason) {
+          yield {
+            type: "done",
+            id: chunk.id,
+            model: chunk.model,
+            timestamp,
+            finishReason: choice.finish_reason as any,
+            usage: chunk.usage
+              ? {
+                promptTokens: chunk.usage.prompt_tokens || 0,
+                completionTokens: chunk.usage.completion_tokens || 0,
+                totalTokens: chunk.usage.total_tokens || 0,
+              }
+              : undefined,
+          };
+        }
+      }
+    } catch (error: any) {
+      yield {
+        type: "error",
+        id: generateId(),
+        model: options.model || "gpt-3.5-turbo",
+        timestamp,
+        error: {
+          message: error.message || "Unknown error occurred",
+          code: error.code,
+        },
+      };
+    }
+  }
+
+  /**
+   * Maps common options to OpenAI-specific format
+   * Handles translation of normalized options to OpenAI's API format
+   */
+  private mapChatOptionsToOpenAI(
+    options: ChatCompletionOptions,
+  ) {
+    const providerOptions = options.providerOptions as Omit<TextProviderOptions, "max_output_tokens" | "tools" | "metadata" | "temperature" | "input" | "top_p"> | undefined;
+    const requestParams: Omit<TextProviderOptions, "stream"> = {
+      model: options.model,
+      temperature: options.options?.temperature,
+      max_output_tokens: options.options?.maxTokens,
+      top_p: options.options?.topP,
+      metadata: options.options?.metadata,
+      ...providerOptions,
+      input: convertMessagesToInput(options.messages),
+      tools: options.tools ? convertToolsToProviderFormat([...options.tools]) : undefined,
+    };
+
+    return requestParams;
   }
 }
 

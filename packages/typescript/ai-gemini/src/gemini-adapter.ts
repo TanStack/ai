@@ -1,11 +1,9 @@
-import { GoogleGenerativeAI } from "@google/generative-ai";
+import { GoogleGenAI } from "@google/genai";
 import {
   BaseAdapter,
-  convertChatCompletionStream,
   type AIAdapterConfig,
   type ChatCompletionOptions,
   type ChatCompletionResult,
-  type ChatCompletionChunk,
   type SummarizationOptions,
   type SummarizationResult,
   type EmbeddingOptions,
@@ -13,7 +11,7 @@ import {
   type ModelMessage,
   type StreamChunk,
 } from "@tanstack/ai";
-import { GEMINI_MODELS, GEMINI_IMAGE_MODELS, GEMINI_EMBEDDING_MODELS, GEMINI_AUDIO_MODELS, GEMINI_VIDEO_MODELS } from "./model-meta";
+import { GEMINI_MODELS, GEMINI_IMAGE_MODELS, GEMINI_EMBEDDING_MODELS, GEMINI_AUDIO_MODELS, GEMINI_VIDEO_MODELS, GeminiChatModels } from "./model-meta";
 import { TextProviderOptions } from "./text/text-provider-options";
 import { convertToolsToProviderFormat } from "./tools/tool-converter";
 
@@ -106,10 +104,9 @@ function mapCommonOptionsToGemini(
 
   const generationConfig: TextProviderOptions = {
     ...providerOpts,
-    model: options.model as any,
+    model: options.model as GeminiChatModels,
     generationConfig: {
       temperature: options.options?.temperature,
-
       topP: options.options?.topP,
       maxOutputTokens: options.options?.maxTokens,
       ...providerOpts?.generationConfig
@@ -143,11 +140,13 @@ export class GeminiAdapter extends BaseAdapter<
   embeddingModels = GEMINI_EMBEDDING_MODELS;
   audioModels = GEMINI_AUDIO_MODELS;
   videoModels = GEMINI_VIDEO_MODELS;
-  private client: GoogleGenerativeAI;
+  private client: GoogleGenAI;
 
   constructor(config: GeminiAdapterConfig) {
     super(config);
-    this.client = new GoogleGenerativeAI(config.apiKey);
+    this.client = new GoogleGenAI({
+      apiKey: config.apiKey,
+    });
   }
 
   async chatCompletion(
@@ -155,91 +154,69 @@ export class GeminiAdapter extends BaseAdapter<
   ): Promise<ChatCompletionResult> {
     // Map common options to Gemini format
     const mappedOptions = mapCommonOptionsToGemini(options);
-    const contents = formatMessages(options.messages);
 
-    const model = this.client.getGenerativeModel({
-      model: mappedOptions.model,
-      generationConfig: mappedOptions.generationConfig,
-      systemInstruction: mappedOptions.systemInstruction,
-      safetySettings: mappedOptions.safetySettings as any,
-      tools: mappedOptions.tools as any,
-    });
+    const response = await this.client.models.generateContent(mappedOptions);
 
-    const history = contents.slice(0, -1);
-    const lastMessage = contents[contents.length - 1];
-
-    const chat = model.startChat({ history: history as any });
-    const result = await chat.sendMessage(
-      lastMessage.parts[0]?.text || (lastMessage.parts as any)
-    );
-    const response = await result.response;
-    const text = response.text();
-
-    // Estimate token usage
-    const promptTokens = this.estimateTokens(
-      options.messages.map((m) => m.content).join(" ")
-    );
-    const completionTokens = this.estimateTokens(text);
 
     return {
       id: this.generateId(),
       model: options.model || "gemini-pro",
-      content: text,
+      content: response.data ?? "",
       role: "assistant",
       finishReason: (response.candidates?.[0]?.finishReason as any) || "stop",
       usage: {
-        promptTokens,
-        completionTokens,
-        totalTokens: promptTokens + completionTokens,
+        promptTokens: response.usageMetadata?.promptTokenCount ?? 0,
+        completionTokens: response.usageMetadata?.thoughtsTokenCount ?? 0,
+        totalTokens: response.usageMetadata?.totalTokenCount ?? 0
       },
     };
   }
 
-  async *chatCompletionStream(
-    options: ChatCompletionOptions
-  ): AsyncIterable<ChatCompletionChunk> {
-    // Map common options to Gemini format
-    const mappedOptions = mapCommonOptionsToGemini(options);
-    const contents = formatMessages(options.messages);
-
-    const model = this.client.getGenerativeModel({
-      model: mappedOptions.model,
-      generationConfig: mappedOptions.generationConfig,
-      systemInstruction: mappedOptions.systemInstruction,
-      safetySettings: mappedOptions.safetySettings as any,
-      tools: mappedOptions.tools as any,
-    });
-
-    const history = contents.slice(0, -1);
-    const lastMessage = contents[contents.length - 1];
-
-    const chat = model.startChat({ history: history as any });
-    const result = await chat.sendMessageStream(
-      lastMessage.parts[0]?.text || (lastMessage.parts as any)
-    );
-
-    for await (const chunk of result.stream) {
-      const text = chunk.text();
-      if (text) {
-        yield {
-          id: this.generateId(),
-          model: options.model || "gemini-pro",
-          content: text,
-          finishReason: (chunk.candidates?.[0]?.finishReason as any) || null,
-        };
-      }
-    }
-  }
 
   async *chatStream(
     options: ChatCompletionOptions
   ): AsyncIterable<StreamChunk> {
-    // Use stream converter for now
-    // TODO: Implement native structured streaming for Gemini
-    yield* convertChatCompletionStream(
-      this.chatCompletionStream(options),
-      options.model || "gemini-pro"
-    );
+    // Map common options to Gemini format
+    const mappedOptions = mapCommonOptionsToGemini(options);
+
+    const result = await this.client.models.generateContentStream(mappedOptions);
+
+    const timestamp = Date.now();
+    let accumulatedContent = "";
+
+    // Iterate over the stream result (it's already an AsyncGenerator)
+    for await (const chunk of result) {
+      const content = chunk.data || "";
+      accumulatedContent += content;
+
+      if (content) {
+        yield {
+          type: "content",
+          id: this.generateId(),
+          model: options.model || "gemini-pro",
+          timestamp,
+          delta: content,
+          content: accumulatedContent,
+          role: "assistant",
+        };
+      }
+
+      // Check for finish reason
+      if (chunk.candidates?.[0]?.finishReason) {
+        yield {
+          type: "done",
+          id: this.generateId(),
+          model: options.model || "gemini-pro",
+          timestamp,
+          finishReason: chunk.candidates[0].finishReason as any,
+          usage: chunk.usageMetadata ? {
+            promptTokens: chunk.usageMetadata.promptTokenCount ?? 0,
+            completionTokens: chunk.usageMetadata.thoughtsTokenCount ?? 0,
+            totalTokens: chunk.usageMetadata.totalTokenCount ?? 0,
+          } : undefined,
+        };
+      }
+    }
   }
 
 
@@ -247,7 +224,7 @@ export class GeminiAdapter extends BaseAdapter<
   async summarize(options: SummarizationOptions): Promise<SummarizationResult> {
     const prompt = this.buildSummarizationPrompt(options, options.text);
 
-    const model = this.client.getGenerativeModel({
+    const model = (this.client as any).getGenerativeModel({
       model: options.model || "gemini-pro",
       generationConfig: {
         temperature: 0.3,
@@ -280,7 +257,7 @@ export class GeminiAdapter extends BaseAdapter<
       : [options.input];
     const embeddings: number[][] = [];
 
-    const model = this.client.getGenerativeModel({
+    const model = (this.client as any).getGenerativeModel({
       model: options.model || "embedding-001",
     });
 

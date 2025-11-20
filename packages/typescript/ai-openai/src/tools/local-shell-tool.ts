@@ -3,8 +3,6 @@ import OpenAI from "openai";
 
 export type LocalShellTool = OpenAI.Responses.Tool.LocalShell;
 
-
-
 /**
  * Converts a standard Tool to OpenAI LocalShellTool format
  */

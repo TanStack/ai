@@ -1,8 +1,8 @@
-import { MessageCreateParams, MessageParam, TextBlockParam, } from "@anthropic-ai/sdk/resources/messages";
+import { MessageParam, TextBlockParam, } from "@anthropic-ai/sdk/resources/messages";
 import { AnthropicTool } from "../tools";
+import { BetaContextManagementConfig, BetaToolChoiceAny, BetaToolChoiceAuto, BetaToolChoiceTool } from "@anthropic-ai/sdk/resources/beta/messages/messages";
 
 export interface TextProviderOptions {
-
 
   model: string;
 
@@ -40,9 +40,7 @@ export interface TextProviderOptions {
 
 This allows you to control how Claude manages context across multiple requests, such as whether to clear function results or not.
    */
-  context_management?: {
-    edits?: (ClearToolUses | ClearThinking)[]
-  } | null
+  context_management?: BetaContextManagementConfig | null
   /**
    * MCP servers to be utilized in this request
    * Maximum of 20 servers
@@ -97,7 +95,7 @@ Must be ≥1024 and less than max_tokens
     type: "disabled"
   }
 
-  tool_choice?: MessageCreateParams.ToolChoiceAny | MessageCreateParams.ToolChoiceTool | MessageCreateParams.ToolChoiceAuto
+  tool_choice?: BetaToolChoiceAny | BetaToolChoiceTool | BetaToolChoiceAuto
 
   tools?: AnthropicTool[]
   /**
@@ -236,17 +234,6 @@ interface RequestSearchResultLocation {
   type: "search_result_location"
 }
 
-export const validateContextManagement = (options: TextProviderOptions) => {
-  const contextManagement = options.context_management;
-  if (contextManagement?.edits) {
-    if (contextManagement.edits.some(edit => {
-      edit.keep && edit.keep.value < 1
-    })) {
-      throw new Error("context_management.edits.keep.value must be greater than 0.");
-    }
-  }
-}
-
 
 interface MCPServer {
   name: string;
@@ -259,63 +246,7 @@ interface MCPServer {
   } | null;
 }
 
-interface ClearThinking {
-  type: "clear_thinking_202501015"
-  keep?: {
-    type: "thinking_turns",
-    /** Bigger than 0 */
-    value: number
-  }
-}
 
-interface ClearToolUses {
-  type: "clear_tool-uses_20250919"
-  /**
-   * Minimum number of tokens that must be cleared when triggered. Context will only be modified if at least this many tokens can be removed.
-   */
-  clear_at_least?: {
-    type: "input_tokens",
-    /**
-     * Bigger than 0
-     */
-    value: number
-  } | null
-
-  /**
-   * Whether to clear all tool inputs (bool) or specific tool inputs to clear (list)
-   */
-  clear_tool_inputs?: boolean | null;
-  /**
-   * Tool names whose uses are preserved from clearing
-   */
-  exclude_tools?: string[] | null;
-  /**
-   * Number of tool uses to retain in the conversation
-   */
-  keep?: {
-    type: "tool_uses",
-    /**
-     * Bigger than 0
-     */
-    value: number
-  }
-  /**
-   * Condition that triggers the context management strategy
-   */
-  trigger?: {
-    type: "input_tokens"
-    /**
-     * Bigger than 0
-     */
-    value: number
-  } | {
-    type: "tool_uses",
-    /**
-     * Bigger than 0
-     */
-    value: number
-  }
-}
 
 export const validateMaxTokens = (options: TextProviderOptions) => {
   if (options.max_tokens < 1) {
