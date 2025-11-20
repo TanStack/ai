@@ -207,14 +207,15 @@ class AI<
       options = {},
       providerOptions,
       abortController,
+      request,
     } = params;
 
     // Combine abortController with request if both are provided
-    // Adapters call this the request controller and signal
-    const effectiveRequest = abortController
-      ? { signal: abortController.signal }
-      : undefined;
-    const effectiveSignal = abortController?.signal;
+    // Adapters expect request?.signal, so we create a request object from abortController if needed
+    const effectiveRequest =
+      request ||
+      (abortController ? { signal: abortController.signal } : undefined);
+    const effectiveSignal = abortController?.signal || request?.signal;
 
     const requestId = `chat-${Date.now()}-${Math.random()
       .toString(36)
