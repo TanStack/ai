@@ -96,6 +96,9 @@ importers:
       '@tanstack/ai-devtools-core':
         specifier: workspace:*
         version: link:../../packages/typescript/ai-devtools
+      '@tanstack/ai-gemini':
+        specifier: workspace:*
+        version: link:../../packages/typescript/ai-gemini
       '@tanstack/ai-ollama':
         specifier: workspace:*
         version: link:../../packages/typescript/ai-ollama

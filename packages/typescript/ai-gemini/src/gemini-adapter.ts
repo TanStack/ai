@@ -11,7 +11,14 @@ import {
   type ModelMessage,
   type StreamChunk,
 } from "@tanstack/ai";
-import { GEMINI_MODELS, GEMINI_IMAGE_MODELS, GEMINI_EMBEDDING_MODELS, GEMINI_AUDIO_MODELS, GEMINI_VIDEO_MODELS, GeminiChatModels } from "./model-meta";
+import {
+  GEMINI_MODELS,
+  GEMINI_IMAGE_MODELS,
+  GEMINI_EMBEDDING_MODELS,
+  GEMINI_AUDIO_MODELS,
+  GEMINI_VIDEO_MODELS,
+  GeminiChatModels,
+} from "./model-meta";
 import { TextProviderOptions } from "./text/text-provider-options";
 import { convertToolsToProviderFormat } from "./tools/tool-converter";
 
@@ -40,12 +47,24 @@ export interface GeminiProviderOptions {
   responseSchema?: any;
 }
 
-function formatMessages(messages: ModelMessage[]): Array<{ role: "user" | "model"; parts: Array<{ text?: string; functionCall?: { name: string; args: Record<string, any> }; functionResponse?: { name: string; response: Record<string, any> } }> }> {
+function formatMessages(messages: ModelMessage[]): Array<{
+  role: "user" | "model";
+  parts: Array<{
+    text?: string;
+    functionCall?: { name: string; args: Record<string, any> };
+    functionResponse?: { name: string; response: Record<string, any> };
+  }>;
+}> {
   return messages
     .filter((m) => m.role !== "system") // Skip system messages
     .map((msg) => {
-      const role: "user" | "model" = msg.role === "assistant" ? "model" : "user";
-      const parts: Array<{ text?: string; functionCall?: { name: string; args: Record<string, any> }; functionResponse?: { name: string; response: Record<string, any> } }> = [];
+      const role: "user" | "model" =
+        msg.role === "assistant" ? "model" : "user";
+      const parts: Array<{
+        text?: string;
+        functionCall?: { name: string; args: Record<string, any> };
+        functionResponse?: { name: string; response: Record<string, any> };
+      }> = [];
 
       // Add text content if present
       if (msg.content) {
@@ -92,7 +111,6 @@ function formatMessages(messages: ModelMessage[]): Array<{ role: "user" | "model
     });
 }
 
-
 /**
  * Maps common options to Gemini-specific format
  * Handles translation of normalized options to Gemini's API format
@@ -100,7 +118,9 @@ function formatMessages(messages: ModelMessage[]): Array<{ role: "user" | "model
 function mapCommonOptionsToGemini(
   options: ChatCompletionOptions
 ): TextProviderOptions {
-  const providerOpts = options.providerOptions as TextProviderOptions | undefined;
+  const providerOpts = options.providerOptions as
+    | TextProviderOptions
+    | undefined;
 
   const generationConfig: TextProviderOptions = {
     ...providerOpts,
@@ -109,7 +129,7 @@ function mapCommonOptionsToGemini(
       temperature: options.options?.temperature,
       topP: options.options?.topP,
       maxOutputTokens: options.options?.maxTokens,
-      ...providerOpts?.generationConfig
+      ...providerOpts?.generationConfig,
     },
 
     systemInstruction: options.systemPrompts?.join("\n"),
@@ -118,7 +138,9 @@ function mapCommonOptionsToGemini(
 
   return {
     ...generationConfig,
-    tools: options.tools ? convertToolsToProviderFormat(options.tools) : undefined,
+    tools: options.tools
+      ? convertToolsToProviderFormat(options.tools)
+      : undefined,
   };
 }
 
@@ -157,7 +179,6 @@ export class GeminiAdapter extends BaseAdapter<
 
     const response = await this.client.models.generateContent(mappedOptions);
 
-
     return {
       id: this.generateId(),
       model: options.model || "gemini-pro",
@@ -167,11 +188,10 @@ export class GeminiAdapter extends BaseAdapter<
       usage: {
         promptTokens: response.usageMetadata?.promptTokenCount ?? 0,
         completionTokens: response.usageMetadata?.thoughtsTokenCount ?? 0,
-        totalTokens: response.usageMetadata?.totalTokenCount ?? 0
+        totalTokens: response.usageMetadata?.totalTokenCount ?? 0,
       },
     };
   }
-
 
   async *chatStream(
     options: ChatCompletionOptions
@@ -179,17 +199,32 @@ export class GeminiAdapter extends BaseAdapter<
     // Map common options to Gemini format
     const mappedOptions = mapCommonOptionsToGemini(options);
 
-    const result = await this.client.models.generateContentStream(mappedOptions);
+    const result = await this.client.models.generateContentStream(
+      mappedOptions
+    );
 
     const timestamp = Date.now();
     let accumulatedContent = "";
 
     // Iterate over the stream result (it's already an AsyncGenerator)
     for await (const chunk of result) {
-      const content = chunk.data || "";
-      accumulatedContent += content;
+      // Extract text content from candidates[0].content.parts
+      // The parts array contains objects with a 'text' property
+      let content = "";
+      if (chunk.candidates?.[0]?.content?.parts) {
+        const parts = chunk.candidates[0].content.parts;
+        for (const part of parts) {
+          if (part.text) {
+            content += part.text;
+          }
+        }
+      } else if (chunk.data) {
+        // Fallback to chunk.data if available
+        content = chunk.data;
+      }
 
       if (content) {
+        accumulatedContent += content;
         yield {
           type: "content",
           id: this.generateId(),
@@ -209,17 +244,17 @@ export class GeminiAdapter extends BaseAdapter<
           model: options.model || "gemini-pro",
           timestamp,
           finishReason: chunk.candidates[0].finishReason as any,
-          usage: chunk.usageMetadata ? {
-            promptTokens: chunk.usageMetadata.promptTokenCount ?? 0,
-            completionTokens: chunk.usageMetadata.thoughtsTokenCount ?? 0,
-            totalTokens: chunk.usageMetadata.totalTokenCount ?? 0,
-          } : undefined,
+          usage: chunk.usageMetadata
+            ? {
+                promptTokens: chunk.usageMetadata.promptTokenCount ?? 0,
+                completionTokens: chunk.usageMetadata.thoughtsTokenCount ?? 0,
+                totalTokens: chunk.usageMetadata.totalTokenCount ?? 0,
+              }
+            : undefined,
         };
       }
     }
   }
-
-
 
   async summarize(options: SummarizationOptions): Promise<SummarizationResult> {
     const prompt = this.buildSummarizationPrompt(options, options.text);
@@ -315,4 +350,64 @@ export class GeminiAdapter extends BaseAdapter<
     // Rough approximation: 1 token ≈ 4 characters
     return Math.ceil(text.length / 4);
   }
+}
+
+/**
+ * Creates a Gemini adapter with simplified configuration
+ * @param apiKey - Your Google API key
+ * @returns A fully configured Gemini adapter instance
+ *
+ * @example
+ * ```typescript
+ * const gemini = createGemini("AIza...");
+ *
+ * const ai = new AI({
+ *   adapters: {
+ *     gemini,
+ *   }
+ * });
+ * ```
+ */
+export function createGemini(
+  apiKey: string,
+  config?: Omit<GeminiAdapterConfig, "apiKey">
+): GeminiAdapter {
+  return new GeminiAdapter({ apiKey, ...config });
+}
+
+/**
+ * Create a Gemini adapter with automatic API key detection from environment variables.
+ *
+ * Looks for `GOOGLE_API_KEY` or `GEMINI_API_KEY` in:
+ * - `process.env` (Node.js)
+ * - `window.env` (Browser with injected env)
+ *
+ * @param config - Optional configuration (excluding apiKey which is auto-detected)
+ * @returns Configured Gemini adapter instance
+ * @throws Error if API key is not found in environment
+ *
+ * @example
+ * ```typescript
+ * // Automatically uses GOOGLE_API_KEY or GEMINI_API_KEY from environment
+ * const aiInstance = ai(gemini());
+ * ```
+ */
+export function gemini(
+  config?: Omit<GeminiAdapterConfig, "apiKey">
+): GeminiAdapter {
+  const env =
+    typeof globalThis !== "undefined" && (globalThis as any).window?.env
+      ? (globalThis as any).window.env
+      : typeof process !== "undefined"
+      ? process.env
+      : undefined;
+  const key = env?.GOOGLE_API_KEY || env?.GEMINI_API_KEY;
+
+  if (!key) {
+    throw new Error(
+      "GOOGLE_API_KEY or GEMINI_API_KEY is required. Please set it in your environment variables or use createGemini(apiKey, config) instead."
+    );
+  }
+
+  return createGemini(key, config);
 }
