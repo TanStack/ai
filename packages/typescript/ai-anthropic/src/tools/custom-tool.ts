@@ -24,7 +24,7 @@ export interface CustomTool {
 }
 
 export function convertCustomToolToAdapterFormat(tool: Tool): CustomTool {
-  const metadata = tool.metadata as { cacheControl?: CacheControl | null };
+  const metadata = (tool.metadata as { cacheControl?: CacheControl | null }) || {};
   return {
     name: tool.function.name,
     type: "custom",

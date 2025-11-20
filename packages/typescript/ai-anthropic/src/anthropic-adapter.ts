@@ -187,16 +187,34 @@ export class Anthropic extends BaseAdapter<
     options: ChatCompletionOptions,
   ) {
     const providerOptions = options.providerOptions as TextProviderOptions | undefined;
+    
+    const formattedMessages = this.formatMessages(options.messages);
+    const tools = options.tools ? convertToolsToProviderFormat(options.tools) : undefined;
+    
+    // Filter out invalid fields from providerOptions (like 'store' which is OpenAI-specific)
+    const validProviderOptions: Partial<TextProviderOptions> = {};
+    if (providerOptions) {
+      const validKeys: (keyof TextProviderOptions)[] = [
+        'container', 'context_management', 'mcp_servers', 'service_tier',
+        'stop_sequences', 'system', 'thinking', 'tool_choice', 'top_k'
+      ];
+      for (const key of validKeys) {
+        if (key in providerOptions) {
+          (validProviderOptions as any)[key] = providerOptions[key];
+        }
+      }
+    }
+    
     const requestParams: TextProviderOptions = {
       model: options.model,
       max_tokens: options.options?.maxTokens || 1024,
       temperature: options.options?.temperature,
       top_p: options.options?.topP,
-      messages: this.formatMessages(options.messages),
-      tools: options.tools ? convertToolsToProviderFormat(options.tools) : undefined,
-      ...providerOptions
+      messages: formattedMessages,
+      tools: tools,
+      ...validProviderOptions
     };
-    return requestParams
+    return requestParams;
   }
 
   private formatMessages(messages: ModelMessage[]): TextProviderOptions["messages"] {
@@ -318,6 +336,7 @@ export class Anthropic extends BaseAdapter<
 
     try {
       for await (const event of stream) {
+
         if (event.type === "content_block_start") {
           if (event.content_block.type === "tool_use") {
             currentToolIndex++;
@@ -385,12 +404,12 @@ export class Anthropic extends BaseAdapter<
               // TODO Fix usage
               usage: event.usage
                 ? {
-                  promptTokens: 0,
-                  completionTokens: event.usage.output_tokens || 0,
-                  totalTokens:
-                    (0) +
-                    (event.usage.output_tokens || 0),
-                }
+                    promptTokens: 0,
+                    completionTokens: event.usage.output_tokens || 0,
+                    totalTokens:
+                      (0) +
+                      (event.usage.output_tokens || 0),
+                  }
                 : undefined,
             };
           }
