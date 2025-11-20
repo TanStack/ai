@@ -225,15 +225,23 @@ export interface AgentLoopState {
  */
 export type AgentLoopStrategy = (state: AgentLoopState) => boolean;
 
-export interface ChatCompletionOptions {
-  model: string;
+/**
+ * Options passed into the SDK and further piped to the AI provider.
+ */
+export interface ChatCompletionOptions<
+  TModel extends string = string,
+  TProviderOptions extends Record<string, any> = Record<string, any>,
+  TOutput extends ResponseFormat<any> | undefined = undefined
+> {
+  model: TModel;
   messages: ModelMessage[];
   tools?: Array<Tool>;
   systemPrompts?: string[];
   agentLoopStrategy?: AgentLoopStrategy;
   options?: CommonOptions;
-  providerOptions?: Record<string, any>;
-  abortSignal?: AbortSignal;
+  providerOptions?: TProviderOptions;
+  request?: Request | RequestInit;
+  output?: TOutput;
 }
 
 export type StreamChunkType =
@@ -314,6 +322,9 @@ export interface ToolInputAvailableStreamChunk extends BaseStreamChunk {
   input: any;
 }
 
+/**
+ * Chunk returned by the sdk during streaming chat completions.
+ */
 export type StreamChunk =
   | ContentStreamChunk
   | ToolCallStreamChunk
@@ -615,19 +626,10 @@ export interface AIAdapter<
   _videoProviderOptions?: TVideoProviderOptions;
 
   // Chat methods
-  chatCompletion(options: ChatCompletionOptions): Promise<ChatCompletionResult>;
-
-  // Simple streaming (returns ChatCompletionChunk - text only, no tool calls)
-  chatCompletionStream(
-    options: ChatCompletionOptions
-  ): AsyncIterable<ChatCompletionChunk>;
+  chatCompletion(options: ChatCompletionOptions<string, TChatProviderOptions>): Promise<ChatCompletionResult>;
 
   // Structured streaming with JSON chunks (supports tool calls and rich content)
-  chatStream(options: ChatCompletionOptions): AsyncIterable<StreamChunk>;
-
-  // Text generation methods
-  generateText(options: TextGenerationOptions): Promise<TextGenerationResult>;
-  generateTextStream(options: TextGenerationOptions): AsyncIterable<string>;
+  chatStream(options: ChatCompletionOptions<string, TChatProviderOptions>): AsyncIterable<StreamChunk>;
 
   // Summarization
   summarize(options: SummarizationOptions): Promise<SummarizationResult>;

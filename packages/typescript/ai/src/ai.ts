@@ -17,14 +17,12 @@ import type {
   Tool,
   ResponseFormat,
   ModelMessage,
-  AgentLoopStrategy,
   ChatCompletionOptions,
 } from "./types";
 import { ToolCallManager } from "./tool-call-manager";
 import { executeToolCalls } from "./agent/executor";
 import { maxIterations as maxIterationsStrategy } from "./agent-loop-strategies";
 import { aiEventClient } from "./event-client.js";
-import { CommonOptions } from "./common-options";
 
 // Extract types from a single adapter
 type ExtractModels<T> = T extends AIAdapter<
@@ -142,8 +140,8 @@ type ExtractVideoProviderOptions<T> = T extends AIAdapter<
 
 // Helper type to compute chatCompletion return type based on output option
 type ChatCompletionReturnType<
-  TOptions extends { output?: ResponseFormat<any> }
-> = TOptions["output"] extends ResponseFormat<infer TData>
+  TOutput extends ResponseFormat<any> | undefined
+> = TOutput extends ResponseFormat<infer TData>
   ? ChatCompletionResult<TData>
   : ChatCompletionResult;
 
@@ -195,10 +193,7 @@ class AI<
    *   console.log(chunk);
    * }
    */
-  async *chat(params: Omit<ChatCompletionOptions, "model" | "providerOptions"> & {
-    model: ExtractModels<TAdapter>;
-    providerOptions?: ExtractChatProviderOptions<TAdapter>;
-  }): AsyncIterable<StreamChunk> {
+  async *chat(params: ChatCompletionOptions<ExtractModels<TAdapter>, ExtractChatProviderOptions<TAdapter>>): AsyncIterable<StreamChunk> {
     const {
       model,
       messages: inputMessages,
@@ -207,11 +202,9 @@ class AI<
       agentLoopStrategy,
       options = {},
       providerOptions,
-      abortSignal
+      request
     } = params;
 
-    // Extract abortSignal from options
-    const { ...restOptions } = options;
 
     const requestId = `chat-${Date.now()}-${Math.random()
       .toString(36)
@@ -251,7 +244,7 @@ class AI<
 
     do {
       // Check if aborted before starting iteration
-      if (abortSignal?.aborted) {
+      if (request?.signal?.aborted) {
         break;
       }
 
@@ -269,12 +262,12 @@ class AI<
         model: model as string,
         messages,
         tools: tools as Tool[] | undefined,
-        ...restOptions,
-        abortSignal,
+        ...options,
+        request,
         providerOptions: providerOptions as any,
       })) {
         // Check if aborted during iteration
-        if (abortSignal?.aborted) {
+        if (request?.signal?.aborted) {
           break;
         }
         chunkCount++;
@@ -355,7 +348,7 @@ class AI<
       }
 
       // Check if aborted before tool execution
-      if (abortSignal?.aborted) {
+      if (request?.signal?.aborted) {
         break;
       }
 
@@ -562,16 +555,10 @@ class AI<
    * });
    */
   async chatCompletion<
-    TOptions extends {
-      output?: ResponseFormat<any>;
-    }
+    TOutput extends ResponseFormat<any> | undefined = undefined
   >(
-    params: Omit<ChatCompletionOptions, "model" | "providerOptions" | "agentLoopStrategy"> & {
-      model: ExtractModels<TAdapter>;
-      options?: CommonOptions;
-      providerOptions?: ExtractChatProviderOptions<TAdapter>;
-    } & TOptions
-  ): Promise<ChatCompletionReturnType<TOptions>> {
+    params: ChatCompletionOptions<ExtractModels<TAdapter>, ExtractChatProviderOptions<TAdapter>, TOutput>
+  ): Promise<ChatCompletionReturnType<TOutput>> {
     const {
       model,
       messages: inputMessages,
@@ -579,7 +566,7 @@ class AI<
       systemPrompts,
       options = {},
       providerOptions,
-      abortSignal,
+      request,
     } = params;
 
     const requestId = `chat-completion-${Date.now()}-${Math.random()
@@ -597,19 +584,19 @@ class AI<
     });
 
     // Extract output if it exists
-    const output = (params as any).output as ResponseFormat | undefined;
+    const output = params.output;
 
 
     // Prepend system prompts to messages
     const messages = this.prependSystemPrompts(inputMessages, systemPrompts);
 
     const result = await this.adapter.chatCompletion({
-      model: model as string,
+      model: model,
       messages,
-      tools: tools as Tool[] | undefined,
+      tools,
       ...options,
-      abortSignal,
-      providerOptions: providerOptions as any,
+      request,
+      providerOptions: providerOptions,
     });
 
     // Emit chat completed event

@@ -1,4 +1,4 @@
-export { ai, AI } from "./ai";
+export { ai } from "./ai";
 export {
   chat,
   chatCompletion,

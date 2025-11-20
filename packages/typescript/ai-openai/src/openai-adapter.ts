@@ -343,8 +343,6 @@ export class OpenAI extends BaseAdapter<
     return mapOpenAIResponseToChatResult(response);
   }
 
-
-
   async *chatStream(
     options: ChatCompletionOptions
   ): AsyncIterable<StreamChunk> {
