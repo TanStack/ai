@@ -22,12 +22,12 @@ The `useChat` hook manages chat state, handles streaming responses, and provides
 ### Basic Usage
 
 ```typescript
-import { useChat } from "@tanstack/ai-react";
+import { useChat, fetchServerSentEvents } from "@tanstack/ai-react";
 import { useState } from "react";
 
 function ChatComponent() {
   const { messages, sendMessage, isLoading } = useChat({
-    api: "/api/chat",
+    connection: fetchServerSentEvents("/api/chat"),
   });
 
   const [input, setInput] = useState("");
@@ -190,8 +190,10 @@ data: {"type":"done","finishReason":"stop","usage":{...}}
 #### With Callbacks
 
 ```typescript
+import { useChat, fetchServerSentEvents } from "@tanstack/ai-react";
+
 const { messages, sendMessage } = useChat({
-  api: "/api/chat",
+  connection: fetchServerSentEvents("/api/chat"),
   onChunk: (chunk) => {
     if (chunk.type === "content") {
       console.log("New token:", chunk.delta);
@@ -214,7 +216,11 @@ await sendMessage("Tell me a joke");
 #### Flexible Triggering
 
 ```typescript
-const { sendMessage, isLoading } = useChat({ api: "/api/chat" });
+import { useChat, fetchServerSentEvents } from "@tanstack/ai-react";
+
+const { sendMessage, isLoading } = useChat({ 
+  connection: fetchServerSentEvents("/api/chat") 
+});
 const [input, setInput] = useState("");
 
 // Button click
@@ -238,12 +244,15 @@ const [input, setInput] = useState("");
 #### With Custom Headers
 
 ```typescript
+import { useChat, fetchServerSentEvents } from "@tanstack/ai-react";
+
 const chat = useChat({
-  api: "/api/chat",
-  headers: {
-    Authorization: `Bearer ${token}`,
-    "X-Custom-Header": "value",
-  },
+  connection: fetchServerSentEvents("/api/chat", {
+    headers: {
+      Authorization: `Bearer ${token}`,
+      "X-Custom-Header": "value",
+    },
+  }),
   body: {
     userId: "123",
     sessionId: "abc",
@@ -279,9 +288,17 @@ clear();
 #### Multiple Chats
 
 ```typescript
+import { useChat, fetchServerSentEvents } from "@tanstack/ai-react";
+
 function App() {
-  const chat1 = useChat({ id: "chat-1", api: "/api/chat" });
-  const chat2 = useChat({ id: "chat-2", api: "/api/chat" });
+  const chat1 = useChat({ 
+    id: "chat-1", 
+    connection: fetchServerSentEvents("/api/chat") 
+  });
+  const chat2 = useChat({ 
+    id: "chat-2", 
+    connection: fetchServerSentEvents("/api/chat") 
+  });
 
   // Each hook manages independent state
 }
@@ -407,7 +424,7 @@ import type {
 - ✅ Abort/stop generation
 - ✅ Reload last response
 - ✅ Clear conversation
-- ✅ Custom headers and body data
+- ✅ Custom headers and body data (via connection adapter options)
 - ✅ Callback hooks for lifecycle events
 - ✅ Multiple concurrent chats
 - ✅ Full TypeScript support

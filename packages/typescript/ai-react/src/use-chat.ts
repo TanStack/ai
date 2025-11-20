@@ -1,4 +1,4 @@
-import { useState, useCallback, useRef, useEffect, useId } from "react";
+import { useState, useCallback, useMemo, useEffect, useId } from "react";
 import { ChatClient } from "@tanstack/ai-client";
 import type { ModelMessage } from "@tanstack/ai";
 import type { UseChatOptions, UseChatReturn, UIMessage } from "./types";
@@ -14,12 +14,21 @@ export function useChat(options: UseChatOptions = {}): UseChatReturn {
   const [error, setError] = useState<Error | undefined>(undefined);
 
   // Create ChatClient instance with callbacks to sync state
-  const clientRef = useRef<ChatClient | null>(null);
-
-  if (!clientRef.current) {
-    clientRef.current = new ChatClient({
-      ...options,
+  // Note: Connection changes will recreate the client and reset state.
+  // Body and other options are captured at client creation time.
+  // To update connection/body, remount the component or use a key prop.
+  const client = useMemo(() => {
+    return new ChatClient({
+      connection: options.connection,
       id: clientId,
+      initialMessages: options.initialMessages,
+      body: options.body,
+      onResponse: options.onResponse,
+      onChunk: options.onChunk,
+      onFinish: options.onFinish,
+      onError: options.onError,
+      onToolCall: options.onToolCall,
+      streamProcessor: options.streamProcessor,
       onMessagesChange: (newMessages: UIMessage[]) => {
         setMessages(newMessages);
       },
@@ -30,16 +39,36 @@ export function useChat(options: UseChatOptions = {}): UseChatReturn {
         setError(newError);
       },
     });
-  }
+    // Only recreate when connection changes (most critical option)
+    // Other options are captured at creation time
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [clientId, options.connection]);
 
-  const client = clientRef.current;
-
-  // Sync initial messages if they change
+  // Sync initial messages on mount only
+  // Note: initialMessages are passed to ChatClient constructor, but we also
+  // set them here to ensure React state is in sync
   useEffect(() => {
     if (options.initialMessages && options.initialMessages.length > 0) {
-      client.setMessagesManually(options.initialMessages);
+      // Only set if current messages are empty (initial state)
+      if (messages.length === 0) {
+        client.setMessagesManually(options.initialMessages);
+      }
     }
-  }, []); // Only run on mount
+  }, []); // Only run on mount - initialMessages are handled by ChatClient constructor
+
+  // Cleanup on unmount: stop any in-flight requests
+  useEffect(() => {
+    return () => {
+      // Stop any active generation when component unmounts
+      if (isLoading) {
+        client.stop();
+      }
+    };
+  }, [client, isLoading]);
+
+  // Note: Callback options (onResponse, onChunk, onFinish, onError, onToolCall)
+  // are captured at client creation time. Changes to these callbacks require
+  // remounting the component or changing the connection to recreate the client.
 
   const sendMessage = useCallback(
     async (content: string) => {

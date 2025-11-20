@@ -8,8 +8,21 @@ import type {
 // Re-export types from ai-client
 export type { UIMessage, ChatRequestBody };
 
-// UseChatOptions is the same as ChatClientOptions
-// (we omit the state change callbacks since React hooks manage that internally)
+/**
+ * Options for the useChat hook.
+ * 
+ * This extends ChatClientOptions but omits the state change callbacks that are
+ * managed internally by React state:
+ * - `onMessagesChange` - Managed by React state (exposed as `messages`)
+ * - `onLoadingChange` - Managed by React state (exposed as `isLoading`)
+ * - `onErrorChange` - Managed by React state (exposed as `error`)
+ * 
+ * All other callbacks (onResponse, onChunk, onFinish, onError, onToolCall) are
+ * passed through to the underlying ChatClient and can be used for side effects.
+ * 
+ * Note: Connection and body changes will recreate the ChatClient instance.
+ * To update these options, remount the component or use a key prop.
+ */
 export type UseChatOptions = Omit<
   ChatClientOptions,
   "onMessagesChange" | "onLoadingChange" | "onErrorChange"
