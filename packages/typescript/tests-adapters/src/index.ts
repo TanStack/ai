@@ -1,5 +1,5 @@
 import { config } from "dotenv";
-import { chat, tool, maxIterations } from "@tanstack/ai";
+import { chat, tool, maxIterations, type Tool } from "@tanstack/ai";
 import { createAnthropic } from "@tanstack/ai-anthropic";
 import { createGemini } from "@tanstack/ai-gemini";
 import { ollama } from "@tanstack/ai-ollama";
@@ -43,6 +43,7 @@ interface TestResult {
   adapter: string;
   test1: { passed: boolean; error?: string };
   test2: { passed: boolean; error?: string };
+  test3: { passed: boolean; error?: string };
 }
 
 async function testCapitalOfFrance(
@@ -179,6 +180,385 @@ async function testCapitalOfFrance(
     await writeDebugFile(adapterName, testName, debugData);
     console.log(`❌ [${adapterName}] Test 1 FAILED: ${error.message}`);
     return { passed: false, error: error.message };
+  }
+}
+
+async function testApprovalToolFlow(
+  adapterName: string,
+  adapter: any,
+  model: string
+): Promise<{ passed: boolean; error?: string }> {
+  const testName = "test3-approval-tool-flow";
+  const messages = [
+    {
+      role: "user" as const,
+      content: "add a hammer to the cart",
+    },
+  ];
+
+  // Track tool execution
+  let toolExecuteCalled = false;
+  let toolExecuteCallCount = 0;
+  const toolExecuteCalls: Array<{
+    timestamp: string;
+    arguments: any;
+    result?: string;
+    error?: string;
+  }> = [];
+
+  const addToCartTool: Tool = {
+    type: "function",
+    function: {
+      name: "addToCart",
+      description: "Add an item to the shopping cart",
+      parameters: {
+        type: "object",
+        properties: {
+          item: {
+            type: "string",
+            description: "The name of the item to add to the cart",
+          },
+        },
+        required: ["item"],
+      },
+    },
+    needsApproval: true,
+    execute: async (args: any) => {
+      toolExecuteCalled = true;
+      toolExecuteCallCount++;
+      const callInfo: any = {
+        timestamp: new Date().toISOString(),
+        arguments: args,
+      };
+      try {
+        const result = JSON.stringify({ success: true, item: args.item });
+        callInfo.result = result;
+        toolExecuteCalls.push(callInfo);
+        return result;
+      } catch (error: any) {
+        callInfo.error = error.message;
+        toolExecuteCalls.push(callInfo);
+        throw error;
+      }
+    },
+  };
+
+  const debugData: any = {
+    adapter: adapterName,
+    test: testName,
+    model,
+    timestamp: new Date().toISOString(),
+    input: {
+      messages,
+      tools: [
+        {
+          type: addToCartTool.type,
+          function: {
+            name: addToCartTool.function.name,
+            description: addToCartTool.function.description,
+            parameters: addToCartTool.function.parameters,
+          },
+          needsApproval: addToCartTool.needsApproval,
+          hasExecute: !!addToCartTool.execute,
+        },
+      ],
+    },
+    chunks: [],
+    summary: {},
+  };
+
+  try {
+    console.log(
+      `\n[${adapterName}] Test 3: Checking approval flow for addToCart tool...`
+    );
+
+    // First stream - should request approval
+    const stream1 = chat({
+      adapter,
+      model,
+      messages,
+      tools: [addToCartTool],
+      agentLoopStrategy: maxIterations(20),
+    });
+
+    let fullResponse = "";
+    let toolCallFound = false;
+    let approvalRequestFound = false;
+    let approvalChunk: any = null;
+    let toolCallChunk: any = null;
+    let chunkCount = 0;
+    const toolCalls: any[] = [];
+    const reconstructedMessages: any[] = [...messages];
+    let currentAssistantMessage: any = null;
+    // Track tool calls by ID to accumulate streaming arguments
+    const toolCallMap = new Map<
+      string,
+      { id: string; name: string; arguments: string }
+    >();
+
+    // Collect chunks from first stream to find approval request
+    for await (const chunk of stream1) {
+      chunkCount++;
+      const chunkData: any = {
+        index: chunkCount,
+        type: chunk.type,
+        timestamp: chunk.timestamp,
+        id: chunk.id,
+        model: chunk.model,
+      };
+
+      if (chunk.type === "content") {
+        chunkData.delta = chunk.delta;
+        chunkData.content = chunk.content;
+        chunkData.role = chunk.role;
+        fullResponse += chunk.delta;
+        if (!currentAssistantMessage) {
+          currentAssistantMessage = {
+            role: "assistant",
+            content: chunk.content,
+          };
+        } else {
+          currentAssistantMessage.content = chunk.content;
+        }
+      } else if (chunk.type === "tool_call") {
+        toolCallFound = true;
+        const toolCallId = chunk.toolCall.id;
+        const existing = toolCallMap.get(toolCallId);
+
+        if (!existing) {
+          // First chunk for this tool call
+          toolCallMap.set(toolCallId, {
+            id: toolCallId,
+            name: chunk.toolCall.function.name,
+            arguments: chunk.toolCall.function.arguments || "",
+          });
+          // Keep the first chunk for reference
+          if (!toolCallChunk) {
+            toolCallChunk = chunk;
+          }
+        } else {
+          // Accumulate arguments for streaming tool calls
+          existing.arguments += chunk.toolCall.function.arguments || "";
+        }
+
+        chunkData.toolCall = chunk.toolCall;
+
+        // Update tool calls array with accumulated data
+        const accumulated = toolCallMap.get(toolCallId);
+        if (accumulated) {
+          const existingIndex = toolCalls.findIndex(
+            (tc) => tc.id === toolCallId
+          );
+          if (existingIndex >= 0) {
+            toolCalls[existingIndex] = {
+              id: accumulated.id,
+              name: accumulated.name,
+              arguments: accumulated.arguments,
+            };
+          } else {
+            toolCalls.push({
+              id: accumulated.id,
+              name: accumulated.name,
+              arguments: accumulated.arguments,
+            });
+          }
+        }
+
+        if (!currentAssistantMessage) {
+          currentAssistantMessage = {
+            role: "assistant",
+            content: null,
+            toolCalls: [],
+          };
+        }
+        if (!currentAssistantMessage.toolCalls) {
+          currentAssistantMessage.toolCalls = [];
+        }
+        // Update or add tool call with accumulated arguments
+        const tc = currentAssistantMessage.toolCalls.find(
+          (tc: any) => tc.id === toolCallId
+        );
+        if (tc) {
+          tc.function.arguments += chunk.toolCall.function.arguments || "";
+        } else {
+          currentAssistantMessage.toolCalls.push({
+            ...chunk.toolCall,
+            function: {
+              ...chunk.toolCall.function,
+              arguments:
+                toolCallMap.get(toolCallId)?.arguments ||
+                chunk.toolCall.function.arguments ||
+                "",
+            },
+          });
+        }
+      } else if (chunk.type === "approval-requested") {
+        approvalRequestFound = true;
+        approvalChunk = chunk;
+        chunkData.toolCallId = chunk.toolCallId;
+        chunkData.toolName = chunk.toolName;
+        chunkData.input = chunk.input;
+        chunkData.approval = chunk.approval;
+      } else if (chunk.type === "tool_result") {
+        chunkData.toolCallId = chunk.toolCallId;
+        chunkData.content = chunk.content;
+      } else if (chunk.type === "done") {
+        chunkData.finishReason = chunk.finishReason;
+        chunkData.usage = chunk.usage;
+      }
+
+      debugData.chunks.push(chunkData);
+    }
+
+    // Update reconstructed messages
+    if (currentAssistantMessage) {
+      reconstructedMessages.push(currentAssistantMessage);
+    }
+
+    // Check if we got approval request
+    if (!approvalRequestFound || !toolCallChunk) {
+      return {
+        passed: false,
+        error: `No approval request found. toolCallFound: ${toolCallFound}, approvalRequestFound: ${approvalRequestFound}`,
+      };
+    }
+
+    // Get accumulated tool call arguments
+    const accumulatedToolCall = toolCallMap.get(toolCallChunk.toolCall.id);
+    const completeArguments =
+      accumulatedToolCall?.arguments ||
+      toolCallChunk.toolCall.function.arguments ||
+      "";
+
+    // Now create messages with approval response
+    const messagesWithApproval: any[] = [
+      ...messages,
+      {
+        role: "assistant",
+        content: currentAssistantMessage?.content || null,
+        toolCalls:
+          currentAssistantMessage?.toolCalls?.map((tc: any) => ({
+            ...tc,
+            function: {
+              ...tc.function,
+              // Use accumulated arguments if available
+              arguments:
+                accumulatedToolCall?.arguments || tc.function.arguments || "",
+            },
+          })) || [],
+        parts: [
+          {
+            type: "tool-call",
+            id: toolCallChunk.toolCall.id,
+            name: toolCallChunk.toolCall.function.name,
+            arguments: completeArguments,
+            state: "approval-responded",
+            approval: {
+              id: approvalChunk.approval.id,
+              needsApproval: true,
+              approved: true, // User approved
+            },
+          },
+        ],
+      },
+    ];
+
+    // Second stream - with approval provided, should execute tool
+    const stream2 = chat({
+      adapter,
+      model,
+      messages: messagesWithApproval,
+      tools: [addToCartTool],
+      agentLoopStrategy: maxIterations(20),
+    });
+
+    // Continue collecting chunks
+    for await (const chunk of stream2) {
+      chunkCount++;
+      const chunkData: any = {
+        index: chunkCount,
+        type: chunk.type,
+        timestamp: chunk.timestamp,
+        id: chunk.id,
+        model: chunk.model,
+      };
+
+      if (chunk.type === "content") {
+        chunkData.delta = chunk.delta;
+        chunkData.content = chunk.content;
+        chunkData.role = chunk.role;
+        fullResponse += chunk.delta;
+      } else if (chunk.type === "tool_result") {
+        chunkData.toolCallId = chunk.toolCallId;
+        chunkData.content = chunk.content;
+      } else if (chunk.type === "done") {
+        chunkData.finishReason = chunk.finishReason;
+        chunkData.usage = chunk.usage;
+      }
+
+      debugData.chunks.push(chunkData);
+    }
+
+    // Check results
+    const hasHammerInResponse = fullResponse.toLowerCase().includes("hammer");
+    const passed =
+      toolCallFound &&
+      approvalRequestFound &&
+      toolExecuteCalled &&
+      toolExecuteCallCount === 1 &&
+      hasHammerInResponse;
+
+    debugData.summary = {
+      totalChunks: chunkCount,
+      fullResponse,
+      responseLength: fullResponse.length,
+      toolCallsFound: toolCallFound,
+      approvalRequestFound,
+      toolCalls,
+      hasHammerInResponse,
+      toolExecuteCalled,
+      toolExecuteCallCount,
+      toolExecuteCalls,
+    };
+
+    debugData.result = {
+      passed,
+      toolCallFound,
+      approvalRequestFound,
+      toolExecuteCalled,
+      toolExecuteCallCount,
+      hasHammerInResponse,
+      error: passed
+        ? undefined
+        : `toolCallFound: ${toolCallFound}, approvalRequestFound: ${approvalRequestFound}, toolExecuteCalled: ${toolExecuteCalled}, toolExecuteCallCount: ${toolExecuteCallCount}, hasHammerInResponse: ${hasHammerInResponse}`,
+    };
+
+    await writeDebugFile(adapterName, testName, debugData);
+
+    if (passed) {
+      console.log(
+        `✅ [${adapterName}] Test 3 PASSED: Approval flow worked correctly`
+      );
+    } else {
+      console.log(
+        `❌ [${adapterName}] Test 3 FAILED: ${
+          debugData.result.error || "Unknown error"
+        }`
+      );
+    }
+
+    return {
+      passed,
+      error: debugData.result.error,
+    };
+  } catch (error: any) {
+    debugData.error = error.message;
+    debugData.stack = error.stack;
+    await writeDebugFile(adapterName, testName, debugData);
+    return {
+      passed: false,
+      error: error.message,
+    };
   }
 }
 
@@ -469,7 +849,8 @@ async function runTests(filterAdapter?: string) {
 
       const test1 = await testCapitalOfFrance("Anthropic", adapter, model);
       const test2 = await testTemperatureTool("Anthropic", adapter, model);
-      results.push({ adapter: "Anthropic", test1, test2 });
+      const test3 = await testApprovalToolFlow("Anthropic", adapter, model);
+      results.push({ adapter: "Anthropic", test1, test2, test3 });
     } else {
       console.log("⚠️  Skipping Anthropic tests: ANTHROPIC_API_KEY not set");
     }
@@ -484,7 +865,8 @@ async function runTests(filterAdapter?: string) {
 
       const test1 = await testCapitalOfFrance("OpenAI", adapter, model);
       const test2 = await testTemperatureTool("OpenAI", adapter, model);
-      results.push({ adapter: "OpenAI", test1, test2 });
+      const test3 = await testApprovalToolFlow("OpenAI", adapter, model);
+      results.push({ adapter: "OpenAI", test1, test2, test3 });
     } else {
       console.log("⚠️  Skipping OpenAI tests: OPENAI_API_KEY not set");
     }
@@ -500,7 +882,8 @@ async function runTests(filterAdapter?: string) {
 
       const test1 = await testCapitalOfFrance("Gemini", adapter, model);
       const test2 = await testTemperatureTool("Gemini", adapter, model);
-      results.push({ adapter: "Gemini", test1, test2 });
+      const test3 = await testApprovalToolFlow("Gemini", adapter, model);
+      results.push({ adapter: "Gemini", test1, test2, test3 });
     } else {
       console.log(
         "⚠️  Skipping Gemini tests: GEMINI_API_KEY or GOOGLE_API_KEY not set"
@@ -513,7 +896,8 @@ async function runTests(filterAdapter?: string) {
     const adapter = ollama();
     const test1 = await testCapitalOfFrance("Ollama", adapter, OLLAMA_MODEL);
     const test2 = await testTemperatureTool("Ollama", adapter, OLLAMA_MODEL);
-    results.push({ adapter: "Ollama", test1, test2 });
+    const test3 = await testApprovalToolFlow("Ollama", adapter, OLLAMA_MODEL);
+    results.push({ adapter: "Ollama", test1, test2, test3 });
   }
 
   // Summary
@@ -535,6 +919,7 @@ async function runTests(filterAdapter?: string) {
   for (const result of results) {
     const test1Status = result.test1.passed ? "✅" : "❌";
     const test2Status = result.test2.passed ? "✅" : "❌";
+    const test3Status = result.test3?.passed ? "✅" : "❌";
     console.log(`\n${result.adapter}:`);
     console.log(`  Test 1 (Capital of France): ${test1Status}`);
     if (!result.test1.passed && result.test1.error) {
@@ -544,8 +929,18 @@ async function runTests(filterAdapter?: string) {
     if (!result.test2.passed && result.test2.error) {
       console.log(`    Error: ${result.test2.error}`);
     }
+    if (result.test3) {
+      console.log(`  Test 3 (Approval Tool Flow): ${test3Status}`);
+      if (!result.test3.passed && result.test3.error) {
+        console.log(`    Error: ${result.test3.error}`);
+      }
+    }
 
-    if (!result.test1.passed || !result.test2.passed) {
+    if (
+      !result.test1.passed ||
+      !result.test2.passed ||
+      (result.test3 && !result.test3.passed)
+    ) {
       allPassed = false;
     }
   }
