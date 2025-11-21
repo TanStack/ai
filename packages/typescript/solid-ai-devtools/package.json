@@ -46,14 +46,14 @@
     "embeddings"
   ],
   "dependencies": {
-    "@tanstack/devtools-utils": "^0.0.6",
-    "@tanstack/ai-devtools-core": "workspace:*"
+    "@tanstack/ai-devtools-core": "workspace:*",
+    "@tanstack/devtools-utils": "^0.0.6"
   },
   "devDependencies": {
     "@types/node": "^22.10.2",
     "tsdown": "^0.15.9",
     "typescript": "^5.7.2",
-    "vitest": "^3.0.5"
+    "vitest": "^4.0.13"
   },
   "peerDependencies": {
     "solid-js": ">=1.9.7"

@@ -1,4 +1,5 @@
-import { GenerateContentParameters, GoogleGenAI } from "@google/genai";
+import type { GenerateContentParameters } from "@google/genai";
+import { GoogleGenAI } from "@google/genai";
 import {
   BaseAdapter,
   type AIAdapterConfig,
@@ -36,9 +37,9 @@ export type GeminiProviderOptions = ExternalTextProviderOptions;
 export class GeminiAdapter extends BaseAdapter<
   typeof GEMINI_MODELS,
   typeof GEMINI_IMAGE_MODELS,
-  readonly string[],
-  readonly string[],
-  readonly string[],
+  typeof GEMINI_EMBEDDING_MODELS,
+  typeof GEMINI_AUDIO_MODELS,
+  typeof GEMINI_VIDEO_MODELS,
   GeminiProviderOptions,
   Record<string, any>,
   Record<string, any>,

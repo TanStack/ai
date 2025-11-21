@@ -36,6 +36,20 @@ type ExtractModels<T> = T extends AIAdapter<
 >
   ? M[number]
   : string;
+type ExtractEmbeddingModels<T> = T extends AIAdapter<
+  any,
+  any,
+  infer M,
+  any,
+  any,
+  any,
+  any,
+  any,
+  any,
+  any
+>
+  ? M[number]
+  : string;
 type ExtractImageModels<T> = T extends AIAdapter<
   any,
   infer M,
@@ -138,8 +152,8 @@ type ExtractVideoProviderOptions<T> = T extends AIAdapter<
 // Helper type to compute chatCompletion return type based on output option
 type ChatCompletionReturnType<TOutput extends ResponseFormat<any> | undefined> =
   TOutput extends ResponseFormat<infer TData>
-    ? ChatCompletionResult<TData>
-    : ChatCompletionResult;
+  ? ChatCompletionResult<TData>
+  : ChatCompletionResult;
 
 // Config for single adapter
 type AIConfig<
@@ -283,7 +297,7 @@ class AI<
       model: model,
       messages,
       tools,
-      ...options,
+      options,
       request: effectiveRequest,
       providerOptions: providerOptions,
     });
@@ -344,7 +358,7 @@ class AI<
    */
   async embed(
     options: Omit<EmbeddingOptions, "model"> & {
-      model: ExtractModels<TAdapter>;
+      model: ExtractEmbeddingModels<TAdapter>;
     }
   ): Promise<EmbeddingResult> {
     const { model, ...restOptions } = options;

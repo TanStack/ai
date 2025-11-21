@@ -57,7 +57,7 @@
     "jsdom": "^27.0.0",
     "typescript": "^5.7.2",
     "vite": "^7.1.7",
-    "vitest": "^3.0.5",
+    "vitest": "^4.0.13",
     "web-vitals": "^5.1.0"
   }
 }

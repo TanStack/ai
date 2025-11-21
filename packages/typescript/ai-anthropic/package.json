@@ -25,6 +25,9 @@
   "scripts": {
     "build": "tsdown",
     "dev": "tsdown --watch",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:coverage": "vitest run --coverage",
     "clean": "rm -rf dist node_modules",
     "typecheck": "tsc --noEmit",
     "lint": "tsc --noEmit"
@@ -42,8 +45,10 @@
   },
   "devDependencies": {
     "@types/node": "^22.10.2",
+    "@vitest/coverage-v8": "4.0.13",
     "tsdown": "^0.15.9",
-    "typescript": "^5.7.2"
+    "typescript": "^5.7.2",
+    "vitest": "^4.0.13"
   },
   "peerDependencies": {
     "@tanstack/ai": "workspace:*"

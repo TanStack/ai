@@ -157,8 +157,8 @@ export class OpenAI extends BaseAdapter<
 
     const response = await this.client.responses.create(
       {
-        stream: false,
         ...providerOptions,
+        stream: false,
       },
       {
         headers: options.request?.headers,
@@ -182,8 +182,8 @@ export class OpenAI extends BaseAdapter<
 
     const response = await this.client.responses.create(
       {
-        ...requestParams,
         stream: true,
+        ...requestParams,
       },
       {
         headers: options.request?.headers,
@@ -967,7 +967,7 @@ export class OpenAI extends BaseAdapter<
         ? convertToolsToProviderFormat([...options.tools])
         : undefined;
 
-      const requestParams: Omit<InternalTextProviderOptions, "stream"> = {
+      const requestParams: Omit<OpenAI_SDK.Responses.ResponseCreateParams, "stream"> = {
         model: options.model,
         temperature: options.options?.temperature,
         max_output_tokens: options.options?.maxTokens,
