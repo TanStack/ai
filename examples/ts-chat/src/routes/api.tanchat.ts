@@ -38,7 +38,13 @@ export const Route = createFileRoute("/api/tanchat")({
         // const aiInstance = ai(openai());
         // const aiInstance = ai(anthropic());
         const aiInstance = ai(gemini());
+        aiInstance.chat({
+          model: "gemini-3-pro-preview",
+          messages: [],
+          providerOptions: {
 
+          }
+        })
         // Check for API key
         if (!process.env.OPENAI_API_KEY) {
           return new Response(
@@ -77,9 +83,7 @@ export const Route = createFileRoute("/api/tanchat")({
             systemPrompts: [SYSTEM_PROMPT],
             agentLoopStrategy: maxIterations(20),
             abortController,
-            providerOptions: {
-              store: true,
-            },
+
           });
 
           return toStreamResponse(stream, undefined, abortController);
