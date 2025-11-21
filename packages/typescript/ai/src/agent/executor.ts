@@ -70,7 +70,17 @@ export async function executeToolCalls(
       continue;
     }
 
-    const input = JSON.parse(toolCall.function.arguments);
+    // Parse arguments, defaulting to empty object if empty string or invalid JSON
+    let input: any = {};
+    const argsStr = toolCall.function.arguments?.trim() || "{}";
+    if (argsStr) {
+      try {
+        input = JSON.parse(argsStr);
+      } catch (parseError) {
+        // If parsing fails, default to empty object
+        input = {};
+      }
+    }
 
     // CASE 1: Client-side tool (no execute function)
     if (!tool.execute) {

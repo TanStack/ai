@@ -27,7 +27,6 @@ interface ChatEngineConfig<
   events: AIEventEmitter;
   systemPrompts?: string[];
   params: TParams;
-  startPhase?: CyclePhase;
 }
 
 type ToolPhaseResult = "continue" | "stop" | "wait";
@@ -61,7 +60,7 @@ export class ChatEngine<
   private shouldEmitStreamEnd = true;
   private earlyTermination = false;
   private toolPhase: ToolPhaseResult = "continue";
-  private cyclePhase: CyclePhase;
+  private cyclePhase: CyclePhase = "processChat";
 
   constructor(config: ChatEngineConfig<TAdapter, TParams>) {
     this.adapter = config.adapter;
@@ -84,13 +83,17 @@ export class ChatEngine<
       ? { signal: config.params.abortController.signal }
       : undefined;
     this.effectiveSignal = config.params.abortController?.signal;
-    this.cyclePhase = config.startPhase ?? "processChat";
   }
 
   async *chat(): AsyncGenerator<StreamChunk> {
     this.beforeChat();
 
     try {
+      const pendingPhase = yield* this.checkForPendingToolCalls();
+      if (pendingPhase === "wait") {
+        return;
+      }
+
       do {
         if (this.earlyTermination || this.isAborted()) {
           return;
@@ -249,6 +252,20 @@ export class ChatEngine<
   }
 
   private handleDoneChunk(chunk: DoneStreamChunk): void {
+    // Don't overwrite a tool_calls finishReason with a stop finishReason
+    // This can happen when adapters send multiple done chunks
+    if (this.doneChunk?.finishReason === "tool_calls" && chunk.finishReason === "stop") {
+      // Still emit the event and update lastFinishReason, but don't overwrite doneChunk
+      this.lastFinishReason = chunk.finishReason;
+      this.events.streamChunkDone({
+        streamId: this.streamId,
+        messageId: this.currentMessageId || undefined,
+        finishReason: chunk.finishReason,
+        usage: chunk.usage,
+      });
+      return;
+    }
+    
     this.doneChunk = chunk;
     this.lastFinishReason = chunk.finishReason;
     this.events.streamChunkDone({
@@ -269,6 +286,68 @@ export class ChatEngine<
     });
     this.earlyTermination = true;
     this.shouldEmitStreamEnd = false;
+  }
+
+  private async *checkForPendingToolCalls(): AsyncGenerator<
+    StreamChunk,
+    ToolPhaseResult,
+    void
+  > {
+    const pendingToolCalls = this.getPendingToolCallsFromMessages();
+    if (pendingToolCalls.length === 0) {
+      return "continue";
+    }
+
+    const doneChunk = this.createSyntheticDoneChunk();
+
+    this.events.chatIteration({
+      requestId: this.requestId,
+      iterationNumber: this.iterationCount + 1,
+      messageCount: this.messages.length,
+      toolCallCount: pendingToolCalls.length,
+    });
+
+    const { approvals, clientToolResults } = this.collectClientState();
+
+    const executionResult = await executeToolCalls(
+      pendingToolCalls,
+      this.tools,
+      approvals,
+      clientToolResults
+    );
+
+    if (
+      executionResult.needsApproval.length > 0 ||
+      executionResult.needsClientExecution.length > 0
+    ) {
+      for (const chunk of this.emitApprovalRequests(
+        executionResult.needsApproval,
+        doneChunk
+      )) {
+        yield chunk;
+      }
+
+      for (const chunk of this.emitClientToolInputs(
+        executionResult.needsClientExecution,
+        doneChunk
+      )) {
+        yield chunk;
+      }
+
+      this.shouldEmitStreamEnd = false;
+      return "wait";
+    }
+
+    const toolResultChunks = this.emitToolResults(
+      executionResult.results,
+      doneChunk
+    );
+
+    for (const chunk of toolResultChunks) {
+      yield chunk;
+    }
+
+    return "continue";
   }
 
   private async *processToolCalls(): AsyncGenerator<StreamChunk, void, void> {
@@ -491,6 +570,38 @@ export class ChatEngine<
     }
 
     return chunks;
+  }
+
+  private getPendingToolCallsFromMessages(): ToolCall[] {
+    const completedToolIds = new Set(
+      this.messages
+        .filter((message) => message.role === "tool" && message.toolCallId)
+        .map((message) => message.toolCallId!) // toolCallId exists due to filter
+    );
+
+    const pending: ToolCall[] = [];
+
+    for (const message of this.messages) {
+      if (message.role === "assistant" && message.toolCalls) {
+        for (const toolCall of message.toolCalls) {
+          if (!completedToolIds.has(toolCall.id)) {
+            pending.push(toolCall);
+          }
+        }
+      }
+    }
+
+    return pending;
+  }
+
+  private createSyntheticDoneChunk(): DoneStreamChunk {
+    return {
+      type: "done",
+      id: this.createId("pending"),
+      model: this.params.model as string,
+      timestamp: Date.now(),
+      finishReason: "tool_calls",
+    };
   }
 
   private shouldContinue(): boolean {

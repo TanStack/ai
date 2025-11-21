@@ -10,6 +10,7 @@ export async function* convertChatCompletionStream(
 ): AsyncIterable<StreamChunk> {
   let accumulatedContent = "";
   const timestamp = Date.now();
+  let nextToolIndex = 0;
 
   for await (const chunk of stream) {
     if (chunk.content) {
@@ -23,6 +24,27 @@ export async function* convertChatCompletionStream(
         content: accumulatedContent,
         role: chunk.role,
       };
+    }
+
+    // Handle tool calls if present
+    if (chunk.toolCalls && chunk.toolCalls.length > 0) {
+      for (const toolCall of chunk.toolCalls) {
+        yield {
+          type: "tool_call",
+          id: chunk.id,
+          model: chunk.model,
+          timestamp,
+          toolCall: {
+            id: toolCall.id,
+            type: toolCall.type,
+            function: {
+              name: toolCall.function.name,
+              arguments: toolCall.function.arguments,
+            },
+          },
+          index: nextToolIndex++,
+        };
+      }
     }
 
     if (chunk.finishReason) {

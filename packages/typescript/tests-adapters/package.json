@@ -1,0 +1,26 @@
+{
+  "name": "@tanstack/tests-adapters",
+  "version": "0.1.0",
+  "description": "Tests for TanStack AI adapters",
+  "author": "",
+  "license": "MIT",
+  "type": "module",
+  "scripts": {
+    "start": "tsx src/index.ts",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@tanstack/ai": "workspace:*",
+    "@tanstack/ai-anthropic": "workspace:*",
+    "@tanstack/ai-gemini": "workspace:*",
+    "@tanstack/ai-ollama": "workspace:*",
+    "@tanstack/ai-openai": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.2",
+    "dotenv": "^16.4.7",
+    "tsx": "^4.19.2",
+    "typescript": "^5.7.2"
+  }
+}
+

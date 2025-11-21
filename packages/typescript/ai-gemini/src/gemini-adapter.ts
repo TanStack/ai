@@ -177,7 +177,25 @@ export class GeminiAdapter extends BaseAdapter<
     // Map common options to Gemini format
     const mappedOptions = mapCommonOptionsToGemini(options);
 
-    const response = await this.client.models.generateContent(mappedOptions);
+    // According to Gemini docs, options should be in config object
+    const requestOptions: any = {
+      model: mappedOptions.model,
+      contents: mappedOptions.contents,
+      config: {
+        ...(mappedOptions.generationConfig && {
+          generationConfig: mappedOptions.generationConfig,
+        }),
+        ...(mappedOptions.systemInstruction && {
+          systemInstruction: mappedOptions.systemInstruction,
+        }),
+        ...(mappedOptions.tools && { tools: mappedOptions.tools }),
+        ...(mappedOptions.toolConfig && {
+          toolConfig: mappedOptions.toolConfig,
+        }),
+      },
+    };
+
+    const response = await this.client.models.generateContent(requestOptions);
 
     return {
       id: this.generateId(),
@@ -199,38 +217,175 @@ export class GeminiAdapter extends BaseAdapter<
     // Map common options to Gemini format
     const mappedOptions = mapCommonOptionsToGemini(options);
 
+    // According to Gemini docs, options should be in config object
+    const requestOptions: any = {
+      model: mappedOptions.model,
+      contents: mappedOptions.contents,
+      config: {
+        ...(mappedOptions.generationConfig && {
+          generationConfig: mappedOptions.generationConfig,
+        }),
+        ...(mappedOptions.systemInstruction && {
+          systemInstruction: mappedOptions.systemInstruction,
+        }),
+        ...(mappedOptions.tools && { tools: mappedOptions.tools }),
+        ...(mappedOptions.toolConfig && {
+          toolConfig: mappedOptions.toolConfig,
+        }),
+      },
+    };
+
     const result = await this.client.models.generateContentStream(
-      mappedOptions
+      requestOptions
     );
 
     const timestamp = Date.now();
     let accumulatedContent = "";
+    const toolCallMap = new Map<
+      string,
+      { name: string; args: string; index: number }
+    >();
+    let nextToolIndex = 0;
 
     // Iterate over the stream result (it's already an AsyncGenerator)
     for await (const chunk of result) {
-      // Extract text content from candidates[0].content.parts
-      // The parts array contains objects with a 'text' property
-      let content = "";
+      // Check for errors in the chunk
+      if ((chunk as any).error) {
+        console.log("[GeminiAdapter] Error in chunk:", (chunk as any).error);
+        yield {
+          type: "error",
+          id: this.generateId(),
+          model: options.model || "gemini-pro",
+          timestamp,
+          error: {
+            message: (chunk as any).error.message || "Unknown error",
+            code: (chunk as any).error.code,
+          },
+        };
+        return;
+      }
+
+      // Check if candidates array exists and has entries
+      if (!chunk.candidates || chunk.candidates.length === 0) {
+        // Skip empty chunks or check for finish reason in other places
+        if ((chunk as any).finishReason) {
+          const finishReason = (chunk as any).finishReason as string;
+          let mappedFinishReason = finishReason;
+          if (
+            finishReason === "UNEXPECTED_TOOL_CALL" ||
+            finishReason === "STOP"
+          ) {
+            mappedFinishReason = toolCallMap.size > 0 ? "tool_calls" : "stop";
+          }
+          yield {
+            type: "done",
+            id: this.generateId(),
+            model: options.model || "gemini-pro",
+            timestamp,
+            finishReason: mappedFinishReason as any,
+            usage: (chunk as any).usageMetadata
+              ? {
+                  promptTokens:
+                    (chunk as any).usageMetadata.promptTokenCount ?? 0,
+                  completionTokens:
+                    (chunk as any).usageMetadata.thoughtsTokenCount ?? 0,
+                  totalTokens:
+                    (chunk as any).usageMetadata.totalTokenCount ?? 0,
+                }
+              : undefined,
+          };
+        }
+        continue;
+      }
+      // Extract content from candidates[0].content.parts
+      // Parts can contain text or functionCall
       if (chunk.candidates?.[0]?.content?.parts) {
         const parts = chunk.candidates[0].content.parts;
+
         for (const part of parts) {
+          // Handle text content
           if (part.text) {
-            content += part.text;
+            accumulatedContent += part.text;
+            yield {
+              type: "content",
+              id: this.generateId(),
+              model: options.model || "gemini-pro",
+              timestamp,
+              delta: part.text,
+              content: accumulatedContent,
+              role: "assistant",
+            };
+          }
+
+          // Handle function calls (tool calls)
+          // Check both camelCase (SDK) and snake_case (direct API) formats
+          const functionCall =
+            (part as any).functionCall || (part as any).function_call;
+          if (functionCall) {
+            const toolCallId =
+              functionCall.name || `call_${Date.now()}_${nextToolIndex}`;
+            const functionArgs =
+              functionCall.args || functionCall.arguments || {};
+
+            // Check if we've seen this tool call before (for streaming args)
+            let toolCallData = toolCallMap.get(toolCallId);
+            if (!toolCallData) {
+              toolCallData = {
+                name: functionCall.name || "",
+                args:
+                  typeof functionArgs === "string"
+                    ? functionArgs
+                    : JSON.stringify(functionArgs || {}),
+                index: nextToolIndex++,
+              };
+              toolCallMap.set(toolCallId, toolCallData);
+            } else {
+              // Merge arguments if streaming
+              if (functionArgs) {
+                try {
+                  const existingArgs = JSON.parse(toolCallData.args);
+                  const newArgs =
+                    typeof functionArgs === "string"
+                      ? JSON.parse(functionArgs)
+                      : functionArgs;
+                  const mergedArgs = { ...existingArgs, ...newArgs };
+                  toolCallData.args = JSON.stringify(mergedArgs);
+                } catch {
+                  // If parsing fails, use new args
+                  toolCallData.args =
+                    typeof functionArgs === "string"
+                      ? functionArgs
+                      : JSON.stringify(functionArgs);
+                }
+              }
+            }
+
+            yield {
+              type: "tool_call",
+              id: this.generateId(),
+              model: options.model || "gemini-pro",
+              timestamp,
+              toolCall: {
+                id: toolCallId,
+                type: "function",
+                function: {
+                  name: toolCallData.name,
+                  arguments: toolCallData.args,
+                },
+              },
+              index: toolCallData.index,
+            };
           }
         }
       } else if (chunk.data) {
         // Fallback to chunk.data if available
-        content = chunk.data;
-      }
-
-      if (content) {
-        accumulatedContent += content;
+        accumulatedContent += chunk.data;
         yield {
           type: "content",
           id: this.generateId(),
           model: options.model || "gemini-pro",
           timestamp,
-          delta: content,
+          delta: chunk.data,
           content: accumulatedContent,
           role: "assistant",
         };
@@ -238,12 +393,66 @@ export class GeminiAdapter extends BaseAdapter<
 
       // Check for finish reason
       if (chunk.candidates?.[0]?.finishReason) {
+        const finishReason = chunk.candidates[0].finishReason as string;
+
+        // UNEXPECTED_TOOL_CALL means Gemini tried to call a function but it wasn't properly declared
+        // This typically means there's an issue with the tool declaration format
+        // We should map it to tool_calls to try to process it anyway
+        let mappedFinishReason = finishReason;
+        if (finishReason === "UNEXPECTED_TOOL_CALL") {
+          // Try to extract function call from content.parts if available
+          if (chunk.candidates[0].content?.parts) {
+            for (const part of chunk.candidates[0].content.parts) {
+              const functionCall =
+                (part as any).functionCall || (part as any).function_call;
+              if (functionCall) {
+                // We found a function call - process it
+                const toolCallId =
+                  functionCall.name || `call_${Date.now()}_${nextToolIndex}`;
+                const functionArgs =
+                  functionCall.args || functionCall.arguments || {};
+
+                toolCallMap.set(toolCallId, {
+                  name: functionCall.name || "",
+                  args:
+                    typeof functionArgs === "string"
+                      ? functionArgs
+                      : JSON.stringify(functionArgs || {}),
+                  index: nextToolIndex++,
+                });
+
+                yield {
+                  type: "tool_call",
+                  id: this.generateId(),
+                  model: options.model || "gemini-pro",
+                  timestamp,
+                  toolCall: {
+                    id: toolCallId,
+                    type: "function",
+                    function: {
+                      name: functionCall.name || "",
+                      arguments:
+                        typeof functionArgs === "string"
+                          ? functionArgs
+                          : JSON.stringify(functionArgs || {}),
+                    },
+                  },
+                  index: nextToolIndex - 1,
+                };
+              }
+            }
+          }
+          mappedFinishReason = toolCallMap.size > 0 ? "tool_calls" : "stop";
+        } else if (finishReason === "STOP") {
+          mappedFinishReason = toolCallMap.size > 0 ? "tool_calls" : "stop";
+        }
+
         yield {
           type: "done",
           id: this.generateId(),
           model: options.model || "gemini-pro",
           timestamp,
-          finishReason: chunk.candidates[0].finishReason as any,
+          finishReason: mappedFinishReason as any,
           usage: chunk.usageMetadata
             ? {
                 promptTokens: chunk.usageMetadata.promptTokenCount ?? 0,

@@ -286,16 +286,21 @@ export function convertMessagesToInput(messages: ModelMessage[]): OpenAI.Respons
     // Handle assistant messages
     if (message.role === "assistant") {
       // If the assistant message has tool calls, add them as FunctionToolCall objects
+      // OpenAI Responses API expects arguments as a string (JSON string)
       if (message.toolCalls && message.toolCalls.length > 0) {
         for (const toolCall of message.toolCalls) {
+          // Keep arguments as string for Responses API
+          // Our internal format stores arguments as a JSON string, which is what API expects
+          const argumentsString = typeof toolCall.function.arguments === "string"
+            ? toolCall.function.arguments
+            : JSON.stringify(toolCall.function.arguments || {});
+          
           result.push({
             type: "function_call",
             call_id: toolCall.id,
             name: toolCall.function.name,
-            arguments: typeof toolCall.function.arguments === "string"
-              ? JSON.parse(toolCall.function.arguments)
-              : toolCall.function.arguments
-          });
+            arguments: argumentsString
+          } as any);
         }
       }
 

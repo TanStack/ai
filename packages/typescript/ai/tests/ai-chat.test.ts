@@ -8,6 +8,7 @@ import type {
 } from "../src/types";
 import { BaseAdapter } from "../src/base-adapter";
 import { aiEventClient } from "../src/event-client.js";
+import { maxIterations } from "../src/agent-loop-strategies";
 
 // Mock event client to track events
 const eventListeners = new Map<string, Set<Function>>();
@@ -1442,6 +1443,103 @@ describe("AI.chat() - Comprehensive Logic Path Coverage", () => {
       // Should stop after emitting approval/client chunks
       expect(approvalTool.execute).not.toHaveBeenCalled();
     });
+
+    it("should execute pending tool calls before streaming when approvals already exist", async () => {
+      const toolExecute = vi
+        .fn()
+        .mockResolvedValue(JSON.stringify({ success: true }));
+
+      const approvalTool: Tool = {
+        type: "function",
+        function: {
+          name: "approval_tool",
+          description: "Needs approval",
+          parameters: {},
+        },
+        needsApproval: true,
+        execute: toolExecute,
+      };
+
+      class PendingToolAdapter extends MockAdapter {
+        async *chatStream(
+          options: ChatCompletionOptions
+        ): AsyncIterable<StreamChunk> {
+          this.trackStreamCall(options);
+
+          const toolMessage = options.messages.find(
+            (msg) => msg.role === "tool"
+          );
+          expect(toolMessage).toBeDefined();
+          expect(toolMessage?.toolCallId).toBe("call-1");
+          expect(toolMessage?.content).toBe(
+            JSON.stringify({ success: true })
+          );
+
+          yield {
+            type: "content",
+            id: "done-id",
+            model: "test-model",
+            timestamp: Date.now(),
+            delta: "Finished",
+            content: "Finished",
+            role: "assistant",
+          };
+          yield {
+            type: "done",
+            id: "done-id",
+            model: "test-model",
+            timestamp: Date.now(),
+            finishReason: "stop",
+          };
+        }
+      }
+
+      const adapter = new PendingToolAdapter();
+      const aiInstance = ai(adapter);
+
+      const messages: ModelMessage[] = [
+        { role: "user", content: "Delete file" },
+        {
+          role: "assistant",
+          content: null,
+          toolCalls: [
+            {
+              id: "call-1",
+              type: "function",
+              function: {
+                name: "approval_tool",
+                arguments: '{"path":"/tmp/test.txt"}',
+              },
+            },
+          ],
+          parts: [
+            {
+              type: "tool-call",
+              id: "call-1",
+              name: "approval_tool",
+              arguments: '{"path":"/tmp/test.txt"}',
+              state: "approval-responded",
+              approval: {
+                id: "approval_call-1",
+                needsApproval: true,
+                approved: true,
+              },
+            },
+          ],
+        } as any,
+      ];
+
+      const stream = aiInstance.chat({
+        model: "test-model",
+        messages,
+        tools: [approvalTool],
+      });
+
+      const chunks = await collectChunks(stream);
+      expect(chunks[0]?.type).toBe("tool_result");
+      expect(toolExecute).toHaveBeenCalledWith({ path: "/tmp/test.txt" });
+      expect(adapter.chatStreamCallCount).toBe(1);
+    });
   });
 
   describe("Agent Loop Strategy Paths", () => {
@@ -2839,6 +2937,164 @@ describe("AI.chat() - Comprehensive Logic Path Coverage", () => {
       expect(approvalTool.execute).toHaveBeenCalled();
       // Should continue with tool results from parts
       expect(adapter.chatStreamCallCount).toBeGreaterThan(1);
+    });
+  });
+
+  describe("Temperature Tool Test - Debugging Tool Execution", () => {
+    it("should execute tool and continue loop when receiving tool_calls finishReason with maxIterations(20)", async () => {
+      // Create a tool that returns "70" like the failing test
+      const temperatureTool: Tool = {
+        type: "function",
+        function: {
+          name: "get_temperature",
+          description: "Get the current temperature in degrees",
+          parameters: {
+            type: "object",
+            properties: {},
+            required: [],
+          },
+        },
+        execute: vi.fn(async (args: any) => {
+          return "70";
+        }),
+      };
+
+      // Create adapter that mimics the failing test output
+      class TemperatureToolAdapter extends MockAdapter {
+        iteration = 0;
+
+        async *chatStream(
+          options: ChatCompletionOptions
+        ): AsyncIterable<StreamChunk> {
+          this.trackStreamCall(options);
+          const baseId = `test-${Date.now()}-${Math.random().toString(36).substring(7)}`;
+
+          if (this.iteration === 0) {
+            // First iteration: emit content chunks, tool_call, then done with tool_calls
+            yield {
+              type: "content",
+              id: baseId,
+              model: "test-model",
+              timestamp: Date.now(),
+              delta: "I",
+              content: "I",
+              role: "assistant",
+            };
+            yield {
+              type: "content",
+              id: baseId,
+              model: "test-model",
+              timestamp: Date.now(),
+              delta: "'ll help you check the current temperature right away.",
+              content:
+                "I'll help you check the current temperature right away.",
+              role: "assistant",
+            };
+            yield {
+              type: "tool_call",
+              id: baseId,
+              model: "test-model",
+              timestamp: Date.now(),
+              toolCall: {
+                id: "toolu_01D28jUnxcHQ5qqewJ7X6p1K",
+                type: "function",
+                function: {
+                  name: "get_temperature",
+                  // Empty string like in the actual failing test - should be handled gracefully
+                  arguments: "",
+                },
+              },
+              index: 0,
+            };
+            yield {
+              type: "done",
+              id: baseId,
+              model: "test-model",
+              timestamp: Date.now(),
+              finishReason: "tool_calls",
+              usage: {
+                promptTokens: 0,
+                completionTokens: 48,
+                totalTokens: 48,
+              },
+            };
+            this.iteration++;
+          } else {
+            // Second iteration: should receive tool result and respond with "70"
+            // This simulates what should happen after tool execution
+            const toolResults = options.messages.filter(
+              (m) => m.role === "tool"
+            );
+            expect(toolResults.length).toBeGreaterThan(0);
+            expect(toolResults[0].content).toBe("70");
+
+            yield {
+              type: "content",
+              id: `${baseId}-2`,
+              model: "test-model",
+              timestamp: Date.now(),
+              delta: "The current temperature is 70 degrees.",
+              content: "The current temperature is 70 degrees.",
+              role: "assistant",
+            };
+            yield {
+              type: "done",
+              id: `${baseId}-2`,
+              model: "test-model",
+              timestamp: Date.now(),
+              finishReason: "stop",
+            };
+            this.iteration++;
+          }
+        }
+      }
+
+      const adapter = new TemperatureToolAdapter();
+      const aiInstance = ai(adapter);
+
+      const stream = aiInstance.chat({
+        model: "test-model",
+        messages: [{ role: "user", content: "what is the temperature?" }],
+        tools: [temperatureTool],
+        agentLoopStrategy: maxIterations(20),
+      });
+
+      const chunks = await collectChunks(stream);
+
+      // Debug: log what we got
+      console.log("\n=== DEBUG: Temperature Tool Test ===");
+      console.log("Total chunks:", chunks.length);
+      console.log("Chunk types:", chunks.map((c) => c.type));
+      console.log("Tool execute called:", temperatureTool.execute?.mock.calls.length);
+      console.log("Adapter iterations:", adapter.chatStreamCallCount);
+      
+      const toolCallChunks = chunks.filter((c) => c.type === "tool_call");
+      const toolResultChunks = chunks.filter((c) => c.type === "tool_result");
+      const doneChunks = chunks.filter((c) => c.type === "done");
+      
+      console.log("Tool call chunks:", toolCallChunks.length);
+      console.log("Tool result chunks:", toolResultChunks.length);
+      console.log("Done chunks:", doneChunks.map((c) => (c as any).finishReason));
+      console.log("===============================\n");
+
+      // We should have received tool_call chunks
+      expect(toolCallChunks.length).toBeGreaterThan(0);
+
+      // The tool should have been executed
+      expect(temperatureTool.execute).toHaveBeenCalled();
+
+      // We should have tool_result chunks
+      expect(toolResultChunks.length).toBeGreaterThan(0);
+
+      // The adapter should have been called multiple times (at least 2: initial + after tool execution)
+      expect(adapter.chatStreamCallCount).toBeGreaterThanOrEqual(2);
+
+      // We should have at least one content chunk with "70" in it
+      const contentChunks = chunks.filter((c) => c.type === "content");
+      const hasSeventy = contentChunks.some((c) =>
+        (c as any).content?.toLowerCase().includes("70")
+      );
+      expect(hasSeventy).toBe(true);
     });
   });
 });

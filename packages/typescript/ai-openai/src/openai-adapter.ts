@@ -671,6 +671,7 @@ export class OpenAI extends BaseAdapter<
     // Preserve response metadata across events
     let responseId: string | null = null;
     let model: string | null = null;
+    let doneChunkEmitted = false;
 
     try {
       for await (const chunk of stream) {
@@ -762,7 +763,9 @@ export class OpenAI extends BaseAdapter<
 
           // Handle response done
           if (eventType === "response.done") {
-            finishReason = "stop";
+            // If we have tool calls, the finish reason should be "tool_calls"
+            // Otherwise, it's a normal completion with "stop"
+            finishReason = toolCallMetadata.size > 0 ? "tool_calls" : "stop";
           }
         } else if (chunk.output && Array.isArray(chunk.output)) {
           // Legacy Responses API format with output array
@@ -794,7 +797,13 @@ export class OpenAI extends BaseAdapter<
           }
 
           if (messageItem?.status) {
-            finishReason = messageItem.status;
+            // If we have tool calls, the finish reason should be "tool_calls"
+            // Otherwise, use the status from the message item
+            if (toolCallMetadata.size > 0) {
+              finishReason = "tool_calls";
+            } else {
+              finishReason = messageItem.status;
+            }
           }
         } else if (chunk.choices) {
           // Chat Completions format (legacy)
@@ -902,7 +911,21 @@ export class OpenAI extends BaseAdapter<
                 }
               : undefined,
           };
+          doneChunkEmitted = true;
         }
+      }
+
+      // After stream ends, if we have tool calls but no done chunk was emitted,
+      // emit a done chunk with tool_calls finish reason
+      if (toolCallMetadata.size > 0 && !doneChunkEmitted) {
+        yield {
+          type: "done" as const,
+          id: responseId || generateId(),
+          model: model || options.model || "gpt-4o",
+          timestamp,
+          finishReason: "tool_calls" as any,
+          usage: undefined,
+        };
       }
     } catch (error: any) {
       yield {

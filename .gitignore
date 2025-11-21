@@ -34,6 +34,9 @@ lerna-debug.log*
 coverage/
 .nyc_output/
 
+# Test output
+output/
+
 # Misc
 .cache/
 .temp/
