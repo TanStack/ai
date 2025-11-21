@@ -1,26 +1,17 @@
+import { GoogleSearchRetrieval } from "@google/genai";
 import type { Tool } from "@tanstack/ai";
 
-export interface GoogleSearchRetrievalTool {
-  dynamicRetrievalConfig?: {
-    /**
-     * The mode of the predictor to be used in dynamic retrieval.
-     */
-    mode: "MODE_UNSPECIFIED" | "MODE_DYNAMIC";
-    /**
-     * The threshold to be used in dynamic retrieval. If not set, a system default value is used.
-     */
-    dynamicThreshold?: number;
-  }
-}
+export type GoogleSearchRetrievalTool = GoogleSearchRetrieval
+
 
 export function convertGoogleSearchRetrievalToolToAdapterFormat(tool: Tool) {
-  const metadata = tool.metadata as { dynamicRetrievalConfig?: { mode: "MODE_UNSPECIFIED" | "MODE_DYNAMIC"; dynamicThreshold?: number } };
+  const metadata = tool.metadata as GoogleSearchRetrievalTool;
   return {
     googleSearchRetrieval: metadata.dynamicRetrievalConfig ? { dynamicRetrievalConfig: metadata.dynamicRetrievalConfig } : {}
   };
 }
 
-export function googleSearchRetrievalTool(config?: { dynamicRetrievalConfig?: { mode: "MODE_UNSPECIFIED" | "MODE_DYNAMIC"; dynamicThreshold?: number } }): Tool {
+export function googleSearchRetrievalTool(config?: GoogleSearchRetrievalTool): Tool {
   return {
     type: "function",
     function: {

@@ -1,15 +1,10 @@
+import { ComputerUse } from "@google/genai";
 import type { Tool } from "@tanstack/ai";
 
-export interface ComputerUseTool {
-  environment: "ENVIRONMENT_UNSPECIFIED" | "ENVIRONMENT_BROWSER";
-  /**
-   *  By default, predefined functions are included in the final model call. Some of them can be explicitly excluded from being automatically included. This can serve two purposes: 1. Using a more restricted / different action space. 2. Improving the definitions / instructions of predefined functions.
-   */
-  excludedPredefinedFunctions?: string[];
-}
+export type ComputerUseTool = ComputerUse
 
 export function convertComputerUseToolToAdapterFormat(tool: Tool) {
-  const metadata = tool.metadata as { environment: "ENVIRONMENT_UNSPECIFIED" | "ENVIRONMENT_BROWSER"; excludedPredefinedFunctions?: string[] };
+  const metadata = tool.metadata as ComputerUseTool;
   return {
     computerUse: {
       environment: metadata.environment,
@@ -18,7 +13,7 @@ export function convertComputerUseToolToAdapterFormat(tool: Tool) {
   };
 }
 
-export function computerUseTool(config: { environment: "ENVIRONMENT_UNSPECIFIED" | "ENVIRONMENT_BROWSER"; excludedPredefinedFunctions?: string[] }): Tool {
+export function computerUseTool(config: ComputerUseTool): Tool {
   return {
     type: "function",
     function: {

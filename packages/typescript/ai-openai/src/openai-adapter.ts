@@ -658,6 +658,7 @@ export class OpenAI extends BaseAdapter<
     }
   }
 
+  // TODO proper type is AsyncIterable<OpenAI_SDK.Responses.ResponseStreamEvent>
   private async *processOpenAIStreamChunks(
     stream: AsyncIterable<any>,
     toolCallMetadata: Map<string, { index: number; name: string }>,

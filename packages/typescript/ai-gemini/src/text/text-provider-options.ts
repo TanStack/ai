@@ -2,59 +2,20 @@
 import { GeminiChatModels } from "../model-meta";
 import { Schema } from "../tools/function-declaration-tool";
 import { GoogleGeminiTool } from "../tools";
-import { ContentListUnion } from "@google/genai";
+import { ContentListUnion, MediaResolution, SafetySetting, ThinkingLevel, ToolConfig } from "@google/genai";
 
 export interface ExternalTextProviderOptions {
 
   /**
    * Tool configuration for any Tool specified in the request.
    */
-  toolConfig?: {
-    functionCallingConfig?: {
-      /**
-       * - MODE_UNSPECIFIED	Unspecified function calling mode. This value should not be used.
-  - AUTO	Default model behavior, model decides to predict either a function call or a natural language response.
-  - ANY	Model is constrained to always predicting a function call only. If "allowedFunctionNames" are set, the predicted function call will be limited to any one of "allowedFunctionNames", else the predicted function call will be any one of the provided "functionDeclarations".
-  - NONE	Model will not predict any function call. Model behavior is same as when not passing any function declarations.
-  - VALIDATED	Model decides to predict either a function call or a natural language response, but will validate function calls with constrained decoding. If "allowedFunctionNames" are set, the predicted function call will be limited to any one of "allowedFunctionNames", else the predicted function call will be any one of the provided "functionDeclarations".
-       */
-      mode?: "MODE_UNSPECIFIED" | "AUTO" | "ANY" | "NONE" | "VALIDATED";
-      /**
-       * A set of function names that, when provided, limits the functions the model will call.
-       * This should only be set when the Mode is ANY or VALIDATED. Function names should match [FunctionDeclaration.name]. When set, model will predict a function call from only allowed function names.
-       */
-      allowedFunctionNames?: string[];
-    }
-
-    retrievalConfig?: {
-      /**
-       * The location of the user.
-       */
-      latLng?: {
-        /**
-         * It must be in the range [-90.0, +90.0].
-         */
-        latitude: number;
-        /**
-         * It must be in the range [-180.0, +180.0].
-         */
-        longitude: number;
-      }
-      /**
-       * The language code of the user. Language code for content. Use language tags defined by BCP47.
-       */
-      languageCode?: string;
-    }
-  }
+  toolConfig?: ToolConfig
   /**
    *  list of unique SafetySetting instances for blocking unsafe content.
 
 This will be enforced on the GenerateContentRequest.contents and GenerateContentResponse.candidates. There should not be more than one setting for each SafetyCategory type. The API will block any contents and responses that fail to meet the thresholds set by these settings. This list overrides the default settings for each SafetyCategory specified in the safetySettings. If there is no SafetySetting for a given SafetyCategory provided in the list, the API will use the default safety setting for that category. Harm categories HARM_CATEGORY_HATE_SPEECH, HARM_CATEGORY_SEXUALLY_EXPLICIT, HARM_CATEGORY_DANGEROUS_CONTENT, HARM_CATEGORY_HARASSMENT, HARM_CATEGORY_CIVIC_INTEGRITY are supported
    */
-  safetySettings?: {
-    category: "HARM_CATEGORY_UNSPECIFIED" | "HARM_CATEGORY_DEROGATORY" | "HARM_CATEGORY_TOXICITY" | "HARM_CATEGORY_VIOLENCE" | "HARM_CATEGORY_SEXUAL" | "HARM_CATEGORY_MEDICAL" | "HARM_CATEGORY_DANGEROUS" | "HARM_CATEGORY_HARASSMENT" | "HARM_CATEGORY_HATE_SPEECH" | "HARM_CATEGORY_SEXUALLY_EXPLICIT" | "HARM_CATEGORY_DANGEROUS_CONTENT" | "HARM_CATEGORY_CIVIC_INTEGRITY";
-    threshold: "HARM_BLOCK_THRESHOLD_UNSPECIFIED" | "BLOCK_LOW_AND_ABOVE" | "BLOCK_MEDIUM_AND_ABOVE" | "BLOCK_ONLY_HIGH" | "BLOCK_NONE" | "OFF";
-  }[]
+  safetySettings?: SafetySetting[]
 
   /**
    * Configuration options for model generation and outputs.
@@ -204,7 +165,7 @@ Valid values are: de-DE, en-AU, en-GB, en-IN, en-US, es-US, fr-FR, hi-IN, pt-BR,
       /**
        * The level of thoughts tokens that the model should generate.
        */
-      thinkingLevel?: "THINKING_LEVEL_UNSPECIFIED" | "LOW" | "HIGH";
+      thinkingLevel?: ThinkingLevel
     }
     /**
      * Config for image generation. An error will be returned if this field is set for models that don't support these config options.
@@ -215,7 +176,7 @@ Valid values are: de-DE, en-AU, en-GB, en-IN, en-US, es-US, fr-FR, hi-IN, pt-BR,
     /**
      * If specified, the media resolution specified will be used.
      */
-    mediaResolution?: "MEDIA_RESOLUTION_UNSPECIFIED" | "MEDIA_RESOLUTION_LOW" | "MEDIA_RESOLUTION_MEDIUM" | "MEDIA_RESOLUTION_HIGH";
+    mediaResolution?: MediaResolution
   }
   /**
    * The name of the content cached to use as context to serve the prediction. Format: cachedContents/{cachedContent}
@@ -414,7 +375,7 @@ Valid values are: de-DE, en-AU, en-GB, en-IN, en-US, es-US, fr-FR, hi-IN, pt-BR,
       /**
        * The level of thoughts tokens that the model should generate.
        */
-      thinkingLevel?: "THINKING_LEVEL_UNSPECIFIED" | "LOW" | "HIGH";
+      thinkingLevel?: ThinkingLevel
     }
     /**
      * Config for image generation. An error will be returned if this field is set for models that don't support these config options.
@@ -425,7 +386,7 @@ Valid values are: de-DE, en-AU, en-GB, en-IN, en-US, es-US, fr-FR, hi-IN, pt-BR,
     /**
      * If specified, the media resolution specified will be used.
      */
-    mediaResolution?: "MEDIA_RESOLUTION_UNSPECIFIED" | "MEDIA_RESOLUTION_LOW" | "MEDIA_RESOLUTION_MEDIUM" | "MEDIA_RESOLUTION_HIGH";
+    mediaResolution?: MediaResolution
   }
 
 }

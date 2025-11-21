@@ -1,4 +1,4 @@
-import { GoogleGenAI } from "@google/genai";
+import { GenerateContentParameters, GoogleGenAI } from "@google/genai";
 import {
   BaseAdapter,
   type AIAdapterConfig,
@@ -17,9 +17,8 @@ import {
   GEMINI_EMBEDDING_MODELS,
   GEMINI_AUDIO_MODELS,
   GEMINI_VIDEO_MODELS,
-  GeminiChatModels,
 } from "./model-meta";
-import { ExternalTextProviderOptions, InternalTextProviderOptions } from "./text/text-provider-options";
+import { ExternalTextProviderOptions, } from "./text/text-provider-options";
 import { convertToolsToProviderFormat } from "./tools/tool-converter";
 
 export interface GeminiAdapterConfig extends AIAdapterConfig {
@@ -32,7 +31,7 @@ export type GeminiModel = (typeof GEMINI_MODELS)[number];
  * Based on Google Generative AI SDK
  * @see https://ai.google.dev/api/rest/v1/GenerationConfig
  */
-export type GeminiProviderOptions = ExternalTextProviderOptions
+export type GeminiProviderOptions = ExternalTextProviderOptions;
 
 export class GeminiAdapter extends BaseAdapter<
   typeof GEMINI_MODELS,
@@ -61,31 +60,10 @@ export class GeminiAdapter extends BaseAdapter<
     });
   }
 
-  async chatCompletion(
-    options: ChatCompletionOptions<string, GeminiProviderOptions>
-  ): Promise<ChatCompletionResult> {
-    // Map common options to Gemini format
+  async chatCompletion(options: ChatCompletionOptions<string, GeminiProviderOptions>): Promise<ChatCompletionResult> {
     const mappedOptions = this.mapCommonOptionsToGemini(options);
 
-    // According to Gemini docs, options should be in config object
-    const requestOptions: any = {
-      model: mappedOptions.model,
-      contents: mappedOptions.contents,
-      config: {
-        ...(mappedOptions.generationConfig && {
-          generationConfig: mappedOptions.generationConfig,
-        }),
-        ...(mappedOptions.systemInstruction && {
-          systemInstruction: mappedOptions.systemInstruction,
-        }),
-        ...(mappedOptions.tools && { tools: mappedOptions.tools }),
-        ...(mappedOptions.toolConfig && {
-          toolConfig: mappedOptions.toolConfig,
-        }),
-      },
-    };
-
-    const response = await this.client.models.generateContent(requestOptions);
+    const response = await this.client.models.generateContent(mappedOptions);
 
     return {
       id: this.generateId(),
@@ -101,258 +79,13 @@ export class GeminiAdapter extends BaseAdapter<
     };
   }
 
-  async *chatStream(
-    options: ChatCompletionOptions<string, GeminiProviderOptions>
-  ): AsyncIterable<StreamChunk> {
+  async *chatStream(options: ChatCompletionOptions<string, GeminiProviderOptions>): AsyncIterable<StreamChunk> {
     // Map common options to Gemini format
     const mappedOptions = this.mapCommonOptionsToGemini(options);
 
-    // According to Gemini docs, options should be in config object
-    const requestOptions: any = {
-      model: mappedOptions.model,
-      contents: mappedOptions.contents,
-      config: {
-        ...(mappedOptions.generationConfig && {
-          generationConfig: mappedOptions.generationConfig,
-        }),
-        ...(mappedOptions.systemInstruction && {
-          systemInstruction: mappedOptions.systemInstruction,
-        }),
-        ...(mappedOptions.tools && { tools: mappedOptions.tools }),
-        ...(mappedOptions.toolConfig && {
-          toolConfig: mappedOptions.toolConfig,
-        }),
-      },
-    };
+    const result = await this.client.models.generateContentStream(mappedOptions);
 
-    const result = await this.client.models.generateContentStream(
-      requestOptions
-    );
-
-    const timestamp = Date.now();
-    let accumulatedContent = "";
-    const toolCallMap = new Map<
-      string,
-      { name: string; args: string; index: number }
-    >();
-    let nextToolIndex = 0;
-
-    // Iterate over the stream result (it's already an AsyncGenerator)
-    for await (const chunk of result) {
-      // Check for errors in the chunk
-      if ((chunk as any).error) {
-        console.log("[GeminiAdapter] Error in chunk:", (chunk as any).error);
-        yield {
-          type: "error",
-          id: this.generateId(),
-          model: options.model || "gemini-pro",
-          timestamp,
-          error: {
-            message: (chunk as any).error.message || "Unknown error",
-            code: (chunk as any).error.code,
-          },
-        };
-        return;
-      }
-
-      // Check if candidates array exists and has entries
-      if (!chunk.candidates || chunk.candidates.length === 0) {
-        // Skip empty chunks or check for finish reason in other places
-        if ((chunk as any).finishReason) {
-          const finishReason = (chunk as any).finishReason as string;
-          let mappedFinishReason = finishReason;
-          if (
-            finishReason === "UNEXPECTED_TOOL_CALL" ||
-            finishReason === "STOP"
-          ) {
-            mappedFinishReason = toolCallMap.size > 0 ? "tool_calls" : "stop";
-          }
-          yield {
-            type: "done",
-            id: this.generateId(),
-            model: options.model || "gemini-pro",
-            timestamp,
-            finishReason: mappedFinishReason as any,
-            usage: (chunk as any).usageMetadata
-              ? {
-                  promptTokens:
-                    (chunk as any).usageMetadata.promptTokenCount ?? 0,
-                  completionTokens:
-                    (chunk as any).usageMetadata.thoughtsTokenCount ?? 0,
-                  totalTokens:
-                    (chunk as any).usageMetadata.totalTokenCount ?? 0,
-                }
-              : undefined,
-          };
-        }
-        continue;
-      }
-      // Extract content from candidates[0].content.parts
-      // Parts can contain text or functionCall
-      if (chunk.candidates?.[0]?.content?.parts) {
-        const parts = chunk.candidates[0].content.parts;
-
-        for (const part of parts) {
-          // Handle text content
-          if (part.text) {
-            accumulatedContent += part.text;
-            yield {
-              type: "content",
-              id: this.generateId(),
-              model: options.model || "gemini-pro",
-              timestamp,
-              delta: part.text,
-              content: accumulatedContent,
-              role: "assistant",
-            };
-          }
-
-          // Handle function calls (tool calls)
-          // Check both camelCase (SDK) and snake_case (direct API) formats
-          const functionCall =
-            (part as any).functionCall || (part as any).function_call;
-          if (functionCall) {
-            const toolCallId =
-              functionCall.name || `call_${Date.now()}_${nextToolIndex}`;
-            const functionArgs =
-              functionCall.args || functionCall.arguments || {};
-
-            // Check if we've seen this tool call before (for streaming args)
-            let toolCallData = toolCallMap.get(toolCallId);
-            if (!toolCallData) {
-              toolCallData = {
-                name: functionCall.name || "",
-                args:
-                  typeof functionArgs === "string"
-                    ? functionArgs
-                    : JSON.stringify(functionArgs || {}),
-                index: nextToolIndex++,
-              };
-              toolCallMap.set(toolCallId, toolCallData);
-            } else {
-              // Merge arguments if streaming
-              if (functionArgs) {
-                try {
-                  const existingArgs = JSON.parse(toolCallData.args);
-                  const newArgs =
-                    typeof functionArgs === "string"
-                      ? JSON.parse(functionArgs)
-                      : functionArgs;
-                  const mergedArgs = { ...existingArgs, ...newArgs };
-                  toolCallData.args = JSON.stringify(mergedArgs);
-                } catch {
-                  // If parsing fails, use new args
-                  toolCallData.args =
-                    typeof functionArgs === "string"
-                      ? functionArgs
-                      : JSON.stringify(functionArgs);
-                }
-              }
-            }
-
-            yield {
-              type: "tool_call",
-              id: this.generateId(),
-              model: options.model || "gemini-pro",
-              timestamp,
-              toolCall: {
-                id: toolCallId,
-                type: "function",
-                function: {
-                  name: toolCallData.name,
-                  arguments: toolCallData.args,
-                },
-              },
-              index: toolCallData.index,
-            };
-          }
-        }
-      } else if (chunk.data) {
-        // Fallback to chunk.data if available
-        accumulatedContent += chunk.data;
-        yield {
-          type: "content",
-          id: this.generateId(),
-          model: options.model || "gemini-pro",
-          timestamp,
-          delta: chunk.data,
-          content: accumulatedContent,
-          role: "assistant",
-        };
-      }
-
-      // Check for finish reason
-      if (chunk.candidates?.[0]?.finishReason) {
-        const finishReason = chunk.candidates[0].finishReason as string;
-
-        // UNEXPECTED_TOOL_CALL means Gemini tried to call a function but it wasn't properly declared
-        // This typically means there's an issue with the tool declaration format
-        // We should map it to tool_calls to try to process it anyway
-        let mappedFinishReason = finishReason;
-        if (finishReason === "UNEXPECTED_TOOL_CALL") {
-          // Try to extract function call from content.parts if available
-          if (chunk.candidates[0].content?.parts) {
-            for (const part of chunk.candidates[0].content.parts) {
-              const functionCall =
-                (part as any).functionCall || (part as any).function_call;
-              if (functionCall) {
-                // We found a function call - process it
-                const toolCallId =
-                  functionCall.name || `call_${Date.now()}_${nextToolIndex}`;
-                const functionArgs =
-                  functionCall.args || functionCall.arguments || {};
-
-                toolCallMap.set(toolCallId, {
-                  name: functionCall.name || "",
-                  args:
-                    typeof functionArgs === "string"
-                      ? functionArgs
-                      : JSON.stringify(functionArgs || {}),
-                  index: nextToolIndex++,
-                });
-
-                yield {
-                  type: "tool_call",
-                  id: this.generateId(),
-                  model: options.model || "gemini-pro",
-                  timestamp,
-                  toolCall: {
-                    id: toolCallId,
-                    type: "function",
-                    function: {
-                      name: functionCall.name || "",
-                      arguments:
-                        typeof functionArgs === "string"
-                          ? functionArgs
-                          : JSON.stringify(functionArgs || {}),
-                    },
-                  },
-                  index: nextToolIndex - 1,
-                };
-              }
-            }
-          }
-          mappedFinishReason = toolCallMap.size > 0 ? "tool_calls" : "stop";
-        } else if (finishReason === "STOP") {
-          mappedFinishReason = toolCallMap.size > 0 ? "tool_calls" : "stop";
-        }
-
-        yield {
-          type: "done",
-          id: this.generateId(),
-          model: options.model || "gemini-pro",
-          timestamp,
-          finishReason: mappedFinishReason as any,
-          usage: chunk.usageMetadata
-            ? {
-                promptTokens: chunk.usageMetadata.promptTokenCount ?? 0,
-                completionTokens: chunk.usageMetadata.thoughtsTokenCount ?? 0,
-                totalTokens: chunk.usageMetadata.totalTokenCount ?? 0,
-              }
-            : undefined,
-        };
-      }
-    }
+    yield* this.processStreamChunks(result, options.model);
   }
 
   async summarize(options: SummarizationOptions): Promise<SummarizationResult> {
@@ -386,9 +119,7 @@ export class GeminiAdapter extends BaseAdapter<
   }
 
   async createEmbeddings(options: EmbeddingOptions): Promise<EmbeddingResult> {
-    const inputs = Array.isArray(options.input)
-      ? options.input
-      : [options.input];
+    const inputs = Array.isArray(options.input) ? options.input : [options.input];
     const embeddings: number[][] = [];
 
     const model = (this.client as any).getGenerativeModel({
@@ -400,10 +131,7 @@ export class GeminiAdapter extends BaseAdapter<
       embeddings.push(result.embedding.values);
     }
 
-    const promptTokens = inputs.reduce(
-      (sum, input) => sum + this.estimateTokens(input),
-      0
-    );
+    const promptTokens = inputs.reduce((sum, input) => sum + this.estimateTokens(input), 0);
 
     return {
       id: this.generateId(),
@@ -416,10 +144,7 @@ export class GeminiAdapter extends BaseAdapter<
     };
   }
 
-  private buildSummarizationPrompt(
-    options: SummarizationOptions,
-    text: string
-  ): string {
+  private buildSummarizationPrompt(options: SummarizationOptions, text: string): string {
     let prompt = "You are a professional summarizer. ";
 
     switch (options.style) {
@@ -450,43 +175,135 @@ export class GeminiAdapter extends BaseAdapter<
     return Math.ceil(text.length / 4);
   }
 
-  private extractContentFromChunk(chunk: any): string {
-    // Extract text content from candidates[0].content.parts
-    // The parts array contains objects with a 'text' property
-    let content = "";
-    if (chunk.candidates?.[0]?.content?.parts) {
-      const parts = chunk.candidates[0].content.parts;
-      for (const part of parts) {
-        if (part.text) {
-          content += part.text;
-        }
-      }
-    } else if (chunk.data) {
-      // Fallback to chunk.data if available
-      content = chunk.data;
-    }
-    return content;
-  }
 
-  private async *processStreamChunks(
-    result: AsyncIterable<any>,
-    model: string
-  ): AsyncIterable<StreamChunk> {
+  // TODO the proper type here is AsyncGenerator<GenerateContentResponse, any, any>
+  private async *processStreamChunks(result: AsyncIterable<any>, model: string): AsyncIterable<StreamChunk> {
     const timestamp = Date.now();
     let accumulatedContent = "";
+    const toolCallMap = new Map<string, { name: string; args: string; index: number }>();
+    let nextToolIndex = 0;
 
     // Iterate over the stream result (it's already an AsyncGenerator)
     for await (const chunk of result) {
-      const content = this.extractContentFromChunk(chunk);
+      // Check for errors in the chunk
+      if (chunk.error) {
+        console.log("[GeminiAdapter] Error in chunk:", (chunk).error);
+        yield {
+          type: "error",
+          id: this.generateId(),
+          model,
+          timestamp,
+          error: {
+            message: (chunk).error.message || "Unknown error",
+            code: (chunk).error.code,
+          },
+        };
+        return;
+      }
 
-      if (content) {
-        accumulatedContent += content;
+      // Check if candidates array exists and has entries
+      if (!chunk.candidates || chunk.candidates.length === 0) {
+        // Skip empty chunks or check for finish reason in other places
+        if (chunk.finishReason) {
+          const finishReason = (chunk).finishReason as string;
+          let mappedFinishReason = finishReason;
+          if (finishReason === "UNEXPECTED_TOOL_CALL" || finishReason === "STOP") {
+            mappedFinishReason = toolCallMap.size > 0 ? "tool_calls" : "stop";
+          }
+          yield {
+            type: "done",
+            id: this.generateId(),
+            model,
+            timestamp,
+            finishReason: mappedFinishReason as any,
+            usage: chunk.usageMetadata
+              ? {
+                promptTokens: chunk.usageMetadata.promptTokenCount ?? 0,
+                completionTokens: chunk.usageMetadata.thoughtsTokenCount ?? 0,
+                totalTokens: chunk.usageMetadata.totalTokenCount ?? 0,
+              }
+              : undefined,
+          };
+        }
+        continue;
+      }
+      // Extract content from candidates[0].content.parts
+      // Parts can contain text or functionCall
+      if (chunk.candidates?.[0]?.content?.parts) {
+        const parts = chunk.candidates[0].content.parts;
+
+        for (const part of parts) {
+          // Handle text content
+          if (part.text) {
+            accumulatedContent += part.text;
+            yield {
+              type: "content",
+              id: this.generateId(),
+              model,
+              timestamp,
+              delta: part.text,
+              content: accumulatedContent,
+              role: "assistant",
+            };
+          }
+
+          // Handle function calls (tool calls)
+          // Check both camelCase (SDK) and snake_case (direct API) formats
+          const functionCall = part.functionCall || part.function_call;
+          if (functionCall) {
+            const toolCallId = functionCall.name || `call_${Date.now()}_${nextToolIndex}`;
+            const functionArgs = functionCall.args || functionCall.arguments || {};
+
+            // Check if we've seen this tool call before (for streaming args)
+            let toolCallData = toolCallMap.get(toolCallId);
+            if (!toolCallData) {
+              toolCallData = {
+                name: functionCall.name || "",
+                args: typeof functionArgs === "string" ? functionArgs : JSON.stringify(functionArgs || {}),
+                index: nextToolIndex++,
+              };
+              toolCallMap.set(toolCallId, toolCallData);
+            } else {
+              // Merge arguments if streaming
+              if (functionArgs) {
+                try {
+                  const existingArgs = JSON.parse(toolCallData.args);
+                  const newArgs = typeof functionArgs === "string" ? JSON.parse(functionArgs) : functionArgs;
+                  const mergedArgs = { ...existingArgs, ...newArgs };
+                  toolCallData.args = JSON.stringify(mergedArgs);
+                } catch {
+                  // If parsing fails, use new args
+                  toolCallData.args = typeof functionArgs === "string" ? functionArgs : JSON.stringify(functionArgs);
+                }
+              }
+            }
+
+            yield {
+              type: "tool_call",
+              id: this.generateId(),
+              model,
+              timestamp,
+              toolCall: {
+                id: toolCallId,
+                type: "function",
+                function: {
+                  name: toolCallData.name,
+                  arguments: toolCallData.args,
+                },
+              },
+              index: toolCallData.index,
+            };
+          }
+        }
+      } else if (chunk.data) {
+        // Fallback to chunk.data if available
+        accumulatedContent += chunk.data;
         yield {
           type: "content",
           id: this.generateId(),
           model,
           timestamp,
-          delta: content,
+          delta: chunk.data,
           content: accumulatedContent,
           role: "assistant",
         };
@@ -494,12 +311,57 @@ export class GeminiAdapter extends BaseAdapter<
 
       // Check for finish reason
       if (chunk.candidates?.[0]?.finishReason) {
+        const finishReason = chunk.candidates[0].finishReason as string;
+
+        // UNEXPECTED_TOOL_CALL means Gemini tried to call a function but it wasn't properly declared
+        // This typically means there's an issue with the tool declaration format
+        // We should map it to tool_calls to try to process it anyway
+        let mappedFinishReason = finishReason;
+        if (finishReason === "UNEXPECTED_TOOL_CALL") {
+          // Try to extract function call from content.parts if available
+          if (chunk.candidates[0].content?.parts) {
+            for (const part of chunk.candidates[0].content.parts) {
+              const functionCall = (part).functionCall || (part).function_call;
+              if (functionCall) {
+                // We found a function call - process it
+                const toolCallId = functionCall.name || `call_${Date.now()}_${nextToolIndex}`;
+                const functionArgs = functionCall.args || functionCall.arguments || {};
+
+                toolCallMap.set(toolCallId, {
+                  name: functionCall.name || "",
+                  args: typeof functionArgs === "string" ? functionArgs : JSON.stringify(functionArgs || {}),
+                  index: nextToolIndex++,
+                });
+
+                yield {
+                  type: "tool_call",
+                  id: this.generateId(),
+                  model,
+                  timestamp,
+                  toolCall: {
+                    id: toolCallId,
+                    type: "function",
+                    function: {
+                      name: functionCall.name || "",
+                      arguments: typeof functionArgs === "string" ? functionArgs : JSON.stringify(functionArgs || {}),
+                    },
+                  },
+                  index: nextToolIndex - 1,
+                };
+              }
+            }
+          }
+          mappedFinishReason = toolCallMap.size > 0 ? "tool_calls" : "stop";
+        } else if (finishReason === "STOP") {
+          mappedFinishReason = toolCallMap.size > 0 ? "tool_calls" : "stop";
+        }
+
         yield {
           type: "done",
           id: this.generateId(),
           model,
           timestamp,
-          finishReason: chunk.candidates[0].finishReason as any,
+          finishReason: mappedFinishReason as any,
           usage: chunk.usageMetadata
             ? {
               promptTokens: chunk.usageMetadata.promptTokenCount ?? 0,
@@ -523,8 +385,7 @@ export class GeminiAdapter extends BaseAdapter<
     return messages
       .filter((m) => m.role !== "system") // Skip system messages
       .map((msg) => {
-        const role: "user" | "model" =
-          msg.role === "assistant" ? "model" : "user";
+        const role: "user" | "model" = msg.role === "assistant" ? "model" : "user";
         const parts: Array<{
           text?: string;
           functionCall?: { name: string; args: Record<string, any> };
@@ -541,9 +402,7 @@ export class GeminiAdapter extends BaseAdapter<
           for (const toolCall of msg.toolCalls) {
             let parsedArgs: Record<string, any> = {};
             try {
-              parsedArgs = toolCall.function.arguments
-                ? JSON.parse(toolCall.function.arguments)
-                : {};
+              parsedArgs = toolCall.function.arguments ? JSON.parse(toolCall.function.arguments) : {};
             } catch {
               parsedArgs = toolCall.function.arguments as any;
             }
@@ -584,31 +443,24 @@ export class GeminiAdapter extends BaseAdapter<
    * Maps common options to Gemini-specific format
    * Handles translation of normalized options to Gemini's API format
    */
-  private mapCommonOptionsToGemini(
-    options: ChatCompletionOptions<string, GeminiProviderOptions>
-  ): InternalTextProviderOptions {
+  private mapCommonOptionsToGemini(options: ChatCompletionOptions<string, GeminiProviderOptions>) {
     const providerOpts = options.providerOptions;
-
-    const generationConfig: InternalTextProviderOptions = {
-      ...providerOpts,
-      model: options.model as GeminiChatModels,
-      generationConfig: {
+    const requestOptions: GenerateContentParameters = {
+      model: options.model,
+      contents: this.formatMessages(options.messages),
+      config: {
+        ...providerOpts,
         temperature: options.options?.temperature,
         topP: options.options?.topP,
         maxOutputTokens: options.options?.maxTokens,
+        systemInstruction: options.systemPrompts?.join("\n"),
         ...providerOpts?.generationConfig,
+        tools: convertToolsToProviderFormat(options.tools),
       },
-
-      systemInstruction: options.systemPrompts?.join("\n"),
-      contents: this.formatMessages(options.messages),
     };
 
-    return {
-      ...generationConfig,
-      tools: options.tools
-        ? convertToolsToProviderFormat(options.tools)
-        : undefined,
-    };
+
+    return requestOptions;
   }
 }
 
@@ -628,10 +480,7 @@ export class GeminiAdapter extends BaseAdapter<
  * });
  * ```
  */
-export function createGemini(
-  apiKey: string,
-  config?: Omit<GeminiAdapterConfig, "apiKey">
-): GeminiAdapter {
+export function createGemini(apiKey: string, config?: Omit<GeminiAdapterConfig, "apiKey">): GeminiAdapter {
   return new GeminiAdapter({ apiKey, ...config });
 }
 
@@ -652,9 +501,7 @@ export function createGemini(
  * const aiInstance = ai(gemini());
  * ```
  */
-export function gemini(
-  config?: Omit<GeminiAdapterConfig, "apiKey">
-): GeminiAdapter {
+export function gemini(config?: Omit<GeminiAdapterConfig, "apiKey">): GeminiAdapter {
   const env =
     typeof globalThis !== "undefined" && (globalThis as any).window?.env
       ? (globalThis as any).window.env

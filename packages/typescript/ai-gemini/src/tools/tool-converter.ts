@@ -6,7 +6,7 @@ import { convertGoogleMapsToolToAdapterFormat } from "./google-maps-tool";
 import { convertGoogleSearchRetrievalToolToAdapterFormat } from "./google-search-retriveal-tool";
 import { convertGoogleSearchToolToAdapterFormat } from "./google-search-tool";
 import { convertUrlContextToolToAdapterFormat } from "./url-context-tool";
-import { GoogleGeminiTool } from ".";
+import { ToolUnion } from "@google/genai";
 
 /**
  * Converts standard Tool format to Gemini-specific tool format
@@ -33,9 +33,12 @@ import { GoogleGeminiTool } from ".";
  * ```
  */
 export function convertToolsToProviderFormat<TTool extends Tool>(
-  tools: TTool[],
-): GoogleGeminiTool[] {
-  const result: GoogleGeminiTool[] = [];
+  tools: TTool[] | undefined,
+): ToolUnion[] {
+  if (!tools || tools.length === 0) {
+    return [];
+  }
+  const result: ToolUnion[] = [];
   const functionDeclarations: Array<{
     name: string;
     description?: string;
@@ -91,7 +94,7 @@ export function convertToolsToProviderFormat<TTool extends Tool>(
   if (functionDeclarations.length > 0) {
     result.push({
       functionDeclarations: functionDeclarations
-    } as any);
+    });
   }
 
   return result;
