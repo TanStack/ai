@@ -13,7 +13,7 @@ import {
 } from "@tanstack/ai";
 import { ANTHROPIC_AUDIO_MODELS, ANTHROPIC_EMBEDDING_MODELS, ANTHROPIC_IMAGE_MODELS, ANTHROPIC_MODELS, ANTHROPIC_VIDEO_MODELS } from "./model-meta";
 import { convertToolsToProviderFormat } from "./tools/tool-converter";
-import { TextProviderOptions } from "./text/text-provider-options";
+import { ExternalTextProviderOptions, InternalTextProviderOptions } from "./text/text-provider-options";
 
 export interface AnthropicConfig {
   apiKey: string;
@@ -24,21 +24,7 @@ export interface AnthropicConfig {
  * Anthropic-specific provider options
  * @see https://ai-sdk.dev/providers/ai-sdk-providers/anthropic
  */
-export interface AnthropicProviderOptions {
-  /** Enable extended thinking with budget tokens */
-  thinking?: {
-    type: 'enabled';
-    budgetTokens: number;
-  };
-  /** Prompt caching configuration (beta) */
-  cacheControl?: {
-    type: 'ephemeral';
-    /** Cache TTL: '5m' (default) | '1h' */
-    ttl?: '5m' | '1h';
-  };
-  /** Include reasoning content in requests. Defaults to true */
-  sendReasoning?: boolean;
-}
+export type AnthropicProviderOptions = ExternalTextProviderOptions;
 
 type AnthropicContentBlocks = Extract<MessageParam["content"], Array<unknown>> extends Array<infer Block>
   ? Block[]
@@ -53,7 +39,7 @@ export class Anthropic extends BaseAdapter<
   typeof ANTHROPIC_EMBEDDING_MODELS,
   typeof ANTHROPIC_AUDIO_MODELS,
   typeof ANTHROPIC_VIDEO_MODELS,
-  TextProviderOptions,
+  AnthropicProviderOptions,
   Record<string, any>,
   Record<string, any>,
   Record<string, any>,
@@ -75,7 +61,7 @@ export class Anthropic extends BaseAdapter<
   }
 
   async chatCompletion(
-    options: ChatCompletionOptions
+    options: ChatCompletionOptions<string, AnthropicProviderOptions>
   ): Promise<ChatCompletionResult> {
 
 
@@ -98,7 +84,7 @@ export class Anthropic extends BaseAdapter<
   }
 
   async *chatStream(
-    options: ChatCompletionOptions
+    options: ChatCompletionOptions<string, AnthropicProviderOptions>
   ): AsyncIterable<StreamChunk> {
     // Map common options to Anthropic format using the centralized mapping function
     const requestParams = this.mapCommonOptionsToAnthropic(options);
@@ -186,15 +172,15 @@ export class Anthropic extends BaseAdapter<
   private mapCommonOptionsToAnthropic(
     options: ChatCompletionOptions,
   ) {
-    const providerOptions = options.providerOptions as TextProviderOptions | undefined;
-    
+    const providerOptions = options.providerOptions as InternalTextProviderOptions | undefined;
+
     const formattedMessages = this.formatMessages(options.messages);
     const tools = options.tools ? convertToolsToProviderFormat(options.tools) : undefined;
-    
+
     // Filter out invalid fields from providerOptions (like 'store' which is OpenAI-specific)
-    const validProviderOptions: Partial<TextProviderOptions> = {};
+    const validProviderOptions: Partial<InternalTextProviderOptions> = {};
     if (providerOptions) {
-      const validKeys: (keyof TextProviderOptions)[] = [
+      const validKeys: (keyof InternalTextProviderOptions)[] = [
         'container', 'context_management', 'mcp_servers', 'service_tier',
         'stop_sequences', 'system', 'thinking', 'tool_choice', 'top_k'
       ];
@@ -204,8 +190,8 @@ export class Anthropic extends BaseAdapter<
         }
       }
     }
-    
-    const requestParams: TextProviderOptions = {
+
+    const requestParams: InternalTextProviderOptions = {
       model: options.model,
       max_tokens: options.options?.maxTokens || 1024,
       temperature: options.options?.temperature,
@@ -217,8 +203,8 @@ export class Anthropic extends BaseAdapter<
     return requestParams;
   }
 
-  private formatMessages(messages: ModelMessage[]): TextProviderOptions["messages"] {
-    const formattedMessages: TextProviderOptions["messages"] = [];
+  private formatMessages(messages: ModelMessage[]): InternalTextProviderOptions["messages"] {
+    const formattedMessages: InternalTextProviderOptions["messages"] = [];
 
     for (const message of messages) {
       const role = message.role ?? "user";
@@ -404,12 +390,12 @@ export class Anthropic extends BaseAdapter<
               // TODO Fix usage
               usage: event.usage
                 ? {
-                    promptTokens: 0,
-                    completionTokens: event.usage.output_tokens || 0,
-                    totalTokens:
-                      (0) +
-                      (event.usage.output_tokens || 0),
-                  }
+                  promptTokens: 0,
+                  completionTokens: event.usage.output_tokens || 0,
+                  totalTokens:
+                    (0) +
+                    (event.usage.output_tokens || 0),
+                }
                 : undefined,
             };
           }

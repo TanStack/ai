@@ -22,7 +22,8 @@ import {
 } from "./model-meta";
 import {
   convertMessagesToInput,
-  TextProviderOptions,
+  ExternalTextProviderOptions,
+  InternalTextProviderOptions,
 } from "./text/text-provider-options";
 import { convertToolsToProviderFormat } from "./tools";
 
@@ -35,7 +36,7 @@ export interface OpenAIConfig {
 /**
  * Alias for TextProviderOptions
  */
-export type OpenAIProviderOptions = TextProviderOptions;
+export type OpenAIProviderOptions = ExternalTextProviderOptions;
 
 /**
  * OpenAI-specific provider options for image generation
@@ -75,13 +76,13 @@ export interface OpenAIAudioTranscriptionProviderOptions {
   timestampGranularities?: Array<"word" | "segment">;
   /** Chunking strategy for long audio (gpt-4o-transcribe-diarize): 'auto' or VAD config */
   chunkingStrategy?:
-    | "auto"
-    | {
-        type: "vad";
-        threshold?: number;
-        prefix_padding_ms?: number;
-        silence_duration_ms?: number;
-      };
+  | "auto"
+  | {
+    type: "vad";
+    threshold?: number;
+    prefix_padding_ms?: number;
+    silence_duration_ms?: number;
+  };
   /** Known speaker names for diarization (gpt-4o-transcribe-diarize) */
   knownSpeakerNames?: string[];
   /** Known speaker reference audio as data URLs (gpt-4o-transcribe-diarize) */
@@ -125,7 +126,7 @@ export class OpenAI extends BaseAdapter<
   typeof OPENAI_EMBEDDING_MODELS,
   typeof OPENAI_AUDIO_MODELS,
   typeof OPENAI_VIDEO_MODELS,
-  TextProviderOptions,
+  OpenAIProviderOptions,
   OpenAIImageProviderOptions,
   OpenAIEmbeddingProviderOptions,
   OpenAIAudioProviderOptions,
@@ -149,7 +150,7 @@ export class OpenAI extends BaseAdapter<
   }
 
   async chatCompletion(
-    options: ChatCompletionOptions
+    options: ChatCompletionOptions<string, OpenAIProviderOptions>
   ): Promise<ChatCompletionResult> {
     // Map common options to OpenAI format using the centralized mapping function
     const providerOptions = this.mapChatOptionsToOpenAI(options);
@@ -169,7 +170,7 @@ export class OpenAI extends BaseAdapter<
   }
 
   async *chatStream(
-    options: ChatCompletionOptions
+    options: ChatCompletionOptions<string, OpenAIProviderOptions>
   ): AsyncIterable<StreamChunk> {
     // Track tool call metadata by unique ID
     // OpenAI streams tool calls with deltas - first chunk has ID/name, subsequent chunks only have args
@@ -580,13 +581,13 @@ export class OpenAI extends BaseAdapter<
     const toolCalls =
       functionCalls.length > 0
         ? functionCalls.map((fc) => ({
-            id: fc.call_id,
-            type: "function" as const,
-            function: {
-              name: fc.name,
-              arguments: JSON.stringify(fc.arguments),
-            },
-          }))
+          id: fc.call_id,
+          type: "function" as const,
+          function: {
+            name: fc.name,
+            arguments: JSON.stringify(fc.arguments),
+          },
+        }))
         : undefined;
 
     return {
@@ -904,11 +905,11 @@ export class OpenAI extends BaseAdapter<
             finishReason: finishReason as any,
             usage: usage
               ? {
-                  promptTokens: usage.input_tokens || usage.prompt_tokens || 0,
-                  completionTokens:
-                    usage.output_tokens || usage.completion_tokens || 0,
-                  totalTokens: usage.total_tokens || 0,
-                }
+                promptTokens: usage.input_tokens || usage.prompt_tokens || 0,
+                completionTokens:
+                  usage.output_tokens || usage.completion_tokens || 0,
+                totalTokens: usage.total_tokens || 0,
+              }
               : undefined,
           };
           doneChunkEmitted = true;
@@ -949,14 +950,14 @@ export class OpenAI extends BaseAdapter<
     try {
       const providerOptions = options.providerOptions as
         | Omit<
-            TextProviderOptions,
-            | "max_output_tokens"
-            | "tools"
-            | "metadata"
-            | "temperature"
-            | "input"
-            | "top_p"
-          >
+          InternalTextProviderOptions,
+          | "max_output_tokens"
+          | "tools"
+          | "metadata"
+          | "temperature"
+          | "input"
+          | "top_p"
+        >
         | undefined;
 
       const input = convertMessagesToInput(options.messages);
@@ -965,7 +966,7 @@ export class OpenAI extends BaseAdapter<
         ? convertToolsToProviderFormat([...options.tools])
         : undefined;
 
-      const requestParams: Omit<TextProviderOptions, "stream"> = {
+      const requestParams: Omit<InternalTextProviderOptions, "stream"> = {
         model: options.model,
         temperature: options.options?.temperature,
         max_output_tokens: options.options?.maxTokens,
@@ -1032,8 +1033,8 @@ export function openai(config?: Omit<OpenAIConfig, "apiKey">): OpenAI {
     typeof globalThis !== "undefined" && (globalThis as any).window?.env
       ? (globalThis as any).window.env
       : typeof process !== "undefined"
-      ? process.env
-      : undefined;
+        ? process.env
+        : undefined;
   const key = env?.OPENAI_API_KEY;
 
   if (!key) {

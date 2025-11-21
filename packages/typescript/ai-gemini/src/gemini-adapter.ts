@@ -19,7 +19,7 @@ import {
   GEMINI_VIDEO_MODELS,
   GeminiChatModels,
 } from "./model-meta";
-import { TextProviderOptions } from "./text/text-provider-options";
+import { ExternalTextProviderOptions, InternalTextProviderOptions } from "./text/text-provider-options";
 import { convertToolsToProviderFormat } from "./tools/tool-converter";
 
 export interface GeminiAdapterConfig extends AIAdapterConfig {
@@ -27,122 +27,12 @@ export interface GeminiAdapterConfig extends AIAdapterConfig {
 }
 
 export type GeminiModel = (typeof GEMINI_MODELS)[number];
-
 /**
  * Gemini-specific provider options
  * Based on Google Generative AI SDK
  * @see https://ai.google.dev/api/rest/v1/GenerationConfig
  */
-export interface GeminiProviderOptions {
-  /** Number of candidate responses to generate */
-  candidateCount?: number;
-  /** Safety settings for content filtering */
-  safetySettings?: Array<{
-    category: string;
-    threshold: string;
-  }>;
-  /** Response MIME type */
-  responseMimeType?: string;
-  /** Response schema for structured output */
-  responseSchema?: any;
-}
-
-function formatMessages(messages: ModelMessage[]): Array<{
-  role: "user" | "model";
-  parts: Array<{
-    text?: string;
-    functionCall?: { name: string; args: Record<string, any> };
-    functionResponse?: { name: string; response: Record<string, any> };
-  }>;
-}> {
-  return messages
-    .filter((m) => m.role !== "system") // Skip system messages
-    .map((msg) => {
-      const role: "user" | "model" =
-        msg.role === "assistant" ? "model" : "user";
-      const parts: Array<{
-        text?: string;
-        functionCall?: { name: string; args: Record<string, any> };
-        functionResponse?: { name: string; response: Record<string, any> };
-      }> = [];
-
-      // Add text content if present
-      if (msg.content) {
-        parts.push({ text: msg.content });
-      }
-
-      // Handle tool calls (from assistant)
-      if (msg.role === "assistant" && msg.toolCalls?.length) {
-        for (const toolCall of msg.toolCalls) {
-          let parsedArgs: Record<string, any> = {};
-          try {
-            parsedArgs = toolCall.function.arguments
-              ? JSON.parse(toolCall.function.arguments)
-              : {};
-          } catch {
-            parsedArgs = toolCall.function.arguments as any;
-          }
-
-          parts.push({
-            functionCall: {
-              name: toolCall.function.name,
-              args: parsedArgs,
-            },
-          });
-        }
-      }
-
-      // Handle tool results (from tool role)
-      if (msg.role === "tool" && msg.toolCallId) {
-        parts.push({
-          functionResponse: {
-            name: msg.toolCallId, // Gemini uses function name here
-            response: {
-              content: msg.content || "",
-            },
-          },
-        });
-      }
-
-      return {
-        role,
-        parts: parts.length > 0 ? parts : [{ text: "" }],
-      };
-    });
-}
-
-/**
- * Maps common options to Gemini-specific format
- * Handles translation of normalized options to Gemini's API format
- */
-function mapCommonOptionsToGemini(
-  options: ChatCompletionOptions
-): TextProviderOptions {
-  const providerOpts = options.providerOptions as
-    | TextProviderOptions
-    | undefined;
-
-  const generationConfig: TextProviderOptions = {
-    ...providerOpts,
-    model: options.model as GeminiChatModels,
-    generationConfig: {
-      temperature: options.options?.temperature,
-      topP: options.options?.topP,
-      maxOutputTokens: options.options?.maxTokens,
-      ...providerOpts?.generationConfig,
-    },
-
-    systemInstruction: options.systemPrompts?.join("\n"),
-    contents: formatMessages(options.messages) as any,
-  };
-
-  return {
-    ...generationConfig,
-    tools: options.tools
-      ? convertToolsToProviderFormat(options.tools)
-      : undefined,
-  };
-}
+export type GeminiProviderOptions = ExternalTextProviderOptions
 
 export class GeminiAdapter extends BaseAdapter<
   typeof GEMINI_MODELS,
@@ -172,10 +62,10 @@ export class GeminiAdapter extends BaseAdapter<
   }
 
   async chatCompletion(
-    options: ChatCompletionOptions
+    options: ChatCompletionOptions<string, GeminiProviderOptions>
   ): Promise<ChatCompletionResult> {
     // Map common options to Gemini format
-    const mappedOptions = mapCommonOptionsToGemini(options);
+    const mappedOptions = this.mapCommonOptionsToGemini(options);
 
     // According to Gemini docs, options should be in config object
     const requestOptions: any = {
@@ -199,7 +89,7 @@ export class GeminiAdapter extends BaseAdapter<
 
     return {
       id: this.generateId(),
-      model: options.model || "gemini-pro",
+      model: options.model,
       content: response.data ?? "",
       role: "assistant",
       finishReason: (response.candidates?.[0]?.finishReason as any) || "stop",
@@ -212,10 +102,10 @@ export class GeminiAdapter extends BaseAdapter<
   }
 
   async *chatStream(
-    options: ChatCompletionOptions
+    options: ChatCompletionOptions<string, GeminiProviderOptions>
   ): AsyncIterable<StreamChunk> {
     // Map common options to Gemini format
-    const mappedOptions = mapCommonOptionsToGemini(options);
+    const mappedOptions = this.mapCommonOptionsToGemini(options);
 
     // According to Gemini docs, options should be in config object
     const requestOptions: any = {
@@ -559,6 +449,167 @@ export class GeminiAdapter extends BaseAdapter<
     // Rough approximation: 1 token ≈ 4 characters
     return Math.ceil(text.length / 4);
   }
+
+  private extractContentFromChunk(chunk: any): string {
+    // Extract text content from candidates[0].content.parts
+    // The parts array contains objects with a 'text' property
+    let content = "";
+    if (chunk.candidates?.[0]?.content?.parts) {
+      const parts = chunk.candidates[0].content.parts;
+      for (const part of parts) {
+        if (part.text) {
+          content += part.text;
+        }
+      }
+    } else if (chunk.data) {
+      // Fallback to chunk.data if available
+      content = chunk.data;
+    }
+    return content;
+  }
+
+  private async *processStreamChunks(
+    result: AsyncIterable<any>,
+    model: string
+  ): AsyncIterable<StreamChunk> {
+    const timestamp = Date.now();
+    let accumulatedContent = "";
+
+    // Iterate over the stream result (it's already an AsyncGenerator)
+    for await (const chunk of result) {
+      const content = this.extractContentFromChunk(chunk);
+
+      if (content) {
+        accumulatedContent += content;
+        yield {
+          type: "content",
+          id: this.generateId(),
+          model,
+          timestamp,
+          delta: content,
+          content: accumulatedContent,
+          role: "assistant",
+        };
+      }
+
+      // Check for finish reason
+      if (chunk.candidates?.[0]?.finishReason) {
+        yield {
+          type: "done",
+          id: this.generateId(),
+          model,
+          timestamp,
+          finishReason: chunk.candidates[0].finishReason as any,
+          usage: chunk.usageMetadata
+            ? {
+              promptTokens: chunk.usageMetadata.promptTokenCount ?? 0,
+              completionTokens: chunk.usageMetadata.thoughtsTokenCount ?? 0,
+              totalTokens: chunk.usageMetadata.totalTokenCount ?? 0,
+            }
+            : undefined,
+        };
+      }
+    }
+  }
+
+  private formatMessages(messages: ModelMessage[]): Array<{
+    role: "user" | "model";
+    parts: Array<{
+      text?: string;
+      functionCall?: { name: string; args: Record<string, any> };
+      functionResponse?: { name: string; response: Record<string, any> };
+    }>;
+  }> {
+    return messages
+      .filter((m) => m.role !== "system") // Skip system messages
+      .map((msg) => {
+        const role: "user" | "model" =
+          msg.role === "assistant" ? "model" : "user";
+        const parts: Array<{
+          text?: string;
+          functionCall?: { name: string; args: Record<string, any> };
+          functionResponse?: { name: string; response: Record<string, any> };
+        }> = [];
+
+        // Add text content if present
+        if (msg.content) {
+          parts.push({ text: msg.content });
+        }
+
+        // Handle tool calls (from assistant)
+        if (msg.role === "assistant" && msg.toolCalls?.length) {
+          for (const toolCall of msg.toolCalls) {
+            let parsedArgs: Record<string, any> = {};
+            try {
+              parsedArgs = toolCall.function.arguments
+                ? JSON.parse(toolCall.function.arguments)
+                : {};
+            } catch {
+              parsedArgs = toolCall.function.arguments as any;
+            }
+
+            parts.push({
+              functionCall: {
+                name: toolCall.function.name,
+                args: parsedArgs,
+              },
+            });
+          }
+        }
+
+        // Handle tool results (from tool role)
+        if (msg.role === "tool" && msg.toolCallId) {
+          parts.push({
+            functionResponse: {
+              name: msg.toolCallId, // Gemini uses function name here
+              response: {
+                content: msg.content || "",
+              },
+            },
+          });
+        }
+
+        return {
+          role,
+          parts: parts.length > 0 ? parts : [{ text: "" }],
+        };
+      });
+  }
+
+  /**
+   * Maps common options to Gemini-specific format
+   * Handles translation of normalized options to Gemini's API format
+   */
+  /**
+   * Maps common options to Gemini-specific format
+   * Handles translation of normalized options to Gemini's API format
+   */
+  private mapCommonOptionsToGemini(
+    options: ChatCompletionOptions<string, GeminiProviderOptions>
+  ): InternalTextProviderOptions {
+    const providerOpts = options.providerOptions;
+
+    const generationConfig: InternalTextProviderOptions = {
+      ...providerOpts,
+      model: options.model as GeminiChatModels,
+      generationConfig: {
+        temperature: options.options?.temperature,
+        topP: options.options?.topP,
+        maxOutputTokens: options.options?.maxTokens,
+        ...providerOpts?.generationConfig,
+      },
+
+      systemInstruction: options.systemPrompts?.join("\n"),
+      contents: this.formatMessages(options.messages),
+    };
+
+    return {
+      ...generationConfig,
+      tools: options.tools
+        ? convertToolsToProviderFormat(options.tools)
+        : undefined,
+    };
+  }
 }
 
 /**
@@ -608,8 +659,8 @@ export function gemini(
     typeof globalThis !== "undefined" && (globalThis as any).window?.env
       ? (globalThis as any).window.env
       : typeof process !== "undefined"
-      ? process.env
-      : undefined;
+        ? process.env
+        : undefined;
   const key = env?.GOOGLE_API_KEY || env?.GEMINI_API_KEY;
 
   if (!key) {

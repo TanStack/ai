@@ -2,17 +2,9 @@ import { MessageParam, TextBlockParam, } from "@anthropic-ai/sdk/resources/messa
 import { AnthropicTool } from "../tools";
 import { BetaContextManagementConfig, BetaToolChoiceAny, BetaToolChoiceAuto, BetaToolChoiceTool } from "@anthropic-ai/sdk/resources/beta/messages/messages";
 
-export interface TextProviderOptions {
+export interface ExternalTextProviderOptions {
 
-  model: string;
 
-  messages: MessageParam[]
-
-  /**
-   * The maximum number of tokens to generate before stopping.  This parameter only specifies the absolute maximum number of tokens to generate.
-   * Range x >= 1.
-   */
-  max_tokens: number;
   /**
    * Container identifier for reuse across requests.
    * Container parameters with skills to be loaded.
@@ -60,23 +52,7 @@ Anthropic models will normally stop when they have naturally completed their tur
 If you want the model to stop generating when it encounters custom strings of text, you can use the stop_sequences parameter. If the model encounters one of the custom sequences, the response stop_reason value will be "stop_sequence" and the response stop_sequence value will contain the matched stop sequence.
    */
   stop_sequences?: string[];
-  /**
-   * Whether to incrementally stream the response using server-sent events.
-   */
-  stream?: boolean;
-  /**
-    * stem prompt.
- 
- A system prompt is a way of providing context and instructions to Claude, such as specifying a particular goal or role.
-    */
-  system?: string | TextBlockParam[]
-  /**
-      * Amount of randomness injected into the response.
-      * Either use this or top_p, but not both.
-      * Defaults to 1.0. Ranges from 0.0 to 1.0. Use temperature closer to 0.0 for analytical / multiple choice, and closer to 1.0 for creative and generative tasks.
-      * @default 1.0
-      */
-  temperature?: number;
+
   /**
      * Configuration for enabling Claude's extended thinking.
 
@@ -97,7 +73,6 @@ Must be ≥1024 and less than max_tokens
 
   tool_choice?: BetaToolChoiceAny | BetaToolChoiceTool | BetaToolChoiceAuto
 
-  tools?: AnthropicTool[]
   /**
    * Only sample from the top K options for each subsequent token.
 
@@ -107,6 +82,39 @@ Recommended for advanced use cases only. You usually only need to use temperatur
 Required range: x >= 0
    */
   top_k?: number;
+
+}
+export interface InternalTextProviderOptions extends ExternalTextProviderOptions {
+
+  model: string;
+
+  messages: MessageParam[]
+
+  /**
+   * The maximum number of tokens to generate before stopping.  This parameter only specifies the absolute maximum number of tokens to generate.
+   * Range x >= 1.
+   */
+  max_tokens: number;
+  /**
+   * Whether to incrementally stream the response using server-sent events.
+   */
+  stream?: boolean;
+  /**
+    * stem prompt.
+ 
+ A system prompt is a way of providing context and instructions to Claude, such as specifying a particular goal or role.
+    */
+  system?: string | TextBlockParam[]
+  /**
+      * Amount of randomness injected into the response.
+      * Either use this or top_p, but not both.
+      * Defaults to 1.0. Ranges from 0.0 to 1.0. Use temperature closer to 0.0 for analytical / multiple choice, and closer to 1.0 for creative and generative tasks.
+      * @default 1.0
+      */
+  temperature?: number;
+
+  tools?: AnthropicTool[]
+
   /**
    * Use nucleus sampling.
 
@@ -115,7 +123,7 @@ In nucleus sampling, we compute the cumulative distribution over all the options
   top_p?: number;
 }
 
-export const validateTopPandTemperature = (options: TextProviderOptions) => {
+export const validateTopPandTemperature = (options: InternalTextProviderOptions) => {
   if (options.top_p !== null && options.temperature !== undefined) {
     throw new Error("You should either set top_p or temperature, but not both.");
   }
@@ -126,7 +134,7 @@ export interface CacheControl {
   ttl: "5m" | "1h"
 }
 
-export const validateThinking = (options: TextProviderOptions) => {
+export const validateThinking = (options: InternalTextProviderOptions) => {
   const thinking = options.thinking;
   if (thinking && thinking.type === "enabled") {
     if (thinking.budget_tokens < 1024) {
@@ -248,7 +256,7 @@ interface MCPServer {
 
 
 
-export const validateMaxTokens = (options: TextProviderOptions) => {
+export const validateMaxTokens = (options: InternalTextProviderOptions) => {
   if (options.max_tokens < 1) {
     throw new Error("max_tokens must be at least 1.");
   }
