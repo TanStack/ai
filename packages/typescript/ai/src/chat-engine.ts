@@ -176,7 +176,7 @@ export class ChatEngine<
       model: this.params.model as string,
       messages: this.messages,
       tools,
-      ...adapterOptions,
+      options: adapterOptions,
       request: this.effectiveRequest,
       providerOptions,
     })) {
@@ -265,7 +265,7 @@ export class ChatEngine<
       });
       return;
     }
-    
+
     this.doneChunk = chunk;
     this.lastFinishReason = chunk.finishReason;
     this.events.streamChunkDone({
@@ -445,6 +445,7 @@ export class ChatEngine<
     const clientToolResults = new Map<string, any>();
 
     for (const message of this.messages) {
+      // todo remove any and fix this
       if (message.role === "assistant" && (message as any).parts) {
         const parts = (message as any).parts;
         for (const part of parts) {
