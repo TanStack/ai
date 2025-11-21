@@ -13,6 +13,12 @@ config({ path: ".env" });
 
 const OUTPUT_DIR = join(process.cwd(), "output");
 
+const ANTHROPIC_MODEL =
+  process.env.ANTHROPIC_MODEL || "claude-3-5-haiku-20241022";
+const OPENAI_MODEL = process.env.OPENAI_MODEL || "gpt-4o-mini";
+const GEMINI_MODEL = process.env.GEMINI_MODEL || "gemini-2.5-flash";
+const OLLAMA_MODEL = process.env.OLLAMA_MODEL || "granite4:3b";
+
 async function ensureOutputDir() {
   try {
     await mkdir(OUTPUT_DIR, { recursive: true });
@@ -459,7 +465,7 @@ async function runTests(filterAdapter?: string) {
     const anthropicApiKey = process.env.ANTHROPIC_API_KEY;
     if (anthropicApiKey) {
       const adapter = createAnthropic(anthropicApiKey);
-      const model = "claude-3-5-haiku-20241022";
+      const model = ANTHROPIC_MODEL;
 
       const test1 = await testCapitalOfFrance("Anthropic", adapter, model);
       const test2 = await testTemperatureTool("Anthropic", adapter, model);
@@ -474,7 +480,7 @@ async function runTests(filterAdapter?: string) {
     const openaiApiKey = process.env.OPENAI_API_KEY;
     if (openaiApiKey) {
       const adapter = createOpenAI(openaiApiKey);
-      const model = "gpt-4o-mini";
+      const model = OPENAI_MODEL;
 
       const test1 = await testCapitalOfFrance("OpenAI", adapter, model);
       const test2 = await testTemperatureTool("OpenAI", adapter, model);
@@ -486,10 +492,11 @@ async function runTests(filterAdapter?: string) {
 
   // Gemini
   if (shouldTestAdapter("Gemini", filterAdapter)) {
-    const geminiApiKey = process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY;
+    const geminiApiKey =
+      process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY;
     if (geminiApiKey) {
       const adapter = createGemini(geminiApiKey);
-      const model = "gemini-2.5-flash";
+      const model = GEMINI_MODEL;
 
       const test1 = await testCapitalOfFrance("Gemini", adapter, model);
       const test2 = await testTemperatureTool("Gemini", adapter, model);
@@ -503,10 +510,9 @@ async function runTests(filterAdapter?: string) {
 
   // Ollama
   if (shouldTestAdapter("Ollama", filterAdapter)) {
-    const ollamaModel = process.env.OLLAMA_MODEL || "granite4:3b";
     const adapter = ollama();
-    const test1 = await testCapitalOfFrance("Ollama", adapter, ollamaModel);
-    const test2 = await testTemperatureTool("Ollama", adapter, ollamaModel);
+    const test1 = await testCapitalOfFrance("Ollama", adapter, OLLAMA_MODEL);
+    const test2 = await testTemperatureTool("Ollama", adapter, OLLAMA_MODEL);
     results.push({ adapter: "Ollama", test1, test2 });
   }
 
