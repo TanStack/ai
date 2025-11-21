@@ -14,15 +14,12 @@ import type {
   TextToSpeechResult,
   VideoGenerationOptions,
   VideoGenerationResult,
-  Tool,
   ResponseFormat,
-  ModelMessage,
   ChatCompletionOptions,
 } from "./types";
-import { ToolCallManager } from "./tool-call-manager";
-import { executeToolCalls } from "./agent/executor";
-import { maxIterations as maxIterationsStrategy } from "./agent-loop-strategies";
 import { AIEventEmitter, DefaultAIEventEmitter } from "./events.js";
+import { ChatEngine } from "./chat-engine";
+import { prependSystemPrompts } from "./utils";
 
 // Extract types from a single adapter
 type ExtractModels<T> = T extends AIAdapter<
@@ -200,334 +197,16 @@ class AI<
       ExtractChatProviderOptions<TAdapter>
     >
   ): AsyncIterable<StreamChunk> {
-    const {
-      model,
-      messages: inputMessages,
-      tools,
-      systemPrompts,
-      agentLoopStrategy,
-      options = {},
-      providerOptions,
-      abortController,
-    } = params;
-
-    // Adapters call this the request controller and signal
-    const effectiveRequest = abortController
-      ? { signal: abortController.signal }
-      : undefined;
-    const effectiveSignal = abortController?.signal;
-
-    const requestId = `chat-${Date.now()}-${Math.random()
-      .toString(36)
-      .substring(7)}`;
-    const streamId = `stream-${Date.now()}-${Math.random()
-      .toString(36)
-      .substring(7)}`;
-
-    // Emit chat started event
-    this.events.chatStarted({
-      requestId,
-      model: model as string,
-      messageCount: inputMessages.length,
-      hasTools: !!tools && tools.length > 0,
-      streaming: true,
+    const engine = new ChatEngine({
+      adapter: this.adapter,
+      events: this.events,
+      systemPrompts: this.systemPrompts,
+      params,
     });
 
-    const shouldContinueLoop = agentLoopStrategy || maxIterationsStrategy(5);
-
-    // Prepend system prompts to messages
-    let messages = this.prependSystemPrompts(inputMessages, systemPrompts);
-
-    let iterationCount = 0;
-    const toolCallManager = new ToolCallManager(tools || []);
-    let lastFinishReason: string | null = null;
-    const streamStartTime = Date.now();
-    let totalChunkCount = 0; // Track total chunks across all iterations
-
-    // Emit stream started event
-    this.events.streamStarted({
-      streamId,
-      model,
-      provider: this.adapter.name,
-    });
-
-    do {
-      // Check if aborted before starting iteration
-      if (effectiveSignal?.aborted) {
-        break;
-      }
-
-      let accumulatedContent = "";
-      let doneChunk = null;
-      let chunkCount = 0;
-
-      // Generate a unique messageId for this response/chunk group
-      const messageId = `msg-${Date.now()}-${Math.random()
-        .toString(36)
-        .substring(2, 11)}`;
-
-      // Stream the current iteration, passing abortSignal
-      for await (const chunk of this.adapter.chatStream({
-        model: model as string,
-        messages,
-        tools: tools as Tool[] | undefined,
-        ...options,
-        request: effectiveRequest,
-        providerOptions: providerOptions as any,
-      })) {
-        // Check if aborted during iteration
-        if (effectiveSignal?.aborted) {
-          break;
-        }
-        chunkCount++;
-        totalChunkCount++; // Increment total as well
-        // Forward all chunks to the caller
-        yield chunk;
-
-        // Emit granular chunk events
-        if (chunk.type === "content") {
-          accumulatedContent = chunk.content;
-          this.events.streamChunkContent({
-            streamId,
-            messageId,
-            content: chunk.content,
-            delta: chunk.delta,
-          });
-
-          // Emit content event
-        }
-
-        // Track tool calls
-        if (chunk.type === "tool_call") {
-          toolCallManager.addToolCallChunk(chunk);
-          this.events.streamChunkToolCall({
-            streamId,
-            messageId,
-            toolCallId: chunk.toolCall.id,
-            toolName: chunk.toolCall.function.name,
-            index: chunk.index,
-            arguments: chunk.toolCall.function.arguments,
-          });
-        }
-
-        // Track tool results
-        if (chunk.type === "tool_result") {
-          this.events.streamChunkToolResult({
-            streamId,
-            messageId,
-            toolCallId: chunk.toolCallId,
-            result: chunk.content,
-          });
-
-          // Emit tool result event
-        }
-
-        // Track done chunk
-        if (chunk.type === "done") {
-          doneChunk = chunk;
-          lastFinishReason = chunk.finishReason;
-          this.events.streamChunkDone({
-            streamId,
-            messageId,
-            finishReason: chunk.finishReason,
-            usage: chunk.usage,
-          });
-
-          // Emit done event
-        }
-
-        // Forward errors
-        if (chunk.type === "error") {
-          this.events.streamChunkError({
-            streamId,
-            messageId,
-            error: chunk.error.message,
-          });
-
-          // Emit error event
-          return; // Stop on error
-        }
-      }
-
-      // Check if aborted before tool execution
-      if (effectiveSignal?.aborted) {
-        break;
-      }
-
-      // Check if we need to execute tools
-      if (
-        doneChunk?.finishReason === "tool_calls" &&
-        tools &&
-        tools.length > 0 &&
-        toolCallManager.hasToolCalls()
-      ) {
-        const toolCallsArray = toolCallManager.getToolCalls();
-
-        // Emit iteration event
-        this.events.chatIteration({
-          requestId,
-          iterationNumber: iterationCount + 1,
-          messageCount: messages.length,
-          toolCallCount: toolCallsArray.length,
-        });
-
-        // Add assistant message with tool calls
-        messages = [
-          ...messages,
-          {
-            role: "assistant",
-            content: accumulatedContent || null,
-            toolCalls: toolCallsArray,
-          },
-        ];
-
-        // Extract approvals and client tool results from messages
-        const approvals = new Map<string, boolean>();
-        const clientToolResults = new Map<string, any>();
-
-        // Look for approval responses and client tool outputs in assistant messages
-        for (const msg of messages) {
-          if (msg.role === "assistant" && (msg as any).parts) {
-            const parts = (msg as any).parts;
-            for (const part of parts) {
-              // Handle approval responses
-              if (
-                part.type === "tool-call" &&
-                part.state === "approval-responded" &&
-                part.approval
-              ) {
-                approvals.set(part.approval.id, part.approval.approved);
-              }
-
-              // Handle client tool outputs
-              if (
-                part.type === "tool-call" &&
-                part.output !== undefined &&
-                !part.approval
-              ) {
-                clientToolResults.set(part.id, part.output);
-              }
-            }
-          }
-        }
-
-        // Execute tools using new executor
-        const executionResult = await executeToolCalls(
-          toolCallsArray,
-          tools,
-          approvals,
-          clientToolResults
-        );
-
-        // Check if we need approvals or client execution
-        if (
-          executionResult.needsApproval.length > 0 ||
-          executionResult.needsClientExecution.length > 0
-        ) {
-          // Emit special chunks for client
-          for (const approval of executionResult.needsApproval) {
-            this.events.streamApprovalRequested({
-              streamId,
-              messageId,
-              toolCallId: approval.toolCallId,
-              toolName: approval.toolName,
-              input: approval.input,
-              approvalId: approval.approvalId,
-            });
-
-            yield {
-              type: "approval-requested",
-              id: doneChunk.id,
-              model: doneChunk.model,
-              timestamp: Date.now(),
-              toolCallId: approval.toolCallId,
-              toolName: approval.toolName,
-              input: approval.input,
-              approval: {
-                id: approval.approvalId,
-                needsApproval: true as const,
-              },
-            };
-          }
-
-          for (const clientTool of executionResult.needsClientExecution) {
-            this.events.streamToolInputAvailable({
-              streamId,
-              toolCallId: clientTool.toolCallId,
-              toolName: clientTool.toolName,
-              input: clientTool.input,
-            });
-
-            yield {
-              type: "tool-input-available",
-              id: doneChunk.id,
-              model: doneChunk.model,
-              timestamp: Date.now(),
-              toolCallId: clientTool.toolCallId,
-              toolName: clientTool.toolName,
-              input: clientTool.input,
-            };
-          }
-
-          // STOP the loop - wait for client to respond
-          return;
-        }
-
-        // Execute completed tools - emit tool_result chunks
-        for (const result of executionResult.results) {
-          this.events.toolCallCompleted({
-            streamId,
-            toolCallId: result.toolCallId,
-            toolName: result.toolCallId, // We'd need to track this better
-            result: result.result,
-            duration: 0, // We'd need to track execution time
-          });
-
-          const resultChunk = {
-            type: "tool_result" as const,
-            id: doneChunk.id,
-            model: doneChunk.model,
-            timestamp: Date.now(),
-            toolCallId: result.toolCallId,
-            content: JSON.stringify(result.result),
-          };
-
-          yield resultChunk;
-
-          // Add to messages
-          messages = [
-            ...messages,
-            {
-              role: "tool" as const,
-              content: resultChunk.content,
-              toolCallId: result.toolCallId,
-            },
-          ];
-        }
-
-        // Clear tool calls for next iteration
-        toolCallManager.clear();
-
-        iterationCount++;
-        // Continue to next iteration (checked by while condition)
-      } else {
-        // Not tool_calls or no tools to execute, we're done
-        break;
-      }
-    } while (
-      shouldContinueLoop({
-        iterationCount,
-        messages,
-        finishReason: lastFinishReason,
-      })
-    );
-
-    // Emit stream ended event
-    this.events.streamEnded({
-      streamId,
-      totalChunks: totalChunkCount,
-      duration: Date.now() - streamStartTime,
-    });
+    for await (const chunk of engine.chat()) {
+      yield chunk;
+    }
   }
 
   /**
@@ -594,7 +273,11 @@ class AI<
     const output = params.output;
 
     // Prepend system prompts to messages
-    const messages = this.prependSystemPrompts(inputMessages, systemPrompts);
+    const messages = prependSystemPrompts(
+      inputMessages,
+      systemPrompts,
+      this.systemPrompts
+    );
 
     const result = await this.adapter.chatCompletion({
       model: model,
@@ -761,25 +444,6 @@ class AI<
       model: model as string,
       providerOptions: providerOptions as any,
     });
-  }
-
-  // Private helper methods
-
-  private prependSystemPrompts(
-    messages: ModelMessage[],
-    systemPrompts?: string[]
-  ): ModelMessage[] {
-    const prompts = systemPrompts || this.systemPrompts;
-    if (!prompts || prompts.length === 0) {
-      return messages;
-    }
-
-    const systemMessages = prompts.map((content) => ({
-      role: "system" as const,
-      content,
-    }));
-
-    return [...systemMessages, ...messages];
   }
 }
 

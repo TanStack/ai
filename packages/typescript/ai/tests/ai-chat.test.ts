@@ -1,7 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { ai, AI } from "../src/ai";
+import { ai } from "../src/ai";
 import type {
-  AIAdapter,
   ChatCompletionOptions,
   StreamChunk,
   Tool,
@@ -51,11 +50,12 @@ class MockAdapter extends BaseAdapter<
     model: string;
     messages: ModelMessage[];
     tools?: Tool[];
-    request?: { signal?: AbortSignal };
+    request?: ChatCompletionOptions["request"];
     providerOptions?: any;
   }> = [];
 
   name = "mock";
+  models = ["test-model"] as const;
 
   // Helper method for consistent tracking when subclasses override chatStream
   protected trackStreamCall(options: ChatCompletionOptions): void {
@@ -92,7 +92,7 @@ class MockAdapter extends BaseAdapter<
     };
   }
 
-  async chatCompletion(options: ChatCompletionOptions): Promise<any> {
+  async chatCompletion(_options: ChatCompletionOptions): Promise<any> {
     this.chatCompletionCallCount++;
     return {
       id: "test-id",
@@ -107,11 +107,11 @@ class MockAdapter extends BaseAdapter<
     };
   }
 
-  async summarize(options: any): Promise<any> {
+  async summarize(_options: any): Promise<any> {
     return { summary: "test" };
   }
 
-  async createEmbeddings(options: any): Promise<any> {
+  async createEmbeddings(_options: any): Promise<any> {
     return { embeddings: [] };
   }
 }
@@ -903,7 +903,7 @@ describe("AI.chat() - Comprehensive Logic Path Coverage", () => {
       const adapter = new IncompleteToolAdapter();
       const aiInstance = ai(adapter);
 
-      const chunks = await collectChunks(
+      await collectChunks(
         aiInstance.chat({
           model: "test-model",
           messages: [{ role: "user", content: "Test" }],

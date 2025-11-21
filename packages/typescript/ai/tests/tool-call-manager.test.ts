@@ -23,6 +23,22 @@ describe("ToolCallManager", () => {
     }),
   };
 
+  async function collectGeneratorOutput<
+    TChunk,
+    TResult
+  >(generator: AsyncGenerator<TChunk, TResult, void>): Promise<{
+    chunks: TChunk[];
+    result: TResult;
+  }> {
+    const chunks: TChunk[] = [];
+    let next = await generator.next();
+    while (!next.done) {
+      chunks.push(next.value);
+      next = await generator.next();
+    }
+    return { chunks, result: next.value };
+  }
+
   it("should accumulate tool call chunks", () => {
     const manager = new ToolCallManager([mockWeatherTool]);
 
@@ -91,44 +107,8 @@ describe("ToolCallManager", () => {
       index: 0,
     });
 
-    const chunks = [];
-    let toolResults: any = null;
-
-    // Consume the generator properly
-    const generator = manager.executeTools(mockDoneChunk);
-    for await (const chunk of generator) {
-      chunks.push(chunk);
-    }
-
-    // The generator returns the tool results after yielding all chunks
-    // We need to use a different approach - collect during iteration
-    const generator2 = manager.executeTools(mockDoneChunk);
-    const allChunks = [];
-    let result;
-    
-    // Iterate through all chunks
-    for await (const chunk of generator2) {
-      allChunks.push(chunk);
-    }
-    
-    // After the loop, the return value should be accessible
-    // But we need to call next() one more time to get the return value
-    // Actually, let's use a different approach - use the delegate pattern
-    async function* consumeGenerator() {
-      const results = yield* manager.executeTools(mockDoneChunk);
-      return results;
-    }
-    
-    const gen = consumeGenerator();
-    const emittedChunks = [];
-    let finalResult;
-    
-    let next = await gen.next();
-    while (!next.done) {
-      emittedChunks.push(next.value);
-      next = await gen.next();
-    }
-    finalResult = next.value;
+    const { chunks: emittedChunks, result: finalResult } =
+      await collectGeneratorOutput(manager.executeTools(mockDoneChunk));
 
     // Should emit one tool_result chunk
     expect(emittedChunks).toHaveLength(1);
@@ -170,19 +150,9 @@ describe("ToolCallManager", () => {
     });
 
     // Properly consume the generator
-    async function* consumeGenerator() {
-      const results = yield* manager.executeTools(mockDoneChunk);
-      return results;
-    }
-    
-    const gen = consumeGenerator();
-    const chunks = [];
-    let next = await gen.next();
-    while (!next.done) {
-      chunks.push(next.value);
-      next = await gen.next();
-    }
-    const toolResults = next.value;
+    const { chunks, result: toolResults } = await collectGeneratorOutput(
+      manager.executeTools(mockDoneChunk)
+    );
 
     // Should still emit chunk with error message
     expect(chunks).toHaveLength(1);
@@ -215,20 +185,9 @@ describe("ToolCallManager", () => {
       index: 0,
     });
 
-    // Properly consume the generator
-    async function* consumeGenerator() {
-      const results = yield* manager.executeTools(mockDoneChunk);
-      return results;
-    }
-    
-    const gen = consumeGenerator();
-    const chunks = [];
-    let next = await gen.next();
-    while (!next.done) {
-      chunks.push(next.value);
-      next = await gen.next();
-    }
-    const toolResults = next.value;
+    const { chunks, result: toolResults } = await collectGeneratorOutput(
+      manager.executeTools(mockDoneChunk)
+    );
 
     expect(chunks[0].content).toContain("does not have an execute function");
     expect(toolResults[0].content).toContain(
@@ -293,20 +252,9 @@ describe("ToolCallManager", () => {
     const toolCalls = manager.getToolCalls();
     expect(toolCalls).toHaveLength(2);
 
-    // Properly consume the generator
-    async function* consumeGenerator() {
-      const results = yield* manager.executeTools(mockDoneChunk);
-      return results;
-    }
-    
-    const gen = consumeGenerator();
-    const chunks = [];
-    let next = await gen.next();
-    while (!next.done) {
-      chunks.push(next.value);
-      next = await gen.next();
-    }
-    const toolResults = next.value;
+    const { chunks, result: toolResults } = await collectGeneratorOutput(
+      manager.executeTools(mockDoneChunk)
+    );
 
     // Should emit two tool_result chunks
     expect(chunks).toHaveLength(2);
@@ -319,4 +267,3 @@ describe("ToolCallManager", () => {
     expect(toolResults[1].toolCallId).toBe("call_calc");
   });
 });
-
