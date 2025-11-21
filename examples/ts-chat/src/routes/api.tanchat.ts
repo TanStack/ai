@@ -1,9 +1,9 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { ai, toStreamResponse, maxIterations } from "@tanstack/ai";
-// import { openai } from "@tanstack/ai-openai";
+import { openai } from "@tanstack/ai-openai";
 // import { ollama } from "@tanstack/ai-ollama";
 // import { anthropic } from "@tanstack/ai-anthropic";
-import { gemini } from "@tanstack/ai-gemini";
+// import { gemini } from "@tanstack/ai-gemini";
 import { allTools } from "@/lib/guitar-tools";
 
 const SYSTEM_PROMPT = `You are a helpful assistant for a guitar store.
@@ -35,16 +35,13 @@ export const Route = createFileRoute("/api/tanchat")({
       POST: async ({ request }) => {
         // Create AI instance with OpenAI adapter
         // const aiInstance = ai(ollama());
-        // const aiInstance = ai(openai());
+        const aiInstance = ai(openai());
         // const aiInstance = ai(anthropic());
-        const aiInstance = ai(gemini());
-        aiInstance.chat({
-          model: "gemini-3-pro-preview",
-          messages: [],
-          providerOptions: {
-
-          }
-        })
+        //const aiInstance = ai(gemini());
+        //aiInstance.chat({
+        //  model: "gpt-5",
+        //  messages: [],
+        //})
         // Check for API key
         if (!process.env.OPENAI_API_KEY) {
           return new Response(
@@ -75,10 +72,10 @@ export const Route = createFileRoute("/api/tanchat")({
           // Use the stream abort signal for proper cancellation handling
           const stream = aiInstance.chat({
             messages,
-            // model: "gpt-4o",
+            model: "gpt-4o",
             // model: "claude-sonnet-4-5-20250929",
             // model: "smollm",
-            model: "gemini-2.5-flash",
+            // model: "gemini-2.5-flash",
             tools: allTools,
             systemPrompts: [SYSTEM_PROMPT],
             agentLoopStrategy: maxIterations(20),

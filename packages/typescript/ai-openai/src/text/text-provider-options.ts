@@ -18,7 +18,7 @@ import OpenAI from "openai";
  * Options your SDK forwards to OpenAI when doing chat/responses.
  * Tip: gate these by model capability in your SDK, not just by presence.
  */
-export type TextProviderOptions = {
+export type ExternalTextProviderOptions = {
   /**
 
 Whether to run the model response in the background. Learn more here:
@@ -46,20 +46,7 @@ https://platform.openai.com/docs/api-reference/responses/create#responses_create
   */
   include?: OpenAI.Responses.ResponseIncludable[];
 
-  input: string | OpenAI.Responses.ResponseInput
-  /**
-   * A system (or developer) message inserted into the model's context.
 
-When using along with previous_response_id, the instructions from a previous response will not be carried over to the next response. This makes it simple to swap out system (or developer) messages in new responses.
-https://platform.openai.com/docs/api-reference/responses/create#responses_create-instructions
-   */
-  instructions?: string;
-  /**
-  * An upper bound for the number of tokens that can be generated for a response, including visible output tokens and reasoning tokens.
-  * (Responses API name: max_output_tokens)
-  * https://platform.openai.com/docs/api-reference/responses/create#responses_create-max_output_tokens
-  */
-  max_output_tokens?: number;
   /**
    * The maximum number of total calls to built-in tools that can be processed in a response. This maximum number applies across all built-in tool calls, not per individual tool. Any further attempts to call a tool by the model will be ignored.
    * https://platform.openai.com/docs/api-reference/responses/create#responses_create-max_tool_calls
@@ -73,11 +60,7 @@ Keys are strings with a maximum length of 64 characters. Values are strings with
 https://platform.openai.com/docs/api-reference/responses/create#responses_create-metadata
    */
   metadata?: Record<string, string>;
-  /**
-    * The model name (e.g. "gpt-4o", "gpt-5", "gpt-4.1-mini", etc).
-    * https://platform.openai.com/docs/api-reference/responses/create#responses_create-model
-  */
-  model: string;
+
   /**
    * https://platform.openai.com/docs/api-reference/responses/create#responses_create-parallel_tool_calls
   * Whether to allow the model to run tool calls in parallel.
@@ -166,12 +149,7 @@ https://platform.openai.com/docs/api-reference/responses/create#responses_create
      * @default true
      */
   store?: boolean;
-  /**
-   * If set to true, the model response data will be streamed to the client as it is generated using server-sent events. 
-   * https://platform.openai.com/docs/api-reference/responses/create#responses_create-stream
-   * @default false
-   */
-  stream?: boolean;
+
   /**
    * Options for streaming responses. Only set this when you set stream: true
    */
@@ -182,11 +160,7 @@ https://platform.openai.com/docs/api-reference/responses/create#responses_create
     include_obfuscation?: boolean;
   };
 
-  /**
-   *  What sampling temperature to use, between 0 and 2. Higher values like 0.8 will make the output more random, while lower values like 0.2 will make it more focused and deterministic. We generally recommend altering this or top_p but not both.
-   * https://platform.openai.com/docs/api-reference/responses/create#responses_create-temperature
-   */
-  temperature?: number;
+
 
   /**
    * Configuration options for a text response from the model. Can be plain text or structured JSON data. Learn more:
@@ -203,11 +177,7 @@ https://platform.openai.com/docs/api-reference/responses/create#responses_create
    * https://platform.openai.com/docs/api-reference/responses/create#responses_create-top_logprobs
    */
   top_logprobs?: number;
-  /**
-   * An alternative to sampling with temperature, called nucleus sampling, where the model considers the results of the tokens with top_p probability mass. So 0.1 means only the tokens comprising the top 10% probability mass are considered.
-   * https://platform.openai.com/docs/api-reference/responses/create#responses_create-top_p
-   */
-  top_p?: number;
+
   /**
    * The truncation strategy to use for the model response.
   
@@ -215,16 +185,7 @@ https://platform.openai.com/docs/api-reference/responses/create#responses_create
   disabled (default): If the input size will exceed the context window size for a model, the request will fail with a 400 error.
    */
   truncation?: "auto" | "disabled";
-  /**
-       * Tools the model may call (functions, web_search, etc).
-       * Function tool example:
-       *   { type: "function", function: { name, description?, parameters: JSONSchema } }
-       * https://platform.openai.com/docs/guides/tools/tool-choice
-       * https://platform.openai.com/docs/guides/tools-web-search
-       */
-  tools?: Array<
-    FunctionTool | FileSearchTool | ComputerUseTool | WebSearchTool | MCPTool | CodeInterpreterTool | ImageGenerationTool | ShellTool | LocalShellTool | CustomTool | WebSearchPreviewTool | ApplyPatchTool
-  >;
+
 
   /**
   * Function/tool calling configuration. Supply tool schemas in `tools`
@@ -242,8 +203,67 @@ https://platform.openai.com/docs/api-reference/responses/create#responses_create
 }
 
 
+/**
+ * Options your SDK forwards to OpenAI when doing chat/responses.
+ * Tip: gate these by model capability in your SDK, not just by presence.
+ */
+export interface InternalTextProviderOptions extends ExternalTextProviderOptions {
+
+
+  input: string | OpenAI.Responses.ResponseInput
+  /**
+   * A system (or developer) message inserted into the model's context.
+
+When using along with previous_response_id, the instructions from a previous response will not be carried over to the next response. This makes it simple to swap out system (or developer) messages in new responses.
+https://platform.openai.com/docs/api-reference/responses/create#responses_create-instructions
+   */
+  instructions?: string;
+  /**
+  * An upper bound for the number of tokens that can be generated for a response, including visible output tokens and reasoning tokens.
+  * (Responses API name: max_output_tokens)
+  * https://platform.openai.com/docs/api-reference/responses/create#responses_create-max_output_tokens
+  */
+  max_output_tokens?: number;
+
+  /**
+    * The model name (e.g. "gpt-4o", "gpt-5", "gpt-4.1-mini", etc).
+    * https://platform.openai.com/docs/api-reference/responses/create#responses_create-model
+  */
+  model: string;
+
+  /**
+   * If set to true, the model response data will be streamed to the client as it is generated using server-sent events. 
+   * https://platform.openai.com/docs/api-reference/responses/create#responses_create-stream
+   * @default false
+   */
+  stream?: boolean;
+
+  /**
+   *  What sampling temperature to use, between 0 and 2. Higher values like 0.8 will make the output more random, while lower values like 0.2 will make it more focused and deterministic. We generally recommend altering this or top_p but not both.
+   * https://platform.openai.com/docs/api-reference/responses/create#responses_create-temperature
+   */
+  temperature?: number;
+  /**
+   * An alternative to sampling with temperature, called nucleus sampling, where the model considers the results of the tokens with top_p probability mass. So 0.1 means only the tokens comprising the top 10% probability mass are considered.
+   * https://platform.openai.com/docs/api-reference/responses/create#responses_create-top_p
+   */
+  top_p?: number;
+  /**
+       * Tools the model may call (functions, web_search, etc).
+       * Function tool example:
+       *   { type: "function", function: { name, description?, parameters: JSONSchema } }
+       * https://platform.openai.com/docs/guides/tools/tool-choice
+       * https://platform.openai.com/docs/guides/tools-web-search
+       */
+  tools?: Array<
+    FunctionTool | FileSearchTool | ComputerUseTool | WebSearchTool | MCPTool | CodeInterpreterTool | ImageGenerationTool | ShellTool | LocalShellTool | CustomTool | WebSearchPreviewTool | ApplyPatchTool
+  >;
+
+}
+
+
 export const validateConversationAndPreviousResponseId = (
-  options: TextProviderOptions
+  options: InternalTextProviderOptions
 ) => {
   if (options.conversation && options.previous_response_id) {
     throw new Error(
@@ -252,7 +272,7 @@ export const validateConversationAndPreviousResponseId = (
   }
 };
 
-export const validateMetadata = (options: TextProviderOptions) => {
+export const validateMetadata = (options: InternalTextProviderOptions) => {
   const metadata = options.metadata;
   const tooManyKeys = metadata && Object.keys(metadata).length > 16;
   if (tooManyKeys) {
