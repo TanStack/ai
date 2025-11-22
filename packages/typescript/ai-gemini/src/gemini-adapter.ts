@@ -18,7 +18,7 @@ import {
   GEMINI_AUDIO_MODELS,
   GEMINI_VIDEO_MODELS,
 } from "./model-meta";
-import { ExternalTextProviderOptions, } from "./text/text-provider-options";
+import { ExternalTextProviderOptions } from "./text/text-provider-options";
 import { convertToolsToProviderFormat } from "./tools/tool-converter";
 
 export interface GeminiAdapterConfig extends AIAdapterConfig {
@@ -60,15 +60,51 @@ export class GeminiAdapter extends BaseAdapter<
     });
   }
 
-  async chatCompletion(options: ChatCompletionOptions<string, GeminiProviderOptions>): Promise<ChatCompletionResult> {
+  async chatCompletion(
+    options: ChatCompletionOptions<string, GeminiProviderOptions>
+  ): Promise<ChatCompletionResult> {
     const mappedOptions = this.mapCommonOptionsToGemini(options);
 
-    const response = await this.client.models.generateContent(mappedOptions);
+    // Use the same API as streaming version for consistency
+    const result = await this.client.models.generateContent(mappedOptions);
+
+    // The result might have a .response property that needs to be awaited
+    // Or it might be the response directly
+    let response: any;
+    if (result.response && typeof result.response.then === "function") {
+      response = await result.response;
+    } else if (result.candidates) {
+      // Response is directly in result
+      response = result;
+    } else {
+      // Try to get response from result
+      response = (result as any).response || result;
+    }
+
+    // Extract text content from candidates[0].content.parts (same as streaming version)
+    let content = "";
+    if (response.candidates?.[0]?.content?.parts) {
+      const parts = response.candidates[0].content.parts;
+      for (const part of parts) {
+        if (part.text) {
+          content += part.text;
+        }
+      }
+    }
+
+    // Fallback to .text() if candidates extraction didn't work and response has .text() method
+    if (!content && typeof response.text === "function") {
+      try {
+        content = response.text() || "";
+      } catch {
+        // If .text() also fails, content remains empty
+      }
+    }
 
     return {
       id: this.generateId(),
       model: options.model,
-      content: response.data ?? "",
+      content: content || null,
       role: "assistant",
       finishReason: (response.candidates?.[0]?.finishReason as any) || "stop",
       usage: {
@@ -79,11 +115,15 @@ export class GeminiAdapter extends BaseAdapter<
     };
   }
 
-  async *chatStream(options: ChatCompletionOptions<string, GeminiProviderOptions>): AsyncIterable<StreamChunk> {
+  async *chatStream(
+    options: ChatCompletionOptions<string, GeminiProviderOptions>
+  ): AsyncIterable<StreamChunk> {
     // Map common options to Gemini format
     const mappedOptions = this.mapCommonOptionsToGemini(options);
 
-    const result = await this.client.models.generateContentStream(mappedOptions);
+    const result = await this.client.models.generateContentStream(
+      mappedOptions
+    );
 
     yield* this.processStreamChunks(result, options.model);
   }
@@ -91,17 +131,46 @@ export class GeminiAdapter extends BaseAdapter<
   async summarize(options: SummarizationOptions): Promise<SummarizationResult> {
     const prompt = this.buildSummarizationPrompt(options, options.text);
 
-    const model = (this.client as any).getGenerativeModel({
+    // Use models API like chatCompletion
+    const result = await this.client.models.generateContent({
       model: options.model || "gemini-pro",
-      generationConfig: {
-        temperature: 0.3,
-        maxOutputTokens: options.maxLength || 500,
+      contents: [{ role: "user", parts: [{ text: prompt }] }],
+      config: {
+        generationConfig: {
+          temperature: 0.3,
+          maxOutputTokens: options.maxLength || 500,
+        },
       },
     });
 
-    const result = await model.generateContent(prompt);
-    const response = await result.response;
-    const summary = response.text();
+    // Handle response structure (might have .response property or be direct)
+    let response: any;
+    if (result.response && typeof result.response.then === "function") {
+      response = await result.response;
+    } else if (result.candidates) {
+      response = result;
+    } else {
+      response = (result as any).response || result;
+    }
+
+    // Extract text from candidates or use .text() method
+    let summary = "";
+    if (response.candidates?.[0]?.content?.parts) {
+      const parts = response.candidates[0].content.parts;
+      for (const part of parts) {
+        if (part.text) {
+          summary += part.text;
+        }
+      }
+    }
+    
+    if (!summary && typeof response.text === "function") {
+      try {
+        summary = response.text() || "";
+      } catch {
+        // If .text() fails, summary remains empty
+      }
+    }
 
     const promptTokens = this.estimateTokens(prompt);
     const completionTokens = this.estimateTokens(summary);
@@ -119,23 +188,37 @@ export class GeminiAdapter extends BaseAdapter<
   }
 
   async createEmbeddings(options: EmbeddingOptions): Promise<EmbeddingResult> {
-    const inputs = Array.isArray(options.input) ? options.input : [options.input];
-    const embeddings: number[][] = [];
+    const inputs = Array.isArray(options.input)
+      ? options.input
+      : [options.input];
 
-    const model = (this.client as any).getGenerativeModel({
-      model: options.model || "embedding-001",
+    // According to docs: contents can be a string or array of strings
+    // Response has embeddings (plural) array with values property
+    const result = await this.client.models.embedContent({
+      model: options.model || "gemini-embedding-001",
+      contents: inputs,
     });
-
-    for (const input of inputs) {
-      const result = await model.embedContent(input);
-      embeddings.push(result.embedding.values);
+    
+    // Extract embeddings from result.embeddings array
+    const embeddings: number[][] = [];
+    if (result.embeddings && Array.isArray(result.embeddings)) {
+      for (const embedding of result.embeddings) {
+        if (embedding.values && Array.isArray(embedding.values)) {
+          embeddings.push(embedding.values);
+        } else if (Array.isArray(embedding)) {
+          embeddings.push(embedding);
+        }
+      }
     }
 
-    const promptTokens = inputs.reduce((sum, input) => sum + this.estimateTokens(input), 0);
+    const promptTokens = inputs.reduce(
+      (sum, input) => sum + this.estimateTokens(input),
+      0
+    );
 
     return {
       id: this.generateId(),
-      model: options.model || "embedding-001",
+      model: options.model || "gemini-embedding-001",
       embeddings,
       usage: {
         promptTokens,
@@ -144,7 +227,10 @@ export class GeminiAdapter extends BaseAdapter<
     };
   }
 
-  private buildSummarizationPrompt(options: SummarizationOptions, text: string): string {
+  private buildSummarizationPrompt(
+    options: SummarizationOptions,
+    text: string
+  ): string {
     let prompt = "You are a professional summarizer. ";
 
     switch (options.style) {
@@ -175,27 +261,32 @@ export class GeminiAdapter extends BaseAdapter<
     return Math.ceil(text.length / 4);
   }
 
-
   // TODO the proper type here is AsyncGenerator<GenerateContentResponse, any, any>
-  private async *processStreamChunks(result: AsyncIterable<any>, model: string): AsyncIterable<StreamChunk> {
+  private async *processStreamChunks(
+    result: AsyncIterable<any>,
+    model: string
+  ): AsyncIterable<StreamChunk> {
     const timestamp = Date.now();
     let accumulatedContent = "";
-    const toolCallMap = new Map<string, { name: string; args: string; index: number }>();
+    const toolCallMap = new Map<
+      string,
+      { name: string; args: string; index: number }
+    >();
     let nextToolIndex = 0;
 
     // Iterate over the stream result (it's already an AsyncGenerator)
     for await (const chunk of result) {
       // Check for errors in the chunk
       if (chunk.error) {
-        console.log("[GeminiAdapter] Error in chunk:", (chunk).error);
+        console.log("[GeminiAdapter] Error in chunk:", chunk.error);
         yield {
           type: "error",
           id: this.generateId(),
           model,
           timestamp,
           error: {
-            message: (chunk).error.message || "Unknown error",
-            code: (chunk).error.code,
+            message: chunk.error.message || "Unknown error",
+            code: chunk.error.code,
           },
         };
         return;
@@ -205,9 +296,12 @@ export class GeminiAdapter extends BaseAdapter<
       if (!chunk.candidates || chunk.candidates.length === 0) {
         // Skip empty chunks or check for finish reason in other places
         if (chunk.finishReason) {
-          const finishReason = (chunk).finishReason as string;
+          const finishReason = chunk.finishReason as string;
           let mappedFinishReason = finishReason;
-          if (finishReason === "UNEXPECTED_TOOL_CALL" || finishReason === "STOP") {
+          if (
+            finishReason === "UNEXPECTED_TOOL_CALL" ||
+            finishReason === "STOP"
+          ) {
             mappedFinishReason = toolCallMap.size > 0 ? "tool_calls" : "stop";
           }
           yield {
@@ -218,10 +312,10 @@ export class GeminiAdapter extends BaseAdapter<
             finishReason: mappedFinishReason as any,
             usage: chunk.usageMetadata
               ? {
-                promptTokens: chunk.usageMetadata.promptTokenCount ?? 0,
-                completionTokens: chunk.usageMetadata.thoughtsTokenCount ?? 0,
-                totalTokens: chunk.usageMetadata.totalTokenCount ?? 0,
-              }
+                  promptTokens: chunk.usageMetadata.promptTokenCount ?? 0,
+                  completionTokens: chunk.usageMetadata.thoughtsTokenCount ?? 0,
+                  totalTokens: chunk.usageMetadata.totalTokenCount ?? 0,
+                }
               : undefined,
           };
         }
@@ -251,15 +345,20 @@ export class GeminiAdapter extends BaseAdapter<
           // Check both camelCase (SDK) and snake_case (direct API) formats
           const functionCall = part.functionCall || part.function_call;
           if (functionCall) {
-            const toolCallId = functionCall.name || `call_${Date.now()}_${nextToolIndex}`;
-            const functionArgs = functionCall.args || functionCall.arguments || {};
+            const toolCallId =
+              functionCall.name || `call_${Date.now()}_${nextToolIndex}`;
+            const functionArgs =
+              functionCall.args || functionCall.arguments || {};
 
             // Check if we've seen this tool call before (for streaming args)
             let toolCallData = toolCallMap.get(toolCallId);
             if (!toolCallData) {
               toolCallData = {
                 name: functionCall.name || "",
-                args: typeof functionArgs === "string" ? functionArgs : JSON.stringify(functionArgs || {}),
+                args:
+                  typeof functionArgs === "string"
+                    ? functionArgs
+                    : JSON.stringify(functionArgs || {}),
                 index: nextToolIndex++,
               };
               toolCallMap.set(toolCallId, toolCallData);
@@ -268,12 +367,18 @@ export class GeminiAdapter extends BaseAdapter<
               if (functionArgs) {
                 try {
                   const existingArgs = JSON.parse(toolCallData.args);
-                  const newArgs = typeof functionArgs === "string" ? JSON.parse(functionArgs) : functionArgs;
+                  const newArgs =
+                    typeof functionArgs === "string"
+                      ? JSON.parse(functionArgs)
+                      : functionArgs;
                   const mergedArgs = { ...existingArgs, ...newArgs };
                   toolCallData.args = JSON.stringify(mergedArgs);
                 } catch {
                   // If parsing fails, use new args
-                  toolCallData.args = typeof functionArgs === "string" ? functionArgs : JSON.stringify(functionArgs);
+                  toolCallData.args =
+                    typeof functionArgs === "string"
+                      ? functionArgs
+                      : JSON.stringify(functionArgs);
                 }
               }
             }
@@ -321,15 +426,20 @@ export class GeminiAdapter extends BaseAdapter<
           // Try to extract function call from content.parts if available
           if (chunk.candidates[0].content?.parts) {
             for (const part of chunk.candidates[0].content.parts) {
-              const functionCall = (part).functionCall || (part).function_call;
+              const functionCall = part.functionCall || part.function_call;
               if (functionCall) {
                 // We found a function call - process it
-                const toolCallId = functionCall.name || `call_${Date.now()}_${nextToolIndex}`;
-                const functionArgs = functionCall.args || functionCall.arguments || {};
+                const toolCallId =
+                  functionCall.name || `call_${Date.now()}_${nextToolIndex}`;
+                const functionArgs =
+                  functionCall.args || functionCall.arguments || {};
 
                 toolCallMap.set(toolCallId, {
                   name: functionCall.name || "",
-                  args: typeof functionArgs === "string" ? functionArgs : JSON.stringify(functionArgs || {}),
+                  args:
+                    typeof functionArgs === "string"
+                      ? functionArgs
+                      : JSON.stringify(functionArgs || {}),
                   index: nextToolIndex++,
                 });
 
@@ -343,7 +453,10 @@ export class GeminiAdapter extends BaseAdapter<
                     type: "function",
                     function: {
                       name: functionCall.name || "",
-                      arguments: typeof functionArgs === "string" ? functionArgs : JSON.stringify(functionArgs || {}),
+                      arguments:
+                        typeof functionArgs === "string"
+                          ? functionArgs
+                          : JSON.stringify(functionArgs || {}),
                     },
                   },
                   index: nextToolIndex - 1,
@@ -364,10 +477,10 @@ export class GeminiAdapter extends BaseAdapter<
           finishReason: mappedFinishReason as any,
           usage: chunk.usageMetadata
             ? {
-              promptTokens: chunk.usageMetadata.promptTokenCount ?? 0,
-              completionTokens: chunk.usageMetadata.thoughtsTokenCount ?? 0,
-              totalTokens: chunk.usageMetadata.totalTokenCount ?? 0,
-            }
+                promptTokens: chunk.usageMetadata.promptTokenCount ?? 0,
+                completionTokens: chunk.usageMetadata.thoughtsTokenCount ?? 0,
+                totalTokens: chunk.usageMetadata.totalTokenCount ?? 0,
+              }
             : undefined,
         };
       }
@@ -385,7 +498,8 @@ export class GeminiAdapter extends BaseAdapter<
     return messages
       .filter((m) => m.role !== "system") // Skip system messages
       .map((msg) => {
-        const role: "user" | "model" = msg.role === "assistant" ? "model" : "user";
+        const role: "user" | "model" =
+          msg.role === "assistant" ? "model" : "user";
         const parts: Array<{
           text?: string;
           functionCall?: { name: string; args: Record<string, any> };
@@ -402,7 +516,9 @@ export class GeminiAdapter extends BaseAdapter<
           for (const toolCall of msg.toolCalls) {
             let parsedArgs: Record<string, any> = {};
             try {
-              parsedArgs = toolCall.function.arguments ? JSON.parse(toolCall.function.arguments) : {};
+              parsedArgs = toolCall.function.arguments
+                ? JSON.parse(toolCall.function.arguments)
+                : {};
             } catch {
               parsedArgs = toolCall.function.arguments as any;
             }
@@ -443,7 +559,9 @@ export class GeminiAdapter extends BaseAdapter<
    * Maps common options to Gemini-specific format
    * Handles translation of normalized options to Gemini's API format
    */
-  private mapCommonOptionsToGemini(options: ChatCompletionOptions<string, GeminiProviderOptions>) {
+  private mapCommonOptionsToGemini(
+    options: ChatCompletionOptions<string, GeminiProviderOptions>
+  ) {
     const providerOpts = options.providerOptions;
     const requestOptions: GenerateContentParameters = {
       model: options.model,
@@ -458,7 +576,6 @@ export class GeminiAdapter extends BaseAdapter<
         tools: convertToolsToProviderFormat(options.tools),
       },
     };
-
 
     return requestOptions;
   }
@@ -480,7 +597,10 @@ export class GeminiAdapter extends BaseAdapter<
  * });
  * ```
  */
-export function createGemini(apiKey: string, config?: Omit<GeminiAdapterConfig, "apiKey">): GeminiAdapter {
+export function createGemini(
+  apiKey: string,
+  config?: Omit<GeminiAdapterConfig, "apiKey">
+): GeminiAdapter {
   return new GeminiAdapter({ apiKey, ...config });
 }
 
@@ -501,13 +621,15 @@ export function createGemini(apiKey: string, config?: Omit<GeminiAdapterConfig, 
  * const aiInstance = ai(gemini());
  * ```
  */
-export function gemini(config?: Omit<GeminiAdapterConfig, "apiKey">): GeminiAdapter {
+export function gemini(
+  config?: Omit<GeminiAdapterConfig, "apiKey">
+): GeminiAdapter {
   const env =
     typeof globalThis !== "undefined" && (globalThis as any).window?.env
       ? (globalThis as any).window.env
       : typeof process !== "undefined"
-        ? process.env
-        : undefined;
+      ? process.env
+      : undefined;
   const key = env?.GOOGLE_API_KEY || env?.GEMINI_API_KEY;
 
   if (!key) {
