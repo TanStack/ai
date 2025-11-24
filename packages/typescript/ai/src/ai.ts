@@ -18,6 +18,7 @@ type ExtractModels<T> = T extends AIAdapter<
   infer M,
   any,
   any,
+  any,
   any
 >
   ? M[number]
@@ -25,6 +26,7 @@ type ExtractModels<T> = T extends AIAdapter<
 type ExtractEmbeddingModels<T> = T extends AIAdapter<
   any,
   infer M,
+  any,
   any,
   any
 >
@@ -34,12 +36,18 @@ type ExtractChatProviderOptions<T> = T extends AIAdapter<
   any,
   any,
   infer P,
+  any,
   any
 >
   ? P
   : Record<string, any>;
-
-
+// Helper type to compute per-model provider options from the adapter's model map.
+type ExtractModelSpecificProviderOptions<
+  TAdapter extends AIAdapter<any, any, any, any, any>,
+  TModel extends string
+> = TModel extends keyof TAdapter["_modelProviderOptionsByName"]
+  ? TAdapter["_modelProviderOptionsByName"][TModel]
+  : TAdapter["_modelProviderOptionsByName"][string];
 
 // Helper type to compute chatCompletion return type based on output option
 type ChatCompletionReturnType<TOutput extends ResponseFormat<any> | undefined> =
@@ -47,9 +55,21 @@ type ChatCompletionReturnType<TOutput extends ResponseFormat<any> | undefined> =
   ? ChatCompletionResult<TData>
   : ChatCompletionResult;
 
+// Convenience alias for the full, model-aware chat options for a given adapter/model/output
+type AdapterChatParams<
+  TAdapter extends AIAdapter<any, any, any, any, any>,
+  TModel extends ExtractModels<TAdapter>,
+  TOutput extends ResponseFormat<any> | undefined = undefined
+> = ChatCompletionOptions<
+  TModel,
+  ExtractChatProviderOptions<TAdapter>,
+  TOutput,
+  ExtractModelSpecificProviderOptions<TAdapter, TModel>
+>;
+
 // Config for single adapter
 type AIConfig<
-  TAdapter extends AIAdapter<any, any, any, any>
+  TAdapter extends AIAdapter<any, any, any, any, any>
 > = {
   adapter: TAdapter;
   systemPrompts?: string[];
@@ -58,14 +78,7 @@ type AIConfig<
 /**
  * AI class - simplified to work with a single adapter only
  */
-class AI<
-  TAdapter extends AIAdapter<
-    any,
-    any,
-    any,
-    any
-  > = AIAdapter<any, any, any, any>
-> {
+class AI<TAdapter extends AIAdapter<any, any, any, any, any> = AIAdapter<any, any, any, any, any>> {
   private adapter: TAdapter;
   private systemPrompts: string[];
   private events: AIEventEmitter;
@@ -79,23 +92,18 @@ class AI<
   /**
    * Stream a chat conversation with automatic tool execution
    *
-   * @param options Chat options for streaming
-   *
-   * @example
-   * // Stream mode
-   * const stream = await ai.chat({
-   *   model: 'gpt-4',
-   *   messages: [...]
-   * });
-   * for await (const chunk of stream) {
-   *   console.log(chunk);
-   * }
+   * The `model` field controls the allowed `providerOptions`. Different
+   * models can support different provider-specific capabilities, and this
+   * method will narrow `providerOptions` based on the selected model.
    */
-  async *chat(
-    params: ChatCompletionOptions<
-      ExtractModels<TAdapter>,
-      ExtractChatProviderOptions<TAdapter>
-    >
+  async *chat<
+    TModel extends ExtractModels<TAdapter>
+  >(
+    params: AdapterChatParams<
+      TAdapter,
+      TModel,
+      undefined
+    > & { model: TModel }
   ): AsyncIterable<StreamChunk> {
     const engine = new ChatEngine({
       adapter: this.adapter,
@@ -131,13 +139,14 @@ class AI<
    * });
    */
   async chatCompletion<
+    TModel extends ExtractModels<TAdapter>,
     TOutput extends ResponseFormat<any> | undefined = undefined
   >(
-    params: ChatCompletionOptions<
-      ExtractModels<TAdapter>,
-      ExtractChatProviderOptions<TAdapter>,
+    params: AdapterChatParams<
+      TAdapter,
+      TModel,
       TOutput
-    >
+    > & { model: TModel }
   ): Promise<ChatCompletionReturnType<TOutput>> {
     const {
       model,
@@ -148,6 +157,7 @@ class AI<
       providerOptions,
       request,
       abortController,
+      output,
     } = params;
 
     // Combine abortController with request if both are provided
@@ -170,8 +180,6 @@ class AI<
     });
 
     // Extract output if it exists
-    const output = params.output;
-
     // Prepend system prompts to messages
     const messages = prependSystemPrompts(
       inputMessages,
@@ -261,7 +269,7 @@ class AI<
  * Create an AI instance with a single adapter and proper type inference
  */
 export function ai<
-  TAdapter extends AIAdapter<any, any, any, any>
+  TAdapter extends AIAdapter<any, any, any, any, any>
 >(adapter: TAdapter, config?: { systemPrompts?: string[] }): AI<TAdapter> {
   return new AI({
     adapter,

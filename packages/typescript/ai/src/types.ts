@@ -230,8 +230,9 @@ export type AgentLoopStrategy = (state: AgentLoopState) => boolean;
  */
 export interface ChatCompletionOptions<
   TModel extends string = string,
-  TProviderOptions extends Record<string, any> = Record<string, any>,
-  TOutput extends ResponseFormat<any> | undefined = undefined
+  TProviderOptionsSuperset extends Record<string, any> = Record<string, any>,
+  TOutput extends ResponseFormat<any> | undefined = undefined,
+  TProviderOptionsForModel = TProviderOptionsSuperset
 > {
   model: TModel;
   messages: ModelMessage[];
@@ -239,7 +240,7 @@ export interface ChatCompletionOptions<
   systemPrompts?: string[];
   agentLoopStrategy?: AgentLoopStrategy;
   options?: CommonOptions;
-  providerOptions?: TProviderOptions;
+  providerOptions?: TProviderOptionsForModel;
   request?: Request | RequestInit;
   output?: TOutput;
   /**
@@ -612,6 +613,7 @@ export interface AIAdapter<
   TEmbeddingModels extends readonly string[] = readonly string[],
   TChatProviderOptions extends Record<string, any> = Record<string, any>,
   TEmbeddingProviderOptions extends Record<string, any> = Record<string, any>,
+  TModelProviderOptionsByName extends Record<string, any> = Record<string, any>,
 > {
   name: string;
   /** Models that support chat/text completion */
@@ -624,6 +626,12 @@ export interface AIAdapter<
   _providerOptions?: TChatProviderOptions; // Alias for _chatProviderOptions
   _chatProviderOptions?: TChatProviderOptions;
   _embeddingProviderOptions?: TEmbeddingProviderOptions;
+  /**
+   * Type-only map from model name to its specific provider options.
+   * Used by the core AI types to narrow providerOptions based on the selected model.
+   * Must be provided by all adapters.
+   */
+  _modelProviderOptionsByName: TModelProviderOptionsByName;
 
   // Chat methods
   chatCompletion(options: ChatCompletionOptions<string, TChatProviderOptions>): Promise<ChatCompletionResult>;

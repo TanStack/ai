@@ -2,9 +2,7 @@ import { MessageParam, TextBlockParam, } from "@anthropic-ai/sdk/resources/messa
 import { AnthropicTool } from "../tools";
 import { BetaContextManagementConfig, BetaToolChoiceAny, BetaToolChoiceAuto, BetaToolChoiceTool } from "@anthropic-ai/sdk/resources/beta/messages/messages";
 
-export interface ExternalTextProviderOptions {
-
-
+export interface AnthropicContainerOptions {
   /**
    * Container identifier for reuse across requests.
    * Container parameters with skills to be loaded.
@@ -27,23 +25,33 @@ export interface ExternalTextProviderOptions {
       version?: string
     }[] | null
   } | null
+}
+
+export interface AnthropicContextManagementOptions {
   /**
    * Context management configuration.
 
 This allows you to control how Claude manages context across multiple requests, such as whether to clear function results or not.
    */
   context_management?: BetaContextManagementConfig | null
+}
+
+export interface AnthropicMCPOptions {
   /**
    * MCP servers to be utilized in this request
    * Maximum of 20 servers
    */
   mcp_servers?: MCPServer[]
+}
 
-
+export interface AnthropicServiceTierOptions {
   /**
    * Determines whether to use priority capacity (if available) or standard capacity for this request.
    */
   service_tier?: "auto" | "standard_only"
+}
+
+export interface AnthropicStopSequencesOptions {
   /**
    * Custom text sequences that will cause the model to stop generating.
 
@@ -52,7 +60,9 @@ Anthropic models will normally stop when they have naturally completed their tur
 If you want the model to stop generating when it encounters custom strings of text, you can use the stop_sequences parameter. If the model encounters one of the custom sequences, the response stop_reason value will be "stop_sequence" and the response stop_sequence value will contain the matched stop sequence.
    */
   stop_sequences?: string[];
+}
 
+export interface AnthropicThinkingOptions {
   /**
      * Configuration for enabling Claude's extended thinking.
 
@@ -70,9 +80,13 @@ Must be ≥1024 and less than max_tokens
   } | {
     type: "disabled"
   }
+}
 
+export interface AnthropicToolChoiceOptions {
   tool_choice?: BetaToolChoiceAny | BetaToolChoiceTool | BetaToolChoiceAuto
+}
 
+export interface AnthropicSamplingOptions {
   /**
    * Only sample from the top K options for each subsequent token.
 
@@ -82,8 +96,17 @@ Recommended for advanced use cases only. You usually only need to use temperatur
 Required range: x >= 0
    */
   top_k?: number;
-
 }
+
+export type ExternalTextProviderOptions = AnthropicContainerOptions &
+  AnthropicContextManagementOptions &
+  AnthropicMCPOptions &
+  AnthropicServiceTierOptions &
+  AnthropicStopSequencesOptions &
+  AnthropicThinkingOptions &
+  AnthropicToolChoiceOptions &
+  AnthropicSamplingOptions;
+
 export interface InternalTextProviderOptions extends ExternalTextProviderOptions {
 
   model: string;

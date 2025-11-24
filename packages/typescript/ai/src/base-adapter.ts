@@ -30,7 +30,14 @@ export abstract class BaseAdapter<
   TEmbeddingModels extends readonly string[] = readonly string[],
   TChatProviderOptions extends Record<string, any> = Record<string, any>,
   TEmbeddingProviderOptions extends Record<string, any> = Record<string, any>,
-> implements AIAdapter<TChatModels, TEmbeddingModels, TChatProviderOptions, TEmbeddingProviderOptions> {
+  TModelProviderOptionsByName extends Record<string, any> = Record<string, any>,
+> implements AIAdapter<
+  TChatModels,
+  TEmbeddingModels,
+  TChatProviderOptions,
+  TEmbeddingProviderOptions,
+  TModelProviderOptionsByName
+> {
   abstract name: string;
   abstract models: TChatModels;
   embeddingModels?: TEmbeddingModels;
@@ -40,6 +47,8 @@ export abstract class BaseAdapter<
   _providerOptions?: TChatProviderOptions;
   _chatProviderOptions?: TChatProviderOptions;
   _embeddingProviderOptions?: TEmbeddingProviderOptions;
+  // Type-only map; concrete adapters should override this with a precise type
+  _modelProviderOptionsByName!: TModelProviderOptionsByName;
 
   constructor(config: AIAdapterConfig = {}) {
     this.config = config;

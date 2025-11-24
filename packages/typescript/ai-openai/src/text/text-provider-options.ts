@@ -14,11 +14,8 @@ import { WebSearchPreviewTool } from "../tools/web-search-preview-tool";
 import { WebSearchTool } from "../tools/web-search-tool";
 import OpenAI from "openai";
 
-/**
- * Options your SDK forwards to OpenAI when doing chat/responses.
- * Tip: gate these by model capability in your SDK, not just by presence.
- */
-export type ExternalTextProviderOptions = {
+// Core, always-available options for Responses API
+export interface OpenAIBaseOptions {
   /**
 
 Whether to run the model response in the background. Learn more here:
@@ -45,28 +42,6 @@ https://platform.openai.com/docs/api-reference/responses/create#responses_create
   reasoning.encrypted_content: Includes an encrypted version of reasoning tokens in reasoning item outputs. This enables reasoning items to be used in multi-turn conversations when using the Responses API statelessly (like when the store parameter is set to false, or when an organization is enrolled in the zero data retention program).
   */
   include?: OpenAI.Responses.ResponseIncludable[];
-
-
-  /**
-   * The maximum number of total calls to built-in tools that can be processed in a response. This maximum number applies across all built-in tool calls, not per individual tool. Any further attempts to call a tool by the model will be ignored.
-   * https://platform.openai.com/docs/api-reference/responses/create#responses_create-max_tool_calls
-   */
-  max_tool_calls?: number;
-
-  /**
-   * Set of 16 key-value pairs that can be attached to an object. This can be useful for storing additional information about the object in a structured format, and querying for objects via API or the dashboard.
-
-Keys are strings with a maximum length of 64 characters. Values are strings with a maximum length of 512 characters.
-https://platform.openai.com/docs/api-reference/responses/create#responses_create-metadata
-   */
-  metadata?: Record<string, string>;
-
-  /**
-   * https://platform.openai.com/docs/api-reference/responses/create#responses_create-parallel_tool_calls
-  * Whether to allow the model to run tool calls in parallel.
-  * @default true
-   */
-  parallel_tool_calls?: boolean;
 
   /**
    * The unique ID of the previous response to the model. Use this to create multi-turn conversations. Cannot be used in conjunction with conversation.
@@ -151,23 +126,6 @@ https://platform.openai.com/docs/api-reference/responses/create#responses_create
   store?: boolean;
 
   /**
-   * Options for streaming responses. Only set this when you set stream: true
-   */
-  stream_options?: {
-    /**
-     * When true, stream obfuscation will be enabled. Stream obfuscation adds random characters to an obfuscation field on streaming delta events to normalize payload sizes as a mitigation to certain side-channel attacks. These obfuscation fields are included by default, but add a small amount of overhead to the data stream. You can set include_obfuscation to false to optimize for bandwidth if you trust the network links between your application and the OpenAI API.
-     */
-    include_obfuscation?: boolean;
-  };
-
-
-
-  /**
-   * Configuration options for a text response from the model. Can be plain text or structured JSON data. Learn more:
-  https://platform.openai.com/docs/api-reference/responses/create#responses_create-text
-   */
-  text?: OpenAI.Responses.ResponseTextConfig
-  /**
     * Constrains the verbosity of the model's response. Lower values will result in more concise responses, while higher values will result in more verbose responses.
     * https://platform.openai.com/docs/api-reference/responses/create#responses_create-text-verbosity
     */
@@ -185,8 +143,35 @@ https://platform.openai.com/docs/api-reference/responses/create#responses_create
   disabled (default): If the input size will exceed the context window size for a model, the request will fail with a 400 error.
    */
   truncation?: "auto" | "disabled";
+}
 
+// Feature fragments that can be stitched per-model
+export interface OpenAIReasoningOptions {
+  reasoning?: {
+    effort?: "none" | "minimal" | "low" | "medium" | "high";
+  };
+}
 
+export interface OpenAIStructuredOutputOptions {
+  /**
+   * Configuration options for a text response from the model. Can be plain text or structured JSON data. Learn more:
+  https://platform.openai.com/docs/api-reference/responses/create#responses_create-text
+   */
+  text?: OpenAI.Responses.ResponseTextConfig;
+}
+
+export interface OpenAIToolsOptions {
+  /**
+   * The maximum number of total calls to built-in tools that can be processed in a response. This maximum number applies across all built-in tool calls, not per individual tool. Any further attempts to call a tool by the model will be ignored.
+   * https://platform.openai.com/docs/api-reference/responses/create#responses_create-max_tool_calls
+   */
+  max_tool_calls?: number;
+  /**
+   * https://platform.openai.com/docs/api-reference/responses/create#responses_create-parallel_tool_calls
+  * Whether to allow the model to run tool calls in parallel.
+  * @default true
+   */
+  parallel_tool_calls?: boolean;
   /**
   * Function/tool calling configuration. Supply tool schemas in `tools`
   * and control selection here:
@@ -201,6 +186,36 @@ https://platform.openai.com/docs/api-reference/responses/create#responses_create
   | "required"
   | ToolChoice;
 }
+
+export interface OpenAIStreamingOptions {
+  /**
+   * Options for streaming responses. Only set this when you set stream: true
+   */
+  stream_options?: {
+    /**
+     * When true, stream obfuscation will be enabled. Stream obfuscation adds random characters to an obfuscation field on streaming delta events to normalize payload sizes as a mitigation to certain side-channel attacks. These obfuscation fields are included by default, but add a small amount of overhead to the data stream. You can set include_obfuscation to false to optimize for bandwidth if you trust the network links between your application and the OpenAI API.
+     */
+    include_obfuscation?: boolean;
+  };
+}
+
+export interface OpenAIMetadataOptions {
+  /**
+   * Set of 16 key-value pairs that can be attached to an object. This can be useful for storing additional information about the object in a structured format, and querying for objects via API or the dashboard.
+
+Keys are strings with a maximum length of 64 characters. Values are strings with a maximum length of 512 characters.
+https://platform.openai.com/docs/api-reference/responses/create#responses_create-metadata
+   */
+  metadata?: Record<string, string>;
+}
+
+export type ExternalTextProviderOptions =
+  OpenAIBaseOptions &
+  OpenAIReasoningOptions &
+  OpenAIStructuredOutputOptions &
+  OpenAIToolsOptions &
+  OpenAIStreamingOptions &
+  OpenAIMetadataOptions;
 
 
 /**
@@ -314,7 +329,7 @@ export function convertMessagesToInput(messages: ModelMessage[]): OpenAI.Respons
           const argumentsString = typeof toolCall.function.arguments === "string"
             ? toolCall.function.arguments
             : JSON.stringify(toolCall.function.arguments || {});
-          
+
           result.push({
             type: "function_call",
             call_id: toolCall.id,

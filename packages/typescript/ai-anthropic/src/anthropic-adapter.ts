@@ -11,7 +11,7 @@ import {
   type ModelMessage,
   type StreamChunk,
 } from "@tanstack/ai";
-import { ANTHROPIC_EMBEDDING_MODELS, ANTHROPIC_MODELS, } from "./model-meta";
+import { ANTHROPIC_EMBEDDING_MODELS, ANTHROPIC_MODELS, type AnthropicChatModelProviderOptionsByName } from "./model-meta";
 import { convertToolsToProviderFormat } from "./tools/tool-converter";
 import { ExternalTextProviderOptions, InternalTextProviderOptions } from "./text/text-provider-options";
 
@@ -37,11 +37,13 @@ export class Anthropic extends BaseAdapter<
   typeof ANTHROPIC_MODELS,
   typeof ANTHROPIC_EMBEDDING_MODELS,
   AnthropicProviderOptions,
-  Record<string, any>
+  Record<string, any>,
+  AnthropicChatModelProviderOptionsByName
 > {
   name = "anthropic" as const;
   models = ANTHROPIC_MODELS;
   embeddingModels = ANTHROPIC_EMBEDDING_MODELS;
+  declare _modelProviderOptionsByName: AnthropicChatModelProviderOptionsByName;
 
   private client: Anthropic_SDK;
 

@@ -1,22 +1,25 @@
-
 import { GeminiChatModels } from "../model-meta";
 import { Schema } from "../tools/function-declaration-tool";
 import { GoogleGeminiTool } from "../tools";
 import { ContentListUnion, MediaResolution, SafetySetting, ThinkingLevel, ToolConfig } from "@google/genai";
 
-export interface ExternalTextProviderOptions {
-
+export interface GeminiToolConfigOptions {
   /**
    * Tool configuration for any Tool specified in the request.
    */
   toolConfig?: ToolConfig
+}
+
+export interface GeminiSafetyOptions {
   /**
    *  list of unique SafetySetting instances for blocking unsafe content.
 
 This will be enforced on the GenerateContentRequest.contents and GenerateContentResponse.candidates. There should not be more than one setting for each SafetyCategory type. The API will block any contents and responses that fail to meet the thresholds set by these settings. This list overrides the default settings for each SafetyCategory specified in the safetySettings. If there is no SafetySetting for a given SafetyCategory provided in the list, the API will use the default safety setting for that category. Harm categories HARM_CATEGORY_HATE_SPEECH, HARM_CATEGORY_SEXUALLY_EXPLICIT, HARM_CATEGORY_DANGEROUS_CONTENT, HARM_CATEGORY_HARASSMENT, HARM_CATEGORY_CIVIC_INTEGRITY are supported
    */
   safetySettings?: SafetySetting[]
+}
 
+export interface GeminiGenerationConfigOptions {
   /**
    * Configuration options for model generation and outputs.
    */
@@ -25,48 +28,6 @@ This will be enforced on the GenerateContentRequest.contents and GenerateContent
      * The set of character sequences (up to 5) that will stop output generation. If specified, the API will stop at the first appearance of a stop_sequence. The stop sequence will not be included as part of the response.
      */
     stopSequences?: string[];
-    /**
-     * MIME type of the generated candidate text. Supported MIME types are: text/plain: (default) Text output. application/json: JSON response in the response candidates. text/x.enum: ENUM as a string response in the response candidates.
-     */
-    responseMimeType?: string;
-    /**
-     * Output schema of the generated candidate text. Schemas must be a subset of the OpenAPI schema and can be objects, primitives or arrays.
-
-If set, a compatible responseMimeType must also be set. Compatible MIME types: application/json: Schema for JSON response.
-     */
-    responseSchema?: Schema
-    /**
-     * Output schema of the generated response. This is an alternative to responseSchema that accepts JSON Schema.
-
-If set, responseSchema must be omitted, but responseMimeType is required.
-
-While the full JSON Schema may be sent, not all features are supported. Specifically, only the following properties are supported:
-
-$id
-$defs
-$ref
-$anchor
-type
-format
-title
-description
-enum (for strings and numbers)
-items
-prefixItems
-minItems
-maxItems
-minimum
-maximum
-anyOf
-oneOf (interpreted the same as anyOf)
-properties
-additionalProperties
-required
-The non-standard propertyOrdering property may also be set.
-
-Cyclic references are unrolled to a limited degree and, as such, may only be used within non-required properties. (Nullable properties are not sufficient.) If $ref is set on a sub-schema, no other properties, except for than those starting as a $, may be set.
-     */
-    responseJsonSchema?: Schema
     /**
      * The requested modalities of the response. Represents the set of modalities that the model can return, and should be expected in the response. This is an exact match to the modalities of the response.
 
@@ -150,24 +111,6 @@ Valid values are: de-DE, en-AU, en-GB, en-IN, en-US, es-US, fr-FR, hi-IN, pt-BR,
       languageCode?: "de-DE" | "en-AU" | "en-GB" | "en-IN" | "en-US" | "es-US" | "fr-FR" | "hi-IN" | "pt-BR" | "ar-XA" | "es-ES" | "fr-CA" | "id-ID" | "it-IT" | "ja-JP" | "tr-TR" | "vi-VN" | "bn-IN" | "gu-IN" | "kn-IN" | "ml-IN" | "mr-IN" | "ta-IN" | "te-IN" | "nl-NL" | "ko-KR" | "cmn-CN" | "pl-PL" | "ru-RU" | "th-TH";
     }
     /**
-     * Config for thinking features. An error will be returned if this field is set for models that don't support thinking.
-     */
-    thinkingConfig?: {
-      /**
-       * Indicates whether to include thoughts in the response. If true, thoughts are returned only when available.
-       */
-      includeThoughts: boolean;
-
-      /**
-       * The number of thoughts tokens that the model should generate.
-       */
-      thinkingBudget: number;
-      /**
-       * The level of thoughts tokens that the model should generate.
-       */
-      thinkingLevel?: ThinkingLevel
-    }
-    /**
      * Config for image generation. An error will be returned if this field is set for models that don't support these config options.
      */
     imageConfig?: {
@@ -177,12 +120,88 @@ Valid values are: de-DE, en-AU, en-GB, en-IN, en-US, es-US, fr-FR, hi-IN, pt-BR,
      * If specified, the media resolution specified will be used.
      */
     mediaResolution?: MediaResolution
-  }
+  } & GeminiThinkingOptions & GeminiStructuredOutputOptions
+}
+
+export interface GeminiCachedContentOptions {
   /**
    * The name of the content cached to use as context to serve the prediction. Format: cachedContents/{cachedContent}
    */
   cachedContent?: `cachedContents/${string}`;
 }
+
+export interface GeminiStructuredOutputOptions {
+  /**
+   * MIME type of the generated candidate text. Supported MIME types are: text/plain: (default) Text output. application/json: JSON response in the response candidates. text/x.enum: ENUM as a string response in the response candidates.
+   */
+  responseMimeType?: string;
+  /**
+   * Output schema of the generated candidate text. Schemas must be a subset of the OpenAPI schema and can be objects, primitives or arrays.
+
+If set, a compatible responseMimeType must also be set. Compatible MIME types: application/json: Schema for JSON response.
+   */
+  responseSchema?: Schema
+  /**
+   * Output schema of the generated response. This is an alternative to responseSchema that accepts JSON Schema.
+
+If set, responseSchema must be omitted, but responseMimeType is required.
+
+While the full JSON Schema may be sent, not all features are supported. Specifically, only the following properties are supported:
+
+$id
+$defs
+$ref
+$anchor
+type
+format
+title
+description
+enum (for strings and numbers)
+items
+prefixItems
+minItems
+maxItems
+minimum
+maximum
+anyOf
+oneOf (interpreted the same as anyOf)
+properties
+additionalProperties
+required
+The non-standard propertyOrdering property may also be set.
+
+Cyclic references are unrolled to a limited degree and, as such, may only be used within non-required properties. (Nullable properties are not sufficient.) If $ref is set on a sub-schema, no other properties, except for than those starting as a $, may be set.
+   */
+  responseJsonSchema?: Schema
+}
+
+export interface GeminiThinkingOptions {
+  /**
+   * Config for thinking features. An error will be returned if this field is set for models that don't support thinking.
+   */
+  thinkingConfig?: {
+    /**
+     * Indicates whether to include thoughts in the response. If true, thoughts are returned only when available.
+     */
+    includeThoughts: boolean;
+
+    /**
+     * The number of thoughts tokens that the model should generate.
+     */
+    thinkingBudget: number;
+    /**
+     * The level of thoughts tokens that the model should generate.
+     */
+    thinkingLevel?: ThinkingLevel
+  }
+}
+
+
+
+export type ExternalTextProviderOptions = GeminiToolConfigOptions &
+  GeminiSafetyOptions &
+  GeminiGenerationConfigOptions &
+  GeminiCachedContentOptions;
 export interface InternalTextProviderOptions extends ExternalTextProviderOptions {
   // path parameter
   model: GeminiChatModels;

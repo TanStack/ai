@@ -15,6 +15,7 @@ import {
 import {
   GEMINI_MODELS,
   GEMINI_EMBEDDING_MODELS,
+  type GeminiChatModelProviderOptionsByName,
 } from "./model-meta";
 import { ExternalTextProviderOptions } from "./text/text-provider-options";
 import { convertToolsToProviderFormat } from "./tools/tool-converter";
@@ -35,11 +36,13 @@ export class GeminiAdapter extends BaseAdapter<
   typeof GEMINI_MODELS,
   typeof GEMINI_EMBEDDING_MODELS,
   GeminiProviderOptions,
-  Record<string, any>
+  Record<string, any>,
+  GeminiChatModelProviderOptionsByName
 > {
   name = "gemini";
   models = GEMINI_MODELS;
   embeddingModels = GEMINI_EMBEDDING_MODELS;
+  declare _modelProviderOptionsByName: GeminiChatModelProviderOptionsByName;
   private client: GoogleGenAI;
 
   constructor(config: GeminiAdapterConfig) {
@@ -125,10 +128,10 @@ export class GeminiAdapter extends BaseAdapter<
       model: options.model || "gemini-pro",
       contents: [{ role: "user", parts: [{ text: prompt }] }],
       config: {
-        generationConfig: {
-          temperature: 0.3,
-          maxOutputTokens: options.maxLength || 500,
-        },
+
+        temperature: 0.3,
+        maxOutputTokens: options.maxLength || 500,
+
       },
     });
 
@@ -152,7 +155,7 @@ export class GeminiAdapter extends BaseAdapter<
         }
       }
     }
-    
+
     if (!summary && typeof response.text === "function") {
       try {
         summary = response.text() || "";
@@ -184,10 +187,10 @@ export class GeminiAdapter extends BaseAdapter<
     // According to docs: contents can be a string or array of strings
     // Response has embeddings (plural) array with values property
     const result = await this.client.models.embedContent({
-      model: options.model || "gemini-embedding-001",
+      model: options.model,
       contents: inputs,
     });
-    
+
     // Extract embeddings from result.embeddings array
     const embeddings: number[][] = [];
     if (result.embeddings && Array.isArray(result.embeddings)) {
@@ -301,10 +304,10 @@ export class GeminiAdapter extends BaseAdapter<
             finishReason: mappedFinishReason as any,
             usage: chunk.usageMetadata
               ? {
-                  promptTokens: chunk.usageMetadata.promptTokenCount ?? 0,
-                  completionTokens: chunk.usageMetadata.thoughtsTokenCount ?? 0,
-                  totalTokens: chunk.usageMetadata.totalTokenCount ?? 0,
-                }
+                promptTokens: chunk.usageMetadata.promptTokenCount ?? 0,
+                completionTokens: chunk.usageMetadata.thoughtsTokenCount ?? 0,
+                totalTokens: chunk.usageMetadata.totalTokenCount ?? 0,
+              }
               : undefined,
           };
         }
@@ -466,10 +469,10 @@ export class GeminiAdapter extends BaseAdapter<
           finishReason: mappedFinishReason as any,
           usage: chunk.usageMetadata
             ? {
-                promptTokens: chunk.usageMetadata.promptTokenCount ?? 0,
-                completionTokens: chunk.usageMetadata.thoughtsTokenCount ?? 0,
-                totalTokens: chunk.usageMetadata.totalTokenCount ?? 0,
-              }
+              promptTokens: chunk.usageMetadata.promptTokenCount ?? 0,
+              completionTokens: chunk.usageMetadata.thoughtsTokenCount ?? 0,
+              totalTokens: chunk.usageMetadata.totalTokenCount ?? 0,
+            }
             : undefined,
         };
       }
@@ -544,14 +547,10 @@ export class GeminiAdapter extends BaseAdapter<
    * Maps common options to Gemini-specific format
    * Handles translation of normalized options to Gemini's API format
    */
-  /**
-   * Maps common options to Gemini-specific format
-   * Handles translation of normalized options to Gemini's API format
-   */
   private mapCommonOptionsToGemini(
     options: ChatCompletionOptions<string, GeminiProviderOptions>
   ) {
-    const providerOpts = options.providerOptions;
+    const providerOpts = options.providerOptions
     const requestOptions: GenerateContentParameters = {
       model: options.model,
       contents: this.formatMessages(options.messages),
@@ -617,8 +616,8 @@ export function gemini(
     typeof globalThis !== "undefined" && (globalThis as any).window?.env
       ? (globalThis as any).window.env
       : typeof process !== "undefined"
-      ? process.env
-      : undefined;
+        ? process.env
+        : undefined;
   const key = env?.GOOGLE_API_KEY || env?.GEMINI_API_KEY;
 
   if (!key) {

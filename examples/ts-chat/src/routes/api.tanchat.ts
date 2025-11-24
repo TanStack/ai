@@ -38,10 +38,9 @@ export const Route = createFileRoute("/api/tanchat")({
         const aiInstance = ai(openai());
         // const aiInstance = ai(anthropic());
         //const aiInstance = ai(gemini());
-        //aiInstance.chat({
-        //  model: "gpt-5",
-        //  messages: [],
-        //})
+
+
+
         // Check for API key
         if (!process.env.OPENAI_API_KEY) {
           return new Response(
@@ -72,7 +71,7 @@ export const Route = createFileRoute("/api/tanchat")({
           // Use the stream abort signal for proper cancellation handling
           const stream = aiInstance.chat({
             messages,
-            model: "gpt-4o",
+            model: "gpt-4-turbo",
             // model: "claude-sonnet-4-5-20250929",
             // model: "smollm",
             // model: "gemini-2.5-flash",
@@ -80,7 +79,9 @@ export const Route = createFileRoute("/api/tanchat")({
             systemPrompts: [SYSTEM_PROMPT],
             agentLoopStrategy: maxIterations(20),
             abortController,
+            providerOptions: {
 
+            }
           });
 
           return toStreamResponse(stream, undefined, abortController);

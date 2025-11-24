@@ -12,30 +12,41 @@ import type {
 import { AI } from "./ai";
 import { aiEventClient } from "./event-client.js";
 
-// Extract types from adapter
-type ExtractModelsFromAdapter<T> = T extends AIAdapter<infer M, any, any, any> ? M[number] : never;
-type ExtractChatProviderOptionsFromAdapter<T> = T extends AIAdapter<any, any, infer P, any> ? P : Record<string, any>;
+// Extract types from adapter (updated to 5 generics)
+type ExtractModelsFromAdapter<T> = T extends AIAdapter<infer M, any, any, any, any> ? M[number] : never;
 
-// Chat streaming options
-type ChatStreamOptions<TAdapter extends AIAdapter<any, any, any, any>> = Omit<
-  ChatCompletionOptions,
-  "model" | "providerOptions" | "responseFormat"
-> & {
-  adapter: TAdapter;
-  model: ExtractModelsFromAdapter<TAdapter>;
-  providerOptions?: ExtractChatProviderOptionsFromAdapter<TAdapter>;
-};
+// NEW: Union-based approach for better type narrowing
+// This creates a discriminated union where each adapter+model combination is a separate type
+type ChatStreamOptionsUnion<TAdapter extends AIAdapter<any, any, any, any, any>> =
+  TAdapter extends AIAdapter<infer Models, any, any, any, infer ModelProviderOptions>
+  ? Models[number] extends infer TModel
+  ? TModel extends string
+  ? Omit<ChatCompletionOptions, "model" | "providerOptions" | "responseFormat"> & {
+    adapter: TAdapter;
+    model: TModel;
+    providerOptions?: TModel extends keyof ModelProviderOptions
+    ? ModelProviderOptions[TModel]
+    : never;
+  }
+  : never
+  : never
+  : never;
 
-// Chat completion options with optional structured output
-type ChatCompletionOptionsWithAdapter<
-  TAdapter extends AIAdapter<any, any, any, any>,
-  TOutput extends ResponseFormat<any> | undefined = undefined
-> = Omit<ChatCompletionOptions, "model" | "providerOptions" | "responseFormat"> & {
-  adapter: TAdapter;
-  model: ExtractModelsFromAdapter<TAdapter>;
-  output?: TOutput;
-  providerOptions?: ExtractChatProviderOptionsFromAdapter<TAdapter>;
-};
+type ChatCompletionOptionsUnion<TAdapter extends AIAdapter<any, any, any, any, any>, TOutput extends ResponseFormat<any> | undefined = undefined> =
+  TAdapter extends AIAdapter<infer Models, any, any, any, infer ModelProviderOptions>
+  ? Models[number] extends infer TModel
+  ? TModel extends string
+  ? Omit<ChatCompletionOptions, "model" | "providerOptions" | "responseFormat"> & {
+    adapter: TAdapter;
+    model: TModel;
+    output?: TOutput;
+    providerOptions?: TModel extends keyof ModelProviderOptions
+    ? ModelProviderOptions[TModel]
+    : never;
+  }
+  : never
+  : never
+  : never;
 
 // Helper type for chatCompletion return type
 type ChatCompletionReturnType<TOutput extends ResponseFormat<any> | undefined> = TOutput extends ResponseFormat<
@@ -73,14 +84,10 @@ type ChatCompletionReturnType<TOutput extends ResponseFormat<any> | undefined> =
  * }
  * ```
  */
-export function chat<TAdapter extends AIAdapter<any, any, any, any>>(
-  options: ChatStreamOptions<TAdapter>
+export function chat<TAdapter extends AIAdapter<any, any, any, any, any>>(
+  options: ChatStreamOptionsUnion<TAdapter>
 ): AsyncIterable<StreamChunk> {
-  const {
-    adapter,
-
-    ...restOptions
-  } = options;
+  const { adapter, ...chatOptions } = options;
   const aiInstance = new AI({ adapter });
 
   aiEventClient.emit("standalone:chat-started", {
@@ -90,9 +97,7 @@ export function chat<TAdapter extends AIAdapter<any, any, any, any>>(
     streaming: true,
   });
 
-  return aiInstance.chat({
-    ...restOptions,
-  });
+  return aiInstance.chat(chatOptions);
 }
 
 /**
@@ -126,12 +131,12 @@ export function chat<TAdapter extends AIAdapter<any, any, any, any>>(
  * ```
  */
 export async function chatCompletion<
-  TAdapter extends AIAdapter<any, any, any, any>,
+  TAdapter extends AIAdapter<any, any, any, any, any>,
   TOutput extends ResponseFormat<any> | undefined = undefined
->(options: ChatCompletionOptionsWithAdapter<TAdapter, TOutput>): Promise<ChatCompletionReturnType<TOutput>> {
+>(options: ChatCompletionOptionsUnion<TAdapter, TOutput>): Promise<ChatCompletionReturnType<TOutput>> {
   const {
     adapter,
-
+    model,
     ...restOptions
   } = options;
   const aiInstance = new AI({ adapter });
@@ -140,11 +145,12 @@ export async function chatCompletion<
   aiEventClient.emit("standalone:chat-completion-started", {
     timestamp: startTime,
     adapterName: adapter.name,
-    model: options.model,
+    model: model as string,
     hasOutput: !!options.output,
   });
 
   const result = (await aiInstance.chatCompletion({
+    model,
     ...restOptions,
   })) as any;
 
@@ -154,7 +160,7 @@ export async function chatCompletion<
 /**
  * Standalone summarize function with type inference from adapter
  */
-export async function summarize<TAdapter extends AIAdapter<any, any, any, any>>(
+export async function summarize<TAdapter extends AIAdapter<any, any, any, any, any>>(
   options: Omit<SummarizationOptions, "model"> & {
     adapter: TAdapter;
     model: ExtractModelsFromAdapter<TAdapter>;
@@ -169,7 +175,7 @@ export async function summarize<TAdapter extends AIAdapter<any, any, any, any>>(
 /**
  * Standalone embed function with type inference from adapter
  */
-export async function embed<TAdapter extends AIAdapter<any, any, any, any>>(
+export async function embed<TAdapter extends AIAdapter<any, any, any, any, any>>(
   options: Omit<EmbeddingOptions, "model"> & {
     adapter: TAdapter;
     model: ExtractModelsFromAdapter<TAdapter>;
