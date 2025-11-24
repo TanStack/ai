@@ -1,4 +1,5 @@
 export { Anthropic, createAnthropic, anthropic, type AnthropicConfig } from "./anthropic-adapter";
+export type { AnthropicChatModelProviderOptionsByName } from "./model-meta";
 
 // Export tool conversion utilities
 export {

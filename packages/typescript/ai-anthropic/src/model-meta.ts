@@ -325,3 +325,21 @@ export const ANTHROPIC_AUDIO_MODELS = [] as const;
 export const ANTHROPIC_VIDEO_MODELS = [] as const;
 
 export type AnthropicModel = (typeof ANTHROPIC_MODELS)[number];
+
+// Manual type map for per-model provider options
+// Models are differentiated by extended_thinking and priority_tier support
+export type AnthropicChatModelProviderOptionsByName = {
+  // Models with both extended_thinking and priority_tier
+  [CLAUDE_SONNET_4_5.id]: AnthropicContainerOptions & AnthropicContextManagementOptions & AnthropicMCPOptions & AnthropicServiceTierOptions & AnthropicStopSequencesOptions & AnthropicThinkingOptions & AnthropicToolChoiceOptions & AnthropicSamplingOptions;
+  [CLAUDE_HAIKU_4_5.id]: AnthropicContainerOptions & AnthropicContextManagementOptions & AnthropicMCPOptions & AnthropicServiceTierOptions & AnthropicStopSequencesOptions & AnthropicThinkingOptions & AnthropicToolChoiceOptions & AnthropicSamplingOptions;
+  [CLAUDE_OPUS_4_1.id]: AnthropicContainerOptions & AnthropicContextManagementOptions & AnthropicMCPOptions & AnthropicServiceTierOptions & AnthropicStopSequencesOptions & AnthropicThinkingOptions & AnthropicToolChoiceOptions & AnthropicSamplingOptions;
+  [CLAUDE_SONNET_4.id]: AnthropicContainerOptions & AnthropicContextManagementOptions & AnthropicMCPOptions & AnthropicServiceTierOptions & AnthropicStopSequencesOptions & AnthropicThinkingOptions & AnthropicToolChoiceOptions & AnthropicSamplingOptions;
+  [CLAUDE_SONNET_3_7.id]: AnthropicContainerOptions & AnthropicContextManagementOptions & AnthropicMCPOptions & AnthropicServiceTierOptions & AnthropicStopSequencesOptions & AnthropicThinkingOptions & AnthropicToolChoiceOptions & AnthropicSamplingOptions;
+  [CLAUDE_OPUS_4.id]: AnthropicContainerOptions & AnthropicContextManagementOptions & AnthropicMCPOptions & AnthropicServiceTierOptions & AnthropicStopSequencesOptions & AnthropicThinkingOptions & AnthropicToolChoiceOptions & AnthropicSamplingOptions;
+
+  // Model with priority_tier but NO extended_thinking
+  [CLAUDE_HAIKU_3_5.id]: AnthropicContainerOptions & AnthropicContextManagementOptions & AnthropicMCPOptions & AnthropicServiceTierOptions & AnthropicStopSequencesOptions & AnthropicToolChoiceOptions & AnthropicSamplingOptions;
+
+  // Model with neither extended_thinking nor priority_tier
+  [CLAUDE_HAIKU_3.id]: AnthropicContainerOptions & AnthropicContextManagementOptions & AnthropicMCPOptions & AnthropicStopSequencesOptions & AnthropicToolChoiceOptions & AnthropicSamplingOptions;
+};
