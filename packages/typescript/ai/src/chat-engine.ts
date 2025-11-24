@@ -20,7 +20,7 @@ import { maxIterations as maxIterationsStrategy } from "./agent-loop-strategies"
 import { prependSystemPrompts } from "./utils";
 
 interface ChatEngineConfig<
-  TAdapter extends AIAdapter<any, any, any, any, any, any, any, any, any, any>,
+  TAdapter extends AIAdapter<any, any, any, any>,
   TParams extends ChatCompletionOptions<any, any> = ChatCompletionOptions<any>
 > {
   adapter: TAdapter;
@@ -33,7 +33,7 @@ type ToolPhaseResult = "continue" | "stop" | "wait";
 type CyclePhase = "processChat" | "executeToolCalls";
 
 export class ChatEngine<
-  TAdapter extends AIAdapter<any, any, any, any, any, any, any, any, any, any>,
+  TAdapter extends AIAdapter<any, any, any, any>,
   TParams extends ChatCompletionOptions<any, any> = ChatCompletionOptions<any>
 > {
   private readonly adapter: TAdapter;

@@ -14,10 +14,7 @@ import {
 } from "@tanstack/ai";
 import {
   GEMINI_MODELS,
-  GEMINI_IMAGE_MODELS,
   GEMINI_EMBEDDING_MODELS,
-  GEMINI_AUDIO_MODELS,
-  GEMINI_VIDEO_MODELS,
 } from "./model-meta";
 import { ExternalTextProviderOptions, } from "./text/text-provider-options";
 import { convertToolsToProviderFormat } from "./tools/tool-converter";
@@ -36,22 +33,13 @@ export type GeminiProviderOptions = ExternalTextProviderOptions;
 
 export class GeminiAdapter extends BaseAdapter<
   typeof GEMINI_MODELS,
-  typeof GEMINI_IMAGE_MODELS,
   typeof GEMINI_EMBEDDING_MODELS,
-  typeof GEMINI_AUDIO_MODELS,
-  typeof GEMINI_VIDEO_MODELS,
   GeminiProviderOptions,
-  Record<string, any>,
-  Record<string, any>,
-  Record<string, any>,
   Record<string, any>
 > {
   name = "gemini";
   models = GEMINI_MODELS;
-  imageModels = GEMINI_IMAGE_MODELS;
   embeddingModels = GEMINI_EMBEDDING_MODELS;
-  audioModels = GEMINI_AUDIO_MODELS;
-  videoModels = GEMINI_VIDEO_MODELS;
   private client: GoogleGenAI;
 
   constructor(config: GeminiAdapterConfig) {

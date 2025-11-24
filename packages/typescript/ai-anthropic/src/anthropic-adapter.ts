@@ -11,7 +11,7 @@ import {
   type ModelMessage,
   type StreamChunk,
 } from "@tanstack/ai";
-import { ANTHROPIC_AUDIO_MODELS, ANTHROPIC_EMBEDDING_MODELS, ANTHROPIC_IMAGE_MODELS, ANTHROPIC_MODELS, ANTHROPIC_VIDEO_MODELS } from "./model-meta";
+import { ANTHROPIC_EMBEDDING_MODELS, ANTHROPIC_MODELS, } from "./model-meta";
 import { convertToolsToProviderFormat } from "./tools/tool-converter";
 import { ExternalTextProviderOptions, InternalTextProviderOptions } from "./text/text-provider-options";
 
@@ -35,22 +35,14 @@ type AnthropicContentBlock = AnthropicContentBlocks extends Array<infer Block>
 
 export class Anthropic extends BaseAdapter<
   typeof ANTHROPIC_MODELS,
-  typeof ANTHROPIC_IMAGE_MODELS,
   typeof ANTHROPIC_EMBEDDING_MODELS,
-  typeof ANTHROPIC_AUDIO_MODELS,
-  typeof ANTHROPIC_VIDEO_MODELS,
   AnthropicProviderOptions,
-  Record<string, any>,
-  Record<string, any>,
-  Record<string, any>,
   Record<string, any>
 > {
   name = "anthropic" as const;
   models = ANTHROPIC_MODELS;
-  imageModels = ANTHROPIC_IMAGE_MODELS;
   embeddingModels = ANTHROPIC_EMBEDDING_MODELS;
-  audioModels = ANTHROPIC_AUDIO_MODELS;
-  videoModels = ANTHROPIC_VIDEO_MODELS;
+
   private client: Anthropic_SDK;
 
   constructor(config: AnthropicConfig) {

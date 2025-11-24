@@ -8,8 +8,6 @@ import type {
   SummarizationResult,
   EmbeddingOptions,
   EmbeddingResult,
-  ImageGenerationOptions,
-  ImageGenerationResult,
 } from "./types";
 
 /**
@@ -29,31 +27,19 @@ import type {
  */
 export abstract class BaseAdapter<
   TChatModels extends readonly string[] = readonly string[],
-  TImageModels extends readonly string[] = readonly string[],
   TEmbeddingModels extends readonly string[] = readonly string[],
-  TAudioModels extends readonly string[] = readonly string[],
-  TVideoModels extends readonly string[] = readonly string[],
   TChatProviderOptions extends Record<string, any> = Record<string, any>,
-  TImageProviderOptions extends Record<string, any> = Record<string, any>,
   TEmbeddingProviderOptions extends Record<string, any> = Record<string, any>,
-  TAudioProviderOptions extends Record<string, any> = Record<string, any>,
-  TVideoProviderOptions extends Record<string, any> = Record<string, any>
-> implements AIAdapter<TChatModels, TImageModels, TEmbeddingModels, TAudioModels, TVideoModels, TChatProviderOptions, TImageProviderOptions, TEmbeddingProviderOptions, TAudioProviderOptions, TVideoProviderOptions> {
+> implements AIAdapter<TChatModels, TEmbeddingModels, TChatProviderOptions, TEmbeddingProviderOptions> {
   abstract name: string;
   abstract models: TChatModels;
-  imageModels?: TImageModels;
   embeddingModels?: TEmbeddingModels;
-  audioModels?: TAudioModels;
-  videoModels?: TVideoModels;
   protected config: AIAdapterConfig;
 
   // These properties are used for type inference only, never assigned at runtime
   _providerOptions?: TChatProviderOptions;
   _chatProviderOptions?: TChatProviderOptions;
-  _imageProviderOptions?: TImageProviderOptions;
   _embeddingProviderOptions?: TEmbeddingProviderOptions;
-  _audioProviderOptions?: TAudioProviderOptions;
-  _videoProviderOptions?: TVideoProviderOptions;
 
   constructor(config: AIAdapterConfig = {}) {
     this.config = config;
@@ -72,11 +58,6 @@ export abstract class BaseAdapter<
   abstract createEmbeddings(
     options: EmbeddingOptions
   ): Promise<EmbeddingResult>;
-
-  // Optional image generation
-  generateImage?(
-    options: ImageGenerationOptions
-  ): Promise<ImageGenerationResult>;
 
   protected generateId(): string {
     return `${this.name}-${Date.now()}-${Math.random()

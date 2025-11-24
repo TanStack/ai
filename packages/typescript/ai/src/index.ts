@@ -4,10 +4,6 @@ export {
   chatCompletion,
   summarize,
   embed,
-  image,
-  audio,
-  speak,
-  video,
 } from "./standalone-functions";
 export { tool } from "./tool-utils";
 export {

@@ -609,35 +609,21 @@ export interface VideoGenerationResult {
  */
 export interface AIAdapter<
   TChatModels extends readonly string[] = readonly string[],
-  TImageModels extends readonly string[] = readonly string[],
   TEmbeddingModels extends readonly string[] = readonly string[],
-  TAudioModels extends readonly string[] = readonly string[],
-  TVideoModels extends readonly string[] = readonly string[],
   TChatProviderOptions extends Record<string, any> = Record<string, any>,
-  TImageProviderOptions extends Record<string, any> = Record<string, any>,
   TEmbeddingProviderOptions extends Record<string, any> = Record<string, any>,
-  TAudioProviderOptions extends Record<string, any> = Record<string, any>,
-  TVideoProviderOptions extends Record<string, any> = Record<string, any>
 > {
   name: string;
   /** Models that support chat/text completion */
   models: TChatModels;
-  /** Models that support image generation */
-  imageModels?: TImageModels;
+
   /** Models that support embeddings */
   embeddingModels?: TEmbeddingModels;
-  /** Models that support audio (transcription and text-to-speech) */
-  audioModels?: TAudioModels;
-  /** Models that support video generation */
-  videoModels?: TVideoModels;
 
   // Type-only properties for provider options inference
   _providerOptions?: TChatProviderOptions; // Alias for _chatProviderOptions
   _chatProviderOptions?: TChatProviderOptions;
-  _imageProviderOptions?: TImageProviderOptions;
   _embeddingProviderOptions?: TEmbeddingProviderOptions;
-  _audioProviderOptions?: TAudioProviderOptions;
-  _videoProviderOptions?: TVideoProviderOptions;
 
   // Chat methods
   chatCompletion(options: ChatCompletionOptions<string, TChatProviderOptions>): Promise<ChatCompletionResult>;
@@ -651,23 +637,6 @@ export interface AIAdapter<
   // Embeddings
   createEmbeddings(options: EmbeddingOptions): Promise<EmbeddingResult>;
 
-  // Image generation (optional)
-  generateImage?(
-    options: ImageGenerationOptions
-  ): Promise<ImageGenerationResult>;
-
-  // Audio transcription (optional)
-  transcribeAudio?(
-    options: AudioTranscriptionOptions
-  ): Promise<AudioTranscriptionResult>;
-
-  // Text-to-speech (optional)
-  generateSpeech?(options: TextToSpeechOptions): Promise<TextToSpeechResult>;
-
-  // Video generation (optional)
-  generateVideo?(
-    options: VideoGenerationOptions
-  ): Promise<VideoGenerationResult>;
 }
 
 export interface AIAdapterConfig {

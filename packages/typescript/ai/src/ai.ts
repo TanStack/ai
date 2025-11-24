@@ -6,14 +6,6 @@ import type {
   SummarizationResult,
   EmbeddingOptions,
   EmbeddingResult,
-  ImageGenerationOptions,
-  ImageGenerationResult,
-  AudioTranscriptionOptions,
-  AudioTranscriptionResult,
-  TextToSpeechOptions,
-  TextToSpeechResult,
-  VideoGenerationOptions,
-  VideoGenerationResult,
   ResponseFormat,
   ChatCompletionOptions,
 } from "./types";
@@ -26,67 +18,13 @@ type ExtractModels<T> = T extends AIAdapter<
   infer M,
   any,
   any,
-  any,
-  any,
-  any,
-  any,
-  any,
-  any,
   any
 >
   ? M[number]
   : string;
 type ExtractEmbeddingModels<T> = T extends AIAdapter<
   any,
-  any,
   infer M,
-  any,
-  any,
-  any,
-  any,
-  any,
-  any,
-  any
->
-  ? M[number]
-  : string;
-type ExtractImageModels<T> = T extends AIAdapter<
-  any,
-  infer M,
-  any,
-  any,
-  any,
-  any,
-  any,
-  any,
-  any,
-  any
->
-  ? M[number]
-  : string;
-type ExtractAudioModels<T> = T extends AIAdapter<
-  any,
-  any,
-  any,
-  infer M,
-  any,
-  any,
-  any,
-  any,
-  any,
-  any
->
-  ? M[number]
-  : string;
-type ExtractVideoModels<T> = T extends AIAdapter<
-  any,
-  any,
-  any,
-  any,
-  infer M,
-  any,
-  any,
-  any,
   any,
   any
 >
@@ -95,59 +33,13 @@ type ExtractVideoModels<T> = T extends AIAdapter<
 type ExtractChatProviderOptions<T> = T extends AIAdapter<
   any,
   any,
-  any,
-  any,
-  any,
-  infer P,
-  any,
-  any,
-  any,
-  any
->
-  ? P
-  : Record<string, any>;
-type ExtractImageProviderOptions<T> = T extends AIAdapter<
-  any,
-  any,
-  any,
-  any,
-  any,
-  any,
-  infer P,
-  any,
-  any,
-  any
->
-  ? P
-  : Record<string, any>;
-type ExtractAudioProviderOptions<T> = T extends AIAdapter<
-  any,
-  any,
-  any,
-  any,
-  any,
-  any,
-  any,
-  any,
   infer P,
   any
 >
   ? P
   : Record<string, any>;
-type ExtractVideoProviderOptions<T> = T extends AIAdapter<
-  any,
-  any,
-  any,
-  any,
-  any,
-  any,
-  any,
-  any,
-  any,
-  infer P
->
-  ? P
-  : Record<string, any>;
+
+
 
 // Helper type to compute chatCompletion return type based on output option
 type ChatCompletionReturnType<TOutput extends ResponseFormat<any> | undefined> =
@@ -157,7 +49,7 @@ type ChatCompletionReturnType<TOutput extends ResponseFormat<any> | undefined> =
 
 // Config for single adapter
 type AIConfig<
-  TAdapter extends AIAdapter<any, any, any, any, any, any, any, any, any, any>
+  TAdapter extends AIAdapter<any, any, any, any>
 > = {
   adapter: TAdapter;
   systemPrompts?: string[];
@@ -171,14 +63,8 @@ class AI<
     any,
     any,
     any,
-    any,
-    any,
-    any,
-    any,
-    any,
-    any,
     any
-  > = AIAdapter<any, any, any, any, any, any, any, any, any, any>
+  > = AIAdapter<any, any, any, any>
 > {
   private adapter: TAdapter;
   private systemPrompts: string[];
@@ -368,104 +254,14 @@ class AI<
     });
   }
 
-  /**
-   * Generate an image
-   */
-  async image(
-    options: Omit<ImageGenerationOptions, "model" | "providerOptions"> & {
-      model: ExtractImageModels<TAdapter>;
-      providerOptions?: ExtractImageProviderOptions<TAdapter>;
-    }
-  ): Promise<ImageGenerationResult> {
-    if (!this.adapter.generateImage) {
-      throw new Error(
-        `Adapter ${this.adapter.name} does not support image generation`
-      );
-    }
 
-    const { model, providerOptions, ...restOptions } = options;
-    return this.adapter.generateImage({
-      ...restOptions,
-      model: model as string,
-      providerOptions: providerOptions as any,
-    });
-  }
-
-  /**
-   * Transcribe audio
-   */
-  async audio(
-    options: Omit<AudioTranscriptionOptions, "model" | "providerOptions"> & {
-      model: ExtractAudioModels<TAdapter>;
-      providerOptions?: ExtractAudioProviderOptions<TAdapter>;
-    }
-  ): Promise<AudioTranscriptionResult> {
-    if (!this.adapter.transcribeAudio) {
-      throw new Error(
-        `Adapter ${this.adapter.name} does not support audio transcription`
-      );
-    }
-
-    const { model, providerOptions, ...restOptions } = options;
-    return this.adapter.transcribeAudio({
-      ...restOptions,
-      model: model as string,
-      providerOptions: providerOptions as any,
-    });
-  }
-
-  /**
-   * Generate speech from text
-   */
-  async speak(
-    options: Omit<TextToSpeechOptions, "model" | "providerOptions"> & {
-      model: ExtractModels<TAdapter>;
-      providerOptions?: ExtractChatProviderOptions<TAdapter>;
-    }
-  ): Promise<TextToSpeechResult> {
-    if (!this.adapter.generateSpeech) {
-      throw new Error(
-        `Adapter ${this.adapter.name} does not support text-to-speech`
-      );
-    }
-
-    const { model, providerOptions, ...restOptions } = options;
-    return this.adapter.generateSpeech({
-      ...restOptions,
-      model: model as string,
-      providerOptions: providerOptions as any,
-    });
-  }
-
-  /**
-   * Generate a video
-   */
-  async video(
-    options: Omit<VideoGenerationOptions, "model" | "providerOptions"> & {
-      model: ExtractVideoModels<TAdapter>;
-      providerOptions?: ExtractVideoProviderOptions<TAdapter>;
-    }
-  ): Promise<VideoGenerationResult> {
-    if (!this.adapter.generateVideo) {
-      throw new Error(
-        `Adapter ${this.adapter.name} does not support video generation`
-      );
-    }
-
-    const { model, providerOptions, ...restOptions } = options;
-    return this.adapter.generateVideo({
-      ...restOptions,
-      model: model as string,
-      providerOptions: providerOptions as any,
-    });
-  }
 }
 
 /**
  * Create an AI instance with a single adapter and proper type inference
  */
 export function ai<
-  TAdapter extends AIAdapter<any, any, any, any, any, any, any, any, any, any>
+  TAdapter extends AIAdapter<any, any, any, any>
 >(adapter: TAdapter, config?: { systemPrompts?: string[] }): AI<TAdapter> {
   return new AI({
     adapter,

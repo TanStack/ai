@@ -7,18 +7,11 @@ import {
   type SummarizationResult,
   type EmbeddingOptions,
   type EmbeddingResult,
-  type ImageGenerationOptions,
-  type ImageGenerationResult,
-  type ImageData,
   StreamChunk,
 } from "@tanstack/ai";
 import {
   OPENAI_CHAT_MODELS,
-  OPENAI_IMAGE_MODELS,
   OPENAI_EMBEDDING_MODELS,
-  OPENAI_AUDIO_MODELS,
-  OPENAI_VIDEO_MODELS,
-  OpenAIImageModel,
 } from "./model-meta";
 import {
   convertMessagesToInput,
@@ -122,22 +115,14 @@ export interface OpenAIVideoProviderOptions {
 
 export class OpenAI extends BaseAdapter<
   typeof OPENAI_CHAT_MODELS,
-  typeof OPENAI_IMAGE_MODELS,
   typeof OPENAI_EMBEDDING_MODELS,
-  typeof OPENAI_AUDIO_MODELS,
-  typeof OPENAI_VIDEO_MODELS,
   OpenAIProviderOptions,
-  OpenAIImageProviderOptions,
-  OpenAIEmbeddingProviderOptions,
-  OpenAIAudioProviderOptions,
-  OpenAIVideoProviderOptions
+  OpenAIEmbeddingProviderOptions
 > {
   name = "openai" as const;
   models = OPENAI_CHAT_MODELS;
-  imageModels = OPENAI_IMAGE_MODELS;
   embeddingModels = OPENAI_EMBEDDING_MODELS;
-  audioModels = OPENAI_AUDIO_MODELS;
-  videoModels = OPENAI_VIDEO_MODELS;
+
   private client: OpenAI_SDK;
 
   constructor(config: OpenAIConfig) {
@@ -250,288 +235,7 @@ export class OpenAI extends BaseAdapter<
     };
   }
 
-  async generateImage(
-    options: ImageGenerationOptions
-  ): Promise<ImageGenerationResult> {
-    const numImages = options.n || 1;
-    const model = options.model as OpenAIImageModel;
 
-    // Determine max images per call based on model
-    const maxPerCall =
-      options.maxImagesPerCall || (model === "dall-e-3" ? 1 : 10);
-
-    // Calculate how many API calls we need
-    const numCalls = Math.ceil(numImages / maxPerCall);
-    const allImages: ImageData[] = [];
-
-    // Make batched API calls
-    for (let i = 0; i < numCalls; i++) {
-      const imagesThisCall = Math.min(maxPerCall, numImages - allImages.length);
-
-      const requestParams: OpenAI_SDK.Images.ImageGenerateParams = {
-        model,
-        prompt: options.prompt,
-        n: imagesThisCall,
-        ...(options.size && { size: options.size as any }),
-        ...(options.seed && model === "dall-e-3" && { seed: options.seed }),
-        response_format: "b64_json", // Always request base64
-      };
-
-      // Add provider-specific options
-      if (options.providerOptions) {
-        Object.assign(requestParams, options.providerOptions);
-      }
-
-      const response = await this.client.images.generate(requestParams, {
-        signal: options.abortSignal,
-        headers: options.headers,
-      });
-
-      // Convert response to ImageData format
-      if (response.data) {
-        for (const image of response.data) {
-          if (image.b64_json) {
-            const base64 = image.b64_json;
-            const uint8Array = this.base64ToUint8Array(base64);
-
-            allImages.push({
-              base64: `data:image/png;base64,${base64}`,
-              uint8Array,
-              mediaType: "image/png",
-            });
-          }
-        }
-      }
-    }
-
-    // Extract provider metadata if available
-    const providerMetadata: Record<string, any> = {};
-    if (options.providerOptions) {
-      providerMetadata.openai = {
-        images: allImages.map(() => ({})),
-      };
-    }
-
-    return {
-      ...(numImages === 1 ? { image: allImages[0] } : { images: allImages }),
-      providerMetadata,
-      response: {
-        id: this.generateId(),
-        model,
-        timestamp: Date.now(),
-      },
-    };
-  }
-
-  async transcribeAudio(
-    options: import("@tanstack/ai").AudioTranscriptionOptions
-  ): Promise<import("@tanstack/ai").AudioTranscriptionResult> {
-    const providerOpts = options.providerOptions as
-      | OpenAIAudioTranscriptionProviderOptions
-      | undefined;
-
-    const formData = new FormData();
-    formData.append("file", options.file);
-    formData.append("model", options.model);
-
-    if (options.prompt) {
-      formData.append("prompt", options.prompt);
-    }
-
-    if (options.language) {
-      formData.append("language", options.language);
-    }
-
-    if (options.temperature !== undefined) {
-      formData.append("temperature", String(options.temperature));
-    }
-
-    const responseFormat = options.responseFormat || "json";
-    formData.append("response_format", responseFormat);
-
-    // Add timestamp granularities if specified (whisper-1 only)
-    if (providerOpts?.timestampGranularities) {
-      providerOpts.timestampGranularities.forEach((gran) => {
-        formData.append("timestamp_granularities[]", gran);
-      });
-    }
-
-    // Add diarization options if specified
-    if (providerOpts?.chunkingStrategy) {
-      formData.append(
-        "chunking_strategy",
-        typeof providerOpts.chunkingStrategy === "string"
-          ? providerOpts.chunkingStrategy
-          : JSON.stringify(providerOpts.chunkingStrategy)
-      );
-    }
-
-    if (providerOpts?.knownSpeakerNames) {
-      providerOpts.knownSpeakerNames.forEach((name) => {
-        formData.append("known_speaker_names[]", name);
-      });
-    }
-
-    if (providerOpts?.knownSpeakerReferences) {
-      providerOpts.knownSpeakerReferences.forEach((ref) => {
-        formData.append("known_speaker_references[]", ref);
-      });
-    }
-
-    const response = await this.client.audio.transcriptions.create(
-      formData as any
-    );
-
-    // Parse response based on format
-    if (typeof response === "string") {
-      return {
-        id: this.generateId(),
-        model: options.model,
-        text: response,
-      };
-    }
-
-    return {
-      id: this.generateId(),
-      model: options.model,
-      text: (response as any).text || "",
-      language: (response as any).language,
-      duration: (response as any).duration,
-      segments: (response as any).segments,
-      logprobs: (response as any).logprobs,
-    };
-  }
-
-  async generateSpeech(
-    options: import("@tanstack/ai").TextToSpeechOptions
-  ): Promise<import("@tanstack/ai").TextToSpeechResult> {
-    const voice = options.voice;
-    if (!voice) {
-      throw new Error("Voice parameter is required for text-to-speech");
-    }
-
-    const response = await this.client.audio.speech.create({
-      model: options.model,
-      input: options.input,
-      voice: voice as any,
-      response_format: (options.responseFormat || "mp3") as any,
-      speed: options.speed,
-    });
-
-    const buffer = Buffer.from(await response.arrayBuffer());
-
-    const format = (options.responseFormat || "mp3") as
-      | "mp3"
-      | "opus"
-      | "aac"
-      | "flac"
-      | "wav"
-      | "pcm";
-
-    return {
-      id: this.generateId(),
-      model: options.model,
-      audio: buffer,
-      format,
-    };
-  }
-
-  async generateVideo(
-    options: import("@tanstack/ai").VideoGenerationOptions
-  ): Promise<import("@tanstack/ai").VideoGenerationResult> {
-    const providerOpts = options.providerOptions as
-      | OpenAIVideoProviderOptions
-      | undefined;
-
-    // Start video generation
-    const createParams: any = {
-      model: options.model,
-      prompt: options.prompt,
-    };
-
-    // Add provider-specific options
-    if (options.resolution) {
-      createParams.size = options.resolution;
-    }
-
-    if (options.duration !== undefined) {
-      createParams.seconds = String(options.duration);
-    }
-
-    if (providerOpts?.inputReference) {
-      createParams.input_reference = providerOpts.inputReference;
-    }
-
-    let video: any;
-
-    // Check if this is a remix
-    if (providerOpts?.remixVideoId) {
-      video = await (this.client as any).videos.remix(
-        providerOpts.remixVideoId,
-        {
-          prompt: options.prompt,
-        }
-      );
-    } else {
-      video = await (this.client as any).videos.create(createParams);
-    }
-
-    // Poll for completion
-    while (video.status === "queued" || video.status === "in_progress") {
-      await new Promise((resolve) => setTimeout(resolve, 5000)); // Poll every 5 seconds
-      video = await (this.client as any).videos.retrieve(video.id);
-    }
-
-    if (video.status === "failed") {
-      throw new Error(
-        `Video generation failed: ${video.error?.message || "Unknown error"}`
-      );
-    }
-
-    // Download video content
-    const videoContent = await (this.client as any).videos.downloadContent(
-      video.id
-    );
-    const buffer = Buffer.from(await videoContent.arrayBuffer());
-
-    // Optionally download thumbnail
-    let thumbnail: string | undefined;
-    try {
-      const thumbnailContent = await (
-        this.client as any
-      ).videos.downloadContent(video.id, { variant: "thumbnail" });
-      const thumbBuffer = Buffer.from(await thumbnailContent.arrayBuffer());
-      thumbnail = `data:image/webp;base64,${thumbBuffer.toString("base64")}`;
-    } catch (e) {
-      // Thumbnail download failed, continue without it
-    }
-
-    return {
-      id: video.id,
-      model: options.model,
-      video: buffer,
-      format: "mp4",
-      duration: parseInt(video.seconds) || options.duration,
-      resolution: video.size || options.resolution,
-      thumbnail,
-    };
-  }
-
-  private base64ToUint8Array(base64: string): Uint8Array {
-    // Remove data URL prefix if present
-    const base64Data = base64.replace(/^data:image\/\w+;base64,/, "");
-
-    // Decode base64 to binary string
-    const binaryString = atob(base64Data);
-
-    // Convert binary string to Uint8Array
-    const bytes = new Uint8Array(binaryString.length);
-    for (let i = 0; i < binaryString.length; i++) {
-      bytes[i] = binaryString.charCodeAt(i);
-    }
-
-    return bytes;
-  }
 
   private buildSummarizationPrompt(options: SummarizationOptions): string {
     let prompt = "You are a professional summarizer. ";

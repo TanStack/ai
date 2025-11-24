@@ -5,8 +5,6 @@ import {
   type ChatCompletionOptions,
   type ChatCompletionResult,
   type ChatCompletionChunk,
-  type TextGenerationOptions,
-  type TextGenerationResult,
   type SummarizationOptions,
   type SummarizationResult,
   type EmbeddingOptions,
@@ -116,23 +114,12 @@ function mapCommonOptionsToOllama(
   options: ChatCompletionOptions,
   providerOpts?: OllamaProviderOptions
 ): any {
-  const ollamaOptions: any = {
-    temperature: options.temperature,
-    top_p: options.topP,
-    num_predict: options.maxTokens,
-    stop: options.stopSequences,
-  };
+  const ollamaOptions = {
+    temperature: options.options?.temperature,
+    top_p: options.options?.topP,
+    num_predict: options.options?.maxTokens,
 
-  // Map common options
-  if (options.frequencyPenalty !== undefined) {
-    ollamaOptions.frequency_penalty = options.frequencyPenalty;
-  }
-  if (options.presencePenalty !== undefined) {
-    ollamaOptions.presence_penalty = options.presencePenalty;
-  }
-  if (options.seed !== undefined) {
-    ollamaOptions.seed = options.seed;
-  }
+  };
 
   // Apply Ollama-specific provider options
   if (providerOpts) {
@@ -140,23 +127,16 @@ function mapCommonOptionsToOllama(
   }
 
   return {
-    model: options.model || "llama2",
+    model: options.model,
     options: ollamaOptions,
-    stream: options.stream || false,
     tools: convertToolsToOllamaFormat(options.tools),
   };
 }
 
 export class Ollama extends BaseAdapter<
   typeof OLLAMA_MODELS,
-  typeof OLLAMA_IMAGE_MODELS,
   typeof OLLAMA_EMBEDDING_MODELS,
-  typeof OLLAMA_AUDIO_MODELS,
-  typeof OLLAMA_VIDEO_MODELS,
   OllamaProviderOptions,
-  Record<string, any>,
-  Record<string, any>,
-  Record<string, any>,
   Record<string, any>
 > {
   name = "ollama";
@@ -315,7 +295,7 @@ export class Ollama extends BaseAdapter<
     });
 
     let hasToolCalls = false;
-    
+
     for await (const chunk of response) {
       // Check if tool calls are present in this chunk
       const toolCalls = chunk.message.tool_calls || [];
@@ -360,56 +340,6 @@ export class Ollama extends BaseAdapter<
     );
   }
 
-  async generateText(
-    options: TextGenerationOptions
-  ): Promise<TextGenerationResult> {
-    const response = await this.client.generate({
-      model: options.model || "llama2",
-      prompt: options.prompt,
-      options: {
-        temperature: options.temperature,
-        top_p: options.topP,
-        num_predict: options.maxTokens,
-        stop: options.stopSequences,
-      },
-      stream: false,
-    });
-
-    const promptTokens = this.estimateTokens(options.prompt);
-    const completionTokens = this.estimateTokens(response.response);
-
-    return {
-      id: this.generateId(),
-      model: response.model,
-      text: response.response,
-      finishReason: response.done ? "stop" : "length",
-      usage: {
-        promptTokens,
-        completionTokens,
-        totalTokens: promptTokens + completionTokens,
-      },
-    };
-  }
-
-  async *generateTextStream(
-    options: TextGenerationOptions
-  ): AsyncIterable<string> {
-    const response = await this.client.generate({
-      model: options.model || "llama2",
-      prompt: options.prompt,
-      options: {
-        temperature: options.temperature,
-        top_p: options.topP,
-        num_predict: options.maxTokens,
-        stop: options.stopSequences,
-      },
-      stream: true,
-    });
-
-    for await (const chunk of response) {
-      yield chunk.response;
-    }
-  }
 
   async summarize(options: SummarizationOptions): Promise<SummarizationResult> {
     const prompt = this.buildSummarizationPrompt(options, options.text);

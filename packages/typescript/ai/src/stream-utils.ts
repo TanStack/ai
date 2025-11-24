@@ -3,6 +3,7 @@ import type { ChatCompletionChunk, StreamChunk } from "./types";
 /**
  * Converts ChatCompletionChunk stream to StreamChunk format
  * This is a helper for adapters using the simpler ChatCompletionChunk format
+ *   TODO Jack check if we can remove this in favor of direct StreamChunk usage
  */
 export async function* convertChatCompletionStream(
   stream: AsyncIterable<ChatCompletionChunk>,
