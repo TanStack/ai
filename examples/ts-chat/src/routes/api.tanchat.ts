@@ -80,9 +80,7 @@ export const Route = createFileRoute("/api/tanchat")({
             agentLoopStrategy: maxIterations(20),
             abortController,
             providerOptions: {
-              text: {
 
-              }
             }
           });
 
