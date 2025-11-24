@@ -12,6 +12,7 @@ import {
 import {
   OPENAI_CHAT_MODELS,
   OPENAI_EMBEDDING_MODELS,
+  type OpenAIChatModelProviderOptionsByName,
 } from "./model-meta";
 import {
   convertMessagesToInput,
@@ -117,13 +118,19 @@ export class OpenAI extends BaseAdapter<
   typeof OPENAI_CHAT_MODELS,
   typeof OPENAI_EMBEDDING_MODELS,
   OpenAIProviderOptions,
-  OpenAIEmbeddingProviderOptions
+  OpenAIEmbeddingProviderOptions,
+  OpenAIChatModelProviderOptionsByName
 > {
   name = "openai" as const;
   models = OPENAI_CHAT_MODELS;
   embeddingModels = OPENAI_EMBEDDING_MODELS;
 
   private client: OpenAI_SDK;
+
+  // Type-only map used by core AI to infer per-model provider options.
+  // This is never set at runtime; it exists purely for TypeScript.
+  // Using definite assignment assertion (!) since this is type-only.
+  _modelProviderOptionsByName!: OpenAIChatModelProviderOptionsByName;
 
   constructor(config: OpenAIConfig) {
     super({});

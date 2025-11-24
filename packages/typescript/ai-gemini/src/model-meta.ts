@@ -1,4 +1,11 @@
-interface ModelMeta {
+import type {
+  GeminiToolConfigOptions,
+  GeminiSafetyOptions,
+  GeminiGenerationConfigOptions,
+  GeminiCachedContentOptions,
+} from "./text/text-provider-options";
+
+interface ModelMeta<TProviderOptions = unknown> {
   name: string;
   supports: {
     input: ("text" | "image" | "audio" | "video" | "pdf")[];
@@ -17,6 +24,10 @@ interface ModelMeta {
       normal: number;
     };
   };
+  /**
+   * Type-level description of which provider options this model supports.
+   */
+  providerOptions?: TProviderOptions;
 }
 
 
@@ -48,7 +59,12 @@ const GEMINI_3_PRO = {
       normal: 15
     }
   }
-} as const satisfies ModelMeta
+} as const satisfies ModelMeta<
+  GeminiToolConfigOptions &
+  GeminiSafetyOptions &
+  GeminiGenerationConfigOptions &
+  GeminiCachedContentOptions
+>
 
 
 const GEMINI_2_5_PRO = {
@@ -80,7 +96,12 @@ const GEMINI_2_5_PRO = {
       normal: 15
     }
   }
-} as const satisfies ModelMeta
+} as const satisfies ModelMeta<
+  GeminiToolConfigOptions &
+  GeminiSafetyOptions &
+  GeminiGenerationConfigOptions &
+  GeminiCachedContentOptions
+>
 
 const GEMINI_2_5_PRO_TTS = {
   name: "gemini-2.5-pro-preview-tts",
@@ -103,7 +124,7 @@ const GEMINI_2_5_PRO_TTS = {
       normal: 15
     }
   }
-} as const satisfies ModelMeta
+} as const satisfies ModelMeta<GeminiToolConfigOptions & GeminiSafetyOptions & GeminiGenerationConfigOptions & GeminiCachedContentOptions>
 
 const GEMINI_2_5_FLASH = {
   name: "gemini-2.5-flash",
@@ -134,7 +155,12 @@ const GEMINI_2_5_FLASH = {
       normal: 2.5
     }
   }
-} as const satisfies ModelMeta
+} as const satisfies ModelMeta<
+  GeminiToolConfigOptions &
+  GeminiSafetyOptions &
+  GeminiGenerationConfigOptions &
+  GeminiCachedContentOptions
+>
 
 const GEMINI_2_5_FLASH_PREVIEW = {
   name: "gemini-2.5-flash-preview-09-2025",
@@ -164,7 +190,12 @@ const GEMINI_2_5_FLASH_PREVIEW = {
       normal: 2.5
     }
   }
-} as const satisfies ModelMeta
+} as const satisfies ModelMeta<
+  GeminiToolConfigOptions &
+  GeminiSafetyOptions &
+  GeminiGenerationConfigOptions &
+  GeminiCachedContentOptions
+>
 
 
 const GEMINI_2_5_FLASH_IMAGE = {
@@ -191,7 +222,7 @@ const GEMINI_2_5_FLASH_IMAGE = {
       normal: 0.4
     }
   }
-} as const satisfies ModelMeta
+} as const satisfies ModelMeta<GeminiToolConfigOptions & GeminiSafetyOptions & GeminiGenerationConfigOptions & GeminiCachedContentOptions>
 
 
 const GEMINI_2_5_FLASH_LIVE = {
@@ -220,7 +251,7 @@ const GEMINI_2_5_FLASH_LIVE = {
       normal: 0
     }
   }
-} as const satisfies ModelMeta
+} as const satisfies ModelMeta<GeminiToolConfigOptions & GeminiSafetyOptions & GeminiGenerationConfigOptions & GeminiCachedContentOptions>
 
 
 const GEMINI_2_5_FLASH_TTS = {
@@ -245,7 +276,7 @@ const GEMINI_2_5_FLASH_TTS = {
       normal: 2.5
     }
   }
-} as const satisfies ModelMeta
+} as const satisfies ModelMeta<GeminiToolConfigOptions & GeminiSafetyOptions & GeminiGenerationConfigOptions & GeminiCachedContentOptions>
 
 
 const GEMINI_2_5_FLASH_LITE = {
@@ -276,7 +307,12 @@ const GEMINI_2_5_FLASH_LITE = {
       normal: 0.4
     }
   }
-} as const satisfies ModelMeta
+} as const satisfies ModelMeta<
+  GeminiToolConfigOptions &
+  GeminiSafetyOptions &
+  GeminiGenerationConfigOptions &
+  GeminiCachedContentOptions
+>
 
 const GEMINI_2_5_FLASH_LITE_PREVIEW = {
   name: "gemini-2.5-flash-lite-preview-09-2025",
@@ -305,7 +341,12 @@ const GEMINI_2_5_FLASH_LITE_PREVIEW = {
       normal: 0.4
     }
   }
-} as const satisfies ModelMeta
+} as const satisfies ModelMeta<
+  GeminiToolConfigOptions &
+  GeminiSafetyOptions &
+  GeminiGenerationConfigOptions &
+  GeminiCachedContentOptions
+>
 
 
 const GEMINI_2_FLASH = {
@@ -335,7 +376,12 @@ const GEMINI_2_FLASH = {
       normal: 0.4
     }
   }
-} as const satisfies ModelMeta
+} as const satisfies ModelMeta<
+  GeminiToolConfigOptions &
+  GeminiSafetyOptions &
+  GeminiGenerationConfigOptions &
+  GeminiCachedContentOptions
+>
 
 
 const GEMINI_2_FLASH_IMAGE = {
@@ -361,7 +407,7 @@ const GEMINI_2_FLASH_IMAGE = {
       normal: 0.039
     }
   }
-} as const satisfies ModelMeta
+} as const satisfies ModelMeta<GeminiToolConfigOptions & GeminiSafetyOptions & GeminiGenerationConfigOptions & GeminiCachedContentOptions>
 
 
 const GEMINI_2_FLASH_LIVE = {
@@ -391,7 +437,7 @@ const GEMINI_2_FLASH_LIVE = {
       normal: 0
     }
   }
-} as const satisfies ModelMeta
+} as const satisfies ModelMeta<GeminiToolConfigOptions & GeminiSafetyOptions & GeminiGenerationConfigOptions & GeminiCachedContentOptions>
 
 
 const GEMINI_2_FLASH_LITE = {
@@ -417,7 +463,12 @@ const GEMINI_2_FLASH_LITE = {
       normal: 0.3
     }
   }
-} as const satisfies ModelMeta
+} as const satisfies ModelMeta<
+  GeminiToolConfigOptions &
+  GeminiSafetyOptions &
+  GeminiGenerationConfigOptions &
+  GeminiCachedContentOptions
+>
 
 const IMAGEN_4_GENERATE = {
   name: "imagen-4.0-generate-001",
@@ -436,7 +487,7 @@ const IMAGEN_4_GENERATE = {
       normal: 0.4
     }
   }
-} as const satisfies ModelMeta
+} as const satisfies ModelMeta<GeminiToolConfigOptions & GeminiSafetyOptions & GeminiGenerationConfigOptions & GeminiCachedContentOptions>
 
 const IMAGEN_4_GENERATE_ULTRA = {
   name: "imagen-4.0-ultra-generate-001",
@@ -455,7 +506,7 @@ const IMAGEN_4_GENERATE_ULTRA = {
       normal: 0.6
     }
   }
-} as const satisfies ModelMeta
+} as const satisfies ModelMeta<GeminiToolConfigOptions & GeminiSafetyOptions & GeminiGenerationConfigOptions & GeminiCachedContentOptions>
 
 
 const IMAGEN_4_GENERATE_FAST = {
@@ -475,7 +526,7 @@ const IMAGEN_4_GENERATE_FAST = {
       normal: 0.2
     }
   }
-} as const satisfies ModelMeta
+} as const satisfies ModelMeta<GeminiToolConfigOptions & GeminiSafetyOptions & GeminiGenerationConfigOptions & GeminiCachedContentOptions>
 
 
 const IMAGEN_3 = {
@@ -493,7 +544,7 @@ const IMAGEN_3 = {
       normal: 0.03
     }
   }
-} as const satisfies ModelMeta
+} as const satisfies ModelMeta<GeminiToolConfigOptions & GeminiSafetyOptions & GeminiGenerationConfigOptions & GeminiCachedContentOptions>
 
 const VEO_3_1_PREVIEW = {
   name: "veo-3.1-generate-preview",
@@ -511,7 +562,7 @@ const VEO_3_1_PREVIEW = {
       normal: 0.4
     }
   }
-} as const satisfies ModelMeta
+} as const satisfies ModelMeta<GeminiToolConfigOptions & GeminiSafetyOptions & GeminiGenerationConfigOptions & GeminiCachedContentOptions>
 
 
 const VEO_3_1_FAST_PREVIEW = {
@@ -530,7 +581,7 @@ const VEO_3_1_FAST_PREVIEW = {
       normal: 0.15
     }
   }
-} as const satisfies ModelMeta
+} as const satisfies ModelMeta<GeminiToolConfigOptions & GeminiSafetyOptions & GeminiGenerationConfigOptions & GeminiCachedContentOptions>
 
 const VEO_3 = {
   name: "veo-3.0-generate-001",
@@ -548,7 +599,7 @@ const VEO_3 = {
       normal: 0.4
     }
   }
-} as const satisfies ModelMeta
+} as const satisfies ModelMeta<GeminiToolConfigOptions & GeminiSafetyOptions & GeminiGenerationConfigOptions & GeminiCachedContentOptions>
 
 
 const VEO_3_FAST = {
@@ -567,7 +618,7 @@ const VEO_3_FAST = {
       normal: 0.15
     }
   }
-} as const satisfies ModelMeta
+} as const satisfies ModelMeta<GeminiToolConfigOptions & GeminiSafetyOptions & GeminiGenerationConfigOptions & GeminiCachedContentOptions>
 
 
 const VEO_2 = {
@@ -585,7 +636,7 @@ const VEO_2 = {
       normal: 0.35
     }
   }
-} as const satisfies ModelMeta
+} as const satisfies ModelMeta<GeminiToolConfigOptions & GeminiSafetyOptions & GeminiGenerationConfigOptions & GeminiCachedContentOptions>
 
 const GEMINI_EMBEDDING = {
   name: "gemini-embedding-001",
@@ -602,7 +653,42 @@ const GEMINI_EMBEDDING = {
       normal: 0.15
     }
   }
-} as const satisfies ModelMeta;
+} as const satisfies ModelMeta<GeminiToolConfigOptions & GeminiSafetyOptions & GeminiGenerationConfigOptions & GeminiCachedContentOptions>;
+
+export const GEMINI_MODEL_META = {
+  [GEMINI_3_PRO.name]: GEMINI_3_PRO,
+  [GEMINI_2_5_PRO.name]: GEMINI_2_5_PRO,
+  [GEMINI_2_5_PRO_TTS.name]: GEMINI_2_5_PRO_TTS,
+  [GEMINI_2_5_FLASH.name]: GEMINI_2_5_FLASH,
+  [GEMINI_2_5_FLASH_PREVIEW.name]: GEMINI_2_5_FLASH_PREVIEW,
+  [GEMINI_2_5_FLASH_IMAGE.name]: GEMINI_2_5_FLASH_IMAGE,
+  [GEMINI_2_5_FLASH_LIVE.name]: GEMINI_2_5_FLASH_LIVE,
+  [GEMINI_2_5_FLASH_TTS.name]: GEMINI_2_5_FLASH_TTS,
+  [GEMINI_2_5_FLASH_LITE.name]: GEMINI_2_5_FLASH_LITE,
+  [GEMINI_2_5_FLASH_LITE_PREVIEW.name]: GEMINI_2_5_FLASH_LITE_PREVIEW,
+  [GEMINI_2_FLASH.name]: GEMINI_2_FLASH,
+  [GEMINI_2_FLASH_IMAGE.name]: GEMINI_2_FLASH_IMAGE,
+  [GEMINI_2_FLASH_LIVE.name]: GEMINI_2_FLASH_LIVE,
+  [GEMINI_2_FLASH_LITE.name]: GEMINI_2_FLASH_LITE,
+  [IMAGEN_4_GENERATE.name]: IMAGEN_4_GENERATE,
+  [IMAGEN_4_GENERATE_ULTRA.name]: IMAGEN_4_GENERATE_ULTRA,
+  [IMAGEN_4_GENERATE_FAST.name]: IMAGEN_4_GENERATE_FAST,
+  [IMAGEN_3.name]: IMAGEN_3,
+  [VEO_3_1_PREVIEW.name]: VEO_3_1_PREVIEW,
+  [VEO_3_1_FAST_PREVIEW.name]: VEO_3_1_FAST_PREVIEW,
+  [VEO_3.name]: VEO_3,
+  [VEO_3_FAST.name]: VEO_3_FAST,
+  [VEO_2.name]: VEO_2,
+  [GEMINI_EMBEDDING.name]: GEMINI_EMBEDDING,
+} as const;
+
+export type GeminiModelMetaMap = typeof GEMINI_MODEL_META;
+
+export type GeminiModelProviderOptions<
+  TModel extends keyof GeminiModelMetaMap
+> = GeminiModelMetaMap[TModel] extends ModelMeta<infer TProviderOptions>
+  ? TProviderOptions
+  : unknown;
 
 export const GEMINI_MODELS = [
   GEMINI_3_PRO.name,

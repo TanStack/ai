@@ -1,22 +1,25 @@
-
 import { GeminiChatModels } from "../model-meta";
 import { Schema } from "../tools/function-declaration-tool";
 import { GoogleGeminiTool } from "../tools";
 import { ContentListUnion, MediaResolution, SafetySetting, ThinkingLevel, ToolConfig } from "@google/genai";
 
-export interface ExternalTextProviderOptions {
-
+export interface GeminiToolConfigOptions {
   /**
    * Tool configuration for any Tool specified in the request.
    */
   toolConfig?: ToolConfig
+}
+
+export interface GeminiSafetyOptions {
   /**
    *  list of unique SafetySetting instances for blocking unsafe content.
 
 This will be enforced on the GenerateContentRequest.contents and GenerateContentResponse.candidates. There should not be more than one setting for each SafetyCategory type. The API will block any contents and responses that fail to meet the thresholds set by these settings. This list overrides the default settings for each SafetyCategory specified in the safetySettings. If there is no SafetySetting for a given SafetyCategory provided in the list, the API will use the default safety setting for that category. Harm categories HARM_CATEGORY_HATE_SPEECH, HARM_CATEGORY_SEXUALLY_EXPLICIT, HARM_CATEGORY_DANGEROUS_CONTENT, HARM_CATEGORY_HARASSMENT, HARM_CATEGORY_CIVIC_INTEGRITY are supported
    */
   safetySettings?: SafetySetting[]
+}
 
+export interface GeminiGenerationConfigOptions {
   /**
    * Configuration options for model generation and outputs.
    */
@@ -178,11 +181,19 @@ Valid values are: de-DE, en-AU, en-GB, en-IN, en-US, es-US, fr-FR, hi-IN, pt-BR,
      */
     mediaResolution?: MediaResolution
   }
+}
+
+export interface GeminiCachedContentOptions {
   /**
    * The name of the content cached to use as context to serve the prediction. Format: cachedContents/{cachedContent}
    */
   cachedContent?: `cachedContents/${string}`;
 }
+
+export type ExternalTextProviderOptions = GeminiToolConfigOptions &
+  GeminiSafetyOptions &
+  GeminiGenerationConfigOptions &
+  GeminiCachedContentOptions;
 export interface InternalTextProviderOptions extends ExternalTextProviderOptions {
   // path parameter
   model: GeminiChatModels;
