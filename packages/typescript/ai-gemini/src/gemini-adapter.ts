@@ -187,7 +187,7 @@ export class GeminiAdapter extends BaseAdapter<
     // According to docs: contents can be a string or array of strings
     // Response has embeddings (plural) array with values property
     const result = await this.client.models.embedContent({
-      model: options.model || "gemini-embedding-001",
+      model: options.model,
       contents: inputs,
     });
 

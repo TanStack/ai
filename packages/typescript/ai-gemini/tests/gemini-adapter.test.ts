@@ -170,7 +170,7 @@ describe("GeminiAdapter through AI", () => {
         },
       },
       cachedContent: "cachedContents/weather-context",
-    };
+    } as const;
 
     const aiInstance = createAI();
 

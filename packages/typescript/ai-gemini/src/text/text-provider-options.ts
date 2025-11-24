@@ -120,7 +120,7 @@ Valid values are: de-DE, en-AU, en-GB, en-IN, en-US, es-US, fr-FR, hi-IN, pt-BR,
      * If specified, the media resolution specified will be used.
      */
     mediaResolution?: MediaResolution
-  }
+  } & GeminiThinkingOptions & GeminiStructuredOutputOptions
 }
 
 export interface GeminiCachedContentOptions {
