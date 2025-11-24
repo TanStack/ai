@@ -550,7 +550,7 @@ export class GeminiAdapter extends BaseAdapter<
   private mapCommonOptionsToGemini(
     options: ChatCompletionOptions<string, GeminiProviderOptions>
   ) {
-    const providerOpts = options.providerOptions as any; // Cast to allow access to flat properties
+    const providerOpts = options.providerOptions
     const requestOptions: GenerateContentParameters = {
       model: options.model,
       contents: this.formatMessages(options.messages),
@@ -561,16 +561,6 @@ export class GeminiAdapter extends BaseAdapter<
         maxOutputTokens: options.options?.maxTokens,
         systemInstruction: options.systemPrompts?.join("\n"),
         ...providerOpts?.generationConfig,
-        // Merge flat structured output options into generationConfig
-        ...(providerOpts?.responseMimeType || providerOpts?.responseSchema || providerOpts?.responseJsonSchema ? {
-          responseMimeType: providerOpts.responseMimeType,
-          responseSchema: providerOpts.responseSchema,
-          responseJsonSchema: providerOpts.responseJsonSchema,
-        } : {}),
-        // Merge flat thinking config into generationConfig
-        ...(providerOpts?.thinkingConfig ? {
-          thinkingConfig: providerOpts.thinkingConfig,
-        } : {}),
         tools: convertToolsToProviderFormat(options.tools),
       },
     };

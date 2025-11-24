@@ -305,7 +305,7 @@ describe("GeminiAdapter through AI", () => {
 
     expect(mocks.getGenerativeModelSpy).toHaveBeenCalledWith({
       model: "gemini-2.5-flash",
-      generationConfig: {
+      config: {
         temperature: 0.3,
         maxOutputTokens: 123,
       },
