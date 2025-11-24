@@ -39,6 +39,23 @@ export interface AdapterContext {
   adapterName: string;
   adapter: any;
   model: string;
+  summarizeModel?: string;
+  embeddingModel?: string;
+}
+
+export interface DebugEnvelope {
+  adapter: string;
+  test: string;
+  model: string;
+  timestamp: string;
+  input: {
+    messages: any[];
+    tools?: any[];
+  };
+  chunks: any[];
+  summary: Record<string, any>;
+  result?: { passed: boolean; error?: string };
+  finalMessages?: any[];
 }
 
 async function ensureOutputDir() {
@@ -58,7 +75,6 @@ export async function writeDebugFile(
   const filename = `${adapterName.toLowerCase()}-${testName.toLowerCase()}.json`;
   const filepath = join(OUTPUT_DIR, filename);
   await writeFile(filepath, JSON.stringify(debugData, null, 2), "utf-8");
-  console.log(`   📝 Debug file written: ${filepath}`);
 }
 
 function formatToolsForDebug(tools: Tool[] = []) {
@@ -82,7 +98,7 @@ export function createDebugEnvelope(
   model: string,
   messages: any[],
   tools?: Tool[]
-) {
+): DebugEnvelope {
   return {
     adapter: adapterName,
     test: testName,
@@ -116,8 +132,8 @@ export async function captureStream(opts: {
   agentLoopStrategy?: any;
 }): Promise<StreamCapture> {
   const {
-    adapterName,
-    testName,
+    adapterName: _adapterName,
+    testName: _testName,
     phase,
     adapter,
     model,
@@ -205,7 +221,10 @@ export async function captureStream(opts: {
     } else if (chunk.type === "tool_result") {
       chunkData.toolCallId = chunk.toolCallId;
       chunkData.content = chunk.content;
-      toolResults.push({ toolCallId: chunk.toolCallId, content: chunk.content });
+      toolResults.push({
+        toolCallId: chunk.toolCallId,
+        content: chunk.content,
+      });
       reconstructedMessages.push({
         role: "tool",
         toolCallId: chunk.toolCallId,
@@ -280,8 +299,6 @@ export async function runTestCase(opts: {
     validate,
   } = opts;
 
-  console.log(`\n[${adapterContext.adapterName}] ${description}`);
-
   const debugData = createDebugEnvelope(
     adapterContext.adapterName,
     testName,
@@ -317,14 +334,13 @@ export async function runTestCase(opts: {
   await writeDebugFile(adapterContext.adapterName, testName, debugData);
 
   if (validation.passed) {
-    console.log(`✅ [${adapterContext.adapterName}] ${testName} passed`);
+    console.log(`[${adapterContext.adapterName}] ✅ ${testName}`);
   } else {
     console.log(
-      `❌ [${adapterContext.adapterName}] ${testName} failed: ${
+      `[${adapterContext.adapterName}] ❌ ${testName}: ${
         validation.error || "Unknown error"
       }`
     );
-    console.log(`   Response: ${run.fullResponse.slice(0, 200)}...`);
   }
 
   return { passed: validation.passed, error: validation.error };
@@ -340,9 +356,8 @@ export function buildApprovalMessages(
   );
 
   const assistantMessage =
-    firstRun.lastAssistantMessage || firstRun.reconstructedMessages.find(
-      (m) => m.role === "assistant"
-    );
+    firstRun.lastAssistantMessage ||
+    firstRun.reconstructedMessages.find((m) => m.role === "assistant");
 
   const toolCallsWithArgs =
     assistantMessage?.toolCalls?.map((tc: any) => {
