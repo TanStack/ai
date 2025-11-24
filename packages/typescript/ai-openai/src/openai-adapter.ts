@@ -130,7 +130,8 @@ export class OpenAI extends BaseAdapter<
   // Type-only map used by core AI to infer per-model provider options.
   // This is never set at runtime; it exists purely for TypeScript.
   // Using definite assignment assertion (!) since this is type-only.
-  _modelProviderOptionsByName!: OpenAIChatModelProviderOptionsByName;
+  // @ts-ignore - We never assign this at runtime and it's only used for types
+  _modelProviderOptionsByName: OpenAIChatModelProviderOptionsByName;
 
   constructor(config: OpenAIConfig) {
     super({});

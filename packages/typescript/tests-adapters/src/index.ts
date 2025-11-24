@@ -1,5 +1,12 @@
 import { config } from "dotenv";
-import { tool, maxIterations, type Tool } from "@tanstack/ai";
+import {
+  chatCompletion,
+  embed,
+  summarize,
+  tool,
+  maxIterations,
+  type Tool,
+} from "@tanstack/ai";
 import { createAnthropic } from "@tanstack/ai-anthropic";
 import { createGemini } from "@tanstack/ai-gemini";
 import { ollama } from "@tanstack/ai-ollama";
@@ -20,25 +27,59 @@ config({ path: ".env" });
 
 const ANTHROPIC_MODEL =
   process.env.ANTHROPIC_MODEL || "claude-3-5-haiku-20241022";
-const OPENAI_MODEL = process.env.OPENAI_MODEL || "gpt-4o-mini";
-const GEMINI_MODEL = process.env.GEMINI_MODEL || "gemini-2.5-flash";
-const OLLAMA_MODEL = process.env.OLLAMA_MODEL || "granite4:3b";
+const ANTHROPIC_SUMMARY_MODEL =
+  process.env.ANTHROPIC_SUMMARY_MODEL || ANTHROPIC_MODEL;
+const ANTHROPIC_EMBED_MODEL =
+  process.env.ANTHROPIC_EMBED_MODEL || ANTHROPIC_MODEL;
 
-interface TestResult {
+const OPENAI_MODEL = process.env.OPENAI_MODEL || "gpt-4o-mini";
+const OPENAI_SUMMARY_MODEL = process.env.OPENAI_SUMMARY_MODEL || OPENAI_MODEL;
+const OPENAI_EMBED_MODEL =
+  process.env.OPENAI_EMBED_MODEL || "text-embedding-3-small";
+
+const GEMINI_MODEL = process.env.GEMINI_MODEL || "gemini-2.0-flash-lite";
+const GEMINI_SUMMARY_MODEL = process.env.GEMINI_SUMMARY_MODEL || GEMINI_MODEL;
+const GEMINI_EMBED_MODEL =
+  process.env.GEMINI_EMBED_MODEL || "gemini-embedding-001";
+
+// Using llama3.2:3b for better stability with approval flows
+// granite4:3b was flaky with approval-required tools
+// Can override via OLLAMA_MODEL env var if needed
+const OLLAMA_MODEL = process.env.OLLAMA_MODEL || "mistral:7b";
+const OLLAMA_SUMMARY_MODEL = process.env.OLLAMA_SUMMARY_MODEL || OLLAMA_MODEL;
+const OLLAMA_EMBED_MODEL = process.env.OLLAMA_EMBED_MODEL || "nomic-embed-text";
+
+type TestOutcome = { passed: boolean; error?: string };
+
+interface AdapterResult {
   adapter: string;
-  test1: { passed: boolean; error?: string };
-  test2: { passed: boolean; error?: string };
-  test3: { passed: boolean; error?: string };
+  model: string;
+  summarizeModel: string;
+  embeddingModel: string;
+  tests: Record<string, TestOutcome>;
+}
+
+interface AdapterConfig {
+  name: string;
+  chatModel: string;
+  summarizeModel: string;
+  embeddingModel: string;
+  adapter: any;
+}
+
+interface TestDefinition {
+  id: string;
+  label: string;
+  run: (ctx: AdapterContext) => Promise<TestOutcome>;
 }
 
 async function testCapitalOfFrance(
   adapterContext: AdapterContext
-): Promise<{ passed: boolean; error?: string }> {
+): Promise<TestOutcome> {
   return runTestCase({
     adapterContext,
-    testName: "test1-capital-of-france",
-    description:
-      'Test 1: Checking if response contains "Paris" for "what is the capital of france"...',
+    testName: "test1-chat-stream",
+    description: "chat stream returns Paris for capital of France",
     messages: [
       { role: "user" as const, content: "what is the capital of france" },
     ],
@@ -55,7 +96,7 @@ async function testCapitalOfFrance(
 
 async function testTemperatureTool(
   adapterContext: AdapterContext
-): Promise<{ passed: boolean; error?: string }> {
+): Promise<TestOutcome> {
   let toolExecuteCalled = false;
   let toolExecuteCallCount = 0;
   const toolExecuteCalls: Array<{
@@ -99,8 +140,7 @@ async function testTemperatureTool(
   return runTestCase({
     adapterContext,
     testName: "test2-temperature-tool",
-    description:
-      'Test 2: Checking tool invocation and "70" or "seventy" in response...',
+    description: "tool call returns a temperature value",
     messages: [
       {
         role: "user" as const,
@@ -139,7 +179,9 @@ async function testTemperatureTool(
 
 async function testApprovalToolFlow(
   adapterContext: AdapterContext
-): Promise<{ passed: boolean; error?: string }> {
+): Promise<TestOutcome> {
+  const testName = "test3-approval-tool-flow";
+
   let toolExecuteCalled = false;
   let toolExecuteCallCount = 0;
   const toolExecuteCalls: Array<{
@@ -195,19 +237,15 @@ async function testApprovalToolFlow(
 
   const debugData = createDebugEnvelope(
     adapterContext.adapterName,
-    "test3-approval-tool-flow",
+    testName,
     adapterContext.model,
     messages,
     [addToCartTool]
   );
 
-  console.log(
-    `\n[${adapterContext.adapterName}] Test 3: Checking approval flow for addToCart tool...`
-  );
-
   const requestRun = await captureStream({
     adapterName: adapterContext.adapterName,
-    testName: "test3-approval-tool-flow",
+    testName,
     phase: "request",
     adapter: adapterContext.adapter,
     model: adapterContext.model,
@@ -229,20 +267,20 @@ async function testApprovalToolFlow(
     };
     debugData.chunks = requestRun.chunks;
     debugData.result = { passed: false, error };
-    await writeDebugFile(
-      adapterContext.adapterName,
-      "test3-approval-tool-flow",
-      debugData
-    );
-    console.log(`❌ [${adapterContext.adapterName}] test3 failed: ${error}`);
+    await writeDebugFile(adapterContext.adapterName, testName, debugData);
+    console.log(`[${adapterContext.adapterName}] ❌ ${testName}: ${error}`);
     return { passed: false, error };
   }
 
-  const approvalMessages = buildApprovalMessages(messages, requestRun, approval);
+  const approvalMessages = buildApprovalMessages(
+    messages,
+    requestRun,
+    approval
+  );
 
   const approvedRun = await captureStream({
     adapterName: adapterContext.adapterName,
-    testName: "test3-approval-tool-flow",
+    testName,
     phase: "approved",
     adapter: adapterContext.adapter,
     model: adapterContext.model,
@@ -251,8 +289,7 @@ async function testApprovalToolFlow(
     agentLoopStrategy: maxIterations(20),
   });
 
-  const fullResponse =
-    requestRun.fullResponse + " " + approvedRun.fullResponse;
+  const fullResponse = requestRun.fullResponse + " " + approvedRun.fullResponse;
   const hasHammerInResponse = fullResponse.toLowerCase().includes("hammer");
   const passed =
     requestRun.toolCalls.length > 0 &&
@@ -275,67 +312,288 @@ async function testApprovalToolFlow(
     passed,
     error: passed
       ? undefined
-      : `toolCallFound: ${requestRun.toolCalls.length > 0}, approvalRequestFound: ${
+      : `toolCallFound: ${
+          requestRun.toolCalls.length > 0
+        }, approvalRequestFound: ${
           requestRun.approvalRequests.length > 0
-        }, toolExecuteCalled: ${toolExecuteCalled}, toolExecuteCallCount: ${
-          toolExecuteCallCount
-        }, hasHammerInResponse: ${hasHammerInResponse}`,
+        }, toolExecuteCalled: ${toolExecuteCalled}, toolExecuteCallCount: ${toolExecuteCallCount}, hasHammerInResponse: ${hasHammerInResponse}`,
   };
 
-  await writeDebugFile(
-    adapterContext.adapterName,
-    "test3-approval-tool-flow",
-    debugData
+  await writeDebugFile(adapterContext.adapterName, testName, debugData);
+  console.log(
+    `[${adapterContext.adapterName}] ${passed ? "✅" : "❌"} ${testName}${
+      passed ? "" : `: ${debugData.result.error}`
+    }`
   );
-
-  if (passed) {
-    console.log(
-      `✅ [${adapterContext.adapterName}] Test 3 PASSED: Approval flow worked correctly`
-    );
-  } else {
-    console.log(
-      `❌ [${adapterContext.adapterName}] Test 3 FAILED: ${debugData.result.error}`
-    );
-  }
 
   return { passed, error: debugData.result.error };
 }
+
+async function testChatCompletion(
+  adapterContext: AdapterContext
+): Promise<TestOutcome> {
+  const testName = "test4-chat-completion";
+  const messages = [
+    { role: "user" as const, content: "What is the capital of France?" },
+  ];
+  const adapterName = adapterContext.adapterName;
+  const debugData: Record<string, any> = {
+    adapter: adapterName,
+    test: testName,
+    model: adapterContext.model,
+    timestamp: new Date().toISOString(),
+    input: { messages },
+  };
+
+  try {
+    const result = await chatCompletion({
+      adapter: adapterContext.adapter,
+      model: adapterContext.model,
+      messages,
+    });
+
+    const content = result.content || "";
+    const hasParis = content.toLowerCase().includes("paris");
+    debugData.summary = {
+      fullResponse: content,
+      finishReason: result.finishReason,
+      usage: result.usage,
+    };
+    debugData.result = {
+      passed: hasParis,
+      error: hasParis ? undefined : "Response does not contain 'Paris'",
+    };
+
+    await writeDebugFile(adapterName, testName, debugData);
+
+    console.log(
+      `[${adapterName}] ${hasParis ? "✅" : "❌"} ${testName}${
+        hasParis ? "" : ": Response does not contain 'Paris'"
+      }`
+    );
+
+    return { passed: hasParis, error: debugData.result.error };
+  } catch (error: any) {
+    const message = error?.message || String(error);
+    debugData.summary = { error: message };
+    debugData.result = { passed: false, error: message };
+    await writeDebugFile(adapterName, testName, debugData);
+    console.log(`[${adapterName}] ❌ ${testName}: ${message}`);
+    return { passed: false, error: message };
+  }
+}
+
+async function testSummarize(
+  adapterContext: AdapterContext
+): Promise<TestOutcome> {
+  const testName = "test5-summarize";
+  const adapterName = adapterContext.adapterName;
+  const model = adapterContext.summarizeModel || adapterContext.model;
+  const text =
+    "Paris is the capital and most populous city of France, known for landmarks like the Eiffel Tower and the Louvre. It is a major center for art, fashion, gastronomy, and culture.";
+
+  const debugData: Record<string, any> = {
+    adapter: adapterName,
+    test: testName,
+    model,
+    timestamp: new Date().toISOString(),
+    input: { text, maxLength: 80, style: "concise" as const },
+  };
+
+  try {
+    const result = await summarize({
+      adapter: adapterContext.adapter,
+      model,
+      text,
+      maxLength: 80,
+      style: "concise",
+    });
+
+    const summary = result.summary || "";
+    const summaryLower = summary.toLowerCase();
+    const passed = summary.length > 0 && summaryLower.includes("paris");
+
+    debugData.summary = {
+      summary,
+      usage: result.usage,
+      summaryLength: summary.length,
+    };
+    debugData.result = {
+      passed,
+      error: passed ? undefined : "Summary missing 'Paris'",
+    };
+
+    await writeDebugFile(adapterName, testName, debugData);
+
+    console.log(
+      `[${adapterName}] ${passed ? "✅" : "❌"} ${testName}${
+        passed ? "" : `: ${debugData.result.error}`
+      }`
+    );
+
+    return { passed, error: debugData.result.error };
+  } catch (error: any) {
+    const message = error?.message || String(error);
+    debugData.summary = { error: message };
+    debugData.result = { passed: false, error: message };
+    await writeDebugFile(adapterName, testName, debugData);
+    console.log(`[${adapterName}] ❌ ${testName}: ${message}`);
+    return { passed: false, error: message };
+  }
+}
+
+async function testEmbed(adapterContext: AdapterContext): Promise<TestOutcome> {
+  const testName = "test6-embed";
+  const adapterName = adapterContext.adapterName;
+  const model = adapterContext.embeddingModel || adapterContext.model;
+  const inputs = [
+    "The Eiffel Tower is located in Paris.",
+    "The Colosseum is located in Rome.",
+  ];
+
+  const debugData: Record<string, any> = {
+    adapter: adapterName,
+    test: testName,
+    model,
+    timestamp: new Date().toISOString(),
+    input: { inputs },
+  };
+
+  try {
+    const result = await embed({
+      adapter: adapterContext.adapter,
+      model,
+      input: inputs,
+    });
+
+    const embeddings = result.embeddings || [];
+    const lengths = embeddings.map((e) => e?.length || 0);
+    const vectorsAreNumeric = embeddings.every(
+      (vec) => Array.isArray(vec) && vec.every((n) => typeof n === "number")
+    );
+    const passed =
+      embeddings.length === inputs.length &&
+      vectorsAreNumeric &&
+      lengths.every((len) => len > 0);
+
+    debugData.summary = {
+      embeddingLengths: lengths,
+      firstEmbeddingPreview: embeddings[0]?.slice(0, 8),
+      usage: result.usage,
+    };
+    debugData.result = {
+      passed,
+      error: passed ? undefined : "Embeddings missing, empty, or invalid",
+    };
+
+    await writeDebugFile(adapterName, testName, debugData);
+
+    console.log(
+      `[${adapterName}] ${passed ? "✅" : "❌"} ${testName}${
+        passed ? "" : `: ${debugData.result.error}`
+      }`
+    );
+
+    return { passed, error: debugData.result.error };
+  } catch (error: any) {
+    const message = error?.message || String(error);
+    debugData.summary = { error: message };
+    debugData.result = { passed: false, error: message };
+    await writeDebugFile(adapterName, testName, debugData);
+    console.log(`[${adapterName}] ❌ ${testName}: ${message}`);
+    return { passed: false, error: message };
+  }
+}
+
+const TEST_DEFINITIONS: TestDefinition[] = [
+  { id: "chat-stream", label: "chat (stream)", run: testCapitalOfFrance },
+  { id: "tools", label: "tools", run: testTemperatureTool },
+  { id: "approval", label: "approval", run: testApprovalToolFlow },
+  { id: "chat-completion", label: "chatCompletion", run: testChatCompletion },
+  { id: "summarize", label: "summarize", run: testSummarize },
+  { id: "embed", label: "embed", run: testEmbed },
+];
 
 function shouldTestAdapter(adapterName: string, filter?: string): boolean {
   if (!filter) return true;
   return adapterName.toLowerCase() === filter.toLowerCase();
 }
 
+function formatGrid(results: AdapterResult[]) {
+  const headers = ["Adapter", ...TEST_DEFINITIONS.map((t) => t.label)];
+  const rows = results.map((result) => [
+    `${result.adapter} (chat: ${result.model})`,
+    ...TEST_DEFINITIONS.map((test) => {
+      const outcome = result.tests[test.id];
+      if (!outcome) return "—";
+      return outcome.passed ? "✅" : "❌";
+    }),
+  ]);
+
+  const colWidths = headers.map((header, index) =>
+    Math.max(
+      header.length,
+      ...rows.map((row) => (row[index] ? row[index].length : 0))
+    )
+  );
+
+  const separator = colWidths.map((w) => "-".repeat(w)).join("-+-");
+  const formatRow = (row: string[]) =>
+    row.map((cell, idx) => cell.padEnd(colWidths[idx])).join(" | ");
+
+  console.log(formatRow(headers));
+  console.log(separator);
+  rows.forEach((row) => console.log(formatRow(row)));
+}
+
 async function runTests(filterAdapter?: string) {
   if (filterAdapter) {
-    console.log(`🚀 Starting adapter tests for: ${filterAdapter}\n`);
+    console.log(`🚀 Starting adapter tests for: ${filterAdapter}`);
   } else {
-    console.log("🚀 Starting adapter tests for all adapters...\n");
+    console.log("🚀 Starting adapter tests for all adapters");
   }
 
-  const results: TestResult[] = [];
+  const results: AdapterResult[] = [];
 
-  const runAdapterSuite = async (
-    adapterName: string,
-    model: string,
-    adapter: any
-  ) => {
-    const ctx: AdapterContext = { adapterName, adapter, model };
-    const test1 = await testCapitalOfFrance(ctx);
-    const test2 = await testTemperatureTool(ctx);
-    const test3 = await testApprovalToolFlow(ctx);
-    results.push({ adapter: adapterName, test1, test2, test3 });
+  const runAdapterSuite = async (config: AdapterConfig) => {
+    const ctx: AdapterContext = {
+      adapterName: config.name,
+      adapter: config.adapter,
+      model: config.chatModel,
+      summarizeModel: config.summarizeModel,
+      embeddingModel: config.embeddingModel,
+    };
+
+    const adapterResult: AdapterResult = {
+      adapter: config.name,
+      model: config.chatModel,
+      summarizeModel: config.summarizeModel,
+      embeddingModel: config.embeddingModel,
+      tests: {},
+    };
+
+    console.log(
+      `\n${config.name} (chat: ${config.chatModel}, summarize: ${config.summarizeModel}, embed: ${config.embeddingModel})`
+    );
+
+    for (const test of TEST_DEFINITIONS) {
+      adapterResult.tests[test.id] = await test.run(ctx);
+    }
+
+    results.push(adapterResult);
   };
 
   // Anthropic
   if (shouldTestAdapter("Anthropic", filterAdapter)) {
     const anthropicApiKey = process.env.ANTHROPIC_API_KEY;
     if (anthropicApiKey) {
-      await runAdapterSuite(
-        "Anthropic",
-        ANTHROPIC_MODEL,
-        createAnthropic(anthropicApiKey)
-      );
+      await runAdapterSuite({
+        name: "Anthropic",
+        chatModel: ANTHROPIC_MODEL,
+        summarizeModel: ANTHROPIC_SUMMARY_MODEL,
+        embeddingModel: ANTHROPIC_EMBED_MODEL,
+        adapter: createAnthropic(anthropicApiKey),
+      });
     } else {
       console.log("⚠️  Skipping Anthropic tests: ANTHROPIC_API_KEY not set");
     }
@@ -345,7 +603,13 @@ async function runTests(filterAdapter?: string) {
   if (shouldTestAdapter("OpenAI", filterAdapter)) {
     const openaiApiKey = process.env.OPENAI_API_KEY;
     if (openaiApiKey) {
-      await runAdapterSuite("OpenAI", OPENAI_MODEL, createOpenAI(openaiApiKey));
+      await runAdapterSuite({
+        name: "OpenAI",
+        chatModel: OPENAI_MODEL,
+        summarizeModel: OPENAI_SUMMARY_MODEL,
+        embeddingModel: OPENAI_EMBED_MODEL,
+        adapter: createOpenAI(openaiApiKey),
+      });
     } else {
       console.log("⚠️  Skipping OpenAI tests: OPENAI_API_KEY not set");
     }
@@ -356,7 +620,13 @@ async function runTests(filterAdapter?: string) {
     const geminiApiKey =
       process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY;
     if (geminiApiKey) {
-      await runAdapterSuite("Gemini", GEMINI_MODEL, createGemini(geminiApiKey));
+      await runAdapterSuite({
+        name: "Gemini",
+        chatModel: GEMINI_MODEL,
+        summarizeModel: GEMINI_SUMMARY_MODEL,
+        embeddingModel: GEMINI_EMBED_MODEL,
+        adapter: createGemini(geminiApiKey),
+      });
     } else {
       console.log(
         "⚠️  Skipping Gemini tests: GEMINI_API_KEY or GOOGLE_API_KEY not set"
@@ -366,13 +636,16 @@ async function runTests(filterAdapter?: string) {
 
   // Ollama
   if (shouldTestAdapter("Ollama", filterAdapter)) {
-    await runAdapterSuite("Ollama", OLLAMA_MODEL, ollama());
+    await runAdapterSuite({
+      name: "Ollama",
+      chatModel: OLLAMA_MODEL,
+      summarizeModel: OLLAMA_SUMMARY_MODEL,
+      embeddingModel: OLLAMA_EMBED_MODEL,
+      adapter: ollama(),
+    });
   }
 
-  // Summary
-  console.log("\n" + "=".repeat(60));
-  console.log("📊 Test Summary");
-  console.log("=".repeat(60));
+  console.log("\n");
 
   if (results.length === 0) {
     console.log("\n⚠️  No tests were run.");
@@ -384,35 +657,11 @@ async function runTests(filterAdapter?: string) {
     process.exit(1);
   }
 
-  let allPassed = true;
-  for (const result of results) {
-    const test1Status = result.test1.passed ? "✅" : "❌";
-    const test2Status = result.test2.passed ? "✅" : "❌";
-    const test3Status = result.test3?.passed ? "✅" : "❌";
-    console.log(`\n${result.adapter}:`);
-    console.log(`  Test 1 (Capital of France): ${test1Status}`);
-    if (!result.test1.passed && result.test1.error) {
-      console.log(`    Error: ${result.test1.error}`);
-    }
-    console.log(`  Test 2 (Temperature Tool): ${test2Status}`);
-    if (!result.test2.passed && result.test2.error) {
-      console.log(`    Error: ${result.test2.error}`);
-    }
-    if (result.test3) {
-      console.log(`  Test 3 (Approval Tool Flow): ${test3Status}`);
-      if (!result.test3.passed && result.test3.error) {
-        console.log(`    Error: ${result.test3.error}`);
-      }
-    }
+  formatGrid(results);
 
-    if (
-      !result.test1.passed ||
-      !result.test2.passed ||
-      (result.test3 && !result.test3.passed)
-    ) {
-      allPassed = false;
-    }
-  }
+  const allPassed = results.every((result) =>
+    TEST_DEFINITIONS.every((test) => result.tests[test.id]?.passed)
+  );
 
   console.log("\n" + "=".repeat(60));
   if (allPassed) {

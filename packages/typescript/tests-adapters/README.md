@@ -8,14 +8,12 @@ This package contains simple tests for the four AI adapter libraries:
 
 ## Tests
 
-### Test 1: Capital of France
-Sends "what is the capital of france" to the chat and verifies that the response contains "Paris".
-
-### Test 2: Temperature Tool
-Registers a simple tool that returns the current temperature (70 degrees), asks the AI what the temperature is, and verifies:
-- Tool invocation is detected
-- Tool result is received
-- Response contains "70" or "seventy"
+- Chat (stream): Asks for the capital of France and checks for "Paris".
+- Tools: Uses the `get_temperature` tool and checks for "70"/"seventy" and tool wiring.
+- Approval: Requires approval for `addToCart` and ensures the tool executes once.
+- chatCompletion: Non-streaming answer for the capital of France.
+- Summarize: Summarizes a short paragraph about Paris.
+- Embed: Generates embeddings for two short sentences.
 
 ## Usage
 
@@ -40,6 +38,8 @@ Registers a simple tool that returns the current temperature (70 degrees), asks 
    pnpm start
    ```
 
+The run ends with a compact grid showing which tests passed per adapter.
+
 Note: `.env.local` takes precedence over `.env` if both exist.
 
 ## Environment Variables
@@ -48,14 +48,20 @@ Note: `.env.local` takes precedence over `.env` if both exist.
 - `OPENAI_API_KEY` - Required for OpenAI tests
 - `GEMINI_API_KEY` or `GOOGLE_API_KEY` - Required for Gemini tests
 - `OLLAMA_MODEL` - Optional, defaults to "smollm" for Ollama tests
+- `OLLAMA_SUMMARY_MODEL` - Optional override for summarize tests (defaults to `OLLAMA_MODEL`)
+- `OLLAMA_EMBED_MODEL` - Optional override for embed tests (defaults to `nomic-embed-text`)
 
 Tests will be skipped for adapters where the API key is not set.
 
 ## Debug Output
 
 Each test run creates detailed debug files in the `output/` directory:
-- `{adapter}-test1-capital-of-france.json` - Debug info for Test 1
-- `{adapter}-test2-temperature-tool.json` - Debug info for Test 2
+- `{adapter}-test1-chat-stream.json` - Debug info for chat stream
+- `{adapter}-test2-temperature-tool.json` - Debug info for tool call
+- `{adapter}-test3-approval-tool-flow.json` - Debug info for approval flow
+- `{adapter}-test4-chat-completion.json` - Debug info for chatCompletion
+- `{adapter}-test5-summarize.json` - Debug info for summarize
+- `{adapter}-test6-embed.json` - Debug info for embed
 
 Each debug file contains:
 - Input messages and configuration
@@ -66,4 +72,3 @@ Each debug file contains:
 - Test results and any errors
 
 These files help diagnose issues with tool calls and adapter behavior.
-

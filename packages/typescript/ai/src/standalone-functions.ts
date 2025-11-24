@@ -97,7 +97,7 @@ export function chat<TAdapter extends AIAdapter<any, any, any, any, any>>(
     streaming: true,
   });
 
-  return aiInstance.chat(chatOptions as any);
+  return aiInstance.chat(chatOptions);
 }
 
 /**
