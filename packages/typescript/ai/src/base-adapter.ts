@@ -14,15 +14,10 @@ import type {
  *
  * Generic parameters:
  * - TChatModels: Models that support chat/text completion
- * - TImageModels: Models that support image generation
  * - TEmbeddingModels: Models that support embeddings
- * - TAudioModels: Models that support audio (transcription and text-to-speech)
- * - TVideoModels: Models that support video generation
  * - TChatProviderOptions: Provider-specific options for chat endpoint
- * - TImageProviderOptions: Provider-specific options for image endpoint
  * - TEmbeddingProviderOptions: Provider-specific options for embedding endpoint
- * - TAudioProviderOptions: Provider-specific options for audio endpoint
- * - TVideoProviderOptions: Provider-specific options for video endpoint
+ * - TModelProviderOptionsByName: Provider-specific options for model by name
  */
 export abstract class BaseAdapter<
   TChatModels extends readonly string[] = readonly string[],

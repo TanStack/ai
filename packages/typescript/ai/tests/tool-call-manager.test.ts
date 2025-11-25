@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from "vitest";
-import { ToolCallManager } from "../src/tool-call-manager";
+import { ToolCallManager } from "../src/tool-calls";
 import type { Tool, DoneStreamChunk } from "../src/types";
 
 describe("ToolCallManager", () => {
@@ -23,10 +23,9 @@ describe("ToolCallManager", () => {
     }),
   };
 
-  async function collectGeneratorOutput<
-    TChunk,
-    TResult
-  >(generator: AsyncGenerator<TChunk, TResult, void>): Promise<{
+  async function collectGeneratorOutput<TChunk, TResult>(
+    generator: AsyncGenerator<TChunk, TResult, void>
+  ): Promise<{
     chunks: TChunk[];
     result: TResult;
   }> {

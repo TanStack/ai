@@ -1,7 +1,7 @@
 import { config } from "dotenv";
 import {
   chat,
-  embed,
+  embedding,
   summarize,
   tool,
   maxIterations,
@@ -29,25 +29,26 @@ const ANTHROPIC_MODEL =
   process.env.ANTHROPIC_MODEL || "claude-3-5-haiku-20241022";
 const ANTHROPIC_SUMMARY_MODEL =
   process.env.ANTHROPIC_SUMMARY_MODEL || ANTHROPIC_MODEL;
-const ANTHROPIC_EMBED_MODEL =
-  process.env.ANTHROPIC_EMBED_MODEL || ANTHROPIC_MODEL;
+const ANTHROPIC_EMBEDDING_MODEL =
+  process.env.ANTHROPIC_EMBEDDING_MODEL || ANTHROPIC_MODEL;
 
 const OPENAI_MODEL = process.env.OPENAI_MODEL || "gpt-4o-mini";
 const OPENAI_SUMMARY_MODEL = process.env.OPENAI_SUMMARY_MODEL || OPENAI_MODEL;
-const OPENAI_EMBED_MODEL =
-  process.env.OPENAI_EMBED_MODEL || "text-embedding-3-small";
+const OPENAI_EMBEDDING_MODEL =
+  process.env.OPENAI_EMBEDDING_MODEL || "text-embedding-3-small";
 
 const GEMINI_MODEL = process.env.GEMINI_MODEL || "gemini-2.0-flash-lite";
 const GEMINI_SUMMARY_MODEL = process.env.GEMINI_SUMMARY_MODEL || GEMINI_MODEL;
-const GEMINI_EMBED_MODEL =
-  process.env.GEMINI_EMBED_MODEL || "gemini-embedding-001";
+const GEMINI_EMBEDDING_MODEL =
+  process.env.GEMINI_EMBEDDING_MODEL || "gemini-embedding-001";
 
 // Using llama3.2:3b for better stability with approval flows
 // granite4:3b was flaky with approval-required tools
 // Can override via OLLAMA_MODEL env var if needed
 const OLLAMA_MODEL = process.env.OLLAMA_MODEL || "mistral:7b";
 const OLLAMA_SUMMARY_MODEL = process.env.OLLAMA_SUMMARY_MODEL || OLLAMA_MODEL;
-const OLLAMA_EMBED_MODEL = process.env.OLLAMA_EMBED_MODEL || "nomic-embed-text";
+const OLLAMA_EMBEDDING_MODEL =
+  process.env.OLLAMA_EMBEDDING_MODEL || "nomic-embed-text";
 
 type TestOutcome = { passed: boolean; error?: string; ignored?: boolean };
 
@@ -388,11 +389,13 @@ async function testSummarize(
   }
 }
 
-async function testEmbed(adapterContext: AdapterContext): Promise<TestOutcome> {
-  const testName = "test6-embed";
+async function testEmbedding(
+  adapterContext: AdapterContext
+): Promise<TestOutcome> {
+  const testName = "test6-embedding";
   const adapterName = adapterContext.adapterName;
 
-  // Anthropic embed is not supported, mark as ignored
+  // Anthropic embedding is not supported, mark as ignored
   if (adapterName === "Anthropic") {
     console.log(`[${adapterName}] ⋯ ${testName}: Ignored (not supported)`);
     return { passed: true, ignored: true };
@@ -413,7 +416,7 @@ async function testEmbed(adapterContext: AdapterContext): Promise<TestOutcome> {
   };
 
   try {
-    const result = await embed({
+    const result = await embedding({
       adapter: adapterContext.adapter,
       model,
       input: inputs,
@@ -463,7 +466,7 @@ const TEST_DEFINITIONS: TestDefinition[] = [
   { id: "tools", label: "tools", run: testTemperatureTool },
   { id: "approval", label: "approval", run: testApprovalToolFlow },
   { id: "summarize", label: "summarize", run: testSummarize },
-  { id: "embed", label: "embed", run: testEmbed },
+  { id: "embedding", label: "embedding", run: testEmbedding },
 ];
 
 function shouldTestAdapter(adapterName: string, filter?: string): boolean {
@@ -526,7 +529,7 @@ async function runTests(filterAdapter?: string) {
     };
 
     console.log(
-      `\n${config.name} (chat: ${config.chatModel}, summarize: ${config.summarizeModel}, embed: ${config.embeddingModel})`
+      `\n${config.name} (chat: ${config.chatModel}, summarize: ${config.summarizeModel}, embedding: ${config.embeddingModel})`
     );
 
     for (const test of TEST_DEFINITIONS) {
@@ -544,7 +547,7 @@ async function runTests(filterAdapter?: string) {
         name: "Anthropic",
         chatModel: ANTHROPIC_MODEL,
         summarizeModel: ANTHROPIC_SUMMARY_MODEL,
-        embeddingModel: ANTHROPIC_EMBED_MODEL,
+        embeddingModel: ANTHROPIC_EMBEDDING_MODEL,
         adapter: createAnthropic(anthropicApiKey),
       });
     } else {
@@ -560,7 +563,7 @@ async function runTests(filterAdapter?: string) {
         name: "OpenAI",
         chatModel: OPENAI_MODEL,
         summarizeModel: OPENAI_SUMMARY_MODEL,
-        embeddingModel: OPENAI_EMBED_MODEL,
+        embeddingModel: OPENAI_EMBEDDING_MODEL,
         adapter: createOpenAI(openaiApiKey),
       });
     } else {
@@ -577,7 +580,7 @@ async function runTests(filterAdapter?: string) {
         name: "Gemini",
         chatModel: GEMINI_MODEL,
         summarizeModel: GEMINI_SUMMARY_MODEL,
-        embeddingModel: GEMINI_EMBED_MODEL,
+        embeddingModel: GEMINI_EMBEDDING_MODEL,
         adapter: createGemini(geminiApiKey),
       });
     } else {
@@ -593,7 +596,7 @@ async function runTests(filterAdapter?: string) {
       name: "Ollama",
       chatModel: OLLAMA_MODEL,
       summarizeModel: OLLAMA_SUMMARY_MODEL,
-      embeddingModel: OLLAMA_EMBED_MODEL,
+      embeddingModel: OLLAMA_EMBEDDING_MODEL,
       adapter: ollama(),
     });
   }

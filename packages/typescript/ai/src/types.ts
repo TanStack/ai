@@ -712,3 +712,14 @@ export type ChatStreamOptionsUnion<
       : never
     : never
   : never;
+
+// Extract types from adapter (updated to 5 generics)
+export type ExtractModelsFromAdapter<T> = T extends AIAdapter<
+  infer M,
+  any,
+  any,
+  any,
+  any
+>
+  ? M[number]
+  : never;

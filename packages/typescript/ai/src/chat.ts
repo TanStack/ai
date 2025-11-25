@@ -7,6 +7,7 @@ import type {
   ToolCall,
   DoneStreamChunk,
   AgentLoopStrategy,
+  ChatStreamOptionsUnion,
 } from "./types";
 import { aiEventClient } from "./event-client.js";
 import {
@@ -14,10 +15,29 @@ import {
   type ApprovalRequest,
   type ClientToolRequest,
   type ToolResult,
-} from "./agent/executor";
-import { ToolCallManager } from "./tool-call-manager";
+  ToolCallManager,
+} from "./tool-calls";
 import { maxIterations as maxIterationsStrategy } from "./agent-loop-strategies";
-import { prependSystemPrompts } from "./utils";
+
+function prependSystemPrompts(
+  messages: ModelMessage[],
+  systemPrompts?: string[],
+  defaultPrompts: string[] = []
+): ModelMessage[] {
+  const prompts =
+    systemPrompts && systemPrompts.length > 0 ? systemPrompts : defaultPrompts;
+
+  if (!prompts || prompts.length === 0) {
+    return messages;
+  }
+
+  const systemMessages = prompts.map((content) => ({
+    role: "system" as const,
+    content,
+  }));
+
+  return [...systemMessages, ...messages];
+}
 
 interface ChatEngineConfig<
   TAdapter extends AIAdapter<any, any, any, any>,
@@ -31,7 +51,7 @@ interface ChatEngineConfig<
 type ToolPhaseResult = "continue" | "stop" | "wait";
 type CyclePhase = "processChat" | "executeToolCalls";
 
-export class ChatEngine<
+class ChatEngine<
   TAdapter extends AIAdapter<any, any, any, any>,
   TParams extends ChatOptions<any, any> = ChatOptions<any>
 > {
@@ -646,5 +666,65 @@ export class ChatEngine<
 
   private createId(prefix: string): string {
     return `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
+  }
+}
+
+// Extract types from adapter (updated to 5 generics)
+type ExtractModelsFromAdapter<T> = T extends AIAdapter<
+  infer M,
+  any,
+  any,
+  any,
+  any
+>
+  ? M[number]
+  : never;
+
+/**
+ * Standalone chat streaming function with type inference from adapter
+ * Returns an async iterable of StreamChunks for streaming responses
+ * Includes automatic tool execution loop
+ *
+ * @param options Chat options
+ * @param options.adapter - AI adapter instance to use
+ * @param options.model - Model name (autocompletes based on adapter)
+ * @param options.messages - Conversation messages
+ * @param options.tools - Optional tools for function calling (auto-executed)
+ * @param options.agentLoopStrategy - Optional strategy for controlling tool execution loop
+ *
+ * @example
+ * ```typescript
+ * const stream = chat({
+ *   adapter: openai(),
+ *   model: 'gpt-4o',
+ *   messages: [{ role: 'user', content: 'Hello!' }],
+ *   tools: [weatherTool], // Optional: auto-executed when called
+ * });
+ * ```
+ *
+ * for await (const chunk of stream) {
+ *   if (chunk.type === 'content') {
+ *     console.log(chunk.delta);
+ *   }
+ * }
+ * ```
+ */
+export async function* chat<
+  TAdapter extends AIAdapter<any, any, any, any, any>
+>(options: ChatStreamOptionsUnion<TAdapter>): AsyncIterable<StreamChunk> {
+  const { adapter, ...chatOptions } = options;
+
+  const engine = new ChatEngine({
+    adapter,
+    params: chatOptions as ChatOptions<
+      string,
+      Record<string, any>,
+      undefined,
+      Record<string, any>
+    >,
+  });
+
+  for await (const chunk of engine.chat()) {
+    yield chunk;
   }
 }

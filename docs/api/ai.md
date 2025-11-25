@@ -70,15 +70,15 @@ const result = await summarize({
 
 A `SummarizationResult` with the summary text.
 
-## `embed(options)`
+## `embedding(options)`
 
 Creates embeddings for text input.
 
 ```typescript
-import { embed } from "@tanstack/ai";
+import { embedding } from "@tanstack/ai";
 import { openai } from "@tanstack/ai-openai";
 
-const result = await embed({
+const result = await embedding({
   adapter: openai(),
   model: "text-embedding-3-small",
   input: "Text to embed",
@@ -214,7 +214,7 @@ interface Tool {
 ## Usage Examples
 
 ```typescript
-import { chat, summarize, embed } from "@tanstack/ai";
+import { chat, summarize, embedding } from "@tanstack/ai";
 import { openai } from "@tanstack/ai-openai";
 
 const adapter = openai();
@@ -235,7 +235,7 @@ const summary = await summarize({
 });
 
 // Embeddings
-const embeddings = await embed({
+const embeddings = await embedding({
   adapter,
   model: "text-embedding-3-small",
   input: "Text to embed",
