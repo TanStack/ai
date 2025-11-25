@@ -62,6 +62,9 @@ export const Route = createFileRoute("/api/tanchat")({
           const stream = chat({
             adapter: openai(),
             model: "gpt-4-turbo",
+            // model: "claude-sonnet-4-5-20250929",
+            // model: "smollm",
+            // model: "gemini-2.5-flash",
             tools: allTools,
             systemPrompts: [SYSTEM_PROMPT],
             agentLoopStrategy: maxIterations(20),
