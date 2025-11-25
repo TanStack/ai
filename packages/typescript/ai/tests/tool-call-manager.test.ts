@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from "vitest";
-import { ToolCallManager } from "../src/tool-calls";
+import { ToolCallManager } from "../src/tools/tool-calls";
 import type { Tool, DoneStreamChunk } from "../src/types";
 
 describe("ToolCallManager", () => {

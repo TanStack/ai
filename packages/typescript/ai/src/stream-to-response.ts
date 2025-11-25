@@ -101,16 +101,16 @@ export function toServerSentEventsStream(
  */
 export function toStreamResponse(
   stream: AsyncIterable<StreamChunk>,
-  init?: ResponseInit,
-  abortController?: AbortController
+  init?: ResponseInit & { abortController?: AbortController },
 ): Response {
+  const { headers, abortController, ...responseInit } = init ?? {}
   return new Response(toServerSentEventsStream(stream, abortController), {
-    ...init,
+    ...responseInit,
     headers: {
       "Content-Type": "text/event-stream",
       "Cache-Control": "no-cache",
       Connection: "keep-alive",
-      ...(init?.headers || {}),
+      ...(headers || {}),
     },
   });
 }

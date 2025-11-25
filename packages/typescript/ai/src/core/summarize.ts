@@ -3,7 +3,7 @@ import type {
   SummarizationOptions,
   SummarizationResult,
   ExtractModelsFromAdapter,
-} from "./types";
+} from "../types";
 
 /**
  * Standalone summarize function with type inference from adapter

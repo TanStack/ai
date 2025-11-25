@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { chat } from "../src/standalone-functions";
+import { chat } from "../src/core/chat";
 import type { ChatOptions, StreamChunk } from "../src/types";
 import { BaseAdapter } from "../src/base-adapter";
 
@@ -7,10 +7,6 @@ import { BaseAdapter } from "../src/base-adapter";
 class MockAdapter extends BaseAdapter<
   readonly ["test-model"],
   readonly [],
-  readonly [],
-  readonly [],
-  readonly [],
-  Record<string, any>,
   Record<string, any>,
   Record<string, any>,
   Record<string, any>

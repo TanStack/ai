@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { chat, toStreamResponse, maxIterations } from "@tanstack/ai";
+import { chat, toStreamResponse, maxIterations, chatOptions } from "@tanstack/ai";
 import { openai } from "@tanstack/ai-openai";
 // import { ollama } from "@tanstack/ai-ollama";
 // import { anthropic } from "@tanstack/ai-anthropic";
@@ -57,24 +57,22 @@ export const Route = createFileRoute("/api/tanchat")({
         const abortController = new AbortController();
 
         const { messages } = await request.json();
-
         try {
           // Use the stream abort signal for proper cancellation handling
           const stream = chat({
             adapter: openai(),
-            messages,
             model: "gpt-4-turbo",
-            // model: "claude-sonnet-4-5-20250929",
-            // model: "smollm",
-            // model: "gemini-2.5-flash",
             tools: allTools,
             systemPrompts: [SYSTEM_PROMPT],
             agentLoopStrategy: maxIterations(20),
+            messages,
+            providerOptions: {
+              tool_choice: "auto"
+            },
             abortController,
-            providerOptions: {},
           });
 
-          return toStreamResponse(stream, undefined, abortController);
+          return toStreamResponse(stream, { abortController });
         } catch (error: any) {
           // If request was aborted, return early (don't send error response)
           if (error.name === "AbortError" || abortController.signal.aborted) {

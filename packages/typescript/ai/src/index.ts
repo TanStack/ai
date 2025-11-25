@@ -1,7 +1,7 @@
-export { chat } from "./chat";
-export { summarize } from "./summarize";
-export { embedding } from "./embedding";
-export { tool } from "./tool-utils";
+export { chat } from "./core/chat";
+export { summarize } from "./core/summarize";
+export { embedding } from "./core/embedding";
+export { tool } from "./tools/tool-utils";
 export {
   responseFormat,
   responseFormat as output,
@@ -12,10 +12,11 @@ export {
   toStreamResponse,
 } from "./stream-to-response";
 export { BaseAdapter } from "./base-adapter";
-export { ToolCallManager } from "./tool-calls";
+export { ToolCallManager } from "./tools/tool-calls";
 export {
   maxIterations,
   untilFinishReason,
   combineStrategies,
 } from "./agent-loop-strategies";
 export * from "./types";
+export { chatOptions } from "./utilities/chat-options";

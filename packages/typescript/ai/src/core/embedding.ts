@@ -3,7 +3,7 @@ import type {
   EmbeddingOptions,
   EmbeddingResult,
   ExtractModelsFromAdapter,
-} from "./types";
+} from "../types";
 
 /**
  * Standalone embedding function with type inference from adapter

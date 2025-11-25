@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { chat } from "../src/standalone-functions";
+import { chat } from "../src/core/chat";
 import type {
   ChatOptions,
   StreamChunk,
@@ -37,10 +37,6 @@ afterEach(() => {
 class MockAdapter extends BaseAdapter<
   readonly ["test-model"],
   readonly [],
-  readonly [],
-  readonly [],
-  readonly [],
-  Record<string, any>,
   Record<string, any>,
   Record<string, any>,
   Record<string, any>

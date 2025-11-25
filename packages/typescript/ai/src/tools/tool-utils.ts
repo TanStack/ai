@@ -1,4 +1,4 @@
-import type { Tool } from "./types";
+import type { Tool } from "../types";
 
 /**
  * Infer TypeScript type from JSON Schema property type

@@ -8,16 +8,16 @@ import type {
   DoneStreamChunk,
   AgentLoopStrategy,
   ChatStreamOptionsUnion,
-} from "./types";
-import { aiEventClient } from "./event-client.js";
+} from "../types";
+import { aiEventClient } from "../event-client.js";
 import {
   executeToolCalls,
   type ApprovalRequest,
   type ClientToolRequest,
   type ToolResult,
   ToolCallManager,
-} from "./tool-calls";
-import { maxIterations as maxIterationsStrategy } from "./agent-loop-strategies";
+} from "../tools/tool-calls";
+import { maxIterations as maxIterationsStrategy } from "../agent-loop-strategies";
 
 function prependSystemPrompts(
   messages: ModelMessage[],
@@ -669,16 +669,6 @@ class ChatEngine<
   }
 }
 
-// Extract types from adapter (updated to 5 generics)
-type ExtractModelsFromAdapter<T> = T extends AIAdapter<
-  infer M,
-  any,
-  any,
-  any,
-  any
->
-  ? M[number]
-  : never;
 
 /**
  * Standalone chat streaming function with type inference from adapter
@@ -710,8 +700,27 @@ type ExtractModelsFromAdapter<T> = T extends AIAdapter<
  * ```
  */
 export async function* chat<
-  TAdapter extends AIAdapter<any, any, any, any, any>
->(options: ChatStreamOptionsUnion<TAdapter>): AsyncIterable<StreamChunk> {
+  TAdapter extends AIAdapter<any, any, any, any, any>,
+  const TModel extends TAdapter extends AIAdapter<infer Models, any, any, any, any>
+  ? Models[number]
+  : string
+>(
+  options: Omit<ChatStreamOptionsUnion<TAdapter>, "providerOptions" | "model"> & {
+    adapter: TAdapter;
+    model: TModel;
+    providerOptions?: TAdapter extends AIAdapter<
+      any,
+      any,
+      any,
+      any,
+      infer ModelProviderOptions
+    >
+    ? TModel extends keyof ModelProviderOptions
+    ? ModelProviderOptions[TModel]
+    : never
+    : never;
+  }
+): AsyncIterable<StreamChunk> {
   const { adapter, ...chatOptions } = options;
 
   const engine = new ChatEngine({

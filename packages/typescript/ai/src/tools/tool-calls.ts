@@ -4,7 +4,7 @@ import type {
   ModelMessage,
   DoneStreamChunk,
   ToolResultStreamChunk,
-} from "./types";
+} from "../types";
 
 /**
  * Manages tool call accumulation and execution for the chat() method's automatic tool execution loop.
