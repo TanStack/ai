@@ -133,6 +133,35 @@ const CLAUDE_OPUS_4_1 = {
   AnthropicSamplingOptions
 >;
 
+const CLAUDE_OPUS_4_5 = {
+  name: "claude-opus-4-5",
+  id: "claude-opus-4-5-20251101",
+  context_window: 200_000,
+  max_output_tokens: 32_000,
+  knowledge_cutoff: "2025-11-01",
+  pricing: {
+    input: {
+      normal: 15,
+    },
+    output: {
+      normal: 75
+    }
+  },
+  supports: {
+    extended_thinking: true,
+    priority_tier: true
+  }
+} as const satisfies ModelMeta<
+  AnthropicContainerOptions &
+  AnthropicContextManagementOptions &
+  AnthropicMCPOptions &
+  AnthropicServiceTierOptions &
+  AnthropicStopSequencesOptions &
+  AnthropicThinkingOptions &
+  AnthropicToolChoiceOptions &
+  AnthropicSamplingOptions
+>;
+
 const CLAUDE_SONNET_4 = {
   name: "claude-sonnet-4",
   id: "claude-sonnet-4-20250514",
@@ -278,6 +307,7 @@ const CLAUDE_HAIKU_3 = {
 >;
 
 export const ANTHROPIC_MODEL_META = {
+  [CLAUDE_OPUS_4_5.name]: CLAUDE_OPUS_4_5,
   [CLAUDE_SONNET_4_5.name]: CLAUDE_SONNET_4_5,
   [CLAUDE_HAIKU_4_5.name]: CLAUDE_HAIKU_4_5,
   [CLAUDE_OPUS_4_1.name]: CLAUDE_OPUS_4_1,
@@ -309,6 +339,7 @@ export type AnthropicModelMessageCapabilities<
   : unknown;
 
 export const ANTHROPIC_MODELS = [
+  CLAUDE_OPUS_4_5.id,
   CLAUDE_SONNET_4_5.id,
   CLAUDE_HAIKU_4_5.id,
   CLAUDE_OPUS_4_1.id,
@@ -330,6 +361,7 @@ export type AnthropicModel = (typeof ANTHROPIC_MODELS)[number];
 // Models are differentiated by extended_thinking and priority_tier support
 export type AnthropicChatModelProviderOptionsByName = {
   // Models with both extended_thinking and priority_tier
+  [CLAUDE_OPUS_4_5.id]: AnthropicContainerOptions & AnthropicContextManagementOptions & AnthropicMCPOptions & AnthropicServiceTierOptions & AnthropicStopSequencesOptions & AnthropicThinkingOptions & AnthropicToolChoiceOptions & AnthropicSamplingOptions;
   [CLAUDE_SONNET_4_5.id]: AnthropicContainerOptions & AnthropicContextManagementOptions & AnthropicMCPOptions & AnthropicServiceTierOptions & AnthropicStopSequencesOptions & AnthropicThinkingOptions & AnthropicToolChoiceOptions & AnthropicSamplingOptions;
   [CLAUDE_HAIKU_4_5.id]: AnthropicContainerOptions & AnthropicContextManagementOptions & AnthropicMCPOptions & AnthropicServiceTierOptions & AnthropicStopSequencesOptions & AnthropicThinkingOptions & AnthropicToolChoiceOptions & AnthropicSamplingOptions;
   [CLAUDE_OPUS_4_1.id]: AnthropicContainerOptions & AnthropicContextManagementOptions & AnthropicMCPOptions & AnthropicServiceTierOptions & AnthropicStopSequencesOptions & AnthropicThinkingOptions & AnthropicToolChoiceOptions & AnthropicSamplingOptions;

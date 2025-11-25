@@ -79,25 +79,6 @@ https://platform.openai.com/docs/api-reference/responses/create#responses_create
   prompt_cache_retention?: "in-memory" | "24h";
 
   /**
-  * Reasoning controls for models that support it.
-  * Lets you guide how much chain-of-thought computation to spend.
-  * https://platform.openai.com/docs/api-reference/responses/create#responses_create-reasoning
-  * https://platform.openai.com/docs/guides/reasoning
-   */
-  reasoning?: {
-    /**
-     * gpt-5.1 defaults to none, which does not perform reasoning. The supported reasoning values for gpt-5.1 are none, low, medium, and high. Tool calls are supported for all reasoning values in gpt-5.1.
-All models before gpt-5.1 default to medium reasoning effort, and do not support none.
-The gpt-5-pro model defaults to (and only supports) high reasoning effort.
-     */
-    effort?: "none" | "minimal" | "low" | "medium" | "high";
-  };
-  /**
-   * A summary of the reasoning performed by the model. This can be useful for debugging and understanding the model's reasoning process
-   * https://platform.openai.com/docs/api-reference/responses/create#responses_create-reasoning-summary
-   */
-  summary?: "auto" | "concise" | "detailed";
-  /**
      * A stable identifier used to help detect users of your application that may be violating OpenAI's usage policies. The IDs should be a string that uniquely identifies each user. 
      * https://platform.openai.com/docs/api-reference/responses/create#responses_create-safety_identifier
      */
@@ -147,9 +128,25 @@ https://platform.openai.com/docs/api-reference/responses/create#responses_create
 
 // Feature fragments that can be stitched per-model
 export interface OpenAIReasoningOptions {
+  /**
+  * Reasoning controls for models that support it.
+  * Lets you guide how much chain-of-thought computation to spend.
+  * https://platform.openai.com/docs/api-reference/responses/create#responses_create-reasoning
+  * https://platform.openai.com/docs/guides/reasoning
+   */
   reasoning?: {
+    /**
+     * gpt-5.1 defaults to none, which does not perform reasoning. The supported reasoning values for gpt-5.1 are none, low, medium, and high. Tool calls are supported for all reasoning values in gpt-5.1.
+     * All models before gpt-5.1 default to medium reasoning effort, and do not support none.
+     * The gpt-5-pro model defaults to (and only supports) high reasoning effort.
+     */
     effort?: "none" | "minimal" | "low" | "medium" | "high";
   };
+  /**
+   * A summary of the reasoning performed by the model. This can be useful for debugging and understanding the model's reasoning process
+   * https://platform.openai.com/docs/api-reference/responses/create#responses_create-reasoning-summary
+   */
+  summary?: "auto" | "concise" | "detailed";
 }
 
 export interface OpenAIStructuredOutputOptions {

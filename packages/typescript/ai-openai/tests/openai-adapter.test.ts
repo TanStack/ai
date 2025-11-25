@@ -1,62 +1,23 @@
 import { describe, it, expect, beforeEach, vi } from "vitest";
-import { ai, type Tool } from "@tanstack/ai";
+import { chat, type Tool, type StreamChunk } from "@tanstack/ai";
 import { OpenAI, type OpenAIProviderOptions } from "../src/openai-adapter";
 
-const mocks = vi.hoisted(() => {
-  const responsesCreate = vi.fn();
-  const chatCompletionsCreate = vi.fn();
-  const embeddingsCreate = vi.fn();
-  const imagesGenerate = vi.fn();
-  const audioTranscriptionsCreate = vi.fn();
-  const audioSpeechCreate = vi.fn(async () => ({
-    arrayBuffer: async () => new ArrayBuffer(0),
-  }));
-  const videosCreate = vi.fn();
-  const videosRemix = vi.fn();
-
-  const client = {
-    responses: { create: responsesCreate },
-    chat: { completions: { create: chatCompletionsCreate } },
-    embeddings: { create: embeddingsCreate },
-    images: { generate: imagesGenerate },
-    audio: {
-      transcriptions: { create: audioTranscriptionsCreate },
-      speech: { create: audioSpeechCreate },
-    },
-    videos: { create: videosCreate, remix: videosRemix },
-  };
-
-  return {
-    responsesCreate,
-    chatCompletionsCreate,
-    embeddingsCreate,
-    imagesGenerate,
-    audioTranscriptionsCreate,
-    audioSpeechCreate,
-    videosCreate,
-    videosRemix,
-    client,
-  };
-});
+const mocks = vi.hoisted(() => ({
+  responsesCreate: vi.fn(),
+}));
 
 vi.mock("openai", () => {
-  const { client } = mocks;
+  const { responsesCreate } = mocks;
 
   class MockOpenAI {
-    responses = client.responses;
-    chat = client.chat;
-    embeddings = client.embeddings;
-    images = client.images;
-    audio = client.audio;
-    videos = client.videos;
-
+    public responses = { create: responsesCreate };
     constructor(_: { apiKey: string }) { }
   }
 
   return { default: MockOpenAI };
 });
 
-const createAI = () => ai(new OpenAI({ apiKey: "test-key" }));
+const createAdapter = () => new OpenAI({ apiKey: "test-key" });
 
 const toolArguments = JSON.stringify({ location: "Berlin" });
 
@@ -75,33 +36,66 @@ const weatherTool: Tool = {
   },
 };
 
+// Helper to create a ReadableStream from JSON lines
+function createMockResponseStream(events: Array<Record<string, unknown>>): { toReadableStream: () => ReadableStream<Uint8Array> } {
+  return {
+    toReadableStream: () => {
+      const encoder = new TextEncoder();
+      const lines = events.map((e) => JSON.stringify(e) + "\n");
+      let index = 0;
+      return new ReadableStream<Uint8Array>({
+        pull(controller) {
+          if (index < lines.length) {
+            controller.enqueue(encoder.encode(lines[index]!));
+            index++;
+          } else {
+            controller.close();
+          }
+        },
+      });
+    },
+  };
+}
+
 describe("OpenAI adapter option mapping", () => {
   beforeEach(() => {
     vi.clearAllMocks();
   });
 
   it("maps common and provider options into the Responses payload", async () => {
-    mocks.responsesCreate.mockResolvedValueOnce({
-      id: "resp_123",
-      model: "gpt-4o-mini",
-      output: [
-        {
+    // Mock streaming response
+    const mockResponse = createMockResponseStream([
+      {
+        type: "response.output_item.added",
+        item: {
           type: "message",
-          status: "completed",
-          content: [
-            {
-              type: "output_text",
-              text: "It is sunny",
-            },
-          ],
+          role: "assistant",
+          content: [],
         },
-      ],
-      usage: {
-        input_tokens: 12,
-        output_tokens: 4,
-        total_tokens: 16,
       },
-    });
+      {
+        type: "response.content_part.added",
+        part: { type: "text", text: "" },
+      },
+      {
+        type: "response.output_text.delta",
+        delta: "It is sunny",
+      },
+      {
+        type: "response.completed",
+        response: {
+          id: "resp_123",
+          status: "completed",
+          usage: {
+            input_tokens: 12,
+            output_tokens: 4,
+            total_tokens: 16,
+          },
+        },
+      },
+    ]);
+
+    mocks.responsesCreate.mockResolvedValueOnce(mockResponse);
 
     const providerOptions: OpenAIProviderOptions = {
       background: true,
@@ -128,9 +122,12 @@ describe("OpenAI adapter option mapping", () => {
       verbosity: "high",
     };
 
-    const aiInstance = createAI();
+    const adapter = createAdapter();
 
-    await aiInstance.chatCompletion({
+    // Consume the stream to trigger the API call
+    const chunks: StreamChunk[] = [];
+    for await (const chunk of chat({
+      adapter,
       model: "gpt-4o-mini",
       messages: [
         { role: "system", content: "Stay concise" },
@@ -156,7 +153,9 @@ describe("OpenAI adapter option mapping", () => {
         metadata: { requestId: "req-42" },
       },
       providerOptions,
-    });
+    })) {
+      chunks.push(chunk);
+    }
 
     expect(mocks.responsesCreate).toHaveBeenCalledTimes(1);
     const [payload] = mocks.responsesCreate.mock.calls[0];
@@ -169,7 +168,7 @@ describe("OpenAI adapter option mapping", () => {
       metadata: { requestId: "req-42" },
       ...providerOptions,
     });
-    expect(payload.stream).toBe(false);
+    expect(payload.stream).toBe(true);
 
     expect(payload.input).toEqual([
       {
