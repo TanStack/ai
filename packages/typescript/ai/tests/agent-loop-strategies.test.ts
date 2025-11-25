@@ -3,7 +3,7 @@ import {
   maxIterations,
   untilFinishReason,
   combineStrategies,
-} from "../src/agent-loop-strategies";
+} from "../src/utilities/agent-loop-strategies";
 import type { AgentLoopState } from "../src/types";
 
 describe("Agent Loop Strategies", () => {
@@ -19,7 +19,7 @@ describe("Agent Loop Strategies", () => {
   describe("maxIterations", () => {
     it("should continue when below max iterations", () => {
       const strategy = maxIterations(5);
-      
+
       expect(strategy(createState({ iterationCount: 0 }))).toBe(true);
       expect(strategy(createState({ iterationCount: 2 }))).toBe(true);
       expect(strategy(createState({ iterationCount: 4 }))).toBe(true);
@@ -27,21 +27,21 @@ describe("Agent Loop Strategies", () => {
 
     it("should stop when reaching max iterations", () => {
       const strategy = maxIterations(5);
-      
+
       expect(strategy(createState({ iterationCount: 5 }))).toBe(false);
       expect(strategy(createState({ iterationCount: 6 }))).toBe(false);
     });
 
     it("should work with iteration count 0", () => {
       const strategy = maxIterations(1);
-      
+
       expect(strategy(createState({ iterationCount: 0 }))).toBe(true);
       expect(strategy(createState({ iterationCount: 1 }))).toBe(false);
     });
 
     it("should work with max = 0 (never iterate)", () => {
       const strategy = maxIterations(0);
-      
+
       expect(strategy(createState({ iterationCount: 0 }))).toBe(false);
     });
   });
@@ -49,7 +49,7 @@ describe("Agent Loop Strategies", () => {
   describe("untilFinishReason", () => {
     it("should continue on first iteration even with matching finish reason", () => {
       const strategy = untilFinishReason(["stop"]);
-      
+
       // First iteration always continues
       expect(
         strategy(createState({ iterationCount: 0, finishReason: "stop" }))
@@ -58,7 +58,7 @@ describe("Agent Loop Strategies", () => {
 
     it("should stop when finish reason matches", () => {
       const strategy = untilFinishReason(["stop", "length"]);
-      
+
       expect(
         strategy(createState({ iterationCount: 1, finishReason: "stop" }))
       ).toBe(false);
@@ -69,7 +69,7 @@ describe("Agent Loop Strategies", () => {
 
     it("should continue when finish reason does not match", () => {
       const strategy = untilFinishReason(["stop"]);
-      
+
       expect(
         strategy(createState({ iterationCount: 1, finishReason: "tool_calls" }))
       ).toBe(true);
@@ -80,7 +80,7 @@ describe("Agent Loop Strategies", () => {
 
     it("should handle null finish reason", () => {
       const strategy = untilFinishReason(["stop"]);
-      
+
       expect(
         strategy(createState({ iterationCount: 1, finishReason: null }))
       ).toBe(true);
@@ -88,7 +88,7 @@ describe("Agent Loop Strategies", () => {
 
     it("should work with empty stop reasons array", () => {
       const strategy = untilFinishReason([]);
-      
+
       expect(
         strategy(createState({ iterationCount: 1, finishReason: "stop" }))
       ).toBe(true);

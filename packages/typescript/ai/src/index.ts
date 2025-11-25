@@ -6,17 +6,17 @@ export {
   responseFormat,
   responseFormat as output,
   jsonObject,
-} from "./schema-utils";
+} from "./utilities/schema-utils";
 export {
   toServerSentEventsStream,
   toStreamResponse,
-} from "./stream-to-response";
+} from "./utilities/stream-to-response";
 export { BaseAdapter } from "./base-adapter";
 export { ToolCallManager } from "./tools/tool-calls";
 export {
   maxIterations,
   untilFinishReason,
   combineStrategies,
-} from "./agent-loop-strategies";
+} from "./utilities/agent-loop-strategies";
 export * from "./types";
 export { chatOptions } from "./utilities/chat-options";

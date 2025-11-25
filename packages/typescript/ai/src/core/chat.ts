@@ -17,7 +17,7 @@ import {
   type ToolResult,
   ToolCallManager,
 } from "../tools/tool-calls";
-import { maxIterations as maxIterationsStrategy } from "../agent-loop-strategies";
+import { maxIterations as maxIterationsStrategy } from "../utilities/agent-loop-strategies";
 
 function prependSystemPrompts(
   messages: ModelMessage[],

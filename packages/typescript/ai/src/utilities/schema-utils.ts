@@ -1,4 +1,4 @@
-import type { ResponseFormat } from "./types";
+import type { ResponseFormat } from "../types";
 
 // Type to extract TypeScript type from JSON Schema
 type JSONSchemaToType<T> = T extends { type: "object"; properties: infer P }

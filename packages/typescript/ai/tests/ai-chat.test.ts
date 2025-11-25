@@ -8,7 +8,7 @@ import type {
 } from "../src/types";
 import { BaseAdapter } from "../src/base-adapter";
 import { aiEventClient } from "../src/event-client.js";
-import { maxIterations } from "../src/agent-loop-strategies";
+import { maxIterations } from "../src/utilities/agent-loop-strategies";
 
 // Mock event client to track events
 const eventListeners = new Map<string, Set<Function>>();

@@ -1,4 +1,4 @@
-import type { StreamChunk } from "./types";
+import type { StreamChunk } from "../types";
 
 /**
  * Convert a StreamChunk async iterable to a ReadableStream in Server-Sent Events format

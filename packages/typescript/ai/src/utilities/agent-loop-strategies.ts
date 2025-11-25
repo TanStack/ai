@@ -1,4 +1,4 @@
-import type { AgentLoopStrategy } from "./types";
+import type { AgentLoopStrategy } from "../types";
 
 /**
  * Creates a strategy that continues for a maximum number of iterations
