@@ -8,7 +8,7 @@ import type {
   DoneStreamChunk,
   AgentLoopStrategy,
 } from "./types";
-import type { AIEventEmitter } from "./events.js";
+import { aiEventClient } from "./event-client.js";
 import {
   executeToolCalls,
   type ApprovalRequest,
@@ -24,7 +24,6 @@ interface ChatEngineConfig<
   TParams extends ChatOptions<any, any> = ChatOptions<any>
 > {
   adapter: TAdapter;
-  events: AIEventEmitter;
   systemPrompts?: string[];
   params: TParams;
 }
@@ -37,7 +36,6 @@ export class ChatEngine<
   TParams extends ChatOptions<any, any> = ChatOptions<any>
 > {
   private readonly adapter: TAdapter;
-  private readonly events: AIEventEmitter;
   private readonly params: TParams;
   private readonly systemPrompts: string[];
   private readonly tools: ReadonlyArray<Tool>;
@@ -64,7 +62,6 @@ export class ChatEngine<
 
   constructor(config: ChatEngineConfig<TAdapter, TParams>) {
     this.adapter = config.adapter;
-    this.events = config.events;
     this.params = config.params;
     this.systemPrompts = config.systemPrompts || [];
     this.tools = config.params.tools || [];
@@ -118,18 +115,20 @@ export class ChatEngine<
     this.streamStartTime = Date.now();
     const { model, tools } = this.params;
 
-    this.events.chatStarted({
+    aiEventClient.emit("chat:started", {
       requestId: this.requestId,
       model: model as string,
       messageCount: this.initialMessageCount,
       hasTools: !!tools && tools.length > 0,
       streaming: true,
+      timestamp: Date.now(),
     });
 
-    this.events.streamStarted({
+    aiEventClient.emit("stream:started", {
       streamId: this.streamId,
       model,
       provider: this.adapter.name,
+      timestamp: Date.now(),
     });
   }
 
@@ -138,10 +137,11 @@ export class ChatEngine<
       return;
     }
 
-    this.events.streamEnded({
+    aiEventClient.emit("stream:ended", {
       streamId: this.streamId,
       totalChunks: this.totalChunkCount,
       duration: Date.now() - this.streamStartTime,
+      timestamp: Date.now(),
     });
   }
 
@@ -218,11 +218,12 @@ export class ChatEngine<
 
   private handleContentChunk(chunk: Extract<StreamChunk, { type: "content" }>) {
     this.accumulatedContent = chunk.content;
-    this.events.streamChunkContent({
+    aiEventClient.emit("stream:chunk:content", {
       streamId: this.streamId,
       messageId: this.currentMessageId || undefined,
       content: chunk.content,
       delta: chunk.delta,
+      timestamp: Date.now(),
     });
   }
 
@@ -230,24 +231,26 @@ export class ChatEngine<
     chunk: Extract<StreamChunk, { type: "tool_call" }>
   ): void {
     this.toolCallManager.addToolCallChunk(chunk);
-    this.events.streamChunkToolCall({
+    aiEventClient.emit("stream:chunk:tool-call", {
       streamId: this.streamId,
       messageId: this.currentMessageId || undefined,
       toolCallId: chunk.toolCall.id,
       toolName: chunk.toolCall.function.name,
       index: chunk.index,
       arguments: chunk.toolCall.function.arguments,
+      timestamp: Date.now(),
     });
   }
 
   private handleToolResultChunk(
     chunk: Extract<StreamChunk, { type: "tool_result" }>
   ): void {
-    this.events.streamChunkToolResult({
+    aiEventClient.emit("stream:chunk:tool-result", {
       streamId: this.streamId,
       messageId: this.currentMessageId || undefined,
       toolCallId: chunk.toolCallId,
       result: chunk.content,
+      timestamp: Date.now(),
     });
   }
 
@@ -260,32 +263,35 @@ export class ChatEngine<
     ) {
       // Still emit the event and update lastFinishReason, but don't overwrite doneChunk
       this.lastFinishReason = chunk.finishReason;
-      this.events.streamChunkDone({
+      aiEventClient.emit("stream:chunk:done", {
         streamId: this.streamId,
         messageId: this.currentMessageId || undefined,
         finishReason: chunk.finishReason,
         usage: chunk.usage,
+        timestamp: Date.now(),
       });
       return;
     }
 
     this.doneChunk = chunk;
     this.lastFinishReason = chunk.finishReason;
-    this.events.streamChunkDone({
+    aiEventClient.emit("stream:chunk:done", {
       streamId: this.streamId,
       messageId: this.currentMessageId || undefined,
       finishReason: chunk.finishReason,
       usage: chunk.usage,
+      timestamp: Date.now(),
     });
   }
 
   private handleErrorChunk(
     chunk: Extract<StreamChunk, { type: "error" }>
   ): void {
-    this.events.streamChunkError({
+    aiEventClient.emit("stream:chunk:error", {
       streamId: this.streamId,
       messageId: this.currentMessageId || undefined,
       error: chunk.error.message,
+      timestamp: Date.now(),
     });
     this.earlyTermination = true;
     this.shouldEmitStreamEnd = false;
@@ -303,11 +309,12 @@ export class ChatEngine<
 
     const doneChunk = this.createSyntheticDoneChunk();
 
-    this.events.chatIteration({
+    aiEventClient.emit("chat:iteration", {
       requestId: this.requestId,
       iterationNumber: this.iterationCount + 1,
       messageCount: this.messages.length,
       toolCallCount: pendingToolCalls.length,
+      timestamp: Date.now(),
     });
 
     const { approvals, clientToolResults } = this.collectClientState();
@@ -367,11 +374,12 @@ export class ChatEngine<
       return;
     }
 
-    this.events.chatIteration({
+    aiEventClient.emit("chat:iteration", {
       requestId: this.requestId,
       iterationNumber: this.iterationCount + 1,
       messageCount: this.messages.length,
       toolCallCount: toolCalls.length,
+      timestamp: Date.now(),
     });
 
     this.addAssistantToolCallMessage(toolCalls);
@@ -481,13 +489,14 @@ export class ChatEngine<
     const chunks: StreamChunk[] = [];
 
     for (const approval of approvals) {
-      this.events.streamApprovalRequested({
+      aiEventClient.emit("stream:approval-requested", {
         streamId: this.streamId,
         messageId: this.currentMessageId || undefined,
         toolCallId: approval.toolCallId,
         toolName: approval.toolName,
         input: approval.input,
         approvalId: approval.approvalId,
+        timestamp: Date.now(),
       });
 
       chunks.push({
@@ -515,11 +524,12 @@ export class ChatEngine<
     const chunks: StreamChunk[] = [];
 
     for (const clientTool of clientRequests) {
-      this.events.streamToolInputAvailable({
+      aiEventClient.emit("stream:tool-input-available", {
         streamId: this.streamId,
         toolCallId: clientTool.toolCallId,
         toolName: clientTool.toolName,
         input: clientTool.input,
+        timestamp: Date.now(),
       });
 
       chunks.push({
@@ -543,12 +553,13 @@ export class ChatEngine<
     const chunks: StreamChunk[] = [];
 
     for (const result of results) {
-      this.events.toolCallCompleted({
+      aiEventClient.emit("tool:call-completed", {
         streamId: this.streamId,
         toolCallId: result.toolCallId,
         toolName: result.toolCallId,
         result: result.result,
         duration: 0,
+        timestamp: Date.now(),
       });
 
       const content = JSON.stringify(result.result);

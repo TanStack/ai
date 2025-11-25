@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { chat } from "../src/standalone-functions";
-import type { ChatCompletionOptions, StreamChunk } from "../src/types";
+import type { ChatOptions, StreamChunk } from "../src/types";
 import { BaseAdapter } from "../src/base-adapter";
 
 // Mock adapter that tracks abort signal usage
@@ -21,16 +21,12 @@ class MockAdapter extends BaseAdapter<
   name = "mock";
   models = ["test-model"] as const;
 
-  private getAbortSignal(
-    options: ChatCompletionOptions
-  ): AbortSignal | undefined {
+  private getAbortSignal(options: ChatOptions): AbortSignal | undefined {
     const signal = (options.request as RequestInit | undefined)?.signal;
     return signal ?? undefined;
   }
 
-  async *chatStream(
-    options: ChatCompletionOptions
-  ): AsyncIterable<StreamChunk> {
+  async *chatStream(options: ChatOptions): AsyncIterable<StreamChunk> {
     this.chatStreamCallCount++;
     const abortSignal = this.getAbortSignal(options);
     this.receivedAbortSignals.push(abortSignal);
@@ -161,9 +157,7 @@ describe("chat() - Abort Signal Handling", () => {
 
     // Create adapter that yields tool_calls
     class ToolCallAdapter extends MockAdapter {
-      async *chatStream(
-        _options: ChatCompletionOptions
-      ): AsyncIterable<StreamChunk> {
+      async *chatStream(_options: ChatOptions): AsyncIterable<StreamChunk> {
         yield {
           type: "tool_call",
           id: "test-id",

@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { chat } from "../src/standalone-functions";
 import type {
-  ChatCompletionOptions,
+  ChatOptions,
   StreamChunk,
   Tool,
   ModelMessage,
@@ -50,7 +50,7 @@ class MockAdapter extends BaseAdapter<
     model: string;
     messages: ModelMessage[];
     tools?: Tool[];
-    request?: ChatCompletionOptions["request"];
+    request?: ChatOptions["request"];
     providerOptions?: any;
   }> = [];
 
@@ -58,7 +58,7 @@ class MockAdapter extends BaseAdapter<
   models = ["test-model"] as const;
 
   // Helper method for consistent tracking when subclasses override chatStream
-  protected trackStreamCall(options: ChatCompletionOptions): void {
+  protected trackStreamCall(options: ChatOptions): void {
     this.chatStreamCallCount++;
     this.chatStreamCalls.push({
       model: options.model,
@@ -70,9 +70,7 @@ class MockAdapter extends BaseAdapter<
   }
 
   // Default implementation - will be overridden in tests
-  async *chatStream(
-    options: ChatCompletionOptions
-  ): AsyncIterable<StreamChunk> {
+  async *chatStream(options: ChatOptions): AsyncIterable<StreamChunk> {
     this.trackStreamCall(options);
     yield {
       type: "content",
@@ -280,9 +278,7 @@ describe("chat() - Comprehensive Logic Path Coverage", () => {
 
     it("should accumulate content across multiple chunks", async () => {
       class ContentAdapter extends MockAdapter {
-        async *chatStream(
-          options: ChatCompletionOptions
-        ): AsyncIterable<StreamChunk> {
+        async *chatStream(options: ChatOptions): AsyncIterable<StreamChunk> {
           this.trackStreamCall(options);
           yield {
             type: "content",
@@ -346,9 +342,7 @@ describe("chat() - Comprehensive Logic Path Coverage", () => {
 
     it("should handle empty content chunks", async () => {
       class EmptyContentAdapter extends MockAdapter {
-        async *chatStream(
-          options: ChatCompletionOptions
-        ): AsyncIterable<StreamChunk> {
+        async *chatStream(options: ChatOptions): AsyncIterable<StreamChunk> {
           this.trackStreamCall(options);
           yield {
             type: "content",
@@ -400,9 +394,7 @@ describe("chat() - Comprehensive Logic Path Coverage", () => {
 
       class ToolAdapter extends MockAdapter {
         iteration = 0;
-        async *chatStream(
-          options: ChatCompletionOptions
-        ): AsyncIterable<StreamChunk> {
+        async *chatStream(options: ChatOptions): AsyncIterable<StreamChunk> {
           this.trackStreamCall(options);
 
           if (this.iteration === 0) {
@@ -494,9 +486,7 @@ describe("chat() - Comprehensive Logic Path Coverage", () => {
 
       class StreamingToolAdapter extends MockAdapter {
         iteration = 0;
-        async *chatStream(
-          options: ChatCompletionOptions
-        ): AsyncIterable<StreamChunk> {
+        async *chatStream(options: ChatOptions): AsyncIterable<StreamChunk> {
           this.trackStreamCall(options);
 
           if (this.iteration === 0) {
@@ -592,9 +582,7 @@ describe("chat() - Comprehensive Logic Path Coverage", () => {
 
       class MultipleToolsAdapter extends MockAdapter {
         iteration = 0;
-        async *chatStream(
-          options: ChatCompletionOptions
-        ): AsyncIterable<StreamChunk> {
+        async *chatStream(options: ChatOptions): AsyncIterable<StreamChunk> {
           this.trackStreamCall(options);
 
           if (this.iteration === 0) {
@@ -685,9 +673,7 @@ describe("chat() - Comprehensive Logic Path Coverage", () => {
 
       class ContentWithToolsAdapter extends MockAdapter {
         iteration = 0;
-        async *chatStream(
-          options: ChatCompletionOptions
-        ): AsyncIterable<StreamChunk> {
+        async *chatStream(options: ChatOptions): AsyncIterable<StreamChunk> {
           this.trackStreamCall(options);
 
           if (this.iteration === 0) {
@@ -772,9 +758,7 @@ describe("chat() - Comprehensive Logic Path Coverage", () => {
 
       class NoContentToolsAdapter extends MockAdapter {
         iteration = 0;
-        async *chatStream(
-          options: ChatCompletionOptions
-        ): AsyncIterable<StreamChunk> {
+        async *chatStream(options: ChatOptions): AsyncIterable<StreamChunk> {
           this.trackStreamCall(options);
 
           if (this.iteration === 0) {
@@ -853,9 +837,7 @@ describe("chat() - Comprehensive Logic Path Coverage", () => {
       };
 
       class IncompleteToolAdapter extends MockAdapter {
-        async *chatStream(
-          options: ChatCompletionOptions
-        ): AsyncIterable<StreamChunk> {
+        async *chatStream(options: ChatOptions): AsyncIterable<StreamChunk> {
           this.trackStreamCall(options);
           // Incomplete tool call (empty name)
           yield {
@@ -912,9 +894,7 @@ describe("chat() - Comprehensive Logic Path Coverage", () => {
 
       class ToolResultAdapter extends MockAdapter {
         iteration = 0;
-        async *chatStream(
-          options: ChatCompletionOptions
-        ): AsyncIterable<StreamChunk> {
+        async *chatStream(options: ChatOptions): AsyncIterable<StreamChunk> {
           this.trackStreamCall(options);
           if (this.iteration === 0) {
             this.iteration++;
@@ -992,9 +972,7 @@ describe("chat() - Comprehensive Logic Path Coverage", () => {
 
       class MessageHistoryAdapter extends MockAdapter {
         iteration = 0;
-        async *chatStream(
-          options: ChatCompletionOptions
-        ): AsyncIterable<StreamChunk> {
+        async *chatStream(options: ChatOptions): AsyncIterable<StreamChunk> {
           this.trackStreamCall(options);
 
           if (this.iteration === 0) {
@@ -1068,9 +1046,7 @@ describe("chat() - Comprehensive Logic Path Coverage", () => {
 
       class ErrorToolAdapter extends MockAdapter {
         iteration = 0;
-        async *chatStream(
-          options: ChatCompletionOptions
-        ): AsyncIterable<StreamChunk> {
+        async *chatStream(options: ChatOptions): AsyncIterable<StreamChunk> {
           this.trackStreamCall(options);
           if (this.iteration === 0) {
             this.iteration++;
@@ -1135,9 +1111,7 @@ describe("chat() - Comprehensive Logic Path Coverage", () => {
 
     it("should handle unknown tool calls", async () => {
       class UnknownToolAdapter extends MockAdapter {
-        async *chatStream(
-          options: ChatCompletionOptions
-        ): AsyncIterable<StreamChunk> {
+        async *chatStream(options: ChatOptions): AsyncIterable<StreamChunk> {
           this.trackStreamCall(options);
           yield {
             type: "tool_call",
@@ -1205,9 +1179,7 @@ describe("chat() - Comprehensive Logic Path Coverage", () => {
       };
 
       class ApprovalAdapter extends MockAdapter {
-        async *chatStream(
-          options: ChatCompletionOptions
-        ): AsyncIterable<StreamChunk> {
+        async *chatStream(options: ChatOptions): AsyncIterable<StreamChunk> {
           this.trackStreamCall(options);
           yield {
             type: "tool_call",
@@ -1275,9 +1247,7 @@ describe("chat() - Comprehensive Logic Path Coverage", () => {
       };
 
       class ClientToolAdapter extends MockAdapter {
-        async *chatStream(
-          options: ChatCompletionOptions
-        ): AsyncIterable<StreamChunk> {
+        async *chatStream(options: ChatOptions): AsyncIterable<StreamChunk> {
           this.trackStreamCall(options);
           yield {
             type: "tool_call",
@@ -1348,9 +1318,7 @@ describe("chat() - Comprehensive Logic Path Coverage", () => {
       };
 
       class MixedToolsAdapter extends MockAdapter {
-        async *chatStream(
-          options: ChatCompletionOptions
-        ): AsyncIterable<StreamChunk> {
+        async *chatStream(options: ChatOptions): AsyncIterable<StreamChunk> {
           this.trackStreamCall(options);
           yield {
             type: "tool_call",
@@ -1443,9 +1411,7 @@ describe("chat() - Comprehensive Logic Path Coverage", () => {
       };
 
       class PendingToolAdapter extends MockAdapter {
-        async *chatStream(
-          options: ChatCompletionOptions
-        ): AsyncIterable<StreamChunk> {
+        async *chatStream(options: ChatOptions): AsyncIterable<StreamChunk> {
           this.trackStreamCall(options);
 
           const toolMessage = options.messages.find(
@@ -1532,9 +1498,7 @@ describe("chat() - Comprehensive Logic Path Coverage", () => {
 
       class LoopAdapter extends MockAdapter {
         iteration = 0;
-        async *chatStream(
-          options: ChatCompletionOptions
-        ): AsyncIterable<StreamChunk> {
+        async *chatStream(options: ChatOptions): AsyncIterable<StreamChunk> {
           this.trackStreamCall(options);
           if (this.iteration < 3) {
             this.iteration++;
@@ -1603,9 +1567,7 @@ describe("chat() - Comprehensive Logic Path Coverage", () => {
 
       class InfiniteLoopAdapter extends MockAdapter {
         iteration = 0;
-        async *chatStream(
-          options: ChatCompletionOptions
-        ): AsyncIterable<StreamChunk> {
+        async *chatStream(options: ChatOptions): AsyncIterable<StreamChunk> {
           this.trackStreamCall(options);
           yield {
             type: "tool_call",
@@ -1658,9 +1620,7 @@ describe("chat() - Comprehensive Logic Path Coverage", () => {
       };
 
       class StopAdapter extends MockAdapter {
-        async *chatStream(
-          options: ChatCompletionOptions
-        ): AsyncIterable<StreamChunk> {
+        async *chatStream(options: ChatOptions): AsyncIterable<StreamChunk> {
           this.trackStreamCall(options);
           yield {
             type: "content",
@@ -1698,9 +1658,7 @@ describe("chat() - Comprehensive Logic Path Coverage", () => {
 
     it("should exit loop when no tools provided", async () => {
       class NoToolsAdapter extends MockAdapter {
-        async *chatStream(
-          options: ChatCompletionOptions
-        ): AsyncIterable<StreamChunk> {
+        async *chatStream(options: ChatOptions): AsyncIterable<StreamChunk> {
           this.trackStreamCall(options);
           yield {
             type: "tool_call",
@@ -1747,9 +1705,7 @@ describe("chat() - Comprehensive Logic Path Coverage", () => {
       };
 
       class NoToolCallsAdapter extends MockAdapter {
-        async *chatStream(
-          options: ChatCompletionOptions
-        ): AsyncIterable<StreamChunk> {
+        async *chatStream(options: ChatOptions): AsyncIterable<StreamChunk> {
           this.trackStreamCall(options);
           // Tool call with empty name (invalid)
           yield {
@@ -1814,9 +1770,7 @@ describe("chat() - Comprehensive Logic Path Coverage", () => {
 
     it("should check abort signal during streaming", async () => {
       class StreamingAdapter extends MockAdapter {
-        async *chatStream(
-          options: ChatCompletionOptions
-        ): AsyncIterable<StreamChunk> {
+        async *chatStream(options: ChatOptions): AsyncIterable<StreamChunk> {
           this.trackStreamCall(options);
           yield {
             type: "content",
@@ -1880,9 +1834,7 @@ describe("chat() - Comprehensive Logic Path Coverage", () => {
       };
 
       class ToolCallAdapter extends MockAdapter {
-        async *chatStream(
-          options: ChatCompletionOptions
-        ): AsyncIterable<StreamChunk> {
+        async *chatStream(options: ChatOptions): AsyncIterable<StreamChunk> {
           this.trackStreamCall(options);
           yield {
             type: "tool_call",
@@ -1933,9 +1885,7 @@ describe("chat() - Comprehensive Logic Path Coverage", () => {
   describe("Error Handling Paths", () => {
     it("should stop on error chunk and return early", async () => {
       class ErrorAdapter extends MockAdapter {
-        async *chatStream(
-          options: ChatCompletionOptions
-        ): AsyncIterable<StreamChunk> {
+        async *chatStream(options: ChatOptions): AsyncIterable<StreamChunk> {
           this.trackStreamCall(options);
           yield {
             type: "content",
@@ -1999,9 +1949,7 @@ describe("chat() - Comprehensive Logic Path Coverage", () => {
   describe("Finish Reason Paths", () => {
     it("should handle finish reason 'stop'", async () => {
       class StopFinishAdapter extends MockAdapter {
-        async *chatStream(
-          options: ChatCompletionOptions
-        ): AsyncIterable<StreamChunk> {
+        async *chatStream(options: ChatOptions): AsyncIterable<StreamChunk> {
           this.trackStreamCall(options);
           yield {
             type: "content",
@@ -2038,9 +1986,7 @@ describe("chat() - Comprehensive Logic Path Coverage", () => {
 
     it("should handle finish reason 'length'", async () => {
       class LengthAdapter extends MockAdapter {
-        async *chatStream(
-          options: ChatCompletionOptions
-        ): AsyncIterable<StreamChunk> {
+        async *chatStream(options: ChatOptions): AsyncIterable<StreamChunk> {
           this.trackStreamCall(options);
           yield {
             type: "content",
@@ -2077,9 +2023,7 @@ describe("chat() - Comprehensive Logic Path Coverage", () => {
 
     it("should handle finish reason null", async () => {
       class NullFinishAdapter extends MockAdapter {
-        async *chatStream(
-          options: ChatCompletionOptions
-        ): AsyncIterable<StreamChunk> {
+        async *chatStream(options: ChatOptions): AsyncIterable<StreamChunk> {
           this.trackStreamCall(options);
           yield {
             type: "content",
@@ -2156,9 +2100,7 @@ describe("chat() - Comprehensive Logic Path Coverage", () => {
 
       class ToolAdapter extends MockAdapter {
         iteration = 0;
-        async *chatStream(
-          options: ChatCompletionOptions
-        ): AsyncIterable<StreamChunk> {
+        async *chatStream(options: ChatOptions): AsyncIterable<StreamChunk> {
           this.trackStreamCall(options);
           if (this.iteration === 0) {
             this.iteration++;
@@ -2247,9 +2189,7 @@ describe("chat() - Comprehensive Logic Path Coverage", () => {
 
       class MultiIterationAdapter extends MockAdapter {
         iteration = 0;
-        async *chatStream(
-          options: ChatCompletionOptions
-        ): AsyncIterable<StreamChunk> {
+        async *chatStream(options: ChatOptions): AsyncIterable<StreamChunk> {
           this.trackStreamCall(options);
           if (this.iteration === 0) {
             this.iteration++;
@@ -2359,9 +2299,7 @@ describe("chat() - Comprehensive Logic Path Coverage", () => {
       };
 
       class MissingIdAdapter extends MockAdapter {
-        async *chatStream(
-          options: ChatCompletionOptions
-        ): AsyncIterable<StreamChunk> {
+        async *chatStream(options: ChatOptions): AsyncIterable<StreamChunk> {
           this.trackStreamCall(options);
           yield {
             type: "tool_call",
@@ -2408,9 +2346,7 @@ describe("chat() - Comprehensive Logic Path Coverage", () => {
       };
 
       class InvalidJsonAdapter extends MockAdapter {
-        async *chatStream(
-          options: ChatCompletionOptions
-        ): AsyncIterable<StreamChunk> {
+        async *chatStream(options: ChatOptions): AsyncIterable<StreamChunk> {
           this.trackStreamCall(options);
           yield {
             type: "tool_call",
@@ -2454,9 +2390,7 @@ describe("chat() - Comprehensive Logic Path Coverage", () => {
   describe("Tool Result Chunk Events from Adapter", () => {
     it("should emit stream:chunk:tool-result event when adapter sends tool_result chunk", async () => {
       class ToolResultChunkAdapter extends MockAdapter {
-        async *chatStream(
-          options: ChatCompletionOptions
-        ): AsyncIterable<StreamChunk> {
+        async *chatStream(options: ChatOptions): AsyncIterable<StreamChunk> {
           this.trackStreamCall(options);
           yield {
             type: "content",
@@ -2523,9 +2457,7 @@ describe("chat() - Comprehensive Logic Path Coverage", () => {
 
       class ApprovalResponseAdapter extends MockAdapter {
         iteration = 0;
-        async *chatStream(
-          options: ChatCompletionOptions
-        ): AsyncIterable<StreamChunk> {
+        async *chatStream(options: ChatOptions): AsyncIterable<StreamChunk> {
           this.trackStreamCall(options);
 
           // Check if messages have approval response in parts
@@ -2671,9 +2603,7 @@ describe("chat() - Comprehensive Logic Path Coverage", () => {
 
       class ClientOutputAdapter extends MockAdapter {
         iteration = 0;
-        async *chatStream(
-          options: ChatCompletionOptions
-        ): AsyncIterable<StreamChunk> {
+        async *chatStream(options: ChatOptions): AsyncIterable<StreamChunk> {
           this.trackStreamCall(options);
 
           if (this.iteration === 0) {
@@ -2803,9 +2733,7 @@ describe("chat() - Comprehensive Logic Path Coverage", () => {
 
       class MixedPartsAdapter extends MockAdapter {
         iteration = 0;
-        async *chatStream(
-          options: ChatCompletionOptions
-        ): AsyncIterable<StreamChunk> {
+        async *chatStream(options: ChatOptions): AsyncIterable<StreamChunk> {
           this.trackStreamCall(options);
           if (this.iteration === 0) {
             this.iteration++;
@@ -2945,9 +2873,7 @@ describe("chat() - Comprehensive Logic Path Coverage", () => {
       class TemperatureToolAdapter extends MockAdapter {
         iteration = 0;
 
-        async *chatStream(
-          options: ChatCompletionOptions
-        ): AsyncIterable<StreamChunk> {
+        async *chatStream(options: ChatOptions): AsyncIterable<StreamChunk> {
           this.trackStreamCall(options);
           const baseId = `test-${Date.now()}-${Math.random()
             .toString(36)
@@ -3045,30 +2971,8 @@ describe("chat() - Comprehensive Logic Path Coverage", () => {
 
       const chunks = await collectChunks(stream);
 
-      // Debug: log what we got
-      console.log("\n=== DEBUG: Temperature Tool Test ===");
-      console.log("Total chunks:", chunks.length);
-      console.log(
-        "Chunk types:",
-        chunks.map((c) => c.type)
-      );
-      console.log(
-        "Tool execute called:",
-        temperatureTool.execute?.mock.calls.length
-      );
-      console.log("Adapter iterations:", adapter.chatStreamCallCount);
-
       const toolCallChunks = chunks.filter((c) => c.type === "tool_call");
       const toolResultChunks = chunks.filter((c) => c.type === "tool_result");
-      const doneChunks = chunks.filter((c) => c.type === "done");
-
-      console.log("Tool call chunks:", toolCallChunks.length);
-      console.log("Tool result chunks:", toolResultChunks.length);
-      console.log(
-        "Done chunks:",
-        doneChunks.map((c) => (c as any).finishReason)
-      );
-      console.log("===============================\n");
 
       // We should have received tool_call chunks
       expect(toolCallChunks.length).toBeGreaterThan(0);

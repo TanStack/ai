@@ -8,7 +8,6 @@ import type {
   ChatOptions,
   ChatStreamOptionsUnion,
 } from "./types";
-import { AIEventEmitter, DefaultAIEventEmitter } from "./events.js";
 import { ChatEngine } from "./chat-engine.js";
 
 // Extract types from adapter (updated to 5 generics)
@@ -21,10 +20,6 @@ type ExtractModelsFromAdapter<T> = T extends AIAdapter<
 >
   ? M[number]
   : never;
-
-function createEmitter(): AIEventEmitter {
-  return new DefaultAIEventEmitter();
-}
 
 /**
  * Standalone chat streaming function with type inference from adapter
@@ -59,11 +54,9 @@ export async function* chat<
   TAdapter extends AIAdapter<any, any, any, any, any>
 >(options: ChatStreamOptionsUnion<TAdapter>): AsyncIterable<StreamChunk> {
   const { adapter, ...chatOptions } = options;
-  const emitter = createEmitter();
 
   const engine = new ChatEngine({
     adapter,
-    events: emitter,
     params: chatOptions as ChatOptions<
       string,
       Record<string, any>,

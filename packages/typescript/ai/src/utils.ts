@@ -1,6 +1,5 @@
 import type { ModelMessage } from "./types";
 
-
 /**
  * Prepend system prompts to the current message list.
  */
@@ -22,19 +21,4 @@ export function prependSystemPrompts(
   }));
 
   return [...systemMessages, ...messages];
-}
-
-/**
- * Merge streaming chunks into a complete response
- */
-export async function mergeChunks(chunks: AsyncIterable<any>): Promise<string> {
-  let result = "";
-  for await (const chunk of chunks) {
-    if (typeof chunk === "string") {
-      result += chunk;
-    } else if (chunk.content) {
-      result += chunk.content;
-    }
-  }
-  return result;
 }
