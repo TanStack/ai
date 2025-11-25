@@ -38,16 +38,15 @@ export const saveToLocalStorage = tool({
 Pass client tools to the chat (they won't execute on the server):
 
 ```typescript
-import { ai, toStreamResponse } from "@tanstack/ai";
+import { chat, toStreamResponse } from "@tanstack/ai";
 import { openai } from "@tanstack/ai-openai";
 import { updateUI, saveToLocalStorage } from "./tools";
-
-const aiInstance = ai(openai());
 
 export async function POST(request: Request) {
   const { messages } = await request.json();
 
-  const stream = aiInstance.chat({
+  const stream = chat({
+    adapter: openai(),
     messages,
     model: "gpt-4o",
     tools: [updateUI, saveToLocalStorage], // Model knows about these tools
@@ -169,4 +168,3 @@ const displayPreferences = tool({
 
 - [Server Tools](./server-tools) - Learn about server-side tool execution
 - [Tool Approval Flow](./tool-approval) - Add approval workflows for sensitive client operations
-

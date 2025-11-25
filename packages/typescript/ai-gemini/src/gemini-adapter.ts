@@ -52,61 +52,6 @@ export class GeminiAdapter extends BaseAdapter<
     });
   }
 
-  async chatCompletion(
-    options: ChatCompletionOptions<string, GeminiProviderOptions>
-  ): Promise<ChatCompletionResult> {
-    const mappedOptions = this.mapCommonOptionsToGemini(options);
-
-    // Use the same API as streaming version for consistency
-    const result = await this.client.models.generateContent(mappedOptions);
-
-    // The result might have a .response property that needs to be awaited
-    // Or it might be the response directly
-    let response: any;
-    if (result.response && typeof result.response.then === "function") {
-      response = await result.response;
-    } else if (result.candidates) {
-      // Response is directly in result
-      response = result;
-    } else {
-      // Try to get response from result
-      response = (result as any).response || result;
-    }
-
-    // Extract text content from candidates[0].content.parts (same as streaming version)
-    let content = "";
-    if (response.candidates?.[0]?.content?.parts) {
-      const parts = response.candidates[0].content.parts;
-      for (const part of parts) {
-        if (part.text) {
-          content += part.text;
-        }
-      }
-    }
-
-    // Fallback to .text() if candidates extraction didn't work and response has .text() method
-    if (!content && typeof response.text === "function") {
-      try {
-        content = response.text() || "";
-      } catch {
-        // If .text() also fails, content remains empty
-      }
-    }
-
-    return {
-      id: this.generateId(),
-      model: options.model,
-      content: content || null,
-      role: "assistant",
-      finishReason: (response.candidates?.[0]?.finishReason as any) || "stop",
-      usage: {
-        promptTokens: response.usageMetadata?.promptTokenCount ?? 0,
-        completionTokens: response.usageMetadata?.thoughtsTokenCount ?? 0,
-        totalTokens: response.usageMetadata?.totalTokenCount ?? 0,
-      },
-    };
-  }
-
   async *chatStream(
     options: ChatCompletionOptions<string, GeminiProviderOptions>
   ): AsyncIterable<StreamChunk> {
@@ -128,10 +73,8 @@ export class GeminiAdapter extends BaseAdapter<
       model: options.model || "gemini-pro",
       contents: [{ role: "user", parts: [{ text: prompt }] }],
       config: {
-
         temperature: 0.3,
         maxOutputTokens: options.maxLength || 500,
-
       },
     });
 
@@ -304,10 +247,10 @@ export class GeminiAdapter extends BaseAdapter<
             finishReason: mappedFinishReason as any,
             usage: chunk.usageMetadata
               ? {
-                promptTokens: chunk.usageMetadata.promptTokenCount ?? 0,
-                completionTokens: chunk.usageMetadata.thoughtsTokenCount ?? 0,
-                totalTokens: chunk.usageMetadata.totalTokenCount ?? 0,
-              }
+                  promptTokens: chunk.usageMetadata.promptTokenCount ?? 0,
+                  completionTokens: chunk.usageMetadata.thoughtsTokenCount ?? 0,
+                  totalTokens: chunk.usageMetadata.totalTokenCount ?? 0,
+                }
               : undefined,
           };
         }
@@ -469,10 +412,10 @@ export class GeminiAdapter extends BaseAdapter<
           finishReason: mappedFinishReason as any,
           usage: chunk.usageMetadata
             ? {
-              promptTokens: chunk.usageMetadata.promptTokenCount ?? 0,
-              completionTokens: chunk.usageMetadata.thoughtsTokenCount ?? 0,
-              totalTokens: chunk.usageMetadata.totalTokenCount ?? 0,
-            }
+                promptTokens: chunk.usageMetadata.promptTokenCount ?? 0,
+                completionTokens: chunk.usageMetadata.thoughtsTokenCount ?? 0,
+                totalTokens: chunk.usageMetadata.totalTokenCount ?? 0,
+              }
             : undefined,
         };
       }
@@ -550,7 +493,7 @@ export class GeminiAdapter extends BaseAdapter<
   private mapCommonOptionsToGemini(
     options: ChatCompletionOptions<string, GeminiProviderOptions>
   ) {
-    const providerOpts = options.providerOptions
+    const providerOpts = options.providerOptions;
     const requestOptions: GenerateContentParameters = {
       model: options.model,
       contents: this.formatMessages(options.messages),
@@ -616,8 +559,8 @@ export function gemini(
     typeof globalThis !== "undefined" && (globalThis as any).window?.env
       ? (globalThis as any).window.env
       : typeof process !== "undefined"
-        ? process.env
-        : undefined;
+      ? process.env
+      : undefined;
   const key = env?.GOOGLE_API_KEY || env?.GEMINI_API_KEY;
 
   if (!key) {

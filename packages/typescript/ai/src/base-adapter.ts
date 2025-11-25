@@ -1,8 +1,7 @@
 import type {
   AIAdapter,
   AIAdapterConfig,
-  ChatCompletionOptions,
-  ChatCompletionResult,
+  ChatOptions,
   StreamChunk,
   SummarizationOptions,
   SummarizationResult,
@@ -12,7 +11,7 @@ import type {
 
 /**
  * Base adapter class with support for endpoint-specific models and provider options.
- * 
+ *
  * Generic parameters:
  * - TChatModels: Models that support chat/text completion
  * - TImageModels: Models that support image generation
@@ -20,7 +19,7 @@ import type {
  * - TAudioModels: Models that support audio (transcription and text-to-speech)
  * - TVideoModels: Models that support video generation
  * - TChatProviderOptions: Provider-specific options for chat endpoint
- * - TImageProviderOptions: Provider-specific options for image endpoint  
+ * - TImageProviderOptions: Provider-specific options for image endpoint
  * - TEmbeddingProviderOptions: Provider-specific options for embedding endpoint
  * - TAudioProviderOptions: Provider-specific options for audio endpoint
  * - TVideoProviderOptions: Provider-specific options for video endpoint
@@ -30,14 +29,16 @@ export abstract class BaseAdapter<
   TEmbeddingModels extends readonly string[] = readonly string[],
   TChatProviderOptions extends Record<string, any> = Record<string, any>,
   TEmbeddingProviderOptions extends Record<string, any> = Record<string, any>,
-  TModelProviderOptionsByName extends Record<string, any> = Record<string, any>,
-> implements AIAdapter<
-  TChatModels,
-  TEmbeddingModels,
-  TChatProviderOptions,
-  TEmbeddingProviderOptions,
-  TModelProviderOptionsByName
-> {
+  TModelProviderOptionsByName extends Record<string, any> = Record<string, any>
+> implements
+    AIAdapter<
+      TChatModels,
+      TEmbeddingModels,
+      TChatProviderOptions,
+      TEmbeddingProviderOptions,
+      TModelProviderOptionsByName
+    >
+{
   abstract name: string;
   abstract models: TChatModels;
   embeddingModels?: TEmbeddingModels;
@@ -54,12 +55,7 @@ export abstract class BaseAdapter<
     this.config = config;
   }
 
-  abstract chatCompletion(
-    options: ChatCompletionOptions
-  ): Promise<ChatCompletionResult>;
-  abstract chatStream(
-    options: ChatCompletionOptions
-  ): AsyncIterable<StreamChunk>;
+  abstract chatStream(options: ChatOptions): AsyncIterable<StreamChunk>;
 
   abstract summarize(
     options: SummarizationOptions

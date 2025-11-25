@@ -1,10 +1,7 @@
 import { Ollama as OllamaSDK } from "ollama";
 import {
   BaseAdapter,
-  convertChatCompletionStream,
-  type ChatCompletionOptions,
-  type ChatCompletionResult,
-  type ChatCompletionChunk,
+  type ChatOptions,
   type SummarizationOptions,
   type SummarizationResult,
   type EmbeddingOptions,
@@ -29,7 +26,7 @@ const OLLAMA_MODELS = [
   "vicuna",
   "nous-hermes",
   "nomic-embed-text",
-  "gpt-oss:20b"
+  "gpt-oss:20b",
 ] as const;
 
 const OLLAMA_IMAGE_MODELS = [] as const;
@@ -87,6 +84,75 @@ export interface OllamaProviderOptions {
   num_thread?: number;
 }
 
+interface ChatCompletionChunk {
+  id: string;
+  model: string;
+  content: string;
+  role?: "assistant";
+  finishReason?: "stop" | "length" | "content_filter" | null;
+  usage?: {
+    promptTokens: number;
+    completionTokens: number;
+    totalTokens: number;
+  };
+}
+
+async function* convertChatCompletionStream(
+  stream: AsyncIterable<ChatCompletionChunk>,
+  _model: string
+): AsyncIterable<StreamChunk> {
+  let accumulatedContent = "";
+  const timestamp = Date.now();
+  let nextToolIndex = 0;
+
+  for await (const chunk of stream) {
+    if (chunk.content) {
+      accumulatedContent += chunk.content;
+      yield {
+        type: "content",
+        id: chunk.id,
+        model: chunk.model,
+        timestamp,
+        delta: chunk.content,
+        content: accumulatedContent,
+        role: chunk.role,
+      };
+    }
+
+    // Handle tool calls if present
+    if (chunk.toolCalls && chunk.toolCalls.length > 0) {
+      for (const toolCall of chunk.toolCalls) {
+        yield {
+          type: "tool_call",
+          id: chunk.id,
+          model: chunk.model,
+          timestamp,
+          toolCall: {
+            id: toolCall.id,
+            type: toolCall.type,
+            function: {
+              name: toolCall.function.name,
+              arguments: toolCall.function.arguments,
+            },
+          },
+          index: nextToolIndex++,
+        };
+      }
+    }
+
+    if (chunk.finishReason) {
+      yield {
+        type: "done",
+        id: chunk.id,
+        model: chunk.model,
+        timestamp,
+        finishReason: chunk.finishReason,
+        usage: chunk.usage,
+      };
+    }
+  }
+}
+
 /**
  * Converts standard Tool format to Ollama-specific tool format
  * Ollama uses OpenAI-compatible tool format
@@ -111,14 +177,13 @@ function convertToolsToOllamaFormat(tools?: any[]): any[] | undefined {
  * Handles translation of normalized options to Ollama's API format
  */
 function mapCommonOptionsToOllama(
-  options: ChatCompletionOptions,
+  options: ChatOptions,
   providerOpts?: OllamaProviderOptions
 ): any {
   const ollamaOptions = {
     temperature: options.options?.temperature,
     top_p: options.options?.topP,
     num_predict: options.options?.maxTokens,
-
   };
 
   // Apply Ollama-specific provider options
@@ -154,90 +219,12 @@ export class Ollama extends BaseAdapter<
     });
   }
 
-  async chatCompletion(
-    options: ChatCompletionOptions
-  ): Promise<ChatCompletionResult> {
-    const providerOpts = options.providerOptions as OllamaProviderOptions | undefined;
-
-    // Map common options to Ollama format
-    const mappedOptions = mapCommonOptionsToOllama(options, providerOpts);
-
-    // Format messages for Ollama (handle tool calls and tool results)
-    const formattedMessages = options.messages.map((msg) => {
-      const baseMessage: any = {
-        role: msg.role as "user" | "assistant" | "system",
-        content: msg.content || "",
-      };
-
-      // Handle tool calls (assistant messages)
-      // Ollama expects arguments as an object, not a JSON string
-      if (msg.role === "assistant" && msg.toolCalls && msg.toolCalls.length > 0) {
-        baseMessage.tool_calls = msg.toolCalls.map((toolCall) => {
-          // Parse string arguments to object for Ollama
-          let parsedArguments: any = {};
-          if (typeof toolCall.function.arguments === "string") {
-            try {
-              parsedArguments = JSON.parse(toolCall.function.arguments);
-            } catch {
-              parsedArguments = {};
-            }
-          } else {
-            parsedArguments = toolCall.function.arguments || {};
-          }
-
-          return {
-            id: toolCall.id,
-            type: toolCall.type,
-            function: {
-              name: toolCall.function.name,
-              arguments: parsedArguments,
-            },
-          };
-        });
-      }
-
-      // Handle tool results (tool messages)
-      if (msg.role === "tool" && msg.toolCallId) {
-        baseMessage.role = "tool";
-        baseMessage.tool_call_id = msg.toolCallId;
-        baseMessage.content = typeof msg.content === "string" ? msg.content : JSON.stringify(msg.content);
-      }
-
-      return baseMessage;
-    });
-
-    const response = await this.client.chat({
-      model: mappedOptions.model,
-      messages: formattedMessages,
-      options: mappedOptions.options,
-      tools: mappedOptions.tools,
-      stream: false,
-    });
-
-    // Estimate token usage since Ollama doesn't provide exact counts
-    const promptTokens = this.estimateTokens(
-      options.messages.map((m) => m.content).join(" ")
-    );
-    const completionTokens = this.estimateTokens(response.message.content);
-
-    return {
-      id: this.generateId(),
-      model: response.model,
-      content: response.message.content,
-      role: "assistant",
-      finishReason: response.done ? "stop" : "length",
-      usage: {
-        promptTokens,
-        completionTokens,
-        totalTokens: promptTokens + completionTokens,
-      },
-    };
-  }
-
   async *chatCompletionStream(
-    options: ChatCompletionOptions
+    options: ChatOptions
   ): AsyncIterable<ChatCompletionChunk> {
-    const providerOpts = options.providerOptions as OllamaProviderOptions | undefined;
+    const providerOpts = options.providerOptions as
+      | OllamaProviderOptions
+      | undefined;
 
     // Map common options to Ollama format
     const mappedOptions = mapCommonOptionsToOllama(options, providerOpts);
@@ -251,7 +238,11 @@ export class Ollama extends BaseAdapter<
 
       // Handle tool calls (assistant messages)
       // Ollama expects arguments as an object, not a JSON string
-      if (msg.role === "assistant" && msg.toolCalls && msg.toolCalls.length > 0) {
+      if (
+        msg.role === "assistant" &&
+        msg.toolCalls &&
+        msg.toolCalls.length > 0
+      ) {
         baseMessage.tool_calls = msg.toolCalls.map((toolCall) => {
           // Parse string arguments to object for Ollama
           let parsedArguments: any = {};
@@ -280,7 +271,10 @@ export class Ollama extends BaseAdapter<
       if (msg.role === "tool" && msg.toolCallId) {
         baseMessage.role = "tool";
         baseMessage.tool_call_id = msg.toolCallId;
-        baseMessage.content = typeof msg.content === "string" ? msg.content : JSON.stringify(msg.content);
+        baseMessage.content =
+          typeof msg.content === "string"
+            ? msg.content
+            : JSON.stringify(msg.content);
       }
 
       return baseMessage;
@@ -308,7 +302,11 @@ export class Ollama extends BaseAdapter<
         model: chunk.model || options.model || "llama2",
         content: chunk.message.content || "",
         role: "assistant",
-        finishReason: chunk.done ? (hasToolCalls ? "tool_calls" : "stop") : null,
+        finishReason: chunk.done
+          ? hasToolCalls
+            ? "tool_calls"
+            : "stop"
+          : null,
       };
 
       // Handle tool calls if present
@@ -318,9 +316,10 @@ export class Ollama extends BaseAdapter<
           type: tc.type || "function",
           function: {
             name: tc.function?.name || "",
-            arguments: typeof tc.function?.arguments === "string"
-              ? tc.function.arguments
-              : JSON.stringify(tc.function?.arguments || {}),
+            arguments:
+              typeof tc.function?.arguments === "string"
+                ? tc.function.arguments
+                : JSON.stringify(tc.function?.arguments || {}),
           },
         }));
       }
@@ -329,9 +328,7 @@ export class Ollama extends BaseAdapter<
     }
   }
 
-  async *chatStream(
-    options: ChatCompletionOptions
-  ): AsyncIterable<StreamChunk> {
+  async *chatStream(options: ChatOptions): AsyncIterable<StreamChunk> {
     // Use stream converter for now
     // TODO: Implement native structured streaming for Ollama
     yield* convertChatCompletionStream(
@@ -339,7 +336,6 @@ export class Ollama extends BaseAdapter<
       options.model || "llama2"
     );
   }
-
 
   async summarize(options: SummarizationOptions): Promise<SummarizationResult> {
     const prompt = this.buildSummarizationPrompt(options, options.text);
@@ -438,13 +434,13 @@ export class Ollama extends BaseAdapter<
  * Creates an Ollama adapter with simplified configuration
  * @param host - Optional Ollama server host (defaults to http://localhost:11434)
  * @returns A fully configured Ollama adapter instance
- * 
+ *
  * @example
  * ```typescript
  * const ollama = createOllama();
  * // or with custom host
  * const ollama = createOllama("http://localhost:11434");
- * 
+ *
  * const ai = new AI({
  *   adapters: {
  *     ollama,
@@ -461,16 +457,16 @@ export function createOllama(
 
 /**
  * Create an Ollama adapter with automatic host detection from environment variables.
- * 
+ *
  * Looks for `OLLAMA_HOST` in:
  * - `process.env` (Node.js)
  * - `window.env` (Browser with injected env)
- * 
+ *
  * Falls back to default Ollama host if not found.
- * 
+ *
  * @param config - Optional configuration (excluding host which is auto-detected)
  * @returns Configured Ollama adapter instance
- * 
+ *
  * @example
  * ```typescript
  * // Automatically uses OLLAMA_HOST from environment or defaults to http://localhost:11434
@@ -478,9 +474,12 @@ export function createOllama(
  * ```
  */
 export function ollama(config?: Omit<OllamaConfig, "host">): Ollama {
-  const env = typeof globalThis !== "undefined" && (globalThis as any).window?.env
-    ? (globalThis as any).window.env
-    : typeof process !== "undefined" ? process.env : undefined;
+  const env =
+    typeof globalThis !== "undefined" && (globalThis as any).window?.env
+      ? (globalThis as any).window.env
+      : typeof process !== "undefined"
+      ? process.env
+      : undefined;
   const host = env?.OLLAMA_HOST;
 
   return createOllama(host, config);

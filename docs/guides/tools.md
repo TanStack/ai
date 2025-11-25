@@ -5,6 +5,7 @@ Tools (also called "function calling") allow AI models to interact with external
 ## Overview
 
 Tools enable your AI application to:
+
 - **Fetch data** from APIs or databases
 - **Perform calculations** or data transformations
 - **Interact with services** like email, calendars, or payment systems
@@ -13,7 +14,9 @@ Tools enable your AI application to:
 ## Tool Types
 
 ### Server Tools
+
 Tools that execute on the server. These are secure and can access:
+
 - Databases
 - External APIs
 - File systems
@@ -21,7 +24,9 @@ Tools that execute on the server. These are secure and can access:
 - Server-only resources
 
 ### Client Tools
+
 Tools that execute in the browser. These are useful for:
+
 - UI updates
 - Local storage operations
 - Browser APIs
@@ -44,7 +49,9 @@ const getWeather = tool({
   execute: async ({ location, unit }) => {
     // Fetch weather data
     const response = await fetch(
-      `https://api.weather.com/v1/current?location=${location}&unit=${unit || "fahrenheit"}`
+      `https://api.weather.com/v1/current?location=${location}&unit=${
+        unit || "fahrenheit"
+      }`
     );
     const data = await response.json();
     return {
@@ -61,16 +68,15 @@ const getWeather = tool({
 ### Server-Side
 
 ```typescript
-import { ai, toStreamResponse } from "@tanstack/ai";
+import { chat, toStreamResponse } from "@tanstack/ai";
 import { openai } from "@tanstack/ai-openai";
 import { getWeather } from "./tools";
-
-const aiInstance = ai(openai());
 
 export async function POST(request: Request) {
   const { messages } = await request.json();
 
-  const stream = aiInstance.chat({
+  const stream = chat({
+    adapter: openai(),
     messages,
     model: "gpt-4o",
     tools: [getWeather], // Pass tools array
@@ -126,4 +132,3 @@ Tools go through different states during execution:
 - [Server Tools](./server-tools) - Learn about server-side tool execution
 - [Client Tools](./client-tools) - Learn about client-side tool execution
 - [Tool Approval Flow](./tool-approval) - Implement approval workflows
-

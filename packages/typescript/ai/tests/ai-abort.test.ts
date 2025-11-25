@@ -1,13 +1,6 @@
 import { describe, it, expect } from "vitest";
-import { ai } from "../src/ai";
-import type {
-  ChatCompletionOptions,
-  StreamChunk,
-  SummarizationOptions,
-  SummarizationResult,
-  EmbeddingOptions,
-  EmbeddingResult,
-} from "../src/types";
+import { chat } from "../src/standalone-functions";
+import type { ChatCompletionOptions, StreamChunk } from "../src/types";
 import { BaseAdapter } from "../src/base-adapter";
 
 // Mock adapter that tracks abort signal usage
@@ -24,7 +17,6 @@ class MockAdapter extends BaseAdapter<
 > {
   public receivedAbortSignals: (AbortSignal | undefined)[] = [];
   public chatStreamCallCount = 0;
-  public chatCompletionCallCount = 0;
 
   name = "mock";
   models = ["test-model"] as const;
@@ -34,19 +26,6 @@ class MockAdapter extends BaseAdapter<
   ): AbortSignal | undefined {
     const signal = (options.request as RequestInit | undefined)?.signal;
     return signal ?? undefined;
-  }
-
-  async chatCompletion(
-    options: ChatCompletionOptions
-  ): Promise<any> {
-    this.chatCompletionCallCount++;
-    this.receivedAbortSignals.push(this.getAbortSignal(options));
-    return {
-      id: "test-id",
-      model: "test-model",
-      content: "Test response",
-      finishReason: "stop",
-    };
   }
 
   async *chatStream(
@@ -89,50 +68,29 @@ class MockAdapter extends BaseAdapter<
       timestamp: Date.now(),
       finishReason: "stop",
     };
-}
-
-  async summarize(
-    options: SummarizationOptions
-  ): Promise<SummarizationResult> {
-    return {
-      id: "summary-id",
-      model: options.model,
-      summary: "summary",
-      usage: {
-        promptTokens: 0,
-        completionTokens: 0,
-        totalTokens: 0,
-      },
-    };
   }
 
-  async createEmbeddings(
-    options: EmbeddingOptions
-  ): Promise<EmbeddingResult> {
-    return {
-      id: "embedding-id",
-      model: options.model,
-      embeddings: [],
-      usage: {
-        promptTokens: 0,
-        totalTokens: 0,
-      },
-    };
+  async summarize(_options: any): Promise<any> {
+    return { summary: "test" };
+  }
+
+  async createEmbeddings(_options: any): Promise<any> {
+    return { embeddings: [] };
   }
 }
 
-describe("AI - Abort Signal Handling", () => {
+describe("chat() - Abort Signal Handling", () => {
   it("should propagate abortSignal to adapter.chatStream()", async () => {
     const mockAdapter = new MockAdapter();
-    const aiInstance = ai(mockAdapter);
 
     const abortController = new AbortController();
     const abortSignal = abortController.signal;
 
-    const stream = aiInstance.chat({
+    const stream = chat({
+      adapter: mockAdapter,
       model: "test-model",
       messages: [{ role: "user", content: "Hello" }],
-      abortController, // Pass abortController directly
+      abortController,
     });
 
     const chunks: StreamChunk[] = [];
@@ -146,14 +104,14 @@ describe("AI - Abort Signal Handling", () => {
 
   it("should stop streaming when abortSignal is aborted", async () => {
     const mockAdapter = new MockAdapter();
-    const aiInstance = ai(mockAdapter);
 
     const abortController = new AbortController();
 
-    const stream = aiInstance.chat({
+    const stream = chat({
+      adapter: mockAdapter,
       model: "test-model",
       messages: [{ role: "user", content: "Hello" }],
-      abortController, // Pass abortController directly
+      abortController,
     });
 
     const chunks: StreamChunk[] = [];
@@ -162,7 +120,7 @@ describe("AI - Abort Signal Handling", () => {
     for await (const chunk of stream) {
       chunks.push(chunk);
       chunkCount++;
-      
+
       // Abort after first chunk
       if (chunkCount === 1) {
         abortController.abort();
@@ -175,17 +133,17 @@ describe("AI - Abort Signal Handling", () => {
 
   it("should check abortSignal before each iteration", async () => {
     const mockAdapter = new MockAdapter();
-    const aiInstance = ai(mockAdapter);
 
     const abortController = new AbortController();
 
     // Abort before starting
     abortController.abort();
 
-    const stream = aiInstance.chat({
+    const stream = chat({
+      adapter: mockAdapter,
       model: "test-model",
       messages: [{ role: "user", content: "Hello" }],
-      abortController, // Pass abortController directly, not in options
+      abortController,
     });
 
     const chunks: StreamChunk[] = [];
@@ -196,23 +154,6 @@ describe("AI - Abort Signal Handling", () => {
     // Should not yield any chunks if aborted before start
     expect(chunks.length).toBe(0);
     expect(mockAdapter.chatStreamCallCount).toBe(0);
-  });
-
-  it("should propagate abortSignal to adapter.chatCompletion()", async () => {
-    const mockAdapter = new MockAdapter();
-    const aiInstance = ai(mockAdapter);
-
-    const abortController = new AbortController();
-    const abortSignal = abortController.signal;
-
-    await aiInstance.chatCompletion({
-      model: "test-model",
-      messages: [{ role: "user", content: "Hello" }],
-      abortController, // Pass abortController directly
-    });
-
-    expect(mockAdapter.chatCompletionCallCount).toBe(1);
-    expect(mockAdapter.receivedAbortSignals[0]).toBe(abortSignal);
   });
 
   it("should check abortSignal before tool execution", async () => {
@@ -249,9 +190,9 @@ describe("AI - Abort Signal Handling", () => {
     }
 
     const toolAdapter = new ToolCallAdapter();
-    const aiWithTools = ai(toolAdapter);
 
-    const stream = aiWithTools.chat({
+    const stream = chat({
+      adapter: toolAdapter,
       model: "test-model",
       messages: [{ role: "user", content: "Hello" }],
       tools: [
@@ -264,7 +205,7 @@ describe("AI - Abort Signal Handling", () => {
           },
         },
       ],
-      abortController, // Pass abortController directly
+      abortController,
     });
 
     const chunks: StreamChunk[] = [];
@@ -273,7 +214,7 @@ describe("AI - Abort Signal Handling", () => {
     for await (const chunk of stream) {
       chunks.push(chunk);
       chunkCount++;
-      
+
       // Abort after receiving tool_call chunk
       if (chunk.type === "tool_call") {
         abortController.abort();
@@ -286,14 +227,11 @@ describe("AI - Abort Signal Handling", () => {
 
   it("should handle undefined abortSignal gracefully", async () => {
     const mockAdapter = new MockAdapter();
-    const aiInstance = ai(mockAdapter);
 
-    const stream = aiInstance.chat({
+    const stream = chat({
+      adapter: mockAdapter,
       model: "test-model",
       messages: [{ role: "user", content: "Hello" }],
-      options: {
-        // No abortSignal provided
-      },
     });
 
     const chunks: StreamChunk[] = [];

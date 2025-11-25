@@ -18,14 +18,14 @@ In NextJS:
 
 ```typescript
 // app/api/chat/route.ts
-import { ai, toStreamResponse } from "@tanstack/ai";
+import { chat, toStreamResponse } from "@tanstack/ai";
 import { openai } from "@tanstack/ai-openai";
 
 export async function POST(request: Request) {
-  const aiInstance = ai(openai());
   const { messages } = await request.json();
 
-  const stream = aiInstance.chat({
+  const stream = chat({
+    adapter: openai(),
     messages,
     model: "gpt-4o",
   });
@@ -39,17 +39,17 @@ In TanStack Start:
 ```typescript
 // src/routes/api.chat.ts
 import { createFileRoute } from "@tanstack/react-router";
-import { ai, toStreamResponse } from "@tanstack/ai";
+import { chat, toStreamResponse } from "@tanstack/ai";
 import { openai } from "@tanstack/ai-openai";
 
 export const Route = createFileRoute("/api/chat")({
   server: {
     handlers: {
       POST: async ({ request }) => {
-        const aiInstance = ai(openai());
         const { messages } = await request.json();
 
-        const stream = aiInstance.chat({
+        const stream = chat({
+          adapter: openai(),
           messages,
           model: "gpt-4o",
         });

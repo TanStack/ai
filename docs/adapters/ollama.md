@@ -11,12 +11,18 @@ npm install @tanstack/ai-ollama
 ## Basic Usage
 
 ```typescript
-import { ai } from "@tanstack/ai";
+import { chat } from "@tanstack/ai";
 import { ollama } from "@tanstack/ai-ollama";
 
-const aiInstance = ai(ollama({
+const adapter = ollama({
   baseURL: "http://localhost:11434", // Default Ollama URL
-}));
+});
+
+const stream = chat({
+  adapter,
+  messages: [{ role: "user", content: "Hello!" }],
+  model: "llama3",
+});
 ```
 
 ## Configuration
@@ -29,7 +35,7 @@ const config: OllamaConfig = {
   // No API key needed for local Ollama
 };
 
-const aiInstance = ai(ollama(config));
+const adapter = ollama(config);
 ```
 
 ## Available Models
@@ -52,17 +58,18 @@ ollama list
 ## Example: Chat Completion
 
 ```typescript
-import { ai, toStreamResponse } from "@tanstack/ai";
+import { chat, toStreamResponse } from "@tanstack/ai";
 import { ollama } from "@tanstack/ai-ollama";
 
-const aiInstance = ai(ollama({
+const adapter = ollama({
   baseURL: "http://localhost:11434",
-}));
+});
 
 export async function POST(request: Request) {
   const { messages } = await request.json();
 
-  const stream = aiInstance.chat({
+  const stream = chat({
+    adapter,
     messages,
     model: "llama3", // Use a model you have installed
   });
@@ -74,8 +81,13 @@ export async function POST(request: Request) {
 ## Example: With Tools
 
 ```typescript
-import { tool } from "@tanstack/ai";
+import { chat, tool } from "@tanstack/ai";
+import { ollama } from "@tanstack/ai-ollama";
 import { z } from "zod";
+
+const adapter = ollama({
+  baseURL: "http://localhost:11434",
+});
 
 const getLocalData = tool({
   description: "Get data from local storage",
@@ -88,7 +100,8 @@ const getLocalData = tool({
   },
 });
 
-const stream = aiInstance.chat({
+const stream = chat({
+  adapter,
   messages,
   model: "llama3",
   tools: [getLocalData],
@@ -98,18 +111,20 @@ const stream = aiInstance.chat({
 ## Setting Up Ollama
 
 1. **Install Ollama:**
+
    ```bash
    # macOS
    brew install ollama
-   
+
    # Linux
    curl -fsSL https://ollama.com/install.sh | sh
-   
+
    # Windows
    # Download from https://ollama.com
    ```
 
 2. **Pull a model:**
+
    ```bash
    ollama pull llama3
    ```
@@ -124,7 +139,8 @@ const stream = aiInstance.chat({
 Ollama supports various provider-specific options:
 
 ```typescript
-const stream = aiInstance.chat({
+const stream = chat({
+  adapter: ollama({ baseURL: "http://localhost:11434" }),
   messages,
   model: "llama3",
   providerOptions: {
@@ -141,9 +157,9 @@ const stream = aiInstance.chat({
 If you're running Ollama on a different host or port:
 
 ```typescript
-const aiInstance = ai(ollama({
+const adapter = ollama({
   baseURL: "http://your-server:11434",
-}));
+});
 ```
 
 ## API Reference
@@ -153,6 +169,7 @@ const aiInstance = ai(ollama({
 Creates an Ollama adapter instance.
 
 **Parameters:**
+
 - `config.baseURL` - Ollama server URL (default: `http://localhost:11434`)
 
 **Returns:** An Ollama adapter instance.
@@ -169,4 +186,3 @@ Creates an Ollama adapter instance.
 - [Getting Started](../getting-started/quick-start) - Learn the basics
 - [Tools Guide](../guides/tools) - Learn about tools
 - [Other Adapters](./openai) - Explore other providers
-

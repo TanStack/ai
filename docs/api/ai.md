@@ -8,36 +8,17 @@ The core AI library for TanStack AI.
 npm install @tanstack/ai
 ```
 
-## `ai(adapter, config?)`
-
-Creates an AI instance with the specified adapter.
-
-```typescript
-import { ai } from "@tanstack/ai";
-import { openai } from "@tanstack/ai-openai";
-
-const aiInstance = ai(openai());
-```
-
-### Parameters
-
-- `adapter` - An AI adapter instance (e.g., `openai()`, `anthropic()`)
-- `config` - Optional configuration:
-  - `systemPrompts?: string[]` - System prompts to prepend to messages
-
-### Returns
-
-An `AI` instance with methods for chat, completion, and more.
-
-## `aiInstance.chat(options)`
+## `chat(options)`
 
 Creates a streaming chat response.
 
 ```typescript
-const stream = aiInstance.chat({
-  messages: [
-    { role: "user", content: "Hello!" },
-  ],
+import { chat } from "@tanstack/ai";
+import { openai } from "@tanstack/ai-openai";
+
+const stream = chat({
+  adapter: openai(),
+  messages: [{ role: "user", content: "Hello!" }],
   model: "gpt-4o",
   tools: [myTool],
   systemPrompts: ["You are a helpful assistant"],
@@ -47,37 +28,72 @@ const stream = aiInstance.chat({
 
 ### Parameters
 
+- `adapter` - An AI adapter instance (e.g., `openai()`, `anthropic()`)
 - `messages` - Array of chat messages
 - `model` - Model identifier (type-safe based on adapter)
 - `tools?` - Array of tools for function calling
-- `systemPrompts?` - System prompts (overrides instance-level)
+- `systemPrompts?` - System prompts to prepend to messages
 - `agentLoopStrategy?` - Strategy for agent loops (default: `maxIterations(5)`)
-- `options?` - Additional options:
-  - `abortSignal?` - AbortSignal for cancellation
+- `abortController?` - AbortController for cancellation
 - `providerOptions?` - Provider-specific options
 
 ### Returns
 
 An async iterable of `StreamChunk`.
 
-## `aiInstance.chatCompletion(options)`
+## `summarize(options)`
 
-Creates a non-streaming chat completion.
+Creates a text summarization.
 
 ```typescript
-const result = await aiInstance.chatCompletion({
-  messages: [{ role: "user", content: "Hello!" }],
+import { summarize } from "@tanstack/ai";
+import { openai } from "@tanstack/ai-openai";
+
+const result = await summarize({
+  adapter: openai(),
   model: "gpt-4o",
+  text: "Long text to summarize...",
+  maxLength: 100,
+  style: "concise",
 });
 ```
 
 ### Parameters
 
-Same as `chat()`, but returns a promise instead of a stream.
+- `adapter` - An AI adapter instance
+- `model` - Model identifier (type-safe based on adapter)
+- `text` - Text to summarize
+- `maxLength?` - Maximum length of summary
+- `style?` - Summary style ("concise" | "detailed")
 
 ### Returns
 
-A `ChatCompletionResult` with the full response.
+A `SummarizationResult` with the summary text.
+
+## `embed(options)`
+
+Creates embeddings for text input.
+
+```typescript
+import { embed } from "@tanstack/ai";
+import { openai } from "@tanstack/ai-openai";
+
+const result = await embed({
+  adapter: openai(),
+  model: "text-embedding-3-small",
+  input: "Text to embed",
+});
+```
+
+### Parameters
+
+- `adapter` - An AI adapter instance
+- `model` - Embedding model identifier (type-safe based on adapter)
+- `input` - Text or array of texts to embed
+
+### Returns
+
+An `EmbeddingResult` with embeddings array.
 
 ## `tool(config)`
 
@@ -116,9 +132,14 @@ A `Tool` object.
 Converts a stream to an HTTP Response.
 
 ```typescript
-import { toStreamResponse } from "@tanstack/ai";
+import { toStreamResponse, chat } from "@tanstack/ai";
+import { openai } from "@tanstack/ai-openai";
 
-const stream = aiInstance.chat({ ... });
+const stream = chat({
+  adapter: openai(),
+  messages: [...],
+  model: "gpt-4o",
+});
 return toStreamResponse(stream);
 ```
 
@@ -135,10 +156,13 @@ A `Response` object suitable for HTTP endpoints.
 Creates an agent loop strategy that limits iterations.
 
 ```typescript
-import { maxIterations } from "@tanstack/ai";
+import { maxIterations, chat } from "@tanstack/ai";
+import { openai } from "@tanstack/ai-openai";
 
-const stream = aiInstance.chat({
-  ...,
+const stream = chat({
+  adapter: openai(),
+  messages: [...],
+  model: "gpt-4o",
   agentLoopStrategy: maxIterations(20),
 });
 ```
@@ -187,25 +211,34 @@ interface Tool {
 }
 ```
 
-## Standalone Functions
-
-TanStack AI also provides standalone functions for convenience:
+## Usage Examples
 
 ```typescript
-import { chat, chatCompletion, summarize, embed } from "@tanstack/ai";
+import { chat, summarize, embed } from "@tanstack/ai";
+import { openai } from "@tanstack/ai-openai";
+
+const adapter = openai();
 
 // Streaming chat
 const stream = chat({
-  adapter: openai(),
-  messages: [...],
+  adapter,
+  messages: [{ role: "user", content: "Hello!" }],
   model: "gpt-4o",
 });
 
-// Non-streaming completion
-const result = await chatCompletion({
-  adapter: openai(),
-  messages: [...],
+// Summarization
+const summary = await summarize({
+  adapter,
   model: "gpt-4o",
+  text: "Long text to summarize...",
+  maxLength: 100,
+});
+
+// Embeddings
+const embeddings = await embed({
+  adapter,
+  model: "text-embedding-3-small",
+  input: "Text to embed",
 });
 ```
 
@@ -214,4 +247,3 @@ const result = await chatCompletion({
 - [Getting Started](../getting-started/quick-start) - Learn the basics
 - [Tools Guide](../guides/tools) - Learn about tools
 - [Adapters](../adapters/openai) - Explore adapter options
-

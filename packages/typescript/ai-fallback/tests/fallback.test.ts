@@ -48,35 +48,6 @@ class MockAdapter extends BaseAdapter<
     };
   }
 
-  async chatCompletion(
-    options: ChatCompletionOptions
-  ): Promise<ChatCompletionResult> {
-    if (this.shouldFail) {
-      throw new Error(this.errorMessage);
-    }
-    return this.succeedWith;
-  }
-
-  async *chatCompletionStream(
-    _options: ChatCompletionOptions
-  ): AsyncIterable<any> {
-    if (this.shouldFail) {
-      throw new Error(this.errorMessage);
-    }
-    yield {
-      id: `${this.name}-123`,
-      model: "test-model",
-      content: "chunk1",
-      role: "assistant",
-    };
-    yield {
-      id: `${this.name}-123`,
-      model: "test-model",
-      content: "chunk2",
-      role: "assistant",
-    };
-  }
-
   async *chatStream(
     _options: ChatCompletionOptions
   ): AsyncIterable<StreamChunk> {

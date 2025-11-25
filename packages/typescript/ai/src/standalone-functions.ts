@@ -1,59 +1,30 @@
 import type {
   AIAdapter,
-  ChatCompletionOptions,
-  ChatCompletionResult,
   StreamChunk,
   SummarizationOptions,
   SummarizationResult,
   EmbeddingOptions,
   EmbeddingResult,
-  ResponseFormat,
+  ChatOptions,
+  ChatStreamOptionsUnion,
 } from "./types";
-import { AI } from "./ai";
-import { aiEventClient } from "./event-client.js";
+import { AIEventEmitter, DefaultAIEventEmitter } from "./events.js";
+import { ChatEngine } from "./chat-engine.js";
 
 // Extract types from adapter (updated to 5 generics)
-type ExtractModelsFromAdapter<T> = T extends AIAdapter<infer M, any, any, any, any> ? M[number] : never;
-
-// NEW: Union-based approach for better type narrowing
-// This creates a discriminated union where each adapter+model combination is a separate type
-type ChatStreamOptionsUnion<TAdapter extends AIAdapter<any, any, any, any, any>> =
-  TAdapter extends AIAdapter<infer Models, any, any, any, infer ModelProviderOptions>
-  ? Models[number] extends infer TModel
-  ? TModel extends string
-  ? Omit<ChatCompletionOptions, "model" | "providerOptions" | "responseFormat"> & {
-    adapter: TAdapter;
-    model: TModel;
-    providerOptions?: TModel extends keyof ModelProviderOptions
-    ? ModelProviderOptions[TModel]
-    : never;
-  }
-  : never
-  : never
-  : never;
-
-type ChatCompletionOptionsUnion<TAdapter extends AIAdapter<any, any, any, any, any>, TOutput extends ResponseFormat<any> | undefined = undefined> =
-  TAdapter extends AIAdapter<infer Models, any, any, any, infer ModelProviderOptions>
-  ? Models[number] extends infer TModel
-  ? TModel extends string
-  ? Omit<ChatCompletionOptions, "model" | "providerOptions" | "responseFormat"> & {
-    adapter: TAdapter;
-    model: TModel;
-    output?: TOutput;
-    providerOptions?: TModel extends keyof ModelProviderOptions
-    ? ModelProviderOptions[TModel]
-    : never;
-  }
-  : never
-  : never
-  : never;
-
-// Helper type for chatCompletion return type
-type ChatCompletionReturnType<TOutput extends ResponseFormat<any> | undefined> = TOutput extends ResponseFormat<
-  infer TData
+type ExtractModelsFromAdapter<T> = T extends AIAdapter<
+  infer M,
+  any,
+  any,
+  any,
+  any
 >
-  ? ChatCompletionResult<TData>
-  : ChatCompletionResult;
+  ? M[number]
+  : never;
+
+function createEmitter(): AIEventEmitter {
+  return new DefaultAIEventEmitter();
+}
 
 /**
  * Standalone chat streaming function with type inference from adapter
@@ -84,108 +55,62 @@ type ChatCompletionReturnType<TOutput extends ResponseFormat<any> | undefined> =
  * }
  * ```
  */
-export function chat<TAdapter extends AIAdapter<any, any, any, any, any>>(
-  options: ChatStreamOptionsUnion<TAdapter>
-): AsyncIterable<StreamChunk> {
+export async function* chat<
+  TAdapter extends AIAdapter<any, any, any, any, any>
+>(options: ChatStreamOptionsUnion<TAdapter>): AsyncIterable<StreamChunk> {
   const { adapter, ...chatOptions } = options;
-  const aiInstance = new AI({ adapter });
+  const emitter = createEmitter();
 
-  aiEventClient.emit("standalone:chat-started", {
-    timestamp: Date.now(),
-    adapterName: adapter.name,
-    model: options.model as string,
-    streaming: true,
-  });
-
-  return aiInstance.chat(chatOptions);
-}
-
-/**
- * Standalone chat completion function with type inference from adapter
- * Returns a promise with optional structured output
- * Does NOT include automatic tool execution loop
- *
- * @param options Chat completion options
- * @param options.adapter - AI adapter instance to use
- * @param options.model - Model name (autocompletes based on adapter)
- * @param options.messages - Conversation messages
- * @param options.output - Optional structured output format
- *
- * @example
- * ```typescript
- * // Promise mode without structured output
- * const result = await chatCompletion({
- *   adapter: openai(),
- *   model: 'gpt-4o',
- *   messages: [{ role: 'user', content: 'Hello!' }],
- * });
- *
- * // Promise mode with structured output
- * const result = await chatCompletion({
- *   adapter: openai(),
- *   model: 'gpt-4o',
- *   messages: [...],
- *   output: responseFormat({ type: 'json_schema', json_schema: {...} })
- * });
- * console.log(result.data); // Typed based on schema
- * ```
- */
-export async function chatCompletion<
-  TAdapter extends AIAdapter<any, any, any, any, any>,
-  TOutput extends ResponseFormat<any> | undefined = undefined
->(options: ChatCompletionOptionsUnion<TAdapter, TOutput>): Promise<ChatCompletionReturnType<TOutput>> {
-  const {
+  const engine = new ChatEngine({
     adapter,
-    model,
-    ...restOptions
-  } = options;
-  const aiInstance = new AI({ adapter });
-  const startTime = Date.now();
-
-  aiEventClient.emit("standalone:chat-completion-started", {
-    timestamp: startTime,
-    adapterName: adapter.name,
-    model: model as string,
-    hasOutput: !!options.output,
+    events: emitter,
+    params: chatOptions as ChatOptions<
+      string,
+      Record<string, any>,
+      undefined,
+      Record<string, any>
+    >,
   });
 
-  const result = (await aiInstance.chatCompletion({
-    model,
-    ...restOptions,
-  })) as any;
-
-  return result;
+  for await (const chunk of engine.chat()) {
+    yield chunk;
+  }
 }
 
 /**
  * Standalone summarize function with type inference from adapter
  */
-export async function summarize<TAdapter extends AIAdapter<any, any, any, any, any>>(
+export async function summarize<
+  TAdapter extends AIAdapter<any, any, any, any, any>
+>(
   options: Omit<SummarizationOptions, "model"> & {
     adapter: TAdapter;
     model: ExtractModelsFromAdapter<TAdapter>;
     text: string;
   }
 ): Promise<SummarizationResult> {
-  const { adapter, ...restOptions } = options;
+  const { adapter, model, ...restOptions } = options;
 
-  return adapter.summarize(restOptions);
+  return adapter.summarize({
+    ...restOptions,
+    model: model as string,
+  });
 }
 
 /**
  * Standalone embed function with type inference from adapter
  */
-export async function embed<TAdapter extends AIAdapter<any, any, any, any, any>>(
+export async function embed<
+  TAdapter extends AIAdapter<any, any, any, any, any>
+>(
   options: Omit<EmbeddingOptions, "model"> & {
     adapter: TAdapter;
     model: ExtractModelsFromAdapter<TAdapter>;
   }
 ): Promise<EmbeddingResult> {
   const { adapter, model, ...restOptions } = options;
-
   return adapter.createEmbeddings({
-    model: model as string,
     ...restOptions,
+    model: model as string,
   });
 }
-

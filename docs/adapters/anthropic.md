@@ -11,12 +11,18 @@ npm install @tanstack/ai-anthropic
 ## Basic Usage
 
 ```typescript
-import { ai } from "@tanstack/ai";
+import { chat } from "@tanstack/ai";
 import { anthropic } from "@tanstack/ai-anthropic";
 
-const aiInstance = ai(anthropic({
+const adapter = anthropic({
   apiKey: process.env.ANTHROPIC_API_KEY!,
-}));
+});
+
+const stream = chat({
+  adapter,
+  messages: [{ role: "user", content: "Hello!" }],
+  model: "claude-3-5-sonnet-20241022",
+});
 ```
 
 ## Configuration
@@ -28,7 +34,7 @@ const config: AnthropicConfig = {
   apiKey: process.env.ANTHROPIC_API_KEY!,
 };
 
-const aiInstance = ai(anthropic(config));
+const adapter = anthropic(config);
 ```
 
 ## Available Models
@@ -46,17 +52,18 @@ const aiInstance = ai(anthropic(config));
 ## Example: Chat Completion
 
 ```typescript
-import { ai, toStreamResponse } from "@tanstack/ai";
+import { chat, toStreamResponse } from "@tanstack/ai";
 import { anthropic } from "@tanstack/ai-anthropic";
 
-const aiInstance = ai(anthropic({
+const adapter = anthropic({
   apiKey: process.env.ANTHROPIC_API_KEY!,
-}));
+});
 
 export async function POST(request: Request) {
   const { messages } = await request.json();
 
-  const stream = aiInstance.chat({
+  const stream = chat({
+    adapter,
     messages,
     model: "claude-3-5-sonnet-20241022",
   });
@@ -68,8 +75,13 @@ export async function POST(request: Request) {
 ## Example: With Tools
 
 ```typescript
-import { tool } from "@tanstack/ai";
+import { chat, tool } from "@tanstack/ai";
+import { anthropic } from "@tanstack/ai-anthropic";
 import { z } from "zod";
+
+const adapter = anthropic({
+  apiKey: process.env.ANTHROPIC_API_KEY!,
+});
 
 const searchDatabase = tool({
   description: "Search the database",
@@ -82,7 +94,8 @@ const searchDatabase = tool({
   },
 });
 
-const stream = aiInstance.chat({
+const stream = chat({
+  adapter,
   messages,
   model: "claude-3-5-sonnet-20241022",
   tools: [searchDatabase],
@@ -94,7 +107,8 @@ const stream = aiInstance.chat({
 Anthropic supports provider-specific options:
 
 ```typescript
-const stream = aiInstance.chat({
+const stream = chat({
+  adapter: anthropic({ apiKey: process.env.ANTHROPIC_API_KEY! }),
   messages,
   model: "claude-3-5-sonnet-20241022",
   providerOptions: {
@@ -152,6 +166,7 @@ ANTHROPIC_API_KEY=sk-ant-...
 Creates an Anthropic adapter instance.
 
 **Parameters:**
+
 - `config.apiKey` - Anthropic API key (required)
 
 **Returns:** An Anthropic adapter instance.
@@ -161,4 +176,3 @@ Creates an Anthropic adapter instance.
 - [Getting Started](../getting-started/quick-start) - Learn the basics
 - [Tools Guide](../guides/tools) - Learn about tools
 - [Other Adapters](./openai) - Explore other providers
-

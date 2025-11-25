@@ -228,7 +228,7 @@ export type AgentLoopStrategy = (state: AgentLoopState) => boolean;
 /**
  * Options passed into the SDK and further piped to the AI provider.
  */
-export interface ChatCompletionOptions<
+export interface ChatOptions<
   TModel extends string = string,
   TProviderOptionsSuperset extends Record<string, any> = Record<string, any>,
   TOutput extends ResponseFormat<any> | undefined = undefined,
@@ -362,21 +362,6 @@ export interface ChatCompletionChunk {
     completionTokens: number;
     totalTokens: number;
   };
-}
-
-export interface ChatCompletionResult<TData = never> {
-  id: string;
-  model: string;
-  content: string | null;
-  role: "assistant";
-  finishReason: "in_progress" | "completed" | "incomplete" | undefined | null;
-  toolCalls?: ToolCall[];
-  usage: {
-    promptTokens: number;
-    completionTokens: number;
-    totalTokens: number;
-  };
-  data?: TData;
 }
 
 export interface TextGenerationOptions {
@@ -613,7 +598,7 @@ export interface AIAdapter<
   TEmbeddingModels extends readonly string[] = readonly string[],
   TChatProviderOptions extends Record<string, any> = Record<string, any>,
   TEmbeddingProviderOptions extends Record<string, any> = Record<string, any>,
-  TModelProviderOptionsByName extends Record<string, any> = Record<string, any>,
+  TModelProviderOptionsByName extends Record<string, any> = Record<string, any>
 > {
   name: string;
   /** Models that support chat/text completion */
@@ -633,18 +618,16 @@ export interface AIAdapter<
    */
   _modelProviderOptionsByName: TModelProviderOptionsByName;
 
-  // Chat methods
-  chatCompletion(options: ChatCompletionOptions<string, TChatProviderOptions>): Promise<ChatCompletionResult>;
-
   // Structured streaming with JSON chunks (supports tool calls and rich content)
-  chatStream(options: ChatCompletionOptions<string, TChatProviderOptions>): AsyncIterable<StreamChunk>;
+  chatStream(
+    options: ChatOptions<string, TChatProviderOptions>
+  ): AsyncIterable<StreamChunk>;
 
   // Summarization
   summarize(options: SummarizationOptions): Promise<SummarizationResult>;
 
   // Embeddings
   createEmbeddings(options: EmbeddingOptions): Promise<EmbeddingResult>;
-
 }
 
 export interface AIAdapterConfig {
@@ -655,15 +638,44 @@ export interface AIAdapterConfig {
   headers?: Record<string, string>;
 }
 
-
 export interface ModelMeta {
   name: string;
   supports: {
     input: ("text" | "image" | "audio" | "video")[];
     output: ("text" | "image" | "audio" | "video")[];
-    endpoints: ("chat" | "chat-completions" | "assistants" | "speech_generation" | "image-generation" | "fine-tuning" | "batch" | "image-edit" | "moderation" | "translation" | "realtime" | "embedding" | "audio" | "video" | "transcription")[];
-    features: ("streaming" | "function_calling" | "structured_outputs" | "predicted_outcomes" | "distillation" | "fine_tuning")[];
-    tools?: ("web_search" | "file_search" | "image_generation" | "code_interpreter" | "mcp" | "computer_use")[];
+    endpoints: (
+      | "chat"
+      | "chat-completions"
+      | "assistants"
+      | "speech_generation"
+      | "image-generation"
+      | "fine-tuning"
+      | "batch"
+      | "image-edit"
+      | "moderation"
+      | "translation"
+      | "realtime"
+      | "embedding"
+      | "audio"
+      | "video"
+      | "transcription"
+    )[];
+    features: (
+      | "streaming"
+      | "function_calling"
+      | "structured_outputs"
+      | "predicted_outcomes"
+      | "distillation"
+      | "fine_tuning"
+    )[];
+    tools?: (
+      | "web_search"
+      | "file_search"
+      | "image_generation"
+      | "code_interpreter"
+      | "mcp"
+      | "computer_use"
+    )[];
   };
   context_window?: number;
   max_output_tokens?: number;
@@ -678,3 +690,25 @@ export interface ModelMeta {
     };
   };
 }
+
+export type ChatStreamOptionsUnion<
+  TAdapter extends AIAdapter<any, any, any, any, any>
+> = TAdapter extends AIAdapter<
+  infer Models,
+  any,
+  any,
+  any,
+  infer ModelProviderOptions
+>
+  ? Models[number] extends infer TModel
+    ? TModel extends string
+      ? Omit<ChatOptions, "model" | "providerOptions" | "responseFormat"> & {
+          adapter: TAdapter;
+          model: TModel;
+          providerOptions?: TModel extends keyof ModelProviderOptions
+            ? ModelProviderOptions[TModel]
+            : never;
+        }
+      : never
+    : never
+  : never;

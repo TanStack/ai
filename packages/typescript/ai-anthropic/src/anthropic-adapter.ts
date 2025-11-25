@@ -11,14 +11,20 @@ import {
   type ModelMessage,
   type StreamChunk,
 } from "@tanstack/ai";
-import { ANTHROPIC_EMBEDDING_MODELS, ANTHROPIC_MODELS, type AnthropicChatModelProviderOptionsByName } from "./model-meta";
+import {
+  ANTHROPIC_EMBEDDING_MODELS,
+  ANTHROPIC_MODELS,
+  type AnthropicChatModelProviderOptionsByName,
+} from "./model-meta";
 import { convertToolsToProviderFormat } from "./tools/tool-converter";
-import { ExternalTextProviderOptions, InternalTextProviderOptions } from "./text/text-provider-options";
+import {
+  ExternalTextProviderOptions,
+  InternalTextProviderOptions,
+} from "./text/text-provider-options";
 
 export interface AnthropicConfig {
   apiKey: string;
 }
-
 
 /**
  * Anthropic-specific provider options
@@ -26,7 +32,10 @@ export interface AnthropicConfig {
  */
 export type AnthropicProviderOptions = ExternalTextProviderOptions;
 
-type AnthropicContentBlocks = Extract<MessageParam["content"], Array<unknown>> extends Array<infer Block>
+type AnthropicContentBlocks = Extract<
+  MessageParam["content"],
+  Array<unknown>
+> extends Array<infer Block>
   ? Block[]
   : never;
 type AnthropicContentBlock = AnthropicContentBlocks extends Array<infer Block>
@@ -54,29 +63,6 @@ export class Anthropic extends BaseAdapter<
     });
   }
 
-  async chatCompletion(
-    options: ChatCompletionOptions<string, AnthropicProviderOptions>
-  ): Promise<ChatCompletionResult> {
-
-
-    // Map common options to Anthropic format using the centralized mapping function
-    const requestParams = this.mapCommonOptionsToAnthropic(options);
-
-
-    const response = await this.client.beta.messages.create(
-      {
-        ...requestParams,
-
-        stream: false,
-      }, {
-      signal: options.request?.signal,
-      headers: options.request?.headers,
-    }
-    );
-
-    return this.extractChatCompletionResult(response);
-  }
-
   async *chatStream(
     options: ChatCompletionOptions<string, AnthropicProviderOptions>
   ): AsyncIterable<StreamChunk> {
@@ -84,16 +70,17 @@ export class Anthropic extends BaseAdapter<
     const requestParams = this.mapCommonOptionsToAnthropic(options);
 
     const stream = await this.client.beta.messages.create(
-      { ...requestParams, stream: true }, {
-      signal: options.request?.signal,
-      headers: options.request?.headers,
-    }
+      { ...requestParams, stream: true },
+      {
+        signal: options.request?.signal,
+        headers: options.request?.headers,
+      }
     );
 
-    yield* this.processAnthropicStream(stream, options.model, () => this.generateId());
+    yield* this.processAnthropicStream(stream, options.model, () =>
+      this.generateId()
+    );
   }
-
-
 
   async summarize(options: SummarizationOptions): Promise<SummarizationResult> {
     const systemPrompt = this.buildSummarizationPrompt(options);
@@ -163,20 +150,29 @@ export class Anthropic extends BaseAdapter<
    * Maps common options to Anthropic-specific format
    * Handles translation of normalized options to Anthropic's API format
    */
-  private mapCommonOptionsToAnthropic(
-    options: ChatCompletionOptions,
-  ) {
-    const providerOptions = options.providerOptions as InternalTextProviderOptions | undefined;
+  private mapCommonOptionsToAnthropic(options: ChatCompletionOptions) {
+    const providerOptions = options.providerOptions as
+      | InternalTextProviderOptions
+      | undefined;
 
     const formattedMessages = this.formatMessages(options.messages);
-    const tools = options.tools ? convertToolsToProviderFormat(options.tools) : undefined;
+    const tools = options.tools
+      ? convertToolsToProviderFormat(options.tools)
+      : undefined;
 
     // Filter out invalid fields from providerOptions (like 'store' which is OpenAI-specific)
     const validProviderOptions: Partial<InternalTextProviderOptions> = {};
     if (providerOptions) {
       const validKeys: (keyof InternalTextProviderOptions)[] = [
-        'container', 'context_management', 'mcp_servers', 'service_tier',
-        'stop_sequences', 'system', 'thinking', 'tool_choice', 'top_k'
+        "container",
+        "context_management",
+        "mcp_servers",
+        "service_tier",
+        "stop_sequences",
+        "system",
+        "thinking",
+        "tool_choice",
+        "top_k",
       ];
       for (const key of validKeys) {
         if (key in providerOptions) {
@@ -192,12 +188,14 @@ export class Anthropic extends BaseAdapter<
       top_p: options.options?.topP,
       messages: formattedMessages,
       tools: tools,
-      ...validProviderOptions
+      ...validProviderOptions,
     };
     return requestParams;
   }
 
-  private formatMessages(messages: ModelMessage[]): InternalTextProviderOptions["messages"] {
+  private formatMessages(
+    messages: ModelMessage[]
+  ): InternalTextProviderOptions["messages"] {
     const formattedMessages: InternalTextProviderOptions["messages"] = [];
 
     for (const message of messages) {
@@ -235,7 +233,9 @@ export class Anthropic extends BaseAdapter<
         for (const toolCall of message.toolCalls) {
           let parsedInput: unknown = {};
           try {
-            parsedInput = toolCall.function.arguments ? JSON.parse(toolCall.function.arguments) : {};
+            parsedInput = toolCall.function.arguments
+              ? JSON.parse(toolCall.function.arguments)
+              : {};
           } catch {
             parsedInput = toolCall.function.arguments;
           }
@@ -266,7 +266,9 @@ export class Anthropic extends BaseAdapter<
     return formattedMessages;
   }
 
-  private extractChatCompletionResult(response: Anthropic_SDK.Beta.BetaMessage): Omit<ChatCompletionResult, "data"> {
+  private extractChatCompletionResult(
+    response: Anthropic_SDK.Beta.BetaMessage
+  ): Omit<ChatCompletionResult, "data"> {
     // Extract text content
     const textContent = response.content
       .filter((c) => c.type === "text")
@@ -316,7 +318,6 @@ export class Anthropic extends BaseAdapter<
 
     try {
       for await (const event of stream) {
-
         if (event.type === "content_block_start") {
           if (event.content_block.type === "tool_use") {
             currentToolIndex++;
@@ -384,12 +385,10 @@ export class Anthropic extends BaseAdapter<
               // TODO Fix usage
               usage: event.usage
                 ? {
-                  promptTokens: 0,
-                  completionTokens: event.usage.output_tokens || 0,
-                  totalTokens:
-                    (0) +
-                    (event.usage.output_tokens || 0),
-                }
+                    promptTokens: 0,
+                    completionTokens: event.usage.output_tokens || 0,
+                    totalTokens: 0 + (event.usage.output_tokens || 0),
+                  }
                 : undefined,
             };
           }
@@ -414,11 +413,11 @@ export class Anthropic extends BaseAdapter<
  * Creates an Anthropic adapter with simplified configuration
  * @param apiKey - Your Anthropic API key
  * @returns A fully configured Anthropic adapter instance
- * 
+ *
  * @example
  * ```typescript
  * const anthropic = createAnthropic("sk-ant-...");
- * 
+ *
  * const ai = new AI({
  *   adapters: {
  *     anthropic,
@@ -435,15 +434,15 @@ export function createAnthropic(
 
 /**
  * Create an Anthropic adapter with automatic API key detection from environment variables.
- * 
+ *
  * Looks for `ANTHROPIC_API_KEY` in:
  * - `process.env` (Node.js)
  * - `window.env` (Browser with injected env)
- * 
+ *
  * @param config - Optional configuration (excluding apiKey which is auto-detected)
  * @returns Configured Anthropic adapter instance
  * @throws Error if ANTHROPIC_API_KEY is not found in environment
- * 
+ *
  * @example
  * ```typescript
  * // Automatically uses ANTHROPIC_API_KEY from environment
@@ -451,9 +450,12 @@ export function createAnthropic(
  * ```
  */
 export function anthropic(config?: Omit<AnthropicConfig, "apiKey">): Anthropic {
-  const env = typeof globalThis !== "undefined" && (globalThis as any).window?.env
-    ? (globalThis as any).window.env
-    : typeof process !== "undefined" ? process.env : undefined;
+  const env =
+    typeof globalThis !== "undefined" && (globalThis as any).window?.env
+      ? (globalThis as any).window.env
+      : typeof process !== "undefined"
+      ? process.env
+      : undefined;
   const key = env?.ANTHROPIC_API_KEY;
 
   if (!key) {

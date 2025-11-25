@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { ai } from "../src/ai";
+import { chat } from "../src/standalone-functions";
 import type {
   ChatCompletionOptions,
   StreamChunk,
@@ -46,7 +46,6 @@ class MockAdapter extends BaseAdapter<
   Record<string, any>
 > {
   public chatStreamCallCount = 0;
-  public chatCompletionCallCount = 0;
   public chatStreamCalls: Array<{
     model: string;
     messages: ModelMessage[];
@@ -93,21 +92,6 @@ class MockAdapter extends BaseAdapter<
     };
   }
 
-  async chatCompletion(_options: ChatCompletionOptions): Promise<any> {
-    this.chatCompletionCallCount++;
-    return {
-      id: "test-id",
-      model: "test-model",
-      content: "Test response",
-      finishReason: "stop",
-      usage: {
-        promptTokens: 10,
-        completionTokens: 5,
-        totalTokens: 15,
-      },
-    };
-  }
-
   async summarize(_options: any): Promise<any> {
     return { summary: "test" };
   }
@@ -126,18 +110,19 @@ async function collectChunks<T>(stream: AsyncIterable<T>): Promise<T[]> {
   return chunks;
 }
 
-describe("AI.chat() - Comprehensive Logic Path Coverage", () => {
+describe("chat() - Comprehensive Logic Path Coverage", () => {
   describe("Initialization & Setup", () => {
     it("should generate unique request and stream IDs", async () => {
       const adapter = new MockAdapter();
-      const aiInstance = ai(adapter);
 
-      const stream1 = aiInstance.chat({
+      const stream1 = chat({
+        adapter,
         model: "test-model",
         messages: [{ role: "user", content: "Hello" }],
       });
 
-      const stream2 = aiInstance.chat({
+      const stream2 = chat({
+        adapter,
         model: "test-model",
         messages: [{ role: "user", content: "Hi" }],
       });
@@ -162,10 +147,10 @@ describe("AI.chat() - Comprehensive Logic Path Coverage", () => {
 
     it("should emit chat:started event with correct data", async () => {
       const adapter = new MockAdapter();
-      const aiInstance = ai(adapter);
 
       await collectChunks(
-        aiInstance.chat({
+        chat({
+          adapter,
           model: "test-model",
           messages: [
             { role: "user", content: "Hello" },
@@ -190,10 +175,10 @@ describe("AI.chat() - Comprehensive Logic Path Coverage", () => {
 
     it("should emit stream:started event with correct data", async () => {
       const adapter = new MockAdapter();
-      const aiInstance = ai(adapter);
 
       await collectChunks(
-        aiInstance.chat({
+        chat({
+          adapter,
           model: "test-model",
           messages: [{ role: "user", content: "Hello" }],
         })
@@ -205,14 +190,12 @@ describe("AI.chat() - Comprehensive Logic Path Coverage", () => {
       expect(event?.data.provider).toBe("mock");
     });
 
-    it("should prepend system prompts correctly (request-level overrides instance-level)", async () => {
+    it("should prepend system prompts correctly", async () => {
       const adapter = new MockAdapter();
-      const aiInstance = ai(adapter, {
-        systemPrompts: ["You are helpful"],
-      });
 
       await collectChunks(
-        aiInstance.chat({
+        chat({
+          adapter,
           model: "test-model",
           messages: [{ role: "user", content: "Hello" }],
           systemPrompts: ["You are concise"],
@@ -225,16 +208,15 @@ describe("AI.chat() - Comprehensive Logic Path Coverage", () => {
       expect(call.messages.length).toBe(2);
     });
 
-    it("should prepend instance-level system prompts when no request-level prompts", async () => {
+    it("should prepend system prompts when provided", async () => {
       const adapter = new MockAdapter();
-      const aiInstance = ai(adapter, {
-        systemPrompts: ["You are helpful", "You are concise"],
-      });
 
       await collectChunks(
-        aiInstance.chat({
+        chat({
+          adapter,
           model: "test-model",
           messages: [{ role: "user", content: "Hello" }],
+          systemPrompts: ["You are helpful", "You are concise"],
         })
       );
 
@@ -249,10 +231,10 @@ describe("AI.chat() - Comprehensive Logic Path Coverage", () => {
 
     it("should pass providerOptions to adapter", async () => {
       const adapter = new MockAdapter();
-      const aiInstance = ai(adapter);
 
       await collectChunks(
-        aiInstance.chat({
+        chat({
+          adapter,
           model: "test-model",
           messages: [{ role: "user", content: "Hello" }],
           providerOptions: { customOption: "value" },
@@ -268,9 +250,9 @@ describe("AI.chat() - Comprehensive Logic Path Coverage", () => {
   describe("Content Streaming Paths", () => {
     it("should stream simple content without tools", async () => {
       const adapter = new MockAdapter();
-      const aiInstance = ai(adapter);
 
-      const stream = aiInstance.chat({
+      const stream = chat({
+        adapter,
         model: "test-model",
         messages: [{ role: "user", content: "Hello" }],
       });
@@ -340,9 +322,9 @@ describe("AI.chat() - Comprehensive Logic Path Coverage", () => {
       }
 
       const adapter = new ContentAdapter();
-      const aiInstance = ai(adapter);
 
-      const stream = aiInstance.chat({
+      const stream = chat({
+        adapter,
         model: "test-model",
         messages: [{ role: "user", content: "Say hello" }],
       });
@@ -388,10 +370,10 @@ describe("AI.chat() - Comprehensive Logic Path Coverage", () => {
       }
 
       const adapter = new EmptyContentAdapter();
-      const aiInstance = ai(adapter);
 
       const chunks = await collectChunks(
-        aiInstance.chat({
+        chat({
+          adapter,
           model: "test-model",
           messages: [{ role: "user", content: "Test" }],
         })
@@ -469,10 +451,10 @@ describe("AI.chat() - Comprehensive Logic Path Coverage", () => {
       }
 
       const adapter = new ToolAdapter();
-      const aiInstance = ai(adapter);
 
       const chunks = await collectChunks(
-        aiInstance.chat({
+        chat({
+          adapter,
           model: "test-model",
           messages: [{ role: "user", content: "Weather?" }],
           tools: [tool],
@@ -579,10 +561,10 @@ describe("AI.chat() - Comprehensive Logic Path Coverage", () => {
       }
 
       const adapter = new StreamingToolAdapter();
-      const aiInstance = ai(adapter);
 
       const chunks = await collectChunks(
-        aiInstance.chat({
+        chat({
+          adapter,
           model: "test-model",
           messages: [{ role: "user", content: "Calculate" }],
           tools: [tool],
@@ -670,10 +652,10 @@ describe("AI.chat() - Comprehensive Logic Path Coverage", () => {
       }
 
       const adapter = new MultipleToolsAdapter();
-      const aiInstance = ai(adapter);
 
       const chunks = await collectChunks(
-        aiInstance.chat({
+        chat({
+          adapter,
           model: "test-model",
           messages: [{ role: "user", content: "Use both tools" }],
           tools: [tool1, tool2],
@@ -768,10 +750,10 @@ describe("AI.chat() - Comprehensive Logic Path Coverage", () => {
       }
 
       const adapter = new ContentWithToolsAdapter();
-      const aiInstance = ai(adapter);
 
       await collectChunks(
-        aiInstance.chat({
+        chat({
+          adapter,
           model: "test-model",
           messages: [{ role: "user", content: "Test" }],
           tools: [tool],
@@ -846,10 +828,10 @@ describe("AI.chat() - Comprehensive Logic Path Coverage", () => {
       }
 
       const adapter = new NoContentToolsAdapter();
-      const aiInstance = ai(adapter);
 
       await collectChunks(
-        aiInstance.chat({
+        chat({
+          adapter,
           model: "test-model",
           messages: [{ role: "user", content: "Test" }],
           tools: [tool],
@@ -902,10 +884,10 @@ describe("AI.chat() - Comprehensive Logic Path Coverage", () => {
       }
 
       const adapter = new IncompleteToolAdapter();
-      const aiInstance = ai(adapter);
 
       await collectChunks(
-        aiInstance.chat({
+        chat({
+          adapter,
           model: "test-model",
           messages: [{ role: "user", content: "Test" }],
           tools: [tool],
@@ -977,10 +959,10 @@ describe("AI.chat() - Comprehensive Logic Path Coverage", () => {
       }
 
       const adapter = new ToolResultAdapter();
-      const aiInstance = ai(adapter);
 
       const chunks = await collectChunks(
-        aiInstance.chat({
+        chat({
+          adapter,
           model: "test-model",
           messages: [{ role: "user", content: "Test" }],
           tools: [tool],
@@ -1064,10 +1046,10 @@ describe("AI.chat() - Comprehensive Logic Path Coverage", () => {
       }
 
       const adapter = new MessageHistoryAdapter();
-      const aiInstance = ai(adapter);
 
       await collectChunks(
-        aiInstance.chat({
+        chat({
+          adapter,
           model: "test-model",
           messages: [{ role: "user", content: "Test" }],
           tools: [tool],
@@ -1133,10 +1115,10 @@ describe("AI.chat() - Comprehensive Logic Path Coverage", () => {
       }
 
       const adapter = new ErrorToolAdapter();
-      const aiInstance = ai(adapter);
 
       const chunks = await collectChunks(
-        aiInstance.chat({
+        chat({
+          adapter,
           model: "test-model",
           messages: [{ role: "user", content: "Call error tool" }],
           tools: [tool],
@@ -1180,10 +1162,10 @@ describe("AI.chat() - Comprehensive Logic Path Coverage", () => {
       }
 
       const adapter = new UnknownToolAdapter();
-      const aiInstance = ai(adapter);
 
       const chunks = await collectChunks(
-        aiInstance.chat({
+        chat({
+          adapter,
           model: "test-model",
           messages: [{ role: "user", content: "Test" }],
           tools: [
@@ -1253,10 +1235,10 @@ describe("AI.chat() - Comprehensive Logic Path Coverage", () => {
       }
 
       const adapter = new ApprovalAdapter();
-      const aiInstance = ai(adapter);
 
       const chunks = await collectChunks(
-        aiInstance.chat({
+        chat({
+          adapter,
           model: "test-model",
           messages: [{ role: "user", content: "Delete file" }],
           tools: [tool],
@@ -1320,10 +1302,10 @@ describe("AI.chat() - Comprehensive Logic Path Coverage", () => {
       }
 
       const adapter = new ClientToolAdapter();
-      const aiInstance = ai(adapter);
 
       const chunks = await collectChunks(
-        aiInstance.chat({
+        chat({
+          adapter,
           model: "test-model",
           messages: [{ role: "user", content: "Use client tool" }],
           tools: [tool],
@@ -1417,10 +1399,10 @@ describe("AI.chat() - Comprehensive Logic Path Coverage", () => {
       }
 
       const adapter = new MixedToolsAdapter();
-      const aiInstance = ai(adapter);
 
       const chunks = await collectChunks(
-        aiInstance.chat({
+        chat({
+          adapter,
           model: "test-model",
           messages: [{ role: "user", content: "Use all tools" }],
           tools: [normalTool, approvalTool, clientTool],
@@ -1471,9 +1453,7 @@ describe("AI.chat() - Comprehensive Logic Path Coverage", () => {
           );
           expect(toolMessage).toBeDefined();
           expect(toolMessage?.toolCallId).toBe("call-1");
-          expect(toolMessage?.content).toBe(
-            JSON.stringify({ success: true })
-          );
+          expect(toolMessage?.content).toBe(JSON.stringify({ success: true }));
 
           yield {
             type: "content",
@@ -1495,7 +1475,6 @@ describe("AI.chat() - Comprehensive Logic Path Coverage", () => {
       }
 
       const adapter = new PendingToolAdapter();
-      const aiInstance = ai(adapter);
 
       const messages: ModelMessage[] = [
         { role: "user", content: "Delete file" },
@@ -1529,7 +1508,8 @@ describe("AI.chat() - Comprehensive Logic Path Coverage", () => {
         } as any,
       ];
 
-      const stream = aiInstance.chat({
+      const stream = chat({
+        adapter,
         model: "test-model",
         messages,
         tools: [approvalTool],
@@ -1599,10 +1579,10 @@ describe("AI.chat() - Comprehensive Logic Path Coverage", () => {
       }
 
       const adapter = new LoopAdapter();
-      const aiInstance = ai(adapter);
 
       await collectChunks(
-        aiInstance.chat({
+        chat({
+          adapter,
           model: "test-model",
           messages: [{ role: "user", content: "Loop" }],
           tools: [tool],
@@ -1651,11 +1631,11 @@ describe("AI.chat() - Comprehensive Logic Path Coverage", () => {
       }
 
       const adapter = new InfiniteLoopAdapter();
-      const aiInstance = ai(adapter);
 
       // Consume stream - should stop after 5 iterations (default)
       const chunks: StreamChunk[] = [];
-      for await (const chunk of aiInstance.chat({
+      for await (const chunk of chat({
+        adapter,
         model: "test-model",
         messages: [{ role: "user", content: "Loop" }],
         tools: [tool],
@@ -1702,10 +1682,10 @@ describe("AI.chat() - Comprehensive Logic Path Coverage", () => {
       }
 
       const adapter = new StopAdapter();
-      const aiInstance = ai(adapter);
 
       await collectChunks(
-        aiInstance.chat({
+        chat({
+          adapter,
           model: "test-model",
           messages: [{ role: "user", content: "Hello" }],
           tools: [tool],
@@ -1745,10 +1725,10 @@ describe("AI.chat() - Comprehensive Logic Path Coverage", () => {
       }
 
       const adapter = new NoToolsAdapter();
-      const aiInstance = ai(adapter);
 
       await collectChunks(
-        aiInstance.chat({
+        chat({
+          adapter,
           model: "test-model",
           messages: [{ role: "user", content: "Test" }],
           // No tools provided
@@ -1795,10 +1775,10 @@ describe("AI.chat() - Comprehensive Logic Path Coverage", () => {
       }
 
       const adapter = new NoToolCallsAdapter();
-      const aiInstance = ai(adapter);
 
       await collectChunks(
-        aiInstance.chat({
+        chat({
+          adapter,
           model: "test-model",
           messages: [{ role: "user", content: "Test" }],
           tools: [tool],
@@ -1814,13 +1794,13 @@ describe("AI.chat() - Comprehensive Logic Path Coverage", () => {
   describe("Abort Signal Paths", () => {
     it("should check abort signal before starting iteration", async () => {
       const adapter = new MockAdapter();
-      const aiInstance = ai(adapter);
 
       const abortController = new AbortController();
       abortController.abort(); // Abort before starting
 
       const chunks = await collectChunks(
-        aiInstance.chat({
+        chat({
+          adapter,
           model: "test-model",
           messages: [{ role: "user", content: "Hello" }],
           abortController,
@@ -1868,10 +1848,10 @@ describe("AI.chat() - Comprehensive Logic Path Coverage", () => {
       }
 
       const adapter = new StreamingAdapter();
-      const aiInstance = ai(adapter);
 
       const abortController = new AbortController();
-      const stream = aiInstance.chat({
+      const stream = chat({
+        adapter,
         model: "test-model",
         messages: [{ role: "user", content: "Hello" }],
         abortController,
@@ -1927,10 +1907,10 @@ describe("AI.chat() - Comprehensive Logic Path Coverage", () => {
       }
 
       const adapter = new ToolCallAdapter();
-      const aiInstance = ai(adapter);
 
       const abortController = new AbortController();
-      const stream = aiInstance.chat({
+      const stream = chat({
+        adapter,
         model: "test-model",
         messages: [{ role: "user", content: "Test" }],
         tools: [tool],
@@ -1988,10 +1968,10 @@ describe("AI.chat() - Comprehensive Logic Path Coverage", () => {
       }
 
       const adapter = new ErrorAdapter();
-      const aiInstance = ai(adapter);
 
       const chunks = await collectChunks(
-        aiInstance.chat({
+        chat({
+          adapter,
           model: "test-model",
           messages: [{ role: "user", content: "Hello" }],
         })
@@ -2043,10 +2023,10 @@ describe("AI.chat() - Comprehensive Logic Path Coverage", () => {
       }
 
       const adapter = new StopFinishAdapter();
-      const aiInstance = ai(adapter);
 
       const chunks = await collectChunks(
-        aiInstance.chat({
+        chat({
+          adapter,
           model: "test-model",
           messages: [{ role: "user", content: "Test" }],
         })
@@ -2082,10 +2062,10 @@ describe("AI.chat() - Comprehensive Logic Path Coverage", () => {
       }
 
       const adapter = new LengthAdapter();
-      const aiInstance = ai(adapter);
 
       const chunks = await collectChunks(
-        aiInstance.chat({
+        chat({
+          adapter,
           model: "test-model",
           messages: [{ role: "user", content: "Test" }],
         })
@@ -2121,10 +2101,10 @@ describe("AI.chat() - Comprehensive Logic Path Coverage", () => {
       }
 
       const adapter = new NullFinishAdapter();
-      const aiInstance = ai(adapter);
 
       const chunks = await collectChunks(
-        aiInstance.chat({
+        chat({
+          adapter,
           model: "test-model",
           messages: [{ role: "user", content: "Test" }],
         })
@@ -2139,10 +2119,10 @@ describe("AI.chat() - Comprehensive Logic Path Coverage", () => {
   describe("Event Emission", () => {
     it("should emit all required events in correct order", async () => {
       const adapter = new MockAdapter();
-      const aiInstance = ai(adapter);
 
       await collectChunks(
-        aiInstance.chat({
+        chat({
+          adapter,
           model: "test-model",
           messages: [{ role: "user", content: "Hello" }],
         })
@@ -2223,10 +2203,10 @@ describe("AI.chat() - Comprehensive Logic Path Coverage", () => {
       }
 
       const adapter = new ToolAdapter();
-      const aiInstance = ai(adapter);
 
       await collectChunks(
-        aiInstance.chat({
+        chat({
+          adapter,
           model: "test-model",
           messages: [{ role: "user", content: "Test" }],
           tools: [tool],
@@ -2243,10 +2223,10 @@ describe("AI.chat() - Comprehensive Logic Path Coverage", () => {
 
     it("should emit stream:ended event after successful completion", async () => {
       const adapter = new MockAdapter();
-      const aiInstance = ai(adapter);
 
       await collectChunks(
-        aiInstance.chat({
+        chat({
+          adapter,
           model: "test-model",
           messages: [{ role: "user", content: "Hello" }],
         })
@@ -2323,10 +2303,10 @@ describe("AI.chat() - Comprehensive Logic Path Coverage", () => {
       }
 
       const adapter = new MultiIterationAdapter();
-      const aiInstance = ai(adapter);
 
       await collectChunks(
-        aiInstance.chat({
+        chat({
+          adapter,
           model: "test-model",
           messages: [{ role: "user", content: "Test" }],
           tools: [tool],
@@ -2343,10 +2323,10 @@ describe("AI.chat() - Comprehensive Logic Path Coverage", () => {
   describe("Edge Cases", () => {
     it("should handle empty messages array", async () => {
       const adapter = new MockAdapter();
-      const aiInstance = ai(adapter);
 
       const chunks = await collectChunks(
-        aiInstance.chat({
+        chat({
+          adapter,
           model: "test-model",
           messages: [],
         })
@@ -2358,10 +2338,10 @@ describe("AI.chat() - Comprehensive Logic Path Coverage", () => {
 
     it("should handle empty tools array", async () => {
       const adapter = new MockAdapter();
-      const aiInstance = ai(adapter);
 
       const chunks = await collectChunks(
-        aiInstance.chat({
+        chat({
+          adapter,
           model: "test-model",
           messages: [{ role: "user", content: "Hello" }],
           tools: [],
@@ -2406,10 +2386,10 @@ describe("AI.chat() - Comprehensive Logic Path Coverage", () => {
       }
 
       const adapter = new MissingIdAdapter();
-      const aiInstance = ai(adapter);
 
       await collectChunks(
-        aiInstance.chat({
+        chat({
+          adapter,
           model: "test-model",
           messages: [{ role: "user", content: "Test" }],
           tools: [tool],
@@ -2455,13 +2435,13 @@ describe("AI.chat() - Comprehensive Logic Path Coverage", () => {
       }
 
       const adapter = new InvalidJsonAdapter();
-      const aiInstance = ai(adapter);
 
       // The executor will throw when parsing invalid JSON
       // This will cause an unhandled error, but we can test that it throws
       await expect(
         collectChunks(
-          aiInstance.chat({
+          chat({
+            adapter,
             model: "test-model",
             messages: [{ role: "user", content: "Test" }],
             tools: [tool],
@@ -2507,10 +2487,10 @@ describe("AI.chat() - Comprehensive Logic Path Coverage", () => {
       }
 
       const adapter = new ToolResultChunkAdapter();
-      const aiInstance = ai(adapter);
 
       await collectChunks(
-        aiInstance.chat({
+        chat({
+          adapter,
           model: "test-model",
           messages: [{ role: "user", content: "Continue" }],
         })
@@ -2616,10 +2596,10 @@ describe("AI.chat() - Comprehensive Logic Path Coverage", () => {
       }
 
       const adapter = new ApprovalResponseAdapter();
-      const aiInstance = ai(adapter);
 
       // First call - should request approval
-      const stream1 = aiInstance.chat({
+      const stream1 = chat({
+        adapter,
         model: "test-model",
         messages: [{ role: "user", content: "Delete file" }],
         tools: [tool],
@@ -2665,7 +2645,8 @@ describe("AI.chat() - Comprehensive Logic Path Coverage", () => {
         } as any,
       ];
 
-      const stream2 = aiInstance.chat({
+      const stream2 = chat({
+        adapter,
         model: "test-model",
         messages: messagesWithApproval,
         tools: [tool],
@@ -2743,10 +2724,10 @@ describe("AI.chat() - Comprehensive Logic Path Coverage", () => {
       }
 
       const adapter = new ClientOutputAdapter();
-      const aiInstance = ai(adapter);
 
       // First call - should request client execution
-      const stream1 = aiInstance.chat({
+      const stream1 = chat({
+        adapter,
         model: "test-model",
         messages: [{ role: "user", content: "Use client tool" }],
         tools: [tool],
@@ -2785,7 +2766,8 @@ describe("AI.chat() - Comprehensive Logic Path Coverage", () => {
         } as any,
       ];
 
-      const stream2 = aiInstance.chat({
+      const stream2 = chat({
+        adapter,
         model: "test-model",
         messages: messagesWithOutput,
         tools: [tool],
@@ -2880,7 +2862,6 @@ describe("AI.chat() - Comprehensive Logic Path Coverage", () => {
       }
 
       const adapter = new MixedPartsAdapter();
-      const aiInstance = ai(adapter);
 
       // Call with messages containing both approval response and client tool output in parts
       const messagesWithBoth: ModelMessage[] = [
@@ -2925,7 +2906,8 @@ describe("AI.chat() - Comprehensive Logic Path Coverage", () => {
         } as any,
       ];
 
-      const stream = aiInstance.chat({
+      const stream = chat({
+        adapter,
         model: "test-model",
         messages: messagesWithBoth,
         tools: [approvalTool, clientTool],
@@ -2967,7 +2949,9 @@ describe("AI.chat() - Comprehensive Logic Path Coverage", () => {
           options: ChatCompletionOptions
         ): AsyncIterable<StreamChunk> {
           this.trackStreamCall(options);
-          const baseId = `test-${Date.now()}-${Math.random().toString(36).substring(7)}`;
+          const baseId = `test-${Date.now()}-${Math.random()
+            .toString(36)
+            .substring(7)}`;
 
           if (this.iteration === 0) {
             // First iteration: emit content chunks, tool_call, then done with tool_calls
@@ -3050,9 +3034,9 @@ describe("AI.chat() - Comprehensive Logic Path Coverage", () => {
       }
 
       const adapter = new TemperatureToolAdapter();
-      const aiInstance = ai(adapter);
 
-      const stream = aiInstance.chat({
+      const stream = chat({
+        adapter,
         model: "test-model",
         messages: [{ role: "user", content: "what is the temperature?" }],
         tools: [temperatureTool],
@@ -3064,17 +3048,26 @@ describe("AI.chat() - Comprehensive Logic Path Coverage", () => {
       // Debug: log what we got
       console.log("\n=== DEBUG: Temperature Tool Test ===");
       console.log("Total chunks:", chunks.length);
-      console.log("Chunk types:", chunks.map((c) => c.type));
-      console.log("Tool execute called:", temperatureTool.execute?.mock.calls.length);
+      console.log(
+        "Chunk types:",
+        chunks.map((c) => c.type)
+      );
+      console.log(
+        "Tool execute called:",
+        temperatureTool.execute?.mock.calls.length
+      );
       console.log("Adapter iterations:", adapter.chatStreamCallCount);
-      
+
       const toolCallChunks = chunks.filter((c) => c.type === "tool_call");
       const toolResultChunks = chunks.filter((c) => c.type === "tool_result");
       const doneChunks = chunks.filter((c) => c.type === "done");
-      
+
       console.log("Tool call chunks:", toolCallChunks.length);
       console.log("Tool result chunks:", toolResultChunks.length);
-      console.log("Done chunks:", doneChunks.map((c) => (c as any).finishReason));
+      console.log(
+        "Done chunks:",
+        doneChunks.map((c) => (c as any).finishReason)
+      );
       console.log("===============================\n");
 
       // We should have received tool_call chunks

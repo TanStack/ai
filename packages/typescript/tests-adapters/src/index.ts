@@ -1,6 +1,6 @@
 import { config } from "dotenv";
 import {
-  chatCompletion,
+  chat,
   embed,
   summarize,
   tool,
@@ -49,7 +49,7 @@ const OLLAMA_MODEL = process.env.OLLAMA_MODEL || "mistral:7b";
 const OLLAMA_SUMMARY_MODEL = process.env.OLLAMA_SUMMARY_MODEL || OLLAMA_MODEL;
 const OLLAMA_EMBED_MODEL = process.env.OLLAMA_EMBED_MODEL || "nomic-embed-text";
 
-type TestOutcome = { passed: boolean; error?: string };
+type TestOutcome = { passed: boolean; error?: string; ignored?: boolean };
 
 interface AdapterResult {
   adapter: string;
@@ -329,60 +329,6 @@ async function testApprovalToolFlow(
   return { passed, error: debugData.result.error };
 }
 
-async function testChatCompletion(
-  adapterContext: AdapterContext
-): Promise<TestOutcome> {
-  const testName = "test4-chat-completion";
-  const messages = [
-    { role: "user" as const, content: "What is the capital of France?" },
-  ];
-  const adapterName = adapterContext.adapterName;
-  const debugData: Record<string, any> = {
-    adapter: adapterName,
-    test: testName,
-    model: adapterContext.model,
-    timestamp: new Date().toISOString(),
-    input: { messages },
-  };
-
-  try {
-    const result = await chatCompletion({
-      adapter: adapterContext.adapter,
-      model: adapterContext.model,
-      messages,
-    });
-
-    const content = result.content || "";
-    const hasParis = content.toLowerCase().includes("paris");
-    debugData.summary = {
-      fullResponse: content,
-      finishReason: result.finishReason,
-      usage: result.usage,
-    };
-    debugData.result = {
-      passed: hasParis,
-      error: hasParis ? undefined : "Response does not contain 'Paris'",
-    };
-
-    await writeDebugFile(adapterName, testName, debugData);
-
-    console.log(
-      `[${adapterName}] ${hasParis ? "✅" : "❌"} ${testName}${
-        hasParis ? "" : ": Response does not contain 'Paris'"
-      }`
-    );
-
-    return { passed: hasParis, error: debugData.result.error };
-  } catch (error: any) {
-    const message = error?.message || String(error);
-    debugData.summary = { error: message };
-    debugData.result = { passed: false, error: message };
-    await writeDebugFile(adapterName, testName, debugData);
-    console.log(`[${adapterName}] ❌ ${testName}: ${message}`);
-    return { passed: false, error: message };
-  }
-}
-
 async function testSummarize(
   adapterContext: AdapterContext
 ): Promise<TestOutcome> {
@@ -445,6 +391,13 @@ async function testSummarize(
 async function testEmbed(adapterContext: AdapterContext): Promise<TestOutcome> {
   const testName = "test6-embed";
   const adapterName = adapterContext.adapterName;
+
+  // Anthropic embed is not supported, mark as ignored
+  if (adapterName === "Anthropic") {
+    console.log(`[${adapterName}] ⋯ ${testName}: Ignored (not supported)`);
+    return { passed: true, ignored: true };
+  }
+
   const model = adapterContext.embeddingModel || adapterContext.model;
   const inputs = [
     "The Eiffel Tower is located in Paris.",
@@ -509,7 +462,6 @@ const TEST_DEFINITIONS: TestDefinition[] = [
   { id: "chat-stream", label: "chat (stream)", run: testCapitalOfFrance },
   { id: "tools", label: "tools", run: testTemperatureTool },
   { id: "approval", label: "approval", run: testApprovalToolFlow },
-  { id: "chat-completion", label: "chatCompletion", run: testChatCompletion },
   { id: "summarize", label: "summarize", run: testSummarize },
   { id: "embed", label: "embed", run: testEmbed },
 ];
@@ -526,6 +478,7 @@ function formatGrid(results: AdapterResult[]) {
     ...TEST_DEFINITIONS.map((test) => {
       const outcome = result.tests[test.id];
       if (!outcome) return "—";
+      if (outcome.ignored) return "⋯";
       return outcome.passed ? "✅" : "❌";
     }),
   ]);
@@ -660,7 +613,11 @@ async function runTests(filterAdapter?: string) {
   formatGrid(results);
 
   const allPassed = results.every((result) =>
-    TEST_DEFINITIONS.every((test) => result.tests[test.id]?.passed)
+    TEST_DEFINITIONS.every((test) => {
+      const outcome = result.tests[test.id];
+      // Ignored tests don't count as failures
+      return !outcome || outcome.ignored || outcome.passed;
+    })
   );
 
   console.log("\n" + "=".repeat(60));

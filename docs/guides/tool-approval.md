@@ -5,6 +5,7 @@ The tool approval flow allows you to require user approval before executing sens
 ## Overview
 
 When a tool requires approval:
+
 1. Model calls the tool
 2. Tool execution is paused
 3. User is prompted to approve or deny
@@ -40,16 +41,15 @@ const sendEmail = tool({
 On the server, tools with `requiresApproval: true` will pause execution and wait for approval:
 
 ```typescript
-import { ai, toStreamResponse } from "@tanstack/ai";
+import { chat, toStreamResponse } from "@tanstack/ai";
 import { openai } from "@tanstack/ai-openai";
 import { sendEmail } from "./tools";
-
-const aiInstance = ai(openai());
 
 export async function POST(request: Request) {
   const { messages } = await request.json();
 
-  const stream = aiInstance.chat({
+  const stream = chat({
+    adapter: openai(),
     messages,
     model: "gpt-4o",
     tools: [sendEmail],
@@ -224,4 +224,3 @@ The user will see an approval prompt showing the item, quantity, and price befor
 
 - [Server Tools](./server-tools) - Learn about server-side tool execution
 - [Client Tools](./client-tools) - Learn about client-side tool execution
-

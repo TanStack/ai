@@ -1,17 +1,10 @@
-export { ai } from "./ai";
-export {
-  chat,
-  chatCompletion,
-  summarize,
-  embed,
-} from "./standalone-functions";
+export { chat, summarize, embed } from "./standalone-functions";
 export { tool } from "./tool-utils";
 export {
   responseFormat,
   responseFormat as output,
   jsonObject,
 } from "./schema-utils";
-export { convertChatCompletionStream } from "./stream-utils";
 export {
   toServerSentEventsStream,
   toStreamResponse,
@@ -23,4 +16,4 @@ export {
   untilFinishReason,
   combineStrategies,
 } from "./agent-loop-strategies";
-export * from "./types"; 
+export * from "./types";

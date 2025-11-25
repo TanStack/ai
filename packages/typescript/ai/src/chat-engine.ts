@@ -1,6 +1,6 @@
 import type {
   AIAdapter,
-  ChatCompletionOptions,
+  ChatOptions,
   StreamChunk,
   ModelMessage,
   Tool,
@@ -21,7 +21,7 @@ import { prependSystemPrompts } from "./utils";
 
 interface ChatEngineConfig<
   TAdapter extends AIAdapter<any, any, any, any>,
-  TParams extends ChatCompletionOptions<any, any> = ChatCompletionOptions<any>
+  TParams extends ChatOptions<any, any> = ChatOptions<any>
 > {
   adapter: TAdapter;
   events: AIEventEmitter;
@@ -34,7 +34,7 @@ type CyclePhase = "processChat" | "executeToolCalls";
 
 export class ChatEngine<
   TAdapter extends AIAdapter<any, any, any, any>,
-  TParams extends ChatCompletionOptions<any, any> = ChatCompletionOptions<any>
+  TParams extends ChatOptions<any, any> = ChatOptions<any>
 > {
   private readonly adapter: TAdapter;
   private readonly events: AIEventEmitter;
@@ -254,7 +254,10 @@ export class ChatEngine<
   private handleDoneChunk(chunk: DoneStreamChunk): void {
     // Don't overwrite a tool_calls finishReason with a stop finishReason
     // This can happen when adapters send multiple done chunks
-    if (this.doneChunk?.finishReason === "tool_calls" && chunk.finishReason === "stop") {
+    if (
+      this.doneChunk?.finishReason === "tool_calls" &&
+      chunk.finishReason === "stop"
+    ) {
       // Still emit the event and update lastFinishReason, but don't overwrite doneChunk
       this.lastFinishReason = chunk.finishReason;
       this.events.streamChunkDone({

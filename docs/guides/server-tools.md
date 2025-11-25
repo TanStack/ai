@@ -53,16 +53,15 @@ const searchProducts = tool({
 Pass tools to the `chat` method:
 
 ```typescript
-import { ai, toStreamResponse } from "@tanstack/ai";
+import { chat, toStreamResponse } from "@tanstack/ai";
 import { openai } from "@tanstack/ai-openai";
 import { getUserData, searchProducts } from "./tools";
-
-const aiInstance = ai(openai());
 
 export async function POST(request: Request) {
   const { messages } = await request.json();
 
-  const stream = aiInstance.chat({
+  const stream = chat({
+    adapter: openai(),
     messages,
     model: "gpt-4o",
     tools: [getUserData, searchProducts],
@@ -103,9 +102,12 @@ export const tools = {
 };
 
 // api/chat/route.ts
+import { chat } from "@tanstack/ai";
+import { openai } from "@tanstack/ai-openai";
 import { tools } from "@/tools";
 
-const stream = aiInstance.chat({
+const stream = chat({
+  adapter: openai(),
   messages,
   model: "gpt-4o",
   tools: Object.values(tools),
@@ -159,4 +161,3 @@ const getUserData = tool({
 
 - [Client Tools](./client-tools) - Learn about client-side tool execution
 - [Tool Approval Flow](./tool-approval) - Add approval workflows for sensitive operations
-

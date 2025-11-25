@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { ai, toStreamResponse, maxIterations } from "@tanstack/ai";
+import { chat, toStreamResponse, maxIterations } from "@tanstack/ai";
 import { openai } from "@tanstack/ai-openai";
 // import { ollama } from "@tanstack/ai-ollama";
 // import { anthropic } from "@tanstack/ai-anthropic";
@@ -33,15 +33,6 @@ export const Route = createFileRoute("/api/tanchat")({
   server: {
     handlers: {
       POST: async ({ request }) => {
-        // Create AI instance with OpenAI adapter
-        // const aiInstance = ai(ollama());
-        const aiInstance = ai(openai());
-        // const aiInstance = ai(anthropic());
-        //const aiInstance = ai(gemini());
-
-
-
-        // Check for API key
         if (!process.env.OPENAI_API_KEY) {
           return new Response(
             JSON.stringify({
@@ -69,7 +60,8 @@ export const Route = createFileRoute("/api/tanchat")({
 
         try {
           // Use the stream abort signal for proper cancellation handling
-          const stream = aiInstance.chat({
+          const stream = chat({
+            adapter: openai(),
             messages,
             model: "gpt-4-turbo",
             // model: "claude-sonnet-4-5-20250929",
@@ -79,9 +71,7 @@ export const Route = createFileRoute("/api/tanchat")({
             systemPrompts: [SYSTEM_PROMPT],
             agentLoopStrategy: maxIterations(20),
             abortController,
-            providerOptions: {
-
-            }
+            providerOptions: {},
           });
 
           return toStreamResponse(stream, undefined, abortController);

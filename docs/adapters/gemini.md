@@ -11,12 +11,18 @@ npm install @tanstack/ai-gemini
 ## Basic Usage
 
 ```typescript
-import { ai } from "@tanstack/ai";
+import { chat } from "@tanstack/ai";
 import { gemini } from "@tanstack/ai-gemini";
 
-const aiInstance = ai(gemini({
+const adapter = gemini({
   apiKey: process.env.GEMINI_API_KEY!,
-}));
+});
+
+const stream = chat({
+  adapter,
+  messages: [{ role: "user", content: "Hello!" }],
+  model: "gemini-pro",
+});
 ```
 
 ## Configuration
@@ -29,7 +35,7 @@ const config: GeminiConfig = {
   baseURL: "https://generativelanguage.googleapis.com/v1", // Optional
 };
 
-const aiInstance = ai(gemini(config));
+const adapter = gemini(config);
 ```
 
 ## Available Models
@@ -43,17 +49,18 @@ const aiInstance = ai(gemini(config));
 ## Example: Chat Completion
 
 ```typescript
-import { ai, toStreamResponse } from "@tanstack/ai";
+import { chat, toStreamResponse } from "@tanstack/ai";
 import { gemini } from "@tanstack/ai-gemini";
 
-const aiInstance = ai(gemini({
+const adapter = gemini({
   apiKey: process.env.GEMINI_API_KEY!,
-}));
+});
 
 export async function POST(request: Request) {
   const { messages } = await request.json();
 
-  const stream = aiInstance.chat({
+  const stream = chat({
+    adapter,
     messages,
     model: "gemini-pro",
   });
@@ -65,8 +72,13 @@ export async function POST(request: Request) {
 ## Example: With Tools
 
 ```typescript
-import { tool } from "@tanstack/ai";
+import { chat, tool } from "@tanstack/ai";
+import { gemini } from "@tanstack/ai-gemini";
 import { z } from "zod";
+
+const adapter = gemini({
+  apiKey: process.env.GEMINI_API_KEY!,
+});
 
 const getCalendarEvents = tool({
   description: "Get calendar events",
@@ -79,7 +91,8 @@ const getCalendarEvents = tool({
   },
 });
 
-const stream = aiInstance.chat({
+const stream = chat({
+  adapter,
   messages,
   model: "gemini-pro",
   tools: [getCalendarEvents],
@@ -91,7 +104,8 @@ const stream = aiInstance.chat({
 Gemini supports various provider-specific options:
 
 ```typescript
-const stream = aiInstance.chat({
+const stream = chat({
+  adapter: gemini({ apiKey: process.env.GEMINI_API_KEY! }),
   messages,
   model: "gemini-pro",
   providerOptions: {
@@ -124,6 +138,7 @@ GEMINI_API_KEY=your-api-key-here
 Creates a Gemini adapter instance.
 
 **Parameters:**
+
 - `config.apiKey` - Gemini API key (required)
 - `config.baseURL?` - Custom base URL (optional)
 
@@ -134,4 +149,3 @@ Creates a Gemini adapter instance.
 - [Getting Started](../getting-started/quick-start) - Learn the basics
 - [Tools Guide](../guides/tools) - Learn about tools
 - [Other Adapters](./openai) - Explore other providers
-

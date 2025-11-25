@@ -70,13 +70,13 @@ export interface OpenAIAudioTranscriptionProviderOptions {
   timestampGranularities?: Array<"word" | "segment">;
   /** Chunking strategy for long audio (gpt-4o-transcribe-diarize): 'auto' or VAD config */
   chunkingStrategy?:
-  | "auto"
-  | {
-    type: "vad";
-    threshold?: number;
-    prefix_padding_ms?: number;
-    silence_duration_ms?: number;
-  };
+    | "auto"
+    | {
+        type: "vad";
+        threshold?: number;
+        prefix_padding_ms?: number;
+        silence_duration_ms?: number;
+      };
   /** Known speaker names for diarization (gpt-4o-transcribe-diarize) */
   knownSpeakerNames?: string[];
   /** Known speaker reference audio as data URLs (gpt-4o-transcribe-diarize) */
@@ -140,26 +140,6 @@ export class OpenAI extends BaseAdapter<
       organization: config.organization,
       baseURL: config.baseURL,
     });
-  }
-
-  async chatCompletion(
-    options: ChatCompletionOptions<string, OpenAIProviderOptions>
-  ): Promise<ChatCompletionResult> {
-    // Map common options to OpenAI format using the centralized mapping function
-    const providerOptions = this.mapChatOptionsToOpenAI(options);
-
-    const response = await this.client.responses.create(
-      {
-        ...providerOptions,
-        stream: false,
-      },
-      {
-        headers: options.request?.headers,
-        signal: options.request?.signal,
-      }
-    );
-
-    return this.mapOpenAIResponseToChatResult(response);
   }
 
   async *chatStream(
@@ -243,8 +223,6 @@ export class OpenAI extends BaseAdapter<
     };
   }
 
-
-
   private buildSummarizationPrompt(options: SummarizationOptions): string {
     let prompt = "You are a professional summarizer. ";
 
@@ -293,13 +271,13 @@ export class OpenAI extends BaseAdapter<
     const toolCalls =
       functionCalls.length > 0
         ? functionCalls.map((fc) => ({
-          id: fc.call_id,
-          type: "function" as const,
-          function: {
-            name: fc.name,
-            arguments: JSON.stringify(fc.arguments),
-          },
-        }))
+            id: fc.call_id,
+            type: "function" as const,
+            function: {
+              name: fc.name,
+              arguments: JSON.stringify(fc.arguments),
+            },
+          }))
         : undefined;
 
     return {
@@ -618,11 +596,11 @@ export class OpenAI extends BaseAdapter<
             finishReason: finishReason as any,
             usage: usage
               ? {
-                promptTokens: usage.input_tokens || usage.prompt_tokens || 0,
-                completionTokens:
-                  usage.output_tokens || usage.completion_tokens || 0,
-                totalTokens: usage.total_tokens || 0,
-              }
+                  promptTokens: usage.input_tokens || usage.prompt_tokens || 0,
+                  completionTokens:
+                    usage.output_tokens || usage.completion_tokens || 0,
+                  totalTokens: usage.total_tokens || 0,
+                }
               : undefined,
           };
           doneChunkEmitted = true;
@@ -663,14 +641,14 @@ export class OpenAI extends BaseAdapter<
     try {
       const providerOptions = options.providerOptions as
         | Omit<
-          InternalTextProviderOptions,
-          | "max_output_tokens"
-          | "tools"
-          | "metadata"
-          | "temperature"
-          | "input"
-          | "top_p"
-        >
+            InternalTextProviderOptions,
+            | "max_output_tokens"
+            | "tools"
+            | "metadata"
+            | "temperature"
+            | "input"
+            | "top_p"
+          >
         | undefined;
 
       const input = convertMessagesToInput(options.messages);
@@ -679,7 +657,10 @@ export class OpenAI extends BaseAdapter<
         ? convertToolsToProviderFormat([...options.tools])
         : undefined;
 
-      const requestParams: Omit<OpenAI_SDK.Responses.ResponseCreateParams, "stream"> = {
+      const requestParams: Omit<
+        OpenAI_SDK.Responses.ResponseCreateParams,
+        "stream"
+      > = {
         model: options.model,
         temperature: options.options?.temperature,
         max_output_tokens: options.options?.maxTokens,
@@ -746,8 +727,8 @@ export function openai(config?: Omit<OpenAIConfig, "apiKey">): OpenAI {
     typeof globalThis !== "undefined" && (globalThis as any).window?.env
       ? (globalThis as any).window.env
       : typeof process !== "undefined"
-        ? process.env
-        : undefined;
+      ? process.env
+      : undefined;
   const key = env?.OPENAI_API_KEY;
 
   if (!key) {

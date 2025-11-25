@@ -11,12 +11,18 @@ npm install @tanstack/ai-openai
 ## Basic Usage
 
 ```typescript
-import { ai } from "@tanstack/ai";
+import { chat } from "@tanstack/ai";
 import { openai } from "@tanstack/ai-openai";
 
-const aiInstance = ai(openai({
+const adapter = openai({
   apiKey: process.env.OPENAI_API_KEY!,
-}));
+});
+
+const stream = chat({
+  adapter,
+  messages: [{ role: "user", content: "Hello!" }],
+  model: "gpt-4o",
+});
 ```
 
 ## Configuration
@@ -30,7 +36,7 @@ const config: OpenAIConfig = {
   baseURL: "https://api.openai.com/v1", // Optional, for custom endpoints
 };
 
-const aiInstance = ai(openai(config));
+const adapter = openai(config);
 ```
 
 ## Available Models
@@ -58,17 +64,18 @@ const aiInstance = ai(openai(config));
 ## Example: Chat Completion
 
 ```typescript
-import { ai, toStreamResponse } from "@tanstack/ai";
+import { chat, toStreamResponse } from "@tanstack/ai";
 import { openai } from "@tanstack/ai-openai";
 
-const aiInstance = ai(openai({
+const adapter = openai({
   apiKey: process.env.OPENAI_API_KEY!,
-}));
+});
 
 export async function POST(request: Request) {
   const { messages } = await request.json();
 
-  const stream = aiInstance.chat({
+  const stream = chat({
+    adapter,
     messages,
     model: "gpt-4o",
   });
@@ -80,8 +87,13 @@ export async function POST(request: Request) {
 ## Example: With Tools
 
 ```typescript
-import { tool } from "@tanstack/ai";
+import { chat, tool } from "@tanstack/ai";
+import { openai } from "@tanstack/ai-openai";
 import { z } from "zod";
+
+const adapter = openai({
+  apiKey: process.env.OPENAI_API_KEY!,
+});
 
 const getWeather = tool({
   description: "Get the current weather",
@@ -94,7 +106,8 @@ const getWeather = tool({
   },
 });
 
-const stream = aiInstance.chat({
+const stream = chat({
+  adapter,
   messages,
   model: "gpt-4o",
   tools: [getWeather],
@@ -106,7 +119,8 @@ const stream = aiInstance.chat({
 OpenAI supports various provider-specific options:
 
 ```typescript
-const stream = aiInstance.chat({
+const stream = chat({
+  adapter: openai({ apiKey: process.env.OPENAI_API_KEY! }),
   messages,
   model: "gpt-4o",
   providerOptions: {
@@ -134,6 +148,7 @@ OPENAI_API_KEY=sk-...
 Creates an OpenAI adapter instance.
 
 **Parameters:**
+
 - `config.apiKey` - OpenAI API key (required)
 - `config.organization?` - Organization ID (optional)
 - `config.baseURL?` - Custom base URL (optional)
@@ -145,4 +160,3 @@ Creates an OpenAI adapter instance.
 - [Getting Started](../getting-started/quick-start) - Learn the basics
 - [Tools Guide](../guides/tools) - Learn about tools
 - [Other Adapters](./anthropic) - Explore other providers
-
