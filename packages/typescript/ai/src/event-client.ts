@@ -114,11 +114,15 @@ export interface AIDevtoolsEventMap {
     streaming: boolean;
     timestamp: number;
     clientId?: string;
+    toolNames?: string[];
+    options?: Record<string, unknown>;
+    providerOptions?: Record<string, unknown>;
   };
   "tanstack-ai-devtools:chat:completed": {
     requestId: string;
     model: string;
     content: string;
+    messageId?: string;
     finishReason?: string;
     usage?: {
       promptTokens: number;
@@ -137,6 +141,7 @@ export interface AIDevtoolsEventMap {
   "tanstack-ai-devtools:usage:tokens": {
     requestId: string;
     model: string;
+    messageId?: string;
     usage: {
       promptTokens: number;
       completionTokens: number;

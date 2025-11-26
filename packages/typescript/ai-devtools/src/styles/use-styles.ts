@@ -532,6 +532,70 @@ const stylesFactory = (theme: 'light' | 'dark') => {
       usageBold: css`
         font-weight: ${font.weight.semibold};
       `,
+      toggleButton: css`
+        background: transparent;
+        border: 1px solid ${t(colors.gray[300], colors.darkGray[600])};
+        color: ${t(colors.gray[600], colors.gray[400])};
+        padding: ${size[1]} ${size[2]};
+        border-radius: ${border.radius.sm};
+        font-size: ${fontSize.xs};
+        cursor: pointer;
+        transition: all 0.15s ease;
+        margin-top: ${size[2]};
+        &:hover {
+          background: ${t(colors.gray[100], colors.darkGray[700])};
+          color: ${t(colors.gray[700], colors.gray[300])};
+        }
+      `,
+      extendedInfo: css`
+        margin-top: ${size[3]};
+        padding: ${size[3]};
+        background: ${t(colors.gray[50], colors.darkGray[800])};
+        border-radius: ${border.radius.md};
+        border: 1px solid ${t(colors.gray[200], colors.darkGray[700])};
+      `,
+      infoSection: css`
+        margin-bottom: ${size[3]};
+        &:last-child {
+          margin-bottom: 0;
+        }
+      `,
+      infoLabel: css`
+        font-weight: ${font.weight.semibold};
+        font-size: ${fontSize.xs};
+        color: ${t(colors.gray[700], colors.gray[300])};
+        display: block;
+        margin-bottom: ${size[1]};
+      `,
+      toolsList: css`
+        display: flex;
+        flex-wrap: wrap;
+        gap: ${size[1]};
+      `,
+      toolBadge: css`
+        display: inline-flex;
+        align-items: center;
+        padding: 2px ${size[2]};
+        background: ${colors.purple[500]}20;
+        color: ${colors.purple[400]};
+        border-radius: ${border.radius.sm};
+        font-size: ${fontSize.xs};
+        font-family: ${fontFamily.mono};
+      `,
+      jsonPreview: css`
+        margin: 0;
+        padding: ${size[2]};
+        background: ${t(colors.gray[100], colors.darkGray[900])};
+        border-radius: ${border.radius.sm};
+        font-size: ${fontSize.xs};
+        font-family: ${fontFamily.mono};
+        overflow-x: auto;
+        max-height: 200px;
+        overflow-y: auto;
+        color: ${t(colors.gray[700], colors.gray[300])};
+        white-space: pre-wrap;
+        word-break: break-word;
+      `,
       tabsContainer: css`
         display: flex;
         gap: ${size[2]};
@@ -624,6 +688,50 @@ const stylesFactory = (theme: 'light' | 'dark') => {
         color: oklch(0.6 0.05 260);
         font-family: ${fontFamily.mono};
       `,
+      messageUsage: css`
+        display: flex;
+        align-items: center;
+        gap: 4px;
+        font-size: 10px;
+        font-family: ${fontFamily.mono};
+        color: oklch(0.65 0.12 142);
+        margin-left: auto;
+        padding: 2px 6px;
+        background: oklch(0.2 0.03 142);
+        border-radius: 4px;
+      `,
+      messageUsageIcon: css`
+        font-size: 10px;
+      `,
+      thinkingDetails: css`
+        margin-bottom: ${size[2]};
+        border: 1px solid oklch(0.35 0.1 280);
+        border-radius: 6px;
+        background: oklch(0.18 0.02 280);
+        overflow: hidden;
+      `,
+      thinkingSummary: css`
+        padding: ${size[2]};
+        cursor: pointer;
+        font-size: ${fontSize.sm};
+        color: oklch(0.75 0.1 280);
+        font-weight: ${font.weight.semibold};
+        &:hover {
+          background: oklch(0.22 0.03 280);
+        }
+      `,
+      thinkingContent: css`
+        padding: ${size[2]};
+        font-size: ${fontSize.xs};
+        line-height: 1.5;
+        white-space: pre-wrap;
+        word-break: break-word;
+        color: oklch(0.7 0.05 280);
+        font-family: ${fontFamily.mono};
+        border-top: 1px solid oklch(0.3 0.05 280);
+        max-height: 300px;
+        overflow-y: auto;
+      `,
       messageContent: css`
         font-size: ${fontSize.sm};
         line-height: 1.6;
@@ -694,6 +802,30 @@ const stylesFactory = (theme: 'light' | 'dark') => {
         white-space: pre-wrap;
         word-break: break-all;
       `,
+      toolSection: css`
+        margin-top: ${size[2]};
+        border-top: 1px solid oklch(0.28 0.03 260);
+        padding-top: ${size[2]};
+      `,
+      toolSectionLabel: css`
+        font-size: 10px;
+        font-weight: ${font.weight.semibold};
+        color: oklch(0.6 0.08 260);
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+        margin-bottom: ${size[1]};
+      `,
+      toolJsonContainer: css`
+        font-family: ${fontFamily.mono};
+        font-size: ${fontSize.xs};
+        color: oklch(0.8 0.05 260);
+        background: oklch(0.18 0.02 260);
+        border-radius: 4px;
+        padding: ${size[2]};
+        overflow-x: auto;
+        max-height: 300px;
+        overflow-y: auto;
+      `,
       chunksDetails: css`
         margin-top: ${size[3]};
       `,
@@ -748,9 +880,8 @@ const stylesFactory = (theme: 'light' | 'dark') => {
         font-family: ${fontFamily.mono};
         font-size: 10px;
         color: oklch(0.75 0.05 260);
-        white-space: nowrap;
-        overflow: hidden;
-        text-overflow: ellipsis;
+        white-space: pre-wrap;
+        word-break: break-word;
         max-width: 100%;
         font-weight: ${font.weight.normal};
         margin-top: 2px;

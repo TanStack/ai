@@ -1,6 +1,6 @@
 import { Component, Show } from "solid-js";
 import { useStyles } from "../../styles/use-styles";
-import { state, selectConversation, type Conversation } from "../../store/ai-store";
+import { useAIStore, type Conversation } from "../../store/ai-context";
 import { getStatusColor, getTypeColor } from "../utils";
 
 interface ConversationRowProps {
@@ -8,6 +8,7 @@ interface ConversationRowProps {
 }
 
 export const ConversationRow: Component<ConversationRowProps> = (props) => {
+  const { state, selectConversation } = useAIStore();
   const styles = useStyles();
   const conv = () => props.conversation;
 

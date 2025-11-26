@@ -133,7 +133,7 @@ class ChatEngine<
 
   private beforeChat(): void {
     this.streamStartTime = Date.now();
-    const { model, tools } = this.params;
+    const { model, tools, options, providerOptions } = this.params;
 
     aiEventClient.emit("chat:started", {
       requestId: this.requestId,
@@ -142,6 +142,9 @@ class ChatEngine<
       hasTools: !!tools && tools.length > 0,
       streaming: true,
       timestamp: Date.now(),
+      toolNames: tools?.map((t) => t.function.name),
+      options: options as Record<string, unknown> | undefined,
+      providerOptions: providerOptions as Record<string, unknown> | undefined,
     });
 
     aiEventClient.emit("stream:started", {
@@ -294,6 +297,16 @@ class ChatEngine<
         usage: chunk.usage,
         timestamp: Date.now(),
       });
+
+      if (chunk.usage) {
+        aiEventClient.emit("usage:tokens", {
+          requestId: this.requestId,
+          messageId: this.currentMessageId || undefined,
+          model: this.params.model as string,
+          usage: chunk.usage,
+          timestamp: Date.now(),
+        });
+      }
       return;
     }
 
@@ -306,6 +319,16 @@ class ChatEngine<
       usage: chunk.usage,
       timestamp: Date.now(),
     });
+
+    if (chunk.usage) {
+      aiEventClient.emit("usage:tokens", {
+        requestId: this.requestId,
+        messageId: this.currentMessageId || undefined,
+        model: this.params.model as string,
+        usage: chunk.usage,
+        timestamp: Date.now(),
+      });
+    }
   }
 
   private handleErrorChunk(

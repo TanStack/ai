@@ -1,11 +1,12 @@
 import { Component, For } from "solid-js";
 import { useStyles } from "../styles/use-styles";
-import { state, type Conversation } from "../store/ai-store";
+import { useAIStore, type Conversation } from "../store/ai-context";
 import { ConversationRow } from "./list";
 
 export const ConversationsList: Component<{
   filterType: "all" | "client" | "server";
 }> = (props) => {
+  const { state } = useAIStore();
   const styles = useStyles();
 
   const filteredConversations = () => {

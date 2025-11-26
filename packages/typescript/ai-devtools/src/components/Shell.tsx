@@ -3,9 +3,18 @@ import { Header, HeaderLogo, MainPanel } from "@tanstack/devtools-ui";
 import { useStyles } from "../styles/use-styles";
 import { ConversationsList } from "./ConversationsList";
 import { ConversationDetails } from "./ConversationDetails";
-import { clearAllConversations, state } from "../store/ai-store";
+import { AIProvider, useAIStore } from "../store/ai-context";
 
 export default function Devtools() {
+  return (
+    <AIProvider>
+      <DevtoolsContent />
+    </AIProvider>
+  );
+}
+
+function DevtoolsContent() {
+  const { state, clearAllConversations } = useAIStore();
   const styles = useStyles();
   const [leftPanelWidth, setLeftPanelWidth] = createSignal(300);
   const [isDragging, setIsDragging] = createSignal(false);

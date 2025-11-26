@@ -34,7 +34,7 @@ export const MessageGroup: Component<MessageGroupProps> = (props) => {
 
           {/* Message ID */}
           <div class={styles().conversationDetails.messageId} title={props.messageId}>
-            ID: {props.messageId.substring(0, 20)}...
+            ID: {props.messageId}
           </div>
 
           {/* Accumulated Content Preview */}

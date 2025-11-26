@@ -1,9 +1,10 @@
 import { Component, Show, createSignal, createEffect } from "solid-js";
 import { useStyles } from "../styles/use-styles";
-import { state, type Conversation } from "../store/ai-store";
+import { useAIStore, type Conversation } from "../store/ai-context";
 import { ConversationHeader, ConversationTabs, MessagesTab, ChunksTab } from "./conversation";
 
 export const ConversationDetails: Component = () => {
+  const { state } = useAIStore();
   const styles = useStyles();
   const [activeTab, setActiveTab] = createSignal<"messages" | "chunks">("messages");
 

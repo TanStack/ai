@@ -43,7 +43,25 @@ export const MessageCard: Component<MessageCardProps> = (props) => {
           </div>
         </div>
         <div class={styles().conversationDetails.timestamp}>{formatTimestamp(msg().timestamp)}</div>
+        {/* Per-message token usage */}
+        <Show when={msg().usage}>
+          <div class={styles().conversationDetails.messageUsage}>
+            <span class={styles().conversationDetails.messageUsageIcon}>🎯</span>
+            <span>{msg().usage?.promptTokens.toLocaleString()} in</span>
+            <span>•</span>
+            <span>{msg().usage?.completionTokens.toLocaleString()} out</span>
+          </div>
+        </Show>
       </div>
+
+      {/* Thinking content (for extended thinking models) */}
+      <Show when={msg().thinkingContent}>
+        <details class={styles().conversationDetails.thinkingDetails}>
+          <summary class={styles().conversationDetails.thinkingSummary}>💭 Thinking...</summary>
+          <div class={styles().conversationDetails.thinkingContent}>{msg().thinkingContent}</div>
+        </details>
+      </Show>
+
       <div class={styles().conversationDetails.messageContent}>{msg().content}</div>
 
       {/* Tool Calls Display */}
