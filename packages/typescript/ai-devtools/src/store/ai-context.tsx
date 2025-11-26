@@ -1,5 +1,5 @@
 import { createContext, useContext, onMount, onCleanup, ParentComponent } from "solid-js";
-import { createStore, SetStoreFunction } from "solid-js/store";
+import { createStore } from "solid-js/store";
 import { aiEventClient } from "@tanstack/ai/event-client";
 
 export interface MessagePart {
