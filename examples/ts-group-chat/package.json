@@ -1,0 +1,41 @@
+{
+  "name": "ts-group-chat",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite dev --port 4000",
+    "start": "node .output/server/index.mjs",
+    "build": "vite build",
+    "serve": "vite preview",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@tailwindcss/vite": "^4.0.6",
+    "@tanstack/react-devtools": "^0.2.2",
+    "@tanstack/react-router": "^1.132.0",
+    "@tanstack/react-router-devtools": "^1.132.0",
+    "@tanstack/react-router-ssr-query": "^1.131.7",
+    "@tanstack/react-start": "^1.132.0",
+    "@tanstack/router-plugin": "^1.132.0",
+    "@types/ws": "^8.18.1",
+    "capnweb": "^0.1.0",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0",
+    "tailwindcss": "^4.0.6",
+    "vite-tsconfig-paths": "^5.1.4",
+    "ws": "^8.18.3"
+  },
+  "devDependencies": {
+    "@testing-library/dom": "^10.4.0",
+    "@testing-library/react": "^16.2.0",
+    "@types/node": "^22.10.2",
+    "@types/react": "^19.0.8",
+    "@types/react-dom": "^19.0.3",
+    "@vitejs/plugin-react": "^4.3.4",
+    "jsdom": "^26.0.0",
+    "typescript": "^5.7.2",
+    "vite": "^7.1.7",
+    "vitest": "^3.0.5",
+    "web-vitals": "^4.2.4"
+  }
+}
