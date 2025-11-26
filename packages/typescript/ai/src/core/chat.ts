@@ -704,8 +704,7 @@ class ChatEngine<
  *   model: 'gpt-4o',
  *   messages: [{ role: 'user', content: 'Hello!' }],
  *   tools: [weatherTool], // Optional: auto-executed when called
- * });
- * ```
+ * }); 
  *
  * for await (const chunk of stream) {
  *   if (chunk.type === 'content') {
@@ -723,8 +722,8 @@ export async function* chat<
     any,
     any
   >
-    ? Models[number]
-    : string
+  ? Models[number]
+  : string
 >(
   options: Omit<
     ChatStreamOptionsUnion<TAdapter>,
@@ -739,10 +738,10 @@ export async function* chat<
       any,
       infer ModelProviderOptions
     >
-      ? TModel extends keyof ModelProviderOptions
-        ? ModelProviderOptions[TModel]
-        : never
-      : never;
+    ? TModel extends keyof ModelProviderOptions
+    ? ModelProviderOptions[TModel]
+    : never
+    : never;
   }
 ): AsyncIterable<StreamChunk> {
   const { adapter, ...chatOptions } = options;

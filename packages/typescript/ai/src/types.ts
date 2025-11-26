@@ -372,31 +372,8 @@ export interface ChatCompletionChunk {
   };
 }
 
-export interface TextGenerationOptions {
-  model: string;
-  prompt: string;
-  maxTokens?: number;
-  temperature?: number;
-  topP?: number;
-  frequencyPenalty?: number;
-  presencePenalty?: number;
-  stopSequences?: string[];
-  stream?: boolean;
-  /** Provider-specific options (e.g., { openai: OpenAIProviderOptions }) */
-  providerOptions?: Record<string, any>;
-}
 
-export interface TextGenerationResult {
-  id: string;
-  model: string;
-  text: string;
-  finishReason: "stop" | "length" | null;
-  usage: {
-    promptTokens: number;
-    completionTokens: number;
-    totalTokens: number;
-  };
-}
+
 
 export interface SummarizationOptions {
   model: string;
@@ -433,158 +410,6 @@ export interface EmbeddingResult {
   };
 }
 
-export interface ImageGenerationOptions {
-  model: string;
-  prompt: string;
-  /** Number of images to generate (default: 1) */
-  n?: number;
-  /** Image size in format "widthxheight" (e.g., "1024x1024") */
-  size?: string;
-  /** Aspect ratio in format "width:height" (e.g., "16:9") */
-  aspectRatio?: string;
-  /** Seed for reproducible generation */
-  seed?: number;
-  /** Maximum images per API call (for batching) */
-  maxImagesPerCall?: number;
-  /** Provider-specific options */
-  providerOptions?: Record<string, any>;
-  /** Abort signal for cancellation */
-  abortSignal?: AbortSignal;
-  /** Custom headers */
-  headers?: Record<string, string>;
-}
-
-export interface ImageData {
-  /** Base64-encoded image data */
-  base64: string;
-  /** Binary image data */
-  uint8Array: Uint8Array;
-  /** MIME type of the image */
-  mediaType: string;
-}
-
-export interface ImageGenerationResult {
-  /** Generated image (when n=1) */
-  image?: ImageData;
-  /** Generated images (when n>1) */
-  images?: ImageData[];
-  /** Warnings from the provider */
-  warnings?: string[];
-  /** Provider-specific metadata */
-  providerMetadata?: Record<string, any>;
-  /** Response metadata */
-  response?: {
-    id: string;
-    model: string;
-    timestamp: number;
-  };
-}
-
-// Audio transcription types
-export interface AudioTranscriptionOptions {
-  model: string;
-  /** Audio file to transcribe (File, Blob, or Buffer) */
-  file: File | Blob | Buffer;
-  /** Optional prompt to guide the transcription */
-  prompt?: string;
-  /** Response format (json, text, srt, verbose_json, vtt, diarized_json) */
-  responseFormat?: string;
-  /** Temperature for sampling (0-1) */
-  temperature?: number;
-  /** Language of the audio (ISO-639-1 code) */
-  language?: string;
-  /** Provider-specific options */
-  providerOptions?: Record<string, any>;
-}
-
-export interface AudioTranscriptionResult {
-  id: string;
-  model: string;
-  /** Transcribed text */
-  text: string;
-  /** Language detected (if applicable) */
-  language?: string;
-  /** Duration in seconds */
-  duration?: number;
-  /** Segments with timestamps (if requested) */
-  segments?: Array<{
-    id: number;
-    start: number;
-    end: number;
-    text: string;
-    /** Speaker label (if diarization enabled) */
-    speaker?: string;
-    /** Words with timestamps */
-    words?: Array<{
-      word: string;
-      start: number;
-      end: number;
-    }>;
-  }>;
-  /** Log probabilities (if requested) */
-  logprobs?: Array<{
-    token: string;
-    logprob: number;
-  }>;
-}
-
-// Text-to-speech types
-export interface TextToSpeechOptions {
-  model: string;
-  /** Text to convert to speech */
-  input: string;
-  /** Voice to use (alloy, echo, fable, onyx, nova, shimmer, etc.) */
-  voice: string;
-  /** Audio format (mp3, opus, aac, flac, wav, pcm) */
-  responseFormat?: string;
-  /** Speed of the generated audio (0.25 to 4.0) */
-  speed?: number;
-  /** Provider-specific options */
-  providerOptions?: Record<string, any>;
-}
-
-export interface TextToSpeechResult {
-  id: string;
-  model: string;
-  /** Audio data as Buffer or Blob */
-  audio: Buffer | Blob;
-  /** Audio format */
-  format: string;
-  /** Duration in seconds (if available) */
-  duration?: number;
-}
-
-// Video generation types
-export interface VideoGenerationOptions {
-  model: string;
-  /** Text prompt describing the video */
-  prompt: string;
-  /** Number of seconds (duration) */
-  duration?: number;
-  /** Video resolution (e.g., "1920x1080", "1280x720") */
-  resolution?: string;
-  /** Frame rate (fps) */
-  fps?: number;
-  /** Seed for reproducible generation */
-  seed?: number;
-  /** Provider-specific options */
-  providerOptions?: Record<string, any>;
-}
-
-export interface VideoGenerationResult {
-  id: string;
-  model: string;
-  /** Video data as Buffer or Blob */
-  video: Buffer | Blob;
-  /** Video format (mp4, webm, etc.) */
-  format: string;
-  /** Duration in seconds */
-  duration?: number;
-  /** Video resolution */
-  resolution?: string;
-  /** Thumbnail as base64 (if available) */
-  thumbnail?: string;
-}
 
 /**
  * AI adapter interface with support for endpoint-specific models and provider options.
@@ -646,58 +471,6 @@ export interface AIAdapterConfig {
   headers?: Record<string, string>;
 }
 
-export interface ModelMeta {
-  name: string;
-  supports: {
-    input: ("text" | "image" | "audio" | "video")[];
-    output: ("text" | "image" | "audio" | "video")[];
-    endpoints: (
-      | "chat"
-      | "chat-completions"
-      | "assistants"
-      | "speech_generation"
-      | "image-generation"
-      | "fine-tuning"
-      | "batch"
-      | "image-edit"
-      | "moderation"
-      | "translation"
-      | "realtime"
-      | "embedding"
-      | "audio"
-      | "video"
-      | "transcription"
-    )[];
-    features: (
-      | "streaming"
-      | "function_calling"
-      | "structured_outputs"
-      | "predicted_outcomes"
-      | "distillation"
-      | "fine_tuning"
-    )[];
-    tools?: (
-      | "web_search"
-      | "file_search"
-      | "image_generation"
-      | "code_interpreter"
-      | "mcp"
-      | "computer_use"
-    )[];
-  };
-  context_window?: number;
-  max_output_tokens?: number;
-  knowledge_cutoff?: string;
-  pricing: {
-    input: {
-      normal: number;
-      cached?: number;
-    };
-    output: {
-      normal: number;
-    };
-  };
-}
 
 export type ChatStreamOptionsUnion<
   TAdapter extends AIAdapter<any, any, any, any, any>
@@ -709,16 +482,16 @@ export type ChatStreamOptionsUnion<
   infer ModelProviderOptions
 >
   ? Models[number] extends infer TModel
-    ? TModel extends string
-      ? Omit<ChatOptions, "model" | "providerOptions" | "responseFormat"> & {
-          adapter: TAdapter;
-          model: TModel;
-          providerOptions?: TModel extends keyof ModelProviderOptions
-            ? ModelProviderOptions[TModel]
-            : never;
-        }
-      : never
-    : never
+  ? TModel extends string
+  ? Omit<ChatOptions, "model" | "providerOptions" | "responseFormat"> & {
+    adapter: TAdapter;
+    model: TModel;
+    providerOptions?: TModel extends keyof ModelProviderOptions
+    ? ModelProviderOptions[TModel]
+    : never;
+  }
+  : never
+  : never
   : never;
 
 // Extract types from adapter (updated to 5 generics)

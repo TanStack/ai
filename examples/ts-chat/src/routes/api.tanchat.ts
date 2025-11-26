@@ -3,11 +3,10 @@ import {
   chat,
   toStreamResponse,
   maxIterations,
-  chatOptions,
 } from "@tanstack/ai";
-// import { openai } from "@tanstack/ai-openai";
+import { openai } from "@tanstack/ai-openai";
 // import { ollama } from "@tanstack/ai-ollama";
-import { anthropic } from "@tanstack/ai-anthropic";
+// import { anthropic } from "@tanstack/ai-anthropic";
 // import { gemini } from "@tanstack/ai-gemini";
 import { allTools } from "@/lib/guitar-tools";
 
@@ -38,18 +37,7 @@ export const Route = createFileRoute("/api/tanchat")({
   server: {
     handlers: {
       POST: async ({ request }) => {
-        if (!process.env.ANTHROPIC_API_KEY) {
-          return new Response(
-            JSON.stringify({
-              error:
-                "ANTHROPIC_API_KEY not configured. Please add it to .env or .env.local",
-            }),
-            {
-              status: 500,
-              headers: { "Content-Type": "application/json" },
-            }
-          );
-        }
+
 
         // Capture request signal before reading body (it may be aborted after body is consumed)
         const requestSignal = request.signal;
@@ -65,13 +53,13 @@ export const Route = createFileRoute("/api/tanchat")({
         try {
           // Use the stream abort signal for proper cancellation handling
           const stream = chat({
-            adapter: anthropic(),
+            adapter: openai(),
             // For thinking/reasoning support, use one of these models:
             // - OpenAI: "gpt-5", "o3", "o3-pro", "o3-mini" (with reasoning option)
             // - Anthropic: "claude-sonnet-4-5-20250929", "claude-opus-4-5-20251101" (with thinking option)
             // - Gemini: "gemini-3-pro-preview", "gemini-2.5-pro" (with thinkingConfig option)
-            // model: "gpt-5",
-            model: "claude-sonnet-4-5-20250929",
+            model: "gpt-5",
+            // model: "claude-sonnet-4-5-20250929",
             // model: "smollm",
             // model: "gemini-2.5-flash",
             tools: allTools,
@@ -79,16 +67,15 @@ export const Route = createFileRoute("/api/tanchat")({
             agentLoopStrategy: maxIterations(20),
             messages,
             providerOptions: {
-              tool_choice: "auto",
               // Enable reasoning for OpenAI (gpt-5, o3 models):
               // reasoning: {
               //   effort: "medium", // or "low", "high", "minimal", "none" (for gpt-5.1)
               // },
               // Enable thinking for Anthropic:
-              thinking: {
-                type: "enabled",
-                budget_tokens: 2048,
-              },
+              /*   thinking: {
+                  type: "enabled",
+                  budget_tokens: 2048,
+                }, */
             },
             abortController,
           });

@@ -2,8 +2,7 @@ import Anthropic_SDK from "@anthropic-ai/sdk";
 import type { MessageParam } from "@anthropic-ai/sdk/resources/messages";
 import {
   BaseAdapter,
-  type ChatCompletionOptions,
-  type ChatCompletionResult,
+  type ChatStreamOptionsUnion,
   type SummarizationOptions,
   type SummarizationResult,
   type EmbeddingOptions,
@@ -42,6 +41,15 @@ type AnthropicContentBlock = AnthropicContentBlocks extends Array<infer Block>
   ? Block
   : never;
 
+
+type AnthropicChatOptions = ChatStreamOptionsUnion<BaseAdapter<
+  typeof ANTHROPIC_MODELS,
+  typeof ANTHROPIC_EMBEDDING_MODELS,
+  AnthropicProviderOptions,
+  Record<string, any>,
+  AnthropicChatModelProviderOptionsByName
+>>
+
 export class Anthropic extends BaseAdapter<
   typeof ANTHROPIC_MODELS,
   typeof ANTHROPIC_EMBEDDING_MODELS,
@@ -64,9 +72,10 @@ export class Anthropic extends BaseAdapter<
   }
 
   async *chatStream(
-    options: ChatCompletionOptions<string, AnthropicProviderOptions>
+    options: AnthropicChatOptions
   ): AsyncIterable<StreamChunk> {
     try {
+
       // Map common options to Anthropic format using the centralized mapping function
       const requestParams = this.mapCommonOptionsToAnthropic(options);
 
@@ -110,7 +119,7 @@ export class Anthropic extends BaseAdapter<
     const systemPrompt = this.buildSummarizationPrompt(options);
 
     const response = await this.client.messages.create({
-      model: options.model || "claude-3-sonnet-20240229",
+      model: options.model,
       messages: [{ role: "user", content: options.text }],
       system: systemPrompt,
       max_tokens: options.maxLength || 500,
@@ -174,7 +183,7 @@ export class Anthropic extends BaseAdapter<
    * Maps common options to Anthropic-specific format
    * Handles translation of normalized options to Anthropic's API format
    */
-  private mapCommonOptionsToAnthropic(options: ChatCompletionOptions) {
+  private mapCommonOptionsToAnthropic(options: AnthropicChatOptions) {
     const providerOptions = options.providerOptions as
       | InternalTextProviderOptions
       | undefined;
@@ -200,7 +209,7 @@ export class Anthropic extends BaseAdapter<
       ];
       for (const key of validKeys) {
         if (key in providerOptions) {
-          const value = (providerOptions as any)[key];
+          const value = (providerOptions)[key];
           // Anthropic expects tool_choice to be an object, not a string
           if (key === "tool_choice" && typeof value === "string") {
             (validProviderOptions as any)[key] = { type: value };
@@ -212,8 +221,7 @@ export class Anthropic extends BaseAdapter<
     }
 
     // Ensure max_tokens is greater than thinking.budget_tokens if thinking is enabled
-    const thinkingBudget = (validProviderOptions.thinking as any)
-      ?.budget_tokens;
+    const thinkingBudget = validProviderOptions.thinking?.type === "enabled" ? validProviderOptions.thinking?.budget_tokens : undefined;
     const defaultMaxTokens = options.options?.maxTokens || 1024;
     const maxTokens =
       thinkingBudget && thinkingBudget >= defaultMaxTokens
@@ -305,43 +313,6 @@ export class Anthropic extends BaseAdapter<
     return formattedMessages;
   }
 
-  private extractChatCompletionResult(
-    response: Anthropic_SDK.Beta.BetaMessage
-  ): Omit<ChatCompletionResult, "data"> {
-    // Extract text content
-    const textContent = response.content
-      .filter((c) => c.type === "text")
-      .map((c) => c.text)
-      .join("");
-
-    // Extract tool calls
-    const toolCalls = response.content
-      .filter((c) => c.type === "tool_use")
-      .map((c) => ({
-        id: c.id,
-        type: "function" as const,
-        function: {
-          name: c.name,
-          arguments: JSON.stringify(c.input),
-        },
-      }));
-
-    return {
-      id: response.id,
-      model: response.model,
-      content: textContent || null,
-      role: "assistant",
-      // todo fix me
-      finishReason: response.stop_reason as any,
-      toolCalls: toolCalls.length > 0 ? toolCalls : undefined,
-      usage: {
-        promptTokens: response.usage.input_tokens,
-        completionTokens: response.usage.output_tokens,
-        totalTokens: response.usage.input_tokens + response.usage.output_tokens,
-      },
-    };
-  }
-
   private async *processAnthropicStream(
     stream: AsyncIterable<Anthropic_SDK.Beta.BetaRawMessageStreamEvent>,
     model: string,
@@ -377,24 +348,20 @@ export class Anthropic extends BaseAdapter<
             yield {
               type: "content",
               id: generateId(),
-              model: model || "claude-3-sonnet-20240229",
+              model: model,
               timestamp,
               delta,
               content: accumulatedContent,
               role: "assistant",
             };
           } else if (event.delta.type === "thinking_delta") {
-            // Handle thinking content
-            const delta =
-              (event.delta as any).text ||
-              (event.delta as any).content ||
-              (event.delta as any).thinking ||
-              "";
+            // Handle thinking content 
+            const delta = event.delta.thinking ?? "";
             accumulatedThinking += delta;
             yield {
               type: "thinking",
               id: generateId(),
-              model: model || "claude-3-sonnet-20240229",
+              model: model,
               timestamp,
               delta,
               content: accumulatedThinking,
@@ -408,7 +375,7 @@ export class Anthropic extends BaseAdapter<
               yield {
                 type: "tool_call",
                 id: generateId(),
-                model: model || "claude-3-sonnet-20240229",
+                model: model,
                 timestamp,
                 toolCall: {
                   id: existing.id,
@@ -426,7 +393,7 @@ export class Anthropic extends BaseAdapter<
           yield {
             type: "done",
             id: generateId(),
-            model: model || "claude-3-sonnet-20240229",
+            model: model,
             timestamp,
             finishReason: "stop",
           };
@@ -435,19 +402,20 @@ export class Anthropic extends BaseAdapter<
             yield {
               type: "done",
               id: generateId(),
-              model: model || "claude-3-sonnet-20240229",
+              model: model,
               timestamp,
               finishReason:
                 event.delta.stop_reason === "tool_use"
                   ? "tool_calls"
+                  // TODO Fix the any and map the responses properly
                   : (event.delta.stop_reason as any),
-              // TODO Fix usage
+
               usage: event.usage
                 ? {
-                    promptTokens: 0,
-                    completionTokens: event.usage.output_tokens || 0,
-                    totalTokens: 0 + (event.usage.output_tokens || 0),
-                  }
+                  promptTokens: event.usage.input_tokens || 0,
+                  completionTokens: event.usage.output_tokens || 0,
+                  totalTokens: (event.usage.input_tokens || 0) + (event.usage.output_tokens || 0),
+                }
                 : undefined,
             };
           }
@@ -523,8 +491,8 @@ export function anthropic(config?: Omit<AnthropicConfig, "apiKey">): Anthropic {
     typeof globalThis !== "undefined" && (globalThis as any).window?.env
       ? (globalThis as any).window.env
       : typeof process !== "undefined"
-      ? process.env
-      : undefined;
+        ? process.env
+        : undefined;
   const key = env?.ANTHROPIC_API_KEY;
 
   if (!key) {

@@ -12,20 +12,22 @@ export interface MessagePart {
   error?: string;
 }
 
+export interface ToolCall {
+  id: string;
+  name: string;
+  arguments: string;
+  state: string;
+  approvalRequired?: boolean;
+  approvalId?: string;
+}
+
 export interface Message {
   id: string;
   role: "user" | "assistant" | "system";
   content: string;
   timestamp: number;
   parts?: MessagePart[]; // Optional for now to maintain backwards compatibility
-  toolCalls?: Array<{
-    id: string;
-    name: string;
-    arguments: string;
-    state: string;
-    approvalRequired?: boolean;
-    approvalId?: string;
-  }>;
+  toolCalls?: ToolCall[];
   chunks?: Chunk[]; // Chunks associated with this message (for linking server chunks to client messages)
   model?: string; // Model used for this message (for linking server chunks)
 }
