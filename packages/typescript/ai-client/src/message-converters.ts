@@ -41,6 +41,7 @@ export function uiMessageToModelMessages(uiMessage: UIMessage): ModelMessage[] {
   const messages: ModelMessage[] = [];
 
   // Separate parts by type
+  // Note: thinking parts are UI-only and not included in ModelMessages
   const textParts: TextPart[] = [];
   const toolCallParts: ToolCallPart[] = [];
   const toolResultParts: ToolResultPart[] = [];
@@ -53,6 +54,7 @@ export function uiMessageToModelMessages(uiMessage: UIMessage): ModelMessage[] {
     } else if (part.type === "tool-result") {
       toolResultParts.push(part);
     }
+    // thinking parts are skipped - they're UI-only
   }
 
   // Build the main message (system, user, or assistant)

@@ -14,7 +14,14 @@ import type { ToolCallState as ToolState, ToolResultState } from "../types";
  * Raw events that come from the stream
  */
 export interface StreamChunk {
-  type: "text" | "tool-call-delta" | "done" | "approval-requested" | "tool-input-available" | "tool-result";
+  type:
+    | "text"
+    | "tool-call-delta"
+    | "done"
+    | "approval-requested"
+    | "tool-input-available"
+    | "tool-result"
+    | "thinking";
   content?: string;
   delta?: string;
   toolCallIndex?: number;
@@ -87,7 +94,7 @@ export interface ChunkStrategy {
  */
 export interface StreamProcessorHandlers {
   onTextUpdate?: (content: string) => void;
-  
+
   // Enhanced tool call handlers with state tracking
   onToolCallStateChange?: (
     index: number,
@@ -97,14 +104,14 @@ export interface StreamProcessorHandlers {
     args: string,
     parsedArgs?: any
   ) => void;
-  
+
   onToolResultStateChange?: (
     toolCallId: string,
     content: string,
     state: ToolResultState,
     error?: string
   ) => void;
-  
+
   // Additional handlers for detailed lifecycle events
   onToolCallStart?: (index: number, id: string, name: string) => void;
   onToolCallDelta?: (index: number, args: string) => void;
@@ -125,6 +132,7 @@ export interface StreamProcessorHandlers {
     toolName: string,
     input: any
   ) => void;
+  onThinkingUpdate?: (content: string) => void;
   onStreamEnd?: (content: string, toolCalls?: any[]) => void;
 }
 

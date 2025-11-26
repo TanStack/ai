@@ -66,20 +66,44 @@ export class Anthropic extends BaseAdapter<
   async *chatStream(
     options: ChatCompletionOptions<string, AnthropicProviderOptions>
   ): AsyncIterable<StreamChunk> {
-    // Map common options to Anthropic format using the centralized mapping function
-    const requestParams = this.mapCommonOptionsToAnthropic(options);
+    try {
+      // Map common options to Anthropic format using the centralized mapping function
+      const requestParams = this.mapCommonOptionsToAnthropic(options);
 
-    const stream = await this.client.beta.messages.create(
-      { ...requestParams, stream: true },
-      {
-        signal: options.request?.signal,
-        headers: options.request?.headers,
-      }
-    );
+      const stream = await this.client.beta.messages.create(
+        { ...requestParams, stream: true },
+        {
+          signal: options.request?.signal,
+          headers: options.request?.headers,
+        }
+      );
 
-    yield* this.processAnthropicStream(stream, options.model, () =>
-      this.generateId()
-    );
+      yield* this.processAnthropicStream(stream, options.model, () =>
+        this.generateId()
+      );
+    } catch (error: any) {
+      console.error("[Anthropic Adapter] Error in chatStream:", {
+        message: error?.message,
+        status: error?.status,
+        statusText: error?.statusText,
+        code: error?.code,
+        type: error?.type,
+        error: error,
+        stack: error?.stack,
+      });
+
+      // Emit an error chunk
+      yield {
+        type: "error",
+        id: this.generateId(),
+        model: options.model || "claude-3-sonnet-20240229",
+        timestamp: Date.now(),
+        error: {
+          message: error?.message || "Unknown error occurred",
+          code: error?.code || error?.status,
+        },
+      };
+    }
   }
 
   async summarize(options: SummarizationOptions): Promise<SummarizationResult> {
@@ -176,14 +200,29 @@ export class Anthropic extends BaseAdapter<
       ];
       for (const key of validKeys) {
         if (key in providerOptions) {
-          (validProviderOptions as any)[key] = providerOptions[key];
+          const value = (providerOptions as any)[key];
+          // Anthropic expects tool_choice to be an object, not a string
+          if (key === "tool_choice" && typeof value === "string") {
+            (validProviderOptions as any)[key] = { type: value };
+          } else {
+            (validProviderOptions as any)[key] = value;
+          }
         }
       }
     }
 
+    // Ensure max_tokens is greater than thinking.budget_tokens if thinking is enabled
+    const thinkingBudget = (validProviderOptions.thinking as any)
+      ?.budget_tokens;
+    const defaultMaxTokens = options.options?.maxTokens || 1024;
+    const maxTokens =
+      thinkingBudget && thinkingBudget >= defaultMaxTokens
+        ? thinkingBudget + 1 // Ensure max_tokens is greater than budget_tokens
+        : defaultMaxTokens;
+
     const requestParams: InternalTextProviderOptions = {
       model: options.model,
-      max_tokens: options.options?.maxTokens || 1024,
+      max_tokens: maxTokens,
       temperature: options.options?.temperature,
       top_p: options.options?.topP,
       messages: formattedMessages,
@@ -309,6 +348,7 @@ export class Anthropic extends BaseAdapter<
     generateId: () => string
   ): AsyncIterable<StreamChunk> {
     let accumulatedContent = "";
+    let accumulatedThinking = "";
     const timestamp = Date.now();
     const toolCallsMap = new Map<
       number,
@@ -326,6 +366,9 @@ export class Anthropic extends BaseAdapter<
               name: event.content_block.name,
               input: "",
             });
+          } else if (event.content_block.type === "thinking") {
+            // Reset thinking content when a new thinking block starts
+            accumulatedThinking = "";
           }
         } else if (event.type === "content_block_delta") {
           if (event.delta.type === "text_delta") {
@@ -339,6 +382,22 @@ export class Anthropic extends BaseAdapter<
               delta,
               content: accumulatedContent,
               role: "assistant",
+            };
+          } else if (event.delta.type === "thinking_delta") {
+            // Handle thinking content
+            const delta =
+              (event.delta as any).text ||
+              (event.delta as any).content ||
+              (event.delta as any).thinking ||
+              "";
+            accumulatedThinking += delta;
+            yield {
+              type: "thinking",
+              id: generateId(),
+              model: model || "claude-3-sonnet-20240229",
+              timestamp,
+              delta,
+              content: accumulatedThinking,
             };
           } else if (event.delta.type === "input_json_delta") {
             // Tool input is being streamed
@@ -395,14 +454,24 @@ export class Anthropic extends BaseAdapter<
         }
       }
     } catch (error: any) {
+      console.error("[Anthropic Adapter] Error in processAnthropicStream:", {
+        message: error?.message,
+        status: error?.status,
+        statusText: error?.statusText,
+        code: error?.code,
+        type: error?.type,
+        error: error,
+        stack: error?.stack,
+      });
+
       yield {
         type: "error",
         id: generateId(),
         model: model,
         timestamp,
         error: {
-          message: error.message || "Unknown error occurred",
-          code: error.code,
+          message: error?.message || "Unknown error occurred",
+          code: error?.code || error?.status,
         },
       };
     }

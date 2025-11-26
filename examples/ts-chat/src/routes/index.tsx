@@ -11,6 +11,7 @@ import {
   fetchServerSentEvents,
   type UIMessage,
 } from "@tanstack/ai-react";
+import { ThinkingPart } from "@tanstack/ai-react-ui";
 
 import GuitarRecommendation from "@/components/example-GuitarRecommendation";
 
@@ -73,6 +74,23 @@ function Messages({
               <div className="flex-1 min-w-0">
                 {/* Render parts in order */}
                 {parts.map((part, index) => {
+                  // Thinking part
+                  if (part.type === "thinking") {
+                    // Check if thinking is complete (if there's a text part after)
+                    const isComplete = parts
+                      .slice(index + 1)
+                      .some((p) => p.type === "text");
+                    return (
+                      <div key={`thinking-${index}`} className="mt-2 mb-2">
+                        <ThinkingPart
+                          content={part.content}
+                          isComplete={isComplete}
+                          className="p-4 bg-gray-800/50 border border-gray-700/50 rounded-lg"
+                        />
+                      </div>
+                    );
+                  }
+
                   if (part.type === "text" && part.content) {
                     return (
                       <div

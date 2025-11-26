@@ -205,6 +205,7 @@ class ChatEngine<
       }
 
       this.totalChunkCount++;
+
       yield chunk;
       this.handleStreamChunk(chunk);
 
@@ -230,6 +231,9 @@ class ChatEngine<
         break;
       case "error":
         this.handleErrorChunk(chunk);
+        break;
+      case "thinking":
+        this.handleThinkingChunk(chunk);
         break;
       default:
         break;
@@ -315,6 +319,18 @@ class ChatEngine<
     });
     this.earlyTermination = true;
     this.shouldEmitStreamEnd = false;
+  }
+
+  private handleThinkingChunk(
+    chunk: Extract<StreamChunk, { type: "thinking" }>
+  ): void {
+    aiEventClient.emit("stream:chunk:thinking", {
+      streamId: this.streamId,
+      messageId: this.currentMessageId || undefined,
+      content: chunk.content,
+      delta: chunk.delta,
+      timestamp: Date.now(),
+    });
   }
 
   private async *checkForPendingToolCalls(): AsyncGenerator<
@@ -669,7 +685,6 @@ class ChatEngine<
   }
 }
 
-
 /**
  * Standalone chat streaming function with type inference from adapter
  * Returns an async iterable of StreamChunks for streaming responses
@@ -701,11 +716,20 @@ class ChatEngine<
  */
 export async function* chat<
   TAdapter extends AIAdapter<any, any, any, any, any>,
-  const TModel extends TAdapter extends AIAdapter<infer Models, any, any, any, any>
-  ? Models[number]
-  : string
+  const TModel extends TAdapter extends AIAdapter<
+    infer Models,
+    any,
+    any,
+    any,
+    any
+  >
+    ? Models[number]
+    : string
 >(
-  options: Omit<ChatStreamOptionsUnion<TAdapter>, "providerOptions" | "model"> & {
+  options: Omit<
+    ChatStreamOptionsUnion<TAdapter>,
+    "providerOptions" | "model"
+  > & {
     adapter: TAdapter;
     model: TModel;
     providerOptions?: TAdapter extends AIAdapter<
@@ -715,10 +739,10 @@ export async function* chat<
       any,
       infer ModelProviderOptions
     >
-    ? TModel extends keyof ModelProviderOptions
-    ? ModelProviderOptions[TModel]
-    : never
-    : never;
+      ? TModel extends keyof ModelProviderOptions
+        ? ModelProviderOptions[TModel]
+        : never
+      : never;
   }
 ): AsyncIterable<StreamChunk> {
   const { adapter, ...chatOptions } = options;

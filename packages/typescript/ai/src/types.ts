@@ -266,7 +266,8 @@ export type StreamChunkType =
   | "done"
   | "error"
   | "approval-requested"
-  | "tool-input-available";
+  | "tool-input-available"
+  | "thinking";
 
 export interface BaseStreamChunk {
   type: StreamChunkType;
@@ -337,6 +338,12 @@ export interface ToolInputAvailableStreamChunk extends BaseStreamChunk {
   input: any;
 }
 
+export interface ThinkingStreamChunk extends BaseStreamChunk {
+  type: "thinking";
+  delta?: string; // The incremental thinking token
+  content: string; // Full accumulated thinking content so far
+}
+
 /**
  * Chunk returned by the sdk during streaming chat completions.
  */
@@ -347,7 +354,8 @@ export type StreamChunk =
   | DoneStreamChunk
   | ErrorStreamChunk
   | ApprovalRequestedStreamChunk
-  | ToolInputAvailableStreamChunk;
+  | ToolInputAvailableStreamChunk
+  | ThinkingStreamChunk;
 
 // Simple streaming format for basic chat completions
 // Converted to StreamChunk format by convertChatCompletionStream()
@@ -701,16 +709,16 @@ export type ChatStreamOptionsUnion<
   infer ModelProviderOptions
 >
   ? Models[number] extends infer TModel
-  ? TModel extends string
-  ? Omit<ChatOptions, "model" | "providerOptions" | "responseFormat"> & {
-    adapter: TAdapter;
-    model: TModel;
-    providerOptions?: TModel extends keyof ModelProviderOptions
-    ? ModelProviderOptions[TModel]
-    : never;
-  }
-  : never
-  : never
+    ? TModel extends string
+      ? Omit<ChatOptions, "model" | "providerOptions" | "responseFormat"> & {
+          adapter: TAdapter;
+          model: TModel;
+          providerOptions?: TModel extends keyof ModelProviderOptions
+            ? ModelProviderOptions[TModel]
+            : never;
+        }
+      : never
+    : never
   : never;
 
 // Extract types from adapter (updated to 5 generics)

@@ -69,6 +69,13 @@ export interface AIDevtoolsEventMap {
     error: string;
     timestamp: number;
   };
+  "tanstack-ai-devtools:stream:chunk:thinking": {
+    streamId: string;
+    messageId?: string;
+    content: string;
+    delta?: string;
+    timestamp: number;
+  };
   "tanstack-ai-devtools:stream:approval-requested": {
     streamId: string;
     messageId?: string;
@@ -255,9 +262,8 @@ export interface AIDevtoolsEventMap {
 }
 
 // Helper type to strip the prefix at the type level
-type StripPrefix<T extends string> = T extends `tanstack-ai-devtools:${infer Suffix}`
-  ? Suffix
-  : never;
+type StripPrefix<T extends string> =
+  T extends `tanstack-ai-devtools:${infer Suffix}` ? Suffix : never;
 
 // Get all event names without the prefix
 type EventSuffix = StripPrefix<keyof AIDevtoolsEventMap & string>;

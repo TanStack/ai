@@ -1,6 +1,7 @@
 import { useEffect, useRef, type ReactNode } from "react";
 import { useChatContext } from "./chat";
 import type { UIMessage } from "@tanstack/ai-react";
+import { ChatMessage } from "./chat-message";
 
 export interface ChatMessagesProps {
   /** Custom render function for each message */
@@ -73,19 +74,9 @@ export function ChatMessages({
             {children(message, index)}
           </div>
         ) : (
-          <div
-            key={message.id}
-            data-message-id={message.id}
-            data-message-role={message.role}
-          >
-            {message.parts
-              .filter((p) => p.type === "text")
-              .map((p) => p.content)
-              .join("")}
-          </div>
+          <ChatMessage key={message.id} message={message} />
         )
       )}
     </div>
   );
 }
-
