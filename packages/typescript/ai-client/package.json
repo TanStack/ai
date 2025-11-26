@@ -9,6 +9,14 @@
     "url": "git+https://github.com/TanStack/ai.git",
     "directory": "packages/typescript/ai-client"
   },
+  "keywords": [
+    "ai",
+    "client",
+    "headless",
+    "tanstack",
+    "chat",
+    "streaming"
+  ],
   "type": "module",
   "module": "./dist/index.js",
   "types": "./dist/index.d.ts",
@@ -23,32 +31,18 @@
     "src"
   ],
   "scripts": {
-    "build": "tsdown",
-    "dev": "tsdown --watch",
-    "test": "vitest run",
-    "test:watch": "vitest",
-    "test:coverage": "vitest run --coverage",
-    "clean": "rm -rf dist node_modules",
-    "typecheck": "tsc --noEmit",
-    "lint": "tsc --noEmit"
+    "build": "vite build",
+    "clean": "premove ./build ./dist",
+    "lint:fix": "eslint ./src --fix",
+    "test:build": "publint --strict",
+    "test:eslint": "eslint ./src",
+    "test:lib": "vitest",
+    "test:lib:dev": "pnpm test:lib --watch",
+    "test:types": "tsc"
   },
-  "keywords": [
-    "ai",
-    "client",
-    "headless",
-    "tanstack",
-    "chat",
-    "streaming"
-  ],
   "dependencies": {
     "@tanstack/ai": "workspace:*",
     "partial-json": "^0.1.7"
   },
-  "devDependencies": {
-    "@types/node": "^22.10.2",
-    "@vitest/coverage-v8": "4.0.13",
-    "tsdown": "^0.15.9",
-    "typescript": "^5.7.2",
-    "vitest": "^4.0.13"
-  }
+  "devDependencies": {}
 }

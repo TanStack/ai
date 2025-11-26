@@ -1,0 +1,129 @@
+
+> @tanstack/ai-devtools-core@0.1.0 build /Users/kevinvancott/Documents/tanstack/ai/packages/typescript/ai-devtools
+> vite build
+
+[33mYou are using Node.js 20.18.1. Vite requires Node.js version 20.19+ or 22.12+. Please upgrade your Node.js version.[39m
+[36mvite v7.2.4 [32mbuilding client environment for production...[36m[39m
+[96msrc/store/ai-context.tsx[0m:[93m3[0m:[93m31[0m - [91merror[0m[90m TS2307: [0mCannot find module '@tanstack/ai/event-client' or its corresponding type declarations.
+
+[7m3[0m import { aiEventClient } from "@tanstack/ai/event-client";
+[7m [0m [91m                              ~~~~~~~~~~~~~~~~~~~~~~~~~~~[0m
+[96msrc/store/ai-context.tsx[0m:[93m430[0m:[93m10[0m - [91merror[0m[90m TS7006: [0mParameter 'e' implicitly has an 'any' type.
+
+[7m430[0m         (e) => {
+[7m   [0m [91m         ~[0m
+[96msrc/store/ai-context.tsx[0m:[93m442[0m:[93m10[0m - [91merror[0m[90m TS7006: [0mParameter 'e' implicitly has an 'any' type.
+
+[7m442[0m         (e) => {
+[7m   [0m [91m         ~[0m
+[96msrc/store/ai-context.tsx[0m:[93m462[0m:[93m10[0m - [91merror[0m[90m TS7006: [0mParameter 'e' implicitly has an 'any' type.
+
+[7m462[0m         (e) => {
+[7m   [0m [91m         ~[0m
+[96msrc/store/ai-context.tsx[0m:[93m485[0m:[93m10[0m - [91merror[0m[90m TS7006: [0mParameter 'e' implicitly has an 'any' type.
+
+[7m485[0m         (e) => {
+[7m   [0m [91m         ~[0m
+[96msrc/store/ai-context.tsx[0m:[93m498[0m:[93m10[0m - [91merror[0m[90m TS7006: [0mParameter 'e' implicitly has an 'any' type.
+
+[7m498[0m         (e) => {
+[7m   [0m [91m         ~[0m
+[96msrc/store/ai-context.tsx[0m:[93m511[0m:[93m10[0m - [91merror[0m[90m TS7006: [0mParameter 'e' implicitly has an 'any' type.
+
+[7m511[0m         (e) => {
+[7m   [0m [91m         ~[0m
+[96msrc/store/ai-context.tsx[0m:[93m524[0m:[93m10[0m - [91merror[0m[90m TS7006: [0mParameter 'e' implicitly has an 'any' type.
+
+[7m524[0m         (e) => {
+[7m   [0m [91m         ~[0m
+[96msrc/store/ai-context.tsx[0m:[93m541[0m:[93m10[0m - [91merror[0m[90m TS7006: [0mParameter 'e' implicitly has an 'any' type.
+
+[7m541[0m         (e) => {
+[7m   [0m [91m         ~[0m
+[96msrc/store/ai-context.tsx[0m:[93m554[0m:[93m10[0m - [91merror[0m[90m TS7006: [0mParameter 'e' implicitly has an 'any' type.
+
+[7m554[0m         (e) => {
+[7m   [0m [91m         ~[0m
+[96msrc/store/ai-context.tsx[0m:[93m584[0m:[93m10[0m - [91merror[0m[90m TS7006: [0mParameter 'e' implicitly has an 'any' type.
+
+[7m584[0m         (e) => {
+[7m   [0m [91m         ~[0m
+[96msrc/store/ai-context.tsx[0m:[93m634[0m:[93m10[0m - [91merror[0m[90m TS7006: [0mParameter 'e' implicitly has an 'any' type.
+
+[7m634[0m         (e) => {
+[7m   [0m [91m         ~[0m
+[96msrc/store/ai-context.tsx[0m:[93m664[0m:[93m10[0m - [91merror[0m[90m TS7006: [0mParameter 'e' implicitly has an 'any' type.
+
+[7m664[0m         (e) => {
+[7m   [0m [91m         ~[0m
+[96msrc/store/ai-context.tsx[0m:[93m692[0m:[93m10[0m - [91merror[0m[90m TS7006: [0mParameter 'e' implicitly has an 'any' type.
+
+[7m692[0m         (e) => {
+[7m   [0m [91m         ~[0m
+[96msrc/store/ai-context.tsx[0m:[93m722[0m:[93m10[0m - [91merror[0m[90m TS7006: [0mParameter 'e' implicitly has an 'any' type.
+
+[7m722[0m         (e) => {
+[7m   [0m [91m         ~[0m
+[96msrc/store/ai-context.tsx[0m:[93m764[0m:[93m10[0m - [91merror[0m[90m TS7006: [0mParameter 'e' implicitly has an 'any' type.
+
+[7m764[0m         (e) => {
+[7m   [0m [91m         ~[0m
+[96msrc/store/ai-context.tsx[0m:[93m793[0m:[93m10[0m - [91merror[0m[90m TS7006: [0mParameter 'e' implicitly has an 'any' type.
+
+[7m793[0m         (e) => {
+[7m   [0m [91m         ~[0m
+[96msrc/store/ai-context.tsx[0m:[93m822[0m:[93m10[0m - [91merror[0m[90m TS7006: [0mParameter 'e' implicitly has an 'any' type.
+
+[7m822[0m         (e) => {
+[7m   [0m [91m         ~[0m
+[96msrc/store/ai-context.tsx[0m:[93m868[0m:[93m10[0m - [91merror[0m[90m TS7006: [0mParameter 'e' implicitly has an 'any' type.
+
+[7m868[0m         (e) => {
+[7m   [0m [91m         ~[0m
+[96msrc/store/ai-context.tsx[0m:[93m904[0m:[93m10[0m - [91merror[0m[90m TS7006: [0mParameter 'e' implicitly has an 'any' type.
+
+[7m904[0m         (e) => {
+[7m   [0m [91m         ~[0m
+[96msrc/store/ai-context.tsx[0m:[93m943[0m:[93m10[0m - [91merror[0m[90m TS7006: [0mParameter 'e' implicitly has an 'any' type.
+
+[7m943[0m         (e) => {
+[7m   [0m [91m         ~[0m
+[96msrc/store/ai-context.tsx[0m:[93m973[0m:[93m10[0m - [91merror[0m[90m TS7006: [0mParameter 'e' implicitly has an 'any' type.
+
+[7m973[0m         (e) => {
+[7m   [0m [91m         ~[0m
+[96msrc/store/ai-context.tsx[0m:[93m987[0m:[93m10[0m - [91merror[0m[90m TS7006: [0mParameter 'e' implicitly has an 'any' type.
+
+[7m987[0m         (e) => {
+[7m   [0m [91m         ~[0m
+[96msrc/store/ai-context.tsx[0m:[93m1040[0m:[93m10[0m - [91merror[0m[90m TS7006: [0mParameter 'e' implicitly has an 'any' type.
+
+[7m1040[0m         (e) => {
+[7m    [0m [91m         ~[0m
+[96msrc/store/ai-context.tsx[0m:[93m1080[0m:[93m10[0m - [91merror[0m[90m TS7006: [0mParameter 'e' implicitly has an 'any' type.
+
+[7m1080[0m         (e) => {
+[7m    [0m [91m         ~[0m
+[96msrc/store/ai-context.tsx[0m:[93m1114[0m:[93m10[0m - [91merror[0m[90m TS7006: [0mParameter 'e' implicitly has an 'any' type.
+
+[7m1114[0m         (e) => {
+[7m    [0m [91m         ~[0m
+[96msrc/store/ai-context.tsx[0m:[93m1145[0m:[93m10[0m - [91merror[0m[90m TS7006: [0mParameter 'e' implicitly has an 'any' type.
+
+[7m1145[0m         (e) => {
+[7m    [0m [91m         ~[0m
+[96msrc/store/ai-context.tsx[0m:[93m1160[0m:[93m10[0m - [91merror[0m[90m TS7006: [0mParameter 'e' implicitly has an 'any' type.
+
+[7m1160[0m         (e) => {
+[7m    [0m [91m         ~[0m
+[96msrc/store/ai-context.tsx[0m:[93m1176[0m:[93m10[0m - [91merror[0m[90m TS7006: [0mParameter 'e' implicitly has an 'any' type.
+
+[7m1176[0m         (e) => {
+[7m    [0m [91m         ~[0m
+[96msrc/store/ai-context.tsx[0m:[93m1191[0m:[93m10[0m - [91merror[0m[90m TS7006: [0mParameter 'e' implicitly has an 'any' type.
+
+[7m1191[0m         (e) => {
+[7m    [0m [91m         ~[0m
+
+Please fix the above type errors
+[41m[30m ELIFECYCLE [39m[49m [31mCommand failed with exit code 1.[39m

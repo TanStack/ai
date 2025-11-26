@@ -1,0 +1,15 @@
+
+> @tanstack/ai-openai@0.1.0 build /Users/kevinvancott/Documents/tanstack/ai/packages/typescript/ai-openai
+> vite build
+
+[33mYou are using Node.js 20.18.1. Vite requires Node.js version 20.19+ or 22.12+. Please upgrade your Node.js version.[39m
+[36mvite v7.2.4 [32mbuilding client environment for production...[36m[39m
+[32m✓[39m 0 modules transformed.
+[31m✗[39m Build failed in 7ms
+[31merror during build:
+[31mCould not resolve entry module "index.html".[31m
+    at getRollupError (file:///Users/kevinvancott/Documents/tanstack/ai/node_modules/.pnpm/rollup@4.53.3/node_modules/rollup/dist/es/shared/parseAst.js:401:41)
+    at error (file:///Users/kevinvancott/Documents/tanstack/ai/node_modules/.pnpm/rollup@4.53.3/node_modules/rollup/dist/es/shared/parseAst.js:397:42)
+    at ModuleLoader.loadEntryModule (file:///Users/kevinvancott/Documents/tanstack/ai/node_modules/.pnpm/rollup@4.53.3/node_modules/rollup/dist/es/shared/node-entry.js:21611:20)
+    at async Promise.all (index 0)[39m
+[41m[30m ELIFECYCLE [39m[49m [31mCommand failed with exit code 1.[39m

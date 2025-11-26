@@ -1,0 +1,10 @@
+{
+  "$schema": "https://unpkg.com/knip@5/schema.json",
+  "ignoreDependencies": ["@faker-js/faker"],
+  "ignoreWorkspaces": ["examples/**"],
+  "workspaces": {
+    "packages/react-ai": {
+      "ignore": []
+    }
+  }
+}

@@ -29,13 +29,14 @@
     "src"
   ],
   "scripts": {
-    "build": "tsdown",
-    "dev": "tsdown --watch",
-    "test": "exit 0",
-    "test:watch": "vitest",
-    "clean": "rm -rf dist node_modules",
-    "typecheck": "tsc --noEmit",
-    "lint": "tsc --noEmit"
+    "build": "vite build",
+    "clean": "premove ./build ./dist",
+    "lint:fix": "eslint ./src --fix",
+    "test:build": "publint --strict",
+    "test:eslint": "eslint ./src",
+    "test:lib": "vitest",
+    "test:lib:dev": "pnpm test:lib --watch",
+    "test:types": "tsc"
   },
   "keywords": [
     "ai",
@@ -47,13 +48,10 @@
   ],
   "dependencies": {
     "@tanstack/ai-devtools-core": "workspace:*",
-    "@tanstack/devtools-utils": "^0.0.6"
+    "@tanstack/devtools-utils": "^0.0.8"
   },
   "devDependencies": {
-    "@types/node": "^22.10.2",
-    "tsdown": "^0.15.9",
-    "typescript": "^5.7.2",
-    "vitest": "^4.0.13"
+    "vite-plugin-solid": "^2.11.10"
   },
   "peerDependencies": {
     "solid-js": ">=1.9.7"

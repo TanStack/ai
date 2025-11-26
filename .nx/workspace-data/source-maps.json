@@ -1,0 +1,5602 @@
+{
+  "examples/ts-chat": {
+    "root": [
+      "examples/ts-chat/package.json",
+      "nx/core/package-json"
+    ],
+    "name": [
+      "examples/ts-chat/package.json",
+      "nx/core/package-json"
+    ],
+    "tags": [
+      "examples/ts-chat/package.json",
+      "nx/core/package-json"
+    ],
+    "tags.npm:private": [
+      "examples/ts-chat/package.json",
+      "nx/core/package-json"
+    ],
+    "metadata.targetGroups": [
+      "examples/ts-chat/package.json",
+      "nx/core/package-json"
+    ],
+    "metadata.targetGroups.NPM Scripts": [
+      "examples/ts-chat/package.json",
+      "nx/core/package-json"
+    ],
+    "metadata.targetGroups.NPM Scripts.0": [
+      "examples/ts-chat/package.json",
+      "nx/core/package-json"
+    ],
+    "metadata.targetGroups.NPM Scripts.1": [
+      "examples/ts-chat/package.json",
+      "nx/core/package-json"
+    ],
+    "metadata.targetGroups.NPM Scripts.2": [
+      "examples/ts-chat/package.json",
+      "nx/core/package-json"
+    ],
+    "metadata.targetGroups.NPM Scripts.3": [
+      "examples/ts-chat/package.json",
+      "nx/core/package-json"
+    ],
+    "metadata.js": [
+      "examples/ts-chat/package.json",
+      "nx/core/package-json"
+    ],
+    "metadata.js.packageName": [
+      "examples/ts-chat/package.json",
+      "nx/core/package-json"
+    ],
+    "metadata.js.isInPackageManagerWorkspaces": [
+      "examples/ts-chat/package.json",
+      "nx/core/package-json"
+    ],
+    "targets": [
+      "examples/ts-chat/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.dev": [
+      "examples/ts-chat/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.dev.executor": [
+      "examples/ts-chat/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.dev.options": [
+      "examples/ts-chat/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.dev.metadata": [
+      "examples/ts-chat/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.dev.options.script": [
+      "examples/ts-chat/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.dev.metadata.scriptContent": [
+      "examples/ts-chat/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.dev.metadata.runCommand": [
+      "examples/ts-chat/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.build": [
+      "examples/ts-chat/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.build.executor": [
+      "examples/ts-chat/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.build.options": [
+      "examples/ts-chat/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.build.metadata": [
+      "examples/ts-chat/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.build.options.script": [
+      "examples/ts-chat/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.build.metadata.scriptContent": [
+      "examples/ts-chat/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.build.metadata.runCommand": [
+      "examples/ts-chat/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.serve": [
+      "examples/ts-chat/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.serve.executor": [
+      "examples/ts-chat/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.serve.options": [
+      "examples/ts-chat/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.serve.metadata": [
+      "examples/ts-chat/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.serve.options.script": [
+      "examples/ts-chat/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.serve.metadata.scriptContent": [
+      "examples/ts-chat/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.serve.metadata.runCommand": [
+      "examples/ts-chat/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.test": [
+      "examples/ts-chat/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.test.executor": [
+      "examples/ts-chat/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.test.options": [
+      "examples/ts-chat/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.test.metadata": [
+      "examples/ts-chat/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.test.options.script": [
+      "examples/ts-chat/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.test.metadata.scriptContent": [
+      "examples/ts-chat/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.test.metadata.runCommand": [
+      "examples/ts-chat/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.build.cache": [
+      "nx.json",
+      "nx/target-defaults"
+    ],
+    "targets.build.dependsOn": [
+      "nx.json",
+      "nx/target-defaults"
+    ],
+    "targets.build.inputs": [
+      "nx.json",
+      "nx/target-defaults"
+    ],
+    "targets.build.outputs": [
+      "nx.json",
+      "nx/target-defaults"
+    ],
+    "targets.build.parallelism": [
+      "nx.json",
+      "nx/target-defaults"
+    ]
+  },
+  "examples/vanilla-chat": {
+    "root": [
+      "examples/vanilla-chat/package.json",
+      "nx/core/package-json"
+    ],
+    "name": [
+      "examples/vanilla-chat/package.json",
+      "nx/core/package-json"
+    ],
+    "tags": [
+      "examples/vanilla-chat/package.json",
+      "nx/core/package-json"
+    ],
+    "tags.npm:private": [
+      "examples/vanilla-chat/package.json",
+      "nx/core/package-json"
+    ],
+    "metadata.targetGroups": [
+      "examples/vanilla-chat/package.json",
+      "nx/core/package-json"
+    ],
+    "metadata.targetGroups.NPM Scripts": [
+      "examples/vanilla-chat/package.json",
+      "nx/core/package-json"
+    ],
+    "metadata.targetGroups.NPM Scripts.0": [
+      "examples/vanilla-chat/package.json",
+      "nx/core/package-json"
+    ],
+    "metadata.targetGroups.NPM Scripts.1": [
+      "examples/vanilla-chat/package.json",
+      "nx/core/package-json"
+    ],
+    "metadata.targetGroups.NPM Scripts.2": [
+      "examples/vanilla-chat/package.json",
+      "nx/core/package-json"
+    ],
+    "metadata.js": [
+      "examples/vanilla-chat/package.json",
+      "nx/core/package-json"
+    ],
+    "metadata.js.packageName": [
+      "examples/vanilla-chat/package.json",
+      "nx/core/package-json"
+    ],
+    "metadata.js.packageVersion": [
+      "examples/vanilla-chat/package.json",
+      "nx/core/package-json"
+    ],
+    "metadata.js.isInPackageManagerWorkspaces": [
+      "examples/vanilla-chat/package.json",
+      "nx/core/package-json"
+    ],
+    "targets": [
+      "examples/vanilla-chat/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.dev": [
+      "examples/vanilla-chat/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.dev.executor": [
+      "examples/vanilla-chat/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.dev.options": [
+      "examples/vanilla-chat/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.dev.metadata": [
+      "examples/vanilla-chat/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.dev.options.script": [
+      "examples/vanilla-chat/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.dev.metadata.scriptContent": [
+      "examples/vanilla-chat/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.dev.metadata.runCommand": [
+      "examples/vanilla-chat/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.build": [
+      "examples/vanilla-chat/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.build.executor": [
+      "examples/vanilla-chat/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.build.options": [
+      "examples/vanilla-chat/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.build.metadata": [
+      "examples/vanilla-chat/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.build.options.script": [
+      "examples/vanilla-chat/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.build.metadata.scriptContent": [
+      "examples/vanilla-chat/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.build.metadata.runCommand": [
+      "examples/vanilla-chat/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.preview": [
+      "examples/vanilla-chat/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.preview.executor": [
+      "examples/vanilla-chat/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.preview.options": [
+      "examples/vanilla-chat/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.preview.metadata": [
+      "examples/vanilla-chat/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.preview.options.script": [
+      "examples/vanilla-chat/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.preview.metadata.scriptContent": [
+      "examples/vanilla-chat/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.preview.metadata.runCommand": [
+      "examples/vanilla-chat/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.build.cache": [
+      "nx.json",
+      "nx/target-defaults"
+    ],
+    "targets.build.dependsOn": [
+      "nx.json",
+      "nx/target-defaults"
+    ],
+    "targets.build.inputs": [
+      "nx.json",
+      "nx/target-defaults"
+    ],
+    "targets.build.outputs": [
+      "nx.json",
+      "nx/target-defaults"
+    ],
+    "targets.build.parallelism": [
+      "nx.json",
+      "nx/target-defaults"
+    ]
+  },
+  ".": {
+    "root": [
+      "package.json",
+      "nx/core/package-json"
+    ],
+    "name": [
+      "package.json",
+      "nx/core/package-json"
+    ],
+    "includedScripts": [
+      "package.json",
+      "nx/core/package-json"
+    ],
+    "tags": [
+      "package.json",
+      "nx/core/package-json"
+    ],
+    "tags.npm:private": [
+      "package.json",
+      "nx/core/package-json"
+    ],
+    "metadata.targetGroups": [
+      "package.json",
+      "nx/core/package-json"
+    ],
+    "metadata.targetGroups.NPM Scripts": [
+      "package.json",
+      "nx/core/package-json"
+    ],
+    "metadata.targetGroups.NPM Scripts.0": [
+      "package.json",
+      "nx/core/package-json"
+    ],
+    "metadata.targetGroups.NPM Scripts.1": [
+      "package.json",
+      "nx/core/package-json"
+    ],
+    "metadata.js": [
+      "package.json",
+      "nx/core/package-json"
+    ],
+    "metadata.js.packageName": [
+      "package.json",
+      "nx/core/package-json"
+    ],
+    "metadata.js.isInPackageManagerWorkspaces": [
+      "package.json",
+      "nx/core/package-json"
+    ],
+    "targets": [
+      "package.json",
+      "nx/core/package-json"
+    ],
+    "targets.test:knip": [
+      "package.json",
+      "nx/core/package-json"
+    ],
+    "targets.test:knip.executor": [
+      "package.json",
+      "nx/core/package-json"
+    ],
+    "targets.test:knip.options": [
+      "package.json",
+      "nx/core/package-json"
+    ],
+    "targets.test:knip.metadata": [
+      "package.json",
+      "nx/core/package-json"
+    ],
+    "targets.test:knip.options.script": [
+      "package.json",
+      "nx/core/package-json"
+    ],
+    "targets.test:knip.metadata.scriptContent": [
+      "package.json",
+      "nx/core/package-json"
+    ],
+    "targets.test:knip.metadata.runCommand": [
+      "package.json",
+      "nx/core/package-json"
+    ],
+    "targets.test:sherif": [
+      "package.json",
+      "nx/core/package-json"
+    ],
+    "targets.test:sherif.executor": [
+      "package.json",
+      "nx/core/package-json"
+    ],
+    "targets.test:sherif.options": [
+      "package.json",
+      "nx/core/package-json"
+    ],
+    "targets.test:sherif.metadata": [
+      "package.json",
+      "nx/core/package-json"
+    ],
+    "targets.test:sherif.options.script": [
+      "package.json",
+      "nx/core/package-json"
+    ],
+    "targets.test:sherif.metadata.scriptContent": [
+      "package.json",
+      "nx/core/package-json"
+    ],
+    "targets.test:sherif.metadata.runCommand": [
+      "package.json",
+      "nx/core/package-json"
+    ],
+    "targets.test:knip.cache": [
+      "nx.json",
+      "nx/target-defaults"
+    ],
+    "targets.test:knip.inputs": [
+      "nx.json",
+      "nx/target-defaults"
+    ],
+    "targets.test:knip.parallelism": [
+      "nx.json",
+      "nx/target-defaults"
+    ],
+    "targets.test:sherif.cache": [
+      "nx.json",
+      "nx/target-defaults"
+    ],
+    "targets.test:sherif.inputs": [
+      "nx.json",
+      "nx/target-defaults"
+    ],
+    "targets.test:sherif.parallelism": [
+      "nx.json",
+      "nx/target-defaults"
+    ]
+  },
+  "packages/typescript/ai": {
+    "root": [
+      "packages/typescript/ai/package.json",
+      "nx/core/package-json"
+    ],
+    "name": [
+      "packages/typescript/ai/package.json",
+      "nx/core/package-json"
+    ],
+    "tags": [
+      "packages/typescript/ai/package.json",
+      "nx/core/package-json"
+    ],
+    "tags.npm:public": [
+      "packages/typescript/ai/package.json",
+      "nx/core/package-json"
+    ],
+    "tags.npm:ai": [
+      "packages/typescript/ai/package.json",
+      "nx/core/package-json"
+    ],
+    "tags.npm:tanstack": [
+      "packages/typescript/ai/package.json",
+      "nx/core/package-json"
+    ],
+    "tags.npm:sdk": [
+      "packages/typescript/ai/package.json",
+      "nx/core/package-json"
+    ],
+    "tags.npm:llm": [
+      "packages/typescript/ai/package.json",
+      "nx/core/package-json"
+    ],
+    "tags.npm:chat": [
+      "packages/typescript/ai/package.json",
+      "nx/core/package-json"
+    ],
+    "tags.npm:embeddings": [
+      "packages/typescript/ai/package.json",
+      "nx/core/package-json"
+    ],
+    "metadata.targetGroups": [
+      "packages/typescript/ai/package.json",
+      "nx/core/package-json"
+    ],
+    "metadata.targetGroups.NPM Scripts": [
+      "packages/typescript/ai/package.json",
+      "nx/core/package-json"
+    ],
+    "metadata.targetGroups.NPM Scripts.0": [
+      "packages/typescript/ai/package.json",
+      "nx/core/package-json"
+    ],
+    "metadata.targetGroups.NPM Scripts.1": [
+      "packages/typescript/ai/package.json",
+      "nx/core/package-json"
+    ],
+    "metadata.targetGroups.NPM Scripts.2": [
+      "packages/typescript/ai/package.json",
+      "nx/core/package-json"
+    ],
+    "metadata.targetGroups.NPM Scripts.3": [
+      "packages/typescript/ai/package.json",
+      "nx/core/package-json"
+    ],
+    "metadata.targetGroups.NPM Scripts.4": [
+      "packages/typescript/ai/package.json",
+      "nx/core/package-json"
+    ],
+    "metadata.targetGroups.NPM Scripts.5": [
+      "packages/typescript/ai/package.json",
+      "nx/core/package-json"
+    ],
+    "metadata.targetGroups.NPM Scripts.6": [
+      "packages/typescript/ai/package.json",
+      "nx/core/package-json"
+    ],
+    "metadata.targetGroups.NPM Scripts.7": [
+      "packages/typescript/ai/package.json",
+      "nx/core/package-json"
+    ],
+    "metadata.description": [
+      "packages/typescript/ai/package.json",
+      "nx/core/package-json"
+    ],
+    "metadata.js": [
+      "packages/typescript/ai/package.json",
+      "nx/core/package-json"
+    ],
+    "metadata.js.packageName": [
+      "packages/typescript/ai/package.json",
+      "nx/core/package-json"
+    ],
+    "metadata.js.packageVersion": [
+      "packages/typescript/ai/package.json",
+      "nx/core/package-json"
+    ],
+    "metadata.js.packageExports": [
+      "packages/typescript/ai/package.json",
+      "nx/core/package-json"
+    ],
+    "metadata.js.isInPackageManagerWorkspaces": [
+      "packages/typescript/ai/package.json",
+      "nx/core/package-json"
+    ],
+    "targets": [
+      "packages/typescript/ai/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.build": [
+      "packages/typescript/ai/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.build.executor": [
+      "packages/typescript/ai/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.build.options": [
+      "packages/typescript/ai/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.build.metadata": [
+      "packages/typescript/ai/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.build.options.script": [
+      "packages/typescript/ai/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.build.metadata.scriptContent": [
+      "packages/typescript/ai/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.build.metadata.runCommand": [
+      "packages/typescript/ai/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.clean": [
+      "packages/typescript/ai/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.clean.executor": [
+      "packages/typescript/ai/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.clean.options": [
+      "packages/typescript/ai/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.clean.metadata": [
+      "packages/typescript/ai/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.clean.options.script": [
+      "packages/typescript/ai/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.clean.metadata.scriptContent": [
+      "packages/typescript/ai/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.clean.metadata.runCommand": [
+      "packages/typescript/ai/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.lint:fix": [
+      "packages/typescript/ai/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.lint:fix.executor": [
+      "packages/typescript/ai/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.lint:fix.options": [
+      "packages/typescript/ai/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.lint:fix.metadata": [
+      "packages/typescript/ai/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.lint:fix.options.script": [
+      "packages/typescript/ai/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.lint:fix.metadata.scriptContent": [
+      "packages/typescript/ai/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.lint:fix.metadata.runCommand": [
+      "packages/typescript/ai/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.test:build": [
+      "packages/typescript/ai/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.test:build.executor": [
+      "packages/typescript/ai/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.test:build.options": [
+      "packages/typescript/ai/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.test:build.metadata": [
+      "packages/typescript/ai/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.test:build.options.script": [
+      "packages/typescript/ai/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.test:build.metadata.scriptContent": [
+      "packages/typescript/ai/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.test:build.metadata.runCommand": [
+      "packages/typescript/ai/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.test:eslint": [
+      "packages/typescript/ai/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.test:eslint.executor": [
+      "packages/typescript/ai/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.test:eslint.options": [
+      "packages/typescript/ai/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.test:eslint.metadata": [
+      "packages/typescript/ai/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.test:eslint.options.script": [
+      "packages/typescript/ai/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.test:eslint.metadata.scriptContent": [
+      "packages/typescript/ai/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.test:eslint.metadata.runCommand": [
+      "packages/typescript/ai/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.test:lib": [
+      "packages/typescript/ai/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.test:lib.executor": [
+      "packages/typescript/ai/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.test:lib.options": [
+      "packages/typescript/ai/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.test:lib.metadata": [
+      "packages/typescript/ai/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.test:lib.options.script": [
+      "packages/typescript/ai/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.test:lib.metadata.scriptContent": [
+      "packages/typescript/ai/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.test:lib.metadata.runCommand": [
+      "packages/typescript/ai/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.test:lib:dev": [
+      "packages/typescript/ai/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.test:lib:dev.executor": [
+      "packages/typescript/ai/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.test:lib:dev.options": [
+      "packages/typescript/ai/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.test:lib:dev.metadata": [
+      "packages/typescript/ai/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.test:lib:dev.options.script": [
+      "packages/typescript/ai/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.test:lib:dev.metadata.scriptContent": [
+      "packages/typescript/ai/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.test:lib:dev.metadata.runCommand": [
+      "packages/typescript/ai/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.test:types": [
+      "packages/typescript/ai/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.test:types.executor": [
+      "packages/typescript/ai/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.test:types.options": [
+      "packages/typescript/ai/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.test:types.metadata": [
+      "packages/typescript/ai/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.test:types.options.script": [
+      "packages/typescript/ai/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.test:types.metadata.scriptContent": [
+      "packages/typescript/ai/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.test:types.metadata.runCommand": [
+      "packages/typescript/ai/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.build.cache": [
+      "nx.json",
+      "nx/target-defaults"
+    ],
+    "targets.build.dependsOn": [
+      "nx.json",
+      "nx/target-defaults"
+    ],
+    "targets.build.inputs": [
+      "nx.json",
+      "nx/target-defaults"
+    ],
+    "targets.build.outputs": [
+      "nx.json",
+      "nx/target-defaults"
+    ],
+    "targets.build.parallelism": [
+      "nx.json",
+      "nx/target-defaults"
+    ],
+    "targets.test:build.cache": [
+      "nx.json",
+      "nx/target-defaults"
+    ],
+    "targets.test:build.dependsOn": [
+      "nx.json",
+      "nx/target-defaults"
+    ],
+    "targets.test:build.inputs": [
+      "nx.json",
+      "nx/target-defaults"
+    ],
+    "targets.test:build.parallelism": [
+      "nx.json",
+      "nx/target-defaults"
+    ],
+    "targets.test:eslint.cache": [
+      "nx.json",
+      "nx/target-defaults"
+    ],
+    "targets.test:eslint.dependsOn": [
+      "nx.json",
+      "nx/target-defaults"
+    ],
+    "targets.test:eslint.inputs": [
+      "nx.json",
+      "nx/target-defaults"
+    ],
+    "targets.test:eslint.parallelism": [
+      "nx.json",
+      "nx/target-defaults"
+    ],
+    "targets.test:lib.cache": [
+      "nx.json",
+      "nx/target-defaults"
+    ],
+    "targets.test:lib.dependsOn": [
+      "nx.json",
+      "nx/target-defaults"
+    ],
+    "targets.test:lib.inputs": [
+      "nx.json",
+      "nx/target-defaults"
+    ],
+    "targets.test:lib.outputs": [
+      "nx.json",
+      "nx/target-defaults"
+    ],
+    "targets.test:lib.parallelism": [
+      "nx.json",
+      "nx/target-defaults"
+    ],
+    "targets.test:types.cache": [
+      "nx.json",
+      "nx/target-defaults"
+    ],
+    "targets.test:types.dependsOn": [
+      "nx.json",
+      "nx/target-defaults"
+    ],
+    "targets.test:types.inputs": [
+      "nx.json",
+      "nx/target-defaults"
+    ],
+    "targets.test:types.parallelism": [
+      "nx.json",
+      "nx/target-defaults"
+    ]
+  },
+  "packages/typescript/ai-anthropic": {
+    "root": [
+      "packages/typescript/ai-anthropic/package.json",
+      "nx/core/package-json"
+    ],
+    "name": [
+      "packages/typescript/ai-anthropic/package.json",
+      "nx/core/package-json"
+    ],
+    "tags": [
+      "packages/typescript/ai-anthropic/package.json",
+      "nx/core/package-json"
+    ],
+    "tags.npm:public": [
+      "packages/typescript/ai-anthropic/package.json",
+      "nx/core/package-json"
+    ],
+    "tags.npm:ai": [
+      "packages/typescript/ai-anthropic/package.json",
+      "nx/core/package-json"
+    ],
+    "tags.npm:anthropic": [
+      "packages/typescript/ai-anthropic/package.json",
+      "nx/core/package-json"
+    ],
+    "tags.npm:claude": [
+      "packages/typescript/ai-anthropic/package.json",
+      "nx/core/package-json"
+    ],
+    "tags.npm:tanstack": [
+      "packages/typescript/ai-anthropic/package.json",
+      "nx/core/package-json"
+    ],
+    "tags.npm:adapter": [
+      "packages/typescript/ai-anthropic/package.json",
+      "nx/core/package-json"
+    ],
+    "metadata.targetGroups": [
+      "packages/typescript/ai-anthropic/package.json",
+      "nx/core/package-json"
+    ],
+    "metadata.targetGroups.NPM Scripts": [
+      "packages/typescript/ai-anthropic/package.json",
+      "nx/core/package-json"
+    ],
+    "metadata.targetGroups.NPM Scripts.0": [
+      "packages/typescript/ai-anthropic/package.json",
+      "nx/core/package-json"
+    ],
+    "metadata.targetGroups.NPM Scripts.1": [
+      "packages/typescript/ai-anthropic/package.json",
+      "nx/core/package-json"
+    ],
+    "metadata.targetGroups.NPM Scripts.2": [
+      "packages/typescript/ai-anthropic/package.json",
+      "nx/core/package-json"
+    ],
+    "metadata.targetGroups.NPM Scripts.3": [
+      "packages/typescript/ai-anthropic/package.json",
+      "nx/core/package-json"
+    ],
+    "metadata.targetGroups.NPM Scripts.4": [
+      "packages/typescript/ai-anthropic/package.json",
+      "nx/core/package-json"
+    ],
+    "metadata.targetGroups.NPM Scripts.5": [
+      "packages/typescript/ai-anthropic/package.json",
+      "nx/core/package-json"
+    ],
+    "metadata.targetGroups.NPM Scripts.6": [
+      "packages/typescript/ai-anthropic/package.json",
+      "nx/core/package-json"
+    ],
+    "metadata.targetGroups.NPM Scripts.7": [
+      "packages/typescript/ai-anthropic/package.json",
+      "nx/core/package-json"
+    ],
+    "metadata.description": [
+      "packages/typescript/ai-anthropic/package.json",
+      "nx/core/package-json"
+    ],
+    "metadata.js": [
+      "packages/typescript/ai-anthropic/package.json",
+      "nx/core/package-json"
+    ],
+    "metadata.js.packageName": [
+      "packages/typescript/ai-anthropic/package.json",
+      "nx/core/package-json"
+    ],
+    "metadata.js.packageVersion": [
+      "packages/typescript/ai-anthropic/package.json",
+      "nx/core/package-json"
+    ],
+    "metadata.js.packageExports": [
+      "packages/typescript/ai-anthropic/package.json",
+      "nx/core/package-json"
+    ],
+    "metadata.js.isInPackageManagerWorkspaces": [
+      "packages/typescript/ai-anthropic/package.json",
+      "nx/core/package-json"
+    ],
+    "targets": [
+      "packages/typescript/ai-anthropic/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.build": [
+      "packages/typescript/ai-anthropic/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.build.executor": [
+      "packages/typescript/ai-anthropic/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.build.options": [
+      "packages/typescript/ai-anthropic/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.build.metadata": [
+      "packages/typescript/ai-anthropic/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.build.options.script": [
+      "packages/typescript/ai-anthropic/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.build.metadata.scriptContent": [
+      "packages/typescript/ai-anthropic/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.build.metadata.runCommand": [
+      "packages/typescript/ai-anthropic/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.clean": [
+      "packages/typescript/ai-anthropic/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.clean.executor": [
+      "packages/typescript/ai-anthropic/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.clean.options": [
+      "packages/typescript/ai-anthropic/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.clean.metadata": [
+      "packages/typescript/ai-anthropic/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.clean.options.script": [
+      "packages/typescript/ai-anthropic/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.clean.metadata.scriptContent": [
+      "packages/typescript/ai-anthropic/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.clean.metadata.runCommand": [
+      "packages/typescript/ai-anthropic/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.lint:fix": [
+      "packages/typescript/ai-anthropic/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.lint:fix.executor": [
+      "packages/typescript/ai-anthropic/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.lint:fix.options": [
+      "packages/typescript/ai-anthropic/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.lint:fix.metadata": [
+      "packages/typescript/ai-anthropic/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.lint:fix.options.script": [
+      "packages/typescript/ai-anthropic/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.lint:fix.metadata.scriptContent": [
+      "packages/typescript/ai-anthropic/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.lint:fix.metadata.runCommand": [
+      "packages/typescript/ai-anthropic/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.test:build": [
+      "packages/typescript/ai-anthropic/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.test:build.executor": [
+      "packages/typescript/ai-anthropic/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.test:build.options": [
+      "packages/typescript/ai-anthropic/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.test:build.metadata": [
+      "packages/typescript/ai-anthropic/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.test:build.options.script": [
+      "packages/typescript/ai-anthropic/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.test:build.metadata.scriptContent": [
+      "packages/typescript/ai-anthropic/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.test:build.metadata.runCommand": [
+      "packages/typescript/ai-anthropic/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.test:eslint": [
+      "packages/typescript/ai-anthropic/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.test:eslint.executor": [
+      "packages/typescript/ai-anthropic/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.test:eslint.options": [
+      "packages/typescript/ai-anthropic/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.test:eslint.metadata": [
+      "packages/typescript/ai-anthropic/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.test:eslint.options.script": [
+      "packages/typescript/ai-anthropic/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.test:eslint.metadata.scriptContent": [
+      "packages/typescript/ai-anthropic/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.test:eslint.metadata.runCommand": [
+      "packages/typescript/ai-anthropic/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.test:lib": [
+      "packages/typescript/ai-anthropic/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.test:lib.executor": [
+      "packages/typescript/ai-anthropic/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.test:lib.options": [
+      "packages/typescript/ai-anthropic/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.test:lib.metadata": [
+      "packages/typescript/ai-anthropic/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.test:lib.options.script": [
+      "packages/typescript/ai-anthropic/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.test:lib.metadata.scriptContent": [
+      "packages/typescript/ai-anthropic/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.test:lib.metadata.runCommand": [
+      "packages/typescript/ai-anthropic/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.test:lib:dev": [
+      "packages/typescript/ai-anthropic/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.test:lib:dev.executor": [
+      "packages/typescript/ai-anthropic/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.test:lib:dev.options": [
+      "packages/typescript/ai-anthropic/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.test:lib:dev.metadata": [
+      "packages/typescript/ai-anthropic/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.test:lib:dev.options.script": [
+      "packages/typescript/ai-anthropic/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.test:lib:dev.metadata.scriptContent": [
+      "packages/typescript/ai-anthropic/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.test:lib:dev.metadata.runCommand": [
+      "packages/typescript/ai-anthropic/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.test:types": [
+      "packages/typescript/ai-anthropic/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.test:types.executor": [
+      "packages/typescript/ai-anthropic/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.test:types.options": [
+      "packages/typescript/ai-anthropic/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.test:types.metadata": [
+      "packages/typescript/ai-anthropic/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.test:types.options.script": [
+      "packages/typescript/ai-anthropic/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.test:types.metadata.scriptContent": [
+      "packages/typescript/ai-anthropic/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.test:types.metadata.runCommand": [
+      "packages/typescript/ai-anthropic/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.build.cache": [
+      "nx.json",
+      "nx/target-defaults"
+    ],
+    "targets.build.dependsOn": [
+      "nx.json",
+      "nx/target-defaults"
+    ],
+    "targets.build.inputs": [
+      "nx.json",
+      "nx/target-defaults"
+    ],
+    "targets.build.outputs": [
+      "nx.json",
+      "nx/target-defaults"
+    ],
+    "targets.build.parallelism": [
+      "nx.json",
+      "nx/target-defaults"
+    ],
+    "targets.test:build.cache": [
+      "nx.json",
+      "nx/target-defaults"
+    ],
+    "targets.test:build.dependsOn": [
+      "nx.json",
+      "nx/target-defaults"
+    ],
+    "targets.test:build.inputs": [
+      "nx.json",
+      "nx/target-defaults"
+    ],
+    "targets.test:build.parallelism": [
+      "nx.json",
+      "nx/target-defaults"
+    ],
+    "targets.test:eslint.cache": [
+      "nx.json",
+      "nx/target-defaults"
+    ],
+    "targets.test:eslint.dependsOn": [
+      "nx.json",
+      "nx/target-defaults"
+    ],
+    "targets.test:eslint.inputs": [
+      "nx.json",
+      "nx/target-defaults"
+    ],
+    "targets.test:eslint.parallelism": [
+      "nx.json",
+      "nx/target-defaults"
+    ],
+    "targets.test:lib.cache": [
+      "nx.json",
+      "nx/target-defaults"
+    ],
+    "targets.test:lib.dependsOn": [
+      "nx.json",
+      "nx/target-defaults"
+    ],
+    "targets.test:lib.inputs": [
+      "nx.json",
+      "nx/target-defaults"
+    ],
+    "targets.test:lib.outputs": [
+      "nx.json",
+      "nx/target-defaults"
+    ],
+    "targets.test:lib.parallelism": [
+      "nx.json",
+      "nx/target-defaults"
+    ],
+    "targets.test:types.cache": [
+      "nx.json",
+      "nx/target-defaults"
+    ],
+    "targets.test:types.dependsOn": [
+      "nx.json",
+      "nx/target-defaults"
+    ],
+    "targets.test:types.inputs": [
+      "nx.json",
+      "nx/target-defaults"
+    ],
+    "targets.test:types.parallelism": [
+      "nx.json",
+      "nx/target-defaults"
+    ]
+  },
+  "packages/typescript/ai-client": {
+    "root": [
+      "packages/typescript/ai-client/package.json",
+      "nx/core/package-json"
+    ],
+    "name": [
+      "packages/typescript/ai-client/package.json",
+      "nx/core/package-json"
+    ],
+    "tags": [
+      "packages/typescript/ai-client/package.json",
+      "nx/core/package-json"
+    ],
+    "tags.npm:public": [
+      "packages/typescript/ai-client/package.json",
+      "nx/core/package-json"
+    ],
+    "tags.npm:ai": [
+      "packages/typescript/ai-client/package.json",
+      "nx/core/package-json"
+    ],
+    "tags.npm:client": [
+      "packages/typescript/ai-client/package.json",
+      "nx/core/package-json"
+    ],
+    "tags.npm:headless": [
+      "packages/typescript/ai-client/package.json",
+      "nx/core/package-json"
+    ],
+    "tags.npm:tanstack": [
+      "packages/typescript/ai-client/package.json",
+      "nx/core/package-json"
+    ],
+    "tags.npm:chat": [
+      "packages/typescript/ai-client/package.json",
+      "nx/core/package-json"
+    ],
+    "tags.npm:streaming": [
+      "packages/typescript/ai-client/package.json",
+      "nx/core/package-json"
+    ],
+    "metadata.targetGroups": [
+      "packages/typescript/ai-client/package.json",
+      "nx/core/package-json"
+    ],
+    "metadata.targetGroups.NPM Scripts": [
+      "packages/typescript/ai-client/package.json",
+      "nx/core/package-json"
+    ],
+    "metadata.targetGroups.NPM Scripts.0": [
+      "packages/typescript/ai-client/package.json",
+      "nx/core/package-json"
+    ],
+    "metadata.targetGroups.NPM Scripts.1": [
+      "packages/typescript/ai-client/package.json",
+      "nx/core/package-json"
+    ],
+    "metadata.targetGroups.NPM Scripts.2": [
+      "packages/typescript/ai-client/package.json",
+      "nx/core/package-json"
+    ],
+    "metadata.targetGroups.NPM Scripts.3": [
+      "packages/typescript/ai-client/package.json",
+      "nx/core/package-json"
+    ],
+    "metadata.targetGroups.NPM Scripts.4": [
+      "packages/typescript/ai-client/package.json",
+      "nx/core/package-json"
+    ],
+    "metadata.targetGroups.NPM Scripts.5": [
+      "packages/typescript/ai-client/package.json",
+      "nx/core/package-json"
+    ],
+    "metadata.targetGroups.NPM Scripts.6": [
+      "packages/typescript/ai-client/package.json",
+      "nx/core/package-json"
+    ],
+    "metadata.targetGroups.NPM Scripts.7": [
+      "packages/typescript/ai-client/package.json",
+      "nx/core/package-json"
+    ],
+    "metadata.description": [
+      "packages/typescript/ai-client/package.json",
+      "nx/core/package-json"
+    ],
+    "metadata.js": [
+      "packages/typescript/ai-client/package.json",
+      "nx/core/package-json"
+    ],
+    "metadata.js.packageName": [
+      "packages/typescript/ai-client/package.json",
+      "nx/core/package-json"
+    ],
+    "metadata.js.packageVersion": [
+      "packages/typescript/ai-client/package.json",
+      "nx/core/package-json"
+    ],
+    "metadata.js.packageExports": [
+      "packages/typescript/ai-client/package.json",
+      "nx/core/package-json"
+    ],
+    "metadata.js.isInPackageManagerWorkspaces": [
+      "packages/typescript/ai-client/package.json",
+      "nx/core/package-json"
+    ],
+    "targets": [
+      "packages/typescript/ai-client/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.build": [
+      "packages/typescript/ai-client/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.build.executor": [
+      "packages/typescript/ai-client/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.build.options": [
+      "packages/typescript/ai-client/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.build.metadata": [
+      "packages/typescript/ai-client/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.build.options.script": [
+      "packages/typescript/ai-client/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.build.metadata.scriptContent": [
+      "packages/typescript/ai-client/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.build.metadata.runCommand": [
+      "packages/typescript/ai-client/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.clean": [
+      "packages/typescript/ai-client/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.clean.executor": [
+      "packages/typescript/ai-client/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.clean.options": [
+      "packages/typescript/ai-client/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.clean.metadata": [
+      "packages/typescript/ai-client/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.clean.options.script": [
+      "packages/typescript/ai-client/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.clean.metadata.scriptContent": [
+      "packages/typescript/ai-client/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.clean.metadata.runCommand": [
+      "packages/typescript/ai-client/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.lint:fix": [
+      "packages/typescript/ai-client/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.lint:fix.executor": [
+      "packages/typescript/ai-client/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.lint:fix.options": [
+      "packages/typescript/ai-client/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.lint:fix.metadata": [
+      "packages/typescript/ai-client/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.lint:fix.options.script": [
+      "packages/typescript/ai-client/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.lint:fix.metadata.scriptContent": [
+      "packages/typescript/ai-client/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.lint:fix.metadata.runCommand": [
+      "packages/typescript/ai-client/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.test:build": [
+      "packages/typescript/ai-client/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.test:build.executor": [
+      "packages/typescript/ai-client/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.test:build.options": [
+      "packages/typescript/ai-client/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.test:build.metadata": [
+      "packages/typescript/ai-client/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.test:build.options.script": [
+      "packages/typescript/ai-client/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.test:build.metadata.scriptContent": [
+      "packages/typescript/ai-client/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.test:build.metadata.runCommand": [
+      "packages/typescript/ai-client/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.test:eslint": [
+      "packages/typescript/ai-client/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.test:eslint.executor": [
+      "packages/typescript/ai-client/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.test:eslint.options": [
+      "packages/typescript/ai-client/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.test:eslint.metadata": [
+      "packages/typescript/ai-client/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.test:eslint.options.script": [
+      "packages/typescript/ai-client/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.test:eslint.metadata.scriptContent": [
+      "packages/typescript/ai-client/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.test:eslint.metadata.runCommand": [
+      "packages/typescript/ai-client/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.test:lib": [
+      "packages/typescript/ai-client/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.test:lib.executor": [
+      "packages/typescript/ai-client/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.test:lib.options": [
+      "packages/typescript/ai-client/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.test:lib.metadata": [
+      "packages/typescript/ai-client/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.test:lib.options.script": [
+      "packages/typescript/ai-client/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.test:lib.metadata.scriptContent": [
+      "packages/typescript/ai-client/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.test:lib.metadata.runCommand": [
+      "packages/typescript/ai-client/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.test:lib:dev": [
+      "packages/typescript/ai-client/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.test:lib:dev.executor": [
+      "packages/typescript/ai-client/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.test:lib:dev.options": [
+      "packages/typescript/ai-client/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.test:lib:dev.metadata": [
+      "packages/typescript/ai-client/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.test:lib:dev.options.script": [
+      "packages/typescript/ai-client/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.test:lib:dev.metadata.scriptContent": [
+      "packages/typescript/ai-client/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.test:lib:dev.metadata.runCommand": [
+      "packages/typescript/ai-client/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.test:types": [
+      "packages/typescript/ai-client/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.test:types.executor": [
+      "packages/typescript/ai-client/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.test:types.options": [
+      "packages/typescript/ai-client/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.test:types.metadata": [
+      "packages/typescript/ai-client/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.test:types.options.script": [
+      "packages/typescript/ai-client/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.test:types.metadata.scriptContent": [
+      "packages/typescript/ai-client/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.test:types.metadata.runCommand": [
+      "packages/typescript/ai-client/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.build.cache": [
+      "nx.json",
+      "nx/target-defaults"
+    ],
+    "targets.build.dependsOn": [
+      "nx.json",
+      "nx/target-defaults"
+    ],
+    "targets.build.inputs": [
+      "nx.json",
+      "nx/target-defaults"
+    ],
+    "targets.build.outputs": [
+      "nx.json",
+      "nx/target-defaults"
+    ],
+    "targets.build.parallelism": [
+      "nx.json",
+      "nx/target-defaults"
+    ],
+    "targets.test:build.cache": [
+      "nx.json",
+      "nx/target-defaults"
+    ],
+    "targets.test:build.dependsOn": [
+      "nx.json",
+      "nx/target-defaults"
+    ],
+    "targets.test:build.inputs": [
+      "nx.json",
+      "nx/target-defaults"
+    ],
+    "targets.test:build.parallelism": [
+      "nx.json",
+      "nx/target-defaults"
+    ],
+    "targets.test:eslint.cache": [
+      "nx.json",
+      "nx/target-defaults"
+    ],
+    "targets.test:eslint.dependsOn": [
+      "nx.json",
+      "nx/target-defaults"
+    ],
+    "targets.test:eslint.inputs": [
+      "nx.json",
+      "nx/target-defaults"
+    ],
+    "targets.test:eslint.parallelism": [
+      "nx.json",
+      "nx/target-defaults"
+    ],
+    "targets.test:lib.cache": [
+      "nx.json",
+      "nx/target-defaults"
+    ],
+    "targets.test:lib.dependsOn": [
+      "nx.json",
+      "nx/target-defaults"
+    ],
+    "targets.test:lib.inputs": [
+      "nx.json",
+      "nx/target-defaults"
+    ],
+    "targets.test:lib.outputs": [
+      "nx.json",
+      "nx/target-defaults"
+    ],
+    "targets.test:lib.parallelism": [
+      "nx.json",
+      "nx/target-defaults"
+    ],
+    "targets.test:types.cache": [
+      "nx.json",
+      "nx/target-defaults"
+    ],
+    "targets.test:types.dependsOn": [
+      "nx.json",
+      "nx/target-defaults"
+    ],
+    "targets.test:types.inputs": [
+      "nx.json",
+      "nx/target-defaults"
+    ],
+    "targets.test:types.parallelism": [
+      "nx.json",
+      "nx/target-defaults"
+    ]
+  },
+  "packages/typescript/ai-devtools": {
+    "root": [
+      "packages/typescript/ai-devtools/package.json",
+      "nx/core/package-json"
+    ],
+    "name": [
+      "packages/typescript/ai-devtools/package.json",
+      "nx/core/package-json"
+    ],
+    "tags": [
+      "packages/typescript/ai-devtools/package.json",
+      "nx/core/package-json"
+    ],
+    "tags.npm:public": [
+      "packages/typescript/ai-devtools/package.json",
+      "nx/core/package-json"
+    ],
+    "tags.npm:ai": [
+      "packages/typescript/ai-devtools/package.json",
+      "nx/core/package-json"
+    ],
+    "tags.npm:tanstack": [
+      "packages/typescript/ai-devtools/package.json",
+      "nx/core/package-json"
+    ],
+    "tags.npm:sdk": [
+      "packages/typescript/ai-devtools/package.json",
+      "nx/core/package-json"
+    ],
+    "tags.npm:llm": [
+      "packages/typescript/ai-devtools/package.json",
+      "nx/core/package-json"
+    ],
+    "tags.npm:chat": [
+      "packages/typescript/ai-devtools/package.json",
+      "nx/core/package-json"
+    ],
+    "tags.npm:embeddings": [
+      "packages/typescript/ai-devtools/package.json",
+      "nx/core/package-json"
+    ],
+    "metadata.targetGroups": [
+      "packages/typescript/ai-devtools/package.json",
+      "nx/core/package-json"
+    ],
+    "metadata.targetGroups.NPM Scripts": [
+      "packages/typescript/ai-devtools/package.json",
+      "nx/core/package-json"
+    ],
+    "metadata.targetGroups.NPM Scripts.0": [
+      "packages/typescript/ai-devtools/package.json",
+      "nx/core/package-json"
+    ],
+    "metadata.targetGroups.NPM Scripts.1": [
+      "packages/typescript/ai-devtools/package.json",
+      "nx/core/package-json"
+    ],
+    "metadata.targetGroups.NPM Scripts.2": [
+      "packages/typescript/ai-devtools/package.json",
+      "nx/core/package-json"
+    ],
+    "metadata.targetGroups.NPM Scripts.3": [
+      "packages/typescript/ai-devtools/package.json",
+      "nx/core/package-json"
+    ],
+    "metadata.targetGroups.NPM Scripts.4": [
+      "packages/typescript/ai-devtools/package.json",
+      "nx/core/package-json"
+    ],
+    "metadata.targetGroups.NPM Scripts.5": [
+      "packages/typescript/ai-devtools/package.json",
+      "nx/core/package-json"
+    ],
+    "metadata.targetGroups.NPM Scripts.6": [
+      "packages/typescript/ai-devtools/package.json",
+      "nx/core/package-json"
+    ],
+    "metadata.targetGroups.NPM Scripts.7": [
+      "packages/typescript/ai-devtools/package.json",
+      "nx/core/package-json"
+    ],
+    "metadata.description": [
+      "packages/typescript/ai-devtools/package.json",
+      "nx/core/package-json"
+    ],
+    "metadata.js": [
+      "packages/typescript/ai-devtools/package.json",
+      "nx/core/package-json"
+    ],
+    "metadata.js.packageName": [
+      "packages/typescript/ai-devtools/package.json",
+      "nx/core/package-json"
+    ],
+    "metadata.js.packageVersion": [
+      "packages/typescript/ai-devtools/package.json",
+      "nx/core/package-json"
+    ],
+    "metadata.js.packageExports": [
+      "packages/typescript/ai-devtools/package.json",
+      "nx/core/package-json"
+    ],
+    "metadata.js.isInPackageManagerWorkspaces": [
+      "packages/typescript/ai-devtools/package.json",
+      "nx/core/package-json"
+    ],
+    "targets": [
+      "packages/typescript/ai-devtools/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.build": [
+      "packages/typescript/ai-devtools/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.build.executor": [
+      "packages/typescript/ai-devtools/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.build.options": [
+      "packages/typescript/ai-devtools/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.build.metadata": [
+      "packages/typescript/ai-devtools/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.build.options.script": [
+      "packages/typescript/ai-devtools/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.build.metadata.scriptContent": [
+      "packages/typescript/ai-devtools/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.build.metadata.runCommand": [
+      "packages/typescript/ai-devtools/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.clean": [
+      "packages/typescript/ai-devtools/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.clean.executor": [
+      "packages/typescript/ai-devtools/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.clean.options": [
+      "packages/typescript/ai-devtools/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.clean.metadata": [
+      "packages/typescript/ai-devtools/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.clean.options.script": [
+      "packages/typescript/ai-devtools/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.clean.metadata.scriptContent": [
+      "packages/typescript/ai-devtools/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.clean.metadata.runCommand": [
+      "packages/typescript/ai-devtools/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.lint:fix": [
+      "packages/typescript/ai-devtools/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.lint:fix.executor": [
+      "packages/typescript/ai-devtools/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.lint:fix.options": [
+      "packages/typescript/ai-devtools/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.lint:fix.metadata": [
+      "packages/typescript/ai-devtools/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.lint:fix.options.script": [
+      "packages/typescript/ai-devtools/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.lint:fix.metadata.scriptContent": [
+      "packages/typescript/ai-devtools/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.lint:fix.metadata.runCommand": [
+      "packages/typescript/ai-devtools/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.test:build": [
+      "packages/typescript/ai-devtools/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.test:build.executor": [
+      "packages/typescript/ai-devtools/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.test:build.options": [
+      "packages/typescript/ai-devtools/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.test:build.metadata": [
+      "packages/typescript/ai-devtools/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.test:build.options.script": [
+      "packages/typescript/ai-devtools/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.test:build.metadata.scriptContent": [
+      "packages/typescript/ai-devtools/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.test:build.metadata.runCommand": [
+      "packages/typescript/ai-devtools/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.test:eslint": [
+      "packages/typescript/ai-devtools/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.test:eslint.executor": [
+      "packages/typescript/ai-devtools/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.test:eslint.options": [
+      "packages/typescript/ai-devtools/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.test:eslint.metadata": [
+      "packages/typescript/ai-devtools/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.test:eslint.options.script": [
+      "packages/typescript/ai-devtools/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.test:eslint.metadata.scriptContent": [
+      "packages/typescript/ai-devtools/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.test:eslint.metadata.runCommand": [
+      "packages/typescript/ai-devtools/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.test:lib": [
+      "packages/typescript/ai-devtools/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.test:lib.executor": [
+      "packages/typescript/ai-devtools/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.test:lib.options": [
+      "packages/typescript/ai-devtools/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.test:lib.metadata": [
+      "packages/typescript/ai-devtools/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.test:lib.options.script": [
+      "packages/typescript/ai-devtools/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.test:lib.metadata.scriptContent": [
+      "packages/typescript/ai-devtools/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.test:lib.metadata.runCommand": [
+      "packages/typescript/ai-devtools/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.test:lib:dev": [
+      "packages/typescript/ai-devtools/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.test:lib:dev.executor": [
+      "packages/typescript/ai-devtools/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.test:lib:dev.options": [
+      "packages/typescript/ai-devtools/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.test:lib:dev.metadata": [
+      "packages/typescript/ai-devtools/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.test:lib:dev.options.script": [
+      "packages/typescript/ai-devtools/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.test:lib:dev.metadata.scriptContent": [
+      "packages/typescript/ai-devtools/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.test:lib:dev.metadata.runCommand": [
+      "packages/typescript/ai-devtools/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.test:types": [
+      "packages/typescript/ai-devtools/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.test:types.executor": [
+      "packages/typescript/ai-devtools/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.test:types.options": [
+      "packages/typescript/ai-devtools/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.test:types.metadata": [
+      "packages/typescript/ai-devtools/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.test:types.options.script": [
+      "packages/typescript/ai-devtools/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.test:types.metadata.scriptContent": [
+      "packages/typescript/ai-devtools/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.test:types.metadata.runCommand": [
+      "packages/typescript/ai-devtools/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.build.cache": [
+      "nx.json",
+      "nx/target-defaults"
+    ],
+    "targets.build.dependsOn": [
+      "nx.json",
+      "nx/target-defaults"
+    ],
+    "targets.build.inputs": [
+      "nx.json",
+      "nx/target-defaults"
+    ],
+    "targets.build.outputs": [
+      "nx.json",
+      "nx/target-defaults"
+    ],
+    "targets.build.parallelism": [
+      "nx.json",
+      "nx/target-defaults"
+    ],
+    "targets.test:build.cache": [
+      "nx.json",
+      "nx/target-defaults"
+    ],
+    "targets.test:build.dependsOn": [
+      "nx.json",
+      "nx/target-defaults"
+    ],
+    "targets.test:build.inputs": [
+      "nx.json",
+      "nx/target-defaults"
+    ],
+    "targets.test:build.parallelism": [
+      "nx.json",
+      "nx/target-defaults"
+    ],
+    "targets.test:eslint.cache": [
+      "nx.json",
+      "nx/target-defaults"
+    ],
+    "targets.test:eslint.dependsOn": [
+      "nx.json",
+      "nx/target-defaults"
+    ],
+    "targets.test:eslint.inputs": [
+      "nx.json",
+      "nx/target-defaults"
+    ],
+    "targets.test:eslint.parallelism": [
+      "nx.json",
+      "nx/target-defaults"
+    ],
+    "targets.test:lib.cache": [
+      "nx.json",
+      "nx/target-defaults"
+    ],
+    "targets.test:lib.dependsOn": [
+      "nx.json",
+      "nx/target-defaults"
+    ],
+    "targets.test:lib.inputs": [
+      "nx.json",
+      "nx/target-defaults"
+    ],
+    "targets.test:lib.outputs": [
+      "nx.json",
+      "nx/target-defaults"
+    ],
+    "targets.test:lib.parallelism": [
+      "nx.json",
+      "nx/target-defaults"
+    ],
+    "targets.test:types.cache": [
+      "nx.json",
+      "nx/target-defaults"
+    ],
+    "targets.test:types.dependsOn": [
+      "nx.json",
+      "nx/target-defaults"
+    ],
+    "targets.test:types.inputs": [
+      "nx.json",
+      "nx/target-defaults"
+    ],
+    "targets.test:types.parallelism": [
+      "nx.json",
+      "nx/target-defaults"
+    ]
+  },
+  "packages/typescript/ai-fallback": {
+    "root": [
+      "packages/typescript/ai-fallback/package.json",
+      "nx/core/package-json"
+    ],
+    "name": [
+      "packages/typescript/ai-fallback/package.json",
+      "nx/core/package-json"
+    ],
+    "tags": [
+      "packages/typescript/ai-fallback/package.json",
+      "nx/core/package-json"
+    ],
+    "tags.npm:public": [
+      "packages/typescript/ai-fallback/package.json",
+      "nx/core/package-json"
+    ],
+    "tags.npm:ai": [
+      "packages/typescript/ai-fallback/package.json",
+      "nx/core/package-json"
+    ],
+    "tags.npm:fallback": [
+      "packages/typescript/ai-fallback/package.json",
+      "nx/core/package-json"
+    ],
+    "tags.npm:tanstack": [
+      "packages/typescript/ai-fallback/package.json",
+      "nx/core/package-json"
+    ],
+    "tags.npm:adapter": [
+      "packages/typescript/ai-fallback/package.json",
+      "nx/core/package-json"
+    ],
+    "tags.npm:retry": [
+      "packages/typescript/ai-fallback/package.json",
+      "nx/core/package-json"
+    ],
+    "metadata.targetGroups": [
+      "packages/typescript/ai-fallback/package.json",
+      "nx/core/package-json"
+    ],
+    "metadata.targetGroups.NPM Scripts": [
+      "packages/typescript/ai-fallback/package.json",
+      "nx/core/package-json"
+    ],
+    "metadata.targetGroups.NPM Scripts.0": [
+      "packages/typescript/ai-fallback/package.json",
+      "nx/core/package-json"
+    ],
+    "metadata.targetGroups.NPM Scripts.1": [
+      "packages/typescript/ai-fallback/package.json",
+      "nx/core/package-json"
+    ],
+    "metadata.targetGroups.NPM Scripts.2": [
+      "packages/typescript/ai-fallback/package.json",
+      "nx/core/package-json"
+    ],
+    "metadata.targetGroups.NPM Scripts.3": [
+      "packages/typescript/ai-fallback/package.json",
+      "nx/core/package-json"
+    ],
+    "metadata.targetGroups.NPM Scripts.4": [
+      "packages/typescript/ai-fallback/package.json",
+      "nx/core/package-json"
+    ],
+    "metadata.targetGroups.NPM Scripts.5": [
+      "packages/typescript/ai-fallback/package.json",
+      "nx/core/package-json"
+    ],
+    "metadata.targetGroups.NPM Scripts.6": [
+      "packages/typescript/ai-fallback/package.json",
+      "nx/core/package-json"
+    ],
+    "metadata.targetGroups.NPM Scripts.7": [
+      "packages/typescript/ai-fallback/package.json",
+      "nx/core/package-json"
+    ],
+    "metadata.description": [
+      "packages/typescript/ai-fallback/package.json",
+      "nx/core/package-json"
+    ],
+    "metadata.js": [
+      "packages/typescript/ai-fallback/package.json",
+      "nx/core/package-json"
+    ],
+    "metadata.js.packageName": [
+      "packages/typescript/ai-fallback/package.json",
+      "nx/core/package-json"
+    ],
+    "metadata.js.packageVersion": [
+      "packages/typescript/ai-fallback/package.json",
+      "nx/core/package-json"
+    ],
+    "metadata.js.packageExports": [
+      "packages/typescript/ai-fallback/package.json",
+      "nx/core/package-json"
+    ],
+    "metadata.js.isInPackageManagerWorkspaces": [
+      "packages/typescript/ai-fallback/package.json",
+      "nx/core/package-json"
+    ],
+    "targets": [
+      "packages/typescript/ai-fallback/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.build": [
+      "packages/typescript/ai-fallback/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.build.executor": [
+      "packages/typescript/ai-fallback/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.build.options": [
+      "packages/typescript/ai-fallback/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.build.metadata": [
+      "packages/typescript/ai-fallback/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.build.options.script": [
+      "packages/typescript/ai-fallback/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.build.metadata.scriptContent": [
+      "packages/typescript/ai-fallback/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.build.metadata.runCommand": [
+      "packages/typescript/ai-fallback/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.clean": [
+      "packages/typescript/ai-fallback/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.clean.executor": [
+      "packages/typescript/ai-fallback/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.clean.options": [
+      "packages/typescript/ai-fallback/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.clean.metadata": [
+      "packages/typescript/ai-fallback/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.clean.options.script": [
+      "packages/typescript/ai-fallback/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.clean.metadata.scriptContent": [
+      "packages/typescript/ai-fallback/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.clean.metadata.runCommand": [
+      "packages/typescript/ai-fallback/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.lint:fix": [
+      "packages/typescript/ai-fallback/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.lint:fix.executor": [
+      "packages/typescript/ai-fallback/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.lint:fix.options": [
+      "packages/typescript/ai-fallback/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.lint:fix.metadata": [
+      "packages/typescript/ai-fallback/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.lint:fix.options.script": [
+      "packages/typescript/ai-fallback/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.lint:fix.metadata.scriptContent": [
+      "packages/typescript/ai-fallback/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.lint:fix.metadata.runCommand": [
+      "packages/typescript/ai-fallback/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.test:build": [
+      "packages/typescript/ai-fallback/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.test:build.executor": [
+      "packages/typescript/ai-fallback/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.test:build.options": [
+      "packages/typescript/ai-fallback/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.test:build.metadata": [
+      "packages/typescript/ai-fallback/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.test:build.options.script": [
+      "packages/typescript/ai-fallback/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.test:build.metadata.scriptContent": [
+      "packages/typescript/ai-fallback/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.test:build.metadata.runCommand": [
+      "packages/typescript/ai-fallback/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.test:eslint": [
+      "packages/typescript/ai-fallback/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.test:eslint.executor": [
+      "packages/typescript/ai-fallback/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.test:eslint.options": [
+      "packages/typescript/ai-fallback/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.test:eslint.metadata": [
+      "packages/typescript/ai-fallback/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.test:eslint.options.script": [
+      "packages/typescript/ai-fallback/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.test:eslint.metadata.scriptContent": [
+      "packages/typescript/ai-fallback/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.test:eslint.metadata.runCommand": [
+      "packages/typescript/ai-fallback/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.test:lib": [
+      "packages/typescript/ai-fallback/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.test:lib.executor": [
+      "packages/typescript/ai-fallback/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.test:lib.options": [
+      "packages/typescript/ai-fallback/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.test:lib.metadata": [
+      "packages/typescript/ai-fallback/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.test:lib.options.script": [
+      "packages/typescript/ai-fallback/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.test:lib.metadata.scriptContent": [
+      "packages/typescript/ai-fallback/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.test:lib.metadata.runCommand": [
+      "packages/typescript/ai-fallback/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.test:lib:dev": [
+      "packages/typescript/ai-fallback/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.test:lib:dev.executor": [
+      "packages/typescript/ai-fallback/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.test:lib:dev.options": [
+      "packages/typescript/ai-fallback/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.test:lib:dev.metadata": [
+      "packages/typescript/ai-fallback/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.test:lib:dev.options.script": [
+      "packages/typescript/ai-fallback/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.test:lib:dev.metadata.scriptContent": [
+      "packages/typescript/ai-fallback/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.test:lib:dev.metadata.runCommand": [
+      "packages/typescript/ai-fallback/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.test:types": [
+      "packages/typescript/ai-fallback/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.test:types.executor": [
+      "packages/typescript/ai-fallback/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.test:types.options": [
+      "packages/typescript/ai-fallback/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.test:types.metadata": [
+      "packages/typescript/ai-fallback/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.test:types.options.script": [
+      "packages/typescript/ai-fallback/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.test:types.metadata.scriptContent": [
+      "packages/typescript/ai-fallback/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.test:types.metadata.runCommand": [
+      "packages/typescript/ai-fallback/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.build.cache": [
+      "nx.json",
+      "nx/target-defaults"
+    ],
+    "targets.build.dependsOn": [
+      "nx.json",
+      "nx/target-defaults"
+    ],
+    "targets.build.inputs": [
+      "nx.json",
+      "nx/target-defaults"
+    ],
+    "targets.build.outputs": [
+      "nx.json",
+      "nx/target-defaults"
+    ],
+    "targets.build.parallelism": [
+      "nx.json",
+      "nx/target-defaults"
+    ],
+    "targets.test:build.cache": [
+      "nx.json",
+      "nx/target-defaults"
+    ],
+    "targets.test:build.dependsOn": [
+      "nx.json",
+      "nx/target-defaults"
+    ],
+    "targets.test:build.inputs": [
+      "nx.json",
+      "nx/target-defaults"
+    ],
+    "targets.test:build.parallelism": [
+      "nx.json",
+      "nx/target-defaults"
+    ],
+    "targets.test:eslint.cache": [
+      "nx.json",
+      "nx/target-defaults"
+    ],
+    "targets.test:eslint.dependsOn": [
+      "nx.json",
+      "nx/target-defaults"
+    ],
+    "targets.test:eslint.inputs": [
+      "nx.json",
+      "nx/target-defaults"
+    ],
+    "targets.test:eslint.parallelism": [
+      "nx.json",
+      "nx/target-defaults"
+    ],
+    "targets.test:lib.cache": [
+      "nx.json",
+      "nx/target-defaults"
+    ],
+    "targets.test:lib.dependsOn": [
+      "nx.json",
+      "nx/target-defaults"
+    ],
+    "targets.test:lib.inputs": [
+      "nx.json",
+      "nx/target-defaults"
+    ],
+    "targets.test:lib.outputs": [
+      "nx.json",
+      "nx/target-defaults"
+    ],
+    "targets.test:lib.parallelism": [
+      "nx.json",
+      "nx/target-defaults"
+    ],
+    "targets.test:types.cache": [
+      "nx.json",
+      "nx/target-defaults"
+    ],
+    "targets.test:types.dependsOn": [
+      "nx.json",
+      "nx/target-defaults"
+    ],
+    "targets.test:types.inputs": [
+      "nx.json",
+      "nx/target-defaults"
+    ],
+    "targets.test:types.parallelism": [
+      "nx.json",
+      "nx/target-defaults"
+    ]
+  },
+  "packages/typescript/ai-gemini": {
+    "root": [
+      "packages/typescript/ai-gemini/package.json",
+      "nx/core/package-json"
+    ],
+    "name": [
+      "packages/typescript/ai-gemini/package.json",
+      "nx/core/package-json"
+    ],
+    "tags": [
+      "packages/typescript/ai-gemini/package.json",
+      "nx/core/package-json"
+    ],
+    "tags.npm:public": [
+      "packages/typescript/ai-gemini/package.json",
+      "nx/core/package-json"
+    ],
+    "tags.npm:ai": [
+      "packages/typescript/ai-gemini/package.json",
+      "nx/core/package-json"
+    ],
+    "tags.npm:gemini": [
+      "packages/typescript/ai-gemini/package.json",
+      "nx/core/package-json"
+    ],
+    "tags.npm:google": [
+      "packages/typescript/ai-gemini/package.json",
+      "nx/core/package-json"
+    ],
+    "tags.npm:tanstack": [
+      "packages/typescript/ai-gemini/package.json",
+      "nx/core/package-json"
+    ],
+    "tags.npm:adapter": [
+      "packages/typescript/ai-gemini/package.json",
+      "nx/core/package-json"
+    ],
+    "metadata.targetGroups": [
+      "packages/typescript/ai-gemini/package.json",
+      "nx/core/package-json"
+    ],
+    "metadata.targetGroups.NPM Scripts": [
+      "packages/typescript/ai-gemini/package.json",
+      "nx/core/package-json"
+    ],
+    "metadata.targetGroups.NPM Scripts.0": [
+      "packages/typescript/ai-gemini/package.json",
+      "nx/core/package-json"
+    ],
+    "metadata.targetGroups.NPM Scripts.1": [
+      "packages/typescript/ai-gemini/package.json",
+      "nx/core/package-json"
+    ],
+    "metadata.targetGroups.NPM Scripts.2": [
+      "packages/typescript/ai-gemini/package.json",
+      "nx/core/package-json"
+    ],
+    "metadata.targetGroups.NPM Scripts.3": [
+      "packages/typescript/ai-gemini/package.json",
+      "nx/core/package-json"
+    ],
+    "metadata.targetGroups.NPM Scripts.4": [
+      "packages/typescript/ai-gemini/package.json",
+      "nx/core/package-json"
+    ],
+    "metadata.targetGroups.NPM Scripts.5": [
+      "packages/typescript/ai-gemini/package.json",
+      "nx/core/package-json"
+    ],
+    "metadata.targetGroups.NPM Scripts.6": [
+      "packages/typescript/ai-gemini/package.json",
+      "nx/core/package-json"
+    ],
+    "metadata.targetGroups.NPM Scripts.7": [
+      "packages/typescript/ai-gemini/package.json",
+      "nx/core/package-json"
+    ],
+    "metadata.description": [
+      "packages/typescript/ai-gemini/package.json",
+      "nx/core/package-json"
+    ],
+    "metadata.js": [
+      "packages/typescript/ai-gemini/package.json",
+      "nx/core/package-json"
+    ],
+    "metadata.js.packageName": [
+      "packages/typescript/ai-gemini/package.json",
+      "nx/core/package-json"
+    ],
+    "metadata.js.packageVersion": [
+      "packages/typescript/ai-gemini/package.json",
+      "nx/core/package-json"
+    ],
+    "metadata.js.packageExports": [
+      "packages/typescript/ai-gemini/package.json",
+      "nx/core/package-json"
+    ],
+    "metadata.js.isInPackageManagerWorkspaces": [
+      "packages/typescript/ai-gemini/package.json",
+      "nx/core/package-json"
+    ],
+    "targets": [
+      "packages/typescript/ai-gemini/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.build": [
+      "packages/typescript/ai-gemini/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.build.executor": [
+      "packages/typescript/ai-gemini/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.build.options": [
+      "packages/typescript/ai-gemini/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.build.metadata": [
+      "packages/typescript/ai-gemini/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.build.options.script": [
+      "packages/typescript/ai-gemini/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.build.metadata.scriptContent": [
+      "packages/typescript/ai-gemini/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.build.metadata.runCommand": [
+      "packages/typescript/ai-gemini/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.clean": [
+      "packages/typescript/ai-gemini/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.clean.executor": [
+      "packages/typescript/ai-gemini/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.clean.options": [
+      "packages/typescript/ai-gemini/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.clean.metadata": [
+      "packages/typescript/ai-gemini/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.clean.options.script": [
+      "packages/typescript/ai-gemini/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.clean.metadata.scriptContent": [
+      "packages/typescript/ai-gemini/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.clean.metadata.runCommand": [
+      "packages/typescript/ai-gemini/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.lint:fix": [
+      "packages/typescript/ai-gemini/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.lint:fix.executor": [
+      "packages/typescript/ai-gemini/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.lint:fix.options": [
+      "packages/typescript/ai-gemini/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.lint:fix.metadata": [
+      "packages/typescript/ai-gemini/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.lint:fix.options.script": [
+      "packages/typescript/ai-gemini/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.lint:fix.metadata.scriptContent": [
+      "packages/typescript/ai-gemini/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.lint:fix.metadata.runCommand": [
+      "packages/typescript/ai-gemini/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.test:build": [
+      "packages/typescript/ai-gemini/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.test:build.executor": [
+      "packages/typescript/ai-gemini/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.test:build.options": [
+      "packages/typescript/ai-gemini/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.test:build.metadata": [
+      "packages/typescript/ai-gemini/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.test:build.options.script": [
+      "packages/typescript/ai-gemini/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.test:build.metadata.scriptContent": [
+      "packages/typescript/ai-gemini/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.test:build.metadata.runCommand": [
+      "packages/typescript/ai-gemini/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.test:eslint": [
+      "packages/typescript/ai-gemini/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.test:eslint.executor": [
+      "packages/typescript/ai-gemini/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.test:eslint.options": [
+      "packages/typescript/ai-gemini/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.test:eslint.metadata": [
+      "packages/typescript/ai-gemini/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.test:eslint.options.script": [
+      "packages/typescript/ai-gemini/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.test:eslint.metadata.scriptContent": [
+      "packages/typescript/ai-gemini/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.test:eslint.metadata.runCommand": [
+      "packages/typescript/ai-gemini/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.test:lib": [
+      "packages/typescript/ai-gemini/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.test:lib.executor": [
+      "packages/typescript/ai-gemini/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.test:lib.options": [
+      "packages/typescript/ai-gemini/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.test:lib.metadata": [
+      "packages/typescript/ai-gemini/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.test:lib.options.script": [
+      "packages/typescript/ai-gemini/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.test:lib.metadata.scriptContent": [
+      "packages/typescript/ai-gemini/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.test:lib.metadata.runCommand": [
+      "packages/typescript/ai-gemini/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.test:lib:dev": [
+      "packages/typescript/ai-gemini/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.test:lib:dev.executor": [
+      "packages/typescript/ai-gemini/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.test:lib:dev.options": [
+      "packages/typescript/ai-gemini/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.test:lib:dev.metadata": [
+      "packages/typescript/ai-gemini/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.test:lib:dev.options.script": [
+      "packages/typescript/ai-gemini/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.test:lib:dev.metadata.scriptContent": [
+      "packages/typescript/ai-gemini/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.test:lib:dev.metadata.runCommand": [
+      "packages/typescript/ai-gemini/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.test:types": [
+      "packages/typescript/ai-gemini/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.test:types.executor": [
+      "packages/typescript/ai-gemini/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.test:types.options": [
+      "packages/typescript/ai-gemini/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.test:types.metadata": [
+      "packages/typescript/ai-gemini/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.test:types.options.script": [
+      "packages/typescript/ai-gemini/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.test:types.metadata.scriptContent": [
+      "packages/typescript/ai-gemini/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.test:types.metadata.runCommand": [
+      "packages/typescript/ai-gemini/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.build.cache": [
+      "nx.json",
+      "nx/target-defaults"
+    ],
+    "targets.build.dependsOn": [
+      "nx.json",
+      "nx/target-defaults"
+    ],
+    "targets.build.inputs": [
+      "nx.json",
+      "nx/target-defaults"
+    ],
+    "targets.build.outputs": [
+      "nx.json",
+      "nx/target-defaults"
+    ],
+    "targets.build.parallelism": [
+      "nx.json",
+      "nx/target-defaults"
+    ],
+    "targets.test:build.cache": [
+      "nx.json",
+      "nx/target-defaults"
+    ],
+    "targets.test:build.dependsOn": [
+      "nx.json",
+      "nx/target-defaults"
+    ],
+    "targets.test:build.inputs": [
+      "nx.json",
+      "nx/target-defaults"
+    ],
+    "targets.test:build.parallelism": [
+      "nx.json",
+      "nx/target-defaults"
+    ],
+    "targets.test:eslint.cache": [
+      "nx.json",
+      "nx/target-defaults"
+    ],
+    "targets.test:eslint.dependsOn": [
+      "nx.json",
+      "nx/target-defaults"
+    ],
+    "targets.test:eslint.inputs": [
+      "nx.json",
+      "nx/target-defaults"
+    ],
+    "targets.test:eslint.parallelism": [
+      "nx.json",
+      "nx/target-defaults"
+    ],
+    "targets.test:lib.cache": [
+      "nx.json",
+      "nx/target-defaults"
+    ],
+    "targets.test:lib.dependsOn": [
+      "nx.json",
+      "nx/target-defaults"
+    ],
+    "targets.test:lib.inputs": [
+      "nx.json",
+      "nx/target-defaults"
+    ],
+    "targets.test:lib.outputs": [
+      "nx.json",
+      "nx/target-defaults"
+    ],
+    "targets.test:lib.parallelism": [
+      "nx.json",
+      "nx/target-defaults"
+    ],
+    "targets.test:types.cache": [
+      "nx.json",
+      "nx/target-defaults"
+    ],
+    "targets.test:types.dependsOn": [
+      "nx.json",
+      "nx/target-defaults"
+    ],
+    "targets.test:types.inputs": [
+      "nx.json",
+      "nx/target-defaults"
+    ],
+    "targets.test:types.parallelism": [
+      "nx.json",
+      "nx/target-defaults"
+    ]
+  },
+  "packages/typescript/ai-ollama": {
+    "root": [
+      "packages/typescript/ai-ollama/package.json",
+      "nx/core/package-json"
+    ],
+    "name": [
+      "packages/typescript/ai-ollama/package.json",
+      "nx/core/package-json"
+    ],
+    "tags": [
+      "packages/typescript/ai-ollama/package.json",
+      "nx/core/package-json"
+    ],
+    "tags.npm:public": [
+      "packages/typescript/ai-ollama/package.json",
+      "nx/core/package-json"
+    ],
+    "tags.npm:ai": [
+      "packages/typescript/ai-ollama/package.json",
+      "nx/core/package-json"
+    ],
+    "tags.npm:ollama": [
+      "packages/typescript/ai-ollama/package.json",
+      "nx/core/package-json"
+    ],
+    "tags.npm:llama": [
+      "packages/typescript/ai-ollama/package.json",
+      "nx/core/package-json"
+    ],
+    "tags.npm:mistral": [
+      "packages/typescript/ai-ollama/package.json",
+      "nx/core/package-json"
+    ],
+    "tags.npm:tanstack": [
+      "packages/typescript/ai-ollama/package.json",
+      "nx/core/package-json"
+    ],
+    "tags.npm:adapter": [
+      "packages/typescript/ai-ollama/package.json",
+      "nx/core/package-json"
+    ],
+    "metadata.targetGroups": [
+      "packages/typescript/ai-ollama/package.json",
+      "nx/core/package-json"
+    ],
+    "metadata.targetGroups.NPM Scripts": [
+      "packages/typescript/ai-ollama/package.json",
+      "nx/core/package-json"
+    ],
+    "metadata.targetGroups.NPM Scripts.0": [
+      "packages/typescript/ai-ollama/package.json",
+      "nx/core/package-json"
+    ],
+    "metadata.targetGroups.NPM Scripts.1": [
+      "packages/typescript/ai-ollama/package.json",
+      "nx/core/package-json"
+    ],
+    "metadata.targetGroups.NPM Scripts.2": [
+      "packages/typescript/ai-ollama/package.json",
+      "nx/core/package-json"
+    ],
+    "metadata.targetGroups.NPM Scripts.3": [
+      "packages/typescript/ai-ollama/package.json",
+      "nx/core/package-json"
+    ],
+    "metadata.targetGroups.NPM Scripts.4": [
+      "packages/typescript/ai-ollama/package.json",
+      "nx/core/package-json"
+    ],
+    "metadata.targetGroups.NPM Scripts.5": [
+      "packages/typescript/ai-ollama/package.json",
+      "nx/core/package-json"
+    ],
+    "metadata.targetGroups.NPM Scripts.6": [
+      "packages/typescript/ai-ollama/package.json",
+      "nx/core/package-json"
+    ],
+    "metadata.targetGroups.NPM Scripts.7": [
+      "packages/typescript/ai-ollama/package.json",
+      "nx/core/package-json"
+    ],
+    "metadata.description": [
+      "packages/typescript/ai-ollama/package.json",
+      "nx/core/package-json"
+    ],
+    "metadata.js": [
+      "packages/typescript/ai-ollama/package.json",
+      "nx/core/package-json"
+    ],
+    "metadata.js.packageName": [
+      "packages/typescript/ai-ollama/package.json",
+      "nx/core/package-json"
+    ],
+    "metadata.js.packageVersion": [
+      "packages/typescript/ai-ollama/package.json",
+      "nx/core/package-json"
+    ],
+    "metadata.js.packageExports": [
+      "packages/typescript/ai-ollama/package.json",
+      "nx/core/package-json"
+    ],
+    "metadata.js.isInPackageManagerWorkspaces": [
+      "packages/typescript/ai-ollama/package.json",
+      "nx/core/package-json"
+    ],
+    "targets": [
+      "packages/typescript/ai-ollama/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.build": [
+      "packages/typescript/ai-ollama/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.build.executor": [
+      "packages/typescript/ai-ollama/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.build.options": [
+      "packages/typescript/ai-ollama/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.build.metadata": [
+      "packages/typescript/ai-ollama/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.build.options.script": [
+      "packages/typescript/ai-ollama/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.build.metadata.scriptContent": [
+      "packages/typescript/ai-ollama/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.build.metadata.runCommand": [
+      "packages/typescript/ai-ollama/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.clean": [
+      "packages/typescript/ai-ollama/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.clean.executor": [
+      "packages/typescript/ai-ollama/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.clean.options": [
+      "packages/typescript/ai-ollama/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.clean.metadata": [
+      "packages/typescript/ai-ollama/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.clean.options.script": [
+      "packages/typescript/ai-ollama/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.clean.metadata.scriptContent": [
+      "packages/typescript/ai-ollama/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.clean.metadata.runCommand": [
+      "packages/typescript/ai-ollama/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.lint:fix": [
+      "packages/typescript/ai-ollama/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.lint:fix.executor": [
+      "packages/typescript/ai-ollama/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.lint:fix.options": [
+      "packages/typescript/ai-ollama/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.lint:fix.metadata": [
+      "packages/typescript/ai-ollama/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.lint:fix.options.script": [
+      "packages/typescript/ai-ollama/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.lint:fix.metadata.scriptContent": [
+      "packages/typescript/ai-ollama/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.lint:fix.metadata.runCommand": [
+      "packages/typescript/ai-ollama/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.test:build": [
+      "packages/typescript/ai-ollama/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.test:build.executor": [
+      "packages/typescript/ai-ollama/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.test:build.options": [
+      "packages/typescript/ai-ollama/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.test:build.metadata": [
+      "packages/typescript/ai-ollama/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.test:build.options.script": [
+      "packages/typescript/ai-ollama/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.test:build.metadata.scriptContent": [
+      "packages/typescript/ai-ollama/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.test:build.metadata.runCommand": [
+      "packages/typescript/ai-ollama/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.test:eslint": [
+      "packages/typescript/ai-ollama/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.test:eslint.executor": [
+      "packages/typescript/ai-ollama/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.test:eslint.options": [
+      "packages/typescript/ai-ollama/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.test:eslint.metadata": [
+      "packages/typescript/ai-ollama/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.test:eslint.options.script": [
+      "packages/typescript/ai-ollama/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.test:eslint.metadata.scriptContent": [
+      "packages/typescript/ai-ollama/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.test:eslint.metadata.runCommand": [
+      "packages/typescript/ai-ollama/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.test:lib": [
+      "packages/typescript/ai-ollama/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.test:lib.executor": [
+      "packages/typescript/ai-ollama/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.test:lib.options": [
+      "packages/typescript/ai-ollama/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.test:lib.metadata": [
+      "packages/typescript/ai-ollama/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.test:lib.options.script": [
+      "packages/typescript/ai-ollama/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.test:lib.metadata.scriptContent": [
+      "packages/typescript/ai-ollama/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.test:lib.metadata.runCommand": [
+      "packages/typescript/ai-ollama/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.test:lib:dev": [
+      "packages/typescript/ai-ollama/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.test:lib:dev.executor": [
+      "packages/typescript/ai-ollama/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.test:lib:dev.options": [
+      "packages/typescript/ai-ollama/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.test:lib:dev.metadata": [
+      "packages/typescript/ai-ollama/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.test:lib:dev.options.script": [
+      "packages/typescript/ai-ollama/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.test:lib:dev.metadata.scriptContent": [
+      "packages/typescript/ai-ollama/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.test:lib:dev.metadata.runCommand": [
+      "packages/typescript/ai-ollama/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.test:types": [
+      "packages/typescript/ai-ollama/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.test:types.executor": [
+      "packages/typescript/ai-ollama/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.test:types.options": [
+      "packages/typescript/ai-ollama/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.test:types.metadata": [
+      "packages/typescript/ai-ollama/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.test:types.options.script": [
+      "packages/typescript/ai-ollama/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.test:types.metadata.scriptContent": [
+      "packages/typescript/ai-ollama/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.test:types.metadata.runCommand": [
+      "packages/typescript/ai-ollama/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.build.cache": [
+      "nx.json",
+      "nx/target-defaults"
+    ],
+    "targets.build.dependsOn": [
+      "nx.json",
+      "nx/target-defaults"
+    ],
+    "targets.build.inputs": [
+      "nx.json",
+      "nx/target-defaults"
+    ],
+    "targets.build.outputs": [
+      "nx.json",
+      "nx/target-defaults"
+    ],
+    "targets.build.parallelism": [
+      "nx.json",
+      "nx/target-defaults"
+    ],
+    "targets.test:build.cache": [
+      "nx.json",
+      "nx/target-defaults"
+    ],
+    "targets.test:build.dependsOn": [
+      "nx.json",
+      "nx/target-defaults"
+    ],
+    "targets.test:build.inputs": [
+      "nx.json",
+      "nx/target-defaults"
+    ],
+    "targets.test:build.parallelism": [
+      "nx.json",
+      "nx/target-defaults"
+    ],
+    "targets.test:eslint.cache": [
+      "nx.json",
+      "nx/target-defaults"
+    ],
+    "targets.test:eslint.dependsOn": [
+      "nx.json",
+      "nx/target-defaults"
+    ],
+    "targets.test:eslint.inputs": [
+      "nx.json",
+      "nx/target-defaults"
+    ],
+    "targets.test:eslint.parallelism": [
+      "nx.json",
+      "nx/target-defaults"
+    ],
+    "targets.test:lib.cache": [
+      "nx.json",
+      "nx/target-defaults"
+    ],
+    "targets.test:lib.dependsOn": [
+      "nx.json",
+      "nx/target-defaults"
+    ],
+    "targets.test:lib.inputs": [
+      "nx.json",
+      "nx/target-defaults"
+    ],
+    "targets.test:lib.outputs": [
+      "nx.json",
+      "nx/target-defaults"
+    ],
+    "targets.test:lib.parallelism": [
+      "nx.json",
+      "nx/target-defaults"
+    ],
+    "targets.test:types.cache": [
+      "nx.json",
+      "nx/target-defaults"
+    ],
+    "targets.test:types.dependsOn": [
+      "nx.json",
+      "nx/target-defaults"
+    ],
+    "targets.test:types.inputs": [
+      "nx.json",
+      "nx/target-defaults"
+    ],
+    "targets.test:types.parallelism": [
+      "nx.json",
+      "nx/target-defaults"
+    ]
+  },
+  "packages/typescript/ai-openai": {
+    "root": [
+      "packages/typescript/ai-openai/package.json",
+      "nx/core/package-json"
+    ],
+    "name": [
+      "packages/typescript/ai-openai/package.json",
+      "nx/core/package-json"
+    ],
+    "tags": [
+      "packages/typescript/ai-openai/package.json",
+      "nx/core/package-json"
+    ],
+    "tags.npm:public": [
+      "packages/typescript/ai-openai/package.json",
+      "nx/core/package-json"
+    ],
+    "tags.npm:ai": [
+      "packages/typescript/ai-openai/package.json",
+      "nx/core/package-json"
+    ],
+    "tags.npm:openai": [
+      "packages/typescript/ai-openai/package.json",
+      "nx/core/package-json"
+    ],
+    "tags.npm:gpt": [
+      "packages/typescript/ai-openai/package.json",
+      "nx/core/package-json"
+    ],
+    "tags.npm:tanstack": [
+      "packages/typescript/ai-openai/package.json",
+      "nx/core/package-json"
+    ],
+    "tags.npm:adapter": [
+      "packages/typescript/ai-openai/package.json",
+      "nx/core/package-json"
+    ],
+    "metadata.targetGroups": [
+      "packages/typescript/ai-openai/package.json",
+      "nx/core/package-json"
+    ],
+    "metadata.targetGroups.NPM Scripts": [
+      "packages/typescript/ai-openai/package.json",
+      "nx/core/package-json"
+    ],
+    "metadata.targetGroups.NPM Scripts.0": [
+      "packages/typescript/ai-openai/package.json",
+      "nx/core/package-json"
+    ],
+    "metadata.targetGroups.NPM Scripts.1": [
+      "packages/typescript/ai-openai/package.json",
+      "nx/core/package-json"
+    ],
+    "metadata.targetGroups.NPM Scripts.2": [
+      "packages/typescript/ai-openai/package.json",
+      "nx/core/package-json"
+    ],
+    "metadata.targetGroups.NPM Scripts.3": [
+      "packages/typescript/ai-openai/package.json",
+      "nx/core/package-json"
+    ],
+    "metadata.targetGroups.NPM Scripts.4": [
+      "packages/typescript/ai-openai/package.json",
+      "nx/core/package-json"
+    ],
+    "metadata.targetGroups.NPM Scripts.5": [
+      "packages/typescript/ai-openai/package.json",
+      "nx/core/package-json"
+    ],
+    "metadata.targetGroups.NPM Scripts.6": [
+      "packages/typescript/ai-openai/package.json",
+      "nx/core/package-json"
+    ],
+    "metadata.targetGroups.NPM Scripts.7": [
+      "packages/typescript/ai-openai/package.json",
+      "nx/core/package-json"
+    ],
+    "metadata.description": [
+      "packages/typescript/ai-openai/package.json",
+      "nx/core/package-json"
+    ],
+    "metadata.js": [
+      "packages/typescript/ai-openai/package.json",
+      "nx/core/package-json"
+    ],
+    "metadata.js.packageName": [
+      "packages/typescript/ai-openai/package.json",
+      "nx/core/package-json"
+    ],
+    "metadata.js.packageVersion": [
+      "packages/typescript/ai-openai/package.json",
+      "nx/core/package-json"
+    ],
+    "metadata.js.packageExports": [
+      "packages/typescript/ai-openai/package.json",
+      "nx/core/package-json"
+    ],
+    "metadata.js.isInPackageManagerWorkspaces": [
+      "packages/typescript/ai-openai/package.json",
+      "nx/core/package-json"
+    ],
+    "targets": [
+      "packages/typescript/ai-openai/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.build": [
+      "packages/typescript/ai-openai/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.build.executor": [
+      "packages/typescript/ai-openai/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.build.options": [
+      "packages/typescript/ai-openai/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.build.metadata": [
+      "packages/typescript/ai-openai/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.build.options.script": [
+      "packages/typescript/ai-openai/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.build.metadata.scriptContent": [
+      "packages/typescript/ai-openai/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.build.metadata.runCommand": [
+      "packages/typescript/ai-openai/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.clean": [
+      "packages/typescript/ai-openai/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.clean.executor": [
+      "packages/typescript/ai-openai/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.clean.options": [
+      "packages/typescript/ai-openai/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.clean.metadata": [
+      "packages/typescript/ai-openai/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.clean.options.script": [
+      "packages/typescript/ai-openai/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.clean.metadata.scriptContent": [
+      "packages/typescript/ai-openai/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.clean.metadata.runCommand": [
+      "packages/typescript/ai-openai/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.lint:fix": [
+      "packages/typescript/ai-openai/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.lint:fix.executor": [
+      "packages/typescript/ai-openai/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.lint:fix.options": [
+      "packages/typescript/ai-openai/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.lint:fix.metadata": [
+      "packages/typescript/ai-openai/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.lint:fix.options.script": [
+      "packages/typescript/ai-openai/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.lint:fix.metadata.scriptContent": [
+      "packages/typescript/ai-openai/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.lint:fix.metadata.runCommand": [
+      "packages/typescript/ai-openai/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.test:build": [
+      "packages/typescript/ai-openai/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.test:build.executor": [
+      "packages/typescript/ai-openai/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.test:build.options": [
+      "packages/typescript/ai-openai/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.test:build.metadata": [
+      "packages/typescript/ai-openai/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.test:build.options.script": [
+      "packages/typescript/ai-openai/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.test:build.metadata.scriptContent": [
+      "packages/typescript/ai-openai/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.test:build.metadata.runCommand": [
+      "packages/typescript/ai-openai/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.test:eslint": [
+      "packages/typescript/ai-openai/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.test:eslint.executor": [
+      "packages/typescript/ai-openai/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.test:eslint.options": [
+      "packages/typescript/ai-openai/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.test:eslint.metadata": [
+      "packages/typescript/ai-openai/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.test:eslint.options.script": [
+      "packages/typescript/ai-openai/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.test:eslint.metadata.scriptContent": [
+      "packages/typescript/ai-openai/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.test:eslint.metadata.runCommand": [
+      "packages/typescript/ai-openai/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.test:lib": [
+      "packages/typescript/ai-openai/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.test:lib.executor": [
+      "packages/typescript/ai-openai/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.test:lib.options": [
+      "packages/typescript/ai-openai/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.test:lib.metadata": [
+      "packages/typescript/ai-openai/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.test:lib.options.script": [
+      "packages/typescript/ai-openai/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.test:lib.metadata.scriptContent": [
+      "packages/typescript/ai-openai/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.test:lib.metadata.runCommand": [
+      "packages/typescript/ai-openai/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.test:lib:dev": [
+      "packages/typescript/ai-openai/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.test:lib:dev.executor": [
+      "packages/typescript/ai-openai/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.test:lib:dev.options": [
+      "packages/typescript/ai-openai/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.test:lib:dev.metadata": [
+      "packages/typescript/ai-openai/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.test:lib:dev.options.script": [
+      "packages/typescript/ai-openai/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.test:lib:dev.metadata.scriptContent": [
+      "packages/typescript/ai-openai/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.test:lib:dev.metadata.runCommand": [
+      "packages/typescript/ai-openai/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.test:types": [
+      "packages/typescript/ai-openai/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.test:types.executor": [
+      "packages/typescript/ai-openai/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.test:types.options": [
+      "packages/typescript/ai-openai/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.test:types.metadata": [
+      "packages/typescript/ai-openai/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.test:types.options.script": [
+      "packages/typescript/ai-openai/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.test:types.metadata.scriptContent": [
+      "packages/typescript/ai-openai/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.test:types.metadata.runCommand": [
+      "packages/typescript/ai-openai/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.build.cache": [
+      "nx.json",
+      "nx/target-defaults"
+    ],
+    "targets.build.dependsOn": [
+      "nx.json",
+      "nx/target-defaults"
+    ],
+    "targets.build.inputs": [
+      "nx.json",
+      "nx/target-defaults"
+    ],
+    "targets.build.outputs": [
+      "nx.json",
+      "nx/target-defaults"
+    ],
+    "targets.build.parallelism": [
+      "nx.json",
+      "nx/target-defaults"
+    ],
+    "targets.test:build.cache": [
+      "nx.json",
+      "nx/target-defaults"
+    ],
+    "targets.test:build.dependsOn": [
+      "nx.json",
+      "nx/target-defaults"
+    ],
+    "targets.test:build.inputs": [
+      "nx.json",
+      "nx/target-defaults"
+    ],
+    "targets.test:build.parallelism": [
+      "nx.json",
+      "nx/target-defaults"
+    ],
+    "targets.test:eslint.cache": [
+      "nx.json",
+      "nx/target-defaults"
+    ],
+    "targets.test:eslint.dependsOn": [
+      "nx.json",
+      "nx/target-defaults"
+    ],
+    "targets.test:eslint.inputs": [
+      "nx.json",
+      "nx/target-defaults"
+    ],
+    "targets.test:eslint.parallelism": [
+      "nx.json",
+      "nx/target-defaults"
+    ],
+    "targets.test:lib.cache": [
+      "nx.json",
+      "nx/target-defaults"
+    ],
+    "targets.test:lib.dependsOn": [
+      "nx.json",
+      "nx/target-defaults"
+    ],
+    "targets.test:lib.inputs": [
+      "nx.json",
+      "nx/target-defaults"
+    ],
+    "targets.test:lib.outputs": [
+      "nx.json",
+      "nx/target-defaults"
+    ],
+    "targets.test:lib.parallelism": [
+      "nx.json",
+      "nx/target-defaults"
+    ],
+    "targets.test:types.cache": [
+      "nx.json",
+      "nx/target-defaults"
+    ],
+    "targets.test:types.dependsOn": [
+      "nx.json",
+      "nx/target-defaults"
+    ],
+    "targets.test:types.inputs": [
+      "nx.json",
+      "nx/target-defaults"
+    ],
+    "targets.test:types.parallelism": [
+      "nx.json",
+      "nx/target-defaults"
+    ]
+  },
+  "packages/typescript/ai-react": {
+    "root": [
+      "packages/typescript/ai-react/package.json",
+      "nx/core/package-json"
+    ],
+    "name": [
+      "packages/typescript/ai-react/package.json",
+      "nx/core/package-json"
+    ],
+    "tags": [
+      "packages/typescript/ai-react/package.json",
+      "nx/core/package-json"
+    ],
+    "tags.npm:public": [
+      "packages/typescript/ai-react/package.json",
+      "nx/core/package-json"
+    ],
+    "tags.npm:ai": [
+      "packages/typescript/ai-react/package.json",
+      "nx/core/package-json"
+    ],
+    "tags.npm:react": [
+      "packages/typescript/ai-react/package.json",
+      "nx/core/package-json"
+    ],
+    "tags.npm:hooks": [
+      "packages/typescript/ai-react/package.json",
+      "nx/core/package-json"
+    ],
+    "tags.npm:tanstack": [
+      "packages/typescript/ai-react/package.json",
+      "nx/core/package-json"
+    ],
+    "tags.npm:chat": [
+      "packages/typescript/ai-react/package.json",
+      "nx/core/package-json"
+    ],
+    "tags.npm:streaming": [
+      "packages/typescript/ai-react/package.json",
+      "nx/core/package-json"
+    ],
+    "metadata.targetGroups": [
+      "packages/typescript/ai-react/package.json",
+      "nx/core/package-json"
+    ],
+    "metadata.targetGroups.NPM Scripts": [
+      "packages/typescript/ai-react/package.json",
+      "nx/core/package-json"
+    ],
+    "metadata.targetGroups.NPM Scripts.0": [
+      "packages/typescript/ai-react/package.json",
+      "nx/core/package-json"
+    ],
+    "metadata.targetGroups.NPM Scripts.1": [
+      "packages/typescript/ai-react/package.json",
+      "nx/core/package-json"
+    ],
+    "metadata.targetGroups.NPM Scripts.2": [
+      "packages/typescript/ai-react/package.json",
+      "nx/core/package-json"
+    ],
+    "metadata.targetGroups.NPM Scripts.3": [
+      "packages/typescript/ai-react/package.json",
+      "nx/core/package-json"
+    ],
+    "metadata.targetGroups.NPM Scripts.4": [
+      "packages/typescript/ai-react/package.json",
+      "nx/core/package-json"
+    ],
+    "metadata.targetGroups.NPM Scripts.5": [
+      "packages/typescript/ai-react/package.json",
+      "nx/core/package-json"
+    ],
+    "metadata.targetGroups.NPM Scripts.6": [
+      "packages/typescript/ai-react/package.json",
+      "nx/core/package-json"
+    ],
+    "metadata.targetGroups.NPM Scripts.7": [
+      "packages/typescript/ai-react/package.json",
+      "nx/core/package-json"
+    ],
+    "metadata.description": [
+      "packages/typescript/ai-react/package.json",
+      "nx/core/package-json"
+    ],
+    "metadata.js": [
+      "packages/typescript/ai-react/package.json",
+      "nx/core/package-json"
+    ],
+    "metadata.js.packageName": [
+      "packages/typescript/ai-react/package.json",
+      "nx/core/package-json"
+    ],
+    "metadata.js.packageVersion": [
+      "packages/typescript/ai-react/package.json",
+      "nx/core/package-json"
+    ],
+    "metadata.js.packageExports": [
+      "packages/typescript/ai-react/package.json",
+      "nx/core/package-json"
+    ],
+    "metadata.js.isInPackageManagerWorkspaces": [
+      "packages/typescript/ai-react/package.json",
+      "nx/core/package-json"
+    ],
+    "targets": [
+      "packages/typescript/ai-react/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.clean": [
+      "packages/typescript/ai-react/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.clean.executor": [
+      "packages/typescript/ai-react/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.clean.options": [
+      "packages/typescript/ai-react/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.clean.metadata": [
+      "packages/typescript/ai-react/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.clean.options.script": [
+      "packages/typescript/ai-react/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.clean.metadata.scriptContent": [
+      "packages/typescript/ai-react/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.clean.metadata.runCommand": [
+      "packages/typescript/ai-react/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.lint:fix": [
+      "packages/typescript/ai-react/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.lint:fix.executor": [
+      "packages/typescript/ai-react/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.lint:fix.options": [
+      "packages/typescript/ai-react/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.lint:fix.metadata": [
+      "packages/typescript/ai-react/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.lint:fix.options.script": [
+      "packages/typescript/ai-react/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.lint:fix.metadata.scriptContent": [
+      "packages/typescript/ai-react/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.lint:fix.metadata.runCommand": [
+      "packages/typescript/ai-react/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.test:eslint": [
+      "packages/typescript/ai-react/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.test:eslint.executor": [
+      "packages/typescript/ai-react/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.test:eslint.options": [
+      "packages/typescript/ai-react/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.test:eslint.metadata": [
+      "packages/typescript/ai-react/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.test:eslint.options.script": [
+      "packages/typescript/ai-react/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.test:eslint.metadata.scriptContent": [
+      "packages/typescript/ai-react/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.test:eslint.metadata.runCommand": [
+      "packages/typescript/ai-react/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.test:lib": [
+      "packages/typescript/ai-react/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.test:lib.executor": [
+      "packages/typescript/ai-react/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.test:lib.options": [
+      "packages/typescript/ai-react/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.test:lib.metadata": [
+      "packages/typescript/ai-react/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.test:lib.options.script": [
+      "packages/typescript/ai-react/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.test:lib.metadata.scriptContent": [
+      "packages/typescript/ai-react/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.test:lib.metadata.runCommand": [
+      "packages/typescript/ai-react/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.test:lib:dev": [
+      "packages/typescript/ai-react/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.test:lib:dev.executor": [
+      "packages/typescript/ai-react/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.test:lib:dev.options": [
+      "packages/typescript/ai-react/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.test:lib:dev.metadata": [
+      "packages/typescript/ai-react/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.test:lib:dev.options.script": [
+      "packages/typescript/ai-react/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.test:lib:dev.metadata.scriptContent": [
+      "packages/typescript/ai-react/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.test:lib:dev.metadata.runCommand": [
+      "packages/typescript/ai-react/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.test:types": [
+      "packages/typescript/ai-react/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.test:types.executor": [
+      "packages/typescript/ai-react/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.test:types.options": [
+      "packages/typescript/ai-react/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.test:types.metadata": [
+      "packages/typescript/ai-react/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.test:types.options.script": [
+      "packages/typescript/ai-react/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.test:types.metadata.scriptContent": [
+      "packages/typescript/ai-react/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.test:types.metadata.runCommand": [
+      "packages/typescript/ai-react/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.test:build": [
+      "packages/typescript/ai-react/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.test:build.executor": [
+      "packages/typescript/ai-react/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.test:build.options": [
+      "packages/typescript/ai-react/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.test:build.metadata": [
+      "packages/typescript/ai-react/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.test:build.options.script": [
+      "packages/typescript/ai-react/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.test:build.metadata.scriptContent": [
+      "packages/typescript/ai-react/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.test:build.metadata.runCommand": [
+      "packages/typescript/ai-react/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.build": [
+      "packages/typescript/ai-react/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.build.executor": [
+      "packages/typescript/ai-react/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.build.options": [
+      "packages/typescript/ai-react/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.build.metadata": [
+      "packages/typescript/ai-react/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.build.options.script": [
+      "packages/typescript/ai-react/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.build.metadata.scriptContent": [
+      "packages/typescript/ai-react/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.build.metadata.runCommand": [
+      "packages/typescript/ai-react/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.test:eslint.cache": [
+      "nx.json",
+      "nx/target-defaults"
+    ],
+    "targets.test:eslint.dependsOn": [
+      "nx.json",
+      "nx/target-defaults"
+    ],
+    "targets.test:eslint.inputs": [
+      "nx.json",
+      "nx/target-defaults"
+    ],
+    "targets.test:eslint.parallelism": [
+      "nx.json",
+      "nx/target-defaults"
+    ],
+    "targets.test:lib.cache": [
+      "nx.json",
+      "nx/target-defaults"
+    ],
+    "targets.test:lib.dependsOn": [
+      "nx.json",
+      "nx/target-defaults"
+    ],
+    "targets.test:lib.inputs": [
+      "nx.json",
+      "nx/target-defaults"
+    ],
+    "targets.test:lib.outputs": [
+      "nx.json",
+      "nx/target-defaults"
+    ],
+    "targets.test:lib.parallelism": [
+      "nx.json",
+      "nx/target-defaults"
+    ],
+    "targets.test:types.cache": [
+      "nx.json",
+      "nx/target-defaults"
+    ],
+    "targets.test:types.dependsOn": [
+      "nx.json",
+      "nx/target-defaults"
+    ],
+    "targets.test:types.inputs": [
+      "nx.json",
+      "nx/target-defaults"
+    ],
+    "targets.test:types.parallelism": [
+      "nx.json",
+      "nx/target-defaults"
+    ],
+    "targets.test:build.cache": [
+      "nx.json",
+      "nx/target-defaults"
+    ],
+    "targets.test:build.dependsOn": [
+      "nx.json",
+      "nx/target-defaults"
+    ],
+    "targets.test:build.inputs": [
+      "nx.json",
+      "nx/target-defaults"
+    ],
+    "targets.test:build.parallelism": [
+      "nx.json",
+      "nx/target-defaults"
+    ],
+    "targets.build.cache": [
+      "nx.json",
+      "nx/target-defaults"
+    ],
+    "targets.build.dependsOn": [
+      "nx.json",
+      "nx/target-defaults"
+    ],
+    "targets.build.inputs": [
+      "nx.json",
+      "nx/target-defaults"
+    ],
+    "targets.build.outputs": [
+      "nx.json",
+      "nx/target-defaults"
+    ],
+    "targets.build.parallelism": [
+      "nx.json",
+      "nx/target-defaults"
+    ]
+  },
+  "packages/typescript/ai-react-ui": {
+    "root": [
+      "packages/typescript/ai-react-ui/package.json",
+      "nx/core/package-json"
+    ],
+    "name": [
+      "packages/typescript/ai-react-ui/package.json",
+      "nx/core/package-json"
+    ],
+    "tags": [
+      "packages/typescript/ai-react-ui/package.json",
+      "nx/core/package-json"
+    ],
+    "tags.npm:public": [
+      "packages/typescript/ai-react-ui/package.json",
+      "nx/core/package-json"
+    ],
+    "tags.npm:tanstack": [
+      "packages/typescript/ai-react-ui/package.json",
+      "nx/core/package-json"
+    ],
+    "tags.npm:ai": [
+      "packages/typescript/ai-react-ui/package.json",
+      "nx/core/package-json"
+    ],
+    "tags.npm:react": [
+      "packages/typescript/ai-react-ui/package.json",
+      "nx/core/package-json"
+    ],
+    "tags.npm:chat": [
+      "packages/typescript/ai-react-ui/package.json",
+      "nx/core/package-json"
+    ],
+    "tags.npm:ui": [
+      "packages/typescript/ai-react-ui/package.json",
+      "nx/core/package-json"
+    ],
+    "tags.npm:headless": [
+      "packages/typescript/ai-react-ui/package.json",
+      "nx/core/package-json"
+    ],
+    "tags.npm:components": [
+      "packages/typescript/ai-react-ui/package.json",
+      "nx/core/package-json"
+    ],
+    "metadata.targetGroups": [
+      "packages/typescript/ai-react-ui/package.json",
+      "nx/core/package-json"
+    ],
+    "metadata.targetGroups.NPM Scripts": [
+      "packages/typescript/ai-react-ui/package.json",
+      "nx/core/package-json"
+    ],
+    "metadata.targetGroups.NPM Scripts.0": [
+      "packages/typescript/ai-react-ui/package.json",
+      "nx/core/package-json"
+    ],
+    "metadata.targetGroups.NPM Scripts.1": [
+      "packages/typescript/ai-react-ui/package.json",
+      "nx/core/package-json"
+    ],
+    "metadata.targetGroups.NPM Scripts.2": [
+      "packages/typescript/ai-react-ui/package.json",
+      "nx/core/package-json"
+    ],
+    "metadata.targetGroups.NPM Scripts.3": [
+      "packages/typescript/ai-react-ui/package.json",
+      "nx/core/package-json"
+    ],
+    "metadata.targetGroups.NPM Scripts.4": [
+      "packages/typescript/ai-react-ui/package.json",
+      "nx/core/package-json"
+    ],
+    "metadata.targetGroups.NPM Scripts.5": [
+      "packages/typescript/ai-react-ui/package.json",
+      "nx/core/package-json"
+    ],
+    "metadata.targetGroups.NPM Scripts.6": [
+      "packages/typescript/ai-react-ui/package.json",
+      "nx/core/package-json"
+    ],
+    "metadata.description": [
+      "packages/typescript/ai-react-ui/package.json",
+      "nx/core/package-json"
+    ],
+    "metadata.js": [
+      "packages/typescript/ai-react-ui/package.json",
+      "nx/core/package-json"
+    ],
+    "metadata.js.packageName": [
+      "packages/typescript/ai-react-ui/package.json",
+      "nx/core/package-json"
+    ],
+    "metadata.js.packageVersion": [
+      "packages/typescript/ai-react-ui/package.json",
+      "nx/core/package-json"
+    ],
+    "metadata.js.packageExports": [
+      "packages/typescript/ai-react-ui/package.json",
+      "nx/core/package-json"
+    ],
+    "metadata.js.packageMain": [
+      "packages/typescript/ai-react-ui/package.json",
+      "nx/core/package-json"
+    ],
+    "metadata.js.isInPackageManagerWorkspaces": [
+      "packages/typescript/ai-react-ui/package.json",
+      "nx/core/package-json"
+    ],
+    "targets": [
+      "packages/typescript/ai-react-ui/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.build": [
+      "packages/typescript/ai-react-ui/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.build.executor": [
+      "packages/typescript/ai-react-ui/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.build.options": [
+      "packages/typescript/ai-react-ui/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.build.metadata": [
+      "packages/typescript/ai-react-ui/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.build.options.script": [
+      "packages/typescript/ai-react-ui/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.build.metadata.scriptContent": [
+      "packages/typescript/ai-react-ui/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.build.metadata.runCommand": [
+      "packages/typescript/ai-react-ui/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.clean": [
+      "packages/typescript/ai-react-ui/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.clean.executor": [
+      "packages/typescript/ai-react-ui/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.clean.options": [
+      "packages/typescript/ai-react-ui/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.clean.metadata": [
+      "packages/typescript/ai-react-ui/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.clean.options.script": [
+      "packages/typescript/ai-react-ui/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.clean.metadata.scriptContent": [
+      "packages/typescript/ai-react-ui/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.clean.metadata.runCommand": [
+      "packages/typescript/ai-react-ui/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.test:build": [
+      "packages/typescript/ai-react-ui/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.test:build.executor": [
+      "packages/typescript/ai-react-ui/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.test:build.options": [
+      "packages/typescript/ai-react-ui/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.test:build.metadata": [
+      "packages/typescript/ai-react-ui/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.test:build.options.script": [
+      "packages/typescript/ai-react-ui/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.test:build.metadata.scriptContent": [
+      "packages/typescript/ai-react-ui/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.test:build.metadata.runCommand": [
+      "packages/typescript/ai-react-ui/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.test:eslint": [
+      "packages/typescript/ai-react-ui/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.test:eslint.executor": [
+      "packages/typescript/ai-react-ui/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.test:eslint.options": [
+      "packages/typescript/ai-react-ui/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.test:eslint.metadata": [
+      "packages/typescript/ai-react-ui/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.test:eslint.options.script": [
+      "packages/typescript/ai-react-ui/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.test:eslint.metadata.scriptContent": [
+      "packages/typescript/ai-react-ui/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.test:eslint.metadata.runCommand": [
+      "packages/typescript/ai-react-ui/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.test:lib": [
+      "packages/typescript/ai-react-ui/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.test:lib.executor": [
+      "packages/typescript/ai-react-ui/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.test:lib.options": [
+      "packages/typescript/ai-react-ui/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.test:lib.metadata": [
+      "packages/typescript/ai-react-ui/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.test:lib.options.script": [
+      "packages/typescript/ai-react-ui/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.test:lib.metadata.scriptContent": [
+      "packages/typescript/ai-react-ui/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.test:lib.metadata.runCommand": [
+      "packages/typescript/ai-react-ui/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.test:lib:dev": [
+      "packages/typescript/ai-react-ui/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.test:lib:dev.executor": [
+      "packages/typescript/ai-react-ui/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.test:lib:dev.options": [
+      "packages/typescript/ai-react-ui/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.test:lib:dev.metadata": [
+      "packages/typescript/ai-react-ui/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.test:lib:dev.options.script": [
+      "packages/typescript/ai-react-ui/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.test:lib:dev.metadata.scriptContent": [
+      "packages/typescript/ai-react-ui/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.test:lib:dev.metadata.runCommand": [
+      "packages/typescript/ai-react-ui/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.test:types": [
+      "packages/typescript/ai-react-ui/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.test:types.executor": [
+      "packages/typescript/ai-react-ui/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.test:types.options": [
+      "packages/typescript/ai-react-ui/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.test:types.metadata": [
+      "packages/typescript/ai-react-ui/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.test:types.options.script": [
+      "packages/typescript/ai-react-ui/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.test:types.metadata.scriptContent": [
+      "packages/typescript/ai-react-ui/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.test:types.metadata.runCommand": [
+      "packages/typescript/ai-react-ui/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.build.cache": [
+      "nx.json",
+      "nx/target-defaults"
+    ],
+    "targets.build.dependsOn": [
+      "nx.json",
+      "nx/target-defaults"
+    ],
+    "targets.build.inputs": [
+      "nx.json",
+      "nx/target-defaults"
+    ],
+    "targets.build.outputs": [
+      "nx.json",
+      "nx/target-defaults"
+    ],
+    "targets.build.parallelism": [
+      "nx.json",
+      "nx/target-defaults"
+    ],
+    "targets.test:build.cache": [
+      "nx.json",
+      "nx/target-defaults"
+    ],
+    "targets.test:build.dependsOn": [
+      "nx.json",
+      "nx/target-defaults"
+    ],
+    "targets.test:build.inputs": [
+      "nx.json",
+      "nx/target-defaults"
+    ],
+    "targets.test:build.parallelism": [
+      "nx.json",
+      "nx/target-defaults"
+    ],
+    "targets.test:eslint.cache": [
+      "nx.json",
+      "nx/target-defaults"
+    ],
+    "targets.test:eslint.dependsOn": [
+      "nx.json",
+      "nx/target-defaults"
+    ],
+    "targets.test:eslint.inputs": [
+      "nx.json",
+      "nx/target-defaults"
+    ],
+    "targets.test:eslint.parallelism": [
+      "nx.json",
+      "nx/target-defaults"
+    ],
+    "targets.test:lib.cache": [
+      "nx.json",
+      "nx/target-defaults"
+    ],
+    "targets.test:lib.dependsOn": [
+      "nx.json",
+      "nx/target-defaults"
+    ],
+    "targets.test:lib.inputs": [
+      "nx.json",
+      "nx/target-defaults"
+    ],
+    "targets.test:lib.outputs": [
+      "nx.json",
+      "nx/target-defaults"
+    ],
+    "targets.test:lib.parallelism": [
+      "nx.json",
+      "nx/target-defaults"
+    ],
+    "targets.test:types.cache": [
+      "nx.json",
+      "nx/target-defaults"
+    ],
+    "targets.test:types.dependsOn": [
+      "nx.json",
+      "nx/target-defaults"
+    ],
+    "targets.test:types.inputs": [
+      "nx.json",
+      "nx/target-defaults"
+    ],
+    "targets.test:types.parallelism": [
+      "nx.json",
+      "nx/target-defaults"
+    ]
+  },
+  "packages/typescript/react-ai-devtools": {
+    "root": [
+      "packages/typescript/react-ai-devtools/package.json",
+      "nx/core/package-json"
+    ],
+    "name": [
+      "packages/typescript/react-ai-devtools/package.json",
+      "nx/core/package-json"
+    ],
+    "tags": [
+      "packages/typescript/react-ai-devtools/package.json",
+      "nx/core/package-json"
+    ],
+    "tags.npm:public": [
+      "packages/typescript/react-ai-devtools/package.json",
+      "nx/core/package-json"
+    ],
+    "metadata.targetGroups": [
+      "packages/typescript/react-ai-devtools/package.json",
+      "nx/core/package-json"
+    ],
+    "metadata.targetGroups.NPM Scripts": [
+      "packages/typescript/react-ai-devtools/package.json",
+      "nx/core/package-json"
+    ],
+    "metadata.targetGroups.NPM Scripts.0": [
+      "packages/typescript/react-ai-devtools/package.json",
+      "nx/core/package-json"
+    ],
+    "metadata.targetGroups.NPM Scripts.1": [
+      "packages/typescript/react-ai-devtools/package.json",
+      "nx/core/package-json"
+    ],
+    "metadata.targetGroups.NPM Scripts.2": [
+      "packages/typescript/react-ai-devtools/package.json",
+      "nx/core/package-json"
+    ],
+    "metadata.targetGroups.NPM Scripts.3": [
+      "packages/typescript/react-ai-devtools/package.json",
+      "nx/core/package-json"
+    ],
+    "metadata.targetGroups.NPM Scripts.4": [
+      "packages/typescript/react-ai-devtools/package.json",
+      "nx/core/package-json"
+    ],
+    "metadata.targetGroups.NPM Scripts.5": [
+      "packages/typescript/react-ai-devtools/package.json",
+      "nx/core/package-json"
+    ],
+    "metadata.targetGroups.NPM Scripts.6": [
+      "packages/typescript/react-ai-devtools/package.json",
+      "nx/core/package-json"
+    ],
+    "metadata.targetGroups.NPM Scripts.7": [
+      "packages/typescript/react-ai-devtools/package.json",
+      "nx/core/package-json"
+    ],
+    "metadata.description": [
+      "packages/typescript/react-ai-devtools/package.json",
+      "nx/core/package-json"
+    ],
+    "metadata.js": [
+      "packages/typescript/react-ai-devtools/package.json",
+      "nx/core/package-json"
+    ],
+    "metadata.js.packageName": [
+      "packages/typescript/react-ai-devtools/package.json",
+      "nx/core/package-json"
+    ],
+    "metadata.js.packageVersion": [
+      "packages/typescript/react-ai-devtools/package.json",
+      "nx/core/package-json"
+    ],
+    "metadata.js.packageExports": [
+      "packages/typescript/react-ai-devtools/package.json",
+      "nx/core/package-json"
+    ],
+    "metadata.js.isInPackageManagerWorkspaces": [
+      "packages/typescript/react-ai-devtools/package.json",
+      "nx/core/package-json"
+    ],
+    "targets": [
+      "packages/typescript/react-ai-devtools/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.clean": [
+      "packages/typescript/react-ai-devtools/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.clean.executor": [
+      "packages/typescript/react-ai-devtools/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.clean.options": [
+      "packages/typescript/react-ai-devtools/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.clean.metadata": [
+      "packages/typescript/react-ai-devtools/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.clean.options.script": [
+      "packages/typescript/react-ai-devtools/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.clean.metadata.scriptContent": [
+      "packages/typescript/react-ai-devtools/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.clean.metadata.runCommand": [
+      "packages/typescript/react-ai-devtools/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.lint:fix": [
+      "packages/typescript/react-ai-devtools/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.lint:fix.executor": [
+      "packages/typescript/react-ai-devtools/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.lint:fix.options": [
+      "packages/typescript/react-ai-devtools/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.lint:fix.metadata": [
+      "packages/typescript/react-ai-devtools/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.lint:fix.options.script": [
+      "packages/typescript/react-ai-devtools/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.lint:fix.metadata.scriptContent": [
+      "packages/typescript/react-ai-devtools/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.lint:fix.metadata.runCommand": [
+      "packages/typescript/react-ai-devtools/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.test:eslint": [
+      "packages/typescript/react-ai-devtools/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.test:eslint.executor": [
+      "packages/typescript/react-ai-devtools/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.test:eslint.options": [
+      "packages/typescript/react-ai-devtools/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.test:eslint.metadata": [
+      "packages/typescript/react-ai-devtools/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.test:eslint.options.script": [
+      "packages/typescript/react-ai-devtools/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.test:eslint.metadata.scriptContent": [
+      "packages/typescript/react-ai-devtools/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.test:eslint.metadata.runCommand": [
+      "packages/typescript/react-ai-devtools/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.test:lib": [
+      "packages/typescript/react-ai-devtools/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.test:lib.executor": [
+      "packages/typescript/react-ai-devtools/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.test:lib.options": [
+      "packages/typescript/react-ai-devtools/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.test:lib.metadata": [
+      "packages/typescript/react-ai-devtools/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.test:lib.options.script": [
+      "packages/typescript/react-ai-devtools/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.test:lib.metadata.scriptContent": [
+      "packages/typescript/react-ai-devtools/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.test:lib.metadata.runCommand": [
+      "packages/typescript/react-ai-devtools/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.test:lib:dev": [
+      "packages/typescript/react-ai-devtools/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.test:lib:dev.executor": [
+      "packages/typescript/react-ai-devtools/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.test:lib:dev.options": [
+      "packages/typescript/react-ai-devtools/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.test:lib:dev.metadata": [
+      "packages/typescript/react-ai-devtools/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.test:lib:dev.options.script": [
+      "packages/typescript/react-ai-devtools/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.test:lib:dev.metadata.scriptContent": [
+      "packages/typescript/react-ai-devtools/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.test:lib:dev.metadata.runCommand": [
+      "packages/typescript/react-ai-devtools/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.test:types": [
+      "packages/typescript/react-ai-devtools/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.test:types.executor": [
+      "packages/typescript/react-ai-devtools/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.test:types.options": [
+      "packages/typescript/react-ai-devtools/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.test:types.metadata": [
+      "packages/typescript/react-ai-devtools/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.test:types.options.script": [
+      "packages/typescript/react-ai-devtools/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.test:types.metadata.scriptContent": [
+      "packages/typescript/react-ai-devtools/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.test:types.metadata.runCommand": [
+      "packages/typescript/react-ai-devtools/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.test:build": [
+      "packages/typescript/react-ai-devtools/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.test:build.executor": [
+      "packages/typescript/react-ai-devtools/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.test:build.options": [
+      "packages/typescript/react-ai-devtools/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.test:build.metadata": [
+      "packages/typescript/react-ai-devtools/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.test:build.options.script": [
+      "packages/typescript/react-ai-devtools/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.test:build.metadata.scriptContent": [
+      "packages/typescript/react-ai-devtools/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.test:build.metadata.runCommand": [
+      "packages/typescript/react-ai-devtools/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.build": [
+      "packages/typescript/react-ai-devtools/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.build.executor": [
+      "packages/typescript/react-ai-devtools/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.build.options": [
+      "packages/typescript/react-ai-devtools/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.build.metadata": [
+      "packages/typescript/react-ai-devtools/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.build.options.script": [
+      "packages/typescript/react-ai-devtools/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.build.metadata.scriptContent": [
+      "packages/typescript/react-ai-devtools/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.build.metadata.runCommand": [
+      "packages/typescript/react-ai-devtools/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.test:eslint.cache": [
+      "nx.json",
+      "nx/target-defaults"
+    ],
+    "targets.test:eslint.dependsOn": [
+      "nx.json",
+      "nx/target-defaults"
+    ],
+    "targets.test:eslint.inputs": [
+      "nx.json",
+      "nx/target-defaults"
+    ],
+    "targets.test:eslint.parallelism": [
+      "nx.json",
+      "nx/target-defaults"
+    ],
+    "targets.test:lib.cache": [
+      "nx.json",
+      "nx/target-defaults"
+    ],
+    "targets.test:lib.dependsOn": [
+      "nx.json",
+      "nx/target-defaults"
+    ],
+    "targets.test:lib.inputs": [
+      "nx.json",
+      "nx/target-defaults"
+    ],
+    "targets.test:lib.outputs": [
+      "nx.json",
+      "nx/target-defaults"
+    ],
+    "targets.test:lib.parallelism": [
+      "nx.json",
+      "nx/target-defaults"
+    ],
+    "targets.test:types.cache": [
+      "nx.json",
+      "nx/target-defaults"
+    ],
+    "targets.test:types.dependsOn": [
+      "nx.json",
+      "nx/target-defaults"
+    ],
+    "targets.test:types.inputs": [
+      "nx.json",
+      "nx/target-defaults"
+    ],
+    "targets.test:types.parallelism": [
+      "nx.json",
+      "nx/target-defaults"
+    ],
+    "targets.test:build.cache": [
+      "nx.json",
+      "nx/target-defaults"
+    ],
+    "targets.test:build.dependsOn": [
+      "nx.json",
+      "nx/target-defaults"
+    ],
+    "targets.test:build.inputs": [
+      "nx.json",
+      "nx/target-defaults"
+    ],
+    "targets.test:build.parallelism": [
+      "nx.json",
+      "nx/target-defaults"
+    ],
+    "targets.build.cache": [
+      "nx.json",
+      "nx/target-defaults"
+    ],
+    "targets.build.dependsOn": [
+      "nx.json",
+      "nx/target-defaults"
+    ],
+    "targets.build.inputs": [
+      "nx.json",
+      "nx/target-defaults"
+    ],
+    "targets.build.outputs": [
+      "nx.json",
+      "nx/target-defaults"
+    ],
+    "targets.build.parallelism": [
+      "nx.json",
+      "nx/target-defaults"
+    ]
+  },
+  "packages/typescript/solid-ai-devtools": {
+    "root": [
+      "packages/typescript/solid-ai-devtools/package.json",
+      "nx/core/package-json"
+    ],
+    "name": [
+      "packages/typescript/solid-ai-devtools/package.json",
+      "nx/core/package-json"
+    ],
+    "tags": [
+      "packages/typescript/solid-ai-devtools/package.json",
+      "nx/core/package-json"
+    ],
+    "tags.npm:public": [
+      "packages/typescript/solid-ai-devtools/package.json",
+      "nx/core/package-json"
+    ],
+    "tags.npm:ai": [
+      "packages/typescript/solid-ai-devtools/package.json",
+      "nx/core/package-json"
+    ],
+    "tags.npm:tanstack": [
+      "packages/typescript/solid-ai-devtools/package.json",
+      "nx/core/package-json"
+    ],
+    "tags.npm:sdk": [
+      "packages/typescript/solid-ai-devtools/package.json",
+      "nx/core/package-json"
+    ],
+    "tags.npm:llm": [
+      "packages/typescript/solid-ai-devtools/package.json",
+      "nx/core/package-json"
+    ],
+    "tags.npm:chat": [
+      "packages/typescript/solid-ai-devtools/package.json",
+      "nx/core/package-json"
+    ],
+    "tags.npm:embeddings": [
+      "packages/typescript/solid-ai-devtools/package.json",
+      "nx/core/package-json"
+    ],
+    "metadata.targetGroups": [
+      "packages/typescript/solid-ai-devtools/package.json",
+      "nx/core/package-json"
+    ],
+    "metadata.targetGroups.NPM Scripts": [
+      "packages/typescript/solid-ai-devtools/package.json",
+      "nx/core/package-json"
+    ],
+    "metadata.targetGroups.NPM Scripts.0": [
+      "packages/typescript/solid-ai-devtools/package.json",
+      "nx/core/package-json"
+    ],
+    "metadata.targetGroups.NPM Scripts.1": [
+      "packages/typescript/solid-ai-devtools/package.json",
+      "nx/core/package-json"
+    ],
+    "metadata.targetGroups.NPM Scripts.2": [
+      "packages/typescript/solid-ai-devtools/package.json",
+      "nx/core/package-json"
+    ],
+    "metadata.targetGroups.NPM Scripts.3": [
+      "packages/typescript/solid-ai-devtools/package.json",
+      "nx/core/package-json"
+    ],
+    "metadata.targetGroups.NPM Scripts.4": [
+      "packages/typescript/solid-ai-devtools/package.json",
+      "nx/core/package-json"
+    ],
+    "metadata.targetGroups.NPM Scripts.5": [
+      "packages/typescript/solid-ai-devtools/package.json",
+      "nx/core/package-json"
+    ],
+    "metadata.targetGroups.NPM Scripts.6": [
+      "packages/typescript/solid-ai-devtools/package.json",
+      "nx/core/package-json"
+    ],
+    "metadata.targetGroups.NPM Scripts.7": [
+      "packages/typescript/solid-ai-devtools/package.json",
+      "nx/core/package-json"
+    ],
+    "metadata.description": [
+      "packages/typescript/solid-ai-devtools/package.json",
+      "nx/core/package-json"
+    ],
+    "metadata.js": [
+      "packages/typescript/solid-ai-devtools/package.json",
+      "nx/core/package-json"
+    ],
+    "metadata.js.packageName": [
+      "packages/typescript/solid-ai-devtools/package.json",
+      "nx/core/package-json"
+    ],
+    "metadata.js.packageVersion": [
+      "packages/typescript/solid-ai-devtools/package.json",
+      "nx/core/package-json"
+    ],
+    "metadata.js.packageExports": [
+      "packages/typescript/solid-ai-devtools/package.json",
+      "nx/core/package-json"
+    ],
+    "metadata.js.isInPackageManagerWorkspaces": [
+      "packages/typescript/solid-ai-devtools/package.json",
+      "nx/core/package-json"
+    ],
+    "targets": [
+      "packages/typescript/solid-ai-devtools/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.build": [
+      "packages/typescript/solid-ai-devtools/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.build.executor": [
+      "packages/typescript/solid-ai-devtools/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.build.options": [
+      "packages/typescript/solid-ai-devtools/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.build.metadata": [
+      "packages/typescript/solid-ai-devtools/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.build.options.script": [
+      "packages/typescript/solid-ai-devtools/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.build.metadata.scriptContent": [
+      "packages/typescript/solid-ai-devtools/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.build.metadata.runCommand": [
+      "packages/typescript/solid-ai-devtools/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.clean": [
+      "packages/typescript/solid-ai-devtools/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.clean.executor": [
+      "packages/typescript/solid-ai-devtools/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.clean.options": [
+      "packages/typescript/solid-ai-devtools/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.clean.metadata": [
+      "packages/typescript/solid-ai-devtools/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.clean.options.script": [
+      "packages/typescript/solid-ai-devtools/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.clean.metadata.scriptContent": [
+      "packages/typescript/solid-ai-devtools/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.clean.metadata.runCommand": [
+      "packages/typescript/solid-ai-devtools/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.lint:fix": [
+      "packages/typescript/solid-ai-devtools/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.lint:fix.executor": [
+      "packages/typescript/solid-ai-devtools/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.lint:fix.options": [
+      "packages/typescript/solid-ai-devtools/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.lint:fix.metadata": [
+      "packages/typescript/solid-ai-devtools/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.lint:fix.options.script": [
+      "packages/typescript/solid-ai-devtools/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.lint:fix.metadata.scriptContent": [
+      "packages/typescript/solid-ai-devtools/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.lint:fix.metadata.runCommand": [
+      "packages/typescript/solid-ai-devtools/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.test:build": [
+      "packages/typescript/solid-ai-devtools/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.test:build.executor": [
+      "packages/typescript/solid-ai-devtools/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.test:build.options": [
+      "packages/typescript/solid-ai-devtools/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.test:build.metadata": [
+      "packages/typescript/solid-ai-devtools/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.test:build.options.script": [
+      "packages/typescript/solid-ai-devtools/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.test:build.metadata.scriptContent": [
+      "packages/typescript/solid-ai-devtools/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.test:build.metadata.runCommand": [
+      "packages/typescript/solid-ai-devtools/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.test:eslint": [
+      "packages/typescript/solid-ai-devtools/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.test:eslint.executor": [
+      "packages/typescript/solid-ai-devtools/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.test:eslint.options": [
+      "packages/typescript/solid-ai-devtools/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.test:eslint.metadata": [
+      "packages/typescript/solid-ai-devtools/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.test:eslint.options.script": [
+      "packages/typescript/solid-ai-devtools/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.test:eslint.metadata.scriptContent": [
+      "packages/typescript/solid-ai-devtools/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.test:eslint.metadata.runCommand": [
+      "packages/typescript/solid-ai-devtools/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.test:lib": [
+      "packages/typescript/solid-ai-devtools/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.test:lib.executor": [
+      "packages/typescript/solid-ai-devtools/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.test:lib.options": [
+      "packages/typescript/solid-ai-devtools/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.test:lib.metadata": [
+      "packages/typescript/solid-ai-devtools/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.test:lib.options.script": [
+      "packages/typescript/solid-ai-devtools/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.test:lib.metadata.scriptContent": [
+      "packages/typescript/solid-ai-devtools/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.test:lib.metadata.runCommand": [
+      "packages/typescript/solid-ai-devtools/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.test:lib:dev": [
+      "packages/typescript/solid-ai-devtools/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.test:lib:dev.executor": [
+      "packages/typescript/solid-ai-devtools/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.test:lib:dev.options": [
+      "packages/typescript/solid-ai-devtools/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.test:lib:dev.metadata": [
+      "packages/typescript/solid-ai-devtools/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.test:lib:dev.options.script": [
+      "packages/typescript/solid-ai-devtools/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.test:lib:dev.metadata.scriptContent": [
+      "packages/typescript/solid-ai-devtools/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.test:lib:dev.metadata.runCommand": [
+      "packages/typescript/solid-ai-devtools/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.test:types": [
+      "packages/typescript/solid-ai-devtools/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.test:types.executor": [
+      "packages/typescript/solid-ai-devtools/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.test:types.options": [
+      "packages/typescript/solid-ai-devtools/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.test:types.metadata": [
+      "packages/typescript/solid-ai-devtools/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.test:types.options.script": [
+      "packages/typescript/solid-ai-devtools/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.test:types.metadata.scriptContent": [
+      "packages/typescript/solid-ai-devtools/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.test:types.metadata.runCommand": [
+      "packages/typescript/solid-ai-devtools/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.build.cache": [
+      "nx.json",
+      "nx/target-defaults"
+    ],
+    "targets.build.dependsOn": [
+      "nx.json",
+      "nx/target-defaults"
+    ],
+    "targets.build.inputs": [
+      "nx.json",
+      "nx/target-defaults"
+    ],
+    "targets.build.outputs": [
+      "nx.json",
+      "nx/target-defaults"
+    ],
+    "targets.build.parallelism": [
+      "nx.json",
+      "nx/target-defaults"
+    ],
+    "targets.test:build.cache": [
+      "nx.json",
+      "nx/target-defaults"
+    ],
+    "targets.test:build.dependsOn": [
+      "nx.json",
+      "nx/target-defaults"
+    ],
+    "targets.test:build.inputs": [
+      "nx.json",
+      "nx/target-defaults"
+    ],
+    "targets.test:build.parallelism": [
+      "nx.json",
+      "nx/target-defaults"
+    ],
+    "targets.test:eslint.cache": [
+      "nx.json",
+      "nx/target-defaults"
+    ],
+    "targets.test:eslint.dependsOn": [
+      "nx.json",
+      "nx/target-defaults"
+    ],
+    "targets.test:eslint.inputs": [
+      "nx.json",
+      "nx/target-defaults"
+    ],
+    "targets.test:eslint.parallelism": [
+      "nx.json",
+      "nx/target-defaults"
+    ],
+    "targets.test:lib.cache": [
+      "nx.json",
+      "nx/target-defaults"
+    ],
+    "targets.test:lib.dependsOn": [
+      "nx.json",
+      "nx/target-defaults"
+    ],
+    "targets.test:lib.inputs": [
+      "nx.json",
+      "nx/target-defaults"
+    ],
+    "targets.test:lib.outputs": [
+      "nx.json",
+      "nx/target-defaults"
+    ],
+    "targets.test:lib.parallelism": [
+      "nx.json",
+      "nx/target-defaults"
+    ],
+    "targets.test:types.cache": [
+      "nx.json",
+      "nx/target-defaults"
+    ],
+    "targets.test:types.dependsOn": [
+      "nx.json",
+      "nx/target-defaults"
+    ],
+    "targets.test:types.inputs": [
+      "nx.json",
+      "nx/target-defaults"
+    ],
+    "targets.test:types.parallelism": [
+      "nx.json",
+      "nx/target-defaults"
+    ]
+  },
+  "packages/typescript/tests-adapters": {
+    "root": [
+      "packages/typescript/tests-adapters/package.json",
+      "nx/core/package-json"
+    ],
+    "name": [
+      "packages/typescript/tests-adapters/package.json",
+      "nx/core/package-json"
+    ],
+    "tags": [
+      "packages/typescript/tests-adapters/package.json",
+      "nx/core/package-json"
+    ],
+    "tags.npm:public": [
+      "packages/typescript/tests-adapters/package.json",
+      "nx/core/package-json"
+    ],
+    "metadata.targetGroups": [
+      "packages/typescript/tests-adapters/package.json",
+      "nx/core/package-json"
+    ],
+    "metadata.targetGroups.NPM Scripts": [
+      "packages/typescript/tests-adapters/package.json",
+      "nx/core/package-json"
+    ],
+    "metadata.targetGroups.NPM Scripts.0": [
+      "packages/typescript/tests-adapters/package.json",
+      "nx/core/package-json"
+    ],
+    "metadata.targetGroups.NPM Scripts.1": [
+      "packages/typescript/tests-adapters/package.json",
+      "nx/core/package-json"
+    ],
+    "metadata.description": [
+      "packages/typescript/tests-adapters/package.json",
+      "nx/core/package-json"
+    ],
+    "metadata.js": [
+      "packages/typescript/tests-adapters/package.json",
+      "nx/core/package-json"
+    ],
+    "metadata.js.packageName": [
+      "packages/typescript/tests-adapters/package.json",
+      "nx/core/package-json"
+    ],
+    "metadata.js.packageVersion": [
+      "packages/typescript/tests-adapters/package.json",
+      "nx/core/package-json"
+    ],
+    "metadata.js.isInPackageManagerWorkspaces": [
+      "packages/typescript/tests-adapters/package.json",
+      "nx/core/package-json"
+    ],
+    "targets": [
+      "packages/typescript/tests-adapters/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.start": [
+      "packages/typescript/tests-adapters/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.start.executor": [
+      "packages/typescript/tests-adapters/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.start.options": [
+      "packages/typescript/tests-adapters/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.start.metadata": [
+      "packages/typescript/tests-adapters/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.start.options.script": [
+      "packages/typescript/tests-adapters/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.start.metadata.scriptContent": [
+      "packages/typescript/tests-adapters/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.start.metadata.runCommand": [
+      "packages/typescript/tests-adapters/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.typecheck": [
+      "packages/typescript/tests-adapters/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.typecheck.executor": [
+      "packages/typescript/tests-adapters/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.typecheck.options": [
+      "packages/typescript/tests-adapters/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.typecheck.metadata": [
+      "packages/typescript/tests-adapters/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.typecheck.options.script": [
+      "packages/typescript/tests-adapters/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.typecheck.metadata.scriptContent": [
+      "packages/typescript/tests-adapters/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.typecheck.metadata.runCommand": [
+      "packages/typescript/tests-adapters/package.json",
+      "nx/core/package-json"
+    ]
+  }
+}

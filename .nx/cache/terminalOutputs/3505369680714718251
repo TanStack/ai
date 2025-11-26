@@ -1,0 +1,57 @@
+
+> @tanstack/ai-anthropic@0.1.0 build /Users/kevinvancott/Documents/tanstack/ai/packages/typescript/ai-anthropic
+> vite build
+
+[33mYou are using Node.js 20.18.1. Vite requires Node.js version 20.19+ or 22.12+. Please upgrade your Node.js version.[39m
+[36mvite v7.2.4 [32mbuilding client environment for production...[36m[39m
+[96msrc/anthropic-adapter.ts[0m:[93m12[0m:[93m8[0m - [91merror[0m[90m TS2307: [0mCannot find module '@tanstack/ai' or its corresponding type declarations.
+
+[7m12[0m } from "@tanstack/ai";
+[7m  [0m [91m       ~~~~~~~~~~~~~~[0m
+[96msrc/anthropic-adapter.ts[0m:[93m91[0m:[93m14[0m - [91merror[0m[90m TS2339: [0mProperty 'generateId' does not exist on type 'Anthropic'.
+
+[7m91[0m         this.generateId()
+[7m  [0m [91m             ~~~~~~~~~~[0m
+[96msrc/anthropic-adapter.ts[0m:[93m107[0m:[93m18[0m - [91merror[0m[90m TS2339: [0mProperty 'generateId' does not exist on type 'Anthropic'.
+
+[7m107[0m         id: this.generateId(),
+[7m   [0m [91m                 ~~~~~~~~~~[0m
+[96msrc/tools/bash-tool.ts[0m:[93m2[0m:[93m27[0m - [91merror[0m[90m TS2307: [0mCannot find module '@tanstack/ai' or its corresponding type declarations.
+
+[7m2[0m import type { Tool } from "@tanstack/ai";
+[7m [0m [91m                          ~~~~~~~~~~~~~~[0m
+[96msrc/tools/code-execution-tool.ts[0m:[93m2[0m:[93m27[0m - [91merror[0m[90m TS2307: [0mCannot find module '@tanstack/ai' or its corresponding type declarations.
+
+[7m2[0m import type { Tool } from "@tanstack/ai";
+[7m [0m [91m                          ~~~~~~~~~~~~~~[0m
+[96msrc/tools/computer-use-tool.ts[0m:[93m2[0m:[93m27[0m - [91merror[0m[90m TS2307: [0mCannot find module '@tanstack/ai' or its corresponding type declarations.
+
+[7m2[0m import type { Tool } from "@tanstack/ai";
+[7m [0m [91m                          ~~~~~~~~~~~~~~[0m
+[96msrc/tools/custom-tool.ts[0m:[93m2[0m:[93m27[0m - [91merror[0m[90m TS2307: [0mCannot find module '@tanstack/ai' or its corresponding type declarations.
+
+[7m2[0m import type { Tool } from "@tanstack/ai";
+[7m [0m [91m                          ~~~~~~~~~~~~~~[0m
+[96msrc/tools/memory-tool.ts[0m:[93m2[0m:[93m27[0m - [91merror[0m[90m TS2307: [0mCannot find module '@tanstack/ai' or its corresponding type declarations.
+
+[7m2[0m import type { Tool } from "@tanstack/ai";
+[7m [0m [91m                          ~~~~~~~~~~~~~~[0m
+[96msrc/tools/text-editor-tool.ts[0m:[93m3[0m:[93m27[0m - [91merror[0m[90m TS2307: [0mCannot find module '@tanstack/ai' or its corresponding type declarations.
+
+[7m3[0m import type { Tool } from "@tanstack/ai";
+[7m [0m [91m                          ~~~~~~~~~~~~~~[0m
+[96msrc/tools/tool-converter.ts[0m:[93m1[0m:[93m27[0m - [91merror[0m[90m TS2307: [0mCannot find module '@tanstack/ai' or its corresponding type declarations.
+
+[7m1[0m import type { Tool } from "@tanstack/ai";
+[7m [0m [91m                          ~~~~~~~~~~~~~~[0m
+[96msrc/tools/web-fetch-tool.ts[0m:[93m3[0m:[93m27[0m - [91merror[0m[90m TS2307: [0mCannot find module '@tanstack/ai' or its corresponding type declarations.
+
+[7m3[0m import type { Tool } from "@tanstack/ai";
+[7m [0m [91m                          ~~~~~~~~~~~~~~[0m
+[96msrc/tools/web-search-tool.ts[0m:[93m3[0m:[93m27[0m - [91merror[0m[90m TS2307: [0mCannot find module '@tanstack/ai' or its corresponding type declarations.
+
+[7m3[0m import type { Tool } from "@tanstack/ai";
+[7m [0m [91m                          ~~~~~~~~~~~~~~[0m
+
+Please fix the above type errors
+[41m[30m ELIFECYCLE [39m[49m [31mCommand failed with exit code 1.[39m
