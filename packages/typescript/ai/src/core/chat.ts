@@ -137,7 +137,7 @@ class ChatEngine<
 
     aiEventClient.emit("chat:started", {
       requestId: this.requestId,
-      model: model as string,
+      model: model,
       messageCount: this.initialMessageCount,
       hasTools: !!tools && tools.length > 0,
       streaming: true,
@@ -192,11 +192,11 @@ class ChatEngine<
 
   private async *streamModelResponse(): AsyncGenerator<StreamChunk> {
     const adapterOptions = this.params.options || {};
-    const providerOptions = this.params.providerOptions as any;
-    const tools = this.params.tools as Tool[] | undefined;
+    const providerOptions = this.params.providerOptions;
+    const tools = this.params.tools;
 
     for await (const chunk of this.adapter.chatStream({
-      model: this.params.model as string,
+      model: this.params.model,
       messages: this.messages,
       tools,
       options: adapterOptions,
@@ -302,7 +302,7 @@ class ChatEngine<
         aiEventClient.emit("usage:tokens", {
           requestId: this.requestId,
           messageId: this.currentMessageId || undefined,
-          model: this.params.model as string,
+          model: this.params.model,
           usage: chunk.usage,
           timestamp: Date.now(),
         });
@@ -324,7 +324,7 @@ class ChatEngine<
       aiEventClient.emit("usage:tokens", {
         requestId: this.requestId,
         messageId: this.currentMessageId || undefined,
-        model: this.params.model as string,
+        model: this.params.model,
         usage: chunk.usage,
         timestamp: Date.now(),
       });
@@ -672,7 +672,7 @@ class ChatEngine<
     return {
       type: "done",
       id: this.createId("pending"),
-      model: this.params.model as string,
+      model: this.params.model,
       timestamp: Date.now(),
       finishReason: "tool_calls",
     };
