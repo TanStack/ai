@@ -1,0 +1,62 @@
+{
+  "name": "@tanstack/ai-solid",
+  "version": "0.1.0",
+  "description": "Solid hooks for TanStack AI",
+  "author": "",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/TanStack/ai.git",
+    "directory": "packages/typescript/ai-solid"
+  },
+  "type": "module",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist",
+    "src"
+  ],
+  "scripts": {
+    "build": "tsdown",
+    "dev": "tsdown --watch",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:coverage": "vitest run --coverage",
+    "clean": "rm -rf dist node_modules",
+    "typecheck": "tsc --noEmit",
+    "lint": "tsc --noEmit"
+  },
+  "keywords": [
+    "ai",
+    "solidjs",
+    "hooks",
+    "tanstack",
+    "chat",
+    "streaming"
+  ],
+  "dependencies": {
+    "@tanstack/ai": "workspace:*",
+    "@tanstack/ai-client": "workspace:*"
+  },
+  "devDependencies": {
+    "@solidjs/testing-library": "^0.8.10",
+    "@types/node": "^22.10.2",
+    "@vitest/coverage-v8": "^4.0.13",
+    "jsdom": "^25.0.1",
+    "solid-js": "^1.9.10",
+    "tsdown": "^0.15.9",
+    "typescript": "^5.7.2",
+    "vitest": "^4.0.13"
+  },
+  "peerDependencies": {
+    "@tanstack/ai": "workspace:*",
+    "@tanstack/ai-client": "workspace:*",
+    "solid-js": ">=1.9.10"
+  }
+}
