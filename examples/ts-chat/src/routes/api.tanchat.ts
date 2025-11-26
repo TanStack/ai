@@ -1,10 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import {
-  chat,
-  toStreamResponse,
-  maxIterations,
-  chatOptions,
-} from "@tanstack/ai";
+import { chat, toStreamResponse, maxIterations } from "@tanstack/ai";
 import { openai } from "@tanstack/ai-openai";
 // import { ollama } from "@tanstack/ai-ollama";
 // import { anthropic } from "@tanstack/ai-anthropic";
@@ -38,19 +33,6 @@ export const Route = createFileRoute("/api/tanchat")({
   server: {
     handlers: {
       POST: async ({ request }) => {
-        if (!process.env.OPENAI_API_KEY) {
-          return new Response(
-            JSON.stringify({
-              error:
-                "OPENAI_API_KEY not configured. Please add it to .env or .env.local",
-            }),
-            {
-              status: 500,
-              headers: { "Content-Type": "application/json" },
-            }
-          );
-        }
-
         // Capture request signal before reading body (it may be aborted after body is consumed)
         const requestSignal = request.signal;
 
@@ -66,8 +48,11 @@ export const Route = createFileRoute("/api/tanchat")({
           // Use the stream abort signal for proper cancellation handling
           const stream = chat({
             adapter: openai(),
-            model: "gpt-4o",
-            // adapter: anthropic(),
+            // For thinking/reasoning support, use one of these models:
+            // - OpenAI: "gpt-5", "o3", "o3-pro", "o3-mini" (with reasoning option)
+            // - Anthropic: "claude-sonnet-4-5-20250929", "claude-opus-4-5-20251101" (with thinking option)
+            // - Gemini: "gemini-3-pro-preview", "gemini-2.5-pro" (with thinkingConfig option)
+            model: "gpt-5",
             // model: "claude-sonnet-4-5-20250929",
             // model: "smollm",
             // model: "gemini-2.5-flash",
@@ -75,11 +60,32 @@ export const Route = createFileRoute("/api/tanchat")({
             systemPrompts: [SYSTEM_PROMPT],
             agentLoopStrategy: maxIterations(20),
             messages,
+            providerOptions: {
+              // Enable reasoning for OpenAI (gpt-5, o3 models):
+              // reasoning: {
+              //   effort: "medium", // or "low", "high", "minimal", "none" (for gpt-5.1)
+              // },
+              // Enable thinking for Anthropic:
+              /*   thinking: {
+                  type: "enabled",
+                  budget_tokens: 2048,
+                }, */
+            },
             abortController,
           });
 
           return toStreamResponse(stream, { abortController });
         } catch (error: any) {
+          console.error("[API Route] Error in chat request:", {
+            message: error?.message,
+            name: error?.name,
+            status: error?.status,
+            statusText: error?.statusText,
+            code: error?.code,
+            type: error?.type,
+            stack: error?.stack,
+            error: error,
+          });
           // If request was aborted, return early (don't send error response)
           if (error.name === "AbortError" || abortController.signal.aborted) {
             return new Response(null, { status: 499 }); // 499 = Client Closed Request

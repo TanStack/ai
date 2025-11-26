@@ -101,11 +101,22 @@ export function Chat() {
               {message.role === "assistant" ? "Assistant" : "You"}
             </div>
             <div>
-              {message.parts
-                .filter((part) => part.type === "text")
-                .map((part, idx) => (
-                  <div key={idx}>{part.content}</div>
-                ))}
+              {message.parts.map((part, idx) => {
+                if (part.type === "thinking") {
+                  return (
+                    <div
+                      key={idx}
+                      className="text-sm text-gray-500 italic mb-2"
+                    >
+                      💭 Thinking: {part.content}
+                    </div>
+                  );
+                }
+                if (part.type === "text") {
+                  return <div key={idx}>{part.content}</div>;
+                }
+                return null;
+              })}
             </div>
           </div>
         ))}

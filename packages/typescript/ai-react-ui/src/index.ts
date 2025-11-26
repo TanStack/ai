@@ -43,6 +43,7 @@ export {
   type ToolApprovalRenderProps,
 } from "./tool-approval";
 export { TextPart, type TextPartProps } from "./text-part";
+export { ThinkingPart, type ThinkingPartProps } from "./thinking-part";
 
 // Re-export hooks from @tanstack/ai-react for convenience
 export { useChat } from "@tanstack/ai-react";
@@ -54,6 +55,7 @@ export type {
   ToolCallPart,
   ToolResultPart,
   TextPart as TextPartType,
+  ThinkingPart as ThinkingPartType,
   ConnectionAdapter,
 } from "@tanstack/ai-client";
 

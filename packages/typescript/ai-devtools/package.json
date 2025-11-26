@@ -15,14 +15,14 @@
   "exports": {
     ".": {
       "import": {
-        "types": "./dist/index.d.ts",
-        "default": "./dist/index.js"
+        "types": "./dist/esm/index.d.ts",
+        "default": "./dist/esm/index.js"
       }
     },
     "./production": {
       "import": {
-        "types": "./dist/production.d.ts",
-        "default": "./dist/production.js"
+        "types": "./dist/esm/production.d.ts",
+        "default": "./dist/esm/production.js"
       }
     },
     "./package.json": "./package.json"

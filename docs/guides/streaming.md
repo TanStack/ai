@@ -66,9 +66,25 @@ messages.forEach((message) => {
 Stream chunks contain different types of data:
 
 - **Content chunks** - Text content being generated
+- **Thinking chunks** - Model's internal reasoning process (when supported)
 - **Tool call chunks** - When the model calls a tool
 - **Tool result chunks** - Results from tool execution
 - **Done chunks** - Stream completion
+
+### Thinking Chunks
+
+Thinking chunks represent the model's reasoning process. They stream separately from the final response text:
+
+```typescript
+for await (const chunk of stream) {
+  if (chunk.type === "thinking") {
+    console.log("Thinking:", chunk.content); // Accumulated thinking content
+    console.log("Delta:", chunk.delta); // Incremental thinking token
+  }
+}
+```
+
+Thinking chunks are automatically converted to `ThinkingPart` in `UIMessage` objects. They are UI-only and excluded from messages sent back to the model.
 
 ## Connection Adapters
 

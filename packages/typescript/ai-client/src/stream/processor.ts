@@ -30,11 +30,12 @@ class DefaultStreamParser implements StreamParser {
     for await (const chunk of stream) {
       // Pass through known processor format chunks
       if (
-        chunk.type === "text" || 
-        chunk.type === "tool-call-delta" || 
+        chunk.type === "text" ||
+        chunk.type === "tool-call-delta" ||
         chunk.type === "done" ||
         chunk.type === "approval-requested" ||
-        chunk.type === "tool-input-available"
+        chunk.type === "tool-input-available" ||
+        chunk.type === "thinking"
       ) {
         yield chunk as StreamChunk;
         continue;
@@ -58,7 +59,7 @@ class DefaultStreamParser implements StreamParser {
         const toolCallId = (chunk as any).toolCallId;
         const content = (chunk as any).content;
         const error = (chunk as any).error;
-        
+
         if (toolCallId !== undefined) {
           yield {
             type: "tool-result",
@@ -70,11 +71,23 @@ class DefaultStreamParser implements StreamParser {
       }
 
       // Convert adapter format: "tool_call" to "tool-call-delta"
-      if ((chunk.type === "tool_call" || chunk.type === "tool-call-delta") && chunk.toolCall) {
+      if (
+        (chunk.type === "tool_call" || chunk.type === "tool-call-delta") &&
+        chunk.toolCall
+      ) {
         yield {
           type: "tool-call-delta",
           toolCallIndex: chunk.index ?? chunk.toolCallIndex,
           toolCall: chunk.toolCall,
+        };
+      }
+
+      // Convert adapter format: "thinking" chunks
+      if (chunk.type === "thinking") {
+        yield {
+          type: "thinking",
+          content: (chunk as any).content,
+          delta: (chunk as any).delta,
         };
       }
     }
@@ -103,6 +116,7 @@ export class StreamProcessor {
   // State
   private textContent: string = "";
   private lastEmittedText: string = "";
+  private thinkingContent: string = "";
   private toolCalls: Map<string, InternalToolCallState> = new Map(); // Track by ID, not index
   private toolCallOrder: string[] = []; // Track order of tool call IDs
 
@@ -152,12 +166,12 @@ export class StreamProcessor {
       case "tool-call-delta":
         this.handleToolCallDelta(chunk.toolCallIndex!, chunk.toolCall!);
         break;
-      
+
       case "done":
         // Response finished - complete any remaining tool calls
         this.completeAllToolCalls();
         break;
-      
+
       case "tool-result":
         // Handle tool result chunk
         if (chunk.toolCallId && chunk.content !== undefined) {
@@ -170,7 +184,7 @@ export class StreamProcessor {
           );
         }
         break;
-      
+
       case "approval-requested":
         this.handlers.onApprovalRequested?.(
           chunk.toolCallId!,
@@ -179,7 +193,7 @@ export class StreamProcessor {
           chunk.approval!.id
         );
         break;
-      
+
       case "tool-input-available":
         this.handlers.onToolInputAvailable?.(
           chunk.toolCallId!,
@@ -187,16 +201,20 @@ export class StreamProcessor {
           chunk.input!
         );
         break;
+
+      case "thinking":
+        this.handleThinkingChunk(chunk.content, chunk.delta);
+        break;
     }
   }
 
   /**
    * Handle a text content chunk
-   * 
+   *
    * IMPORTANT: We ALWAYS prefer delta over content when both are provided.
    * Adapters should send deltas, not accumulated content. The processor
    * maintains its own accumulation state to avoid conflicts with adapter state.
-   * 
+   *
    * Only use content when delta is not available (for backwards compatibility).
    */
   private handleTextChunk(content?: string, delta?: string): void {
@@ -294,14 +312,17 @@ export class StreamProcessor {
 
       // Emit initial delta
       if (toolCall.function.arguments) {
-        this.handlers.onToolCallDelta?.(actualIndex, toolCall.function.arguments);
+        this.handlers.onToolCallDelta?.(
+          actualIndex,
+          toolCall.function.arguments
+        );
       }
     } else {
       // Continuing existing tool call
       const wasAwaitingInput = existingToolCall.state === "awaiting-input";
-      
+
       existingToolCall.arguments += toolCall.function.arguments;
-      
+
       // Update state
       if (wasAwaitingInput && toolCall.function.arguments) {
         existingToolCall.state = "input-streaming";
@@ -327,21 +348,12 @@ export class StreamProcessor {
 
       // Emit delta
       if (toolCall.function.arguments) {
-        this.handlers.onToolCallDelta?.(actualIndex, toolCall.function.arguments);
+        this.handlers.onToolCallDelta?.(
+          actualIndex,
+          toolCall.function.arguments
+        );
       }
     }
-  }
-
-  /**
-   * Complete all tool calls except the specified ID
-   */
-  private completeToolCallsExcept(exceptId: string): void {
-    this.toolCalls.forEach((toolCall, id) => {
-      if (id !== exceptId && toolCall.state !== "input-complete") {
-        const index = this.toolCallOrder.indexOf(id);
-        this.completeToolCall(index, toolCall);
-      }
-    });
   }
 
   /**
@@ -359,7 +371,10 @@ export class StreamProcessor {
   /**
    * Mark a tool call as complete and emit event
    */
-  private completeToolCall(index: number, toolCall: InternalToolCallState): void {
+  private completeToolCall(
+    index: number,
+    toolCall: InternalToolCallState
+  ): void {
     toolCall.state = "input-complete";
 
     // Try final parse
@@ -429,11 +444,36 @@ export class StreamProcessor {
   }
 
   /**
+   * Handle a thinking chunk
+   */
+  private handleThinkingChunk(content?: string, delta?: string): void {
+    const previous = this.thinkingContent ?? "";
+    let nextThinking = previous;
+
+    // Prefer delta over content (same pattern as text chunks)
+    if (delta !== undefined && delta !== "") {
+      nextThinking = previous + delta;
+    } else if (content !== undefined && content !== "") {
+      if (content.startsWith(previous)) {
+        nextThinking = content;
+      } else if (previous.startsWith(content)) {
+        nextThinking = previous;
+      } else {
+        nextThinking = previous + content;
+      }
+    }
+
+    this.thinkingContent = nextThinking;
+    this.handlers.onThinkingUpdate?.(this.thinkingContent);
+  }
+
+  /**
    * Reset processor state
    */
   private reset(): void {
     this.textContent = "";
     this.lastEmittedText = "";
+    this.thinkingContent = "";
     this.toolCalls.clear();
     this.toolCallOrder = [];
     this.chunkStrategy.reset?.();

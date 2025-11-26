@@ -591,9 +591,32 @@ export class OpenAI extends BaseAdapter<
           try {
             const parsed = JSON.parse(trimmed);
             parsedCount++;
+
+            // Debug: Log reasoning-related events at the parser level
+            if (
+              parsed.type &&
+              (parsed.type.includes("reasoning") ||
+                parsed.type.includes("reasoning_text"))
+            ) {
+              console.log(
+                "[OpenAI Adapter] Parser: Reasoning event detected:",
+                {
+                  type: parsed.type,
+                  hasDelta: !!parsed.delta,
+                  hasItem: !!parsed.item,
+                  hasPart: !!parsed.part,
+                  fullEvent: JSON.stringify(parsed).substring(0, 500),
+                }
+              );
+            }
+
             yield parsed;
           } catch (e) {
             // Skip malformed JSON lines
+            console.log(
+              "[OpenAI Adapter] Parser: Failed to parse line:",
+              trimmed.substring(0, 200)
+            );
           }
         }
       }
@@ -621,6 +644,7 @@ export class OpenAI extends BaseAdapter<
     generateId: () => string
   ): AsyncIterable<StreamChunk> {
     let accumulatedContent = "";
+    let accumulatedReasoning = "";
     const timestamp = Date.now();
     let nextIndex = 0;
     let chunkCount = 0;
@@ -635,10 +659,27 @@ export class OpenAI extends BaseAdapter<
     let responseId: string | null = null;
     let model: string | null = null;
     let doneChunkEmitted = false;
+    const eventTypeCounts = new Map<string, number>();
+    // Track which item indices are reasoning items
+    const reasoningItemIndices = new Set<number>();
 
     try {
       for await (const chunk of stream) {
         chunkCount++;
+
+        // Track event types for debugging
+        if (chunk.type) {
+          const count = eventTypeCounts.get(chunk.type) || 0;
+          eventTypeCounts.set(chunk.type, count + 1);
+
+          // Log first occurrence of each event type
+          if (count === 0) {
+            console.log(
+              "[OpenAI Adapter] New event type detected:",
+              chunk.type
+            );
+          }
+        }
 
         // Responses API uses event-based streaming with types like:
         // - response.created
@@ -655,6 +696,98 @@ export class OpenAI extends BaseAdapter<
         // Handle Responses API event format
         if (chunk.type) {
           const eventType = chunk.type;
+
+          // Debug: Log all event types to help diagnose reasoning events
+          if (
+            eventType.includes("reasoning") ||
+            eventType.includes("output_reasoning")
+          ) {
+            console.log("[OpenAI Adapter] Reasoning-related event detected:", {
+              eventType,
+              hasDelta: !!chunk.delta,
+              deltaType: typeof chunk.delta,
+              deltaIsArray: Array.isArray(chunk.delta),
+              hasItem: !!chunk.item,
+              itemType: chunk.item?.type,
+              hasPart: !!chunk.part,
+              partType: chunk.part?.type,
+            });
+          }
+
+          // Debug: Inspect content_part events - reasoning might come through here
+          if (
+            eventType === "response.content_part.added" ||
+            eventType === "response.content_part.done"
+          ) {
+            console.log("[OpenAI Adapter] Content part event:", {
+              eventType,
+              hasPart: !!chunk.part,
+              partType: chunk.part?.type,
+              partContentType: chunk.part?.content_type,
+              hasText: !!chunk.part?.text,
+              textLength: chunk.part?.text?.length || 0,
+              hasDelta: !!chunk.delta,
+              deltaType: typeof chunk.delta,
+              itemIndex: chunk.item_index,
+              partIndex: chunk.part_index,
+              fullPart: JSON.stringify(chunk.part).substring(0, 200), // First 200 chars
+            });
+          }
+
+          // Debug: Inspect ALL output_item.added events
+          if (eventType === "response.output_item.added" && chunk.item) {
+            const item = chunk.item;
+            const itemIndex = chunk.item_index;
+
+            // Track reasoning items by index
+            if (item.type === "reasoning" && itemIndex !== undefined) {
+              reasoningItemIndices.add(itemIndex);
+              console.log(
+                "[OpenAI Adapter] Reasoning item detected, tracking index:",
+                itemIndex
+              );
+            }
+
+            console.log("[OpenAI Adapter] Output item added:", {
+              itemType: item.type,
+              itemIndex,
+              itemId: item.id,
+              hasContent: !!item.content,
+              contentIsArray: Array.isArray(item.content),
+              contentLength: Array.isArray(item.content)
+                ? item.content.length
+                : 0,
+              hasSummary: !!item.summary,
+              summaryIsArray: Array.isArray(item.summary),
+              summaryLength: Array.isArray(item.summary)
+                ? item.summary.length
+                : 0,
+              chunkKeys: Object.keys(chunk),
+            });
+
+            if (item.type === "message" && item.content) {
+              const contentTypes = item.content.map((c: any) => c.type);
+              console.log(
+                "[OpenAI Adapter] Output item added (message details):",
+                {
+                  itemType: item.type,
+                  contentTypes,
+                  hasReasoning: contentTypes.includes("output_reasoning"),
+                  contentDetails: item.content.map((c: any) => ({
+                    type: c.type,
+                    hasText: !!c.text,
+                    textLength: c.text?.length || 0,
+                  })),
+                }
+              );
+            } else if (item.type !== "message") {
+              // Log non-message items - maybe reasoning comes as a different item type?
+              console.log("[OpenAI Adapter] Output item added (non-message):", {
+                itemType: item.type,
+                fullItem: JSON.stringify(item).substring(0, 500), // First 500 chars
+              });
+            }
+          }
 
           // Extract and preserve response metadata from response.created or response.in_progress
           if (chunk.response) {
@@ -764,7 +897,8 @@ export class OpenAI extends BaseAdapter<
             if (callId) {
               // Prefer accumulated arguments from deltas over the done event's arguments
               // The done event might have incomplete or empty arguments
-              let completeArgs = accumulatedFunctionCallArguments.get(callId);
+              let completeArgs: string =
+                accumulatedFunctionCallArguments.get(callId) || "";
 
               // If we don't have accumulated args, try the done event's arguments
               if (!completeArgs || completeArgs === "") {
@@ -801,6 +935,119 @@ export class OpenAI extends BaseAdapter<
                     },
                   },
                 ];
+              }
+            }
+          }
+
+          // Handle reasoning text deltas (reasoning content streaming)
+          // OpenAI uses response.reasoning_text.delta events for reasoning content
+          if (eventType === "response.reasoning_text.delta" && chunk.delta) {
+            // Delta is an array of characters/strings - join them together
+            let reasoningDelta = "";
+            if (Array.isArray(chunk.delta)) {
+              reasoningDelta = chunk.delta.join("");
+            } else if (typeof chunk.delta === "string") {
+              reasoningDelta = chunk.delta;
+            }
+
+            if (reasoningDelta) {
+              accumulatedReasoning += reasoningDelta;
+              const thinkingChunk: StreamChunk = {
+                type: "thinking" as const,
+                id: responseId || generateId(),
+                model: model || options.model || "gpt-4o",
+                timestamp,
+                delta: reasoningDelta,
+                content: accumulatedReasoning,
+              };
+              console.log(
+                "[OpenAI Adapter] Emitting thinking chunk (reasoning_text.delta):",
+                {
+                  eventType,
+                  deltaLength: reasoningDelta.length,
+                  accumulatedLength: accumulatedReasoning.length,
+                  chunkType: thinkingChunk.type,
+                }
+              );
+              yield thinkingChunk;
+            }
+          }
+
+          // Also handle the old format for backwards compatibility
+          if (eventType === "response.output_reasoning.delta" && chunk.delta) {
+            let reasoningDelta = "";
+            if (Array.isArray(chunk.delta)) {
+              reasoningDelta = chunk.delta.join("");
+            } else if (typeof chunk.delta === "string") {
+              reasoningDelta = chunk.delta;
+            }
+
+            if (reasoningDelta) {
+              accumulatedReasoning += reasoningDelta;
+              const thinkingChunk: StreamChunk = {
+                type: "thinking" as const,
+                id: responseId || generateId(),
+                model: model || options.model || "gpt-4o",
+                timestamp,
+                delta: reasoningDelta,
+                content: accumulatedReasoning,
+              };
+              console.log(
+                "[OpenAI Adapter] Emitting thinking chunk (output_reasoning.delta):",
+                {
+                  eventType,
+                  deltaLength: reasoningDelta.length,
+                  accumulatedLength: accumulatedReasoning.length,
+                  chunkType: thinkingChunk.type,
+                }
+              );
+              yield thinkingChunk;
+            }
+          }
+
+          // Handle content part events - reasoning might come through content parts
+          // Note: Content parts can belong to reasoning items (check item_index)
+          if (eventType === "response.content_part.added" && chunk.part) {
+            const part = chunk.part;
+            const itemIndex = chunk.item_index;
+
+            // Check if this content part belongs to a reasoning item
+            const belongsToReasoningItem =
+              itemIndex !== undefined && reasoningItemIndices.has(itemIndex);
+
+            // Check if this is a reasoning content part
+            const isReasoningPart =
+              part.type === "output_reasoning" ||
+              part.content_type === "reasoning" ||
+              part.type === "reasoning_text" ||
+              part.type === "reasoning" ||
+              belongsToReasoningItem;
+
+            if (isReasoningPart) {
+              const reasoningText = part.text || "";
+              if (reasoningText) {
+                accumulatedReasoning += reasoningText;
+                const thinkingChunk: StreamChunk = {
+                  type: "thinking" as const,
+                  id: responseId || generateId(),
+                  model: model || options.model || "gpt-4o",
+                  timestamp,
+                  delta: reasoningText,
+                  content: accumulatedReasoning,
+                };
+                console.log(
+                  "[OpenAI Adapter] Emitting thinking chunk (from content_part):",
+                  {
+                    eventType,
+                    partType: part.type,
+                    contentType: part.content_type,
+                    itemIndex,
+                    belongsToReasoningItem,
+                    textLength: reasoningText.length,
+                    accumulatedLength: accumulatedReasoning.length,
+                  }
+                );
+                yield thinkingChunk;
               }
             }
           }
@@ -870,6 +1117,32 @@ export class OpenAI extends BaseAdapter<
                     }
                   }
                 }
+
+                // Extract reasoning content from message item
+                const reasoningContent = item.content.find(
+                  (c: any) => c.type === "output_reasoning"
+                );
+                if (reasoningContent?.text) {
+                  // Reasoning content comes as complete text in message items
+                  accumulatedReasoning = reasoningContent.text;
+                  const thinkingChunk: StreamChunk = {
+                    type: "thinking" as const,
+                    id: responseId || generateId(),
+                    model: model || options.model || "gpt-4o",
+                    timestamp,
+                    content: accumulatedReasoning,
+                  };
+                  console.log(
+                    "[OpenAI Adapter] Emitting thinking chunk (from message item):",
+                    {
+                      eventType: "response.output_item.added",
+                      contentLength: accumulatedReasoning.length,
+                      chunkType: thinkingChunk.type,
+                      hasDelta: false,
+                    }
+                  );
+                  yield thinkingChunk;
+                }
               }
               // Only set finish reason if status indicates completion (not "in_progress")
               if (item.status && item.status !== "in_progress") {
@@ -878,9 +1151,11 @@ export class OpenAI extends BaseAdapter<
             }
           }
 
-          // Handle output item done - check if it has final arguments for function calls
+          // Handle output item done - check for both function calls and reasoning items
           if (eventType === "response.output_item.done" && chunk.item) {
             const item = chunk.item;
+
+            // Handle function call items - check if it has final arguments
             if (item.type === "function_call" && item.call_id) {
               const callId = item.call_id;
               // The item might have the final arguments as a string
@@ -908,6 +1183,92 @@ export class OpenAI extends BaseAdapter<
                 }
               }
             }
+
+            // Handle reasoning items - reasoning content might be available when item completes
+            if (item.type === "reasoning") {
+              // Check if reasoning item has content/text/summary when it's done
+              console.log("[OpenAI Adapter] Reasoning item done:", {
+                itemId: item.id,
+                hasContent: !!item.content,
+                contentType: typeof item.content,
+                hasText: !!item.text,
+                textLength: item.text?.length || 0,
+                hasSummary: !!item.summary,
+                summaryType: typeof item.summary,
+                summaryIsArray: Array.isArray(item.summary),
+                summaryLength: Array.isArray(item.summary)
+                  ? item.summary.length
+                  : 0,
+                summaryContent: Array.isArray(item.summary)
+                  ? item.summary
+                  : item.summary,
+                fullItem: JSON.stringify(item).substring(0, 1000), // More chars to see summary
+              });
+
+              // If reasoning item has text content when done, emit it
+              if (item.text) {
+                accumulatedReasoning = item.text;
+                const thinkingChunk: StreamChunk = {
+                  type: "thinking" as const,
+                  id: responseId || generateId(),
+                  model: model || options.model || "gpt-4o",
+                  timestamp,
+                  content: accumulatedReasoning,
+                };
+                console.log(
+                  "[OpenAI Adapter] Emitting thinking chunk (from reasoning item done - text):",
+                  {
+                    textLength: item.text.length,
+                  }
+                );
+                yield thinkingChunk;
+              }
+
+              // Check if summary contains reasoning text (summary might be an array of text chunks)
+              if (Array.isArray(item.summary) && item.summary.length > 0) {
+                // Summary might be an array of text strings or objects with text/content
+                const summaryText = item.summary
+                  .map((s: any) =>
+                    typeof s === "string"
+                      ? s
+                      : s?.text || s?.content || JSON.stringify(s)
+                  )
+                  .join("");
+                if (summaryText) {
+                  accumulatedReasoning = summaryText;
+                  const thinkingChunk: StreamChunk = {
+                    type: "thinking" as const,
+                    id: responseId || generateId(),
+                    model: model || options.model || "gpt-4o",
+                    timestamp,
+                    content: accumulatedReasoning,
+                  };
+                  console.log(
+                    "[OpenAI Adapter] Emitting thinking chunk (from reasoning item done - summary):",
+                    {
+                      summaryLength: summaryText.length,
+                    }
+                  );
+                  yield thinkingChunk;
+                }
+              } else if (typeof item.summary === "string" && item.summary) {
+                accumulatedReasoning = item.summary;
+                const thinkingChunk: StreamChunk = {
+                  type: "thinking" as const,
+                  id: responseId || generateId(),
+                  model: model || options.model || "gpt-4o",
+                  timestamp,
+                  content: accumulatedReasoning,
+                };
+                console.log(
+                  "[OpenAI Adapter] Emitting thinking chunk (from reasoning item done - summary string):",
+                  {
+                    summaryLength: item.summary.length,
+                  }
+                );
+                yield thinkingChunk;
+              }
+            }
           }
 
           // Handle response done
@@ -931,6 +1292,30 @@ export class OpenAI extends BaseAdapter<
             );
             if (textContent?.text) {
               delta = { content: textContent.text };
+            }
+
+            // Extract reasoning content from legacy format
+            const reasoningContent = messageItem.content.find(
+              (c: any) => c.type === "output_reasoning"
+            );
+            if (reasoningContent?.text) {
+              accumulatedReasoning = reasoningContent.text;
+              const thinkingChunk: StreamChunk = {
+                type: "thinking" as const,
+                id: responseId || chunk.id || generateId(),
+                model: model || chunk.model || options.model || "gpt-4o",
+                timestamp,
+                content: accumulatedReasoning,
+              };
+              console.log(
+                "[OpenAI Adapter] Emitting thinking chunk (legacy format):",
+                {
+                  format: "legacy",
+                  contentLength: accumulatedReasoning.length,
+                  chunkType: thinkingChunk.type,
+                }
+              );
+              yield thinkingChunk;
             }
           }
 
@@ -1076,7 +1461,24 @@ export class OpenAI extends BaseAdapter<
           usage: undefined,
         };
       }
+
+      // Log summary of all event types encountered
+      console.log("[OpenAI Adapter] Stream completed. Event type summary:", {
+        totalChunks: chunkCount,
+        eventTypes: Object.fromEntries(eventTypeCounts),
+        accumulatedReasoningLength: accumulatedReasoning.length,
+        accumulatedContentLength: accumulatedContent.length,
+        hasReasoning: accumulatedReasoning.length > 0,
+      });
     } catch (error: any) {
+      console.log(
+        "[OpenAI Adapter] Stream ended with error. Event type summary:",
+        {
+          totalChunks: chunkCount,
+          eventTypes: Object.fromEntries(eventTypeCounts),
+          error: error.message,
+        }
+      );
       yield {
         type: "error",
         id: generateId(),
@@ -1127,6 +1529,18 @@ export class OpenAI extends BaseAdapter<
         input,
         tools,
       };
+
+      // Debug: Log the reasoning config being sent to OpenAI
+      console.log("[OpenAI Adapter] Request params (reasoning check):", {
+        model: requestParams.model,
+        hasReasoning: !!requestParams.reasoning,
+        reasoning: requestParams.reasoning,
+        reasoningEffort: requestParams.reasoning?.effort,
+        providerOptionsKeys: providerOptions
+          ? Object.keys(providerOptions)
+          : [],
+        fullProviderOptions: providerOptions,
+      });
 
       return requestParams;
     } catch (error: any) {
