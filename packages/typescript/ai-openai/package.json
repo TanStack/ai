@@ -47,8 +47,10 @@
     "@types/node": "^22.10.2",
     "@vitest/coverage-v8": "4.0.13",
     "tsdown": "^0.15.9",
+    "tsx": "^4.20.6",
     "typescript": "^5.7.2",
-    "vitest": "^4.0.13"
+    "vitest": "^4.0.13",
+    "zod": "^4.1.12"
   },
   "peerDependencies": {
     "@tanstack/ai": "workspace:*"

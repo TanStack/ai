@@ -7,6 +7,8 @@ import {
   type SummarizationResult,
   type EmbeddingOptions,
   type EmbeddingResult,
+  type ModelMessage,
+  type Tool,
   StreamChunk,
 } from "@tanstack/ai";
 import {
@@ -150,13 +152,25 @@ export class OpenAI extends BaseAdapter<
     // We assign our own indices as we encounter unique tool call IDs
     const toolCallMetadata = new Map<string, { index: number; name: string }>();
 
-    // Map common options to OpenAI format using the centralized mapping function
-    const requestParams = this.mapChatOptionsToOpenAI(options);
+    // Use Chat Completions API (standard, well-established API with reliable tool call support)
+    // instead of Responses API which has issues with argument parsing
+    const messages = this.convertMessagesToChatCompletionsFormat(
+      options.messages
+    );
+    const tools = options.tools
+      ? this.convertToolsToChatCompletionsFormat([...options.tools])
+      : undefined;
 
-    const response = await this.client.responses.create(
+    const response = await this.client.chat.completions.create(
       {
+        model: options.model,
+        messages,
+        tools,
+        tool_choice: options.options?.toolChoice as any,
+        temperature: options.options?.temperature,
+        max_tokens: options.options?.maxTokens,
+        top_p: options.options?.topP,
         stream: true,
-        ...requestParams,
       },
       {
         headers: options.request?.headers,
@@ -164,15 +178,9 @@ export class OpenAI extends BaseAdapter<
       }
     );
 
-    // The Responses API returns a stream that needs to be parsed
-    // response.toReadableStream() returns raw bytes with JSON lines
-    const rawStream = response.toReadableStream();
-
-    // Parse the Responses API stream (JSON lines format)
-    const parsedStream = this.parseResponsesStream(rawStream);
-
-    yield* this.processOpenAIStreamChunks(
-      parsedStream,
+    // Chat Completions API uses SSE format - iterate directly
+    yield* this.processChatCompletionsStream(
+      response,
       toolCallMetadata,
       options,
       () => this.generateId()
@@ -296,6 +304,263 @@ export class OpenAI extends BaseAdapter<
   }
 
   /**
+   * Convert tools to Chat Completions API format
+   */
+  private convertToolsToChatCompletionsFormat(
+    tools: Array<Tool>
+  ): Array<OpenAI_SDK.Chat.Completions.ChatCompletionTool> {
+    return tools.map((tool) => {
+      // Chat Completions API uses simpler format: { type: "function", function: { name, description, parameters } }
+      return {
+        type: "function" as const,
+        function: {
+          name: tool.function.name,
+          description: tool.function.description || "",
+          parameters: tool.function.parameters || {},
+        },
+      };
+    });
+  }
+
+  /**
+   * Convert messages to Chat Completions API format
+   */
+  private convertMessagesToChatCompletionsFormat(
+    messages: ModelMessage[]
+  ): Array<OpenAI_SDK.Chat.Completions.ChatCompletionMessageParam> {
+    const result: Array<OpenAI_SDK.Chat.Completions.ChatCompletionMessageParam> =
+      [];
+
+    for (const message of messages) {
+      // Handle tool messages - convert to tool role
+      if (message.role === "tool") {
+        result.push({
+          role: "tool",
+          tool_call_id: message.toolCallId || "",
+          content:
+            typeof message.content === "string"
+              ? message.content
+              : JSON.stringify(message.content),
+        });
+        continue;
+      }
+
+      // Handle assistant messages with tool calls
+      if (message.role === "assistant") {
+        const assistantMsg: OpenAI_SDK.Chat.Completions.ChatCompletionAssistantMessageParam =
+          {
+            role: "assistant",
+            content: message.content || null,
+          };
+
+        if (message.toolCalls && message.toolCalls.length > 0) {
+          assistantMsg.tool_calls = message.toolCalls.map((tc) => ({
+            id: tc.id,
+            type: "function",
+            function: {
+              name: tc.function.name,
+              arguments:
+                typeof tc.function.arguments === "string"
+                  ? tc.function.arguments
+                  : JSON.stringify(tc.function.arguments || {}),
+            },
+          }));
+        }
+
+        result.push(assistantMsg);
+        continue;
+      }
+
+      // Handle user and system messages
+      if (message.role === "user") {
+        result.push({
+          role: "user",
+          content:
+            typeof message.content === "string"
+              ? message.content
+              : JSON.stringify(message.content),
+        });
+      } else if (message.role === "system") {
+        result.push({
+          role: "system",
+          content:
+            typeof message.content === "string"
+              ? message.content
+              : JSON.stringify(message.content),
+        });
+      }
+    }
+
+    return result;
+  }
+
+  /**
+   * Process Chat Completions API stream (SSE format)
+   * This is the standard, well-established API with reliable tool call support
+   */
+  private async *processChatCompletionsStream(
+    stream: AsyncIterable<OpenAI_SDK.Chat.Completions.ChatCompletionChunk>,
+    toolCallMetadata: Map<string, { index: number; name: string }>,
+    options: ChatCompletionOptions,
+    generateId: () => string
+  ): AsyncIterable<StreamChunk> {
+    let accumulatedContent = "";
+    const timestamp = Date.now();
+    let nextIndex = 0;
+
+    // Track accumulated function call arguments by call_id
+    const accumulatedFunctionCallArguments = new Map<string, string>();
+
+    let responseId: string | null = null;
+    let model: string | null = null;
+
+    try {
+      for await (const chunk of stream) {
+        // Preserve response metadata
+        if (chunk.id) responseId = chunk.id;
+        if (chunk.model) model = chunk.model;
+
+        const choice = chunk.choices?.[0];
+        if (!choice) continue;
+
+        const delta = choice.delta;
+        const finishReason = choice.finish_reason;
+
+        // Handle content delta
+        if (delta?.content) {
+          accumulatedContent += delta.content;
+          yield {
+            type: "content" as const,
+            id: responseId || generateId(),
+            model: model || options.model || "gpt-4o",
+            timestamp,
+            delta: delta.content,
+            content: accumulatedContent,
+            role: "assistant" as const,
+          };
+        }
+
+        // Handle tool calls
+        if (delta?.tool_calls) {
+          for (const toolCall of delta.tool_calls) {
+            let toolCallId: string;
+            let toolCallName: string;
+            let toolCallArgs: string;
+            let actualIndex: number;
+
+            if (toolCall.id) {
+              // First chunk with ID and name
+              toolCallId = toolCall.id;
+              toolCallName = toolCall.function?.name || "";
+              toolCallArgs = toolCall.function?.arguments || "";
+
+              // Track for index assignment
+              if (!toolCallMetadata.has(toolCallId)) {
+                toolCallMetadata.set(toolCallId, {
+                  index: nextIndex++,
+                  name: toolCallName,
+                });
+                accumulatedFunctionCallArguments.set(toolCallId, "");
+              }
+              const meta = toolCallMetadata.get(toolCallId)!;
+              actualIndex = meta.index;
+
+              // Track the delta for this chunk
+              if (toolCallArgs) {
+                const current =
+                  accumulatedFunctionCallArguments.get(toolCallId) || "";
+                accumulatedFunctionCallArguments.set(
+                  toolCallId,
+                  current + toolCallArgs
+                );
+              }
+            } else {
+              // Delta chunk - find by index
+              const openAIIndex =
+                typeof toolCall.index === "number" ? toolCall.index : 0;
+              const entry = Array.from(toolCallMetadata.entries())[openAIIndex];
+              if (entry) {
+                const [id, meta] = entry;
+                toolCallId = id;
+                toolCallName = meta.name;
+                actualIndex = meta.index;
+                toolCallArgs = toolCall.function?.arguments || "";
+
+                // Track the delta
+                if (toolCallArgs) {
+                  const current =
+                    accumulatedFunctionCallArguments.get(toolCallId) || "";
+                  accumulatedFunctionCallArguments.set(
+                    toolCallId,
+                    current + toolCallArgs
+                  );
+                }
+              } else {
+                // Fallback
+                toolCallId = `call_${Date.now()}`;
+                toolCallName = "";
+                actualIndex = openAIIndex;
+                toolCallArgs = "";
+              }
+            }
+
+            // Emit the tool call chunk
+            // For chunks with ID (first chunk), always emit to register the tool call
+            // For delta chunks, only emit if there are arguments to add
+            // The ToolCallManager will accumulate the argument deltas for us
+            if (toolCall.id || toolCallArgs) {
+              yield {
+                type: "tool_call",
+                id: responseId || generateId(),
+                model: model || options.model || "gpt-4o",
+                timestamp,
+                toolCall: {
+                  id: toolCallId,
+                  type: "function",
+                  function: {
+                    name: toolCallName,
+                    arguments: toolCallArgs, // Only the delta, not accumulated
+                  },
+                },
+                index: actualIndex,
+              };
+            }
+          }
+        }
+
+        // Handle completion
+        if (finishReason) {
+          yield {
+            type: "done" as const,
+            id: responseId || generateId(),
+            model: model || options.model || "gpt-4o",
+            timestamp,
+            finishReason: finishReason as any,
+            usage: chunk.usage
+              ? {
+                  promptTokens: chunk.usage.prompt_tokens || 0,
+                  completionTokens: chunk.usage.completion_tokens || 0,
+                  totalTokens: chunk.usage.total_tokens || 0,
+                }
+              : undefined,
+          };
+        }
+      }
+    } catch (error: any) {
+      yield {
+        type: "error",
+        id: generateId(),
+        model: options.model || "gpt-3.5-turbo",
+        timestamp,
+        error: {
+          message: error.message || "Unknown error occurred",
+          code: error.code,
+        },
+      };
+    }
+  }
+
+  /**
    * Parse Responses API stream - it's JSON lines (not SSE format)
    * Each line is a complete JSON object
    */
@@ -360,6 +625,12 @@ export class OpenAI extends BaseAdapter<
     let nextIndex = 0;
     let chunkCount = 0;
 
+    // Track accumulated function call arguments by call_id
+    const accumulatedFunctionCallArguments = new Map<string, string>();
+
+    // Map item_id (from delta events) to call_id (from function_call items)
+    const itemIdToCallId = new Map<string, string>();
+
     // Preserve response metadata across events
     let responseId: string | null = null;
     let model: string | null = null;
@@ -374,6 +645,8 @@ export class OpenAI extends BaseAdapter<
         // - response.in_progress
         // - response.output_item.added
         // - response.output_text.delta
+        // - response.function_call_arguments.delta
+        // - response.function_call_arguments.done
         // - response.done
 
         let delta: any = null;
@@ -404,17 +677,169 @@ export class OpenAI extends BaseAdapter<
             }
           }
 
+          // Handle function call argument deltas
+          // response.function_call_arguments.delta events contain incremental argument updates
+          // Note: delta events use item_id, not call_id, and we need to map item_id to call_id
+          if (
+            eventType === "response.function_call_arguments.delta" &&
+            chunk.delta !== undefined &&
+            chunk.item_id
+          ) {
+            // Find the call_id by looking up the item_id in the output items
+            // We need to track item_id -> call_id mapping
+            // For now, we'll look it up from the item if available, or use a reverse lookup
+            let callId: string | undefined;
+
+            // Try to find call_id from item_id by checking if we have the item stored
+            // The item_id corresponds to the function_call item's id
+            // We need to maintain a mapping: item_id -> call_id
+            // For now, we'll use a workaround: check if delta events come after output_item.added
+            // and use the most recently added function call's call_id
+
+            // Actually, we should track item_id -> call_id when we see output_item.added
+            // For now, let's use the item_id as a fallback and try to find the call_id
+            // by checking accumulated items or using a reverse lookup
+
+            // Better approach: track item_id -> call_id mapping when we see output_item.added
+            const itemId = chunk.item_id;
+
+            callId = itemIdToCallId.get(itemId);
+
+            if (callId) {
+              const currentArgs =
+                accumulatedFunctionCallArguments.get(callId) || "";
+              // Delta is a JSON string fragment - append it to accumulate
+              let deltaText: string;
+              if (typeof chunk.delta === "string") {
+                deltaText = chunk.delta;
+              } else if (Array.isArray(chunk.delta)) {
+                // Delta might be an array of characters/strings
+                deltaText = chunk.delta.join("");
+              } else {
+                deltaText = JSON.stringify(chunk.delta);
+              }
+
+              const newArgs = currentArgs + deltaText;
+              accumulatedFunctionCallArguments.set(callId, newArgs);
+
+              // Debug: log delta accumulation for recommendGuitar
+              if (process.env.DEBUG_TOOL_ARGS) {
+                const meta = toolCallMetadata.get(callId);
+                if (meta?.name === "recommendGuitar") {
+                  console.log(
+                    `[DEBUG] Delta for ${callId}:`,
+                    JSON.stringify(deltaText),
+                    "-> Accumulated:",
+                    newArgs
+                  );
+                }
+              }
+
+              // Emit updated tool call with accumulated arguments
+              const meta = toolCallMetadata.get(callId);
+              if (meta) {
+                delta = delta || {};
+                delta.tool_calls = [
+                  {
+                    id: callId,
+                    function: {
+                      name: meta.name,
+                      arguments: newArgs,
+                    },
+                  },
+                ];
+              }
+            }
+          }
+
+          // Handle function call arguments done (complete arguments)
+          // response.function_call_arguments.done events contain the final complete arguments
+          if (
+            eventType === "response.function_call_arguments.done" &&
+            chunk.item_id
+          ) {
+            const itemId = chunk.item_id;
+            const callId = itemIdToCallId.get(itemId);
+
+            if (callId) {
+              // Prefer accumulated arguments from deltas over the done event's arguments
+              // The done event might have incomplete or empty arguments
+              let completeArgs = accumulatedFunctionCallArguments.get(callId);
+
+              // If we don't have accumulated args, try the done event's arguments
+              if (!completeArgs || completeArgs === "") {
+                if (
+                  typeof chunk.arguments === "string" &&
+                  chunk.arguments !== "{}"
+                ) {
+                  completeArgs = chunk.arguments;
+                } else if (
+                  chunk.arguments &&
+                  typeof chunk.arguments === "object" &&
+                  Object.keys(chunk.arguments).length > 0
+                ) {
+                  // If it's a non-empty object, stringify it
+                  completeArgs = JSON.stringify(chunk.arguments);
+                } else {
+                  // Fallback to empty object
+                  completeArgs = "{}";
+                }
+              }
+
+              accumulatedFunctionCallArguments.set(callId, completeArgs);
+
+              // Emit final tool call with complete arguments
+              const meta = toolCallMetadata.get(callId);
+              if (meta) {
+                delta = delta || {};
+                delta.tool_calls = [
+                  {
+                    id: callId,
+                    function: {
+                      name: meta.name,
+                      arguments: completeArgs,
+                    },
+                  },
+                ];
+              }
+            }
+          }
+
           // Handle output item added (new items like function calls or complete messages)
           if (eventType === "response.output_item.added" && chunk.item) {
             const item = chunk.item;
             if (item.type === "function_call") {
+              // Initialize arguments accumulator for this call
+              const callId = item.call_id;
+              const itemId = item.id; // The item's id (used in delta events)
+
+              // Map item_id to call_id for delta event lookups
+              if (itemId && callId) {
+                itemIdToCallId.set(itemId, callId);
+              }
+
+              const initialArgs = item.arguments
+                ? typeof item.arguments === "string"
+                  ? item.arguments
+                  : JSON.stringify(item.arguments)
+                : "";
+              accumulatedFunctionCallArguments.set(callId, initialArgs);
+
+              // Track metadata immediately so delta/done events can use it
+              if (!toolCallMetadata.has(callId)) {
+                toolCallMetadata.set(callId, {
+                  index: nextIndex++,
+                  name: item.name,
+                });
+              }
+
               delta = delta || {};
               delta.tool_calls = [
                 {
-                  id: item.call_id,
+                  id: callId,
                   function: {
                     name: item.name,
-                    arguments: JSON.stringify(item.arguments || {}),
+                    arguments: initialArgs,
                   },
                 },
               ];
@@ -449,6 +874,38 @@ export class OpenAI extends BaseAdapter<
               // Only set finish reason if status indicates completion (not "in_progress")
               if (item.status && item.status !== "in_progress") {
                 finishReason = item.status;
+              }
+            }
+          }
+
+          // Handle output item done - check if it has final arguments for function calls
+          if (eventType === "response.output_item.done" && chunk.item) {
+            const item = chunk.item;
+            if (item.type === "function_call" && item.call_id) {
+              const callId = item.call_id;
+              // The item might have the final arguments as a string
+              if (
+                item.arguments &&
+                typeof item.arguments === "string" &&
+                item.arguments !== "{}"
+              ) {
+                const finalArgs = item.arguments;
+                accumulatedFunctionCallArguments.set(callId, finalArgs);
+
+                // Emit final tool call with complete arguments
+                const meta = toolCallMetadata.get(callId);
+                if (meta) {
+                  delta = delta || {};
+                  delta.tool_calls = [
+                    {
+                      id: callId,
+                      function: {
+                        name: meta.name,
+                        arguments: finalArgs,
+                      },
+                    },
+                  ];
+                }
               }
             }
           }

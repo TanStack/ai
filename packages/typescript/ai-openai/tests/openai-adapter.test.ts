@@ -2,21 +2,6 @@ import { describe, it, expect, beforeEach, vi } from "vitest";
 import { chat, type Tool, type StreamChunk } from "@tanstack/ai";
 import { OpenAI, type OpenAIProviderOptions } from "../src/openai-adapter";
 
-const mocks = vi.hoisted(() => ({
-  responsesCreate: vi.fn(),
-}));
-
-vi.mock("openai", () => {
-  const { responsesCreate } = mocks;
-
-  class MockOpenAI {
-    public responses = { create: responsesCreate };
-    constructor(_: { apiKey: string }) { }
-  }
-
-  return { default: MockOpenAI };
-});
-
 const createAdapter = () => new OpenAI({ apiKey: "test-key" });
 
 const toolArguments = JSON.stringify({ location: "Berlin" });
@@ -36,23 +21,14 @@ const weatherTool: Tool = {
   },
 };
 
-// Helper to create a ReadableStream from JSON lines
-function createMockResponseStream(events: Array<Record<string, unknown>>): { toReadableStream: () => ReadableStream<Uint8Array> } {
+function createMockChatCompletionsStream(
+  chunks: Array<Record<string, unknown>>
+): AsyncIterable<Record<string, unknown>> {
   return {
-    toReadableStream: () => {
-      const encoder = new TextEncoder();
-      const lines = events.map((e) => JSON.stringify(e) + "\n");
-      let index = 0;
-      return new ReadableStream<Uint8Array>({
-        pull(controller) {
-          if (index < lines.length) {
-            controller.enqueue(encoder.encode(lines[index]!));
-            index++;
-          } else {
-            controller.close();
-          }
-        },
-      });
+    async *[Symbol.asyncIterator]() {
+      for (const chunk of chunks) {
+        yield chunk;
+      }
     },
   };
 }
@@ -62,69 +38,57 @@ describe("OpenAI adapter option mapping", () => {
     vi.clearAllMocks();
   });
 
-  it("maps common and provider options into the Responses payload", async () => {
-    // Mock streaming response
-    const mockResponse = createMockResponseStream([
+  it("maps options into the Chat Completions payload", async () => {
+    const mockStream = createMockChatCompletionsStream([
       {
-        type: "response.output_item.added",
-        item: {
-          type: "message",
-          role: "assistant",
-          content: [],
-        },
-      },
-      {
-        type: "response.content_part.added",
-        part: { type: "text", text: "" },
-      },
-      {
-        type: "response.output_text.delta",
-        delta: "It is sunny",
-      },
-      {
-        type: "response.completed",
-        response: {
-          id: "resp_123",
-          status: "completed",
-          usage: {
-            input_tokens: 12,
-            output_tokens: 4,
-            total_tokens: 16,
+        id: "chatcmpl-123",
+        object: "chat.completion.chunk",
+        created: 1234567890,
+        model: "gpt-4o-mini",
+        choices: [
+          {
+            index: 0,
+            delta: { content: "It is sunny" },
+            finish_reason: null,
           },
+        ],
+      },
+      {
+        id: "chatcmpl-123",
+        object: "chat.completion.chunk",
+        created: 1234567891,
+        model: "gpt-4o-mini",
+        choices: [
+          {
+            index: 0,
+            delta: {},
+            finish_reason: "stop",
+          },
+        ],
+        usage: {
+          prompt_tokens: 12,
+          completion_tokens: 4,
+          total_tokens: 16,
         },
       },
     ]);
 
-    mocks.responsesCreate.mockResolvedValueOnce(mockResponse);
-
-    const providerOptions: OpenAIProviderOptions = {
-      background: true,
-      conversation: { id: "conv_123" },
-      include: ["message.output_text.logprobs"],
-      max_tool_calls: 4,
-      parallel_tool_calls: false,
-      prompt: {
-        id: "prompt_weather",
-        version: "3",
-        variables: { location: "Berlin" },
-      },
-      prompt_cache_key: "weather-cache",
-      prompt_cache_retention: "24h",
-      reasoning: { effort: "medium" },
-      summary: "detailed",
-      safety_identifier: "user-42",
-      service_tier: "priority",
-      store: false,
-      stream_options: { include_obfuscation: false },
-      top_logprobs: 5,
-      truncation: "auto",
-      tool_choice: "required",
-      verbosity: "high",
-    };
+    const chatCompletionsCreate = vi.fn().mockResolvedValueOnce(mockStream);
 
     const adapter = createAdapter();
+    // Replace the internal OpenAI SDK client with our mock
+    (adapter as any).client = {
+      chat: {
+        completions: {
+          create: chatCompletionsCreate,
+        },
+      },
+    };
 
-    // Consume the stream to trigger the API call
+    const providerOptions: OpenAIProviderOptions = {
+      tool_choice: "required",
+    };
+
     const chunks: StreamChunk[] = [];
     for await (const chunk of chat({
       adapter,
@@ -143,7 +107,7 @@ describe("OpenAI adapter option mapping", () => {
             },
           ],
         },
-        { role: "tool", toolCallId: "call_weather", content: "{\"temp\":72}" },
+        { role: "tool", toolCallId: "call_weather", content: '{"temp":72}' },
       ],
       tools: [weatherTool],
       options: {
@@ -157,51 +121,60 @@ describe("OpenAI adapter option mapping", () => {
       chunks.push(chunk);
     }
 
-    expect(mocks.responsesCreate).toHaveBeenCalledTimes(1);
-    const [payload] = mocks.responsesCreate.mock.calls[0];
+    expect(chatCompletionsCreate).toHaveBeenCalledTimes(1);
+    const [payload] = chatCompletionsCreate.mock.calls[0];
 
     expect(payload).toMatchObject({
       model: "gpt-4o-mini",
       temperature: 0.25,
       top_p: 0.6,
-      max_output_tokens: 1024,
-      metadata: { requestId: "req-42" },
-      ...providerOptions,
+      max_tokens: 1024,
+      stream: true,
+      tools: [
+        {
+          type: "function",
+          function: {
+            name: "lookup_weather",
+            parameters: {
+              type: "object",
+              properties: {
+                location: { type: "string" },
+              },
+              required: ["location"],
+            },
+          },
+        },
+      ],
     });
-    expect(payload.stream).toBe(true);
 
-    expect(payload.input).toEqual([
+    expect(payload.messages).toEqual([
       {
-        type: "message",
         role: "system",
-        content: [{ type: "input_text", text: "Stay concise" }],
+        content: "Stay concise",
       },
       {
-        type: "message",
         role: "user",
-        content: [{ type: "input_text", text: "How is the weather?" }],
+        content: "How is the weather?",
       },
       {
-        type: "function_call",
-        call_id: "call_weather",
-        name: "lookup_weather",
-        arguments: toolArguments,
-      },
-      {
-        type: "message",
         role: "assistant",
-        content: [{ type: "input_text", text: "Let me check" }],
+        content: "Let me check",
+        tool_calls: [
+          {
+            id: "call_weather",
+            type: "function",
+            function: {
+              name: "lookup_weather",
+              arguments: toolArguments,
+            },
+          },
+        ],
       },
       {
-        type: "function_call_output",
-        call_id: "call_weather",
-        output: "{\"temp\":72}",
+        role: "tool",
+        tool_call_id: "call_weather",
+        content: '{"temp":72}',
       },
     ]);
-
-    expect(payload.tools?.[0]).toMatchObject({
-      type: "function",
-      name: "lookup_weather",
-    });
   });
 });
