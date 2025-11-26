@@ -1,11 +1,20 @@
-import { Show, createSignal, onCleanup, onMount } from "solid-js";
+import { createSignal, onCleanup, onMount } from "solid-js";
 import { Header, HeaderLogo, MainPanel } from "@tanstack/devtools-ui";
 import { useStyles } from "../styles/use-styles";
 import { ConversationsList } from "./ConversationsList";
 import { ConversationDetails } from "./ConversationDetails";
-import { clearAllConversations, state } from "../store/ai-store";
+import { AIProvider, useAIStore } from "../store/ai-context";
 
 export default function Devtools() {
+  return (
+    <AIProvider>
+      <DevtoolsContent />
+    </AIProvider>
+  );
+}
+
+function DevtoolsContent() {
+  const { state, clearAllConversations } = useAIStore();
   const styles = useStyles();
   const [leftPanelWidth, setLeftPanelWidth] = createSignal(300);
   const [isDragging, setIsDragging] = createSignal(false);
@@ -67,57 +76,36 @@ export default function Devtools() {
           }}
         >
           {/* Filter tabs and action buttons */}
-          <div
-            style={{
-              display: "flex",
-              "flex-direction": "column",
-              gap: "8px",
-              padding: "12px",
-              "border-bottom": "1px solid var(--border-color)",
-            }}
-          >
-            <div style={{ display: "flex", gap: "6px", "flex-wrap": "wrap" }}>
+          <div class={styles().shell.filterContainer}>
+            <div class={styles().shell.filterButtonsRow}>
               <button
-                class={styles().actionButton}
-                style={{
-                  background: filterType() === "all" ? "#ec4899" : undefined,
-                  color: filterType() === "all" ? "white" : undefined,
-                  "border-color": filterType() === "all" ? "#ec4899" : undefined,
-                  "font-size": "11px",
-                }}
+                class={`${styles().shell.filterButton} ${
+                  filterType() === "all" ? styles().shell.filterButtonActive : ""
+                }`}
                 onClick={() => setFilterType("all")}
               >
                 All
               </button>
               <button
-                class={styles().actionButton}
-                style={{
-                  background: filterType() === "client" ? "#ec4899" : undefined,
-                  color: filterType() === "client" ? "white" : undefined,
-                  "border-color": filterType() === "client" ? "#ec4899" : undefined,
-                  "font-size": "11px",
-                }}
+                class={`${styles().shell.filterButton} ${
+                  filterType() === "client" ? styles().shell.filterButtonActive : ""
+                }`}
                 onClick={() => setFilterType("client")}
               >
                 Client
               </button>
               <button
-                class={styles().actionButton}
-                style={{
-                  background: filterType() === "server" ? "#ec4899" : undefined,
-                  color: filterType() === "server" ? "white" : undefined,
-                  "border-color": filterType() === "server" ? "#ec4899" : undefined,
-                  "font-size": "11px",
-                }}
+                class={`${styles().shell.filterButton} ${
+                  filterType() === "server" ? styles().shell.filterButtonActive : ""
+                }`}
                 onClick={() => setFilterType("server")}
               >
                 Server
               </button>
             </div>
-            <div style={{ display: "flex", gap: "6px" }}>
+            <div class={styles().shell.actionsRow}>
               <button
-                class={styles().actionButton}
-                style={{ flex: 1, "font-size": "11px" }}
+                class={`${styles().actionButton} ${styles().shell.clearAllButton}`}
                 onClick={() => clearAllConversations()}
                 disabled={conversationCount() === 0}
               >

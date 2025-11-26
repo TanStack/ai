@@ -35,7 +35,6 @@ export const recommendGuitarTool = tool({
       required: ["id"],
     },
   },
-  // No execute = client-side tool
 });
 
 export const getPersonalGuitarPreferenceTool = tool({
@@ -102,4 +101,3 @@ export const allTools = [
   addToWishListTool,
   addToCartTool,
 ];
-

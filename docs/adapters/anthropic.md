@@ -127,16 +127,25 @@ const stream = chat({
 
 ### Thinking (Extended Thinking)
 
-Enable extended thinking with a token budget:
+Enable extended thinking with a token budget. This allows Claude to show its reasoning process, which is streamed as `thinking` chunks and displayed as `ThinkingPart` in messages:
 
 ```typescript
 providerOptions: {
   thinking: {
     type: "enabled",
-    budgetTokens: 1000, // Maximum tokens for thinking
+    budget_tokens: 2048, // Maximum tokens for thinking
   },
 }
 ```
+
+**Note:** `max_tokens` must be greater than `budget_tokens`. The adapter automatically adjusts `max_tokens` if needed.
+
+**Supported Models:**
+
+- `claude-sonnet-4-5-20250929` and newer
+- `claude-opus-4-5-20251101` and newer
+
+When thinking is enabled, the model's reasoning process is streamed separately from the response text and appears as a collapsible thinking section in the UI.
 
 ### Prompt Caching
 

@@ -3,11 +3,6 @@ export { summarize } from "./core/summarize";
 export { embedding } from "./core/embedding";
 export { tool } from "./tools/tool-utils";
 export {
-  responseFormat,
-  responseFormat as output,
-  jsonObject,
-} from "./utilities/schema-utils";
-export {
   toServerSentEventsStream,
   toStreamResponse,
 } from "./utilities/stream-to-response";
@@ -20,3 +15,4 @@ export {
 } from "./utilities/agent-loop-strategies";
 export * from "./types";
 export { chatOptions } from "./utilities/chat-options";
+export { aiEventClient } from "./event-client";

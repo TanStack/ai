@@ -52,7 +52,16 @@ export interface ToolResultPart {
   error?: string; // Error message if state is "error"
 }
 
-export type MessagePart = TextPart | ToolCallPart | ToolResultPart;
+export interface ThinkingPart {
+  type: "thinking";
+  content: string;
+}
+
+export type MessagePart =
+  | TextPart
+  | ToolCallPart
+  | ToolResultPart
+  | ThinkingPart;
 
 /**
  * UIMessage - Domain-specific message format optimized for building chat UIs

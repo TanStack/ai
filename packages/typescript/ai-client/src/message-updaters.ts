@@ -1,4 +1,12 @@
-import type { UIMessage, MessagePart, ToolCallPart, ToolResultPart, ToolCallState, ToolResultState } from "./types";
+import type {
+  UIMessage,
+  MessagePart,
+  ToolCallPart,
+  ToolResultPart,
+  ThinkingPart,
+  ToolCallState,
+  ToolResultState,
+} from "./types";
 
 /**
  * Update or add a text part to a message, ensuring tool calls come before text.
@@ -28,11 +36,7 @@ export function updateTextPart(
       );
 
       // Rebuild: tool calls first, then other parts, then text
-      parts = [
-        ...toolCallParts,
-        ...otherParts,
-        { type: "text", content },
-      ];
+      parts = [...toolCallParts, ...otherParts, { type: "text", content }];
     }
 
     return { ...msg, parts };
@@ -61,8 +65,7 @@ export function updateToolCallPart(
     let parts = [...msg.parts];
     // Find by ID, not index!
     const existingPartIndex = parts.findIndex(
-      (p): p is ToolCallPart =>
-        p.type === "tool-call" && p.id === toolCall.id
+      (p): p is ToolCallPart => p.type === "tool-call" && p.id === toolCall.id
     );
 
     const toolCallPart: ToolCallPart = {
@@ -146,8 +149,7 @@ export function updateToolCallApproval(
 
     const parts = [...msg.parts];
     const toolCallPart = parts.find(
-      (p): p is ToolCallPart =>
-        p.type === "tool-call" && p.id === toolCallId
+      (p): p is ToolCallPart => p.type === "tool-call" && p.id === toolCallId
     ) as ToolCallPart | undefined;
 
     if (toolCallPart) {
@@ -178,8 +180,7 @@ export function updateToolCallState(
 
     const parts = [...msg.parts];
     const toolCallPart = parts.find(
-      (p): p is ToolCallPart =>
-        p.type === "tool-call" && p.id === toolCallId
+      (p): p is ToolCallPart => p.type === "tool-call" && p.id === toolCallId
     ) as ToolCallPart | undefined;
 
     if (toolCallPart) {
@@ -204,8 +205,7 @@ export function updateToolCallWithOutput(
   return messages.map((msg) => {
     const parts = [...msg.parts];
     const toolCallPart = parts.find(
-      (p): p is ToolCallPart =>
-        p.type === "tool-call" && p.id === toolCallId
+      (p): p is ToolCallPart => p.type === "tool-call" && p.id === toolCallId
     ) as ToolCallPart | undefined;
 
     if (toolCallPart) {
@@ -246,3 +246,42 @@ export function updateToolCallApprovalResponse(
   });
 }
 
+/**
+ * Update or add a thinking part to a message.
+ * Thinking parts are typically placed before text parts.
+ */
+export function updateThinkingPart(
+  messages: UIMessage[],
+  messageId: string,
+  content: string
+): UIMessage[] {
+  return messages.map((msg) => {
+    if (msg.id !== messageId) {
+      return msg;
+    }
+
+    let parts = [...msg.parts];
+    const thinkingPartIndex = parts.findIndex((p) => p.type === "thinking");
+
+    const thinkingPart: ThinkingPart = {
+      type: "thinking",
+      content,
+    };
+
+    if (thinkingPartIndex >= 0) {
+      // Update existing thinking part
+      parts[thinkingPartIndex] = thinkingPart;
+    } else {
+      // Insert thinking part before text parts (but after tool calls)
+      const textPartIndex = parts.findIndex((p) => p.type === "text");
+      if (textPartIndex >= 0) {
+        parts.splice(textPartIndex, 0, thinkingPart);
+      } else {
+        // No text part, add at end
+        parts.push(thinkingPart);
+      }
+    }
+
+    return { ...msg, parts };
+  });
+}

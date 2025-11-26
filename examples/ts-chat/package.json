@@ -16,14 +16,12 @@
     "@tanstack/ai": "workspace:*",
     "@tanstack/ai-anthropic": "workspace:*",
     "@tanstack/ai-client": "workspace:*",
-    "@tanstack/ai-devtools-core": "workspace:*",
     "@tanstack/ai-gemini": "workspace:*",
     "@tanstack/ai-ollama": "workspace:*",
     "@tanstack/ai-openai": "workspace:*",
     "@tanstack/ai-react": "workspace:*",
     "@tanstack/ai-react-ui": "workspace:*",
     "@tanstack/nitro-v2-vite-plugin": "^1.132.31",
-    "@tanstack/react-ai-devtools": "workspace:*",
     "@tanstack/react-devtools": "^0.8.0",
     "@tanstack/react-router": "^1.132.0",
     "@tanstack/react-router-devtools": "^1.132.0",
@@ -46,8 +44,6 @@
     "zod": "^4.1.11"
   },
   "devDependencies": {
-    "@tanstack/devtools-event-client": "^0.3.4",
-    "@tanstack/devtools-vite": "^0.3.11",
     "@testing-library/dom": "^10.4.0",
     "@testing-library/react": "^16.2.0",
     "@types/node": "^22.10.2",

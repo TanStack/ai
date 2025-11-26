@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
 import type { UIMessage, MessagePart } from "@tanstack/ai-react";
+import { ThinkingPart } from "./thinking-part";
 
 export interface ToolCallRenderProps {
   id: string;
@@ -21,6 +22,11 @@ export interface ChatMessageProps {
   assistantClassName?: string;
   /** Custom renderer for text parts */
   textPartRenderer?: (props: { content: string }) => ReactNode;
+  /** Custom renderer for thinking parts */
+  thinkingPartRenderer?: (props: {
+    content: string;
+    isComplete?: boolean;
+  }) => ReactNode;
   /** Named tool renderers - use the tool name as the key */
   toolsRenderer?: Record<string, (props: ToolCallRenderProps) => ReactNode>;
   /** Default tool renderer when tool name not found in toolsRenderer */
@@ -37,6 +43,7 @@ export interface ChatMessageProps {
  * Message component - renders a single message with all its parts
  *
  * This component natively understands TanStack AI's parts-based message format:
+ * - thinking parts: rendered as collapsible thinking/reasoning sections (auto-collapses when complete)
  * - text parts: rendered as content
  * - tool-call parts: rendered with state, approvals, etc.
  * - tool-result parts: rendered with results
@@ -53,6 +60,19 @@ export interface ChatMessageProps {
  *   className="flex"
  *   userClassName="justify-end"
  *   assistantClassName="justify-start"
+ * />
+ * ```
+ *
+ * @example With custom thinking renderer
+ * ```tsx
+ * <ChatMessage
+ *   message={message}
+ *   thinkingPartRenderer={({ content, isComplete }) => (
+ *     <details open={!isComplete}>
+ *       <summary>💭 Thinking...</summary>
+ *       <pre>{content}</pre>
+ *     </details>
+ *   )}
  * />
  * ```
  *
@@ -74,13 +94,21 @@ export function ChatMessage({
   userClassName = "",
   assistantClassName = "",
   textPartRenderer,
+  thinkingPartRenderer,
   toolsRenderer,
   defaultToolRenderer,
   toolResultRenderer,
 }: ChatMessageProps) {
   // Combine classes based on role
-  const roleClassName = message.role === "user" ? userClassName : message.role === "assistant" ? assistantClassName : "";
-  const combinedClassName = [className, roleClassName].filter(Boolean).join(" ");
+  const roleClassName =
+    message.role === "user"
+      ? userClassName
+      : message.role === "assistant"
+      ? assistantClassName
+      : "";
+  const combinedClassName = [className, roleClassName]
+    .filter(Boolean)
+    .join(" ");
 
   return (
     <div
@@ -89,29 +117,42 @@ export function ChatMessage({
       data-message-role={message.role}
       data-message-created={message.createdAt.toISOString()}
     >
-      {message.parts.map((part, index) => (
-        <MessagePart
-          key={`${message.id}-part-${index}`}
-          part={part}
-          textPartRenderer={textPartRenderer}
-          toolsRenderer={toolsRenderer}
-          defaultToolRenderer={defaultToolRenderer}
-          toolResultRenderer={toolResultRenderer}
-        />
-      ))}
+      {message.parts.map((part, index) => {
+        // Check if thinking is complete (if there's a text part after this thinking part)
+        const isThinkingComplete =
+          part.type === "thinking" &&
+          message.parts.slice(index + 1).some((p) => p.type === "text");
+
+        return (
+          <MessagePart
+            key={`${message.id}-part-${index}`}
+            part={part}
+            isThinkingComplete={isThinkingComplete}
+            textPartRenderer={textPartRenderer}
+            thinkingPartRenderer={thinkingPartRenderer}
+            toolsRenderer={toolsRenderer}
+            defaultToolRenderer={defaultToolRenderer}
+            toolResultRenderer={toolResultRenderer}
+          />
+        );
+      })}
     </div>
   );
 }
 
 function MessagePart({
   part,
+  isThinkingComplete,
   textPartRenderer,
+  thinkingPartRenderer,
   toolsRenderer,
   defaultToolRenderer,
   toolResultRenderer,
 }: {
   part: MessagePart;
+  isThinkingComplete?: boolean;
   textPartRenderer?: ChatMessageProps["textPartRenderer"];
+  thinkingPartRenderer?: ChatMessageProps["thinkingPartRenderer"];
   toolsRenderer?: ChatMessageProps["toolsRenderer"];
   defaultToolRenderer?: ChatMessageProps["defaultToolRenderer"];
   toolResultRenderer?: ChatMessageProps["toolResultRenderer"];
@@ -125,6 +166,23 @@ function MessagePart({
       <div data-part-type="text" data-part-content>
         {part.content}
       </div>
+    );
+  }
+
+  // Thinking part
+  if (part.type === "thinking") {
+    if (thinkingPartRenderer) {
+      return (
+        <>
+          {thinkingPartRenderer({
+            content: part.content,
+            isComplete: isThinkingComplete,
+          })}
+        </>
+      );
+    }
+    return (
+      <ThinkingPart content={part.content} isComplete={isThinkingComplete} />
     );
   }
 
@@ -211,4 +269,3 @@ function MessagePart({
 
   return null;
 }
-

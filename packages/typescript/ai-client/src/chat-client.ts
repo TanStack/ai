@@ -15,6 +15,7 @@ import {
   updateToolCallState,
   updateToolCallWithOutput,
   updateToolCallApprovalResponse,
+  updateThinkingPart,
 } from "./message-updaters";
 import {
   ChatClientEventEmitter,
@@ -236,6 +237,12 @@ export class ChatClient {
               )
             );
           }
+        },
+        onThinkingUpdate: (content) => {
+          this.events.textUpdated(streamId, assistantMessageId, content);
+          this.setMessages(
+            updateThinkingPart(this.messages, assistantMessageId, content)
+          );
         },
         onStreamEnd: () => {
           // Stream finished - parts are already updated

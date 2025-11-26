@@ -80,11 +80,20 @@ export function Chat() {
       <div>
         {messages.map((message) => (
           <div key={message.id}>
-            <strong>{message.role}:</strong>{" "}
-            {message.parts
-              .filter((p) => p.type === "text")
-              .map((p) => p.content)
-              .join("")}
+            <strong>{message.role}:</strong>
+            {message.parts.map((part, index) => {
+              if (part.type === "thinking") {
+                return (
+                  <div key={index} className="thinking-section">
+                    💭 Thinking: {part.content}
+                  </div>
+                );
+              }
+              if (part.type === "text") {
+                return <span key={index}>{part.content}</span>;
+              }
+              return null;
+            })}
           </div>
         ))}
       </div>

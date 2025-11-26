@@ -16,26 +16,17 @@ Main hook for managing chat state in React.
 import { useChat, fetchServerSentEvents } from "@tanstack/ai-react";
 
 function ChatComponent() {
-  const {
-    messages,
-    sendMessage,
-    isLoading,
-    error,
-    addToolApprovalResponse,
-  } = useChat({
-    connection: fetchServerSentEvents("/api/chat"),
-    initialMessages: [],
-    onToolCall: async ({ toolName, input }) => {
-      // Handle client tool execution
-      return { result: "..." };
-    },
-  });
+  const { messages, sendMessage, isLoading, error, addToolApprovalResponse } =
+    useChat({
+      connection: fetchServerSentEvents("/api/chat"),
+      initialMessages: [],
+      onToolCall: async ({ toolName, input }) => {
+        // Handle client tool execution
+        return { result: "..." };
+      },
+    });
 
-  return (
-    <div>
-      {/* Chat UI */}
-    </div>
-  );
+  return <div>{/* Chat UI */}</div>;
 }
 ```
 
@@ -120,11 +111,20 @@ export function Chat() {
       <div>
         {messages.map((message) => (
           <div key={message.id}>
-            <strong>{message.role}:</strong>{" "}
-            {message.parts
-              .filter((p) => p.type === "text")
-              .map((p) => p.content)
-              .join("")}
+            <strong>{message.role}:</strong>
+            {message.parts.map((part, idx) => {
+              if (part.type === "thinking") {
+                return (
+                  <div key={idx} className="text-sm text-gray-500 italic">
+                    💭 Thinking: {part.content}
+                  </div>
+                );
+              }
+              if (part.type === "text") {
+                return <span key={idx}>{part.content}</span>;
+              }
+              return null;
+            })}
           </div>
         ))}
       </div>
@@ -232,6 +232,7 @@ All types are re-exported from `@tanstack/ai-client`:
 - `UIMessage`
 - `MessagePart`
 - `TextPart`
+- `ThinkingPart`
 - `ToolCallPart`
 - `ToolResultPart`
 - `ChatClientOptions`
@@ -242,4 +243,3 @@ All types are re-exported from `@tanstack/ai-client`:
 - [Getting Started](../getting-started/quick-start) - Learn the basics
 - [Tools Guide](../guides/tools) - Learn about tools
 - [Client Tools](../guides/client-tools) - Learn about client-side tools
-

@@ -14,7 +14,7 @@
     "test": "pnpm run -r test",
     "typecheck": "pnpm run -r typecheck",
     "lint": "pnpm run -r lint",
-    "clean": "pnpm run -r clean && rm -rf node_modules",
+    "clean": "./scripts/clean.sh",
     "cli": "cd examples/cli && pnpm dev",
     "cli:build": "cd examples/cli && pnpm build && pnpm start",
     "demo:tools": "cd examples/cli && pnpm tools"

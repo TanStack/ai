@@ -133,15 +133,18 @@ class ChatEngine<
 
   private beforeChat(): void {
     this.streamStartTime = Date.now();
-    const { model, tools } = this.params;
+    const { model, tools, options, providerOptions } = this.params;
 
     aiEventClient.emit("chat:started", {
       requestId: this.requestId,
-      model: model as string,
+      model: model,
       messageCount: this.initialMessageCount,
       hasTools: !!tools && tools.length > 0,
       streaming: true,
       timestamp: Date.now(),
+      toolNames: tools?.map((t) => t.function.name),
+      options: options as Record<string, unknown> | undefined,
+      providerOptions: providerOptions as Record<string, unknown> | undefined,
     });
 
     aiEventClient.emit("stream:started", {
@@ -189,11 +192,11 @@ class ChatEngine<
 
   private async *streamModelResponse(): AsyncGenerator<StreamChunk> {
     const adapterOptions = this.params.options || {};
-    const providerOptions = this.params.providerOptions as any;
-    const tools = this.params.tools as Tool[] | undefined;
+    const providerOptions = this.params.providerOptions;
+    const tools = this.params.tools;
 
     for await (const chunk of this.adapter.chatStream({
-      model: this.params.model as string,
+      model: this.params.model,
       messages: this.messages,
       tools,
       options: adapterOptions,
@@ -205,6 +208,7 @@ class ChatEngine<
       }
 
       this.totalChunkCount++;
+
       yield chunk;
       this.handleStreamChunk(chunk);
 
@@ -230,6 +234,9 @@ class ChatEngine<
         break;
       case "error":
         this.handleErrorChunk(chunk);
+        break;
+      case "thinking":
+        this.handleThinkingChunk(chunk);
         break;
       default:
         break;
@@ -290,6 +297,16 @@ class ChatEngine<
         usage: chunk.usage,
         timestamp: Date.now(),
       });
+
+      if (chunk.usage) {
+        aiEventClient.emit("usage:tokens", {
+          requestId: this.requestId,
+          messageId: this.currentMessageId || undefined,
+          model: this.params.model,
+          usage: chunk.usage,
+          timestamp: Date.now(),
+        });
+      }
       return;
     }
 
@@ -302,6 +319,16 @@ class ChatEngine<
       usage: chunk.usage,
       timestamp: Date.now(),
     });
+
+    if (chunk.usage) {
+      aiEventClient.emit("usage:tokens", {
+        requestId: this.requestId,
+        messageId: this.currentMessageId || undefined,
+        model: this.params.model,
+        usage: chunk.usage,
+        timestamp: Date.now(),
+      });
+    }
   }
 
   private handleErrorChunk(
@@ -315,6 +342,18 @@ class ChatEngine<
     });
     this.earlyTermination = true;
     this.shouldEmitStreamEnd = false;
+  }
+
+  private handleThinkingChunk(
+    chunk: Extract<StreamChunk, { type: "thinking" }>
+  ): void {
+    aiEventClient.emit("stream:chunk:thinking", {
+      streamId: this.streamId,
+      messageId: this.currentMessageId || undefined,
+      content: chunk.content,
+      delta: chunk.delta,
+      timestamp: Date.now(),
+    });
   }
 
   private async *checkForPendingToolCalls(): AsyncGenerator<
@@ -633,7 +672,7 @@ class ChatEngine<
     return {
       type: "done",
       id: this.createId("pending"),
-      model: this.params.model as string,
+      model: this.params.model,
       timestamp: Date.now(),
       finishReason: "tool_calls",
     };
@@ -669,7 +708,6 @@ class ChatEngine<
   }
 }
 
-
 /**
  * Standalone chat streaming function with type inference from adapter
  * Returns an async iterable of StreamChunks for streaming responses
@@ -689,8 +727,7 @@ class ChatEngine<
  *   model: 'gpt-4o',
  *   messages: [{ role: 'user', content: 'Hello!' }],
  *   tools: [weatherTool], // Optional: auto-executed when called
- * });
- * ```
+ * }); 
  *
  * for await (const chunk of stream) {
  *   if (chunk.type === 'content') {
@@ -701,11 +738,20 @@ class ChatEngine<
  */
 export async function* chat<
   TAdapter extends AIAdapter<any, any, any, any, any>,
-  const TModel extends TAdapter extends AIAdapter<infer Models, any, any, any, any>
+  const TModel extends TAdapter extends AIAdapter<
+    infer Models,
+    any,
+    any,
+    any,
+    any
+  >
   ? Models[number]
   : string
 >(
-  options: Omit<ChatStreamOptionsUnion<TAdapter>, "providerOptions" | "model"> & {
+  options: Omit<
+    ChatStreamOptionsUnion<TAdapter>,
+    "providerOptions" | "model"
+  > & {
     adapter: TAdapter;
     model: TModel;
     providerOptions?: TAdapter extends AIAdapter<

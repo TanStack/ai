@@ -107,15 +107,23 @@ async function testTemperatureTool(
     error?: string;
   }> = [];
 
+  const expectedLocation = "San Francisco";
+
   const temperatureTool = tool({
     type: "function",
     function: {
       name: "get_temperature",
-      description: "Get the current temperature in degrees",
+      description:
+        "Get the current temperature in degrees for a specific location",
       parameters: {
         type: "object",
-        properties: {},
-        required: [],
+        properties: {
+          location: {
+            type: "string",
+            description: "The city or location to get the temperature for",
+          },
+        },
+        required: ["location"],
       },
     },
     execute: async (args: any) => {
@@ -126,6 +134,14 @@ async function testTemperatureTool(
         arguments: args,
       };
       try {
+        // Verify location was passed correctly
+        if (!args || typeof args !== "object") {
+          throw new Error("Arguments must be an object");
+        }
+        if (!args.location || typeof args.location !== "string") {
+          throw new Error("Location argument is missing or invalid");
+        }
+
         const result = "70";
         callInfo.result = result;
         toolExecuteCalls.push(callInfo);
@@ -141,12 +157,12 @@ async function testTemperatureTool(
   return runTestCase({
     adapterContext,
     testName: "test2-temperature-tool",
-    description: "tool call returns a temperature value",
+    description:
+      "tool call with location parameter returns a temperature value",
     messages: [
       {
         role: "user" as const,
-        content:
-          "use the get_temperature tool to get the temperature and report the answer as a number",
+        content: `use the get_temperature tool to get the temperature for ${expectedLocation} and report the answer as a number`,
       },
     ],
     tools: [temperatureTool],
@@ -157,13 +173,47 @@ async function testTemperatureTool(
         responseLower.includes("70") || responseLower.includes("seventy");
       const toolCallFound = run.toolCalls.length > 0;
       const toolResultFound = run.toolResults.length > 0;
+
+      // Check that location was passed correctly
+      const locationPassedCorrectly = toolExecuteCalls.some(
+        (call) =>
+          call.arguments &&
+          call.arguments.location &&
+          typeof call.arguments.location === "string" &&
+          call.arguments.location.length > 0
+      );
+
+      // Check if the location matches what was requested (case-insensitive)
+      const locationMatches = toolExecuteCalls.some(
+        (call) =>
+          call.arguments &&
+          call.arguments.location &&
+          call.arguments.location
+            .toLowerCase()
+            .includes(expectedLocation.toLowerCase())
+      );
+
       const issues: string[] = [];
       if (!toolCallFound) issues.push("no tool call");
       if (!toolResultFound) issues.push("no tool result");
       if (!hasSeventy) issues.push("no '70' or 'seventy' in response");
+      if (!locationPassedCorrectly)
+        issues.push("location argument not passed or invalid");
+      if (!locationMatches) {
+        issues.push(
+          `location argument '${
+            toolExecuteCalls[0]?.arguments?.location || "missing"
+          }' does not match expected '${expectedLocation}'`
+        );
+      }
 
       return {
-        passed: toolCallFound && toolResultFound && hasSeventy,
+        passed:
+          toolCallFound &&
+          toolResultFound &&
+          hasSeventy &&
+          locationPassedCorrectly &&
+          locationMatches,
         error: issues.length ? issues.join(", ") : undefined,
         meta: {
           hasSeventy,
@@ -172,6 +222,10 @@ async function testTemperatureTool(
           toolExecuteCalled,
           toolExecuteCallCount,
           toolExecuteCalls,
+          locationPassedCorrectly,
+          locationMatches,
+          expectedLocation,
+          actualLocation: toolExecuteCalls[0]?.arguments?.location,
         },
       };
     },
