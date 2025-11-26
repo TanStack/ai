@@ -13,6 +13,7 @@ export const ChunkItem: Component<ChunkItemProps> = (props) => {
   const styles = useStyles();
   const [showRaw, setShowRaw] = createSignal(false);
   const isLarge = () => props.variant === "large";
+  const chunkCount = () => props.chunk.chunkCount || 1;
 
   return (
     <div class={isLarge() ? styles().conversationDetails.chunkItemLarge : styles().conversationDetails.chunkItem}>
@@ -23,6 +24,9 @@ export const ChunkItem: Component<ChunkItemProps> = (props) => {
           class={isLarge() ? styles().conversationDetails.chunkNumberLarge : styles().conversationDetails.chunkNumber}
         >
           #{props.index + 1}
+          <Show when={chunkCount() > 1}>
+            <span style={{ "margin-left": "4px", opacity: 0.7 }}>({chunkCount()} chunks)</span>
+          </Show>
         </div>
 
         {/* Type Badge */}
@@ -90,7 +94,7 @@ export const ChunkItem: Component<ChunkItemProps> = (props) => {
               isLarge() ? styles().conversationDetails.chunkContentLarge : styles().conversationDetails.chunkContent
             }
           >
-            {props.chunk.delta || props.chunk.content}
+            {props.chunk.content}
           </div>
         </Show>
         <Show when={props.chunk.error}>

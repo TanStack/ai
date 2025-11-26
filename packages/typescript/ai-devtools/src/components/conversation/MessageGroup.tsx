@@ -16,8 +16,13 @@ export const MessageGroup: Component<MessageGroupProps> = (props) => {
   const accumulatedContent = () =>
     props.chunks
       .filter((c) => c.type === "content" && (c.content || c.delta))
-      .map((c) => c.delta || c.content)
+      .map((c) => c.content)
       .join("");
+
+  // Total raw chunks = sum of all chunkCounts
+  const totalRawChunks = () => props.chunks.reduce((sum, c) => sum + (c.chunkCount || 1), 0);
+  // Consolidated entries = number of entries in the chunks array
+  const consolidatedEntries = () => props.chunks.length;
 
   return (
     <details class={styles().conversationDetails.messageGroupDetails}>
@@ -27,7 +32,10 @@ export const MessageGroup: Component<MessageGroupProps> = (props) => {
           <div class={styles().conversationDetails.messageGroupHeader}>
             <span>Message #{props.groupIndex + 1}</span>
             <div class={`${styles().conversationDetails.chunkBadge} ${styles().conversationDetails.chunkBadgeCount}`}>
-              📦 {props.chunks.length}
+              📦 {totalRawChunks()} chunks
+              <Show when={consolidatedEntries() !== totalRawChunks()}>
+                <span style={{ opacity: 0.7, "margin-left": "4px" }}>({consolidatedEntries()} entries)</span>
+              </Show>
             </div>
             <ChunkBadges chunks={props.chunks} />
           </div>

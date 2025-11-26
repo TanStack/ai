@@ -1,5 +1,5 @@
-import { createContext, useContext, onMount, onCleanup, ParentComponent } from "solid-js";
-import { createStore } from "solid-js/store";
+import { createContext, useContext, onMount, onCleanup, ParentComponent, batch } from "solid-js";
+import { createStore, produce } from "solid-js/store";
 import { aiEventClient } from "@tanstack/ai/event-client";
 
 export interface MessagePart {
@@ -36,18 +36,27 @@ export interface Message {
   timestamp: number;
   parts?: MessagePart[];
   toolCalls?: ToolCall[];
+  /** Consolidated chunks - consecutive same-type chunks are merged into one entry */
   chunks?: Chunk[];
+  /** Total number of raw chunks received (before consolidation) */
+  totalChunkCount?: number;
   model?: string;
   usage?: TokenUsage;
   thinkingContent?: string;
 }
 
+/**
+ * Consolidated chunk - represents one or more raw chunks of the same type.
+ * Consecutive content/thinking chunks are merged into a single entry with accumulated content.
+ */
 export interface Chunk {
   id: string;
   type: "content" | "tool_call" | "tool_result" | "done" | "error" | "approval" | "thinking";
   timestamp: number;
   messageId?: string;
+  /** Accumulated content from all merged chunks */
   content?: string;
+  /** The last delta received (kept for debugging) */
   delta?: string;
   toolName?: string;
   toolCallId?: string;
@@ -55,6 +64,8 @@ export interface Chunk {
   error?: string;
   approvalId?: string;
   input?: unknown;
+  /** Number of raw chunks that were merged into this consolidated chunk */
+  chunkCount: number;
 }
 
 export interface Conversation {
@@ -105,59 +116,163 @@ export const AIProvider: ParentComponent = (props) => {
   const streamToConversation = new Map<string, string>();
   const requestToConversation = new Map<string, string>();
 
-  // Helper functions for updating state with spread pattern
-  function updateConversation(conversationId: string, updates: Partial<Conversation>): void {
-    const conv = state.conversations[conversationId];
-    if (!conv) return;
-    setState("conversations", conversationId, { ...conv, ...updates });
+  // Batching system for high-frequency chunk updates with consolidated chunk merging
+  // Stores: conversationId -> { chunks to merge, totalNewChunks count }
+  const pendingConversationChunks = new Map<string, { chunks: Chunk[]; newChunkCount: number }>();
+  // Stores: conversationId -> messageIndex -> { chunks to merge, totalNewChunks count }
+  const pendingMessageChunks = new Map<string, Map<number, { chunks: Chunk[]; newChunkCount: number }>>();
+  let batchScheduled = false;
+
+  function scheduleBatchFlush(): void {
+    if (batchScheduled) return;
+    batchScheduled = true;
+    queueMicrotask(flushPendingChunks);
   }
 
-  function updateMessage(conversationId: string, messageIndex: number, updates: Partial<Message>): void {
-    const conv = state.conversations[conversationId];
-    if (!conv) return;
-    const message = conv.messages[messageIndex];
-    if (!message) return;
-    setState("conversations", conversationId, {
-      ...conv,
-      messages: conv.messages.map((msg, idx) => (idx === messageIndex ? { ...msg, ...updates } : msg)),
+  /** Check if a chunk type can be merged with consecutive same-type chunks */
+  function isMergeableChunkType(type: Chunk["type"]): boolean {
+    return type === "content" || type === "thinking";
+  }
+
+  /** Merge pending chunks into existing chunks array, consolidating consecutive same-type chunks */
+  function mergeChunks(existing: Chunk[], pending: Chunk[]): void {
+    for (const chunk of pending) {
+      const lastChunk = existing[existing.length - 1];
+
+      // If last chunk exists, is the same type, and both are mergeable types, merge them
+      if (
+        lastChunk &&
+        lastChunk.type === chunk.type &&
+        isMergeableChunkType(chunk.type) &&
+        lastChunk.messageId === chunk.messageId
+      ) {
+        // Merge: append content, update delta, increment count
+        lastChunk.content = (lastChunk.content || "") + (chunk.delta || chunk.content || "");
+        lastChunk.delta = chunk.delta;
+        lastChunk.chunkCount += chunk.chunkCount;
+      } else {
+        // Different type or not mergeable - add as new entry
+        existing.push(chunk);
+      }
+    }
+  }
+
+  function flushPendingChunks(): void {
+    batchScheduled = false;
+
+    batch(() => {
+      // Flush conversation-level chunks
+      for (const [conversationId, { chunks, newChunkCount }] of pendingConversationChunks) {
+        const conv = state.conversations[conversationId];
+        if (conv) {
+          setState(
+            "conversations",
+            conversationId,
+            "chunks",
+            produce((arr: Chunk[]) => {
+              mergeChunks(arr, chunks);
+            })
+          );
+        }
+      }
+      pendingConversationChunks.clear();
+
+      // Flush message-level chunks
+      for (const [conversationId, messageMap] of pendingMessageChunks) {
+        const conv = state.conversations[conversationId];
+        if (!conv) continue;
+
+        for (const [messageIndex, { chunks, newChunkCount }] of messageMap) {
+          const message = conv.messages[messageIndex];
+          if (message) {
+            // Update chunks array with merging
+            setState(
+              "conversations",
+              conversationId,
+              "messages",
+              messageIndex,
+              "chunks",
+              produce((arr: Chunk[] | undefined) => {
+                if (!arr) {
+                  // First time - just set the chunks (they're already consolidated in pending)
+                  return chunks;
+                }
+                mergeChunks(arr, chunks);
+                return arr;
+              })
+            );
+            // Update total chunk count
+            const currentTotal = message.totalChunkCount || 0;
+            setState(
+              "conversations",
+              conversationId,
+              "messages",
+              messageIndex,
+              "totalChunkCount",
+              currentTotal + newChunkCount
+            );
+          }
+        }
+      }
+      pendingMessageChunks.clear();
     });
   }
 
-  function updateToolCall(
-    conversationId: string,
-    messageIndex: number,
-    toolCallIndex: number,
-    updates: Partial<ToolCall>
-  ): void {
-    const conv = state.conversations[conversationId];
-    if (!conv) return;
-    const message = conv.messages[messageIndex];
-    if (!message?.toolCalls) return;
-    const toolCall = message.toolCalls[toolCallIndex];
-    if (!toolCall) return;
+  function queueChunk(conversationId: string, chunk: Chunk): void {
+    if (!pendingConversationChunks.has(conversationId)) {
+      pendingConversationChunks.set(conversationId, { chunks: [], newChunkCount: 0 });
+    }
+    const pending = pendingConversationChunks.get(conversationId)!;
 
-    setState("conversations", conversationId, {
-      ...conv,
-      messages: conv.messages.map((msg, idx) =>
-        idx === messageIndex
-          ? {
-              ...msg,
-              toolCalls: msg.toolCalls?.map((tc, tcIdx) => (tcIdx === toolCallIndex ? { ...tc, ...updates } : tc)),
-            }
-          : msg
-      ),
-    });
+    // Pre-merge in pending buffer to reduce array operations during flush
+    const lastPending = pending.chunks[pending.chunks.length - 1];
+    if (
+      lastPending &&
+      lastPending.type === chunk.type &&
+      isMergeableChunkType(chunk.type) &&
+      lastPending.messageId === chunk.messageId
+    ) {
+      // Merge into pending buffer
+      lastPending.content = (lastPending.content || "") + (chunk.delta || chunk.content || "");
+      lastPending.delta = chunk.delta;
+      lastPending.chunkCount += chunk.chunkCount;
+    } else {
+      pending.chunks.push(chunk);
+    }
+    pending.newChunkCount += chunk.chunkCount;
+    scheduleBatchFlush();
   }
 
-  function setToolCalls(conversationId: string, messageIndex: number, toolCalls: ToolCall[]): void {
-    const conv = state.conversations[conversationId];
-    if (!conv) return;
-    setState("conversations", conversationId, {
-      ...conv,
-      messages: conv.messages.map((msg, idx) => (idx === messageIndex ? { ...msg, toolCalls } : msg)),
-    });
+  function queueMessageChunk(conversationId: string, messageIndex: number, chunk: Chunk): void {
+    if (!pendingMessageChunks.has(conversationId)) {
+      pendingMessageChunks.set(conversationId, new Map());
+    }
+    const messageMap = pendingMessageChunks.get(conversationId)!;
+    if (!messageMap.has(messageIndex)) {
+      messageMap.set(messageIndex, { chunks: [], newChunkCount: 0 });
+    }
+    const pending = messageMap.get(messageIndex)!;
+
+    // Pre-merge in pending buffer
+    const lastPending = pending.chunks[pending.chunks.length - 1];
+    if (
+      lastPending &&
+      lastPending.type === chunk.type &&
+      isMergeableChunkType(chunk.type) &&
+      lastPending.messageId === chunk.messageId
+    ) {
+      // Merge into pending buffer
+      lastPending.content = (lastPending.content || "") + (chunk.delta || chunk.content || "");
+      lastPending.delta = chunk.delta;
+      lastPending.chunkCount += chunk.chunkCount;
+    } else {
+      pending.chunks.push(chunk);
+    }
+    pending.newChunkCount += chunk.chunkCount;
+    scheduleBatchFlush();
   }
 
+  // Optimized helper functions using path-based updates
   function getOrCreateConversation(id: string, type: "client" | "server", label: string): void {
     if (!state.conversations[id]) {
       setState("conversations", id, {
@@ -178,13 +293,7 @@ export const AIProvider: ParentComponent = (props) => {
   function addMessage(conversationId: string, message: Message): void {
     const conv = state.conversations[conversationId];
     if (!conv) return;
-    setState("conversations", conversationId, { ...conv, messages: [...conv.messages, message] });
-  }
-
-  function addChunk(conversationId: string, chunk: Chunk): void {
-    const conv = state.conversations[conversationId];
-    if (!conv) return;
-    setState("conversations", conversationId, { ...conv, chunks: [...conv.chunks, chunk] });
+    setState("conversations", conversationId, "messages", conv.messages.length, message);
   }
 
   function addChunkToMessage(conversationId: string, chunk: Chunk): void {
@@ -195,11 +304,10 @@ export const AIProvider: ParentComponent = (props) => {
       const messageIndex = conv.messages.findIndex((msg) => msg.id === chunk.messageId);
 
       if (messageIndex !== -1) {
-        const message = conv.messages[messageIndex];
-        if (!message) return;
-        updateMessage(conversationId, messageIndex, { chunks: [...(message.chunks || []), chunk] });
+        queueMessageChunk(conversationId, messageIndex, chunk);
         return;
       } else {
+        // Create new message with the chunk
         const newMessage: Message = {
           id: chunk.messageId,
           role: "assistant",
@@ -208,15 +316,16 @@ export const AIProvider: ParentComponent = (props) => {
           model: conv.model,
           chunks: [chunk],
         };
-        setState("conversations", conversationId, { ...conv, messages: [...conv.messages, newMessage] });
+        setState("conversations", conversationId, "messages", conv.messages.length, newMessage);
         return;
       }
     }
 
+    // Find last assistant message
     for (let i = conv.messages.length - 1; i >= 0; i--) {
       const message = conv.messages[i];
       if (message && message.role === "assistant") {
-        updateMessage(conversationId, i, { chunks: [...(message.chunks || []), chunk] });
+        queueMessageChunk(conversationId, i, chunk);
         return;
       }
     }
@@ -229,7 +338,7 @@ export const AIProvider: ParentComponent = (props) => {
     if (messageId) {
       const messageIndex = conv.messages.findIndex((msg) => msg.id === messageId);
       if (messageIndex !== -1) {
-        updateMessage(conversationId, messageIndex, { usage });
+        setState("conversations", conversationId, "messages", messageIndex, "usage", usage);
         return;
       }
     }
@@ -237,7 +346,7 @@ export const AIProvider: ParentComponent = (props) => {
     for (let i = conv.messages.length - 1; i >= 0; i--) {
       const message = conv.messages[i];
       if (message && message.role === "assistant") {
-        updateMessage(conversationId, i, { usage });
+        setState("conversations", conversationId, "messages", i, "usage", usage);
         return;
       }
     }
@@ -249,10 +358,64 @@ export const AIProvider: ParentComponent = (props) => {
     setState("activeConversationId", null);
     streamToConversation.clear();
     requestToConversation.clear();
+    pendingConversationChunks.clear();
+    pendingMessageChunks.clear();
   }
 
   function selectConversation(id: string) {
     setState("activeConversationId", id);
+  }
+
+  // Additional optimized helper functions
+  function updateConversation(conversationId: string, updates: Partial<Conversation>): void {
+    if (!state.conversations[conversationId]) return;
+    for (const [key, value] of Object.entries(updates)) {
+      setState("conversations", conversationId, key as keyof Conversation, value as Conversation[keyof Conversation]);
+    }
+  }
+
+  function updateMessage(conversationId: string, messageIndex: number, updates: Partial<Message>): void {
+    const conv = state.conversations[conversationId];
+    if (!conv || !conv.messages[messageIndex]) return;
+    for (const [key, value] of Object.entries(updates)) {
+      setState(
+        "conversations",
+        conversationId,
+        "messages",
+        messageIndex,
+        key as keyof Message,
+        value as Message[keyof Message]
+      );
+    }
+  }
+
+  function updateToolCall(
+    conversationId: string,
+    messageIndex: number,
+    toolCallIndex: number,
+    updates: Partial<ToolCall>
+  ): void {
+    const conv = state.conversations[conversationId];
+    if (!conv?.messages[messageIndex]?.toolCalls?.[toolCallIndex]) return;
+    setState(
+      "conversations",
+      conversationId,
+      "messages",
+      messageIndex,
+      "toolCalls",
+      toolCallIndex,
+      produce((tc: ToolCall) => Object.assign(tc, updates))
+    );
+  }
+
+  function setToolCalls(conversationId: string, messageIndex: number, toolCalls: ToolCall[]): void {
+    if (!state.conversations[conversationId]?.messages[messageIndex]) return;
+    setState("conversations", conversationId, "messages", messageIndex, "toolCalls", toolCalls);
+  }
+
+  function addChunk(conversationId: string, chunk: Chunk): void {
+    if (!state.conversations[conversationId]) return;
+    queueChunk(conversationId, chunk);
   }
 
   // Register all event listeners on mount
@@ -610,6 +773,7 @@ export const AIProvider: ParentComponent = (props) => {
             content: e.payload.content,
             delta: e.payload.delta,
             timestamp: e.payload.timestamp,
+            chunkCount: 1,
           };
 
           const conv = state.conversations[conversationId];
@@ -638,6 +802,7 @@ export const AIProvider: ParentComponent = (props) => {
             toolCallId: e.payload.toolCallId,
             toolName: e.payload.toolName,
             timestamp: e.payload.timestamp,
+            chunkCount: 1,
           };
 
           const conv = state.conversations[conversationId];
@@ -666,6 +831,7 @@ export const AIProvider: ParentComponent = (props) => {
             toolCallId: e.payload.toolCallId,
             content: e.payload.result,
             timestamp: e.payload.timestamp,
+            chunkCount: 1,
           };
 
           const conv = state.conversations[conversationId];
@@ -711,6 +877,7 @@ export const AIProvider: ParentComponent = (props) => {
             content: e.payload.content,
             delta: e.payload.delta,
             timestamp: e.payload.timestamp,
+            chunkCount: 1,
           };
 
           const conv = state.conversations[conversationId];
@@ -745,6 +912,7 @@ export const AIProvider: ParentComponent = (props) => {
             messageId: e.payload.messageId,
             finishReason: e.payload.finishReason || undefined,
             timestamp: e.payload.timestamp,
+            chunkCount: 1,
           };
 
           if (e.payload.usage) {
@@ -783,6 +951,7 @@ export const AIProvider: ParentComponent = (props) => {
             messageId: e.payload.messageId,
             error: e.payload.error,
             timestamp: e.payload.timestamp,
+            chunkCount: 1,
           };
 
           const conv = state.conversations[conversationId];
@@ -833,6 +1002,7 @@ export const AIProvider: ParentComponent = (props) => {
             approvalId,
             input,
             timestamp,
+            chunkCount: 1,
           };
 
           if (conv.type === "client") {

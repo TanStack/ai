@@ -17,13 +17,16 @@ export const ChunksCollapsible: Component<ChunksCollapsibleProps> = (props) => {
       .map((c) => c.delta || c.content)
       .join("");
 
+  // Total raw chunks = sum of all chunkCounts
+  const totalRawChunks = () => props.chunks.reduce((sum, c) => sum + (c.chunkCount || 1), 0);
+
   return (
     <details class={styles().conversationDetails.chunksDetails}>
       <summary class={styles().conversationDetails.chunksSummary}>
         <div class={styles().conversationDetails.chunksSummaryContent}>
           {/* Header */}
           <div class={styles().conversationDetails.chunksSummaryHeader}>
-            <span>📦 Server Chunks ({props.chunks.length})</span>
+            <span>📦 Server Chunks ({totalRawChunks()})</span>
             <ChunkBadges chunks={props.chunks} />
           </div>
 

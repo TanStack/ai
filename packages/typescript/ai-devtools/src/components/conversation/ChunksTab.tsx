@@ -24,6 +24,9 @@ export const ChunksTab: Component<ChunksTabProps> = (props) => {
     return Array.from(groups.entries());
   };
 
+  // Calculate total raw chunks (sum of all chunkCounts)
+  const totalRawChunks = () => props.chunks.reduce((sum, c) => sum + (c.chunkCount || 1), 0);
+
   return (
     <Show
       when={props.chunks.length > 0}
@@ -35,7 +38,7 @@ export const ChunksTab: Component<ChunksTabProps> = (props) => {
           <div class={styles().conversationDetails.streamHeaderRow}>
             <div class={styles().conversationDetails.streamTitle}>Stream Responses</div>
             <div class={`${styles().conversationDetails.chunkBadge} ${styles().conversationDetails.chunkBadgeCount}`}>
-              {props.chunks.length} chunks · {groupedChunks().length} messages
+              {totalRawChunks()} chunks · {groupedChunks().length} messages
             </div>
           </div>
           <div class={styles().conversationDetails.streamSubtitle}>Grouped by message ID</div>

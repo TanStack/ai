@@ -22,6 +22,11 @@ export const ConversationRow: Component<ConversationRowProps> = (props) => {
     }, 0);
   };
 
+  // Total raw chunks = sum of all chunkCounts from all chunks
+  const totalRawChunks = () => {
+    return conv().chunks.reduce((sum, c) => sum + (c.chunkCount || 1), 0);
+  };
+
   return (
     <div
       class={`${styles().utilRow} ${state.activeConversationId === conv().id ? styles().utilRowSelected : ""}`}
@@ -44,7 +49,7 @@ export const ConversationRow: Component<ConversationRowProps> = (props) => {
       </div>
       <div class={styles().conversationsList.stats}>
         <div class={styles().conversationsList.statItem}>💬 {conv().messages.length}</div>
-        <div class={styles().conversationsList.statItem}>📦 {conv().chunks.length}</div>
+        <div class={styles().conversationsList.statItem}>📦 {totalRawChunks()}</div>
         <Show when={conv().usage}>
           <div
             class={styles().conversationsList.tokensBadge}

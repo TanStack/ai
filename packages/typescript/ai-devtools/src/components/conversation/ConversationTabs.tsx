@@ -12,6 +12,9 @@ export const ConversationTabs: Component<ConversationTabsProps> = (props) => {
   const styles = useStyles();
   const conv = () => props.conversation;
 
+  // Total raw chunks = sum of all chunkCounts
+  const totalRawChunks = () => conv().chunks.reduce((sum, c) => sum + (c.chunkCount || 1), 0);
+
   return (
     <div class={styles().conversationDetails.tabsContainer}>
       {/* Only show messages tab for client conversations */}
@@ -33,7 +36,7 @@ export const ConversationTabs: Component<ConversationTabsProps> = (props) => {
           }`}
           onClick={() => props.onTabChange("chunks")}
         >
-          Chunks ({conv().chunks.length})
+          Chunks ({totalRawChunks()})
         </button>
       </Show>
     </div>
