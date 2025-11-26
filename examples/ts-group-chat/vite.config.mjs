@@ -3,7 +3,7 @@ import { tanstackStart } from "@tanstack/react-start/plugin/vite";
 import viteReact from "@vitejs/plugin-react";
 import viteTsConfigPaths from "vite-tsconfig-paths";
 import tailwindcss from "@tailwindcss/vite";
-import { websocketRpcPlugin } from "./chat-server/index.js";
+import { websocketRpcPlugin } from "./chat-server/vite-plugin.js";
 
 const config = defineConfig({
   plugins: [
@@ -34,6 +34,14 @@ const config = defineConfig({
     esbuildOptions: {
       target: "es2022",
     },
+  },
+  ssr: {
+    noExternal: [
+      "@tanstack/ai",
+      "@tanstack/ai-anthropic",
+      "@tanstack/ai-client",
+      "@tanstack/ai-react",
+    ],
   },
 });
 

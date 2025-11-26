@@ -16,6 +16,7 @@ export {
   fetchServerSentEvents,
   fetchHttpStream,
   stream,
+  rpcStream,
   type ConnectionAdapter,
   type FetchConnectionOptions,
 } from "./connection-adapters";

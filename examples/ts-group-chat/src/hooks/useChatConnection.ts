@@ -7,6 +7,11 @@ export interface ChatAPI {
   getChatState(): Promise<any>;
   pollMessages(): Promise<any[]>;
   leaveChat(): Promise<any>;
+  getClaudeQueueStatus(): Promise<{
+    current: string | null;
+    queue: string[];
+    isProcessing: boolean;
+  }>;
 }
 
 export interface ConnectionState {

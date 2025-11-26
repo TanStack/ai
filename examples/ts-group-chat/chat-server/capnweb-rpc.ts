@@ -3,6 +3,26 @@ import { RpcTarget } from "capnweb";
 import { WebSocket } from "ws";
 import { ChatLogic } from "./chat-logic.js";
 
+// Local type definition to avoid importing from @tanstack/ai at module parse time
+interface ModelMessage {
+  role: "system" | "user" | "assistant" | "tool";
+  content?: string;
+  toolCallId?: string;
+  toolCalls?: any[];
+}
+
+// Lazy-load claude service to avoid importing AI packages at module parse time
+let globalClaudeService: any = null;
+async function getClaudeService() {
+  if (!globalClaudeService) {
+    const { globalClaudeService: service } = await import(
+      "./claude-service.js"
+    );
+    globalClaudeService = service;
+  }
+  return globalClaudeService;
+}
+
 // Global shared chat instance
 export const globalChat = new ChatLogic({
   async onUserJoined(username) {
@@ -69,13 +89,19 @@ export class ChatServer extends RpcTarget {
 
   // Broadcast to all connected users
   static async broadcastToAll(notification: any, excludeUser?: string) {
-    console.log(`📬 Broadcasting to all users: ${notification.type}`);
+    const msgPreview = notification.message?.substring(0, 50) || "";
+    console.log(
+      `\n📬 broadcastToAll() - type: ${notification.type}, from: ${notification.username}, message: "${msgPreview}..."`
+    );
+    console.log(`📬 Connected users: ${Array.from(clients.keys()).join(", ")}`);
+    console.log(`📬 Exclude user: ${excludeUser || "none"}`);
 
     let successCount = 0;
     const successful: string[] = [];
 
     for (const username of clients.keys()) {
       if (excludeUser && username === excludeUser) {
+        console.log(`📬 Skipping excluded user: ${username}`);
         continue;
       }
 
@@ -85,11 +111,18 @@ export class ChatServer extends RpcTarget {
       }
 
       const queue = userMessageQueues.get(username)!;
+      const messageId =
+        notification.id || Math.random().toString(36).substr(2, 9);
+
       queue.push({
         ...notification,
         timestamp: notification.timestamp || new Date().toISOString(),
-        id: notification.id || Math.random().toString(36).substr(2, 9),
+        id: messageId,
       });
+
+      console.log(
+        `📬 Added to ${username}'s queue (queue size: ${queue.length}, messageId: ${messageId})`
+      );
 
       // Keep queue size manageable (last 50 messages)
       if (queue.length > 50) {
@@ -100,7 +133,11 @@ export class ChatServer extends RpcTarget {
       successful.push(username);
     }
 
-    console.log(`📬 Broadcast successful: ${successCount} users notified`);
+    console.log(
+      `📬 Broadcast complete: ${successCount} users notified (${successful.join(
+        ", "
+      )})\n`
+    );
     return { successful, successCount };
   }
 
@@ -187,6 +224,10 @@ export class ChatServer extends RpcTarget {
 
   // Send a chat message
   async sendMessage(messageText: string) {
+    console.log(
+      `\n📨 [${this.currentUsername}] sendMessage called: "${messageText}"`
+    );
+
     if (!this.currentUsername) {
       throw new Error("You must join the chat first");
     }
@@ -195,14 +236,178 @@ export class ChatServer extends RpcTarget {
       throw new Error("Message cannot be empty");
     }
 
+    // Check for Claude trigger pattern
+    const isClaudeMention = messageText.trim().match(/^(@?Claude,|Claude)/i);
+    console.log(
+      `📨 [${this.currentUsername}] isClaudeMention: ${
+        isClaudeMention ? "YES" : "NO"
+      }`
+    );
+
+    if (isClaudeMention) {
+      console.log(
+        `📨 [${this.currentUsername}] Claude mention detected, sending user message first`
+      );
+
+      // First, send the user's message to chat
+      const message = await globalChat.sendMessage(
+        this.currentUsername,
+        messageText.trim()
+      );
+      console.log(
+        `📨 [${this.currentUsername}] User message sent, ID: ${message.id}`
+      );
+
+      // Build conversation history for Claude
+      const conversationHistory: ModelMessage[] = globalChat
+        .getMessages()
+        .map((msg) => ({
+          role: "user" as const,
+          content: `${msg.username}: ${msg.message}`,
+        }));
+      console.log(
+        `📨 [${this.currentUsername}] Built history with ${conversationHistory.length} messages`
+      );
+
+      // Enqueue Claude request
+      const claudeService = await getClaudeService();
+      claudeService.enqueue({
+        id: Math.random().toString(36).substr(2, 9),
+        username: this.currentUsername,
+        message: messageText,
+        conversationHistory,
+      });
+      console.log(`📨 [${this.currentUsername}] Claude request enqueued`);
+
+      // Start processing immediately (will check queue internally)
+      console.log(`📨 [${this.currentUsername}] Starting processClaudeQueue()`);
+      this.processClaudeQueue();
+
+      return {
+        message: "Claude request queued",
+        chatMessage: message,
+      };
+    }
+
+    // Regular message handling
+    console.log(
+      `📨 [${this.currentUsername}] Regular message, sending to chat`
+    );
     const message = await globalChat.sendMessage(
       this.currentUsername,
       messageText.trim()
     );
+    console.log(`📨 [${this.currentUsername}] Message sent, ID: ${message.id}`);
 
     return {
       message: "Message sent successfully",
       chatMessage: message,
     };
+  }
+
+  // Process Claude queue and stream response
+  private async processClaudeQueue() {
+    console.log(`\n🎯 processClaudeQueue() called`);
+
+    const claudeService = await getClaudeService();
+    const status = claudeService.getQueueStatus();
+    console.log(
+      `🎯 Queue status: processing=${status.isProcessing}, queue length=${status.queue.length}, current=${status.current}`
+    );
+
+    // If already processing or queue is empty, return
+    if (status.isProcessing || status.queue.length === 0) {
+      console.log(
+        `🎯 Skipping: ${
+          status.isProcessing ? "already processing" : "queue empty"
+        }`
+      );
+      return;
+    }
+
+    // Start processing
+    console.log(`🎯 Starting to process queue`);
+    claudeService.startProcessing();
+
+    try {
+      const currentStatus = claudeService.getQueueStatus();
+      console.log(`🎯 Current user: ${currentStatus.current}`);
+
+      // Broadcast that Claude is responding
+      console.log(`🎯 Broadcasting claude_responding...`);
+      await ChatServer.broadcastToAll({
+        type: "claude_responding",
+        message: `Claude is responding to ${currentStatus.current}...`,
+        username: "System",
+      });
+
+      // Get conversation history from the current request
+      const conversationHistory: ModelMessage[] = globalChat
+        .getMessages()
+        .map((msg) => ({
+          role: "user" as const,
+          content: `${msg.username}: ${msg.message}`,
+        }));
+      console.log(
+        `🎯 Built conversation history: ${conversationHistory.length} messages`
+      );
+
+      // Stream Claude response and accumulate text
+      console.log(`🎯 Starting to stream Claude response...`);
+      let accumulatedResponse = "";
+      for await (const chunk of claudeService.streamResponse(
+        conversationHistory
+      )) {
+        if (chunk.type === "content" && chunk.delta) {
+          accumulatedResponse += chunk.delta;
+        }
+      }
+      console.log(
+        `🎯 Accumulated response (${
+          accumulatedResponse.length
+        } chars): "${accumulatedResponse.substring(0, 100)}..."`
+      );
+
+      // Add Claude's response to chat history
+      // Note: globalChat.sendMessage will automatically broadcast via onMessageSent callback
+      console.log(
+        `🎯 Adding Claude message to globalChat (this will auto-broadcast)...`
+      );
+      const claudeMessage = await globalChat.sendMessage(
+        "Claude",
+        accumulatedResponse
+      );
+      console.log(
+        `🎯 Claude message added to globalChat and broadcast automatically, ID: ${claudeMessage.id}`
+      );
+    } catch (error) {
+      console.error("🎯 ERROR in processClaudeQueue:", error);
+
+      // Broadcast error
+      await ChatServer.broadcastToAll({
+        type: "claude_error",
+        message: "Claude encountered an error responding",
+        username: "System",
+      });
+    } finally {
+      console.log(`🎯 Finishing processing...`);
+      claudeService.finishProcessing();
+
+      // Process next in queue if any
+      console.log(`🎯 Checking for next in queue...`);
+      this.processClaudeQueue();
+    }
+  }
+
+  // Get Claude queue status
+  async getClaudeQueueStatus() {
+    const claudeService = await getClaudeService();
+    return claudeService.getQueueStatus();
+  }
+
+  // Stream Claude response (for future use if needed)
+  async *streamClaudeResponse(conversationHistory: ModelMessage[]) {
+    const claudeService = await getClaudeService();
+    yield* claudeService.streamResponse(conversationHistory);
   }
 }

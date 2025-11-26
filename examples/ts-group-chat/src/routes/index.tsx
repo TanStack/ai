@@ -3,7 +3,8 @@ import { useState, useEffect } from "react";
 
 import { useChatConnection } from "@/hooks/useChatConnection";
 import { useChatMessages } from "@/hooks/useChatMessages";
-import { UsernameInput } from "@/components/UsernameInput";
+import { useClaude } from "@/hooks/useClaude";
+import { UserSelector } from "@/components/UserSelector";
 import { ChatInterface } from "@/components/ChatInterface";
 import { OnlineUsers } from "@/components/OnlineUsers";
 
@@ -23,6 +24,8 @@ function ChatApp() {
     username || null
   );
 
+  const { queueStatus } = useClaude(api, isConnected);
+
   useEffect(() => {
     if (!isConnected && !isConnecting && !error) {
       connect();
@@ -30,10 +33,10 @@ function ChatApp() {
   }, [isConnected, isConnecting, error, connect]);
 
   return (
-    <div className="min-h-screen bg-gray-900 text-white">
-      <div className="container mx-auto px-4 py-8 max-w-6xl">
+    <div className="h-screen bg-gray-900 text-white flex flex-col overflow-hidden">
+      <div className="container mx-auto px-4 py-4 max-w-6xl flex-1 flex flex-col">
         {error && (
-          <div className="mb-6 bg-red-800 border border-red-600 text-red-200 p-4 rounded-lg">
+          <div className="mb-4 bg-red-800 border border-red-600 text-red-200 p-4 rounded-lg">
             <strong>Connection Error:</strong> {error}
             <button
               onClick={connect}
@@ -44,10 +47,10 @@ function ChatApp() {
           </div>
         )}
 
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 flex-1 min-h-0">
           {/* Left Column - Main Chat Interface */}
-          <div className="md:col-span-2 space-y-6">
-            <UsernameInput
+          <div className="md:col-span-2 flex flex-col min-h-0 space-y-4">
+            <UserSelector
               username={username}
               onUsernameChange={setUsername}
               isConnected={isConnected}
@@ -57,42 +60,16 @@ function ChatApp() {
               messages={chatState.messages}
               onSendMessage={sendMessage}
               username={username}
+              claudeQueueStatus={queueStatus}
             />
           </div>
 
           {/* Right Column - Online Users & Info */}
-          <div className="space-y-6">
+          <div className="flex flex-col">
             <OnlineUsers
               onlineUsers={chatState.onlineUsers}
               currentUsername={username || null}
             />
-          </div>
-        </div>
-
-        {/* Footer */}
-        <div className="mt-12 pt-8 border-t border-gray-700 text-center text-gray-400 text-sm">
-          <div className="mb-2">
-            🚀 Built with{" "}
-            <a
-              href="https://github.com/cloudflare/capnweb"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="text-blue-400 hover:text-blue-300 transition-colors"
-            >
-              Cap'n Web RPC
-            </a>{" "}
-            &{" "}
-            <a
-              href="https://tanstack.com/start"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="text-purple-400 hover:text-purple-300 transition-colors"
-            >
-              TanStack Start
-            </a>
-          </div>
-          <div className="text-xs text-gray-500">
-            A simple demo of real-time bidirectional web communication
           </div>
         </div>
       </div>

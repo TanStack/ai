@@ -68,8 +68,19 @@ export class ChatLogic {
       timestamp: new Date().toISOString(),
     };
 
+    console.log(
+      `💬 ChatLogic.sendMessage() - username: ${username}, messageId: ${message.id}`
+    );
+    console.log(
+      `💬 Message text (first 80 chars): "${messageText.substring(0, 80)}"`
+    );
+
     // Add to messages (keep last 100 messages)
     this.chatState.messages.push(message);
+    console.log(
+      `💬 Message added to chatState. Total messages: ${this.chatState.messages.length}`
+    );
+
     if (this.chatState.messages.length > 100) {
       this.chatState.messages = this.chatState.messages.slice(-100);
     }
@@ -77,7 +88,11 @@ export class ChatLogic {
     console.log(`💬 ${username}: ${messageText}`);
 
     if (this.onMessageSent) {
+      console.log(`💬 Calling onMessageSent callback...`);
       await this.onMessageSent(message);
+      console.log(`💬 onMessageSent callback complete`);
+    } else {
+      console.log(`💬 No onMessageSent callback registered`);
     }
 
     return message;

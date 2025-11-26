@@ -1,5 +1,6 @@
 import { useState } from "react";
 import type { ChatMessage } from "../hooks/useChatMessages";
+import type { ClaudeQueueStatus } from "../hooks/useClaude";
 
 interface ChatInterfaceProps {
   messages: ChatMessage[];
@@ -7,12 +8,14 @@ interface ChatInterfaceProps {
     message: string
   ) => Promise<{ success: boolean; error?: string }>;
   username: string | null;
+  claudeQueueStatus?: ClaudeQueueStatus;
 }
 
 export function ChatInterface({
   messages,
   onSendMessage,
   username,
+  claudeQueueStatus,
 }: ChatInterfaceProps) {
   const [messageText, setMessageText] = useState("");
   const [isSending, setIsSending] = useState(false);
@@ -57,9 +60,31 @@ export function ChatInterface({
     }
   };
 
+  // Check if user is in Claude queue
+  const userQueuePosition =
+    claudeQueueStatus?.queue.indexOf(username || "") ?? -1;
+  const isUserWaitingForClaude = userQueuePosition >= 0;
+  const isClaudeResponding = claudeQueueStatus?.isProcessing || false;
+
   return (
-    <div className="bg-gray-800 p-6 rounded-lg border border-gray-600 h-96 flex flex-col">
-      <h2 className="text-xl font-bold mb-4 text-white">💬 Chat Messages</h2>
+    <div className="bg-gray-800 p-6 rounded-lg border border-gray-600 flex-1 flex flex-col min-h-0">
+      <div className="flex items-center justify-between mb-4">
+        <h2 className="text-xl font-bold text-white">💬 Chat Messages</h2>
+
+        {/* Claude Status Indicator */}
+        {isClaudeResponding && claudeQueueStatus?.current && (
+          <div className="flex items-center text-purple-400 text-sm">
+            <span className="animate-pulse mr-2">🤖</span>
+            <span>Claude responding to {claudeQueueStatus.current}</span>
+          </div>
+        )}
+        {isUserWaitingForClaude && (
+          <div className="flex items-center text-yellow-400 text-sm">
+            <span className="mr-2">⏳</span>
+            <span>You're #{userQueuePosition + 1} in queue for Claude</span>
+          </div>
+        )}
+      </div>
 
       {/* Messages Area */}
       <div className="flex-1 overflow-y-auto mb-4 space-y-2">
@@ -80,6 +105,7 @@ export function ChatInterface({
               const isOwnMessage =
                 isRegularMessage && msg.username === username && username;
               const isSystemMessage = msg.type && msg.type !== "message";
+              const isClaudeMessage = msg.username === "Claude";
 
               if (isSystemMessage) {
                 return (
@@ -93,6 +119,26 @@ export function ChatInterface({
                       <span className="text-gray-500 ml-2">
                         {formatTime(msg.timestamp)}
                       </span>
+                    </div>
+                  </div>
+                );
+              }
+
+              // Claude AI message with special styling
+              if (isClaudeMessage) {
+                return (
+                  <div key={msg.id} className="flex mb-2 justify-start">
+                    <div className="flex flex-col max-w-xs lg:max-w-md">
+                      <div className="text-purple-400 font-medium text-xs mb-1 ml-3 flex items-center">
+                        <span className="mr-1">🤖</span>
+                        <span>Claude</span>
+                      </div>
+                      <div className="px-3 py-2 rounded-lg bg-purple-900 text-white rounded-bl-sm border border-purple-700">
+                        <div className="break-words">{msg.message}</div>
+                        <div className="text-xs mt-1 text-purple-300">
+                          {formatTime(msg.timestamp)}
+                        </div>
+                      </div>
                     </div>
                   </div>
                 );
