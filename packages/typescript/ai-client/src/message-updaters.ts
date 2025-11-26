@@ -1,6 +1,5 @@
 import type {
   UIMessage,
-  MessagePart,
   ToolCallPart,
   ToolResultPart,
   ThinkingPart,
