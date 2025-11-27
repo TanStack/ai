@@ -1,0 +1,18 @@
+{
+  "name": "ai-openai-live-tests",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "tsx tool-test.ts",
+    "test:optional": "tsx tool-test-optional.ts",
+    "test:all": "tsx tool-test.ts && tsx tool-test-optional.ts"
+  },
+  "dependencies": {
+    "@tanstack/ai": "workspace:*",
+    "@tanstack/ai-openai": "workspace:*"
+  },
+  "devDependencies": {
+    "tsx": "^4.19.2"
+  }
+}

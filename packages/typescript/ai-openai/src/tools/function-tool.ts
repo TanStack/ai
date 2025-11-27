@@ -18,6 +18,20 @@ export function convertFunctionToolToAdapterFormat(tool: Tool): FunctionTool {
 
   // Otherwise, convert directly from tool.function (regular Tool structure)
   // For Responses API, FunctionTool has name at top level, with function containing description and parameters
+
+  // Determine if we can use strict mode
+  // Strict mode requires all properties to be in the required array
+  const parameters = tool.function.parameters
+  const properties = parameters.properties || {}
+  const required = parameters.required || []
+  const propertyNames = Object.keys(properties)
+
+  // Only enable strict mode if all properties are required
+  // This ensures compatibility with tools that have optional parameters
+  const canUseStrict =
+    propertyNames.length > 0 &&
+    propertyNames.every((prop) => required.includes(prop))
+
   return {
     type: 'function',
     name: tool.function.name,
@@ -26,8 +40,7 @@ export function convertFunctionToolToAdapterFormat(tool: Tool): FunctionTool {
       ...tool.function.parameters,
       additionalProperties: false,
     },
-
-    strict: true,
+    strict: canUseStrict,
   } satisfies FunctionTool
 }
 

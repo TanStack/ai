@@ -189,26 +189,16 @@ export class OpenAI extends BaseAdapter<
     let accumulatedContent = ''
     let accumulatedReasoning = ''
     const timestamp = Date.now()
-    // let nextIndex = 0
     let chunkCount = 0
-
-    // Track accumulated function call arguments by call_id
-    const accumulatedFunctionCallArguments = new Map<string, string>()
-
-    // Map item_id (from delta events) to call_id (from function_call items)
-    //  const itemIdToCallId = new Map<string, string>()
 
     // Preserve response metadata across events
     let responseId: string | null = null
     let model: string = options.model
 
     const eventTypeCounts = new Map<string, number>()
-    // Track which item indices are reasoning items
-    //  const reasoningItemIndices = new Set<number>()
 
     try {
       for await (const chunk of stream) {
-        console.log(chunk)
         chunkCount++
         const handleContentPart = (
           contentPart:
@@ -291,15 +281,27 @@ export class OpenAI extends BaseAdapter<
           yield handleContentPart(contentPart)
         }
 
-        if (chunk.type === 'response.function_call_arguments.done') {
-          const { name, item_id, output_index } = chunk
-          if (!toolCallMetadata.has(item_id)) {
-            toolCallMetadata.set(item_id, {
-              index: output_index,
-              name: name,
-            })
-            accumulatedFunctionCallArguments.set(item_id, '')
+        // handle output_item.added to capture function call metadata (name)
+        if (chunk.type === 'response.output_item.added') {
+          const item = chunk.item
+          if (item.type === 'function_call' && item.id) {
+            // Store the function name for later use
+            if (!toolCallMetadata.has(item.id)) {
+              toolCallMetadata.set(item.id, {
+                index: chunk.output_index,
+                name: item.name || '',
+              })
+            }
           }
+        }
+
+        if (chunk.type === 'response.function_call_arguments.done') {
+          const { item_id, output_index } = chunk
+
+          // Get the function name from metadata (captured in output_item.added)
+          const metadata = toolCallMetadata.get(item_id)
+          const name = metadata?.name || ''
+
           yield {
             type: 'tool_call',
             id: responseId || generateId(),
@@ -328,12 +330,18 @@ export class OpenAI extends BaseAdapter<
         }
 
         if (chunk.type === 'response.completed') {
+          // Determine finish reason based on output
+          // If there are function_call items in the output, it's a tool_calls finish
+          const hasFunctionCalls = chunk.response.output.some(
+            (item: any) => item.type === 'function_call',
+          )
+
           yield {
             type: 'done',
             id: responseId || generateId(),
             model: model || options.model,
             timestamp,
-            finishReason: 'stop',
+            finishReason: hasFunctionCalls ? 'tool_calls' : 'stop',
           }
         }
 

@@ -1,11 +1,12 @@
 {
   "$schema": "./node_modules/nx/schemas/nx-schema.json",
+  "defaultBase": "main",
+  "nxCloudId": "6928ccd60a2e27ab22f38ad0",
+  "useInferencePlugins": false,
+  "parallel": 5,
   "tui": {
     "enabled": false
   },
-  "defaultBase": "main",
-  "useInferencePlugins": false,
-  "parallel": 5,
   "namedInputs": {
     "sharedGlobals": [
       "{workspaceRoot}/.nvmrc",

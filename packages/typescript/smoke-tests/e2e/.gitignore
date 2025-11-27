@@ -1,0 +1,9 @@
+node_modules
+.env
+.DS_Store
+dist
+.vercel
+.route
+routeTree.gen.ts
+test-results/
+playwright-report/
