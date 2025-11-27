@@ -345,8 +345,13 @@ describe('message-converters', () => {
       }
 
       const result = modelMessageToUIMessage(modelMessage)
-      expect(result.parts).toHaveLength(1)
+      // Should have both text and tool-call parts
+      expect(result.parts).toHaveLength(2)
       expect(result.parts[0]).toEqual({
+        type: 'text',
+        content: 'Here is the info',
+      })
+      expect(result.parts[1]).toEqual({
         type: 'tool-call',
         id: 'call-1',
         name: 'get_weather',
