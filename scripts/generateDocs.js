@@ -11,23 +11,23 @@ const __dirname = fileURLToPath(new URL('.', import.meta.url))
 const packages = [
   {
     name: 'ai',
-    entryPoints: [resolve(__dirname, '../packages/ai/src/index.ts')],
-    tsconfig: resolve(__dirname, '../packages/ai/tsconfig.docs.json'),
+    entryPoints: [resolve(__dirname, '../packages/typescript/ai/src/index.ts')],
+    tsconfig: resolve(__dirname, '../packages/typescript/ai/tsconfig.docs.json'),
     outputDir: resolve(__dirname, '../docs/reference'),
   },
   {
     name: 'react-ai',
-    entryPoints: [resolve(__dirname, '../packages/react-ai/src/index.ts')],
-    tsconfig: resolve(__dirname, '../packages/react-ai/tsconfig.docs.json'),
+    entryPoints: [resolve(__dirname, '../packages/typescript/react-ai/src/index.ts')],
+    tsconfig: resolve(__dirname, '../packages/typescript/react-ai/tsconfig.docs.json'),
     outputDir: resolve(__dirname, '../docs/framework/react/reference'),
-    exclude: ['packages/ai/**/*'],
+    exclude: ['packages/typescript/ai/**/*'],
   },
   {
     name: 'solid-ai',
-    entryPoints: [resolve(__dirname, '../packages/solid-ai/src/index.ts')],
-    tsconfig: resolve(__dirname, '../packages/solid-ai/tsconfig.docs.json'),
+    entryPoints: [resolve(__dirname, '../packages/typescript/solid-ai/src/index.ts')],
+    tsconfig: resolve(__dirname, '../packages/typescript/solid-ai/tsconfig.docs.json'),
     outputDir: resolve(__dirname, '../docs/framework/solid/reference'),
-    exclude: ['packages/ai/**/*'],
+    exclude: ['packages/typescript/ai/**/*'],
   },
 ]
 
