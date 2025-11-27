@@ -1,19 +1,19 @@
-import { createFileRoute } from "@tanstack/solid-router";
-import { chat, toStreamResponse, maxIterations } from "@tanstack/ai";
-import { stubAdapter } from "@/lib/stub-adapter";
-import { allTools } from "@/lib/guitar-tools";
+import { createFileRoute } from '@tanstack/solid-router'
+import { chat, maxIterations, toStreamResponse } from '@tanstack/ai'
+import { stubAdapter } from '@/lib/stub-adapter'
+import { allTools } from '@/lib/guitar-tools'
 
-export const Route = createFileRoute("/api/test-chat")({
+export const Route = createFileRoute('/api/test-chat')({
   server: {
     handlers: {
       POST: async ({ request }) => {
-        const { messages } = await request.json();
+        const { messages } = await request.json()
 
         try {
           const stream = chat({
             adapter: stubAdapter(),
             messages,
-            model: "gpt-4.1-nano", // Doesn't matter for stub
+            model: 'gpt-4.1-nano', // Doesn't matter for stub
             tools: allTools,
             systemPrompts: [],
             options: {
@@ -27,21 +27,21 @@ export const Route = createFileRoute("/api/test-chat")({
             },
             agentLoopStrategy: maxIterations(20),
             providerOptions: {},
-          });
+          })
 
-          return toStreamResponse(stream);
+          return toStreamResponse(stream)
         } catch (error: any) {
           return new Response(
             JSON.stringify({
-              error: error.message || "An error occurred",
+              error: error.message || 'An error occurred',
             }),
             {
               status: 500,
-              headers: { "Content-Type": "application/json" },
-            }
-          );
+              headers: { 'Content-Type': 'application/json' },
+            },
+          )
         }
       },
     },
   },
-});
+})

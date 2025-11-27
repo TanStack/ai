@@ -9,18 +9,12 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
-import { Route as DemoRouteImport } from './routes/demo'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as ApiTestChatRouteImport } from './routes/api.test-chat'
 import { Route as ApiTanchatRouteImport } from './routes/api.tanchat'
 import { Route as ExampleGuitarsIndexRouteImport } from './routes/example.guitars/index'
 import { Route as ExampleGuitarsGuitarIdRouteImport } from './routes/example.guitars/$guitarId'
 
-const DemoRoute = DemoRouteImport.update({
-  id: '/demo',
-  path: '/demo',
-  getParentRoute: () => rootRouteImport,
-} as any)
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
@@ -49,7 +43,6 @@ const ExampleGuitarsGuitarIdRoute = ExampleGuitarsGuitarIdRouteImport.update({
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
-  '/demo': typeof DemoRoute
   '/api/tanchat': typeof ApiTanchatRoute
   '/api/test-chat': typeof ApiTestChatRoute
   '/example/guitars/$guitarId': typeof ExampleGuitarsGuitarIdRoute
@@ -57,7 +50,6 @@ export interface FileRoutesByFullPath {
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
-  '/demo': typeof DemoRoute
   '/api/tanchat': typeof ApiTanchatRoute
   '/api/test-chat': typeof ApiTestChatRoute
   '/example/guitars/$guitarId': typeof ExampleGuitarsGuitarIdRoute
@@ -66,7 +58,6 @@ export interface FileRoutesByTo {
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
-  '/demo': typeof DemoRoute
   '/api/tanchat': typeof ApiTanchatRoute
   '/api/test-chat': typeof ApiTestChatRoute
   '/example/guitars/$guitarId': typeof ExampleGuitarsGuitarIdRoute
@@ -76,7 +67,6 @@ export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
-    | '/demo'
     | '/api/tanchat'
     | '/api/test-chat'
     | '/example/guitars/$guitarId'
@@ -84,7 +74,6 @@ export interface FileRouteTypes {
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
-    | '/demo'
     | '/api/tanchat'
     | '/api/test-chat'
     | '/example/guitars/$guitarId'
@@ -92,7 +81,6 @@ export interface FileRouteTypes {
   id:
     | '__root__'
     | '/'
-    | '/demo'
     | '/api/tanchat'
     | '/api/test-chat'
     | '/example/guitars/$guitarId'
@@ -101,7 +89,6 @@ export interface FileRouteTypes {
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
-  DemoRoute: typeof DemoRoute
   ApiTanchatRoute: typeof ApiTanchatRoute
   ApiTestChatRoute: typeof ApiTestChatRoute
   ExampleGuitarsGuitarIdRoute: typeof ExampleGuitarsGuitarIdRoute
@@ -110,13 +97,6 @@ export interface RootRouteChildren {
 
 declare module '@tanstack/solid-router' {
   interface FileRoutesByPath {
-    '/demo': {
-      id: '/demo'
-      path: '/demo'
-      fullPath: '/demo'
-      preLoaderRoute: typeof DemoRouteImport
-      parentRoute: typeof rootRouteImport
-    }
     '/': {
       id: '/'
       path: '/'
@@ -157,7 +137,6 @@ declare module '@tanstack/solid-router' {
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
-  DemoRoute: DemoRoute,
   ApiTanchatRoute: ApiTanchatRoute,
   ApiTestChatRoute: ApiTestChatRoute,
   ExampleGuitarsGuitarIdRoute: ExampleGuitarsGuitarIdRoute,

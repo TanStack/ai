@@ -1,36 +1,34 @@
-import { createFileRoute } from "@tanstack/solid-router";
-import { Send, Square } from "lucide-solid";
-import { SolidMarkdown } from "solid-markdown";
-import rehypeRaw from "rehype-raw";
-import rehypeSanitize from "rehype-sanitize";
-import rehypeHighlight from "rehype-highlight";
-import remarkGfm from "remark-gfm";
-import {
-  useChat,
-  fetchServerSentEvents,
-  type UIMessage,
-} from "@tanstack/ai-solid";
+import { createFileRoute } from '@tanstack/solid-router'
+import { Send, Square } from 'lucide-solid'
+import { SolidMarkdown } from 'solid-markdown'
+import rehypeRaw from 'rehype-raw'
+import rehypeSanitize from 'rehype-sanitize'
+import rehypeHighlight from 'rehype-highlight'
+import remarkGfm from 'remark-gfm'
+import { fetchServerSentEvents, useChat } from '@tanstack/ai-solid'
+import { createSignal } from 'solid-js'
+import type { UIMessage } from '@tanstack/ai-solid'
 
-import GuitarRecommendation from "@/components/example-GuitarRecommendation";
-import { createSignal, JSXElement } from "solid-js";
+import type { JSXElement } from 'solid-js'
+import GuitarRecommendation from '@/components/example-GuitarRecommendation'
 
 function ChatInputArea({ children }: { children: JSXElement }) {
   return (
     <div class="border-t border-orange-500/10 bg-gray-900/80 backdrop-blur-sm">
       <div class="w-full px-4 py-3">{children}</div>
     </div>
-  );
+  )
 }
 
 function Messages(props: {
-  messages: Array<UIMessage>;
+  messages: Array<UIMessage>
   addToolApprovalResponse: (response: {
-    id: string;
-    approved: boolean;
-  }) => Promise<void>;
+    id: string
+    approved: boolean
+  }) => Promise<void>
 }) {
   if (!props.messages.length) {
-    return null;
+    return null
   }
 
   return (
@@ -39,13 +37,13 @@ function Messages(props: {
         return (
           <div
             class={`p-4 rounded-lg mb-2 ${
-              role === "assistant"
-                ? "bg-linear-to-r from-orange-500/5 to-red-600/5"
-                : "bg-transparent"
+              role === 'assistant'
+                ? 'bg-linear-to-r from-orange-500/5 to-red-600/5'
+                : 'bg-transparent'
             }`}
           >
             <div class="flex items-start gap-4">
-              {role === "assistant" ? (
+              {role === 'assistant' ? (
                 <div class="w-8 h-8 rounded-lg bg-linear-to-r from-orange-500 to-red-600 flex items-center justify-center text-sm font-medium text-white flex-shrink-0">
                   AI
                 </div>
@@ -57,7 +55,7 @@ function Messages(props: {
               <div class="flex-1 min-w-0">
                 {/* Render parts in order */}
                 {parts.map((part, index) => {
-                  if (part.type === "text" && part.content) {
+                  if (part.type === 'text' && part.content) {
                     return (
                       <div class="text-white prose dark:prose-invert max-w-none">
                         <SolidMarkdown
@@ -71,13 +69,13 @@ function Messages(props: {
                           {part.content}
                         </SolidMarkdown>
                       </div>
-                    );
+                    )
                   }
 
                   // Approval UI
                   if (
-                    part.type === "tool-call" &&
-                    part.state === "approval-requested" &&
+                    part.type === 'tool-call' &&
+                    part.state === 'approval-requested' &&
                     part.approval
                   ) {
                     return (
@@ -90,7 +88,7 @@ function Messages(props: {
                             {JSON.stringify(
                               JSON.parse(part.arguments),
                               null,
-                              2
+                              2,
                             )}
                           </pre>
                         </div>
@@ -119,13 +117,13 @@ function Messages(props: {
                           </button>
                         </div>
                       </div>
-                    );
+                    )
                   }
 
                   // Guitar recommendation card
                   if (
-                    part.type === "tool-call" &&
-                    part.name === "recommendGuitar" &&
+                    part.type === 'tool-call' &&
+                    part.name === 'recommendGuitar' &&
                     part.output
                   ) {
                     try {
@@ -133,41 +131,37 @@ function Messages(props: {
                         <div class="mt-2">
                           <GuitarRecommendation id={part.output.id} />
                         </div>
-                      );
+                      )
                     } catch {
-                      return null;
+                      return null
                     }
                   }
 
-                  return null;
+                  return null
                 })}
               </div>
             </div>
           </div>
-        );
+        )
       })}
     </div>
-  );
+  )
 }
 
 function DebugPanel(props: {
-  messages: Array<UIMessage>;
-  chunks: any[];
-  onClearChunks: () => void;
+  messages: Array<UIMessage>
+  chunks: Array<any>
+  onClearChunks: () => void
 }) {
-  const [activeTab, setActiveTab] = createSignal<"messages" | "chunks">(
-    "messages"
-  );
+  const [activeTab, setActiveTab] = createSignal<'messages' | 'chunks'>(
+    'messages',
+  )
 
   const exportToTypeScript = () => {
-    const tsCode = `const rawChunks = ${JSON.stringify(
-      props.chunks,
-      null,
-      2
-    )};`;
-    navigator.clipboard.writeText(tsCode);
-    alert("TypeScript code copied to clipboard!");
-  };
+    const tsCode = `const rawChunks = ${JSON.stringify(props.chunks, null, 2)};`
+    navigator.clipboard.writeText(tsCode)
+    alert('TypeScript code copied to clipboard!')
+  }
 
   return (
     <div class="flex flex-col h-full">
@@ -180,21 +174,21 @@ function DebugPanel(props: {
         {/* Tabs */}
         <div class="flex gap-2 mt-4">
           <button
-            onClick={() => setActiveTab("messages")}
+            onClick={() => setActiveTab('messages')}
             class={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
-              activeTab() === "messages"
-                ? "bg-orange-500 text-white"
-                : "bg-gray-800 text-gray-400 hover:text-white"
+              activeTab() === 'messages'
+                ? 'bg-orange-500 text-white'
+                : 'bg-gray-800 text-gray-400 hover:text-white'
             }`}
           >
             Messages
           </button>
           <button
-            onClick={() => setActiveTab("chunks")}
+            onClick={() => setActiveTab('chunks')}
             class={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
-              activeTab() === "chunks"
-                ? "bg-orange-500 text-white"
-                : "bg-gray-800 text-gray-400 hover:text-white"
+              activeTab() === 'chunks'
+                ? 'bg-orange-500 text-white'
+                : 'bg-gray-800 text-gray-400 hover:text-white'
             }`}
           >
             Raw Chunks ({props.chunks.length})
@@ -203,7 +197,7 @@ function DebugPanel(props: {
       </div>
 
       <div class="flex-1 overflow-y-auto p-4">
-        {activeTab() === "messages" && (
+        {activeTab() === 'messages' && (
           <div>
             <pre class="text-xs text-gray-300 font-mono bg-gray-800 p-4 rounded-lg overflow-x-auto">
               {JSON.stringify(props.messages, null, 2)}
@@ -211,7 +205,7 @@ function DebugPanel(props: {
           </div>
         )}
 
-        {activeTab() === "chunks" && (
+        {activeTab() === 'chunks' && (
           <div class="space-y-4">
             <div class="flex gap-2">
               <button
@@ -244,27 +238,27 @@ function DebugPanel(props: {
                 </thead>
                 <tbody class="text-gray-300">
                   {props.chunks.map((chunk, idx) => {
-                    const role = chunk.role || "-";
-                    const toolType = chunk.toolCall?.type || "-";
-                    const toolName = chunk.toolCall?.function?.name || "-";
+                    const role = chunk.role || '-'
+                    const toolType = chunk.toolCall?.type || '-'
+                    const toolName = chunk.toolCall?.function?.name || '-'
 
-                    let detail = "-";
-                    if (chunk.type === "content" && chunk.content) {
-                      detail = chunk.content;
+                    let detail = '-'
+                    if (chunk.type === 'content' && chunk.content) {
+                      detail = chunk.content
                     } else if (
-                      chunk.type === "tool_call" &&
+                      chunk.type === 'tool_call' &&
                       chunk.toolCall?.function?.arguments
                     ) {
-                      detail = chunk.toolCall.function.arguments;
-                    } else if (chunk.type === "tool_result" && chunk.content) {
-                      detail = chunk.content;
-                    } else if (chunk.type === "done") {
-                      detail = `Finish: ${chunk.finishReason || "unknown"}`;
+                      detail = chunk.toolCall.function.arguments
+                    } else if (chunk.type === 'tool_result' && chunk.content) {
+                      detail = chunk.content
+                    } else if (chunk.type === 'done') {
+                      detail = `Finish: ${chunk.finishReason || 'unknown'}`
                     }
 
                     // Truncate at 200 chars
                     if (detail.length > 200) {
-                      detail = detail.substring(0, 200) + "...";
+                      detail = detail.substring(0, 200) + '...'
                     }
 
                     return (
@@ -277,7 +271,7 @@ function DebugPanel(props: {
                           {detail}
                         </td>
                       </tr>
-                    );
+                    )
                   })}
                 </tbody>
               </table>
@@ -286,51 +280,51 @@ function DebugPanel(props: {
         )}
       </div>
     </div>
-  );
+  )
 }
 
 function ChatPage() {
-  const [chunks, setChunks] = createSignal<any[]>([]);
+  const [chunks, setChunks] = createSignal<Array<any>>([])
 
   const { messages, sendMessage, isLoading, addToolApprovalResponse, stop } =
     useChat({
-      connection: fetchServerSentEvents("/api/tanchat"),
+      connection: fetchServerSentEvents('/api/tanchat'),
       onChunk: (chunk: any) => {
-        setChunks((prev) => [...prev, chunk]);
+        setChunks((prev) => [...prev, chunk])
       },
       onToolCall: async ({ toolName, input }) => {
         // Handle client-side tool execution
         switch (toolName) {
-          case "getPersonalGuitarPreference":
+          case 'getPersonalGuitarPreference':
             // Pure client tool - executes immediately
-            return { preference: "acoustic" };
+            return { preference: 'acoustic' }
 
-          case "recommendGuitar":
+          case 'recommendGuitar':
             // Client tool for UI display
-            return { id: input.id };
+            return { id: input.id }
 
-          case "addToWishList":
+          case 'addToWishList':
             // Hybrid: client execution AFTER approval
             // Only runs after user approves
             const wishList = JSON.parse(
-              localStorage.getItem("wishList") || "[]"
-            );
-            wishList.push(input.guitarId);
-            localStorage.setItem("wishList", JSON.stringify(wishList));
+              localStorage.getItem('wishList') || '[]',
+            )
+            wishList.push(input.guitarId)
+            localStorage.setItem('wishList', JSON.stringify(wishList))
             return {
               success: true,
               guitarId: input.guitarId,
               totalItems: wishList.length,
-            };
+            }
 
           default:
-            throw new Error(`Unknown client tool: ${toolName}`);
+            throw new Error(`Unknown client tool: ${toolName}`)
         }
       },
-    });
-  const [input, setInput] = createSignal("");
+    })
+  const [input, setInput] = createSignal('')
 
-  const clearChunks = () => setChunks([]);
+  const clearChunks = () => setChunks([])
 
   return (
     <div class="flex h-[calc(100vh-72px)]  bg-gray-900">
@@ -370,27 +364,27 @@ function ChatPage() {
                 placeholder="Type something clever (or don't, we won't judge)..."
                 class="w-full rounded-lg border border-orange-500/20 bg-gray-800/50 pl-4 pr-12 py-3 text-sm text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-orange-500/50 focus:border-transparent resize-none overflow-hidden shadow-lg"
                 rows={1}
-                style={{ "min-height": "44px", "max-height": "200px" }}
+                style={{ 'min-height': '44px', 'max-height': '200px' }}
                 disabled={isLoading()}
                 onInput={(e) => {
-                  const target = e.target as HTMLTextAreaElement;
-                  target.style.height = "auto";
+                  const target = e.target as HTMLTextAreaElement
+                  target.style.height = 'auto'
                   target.style.height =
-                    Math.min(target.scrollHeight, 200) + "px";
+                    Math.min(target.scrollHeight, 200) + 'px'
                 }}
                 onKeyDown={(e) => {
-                  if (e.key === "Enter" && !e.shiftKey && input().trim()) {
-                    e.preventDefault();
-                    sendMessage(input());
-                    setInput("");
+                  if (e.key === 'Enter' && !e.shiftKey && input().trim()) {
+                    e.preventDefault()
+                    sendMessage(input())
+                    setInput('')
                   }
                 }}
               />
               <button
                 onClick={() => {
                   if (input().trim()) {
-                    sendMessage(input());
-                    setInput("");
+                    sendMessage(input())
+                    setInput('')
                   }
                 }}
                 disabled={!input().trim() || isLoading()}
@@ -412,9 +406,9 @@ function ChatPage() {
         />
       </div>
     </div>
-  );
+  )
 }
 
-export const Route = createFileRoute("/")({
+export const Route = createFileRoute('/')({
   component: ChatPage,
-});
+})
