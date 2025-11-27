@@ -24,40 +24,7 @@ npm install @tanstack/ai-client
 
 **See:** [Package Documentation](packages/typescript/ai-client/README.md)
 
-#### @tanstack/ai-fallback
-
-**New Package:** Automatic fallback wrapper for trying multiple adapters in sequence.
-
-**Installation:**
-
-```bash
-npm install @tanstack/ai-fallback
-```
-
-**Features:**
-
-- ✅ Try multiple adapters until one succeeds
-- ✅ Rate limit protection
-- ✅ Cost optimization (try cheap/local first)
-- ✅ Error handling with callbacks
-- ✅ Works with all AI methods
-
-**Usage:**
-
-```typescript
-import { ai } from '@tanstack/ai'
-import { fallback, withModel } from '@tanstack/ai-fallback'
-
-const openAI = withModel(ai(openai()), { model: 'gpt-4' })
-const anthropicAI = withModel(ai(anthropic()), {
-  model: 'claude-3-5-sonnet-20241022',
-})
-
-const aiWithFallback = fallback([openAI, anthropicAI])
-```
-
-**See:** [Package Documentation](packages/typescript/ai-fallback/README.md)
-
+ 
 #### @tanstack/ai-react-ui
 
 **New Package:** Pre-built React UI components for chat interfaces.
