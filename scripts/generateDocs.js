@@ -17,6 +17,13 @@ const packages = [
       '../packages/typescript/ai/tsconfig.docs.json',
     ),
     outputDir: resolve(__dirname, '../docs/reference'),
+    exclude: [
+      '**/*.spec.ts',
+      '**/*.test.ts',
+      '**/__tests__/**',
+      '**/node_modules/**',
+      '**/dist/**',
+    ],
   },
 ]
 
