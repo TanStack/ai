@@ -1,5 +1,3 @@
-'use client'
-
 import * as Devtools from './core'
 
 export const AiDevtoolsCore =
