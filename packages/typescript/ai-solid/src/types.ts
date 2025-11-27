@@ -1,13 +1,13 @@
-import type { ModelMessage } from "@tanstack/ai";
+import type { ModelMessage } from '@tanstack/ai'
 import type {
   ChatClientOptions,
   UIMessage,
   ChatRequestBody,
-} from "@tanstack/ai-client";
-import { Accessor } from "solid-js";
+} from '@tanstack/ai-client'
+import { Accessor } from 'solid-js'
 
 // Re-export types from ai-client
-export type { UIMessage, ChatRequestBody };
+export type { UIMessage, ChatRequestBody }
 
 /**
  * Options for the useChat hook.
@@ -26,71 +26,71 @@ export type { UIMessage, ChatRequestBody };
  */
 export type UseChatOptions = Omit<
   ChatClientOptions,
-  "onMessagesChange" | "onLoadingChange" | "onErrorChange"
->;
+  'onMessagesChange' | 'onLoadingChange' | 'onErrorChange'
+>
 
 export interface UseChatReturn {
   /**
    * Current messages in the conversation
    */
-  messages: Accessor<UIMessage[]>;
+  messages: Accessor<UIMessage[]>
 
   /**
    * Send a message and get a response
    */
-  sendMessage: (content: string) => Promise<void>;
+  sendMessage: (content: string) => Promise<void>
 
   /**
    * Append a message to the conversation
    */
-  append: (message: ModelMessage | UIMessage) => Promise<void>;
+  append: (message: ModelMessage | UIMessage) => Promise<void>
 
   /**
    * Add the result of a client-side tool execution
    */
   addToolResult: (result: {
-    toolCallId: string;
-    tool: string;
-    output: any;
-    state?: "output-available" | "output-error";
-    errorText?: string;
-  }) => Promise<void>;
+    toolCallId: string
+    tool: string
+    output: any
+    state?: 'output-available' | 'output-error'
+    errorText?: string
+  }) => Promise<void>
 
   /**
    * Respond to a tool approval request
    */
   addToolApprovalResponse: (response: {
-    id: string; // approval.id, not toolCallId
-    approved: boolean;
-  }) => Promise<void>;
+    id: string // approval.id, not toolCallId
+    approved: boolean
+  }) => Promise<void>
 
   /**
    * Reload the last assistant message
    */
-  reload: () => Promise<void>;
+  reload: () => Promise<void>
 
   /**
    * Stop the current response generation
    */
-  stop: () => void;
+  stop: () => void
 
   /**
    * Whether a response is currently being generated
    */
-  isLoading: Accessor<boolean>;
+  isLoading: Accessor<boolean>
 
   /**
    * Current error, if any
    */
-  error: Accessor<Error | undefined>;
+  error: Accessor<Error | undefined>
 
   /**
    * Set messages manually
    */
-  setMessages: (messages: UIMessage[]) => void;
+  setMessages: (messages: UIMessage[]) => void
 
   /**
    * Clear all messages
    */
-  clear: () => void;
+  clear: () => void
 }

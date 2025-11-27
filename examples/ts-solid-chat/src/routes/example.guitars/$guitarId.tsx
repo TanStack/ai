@@ -1,19 +1,19 @@
-import { Link, createFileRoute } from "@tanstack/solid-router";
-import guitars from "../../data/example-guitars";
+import { Link, createFileRoute } from '@tanstack/solid-router'
+import guitars from '../../data/example-guitars'
 
-export const Route = createFileRoute("/example/guitars/$guitarId")({
+export const Route = createFileRoute('/example/guitars/$guitarId')({
   component: RouteComponent,
   loader: async ({ params }) => {
-    const guitar = guitars.find((guitar) => guitar.id === +params.guitarId);
+    const guitar = guitars.find((guitar) => guitar.id === +params.guitarId)
     if (!guitar) {
-      throw new Error("Guitar not found");
+      throw new Error('Guitar not found')
     }
-    return guitar;
+    return guitar
   },
-});
+})
 
 function RouteComponent() {
-  const guitar = Route.useLoaderData();
+  const guitar = Route.useLoaderData()
 
   return (
     <div class="relative min-h-[100vh] flex items-center bg-black text-white p-5">
@@ -46,5 +46,5 @@ function RouteComponent() {
         </div>
       </div>
     </div>
-  );
+  )
 }

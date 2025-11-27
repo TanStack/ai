@@ -1,5 +1,5 @@
-@import "tailwindcss";
-@import "highlight.js/styles/github-dark.css";
+@import 'tailwindcss';
+@import 'highlight.js/styles/github-dark.css';
 
 /* Custom scrollbar styles */
 ::-webkit-scrollbar {
@@ -58,13 +58,17 @@ html {
   color: inherit;
 }
 
-.prose h1, .prose h2, .prose h3, .prose h4 {
+.prose h1,
+.prose h2,
+.prose h3,
+.prose h4 {
   color: #f9fafb; /* text-gray-50 */
   /* margin-top: 2em; */
   /* margin-bottom: 1em; */
 }
 
-.prose ul, .prose ol {
+.prose ul,
+.prose ol {
   margin-top: 1.25em;
   margin-bottom: 1.25em;
   padding-left: 1.625em;
@@ -105,7 +109,8 @@ html {
   margin: 1.25em 0;
 }
 
-.prose th, .prose td {
+.prose th,
+.prose td {
   padding: 0.75em;
   border: 1px solid rgba(249, 115, 22, 0.2);
 }
@@ -124,7 +129,9 @@ html {
 .message-enter-active {
   opacity: 1;
   transform: translateY(0);
-  transition: opacity 300ms, transform 300ms;
+  transition:
+    opacity 300ms,
+    transform 300ms;
 }
 
 .message-exit {

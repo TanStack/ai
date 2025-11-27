@@ -1,15 +1,15 @@
-import { createFileRoute } from "@tanstack/solid-router";
+import { createFileRoute } from '@tanstack/solid-router'
 import {
   chat,
   toStreamResponse,
   maxIterations,
   chatOptions,
-} from "@tanstack/ai";
-import { openai } from "@tanstack/ai-openai";
+} from '@tanstack/ai'
+import { openai } from '@tanstack/ai-openai'
 // import { ollama } from "@tanstack/ai-ollama";
 // import { anthropic } from "@tanstack/ai-anthropic";
 // import { gemini } from "@tanstack/ai-gemini";
-import { allTools } from "@/lib/guitar-tools";
+import { allTools } from '@/lib/guitar-tools'
 
 const SYSTEM_PROMPT = `You are a helpful assistant for a guitar store.
 
@@ -32,9 +32,9 @@ User: "I want an acoustic guitar"
 Step 1: Call getGuitars()
 Step 2: Call recommendGuitar(id: "6") 
 Step 3: Done - do NOT add any text after calling recommendGuitar
-`;
+`
 
-export const Route = createFileRoute("/api/tanchat")({
+export const Route = createFileRoute('/api/tanchat')({
   server: {
     handlers: {
       POST: async ({ request }) => {
@@ -42,31 +42,31 @@ export const Route = createFileRoute("/api/tanchat")({
           return new Response(
             JSON.stringify({
               error:
-                "OPENAI_API_KEY not configured. Please add it to .env or .env.local",
+                'OPENAI_API_KEY not configured. Please add it to .env or .env.local',
             }),
             {
               status: 500,
-              headers: { "Content-Type": "application/json" },
-            }
-          );
+              headers: { 'Content-Type': 'application/json' },
+            },
+          )
         }
 
         // Capture request signal before reading body (it may be aborted after body is consumed)
-        const requestSignal = request.signal;
+        const requestSignal = request.signal
 
         // If request is already aborted, return early
         if (requestSignal?.aborted) {
-          return new Response(null, { status: 499 }); // 499 = Client Closed Request
+          return new Response(null, { status: 499 }) // 499 = Client Closed Request
         }
 
-        const abortController = new AbortController();
+        const abortController = new AbortController()
 
-        const { messages } = await request.json();
+        const { messages } = await request.json()
         try {
           // Use the stream abort signal for proper cancellation handling
           const stream = chat({
             adapter: openai(),
-            model: "gpt-4-turbo",
+            model: 'gpt-4-turbo',
             // model: "claude-sonnet-4-5-20250929",
             // model: "smollm",
             // model: "gemini-2.5-flash",
@@ -75,28 +75,28 @@ export const Route = createFileRoute("/api/tanchat")({
             agentLoopStrategy: maxIterations(20),
             messages,
             providerOptions: {
-              tool_choice: "auto",
+              tool_choice: 'auto',
             },
             abortController,
-          });
+          })
 
-          return toStreamResponse(stream, { abortController });
+          return toStreamResponse(stream, { abortController })
         } catch (error: any) {
           // If request was aborted, return early (don't send error response)
-          if (error.name === "AbortError" || abortController.signal.aborted) {
-            return new Response(null, { status: 499 }); // 499 = Client Closed Request
+          if (error.name === 'AbortError' || abortController.signal.aborted) {
+            return new Response(null, { status: 499 }) // 499 = Client Closed Request
           }
           return new Response(
             JSON.stringify({
-              error: error.message || "An error occurred",
+              error: error.message || 'An error occurred',
             }),
             {
               status: 500,
-              headers: { "Content-Type": "application/json" },
-            }
-          );
+              headers: { 'Content-Type': 'application/json' },
+            },
+          )
         }
       },
     },
   },
-});
+})
