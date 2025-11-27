@@ -1,107 +1,107 @@
-import { useState, useRef, useCallback } from "react";
-import { newWebSocketRpcSession } from "capnweb";
+import { useState, useRef, useCallback } from 'react'
+import { newWebSocketRpcSession } from 'capnweb'
 
 export interface ChatAPI {
-  joinChat(username: string, notificationCallback: Function): Promise<any>;
-  sendMessage(message: string): Promise<any>;
-  getChatState(): Promise<any>;
-  pollMessages(): Promise<any[]>;
-  leaveChat(): Promise<any>;
+  joinChat(username: string, notificationCallback: Function): Promise<any>
+  sendMessage(message: string): Promise<any>
+  getChatState(): Promise<any>
+  pollMessages(): Promise<any[]>
+  leaveChat(): Promise<any>
   getClaudeQueueStatus(): Promise<{
-    current: string | null;
-    queue: string[];
-    isProcessing: boolean;
-  }>;
+    current: string | null
+    queue: string[]
+    isProcessing: boolean
+  }>
 }
 
 export interface ConnectionState {
-  isConnected: boolean;
-  isConnecting: boolean;
-  connectionStatus: string;
-  error: string | null;
+  isConnected: boolean
+  isConnecting: boolean
+  connectionStatus: string
+  error: string | null
 }
 
 export function useChatConnection() {
   const [state, setState] = useState<ConnectionState>({
     isConnected: false,
     isConnecting: false,
-    connectionStatus: "Disconnected",
+    connectionStatus: 'Disconnected',
     error: null,
-  });
+  })
 
-  const apiRef = useRef<ChatAPI | null>(null);
+  const apiRef = useRef<ChatAPI | null>(null)
 
   const connect = useCallback(() => {
     setState((prev) => ({
       ...prev,
       isConnecting: true,
-      connectionStatus: "Connecting...",
+      connectionStatus: 'Connecting...',
       error: null,
-    }));
+    }))
 
     try {
       const protocol =
-        typeof window !== "undefined" && window.location.protocol === "https:"
-          ? "wss:"
-          : "ws:";
+        typeof window !== 'undefined' && window.location.protocol === 'https:'
+          ? 'wss:'
+          : 'ws:'
       const wsUrl =
-        typeof window !== "undefined"
+        typeof window !== 'undefined'
           ? `${protocol}//${window.location.host}/api/websocket`
-          : "ws://localhost:3000/api/websocket";
+          : 'ws://localhost:3000/api/websocket'
 
-      console.log("Connecting to chat:", wsUrl);
+      console.log('Connecting to chat:', wsUrl)
 
-      const api = newWebSocketRpcSession(wsUrl) as any as ChatAPI;
-      apiRef.current = api;
+      const api = newWebSocketRpcSession(wsUrl) as any as ChatAPI
+      apiRef.current = api
 
       // Test connection
       api
         .getChatState()
         .then(() => {
-          console.log("Chat RPC connection established");
+          console.log('Chat RPC connection established')
           setState({
             isConnected: true,
             isConnecting: false,
-            connectionStatus: "Connected",
+            connectionStatus: 'Connected',
             error: null,
-          });
+          })
         })
         .catch((error) => {
-          console.error("Chat connection failed:", error);
+          console.error('Chat connection failed:', error)
           setState({
             isConnected: false,
             isConnecting: false,
-            connectionStatus: "Failed to connect",
+            connectionStatus: 'Failed to connect',
             error: error.message,
-          });
-        });
+          })
+        })
     } catch (error) {
-      console.error("Failed to create chat session:", error);
+      console.error('Failed to create chat session:', error)
       setState({
         isConnected: false,
         isConnecting: false,
-        connectionStatus: "Failed to connect",
-        error: error instanceof Error ? error.message : "Unknown error",
-      });
+        connectionStatus: 'Failed to connect',
+        error: error instanceof Error ? error.message : 'Unknown error',
+      })
     }
-  }, []);
+  }, [])
 
   const disconnect = useCallback(() => {
     if (apiRef.current) {
-      apiRef.current = null;
+      apiRef.current = null
     }
     setState({
       isConnected: false,
       isConnecting: false,
-      connectionStatus: "Disconnected",
+      connectionStatus: 'Disconnected',
       error: null,
-    });
-  }, []);
+    })
+  }, [])
 
   return {
     ...state,
     api: apiRef.current,
     connect,
     disconnect,
-  };
+  }
 }
