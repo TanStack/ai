@@ -3,6 +3,7 @@
   "compilerOptions": {
     "jsx": "preserve",
     "jsxFactory": "solid",
+    "moduleResolution": "bundler",
     "strictNullChecks": true
   },
   "include": ["eslint.config.js", "prettier.config.js", "src"]

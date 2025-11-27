@@ -2,14 +2,14 @@
   "name": "@tanstack/ai-react-ui",
   "version": "0.0.1",
   "description": "Headless React components for building AI chat interfaces",
-  "main": "./dist/index.js",
-  "module": "./dist/index.mjs",
-  "types": "./dist/index.d.ts",
+  "main": "./dist/esm/index.js",
+  "module": "./dist/esm/index.mjs",
+  "types": "./dist/esm/index.d.ts",
   "exports": {
     ".": {
-      "import": "./dist/index.mjs",
-      "require": "./dist/index.js",
-      "types": "./dist/index.d.ts"
+      "import": "./dist/esm/index.mjs",
+      "require": "./dist/esm/index.js",
+      "types": "./dist/esm/index.d.ts"
     }
   },
   "scripts": {
