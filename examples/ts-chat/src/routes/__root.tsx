@@ -3,7 +3,7 @@ import { TanStackRouterDevtoolsPanel } from "@tanstack/react-router-devtools";
 import { TanStackDevtools } from "@tanstack/react-devtools";
 import Header from "../components/Header";
 import appCss from "../styles.css?url";
-
+import { aiDevtoolsPlugin } from "@tanstack/react-ai-devtools";
 export const Route = createRootRoute({
   head: () => ({
     meta: [
@@ -47,6 +47,7 @@ function RootDocument({ children }: { children: React.ReactNode }) {
               name: "Tanstack Router",
               render: <TanStackRouterDevtoolsPanel />,
             },
+            aiDevtoolsPlugin(),
           ]}
           eventBusConfig={{
             connectToServerBus: true,

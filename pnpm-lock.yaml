@@ -44,9 +44,6 @@ importers:
       '@tanstack/ai-client':
         specifier: workspace:*
         version: link:../../packages/typescript/ai-client
-      '@tanstack/ai-devtools-core':
-        specifier: workspace:*
-        version: link:../../packages/typescript/ai-devtools
       '@tanstack/ai-gemini':
         specifier: workspace:*
         version: link:../../packages/typescript/ai-gemini
@@ -65,9 +62,6 @@ importers:
       '@tanstack/nitro-v2-vite-plugin':
         specifier: ^1.132.31
         version: 1.133.19(rolldown@1.0.0-beta.44)(vite@7.1.9(@types/node@22.18.8)(jiti@2.6.1)(lightningcss@1.30.2)(terser@5.44.0)(tsx@4.20.6)(yaml@2.8.1))
-      '@tanstack/react-ai-devtools':
-        specifier: workspace:*
-        version: link:../../packages/typescript/react-ai-devtools
       '@tanstack/react-devtools':
         specifier: ^0.8.0
         version: 0.8.0(@types/react-dom@19.2.2(@types/react@19.2.2))(@types/react@19.2.2)(csstype@3.1.3)(react-dom@19.2.0(react@19.2.0))(react@19.2.0)(solid-js@1.9.10)
@@ -129,9 +123,6 @@ importers:
         specifier: ^4.1.11
         version: 4.1.12
     devDependencies:
-      '@tanstack/devtools-event-client':
-        specifier: ^0.3.4
-        version: 0.3.4
       '@tanstack/devtools-vite':
         specifier: ^0.3.11
         version: 0.3.11(vite@7.1.9(@types/node@22.18.8)(jiti@2.6.1)(lightningcss@1.30.2)(terser@5.44.0)(tsx@4.20.6)(yaml@2.8.1))
