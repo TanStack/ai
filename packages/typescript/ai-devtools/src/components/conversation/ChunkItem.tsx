@@ -1,49 +1,74 @@
-import { Component, Show, createSignal } from "solid-js";
-import { useStyles } from "../../styles/use-styles";
-import type { Chunk } from "../../store/ai-store";
-import { formatTimestamp, getChunkTypeColor } from "../utils";
+import { Show, createSignal } from 'solid-js'
+import { useStyles } from '../../styles/use-styles'
+import { formatTimestamp, getChunkTypeColor } from '../utils'
+import type { Component } from 'solid-js'
+import type { Chunk } from '../../store/ai-store'
 
 interface ChunkItemProps {
-  chunk: Chunk;
-  index: number;
-  variant?: "small" | "large";
+  chunk: Chunk
+  index: number
+  variant?: 'small' | 'large'
 }
 
 export const ChunkItem: Component<ChunkItemProps> = (props) => {
-  const styles = useStyles();
-  const [showRaw, setShowRaw] = createSignal(false);
-  const isLarge = () => props.variant === "large";
-  const chunkCount = () => props.chunk.chunkCount || 1;
+  const styles = useStyles()
+  const [showRaw, setShowRaw] = createSignal(false)
+  const isLarge = () => props.variant === 'large'
+  const chunkCount = () => props.chunk.chunkCount || 1
 
   return (
-    <div class={isLarge() ? styles().conversationDetails.chunkItemLarge : styles().conversationDetails.chunkItem}>
+    <div
+      class={
+        isLarge()
+          ? styles().conversationDetails.chunkItemLarge
+          : styles().conversationDetails.chunkItem
+      }
+    >
       {/* Chunk Header */}
-      <div class={isLarge() ? styles().conversationDetails.chunkHeaderLarge : styles().conversationDetails.chunkHeader}>
+      <div
+        class={
+          isLarge()
+            ? styles().conversationDetails.chunkHeaderLarge
+            : styles().conversationDetails.chunkHeader
+        }
+      >
         {/* Chunk Number */}
         <div
-          class={isLarge() ? styles().conversationDetails.chunkNumberLarge : styles().conversationDetails.chunkNumber}
+          class={
+            isLarge()
+              ? styles().conversationDetails.chunkNumberLarge
+              : styles().conversationDetails.chunkNumber
+          }
         >
           #{props.index + 1}
           <Show when={chunkCount() > 1}>
-            <span style={{ "margin-left": "4px", opacity: 0.7 }}>({chunkCount()} chunks)</span>
+            <span style={{ 'margin-left': '4px', opacity: 0.7 }}>
+              ({chunkCount()} chunks)
+            </span>
           </Show>
         </div>
 
         {/* Type Badge */}
         <div
           class={
-            isLarge() ? styles().conversationDetails.chunkTypeBadgeLarge : styles().conversationDetails.chunkTypeBadge
+            isLarge()
+              ? styles().conversationDetails.chunkTypeBadgeLarge
+              : styles().conversationDetails.chunkTypeBadge
           }
         >
           <div
             class={
-              isLarge() ? styles().conversationDetails.chunkTypeDotLarge : styles().conversationDetails.chunkTypeDot
+              isLarge()
+                ? styles().conversationDetails.chunkTypeDotLarge
+                : styles().conversationDetails.chunkTypeDot
             }
             style={{ background: getChunkTypeColor(props.chunk.type) }}
           />
           <div
             class={
-              isLarge() ? styles().conversationDetails.chunkTypeLabelLarge : styles().conversationDetails.chunkTypeLabel
+              isLarge()
+                ? styles().conversationDetails.chunkTypeLabelLarge
+                : styles().conversationDetails.chunkTypeLabel
             }
           >
             {props.chunk.type}
@@ -54,7 +79,9 @@ export const ChunkItem: Component<ChunkItemProps> = (props) => {
         <Show when={props.chunk.toolName}>
           <div
             class={
-              isLarge() ? styles().conversationDetails.chunkToolBadgeLarge : styles().conversationDetails.chunkToolBadge
+              isLarge()
+                ? styles().conversationDetails.chunkToolBadgeLarge
+                : styles().conversationDetails.chunkToolBadge
             }
           >
             🔧 {props.chunk.toolName}
@@ -64,7 +91,9 @@ export const ChunkItem: Component<ChunkItemProps> = (props) => {
         {/* Timestamp */}
         <div
           class={
-            isLarge() ? styles().conversationDetails.chunkTimestampLarge : styles().conversationDetails.chunkTimestamp
+            isLarge()
+              ? styles().conversationDetails.chunkTimestampLarge
+              : styles().conversationDetails.chunkTimestamp
           }
         >
           {formatTimestamp(props.chunk.timestamp)}
@@ -74,15 +103,17 @@ export const ChunkItem: Component<ChunkItemProps> = (props) => {
         <button
           onClick={() => setShowRaw(!showRaw())}
           class={`${
-            isLarge() ? styles().conversationDetails.rawJsonButtonLarge : styles().conversationDetails.rawJsonButton
+            isLarge()
+              ? styles().conversationDetails.rawJsonButtonLarge
+              : styles().conversationDetails.rawJsonButton
           } ${
             showRaw()
               ? styles().conversationDetails.rawJsonButtonActive
               : styles().conversationDetails.rawJsonButtonInactive
           }`}
-          title={showRaw() ? "Show formatted" : "Show raw JSON"}
+          title={showRaw() ? 'Show formatted' : 'Show raw JSON'}
         >
-          {"{}"}
+          {'{}'}
         </button>
       </div>
 
@@ -91,7 +122,9 @@ export const ChunkItem: Component<ChunkItemProps> = (props) => {
         <Show when={props.chunk.content || props.chunk.delta}>
           <div
             class={
-              isLarge() ? styles().conversationDetails.chunkContentLarge : styles().conversationDetails.chunkContent
+              isLarge()
+                ? styles().conversationDetails.chunkContentLarge
+                : styles().conversationDetails.chunkContent
             }
           >
             {props.chunk.content}
@@ -99,22 +132,35 @@ export const ChunkItem: Component<ChunkItemProps> = (props) => {
         </Show>
         <Show when={props.chunk.error}>
           <div
-            class={isLarge() ? styles().conversationDetails.chunkErrorLarge : styles().conversationDetails.chunkError}
+            class={
+              isLarge()
+                ? styles().conversationDetails.chunkErrorLarge
+                : styles().conversationDetails.chunkError
+            }
           >
             ❌ {props.chunk.error}
           </div>
         </Show>
         <Show when={props.chunk.finishReason}>
           <div
-            class={isLarge() ? styles().conversationDetails.chunkFinishLarge : styles().conversationDetails.chunkFinish}
+            class={
+              isLarge()
+                ? styles().conversationDetails.chunkFinishLarge
+                : styles().conversationDetails.chunkFinish
+            }
           >
-            ✓ {isLarge() ? `Finish: ${props.chunk.finishReason}` : props.chunk.finishReason}
+            ✓{' '}
+            {isLarge()
+              ? `Finish: ${props.chunk.finishReason}`
+              : props.chunk.finishReason}
           </div>
         </Show>
-        <Show when={props.chunk.type === "approval"}>
+        <Show when={props.chunk.type === 'approval'}>
           <div
             class={
-              isLarge() ? styles().conversationDetails.chunkApprovalLarge : styles().conversationDetails.chunkApproval
+              isLarge()
+                ? styles().conversationDetails.chunkApprovalLarge
+                : styles().conversationDetails.chunkApproval
             }
           >
             <div
@@ -143,10 +189,16 @@ export const ChunkItem: Component<ChunkItemProps> = (props) => {
 
       {/* Raw JSON View */}
       <Show when={showRaw()}>
-        <div class={isLarge() ? styles().conversationDetails.rawJsonLarge : styles().conversationDetails.rawJson}>
+        <div
+          class={
+            isLarge()
+              ? styles().conversationDetails.rawJsonLarge
+              : styles().conversationDetails.rawJson
+          }
+        >
           {JSON.stringify(props.chunk, null, 2)}
         </div>
       </Show>
     </div>
-  );
-};
+  )
+}

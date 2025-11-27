@@ -16,65 +16,65 @@ const ai = new AI({
   tools: {
     // ← Define all tools here!
     get_weather: {
-      type: "function" as const,
+      type: 'function' as const,
       function: {
-        name: "get_weather",
-        description: "Get weather for a location",
+        name: 'get_weather',
+        description: 'Get weather for a location',
         parameters: {
-          type: "object",
+          type: 'object',
           properties: {
-            location: { type: "string" },
+            location: { type: 'string' },
           },
-          required: ["location"],
+          required: ['location'],
         },
       },
       execute: async (args: { location: string }) => {
-        return JSON.stringify({ temp: 72, condition: "sunny" });
+        return JSON.stringify({ temp: 72, condition: 'sunny' })
       },
     },
     calculate: {
-      type: "function" as const,
+      type: 'function' as const,
       function: {
-        name: "calculate",
-        description: "Perform calculations",
+        name: 'calculate',
+        description: 'Perform calculations',
         parameters: {
-          type: "object",
+          type: 'object',
           properties: {
-            expression: { type: "string" },
+            expression: { type: 'string' },
           },
-          required: ["expression"],
+          required: ['expression'],
         },
       },
       execute: async (args: { expression: string }) => {
-        return JSON.stringify({ result: eval(args.expression) });
+        return JSON.stringify({ result: eval(args.expression) })
       },
     },
   },
-});
+})
 ```
 
 ### 2. Reference Tools by Name (Type-Safe!)
 
 ```typescript
 const result = await ai.chat({
-  adapter: "openai",
-  model: "gpt-4",
-  messages: [{ role: "user", content: "What's the weather in SF?" }],
-  tools: ["get_weather"], // ← Type-safe! Autocomplete works!
-  toolChoice: "auto",
-});
+  adapter: 'openai',
+  model: 'gpt-4',
+  messages: [{ role: 'user', content: "What's the weather in SF?" }],
+  tools: ['get_weather'], // ← Type-safe! Autocomplete works!
+  toolChoice: 'auto',
+})
 ```
 
 ### 3. Use Multiple Tools
 
 ```typescript
 const result = await ai.chat({
-  adapter: "openai",
-  model: "gpt-4",
-  messages: [{ role: "user", content: "Weather in NYC and calculate 5*20" }],
-  tools: ["get_weather", "calculate"], // ← Both tools!
-  toolChoice: "auto",
-});
+  adapter: 'openai',
+  model: 'gpt-4',
+  messages: [{ role: 'user', content: 'Weather in NYC and calculate 5*20' }],
+  tools: ['get_weather', 'calculate'], // ← Both tools!
+  toolChoice: 'auto',
+})
 ```
 
 ## Type Safety
@@ -85,10 +85,10 @@ const result = await ai.chat({
 
 ```typescript
 // ✅ Valid
-tools: ["get_weather", "calculate"];
+tools: ['get_weather', 'calculate']
 
 // ❌ TypeScript Error
-tools: ["invalid_tool"];
+tools: ['invalid_tool']
 ```
 
 ## Benefits vs Old API

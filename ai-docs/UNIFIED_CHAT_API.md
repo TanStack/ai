@@ -27,31 +27,31 @@ The chat API provides two methods for different use cases:
 ```typescript
 // For non-streaming
 const result = await ai.chat({
-  adapter: "openai",
-  model: "gpt-4",
-  messages: [{ role: "user", content: "Hello" }],
-  as: "promise",
-});
+  adapter: 'openai',
+  model: 'gpt-4',
+  messages: [{ role: 'user', content: 'Hello' }],
+  as: 'promise',
+})
 
 // For streaming
 const stream = ai.chat({
-  adapter: "openai",
-  model: "gpt-4",
-  messages: [{ role: "user", content: "Hello" }],
-  as: "stream",
-});
+  adapter: 'openai',
+  model: 'gpt-4',
+  messages: [{ role: 'user', content: 'Hello' }],
+  as: 'stream',
+})
 for await (const chunk of stream) {
-  console.log(chunk);
+  console.log(chunk)
 }
 
 // For HTTP response
 const response = ai.chat({
-  adapter: "openai",
-  model: "gpt-4",
-  messages: [{ role: "user", content: "Hello" }],
-  as: "response",
-});
-return response;
+  adapter: 'openai',
+  model: 'gpt-4',
+  messages: [{ role: 'user', content: 'Hello' }],
+  as: 'response',
+})
+return response
 ```
 
 ### After (Separate Methods)
@@ -59,30 +59,30 @@ return response;
 ```typescript
 // For non-streaming - use chatCompletion()
 const result = await ai.chatCompletion({
-  adapter: "openai",
-  model: "gpt-4",
-  messages: [{ role: "user", content: "Hello" }],
-});
+  adapter: 'openai',
+  model: 'gpt-4',
+  messages: [{ role: 'user', content: 'Hello' }],
+})
 
 // For streaming - use chat()
 const stream = ai.chat({
-  adapter: "openai",
-  model: "gpt-4",
-  messages: [{ role: "user", content: "Hello" }],
-});
+  adapter: 'openai',
+  model: 'gpt-4',
+  messages: [{ role: 'user', content: 'Hello' }],
+})
 for await (const chunk of stream) {
-  console.log(chunk);
+  console.log(chunk)
 }
 
 // For HTTP response - use chat() + toStreamResponse()
-import { toStreamResponse } from "@tanstack/ai";
+import { toStreamResponse } from '@tanstack/ai'
 
 const stream = ai.chat({
-  adapter: "openai",
-  model: "gpt-4",
-  messages: [{ role: "user", content: "Hello" }],
-});
-return toStreamResponse(stream);
+  adapter: 'openai',
+  model: 'gpt-4',
+  messages: [{ role: 'user', content: 'Hello' }],
+})
+return toStreamResponse(stream)
 ```
 
 ## Usage Examples
@@ -93,17 +93,17 @@ Standard non-streaming chat completion:
 
 ```typescript
 const result = await ai.chatCompletion({
-  adapter: "openai",
-  model: "gpt-4",
+  adapter: 'openai',
+  model: 'gpt-4',
   messages: [
-    { role: "system", content: "You are a helpful assistant." },
-    { role: "user", content: "What is TypeScript?" },
+    { role: 'system', content: 'You are a helpful assistant.' },
+    { role: 'user', content: 'What is TypeScript?' },
   ],
   temperature: 0.7,
-});
+})
 
-console.log(result.content);
-console.log(`Tokens used: ${result.usage.totalTokens}`);
+console.log(result.content)
+console.log(`Tokens used: ${result.usage.totalTokens}`)
 ```
 
 ### 2. Stream Mode (chat)
@@ -112,23 +112,23 @@ Streaming with automatic tool execution loop:
 
 ```typescript
 const stream = ai.chat({
-  adapter: "openai",
-  model: "gpt-4",
-  messages: [{ role: "user", content: "Write a story" }],
+  adapter: 'openai',
+  model: 'gpt-4',
+  messages: [{ role: 'user', content: 'Write a story' }],
   tools: [weatherTool], // Optional: tools are auto-executed
   agentLoopStrategy: maxIterations(5), // Optional: control loop
-});
+})
 
 for await (const chunk of stream) {
-  if (chunk.type === "content") {
-    process.stdout.write(chunk.delta); // Stream text response
-  } else if (chunk.type === "tool_call") {
-    console.log(`→ Calling tool: ${chunk.toolCall.function.name}`);
-  } else if (chunk.type === "tool_result") {
-    console.log(`✓ Tool result: ${chunk.content}`);
-  } else if (chunk.type === "done") {
-    console.log(`\nFinished: ${chunk.finishReason}`);
-    console.log(`Tokens: ${chunk.usage?.totalTokens}`);
+  if (chunk.type === 'content') {
+    process.stdout.write(chunk.delta) // Stream text response
+  } else if (chunk.type === 'tool_call') {
+    console.log(`→ Calling tool: ${chunk.toolCall.function.name}`)
+  } else if (chunk.type === 'tool_result') {
+    console.log(`✓ Tool result: ${chunk.content}`)
+  } else if (chunk.type === 'done') {
+    console.log(`\nFinished: ${chunk.finishReason}`)
+    console.log(`Tokens: ${chunk.usage?.totalTokens}`)
   }
 }
 ```
@@ -146,22 +146,22 @@ for await (const chunk of stream) {
 Perfect for API endpoints:
 
 ```typescript
-import { toStreamResponse } from "@tanstack/ai";
+import { toStreamResponse } from '@tanstack/ai'
 
 // TanStack Start API Route
 export const POST = async ({ request }: { request: Request }) => {
-  const { messages } = await request.json();
+  const { messages } = await request.json()
 
   const stream = ai.chat({
-    adapter: "openai",
-    model: "gpt-4o",
+    adapter: 'openai',
+    model: 'gpt-4o',
     messages,
     temperature: 0.7,
-  });
+  })
 
   // Convert stream to Response with SSE headers
-  return toStreamResponse(stream);
-};
+  return toStreamResponse(stream)
+}
 ```
 
 ## With Fallbacks
@@ -171,31 +171,31 @@ Both methods support fallbacks:
 ```typescript
 // Promise mode with fallbacks
 const result = await ai.chatCompletion({
-  adapter: "openai",
-  model: "gpt-4",
-  messages: [{ role: "user", content: "Hello" }],
+  adapter: 'openai',
+  model: 'gpt-4',
+  messages: [{ role: 'user', content: 'Hello' }],
   fallbacks: [
-    { adapter: "anthropic", model: "claude-3-sonnet-20240229" },
-    { adapter: "ollama", model: "llama2" },
+    { adapter: 'anthropic', model: 'claude-3-sonnet-20240229' },
+    { adapter: 'ollama', model: 'llama2' },
   ],
-});
+})
 
 // Stream mode with fallbacks
 const stream = ai.chat({
-  adapter: "openai",
-  model: "gpt-4",
-  messages: [{ role: "user", content: "Hello" }],
-  fallbacks: [{ adapter: "anthropic", model: "claude-3-sonnet-20240229" }],
-});
+  adapter: 'openai',
+  model: 'gpt-4',
+  messages: [{ role: 'user', content: 'Hello' }],
+  fallbacks: [{ adapter: 'anthropic', model: 'claude-3-sonnet-20240229' }],
+})
 
 // HTTP response with fallbacks (seamless failover in HTTP streaming!)
 const stream = ai.chat({
-  adapter: "openai",
-  model: "gpt-4",
-  messages: [{ role: "user", content: "Hello" }],
-  fallbacks: [{ adapter: "ollama", model: "llama2" }],
-});
-return toStreamResponse(stream);
+  adapter: 'openai',
+  model: 'gpt-4',
+  messages: [{ role: 'user', content: 'Hello' }],
+  fallbacks: [{ adapter: 'ollama', model: 'llama2' }],
+})
+return toStreamResponse(stream)
 ```
 
 ## Tool Execution with Automatic Loop
@@ -205,47 +205,47 @@ return toStreamResponse(stream);
 ```typescript
 const tools = [
   {
-    type: "function" as const,
+    type: 'function' as const,
     function: {
-      name: "get_weather",
-      description: "Get weather for a location",
+      name: 'get_weather',
+      description: 'Get weather for a location',
       parameters: {
-        type: "object",
+        type: 'object',
         properties: {
-          location: { type: "string" },
+          location: { type: 'string' },
         },
-        required: ["location"],
+        required: ['location'],
       },
     },
     execute: async (args: { location: string }) => {
       // This function is automatically called by the SDK
-      const weather = await fetchWeatherAPI(args.location);
-      return JSON.stringify(weather);
+      const weather = await fetchWeatherAPI(args.location)
+      return JSON.stringify(weather)
     },
   },
-];
+]
 
 // Streaming chat with automatic tool execution
 const stream = ai.chat({
-  adapter: "openai",
-  model: "gpt-4",
-  messages: [{ role: "user", content: "What's the weather in SF?" }],
+  adapter: 'openai',
+  model: 'gpt-4',
+  messages: [{ role: 'user', content: "What's the weather in SF?" }],
   tools, // Tools with execute functions are auto-executed
-  toolChoice: "auto",
+  toolChoice: 'auto',
   agentLoopStrategy: maxIterations(5), // Control loop behavior
-});
+})
 
 for await (const chunk of stream) {
-  if (chunk.type === "content") {
-    process.stdout.write(chunk.delta); // Stream text response
-  } else if (chunk.type === "tool_call") {
+  if (chunk.type === 'content') {
+    process.stdout.write(chunk.delta) // Stream text response
+  } else if (chunk.type === 'tool_call') {
     // Model decided to call a tool - SDK will execute it automatically
-    console.log(`→ Calling: ${chunk.toolCall.function.name}`);
-  } else if (chunk.type === "tool_result") {
+    console.log(`→ Calling: ${chunk.toolCall.function.name}`)
+  } else if (chunk.type === 'tool_result') {
     // SDK executed the tool and got a result
-    console.log(`✓ Result: ${chunk.content}`);
-  } else if (chunk.type === "done") {
-    console.log(`Finished: ${chunk.finishReason}`);
+    console.log(`✓ Result: ${chunk.content}`)
+  } else if (chunk.type === 'done') {
+    console.log(`Finished: ${chunk.finishReason}`)
   }
 }
 ```
@@ -279,16 +279,16 @@ The `chatCompletion()` method does NOT execute tools - it returns the model's re
 ```typescript
 // chatCompletion does not execute tools
 const result = await ai.chatCompletion({
-  adapter: "openai",
-  model: "gpt-4",
-  messages: [{ role: "user", content: "What's the weather in SF?" }],
+  adapter: 'openai',
+  model: 'gpt-4',
+  messages: [{ role: 'user', content: "What's the weather in SF?" }],
   tools,
-});
+})
 
 // If model wanted to call a tool, result.toolCalls will contain the calls
 // but they won't be executed. This is useful if you want manual control.
 if (result.toolCalls) {
-  console.log("Model wants to call:", result.toolCalls);
+  console.log('Model wants to call:', result.toolCalls)
   // You would execute manually and call chatCompletion again
 }
 ```
@@ -300,13 +300,13 @@ TypeScript automatically infers the correct return type:
 ```typescript
 // Type: Promise<ChatCompletionResult>
 const promise = ai.chatCompletion({
-  adapter: "openai",
-  model: "gpt-4",
+  adapter: 'openai',
+  model: 'gpt-4',
   messages: [],
-});
+})
 
 // Type: AsyncIterable<StreamChunk>
-const stream = ai.chat({ adapter: "openai", model: "gpt-4", messages: [] });
+const stream = ai.chat({ adapter: 'openai', model: 'gpt-4', messages: [] })
 ```
 
 ## Benefits
@@ -321,56 +321,56 @@ const stream = ai.chat({ adapter: "openai", model: "gpt-4", messages: [] });
 ## Real-World Example: TanStack Start API
 
 ```typescript
-import { createAPIFileRoute } from "@tanstack/start/api";
-import { ai } from "~/lib/ai-client";
-import { toStreamResponse } from "@tanstack/ai";
+import { createAPIFileRoute } from '@tanstack/start/api'
+import { ai } from '~/lib/ai-client'
+import { toStreamResponse } from '@tanstack/ai'
 
-export const Route = createAPIFileRoute("/api/chat")({
+export const Route = createAPIFileRoute('/api/chat')({
   POST: async ({ request }) => {
-    const { messages, tools } = await request.json();
+    const { messages, tools } = await request.json()
 
     const stream = ai.chat({
-      adapter: "openAi",
-      model: "gpt-4o",
+      adapter: 'openAi',
+      model: 'gpt-4o',
       messages,
       tools,
-      toolChoice: "auto",
+      toolChoice: 'auto',
       maxIterations: 5,
       temperature: 0.7,
-      fallbacks: [{ adapter: "ollama", model: "llama2" }],
-    });
+      fallbacks: [{ adapter: 'ollama', model: 'llama2' }],
+    })
 
-    return toStreamResponse(stream);
+    return toStreamResponse(stream)
   },
-});
+})
 ```
 
 Client-side consumption:
 
 ```typescript
-const response = await fetch("/api/chat", {
-  method: "POST",
+const response = await fetch('/api/chat', {
+  method: 'POST',
   body: JSON.stringify({ messages, tools }),
-});
+})
 
-const reader = response.body!.getReader();
-const decoder = new TextDecoder();
+const reader = response.body!.getReader()
+const decoder = new TextDecoder()
 
 while (true) {
-  const { done, value } = await reader.read();
-  if (done) break;
+  const { done, value } = await reader.read()
+  if (done) break
 
-  const text = decoder.decode(value);
-  const lines = text.split("\n\n");
+  const text = decoder.decode(value)
+  const lines = text.split('\n\n')
 
   for (const line of lines) {
-    if (line.startsWith("data: ")) {
-      const data = line.slice(6);
-      if (data === "[DONE]") continue;
+    if (line.startsWith('data: ')) {
+      const data = line.slice(6)
+      if (data === '[DONE]') continue
 
-      const chunk = JSON.parse(data);
-      if (chunk.type === "content") {
-        console.log(chunk.delta); // Stream content to UI
+      const chunk = JSON.parse(data)
+      if (chunk.type === 'content') {
+        console.log(chunk.delta) // Stream content to UI
       }
     }
   }

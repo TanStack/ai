@@ -1,5 +1,9 @@
-import type { AIAdapter, ChatCompletionOptions, StreamChunk } from "@tanstack/ai";
-import { stubLLM } from "./stub-llm";
+import type {
+  AIAdapter,
+  ChatCompletionOptions,
+  StreamChunk,
+} from '@tanstack/ai'
+import { stubLLM } from './stub-llm'
 
 /**
  * Stub adapter for testing without using real LLM tokens
@@ -18,11 +22,12 @@ export function stubAdapter(): AIAdapter<
   any
 > {
   return {
-    name: "stub",
-    async *chatStream(options: ChatCompletionOptions): AsyncIterable<StreamChunk> {
+    name: 'stub',
+    async *chatStream(
+      options: ChatCompletionOptions,
+    ): AsyncIterable<StreamChunk> {
       // Use stub LLM instead of real API
-      yield* stubLLM(options.messages);
+      yield* stubLLM(options.messages)
     },
-  } as any;
+  } as any
 }
-

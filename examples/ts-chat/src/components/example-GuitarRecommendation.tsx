@@ -1,12 +1,12 @@
-import { useNavigate } from "@tanstack/react-router";
+import { useNavigate } from '@tanstack/react-router'
 
-import guitars from "../data/example-guitars";
+import guitars from '../data/example-guitars'
 
 export default function GuitarRecommendation({ id }: { id: string }) {
-  const navigate = useNavigate();
-  const guitar = guitars.find((guitar) => guitar.id === +id);
+  const navigate = useNavigate()
+  const guitar = guitars.find((guitar) => guitar.id === +id)
   if (!guitar) {
-    return null;
+    return null
   }
   return (
     <div className="my-4 rounded-lg overflow-hidden border border-orange-500/20 bg-gray-800/50">
@@ -29,9 +29,9 @@ export default function GuitarRecommendation({ id }: { id: string }) {
           <button
             onClick={() => {
               navigate({
-                to: "/example/guitars/$guitarId",
+                to: '/example/guitars/$guitarId',
                 params: { guitarId: guitar.id.toString() },
-              });
+              })
             }}
             className="bg-linear-to-r from-orange-500 to-red-600 text-white px-4 py-1.5 rounded-lg text-sm hover:opacity-90 transition-opacity"
           >
@@ -40,5 +40,5 @@ export default function GuitarRecommendation({ id }: { id: string }) {
         </div>
       </div>
     </div>
-  );
+  )
 }

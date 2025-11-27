@@ -1,6 +1,7 @@
 # Tool Registry API
 
 > **🔄 Automatic Tool Execution Loop:** The `chat()` method automatically executes tools in a loop. When the model decides to call a tool, the SDK:
+>
 > 1. Executes the tool's `execute` function
 > 2. Emits `tool_result` chunks with the result
 > 3. Adds tool results to messages automatically
@@ -21,56 +22,56 @@ The Tool Registry API allows you to define tools once in the AI constructor and 
 ✅ **Type-Safe Tool Names** - TypeScript autocomplete and validation  
 ✅ **Better Organization** - Centralized tool management  
 ✅ **No Duplication** - Reuse tools across different chats  
-✅ **Runtime Validation** - Errors if referencing non-existent tools  
+✅ **Runtime Validation** - Errors if referencing non-existent tools
 
 ## Basic Usage
 
 ### 1. Define Tools Registry
 
 ```typescript
-import { AI } from "@ts-poc/ai";
-import { OpenAIAdapter } from "@ts-poc/ai-openai";
+import { AI } from '@ts-poc/ai'
+import { OpenAIAdapter } from '@ts-poc/ai-openai'
 
 // Define all your tools in a registry
 const tools = {
   get_weather: {
-    type: "function" as const,
+    type: 'function' as const,
     function: {
-      name: "get_weather",
-      description: "Get current weather for a location",
+      name: 'get_weather',
+      description: 'Get current weather for a location',
       parameters: {
-        type: "object",
+        type: 'object',
         properties: {
-          location: { type: "string", description: "City name" },
+          location: { type: 'string', description: 'City name' },
         },
-        required: ["location"],
+        required: ['location'],
       },
     },
     execute: async (args: { location: string }) => {
       // Your implementation
-      return JSON.stringify({ temp: 72, condition: "sunny" });
+      return JSON.stringify({ temp: 72, condition: 'sunny' })
     },
   },
-  
+
   calculate: {
-    type: "function" as const,
+    type: 'function' as const,
     function: {
-      name: "calculate",
-      description: "Perform mathematical calculations",
+      name: 'calculate',
+      description: 'Perform mathematical calculations',
       parameters: {
-        type: "object",
+        type: 'object',
         properties: {
-          expression: { type: "string" },
+          expression: { type: 'string' },
         },
-        required: ["expression"],
+        required: ['expression'],
       },
     },
     execute: async (args: { expression: string }) => {
-      const result = eval(args.expression); // Use safe math parser in production!
-      return JSON.stringify({ result });
+      const result = eval(args.expression) // Use safe math parser in production!
+      return JSON.stringify({ result })
     },
   },
-} as const; // ← Important: use "as const" for type safety!
+} as const // ← Important: use "as const" for type safety!
 ```
 
 ### 2. Initialize AI with Tools
@@ -83,7 +84,7 @@ const ai = new AI({
     }),
   },
   tools, // ← Register tools here!
-});
+})
 ```
 
 ### 3. Use Tools by Name (Type-Safe!)
@@ -91,37 +92,33 @@ const ai = new AI({
 ```typescript
 // Use specific tools
 const result = await ai.chat({
-  adapter: "openai",
-  model: "gpt-4",
-  messages: [
-    { role: "user", content: "What's the weather in SF?" },
-  ],
-  tools: ["get_weather"], // ← Type-safe! Only registered tool names
-  toolChoice: "auto",
+  adapter: 'openai',
+  model: 'gpt-4',
+  messages: [{ role: 'user', content: "What's the weather in SF?" }],
+  tools: ['get_weather'], // ← Type-safe! Only registered tool names
+  toolChoice: 'auto',
   maxIterations: 5,
-});
+})
 
 // Use multiple tools
 const result2 = await ai.chat({
-  adapter: "openai",
-  model: "gpt-4",
+  adapter: 'openai',
+  model: 'gpt-4',
   messages: [
-    { role: "user", content: "What's the weather in SF and what's 2+2?" },
+    { role: 'user', content: "What's the weather in SF and what's 2+2?" },
   ],
-  tools: ["get_weather", "calculate"], // ← Multiple tools, all type-safe!
-  toolChoice: "auto",
+  tools: ['get_weather', 'calculate'], // ← Multiple tools, all type-safe!
+  toolChoice: 'auto',
   maxIterations: 5,
-});
+})
 
 // No tools (regular chat)
 const result3 = await ai.chat({
-  adapter: "openai",
-  model: "gpt-4",
-  messages: [
-    { role: "user", content: "Tell me a joke" },
-  ],
+  adapter: 'openai',
+  model: 'gpt-4',
+  messages: [{ role: 'user', content: 'Tell me a joke' }],
   // No tools specified
-});
+})
 ```
 
 ## Type Safety
@@ -238,15 +235,15 @@ const result = await ai.chat({
 ### Get Tool by Name
 
 ```typescript
-const weatherTool = ai.getTool("get_weather");
-console.log(weatherTool.function.description);
+const weatherTool = ai.getTool('get_weather')
+console.log(weatherTool.function.description)
 ```
 
 ### List All Tool Names
 
 ```typescript
-const toolNames = ai.toolNames;
-console.log("Available tools:", toolNames);
+const toolNames = ai.toolNames
+console.log('Available tools:', toolNames)
 // Output: ["get_weather", "calculate"]
 ```
 
@@ -254,10 +251,10 @@ console.log("Available tools:", toolNames);
 
 ```typescript
 try {
-  const tool = ai.getTool("some_tool");
-  console.log("Tool exists!");
+  const tool = ai.getTool('some_tool')
+  console.log('Tool exists!')
 } catch (error) {
-  console.log("Tool not found");
+  console.log('Tool not found')
 }
 ```
 
@@ -267,23 +264,23 @@ Tools work seamlessly with streaming:
 
 ```typescript
 const stream = ai.chat({
-  adapter: "openai",
-  model: "gpt-4",
+  adapter: 'openai',
+  model: 'gpt-4',
   messages: [
-    { role: "user", content: "What's the weather in Paris and what's 100*5?" },
+    { role: 'user', content: "What's the weather in Paris and what's 100*5?" },
   ],
-  tools: ["get_weather", "calculate"],
-  toolChoice: "auto",
+  tools: ['get_weather', 'calculate'],
+  toolChoice: 'auto',
   maxIterations: 5,
-});
+})
 
 for await (const chunk of stream) {
-  if (chunk.type === "content") {
-    process.stdout.write(chunk.delta);
-  } else if (chunk.type === "tool_call") {
-    console.log(`\n→ Calling: ${chunk.toolCall.function.name}`);
-  } else if (chunk.type === "done") {
-    console.log("\n✓ Done");
+  if (chunk.type === 'content') {
+    process.stdout.write(chunk.delta)
+  } else if (chunk.type === 'tool_call') {
+    console.log(`\n→ Calling: ${chunk.toolCall.function.name}`)
+  } else if (chunk.type === 'done') {
+    console.log('\n✓ Done')
   }
 }
 ```
@@ -293,24 +290,24 @@ for await (const chunk of stream) {
 Perfect for API endpoints:
 
 ```typescript
-import { toStreamResponse } from "@tanstack/ai";
+import { toStreamResponse } from '@tanstack/ai'
 
-export const Route = createAPIFileRoute("/api/chat")({
+export const Route = createAPIFileRoute('/api/chat')({
   POST: async ({ request }): Promise<Response> => {
-    const { messages } = await request.json();
-    
-    const stream = ai.chat({
-      adapter: "openai",
-      model: "gpt-4o",
-      messages,
-      tools: ["get_weather", "search_database", "send_email"],
-      toolChoice: "auto",
-      maxIterations: 5,
-    });
+    const { messages } = await request.json()
 
-    return toStreamResponse(stream);
-  }
-});
+    const stream = ai.chat({
+      adapter: 'openai',
+      model: 'gpt-4o',
+      messages,
+      tools: ['get_weather', 'search_database', 'send_email'],
+      toolChoice: 'auto',
+      maxIterations: 5,
+    })
+
+    return toStreamResponse(stream)
+  },
+})
 ```
 
 ## Real-World Example: E-commerce Assistant
@@ -318,102 +315,116 @@ export const Route = createAPIFileRoute("/api/chat")({
 ```typescript
 const tools = {
   search_products: {
-    type: "function" as const,
+    type: 'function' as const,
     function: {
-      name: "search_products",
-      description: "Search for products in the catalog",
+      name: 'search_products',
+      description: 'Search for products in the catalog',
       parameters: {
-        type: "object",
+        type: 'object',
         properties: {
-          query: { type: "string" },
-          category: { type: "string" },
-          maxPrice: { type: "number" },
+          query: { type: 'string' },
+          category: { type: 'string' },
+          maxPrice: { type: 'number' },
         },
-        required: ["query"],
+        required: ['query'],
       },
     },
-    execute: async (args: { query: string; category?: string; maxPrice?: number }) => {
-      const results = await db.products.search(args);
-      return JSON.stringify(results);
+    execute: async (args: {
+      query: string
+      category?: string
+      maxPrice?: number
+    }) => {
+      const results = await db.products.search(args)
+      return JSON.stringify(results)
     },
   },
-  
+
   get_product_details: {
-    type: "function" as const,
+    type: 'function' as const,
     function: {
-      name: "get_product_details",
-      description: "Get detailed information about a product",
+      name: 'get_product_details',
+      description: 'Get detailed information about a product',
       parameters: {
-        type: "object",
+        type: 'object',
         properties: {
-          productId: { type: "string" },
+          productId: { type: 'string' },
         },
-        required: ["productId"],
+        required: ['productId'],
       },
     },
     execute: async (args: { productId: string }) => {
-      const product = await db.products.findById(args.productId);
-      return JSON.stringify(product);
+      const product = await db.products.findById(args.productId)
+      return JSON.stringify(product)
     },
   },
-  
+
   check_inventory: {
-    type: "function" as const,
+    type: 'function' as const,
     function: {
-      name: "check_inventory",
-      description: "Check if a product is in stock",
+      name: 'check_inventory',
+      description: 'Check if a product is in stock',
       parameters: {
-        type: "object",
+        type: 'object',
         properties: {
-          productId: { type: "string" },
-          quantity: { type: "number", default: 1 },
+          productId: { type: 'string' },
+          quantity: { type: 'number', default: 1 },
         },
-        required: ["productId"],
+        required: ['productId'],
       },
     },
     execute: async (args: { productId: string; quantity?: number }) => {
-      const available = await inventory.check(args.productId, args.quantity || 1);
-      return JSON.stringify({ available, productId: args.productId });
+      const available = await inventory.check(
+        args.productId,
+        args.quantity || 1,
+      )
+      return JSON.stringify({ available, productId: args.productId })
     },
   },
-  
+
   add_to_cart: {
-    type: "function" as const,
+    type: 'function' as const,
     function: {
-      name: "add_to_cart",
-      description: "Add a product to the shopping cart",
+      name: 'add_to_cart',
+      description: 'Add a product to the shopping cart',
       parameters: {
-        type: "object",
+        type: 'object',
         properties: {
-          productId: { type: "string" },
-          quantity: { type: "number", default: 1 },
+          productId: { type: 'string' },
+          quantity: { type: 'number', default: 1 },
         },
-        required: ["productId"],
+        required: ['productId'],
       },
     },
     execute: async (args: { productId: string; quantity?: number }) => {
-      await cart.add(args.productId, args.quantity || 1);
-      return JSON.stringify({ success: true, productId: args.productId });
+      await cart.add(args.productId, args.quantity || 1)
+      return JSON.stringify({ success: true, productId: args.productId })
     },
   },
-} as const;
+} as const
 
 const ai = new AI({
-  adapters: { openai: new OpenAIAdapter({ apiKey: process.env.OPENAI_API_KEY }) },
+  adapters: {
+    openai: new OpenAIAdapter({ apiKey: process.env.OPENAI_API_KEY }),
+  },
   tools,
-});
+})
 
 // Now any chat can use these tools by name!
 const result = await ai.chat({
-  adapter: "openai",
-  model: "gpt-4",
+  adapter: 'openai',
+  model: 'gpt-4',
   messages: [
-    { role: "user", content: "I'm looking for a red guitar under $500" },
+    { role: 'user', content: "I'm looking for a red guitar under $500" },
   ],
-  tools: ["search_products", "get_product_details", "check_inventory", "add_to_cart"],
-  toolChoice: "auto",
+  tools: [
+    'search_products',
+    'get_product_details',
+    'check_inventory',
+    'add_to_cart',
+  ],
+  toolChoice: 'auto',
   maxIterations: 10,
-});
+})
 ```
 
 ## Advanced: Dynamic Tool Selection
@@ -458,6 +469,6 @@ The Tool Registry API provides:
 ✅ **Centralized Management** - Define once, use everywhere  
 ✅ **Cleaner Code** - Reference by name instead of inline definitions  
 ✅ **Better Reusability** - Share tools across different chats  
-✅ **Runtime Validation** - Catch errors early  
+✅ **Runtime Validation** - Catch errors early
 
 **Migration Path**: Move inline tool definitions to the constructor registry, then reference them by name in your chat calls!

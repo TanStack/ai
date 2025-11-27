@@ -73,12 +73,13 @@ interface ConnectionAdapter {
   connect(
     messages: UIMessage[] | ModelMessage[],
     data?: Record<string, any>,
-    abortSignal?: AbortSignal
-  ): AsyncIterable<StreamChunk>;
+    abortSignal?: AbortSignal,
+  ): AsyncIterable<StreamChunk>
 }
 ```
 
 This design works with:
+
 - Async generators
 - Any object with `[Symbol.asyncIterator]`
 - Fetch API Response bodies (via connection adapters)
@@ -266,8 +267,8 @@ interface ConnectionAdapter {
   connect(
     messages: any[],
     data?: Record<string, any>,
-    abortSignal?: AbortSignal // Abort signal from ChatClient for cancellation
-  ): AsyncIterable<StreamChunk>;
+    abortSignal?: AbortSignal, // Abort signal from ChatClient for cancellation
+  ): AsyncIterable<StreamChunk>
 }
 ```
 
@@ -417,16 +418,16 @@ class MyParser implements StreamParser {
 function createWebSocketAdapter(url: string): ConnectionAdapter {
   return {
     async *connect(messages, data, abortSignal) {
-      const ws = new WebSocket(url);
-      
+      const ws = new WebSocket(url)
+
       if (abortSignal) {
-        abortSignal.addEventListener("abort", () => ws.close());
+        abortSignal.addEventListener('abort', () => ws.close())
       }
-      
+
       // Yield chunks as they arrive
       // ...
     },
-  };
+  }
 }
 ```
 
@@ -435,13 +436,23 @@ function createWebSocketAdapter(url: string): ConnectionAdapter {
 ```typescript
 const processor = new StreamProcessor({
   handlers: {
-    onTextUpdate: (content) => { /* ... */ },
-    onToolCallStart: (idx, id, name) => { /* ... */ },
-    onToolCallDelta: (idx, args) => { /* ... */ },
-    onToolCallComplete: (idx, id, name, args) => { /* ... */ },
-    onStreamEnd: (content, toolCalls) => { /* ... */ },
+    onTextUpdate: (content) => {
+      /* ... */
+    },
+    onToolCallStart: (idx, id, name) => {
+      /* ... */
+    },
+    onToolCallDelta: (idx, args) => {
+      /* ... */
+    },
+    onToolCallComplete: (idx, id, name, args) => {
+      /* ... */
+    },
+    onStreamEnd: (content, toolCalls) => {
+      /* ... */
+    },
   },
-});
+})
 ```
 
 ## Performance Considerations
@@ -578,4 +589,3 @@ StreamParser catches
 ✅ **Performance** - Efficient state management and updates  
 ✅ **Type Safety** - Full TypeScript support  
 ✅ **Developer Experience** - Simple by default, powerful when needed
-

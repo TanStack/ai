@@ -1,17 +1,17 @@
-import type { Tool } from "@tanstack/ai";
-import OpenAI from "openai";
+import type OpenAI from 'openai'
+import type { Tool } from '@tanstack/ai'
 
-
-export type ApplyPatchTool = OpenAI.Responses.ApplyPatchTool;
-
+export type ApplyPatchTool = OpenAI.Responses.ApplyPatchTool
 
 /**
  * Converts a standard Tool to OpenAI ApplyPatchTool format
  */
-export function convertApplyPatchToolToAdapterFormat(_tool: Tool): ApplyPatchTool {
+export function convertApplyPatchToolToAdapterFormat(
+  _tool: Tool,
+): ApplyPatchTool {
   return {
-    type: "apply_patch",
-  };
+    type: 'apply_patch',
+  }
 }
 
 /**
@@ -19,12 +19,12 @@ export function convertApplyPatchToolToAdapterFormat(_tool: Tool): ApplyPatchToo
  */
 export function applyPatchTool(): Tool {
   return {
-    type: "function",
+    type: 'function',
     function: {
-      name: "apply_patch",
-      description: "Apply a patch to modify files",
+      name: 'apply_patch',
+      description: 'Apply a patch to modify files',
       parameters: {},
     },
     metadata: {},
-  };
+  }
 }

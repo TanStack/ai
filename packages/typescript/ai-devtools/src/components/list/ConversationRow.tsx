@@ -1,55 +1,69 @@
-import { Component, Show } from "solid-js";
-import { useStyles } from "../../styles/use-styles";
-import { useAIStore, type Conversation } from "../../store/ai-context";
-import { getStatusColor, getTypeColor } from "../utils";
+import { Show } from 'solid-js'
+import { useStyles } from '../../styles/use-styles'
+import { useAIStore } from '../../store/ai-context'
+import { getStatusColor, getTypeColor } from '../utils'
+import type { Conversation } from '../../store/ai-context'
+import type { Component } from 'solid-js'
 
 interface ConversationRowProps {
-  conversation: Conversation;
+  conversation: Conversation
 }
 
 export const ConversationRow: Component<ConversationRowProps> = (props) => {
-  const { state, selectConversation } = useAIStore();
-  const styles = useStyles();
-  const conv = () => props.conversation;
+  const { state, selectConversation } = useAIStore()
+  const styles = useStyles()
+  const conv = () => props.conversation
 
   const hasToolCalls = () => {
-    return conv().messages.some((msg) => msg.toolCalls && msg.toolCalls.length > 0);
-  };
+    return conv().messages.some(
+      (msg) => msg.toolCalls && msg.toolCalls.length > 0,
+    )
+  }
 
   const countToolCalls = () => {
     return conv().messages.reduce((total, msg) => {
-      return total + (msg.toolCalls?.length || 0);
-    }, 0);
-  };
+      return total + (msg.toolCalls?.length || 0)
+    }, 0)
+  }
 
   // Total raw chunks = sum of all chunkCounts from all chunks
   const totalRawChunks = () => {
-    return conv().chunks.reduce((sum, c) => sum + (c.chunkCount || 1), 0);
-  };
+    return conv().chunks.reduce((sum, c) => sum + (c.chunkCount || 1), 0)
+  }
 
   return (
     <div
-      class={`${styles().utilRow} ${state.activeConversationId === conv().id ? styles().utilRowSelected : ""}`}
+      class={`${styles().utilRow} ${state.activeConversationId === conv().id ? styles().utilRowSelected : ''}`}
       onClick={() => selectConversation(conv().id)}
     >
       <div class={styles().conversationsList.rowContent}>
         <div class={styles().conversationsList.rowInfo}>
-          <div class={styles().conversationsList.typeDot} style={{ background: getTypeColor(conv().type) }} />
+          <div
+            class={styles().conversationsList.typeDot}
+            style={{ background: getTypeColor(conv().type) }}
+          />
           <div class={styles().conversationsList.label}>{conv().label}</div>
           <Show when={hasToolCalls()}>
             <div
               class={styles().conversationsList.toolCallsBadge}
-              title={`${countToolCalls()} tool call${countToolCalls() !== 1 ? "s" : ""}`}
+              title={`${countToolCalls()} tool call${countToolCalls() !== 1 ? 's' : ''}`}
             >
               🔧 {countToolCalls()}
             </div>
           </Show>
         </div>
-        <div class={styles().conversationsList.statusDot} style={{ background: getStatusColor(conv().status) }} />
+        <div
+          class={styles().conversationsList.statusDot}
+          style={{ background: getStatusColor(conv().status) }}
+        />
       </div>
       <div class={styles().conversationsList.stats}>
-        <div class={styles().conversationsList.statItem}>💬 {conv().messages.length}</div>
-        <div class={styles().conversationsList.statItem}>📦 {totalRawChunks()}</div>
+        <div class={styles().conversationsList.statItem}>
+          💬 {conv().messages.length}
+        </div>
+        <div class={styles().conversationsList.statItem}>
+          📦 {totalRawChunks()}
+        </div>
         <Show when={conv().usage}>
           <div
             class={styles().conversationsList.tokensBadge}
@@ -59,9 +73,11 @@ export const ConversationRow: Component<ConversationRowProps> = (props) => {
           </div>
         </Show>
       </div>
-      <Show when={conv().status === "active"}>
-        <div class={styles().conversationsList.loadingIndicator}>⟳ Loading...</div>
+      <Show when={conv().status === 'active'}>
+        <div class={styles().conversationsList.loadingIndicator}>
+          ⟳ Loading...
+        </div>
       </Show>
     </div>
-  );
-};
+  )
+}

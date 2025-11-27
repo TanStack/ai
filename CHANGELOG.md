@@ -24,40 +24,6 @@ npm install @tanstack/ai-client
 
 **See:** [Package Documentation](packages/typescript/ai-client/README.md)
 
-#### @tanstack/ai-fallback
-
-**New Package:** Automatic fallback wrapper for trying multiple adapters in sequence.
-
-**Installation:**
-
-```bash
-npm install @tanstack/ai-fallback
-```
-
-**Features:**
-
-- ✅ Try multiple adapters until one succeeds
-- ✅ Rate limit protection
-- ✅ Cost optimization (try cheap/local first)
-- ✅ Error handling with callbacks
-- ✅ Works with all AI methods
-
-**Usage:**
-
-```typescript
-import { ai } from "@tanstack/ai";
-import { fallback, withModel } from "@tanstack/ai-fallback";
-
-const openAI = withModel(ai(openai()), { model: "gpt-4" });
-const anthropicAI = withModel(ai(anthropic()), {
-  model: "claude-3-5-sonnet-20241022",
-});
-
-const aiWithFallback = fallback([openAI, anthropicAI]);
-```
-
-**See:** [Package Documentation](packages/typescript/ai-fallback/README.md)
-
 #### @tanstack/ai-react-ui
 
 **New Package:** Pre-built React UI components for chat interfaces.
@@ -204,12 +170,12 @@ import {
   ChatClient,
   fetchServerSentEvents,
   PunctuationStrategy,
-} from "@tanstack/ai-client";
+} from '@tanstack/ai-client'
 
 const client = new ChatClient({
-  connection: fetchServerSentEvents("/api/chat"),
+  connection: fetchServerSentEvents('/api/chat'),
   chunkingStrategy: new PunctuationStrategy(),
-});
+})
 ```
 
 **See:** [Stream Processing Quick Start](packages/typescript/ai-client/docs/STREAM_QUICKSTART.md)
@@ -221,13 +187,13 @@ const client = new ChatClient({
 **API:**
 
 ```typescript
-import { ChatClient, fetchServerSentEvents } from "@tanstack/ai-client";
+import { ChatClient, fetchServerSentEvents } from '@tanstack/ai-client'
 
 const client = new ChatClient({
-  connection: fetchServerSentEvents("/api/chat", {
-    headers: { Authorization: "Bearer token" },
+  connection: fetchServerSentEvents('/api/chat', {
+    headers: { Authorization: 'Bearer token' },
   }),
-});
+})
 ```
 
 **Benefits:**
@@ -245,29 +211,29 @@ const client = new ChatClient({
 **With React:**
 
 ```typescript
-import { useChat, fetchServerSentEvents } from "@tanstack/ai-react";
+import { useChat, fetchServerSentEvents } from '@tanstack/ai-react'
 
 const chat = useChat({
-  connection: fetchServerSentEvents("/api/chat"),
-});
+  connection: fetchServerSentEvents('/api/chat'),
+})
 ```
 
 **Create Custom Adapters:**
 
 ```typescript
-import type { ConnectionAdapter } from "@tanstack/ai-client";
+import type { ConnectionAdapter } from '@tanstack/ai-client'
 
 const wsAdapter: ConnectionAdapter = {
   async *connect(messages, data) {
-    const ws = new WebSocket("wss://api.example.com");
+    const ws = new WebSocket('wss://api.example.com')
     // ... WebSocket logic
   },
   abort() {
-    ws.close();
+    ws.close()
   },
-};
+}
 
-const chat = useChat({ connection: wsAdapter });
+const chat = useChat({ connection: wsAdapter })
 ```
 
 **Documentation:**
@@ -383,16 +349,16 @@ return toStreamResponse(stream); // Exported from @tanstack/ai
 The `chat()` method now includes an automatic tool execution loop:
 
 ```typescript
-import { chat, tool, maxIterations } from "@tanstack/ai";
-import { openai } from "@tanstack/ai-openai";
+import { chat, tool, maxIterations } from '@tanstack/ai'
+import { openai } from '@tanstack/ai-openai'
 
 const stream = chat({
   adapter: openai(),
-  model: "gpt-4o",
-  messages: [{ role: "user", content: "What's the weather in Paris?" }],
+  model: 'gpt-4o',
+  messages: [{ role: 'user', content: "What's the weather in Paris?" }],
   tools: [weatherTool],
   agentLoopStrategy: maxIterations(5), // Optional: control loop
-});
+})
 
 // SDK automatically:
 // 1. Detects tool calls from model
@@ -416,20 +382,20 @@ import {
   maxIterations,
   untilFinishReason,
   combineStrategies,
-} from "@tanstack/ai";
+} from '@tanstack/ai'
 
 // Built-in strategies
-agentLoopStrategy: maxIterations(10);
-agentLoopStrategy: untilFinishReason(["stop", "length"]);
+agentLoopStrategy: maxIterations(10)
+agentLoopStrategy: untilFinishReason(['stop', 'length'])
 agentLoopStrategy: combineStrategies([
   maxIterations(10),
   ({ messages }) => messages.length < 100,
-]);
+])
 
 // Custom strategy
 agentLoopStrategy: ({ iterationCount, messages, finishReason }) => {
-  return iterationCount < 10 && messages.length < 50;
-};
+  return iterationCount < 10 && messages.length < 50
+}
 ```
 
 #### 3. ToolCallManager Class
@@ -437,46 +403,46 @@ agentLoopStrategy: ({ iterationCount, messages, finishReason }) => {
 Tool execution logic extracted into a testable class:
 
 ```typescript
-import { ToolCallManager } from "@tanstack/ai";
+import { ToolCallManager } from '@tanstack/ai'
 
-const manager = new ToolCallManager(tools);
+const manager = new ToolCallManager(tools)
 
 // Accumulate tool calls from stream
-manager.addToolCallChunk(chunk);
+manager.addToolCallChunk(chunk)
 
 // Check if tools need execution
 if (manager.hasToolCalls()) {
-  const results = yield * manager.executeTools(doneChunk);
+  const results = yield * manager.executeTools(doneChunk)
 }
 
 // Clear for next iteration
-manager.clear();
+manager.clear()
 ```
 
 #### 4. Explicit Server-Sent Events Helpers
 
 ```typescript
-import { toStreamResponse, toServerSentEventsStream } from "@tanstack/ai";
+import { toStreamResponse, toServerSentEventsStream } from '@tanstack/ai'
 
 // Full HTTP Response with SSE headers
-return toStreamResponse(stream);
+return toStreamResponse(stream)
 
 // Just the ReadableStream (for custom response)
 return new Response(toServerSentEventsStream(stream), {
-  headers: { "X-Custom": "value" },
-});
+  headers: { 'X-Custom': 'value' },
+})
 ```
 
 ### New Exports
 
 ```typescript
 // From @tanstack/ai
-export { chat, chatCompletion }; // Separate streaming and promise methods
-export { toStreamResponse, toServerSentEventsStream }; // HTTP helpers
-export { ToolCallManager }; // Tool execution manager
-export { maxIterations, untilFinishReason, combineStrategies }; // Loop strategies
-export type { AgentLoopStrategy, AgentLoopState }; // Strategy types
-export type { ToolResultStreamChunk }; // New chunk type
+export { chat, chatCompletion } // Separate streaming and promise methods
+export { toStreamResponse, toServerSentEventsStream } // HTTP helpers
+export { ToolCallManager } // Tool execution manager
+export { maxIterations, untilFinishReason, combineStrategies } // Loop strategies
+export type { AgentLoopStrategy, AgentLoopState } // Strategy types
+export type { ToolResultStreamChunk } // New chunk type
 ```
 
 ### Migration Guide
@@ -531,13 +497,11 @@ cd packages/ai && pnpm test
 ### Breaking Changes Summary
 
 1. **`chat()` method**:
-
    - No longer accepts `as` option
    - Now streaming-only
    - Includes automatic tool execution loop
 
 2. **New `chatCompletion()` method**:
-
    - Promise-based
    - Supports structured output
    - No automatic tool execution

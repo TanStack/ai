@@ -1,4 +1,4 @@
-export { ChatClient } from "./chat-client";
+export { ChatClient } from './chat-client'
 export type {
   // Core message types
   UIMessage,
@@ -11,7 +11,7 @@ export type {
   // Client configuration types
   ChatClientOptions,
   ChatRequestBody,
-} from "./types";
+} from './types'
 export {
   fetchServerSentEvents,
   fetchHttpStream,
@@ -19,7 +19,7 @@ export {
   rpcStream,
   type ConnectionAdapter,
   type FetchConnectionOptions,
-} from "./connection-adapters";
+} from './connection-adapters'
 export {
   StreamProcessor,
   ImmediateStrategy,
@@ -35,15 +35,15 @@ export {
   type StreamProcessorOptions,
   type StreamProcessorHandlers,
   type InternalToolCallState,
-} from "./stream/index";
+} from './stream/index'
 export {
   uiMessageToModelMessages,
   modelMessageToUIMessage,
   modelMessagesToUIMessages,
-} from "./message-converters";
+} from './message-converters'
 export {
   parsePartialJSON,
   PartialJSONParser,
   defaultJSONParser,
   type JSONParser,
-} from "./loose-json-parser";
+} from './loose-json-parser'

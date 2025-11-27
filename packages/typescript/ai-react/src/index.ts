@@ -1,10 +1,10 @@
-export { useChat } from "./use-chat";
+export { useChat } from './use-chat'
 export type {
   UseChatOptions,
   UseChatReturn,
   UIMessage,
   ChatRequestBody,
-} from "./types";
+} from './types'
 
 // Re-export connection adapters from ai-client for convenience
 export {
@@ -13,4 +13,4 @@ export {
   stream,
   type ConnectionAdapter,
   type FetchConnectionOptions,
-} from "@tanstack/ai-client";
+} from '@tanstack/ai-client'

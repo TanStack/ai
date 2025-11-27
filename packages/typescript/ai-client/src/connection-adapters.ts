@@ -1,24 +1,24 @@
-import type { StreamChunk, ModelMessage } from "@tanstack/ai";
-import type { UIMessage } from "./types";
-import { convertMessagesToModelMessages } from "./message-converters";
+import { convertMessagesToModelMessages } from './message-converters'
+import type { ModelMessage, StreamChunk } from '@tanstack/ai'
+import type { UIMessage } from './types'
 
 /**
  * Merge custom headers into request headers
  */
 function mergeHeaders(
-  customHeaders?: Record<string, string> | Headers
+  customHeaders?: Record<string, string> | Headers,
 ): Record<string, string> {
   if (!customHeaders) {
-    return {};
+    return {}
   }
   if (customHeaders instanceof Headers) {
-    const result: Record<string, string> = {};
+    const result: Record<string, string> = {}
     customHeaders.forEach((value, key) => {
-      result[key] = value;
-    });
-    return result;
+      result[key] = value
+    })
+    return result
   }
-  return customHeaders;
+  return customHeaders
 }
 
 /**
@@ -26,40 +26,41 @@ function mergeHeaders(
  */
 async function* readStreamLines(
   reader: ReadableStreamDefaultReader<Uint8Array>,
-  abortSignal?: AbortSignal
+  abortSignal?: AbortSignal,
 ): AsyncGenerator<string> {
   try {
-    const decoder = new TextDecoder();
-    let buffer = "";
+    const decoder = new TextDecoder()
+    let buffer = ''
 
+    // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
     while (true) {
       // Check if aborted before reading
       if (abortSignal?.aborted) {
-        break;
+        break
       }
 
-      const { done, value } = await reader.read();
-      if (done) break;
+      const { done, value } = await reader.read()
+      if (done) break
 
-      buffer += decoder.decode(value, { stream: true });
-      const lines = buffer.split("\n");
+      buffer += decoder.decode(value, { stream: true })
+      const lines = buffer.split('\n')
 
       // Keep the last incomplete line in the buffer
-      buffer = lines.pop() || "";
+      buffer = lines.pop() || ''
 
       for (const line of lines) {
         if (line.trim()) {
-          yield line;
+          yield line
         }
       }
     }
 
     // Process any remaining data in the buffer
     if (buffer.trim()) {
-      yield buffer;
+      yield buffer
     }
   } finally {
-    reader.releaseLock();
+    reader.releaseLock()
   }
 }
 
@@ -73,20 +74,20 @@ export interface ConnectionAdapter {
    * @param data - Additional data to send
    * @param abortSignal - Optional abort signal for request cancellation
    */
-  connect(
-    messages: UIMessage[] | ModelMessage[],
+  connect: (
+    messages: Array<UIMessage> | Array<ModelMessage>,
     data?: Record<string, any>,
-    abortSignal?: AbortSignal
-  ): AsyncIterable<StreamChunk>;
+    abortSignal?: AbortSignal,
+  ) => AsyncIterable<StreamChunk>
 }
 
 /**
  * Options for fetch-based connection adapters
  */
 export interface FetchConnectionOptions {
-  headers?: Record<string, string> | Headers;
-  credentials?: RequestCredentials;
-  signal?: AbortSignal;
+  headers?: Record<string, string> | Headers
+  credentials?: RequestCredentials
+  signal?: AbortSignal
 }
 
 /**
@@ -107,53 +108,53 @@ export interface FetchConnectionOptions {
  */
 export function fetchServerSentEvents(
   url: string,
-  options: FetchConnectionOptions = {}
+  options: FetchConnectionOptions = {},
 ): ConnectionAdapter {
   return {
     async *connect(messages, data, abortSignal) {
-      const modelMessages = convertMessagesToModelMessages(messages);
+      const modelMessages = convertMessagesToModelMessages(messages)
 
       const requestHeaders: Record<string, string> = {
-        "Content-Type": "application/json",
+        'Content-Type': 'application/json',
         ...mergeHeaders(options.headers),
-      };
+      }
 
       const response = await fetch(url, {
-        method: "POST",
+        method: 'POST',
         headers: requestHeaders,
         body: JSON.stringify({ messages: modelMessages, data }),
-        credentials: options.credentials || "same-origin",
+        credentials: options.credentials || 'same-origin',
         signal: abortSignal || options.signal,
-      });
+      })
 
       if (!response.ok) {
         throw new Error(
-          `HTTP error! status: ${response.status} ${response.statusText}`
-        );
+          `HTTP error! status: ${response.status} ${response.statusText}`,
+        )
       }
 
       // Parse Server-Sent Events format
-      const reader = response.body?.getReader();
+      const reader = response.body?.getReader()
       if (!reader) {
-        throw new Error("Response body is not readable");
+        throw new Error('Response body is not readable')
       }
 
       for await (const line of readStreamLines(reader, abortSignal)) {
         // Handle Server-Sent Events format
-        const data = line.startsWith("data: ") ? line.slice(6) : line;
+        const data = line.startsWith('data: ') ? line.slice(6) : line
 
-        if (data === "[DONE]") continue;
+        if (data === '[DONE]') continue
 
         try {
-          const parsed: StreamChunk = JSON.parse(data);
-          yield parsed;
+          const parsed: StreamChunk = JSON.parse(data)
+          yield parsed
         } catch (parseError) {
           // Skip non-JSON lines or malformed chunks
-          console.warn("Failed to parse SSE chunk:", data);
+          console.warn('Failed to parse SSE chunk:', data)
         }
       }
     },
-  };
+  }
 }
 
 /**
@@ -174,48 +175,48 @@ export function fetchServerSentEvents(
  */
 export function fetchHttpStream(
   url: string,
-  options: FetchConnectionOptions = {}
+  options: FetchConnectionOptions = {},
 ): ConnectionAdapter {
   return {
     async *connect(messages, data, abortSignal) {
       // Convert UIMessages to ModelMessages if needed
-      const modelMessages = convertMessagesToModelMessages(messages);
+      const modelMessages = convertMessagesToModelMessages(messages)
 
       const requestHeaders: Record<string, string> = {
-        "Content-Type": "application/json",
+        'Content-Type': 'application/json',
         ...mergeHeaders(options.headers),
-      };
+      }
 
       const response = await fetch(url, {
-        method: "POST",
+        method: 'POST',
         headers: requestHeaders,
         body: JSON.stringify({ messages: modelMessages, data }),
-        credentials: options.credentials || "same-origin",
+        credentials: options.credentials || 'same-origin',
         signal: abortSignal || options.signal,
-      });
+      })
 
       if (!response.ok) {
         throw new Error(
-          `HTTP error! status: ${response.status} ${response.statusText}`
-        );
+          `HTTP error! status: ${response.status} ${response.statusText}`,
+        )
       }
 
       // Parse raw HTTP stream (newline-delimited JSON)
-      const reader = response.body?.getReader();
+      const reader = response.body?.getReader()
       if (!reader) {
-        throw new Error("Response body is not readable");
+        throw new Error('Response body is not readable')
       }
 
       for await (const line of readStreamLines(reader, abortSignal)) {
         try {
-          const parsed: StreamChunk = JSON.parse(line);
-          yield parsed;
+          const parsed: StreamChunk = JSON.parse(line)
+          yield parsed
         } catch (parseError) {
-          console.warn("Failed to parse HTTP stream chunk:", line);
+          console.warn('Failed to parse HTTP stream chunk:', line)
         }
       }
     },
-  };
+  }
 }
 
 /**
@@ -234,16 +235,16 @@ export function fetchHttpStream(
  */
 export function stream(
   streamFactory: (
-    messages: ModelMessage[],
-    data?: Record<string, any>
-  ) => AsyncIterable<StreamChunk>
+    messages: Array<ModelMessage>,
+    data?: Record<string, any>,
+  ) => AsyncIterable<StreamChunk>,
 ): ConnectionAdapter {
   return {
     async *connect(messages, data) {
-      const modelMessages = convertMessagesToModelMessages(messages);
-      yield* streamFactory(modelMessages, data);
+      const modelMessages = convertMessagesToModelMessages(messages)
+      yield* streamFactory(modelMessages, data)
     },
-  };
+  }
 }
 
 /**
@@ -264,7 +265,7 @@ export function stream(
  */
 export function rpcStream(
   rpcCall: (
-    messages: ModelMessage[],
+    messages: Array<ModelMessage>,
     data?: Record<string, any>
   ) => AsyncIterable<StreamChunk>
 ): ConnectionAdapter {

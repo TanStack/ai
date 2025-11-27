@@ -1,10 +1,8 @@
 {
   "extends": "../../../tsconfig.json",
   "compilerOptions": {
-    "outDir": "dist",
-    "rootDir": "src"
+    "outDir": "dist"
   },
-  "include": ["src/**/*.ts", "src/**/*.tsx"],
-  "exclude": ["node_modules", "dist", "**/*.config.ts"],
-  "references": [{ "path": "../ai" }]
+  "include": ["vite.config.ts", "./src"],
+  "exclude": ["node_modules", "dist", "**/*.config.ts"]
 }

@@ -45,26 +45,31 @@ cp env.example .env
 4. **Run the server:**
 
 **For Anthropic:**
+
 ```bash
 php -S 0.0.0.0:8000 -t public public/anthropic-server.php
 ```
 
 Or using Composer:
+
 ```bash
 composer start-anthropic
 ```
 
 **For OpenAI:**
+
 ```bash
 php -S 0.0.0.0:8001 -t public public/openai-server.php
 ```
 
 Or using Composer:
+
 ```bash
 composer start-openai
 ```
 
 The servers will start on:
+
 - Anthropic: `http://localhost:8000`
 - OpenAI: `http://localhost:8001`
 
@@ -108,13 +113,13 @@ Health check endpoint.
 This server is compatible with the TypeScript TanStack AI client:
 
 ```typescript
-import { ChatClient, fetchServerSentEvents } from "@tanstack/ai-client";
+import { ChatClient, fetchServerSentEvents } from '@tanstack/ai-client'
 
 const client = new ChatClient({
-  connection: fetchServerSentEvents("http://localhost:8000/chat"),
-});
+  connection: fetchServerSentEvents('http://localhost:8000/chat'),
+})
 
-await client.sendMessage("Hello!");
+await client.sendMessage('Hello!')
 ```
 
 ## StreamChunk Format
@@ -131,6 +136,7 @@ See `packages/typescript/ai/src/types.ts` for the full TypeScript type definitio
 ## Supported Providers
 
 The converter currently supports:
+
 - ✅ **Anthropic** (Claude models) - fully implemented
 - ✅ **OpenAI** (GPT models) - fully implemented
 
@@ -169,6 +175,7 @@ The converter package is installed as a local dependency, making it easy to deve
 To use the local `tanstack/ai` package during development:
 
 1. Add to `composer.json`:
+
 ```json
 {
   "repositories": [
@@ -184,7 +191,7 @@ To use the local `tanstack/ai` package during development:
 ```
 
 2. Run:
+
 ```bash
 composer update tanstack/ai
 ```
-

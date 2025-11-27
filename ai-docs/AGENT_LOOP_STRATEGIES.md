@@ -85,22 +85,22 @@ const simple: AgentLoopStrategy = ({ iterationCount }) => {
 };
 
 // Advanced: based on multiple conditions
-const advanced: AgentLoopStrategy = ({ 
-  iterationCount, 
-  messages, 
-  finishReason 
+const advanced: AgentLoopStrategy = ({
+  iterationCount,
+  messages,
+  finishReason
 }) => {
   // Stop after 10 iterations
   if (iterationCount >= 10) return false;
-  
+
   // Stop if conversation gets too long
   if (messages.length > 50) return false;
-  
+
   // Stop on specific finish reasons
   if (finishReason === "length" || finishReason === "content_filter") {
     return false;
   }
-  
+
   // Otherwise continue
   return true;
 };
@@ -122,17 +122,18 @@ The state object passed to your strategy function:
 ```typescript
 export interface AgentLoopState {
   /** Current iteration count (0-indexed) */
-  iterationCount: number;
-  
+  iterationCount: number
+
   /** Current messages in the conversation */
-  messages: Message[];
-  
+  messages: Message[]
+
   /** Finish reason from the last model response */
-  finishReason: string | null;
+  finishReason: string | null
 }
 ```
 
 **Finish reasons:**
+
 - `"stop"` - Model finished naturally
 - `"length"` - Hit token limit
 - `"tool_calls"` - Model called tools (triggers tool execution)
@@ -146,8 +147,8 @@ export interface AgentLoopState {
 ```typescript
 // Stop after 3 iterations OR 20 messages
 const conservative: AgentLoopStrategy = ({ iterationCount, messages }) => {
-  return iterationCount < 3 && messages.length < 20;
-};
+  return iterationCount < 3 && messages.length < 20
+}
 ```
 
 ### Budget Control
@@ -155,12 +156,12 @@ const conservative: AgentLoopStrategy = ({ iterationCount, messages }) => {
 ```typescript
 // Stop based on estimated token usage
 const budgetAware: AgentLoopStrategy = ({ messages }) => {
-  const estimatedTokens = messages.reduce((sum, m) => 
-    sum + (m.content?.length || 0) / 4, // Rough estimate
-    0
-  );
-  return estimatedTokens < 10000; // Stop before 10k tokens
-};
+  const estimatedTokens = messages.reduce(
+    (sum, m) => sum + (m.content?.length || 0) / 4, // Rough estimate
+    0,
+  )
+  return estimatedTokens < 10000 // Stop before 10k tokens
+}
 ```
 
 ### Conditional Execution
@@ -168,13 +169,15 @@ const budgetAware: AgentLoopStrategy = ({ messages }) => {
 ```typescript
 // Different limits for different scenarios
 const conditional: AgentLoopStrategy = ({ iterationCount, messages }) => {
-  const hasToolCalls = messages.some(m => m.toolCalls && m.toolCalls.length > 0);
-  
+  const hasToolCalls = messages.some(
+    (m) => m.toolCalls && m.toolCalls.length > 0,
+  )
+
   // Allow more iterations if tools are being used
-  const maxIters = hasToolCalls ? 10 : 3;
-  
-  return iterationCount < maxIters;
-};
+  const maxIters = hasToolCalls ? 10 : 3
+
+  return iterationCount < maxIters
+}
 ```
 
 ### Debug Mode
@@ -182,9 +185,9 @@ const conditional: AgentLoopStrategy = ({ iterationCount, messages }) => {
 ```typescript
 // Stop early during development
 const debug: AgentLoopStrategy = ({ iterationCount }) => {
-  console.log(`Iteration ${iterationCount + 1}`);
-  return iterationCount < 2; // Only 2 iterations in debug mode
-};
+  console.log(`Iteration ${iterationCount + 1}`)
+  return iterationCount < 2 // Only 2 iterations in debug mode
+}
 ```
 
 ## Pattern: Strategy Factory
@@ -251,30 +254,42 @@ Both are equivalent. The `maxIterations` number is automatically converted to `a
 ### Unit Test Example
 
 ```typescript
-import { describe, it, expect } from "vitest";
-import type { AgentLoopStrategy, AgentLoopState } from "@tanstack/ai";
+import { describe, it, expect } from 'vitest'
+import type { AgentLoopStrategy, AgentLoopState } from '@tanstack/ai'
 
-describe("Custom Strategy", () => {
-  it("should stop after 3 iterations", () => {
+describe('Custom Strategy', () => {
+  it('should stop after 3 iterations', () => {
     const strategy: AgentLoopStrategy = ({ iterationCount }) => {
-      return iterationCount < 3;
-    };
-    
-    expect(strategy({ iterationCount: 0, messages: [], finishReason: null })).toBe(true);
-    expect(strategy({ iterationCount: 2, messages: [], finishReason: null })).toBe(true);
-    expect(strategy({ iterationCount: 3, messages: [], finishReason: null })).toBe(false);
-  });
-  
-  it("should stop when finish reason is length", () => {
+      return iterationCount < 3
+    }
+
+    expect(
+      strategy({ iterationCount: 0, messages: [], finishReason: null }),
+    ).toBe(true)
+    expect(
+      strategy({ iterationCount: 2, messages: [], finishReason: null }),
+    ).toBe(true)
+    expect(
+      strategy({ iterationCount: 3, messages: [], finishReason: null }),
+    ).toBe(false)
+  })
+
+  it('should stop when finish reason is length', () => {
     const strategy: AgentLoopStrategy = ({ finishReason }) => {
-      return finishReason !== "length";
-    };
-    
-    expect(strategy({ iterationCount: 0, messages: [], finishReason: null })).toBe(true);
-    expect(strategy({ iterationCount: 0, messages: [], finishReason: "stop" })).toBe(true);
-    expect(strategy({ iterationCount: 0, messages: [], finishReason: "length" })).toBe(false);
-  });
-});
+      return finishReason !== 'length'
+    }
+
+    expect(
+      strategy({ iterationCount: 0, messages: [], finishReason: null }),
+    ).toBe(true)
+    expect(
+      strategy({ iterationCount: 0, messages: [], finishReason: 'stop' }),
+    ).toBe(true)
+    expect(
+      strategy({ iterationCount: 0, messages: [], finishReason: 'length' }),
+    ).toBe(false)
+  })
+})
 ```
 
 ## Best Practices
@@ -323,34 +338,37 @@ const stream = chat({
 // Aggressive limits during development
 const devStrategy: AgentLoopStrategy = ({ iterationCount, messages }) => {
   if (iterationCount >= 2) {
-    console.warn("DEV: Stopping at 2 iterations");
-    return false;
+    console.warn('DEV: Stopping at 2 iterations')
+    return false
   }
   if (messages.length >= 10) {
-    console.warn("DEV: Stopping at 10 messages");
-    return false;
+    console.warn('DEV: Stopping at 10 messages')
+    return false
   }
-  return true;
-};
+  return true
+}
 ```
 
 ## Migration from maxIterations
 
 Before:
+
 ```typescript
 chat({ ..., maxIterations: 10 })
 ```
 
 After:
+
 ```typescript
 import { maxIterations } from "@tanstack/ai";
 chat({ ..., agentLoopStrategy: maxIterations(10) })
 ```
 
 Or create a custom strategy:
+
 ```typescript
-chat({ 
-  ..., 
+chat({
+  ...,
   agentLoopStrategy: ({ iterationCount, messages }) => {
     return iterationCount < 10 && messages.length < 50;
   }
@@ -362,4 +380,3 @@ chat({
 - [Tool Execution Loop Documentation](TOOL_EXECUTION_LOOP.md)
 - [Unified Chat API](UNIFIED_CHAT_API.md)
 - [Quick Reference](UNIFIED_CHAT_QUICK_REFERENCE.md)
-
