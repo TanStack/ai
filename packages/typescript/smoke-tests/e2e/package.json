@@ -13,9 +13,6 @@
     "postinstall": "npx playwright install --with-deps chromium"
   },
   "dependencies": {
-    "@ai-sdk/openai": "^2.0.52",
-    "@ai-sdk/provider": "^2.0.0",
-    "@ai-sdk/provider-utils": "^3.0.12",
     "@tailwindcss/vite": "^4.0.6",
     "@tanstack/ai": "workspace:*",
     "@tanstack/ai-client": "workspace:*",

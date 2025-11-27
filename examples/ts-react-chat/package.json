@@ -9,9 +9,6 @@
     "test": "exit 0"
   },
   "dependencies": {
-    "@ai-sdk/openai": "^2.0.73",
-    "@ai-sdk/provider": "^2.0.0",
-    "@ai-sdk/provider-utils": "^3.0.17",
     "@tailwindcss/vite": "^4.1.17",
     "@tanstack/ai": "workspace:*",
     "@tanstack/ai-anthropic": "workspace:*",
