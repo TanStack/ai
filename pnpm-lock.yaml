@@ -533,6 +533,37 @@ importers:
         specifier: ^7.2.4
         version: 7.2.4(@types/node@24.10.1)(jiti@2.6.1)(lightningcss@1.30.2)(terser@5.44.0)(tsx@4.20.6)(yaml@2.8.1)
 
+  packages/typescript/smoke-tests/adapters:
+    dependencies:
+      '@tanstack/ai':
+        specifier: workspace:*
+        version: link:../../ai
+      '@tanstack/ai-anthropic':
+        specifier: workspace:*
+        version: link:../../ai-anthropic
+      '@tanstack/ai-gemini':
+        specifier: workspace:*
+        version: link:../../ai-gemini
+      '@tanstack/ai-ollama':
+        specifier: workspace:*
+        version: link:../../ai-ollama
+      '@tanstack/ai-openai':
+        specifier: workspace:*
+        version: link:../../ai-openai
+    devDependencies:
+      '@types/node':
+        specifier: ^24.10.1
+        version: 24.10.1
+      dotenv:
+        specifier: ^17.2.3
+        version: 17.2.3
+      tsx:
+        specifier: ^4.20.6
+        version: 4.20.6
+      typescript:
+        specifier: 5.9.3
+        version: 5.9.3
+
   packages/typescript/solid-ai-devtools:
     dependencies:
       '@tanstack/ai-devtools-core':

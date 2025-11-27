@@ -1,10 +1,31 @@
 {
   "$schema": "https://unpkg.com/knip@5/schema.json",
-  "ignoreDependencies": ["@faker-js/faker"],
+  "ignoreDependencies": ["@faker-js/faker", "@playwright/test"],
   "ignoreWorkspaces": ["examples/**"],
+  "ignore": [
+    "packages/typescript/ai-openai/live-tests/**",
+    "packages/typescript/ai-openai/src/**/*.test.ts",
+    "packages/typescript/ai-openai/src/audio/audio-provider-options.ts",
+    "packages/typescript/ai-openai/src/audio/transcribe-provider-options.ts",
+    "packages/typescript/ai-openai/src/image/image-provider-options.ts",
+    "packages/typescript/smoke-tests/adapters/src/**",
+    "packages/typescript/smoke-tests/e2e/playwright.config.ts",
+    "packages/typescript/smoke-tests/e2e/src/**",
+    "packages/typescript/smoke-tests/e2e/vite.config.ts"
+  ],
+  "ignoreExportsUsedInFile": true,
   "workspaces": {
     "packages/react-ai": {
       "ignore": []
+    },
+    "packages/typescript/ai-anthropic": {
+      "ignore": ["src/tools/**"]
+    },
+    "packages/typescript/ai-gemini": {
+      "ignore": ["src/tools/**"]
+    },
+    "packages/typescript/ai-openai": {
+      "ignore": ["src/tools/**"]
     }
   }
 }
