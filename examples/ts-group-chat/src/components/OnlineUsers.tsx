@@ -1,6 +1,6 @@
 interface OnlineUsersProps {
-  onlineUsers: string[];
-  currentUsername: string | null;
+  onlineUsers: string[]
+  currentUsername: string | null
 }
 
 export function OnlineUsers({
@@ -23,8 +23,8 @@ export function OnlineUsers({
               key={username}
               className={`flex items-center p-2 rounded ${
                 username === currentUsername
-                  ? "bg-blue-800 border border-blue-600"
-                  : "bg-gray-700"
+                  ? 'bg-blue-800 border border-blue-600'
+                  : 'bg-gray-700'
               }`}
             >
               <div className="w-2 h-2 bg-green-400 rounded-full mr-3"></div>
@@ -43,5 +43,5 @@ export function OnlineUsers({
         Real-time presence via Cap'n Web RPC
       </div>
     </div>
-  );
+  )
 }

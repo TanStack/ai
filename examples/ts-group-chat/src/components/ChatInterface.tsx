@@ -1,14 +1,14 @@
-import { useState } from "react";
-import type { ChatMessage } from "../hooks/useChatMessages";
-import type { ClaudeQueueStatus } from "../hooks/useClaude";
+import { useState } from 'react'
+import type { ChatMessage } from '../hooks/useChatMessages'
+import type { ClaudeQueueStatus } from '../hooks/useClaude'
 
 interface ChatInterfaceProps {
-  messages: ChatMessage[];
+  messages: ChatMessage[]
   onSendMessage: (
-    message: string
-  ) => Promise<{ success: boolean; error?: string }>;
-  username: string | null;
-  claudeQueueStatus?: ClaudeQueueStatus;
+    message: string,
+  ) => Promise<{ success: boolean; error?: string }>
+  username: string | null
+  claudeQueueStatus?: ClaudeQueueStatus
 }
 
 export function ChatInterface({
@@ -17,54 +17,54 @@ export function ChatInterface({
   username,
   claudeQueueStatus,
 }: ChatInterfaceProps) {
-  const [messageText, setMessageText] = useState("");
-  const [isSending, setIsSending] = useState(false);
+  const [messageText, setMessageText] = useState('')
+  const [isSending, setIsSending] = useState(false)
 
   const handleSendMessage = async (e: React.FormEvent) => {
-    e.preventDefault();
+    e.preventDefault()
 
-    if (!messageText.trim() || !username || isSending) return;
+    if (!messageText.trim() || !username || isSending) return
 
-    setIsSending(true);
+    setIsSending(true)
     try {
-      const result = await onSendMessage(messageText);
+      const result = await onSendMessage(messageText)
       if (result.success) {
-        setMessageText("");
+        setMessageText('')
       } else {
-        console.error("Failed to send message:", result.error);
+        console.error('Failed to send message:', result.error)
       }
     } catch (error) {
-      console.error("Error sending message:", error);
+      console.error('Error sending message:', error)
     } finally {
-      setIsSending(false);
+      setIsSending(false)
     }
-  };
+  }
 
   const formatTime = (timestamp: string) => {
     return new Date(timestamp).toLocaleTimeString([], {
-      hour: "2-digit",
-      minute: "2-digit",
-    });
-  };
+      hour: '2-digit',
+      minute: '2-digit',
+    })
+  }
 
   const getMessageStyle = (msg: ChatMessage) => {
     switch (msg.type) {
-      case "user_joined":
-        return "text-green-400 italic";
-      case "user_left":
-        return "text-red-400 italic";
-      case "welcome":
-        return "text-blue-400 italic";
+      case 'user_joined':
+        return 'text-green-400 italic'
+      case 'user_left':
+        return 'text-red-400 italic'
+      case 'welcome':
+        return 'text-blue-400 italic'
       default:
-        return "text-white";
+        return 'text-white'
     }
-  };
+  }
 
   // Check if user is in Claude queue
   const userQueuePosition =
-    claudeQueueStatus?.queue.indexOf(username || "") ?? -1;
-  const isUserWaitingForClaude = userQueuePosition >= 0;
-  const isClaudeResponding = claudeQueueStatus?.isProcessing || false;
+    claudeQueueStatus?.queue.indexOf(username || '') ?? -1
+  const isUserWaitingForClaude = userQueuePosition >= 0
+  const isClaudeResponding = claudeQueueStatus?.isProcessing || false
 
   return (
     <div className="bg-gray-800 p-6 rounded-lg border border-gray-600 flex-1 flex flex-col min-h-0">
@@ -97,22 +97,22 @@ export function ChatInterface({
             .map((msg) => {
               // Ensure we have proper message data
               if (!msg || !msg.id) {
-                console.warn("Invalid message:", msg);
-                return null;
+                console.warn('Invalid message:', msg)
+                return null
               }
 
-              const isRegularMessage = msg.type === "message" || !msg.type;
+              const isRegularMessage = msg.type === 'message' || !msg.type
               const isOwnMessage =
-                isRegularMessage && msg.username === username && username;
-              const isSystemMessage = msg.type && msg.type !== "message";
-              const isClaudeMessage = msg.username === "Claude";
+                isRegularMessage && msg.username === username && username
+              const isSystemMessage = msg.type && msg.type !== 'message'
+              const isClaudeMessage = msg.username === 'Claude'
 
               if (isSystemMessage) {
                 return (
                   <div key={msg.id} className="flex justify-center my-2">
                     <div
                       className={`px-3 py-1 rounded-full text-xs ${getMessageStyle(
-                        msg
+                        msg,
                       )}`}
                     >
                       <span>{msg.message}</span>
@@ -121,7 +121,7 @@ export function ChatInterface({
                       </span>
                     </div>
                   </div>
-                );
+                )
               }
 
               // Claude AI message with special styling
@@ -141,7 +141,7 @@ export function ChatInterface({
                       </div>
                     </div>
                   </div>
-                );
+                )
               }
 
               // Regular chat message
@@ -149,7 +149,7 @@ export function ChatInterface({
                 <div
                   key={msg.id}
                   className={`flex mb-2 ${
-                    isOwnMessage ? "justify-end" : "justify-start"
+                    isOwnMessage ? 'justify-end' : 'justify-start'
                   }`}
                 >
                   <div className="flex flex-col max-w-xs lg:max-w-md">
@@ -161,14 +161,14 @@ export function ChatInterface({
                     <div
                       className={`px-3 py-2 rounded-lg ${
                         isOwnMessage
-                          ? "bg-blue-600 text-white rounded-br-sm"
-                          : "bg-gray-700 text-white rounded-bl-sm"
+                          ? 'bg-blue-600 text-white rounded-br-sm'
+                          : 'bg-gray-700 text-white rounded-bl-sm'
                       }`}
                     >
                       <div className="break-words">{msg.message}</div>
                       <div
                         className={`text-xs mt-1 ${
-                          isOwnMessage ? "text-blue-100" : "text-gray-400"
+                          isOwnMessage ? 'text-blue-100' : 'text-gray-400'
                         }`}
                       >
                         {formatTime(msg.timestamp)}
@@ -176,7 +176,7 @@ export function ChatInterface({
                     </div>
                   </div>
                 </div>
-              );
+              )
             })
             .filter(Boolean)
         )}
@@ -198,7 +198,7 @@ export function ChatInterface({
             disabled={!messageText.trim() || isSending}
             className="bg-blue-600 hover:bg-blue-700 disabled:bg-gray-600 disabled:cursor-not-allowed text-white px-4 py-2 rounded font-medium transition-colors"
           >
-            {isSending ? "Sending..." : "Send"}
+            {isSending ? 'Sending...' : 'Send'}
           </button>
         </form>
       ) : (
@@ -207,5 +207,5 @@ export function ChatInterface({
         </div>
       )}
     </div>
-  );
+  )
 }

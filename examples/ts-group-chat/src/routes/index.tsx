@@ -1,36 +1,35 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
-import { useState, useEffect } from "react";
+import { createFileRoute, Link } from '@tanstack/react-router'
+import { useState, useEffect } from 'react'
 
-import { useChatConnection } from "@/hooks/useChatConnection";
-import { useChatMessages } from "@/hooks/useChatMessages";
-import { useClaude } from "@/hooks/useClaude";
-import { UserSelector } from "@/components/UserSelector";
-import { ChatInterface } from "@/components/ChatInterface";
-import { OnlineUsers } from "@/components/OnlineUsers";
+import { useChatConnection } from '@/hooks/useChatConnection'
+import { useChatMessages } from '@/hooks/useChatMessages'
+import { useClaude } from '@/hooks/useClaude'
+import { UserSelector } from '@/components/UserSelector'
+import { ChatInterface } from '@/components/ChatInterface'
+import { OnlineUsers } from '@/components/OnlineUsers'
 
-export const Route = createFileRoute("/")({
+export const Route = createFileRoute('/')({
   component: ChatApp,
-});
+})
 
 function ChatApp() {
-  const [username, setUsername] = useState("");
+  const [username, setUsername] = useState('')
 
-  const { isConnected, isConnecting, error, api, connect } =
-    useChatConnection();
+  const { isConnected, isConnecting, error, api, connect } = useChatConnection()
 
   const { chatState, sendMessage } = useChatMessages(
     api,
     isConnected,
-    username || null
-  );
+    username || null,
+  )
 
-  const { queueStatus } = useClaude(api, isConnected);
+  const { queueStatus } = useClaude(api, isConnected)
 
   useEffect(() => {
     if (!isConnected && !isConnecting && !error) {
-      connect();
+      connect()
     }
-  }, [isConnected, isConnecting, error, connect]);
+  }, [isConnected, isConnecting, error, connect])
 
   return (
     <div className="h-screen bg-gray-900 text-white flex flex-col overflow-hidden">
@@ -74,5 +73,5 @@ function ChatApp() {
         </div>
       </div>
     </div>
-  );
+  )
 }

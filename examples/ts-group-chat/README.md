@@ -103,12 +103,12 @@ pnpm start
 ```typescript
 // Server-side message broadcasting
 await ChatServer.broadcastToAll({
-  type: "message",
+  type: 'message',
   message: message.message,
   username: message.username,
   timestamp: message.timestamp,
   id: message.id,
-});
+})
 ```
 
 ### 4. **Real-time Updates**
@@ -126,10 +126,10 @@ The WebSocket server is configured in `chat-server/vite-plugin.ts`:
 ```typescript
 // WebSocket endpoint: /api/websocket
 wss.handleUpgrade(request, socket, head, (ws) => {
-  const chatServer = new ChatServer();
-  chatServer.setWebSocket(ws);
-  newWebSocketRpcSession(ws, chatServer);
-});
+  const chatServer = new ChatServer()
+  chatServer.setWebSocket(ws)
+  newWebSocketRpcSession(ws, chatServer)
+})
 ```
 
 ### Message Queue System
@@ -138,11 +138,11 @@ Messages are queued per user to ensure delivery:
 
 ```typescript
 // Each user gets their own message queue
-export const userMessageQueues = new Map<string, Array<any>>();
+export const userMessageQueues = new Map<string, Array<any>>()
 
 // Messages are polled and cleared
-const messages = userMessageQueues.get(username) || [];
-userMessageQueues.set(username, []); // Clear after reading
+const messages = userMessageQueues.get(username) || []
+userMessageQueues.set(username, []) // Clear after reading
 ```
 
 ## 🧪 Testing

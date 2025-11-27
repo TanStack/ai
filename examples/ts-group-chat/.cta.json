@@ -7,7 +7,5 @@
   "git": true,
   "version": 1,
   "framework": "react-cra",
-  "chosenAddOns": [
-    "start"
-  ]
+  "chosenAddOns": ["start"]
 }

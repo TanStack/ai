@@ -1,7 +1,7 @@
 interface UserSelectorProps {
-  username: string;
-  onUsernameChange: (username: string) => void;
-  isConnected: boolean;
+  username: string
+  onUsernameChange: (username: string) => void
+  isConnected: boolean
 }
 
 export function UserSelector({
@@ -10,11 +10,11 @@ export function UserSelector({
   isConnected,
 }: UserSelectorProps) {
   const personas = [
-    { value: "Alice", label: "👩 Alice" },
-    { value: "Bob", label: "👨 Bob" },
-    { value: "Charlie", label: "🧑 Charlie" },
-    { value: "Diana", label: "👩‍🦰 Diana" },
-  ];
+    { value: 'Alice', label: '👩 Alice' },
+    { value: 'Bob', label: '👨 Bob' },
+    { value: 'Charlie', label: '🧑 Charlie' },
+    { value: 'Diana', label: '👩‍🦰 Diana' },
+  ]
 
   if (!isConnected) {
     return (
@@ -24,7 +24,7 @@ export function UserSelector({
           Connecting to chat server...
         </div>
       </div>
-    );
+    )
   }
 
   return (
@@ -57,5 +57,5 @@ export function UserSelector({
         </p>
       )}
     </div>
-  );
+  )
 }

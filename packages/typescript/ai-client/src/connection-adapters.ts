@@ -266,15 +266,15 @@ export function stream(
 export function rpcStream(
   rpcCall: (
     messages: Array<ModelMessage>,
-    data?: Record<string, any>
-  ) => AsyncIterable<StreamChunk>
+    data?: Record<string, any>,
+  ) => AsyncIterable<StreamChunk>,
 ): ConnectionAdapter {
   return {
     async *connect(messages, data) {
-      const modelMessages = convertMessagesToModelMessages(messages);
+      const modelMessages = convertMessagesToModelMessages(messages)
       // Simply yield from the RPC call
       // The RPC layer handles WebSocket transport
-      yield* rpcCall(modelMessages, data);
+      yield* rpcCall(modelMessages, data)
     },
-  };
+  }
 }

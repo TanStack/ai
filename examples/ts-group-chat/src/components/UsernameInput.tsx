@@ -1,9 +1,9 @@
-import { useState } from "react";
+import { useState } from 'react'
 
 interface UsernameInputProps {
-  username: string;
-  onUsernameChange: (username: string) => void;
-  isConnected: boolean;
+  username: string
+  onUsernameChange: (username: string) => void
+  isConnected: boolean
 }
 
 export function UsernameInput({
@@ -11,19 +11,19 @@ export function UsernameInput({
   onUsernameChange,
   isConnected,
 }: UsernameInputProps) {
-  const [tempUsername, setTempUsername] = useState(username);
+  const [tempUsername, setTempUsername] = useState(username)
 
   const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
+    e.preventDefault()
     if (tempUsername.trim()) {
-      onUsernameChange(tempUsername.trim());
+      onUsernameChange(tempUsername.trim())
     }
-  };
+  }
 
   const handleUsernameChange = (value: string) => {
-    setTempUsername(value);
+    setTempUsername(value)
     // Only update username when user finishes typing (on blur or enter)
-  };
+  }
 
   if (!isConnected) {
     return (
@@ -33,7 +33,7 @@ export function UsernameInput({
           Connecting to chat server...
         </div>
       </div>
-    );
+    )
   }
 
   return (
@@ -51,11 +51,11 @@ export function UsernameInput({
           value={tempUsername}
           onChange={(e) => handleUsernameChange(e.target.value)}
           onBlur={(e) => {
-            const value = e.target.value.trim();
+            const value = e.target.value.trim()
             if (value) {
-              onUsernameChange(value);
+              onUsernameChange(value)
             } else {
-              onUsernameChange("");
+              onUsernameChange('')
             }
           }}
           placeholder="Enter your username"
@@ -70,5 +70,5 @@ export function UsernameInput({
         </p>
       )}
     </div>
-  );
+  )
 }
