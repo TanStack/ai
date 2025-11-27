@@ -246,3 +246,35 @@ export function stream(
     },
   }
 }
+
+/**
+ * Create an RPC stream connection adapter (for RPC-based streaming like Cap'n Web RPC)
+ *
+ * @param rpcCall - A function that accepts messages and returns an async iterable of StreamChunks
+ * @returns A connection adapter for RPC streams
+ *
+ * @example
+ * ```typescript
+ * // With Cap'n Web RPC
+ * const connection = rpcStream((messages, data) =>
+ *   api.streamMurfResponse(messages, data)
+ * );
+ *
+ * const client = new ChatClient({ connection });
+ * ```
+ */
+export function rpcStream(
+  rpcCall: (
+    messages: Array<ModelMessage>,
+    data?: Record<string, any>,
+  ) => AsyncIterable<StreamChunk>,
+): ConnectionAdapter {
+  return {
+    async *connect(messages, data) {
+      const modelMessages = convertMessagesToModelMessages(messages)
+      // Simply yield from the RPC call
+      // The RPC layer handles WebSocket transport
+      yield* rpcCall(modelMessages, data)
+    },
+  }
+}
