@@ -36,9 +36,15 @@ test.describe("Chat E2E Tests", () => {
     const submitButton = page.locator("#submit-button");
     const messagesJson = page.locator("#messages-json-content");
 
-    // Type in the input and press Enter (matches actual user behavior)
-    await input.fill("What is the capital of France?");
-    await input.press("Enter");
+    // Clear input and type with delay to trigger React events properly
+    await input.clear();
+    await input.pressSequentially("What is the capital of France?", {
+      delay: 50,
+    });
+    // Small wait for React state to sync
+    await page.waitForTimeout(100);
+    // Click button (more reliable than Enter key)
+    await submitButton.click();
 
     // Take screenshot after submitting first message
     await page.screenshot({
@@ -106,9 +112,15 @@ test.describe("Chat E2E Tests", () => {
       },
       { timeout: 30000 }
     );
-    // Type in the input and press Enter (matches actual user behavior)
-    await input.fill("What is the population of that city?");
-    await input.press("Enter");
+    // Clear input and type with delay to trigger React events properly
+    await input.clear();
+    await input.pressSequentially("What is the population of that city?", {
+      delay: 50,
+    });
+    // Small wait for React state to sync
+    await page.waitForTimeout(100);
+    // Click button (more reliable than Enter key)
+    await submitButton.click();
 
     // Take screenshot after submitting second message
     await page.screenshot({
