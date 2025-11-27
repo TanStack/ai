@@ -26,7 +26,7 @@
     "clean": "premove ./build ./dist",
     "lint:fix": "eslint ./src --fix",
     "test:eslint": "eslint ./src",
-    "test:lib": "vitest ",
+    "test:lib": "vitest run",
     "test:lib:dev": "pnpm test:lib --watch",
     "test:types": "tsc",
     "test:build": "publint --strict",
