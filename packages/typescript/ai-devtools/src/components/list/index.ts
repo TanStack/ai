@@ -1,1 +1,1 @@
-export { ConversationRow } from "./ConversationRow";
+export { ConversationRow } from './ConversationRow'

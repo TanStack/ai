@@ -1,12 +1,8 @@
 {
   "extends": "../../../tsconfig.json",
   "compilerOptions": {
-    "outDir": "dist",
-    "rootDir": ".",
-    "moduleResolution": "bundler",
-    "lib": ["ES2023", "DOM"]
+    "outDir": "dist"
   },
-  "include": ["src/**/*.ts", "tests/**/*.ts"],
-  "exclude": ["node_modules", "dist", "**/*.config.ts"],
-  "references": [{ "path": "../ai" }]
+  "include": ["src/**/*.ts", "src/**/*.tsx", "tests/**/*.ts", "vite.config.ts"],
+  "exclude": ["node_modules", "dist", "**/*.config.ts", "eslint.config.js"]
 }

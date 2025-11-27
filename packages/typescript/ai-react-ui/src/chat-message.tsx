@@ -1,42 +1,42 @@
-import type { ReactNode } from "react";
-import type { UIMessage, MessagePart } from "@tanstack/ai-react";
-import { ThinkingPart } from "./thinking-part";
+import { ThinkingPart } from './thinking-part'
+import type { ReactNode } from 'react'
+import type { UIMessage } from '@tanstack/ai-react'
 
 export interface ToolCallRenderProps {
-  id: string;
-  name: string;
-  arguments: string;
-  state: string;
-  approval?: any;
-  output?: any;
+  id: string
+  name: string
+  arguments: string
+  state: string
+  approval?: any
+  output?: any
 }
 
 export interface ChatMessageProps {
   /** The message to render */
-  message: UIMessage;
+  message: UIMessage
   /** Base CSS class name */
-  className?: string;
+  className?: string
   /** Additional className for user messages */
-  userClassName?: string;
+  userClassName?: string
   /** Additional className for assistant messages */
-  assistantClassName?: string;
+  assistantClassName?: string
   /** Custom renderer for text parts */
-  textPartRenderer?: (props: { content: string }) => ReactNode;
+  textPartRenderer?: (props: { content: string }) => ReactNode
   /** Custom renderer for thinking parts */
   thinkingPartRenderer?: (props: {
-    content: string;
-    isComplete?: boolean;
-  }) => ReactNode;
+    content: string
+    isComplete?: boolean
+  }) => ReactNode
   /** Named tool renderers - use the tool name as the key */
-  toolsRenderer?: Record<string, (props: ToolCallRenderProps) => ReactNode>;
+  toolsRenderer?: Record<string, (props: ToolCallRenderProps) => ReactNode>
   /** Default tool renderer when tool name not found in toolsRenderer */
-  defaultToolRenderer?: (props: ToolCallRenderProps) => ReactNode;
+  defaultToolRenderer?: (props: ToolCallRenderProps) => ReactNode
   /** Custom renderer for tool result parts */
   toolResultRenderer?: (props: {
-    toolCallId: string;
-    content: string;
-    state: string;
-  }) => ReactNode;
+    toolCallId: string
+    content: string
+    state: string
+  }) => ReactNode
 }
 
 /**
@@ -90,9 +90,9 @@ export interface ChatMessageProps {
  */
 export function ChatMessage({
   message,
-  className = "",
-  userClassName = "",
-  assistantClassName = "",
+  className = '',
+  userClassName = '',
+  assistantClassName = '',
   textPartRenderer,
   thinkingPartRenderer,
   toolsRenderer,
@@ -101,27 +101,25 @@ export function ChatMessage({
 }: ChatMessageProps) {
   // Combine classes based on role
   const roleClassName =
-    message.role === "user"
+    message.role === 'user'
       ? userClassName
-      : message.role === "assistant"
-      ? assistantClassName
-      : "";
-  const combinedClassName = [className, roleClassName]
-    .filter(Boolean)
-    .join(" ");
+      : message.role === 'assistant'
+        ? assistantClassName
+        : ''
+  const combinedClassName = [className, roleClassName].filter(Boolean).join(' ')
 
   return (
     <div
       className={combinedClassName || undefined}
       data-message-id={message.id}
       data-message-role={message.role}
-      data-message-created={message.createdAt.toISOString()}
+      data-message-created={message.createdAt?.toISOString()}
     >
       {message.parts.map((part, index) => {
         // Check if thinking is complete (if there's a text part after this thinking part)
         const isThinkingComplete =
-          part.type === "thinking" &&
-          message.parts.slice(index + 1).some((p) => p.type === "text");
+          part.type === 'thinking' &&
+          message.parts.slice(index + 1).some((p) => p.type === 'text')
 
         return (
           <MessagePart
@@ -134,10 +132,10 @@ export function ChatMessage({
             defaultToolRenderer={defaultToolRenderer}
             toolResultRenderer={toolResultRenderer}
           />
-        );
+        )
       })}
     </div>
-  );
+  )
 }
 
 function MessagePart({
@@ -149,28 +147,29 @@ function MessagePart({
   defaultToolRenderer,
   toolResultRenderer,
 }: {
-  part: MessagePart;
-  isThinkingComplete?: boolean;
-  textPartRenderer?: ChatMessageProps["textPartRenderer"];
-  thinkingPartRenderer?: ChatMessageProps["thinkingPartRenderer"];
-  toolsRenderer?: ChatMessageProps["toolsRenderer"];
-  defaultToolRenderer?: ChatMessageProps["defaultToolRenderer"];
-  toolResultRenderer?: ChatMessageProps["toolResultRenderer"];
+  // TODO Fix me
+  part: any
+  isThinkingComplete?: boolean
+  textPartRenderer?: ChatMessageProps['textPartRenderer']
+  thinkingPartRenderer?: ChatMessageProps['thinkingPartRenderer']
+  toolsRenderer?: ChatMessageProps['toolsRenderer']
+  defaultToolRenderer?: ChatMessageProps['defaultToolRenderer']
+  toolResultRenderer?: ChatMessageProps['toolResultRenderer']
 }) {
   // Text part
-  if (part.type === "text") {
+  if (part.type === 'text') {
     if (textPartRenderer) {
-      return <>{textPartRenderer({ content: part.content })}</>;
+      return <>{textPartRenderer({ content: part.content })}</>
     }
     return (
       <div data-part-type="text" data-part-content>
         {part.content}
       </div>
-    );
+    )
   }
 
   // Thinking part
-  if (part.type === "thinking") {
+  if (part.type === 'thinking') {
     if (thinkingPartRenderer) {
       return (
         <>
@@ -179,15 +178,15 @@ function MessagePart({
             isComplete: isThinkingComplete,
           })}
         </>
-      );
+      )
     }
     return (
       <ThinkingPart content={part.content} isComplete={isThinkingComplete} />
-    );
+    )
   }
 
   // Tool call part
-  if (part.type === "tool-call") {
+  if (part.type === 'tool-call') {
     const toolProps: ToolCallRenderProps = {
       id: part.id,
       name: part.name,
@@ -195,16 +194,16 @@ function MessagePart({
       state: part.state,
       approval: part.approval,
       output: part.output,
-    };
+    }
 
     // Check if there's a specific renderer for this tool
     if (toolsRenderer?.[part.name]) {
-      return <>{toolsRenderer[part.name](toolProps)}</>;
+      return <>{toolsRenderer[part.name]?.(toolProps)}</>
     }
 
     // Use default tool renderer if provided
     if (defaultToolRenderer) {
-      return <>{defaultToolRenderer(toolProps)}</>;
+      return <>{defaultToolRenderer(toolProps)}</>
     }
 
     // Fallback to built-in default renderer
@@ -228,9 +227,9 @@ function MessagePart({
           <div data-tool-approval>
             {part.approval.approved !== undefined
               ? part.approval.approved
-                ? "✓ Approved"
-                : "✗ Denied"
-              : "⏳ Awaiting approval..."}
+                ? '✓ Approved'
+                : '✗ Denied'
+              : '⏳ Awaiting approval...'}
           </div>
         )}
         {part.output && (
@@ -239,11 +238,11 @@ function MessagePart({
           </div>
         )}
       </div>
-    );
+    )
   }
 
   // Tool result part
-  if (part.type === "tool-result") {
+  if (part.type === 'tool-result') {
     if (toolResultRenderer) {
       return (
         <>
@@ -253,7 +252,7 @@ function MessagePart({
             state: part.state,
           })}
         </>
-      );
+      )
     }
 
     return (
@@ -264,8 +263,8 @@ function MessagePart({
       >
         <div data-tool-result-content>{part.content}</div>
       </div>
-    );
+    )
   }
 
-  return null;
+  return null
 }

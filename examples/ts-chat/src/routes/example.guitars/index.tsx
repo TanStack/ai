@@ -1,9 +1,9 @@
-import { Link, createFileRoute } from "@tanstack/react-router";
-import guitars from "../../data/example-guitars";
+import { Link, createFileRoute } from '@tanstack/react-router'
+import guitars from '../../data/example-guitars'
 
-export const Route = createFileRoute("/example/guitars/")({
+export const Route = createFileRoute('/example/guitars/')({
   component: GuitarsIndex,
-});
+})
 
 function GuitarsIndex() {
   return (
@@ -50,5 +50,5 @@ function GuitarsIndex() {
         ))}
       </div>
     </div>
-  );
+  )
 }

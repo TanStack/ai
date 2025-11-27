@@ -1,24 +1,26 @@
-import { Component, For, Show } from "solid-js";
-import { useStyles } from "../../styles/use-styles";
-import type { Chunk } from "../../store/ai-store";
-import { ChunkItem } from "./ChunkItem";
-import { ChunkBadges } from "./ChunkBadges";
+import { For, Show } from 'solid-js'
+import { useStyles } from '../../styles/use-styles'
+import { ChunkItem } from './ChunkItem'
+import { ChunkBadges } from './ChunkBadges'
+import type { Component } from 'solid-js'
+import type { Chunk } from '../../store/ai-store'
 
 interface ChunksCollapsibleProps {
-  chunks: Chunk[];
+  chunks: Array<Chunk>
 }
 
 export const ChunksCollapsible: Component<ChunksCollapsibleProps> = (props) => {
-  const styles = useStyles();
+  const styles = useStyles()
 
   const accumulatedContent = () =>
     props.chunks
-      .filter((c) => c.type === "content" && (c.content || c.delta))
+      .filter((c) => c.type === 'content' && (c.content || c.delta))
       .map((c) => c.delta || c.content)
-      .join("");
+      .join('')
 
   // Total raw chunks = sum of all chunkCounts
-  const totalRawChunks = () => props.chunks.reduce((sum, c) => sum + (c.chunkCount || 1), 0);
+  const totalRawChunks = () =>
+    props.chunks.reduce((sum, c) => sum + (c.chunkCount || 1), 0)
 
   return (
     <details class={styles().conversationDetails.chunksDetails}>
@@ -32,7 +34,10 @@ export const ChunksCollapsible: Component<ChunksCollapsibleProps> = (props) => {
 
           {/* Accumulated Content Preview */}
           <Show when={accumulatedContent()}>
-            <div class={styles().conversationDetails.contentPreview} title={accumulatedContent()}>
+            <div
+              class={styles().conversationDetails.contentPreview}
+              title={accumulatedContent()}
+            >
               {accumulatedContent()}
             </div>
           </Show>
@@ -40,9 +45,13 @@ export const ChunksCollapsible: Component<ChunksCollapsibleProps> = (props) => {
       </summary>
       <div class={styles().conversationDetails.chunksContainer}>
         <div class={styles().conversationDetails.chunksList}>
-          <For each={props.chunks}>{(chunk, index) => <ChunkItem chunk={chunk} index={index()} variant="small" />}</For>
+          <For each={props.chunks}>
+            {(chunk, index) => (
+              <ChunkItem chunk={chunk} index={index()} variant="small" />
+            )}
+          </For>
         </div>
       </div>
     </details>
-  );
-};
+  )
+}

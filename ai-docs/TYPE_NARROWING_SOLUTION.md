@@ -59,57 +59,65 @@ console.log(result.usage.totalTokens);
 
 ```typescript
 // 1. Stream mode - returns AsyncIterable<StreamChunk>
-const stream = ai.chat({ adapter: "openai", model: "gpt-4", messages: [] });
+const stream = ai.chat({ adapter: 'openai', model: 'gpt-4', messages: [] })
 // Type: AsyncIterable<StreamChunk> ✅
 
 // 2. Promise mode - returns Promise<ChatCompletionResult>
-const promise = ai.chatCompletion({ adapter: "openai", model: "gpt-4", messages: [] });
+const promise = ai.chatCompletion({
+  adapter: 'openai',
+  model: 'gpt-4',
+  messages: [],
+})
 // Type: Promise<ChatCompletionResult> ✅
 
 // 3. After await - ChatCompletionResult
-const result = await ai.chatCompletion({ adapter: "openai", model: "gpt-4", messages: [] });
+const result = await ai.chatCompletion({
+  adapter: 'openai',
+  model: 'gpt-4',
+  messages: [],
+})
 // Type: ChatCompletionResult ✅
 ```
 
 ## Real-World Example: API Handler
 
 ```typescript
-import { toStreamResponse } from "@tanstack/ai";
+import { toStreamResponse } from '@tanstack/ai'
 
-export const Route = createAPIFileRoute("/api/chat")({
+export const Route = createAPIFileRoute('/api/chat')({
   POST: async ({ request }): Promise<Response> => {
-    const { messages } = await request.json();
-    
+    const { messages } = await request.json()
+
     // TypeScript knows this returns AsyncIterable<StreamChunk> ✅
     const stream = ai.chat({
-      adapter: "openAi",
-      model: "gpt-4o",
+      adapter: 'openAi',
+      model: 'gpt-4o',
       messages,
-      fallbacks: [
-        { adapter: "ollama", model: "llama2" }
-      ]
-    });
+      fallbacks: [{ adapter: 'ollama', model: 'llama2' }],
+    })
 
     // Convert to Response
-    return toStreamResponse(stream);
-  }
-});
+    return toStreamResponse(stream)
+  },
+})
 ```
 
 ## Why Separate Methods Are Better
 
 With the old `as` option approach:
+
 ```typescript
-const as = "response"; // Type: string
-const result = ai.chat({ adapter: "openai", model: "gpt-4", messages: [], as });
+const as = 'response' // Type: string
+const result = ai.chat({ adapter: 'openai', model: 'gpt-4', messages: [], as })
 // Return type: Promise<ChatCompletionResult> | AsyncIterable<StreamChunk> | Response
 // ❌ TypeScript doesn't know which specific type
 // Need: as: "response" as const
 ```
 
 With separate methods:
+
 ```typescript
-const stream = ai.chat({ adapter: "openai", model: "gpt-4", messages: [] });
+const stream = ai.chat({ adapter: 'openai', model: 'gpt-4', messages: [] })
 // Return type: AsyncIterable<StreamChunk>
 // ✅ TypeScript knows exact type automatically!
 ```
@@ -123,7 +131,7 @@ class AI<TAdapter> {
   chat(options: ChatOptions): AsyncIterable<StreamChunk> {
     // Implementation...
   }
-  
+
   async chatCompletion(options: ChatOptions): Promise<ChatCompletionResult> {
     // Implementation...
   }
@@ -131,6 +139,7 @@ class AI<TAdapter> {
 ```
 
 TypeScript's type inference:
+
 1. Call `chat()` → method signature says it returns `AsyncIterable<StreamChunk>`
 2. Call `chatCompletion()` → method signature says it returns `Promise<ChatCompletionResult>`
 3. No conditional types needed - just straightforward method signatures!
@@ -148,9 +157,9 @@ TypeScript's type inference:
 
 The separate methods API provides perfect type narrowing without any special syntax:
 
-| Method | Return Type |
-|--------|-------------|
-| `chat()` | `AsyncIterable<StreamChunk>` |
+| Method             | Return Type                     |
+| ------------------ | ------------------------------- |
+| `chat()`           | `AsyncIterable<StreamChunk>`    |
 | `chatCompletion()` | `Promise<ChatCompletionResult>` |
 
 **Pro Tip**: Just call the method you need - TypeScript handles the rest! 🎉

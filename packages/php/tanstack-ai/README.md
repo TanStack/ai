@@ -93,4 +93,3 @@ function generateStream($stream, $converter) {
 ## License
 
 MIT
-

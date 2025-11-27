@@ -14,12 +14,12 @@
   "module": "./dist/esm/index.js",
   "exports": {
     ".": {
-      "import": "./dist/esm/index.js",
-      "types": "./dist/esm/index.d.ts"
+      "types": "./dist/esm/index.d.ts",
+      "import": "./dist/esm/index.js"
     },
     "./production": {
-      "import": "./dist/esm/production.js",
-      "types": "./dist/esm/production.d.ts"
+      "types": "./dist/esm/production.d.ts",
+      "import": "./dist/esm/production.js"
     },
     "./package.json": "./package.json"
   },
@@ -28,13 +28,14 @@
     "src"
   ],
   "scripts": {
-    "build": "vite build ",
-    "dev": "tsdown --watch",
-    "test": "exit 0",
-    "test:watch": "vitest",
-    "clean": "rm -rf dist node_modules",
-    "typecheck": "tsc --noEmit",
-    "lint": "tsc --noEmit"
+    "build": "vite build",
+    "clean": "premove ./build ./dist",
+    "lint:fix": "eslint ./src --fix",
+    "test:build": "publint --strict",
+    "test:eslint": "eslint ./src",
+    "test:lib": "vitest --passWithNoTests",
+    "test:lib:dev": "pnpm test:lib --watch",
+    "test:types": "tsc"
   },
   "keywords": [
     "ai",
@@ -46,16 +47,15 @@
   ],
   "dependencies": {
     "@tanstack/ai": "workspace:*",
-    "@tanstack/devtools-ui": "^0.4.3",
-    "@tanstack/devtools-utils": "^0.0.6",
-    "clsx": "^2.1.1",
-    "goober": "^2.1.16",
-    "solid-js": "^1.9.9"
+    "@tanstack/devtools-ui": "^0.4.4",
+    "@tanstack/devtools-utils": "^0.0.8",
+    "goober": "^2.1.18",
+    "solid-js": "^1.9.10"
   },
   "devDependencies": {
-    "@tanstack/config": "^0.22.0",
-    "solid-js": "^1.9.9",
-    "vite": "^7.1.6",
-    "vite-plugin-solid": "^2.11.8"
+    "@vitest/coverage-v8": "4.0.14",
+    "jsdom": "^27.2.0",
+    "vite": "^7.2.4",
+    "vite-plugin-solid": "^2.11.10"
   }
 }

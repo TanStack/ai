@@ -1,4 +1,4 @@
-import { parse as parsePartialJSONLib } from "partial-json";
+import { parse as parsePartialJSONLib } from 'partial-json'
 
 /**
  * JSON Parser interface - allows for custom parser implementations
@@ -9,7 +9,7 @@ export interface JSONParser {
    * @param jsonString - The JSON string to parse
    * @returns The parsed object, or undefined if parsing fails
    */
-  parse(jsonString: string): any;
+  parse: (jsonString: string) => any
 }
 
 /**
@@ -23,16 +23,16 @@ export class PartialJSONParser implements JSONParser {
    * @returns The parsed object, or undefined if parsing fails
    */
   parse(jsonString: string): any {
-    if (!jsonString || jsonString.trim() === "") {
-      return undefined;
+    if (!jsonString || jsonString.trim() === '') {
+      return undefined
     }
 
     try {
-      return parsePartialJSONLib(jsonString);
+      return parsePartialJSONLib(jsonString)
     } catch (error) {
       // If partial parsing fails, return undefined
       // This is expected during early streaming when we have very little data
-      return undefined;
+      return undefined
     }
   }
 }
@@ -40,7 +40,7 @@ export class PartialJSONParser implements JSONParser {
 /**
  * Default parser instance
  */
-export const defaultJSONParser = new PartialJSONParser();
+export const defaultJSONParser = new PartialJSONParser()
 
 /**
  * Parse partial JSON string (convenience function)
@@ -48,6 +48,5 @@ export const defaultJSONParser = new PartialJSONParser();
  * @returns The parsed object, or undefined if parsing fails
  */
 export function parsePartialJSON(jsonString: string): any {
-  return defaultJSONParser.parse(jsonString);
+  return defaultJSONParser.parse(jsonString)
 }
-

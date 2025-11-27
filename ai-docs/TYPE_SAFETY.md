@@ -21,20 +21,20 @@ npm install @tanstack/ai @tanstack/ai-openai @tanstack/ai-anthropic
 ### Creating an AI instance with multiple adapters
 
 ```typescript
-import { AI } from "@tanstack/ai";
-import { OpenAIAdapter } from "@tanstack/ai-openai";
-import { AnthropicAdapter } from "@tanstack/ai-anthropic";
+import { AI } from '@tanstack/ai'
+import { OpenAIAdapter } from '@tanstack/ai-openai'
+import { AnthropicAdapter } from '@tanstack/ai-anthropic'
 
 const ai = new AI({
   adapters: {
-    "openai": new OpenAIAdapter({
+    openai: new OpenAIAdapter({
       apiKey: process.env.OPENAI_API_KEY!,
     }),
-    "anthropic": new AnthropicAdapter({
+    anthropic: new AnthropicAdapter({
       apiKey: process.env.ANTHROPIC_API_KEY!,
     }),
   },
-});
+})
 ```
 
 ### Type-safe model selection
@@ -42,31 +42,31 @@ const ai = new AI({
 ```typescript
 // ✅ VALID - OpenAI with GPT model
 await ai.chat({
-  adapter: "openai",
-  model: "gpt-4", // TypeScript knows this is valid
-  messages: [{ role: "user", content: "Hello!" }],
-});
+  adapter: 'openai',
+  model: 'gpt-4', // TypeScript knows this is valid
+  messages: [{ role: 'user', content: 'Hello!' }],
+})
 
 // ✅ VALID - Anthropic with Claude model
 await ai.chat({
-  adapter: "anthropic",
-  model: "claude-3-5-sonnet-20241022", // TypeScript knows this is valid
-  messages: [{ role: "user", content: "Hello!" }],
-});
+  adapter: 'anthropic',
+  model: 'claude-3-5-sonnet-20241022', // TypeScript knows this is valid
+  messages: [{ role: 'user', content: 'Hello!' }],
+})
 
 // ❌ COMPILE ERROR - Wrong model for adapter
 await ai.chat({
-  adapter: "anthropic",
-  model: "gpt-4", // TypeScript error: "gpt-4" not valid for Anthropic!
-  messages: [{ role: "user", content: "Hello!" }],
-});
+  adapter: 'anthropic',
+  model: 'gpt-4', // TypeScript error: "gpt-4" not valid for Anthropic!
+  messages: [{ role: 'user', content: 'Hello!' }],
+})
 
 // ❌ COMPILE ERROR - Wrong model for adapter
 await ai.chat({
-  adapter: "openai",
-  model: "claude-3-5-sonnet-20241022", // TypeScript error: Claude not valid for OpenAI!
-  messages: [{ role: "user", content: "Hello!" }],
-});
+  adapter: 'openai',
+  model: 'claude-3-5-sonnet-20241022', // TypeScript error: Claude not valid for OpenAI!
+  messages: [{ role: 'user', content: 'Hello!' }],
+})
 ```
 
 ## Available Models
@@ -75,31 +75,31 @@ await ai.chat({
 
 ```typescript
 type OpenAIModel =
-  | "gpt-4"
-  | "gpt-4-turbo"
-  | "gpt-4-turbo-preview"
-  | "gpt-4o"
-  | "gpt-4o-mini"
-  | "gpt-3.5-turbo"
-  | "gpt-3.5-turbo-16k"
-  | "gpt-3.5-turbo-instruct"
-  | "text-embedding-ada-002"
-  | "text-embedding-3-small"
-  | "text-embedding-3-large";
+  | 'gpt-4'
+  | 'gpt-4-turbo'
+  | 'gpt-4-turbo-preview'
+  | 'gpt-4o'
+  | 'gpt-4o-mini'
+  | 'gpt-3.5-turbo'
+  | 'gpt-3.5-turbo-16k'
+  | 'gpt-3.5-turbo-instruct'
+  | 'text-embedding-ada-002'
+  | 'text-embedding-3-small'
+  | 'text-embedding-3-large'
 ```
 
 ### Anthropic Models
 
 ```typescript
 type AnthropicModel =
-  | "claude-3-5-sonnet-20241022"
-  | "claude-3-5-sonnet-20240620"
-  | "claude-3-opus-20240229"
-  | "claude-3-sonnet-20240229"
-  | "claude-3-haiku-20240307"
-  | "claude-2.1"
-  | "claude-2.0"
-  | "claude-instant-1.2";
+  | 'claude-3-5-sonnet-20241022'
+  | 'claude-3-5-sonnet-20240620'
+  | 'claude-3-opus-20240229'
+  | 'claude-3-sonnet-20240229'
+  | 'claude-3-haiku-20240307'
+  | 'claude-2.1'
+  | 'claude-2.0'
+  | 'claude-instant-1.2'
 ```
 
 ## API Methods
@@ -110,27 +110,27 @@ All methods support the same type-safe adapter and model selection:
 
 ```typescript
 const result = await ai.chat({
-  adapter: "openai",
-  model: "gpt-4",
+  adapter: 'openai',
+  model: 'gpt-4',
   messages: [
-    { role: "system", content: "You are a helpful assistant." },
-    { role: "user", content: "What is TypeScript?" },
+    { role: 'system', content: 'You are a helpful assistant.' },
+    { role: 'user', content: 'What is TypeScript?' },
   ],
   temperature: 0.7,
   maxTokens: 500,
-});
+})
 ```
 
 ### Streaming Chat
 
 ```typescript
 for await (const chunk of ai.streamChat({
-  adapter: "anthropic",
-  model: "claude-3-5-sonnet-20241022",
-  messages: [{ role: "user", content: "Count from 1 to 5" }],
+  adapter: 'anthropic',
+  model: 'claude-3-5-sonnet-20241022',
+  messages: [{ role: 'user', content: 'Count from 1 to 5' }],
 })) {
-  if (chunk.type === "content") {
-    process.stdout.write(chunk.delta);
+  if (chunk.type === 'content') {
+    process.stdout.write(chunk.delta)
   }
 }
 ```
@@ -139,33 +139,33 @@ for await (const chunk of ai.streamChat({
 
 ```typescript
 const result = await ai.generateText({
-  adapter: "openai",
-  model: "gpt-3.5-turbo-instruct",
-  prompt: "Write a haiku about TypeScript",
+  adapter: 'openai',
+  model: 'gpt-3.5-turbo-instruct',
+  prompt: 'Write a haiku about TypeScript',
   maxTokens: 100,
-});
+})
 ```
 
 ### Summarization
 
 ```typescript
 const result = await ai.summarize({
-  adapter: "anthropic",
-  model: "claude-3-haiku-20240307",
-  text: "Long text to summarize...",
-  style: "bullet-points",
+  adapter: 'anthropic',
+  model: 'claude-3-haiku-20240307',
+  text: 'Long text to summarize...',
+  style: 'bullet-points',
   maxLength: 200,
-});
+})
 ```
 
 ### Embeddings
 
 ```typescript
 const result = await ai.embed({
-  adapter: "openai",
-  model: "text-embedding-3-small",
-  input: "Text to embed",
-});
+  adapter: 'openai',
+  model: 'text-embedding-3-small',
+  input: 'Text to embed',
+})
 ```
 
 ## Advanced Features
@@ -174,29 +174,29 @@ const result = await ai.embed({
 
 ```typescript
 const aiWithGemini = ai.addAdapter(
-  "gemini",
-  new GeminiAdapter({ apiKey: "..." })
-);
+  'gemini',
+  new GeminiAdapter({ apiKey: '...' }),
+)
 
 // Now "gemini" is available with full type safety
 await aiWithGemini.chat({
-  adapter: "gemini",
-  model: "gemini-pro", // Types updated automatically
-  messages: [{ role: "user", content: "Hello!" }],
-});
+  adapter: 'gemini',
+  model: 'gemini-pro', // Types updated automatically
+  messages: [{ role: 'user', content: 'Hello!' }],
+})
 ```
 
 ### Getting Available Adapters
 
 ```typescript
-console.log(ai.adapterNames); // ["openai", "anthropic"]
+console.log(ai.adapterNames) // ["openai", "anthropic"]
 ```
 
 ### Direct Adapter Access
 
 ```typescript
-const openai = ai.getAdapter("openai");
-console.log(openai.models); // Array of OpenAI models
+const openai = ai.getAdapter('openai')
+console.log(openai.models) // Array of OpenAI models
 ```
 
 ## Benefits
@@ -204,22 +204,24 @@ console.log(openai.models); // Array of OpenAI models
 ### 1. Compile-Time Safety
 
 **Before:**
+
 ```typescript
 // Runtime error when deployed
 await ai.chat({
-  provider: "anthropic",
-  model: "gpt-4", // Oops! Wrong model
-});
+  provider: 'anthropic',
+  model: 'gpt-4', // Oops! Wrong model
+})
 // Error: Model 'gpt-4' not found for provider 'anthropic'
 ```
 
 **After:**
+
 ```typescript
 // Compile-time error in your editor
 await ai.chat({
-  adapter: "anthropic",
-  model: "gpt-4", // TypeScript error immediately
-});
+  adapter: 'anthropic',
+  model: 'gpt-4', // TypeScript error immediately
+})
 // Error: Type '"gpt-4"' is not assignable to type 'claude-...'
 ```
 
@@ -237,10 +239,10 @@ If you switch adapters, TypeScript will immediately flag any incompatible models
 ```typescript
 // Change from OpenAI to Anthropic
 await ai.chat({
-  adapter: "anthropic", // Changed this
-  model: "gpt-4", // TypeScript immediately flags this as an error
+  adapter: 'anthropic', // Changed this
+  model: 'gpt-4', // TypeScript immediately flags this as an error
   messages: [],
-});
+})
 ```
 
 ### 4. Self-Documenting Code
@@ -257,13 +259,13 @@ ai.chat({ adapter: "openai", model: /* hover here */ });
 To create a custom adapter with type safety:
 
 ```typescript
-import { BaseAdapter } from "@tanstack/ai";
+import { BaseAdapter } from '@tanstack/ai'
 
-const MY_MODELS = ["my-model-1", "my-model-2", "my-model-3"] as const;
+const MY_MODELS = ['my-model-1', 'my-model-2', 'my-model-3'] as const
 
 export class MyAdapter extends BaseAdapter<typeof MY_MODELS> {
-  name = "my-adapter";
-  models = MY_MODELS;
+  name = 'my-adapter'
+  models = MY_MODELS
 
   // Implement required methods...
 }
@@ -274,16 +276,16 @@ Then use it with full type safety:
 ```typescript
 const ai = new AI({
   adapters: {
-    "my-adapter": new MyAdapter({ apiKey: "..." }),
+    'my-adapter': new MyAdapter({ apiKey: '...' }),
   },
-});
+})
 
 // TypeScript now knows about "my-model-1", "my-model-2", etc.
 await ai.chat({
-  adapter: "my-adapter",
-  model: "my-model-1", // Autocomplete works!
+  adapter: 'my-adapter',
+  model: 'my-model-1', // Autocomplete works!
   messages: [],
-});
+})
 ```
 
 ## Examples

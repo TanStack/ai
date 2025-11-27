@@ -1,69 +1,73 @@
-import { createSignal, onCleanup, onMount } from "solid-js";
-import { Header, HeaderLogo, MainPanel } from "@tanstack/devtools-ui";
-import { useStyles } from "../styles/use-styles";
-import { ConversationsList } from "./ConversationsList";
-import { ConversationDetails } from "./ConversationDetails";
-import { AIProvider, useAIStore } from "../store/ai-context";
+import { createSignal, onCleanup, onMount } from 'solid-js'
+import { Header, HeaderLogo, MainPanel } from '@tanstack/devtools-ui'
+import { useStyles } from '../styles/use-styles'
+import { AIProvider, useAIStore } from '../store/ai-context'
+import { ConversationsList } from './ConversationsList'
+import { ConversationDetails } from './ConversationDetails'
 
 export default function Devtools() {
   return (
     <AIProvider>
       <DevtoolsContent />
     </AIProvider>
-  );
+  )
 }
 
 function DevtoolsContent() {
-  const { state, clearAllConversations } = useAIStore();
-  const styles = useStyles();
-  const [leftPanelWidth, setLeftPanelWidth] = createSignal(300);
-  const [isDragging, setIsDragging] = createSignal(false);
-  const [filterType, setFilterType] = createSignal<"all" | "client" | "server">("all");
+  const { state, clearAllConversations } = useAIStore()
+  const styles = useStyles()
+  const [leftPanelWidth, setLeftPanelWidth] = createSignal(300)
+  const [isDragging, setIsDragging] = createSignal(false)
+  const [filterType, setFilterType] = createSignal<'all' | 'client' | 'server'>(
+    'all',
+  )
 
-  let dragStartX = 0;
-  let dragStartWidth = 0;
+  let dragStartX = 0
+  let dragStartWidth = 0
 
   const handleMouseDown = (e: MouseEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-    setIsDragging(true);
-    document.body.style.cursor = "col-resize";
-    document.body.style.userSelect = "none";
-    dragStartX = e.clientX;
-    dragStartWidth = leftPanelWidth();
-  };
+    e.preventDefault()
+    e.stopPropagation()
+    setIsDragging(true)
+    document.body.style.cursor = 'col-resize'
+    document.body.style.userSelect = 'none'
+    dragStartX = e.clientX
+    dragStartWidth = leftPanelWidth()
+  }
 
   const handleMouseMove = (e: MouseEvent) => {
-    if (!isDragging()) return;
+    if (!isDragging()) return
 
-    e.preventDefault();
-    const deltaX = e.clientX - dragStartX;
-    const newWidth = Math.max(150, Math.min(800, dragStartWidth + deltaX));
-    setLeftPanelWidth(newWidth);
-  };
+    e.preventDefault()
+    const deltaX = e.clientX - dragStartX
+    const newWidth = Math.max(150, Math.min(800, dragStartWidth + deltaX))
+    setLeftPanelWidth(newWidth)
+  }
 
   const handleMouseUp = () => {
-    setIsDragging(false);
-    document.body.style.cursor = "";
-    document.body.style.userSelect = "";
-  };
+    setIsDragging(false)
+    document.body.style.cursor = ''
+    document.body.style.userSelect = ''
+  }
 
   onMount(() => {
-    document.addEventListener("mousemove", handleMouseMove);
-    document.addEventListener("mouseup", handleMouseUp);
-  });
+    document.addEventListener('mousemove', handleMouseMove)
+    document.addEventListener('mouseup', handleMouseUp)
+  })
 
   onCleanup(() => {
-    document.removeEventListener("mousemove", handleMouseMove);
-    document.removeEventListener("mouseup", handleMouseUp);
-  });
+    document.removeEventListener('mousemove', handleMouseMove)
+    document.removeEventListener('mouseup', handleMouseUp)
+  })
 
-  const conversationCount = () => Object.keys(state.conversations).length;
+  const conversationCount = () => Object.keys(state.conversations).length
 
   return (
     <MainPanel>
       <Header>
-        <HeaderLogo flavor={{ light: "#ec4899", dark: "#ec4899" }}>TanStack AI</HeaderLogo>
+        <HeaderLogo flavor={{ light: '#ec4899', dark: '#ec4899' }}>
+          TanStack AI
+        </HeaderLogo>
       </Header>
 
       <div class={styles().mainContainer}>
@@ -71,8 +75,8 @@ function DevtoolsContent() {
           class={styles().leftPanel}
           style={{
             width: `${leftPanelWidth()}px`,
-            "min-width": "150px",
-            "max-width": "800px",
+            'min-width': '150px',
+            'max-width': '800px',
           }}
         >
           {/* Filter tabs and action buttons */}
@@ -80,25 +84,31 @@ function DevtoolsContent() {
             <div class={styles().shell.filterButtonsRow}>
               <button
                 class={`${styles().shell.filterButton} ${
-                  filterType() === "all" ? styles().shell.filterButtonActive : ""
+                  filterType() === 'all'
+                    ? styles().shell.filterButtonActive
+                    : ''
                 }`}
-                onClick={() => setFilterType("all")}
+                onClick={() => setFilterType('all')}
               >
                 All
               </button>
               <button
                 class={`${styles().shell.filterButton} ${
-                  filterType() === "client" ? styles().shell.filterButtonActive : ""
+                  filterType() === 'client'
+                    ? styles().shell.filterButtonActive
+                    : ''
                 }`}
-                onClick={() => setFilterType("client")}
+                onClick={() => setFilterType('client')}
               >
                 Client
               </button>
               <button
                 class={`${styles().shell.filterButton} ${
-                  filterType() === "server" ? styles().shell.filterButtonActive : ""
+                  filterType() === 'server'
+                    ? styles().shell.filterButtonActive
+                    : ''
                 }`}
-                onClick={() => setFilterType("server")}
+                onClick={() => setFilterType('server')}
               >
                 Server
               </button>
@@ -118,12 +128,15 @@ function DevtoolsContent() {
           <ConversationsList filterType={filterType()} />
         </div>
 
-        <div class={`${styles().dragHandle} ${isDragging() ? "dragging" : ""}`} onMouseDown={handleMouseDown} />
+        <div
+          class={`${styles().dragHandle} ${isDragging() ? 'dragging' : ''}`}
+          onMouseDown={handleMouseDown}
+        />
 
         <div class={styles().rightPanel} style={{ flex: 1 }}>
           <ConversationDetails />
         </div>
       </div>
     </MainPanel>
-  );
+  )
 }

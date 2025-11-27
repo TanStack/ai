@@ -1,0 +1,11 @@
+**/.nx/
+**/.nx/cache
+**/.svelte-kit
+**/build
+**/coverage
+**/dist
+**/docs
+pnpm-lock.yaml
+
+.angular
+.github/**

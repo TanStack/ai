@@ -1,129 +1,137 @@
-import { Ollama as OllamaSDK } from "ollama";
-import {
-  BaseAdapter,
-  type ChatOptions,
-  type SummarizationOptions,
-  type SummarizationResult,
-  type EmbeddingOptions,
-  type EmbeddingResult,
-  type StreamChunk,
-} from "@tanstack/ai";
+import { Ollama as OllamaSDK } from 'ollama'
+import { BaseAdapter } from '@tanstack/ai'
+import type {
+  ChatOptions,
+  EmbeddingOptions,
+  EmbeddingResult,
+  StreamChunk,
+  SummarizationOptions,
+  SummarizationResult,
+} from '@tanstack/ai'
 
 export interface OllamaConfig {
-  host?: string;
+  host?: string
 }
 
 const OLLAMA_MODELS = [
-  "llama2",
-  "llama3",
-  "codellama",
-  "mistral",
-  "mixtral",
-  "phi",
-  "neural-chat",
-  "starling-lm",
-  "orca-mini",
-  "vicuna",
-  "nous-hermes",
-  "nomic-embed-text",
-  "gpt-oss:20b",
-] as const;
+  'llama2',
+  'llama3',
+  'codellama',
+  'mistral',
+  'mixtral',
+  'phi',
+  'neural-chat',
+  'starling-lm',
+  'orca-mini',
+  'vicuna',
+  'nous-hermes',
+  'nomic-embed-text',
+  'gpt-oss:20b',
+] as const
 
-const OLLAMA_IMAGE_MODELS = [] as const;
-const OLLAMA_EMBEDDING_MODELS = [] as const;
-const OLLAMA_AUDIO_MODELS = [] as const;
-const OLLAMA_VIDEO_MODELS = [] as const;
+const OLLAMA_IMAGE_MODELS = [] as const
+const OLLAMA_EMBEDDING_MODELS = [] as const
+const OLLAMA_AUDIO_MODELS = [] as const
+const OLLAMA_VIDEO_MODELS = [] as const
 
-export type OllamaModel = (typeof OLLAMA_MODELS)[number];
+// type OllamaModel = (typeof OLLAMA_MODELS)[number]
 
 /**
  * Ollama-specific provider options
  * Based on Ollama API options
  * @see https://github.com/ollama/ollama/blob/main/docs/api.md
  */
-export interface OllamaProviderOptions {
+interface OllamaProviderOptions {
   /** Number of tokens to keep from the prompt */
-  num_keep?: number;
+  num_keep?: number
   /** Number of tokens from context to consider for next token prediction */
-  top_k?: number;
+  top_k?: number
   /** Minimum probability for nucleus sampling */
-  min_p?: number;
+  min_p?: number
   /** Tail-free sampling parameter */
-  tfs_z?: number;
+  tfs_z?: number
   /** Typical probability sampling parameter */
-  typical_p?: number;
+  typical_p?: number
   /** Number of previous tokens to consider for repetition penalty */
-  repeat_last_n?: number;
+  repeat_last_n?: number
   /** Penalty for repeating tokens */
-  repeat_penalty?: number;
+  repeat_penalty?: number
   /** Enable Mirostat sampling (0=disabled, 1=Mirostat, 2=Mirostat 2.0) */
-  mirostat?: number;
+  mirostat?: number
   /** Target entropy for Mirostat */
-  mirostat_tau?: number;
+  mirostat_tau?: number
   /** Learning rate for Mirostat */
-  mirostat_eta?: number;
+  mirostat_eta?: number
   /** Enable penalize_newline */
-  penalize_newline?: boolean;
+  penalize_newline?: boolean
   /** Enable NUMA support */
-  numa?: boolean;
+  numa?: boolean
   /** Context window size */
-  num_ctx?: number;
+  num_ctx?: number
   /** Batch size for prompt processing */
-  num_batch?: number;
+  num_batch?: number
   /** Number of GQA groups (for some models) */
-  num_gqa?: number;
+  num_gqa?: number
   /** Number of GPU layers to use */
-  num_gpu?: number;
+  num_gpu?: number
   /** GPU to use for inference */
-  main_gpu?: number;
+  main_gpu?: number
   /** Use memory-mapped model */
-  use_mmap?: boolean;
+  use_mmap?: boolean
   /** Use memory-locked model */
-  use_mlock?: boolean;
+  use_mlock?: boolean
   /** Number of threads to use */
-  num_thread?: number;
+  num_thread?: number
 }
 
 interface ChatCompletionChunk {
-  id: string;
-  model: string;
-  content: string;
-  role?: "assistant";
-  finishReason?: "stop" | "length" | "content_filter" | null;
+  id: string
+  model: string
+  content: string
+  role?: 'assistant'
+  finishReason?: 'stop' | 'length' | 'content_filter' | 'tool_calls' | null
+  toolCalls?: Array<{
+    id: string
+    type: 'function'
+    function: {
+      name: string
+      arguments: string
+    }
+  }>
   usage?: {
-    promptTokens: number;
-    completionTokens: number;
-    totalTokens: number;
-  };
+    promptTokens: number
+    completionTokens: number
+    totalTokens: number
+  }
 }
 
 async function* convertChatCompletionStream(
   stream: AsyncIterable<ChatCompletionChunk>,
-  _model: string
+  _model: string,
 ): AsyncIterable<StreamChunk> {
-  let accumulatedContent = "";
-  const timestamp = Date.now();
-  let nextToolIndex = 0;
+  let accumulatedContent = ''
+  const timestamp = Date.now()
+  let nextToolIndex = 0
 
   for await (const chunk of stream) {
     if (chunk.content) {
-      accumulatedContent += chunk.content;
+      accumulatedContent += chunk.content
       yield {
-        type: "content",
+        type: 'content',
         id: chunk.id,
         model: chunk.model,
         timestamp,
         delta: chunk.content,
         content: accumulatedContent,
         role: chunk.role,
-      };
+      }
     }
 
     // Handle tool calls if present
     if (chunk.toolCalls && chunk.toolCalls.length > 0) {
       for (const toolCall of chunk.toolCalls) {
         yield {
-          type: "tool_call",
+          type: 'tool_call',
           id: chunk.id,
           model: chunk.model,
           timestamp,
@@ -136,19 +144,19 @@ async function* convertChatCompletionStream(
             },
           },
           index: nextToolIndex++,
-        };
+        }
       }
     }
 
     if (chunk.finishReason) {
       yield {
-        type: "done",
+        type: 'done',
         id: chunk.id,
         model: chunk.model,
         timestamp,
         finishReason: chunk.finishReason,
         usage: chunk.usage,
-      };
+      }
     }
   }
 }
@@ -157,19 +165,21 @@ async function* convertChatCompletionStream(
  * Converts standard Tool format to Ollama-specific tool format
  * Ollama uses OpenAI-compatible tool format
  */
-function convertToolsToOllamaFormat(tools?: any[]): any[] | undefined {
+function convertToolsToOllamaFormat(
+  tools?: Array<any>,
+): Array<any> | undefined {
   if (!tools || tools.length === 0) {
-    return undefined;
+    return undefined
   }
 
   return tools.map((tool) => ({
-    type: "function",
+    type: 'function',
     function: {
       name: tool.function.name,
       description: tool.function.description,
       parameters: tool.function.parameters,
     },
-  }));
+  }))
 }
 
 /**
@@ -178,24 +188,24 @@ function convertToolsToOllamaFormat(tools?: any[]): any[] | undefined {
  */
 function mapCommonOptionsToOllama(
   options: ChatOptions,
-  providerOpts?: OllamaProviderOptions
+  providerOpts?: OllamaProviderOptions,
 ): any {
   const ollamaOptions = {
     temperature: options.options?.temperature,
     top_p: options.options?.topP,
     num_predict: options.options?.maxTokens,
-  };
+  }
 
   // Apply Ollama-specific provider options
   if (providerOpts) {
-    Object.assign(ollamaOptions, providerOpts);
+    Object.assign(ollamaOptions, providerOpts)
   }
 
   return {
     model: options.model,
     options: ollamaOptions,
     tools: convertToolsToOllamaFormat(options.tools),
-  };
+  }
 }
 
 export class Ollama extends BaseAdapter<
@@ -204,56 +214,56 @@ export class Ollama extends BaseAdapter<
   OllamaProviderOptions,
   Record<string, any>
 > {
-  name = "ollama";
-  models = OLLAMA_MODELS;
-  imageModels = OLLAMA_IMAGE_MODELS;
-  embeddingModels = OLLAMA_EMBEDDING_MODELS;
-  audioModels = OLLAMA_AUDIO_MODELS;
-  videoModels = OLLAMA_VIDEO_MODELS;
-  private client: OllamaSDK;
+  name = 'ollama'
+  models = OLLAMA_MODELS
+  imageModels = OLLAMA_IMAGE_MODELS
+  embeddingModels = OLLAMA_EMBEDDING_MODELS
+  audioModels = OLLAMA_AUDIO_MODELS
+  videoModels = OLLAMA_VIDEO_MODELS
+  private client: OllamaSDK
 
   constructor(config: OllamaConfig = {}) {
-    super({});
+    super({})
     this.client = new OllamaSDK({
-      host: config.host || "http://localhost:11434",
-    });
+      host: config.host || 'http://localhost:11434',
+    })
   }
 
   async *chatCompletionStream(
-    options: ChatOptions
+    options: ChatOptions,
   ): AsyncIterable<ChatCompletionChunk> {
     const providerOpts = options.providerOptions as
       | OllamaProviderOptions
-      | undefined;
+      | undefined
 
     // Map common options to Ollama format
-    const mappedOptions = mapCommonOptionsToOllama(options, providerOpts);
+    const mappedOptions = mapCommonOptionsToOllama(options, providerOpts)
 
     // Format messages for Ollama (handle tool calls and tool results)
     const formattedMessages = options.messages.map((msg) => {
       const baseMessage: any = {
-        role: msg.role as "user" | "assistant" | "system",
-        content: msg.content || "",
-      };
+        role: msg.role as 'user' | 'assistant' | 'system',
+        content: msg.content || '',
+      }
 
       // Handle tool calls (assistant messages)
       // Ollama expects arguments as an object, not a JSON string
       if (
-        msg.role === "assistant" &&
+        msg.role === 'assistant' &&
         msg.toolCalls &&
         msg.toolCalls.length > 0
       ) {
         baseMessage.tool_calls = msg.toolCalls.map((toolCall) => {
           // Parse string arguments to object for Ollama
-          let parsedArguments: any = {};
-          if (typeof toolCall.function.arguments === "string") {
+          let parsedArguments: any = {}
+          if (typeof toolCall.function.arguments === 'string') {
             try {
-              parsedArguments = JSON.parse(toolCall.function.arguments);
+              parsedArguments = JSON.parse(toolCall.function.arguments)
             } catch {
-              parsedArguments = {};
+              parsedArguments = {}
             }
           } else {
-            parsedArguments = toolCall.function.arguments || {};
+            parsedArguments = toolCall.function.arguments
           }
 
           return {
@@ -263,22 +273,22 @@ export class Ollama extends BaseAdapter<
               name: toolCall.function.name,
               arguments: parsedArguments,
             },
-          };
-        });
+          }
+        })
       }
 
       // Handle tool results (tool messages)
-      if (msg.role === "tool" && msg.toolCallId) {
-        baseMessage.role = "tool";
-        baseMessage.tool_call_id = msg.toolCallId;
+      if (msg.role === 'tool' && msg.toolCallId) {
+        baseMessage.role = 'tool'
+        baseMessage.tool_call_id = msg.toolCallId
         baseMessage.content =
-          typeof msg.content === "string"
+          typeof msg.content === 'string'
             ? msg.content
-            : JSON.stringify(msg.content);
+            : JSON.stringify(msg.content)
       }
 
-      return baseMessage;
-    });
+      return baseMessage
+    })
 
     const response = await this.client.chat({
       model: mappedOptions.model,
@@ -286,45 +296,45 @@ export class Ollama extends BaseAdapter<
       options: mappedOptions.options,
       tools: mappedOptions.tools,
       stream: true,
-    });
+    })
 
-    let hasToolCalls = false;
+    let hasToolCalls = false
 
     for await (const chunk of response) {
       // Check if tool calls are present in this chunk
-      const toolCalls = chunk.message.tool_calls || [];
+      const toolCalls = chunk.message.tool_calls || []
       if (toolCalls.length > 0) {
-        hasToolCalls = true;
+        hasToolCalls = true
       }
 
       const result: ChatCompletionChunk = {
         id: this.generateId(),
-        model: chunk.model || options.model || "llama2",
-        content: chunk.message.content || "",
-        role: "assistant",
+        model: chunk.model || options.model || 'llama2',
+        content: chunk.message.content || '',
+        role: 'assistant',
         finishReason: chunk.done
           ? hasToolCalls
-            ? "tool_calls"
-            : "stop"
+            ? 'tool_calls'
+            : 'stop'
           : null,
-      };
+      }
 
       // Handle tool calls if present
       if (toolCalls.length > 0) {
         result.toolCalls = toolCalls.map((tc: any) => ({
           id: tc.id || this.generateId(),
-          type: tc.type || "function",
+          type: tc.type || 'function',
           function: {
-            name: tc.function?.name || "",
+            name: tc.function?.name || '',
             arguments:
-              typeof tc.function?.arguments === "string"
+              typeof tc.function?.arguments === 'string'
                 ? tc.function.arguments
                 : JSON.stringify(tc.function?.arguments || {}),
           },
-        }));
+        }))
       }
 
-      yield result;
+      yield result
     }
   }
 
@@ -333,25 +343,25 @@ export class Ollama extends BaseAdapter<
     // TODO: Implement native structured streaming for Ollama
     yield* convertChatCompletionStream(
       this.chatCompletionStream(options),
-      options.model || "llama2"
-    );
+      options.model || 'llama2',
+    )
   }
 
   async summarize(options: SummarizationOptions): Promise<SummarizationResult> {
-    const prompt = this.buildSummarizationPrompt(options, options.text);
+    const prompt = this.buildSummarizationPrompt(options, options.text)
 
     const response = await this.client.generate({
-      model: options.model || "llama2",
+      model: options.model || 'llama2',
       prompt,
       options: {
         temperature: 0.3,
         num_predict: options.maxLength || 500,
       },
       stream: false,
-    });
+    })
 
-    const promptTokens = this.estimateTokens(prompt);
-    const completionTokens = this.estimateTokens(response.response);
+    const promptTokens = this.estimateTokens(prompt)
+    const completionTokens = this.estimateTokens(response.response)
 
     return {
       id: this.generateId(),
@@ -362,71 +372,71 @@ export class Ollama extends BaseAdapter<
         completionTokens,
         totalTokens: promptTokens + completionTokens,
       },
-    };
+    }
   }
 
   async createEmbeddings(options: EmbeddingOptions): Promise<EmbeddingResult> {
     const inputs = Array.isArray(options.input)
       ? options.input
-      : [options.input];
-    const embeddings: number[][] = [];
+      : [options.input]
+    const embeddings: Array<Array<number>> = []
 
     for (const input of inputs) {
       const response = await this.client.embeddings({
-        model: options.model || "nomic-embed-text",
+        model: options.model || 'nomic-embed-text',
         prompt: input,
-      });
-      embeddings.push(response.embedding);
+      })
+      embeddings.push(response.embedding)
     }
 
     const promptTokens = inputs.reduce(
       (sum, input) => sum + this.estimateTokens(input),
-      0
-    );
+      0,
+    )
 
     return {
       id: this.generateId(),
-      model: options.model || "nomic-embed-text",
+      model: options.model || 'nomic-embed-text',
       embeddings,
       usage: {
         promptTokens,
         totalTokens: promptTokens,
       },
-    };
+    }
   }
 
   private buildSummarizationPrompt(
     options: SummarizationOptions,
-    text: string
+    text: string,
   ): string {
-    let prompt = "You are a professional summarizer. ";
+    let prompt = 'You are a professional summarizer. '
 
     switch (options.style) {
-      case "bullet-points":
-        prompt += "Provide a summary in bullet point format. ";
-        break;
-      case "paragraph":
-        prompt += "Provide a summary in paragraph format. ";
-        break;
-      case "concise":
-        prompt += "Provide a very concise summary in 1-2 sentences. ";
-        break;
+      case 'bullet-points':
+        prompt += 'Provide a summary in bullet point format. '
+        break
+      case 'paragraph':
+        prompt += 'Provide a summary in paragraph format. '
+        break
+      case 'concise':
+        prompt += 'Provide a very concise summary in 1-2 sentences. '
+        break
       default:
-        prompt += "Provide a clear and concise summary. ";
+        prompt += 'Provide a clear and concise summary. '
     }
 
     if (options.focus && options.focus.length > 0) {
-      prompt += `Focus on the following aspects: ${options.focus.join(", ")}. `;
+      prompt += `Focus on the following aspects: ${options.focus.join(', ')}. `
     }
 
-    prompt += `\n\nText to summarize:\n${text}\n\nSummary:`;
+    prompt += `\n\nText to summarize:\n${text}\n\nSummary:`
 
-    return prompt;
+    return prompt
   }
 
   private estimateTokens(text: string): number {
     // Rough approximation: 1 token ≈ 4 characters
-    return Math.ceil(text.length / 4);
+    return Math.ceil(text.length / 4)
   }
 }
 
@@ -450,9 +460,9 @@ export class Ollama extends BaseAdapter<
  */
 export function createOllama(
   host?: string,
-  config?: Omit<OllamaConfig, "host">
+  config?: Omit<OllamaConfig, 'host'>,
 ): Ollama {
-  return new Ollama({ host, ...config });
+  return new Ollama({ host, ...config })
 }
 
 /**
@@ -473,14 +483,14 @@ export function createOllama(
  * const aiInstance = ai(ollama());
  * ```
  */
-export function ollama(config?: Omit<OllamaConfig, "host">): Ollama {
+export function ollama(config?: Omit<OllamaConfig, 'host'>): Ollama {
   const env =
-    typeof globalThis !== "undefined" && (globalThis as any).window?.env
+    typeof globalThis !== 'undefined' && (globalThis as any).window?.env
       ? (globalThis as any).window.env
-      : typeof process !== "undefined"
-      ? process.env
-      : undefined;
-  const host = env?.OLLAMA_HOST;
+      : typeof process !== 'undefined'
+        ? process.env
+        : undefined
+  const host = env?.OLLAMA_HOST
 
-  return createOllama(host, config);
+  return createOllama(host, config)
 }

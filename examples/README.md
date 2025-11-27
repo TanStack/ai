@@ -19,6 +19,7 @@ Choose an example based on your use case:
 A full-featured chat application built with the TanStack ecosystem.
 
 **Tech Stack:**
+
 - TanStack Start (full-stack React framework)
 - TanStack Router (type-safe routing)
 - TanStack Store (state management)
@@ -27,6 +28,7 @@ A full-featured chat application built with the TanStack ecosystem.
 - `@tanstack/ai-client` (headless client)
 
 **Features:**
+
 - ✅ Real-time streaming with OpenAI GPT-4o
 - ✅ Automatic tool execution loop
 - ✅ Rich markdown rendering
@@ -34,6 +36,7 @@ A full-featured chat application built with the TanStack ecosystem.
 - ✅ Modern UI with Tailwind CSS
 
 **Getting Started:**
+
 ```bash
 cd examples/ts-chat
 pnpm install
@@ -51,6 +54,7 @@ pnpm start
 An interactive command-line interface for AI interactions.
 
 **Features:**
+
 - ✅ Multi-provider support (OpenAI, Anthropic, Ollama, Gemini)
 - ✅ Interactive chat with streaming
 - ✅ Automatic tool/function calling
@@ -58,6 +62,7 @@ An interactive command-line interface for AI interactions.
 - ✅ Debug mode for development
 
 **Getting Started:**
+
 ```bash
 cd examples/cli
 pnpm install
@@ -65,6 +70,7 @@ pnpm dev chat --provider openai
 ```
 
 **Available Commands:**
+
 - `chat` - Interactive chat with streaming
 - `generate` - One-shot text generation
 - `summarize` - Text summarization
@@ -79,18 +85,21 @@ pnpm dev chat --provider openai
 A framework-free chat application using pure JavaScript and `@tanstack/ai-client`.
 
 **Tech Stack:**
+
 - Vanilla JavaScript (no frameworks!)
 - `@tanstack/ai-client` (headless client)
 - Vite (dev server)
 - Connects to Python FastAPI backend
 
 **Features:**
+
 - ✅ Pure vanilla JavaScript
 - ✅ Real-time streaming messages
 - ✅ Beautiful, responsive UI
 - ✅ No framework dependencies
 
 **Getting Started:**
+
 ```bash
 # Start the Python backend first
 cd examples/python-fastapi
@@ -115,6 +124,7 @@ Open `http://localhost:3000`
 A FastAPI server that streams AI responses in Server-Sent Events (SSE) format, compatible with TanStack AI clients.
 
 **Features:**
+
 - ✅ FastAPI with SSE streaming
 - ✅ Converts Anthropic/OpenAI events to `StreamChunk` format
 - ✅ Compatible with `@tanstack/ai-client`
@@ -122,6 +132,7 @@ A FastAPI server that streams AI responses in Server-Sent Events (SSE) format, c
 - ✅ Type-safe with Pydantic
 
 **Getting Started:**
+
 ```bash
 cd examples/python-fastapi
 
@@ -141,18 +152,20 @@ python anthropic-server.py  # or openai-server.py
 ```
 
 **API Endpoints:**
+
 - `POST /chat` - Stream chat responses in SSE format
 - `GET /health` - Health check
 
 **Usage with TypeScript Client:**
+
 ```typescript
-import { ChatClient, fetchServerSentEvents } from "@tanstack/ai-client";
+import { ChatClient, fetchServerSentEvents } from '@tanstack/ai-client'
 
 const client = new ChatClient({
-  connection: fetchServerSentEvents("http://localhost:8000/chat"),
-});
+  connection: fetchServerSentEvents('http://localhost:8000/chat'),
+})
 
-await client.sendMessage("Hello!");
+await client.sendMessage('Hello!')
 ```
 
 📖 [Full Documentation](python-fastapi/README.md)
@@ -166,6 +179,7 @@ await client.sendMessage("Hello!");
 A PHP Slim Framework server that streams AI responses in SSE format, with support for both Anthropic and OpenAI.
 
 **Features:**
+
 - ✅ Slim Framework with SSE streaming
 - ✅ Converts Anthropic/OpenAI events to `StreamChunk` format
 - ✅ Compatible with `@tanstack/ai-client`
@@ -173,6 +187,7 @@ A PHP Slim Framework server that streams AI responses in SSE format, with suppor
 - ✅ PHP 8.1+ with type safety
 
 **Getting Started:**
+
 ```bash
 cd examples/php-slim
 
@@ -190,18 +205,20 @@ composer start-openai     # Runs on port 8001
 ```
 
 **API Endpoints:**
+
 - `POST /chat` - Stream chat responses in SSE format
 - `GET /health` - Health check
 
 **Usage with TypeScript Client:**
+
 ```typescript
-import { ChatClient, fetchServerSentEvents } from "@tanstack/ai-client";
+import { ChatClient, fetchServerSentEvents } from '@tanstack/ai-client'
 
 const client = new ChatClient({
-  connection: fetchServerSentEvents("http://localhost:8000/chat"),
-});
+  connection: fetchServerSentEvents('http://localhost:8000/chat'),
+})
 
-await client.sendMessage("Hello!");
+await client.sendMessage('Hello!')
 ```
 
 📖 [Full Documentation](php-slim/README.md)
@@ -246,7 +263,8 @@ Stream Conversion & Message Formatting
 AI Provider (OpenAI/Anthropic/etc.)
 ```
 
-**Examples:** 
+**Examples:**
+
 - [Python FastAPI](python-fastapi/README.md) + [Vanilla Chat](vanilla-chat/README.md)
 - [PHP Slim](php-slim/README.md) + any frontend with `@tanstack/ai-client`
 
@@ -273,20 +291,22 @@ AI Provider (OpenAI/Anthropic/Ollama/Gemini)
 All examples use SSE for real-time streaming:
 
 **Backend (TypeScript):**
+
 ```typescript
-import { chat, toStreamResponse } from "@tanstack/ai";
-import { openai } from "@tanstack/ai-openai";
+import { chat, toStreamResponse } from '@tanstack/ai'
+import { openai } from '@tanstack/ai-openai'
 
 const stream = chat({
   adapter: openai(),
-  model: "gpt-4o",
+  model: 'gpt-4o',
   messages,
-});
+})
 
-return toStreamResponse(stream);
+return toStreamResponse(stream)
 ```
 
 **Backend (Python):**
+
 ```python
 from tanstack_ai import StreamChunkConverter, format_sse_chunk
 
@@ -297,6 +317,7 @@ async for event in anthropic_stream:
 ```
 
 **Backend (PHP):**
+
 ```php
 use TanStack\AI\StreamChunkConverter;
 use TanStack\AI\SSEFormatter;
@@ -310,12 +331,13 @@ foreach ($anthropicStream as $event) {
 ```
 
 **Frontend:**
+
 ```typescript
-import { ChatClient, fetchServerSentEvents } from "@tanstack/ai-client";
+import { ChatClient, fetchServerSentEvents } from '@tanstack/ai-client'
 
 const client = new ChatClient({
-  connection: fetchServerSentEvents("/api/chat"),
-});
+  connection: fetchServerSentEvents('/api/chat'),
+})
 ```
 
 ### Automatic Tool Execution
@@ -323,29 +345,32 @@ const client = new ChatClient({
 The TypeScript backend (`@tanstack/ai`) automatically handles tool execution:
 
 ```typescript
-import { chat, tool } from "@tanstack/ai";
+import { chat, tool } from '@tanstack/ai'
 
 const weatherTool = tool({
   function: {
-    name: "getWeather",
-    description: "Get weather for a location",
-    parameters: { /* ... */ },
+    name: 'getWeather',
+    description: 'Get weather for a location',
+    parameters: {
+      /* ... */
+    },
   },
   execute: async (args) => {
     // This is called automatically by the SDK
-    return JSON.stringify({ temp: 72, condition: "sunny" });
+    return JSON.stringify({ temp: 72, condition: 'sunny' })
   },
-});
+})
 
 const stream = chat({
   adapter: openai(),
-  model: "gpt-4o",
+  model: 'gpt-4o',
   messages,
-  tools: [weatherTool],  // SDK executes these automatically
-});
+  tools: [weatherTool], // SDK executes these automatically
+})
 ```
 
 Clients receive:
+
 - `content` chunks - text from the model
 - `tool_call` chunks - when the model calls a tool
 - `tool_result` chunks - results from tool execution
@@ -382,7 +407,7 @@ Each example has an `env.example` file. Copy it to `.env` and add your API keys:
 OPENAI_API_KEY=sk-...
 ANTHROPIC_API_KEY=sk-ant-...
 
-# Python examples  
+# Python examples
 ANTHROPIC_API_KEY=sk-ant-...
 OPENAI_API_KEY=sk-...
 
@@ -394,17 +419,20 @@ OPENAI_API_KEY=sk-...
 ### Building for Production
 
 **TypeScript:**
+
 ```bash
 pnpm build
 ```
 
 **Python:**
+
 ```bash
 # Use a production ASGI server
 uvicorn anthropic-server:app --host 0.0.0.0 --port 8000
 ```
 
 **PHP:**
+
 ```bash
 # Use a production web server (Apache, Nginx, etc.)
 # See php-slim/README.md for deployment details

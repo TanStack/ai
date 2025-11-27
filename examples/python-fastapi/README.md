@@ -34,7 +34,6 @@ python3 -m venv venv
 ```
 
 3. **Activate the virtual environment:**
-
    - **On macOS/Linux:**
 
      ```bash
@@ -129,13 +128,13 @@ Health check endpoint.
 This server is compatible with the TypeScript TanStack AI client:
 
 ```typescript
-import { ChatClient, fetchServerSentEvents } from "@tanstack/ai-client";
+import { ChatClient, fetchServerSentEvents } from '@tanstack/ai-client'
 
 const client = new ChatClient({
-  connection: fetchServerSentEvents("http://localhost:8000/chat"),
-});
+  connection: fetchServerSentEvents('http://localhost:8000/chat'),
+})
 
-await client.sendMessage("Hello!");
+await client.sendMessage('Hello!')
 ```
 
 ## StreamChunk Format
@@ -152,6 +151,7 @@ See `packages/typescript/ai/src/types.ts` for the full TypeScript type definitio
 ## Supported Providers
 
 The converter currently supports:
+
 - ✅ **Anthropic** (Claude models) - fully implemented
 - ✅ **OpenAI** (GPT models) - converter implemented, ready to use
 

@@ -1,20 +1,20 @@
-import ReactMarkdown from "react-markdown";
-import rehypeRaw from "rehype-raw";
-import rehypeSanitize from "rehype-sanitize";
-import rehypeHighlight from "rehype-highlight";
-import remarkGfm from "remark-gfm";
+import ReactMarkdown from 'react-markdown'
+import rehypeRaw from 'rehype-raw'
+import rehypeSanitize from 'rehype-sanitize'
+import rehypeHighlight from 'rehype-highlight'
+import remarkGfm from 'remark-gfm'
 
 export interface TextPartProps {
   /** The text content to render */
-  content: string;
+  content: string
   /** The role of the message (user, assistant, or system) - optional for standalone use */
-  role?: "user" | "assistant" | "system";
+  role?: 'user' | 'assistant' | 'system'
   /** Base className applied to all text parts */
-  className?: string;
+  className?: string
   /** Additional className for user messages */
-  userClassName?: string;
+  userClassName?: string
   /** Additional className for assistant messages (also used for system messages) */
-  assistantClassName?: string;
+  assistantClassName?: string
 }
 
 /**
@@ -58,13 +58,18 @@ export interface TextPartProps {
 export function TextPart({
   content,
   role,
-  className = "",
-  userClassName = "",
-  assistantClassName = "",
+  className = '',
+  userClassName = '',
+  assistantClassName = '',
 }: TextPartProps) {
   // Combine classes based on role
-  const roleClassName = role === "user" ? userClassName : role === "assistant" ? assistantClassName : "";
-  const combinedClassName = [className, roleClassName].filter(Boolean).join(" ");
+  const roleClassName =
+    role === 'user'
+      ? userClassName
+      : role === 'assistant'
+        ? assistantClassName
+        : ''
+  const combinedClassName = [className, roleClassName].filter(Boolean).join(' ')
 
   return (
     <div className={combinedClassName || undefined}>
@@ -74,6 +79,5 @@ export function TextPart({
         {content}
       </ReactMarkdown>
     </div>
-  );
+  )
 }
-

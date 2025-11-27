@@ -1,5 +1,5 @@
-import type { Tool } from "@tanstack/ai";
-import OpenAI from "openai";
+import type OpenAI from 'openai'
+import type { Tool } from '@tanstack/ai'
 
 export type ShellTool = OpenAI.Responses.FunctionShellTool
 
@@ -8,8 +8,8 @@ export type ShellTool = OpenAI.Responses.FunctionShellTool
  */
 export function convertShellToolToAdapterFormat(_tool: Tool): ShellTool {
   return {
-    type: "shell",
-  };
+    type: 'shell',
+  }
 }
 
 /**
@@ -17,12 +17,12 @@ export function convertShellToolToAdapterFormat(_tool: Tool): ShellTool {
  */
 export function shellTool(): Tool {
   return {
-    type: "function",
+    type: 'function',
     function: {
-      name: "shell",
-      description: "Execute shell commands",
+      name: 'shell',
+      description: 'Execute shell commands',
       parameters: {},
     },
     metadata: {},
-  };
+  }
 }

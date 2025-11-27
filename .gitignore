@@ -49,3 +49,5 @@ output/
 
 # My TODOs. Feel free to ignore this.
 *-TODO.md
+.nx
+assets/
