@@ -1,8 +1,9 @@
-import { chat, type Tool } from '@tanstack/ai'
-import { mkdir, writeFile } from 'fs/promises'
-import { join } from 'path'
+import { mkdir, writeFile } from 'node:fs/promises'
+import { join } from 'node:path'
+import { chat } from '@tanstack/ai'
+import type { Tool } from '@tanstack/ai';
 
-export const OUTPUT_DIR = join(process.cwd(), 'output')
+const OUTPUT_DIR = join(process.cwd(), 'output')
 
 export interface ToolCallCapture {
   id: string
@@ -24,14 +25,14 @@ export interface ApprovalCapture {
 
 export interface StreamCapture {
   phase: string
-  chunks: any[]
+  chunks: Array<any>
   fullResponse: string
   responseLength: number
   totalChunks: number
-  toolCalls: ToolCallCapture[]
-  toolResults: ToolResultCapture[]
-  approvalRequests: ApprovalCapture[]
-  reconstructedMessages: any[]
+  toolCalls: Array<ToolCallCapture>
+  toolResults: Array<ToolResultCapture>
+  approvalRequests: Array<ApprovalCapture>
+  reconstructedMessages: Array<any>
   lastAssistantMessage: any | null
 }
 
@@ -49,13 +50,13 @@ export interface DebugEnvelope {
   model: string
   timestamp: string
   input: {
-    messages: any[]
-    tools?: any[]
+    messages: Array<any>
+    tools?: Array<any>
   }
-  chunks: any[]
+  chunks: Array<any>
   summary: Record<string, any>
   result?: { passed: boolean; error?: string }
-  finalMessages?: any[]
+  finalMessages?: Array<any>
 }
 
 async function ensureOutputDir() {
@@ -77,15 +78,15 @@ export async function writeDebugFile(
   await writeFile(filepath, JSON.stringify(debugData, null, 2), 'utf-8')
 }
 
-function formatToolsForDebug(tools: Tool[] = []) {
+function formatToolsForDebug(tools: Array<Tool> = []) {
   return tools.map((t) => ({
     type: t.type,
     function: t.function
       ? {
-          name: t.function.name,
-          description: t.function.description,
-          parameters: t.function.parameters,
-        }
+        name: t.function.name,
+        description: t.function.description,
+        parameters: t.function.parameters,
+      }
       : undefined,
     needsApproval: (t as any).needsApproval,
     hasExecute: Boolean((t as any).execute),
@@ -96,8 +97,8 @@ export function createDebugEnvelope(
   adapterName: string,
   testName: string,
   model: string,
-  messages: any[],
-  tools?: Tool[],
+  messages: Array<any>,
+  tools?: Array<Tool>,
 ): DebugEnvelope {
   return {
     adapter: adapterName,
@@ -105,7 +106,7 @@ export function createDebugEnvelope(
     model,
     timestamp: new Date().toISOString(),
     input: { messages, tools: formatToolsForDebug(tools) },
-    chunks: [] as any[],
+    chunks: [] as Array<any>,
     summary: {},
   }
 }
@@ -127,8 +128,8 @@ export async function captureStream(opts: {
   phase: string
   adapter: any
   model: string
-  messages: any[]
-  tools?: Tool[]
+  messages: Array<any>
+  tools?: Array<Tool>
   agentLoopStrategy?: any
 }): Promise<StreamCapture> {
   const {
@@ -152,11 +153,11 @@ export async function captureStream(opts: {
 
   let chunkIndex = 0
   let fullResponse = ''
-  const chunks: any[] = []
+  const chunks: Array<any> = []
   const toolCallMap = new Map<string, ToolCallCapture>()
-  const toolResults: ToolResultCapture[] = []
-  const approvalRequests: ApprovalCapture[] = []
-  const reconstructedMessages: any[] = [...messages]
+  const toolResults: Array<ToolResultCapture> = []
+  const approvalRequests: Array<ApprovalCapture> = []
+  const reconstructedMessages: Array<any> = [...messages]
   let assistantDraft: any | null = null
   let lastAssistantMessage: any | null = null
 
@@ -280,8 +281,8 @@ export async function runTestCase(opts: {
   adapterContext: AdapterContext
   testName: string
   description: string
-  messages: any[]
-  tools?: Tool[]
+  messages: Array<any>
+  tools?: Array<Tool>
   agentLoopStrategy?: any
   validate: (run: StreamCapture) => {
     passed: boolean
@@ -337,8 +338,7 @@ export async function runTestCase(opts: {
     console.log(`[${adapterContext.adapterName}] ✅ ${testName}`)
   } else {
     console.log(
-      `[${adapterContext.adapterName}] ❌ ${testName}: ${
-        validation.error || 'Unknown error'
+      `[${adapterContext.adapterName}] ❌ ${testName}: ${validation.error || 'Unknown error'
       }`,
     )
   }
@@ -347,7 +347,7 @@ export async function runTestCase(opts: {
 }
 
 export function buildApprovalMessages(
-  originalMessages: any[],
+  originalMessages: Array<any>,
   firstRun: StreamCapture,
   approval: ApprovalCapture,
 ) {
@@ -364,9 +364,9 @@ export function buildApprovalMessages(
       const aggregated = firstRun.toolCalls.find((call) => call.id === tc.id)
       return aggregated
         ? {
-            ...tc,
-            function: { ...tc.function, arguments: aggregated.arguments },
-          }
+          ...tc,
+          function: { ...tc.function, arguments: aggregated.arguments },
+        }
         : tc
     }) || []
 

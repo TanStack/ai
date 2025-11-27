@@ -1,7 +1,6 @@
 import type { ConnectionAdapter } from '../src/connection-adapters'
-import type { StreamChunk } from '@tanstack/ai'
-import type { ModelMessage, UIMessage } from '../src/types'
-
+import type { ModelMessage, StreamChunk } from '@tanstack/ai'
+import type { UIMessage } from '../src/types'
 /**
  * Options for creating a mock connection adapter
  */
@@ -9,7 +8,7 @@ export interface MockConnectionAdapterOptions {
   /**
    * Chunks to yield from the stream
    */
-  chunks?: StreamChunk[]
+  chunks?: Array<StreamChunk>
 
   /**
    * Delay between chunks (in ms)
@@ -30,7 +29,7 @@ export interface MockConnectionAdapterOptions {
    * Callback when connect is called
    */
   onConnect?: (
-    messages: ModelMessage[] | UIMessage[],
+    messages: Array<ModelMessage> | Array<UIMessage>,
     data?: Record<string, any>,
     abortSignal?: AbortSignal,
   ) => void
@@ -110,18 +109,18 @@ export function createTextChunks(
   text: string,
   messageId: string = 'msg-1',
   model: string = 'test',
-): StreamChunk[] {
-  const chunks: StreamChunk[] = []
+): Array<StreamChunk> {
+  const chunks: Array<StreamChunk> = []
   let accumulated = ''
 
-  for (let i = 0; i < text.length; i++) {
-    accumulated += text[i]
+  for (const chunk of text) {
+    accumulated += chunk
     chunks.push({
       type: 'content',
       id: messageId,
       model,
       timestamp: Date.now(),
-      delta: text[i],
+      delta: chunk,
       content: accumulated,
       role: 'assistant',
     } as StreamChunk)
@@ -147,8 +146,8 @@ export function createToolCallChunks(
   messageId: string = 'msg-1',
   model: string = 'test',
   includeToolInputAvailable: boolean = true,
-): StreamChunk[] {
-  const chunks: StreamChunk[] = []
+): Array<StreamChunk> {
+  const chunks: Array<StreamChunk> = []
 
   for (let i = 0; i < toolCalls.length; i++) {
     const toolCall = toolCalls[i]
@@ -159,11 +158,11 @@ export function createToolCallChunks(
       timestamp: Date.now(),
       index: i,
       toolCall: {
-        id: toolCall.id,
+        id: toolCall?.id,
         type: 'function',
         function: {
-          name: toolCall.name,
-          arguments: toolCall.arguments,
+          name: toolCall?.name,
+          arguments: toolCall?.arguments,
         },
       },
     } as StreamChunk)
@@ -172,9 +171,9 @@ export function createToolCallChunks(
     if (includeToolInputAvailable) {
       let parsedInput: any
       try {
-        parsedInput = JSON.parse(toolCall.arguments)
+        parsedInput = JSON.parse(toolCall?.arguments ?? "")
       } catch {
-        parsedInput = toolCall.arguments
+        parsedInput = toolCall?.arguments
       }
 
       chunks.push({
@@ -182,8 +181,8 @@ export function createToolCallChunks(
         id: messageId,
         model,
         timestamp: Date.now(),
-        toolCallId: toolCall.id,
-        toolName: toolCall.name,
+        toolCallId: toolCall?.id,
+        toolName: toolCall?.name,
         input: parsedInput,
       } as StreamChunk)
     }

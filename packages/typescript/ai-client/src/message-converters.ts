@@ -11,7 +11,7 @@ import type {
  * Convert UIMessages or ModelMessages to ModelMessages
  */
 export function convertMessagesToModelMessages(
-  messages: Array<UIMessage> | Array<ModelMessage>,
+  messages: Array<UIMessage | ModelMessage>,
 ): Array<ModelMessage> {
   const modelMessages: Array<ModelMessage> = []
   for (const msg of messages) {
@@ -64,20 +64,20 @@ export function uiMessageToModelMessages(
   const toolCalls =
     toolCallParts.length > 0
       ? toolCallParts
-          .filter(
-            (p) =>
-              p.state === 'input-complete' ||
-              p.state === 'approval-responded' ||
-              p.output !== undefined, // Include if has output (client tool result)
-          )
-          .map((p) => ({
-            id: p.id,
-            type: 'function' as const,
-            function: {
-              name: p.name,
-              arguments: p.arguments,
-            },
-          }))
+        .filter(
+          (p) =>
+            p.state === 'input-complete' ||
+            p.state === 'approval-responded' ||
+            p.output !== undefined, // Include if has output (client tool result)
+        )
+        .map((p) => ({
+          id: p.id,
+          type: 'function' as const,
+          function: {
+            name: p.name,
+            arguments: p.arguments,
+          },
+        }))
       : undefined
 
   // Create the main message

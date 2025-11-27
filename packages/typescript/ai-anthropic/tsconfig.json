@@ -3,6 +3,6 @@
   "compilerOptions": {
     "outDir": "dist"
   },
-  "include": ["vite.config.ts", "eslint.config.js", "./src"],
+  "include": ["vite.config.ts", "./src"],
   "exclude": ["node_modules", "dist", "**/*.config.ts"]
 }

@@ -285,6 +285,11 @@ export const validateConversationAndPreviousResponseId = (
   }
 }
 
+export const validateTextProviderOptions = (options: InternalTextProviderOptions) => {
+  validateMetadata(options)
+  validateConversationAndPreviousResponseId(options)
+}
+
 export const validateMetadata = (options: InternalTextProviderOptions) => {
   const metadata = options.metadata
   const tooManyKeys = metadata && Object.keys(metadata).length > 16

@@ -33,7 +33,7 @@
     "lint:fix": "eslint ./src --fix",
     "test:build": "publint --strict",
     "test:eslint": "eslint ./src",
-    "test:lib": "vitest",
+    "test:lib": "vitest --passWithNoTests",
     "test:lib:dev": "pnpm test:lib --watch",
     "test:types": "tsc"
   },
@@ -49,7 +49,6 @@
     "@tanstack/ai": "workspace:*",
     "@tanstack/devtools-ui": "^0.4.4",
     "@tanstack/devtools-utils": "^0.0.8",
-    "clsx": "^2.1.1",
     "goober": "^2.1.18",
     "solid-js": "^1.9.10"
   },

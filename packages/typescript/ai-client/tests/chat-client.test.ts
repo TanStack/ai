@@ -1,4 +1,4 @@
-import { describe, it, expect, vi } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { ChatClient } from '../src/chat-client'
 import {
   createMockConnectionAdapter,
@@ -20,7 +20,7 @@ describe('ChatClient', () => {
 
     it('should initialize with provided messages', () => {
       const adapter = createMockConnectionAdapter()
-      const initialMessages: UIMessage[] = [
+      const initialMessages: Array<UIMessage> = [
         {
           id: 'msg-1',
           role: 'user',
@@ -65,12 +65,12 @@ describe('ChatClient', () => {
       expect(messages2.length).toBeGreaterThan(0)
 
       // Message IDs from client1 should start with "custom-id-"
-      const client1MessageId = messages1[0].id
+      const client1MessageId = messages1[0]?.id
       expect(client1MessageId).toMatch(/^custom-id-/)
 
       // Message IDs from client2 should NOT start with "custom-id-"
       // (they'll have a generated ID like "chat-...")
-      const client2MessageId = messages2[0].id
+      const client2MessageId = messages2[0]?.id
       expect(client2MessageId).not.toMatch(/^custom-id-/)
       expect(client2MessageId).toMatch(/^chat-/)
     })
@@ -87,8 +87,8 @@ describe('ChatClient', () => {
 
       const messages = client.getMessages()
       expect(messages.length).toBeGreaterThan(0)
-      expect(messages[0].role).toBe('user')
-      expect(messages[0].parts[0]).toEqual({
+      expect(messages[0]?.role).toBe('user')
+      expect(messages[0]?.parts[0]).toEqual({
         type: 'text',
         content: 'Hello',
       })
@@ -120,7 +120,7 @@ describe('ChatClient', () => {
         // Verify it has text content from the chunks
         const textPart = assistantMessage.parts.find((p) => p.type === 'text')
         expect(textPart).toBeDefined()
-        if (textPart && textPart.type === 'text') {
+        if (textPart) {
           expect(textPart.content).toBe('Hello, world!')
         }
       }
@@ -171,7 +171,7 @@ describe('ChatClient', () => {
 
       const messages = client.getMessages()
       expect(messages.length).toBeGreaterThan(0)
-      expect(messages[0].id).toBe('user-1')
+      expect(messages[0]?.id).toBe('user-1')
     })
 
     it('should convert and append a ModelMessage', async () => {
@@ -186,8 +186,8 @@ describe('ChatClient', () => {
 
       const messages = client.getMessages()
       expect(messages.length).toBeGreaterThan(0)
-      expect(messages[0].role).toBe('user')
-      expect(messages[0].parts[0]).toEqual({
+      expect(messages[0]?.role).toBe('user')
+      expect(messages[0]?.parts[0]).toEqual({
         type: 'text',
         content: 'Hello from model',
       })
@@ -207,8 +207,8 @@ describe('ChatClient', () => {
       await client.append(message)
 
       const messages = client.getMessages()
-      expect(messages[0].id).toBeTruthy()
-      expect(messages[0].createdAt).toBeInstanceOf(Date)
+      expect(messages[0]?.id).toBeTruthy()
+      expect(messages[0]?.createdAt).toBeInstanceOf(Date)
     })
   })
 
@@ -234,7 +234,7 @@ describe('ChatClient', () => {
       // The last user message should match what was resent
       const lastUserMessageAfter =
         userMessagesAfter[userMessagesAfter.length - 1]
-      expect(lastUserMessageAfter.parts[0]).toEqual({
+      expect(lastUserMessageAfter?.parts[0]).toEqual({
         type: 'text',
         content: 'Second',
       })
@@ -367,8 +367,8 @@ describe('ChatClient', () => {
       await client.sendMessage('Hello')
 
       expect(onFinish).toHaveBeenCalled()
-      const finishCall = onFinish.mock.calls[0][0]
-      expect(finishCall.role).toBe('assistant')
+      const finishCall = onFinish.mock.calls[0]?.[0]
+      expect(finishCall?.role).toBe('assistant')
     })
 
     it('should call onError when error occurs', async () => {
@@ -410,7 +410,7 @@ describe('ChatClient', () => {
           (p) => p.type === 'tool-call',
         )
         expect(toolCallPart).toBeDefined()
-        if (toolCallPart && toolCallPart.type === 'tool-call') {
+        if (toolCallPart) {
           expect(toolCallPart.name).toBe('get_weather')
         }
       }
@@ -431,7 +431,7 @@ describe('ChatClient', () => {
       await client.sendMessage('Test')
 
       expect(onToolCall).toHaveBeenCalled()
-      const call = onToolCall.mock.calls[0][0]
+      const call = onToolCall.mock.calls[0]?.[0]
       expect(call.toolName).toBe('test_tool')
       expect(call.input).toEqual({ x: 1 })
     })
@@ -445,7 +445,7 @@ describe('ChatClient', () => {
 
       // Capture the tool call ID from the callback
       let capturedToolCallId: string | undefined
-      const onToolCall = vi.fn().mockImplementation(async (args) => {
+      const onToolCall = vi.fn().mockImplementation((args) => {
         capturedToolCallId = args.toolCallId
         throw new Error('Tool execution failed')
       })
@@ -478,13 +478,13 @@ describe('ChatClient', () => {
 
         // Find the tool call part by the captured ID
         const toolCallPart = allToolCalls.find(
-          (p) => p.type === 'tool-call' && p.id === capturedToolCallId,
+          (p) => p.id === capturedToolCallId,
         )
 
         // The tool call part should exist
         expect(toolCallPart).toBeDefined()
 
-        if (toolCallPart && toolCallPart.type === 'tool-call') {
+        if (toolCallPart) {
           // After error, output should be set with error object
           // Note: The output might be set asynchronously, so we check if it exists
           // If it doesn't exist yet, the error handling still worked (onToolCall was called)
@@ -519,7 +519,7 @@ describe('ChatClient', () => {
         (p) => p.type === 'tool-call',
       )
 
-      if (toolCallPart && toolCallPart.type === 'tool-call') {
+      if (toolCallPart) {
         await client.addToolResult({
           toolCallId: toolCallPart.id,
           tool: toolCallPart.name,

@@ -77,19 +77,19 @@ export interface AnthropicThinkingOptions {
 When enabled, responses include thinking content blocks showing Claude's thinking process before the final answer. Requires a minimum budget of 1,024 tokens and counts towards your max_tokens limit.
      */
   thinking?:
-    | {
-        /**
- * Determines how many tokens Claude can use for its internal reasoning process. Larger budgets can enable more thorough analysis for complex problems, improving response quality.
+  | {
+    /**
+* Determines how many tokens Claude can use for its internal reasoning process. Larger budgets can enable more thorough analysis for complex problems, improving response quality.
 
 Must be ≥1024 and less than max_tokens
- */
-        budget_tokens: number
+*/
+    budget_tokens: number
 
-        type: 'enabled'
-      }
-    | {
-        type: 'disabled'
-      }
+    type: 'enabled'
+  }
+  | {
+    type: 'disabled'
+  }
 }
 
 export interface AnthropicToolChoiceOptions {
@@ -297,4 +297,10 @@ export const validateMaxTokens = (options: InternalTextProviderOptions) => {
   if (options.max_tokens < 1) {
     throw new Error('max_tokens must be at least 1.')
   }
+}
+
+export const validateTextProviderOptions = (options: InternalTextProviderOptions) => {
+  validateTopPandTemperature(options)
+  validateThinking(options)
+  validateMaxTokens(options)
 }

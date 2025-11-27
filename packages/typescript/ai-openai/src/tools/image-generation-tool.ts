@@ -3,7 +3,7 @@ import type { Tool } from '@tanstack/ai'
 
 export type ImageGenerationTool = OpenAI.Responses.Tool.ImageGeneration
 
-export const validatePartialImages = (value: number | undefined) => {
+const validatePartialImages = (value: number | undefined) => {
   if (value !== undefined && (value < 0 || value > 3)) {
     throw new Error('partial_images must be between 0 and 3')
   }

@@ -1,19 +1,19 @@
-import { describe, it, expect } from 'vitest'
+import { describe, expect, it } from 'vitest'
 import {
   updateTextPart,
-  updateToolCallPart,
-  updateToolResultPart,
   updateToolCallApproval,
+  updateToolCallApprovalResponse,
+  updateToolCallPart,
   updateToolCallState,
   updateToolCallWithOutput,
-  updateToolCallApprovalResponse,
+  updateToolResultPart,
 } from '../src/message-updaters'
 import type { UIMessage } from '../src/types'
 
 describe('message-updaters', () => {
   describe('updateTextPart', () => {
     it('should add text part to empty message', () => {
-      const messages: UIMessage[] = [
+      const messages: Array<UIMessage> = [
         {
           id: 'msg-1',
           role: 'assistant',
@@ -23,12 +23,12 @@ describe('message-updaters', () => {
 
       const result = updateTextPart(messages, 'msg-1', 'Hello')
 
-      expect(result[0].parts).toHaveLength(1)
-      expect(result[0].parts[0]).toEqual({ type: 'text', content: 'Hello' })
+      expect(result[0]?.parts).toHaveLength(1)
+      expect(result[0]?.parts[0]).toEqual({ type: 'text', content: 'Hello' })
     })
 
     it('should update existing text part', () => {
-      const messages: UIMessage[] = [
+      const messages: Array<UIMessage> = [
         {
           id: 'msg-1',
           role: 'assistant',
@@ -38,15 +38,15 @@ describe('message-updaters', () => {
 
       const result = updateTextPart(messages, 'msg-1', 'Hello world')
 
-      expect(result[0].parts).toHaveLength(1)
-      expect(result[0].parts[0]).toEqual({
+      expect(result[0]?.parts).toHaveLength(1)
+      expect(result[0]?.parts[0]).toEqual({
         type: 'text',
         content: 'Hello world',
       })
     })
 
     it('should place text part after tool calls', () => {
-      const messages: UIMessage[] = [
+      const messages: Array<UIMessage> = [
         {
           id: 'msg-1',
           role: 'assistant',
@@ -64,13 +64,13 @@ describe('message-updaters', () => {
 
       const result = updateTextPart(messages, 'msg-1', 'Hello')
 
-      expect(result[0].parts).toHaveLength(2)
-      expect(result[0].parts[0].type).toBe('tool-call')
-      expect(result[0].parts[1]).toEqual({ type: 'text', content: 'Hello' })
+      expect(result[0]?.parts).toHaveLength(2)
+      expect(result[0]?.parts[0]?.type).toBe('tool-call')
+      expect(result[0]?.parts[1]).toEqual({ type: 'text', content: 'Hello' })
     })
 
     it('should maintain order: tool calls, other parts, text', () => {
-      const messages: UIMessage[] = [
+      const messages: Array<UIMessage> = [
         {
           id: 'msg-1',
           role: 'assistant',
@@ -94,14 +94,14 @@ describe('message-updaters', () => {
 
       const result = updateTextPart(messages, 'msg-1', 'Hello')
 
-      expect(result[0].parts).toHaveLength(3)
-      expect(result[0].parts[0].type).toBe('tool-call')
-      expect(result[0].parts[1].type).toBe('tool-result')
-      expect(result[0].parts[2]).toEqual({ type: 'text', content: 'Hello' })
+      expect(result[0]?.parts).toHaveLength(3)
+      expect(result[0]?.parts[0]?.type).toBe('tool-call')
+      expect(result[0]?.parts[1]?.type).toBe('tool-result')
+      expect(result[0]?.parts[2]).toEqual({ type: 'text', content: 'Hello' })
     })
 
     it('should not modify other messages', () => {
-      const messages: UIMessage[] = [
+      const messages: Array<UIMessage> = [
         {
           id: 'msg-1',
           role: 'assistant',
@@ -116,16 +116,16 @@ describe('message-updaters', () => {
 
       const result = updateTextPart(messages, 'msg-1', 'Hello')
 
-      expect(result[0].parts).toHaveLength(1)
-      expect(result[1].parts).toHaveLength(1)
-      expect(result[1].parts[0]).toEqual({
+      expect(result[0]?.parts).toHaveLength(1)
+      expect(result[1]?.parts).toHaveLength(1)
+      expect(result[1]?.parts[0]).toEqual({
         type: 'text',
         content: 'User message',
       })
     })
 
     it('should return new array (immutability)', () => {
-      const messages: UIMessage[] = [
+      const messages: Array<UIMessage> = [
         {
           id: 'msg-1',
           role: 'assistant',
@@ -136,13 +136,13 @@ describe('message-updaters', () => {
       const result = updateTextPart(messages, 'msg-1', 'Hello')
 
       expect(result).not.toBe(messages)
-      expect(messages[0].parts).toHaveLength(0)
+      expect(messages[0]?.parts).toHaveLength(0)
     })
   })
 
   describe('updateToolCallPart', () => {
     it('should add tool call part to empty message', () => {
-      const messages: UIMessage[] = [
+      const messages: Array<UIMessage> = [
         {
           id: 'msg-1',
           role: 'assistant',
@@ -157,8 +157,8 @@ describe('message-updaters', () => {
         state: 'input-complete',
       })
 
-      expect(result[0].parts).toHaveLength(1)
-      expect(result[0].parts[0]).toEqual({
+      expect(result[0]?.parts).toHaveLength(1)
+      expect(result[0]?.parts[0]).toEqual({
         type: 'tool-call',
         id: 'tool-1',
         name: 'test',
@@ -168,7 +168,7 @@ describe('message-updaters', () => {
     })
 
     it('should update existing tool call part', () => {
-      const messages: UIMessage[] = [
+      const messages: Array<UIMessage> = [
         {
           id: 'msg-1',
           role: 'assistant',
@@ -191,8 +191,8 @@ describe('message-updaters', () => {
         state: 'input-complete',
       })
 
-      expect(result[0].parts).toHaveLength(1)
-      expect(result[0].parts[0]).toEqual({
+      expect(result[0]?.parts).toHaveLength(1)
+      expect(result[0]?.parts[0]).toEqual({
         type: 'tool-call',
         id: 'tool-1',
         name: 'test',
@@ -202,7 +202,7 @@ describe('message-updaters', () => {
     })
 
     it('should insert tool call before text parts', () => {
-      const messages: UIMessage[] = [
+      const messages: Array<UIMessage> = [
         {
           id: 'msg-1',
           role: 'assistant',
@@ -217,13 +217,13 @@ describe('message-updaters', () => {
         state: 'input-complete',
       })
 
-      expect(result[0].parts).toHaveLength(2)
-      expect(result[0].parts[0].type).toBe('tool-call')
-      expect(result[0].parts[1].type).toBe('text')
+      expect(result[0]?.parts).toHaveLength(2)
+      expect(result[0]?.parts[0]?.type).toBe('tool-call')
+      expect(result[0]?.parts[1]?.type).toBe('text')
     })
 
     it('should not modify other messages', () => {
-      const messages: UIMessage[] = [
+      const messages: Array<UIMessage> = [
         {
           id: 'msg-1',
           role: 'assistant',
@@ -243,14 +243,14 @@ describe('message-updaters', () => {
         state: 'input-complete',
       })
 
-      expect(result[0].parts).toHaveLength(1)
-      expect(result[1].parts).toHaveLength(1)
+      expect(result[0]?.parts).toHaveLength(1)
+      expect(result[1]?.parts).toHaveLength(1)
     })
   })
 
   describe('updateToolResultPart', () => {
     it('should add tool result part to message', () => {
-      const messages: UIMessage[] = [
+      const messages: Array<UIMessage> = [
         {
           id: 'msg-1',
           role: 'assistant',
@@ -266,8 +266,8 @@ describe('message-updaters', () => {
         'complete',
       )
 
-      expect(result[0].parts).toHaveLength(1)
-      expect(result[0].parts[0]).toEqual({
+      expect(result[0]?.parts).toHaveLength(1)
+      expect(result[0]?.parts[0]).toEqual({
         type: 'tool-result',
         toolCallId: 'tool-1',
         content: 'result content',
@@ -276,7 +276,7 @@ describe('message-updaters', () => {
     })
 
     it('should update existing tool result part', () => {
-      const messages: UIMessage[] = [
+      const messages: Array<UIMessage> = [
         {
           id: 'msg-1',
           role: 'assistant',
@@ -299,8 +299,8 @@ describe('message-updaters', () => {
         'complete',
       )
 
-      expect(result[0].parts).toHaveLength(1)
-      expect(result[0].parts[0]).toEqual({
+      expect(result[0]?.parts).toHaveLength(1)
+      expect(result[0]?.parts[0]).toEqual({
         type: 'tool-result',
         toolCallId: 'tool-1',
         content: 'new content',
@@ -309,7 +309,7 @@ describe('message-updaters', () => {
     })
 
     it('should include error when provided', () => {
-      const messages: UIMessage[] = [
+      const messages: Array<UIMessage> = [
         {
           id: 'msg-1',
           role: 'assistant',
@@ -326,7 +326,7 @@ describe('message-updaters', () => {
         'Something went wrong',
       )
 
-      expect(result[0].parts[0]).toEqual({
+      expect(result[0]?.parts[0]).toEqual({
         type: 'tool-result',
         toolCallId: 'tool-1',
         content: 'error content',
@@ -338,7 +338,7 @@ describe('message-updaters', () => {
 
   describe('updateToolCallApproval', () => {
     it('should add approval metadata to tool call', () => {
-      const messages: UIMessage[] = [
+      const messages: Array<UIMessage> = [
         {
           id: 'msg-1',
           role: 'assistant',
@@ -361,9 +361,9 @@ describe('message-updaters', () => {
         'approval-123',
       )
 
-      const toolCall = result[0].parts[0]
-      expect(toolCall.type).toBe('tool-call')
-      if (toolCall.type === 'tool-call') {
+      const toolCall = result[0]?.parts[0]
+      expect(toolCall?.type).toBe('tool-call')
+      if (toolCall?.type === 'tool-call') {
         expect(toolCall.state).toBe('approval-requested')
         expect(toolCall.approval).toEqual({
           id: 'approval-123',
@@ -373,7 +373,7 @@ describe('message-updaters', () => {
     })
 
     it('should not modify tool call if not found', () => {
-      const messages: UIMessage[] = [
+      const messages: Array<UIMessage> = [
         {
           id: 'msg-1',
           role: 'assistant',
@@ -396,8 +396,8 @@ describe('message-updaters', () => {
         'approval-123',
       )
 
-      const toolCall = result[0].parts[0]
-      if (toolCall.type === 'tool-call') {
+      const toolCall = result[0]?.parts[0]
+      if (toolCall?.type === 'tool-call') {
         expect(toolCall.state).toBe('input-complete')
         expect(toolCall.approval).toBeUndefined()
       }
@@ -406,7 +406,7 @@ describe('message-updaters', () => {
 
   describe('updateToolCallState', () => {
     it('should update tool call state', () => {
-      const messages: UIMessage[] = [
+      const messages: Array<UIMessage> = [
         {
           id: 'msg-1',
           role: 'assistant',
@@ -429,14 +429,14 @@ describe('message-updaters', () => {
         'input-complete',
       )
 
-      const toolCall = result[0].parts[0]
-      if (toolCall.type === 'tool-call') {
+      const toolCall = result[0]?.parts[0]
+      if (toolCall?.type === 'tool-call') {
         expect(toolCall.state).toBe('input-complete')
       }
     })
 
     it('should not modify tool call if not found', () => {
-      const messages: UIMessage[] = [
+      const messages: Array<UIMessage> = [
         {
           id: 'msg-1',
           role: 'assistant',
@@ -459,8 +459,8 @@ describe('message-updaters', () => {
         'input-complete',
       )
 
-      const toolCall = result[0].parts[0]
-      if (toolCall.type === 'tool-call') {
+      const toolCall = result[0]?.parts[0]
+      if (toolCall?.type === 'tool-call') {
         expect(toolCall.state).toBe('input-streaming')
       }
     })
@@ -468,7 +468,7 @@ describe('message-updaters', () => {
 
   describe('updateToolCallWithOutput', () => {
     it('should update tool call with output', () => {
-      const messages: UIMessage[] = [
+      const messages: Array<UIMessage> = [
         {
           id: 'msg-1',
           role: 'assistant',
@@ -488,15 +488,15 @@ describe('message-updaters', () => {
         result: 'success',
       })
 
-      const toolCall = result[0].parts[0]
-      if (toolCall.type === 'tool-call') {
+      const toolCall = result[0]?.parts[0]
+      if (toolCall?.type === 'tool-call') {
         expect(toolCall.output).toEqual({ result: 'success' })
         expect(toolCall.state).toBe('input-complete')
       }
     })
 
     it('should update state when provided', () => {
-      const messages: UIMessage[] = [
+      const messages: Array<UIMessage> = [
         {
           id: 'msg-1',
           role: 'assistant',
@@ -519,14 +519,14 @@ describe('message-updaters', () => {
         'approval-requested',
       )
 
-      const toolCall = result[0].parts[0]
-      if (toolCall.type === 'tool-call') {
+      const toolCall = result[0]?.parts[0]
+      if (toolCall?.type === 'tool-call') {
         expect(toolCall.state).toBe('approval-requested')
       }
     })
 
     it('should handle error text', () => {
-      const messages: UIMessage[] = [
+      const messages: Array<UIMessage> = [
         {
           id: 'msg-1',
           role: 'assistant',
@@ -550,14 +550,14 @@ describe('message-updaters', () => {
         'Error occurred',
       )
 
-      const toolCall = result[0].parts[0]
-      if (toolCall.type === 'tool-call') {
+      const toolCall = result[0]?.parts[0]
+      if (toolCall?.type === 'tool-call') {
         expect(toolCall.output).toEqual({ error: 'Error occurred' })
       }
     })
 
     it('should search across all messages', () => {
-      const messages: UIMessage[] = [
+      const messages: Array<UIMessage> = [
         {
           id: 'msg-1',
           role: 'assistant',
@@ -582,9 +582,9 @@ describe('message-updaters', () => {
         result: 'success',
       })
 
-      expect(result[0].parts).toHaveLength(0)
-      const toolCall = result[1].parts[0]
-      if (toolCall.type === 'tool-call') {
+      expect(result[0]?.parts).toHaveLength(0)
+      const toolCall = result[1]?.parts[0]
+      if (toolCall?.type === 'tool-call') {
         expect(toolCall.output).toEqual({ result: 'success' })
       }
     })
@@ -592,7 +592,7 @@ describe('message-updaters', () => {
 
   describe('updateToolCallApprovalResponse', () => {
     it('should update approval response', () => {
-      const messages: UIMessage[] = [
+      const messages: Array<UIMessage> = [
         {
           id: 'msg-1',
           role: 'assistant',
@@ -618,15 +618,15 @@ describe('message-updaters', () => {
         true,
       )
 
-      const toolCall = result[0].parts[0]
-      if (toolCall.type === 'tool-call' && toolCall.approval) {
+      const toolCall = result[0]?.parts[0]
+      if (toolCall?.type === 'tool-call' && toolCall.approval) {
         expect(toolCall.approval.approved).toBe(true)
         expect(toolCall.state).toBe('approval-responded')
       }
     })
 
     it('should handle denied approval', () => {
-      const messages: UIMessage[] = [
+      const messages: Array<UIMessage> = [
         {
           id: 'msg-1',
           role: 'assistant',
@@ -652,15 +652,15 @@ describe('message-updaters', () => {
         false,
       )
 
-      const toolCall = result[0].parts[0]
-      if (toolCall.type === 'tool-call' && toolCall.approval) {
+      const toolCall = result[0]?.parts[0]
+      if (toolCall?.type === 'tool-call' && toolCall.approval) {
         expect(toolCall.approval.approved).toBe(false)
         expect(toolCall.state).toBe('approval-responded')
       }
     })
 
     it('should search across all messages', () => {
-      const messages: UIMessage[] = [
+      const messages: Array<UIMessage> = [
         {
           id: 'msg-1',
           role: 'assistant',
@@ -691,15 +691,15 @@ describe('message-updaters', () => {
         true,
       )
 
-      expect(result[0].parts).toHaveLength(0)
-      const toolCall = result[1].parts[0]
-      if (toolCall.type === 'tool-call' && toolCall.approval) {
+      expect(result[0]?.parts).toHaveLength(0)
+      const toolCall = result[1]?.parts[0]
+      if (toolCall?.type === 'tool-call' && toolCall.approval) {
         expect(toolCall.approval.approved).toBe(true)
       }
     })
 
     it('should not modify if approval not found', () => {
-      const messages: UIMessage[] = [
+      const messages: Array<UIMessage> = [
         {
           id: 'msg-1',
           role: 'assistant',
@@ -725,8 +725,8 @@ describe('message-updaters', () => {
         true,
       )
 
-      const toolCall = result[0].parts[0]
-      if (toolCall.type === 'tool-call' && toolCall.approval) {
+      const toolCall = result[0]?.parts[0]
+      if (toolCall?.type === 'tool-call' && toolCall.approval) {
         expect(toolCall.approval.approved).toBeUndefined()
         expect(toolCall.state).toBe('approval-requested')
       }

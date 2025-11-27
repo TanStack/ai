@@ -9,7 +9,6 @@ const config = defineConfig({
     name: packageJson.name,
     dir: './',
     watch: false,
-    setupFiles: ['./tests/test-setup.ts'],
     globals: true,
     environment: 'node',
     include: ['tests/**/*.test.ts'],

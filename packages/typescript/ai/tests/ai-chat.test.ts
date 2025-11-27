@@ -1,12 +1,13 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
+/* eslint-disable @typescript-eslint/require-await */
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { chat } from '../src/core/chat'
-import type { ChatOptions, StreamChunk, Tool, ModelMessage } from '../src/types'
 import { BaseAdapter } from '../src/base-adapter'
 import { aiEventClient } from '../src/event-client.js'
 import { maxIterations } from '../src/utilities/agent-loop-strategies'
+import type { ChatOptions, ModelMessage, StreamChunk, Tool } from '../src/types'
 
 // Mock event client to track events
-const eventListeners = new Map<string, Set<Function>>()
+const eventListeners = new Map<string, Set<(...args: Array<any>) => void>>()
 const capturedEvents: Array<{ type: string; data: any }> = []
 
 beforeEach(() => {
@@ -39,8 +40,8 @@ class MockAdapter extends BaseAdapter<
   public chatStreamCallCount = 0
   public chatStreamCalls: Array<{
     model: string
-    messages: ModelMessage[]
-    tools?: Tool[]
+    messages: Array<ModelMessage>
+    tools?: Array<Tool>
     request?: ChatOptions['request']
     providerOptions?: any
   }> = []
@@ -60,7 +61,7 @@ class MockAdapter extends BaseAdapter<
     })
   }
 
-  // Default implementation - will be overridden in tests
+  // Default implementation - will be overridden in tests 
   async *chatStream(options: ChatOptions): AsyncIterable<StreamChunk> {
     this.trackStreamCall(options)
     yield {
@@ -91,8 +92,8 @@ class MockAdapter extends BaseAdapter<
 }
 
 // Helper to collect all chunks from a stream
-async function collectChunks<T>(stream: AsyncIterable<T>): Promise<T[]> {
-  const chunks: T[] = []
+async function collectChunks<T>(stream: AsyncIterable<T>): Promise<Array<T>> {
+  const chunks: Array<T> = []
   for await (const chunk of stream) {
     chunks.push(chunk)
   }
@@ -192,9 +193,9 @@ describe('chat() - Comprehensive Logic Path Coverage', () => {
       )
 
       const call = adapter.chatStreamCalls[0]
-      expect(call.messages[0].role).toBe('system')
-      expect(call.messages[0].content).toBe('You are concise')
-      expect(call.messages.length).toBe(2)
+      expect(call?.messages[0]?.role).toBe('system')
+      expect(call?.messages[0]?.content).toBe('You are concise')
+      expect(call?.messages.length).toBe(2)
     })
 
     it('should prepend system prompts when provided', async () => {
@@ -210,12 +211,12 @@ describe('chat() - Comprehensive Logic Path Coverage', () => {
       )
 
       const call = adapter.chatStreamCalls[0]
-      expect(call.messages).toHaveLength(3)
-      expect(call.messages[0].role).toBe('system')
-      expect(call.messages[0].content).toBe('You are helpful')
-      expect(call.messages[1].role).toBe('system')
-      expect(call.messages[1].content).toBe('You are concise')
-      expect(call.messages[2].role).toBe('user')
+      expect(call?.messages).toHaveLength(3)
+      expect(call?.messages[0]?.role).toBe('system')
+      expect(call?.messages[0]?.content).toBe('You are helpful')
+      expect(call?.messages[1]?.role).toBe('system')
+      expect(call?.messages[1]?.content).toBe('You are concise')
+      expect(call?.messages[2]?.role).toBe('user')
     })
 
     it('should pass providerOptions to adapter', async () => {
@@ -230,7 +231,7 @@ describe('chat() - Comprehensive Logic Path Coverage', () => {
         }),
       )
 
-      expect(adapter.chatStreamCalls[0].providerOptions).toEqual({
+      expect(adapter.chatStreamCalls[0]?.providerOptions).toEqual({
         customOption: 'value',
       })
     })
@@ -250,8 +251,8 @@ describe('chat() - Comprehensive Logic Path Coverage', () => {
 
       expect(adapter.chatStreamCallCount).toBe(1)
       expect(chunks).toHaveLength(2)
-      expect(chunks[0].type).toBe('content')
-      expect(chunks[1].type).toBe('done')
+      expect(chunks[0]?.type).toBe('content')
+      expect(chunks[1]?.type).toBe('done')
 
       // Check events
       expect(capturedEvents.some((e) => e.type === 'chat:started')).toBe(true)
@@ -362,7 +363,7 @@ describe('chat() - Comprehensive Logic Path Coverage', () => {
         }),
       )
 
-      expect(chunks[0].type).toBe('content')
+      expect(chunks[0]?.type).toBe('content')
       expect((chunks[0] as any).content).toBe('')
     })
   })
@@ -648,7 +649,7 @@ describe('chat() - Comprehensive Logic Path Coverage', () => {
         (e) => e.type === 'chat:iteration',
       )
       expect(iterationEvents.length).toBeGreaterThan(0)
-      expect(iterationEvents[0].data.toolCallCount).toBe(2)
+      expect(iterationEvents[0]?.data.toolCallCount).toBe(2)
     })
 
     it('should handle tool calls with accumulated content', async () => {
@@ -988,7 +989,7 @@ describe('chat() - Comprehensive Logic Path Coverage', () => {
             const messages = options.messages
             const toolMessages = messages.filter((m) => m.role === 'tool')
             expect(toolMessages.length).toBeGreaterThan(0)
-            expect(toolMessages[0].toolCallId).toBe('call-1')
+            expect(toolMessages[0]?.toolCallId).toBe('call-1')
 
             yield {
               type: 'content',
@@ -1429,7 +1430,7 @@ describe('chat() - Comprehensive Logic Path Coverage', () => {
 
       const adapter = new PendingToolAdapter()
 
-      const messages: ModelMessage[] = [
+      const messages: Array<ModelMessage> = [
         { role: 'user', content: 'Delete file' },
         {
           role: 'assistant',
@@ -1582,7 +1583,7 @@ describe('chat() - Comprehensive Logic Path Coverage', () => {
       const adapter = new InfiniteLoopAdapter()
 
       // Consume stream - should stop after 5 iterations (default)
-      const chunks: StreamChunk[] = []
+      const chunks: Array<StreamChunk> = []
       for await (const chunk of chat({
         adapter,
         model: 'test-model',
@@ -1798,7 +1799,7 @@ describe('chat() - Comprehensive Logic Path Coverage', () => {
         abortController,
       })
 
-      const chunks: StreamChunk[] = []
+      const chunks: Array<StreamChunk> = []
       let count = 0
 
       for await (const chunk of stream) {
@@ -1856,7 +1857,7 @@ describe('chat() - Comprehensive Logic Path Coverage', () => {
         abortController,
       })
 
-      const chunks: StreamChunk[] = []
+      const chunks: Array<StreamChunk> = []
       for await (const chunk of stream) {
         chunks.push(chunk)
         if (chunk.type === 'tool_call') {
@@ -1916,8 +1917,8 @@ describe('chat() - Comprehensive Logic Path Coverage', () => {
 
       // Should stop at error chunk
       expect(chunks).toHaveLength(2)
-      expect(chunks[0].type).toBe('content')
-      expect(chunks[1].type).toBe('error')
+      expect(chunks[0]?.type).toBe('content')
+      expect(chunks[1]?.type).toBe('error')
       expect((chunks[1] as any).error.message).toBe('API error occurred')
 
       // Should emit error event
@@ -2147,7 +2148,7 @@ describe('chat() - Comprehensive Logic Path Coverage', () => {
         (e) => e.type === 'chat:iteration',
       )
       expect(iterationEvents.length).toBeGreaterThan(0)
-      expect(iterationEvents[0].data.iterationNumber).toBe(1)
+      expect(iterationEvents[0]?.data.iterationNumber).toBe(1)
     })
 
     it('should emit stream:ended event after successful completion', async () => {
@@ -2260,7 +2261,7 @@ describe('chat() - Comprehensive Logic Path Coverage', () => {
       )
 
       expect(chunks.length).toBeGreaterThan(0)
-      expect(adapter.chatStreamCalls[0].messages).toHaveLength(0)
+      expect(adapter.chatStreamCalls[0]?.messages).toHaveLength(0)
     })
 
     it('should handle empty tools array', async () => {
@@ -2422,8 +2423,8 @@ describe('chat() - Comprehensive Logic Path Coverage', () => {
         (e) => e.type === 'stream:chunk:tool-result',
       )
       expect(toolResultEvents.length).toBeGreaterThan(0)
-      expect(toolResultEvents[0].data.toolCallId).toBe('call-previous')
-      expect(toolResultEvents[0].data.result).toBe(
+      expect(toolResultEvents[0]?.data.toolCallId).toBe('call-previous')
+      expect(toolResultEvents[0]?.data.result).toBe(
         JSON.stringify({ result: 'previous result' }),
       )
     })
@@ -2530,7 +2531,7 @@ describe('chat() - Comprehensive Logic Path Coverage', () => {
 
       // Second call - with approval response in message parts
       // The approval ID should match the format: approval_${toolCall.id}
-      const messagesWithApproval: ModelMessage[] = [
+      const messagesWithApproval: Array<ModelMessage> = [
         { role: 'user', content: 'Delete file' },
         {
           role: 'assistant',
@@ -2653,7 +2654,7 @@ describe('chat() - Comprehensive Logic Path Coverage', () => {
       expect(inputChunk).toBeDefined()
 
       // Second call - with client tool output in message parts
-      const messagesWithOutput: ModelMessage[] = [
+      const messagesWithOutput: Array<ModelMessage> = [
         { role: 'user', content: 'Use client tool' },
         {
           role: 'assistant',
@@ -2777,7 +2778,7 @@ describe('chat() - Comprehensive Logic Path Coverage', () => {
       const adapter = new MixedPartsAdapter()
 
       // Call with messages containing both approval response and client tool output in parts
-      const messagesWithBoth: ModelMessage[] = [
+      const messagesWithBoth: Array<ModelMessage> = [
         { role: 'user', content: 'Use both tools' },
         {
           role: 'assistant',
@@ -2849,7 +2850,7 @@ describe('chat() - Comprehensive Logic Path Coverage', () => {
             required: [],
           },
         },
-        execute: vi.fn(async (args: any) => {
+        execute: vi.fn(async (_args: any) => {
           return '70'
         }),
       }
@@ -2921,7 +2922,7 @@ describe('chat() - Comprehensive Logic Path Coverage', () => {
               (m) => m.role === 'tool',
             )
             expect(toolResults.length).toBeGreaterThan(0)
-            expect(toolResults[0].content).toBe('70')
+            expect(toolResults[0]?.content).toBe('70')
 
             yield {
               type: 'content',

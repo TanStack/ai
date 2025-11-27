@@ -1,7 +1,7 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { ChatClient } from '../src/chat-client'
-import type { ConnectionAdapter, StreamChunk } from '../src/connection-adapters'
-import type { UIMessage } from '../src/types'
+import type { ConnectionAdapter, } from '../src/connection-adapters'
+import type { StreamChunk } from "@tanstack/ai"
 
 describe('ChatClient - Abort Signal Handling', () => {
   let mockAdapter: ConnectionAdapter
@@ -11,7 +11,8 @@ describe('ChatClient - Abort Signal Handling', () => {
     receivedAbortSignal = undefined
 
     mockAdapter = {
-      async *connect(messages, data, abortSignal) {
+      // eslint-disable-next-line @typescript-eslint/require-await
+      async *connect(_messages, _data, abortSignal) {
         receivedAbortSignal = abortSignal
 
         // Simulate streaming chunks
@@ -70,7 +71,7 @@ describe('ChatClient - Abort Signal Handling', () => {
     let abortControllerRef: AbortController | null = null
 
     const adapterWithAbort: ConnectionAdapter = {
-      async *connect(messages, data, abortSignal) {
+      async *connect(_messages, _data, abortSignal) {
         abortControllerRef = new AbortController()
         if (abortSignal) {
           abortSignal.addEventListener('abort', () => {
@@ -130,11 +131,12 @@ describe('ChatClient - Abort Signal Handling', () => {
   })
 
   it('should preserve partial content when aborted', async () => {
-    const chunks: StreamChunk[] = []
+    const chunks: Array<StreamChunk> = []
     let yieldedChunks = 0
 
     const adapterWithPartial: ConnectionAdapter = {
-      async *connect(messages, data, abortSignal) {
+      // eslint-disable-next-line @typescript-eslint/require-await
+      async *connect(_messages, _data, abortSignal) {
         yield {
           type: 'content',
           id: '1',
@@ -192,7 +194,8 @@ describe('ChatClient - Abort Signal Handling', () => {
     const errorSpy = vi.fn()
 
     const adapterWithAbort: ConnectionAdapter = {
-      async *connect(messages, data, abortSignal) {
+      // eslint-disable-next-line @typescript-eslint/require-await
+      async *connect(_messages, _data, abortSignal) {
         yield {
           type: 'content',
           id: '1',
@@ -233,7 +236,7 @@ describe('ChatClient - Abort Signal Handling', () => {
 
   it('should set isLoading to false after abort', async () => {
     const adapterWithAbort: ConnectionAdapter = {
-      async *connect(messages, data, abortSignal) {
+      async *connect(_messages, _data, _abortSignal) {
         yield {
           type: 'content',
           id: '1',
@@ -269,10 +272,11 @@ describe('ChatClient - Abort Signal Handling', () => {
   })
 
   it('should create new AbortController for each request', async () => {
-    const abortSignals: AbortSignal[] = []
+    const abortSignals: Array<AbortSignal> = []
 
     const adapter: ConnectionAdapter = {
-      async *connect(messages, data, abortSignal) {
+      // eslint-disable-next-line @typescript-eslint/require-await
+      async *connect(_messages, _data, abortSignal) {
         if (abortSignal) {
           abortSignals.push(abortSignal)
         }

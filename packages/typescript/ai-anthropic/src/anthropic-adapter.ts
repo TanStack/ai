@@ -1,7 +1,10 @@
 import Anthropic_SDK from '@anthropic-ai/sdk'
 import { BaseAdapter } from '@tanstack/ai'
-import { ANTHROPIC_EMBEDDING_MODELS, ANTHROPIC_MODELS } from './model-meta'
+import { ANTHROPIC_MODELS } from './model-meta'
 import { convertToolsToProviderFormat } from './tools/tool-converter'
+import {
+  validateTextProviderOptions
+} from './text/text-provider-options'
 import type {
   ChatStreamOptionsUnion,
   EmbeddingOptions,
@@ -15,6 +18,7 @@ import type { AnthropicChatModelProviderOptionsByName } from './model-meta'
 import type {
   ExternalTextProviderOptions,
   InternalTextProviderOptions,
+
 } from './text/text-provider-options'
 import type { MessageParam } from '@anthropic-ai/sdk/resources/messages'
 
@@ -30,15 +34,15 @@ export type AnthropicProviderOptions = ExternalTextProviderOptions
 
 type AnthropicContentBlocks =
   Extract<MessageParam['content'], Array<unknown>> extends Array<infer Block>
-    ? Array<Block>
-    : never
+  ? Array<Block>
+  : never
 type AnthropicContentBlock =
   AnthropicContentBlocks extends Array<infer Block> ? Block : never
 
 type AnthropicChatOptions = ChatStreamOptionsUnion<
   BaseAdapter<
     typeof ANTHROPIC_MODELS,
-    typeof ANTHROPIC_EMBEDDING_MODELS,
+    [],
     AnthropicProviderOptions,
     Record<string, any>,
     AnthropicChatModelProviderOptionsByName
@@ -47,14 +51,14 @@ type AnthropicChatOptions = ChatStreamOptionsUnion<
 
 export class Anthropic extends BaseAdapter<
   typeof ANTHROPIC_MODELS,
-  typeof ANTHROPIC_EMBEDDING_MODELS,
+  [],
   AnthropicProviderOptions,
   Record<string, any>,
   AnthropicChatModelProviderOptionsByName
 > {
   name = 'anthropic' as const
   models = ANTHROPIC_MODELS
-  embeddingModels = ANTHROPIC_EMBEDDING_MODELS
+
   declare _modelProviderOptionsByName: AnthropicChatModelProviderOptionsByName
 
   private client: Anthropic_SDK
@@ -204,9 +208,9 @@ export class Anthropic extends BaseAdapter<
           const value = providerOptions[key]
           // Anthropic expects tool_choice to be an object, not a string
           if (key === 'tool_choice' && typeof value === 'string') {
-            ;(validProviderOptions as any)[key] = { type: value }
+            ; (validProviderOptions as any)[key] = { type: value }
           } else {
-            ;(validProviderOptions as any)[key] = value
+            ; (validProviderOptions as any)[key] = value
           }
         }
       }
@@ -232,6 +236,7 @@ export class Anthropic extends BaseAdapter<
       tools: tools,
       ...validProviderOptions,
     }
+    validateTextProviderOptions(requestParams)
     return requestParams
   }
 
@@ -403,7 +408,7 @@ export class Anthropic extends BaseAdapter<
                 event.delta.stop_reason === 'tool_use'
                   ? 'tool_calls'
                   : // TODO Fix the any and map the responses properly
-                    (event.delta.stop_reason as any),
+                  (event.delta.stop_reason as any),
 
               usage: {
                 promptTokens: event.usage.input_tokens || 0,

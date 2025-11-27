@@ -1,7 +1,7 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import {
-  fetchServerSentEvents,
   fetchHttpStream,
+  fetchServerSentEvents,
 } from '../src/connection-adapters'
 import type { StreamChunk } from '@tanstack/ai'
 
@@ -12,6 +12,7 @@ describe('Connection Adapters - Abort Signal Handling', () => {
   beforeEach(() => {
     originalFetch = global.fetch
     fetchMock = vi.fn()
+    // @ts-ignore - we're mocking fetch here
     global.fetch = fetchMock
   })
 
@@ -29,7 +30,7 @@ describe('Connection Adapters - Abort Signal Handling', () => {
         ok: true,
         body: {
           getReader: () => ({
-            read: async () => ({ done: true, value: undefined }),
+            read: () => ({ done: true, value: undefined }),
             releaseLock: vi.fn(),
           }),
         },
@@ -51,7 +52,7 @@ describe('Connection Adapters - Abort Signal Handling', () => {
 
       expect(fetchMock).toHaveBeenCalled()
       const fetchCall = fetchMock.mock.calls[0]
-      expect(fetchCall[1]?.signal).toBe(abortSignal)
+      expect(fetchCall?.[1]?.signal).toBe(abortSignal)
     })
 
     it('should use provided abortSignal over options.signal', async () => {
@@ -62,7 +63,7 @@ describe('Connection Adapters - Abort Signal Handling', () => {
         ok: true,
         body: {
           getReader: () => ({
-            read: async () => ({ done: true, value: undefined }),
+            read: () => ({ done: true, value: undefined }),
             releaseLock: vi.fn(),
           }),
         },
@@ -84,7 +85,7 @@ describe('Connection Adapters - Abort Signal Handling', () => {
       }
 
       const fetchCall = fetchMock.mock.calls[0]
-      expect(fetchCall[1]?.signal).toBe(providedSignal)
+      expect(fetchCall?.[1]?.signal).toBe(providedSignal)
     })
 
     it('should stop reading stream when aborted', async () => {
@@ -93,7 +94,7 @@ describe('Connection Adapters - Abort Signal Handling', () => {
 
       let readCount = 0
       const mockReader = {
-        read: async () => {
+        read: () => {
           readCount++
           if (readCount === 1) {
             // Abort after first read
@@ -126,7 +127,7 @@ describe('Connection Adapters - Abort Signal Handling', () => {
         abortSignal,
       )
 
-      const chunks: StreamChunk[] = []
+      const chunks: Array<StreamChunk> = []
       for await (const chunk of generator) {
         chunks.push(chunk)
       }
@@ -142,7 +143,7 @@ describe('Connection Adapters - Abort Signal Handling', () => {
 
       let readCount = 0
       const mockReader = {
-        read: async () => {
+        read: () => {
           readCount++
           if (readCount === 1) {
             abortController.abort()
@@ -173,7 +174,7 @@ describe('Connection Adapters - Abort Signal Handling', () => {
         abortSignal,
       )
 
-      const chunks: StreamChunk[] = []
+      const chunks: Array<StreamChunk> = []
       try {
         for await (const chunk of generator) {
           chunks.push(chunk)
@@ -196,7 +197,7 @@ describe('Connection Adapters - Abort Signal Handling', () => {
         ok: true,
         body: {
           getReader: () => ({
-            read: async () => ({ done: true, value: undefined }),
+            read: () => ({ done: true, value: undefined }),
             releaseLock: vi.fn(),
           }),
         },
@@ -217,7 +218,7 @@ describe('Connection Adapters - Abort Signal Handling', () => {
 
       expect(fetchMock).toHaveBeenCalled()
       const fetchCall = fetchMock.mock.calls[0]
-      expect(fetchCall[1]?.signal).toBe(abortSignal)
+      expect(fetchCall?.[1]?.signal).toBe(abortSignal)
     })
 
     it('should stop reading stream when aborted', async () => {
@@ -226,7 +227,7 @@ describe('Connection Adapters - Abort Signal Handling', () => {
 
       let readCount = 0
       const mockReader = {
-        read: async () => {
+        read: () => {
           readCount++
           if (readCount === 1) {
             abortController.abort()
@@ -258,7 +259,7 @@ describe('Connection Adapters - Abort Signal Handling', () => {
         abortSignal,
       )
 
-      const chunks: StreamChunk[] = []
+      const chunks: Array<StreamChunk> = []
       for await (const chunk of generator) {
         chunks.push(chunk)
       }

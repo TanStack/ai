@@ -1,6 +1,6 @@
-import { describe, it, expect, vi } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { ToolCallManager } from '../src/tools/tool-calls'
-import type { Tool, DoneStreamChunk } from '../src/types'
+import type { DoneStreamChunk, Tool } from '../src/types'
 
 describe('ToolCallManager', () => {
   const mockDoneChunk: DoneStreamChunk = {
@@ -18,7 +18,7 @@ describe('ToolCallManager', () => {
       description: 'Get weather',
       parameters: {},
     },
-    execute: vi.fn(async (args: any) => {
+    execute: vi.fn((args: any) => {
       return JSON.stringify({ temp: 72, location: args.location })
     }),
   }
@@ -26,10 +26,10 @@ describe('ToolCallManager', () => {
   async function collectGeneratorOutput<TChunk, TResult>(
     generator: AsyncGenerator<TChunk, TResult, void>,
   ): Promise<{
-    chunks: TChunk[]
+    chunks: Array<TChunk>
     result: TResult
   }> {
-    const chunks: TChunk[] = []
+    const chunks: Array<TChunk> = []
     let next = await generator.next()
     while (!next.done) {
       chunks.push(next.value)
@@ -61,9 +61,9 @@ describe('ToolCallManager', () => {
 
     const toolCalls = manager.getToolCalls()
     expect(toolCalls).toHaveLength(1)
-    expect(toolCalls[0].id).toBe('call_123')
-    expect(toolCalls[0].function.name).toBe('get_weather')
-    expect(toolCalls[0].function.arguments).toBe('{"location":"Paris"}')
+    expect(toolCalls[0]?.id).toBe('call_123')
+    expect(toolCalls[0]?.function.name).toBe('get_weather')
+    expect(toolCalls[0]?.function.arguments).toBe('{"location":"Paris"}')
   })
 
   it('should filter out incomplete tool calls', () => {
@@ -91,7 +91,7 @@ describe('ToolCallManager', () => {
 
     const toolCalls = manager.getToolCalls()
     expect(toolCalls).toHaveLength(1)
-    expect(toolCalls[0].id).toBe('call_123')
+    expect(toolCalls[0]?.id).toBe('call_123')
   })
 
   it('should execute tools and emit tool_result chunks', async () => {
@@ -111,14 +111,14 @@ describe('ToolCallManager', () => {
 
     // Should emit one tool_result chunk
     expect(emittedChunks).toHaveLength(1)
-    expect(emittedChunks[0].type).toBe('tool_result')
-    expect(emittedChunks[0].toolCallId).toBe('call_123')
-    expect(emittedChunks[0].content).toContain('temp')
+    expect(emittedChunks[0]?.type).toBe('tool_result')
+    expect(emittedChunks[0]?.toolCallId).toBe('call_123')
+    expect(emittedChunks[0]?.content).toContain('temp')
 
     // Should return one tool result message
     expect(finalResult).toHaveLength(1)
-    expect(finalResult[0].role).toBe('tool')
-    expect(finalResult[0].toolCallId).toBe('call_123')
+    expect(finalResult[0]?.role).toBe('tool')
+    expect(finalResult[0]?.toolCallId).toBe('call_123')
 
     // Tool execute should have been called
     expect(mockWeatherTool.execute).toHaveBeenCalledWith({ location: 'Paris' })
@@ -132,7 +132,7 @@ describe('ToolCallManager', () => {
         description: 'Throws error',
         parameters: {},
       },
-      execute: vi.fn(async () => {
+      execute: vi.fn(() => {
         throw new Error('Tool failed')
       }),
     }
@@ -155,11 +155,11 @@ describe('ToolCallManager', () => {
 
     // Should still emit chunk with error message
     expect(chunks).toHaveLength(1)
-    expect(chunks[0].content).toContain('Error executing tool: Tool failed')
+    expect(chunks[0]?.content).toContain('Error executing tool: Tool failed')
 
     // Should still return tool result message
     expect(toolResults).toHaveLength(1)
-    expect(toolResults[0].content).toContain('Error executing tool')
+    expect(toolResults[0]?.content).toContain('Error executing tool')
   })
 
   it('should handle tools without execute function', async () => {
@@ -188,8 +188,8 @@ describe('ToolCallManager', () => {
       manager.executeTools(mockDoneChunk),
     )
 
-    expect(chunks[0].content).toContain('does not have an execute function')
-    expect(toolResults[0].content).toContain(
+    expect(chunks[0]?.content).toContain('does not have an execute function')
+    expect(toolResults[0]?.content).toContain(
       'does not have an execute function',
     )
   })
@@ -222,7 +222,7 @@ describe('ToolCallManager', () => {
         description: 'Calculate',
         parameters: {},
       },
-      execute: vi.fn(async (args: any) => {
+      execute: vi.fn((args: any) => {
         return JSON.stringify({ result: eval(args.expression) })
       }),
     }
@@ -257,12 +257,12 @@ describe('ToolCallManager', () => {
 
     // Should emit two tool_result chunks
     expect(chunks).toHaveLength(2)
-    expect(chunks[0].toolCallId).toBe('call_weather')
-    expect(chunks[1].toolCallId).toBe('call_calc')
+    expect(chunks[0]?.toolCallId).toBe('call_weather')
+    expect(chunks[1]?.toolCallId).toBe('call_calc')
 
     // Should return two tool result messages
     expect(toolResults).toHaveLength(2)
-    expect(toolResults[0].toolCallId).toBe('call_weather')
-    expect(toolResults[1].toolCallId).toBe('call_calc')
+    expect(toolResults[0]?.toolCallId).toBe('call_weather')
+    expect(toolResults[1]?.toolCallId).toBe('call_calc')
   })
 })

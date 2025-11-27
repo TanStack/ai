@@ -1,17 +1,18 @@
-import { describe, it, expect } from 'vitest'
+import { describe, expect, it } from 'vitest'
 import {
   convertMessagesToModelMessages,
-  uiMessageToModelMessages,
   modelMessageToUIMessage,
   modelMessagesToUIMessages,
   normalizeToUIMessage,
+  uiMessageToModelMessages,
 } from '../src/message-converters'
-import type { UIMessage, ModelMessage } from '../src/types'
+import type { UIMessage } from '../src/types'
+import type { ModelMessage } from '@tanstack/ai'
 
 describe('message-converters', () => {
   describe('convertMessagesToModelMessages', () => {
     it('should convert UIMessages to ModelMessages', () => {
-      const uiMessages: UIMessage[] = [
+      const uiMessages: Array<UIMessage> = [
         {
           id: 'msg-1',
           role: 'user',
@@ -29,7 +30,7 @@ describe('message-converters', () => {
     })
 
     it('should pass through ModelMessages', () => {
-      const modelMessages: ModelMessage[] = [
+      const modelMessages: Array<ModelMessage> = [
         {
           role: 'user',
           content: 'Hello',
@@ -41,7 +42,7 @@ describe('message-converters', () => {
     })
 
     it('should handle mixed UIMessages and ModelMessages', () => {
-      const messages: (UIMessage | ModelMessage)[] = [
+      const messages: Array<UIMessage | ModelMessage> = [
         {
           id: 'msg-1',
           role: 'user',
@@ -95,7 +96,7 @@ describe('message-converters', () => {
       }
 
       const result = uiMessageToModelMessages(uiMessage)
-      expect(result[0].content).toBe('Hello World')
+      expect(result[0]?.content).toBe('Hello World')
     })
 
     it('should convert message with tool calls', () => {
@@ -116,8 +117,8 @@ describe('message-converters', () => {
 
       const result = uiMessageToModelMessages(uiMessage)
       expect(result).toHaveLength(1)
-      expect(result[0].toolCalls).toBeDefined()
-      expect(result[0].toolCalls?.[0]).toEqual({
+      expect(result[0]?.toolCalls).toBeDefined()
+      expect(result[0]?.toolCalls?.[0]).toEqual({
         id: 'call-1',
         type: 'function',
         function: {
@@ -158,8 +159,8 @@ describe('message-converters', () => {
       }
 
       const result = uiMessageToModelMessages(uiMessage)
-      expect(result[0].toolCalls).toHaveLength(2) // call-1 and call-3
-      expect(result[0].toolCalls?.map((tc) => tc.id)).toEqual([
+      expect(result[0]?.toolCalls).toHaveLength(2) // call-1 and call-3
+      expect(result[0]?.toolCalls?.map((tc) => tc.id)).toEqual([
         'call-1',
         'call-3',
       ])
@@ -183,7 +184,7 @@ describe('message-converters', () => {
       }
 
       const result = uiMessageToModelMessages(uiMessage)
-      expect(result[0].toolCalls).toHaveLength(1)
+      expect(result[0]?.toolCalls).toHaveLength(1)
     })
 
     it('should convert tool result parts to separate messages', () => {
@@ -260,8 +261,8 @@ describe('message-converters', () => {
 
       const result = uiMessageToModelMessages(uiMessage)
       expect(result).toHaveLength(1)
-      expect(result[0].toolCalls).toBeDefined()
-      expect(result[0].content).toBeNull()
+      expect(result[0]?.toolCalls).toBeDefined()
+      expect(result[0]?.content).toBeNull()
     })
 
     it('should handle message with text and tool calls', () => {
@@ -282,8 +283,8 @@ describe('message-converters', () => {
       }
 
       const result = uiMessageToModelMessages(uiMessage)
-      expect(result[0].content).toBe('Let me check')
-      expect(result[0].toolCalls).toBeDefined()
+      expect(result[0]?.content).toBe('Let me check')
+      expect(result[0]?.toolCalls).toBeDefined()
     })
 
     it('should handle empty content', () => {
@@ -295,7 +296,7 @@ describe('message-converters', () => {
       }
 
       const result = uiMessageToModelMessages(uiMessage)
-      expect(result[0].content).toBeNull()
+      expect(result[0]?.content).toBeNull()
     })
   })
 
@@ -330,6 +331,7 @@ describe('message-converters', () => {
     it('should convert message with tool calls', () => {
       const modelMessage: ModelMessage = {
         role: 'assistant',
+        content: 'Here is the info',
         toolCalls: [
           {
             id: 'call-1',
@@ -376,6 +378,7 @@ describe('message-converters', () => {
     it('should handle message without content', () => {
       const modelMessage: ModelMessage = {
         role: 'assistant',
+        content: null,
         toolCalls: [
           {
             id: 'call-1',
@@ -390,7 +393,7 @@ describe('message-converters', () => {
 
       const result = modelMessageToUIMessage(modelMessage)
       expect(result.parts).toHaveLength(1)
-      expect(result.parts[0].type).toBe('tool-call')
+      expect(result.parts[0]?.type).toBe('tool-call')
     })
 
     it('should handle empty tool result content', () => {
@@ -412,21 +415,22 @@ describe('message-converters', () => {
 
   describe('modelMessagesToUIMessages', () => {
     it('should convert simple messages', () => {
-      const modelMessages: ModelMessage[] = [
+      const modelMessages: Array<ModelMessage> = [
         { role: 'user', content: 'Hello' },
         { role: 'assistant', content: 'Hi' },
       ]
 
       const result = modelMessagesToUIMessages(modelMessages)
       expect(result).toHaveLength(2)
-      expect(result[0].role).toBe('user')
-      expect(result[1].role).toBe('assistant')
+      expect(result[0]?.role).toBe('user')
+      expect(result[1]?.role).toBe('assistant')
     })
 
     it('should merge tool results into assistant messages', () => {
-      const modelMessages: ModelMessage[] = [
+      const modelMessages: Array<ModelMessage> = [
         {
           role: 'assistant',
+          content: null,
           toolCalls: [
             {
               id: 'call-1',
@@ -444,8 +448,8 @@ describe('message-converters', () => {
 
       const result = modelMessagesToUIMessages(modelMessages)
       expect(result).toHaveLength(1)
-      expect(result[0].parts).toHaveLength(2) // tool-call + tool-result
-      expect(result[0].parts[1]).toEqual({
+      expect(result[0]?.parts).toHaveLength(2) // tool-call + tool-result
+      expect(result[0]?.parts[1]).toEqual({
         type: 'tool-result',
         toolCallId: 'call-1',
         content: 'Result',
@@ -454,7 +458,7 @@ describe('message-converters', () => {
     })
 
     it('should create standalone tool result if no assistant message', () => {
-      const modelMessages: ModelMessage[] = [
+      const modelMessages: Array<ModelMessage> = [
         { role: 'user', content: 'Hello' },
         {
           role: 'tool',
@@ -465,9 +469,9 @@ describe('message-converters', () => {
 
       const result = modelMessagesToUIMessages(modelMessages)
       expect(result).toHaveLength(2)
-      expect(result[1].role).toBe('assistant')
+      expect(result[1]?.role).toBe('assistant')
       // Tool messages with content create both text and tool-result parts
-      const toolResultPart = result[1].parts.find(
+      const toolResultPart = result[1]?.parts.find(
         (p) => p.type === 'tool-result',
       )
       expect(toolResultPart).toBeDefined()
@@ -480,7 +484,7 @@ describe('message-converters', () => {
     })
 
     it('should reset assistant tracking on non-assistant message', () => {
-      const modelMessages: ModelMessage[] = [
+      const modelMessages: Array<ModelMessage> = [
         {
           role: 'assistant',
           content: 'First',
@@ -497,7 +501,7 @@ describe('message-converters', () => {
       expect(result).toHaveLength(3)
       // Tool result should be standalone since user message reset tracking
       // Tool messages with content create both text and tool-result parts
-      const toolResultPart = result[2].parts.find(
+      const toolResultPart = result[2]?.parts.find(
         (p) => p.type === 'tool-result',
       )
       expect(toolResultPart).toBeDefined()
@@ -510,9 +514,10 @@ describe('message-converters', () => {
     })
 
     it('should handle multiple tool results for same assistant', () => {
-      const modelMessages: ModelMessage[] = [
+      const modelMessages: Array<ModelMessage> = [
         {
           role: 'assistant',
+          content: null,
           toolCalls: [
             {
               id: 'call-1',
@@ -540,7 +545,7 @@ describe('message-converters', () => {
 
       const result = modelMessagesToUIMessages(modelMessages)
       expect(result).toHaveLength(1)
-      expect(result[0].parts).toHaveLength(4) // 2 tool-calls + 2 tool-results
+      expect(result[0]?.parts).toHaveLength(4) // 2 tool-calls + 2 tool-results
     })
   })
 
@@ -607,6 +612,7 @@ describe('message-converters', () => {
     it('should convert ModelMessage with tool calls', () => {
       const modelMessage: ModelMessage = {
         role: 'assistant',
+        content: null,
         toolCalls: [
           {
             id: 'call-1',
@@ -620,7 +626,7 @@ describe('message-converters', () => {
       const result = normalizeToUIMessage(modelMessage, generateId)
 
       expect(result.parts).toHaveLength(1)
-      expect(result.parts[0].type).toBe('tool-call')
+      expect(result.parts[0]?.type).toBe('tool-call')
     })
   })
 })

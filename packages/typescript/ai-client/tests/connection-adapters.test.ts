@@ -1,7 +1,7 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import {
-  fetchServerSentEvents,
   fetchHttpStream,
+  fetchServerSentEvents,
   stream,
 } from '../src/connection-adapters'
 import type { StreamChunk } from '@tanstack/ai'
@@ -13,6 +13,7 @@ describe('connection-adapters', () => {
   beforeEach(() => {
     originalFetch = global.fetch
     fetchMock = vi.fn()
+    // @ts-ignore - we mock global fetch
     global.fetch = fetchMock
   })
 
@@ -46,7 +47,7 @@ describe('connection-adapters', () => {
       fetchMock.mockResolvedValue(mockResponse as any)
 
       const adapter = fetchServerSentEvents('/api/chat')
-      const chunks: StreamChunk[] = []
+      const chunks: Array<StreamChunk> = []
 
       for await (const chunk of adapter.connect([
         { role: 'user', content: 'Hello' },
@@ -85,7 +86,7 @@ describe('connection-adapters', () => {
       fetchMock.mockResolvedValue(mockResponse as any)
 
       const adapter = fetchServerSentEvents('/api/chat')
-      const chunks: StreamChunk[] = []
+      const chunks: Array<StreamChunk> = []
 
       for await (const chunk of adapter.connect([
         { role: 'user', content: 'Hello' },
@@ -118,7 +119,7 @@ describe('connection-adapters', () => {
       fetchMock.mockResolvedValue(mockResponse as any)
 
       const adapter = fetchServerSentEvents('/api/chat')
-      const chunks: StreamChunk[] = []
+      const chunks: Array<StreamChunk> = []
 
       for await (const chunk of adapter.connect([
         { role: 'user', content: 'Hello' },
@@ -132,7 +133,7 @@ describe('connection-adapters', () => {
     it('should handle malformed JSON gracefully', async () => {
       const consoleWarnSpy = vi
         .spyOn(console, 'warn')
-        .mockImplementation(() => {})
+        .mockImplementation(() => { })
 
       const mockReader = {
         read: vi
@@ -155,7 +156,7 @@ describe('connection-adapters', () => {
       fetchMock.mockResolvedValue(mockResponse as any)
 
       const adapter = fetchServerSentEvents('/api/chat')
-      const chunks: StreamChunk[] = []
+      const chunks: Array<StreamChunk> = []
 
       for await (const chunk of adapter.connect([
         { role: 'user', content: 'Hello' },
@@ -238,7 +239,7 @@ describe('connection-adapters', () => {
 
       expect(fetchMock).toHaveBeenCalled()
       const call = fetchMock.mock.calls[0]
-      expect(call[1]?.headers).toMatchObject({
+      expect(call?.[1]?.headers).toMatchObject({
         'Content-Type': 'application/json',
         Authorization: 'Bearer token',
       })
@@ -272,7 +273,7 @@ describe('connection-adapters', () => {
 
       expect(fetchMock).toHaveBeenCalled()
       const call = fetchMock.mock.calls[0]
-      const requestHeaders = call[1]?.headers
+      const requestHeaders = call?.[1]?.headers
 
       // mergeHeaders converts Headers to plain object, then spread into new object
       // The headers should be a plain object with both Content-Type and Authorization
@@ -313,7 +314,7 @@ describe('connection-adapters', () => {
 
       expect(fetchMock).toHaveBeenCalled()
       const call = fetchMock.mock.calls[0]
-      const body = JSON.parse(call[1]?.body as string)
+      const body = JSON.parse(call?.[1]?.body as string)
       expect(body.data).toEqual({ key: 'value' })
     })
   })
@@ -343,7 +344,7 @@ describe('connection-adapters', () => {
       fetchMock.mockResolvedValue(mockResponse as any)
 
       const adapter = fetchHttpStream('/api/chat')
-      const chunks: StreamChunk[] = []
+      const chunks: Array<StreamChunk> = []
 
       for await (const chunk of adapter.connect([
         { role: 'user', content: 'Hello' },
@@ -357,7 +358,7 @@ describe('connection-adapters', () => {
     it('should handle malformed JSON gracefully', async () => {
       const consoleWarnSpy = vi
         .spyOn(console, 'warn')
-        .mockImplementation(() => {})
+        .mockImplementation(() => { })
 
       const mockReader = {
         read: vi
@@ -380,7 +381,7 @@ describe('connection-adapters', () => {
       fetchMock.mockResolvedValue(mockResponse as any)
 
       const adapter = fetchHttpStream('/api/chat')
-      const chunks: StreamChunk[] = []
+      const chunks: Array<StreamChunk> = []
 
       for await (const chunk of adapter.connect([
         { role: 'user', content: 'Hello' },
@@ -418,7 +419,7 @@ describe('connection-adapters', () => {
 
   describe('stream', () => {
     it('should delegate to stream factory', async () => {
-      const streamFactory = vi.fn().mockImplementation(async function* () {
+      const streamFactory = vi.fn().mockImplementation(function* () {
         yield {
           type: 'content',
           id: '1',
@@ -431,7 +432,7 @@ describe('connection-adapters', () => {
       })
 
       const adapter = stream(streamFactory)
-      const chunks: StreamChunk[] = []
+      const chunks: Array<StreamChunk> = []
 
       for await (const chunk of adapter.connect([
         { role: 'user', content: 'Hello' },
@@ -444,7 +445,7 @@ describe('connection-adapters', () => {
     })
 
     it('should pass data to stream factory', async () => {
-      const streamFactory = vi.fn().mockImplementation(async function* () {
+      const streamFactory = vi.fn().mockImplementation(function* () {
         yield {
           type: 'done',
           id: '1',

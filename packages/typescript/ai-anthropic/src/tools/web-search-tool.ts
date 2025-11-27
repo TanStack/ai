@@ -4,7 +4,7 @@ import type { Tool } from '@tanstack/ai'
 
 export type WebSearchTool = WebSearchTool20250305
 
-export const validateDomains = (tool: WebSearchTool) => {
+const validateDomains = (tool: WebSearchTool) => {
   if (tool.allowed_domains && tool.blocked_domains) {
     throw new Error(
       'allowed_domains and blocked_domains cannot be used together.',
@@ -12,9 +12,10 @@ export const validateDomains = (tool: WebSearchTool) => {
   }
 }
 
-export const validateUserLocation = (
-  userLocation: WebSearchTool['user_location'],
+const validateUserLocation = (
+  tool: WebSearchTool,
 ) => {
+  const userLocation = tool.user_location;
   if (userLocation) {
     if (
       userLocation.city &&
@@ -71,19 +72,9 @@ export function convertWebSearchToolToAdapterFormat(tool: Tool): WebSearchTool {
   }
 }
 
-export function webSearchTool(config?: {
-  allowedDomains?: Array<string> | null
-  blockedDomains?: Array<string> | null
-  maxUses?: number | null
-  userLocation?: {
-    type: 'approximate'
-    city?: string | null
-    country?: string | null
-    region?: string | null
-    timezone?: string | null
-  } | null
-  cacheControl?: CacheControl | null
-}): Tool {
+export function webSearchTool(config: WebSearchTool): Tool {
+  validateDomains(config)
+  validateUserLocation(config)
   return {
     type: 'function',
     function: {
@@ -91,12 +82,6 @@ export function webSearchTool(config?: {
       description: '',
       parameters: {},
     },
-    metadata: {
-      allowedDomains: config?.allowedDomains,
-      blockedDomains: config?.blockedDomains,
-      maxUses: config?.maxUses,
-      userLocation: config?.userLocation,
-      cacheControl: config?.cacheControl,
-    },
+    metadata: config
   }
 }

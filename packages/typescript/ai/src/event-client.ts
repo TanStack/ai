@@ -273,7 +273,7 @@ type StripPrefix<T extends string> =
 // Get all event names without the prefix
 type EventSuffix = StripPrefix<keyof AIDevtoolsEventMap & string>
 
-export class AiEventClient extends EventClient<AIDevtoolsEventMap> {
+class AiEventClient extends EventClient<AIDevtoolsEventMap> {
   private eventTarget: EventTarget
 
   constructor() {

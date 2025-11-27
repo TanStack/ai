@@ -1,4 +1,4 @@
-import { describe, it, expect, vi } from 'vitest'
+import { describe, expect, it } from 'vitest'
 import { StreamProcessor } from '../src/stream/processor'
 
 describe('StreamProcessor - Tool Call Handling', () => {
@@ -287,7 +287,7 @@ describe('StreamProcessor - Tool Call Handling', () => {
     ]
 
     // Track what handlers are called
-    const events: any[] = []
+    const events: Array<any> = []
 
     const processor = new StreamProcessor({
       handlers: {
@@ -301,6 +301,7 @@ describe('StreamProcessor - Tool Call Handling', () => {
     })
 
     // Convert chunks to async iterable
+    // eslint-disable-next-line @typescript-eslint/require-await
     async function* createStream() {
       for (const chunk of rawChunks) {
         yield chunk
