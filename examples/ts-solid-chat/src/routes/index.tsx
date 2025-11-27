@@ -1,10 +1,5 @@
 import { createFileRoute } from '@tanstack/solid-router'
 import { Send, Square } from 'lucide-solid'
-import { SolidMarkdown } from 'solid-markdown'
-import rehypeRaw from 'rehype-raw'
-import rehypeSanitize from 'rehype-sanitize'
-import rehypeHighlight from 'rehype-highlight'
-import remarkGfm from 'remark-gfm'
 import { fetchServerSentEvents, useChat } from '@tanstack/ai-solid'
 import { createSignal } from 'solid-js'
 import type { UIMessage } from '@tanstack/ai-solid'
@@ -58,16 +53,7 @@ function Messages(props: {
                   if (part.type === 'text' && part.content) {
                     return (
                       <div class="text-white prose dark:prose-invert max-w-none">
-                        <SolidMarkdown
-                          rehypePlugins={[
-                            rehypeRaw,
-                            rehypeSanitize,
-                            rehypeHighlight,
-                            remarkGfm,
-                          ]}
-                        >
-                          {part.content}
-                        </SolidMarkdown>
+                        {part.content}
                       </div>
                     )
                   }
@@ -360,7 +346,6 @@ function ChatPage() {
             <div class="relative">
               <textarea
                 value={input()}
-                onChange={(e) => setInput(e.target.value)}
                 placeholder="Type something clever (or don't, we won't judge)..."
                 class="w-full rounded-lg border border-orange-500/20 bg-gray-800/50 pl-4 pr-12 py-3 text-sm text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-orange-500/50 focus:border-transparent resize-none overflow-hidden shadow-lg"
                 rows={1}
@@ -371,6 +356,7 @@ function ChatPage() {
                   target.style.height = 'auto'
                   target.style.height =
                     Math.min(target.scrollHeight, 200) + 'px'
+                  setInput(target.value)
                 }}
                 onKeyDown={(e) => {
                   if (e.key === 'Enter' && !e.shiftKey && input().trim()) {

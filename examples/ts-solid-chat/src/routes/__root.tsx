@@ -2,11 +2,10 @@ import { HeadContent, Scripts, createRootRoute } from '@tanstack/solid-router'
 import { TanStackRouterDevtoolsPanel } from '@tanstack/solid-router-devtools'
 import { TanStackDevtools } from '@tanstack/solid-devtools'
 // import { aiDevtoolsPlugin } from "@tanstack/react-ai-devtools";
-import Header from '../components/Header'
 import { HydrationScript } from 'solid-js/web'
-
 import appCss from '../styles.css?url'
-import { JSXElement } from 'solid-js'
+import Header from '../components/Header'
+import type { JSXElement } from 'solid-js'
 
 export const Route = createRootRoute({
   head: () => ({

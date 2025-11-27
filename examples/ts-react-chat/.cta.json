@@ -1,5 +1,5 @@
 {
-  "projectName": "ts-chat",
+  "projectName": "ts-react-chat",
   "mode": "file-router",
   "typescript": true,
   "tailwind": true,
@@ -8,5 +8,10 @@
   "git": true,
   "version": 1,
   "framework": "react-cra",
-  "chosenAddOns": ["nitro", "start", "tanchat", "store"]
+  "chosenAddOns": [
+    "nitro",
+    "start",
+    "tanchat",
+    "store"
+  ]
 }

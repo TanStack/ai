@@ -6,7 +6,7 @@ This directory contains comprehensive examples demonstrating TanStack AI across 
 
 Choose an example based on your use case:
 
-- **Want a full-stack TypeScript app?** → [TanStack Chat (ts-chat)](#tanstack-chat-ts-chat)
+- **Want a full-stack TypeScript app?** → [TanStack Chat (ts-react-chat)](#tanstack-chat-ts-react-chat)
 - **Want a simple CLI tool?** → [CLI Example](#cli-example)
 - **Need a vanilla JS frontend?** → [Vanilla Chat](#vanilla-chat)
 - **Building a Python backend?** → [Python FastAPI Server](#python-fastapi-server)
@@ -14,7 +14,7 @@ Choose an example based on your use case:
 
 ## TypeScript Examples
 
-### TanStack Chat (ts-chat)
+### TanStack Chat (ts-react-chat)
 
 A full-featured chat application built with the TanStack ecosystem.
 
@@ -38,14 +38,14 @@ A full-featured chat application built with the TanStack ecosystem.
 **Getting Started:**
 
 ```bash
-cd examples/ts-chat
+cd examples/ts-react-chat
 pnpm install
 cp env.example .env
 # Edit .env and add your OPENAI_API_KEY
 pnpm start
 ```
 
-📖 [Full Documentation](ts-chat/README.md)
+📖 [Full Documentation](ts-react-chat/README.md)
 
 ---
 
@@ -245,7 +245,7 @@ Backend (TanStack Start API Route)
 AI Provider (OpenAI/Anthropic/etc.)
 ```
 
-**Example:** [TanStack Chat (ts-chat)](ts-chat/README.md)
+**Example:** [TanStack Chat (ts-react-chat)](ts-react-chat/README.md)
 
 ### Multi-Language Backend
 
@@ -393,8 +393,8 @@ python anthropic-server.py
 cd examples/vanilla-chat
 pnpm dev
 
-# Terminal 3: Start ts-chat (full-stack)
-cd examples/ts-chat
+# Terminal 3: Start ts-react-chat (full-stack)
+cd examples/ts-react-chat
 pnpm start
 ```
 
