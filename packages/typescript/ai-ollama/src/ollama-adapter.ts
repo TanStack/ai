@@ -89,7 +89,15 @@ interface ChatCompletionChunk {
   model: string
   content: string
   role?: 'assistant'
-  finishReason?: 'stop' | 'length' | 'content_filter' | null
+  finishReason?: 'stop' | 'length' | 'content_filter' | 'tool_calls' | null
+  toolCalls?: Array<{
+    id: string
+    type: 'function'
+    function: {
+      name: string
+      arguments: string
+    }
+  }>
   usage?: {
     promptTokens: number
     completionTokens: number

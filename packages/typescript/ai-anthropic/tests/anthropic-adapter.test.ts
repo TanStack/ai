@@ -136,7 +136,6 @@ describe('Anthropic adapter option mapping', () => {
       options: {
         maxTokens: 3000,
         temperature: 0.4,
-        topP: 0.8,
       },
       providerOptions,
     })) {
@@ -150,7 +149,6 @@ describe('Anthropic adapter option mapping', () => {
       model: 'claude-3-7-sonnet-20250219',
       max_tokens: 3000,
       temperature: 0.4,
-      top_p: 0.8,
       container: providerOptions.container,
       mcp_servers: providerOptions.mcp_servers,
       service_tier: providerOptions.service_tier,
