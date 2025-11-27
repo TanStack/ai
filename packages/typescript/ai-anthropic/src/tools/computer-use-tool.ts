@@ -8,8 +8,6 @@ export type ComputerUseTool =
   | BetaToolComputerUse20241022
   | BetaToolComputerUse20250124
 
-
-
 export function convertComputerUseToolToAdapterFormat(
   tool: Tool,
 ): ComputerUseTool {

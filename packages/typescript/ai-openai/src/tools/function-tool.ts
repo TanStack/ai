@@ -27,7 +27,7 @@ export function convertFunctionToolToAdapterFormat(tool: Tool): FunctionTool {
       additionalProperties: false,
     },
 
-    strict: true
+    strict: true,
   } satisfies FunctionTool
 }
 

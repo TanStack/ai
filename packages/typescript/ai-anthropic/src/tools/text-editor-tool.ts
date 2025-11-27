@@ -10,8 +10,6 @@ export type TextEditorTool =
   | ToolTextEditor20250429
   | ToolTextEditor20250728
 
-
-
 export function convertTextEditorToolToAdapterFormat(
   tool: Tool,
 ): TextEditorTool {
@@ -32,4 +30,3 @@ export function textEditorTool<T extends TextEditorTool>(config: T): Tool {
     metadata: config,
   }
 }
-

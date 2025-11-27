@@ -133,7 +133,7 @@ describe('connection-adapters', () => {
     it('should handle malformed JSON gracefully', async () => {
       const consoleWarnSpy = vi
         .spyOn(console, 'warn')
-        .mockImplementation(() => { })
+        .mockImplementation(() => {})
 
       const mockReader = {
         read: vi
@@ -358,7 +358,7 @@ describe('connection-adapters', () => {
     it('should handle malformed JSON gracefully', async () => {
       const consoleWarnSpy = vi
         .spyOn(console, 'warn')
-        .mockImplementation(() => { })
+        .mockImplementation(() => {})
 
       const mockReader = {
         read: vi

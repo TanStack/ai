@@ -6,7 +6,7 @@ export type GoogleSearchTool = GoogleSearch
 export function convertGoogleSearchToolToAdapterFormat(tool: Tool) {
   const metadata = tool.metadata as GoogleSearchTool
   return {
-    googleSearch: metadata
+    googleSearch: metadata,
   }
 }
 
@@ -18,6 +18,6 @@ export function googleSearchTool(config?: GoogleSearchTool): Tool {
       description: '',
       parameters: {},
     },
-    metadata: config
+    metadata: config,
   }
 }

@@ -57,9 +57,7 @@ export class GeminiAdapter extends BaseAdapter<
     })
   }
 
-  async *chatStream(
-    options: ChatOptions,
-  ): AsyncIterable<StreamChunk> {
+  async *chatStream(options: ChatOptions): AsyncIterable<StreamChunk> {
     // Map common options to Gemini format
     const mappedOptions = this.mapCommonOptionsToGemini(options)
 
@@ -94,7 +92,6 @@ export class GeminiAdapter extends BaseAdapter<
 
     if (!summary && typeof result.text === 'string') {
       summary = result.text
-
     }
 
     const promptTokens = this.estimateTokens(prompt)
@@ -237,10 +234,10 @@ export class GeminiAdapter extends BaseAdapter<
             finishReason: mappedFinishReason as any,
             usage: chunk.usageMetadata
               ? {
-                promptTokens: chunk.usageMetadata.promptTokenCount ?? 0,
-                completionTokens: chunk.usageMetadata.thoughtsTokenCount ?? 0,
-                totalTokens: chunk.usageMetadata.totalTokenCount ?? 0,
-              }
+                  promptTokens: chunk.usageMetadata.promptTokenCount ?? 0,
+                  completionTokens: chunk.usageMetadata.thoughtsTokenCount ?? 0,
+                  totalTokens: chunk.usageMetadata.totalTokenCount ?? 0,
+                }
               : undefined,
           }
         }
@@ -402,10 +399,10 @@ export class GeminiAdapter extends BaseAdapter<
           finishReason: mappedFinishReason as any,
           usage: chunk.usageMetadata
             ? {
-              promptTokens: chunk.usageMetadata.promptTokenCount ?? 0,
-              completionTokens: chunk.usageMetadata.thoughtsTokenCount ?? 0,
-              totalTokens: chunk.usageMetadata.totalTokenCount ?? 0,
-            }
+                promptTokens: chunk.usageMetadata.promptTokenCount ?? 0,
+                completionTokens: chunk.usageMetadata.thoughtsTokenCount ?? 0,
+                totalTokens: chunk.usageMetadata.totalTokenCount ?? 0,
+              }
             : undefined,
         }
       }
@@ -480,9 +477,7 @@ export class GeminiAdapter extends BaseAdapter<
    * Maps common options to Gemini-specific format
    * Handles translation of normalized options to Gemini's API format
    */
-  private mapCommonOptionsToGemini(
-    options: ChatOptions,
-  ) {
+  private mapCommonOptionsToGemini(options: ChatOptions) {
     const providerOpts = options.providerOptions
     const requestOptions: GenerateContentParameters = {
       model: options.model,

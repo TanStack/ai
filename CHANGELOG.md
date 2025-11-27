@@ -24,7 +24,6 @@ npm install @tanstack/ai-client
 
 **See:** [Package Documentation](packages/typescript/ai-client/README.md)
 
- 
 #### @tanstack/ai-react-ui
 
 **New Package:** Pre-built React UI components for chat interfaces.

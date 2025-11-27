@@ -15,13 +15,13 @@ interface CustomToolChoice {
 
 interface HostedToolChoice {
   type:
-  | 'file_search'
-  | 'web_search_preview'
-  | 'computer_use_preview'
-  | 'code_interpreter'
-  | 'image_generation'
-  | 'shell'
-  | 'apply_patch'
+    | 'file_search'
+    | 'web_search_preview'
+    | 'computer_use_preview'
+    | 'code_interpreter'
+    | 'image_generation'
+    | 'shell'
+    | 'apply_patch'
 }
 
 export type ToolChoice =
