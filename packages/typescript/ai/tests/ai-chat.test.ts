@@ -61,7 +61,7 @@ class MockAdapter extends BaseAdapter<
     })
   }
 
-  // Default implementation - will be overridden in tests 
+  // Default implementation - will be overridden in tests
   async *chatStream(options: ChatOptions): AsyncIterable<StreamChunk> {
     this.trackStreamCall(options)
     yield {

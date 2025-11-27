@@ -1,5 +1,3 @@
-
-
 export interface AudioProviderOptions {
   /**
    * The text to generate audio for. The maximum length is 4096 characters.
@@ -16,17 +14,17 @@ export interface AudioProviderOptions {
    * https://platform.openai.com/docs/guides/text-to-speech#voice-options
    */
   voice?:
-  | 'alloy'
-  | 'ash'
-  | 'ballad'
-  | 'coral'
-  | 'echo'
-  | 'fable'
-  | 'onyx'
-  | 'nova'
-  | 'sage'
-  | 'shimmer'
-  | 'verse'
+    | 'alloy'
+    | 'ash'
+    | 'ballad'
+    | 'coral'
+    | 'echo'
+    | 'fable'
+    | 'onyx'
+    | 'nova'
+    | 'sage'
+    | 'shimmer'
+    | 'verse'
   /**
    * Control the voice of your generated audio with additional instructions. Does not work with tts-1 or tts-1-hd.
    */

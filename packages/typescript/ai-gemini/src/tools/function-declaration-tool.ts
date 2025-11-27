@@ -1,10 +1,8 @@
-import type { FunctionDeclaration } from "@google/genai"
+import type { FunctionDeclaration } from '@google/genai'
 
 export type FunctionDeclarationTool = FunctionDeclaration
 
-const validateFunctionDeclarationTool = (
-  tool: FunctionDeclarationTool,
-) => {
+const validateFunctionDeclarationTool = (tool: FunctionDeclarationTool) => {
   const nameRegex = /^[a-zA-Z0-9_:.-]{1,64}$/
   const valid = nameRegex.test(tool.name!)
   if (!valid) {

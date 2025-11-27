@@ -12,10 +12,8 @@ const validateDomains = (tool: WebSearchTool) => {
   }
 }
 
-const validateUserLocation = (
-  tool: WebSearchTool,
-) => {
-  const userLocation = tool.user_location;
+const validateUserLocation = (tool: WebSearchTool) => {
+  const userLocation = tool.user_location
   if (userLocation) {
     if (
       userLocation.city &&
@@ -82,6 +80,6 @@ export function webSearchTool(config: WebSearchTool): Tool {
       description: '',
       parameters: {},
     },
-    metadata: config
+    metadata: config,
   }
 }

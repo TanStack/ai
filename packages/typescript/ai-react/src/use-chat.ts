@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react'
-import { ChatClient, } from '@tanstack/ai-client'
+import { ChatClient } from '@tanstack/ai-client'
 import type { ModelMessage } from '@tanstack/ai'
 import type { UIMessage, UseChatOptions, UseChatReturn } from './types'
 

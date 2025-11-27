@@ -6,7 +6,7 @@ export type GoogleSearchRetrievalTool = GoogleSearchRetrieval
 export function convertGoogleSearchRetrievalToolToAdapterFormat(tool: Tool) {
   const metadata = tool.metadata as GoogleSearchRetrievalTool
   return {
-    googleSearchRetrieval: metadata
+    googleSearchRetrieval: metadata,
   }
 }
 
@@ -20,6 +20,6 @@ export function googleSearchRetrievalTool(
       description: '',
       parameters: {},
     },
-    metadata: config
+    metadata: config,
   }
 }

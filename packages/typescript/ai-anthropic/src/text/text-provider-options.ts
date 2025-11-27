@@ -77,19 +77,19 @@ export interface AnthropicThinkingOptions {
 When enabled, responses include thinking content blocks showing Claude's thinking process before the final answer. Requires a minimum budget of 1,024 tokens and counts towards your max_tokens limit.
      */
   thinking?:
-  | {
-    /**
+    | {
+        /**
 * Determines how many tokens Claude can use for its internal reasoning process. Larger budgets can enable more thorough analysis for complex problems, improving response quality.
 
 Must be ≥1024 and less than max_tokens
 */
-    budget_tokens: number
+        budget_tokens: number
 
-    type: 'enabled'
-  }
-  | {
-    type: 'disabled'
-  }
+        type: 'enabled'
+      }
+    | {
+        type: 'disabled'
+      }
 }
 
 export interface AnthropicToolChoiceOptions {
@@ -156,9 +156,7 @@ In nucleus sampling, we compute the cumulative distribution over all the options
   top_p?: number
 }
 
-const validateTopPandTemperature = (
-  options: InternalTextProviderOptions,
-) => {
+const validateTopPandTemperature = (options: InternalTextProviderOptions) => {
   if (options.top_p !== undefined && options.temperature !== undefined) {
     throw new Error('You should either set top_p or temperature, but not both.')
   }
@@ -181,7 +179,6 @@ const validateThinking = (options: InternalTextProviderOptions) => {
   }
 }
 
-
 interface MCPServer {
   name: string
   url: string
@@ -199,7 +196,9 @@ const validateMaxTokens = (options: InternalTextProviderOptions) => {
   }
 }
 
-export const validateTextProviderOptions = (options: InternalTextProviderOptions) => {
+export const validateTextProviderOptions = (
+  options: InternalTextProviderOptions,
+) => {
   validateTopPandTemperature(options)
   validateThinking(options)
   validateMaxTokens(options)

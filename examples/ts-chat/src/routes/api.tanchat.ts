@@ -61,7 +61,6 @@ export const Route = createFileRoute('/api/tanchat')({
             agentLoopStrategy: maxIterations(20),
             messages,
             providerOptions: {
-
               // Enable reasoning for OpenAI (gpt-5, o3 models):
               // reasoning: {
               //   effort: "medium", // or "low", "high", "minimal", "none" (for gpt-5.1)

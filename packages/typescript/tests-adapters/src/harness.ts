@@ -1,7 +1,7 @@
 import { mkdir, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { chat } from '@tanstack/ai'
-import type { Tool } from '@tanstack/ai';
+import type { Tool } from '@tanstack/ai'
 
 const OUTPUT_DIR = join(process.cwd(), 'output')
 
@@ -83,10 +83,10 @@ function formatToolsForDebug(tools: Array<Tool> = []) {
     type: t.type,
     function: t.function
       ? {
-        name: t.function.name,
-        description: t.function.description,
-        parameters: t.function.parameters,
-      }
+          name: t.function.name,
+          description: t.function.description,
+          parameters: t.function.parameters,
+        }
       : undefined,
     needsApproval: (t as any).needsApproval,
     hasExecute: Boolean((t as any).execute),
@@ -338,7 +338,8 @@ export async function runTestCase(opts: {
     console.log(`[${adapterContext.adapterName}] ✅ ${testName}`)
   } else {
     console.log(
-      `[${adapterContext.adapterName}] ❌ ${testName}: ${validation.error || 'Unknown error'
+      `[${adapterContext.adapterName}] ❌ ${testName}: ${
+        validation.error || 'Unknown error'
       }`,
     )
   }
@@ -364,9 +365,9 @@ export function buildApprovalMessages(
       const aggregated = firstRun.toolCalls.find((call) => call.id === tc.id)
       return aggregated
         ? {
-          ...tc,
-          function: { ...tc.function, arguments: aggregated.arguments },
-        }
+            ...tc,
+            function: { ...tc.function, arguments: aggregated.arguments },
+          }
         : tc
     }) || []
 

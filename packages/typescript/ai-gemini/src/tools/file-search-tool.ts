@@ -6,7 +6,7 @@ export type FileSearchTool = FileSearch
 export function convertFileSearchToolToAdapterFormat(tool: Tool) {
   const metadata = tool.metadata as FileSearchTool
   return {
-    fileSearch: metadata
+    fileSearch: metadata,
   }
 }
 
@@ -18,6 +18,6 @@ export function fileSearchTool(config: FileSearchTool): Tool {
       description: '',
       parameters: {},
     },
-    metadata: config
+    metadata: config,
   }
 }

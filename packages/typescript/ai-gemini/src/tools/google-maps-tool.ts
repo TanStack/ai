@@ -6,7 +6,7 @@ export type GoogleMapsTool = GoogleMaps
 export function convertGoogleMapsToolToAdapterFormat(tool: Tool) {
   const metadata = tool.metadata as GoogleMapsTool
   return {
-    googleMaps: metadata
+    googleMaps: metadata,
   }
 }
 
@@ -18,6 +18,6 @@ export function googleMapsTool(config?: GoogleMapsTool): Tool {
       description: '',
       parameters: {},
     },
-    metadata: config
+    metadata: config,
   }
 }

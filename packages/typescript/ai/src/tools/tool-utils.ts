@@ -6,14 +6,14 @@ import type { Tool } from '../types'
 type InferPropertyType<T> = T extends { type: 'string' }
   ? string
   : T extends { type: 'number' }
-  ? number
-  : T extends { type: 'boolean' }
-  ? boolean
-  : T extends { type: 'array' }
-  ? Array<any>
-  : T extends { type: 'object' }
-  ? Record<string, any>
-  : any
+    ? number
+    : T extends { type: 'boolean' }
+      ? boolean
+      : T extends { type: 'array' }
+        ? Array<any>
+        : T extends { type: 'object' }
+          ? Record<string, any>
+          : any
 
 /**
  * Infer argument types from parameters schema
@@ -24,18 +24,18 @@ type InferArgs<
   TRequired extends ReadonlyArray<string> | undefined,
 > =
   TRequired extends ReadonlyArray<string>
-  ? {
-    [K in keyof TProps as K extends TRequired[number]
-    ? K
-    : never]: InferPropertyType<TProps[K]>
-  } & {
-    [K in keyof TProps as K extends TRequired[number]
-    ? never
-    : K]?: InferPropertyType<TProps[K]>
-  }
-  : {
-    [K in keyof TProps]?: InferPropertyType<TProps[K]>
-  }
+    ? {
+        [K in keyof TProps as K extends TRequired[number]
+          ? K
+          : never]: InferPropertyType<TProps[K]>
+      } & {
+        [K in keyof TProps as K extends TRequired[number]
+          ? never
+          : K]?: InferPropertyType<TProps[K]>
+      }
+    : {
+        [K in keyof TProps]?: InferPropertyType<TProps[K]>
+      }
 
 /**
  * Helper to define a tool with enforced type safety.
@@ -85,4 +85,3 @@ export function tool<
 }): Tool {
   return config as Tool
 }
-

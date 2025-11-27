@@ -5,4 +5,4 @@ export type {
   GeminiStructuredOutputOptions,
   GeminiThinkingOptions,
 } from './text/text-provider-options'
-export type { GoogleGeminiTool } from "./tools/index";
+export type { GoogleGeminiTool } from './tools/index'

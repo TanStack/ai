@@ -171,7 +171,7 @@ export function createToolCallChunks(
     if (includeToolInputAvailable) {
       let parsedInput: any
       try {
-        parsedInput = JSON.parse(toolCall?.arguments ?? "")
+        parsedInput = JSON.parse(toolCall?.arguments ?? '')
       } catch {
         parsedInput = toolCall?.arguments
       }

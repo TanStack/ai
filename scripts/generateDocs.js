@@ -12,10 +12,12 @@ const packages = [
   {
     name: 'ai',
     entryPoints: [resolve(__dirname, '../packages/typescript/ai/src/index.ts')],
-    tsconfig: resolve(__dirname, '../packages/typescript/ai/tsconfig.docs.json'),
+    tsconfig: resolve(
+      __dirname,
+      '../packages/typescript/ai/tsconfig.docs.json',
+    ),
     outputDir: resolve(__dirname, '../docs/reference'),
   },
-
 ]
 
 await generateReferenceDocs({ packages })

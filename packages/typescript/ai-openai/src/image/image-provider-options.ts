@@ -1,5 +1,3 @@
-
-
 interface ImageProviderOptions {
   /**
    * A text prompt describing the desired image. The maximum length is 32000 characters for gpt-image-1, 1000 characters for dall-e-2 and 4000 characters for dall-e-3.

@@ -114,57 +114,57 @@ Caution: A negative penalty will encourage the model to reuse tokens proportiona
 Valid values are: de-DE, en-AU, en-GB, en-IN, en-US, es-US, fr-FR, hi-IN, pt-BR, ar-XA, es-ES, fr-CA, id-ID, it-IT, ja-JP, tr-TR, vi-VN, bn-IN, gu-IN, kn-IN, ml-IN, mr-IN, ta-IN, te-IN, nl-NL, ko-KR, cmn-CN, pl-PL, ru-RU, and th-TH.
        */
       languageCode?:
-      | 'de-DE'
-      | 'en-AU'
-      | 'en-GB'
-      | 'en-IN'
-      | 'en-US'
-      | 'es-US'
-      | 'fr-FR'
-      | 'hi-IN'
-      | 'pt-BR'
-      | 'ar-XA'
-      | 'es-ES'
-      | 'fr-CA'
-      | 'id-ID'
-      | 'it-IT'
-      | 'ja-JP'
-      | 'tr-TR'
-      | 'vi-VN'
-      | 'bn-IN'
-      | 'gu-IN'
-      | 'kn-IN'
-      | 'ml-IN'
-      | 'mr-IN'
-      | 'ta-IN'
-      | 'te-IN'
-      | 'nl-NL'
-      | 'ko-KR'
-      | 'cmn-CN'
-      | 'pl-PL'
-      | 'ru-RU'
-      | 'th-TH'
+        | 'de-DE'
+        | 'en-AU'
+        | 'en-GB'
+        | 'en-IN'
+        | 'en-US'
+        | 'es-US'
+        | 'fr-FR'
+        | 'hi-IN'
+        | 'pt-BR'
+        | 'ar-XA'
+        | 'es-ES'
+        | 'fr-CA'
+        | 'id-ID'
+        | 'it-IT'
+        | 'ja-JP'
+        | 'tr-TR'
+        | 'vi-VN'
+        | 'bn-IN'
+        | 'gu-IN'
+        | 'kn-IN'
+        | 'ml-IN'
+        | 'mr-IN'
+        | 'ta-IN'
+        | 'te-IN'
+        | 'nl-NL'
+        | 'ko-KR'
+        | 'cmn-CN'
+        | 'pl-PL'
+        | 'ru-RU'
+        | 'th-TH'
     }
     /**
      * Config for image generation. An error will be returned if this field is set for models that don't support these config options.
      */
     imageConfig?: {
       aspectRatio?:
-      | '1:1'
-      | '2:3'
-      | '3:2'
-      | '3:4'
-      | '4:3'
-      | '9:16'
-      | '16:9'
-      | '21:9'
+        | '1:1'
+        | '2:3'
+        | '3:2'
+        | '3:4'
+        | '4:3'
+        | '9:16'
+        | '16:9'
+        | '21:9'
     }
     /**
      * If specified, the media resolution specified will be used.
      */
     mediaResolution?: MediaResolution
   } & GeminiThinkingOptions &
-  GeminiStructuredOutputOptions
+    GeminiStructuredOutputOptions
 }
 
 export interface GeminiCachedContentOptions {

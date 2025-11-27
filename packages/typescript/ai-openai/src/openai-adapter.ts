@@ -1,7 +1,10 @@
 import OpenAI_SDK from 'openai'
 import { BaseAdapter } from '@tanstack/ai'
-import { OPENAI_CHAT_MODELS, OPENAI_EMBEDDING_MODELS, } from './model-meta'
-import { convertMessagesToInput, validateTextProviderOptions } from './text/text-provider-options'
+import { OPENAI_CHAT_MODELS, OPENAI_EMBEDDING_MODELS } from './model-meta'
+import {
+  convertMessagesToInput,
+  validateTextProviderOptions,
+} from './text/text-provider-options'
 import { convertToolsToProviderFormat } from './tools'
 import type {
   ChatOptions,
@@ -9,7 +12,7 @@ import type {
   EmbeddingResult,
   StreamChunk,
   SummarizationOptions,
-  SummarizationResult
+  SummarizationResult,
 } from '@tanstack/ai'
 import type { OpenAIChatModelProviderOptionsByName } from './model-meta'
 import type {
@@ -28,7 +31,6 @@ export interface OpenAIConfig {
  */
 export type OpenAIProviderOptions = ExternalTextProviderOptions
 
-
 /**
  * OpenAI-specific provider options for embeddings
  * Based on OpenAI Embeddings API documentation
@@ -40,8 +42,6 @@ interface OpenAIEmbeddingProviderOptions {
   /** Unique identifier for end-user (for abuse monitoring) */
   user?: string
 }
-
-
 
 export class OpenAI extends BaseAdapter<
   typeof OPENAI_CHAT_MODELS,
@@ -78,7 +78,7 @@ export class OpenAI extends BaseAdapter<
     // OpenAI streams tool calls with deltas - first chunk has ID/name, subsequent chunks only have args
     // We assign our own indices as we encounter unique tool call IDs
     const toolCallMetadata = new Map<string, { index: number; name: string }>()
-    const requestArguments = this.mapChatOptionsToOpenAI(options);
+    const requestArguments = this.mapChatOptionsToOpenAI(options)
 
     try {
       const response = await this.client.responses.create(
@@ -106,7 +106,6 @@ export class OpenAI extends BaseAdapter<
       console.error('>>> Full error:', error)
       throw error
     }
-
   }
 
   async summarize(options: SummarizationOptions): Promise<SummarizationResult> {
@@ -181,7 +180,6 @@ export class OpenAI extends BaseAdapter<
     return prompt
   }
 
-
   private async *processOpenAIStreamChunks(
     stream: AsyncIterable<OpenAI_SDK.Responses.ResponseStreamEvent>,
     toolCallMetadata: Map<string, { index: number; name: string }>,
@@ -212,25 +210,29 @@ export class OpenAI extends BaseAdapter<
       for await (const chunk of stream) {
         console.log(chunk)
         chunkCount++
-        const handleContentPart = (contentPart: OpenAI_SDK.Responses.ResponseOutputText | OpenAI_SDK.Responses.ResponseOutputRefusal | OpenAI_SDK.Responses.ResponseContentPartAddedEvent.ReasoningText): StreamChunk => {
-          if (contentPart.type === "output_text") {
-            accumulatedContent += contentPart.text;
+        const handleContentPart = (
+          contentPart:
+            | OpenAI_SDK.Responses.ResponseOutputText
+            | OpenAI_SDK.Responses.ResponseOutputRefusal
+            | OpenAI_SDK.Responses.ResponseContentPartAddedEvent.ReasoningText,
+        ): StreamChunk => {
+          if (contentPart.type === 'output_text') {
+            accumulatedContent += contentPart.text
             return {
-              type: "content",
+              type: 'content',
               id: responseId || generateId(),
               model: model || options.model,
               timestamp,
               delta: contentPart.text,
               content: accumulatedContent,
-              role: "assistant",
+              role: 'assistant',
             }
           }
 
-
-          if (contentPart.type === "reasoning_text") {
-            accumulatedReasoning += contentPart.text;
+          if (contentPart.type === 'reasoning_text') {
+            accumulatedReasoning += contentPart.text
             return {
-              type: "thinking",
+              type: 'thinking',
               id: responseId || generateId(),
               model: model || options.model,
               timestamp,
@@ -239,23 +241,26 @@ export class OpenAI extends BaseAdapter<
             }
           }
           return {
-            type: "error",
+            type: 'error',
             id: responseId || generateId(),
             model: model || options.model,
             timestamp,
             error: {
               message: contentPart.refusal,
-            }
+            },
           }
-
         }
         // handle general response events
-        if (chunk.type === "response.created" || chunk.type === "response.incomplete" || chunk.type === "response.failed") {
-          responseId = chunk.response.id;
-          model = chunk.response.model;
+        if (
+          chunk.type === 'response.created' ||
+          chunk.type === 'response.incomplete' ||
+          chunk.type === 'response.failed'
+        ) {
+          responseId = chunk.response.id
+          model = chunk.response.model
           if (chunk.response.error) {
             yield {
-              type: "error",
+              type: 'error',
               id: chunk.response.id,
               model: chunk.response.model,
               timestamp,
@@ -264,35 +269,30 @@ export class OpenAI extends BaseAdapter<
           }
           if (chunk.response.incomplete_details) {
             yield {
-              type: "error",
+              type: 'error',
               id: chunk.response.id,
               model: chunk.response.model,
               timestamp,
               error: {
-                message: chunk.response.incomplete_details.reason ?? "",
-
+                message: chunk.response.incomplete_details.reason ?? '',
               },
             }
           }
         }
         // handle content_part added events for text, reasoning and refusals
-        if (chunk.type === "response.content_part.added") {
-          const contentPart = chunk.part;
-          yield handleContentPart(contentPart);
+        if (chunk.type === 'response.content_part.added') {
+          const contentPart = chunk.part
+          yield handleContentPart(contentPart)
         }
 
-        if (chunk.type === "response.content_part.done") {
-          const contentPart = chunk.part;
+        if (chunk.type === 'response.content_part.done') {
+          const contentPart = chunk.part
 
-          yield handleContentPart(contentPart);
+          yield handleContentPart(contentPart)
         }
 
-
-
-
-
-        if (chunk.type === "response.function_call_arguments.done") {
-          const { name, item_id, output_index, } = chunk
+        if (chunk.type === 'response.function_call_arguments.done') {
+          const { name, item_id, output_index } = chunk
           if (!toolCallMetadata.has(item_id)) {
             toolCallMetadata.set(item_id, {
               index: output_index,
@@ -301,59 +301,55 @@ export class OpenAI extends BaseAdapter<
             accumulatedFunctionCallArguments.set(item_id, '')
           }
           yield {
-            type: "tool_call",
+            type: 'tool_call',
             id: responseId || generateId(),
             model: model || options.model,
             timestamp,
             index: output_index,
             toolCall: {
               id: item_id,
-              type: "function",
+              type: 'function',
               function: {
                 name,
                 arguments: chunk.arguments,
               },
-            }
+            },
           }
         }
 
-        if (chunk.type === "response.output_text.done") {
+        if (chunk.type === 'response.output_text.done') {
           yield {
-            type: "done",
+            type: 'done',
             id: responseId || generateId(),
             model: model || options.model,
             timestamp,
-            finishReason: "stop"
+            finishReason: 'stop',
           }
         }
 
-
-        if (chunk.type === "response.completed") {
+        if (chunk.type === 'response.completed') {
           yield {
-            type: "done",
+            type: 'done',
             id: responseId || generateId(),
             model: model || options.model,
             timestamp,
-            finishReason: "stop"
+            finishReason: 'stop',
           }
         }
 
-
-        if (chunk.type === "error") {
+        if (chunk.type === 'error') {
           yield {
-            type: "error",
+            type: 'error',
             id: responseId || generateId(),
             model: model || options.model,
             timestamp,
             error: {
               message: chunk.message,
-              code: chunk.code ?? undefined
+              code: chunk.code ?? undefined,
             },
           }
         }
       }
-
-
     } catch (error: any) {
       console.log(
         '[OpenAI Adapter] Stream ended with error. Event type summary:',
@@ -381,21 +377,20 @@ export class OpenAI extends BaseAdapter<
    * Handles translation of normalized options to OpenAI's API format
    */
   private mapChatOptionsToOpenAI(options: ChatOptions) {
-
     const providerOptions = options.providerOptions as
       | Omit<
-        InternalTextProviderOptions,
-        | 'max_output_tokens'
-        | 'tools'
-        | 'metadata'
-        | 'temperature'
-        | 'input'
-        | 'top_p'
-      >
+          InternalTextProviderOptions,
+          | 'max_output_tokens'
+          | 'tools'
+          | 'metadata'
+          | 'temperature'
+          | 'input'
+          | 'top_p'
+        >
       | undefined
     const input = convertMessagesToInput(options.messages)
     if (providerOptions) {
-      validateTextProviderOptions({ ...providerOptions, input });
+      validateTextProviderOptions({ ...providerOptions, input })
     }
 
     const tools = options.tools
@@ -414,11 +409,9 @@ export class OpenAI extends BaseAdapter<
       ...providerOptions,
       input,
       tools,
-
     }
 
     return requestParams
-
   }
 }
 

@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { ChatClient } from '../src/chat-client'
-import type { ConnectionAdapter, } from '../src/connection-adapters'
-import type { StreamChunk } from "@tanstack/ai"
+import type { ConnectionAdapter } from '../src/connection-adapters'
+import type { StreamChunk } from '@tanstack/ai'
 
 describe('ChatClient - Abort Signal Handling', () => {
   let mockAdapter: ConnectionAdapter
