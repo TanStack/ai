@@ -22,7 +22,11 @@ export function convertFunctionToolToAdapterFormat(tool: Tool): FunctionTool {
     type: 'function',
     name: tool.function.name,
     description: tool.function.description,
-    parameters: tool.function.parameters,
+    parameters: {
+      ...tool.function.parameters,
+      additionalProperties: false,
+    },
+
     strict: true
   } satisfies FunctionTool
 }

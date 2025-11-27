@@ -354,12 +354,7 @@ export function convertMessagesToInput(
         result.push({
           type: 'message',
           role: 'assistant',
-          content: [
-            {
-              type: 'input_text',
-              text: message.content,
-            },
-          ],
+          content: message.content
         })
       }
 
@@ -373,7 +368,7 @@ export function convertMessagesToInput(
         role: 'system',
         content: [
           {
-            type: 'input_text',
+            type: "input_text",
             text: message.content || '',
           },
         ],
@@ -387,7 +382,7 @@ export function convertMessagesToInput(
       role: 'user',
       content: [
         {
-          type: 'input_text',
+          type: "input_text",
           text: message.content || '',
         },
       ],

@@ -1,5 +1,5 @@
 import { createFileRoute } from '@tanstack/react-router'
-import { chat, toStreamResponse, maxIterations } from '@tanstack/ai'
+import { chat, maxIterations, toStreamResponse } from '@tanstack/ai'
 import { openai } from '@tanstack/ai-openai'
 // import { ollama } from "@tanstack/ai-ollama";
 // import { anthropic } from "@tanstack/ai-anthropic";
@@ -37,7 +37,7 @@ export const Route = createFileRoute('/api/tanchat')({
         const requestSignal = request.signal
 
         // If request is already aborted, return early
-        if (requestSignal?.aborted) {
+        if (requestSignal.aborted) {
           return new Response(null, { status: 499 }) // 499 = Client Closed Request
         }
 
@@ -61,6 +61,7 @@ export const Route = createFileRoute('/api/tanchat')({
             agentLoopStrategy: maxIterations(20),
             messages,
             providerOptions: {
+
               // Enable reasoning for OpenAI (gpt-5, o3 models):
               // reasoning: {
               //   effort: "medium", // or "low", "high", "minimal", "none" (for gpt-5.1)

@@ -749,7 +749,7 @@ export async function* chat<
 >(
   options: Omit<
     ChatStreamOptionsUnion<TAdapter>,
-    'providerOptions' | 'model'
+    'providerOptions' | 'model' | 'adapter'
   > & {
     adapter: TAdapter
     model: TModel
