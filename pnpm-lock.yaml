@@ -370,6 +370,9 @@ importers:
       '@tanstack/ai-react':
         specifier: workspace:*
         version: link:../ai-react
+      '@types/react':
+        specifier: '>=18.0.0'
+        version: 19.2.7
       highlight.js:
         specifier: ^11.11.1
         version: 11.11.1

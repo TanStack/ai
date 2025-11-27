@@ -10,17 +10,17 @@
     "directory": "packages/typescript/ai"
   },
   "type": "module",
-  "module": "./dist/index.js",
-  "types": "./dist/index.d.ts",
+  "module": "./dist/esm/index.js",
+  "types": "./dist/esm/index.d.ts",
   "exports": {
     ".": {
-      "types": "./dist/index.d.ts",
-      "import": "./dist/index.js"
+      "types": "./dist/esm/index.d.ts",
+      "import": "./dist/esm/index.js"
     },
     "./production": {
       "import": {
-        "types": "./dist/production.d.ts",
-        "default": "./dist/production.js"
+        "types": "./dist/esm/production.d.ts",
+        "default": "./dist/esm/production.js"
       }
     }
   },
@@ -51,8 +51,8 @@
     "@tanstack/devtools-utils": "^0.0.8"
   },
   "devDependencies": {
-    "vite-plugin-solid": "^2.11.10",
-    "vite": "^7.2.4"
+    "vite": "^7.2.4",
+    "vite-plugin-solid": "^2.11.10"
   },
   "peerDependencies": {
     "solid-js": ">=1.9.7"

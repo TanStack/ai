@@ -14,12 +14,12 @@
   "module": "./dist/esm/index.js",
   "exports": {
     ".": {
-      "import": "./dist/esm/index.js",
-      "types": "./dist/esm/index.d.ts"
+      "types": "./dist/esm/index.d.ts",
+      "import": "./dist/esm/index.js"
     },
     "./production": {
-      "import": "./dist/esm/production.js",
-      "types": "./dist/esm/production.d.ts"
+      "types": "./dist/esm/production.d.ts",
+      "import": "./dist/esm/production.js"
     },
     "./package.json": "./package.json"
   },
@@ -54,7 +54,7 @@
     "solid-js": "^1.9.10"
   },
   "devDependencies": {
-    "vite-plugin-solid": "^2.11.10",
-    "vite": "^7.2.4"
+    "vite": "^7.2.4",
+    "vite-plugin-solid": "^2.11.10"
   }
 }

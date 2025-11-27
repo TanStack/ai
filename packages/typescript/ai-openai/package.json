@@ -44,8 +44,8 @@
     "openai": "^6.9.1"
   },
   "devDependencies": {
-    "zod": "^4.1.13",
-    "vite": "^7.2.4"
+    "vite": "^7.2.4",
+    "zod": "^4.1.13"
   },
   "peerDependencies": {
     "@tanstack/ai": "workspace:*"
