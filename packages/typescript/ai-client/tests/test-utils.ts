@@ -4,7 +4,7 @@ import type { UIMessage } from '../src/types'
 /**
  * Options for creating a mock connection adapter
  */
-export interface MockConnectionAdapterOptions {
+interface MockConnectionAdapterOptions {
   /**
    * Chunks to yield from the stream
    */

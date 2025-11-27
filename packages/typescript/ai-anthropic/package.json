@@ -43,6 +43,9 @@
     "@anthropic-ai/sdk": "^0.71.0",
     "@tanstack/ai": "workspace:*"
   },
+  "devDependencies": {
+    "@vitest/coverage-v8": "4.0.14"
+  },
   "peerDependencies": {
     "@tanstack/ai": "workspace:*"
   }

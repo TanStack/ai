@@ -50,5 +50,8 @@
   ],
   "dependencies": {
     "@tanstack/devtools-event-client": "^0.3.5"
+  },
+  "devDependencies": {
+    "@vitest/coverage-v8": "4.0.14"
   }
 }

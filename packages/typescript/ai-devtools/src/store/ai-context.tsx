@@ -3,7 +3,7 @@ import { createStore, produce } from 'solid-js/store'
 import { aiEventClient } from '@tanstack/ai/event-client'
 import type { ParentComponent } from 'solid-js'
 
-export interface MessagePart {
+interface MessagePart {
   type: 'text' | 'tool-call' | 'tool-result'
   content?: string
   toolCallId?: string
@@ -24,7 +24,7 @@ export interface ToolCall {
   approvalId?: string
 }
 
-export interface TokenUsage {
+interface TokenUsage {
   promptTokens: number
   completionTokens: number
   totalTokens: number
@@ -94,7 +94,7 @@ export interface Conversation {
   providerOptions?: Record<string, unknown>
 }
 
-export interface AIStoreState {
+interface AIStoreState {
   conversations: Record<string, Conversation>
   activeConversationId: string | null
 }

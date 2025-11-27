@@ -44,6 +44,7 @@
     "openai": "^6.9.1"
   },
   "devDependencies": {
+    "@vitest/coverage-v8": "4.0.14",
     "vite": "^7.2.4",
     "zod": "^4.1.13"
   },

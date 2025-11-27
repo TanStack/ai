@@ -3,7 +3,7 @@ import type { Tool } from '@tanstack/ai'
 
 export type MCPTool = OpenAI.Responses.Tool.Mcp
 
-export const validateMCPtool = (tool: MCPTool) => {
+export function validateMCPtool(tool: MCPTool) {
   if (!tool.server_url && !tool.connector_id) {
     throw new Error('Either server_url or connector_id must be provided.')
   }

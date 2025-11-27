@@ -34,14 +34,14 @@ const OLLAMA_EMBEDDING_MODELS = [] as const
 const OLLAMA_AUDIO_MODELS = [] as const
 const OLLAMA_VIDEO_MODELS = [] as const
 
-export type OllamaModel = (typeof OLLAMA_MODELS)[number]
+// type OllamaModel = (typeof OLLAMA_MODELS)[number]
 
 /**
  * Ollama-specific provider options
  * Based on Ollama API options
  * @see https://github.com/ollama/ollama/blob/main/docs/api.md
  */
-export interface OllamaProviderOptions {
+interface OllamaProviderOptions {
   /** Number of tokens to keep from the prompt */
   num_keep?: number
   /** Number of tokens from context to consider for next token prediction */

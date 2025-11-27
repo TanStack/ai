@@ -1,26 +1,16 @@
+import type { GoogleSearch } from '@google/genai'
 import type { Tool } from '@tanstack/ai'
 
-export interface GoogleSearchTool {
-  timeRangeFilter?: {
-    startTime?: string // ISO 8601 format
-    endTime?: string // ISO 8601 format
-  }
-}
+export type GoogleSearchTool = GoogleSearch
 
 export function convertGoogleSearchToolToAdapterFormat(tool: Tool) {
-  const metadata = tool.metadata as {
-    timeRangeFilter?: { startTime?: string; endTime?: string }
-  }
+  const metadata = tool.metadata as GoogleSearchTool
   return {
-    googleSearch: metadata.timeRangeFilter
-      ? { timeRangeFilter: metadata.timeRangeFilter }
-      : {},
+    googleSearch: metadata
   }
 }
 
-export function googleSearchTool(config?: {
-  timeRangeFilter?: { startTime?: string; endTime?: string }
-}): Tool {
+export function googleSearchTool(config?: GoogleSearchTool): Tool {
   return {
     type: 'function',
     function: {
@@ -28,8 +18,6 @@ export function googleSearchTool(config?: {
       description: '',
       parameters: {},
     },
-    metadata: {
-      timeRangeFilter: config?.timeRangeFilter,
-    },
+    metadata: config
   }
 }

@@ -6,9 +6,7 @@ export type GoogleSearchRetrievalTool = GoogleSearchRetrieval
 export function convertGoogleSearchRetrievalToolToAdapterFormat(tool: Tool) {
   const metadata = tool.metadata as GoogleSearchRetrievalTool
   return {
-    googleSearchRetrieval: metadata.dynamicRetrievalConfig
-      ? { dynamicRetrievalConfig: metadata.dynamicRetrievalConfig }
-      : {},
+    googleSearchRetrieval: metadata
   }
 }
 
@@ -22,8 +20,6 @@ export function googleSearchRetrievalTool(
       description: '',
       parameters: {},
     },
-    metadata: {
-      dynamicRetrievalConfig: config?.dynamicRetrievalConfig,
-    },
+    metadata: config
   }
 }

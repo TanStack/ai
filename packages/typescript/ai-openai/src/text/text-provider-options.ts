@@ -275,7 +275,7 @@ https://platform.openai.com/docs/api-reference/responses/create#responses_create
   >
 }
 
-export const validateConversationAndPreviousResponseId = (
+const validateConversationAndPreviousResponseId = (
   options: InternalTextProviderOptions,
 ) => {
   if (options.conversation && options.previous_response_id) {
@@ -290,7 +290,7 @@ export const validateTextProviderOptions = (options: InternalTextProviderOptions
   validateConversationAndPreviousResponseId(options)
 }
 
-export const validateMetadata = (options: InternalTextProviderOptions) => {
+const validateMetadata = (options: InternalTextProviderOptions) => {
   const metadata = options.metadata
   const tooManyKeys = metadata && Object.keys(metadata).length > 16
   if (tooManyKeys) {

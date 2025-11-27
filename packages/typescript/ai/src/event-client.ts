@@ -4,7 +4,7 @@ import { EventClient } from '@tanstack/devtools-event-client'
  * Tool call states - track the lifecycle of a tool call
  * Must match @tanstack/ai-client ToolCallState
  */
-export type ToolCallState =
+type ToolCallState =
   | 'awaiting-input' // Received start but no arguments yet
   | 'input-streaming' // Partial arguments received
   | 'input-complete' // All arguments received
@@ -15,7 +15,7 @@ export type ToolCallState =
  * Tool result states - track the lifecycle of a tool result
  * Must match @tanstack/ai-client ToolResultState
  */
-export type ToolResultState =
+type ToolResultState =
   | 'streaming' // Placeholder for future streamed output
   | 'complete' // Result is complete
   | 'error' // Error occurred

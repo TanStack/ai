@@ -1,40 +1,16 @@
 import type { Tool } from '@tanstack/ai'
+import type { FileSearch } from '@google/genai'
 
-export interface FileSearchTool {
-  /**
-   * The names of the fileSearchStores to retrieve from. Example: fileSearchStores/my-file-search-store-123
-   */
-  fileSearchStoreNames: Array<string>
-  /**
-   *  Metadata filter to apply to the semantic retrieval documents and chunks.
-   */
-  metadataFilter?: string
-  /**
-   *  The number of semantic retrieval chunks to retrieve.
-   */
-  topK?: number
-}
+export type FileSearchTool = FileSearch
 
 export function convertFileSearchToolToAdapterFormat(tool: Tool) {
-  const metadata = tool.metadata as {
-    fileSearchStoreNames: Array<string>
-    metadataFilter?: string
-    topK?: number
-  }
+  const metadata = tool.metadata as FileSearchTool
   return {
-    fileSearch: {
-      fileSearchStoreNames: metadata.fileSearchStoreNames,
-      metadataFilter: metadata.metadataFilter,
-      topK: metadata.topK,
-    },
+    fileSearch: metadata
   }
 }
 
-export function fileSearchTool(config: {
-  fileSearchStoreNames: Array<string>
-  metadataFilter?: string
-  topK?: number
-}): Tool {
+export function fileSearchTool(config: FileSearchTool): Tool {
   return {
     type: 'function',
     function: {
@@ -42,10 +18,6 @@ export function fileSearchTool(config: {
       description: '',
       parameters: {},
     },
-    metadata: {
-      fileSearchStoreNames: config.fileSearchStoreNames,
-      metadataFilter: config.metadataFilter,
-      topK: config.topK,
-    },
+    metadata: config
   }
 }

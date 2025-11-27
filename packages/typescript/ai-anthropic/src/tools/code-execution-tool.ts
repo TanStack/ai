@@ -8,11 +8,6 @@ export type CodeExecutionTool =
   | BetaCodeExecutionTool20250522
   | BetaCodeExecutionTool20250825
 
-export function createCodeExecutionTool(
-  config: CodeExecutionTool,
-): CodeExecutionTool {
-  return config
-}
 
 export function convertCodeExecutionToolToAdapterFormat(
   tool: Tool,

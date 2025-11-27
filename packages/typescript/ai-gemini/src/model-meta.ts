@@ -768,14 +768,6 @@ const GEMINI_MODEL_META = {
   [GEMINI_EMBEDDING.name]: GEMINI_EMBEDDING,
 } as const
 
-export type GeminiModelMetaMap = typeof GEMINI_MODEL_META
-
-export type GeminiModelProviderOptions<
-  TModel extends keyof GeminiModelMetaMap,
-> =
-  GeminiModelMetaMap[TModel] extends ModelMeta<infer TProviderOptions>
-  ? TProviderOptions
-  : unknown
 
 export const GEMINI_MODELS = [
   GEMINI_3_PRO.name,
@@ -788,33 +780,33 @@ export const GEMINI_MODELS = [
   GEMINI_2_FLASH_LITE.name,
 ] as const
 
-export const GEMINI_IMAGE_MODELS = [
+/*   const GEMINI_IMAGE_MODELS = [
   GEMINI_2_5_FLASH_IMAGE.name,
   GEMINI_2_FLASH_IMAGE.name,
   IMAGEN_3.name,
   IMAGEN_4_GENERATE.name,
   IMAGEN_4_GENERATE_FAST.name,
   IMAGEN_4_GENERATE_ULTRA.name,
-] as const
+] as const */
 
 export const GEMINI_EMBEDDING_MODELS = [GEMINI_EMBEDDING.name] as const
 
-export const GEMINI_AUDIO_MODELS = [
+/*   const GEMINI_AUDIO_MODELS = [
   GEMINI_2_5_PRO_TTS.name,
   GEMINI_2_5_FLASH_TTS.name,
   GEMINI_2_5_FLASH_LIVE.name,
   GEMINI_2_FLASH_LIVE.name,
 ] as const
 
-export const GEMINI_VIDEO_MODELS = [
+  const GEMINI_VIDEO_MODELS = [
   VEO_3_1_PREVIEW.name,
   VEO_3_1_FAST_PREVIEW.name,
   VEO_3.name,
   VEO_3_FAST.name,
   VEO_2.name,
-] as const
+] as const */
 
-export type GeminiChatModels = (typeof GEMINI_MODELS)[number]
+// export type GeminiChatModels = (typeof GEMINI_MODELS)[number]
 
 // Manual type map for per-model provider options
 export type GeminiChatModelProviderOptionsByName = {

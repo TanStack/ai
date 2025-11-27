@@ -47,6 +47,7 @@
     "@tanstack/devtools-utils": "^0.0.8"
   },
   "devDependencies": {
+    "@vitest/coverage-v8": "4.0.14",
     "vite": "^7.2.4"
   },
   "peerDependencies": {

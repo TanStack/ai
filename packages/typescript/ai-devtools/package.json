@@ -53,6 +53,8 @@
     "solid-js": "^1.9.10"
   },
   "devDependencies": {
+    "@vitest/coverage-v8": "4.0.14",
+    "jsdom": "^27.2.0",
     "vite": "^7.2.4",
     "vite-plugin-solid": "^2.11.10"
   }

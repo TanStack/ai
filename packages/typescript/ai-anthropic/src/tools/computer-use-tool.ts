@@ -8,11 +8,7 @@ export type ComputerUseTool =
   | BetaToolComputerUse20241022
   | BetaToolComputerUse20250124
 
-export function createComputerUseTool(
-  config: ComputerUseTool,
-): ComputerUseTool {
-  return config
-}
+
 
 export function convertComputerUseToolToAdapterFormat(
   tool: Tool,

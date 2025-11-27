@@ -19,12 +19,12 @@ export type AnthropicTool =
 
 // Export individual tool types
 export type {
-  BashTool,
-  CodeExecutionTool,
-  ComputerUseTool,
+  // BashTool,
+  // CodeExecutionTool,
+  // ComputerUseTool,
   CustomTool,
-  MemoryTool,
-  TextEditorTool,
-  WebFetchTool,
-  WebSearchTool,
+  // MemoryTool,
+  // TextEditorTool,
+  // WebFetchTool,
+  // WebSearchTool,
 }

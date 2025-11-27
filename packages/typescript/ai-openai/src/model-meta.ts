@@ -1692,15 +1692,15 @@ const OPENAI_VIDEO_MODELS = [SORA2.name, SORA2_PRO.name] as const
 
 //  const OPENAI_MODERATION_MODELS = [OMNI_MODERATION.name] as const
 
-export type OpenAIChatModel = (typeof OPENAI_CHAT_MODELS)[number]
-export type OpenAIImageModel = (typeof OPENAI_IMAGE_MODELS)[number]
-export type OpenAIEmbeddingModel = (typeof OPENAI_EMBEDDING_MODELS)[number]
-export type OpenAIAudioModel = (typeof OPENAI_AUDIO_MODELS)[number]
-export type OpenAIVideoModel = (typeof OPENAI_VIDEO_MODELS)[number]
-export type OpenAITranscriptionModel =
-  (typeof OPENAI_TRANSCRIPTION_MODELS)[number]
+// export type OpenAIChatModel = (typeof OPENAI_CHAT_MODELS)[number]
+// type OpenAIImageModel = (typeof OPENAI_IMAGE_MODELS)[number]
+// export type OpenAIEmbeddingModel = (typeof OPENAI_EMBEDDING_MODELS)[number]
+//  type OpenAIAudioModel = (typeof OPENAI_AUDIO_MODELS)[number]
+// type OpenAIVideoModel = (typeof OPENAI_VIDEO_MODELS)[number]
+// type OpenAITranscriptionModel =
+//  (typeof OPENAI_TRANSCRIPTION_MODELS)[number]
 
-export const OPENAI_MODEL_META = {
+const OPENAI_MODEL_META = {
   [GPT5_1.name]: GPT5_1,
   [GPT5_1_CODEX.name]: GPT5_1_CODEX,
   [GPT5.name]: GPT5,
@@ -1758,7 +1758,6 @@ export const OPENAI_MODEL_META = {
   [TTS_1_HD.name]: TTS_1_HD,
 } as const
 
-export type OpenAIModelMetaMap = typeof OPENAI_MODEL_META
 
 /**
  * Type-only map from chat model name to its provider options type.

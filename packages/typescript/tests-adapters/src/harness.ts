@@ -5,25 +5,25 @@ import type { Tool } from '@tanstack/ai';
 
 const OUTPUT_DIR = join(process.cwd(), 'output')
 
-export interface ToolCallCapture {
+interface ToolCallCapture {
   id: string
   name: string
   arguments: string
 }
 
-export interface ToolResultCapture {
+interface ToolResultCapture {
   toolCallId: string
   content: string
 }
 
-export interface ApprovalCapture {
+interface ApprovalCapture {
   toolCallId: string
   toolName: string
   input: any
   approval: any
 }
 
-export interface StreamCapture {
+interface StreamCapture {
   phase: string
   chunks: Array<any>
   fullResponse: string
@@ -44,7 +44,7 @@ export interface AdapterContext {
   embeddingModel?: string
 }
 
-export interface DebugEnvelope {
+interface DebugEnvelope {
   adapter: string
   test: string
   model: string

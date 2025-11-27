@@ -156,7 +156,7 @@ In nucleus sampling, we compute the cumulative distribution over all the options
   top_p?: number
 }
 
-export const validateTopPandTemperature = (
+const validateTopPandTemperature = (
   options: InternalTextProviderOptions,
 ) => {
   if (options.top_p !== undefined && options.temperature !== undefined) {
@@ -169,7 +169,7 @@ export interface CacheControl {
   ttl: '5m' | '1h'
 }
 
-export const validateThinking = (options: InternalTextProviderOptions) => {
+const validateThinking = (options: InternalTextProviderOptions) => {
   const thinking = options.thinking
   if (thinking && thinking.type === 'enabled') {
     if (thinking.budget_tokens < 1024) {
@@ -180,107 +180,7 @@ export const validateThinking = (options: InternalTextProviderOptions) => {
     }
   }
 }
-export type Citation =
-  | CharacterLocationCitation
-  | PageCitation
-  | ContentBlockCitation
-  | WebSearchResultCitation
-  | RequestSearchResultLocation
 
-interface CharacterLocationCitation {
-  cited_text: string
-  /**
-   * Bigger than 0
-   */
-  document_index: number
-  /**
-   * Between 1-255 characters
-   */
-  document_title: string | null
-
-  end_char_index: number
-
-  start_char_index: number
-
-  type: 'char_location'
-}
-
-interface PageCitation {
-  cited_text: string
-  /**
-   * Bigger than 0
-   */
-  document_index: number
-  /**
-   * Between 1-255 characters
-   */
-  document_title: string | null
-
-  end_page_number: number
-  /**
-   * Has to be bigger than 0
-   */
-  start_page_number: number
-
-  type: 'page_location'
-}
-
-interface ContentBlockCitation {
-  cited_text: string
-  /**
-   * Bigger than 0
-   */
-  document_index: number
-  /**
-   * Between 1-255 characters
-   */
-  document_title: string | null
-
-  end_block_index: number
-  /**
-   * Has to be bigger than 0
-   */
-  start_block_index: number
-
-  type: 'content_block_location'
-}
-
-interface WebSearchResultCitation {
-  cited_text: string
-
-  encrypted_index: number
-  /**
-   * Between 1-512 characters
-   */
-  title: string | null
-  /**
-   * Required length between 1-2048 characters
-   */
-  url: string
-  type: 'web_search_result_location'
-}
-
-interface RequestSearchResultLocation {
-  cited_text: string
-
-  end_block_index: number
-  /**
-   * Has to be bigger than 0
-   */
-  start_block_index: number
-  /**
-   * Bigger than 0
-   */
-  search_result_index: number
-
-  source: string
-  /**
-   * Between 1-512 characters
-   */
-  title: string | null
-
-  type: 'search_result_location'
-}
 
 interface MCPServer {
   name: string
@@ -293,7 +193,7 @@ interface MCPServer {
   } | null
 }
 
-export const validateMaxTokens = (options: InternalTextProviderOptions) => {
+const validateMaxTokens = (options: InternalTextProviderOptions) => {
   if (options.max_tokens < 1) {
     throw new Error('max_tokens must be at least 1.')
   }

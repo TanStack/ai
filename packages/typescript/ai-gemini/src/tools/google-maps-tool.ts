@@ -1,23 +1,16 @@
+import type { GoogleMaps } from '@google/genai'
 import type { Tool } from '@tanstack/ai'
 
-export interface GoogleMapsTool {
-  /**
-   * Whether to return a widget context token in the GroundingMetadata of the response. Developers can use the widget context token to render a Google Maps widget with geospatial context related to the places that the model references in the response.
-   */
-  enableWidget?: boolean
-}
+export type GoogleMapsTool = GoogleMaps
 
 export function convertGoogleMapsToolToAdapterFormat(tool: Tool) {
-  const metadata = tool.metadata as { enableWidget?: boolean }
+  const metadata = tool.metadata as GoogleMapsTool
   return {
-    googleMaps:
-      metadata.enableWidget !== undefined
-        ? { enableWidget: metadata.enableWidget }
-        : {},
+    googleMaps: metadata
   }
 }
 
-export function googleMapsTool(config?: { enableWidget?: boolean }): Tool {
+export function googleMapsTool(config?: GoogleMapsTool): Tool {
   return {
     type: 'function',
     function: {
@@ -25,8 +18,6 @@ export function googleMapsTool(config?: { enableWidget?: boolean }): Tool {
       description: '',
       parameters: {},
     },
-    metadata: {
-      enableWidget: config?.enableWidget,
-    },
+    metadata: config
   }
 }

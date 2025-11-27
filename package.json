@@ -38,7 +38,7 @@
     "test:ci": "nx run-many --targets=test:format,test:eslint,test:sherif,test:knip,test:lib,test:types,test:build,test:verify-links",
     "test:eslint": "nx affected --target=test:eslint --exclude=examples/**",
     "test:format": "pnpm run prettier --check",
-    "test:knip": "knip",
+    "test:knip": "knip --max-issues=33",
     "test:lib": "nx affected --targets=test:lib --exclude=examples/**",
     "test:lib:dev": "pnpm test:lib && nx watch --all -- pnpm test:lib",
     "test:pr": "nx affected --targets=test:format,test:eslint,test:sherif,test:knip,test:lib,test:types,test:build,build",

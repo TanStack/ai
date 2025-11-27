@@ -192,7 +192,7 @@ export interface ClientToolRequest {
   input: any
 }
 
-export interface ExecuteToolCallsResult {
+interface ExecuteToolCallsResult {
   /** Tool results ready to send to LLM */
   results: Array<ToolResult>
   /** Tools that need user approval before execution */

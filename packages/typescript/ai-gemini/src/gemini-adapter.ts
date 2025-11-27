@@ -20,7 +20,6 @@ export interface GeminiAdapterConfig extends AIAdapterConfig {
   apiKey: string
 }
 
-export type GeminiModel = (typeof GEMINI_MODELS)[number]
 /**
  * Gemini-specific provider options
  * Based on Google Generative AI SDK

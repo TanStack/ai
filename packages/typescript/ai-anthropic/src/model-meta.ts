@@ -317,9 +317,9 @@ const ANTHROPIC_MODEL_META = {
   [CLAUDE_HAIKU_3.name]: CLAUDE_HAIKU_3,
 } as const
 
-export type AnthropicModelMetaMap = typeof ANTHROPIC_MODEL_META
+type AnthropicModelMetaMap = typeof ANTHROPIC_MODEL_META
 
-export type AnthropicModelProviderOptions<
+/* export type AnthropicModelProviderOptions<
   TModel extends keyof AnthropicModelMetaMap,
 > =
   AnthropicModelMetaMap[TModel] extends ModelMeta<
@@ -328,9 +328,9 @@ export type AnthropicModelProviderOptions<
     any
   >
   ? TProviderOptions
-  : unknown
+  : unknown */
 
-export type AnthropicModelToolCapabilities<
+/* export type AnthropicModelToolCapabilities<
   TModel extends keyof AnthropicModelMetaMap,
 > =
   AnthropicModelMetaMap[TModel] extends ModelMeta<
@@ -340,8 +340,8 @@ export type AnthropicModelToolCapabilities<
   >
   ? TToolCapabilities
   : unknown
-
-export type AnthropicModelMessageCapabilities<
+ */
+/* export type AnthropicModelMessageCapabilities<
   TModel extends keyof AnthropicModelMetaMap,
 > =
   AnthropicModelMetaMap[TModel] extends ModelMeta<
@@ -350,7 +350,7 @@ export type AnthropicModelMessageCapabilities<
     infer TMessageCapabilities
   >
   ? TMessageCapabilities
-  : unknown
+  : unknown */
 
 export const ANTHROPIC_MODELS = [
   CLAUDE_OPUS_4_5.id,
@@ -369,7 +369,7 @@ export const ANTHROPIC_MODELS = [
 // const ANTHROPIC_AUDIO_MODELS = [] as const
 // const ANTHROPIC_VIDEO_MODELS = [] as const
 
-export type AnthropicModel = (typeof ANTHROPIC_MODELS)[number]
+/*  type AnthropicModel = (typeof ANTHROPIC_MODELS)[number] */
 
 // Manual type map for per-model provider options
 // Models are differentiated by extended_thinking and priority_tier support
