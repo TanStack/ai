@@ -1,7 +1,8 @@
-import { useEffect, useRef, type ReactNode } from 'react'
+import { useEffect, useRef } from 'react'
 import { useChatContext } from './chat'
-import type { UIMessage } from '@tanstack/ai-react'
 import { ChatMessage } from './chat-message'
+import type { ReactNode } from 'react'
+import type { UIMessage } from '@tanstack/ai-react'
 
 export interface ChatMessagesProps {
   /** Custom render function for each message */

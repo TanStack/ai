@@ -43,6 +43,9 @@
     "@google/genai": "^1.30.0",
     "@tanstack/ai": "workspace:*"
   },
+  "devDependencies": {
+    "vite": "^7.2.4"
+  },
   "peerDependencies": {
     "@tanstack/ai": "workspace:*"
   }

@@ -1,5 +1,5 @@
-import type { ReactNode } from 'react'
 import { useChatContext } from './chat'
+import type { ReactNode } from 'react'
 
 export interface ToolApprovalProps {
   /** Tool call ID */
@@ -51,7 +51,7 @@ export interface ToolApprovalRenderProps {
  * ```
  */
 export function ToolApproval({
-  toolCallId,
+  toolCallId: _,
   toolName,
   input,
   approval,

@@ -55,7 +55,7 @@ export type {
   ToolCallPart,
   ToolResultPart,
   TextPart as TextPartType,
-  ThinkingPart as ThinkingPartType,
+
   ConnectionAdapter,
 } from '@tanstack/ai-client'
 

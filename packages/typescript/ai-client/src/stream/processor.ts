@@ -260,7 +260,7 @@ export class StreamProcessor {
    * Handle a tool call delta chunk
    */
   private handleToolCallDelta(
-    index: number,
+    _index: number,
     toolCall: { id: string; function: { name: string; arguments: string } },
   ): void {
     const toolCallId = toolCall.id

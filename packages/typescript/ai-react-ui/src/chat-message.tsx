@@ -1,6 +1,6 @@
-import type { ReactNode } from 'react'
-import type { UIMessage, MessagePart } from '@tanstack/ai-react'
 import { ThinkingPart } from './thinking-part'
+import type { ReactNode } from 'react'
+import type { UIMessage } from '@tanstack/ai-react'
 
 export interface ToolCallRenderProps {
   id: string
@@ -113,7 +113,7 @@ export function ChatMessage({
       className={combinedClassName || undefined}
       data-message-id={message.id}
       data-message-role={message.role}
-      data-message-created={message.createdAt.toISOString()}
+      data-message-created={message.createdAt?.toISOString()}
     >
       {message.parts.map((part, index) => {
         // Check if thinking is complete (if there's a text part after this thinking part)
@@ -147,7 +147,8 @@ function MessagePart({
   defaultToolRenderer,
   toolResultRenderer,
 }: {
-  part: MessagePart
+  // TODO Fix me
+  part: any
   isThinkingComplete?: boolean
   textPartRenderer?: ChatMessageProps['textPartRenderer']
   thinkingPartRenderer?: ChatMessageProps['thinkingPartRenderer']
@@ -197,7 +198,7 @@ function MessagePart({
 
     // Check if there's a specific renderer for this tool
     if (toolsRenderer?.[part.name]) {
-      return <>{toolsRenderer[part.name](toolProps)}</>
+      return <>{toolsRenderer[part.name]?.(toolProps)}</>
     }
 
     // Use default tool renderer if provided

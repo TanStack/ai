@@ -1,8 +1,10 @@
 import { defineConfig, mergeConfig } from 'vitest/config'
 import { tanstackViteConfig } from '@tanstack/config/vite'
 import packageJson from './package.json'
+import solid from "vite-plugin-solid";
 
 const config = defineConfig({
+  plugins: [solid()],
   test: {
     name: packageJson.name,
     dir: './',

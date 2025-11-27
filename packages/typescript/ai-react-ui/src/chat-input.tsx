@@ -1,5 +1,6 @@
-import { useState, useRef, type ReactNode, type RefObject } from 'react'
+import { useRef, useState } from 'react'
 import { useChatContext } from './chat'
+import type { ReactNode, RefObject } from 'react'
 
 export interface ChatInputRenderProps {
   /** Current input value */
@@ -13,7 +14,7 @@ export interface ChatInputRenderProps {
   /** Is input disabled */
   disabled: boolean
   /** Ref to the input element */
-  inputRef: RefObject<HTMLInputElement | HTMLTextAreaElement>
+  inputRef: RefObject<HTMLInputElement | HTMLTextAreaElement | null>
 }
 
 export interface ChatInputProps {

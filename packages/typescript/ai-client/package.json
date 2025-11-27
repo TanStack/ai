@@ -43,5 +43,8 @@
   "dependencies": {
     "@tanstack/ai": "workspace:*",
     "partial-json": "^0.1.7"
+  },
+  "devDependencies": {
+    "vite": "^7.2.4"
   }
 }

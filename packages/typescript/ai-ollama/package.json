@@ -44,6 +44,9 @@
     "@tanstack/ai": "workspace:*",
     "ollama": "^0.6.3"
   },
+  "devDependencies": {
+    "vite": "^7.2.4"
+  },
   "peerDependencies": {
     "@tanstack/ai": "workspace:*"
   }

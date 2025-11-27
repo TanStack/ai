@@ -1,6 +1,11 @@
-import { createContext, useContext, type ReactNode } from 'react'
-import { useChat, type UseChatReturn } from '@tanstack/ai-react'
-import type { ConnectionAdapter, UIMessage } from '@tanstack/ai-react'
+import { createContext, useContext } from 'react'
+import { useChat } from '@tanstack/ai-react'
+import type { ReactNode } from 'react'
+import type {
+  ConnectionAdapter,
+  UIMessage,
+  UseChatReturn,
+} from '@tanstack/ai-react'
 
 /**
  * Chat context - provides chat state to all child components
@@ -29,7 +34,7 @@ export interface ChatProps {
   /** Connection adapter for communicating with your API */
   connection: ConnectionAdapter
   /** Initial messages to display */
-  initialMessages?: UIMessage[]
+  initialMessages?: Array<UIMessage>
   /** Custom message ID generator */
   id?: string
   /** Additional body data to send with requests */

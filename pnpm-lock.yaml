@@ -253,6 +253,10 @@ importers:
       partial-json:
         specifier: ^0.1.7
         version: 0.1.7
+    devDependencies:
+      vite:
+        specifier: ^7.2.4
+        version: 7.2.4(@types/node@24.10.1)(jiti@2.6.1)(lightningcss@1.30.2)(terser@5.44.0)(tsx@4.20.6)(yaml@2.8.1)
 
   packages/typescript/ai-devtools:
     dependencies:
@@ -275,6 +279,9 @@ importers:
         specifier: ^1.9.10
         version: 1.9.10
     devDependencies:
+      vite:
+        specifier: ^7.2.4
+        version: 7.2.4(@types/node@24.10.1)(jiti@2.6.1)(lightningcss@1.30.2)(terser@5.44.0)(tsx@4.20.6)(yaml@2.8.1)
       vite-plugin-solid:
         specifier: ^2.11.10
         version: 2.11.10(@testing-library/jest-dom@6.9.1)(solid-js@1.9.10)(vite@7.2.4(@types/node@24.10.1)(jiti@2.6.1)(lightningcss@1.30.2)(terser@5.44.0)(tsx@4.20.6)(yaml@2.8.1))
@@ -287,6 +294,10 @@ importers:
       '@tanstack/ai':
         specifier: workspace:*
         version: link:../ai
+    devDependencies:
+      vite:
+        specifier: ^7.2.4
+        version: 7.2.4(@types/node@24.10.1)(jiti@2.6.1)(lightningcss@1.30.2)(terser@5.44.0)(tsx@4.20.6)(yaml@2.8.1)
 
   packages/typescript/ai-ollama:
     dependencies:
@@ -296,6 +307,10 @@ importers:
       ollama:
         specifier: ^0.6.3
         version: 0.6.3
+    devDependencies:
+      vite:
+        specifier: ^7.2.4
+        version: 7.2.4(@types/node@24.10.1)(jiti@2.6.1)(lightningcss@1.30.2)(terser@5.44.0)(tsx@4.20.6)(yaml@2.8.1)
 
   packages/typescript/ai-openai:
     dependencies:
@@ -306,6 +321,9 @@ importers:
         specifier: ^6.9.1
         version: 6.9.1(ws@8.18.3)(zod@4.1.13)
     devDependencies:
+      vite:
+        specifier: ^7.2.4
+        version: 7.2.4(@types/node@24.10.1)(jiti@2.6.1)(lightningcss@1.30.2)(terser@5.44.0)(tsx@4.20.6)(yaml@2.8.1)
       zod:
         specifier: ^4.1.13
         version: 4.1.13
@@ -318,6 +336,9 @@ importers:
       '@tanstack/ai-client':
         specifier: workspace:*
         version: link:../ai-client
+      react:
+        specifier: '>=18.0.0'
+        version: 19.2.0
     devDependencies:
       '@eslint-react/eslint-plugin':
         specifier: ^2.3.9
@@ -337,9 +358,9 @@ importers:
       eslint-plugin-react-hooks:
         specifier: ^7.0.1
         version: 7.0.1(eslint@9.39.1(jiti@2.6.1))
-      react:
-        specifier: ^19.2.0
-        version: 19.2.0
+      vite:
+        specifier: ^7.2.4
+        version: 7.2.4(@types/node@24.10.1)(jiti@2.6.1)(lightningcss@1.30.2)(terser@5.44.0)(tsx@4.20.6)(yaml@2.8.1)
 
   packages/typescript/ai-react-ui:
     dependencies:
@@ -352,6 +373,9 @@ importers:
       highlight.js:
         specifier: ^11.11.1
         version: 11.11.1
+      react:
+        specifier: ^18.0.0 || ^19.0.0
+        version: 19.2.0
       react-dom:
         specifier: ^18.0.0 || ^19.0.0
         version: 19.2.0(react@19.2.0)
@@ -371,12 +395,9 @@ importers:
         specifier: ^4.0.1
         version: 4.0.1
     devDependencies:
-      '@types/react':
-        specifier: ^19.2.7
-        version: 19.2.7
-      react:
-        specifier: ^19.2.0
-        version: 19.2.0
+      vite:
+        specifier: ^7.2.4
+        version: 7.2.4(@types/node@24.10.1)(jiti@2.6.1)(lightningcss@1.30.2)(terser@5.44.0)(tsx@4.20.6)(yaml@2.8.1)
 
   packages/typescript/react-ai-devtools:
     dependencies:
@@ -386,13 +407,16 @@ importers:
       '@tanstack/devtools-utils':
         specifier: ^0.0.8
         version: 0.0.8(@types/react@19.2.7)(csstype@3.2.3)(react@19.2.0)(solid-js@1.9.10)
-    devDependencies:
       '@types/react':
-        specifier: ^19.2.7
+        specifier: ^17.0.0 || ^18.0.0 || ^19.0.0
         version: 19.2.7
       react:
-        specifier: ^19.2.0
+        specifier: ^17.0.0 || ^18.0.0 || ^19.0.0
         version: 19.2.0
+    devDependencies:
+      vite:
+        specifier: ^7.2.4
+        version: 7.2.4(@types/node@24.10.1)(jiti@2.6.1)(lightningcss@1.30.2)(terser@5.44.0)(tsx@4.20.6)(yaml@2.8.1)
 
   packages/typescript/solid-ai-devtools:
     dependencies:
@@ -406,6 +430,9 @@ importers:
         specifier: '>=1.9.7'
         version: 1.9.10
     devDependencies:
+      vite:
+        specifier: ^7.2.4
+        version: 7.2.4(@types/node@24.10.1)(jiti@2.6.1)(lightningcss@1.30.2)(terser@5.44.0)(tsx@4.20.6)(yaml@2.8.1)
       vite-plugin-solid:
         specifier: ^2.11.10
         version: 2.11.10(@testing-library/jest-dom@6.9.1)(solid-js@1.9.10)(vite@7.2.4(@types/node@24.10.1)(jiti@2.6.1)(lightningcss@1.30.2)(terser@5.44.0)(tsx@4.20.6)(yaml@2.8.1))
