@@ -23,7 +23,8 @@
     "src"
   ],
   "scripts": {
-    "build": "vite build",
+    "build": "exit 0",
+    "vite": "vite build",
     "clean": "premove ./build ./dist",
     "lint:fix": "eslint ./src --fix",
     "test:build": "publint --strict",

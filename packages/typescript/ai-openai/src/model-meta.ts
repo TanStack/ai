@@ -297,7 +297,7 @@ const GPT5_CODEX = {
   OpenAIMetadataOptions
 >
 
-const SORA2 = {
+/* const SORA2 = {
   name: 'sora-2',
   pricing: {
     input: {
@@ -383,7 +383,7 @@ const GPT_IMAGE_1_MINI = {
   },
 } as const satisfies ModelMeta<
   OpenAIBaseOptions & OpenAIStreamingOptions & OpenAIMetadataOptions
->
+> */
 
 const O3_DEEP_RESEARCH = {
   name: 'o3-deep-research',
@@ -494,7 +494,7 @@ const GPT_AUDIO = {
   OpenAIMetadataOptions
 >
 
-const GPT_REALTIME = {
+/* const GPT_REALTIME = {
   name: 'gpt-realtime',
   context_window: 32_000,
   max_output_tokens: 4_096,
@@ -548,7 +548,7 @@ const GPT_REALTIME_MINI = {
   OpenAIToolsOptions &
   OpenAIStreamingOptions &
   OpenAIMetadataOptions
->
+> */
 
 const GPT_AUDIO_MINI = {
   name: 'gpt-audio-mini',
@@ -922,7 +922,7 @@ const GPT_4O_MINI_AUDIO = {
   OpenAIMetadataOptions
 >
 
-const GPT_4O_MINI_REALTIME = {
+/* const GPT_4O_MINI_REALTIME = {
   name: 'gpt-4o-mini-realtime',
   context_window: 16_000,
   max_output_tokens: 4_096,
@@ -949,7 +949,7 @@ const GPT_4O_MINI_REALTIME = {
   OpenAIStreamingOptions &
   OpenAIMetadataOptions
 >
-
+ */
 const O1 = {
   name: 'o1',
   context_window: 200_000,
@@ -979,7 +979,7 @@ const O1 = {
   OpenAIMetadataOptions
 >
 
-const OMNI_MODERATION = {
+/* const OMNI_MODERATION = {
   name: 'omni-moderation',
   pricing: {
     input: {
@@ -997,7 +997,7 @@ const OMNI_MODERATION = {
   },
 } as const satisfies ModelMeta<
   OpenAIBaseOptions & OpenAIStreamingOptions & OpenAIMetadataOptions
->
+> */
 
 const GPT_4O = {
   name: 'gpt-4o',
@@ -1108,7 +1108,7 @@ const GPT_40_MINI = {
   OpenAIMetadataOptions
 >
 
-const GPT__4O_REALTIME = {
+/* const GPT__4O_REALTIME = {
   name: 'gpt-4o-realtime',
   context_window: 32_000,
   max_output_tokens: 4_096,
@@ -1134,7 +1134,7 @@ const GPT__4O_REALTIME = {
   OpenAIToolsOptions &
   OpenAIStreamingOptions &
   OpenAIMetadataOptions
->
+> */
 
 const GPT_4_TURBO = {
   name: 'gpt-4-turbo',
@@ -1242,7 +1242,7 @@ const CODEX_MINI_LATEST = {
   OpenAIStreamingOptions &
   OpenAIMetadataOptions
 >
-
+/* 
 const DALL_E_2 = {
   name: 'dall-e-2',
   pricing: {
@@ -1283,7 +1283,7 @@ const DALL_E_3 = {
   },
 } as const satisfies ModelMeta<
   OpenAIBaseOptions & OpenAIStreamingOptions & OpenAIMetadataOptions
->
+> */
 
 const GPT_3_5_TURBO = {
   name: 'gpt-3.5-turbo',
@@ -1336,7 +1336,7 @@ const GPT_4 = {
 } as const satisfies ModelMeta<
   OpenAIBaseOptions & OpenAIStreamingOptions & OpenAIMetadataOptions
 >
-
+/* 
 const GPT_4O_MINI_TRANSCRIBE = {
   name: 'gpt-4o-mini-transcribe',
   context_window: 16_000,
@@ -1404,8 +1404,8 @@ const GPT_4O_TRANSCRIBE = {
   },
 } as const satisfies ModelMeta<
   OpenAIBaseOptions & OpenAIStreamingOptions & OpenAIMetadataOptions
->
-
+> */
+/* 
 const GPT_4O_TRANSCRIBE_DIARIZE = {
   name: 'gpt-4o-transcribe-diarize',
   context_window: 16_000,
@@ -1428,7 +1428,7 @@ const GPT_4O_TRANSCRIBE_DIARIZE = {
   },
 } as const satisfies ModelMeta<
   OpenAIBaseOptions & OpenAIStreamingOptions & OpenAIMetadataOptions
->
+> */
 
 const GPT_5_1_CHAT = {
   name: 'gpt-5.1-chat',
@@ -1558,7 +1558,7 @@ const TEXT_EMBEDDING_3_ADA_002 = {
   OpenAIBaseOptions & OpenAIStreamingOptions & OpenAIMetadataOptions
 >
 
-const TTS_1 = {
+/* const TTS_1 = {
   name: 'tts-1',
   pricing: {
     // todo figure out pricing
@@ -1598,7 +1598,7 @@ const TTS_1_HD = {
   },
 } as const satisfies ModelMeta<
   OpenAIBaseOptions & OpenAIStreamingOptions & OpenAIMetadataOptions
->
+> */
 
 // Chat/text completion models (based on endpoints: "chat" or "chat-completions")
 export const OPENAI_CHAT_MODELS = [
@@ -1649,12 +1649,12 @@ export const OPENAI_CHAT_MODELS = [
 ] as const
 
 // Image generation models (based on endpoints: "image-generation" or "image-edit")
-const OPENAI_IMAGE_MODELS = [
+/* const OPENAI_IMAGE_MODELS = [
   GPT_IMAGE_1.name,
   GPT_IMAGE_1_MINI.name,
   DALL_E_3.name,
   DALL_E_2.name,
-] as const
+] as const */
 
 // Embedding models (based on endpoints: "embedding")
 export const OPENAI_EMBEDDING_MODELS = [
@@ -1664,7 +1664,7 @@ export const OPENAI_EMBEDDING_MODELS = [
 ] as const
 
 // Audio models (based on endpoints: "transcription", "speech_generation", or "realtime")
-const OPENAI_AUDIO_MODELS = [
+/* const OPENAI_AUDIO_MODELS = [
   // Transcription models
   GPT_4O_TRANSCRIBE.name,
   GPT_4O_TRANSCRIBE_DIARIZE.name,
@@ -1678,10 +1678,10 @@ const OPENAI_AUDIO_MODELS = [
   GPT_4O_MINI_TTS.name,
   TTS_1.name,
   TTS_1_HD.name,
-] as const
+] as const */
 
 // Transcription-only models (based on endpoints: "transcription")
-const OPENAI_TRANSCRIPTION_MODELS = [
+/* const OPENAI_TRANSCRIPTION_MODELS = [
   GPT_4O_TRANSCRIBE.name,
   GPT_4O_TRANSCRIBE_DIARIZE.name,
   GPT_4O_MINI_TRANSCRIBE.name,
@@ -1689,7 +1689,7 @@ const OPENAI_TRANSCRIPTION_MODELS = [
 
 // Video generation models (based on endpoints: "video")
 const OPENAI_VIDEO_MODELS = [SORA2.name, SORA2_PRO.name] as const
-
+ */
 //  const OPENAI_MODERATION_MODELS = [OMNI_MODERATION.name] as const
 
 // export type OpenAIChatModel = (typeof OPENAI_CHAT_MODELS)[number]
@@ -1700,7 +1700,7 @@ const OPENAI_VIDEO_MODELS = [SORA2.name, SORA2_PRO.name] as const
 // type OpenAITranscriptionModel =
 //  (typeof OPENAI_TRANSCRIPTION_MODELS)[number]
 
-const OPENAI_MODEL_META = {
+/* const OPENAI_MODEL_META = {
   [GPT5_1.name]: GPT5_1,
   [GPT5_1_CODEX.name]: GPT5_1_CODEX,
   [GPT5.name]: GPT5,
@@ -1757,7 +1757,7 @@ const OPENAI_MODEL_META = {
   [TTS_1.name]: TTS_1,
   [TTS_1_HD.name]: TTS_1_HD,
 } as const
-
+ */
 
 /**
  * Type-only map from chat model name to its provider options type.

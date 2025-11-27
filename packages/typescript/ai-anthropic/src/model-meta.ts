@@ -305,7 +305,7 @@ const CLAUDE_HAIKU_3 = {
   AnthropicSamplingOptions
 >
 
-const ANTHROPIC_MODEL_META = {
+/* const ANTHROPIC_MODEL_META = {
   [CLAUDE_OPUS_4_5.name]: CLAUDE_OPUS_4_5,
   [CLAUDE_SONNET_4_5.name]: CLAUDE_SONNET_4_5,
   [CLAUDE_HAIKU_4_5.name]: CLAUDE_HAIKU_4_5,
@@ -315,9 +315,7 @@ const ANTHROPIC_MODEL_META = {
   [CLAUDE_OPUS_4.name]: CLAUDE_OPUS_4,
   [CLAUDE_HAIKU_3_5.name]: CLAUDE_HAIKU_3_5,
   [CLAUDE_HAIKU_3.name]: CLAUDE_HAIKU_3,
-} as const
-
-type AnthropicModelMetaMap = typeof ANTHROPIC_MODEL_META
+} as const */
 
 /* export type AnthropicModelProviderOptions<
   TModel extends keyof AnthropicModelMetaMap,

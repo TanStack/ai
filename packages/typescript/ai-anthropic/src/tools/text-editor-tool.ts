@@ -3,7 +3,6 @@ import type {
   ToolTextEditor20250429,
   ToolTextEditor20250728,
 } from '@anthropic-ai/sdk/resources/messages'
-import type { CacheControl } from '../text/text-provider-options'
 import type { Tool } from '@tanstack/ai'
 
 export type TextEditorTool =

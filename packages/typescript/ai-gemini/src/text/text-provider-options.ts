@@ -1,10 +1,10 @@
 import type {
   MediaResolution,
   SafetySetting,
+  Schema,
   ThinkingLevel,
   ToolConfig,
 } from '@google/genai'
-import type { Schema } from '../tools/function-declaration-tool'
 
 export interface GeminiToolConfigOptions {
   /**
