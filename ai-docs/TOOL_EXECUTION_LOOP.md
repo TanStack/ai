@@ -55,15 +55,15 @@ Done!
 
 ```typescript
 for await (const chunk of stream) {
-  if (chunk.type === "content") {
+  if (chunk.type === 'content') {
     // Display text to user
-    console.log(chunk.delta);
-  } else if (chunk.type === "tool_call") {
+    console.log(chunk.delta)
+  } else if (chunk.type === 'tool_call') {
     // Show that a tool is being called
-    console.log(`Calling: ${chunk.toolCall.function.name}`);
-  } else if (chunk.type === "tool_result") {
+    console.log(`Calling: ${chunk.toolCall.function.name}`)
+  } else if (chunk.type === 'tool_result') {
     // Show the tool result
-    console.log(`Result: ${chunk.content}`);
+    console.log(`Result: ${chunk.content}`)
   }
 }
 ```
@@ -79,78 +79,78 @@ for await (const chunk of stream) {
 ## Complete Example
 
 ```typescript
-import { chat, tool } from "@tanstack/ai";
-import { openai } from "@tanstack/ai-openai";
+import { chat, tool } from '@tanstack/ai'
+import { openai } from '@tanstack/ai-openai'
 
 // Define tools with execute functions
 const tools = [
   tool({
-    type: "function",
+    type: 'function',
     function: {
-      name: "get_weather",
-      description: "Get current weather for a location",
+      name: 'get_weather',
+      description: 'Get current weather for a location',
       parameters: {
-        type: "object",
+        type: 'object',
         properties: {
-          location: { type: "string" },
-          unit: { type: "string", enum: ["celsius", "fahrenheit"] },
+          location: { type: 'string' },
+          unit: { type: 'string', enum: ['celsius', 'fahrenheit'] },
         },
-        required: ["location"],
+        required: ['location'],
       },
     },
     execute: async (args) => {
       // This is called automatically by the SDK
-      const weather = await fetchWeatherAPI(args.location);
+      const weather = await fetchWeatherAPI(args.location)
       return JSON.stringify({
         temperature: weather.temp,
         conditions: weather.conditions,
-        unit: args.unit || "celsius",
-      });
+        unit: args.unit || 'celsius',
+      })
     },
   }),
 
   tool({
-    type: "function",
+    type: 'function',
     function: {
-      name: "calculate",
-      description: "Perform mathematical calculations",
+      name: 'calculate',
+      description: 'Perform mathematical calculations',
       parameters: {
-        type: "object",
+        type: 'object',
         properties: {
-          expression: { type: "string" },
+          expression: { type: 'string' },
         },
-        required: ["expression"],
+        required: ['expression'],
       },
     },
     execute: async (args) => {
       // This is called automatically by the SDK
-      const result = evaluateExpression(args.expression);
-      return JSON.stringify({ result });
+      const result = evaluateExpression(args.expression)
+      return JSON.stringify({ result })
     },
   }),
-];
+]
 
 // Use with chat - tools are automatically executed
 const stream = chat({
   adapter: openai(),
-  model: "gpt-4o",
-  messages: [{ role: "user", content: "What's the weather in Paris?" }],
+  model: 'gpt-4o',
+  messages: [{ role: 'user', content: "What's the weather in Paris?" }],
   tools,
   agentLoopStrategy: maxIterations(5), // Control loop behavior
   // Or use custom strategy:
   // agentLoopStrategy: ({ iterationCount, messages }) => iterationCount < 10,
-});
+})
 
 // Handle the stream
 for await (const chunk of stream) {
-  if (chunk.type === "content") {
-    process.stdout.write(chunk.delta);
-  } else if (chunk.type === "tool_call") {
-    console.log(`\n🔧 Calling: ${chunk.toolCall.function.name}`);
-  } else if (chunk.type === "tool_result") {
-    console.log(`✓ Result: ${chunk.content}\n`);
-  } else if (chunk.type === "done") {
-    console.log(`\nDone! (${chunk.finishReason})`);
+  if (chunk.type === 'content') {
+    process.stdout.write(chunk.delta)
+  } else if (chunk.type === 'tool_call') {
+    console.log(`\n🔧 Calling: ${chunk.toolCall.function.name}`)
+  } else if (chunk.type === 'tool_result') {
+    console.log(`✓ Result: ${chunk.content}\n`)
+  } else if (chunk.type === 'done') {
+    console.log(`\nDone! (${chunk.finishReason})`)
   }
 }
 ```
@@ -287,12 +287,12 @@ This is equivalent to `agentLoopStrategy: maxIterations(3)`.
 
 ```typescript
 export interface AgentLoopState {
-  iterationCount: number; // Current iteration (0-indexed)
-  messages: Message[]; // Current conversation messages
-  finishReason: string | null; // Last finish reason from model
+  iterationCount: number // Current iteration (0-indexed)
+  messages: Message[] // Current conversation messages
+  finishReason: string | null // Last finish reason from model
 }
 
-export type AgentLoopStrategy = (state: AgentLoopState) => boolean;
+export type AgentLoopStrategy = (state: AgentLoopState) => boolean
 ```
 
 ### `toolChoice`
@@ -366,35 +366,35 @@ Emitted after the SDK executes a tool:
 Perfect for API endpoints - tool execution happens on server, results stream to client:
 
 ```typescript
-import { chat } from "@tanstack/ai";
-import { openai } from "@tanstack/ai-openai";
-import { toStreamResponse } from "@tanstack/ai";
+import { chat } from '@tanstack/ai'
+import { openai } from '@tanstack/ai-openai'
+import { toStreamResponse } from '@tanstack/ai'
 
 export async function POST(request: Request) {
-  const { messages } = await request.json();
+  const { messages } = await request.json()
 
   const stream = chat({
     adapter: openai(),
-    model: "gpt-4o",
+    model: 'gpt-4o',
     messages,
     tools: [weatherTool, calculateTool],
     maxIterations: 5,
-  });
+  })
 
   // Client receives tool_call and tool_result chunks
-  return toStreamResponse(stream);
+  return toStreamResponse(stream)
 }
 ```
 
 **Client-side:**
 
 ```typescript
-const response = await fetch("/api/chat", {
-  method: "POST",
+const response = await fetch('/api/chat', {
+  method: 'POST',
   body: JSON.stringify({ messages }),
-});
+})
 
-const reader = response.body.getReader();
+const reader = response.body.getReader()
 // Receives: content chunks, tool_call chunks, tool_result chunks, done chunk
 ```
 
@@ -461,24 +461,24 @@ The tool execution logic is implemented in the `ToolCallManager` class for bette
 
 ```typescript
 class ToolCallManager {
-  constructor(tools: ReadonlyArray<Tool>);
+  constructor(tools: ReadonlyArray<Tool>)
 
   // Add a streaming tool call chunk
-  addToolCallChunk(chunk: ToolCallChunk): void;
+  addToolCallChunk(chunk: ToolCallChunk): void
 
   // Check if there are complete tool calls
-  hasToolCalls(): boolean;
+  hasToolCalls(): boolean
 
   // Get all validated tool calls
-  getToolCalls(): ToolCall[];
+  getToolCalls(): ToolCall[]
 
   // Execute tools and yield tool_result chunks
   async *executeTools(
-    doneChunk
-  ): AsyncGenerator<ToolResultStreamChunk, Message[]>;
+    doneChunk,
+  ): AsyncGenerator<ToolResultStreamChunk, Message[]>
 
   // Clear for next iteration
-  clear(): void;
+  clear(): void
 }
 ```
 

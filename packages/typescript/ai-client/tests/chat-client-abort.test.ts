@@ -1,238 +1,317 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
-import { ChatClient } from "../src/chat-client";
-import type { ConnectionAdapter, StreamChunk } from "../src/connection-adapters";
-import type { UIMessage } from "../src/types";
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { ChatClient } from '../src/chat-client'
+import type { ConnectionAdapter } from '../src/connection-adapters'
+import type { StreamChunk } from '@tanstack/ai'
 
-describe("ChatClient - Abort Signal Handling", () => {
-  let mockAdapter: ConnectionAdapter;
-  let receivedAbortSignal: AbortSignal | undefined;
+describe('ChatClient - Abort Signal Handling', () => {
+  let mockAdapter: ConnectionAdapter
+  let receivedAbortSignal: AbortSignal | undefined
 
   beforeEach(() => {
-    receivedAbortSignal = undefined;
-    
-    mockAdapter = {
-      async *connect(messages, data, abortSignal) {
-        receivedAbortSignal = abortSignal;
-        
-        // Simulate streaming chunks
-        yield { type: "content", id: "1", model: "test", timestamp: Date.now(), delta: "Hello", content: "Hello", role: "assistant" };
-        yield { type: "content", id: "1", model: "test", timestamp: Date.now(), delta: " World", content: "Hello World", role: "assistant" };
-        yield { type: "done", id: "1", model: "test", timestamp: Date.now(), finishReason: "stop" };
-      },
-    };
-  });
+    receivedAbortSignal = undefined
 
-  it("should create AbortController and pass signal to adapter", async () => {
+    mockAdapter = {
+      // eslint-disable-next-line @typescript-eslint/require-await
+      async *connect(_messages, _data, abortSignal) {
+        receivedAbortSignal = abortSignal
+
+        // Simulate streaming chunks
+        yield {
+          type: 'content',
+          id: '1',
+          model: 'test',
+          timestamp: Date.now(),
+          delta: 'Hello',
+          content: 'Hello',
+          role: 'assistant',
+        }
+        yield {
+          type: 'content',
+          id: '1',
+          model: 'test',
+          timestamp: Date.now(),
+          delta: ' World',
+          content: 'Hello World',
+          role: 'assistant',
+        }
+        yield {
+          type: 'done',
+          id: '1',
+          model: 'test',
+          timestamp: Date.now(),
+          finishReason: 'stop',
+        }
+      },
+    }
+  })
+
+  it('should create AbortController and pass signal to adapter', async () => {
     const client = new ChatClient({
       connection: mockAdapter,
-    });
+    })
 
     const appendPromise = client.append({
-      id: "user-1",
-      role: "user",
-      parts: [{ type: "text", content: "Hello" }],
+      id: 'user-1',
+      role: 'user',
+      parts: [{ type: 'text', content: 'Hello' }],
       createdAt: new Date(),
-    });
+    })
 
     // Wait a bit to ensure connect is called
-    await new Promise((resolve) => setTimeout(resolve, 10));
+    await new Promise((resolve) => setTimeout(resolve, 10))
 
-    expect(receivedAbortSignal).toBeDefined();
-    expect(receivedAbortSignal).toBeInstanceOf(AbortSignal);
-    expect(receivedAbortSignal?.aborted).toBe(false);
+    expect(receivedAbortSignal).toBeDefined()
+    expect(receivedAbortSignal).toBeInstanceOf(AbortSignal)
+    expect(receivedAbortSignal?.aborted).toBe(false)
 
-    await appendPromise;
-  });
+    await appendPromise
+  })
 
-  it("should abort request when stop() is called", async () => {
-    let abortControllerRef: AbortController | null = null;
-    
+  it('should abort request when stop() is called', async () => {
+    let abortControllerRef: AbortController | null = null
+
     const adapterWithAbort: ConnectionAdapter = {
-      async *connect(messages, data, abortSignal) {
-        abortControllerRef = new AbortController();
+      async *connect(_messages, _data, abortSignal) {
+        abortControllerRef = new AbortController()
         if (abortSignal) {
-          abortSignal.addEventListener("abort", () => {
-            abortControllerRef?.abort();
-          });
+          abortSignal.addEventListener('abort', () => {
+            abortControllerRef?.abort()
+          })
         }
 
         try {
-          yield { type: "content", id: "1", model: "test", timestamp: Date.now(), delta: "Hello", content: "Hello", role: "assistant" };
+          yield {
+            type: 'content',
+            id: '1',
+            model: 'test',
+            timestamp: Date.now(),
+            delta: 'Hello',
+            content: 'Hello',
+            role: 'assistant',
+          }
           // Simulate long-running stream
-          await new Promise((resolve) => setTimeout(resolve, 100));
-          yield { type: "content", id: "1", model: "test", timestamp: Date.now(), delta: " World", content: "Hello World", role: "assistant" };
+          await new Promise((resolve) => setTimeout(resolve, 100))
+          yield {
+            type: 'content',
+            id: '1',
+            model: 'test',
+            timestamp: Date.now(),
+            delta: ' World',
+            content: 'Hello World',
+            role: 'assistant',
+          }
         } catch (err) {
           // Abort errors are expected
-          if (err instanceof Error && err.name === "AbortError") {
-            return;
+          if (err instanceof Error && err.name === 'AbortError') {
+            return
           }
-          throw err;
+          throw err
         }
       },
-    };
+    }
 
     const client = new ChatClient({
       connection: adapterWithAbort,
-    });
+    })
 
     const appendPromise = client.append({
-      id: "user-1",
-      role: "user",
-      parts: [{ type: "text", content: "Hello" }],
+      id: 'user-1',
+      role: 'user',
+      parts: [{ type: 'text', content: 'Hello' }],
       createdAt: new Date(),
-    });
+    })
 
     // Wait a bit then stop
-    await new Promise((resolve) => setTimeout(resolve, 10));
-    client.stop();
+    await new Promise((resolve) => setTimeout(resolve, 10))
+    client.stop()
 
-    await appendPromise;
+    await appendPromise
 
-    expect(client.getIsLoading()).toBe(false);
-  });
+    expect(client.getIsLoading()).toBe(false)
+  })
 
-  it("should preserve partial content when aborted", async () => {
-    const chunks: StreamChunk[] = [];
-    let yieldedChunks = 0;
+  it('should preserve partial content when aborted', async () => {
+    const chunks: Array<StreamChunk> = []
+    let yieldedChunks = 0
 
     const adapterWithPartial: ConnectionAdapter = {
-      async *connect(messages, data, abortSignal) {
-        yield { type: "content", id: "1", model: "test", timestamp: Date.now(), delta: "Hello", content: "Hello", role: "assistant" };
-        yieldedChunks++;
-        
+      // eslint-disable-next-line @typescript-eslint/require-await
+      async *connect(_messages, _data, abortSignal) {
+        yield {
+          type: 'content',
+          id: '1',
+          model: 'test',
+          timestamp: Date.now(),
+          delta: 'Hello',
+          content: 'Hello',
+          role: 'assistant',
+        }
+        yieldedChunks++
+
         if (abortSignal?.aborted) {
-          return;
+          return
         }
 
-        yield { type: "content", id: "1", model: "test", timestamp: Date.now(), delta: " World", content: "Hello World", role: "assistant" };
-        yieldedChunks++;
+        yield {
+          type: 'content',
+          id: '1',
+          model: 'test',
+          timestamp: Date.now(),
+          delta: ' World',
+          content: 'Hello World',
+          role: 'assistant',
+        }
+        yieldedChunks++
       },
-    };
+    }
 
     const client = new ChatClient({
       connection: adapterWithPartial,
       onChunk: (chunk) => {
-        chunks.push(chunk);
+        chunks.push(chunk)
       },
-    });
+    })
 
     const appendPromise = client.append({
-      id: "user-1",
-      role: "user",
-      parts: [{ type: "text", content: "Hello" }],
+      id: 'user-1',
+      role: 'user',
+      parts: [{ type: 'text', content: 'Hello' }],
       createdAt: new Date(),
-    });
+    })
 
     // Wait for first chunk then abort
-    await new Promise((resolve) => setTimeout(resolve, 10));
-    client.stop();
+    await new Promise((resolve) => setTimeout(resolve, 10))
+    client.stop()
 
-    await appendPromise;
+    await appendPromise
 
     // Should have received at least one chunk before abort
-    expect(chunks.length).toBeGreaterThan(0);
-    expect(client.getMessages().length).toBeGreaterThan(0);
-  });
+    expect(chunks.length).toBeGreaterThan(0)
+    expect(client.getMessages().length).toBeGreaterThan(0)
+  })
 
-  it("should handle abort gracefully without throwing error", async () => {
-    const errorSpy = vi.fn();
-    
+  it('should handle abort gracefully without throwing error', async () => {
+    const errorSpy = vi.fn()
+
     const adapterWithAbort: ConnectionAdapter = {
-      async *connect(messages, data, abortSignal) {
-        yield { type: "content", id: "1", model: "test", timestamp: Date.now(), delta: "Hello", content: "Hello", role: "assistant" };
-        
+      // eslint-disable-next-line @typescript-eslint/require-await
+      async *connect(_messages, _data, abortSignal) {
+        yield {
+          type: 'content',
+          id: '1',
+          model: 'test',
+          timestamp: Date.now(),
+          delta: 'Hello',
+          content: 'Hello',
+          role: 'assistant',
+        }
+
         if (abortSignal?.aborted) {
-          return;
+          return
         }
       },
-    };
+    }
 
     const client = new ChatClient({
       connection: adapterWithAbort,
       onError: errorSpy,
-    });
+    })
 
     const appendPromise = client.append({
-      id: "user-1",
-      role: "user",
-      parts: [{ type: "text", content: "Hello" }],
+      id: 'user-1',
+      role: 'user',
+      parts: [{ type: 'text', content: 'Hello' }],
       createdAt: new Date(),
-    });
+    })
 
-    await new Promise((resolve) => setTimeout(resolve, 10));
-    client.stop();
+    await new Promise((resolve) => setTimeout(resolve, 10))
+    client.stop()
 
-    await appendPromise;
+    await appendPromise
 
     // Should not have called onError for abort
-    expect(errorSpy).not.toHaveBeenCalled();
-    expect(client.getError()).toBeUndefined();
-  });
+    expect(errorSpy).not.toHaveBeenCalled()
+    expect(client.getError()).toBeUndefined()
+  })
 
-  it("should set isLoading to false after abort", async () => {
+  it('should set isLoading to false after abort', async () => {
     const adapterWithAbort: ConnectionAdapter = {
-      async *connect(messages, data, abortSignal) {
-        yield { type: "content", id: "1", model: "test", timestamp: Date.now(), delta: "Hello", content: "Hello", role: "assistant" };
-        await new Promise((resolve) => setTimeout(resolve, 50));
+      async *connect(_messages, _data, _abortSignal) {
+        yield {
+          type: 'content',
+          id: '1',
+          model: 'test',
+          timestamp: Date.now(),
+          delta: 'Hello',
+          content: 'Hello',
+          role: 'assistant',
+        }
+        await new Promise((resolve) => setTimeout(resolve, 50))
       },
-    };
+    }
 
     const client = new ChatClient({
       connection: adapterWithAbort,
-    });
+    })
 
     const appendPromise = client.append({
-      id: "user-1",
-      role: "user",
-      parts: [{ type: "text", content: "Hello" }],
+      id: 'user-1',
+      role: 'user',
+      parts: [{ type: 'text', content: 'Hello' }],
       createdAt: new Date(),
-    });
+    })
 
-    expect(client.getIsLoading()).toBe(true);
+    expect(client.getIsLoading()).toBe(true)
 
-    await new Promise((resolve) => setTimeout(resolve, 10));
-    client.stop();
+    await new Promise((resolve) => setTimeout(resolve, 10))
+    client.stop()
 
-    await appendPromise;
+    await appendPromise
 
-    expect(client.getIsLoading()).toBe(false);
-  });
+    expect(client.getIsLoading()).toBe(false)
+  })
 
-  it("should create new AbortController for each request", async () => {
-    const abortSignals: AbortSignal[] = [];
+  it('should create new AbortController for each request', async () => {
+    const abortSignals: Array<AbortSignal> = []
 
     const adapter: ConnectionAdapter = {
-      async *connect(messages, data, abortSignal) {
+      // eslint-disable-next-line @typescript-eslint/require-await
+      async *connect(_messages, _data, abortSignal) {
         if (abortSignal) {
-          abortSignals.push(abortSignal);
+          abortSignals.push(abortSignal)
         }
-        yield { type: "done", id: "1", model: "test", timestamp: Date.now(), finishReason: "stop" };
+        yield {
+          type: 'done',
+          id: '1',
+          model: 'test',
+          timestamp: Date.now(),
+          finishReason: 'stop',
+        }
       },
-    };
+    }
 
     const client = new ChatClient({
       connection: adapter,
-    });
+    })
 
     // First request
     await client.append({
-      id: "user-1",
-      role: "user",
-      parts: [{ type: "text", content: "Hello 1" }],
+      id: 'user-1',
+      role: 'user',
+      parts: [{ type: 'text', content: 'Hello 1' }],
       createdAt: new Date(),
-    });
+    })
 
     // Second request
     await client.append({
-      id: "user-2",
-      role: "user",
-      parts: [{ type: "text", content: "Hello 2" }],
+      id: 'user-2',
+      role: 'user',
+      parts: [{ type: 'text', content: 'Hello 2' }],
       createdAt: new Date(),
-    });
+    })
 
-    expect(abortSignals.length).toBe(2);
+    expect(abortSignals.length).toBe(2)
     // Each should be a different signal instance
-    expect(abortSignals[0]).not.toBe(abortSignals[1]);
-  });
-});
-
+    expect(abortSignals[0]).not.toBe(abortSignals[1])
+  })
+})

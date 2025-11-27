@@ -1,8 +1,8 @@
 export interface ApprovalProps {
-  toolName: string;
-  input: any;
-  onApprove: () => void;
-  onDeny: () => void;
+  toolName: string
+  input: any
+  onApprove: () => void
+  onDeny: () => void
 }
 
 export default function Approval({
@@ -34,6 +34,5 @@ export default function Approval({
         </button>
       </div>
     </div>
-  );
+  )
 }
-

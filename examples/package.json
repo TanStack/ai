@@ -7,8 +7,7 @@
   "scripts": {
     "quick-start": "node quick-start.js",
     "streaming-demo": "node streaming-demo.js",
-    "tool-calling": "node tool-calling-example.js",
-    "cli": "cd cli && pnpm start"
+    "tool-calling": "node tool-calling-example.js"
   },
   "dependencies": {
     "@tanstack/ai": "workspace:*",

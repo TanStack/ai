@@ -2,21 +2,23 @@
   "name": "@tanstack/ai-react-ui",
   "version": "0.0.1",
   "description": "Headless React components for building AI chat interfaces",
-  "main": "./dist/index.js",
-  "module": "./dist/index.mjs",
-  "types": "./dist/index.d.ts",
+  "module": "./dist/esm/index.js",
+  "types": "./dist/esm/index.d.ts",
+  "type": "module",
   "exports": {
     ".": {
-      "import": "./dist/index.mjs",
-      "require": "./dist/index.js",
-      "types": "./dist/index.d.ts"
+      "types": "./dist/esm/index.d.ts",
+      "import": "./dist/esm/index.js"
     }
   },
   "scripts": {
-    "build": "tsdown",
-    "dev": "tsdown --watch",
-    "test": "exit 0",
-    "test:watch": "vitest"
+    "build": "vite build",
+    "clean": "premove ./build ./dist",
+    "test:build": "publint --strict",
+    "test:eslint": "eslint ./src",
+    "test:lib": "vitest --passWithNoTests",
+    "test:lib:dev": "pnpm test:lib --watch",
+    "test:types": "tsc"
   },
   "keywords": [
     "tanstack",
@@ -28,9 +30,8 @@
     "components"
   ],
   "dependencies": {
-    "highlight.js": "^11.11.1",
     "react-markdown": "^10.1.0",
-    "rehype-highlight": "^7.0.0",
+    "rehype-highlight": "^7.0.2",
     "rehype-raw": "^7.0.0",
     "rehype-sanitize": "^6.0.0",
     "remark-gfm": "^4.0.1"
@@ -38,15 +39,13 @@
   "peerDependencies": {
     "@tanstack/ai-client": "workspace:*",
     "@tanstack/ai-react": "workspace:*",
+    "@types/react": ">=18.0.0",
     "react": "^18.0.0 || ^19.0.0",
     "react-dom": "^18.0.0 || ^19.0.0"
   },
   "devDependencies": {
-    "@types/react": "^18.2.0",
-    "@types/react-dom": "^18.2.0",
-    "tsdown": "^0.15.9",
-    "typescript": "^5.6.3",
-    "vitest": "^4.0.13"
+    "@vitest/coverage-v8": "4.0.14",
+    "vite": "^7.2.4"
   },
   "files": [
     "dist"

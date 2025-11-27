@@ -1,20 +1,22 @@
-import { useEffect, useRef, type ReactNode } from "react";
-import { useChatContext } from "./chat";
-import type { UIMessage } from "@tanstack/ai-react";
+import { useEffect, useRef } from 'react'
+import { useChatContext } from './chat'
+import { ChatMessage } from './chat-message'
+import type { ReactNode } from 'react'
+import type { UIMessage } from '@tanstack/ai-react'
 
 export interface ChatMessagesProps {
   /** Custom render function for each message */
-  children?: (message: UIMessage, index: number) => ReactNode;
+  children?: (message: UIMessage, index: number) => ReactNode
   /** CSS class name */
-  className?: string;
+  className?: string
   /** Element to show when there are no messages */
-  emptyState?: ReactNode;
+  emptyState?: ReactNode
   /** Element to show while loading the first message */
-  loadingState?: ReactNode;
+  loadingState?: ReactNode
   /** Custom error renderer */
-  errorState?: (props: { error: Error; reload: () => void }) => ReactNode;
+  errorState?: (props: { error: Error; reload: () => void }) => ReactNode
   /** Auto-scroll to bottom on new messages */
-  autoScroll?: boolean;
+  autoScroll?: boolean
 }
 
 /**
@@ -35,29 +37,29 @@ export function ChatMessages({
   errorState,
   autoScroll = true,
 }: ChatMessagesProps) {
-  const { messages, isLoading, error, reload } = useChatContext();
-  const containerRef = useRef<HTMLDivElement>(null);
+  const { messages, isLoading, error, reload } = useChatContext()
+  const containerRef = useRef<HTMLDivElement>(null)
 
   // Auto-scroll to bottom on new messages
   useEffect(() => {
     if (autoScroll && containerRef.current) {
-      containerRef.current.scrollTop = containerRef.current.scrollHeight;
+      containerRef.current.scrollTop = containerRef.current.scrollHeight
     }
-  }, [messages, autoScroll]);
+  }, [messages, autoScroll])
 
   // Error state
   if (error && errorState) {
-    return <>{errorState({ error, reload })}</>;
+    return <>{errorState({ error, reload })}</>
   }
 
   // Loading state (only show if no messages yet)
   if (isLoading && messages.length === 0 && loadingState) {
-    return <>{loadingState}</>;
+    return <>{loadingState}</>
   }
 
   // Empty state
   if (messages.length === 0 && emptyState) {
-    return <>{emptyState}</>;
+    return <>{emptyState}</>
   }
 
   return (
@@ -73,19 +75,9 @@ export function ChatMessages({
             {children(message, index)}
           </div>
         ) : (
-          <div
-            key={message.id}
-            data-message-id={message.id}
-            data-message-role={message.role}
-          >
-            {message.parts
-              .filter((p) => p.type === "text")
-              .map((p) => p.content)
-              .join("")}
-          </div>
-        )
+          <ChatMessage key={message.id} message={message} />
+        ),
       )}
     </div>
-  );
+  )
 }
-

@@ -1,253 +1,104 @@
-# @tanstack/ai-react-ui
+<div align="center">
+  <img src="./media/header_ai.png" >
+</div>
 
-Headless React components for building AI chat interfaces with TanStack AI SDK.
+<br />
 
-## Features
+<div align="center">
+<a href="https://npmjs.com/package/@tanstack/ai" target="\_parent">
+  <img alt="" src="https://img.shields.io/npm/dm/@tanstack/ai.svg" />
+</a>
+<a href="https://github.com/TanStack/ai" target="\_parent">
+	  <img alt="" src="https://img.shields.io/github/stars/TanStack/ai.svg?style=social&label=Star" alt="GitHub stars" />
+</a>
+<a href="https://bundlephobia.com/result?p=@tanstack/ai@latest" target="\_parent">
+  <img alt="" src="https://badgen.net/bundlephobia/minzip/@tanstack/ai@latest" />
+</a>
+</div>
 
-🧩 **Parts-Based Messages** - Native support for TanStack AI's message parts (text, tool calls, results)  
-🔐 **Tool Approvals** - Built-in UI for tools that require user approval  
-💻 **Client-Side Tools** - Execute tools in the browser without server round-trips  
-🎨 **Headless & Customizable** - Fully unstyled with render props for complete control  
-⚡ **Type-Safe** - Full TypeScript support with proper inference
+<div align="center">
+<a href="#badge">
+  <img alt="semantic-release" src="https://img.shields.io/badge/%20%20%F0%9F%93%A6%F0%9F%9A%80-semantic--release-e10079.svg">
+</a>
+	<a href="#badge">
+		<img src="https://img.shields.io/github/v/release/tanstack/ai" alt="Release"/>
+	</a>
+<a href="https://twitter.com/tan_stack">
+  <img src="https://img.shields.io/twitter/follow/tan_stack.svg?style=social" alt="Follow @TanStack"/>
+</a>
+</div>
 
-## Installation
+<div align="center">
+  
+### [Become a Sponsor!](https://github.com/sponsors/tannerlinsley/)
+</div>
 
-```bash
-pnpm add @tanstack/ai-react-ui
-```
+# TanStack AI
 
-## Quick Start
+A powerful, type-safe AI SDK for building AI-powered applications.
 
-```tsx
-import { Chat } from '@tanstack/ai-react-ui'
-import { fetchServerSentEvents } from '@tanstack/ai-react'
+- Provider-agnostic adapters (OpenAI, Anthropic, Gemini, Ollama, etc.)
+- Chat completion, streaming, and agent loop strategies
+- Headless chat state management with adapters (SSE, HTTP stream, custom)
+- Type-safe tools with server/client execution
 
-function MyChat() {
-  return (
-    <Chat connection={fetchServerSentEvents('/api/chat')}>
-      <Chat.Messages>
-        {(message) => <Chat.Message message={message} />}
-      </Chat.Messages>
-      <Chat.Input placeholder="Type a message..." />
-    </Chat>
-  )
-}
-```
+### <a href="https://tanstack.com/ai">Read the docs →</b></a>
 
-## Core Concepts
+## Get Involved
 
-### Parts-Based Messages
+- We welcome issues and pull requests!
+- Participate in [GitHub discussions](https://github.com/TanStack/ai/discussions)
+- Chat with the community on [Discord](https://discord.com/invite/WrRKjPJ)
+- See [CONTRIBUTING.md](./CONTRIBUTING.md) for setup instructions
 
-Unlike traditional chat libraries that treat messages as simple strings, TanStack AI uses **parts**:
+## Partners
 
-```typescript
-{
-  role: "assistant",
-  parts: [
-    { type: "text", content: "Here's a recommendation:" },
-    { 
-      type: "tool-call", 
-      name: "recommendGuitar",
-      arguments: '{"id":"6"}',
-      state: "input-complete"
-    }
-  ]
-}
-```
+<table align="center">
+  <tr>
+    <td>
+      <a href="https://www.coderabbit.ai/?via=tanstack&dub_id=aCcEEdAOqqutX6OS" >
+        <picture>
+          <source media="(prefers-color-scheme: dark)" srcset="https://tanstack.com/assets/coderabbit-dark-CMcuvjEy.svg" height="40" />
+          <source media="(prefers-color-scheme: light)" srcset="https://tanstack.com/assets/coderabbit-light-DVMJ2jHi.svg" height="40" />
+          <img src="https://tanstack.com/assets/coderabbit-light-DVMJ2jHi.svg" height="40" alt="CodeRabbit" />
+        </picture>
+      </a>
+    </td>
+    <td>
+      <a href="https://www.cloudflare.com?utm_source=tanstack">
+        <picture>
+          <source media="(prefers-color-scheme: dark)" srcset="https://tanstack.com/assets/cloudflare-white-DQDB7UaL.svg" height="60" />
+          <source media="(prefers-color-scheme: light)" srcset="https://tanstack.com/assets/cloudflare-black-CPufaW0B.svg" height="60" />
+          <img src="https://tanstack.com/assets/cloudflare-black-CPufaW0B.svg" height="60" alt="Cloudflare" />
+        </picture>
+      </a>
+    </td>
+  </tr>
+</table>
 
-This allows:
-- Multiple content types in one message
-- Proper streaming of tool calls alongside text
-- State tracking for each part independently
+<div align="center">
+<img src="./media/partner_logo.svg" alt="AI & you?" height="65">
+<p>
+We're looking for TanStack AI Partners to join our mission! Partner with us to push the boundaries of TanStack AI and build amazing things together.
+</p>
+<a href="mailto:partners@tanstack.com?subject=TanStack AI Partnership"><b>LET'S CHAT</b></a>
+</div>
 
-### Tool Approvals
+## Explore the TanStack Ecosystem
 
-Tools can require user approval before execution:
+- <a href="https://github.com/tanstack/config"><b>TanStack Config</b></a> – Tooling for JS/TS packages
+- <a href="https://github.com/tanstack/db"><b>TanStack DB</b></a> – Reactive sync client store
+- <a href="https://github.com/tanstack/devtools">TanStack Devtools</a> – Unified devtools panel
+- <a href="https://github.com/tanstack/form"><b>TanStack Form</b></a> – Type‑safe form state
+- <a href="https://github.com/tanstack/pacer"><b>TanStack Pacer</b></a> – Debouncing, throttling, batching
+- <a href="https://github.com/tanstack/query"><b>TanStack Query</b></a> – Async state & caching
+- <a href="https://github.com/tanstack/ranger"><b>TanStack Ranger</b></a> – Range & slider primitives
+- <a href="https://github.com/tanstack/router"><b>TanStack Router</b></a> – Type‑safe routing, caching & URL state
+- <a href="https://github.com/tanstack/router"><b>TanStack Start</b></a> – Full‑stack SSR & streaming
+- <a href="https://github.com/tanstack/store"><b>TanStack Store</b></a> – Reactive data store
+- <a href="https://github.com/tanstack/table"><b>TanStack Table</b></a> – Headless datagrids
+- <a href="https://github.com/tanstack/virtual"><b>TanStack Virtual</b></a> – Virtualized rendering
 
-```tsx
-<Chat onToolCall={async ({ toolName, input }) => {
-  // Client-side tool execution
-  if (toolName === 'addToWishList') {
-    const wishList = JSON.parse(localStorage.getItem('wishList') || '[]')
-    wishList.push(input.guitarId)
-    localStorage.setItem('wishList', JSON.stringify(wishList))
-    return { success: true }
-  }
-}}>
-  <Chat.Messages>
-    {(message) => (
-      <Chat.Message
-        message={message}
-        partRenderers={{
-          toolCall: ({ approval, ...props }) => 
-            approval?.needsApproval ? (
-              <Chat.ToolApproval {...props} approval={approval} />
-            ) : null
-        }}
-      />
-    )}
-  </Chat.Messages>
-</Chat>
-```
+… and more at <a href="https://tanstack.com"><b>TanStack.com »</b></a>
 
-## API Reference
-
-### `<Chat>`
-
-Root component that provides chat context to all subcomponents.
-
-**Props:**
-- `connection: ConnectionAdapter` - How to connect to your API
-- `onToolCall?: (args) => Promise<any>` - Handler for client-side tools
-- `className?: string` - CSS class for root element
-- All other `useChat` options
-
-### `<Chat.Messages>`
-
-Renders the list of messages.
-
-**Props:**
-- `children?: (message, index) => ReactNode` - Custom message renderer
-- `emptyState?: ReactNode` - Show when no messages
-- `loadingState?: ReactNode` - Show while loading
-- `autoScroll?: boolean` - Auto-scroll to bottom (default: true)
-
-### `<Chat.Message>`
-
-Renders a single message with all its parts.
-
-**Props:**
-- `message: UIMessage` - The message to render
-- `partRenderers?: { text?, toolCall?, toolResult? }` - Custom renderers for each part type
-
-### `<Chat.Input>`
-
-Auto-growing textarea input.
-
-**Props:**
-- `children?: (renderProps) => ReactNode` - Render prop for full control
-- `placeholder?: string`
-- `autoGrow?: boolean` - Auto-grow textarea (default: true)
-- `maxHeight?: number` - Max height in pixels (default: 200)
-- `submitOnEnter?: boolean` - Submit on Enter, new line on Shift+Enter (default: true)
-
-### `<Chat.ToolApproval>`
-
-Renders approve/deny buttons for tools requiring approval.
-
-**Props:**
-- `toolCallId: string`
-- `toolName: string`
-- `input: any` - Parsed tool arguments
-- `approval: { id, needsApproval, approved? }`
-- `children?: (renderProps) => ReactNode` - Custom approval UI
-
-## Examples
-
-### Custom Message Styling
-
-```tsx
-<Chat.Message
-  message={message}
-  partRenderers={{
-    text: ({ content }) => (
-      <div className="bg-blue-500 text-white p-4 rounded">
-        <ReactMarkdown>{content}</ReactMarkdown>
-      </div>
-    ),
-    toolCall: ({ name, state }) => (
-      <div className="bg-gray-200 p-2 rounded">
-        Tool: {name} ({state})
-      </div>
-    )
-  }}
-/>
-```
-
-### Custom Input with Send Button
-
-```tsx
-<Chat.Input>
-  {({ value, onChange, onSubmit, isLoading, inputRef }) => (
-    <div className="flex gap-2">
-      <textarea
-        ref={inputRef}
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        className="flex-1 border rounded p-2"
-      />
-      <button
-        onClick={onSubmit}
-        disabled={isLoading}
-        className="px-4 py-2 bg-blue-500 text-white rounded"
-      >
-        Send
-      </button>
-    </div>
-  )}
-</Chat.Input>
-```
-
-### Custom Approval Flow
-
-```tsx
-<Chat.ToolApproval
-  toolCallId={part.id}
-  toolName={part.name}
-  input={JSON.parse(part.arguments)}
-  approval={part.approval}
->
-  {({ toolName, input, onApprove, onDeny }) => (
-    <div className="approval-dialog">
-      <h3>Confirm: {toolName}</h3>
-      <pre>{JSON.stringify(input, null, 2)}</pre>
-      <button onClick={onApprove}>Yes</button>
-      <button onClick={onDeny}>No</button>
-    </div>
-  )}
-</Chat.ToolApproval>
-```
-
-## Comparison with Other Libraries
-
-### Vercel AI SDK
-
-```tsx
-// Vercel: String-based messages, limited customization
-const { messages } = useChat({
-  api: '/api/chat'
-})
-
-// Messages are simple strings - no parts, no states
-messages.map(m => <div>{m.content}</div>)
-```
-
-### TanStack AI
-
-```tsx
-// TanStack: Parts-based with full control
-const { messages } = useChat({
-  connection: fetchServerSentEvents('/api/chat'),
-  onToolCall: async ({ toolName, input }) => {
-    // Client-side execution!
-    return executeLocally(toolName, input)
-  }
-})
-
-// Messages have typed parts with states
-messages.map(m => (
-  <Chat.Message 
-    message={m}
-    partRenderers={{
-      toolCall: (props) => props.approval 
-        ? <Chat.ToolApproval {...props} />
-        : <ToolDisplay {...props} />
-    }}
-  />
-))
-```
-
-## License
-
-MIT
-
+<!-- USE THE FORCE LUKE -->

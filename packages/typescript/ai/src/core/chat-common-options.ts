@@ -15,7 +15,7 @@ export interface CommonOptions {
    * - Anthropic: `temperature` (number) - ranges from 0.0 to 1.0, default 1.0
    * - Gemini: `generationConfig.temperature` (number) - ranges from 0.0 to 2.0
    */
-  temperature?: number;
+  temperature?: number
 
   /**
    * Nucleus sampling parameter. An alternative to temperature sampling.
@@ -29,7 +29,7 @@ export interface CommonOptions {
    * - Anthropic: `top_p` (number | null)
    * - Gemini: `generationConfig.topP` (number)
    */
-  topP?: number;
+  topP?: number
 
   /**
    * The maximum number of tokens to generate in the response.
@@ -39,7 +39,7 @@ export interface CommonOptions {
    * - Anthropic: `max_tokens` (number, required) - range x >= 1
    * - Gemini: `generationConfig.maxOutputTokens` (number)
    */
-  maxTokens?: number;
+  maxTokens?: number
 
   /**
    * Additional metadata to attach to the request.
@@ -51,5 +51,5 @@ export interface CommonOptions {
    * - Anthropic: `metadata` (Record<string, any>) - includes optional user_id (max 256 chars)
    * - Gemini: Not directly available in TextProviderOptions
    */
-  metadata?: Record<string, any>;
+  metadata?: Record<string, any>
 }

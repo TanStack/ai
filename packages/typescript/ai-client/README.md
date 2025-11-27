@@ -1,701 +1,104 @@
-# @tanstack/ai-client
-
-Framework-agnostic headless client for TanStack AI chat functionality.
-
-## Overview
-
-`@tanstack/ai-client` provides a headless `ChatClient` class that manages chat state and streaming AI interactions without any framework dependencies. This makes it ideal for:
-
-- Building custom framework integrations
-- Server-side usage
-- Testing and automation
-- Any JavaScript/TypeScript environment
-
-**Note:** The backend should use `@tanstack/ai`'s `chat()` method which **automatically handles tool execution in a loop**. The client receives tool execution events via the stream.
-
-## Installation
-
-```bash
-pnpm add @tanstack/ai-client
-# or
-npm install @tanstack/ai-client
-# or
-yarn add @tanstack/ai-client
-```
-
-## Basic Usage
-
-```typescript
-import { ChatClient, fetchServerSentEvents } from "@tanstack/ai-client";
-
-// Create a client instance
-const client = new ChatClient({
-  connection: fetchServerSentEvents("/api/chat"),
-  onMessagesChange: (messages) => {
-    console.log("Messages updated:", messages);
-  },
-  onLoadingChange: (isLoading) => {
-    console.log("Loading state:", isLoading);
-  },
-  onErrorChange: (error) => {
-    console.log("Error:", error);
-  },
-});
-
-// Send a message
-await client.sendMessage("Hello, AI!");
-
-// Get current messages
-const messages = client.getMessages();
-
-// Append a message manually
-await client.append({
-  role: "user",
-  content: "Another message",
-});
-
-// Reload the last response
-await client.reload();
-
-// Stop the current response
-client.stop();
-
-// Clear all messages
-client.clear();
-```
-
-## Connection Adapters
-
-Connection adapters provide a flexible way to connect to different types of streaming backends.
-
-### `fetchServerSentEvents(url, options?)`
-
-For Server-Sent Events (SSE) format - the standard for HTTP streaming:
-
-```typescript
-import { ChatClient, fetchServerSentEvents } from "@tanstack/ai-client";
-
-const client = new ChatClient({
-  connection: fetchServerSentEvents("/api/chat", {
-    headers: {
-      "Authorization": "Bearer token",
-      "X-Custom-Header": "value"
-    },
-    credentials: "include", // "omit" | "same-origin" | "include"
-  }),
-});
-
-await client.sendMessage("Hello!");
-```
-
-**Use when:** Your backend uses `toStreamResponse()` from `@tanstack/ai`
-
-**Format expected:** Server-Sent Events with `data:` prefix
-```
-data: {"type":"content","delta":"Hello","content":"Hello",...}
-data: {"type":"content","delta":" world","content":"Hello world",...}
-data: {"type":"done","finishReason":"stop",...}
-data: [DONE]
-```
-
-### `fetchHttpStream(url, options?)`
-
-For raw HTTP streaming with newline-delimited JSON:
-
-```typescript
-import { ChatClient, fetchHttpStream } from "@tanstack/ai-client";
-
-const client = new ChatClient({
-  connection: fetchHttpStream("/api/chat", {
-    headers: { "Authorization": "Bearer token" }
-  }),
-});
-
-await client.sendMessage("Hello!");
-```
-
-**Use when:** Your backend streams newline-delimited JSON directly
-
-**Format expected:** Newline-delimited JSON
-```
-{"type":"content","delta":"Hello","content":"Hello",...}
-{"type":"content","delta":" world","content":"Hello world",...}
-{"type":"done","finishReason":"stop",...}
-```
-
-### `stream(factory)`
-
-For direct async iterables - use with server functions or in-memory streams:
-
-```typescript
-import { ChatClient, stream } from "@tanstack/ai-client";
-import { chat } from "@tanstack/ai";
-import { openai } from "@tanstack/ai-openai";
-
-const client = new ChatClient({
-  connection: stream((messages, data) => {
-    // Return an async iterable directly
-    return chat({
-      adapter: openai(),
-      model: "gpt-4o",
-      messages,
-    });
-  }),
-});
-
-await client.sendMessage("Hello!");
-```
-
-**Use when:**
-- TanStack Start server functions
-- Direct access to streaming functions
-- Testing with mock streams
-
-**Benefits:**
-- ✅ No HTTP overhead
-- ✅ Perfect for server components
-- ✅ Easy to test with mocks
-
-### Custom Adapters
-
-You can create custom connection adapters for special scenarios:
-
-```typescript
-import type { ConnectionAdapter } from "@tanstack/ai-client";
-
-// Example: WebSocket connection adapter
-function createWebSocketAdapter(url: string): ConnectionAdapter {
-  return {
-    async *connect(messages, data, abortSignal) {
-      const ws = new WebSocket(url);
-      
-      // Handle abort signal
-      if (abortSignal) {
-        abortSignal.addEventListener("abort", () => {
-          ws.close();
-        });
-      }
-      
-      return new Promise((resolve, reject) => {
-        ws.onopen = () => {
-          ws.send(JSON.stringify({ messages, data }));
-        };
-        
-        ws.onmessage = (event) => {
-          // Check if aborted before processing
-          if (abortSignal?.aborted) {
-            ws.close();
-            return;
-          }
-          
-          const chunk = JSON.parse(event.data);
-          // Yield chunks as they arrive
-        };
-        
-        ws.onerror = (error) => reject(error);
-        ws.onclose = () => resolve();
-      });
-    },
-  };
-}
-
-// Use it
-const client = new ChatClient({
-  connection: createWebSocketAdapter("wss://api.example.com/chat"),
-});
-```
-
-## Stream Processor
-
-The stream processor provides configurable text chunking strategies to control UI update frequency and improve user experience.
-
-### Default Behavior
-
-By default, `ChatClient` uses immediate chunking (every chunk updates the UI):
-
-```typescript
-import { ChatClient, fetchServerSentEvents } from "@tanstack/ai-client";
-
-const client = new ChatClient({
-  connection: fetchServerSentEvents("/api/chat"),
-  onMessagesChange: (messages) => {
-    console.log("Messages updated:", messages);
-  },
-});
-
-await client.sendMessage("Hello!");
-```
-
-### Using Chunk Strategies
-
-#### Punctuation Strategy
-
-Update the UI only when punctuation is encountered (smoother for reading):
-
-```typescript
-import {
-  ChatClient,
-  fetchServerSentEvents,
-  PunctuationStrategy,
-} from "@tanstack/ai-client";
-
-const client = new ChatClient({
-  connection: fetchServerSentEvents("/api/chat"),
-  streamProcessor: {
-    chunkStrategy: new PunctuationStrategy(),
-  },
-  onMessagesChange: (messages) => {
-    console.log("Messages updated:", messages);
-  },
-});
-
-await client.sendMessage("Tell me a story.");
-```
-
-#### Batch Strategy
-
-Update the UI every N chunks (reduces update frequency):
-
-```typescript
-import {
-  ChatClient,
-  fetchServerSentEvents,
-  BatchStrategy,
-} from "@tanstack/ai-client";
-
-const client = new ChatClient({
-  connection: fetchServerSentEvents("/api/chat"),
-  streamProcessor: {
-    chunkStrategy: new BatchStrategy(10), // Update every 10 chunks
-  },
-  onMessagesChange: (messages) => {
-    console.log("Messages updated:", messages);
-  },
-});
-
-await client.sendMessage("Explain quantum physics.");
-```
-
-#### Combining Strategies
-
-Use `CompositeStrategy` to combine multiple strategies (OR logic):
-
-```typescript
-import {
-  ChatClient,
-  fetchServerSentEvents,
-  CompositeStrategy,
-  PunctuationStrategy,
-  BatchStrategy,
-} from "@tanstack/ai-client";
-
-const client = new ChatClient({
-  connection: fetchServerSentEvents("/api/chat"),
-  streamProcessor: {
-    chunkStrategy: new CompositeStrategy([
-      new PunctuationStrategy(), // Update on punctuation
-      new BatchStrategy(20), // OR every 20 chunks
-    ]),
-  },
-  onMessagesChange: (messages) => {
-    console.log("Messages updated:", messages);
-  },
-});
-```
-
-#### Custom Chunk Strategy
-
-Create your own strategy for fine-grained control:
-
-```typescript
-import {
-  ChatClient,
-  fetchServerSentEvents,
-  type ChunkStrategy,
-} from "@tanstack/ai-client";
-
-class CustomStrategy implements ChunkStrategy {
-  private wordCount = 0;
-
-  shouldEmit(chunk: string, accumulated: string): boolean {
-    // Count words in the chunk
-    const words = chunk.split(/\s+/).filter((w) => w.length > 0);
-    this.wordCount += words.length;
-
-    // Emit every 5 words
-    if (this.wordCount >= 5) {
-      this.wordCount = 0;
-      return true;
-    }
-    return false;
-  }
-
-  reset(): void {
-    this.wordCount = 0;
-  }
-}
-
-const client = new ChatClient({
-  connection: fetchServerSentEvents("/api/chat"),
-  streamProcessor: {
-    chunkStrategy: new CustomStrategy(),
-  },
-  onMessagesChange: (messages) => {
-    console.log("Messages updated:", messages);
-  },
-});
-```
-
-### Built-in Strategies
-
-| Strategy                 | When it Emits                             | Best For                     |
-| ------------------------ | ----------------------------------------- | ---------------------------- |
-| `ImmediateStrategy`      | Every chunk                               | Default, real-time feel      |
-| `PunctuationStrategy`    | When chunk contains `. , ! ? ; :`         | Natural reading flow         |
-| `BatchStrategy(N)`       | Every N chunks                            | Reducing update frequency    |
-| `WordBoundaryStrategy`   | When chunk ends with whitespace           | Preventing word cuts         |
-| `DebounceStrategy(ms)`   | After ms of silence                       | High-frequency streams       |
-| `CompositeStrategy([])`  | When ANY sub-strategy emits (OR)          | Combining multiple rules     |
-| Custom `ChunkStrategy`   | Your custom `shouldEmit()` logic          | Fine-grained control         |
-
-### Parallel Tool Calls
-
-The stream processor automatically handles multiple parallel tool calls:
-
-```typescript
-import { ChatClient, fetchServerSentEvents } from "@tanstack/ai-client";
-
-const client = new ChatClient({
-  connection: fetchServerSentEvents("/api/chat"),
-  streamProcessor: {
-    // Use any chunk strategy
-  },
-  onMessagesChange: (messages) => {
-    const lastMessage = messages[messages.length - 1];
-    if (lastMessage.toolCalls) {
-      console.log("Tool calls in progress:", lastMessage.toolCalls);
-      // Can have multiple tool calls streaming simultaneously!
-    }
-  },
-});
-
-await client.sendMessage("Get weather in Paris and Tokyo");
-```
-
-### Custom Stream Parser
-
-For handling non-standard stream formats:
-
-```typescript
-import {
-  ChatClient,
-  stream,
-  type StreamParser,
-  type StreamChunk,
-} from "@tanstack/ai-client";
-
-class CustomParser implements StreamParser {
-  async *parse(source: AsyncIterable<any>): AsyncIterable<StreamChunk> {
-    for await (const chunk of source) {
-      // Custom parsing logic for your stream format
-      if (chunk.message) {
-        yield {
-          type: "text",
-          content: chunk.message,
-        };
-      }
-
-      if (chunk.tool) {
-        yield {
-          type: "tool-call-delta",
-          toolCallIndex: chunk.tool.index,
-          toolCall: {
-            id: chunk.tool.id,
-            function: {
-              name: chunk.tool.name,
-              arguments: chunk.tool.args,
-            },
-          },
-        };
-      }
-    }
-  }
-}
-
-const client = new ChatClient({
-  connection: stream(async (messages) => {
-    // Your custom stream source
-    return customStreamGenerator(messages);
-  }),
-  streamProcessor: {
-    parser: new CustomParser(),
-  },
-  onMessagesChange: (messages) => {
-    console.log("Messages updated:", messages);
-  },
-});
-```
-
-## Working with Streams Directly
-
-Connection adapters return async iterables of `StreamChunk` objects, which you can iterate over directly if needed:
-
-```typescript
-import type { StreamChunk } from '@tanstack/ai';
-import { fetchServerSentEvents } from '@tanstack/ai-client';
-
-const connection = fetchServerSentEvents('/api/chat');
-
-// Get the stream directly
-const stream = connection.connect(messages, data);
-
-// Iterate over chunks
-for await (const chunk of stream) {
-  if (chunk.type === 'content') {
-    console.log('Content:', chunk.content);
-  } else if (chunk.type === 'tool_call') {
-    console.log('Tool call:', chunk.toolCall);
-  }
-}
-```
-
-### Custom Connection Adapter Example
-
-You can create custom connection adapters for any transport protocol. Here's a WebSocket example:
-
-```typescript
-import type { ConnectionAdapter, StreamChunk } from '@tanstack/ai-client';
-
-function createWebSocketAdapter(url: string): ConnectionAdapter {
-  return {
-    async *connect(messages, data, abortSignal) {
-      const ws = new WebSocket(url);
-      
-      // Handle abort signal
-      if (abortSignal) {
-        abortSignal.addEventListener("abort", () => {
-          ws.close();
-        });
-      }
-      
-      // Wait for connection
-      await new Promise((resolve, reject) => {
-        ws.onopen = resolve;
-        ws.onerror = reject;
-      });
-      
-      // Send messages
-      ws.send(JSON.stringify({ messages, data }));
-      
-      // Yield chunks as they arrive
-      const queue: StreamChunk[] = [];
-      let resolver: ((chunk: StreamChunk | null) => void) | null = null;
-
-      ws.onmessage = (event) => {
-        try {
-          const chunk: StreamChunk = JSON.parse(event.data);
-          if (abortSignal?.aborted) {
-            ws.close();
-            return;
-          }
-          if (resolver) {
-            resolver(chunk);
-            resolver = null;
-          } else {
-            queue.push(chunk);
-          }
-        } catch (error) {
-          console.error('Failed to parse WebSocket message:', error);
-        }
-      };
-
-      ws.onclose = () => {
-        if (resolver) {
-          resolver(null);
-        }
-      };
-
-      try {
-        while (true) {
-          if (queue.length > 0) {
-            yield queue.shift()!;
-          } else {
-            const chunk = await new Promise<StreamChunk | null>((resolve) => {
-              resolver = resolve;
-            });
-            if (chunk === null) break;
-            yield chunk;
-          }
-        }
-      } finally {
-        ws.close();
-      }
-    },
-  };
-}
-
-// Use it
-const client = new ChatClient({
-  connection: createWebSocketAdapter("wss://api.example.com/chat"),
-});
-```
-
-## API Reference
-
-### `ChatClient`
-
-The main class for managing chat interactions.
-
-#### Constructor Options
-
-```typescript
-interface ChatClientOptions {
-  // Connection adapter (required)
-  connection: ConnectionAdapter;
-
-  // Initial messages
-  initialMessages?: UIMessage[];
-
-  // Unique chat identifier
-  id?: string;
-
-  // Callbacks
-  onResponse?: (response: Response) => void | Promise<void>;
-  onChunk?: (chunk: StreamChunk) => void;
-  onFinish?: (message: UIMessage) => void;
-  onError?: (error: Error) => void;
-  onMessagesChange?: (messages: UIMessage[]) => void;
-  onLoadingChange?: (isLoading: boolean) => void;
-  onErrorChange?: (error: Error | undefined) => void;
-
-  // Stream processor configuration
-  streamProcessor?: {
-    chunkStrategy?: ChunkStrategy;
-    parser?: StreamParser;
-  };
-
-  // Request configuration (for legacy api option)
-  api?: string;
-  headers?: Record<string, string> | Headers;
-  body?: Record<string, any>;
-  credentials?: "omit" | "same-origin" | "include";
-  fetch?: typeof fetch;
-}
-```
-
-#### Methods
-
-- `sendMessage(content: string): Promise<void>` - Send a text message
-- `append(message: Message | UIMessage): Promise<void>` - Append any message
-- `reload(): Promise<void>` - Reload the last assistant response
-- `stop(): void` - Stop the current streaming response
-- `clear(): void` - Clear all messages
-- `getMessages(): UIMessage[]` - Get current messages
-- `getIsLoading(): boolean` - Get loading state
-- `getError(): Error | undefined` - Get current error
-- `setMessagesManually(messages: UIMessage[]): void` - Manually set messages
-
-## Framework Integration
-
-This package is used by framework-specific packages like `@tanstack/ai-react`, which provide hooks and components for their respective frameworks.
-
-### Example: Custom React Hook
-
-```typescript
-import { ChatClient, fetchServerSentEvents } from "@tanstack/ai-client";
-import { useState, useRef, useCallback } from "react";
-
-function useCustomChat(options) {
-  const [messages, setMessages] = useState([]);
-  const [isLoading, setIsLoading] = useState(false);
-
-  const clientRef = useRef(null);
-
-  if (!clientRef.current) {
-    clientRef.current = new ChatClient({
-      connection: fetchServerSentEvents("/api/chat"),
-      ...options,
-      onMessagesChange: setMessages,
-      onLoadingChange: setIsLoading,
-    });
-  }
-
-  const sendMessage = useCallback((content) => {
-    return clientRef.current.sendMessage(content);
-  }, []);
-
-  return { messages, isLoading, sendMessage };
-}
-```
-
-### With React
-
-All connection adapters work seamlessly with `useChat`:
-
-```typescript
-import { useChat } from "@tanstack/ai-react";
-import { fetchServerSentEvents, fetchHttpStream, stream } from "@tanstack/ai-client";
-
-// SSE connection
-function ChatSSE() {
-  const chat = useChat({
-    connection: fetchServerSentEvents("/api/chat"),
-  });
+<div align="center">
+  <img src="./media/header_ai.png" >
+</div>
+
+<br />
+
+<div align="center">
+<a href="https://npmjs.com/package/@tanstack/ai" target="\_parent">
+  <img alt="" src="https://img.shields.io/npm/dm/@tanstack/ai.svg" />
+</a>
+<a href="https://github.com/TanStack/ai" target="\_parent">
+	  <img alt="" src="https://img.shields.io/github/stars/TanStack/ai.svg?style=social&label=Star" alt="GitHub stars" />
+</a>
+<a href="https://bundlephobia.com/result?p=@tanstack/ai@latest" target="\_parent">
+  <img alt="" src="https://badgen.net/bundlephobia/minzip/@tanstack/ai@latest" />
+</a>
+</div>
+
+<div align="center">
+<a href="#badge">
+  <img alt="semantic-release" src="https://img.shields.io/badge/%20%20%F0%9F%93%A6%F0%9F%9A%80-semantic--release-e10079.svg">
+</a>
+	<a href="#badge">
+		<img src="https://img.shields.io/github/v/release/tanstack/ai" alt="Release"/>
+	</a>
+<a href="https://twitter.com/tan_stack">
+  <img src="https://img.shields.io/twitter/follow/tan_stack.svg?style=social" alt="Follow @TanStack"/>
+</a>
+</div>
+
+<div align="center">
   
-  return <ChatUI {...chat} />;
-}
+### [Become a Sponsor!](https://github.com/sponsors/tannerlinsley/)
+</div>
 
-// HTTP stream connection
-function ChatHTTP() {
-  const chat = useChat({
-    connection: fetchHttpStream("/api/chat"),
-  });
-  
-  return <ChatUI {...chat} />;
-}
+# TanStack AI
 
-// Direct stream connection (server functions)
-function ChatDirect() {
-  const chat = useChat({
-    connection: stream((messages) => myServerFunction({ messages })),
-  });
-  
-  return <ChatUI {...chat} />;
-}
-```
+A powerful, type-safe AI SDK for building AI-powered applications.
 
-## Backend Example
+- Provider-agnostic adapters (OpenAI, Anthropic, Gemini, Ollama, etc.)
+- Chat completion, streaming, and agent loop strategies
+- Headless chat state management with adapters (SSE, HTTP stream, custom)
+- Type-safe tools with server/client execution
 
-Your backend should use `@tanstack/ai`'s `chat()` method with automatic tool execution:
+### <a href="https://tanstack.com/ai">Read the docs →</b></a>
 
-```typescript
-import { chat, toStreamResponse } from "@tanstack/ai";
-import { openai } from "@tanstack/ai-openai";
+## Get Involved
 
-export async function POST(request: Request) {
-  const { messages } = await request.json();
+- We welcome issues and pull requests!
+- Participate in [GitHub discussions](https://github.com/TanStack/ai/discussions)
+- Chat with the community on [Discord](https://discord.com/invite/WrRKjPJ)
+- See [CONTRIBUTING.md](./CONTRIBUTING.md) for setup instructions
 
-  // chat() automatically executes tools in a loop
-  const stream = chat({
-    adapter: openai(),
-    model: "gpt-4o",
-    messages,
-    tools: [weatherTool], // Tools are auto-executed when called
-    agentLoopStrategy: maxIterations(5), // Control loop behavior
-  });
+## Partners
 
-  // Stream includes tool_call and tool_result chunks
-  return toStreamResponse(stream);
-}
-```
+<table align="center">
+  <tr>
+    <td>
+      <a href="https://www.coderabbit.ai/?via=tanstack&dub_id=aCcEEdAOqqutX6OS" >
+        <picture>
+          <source media="(prefers-color-scheme: dark)" srcset="https://tanstack.com/assets/coderabbit-dark-CMcuvjEy.svg" height="40" />
+          <source media="(prefers-color-scheme: light)" srcset="https://tanstack.com/assets/coderabbit-light-DVMJ2jHi.svg" height="40" />
+          <img src="https://tanstack.com/assets/coderabbit-light-DVMJ2jHi.svg" height="40" alt="CodeRabbit" />
+        </picture>
+      </a>
+    </td>
+    <td>
+      <a href="https://www.cloudflare.com?utm_source=tanstack">
+        <picture>
+          <source media="(prefers-color-scheme: dark)" srcset="https://tanstack.com/assets/cloudflare-white-DQDB7UaL.svg" height="60" />
+          <source media="(prefers-color-scheme: light)" srcset="https://tanstack.com/assets/cloudflare-black-CPufaW0B.svg" height="60" />
+          <img src="https://tanstack.com/assets/cloudflare-black-CPufaW0B.svg" height="60" alt="Cloudflare" />
+        </picture>
+      </a>
+    </td>
+  </tr>
+</table>
 
-The client will receive:
+<div align="center">
+<img src="./media/partner_logo.svg" alt="AI & you?" height="65">
+<p>
+We're looking for TanStack AI Partners to join our mission! Partner with us to push the boundaries of TanStack AI and build amazing things together.
+</p>
+<a href="mailto:partners@tanstack.com?subject=TanStack AI Partnership"><b>LET'S CHAT</b></a>
+</div>
 
-- `content` chunks - text from the model
-- `tool_call` chunks - when model calls a tool (auto-executed by SDK)
-- `tool_result` chunks - results from tool execution (auto-emitted by SDK)
-- `done` chunk - conversation complete
+## Explore the TanStack Ecosystem
 
-## License
+- <a href="https://github.com/tanstack/config"><b>TanStack Config</b></a> – Tooling for JS/TS packages
+- <a href="https://github.com/tanstack/db"><b>TanStack DB</b></a> – Reactive sync client store
+- <a href="https://github.com/tanstack/devtools">TanStack Devtools</a> – Unified devtools panel
+- <a href="https://github.com/tanstack/form"><b>TanStack Form</b></a> – Type‑safe form state
+- <a href="https://github.com/tanstack/pacer"><b>TanStack Pacer</b></a> – Debouncing, throttling, batching
+- <a href="https://github.com/tanstack/query"><b>TanStack Query</b></a> – Async state & caching
+- <a href="https://github.com/tanstack/ranger"><b>TanStack Ranger</b></a> – Range & slider primitives
+- <a href="https://github.com/tanstack/router"><b>TanStack Router</b></a> – Type‑safe routing, caching & URL state
+- <a href="https://github.com/tanstack/router"><b>TanStack Start</b></a> – Full‑stack SSR & streaming
+- <a href="https://github.com/tanstack/store"><b>TanStack Store</b></a> – Reactive data store
+- <a href="https://github.com/tanstack/table"><b>TanStack Table</b></a> – Headless datagrids
+- <a href="https://github.com/tanstack/virtual"><b>TanStack Virtual</b></a> – Virtualized rendering
 
-MIT
+… and more at <a href="https://tanstack.com"><b>TanStack.com »</b></a>
+
+<!-- USE THE FORCE LUKE -->

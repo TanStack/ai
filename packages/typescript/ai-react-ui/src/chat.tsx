@@ -1,55 +1,60 @@
-import { createContext, useContext, type ReactNode } from "react";
-import { useChat, type UseChatReturn } from "@tanstack/ai-react";
-import type { ConnectionAdapter, UIMessage } from "@tanstack/ai-react";
+import { createContext, useContext } from 'react'
+import { useChat } from '@tanstack/ai-react'
+import type { ReactNode } from 'react'
+import type {
+  ConnectionAdapter,
+  UIMessage,
+  UseChatReturn,
+} from '@tanstack/ai-react'
 
 /**
  * Chat context - provides chat state to all child components
  */
-const ChatContext = createContext<UseChatReturn | null>(null);
+const ChatContext = createContext<UseChatReturn | null>(null)
 
 /**
  * Hook to access chat context
  * @throws Error if used outside of Chat component
  */
 export function useChatContext() {
-  const context = useContext(ChatContext);
+  const context = useContext(ChatContext)
   if (!context) {
     throw new Error(
-      "Chat components must be wrapped in <Chat>. Make sure you're using Chat.Messages, Chat.Input, etc. inside a <Chat> component."
-    );
+      "Chat components must be wrapped in <Chat>. Make sure you're using Chat.Messages, Chat.Input, etc. inside a <Chat> component.",
+    )
   }
-  return context;
+  return context
 }
 
 export interface ChatProps {
   /** Child components (Chat.Messages, Chat.Input, etc.) */
-  children: ReactNode;
+  children: ReactNode
   /** CSS class name for the root element */
-  className?: string;
+  className?: string
   /** Connection adapter for communicating with your API */
-  connection: ConnectionAdapter;
+  connection: ConnectionAdapter
   /** Initial messages to display */
-  initialMessages?: UIMessage[];
+  initialMessages?: Array<UIMessage>
   /** Custom message ID generator */
-  id?: string;
+  id?: string
   /** Additional body data to send with requests */
-  body?: any;
+  body?: any
   /** Callback when a response is received */
-  onResponse?: (response?: Response) => void | Promise<void>;
+  onResponse?: (response?: Response) => void | Promise<void>
   /** Callback when each chunk arrives */
-  onChunk?: (chunk: any) => void;
+  onChunk?: (chunk: any) => void
   /** Callback when a message is complete */
-  onFinish?: (message: UIMessage) => void;
+  onFinish?: (message: UIMessage) => void
   /** Callback when an error occurs */
-  onError?: (error: Error) => void;
+  onError?: (error: Error) => void
   /** Callback when client-side tool needs execution */
   onToolCall?: (args: {
-    toolCallId: string;
-    toolName: string;
-    input: any;
-  }) => Promise<any>;
+    toolCallId: string
+    toolName: string
+    input: any
+  }) => Promise<any>
   /** Custom tool components registry */
-  tools?: Record<string, React.ComponentType<{ input: any; output?: any }>>;
+  tools?: Record<string, React.ComponentType<{ input: any; output?: any }>>
 }
 
 /**
@@ -86,7 +91,7 @@ export function Chat({
     onFinish,
     onError,
     onToolCall,
-  });
+  })
 
   return (
     <ChatContext.Provider value={chat}>
@@ -94,5 +99,5 @@ export function Chat({
         {children}
       </div>
     </ChatContext.Provider>
-  );
+  )
 }

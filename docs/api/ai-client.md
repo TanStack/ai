@@ -188,7 +188,7 @@ interface UIMessage {
 ### `MessagePart`
 
 ```typescript
-type MessagePart = TextPart | ToolCallPart | ToolResultPart;
+type MessagePart = TextPart | ThinkingPart | ToolCallPart | ToolResultPart;
 ```
 
 ### `TextPart`
@@ -199,6 +199,19 @@ interface TextPart {
   content: string;
 }
 ```
+
+### `ThinkingPart`
+
+```typescript
+interface ThinkingPart {
+  type: "thinking";
+  content: string;
+}
+```
+
+Thinking parts represent the model's internal reasoning process. They are typically displayed in a collapsible format and automatically collapse when the response text appears. Thinking parts are UI-only and are not sent back to the model in subsequent requests.
+
+**Note:** Thinking parts are only available when using models that support reasoning/thinking (e.g., Anthropic Claude with thinking enabled, OpenAI GPT-5 with reasoning enabled).
 
 ### `ToolCallPart`
 
@@ -270,4 +283,3 @@ const client = new ChatClient({
 - [Getting Started](../getting-started/quick-start) - Learn the basics
 - [Connection Adapters](../guides/connection-adapters) - Learn about adapters
 - [@tanstack/ai-react API](./ai-react) - React hooks wrapper
-

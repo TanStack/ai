@@ -30,28 +30,29 @@ The `chat()` method includes an automatic tool execution loop implemented via th
 
 ```typescript
 // In AI.chat() method
-const toolCallManager = new ToolCallManager(tools || []);
+const toolCallManager = new ToolCallManager(tools || [])
 
 while (iterationCount < maxIterations) {
   // Stream chunks and accumulate tool calls
   for await (const chunk of adapter.chatStream()) {
-    if (chunk.type === "tool_call") {
-      toolCallManager.addToolCallChunk(chunk);
+    if (chunk.type === 'tool_call') {
+      toolCallManager.addToolCallChunk(chunk)
     }
   }
-  
+
   // Execute tools if model requested them
   if (shouldExecuteTools && toolCallManager.hasToolCalls()) {
-    const toolResults = yield* toolCallManager.executeTools(doneChunk);
-    messages = [...messages, ...toolResults];
-    continue; // Next iteration
+    const toolResults = yield * toolCallManager.executeTools(doneChunk)
+    messages = [...messages, ...toolResults]
+    continue // Next iteration
   }
-  
-  break; // No tools to execute, done
+
+  break // No tools to execute, done
 }
 ```
 
 **ToolCallManager handles:**
+
 - ✅ Accumulating streaming tool call chunks
 - ✅ Validating tool calls (ID and name present)
 - ✅ Executing tool `execute` functions
@@ -64,22 +65,22 @@ while (iterationCount < maxIterations) {
 
 ```typescript
 // Adapter map with typed models
-type AdapterMap = Record<string, AIAdapter<readonly string[]>>;
+type AdapterMap = Record<string, AIAdapter<readonly string[]>>
 
 // Extract model types from adapter
-type ExtractModels<T> = T extends AIAdapter<infer M> ? M[number] : string;
+type ExtractModels<T> = T extends AIAdapter<infer M> ? M[number] : string
 
 // Single adapter mode: strict model validation
 type ChatOptionsWithAdapter<TAdapters, K> = {
-  adapter: K;
-  model: ExtractModels<TAdapters[K]>; // Models for this adapter only
-};
+  adapter: K
+  model: ExtractModels<TAdapters[K]> // Models for this adapter only
+}
 
 // Fallback mode: union of all models
 type ChatOptionsWithFallback<TAdapters> = {
-  adapters: ReadonlyArray<keyof TAdapters & string>;
-  model: UnionOfModels<TAdapters>; // Models from any adapter
-};
+  adapters: ReadonlyArray<keyof TAdapters & string>
+  model: UnionOfModels<TAdapters> // Models from any adapter
+}
 ```
 
 ### Core Components
@@ -121,11 +122,11 @@ private async tryWithFallback<TResult>(
 ```typescript
 const ai = new AI({
   adapters: {
-    primary: new OpenAIAdapter({ apiKey: "..." }),
-    secondary: new AnthropicAdapter({ apiKey: "..." }),
+    primary: new OpenAIAdapter({ apiKey: '...' }),
+    secondary: new AnthropicAdapter({ apiKey: '...' }),
   },
-  fallbackOrder: ["primary", "secondary"], // Optional global order
-});
+  fallbackOrder: ['primary', 'secondary'], // Optional global order
+})
 ```
 
 ### Single Adapter Mode (Strict Type Safety)
@@ -184,15 +185,15 @@ await ai.chat({
 ```typescript
 const ai = new AI({
   adapters: {
-    openai: new OpenAIAdapter({ apiKey: "..." }),
+    openai: new OpenAIAdapter({ apiKey: '...' }),
   },
-});
+})
 
 // ✅ Valid
-await ai.chat({ adapter: "openai", model: "gpt-4", messages: [] });
+await ai.chat({ adapter: 'openai', model: 'gpt-4', messages: [] })
 
 // ❌ TypeScript Error
-await ai.chat({ adapter: "openai", model: "claude-3", messages: [] });
+await ai.chat({ adapter: 'openai', model: 'claude-3', messages: [] })
 ```
 
 ### Example 2: Fallback Only
@@ -200,14 +201,14 @@ await ai.chat({ adapter: "openai", model: "claude-3", messages: [] });
 ```typescript
 const ai = new AI({
   adapters: {
-    primary: new OpenAIAdapter({ apiKey: "..." }),
-    backup: new AnthropicAdapter({ apiKey: "..." }),
+    primary: new OpenAIAdapter({ apiKey: '...' }),
+    backup: new AnthropicAdapter({ apiKey: '...' }),
   },
-  fallbackOrder: ["primary", "backup"],
-});
+  fallbackOrder: ['primary', 'backup'],
+})
 
 // Automatically tries backup if primary fails
-await ai.chat({ adapters: [], model: "gpt-4", messages: [] });
+await ai.chat({ adapters: [], model: 'gpt-4', messages: [] })
 ```
 
 ### Example 3: Combined Usage
@@ -215,25 +216,25 @@ await ai.chat({ adapters: [], model: "gpt-4", messages: [] });
 ```typescript
 const ai = new AI({
   adapters: {
-    fast: new OpenAIAdapter({ apiKey: "..." }),
-    reliable: new AnthropicAdapter({ apiKey: "..." }),
+    fast: new OpenAIAdapter({ apiKey: '...' }),
+    reliable: new AnthropicAdapter({ apiKey: '...' }),
   },
-  fallbackOrder: ["fast", "reliable"],
-});
+  fallbackOrder: ['fast', 'reliable'],
+})
 
 // Single adapter: strict type safety
-await ai.chat({ 
-  adapter: "fast", 
-  model: "gpt-4",  // ✅ Validated against fast adapter
-  messages: [] 
-});
+await ai.chat({
+  adapter: 'fast',
+  model: 'gpt-4', // ✅ Validated against fast adapter
+  messages: [],
+})
 
 // Fallback mode: automatic retry
-await ai.chat({ 
-  adapters: ["fast", "reliable"], 
-  model: "gpt-4",  // ⚠️ Less strict, but has fallback
-  messages: [] 
-});
+await ai.chat({
+  adapters: ['fast', 'reliable'],
+  model: 'gpt-4', // ⚠️ Less strict, but has fallback
+  messages: [],
+})
 ```
 
 ## Benefits
@@ -273,14 +274,14 @@ In fallback mode, TypeScript allows any model from any adapter. This is necessar
 
 ```typescript
 // Before
-const ai = new AI(new OpenAIAdapter({ apiKey: "..." }));
-await ai.chat("gpt-4", messages);
+const ai = new AI(new OpenAIAdapter({ apiKey: '...' }))
+await ai.chat('gpt-4', messages)
 
 // After (backwards compatible)
 const ai = new AI({
-  adapters: { openai: new OpenAIAdapter({ apiKey: "..." }) }
-});
-await ai.chat({ adapter: "openai", model: "gpt-4", messages });
+  adapters: { openai: new OpenAIAdapter({ apiKey: '...' }) },
+})
+await ai.chat({ adapter: 'openai', model: 'gpt-4', messages })
 ```
 
 ### Adding Fallback
@@ -289,25 +290,27 @@ await ai.chat({ adapter: "openai", model: "gpt-4", messages });
 // Step 1: Add more adapters
 const ai = new AI({
   adapters: {
-    openai: new OpenAIAdapter({ apiKey: "..." }),
-    anthropic: new AnthropicAdapter({ apiKey: "..." }), // New!
+    openai: new OpenAIAdapter({ apiKey: '...' }),
+    anthropic: new AnthropicAdapter({ apiKey: '...' }), // New!
   },
-});
+})
 
 // Step 2: Use fallback mode
 await ai.chat({
-  adapters: ["openai", "anthropic"], // Fallback enabled
-  model: "gpt-4",
+  adapters: ['openai', 'anthropic'], // Fallback enabled
+  model: 'gpt-4',
   messages: [],
-});
+})
 
 // Step 3: Configure global fallback (optional)
 const ai = new AI({
-  adapters: { /* ... */ },
-  fallbackOrder: ["openai", "anthropic"], // Global default
-});
+  adapters: {
+    /* ... */
+  },
+  fallbackOrder: ['openai', 'anthropic'], // Global default
+})
 
-await ai.chat({ adapters: [], model: "gpt-4", messages: [] });
+await ai.chat({ adapters: [], model: 'gpt-4', messages: [] })
 ```
 
 ## Testing Recommendations
@@ -316,9 +319,9 @@ await ai.chat({ adapters: [], model: "gpt-4", messages: [] });
 
 ```typescript
 // These should NOT compile
-ai.chat({ adapter: "openai", model: "claude-3", messages: [] }); // ❌
-ai.chat({ adapter: "invalid", model: "gpt-4", messages: [] }); // ❌
-ai.chat({ adapter: "openai", model: "gpt-5", messages: [] }); // ❌
+ai.chat({ adapter: 'openai', model: 'claude-3', messages: [] }) // ❌
+ai.chat({ adapter: 'invalid', model: 'gpt-4', messages: [] }) // ❌
+ai.chat({ adapter: 'openai', model: 'gpt-5', messages: [] }) // ❌
 ```
 
 ### Test Fallback Behavior
@@ -326,22 +329,22 @@ ai.chat({ adapter: "openai", model: "gpt-5", messages: [] }); // ❌
 ```typescript
 // Mock adapters to simulate failures
 const mockAdapter1 = {
-  chatCompletion: jest.fn().mockRejectedValue(new Error("Rate limit")),
-};
+  chatCompletion: jest.fn().mockRejectedValue(new Error('Rate limit')),
+}
 const mockAdapter2 = {
-  chatCompletion: jest.fn().mockResolvedValue({ content: "Success" }),
-};
+  chatCompletion: jest.fn().mockResolvedValue({ content: 'Success' }),
+}
 
 const ai = new AI({
   adapters: { first: mockAdapter1, second: mockAdapter2 },
-  fallbackOrder: ["first", "second"],
-});
+  fallbackOrder: ['first', 'second'],
+})
 
 // Should try first, fail, then succeed with second
-await ai.chat({ adapters: [], model: "gpt-4", messages: [] });
+await ai.chat({ adapters: [], model: 'gpt-4', messages: [] })
 
-expect(mockAdapter1.chatCompletion).toHaveBeenCalled();
-expect(mockAdapter2.chatCompletion).toHaveBeenCalled();
+expect(mockAdapter1.chatCompletion).toHaveBeenCalled()
+expect(mockAdapter2.chatCompletion).toHaveBeenCalled()
 ```
 
 ### Test ToolCallManager
@@ -354,6 +357,7 @@ pnpm test
 ```
 
 Test coverage includes:
+
 - ✅ Accumulating streaming tool call chunks (name, arguments)
 - ✅ Filtering incomplete tool calls (missing ID or name)
 - ✅ Executing tools with parsed arguments
@@ -398,24 +402,24 @@ The system is designed to be extended:
 
 ```typescript
 // Custom adapter with type-safe models
-const MY_MODELS = ["model-1", "model-2"] as const;
+const MY_MODELS = ['model-1', 'model-2'] as const
 
 class MyAdapter extends BaseAdapter<typeof MY_MODELS> {
-  name = "my-adapter";
-  models = MY_MODELS;
+  name = 'my-adapter'
+  models = MY_MODELS
   // ... implement methods
 }
 
 // Use with full type safety
 const ai = new AI({
   adapters: { mine: new MyAdapter() },
-});
+})
 
 await ai.chat({
-  adapter: "mine",
-  model: "model-1", // ✅ Type-safe
+  adapter: 'mine',
+  model: 'model-1', // ✅ Type-safe
   messages: [],
-});
+})
 ```
 
 ## Conclusion

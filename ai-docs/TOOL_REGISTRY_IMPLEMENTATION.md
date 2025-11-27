@@ -11,6 +11,7 @@ Successfully refactored the AI API to support a **tool registry** where tools ar
 ### 1. Tool Registry in Constructor
 
 **Before:**
+
 ```typescript
 const ai = new AI({
   adapters: { /* ... */ }
@@ -27,6 +28,7 @@ ai.chat({
 ```
 
 **After:**
+
 ```typescript
 const ai = new AI({
   adapters: { /* ... */ },
@@ -54,22 +56,26 @@ ai.chat({
 ### 2. Type System Updates
 
 Added new generic parameter to `AI` class:
+
 ```typescript
 class AI<T extends AdapterMap, TTools extends ToolRegistry>
 ```
 
 Where:
+
 - `T` - Adapter map (existing)
 - `TTools` - Tool registry (new!)
 
 ### 3. Type-Safe Tool Names
 
 Tool names are extracted from the registry type:
+
 ```typescript
-type ToolNames<TTools extends ToolRegistry> = keyof TTools & string;
+type ToolNames<TTools extends ToolRegistry> = keyof TTools & string
 ```
 
 TypeScript provides:
+
 - ✅ Autocomplete for tool names
 - ✅ Compile-time validation
 - ✅ Refactoring safety
@@ -82,18 +88,19 @@ All chat methods now accept tool names instead of full tool objects:
 // ChatOptionsWithAdapter
 type ChatOptionsWithAdapter<TAdapters, TTools> = {
   // ... other options
-  tools?: ReadonlyArray<ToolNames<TTools>>; // ← Type-safe tool names!
-};
+  tools?: ReadonlyArray<ToolNames<TTools>> // ← Type-safe tool names!
+}
 ```
 
 ### 5. Internal Tool Resolution
 
 New helper methods:
+
 ```typescript
 class AI {
-  getTool(name: ToolNames<TTools>): Tool; // Get single tool
-  get toolNames(): Array<ToolNames<TTools>>; // List all tool names
-  private getToolsByNames(names: ToolNames<TTools>[]): Tool[]; // Convert names to objects
+  getTool(name: ToolNames<TTools>): Tool // Get single tool
+  get toolNames(): Array<ToolNames<TTools>> // List all tool names
+  private getToolsByNames(names: ToolNames<TTools>[]): Tool[] // Convert names to objects
 }
 ```
 
@@ -170,6 +177,7 @@ return toStreamResponse(stream);
 ## Real-World Example: api.tanchat.ts
 
 **Before:**
+
 ```typescript
 const tools: Tool[] = [
   { type: "function", function: { name: "getGuitars", ... }, execute: ... },
@@ -185,6 +193,7 @@ ai.chat({
 ```
 
 **After:**
+
 ```typescript
 const tools = {
   getGuitars: {
@@ -213,26 +222,31 @@ ai.chat({
 ## Benefits
 
 ### 1. Type Safety
+
 - ✅ Autocomplete for tool names in IDE
 - ✅ Compile-time errors for invalid tool names
 - ✅ Refactoring support (rename tools safely)
 
 ### 2. Better Organization
+
 - ✅ Centralized tool definitions
 - ✅ Single source of truth
 - ✅ Easy to maintain and update
 
 ### 3. Code Reusability
+
 - ✅ Define tools once, use everywhere
 - ✅ Share tools across different chat calls
 - ✅ No duplication
 
 ### 4. Developer Experience
+
 - ✅ Cleaner code (tool names vs full objects)
 - ✅ Less typing (just reference by name)
 - ✅ Better readability
 
 ### 5. Runtime Safety
+
 - ✅ Validation that tools exist
 - ✅ Clear error messages
 - ✅ No silent failures
@@ -243,21 +257,21 @@ ai.chat({
 
 ```typescript
 // Tool registry type
-type ToolRegistry = Record<string, Tool>;
+type ToolRegistry = Record<string, Tool>
 
 // Extract tool names
-type ToolNames<TTools extends ToolRegistry> = keyof TTools & string;
+type ToolNames<TTools extends ToolRegistry> = keyof TTools & string
 
 // AI class with tool registry
 class AI<T extends AdapterMap, TTools extends ToolRegistry> {
-  private tools: TTools;
-  
+  private tools: TTools
+
   constructor(config: AIConfig<T, TTools>) {
-    this.tools = config.tools || {} as TTools;
+    this.tools = config.tools || ({} as TTools)
   }
-  
+
   private getToolsByNames(names: ReadonlyArray<ToolNames<TTools>>): Tool[] {
-    return names.map(name => this.getTool(name));
+    return names.map((name) => this.getTool(name))
   }
 }
 ```
@@ -266,17 +280,18 @@ class AI<T extends AdapterMap, TTools extends ToolRegistry> {
 
 ```typescript
 type ChatOptionsWithAdapter<TAdapters, TTools> = {
-  adapter: keyof TAdapters;
-  model: ExtractModels<TAdapters[adapter]>;
-  messages: Message[];
-  tools?: ReadonlyArray<ToolNames<TTools>>; // ← Tool names, not objects
+  adapter: keyof TAdapters
+  model: ExtractModels<TAdapters[adapter]>
+  messages: Message[]
+  tools?: ReadonlyArray<ToolNames<TTools>> // ← Tool names, not objects
   // ... other options
-};
+}
 ```
 
 ### Internal Resolution
 
 When `chat()` is called:
+
 1. Extract tool names from options
 2. Convert tool names to Tool objects using `getToolsByNames()`
 3. Pass Tool objects to adapter methods
@@ -285,6 +300,7 @@ When `chat()` is called:
 ## Files Changed
 
 ### Core Implementation
+
 - ✅ `packages/ai/src/ai.ts`
   - Added `TTools` generic parameter to `AI` class
   - Added `ToolRegistry` and `ToolNames` types
@@ -293,11 +309,13 @@ When `chat()` is called:
   - Updated `chatPromise()` and `chatStream()` to convert tool names
 
 ### Documentation
+
 - ✅ `docs/TOOL_REGISTRY.md` - Comprehensive guide
 - ✅ `docs/TOOL_REGISTRY_QUICK_START.md` - Quick reference
 - ✅ `examples/tool-registry-example.ts` - Full examples
 
 ### Example Updates
+
 - ✅ `examples/ts-chat/src/routes/demo/api.tanchat.ts` - Updated to use tool registry
 
 ## Migration Guide
@@ -322,13 +340,19 @@ const tools = {
 
 ```typescript
 // Before
-const ai = new AI({ adapters: { /* ... */ } });
+const ai = new AI({
+  adapters: {
+    /* ... */
+  },
+})
 
 // After
 const ai = new AI({
-  adapters: { /* ... */ },
+  adapters: {
+    /* ... */
+  },
   tools, // ← Add tools here
-});
+})
 ```
 
 ### Step 3: Use Tool Names in Chat Calls
@@ -350,25 +374,33 @@ ai.chat({
 ## Testing
 
 Verify type safety:
+
 ```typescript
 const ai = new AI({
-  adapters: { /* ... */ },
-  tools: {
-    get_weather: { /* ... */ },
-    calculate: { /* ... */ },
+  adapters: {
+    /* ... */
   },
-});
+  tools: {
+    get_weather: {
+      /* ... */
+    },
+    calculate: {
+      /* ... */
+    },
+  },
+})
 
 // ✅ Should work
-ai.chat({ messages: [], tools: ["get_weather"] });
+ai.chat({ messages: [], tools: ['get_weather'] })
 
 // ❌ Should show TypeScript error
-ai.chat({ messages: [], tools: ["invalid_tool"] });
+ai.chat({ messages: [], tools: ['invalid_tool'] })
 ```
 
 ## Performance
 
 No performance impact:
+
 - Tool name resolution happens once per chat call
 - Minimal overhead (simple object lookup)
 - Tool execution unchanged
@@ -376,6 +408,7 @@ No performance impact:
 ## Backward Compatibility
 
 **Breaking Change**: This is a breaking change. Users must:
+
 1. Convert tool arrays to registries
 2. Register tools in constructor
 3. Use tool names instead of objects
@@ -385,6 +418,7 @@ However, the migration path is straightforward and provides significant benefits
 ## Future Enhancements
 
 Potential improvements:
+
 - Tool namespaces (e.g., `weather.get`, `weather.forecast`)
 - Tool permissions/access control
 - Tool versioning
@@ -400,6 +434,6 @@ The Tool Registry API provides:
 ✅ **Cleaner Code** - Reference by name instead of objects  
 ✅ **Better Reusability** - Share tools across chats  
 ✅ **Runtime Validation** - Clear error messages  
-✅ **Developer Experience** - Improved DX with less code  
+✅ **Developer Experience** - Improved DX with less code
 
 **Result**: More maintainable, type-safe, and developer-friendly tool management! 🎉

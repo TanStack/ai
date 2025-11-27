@@ -10,12 +10,12 @@
     "directory": "packages/typescript/ai-ollama"
   },
   "type": "module",
-  "module": "./dist/index.js",
-  "types": "./dist/index.d.ts",
+  "module": "./dist/esm/index.js",
+  "types": "./dist/esm/index.d.ts",
   "exports": {
     ".": {
-      "types": "./dist/index.d.ts",
-      "import": "./dist/index.js"
+      "types": "./dist/esm/index.d.ts",
+      "import": "./dist/esm/index.js"
     }
   },
   "files": [
@@ -23,11 +23,14 @@
     "src"
   ],
   "scripts": {
-    "build": "tsdown",
-    "dev": "tsdown --watch",
-    "clean": "rm -rf dist node_modules",
-    "typecheck": "tsc --noEmit",
-    "lint": "tsc --noEmit"
+    "build": "vite build",
+    "clean": "premove ./build ./dist",
+    "lint:fix": "eslint ./src --fix",
+    "test:build": "publint --strict",
+    "test:eslint": "eslint ./src",
+    "test:lib": "vitest --passWithNoTests",
+    "test:lib:dev": "pnpm test:lib --watch",
+    "test:types": "tsc"
   },
   "keywords": [
     "ai",
@@ -39,12 +42,11 @@
   ],
   "dependencies": {
     "@tanstack/ai": "workspace:*",
-    "ollama": "^0.5.0"
+    "ollama": "^0.6.3"
   },
   "devDependencies": {
-    "@types/node": "^22.10.2",
-    "tsdown": "^0.15.9",
-    "typescript": "^5.7.2"
+    "@vitest/coverage-v8": "4.0.14",
+    "vite": "^7.2.4"
   },
   "peerDependencies": {
     "@tanstack/ai": "workspace:*"

@@ -4,7 +4,8 @@ import viteReact from '@vitejs/plugin-react'
 import viteTsConfigPaths from 'vite-tsconfig-paths'
 import tailwindcss from '@tailwindcss/vite'
 import { nitroV2Plugin } from '@tanstack/nitro-v2-vite-plugin'
-import { devtools } from "@tanstack/devtools-vite"
+import { devtools } from '@tanstack/devtools-vite'
+
 const config = defineConfig({
   plugins: [
     devtools(),

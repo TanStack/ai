@@ -133,6 +133,25 @@ const stream = chat({
 });
 ```
 
+### Reasoning
+
+Enable reasoning for models that support it (e.g., GPT-5). This allows the model to show its reasoning process, which is streamed as `thinking` chunks:
+
+```typescript
+providerOptions: {
+  reasoning: {
+    effort: "medium", // "minimal" | "low" | "medium" | "high"
+  },
+}
+```
+
+**Supported Models:**
+
+- `gpt-5` - Supports reasoning with configurable effort
+- `o3`, `o3-pro`, `o3-mini` - Support reasoning
+
+When reasoning is enabled, the model's reasoning process is streamed separately from the response text and appears as a collapsible thinking section in the UI.
+
 ## Environment Variables
 
 Set your API key in environment variables:

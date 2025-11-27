@@ -1,26 +1,26 @@
 import type {
   AIAdapter,
+  ExtractModelsFromAdapter,
   SummarizationOptions,
   SummarizationResult,
-  ExtractModelsFromAdapter,
-} from "../types";
+} from '../types'
 
 /**
  * Standalone summarize function with type inference from adapter
  */
 export async function summarize<
-  TAdapter extends AIAdapter<any, any, any, any, any>
+  TAdapter extends AIAdapter<any, any, any, any, any>,
 >(
-  options: Omit<SummarizationOptions, "model"> & {
-    adapter: TAdapter;
-    model: ExtractModelsFromAdapter<TAdapter>;
-    text: string;
-  }
+  options: Omit<SummarizationOptions, 'model'> & {
+    adapter: TAdapter
+    model: ExtractModelsFromAdapter<TAdapter>
+    text: string
+  },
 ): Promise<SummarizationResult> {
-  const { adapter, model, ...restOptions } = options;
+  const { adapter, model, ...restOptions } = options
 
   return adapter.summarize({
     ...restOptions,
     model: model as string,
-  });
+  })
 }

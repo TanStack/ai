@@ -190,11 +190,32 @@ interface ModelMessage {
 ### `StreamChunk`
 
 ```typescript
-interface StreamChunk {
-  type: "content" | "tool_call" | "tool_result" | "done";
-  // ... chunk-specific fields
+type StreamChunk =
+  | ContentStreamChunk
+  | ThinkingStreamChunk
+  | ToolCallStreamChunk
+  | ToolResultStreamChunk
+  | DoneStreamChunk
+  | ErrorStreamChunk;
+
+interface ThinkingStreamChunk {
+  type: "thinking";
+  id: string;
+  model: string;
+  timestamp: number;
+  delta?: string; // Incremental thinking token
+  content: string; // Accumulated thinking content
 }
 ```
+
+Stream chunks represent different types of data in the stream:
+
+- **Content chunks** - Text content being generated
+- **Thinking chunks** - Model's reasoning process (when supported by the model)
+- **Tool call chunks** - When the model calls a tool
+- **Tool result chunks** - Results from tool execution
+- **Done chunks** - Stream completion
+- **Error chunks** - Stream errors
 
 ### `Tool`
 
