@@ -18,7 +18,6 @@ This package contains simple tests for the four AI adapter libraries:
 ## Usage
 
 1. Set up environment variables. You can either:
-
    - Create a `.env` or `.env.local` file (see `env.example`):
      ```bash
      ANTHROPIC_API_KEY=your_key

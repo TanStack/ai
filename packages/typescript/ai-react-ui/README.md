@@ -20,18 +20,18 @@ pnpm add @tanstack/ai-react-ui
 ## Quick Start
 
 ```tsx
-import { Chat } from "@tanstack/ai-react-ui";
-import { fetchServerSentEvents } from "@tanstack/ai-react";
+import { Chat } from '@tanstack/ai-react-ui'
+import { fetchServerSentEvents } from '@tanstack/ai-react'
 
 function MyChat() {
   return (
-    <Chat connection={fetchServerSentEvents("/api/chat")}>
+    <Chat connection={fetchServerSentEvents('/api/chat')}>
       <Chat.Messages>
         {(message) => <Chat.Message message={message} />}
       </Chat.Messages>
       <Chat.Input placeholder="Type a message..." />
     </Chat>
-  );
+  )
 }
 ```
 
@@ -76,11 +76,11 @@ Tools can require user approval before execution:
 <Chat
   onToolCall={async ({ toolName, input }) => {
     // Client-side tool execution
-    if (toolName === "addToWishList") {
-      const wishList = JSON.parse(localStorage.getItem("wishList") || "[]");
-      wishList.push(input.guitarId);
-      localStorage.setItem("wishList", JSON.stringify(wishList));
-      return { success: true };
+    if (toolName === 'addToWishList') {
+      const wishList = JSON.parse(localStorage.getItem('wishList') || '[]')
+      wishList.push(input.guitarId)
+      localStorage.setItem('wishList', JSON.stringify(wishList))
+      return { success: true }
     }
   }}
 >
@@ -242,11 +242,11 @@ Renders approve/deny buttons for tools requiring approval.
 ```tsx
 // Vercel: String-based messages, limited customization
 const { messages } = useChat({
-  api: "/api/chat",
-});
+  api: '/api/chat',
+})
 
 // Messages are simple strings - no parts, no states
-messages.map((m) => <div>{m.content}</div>);
+messages.map((m) => <div>{m.content}</div>)
 ```
 
 ### TanStack AI
@@ -254,12 +254,12 @@ messages.map((m) => <div>{m.content}</div>);
 ```tsx
 // TanStack: Parts-based with full control
 const { messages } = useChat({
-  connection: fetchServerSentEvents("/api/chat"),
+  connection: fetchServerSentEvents('/api/chat'),
   onToolCall: async ({ toolName, input }) => {
     // Client-side execution!
-    return executeLocally(toolName, input);
+    return executeLocally(toolName, input)
   },
-});
+})
 
 // Messages have typed parts with states
 messages.map((m) => (
@@ -274,7 +274,7 @@ messages.map((m) => (
         ),
     }}
   />
-));
+))
 ```
 
 ## License

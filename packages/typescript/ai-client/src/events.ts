@@ -1,14 +1,14 @@
-import { aiEventClient } from "@tanstack/ai/event-client";
-import type { UIMessage } from "./types";
+import { aiEventClient } from '@tanstack/ai/event-client'
+import type { UIMessage } from './types'
 
 /**
  * Abstract base class for ChatClient event emission
  */
 export abstract class ChatClientEventEmitter {
-  protected clientId: string;
+  protected clientId: string
 
   constructor(clientId: string) {
-    this.clientId = clientId;
+    this.clientId = clientId
   }
 
   /**
@@ -17,51 +17,47 @@ export abstract class ChatClientEventEmitter {
    */
   protected abstract emitEvent(
     eventName: string,
-    data?: Record<string, any>
-  ): void;
+    data?: Record<string, any>,
+  ): void
 
   /**
    * Emit client created event
    */
   clientCreated(initialMessageCount: number): void {
-    this.emitEvent("client:created", {
+    this.emitEvent('client:created', {
       initialMessageCount,
-    });
+    })
   }
 
   /**
    * Emit loading state changed event
    */
   loadingChanged(isLoading: boolean): void {
-    this.emitEvent("client:loading-changed", { isLoading });
+    this.emitEvent('client:loading-changed', { isLoading })
   }
 
   /**
    * Emit error state changed event
    */
   errorChanged(error: string | null): void {
-    this.emitEvent("client:error-changed", {
+    this.emitEvent('client:error-changed', {
       error,
-    });
+    })
   }
 
   /**
    * Emit text update events (combines processor and client events)
    */
-  textUpdated(
-    streamId: string,
-    messageId: string,
-    content: string
-  ): void {
-    this.emitEvent("processor:text-updated", {
+  textUpdated(streamId: string, messageId: string, content: string): void {
+    this.emitEvent('processor:text-updated', {
       streamId,
       content,
-    });
+    })
 
-    this.emitEvent("client:assistant-message-updated", {
+    this.emitEvent('client:assistant-message-updated', {
       messageId,
       content,
-    });
+    })
   }
 
   /**
@@ -73,23 +69,23 @@ export abstract class ChatClientEventEmitter {
     toolCallId: string,
     toolName: string,
     state: string,
-    args: string
+    args: string,
   ): void {
-    this.emitEvent("processor:tool-call-state-changed", {
+    this.emitEvent('processor:tool-call-state-changed', {
       streamId,
       toolCallId,
       toolName,
       state,
       arguments: args,
-    });
+    })
 
-    this.emitEvent("client:tool-call-updated", {
+    this.emitEvent('client:tool-call-updated', {
       messageId,
       toolCallId,
       toolName,
       state,
       arguments: args,
-    });
+    })
   }
 
   /**
@@ -100,15 +96,15 @@ export abstract class ChatClientEventEmitter {
     toolCallId: string,
     content: string,
     state: string,
-    error?: string
+    error?: string,
   ): void {
-    this.emitEvent("processor:tool-result-state-changed", {
+    this.emitEvent('processor:tool-result-state-changed', {
       streamId,
       toolCallId,
       content,
       state,
       error,
-    });
+    })
   }
 
   /**
@@ -119,15 +115,15 @@ export abstract class ChatClientEventEmitter {
     toolCallId: string,
     toolName: string,
     input: any,
-    approvalId: string
+    approvalId: string,
   ): void {
-    this.emitEvent("client:approval-requested", {
+    this.emitEvent('client:approval-requested', {
       messageId,
       toolCallId,
       toolName,
       input,
       approvalId,
-    });
+    })
   }
 
   /**
@@ -135,49 +131,49 @@ export abstract class ChatClientEventEmitter {
    */
   messageAppended(uiMessage: UIMessage): void {
     const contentPreview = uiMessage.parts
-      .filter((p) => p.type === "text")
+      .filter((p) => p.type === 'text')
       .map((p) => (p as any).content)
-      .join(" ")
-      .substring(0, 100);
+      .join(' ')
+      .substring(0, 100)
 
-    this.emitEvent("client:message-appended", {
+    this.emitEvent('client:message-appended', {
       messageId: uiMessage.id,
       role: uiMessage.role,
       contentPreview,
-    });
+    })
   }
 
   /**
    * Emit message sent event
    */
   messageSent(messageId: string, content: string): void {
-    this.emitEvent("client:message-sent", {
+    this.emitEvent('client:message-sent', {
       messageId,
       content,
-    });
+    })
   }
 
   /**
    * Emit reloaded event
    */
   reloaded(fromMessageIndex: number): void {
-    this.emitEvent("client:reloaded", {
+    this.emitEvent('client:reloaded', {
       fromMessageIndex,
-    });
+    })
   }
 
   /**
    * Emit stopped event
    */
   stopped(): void {
-    this.emitEvent("client:stopped");
+    this.emitEvent('client:stopped')
   }
 
   /**
    * Emit messages cleared event
    */
   messagesCleared(): void {
-    this.emitEvent("client:messages-cleared");
+    this.emitEvent('client:messages-cleared')
   }
 
   /**
@@ -187,14 +183,14 @@ export abstract class ChatClientEventEmitter {
     toolCallId: string,
     toolName: string,
     output: any,
-    state: string
+    state: string,
   ): void {
-    this.emitEvent("tool:result-added", {
+    this.emitEvent('tool:result-added', {
       toolCallId,
       toolName,
       output,
       state,
-    });
+    })
   }
 
   /**
@@ -203,13 +199,13 @@ export abstract class ChatClientEventEmitter {
   toolApprovalResponded(
     approvalId: string,
     toolCallId: string,
-    approved: boolean
+    approved: boolean,
   ): void {
-    this.emitEvent("tool:approval-responded", {
+    this.emitEvent('tool:approval-responded', {
       approvalId,
       toolCallId,
       approved,
-    });
+    })
   }
 }
 
@@ -220,24 +216,20 @@ export class DefaultChatClientEventEmitter extends ChatClientEventEmitter {
   /**
    * Emit an event with automatic clientId and timestamp for client/tool events
    */
-  protected emitEvent(
-    eventName: string,
-    data?: Record<string, any>
-  ): void {
+  protected emitEvent(eventName: string, data?: Record<string, any>): void {
     // For client:* and tool:* events, automatically add clientId and timestamp
-    if (eventName.startsWith("client:") || eventName.startsWith("tool:")) {
+    if (eventName.startsWith('client:') || eventName.startsWith('tool:')) {
       aiEventClient.emit(eventName as any, {
         ...data,
         clientId: this.clientId,
         timestamp: Date.now(),
-      });
+      })
     } else {
       // For other events (e.g., processor:*), just add timestamp
       aiEventClient.emit(eventName as any, {
         ...data,
         timestamp: Date.now(),
-      });
+      })
     }
   }
 }
-

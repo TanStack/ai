@@ -78,6 +78,12 @@ importers:
         specifier: ^4.0.14
         version: 4.0.14(@types/node@24.10.1)(happy-dom@20.0.10)(jiti@2.6.1)(jsdom@27.2.0(postcss@8.5.6))(lightningcss@1.30.2)(terser@5.44.0)(tsx@4.20.6)(yaml@2.8.1)
 
+  examples/cli: {}
+
+  examples/php-slim: {}
+
+  examples/python-fastapi: {}
+
   examples/ts-chat:
     dependencies:
       '@ai-sdk/openai':
@@ -202,7 +208,7 @@ importers:
         specifier: ^27.2.0
         version: 27.2.0(postcss@8.5.6)
       typescript:
-        specifier: ^5.9.3
+        specifier: 5.9.3
         version: 5.9.3
       vite:
         specifier: ^7.2.4
@@ -272,12 +278,6 @@ importers:
       vite-plugin-solid:
         specifier: ^2.11.10
         version: 2.11.10(@testing-library/jest-dom@6.9.1)(solid-js@1.9.10)(vite@7.2.4(@types/node@24.10.1)(jiti@2.6.1)(lightningcss@1.30.2)(terser@5.44.0)(tsx@4.20.6)(yaml@2.8.1))
-
-  packages/typescript/ai-fallback:
-    dependencies:
-      '@tanstack/ai':
-        specifier: workspace:*
-        version: link:../ai
 
   packages/typescript/ai-gemini:
     dependencies:
@@ -438,7 +438,7 @@ importers:
         specifier: ^4.20.6
         version: 4.20.6
       typescript:
-        specifier: ^5.9.3
+        specifier: 5.9.3
         version: 5.9.3
 
 packages:

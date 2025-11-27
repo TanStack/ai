@@ -1,4 +1,4 @@
-import type { AgentLoopStrategy } from "../types";
+import type { AgentLoopStrategy } from '../types'
 
 /**
  * Creates a strategy that continues for a maximum number of iterations
@@ -18,7 +18,7 @@ import type { AgentLoopStrategy } from "../types";
  * ```
  */
 export function maxIterations(max: number): AgentLoopStrategy {
-  return ({ iterationCount }) => iterationCount < max;
+  return ({ iterationCount }) => iterationCount < max
 }
 
 /**
@@ -38,19 +38,21 @@ export function maxIterations(max: number): AgentLoopStrategy {
  * });
  * ```
  */
-export function untilFinishReason(stopReasons: string[]): AgentLoopStrategy {
+export function untilFinishReason(
+  stopReasons: Array<string>,
+): AgentLoopStrategy {
   return ({ finishReason, iterationCount }) => {
     // Always allow at least one iteration
-    if (iterationCount === 0) return true;
+    if (iterationCount === 0) return true
 
     // Stop if we hit a stop reason
     if (finishReason && stopReasons.includes(finishReason)) {
-      return false;
+      return false
     }
 
     // Otherwise continue
-    return true;
-  };
+    return true
+  }
 }
 
 /**
@@ -75,9 +77,9 @@ export function untilFinishReason(stopReasons: string[]): AgentLoopStrategy {
  * ```
  */
 export function combineStrategies(
-  strategies: AgentLoopStrategy[]
+  strategies: Array<AgentLoopStrategy>,
 ): AgentLoopStrategy {
   return (state) => {
-    return strategies.every((strategy) => strategy(state));
-  };
+    return strategies.every((strategy) => strategy(state))
+  }
 }

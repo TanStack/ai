@@ -2,12 +2,12 @@ import type {
   AIAdapter,
   AIAdapterConfig,
   ChatOptions,
+  EmbeddingOptions,
+  EmbeddingResult,
   StreamChunk,
   SummarizationOptions,
   SummarizationResult,
-  EmbeddingOptions,
-  EmbeddingResult,
-} from "./types";
+} from './types'
 
 /**
  * Base adapter class with support for endpoint-specific models and provider options.
@@ -20,11 +20,11 @@ import type {
  * - TModelProviderOptionsByName: Provider-specific options for model by name
  */
 export abstract class BaseAdapter<
-  TChatModels extends readonly string[] = readonly string[],
-  TEmbeddingModels extends readonly string[] = readonly string[],
+  TChatModels extends ReadonlyArray<string> = ReadonlyArray<string>,
+  TEmbeddingModels extends ReadonlyArray<string> = ReadonlyArray<string>,
   TChatProviderOptions extends Record<string, any> = Record<string, any>,
   TEmbeddingProviderOptions extends Record<string, any> = Record<string, any>,
-  TModelProviderOptionsByName extends Record<string, any> = Record<string, any>
+  TModelProviderOptionsByName extends Record<string, any> = Record<string, any>,
 > implements
     AIAdapter<
       TChatModels,
@@ -34,34 +34,32 @@ export abstract class BaseAdapter<
       TModelProviderOptionsByName
     >
 {
-  abstract name: string;
-  abstract models: TChatModels;
-  embeddingModels?: TEmbeddingModels;
-  protected config: AIAdapterConfig;
+  abstract name: string
+  abstract models: TChatModels
+  embeddingModels?: TEmbeddingModels
+  protected config: AIAdapterConfig
 
   // These properties are used for type inference only, never assigned at runtime
-  _providerOptions?: TChatProviderOptions;
-  _chatProviderOptions?: TChatProviderOptions;
-  _embeddingProviderOptions?: TEmbeddingProviderOptions;
+  _providerOptions?: TChatProviderOptions
+  _chatProviderOptions?: TChatProviderOptions
+  _embeddingProviderOptions?: TEmbeddingProviderOptions
   // Type-only map; concrete adapters should override this with a precise type
-  _modelProviderOptionsByName!: TModelProviderOptionsByName;
+  _modelProviderOptionsByName!: TModelProviderOptionsByName
 
   constructor(config: AIAdapterConfig = {}) {
-    this.config = config;
+    this.config = config
   }
 
-  abstract chatStream(options: ChatOptions): AsyncIterable<StreamChunk>;
+  abstract chatStream(options: ChatOptions): AsyncIterable<StreamChunk>
 
   abstract summarize(
-    options: SummarizationOptions
-  ): Promise<SummarizationResult>;
-  abstract createEmbeddings(
-    options: EmbeddingOptions
-  ): Promise<EmbeddingResult>;
+    options: SummarizationOptions,
+  ): Promise<SummarizationResult>
+  abstract createEmbeddings(options: EmbeddingOptions): Promise<EmbeddingResult>
 
   protected generateId(): string {
     return `${this.name}-${Date.now()}-${Math.random()
       .toString(36)
-      .substring(7)}`;
+      .substring(7)}`
   }
 }

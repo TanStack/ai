@@ -7,8 +7,7 @@ export type {
   Chunk,
   Conversation,
   AIStoreState,
-} from "./ai-context";
+} from './ai-context'
 
 // Re-export the context and provider for components that need the full store
-export { AIProvider, useAIStore } from "./ai-context";
-
+export { AIProvider, useAIStore } from './ai-context'

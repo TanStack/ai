@@ -1,26 +1,34 @@
-import { BetaCodeExecutionTool20250522, BetaCodeExecutionTool20250825 } from "@anthropic-ai/sdk/resources/beta";
-import type { Tool } from "@tanstack/ai";
+import type {
+  BetaCodeExecutionTool20250522,
+  BetaCodeExecutionTool20250825,
+} from '@anthropic-ai/sdk/resources/beta'
+import type { Tool } from '@tanstack/ai'
 
-export type CodeExecutionTool = BetaCodeExecutionTool20250522 | BetaCodeExecutionTool20250825
+export type CodeExecutionTool =
+  | BetaCodeExecutionTool20250522
+  | BetaCodeExecutionTool20250825
 
-export function createCodeExecutionTool(config: CodeExecutionTool): CodeExecutionTool {
+export function createCodeExecutionTool(
+  config: CodeExecutionTool,
+): CodeExecutionTool {
   return config
 }
 
-export function convertCodeExecutionToolToAdapterFormat(tool: Tool): CodeExecutionTool {
+export function convertCodeExecutionToolToAdapterFormat(
+  tool: Tool,
+): CodeExecutionTool {
   const metadata = tool.metadata as CodeExecutionTool
   return metadata
 }
 
 export function codeExecutionTool(config: CodeExecutionTool): Tool {
   return {
-    type: "function",
+    type: 'function',
     function: {
-      name: "code_execution",
-      description: "",
-      parameters: {}
+      name: 'code_execution',
+      description: '',
+      parameters: {},
     },
-    metadata: config
+    metadata: config,
   }
 }
-

@@ -18,12 +18,12 @@
     "streaming"
   ],
   "type": "module",
-  "module": "./dist/index.js",
-  "types": "./dist/index.d.ts",
+  "module": "./dist/esm/index.js",
+  "types": "./dist/esm/index.d.ts",
   "exports": {
     ".": {
-      "types": "./dist/index.d.ts",
-      "import": "./dist/index.js"
+      "types": "./dist/esm/index.d.ts",
+      "import": "./dist/esm/index.js"
     }
   },
   "files": [
@@ -43,6 +43,5 @@
   "dependencies": {
     "@tanstack/ai": "workspace:*",
     "partial-json": "^0.1.7"
-  },
-  "devDependencies": {}
+  }
 }

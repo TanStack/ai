@@ -5,6 +5,5 @@
     "rootDir": "src"
   },
   "include": ["src/**/*.ts", "src/**/*.tsx"],
-  "exclude": ["node_modules", "dist", "**/*.config.ts"],
-  "references": [{ "path": "../ai" }]
+  "exclude": ["node_modules", "dist", "**/*.config.ts"]
 }

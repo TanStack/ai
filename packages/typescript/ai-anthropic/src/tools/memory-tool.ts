@@ -1,8 +1,7 @@
-import { BetaMemoryTool20250818 } from "@anthropic-ai/sdk/resources/beta";
-import type { Tool } from "@tanstack/ai";
+import type { BetaMemoryTool20250818 } from '@anthropic-ai/sdk/resources/beta'
+import type { Tool } from '@tanstack/ai'
 
 export type MemoryTool = BetaMemoryTool20250818
-
 
 export function convertMemoryToolToAdapterFormat(tool: Tool): MemoryTool {
   const metadata = tool.metadata as MemoryTool
@@ -11,14 +10,14 @@ export function convertMemoryToolToAdapterFormat(tool: Tool): MemoryTool {
 
 export function memoryTool(cacheControl?: MemoryTool): Tool {
   return {
-    type: "function",
+    type: 'function',
     function: {
-      name: "memory",
-      description: "",
-      parameters: {}
+      name: 'memory',
+      description: '',
+      parameters: {},
     },
     metadata: {
-      cacheControl
-    }
+      cacheControl,
+    },
   }
 }

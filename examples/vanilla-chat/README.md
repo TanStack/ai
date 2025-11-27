@@ -63,7 +63,7 @@ vanilla-chat/
 The app uses `ChatClient` from `@tanstack/ai-client` with the `fetchServerSentEvents` connection adapter to connect to the FastAPI server:
 
 ```javascript
-import { ChatClient, fetchServerSentEvents } from '@tanstack/ai-client';
+import { ChatClient, fetchServerSentEvents } from '@tanstack/ai-client'
 
 const client = new ChatClient({
   connection: fetchServerSentEvents('http://localhost:8080/chat'),
@@ -73,9 +73,7 @@ const client = new ChatClient({
   onLoadingChange: (isLoading) => {
     // Update loading state
   },
-});
+})
 ```
 
 The FastAPI server streams responses in Server-Sent Events (SSE) format, which the client automatically parses and displays.
-
-

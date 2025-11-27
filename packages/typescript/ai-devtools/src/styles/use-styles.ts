@@ -304,8 +304,8 @@ const stylesFactory = (theme: 'light' | 'dark') => {
       background: ${t(colors.gray[100], colors.darkGray[800])};
       border-radius: ${border.radius.lg};
       box-shadow: ${tokens.shadow.md(
-      t(colors.gray[400] + alpha[80], colors.black + alpha[80]),
-    )};
+        t(colors.gray[400] + alpha[80], colors.black + alpha[80]),
+      )};
       padding: ${size[4]};
       margin-bottom: ${size[4]};
       border: 1px solid ${t(colors.gray[200], colors.darkGray[700])};
@@ -629,11 +629,19 @@ const stylesFactory = (theme: 'light' | 'dark') => {
         box-shadow: 0 1px 3px rgba(0, 0, 0, 0.12);
       `,
       messageCardUser: css`
-        background: linear-gradient(135deg, oklch(0.25 0.04 260) 0%, oklch(0.22 0.03 260) 100%);
+        background: linear-gradient(
+          135deg,
+          oklch(0.25 0.04 260) 0%,
+          oklch(0.22 0.03 260) 100%
+        );
         border: 1.5px solid oklch(0.5 0.15 260);
       `,
       messageCardAssistant: css`
-        background: linear-gradient(135deg, oklch(0.25 0.04 142) 0%, oklch(0.22 0.03 142) 100%);
+        background: linear-gradient(
+          135deg,
+          oklch(0.25 0.04 142) 0%,
+          oklch(0.22 0.03 142) 100%
+        );
         border: 1.5px solid oklch(0.5 0.15 142);
       `,
       messageHeader: css`
@@ -738,7 +746,10 @@ const stylesFactory = (theme: 'light' | 'dark') => {
         white-space: pre-wrap;
         word-break: break-word;
         color: oklch(0.85 0.02 260);
-        font-family: system-ui, -apple-system, sans-serif;
+        font-family:
+          system-ui,
+          -apple-system,
+          sans-serif;
       `,
       toolCallsContainer: css`
         margin-top: ${size[2]};

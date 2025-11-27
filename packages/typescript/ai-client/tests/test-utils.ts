@@ -1,6 +1,6 @@
-import type { ConnectionAdapter } from "../src/connection-adapters";
-import type { StreamChunk } from "@tanstack/ai";
-import type { ModelMessage, UIMessage } from "../src/types";
+import type { ConnectionAdapter } from '../src/connection-adapters'
+import type { StreamChunk } from '@tanstack/ai'
+import type { ModelMessage, UIMessage } from '../src/types'
 
 /**
  * Options for creating a mock connection adapter
@@ -9,37 +9,41 @@ export interface MockConnectionAdapterOptions {
   /**
    * Chunks to yield from the stream
    */
-  chunks?: StreamChunk[];
-  
+  chunks?: StreamChunk[]
+
   /**
    * Delay between chunks (in ms)
    */
-  chunkDelay?: number;
-  
+  chunkDelay?: number
+
   /**
    * Whether to throw an error
    */
-  shouldError?: boolean;
-  
+  shouldError?: boolean
+
   /**
    * Error to throw
    */
-  error?: Error;
-  
+  error?: Error
+
   /**
    * Callback when connect is called
    */
-  onConnect?: (messages: ModelMessage[] | UIMessage[], data?: Record<string, any>, abortSignal?: AbortSignal) => void;
-  
+  onConnect?: (
+    messages: ModelMessage[] | UIMessage[],
+    data?: Record<string, any>,
+    abortSignal?: AbortSignal,
+  ) => void
+
   /**
    * Callback to check abort signal during streaming
    */
-  onAbort?: (abortSignal: AbortSignal) => void;
+  onAbort?: (abortSignal: AbortSignal) => void
 }
 
 /**
  * Create a mock connection adapter for testing
- * 
+ *
  * @example
  * ```typescript
  * const adapter = createMockConnectionAdapter({
@@ -51,52 +55,52 @@ export interface MockConnectionAdapterOptions {
  * ```
  */
 export function createMockConnectionAdapter(
-  options: MockConnectionAdapterOptions = {}
+  options: MockConnectionAdapterOptions = {},
 ): ConnectionAdapter {
   const {
     chunks = [],
     chunkDelay = 0,
     shouldError = false,
-    error = new Error("Mock adapter error"),
+    error = new Error('Mock adapter error'),
     onConnect,
     onAbort,
-  } = options;
+  } = options
 
   return {
     async *connect(messages, data, abortSignal) {
       if (onConnect) {
-        onConnect(messages, data, abortSignal);
+        onConnect(messages, data, abortSignal)
       }
 
       if (shouldError) {
-        throw error;
+        throw error
       }
 
       for (const chunk of chunks) {
         // Check abort signal before yielding
         if (abortSignal?.aborted) {
           if (onAbort) {
-            onAbort(abortSignal);
+            onAbort(abortSignal)
           }
-          return;
+          return
         }
 
         if (chunkDelay > 0) {
-          await new Promise((resolve) => setTimeout(resolve, chunkDelay));
+          await new Promise((resolve) => setTimeout(resolve, chunkDelay))
         }
 
         // Check again after delay
         if (abortSignal?.aborted) {
           if (onAbort) {
-            onAbort(abortSignal);
+            onAbort(abortSignal)
           }
-          return;
+          return
         }
 
-        yield chunk;
+        yield chunk
       }
     },
-  };
+  }
 }
 
 /**
@@ -104,34 +108,34 @@ export function createMockConnectionAdapter(
  */
 export function createTextChunks(
   text: string,
-  messageId: string = "msg-1",
-  model: string = "test"
+  messageId: string = 'msg-1',
+  model: string = 'test',
 ): StreamChunk[] {
-  const chunks: StreamChunk[] = [];
-  let accumulated = "";
-  
+  const chunks: StreamChunk[] = []
+  let accumulated = ''
+
   for (let i = 0; i < text.length; i++) {
-    accumulated += text[i];
+    accumulated += text[i]
     chunks.push({
-      type: "content",
+      type: 'content',
       id: messageId,
       model,
       timestamp: Date.now(),
       delta: text[i],
       content: accumulated,
-      role: "assistant",
-    } as StreamChunk);
+      role: 'assistant',
+    } as StreamChunk)
   }
-  
+
   chunks.push({
-    type: "done",
+    type: 'done',
     id: messageId,
     model,
     timestamp: Date.now(),
-    finishReason: "stop",
-  } as StreamChunk);
-  
-  return chunks;
+    finishReason: 'stop',
+  } as StreamChunk)
+
+  return chunks
 }
 
 /**
@@ -140,59 +144,58 @@ export function createTextChunks(
  */
 export function createToolCallChunks(
   toolCalls: Array<{ id: string; name: string; arguments: string }>,
-  messageId: string = "msg-1",
-  model: string = "test",
-  includeToolInputAvailable: boolean = true
+  messageId: string = 'msg-1',
+  model: string = 'test',
+  includeToolInputAvailable: boolean = true,
 ): StreamChunk[] {
-  const chunks: StreamChunk[] = [];
-  
+  const chunks: StreamChunk[] = []
+
   for (let i = 0; i < toolCalls.length; i++) {
-    const toolCall = toolCalls[i];
+    const toolCall = toolCalls[i]
     chunks.push({
-      type: "tool_call",
+      type: 'tool_call',
       id: messageId,
       model,
       timestamp: Date.now(),
       index: i,
       toolCall: {
         id: toolCall.id,
-        type: "function",
+        type: 'function',
         function: {
           name: toolCall.name,
           arguments: toolCall.arguments,
         },
       },
-    } as StreamChunk);
-    
+    } as StreamChunk)
+
     // Add tool-input-available chunk if requested
     if (includeToolInputAvailable) {
-      let parsedInput: any;
+      let parsedInput: any
       try {
-        parsedInput = JSON.parse(toolCall.arguments);
+        parsedInput = JSON.parse(toolCall.arguments)
       } catch {
-        parsedInput = toolCall.arguments;
+        parsedInput = toolCall.arguments
       }
-      
+
       chunks.push({
-        type: "tool-input-available",
+        type: 'tool-input-available',
         id: messageId,
         model,
         timestamp: Date.now(),
         toolCallId: toolCall.id,
         toolName: toolCall.name,
         input: parsedInput,
-      } as StreamChunk);
+      } as StreamChunk)
     }
   }
-  
+
   chunks.push({
-    type: "done",
+    type: 'done',
     id: messageId,
     model,
     timestamp: Date.now(),
-    finishReason: "stop",
-  } as StreamChunk);
-  
-  return chunks;
-}
+    finishReason: 'stop',
+  } as StreamChunk)
 
+  return chunks
+}

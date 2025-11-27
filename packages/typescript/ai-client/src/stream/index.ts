@@ -7,7 +7,7 @@
  * - Types: All stream processing types
  */
 
-export { StreamProcessor } from "./processor";
+export { StreamProcessor } from './processor'
 export {
   ImmediateStrategy,
   PunctuationStrategy,
@@ -15,7 +15,7 @@ export {
   WordBoundaryStrategy,
   CompositeStrategy,
   DebounceStrategy,
-} from "./chunk-strategies";
+} from './chunk-strategies'
 export type {
   StreamChunk,
   ProcessedEvent,
@@ -24,4 +24,4 @@ export type {
   StreamProcessorOptions,
   StreamProcessorHandlers,
   InternalToolCallState,
-} from "./types";
+} from './types'

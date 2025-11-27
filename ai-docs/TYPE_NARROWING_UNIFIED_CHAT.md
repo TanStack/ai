@@ -13,9 +13,9 @@ TypeScript automatically knows the exact return type based on which method you c
 
 ## Type Narrowing Rules
 
-| Method | Return Type | Usage |
-|--------|-------------|-------|
-| `chat()` | `AsyncIterable<StreamChunk>` | Can use `for await...of`, iterate chunks |
+| Method             | Return Type                     | Usage                                          |
+| ------------------ | ------------------------------- | ---------------------------------------------- |
+| `chat()`           | `AsyncIterable<StreamChunk>`    | Can use `for await...of`, iterate chunks       |
 | `chatCompletion()` | `Promise<ChatCompletionResult>` | Can `await`, access `.content`, `.usage`, etc. |
 
 ## Examples with Type Checking
@@ -24,71 +24,71 @@ TypeScript automatically knows the exact return type based on which method you c
 
 ```typescript
 const result = ai.chatCompletion({
-  adapter: "openai",
-  model: "gpt-4",
-  messages: [{ role: "user", content: "Hello" }],
-});
+  adapter: 'openai',
+  model: 'gpt-4',
+  messages: [{ role: 'user', content: 'Hello' }],
+})
 
 // TypeScript knows result is Promise<ChatCompletionResult>
-const resolved = await result;
+const resolved = await result
 
 // ✅ These work - properties exist on ChatCompletionResult
-console.log(resolved.content);
-console.log(resolved.role);
-console.log(resolved.usage.totalTokens);
+console.log(resolved.content)
+console.log(resolved.role)
+console.log(resolved.usage.totalTokens)
 
 // ❌ TypeScript error - headers doesn't exist on ChatCompletionResult
-console.log(resolved.headers); // Type error!
+console.log(resolved.headers) // Type error!
 ```
 
 ### 2. Stream Mode (chat) - Type is `AsyncIterable<StreamChunk>`
 
 ```typescript
 const stream = ai.chat({
-  adapter: "openai",
-  model: "gpt-4",
-  messages: [{ role: "user", content: "Hello" }],
-});
+  adapter: 'openai',
+  model: 'gpt-4',
+  messages: [{ role: 'user', content: 'Hello' }],
+})
 
 // TypeScript knows stream is AsyncIterable<StreamChunk>
 // ✅ This works - can iterate async iterable
 for await (const chunk of stream) {
-  console.log(chunk.type);
-  console.log(chunk.id);
-  console.log(chunk.model);
+  console.log(chunk.type)
+  console.log(chunk.id)
+  console.log(chunk.model)
 }
 
 // ❌ TypeScript error - content doesn't exist on AsyncIterable
-console.log(stream.content); // Type error!
+console.log(stream.content) // Type error!
 
 // ❌ TypeScript error - headers doesn't exist on AsyncIterable
-console.log(stream.headers); // Type error!
+console.log(stream.headers) // Type error!
 ```
 
 ### 3. HTTP Response Mode
 
 ```typescript
-import { toStreamResponse } from "@tanstack/ai";
+import { toStreamResponse } from '@tanstack/ai'
 
 const stream = ai.chat({
-  adapter: "openai",
-  model: "gpt-4",
-  messages: [{ role: "user", content: "Hello" }],
-});
+  adapter: 'openai',
+  model: 'gpt-4',
+  messages: [{ role: 'user', content: 'Hello' }],
+})
 
-const response = toStreamResponse(stream);
+const response = toStreamResponse(stream)
 
 // TypeScript knows response is Response
 // ✅ These work - properties exist on Response
-console.log(response.headers);
-console.log(response.body);
-console.log(response.status);
-console.log(response.ok);
+console.log(response.headers)
+console.log(response.body)
+console.log(response.status)
+console.log(response.ok)
 
-const contentType = response.headers.get("Content-Type");
+const contentType = response.headers.get('Content-Type')
 
 // ❌ TypeScript error - content doesn't exist on Response
-console.log(response.content); // Type error!
+console.log(response.content) // Type error!
 ```
 
 ## Function Return Type Inference
@@ -106,7 +106,7 @@ function apiHandler() {
     model: "gpt-4",
     messages: [...],
   });
-  
+
   return toStreamResponse(stream);
   // TypeScript infers: function apiHandler(): Response ✅
 }
@@ -123,7 +123,7 @@ function apiHandler(): Response {
     model: "gpt-4",
     messages: [...],
   });
-  
+
   return toStreamResponse(stream); // ✅ Correct - returns Response
 }
 
@@ -133,7 +133,7 @@ function wrongApiHandler(): Response {
     model: "gpt-4",
     messages: [...],
   });
-  
+
   return result; // ❌ TypeScript error - returns Promise, not Response
 }
 ```
@@ -147,7 +147,7 @@ async function* streamHandler() {
     model: "gpt-4",
     messages: [...],
   });
-  
+
   // TypeScript knows stream is AsyncIterable<StreamChunk>
   for await (const chunk of stream) {
     yield chunk; // ✅ Works perfectly
@@ -188,16 +188,17 @@ With separate methods, TypeScript doesn't need function overloads or conditional
 class AI<TAdapter> {
   // Simple method signatures - no overloads needed!
   chat(options: ChatOptions): AsyncIterable<StreamChunk> {
-    return this.adapter.chatStream(options);
+    return this.adapter.chatStream(options)
   }
-  
+
   async chatCompletion(options: ChatOptions): Promise<ChatCompletionResult> {
-    return this.adapter.chatCompletion(options);
+    return this.adapter.chatCompletion(options)
   }
 }
 ```
 
 TypeScript's type inference is straightforward:
+
 - Call `chat()` → get `AsyncIterable<StreamChunk>`
 - Call `chatCompletion()` → get `Promise<ChatCompletionResult>`
 
@@ -216,9 +217,9 @@ No need for `as const` assertions or discriminated unions!
 
 The separate methods API provides perfect type narrowing automatically:
 
-| Code | Return Type |
-|------|-------------|
-| `chat()` | `AsyncIterable<StreamChunk>` |
+| Code               | Return Type                     |
+| ------------------ | ------------------------------- |
+| `chat()`           | `AsyncIterable<StreamChunk>`    |
 | `chatCompletion()` | `Promise<ChatCompletionResult>` |
 
 TypeScript enforces these types at compile time, providing complete type safety without any special syntax! 🎉

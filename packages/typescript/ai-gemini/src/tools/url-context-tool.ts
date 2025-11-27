@@ -1,23 +1,21 @@
-import type { Tool } from "@tanstack/ai";
+import type { Tool } from '@tanstack/ai'
 
-export interface UrlContextTool {
-
-}
+export interface UrlContextTool {}
 
 export function convertUrlContextToolToAdapterFormat(_tool: Tool) {
   return {
-    urlContext: {}
-  };
+    urlContext: {},
+  }
 }
 
 export function urlContextTool(): Tool {
   return {
-    type: "function",
+    type: 'function',
     function: {
-      name: "url_context",
-      description: "",
-      parameters: {}
+      name: 'url_context',
+      description: '',
+      parameters: {},
     },
-    metadata: {}
+    metadata: {},
   }
 }

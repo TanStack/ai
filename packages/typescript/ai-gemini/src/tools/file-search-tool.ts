@@ -1,43 +1,51 @@
-import type { Tool } from "@tanstack/ai";
+import type { Tool } from '@tanstack/ai'
 
 export interface FileSearchTool {
   /**
    * The names of the fileSearchStores to retrieve from. Example: fileSearchStores/my-file-search-store-123
    */
-  fileSearchStoreNames: string[];
+  fileSearchStoreNames: Array<string>
   /**
    *  Metadata filter to apply to the semantic retrieval documents and chunks.
    */
-  metadataFilter?: string;
+  metadataFilter?: string
   /**
    *  The number of semantic retrieval chunks to retrieve.
    */
-  topK?: number;
+  topK?: number
 }
 
 export function convertFileSearchToolToAdapterFormat(tool: Tool) {
-  const metadata = tool.metadata as { fileSearchStoreNames: string[]; metadataFilter?: string; topK?: number };
+  const metadata = tool.metadata as {
+    fileSearchStoreNames: Array<string>
+    metadataFilter?: string
+    topK?: number
+  }
   return {
     fileSearch: {
       fileSearchStoreNames: metadata.fileSearchStoreNames,
       metadataFilter: metadata.metadataFilter,
-      topK: metadata.topK
-    }
-  };
+      topK: metadata.topK,
+    },
+  }
 }
 
-export function fileSearchTool(config: { fileSearchStoreNames: string[]; metadataFilter?: string; topK?: number }): Tool {
+export function fileSearchTool(config: {
+  fileSearchStoreNames: Array<string>
+  metadataFilter?: string
+  topK?: number
+}): Tool {
   return {
-    type: "function",
+    type: 'function',
     function: {
-      name: "file_search",
-      description: "",
-      parameters: {}
+      name: 'file_search',
+      description: '',
+      parameters: {},
     },
     metadata: {
       fileSearchStoreNames: config.fileSearchStoreNames,
       metadataFilter: config.metadataFilter,
-      topK: config.topK
-    }
+      topK: config.topK,
+    },
   }
 }

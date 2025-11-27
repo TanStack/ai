@@ -1,33 +1,26 @@
-import {
-  useState,
-  useCallback,
-  useMemo,
-  useEffect,
-  useId,
-  useRef,
-} from "react";
-import { ChatClient } from "@tanstack/ai-client";
-import type { ModelMessage } from "@tanstack/ai";
-import type { UseChatOptions, UseChatReturn, UIMessage } from "./types";
+import { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react'
+import { ChatClient, } from '@tanstack/ai-client'
+import type { ModelMessage } from '@tanstack/ai'
+import type { UIMessage, UseChatOptions, UseChatReturn } from './types'
 
-export function useChat(options: UseChatOptions = {}): UseChatReturn {
-  const hookId = useId();
-  const clientId = options.id || hookId;
+export function useChat(options: UseChatOptions): UseChatReturn {
+  const hookId = useId()
+  const clientId = options.id || hookId
 
-  const [messages, setMessages] = useState<UIMessage[]>(
-    options.initialMessages || []
-  );
-  const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState<Error | undefined>(undefined);
+  const [messages, setMessages] = useState<Array<UIMessage>>(
+    options.initialMessages || [],
+  )
+  const [isLoading, setIsLoading] = useState(false)
+  const [error, setError] = useState<Error | undefined>(undefined)
 
   // Track current messages in a ref to preserve them when client is recreated
-  const messagesRef = useRef<UIMessage[]>(options.initialMessages || []);
-  const isFirstMountRef = useRef(true);
+  const messagesRef = useRef<Array<UIMessage>>(options.initialMessages || [])
+  const isFirstMountRef = useRef(true)
 
   // Update ref whenever messages change
   useEffect(() => {
-    messagesRef.current = messages;
-  }, [messages]);
+    messagesRef.current = messages
+  }, [messages])
 
   // Create ChatClient instance with callbacks to sync state
   // Note: Connection changes will recreate the client and reset state.
@@ -37,9 +30,9 @@ export function useChat(options: UseChatOptions = {}): UseChatReturn {
     // On first mount, use initialMessages. On subsequent recreations, preserve existing messages.
     const messagesToUse = isFirstMountRef.current
       ? options.initialMessages || []
-      : messagesRef.current;
+      : messagesRef.current
 
-    isFirstMountRef.current = false;
+    isFirstMountRef.current = false
 
     return new ChatClient({
       connection: options.connection,
@@ -52,20 +45,19 @@ export function useChat(options: UseChatOptions = {}): UseChatReturn {
       onError: options.onError,
       onToolCall: options.onToolCall,
       streamProcessor: options.streamProcessor,
-      onMessagesChange: (newMessages: UIMessage[]) => {
-        setMessages(newMessages);
+      onMessagesChange: (newMessages: Array<UIMessage>) => {
+        setMessages(newMessages)
       },
       onLoadingChange: (newIsLoading: boolean) => {
-        setIsLoading(newIsLoading);
+        setIsLoading(newIsLoading)
       },
       onErrorChange: (newError: Error | undefined) => {
-        setError(newError);
+        setError(newError)
       },
-    });
+    })
     // Only recreate when connection changes (most critical option)
     // Other options are captured at creation time
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [clientId, options.connection]);
+  }, [clientId, options.connection])
 
   // Sync initial messages on mount only
   // Note: initialMessages are passed to ChatClient constructor, but we also
@@ -74,20 +66,20 @@ export function useChat(options: UseChatOptions = {}): UseChatReturn {
     if (options.initialMessages && options.initialMessages.length > 0) {
       // Only set if current messages are empty (initial state)
       if (messages.length === 0) {
-        client.setMessagesManually(options.initialMessages);
+        client.setMessagesManually(options.initialMessages)
       }
     }
-  }, []); // Only run on mount - initialMessages are handled by ChatClient constructor
+  }, []) // Only run on mount - initialMessages are handled by ChatClient constructor
 
   // Cleanup on unmount: stop any in-flight requests
   useEffect(() => {
     return () => {
       // Stop any active generation when component unmounts
       if (isLoading) {
-        client.stop();
+        client.stop()
       }
-    };
-  }, [client, isLoading]);
+    }
+  }, [client, isLoading])
 
   // Note: Callback options (onResponse, onChunk, onFinish, onError, onToolCall)
   // are captured at client creation time. Changes to these callbacks require
@@ -95,56 +87,56 @@ export function useChat(options: UseChatOptions = {}): UseChatReturn {
 
   const sendMessage = useCallback(
     async (content: string) => {
-      await client.sendMessage(content);
+      await client.sendMessage(content)
     },
-    [client]
-  );
+    [client],
+  )
 
   const append = useCallback(
     async (message: ModelMessage | UIMessage) => {
-      await client.append(message);
+      await client.append(message)
     },
-    [client]
-  );
+    [client],
+  )
 
   const reload = useCallback(async () => {
-    await client.reload();
-  }, [client]);
+    await client.reload()
+  }, [client])
 
   const stop = useCallback(() => {
-    client.stop();
-  }, [client]);
+    client.stop()
+  }, [client])
 
   const clear = useCallback(() => {
-    client.clear();
-  }, [client]);
+    client.clear()
+  }, [client])
 
   const setMessagesManually = useCallback(
-    (newMessages: UIMessage[]) => {
-      client.setMessagesManually(newMessages);
+    (newMessages: Array<UIMessage>) => {
+      client.setMessagesManually(newMessages)
     },
-    [client]
-  );
+    [client],
+  )
 
   const addToolResult = useCallback(
     async (result: {
-      toolCallId: string;
-      tool: string;
-      output: any;
-      state?: "output-available" | "output-error";
-      errorText?: string;
+      toolCallId: string
+      tool: string
+      output: any
+      state?: 'output-available' | 'output-error'
+      errorText?: string
     }) => {
-      await client.addToolResult(result);
+      await client.addToolResult(result)
     },
-    [client]
-  );
+    [client],
+  )
 
   const addToolApprovalResponse = useCallback(
     async (response: { id: string; approved: boolean }) => {
-      await client.addToolApprovalResponse(response);
+      await client.addToolApprovalResponse(response)
     },
-    [client]
-  );
+    [client],
+  )
 
   return {
     messages,
@@ -158,5 +150,5 @@ export function useChat(options: UseChatOptions = {}): UseChatReturn {
     clear,
     addToolResult,
     addToolApprovalResponse,
-  };
+  }
 }

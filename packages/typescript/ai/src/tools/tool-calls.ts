@@ -1,10 +1,10 @@
 import type {
+  DoneStreamChunk,
+  ModelMessage,
   Tool,
   ToolCall,
-  ModelMessage,
-  DoneStreamChunk,
   ToolResultStreamChunk,
-} from "../types";
+} from '../types'
 
 /**
  * Manages tool call accumulation and execution for the chat() method's automatic tool execution loop.
@@ -39,11 +39,11 @@ import type {
  * ```
  */
 export class ToolCallManager {
-  private toolCallsMap = new Map<number, ToolCall>();
-  private tools: ReadonlyArray<Tool>;
+  private toolCallsMap = new Map<number, ToolCall>()
+  private tools: ReadonlyArray<Tool>
 
   constructor(tools: ReadonlyArray<Tool>) {
-    this.tools = tools;
+    this.tools = tools
   }
 
   /**
@@ -52,38 +52,38 @@ export class ToolCallManager {
    */
   addToolCallChunk(chunk: {
     toolCall: {
-      id: string;
-      type: "function";
+      id: string
+      type: 'function'
       function: {
-        name: string;
-        arguments: string;
-      };
-    };
-    index: number;
+        name: string
+        arguments: string
+      }
+    }
+    index: number
   }): void {
-    const index = chunk.index ?? 0;
-    const existing = this.toolCallsMap.get(index);
+    const index = chunk.index
+    const existing = this.toolCallsMap.get(index)
 
     if (!existing) {
       // Only create entry if we have a tool call ID and name
       if (chunk.toolCall.id && chunk.toolCall.function.name) {
         this.toolCallsMap.set(index, {
           id: chunk.toolCall.id,
-          type: "function",
+          type: 'function',
           function: {
             name: chunk.toolCall.function.name,
-            arguments: chunk.toolCall.function.arguments || "",
+            arguments: chunk.toolCall.function.arguments || '',
           },
-        });
+        })
       }
     } else {
       // Update name if it wasn't set before
       if (chunk.toolCall.function.name && !existing.function.name) {
-        existing.function.name = chunk.toolCall.function.name;
+        existing.function.name = chunk.toolCall.function.name
       }
       // Accumulate arguments for streaming tool calls
       if (chunk.toolCall.function.arguments) {
-        existing.function.arguments += chunk.toolCall.function.arguments;
+        existing.function.arguments += chunk.toolCall.function.arguments
       }
     }
   }
@@ -92,16 +92,16 @@ export class ToolCallManager {
    * Check if there are any complete tool calls to execute
    */
   hasToolCalls(): boolean {
-    return this.getToolCalls().length > 0;
+    return this.getToolCalls().length > 0
   }
 
   /**
    * Get all complete tool calls (filtered for valid ID and name)
    */
-  getToolCalls(): ToolCall[] {
+  getToolCalls(): Array<ToolCall> {
     return Array.from(this.toolCallsMap.values()).filter(
-      (tc) => tc.id && tc.function.name && tc.function.name.trim().length > 0
-    );
+      (tc) => tc.id && tc.function.name && tc.function.name.trim().length > 0,
+    )
   }
 
   /**
@@ -109,96 +109,96 @@ export class ToolCallManager {
    * Also yields tool_result chunks for streaming
    */
   async *executeTools(
-    doneChunk: DoneStreamChunk
-  ): AsyncGenerator<ToolResultStreamChunk, ModelMessage[], void> {
-    const toolCallsArray = this.getToolCalls();
-    const toolResults: ModelMessage[] = [];
+    doneChunk: DoneStreamChunk,
+  ): AsyncGenerator<ToolResultStreamChunk, Array<ModelMessage>, void> {
+    const toolCallsArray = this.getToolCalls()
+    const toolResults: Array<ModelMessage> = []
 
     for (const toolCall of toolCallsArray) {
       const tool = this.tools.find(
-        (t) => t.function.name === toolCall.function.name
-      );
+        (t) => t.function.name === toolCall.function.name,
+      )
 
-      let toolResultContent: string;
+      let toolResultContent: string
       if (tool?.execute) {
         try {
           // Parse arguments
-          let args: any;
+          let args: any
           try {
-            args = JSON.parse(toolCall.function.arguments);
+            args = JSON.parse(toolCall.function.arguments)
           } catch (parseError) {
             throw new Error(
-              `Failed to parse tool arguments as JSON: ${toolCall.function.arguments}`
-            );
+              `Failed to parse tool arguments as JSON: ${toolCall.function.arguments}`,
+            )
           }
 
-          const result = await tool.execute(args);
+          const result = await tool.execute(args)
           toolResultContent =
-            typeof result === "string" ? result : JSON.stringify(result);
+            typeof result === 'string' ? result : JSON.stringify(result)
         } catch (error: any) {
           // If tool execution fails, add error message
-          toolResultContent = `Error executing tool: ${error.message}`;
+          toolResultContent = `Error executing tool: ${error.message}`
         }
       } else {
         // Tool doesn't have execute function, add placeholder
-        toolResultContent = `Tool ${toolCall.function.name} does not have an execute function`;
+        toolResultContent = `Tool ${toolCall.function.name} does not have an execute function`
       }
 
       // Emit tool_result chunk so callers can track tool execution
       yield {
-        type: "tool_result",
+        type: 'tool_result',
         id: doneChunk.id,
         model: doneChunk.model,
         timestamp: Date.now(),
         toolCallId: toolCall.id,
         content: toolResultContent,
-      };
+      }
 
       // Add tool result message
       toolResults.push({
-        role: "tool",
+        role: 'tool',
         content: toolResultContent,
         toolCallId: toolCall.id,
-      });
+      })
     }
 
-    return toolResults;
+    return toolResults
   }
 
   /**
    * Clear the tool calls map for the next iteration
    */
   clear(): void {
-    this.toolCallsMap.clear();
+    this.toolCallsMap.clear()
   }
 }
 
 export interface ToolResult {
-  toolCallId: string;
-  result: any;
-  state?: "output-available" | "output-error";
+  toolCallId: string
+  result: any
+  state?: 'output-available' | 'output-error'
 }
 
 export interface ApprovalRequest {
-  toolCallId: string;
-  toolName: string;
-  input: any;
-  approvalId: string;
+  toolCallId: string
+  toolName: string
+  input: any
+  approvalId: string
 }
 
 export interface ClientToolRequest {
-  toolCallId: string;
-  toolName: string;
-  input: any;
+  toolCallId: string
+  toolName: string
+  input: any
 }
 
 export interface ExecuteToolCallsResult {
   /** Tool results ready to send to LLM */
-  results: ToolResult[];
+  results: Array<ToolResult>
   /** Tools that need user approval before execution */
-  needsApproval: ApprovalRequest[];
+  needsApproval: Array<ApprovalRequest>
   /** Tools that need client-side execution */
-  needsClientExecution: ClientToolRequest[];
+  needsClientExecution: Array<ClientToolRequest>
 }
 
 /**
@@ -215,43 +215,43 @@ export interface ExecuteToolCallsResult {
  * @param clientResults - Map of client-side execution results (toolCallId -> result)
  */
 export async function executeToolCalls(
-  toolCalls: ToolCall[],
+  toolCalls: Array<ToolCall>,
   tools: ReadonlyArray<Tool>,
   approvals: Map<string, boolean> = new Map(),
-  clientResults: Map<string, any> = new Map()
+  clientResults: Map<string, any> = new Map(),
 ): Promise<ExecuteToolCallsResult> {
-  const results: ToolResult[] = [];
-  const needsApproval: ApprovalRequest[] = [];
-  const needsClientExecution: ClientToolRequest[] = [];
+  const results: Array<ToolResult> = []
+  const needsApproval: Array<ApprovalRequest> = []
+  const needsClientExecution: Array<ClientToolRequest> = []
 
   // Create tool lookup map
-  const toolMap = new Map<string, Tool>();
+  const toolMap = new Map<string, Tool>()
   for (const tool of tools) {
-    toolMap.set(tool.function.name, tool);
+    toolMap.set(tool.function.name, tool)
   }
 
   for (const toolCall of toolCalls) {
-    const tool = toolMap.get(toolCall.function.name);
+    const tool = toolMap.get(toolCall.function.name)
 
     if (!tool) {
       // Unknown tool - return error
       results.push({
         toolCallId: toolCall.id,
         result: { error: `Unknown tool: ${toolCall.function.name}` },
-        state: "output-error",
-      });
-      continue;
+        state: 'output-error',
+      })
+      continue
     }
 
     // Parse arguments, throwing error if invalid JSON
-    let input: any = {};
-    const argsStr = toolCall.function.arguments?.trim() || "{}";
+    let input: any = {}
+    const argsStr = toolCall.function.arguments.trim() || '{}'
     if (argsStr) {
       try {
-        input = JSON.parse(argsStr);
+        input = JSON.parse(argsStr)
       } catch (parseError) {
         // If parsing fails, throw error to fail fast
-        throw new Error(`Failed to parse tool arguments as JSON: ${argsStr}`);
+        throw new Error(`Failed to parse tool arguments as JSON: ${argsStr}`)
       }
     }
 
@@ -259,11 +259,11 @@ export async function executeToolCalls(
     if (!tool.execute) {
       // Check if tool needs approval
       if (tool.needsApproval) {
-        const approvalId = `approval_${toolCall.id}`;
+        const approvalId = `approval_${toolCall.id}`
 
         // Check if approval decision exists
         if (approvals.has(approvalId)) {
-          const approved = approvals.get(approvalId);
+          const approved = approvals.get(approvalId)
 
           if (approved) {
             // Approved - check if client has executed
@@ -271,22 +271,22 @@ export async function executeToolCalls(
               results.push({
                 toolCallId: toolCall.id,
                 result: clientResults.get(toolCall.id),
-              });
+              })
             } else {
               // Approved but not executed yet - request client execution
               needsClientExecution.push({
                 toolCallId: toolCall.id,
                 toolName: toolCall.function.name,
                 input,
-              });
+              })
             }
           } else {
             // User declined
             results.push({
               toolCallId: toolCall.id,
-              result: { error: "User declined tool execution" },
-              state: "output-error",
-            });
+              result: { error: 'User declined tool execution' },
+              state: 'output-error',
+            })
           }
         } else {
           // Need approval first
@@ -295,7 +295,7 @@ export async function executeToolCalls(
             toolName: toolCall.function.name,
             input,
             approvalId,
-          });
+          })
         }
       } else {
         // No approval needed - check if client has executed
@@ -303,49 +303,49 @@ export async function executeToolCalls(
           results.push({
             toolCallId: toolCall.id,
             result: clientResults.get(toolCall.id),
-          });
+          })
         } else {
           // Request client execution
           needsClientExecution.push({
             toolCallId: toolCall.id,
             toolName: toolCall.function.name,
             input,
-          });
+          })
         }
       }
-      continue;
+      continue
     }
 
     // CASE 2: Server tool with approval required
     if (tool.needsApproval) {
-      const approvalId = `approval_${toolCall.id}`;
+      const approvalId = `approval_${toolCall.id}`
 
       // Check if approval decision exists
       if (approvals.has(approvalId)) {
-        const approved = approvals.get(approvalId);
+        const approved = approvals.get(approvalId)
 
         if (approved) {
           // Execute after approval
           try {
-            const result = await tool.execute(input);
+            const result = await tool.execute(input)
             results.push({
               toolCallId: toolCall.id,
               result: result ? JSON.parse(result) : null,
-            });
+            })
           } catch (error: any) {
             results.push({
               toolCallId: toolCall.id,
               result: { error: error.message },
-              state: "output-error",
-            });
+              state: 'output-error',
+            })
           }
         } else {
           // User declined
           results.push({
             toolCallId: toolCall.id,
-            result: { error: "User declined tool execution" },
-            state: "output-error",
-          });
+            result: { error: 'User declined tool execution' },
+            state: 'output-error',
+          })
         }
       } else {
         // Need approval
@@ -354,26 +354,26 @@ export async function executeToolCalls(
           toolName: toolCall.function.name,
           input,
           approvalId,
-        });
+        })
       }
-      continue;
+      continue
     }
 
     // CASE 3: Normal server tool - execute immediately
     try {
-      const result = await tool.execute(input);
+      const result = await tool.execute(input)
       results.push({
         toolCallId: toolCall.id,
         result: result ? JSON.parse(result) : null,
-      });
+      })
     } catch (error: any) {
       results.push({
         toolCallId: toolCall.id,
         result: { error: error.message },
-        state: "output-error",
-      });
+        state: 'output-error',
+      })
     }
   }
 
-  return { results, needsApproval, needsClientExecution };
+  return { results, needsApproval, needsClientExecution }
 }

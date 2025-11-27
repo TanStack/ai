@@ -18,33 +18,33 @@ class AI<TAdapter> {
   // Streaming method with automatic tool execution loop
   async *chat(options): AsyncIterable<StreamChunk> {
     // Manages tool execution internally using ToolCallManager
-    const toolCallManager = new ToolCallManager(options.tools || []);
-    
+    const toolCallManager = new ToolCallManager(options.tools || [])
+
     while (iterationCount < maxIterations) {
       // Stream from adapter
       for await (const chunk of this.adapter.chatStream(options)) {
-        yield chunk;
-        
+        yield chunk
+
         // Track tool calls
-        if (chunk.type === "tool_call") {
-          toolCallManager.addToolCallChunk(chunk);
+        if (chunk.type === 'tool_call') {
+          toolCallManager.addToolCallChunk(chunk)
         }
       }
-      
+
       // Execute tools if needed
       if (shouldExecuteTools && toolCallManager.hasToolCalls()) {
-        const toolResults = yield* toolCallManager.executeTools(doneChunk);
-        messages = [...messages, ...toolResults];
-        continue; // Next iteration
+        const toolResults = yield* toolCallManager.executeTools(doneChunk)
+        messages = [...messages, ...toolResults]
+        continue // Next iteration
       }
-      
-      break; // Done
+
+      break // Done
     }
   }
 
   // Promise-based method (no tool execution loop)
   async chatCompletion(options): Promise<ChatCompletionResult> {
-    return this.adapter.chatCompletion(options);
+    return this.adapter.chatCompletion(options)
   }
 }
 ```
@@ -56,23 +56,26 @@ The tool execution logic is extracted into a dedicated `ToolCallManager` class:
 ```typescript
 class ToolCallManager {
   // Accumulate tool calls from streaming chunks
-  addToolCallChunk(chunk): void;
-  
+  addToolCallChunk(chunk): void
+
   // Check if there are tool calls to execute
-  hasToolCalls(): boolean;
-  
+  hasToolCalls(): boolean
+
   // Get all complete tool calls
-  getToolCalls(): ToolCall[];
-  
+  getToolCalls(): ToolCall[]
+
   // Execute tools and yield tool_result chunks
-  async *executeTools(doneChunk): AsyncGenerator<ToolResultStreamChunk, Message[]>;
-  
+  async *executeTools(
+    doneChunk,
+  ): AsyncGenerator<ToolResultStreamChunk, Message[]>
+
   // Clear for next iteration
-  clear(): void;
+  clear(): void
 }
 ```
 
 **Benefits:**
+
 - ✅ **Separation of concerns** - tool logic isolated from chat logic
 - ✅ **Testable** - ToolCallManager can be unit tested independently
 - ✅ **Maintainable** - changes to tool execution don't affect chat method
@@ -91,38 +94,38 @@ class ToolCallManager {
 
 ```typescript
 const result = await ai.chatCompletion({
-  adapter: "openai",
-  model: "gpt-4",
-  messages: [{ role: "user", content: "Hello" }],
-});
+  adapter: 'openai',
+  model: 'gpt-4',
+  messages: [{ role: 'user', content: 'Hello' }],
+})
 ```
 
 ### 2. Stream Mode (chat)
 
 ```typescript
 const stream = ai.chat({
-  adapter: "openai",
-  model: "gpt-4",
-  messages: [{ role: "user", content: "Hello" }],
-});
+  adapter: 'openai',
+  model: 'gpt-4',
+  messages: [{ role: 'user', content: 'Hello' }],
+})
 
 for await (const chunk of stream) {
-  console.log(chunk);
+  console.log(chunk)
 }
 ```
 
 ### 3. HTTP Response Mode
 
 ```typescript
-import { toStreamResponse } from "@tanstack/ai";
+import { toStreamResponse } from '@tanstack/ai'
 
 const stream = ai.chat({
-  adapter: "openai",
-  model: "gpt-4",
-  messages: [{ role: "user", content: "Hello" }],
-});
+  adapter: 'openai',
+  model: 'gpt-4',
+  messages: [{ role: 'user', content: 'Hello' }],
+})
 
-return toStreamResponse(stream);
+return toStreamResponse(stream)
 ```
 
 ## Historical Context
@@ -136,6 +139,7 @@ See `docs/MIGRATION_UNIFIED_CHAT.md` for migration guide from the `as` option AP
 ## Features Preserved
 
 ✅ **All features still supported**:
+
 - Discriminated union types for adapter-model pairs
 - Fallback mechanism (single-with-fallbacks or fallbacks-only)
 - **Automatic tool execution loop** (via `ToolCallManager`)
@@ -143,6 +147,7 @@ See `docs/MIGRATION_UNIFIED_CHAT.md` for migration guide from the `as` option AP
 - Type-safe model selection
 
 ✅ **No breaking changes** to core functionality:
+
 - Streaming behavior matches old `streamChat()` method
 - Promise behavior matches old `chat()` method
 - Error handling and fallbacks work identically
@@ -151,6 +156,7 @@ See `docs/MIGRATION_UNIFIED_CHAT.md` for migration guide from the `as` option AP
 ## Files Changed
 
 ### Core Implementation
+
 - ✅ `packages/ai/src/ai.ts`
   - Removed `as` option from `chat()` method
   - Made `chat()` streaming-only with automatic tool execution loop
@@ -170,6 +176,7 @@ See `docs/MIGRATION_UNIFIED_CHAT.md` for migration guide from the `as` option AP
   - Updated `StreamChunk` union to include `ToolResultStreamChunk`
 
 ### Documentation
+
 - ✅ `docs/UNIFIED_CHAT_API.md` - Updated API documentation with tool execution details
 - ✅ `docs/MIGRATION_UNIFIED_CHAT.md` - Migration guide
 - ✅ `docs/UNIFIED_CHAT_QUICK_REFERENCE.md` - Quick reference updated
@@ -195,6 +202,7 @@ See `docs/MIGRATION_UNIFIED_CHAT.md` for migration guide from the `as` option AP
 ## Testing Recommendations
 
 Test scenarios:
+
 1. ✅ Promise mode with primary adapter
 2. ✅ Promise mode with fallbacks
 3. ✅ Stream mode with primary adapter
@@ -213,7 +221,8 @@ Test scenarios:
 ## Next Steps
 
 ### For Users
-1. **Update method calls**: 
+
+1. **Update method calls**:
    - `chat({ as: "promise" })` → `chatCompletion()`
    - `chat({ as: "stream" })` → `chat()`
    - `chat({ as: "response" })` → `chat()` + `toStreamResponse()`
@@ -225,6 +234,7 @@ Test scenarios:
 The `ToolCallManager` class is independently testable. See `packages/ai/src/tool-call-manager.test.ts` for unit tests.
 
 Test scenarios:
+
 - ✅ Accumulating streaming tool call chunks
 - ✅ Filtering incomplete tool calls
 - ✅ Executing tools with valid arguments
@@ -234,6 +244,7 @@ Test scenarios:
 - ✅ Clearing tool calls between iterations
 
 ### Future Enhancements
+
 - Consider adding structured output support to streaming
 - Add streaming response mode to embeddings
 - Document SSE format for client-side consumption

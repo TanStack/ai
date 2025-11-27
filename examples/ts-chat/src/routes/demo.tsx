@@ -1,48 +1,48 @@
-import { createFileRoute } from "@tanstack/react-router";
-import { useCallback } from "react";
+import { createFileRoute } from '@tanstack/react-router'
+import { useCallback } from 'react'
 import {
   Chat,
   ChatMessages,
   ChatMessage,
   ChatInput,
   TextPart,
-} from "@tanstack/ai-react-ui";
-import { fetchServerSentEvents } from "@tanstack/ai-client";
+} from '@tanstack/ai-react-ui'
+import { fetchServerSentEvents } from '@tanstack/ai-client'
 
-import GuitarRecommendation from "@/components/example-GuitarRecommendation";
+import GuitarRecommendation from '@/components/example-GuitarRecommendation'
 
-export const Route = createFileRoute("/demo")({
+export const Route = createFileRoute('/demo')({
   component: DemoPage,
-});
+})
 
 function DemoPage() {
   const handleToolCall = useCallback(
     async ({ toolName, input }: { toolName: string; input: any }) => {
       switch (toolName) {
-        case "getPersonalGuitarPreference":
-          return { preference: "acoustic" };
-        case "recommendGuitar":
-          return { id: input.id };
-        case "addToWishList":
-          const wishList = JSON.parse(localStorage.getItem("wishList") || "[]");
-          wishList.push(input.guitarId);
-          localStorage.setItem("wishList", JSON.stringify(wishList));
+        case 'getPersonalGuitarPreference':
+          return { preference: 'acoustic' }
+        case 'recommendGuitar':
+          return { id: input.id }
+        case 'addToWishList':
+          const wishList = JSON.parse(localStorage.getItem('wishList') || '[]')
+          wishList.push(input.guitarId)
+          localStorage.setItem('wishList', JSON.stringify(wishList))
           return {
             success: true,
             guitarId: input.guitarId,
             totalItems: wishList.length,
-          };
+          }
         default:
-          throw new Error(`Unknown tool: ${toolName}`);
+          throw new Error(`Unknown tool: ${toolName}`)
       }
     },
-    []
-  );
+    [],
+  )
 
   return (
     <div className="h-[calc(100vh-72px)] flex flex-col bg-black">
       <Chat
-        connection={fetchServerSentEvents("/api/tanchat")}
+        connection={fetchServerSentEvents('/api/tanchat')}
         onToolCall={handleToolCall}
         className="flex-1 flex flex-col min-h-0 bg-black"
       >
@@ -65,10 +65,10 @@ function DemoPage() {
               toolsRenderer={{
                 recommendGuitar: ({ arguments: args }) => {
                   try {
-                    const parsed = JSON.parse(args);
-                    return <GuitarRecommendation id={parsed.id} />;
+                    const parsed = JSON.parse(args)
+                    return <GuitarRecommendation id={parsed.id} />
                   } catch {
-                    return null;
+                    return null
                   }
                 },
               }}
@@ -83,5 +83,5 @@ function DemoPage() {
         />
       </Chat>
     </div>
-  );
+  )
 }

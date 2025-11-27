@@ -66,18 +66,18 @@ function ChatComponent() {
 ```typescript
 interface UseChatOptions {
   // Connection adapter (required)
-  connection: ConnectionAdapter;
-  
+  connection: ConnectionAdapter
+
   // Configuration
-  initialMessages?: UIMessage[]; // Starting messages
-  id?: string; // Unique chat ID
-  body?: Record<string, any>; // Extra data to send
-  
+  initialMessages?: UIMessage[] // Starting messages
+  id?: string // Unique chat ID
+  body?: Record<string, any> // Extra data to send
+
   // Callbacks
-  onResponse?: (response?: Response) => void;
-  onChunk?: (chunk: StreamChunk) => void;
-  onFinish?: (message: UIMessage) => void;
-  onError?: (error: Error) => void;
+  onResponse?: (response?: Response) => void
+  onChunk?: (chunk: StreamChunk) => void
+  onFinish?: (message: UIMessage) => void
+  onError?: (error: Error) => void
 }
 ```
 
@@ -85,15 +85,15 @@ interface UseChatOptions {
 
 ```typescript
 interface UseChatReturn {
-  messages: UIMessage[]; // Current conversation
-  sendMessage: (content: string) => Promise<void>; // Send a message
-  append: (message) => Promise<void>; // Add message programmatically
-  reload: () => Promise<void>; // Reload last response
-  stop: () => void; // Stop current generation
-  isLoading: boolean; // Is generating a response
-  error: Error | undefined; // Current error
-  setMessages: (messages) => void; // Set messages manually
-  clear: () => void; // Clear all messages
+  messages: UIMessage[] // Current conversation
+  sendMessage: (content: string) => Promise<void> // Send a message
+  append: (message) => Promise<void> // Add message programmatically
+  reload: () => Promise<void> // Reload last response
+  stop: () => void // Stop current generation
+  isLoading: boolean // Is generating a response
+  error: Error | undefined // Current error
+  setMessages: (messages) => void // Set messages manually
+  clear: () => void // Clear all messages
 }
 ```
 
@@ -107,35 +107,38 @@ Connection adapters provide flexible streaming for different scenarios. See the 
 ### Quick Examples
 
 **SSE (Most Common):**
+
 ```typescript
-import { useChat, fetchServerSentEvents } from "@tanstack/ai-react";
+import { useChat, fetchServerSentEvents } from '@tanstack/ai-react'
 
 const chat = useChat({
-  connection: fetchServerSentEvents("/api/chat"),
-});
+  connection: fetchServerSentEvents('/api/chat'),
+})
 ```
 
 **Server Functions:**
+
 ```typescript
-import { useChat, stream } from "@tanstack/ai-react";
+import { useChat, stream } from '@tanstack/ai-react'
 
 const chat = useChat({
   connection: stream((messages) => serverChatFunction({ messages })),
-});
+})
 ```
 
 **Custom (e.g., WebSockets):**
+
 ```typescript
-import { useChat } from "@tanstack/ai-react";
-import type { ConnectionAdapter } from "@tanstack/ai-client";
+import { useChat } from '@tanstack/ai-react'
+import type { ConnectionAdapter } from '@tanstack/ai-client'
 
 const wsAdapter: ConnectionAdapter = {
   async *connect(messages) {
     // Your WebSocket logic
   },
-};
+}
 
-const chat = useChat({ connection: wsAdapter });
+const chat = useChat({ connection: wsAdapter })
 ```
 
 ### Backend Endpoint
@@ -154,22 +157,22 @@ Your backend should use the `chat()` method which **automatically handles tool e
 2. Use `chat()` to stream responses (with automatic tool execution):
 
 ```typescript
-import { chat, toStreamResponse } from "@tanstack/ai";
-import { openai } from "@tanstack/ai-openai";
+import { chat, toStreamResponse } from '@tanstack/ai'
+import { openai } from '@tanstack/ai-openai'
 
 export async function POST(request: Request) {
-  const { messages } = await request.json();
+  const { messages } = await request.json()
 
   const stream = chat({
     adapter: openai(),
-    model: "gpt-4o",
+    model: 'gpt-4o',
     messages,
     tools: [weatherTool], // Optional: auto-executed in loop
     agentLoopStrategy: maxIterations(5), // Optional: control loop
-  });
+  })
 
   // Convert to HTTP streaming response with SSE headers
-  return toStreamResponse(stream);
+  return toStreamResponse(stream)
 }
 ```
 
@@ -190,27 +193,27 @@ data: {"type":"done","finishReason":"stop","usage":{...}}
 #### With Callbacks
 
 ```typescript
-import { useChat, fetchServerSentEvents } from "@tanstack/ai-react";
+import { useChat, fetchServerSentEvents } from '@tanstack/ai-react'
 
 const { messages, sendMessage } = useChat({
-  connection: fetchServerSentEvents("/api/chat"),
+  connection: fetchServerSentEvents('/api/chat'),
   onChunk: (chunk) => {
-    if (chunk.type === "content") {
-      console.log("New token:", chunk.delta);
+    if (chunk.type === 'content') {
+      console.log('New token:', chunk.delta)
     }
   },
   onFinish: (message) => {
-    console.log("Final message:", message);
+    console.log('Final message:', message)
     // Save to database, log analytics, etc.
   },
   onError: (error) => {
-    console.error("Chat error:", error);
+    console.error('Chat error:', error)
     // Show toast notification, log error, etc.
   },
-});
+})
 
 // Send messages programmatically
-await sendMessage("Tell me a joke");
+await sendMessage('Tell me a joke')
 ```
 
 #### Flexible Triggering
@@ -218,8 +221,8 @@ await sendMessage("Tell me a joke");
 ```typescript
 import { useChat, fetchServerSentEvents } from "@tanstack/ai-react";
 
-const { sendMessage, isLoading } = useChat({ 
-  connection: fetchServerSentEvents("/api/chat") 
+const { sendMessage, isLoading } = useChat({
+  connection: fetchServerSentEvents("/api/chat")
 });
 const [input, setInput] = useState("");
 
@@ -244,61 +247,61 @@ const [input, setInput] = useState("");
 #### With Custom Headers
 
 ```typescript
-import { useChat, fetchServerSentEvents } from "@tanstack/ai-react";
+import { useChat, fetchServerSentEvents } from '@tanstack/ai-react'
 
 const chat = useChat({
-  connection: fetchServerSentEvents("/api/chat", {
+  connection: fetchServerSentEvents('/api/chat', {
     headers: {
       Authorization: `Bearer ${token}`,
-      "X-Custom-Header": "value",
+      'X-Custom-Header': 'value',
     },
   }),
   body: {
-    userId: "123",
-    sessionId: "abc",
+    userId: '123',
+    sessionId: 'abc',
   },
-});
+})
 ```
 
 #### Programmatic Control
 
 ```typescript
-const { messages, sendMessage, append, reload, stop, clear } = useChat();
+const { messages, sendMessage, append, reload, stop, clear } = useChat()
 
 // Send a simple message
-await sendMessage("Hello!");
+await sendMessage('Hello!')
 
 // Add a message with more control
 await append({
-  role: "user",
-  content: "Hello!",
-  id: "custom-id",
-});
+  role: 'user',
+  content: 'Hello!',
+  id: 'custom-id',
+})
 
 // Reload the last AI response
-await reload();
+await reload()
 
 // Stop the current generation
-stop();
+stop()
 
 // Clear all messages
-clear();
+clear()
 ```
 
 #### Multiple Chats
 
 ```typescript
-import { useChat, fetchServerSentEvents } from "@tanstack/ai-react";
+import { useChat, fetchServerSentEvents } from '@tanstack/ai-react'
 
 function App() {
-  const chat1 = useChat({ 
-    id: "chat-1", 
-    connection: fetchServerSentEvents("/api/chat") 
-  });
-  const chat2 = useChat({ 
-    id: "chat-2", 
-    connection: fetchServerSentEvents("/api/chat") 
-  });
+  const chat1 = useChat({
+    id: 'chat-1',
+    connection: fetchServerSentEvents('/api/chat'),
+  })
+  const chat2 = useChat({
+    id: 'chat-2',
+    connection: fetchServerSentEvents('/api/chat'),
+  })
 
   // Each hook manages independent state
 }
@@ -307,98 +310,98 @@ function App() {
 ## Example Backend (Node.js/Express)
 
 ```typescript
-import express from "express";
-import { AI, toStreamResponse } from "@tanstack/ai";
-import { OpenAIAdapter } from "@tanstack/ai-openai";
+import express from 'express'
+import { AI, toStreamResponse } from '@tanstack/ai'
+import { OpenAIAdapter } from '@tanstack/ai-openai'
 
-const app = express();
-app.use(express.json());
+const app = express()
+app.use(express.json())
 
-const ai = new AI(new OpenAIAdapter({ apiKey: process.env.OPENAI_API_KEY }));
+const ai = new AI(new OpenAIAdapter({ apiKey: process.env.OPENAI_API_KEY }))
 
-app.post("/api/chat", async (req, res) => {
-  const { messages } = req.body;
+app.post('/api/chat', async (req, res) => {
+  const { messages } = req.body
 
   // One line to create streaming response!
   const stream = ai.streamChat({
-    model: "gpt-3.5-turbo",
+    model: 'gpt-3.5-turbo',
     messages,
-  });
+  })
 
-  const response = toStreamResponse(stream);
+  const response = toStreamResponse(stream)
 
   // Copy headers and stream to Express response
   response.headers.forEach((value, key) => {
-    res.setHeader(key, value);
-  });
+    res.setHeader(key, value)
+  })
 
-  const reader = response.body?.getReader();
+  const reader = response.body?.getReader()
   if (reader) {
     while (true) {
-      const { done, value } = await reader.read();
-      if (done) break;
-      res.write(value);
+      const { done, value } = await reader.read()
+      if (done) break
+      res.write(value)
     }
   }
-  res.end();
-});
+  res.end()
+})
 
-app.listen(3000);
+app.listen(3000)
 ```
 
 ## Example Backend (Next.js App Router)
 
 ```typescript
 // app/api/chat/route.ts
-import { AI, toStreamResponse } from "@tanstack/ai";
-import { OpenAIAdapter } from "@tanstack/ai-openai";
+import { AI, toStreamResponse } from '@tanstack/ai'
+import { OpenAIAdapter } from '@tanstack/ai-openai'
 
-export const runtime = "edge";
+export const runtime = 'edge'
 
-const ai = new AI(new OpenAIAdapter({ apiKey: process.env.OPENAI_API_KEY }));
+const ai = new AI(new OpenAIAdapter({ apiKey: process.env.OPENAI_API_KEY }))
 
 export async function POST(req: Request) {
-  const { messages } = await req.json();
+  const { messages } = await req.json()
 
   // One line!
   return toStreamResponse(
     ai.streamChat({
-      model: "gpt-3.5-turbo",
+      model: 'gpt-3.5-turbo',
       messages,
-    })
-  );
+    }),
+  )
 }
 ```
 
 ## Example Backend (TanStack Start)
 
 ```typescript
-import { createFileRoute } from "@tanstack/react-router";
-import { AI, toStreamResponse } from "@tanstack/ai";
-import { AnthropicAdapter } from "@tanstack/ai-anthropic";
+import { createFileRoute } from '@tanstack/react-router'
+import { AI, toStreamResponse } from '@tanstack/ai'
+import { AnthropicAdapter } from '@tanstack/ai-anthropic'
 
 const ai = new AI(
-  new AnthropicAdapter({ apiKey: process.env.ANTHROPIC_API_KEY })
-);
+  new AnthropicAdapter({ apiKey: process.env.ANTHROPIC_API_KEY }),
+)
 
-export const Route = createFileRoute("/api/chat")({
+export const Route = createFileRoute('/api/chat')({
   server: {
     handlers: {
       POST: async ({ request }) => {
-        const { messages } = await request.json();
+        const { messages } = await request.json()
 
         // One line with automatic tool execution!
         return toStreamResponse(
           ai.streamChat({
-            model: "claude-3-5-sonnet-20241022",
+            model: 'claude-3-5-sonnet-20241022',
             messages,
             tools, // Tools with execute functions
-          })
-        );
+          }),
+        )
       },
     },
   },
-});
+})
 ```
 
 ## TypeScript Types
@@ -411,7 +414,7 @@ import type {
   UseChatOptions,
   UseChatReturn,
   ChatRequestBody,
-} from "@tanstack/ai-react";
+} from '@tanstack/ai-react'
 ```
 
 ## Features

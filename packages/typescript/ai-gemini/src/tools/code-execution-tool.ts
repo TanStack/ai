@@ -1,23 +1,21 @@
-import type { Tool } from "@tanstack/ai";
+import type { Tool } from '@tanstack/ai'
 
-export interface CodeExecutionTool {
-
-}
+export interface CodeExecutionTool {}
 
 export function convertCodeExecutionToolToAdapterFormat(_tool: Tool) {
   return {
-    codeExecution: {}
-  };
+    codeExecution: {},
+  }
 }
 
 export function codeExecutionTool(): Tool {
   return {
-    type: "function",
+    type: 'function',
     function: {
-      name: "code_execution",
-      description: "",
-      parameters: {}
+      name: 'code_execution',
+      description: '',
+      parameters: {},
     },
-    metadata: {}
+    metadata: {},
   }
 }

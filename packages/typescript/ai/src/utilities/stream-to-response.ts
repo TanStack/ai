@@ -1,4 +1,4 @@
-import type { StreamChunk } from "../types";
+import type { StreamChunk } from '../types'
 
 /**
  * Convert a StreamChunk async iterable to a ReadableStream in Server-Sent Events format
@@ -21,9 +21,9 @@ import type { StreamChunk } from "../types";
  */
 export function toServerSentEventsStream(
   stream: AsyncIterable<StreamChunk>,
-  abortController?: AbortController
+  abortController?: AbortController,
 ): ReadableStream<Uint8Array> {
-  const encoder = new TextEncoder();
+  const encoder = new TextEncoder()
 
   return new ReadableStream({
     async start(controller) {
@@ -31,48 +31,48 @@ export function toServerSentEventsStream(
         for await (const chunk of stream) {
           // Check if stream was cancelled/aborted
           if (abortController?.signal.aborted) {
-            break;
+            break
           }
 
           // Send each chunk as Server-Sent Events format
           controller.enqueue(
-            encoder.encode(`data: ${JSON.stringify(chunk)}\n\n`)
-          );
+            encoder.encode(`data: ${JSON.stringify(chunk)}\n\n`),
+          )
         }
 
         // Send completion marker
-        controller.enqueue(encoder.encode("data: [DONE]\n\n"));
-        controller.close();
+        controller.enqueue(encoder.encode('data: [DONE]\n\n'))
+        controller.close()
       } catch (error: any) {
         // Don't send error if aborted
         if (abortController?.signal.aborted) {
-          controller.close();
-          return;
+          controller.close()
+          return
         }
 
         // Send error chunk
         controller.enqueue(
           encoder.encode(
             `data: ${JSON.stringify({
-              type: "error",
+              type: 'error',
               error: {
-                message: error.message || "Unknown error occurred",
+                message: error.message || 'Unknown error occurred',
                 code: error.code,
               },
-            })}\n\n`
-          )
-        );
-        controller.close();
+            })}\n\n`,
+          ),
+        )
+        controller.close()
       }
     },
     cancel() {
       // When the ReadableStream is cancelled (e.g., client disconnects),
       // abort the underlying stream
       if (abortController) {
-        abortController.abort();
+        abortController.abort()
       }
     },
-  });
+  })
 }
 
 /**
@@ -107,10 +107,10 @@ export function toStreamResponse(
   return new Response(toServerSentEventsStream(stream, abortController), {
     ...responseInit,
     headers: {
-      "Content-Type": "text/event-stream",
-      "Cache-Control": "no-cache",
-      Connection: "keep-alive",
+      'Content-Type': 'text/event-stream',
+      'Cache-Control': 'no-cache',
+      Connection: 'keep-alive',
       ...(headers || {}),
     },
-  });
+  })
 }
