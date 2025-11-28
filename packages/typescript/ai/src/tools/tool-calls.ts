@@ -130,7 +130,7 @@ export class ToolCallManager {
             )
           }
 
-          // Validate input against inputSchema 
+          // Validate input against inputSchema
           if (tool.inputSchema) {
             try {
               args = tool.inputSchema.parse(args)
@@ -277,7 +277,7 @@ export async function executeToolCalls(
       }
     }
 
-    // Validate input against inputSchema 
+    // Validate input against inputSchema
     if (tool.inputSchema) {
       try {
         input = tool.inputSchema.parse(input)
@@ -427,7 +427,6 @@ export async function executeToolCalls(
             `Output validation failed for tool ${tool.name}: ${parsed.error.message}`,
           )
         }
-
       }
 
       results.push({

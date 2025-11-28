@@ -2,7 +2,6 @@ import { describe, it, expect, beforeEach, vi } from 'vitest'
 import { chat, type Tool, type StreamChunk } from '@tanstack/ai'
 import { OpenAI, type OpenAIProviderOptions } from '../src/openai-adapter'
 
-
 const createAdapter = () => new OpenAI({ apiKey: 'test-key' })
 
 const toolArguments = JSON.stringify({ location: 'Berlin' })
@@ -10,7 +9,6 @@ const toolArguments = JSON.stringify({ location: 'Berlin' })
 const weatherTool: Tool = {
   name: 'lookup_weather',
   description: 'Return the forecast for a location',
-
 }
 
 function createMockChatCompletionsStream(
@@ -67,12 +65,12 @@ describe('OpenAI adapter option mapping', () => {
     const responsesCreate = vi.fn().mockResolvedValueOnce(mockStream)
 
     const adapter = createAdapter()
-      // Replace the internal OpenAI SDK client with our mock
-      ; (adapter as any).client = {
-        responses: {
-          create: responsesCreate,
-        },
-      }
+    // Replace the internal OpenAI SDK client with our mock
+    ;(adapter as any).client = {
+      responses: {
+        create: responsesCreate,
+      },
+    }
 
     const providerOptions: OpenAIProviderOptions = {
       tool_choice: 'required',

@@ -1,4 +1,3 @@
-
 import type OpenAI from 'openai'
 import type { Tool } from '@tanstack/ai'
 

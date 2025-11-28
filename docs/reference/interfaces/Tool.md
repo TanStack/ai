@@ -92,10 +92,10 @@ execute: async (args) => {
 
 ***
 
-### inputSchema
+### inputSchema?
 
 ```ts
-inputSchema: TInput;
+optional inputSchema: TInput;
 ```
 
 Defined in: [types.ts:73](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L73)

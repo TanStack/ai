@@ -55,7 +55,6 @@ const createAdapter = () => new GeminiAdapter({ apiKey: 'test-key' })
 const weatherTool: Tool = {
   name: 'lookup_weather',
   description: 'Return the weather for a location',
-
 }
 
 const createStream = (chunks: Array<Record<string, unknown>>) => {

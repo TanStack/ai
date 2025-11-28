@@ -1,4 +1,3 @@
-
 import type { GoogleMaps } from '@google/genai'
 import type { Tool } from '@tanstack/ai'
 

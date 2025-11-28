@@ -1,9 +1,8 @@
-
-import { toJSONSchema } from "zod"
+import { toJSONSchema } from 'zod'
 import type { z } from 'zod'
 /**
  * Converts a Zod schema to JSON Schema format compatible with LLM providers.
- * 
+ *
  *
  * @param schema - Zod schema to convert
  * @returns JSON Schema object that can be sent to LLM providers
@@ -29,13 +28,15 @@ import type { z } from 'zod'
  * // }
  * ```
  */
-export function convertZodToJsonSchema(schema: z.ZodType | undefined): Record<string, any> | undefined {
+export function convertZodToJsonSchema(
+  schema: z.ZodType | undefined,
+): Record<string, any> | undefined {
   if (!schema) return undefined
 
   // Use Alcyone Labs fork which is compatible with Zod v4
   const jsonSchema = toJSONSchema(schema, {
-    target: "openapi-3.0",
-    reused: "ref"
+    target: 'openapi-3.0',
+    reused: 'ref',
   })
 
   // Remove $schema property as it's not needed for LLM providers

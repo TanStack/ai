@@ -1,4 +1,3 @@
-
 import type { GoogleSearchRetrieval } from '@google/genai'
 import type { Tool } from '@tanstack/ai'
 

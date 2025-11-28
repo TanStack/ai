@@ -1,4 +1,3 @@
-
 import type { WebSearchTool20250305 } from '@anthropic-ai/sdk/resources/messages'
 import type { CacheControl } from '../text/text-provider-options'
 import type { Tool } from '@tanstack/ai'
