@@ -66,9 +66,9 @@ export function TextPart(props: TextPartProps) {
   // Combine classes based on role
   const roleClass = () =>
     props.role === 'user'
-      ? props.userClass ?? ''
+      ? (props.userClass ?? '')
       : props.role === 'assistant'
-        ? props.assistantClass ?? ''
+        ? (props.assistantClass ?? '')
         : ''
   const combinedClass = () =>
     [props.class ?? '', roleClass()].filter(Boolean).join(' ')
@@ -76,7 +76,13 @@ export function TextPart(props: TextPartProps) {
   onMount(async () => {
     setIsClient(true)
     // Dynamically import solid-markdown and plugins only on the client
-    const [markdownModule, gfmModule, rawModule, sanitizeModule, highlightModule] = await Promise.all([
+    const [
+      markdownModule,
+      gfmModule,
+      rawModule,
+      sanitizeModule,
+      highlightModule,
+    ] = await Promise.all([
       import('solid-markdown'),
       import('remark-gfm'),
       import('rehype-raw'),
@@ -93,7 +99,10 @@ export function TextPart(props: TextPartProps) {
 
   return (
     <div class={combinedClass() || undefined}>
-      <Show when={isClient() && isLoaded() && SolidMarkdown} fallback={<span>{props.content}</span>}>
+      <Show
+        when={isClient() && isLoaded() && SolidMarkdown}
+        fallback={<span>{props.content}</span>}
+      >
         {(_) => {
           const Markdown = SolidMarkdown!
           return (

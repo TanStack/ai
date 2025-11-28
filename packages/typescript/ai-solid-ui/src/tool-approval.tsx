@@ -98,11 +98,7 @@ export function ToolApproval(props: ToolApprovalProps) {
 
   // Default approval UI
   return (
-    <div
-      class={props.class}
-      data-tool-approval
-      data-approval-status="pending"
-    >
+    <div class={props.class} data-tool-approval data-approval-status="pending">
       <div data-approval-header>
         <strong>{props.toolName}</strong> requires approval
       </div>

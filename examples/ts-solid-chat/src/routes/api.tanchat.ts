@@ -1,9 +1,5 @@
 import { createFileRoute } from '@tanstack/solid-router'
-import {
-  chat,
-  toStreamResponse,
-  maxIterations,
-} from '@tanstack/ai'
+import { chat, toStreamResponse, maxIterations } from '@tanstack/ai'
 // import { openai } from '@tanstack/ai-openai'
 // import { ollama } from "@tanstack/ai-ollama";
 // import { gemini } from "@tanstack/ai-gemini";

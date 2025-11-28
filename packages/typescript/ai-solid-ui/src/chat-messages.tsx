@@ -68,7 +68,9 @@ export function ChatMessages(props: ChatMessagesProps) {
       <For each={messages()}>
         {(message, index) =>
           props.children ? (
-            <div data-message-id={message.id}>{props.children(message, index())}</div>
+            <div data-message-id={message.id}>
+              {props.children(message, index())}
+            </div>
           ) : (
             <ChatMessage message={message} />
           )

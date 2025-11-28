@@ -16,7 +16,7 @@ const config = defineConfig({
     tailwindcss(),
     tanstackStart(),
     viteSolid({ ssr: true }),
-  ]
+  ],
 })
 
 export default config

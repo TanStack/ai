@@ -4,7 +4,7 @@
     "outDir": "./dist",
     "rootDir": "./src",
     "jsx": "preserve",
-		"jsxImportSource": "solid-js",
+    "jsxImportSource": "solid-js",
     "declaration": true,
     "declarationMap": true,
     "composite": true,

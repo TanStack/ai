@@ -92,9 +92,9 @@ export function ChatMessage(props: ChatMessageProps) {
   // Combine classes based on role
   const roleClass = () =>
     props.message.role === 'user'
-      ? props.userClass ?? ''
+      ? (props.userClass ?? '')
       : props.message.role === 'assistant'
-        ? props.assistantClass ?? ''
+        ? (props.assistantClass ?? '')
         : ''
   const combinedClass = () =>
     [props.class ?? '', roleClass()].filter(Boolean).join(' ')
@@ -111,7 +111,9 @@ export function ChatMessage(props: ChatMessageProps) {
           // Check if thinking is complete (if there's a text part after this thinking part)
           const isThinkingComplete = () =>
             part.type === 'thinking' &&
-            props.message.parts.slice(index() + 1).some((p) => p.type === 'text')
+            props.message.parts
+              .slice(index() + 1)
+              .some((p) => p.type === 'text')
 
           return (
             <MessagePart
