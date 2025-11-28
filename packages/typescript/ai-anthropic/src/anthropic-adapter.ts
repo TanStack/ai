@@ -316,16 +316,34 @@ export class Anthropic extends BaseAdapter<
     generateId: () => string,
   ): AsyncIterable<StreamChunk> {
     let accumulatedContent = ''
+    const allChunks: Array<{
+      input?: any
+      output?: any
+      iteration_start?: any
+    }> = []
     let accumulatedThinking = ''
     const timestamp = Date.now()
+    const iterationId = generateId()
     const toolCallsMap = new Map<
       number,
       { id: string; name: string; input: string }
     >()
     let currentToolIndex = -1
 
+    // Helper to log output chunks
+    const logAndYield = (chunk: StreamChunk) => {
+      allChunks.push({ output: chunk })
+      return chunk
+    }
+
+    // Log iteration start
+    allChunks.push({ iteration_start: { id: iterationId, timestamp } })
+
     try {
       for await (const event of stream) {
+        // Log input event
+        allChunks.push({ input: event })
+
         if (event.type === 'content_block_start') {
           if (event.content_block.type === 'tool_use') {
             currentToolIndex++
@@ -342,7 +360,7 @@ export class Anthropic extends BaseAdapter<
           if (event.delta.type === 'text_delta') {
             const delta = event.delta.text
             accumulatedContent += delta
-            yield {
+            yield logAndYield({
               type: 'content',
               id: generateId(),
               model: model,
@@ -350,32 +368,29 @@ export class Anthropic extends BaseAdapter<
               delta,
               content: accumulatedContent,
               role: 'assistant',
-            }
+            })
           } else if (event.delta.type === 'thinking_delta') {
             // Handle thinking content
             const delta = event.delta.thinking
             accumulatedThinking += delta
-            yield {
+            yield logAndYield({
               type: 'thinking',
               id: generateId(),
               model: model,
               timestamp,
               delta,
               content: accumulatedThinking,
-            }
+            })
           } else if (event.delta.type === 'input_json_delta') {
             // Tool input is being streamed
             const existing = toolCallsMap.get(currentToolIndex)
             if (existing) {
+              // Accumulate the input for final processing
               existing.input += event.delta.partial_json
 
-              // Normalize arguments: empty string -> {} for empty object schemas
-              let normalizedArgs = existing.input.trim()
-              if (normalizedArgs === '') {
-                normalizedArgs = '{}'
-              }
-
-              yield {
+              // Yield the DELTA (partial_json), not the full accumulated input
+              // The stream processor will concatenate these deltas
+              yield logAndYield({
                 type: 'tool_call',
                 id: generateId(),
                 model: model,
@@ -385,24 +400,46 @@ export class Anthropic extends BaseAdapter<
                   type: 'function',
                   function: {
                     name: existing.name,
-                    arguments: normalizedArgs,
+                    arguments: event.delta.partial_json,
                   },
                 },
                 index: currentToolIndex,
-              }
+              })
             }
           }
+        } else if (event.type === 'content_block_stop') {
+          // If this is a tool call and we haven't received any input deltas,
+          // emit a tool_call chunk with empty arguments
+          const existing = toolCallsMap.get(currentToolIndex)
+          if (existing && existing.input === '') {
+            // No input_json_delta events received, emit empty arguments
+            yield logAndYield({
+              type: 'tool_call',
+              id: generateId(),
+              model: model,
+              timestamp,
+              toolCall: {
+                id: existing.id,
+                type: 'function',
+                function: {
+                  name: existing.name,
+                  arguments: '{}',
+                },
+              },
+              index: currentToolIndex,
+            })
+          }
         } else if (event.type === 'message_stop') {
-          yield {
+          yield logAndYield({
             type: 'done',
             id: generateId(),
             model: model,
             timestamp,
             finishReason: 'stop',
-          }
+          })
         } else if (event.type === 'message_delta') {
           if (event.delta.stop_reason) {
-            yield {
+            yield logAndYield({
               type: 'done',
               id: generateId(),
               model: model,
@@ -420,7 +457,7 @@ export class Anthropic extends BaseAdapter<
                   (event.usage.input_tokens || 0) +
                   (event.usage.output_tokens || 0),
               },
-            }
+            })
           }
         }
       }
@@ -435,7 +472,7 @@ export class Anthropic extends BaseAdapter<
         stack: error?.stack,
       })
 
-      yield {
+      yield logAndYield({
         type: 'error',
         id: generateId(),
         model: model,
@@ -444,6 +481,44 @@ export class Anthropic extends BaseAdapter<
           message: error?.message || 'Unknown error occurred',
           code: error?.code || error?.status,
         },
+      })
+    } finally {
+      // Append all chunks to /tmp/chunks.txt for debugging (to capture all iterations)
+      try {
+        const fs = await import('fs/promises')
+        // Read existing content
+        let existingContent = '[]'
+        try {
+          existingContent = await fs.readFile('/tmp/chunks.txt', 'utf-8')
+        } catch {
+          // File doesn't exist yet, start fresh
+        }
+
+        // Parse existing array and append new chunks
+        let allIterations = []
+        try {
+          allIterations = JSON.parse(existingContent)
+          if (!Array.isArray(allIterations)) {
+            allIterations = []
+          }
+        } catch {
+          allIterations = []
+        }
+
+        // Add this iteration's chunks
+        allIterations.push(...allChunks)
+
+        // Write back
+        await fs.writeFile(
+          '/tmp/chunks.txt',
+          JSON.stringify(allIterations, null, 2),
+          'utf-8',
+        )
+        console.log(
+          `[Anthropic] Appended ${allChunks.length} chunks to /tmp/chunks.txt (iteration ${iterationId})`,
+        )
+      } catch (writeError) {
+        console.error('[Anthropic] Failed to write chunks:', writeError)
       }
     }
   }

@@ -50,7 +50,7 @@
   ],
   "dependencies": {
     "@tanstack/devtools-event-client": "^0.3.5",
-    "zod-to-json-schema": "^3.23.0"
+    "@alcyone-labs/zod-to-json-schema": "^4.0.10"
   },
   "peerDependencies": {
     "zod": "^3.0.0 || ^4.0.0"

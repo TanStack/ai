@@ -1,10 +1,10 @@
 import type { z } from 'zod'
-import { zodToJsonSchema } from 'zod-to-json-schema'
+import { zodToJsonSchema } from '@alcyone-labs/zod-to-json-schema'
 
 /**
  * Converts a Zod schema to JSON Schema format compatible with LLM providers.
  *
- * Uses OpenAPI 3.0 format which is supported by OpenAI, Anthropic, Gemini, and other providers.
+ * Uses @alcyone-labs/zod-to-json-schema which is compatible with Zod v4.
  *
  * @param schema - Zod schema to convert
  * @returns JSON Schema object that can be sent to LLM providers
@@ -31,6 +31,7 @@ import { zodToJsonSchema } from 'zod-to-json-schema'
  * ```
  */
 export function convertZodToJsonSchema(schema: z.ZodType): Record<string, any> {
+  // Use Alcyone Labs fork which is compatible with Zod v4
   const jsonSchema = zodToJsonSchema(schema as any, {
     target: 'openApi3',
     $refStrategy: 'none', // Inline all references for LLM compatibility
@@ -50,8 +51,8 @@ export function convertZodToJsonSchema(schema: z.ZodType): Record<string, any> {
     const isZodObject =
       schema &&
       typeof schema === 'object' &&
-      '_def' in schema &&
-      (schema as any)._def?.typeName === 'ZodObject'
+      'def' in schema &&
+      (schema as any).def?.type === 'object'
 
     // If type is explicitly "None", fix it
     if (result.type === 'None') {

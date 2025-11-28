@@ -442,12 +442,12 @@ importers:
 
   packages/typescript/ai:
     dependencies:
+      '@alcyone-labs/zod-to-json-schema':
+        specifier: ^4.0.10
+        version: 4.0.10(zod@4.1.13)
       '@tanstack/devtools-event-client':
         specifier: ^0.3.5
         version: 0.3.5
-      zod-to-json-schema:
-        specifier: ^3.23.0
-        version: 3.25.0(zod@4.1.13)
     devDependencies:
       '@vitest/coverage-v8':
         specifier: 4.0.14
@@ -729,6 +729,11 @@ packages:
 
   '@adobe/css-tools@4.4.4':
     resolution: {integrity: sha512-Elp+iwUx5rN5+Y8xLt5/GRoG20WGoDCQ/1Fb+1LiGtvwbDavuSk0jhD/eZdckHAuzcDzccnkv+rEjyWfRx18gg==}
+
+  '@alcyone-labs/zod-to-json-schema@4.0.10':
+    resolution: {integrity: sha512-TFsSpAPToqmqmT85SGHXuxoCwEeK9zUDvn512O9aBVvWRhSuy+VvAXZkifzsdllD3ncF0ZjUrf4MpBwIEixdWQ==}
+    peerDependencies:
+      zod: ^4.0.5
 
   '@anthropic-ai/sdk@0.71.0':
     resolution: {integrity: sha512-go1XeWXmpxuiTkosSXpb8tokLk2ZLkIRcXpbWVwJM6gH5OBtHOVsfPfGuqI1oW7RRt4qc59EmYbrXRZ0Ng06Jw==}
@@ -6580,11 +6585,6 @@ packages:
     resolution: {integrity: sha512-zK7YHHz4ZXpW89AHXUPbQVGKI7uvkd3hzusTdotCg1UxyaVtg0zFJSTfW/Dq5f7OBBVnq6cZIaC8Ti4hb6dtCA==}
     engines: {node: '>= 14'}
 
-  zod-to-json-schema@3.25.0:
-    resolution: {integrity: sha512-HvWtU2UG41LALjajJrML6uQejQhNJx+JBO9IflpSja4R03iNWfKXrj6W2h7ljuLyc1nKS+9yDyL/9tD1U/yBnQ==}
-    peerDependencies:
-      zod: ^3.25 || ^4
-
   zod@3.25.76:
     resolution: {integrity: sha512-gzUt/qt81nXsFGKIFcC3YnfEAx5NkunCfnDlvuBSSFS02bcXu4Lmea0AFIUwbLWxWPx3d9p8S5QoaujKcNQxcQ==}
 
@@ -6600,6 +6600,10 @@ snapshots:
 
   '@adobe/css-tools@4.4.4':
     optional: true
+
+  '@alcyone-labs/zod-to-json-schema@4.0.10(zod@4.1.13)':
+    dependencies:
+      zod: 4.1.13
 
   '@anthropic-ai/sdk@0.71.0(zod@4.1.13)':
     dependencies:
@@ -13232,10 +13236,6 @@ snapshots:
       archiver-utils: 5.0.2
       compress-commons: 6.0.2
       readable-stream: 4.7.0
-
-  zod-to-json-schema@3.25.0(zod@4.1.13):
-    dependencies:
-      zod: 4.1.13
 
   zod@3.25.76: {}
 
