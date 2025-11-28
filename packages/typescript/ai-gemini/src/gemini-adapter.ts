@@ -14,7 +14,10 @@ import type {
 } from '@tanstack/ai'
 import type { GeminiChatModelProviderOptionsByName } from './model-meta'
 import type { ExternalTextProviderOptions } from './text/text-provider-options'
-import type { GenerateContentParameters, GenerateContentResponse } from '@google/genai'
+import type {
+  GenerateContentParameters,
+  GenerateContentResponse,
+} from '@google/genai'
 
 export interface GeminiAdapterConfig extends AIAdapterConfig {
   apiKey: string
@@ -194,7 +197,6 @@ export class GeminiAdapter extends BaseAdapter<
         const parts = chunk.candidates[0].content.parts
 
         for (const part of parts) {
-
           // Handle text content
           if (part.text) {
             accumulatedContent += part.text
@@ -215,8 +217,7 @@ export class GeminiAdapter extends BaseAdapter<
           if (functionCall) {
             const toolCallId =
               functionCall.name || `call_${Date.now()}_${nextToolIndex}`
-            const functionArgs =
-              functionCall.args || {}
+            const functionArgs = functionCall.args || {}
 
             // Check if we've seen this tool call before (for streaming args)
             let toolCallData = toolCallMap.get(toolCallId)
@@ -248,7 +249,6 @@ export class GeminiAdapter extends BaseAdapter<
                     ? functionArgs
                     : JSON.stringify(functionArgs)
               }
-
             }
 
             yield {
@@ -288,7 +288,7 @@ export class GeminiAdapter extends BaseAdapter<
 
         // UNEXPECTED_TOOL_CALL means Gemini tried to call a function but it wasn't properly declared
         // This typically means there's an issue with the tool declaration format
-        // We should map it to tool_calls to try to process it anyway 
+        // We should map it to tool_calls to try to process it anyway
         if (finishReason === FinishReason.UNEXPECTED_TOOL_CALL) {
           // Try to extract function call from content.parts if available
           if (chunk.candidates[0].content?.parts) {
@@ -298,8 +298,7 @@ export class GeminiAdapter extends BaseAdapter<
                 // We found a function call - process it
                 const toolCallId =
                   functionCall.name || `call_${Date.now()}_${nextToolIndex}`
-                const functionArgs =
-                  functionCall.args || {}
+                const functionArgs = functionCall.args || {}
 
                 toolCallMap.set(toolCallId, {
                   name: functionCall.name || '',
@@ -331,7 +330,6 @@ export class GeminiAdapter extends BaseAdapter<
               }
             }
           }
-
         }
         if (finishReason === FinishReason.MAX_TOKENS) {
           yield {
@@ -340,12 +338,11 @@ export class GeminiAdapter extends BaseAdapter<
             model,
             timestamp,
             error: {
-              message: 'The response was cut off because the maximum token limit was reached.'
+              message:
+                'The response was cut off because the maximum token limit was reached.',
             },
           }
         }
-
-
 
         yield {
           type: 'done',
@@ -355,10 +352,10 @@ export class GeminiAdapter extends BaseAdapter<
           finishReason: toolCallMap.size > 0 ? 'tool_calls' : 'stop',
           usage: chunk.usageMetadata
             ? {
-              promptTokens: chunk.usageMetadata.promptTokenCount ?? 0,
-              completionTokens: chunk.usageMetadata.thoughtsTokenCount ?? 0,
-              totalTokens: chunk.usageMetadata.totalTokenCount ?? 0,
-            }
+                promptTokens: chunk.usageMetadata.promptTokenCount ?? 0,
+                completionTokens: chunk.usageMetadata.thoughtsTokenCount ?? 0,
+                totalTokens: chunk.usageMetadata.totalTokenCount ?? 0,
+              }
             : undefined,
         }
       }
