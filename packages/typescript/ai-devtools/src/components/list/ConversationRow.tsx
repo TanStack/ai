@@ -36,48 +36,50 @@ export const ConversationRow: Component<ConversationRowProps> = (props) => {
       class={`${styles().utilRow} ${state.activeConversationId === conv().id ? styles().utilRowSelected : ''}`}
       onClick={() => selectConversation(conv().id)}
     >
-      <div class={styles().conversationsList.rowContent}>
-        <div class={styles().conversationsList.rowInfo}>
-          <div
-            class={styles().conversationsList.typeDot}
-            style={{ background: getTypeColor(conv().type) }}
-          />
-          <div class={styles().conversationsList.label}>{conv().label}</div>
-          <Show when={hasToolCalls()}>
+      <div class={styles().conversationsList.rowMain}>
+        <div class={styles().conversationsList.rowTop}>
+          <div class={styles().conversationsList.rowInfo}>
             <div
-              class={styles().conversationsList.toolCallsBadge}
-              title={`${countToolCalls()} tool call${countToolCalls() !== 1 ? 's' : ''}`}
+              class={styles().conversationsList.typeDot}
+              style={{ background: getTypeColor(conv().type) }}
+            />
+            <div class={styles().conversationsList.label}>{conv().label}</div>
+            <Show when={hasToolCalls()}>
+              <div
+                class={styles().conversationsList.toolCallsBadge}
+                title={`${countToolCalls()} tool call${countToolCalls() !== 1 ? 's' : ''}`}
+              >
+                🔧 {countToolCalls()}
+              </div>
+            </Show>
+          </div>
+          <div class={styles().conversationsList.rowRight}>
+            <Show when={conv().status === 'active'}>
+              <div class={styles().conversationsList.loadingIndicator}>⟳</div>
+            </Show>
+            <div
+              class={styles().conversationsList.statusDot}
+              style={{ background: getStatusColor(conv().status) }}
+            />
+          </div>
+        </div>
+        <div class={styles().conversationsList.stats}>
+          <div class={styles().conversationsList.statItem}>
+            💬 {conv().messages.length}
+          </div>
+          <div class={styles().conversationsList.statItem}>
+            📦 {totalRawChunks()}
+          </div>
+          <Show when={conv().usage}>
+            <div
+              class={styles().conversationsList.tokensBadge}
+              title={`Prompt: ${conv().usage?.promptTokens || 0} | Completion: ${conv().usage?.completionTokens || 0}`}
             >
-              🔧 {countToolCalls()}
+              🎯 {conv().usage?.totalTokens.toLocaleString() || 0}
             </div>
           </Show>
         </div>
-        <div
-          class={styles().conversationsList.statusDot}
-          style={{ background: getStatusColor(conv().status) }}
-        />
       </div>
-      <div class={styles().conversationsList.stats}>
-        <div class={styles().conversationsList.statItem}>
-          💬 {conv().messages.length}
-        </div>
-        <div class={styles().conversationsList.statItem}>
-          📦 {totalRawChunks()}
-        </div>
-        <Show when={conv().usage}>
-          <div
-            class={styles().conversationsList.tokensBadge}
-            title={`Prompt: ${conv().usage?.promptTokens || 0} | Completion: ${conv().usage?.completionTokens || 0}`}
-          >
-            🎯 {conv().usage?.totalTokens || 0}
-          </div>
-        </Show>
-      </div>
-      <Show when={conv().status === 'active'}>
-        <div class={styles().conversationsList.loadingIndicator}>
-          ⟳ Loading...
-        </div>
-      </Show>
     </div>
   )
 }

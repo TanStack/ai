@@ -197,8 +197,11 @@ export class ToolCallManager {
 
 export interface ToolResult {
   toolCallId: string
+  toolName: string
   result: any
   state?: 'output-available' | 'output-error'
+  /** Duration of tool execution in milliseconds (only for server-executed tools) */
+  duration?: number
 }
 
 export interface ApprovalRequest {
@@ -254,12 +257,14 @@ export async function executeToolCalls(
 
   for (const toolCall of toolCalls) {
     const tool = toolMap.get(toolCall.function.name)
+    const toolName = toolCall.function.name
 
     if (!tool) {
       // Unknown tool - return error
       results.push({
         toolCallId: toolCall.id,
-        result: { error: `Unknown tool: ${toolCall.function.name}` },
+        toolName,
+        result: { error: `Unknown tool: ${toolName}` },
         state: 'output-error',
       })
       continue
@@ -284,6 +289,7 @@ export async function executeToolCalls(
       } catch (validationError: any) {
         results.push({
           toolCallId: toolCall.id,
+          toolName,
           result: {
             error: `Input validation failed for tool ${tool.name}: ${validationError.message}`,
           },
@@ -308,13 +314,14 @@ export async function executeToolCalls(
             if (clientResults.has(toolCall.id)) {
               results.push({
                 toolCallId: toolCall.id,
+                toolName,
                 result: clientResults.get(toolCall.id),
               })
             } else {
               // Approved but not executed yet - request client execution
               needsClientExecution.push({
                 toolCallId: toolCall.id,
-                toolName: toolCall.function.name,
+                toolName,
                 input,
               })
             }
@@ -322,6 +329,7 @@ export async function executeToolCalls(
             // User declined
             results.push({
               toolCallId: toolCall.id,
+              toolName,
               result: { error: 'User declined tool execution' },
               state: 'output-error',
             })
@@ -340,13 +348,14 @@ export async function executeToolCalls(
         if (clientResults.has(toolCall.id)) {
           results.push({
             toolCallId: toolCall.id,
+            toolName,
             result: clientResults.get(toolCall.id),
           })
         } else {
           // Request client execution
           needsClientExecution.push({
             toolCallId: toolCall.id,
-            toolName: toolCall.function.name,
+            toolName,
             input,
           })
         }
@@ -364,8 +373,10 @@ export async function executeToolCalls(
 
         if (approved) {
           // Execute after approval
+          const startTime = Date.now()
           try {
             let result = await tool.execute(input)
+            const duration = Date.now() - startTime
 
             // Validate output against outputSchema if provided
             if (tool.outputSchema && result !== undefined && result !== null) {
@@ -381,22 +392,28 @@ export async function executeToolCalls(
 
             results.push({
               toolCallId: toolCall.id,
+              toolName,
               result:
                 typeof result === 'string'
                   ? JSON.parse(result)
                   : result || null,
+              duration,
             })
           } catch (error: any) {
+            const duration = Date.now() - startTime
             results.push({
               toolCallId: toolCall.id,
+              toolName,
               result: { error: error.message },
               state: 'output-error',
+              duration,
             })
           }
         } else {
           // User declined
           results.push({
             toolCallId: toolCall.id,
+            toolName,
             result: { error: 'User declined tool execution' },
             state: 'output-error',
           })
@@ -405,7 +422,7 @@ export async function executeToolCalls(
         // Need approval
         needsApproval.push({
           toolCallId: toolCall.id,
-          toolName: toolCall.function.name,
+          toolName,
           input,
           approvalId,
         })
@@ -414,8 +431,10 @@ export async function executeToolCalls(
     }
 
     // CASE 3: Normal server tool - execute immediately
+    const startTime = Date.now()
     try {
       let result = await tool.execute(input)
+      const duration = Date.now() - startTime
 
       // Validate output against outputSchema if provided
       if (tool.outputSchema && result !== undefined && result !== null) {
@@ -431,14 +450,19 @@ export async function executeToolCalls(
 
       results.push({
         toolCallId: toolCall.id,
+        toolName,
         result:
           typeof result === 'string' ? JSON.parse(result) : result || null,
+        duration,
       })
     } catch (error: any) {
+      const duration = Date.now() - startTime
       results.push({
         toolCallId: toolCall.id,
+        toolName,
         result: { error: error.message },
         state: 'output-error',
+        duration,
       })
     }
   }

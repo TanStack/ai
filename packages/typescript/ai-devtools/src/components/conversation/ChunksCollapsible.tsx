@@ -25,23 +25,24 @@ export const ChunksCollapsible: Component<ChunksCollapsibleProps> = (props) => {
   return (
     <details class={styles().conversationDetails.chunksDetails}>
       <summary class={styles().conversationDetails.chunksSummary}>
-        <div class={styles().conversationDetails.chunksSummaryContent}>
-          {/* Header */}
-          <div class={styles().conversationDetails.chunksSummaryHeader}>
-            <span>📦 Server Chunks ({totalRawChunks()})</span>
-            <ChunkBadges chunks={props.chunks} />
-          </div>
-
-          {/* Accumulated Content Preview */}
-          <Show when={accumulatedContent()}>
-            <div
-              class={styles().conversationDetails.contentPreview}
-              title={accumulatedContent()}
-            >
-              {accumulatedContent()}
-            </div>
-          </Show>
+        <div class={styles().conversationDetails.chunksSummaryRow}>
+          <span class={styles().conversationDetails.chunksSummaryArrow}>
+            ▶
+          </span>
+          <span class={styles().conversationDetails.chunksSummaryTitle}>
+            📦 {totalRawChunks()} chunks
+          </span>
+          <ChunkBadges chunks={props.chunks} />
         </div>
+        {/* Accumulated Content Preview */}
+        <Show when={accumulatedContent()}>
+          <div
+            class={styles().conversationDetails.contentPreview}
+            title={accumulatedContent()}
+          >
+            {accumulatedContent()}
+          </div>
+        </Show>
       </summary>
       <div class={styles().conversationDetails.chunksContainer}>
         <div class={styles().conversationDetails.chunksList}>

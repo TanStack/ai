@@ -319,15 +319,6 @@ export class OpenAI extends BaseAdapter<
           }
         }
 
-        if (chunk.type === 'response.output_text.done') {
-          yield {
-            type: 'done',
-            id: responseId || generateId(),
-            model: model || options.model,
-            timestamp,
-            finishReason: 'stop',
-          }
-        }
 
         if (chunk.type === 'response.completed') {
           // Determine finish reason based on output
@@ -341,6 +332,11 @@ export class OpenAI extends BaseAdapter<
             id: responseId || generateId(),
             model: model || options.model,
             timestamp,
+            usage: {
+              promptTokens: chunk.response.usage?.input_tokens || 0,
+              completionTokens: chunk.response.usage?.output_tokens || 0,
+              totalTokens: chunk.response.usage?.total_tokens || 0,
+            },
             finishReason: hasFunctionCalls ? 'tool_calls' : 'stop',
           }
         }
@@ -387,14 +383,14 @@ export class OpenAI extends BaseAdapter<
   private mapChatOptionsToOpenAI(options: ChatOptions) {
     const providerOptions = options.providerOptions as
       | Omit<
-          InternalTextProviderOptions,
-          | 'max_output_tokens'
-          | 'tools'
-          | 'metadata'
-          | 'temperature'
-          | 'input'
-          | 'top_p'
-        >
+        InternalTextProviderOptions,
+        | 'max_output_tokens'
+        | 'tools'
+        | 'metadata'
+        | 'temperature'
+        | 'input'
+        | 'top_p'
+      >
       | undefined
     const input = convertMessagesToInput(options.messages)
     if (providerOptions) {

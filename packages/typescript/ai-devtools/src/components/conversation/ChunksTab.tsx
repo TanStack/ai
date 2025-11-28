@@ -2,14 +2,26 @@ import { For, Show } from 'solid-js'
 import { useStyles } from '../../styles/use-styles'
 import { MessageGroup } from './MessageGroup'
 import type { Component } from 'solid-js'
-import type { Chunk } from '../../store/ai-store'
+import type { Chunk, Message } from '../../store/ai-store'
 
 interface ChunksTabProps {
   chunks: Array<Chunk>
+  messages?: Array<Message>
 }
 
 export const ChunksTab: Component<ChunksTabProps> = (props) => {
   const styles = useStyles()
+
+  // Create a map of messageId to usage for quick lookup
+  const usageByMessageId = () => {
+    const map = new Map<string, Message['usage']>()
+    props.messages?.forEach((msg) => {
+      if (msg.usage) {
+        map.set(msg.id, msg.usage)
+      }
+    })
+    return map
+  }
 
   const groupedChunks = () => {
     const groups = new Map<string, Array<Chunk>>()
@@ -62,6 +74,7 @@ export const ChunksTab: Component<ChunksTabProps> = (props) => {
                 messageId={messageId}
                 chunks={chunks}
                 groupIndex={groupIndex()}
+                usage={usageByMessageId().get(messageId)}
               />
             )}
           </For>
