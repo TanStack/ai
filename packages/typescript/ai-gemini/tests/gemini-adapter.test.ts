@@ -47,7 +47,7 @@ vi.mock('@google/genai', async () => {
     }
   }
 
-  return { GoogleGenAI: MockGoogleGenAI, Type: actual.Type }
+  return { GoogleGenAI: MockGoogleGenAI, Type: actual.Type, FinishReason: actual.FinishReason }
 })
 
 const createAdapter = () => new GeminiAdapter({ apiKey: 'test-key' })
