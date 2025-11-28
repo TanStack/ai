@@ -6,12 +6,10 @@ import rehypeRaw from 'rehype-raw'
 import rehypeSanitize from 'rehype-sanitize'
 import rehypeHighlight from 'rehype-highlight'
 import remarkGfm from 'remark-gfm'
-import {
-  useChat,
-  fetchServerSentEvents,
-  type UIMessage,
-} from '@tanstack/ai-react'
+import { fetchServerSentEvents, useChat } from '@tanstack/ai-react'
 import { ThinkingPart } from '@tanstack/ai-react-ui'
+
+import type { UIMessage } from '@tanstack/ai-react'
 
 import GuitarRecommendation from '@/components/example-GuitarRecommendation'
 
@@ -330,12 +328,14 @@ function DebugPanel({
   )
 }
 
+const connection = fetchServerSentEvents('/api/tanchat')
+
 function ChatPage() {
   const [chunks, setChunks] = useState<any[]>([])
 
   const { messages, sendMessage, isLoading, addToolApprovalResponse, stop } =
     useChat({
-      connection: fetchServerSentEvents('/api/tanchat'),
+      connection,
       onChunk: (chunk: any) => {
         setChunks((prev) => [...prev, chunk])
       },
@@ -363,10 +363,8 @@ function ChatPage() {
               guitarId: input.guitarId,
               totalItems: wishList.length,
             }
-
-          default:
-            throw new Error(`Unknown client tool: ${toolName}`)
         }
+        return Promise.resolve({ result: 'Unknown client tool' })
       },
     })
   const [input, setInput] = useState('')

@@ -13,8 +13,7 @@ npm install @tanstack/ai-client
 The main client class for managing chat state.
 
 ```typescript
-import { ChatClient } from "@tanstack/ai-client";
-import { fetchServerSentEvents } from "@tanstack/ai-client";
+import { ChatClient, fetchServerSentEvents } from "@tanstack/ai-client";
 
 const client = new ChatClient({
   connection: fetchServerSentEvents("/api/chat"),
@@ -268,7 +267,7 @@ type ToolResultState =
 Configure stream processing with chunk strategies:
 
 ```typescript
-import { ImmediateStrategy } from "@tanstack/ai-client";
+import { ImmediateStrategy, fetchServerSentEvents } from "@tanstack/ai-client";
 
 const client = new ChatClient({
   connection: fetchServerSentEvents("/api/chat"),

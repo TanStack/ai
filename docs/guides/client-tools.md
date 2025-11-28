@@ -40,7 +40,7 @@ export const saveToLocalStorage = tool({
 Pass client tools to the chat (they won't execute on the server):
 
 ```typescript
-import { chat, toStreamResponse } from "@tanstack/ai";
+import { chat, toServerSentEventsStream } from "@tanstack/ai";
 import { openai } from "@tanstack/ai-openai";
 import { updateUI, saveToLocalStorage } from "./tools";
 
@@ -54,7 +54,7 @@ export async function POST(request: Request) {
     tools: [updateUI, saveToLocalStorage], // Model knows about these tools
   });
 
-  return toStreamResponse(stream);
+  return toServerSentEventsStream(stream);
 }
 ```
 
