@@ -1,6 +1,6 @@
-import { For,  Show } from 'solid-js'
+import { For, Show } from 'solid-js'
 import { ThinkingPart } from './thinking-part'
-import type {JSX} from 'solid-js';
+import type { JSX } from 'solid-js'
 import type { UIMessage } from '@tanstack/ai-solid'
 
 export interface ToolCallRenderProps {

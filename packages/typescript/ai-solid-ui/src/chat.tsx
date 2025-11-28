@@ -1,6 +1,6 @@
 import { createContext, useContext } from 'solid-js'
 import { useChat } from '@tanstack/ai-solid'
-import type { JSX} from 'solid-js'
+import type { JSX } from 'solid-js'
 import type {
   ConnectionAdapter,
   UIMessage,
