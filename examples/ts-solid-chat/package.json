@@ -32,6 +32,7 @@
     "highlight.js": "^11.11.1",
     "lucide-solid": "^0.554.0",
     "solid-js": "^1.9.10",
+    "solid-markdown": "^2.1.0",
     "tailwindcss": "^4.1.17",
     "vite-tsconfig-paths": "^5.1.4",
     "zod": "^4.1.13"

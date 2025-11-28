@@ -7,6 +7,9 @@ import { nitroV2Plugin } from '@tanstack/nitro-v2-vite-plugin'
 import { devtools } from '@tanstack/devtools-vite'
 
 const config = defineConfig({
+  ssr: {
+    noExternal: ['solid-markdown', '@tanstack/ai-solid-ui'],
+  },
   plugins: [
     devtools(),
     nitroV2Plugin(),
