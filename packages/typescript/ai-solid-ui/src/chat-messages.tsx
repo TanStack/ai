@@ -1,4 +1,4 @@
-import { For, createEffect } from 'solid-js'
+import { For, Show, createEffect } from 'solid-js'
 import { useChatContext } from './chat'
 import { ChatMessage } from './chat-message'
 import type { JSX } from 'solid-js'
@@ -42,41 +42,41 @@ export function ChatMessages(props: ChatMessagesProps) {
     }
   })
 
-  // Error state
-  if (error() && props.errorState) {
-    return <>{props.errorState({ error: error()!, reload })}</>
-  }
-
-  // Loading state (only show if no messages yet)
-  if (isLoading() && messages().length === 0 && props.loadingState) {
-    return <>{props.loadingState}</>
-  }
-
-  // Empty state
-  if (messages().length === 0 && props.emptyState) {
-    return <>{props.emptyState}</>
-  }
-
   return (
-    <div
-      ref={(el) => {
-        containerRef = el
-      }}
-      class={props.class}
-      data-chat-messages
-      data-message-count={messages().length}
+    <Show
+      when={!error() || !props.errorState}
+      fallback={<>{props.errorState?.({ error: error()!, reload })}</>}
     >
-      <For each={messages()}>
-        {(message, index) =>
-          props.children ? (
-            <div data-message-id={message.id}>
-              {props.children(message, index())}
-            </div>
-          ) : (
-            <ChatMessage message={message} />
-          )
-        }
-      </For>
-    </div>
+      <Show
+        when={!isLoading() || messages().length > 0 || !props.loadingState}
+        fallback={<>{props.loadingState}</>}
+      >
+        <Show
+          when={messages().length > 0 || !props.emptyState}
+          fallback={<>{props.emptyState}</>}
+        >
+          <div
+            ref={(el) => {
+              containerRef = el
+            }}
+            class={props.class}
+            data-chat-messages
+            data-message-count={messages().length}
+          >
+            <For each={messages()}>
+              {(message, index) =>
+                props.children ? (
+                  <div data-message-id={message.id}>
+                    {props.children(message, index())}
+                  </div>
+                ) : (
+                  <ChatMessage message={message} />
+                )
+              }
+            </For>
+          </div>
+        </Show>
+      </Show>
+    </Show>
   )
 }
