@@ -9,7 +9,7 @@ title: summarize
 function summarize<TAdapter>(options): Promise<SummarizationResult>;
 ```
 
-Defined in: [core/summarize.ts:11](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/core/summarize.ts#L11)
+Defined in: [core/summarize.ts:16](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/core/summarize.ts#L16)
 
 Standalone summarize function with type inference from adapter
 

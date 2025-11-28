@@ -304,8 +304,8 @@ const stylesFactory = (theme: 'light' | 'dark') => {
       background: ${t(colors.gray[100], colors.darkGray[800])};
       border-radius: ${border.radius.lg};
       box-shadow: ${tokens.shadow.md(
-      t(colors.gray[400] + alpha[80], colors.black + alpha[80]),
-    )};
+        t(colors.gray[400] + alpha[80], colors.black + alpha[80]),
+      )};
       padding: ${size[4]};
       margin-bottom: ${size[4]};
       border: 1px solid ${t(colors.gray[200], colors.darkGray[700])};
@@ -491,8 +491,12 @@ const stylesFactory = (theme: 'light' | 'dark') => {
         color: oklch(0.7 0.17 142);
         animation: spin 1s linear infinite;
         @keyframes spin {
-          from { transform: rotate(0deg); }
-          to { transform: rotate(360deg); }
+          from {
+            transform: rotate(0deg);
+          }
+          to {
+            transform: rotate(360deg);
+          }
         }
       `,
     },

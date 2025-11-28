@@ -304,7 +304,6 @@ class ChatEngine<
       this.doneChunk?.finishReason === 'tool_calls' &&
       chunk.finishReason === 'stop'
     ) {
-
       // Still emit the event and update lastFinishReason, but don't overwrite doneChunk
       this.lastFinishReason = chunk.finishReason
       aiEventClient.emit('stream:chunk:done', {
@@ -769,8 +768,8 @@ export async function* chat<
     any,
     any
   >
-  ? Models[number]
-  : string,
+    ? Models[number]
+    : string,
 >(
   options: Omit<
     ChatStreamOptionsUnion<TAdapter>,
@@ -785,10 +784,10 @@ export async function* chat<
       any,
       infer ModelProviderOptions
     >
-    ? TModel extends keyof ModelProviderOptions
-    ? ModelProviderOptions[TModel]
-    : never
-    : never
+      ? TModel extends keyof ModelProviderOptions
+        ? ModelProviderOptions[TModel]
+        : never
+      : never
   },
 ): AsyncIterable<StreamChunk> {
   const { adapter, ...chatOptions } = options

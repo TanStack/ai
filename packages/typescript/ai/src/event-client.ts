@@ -113,7 +113,7 @@ export interface AIDevtoolsEventMap {
   'tanstack-ai-devtools:chat:started': {
     requestId: string
     streamId: string
-    provider: string;
+    provider: string
     model: string
     messageCount: number
     hasTools: boolean
@@ -308,7 +308,7 @@ class AiEventClient extends EventClient<AIDevtoolsEventMap> {
 
   constructor() {
     super({
-      pluginId: 'tanstack-ai-devtools'
+      pluginId: 'tanstack-ai-devtools',
     })
     this.eventTarget = new EventTarget()
   }

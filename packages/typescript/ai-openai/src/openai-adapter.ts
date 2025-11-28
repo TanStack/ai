@@ -319,7 +319,6 @@ export class OpenAI extends BaseAdapter<
           }
         }
 
-
         if (chunk.type === 'response.completed') {
           // Determine finish reason based on output
           // If there are function_call items in the output, it's a tool_calls finish
@@ -383,14 +382,14 @@ export class OpenAI extends BaseAdapter<
   private mapChatOptionsToOpenAI(options: ChatOptions) {
     const providerOptions = options.providerOptions as
       | Omit<
-        InternalTextProviderOptions,
-        | 'max_output_tokens'
-        | 'tools'
-        | 'metadata'
-        | 'temperature'
-        | 'input'
-        | 'top_p'
-      >
+          InternalTextProviderOptions,
+          | 'max_output_tokens'
+          | 'tools'
+          | 'metadata'
+          | 'temperature'
+          | 'input'
+          | 'top_p'
+        >
       | undefined
     const input = convertMessagesToInput(options.messages)
     if (providerOptions) {
