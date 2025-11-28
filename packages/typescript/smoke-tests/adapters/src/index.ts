@@ -7,6 +7,7 @@ import {
   maxIterations,
   type Tool,
 } from '@tanstack/ai'
+import { z } from 'zod'
 import { createAnthropic } from '@tanstack/ai-anthropic'
 import { createGemini } from '@tanstack/ai-gemini'
 import { ollama } from '@tanstack/ai-ollama'
@@ -110,23 +111,15 @@ async function testTemperatureTool(
   const expectedLocation = 'San Francisco'
 
   const temperatureTool = tool({
-    type: 'function',
-    function: {
-      name: 'get_temperature',
-      description:
-        'Get the current temperature in degrees for a specific location',
-      parameters: {
-        type: 'object',
-        properties: {
-          location: {
-            type: 'string',
-            description: 'The city or location to get the temperature for',
-          },
-        },
-        required: ['location'],
-      },
-    },
-    execute: async (args: any) => {
+    name: 'get_temperature',
+    description:
+      'Get the current temperature in degrees for a specific location',
+    inputSchema: z.object({
+      location: z
+        .string()
+        .describe('The city or location to get the temperature for'),
+    }),
+    execute: async (args) => {
       toolExecuteCalled = true
       toolExecuteCallCount++
       const callInfo: any = {
@@ -246,24 +239,14 @@ async function testApprovalToolFlow(
     error?: string
   }> = []
 
-  const addToCartTool: Tool = {
-    type: 'function',
-    function: {
-      name: 'addToCart',
-      description: 'Add an item to the shopping cart',
-      parameters: {
-        type: 'object',
-        properties: {
-          item: {
-            type: 'string',
-            description: 'The name of the item to add to the cart',
-          },
-        },
-        required: ['item'],
-      },
-    },
+  const addToCartTool: Tool = tool({
+    name: 'addToCart',
+    description: 'Add an item to the shopping cart',
+    inputSchema: z.object({
+      item: z.string().describe('The name of the item to add to the cart'),
+    }),
     needsApproval: true,
-    execute: async (args: any) => {
+    execute: async (args) => {
       toolExecuteCalled = true
       toolExecuteCallCount++
       const callInfo: any = {
@@ -281,7 +264,7 @@ async function testApprovalToolFlow(
         throw error
       }
     },
-  }
+  })
 
   const messages = [
     {
