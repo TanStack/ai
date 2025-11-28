@@ -5,6 +5,7 @@ import viteTsConfigPaths from 'vite-tsconfig-paths'
 import tailwindcss from '@tailwindcss/vite'
 import { nitroV2Plugin } from '@tanstack/nitro-v2-vite-plugin'
 import { devtools } from '@tanstack/devtools-vite'
+
 const config = defineConfig({
   plugins: [
     devtools(),
@@ -17,11 +18,6 @@ const config = defineConfig({
     tanstackStart(),
     viteSolid({ ssr: true }),
   ],
-  // ssr: {
-  //   // Don't externalize solid-markdown and its dependencies during SSR
-  //   // This ensures both server and client use the same compiled code
-  //   noExternal: ['solid-markdown', '@tanstack/ai-solid-ui'],
-  // },
 })
 
 export default config
