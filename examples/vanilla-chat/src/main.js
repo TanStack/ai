@@ -68,36 +68,45 @@ function renderMessages(messages) {
     messageDiv.className = `message ${message.role}`
 
     if (message.role === 'user') {
-      messageDiv.innerHTML = `
-        <div class="message-content">${escapeHtml(message.content || '')}</div>
-      `
-    } else if (message.role === 'assistant') {
-      const content = message.content || ''
-      const toolCalls = message.toolCalls || []
+      // Extract text content from parts
+      const textParts = message.parts.filter((p) => p.type === 'text')
+      const content = textParts.map((p) => p.content).join('')
 
       messageDiv.innerHTML = `
         <div class="message-content">${escapeHtml(content)}</div>
-        ${
-          toolCalls.length > 0
-            ? `
-          <div class="tool-calls">
-            ${toolCalls
-              .map(
-                (tc) => `
-              <div class="tool-call">
-                <span class="tool-name">${escapeHtml(tc.function.name)}</span>
-                <pre class="tool-args">${escapeHtml(
-                  tc.function.arguments,
-                )}</pre>
-              </div>
-            `,
-              )
-              .join('')}
-          </div>
-        `
-            : ''
-        }
       `
+    } else if (message.role === 'assistant') {
+      // Render parts in their original order (maintains chronological flow)
+      const partsHtml = message.parts
+        .map((part) => {
+          if (part.type === 'thinking') {
+            return `<div class="thinking">${escapeHtml(part.content)}</div>`
+          } else if (part.type === 'text') {
+            return `<div class="message-content">${escapeHtml(part.content)}</div>`
+          } else if (part.type === 'tool-call') {
+            return `
+            <div class="tool-call">
+              <div>
+                <span class="tool-name">${escapeHtml(part.name)}</span>
+                <span class="tool-state">${escapeHtml(part.state)}</span>
+              </div>
+              <pre class="tool-args">${escapeHtml(part.arguments)}</pre>
+              ${part.output ? `<pre class="tool-output">${escapeHtml(JSON.stringify(part.output, null, 2))}</pre>` : ''}
+            </div>
+          `
+          } else if (part.type === 'tool-result') {
+            return `
+            <div class="tool-result">
+              <div class="tool-result-label">Tool Result:</div>
+              <pre class="tool-result-content">${escapeHtml(part.content)}</pre>
+            </div>
+          `
+          }
+          return ''
+        })
+        .join('')
+
+      messageDiv.innerHTML = partsHtml
     }
 
     messagesContainer.appendChild(messageDiv)
