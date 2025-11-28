@@ -68,12 +68,13 @@ export function TextPart(props: TextPartProps) {
     [props.class ?? '', roleClass()].filter(Boolean).join(' ')
 
   return (
-    <SolidMarkdown
-      class={combinedClass() || undefined}
-      remarkPlugins={[remarkGfm]}
-      rehypePlugins={[rehypeRaw, rehypeSanitize, rehypeHighlight]}
-    >
-      {props.content}
-    </SolidMarkdown>
+    <div class={combinedClass() || undefined}>
+      <SolidMarkdown
+        remarkPlugins={[remarkGfm]}
+        rehypePlugins={[rehypeRaw, rehypeSanitize, rehypeHighlight]}
+      >
+        {props.content}
+      </SolidMarkdown>
+    </div>
   )
 }
