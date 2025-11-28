@@ -23,14 +23,15 @@
   "keywords": [
     "tanstack",
     "ai",
-    "react",
+    "solid",
+    "solidjs",
     "chat",
     "ui",
     "headless",
     "components"
   ],
   "dependencies": {
-    "react-markdown": "^10.1.0",
+    "solid-markdown": "^2.0.13",
     "rehype-highlight": "^7.0.2",
     "rehype-raw": "^7.0.0",
     "rehype-sanitize": "^6.0.0",

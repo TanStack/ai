@@ -1,4 +1,4 @@
-import ReactMarkdown from 'react-markdown'
+import { SolidMarkdown } from 'solid-markdown'
 import rehypeRaw from 'rehype-raw'
 import rehypeSanitize from 'rehype-sanitize'
 import rehypeHighlight from 'rehype-highlight'
@@ -10,11 +10,11 @@ export interface TextPartProps {
   /** The role of the message (user, assistant, or system) - optional for standalone use */
   role?: 'user' | 'assistant' | 'system'
   /** Base class applied to all text parts */
-  className?: string
+  class?: string
   /** Additional class for user messages */
-  userclass?: string
+  userClass?: string
   /** Additional class for assistant messages (also used for system messages) */
-  assistantclass?: string
+  assistantClass?: string
 }
 
 /**
@@ -32,8 +32,8 @@ export interface TextPartProps {
  *   content="Hello **world**!"
  *   role="user"
  *   class="p-4 rounded"
- *   userclass="bg-blue-500"
- *   assistantclass="bg-gray-500"
+ *   userClass="bg-blue-500"
+ *   assistantClass="bg-gray-500"
  * />
  * ```
  *
@@ -47,37 +47,32 @@ export interface TextPartProps {
  *         content={content}
  *         role={message.role}
  *         class="px-5 py-3 rounded-2xl"
- *         userclass="bg-orange-500 text-white"
- *         assistantclass="bg-gray-800 text-white"
+ *         userClass="bg-orange-500 text-white"
+ *         assistantClass="bg-gray-800 text-white"
  *       />
  *     )
  *   }}
  * />
  * ```
  */
-export function TextPart({
-  content,
-  role,
-  className = '',
-  userclass = '',
-  assistantclass = '',
-}: TextPartProps) {
+export function TextPart(props: TextPartProps) {
   // Combine classes based on role
-  const roleclass =
-    role === 'user'
-      ? userclass
-      : role === 'assistant'
-        ? assistantclass
+  const roleClass = () =>
+    props.role === 'user'
+      ? props.userClass ?? ''
+      : props.role === 'assistant'
+        ? props.assistantClass ?? ''
         : ''
-  const combinedclass = [className, roleclass].filter(Boolean).join(' ')
+  const combinedClass = () =>
+    [props.class ?? '', roleClass()].filter(Boolean).join(' ')
 
   return (
-    <div class={combinedclass || undefined}>
-      <ReactMarkdown
-        rehypePlugins={[rehypeRaw, rehypeSanitize, rehypeHighlight, remarkGfm]}
-      >
-        {content}
-      </ReactMarkdown>
+    <div class={combinedClass() || undefined}>
+      <SolidMarkdown
+        rehypePlugins={[rehypeRaw, rehypeSanitize, rehypeHighlight]}
+        remarkPlugins={[remarkGfm]}
+        children={props.content}
+      />
     </div>
   )
 }

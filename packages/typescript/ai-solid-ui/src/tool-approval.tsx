@@ -1,5 +1,5 @@
+import { type JSX } from 'solid-js'
 import { useChatContext } from './chat'
-import type { JSX } from 'solid-js'
 
 export interface ToolApprovalProps {
   /** Tool call ID */
@@ -15,7 +15,7 @@ export interface ToolApprovalProps {
     approved?: boolean
   }
   /** CSS class name */
-  className?: string
+  class?: string
   /** Custom render prop */
   children?: (props: ToolApprovalRenderProps) => JSX.Element
 }
@@ -50,55 +50,48 @@ export interface ToolApprovalRenderProps {
  * )}
  * ```
  */
-export function ToolApproval({
-  toolCallId: _,
-  toolName,
-  input,
-  approval,
-  className,
-  children,
-}: ToolApprovalProps) {
+export function ToolApproval(props: ToolApprovalProps) {
   const { addToolApprovalResponse } = useChatContext()
 
   const handleApprove = () => {
     addToolApprovalResponse({
-      id: approval.id,
+      id: props.approval.id,
       approved: true,
     })
   }
 
   const handleDeny = () => {
     addToolApprovalResponse({
-      id: approval.id,
+      id: props.approval.id,
       approved: false,
     })
   }
 
-  const hasResponded = approval.approved !== undefined
+  const hasResponded = () => props.approval.approved !== undefined
 
-  const renderProps: ToolApprovalRenderProps = {
-    toolName,
-    input,
+  const renderProps = (): ToolApprovalRenderProps => ({
+    toolName: props.toolName,
+    input: props.input,
     onApprove: handleApprove,
     onDeny: handleDeny,
-    hasResponded,
-    approved: approval.approved,
-  }
+    hasResponded: hasResponded(),
+    approved: props.approval.approved,
+  })
 
   // Render prop pattern
-  if (children) {
-    return <>{children(renderProps)}</>
+  if (props.children) {
+    return <>{props.children(renderProps())}</>
   }
 
   // Already responded - show decision
-  if (hasResponded) {
+  if (hasResponded()) {
     return (
       <div
-        class={className}
+        class={props.class}
         data-tool-approval
-        data-approval-status={approval.approved ? 'approved' : 'denied'}
+        data-approval-status={props.approval.approved ? 'approved' : 'denied'}
       >
-        {approval.approved ? '✓ Approved' : '✗ Denied'}
+        {props.approval.approved ? '✓ Approved' : '✗ Denied'}
       </div>
     )
   }
@@ -106,15 +99,15 @@ export function ToolApproval({
   // Default approval UI
   return (
     <div
-      class={className}
+      class={props.class}
       data-tool-approval
       data-approval-status="pending"
     >
       <div data-approval-header>
-        <strong>{toolName}</strong> requires approval
+        <strong>{props.toolName}</strong> requires approval
       </div>
       <div data-approval-input>
-        <pre>{JSON.stringify(input, null, 2)}</pre>
+        <pre>{JSON.stringify(props.input, null, 2)}</pre>
       </div>
       <div data-approval-actions>
         <button onClick={handleApprove} data-approval-approve>

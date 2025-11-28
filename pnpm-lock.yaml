@@ -680,9 +680,6 @@ importers:
       '@tanstack/ai-solid':
         specifier: workspace:*
         version: link:../ai-solid
-      react-markdown:
-        specifier: ^10.1.0
-        version: 10.1.0(@types/react@19.2.7)(react@19.2.0)
       rehype-highlight:
         specifier: ^7.0.2
         version: 7.0.2
@@ -698,6 +695,9 @@ importers:
       solid-js:
         specifier: '>=1.9.7'
         version: 1.9.10
+      solid-markdown:
+        specifier: ^2.0.13
+        version: 2.0.14(solid-js@1.9.10)
     devDependencies:
       '@vitest/coverage-v8':
         specifier: 4.0.14

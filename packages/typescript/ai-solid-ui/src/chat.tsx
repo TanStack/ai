@@ -1,4 +1,4 @@
-import { createContext, useContext } from 'react'
+import { createContext, useContext, type JSX } from 'solid-js'
 import { useChat } from '@tanstack/ai-solid'
 import type {
   ConnectionAdapter,
@@ -15,7 +15,7 @@ const ChatContext = createContext<UseChatReturn | null>(null)
  * Hook to access chat context
  * @throws Error if used outside of Chat component
  */
-export function useChatContext() {
+export function useChatContext(): UseChatReturn {
   const context = useContext(ChatContext)
   if (!context) {
     throw new Error(
@@ -29,7 +29,7 @@ export interface ChatProps {
   /** Child components (Chat.Messages, Chat.Input, etc.) */
   children: JSX.Element
   /** CSS class name for the root element */
-  className?: string
+  class?: string
   /** Connection adapter for communicating with your API */
   connection: ConnectionAdapter
   /** Initial messages to display */
@@ -53,7 +53,7 @@ export interface ChatProps {
     input: any
   }) => Promise<any>
   /** Custom tool components registry */
-  tools?: Record<string, React.ComponentType<{ input: any; output?: any }>>
+  tools?: Record<string, (props: { input: any; output?: any }) => JSX.Element>
 }
 
 /**
@@ -67,35 +67,23 @@ export interface ChatProps {
  * </Chat>
  * ```
  */
-export function Chat({
-  children,
-  className,
-  connection,
-  initialMessages,
-  id,
-  body,
-  onResponse,
-  onChunk,
-  onFinish,
-  onError,
-  onToolCall,
-}: ChatProps) {
+export function Chat(props: ChatProps) {
   const chat = useChat({
-    connection,
-    initialMessages,
-    id,
-    body,
-    onResponse,
-    onChunk,
-    onFinish,
-    onError,
-    onToolCall,
+    connection: props.connection,
+    initialMessages: props.initialMessages,
+    id: props.id,
+    body: props.body,
+    onResponse: props.onResponse,
+    onChunk: props.onChunk,
+    onFinish: props.onFinish,
+    onError: props.onError,
+    onToolCall: props.onToolCall,
   })
 
   return (
     <ChatContext.Provider value={chat}>
-      <div class={className} data-chat-root>
-        {children}
+      <div class={props.class} data-chat-root>
+        {props.children}
       </div>
     </ChatContext.Provider>
   )

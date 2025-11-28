@@ -1,6 +1,6 @@
+import { For, Show, type JSX } from 'solid-js'
 import { ThinkingPart } from './thinking-part'
 import type { UIMessage } from '@tanstack/ai-solid'
-import type { JSX } from 'solid-js'
 
 export interface ToolCallRenderProps {
   id: string
@@ -15,11 +15,11 @@ export interface ChatMessageProps {
   /** The message to render */
   message: UIMessage
   /** Base CSS class name */
-  className?: string
+  class?: string
   /** Additional class for user messages */
-  userclass?: string
+  userClass?: string
   /** Additional class for assistant messages */
-  assistantclass?: string
+  assistantClass?: string
   /** Custom renderer for text parts */
   textPartRenderer?: (props: { content: string }) => JSX.Element
   /** Custom renderer for thinking parts */
@@ -58,8 +58,8 @@ export interface ChatMessageProps {
  * <ChatMessage
  *   message={message}
  *   class="flex"
- *   userclass="justify-end"
- *   assistantclass="justify-start"
+ *   userClass="justify-end"
+ *   assistantClass="justify-start"
  * />
  * ```
  *
@@ -69,7 +69,7 @@ export interface ChatMessageProps {
  *   message={message}
  *   thinkingPartRenderer={({ content, isComplete }) => (
  *     <details open={!isComplete}>
- *       <summary>💭 Thinking...</summary>
+ *       <summary>Thinking...</summary>
  *       <pre>{content}</pre>
  *     </details>
  *   )}
@@ -88,65 +88,49 @@ export interface ChatMessageProps {
  * />
  * ```
  */
-export function ChatMessage({
-  message,
-  className = '',
-  userclass = '',
-  assistantclass = '',
-  textPartRenderer,
-  thinkingPartRenderer,
-  toolsRenderer,
-  defaultToolRenderer,
-  toolResultRenderer,
-}: ChatMessageProps) {
+export function ChatMessage(props: ChatMessageProps) {
   // Combine classes based on role
-  const roleclass =
-    message.role === 'user'
-      ? userclass
-      : message.role === 'assistant'
-        ? assistantclass
+  const roleClass = () =>
+    props.message.role === 'user'
+      ? props.userClass ?? ''
+      : props.message.role === 'assistant'
+        ? props.assistantClass ?? ''
         : ''
-  const combinedclass = [className, roleclass].filter(Boolean).join(' ')
+  const combinedClass = () =>
+    [props.class ?? '', roleClass()].filter(Boolean).join(' ')
 
   return (
     <div
-      class={combinedclass || undefined}
-      data-message-id={message.id}
-      data-message-role={message.role}
-      data-message-created={message.createdAt?.toISOString()}
+      class={combinedClass() || undefined}
+      data-message-id={props.message.id}
+      data-message-role={props.message.role}
+      data-message-created={props.message.createdAt?.toISOString()}
     >
-      {message.parts.map((part, index) => {
-        // Check if thinking is complete (if there's a text part after this thinking part)
-        const isThinkingComplete =
-          part.type === 'thinking' &&
-          message.parts.slice(index + 1).some((p) => p.type === 'text')
+      <For each={props.message.parts}>
+        {(part, index) => {
+          // Check if thinking is complete (if there's a text part after this thinking part)
+          const isThinkingComplete = () =>
+            part.type === 'thinking' &&
+            props.message.parts.slice(index() + 1).some((p) => p.type === 'text')
 
-        return (
-          <MessagePart
-            part={part}
-            isThinkingComplete={isThinkingComplete}
-            textPartRenderer={textPartRenderer}
-            thinkingPartRenderer={thinkingPartRenderer}
-            toolsRenderer={toolsRenderer}
-            defaultToolRenderer={defaultToolRenderer}
-            toolResultRenderer={toolResultRenderer}
-          />
-        )
-      })}
+          return (
+            <MessagePart
+              part={part}
+              isThinkingComplete={isThinkingComplete()}
+              textPartRenderer={props.textPartRenderer}
+              thinkingPartRenderer={props.thinkingPartRenderer}
+              toolsRenderer={props.toolsRenderer}
+              defaultToolRenderer={props.defaultToolRenderer}
+              toolResultRenderer={props.toolResultRenderer}
+            />
+          )
+        }}
+      </For>
     </div>
   )
 }
 
-function MessagePart({
-  part,
-  isThinkingComplete,
-  textPartRenderer,
-  thinkingPartRenderer,
-  toolsRenderer,
-  defaultToolRenderer,
-  toolResultRenderer,
-}: {
-  // TODO Fix me
+function MessagePart(props: {
   part: any
   isThinkingComplete?: boolean
   textPartRenderer?: ChatMessageProps['textPartRenderer']
@@ -156,99 +140,102 @@ function MessagePart({
   toolResultRenderer?: ChatMessageProps['toolResultRenderer']
 }) {
   // Text part
-  if (part.type === 'text') {
-    if (textPartRenderer) {
-      return <>{textPartRenderer({ content: part.content })}</>
+  if (props.part.type === 'text') {
+    if (props.textPartRenderer) {
+      return <>{props.textPartRenderer({ content: props.part.content })}</>
     }
     return (
       <div data-part-type="text" data-part-content>
-        {part.content}
+        {props.part.content}
       </div>
     )
   }
 
   // Thinking part
-  if (part.type === 'thinking') {
-    if (thinkingPartRenderer) {
+  if (props.part.type === 'thinking') {
+    if (props.thinkingPartRenderer) {
       return (
         <>
-          {thinkingPartRenderer({
-            content: part.content,
-            isComplete: isThinkingComplete,
+          {props.thinkingPartRenderer({
+            content: props.part.content,
+            isComplete: props.isThinkingComplete,
           })}
         </>
       )
     }
     return (
-      <ThinkingPart content={part.content} isComplete={isThinkingComplete} />
+      <ThinkingPart
+        content={props.part.content}
+        isComplete={props.isThinkingComplete}
+      />
     )
   }
 
   // Tool call part
-  if (part.type === 'tool-call') {
+  if (props.part.type === 'tool-call') {
     const toolProps: ToolCallRenderProps = {
-      id: part.id,
-      name: part.name,
-      arguments: part.arguments,
-      state: part.state,
-      approval: part.approval,
-      output: part.output,
+      id: props.part.id,
+      name: props.part.name,
+      arguments: props.part.arguments,
+      state: props.part.state,
+      approval: props.part.approval,
+      output: props.part.output,
     }
 
     // Check if there's a specific renderer for this tool
-    if (toolsRenderer?.[part.name]) {
-      return <>{toolsRenderer[part.name]?.(toolProps)}</>
+    if (props.toolsRenderer?.[props.part.name]) {
+      return <>{props.toolsRenderer[props.part.name]?.(toolProps)}</>
     }
 
     // Use default tool renderer if provided
-    if (defaultToolRenderer) {
-      return <>{defaultToolRenderer(toolProps)}</>
+    if (props.defaultToolRenderer) {
+      return <>{props.defaultToolRenderer(toolProps)}</>
     }
 
     // Fallback to built-in default renderer
     return (
       <div
         data-part-type="tool-call"
-        data-tool-name={part.name}
-        data-tool-state={part.state}
-        data-tool-id={part.id}
+        data-tool-name={props.part.name}
+        data-tool-state={props.part.state}
+        data-tool-id={props.part.id}
       >
         <div data-tool-header>
-          <strong>{part.name}</strong>
-          <span data-tool-state-badge>{part.state}</span>
+          <strong>{props.part.name}</strong>
+          <span data-tool-state-badge>{props.part.state}</span>
         </div>
-        {part.arguments && (
+        <Show when={props.part.arguments}>
           <div data-tool-arguments>
-            <pre>{part.arguments}</pre>
+            <pre>{props.part.arguments}</pre>
           </div>
-        )}
-        {part.approval && (
+        </Show>
+        <Show when={props.part.approval}>
           <div data-tool-approval>
-            {part.approval.approved !== undefined
-              ? part.approval.approved
+            {props.part.approval.approved !== undefined
+              ? props.part.approval.approved
                 ? '✓ Approved'
                 : '✗ Denied'
               : '⏳ Awaiting approval...'}
           </div>
-        )}
-        {part.output && (
+        </Show>
+        <Show when={props.part.output}>
           <div data-tool-output>
-            <pre>{JSON.stringify(part.output, null, 2)}</pre>
+            <pre>{JSON.stringify(props.part.output, null, 2)}</pre>
           </div>
-        )}
+        </Show>
       </div>
     )
   }
 
   // Tool result part
-  if (part.type === 'tool-result') {
-    if (toolResultRenderer) {
+  if (props.part.type === 'tool-result') {
+    if (props.toolResultRenderer) {
       return (
         <>
-          {toolResultRenderer({
-            toolCallId: part.toolCallId,
-            content: part.content,
-            state: part.state,
+          {props.toolResultRenderer({
+            toolCallId: props.part.toolCallId,
+            content: props.part.content,
+            state: props.part.state,
           })}
         </>
       )
@@ -257,10 +244,10 @@ function MessagePart({
     return (
       <div
         data-part-type="tool-result"
-        data-tool-call-id={part.toolCallId}
-        data-tool-result-state={part.state}
+        data-tool-call-id={props.part.toolCallId}
+        data-tool-result-state={props.part.state}
       >
-        <div data-tool-result-content>{part.content}</div>
+        <div data-tool-result-content>{props.part.content}</div>
       </div>
     )
   }

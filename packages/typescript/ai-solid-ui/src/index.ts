@@ -1,7 +1,7 @@
 /**
  * @tanstack/ai-solid-ui
  *
- * Headless React components for building AI chat interfaces.
+ * Headless Solid.js components for building AI chat interfaces.
  *
  * Features:
  * - Parts-based message rendering (text, tool calls, tool results)

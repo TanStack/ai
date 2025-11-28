@@ -1,7 +1,5 @@
-import { useRef, useState } from 'react'
+import { createSignal, type JSX } from 'solid-js'
 import { useChatContext } from './chat'
-import type { RefObject } from 'react'
-import type { JSX } from 'solid-js'
 
 export interface ChatInputRenderProps {
   /** Current input value */
@@ -14,15 +12,15 @@ export interface ChatInputRenderProps {
   isLoading: boolean
   /** Is input disabled */
   disabled: boolean
-  /** Ref to the input element */
-  inputRef: RefObject<HTMLInputElement | HTMLTextAreaElement | null>
+  /** Ref callback for the input element */
+  ref: (el: HTMLInputElement | HTMLTextAreaElement) => void
 }
 
 export interface ChatInputProps {
   /** Render prop for full control */
   children?: (props: ChatInputRenderProps) => JSX.Element
   /** CSS class name */
-  className?: string
+  class?: string
   /** Placeholder text */
   placeholder?: string
   /** Disable input */
@@ -50,128 +48,116 @@ export interface ChatInputProps {
  * <Chat.Input>
  *   {({ value, onChange, onSubmit, isLoading }) => (
  *     <div>
- *       <textarea value={value} onChange={(e) => onChange(e.target.value)} />
+ *       <textarea value={value} onInput={(e) => onChange(e.target.value)} />
  *       <button onClick={onSubmit} disabled={isLoading}>Send</button>
  *     </div>
  *   )}
  * </Chat.Input>
  * ```
  */
-export function ChatInput({
-  children,
-  className,
-  placeholder = 'Type a message...',
-  disabled: disabledProp,
-  submitOnEnter = true,
-}: ChatInputProps) {
+export function ChatInput(props: ChatInputProps) {
   const { sendMessage, isLoading } = useChatContext()
-  const [value, setValue] = useState('')
-  const inputRef = useRef<HTMLInputElement | HTMLTextAreaElement>(null)
+  const [value, setValue] = createSignal('')
 
-  const disabled = disabledProp || isLoading
+  const disabled = () => props.disabled || isLoading()
 
   const handleSubmit = () => {
-    if (!value.trim() || disabled) return
-    sendMessage(value)
+    if (!value().trim() || disabled()) return
+    sendMessage(value())
     setValue('')
   }
 
-  const renderProps: ChatInputRenderProps = {
-    value,
+  const renderProps = (): ChatInputRenderProps => ({
+    value: value(),
     onChange: setValue,
     onSubmit: handleSubmit,
-    isLoading,
-    disabled,
-    inputRef,
-  }
+    isLoading: isLoading(),
+    disabled: disabled(),
+    // eslint-disable-next-line @typescript-eslint/no-empty-function
+    ref: () => {},
+  })
 
   // Render prop pattern
-  if (children) {
-    return <>{children(renderProps)}</>
+  if (props.children) {
+    return <>{props.children(renderProps())}</>
   }
 
   // Default implementation
   return (
     <div
-      class={className}
+      class={props.class}
       data-chat-input
       style={{
         display: 'flex',
         gap: '0.75rem',
-        alignItems: 'center',
+        'align-items': 'center',
         width: '100%',
       }}
     >
       <input
-        ref={inputRef as React.RefObject<HTMLInputElement>}
         type="text"
-        value={value}
-        onChange={(e) => setValue((e.target as HTMLInputElement).value)}
+        value={value()}
+        onInput={(e) => setValue(e.currentTarget.value)}
         onKeyDown={(e) => {
-          if (submitOnEnter && e.key === 'Enter') {
+          if ((props.submitOnEnter ?? true) && e.key === 'Enter') {
             e.preventDefault()
             handleSubmit()
           }
         }}
-        placeholder={placeholder}
-        disabled={disabled}
+        placeholder={props.placeholder ?? 'Type a message...'}
+        disabled={disabled()}
         data-chat-textarea
         style={{
           flex: 1,
           padding: '0.75rem 1rem',
-          fontSize: '0.875rem',
+          'font-size': '0.875rem',
           border: '1px solid rgba(255, 255, 255, 0.1)',
-          borderRadius: '0.75rem',
-          backgroundColor: 'rgba(31, 41, 55, 0.5)',
+          'border-radius': '0.75rem',
+          'background-color': 'rgba(31, 41, 55, 0.5)',
           color: 'white',
           outline: 'none',
           transition: 'all 0.2s',
         }}
         onFocus={(e) => {
-          ;(e.target as HTMLInputElement).style.borderColor =
-            'rgba(249, 115, 22, 0.4)'
-          ;(e.target as HTMLInputElement).style.boxShadow =
-            '0 0 0 2px rgba(249, 115, 22, 0.2)'
+          e.currentTarget.style.borderColor = 'rgba(249, 115, 22, 0.4)'
+          e.currentTarget.style.boxShadow = '0 0 0 2px rgba(249, 115, 22, 0.2)'
         }}
         onBlur={(e) => {
-          ;(e.target as HTMLInputElement).style.borderColor =
-            'rgba(255, 255, 255, 0.1)'
-          ;(e.target as HTMLInputElement).style.boxShadow = 'none'
+          e.currentTarget.style.borderColor = 'rgba(255, 255, 255, 0.1)'
+          e.currentTarget.style.boxShadow = 'none'
         }}
       />
       <button
         onClick={handleSubmit}
-        disabled={disabled || !value.trim()}
+        disabled={disabled() || !value().trim()}
         data-chat-submit
         style={{
           padding: '0.75rem 1.5rem',
-          fontSize: '0.875rem',
-          fontWeight: 500,
+          'font-size': '0.875rem',
+          'font-weight': 500,
           color: 'white',
-          backgroundColor:
-            disabled || !value.trim()
+          'background-color':
+            disabled() || !value().trim()
               ? 'rgba(107, 114, 128, 0.5)'
               : 'rgb(249, 115, 22)',
           border: 'none',
-          borderRadius: '0.75rem',
-          cursor: disabled || !value.trim() ? 'not-allowed' : 'pointer',
+          'border-radius': '0.75rem',
+          cursor: disabled() || !value().trim() ? 'not-allowed' : 'pointer',
           transition: 'all 0.2s',
-          whiteSpace: 'nowrap',
+          'white-space': 'nowrap',
         }}
         onMouseEnter={(e) => {
-          if (!disabled && value.trim()) {
-            ;(e.target as HTMLButtonElement).style.backgroundColor =
-              'rgb(234, 88, 12)'
+          if (!disabled() && value().trim()) {
+            e.currentTarget.style.backgroundColor = 'rgb(234, 88, 12)'
           }
         }}
         onMouseLeave={(e) => {
-          if (!disabled && value.trim()) {
-            ;(e.target as HTMLButtonElement).style.backgroundColor =
-              'rgb(249, 115, 22)'
+          if (!disabled() && value().trim()) {
+            e.currentTarget.style.backgroundColor = 'rgb(249, 115, 22)'
           }
         }}
       >
-        {isLoading ? 'Sending...' : 'Send'}
+        {isLoading() ? 'Sending...' : 'Send'}
       </button>
     </div>
   )
