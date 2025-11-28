@@ -1,8 +1,8 @@
 import { createFileRoute } from '@tanstack/react-router'
 import { chat, maxIterations, toStreamResponse } from '@tanstack/ai'
-import { openai } from '@tanstack/ai-openai'
+// import { openai } from '@tanstack/ai-openai'
 // import { ollama } from "@tanstack/ai-ollama";
-// import { anthropic } from "@tanstack/ai-anthropic";
+import { anthropic } from '@tanstack/ai-anthropic'
 // import { gemini } from "@tanstack/ai-gemini";
 import { allTools } from '@/lib/guitar-tools'
 
@@ -47,12 +47,12 @@ export const Route = createFileRoute('/api/tanchat')({
         try {
           // Use the stream abort signal for proper cancellation handling
           const stream = chat({
-            adapter: openai(),
+            adapter: anthropic(),
             // For thinking/reasoning support, use one of these models:
             // - OpenAI: "gpt-5", "o3", "o3-pro", "o3-mini" (with reasoning option)
             // - Anthropic: "claude-sonnet-4-5-20250929", "claude-opus-4-5-20251101" (with thinking option)
             // - Gemini: "gemini-3-pro-preview", "gemini-2.5-pro" (with thinkingConfig option)
-            model: 'gpt-5',
+            model: 'claude-sonnet-4-5-20250929',
             // model: "claude-sonnet-4-5-20250929",
             // model: "smollm",
             // model: "gemini-2.5-flash",

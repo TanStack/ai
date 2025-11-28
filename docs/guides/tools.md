@@ -34,17 +34,23 @@ Tools that execute in the browser. These are useful for:
 
 ## Basic Tool Definition
 
-Tools are defined using the `tool` utility from `@tanstack/ai`:
+Tools are defined using the `tool` utility from `@tanstack/ai` with Zod schemas:
 
 ```typescript
 import { tool } from "@tanstack/ai";
 import { z } from "zod";
 
 const getWeather = tool({
+  name: "get_weather",
   description: "Get the current weather for a location",
   inputSchema: z.object({
     location: z.string().describe("The city and state, e.g. San Francisco, CA"),
     unit: z.enum(["celsius", "fahrenheit"]).optional(),
+  }),
+  outputSchema: z.object({
+    temperature: z.number(),
+    conditions: z.string(),
+    location: z.string(),
   }),
   execute: async ({ location, unit }) => {
     // Fetch weather data
@@ -54,6 +60,7 @@ const getWeather = tool({
       }`
     );
     const data = await response.json();
+    // Return value is validated against outputSchema
     return {
       temperature: data.temperature,
       conditions: data.conditions,

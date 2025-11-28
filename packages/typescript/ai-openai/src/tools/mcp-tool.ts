@@ -1,4 +1,5 @@
 import type OpenAI from 'openai'
+import { z } from 'zod'
 import type { Tool } from '@tanstack/ai'
 
 export type MCPTool = OpenAI.Responses.Tool.Mcp
@@ -34,12 +35,9 @@ export function mcpTool(toolData: Omit<MCPTool, 'type'>): Tool {
   validateMCPtool({ ...toolData, type: 'mcp' })
 
   return {
-    type: 'function',
-    function: {
-      name: 'mcp',
-      description: toolData.server_description || '',
-      parameters: {},
-    },
+    name: 'mcp',
+    description: toolData.server_description || '',
+    inputSchema: z.object({}),
     metadata: toolData,
   }
 }

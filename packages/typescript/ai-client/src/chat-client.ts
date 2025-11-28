@@ -122,21 +122,22 @@ export class ChatClient {
     // Collect raw chunks for debugging
     const rawChunks: Array<any> = []
     const streamId = this.generateUniqueId('stream')
+    const currentMessageId = assistantMessageId
 
     const processor = new StreamProcessor({
       chunkStrategy: this.streamProcessorConfig?.chunkStrategy,
       parser: this.streamProcessorConfig?.parser,
       handlers: {
         onTextUpdate: (content) => {
-          this.events.textUpdated(streamId, assistantMessageId, content)
+          this.events.textUpdated(streamId, currentMessageId, content)
           this.setMessages(
-            updateTextPart(this.messages, assistantMessageId, content),
+            updateTextPart(this.messages, currentMessageId, content),
           )
         },
         onToolCallStateChange: (_index, id, name, state, args) => {
           this.events.toolCallStateChanged(
             streamId,
-            assistantMessageId,
+            currentMessageId,
             id,
             name,
             state,
@@ -145,7 +146,7 @@ export class ChatClient {
 
           // Update or create tool call part with state
           this.setMessages(
-            updateToolCallPart(this.messages, assistantMessageId, {
+            updateToolCallPart(this.messages, currentMessageId, {
               id,
               name,
               arguments: args,
@@ -166,7 +167,7 @@ export class ChatClient {
           this.setMessages(
             updateToolResultPart(
               this.messages,
-              assistantMessageId,
+              currentMessageId,
               toolCallId,
               content,
               state,
@@ -176,7 +177,7 @@ export class ChatClient {
         },
         onApprovalRequested: (toolCallId, toolName, input, approvalId) => {
           this.events.approvalRequested(
-            assistantMessageId,
+            currentMessageId,
             toolCallId,
             toolName,
             input,
@@ -187,7 +188,7 @@ export class ChatClient {
           this.setMessages(
             updateToolCallApproval(
               this.messages,
-              assistantMessageId,
+              currentMessageId,
               toolCallId,
               approvalId,
             ),
@@ -232,9 +233,9 @@ export class ChatClient {
           }
         },
         onThinkingUpdate: (content) => {
-          this.events.textUpdated(streamId, assistantMessageId, content)
+          this.events.textUpdated(streamId, currentMessageId, content)
           this.setMessages(
-            updateThinkingPart(this.messages, assistantMessageId, content),
+            updateThinkingPart(this.messages, currentMessageId, content),
           )
         },
         onStreamEnd: () => {

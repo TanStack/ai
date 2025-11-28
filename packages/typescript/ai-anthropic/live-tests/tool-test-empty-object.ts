@@ -1,4 +1,4 @@
-import { createOpenAI } from '../src/index'
+import { createAnthropic } from '../src/index'
 import { z } from 'zod'
 import { readFileSync } from 'fs'
 import { join, dirname } from 'path'
@@ -18,69 +18,42 @@ try {
   // .env.local not found, will use process.env
 }
 
-const apiKey = process.env.OPENAI_API_KEY
+const apiKey = process.env.ANTHROPIC_API_KEY
 
 if (!apiKey) {
-  console.error('❌ OPENAI_API_KEY not found in .env.local')
+  console.error('❌ ANTHROPIC_API_KEY not found in .env.local')
   process.exit(1)
 }
 
-async function testToolCallingWithArguments() {
-  console.log('🚀 Testing OpenAI tool calling with arguments (Responses API)\n')
+async function testToolWithEmptyObjectSchema() {
+  console.log('🚀 Testing Anthropic tool calling with empty object schema\n')
 
-  const adapter = createOpenAI(apiKey)
+  const adapter = createAnthropic(apiKey)
 
-  // Create a simple tool that requires arguments
-  const getTemperatureTool = {
-    name: 'get_temperature',
-    description: 'Get the current temperature for a specific location',
-    inputSchema: z.object({
-      location: z
-        .string()
-        .describe('The city or location to get the temperature for'),
-      unit: z.enum(['celsius', 'fahrenheit']).describe('The temperature unit'),
-    }),
-    execute: async (args: any) => {
-      console.log(
-        '✅ Tool executed with arguments:',
-        JSON.stringify(args, null, 2),
-      )
-
-      // Validate arguments were passed correctly
-      if (!args) {
-        console.error('❌ ERROR: Arguments are undefined!')
-        return 'Error: No arguments received'
-      }
-
-      if (typeof args !== 'object') {
-        console.error('❌ ERROR: Arguments are not an object:', typeof args)
-        return 'Error: Invalid arguments type'
-      }
-
-      if (!args.location) {
-        console.error('❌ ERROR: Location argument is missing!')
-        return 'Error: Location is required'
-      }
-
-      console.log(
-        `  - location: "${args.location}" (type: ${typeof args.location})`,
-      )
-      console.log(`  - unit: "${args.unit}" (type: ${typeof args.unit})`)
-
-      return `The temperature in ${args.location} is 72°${args.unit === 'celsius' ? 'C' : 'F'}`
+  // Create a tool with empty object schema (like getGuitars)
+  const getGuitarsTool = {
+    name: 'getGuitars',
+    description: 'Get all products from the database',
+    inputSchema: z.object({}),
+    execute: async () => {
+      console.log('✅ Tool executed successfully')
+      return [
+        { id: '1', name: 'Guitar 1' },
+        { id: '2', name: 'Guitar 2' },
+      ]
     },
   }
 
   const messages = [
     {
       role: 'user' as const,
-      content: 'What is the temperature in San Francisco in fahrenheit?',
+      content: 'Get me all the guitars',
     },
   ]
 
   console.log('📤 Sending request with tool:')
-  console.log('  Tool name:', getTemperatureTool.name)
-  console.log('  Input schema:', getTemperatureTool.inputSchema.toString())
+  console.log('  Tool name:', getGuitarsTool.name)
+  console.log('  Input schema:', getGuitarsTool.inputSchema.toString())
   console.log('  User message:', messages[0].content)
   console.log()
 
@@ -88,20 +61,18 @@ async function testToolCallingWithArguments() {
     console.log('📥 Streaming response...\n')
 
     let toolCallFound = false
-    let toolCallArguments: any = null
     let toolExecuted = false
     let finalResponse = ''
+    let toolCallArguments: string | null = null
 
     // @ts-ignore - using internal chat method
     const stream = adapter.chatStream({
-      model: 'gpt-4o-mini',
+      model: 'claude-3-5-sonnet-20241022',
       messages,
-      tools: [getTemperatureTool],
+      tools: [getGuitarsTool],
     })
 
     for await (const chunk of stream) {
-      console.log('Chunk:', JSON.stringify(chunk, null, 2))
-
       if (chunk.type === 'tool_call') {
         toolCallFound = true
         toolCallArguments = chunk.toolCall.function.arguments
@@ -109,6 +80,14 @@ async function testToolCallingWithArguments() {
         console.log('  Name:', chunk.toolCall.function.name)
         console.log('  Arguments (raw):', toolCallArguments)
         console.log('  Arguments (type):', typeof toolCallArguments)
+
+        // Validate arguments are not empty string
+        if (toolCallArguments === '') {
+          console.error('  ❌ ERROR: Arguments are empty string!')
+          console.error('  Expected: "{}" or valid JSON')
+        } else if (toolCallArguments === '{}') {
+          console.log('  ✅ Arguments are correctly normalized to {}')
+        }
 
         // Try to parse if it's a string
         if (typeof toolCallArguments === 'string') {
@@ -118,19 +97,22 @@ async function testToolCallingWithArguments() {
               '  Arguments (parsed):',
               JSON.stringify(parsed, null, 2),
             )
-            toolCallArguments = parsed
           } catch (e) {
             console.error('  ❌ Failed to parse arguments as JSON:', e)
           }
         }
 
         // Execute the tool
-        if (getTemperatureTool.execute) {
+        if (getGuitarsTool.execute) {
           console.log('\n🔨 Executing tool...')
           try {
-            const result = await getTemperatureTool.execute(toolCallArguments)
+            const parsedArgs =
+              typeof toolCallArguments === 'string'
+                ? JSON.parse(toolCallArguments)
+                : toolCallArguments
+            const result = await getGuitarsTool.execute(parsedArgs)
             toolExecuted = true
-            console.log('  Result:', result)
+            console.log('  Result:', JSON.stringify(result, null, 2))
           } catch (error) {
             console.error('  ❌ Tool execution error:', error)
           }
@@ -147,8 +129,12 @@ async function testToolCallingWithArguments() {
     console.log('  Tool call found:', toolCallFound ? '✅' : '❌')
     console.log('  Arguments received:', toolCallArguments ? '✅' : '❌')
     console.log('  Arguments value:', JSON.stringify(toolCallArguments))
+    console.log(
+      '  Arguments not empty string:',
+      toolCallArguments !== '' ? '✅' : '❌',
+    )
     console.log('  Tool executed:', toolExecuted ? '✅' : '❌')
-    console.log('  Final response:', finalResponse)
+    console.log('  Final response:', finalResponse || '(none)')
     console.log('='.repeat(60))
 
     if (!toolCallFound) {
@@ -156,13 +142,10 @@ async function testToolCallingWithArguments() {
       process.exit(1)
     }
 
-    if (!toolCallArguments) {
-      console.error('\n❌ FAIL: Tool call arguments are missing or null')
-      process.exit(1)
-    }
-
-    if (typeof toolCallArguments === 'object' && !toolCallArguments.location) {
-      console.error('\n❌ FAIL: Location parameter is missing from arguments')
+    if (toolCallArguments === '') {
+      console.error(
+        '\n❌ FAIL: Tool call arguments are empty string (should be "{}" or valid JSON)',
+      )
       process.exit(1)
     }
 
@@ -171,13 +154,16 @@ async function testToolCallingWithArguments() {
       process.exit(1)
     }
 
-    console.log('\n✅ SUCCESS: Tool calling with arguments works correctly!')
+    console.log('\n✅ SUCCESS: Tool with empty object schema works correctly!')
     process.exit(0)
   } catch (error: any) {
     console.error('\n❌ ERROR:', error.message)
+    if (error.error) {
+      console.error('  Error details:', JSON.stringify(error.error, null, 2))
+    }
     console.error('Stack:', error.stack)
     process.exit(1)
   }
 }
 
-testToolCallingWithArguments()
+testToolWithEmptyObjectSchema()

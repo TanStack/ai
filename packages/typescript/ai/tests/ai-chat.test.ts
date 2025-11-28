@@ -1,5 +1,6 @@
 /* eslint-disable @typescript-eslint/require-await */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { z } from 'zod'
 import { chat } from '../src/core/chat'
 import { BaseAdapter } from '../src/base-adapter'
 import { aiEventClient } from '../src/event-client.js'
@@ -148,8 +149,9 @@ describe('chat() - Comprehensive Logic Path Coverage', () => {
           ],
           tools: [
             {
-              type: 'function',
-              function: { name: 'test', description: 'test', parameters: {} },
+              name: 'test',
+              description: 'test',
+              inputSchema: z.object({}),
             },
           ],
         }),
@@ -371,12 +373,11 @@ describe('chat() - Comprehensive Logic Path Coverage', () => {
   describe('Tool Call Paths', () => {
     it('should handle single tool call and execute it', async () => {
       const tool: Tool = {
-        type: 'function',
-        function: {
-          name: 'get_weather',
-          description: 'Get weather',
-          parameters: {},
-        },
+        name: 'get_weather',
+        description: 'Get weather',
+        inputSchema: z.object({
+          location: z.string().optional(),
+        }),
         execute: vi.fn(async (args: any) =>
           JSON.stringify({ temp: 72, location: args.location }),
         ),
@@ -461,12 +462,12 @@ describe('chat() - Comprehensive Logic Path Coverage', () => {
 
     it('should handle streaming tool call arguments (incremental JSON)', async () => {
       const tool: Tool = {
-        type: 'function',
-        function: {
-          name: 'calculate',
-          description: 'Calculate',
-          parameters: {},
-        },
+        name: 'calculate',
+        description: 'Calculate',
+        inputSchema: z.object({
+          a: z.number(),
+          b: z.number(),
+        }),
         execute: vi.fn(async (args: any) =>
           JSON.stringify({ result: args.a + args.b }),
         ),
@@ -557,14 +558,16 @@ describe('chat() - Comprehensive Logic Path Coverage', () => {
 
     it('should handle multiple tool calls in same iteration', async () => {
       const tool1: Tool = {
-        type: 'function',
-        function: { name: 'tool1', description: 'Tool 1', parameters: {} },
+        name: 'tool1',
+        description: 'Tool 1',
+        inputSchema: z.object({}),
         execute: vi.fn(async () => JSON.stringify({ result: 1 })),
       }
 
       const tool2: Tool = {
-        type: 'function',
-        function: { name: 'tool2', description: 'Tool 2', parameters: {} },
+        name: 'tool2',
+        description: 'Tool 2',
+        inputSchema: z.object({}),
         execute: vi.fn(async () => JSON.stringify({ result: 2 })),
       }
 
@@ -654,8 +657,9 @@ describe('chat() - Comprehensive Logic Path Coverage', () => {
 
     it('should handle tool calls with accumulated content', async () => {
       const tool: Tool = {
-        type: 'function',
-        function: { name: 'test_tool', description: 'Test', parameters: {} },
+        name: 'test_tool',
+        description: 'Test',
+        inputSchema: z.object({}),
         execute: vi.fn(async () => JSON.stringify({ result: 'ok' })),
       }
 
@@ -739,8 +743,9 @@ describe('chat() - Comprehensive Logic Path Coverage', () => {
 
     it('should handle tool calls without accumulated content', async () => {
       const tool: Tool = {
-        type: 'function',
-        function: { name: 'test_tool', description: 'Test', parameters: {} },
+        name: 'test_tool',
+        description: 'Test',
+        inputSchema: z.object({}),
         execute: vi.fn(async () => JSON.stringify({ result: 'ok' })),
       }
 
@@ -815,12 +820,11 @@ describe('chat() - Comprehensive Logic Path Coverage', () => {
 
     it('should handle incomplete tool calls (empty name)', async () => {
       const tool: Tool = {
-        type: 'function',
-        function: {
-          name: 'test_tool',
-          description: 'Test',
-          parameters: {},
-        },
+        name: 'test_tool',
+
+        description: 'Test',
+
+        inputSchema: z.object({}),
         execute: vi.fn(),
       }
 
@@ -875,8 +879,9 @@ describe('chat() - Comprehensive Logic Path Coverage', () => {
   describe('Tool Execution Result Paths', () => {
     it('should emit tool_result chunks after execution', async () => {
       const tool: Tool = {
-        type: 'function',
-        function: { name: 'test_tool', description: 'Test', parameters: {} },
+        name: 'test_tool',
+        description: 'Test',
+        inputSchema: z.object({}),
         execute: vi.fn(async () => JSON.stringify({ result: 'success' })),
       }
 
@@ -953,8 +958,9 @@ describe('chat() - Comprehensive Logic Path Coverage', () => {
 
     it('should add tool result messages to conversation', async () => {
       const tool: Tool = {
-        type: 'function',
-        function: { name: 'test_tool', description: 'Test', parameters: {} },
+        name: 'test_tool',
+        description: 'Test',
+        inputSchema: z.object({}),
         execute: vi.fn(async () => JSON.stringify({ result: 'ok' })),
       }
 
@@ -1025,8 +1031,9 @@ describe('chat() - Comprehensive Logic Path Coverage', () => {
 
     it('should handle tool execution errors gracefully', async () => {
       const tool: Tool = {
-        type: 'function',
-        function: { name: 'error_tool', description: 'Error', parameters: {} },
+        name: 'error_tool',
+        description: 'Error',
+        inputSchema: z.object({}),
         execute: vi.fn(async () => {
           throw new Error('Tool execution failed')
         }),
@@ -1132,12 +1139,11 @@ describe('chat() - Comprehensive Logic Path Coverage', () => {
           messages: [{ role: 'user', content: 'Test' }],
           tools: [
             {
-              type: 'function',
-              function: {
-                name: 'known_tool',
-                description: 'Known',
-                parameters: {},
-              },
+              name: 'known_tool',
+
+              description: 'Known',
+
+              inputSchema: z.object({}),
             },
           ],
         }),
@@ -1156,12 +1162,11 @@ describe('chat() - Comprehensive Logic Path Coverage', () => {
   describe('Approval & Client Tool Paths', () => {
     it('should handle approval-required tools', async () => {
       const tool: Tool = {
-        type: 'function',
-        function: {
-          name: 'delete_file',
-          description: 'Delete',
-          parameters: {},
-        },
+        name: 'delete_file',
+
+        description: 'Delete',
+
+        inputSchema: z.object({}),
         needsApproval: true,
         execute: vi.fn(async () => JSON.stringify({ success: true })),
       }
@@ -1225,12 +1230,13 @@ describe('chat() - Comprehensive Logic Path Coverage', () => {
 
     it('should handle client-side tools (no execute)', async () => {
       const tool: Tool = {
-        type: 'function',
-        function: {
-          name: 'client_tool',
-          description: 'Client',
-          parameters: {},
-        },
+        name: 'client_tool',
+
+        description: 'Client',
+
+        inputSchema: z.object({
+          input: z.string(),
+        }),
         // No execute function
       }
 
@@ -1287,21 +1293,24 @@ describe('chat() - Comprehensive Logic Path Coverage', () => {
 
     it('should handle mixed tools (approval + client + normal)', async () => {
       const normalTool: Tool = {
-        type: 'function',
-        function: { name: 'normal', description: 'Normal', parameters: {} },
+        name: 'normal',
+        description: 'Normal',
+        inputSchema: z.object({}),
         execute: vi.fn(async () => JSON.stringify({ result: 'ok' })),
       }
 
       const approvalTool: Tool = {
-        type: 'function',
-        function: { name: 'approval', description: 'Approval', parameters: {} },
+        name: 'approval',
+        description: 'Approval',
+        inputSchema: z.object({}),
         needsApproval: true,
         execute: vi.fn(async () => JSON.stringify({ success: true })),
       }
 
       const clientTool: Tool = {
-        type: 'function',
-        function: { name: 'client', description: 'Client', parameters: {} },
+        name: 'client',
+        description: 'Client',
+        inputSchema: z.object({}),
         // No execute
       }
 
@@ -1388,12 +1397,13 @@ describe('chat() - Comprehensive Logic Path Coverage', () => {
         .mockResolvedValue(JSON.stringify({ success: true }))
 
       const approvalTool: Tool = {
-        type: 'function',
-        function: {
-          name: 'approval_tool',
-          description: 'Needs approval',
-          parameters: {},
-        },
+        name: 'approval_tool',
+
+        description: 'Needs approval',
+
+        inputSchema: z.object({
+          path: z.string(),
+        }),
         needsApproval: true,
         execute: toolExecute,
       }
@@ -1479,8 +1489,9 @@ describe('chat() - Comprehensive Logic Path Coverage', () => {
   describe('Agent Loop Strategy Paths', () => {
     it('should respect custom agent loop strategy', async () => {
       const tool: Tool = {
-        type: 'function',
-        function: { name: 'test_tool', description: 'Test', parameters: {} },
+        name: 'test_tool',
+        description: 'Test',
+        inputSchema: z.object({}),
         execute: vi.fn(async () => JSON.stringify({ result: 'ok' })),
       }
 
@@ -1548,8 +1559,9 @@ describe('chat() - Comprehensive Logic Path Coverage', () => {
 
     it('should use default max iterations strategy (5)', async () => {
       const tool: Tool = {
-        type: 'function',
-        function: { name: 'test_tool', description: 'Test', parameters: {} },
+        name: 'test_tool',
+        description: 'Test',
+        inputSchema: z.object({}),
         execute: vi.fn(async () => JSON.stringify({ result: 'ok' })),
       }
 
@@ -1602,8 +1614,9 @@ describe('chat() - Comprehensive Logic Path Coverage', () => {
 
     it("should exit loop when finishReason is not 'tool_calls'", async () => {
       const tool: Tool = {
-        type: 'function',
-        function: { name: 'test_tool', description: 'Test', parameters: {} },
+        name: 'test_tool',
+        description: 'Test',
+        inputSchema: z.object({}),
         execute: vi.fn(),
       }
 
@@ -1687,8 +1700,9 @@ describe('chat() - Comprehensive Logic Path Coverage', () => {
 
     it('should exit loop when toolCallManager has no tool calls', async () => {
       const tool: Tool = {
-        type: 'function',
-        function: { name: 'test_tool', description: 'Test', parameters: {} },
+        name: 'test_tool',
+        description: 'Test',
+        inputSchema: z.object({}),
         execute: vi.fn(),
       }
 
@@ -1816,8 +1830,9 @@ describe('chat() - Comprehensive Logic Path Coverage', () => {
 
     it('should check abort signal before tool execution', async () => {
       const tool: Tool = {
-        type: 'function',
-        function: { name: 'test_tool', description: 'Test', parameters: {} },
+        name: 'test_tool',
+        description: 'Test',
+        inputSchema: z.object({}),
         execute: vi.fn(),
       }
 
@@ -2081,8 +2096,9 @@ describe('chat() - Comprehensive Logic Path Coverage', () => {
 
     it('should emit iteration events for tool calls', async () => {
       const tool: Tool = {
-        type: 'function',
-        function: { name: 'test_tool', description: 'Test', parameters: {} },
+        name: 'test_tool',
+        description: 'Test',
+        inputSchema: z.object({}),
         execute: vi.fn(async () => JSON.stringify({ result: 'ok' })),
       }
 
@@ -2170,8 +2186,9 @@ describe('chat() - Comprehensive Logic Path Coverage', () => {
 
     it('should track total chunk count across iterations', async () => {
       const tool: Tool = {
-        type: 'function',
-        function: { name: 'test_tool', description: 'Test', parameters: {} },
+        name: 'test_tool',
+        description: 'Test',
+        inputSchema: z.object({}),
         execute: vi.fn(async () => JSON.stringify({ result: 'ok' })),
       }
 
@@ -2281,8 +2298,9 @@ describe('chat() - Comprehensive Logic Path Coverage', () => {
 
     it('should handle tool calls with missing ID', async () => {
       const tool: Tool = {
-        type: 'function',
-        function: { name: 'test_tool', description: 'Test', parameters: {} },
+        name: 'test_tool',
+        description: 'Test',
+        inputSchema: z.object({}),
         execute: vi.fn(),
       }
 
@@ -2328,8 +2346,9 @@ describe('chat() - Comprehensive Logic Path Coverage', () => {
 
     it('should handle tool call with invalid JSON arguments', async () => {
       const tool: Tool = {
-        type: 'function',
-        function: { name: 'test_tool', description: 'Test', parameters: {} },
+        name: 'test_tool',
+        description: 'Test',
+        inputSchema: z.object({}),
         execute: vi.fn(),
       }
 
@@ -2433,12 +2452,13 @@ describe('chat() - Comprehensive Logic Path Coverage', () => {
   describe('Extract Approvals and Client Tool Results from Messages', () => {
     it('should extract approval responses from messages with parts', async () => {
       const tool: Tool = {
-        type: 'function',
-        function: {
-          name: 'delete_file',
-          description: 'Delete file',
-          parameters: {},
-        },
+        name: 'delete_file',
+
+        description: 'Delete file',
+
+        inputSchema: z.object({
+          path: z.string(),
+        }),
         needsApproval: true,
         execute: vi.fn(async () => JSON.stringify({ success: true })),
       }
@@ -2578,12 +2598,11 @@ describe('chat() - Comprehensive Logic Path Coverage', () => {
 
     it('should extract client tool outputs from messages with parts', async () => {
       const tool: Tool = {
-        type: 'function',
-        function: {
-          name: 'client_tool',
-          description: 'Client tool',
-          parameters: {},
-        },
+        name: 'client_tool',
+
+        description: 'Client tool',
+
+        inputSchema: z.object({}),
         // No execute - client-side tool
       }
 
@@ -2697,23 +2716,21 @@ describe('chat() - Comprehensive Logic Path Coverage', () => {
 
     it('should handle messages with both approval and client tool parts', async () => {
       const approvalTool: Tool = {
-        type: 'function',
-        function: {
-          name: 'approval_tool',
-          description: 'Approval',
-          parameters: {},
-        },
+        name: 'approval_tool',
+
+        description: 'Approval',
+
+        inputSchema: z.object({}),
         needsApproval: true,
         execute: vi.fn(async () => JSON.stringify({ success: true })),
       }
 
       const clientTool: Tool = {
-        type: 'function',
-        function: {
-          name: 'client_tool',
-          description: 'Client',
-          parameters: {},
-        },
+        name: 'client_tool',
+
+        description: 'Client',
+
+        inputSchema: z.object({}),
         // No execute
       }
 
@@ -2840,16 +2857,9 @@ describe('chat() - Comprehensive Logic Path Coverage', () => {
     it('should execute tool and continue loop when receiving tool_calls finishReason with maxIterations(20)', async () => {
       // Create a tool that returns "70" like the failing test
       const temperatureTool: Tool = {
-        type: 'function',
-        function: {
-          name: 'get_temperature',
-          description: 'Get the current temperature in degrees',
-          parameters: {
-            type: 'object',
-            properties: {},
-            required: [],
-          },
-        },
+        name: 'get_temperature',
+        description: 'Get the current temperature in degrees',
+        inputSchema: z.object({}),
         execute: vi.fn(async (_args: any) => {
           return '70'
         }),

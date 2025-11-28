@@ -1,4 +1,5 @@
 import type OpenAI from 'openai'
+import { z } from 'zod'
 import type { Tool } from '@tanstack/ai'
 
 const validateMaxNumResults = (maxNumResults: number | undefined) => {
@@ -33,12 +34,9 @@ export function fileSearchTool(
 ): Tool {
   validateMaxNumResults(toolData.max_num_results)
   return {
-    type: 'function',
-    function: {
-      name: 'file_search',
-      description: 'Search files in vector stores',
-      parameters: {},
-    },
+    name: 'file_search',
+    description: 'Search files in vector stores',
+    inputSchema: z.object({}),
     metadata: {
       ...toolData,
     },

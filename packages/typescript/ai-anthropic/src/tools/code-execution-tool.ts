@@ -2,6 +2,7 @@ import type {
   BetaCodeExecutionTool20250522,
   BetaCodeExecutionTool20250825,
 } from '@anthropic-ai/sdk/resources/beta'
+import { z } from 'zod'
 import type { Tool } from '@tanstack/ai'
 
 export type CodeExecutionTool =
@@ -17,12 +18,9 @@ export function convertCodeExecutionToolToAdapterFormat(
 
 export function codeExecutionTool(config: CodeExecutionTool): Tool {
   return {
-    type: 'function',
-    function: {
-      name: 'code_execution',
-      description: '',
-      parameters: {},
-    },
+    name: 'code_execution',
+    description: '',
+    inputSchema: z.object({}),
     metadata: config,
   }
 }

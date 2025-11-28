@@ -80,16 +80,12 @@ export async function writeDebugFile(
 
 function formatToolsForDebug(tools: Array<Tool> = []) {
   return tools.map((t) => ({
-    type: t.type,
-    function: t.function
-      ? {
-          name: t.function.name,
-          description: t.function.description,
-          parameters: t.function.parameters,
-        }
-      : undefined,
-    needsApproval: (t as any).needsApproval,
-    hasExecute: Boolean((t as any).execute),
+    name: t.name,
+    description: t.description,
+    needsApproval: t.needsApproval,
+    hasExecute: Boolean(t.execute),
+    hasInputSchema: Boolean(t.inputSchema),
+    hasOutputSchema: Boolean(t.outputSchema),
   }))
 }
 

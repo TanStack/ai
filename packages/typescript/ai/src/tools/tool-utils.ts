@@ -1,87 +1,49 @@
+import type { z } from 'zod'
 import type { Tool } from '../types'
 
 /**
- * Infer TypeScript type from JSON Schema property type
- */
-type InferPropertyType<T> = T extends { type: 'string' }
-  ? string
-  : T extends { type: 'number' }
-    ? number
-    : T extends { type: 'boolean' }
-      ? boolean
-      : T extends { type: 'array' }
-        ? Array<any>
-        : T extends { type: 'object' }
-          ? Record<string, any>
-          : any
-
-/**
- * Infer argument types from parameters schema
- * Makes properties optional unless they're in the required array
- */
-type InferArgs<
-  TProps extends Record<string, any>,
-  TRequired extends ReadonlyArray<string> | undefined,
-> =
-  TRequired extends ReadonlyArray<string>
-    ? {
-        [K in keyof TProps as K extends TRequired[number]
-          ? K
-          : never]: InferPropertyType<TProps[K]>
-      } & {
-        [K in keyof TProps as K extends TRequired[number]
-          ? never
-          : K]?: InferPropertyType<TProps[K]>
-      }
-    : {
-        [K in keyof TProps]?: InferPropertyType<TProps[K]>
-      }
-
-/**
  * Helper to define a tool with enforced type safety.
- * Automatically infers the execute function argument types from the parameters schema.
- * User must provide the full Tool structure with type: "function" and function: {...}
+ *
+ * Automatically infers TypeScript types from Zod schemas, providing
+ * full type safety for tool inputs and outputs.
  *
  * @example
  * ```typescript
- * const tools = {
- *   myTool: tool({
- *     type: "function",
- *     function: {
- *       name: "myTool",
- *       description: "My tool description",
- *       parameters: {
- *         type: "object",
- *         properties: {
- *           id: { type: "string", description: "The ID" },
- *           optional: { type: "number", description: "Optional param" },
- *         },
- *         required: ["id"],
- *       },
- *     },
- *     execute: async (args) => {
- *       // ✅ args is automatically typed as { id: string; optional?: number }
- *       return args.id;
- *     },
+ * import { tool } from '@tanstack/ai';
+ * import { z } from 'zod';
+ *
+ * const getWeather = tool({
+ *   name: 'get_weather',
+ *   description: 'Get the current weather for a location',
+ *   inputSchema: z.object({
+ *     location: z.string().describe('The city and state, e.g. San Francisco, CA'),
+ *     unit: z.enum(['celsius', 'fahrenheit']).optional(),
  *   }),
- * };
+ *   outputSchema: z.object({
+ *     temperature: z.number(),
+ *     conditions: z.string(),
+ *   }),
+ *   execute: async ({ location, unit }) => {
+ *     // args are fully typed: { location: string; unit?: "celsius" | "fahrenheit" }
+ *     const data = await fetchWeather(location, unit);
+ *     return data; // validated against outputSchema
+ *   },
+ * });
  * ```
  */
 export function tool<
-  const TProps extends Record<string, any>,
-  const TRequired extends ReadonlyArray<string> | undefined,
+  TInput extends z.ZodType,
+  TOutput extends z.ZodType = z.ZodAny,
 >(config: {
-  type: 'function'
-  function: {
-    name: string
-    description: string
-    parameters: {
-      type: 'object'
-      properties: TProps
-      required?: TRequired
-    }
-  }
-  execute: (args: InferArgs<TProps, TRequired>) => Promise<string> | string
-}): Tool {
-  return config as Tool
+  name: string
+  description: string
+  inputSchema: TInput
+  outputSchema?: TOutput
+  execute?: (
+    args: z.infer<TInput>,
+  ) => Promise<z.infer<TOutput>> | z.infer<TOutput>
+  needsApproval?: boolean
+  metadata?: Record<string, any>
+}): Tool<TInput, TOutput> {
+  return config as Tool<TInput, TOutput>
 }

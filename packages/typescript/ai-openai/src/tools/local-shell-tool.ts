@@ -1,4 +1,5 @@
 import type OpenAI from 'openai'
+import { z } from 'zod'
 import type { Tool } from '@tanstack/ai'
 
 export type LocalShellTool = OpenAI.Responses.Tool.LocalShell
@@ -19,12 +20,9 @@ export function convertLocalShellToolToAdapterFormat(
  */
 export function localShellTool(): Tool {
   return {
-    type: 'function',
-    function: {
-      name: 'local_shell',
-      description: 'Execute local shell commands',
-      parameters: {},
-    },
+    name: 'local_shell',
+    description: 'Execute local shell commands',
+    inputSchema: z.object({}),
     metadata: {},
   }
 }

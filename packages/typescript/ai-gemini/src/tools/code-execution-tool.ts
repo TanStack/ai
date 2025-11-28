@@ -1,3 +1,4 @@
+import { z } from 'zod'
 import type { Tool } from '@tanstack/ai'
 
 export interface CodeExecutionTool {}
@@ -10,12 +11,9 @@ export function convertCodeExecutionToolToAdapterFormat(_tool: Tool) {
 
 export function codeExecutionTool(): Tool {
   return {
-    type: 'function',
-    function: {
-      name: 'code_execution',
-      description: '',
-      parameters: {},
-    },
+    name: 'code_execution',
+    description: '',
+    inputSchema: z.object({}),
     metadata: {},
   }
 }

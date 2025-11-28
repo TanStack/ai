@@ -1,5 +1,6 @@
 import type { BetaWebFetchTool20250910 } from '@anthropic-ai/sdk/resources/beta'
 import type { CacheControl } from '../text/text-provider-options'
+import { z } from 'zod'
 import type { Tool } from '@tanstack/ai'
 
 export type WebFetchTool = BetaWebFetchTool20250910
@@ -34,12 +35,9 @@ export function webFetchTool(config?: {
   cacheControl?: CacheControl | null
 }): Tool {
   return {
-    type: 'function',
-    function: {
-      name: 'web_fetch',
-      description: '',
-      parameters: {},
-    },
+    name: 'web_fetch',
+    description: '',
+    inputSchema: z.object({}),
     metadata: {
       allowedDomains: config?.allowedDomains,
       blockedDomains: config?.blockedDomains,

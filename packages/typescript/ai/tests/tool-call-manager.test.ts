@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
+import { z } from 'zod'
 import { ToolCallManager } from '../src/tools/tool-calls'
 import type { DoneStreamChunk, Tool } from '../src/types'
 
@@ -12,12 +13,11 @@ describe('ToolCallManager', () => {
   }
 
   const mockWeatherTool: Tool = {
-    type: 'function',
-    function: {
-      name: 'get_weather',
-      description: 'Get weather',
-      parameters: {},
-    },
+    name: 'get_weather',
+    description: 'Get weather',
+    inputSchema: z.object({
+      location: z.string().optional(),
+    }),
     execute: vi.fn((args: any) => {
       return JSON.stringify({ temp: 72, location: args.location })
     }),
@@ -126,12 +126,9 @@ describe('ToolCallManager', () => {
 
   it('should handle tool execution errors gracefully', async () => {
     const errorTool: Tool = {
-      type: 'function',
-      function: {
-        name: 'error_tool',
-        description: 'Throws error',
-        parameters: {},
-      },
+      name: 'error_tool',
+      description: 'Throws error',
+      inputSchema: z.object({}),
       execute: vi.fn(() => {
         throw new Error('Tool failed')
       }),
@@ -164,12 +161,9 @@ describe('ToolCallManager', () => {
 
   it('should handle tools without execute function', async () => {
     const noExecuteTool: Tool = {
-      type: 'function',
-      function: {
-        name: 'no_execute',
-        description: 'No execute function',
-        parameters: {},
-      },
+      name: 'no_execute',
+      description: 'No execute function',
+      inputSchema: z.object({}),
       // No execute function
     }
 
@@ -216,12 +210,11 @@ describe('ToolCallManager', () => {
 
   it('should handle multiple tool calls in same iteration', async () => {
     const calculateTool: Tool = {
-      type: 'function',
-      function: {
-        name: 'calculate',
-        description: 'Calculate',
-        parameters: {},
-      },
+      name: 'calculate',
+      description: 'Calculate',
+      inputSchema: z.object({
+        expression: z.string(),
+      }),
       execute: vi.fn((args: any) => {
         return JSON.stringify({ result: eval(args.expression) })
       }),

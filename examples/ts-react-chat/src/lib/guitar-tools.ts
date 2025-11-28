@@ -1,96 +1,63 @@
 import { tool } from '@tanstack/ai'
+import { z } from 'zod'
 import guitars from '@/data/example-guitars'
 
 export const getGuitarsTool = tool({
-  type: 'function',
-  function: {
-    name: 'getGuitars',
-    description: 'Get all products from the database',
-    parameters: {
-      type: 'object',
-      properties: {},
-      required: [],
-    },
-  },
+  name: 'getGuitars',
+  description: 'Get all products from the database',
+  inputSchema: z.object({}),
   execute: async () => {
-    return JSON.stringify(guitars)
+    return guitars
   },
 })
 
 export const recommendGuitarTool = tool({
-  type: 'function',
-  function: {
-    name: 'recommendGuitar',
-    description:
-      'REQUIRED tool to display a guitar recommendation to the user. This tool MUST be used whenever recommending a guitar - do NOT write recommendations yourself. This displays the guitar in a special appealing format with a buy button.',
-    parameters: {
-      type: 'object',
-      properties: {
-        id: {
-          type: 'string',
-          description:
-            'The ID of the guitar to recommend (from the getGuitars results)',
-        },
-      },
-      required: ['id'],
-    },
-  },
+  name: 'recommendGuitar',
+  description:
+    'REQUIRED tool to display a guitar recommendation to the user. This tool MUST be used whenever recommending a guitar - do NOT write recommendations yourself. This displays the guitar in a special appealing format with a buy button.',
+  inputSchema: z.object({
+    id: z
+      .string()
+      .describe(
+        'The ID of the guitar to recommend (from the getGuitars results)',
+      ),
+  }),
 })
 
 export const getPersonalGuitarPreferenceTool = tool({
-  type: 'function',
-  function: {
-    name: 'getPersonalGuitarPreference',
-    description:
-      "Get the user's guitar preference from their local browser storage",
-    parameters: {
-      type: 'object',
-      properties: {},
-    },
-  },
+  name: 'getPersonalGuitarPreference',
+  description:
+    "Get the user's guitar preference from their local browser storage",
+  inputSchema: z.object({}),
   // No execute = client-side tool
 })
 
 export const addToWishListTool = tool({
-  type: 'function',
-  function: {
-    name: 'addToWishList',
-    description: "Add a guitar to the user's wish list (requires approval)",
-    parameters: {
-      type: 'object',
-      properties: {
-        guitarId: { type: 'string' },
-      },
-      required: ['guitarId'],
-    },
-  },
+  name: 'addToWishList',
+  description: "Add a guitar to the user's wish list (requires approval)",
+  inputSchema: z.object({
+    guitarId: z.string(),
+  }),
   needsApproval: true,
   // No execute = client-side but needs approval
 })
 
 export const addToCartTool = tool({
-  type: 'function',
-  function: {
-    name: 'addToCart',
-    description: 'Add a guitar to the shopping cart (requires approval)',
-    parameters: {
-      type: 'object',
-      properties: {
-        guitarId: { type: 'string' },
-        quantity: { type: 'number' },
-      },
-      required: ['guitarId', 'quantity'],
-    },
-  },
+  name: 'addToCart',
+  description: 'Add a guitar to the shopping cart (requires approval)',
+  inputSchema: z.object({
+    guitarId: z.string(),
+    quantity: z.number(),
+  }),
   needsApproval: true,
   execute: async (args) => {
-    return JSON.stringify({
+    return {
       success: true,
       cartId: 'CART_' + Date.now(),
       guitarId: args.guitarId,
       quantity: args.quantity,
       totalItems: args.quantity,
-    })
+    }
   },
 })
 

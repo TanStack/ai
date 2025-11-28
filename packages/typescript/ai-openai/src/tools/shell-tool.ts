@@ -1,4 +1,5 @@
 import type OpenAI from 'openai'
+import { z } from 'zod'
 import type { Tool } from '@tanstack/ai'
 
 export type ShellTool = OpenAI.Responses.FunctionShellTool
@@ -17,12 +18,9 @@ export function convertShellToolToAdapterFormat(_tool: Tool): ShellTool {
  */
 export function shellTool(): Tool {
   return {
-    type: 'function',
-    function: {
-      name: 'shell',
-      description: 'Execute shell commands',
-      parameters: {},
-    },
+    name: 'shell',
+    description: 'Execute shell commands',
+    inputSchema: z.object({}),
     metadata: {},
   }
 }

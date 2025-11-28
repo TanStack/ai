@@ -1,4 +1,5 @@
 import type OpenAI from 'openai'
+import { z } from 'zod'
 import type { Tool } from '@tanstack/ai'
 
 export type WebSearchTool = OpenAI.Responses.WebSearchTool
@@ -16,12 +17,9 @@ export function convertWebSearchToolToAdapterFormat(tool: Tool): WebSearchTool {
  */
 export function webSearchTool(toolData: WebSearchTool): Tool {
   return {
-    type: 'function',
-    function: {
-      name: 'web_search',
-      description: 'Search the web',
-      parameters: {},
-    },
+    name: 'web_search',
+    description: 'Search the web',
+    inputSchema: z.object({}),
     metadata: toolData,
   }
 }

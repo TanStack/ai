@@ -141,7 +141,7 @@ class ChatEngine<
       hasTools: !!tools && tools.length > 0,
       streaming: true,
       timestamp: Date.now(),
-      toolNames: tools?.map((t) => t.function.name),
+      toolNames: tools?.map((t) => t.name),
       options: options as Record<string, unknown> | undefined,
       providerOptions: providerOptions as Record<string, unknown> | undefined,
     })

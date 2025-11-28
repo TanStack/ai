@@ -4,7 +4,7 @@ Server tools execute on the backend, giving you secure access to databases, APIs
 
 ## Defining Server Tools
 
-Server tools are defined using the `tool` utility and passed to the AI instance:
+Server tools are defined using the `tool` utility with Zod schemas for type safety:
 
 ```typescript
 import { tool } from "@tanstack/ai";
@@ -12,9 +12,15 @@ import { z } from "zod";
 
 // Example: Database query tool
 const getUserData = tool({
+  name: "get_user_data",
   description: "Get user information from the database",
   inputSchema: z.object({
     userId: z.string().describe("The user ID to look up"),
+  }),
+  outputSchema: z.object({
+    name: z.string(),
+    email: z.string().email(),
+    createdAt: z.string(),
   }),
   execute: async ({ userId }) => {
     // This runs on the server - can access database, APIs, etc.
@@ -29,6 +35,7 @@ const getUserData = tool({
 
 // Example: API call tool
 const searchProducts = tool({
+  name: "search_products",
   description: "Search for products in the catalog",
   inputSchema: z.object({
     query: z.string().describe("Search query"),
@@ -82,6 +89,7 @@ import { z } from "zod";
 
 export const tools = {
   getUserData: tool({
+    name: "get_user_data",
     description: "Get user information",
     inputSchema: z.object({
       userId: z.string(),
@@ -91,6 +99,7 @@ export const tools = {
     },
   }),
   searchProducts: tool({
+    name: "search_products",
     description: "Search products",
     inputSchema: z.object({
       query: z.string(),
@@ -131,6 +140,7 @@ Tools should handle errors gracefully:
 
 ```typescript
 const getUserData = tool({
+  name: "get_user_data",
   description: "Get user information",
   inputSchema: z.object({
     userId: z.string(),

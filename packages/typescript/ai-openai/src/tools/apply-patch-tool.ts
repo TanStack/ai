@@ -1,4 +1,5 @@
 import type OpenAI from 'openai'
+import { z } from 'zod'
 import type { Tool } from '@tanstack/ai'
 
 export type ApplyPatchTool = OpenAI.Responses.ApplyPatchTool
@@ -19,12 +20,9 @@ export function convertApplyPatchToolToAdapterFormat(
  */
 export function applyPatchTool(): Tool {
   return {
-    type: 'function',
-    function: {
-      name: 'apply_patch',
-      description: 'Apply a patch to modify files',
-      parameters: {},
-    },
+    name: 'apply_patch',
+    description: 'Apply a patch to modify files',
+    inputSchema: z.object({}),
     metadata: {},
   }
 }

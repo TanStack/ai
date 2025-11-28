@@ -1,4 +1,5 @@
 import type { GoogleSearchRetrieval } from '@google/genai'
+import { z } from 'zod'
 import type { Tool } from '@tanstack/ai'
 
 export type GoogleSearchRetrievalTool = GoogleSearchRetrieval
@@ -14,12 +15,9 @@ export function googleSearchRetrievalTool(
   config?: GoogleSearchRetrievalTool,
 ): Tool {
   return {
-    type: 'function',
-    function: {
-      name: 'google_search_retrieval',
-      description: '',
-      parameters: {},
-    },
+    name: 'google_search_retrieval',
+    description: '',
+    inputSchema: z.object({}),
     metadata: config,
   }
 }

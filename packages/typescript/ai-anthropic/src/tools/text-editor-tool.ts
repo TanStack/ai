@@ -3,6 +3,7 @@ import type {
   ToolTextEditor20250429,
   ToolTextEditor20250728,
 } from '@anthropic-ai/sdk/resources/messages'
+import { z } from 'zod'
 import type { Tool } from '@tanstack/ai'
 
 export type TextEditorTool =
@@ -21,12 +22,9 @@ export function convertTextEditorToolToAdapterFormat(
 
 export function textEditorTool<T extends TextEditorTool>(config: T): Tool {
   return {
-    type: 'function',
-    function: {
-      name: 'str_replace_editor',
-      description: '',
-      parameters: {},
-    },
+    name: 'str_replace_editor',
+    description: '',
+    inputSchema: z.object({}),
     metadata: config,
   }
 }

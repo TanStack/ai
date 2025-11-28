@@ -1,4 +1,5 @@
 import type OpenAI from 'openai'
+import { z } from 'zod'
 import type { Tool } from '@tanstack/ai'
 
 export type WebSearchPreviewTool = OpenAI.Responses.WebSearchPreviewTool
@@ -22,12 +23,9 @@ export function convertWebSearchPreviewToolToAdapterFormat(
  */
 export function webSearchPreviewTool(toolData: WebSearchPreviewTool): Tool {
   return {
-    type: 'function',
-    function: {
-      name: 'web_search_preview',
-      description: 'Search the web (preview version)',
-      parameters: {},
-    },
+    name: 'web_search_preview',
+    description: 'Search the web (preview version)',
+    inputSchema: z.object({}),
     metadata: toolData,
   }
 }

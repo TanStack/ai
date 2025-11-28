@@ -13,6 +13,7 @@ import { z } from "zod";
 
 // Client tool - no execute function (executes on client)
 export const updateUI = tool({
+  name: "update_ui",
   description: "Update the UI with new information",
   inputSchema: z.object({
     message: z.string().describe("Message to display"),
@@ -22,6 +23,7 @@ export const updateUI = tool({
 });
 
 export const saveToLocalStorage = tool({
+  name: "save_to_local_storage",
   description: "Save data to browser local storage",
   inputSchema: z.object({
     key: z.string().describe("Storage key"),
@@ -127,6 +129,7 @@ Some tools might need both server and client execution:
 ```typescript
 // Server: Fetch data
 const fetchUserPreferences = tool({
+  name: "fetch_user_preferences",
   description: "Get user preferences from server",
   inputSchema: z.object({
     userId: z.string(),
@@ -140,6 +143,7 @@ const fetchUserPreferences = tool({
 
 // Client: Display preferences in UI
 const displayPreferences = tool({
+  name: "display_preferences",
   description: "Display user preferences in the UI",
   inputSchema: z.object({
     preferences: z.any(),

@@ -1,4 +1,5 @@
 import type OpenAI from 'openai'
+import { z } from 'zod'
 import type { Tool } from '@tanstack/ai'
 
 export type ImageGenerationTool = OpenAI.Responses.Tool.ImageGeneration
@@ -30,12 +31,9 @@ export function imageGenerationTool(
 ): Tool {
   validatePartialImages(toolData.partial_images)
   return {
-    type: 'function',
-    function: {
-      name: 'image_generation',
-      description: 'Generate images based on text descriptions',
-      parameters: {},
-    },
+    name: 'image_generation',
+    description: 'Generate images based on text descriptions',
+    inputSchema: z.object({}),
     metadata: {
       ...toolData,
     },

@@ -1,3 +1,4 @@
+import { z } from 'zod'
 import type { Tool } from '@tanstack/ai'
 import type { FileSearch } from '@google/genai'
 
@@ -12,12 +13,9 @@ export function convertFileSearchToolToAdapterFormat(tool: Tool) {
 
 export function fileSearchTool(config: FileSearchTool): Tool {
   return {
-    type: 'function',
-    function: {
-      name: 'file_search',
-      description: '',
-      parameters: {},
-    },
+    name: 'file_search',
+    description: '',
+    inputSchema: z.object({}),
     metadata: config,
   }
 }

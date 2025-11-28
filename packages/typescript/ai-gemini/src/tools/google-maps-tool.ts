@@ -1,4 +1,5 @@
 import type { GoogleMaps } from '@google/genai'
+import { z } from 'zod'
 import type { Tool } from '@tanstack/ai'
 
 export type GoogleMapsTool = GoogleMaps
@@ -12,12 +13,9 @@ export function convertGoogleMapsToolToAdapterFormat(tool: Tool) {
 
 export function googleMapsTool(config?: GoogleMapsTool): Tool {
   return {
-    type: 'function',
-    function: {
-      name: 'google_maps',
-      description: '',
-      parameters: {},
-    },
+    name: 'google_maps',
+    description: '',
+    inputSchema: z.object({}),
     metadata: config,
   }
 }

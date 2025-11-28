@@ -41,7 +41,8 @@
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.71.0",
-    "@tanstack/ai": "workspace:*"
+    "@tanstack/ai": "workspace:*",
+    "zod": "^4.1.13"
   },
   "devDependencies": {
     "@vitest/coverage-v8": "4.0.14"

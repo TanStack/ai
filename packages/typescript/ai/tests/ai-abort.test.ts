@@ -1,4 +1,5 @@
 import { describe, it, expect } from 'vitest'
+import { z } from 'zod'
 import { chat } from '../src/core/chat'
 import type { ChatOptions, StreamChunk } from '../src/types'
 import { BaseAdapter } from '../src/base-adapter'
@@ -187,12 +188,9 @@ describe('chat() - Abort Signal Handling', () => {
       messages: [{ role: 'user', content: 'Hello' }],
       tools: [
         {
-          type: 'function',
-          function: {
-            name: 'test_tool',
-            description: 'Test tool',
-            parameters: {},
-          },
+          name: 'test_tool',
+          description: 'Test tool',
+          inputSchema: z.object({}),
         },
       ],
       abortController,

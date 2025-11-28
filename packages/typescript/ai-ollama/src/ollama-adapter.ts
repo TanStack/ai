@@ -1,5 +1,5 @@
 import { Ollama as OllamaSDK } from 'ollama'
-import { BaseAdapter } from '@tanstack/ai'
+import { BaseAdapter, convertZodToJsonSchema } from '@tanstack/ai'
 import type {
   ChatOptions,
   EmbeddingOptions,
@@ -175,9 +175,9 @@ function convertToolsToOllamaFormat(
   return tools.map((tool) => ({
     type: 'function',
     function: {
-      name: tool.function.name,
-      description: tool.function.description,
-      parameters: tool.function.parameters,
+      name: tool.name,
+      description: tool.description,
+      parameters: convertZodToJsonSchema(tool.inputSchema),
     },
   }))
 }

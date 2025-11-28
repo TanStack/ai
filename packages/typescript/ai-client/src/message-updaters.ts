@@ -8,8 +8,7 @@ import type {
 } from './types'
 
 /**
- * Update or add a text part to a message, ensuring tool calls come before text.
- * Text parts are always placed at the end (after tool calls).
+ * Update or add a text part to a message.
  */
 export function updateTextPart(
   messages: Array<UIMessage>,
@@ -21,21 +20,15 @@ export function updateTextPart(
       return msg
     }
 
-    let parts = [...msg.parts]
+    const parts = [...msg.parts]
     const textPartIndex = parts.findIndex((p) => p.type === 'text')
 
-    // Always add/update text part at the end (after tool calls)
     if (textPartIndex >= 0) {
+      // Update existing text part
       parts[textPartIndex] = { type: 'text', content }
     } else {
-      // Remove existing parts temporarily to ensure order
-      const toolCallParts = parts.filter((p) => p.type === 'tool-call')
-      const otherParts = parts.filter(
-        (p) => p.type !== 'tool-call' && p.type !== 'text',
-      )
-
-      // Rebuild: tool calls first, then other parts, then text
-      parts = [...toolCallParts, ...otherParts, { type: 'text', content }]
+      // Add new text part at the end (preserve natural streaming order)
+      parts.push({ type: 'text', content })
     }
 
     return { ...msg, parts }
@@ -44,7 +37,6 @@ export function updateTextPart(
 
 /**
  * Update or add a tool call part to a message.
- * Tool calls are inserted before any text parts.
  */
 export function updateToolCallPart(
   messages: Array<UIMessage>,
@@ -79,13 +71,8 @@ export function updateToolCallPart(
       // Update existing tool call
       parts[existingPartIndex] = toolCallPart
     } else {
-      // Insert tool call before any text parts
-      const textPartIndex = parts.findIndex((p) => p.type === 'text')
-      if (textPartIndex >= 0) {
-        parts.splice(textPartIndex, 0, toolCallPart)
-      } else {
-        parts.push(toolCallPart)
-      }
+      // Add new tool call at the end (preserve natural streaming order)
+      parts.push(toolCallPart)
     }
 
     return { ...msg, parts }
@@ -247,7 +234,6 @@ export function updateToolCallApprovalResponse(
 
 /**
  * Update or add a thinking part to a message.
- * Thinking parts are typically placed before text parts.
  */
 export function updateThinkingPart(
   messages: Array<UIMessage>,
@@ -271,14 +257,8 @@ export function updateThinkingPart(
       // Update existing thinking part
       parts[thinkingPartIndex] = thinkingPart
     } else {
-      // Insert thinking part before text parts (but after tool calls)
-      const textPartIndex = parts.findIndex((p) => p.type === 'text')
-      if (textPartIndex >= 0) {
-        parts.splice(textPartIndex, 0, thinkingPart)
-      } else {
-        // No text part, add at end
-        parts.push(thinkingPart)
-      }
+      // Add new thinking part at the end (preserve natural streaming order)
+      parts.push(thinkingPart)
     }
 
     return { ...msg, parts }

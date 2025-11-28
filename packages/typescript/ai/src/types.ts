@@ -1,4 +1,5 @@
 import type { CommonOptions } from './core/chat-common-options'
+import type { z } from 'zod'
 
 export interface ToolCall {
   id: string
@@ -23,61 +24,71 @@ export interface ModelMessage {
  * Tools allow the model to interact with external systems, APIs, or perform computations.
  * The model will decide when to call tools based on the user's request and the tool descriptions.
  *
+ * Tools use Zod schemas for runtime validation and type safety.
+ *
  * @see https://platform.openai.com/docs/guides/function-calling
  * @see https://docs.anthropic.com/claude/docs/tool-use
  */
-export interface Tool {
+export interface Tool<
+  TInput extends z.ZodType = z.ZodType,
+  TOutput extends z.ZodType = z.ZodType,
+> {
   /**
-   * Type of tool - currently only "function" is supported.
+   * Unique name of the tool (used by the model to call it).
    *
-   * Future versions may support additional tool types.
+   * Should be descriptive and follow naming conventions (e.g., snake_case or camelCase).
+   * Must be unique within the tools array.
+   *
+   * @example "get_weather", "search_database", "sendEmail"
    */
-  type: 'function'
+  name: string
 
   /**
-   * Function definition and metadata.
+   * Clear description of what the tool does.
+   *
+   * This is crucial - the model uses this to decide when to call the tool.
+   * Be specific about what the tool does, what parameters it needs, and what it returns.
+   *
+   * @example "Get the current weather in a given location. Returns temperature, conditions, and forecast."
    */
-  function: {
-    /**
-     * Unique name of the function (used by the model to call it).
-     *
-     * Should be descriptive and follow naming conventions (e.g., snake_case or camelCase).
-     * Must be unique within the tools array.
-     *
-     * @example "get_weather", "search_database", "sendEmail"
-     */
-    name: string
+  description: string
 
-    /**
-     * Clear description of what the function does.
-     *
-     * This is crucial - the model uses this to decide when to call the function.
-     * Be specific about what the function does, what parameters it needs, and what it returns.
-     *
-     * @example "Get the current weather in a given location. Returns temperature, conditions, and forecast."
-     */
-    description: string
+  /**
+   * Zod schema describing the tool's input parameters.
+   *
+   * Defines the structure and types of arguments the tool accepts.
+   * The model will generate arguments matching this schema.
+   * The schema is converted to JSON Schema for LLM providers.
+   *
+   * @see https://zod.dev/
+   *
+   * @example
+   * import { z } from 'zod';
+   *
+   * z.object({
+   *   location: z.string().describe("City name or coordinates"),
+   *   unit: z.enum(["celsius", "fahrenheit"]).optional()
+   * })
+   */
+  inputSchema: TInput
 
-    /**
-     * JSON Schema describing the function's parameters.
-     *
-     * Defines the structure and types of arguments the function accepts.
-     * The model will generate arguments matching this schema.
-     *
-     * @see https://json-schema.org/
-     *
-     * @example
-     * {
-     *   type: "object",
-     *   properties: {
-     *     location: { type: "string", description: "City name or coordinates" },
-     *     unit: { type: "string", enum: ["celsius", "fahrenheit"] }
-     *   },
-     *   required: ["location"]
-     * }
-     */
-    parameters: Record<string, any>
-  }
+  /**
+   * Optional Zod schema for validating tool output.
+   *
+   * If provided, tool results will be validated against this schema before
+   * being sent back to the model. This catches bugs in tool implementations
+   * and ensures consistent output formatting.
+   *
+   * Note: This is client-side validation only - not sent to LLM providers.
+   *
+   * @example
+   * z.object({
+   *   temperature: z.number(),
+   *   conditions: z.string(),
+   *   forecast: z.array(z.string()).optional()
+   * })
+   */
+  outputSchema?: TOutput
 
   /**
    * Optional function to execute when the model calls this tool.
@@ -85,21 +96,25 @@ export interface Tool {
    * If provided, the SDK will automatically execute the function with the model's arguments
    * and feed the result back to the model. This enables autonomous tool use loops.
    *
-   * Returns the result as a string (or Promise<string>) to send back to the model.
+   * Can return any value - will be automatically stringified if needed.
    *
-   * @param args - The arguments parsed from the model's tool call (matches the parameters schema)
-   * @returns Result string to send back to the model
+   * @param args - The arguments parsed from the model's tool call (validated against inputSchema)
+   * @returns Result to send back to the model (validated against outputSchema if provided)
    *
    * @example
    * execute: async (args) => {
    *   const weather = await fetchWeather(args.location);
-   *   return JSON.stringify(weather);
+   *   return weather; // Can return object or string
    * }
    */
-  execute?: (args: any) => Promise<string> | string
+  execute?: (
+    args: z.infer<TInput>,
+  ) => Promise<z.infer<TOutput>> | z.infer<TOutput>
+
   /** If true, tool execution requires user approval before running. Works with both server and client tools. */
   needsApproval?: boolean
 
+  /** Additional metadata for adapters or custom extensions */
   metadata?: Record<string, any>
 }
 

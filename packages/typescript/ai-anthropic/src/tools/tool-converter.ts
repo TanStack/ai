@@ -37,7 +37,7 @@ export function convertToolsToProviderFormat<TTool extends Tool>(
   tools: Array<TTool>,
 ): Array<AnthropicTool> {
   return tools.map((tool) => {
-    const name = tool.function.name
+    const name = tool.name
 
     switch (name) {
       case 'bash':

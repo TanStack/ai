@@ -35,7 +35,7 @@ export function convertToolsToProviderFormat(
       'custom',
     ])
 
-    const toolName = tool.function.name
+    const toolName = tool.name
 
     // If it's a special tool name, route to the appropriate converter
     if (specialToolNames.has(toolName)) {

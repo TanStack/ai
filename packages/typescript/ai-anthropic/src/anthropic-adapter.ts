@@ -369,6 +369,12 @@ export class Anthropic extends BaseAdapter<
             if (existing) {
               existing.input += event.delta.partial_json
 
+              // Normalize arguments: empty string -> {} for empty object schemas
+              let normalizedArgs = existing.input.trim()
+              if (normalizedArgs === '') {
+                normalizedArgs = '{}'
+              }
+
               yield {
                 type: 'tool_call',
                 id: generateId(),
@@ -379,7 +385,7 @@ export class Anthropic extends BaseAdapter<
                   type: 'function',
                   function: {
                     name: existing.name,
-                    arguments: event.delta.partial_json,
+                    arguments: normalizedArgs,
                   },
                 },
                 index: currentToolIndex,

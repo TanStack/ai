@@ -41,7 +41,8 @@
   ],
   "dependencies": {
     "@tanstack/ai": "workspace:*",
-    "openai": "^6.9.1"
+    "openai": "^6.9.1",
+    "zod": "^4.1.13"
   },
   "devDependencies": {
     "@vitest/coverage-v8": "4.0.14",

@@ -1,4 +1,5 @@
 import type OpenAI from 'openai'
+import { z } from 'zod'
 import type { Tool } from '@tanstack/ai'
 
 export type ComputerUseTool = OpenAI.Responses.ComputerTool
@@ -22,12 +23,9 @@ export function convertComputerUseToolToAdapterFormat(
  */
 export function computerUseTool(toolData: ComputerUseTool): Tool {
   return {
-    type: 'function',
-    function: {
-      name: 'computer_use_preview',
-      description: 'Control a virtual computer',
-      parameters: {},
-    },
+    name: 'computer_use_preview',
+    description: 'Control a virtual computer',
+    inputSchema: z.object({}),
     metadata: {
       ...toolData,
     },

@@ -1,3 +1,4 @@
+import { z } from 'zod'
 import type { Tool } from '@tanstack/ai'
 
 export interface UrlContextTool {}
@@ -10,12 +11,9 @@ export function convertUrlContextToolToAdapterFormat(_tool: Tool) {
 
 export function urlContextTool(): Tool {
   return {
-    type: 'function',
-    function: {
-      name: 'url_context',
-      description: '',
-      parameters: {},
-    },
+    name: 'url_context',
+    description: '',
+    inputSchema: z.object({}),
     metadata: {},
   }
 }

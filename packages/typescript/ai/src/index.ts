@@ -2,6 +2,7 @@ export { chat } from './core/chat'
 export { summarize } from './core/summarize'
 export { embedding } from './core/embedding'
 export { tool } from './tools/tool-utils'
+export { convertZodToJsonSchema } from './tools/zod-converter'
 export {
   toServerSentEventsStream,
   toStreamResponse,

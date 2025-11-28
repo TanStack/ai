@@ -2,6 +2,7 @@ import type {
   BetaToolComputerUse20241022,
   BetaToolComputerUse20250124,
 } from '@anthropic-ai/sdk/resources/beta'
+import { z } from 'zod'
 import type { Tool } from '@tanstack/ai'
 
 export type ComputerUseTool =
@@ -17,12 +18,9 @@ export function convertComputerUseToolToAdapterFormat(
 
 export function computerUseTool(config: ComputerUseTool): Tool {
   return {
-    type: 'function',
-    function: {
-      name: 'computer',
-      description: '',
-      parameters: {},
-    },
+    name: 'computer',
+    description: '',
+    inputSchema: z.object({}),
     metadata: config,
   }
 }

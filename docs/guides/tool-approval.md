@@ -14,20 +14,21 @@ When a tool requires approval:
 
 ## Enabling Approval
 
-Tools can be marked as requiring approval by setting `requiresApproval: true`:
+Tools can be marked as requiring approval by setting `needsApproval: true`:
 
 ```typescript
 import { tool } from "@tanstack/ai";
 import { z } from "zod";
 
 const sendEmail = tool({
+  name: "send_email",
   description: "Send an email to a recipient",
   inputSchema: z.object({
     to: z.string().email(),
     subject: z.string(),
     body: z.string(),
   }),
-  requiresApproval: true, // This tool requires approval
+  needsApproval: true, // This tool requires approval
   execute: async ({ to, subject, body }) => {
     // Only executes if approved
     await emailService.send({ to, subject, body });
@@ -38,7 +39,7 @@ const sendEmail = tool({
 
 ## Server-Side Approval
 
-On the server, tools with `requiresApproval: true` will pause execution and wait for approval:
+On the server, tools with `needsApproval: true` will pause execution and wait for approval:
 
 ```typescript
 import { chat, toStreamResponse } from "@tanstack/ai";
@@ -162,11 +163,12 @@ Client tools can also require approval:
 ```typescript
 // Server: Define client tool with approval
 const deleteLocalData = tool({
+  name: "delete_local_data",
   description: "Delete data from local storage",
   inputSchema: z.object({
     key: z.string(),
   }),
-  requiresApproval: true, // Requires approval even on client
+  needsApproval: true, // Requires approval even on client
 });
 
 // Client: Handle approval
@@ -204,13 +206,14 @@ Tools go through these states during approval:
 
 ```typescript
 const purchaseItem = tool({
+  name: "purchase_item",
   description: "Purchase an item from the store",
   inputSchema: z.object({
     itemId: z.string(),
     quantity: z.number(),
     price: z.number(),
   }),
-  requiresApproval: true,
+  needsApproval: true,
   execute: async ({ itemId, quantity, price }) => {
     const order = await createOrder({ itemId, quantity, price });
     return { orderId: order.id, total: price * quantity };

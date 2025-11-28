@@ -5,7 +5,7 @@ import { convertGoogleMapsToolToAdapterFormat } from './google-maps-tool'
 import { convertGoogleSearchRetrievalToolToAdapterFormat } from './google-search-retriveal-tool'
 import { convertGoogleSearchToolToAdapterFormat } from './google-search-tool'
 import { convertUrlContextToolToAdapterFormat } from './url-context-tool'
-import type { Tool } from '@tanstack/ai'
+import { convertZodToJsonSchema, type Tool } from '@tanstack/ai'
 import type { ToolUnion } from '@google/genai'
 
 /**
@@ -17,16 +17,11 @@ import type { ToolUnion } from '@google/genai'
  * @example
  * ```typescript
  * const tools: Tool[] = [{
- *   type: "function",
- *   function: {
- *     name: "get_weather",
- *     description: "Get weather for a location",
- *     parameters: {
- *       type: "object",
- *       properties: { location: { type: "string" } },
- *       required: ["location"]
- *     }
- *   }
+ *   name: "get_weather",
+ *   description: "Get weather for a location",
+ *   inputSchema: z.object({
+ *     location: z.string()
+ *   })
  * }];
  *
  * const geminiTools = convertToolsToProviderFormat(tools);
@@ -47,7 +42,7 @@ export function convertToolsToProviderFormat<TTool extends Tool>(
 
   // Process each tool and group function declarations together
   for (const tool of tools) {
-    const name = tool.function.name
+    const name = tool.name
 
     switch (name) {
       case 'code_execution':
@@ -74,15 +69,19 @@ export function convertToolsToProviderFormat<TTool extends Tool>(
       default:
         // Collect function declarations to group together
         // Description is required for Gemini function declarations
-        if (!tool.function.description) {
+        if (!tool.description) {
           throw new Error(
-            `Tool ${tool.function.name} requires a description for Gemini adapter`,
+            `Tool ${tool.name} requires a description for Gemini adapter`,
           )
         }
+
+        // Convert Zod schema to JSON Schema
+        const jsonSchema = convertZodToJsonSchema(tool.inputSchema)
+
         functionDeclarations.push({
-          name: tool.function.name,
-          description: tool.function.description,
-          parameters: tool.function.parameters,
+          name: tool.name,
+          description: tool.description,
+          parameters: jsonSchema,
         })
         break
     }

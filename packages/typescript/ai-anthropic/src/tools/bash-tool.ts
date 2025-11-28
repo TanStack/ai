@@ -2,6 +2,7 @@ import type {
   BetaToolBash20241022,
   BetaToolBash20250124,
 } from '@anthropic-ai/sdk/resources/beta'
+import { z } from 'zod'
 import type { Tool } from '@tanstack/ai'
 
 export type BashTool = BetaToolBash20241022 | BetaToolBash20250124
@@ -12,12 +13,9 @@ export function convertBashToolToAdapterFormat(tool: Tool): BashTool {
 }
 export function bashTool(config: BashTool): Tool {
   return {
-    type: 'function',
-    function: {
-      name: 'bash',
-      description: '',
-      parameters: {},
-    },
+    name: 'bash',
+    description: '',
+    inputSchema: z.object({}),
     metadata: config,
   }
 }

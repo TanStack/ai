@@ -1,4 +1,5 @@
 import { createOpenAI } from '../src/index'
+import { z } from 'zod'
 import { readFileSync } from 'fs'
 import { join, dirname } from 'path'
 import { fileURLToPath } from 'url'
@@ -31,27 +32,17 @@ async function testToolWithOptionalParameters() {
 
   // Create a tool with optional parameters (unit is optional)
   const getTemperatureTool = {
-    type: 'function' as const,
-    function: {
-      name: 'get_temperature',
-      description: 'Get the current temperature for a specific location',
-      parameters: {
-        type: 'object',
-        properties: {
-          location: {
-            type: 'string',
-            description: 'The city or location to get the temperature for',
-          },
-          unit: {
-            type: 'string',
-            enum: ['celsius', 'fahrenheit'],
-            description:
-              'The temperature unit (optional, defaults to fahrenheit)',
-          },
-        },
-        required: ['location'], // unit is optional
-      },
-    },
+    name: 'get_temperature',
+    description: 'Get the current temperature for a specific location',
+    inputSchema: z.object({
+      location: z
+        .string()
+        .describe('The city or location to get the temperature for'),
+      unit: z
+        .enum(['celsius', 'fahrenheit'])
+        .optional()
+        .describe('The temperature unit (optional, defaults to fahrenheit)'),
+    }),
     execute: async (args: any) => {
       console.log(
         '✅ Tool executed with arguments:',
@@ -82,11 +73,8 @@ async function testToolWithOptionalParameters() {
   ]
 
   console.log('📤 Sending request with tool:')
-  console.log('  Tool name:', getTemperatureTool.function.name)
-  console.log(
-    '  Required params:',
-    getTemperatureTool.function.parameters.required,
-  )
+  console.log('  Tool name:', getTemperatureTool.name)
+  console.log('  Input schema:', getTemperatureTool.inputSchema.toString())
   console.log('  Optional params:', ['unit'])
   console.log('  User message:', messages[0].content)
   console.log()

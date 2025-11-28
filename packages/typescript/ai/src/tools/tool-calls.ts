@@ -115,9 +115,7 @@ export class ToolCallManager {
     const toolResults: Array<ModelMessage> = []
 
     for (const toolCall of toolCallsArray) {
-      const tool = this.tools.find(
-        (t) => t.function.name === toolCall.function.name,
-      )
+      const tool = this.tools.find((t) => t.name === toolCall.function.name)
 
       let toolResultContent: string
       if (tool?.execute) {
@@ -132,7 +130,31 @@ export class ToolCallManager {
             )
           }
 
-          const result = await tool.execute(args)
+          // Validate input against inputSchema
+          if (tool.inputSchema) {
+            try {
+              args = tool.inputSchema.parse(args)
+            } catch (validationError: any) {
+              throw new Error(
+                `Input validation failed for tool ${tool.name}: ${validationError.message}`,
+              )
+            }
+          }
+
+          // Execute the tool
+          let result = await tool.execute(args)
+
+          // Validate output against outputSchema if provided
+          if (tool.outputSchema && result !== undefined && result !== null) {
+            try {
+              result = tool.outputSchema.parse(result)
+            } catch (validationError: any) {
+              throw new Error(
+                `Output validation failed for tool ${tool.name}: ${validationError.message}`,
+              )
+            }
+          }
+
           toolResultContent =
             typeof result === 'string' ? result : JSON.stringify(result)
         } catch (error: any) {
@@ -227,7 +249,7 @@ export async function executeToolCalls(
   // Create tool lookup map
   const toolMap = new Map<string, Tool>()
   for (const tool of tools) {
-    toolMap.set(tool.function.name, tool)
+    toolMap.set(tool.name, tool)
   }
 
   for (const toolCall of toolCalls) {
@@ -252,6 +274,22 @@ export async function executeToolCalls(
       } catch (parseError) {
         // If parsing fails, throw error to fail fast
         throw new Error(`Failed to parse tool arguments as JSON: ${argsStr}`)
+      }
+    }
+
+    // Validate input against inputSchema
+    if (tool.inputSchema) {
+      try {
+        input = tool.inputSchema.parse(input)
+      } catch (validationError: any) {
+        results.push({
+          toolCallId: toolCall.id,
+          result: {
+            error: `Input validation failed for tool ${tool.name}: ${validationError.message}`,
+          },
+          state: 'output-error',
+        })
+        continue
       }
     }
 
@@ -327,10 +365,25 @@ export async function executeToolCalls(
         if (approved) {
           // Execute after approval
           try {
-            const result = await tool.execute(input)
+            let result = await tool.execute(input)
+
+            // Validate output against outputSchema if provided
+            if (tool.outputSchema && result !== undefined && result !== null) {
+              try {
+                result = tool.outputSchema.parse(result)
+              } catch (validationError: any) {
+                throw new Error(
+                  `Output validation failed for tool ${tool.name}: ${validationError.message}`,
+                )
+              }
+            }
+
             results.push({
               toolCallId: toolCall.id,
-              result: result ? JSON.parse(result) : null,
+              result:
+                typeof result === 'string'
+                  ? JSON.parse(result)
+                  : result || null,
             })
           } catch (error: any) {
             results.push({
@@ -361,10 +414,23 @@ export async function executeToolCalls(
 
     // CASE 3: Normal server tool - execute immediately
     try {
-      const result = await tool.execute(input)
+      let result = await tool.execute(input)
+
+      // Validate output against outputSchema if provided
+      if (tool.outputSchema && result !== undefined && result !== null) {
+        try {
+          result = tool.outputSchema.parse(result)
+        } catch (validationError: any) {
+          throw new Error(
+            `Output validation failed for tool ${tool.name}: ${validationError.message}`,
+          )
+        }
+      }
+
       results.push({
         toolCallId: toolCall.id,
-        result: result ? JSON.parse(result) : null,
+        result:
+          typeof result === 'string' ? JSON.parse(result) : result || null,
       })
     } catch (error: any) {
       results.push({

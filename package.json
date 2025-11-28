@@ -53,7 +53,7 @@
   "size-limit": [
     {
       "path": "packages/typescript/ai/dist/esm/index.js",
-      "limit": "10 KB"
+      "limit": "21 KB"
     }
   ],
   "devDependencies": {

@@ -1,0 +1,19 @@
+{
+  "name": "ai-anthropic-live-tests",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "tsx tool-test.ts",
+    "test:empty": "tsx tool-test-empty-object.ts",
+    "test:all": "tsx tool-test.ts && tsx tool-test-empty-object.ts"
+  },
+  "dependencies": {
+    "@tanstack/ai": "workspace:*",
+    "@tanstack/ai-anthropic": "workspace:*",
+    "zod": "^3.24.1"
+  },
+  "devDependencies": {
+    "tsx": "^4.19.2"
+  }
+}
