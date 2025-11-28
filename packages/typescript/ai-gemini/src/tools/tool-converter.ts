@@ -1,4 +1,4 @@
-import {  convertZodToJsonSchema } from '@tanstack/ai'
+import { convertZodToJsonSchema } from '@tanstack/ai'
 import { convertCodeExecutionToolToAdapterFormat } from './code-execution-tool'
 import { convertComputerUseToolToAdapterFormat } from './computer-use-tool'
 import { convertFileSearchToolToAdapterFormat } from './file-search-tool'
@@ -6,7 +6,7 @@ import { convertGoogleMapsToolToAdapterFormat } from './google-maps-tool'
 import { convertGoogleSearchRetrievalToolToAdapterFormat } from './google-search-retriveal-tool'
 import { convertGoogleSearchToolToAdapterFormat } from './google-search-tool'
 import { convertUrlContextToolToAdapterFormat } from './url-context-tool'
-import type {Tool} from '@tanstack/ai';
+import type { Tool } from '@tanstack/ai'
 import type { ToolUnion } from '@google/genai'
 
 /**

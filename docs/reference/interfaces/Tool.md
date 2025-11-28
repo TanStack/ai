@@ -3,132 +3,122 @@ id: Tool
 title: Tool
 ---
 
-# Interface: Tool
+# Interface: Tool\<TInput, TOutput\>
 
-Defined in: [types.ts:29](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L29)
+Defined in: [types.ts:32](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L32)
 
 Tool/Function definition for function calling.
 
 Tools allow the model to interact with external systems, APIs, or perform computations.
 The model will decide when to call tools based on the user's request and the tool descriptions.
 
+Tools use Zod schemas for runtime validation and type safety.
+
 ## See
 
  - https://platform.openai.com/docs/guides/function-calling
  - https://docs.anthropic.com/claude/docs/tool-use
 
+## Type Parameters
+
+### TInput
+
+`TInput` *extends* `z.ZodType` = `z.ZodType`
+
+### TOutput
+
+`TOutput` *extends* `z.ZodType` = `z.ZodType`
+
 ## Properties
+
+### description
+
+```ts
+description: string;
+```
+
+Defined in: [types.ts:54](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L54)
+
+Clear description of what the tool does.
+
+This is crucial - the model uses this to decide when to call the tool.
+Be specific about what the tool does, what parameters it needs, and what it returns.
+
+#### Example
+
+```ts
+"Get the current weather in a given location. Returns temperature, conditions, and forecast."
+```
+
+***
 
 ### execute()?
 
 ```ts
-optional execute: (args) => string | Promise<string>;
+optional execute: (args) => output<TOutput> | Promise<output<TOutput>>;
 ```
 
-Defined in: [types.ts:99](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L99)
+Defined in: [types.ts:110](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L110)
 
 Optional function to execute when the model calls this tool.
 
 If provided, the SDK will automatically execute the function with the model's arguments
 and feed the result back to the model. This enables autonomous tool use loops.
 
-Returns the result as a string (or Promise<string>) to send back to the model.
+Can return any value - will be automatically stringified if needed.
 
 #### Parameters
 
 ##### args
 
-`any`
+`output`\<`TInput`\>
 
-The arguments parsed from the model's tool call (matches the parameters schema)
+The arguments parsed from the model's tool call (validated against inputSchema)
 
 #### Returns
 
-`string` \| `Promise`\<`string`\>
+`output`\<`TOutput`\> \| `Promise`\<`output`\<`TOutput`\>\>
 
-Result string to send back to the model
+Result to send back to the model (validated against outputSchema if provided)
 
 #### Example
 
 ```ts
 execute: async (args) => {
   const weather = await fetchWeather(args.location);
-  return JSON.stringify(weather);
+  return weather; // Can return object or string
 }
 ```
 
 ***
 
-### function
+### inputSchema
 
 ```ts
-function: object;
+inputSchema: TInput;
 ```
 
-Defined in: [types.ts:40](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L40)
+Defined in: [types.ts:73](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L73)
 
-Function definition and metadata.
+Zod schema describing the tool's input parameters.
 
-#### description
-
-```ts
-description: string;
-```
-
-Clear description of what the function does.
-
-This is crucial - the model uses this to decide when to call the function.
-Be specific about what the function does, what parameters it needs, and what it returns.
-
-##### Example
-
-```ts
-"Get the current weather in a given location. Returns temperature, conditions, and forecast."
-```
-
-#### name
-
-```ts
-name: string;
-```
-
-Unique name of the function (used by the model to call it).
-
-Should be descriptive and follow naming conventions (e.g., snake_case or camelCase).
-Must be unique within the tools array.
-
-##### Example
-
-```ts
-"get_weather", "search_database", "sendEmail"
-```
-
-#### parameters
-
-```ts
-parameters: Record<string, any>;
-```
-
-JSON Schema describing the function's parameters.
-
-Defines the structure and types of arguments the function accepts.
+Defines the structure and types of arguments the tool accepts.
 The model will generate arguments matching this schema.
+The schema is converted to JSON Schema for LLM providers.
 
-##### See
+#### See
 
-https://json-schema.org/
+https://zod.dev/
 
-##### Example
+#### Example
 
 ```ts
-{
-     *   type: "object",
-     *   properties: {
-     *     location: { type: "string", description: "City name or coordinates" },
-     *     unit: { type: "string", enum: ["celsius", "fahrenheit"] }
-     *   },
-     *   required: ["location"]
-     * }
+import { z } from 'zod';
+
+z.object({
+  location: z.string().describe("City name or coordinates"),
+  unit: z.enum(["celsius", "fahrenheit"]).optional()
+})
 ```
 
 ***
@@ -139,7 +129,30 @@ https://json-schema.org/
 optional metadata: Record<string, any>;
 ```
 
-Defined in: [types.ts:103](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L103)
+Defined in: [types.ts:118](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L118)
+
+Additional metadata for adapters or custom extensions
+
+***
+
+### name
+
+```ts
+name: string;
+```
+
+Defined in: [types.ts:44](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L44)
+
+Unique name of the tool (used by the model to call it).
+
+Should be descriptive and follow naming conventions (e.g., snake_case or camelCase).
+Must be unique within the tools array.
+
+#### Example
+
+```ts
+"get_weather", "search_database", "sendEmail"
+```
 
 ***
 
@@ -149,20 +162,34 @@ Defined in: [types.ts:103](https://github.com/TanStack/ai/blob/main/packages/typ
 optional needsApproval: boolean;
 ```
 
-Defined in: [types.ts:101](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L101)
+Defined in: [types.ts:115](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L115)
 
 If true, tool execution requires user approval before running. Works with both server and client tools.
 
 ***
 
-### type
+### outputSchema?
 
 ```ts
-type: "function";
+optional outputSchema: TOutput;
 ```
 
-Defined in: [types.ts:35](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L35)
+Defined in: [types.ts:91](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L91)
 
-Type of tool - currently only "function" is supported.
+Optional Zod schema for validating tool output.
 
-Future versions may support additional tool types.
+If provided, tool results will be validated against this schema before
+being sent back to the model. This catches bugs in tool implementations
+and ensures consistent output formatting.
+
+Note: This is client-side validation only - not sent to LLM providers.
+
+#### Example
+
+```ts
+z.object({
+  temperature: z.number(),
+  conditions: z.string(),
+  forecast: z.array(z.string()).optional()
+})
+```

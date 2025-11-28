@@ -53,7 +53,7 @@ Defined in: [tools/tool-calls.ts:45](https://github.com/TanStack/ai/blob/main/pa
 
 ##### tools
 
-readonly [`Tool`](../../interfaces/Tool.md)[]
+readonly [`Tool`](../../interfaces/Tool.md)\<`ZodType`\<`unknown`, `unknown`, `$ZodTypeInternals`\<`unknown`, `unknown`\>\>, `ZodType`\<`unknown`, `unknown`, `$ZodTypeInternals`\<`unknown`, `unknown`\>\>\>[]
 
 #### Returns
 
@@ -126,7 +126,7 @@ Handles streaming tool calls by accumulating arguments
 clear(): void;
 ```
 
-Defined in: [tools/tool-calls.ts:171](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/tools/tool-calls.ts#L171)
+Defined in: [tools/tool-calls.ts:194](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/tools/tool-calls.ts#L194)
 
 Clear the tool calls map for the next iteration
 

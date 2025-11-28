@@ -5,7 +5,7 @@ title: ModelMessage
 
 # Interface: ModelMessage
 
-Defined in: [types.ts:12](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L12)
+Defined in: [types.ts:13](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L13)
 
 ## Properties
 
@@ -15,7 +15,7 @@ Defined in: [types.ts:12](https://github.com/TanStack/ai/blob/main/packages/type
 content: string | null;
 ```
 
-Defined in: [types.ts:14](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L14)
+Defined in: [types.ts:15](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L15)
 
 ***
 
@@ -25,7 +25,7 @@ Defined in: [types.ts:14](https://github.com/TanStack/ai/blob/main/packages/type
 optional name: string;
 ```
 
-Defined in: [types.ts:15](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L15)
+Defined in: [types.ts:16](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L16)
 
 ***
 
@@ -35,7 +35,7 @@ Defined in: [types.ts:15](https://github.com/TanStack/ai/blob/main/packages/type
 role: "system" | "user" | "assistant" | "tool";
 ```
 
-Defined in: [types.ts:13](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L13)
+Defined in: [types.ts:14](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L14)
 
 ***
 
@@ -45,7 +45,7 @@ Defined in: [types.ts:13](https://github.com/TanStack/ai/blob/main/packages/type
 optional toolCallId: string;
 ```
 
-Defined in: [types.ts:17](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L17)
+Defined in: [types.ts:18](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L18)
 
 ***
 
@@ -55,4 +55,4 @@ Defined in: [types.ts:17](https://github.com/TanStack/ai/blob/main/packages/type
 optional toolCalls: ToolCall[];
 ```
 
-Defined in: [types.ts:16](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L16)
+Defined in: [types.ts:17](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L17)

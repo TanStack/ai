@@ -6,103 +6,83 @@ title: tool
 # Function: tool()
 
 ```ts
-function tool<TProps, TRequired>(config): Tool;
+function tool<TInput, TOutput>(config): Tool<TInput, TOutput>;
 ```
 
-Defined in: [tools/tool-utils.ts:70](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/tools/tool-utils.ts#L70)
+Defined in: [tools/tool-utils.ts:34](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/tools/tool-utils.ts#L34)
 
 Helper to define a tool with enforced type safety.
-Automatically infers the execute function argument types from the parameters schema.
-User must provide the full Tool structure with type: "function" and function: {...}
+
+Automatically infers TypeScript types from Zod schemas, providing
+full type safety for tool inputs and outputs.
 
 ## Type Parameters
 
-### TProps
+### TInput
 
-`TProps` *extends* `Record`\<`string`, `any`\>
+`TInput` *extends* `ZodType`\<`unknown`, `unknown`, `$ZodTypeInternals`\<`unknown`, `unknown`\>\>
 
-### TRequired
+### TOutput
 
-`TRequired` *extends* readonly `string`[] \| `undefined`
+`TOutput` *extends* `ZodType`\<`unknown`, `unknown`, `$ZodTypeInternals`\<`unknown`, `unknown`\>\> = `ZodAny`
 
 ## Parameters
 
 ### config
 
-#### execute
-
-(`args`) => `string` \| `Promise`\<`string`\>
-
-#### function
-
-\{
-  `description`: `string`;
-  `name`: `string`;
-  `parameters`: \{
-     `properties`: `TProps`;
-     `required?`: `TRequired`;
-     `type`: `"object"`;
-  \};
-\}
-
-#### function.description
+#### description
 
 `string`
 
-#### function.name
+#### execute?
+
+(`args`) => `output`\<`TOutput`\> \| `Promise`\<`output`\<`TOutput`\>\>
+
+#### inputSchema
+
+`TInput`
+
+#### metadata?
+
+`Record`\<`string`, `any`\>
+
+#### name
 
 `string`
 
-#### function.parameters
+#### needsApproval?
 
-\{
-  `properties`: `TProps`;
-  `required?`: `TRequired`;
-  `type`: `"object"`;
-\}
+`boolean`
 
-#### function.parameters.properties
+#### outputSchema?
 
-`TProps`
-
-#### function.parameters.required?
-
-`TRequired`
-
-#### function.parameters.type
-
-`"object"`
-
-#### type
-
-`"function"`
+`TOutput`
 
 ## Returns
 
-[`Tool`](../../interfaces/Tool.md)
+[`Tool`](../../interfaces/Tool.md)\<`TInput`, `TOutput`\>
 
 ## Example
 
 ```typescript
-const tools = {
-  myTool: tool({
-    type: "function",
-    function: {
-      name: "myTool",
-      description: "My tool description",
-      parameters: {
-        type: "object",
-        properties: {
-          id: { type: "string", description: "The ID" },
-          optional: { type: "number", description: "Optional param" },
-        },
-        required: ["id"],
-      },
-    },
-    execute: async (args) => {
-      // ✅ args is automatically typed as { id: string; optional?: number }
-      return args.id;
-    },
+import { tool } from '@tanstack/ai';
+import { z } from 'zod';
+
+const getWeather = tool({
+  name: 'get_weather',
+  description: 'Get the current weather for a location',
+  inputSchema: z.object({
+    location: z.string().describe('The city and state, e.g. San Francisco, CA'),
+    unit: z.enum(['celsius', 'fahrenheit']).optional(),
   }),
-};
+  outputSchema: z.object({
+    temperature: z.number(),
+    conditions: z.string(),
+  }),
+  execute: async ({ location, unit }) => {
+    // args are fully typed: { location: string; unit?: "celsius" | "fahrenheit" }
+    const data = await fetchWeather(location, unit);
+    return data; // validated against outputSchema
+  },
+});
 ```

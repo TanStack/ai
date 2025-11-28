@@ -1,5 +1,5 @@
-import {  convertZodToJsonSchema } from '@tanstack/ai'
-import type {Tool} from '@tanstack/ai';
+import { convertZodToJsonSchema } from '@tanstack/ai'
+import type { Tool } from '@tanstack/ai'
 import type OpenAI from 'openai'
 
 export type FunctionTool = OpenAI.Responses.FunctionTool

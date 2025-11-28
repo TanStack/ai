@@ -53,6 +53,7 @@ title: "@tanstack/ai"
 - [chat](../functions/chat.md)
 - [chatOptions](../functions/chatOptions.md)
 - [combineStrategies](../functions/combineStrategies.md)
+- [convertZodToJsonSchema](../functions/convertZodToJsonSchema.md)
 - [embedding](../functions/embedding.md)
 - [maxIterations](../functions/maxIterations.md)
 - [summarize](../functions/summarize.md)

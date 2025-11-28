@@ -5,10 +5,10 @@ title: ToolConfig
 
 # Interface: ToolConfig
 
-Defined in: [types.ts:106](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L106)
+Defined in: [types.ts:121](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L121)
 
 ## Indexable
 
 ```ts
-[key: string]: Tool
+[key: string]: Tool<ZodType<unknown, unknown, $ZodTypeInternals<unknown, unknown>>, ZodType<unknown, unknown, $ZodTypeInternals<unknown, unknown>>>
 ```

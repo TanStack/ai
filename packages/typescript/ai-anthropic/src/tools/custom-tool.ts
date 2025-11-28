@@ -1,5 +1,5 @@
-import {  convertZodToJsonSchema } from '@tanstack/ai'
-import type {Tool} from '@tanstack/ai';
+import { convertZodToJsonSchema } from '@tanstack/ai'
+import type { Tool } from '@tanstack/ai'
 import type { z } from 'zod'
 import type { CacheControl } from '../text/text-provider-options'
 
