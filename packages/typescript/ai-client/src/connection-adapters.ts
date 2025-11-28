@@ -93,38 +93,53 @@ export interface FetchConnectionOptions {
 /**
  * Create a Server-Sent Events connection adapter
  *
- * @param url - The API endpoint URL
- * @param options - Fetch options (headers, credentials, etc.)
+ * @param url - The API endpoint URL (or a function that returns the URL)
+ * @param options - Fetch options (headers, credentials, etc.) or a function that returns options
  * @returns A connection adapter for SSE streams
  *
  * @example
  * ```typescript
+ * // Static URL
+ * const connection = fetchServerSentEvents('/api/chat');
+ *
+ * // Dynamic URL
+ * const connection = fetchServerSentEvents(() => `/api/chat?user=${userId}`);
+ *
+ * // With options
  * const connection = fetchServerSentEvents('/api/chat', {
  *   headers: { 'Authorization': 'Bearer token' }
  * });
  *
- * const client = new ChatClient({ connection });
+ * // With dynamic options
+ * const connection = fetchServerSentEvents('/api/chat', () => ({
+ *   headers: { 'Authorization': `Bearer ${getToken()}` }
+ * }));
  * ```
  */
 export function fetchServerSentEvents(
-  url: string,
-  options: FetchConnectionOptions = {},
+  url: string | (() => string),
+  options: FetchConnectionOptions | (() => FetchConnectionOptions) = {},
 ): ConnectionAdapter {
   return {
     async *connect(messages, data, abortSignal) {
+      // Resolve URL and options if they are functions
+      const resolvedUrl = typeof url === 'function' ? url() : url
+      const resolvedOptions =
+        typeof options === 'function' ? options() : options
+
       const modelMessages = convertMessagesToModelMessages(messages)
 
       const requestHeaders: Record<string, string> = {
         'Content-Type': 'application/json',
-        ...mergeHeaders(options.headers),
+        ...mergeHeaders(resolvedOptions.headers),
       }
 
-      const response = await fetch(url, {
+      const response = await fetch(resolvedUrl, {
         method: 'POST',
         headers: requestHeaders,
         body: JSON.stringify({ messages: modelMessages, data }),
-        credentials: options.credentials || 'same-origin',
-        signal: abortSignal || options.signal,
+        credentials: resolvedOptions.credentials || 'same-origin',
+        signal: abortSignal || resolvedOptions.signal,
       })
 
       if (!response.ok) {
@@ -160,39 +175,54 @@ export function fetchServerSentEvents(
 /**
  * Create an HTTP streaming connection adapter (for raw streaming without SSE format)
  *
- * @param url - The API endpoint URL
- * @param options - Fetch options (headers, credentials, etc.)
+ * @param url - The API endpoint URL (or a function that returns the URL)
+ * @param options - Fetch options (headers, credentials, etc.) or a function that returns options
  * @returns A connection adapter for HTTP streams
  *
  * @example
  * ```typescript
+ * // Static URL
+ * const connection = fetchHttpStream('/api/chat');
+ *
+ * // Dynamic URL
+ * const connection = fetchHttpStream(() => `/api/chat?user=${userId}`);
+ *
+ * // With options
  * const connection = fetchHttpStream('/api/chat', {
  *   headers: { 'Authorization': 'Bearer token' }
  * });
  *
- * const client = new ChatClient({ connection });
+ * // With dynamic options
+ * const connection = fetchHttpStream('/api/chat', () => ({
+ *   headers: { 'Authorization': `Bearer ${getToken()}` }
+ * }));
  * ```
  */
 export function fetchHttpStream(
-  url: string,
-  options: FetchConnectionOptions = {},
+  url: string | (() => string),
+  options: FetchConnectionOptions | (() => FetchConnectionOptions) = {},
 ): ConnectionAdapter {
   return {
     async *connect(messages, data, abortSignal) {
+      // Resolve URL and options if they are functions
+      const resolvedUrl = typeof url === 'function' ? url() : url
+      const resolvedOptions =
+        typeof options === 'function' ? options() : options
+
       // Convert UIMessages to ModelMessages if needed
       const modelMessages = convertMessagesToModelMessages(messages)
 
       const requestHeaders: Record<string, string> = {
         'Content-Type': 'application/json',
-        ...mergeHeaders(options.headers),
+        ...mergeHeaders(resolvedOptions.headers),
       }
 
-      const response = await fetch(url, {
+      const response = await fetch(resolvedUrl, {
         method: 'POST',
         headers: requestHeaders,
         body: JSON.stringify({ messages: modelMessages, data }),
-        credentials: options.credentials || 'same-origin',
-        signal: abortSignal || options.signal,
+        credentials: resolvedOptions.credentials || 'same-origin',
+        signal: abortSignal || resolvedOptions.signal,
       })
 
       if (!response.ok) {

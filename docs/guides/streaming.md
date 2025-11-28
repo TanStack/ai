@@ -93,7 +93,7 @@ TanStack AI provides connection adapters for different streaming protocols:
 ### Server-Sent Events (SSE)
 
 ```typescript
-import { fetchServerSentEvents } from "@tanstack/ai-react";
+import { useChat, fetchServerSentEvents } from "@tanstack/ai-react";
 
 const { messages } = useChat({
   connection: fetchServerSentEvents("/api/chat"),
@@ -103,7 +103,7 @@ const { messages } = useChat({
 ### HTTP Stream
 
 ```typescript
-import { fetchHttpStream } from "@tanstack/ai-react";
+import { useChat, fetchHttpStream } from "@tanstack/ai-react";
 
 const { messages } = useChat({
   connection: fetchHttpStream("/api/chat"),

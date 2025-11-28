@@ -22,6 +22,8 @@ export interface ToolCall {
   result?: unknown
   approvalRequired?: boolean
   approvalId?: string
+  /** Duration of tool execution in milliseconds */
+  duration?: number
 }
 
 interface TokenUsage {
@@ -32,7 +34,7 @@ interface TokenUsage {
 
 export interface Message {
   id: string
-  role: 'user' | 'assistant' | 'system'
+  role: 'user' | 'assistant' | 'system' | 'tool'
   content: string
   timestamp: number
   parts?: Array<MessagePart>
@@ -72,8 +74,33 @@ export interface Chunk {
   error?: string
   approvalId?: string
   input?: unknown
+  /** Tool arguments for tool_call chunks */
+  arguments?: string
+  /** Tool result data for tool_result chunks */
+  result?: unknown
+  /** Duration in ms for tool execution */
+  duration?: number
   /** Number of raw chunks that were merged into this consolidated chunk */
   chunkCount: number
+}
+
+export interface EmbeddingOperation {
+  id: string
+  model: string
+  inputCount: number
+  duration: number
+  timestamp: number
+  status: 'started' | 'completed'
+}
+
+export interface SummarizeOperation {
+  id: string
+  model: string
+  inputLength: number
+  outputLength?: number
+  duration?: number
+  timestamp: number
+  status: 'started' | 'completed'
 }
 
 export interface Conversation {
@@ -92,6 +119,14 @@ export interface Conversation {
   toolNames?: Array<string>
   options?: Record<string, unknown>
   providerOptions?: Record<string, unknown>
+  /** Flags for which operation types this conversation has */
+  hasChat?: boolean
+  hasEmbedding?: boolean
+  hasSummarize?: boolean
+  /** Embedding operations in this conversation */
+  embeddings?: Array<EmbeddingOperation>
+  /** Summarize operations in this conversation */
+  summaries?: Array<SummarizeOperation>
 }
 
 interface AIStoreState {
@@ -160,9 +195,8 @@ export const AIProvider: ParentComponent = (props) => {
         isMergeableChunkType(chunk.type) &&
         lastChunk.messageId === chunk.messageId
       ) {
-        // Merge: append content, update delta, increment count
-        lastChunk.content =
-          (lastChunk.content || '') + (chunk.delta || chunk.content || '')
+        // Merge: use the new chunk's content (it's already accumulated), update delta, increment count
+        lastChunk.content = chunk.content || lastChunk.content
         lastChunk.delta = chunk.delta
         lastChunk.chunkCount += chunk.chunkCount
       } else {
@@ -253,9 +287,9 @@ export const AIProvider: ParentComponent = (props) => {
       isMergeableChunkType(chunk.type) &&
       lastPending.messageId === chunk.messageId
     ) {
-      // Merge into pending buffer
-      lastPending.content =
-        (lastPending.content || '') + (chunk.delta || chunk.content || '')
+      // Merge into pending buffer - only append delta (incremental content)
+      // Use the new chunk's content as the accumulated content (it's already accumulated)
+      lastPending.content = chunk.content || lastPending.content
       lastPending.delta = chunk.delta
       lastPending.chunkCount += chunk.chunkCount
     } else {
@@ -287,9 +321,9 @@ export const AIProvider: ParentComponent = (props) => {
       isMergeableChunkType(chunk.type) &&
       lastPending.messageId === chunk.messageId
     ) {
-      // Merge into pending buffer
-      lastPending.content =
-        (lastPending.content || '') + (chunk.delta || chunk.content || '')
+      // Merge into pending buffer - only append delta (incremental content)
+      // Use the new chunk's content as the accumulated content (it's already accumulated)
+      lastPending.content = chunk.content || lastPending.content
       lastPending.delta = chunk.delta
       lastPending.chunkCount += chunk.chunkCount
     } else {
@@ -379,35 +413,65 @@ export const AIProvider: ParentComponent = (props) => {
   function updateMessageUsage(
     conversationId: string,
     messageId: string | undefined,
-    usage: TokenUsage,
+    cumulativeUsage: TokenUsage,
   ): void {
     const conv = state.conversations[conversationId]
     if (!conv) return
 
+    // Calculate the sum of usage from all previous messages (excluding the target message)
+    let previousPromptTokens = 0
+    let previousCompletionTokens = 0
+
+    // Find the target message index
+    let targetMessageIndex = -1
     if (messageId) {
-      const messageIndex = conv.messages.findIndex(
+      targetMessageIndex = conv.messages.findIndex(
         (msg) => msg.id === messageId,
       )
-      if (messageIndex !== -1) {
-        setState(
-          'conversations',
-          conversationId,
-          'messages',
-          messageIndex,
-          'usage',
-          usage,
-        )
-        return
+    } else {
+      // Find last assistant message
+      for (let i = conv.messages.length - 1; i >= 0; i--) {
+        if (conv.messages[i]?.role === 'assistant') {
+          targetMessageIndex = i
+          break
+        }
       }
     }
 
-    for (let i = conv.messages.length - 1; i >= 0; i--) {
-      const message = conv.messages[i]
-      if (message && message.role === 'assistant') {
-        setState('conversations', conversationId, 'messages', i, 'usage', usage)
-        return
+    if (targetMessageIndex === -1) return
+
+    // Sum up usage from all previous assistant messages
+    for (let i = 0; i < targetMessageIndex; i++) {
+      const msg = conv.messages[i]
+      if (msg?.role === 'assistant' && msg.usage) {
+        previousPromptTokens += msg.usage.promptTokens
+        previousCompletionTokens += msg.usage.completionTokens
       }
     }
+
+    // Calculate delta usage for this message
+    const deltaUsage: TokenUsage = {
+      promptTokens: Math.max(
+        0,
+        cumulativeUsage.promptTokens - previousPromptTokens,
+      ),
+      completionTokens: Math.max(
+        0,
+        cumulativeUsage.completionTokens - previousCompletionTokens,
+      ),
+      totalTokens: 0,
+    }
+    deltaUsage.totalTokens =
+      deltaUsage.promptTokens + deltaUsage.completionTokens
+
+    setState(
+      'conversations',
+      conversationId,
+      'messages',
+      targetMessageIndex,
+      'usage',
+      deltaUsage,
+    )
   }
 
   // Public actions
@@ -499,6 +563,32 @@ export const AIProvider: ParentComponent = (props) => {
     queueChunk(conversationId, chunk)
   }
 
+  /**
+   * For server conversations, ensure a message exists for the given messageId.
+   * This creates a placeholder message that will be updated as chunks arrive.
+   */
+  function ensureMessageForChunk(
+    conversationId: string,
+    messageId: string | undefined,
+    timestamp: number,
+  ): void {
+    if (!messageId) return
+    const conv = state.conversations[conversationId]
+    if (!conv || conv.type === 'client') return
+
+    // Check if message already exists
+    const existingMessage = conv.messages.find((m) => m.id === messageId)
+    if (existingMessage) return
+
+    // Create a new message for this messageId
+    addMessage(conversationId, {
+      id: messageId,
+      role: 'assistant',
+      content: '',
+      timestamp,
+    })
+  }
+
   // Register all event listeners on mount
   onMount(() => {
     const cleanupFns: Array<() => void> = []
@@ -559,6 +649,14 @@ export const AIProvider: ParentComponent = (props) => {
             addMessage(clientId, {
               id: e.payload.messageId,
               role: 'assistant',
+              content: e.payload.contentPreview,
+              timestamp: e.payload.timestamp,
+            })
+          } else if (role === 'tool') {
+            // Tool result message from the LLM
+            addMessage(clientId, {
+              id: e.payload.messageId,
+              role: 'tool',
               content: e.payload.contentPreview,
               timestamp: e.payload.timestamp,
             })
@@ -775,12 +873,20 @@ export const AIProvider: ParentComponent = (props) => {
       aiEventClient.on(
         'tool:result-added',
         (e) => {
-          const { clientId, toolCallId, output, state: resultState } = e.payload
+          const {
+            clientId,
+            toolCallId,
+            toolName,
+            output,
+            state: resultState,
+            timestamp,
+          } = e.payload
 
           if (!state.conversations[clientId]) return
 
           const conv = state.conversations[clientId]
 
+          // Find the message with the tool call and update it
           for (
             let messageIndex = conv.messages.length - 1;
             messageIndex >= 0;
@@ -793,10 +899,24 @@ export const AIProvider: ParentComponent = (props) => {
               (t: ToolCall) => t.id === toolCallId,
             )
             if (toolCallIndex >= 0) {
+              // Update the tool call state
               updateToolCall(clientId, messageIndex, toolCallIndex, {
                 result: output,
                 state: resultState === 'output-error' ? 'error' : 'complete',
               })
+
+              // Also add a chunk to show the tool result in the chunks view
+              const chunk: Chunk = {
+                id: `chunk-tool-result-${toolCallId}-${Date.now()}`,
+                type: 'tool_result',
+                messageId: message.id,
+                toolCallId,
+                toolName,
+                result: output,
+                timestamp,
+                chunkCount: 1,
+              }
+              addChunkToMessage(clientId, chunk)
               return
             }
           }
@@ -843,48 +963,6 @@ export const AIProvider: ParentComponent = (props) => {
 
     cleanupFns.push(
       aiEventClient.on(
-        'stream:started',
-        (e) => {
-          const streamId = e.payload.streamId
-          const model = e.payload.model
-          const provider = e.payload.provider
-          const clientId = e.payload.clientId
-
-          if (clientId && state.conversations[clientId]) {
-            streamToConversation.set(streamId, clientId)
-            updateConversation(clientId, { model, provider, status: 'active' })
-            return
-          }
-
-          const activeClient = Object.values(state.conversations).find(
-            (c) => c.type === 'client' && c.status === 'active' && !c.model,
-          )
-
-          if (activeClient) {
-            streamToConversation.set(streamId, activeClient.id)
-            updateConversation(activeClient.id, { model, provider })
-          } else {
-            const existingServerConv = Object.values(state.conversations).find(
-              (c) => c.type === 'server' && c.model === model,
-            )
-
-            if (existingServerConv) {
-              streamToConversation.set(streamId, existingServerConv.id)
-              updateConversation(existingServerConv.id, { status: 'active' })
-            } else {
-              const serverId = `server-${model}`
-              getOrCreateConversation(serverId, 'server', `${model} Server`)
-              streamToConversation.set(streamId, serverId)
-              updateConversation(serverId, { model, provider })
-            }
-          }
-        },
-        { withEventTarget: false },
-      ),
-    )
-
-    cleanupFns.push(
-      aiEventClient.on(
         'stream:chunk:content',
         (e) => {
           const streamId = e.payload.streamId
@@ -905,6 +983,11 @@ export const AIProvider: ParentComponent = (props) => {
           if (conv?.type === 'client') {
             addChunkToMessage(conversationId, chunk)
           } else {
+            ensureMessageForChunk(
+              conversationId,
+              e.payload.messageId,
+              e.payload.timestamp,
+            )
             addChunk(conversationId, chunk)
           }
         },
@@ -926,6 +1009,7 @@ export const AIProvider: ParentComponent = (props) => {
             messageId: e.payload.messageId,
             toolCallId: e.payload.toolCallId,
             toolName: e.payload.toolName,
+            arguments: e.payload.arguments,
             timestamp: e.payload.timestamp,
             chunkCount: 1,
           }
@@ -934,6 +1018,11 @@ export const AIProvider: ParentComponent = (props) => {
           if (conv?.type === 'client') {
             addChunkToMessage(conversationId, chunk)
           } else {
+            ensureMessageForChunk(
+              conversationId,
+              e.payload.messageId,
+              e.payload.timestamp,
+            )
             addChunk(conversationId, chunk)
           }
         },
@@ -963,6 +1052,11 @@ export const AIProvider: ParentComponent = (props) => {
           if (conv?.type === 'client') {
             addChunkToMessage(conversationId, chunk)
           } else {
+            ensureMessageForChunk(
+              conversationId,
+              e.payload.messageId,
+              e.payload.timestamp,
+            )
             addChunk(conversationId, chunk)
           }
 
@@ -1022,6 +1116,11 @@ export const AIProvider: ParentComponent = (props) => {
               }
             }
           } else {
+            ensureMessageForChunk(
+              conversationId,
+              e.payload.messageId,
+              e.payload.timestamp,
+            )
             addChunk(conversationId, chunk)
           }
         },
@@ -1059,21 +1158,18 @@ export const AIProvider: ParentComponent = (props) => {
           if (conv?.type === 'client') {
             addChunkToMessage(conversationId, chunk)
           } else {
+            ensureMessageForChunk(
+              conversationId,
+              e.payload.messageId,
+              e.payload.timestamp,
+            )
             addChunk(conversationId, chunk)
           }
 
-          // Mark as completed when we receive a done chunk with a terminal finish reason
-          const finishReason = e.payload.finishReason
-          if (
-            finishReason === 'stop' ||
-            finishReason === 'end_turn' ||
-            finishReason === 'length'
-          ) {
-            updateConversation(conversationId, {
-              status: 'completed',
-              completedAt: e.payload.timestamp,
-            })
-          }
+          updateConversation(conversationId, {
+            status: 'completed',
+            completedAt: e.payload.timestamp,
+          })
         },
         { withEventTarget: false },
       ),
@@ -1100,6 +1196,11 @@ export const AIProvider: ParentComponent = (props) => {
           if (conv?.type === 'client') {
             addChunkToMessage(conversationId, chunk)
           } else {
+            ensureMessageForChunk(
+              conversationId,
+              e.payload.messageId,
+              e.payload.timestamp,
+            )
             addChunk(conversationId, chunk)
           }
 
@@ -1315,24 +1416,41 @@ export const AIProvider: ParentComponent = (props) => {
       aiEventClient.on(
         'chat:started',
         (e) => {
-          const {
-            requestId,
-            model,
-            clientId,
-            toolNames,
-            options,
-            providerOptions,
-          } = e.payload
+          const streamId = e.payload.streamId
+          const model = e.payload.model
+          const provider = e.payload.provider
+          const clientId = e.payload.clientId
 
           if (clientId && state.conversations[clientId]) {
-            requestToConversation.set(requestId, clientId)
-            updateConversation(clientId, {
-              model,
-              status: 'active',
-              toolNames,
-              options,
-              providerOptions,
-            })
+            streamToConversation.set(streamId, clientId)
+            updateConversation(clientId, { status: 'active', ...e.payload })
+            return
+          }
+
+          const activeClient = Object.values(state.conversations).find(
+            (c) => c.type === 'client' && c.status === 'active' && !c.model,
+          )
+
+          if (activeClient) {
+            streamToConversation.set(streamId, activeClient.id)
+            updateConversation(activeClient.id, { ...e.payload })
+          } else {
+            const existingServerConv = Object.values(state.conversations).find(
+              (c) => c.type === 'server' && c.model === model,
+            )
+
+            if (existingServerConv) {
+              streamToConversation.set(streamId, existingServerConv.id)
+              updateConversation(existingServerConv.id, {
+                status: 'active',
+                ...e.payload,
+              })
+            } else {
+              const serverId = `server-${model}`
+              getOrCreateConversation(serverId, 'server', `${model} Server`)
+              streamToConversation.set(streamId, serverId)
+              updateConversation(serverId, { ...e.payload })
+            }
           }
         },
         { withEventTarget: false },
@@ -1346,9 +1464,18 @@ export const AIProvider: ParentComponent = (props) => {
           const { requestId, usage } = e.payload
 
           const conversationId = requestToConversation.get(requestId)
-          if (conversationId && state.conversations[conversationId] && usage) {
-            updateConversation(conversationId, { usage })
-            updateMessageUsage(conversationId, undefined, usage)
+          if (conversationId && state.conversations[conversationId]) {
+            const updates: Partial<Conversation> = {
+              status: 'completed',
+              completedAt: e.payload.timestamp,
+            }
+            if (usage) {
+              updates.usage = usage
+            }
+            updateConversation(conversationId, updates)
+            if (usage) {
+              updateMessageUsage(conversationId, e.payload.messageId, usage)
+            }
           }
         },
         { withEventTarget: false },
@@ -1382,6 +1509,257 @@ export const AIProvider: ParentComponent = (props) => {
           if (conversationId && state.conversations[conversationId]) {
             updateConversation(conversationId, { usage })
             updateMessageUsage(conversationId, messageId, usage)
+          }
+        },
+        { withEventTarget: false },
+      ),
+    )
+
+    // ============= Tool Call Completed (with duration) =============
+
+    cleanupFns.push(
+      aiEventClient.on(
+        'tool:call-completed',
+        (e) => {
+          const {
+            streamId,
+            toolCallId,
+            toolName,
+            result,
+            duration,
+            messageId,
+            timestamp,
+          } = e.payload
+
+          const conversationId = streamToConversation.get(streamId)
+          if (!conversationId || !state.conversations[conversationId]) return
+
+          const conv = state.conversations[conversationId]
+
+          // Add a tool_result chunk to show the result in the chunks view
+          const chunk: Chunk = {
+            id: `chunk-tool-result-${toolCallId}-${Date.now()}`,
+            type: 'tool_result',
+            messageId: messageId,
+            toolCallId,
+            toolName,
+            result,
+            duration,
+            timestamp,
+            chunkCount: 1,
+          }
+
+          // Add chunk to message if it's a client conversation, otherwise to conversation
+          if (conv.type === 'client' && messageId) {
+            const messageIndex = conv.messages.findIndex(
+              (m) => m.id === messageId,
+            )
+            if (messageIndex !== -1) {
+              queueMessageChunk(conversationId, messageIndex, chunk)
+            } else {
+              // If message not found, add to last assistant message
+              for (let i = conv.messages.length - 1; i >= 0; i--) {
+                if (conv.messages[i]?.role === 'assistant') {
+                  queueMessageChunk(conversationId, i, chunk)
+                  break
+                }
+              }
+            }
+          } else {
+            addChunk(conversationId, chunk)
+          }
+
+          // Update the tool call with duration
+          for (let i = conv.messages.length - 1; i >= 0; i--) {
+            const message = conv.messages[i]
+            if (!message?.toolCalls) continue
+
+            const toolCallIndex = message.toolCalls.findIndex(
+              (t) => t.id === toolCallId,
+            )
+            if (toolCallIndex >= 0) {
+              updateToolCall(conversationId, i, toolCallIndex, {
+                duration,
+                result,
+              })
+              return
+            }
+          }
+        },
+        { withEventTarget: false },
+      ),
+    )
+
+    // ============= Embedding Events =============
+
+    cleanupFns.push(
+      aiEventClient.on(
+        'embedding:started',
+        (e) => {
+          const { requestId, model, inputCount, timestamp, clientId } =
+            e.payload
+
+          // Try to find an active conversation to attach to, or create a new one
+          let conversationId = clientId
+          if (!conversationId || !state.conversations[conversationId]) {
+            // Find most recent active client conversation
+            const activeClients = Object.values(state.conversations)
+              .filter((c) => c.type === 'client' && c.status === 'active')
+              .sort((a, b) => b.startedAt - a.startedAt)
+
+            if (activeClients.length > 0 && activeClients[0]) {
+              conversationId = activeClients[0].id
+            } else {
+              // Create a new conversation for embeddings
+              conversationId = `embedding-${requestId}`
+              getOrCreateConversation(
+                conversationId,
+                'server',
+                `Embedding (${model})`,
+              )
+              updateConversation(conversationId, { model })
+            }
+          }
+
+          requestToConversation.set(requestId, conversationId)
+
+          const embeddingOp: EmbeddingOperation = {
+            id: requestId,
+            model,
+            inputCount,
+            duration: 0,
+            timestamp,
+            status: 'started',
+          }
+
+          const conv = state.conversations[conversationId]
+          if (conv) {
+            const embeddings = conv.embeddings || []
+            setState('conversations', conversationId, 'embeddings', [
+              ...embeddings,
+              embeddingOp,
+            ])
+            setState('conversations', conversationId, 'hasEmbedding', true)
+          }
+        },
+        { withEventTarget: false },
+      ),
+    )
+
+    cleanupFns.push(
+      aiEventClient.on(
+        'embedding:completed',
+        (e) => {
+          const { requestId, duration } = e.payload
+
+          const conversationId = requestToConversation.get(requestId)
+          if (!conversationId || !state.conversations[conversationId]) return
+
+          const conv = state.conversations[conversationId]
+          if (!conv.embeddings) return
+
+          const embeddingIndex = conv.embeddings.findIndex(
+            (op) => op.id === requestId,
+          )
+          if (embeddingIndex >= 0) {
+            setState(
+              'conversations',
+              conversationId,
+              'embeddings',
+              embeddingIndex,
+              produce((op: EmbeddingOperation) => {
+                op.duration = duration
+                op.status = 'completed'
+              }),
+            )
+          }
+        },
+        { withEventTarget: false },
+      ),
+    )
+
+    // ============= Summarize Events =============
+
+    cleanupFns.push(
+      aiEventClient.on(
+        'summarize:started',
+        (e) => {
+          const { requestId, model, inputLength, timestamp, clientId } =
+            e.payload
+
+          // Try to find an active conversation to attach to, or create a new one
+          let conversationId = clientId
+          if (!conversationId || !state.conversations[conversationId]) {
+            // Find most recent active client conversation
+            const activeClients = Object.values(state.conversations)
+              .filter((c) => c.type === 'client' && c.status === 'active')
+              .sort((a, b) => b.startedAt - a.startedAt)
+
+            if (activeClients.length > 0 && activeClients[0]) {
+              conversationId = activeClients[0].id
+            } else {
+              // Create a new conversation for summaries
+              conversationId = `summarize-${requestId}`
+              getOrCreateConversation(
+                conversationId,
+                'server',
+                `Summarize (${model})`,
+              )
+              updateConversation(conversationId, { model })
+            }
+          }
+
+          requestToConversation.set(requestId, conversationId)
+
+          const summarizeOp: SummarizeOperation = {
+            id: requestId,
+            model,
+            inputLength,
+            timestamp,
+            status: 'started',
+          }
+
+          const conv = state.conversations[conversationId]
+          if (conv) {
+            const summaries = conv.summaries || []
+            setState('conversations', conversationId, 'summaries', [
+              ...summaries,
+              summarizeOp,
+            ])
+            setState('conversations', conversationId, 'hasSummarize', true)
+          }
+        },
+        { withEventTarget: false },
+      ),
+    )
+
+    cleanupFns.push(
+      aiEventClient.on(
+        'summarize:completed',
+        (e) => {
+          const { requestId, outputLength, duration } = e.payload
+
+          const conversationId = requestToConversation.get(requestId)
+          if (!conversationId || !state.conversations[conversationId]) return
+
+          const conv = state.conversations[conversationId]
+          if (!conv.summaries) return
+
+          const summaryIndex = conv.summaries.findIndex(
+            (op) => op.id === requestId,
+          )
+          if (summaryIndex >= 0) {
+            setState(
+              'conversations',
+              conversationId,
+              'summaries',
+              summaryIndex,
+              produce((op: SummarizeOperation) => {
+                op.duration = duration
+                op.outputLength = outputLength
+                op.status = 'completed'
+              }),
+            )
           }
         },
         { withEventTarget: false },

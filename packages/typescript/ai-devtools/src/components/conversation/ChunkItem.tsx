@@ -1,6 +1,7 @@
 import { Show, createSignal } from 'solid-js'
+import { JsonTree } from '@tanstack/devtools-ui'
 import { useStyles } from '../../styles/use-styles'
-import { formatTimestamp, getChunkTypeColor } from '../utils'
+import { formatDuration, formatTimestamp, getChunkTypeColor } from '../utils'
 import type { Component } from 'solid-js'
 import type { Chunk } from '../../store/ai-store'
 
@@ -15,6 +16,28 @@ export const ChunkItem: Component<ChunkItemProps> = (props) => {
   const [showRaw, setShowRaw] = createSignal(false)
   const isLarge = () => props.variant === 'large'
   const chunkCount = () => props.chunk.chunkCount || 1
+
+  const parseToolArguments = (): Record<string, unknown> => {
+    try {
+      return JSON.parse(props.chunk.arguments || '{}') as Record<
+        string,
+        unknown
+      >
+    } catch {
+      return { raw: props.chunk.arguments }
+    }
+  }
+
+  const parseToolResult = (): Record<string, unknown> => {
+    try {
+      if (typeof props.chunk.result === 'string') {
+        return JSON.parse(props.chunk.result) as Record<string, unknown>
+      }
+      return props.chunk.result as Record<string, unknown>
+    } catch {
+      return { raw: props.chunk.result }
+    }
+  }
 
   return (
     <div
@@ -183,6 +206,52 @@ export const ChunkItem: Component<ChunkItemProps> = (props) => {
                 Input: {JSON.stringify(props.chunk.input, null, 2)}
               </div>
             </Show>
+          </div>
+        </Show>
+        <Show when={props.chunk.type === 'tool_call' && props.chunk.arguments}>
+          <div class={styles().conversationDetails.chunkToolCall}>
+            <div class={styles().conversationDetails.chunkToolCallHeader}>
+              <span class={styles().conversationDetails.chunkToolCallTitle}>
+                📤 Tool Arguments
+              </span>
+            </div>
+            <div class={styles().conversationDetails.toolJsonContainer}>
+              <JsonTree
+                value={parseToolArguments()}
+                defaultExpansionDepth={2}
+                copyable
+              />
+            </div>
+          </div>
+        </Show>
+        <Show
+          when={
+            props.chunk.type === 'tool_result' &&
+            props.chunk.result !== undefined
+          }
+        >
+          <div class={styles().conversationDetails.chunkToolResult}>
+            <div class={styles().conversationDetails.chunkToolResultHeader}>
+              <span class={styles().conversationDetails.chunkToolResultTitle}>
+                ✓ Tool Result
+              </span>
+              <Show
+                when={
+                  props.chunk.duration !== undefined && props.chunk.duration > 0
+                }
+              >
+                <span class={styles().conversationDetails.durationBadge}>
+                  ⏱️ {formatDuration(props.chunk.duration)}
+                </span>
+              </Show>
+            </div>
+            <div class={styles().conversationDetails.toolJsonContainer}>
+              <JsonTree
+                value={parseToolResult()}
+                defaultExpansionDepth={2}
+                copyable
+              />
+            </div>
           </div>
         </Show>
       </Show>

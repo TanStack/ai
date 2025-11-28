@@ -1,8 +1,9 @@
 import { Show } from 'solid-js'
 import { JsonTree } from '@tanstack/devtools-ui'
 import { useStyles } from '../../styles/use-styles'
+import { formatDuration } from '../utils'
 import type { Component } from 'solid-js'
-import type { ToolCall } from '../../store/ai-store'
+import type { ToolCall } from '../../store/ai-context'
 
 interface ToolCallDisplayProps {
   tool: ToolCall
@@ -52,6 +53,11 @@ export const ToolCallDisplay: Component<ToolCallDisplayProps> = (props) => {
         >
           {tool().state}
         </div>
+        <Show when={tool().duration !== undefined && tool().duration! > 0}>
+          <div class={styles().conversationDetails.durationBadge}>
+            ⏱️ {formatDuration(tool().duration)}
+          </div>
+        </Show>
         <Show when={tool().approvalRequired}>
           <div class={styles().conversationDetails.approvalRequiredBadge}>
             APPROVAL REQUIRED

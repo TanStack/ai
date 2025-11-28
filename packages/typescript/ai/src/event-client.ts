@@ -87,13 +87,16 @@ export interface AIDevtoolsEventMap {
   }
   'tanstack-ai-devtools:stream:tool-input-available': {
     streamId: string
+    messageId?: string
     toolCallId: string
     toolName: string
     input: any
     timestamp: number
   }
   'tanstack-ai-devtools:tool:call-completed': {
+    requestId: string
     streamId: string
+    messageId?: string
     toolCallId: string
     toolName: string
     result: any
@@ -101,6 +104,7 @@ export interface AIDevtoolsEventMap {
     timestamp: number
   }
   'tanstack-ai-devtools:stream:ended': {
+    requestId: string
     streamId: string
     totalChunks: number
     duration: number
@@ -108,6 +112,8 @@ export interface AIDevtoolsEventMap {
   }
   'tanstack-ai-devtools:chat:started': {
     requestId: string
+    streamId: string
+    provider: string
     model: string
     messageCount: number
     hasTools: boolean
@@ -120,6 +126,7 @@ export interface AIDevtoolsEventMap {
   }
   'tanstack-ai-devtools:chat:completed': {
     requestId: string
+    streamId: string
     model: string
     content: string
     messageId?: string
@@ -133,6 +140,7 @@ export interface AIDevtoolsEventMap {
   }
   'tanstack-ai-devtools:chat:iteration': {
     requestId: string
+    streamId: string
     iterationNumber: number
     messageCount: number
     toolCallCount: number
@@ -140,6 +148,7 @@ export interface AIDevtoolsEventMap {
   }
   'tanstack-ai-devtools:usage:tokens': {
     requestId: string
+    streamId: string
     model: string
     messageId?: string
     usage: {
@@ -149,16 +158,37 @@ export interface AIDevtoolsEventMap {
     }
     timestamp: number
   }
-  'tanstack-ai-devtools:standalone:chat-started': {
-    adapterName: string
+
+  // Embedding events
+  'tanstack-ai-devtools:embedding:started': {
+    requestId: string
     model: string
-    streaming: boolean
+    inputCount: number
+    timestamp: number
+    clientId?: string
+  }
+  'tanstack-ai-devtools:embedding:completed': {
+    requestId: string
+    model: string
+    inputCount: number
+    duration: number
     timestamp: number
   }
-  'tanstack-ai-devtools:standalone:chat-completion-started': {
-    adapterName: string
+
+  // Summarize events
+  'tanstack-ai-devtools:summarize:started': {
+    requestId: string
     model: string
-    hasOutput: boolean
+    inputLength: number
+    timestamp: number
+    clientId?: string
+  }
+  'tanstack-ai-devtools:summarize:completed': {
+    requestId: string
+    model: string
+    inputLength: number
+    outputLength: number
+    duration: number
     timestamp: number
   }
 

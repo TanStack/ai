@@ -19,9 +19,9 @@ export function useChat(options: UseChatOptions = {}): UseChatReturn {
   const [error, setError] = createSignal<Error | undefined>(undefined)
 
   // Create ChatClient instance with callbacks to sync state
-  // Note: Connection changes will recreate the client and reset state.
-  // Body and other options are captured at client creation time.
-  // To update connection/body, remount the component or use a key prop.
+  // Note: Options are captured at client creation time.
+  // The connection adapter can use functions for dynamic values (url, headers, etc.)
+  // which are evaluated lazily on each request.
   const client = createMemo(() => {
     return new ChatClient({
       connection: options.connection,
@@ -44,10 +44,10 @@ export function useChat(options: UseChatOptions = {}): UseChatReturn {
         setError(newError)
       },
     })
-    // Only recreate when connection changes (most critical option)
-    // Other options are captured at creation time
+    // Only recreate when clientId changes
+    // Connection and other options are captured at creation time
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [clientId, options.connection])
+  }, [clientId])
 
   // Sync initial messages on mount only
   // Note: initialMessages are passed to ChatClient constructor, but we also

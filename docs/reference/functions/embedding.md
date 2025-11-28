@@ -9,7 +9,7 @@ title: embedding
 function embedding<TAdapter>(options): Promise<EmbeddingResult>;
 ```
 
-Defined in: [core/embedding.ts:11](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/core/embedding.ts#L11)
+Defined in: [core/embedding.ts:16](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/core/embedding.ts#L16)
 
 Standalone embedding function with type inference from adapter
 
