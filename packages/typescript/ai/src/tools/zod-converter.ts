@@ -1,5 +1,5 @@
-import type { z } from 'zod'
 import { zodToJsonSchema } from '@alcyone-labs/zod-to-json-schema'
+import type { z } from 'zod'
 
 /**
  * Converts a Zod schema to JSON Schema format compatible with LLM providers.
@@ -39,17 +39,16 @@ export function convertZodToJsonSchema(schema: z.ZodType): Record<string, any> {
 
   // Remove $schema property as it's not needed for LLM providers
   let result = jsonSchema as Record<string, any>
-  if (result && typeof result === 'object' && '$schema' in result) {
+  if (typeof result === 'object' && '$schema' in result) {
     const { $schema, ...rest } = result
     result = rest
   }
 
   // Ensure object schemas always have type: "object"
   // This fixes cases where zod-to-json-schema doesn't set type for empty objects
-  if (result && typeof result === 'object') {
+  if (typeof result === 'object') {
     // Check if the input schema is a ZodObject by inspecting its internal structure
     const isZodObject =
-      schema &&
       typeof schema === 'object' &&
       'def' in schema &&
       (schema as any).def?.type === 'object'

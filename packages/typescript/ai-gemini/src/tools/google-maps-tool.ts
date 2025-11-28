@@ -1,5 +1,5 @@
-import type { GoogleMaps } from '@google/genai'
 import { z } from 'zod'
+import type { GoogleMaps } from '@google/genai'
 import type { Tool } from '@tanstack/ai'
 
 export type GoogleMapsTool = GoogleMaps

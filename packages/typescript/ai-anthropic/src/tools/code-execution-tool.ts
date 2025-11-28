@@ -1,8 +1,8 @@
+import { z } from 'zod'
 import type {
   BetaCodeExecutionTool20250522,
   BetaCodeExecutionTool20250825,
 } from '@anthropic-ai/sdk/resources/beta'
-import { z } from 'zod'
 import type { Tool } from '@tanstack/ai'
 
 export type CodeExecutionTool =

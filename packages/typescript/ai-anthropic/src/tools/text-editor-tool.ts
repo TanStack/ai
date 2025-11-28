@@ -1,9 +1,9 @@
+import { z } from 'zod'
 import type {
   ToolTextEditor20250124,
   ToolTextEditor20250429,
   ToolTextEditor20250728,
 } from '@anthropic-ai/sdk/resources/messages'
-import { z } from 'zod'
 import type { Tool } from '@tanstack/ai'
 
 export type TextEditorTool =

@@ -1,24 +1,18 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest'
 import { chat, type Tool, type StreamChunk } from '@tanstack/ai'
 import { OpenAI, type OpenAIProviderOptions } from '../src/openai-adapter'
+import { z } from 'zod'
 
 const createAdapter = () => new OpenAI({ apiKey: 'test-key' })
 
 const toolArguments = JSON.stringify({ location: 'Berlin' })
 
 const weatherTool: Tool = {
-  type: 'function',
-  function: {
-    name: 'lookup_weather',
-    description: 'Return the forecast for a location',
-    parameters: {
-      type: 'object',
-      properties: {
-        location: { type: 'string' },
-      },
-      required: ['location'],
-    },
-  },
+  name: 'lookup_weather',
+  description: 'Return the forecast for a location',
+  inputSchema: z.object({
+    location: z.string(),
+  }),
 }
 
 function createMockChatCompletionsStream(

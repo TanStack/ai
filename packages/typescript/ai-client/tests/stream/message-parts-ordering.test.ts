@@ -23,7 +23,7 @@ describe('Message Parts Ordering', () => {
         id: 'test-msg-1',
         role: 'assistant',
         parts: [],
-        createdAt: new Date().toISOString(),
+        createdAt: new Date(),
       },
     ]
 
@@ -91,7 +91,7 @@ describe('Message Parts Ordering', () => {
           // Use the actual updateTextPart function
           messages = updateTextPart(messages, 'test-msg-1', content)
         },
-        onToolCallStart: (index: number, id: string, name: string) => {
+        onToolCallStart: (_index: number, id: string, name: string) => {
           messages = updateToolCallPart(messages, 'test-msg-1', {
             id,
             name,
@@ -100,7 +100,7 @@ describe('Message Parts Ordering', () => {
           })
         },
         onToolCallStateChange: (
-          index: number,
+          _index: number,
           id: string,
           name: string,
           state: any,
@@ -125,41 +125,39 @@ describe('Message Parts Ordering', () => {
       })(),
     )
 
-    const currentMessage = messages[0]
+    const currentMessage = messages[0]!
 
     // Verify the structure
-    console.log('Message parts:', JSON.stringify(currentMessage.parts, null, 2))
-
     // EXPECTED: parts should be [text, tool-call, text, tool-call]
     // ACTUAL (BUG): parts are [text (concatenated), tool-call, tool-call]
     expect(currentMessage.parts.length).toBeGreaterThan(3)
 
     // First part should be text
-    expect(currentMessage.parts[0].type).toBe('text')
-    if (currentMessage.parts[0].type === 'text') {
-      expect(currentMessage.parts[0].content).toBe(
+    expect(currentMessage.parts[0]!.type).toBe('text')
+    if (currentMessage.parts[0]!.type === 'text') {
+      expect(currentMessage.parts[0]!.content).toBe(
         "I'll search the product catalog for acoustic guitars and recommend a good option for you.",
       )
     }
 
     // Second part should be tool-call
-    expect(currentMessage.parts[1].type).toBe('tool-call')
-    if (currentMessage.parts[1].type === 'tool-call') {
-      expect(currentMessage.parts[1].name).toBe('getGuitars')
+    expect(currentMessage.parts[1]!.type).toBe('tool-call')
+    if (currentMessage.parts[1]!.type === 'tool-call') {
+      expect(currentMessage.parts[1]!.name).toBe('getGuitars')
     }
 
     // Third part should be text (NOT concatenated with first text)
-    expect(currentMessage.parts[2].type).toBe('text')
-    if (currentMessage.parts[2].type === 'text') {
-      expect(currentMessage.parts[2].content).toBe(
+    expect(currentMessage.parts[2]!.type).toBe('text')
+    if (currentMessage.parts[2]!.type === 'text') {
+      expect(currentMessage.parts[2]!.content).toBe(
         'Great! I found several guitars in the catalog.',
       )
     }
 
     // Fourth part should be tool-call
-    expect(currentMessage.parts[3].type).toBe('tool-call')
-    if (currentMessage.parts[3].type === 'tool-call') {
-      expect(currentMessage.parts[3].name).toBe('recommendGuitar')
+    expect(currentMessage.parts[3]!.type).toBe('tool-call')
+    if (currentMessage.parts[3]!.type === 'tool-call') {
+      expect(currentMessage.parts[3]!.name).toBe('recommendGuitar')
     }
   })
 })

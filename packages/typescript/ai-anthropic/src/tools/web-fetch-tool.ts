@@ -1,6 +1,6 @@
+import { z } from 'zod'
 import type { BetaWebFetchTool20250910 } from '@anthropic-ai/sdk/resources/beta'
 import type { CacheControl } from '../text/text-provider-options'
-import { z } from 'zod'
 import type { Tool } from '@tanstack/ai'
 
 export type WebFetchTool = BetaWebFetchTool20250910

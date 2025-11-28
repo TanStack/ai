@@ -11,6 +11,7 @@ import {
   GeminiAdapter,
   type GeminiProviderOptions,
 } from '../src/gemini-adapter'
+import { z } from 'zod'
 
 const mocks = vi.hoisted(() => {
   return {
@@ -51,18 +52,11 @@ vi.mock('@google/genai', () => {
 const createAdapter = () => new GeminiAdapter({ apiKey: 'test-key' })
 
 const weatherTool: Tool = {
-  type: 'function',
-  function: {
-    name: 'lookup_weather',
-    description: 'Return the weather for a location',
-    parameters: {
-      type: 'object',
-      properties: {
-        location: { type: 'string' },
-      },
-      required: ['location'],
-    },
-  },
+  name: 'lookup_weather',
+  description: 'Return the weather for a location',
+  inputSchema: z.object({
+    location: z.string(),
+  }),
 }
 
 const createStream = (chunks: Array<Record<string, unknown>>) => {

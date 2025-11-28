@@ -1,5 +1,5 @@
-import type OpenAI from 'openai'
 import { z } from 'zod'
+import type OpenAI from 'openai'
 import type { Tool } from '@tanstack/ai'
 
 export type MCPTool = OpenAI.Responses.Tool.Mcp

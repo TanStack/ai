@@ -4,6 +4,7 @@ import {
   Anthropic,
   type AnthropicProviderOptions,
 } from '../src/anthropic-adapter'
+import { z } from 'zod'
 
 const mocks = vi.hoisted(() => {
   const betaMessagesCreate = vi.fn()
@@ -41,18 +42,11 @@ const createAdapter = () => new Anthropic({ apiKey: 'test-key' })
 const toolArguments = JSON.stringify({ location: 'Berlin' })
 
 const weatherTool: Tool = {
-  type: 'function',
-  function: {
-    name: 'lookup_weather',
-    description: 'Return the weather for a city',
-    parameters: {
-      type: 'object',
-      properties: {
-        location: { type: 'string' },
-      },
-      required: ['location'],
-    },
-  },
+  name: 'lookup_weather',
+  description: 'Return the weather for a city',
+  inputSchema: z.object({
+    location: z.string(),
+  }),
 }
 
 describe('Anthropic adapter option mapping', () => {

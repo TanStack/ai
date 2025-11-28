@@ -1,8 +1,8 @@
+import { z } from 'zod'
 import type {
   BetaToolBash20241022,
   BetaToolBash20250124,
 } from '@anthropic-ai/sdk/resources/beta'
-import { z } from 'zod'
 import type { Tool } from '@tanstack/ai'
 
 export type BashTool = BetaToolBash20241022 | BetaToolBash20250124

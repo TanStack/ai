@@ -131,6 +131,7 @@ export class ToolCallManager {
           }
 
           // Validate input against inputSchema
+          // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
           if (tool.inputSchema) {
             try {
               args = tool.inputSchema.parse(args)
@@ -278,6 +279,7 @@ export async function executeToolCalls(
     }
 
     // Validate input against inputSchema
+    // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
     if (tool.inputSchema) {
       try {
         input = tool.inputSchema.parse(input)
