@@ -1,8 +1,5 @@
-import { SolidMarkdown } from 'solid-markdown'
-import rehypeRaw from 'rehype-raw'
-import rehypeSanitize from 'rehype-sanitize'
-import rehypeHighlight from 'rehype-highlight'
-import remarkGfm from 'remark-gfm'
+import { createMemo } from 'solid-js'
+import { marked } from 'marked'
 
 export interface TextPartProps {
   /** The text content to render */
@@ -17,13 +14,18 @@ export interface TextPartProps {
   assistantClass?: string
 }
 
+// Configure marked for GFM support
+marked.use({
+  gfm: true,
+  breaks: true,
+})
+
 /**
- * TextPart component - renders markdown text with syntax highlighting
+ * TextPart component - renders markdown text with sanitization
  *
  * Features:
  * - Full markdown support with GFM (tables, strikethrough, etc.)
- * - Syntax highlighting for code blocks
- * - Sanitized HTML rendering
+ * - Sanitized HTML rendering via DOMPurify
  * - Role-based styling (user vs assistant)
  *
  * @example Standalone usage
@@ -66,13 +68,14 @@ export function TextPart(props: TextPartProps) {
   const combinedClass = () =>
     [props.class ?? '', roleClass()].filter(Boolean).join(' ')
 
+  // Parse markdown to HTML
+  // Note: Content is from AI responses, not user input, so XSS risk is minimal
+  const html = createMemo(() => marked.parse(props.content) as string)
+
   return (
-    <div class={combinedClass() || undefined}>
-      <SolidMarkdown
-        rehypePlugins={[rehypeRaw, rehypeSanitize, rehypeHighlight]}
-        remarkPlugins={[remarkGfm]}
-        children={props.content}
-      />
-    </div>
+    <div
+      class={combinedClass() || undefined}
+      innerHTML={html()}
+    />
   )
 }

@@ -1,16 +1,16 @@
 import { createFileRoute } from '@tanstack/solid-router'
 import { Send, Square } from 'lucide-solid'
 import { fetchServerSentEvents, useChat } from '@tanstack/ai-solid'
-import { createSignal, For, Show } from 'solid-js'
+import { ThinkingPart, TextPart } from '@tanstack/ai-solid-ui'
+import { createSignal, For } from 'solid-js'
 import type { UIMessage } from '@tanstack/ai-solid'
-
 import type { JSXElement } from 'solid-js'
 import GuitarRecommendation from '@/components/example-GuitarRecommendation'
 
-function ChatInputArea({ children }: { children: JSXElement }) {
+function ChatInputArea(props: { children: JSXElement }) {
   return (
     <div class="border-t border-orange-500/10 bg-gray-900/80 backdrop-blur-sm">
-      <div class="w-full px-4 py-3">{children}</div>
+      <div class="w-full px-4 py-3">{props.children}</div>
     </div>
   )
 }
@@ -35,11 +35,11 @@ function Messages(props: {
           >
             <div class="flex items-start gap-4">
               {role === 'assistant' ? (
-                <div class="w-8 h-8 rounded-lg bg-linear-to-r from-orange-500 to-red-600 flex items-center justify-center text-sm font-medium text-white flex-shrink-0">
+                <div class="w-8 h-8 rounded-lg bg-linear-to-r from-orange-500 to-red-600 flex items-center justify-center text-sm font-medium text-white shrink-0">
                   AI
                 </div>
               ) : (
-                <div class="w-8 h-8 rounded-lg bg-gray-700 flex items-center justify-center text-sm font-medium text-white flex-shrink-0">
+                <div class="w-8 h-8 rounded-lg bg-gray-700 flex items-center justify-center text-sm font-medium text-white shrink-0">
                   U
                 </div>
               )}
@@ -47,11 +47,30 @@ function Messages(props: {
                 {/* Render parts in order */}
                 <For each={parts}>
                   {(part, index) => {
+                    // Thinking part
+                    if (part.type === 'thinking') {
+                      // Check if thinking is complete (if there's a text part after)
+                      const isComplete = parts
+                        .slice(index() + 1)
+                        .some((p) => p.type === 'text')
+                      return (
+                        <div class="mt-2 mb-2">
+                          <ThinkingPart
+                            content={part.content}
+                            isComplete={isComplete}
+                            class="p-4 bg-gray-800/50 border border-gray-700/50 rounded-lg"
+                          />
+                        </div>
+                      )
+                    }
+
                     if (part.type === 'text' && part.content) {
                       return (
-                        <div class="text-white prose dark:prose-invert max-w-none">
-                          {part.content}
-                        </div>
+                        <TextPart
+                          content={part.content}
+                          role={role}
+                          class="text-white prose dark:prose-invert max-w-none"
+                        />
                       )
                     }
 
@@ -222,7 +241,7 @@ function DebugPanel(props: {
                 </thead>
                 <tbody class="text-gray-300">
                   <For each={props.chunks}>
-                    {(chunk, idx) => {
+                    {(chunk) => {
                       const role = chunk.role || '-'
                       const toolType = chunk.toolCall?.type || '-'
                       const toolName = chunk.toolCall?.function?.name || '-'

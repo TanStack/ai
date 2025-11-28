@@ -2,13 +2,14 @@
   "name": "@tanstack/ai-solid-ui",
   "version": "0.0.1",
   "description": "Headless Solid components for building AI chat interfaces",
-  "module": "./dist/esm/index.js",
-  "types": "./dist/esm/index.d.ts",
+  "module": "./src/index.ts",
+  "types": "./src/index.ts",
   "type": "module",
   "exports": {
     ".": {
-      "types": "./dist/esm/index.d.ts",
-      "import": "./dist/esm/index.js"
+      "solid": "./src/index.ts",
+      "types": "./src/index.ts",
+      "import": "./src/index.ts"
     }
   },
   "scripts": {
@@ -31,11 +32,7 @@
     "components"
   ],
   "dependencies": {
-    "solid-markdown": "^2.0.13",
-    "rehype-highlight": "^7.0.2",
-    "rehype-raw": "^7.0.0",
-    "rehype-sanitize": "^6.0.0",
-    "remark-gfm": "^4.0.1"
+    "marked": "^17.0.1"
   },
   "peerDependencies": {
     "@tanstack/ai-client": "workspace:*",
@@ -44,9 +41,11 @@
   },
   "devDependencies": {
     "@vitest/coverage-v8": "4.0.14",
-    "vite": "^7.2.4"
+    "vite": "^7.2.4",
+    "vite-plugin-solid": "^2.11.10"
   },
   "files": [
+    "src",
     "dist"
   ]
 }
