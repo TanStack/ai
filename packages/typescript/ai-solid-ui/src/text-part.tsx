@@ -1,5 +1,5 @@
-import { createMemo } from 'solid-js'
-import { marked } from 'marked'
+import { createSignal, onMount, Show } from 'solid-js'
+import type { Component } from 'solid-js'
 
 export interface TextPartProps {
   /** The text content to render */
@@ -14,18 +14,20 @@ export interface TextPartProps {
   assistantClass?: string
 }
 
-// Configure marked for GFM support
-marked.use({
-  gfm: true,
-  breaks: true,
-})
+// Lazy load SolidMarkdown and plugins to avoid SSR issues
+let SolidMarkdown: Component<any> | null = null
+let remarkGfm: any = null
+let rehypeRaw: any = null
+let rehypeSanitize: any = null
+let rehypeHighlight: any = null
 
 /**
- * TextPart component - renders markdown text with sanitization
+ * TextPart component - renders markdown text with syntax highlighting
  *
  * Features:
  * - Full markdown support with GFM (tables, strikethrough, etc.)
- * - Sanitized HTML rendering via DOMPurify
+ * - Syntax highlighting for code blocks
+ * - Sanitized HTML rendering
  * - Role-based styling (user vs assistant)
  *
  * @example Standalone usage
@@ -58,6 +60,9 @@ marked.use({
  * ```
  */
 export function TextPart(props: TextPartProps) {
+  const [isClient, setIsClient] = createSignal(false)
+  const [isLoaded, setIsLoaded] = createSignal(false)
+
   // Combine classes based on role
   const roleClass = () =>
     props.role === 'user'
@@ -68,14 +73,39 @@ export function TextPart(props: TextPartProps) {
   const combinedClass = () =>
     [props.class ?? '', roleClass()].filter(Boolean).join(' ')
 
-  // Parse markdown to HTML
-  // Note: Content is from AI responses, not user input, so XSS risk is minimal
-  const html = createMemo(() => marked.parse(props.content) as string)
+  onMount(async () => {
+    setIsClient(true)
+    // Dynamically import solid-markdown and plugins only on the client
+    const [markdownModule, gfmModule, rawModule, sanitizeModule, highlightModule] = await Promise.all([
+      import('solid-markdown'),
+      import('remark-gfm'),
+      import('rehype-raw'),
+      import('rehype-sanitize'),
+      import('rehype-highlight'),
+    ])
+    SolidMarkdown = markdownModule.SolidMarkdown
+    remarkGfm = gfmModule.default
+    rehypeRaw = rawModule.default
+    rehypeSanitize = sanitizeModule.default
+    rehypeHighlight = highlightModule.default
+    setIsLoaded(true)
+  })
 
   return (
-    <div
-      class={combinedClass() || undefined}
-      innerHTML={html()}
-    />
+    <div class={combinedClass() || undefined}>
+      <Show when={isClient() && isLoaded() && SolidMarkdown} fallback={<span>{props.content}</span>}>
+        {(_) => {
+          const Markdown = SolidMarkdown!
+          return (
+            <Markdown
+              remarkPlugins={[remarkGfm]}
+              rehypePlugins={[rehypeRaw, rehypeSanitize, rehypeHighlight]}
+            >
+              {props.content}
+            </Markdown>
+          )
+        }}
+      </Show>
+    </div>
   )
 }
