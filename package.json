@@ -53,7 +53,10 @@
   "size-limit": [
     {
       "path": "packages/typescript/ai/dist/esm/index.js",
-      "limit": "21 KB"
+      "limit": "21 KB",
+      "ignore": [
+        "@alcyone-labs/zod-to-json-schema"
+      ]
     }
   ],
   "devDependencies": {

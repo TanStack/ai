@@ -49,13 +49,14 @@
     "embeddings"
   ],
   "dependencies": {
-    "@tanstack/devtools-event-client": "^0.3.5",
-    "@alcyone-labs/zod-to-json-schema": "^4.0.10"
+    "@tanstack/devtools-event-client": "^0.3.5"
   },
   "peerDependencies": {
-    "zod": "^3.0.0 || ^4.0.0"
+    "zod": "^3.0.0 || ^4.0.0",
+    "@alcyone-labs/zod-to-json-schema": "^4.0.0"
   },
   "devDependencies": {
+    "@alcyone-labs/zod-to-json-schema": "^4.0.10",
     "@vitest/coverage-v8": "4.0.14",
     "zod": "^4.1.13"
   }

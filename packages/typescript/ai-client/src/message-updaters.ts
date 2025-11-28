@@ -9,6 +9,9 @@ import type {
 
 /**
  * Update or add a text part to a message.
+ *
+ * If the last part is a text part, update it (continuing the same text segment).
+ * Otherwise, create a new text part (starting a new text segment after tool calls).
  */
 export function updateTextPart(
   messages: Array<UIMessage>,
@@ -21,13 +24,13 @@ export function updateTextPart(
     }
 
     const parts = [...msg.parts]
-    const textPartIndex = parts.findIndex((p) => p.type === 'text')
+    const lastPart = parts.length > 0 ? parts[parts.length - 1] : null
 
-    if (textPartIndex >= 0) {
-      // Update existing text part
-      parts[textPartIndex] = { type: 'text', content }
+    if (lastPart && lastPart.type === 'text') {
+      // Update the last text part (continuing same text segment)
+      parts[parts.length - 1] = { type: 'text', content }
     } else {
-      // Add new text part at the end (preserve natural streaming order)
+      // Create new text part (starting new text segment after tool calls/results)
       parts.push({ type: 'text', content })
     }
 

@@ -219,6 +219,18 @@ export class StreamProcessor {
    */
   private handleTextChunk(content?: string, delta?: string): void {
     // Text arriving means all current tool calls are complete
+    // If we have pending tool calls, emit current text and reset before completing them
+    const hadPendingToolCalls = this.hasPendingToolCalls()
+    if (hadPendingToolCalls && this.textContent) {
+      // Emit any accumulated text before completing tool calls
+      if (this.textContent !== this.lastEmittedText) {
+        this.emitTextUpdate()
+      }
+      // Reset text accumulation for the new text segment after tool calls
+      this.textContent = ''
+      this.lastEmittedText = ''
+    }
+
     this.completeAllToolCalls()
 
     const previous = this.textContent
@@ -354,6 +366,18 @@ export class StreamProcessor {
         )
       }
     }
+  }
+
+  /**
+   * Check if there are any pending tool calls (not yet complete)
+   */
+  private hasPendingToolCalls(): boolean {
+    for (const toolCall of this.toolCalls.values()) {
+      if (toolCall.state !== 'input-complete') {
+        return true
+      }
+    }
+    return false
   }
 
   /**

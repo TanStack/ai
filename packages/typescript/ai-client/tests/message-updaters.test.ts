@@ -201,7 +201,7 @@ describe('message-updaters', () => {
       })
     })
 
-    it('should insert tool call before text parts', () => {
+    it('should append tool call after existing parts (preserve streaming order)', () => {
       const messages: Array<UIMessage> = [
         {
           id: 'msg-1',
@@ -218,8 +218,8 @@ describe('message-updaters', () => {
       })
 
       expect(result[0]?.parts).toHaveLength(2)
-      expect(result[0]?.parts[0]?.type).toBe('tool-call')
-      expect(result[0]?.parts[1]?.type).toBe('text')
+      expect(result[0]?.parts[0]?.type).toBe('text')
+      expect(result[0]?.parts[1]?.type).toBe('tool-call')
     })
 
     it('should not modify other messages', () => {
