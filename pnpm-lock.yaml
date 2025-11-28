@@ -332,6 +332,9 @@ importers:
       '@tanstack/ai-solid':
         specifier: workspace:*
         version: link:../../packages/typescript/ai-solid
+      '@tanstack/ai-solid-ui':
+        specifier: workspace:*
+        version: link:../../packages/typescript/ai-solid-ui
       '@tanstack/nitro-v2-vite-plugin':
         specifier: ^1.139.0
         version: 1.139.0(rolldown@1.0.0-beta.51)(vite@7.2.4(@types/node@24.10.1)(jiti@2.6.1)(lightningcss@1.30.2)(terser@5.44.0)(tsx@4.20.6)(yaml@2.8.1))
@@ -345,20 +348,20 @@ importers:
         specifier: ^0.7.15
         version: 0.7.15(csstype@3.2.3)(solid-js@1.9.10)
       '@tanstack/solid-router':
-        specifier: ^1.132.0
+        specifier: ^1.139.10
         version: 1.139.10(solid-js@1.9.10)
       '@tanstack/solid-router-devtools':
-        specifier: ^1.132.0
+        specifier: ^1.139.10
         version: 1.139.10(@tanstack/router-core@1.139.10)(@tanstack/solid-router@1.139.10(solid-js@1.9.10))(@types/node@24.10.1)(csstype@3.2.3)(jiti@2.6.1)(lightningcss@1.30.2)(solid-js@1.9.10)(terser@5.44.0)(tsx@4.20.6)(yaml@2.8.1)
       '@tanstack/solid-router-ssr-query':
-        specifier: ^1.131.7
+        specifier: ^1.139.10
         version: 1.139.10(@tanstack/query-core@5.90.11)(@tanstack/router-core@1.139.10)(@tanstack/solid-query@5.90.14(solid-js@1.9.10))(@tanstack/solid-router@1.139.10(solid-js@1.9.10))(eslint@9.39.1(jiti@2.6.1))(solid-js@1.9.10)(typescript@5.9.3)
       '@tanstack/solid-start':
-        specifier: ^1.132.0
+        specifier: ^1.139.10
         version: 1.139.10(solid-js@1.9.10)(vite-plugin-solid@2.11.10(@testing-library/jest-dom@6.9.1)(solid-js@1.9.10)(vite@7.2.4(@types/node@24.10.1)(jiti@2.6.1)(lightningcss@1.30.2)(terser@5.44.0)(tsx@4.20.6)(yaml@2.8.1)))(vite@7.2.4(@types/node@24.10.1)(jiti@2.6.1)(lightningcss@1.30.2)(terser@5.44.0)(tsx@4.20.6)(yaml@2.8.1))
       '@tanstack/solid-store':
-        specifier: ^0.7.0
-        version: 0.7.7(solid-js@1.9.10)
+        specifier: ^0.8.0
+        version: 0.8.0(solid-js@1.9.10)
       '@tanstack/store':
         specifier: ^0.8.0
         version: 0.8.0
@@ -2593,11 +2596,6 @@ packages:
       solid-js: '>=1.0.0'
       vite: '>=7.0.0'
 
-  '@tanstack/solid-store@0.7.7':
-    resolution: {integrity: sha512-DnEZbqQ+pg68BguHz17VFukfp+6JaTk8nE2MhdVliU8bhsOFlTMsmVHp/4gMoQ1AkmAOMFiBsSliROCaaeJzvg==}
-    peerDependencies:
-      solid-js: ^1.6.0
-
   '@tanstack/solid-store@0.8.0':
     resolution: {integrity: sha512-JwqTedbxyOGw7mfmdGkB0RGgefRCw/tNauc8tlMcaS1mV5wTFT8c1KIB3LgttuHaanMJEBeqQJ7bc/R0WTP1fA==}
     peerDependencies:
@@ -2638,9 +2636,6 @@ packages:
   '@tanstack/start-storage-context@1.139.7':
     resolution: {integrity: sha512-l2utb0CXLE+wfj1wlAUPHohiq7n5nOBMl3pflhl3JzCXt+6D9AAogkfrysyxOAvx3KnLh3oG+qwf1KHWIDB9HA==}
     engines: {node: '>=22.12.0'}
-
-  '@tanstack/store@0.7.7':
-    resolution: {integrity: sha512-xa6pTan1bcaqYDS9BDpSiS63qa6EoDkPN9RsRaxHuDdVDNntzq3xNwR5YKTU/V3SkSyC9T4YVOPh2zRQN0nhIQ==}
 
   '@tanstack/store@0.8.0':
     resolution: {integrity: sha512-Om+BO0YfMZe//X2z0uLF2j+75nQga6TpTJgLJQBiq85aOyZNIhkCgleNcud2KQg4k4v9Y9l+Uhru3qWMPGTOzQ==}
@@ -8641,11 +8636,6 @@ snapshots:
       - vite-plugin-solid
       - webpack
 
-  '@tanstack/solid-store@0.7.7(solid-js@1.9.10)':
-    dependencies:
-      '@tanstack/store': 0.7.7
-      solid-js: 1.9.10
-
   '@tanstack/solid-store@0.8.0(solid-js@1.9.10)':
     dependencies:
       '@tanstack/store': 0.8.0
@@ -8762,8 +8752,6 @@ snapshots:
   '@tanstack/start-storage-context@1.139.7':
     dependencies:
       '@tanstack/router-core': 1.139.7
-
-  '@tanstack/store@0.7.7': {}
 
   '@tanstack/store@0.8.0': {}
 

@@ -37,9 +37,9 @@ function RootDocument({ children }: { children: JSXElement }) {
     <html lang="en">
       <head>
         <HydrationScript />
-        <HeadContent />
       </head>
       <body>
+        <HeadContent />
         <Header />
         {children}
         <TanStackDevtools
