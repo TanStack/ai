@@ -36,7 +36,7 @@
     "rehype-raw": "^7.0.0",
     "rehype-sanitize": "^6.0.0",
     "remark-gfm": "^4.0.1",
-    "solid-markdown": "^2.0.14"
+    "solid-markdown": "^2.1.0"
   },
   "peerDependencies": {
     "@tanstack/ai-client": "workspace:*",
