@@ -1,4 +1,3 @@
-
 import type {
   ToolTextEditor20250124,
   ToolTextEditor20250429,

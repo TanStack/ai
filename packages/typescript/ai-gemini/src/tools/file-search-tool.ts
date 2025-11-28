@@ -1,4 +1,3 @@
-
 import type { Tool } from '@tanstack/ai'
 import type { FileSearch } from '@google/genai'
 

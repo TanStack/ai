@@ -1,7 +1,6 @@
-
 import type { Tool } from '@tanstack/ai'
 
-export interface UrlContextTool { }
+export interface UrlContextTool {}
 
 export function convertUrlContextToolToAdapterFormat(_tool: Tool) {
   return {

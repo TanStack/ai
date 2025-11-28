@@ -126,7 +126,7 @@ Handles streaming tool calls by accumulating arguments
 clear(): void;
 ```
 
-Defined in: [tools/tool-calls.ts:194](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/tools/tool-calls.ts#L194)
+Defined in: [tools/tool-calls.ts:193](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/tools/tool-calls.ts#L193)
 
 Clear the tool calls map for the next iteration
 

@@ -30,33 +30,7 @@ full type safety for tool inputs and outputs.
 
 ### config
 
-#### description
-
-`string`
-
-#### execute?
-
-(`args`) => `output`\<`TOutput`\> \| `Promise`\<`output`\<`TOutput`\>\>
-
-#### inputSchema
-
-`TInput`
-
-#### metadata?
-
-`Record`\<`string`, `any`\>
-
-#### name
-
-`string`
-
-#### needsApproval?
-
-`boolean`
-
-#### outputSchema?
-
-`TOutput`
+[`Tool`](../../interfaces/Tool.md)\<`TInput`, `TOutput`\>
 
 ## Returns
 
