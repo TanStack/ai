@@ -16,11 +16,7 @@ const config = defineConfig({
     tailwindcss(),
     tanstackStart(),
     viteSolid({ ssr: true }),
-  ],
-  ssr: {
-    // These CJS packages don't have proper ESM exports - let Node handle them natively
-    external: ['solid-markdown', 'unified', 'extend', 'debug'],
-  },
+  ]
 })
 
 export default config
