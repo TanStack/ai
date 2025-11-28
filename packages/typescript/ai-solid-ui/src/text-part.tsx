@@ -1,4 +1,4 @@
-import { createSignal, onMount, Show } from 'solid-js'
+import { Show, createSignal, onMount } from 'solid-js'
 import type { Component } from 'solid-js'
 
 export interface TextPartProps {

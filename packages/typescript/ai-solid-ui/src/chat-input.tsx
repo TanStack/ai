@@ -1,5 +1,6 @@
-import { createSignal, type JSX } from 'solid-js'
+import {  createSignal } from 'solid-js'
 import { useChatContext } from './chat'
+import type {JSX} from 'solid-js';
 
 export interface ChatInputRenderProps {
   /** Current input value */
@@ -73,7 +74,7 @@ export function ChatInput(props: ChatInputProps) {
     onSubmit: handleSubmit,
     isLoading: isLoading(),
     disabled: disabled(),
-    // eslint-disable-next-line @typescript-eslint/no-empty-function
+     
     ref: () => {},
   })
 

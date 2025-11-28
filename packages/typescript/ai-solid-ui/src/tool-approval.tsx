@@ -1,5 +1,5 @@
-import { type JSX } from 'solid-js'
 import { useChatContext } from './chat'
+import type { JSX } from 'solid-js'
 
 export interface ToolApprovalProps {
   /** Tool call ID */

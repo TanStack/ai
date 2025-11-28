@@ -1,6 +1,7 @@
-import { createEffect, For, type JSX } from 'solid-js'
+import { For,  createEffect } from 'solid-js'
 import { useChatContext } from './chat'
 import { ChatMessage } from './chat-message'
+import type {JSX} from 'solid-js';
 import type { UIMessage } from '@tanstack/ai-solid'
 
 export interface ChatMessagesProps {
