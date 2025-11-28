@@ -4,7 +4,7 @@ import { ANTHROPIC_MODELS } from './model-meta'
 import { convertToolsToProviderFormat } from './tools/tool-converter'
 import { validateTextProviderOptions } from './text/text-provider-options'
 import type {
-  ChatStreamOptionsUnion,
+  ChatOptions,
   EmbeddingOptions,
   EmbeddingResult,
   ModelMessage,
@@ -31,20 +31,12 @@ export type AnthropicProviderOptions = ExternalTextProviderOptions
 
 type AnthropicContentBlocks =
   Extract<MessageParam['content'], Array<unknown>> extends Array<infer Block>
-    ? Array<Block>
-    : never
+  ? Array<Block>
+  : never
 type AnthropicContentBlock =
   AnthropicContentBlocks extends Array<infer Block> ? Block : never
 
-type AnthropicChatOptions = ChatStreamOptionsUnion<
-  BaseAdapter<
-    typeof ANTHROPIC_MODELS,
-    [],
-    AnthropicProviderOptions,
-    Record<string, any>,
-    AnthropicChatModelProviderOptionsByName
-  >
->
+
 
 export class Anthropic extends BaseAdapter<
   typeof ANTHROPIC_MODELS,
@@ -67,7 +59,7 @@ export class Anthropic extends BaseAdapter<
     })
   }
 
-  async *chatStream(options: AnthropicChatOptions): AsyncIterable<StreamChunk> {
+  async *chatStream(options: ChatOptions<string, AnthropicProviderOptions>): AsyncIterable<StreamChunk> {
     try {
       // Map common options to Anthropic format using the centralized mapping function
       const requestParams = this.mapCommonOptionsToAnthropic(options)
@@ -136,7 +128,7 @@ export class Anthropic extends BaseAdapter<
     }
   }
 
-  async createEmbeddings(_options: EmbeddingOptions): Promise<EmbeddingResult> {
+  createEmbeddings(_options: EmbeddingOptions): Promise<EmbeddingResult> {
     // Note: Anthropic doesn't have a native embeddings API
     // You would need to use a different service or implement a workaround
     throw new Error(
@@ -176,7 +168,7 @@ export class Anthropic extends BaseAdapter<
    * Maps common options to Anthropic-specific format
    * Handles translation of normalized options to Anthropic's API format
    */
-  private mapCommonOptionsToAnthropic(options: AnthropicChatOptions) {
+  private mapCommonOptionsToAnthropic(options: ChatOptions<string, AnthropicProviderOptions>) {
     const providerOptions = options.providerOptions as
       | InternalTextProviderOptions
       | undefined
@@ -205,9 +197,9 @@ export class Anthropic extends BaseAdapter<
           const value = providerOptions[key]
           // Anthropic expects tool_choice to be an object, not a string
           if (key === 'tool_choice' && typeof value === 'string') {
-            ;(validProviderOptions as any)[key] = { type: value }
+            ; (validProviderOptions as any)[key] = { type: value }
           } else {
-            ;(validProviderOptions as any)[key] = value
+            ; (validProviderOptions as any)[key] = value
           }
         }
       }
@@ -430,7 +422,7 @@ export class Anthropic extends BaseAdapter<
                 event.delta.stop_reason === 'tool_use'
                   ? 'tool_calls'
                   : // TODO Fix the any and map the responses properly
-                    (event.delta.stop_reason as any),
+                  (event.delta.stop_reason as any),
 
               usage: {
                 promptTokens: event.usage.input_tokens || 0,
