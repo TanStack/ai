@@ -1,4 +1,3 @@
-import { z } from 'zod'
 import type { GoogleSearch } from '@google/genai'
 import type { Tool } from '@tanstack/ai'
 
@@ -15,7 +14,6 @@ export function googleSearchTool(config?: GoogleSearchTool): Tool {
   return {
     name: 'google_search',
     description: '',
-    inputSchema: z.object({}),
     metadata: config,
   }
 }

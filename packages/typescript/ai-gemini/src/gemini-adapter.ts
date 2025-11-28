@@ -4,7 +4,7 @@ import { GEMINI_EMBEDDING_MODELS, GEMINI_MODELS } from './model-meta'
 import { convertToolsToProviderFormat } from './tools/tool-converter'
 import type {
   AIAdapterConfig,
-  ChatStreamOptionsUnion,
+  ChatOptions,
   EmbeddingOptions,
   EmbeddingResult,
   ModelMessage,
@@ -27,16 +27,6 @@ export interface GeminiAdapterConfig extends AIAdapterConfig {
  */
 export type GeminiProviderOptions = ExternalTextProviderOptions
 
-type ChatOptions = ChatStreamOptionsUnion<
-  BaseAdapter<
-    typeof GEMINI_MODELS,
-    typeof GEMINI_EMBEDDING_MODELS,
-    GeminiProviderOptions,
-    Record<string, any>,
-    GeminiChatModelProviderOptionsByName
-  >
->
-
 export class GeminiAdapter extends BaseAdapter<
   typeof GEMINI_MODELS,
   typeof GEMINI_EMBEDDING_MODELS,
@@ -57,7 +47,9 @@ export class GeminiAdapter extends BaseAdapter<
     })
   }
 
-  async *chatStream(options: ChatOptions): AsyncIterable<StreamChunk> {
+  async *chatStream(
+    options: ChatOptions<string, GeminiProviderOptions>,
+  ): AsyncIterable<StreamChunk> {
     // Map common options to Gemini format
     const mappedOptions = this.mapCommonOptionsToGemini(options)
 
@@ -99,7 +91,7 @@ export class GeminiAdapter extends BaseAdapter<
 
     return {
       id: this.generateId(),
-      model: options.model || 'gemini-pro',
+      model: options.model,
       summary,
       usage: {
         promptTokens,

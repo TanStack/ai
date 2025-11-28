@@ -1,10 +1,8 @@
-import { zodToJsonSchema } from '@alcyone-labs/zod-to-json-schema'
+import { toJSONSchema } from 'zod'
 import type { z } from 'zod'
-
 /**
  * Converts a Zod schema to JSON Schema format compatible with LLM providers.
  *
- * Uses @alcyone-labs/zod-to-json-schema which is compatible with Zod v4.
  *
  * @param schema - Zod schema to convert
  * @returns JSON Schema object that can be sent to LLM providers
@@ -30,15 +28,19 @@ import type { z } from 'zod'
  * // }
  * ```
  */
-export function convertZodToJsonSchema(schema: z.ZodType): Record<string, any> {
+export function convertZodToJsonSchema(
+  schema: z.ZodType | undefined,
+): Record<string, any> | undefined {
+  if (!schema) return undefined
+
   // Use Alcyone Labs fork which is compatible with Zod v4
-  const jsonSchema = zodToJsonSchema(schema as any, {
-    target: 'openApi3',
-    $refStrategy: 'none', // Inline all references for LLM compatibility
+  const jsonSchema = toJSONSchema(schema, {
+    target: 'openapi-3.0',
+    reused: 'ref',
   })
 
   // Remove $schema property as it's not needed for LLM providers
-  let result = jsonSchema as Record<string, any>
+  let result = jsonSchema
   if (typeof result === 'object' && '$schema' in result) {
     const { $schema, ...rest } = result
     result = rest
@@ -51,12 +53,7 @@ export function convertZodToJsonSchema(schema: z.ZodType): Record<string, any> {
     const isZodObject =
       typeof schema === 'object' &&
       'def' in schema &&
-      (schema as any).def?.type === 'object'
-
-    // If type is explicitly "None", fix it
-    if (result.type === 'None') {
-      result.type = 'object'
-    }
+      schema.def.type === 'object'
 
     // If we know it's a ZodObject but result doesn't have type, set it
     if (isZodObject && !result.type) {

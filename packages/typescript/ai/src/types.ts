@@ -70,7 +70,7 @@ export interface Tool<
    *   unit: z.enum(["celsius", "fahrenheit"]).optional()
    * })
    */
-  inputSchema: TInput
+  inputSchema?: TInput
 
   /**
    * Optional Zod schema for validating tool output.

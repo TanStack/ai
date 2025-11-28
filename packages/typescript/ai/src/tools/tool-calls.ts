@@ -131,7 +131,6 @@ export class ToolCallManager {
           }
 
           // Validate input against inputSchema
-          // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
           if (tool.inputSchema) {
             try {
               args = tool.inputSchema.parse(args)
@@ -279,7 +278,6 @@ export async function executeToolCalls(
     }
 
     // Validate input against inputSchema
-    // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
     if (tool.inputSchema) {
       try {
         input = tool.inputSchema.parse(input)
@@ -371,11 +369,12 @@ export async function executeToolCalls(
 
             // Validate output against outputSchema if provided
             if (tool.outputSchema && result !== undefined && result !== null) {
-              try {
-                result = tool.outputSchema.parse(result)
-              } catch (validationError: any) {
+              const parsed = tool.outputSchema.safeParse(result)
+              if (parsed.success) {
+                result = parsed.data
+              } else {
                 throw new Error(
-                  `Output validation failed for tool ${tool.name}: ${validationError.message}`,
+                  `Output validation failed for tool ${tool.name}: ${parsed.error.message}`,
                 )
               }
             }
@@ -420,11 +419,12 @@ export async function executeToolCalls(
 
       // Validate output against outputSchema if provided
       if (tool.outputSchema && result !== undefined && result !== null) {
-        try {
-          result = tool.outputSchema.parse(result)
-        } catch (validationError: any) {
+        const parsed = tool.outputSchema.safeParse(result)
+        if (parsed.success) {
+          result = parsed.data
+        } else {
           throw new Error(
-            `Output validation failed for tool ${tool.name}: ${validationError.message}`,
+            `Output validation failed for tool ${tool.name}: ${parsed.error.message}`,
           )
         }
       }

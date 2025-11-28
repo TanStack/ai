@@ -1,4 +1,3 @@
-import { z } from 'zod'
 import type { Tool } from '@tanstack/ai'
 
 export interface UrlContextTool {}
@@ -13,7 +12,6 @@ export function urlContextTool(): Tool {
   return {
     name: 'url_context',
     description: '',
-    inputSchema: z.object({}),
     metadata: {},
   }
 }

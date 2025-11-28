@@ -1,4 +1,3 @@
-import { z } from 'zod'
 import type { Tool } from '@tanstack/ai'
 import type { FileSearch } from '@google/genai'
 
@@ -15,7 +14,6 @@ export function fileSearchTool(config: FileSearchTool): Tool {
   return {
     name: 'file_search',
     description: '',
-    inputSchema: z.object({}),
     metadata: config,
   }
 }

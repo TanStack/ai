@@ -1,4 +1,3 @@
-import { z } from 'zod'
 import type OpenAI from 'openai'
 import type { Tool } from '@tanstack/ai'
 
@@ -25,7 +24,6 @@ export function computerUseTool(toolData: ComputerUseTool): Tool {
   return {
     name: 'computer_use_preview',
     description: 'Control a virtual computer',
-    inputSchema: z.object({}),
     metadata: {
       ...toolData,
     },

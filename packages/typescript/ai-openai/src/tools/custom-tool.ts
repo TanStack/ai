@@ -1,4 +1,3 @@
-import { z } from 'zod'
 import type OpenAI from 'openai'
 import type { Tool } from '@tanstack/ai'
 
@@ -24,7 +23,6 @@ export function customTool(toolData: CustomTool): Tool {
   return {
     name: 'custom',
     description: toolData.description || 'A custom tool',
-    inputSchema: z.object({}),
     metadata: {
       ...toolData,
     },

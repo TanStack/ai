@@ -9,12 +9,14 @@ export type FunctionTool = OpenAI.Responses.FunctionTool
  */
 export function convertFunctionToolToAdapterFormat(tool: Tool): FunctionTool {
   // Convert Zod schema to JSON Schema
-  const jsonSchema = convertZodToJsonSchema(tool.inputSchema)
+  const jsonSchema = tool.inputSchema
+    ? convertZodToJsonSchema(tool.inputSchema)
+    : undefined
 
   // Determine if we can use strict mode
   // Strict mode requires all properties to be in the required array
-  const properties = jsonSchema.properties || {}
-  const required = jsonSchema.required || []
+  const properties = jsonSchema?.properties || {}
+  const required = jsonSchema?.required || []
   const propertyNames = Object.keys(properties)
 
   // Only enable strict mode if all properties are required

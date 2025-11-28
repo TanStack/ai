@@ -1,4 +1,3 @@
-import { z } from 'zod'
 import type OpenAI from 'openai'
 import type { Tool } from '@tanstack/ai'
 
@@ -37,7 +36,6 @@ export function mcpTool(toolData: Omit<MCPTool, 'type'>): Tool {
   return {
     name: 'mcp',
     description: toolData.server_description || '',
-    inputSchema: z.object({}),
     metadata: toolData,
   }
 }

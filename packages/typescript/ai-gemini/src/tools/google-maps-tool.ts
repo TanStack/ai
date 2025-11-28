@@ -1,4 +1,3 @@
-import { z } from 'zod'
 import type { GoogleMaps } from '@google/genai'
 import type { Tool } from '@tanstack/ai'
 
@@ -15,7 +14,6 @@ export function googleMapsTool(config?: GoogleMapsTool): Tool {
   return {
     name: 'google_maps',
     description: '',
-    inputSchema: z.object({}),
     metadata: config,
   }
 }

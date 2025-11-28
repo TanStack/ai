@@ -6,26 +6,24 @@ title: convertZodToJsonSchema
 # Function: convertZodToJsonSchema()
 
 ```ts
-function convertZodToJsonSchema(schema): Record<string, any>;
+function convertZodToJsonSchema(schema): Record<string, any> | undefined;
 ```
 
-Defined in: [tools/zod-converter.ts:33](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/tools/zod-converter.ts#L33)
+Defined in: [tools/zod-converter.ts:31](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/tools/zod-converter.ts#L31)
 
 Converts a Zod schema to JSON Schema format compatible with LLM providers.
-
-Uses @alcyone-labs/zod-to-json-schema which is compatible with Zod v4.
 
 ## Parameters
 
 ### schema
 
-`ZodType`
-
 Zod schema to convert
+
+`ZodType`\<`unknown`, `unknown`, `$ZodTypeInternals`\<`unknown`, `unknown`\>\> | `undefined`
 
 ## Returns
 
-`Record`\<`string`, `any`\>
+`Record`\<`string`, `any`\> \| `undefined`
 
 JSON Schema object that can be sent to LLM providers
 

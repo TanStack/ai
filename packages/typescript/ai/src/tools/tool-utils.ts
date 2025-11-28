@@ -34,16 +34,6 @@ import type { Tool } from '../types'
 export function tool<
   TInput extends z.ZodType,
   TOutput extends z.ZodType = z.ZodAny,
->(config: {
-  name: string
-  description: string
-  inputSchema: TInput
-  outputSchema?: TOutput
-  execute?: (
-    args: z.infer<TInput>,
-  ) => Promise<z.infer<TOutput>> | z.infer<TOutput>
-  needsApproval?: boolean
-  metadata?: Record<string, any>
-}): Tool<TInput, TOutput> {
-  return config as Tool<TInput, TOutput>
+>(config: Tool<TInput, TOutput>): Tool<TInput, TOutput> {
+  return config
 }

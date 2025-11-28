@@ -1,4 +1,3 @@
-import { z } from 'zod'
 import type OpenAI from 'openai'
 import type { Tool } from '@tanstack/ai'
 
@@ -20,7 +19,6 @@ export function shellTool(): Tool {
   return {
     name: 'shell',
     description: 'Execute shell commands',
-    inputSchema: z.object({}),
     metadata: {},
   }
 }

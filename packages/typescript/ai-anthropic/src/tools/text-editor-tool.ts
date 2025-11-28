@@ -1,4 +1,3 @@
-import { z } from 'zod'
 import type {
   ToolTextEditor20250124,
   ToolTextEditor20250429,
@@ -24,7 +23,6 @@ export function textEditorTool<T extends TextEditorTool>(config: T): Tool {
   return {
     name: 'str_replace_editor',
     description: '',
-    inputSchema: z.object({}),
     metadata: config,
   }
 }

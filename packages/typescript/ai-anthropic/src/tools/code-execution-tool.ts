@@ -1,4 +1,3 @@
-import { z } from 'zod'
 import type {
   BetaCodeExecutionTool20250522,
   BetaCodeExecutionTool20250825,
@@ -20,7 +19,6 @@ export function codeExecutionTool(config: CodeExecutionTool): Tool {
   return {
     name: 'code_execution',
     description: '',
-    inputSchema: z.object({}),
     metadata: config,
   }
 }
