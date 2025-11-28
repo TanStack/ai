@@ -1,4 +1,4 @@
-import { z } from 'zod'
+
 import type OpenAI from 'openai'
 import type { Tool } from '@tanstack/ai'
 
@@ -19,7 +19,6 @@ export function webSearchTool(toolData: WebSearchTool): Tool {
   return {
     name: 'web_search',
     description: 'Search the web',
-    inputSchema: z.object({}),
     metadata: toolData,
   }
 }

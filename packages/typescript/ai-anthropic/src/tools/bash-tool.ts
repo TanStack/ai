@@ -1,4 +1,4 @@
-import { z } from 'zod'
+
 import type {
   BetaToolBash20241022,
   BetaToolBash20250124,
@@ -15,7 +15,6 @@ export function bashTool(config: BashTool): Tool {
   return {
     name: 'bash',
     description: '',
-    inputSchema: z.object({}),
     metadata: config,
   }
 }

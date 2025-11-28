@@ -1,4 +1,4 @@
-import { z } from 'zod'
+
 import type { Tool } from '@tanstack/ai'
 import type OpenAI from 'openai'
 
@@ -24,7 +24,6 @@ export function codeInterpreterTool(container: CodeInterpreterTool): Tool {
   return {
     name: 'code_interpreter',
     description: 'Execute code in a sandboxed environment',
-    inputSchema: z.object({}),
     metadata: {
       type: 'code_interpreter',
       container,

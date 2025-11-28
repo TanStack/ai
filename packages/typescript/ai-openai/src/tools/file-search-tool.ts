@@ -1,4 +1,4 @@
-import { z } from 'zod'
+
 import type OpenAI from 'openai'
 import type { Tool } from '@tanstack/ai'
 
@@ -36,7 +36,6 @@ export function fileSearchTool(
   return {
     name: 'file_search',
     description: 'Search files in vector stores',
-    inputSchema: z.object({}),
     metadata: {
       ...toolData,
     },

@@ -1,17 +1,17 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest'
 import { chat, summarize, embedding } from '@tanstack/ai'
 import type { Tool, StreamChunk } from '@tanstack/ai'
-import type {
-  HarmBlockThreshold,
-  HarmCategory,
-  SafetySetting,
+import {
+  Type,
+  type HarmBlockThreshold,
+  type HarmCategory,
+  type SafetySetting,
 } from '@google/genai'
-import type { Schema } from '../src/tools/function-declaration-tool'
 import {
   GeminiAdapter,
   type GeminiProviderOptions,
 } from '../src/gemini-adapter'
-import { z } from 'zod'
+import type { Schema } from '@google/genai'
 
 const mocks = vi.hoisted(() => {
   return {
@@ -23,7 +23,7 @@ const mocks = vi.hoisted(() => {
   }
 })
 
-vi.mock('@google/genai', () => {
+vi.mock('@google/genai', async () => {
   const {
     constructorSpy,
     generateContentSpy,
@@ -32,6 +32,7 @@ vi.mock('@google/genai', () => {
     getGenerativeModelSpy,
   } = mocks
 
+  const actual = await vi.importActual<any>('@google/genai')
   class MockGoogleGenAI {
     public models = {
       generateContent: generateContentSpy,
@@ -46,7 +47,7 @@ vi.mock('@google/genai', () => {
     }
   }
 
-  return { GoogleGenAI: MockGoogleGenAI }
+  return { GoogleGenAI: MockGoogleGenAI, Type: actual.Type }
 })
 
 const createAdapter = () => new GeminiAdapter({ apiKey: 'test-key' })
@@ -54,9 +55,7 @@ const createAdapter = () => new GeminiAdapter({ apiKey: 'test-key' })
 const weatherTool: Tool = {
   name: 'lookup_weather',
   description: 'Return the weather for a location',
-  inputSchema: z.object({
-    location: z.string(),
-  }),
+
 }
 
 const createStream = (chunks: Array<Record<string, unknown>>) => {
@@ -158,16 +157,16 @@ describe('GeminiAdapter through AI', () => {
     ]
 
     const responseSchema: Schema = {
-      type: 'OBJECT',
+      type: Type.OBJECT,
       properties: {
-        summary: { type: 'STRING' },
+        summary: { type: Type.STRING },
       },
     }
 
     const responseJsonSchema: Schema = {
-      type: 'OBJECT',
+      type: Type.OBJECT,
       properties: {
-        ok: { type: 'BOOLEAN' },
+        ok: { type: Type.BOOLEAN },
       },
     }
 

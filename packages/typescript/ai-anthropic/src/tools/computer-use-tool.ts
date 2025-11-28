@@ -1,4 +1,4 @@
-import { z } from 'zod'
+
 import type {
   BetaToolComputerUse20241022,
   BetaToolComputerUse20250124,
@@ -20,7 +20,6 @@ export function computerUseTool(config: ComputerUseTool): Tool {
   return {
     name: 'computer',
     description: '',
-    inputSchema: z.object({}),
     metadata: config,
   }
 }

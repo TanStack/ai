@@ -1,4 +1,4 @@
-import { z } from 'zod'
+
 import type OpenAI from 'openai'
 import type { Tool } from '@tanstack/ai'
 
@@ -33,7 +33,6 @@ export function imageGenerationTool(
   return {
     name: 'image_generation',
     description: 'Generate images based on text descriptions',
-    inputSchema: z.object({}),
     metadata: {
       ...toolData,
     },

@@ -1,4 +1,4 @@
-import { z } from 'zod'
+
 import type OpenAI from 'openai'
 import type { Tool } from '@tanstack/ai'
 
@@ -25,7 +25,6 @@ export function webSearchPreviewTool(toolData: WebSearchPreviewTool): Tool {
   return {
     name: 'web_search_preview',
     description: 'Search the web (preview version)',
-    inputSchema: z.object({}),
     metadata: toolData,
   }
 }

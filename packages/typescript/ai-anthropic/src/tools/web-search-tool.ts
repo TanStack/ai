@@ -1,4 +1,4 @@
-import { z } from 'zod'
+
 import type { WebSearchTool20250305 } from '@anthropic-ai/sdk/resources/messages'
 import type { CacheControl } from '../text/text-provider-options'
 import type { Tool } from '@tanstack/ai'
@@ -77,7 +77,6 @@ export function webSearchTool(config: WebSearchTool): Tool {
   return {
     name: 'web_search',
     description: '',
-    inputSchema: z.object({}),
     metadata: config,
   }
 }

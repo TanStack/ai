@@ -1,4 +1,4 @@
-import { z } from 'zod'
+
 import type OpenAI from 'openai'
 import type { Tool } from '@tanstack/ai'
 
@@ -22,7 +22,6 @@ export function applyPatchTool(): Tool {
   return {
     name: 'apply_patch',
     description: 'Apply a patch to modify files',
-    inputSchema: z.object({}),
     metadata: {},
   }
 }

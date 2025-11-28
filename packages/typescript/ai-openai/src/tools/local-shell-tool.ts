@@ -1,4 +1,4 @@
-import { z } from 'zod'
+
 import type OpenAI from 'openai'
 import type { Tool } from '@tanstack/ai'
 
@@ -22,7 +22,6 @@ export function localShellTool(): Tool {
   return {
     name: 'local_shell',
     description: 'Execute local shell commands',
-    inputSchema: z.object({}),
     metadata: {},
   }
 }

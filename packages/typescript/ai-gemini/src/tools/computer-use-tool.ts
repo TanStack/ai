@@ -1,4 +1,4 @@
-import { z } from 'zod'
+
 import type { ComputerUse } from '@google/genai'
 import type { Tool } from '@tanstack/ai'
 
@@ -18,7 +18,6 @@ export function computerUseTool(config: ComputerUseTool): Tool {
   return {
     name: 'computer_use',
     description: '',
-    inputSchema: z.object({}),
     metadata: {
       environment: config.environment,
       excludedPredefinedFunctions: config.excludedPredefinedFunctions,

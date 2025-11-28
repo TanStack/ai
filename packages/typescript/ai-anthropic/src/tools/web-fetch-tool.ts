@@ -1,50 +1,22 @@
-import { z } from 'zod'
+
 import type { BetaWebFetchTool20250910 } from '@anthropic-ai/sdk/resources/beta'
-import type { CacheControl } from '../text/text-provider-options'
 import type { Tool } from '@tanstack/ai'
 
 export type WebFetchTool = BetaWebFetchTool20250910
 
 export function convertWebFetchToolToAdapterFormat(tool: Tool): WebFetchTool {
-  const metadata = tool.metadata as {
-    allowedDomains?: Array<string> | null
-    blockedDomains?: Array<string> | null
-    maxUses?: number | null
-    citations?: { enabled?: boolean } | null
-    maxContentTokens?: number | null
-    cacheControl?: CacheControl | null
-  }
+  const metadata = tool.metadata as Omit<WebFetchTool, "type" | "name">
   return {
     name: 'web_fetch',
     type: 'web_fetch_20250910',
-    allowed_domains: metadata.allowedDomains,
-    blocked_domains: metadata.blockedDomains,
-    max_uses: metadata.maxUses,
-    citations: metadata.citations,
-    max_content_tokens: metadata.maxContentTokens,
-    cache_control: metadata.cacheControl || null,
+    ...metadata
   }
 }
 
-export function webFetchTool(config?: {
-  allowedDomains?: Array<string> | null
-  blockedDomains?: Array<string> | null
-  maxUses?: number | null
-  citations?: { enabled?: boolean } | null
-  maxContentTokens?: number | null
-  cacheControl?: CacheControl | null
-}): Tool {
+export function webFetchTool(config?: Omit<WebFetchTool, "type" | "name">): Tool {
   return {
     name: 'web_fetch',
     description: '',
-    inputSchema: z.object({}),
-    metadata: {
-      allowedDomains: config?.allowedDomains,
-      blockedDomains: config?.blockedDomains,
-      maxUses: config?.maxUses,
-      citations: config?.citations,
-      maxContentTokens: config?.maxContentTokens,
-      cacheControl: config?.cacheControl,
-    },
+    metadata: config
   }
 }
