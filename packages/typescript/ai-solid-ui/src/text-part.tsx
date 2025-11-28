@@ -1,5 +1,9 @@
-import { Show, createSignal, onMount } from 'solid-js'
-import type { Component } from 'solid-js'
+import { SolidMarkdown } from 'solid-markdown'
+import remarkGfm from 'remark-gfm'
+
+import rehypeRaw from 'rehype-raw'
+import rehypeSanitize from 'rehype-sanitize'
+import rehypeHighlight from 'rehype-highlight'
 
 export interface TextPartProps {
   /** The text content to render */
@@ -13,13 +17,6 @@ export interface TextPartProps {
   /** Additional class for assistant messages (also used for system messages) */
   assistantClass?: string
 }
-
-// Lazy load SolidMarkdown and plugins to avoid SSR issues
-let SolidMarkdown: Component<any> | null = null
-let remarkGfm: any = null
-let rehypeRaw: any = null
-let rehypeSanitize: any = null
-let rehypeHighlight: any = null
 
 /**
  * TextPart component - renders markdown text with syntax highlighting
@@ -60,9 +57,6 @@ let rehypeHighlight: any = null
  * ```
  */
 export function TextPart(props: TextPartProps) {
-  const [isClient, setIsClient] = createSignal(false)
-  const [isLoaded, setIsLoaded] = createSignal(false)
-
   // Combine classes based on role
   const roleClass = () =>
     props.role === 'user'
@@ -73,48 +67,13 @@ export function TextPart(props: TextPartProps) {
   const combinedClass = () =>
     [props.class ?? '', roleClass()].filter(Boolean).join(' ')
 
-  onMount(async () => {
-    setIsClient(true)
-    // Dynamically import solid-markdown and plugins only on the client
-    const [
-      markdownModule,
-      gfmModule,
-      rawModule,
-      sanitizeModule,
-      highlightModule,
-    ] = await Promise.all([
-      import('solid-markdown'),
-      import('remark-gfm'),
-      import('rehype-raw'),
-      import('rehype-sanitize'),
-      import('rehype-highlight'),
-    ])
-    SolidMarkdown = markdownModule.SolidMarkdown
-    remarkGfm = gfmModule.default
-    rehypeRaw = rawModule.default
-    rehypeSanitize = sanitizeModule.default
-    rehypeHighlight = highlightModule.default
-    setIsLoaded(true)
-  })
-
   return (
-    <div class={combinedClass() || undefined}>
-      <Show
-        when={isClient() && isLoaded() && SolidMarkdown}
-        fallback={<span>{props.content}</span>}
-      >
-        {(_) => {
-          const Markdown = SolidMarkdown!
-          return (
-            <Markdown
-              remarkPlugins={[remarkGfm]}
-              rehypePlugins={[rehypeRaw, rehypeSanitize, rehypeHighlight]}
-            >
-              {props.content}
-            </Markdown>
-          )
-        }}
-      </Show>
-    </div>
+    <SolidMarkdown
+      class={combinedClass() || undefined}
+      remarkPlugins={[remarkGfm]}
+      rehypePlugins={[rehypeRaw, rehypeSanitize, rehypeHighlight]}
+    >
+      {props.content}
+    </SolidMarkdown>
   )
 }

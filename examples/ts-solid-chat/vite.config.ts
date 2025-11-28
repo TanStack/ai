@@ -17,6 +17,11 @@ const config = defineConfig({
     tanstackStart(),
     viteSolid({ ssr: true }),
   ],
+  // ssr: {
+  //   // Don't externalize solid-markdown and its dependencies during SSR
+  //   // This ensures both server and client use the same compiled code
+  //   noExternal: ['solid-markdown', '@tanstack/ai-solid-ui'],
+  // },
 })
 
 export default config
