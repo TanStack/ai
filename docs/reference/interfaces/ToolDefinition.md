@@ -1,28 +1,17 @@
 ---
-id: Tool
-title: Tool
+id: ToolDefinition
+title: ToolDefinition
 ---
 
-# Interface: Tool\<TInput, TOutput, TName\>
+# Interface: ToolDefinition\<TInput, TOutput, TName\>
 
-Defined in: [types.ts:32](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L32)
+Defined in: [tools/tool-factory.ts:95](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/tools/tool-factory.ts#L95)
 
-Tool/Function definition for function calling.
+Tool definition builder that allows creating server or client tools from a shared definition
 
-Tools allow the model to interact with external systems, APIs, or perform computations.
-The model will decide when to call tools based on the user's request and the tool descriptions.
+## Extends
 
-Tools use Zod schemas for runtime validation and type safety.
-
-## See
-
- - https://platform.openai.com/docs/guides/function-calling
- - https://docs.anthropic.com/claude/docs/tool-use
-
-## Extended by
-
-- [`ToolDefinitionInstance`](../ToolDefinitionInstance.md)
-- [`ServerTool`](../ServerTool.md)
+- [`ToolDefinitionInstance`](../ToolDefinitionInstance.md)\<`TInput`, `TOutput`, `TName`\>
 
 ## Type Parameters
 
@@ -39,6 +28,42 @@ Tools use Zod schemas for runtime validation and type safety.
 `TName` *extends* `string` = `string`
 
 ## Properties
+
+### \_\_toolSide
+
+```ts
+__toolSide: "definition";
+```
+
+Defined in: [tools/tool-factory.ts:43](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/tools/tool-factory.ts#L43)
+
+#### Inherited from
+
+[`ToolDefinitionInstance`](../ToolDefinitionInstance.md).[`__toolSide`](../ToolDefinitionInstance.md#__toolside)
+
+***
+
+### client()
+
+```ts
+client: (execute?) => ClientTool<TInput, TOutput, TName>;
+```
+
+Defined in: [tools/tool-factory.ts:112](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/tools/tool-factory.ts#L112)
+
+Create a client-side tool with optional execute function
+
+#### Parameters
+
+##### execute?
+
+(`args`) => `output`\<`TOutput`\> \| `Promise`\<`output`\<`TOutput`\>\>
+
+#### Returns
+
+[`ClientTool`](../ClientTool.md)\<`TInput`, `TOutput`, `TName`\>
+
+***
 
 ### description
 
@@ -58,6 +83,10 @@ Be specific about what the tool does, what parameters it needs, and what it retu
 ```ts
 "Get the current weather in a given location. Returns temperature, conditions, and forecast."
 ```
+
+#### Inherited from
+
+[`ToolDefinitionInstance`](../ToolDefinitionInstance.md).[`description`](../ToolDefinitionInstance.md#description)
 
 ***
 
@@ -99,6 +128,10 @@ execute: async (args) => {
 }
 ```
 
+#### Inherited from
+
+[`ToolDefinitionInstance`](../ToolDefinitionInstance.md).[`execute`](../ToolDefinitionInstance.md#execute)
+
 ***
 
 ### inputSchema?
@@ -130,6 +163,10 @@ z.object({
 })
 ```
 
+#### Inherited from
+
+[`ToolDefinitionInstance`](../ToolDefinitionInstance.md).[`inputSchema`](../ToolDefinitionInstance.md#inputschema)
+
 ***
 
 ### metadata?
@@ -141,6 +178,10 @@ optional metadata: Record<string, any>;
 Defined in: [types.ts:117](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L117)
 
 Additional metadata for adapters or custom extensions
+
+#### Inherited from
+
+[`ToolDefinitionInstance`](../ToolDefinitionInstance.md).[`metadata`](../ToolDefinitionInstance.md#metadata)
 
 ***
 
@@ -163,6 +204,10 @@ Must be unique within the tools array.
 "get_weather", "search_database", "sendEmail"
 ```
 
+#### Inherited from
+
+[`ToolDefinitionInstance`](../ToolDefinitionInstance.md).[`name`](../ToolDefinitionInstance.md#name)
+
 ***
 
 ### needsApproval?
@@ -174,6 +219,10 @@ optional needsApproval: boolean;
 Defined in: [types.ts:114](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L114)
 
 If true, tool execution requires user approval before running. Works with both server and client tools.
+
+#### Inherited from
+
+[`ToolDefinitionInstance`](../ToolDefinitionInstance.md).[`needsApproval`](../ToolDefinitionInstance.md#needsapproval)
 
 ***
 
@@ -202,3 +251,29 @@ z.object({
   forecast: z.array(z.string()).optional()
 })
 ```
+
+#### Inherited from
+
+[`ToolDefinitionInstance`](../ToolDefinitionInstance.md).[`outputSchema`](../ToolDefinitionInstance.md#outputschema)
+
+***
+
+### server()
+
+```ts
+server: (execute) => ServerTool<TInput, TOutput, TName>;
+```
+
+Defined in: [tools/tool-factory.ts:103](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/tools/tool-factory.ts#L103)
+
+Create a server-side tool with execute function
+
+#### Parameters
+
+##### execute
+
+(`args`) => `output`\<`TOutput`\> \| `Promise`\<`output`\<`TOutput`\>\>
+
+#### Returns
+
+[`ServerTool`](../ServerTool.md)\<`TInput`, `TOutput`, `TName`\>

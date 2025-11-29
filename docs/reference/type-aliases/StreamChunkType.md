@@ -17,4 +17,4 @@ type StreamChunkType =
   | "thinking";
 ```
 
-Defined in: [types.ts:277](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L277)
+Defined in: [types.ts:276](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L276)

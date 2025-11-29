@@ -53,7 +53,7 @@ Defined in: [tools/tool-calls.ts:45](https://github.com/TanStack/ai/blob/main/pa
 
 ##### tools
 
-readonly [`Tool`](../../interfaces/Tool.md)\<`ZodType`\<`unknown`, `unknown`, `$ZodTypeInternals`\<`unknown`, `unknown`\>\>, `ZodType`\<`unknown`, `unknown`, `$ZodTypeInternals`\<`unknown`, `unknown`\>\>\>[]
+readonly [`Tool`](../../interfaces/Tool.md)\<`ZodType`\<`unknown`, `unknown`, `$ZodTypeInternals`\<`unknown`, `unknown`\>\>, `ZodType`\<`unknown`, `unknown`, `$ZodTypeInternals`\<`unknown`, `unknown`\>\>, `string`\>[]
 
 #### Returns
 

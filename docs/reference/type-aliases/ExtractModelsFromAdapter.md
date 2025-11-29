@@ -9,7 +9,7 @@ title: ExtractModelsFromAdapter
 type ExtractModelsFromAdapter<T> = T extends AIAdapter<infer M, any, any, any, any> ? M[number] : never;
 ```
 
-Defined in: [types.ts:509](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L509)
+Defined in: [types.ts:508](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L508)
 
 ## Type Parameters
 

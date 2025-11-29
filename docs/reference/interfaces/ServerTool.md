@@ -1,28 +1,17 @@
 ---
-id: Tool
-title: Tool
+id: ServerTool
+title: ServerTool
 ---
 
-# Interface: Tool\<TInput, TOutput, TName\>
+# Interface: ServerTool\<TInput, TOutput, TName\>
 
-Defined in: [types.ts:32](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L32)
+Defined in: [tools/tool-factory.ts:7](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/tools/tool-factory.ts#L7)
 
-Tool/Function definition for function calling.
+Marker type for server-side tools
 
-Tools allow the model to interact with external systems, APIs, or perform computations.
-The model will decide when to call tools based on the user's request and the tool descriptions.
+## Extends
 
-Tools use Zod schemas for runtime validation and type safety.
-
-## See
-
- - https://platform.openai.com/docs/guides/function-calling
- - https://docs.anthropic.com/claude/docs/tool-use
-
-## Extended by
-
-- [`ToolDefinitionInstance`](../ToolDefinitionInstance.md)
-- [`ServerTool`](../ServerTool.md)
+- [`Tool`](../Tool.md)\<`TInput`, `TOutput`, `TName`\>
 
 ## Type Parameters
 
@@ -39,6 +28,16 @@ Tools use Zod schemas for runtime validation and type safety.
 `TName` *extends* `string` = `string`
 
 ## Properties
+
+### \_\_toolSide
+
+```ts
+__toolSide: "server";
+```
+
+Defined in: [tools/tool-factory.ts:12](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/tools/tool-factory.ts#L12)
+
+***
 
 ### description
 
@@ -58,6 +57,10 @@ Be specific about what the tool does, what parameters it needs, and what it retu
 ```ts
 "Get the current weather in a given location. Returns temperature, conditions, and forecast."
 ```
+
+#### Inherited from
+
+[`Tool`](../Tool.md).[`description`](../Tool.md#description)
 
 ***
 
@@ -99,6 +102,10 @@ execute: async (args) => {
 }
 ```
 
+#### Inherited from
+
+[`Tool`](../Tool.md).[`execute`](../Tool.md#execute)
+
 ***
 
 ### inputSchema?
@@ -130,6 +137,10 @@ z.object({
 })
 ```
 
+#### Inherited from
+
+[`Tool`](../Tool.md).[`inputSchema`](../Tool.md#inputschema)
+
 ***
 
 ### metadata?
@@ -141,6 +152,10 @@ optional metadata: Record<string, any>;
 Defined in: [types.ts:117](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L117)
 
 Additional metadata for adapters or custom extensions
+
+#### Inherited from
+
+[`Tool`](../Tool.md).[`metadata`](../Tool.md#metadata)
 
 ***
 
@@ -163,6 +178,10 @@ Must be unique within the tools array.
 "get_weather", "search_database", "sendEmail"
 ```
 
+#### Inherited from
+
+[`Tool`](../Tool.md).[`name`](../Tool.md#name)
+
 ***
 
 ### needsApproval?
@@ -174,6 +193,10 @@ optional needsApproval: boolean;
 Defined in: [types.ts:114](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L114)
 
 If true, tool execution requires user approval before running. Works with both server and client tools.
+
+#### Inherited from
+
+[`Tool`](../Tool.md).[`needsApproval`](../Tool.md#needsapproval)
 
 ***
 
@@ -202,3 +225,7 @@ z.object({
   forecast: z.array(z.string()).optional()
 })
 ```
+
+#### Inherited from
+
+[`Tool`](../Tool.md).[`outputSchema`](../Tool.md#outputschema)
