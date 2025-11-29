@@ -332,6 +332,9 @@ importers:
       '@tanstack/ai-solid':
         specifier: workspace:*
         version: link:../../packages/typescript/ai-solid
+      '@tanstack/ai-solid-ui':
+        specifier: workspace:*
+        version: link:../../packages/typescript/ai-solid-ui
       '@tanstack/nitro-v2-vite-plugin':
         specifier: ^1.139.0
         version: 1.139.0(rolldown@1.0.0-beta.51)(vite@7.2.4(@types/node@24.10.1)(jiti@2.6.1)(lightningcss@1.30.2)(terser@5.44.0)(tsx@4.20.6)(yaml@2.8.1))
@@ -345,20 +348,20 @@ importers:
         specifier: ^0.7.15
         version: 0.7.15(csstype@3.2.3)(solid-js@1.9.10)
       '@tanstack/solid-router':
-        specifier: ^1.132.0
+        specifier: ^1.139.10
         version: 1.139.10(solid-js@1.9.10)
       '@tanstack/solid-router-devtools':
-        specifier: ^1.132.0
+        specifier: ^1.139.10
         version: 1.139.10(@tanstack/router-core@1.139.10)(@tanstack/solid-router@1.139.10(solid-js@1.9.10))(@types/node@24.10.1)(csstype@3.2.3)(jiti@2.6.1)(lightningcss@1.30.2)(solid-js@1.9.10)(terser@5.44.0)(tsx@4.20.6)(yaml@2.8.1)
       '@tanstack/solid-router-ssr-query':
-        specifier: ^1.131.7
+        specifier: ^1.139.10
         version: 1.139.10(@tanstack/query-core@5.90.11)(@tanstack/router-core@1.139.10)(@tanstack/solid-query@5.90.14(solid-js@1.9.10))(@tanstack/solid-router@1.139.10(solid-js@1.9.10))(eslint@9.39.1(jiti@2.6.1))(solid-js@1.9.10)(typescript@5.9.3)
       '@tanstack/solid-start':
-        specifier: ^1.132.0
+        specifier: ^1.139.10
         version: 1.139.10(solid-js@1.9.10)(vite-plugin-solid@2.11.10(@testing-library/jest-dom@6.9.1)(solid-js@1.9.10)(vite@7.2.4(@types/node@24.10.1)(jiti@2.6.1)(lightningcss@1.30.2)(terser@5.44.0)(tsx@4.20.6)(yaml@2.8.1)))(vite@7.2.4(@types/node@24.10.1)(jiti@2.6.1)(lightningcss@1.30.2)(terser@5.44.0)(tsx@4.20.6)(yaml@2.8.1))
       '@tanstack/solid-store':
-        specifier: ^0.7.0
-        version: 0.7.7(solid-js@1.9.10)
+        specifier: ^0.8.0
+        version: 0.8.0(solid-js@1.9.10)
       '@tanstack/store':
         specifier: ^0.8.0
         version: 0.8.0
@@ -368,24 +371,12 @@ importers:
       lucide-solid:
         specifier: ^0.554.0
         version: 0.554.0(solid-js@1.9.10)
-      rehype-highlight:
-        specifier: ^7.0.2
-        version: 7.0.2
-      rehype-raw:
-        specifier: ^7.0.0
-        version: 7.0.0
-      rehype-sanitize:
-        specifier: ^6.0.0
-        version: 6.0.0
-      remark-gfm:
-        specifier: ^4.0.1
-        version: 4.0.1
       solid-js:
         specifier: ^1.9.10
         version: 1.9.10
       solid-markdown:
-        specifier: ^2.0.14
-        version: 2.0.14(solid-js@1.9.10)
+        specifier: ^2.1.0
+        version: 2.1.0(solid-js@1.9.10)
       tailwindcss:
         specifier: ^4.1.17
         version: 4.1.17
@@ -671,6 +662,43 @@ importers:
       vitest:
         specifier: ^4.0.14
         version: 4.0.14(@types/node@24.10.1)(happy-dom@20.0.10)(jiti@2.6.1)(jsdom@27.2.0(postcss@8.5.6))(lightningcss@1.30.2)(terser@5.44.0)(tsx@4.20.6)(yaml@2.8.1)
+
+  packages/typescript/ai-solid-ui:
+    dependencies:
+      '@tanstack/ai-client':
+        specifier: workspace:*
+        version: link:../ai-client
+      '@tanstack/ai-solid':
+        specifier: workspace:*
+        version: link:../ai-solid
+      rehype-highlight:
+        specifier: ^7.0.2
+        version: 7.0.2
+      rehype-raw:
+        specifier: ^7.0.0
+        version: 7.0.0
+      rehype-sanitize:
+        specifier: ^6.0.0
+        version: 6.0.0
+      remark-gfm:
+        specifier: ^4.0.1
+        version: 4.0.1
+      solid-js:
+        specifier: '>=1.9.7'
+        version: 1.9.10
+      solid-markdown:
+        specifier: ^2.1.0
+        version: 2.1.0(solid-js@1.9.10)
+    devDependencies:
+      '@vitest/coverage-v8':
+        specifier: 4.0.14
+        version: 4.0.14(vitest@4.0.14(@types/node@24.10.1)(happy-dom@20.0.10)(jiti@2.6.1)(jsdom@27.2.0(postcss@8.5.6))(lightningcss@1.30.2)(terser@5.44.0)(tsx@4.20.6)(yaml@2.8.1))
+      vite:
+        specifier: ^7.2.4
+        version: 7.2.4(@types/node@24.10.1)(jiti@2.6.1)(lightningcss@1.30.2)(terser@5.44.0)(tsx@4.20.6)(yaml@2.8.1)
+      vite-plugin-solid:
+        specifier: ^2.11.10
+        version: 2.11.10(@testing-library/jest-dom@6.9.1)(solid-js@1.9.10)(vite@7.2.4(@types/node@24.10.1)(jiti@2.6.1)(lightningcss@1.30.2)(terser@5.44.0)(tsx@4.20.6)(yaml@2.8.1))
 
   packages/typescript/react-ai-devtools:
     dependencies:
@@ -2559,11 +2587,6 @@ packages:
       solid-js: '>=1.0.0'
       vite: '>=7.0.0'
 
-  '@tanstack/solid-store@0.7.7':
-    resolution: {integrity: sha512-DnEZbqQ+pg68BguHz17VFukfp+6JaTk8nE2MhdVliU8bhsOFlTMsmVHp/4gMoQ1AkmAOMFiBsSliROCaaeJzvg==}
-    peerDependencies:
-      solid-js: ^1.6.0
-
   '@tanstack/solid-store@0.8.0':
     resolution: {integrity: sha512-JwqTedbxyOGw7mfmdGkB0RGgefRCw/tNauc8tlMcaS1mV5wTFT8c1KIB3LgttuHaanMJEBeqQJ7bc/R0WTP1fA==}
     peerDependencies:
@@ -2604,9 +2627,6 @@ packages:
   '@tanstack/start-storage-context@1.139.7':
     resolution: {integrity: sha512-l2utb0CXLE+wfj1wlAUPHohiq7n5nOBMl3pflhl3JzCXt+6D9AAogkfrysyxOAvx3KnLh3oG+qwf1KHWIDB9HA==}
     engines: {node: '>=22.12.0'}
-
-  '@tanstack/store@0.7.7':
-    resolution: {integrity: sha512-xa6pTan1bcaqYDS9BDpSiS63qa6EoDkPN9RsRaxHuDdVDNntzq3xNwR5YKTU/V3SkSyC9T4YVOPh2zRQN0nhIQ==}
 
   '@tanstack/store@0.8.0':
     resolution: {integrity: sha512-Om+BO0YfMZe//X2z0uLF2j+75nQga6TpTJgLJQBiq85aOyZNIhkCgleNcud2KQg4k4v9Y9l+Uhru3qWMPGTOzQ==}
@@ -5753,9 +5773,9 @@ packages:
   solid-js@1.9.10:
     resolution: {integrity: sha512-Coz956cos/EPDlhs6+jsdTxKuJDPT7B5SVIWgABwROyxjY7Xbr8wkzD68Et+NxnV7DLJ3nJdAC2r9InuV/4Jew==}
 
-  solid-markdown@2.0.14:
-    resolution: {integrity: sha512-Ln8R4TsNWySXvKkS80OHV+CSR/mwjk5XfGvC5UjZo/y/rAbbkBoxt6FXoWsfCkTW6GH9yxYvahSMXsUJU/ov4Q==}
-    engines: {node: '>=18', pnpm: '>=8.6.0'}
+  solid-markdown@2.1.0:
+    resolution: {integrity: sha512-SCGs9QXb9qIFhxu4OdUIyJKJhp/+7jgfwDA993gZHF4iG8McXnJtnAcPGqPYWkynxa7U3DxrMsIWxC2xKP/WYg==}
+    engines: {node: '>=18', pnpm: '>=9.15.9'}
     peerDependencies:
       solid-js: ^1.6.0
 
@@ -6714,7 +6734,7 @@ snapshots:
     dependencies:
       '@babel/core': 7.28.5
       '@babel/helper-module-imports': 7.27.1
-      '@babel/helper-validator-identifier': 7.27.1
+      '@babel/helper-validator-identifier': 7.28.5
       '@babel/traverse': 7.28.5
     transitivePeerDependencies:
       - supports-color
@@ -7966,7 +7986,7 @@ snapshots:
   '@stylistic/eslint-plugin@5.5.0(eslint@9.39.1(jiti@2.6.1))':
     dependencies:
       '@eslint-community/eslint-utils': 4.9.0(eslint@9.39.1(jiti@2.6.1))
-      '@typescript-eslint/types': 8.46.3
+      '@typescript-eslint/types': 8.48.0
       eslint: 9.39.1(jiti@2.6.1)
       eslint-visitor-keys: 4.2.1
       espree: 10.4.0
@@ -8607,11 +8627,6 @@ snapshots:
       - vite-plugin-solid
       - webpack
 
-  '@tanstack/solid-store@0.7.7(solid-js@1.9.10)':
-    dependencies:
-      '@tanstack/store': 0.7.7
-      solid-js: 1.9.10
-
   '@tanstack/solid-store@0.8.0(solid-js@1.9.10)':
     dependencies:
       '@tanstack/store': 0.8.0
@@ -8728,8 +8743,6 @@ snapshots:
   '@tanstack/start-storage-context@1.139.7':
     dependencies:
       '@tanstack/router-core': 1.139.7
-
-  '@tanstack/store@0.7.7': {}
 
   '@tanstack/store@0.8.0': {}
 
@@ -8916,7 +8929,7 @@ snapshots:
   '@typescript-eslint/project-service@8.46.3(typescript@5.9.3)':
     dependencies:
       '@typescript-eslint/tsconfig-utils': 8.46.3(typescript@5.9.3)
-      '@typescript-eslint/types': 8.46.3
+      '@typescript-eslint/types': 8.48.0
       debug: 4.4.3
       typescript: 5.9.3
     transitivePeerDependencies:
@@ -9956,7 +9969,7 @@ snapshots:
 
   eslint-plugin-import-x@4.16.1(@typescript-eslint/utils@8.48.0(eslint@9.39.1(jiti@2.6.1))(typescript@5.9.3))(eslint@9.39.1(jiti@2.6.1)):
     dependencies:
-      '@typescript-eslint/types': 8.46.3
+      '@typescript-eslint/types': 8.48.0
       comment-parser: 1.4.1
       debug: 4.4.3
       eslint: 9.39.1(jiti@2.6.1)
@@ -12402,7 +12415,7 @@ snapshots:
       seroval: 1.3.2
       seroval-plugins: 1.3.3(seroval@1.3.2)
 
-  solid-markdown@2.0.14(solid-js@1.9.10):
+  solid-markdown@2.1.0(solid-js@1.9.10):
     dependencies:
       comma-separated-tokens: 2.0.3
       property-information: 6.5.0
