@@ -665,12 +665,6 @@ importers:
 
   packages/typescript/ai-solid-ui:
     dependencies:
-      '@tanstack/ai-client':
-        specifier: workspace:*
-        version: link:../ai-client
-      '@tanstack/ai-solid':
-        specifier: workspace:*
-        version: link:../ai-solid
       rehype-highlight:
         specifier: ^7.0.2
         version: 7.0.2
@@ -690,6 +684,12 @@ importers:
         specifier: ^2.1.0
         version: 2.1.0(solid-js@1.9.10)
     devDependencies:
+      '@tanstack/ai-client':
+        specifier: workspace:*
+        version: link:../ai-client
+      '@tanstack/ai-solid':
+        specifier: workspace:*
+        version: link:../ai-solid
       '@vitest/coverage-v8':
         specifier: 4.0.14
         version: 4.0.14(vitest@4.0.14(@types/node@24.10.1)(happy-dom@20.0.10)(jiti@2.6.1)(jsdom@27.2.0(postcss@8.5.6))(lightningcss@1.30.2)(terser@5.44.0)(tsx@4.20.6)(yaml@2.8.1))
