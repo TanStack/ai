@@ -1,18 +1,18 @@
 import { ChatClient } from '@tanstack/ai-client'
+import type { ModelMessage } from '@tanstack/ai'
+import type { UseChatOptions, UseChatReturn, UIMessage } from './types'
 import {
   createEffect,
   createMemo,
   createSignal,
   createUniqueId,
 } from 'solid-js'
-import type { ModelMessage } from '@tanstack/ai'
-import type { UIMessage, UseChatOptions, UseChatReturn } from './types'
 
 export function useChat(options: UseChatOptions = {}): UseChatReturn {
   const hookId = createUniqueId()
   const clientId = options.id || hookId
 
-  const [messages, setMessages] = createSignal<Array<UIMessage>>(
+  const [messages, setMessages] = createSignal<UIMessage[]>(
     options.initialMessages || [],
   )
   const [isLoading, setIsLoading] = createSignal(false)
@@ -34,7 +34,7 @@ export function useChat(options: UseChatOptions = {}): UseChatReturn {
       onError: options.onError,
       onToolCall: options.onToolCall,
       streamProcessor: options.streamProcessor,
-      onMessagesChange: (newMessages: Array<UIMessage>) => {
+      onMessagesChange: (newMessages: UIMessage[]) => {
         setMessages(newMessages)
       },
       onLoadingChange: (newIsLoading: boolean) => {
@@ -46,6 +46,7 @@ export function useChat(options: UseChatOptions = {}): UseChatReturn {
     })
     // Only recreate when clientId changes
     // Connection and other options are captured at creation time
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [clientId])
 
   // Sync initial messages on mount only
@@ -94,7 +95,7 @@ export function useChat(options: UseChatOptions = {}): UseChatReturn {
     client().clear()
   }
 
-  const setMessagesManually = (newMessages: Array<UIMessage>) => {
+  const setMessagesManually = (newMessages: UIMessage[]) => {
     client().setMessagesManually(newMessages)
   }
 

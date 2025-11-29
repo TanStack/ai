@@ -1,5 +1,23 @@
 # Changelog
 
+## Reverts
+
+### Revert: ci: sync config between projects (#53)
+
+**Reverted:** Commit [349c24c](https://github.com/TanStack/ai/commit/349c24cf58e59f956e10137b6b6d5516399c0931)
+
+This commit was reverted due to a regression that was breaking the main branch. The changes affected CI configuration syncing between projects.
+
+**Changes reverted:**
+- Reverted workflow changes in `.github/workflows/autofix.yml`
+- Reverted nx.json configuration changes
+- Reverted package.json script changes
+- Reverted ai-solid package changes (tsconfig, test utilities, package scripts)
+- Restored `scripts/clean.sh`
+- Renamed `scripts/generate-docs.ts` back to `scripts/generateDocs.ts`
+- Restored size-limit configuration and dependencies
+- Restored pnpm overrides
+
 ## Recent Refactoring (November 2025)
 
 ### New Packages

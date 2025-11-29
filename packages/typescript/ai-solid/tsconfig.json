@@ -1,15 +1,12 @@
 {
   "extends": "../../../tsconfig.json",
   "compilerOptions": {
-    "outDir": "./dist",
-    "rootDir": "./src",
-    "jsx": "preserve",
-    "jsxImportSource": "solid-js",
-    "declaration": true,
-    "declarationMap": true,
-    "composite": true,
+    "outDir": "dist",
+    "rootDir": "src",
+    "jsx": "react-jsx",
     "lib": ["ES2022", "DOM"]
   },
-  "include": ["src/**/*"],
-  "exclude": ["node_modules", "dist"]
+  "include": ["src/**/*.ts", "src/**/*.tsx"],
+  "exclude": ["node_modules", "dist", "**/*.config.ts"],
+  "references": [{ "path": "../ai" }, { "path": "../ai-client" }]
 }
