@@ -42,7 +42,8 @@
   ],
   "dependencies": {
     "@tanstack/ai": "workspace:*",
-    "@tanstack/ai-client": "workspace:*"
+    "@tanstack/ai-client": "workspace:*",
+    "zod": "^4.1.13"
   },
   "devDependencies": {
     "@testing-library/react": "^16.3.0",
