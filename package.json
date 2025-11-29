@@ -8,61 +8,42 @@
   "packageManager": "pnpm@10.17.0",
   "type": "module",
   "scripts": {
-    "dev:packages": "pnpm run --filter '@tanstack/ai*' dev",
-    "typecheck": "pnpm run -r typecheck",
-    "lint": "pnpm run -r lint",
-    "build": "nx affected --skip-nx-cache --targets=build --exclude=examples/** && size-limit",
-    "build:all": "nx run-many --targets=build --exclude=examples/** && size-limit",
-    "build:core": "nx run-many --targets=build --projects=packages/ai && size-limit",
-    "changeset": "changeset",
-    "changeset:publish": "changeset publish",
-    "changeset:version": "changeset version && pnpm install --no-frozen-lockfile && pnpm prettier:write",
-    "clean": "find . -name 'dist' -type d -prune -exec rm -rf {} +",
-    "clean:node_modules": "find . -name 'node_modules' -type d -prune -exec rm -rf {} +",
-    "clean:all": "pnpm run clean && pnpm run clean:node_modules",
-    "copy:readme": "cp README.md packages/typescript/ai/README.md && cp README.md packages/typescript/ai-devtools/README.md && cp README.md packages/typescript/ai-client/README.md && cp README.md packages/typescript/ai-gemini/README.md && cp README.md packages/typescript/ai-ollama/README.md && cp README.md packages/typescript/ai-openai/README.md && cp README.md packages/typescript/ai-react/README.md && cp README.md packages/typescript/ai-react-ui/README.md && cp README.md packages/typescript/react-ai-devtools/README.md && cp README.md packages/typescript/solid-ai-devtools/README.md",
-    "dev": "pnpm run watch",
-    "docs:generate": "node scripts/generateDocs.ts && pnpm run copy:readme",
-    "format": "pnpm run prettier:write",
-    "lint:fix": "nx affected --target=lint:fix --exclude=examples/**",
-    "lint:fix:all": "pnpm run format && nx run-many --targets=lint --fix",
-    "preinstall": "node -e \"if(process.env.CI == 'true') {console.log('Skipping preinstall...'); process.exit(1)}\" || npx -y only-allow pnpm",
-    "prettier": "prettier --ignore-unknown '**/*'",
-    "prettier:write": "pnpm run prettier --write",
-    "size": "size-limit",
+    "clean": "pnpm --filter \"./packages/**\" run clean",
     "test": "pnpm run test:ci",
-    "test:build": "nx affected --target=test:build --exclude=examples/**",
-    "test:ci": "nx run-many --targets=test:format,test:eslint,test:sherif,test:knip,test:lib,test:types,test:build,test:verify-links",
+    "test:pr": "nx affected --targets=test:sherif,test:knip,test:docs,test:eslint,test:lib,test:types,test:build,build",
+    "test:ci": "nx run-many --targets=test:sherif,test:knip,test:docs,test:eslint,test:lib,test:types,test:build,build",
     "test:eslint": "nx affected --target=test:eslint --exclude=examples/**",
     "test:format": "pnpm run prettier --check",
-    "test:knip": "knip --max-issues=33",
+    "test:sherif": "sherif",
     "test:lib": "nx affected --targets=test:lib --exclude=examples/**",
     "test:lib:dev": "pnpm test:lib && nx watch --all -- pnpm test:lib",
-    "test:pr": "nx affected --targets=test:format,test:eslint,test:sherif,test:knip,test:lib,test:types,test:build,build",
-    "test:sherif": "sherif",
+    "test:build": "nx affected --target=test:build --exclude=examples/**",
     "test:types": "nx affected --targets=test:types --exclude=examples/**",
-    "test:verify-links": "node scripts/verify-links.ts",
-    "watch": "pnpm run build:all && nx watch --all -- pnpm run build:all"
+    "test:knip": "knip --max-issues=33",
+    "test:docs": "node scripts/verify-links.ts",
+    "build": "nx affected --skip-nx-cache --targets=build --exclude=examples/**",
+    "build:all": "nx run-many --targets=build --exclude=examples/**",
+    "watch": "pnpm run build:all && nx watch --all -- pnpm run build:all",
+    "dev": "pnpm run watch",
+    "prettier": "prettier --ignore-unknown '**/*'",
+    "prettier:write": "pnpm run prettier --write",
+    "generate-docs": "node scripts/generate-docs.ts && pnpm run copy:readme",
+    "copy:readme": "cp README.md packages/typescript/ai/README.md && cp README.md packages/typescript/ai-devtools/README.md && cp README.md packages/typescript/ai-client/README.md && cp README.md packages/typescript/ai-gemini/README.md && cp README.md packages/typescript/ai-ollama/README.md && cp README.md packages/typescript/ai-openai/README.md && cp README.md packages/typescript/ai-react/README.md && cp README.md packages/typescript/ai-react-ui/README.md && cp README.md packages/typescript/react-ai-devtools/README.md && cp README.md packages/typescript/solid-ai-devtools/README.md",
+    "format": "pnpm run prettier:write",
+    "changeset": "changeset",
+    "changeset:publish": "changeset publish",
+    "changeset:version": "changeset version && pnpm install --no-frozen-lockfile && pnpm prettier:write"
   },
   "nx": {
     "includedScripts": [
+      "test:docs",
       "test:knip",
       "test:sherif"
     ]
   },
-  "size-limit": [
-    {
-      "path": "packages/typescript/ai/dist/esm/index.js",
-      "limit": "21 KB",
-      "ignore": [
-        "@alcyone-labs/zod-to-json-schema"
-      ]
-    }
-  ],
   "devDependencies": {
     "@changesets/cli": "^2.29.8",
     "@faker-js/faker": "^10.1.0",
-    "@size-limit/preset-small-lib": "^11.2.0",
     "@svitejs/changesets-changelog-github-compact": "^1.2.0",
     "@tanstack/eslint-config": "0.3.3",
     "@tanstack/typedoc-config": "0.3.1",
@@ -79,26 +60,9 @@
     "prettier-plugin-svelte": "^3.4.0",
     "publint": "^0.3.15",
     "sherif": "^1.9.0",
-    "size-limit": "^11.2.0",
     "tinyglobby": "^0.2.15",
     "typescript": "5.9.3",
     "vite": "^7.2.4",
     "vitest": "^4.0.14"
-  },
-  "pnpm": {
-    "overrides": {
-      "@tanstack/ai": "workspace:*",
-      "@tanstack/ai-anthropic": "workspace:*",
-      "@tanstack/ai-client": "workspace:*",
-      "@tanstack/ai-devtools": "workspace:*",
-      "@tanstack/ai-gemini": "workspace:*",
-      "@tanstack/ai-ollama": "workspace:*",
-      "@tanstack/ai-openai": "workspace:*",
-      "@tanstack/ai-react": "workspace:*",
-      "@tanstack/ai-react-ui": "workspace:*",
-      "@tanstack/react-ai-devtools": "workspace:*",
-      "@tanstack/solid-ai-devtools": "workspace:*",
-      "@tanstack/tests-adapters": "workspace:*"
-    }
   }
 }
