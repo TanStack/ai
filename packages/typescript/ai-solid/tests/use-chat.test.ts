@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { waitFor } from '@testing-library/react'
+import { waitFor } from '@solidjs/testing-library'
 import { useChat } from '../src/use-chat'
 import {
   renderUseChat,

@@ -22,8 +22,6 @@ import { useChat } from '../src/use-chat'
  * await result.current.sendMessage("Hello");
  * ```
  */
-export function renderUseChat(
-  options?: UseChatOptions,
-)<UseChatReturn, UseChatOptions> {
+export function renderUseChat(options?: UseChatOptions) {
   return renderHook(() => useChat(options))
 }
