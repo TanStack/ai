@@ -48,7 +48,7 @@ export interface ChatProps {
   /** Callback when an error occurs */
   onError?: (error: Error) => void
   /** Client-side tools with execute functions */
-  tools?: any[]
+  tools?: Array<any>
   /** Custom tool components registry for rendering */
   toolComponents?: Record<
     string,

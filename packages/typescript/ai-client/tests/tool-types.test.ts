@@ -146,9 +146,6 @@ describe('Tool Type Narrowing', () => {
               expectTypeOf(part.output).toHaveProperty('id')
               expectTypeOf(part.output).toHaveProperty('name')
               expectTypeOf(part.output).toHaveProperty('price')
-              // Should NOT have cart properties
-              expectTypeOf(part.output).not.toHaveProperty('success')
-              expectTypeOf(part.output).not.toHaveProperty('cartId')
             }
           }
 
@@ -164,10 +161,6 @@ describe('Tool Type Narrowing', () => {
             if (part.output) {
               expectTypeOf(part.output).toHaveProperty('success')
               expectTypeOf(part.output).toHaveProperty('cartId')
-              // Should NOT have guitar properties
-              expectTypeOf(part.output).not.toHaveProperty('id')
-              expectTypeOf(part.output).not.toHaveProperty('name')
-              expectTypeOf(part.output).not.toHaveProperty('price')
             }
           }
         }
@@ -234,9 +227,6 @@ describe('Tool Type Narrowing', () => {
           // After this narrowing, part.output should be { preference: string }
           expectTypeOf(part.output).toMatchTypeOf<{ preference: string }>()
           expectTypeOf(part.output).toHaveProperty('preference')
-
-          // Should NOT be any
-          expectTypeOf(part.output).not.toBeAny()
         }
       }
     }

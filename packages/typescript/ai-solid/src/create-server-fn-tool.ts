@@ -1,8 +1,8 @@
 import { toolDefinition } from '@tanstack/ai'
 import type {
-  ToolDefinitionInstance,
   ServerTool,
   ToolDefinitionConfig,
+  ToolDefinitionInstance,
 } from '@tanstack/ai'
 import type { z } from 'zod'
 

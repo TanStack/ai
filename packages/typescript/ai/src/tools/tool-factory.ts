@@ -100,20 +100,20 @@ export interface ToolDefinition<
   /**
    * Create a server-side tool with execute function
    */
-  server(
+  server: (
     execute: (
       args: z.infer<TInput>,
     ) => Promise<z.infer<TOutput>> | z.infer<TOutput>,
-  ): ServerTool<TInput, TOutput, TName>
+  ) => ServerTool<TInput, TOutput, TName>
 
   /**
    * Create a client-side tool with optional execute function
    */
-  client(
+  client: (
     execute?: (
       args: z.infer<TInput>,
     ) => Promise<z.infer<TOutput>> | z.infer<TOutput>,
-  ): ClientTool<TInput, TOutput, TName>
+  ) => ClientTool<TInput, TOutput, TName>
 }
 
 /**
