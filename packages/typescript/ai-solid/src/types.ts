@@ -1,10 +1,10 @@
+import type { Accessor } from 'solid-js'
 import type { ModelMessage } from '@tanstack/ai'
 import type {
   ChatClientOptions,
-  UIMessage,
   ChatRequestBody,
+  UIMessage,
 } from '@tanstack/ai-client'
-import { Accessor } from 'solid-js'
 
 // Re-export types from ai-client
 export type { UIMessage, ChatRequestBody }
@@ -33,7 +33,7 @@ export interface UseChatReturn {
   /**
    * Current messages in the conversation
    */
-  messages: Accessor<UIMessage[]>
+  messages: Accessor<Array<UIMessage>>
 
   /**
    * Send a message and get a response
@@ -87,7 +87,7 @@ export interface UseChatReturn {
   /**
    * Set messages manually
    */
-  setMessages: (messages: UIMessage[]) => void
+  setMessages: (messages: Array<UIMessage>) => void
 
   /**
    * Clear all messages
