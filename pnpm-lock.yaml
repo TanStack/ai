@@ -4,20 +4,6 @@ settings:
   autoInstallPeers: true
   excludeLinksFromLockfile: false
 
-overrides:
-  '@tanstack/ai': workspace:*
-  '@tanstack/ai-anthropic': workspace:*
-  '@tanstack/ai-client': workspace:*
-  '@tanstack/ai-devtools': workspace:*
-  '@tanstack/ai-gemini': workspace:*
-  '@tanstack/ai-ollama': workspace:*
-  '@tanstack/ai-openai': workspace:*
-  '@tanstack/ai-react': workspace:*
-  '@tanstack/ai-react-ui': workspace:*
-  '@tanstack/react-ai-devtools': workspace:*
-  '@tanstack/solid-ai-devtools': workspace:*
-  '@tanstack/tests-adapters': workspace:*
-
 importers:
 
   .:
@@ -28,9 +14,6 @@ importers:
       '@faker-js/faker':
         specifier: ^10.1.0
         version: 10.1.0
-      '@size-limit/preset-small-lib':
-        specifier: ^11.2.0
-        version: 11.2.0(size-limit@11.2.0)
       '@svitejs/changesets-changelog-github-compact':
         specifier: ^1.2.0
         version: 1.2.0
@@ -79,9 +62,6 @@ importers:
       sherif:
         specifier: ^1.9.0
         version: 1.9.0
-      size-limit:
-        specifier: ^11.2.0
-        version: 11.2.0
       tinyglobby:
         specifier: ^0.2.15
         version: 0.2.15
@@ -685,12 +665,6 @@ importers:
 
   packages/typescript/ai-solid-ui:
     dependencies:
-      '@tanstack/ai-client':
-        specifier: workspace:*
-        version: link:../ai-client
-      '@tanstack/ai-solid':
-        specifier: workspace:*
-        version: link:../ai-solid
       rehype-highlight:
         specifier: ^7.0.2
         version: 7.0.2
@@ -710,6 +684,12 @@ importers:
         specifier: ^2.1.0
         version: 2.1.0(solid-js@1.9.10)
     devDependencies:
+      '@tanstack/ai-client':
+        specifier: workspace:*
+        version: link:../ai-client
+      '@tanstack/ai-solid':
+        specifier: workspace:*
+        version: link:../ai-solid
       '@vitest/coverage-v8':
         specifier: 4.0.14
         version: 4.0.14(vitest@4.0.14(@types/node@24.10.1)(happy-dom@20.0.10)(jiti@2.6.1)(jsdom@27.2.0(postcss@8.5.6))(lightningcss@1.30.2)(terser@5.44.0)(tsx@4.20.6)(yaml@2.8.1))
@@ -2069,23 +2049,6 @@ packages:
     resolution: {integrity: sha512-tlqY9xq5ukxTUZBmoOp+m61cqwQD5pHJtFY3Mn8CA8ps6yghLH/Hw8UPdqg4OLmFW3IFlcXnQNmo/dh8HzXYIQ==}
     engines: {node: '>=18'}
 
-  '@size-limit/esbuild@11.2.0':
-    resolution: {integrity: sha512-vSg9H0WxGQPRzDnBzeDyD9XT0Zdq0L+AI3+77/JhxznbSCMJMMr8ndaWVQRhOsixl97N0oD4pRFw2+R1Lcvi6A==}
-    engines: {node: ^18.0.0 || >=20.0.0}
-    peerDependencies:
-      size-limit: 11.2.0
-
-  '@size-limit/file@11.2.0':
-    resolution: {integrity: sha512-OZHE3putEkQ/fgzz3Tp/0hSmfVo3wyTpOJSRNm6AmcwX4Nm9YtTfbQQ/hZRwbBFR23S7x2Sd9EbqYzngKwbRoA==}
-    engines: {node: ^18.0.0 || >=20.0.0}
-    peerDependencies:
-      size-limit: 11.2.0
-
-  '@size-limit/preset-small-lib@11.2.0':
-    resolution: {integrity: sha512-RFbbIVfv8/QDgTPyXzjo5NKO6CYyK5Uq5xtNLHLbw5RgSKrgo8WpiB/fNivZuNd/5Wk0s91PtaJ9ThNcnFuI3g==}
-    peerDependencies:
-      size-limit: 11.2.0
-
   '@solid-devtools/debugger@0.28.1':
     resolution: {integrity: sha512-6qIUI6VYkXoRnL8oF5bvh2KgH71qlJ18hNw/mwSyY6v48eb80ZR48/5PDXufUa3q+MBSuYa1uqTMwLewpay9eg==}
     peerDependencies:
@@ -3272,10 +3235,6 @@ packages:
 
   buffer@6.0.3:
     resolution: {integrity: sha512-FTiCpNxtwiZZHEZbcbTIcZjERVICn9yq/pDFkTl95/AxzD1naBctN7YO68riM/gLSDY7sdrMby8hofADYuuqOA==}
-
-  bytes-iec@3.1.1:
-    resolution: {integrity: sha512-fey6+4jDK7TFtFg/klGSvNKJctyU7n2aQdnM+CO0ruLPbqqMOM8Tio0Pc+deqUeVKX1tL5DQep1zQ7+37aTAsA==}
-    engines: {node: '>= 0.8'}
 
   c12@3.3.1:
     resolution: {integrity: sha512-LcWQ01LT9tkoUINHgpIOv3mMs+Abv7oVCrtpMRi1PaapVEpWoMga5WuT7/DqFTu7URP9ftbOmimNw1KNIGh9DQ==}
@@ -4647,10 +4606,6 @@ packages:
     resolution: {integrity: sha512-utfs7Pr5uJyyvDETitgsaqSyjCb2qNRAtuqUeWIAKztsOYdcACf2KtARYXg2pSvhkt+9NfoaNY7fxjl6nuMjIQ==}
     engines: {node: '>= 12.0.0'}
 
-  lilconfig@3.1.3:
-    resolution: {integrity: sha512-/vlFKAoH5Cgt3Ie+JLhRbwOsCQePABiU3tJ1egGvyQ+33R/vcwM2Zl2QR/LzjsBeItPt3oSVXapn+m4nQDvpzw==}
-    engines: {node: '>=14'}
-
   lines-and-columns@2.0.3:
     resolution: {integrity: sha512-cNOjgCnLB+FnvWWtyRTzmB3POJ+cXxTA81LoW7u8JdmhfXzriropYwpjShnz1QLLWsQwY7nIxoDmcPTwphDK9w==}
     engines: {node: ^12.20.0 || ^14.13.1 || >=16.0.0}
@@ -5000,14 +4955,6 @@ packages:
     resolution: {integrity: sha512-N8SpfPUnUp1bK+PMYW8qSWdl9U+wwNWI4QKxOYDy9JAro3WMX7p2OeVRF9v+347pnakNevPmiHhNmZ2HbFA76w==}
     engines: {node: ^10 || ^12 || ^13.7 || ^14 || >=15.0.1}
     hasBin: true
-
-  nanoid@5.1.6:
-    resolution: {integrity: sha512-c7+7RQ+dMB5dPwwCp4ee1/iV/q2P6aK1mTZcfr1BTuVlyW9hJYiMPybJCcnBlQtuSmTIWNeazm/zqNoZSSElBg==}
-    engines: {node: ^18 || >=20}
-    hasBin: true
-
-  nanospinner@1.2.2:
-    resolution: {integrity: sha512-Zt/AmG6qRU3e+WnzGGLuMCEAO/dAu45stNbHY223tUxldaDAeE+FxSPsd9Q+j+paejmm0ZbrNVs5Sraqy3dRxA==}
 
   napi-postinstall@0.3.4:
     resolution: {integrity: sha512-PHI5f1O0EP5xJ9gQmFGMS6IZcrVvTjpXjz7Na41gTE7eE2hK11lg04CECCYEEjdc17EV4DO+fkGEtt7TpTaTiQ==}
@@ -5699,11 +5646,6 @@ packages:
   signal-exit@4.1.0:
     resolution: {integrity: sha512-bzyZ1e88w9O1iNJbKnOlvYTrWPDl46O1bG0D3XInv+9tkPrxrN8jUUTiFlDkkmKWgn1M6CfIA13SuGqOa9Korw==}
     engines: {node: '>=14'}
-
-  size-limit@11.2.0:
-    resolution: {integrity: sha512-2kpQq2DD/pRpx3Tal/qRW1SYwcIeQ0iq8li5CJHQgOC+FtPn2BVmuDtzUCgNnpCrbgtfEHqh+iWzxK+Tq6C+RQ==}
-    engines: {node: ^18.0.0 || >=20.0.0}
-    hasBin: true
 
   slash@3.0.0:
     resolution: {integrity: sha512-g9Q1haeby36OSStwb4ntCGGGaKsaVSjQ68fBxoQcutl5fS1vuY18H3wSt3jFyFtrkx+Kz0V1G85A4MyAdDMi2Q==}
@@ -7771,22 +7713,6 @@ snapshots:
 
   '@sindresorhus/merge-streams@4.0.0': {}
 
-  '@size-limit/esbuild@11.2.0(size-limit@11.2.0)':
-    dependencies:
-      esbuild: 0.25.12
-      nanoid: 5.1.6
-      size-limit: 11.2.0
-
-  '@size-limit/file@11.2.0(size-limit@11.2.0)':
-    dependencies:
-      size-limit: 11.2.0
-
-  '@size-limit/preset-small-lib@11.2.0(size-limit@11.2.0)':
-    dependencies:
-      '@size-limit/esbuild': 11.2.0(size-limit@11.2.0)
-      '@size-limit/file': 11.2.0(size-limit@11.2.0)
-      size-limit: 11.2.0
-
   '@solid-devtools/debugger@0.28.1(solid-js@1.9.10)':
     dependencies:
       '@nothing-but/utils': 0.17.0
@@ -9370,8 +9296,6 @@ snapshots:
       base64-js: 1.5.1
       ieee754: 1.2.1
 
-  bytes-iec@3.1.1: {}
-
   c12@3.3.1(magicast@0.5.1):
     dependencies:
       chokidar: 4.0.3
@@ -10782,8 +10706,6 @@ snapshots:
       lightningcss-win32-arm64-msvc: 1.30.2
       lightningcss-win32-x64-msvc: 1.30.2
 
-  lilconfig@3.1.3: {}
-
   lines-and-columns@2.0.3: {}
 
   linkify-it@5.0.0:
@@ -11339,12 +11261,6 @@ snapshots:
   muggle-string@0.4.1: {}
 
   nanoid@3.3.11: {}
-
-  nanoid@5.1.6: {}
-
-  nanospinner@1.2.2:
-    dependencies:
-      picocolors: 1.1.1
 
   napi-postinstall@0.3.4: {}
 
@@ -12226,16 +12142,6 @@ snapshots:
   signal-exit@3.0.7: {}
 
   signal-exit@4.1.0: {}
-
-  size-limit@11.2.0:
-    dependencies:
-      bytes-iec: 3.1.1
-      chokidar: 4.0.3
-      jiti: 2.6.1
-      lilconfig: 3.1.3
-      nanospinner: 1.2.2
-      picocolors: 1.1.1
-      tinyglobby: 0.2.15
 
   slash@3.0.0: {}
 
