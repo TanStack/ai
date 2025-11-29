@@ -25,8 +25,8 @@
   "scripts": {
     "clean": "rm -rf dist node_modules",
     "test:eslint": "eslint ./src",
-    "test:types": "exit 0 && tsc --noEmit",
-    "test:lib": "exit 0 && vitest run",
+    "test:types": "tsc --noEmit",
+    "test:lib": "vitest run",
     "test:lib:dev": "pnpm run test:lib --watch",
     "test:build": "pnpm run build",
     "build": "tsdown"
