@@ -22,7 +22,7 @@
     "clean:all": "pnpm run clean && pnpm run clean:node_modules",
     "copy:readme": "cp README.md packages/typescript/ai/README.md && cp README.md packages/typescript/ai-devtools/README.md && cp README.md packages/typescript/ai-client/README.md && cp README.md packages/typescript/ai-gemini/README.md && cp README.md packages/typescript/ai-ollama/README.md && cp README.md packages/typescript/ai-openai/README.md && cp README.md packages/typescript/ai-react/README.md && cp README.md packages/typescript/ai-react-ui/README.md && cp README.md packages/typescript/react-ai-devtools/README.md && cp README.md packages/typescript/solid-ai-devtools/README.md",
     "dev": "pnpm run watch",
-    "docs:generate": "node scripts/generateDocs.js && pnpm run copy:readme",
+    "docs:generate": "node scripts/generateDocs.ts && pnpm run copy:readme",
     "format": "pnpm run prettier:write",
     "lint:fix": "nx affected --target=lint:fix --exclude=examples/**",
     "lint:fix:all": "pnpm run format && nx run-many --targets=lint --fix",
@@ -60,7 +60,7 @@
     }
   ],
   "devDependencies": {
-    "@changesets/cli": "^2.29.7",
+    "@changesets/cli": "^2.29.8",
     "@faker-js/faker": "^10.1.0",
     "@size-limit/preset-small-lib": "^11.2.0",
     "@svitejs/changesets-changelog-github-compact": "^1.2.0",
@@ -68,33 +68,35 @@
     "@types/node": "^24.10.1",
     "eslint": "^9.39.1",
     "eslint-plugin-unused-imports": "^4.3.0",
-    "fast-glob": "^3.3.3",
     "happy-dom": "^20.0.10",
     "knip": "^5.70.2",
     "markdown-link-extractor": "^4.0.3",
-    "nx": "^22.1.2",
+    "nx": "22.1.2",
     "premove": "^4.0.0",
     "prettier": "^3.6.2",
     "prettier-plugin-svelte": "^3.4.0",
     "publint": "^0.3.15",
     "sherif": "^1.9.0",
     "size-limit": "^11.2.0",
+    "tinyglobby": "^0.2.15",
     "typescript": "5.9.3",
     "vite": "^7.2.4",
     "vitest": "^4.0.14"
   },
-  "overrides": {
-    "@tanstack/ai": "workspace:*",
-    "@tanstack/ai-anthropic": "workspace:*",
-    "@tanstack/ai-client": "workspace:*",
-    "@tanstack/ai-devtools": "workspace:*",
-    "@tanstack/ai-gemini": "workspace:*",
-    "@tanstack/ai-ollama": "workspace:*",
-    "@tanstack/ai-openai": "workspace:*",
-    "@tanstack/ai-react": "workspace:*",
-    "@tanstack/ai-react-ui": "workspace:*",
-    "@tanstack/react-ai-devtools": "workspace:*",
-    "@tanstack/solid-ai-devtools": "workspace:*",
-    "@tanstack/tests-adapters": "workspace:*"
+  "pnpm": {
+    "overrides": {
+      "@tanstack/ai": "workspace:*",
+      "@tanstack/ai-anthropic": "workspace:*",
+      "@tanstack/ai-client": "workspace:*",
+      "@tanstack/ai-devtools": "workspace:*",
+      "@tanstack/ai-gemini": "workspace:*",
+      "@tanstack/ai-ollama": "workspace:*",
+      "@tanstack/ai-openai": "workspace:*",
+      "@tanstack/ai-react": "workspace:*",
+      "@tanstack/ai-react-ui": "workspace:*",
+      "@tanstack/react-ai-devtools": "workspace:*",
+      "@tanstack/solid-ai-devtools": "workspace:*",
+      "@tanstack/tests-adapters": "workspace:*"
+    }
   }
 }

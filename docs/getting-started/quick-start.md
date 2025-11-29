@@ -166,7 +166,7 @@ You now have a working chat application. The `useChat` hook handles:
 
 ## Next Steps
 
-- Learn about [Tools](../guides/tools) to add function calling
-- Explore [Server Tools](../guides/server-tools) for backend operations
-- Check out [Client Tools](../guides/client-tools) for frontend operations
-- See the [API Reference](../api/ai) for more options
+- Learn about [Tools](../../guides/tools) to add function calling
+- Explore [Server Tools](../../guides/server-tools) for backend operations
+- Check out [Client Tools](../../guides/client-tools) for frontend operations
+- See the [API Reference](../../api/ai) for more options

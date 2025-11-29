@@ -240,6 +240,6 @@ All types are re-exported from `@tanstack/ai-client`:
 
 ## Next Steps
 
-- [Getting Started](../getting-started/quick-start) - Learn the basics
-- [Tools Guide](../guides/tools) - Learn about tools
-- [Client Tools](../guides/client-tools) - Learn about client-side tools
+- [Getting Started](../../getting-started/quick-start.md) - Learn the basics
+- [Tools Guide](../../guides/tools.md) - Learn about tools
+- [Client Tools](../../guides/client-tools.md) - Learn about client-side tools

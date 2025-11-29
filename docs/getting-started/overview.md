@@ -47,7 +47,7 @@ TanStack AI supports multiple LLM providers through adapters:
 
 ## Next Steps
 
-- [Quick Start Guide](./quick-start) - Get up and running in minutes
-- [Tools Guide](../guides/tools) - Learn about server and client tools
-- [API Reference](../api/ai) - Explore the full API
+- [Quick Start Guide](../quick-start) - Get up and running in minutes
+- [Tools Guide](../../guides/tools) - Learn about server and client tools
+- [API Reference](../../api/ai) - Explore the full API
 
