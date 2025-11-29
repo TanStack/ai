@@ -1,5 +1,6 @@
 import { createFileRoute } from '@tanstack/solid-router'
-import { Send, Square } from 'lucide-solid'
+import Send from 'lucide-solid/icons/send'
+import Square from 'lucide-solid/icons/square'
 import { fetchServerSentEvents, useChat } from '@tanstack/ai-solid'
 import { ThinkingPart, TextPart } from '@tanstack/ai-solid-ui'
 import { createSignal, For } from 'solid-js'
