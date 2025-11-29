@@ -11,19 +11,17 @@ TanStack AI works great with:
 - **Remix** - Loaders and actions
 - **Any framework** - Framework-agnostic core
 
-## Better with TanStack Start
+## Enhanced with TanStack Start
 
-While TanStack AI works with any framework, it's **even better** with **TanStack Start**:
+TanStack AI works with any framework using `toolDefinition()` and `.server()`. 
 
-✅ **Shared implementations** - Define once, use as both AI tool AND server function  
-✅ **`createServerFnTool`** - One definition gives you three variants  
-✅ **Full type safety** - Zod schemas infer types everywhere  
-✅ **Direct calls** - Call server functions directly from components  
+**With TanStack Start**, you get a bonus: `createServerFnTool` lets you share implementations between AI tools and server functions:
 
 **Example:**
 ```typescript
 import { createServerFnTool } from '@tanstack/ai-react'
 
+// Define once, get both AI tool AND callable server function
 const getProducts = createServerFnTool({
   name: 'getProducts',
   inputSchema: z.object({ query: z.string() }),
@@ -34,11 +32,18 @@ const getProducts = createServerFnTool({
 // Use in AI chat
 chat({ tools: [getProducts.server] })
 
-// Call directly from components
+// Call directly from components (TanStack Start only!)
 const products = await getProducts.serverFn({ query: 'guitar' })
 ```
 
+**TanStack Start Benefits:**
+- ✅ No duplicate logic between AI tools and server functions
+- ✅ Call server functions directly from components (no API endpoints needed)
+- ✅ Full type safety everywhere
+
 See [Server Function Tools](../guides/server-function-tools.md) for more details.
+
+**Note:** The base library works with any framework. `createServerFnTool` is optional and TanStack Start-specific.
 
 ## Core Packages
 

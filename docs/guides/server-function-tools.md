@@ -1,45 +1,74 @@
-# Server Function Tools
+# Server Function Tools (TanStack Start)
 
-`createServerFnTool` is a helper that creates a tool definition, server implementation, and callable server function from a single definition.
+`createServerFnTool` is a **TanStack Start-specific** helper that creates a tool definition, server implementation, and callable server function from a single definition.
+
+**Note:** This feature requires **TanStack Start** (React Start or Solid Start). The base TanStack AI library works with any framework using `toolDefinition()` and `.server()`.
 
 ## Why This Exists
 
-In traditional setups, you might define the same logic twice:
+When using TanStack Start, you often need the same server logic in two places:
 
 ```typescript
-// ❌ Duplicate logic
+// ❌ Duplicate logic (without createServerFnTool)
 // For AI tool
-const getProductsTool = toolDefinition(...).server(async (args) => {
-  return await db.products.search(args.query)
+const getProductsDef = toolDefinition({
+  name: 'getProducts',
+  inputSchema: z.object({ query: z.string() }),
+  outputSchema: z.array(z.object({ id: z.string(), name: z.string() })),
 })
 
-// For direct server function calls
-export async function getProducts(query: string) {
+const getProductsServer = getProductsDef.server(async ({ query }) => {
   return await db.products.search(query)
-}
+})
+
+// For direct server function calls from components
+export const fetchProducts = createServerFn({ method: 'POST' })
+  .inputValidator((data: { query: string }) => data)
+  .handler(async ({ data }) => {
+    return await db.products.search(data.query) // Same logic!
+  })
 ```
 
-With `createServerFnTool`, **define once and get both**:
+With `createServerFnTool`, **define once and get all three**:
 
 ```typescript
-// ✅ Single definition
+// ✅ Single definition (TanStack Start)
 const getProducts = createServerFnTool({
   name: 'getProducts',
   inputSchema: z.object({ query: z.string() }),
+  outputSchema: z.array(z.object({ id: z.string(), name: z.string() })),
   execute: async ({ query }) => db.products.search(query),
 })
 
 // Use in AI chat: getProducts.server
-// Call from components: getProducts.serverFn({ query: 'laptop' })
+// Call from components: await getProducts.serverFn({ query: 'laptop' })
+// Client execution: getProducts.toolDefinition
 ```
 
-## Works With or Without TanStack Start
+## TanStack AI Without TanStack Start
 
-**Without TanStack Start:** You get a validated server function that you can call directly from your API routes or components.
+If you're **not** using TanStack Start, just use the regular `toolDefinition()` API:
 
-**With TanStack Start:** Even better integration - the `serverFn` works seamlessly with TanStack Start's server function system for features like prefetching, caching, and more.
+```typescript
+import { toolDefinition } from '@tanstack/ai'
 
-We think TanStack AI + TanStack Start is the best way to build AI applications, but it absolutely works without it!
+// Works with Next.js, Express, Remix, any framework
+const getProductsDef = toolDefinition({
+  name: 'getProducts',
+  inputSchema: z.object({ query: z.string() }),
+  outputSchema: z.array(z.object({ id: z.string(), name: z.string() })),
+})
+
+const getProducts = getProductsDef.server(async ({ query }) => {
+  return await db.products.search(query)
+})
+
+// Use in AI chat
+chat({ tools: [getProducts] })
+
+// For direct calls, create your own API endpoint
+// (No server function needed)
+```
 
 ## Installation
 
@@ -346,32 +375,35 @@ const order = await purchaseTool.serverFn({
 })
 ```
 
-## Comparison: With vs Without TanStack Start
+## Comparison: Standard vs TanStack Start Integration
 
-### Without TanStack Start (Any Framework)
+### Standard Approach (Any Framework)
 
 ```typescript
-// Define tool
+import { toolDefinition } from '@tanstack/ai'
+
+// Works with Next.js, Express, Remix, any framework
 const getProductsDef = toolDefinition({
   name: 'getProducts',
   inputSchema: z.object({ query: z.string() }),
   outputSchema: z.array(z.object({ id: z.string(), name: z.string() })),
 })
 
-// AI tool implementation
-const getProductsServer = getProductsDef.server(async ({ query }) => {
+const getProducts = getProductsDef.server(async ({ query }) => {
   return await db.products.search(query)
 })
 
-// Separate server function for direct calls
-export async function fetchProducts(query: string) {
-  return await db.products.search(query) // ❌ Duplicate logic!
+// Use in AI chat
+chat({ tools: [getProducts] })
+
+// For component calls, create a separate API endpoint
+// app/api/products/route.ts
+export async function POST(request: Request) {
+  const { query } = await request.json()
+  return Response.json(await db.products.search(query))
 }
 
-// In API route
-chat({ tools: [getProductsServer] })
-
-// In component (requires manual API call)
+// Then call from component
 const response = await fetch('/api/products', {
   method: 'POST',
   body: JSON.stringify({ query: 'laptop' }),
@@ -379,12 +411,12 @@ const response = await fetch('/api/products', {
 const products = await response.json()
 ```
 
-### With TanStack Start (Better!)
+### With TanStack Start (Bonus Features!)
 
 ```typescript
 import { createServerFnTool } from '@tanstack/ai-react'
 
-// ✅ Single definition for both!
+// ✅ Single definition - get AI tool AND server function!
 const getProducts = createServerFnTool({
   name: 'getProducts',
   inputSchema: z.object({ query: z.string() }),
@@ -392,18 +424,21 @@ const getProducts = createServerFnTool({
   execute: async ({ query }) => db.products.search(query),
 })
 
-// In AI chat - same implementation
+// Use in AI chat
 chat({ tools: [getProducts.server] })
 
-// In component - same implementation, fully typed!
+// Call directly from components - fully typed, no API endpoint needed!
 const products = await getProducts.serverFn({ query: 'laptop' })
 ```
 
-**Benefits:**
-- ✅ **No duplicate logic** - Write once, use everywhere
-- ✅ **Full type safety** - Zod types flow to both AI and components
-- ✅ **Automatic validation** - Input validation for both paths
-- ✅ **Better DX** - Less code, more features
+**TanStack Start Benefits:**
+- ✅ **No duplicate logic** - Write once, use as both AI tool AND server function
+- ✅ **No extra API endpoints** - Call server functions directly from components
+- ✅ **Full type safety** - Zod types flow everywhere
+- ✅ **Automatic validation** - Input validation built-in
+- ✅ **Better DX** - Less boilerplate, more features
+
+**Remember:** The base TanStack AI library (with `toolDefinition()` and `.server()`) works with **any** framework. `createServerFnTool` is an optional enhancement for TanStack Start users.
 
 ## Best Practices
 
