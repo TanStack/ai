@@ -11,7 +11,11 @@ function isPlainObject(obj: unknown): obj is Record<string, unknown> {
   return proto === null || proto === Object.prototype
 }
 
-function extend(deep: boolean, target: ExtendTarget, ...sources: unknown[]): ExtendTarget
+function extend(
+  deep: boolean,
+  target: ExtendTarget,
+  ...sources: unknown[]
+): ExtendTarget
 function extend(target: ExtendTarget, ...sources: unknown[]): ExtendTarget
 function extend(...args: unknown[]): ExtendTarget {
   let deep = false
@@ -27,7 +31,10 @@ function extend(...args: unknown[]): ExtendTarget {
   i++
 
   // Handle case where target is null or not an object
-  if (target == null || (typeof target !== 'object' && typeof target !== 'function')) {
+  if (
+    target == null ||
+    (typeof target !== 'object' && typeof target !== 'function')
+  ) {
     target = {}
   }
 
@@ -45,14 +52,22 @@ function extend(...args: unknown[]): ExtendTarget {
       if (target === copyVal) continue
 
       // Recurse if deep and merging objects/arrays
-      if (deep && copyVal && (isPlainObject(copyVal) || Array.isArray(copyVal))) {
+      if (
+        deep &&
+        copyVal &&
+        (isPlainObject(copyVal) || Array.isArray(copyVal))
+      ) {
         let clone: Record<string, unknown> | unknown[]
         if (Array.isArray(copyVal)) {
           clone = Array.isArray(srcVal) ? srcVal : []
         } else {
           clone = isPlainObject(srcVal) ? srcVal : {}
         }
-        ;(target as Record<string, unknown>)[key] = extend(deep, clone as ExtendTarget, copyVal)
+        ;(target as Record<string, unknown>)[key] = extend(
+          deep,
+          clone as ExtendTarget,
+          copyVal,
+        )
       } else if (copyVal !== undefined) {
         ;(target as Record<string, unknown>)[key] = copyVal
       }

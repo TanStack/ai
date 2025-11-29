@@ -6,7 +6,8 @@ function createDebug(_namespace: string) {
   debug.enabled = false
   debug.namespace = _namespace
   debug.destroy = () => true
-  debug.extend = (namespace: string) => createDebug(`${_namespace}:${namespace}`)
+  debug.extend = (namespace: string) =>
+    createDebug(`${_namespace}:${namespace}`)
   return debug
 }
 
