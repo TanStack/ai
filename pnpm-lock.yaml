@@ -485,6 +485,9 @@ importers:
       partial-json:
         specifier: ^0.1.7
         version: 0.1.7
+      zod:
+        specifier: ^4.1.13
+        version: 4.1.13
     devDependencies:
       '@vitest/coverage-v8':
         specifier: 4.0.14

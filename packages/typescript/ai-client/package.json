@@ -42,7 +42,8 @@
   },
   "dependencies": {
     "@tanstack/ai": "workspace:*",
-    "partial-json": "^0.1.7"
+    "partial-json": "^0.1.7",
+    "zod": "^4.1.13"
   },
   "devDependencies": {
     "@vitest/coverage-v8": "4.0.14",
