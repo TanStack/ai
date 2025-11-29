@@ -14,7 +14,7 @@ import {
   updateToolResultPart,
 } from './message-updaters'
 import { DefaultChatClientEventEmitter } from './events'
-import type { ModelMessage } from '@tanstack/ai'
+import type { AnyClientTool, ModelMessage } from '@tanstack/ai'
 import type { ChatClientOptions, ToolCallPart, UIMessage } from './types'
 import type { ConnectionAdapter } from './connection-adapters'
 import type { ChunkStrategy, StreamParser } from './stream/types'
@@ -33,6 +33,7 @@ export class ChatClient {
   }
   private abortController: AbortController | null = null
   private events: ChatClientEventEmitter
+  private clientTools: Map<string, AnyClientTool>
 
   private callbacks: {
     onResponse: (response?: Response) => void | Promise<void>
@@ -42,11 +43,6 @@ export class ChatClient {
     onMessagesChange: (messages: Array<UIMessage>) => void
     onLoadingChange: (isLoading: boolean) => void
     onErrorChange: (error: Error | undefined) => void
-    onToolCall?: (args: {
-      toolCallId: string
-      toolName: string
-      input: any
-    }) => Promise<any>
   }
 
   constructor(options: ChatClientOptions) {
@@ -57,6 +53,14 @@ export class ChatClient {
     this.streamProcessorConfig = options.streamProcessor || {}
     this.events = new DefaultChatClientEventEmitter(this.uniqueId)
 
+    // Build client tools map
+    this.clientTools = new Map()
+    if (options.tools) {
+      for (const tool of options.tools) {
+        this.clientTools.set(tool.name, tool)
+      }
+    }
+
     this.callbacks = {
       onResponse: options.onResponse || (() => {}),
       onChunk: options.onChunk || (() => {}),
@@ -65,7 +69,6 @@ export class ChatClient {
       onMessagesChange: options.onMessagesChange || (() => {}),
       onLoadingChange: options.onLoadingChange || (() => {}),
       onErrorChange: options.onErrorChange || (() => {}),
-      onToolCall: options.onToolCall,
     }
 
     this.events.clientCreated(this.messages.length)
@@ -195,14 +198,11 @@ export class ChatClient {
           )
         },
         onToolInputAvailable: async (toolCallId, toolName, input) => {
-          // If onToolCall callback exists, execute immediately
-          if (this.callbacks.onToolCall) {
+          // Check if we have a client tool with execute function
+          const clientTool = this.clientTools.get(toolName)
+          if (clientTool?.execute) {
             try {
-              const output = await this.callbacks.onToolCall({
-                toolCallId,
-                toolName,
-                input,
-              })
+              const output = await clientTool.execute(input)
 
               // Add result and trigger auto-send
               await this.addToolResult({
@@ -221,7 +221,7 @@ export class ChatClient {
               })
             }
           } else {
-            // No callback - just mark as input-complete (UI should handle)
+            // No tool found - just mark as input-complete (UI should handle or error)
             this.setMessages(
               updateToolCallState(
                 this.messages,

@@ -12,6 +12,42 @@ import { ThinkingPart } from '@tanstack/ai-react-ui'
 import type { UIMessage } from '@tanstack/ai-react'
 
 import GuitarRecommendation from '@/components/example-GuitarRecommendation'
+import {
+  addToCartToolDef,
+  addToWishListToolDef,
+  getPersonalGuitarPreferenceToolDef,
+  recommendGuitarToolDef,
+} from '@/lib/guitar-tools'
+
+const getPersonalGuitarPreferenceToolClient =
+  getPersonalGuitarPreferenceToolDef.client(async () => {
+    return { preference: 'acoustic' }
+  })
+
+const addToWishListToolClient = addToWishListToolDef.client((args) => {
+  const wishList = JSON.parse(localStorage.getItem('wishList') || '[]')
+  wishList.push(args.guitarId)
+  localStorage.setItem('wishList', JSON.stringify(wishList))
+  return {
+    success: true,
+    guitarId: args.guitarId,
+    totalItems: wishList.length,
+  }
+})
+
+const addToCartToolClient = addToCartToolDef.client(async (args) => {
+  return {
+    success: true,
+    cartId: 'CART_CLIENT_' + Date.now(),
+    guitarId: args.guitarId,
+    quantity: args.quantity,
+    totalItems: args.quantity,
+  }
+})
+
+const recommendGuitarToolClient = recommendGuitarToolDef.client(({ id }) => ({
+  id,
+}))
 
 function ChatInputArea({ children }: { children: React.ReactNode }) {
   return (
@@ -194,7 +230,7 @@ function DebugPanel({
   onClearChunks,
 }: {
   messages: Array<UIMessage>
-  chunks: any[]
+  chunks: Array<unknown>
   onClearChunks: () => void
 }) {
   const [activeTab, setActiveTab] = useState<'messages' | 'chunks'>('messages')
@@ -279,7 +315,7 @@ function DebugPanel({
                   </tr>
                 </thead>
                 <tbody className="text-gray-300">
-                  {chunks.map((chunk, idx) => {
+                  {chunks.map((chunk: any, idx: number) => {
                     const role = chunk.role || '-'
                     const toolType = chunk.toolCall?.type || '-'
                     const toolName = chunk.toolCall?.function?.name || '-'
@@ -328,43 +364,20 @@ function DebugPanel({
   )
 }
 
-const connection = fetchServerSentEvents('/api/tanchat')
-
 function ChatPage() {
-  const [chunks, setChunks] = useState<any[]>([])
+  const [chunks, setChunks] = useState<Array<unknown>>([])
 
   const { messages, sendMessage, isLoading, addToolApprovalResponse, stop } =
     useChat({
-      connection,
+      connection: fetchServerSentEvents('/api/tanchat'),
+      tools: [
+        getPersonalGuitarPreferenceToolClient,
+        addToWishListToolClient,
+        addToCartToolClient,
+        recommendGuitarToolClient,
+      ],
       onChunk: (chunk: any) => {
         setChunks((prev) => [...prev, chunk])
-      },
-      onToolCall: async ({ toolName, input }) => {
-        // Handle client-side tool execution
-        switch (toolName) {
-          case 'getPersonalGuitarPreference':
-            // Pure client tool - executes immediately
-            return { preference: 'acoustic' }
-
-          case 'recommendGuitar':
-            // Client tool for UI display
-            return { id: input.id }
-
-          case 'addToWishList':
-            // Hybrid: client execution AFTER approval
-            // Only runs after user approves
-            const wishList = JSON.parse(
-              localStorage.getItem('wishList') || '[]',
-            )
-            wishList.push(input.guitarId)
-            localStorage.setItem('wishList', JSON.stringify(wishList))
-            return {
-              success: true,
-              guitarId: input.guitarId,
-              totalItems: wishList.length,
-            }
-        }
-        return Promise.resolve({ result: 'Unknown client tool' })
       },
     })
   const [input, setInput] = useState('')

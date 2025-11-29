@@ -9,7 +9,7 @@ import { openai } from '@tanstack/ai-openai'
 // import { ollama } from "@tanstack/ai-ollama";
 // import { anthropic } from "@tanstack/ai-anthropic";
 // import { gemini } from "@tanstack/ai-gemini";
-import { allTools } from '@/lib/guitar-tools'
+import { serverTools } from '@/lib/guitar-tools'
 
 const SYSTEM_PROMPT = `You are a helpful assistant for a guitar store.
 
@@ -70,7 +70,7 @@ export const Route = createFileRoute('/api/tanchat')({
             // model: "claude-sonnet-4-5-20250929",
             // model: "smollm",
             // model: "gemini-2.5-flash",
-            tools: allTools,
+            tools: serverTools,
             systemPrompts: [SYSTEM_PROMPT],
             agentLoopStrategy: maxIterations(20),
             messages,

@@ -1,5 +1,5 @@
 import { ChatClient } from '@tanstack/ai-client'
-import type { ModelMessage } from '@tanstack/ai'
+import type { ModelMessage, ClientTool, AnyClientTool } from '@tanstack/ai'
 import type { UseChatOptions, UseChatReturn, UIMessage } from './types'
 import {
   createEffect,
@@ -8,11 +8,13 @@ import {
   createUniqueId,
 } from 'solid-js'
 
-export function useChat(options: UseChatOptions = {}): UseChatReturn {
+export function useChat<TTools extends ReadonlyArray<AnyClientTool> = any>(
+  options: UseChatOptions<TTools> = {} as UseChatOptions<TTools>,
+): UseChatReturn<TTools> {
   const hookId = createUniqueId()
   const clientId = options.id || hookId
 
-  const [messages, setMessages] = createSignal<UIMessage[]>(
+  const [messages, setMessages] = createSignal<Array<UIMessage<TTools>>>(
     options.initialMessages || [],
   )
   const [isLoading, setIsLoading] = createSignal(false)
@@ -32,9 +34,9 @@ export function useChat(options: UseChatOptions = {}): UseChatReturn {
       onChunk: options.onChunk,
       onFinish: options.onFinish,
       onError: options.onError,
-      onToolCall: options.onToolCall,
+      tools: options.tools,
       streamProcessor: options.streamProcessor,
-      onMessagesChange: (newMessages: UIMessage[]) => {
+      onMessagesChange: (newMessages: Array<UIMessage<TTools>>) => {
         setMessages(newMessages)
       },
       onLoadingChange: (newIsLoading: boolean) => {
@@ -79,7 +81,7 @@ export function useChat(options: UseChatOptions = {}): UseChatReturn {
     await client().sendMessage(content)
   }
 
-  const append = async (message: ModelMessage | UIMessage) => {
+  const append = async (message: ModelMessage | UIMessage<TTools>) => {
     await client().append(message)
   }
 
@@ -95,7 +97,7 @@ export function useChat(options: UseChatOptions = {}): UseChatReturn {
     client().clear()
   }
 
-  const setMessagesManually = (newMessages: UIMessage[]) => {
+  const setMessagesManually = (newMessages: Array<UIMessage<TTools>>) => {
     client().setMessagesManually(newMessages)
   }
 

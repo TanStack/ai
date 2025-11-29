@@ -6,6 +6,7 @@ import type { UIMessage } from '@tanstack/ai-solid'
 
 import type { JSXElement } from 'solid-js'
 import GuitarRecommendation from '@/components/example-GuitarRecommendation'
+import { clientTools } from '@/lib/guitar-tools'
 
 function ChatInputArea({ children }: { children: JSXElement }) {
   return (
@@ -278,37 +279,9 @@ function ChatPage() {
   const { messages, sendMessage, isLoading, addToolApprovalResponse, stop } =
     useChat({
       connection: fetchServerSentEvents('/api/tanchat'),
+      tools: clientTools,
       onChunk: (chunk: any) => {
         setChunks((prev) => [...prev, chunk])
-      },
-      onToolCall: async ({ toolName, input }) => {
-        // Handle client-side tool execution
-        switch (toolName) {
-          case 'getPersonalGuitarPreference':
-            // Pure client tool - executes immediately
-            return { preference: 'acoustic' }
-
-          case 'recommendGuitar':
-            // Client tool for UI display
-            return { id: input.id }
-
-          case 'addToWishList':
-            // Hybrid: client execution AFTER approval
-            // Only runs after user approves
-            const wishList = JSON.parse(
-              localStorage.getItem('wishList') || '[]',
-            )
-            wishList.push(input.guitarId)
-            localStorage.setItem('wishList', JSON.stringify(wishList))
-            return {
-              success: true,
-              guitarId: input.guitarId,
-              totalItems: wishList.length,
-            }
-
-          default:
-            throw new Error(`Unknown client tool: ${toolName}`)
-        }
       },
     })
   const [input, setInput] = createSignal('')

@@ -1,6 +1,7 @@
-import type { ModelMessage, StreamChunk } from '@tanstack/ai'
+import type { AnyClientTool, ModelMessage, StreamChunk } from '@tanstack/ai'
 import type { ConnectionAdapter } from './connection-adapters'
 import type { ChunkStrategy, StreamParser } from './stream/types'
+import type { ExtractToolNames, ExtractToolOutput } from './tool-types'
 
 /**
  * Tool call states - track the lifecycle of a tool call
@@ -28,10 +29,14 @@ export interface TextPart {
   content: string
 }
 
-export interface ToolCallPart {
+export interface ToolCallPart<
+  TTools extends ReadonlyArray<AnyClientTool> = any,
+> {
   type: 'tool-call'
   id: string
-  name: string
+  name: TTools extends ReadonlyArray<AnyClientTool>
+    ? ExtractToolNames<TTools>
+    : string
   arguments: string // JSON string (may be incomplete)
   state: ToolCallState
   /** Approval metadata if tool requires user approval */
@@ -41,7 +46,11 @@ export interface ToolCallPart {
     approved?: boolean // User's decision (undefined until responded)
   }
   /** Tool execution output (for client tools or after approval) */
-  output?: any
+  output?: TTools extends ReadonlyArray<AnyClientTool>
+    ? this['name'] extends string
+      ? ExtractToolOutput<TTools, this['name']>
+      : any
+    : any
 }
 
 export interface ToolResultPart {
@@ -57,9 +66,9 @@ export interface ThinkingPart {
   content: string
 }
 
-export type MessagePart =
+export type MessagePart<TTools extends ReadonlyArray<AnyClientTool> = any> =
   | TextPart
-  | ToolCallPart
+  | ToolCallPart<TTools>
   | ToolResultPart
   | ThinkingPart
 
@@ -67,14 +76,16 @@ export type MessagePart =
  * UIMessage - Domain-specific message format optimized for building chat UIs
  * Contains parts that can be text, tool calls, or tool results
  */
-export interface UIMessage {
+export interface UIMessage<TTools extends ReadonlyArray<AnyClientTool> = any> {
   id: string
   role: 'system' | 'user' | 'assistant'
-  parts: Array<MessagePart>
+  parts: Array<MessagePart<TTools>>
   createdAt?: Date
 }
 
-export interface ChatClientOptions {
+export interface ChatClientOptions<
+  TTools extends ReadonlyArray<AnyClientTool> = any,
+> {
   /**
    * Connection adapter for streaming
    * Use fetchServerSentEvents(), fetchHttpStream(), or stream() to create adapters
@@ -84,7 +95,7 @@ export interface ChatClientOptions {
   /**
    * Initial messages to populate the chat
    */
-  initialMessages?: Array<UIMessage>
+  initialMessages?: Array<UIMessage<TTools>>
 
   /**
    * Unique identifier for this chat instance
@@ -110,7 +121,7 @@ export interface ChatClientOptions {
   /**
    * Callback when the response is finished
    */
-  onFinish?: (message: UIMessage) => void
+  onFinish?: (message: UIMessage<TTools>) => void
 
   /**
    * Callback when an error occurs
@@ -120,7 +131,7 @@ export interface ChatClientOptions {
   /**
    * Callback when messages change
    */
-  onMessagesChange?: (messages: Array<UIMessage>) => void
+  onMessagesChange?: (messages: Array<UIMessage<TTools>>) => void
 
   /**
    * Callback when loading state changes
@@ -133,14 +144,10 @@ export interface ChatClientOptions {
   onErrorChange?: (error: Error | undefined) => void
 
   /**
-   * Callback when a client-side tool needs to be executed
-   * Tool has no execute function - client must provide the result
+   * Client-side tools with execution logic
+   * When provided, tools with execute functions will be called automatically
    */
-  onToolCall?: (args: {
-    toolCallId: string
-    toolName: string
-    input: any
-  }) => Promise<any>
+  tools?: TTools
 
   /**
    * Stream processing options (optional)

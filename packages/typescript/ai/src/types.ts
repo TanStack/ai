@@ -107,9 +107,7 @@ export interface Tool<
    *   return weather; // Can return object or string
    * }
    */
-  execute?: (
-    args: z.infer<TInput>,
-  ) => Promise<z.infer<TOutput>> | z.infer<TOutput>
+  execute?: (args: any) => Promise<any> | any
 
   /** If true, tool execution requires user approval before running. Works with both server and client tools. */
   needsApproval?: boolean

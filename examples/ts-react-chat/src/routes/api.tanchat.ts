@@ -1,10 +1,14 @@
 import { createFileRoute } from '@tanstack/react-router'
 import { chat, maxIterations, toStreamResponse } from '@tanstack/ai'
 import { openai } from '@tanstack/ai-openai'
-// import { ollama } from "@tanstack/ai-ollama";
-import { anthropic } from '@tanstack/ai-anthropic'
-// import { gemini } from "@tanstack/ai-gemini";
-import { allTools } from '@/lib/guitar-tools'
+import {
+  addToCartToolDef,
+  addToWishListToolDef,
+  getGuitarsToolDef,
+  getPersonalGuitarPreferenceToolDef,
+  recommendGuitarToolDef,
+} from '@/lib/guitar-tools'
+import guitars from '@/data/example-guitars'
 
 const SYSTEM_PROMPT = `You are a helpful assistant for a guitar store.
 
@@ -29,6 +33,16 @@ Step 2: Call recommendGuitar(id: "6")
 Step 3: Done - do NOT add any text after calling recommendGuitar
 `
 
+const getGuitarsToolServer = getGuitarsToolDef.server(() => guitars)
+
+const addToCartToolServer = addToCartToolDef.server((args) => ({
+  success: true,
+  cartId: 'CART_' + Date.now(),
+  guitarId: args.guitarId,
+  quantity: args.quantity,
+  totalItems: args.quantity,
+}))
+
 export const Route = createFileRoute('/api/tanchat')({
   server: {
     handlers: {
@@ -45,33 +59,19 @@ export const Route = createFileRoute('/api/tanchat')({
 
         const { messages } = await request.json()
         try {
-          // Use the stream abort signal for proper cancellation handling
           const stream = chat({
             adapter: openai(),
             model: 'gpt-5',
-            // For thinking/reasoning support, use one of these models:
-            // - OpenAI: "gpt-5", "o3", "o3-pro", "o3-mini" (with reasoning option)
-            // - Anthropic: "claude-sonnet-4-5-20250929", "claude-opus-4-5-20251101" (with thinking option)
-            // - Gemini: "gemini-3-pro-preview", "gemini-2.5-pro" (with thinkingConfig option)
-            // model: 'claude-sonnet-4-5-20250929',
-            // model: "claude-sonnet-4-5-20250929",
-            // model: "smollm",
-            // model: "gemini-2.5-flash",
-            tools: allTools,
+            tools: [
+              getGuitarsToolServer,
+              recommendGuitarToolDef, // No server execute - client will handle
+              addToCartToolServer,
+              addToWishListToolDef,
+              getPersonalGuitarPreferenceToolDef,
+            ],
             systemPrompts: [SYSTEM_PROMPT],
             agentLoopStrategy: maxIterations(20),
             messages,
-            providerOptions: {
-              // Enable reasoning for OpenAI (gpt-5, o3 models):
-              // reasoning: {
-              //   effort: "medium", // or "low", "high", "minimal", "none" (for gpt-5.1)
-              // },
-              // Enable thinking for Anthropic:
-              /*   thinking: {
-                  type: "enabled",
-                  budget_tokens: 2048,
-                }, */
-            },
             abortController,
           })
 
