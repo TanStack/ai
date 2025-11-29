@@ -9,6 +9,7 @@
 This commit was reverted due to a regression that was breaking the main branch. The changes affected CI configuration syncing between projects.
 
 **Changes reverted:**
+
 - Reverted workflow changes in `.github/workflows/autofix.yml`
 - Reverted nx.json configuration changes
 - Reverted package.json script changes
