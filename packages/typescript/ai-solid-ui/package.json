@@ -44,6 +44,8 @@
     "solid-js": ">=1.9.7"
   },
   "devDependencies": {
+    "@tanstack/ai-client": "workspace:*",
+    "@tanstack/ai-solid": "workspace:*",
     "@vitest/coverage-v8": "4.0.14",
     "vite": "^7.2.4",
     "vite-plugin-solid": "^2.11.10"
