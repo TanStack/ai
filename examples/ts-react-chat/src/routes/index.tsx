@@ -46,18 +46,18 @@ const recommendGuitarToolClient = recommendGuitarToolDef.client(({ id }) => ({
   id,
 }))
 
-// Create typed chat options for type inference
+const clientTools = [
+  getPersonalGuitarPreferenceToolClient,
+  addToWishListToolClient,
+  addToCartToolClient,
+  recommendGuitarToolClient,
+] as const
+
 const chatOptions = createChatClientOptions({
   connection: fetchServerSentEvents('/api/tanchat'),
-  tools: [
-    getPersonalGuitarPreferenceToolClient,
-    addToWishListToolClient,
-    addToCartToolClient,
-    recommendGuitarToolClient,
-  ],
+  tools: clientTools,
 })
 
-// Extract the typed messages from the options
 type ChatMessages = InferChatMessages<typeof chatOptions>
 
 function ChatInputArea({ children }: { children: React.ReactNode }) {
@@ -210,7 +210,8 @@ function Messages({
                   // Guitar recommendation card
                   if (
                     part.type === 'tool-call' &&
-                    part.name === 'recommendGuitar'
+                    part.name === 'recommendGuitar' &&
+                    part.output
                   ) {
                     return (
                       <div key={part.id} className="mt-2">
@@ -375,7 +376,8 @@ function ChatPage() {
 
   const { messages, sendMessage, isLoading, addToolApprovalResponse, stop } =
     useChat({
-      ...chatOptions,
+      connection: chatOptions.connection,
+      tools: clientTools,
       onChunk: (chunk: any) => {
         setChunks((prev) => [...prev, chunk])
       },

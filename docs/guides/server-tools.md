@@ -4,14 +4,14 @@ Server tools execute on the backend, giving you secure access to databases, APIs
 
 ## Defining Server Tools
 
-Server tools are defined using the `tool` utility with Zod schemas for type safety:
+Server tools use the isomorphic `toolDefinition()` API with the `.server()` method:
 
 ```typescript
-import { tool } from "@tanstack/ai";
+import { toolDefinition } from "@tanstack/ai";
 import { z } from "zod";
 
-// Example: Database query tool
-const getUserData = tool({
+// Step 1: Define the tool schema
+const getUserDataDef = toolDefinition({
   name: "get_user_data",
   description: "Get user information from the database",
   inputSchema: z.object({
@@ -22,36 +22,39 @@ const getUserData = tool({
     email: z.string().email(),
     createdAt: z.string(),
   }),
-  execute: async ({ userId }) => {
-    // This runs on the server - can access database, APIs, etc.
-    const user = await db.users.findUnique({ where: { id: userId } });
-    return {
-      name: user.name,
-      email: user.email,
-      createdAt: user.createdAt,
-    };
-  },
+});
+
+// Step 2: Create server implementation
+const getUserData = getUserDataDef.server(async ({ userId }) => {
+  // This runs on the server - can access database, APIs, etc.
+  const user = await db.users.findUnique({ where: { id: userId } });
+  return {
+    name: user.name,
+    email: user.email,
+    createdAt: user.createdAt.toISOString(),
+  };
 });
 
 // Example: API call tool
-const searchProducts = tool({
+const searchProductsDef = toolDefinition({
   name: "search_products",
   description: "Search for products in the catalog",
   inputSchema: z.object({
     query: z.string().describe("Search query"),
     limit: z.number().optional().describe("Maximum number of results"),
   }),
-  execute: async ({ query, limit = 10 }) => {
-    const response = await fetch(
-      `https://api.example.com/products?q=${query}&limit=${limit}`,
-      {
-        headers: {
-          Authorization: `Bearer ${process.env.API_KEY}`, // Server-only access
-        },
-      }
-    );
-    return await response.json();
-  },
+});
+
+const searchProducts = searchProductsDef.server(async ({ query, limit = 10 }) => {
+  const response = await fetch(
+    `https://api.example.com/products?q=${query}&limit=${limit}`,
+    {
+      headers: {
+        Authorization: `Bearer ${process.env.API_KEY}`, // Server-only access
+      },
+    }
+  );
+  return await response.json();
 });
 ```
 
@@ -78,48 +81,59 @@ export async function POST(request: Request) {
 }
 ```
 
-## Tool Registry Pattern
+## Tool Organization Pattern
 
-For better organization, you can define tools in a registry:
+For better organization, define tool schemas and implementations separately:
 
 ```typescript
-// tools/index.ts
-import { tool } from "@tanstack/ai";
+// tools/definitions.ts
+import { toolDefinition } from "@tanstack/ai";
 import { z } from "zod";
 
-export const tools = {
-  getUserData: tool({
-    name: "get_user_data",
-    description: "Get user information",
-    inputSchema: z.object({
-      userId: z.string(),
-    }),
-    execute: async ({ userId }) => {
-      // Implementation
-    },
+export const getUserDataDef = toolDefinition({
+  name: "get_user_data",
+  description: "Get user information",
+  inputSchema: z.object({
+    userId: z.string(),
   }),
-  searchProducts: tool({
-    name: "search_products",
-    description: "Search products",
-    inputSchema: z.object({
-      query: z.string(),
-    }),
-    execute: async ({ query }) => {
-      // Implementation
-    },
+  outputSchema: z.object({
+    name: z.string(),
+    email: z.string(),
   }),
-};
+});
+
+export const searchProductsDef = toolDefinition({
+  name: "search_products",
+  description: "Search products",
+  inputSchema: z.object({
+    query: z.string(),
+  }),
+});
+
+// tools/server.ts
+import { getUserDataDef, searchProductsDef } from "./definitions";
+import { db } from "@/lib/db";
+
+export const getUserData = getUserDataDef.server(async ({ userId }) => {
+  const user = await db.users.findUnique({ where: { id: userId } });
+  return { name: user.name, email: user.email };
+});
+
+export const searchProducts = searchProductsDef.server(async ({ query }) => {
+  const products = await db.products.search(query);
+  return products;
+});
 
 // api/chat/route.ts
 import { chat } from "@tanstack/ai";
 import { openai } from "@tanstack/ai-openai";
-import { tools } from "@/tools";
+import { getUserData, searchProducts } from "@/tools/server";
 
 const stream = chat({
   adapter: openai(),
   messages,
   model: "gpt-4o",
-  tools: Object.values(tools),
+  tools: [getUserData, searchProducts],
 });
 ```
 
@@ -139,23 +153,29 @@ You don't need to manually handle tool execution - it's automatic!
 Tools should handle errors gracefully:
 
 ```typescript
-const getUserData = tool({
+const getUserDataDef = toolDefinition({
   name: "get_user_data",
   description: "Get user information",
   inputSchema: z.object({
     userId: z.string(),
   }),
-  execute: async ({ userId }) => {
-    try {
-      const user = await db.users.findUnique({ where: { id: userId } });
-      if (!user) {
-        return { error: "User not found" };
-      }
-      return { name: user.name, email: user.email };
-    } catch (error) {
-      return { error: "Failed to fetch user data" };
+  outputSchema: z.object({
+    name: z.string().optional(),
+    email: z.string().optional(),
+    error: z.string().optional(),
+  }),
+});
+
+const getUserData = getUserDataDef.server(async ({ userId }) => {
+  try {
+    const user = await db.users.findUnique({ where: { id: userId } });
+    if (!user) {
+      return { error: "User not found" };
     }
-  },
+    return { name: user.name, email: user.email };
+  } catch (error) {
+    return { error: "Failed to fetch user data" };
+  }
 });
 ```
 

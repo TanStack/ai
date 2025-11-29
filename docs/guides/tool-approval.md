@@ -14,13 +14,14 @@ When a tool requires approval:
 
 ## Enabling Approval
 
-Tools can be marked as requiring approval by setting `needsApproval: true`:
+Tools can be marked as requiring approval by setting `needsApproval: true` in the definition:
 
 ```typescript
-import { tool } from "@tanstack/ai";
+import { toolDefinition } from "@tanstack/ai";
 import { z } from "zod";
 
-const sendEmail = tool({
+// Step 1: Define tool with approval requirement
+const sendEmailDef = toolDefinition({
   name: "send_email",
   description: "Send an email to a recipient",
   inputSchema: z.object({
@@ -28,12 +29,18 @@ const sendEmail = tool({
     subject: z.string(),
     body: z.string(),
   }),
+  outputSchema: z.object({
+    success: z.boolean(),
+    messageId: z.string(),
+  }),
   needsApproval: true, // This tool requires approval
-  execute: async ({ to, subject, body }) => {
-    // Only executes if approved
-    await emailService.send({ to, subject, body });
-    return { success: true, messageId: "..." };
-  },
+});
+
+// Step 2: Create server implementation
+const sendEmail = sendEmailDef.server(async ({ to, subject, body }) => {
+  // Only executes if approved
+  await emailService.send({ to, subject, body });
+  return { success: true, messageId: "..." };
 });
 ```
 
@@ -161,26 +168,29 @@ function ApprovalPrompt({ part, onApprove, onDeny }) {
 Client tools can also require approval:
 
 ```typescript
-// Server: Define client tool with approval
-const deleteLocalData = tool({
+// tools/definitions.ts
+const deleteLocalDataDef = toolDefinition({
   name: "delete_local_data",
   description: "Delete data from local storage",
   inputSchema: z.object({
     key: z.string(),
   }),
+  outputSchema: z.object({
+    deleted: z.boolean(),
+  }),
   needsApproval: true, // Requires approval even on client
 });
 
-// Client: Handle approval
+// Client: Create implementation
+const deleteLocalData = deleteLocalDataDef.client((input) => {
+  // This will only execute after approval
+  localStorage.removeItem(input.key);
+  return { deleted: true };
+});
+
 const { messages, addToolApprovalResponse } = useChat({
   connection: fetchServerSentEvents("/api/chat"),
-  onToolCall: async ({ toolName, input }) => {
-    if (toolName === "deleteLocalData") {
-      // This will only execute after approval
-      localStorage.removeItem(input.key);
-      return { deleted: true };
-    }
-  },
+  tools: [deleteLocalData], // Automatic execution after approval
 });
 ```
 
@@ -205,7 +215,8 @@ Tools go through these states during approval:
 ## Example: E-commerce Purchase
 
 ```typescript
-const purchaseItem = tool({
+// Define tool with approval requirement
+const purchaseItemDef = toolDefinition({
   name: "purchase_item",
   description: "Purchase an item from the store",
   inputSchema: z.object({
@@ -213,15 +224,21 @@ const purchaseItem = tool({
     quantity: z.number(),
     price: z.number(),
   }),
+  outputSchema: z.object({
+    orderId: z.string(),
+    total: z.number(),
+  }),
   needsApproval: true,
-  execute: async ({ itemId, quantity, price }) => {
-    const order = await createOrder({ itemId, quantity, price });
-    return { orderId: order.id, total: price * quantity };
-  },
+});
+
+// Create server implementation
+const purchaseItem = purchaseItemDef.server(async ({ itemId, quantity, price }) => {
+  const order = await createOrder({ itemId, quantity, price });
+  return { orderId: order.id, total: price * quantity };
 });
 ```
 
-The user will see an approval prompt showing the item, quantity, and price before the purchase is made.
+The user will see an approval prompt showing the item, quantity, and price before the purchase is made. The tool will only execute after the user approves.
 
 ## Next Steps
 
