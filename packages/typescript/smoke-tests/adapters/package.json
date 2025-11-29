@@ -7,7 +7,7 @@
   "type": "module",
   "scripts": {
     "start": "tsx src/index.ts",
-    "test:types": "tsc --noEmit"
+    "typecheck": "tsc --noEmit"
   },
   "dependencies": {
     "@tanstack/ai": "workspace:*",

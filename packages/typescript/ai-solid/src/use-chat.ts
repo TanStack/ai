@@ -1,10 +1,10 @@
-import { ChatClient } from '@tanstack/ai-client'
 import {
   createEffect,
   createMemo,
   createSignal,
   createUniqueId,
 } from 'solid-js'
+import { ChatClient } from '@tanstack/ai-client'
 import type { AnyClientTool, ModelMessage } from '@tanstack/ai'
 import type { UIMessage, UseChatOptions, UseChatReturn } from './types'
 
@@ -56,7 +56,7 @@ export function useChat<TTools extends ReadonlyArray<AnyClientTool> = any>(
   createEffect(() => {
     if (options.initialMessages && options.initialMessages.length > 0) {
       // Only set if current messages are empty (initial state)
-      if (messages.length === 0) {
+      if (messages().length === 0) {
         client().setMessagesManually(options.initialMessages)
       }
     }
