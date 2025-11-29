@@ -11,7 +11,9 @@ export type {
   // Client configuration types
   ChatClientOptions,
   ChatRequestBody,
+  InferChatMessages,
 } from './types'
+export { createChatClientOptions } from './types'
 export type {
   ExtractToolNames,
   ExtractToolInput,

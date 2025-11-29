@@ -7,7 +7,8 @@ import type { Tool } from '../types'
 export interface ServerTool<
   TInput extends z.ZodType = z.ZodType,
   TOutput extends z.ZodType = z.ZodType,
-> extends Tool<TInput, TOutput> {
+  TName extends string = string,
+> extends Tool<TInput, TOutput, TName> {
   __toolSide: 'server'
 }
 
@@ -17,9 +18,10 @@ export interface ServerTool<
 export interface ClientTool<
   TInput extends z.ZodType = z.ZodType,
   TOutput extends z.ZodType = z.ZodType,
+  TName extends string = string,
 > {
   __toolSide: 'client'
-  name: string
+  name: TName
   description: string
   inputSchema?: TInput
   outputSchema?: TOutput
@@ -36,7 +38,8 @@ export interface ClientTool<
 export interface ToolDefinitionInstance<
   TInput extends z.ZodType = z.ZodType,
   TOutput extends z.ZodType = z.ZodType,
-> extends Tool<TInput, TOutput> {
+  TName extends string = string,
+> extends Tool<TInput, TOutput, TName> {
   __toolSide: 'definition'
 }
 
@@ -76,8 +79,9 @@ export type InferToolOutput<T> = T extends { outputSchema: infer TOutput }
 export interface ToolDefinitionConfig<
   TInput extends z.ZodType = z.ZodType,
   TOutput extends z.ZodType = z.ZodType,
+  TName extends string = string,
 > {
-  name: string
+  name: TName
   description: string
   inputSchema?: TInput
   outputSchema?: TOutput
@@ -91,7 +95,8 @@ export interface ToolDefinitionConfig<
 export interface ToolDefinition<
   TInput extends z.ZodType = z.ZodType,
   TOutput extends z.ZodType = z.ZodType,
-> extends ToolDefinitionInstance<TInput, TOutput> {
+  TName extends string = string,
+> extends ToolDefinitionInstance<TInput, TOutput, TName> {
   /**
    * Create a server-side tool with execute function
    */
@@ -99,7 +104,7 @@ export interface ToolDefinition<
     execute: (
       args: z.infer<TInput>,
     ) => Promise<z.infer<TOutput>> | z.infer<TOutput>,
-  ): ServerTool<TInput, TOutput>
+  ): ServerTool<TInput, TOutput, TName>
 
   /**
    * Create a client-side tool with optional execute function
@@ -108,7 +113,7 @@ export interface ToolDefinition<
     execute?: (
       args: z.infer<TInput>,
     ) => Promise<z.infer<TOutput>> | z.infer<TOutput>,
-  ): ClientTool<TInput, TOutput>
+  ): ClientTool<TInput, TOutput, TName>
 }
 
 /**
@@ -165,10 +170,11 @@ export interface ToolDefinition<
 export function toolDefinition<
   TInput extends z.ZodType = z.ZodAny,
   TOutput extends z.ZodType = z.ZodAny,
+  TName extends string = string,
 >(
-  config: ToolDefinitionConfig<TInput, TOutput>,
-): ToolDefinition<TInput, TOutput> {
-  const definition: ToolDefinition<TInput, TOutput> = {
+  config: ToolDefinitionConfig<TInput, TOutput, TName>,
+): ToolDefinition<TInput, TOutput, TName> {
+  const definition: ToolDefinition<TInput, TOutput, TName> = {
     __toolSide: 'definition',
     name: config.name,
     description: config.description,
@@ -181,7 +187,7 @@ export function toolDefinition<
       execute: (
         args: z.infer<TInput>,
       ) => Promise<z.infer<TOutput>> | z.infer<TOutput>,
-    ): ServerTool<TInput, TOutput> {
+    ): ServerTool<TInput, TOutput, TName> {
       return {
         __toolSide: 'server',
         name: config.name,
@@ -198,7 +204,7 @@ export function toolDefinition<
       execute?: (
         args: z.infer<TInput>,
       ) => Promise<z.infer<TOutput>> | z.infer<TOutput>,
-    ): ClientTool<TInput, TOutput> {
+    ): ClientTool<TInput, TOutput, TName> {
       return {
         __toolSide: 'client',
         name: config.name,

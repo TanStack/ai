@@ -1,4 +1,4 @@
-import type { ModelMessage, ClientTool, AnyClientTool } from '@tanstack/ai'
+import type { ModelMessage, AnyClientTool } from '@tanstack/ai'
 import type {
   ChatClientOptions,
   UIMessage,
@@ -97,3 +97,6 @@ export interface UseChatReturn<
    */
   clear: () => void
 }
+
+// Note: createChatClientOptions and InferChatMessages are now in @tanstack/ai-client
+// and re-exported from there for convenience

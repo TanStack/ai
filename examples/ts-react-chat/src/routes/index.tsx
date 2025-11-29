@@ -7,9 +7,10 @@ import rehypeSanitize from 'rehype-sanitize'
 import rehypeHighlight from 'rehype-highlight'
 import remarkGfm from 'remark-gfm'
 import { fetchServerSentEvents, useChat } from '@tanstack/ai-react'
+import { createChatClientOptions } from '@tanstack/ai-client'
 import { ThinkingPart } from '@tanstack/ai-react-ui'
 
-import type { UIMessage } from '@tanstack/ai-react'
+import type { InferChatMessages } from '@tanstack/ai-client'
 
 import GuitarRecommendation from '@/components/example-GuitarRecommendation'
 import {
@@ -20,9 +21,7 @@ import {
 } from '@/lib/guitar-tools'
 
 const getPersonalGuitarPreferenceToolClient =
-  getPersonalGuitarPreferenceToolDef.client(async () => {
-    return { preference: 'acoustic' }
-  })
+  getPersonalGuitarPreferenceToolDef.client(() => ({ preference: 'acoustic' }))
 
 const addToWishListToolClient = addToWishListToolDef.client((args) => {
   const wishList = JSON.parse(localStorage.getItem('wishList') || '[]')
@@ -35,19 +34,31 @@ const addToWishListToolClient = addToWishListToolDef.client((args) => {
   }
 })
 
-const addToCartToolClient = addToCartToolDef.client(async (args) => {
-  return {
-    success: true,
-    cartId: 'CART_CLIENT_' + Date.now(),
-    guitarId: args.guitarId,
-    quantity: args.quantity,
-    totalItems: args.quantity,
-  }
-})
+const addToCartToolClient = addToCartToolDef.client((args) => ({
+  success: true,
+  cartId: 'CART_CLIENT_' + Date.now(),
+  guitarId: args.guitarId,
+  quantity: args.quantity,
+  totalItems: args.quantity,
+}))
 
 const recommendGuitarToolClient = recommendGuitarToolDef.client(({ id }) => ({
   id,
 }))
+
+// Create typed chat options for type inference
+const chatOptions = createChatClientOptions({
+  connection: fetchServerSentEvents('/api/tanchat'),
+  tools: [
+    getPersonalGuitarPreferenceToolClient,
+    addToWishListToolClient,
+    addToCartToolClient,
+    recommendGuitarToolClient,
+  ],
+})
+
+// Extract the typed messages from the options
+type ChatMessages = InferChatMessages<typeof chatOptions>
 
 function ChatInputArea({ children }: { children: React.ReactNode }) {
   return (
@@ -61,7 +72,7 @@ function Messages({
   messages,
   addToolApprovalResponse,
 }: {
-  messages: Array<UIMessage>
+  messages: ChatMessages
   addToolApprovalResponse: (response: {
     id: string
     approved: boolean
@@ -85,18 +96,18 @@ function Messages({
       ref={messagesContainerRef}
       className="flex-1 overflow-y-auto px-4 py-4"
     >
-      {messages.map(({ id, role, parts }) => {
+      {messages.map((message) => {
         return (
           <div
-            key={id}
+            key={message.id}
             className={`p-4 rounded-lg mb-2 ${
-              role === 'assistant'
+              message.role === 'assistant'
                 ? 'bg-linear-to-r from-orange-500/5 to-red-600/5'
                 : 'bg-transparent'
             }`}
           >
             <div className="flex items-start gap-4">
-              {role === 'assistant' ? (
+              {message.role === 'assistant' ? (
                 <div className="w-8 h-8 rounded-lg bg-linear-to-r from-orange-500 to-red-600 flex items-center justify-center text-sm font-medium text-white flex-shrink-0">
                   AI
                 </div>
@@ -107,11 +118,11 @@ function Messages({
               )}
               <div className="flex-1 min-w-0">
                 {/* Render parts in order */}
-                {parts.map((part, index) => {
+                {message.parts.map((part, index) => {
                   // Thinking part
                   if (part.type === 'thinking') {
                     // Check if thinking is complete (if there's a text part after)
-                    const isComplete = parts
+                    const isComplete = message.parts
                       .slice(index + 1)
                       .some((p) => p.type === 'text')
                     return (
@@ -199,18 +210,13 @@ function Messages({
                   // Guitar recommendation card
                   if (
                     part.type === 'tool-call' &&
-                    part.name === 'recommendGuitar' &&
-                    part.output
+                    part.name === 'recommendGuitar'
                   ) {
-                    try {
-                      return (
-                        <div key={part.id} className="mt-2">
-                          <GuitarRecommendation id={part.output.id} />
-                        </div>
-                      )
-                    } catch {
-                      return null
-                    }
+                    return (
+                      <div key={part.id} className="mt-2">
+                        <GuitarRecommendation id={part.output?.id} />
+                      </div>
+                    )
                   }
 
                   return null
@@ -229,7 +235,7 @@ function DebugPanel({
   chunks,
   onClearChunks,
 }: {
-  messages: Array<UIMessage>
+  messages: ChatMessages
   chunks: Array<unknown>
   onClearChunks: () => void
 }) {
@@ -369,13 +375,7 @@ function ChatPage() {
 
   const { messages, sendMessage, isLoading, addToolApprovalResponse, stop } =
     useChat({
-      connection: fetchServerSentEvents('/api/tanchat'),
-      tools: [
-        getPersonalGuitarPreferenceToolClient,
-        addToWishListToolClient,
-        addToCartToolClient,
-        recommendGuitarToolClient,
-      ],
+      ...chatOptions,
       onChunk: (chunk: any) => {
         setChunks((prev) => [...prev, chunk])
       },

@@ -6,11 +6,13 @@ export type {
   ChatRequestBody,
 } from './types'
 
-// Re-export connection adapters from ai-client for convenience
+// Re-export from ai-client for convenience
 export {
   fetchServerSentEvents,
   fetchHttpStream,
   stream,
+  createChatClientOptions,
   type ConnectionAdapter,
   type FetchConnectionOptions,
+  type InferChatMessages,
 } from '@tanstack/ai-client'

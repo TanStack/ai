@@ -1,7 +1,7 @@
 import type { AnyClientTool, ModelMessage, StreamChunk } from '@tanstack/ai'
 import type { ConnectionAdapter } from './connection-adapters'
 import type { ChunkStrategy, StreamParser } from './stream/types'
-import type { ExtractToolNames, ExtractToolOutput } from './tool-types'
+import type { ExtractToolOutput } from './tool-types'
 
 /**
  * Tool call states - track the lifecycle of a tool call
@@ -29,29 +29,40 @@ export interface TextPart {
   content: string
 }
 
-export interface ToolCallPart<
-  TTools extends ReadonlyArray<AnyClientTool> = any,
-> {
-  type: 'tool-call'
-  id: string
-  name: TTools extends ReadonlyArray<AnyClientTool>
-    ? ExtractToolNames<TTools>
-    : string
-  arguments: string // JSON string (may be incomplete)
-  state: ToolCallState
-  /** Approval metadata if tool requires user approval */
-  approval?: {
-    id: string // Unique approval ID
-    needsApproval: boolean // Always true if present
-    approved?: boolean // User's decision (undefined until responded)
-  }
-  /** Tool execution output (for client tools or after approval) */
-  output?: TTools extends ReadonlyArray<AnyClientTool>
-    ? this['name'] extends string
-      ? ExtractToolOutput<TTools, this['name']>
-      : any
-    : any
-}
+export type ToolCallPart<TTools extends ReadonlyArray<AnyClientTool> = any> =
+  TTools extends ReadonlyArray<AnyClientTool>
+    ? {
+        [K in keyof TTools]: TTools[K] extends AnyClientTool
+          ? {
+              type: 'tool-call'
+              id: string
+              name: TTools[K]['name']
+              arguments: string // JSON string (may be incomplete)
+              state: ToolCallState
+              /** Approval metadata if tool requires user approval */
+              approval?: {
+                id: string // Unique approval ID
+                needsApproval: boolean // Always true if present
+                approved?: boolean // User's decision (undefined until responded)
+              }
+              /** Tool execution output (for client tools or after approval) */
+              output?: ExtractToolOutput<TTools, TTools[K]['name']>
+            }
+          : never
+      }[number]
+    : {
+        type: 'tool-call'
+        id: string
+        name: string
+        arguments: string
+        state: ToolCallState
+        approval?: {
+          id: string
+          needsApproval: boolean
+          approved?: boolean
+        }
+        output?: any
+      }
 
 export interface ToolResultPart {
   type: 'tool-result'
@@ -172,3 +183,40 @@ export interface ChatRequestBody {
   messages: Array<ModelMessage>
   data?: Record<string, any>
 }
+
+/**
+ * Helper to create typed chat client options
+ * Use this to get proper type inference for messages
+ *
+ * @example
+ * ```ts
+ * const chatOptions = createChatClientOptions({
+ *   connection: fetchServerSentEvents('/api/chat'),
+ *   tools: [myTool1, myTool2],
+ * })
+ *
+ * type MyMessages = InferChatMessages<typeof chatOptions>
+ * ```
+ */
+export function createChatClientOptions<
+  TTools extends ReadonlyArray<AnyClientTool>,
+>(options: ChatClientOptions<TTools>): ChatClientOptions<TTools> {
+  return options
+}
+
+/**
+ * Extract the message type from chat options
+ *
+ * @example
+ * ```ts
+ * const chatOptions = createChatClientOptions({
+ *   connection: fetchServerSentEvents('/api/chat'),
+ *   tools: [myTool1, myTool2],
+ * })
+ *
+ * type MyMessages = InferChatMessages<typeof chatOptions>
+ * // MyMessages is now Array<UIMessage<[typeof myTool1, typeof myTool2]>>
+ * ```
+ */
+export type InferChatMessages<T> =
+  T extends ChatClientOptions<infer TTools> ? Array<UIMessage<TTools>> : never

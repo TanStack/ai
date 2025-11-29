@@ -1,12 +1,24 @@
 import { createFileRoute } from '@tanstack/solid-router'
 import { Send, Square } from 'lucide-solid'
 import { fetchServerSentEvents, useChat } from '@tanstack/ai-solid'
+import {
+  createChatClientOptions,
+  type InferChatMessages,
+} from '@tanstack/ai-client'
 import { createSignal, For, Show } from 'solid-js'
-import type { UIMessage } from '@tanstack/ai-solid'
 
 import type { JSXElement } from 'solid-js'
 import GuitarRecommendation from '@/components/example-GuitarRecommendation'
 import { clientTools } from '@/lib/guitar-tools'
+
+// Create typed chat options for type inference
+const chatOptions = createChatClientOptions({
+  connection: fetchServerSentEvents('/api/tanchat'),
+  tools: clientTools,
+})
+
+// Extract the typed messages from the options
+type ChatMessages = InferChatMessages<typeof chatOptions>
 
 function ChatInputArea({ children }: { children: JSXElement }) {
   return (
@@ -17,7 +29,7 @@ function ChatInputArea({ children }: { children: JSXElement }) {
 }
 
 function Messages(props: {
-  messages: Array<UIMessage>
+  messages: ChatMessages
   addToolApprovalResponse: (response: {
     id: string
     approved: boolean
@@ -26,16 +38,16 @@ function Messages(props: {
   return (
     <div class="flex-1 overflow-y-auto px-4 py-4">
       <For each={props.messages}>
-        {({ role, parts }) => (
+        {(message) => (
           <div
             class={`p-4 rounded-lg mb-2 ${
-              role === 'assistant'
+              message.role === 'assistant'
                 ? 'bg-linear-to-r from-orange-500/5 to-red-600/5'
                 : 'bg-transparent'
             }`}
           >
             <div class="flex items-start gap-4">
-              {role === 'assistant' ? (
+              {message.role === 'assistant' ? (
                 <div class="w-8 h-8 rounded-lg bg-linear-to-r from-orange-500 to-red-600 flex items-center justify-center text-sm font-medium text-white flex-shrink-0">
                   AI
                 </div>
@@ -46,7 +58,7 @@ function Messages(props: {
               )}
               <div class="flex-1 min-w-0">
                 {/* Render parts in order */}
-                <For each={parts}>
+                <For each={message.parts}>
                   {(part, index) => {
                     if (part.type === 'text' && part.content) {
                       return (
@@ -278,8 +290,7 @@ function ChatPage() {
 
   const { messages, sendMessage, isLoading, addToolApprovalResponse, stop } =
     useChat({
-      connection: fetchServerSentEvents('/api/tanchat'),
-      tools: clientTools,
+      ...chatOptions,
       onChunk: (chunk: any) => {
         setChunks((prev) => [...prev, chunk])
       },

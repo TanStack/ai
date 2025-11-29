@@ -96,3 +96,6 @@ export interface UseChatReturn<
    */
   clear: () => void
 }
+
+// Note: createChatClientOptions and InferChatMessages are now in @tanstack/ai-client
+// and re-exported from there for convenience

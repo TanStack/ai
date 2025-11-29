@@ -1,5 +1,5 @@
 import { ChatClient } from '@tanstack/ai-client'
-import type { ModelMessage, ClientTool, AnyClientTool } from '@tanstack/ai'
+import type { ModelMessage, AnyClientTool } from '@tanstack/ai'
 import type { UseChatOptions, UseChatReturn, UIMessage } from './types'
 import {
   createEffect,
