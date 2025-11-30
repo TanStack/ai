@@ -258,7 +258,7 @@ export function ChatWithClientTools() {
 **TanStack Start Integration** - Create a tool that works as both an AI tool and a server function.
 
 ```typescript
-import { createServerFnTool } from "@tanstack/ai-react";
+import { createServerFnTool } from "@tanstack/ai-react/start";
 import { z } from "zod";
 
 const getProducts = createServerFnTool({

@@ -262,39 +262,6 @@ chat({ tools: [addToCartServer] }); // Server will execute
 - **Navigation** - Change routes, scroll to sections
 - **Analytics** - Track user interactions
 
-## Comparison to Old API
-
-**Before (onToolCall):**
-```typescript
-const { messages } = useChat({
-  connection: fetchServerSentEvents("/api/chat"),
-  onToolCall: async ({ toolName, input }) => {
-    // Manual switch statement, no type safety
-    switch (toolName) {
-      case "update_ui":
-        setNotification(input.message); // input is any
-        return { success: true };
-      default:
-        throw new Error(`Unknown tool: ${toolName}`);
-    }
-  },
-});
-```
-
-**After (isomorphic tools):**
-```typescript
-const updateUI = updateUIDef.client((input) => {
-  // ✅ input is fully typed!
-  setNotification({ message: input.message, type: input.type });
-  return { success: true };
-});
-
-const { messages } = useChat({
-  connection: fetchServerSentEvents("/api/chat"),
-  tools: [updateUI], // ✅ Automatic execution, full type safety
-});
-```
-
 ## Next Steps
 
 - [Server Tools](./server-tools) - Learn about server-side tool execution

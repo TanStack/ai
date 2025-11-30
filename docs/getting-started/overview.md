@@ -8,7 +8,7 @@ TanStack AI works great with:
 - **Next.js** - API routes and App Router
 - **TanStack Start** - React Start or Solid Start (recommended!)
 - **Express** - Node.js server
-- **Remix** - Loaders and actions
+- **Remix Router v7** - Loaders and actions
 - **Any framework** - Framework-agnostic core
 
 ## Enhanced with TanStack Start
@@ -19,7 +19,7 @@ TanStack AI works with any framework using `toolDefinition()` and `.server()`.
 
 **Example:**
 ```typescript
-import { createServerFnTool } from '@tanstack/ai-react'
+import { createServerFnTool } from '@tanstack/ai-react/start'
 
 // Define once, get both AI tool AND callable server function
 const getProducts = createServerFnTool({

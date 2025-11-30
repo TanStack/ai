@@ -186,7 +186,7 @@ chat({ tools: [getProducts] })
 
 **TanStack Start bonus:**
 ```typescript
-import { createServerFnTool } from '@tanstack/ai-react'
+import { createServerFnTool } from '@tanstack/ai-react/start'
 
 // Get AI tool AND callable server function from one definition
 const getProducts = createServerFnTool({

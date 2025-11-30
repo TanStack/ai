@@ -155,9 +155,9 @@ You now have a working chat application with streaming responses and automatic s
 
 ## What's Next?
 
-- **[Full Quick Start Guide](../getting-started/quick-start)** - Detailed walkthrough
-- **[Tools Guide](../guides/tools)** - Add function calling to your app
-- **[API Reference](../api/ai)** - Explore the full API
+- **[Full Quick Start Guide](./getting-started/quick-start)** - Detailed walkthrough
+- **[Tools Guide](./guides/tools)** - Add function calling to your app
+- **[API Reference](./api/ai)** - Explore the full API
 
 ## Key Features
 

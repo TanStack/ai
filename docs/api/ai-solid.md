@@ -272,7 +272,7 @@ export function ChatWithClientTools() {
 **Solid Start Integration** - Create a tool that works as both an AI tool and a server function.
 
 ```typescript
-import { createServerFnTool } from "@tanstack/ai-solid";
+import { createServerFnTool } from "@tanstack/ai-solid/start";
 import { z } from "zod";
 
 const getProducts = createServerFnTool({

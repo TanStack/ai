@@ -38,7 +38,7 @@ This approach provides:
 If you're using **TanStack Start** specifically, you can use `createServerFnTool` to avoid duplicating logic between AI tools and server functions:
 
 ```typescript
-import { createServerFnTool } from '@tanstack/ai-react' // or '@tanstack/ai-solid'
+import { createServerFnTool } from '@tanstack/ai-react/start' // or '@tanstack/ai-solid/start'
 
 const getProducts = createServerFnTool({
   name: 'getProducts',

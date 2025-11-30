@@ -1,5 +1,5 @@
 import { toolDefinition } from '@tanstack/ai'
-import { createServerFnTool } from '@tanstack/ai-react'
+import { createServerFnTool } from '@tanstack/ai-react/start'
 import { z } from 'zod'
 import guitars from '@/data/example-guitars'
 

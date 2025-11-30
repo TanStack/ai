@@ -9,14 +9,14 @@ Defined in: [types.ts:286](https://github.com/TanStack/ai/blob/main/packages/typ
 
 ## Extended by
 
-- [`ContentStreamChunk`](../ContentStreamChunk.md)
-- [`ToolCallStreamChunk`](../ToolCallStreamChunk.md)
-- [`ToolResultStreamChunk`](../ToolResultStreamChunk.md)
-- [`DoneStreamChunk`](../DoneStreamChunk.md)
-- [`ErrorStreamChunk`](../ErrorStreamChunk.md)
-- [`ApprovalRequestedStreamChunk`](../ApprovalRequestedStreamChunk.md)
-- [`ToolInputAvailableStreamChunk`](../ToolInputAvailableStreamChunk.md)
-- [`ThinkingStreamChunk`](../ThinkingStreamChunk.md)
+- [`ContentStreamChunk`](./ContentStreamChunk.md)
+- [`ToolCallStreamChunk`](./ToolCallStreamChunk.md)
+- [`ToolResultStreamChunk`](./ToolResultStreamChunk.md)
+- [`DoneStreamChunk`](./DoneStreamChunk.md)
+- [`ErrorStreamChunk`](./ErrorStreamChunk.md)
+- [`ApprovalRequestedStreamChunk`](./ApprovalRequestedStreamChunk.md)
+- [`ToolInputAvailableStreamChunk`](./ToolInputAvailableStreamChunk.md)
+- [`ThinkingStreamChunk`](./ThinkingStreamChunk.md)
 
 ## Properties
 

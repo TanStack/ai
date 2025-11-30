@@ -9,7 +9,7 @@ Defined in: [types.ts:329](https://github.com/TanStack/ai/blob/main/packages/typ
 
 ## Extends
 
-- [`BaseStreamChunk`](../BaseStreamChunk.md)
+- [`BaseStreamChunk`](./BaseStreamChunk.md)
 
 ## Properties
 
@@ -45,7 +45,7 @@ Defined in: [types.ts:288](https://github.com/TanStack/ai/blob/main/packages/typ
 
 #### Inherited from
 
-[`BaseStreamChunk`](../BaseStreamChunk.md).[`id`](../BaseStreamChunk.md#id)
+[`BaseStreamChunk`](./BaseStreamChunk.md).[`id`](./BaseStreamChunk.md#id)
 
 ***
 
@@ -59,7 +59,7 @@ Defined in: [types.ts:289](https://github.com/TanStack/ai/blob/main/packages/typ
 
 #### Inherited from
 
-[`BaseStreamChunk`](../BaseStreamChunk.md).[`model`](../BaseStreamChunk.md#model)
+[`BaseStreamChunk`](./BaseStreamChunk.md).[`model`](./BaseStreamChunk.md#model)
 
 ***
 
@@ -73,7 +73,7 @@ Defined in: [types.ts:290](https://github.com/TanStack/ai/blob/main/packages/typ
 
 #### Inherited from
 
-[`BaseStreamChunk`](../BaseStreamChunk.md).[`timestamp`](../BaseStreamChunk.md#timestamp)
+[`BaseStreamChunk`](./BaseStreamChunk.md).[`timestamp`](./BaseStreamChunk.md#timestamp)
 
 ***
 
@@ -87,4 +87,4 @@ Defined in: [types.ts:330](https://github.com/TanStack/ai/blob/main/packages/typ
 
 #### Overrides
 
-[`BaseStreamChunk`](../BaseStreamChunk.md).[`type`](../BaseStreamChunk.md#type)
+[`BaseStreamChunk`](./BaseStreamChunk.md).[`type`](./BaseStreamChunk.md#type)

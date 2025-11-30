@@ -23,7 +23,7 @@ Maximum number of iterations to allow
 
 ## Returns
 
-[`AgentLoopStrategy`](../../type-aliases/AgentLoopStrategy.md)
+[`AgentLoopStrategy`](../type-aliases/AgentLoopStrategy.md)
 
 AgentLoopStrategy that stops after max iterations
 

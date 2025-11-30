@@ -77,7 +77,7 @@ Available in both `@tanstack/ai-react` and `@tanstack/ai-solid`.
 ## Basic Usage
 
 ```typescript
-import { createServerFnTool } from '@tanstack/ai-react' // or '@tanstack/ai-solid'
+import { createServerFnTool } from '@tanstack/ai-react/start' // or '@tanstack/ai-solid/start'
 import { z } from 'zod'
 
 const getGuitarsTool = createServerFnTool({
@@ -175,7 +175,7 @@ function GuitarList() {
 
 ```typescript
 // lib/guitar-tools.ts
-import { createServerFnTool } from '@tanstack/ai-react'
+import { createServerFnTool } from '@tanstack/ai-react/start'
 import { z } from 'zod'
 import { db } from './db'
 
@@ -414,7 +414,7 @@ const products = await response.json()
 ### With TanStack Start (Bonus Features!)
 
 ```typescript
-import { createServerFnTool } from '@tanstack/ai-react'
+import { createServerFnTool } from '@tanstack/ai-react/start'
 
 // ✅ Single definition - get AI tool AND server function!
 const getProducts = createServerFnTool({
