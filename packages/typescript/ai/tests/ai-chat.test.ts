@@ -223,7 +223,10 @@ describe('chat() - Comprehensive Logic Path Coverage', () => {
       expect(call?.messages).toHaveLength(1)
       expect(call?.messages[0]?.role).not.toBe('system')
       expect(call?.systemPrompts).toBeDefined()
-      expect(call?.systemPrompts).toEqual(['You are helpful', 'You are concise'])
+      expect(call?.systemPrompts).toEqual([
+        'You are helpful',
+        'You are concise',
+      ])
     })
 
     it('should pass providerOptions to adapter', async () => {

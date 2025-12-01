@@ -745,8 +745,8 @@ export async function* chat<
     any,
     any
   >
-  ? Models[number]
-  : string,
+    ? Models[number]
+    : string,
 >(
   options: Omit<
     ChatStreamOptionsUnion<TAdapter>,
@@ -761,10 +761,10 @@ export async function* chat<
       any,
       infer ModelProviderOptions
     >
-    ? TModel extends keyof ModelProviderOptions
-    ? ModelProviderOptions[TModel]
-    : never
-    : never
+      ? TModel extends keyof ModelProviderOptions
+        ? ModelProviderOptions[TModel]
+        : never
+      : never
   },
 ): AsyncIterable<StreamChunk> {
   const { adapter, ...chatOptions } = options
