@@ -415,26 +415,81 @@ export class Anthropic extends BaseAdapter<
             finishReason: 'stop',
           }
         } else if (event.type === 'message_delta') {
-          if (event.delta.stop_reason) {
-            yield {
-              type: 'done',
-              id: generateId(),
-              model: model,
-              timestamp,
-              finishReason:
-                event.delta.stop_reason === 'tool_use'
-                  ? 'tool_calls'
-                  : // TODO Fix the any and map the responses properly
-                  (event.delta.stop_reason as any),
 
-              usage: {
-                promptTokens: event.usage.input_tokens || 0,
-                completionTokens: event.usage.output_tokens || 0,
-                totalTokens:
-                  (event.usage.input_tokens || 0) +
-                  (event.usage.output_tokens || 0),
-              },
+          if (event.delta.stop_reason) {
+            function getStopReasonChunk(event: Anthropic_SDK.Beta.Messages.BetaRawMessageDeltaEvent): StreamChunk {
+              switch (event.delta.stop_reason) {
+                case "tool_use":
+                  return {
+                    type: 'done',
+                    id: generateId(),
+                    model: model,
+                    timestamp,
+                    finishReason: "tool_calls",
+
+                    usage: {
+                      promptTokens: event.usage.input_tokens || 0,
+                      completionTokens: event.usage.output_tokens || 0,
+                      totalTokens:
+                        (event.usage.input_tokens || 0) +
+                        (event.usage.output_tokens || 0),
+                    },
+                  }
+                case "max_tokens":
+                  return {
+                    type: "error",
+                    id: generateId(),
+                    model: model,
+                    timestamp,
+                    error: {
+                      message: "The response was cut off because the maximum token limit was reached.",
+                      code: "max_tokens",
+                    },
+                  }
+                case "model_context_window_exceeded":
+                  return {
+                    type: "error",
+                    id: generateId(),
+                    model: model,
+                    timestamp,
+                    error: {
+                      message: "The response was cut off because the model's context window was exceeded.",
+                      code: "context_window_exceeded",
+                    },
+                  }
+                case "refusal": {
+                  return {
+                    type: "error",
+                    id: generateId(),
+                    model: model,
+                    timestamp,
+                    error: {
+                      message: "The model refused to complete the request.",
+                      code: "refusal",
+                    },
+                  }
+                }
+                default: {
+                  return {
+                    type: 'done',
+                    id: generateId(),
+                    model: model,
+                    timestamp,
+                    finishReason: "stop",
+                    usage: {
+                      promptTokens: event.usage.input_tokens || 0,
+                      completionTokens: event.usage.output_tokens || 0,
+                      totalTokens:
+                        (event.usage.input_tokens || 0) +
+                        (event.usage.output_tokens || 0),
+                    }
+                  }
+                }
+              }
             }
+            const chunk = getStopReasonChunk(event)
+
+            yield chunk
           }
         }
       }
@@ -461,8 +516,8 @@ export class Anthropic extends BaseAdapter<
       }
     }
   }
-}
 
+}
 /**
  * Creates an Anthropic adapter with simplified configuration
  * @param apiKey - Your Anthropic API key
