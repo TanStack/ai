@@ -417,16 +417,48 @@ export class ChatClient {
       result.state || 'output-available',
     )
 
-    // Update the tool call part with the output
-    this.setMessages(
-      updateToolCallWithOutput(
-        this.messages,
-        result.toolCallId,
-        result.output,
-        result.state === 'output-error' ? 'input-complete' : undefined,
-        result.errorText,
+    // Find the message containing this tool call
+    const messageWithToolCall = this.messages.find((msg) =>
+      msg.parts.some(
+        (p): p is ToolCallPart =>
+          p.type === 'tool-call' && p.id === result.toolCallId,
       ),
     )
+
+    if (!messageWithToolCall) {
+      console.warn(
+        `[ChatClient] Could not find message with tool call ${result.toolCallId}`,
+      )
+      return
+    }
+
+    // Step 1: Update the tool-call part's output field (for UI rendering)
+    let updatedMessages = updateToolCallWithOutput(
+      this.messages,
+      result.toolCallId,
+      result.output,
+      result.state === 'output-error' ? 'input-complete' : undefined,
+      result.errorText,
+    )
+
+    // Step 2: Create a tool-result part (for LLM conversation history)
+    const content =
+      typeof result.output === 'string'
+        ? result.output
+        : JSON.stringify(result.output)
+    const toolResultState: ToolResultState =
+      result.state === 'output-error' ? 'error' : 'complete'
+
+    updatedMessages = updateToolResultPart(
+      updatedMessages,
+      messageWithToolCall.id,
+      result.toolCallId,
+      content,
+      toolResultState,
+      result.errorText,
+    )
+
+    this.setMessages(updatedMessages)
 
     // Check if we should auto-send
     if (this.shouldAutoSend()) {

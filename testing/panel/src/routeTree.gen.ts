@@ -9,38 +9,65 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
+import { Route as StreamDebuggerRouteImport } from './routes/stream-debugger'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as ApiTanchatRouteImport } from './routes/api.tanchat'
 
+const StreamDebuggerRoute = StreamDebuggerRouteImport.update({
+  id: '/stream-debugger',
+  path: '/stream-debugger',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiTanchatRoute = ApiTanchatRouteImport.update({
+  id: '/api/tanchat',
+  path: '/api/tanchat',
+  getParentRoute: () => rootRouteImport,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/stream-debugger': typeof StreamDebuggerRoute
+  '/api/tanchat': typeof ApiTanchatRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/stream-debugger': typeof StreamDebuggerRoute
+  '/api/tanchat': typeof ApiTanchatRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/stream-debugger': typeof StreamDebuggerRoute
+  '/api/tanchat': typeof ApiTanchatRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/'
+  fullPaths: '/' | '/stream-debugger' | '/api/tanchat'
   fileRoutesByTo: FileRoutesByTo
-  to: '/'
-  id: '__root__' | '/'
+  to: '/' | '/stream-debugger' | '/api/tanchat'
+  id: '__root__' | '/' | '/stream-debugger' | '/api/tanchat'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  StreamDebuggerRoute: typeof StreamDebuggerRoute
+  ApiTanchatRoute: typeof ApiTanchatRoute
 }
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
+    '/stream-debugger': {
+      id: '/stream-debugger'
+      path: '/stream-debugger'
+      fullPath: '/stream-debugger'
+      preLoaderRoute: typeof StreamDebuggerRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/': {
       id: '/'
       path: '/'
@@ -48,12 +75,30 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/tanchat': {
+      id: '/api/tanchat'
+      path: '/api/tanchat'
+      fullPath: '/api/tanchat'
+      preLoaderRoute: typeof ApiTanchatRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  StreamDebuggerRoute: StreamDebuggerRoute,
+  ApiTanchatRoute: ApiTanchatRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
+
+import type { getRouter } from './router.tsx'
+import type { createStart } from '@tanstack/react-start'
+declare module '@tanstack/react-start' {
+  interface Register {
+    ssr: true
+    router: Awaited<ReturnType<typeof getRouter>>
+  }
+}

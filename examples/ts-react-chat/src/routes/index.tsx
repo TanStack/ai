@@ -374,16 +374,7 @@ function ChatPage() {
   return (
     <div className="flex h-[calc(100vh-72px)]  bg-gray-900">
       {/* Left side - Chat (1/4 width) */}
-      <div className="w-1/4 flex flex-col border-r border-orange-500/20">
-        <div className="p-4 border-b border-orange-500/20">
-          <h1 className="text-2xl font-bold bg-linear-to-r from-orange-500 to-red-600 text-transparent bg-clip-text">
-            TanStack Chat
-          </h1>
-          <p className="text-gray-400 text-sm mt-1">
-            Parts-based UIMessages with tool states
-          </p>
-        </div>
-
+      <div className="w-1/2 flex flex-col border-r border-orange-500/20">
         <Messages
           messages={messages}
           addToolApprovalResponse={addToolApprovalResponse}
@@ -442,8 +433,7 @@ function ChatPage() {
         </ChatInputArea>
       </div>
 
-      {/* Right side - Debug Panel (3/4 width) */}
-      <div className="w-3/4 bg-gray-950 flex flex-col">
+      <div className="w-1/2 bg-gray-950 flex flex-col">
         <DebugPanel
           messages={messages}
           chunks={chunks}

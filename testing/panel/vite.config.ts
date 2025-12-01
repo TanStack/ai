@@ -1,19 +1,20 @@
 import { defineConfig } from 'vite'
+import { tanstackStart } from '@tanstack/react-start/plugin/vite'
 import viteReact from '@vitejs/plugin-react'
 import viteTsConfigPaths from 'vite-tsconfig-paths'
 import tailwindcss from '@tailwindcss/vite'
-import { TanStackRouterVite } from '@tanstack/router-plugin/vite'
+import { nitroV2Plugin } from '@tanstack/nitro-v2-vite-plugin'
 
-export default defineConfig({
+const config = defineConfig({
   plugins: [
+    nitroV2Plugin(),
     viteTsConfigPaths({
       projects: ['./tsconfig.json'],
     }),
     tailwindcss(),
-    TanStackRouterVite({
-      target: 'react',
-      autoCodeSplitting: true,
-    }),
+    tanstackStart(),
     viteReact(),
   ],
 })
+
+export default config
