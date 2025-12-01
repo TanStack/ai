@@ -101,11 +101,11 @@ Defined in: [types.ts:465](https://github.com/TanStack/ai/blob/main/packages/typ
 
 ##### options
 
-[`ChatOptions`](../ChatOptions.md)\<`string`, `TChatProviderOptions`\>
+[`ChatOptions`](./ChatOptions.md)\<`string`, `TChatProviderOptions`\>
 
 #### Returns
 
-`AsyncIterable`\<[`StreamChunk`](../../type-aliases/StreamChunk.md)\>
+`AsyncIterable`\<[`StreamChunk`](../type-aliases/StreamChunk.md)\>
 
 ***
 
@@ -121,11 +121,11 @@ Defined in: [types.ts:473](https://github.com/TanStack/ai/blob/main/packages/typ
 
 ##### options
 
-[`EmbeddingOptions`](../EmbeddingOptions.md)
+[`EmbeddingOptions`](./EmbeddingOptions.md)
 
 #### Returns
 
-`Promise`\<[`EmbeddingResult`](../EmbeddingResult.md)\>
+`Promise`\<[`EmbeddingResult`](./EmbeddingResult.md)\>
 
 ***
 
@@ -175,8 +175,8 @@ Defined in: [types.ts:470](https://github.com/TanStack/ai/blob/main/packages/typ
 
 ##### options
 
-[`SummarizationOptions`](../SummarizationOptions.md)
+[`SummarizationOptions`](./SummarizationOptions.md)
 
 #### Returns
 
-`Promise`\<[`SummarizationResult`](../SummarizationResult.md)\>
+`Promise`\<[`SummarizationResult`](./SummarizationResult.md)\>

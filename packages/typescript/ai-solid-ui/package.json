@@ -47,8 +47,7 @@
   },
   "devDependencies": {
     "@vitest/coverage-v8": "4.0.14",
-    "vite": "^7.2.4",
-    "vite-plugin-solid": "^2.11.10"
+    "vite": "^7.2.4"
   },
   "files": [
     "src",

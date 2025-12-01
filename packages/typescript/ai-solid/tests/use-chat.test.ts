@@ -1,6 +1,5 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { waitFor } from '@testing-library/react'
-import { useChat } from '../src/use-chat'
+import { describe, it, expect, vi } from 'vitest'
+import { waitFor } from '@solidjs/testing-library'
 import {
   renderUseChat,
   createMockConnectionAdapter,
