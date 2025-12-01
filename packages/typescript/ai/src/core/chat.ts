@@ -18,25 +18,6 @@ import type {
   ToolCall,
 } from '../types'
 
-function prependSystemPrompts(
-  messages: Array<ModelMessage>,
-  systemPrompts?: Array<string>,
-  defaultPrompts: Array<string> = [],
-): Array<ModelMessage> {
-  const prompts =
-    systemPrompts && systemPrompts.length > 0 ? systemPrompts : defaultPrompts
-
-  if (prompts.length === 0) {
-    return messages
-  }
-
-  const systemMessages = prompts.map((content) => ({
-    role: 'system' as const,
-    content,
-  }))
-
-  return [...systemMessages, ...messages]
-}
 
 interface ChatEngineConfig<
   TAdapter extends AIAdapter<any, any, any, any>,
@@ -88,11 +69,7 @@ class ChatEngine<
       config.params.agentLoopStrategy || maxIterationsStrategy(5)
     this.toolCallManager = new ToolCallManager(this.tools)
     this.initialMessageCount = config.params.messages.length
-    this.messages = prependSystemPrompts(
-      config.params.messages,
-      config.params.systemPrompts,
-      this.systemPrompts,
-    )
+    this.messages = config.params.messages
     this.requestId = this.createId('chat')
     this.streamId = this.createId('stream')
     this.effectiveRequest = config.params.abortController
@@ -218,6 +195,7 @@ class ChatEngine<
       options: adapterOptions,
       request: this.effectiveRequest,
       providerOptions,
+      systemPrompts: this.systemPrompts,
     })) {
       if (this.isAborted()) {
         break
@@ -768,8 +746,8 @@ export async function* chat<
     any,
     any
   >
-    ? Models[number]
-    : string,
+  ? Models[number]
+  : string,
 >(
   options: Omit<
     ChatStreamOptionsUnion<TAdapter>,
@@ -784,10 +762,10 @@ export async function* chat<
       any,
       infer ModelProviderOptions
     >
-      ? TModel extends keyof ModelProviderOptions
-        ? ModelProviderOptions[TModel]
-        : never
-      : never
+    ? TModel extends keyof ModelProviderOptions
+    ? ModelProviderOptions[TModel]
+    : never
+    : never
   },
 ): AsyncIterable<StreamChunk> {
   const { adapter, ...chatOptions } = options

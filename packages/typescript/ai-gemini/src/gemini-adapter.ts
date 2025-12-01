@@ -352,10 +352,10 @@ export class GeminiAdapter extends BaseAdapter<
           finishReason: toolCallMap.size > 0 ? 'tool_calls' : 'stop',
           usage: chunk.usageMetadata
             ? {
-                promptTokens: chunk.usageMetadata.promptTokenCount ?? 0,
-                completionTokens: chunk.usageMetadata.thoughtsTokenCount ?? 0,
-                totalTokens: chunk.usageMetadata.totalTokenCount ?? 0,
-              }
+              promptTokens: chunk.usageMetadata.promptTokenCount ?? 0,
+              completionTokens: chunk.usageMetadata.thoughtsTokenCount ?? 0,
+              totalTokens: chunk.usageMetadata.totalTokenCount ?? 0,
+            }
             : undefined,
         }
       }
