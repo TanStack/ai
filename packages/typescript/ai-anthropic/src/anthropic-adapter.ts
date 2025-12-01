@@ -415,81 +415,84 @@ export class Anthropic extends BaseAdapter<
             finishReason: 'stop',
           }
         } else if (event.type === 'message_delta') {
-
           if (event.delta.stop_reason) {
-            function getStopReasonChunk(event: Anthropic_SDK.Beta.Messages.BetaRawMessageDeltaEvent): StreamChunk {
-              switch (event.delta.stop_reason) {
-                case "tool_use":
-                  return {
-                    type: 'done',
-                    id: generateId(),
-                    model: model,
-                    timestamp,
-                    finishReason: "tool_calls",
+            switch (event.delta.stop_reason) {
+              case 'tool_use': {
+                yield {
+                  type: 'done',
+                  id: generateId(),
+                  model: model,
+                  timestamp,
+                  finishReason: 'tool_calls',
 
-                    usage: {
-                      promptTokens: event.usage.input_tokens || 0,
-                      completionTokens: event.usage.output_tokens || 0,
-                      totalTokens:
-                        (event.usage.input_tokens || 0) +
-                        (event.usage.output_tokens || 0),
-                    },
-                  }
-                case "max_tokens":
-                  return {
-                    type: "error",
-                    id: generateId(),
-                    model: model,
-                    timestamp,
-                    error: {
-                      message: "The response was cut off because the maximum token limit was reached.",
-                      code: "max_tokens",
-                    },
-                  }
-                case "model_context_window_exceeded":
-                  return {
-                    type: "error",
-                    id: generateId(),
-                    model: model,
-                    timestamp,
-                    error: {
-                      message: "The response was cut off because the model's context window was exceeded.",
-                      code: "context_window_exceeded",
-                    },
-                  }
-                case "refusal": {
-                  return {
-                    type: "error",
-                    id: generateId(),
-                    model: model,
-                    timestamp,
-                    error: {
-                      message: "The model refused to complete the request.",
-                      code: "refusal",
-                    },
-                  }
+                  usage: {
+                    promptTokens: event.usage.input_tokens || 0,
+                    completionTokens: event.usage.output_tokens || 0,
+                    totalTokens:
+                      (event.usage.input_tokens || 0) +
+                      (event.usage.output_tokens || 0),
+                  },
                 }
-                default: {
-                  return {
-                    type: 'done',
-                    id: generateId(),
-                    model: model,
-                    timestamp,
-                    finishReason: "stop",
-                    usage: {
-                      promptTokens: event.usage.input_tokens || 0,
-                      completionTokens: event.usage.output_tokens || 0,
-                      totalTokens:
-                        (event.usage.input_tokens || 0) +
-                        (event.usage.output_tokens || 0),
-                    }
-                  }
+                break
+              }
+              case 'max_tokens': {
+                yield {
+                  type: 'error',
+                  id: generateId(),
+                  model: model,
+                  timestamp,
+                  error: {
+                    message:
+                      'The response was cut off because the maximum token limit was reached.',
+                    code: 'max_tokens',
+                  },
+                }
+                break
+              }
+              case 'model_context_window_exceeded': {
+                yield {
+                  type: 'error',
+                  id: generateId(),
+                  model: model,
+                  timestamp,
+                  error: {
+                    message:
+                      "The response was cut off because the model's context window was exceeded.",
+                    code: 'context_window_exceeded',
+                  },
+                }
+                break
+              }
+              case 'refusal': {
+                yield {
+                  type: 'error',
+                  id: generateId(),
+                  model: model,
+                  timestamp,
+                  error: {
+                    message: 'The model refused to complete the request.',
+                    code: 'refusal',
+                  },
+                }
+                break
+              }
+              default: {
+                yield {
+                  type: 'done',
+                  id: generateId(),
+                  model: model,
+                  timestamp,
+                  finishReason: 'stop',
+                  usage: {
+                    promptTokens: event.usage.input_tokens || 0,
+                    completionTokens: event.usage.output_tokens || 0,
+                    totalTokens:
+                      (event.usage.input_tokens || 0) +
+                      (event.usage.output_tokens || 0),
+                  },
                 }
               }
             }
-            const chunk = getStopReasonChunk(event)
-
-            yield chunk
           }
         }
       }
@@ -516,7 +519,6 @@ export class Anthropic extends BaseAdapter<
       }
     }
   }
-
 }
 /**
  * Creates an Anthropic adapter with simplified configuration
