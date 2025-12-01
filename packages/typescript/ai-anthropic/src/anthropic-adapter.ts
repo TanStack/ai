@@ -31,8 +31,8 @@ export type AnthropicProviderOptions = ExternalTextProviderOptions
 
 type AnthropicContentBlocks =
   Extract<MessageParam['content'], Array<unknown>> extends Array<infer Block>
-  ? Array<Block>
-  : never
+    ? Array<Block>
+    : never
 type AnthropicContentBlock =
   AnthropicContentBlocks extends Array<infer Block> ? Block : never
 
@@ -199,9 +199,9 @@ export class Anthropic extends BaseAdapter<
           const value = providerOptions[key]
           // Anthropic expects tool_choice to be an object, not a string
           if (key === 'tool_choice' && typeof value === 'string') {
-            ; (validProviderOptions as any)[key] = { type: value }
+            ;(validProviderOptions as any)[key] = { type: value }
           } else {
-            ; (validProviderOptions as any)[key] = value
+            ;(validProviderOptions as any)[key] = value
           }
         }
       }
@@ -425,7 +425,7 @@ export class Anthropic extends BaseAdapter<
                 event.delta.stop_reason === 'tool_use'
                   ? 'tool_calls'
                   : // TODO Fix the any and map the responses properly
-                  (event.delta.stop_reason as any),
+                    (event.delta.stop_reason as any),
 
               usage: {
                 promptTokens: event.usage.input_tokens || 0,
