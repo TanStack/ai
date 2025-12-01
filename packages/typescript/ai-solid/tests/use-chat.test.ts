@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, } from 'vitest'
+import { describe, it, expect, vi } from 'vitest'
 import { waitFor } from '@solidjs/testing-library'
 import {
   renderUseChat,
@@ -376,9 +376,9 @@ describe('useChat', () => {
       )
       const firstContent =
         firstAssistantMessage?.parts.find((p) => p.type === 'text')?.type ===
-          'text'
+        'text'
           ? (firstAssistantMessage.parts.find((p) => p.type === 'text') as any)
-            .content
+              .content
           : ''
 
       // Reload with new adapter
