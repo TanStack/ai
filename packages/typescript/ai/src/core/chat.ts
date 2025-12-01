@@ -136,7 +136,9 @@ class ChatEngine<
 
     aiEventClient.emit('chat:started', {
       requestId: this.requestId,
+      streamId: this.streamId,
       model: model,
+      provider: this.adapter.name,
       messageCount: this.initialMessageCount,
       hasTools: !!tools && tools.length > 0,
       streaming: true,
@@ -159,11 +161,26 @@ class ChatEngine<
       return
     }
 
+    const now = Date.now()
+
+    // Emit chat:completed with final state
+    aiEventClient.emit('chat:completed', {
+      requestId: this.requestId,
+      streamId: this.streamId,
+      model: this.params.model,
+      content: this.accumulatedContent,
+      messageId: this.currentMessageId || undefined,
+      finishReason: this.lastFinishReason || undefined,
+      usage: this.doneChunk?.usage,
+      timestamp: now,
+    })
+
     aiEventClient.emit('stream:ended', {
+      requestId: this.requestId,
       streamId: this.streamId,
       totalChunks: this.totalChunkCount,
-      duration: Date.now() - this.streamStartTime,
-      timestamp: Date.now(),
+      duration: now - this.streamStartTime,
+      timestamp: now,
     })
   }
 
@@ -300,6 +317,7 @@ class ChatEngine<
       if (chunk.usage) {
         aiEventClient.emit('usage:tokens', {
           requestId: this.requestId,
+          streamId: this.streamId,
           messageId: this.currentMessageId || undefined,
           model: this.params.model,
           usage: chunk.usage,
@@ -322,6 +340,7 @@ class ChatEngine<
     if (chunk.usage) {
       aiEventClient.emit('usage:tokens', {
         requestId: this.requestId,
+        streamId: this.streamId,
         messageId: this.currentMessageId || undefined,
         model: this.params.model,
         usage: chunk.usage,
@@ -369,6 +388,7 @@ class ChatEngine<
 
     aiEventClient.emit('chat:iteration', {
       requestId: this.requestId,
+      streamId: this.streamId,
       iterationNumber: this.iterationCount + 1,
       messageCount: this.messages.length,
       toolCallCount: pendingToolCalls.length,
@@ -434,6 +454,7 @@ class ChatEngine<
 
     aiEventClient.emit('chat:iteration', {
       requestId: this.requestId,
+      streamId: this.streamId,
       iterationNumber: this.iterationCount + 1,
       messageCount: this.messages.length,
       toolCallCount: toolCalls.length,
@@ -584,6 +605,7 @@ class ChatEngine<
     for (const clientTool of clientRequests) {
       aiEventClient.emit('stream:tool-input-available', {
         streamId: this.streamId,
+        messageId: this.currentMessageId || undefined,
         toolCallId: clientTool.toolCallId,
         toolName: clientTool.toolName,
         input: clientTool.input,
@@ -612,11 +634,13 @@ class ChatEngine<
 
     for (const result of results) {
       aiEventClient.emit('tool:call-completed', {
+        requestId: this.requestId,
         streamId: this.streamId,
+        messageId: this.currentMessageId || undefined,
         toolCallId: result.toolCallId,
-        toolName: result.toolCallId,
+        toolName: result.toolName,
         result: result.result,
-        duration: 0,
+        duration: result.duration ?? 0,
         timestamp: Date.now(),
       })
 

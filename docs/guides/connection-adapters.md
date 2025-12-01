@@ -6,10 +6,10 @@ Connection adapters handle the communication between your client and server for 
 
 ### Server-Sent Events (SSE)
 
-SSE is the recommended adapter for most use cases. It provides reliable streaming with automatic reconnection:
+SSE is the recommended adapter for most use cases. It provides reliable streaming with automatic reconnection. On the server side, use [`toServerSentEventsStream()`](../../api/ai#toserversenteventsstreamstream-abortcontroller) or [`toStreamResponse()`](../../api/ai#tostreamresponsestream-init) to convert your chat stream to SSE format.
 
 ```typescript
-import { fetchServerSentEvents } from "@tanstack/ai-react";
+import { useChat, fetchServerSentEvents } from "@tanstack/ai-react";
 
 const { messages } = useChat({
   connection: fetchServerSentEvents("/api/chat"),
@@ -19,12 +19,28 @@ const { messages } = useChat({
 **Options:**
 
 ```typescript
-fetchServerSentEvents("/api/chat", {
-  headers: {
-    Authorization: "Bearer token",
-  },
-  method: "POST",
-})
+const { messages } = useChat({
+  connection: fetchServerSentEvents("/api/chat", {
+    headers: {
+      Authorization: "Bearer token",
+    },
+  }),
+});
+```
+
+**Dynamic values:**
+
+You can use functions for dynamic URLs or options that are evaluated on each request:
+
+```typescript
+const { messages } = useChat({
+  connection: fetchServerSentEvents(
+    () => `/api/chat?user=${currentUserId}`,
+    () => ({
+      headers: { Authorization: `Bearer ${getToken()}` },
+    })
+  ),
+});
 ```
 
 ### HTTP Stream
@@ -32,7 +48,7 @@ fetchServerSentEvents("/api/chat", {
 For environments that don't support SSE:
 
 ```typescript
-import { fetchHttpStream } from "@tanstack/ai-react";
+import { useChat, fetchHttpStream } from "@tanstack/ai-react";
 
 const { messages } = useChat({
   connection: fetchHttpStream("/api/chat"),
@@ -160,7 +176,7 @@ const adapter = stream(async (messages, data, signal) => {
 Add authentication headers to adapters:
 
 ```typescript
-import { fetchServerSentEvents } from "@tanstack/ai-react";
+import { useChat, fetchServerSentEvents } from "@tanstack/ai-react";
 
 const { messages } = useChat({
   connection: fetchServerSentEvents("/api/chat", {
@@ -168,6 +184,18 @@ const { messages } = useChat({
       Authorization: `Bearer ${token}`,
     },
   }),
+});
+```
+
+For dynamic tokens, use a function:
+
+```typescript
+const { messages } = useChat({
+  connection: fetchServerSentEvents("/api/chat", () => ({
+    headers: {
+      Authorization: `Bearer ${getToken()}`,
+    },
+  })),
 });
 ```
 
@@ -181,6 +209,6 @@ const { messages } = useChat({
 
 ## Next Steps
 
-- [Streaming](./streaming) - Learn about streaming responses
-- [API Reference](../api/ai-client) - Explore connection adapter APIs
+- [Streaming](../streaming) - Learn about streaming responses
+- [API Reference](../../api/ai-client) - Explore connection adapter APIs
 

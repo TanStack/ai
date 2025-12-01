@@ -1,5 +1,5 @@
 import { defineConfig, mergeConfig } from 'vitest/config'
-import { tanstackViteConfig } from '@tanstack/config/vite'
+import { tanstackViteConfig } from '@tanstack/vite-config'
 import packageJson from './package.json'
 
 const config = defineConfig({
@@ -27,27 +27,10 @@ const config = defineConfig({
 })
 
 export default mergeConfig(
-  mergeConfig(
-    config,
-    tanstackViteConfig({
-      entry: ['./src/index.ts', './src/event-client.ts'],
-      srcDir: './src',
-    }),
-  ),
-  defineConfig({
-    build: {
-      rollupOptions: {
-        external: (id) => {
-          // Mark @alcyone-labs/zod-to-json-schema as external
-          if (
-            id === '@alcyone-labs/zod-to-json-schema' ||
-            id.startsWith('@alcyone-labs/zod-to-json-schema/')
-          ) {
-            return true
-          }
-          return false
-        },
-      },
-    },
+  config,
+  tanstackViteConfig({
+    entry: ['./src/index.ts', './src/event-client.ts'],
+    srcDir: './src',
+    cjs: false,
   }),
 )

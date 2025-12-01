@@ -12,6 +12,7 @@ interface MessageCardProps {
 
 export const MessageCard: Component<MessageCardProps> = (props) => {
   const styles = useStyles()
+  // Access message through props directly for proper SolidJS reactivity
   const msg = () => props.message
 
   return (
@@ -30,7 +31,7 @@ export const MessageCard: Component<MessageCardProps> = (props) => {
               : styles().conversationDetails.avatarAssistant
           }
         >
-          {msg().role === 'user' ? 'U' : '🤖'}
+          {msg().role === 'user' ? 'U' : msg().role === 'tool' ? '🔧' : '🤖'}
         </div>
         <div class={styles().conversationDetails.roleLabel}>
           <div

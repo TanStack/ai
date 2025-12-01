@@ -1,10 +1,9 @@
 // @ts-check
 
-// @ts-ignore Needed due to moduleResolution Node vs Bundler
-import { tanstackConfig } from '@tanstack/config/eslint'
+import { tanstackConfig } from '@tanstack/eslint-config'
 import unusedImports from 'eslint-plugin-unused-imports'
 
-/** @type {import('eslint').Linter.FlatConfig[]} */
+/** @type {import('eslint').Linter.Config[]} */
 const config = [
   ...tanstackConfig,
   {

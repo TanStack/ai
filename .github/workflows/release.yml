@@ -30,13 +30,13 @@ jobs:
         uses: tanstack/config/.github/setup@main
       - name: Run Tests
         run: pnpm run test:ci
-      - name: Run Changesets (version or publish)
-        uses: changesets/action@v1.5.3
-        with:
-          version: pnpm run changeset:version
-          publish: pnpm run changeset:publish
-          commit: 'ci: Version Packages'
-          title: 'ci: Version Packages'
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
+      # - name: Run Changesets (version or publish)
+      #   uses: changesets/action@v1.5.3
+      #   with:
+      #     version: pnpm run changeset:version
+      #     publish: pnpm run changeset:publish
+      #     commit: 'ci: Version Packages'
+      #     title: 'ci: Version Packages'
+      #   env:
+      #     GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      #     NPM_TOKEN: ${{ secrets.NPM_TOKEN }}

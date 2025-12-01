@@ -169,5 +169,5 @@ const getUserData = tool({
 
 ## Next Steps
 
-- [Client Tools](./client-tools) - Learn about client-side tool execution
-- [Tool Approval Flow](./tool-approval) - Add approval workflows for sensitive operations
+- [Client Tools](../client-tools) - Learn about client-side tool execution
+- [Tool Approval Flow](../tool-approval) - Add approval workflows for sensitive operations

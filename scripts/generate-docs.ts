@@ -1,9 +1,8 @@
 import { resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { readFileSync, writeFileSync } from 'node:fs'
-import { generateReferenceDocs } from '@tanstack/config/typedoc'
-
-import fg from 'fast-glob'
+import { generateReferenceDocs } from '@tanstack/typedoc-config'
+import { glob } from 'tinyglobby'
 
 const __dirname = fileURLToPath(new URL('.', import.meta.url))
 
@@ -31,8 +30,8 @@ await generateReferenceDocs({ packages })
 
 // Find all markdown files matching the pattern
 const markdownFiles = [
-  ...(await fg('docs/reference/**/*.md')),
-  ...(await fg('docs/framework/*/reference/**/*.md')),
+  ...(await glob('docs/reference/**/*.md')),
+  ...(await glob('docs/framework/*/reference/**/*.md')),
 ]
 
 console.log(`Found ${markdownFiles.length} markdown files to process\n`)

@@ -5,10 +5,17 @@ import { ChunkBadges } from './ChunkBadges'
 import type { Component } from 'solid-js'
 import type { Chunk } from '../../store/ai-store'
 
+interface TokenUsage {
+  promptTokens: number
+  completionTokens: number
+  totalTokens: number
+}
+
 interface MessageGroupProps {
   messageId: string
   chunks: Array<Chunk>
   groupIndex: number
+  usage?: TokenUsage
 }
 
 export const MessageGroup: Component<MessageGroupProps> = (props) => {
@@ -44,6 +51,19 @@ export const MessageGroup: Component<MessageGroupProps> = (props) => {
               </Show>
             </div>
             <ChunkBadges chunks={props.chunks} />
+            {/* Usage info */}
+            <Show when={props.usage}>
+              <div class={styles().conversationDetails.messageUsage}>
+                <span class={styles().conversationDetails.messageUsageIcon}>
+                  🎯
+                </span>
+                <span>{props.usage?.promptTokens.toLocaleString()} in</span>
+                <span>•</span>
+                <span>
+                  {props.usage?.completionTokens.toLocaleString()} out
+                </span>
+              </div>
+            </Show>
           </div>
 
           {/* Message ID */}

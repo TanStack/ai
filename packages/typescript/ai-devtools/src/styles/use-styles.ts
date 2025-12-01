@@ -403,6 +403,25 @@ const stylesFactory = (theme: 'light' | 'dark') => {
     },
     // ConversationsList component styles
     conversationsList: {
+      rowMain: css`
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+        flex: 1;
+        min-width: 0;
+      `,
+      rowTop: css`
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: ${size[2]};
+      `,
+      rowRight: css`
+        display: flex;
+        align-items: center;
+        gap: ${size[1]};
+        flex-shrink: 0;
+      `,
       rowContent: css`
         display: flex;
         align-items: center;
@@ -413,6 +432,8 @@ const stylesFactory = (theme: 'light' | 'dark') => {
         display: flex;
         align-items: center;
         gap: ${size[1]};
+        min-width: 0;
+        flex: 1;
       `,
       typeDot: css`
         width: 8px;
@@ -443,29 +464,40 @@ const stylesFactory = (theme: 'light' | 'dark') => {
         display: flex;
         align-items: center;
         gap: ${size[2]};
-        font-size: 0.85em;
+        font-size: 10px;
         opacity: 0.7;
+        flex-wrap: wrap;
       `,
       statItem: css`
         display: flex;
         align-items: center;
-        gap: ${size[1]};
+        gap: 2px;
+        white-space: nowrap;
       `,
       tokensBadge: css`
         display: flex;
         align-items: center;
-        gap: ${size[1]};
-        padding: 2px 6px;
+        gap: 2px;
+        padding: 1px 5px;
         border-radius: ${border.radius.sm};
         background: oklch(0.35 0.08 220);
         color: oklch(0.75 0.12 220);
-        font-size: ${fontSize.xs};
+        font-size: 10px;
         font-weight: ${font.weight.semibold};
+        white-space: nowrap;
       `,
       loadingIndicator: css`
-        font-size: 0.85em;
-        margin-left: ${size[2]};
+        font-size: 12px;
         color: oklch(0.7 0.17 142);
+        animation: spin 1s linear infinite;
+        @keyframes spin {
+          from {
+            transform: rotate(0deg);
+          }
+          to {
+            transform: rotate(360deg);
+          }
+        }
       `,
     },
     // ConversationDetails component styles
@@ -531,6 +563,47 @@ const stylesFactory = (theme: 'light' | 'dark') => {
       `,
       usageBold: css`
         font-weight: ${font.weight.semibold};
+      `,
+      toolsRow: css`
+        display: flex;
+        align-items: flex-start;
+        gap: ${size[2]};
+        margin-top: ${size[2]};
+      `,
+      toolsLabel: css`
+        font-size: ${fontSize.sm};
+        flex-shrink: 0;
+      `,
+      optionsRow: css`
+        display: flex;
+        align-items: flex-start;
+        gap: ${size[2]};
+        margin-top: ${size[1]};
+      `,
+      optionsLabel: css`
+        font-size: ${fontSize.xs};
+        color: ${t(colors.gray[600], colors.gray[400])};
+        flex-shrink: 0;
+        white-space: nowrap;
+      `,
+      optionsCompact: css`
+        display: flex;
+        flex-wrap: wrap;
+        gap: 4px;
+      `,
+      optionBadge: css`
+        display: inline-flex;
+        align-items: center;
+        padding: 1px 6px;
+        background: ${t(colors.gray[200], colors.darkGray[700])};
+        color: ${t(colors.gray[700], colors.gray[300])};
+        border-radius: ${border.radius.sm};
+        font-size: 10px;
+        font-family: ${fontFamily.mono};
+        max-width: 200px;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
       `,
       toggleButton: css`
         background: transparent;
@@ -832,10 +905,8 @@ const stylesFactory = (theme: 'light' | 'dark') => {
         color: oklch(0.8 0.05 260);
         background: oklch(0.18 0.02 260);
         border-radius: 4px;
-        padding: ${size[2]};
-        overflow-x: auto;
-        max-height: 300px;
-        overflow-y: auto;
+        padding: ${size[4]};
+        padding-left: ${size[8]};
       `,
       chunksDetails: css`
         margin-top: ${size[3]};
@@ -850,6 +921,32 @@ const stylesFactory = (theme: 'light' | 'dark') => {
         border-radius: 6px;
         border: 1px solid oklch(0.28 0.03 260);
         user-select: none;
+        list-style: none;
+        &::-webkit-details-marker {
+          display: none;
+        }
+        &::marker {
+          display: none;
+        }
+        details[open] > & .chunks-arrow {
+          transform: rotate(90deg);
+        }
+      `,
+      chunksSummaryRow: css`
+        display: flex;
+        align-items: center;
+        gap: ${size[1]};
+      `,
+      chunksSummaryArrow: css`
+        font-size: 8px;
+        transition: transform 0.15s ease;
+        color: oklch(0.5 0.05 260);
+        details[open] > summary > div > & {
+          transform: rotate(90deg);
+        }
+      `,
+      chunksSummaryTitle: css`
+        margin-right: ${size[1]};
       `,
       chunksSummaryContent: css`
         display: flex;
@@ -1113,6 +1210,42 @@ const stylesFactory = (theme: 'light' | 'dark') => {
         white-space: pre-wrap;
         word-break: break-word;
       `,
+      chunkToolCall: css`
+        padding: ${size[2]} ${size[3]};
+        background: oklch(0.22 0.08 280);
+        border-radius: ${border.radius.sm};
+        border: 1px solid oklch(0.32 0.1 280);
+        margin-top: ${size[1]};
+      `,
+      chunkToolCallHeader: css`
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        margin-bottom: ${size[2]};
+      `,
+      chunkToolCallTitle: css`
+        color: oklch(0.75 0.12 280);
+        font-weight: ${font.weight.semibold};
+        font-size: 10px;
+      `,
+      chunkToolResult: css`
+        padding: ${size[2]} ${size[3]};
+        background: oklch(0.22 0.08 160);
+        border-radius: ${border.radius.sm};
+        border: 1px solid oklch(0.32 0.1 160);
+        margin-top: ${size[1]};
+      `,
+      chunkToolResultHeader: css`
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        margin-bottom: ${size[2]};
+      `,
+      chunkToolResultTitle: css`
+        color: oklch(0.75 0.12 160);
+        font-weight: ${font.weight.semibold};
+        font-size: 10px;
+      `,
       rawJson: css`
         font-family: ${fontFamily.mono};
         white-space: pre-wrap;
@@ -1202,6 +1335,83 @@ const stylesFactory = (theme: 'light' | 'dark') => {
         font-size: 9px;
         color: oklch(0.6 0.05 260);
         font-weight: ${font.weight.normal};
+      `,
+      // Embedding and Summarize operation styles
+      operationCard: css`
+        padding: ${size[4]};
+        border-radius: ${border.radius.lg};
+        background: linear-gradient(
+          135deg,
+          oklch(0.25 0.04 200) 0%,
+          oklch(0.22 0.03 200) 100%
+        );
+        border: 1.5px solid oklch(0.5 0.15 200);
+        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.12);
+      `,
+      operationHeader: css`
+        display: flex;
+        align-items: center;
+        gap: ${size[2]};
+        margin-bottom: ${size[3]};
+      `,
+      operationIcon: css`
+        font-size: ${fontSize.lg};
+      `,
+      operationTitle: css`
+        font-weight: ${font.weight.semibold};
+        font-size: ${fontSize.sm};
+        color: oklch(0.85 0.1 200);
+        flex: 1;
+      `,
+      operationStatus: css`
+        font-size: ${fontSize.xs};
+        padding: 2px ${size[2]};
+        border-radius: ${border.radius.sm};
+      `,
+      operationStatusCompleted: css`
+        background: ${colors.green[500]}20;
+        color: ${colors.green[400]};
+      `,
+      operationStatusPending: css`
+        background: ${colors.yellow[500]}20;
+        color: ${colors.yellow[400]};
+      `,
+      durationBadge: css`
+        font-size: ${fontSize.xs};
+        padding: 2px ${size[2]};
+        border-radius: ${border.radius.sm};
+        background: oklch(0.3 0.1 280);
+        color: oklch(0.8 0.1 280);
+        font-family: ${fontFamily.mono};
+      `,
+      operationDetails: css`
+        display: flex;
+        flex-direction: column;
+        gap: ${size[2]};
+      `,
+      operationDetail: css`
+        display: flex;
+        align-items: center;
+        gap: ${size[2]};
+        font-size: ${fontSize.xs};
+      `,
+      operationLabel: css`
+        color: oklch(0.65 0.08 200);
+        font-weight: ${font.weight.semibold};
+        min-width: 70px;
+      `,
+      operationValue: css`
+        color: oklch(0.8 0.05 200);
+        font-family: ${fontFamily.mono};
+      `,
+      // Iteration badge
+      iterationBadge: css`
+        font-size: ${fontSize.xs};
+        padding: 2px ${size[2]};
+        border-radius: ${border.radius.sm};
+        background: ${colors.purple[500]}20;
+        color: ${colors.purple[400]};
+        font-weight: ${font.weight.semibold};
       `,
     },
   }

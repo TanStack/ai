@@ -319,16 +319,6 @@ export class OpenAI extends BaseAdapter<
           }
         }
 
-        if (chunk.type === 'response.output_text.done') {
-          yield {
-            type: 'done',
-            id: responseId || generateId(),
-            model: model || options.model,
-            timestamp,
-            finishReason: 'stop',
-          }
-        }
-
         if (chunk.type === 'response.completed') {
           // Determine finish reason based on output
           // If there are function_call items in the output, it's a tool_calls finish
@@ -341,6 +331,11 @@ export class OpenAI extends BaseAdapter<
             id: responseId || generateId(),
             model: model || options.model,
             timestamp,
+            usage: {
+              promptTokens: chunk.response.usage?.input_tokens || 0,
+              completionTokens: chunk.response.usage?.output_tokens || 0,
+              totalTokens: chunk.response.usage?.total_tokens || 0,
+            },
             finishReason: hasFunctionCalls ? 'tool_calls' : 'stop',
           }
         }

@@ -112,7 +112,7 @@ const myTool = tool({
     // Tool implementation
     return { result: "..." };
   },
-  requiresApproval: false, // Optional
+  needsApproval: false, // Optional
 });
 ```
 
@@ -121,15 +121,43 @@ const myTool = tool({
 - `description` - Tool description for the model
 - `inputSchema` - Zod schema for input validation
 - `execute` - Async function to execute the tool
-- `requiresApproval?` - Whether tool requires user approval
+- `needsApproval?` - Whether tool requires user approval
 
 ### Returns
 
 A `Tool` object.
 
-## `toStreamResponse(stream)`
+## `toServerSentEventsStream(stream, abortController?)`
 
-Converts a stream to an HTTP Response.
+Converts a stream to a ReadableStream in Server-Sent Events format.
+
+```typescript
+import { toServerSentEventsStream, chat } from "@tanstack/ai";
+import { openai } from "@tanstack/ai-openai";
+
+const stream = chat({
+  adapter: openai(),
+  messages: [...],
+  model: "gpt-4o",
+});
+const readableStream = toServerSentEventsStream(stream);
+```
+
+### Parameters
+
+- `stream` - Async iterable of `StreamChunk`
+- `abortController?` - Optional AbortController to abort when stream is cancelled
+
+### Returns
+
+A `ReadableStream<Uint8Array>` in Server-Sent Events format. Each chunk is:
+- Prefixed with `"data: "`
+- Followed by `"\n\n"`
+- Stream ends with `"data: [DONE]\n\n"`
+
+## `toStreamResponse(stream, init?)`
+
+Converts a stream to an HTTP Response with proper SSE headers.
 
 ```typescript
 import { toStreamResponse, chat } from "@tanstack/ai";
@@ -146,10 +174,11 @@ return toStreamResponse(stream);
 ### Parameters
 
 - `stream` - Async iterable of `StreamChunk`
+- `init?` - Optional ResponseInit options (including `abortController`)
 
 ### Returns
 
-A `Response` object suitable for HTTP endpoints.
+A `Response` object suitable for HTTP endpoints with SSE headers (`Content-Type: text/event-stream`, `Cache-Control: no-cache`, `Connection: keep-alive`).
 
 ## `maxIterations(count)`
 
@@ -228,7 +257,7 @@ interface Tool {
     parameters: Record<string, any>;
   };
   execute?: (args: any) => Promise<any> | any;
-  requiresApproval?: boolean;
+  needsApproval?: boolean;
 }
 ```
 
@@ -265,6 +294,6 @@ const embeddings = await embedding({
 
 ## Next Steps
 
-- [Getting Started](../getting-started/quick-start) - Learn the basics
-- [Tools Guide](../guides/tools) - Learn about tools
-- [Adapters](../adapters/openai) - Explore adapter options
+- [Getting Started](../../getting-started/quick-start) - Learn the basics
+- [Tools Guide](../../guides/tools) - Learn about tools
+- [Adapters](../../adapters/openai) - Explore adapter options

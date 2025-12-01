@@ -1,14 +1,9 @@
 import { createFileRoute } from '@tanstack/solid-router'
-import {
-  chat,
-  toStreamResponse,
-  maxIterations,
-  chatOptions,
-} from '@tanstack/ai'
-import { openai } from '@tanstack/ai-openai'
+import { chat, toStreamResponse, maxIterations } from '@tanstack/ai'
+// import { openai } from '@tanstack/ai-openai'
 // import { ollama } from "@tanstack/ai-ollama";
-// import { anthropic } from "@tanstack/ai-anthropic";
 // import { gemini } from "@tanstack/ai-gemini";
+import { anthropic } from '@tanstack/ai-anthropic'
 import { allTools } from '@/lib/guitar-tools'
 
 const SYSTEM_PROMPT = `You are a helpful assistant for a guitar store.
@@ -38,11 +33,11 @@ export const Route = createFileRoute('/api/tanchat')({
   server: {
     handlers: {
       POST: async ({ request }) => {
-        if (!process.env.OPENAI_API_KEY) {
+        if (!process.env.ANTHROPIC_API_KEY) {
           return new Response(
             JSON.stringify({
               error:
-                'OPENAI_API_KEY not configured. Please add it to .env or .env.local',
+                'ANTHROPIC_API_KEY not configured. Please add it to .env or .env.local',
             }),
             {
               status: 500,
@@ -65,17 +60,17 @@ export const Route = createFileRoute('/api/tanchat')({
         try {
           // Use the stream abort signal for proper cancellation handling
           const stream = chat({
-            adapter: openai(),
-            model: 'gpt-4-turbo',
-            // model: "claude-sonnet-4-5-20250929",
-            // model: "smollm",
-            // model: "gemini-2.5-flash",
+            adapter: anthropic(),
+            model: 'claude-sonnet-4-5-20250929',
             tools: allTools,
             systemPrompts: [SYSTEM_PROMPT],
             agentLoopStrategy: maxIterations(20),
             messages,
             providerOptions: {
-              tool_choice: 'auto',
+              thinking: {
+                type: 'enabled',
+                budget_tokens: 10000,
+              },
             },
             abortController,
           })
