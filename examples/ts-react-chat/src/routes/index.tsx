@@ -9,9 +9,8 @@ import remarkGfm from 'remark-gfm'
 import { fetchServerSentEvents, useChat } from '@tanstack/ai-react'
 import { clientTools, createChatClientOptions } from '@tanstack/ai-client'
 import { ThinkingPart } from '@tanstack/ai-react-ui'
-
 import type { InferChatMessages } from '@tanstack/ai-client'
-
+import type { StreamChunk } from '@tanstack/ai'
 import GuitarRecommendation from '@/components/example-GuitarRecommendation'
 import {
   addToCartToolDef,
@@ -108,18 +107,17 @@ function Messages({
           >
             <div className="flex items-start gap-4">
               {message.role === 'assistant' ? (
-                <div className="w-8 h-8 rounded-lg bg-linear-to-r from-orange-500 to-red-600 flex items-center justify-center text-sm font-medium text-white flex-shrink-0">
+                <div className="w-8 h-8 rounded-lg bg-linear-to-r from-orange-500 to-red-600 flex items-center justify-center text-sm font-medium text-white shrink-0">
                   AI
                 </div>
               ) : (
-                <div className="w-8 h-8 rounded-lg bg-gray-700 flex items-center justify-center text-sm font-medium text-white flex-shrink-0">
+                <div className="w-8 h-8 rounded-lg bg-gray-700 flex items-center justify-center text-sm font-medium text-white shrink-0">
                   U
                 </div>
               )}
               <div className="flex-1 min-w-0">
                 {/* Render parts in order */}
                 {message.parts.map((part, index) => {
-                  // Thinking part
                   if (part.type === 'thinking') {
                     // Check if thinking is complete (if there's a text part after)
                     const isComplete = message.parts
@@ -237,7 +235,7 @@ function DebugPanel({
   onClearChunks,
 }: {
   messages: ChatMessages
-  chunks: Array<unknown>
+  chunks: Array<StreamChunk>
   onClearChunks: () => void
 }) {
   const [activeTab, setActiveTab] = useState<'messages' | 'chunks'>('messages')
@@ -322,17 +320,21 @@ function DebugPanel({
                   </tr>
                 </thead>
                 <tbody className="text-gray-300">
-                  {chunks.map((chunk: any, idx: number) => {
-                    const role = chunk.role || '-'
-                    const toolType = chunk.toolCall?.type || '-'
-                    const toolName = chunk.toolCall?.function?.name || '-'
+                  {chunks.map((chunk, idx: number) => {
+                    const role = chunk.type === 'content' ? chunk.role : '-'
+                    const toolType =
+                      chunk.type === 'tool_call' ? chunk.toolCall.type : '-'
+                    const toolName =
+                      chunk.type === 'tool_call'
+                        ? chunk.toolCall.function.name
+                        : '-'
 
                     let detail = '-'
                     if (chunk.type === 'content' && chunk.content) {
                       detail = chunk.content
                     } else if (
                       chunk.type === 'tool_call' &&
-                      chunk.toolCall?.function?.arguments
+                      chunk.toolCall.function.arguments
                     ) {
                       detail = chunk.toolCall.function.arguments
                     } else if (chunk.type === 'tool_result' && chunk.content) {
@@ -372,13 +374,13 @@ function DebugPanel({
 }
 
 function ChatPage() {
-  const [chunks, setChunks] = useState<Array<unknown>>([])
+  const [chunks, setChunks] = useState<Array<StreamChunk>>([])
 
   const { messages, sendMessage, isLoading, addToolApprovalResponse, stop } =
     useChat({
       connection: chatOptions.connection,
       tools,
-      onChunk: (chunk: any) => {
+      onChunk: (chunk) => {
         setChunks((prev) => [...prev, chunk])
       },
     })

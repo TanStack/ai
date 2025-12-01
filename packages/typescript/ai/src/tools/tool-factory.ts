@@ -176,13 +176,7 @@ export function toolDefinition<
 ): ToolDefinition<TInput, TOutput, TName> {
   const definition: ToolDefinition<TInput, TOutput, TName> = {
     __toolSide: 'definition',
-    name: config.name,
-    description: config.description,
-    inputSchema: config.inputSchema,
-    outputSchema: config.outputSchema,
-    needsApproval: config.needsApproval,
-    metadata: config.metadata,
-
+    ...config,
     server(
       execute: (
         args: z.infer<TInput>,
@@ -190,12 +184,7 @@ export function toolDefinition<
     ): ServerTool<TInput, TOutput, TName> {
       return {
         __toolSide: 'server',
-        name: config.name,
-        description: config.description,
-        inputSchema: config.inputSchema,
-        outputSchema: config.outputSchema,
-        needsApproval: config.needsApproval,
-        metadata: config.metadata,
+        ...config,
         execute,
       }
     },
@@ -207,12 +196,7 @@ export function toolDefinition<
     ): ClientTool<TInput, TOutput, TName> {
       return {
         __toolSide: 'client',
-        name: config.name,
-        description: config.description,
-        inputSchema: config.inputSchema,
-        outputSchema: config.outputSchema,
-        needsApproval: config.needsApproval,
-        metadata: config.metadata,
+        ...config,
         execute,
       }
     },
