@@ -15,7 +15,12 @@ import {
 } from './message-updaters'
 import { DefaultChatClientEventEmitter } from './events'
 import type { ModelMessage } from '@tanstack/ai'
-import type { ChatClientOptions, ToolCallPart, UIMessage } from './types'
+import type {
+  ChatClientOptions,
+  ToolCallPart,
+  ToolResultState,
+  UIMessage,
+} from './types'
 import type { ConnectionAdapter } from './connection-adapters'
 import type { ChunkStrategy, StreamParser } from './stream/types'
 import type { ChatClientEventEmitter } from './events'
@@ -392,16 +397,44 @@ export class ChatClient {
       result.state || 'output-available',
     )
 
-    // Update the tool call part with the output
-    this.setMessages(
-      updateToolCallWithOutput(
-        this.messages,
-        result.toolCallId,
-        result.output,
-        result.state === 'output-error' ? 'input-complete' : undefined,
-        result.errorText,
+    // Find the message containing this tool call
+    const messageWithToolCall = this.messages.find((msg) =>
+      msg.parts.some(
+        (p): p is ToolCallPart =>
+          p.type === 'tool-call' && p.id === result.toolCallId,
       ),
     )
+
+    // Step 1: Update the tool call part with the output
+    let updatedMessages = updateToolCallWithOutput(
+      this.messages,
+      result.toolCallId,
+      result.output,
+      result.state === 'output-error' ? 'input-complete' : undefined,
+      result.errorText,
+    )
+
+    // Step 2: Also create a tool-result part (needed for LLM conversation history)
+    if (messageWithToolCall) {
+      const content =
+        typeof result.output === 'string'
+          ? result.output
+          : JSON.stringify(result.output)
+      const toolResultState: ToolResultState = result.errorText
+        ? 'error'
+        : 'complete'
+
+      updatedMessages = updateToolResultPart(
+        updatedMessages,
+        messageWithToolCall.id,
+        result.toolCallId,
+        content,
+        toolResultState,
+        result.errorText,
+      )
+    }
+
+    this.setMessages(updatedMessages)
 
     // Check if we should auto-send
     if (this.shouldAutoSend()) {
