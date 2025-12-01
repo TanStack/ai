@@ -272,6 +272,15 @@ export interface ChatOptions<
    * @see https://developer.mozilla.org/en-US/docs/Web/API/AbortController
    */
   abortController?: AbortController
+
+  /**
+   * Optional path to record the stream chunks for replay testing.
+   * When provided, all chunks will be recorded and saved to this path.
+   *
+   * @example
+   * recordTo: 'tmp/chat-recording-2024-01-15.json'
+   */
+  recordTo?: string
 }
 
 export type StreamChunkType =

@@ -6,8 +6,6 @@ export type {
   TextPart,
   ToolCallPart,
   ToolResultPart,
-  ToolCallState,
-  ToolResultState,
   // Client configuration types
   ChatClientOptions,
   ChatRequestBody,
@@ -21,29 +19,30 @@ export {
   type FetchConnectionOptions,
 } from './connection-adapters'
 export {
+  uiMessageToModelMessages,
+  modelMessageToUIMessage,
+  modelMessagesToUIMessages,
+} from './message-converters'
+
+// Re-export stream processing from @tanstack/ai (shared implementation)
+export {
   StreamProcessor,
   ImmediateStrategy,
   PunctuationStrategy,
   BatchStrategy,
   WordBoundaryStrategy,
   CompositeStrategy,
-  DebounceStrategy,
-  type StreamChunk,
-  type ProcessedEvent,
-  type ChunkStrategy,
-  type StreamParser,
-  type StreamProcessorOptions,
-  type StreamProcessorHandlers,
-  type InternalToolCallState,
-} from './stream/index'
-export {
-  uiMessageToModelMessages,
-  modelMessageToUIMessage,
-  modelMessagesToUIMessages,
-} from './message-converters'
-export {
   parsePartialJSON,
   PartialJSONParser,
   defaultJSONParser,
+  type ChunkStrategy,
+  type StreamProcessorOptions,
+  type StreamProcessorHandlers,
+  type InternalToolCallState,
+  type ToolCallState,
+  type ToolResultState,
   type JSONParser,
-} from './loose-json-parser'
+  type ChunkRecording,
+  type ProcessorResult,
+  type ProcessorState,
+} from '@tanstack/ai'

@@ -1,4 +1,9 @@
-import { StreamProcessor } from './stream/processor'
+import {
+  StreamProcessor,
+  type ChunkStrategy,
+  type ToolCallState,
+  type ToolResultState,
+} from '@tanstack/ai'
 import {
   normalizeToUIMessage,
   uiMessageToModelMessages,
@@ -17,7 +22,6 @@ import { DefaultChatClientEventEmitter } from './events'
 import type { ModelMessage } from '@tanstack/ai'
 import type { ChatClientOptions, ToolCallPart, UIMessage } from './types'
 import type { ConnectionAdapter } from './connection-adapters'
-import type { ChunkStrategy, StreamParser } from './stream/types'
 import type { ChatClientEventEmitter } from './events'
 
 export class ChatClient {
@@ -29,7 +33,6 @@ export class ChatClient {
   private body?: Record<string, any>
   private streamProcessorConfig?: {
     chunkStrategy?: ChunkStrategy
-    parser?: StreamParser
   }
   private abortController: AbortController | null = null
   private events: ChatClientEventEmitter
@@ -126,15 +129,20 @@ export class ChatClient {
 
     const processor = new StreamProcessor({
       chunkStrategy: this.streamProcessorConfig?.chunkStrategy,
-      parser: this.streamProcessorConfig?.parser,
       handlers: {
-        onTextUpdate: (content) => {
+        onTextUpdate: (content: string) => {
           this.events.textUpdated(streamId, currentMessageId, content)
           this.setMessages(
             updateTextPart(this.messages, currentMessageId, content),
           )
         },
-        onToolCallStateChange: (_index, id, name, state, args) => {
+        onToolCallStateChange: (
+          _index: number,
+          id: string,
+          name: string,
+          state: ToolCallState,
+          args: string,
+        ) => {
           this.events.toolCallStateChanged(
             streamId,
             currentMessageId,
@@ -154,7 +162,12 @@ export class ChatClient {
             }),
           )
         },
-        onToolResultStateChange: (toolCallId, content, state, error) => {
+        onToolResultStateChange: (
+          toolCallId: string,
+          content: string,
+          state: ToolResultState,
+          error?: string,
+        ) => {
           this.events.toolResultStateChanged(
             streamId,
             toolCallId,
@@ -175,7 +188,12 @@ export class ChatClient {
             ),
           )
         },
-        onApprovalRequested: (toolCallId, toolName, input, approvalId) => {
+        onApprovalRequested: (
+          toolCallId: string,
+          toolName: string,
+          input: any,
+          approvalId: string,
+        ) => {
           this.events.approvalRequested(
             currentMessageId,
             toolCallId,
@@ -194,7 +212,11 @@ export class ChatClient {
             ),
           )
         },
-        onToolInputAvailable: async (toolCallId, toolName, input) => {
+        onToolInputAvailable: async (
+          toolCallId: string,
+          toolName: string,
+          input: any,
+        ) => {
           // If onToolCall callback exists, execute immediately
           if (this.callbacks.onToolCall) {
             try {
@@ -232,7 +254,7 @@ export class ChatClient {
             )
           }
         },
-        onThinkingUpdate: (content) => {
+        onThinkingUpdate: (content: string) => {
           this.events.textUpdated(streamId, currentMessageId, content)
           this.setMessages(
             updateThinkingPart(this.messages, currentMessageId, content),
@@ -244,16 +266,19 @@ export class ChatClient {
       },
     })
 
-    // Wrap source to collect raw chunks
-    const wrappedSource = async function* (this: ChatClient) {
-      for await (const chunk of source) {
-        rawChunks.push(chunk)
-        this.callbacks.onChunk(chunk)
-        yield chunk
-      }
-    }.call(this)
+    // Process stream chunk by chunk, yielding control to event loop
+    // This allows React state updates to flush between chunks
+    for await (const chunk of source) {
+      rawChunks.push(chunk)
+      this.callbacks.onChunk(chunk)
+      processor.processChunk(chunk)
 
-    await processor.process(wrappedSource)
+      // Yield control back to event loop to allow React to flush updates
+      await new Promise((resolve) => setTimeout(resolve, 0))
+    }
+
+    // Finalize the stream when done
+    processor.finalizeStream()
 
     const finalMessage = this.messages.find(
       (msg) => msg.id === assistantMessageId,

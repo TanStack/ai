@@ -48,13 +48,13 @@ export const Route = createFileRoute('/api/tanchat')({
           // Use the stream abort signal for proper cancellation handling
           const stream = chat({
             adapter: openai(),
-            model: 'gpt-5',
+            model: 'gpt-4o',
             // For thinking/reasoning support, use one of these models:
             // - OpenAI: "gpt-5", "o3", "o3-pro", "o3-mini" (with reasoning option)
             // - Anthropic: "claude-sonnet-4-5-20250929", "claude-opus-4-5-20251101" (with thinking option)
             // - Gemini: "gemini-3-pro-preview", "gemini-2.5-pro" (with thinkingConfig option)
             // model: 'claude-sonnet-4-5-20250929',
-            // model: "claude-sonnet-4-5-20250929",
+            // model: 'claude-sonnet-4-5-20250929',
             // model: "smollm",
             // model: "gemini-2.5-flash",
             tools: allTools,

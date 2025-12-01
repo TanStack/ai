@@ -1,9 +1,8 @@
+import type { ToolCallState, ToolResultState } from '@tanstack/ai'
 import type {
   ThinkingPart,
   ToolCallPart,
-  ToolCallState,
   ToolResultPart,
-  ToolResultState,
   UIMessage,
 } from './types'
 

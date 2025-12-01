@@ -269,6 +269,53 @@ export class OpenAI extends BaseAdapter<
             }
           }
         }
+        // Handle output text deltas (token-by-token streaming)
+        // response.output_text.delta provides incremental text updates
+        if (chunk.type === 'response.output_text.delta' && chunk.delta) {
+          // Delta can be an array of strings or a single string
+          const textDelta = Array.isArray(chunk.delta)
+            ? chunk.delta.join('')
+            : typeof chunk.delta === 'string'
+              ? chunk.delta
+              : ''
+
+          if (textDelta) {
+            accumulatedContent += textDelta
+            yield {
+              type: 'content',
+              id: responseId || generateId(),
+              model: model || options.model,
+              timestamp,
+              delta: textDelta,
+              content: accumulatedContent,
+              role: 'assistant',
+            }
+          }
+        }
+
+        // Handle reasoning deltas (token-by-token thinking/reasoning streaming)
+        // response.reasoning_text.delta provides incremental reasoning updates
+        if (chunk.type === 'response.reasoning_text.delta' && chunk.delta) {
+          // Delta can be an array of strings or a single string
+          const reasoningDelta = Array.isArray(chunk.delta)
+            ? chunk.delta.join('')
+            : typeof chunk.delta === 'string'
+              ? chunk.delta
+              : ''
+
+          if (reasoningDelta) {
+            accumulatedReasoning += reasoningDelta
+            yield {
+              type: 'thinking',
+              id: responseId || generateId(),
+              model: model || options.model,
+              timestamp,
+              delta: reasoningDelta,
+              content: accumulatedReasoning,
+            }
+          }
+        }
+
         // handle content_part added events for text, reasoning and refusals
         if (chunk.type === 'response.content_part.added') {
           const contentPart = chunk.part

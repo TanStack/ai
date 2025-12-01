@@ -436,6 +436,9 @@ importers:
       '@tanstack/devtools-event-client':
         specifier: ^0.3.5
         version: 0.3.5
+      partial-json:
+        specifier: ^0.1.7
+        version: 0.1.7
     devDependencies:
       '@alcyone-labs/zod-to-json-schema':
         specifier: ^4.0.10

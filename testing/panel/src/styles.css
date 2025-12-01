@@ -1,0 +1,81 @@
+@import 'tailwindcss';
+
+:root {
+  --bg-primary: #0a0a0f;
+  --bg-secondary: #12121a;
+  --bg-tertiary: #1a1a24;
+  --border-color: #2a2a3a;
+  --text-primary: #e4e4e7;
+  --text-secondary: #a1a1aa;
+  --text-muted: #71717a;
+  --accent: #f97316;
+  --accent-dim: rgba(249, 115, 22, 0.2);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  padding: 0;
+  font-family: 'SF Mono', 'Fira Code', 'Consolas', monospace;
+  background-color: var(--bg-primary);
+  color: var(--text-primary);
+  min-height: 100vh;
+}
+
+/* Custom scrollbar */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--bg-secondary);
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--border-color);
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--text-muted);
+}
+
+/* Code highlighting */
+.json-key {
+  color: #7dd3fc;
+}
+
+.json-string {
+  color: #86efac;
+}
+
+.json-number {
+  color: #fcd34d;
+}
+
+.json-boolean {
+  color: #f472b6;
+}
+
+.json-null {
+  color: #a78bfa;
+}
+
+/* Drop zone animation */
+@keyframes pulse-border {
+  0%,
+  100% {
+    border-color: var(--accent);
+  }
+  50% {
+    border-color: var(--accent-dim);
+  }
+}
+
+.drop-zone-active {
+  animation: pulse-border 1s ease-in-out infinite;
+}

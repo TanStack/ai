@@ -76,35 +76,3 @@ export class CompositeStrategy implements ChunkStrategy {
     this.strategies.forEach((s) => s.reset?.())
   }
 }
-
-/**
- * Debounce Strategy - emit after N milliseconds of no new chunks
- * Useful for reducing jitter in fast streams
- */
-export class DebounceStrategy implements ChunkStrategy {
-  private timeoutId: NodeJS.Timeout | null = null
-  private shouldEmitNow = false
-
-  constructor(private delayMs: number = 100) {}
-
-  shouldEmit(_chunk: string, _accumulated: string): boolean {
-    if (this.timeoutId) {
-      clearTimeout(this.timeoutId)
-    }
-
-    this.shouldEmitNow = false
-    this.timeoutId = setTimeout(() => {
-      this.shouldEmitNow = true
-    }, this.delayMs)
-
-    return this.shouldEmitNow
-  }
-
-  reset(): void {
-    if (this.timeoutId) {
-      clearTimeout(this.timeoutId)
-      this.timeoutId = null
-    }
-    this.shouldEmitNow = false
-  }
-}

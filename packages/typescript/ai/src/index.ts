@@ -17,3 +17,29 @@ export {
 export * from './types'
 export { chatOptions } from './utilities/chat-options'
 export { aiEventClient } from './event-client'
+
+// Stream processing (unified for server and client)
+export {
+  StreamProcessor,
+  createReplayStream,
+  ImmediateStrategy,
+  PunctuationStrategy,
+  BatchStrategy,
+  WordBoundaryStrategy,
+  CompositeStrategy,
+  PartialJSONParser,
+  defaultJSONParser,
+  parsePartialJSON,
+} from './stream'
+export type {
+  ChunkStrategy,
+  ChunkRecording,
+  InternalToolCallState,
+  ProcessorResult,
+  ProcessorState,
+  StreamProcessorHandlers,
+  StreamProcessorOptions,
+  ToolCallState,
+  ToolResultState,
+  JSONParser,
+} from './stream'

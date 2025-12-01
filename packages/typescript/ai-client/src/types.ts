@@ -1,24 +1,11 @@
-import type { ModelMessage, StreamChunk } from '@tanstack/ai'
+import type {
+  ModelMessage,
+  StreamChunk,
+  ChunkStrategy,
+  ToolCallState,
+  ToolResultState,
+} from '@tanstack/ai'
 import type { ConnectionAdapter } from './connection-adapters'
-import type { ChunkStrategy, StreamParser } from './stream/types'
-
-/**
- * Tool call states - track the lifecycle of a tool call
- */
-export type ToolCallState =
-  | 'awaiting-input' // Received start but no arguments yet
-  | 'input-streaming' // Partial arguments received
-  | 'input-complete' // All arguments received
-  | 'approval-requested' // Waiting for user approval
-  | 'approval-responded' // User has approved/denied
-
-/**
- * Tool result states - track the lifecycle of a tool result
- */
-export type ToolResultState =
-  | 'streaming' // Placeholder for future streamed output
-  | 'complete' // Result is complete
-  | 'error' // Error occurred
 
 /**
  * Message parts - building blocks of UIMessage
@@ -144,7 +131,7 @@ export interface ChatClientOptions {
 
   /**
    * Stream processing options (optional)
-   * Configure chunking strategy and custom parsers
+   * Configure chunking strategy
    */
   streamProcessor?: {
     /**
@@ -152,12 +139,6 @@ export interface ChatClientOptions {
      * Defaults to ImmediateStrategy (every chunk)
      */
     chunkStrategy?: ChunkStrategy
-
-    /**
-     * Custom stream parser
-     * Override to handle different stream formats
-     */
-    parser?: StreamParser
   }
 }
 
