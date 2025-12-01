@@ -44,13 +44,19 @@ export class StreamProcessor {
   private recordingEnabled: boolean
 
   // State
-  private textContent = ''
+  // Total accumulated text across all segments (for the final result)
+  private totalTextContent = ''
+  // Current segment's text content (for onTextUpdate callbacks)
+  private currentSegmentText = ''
   private lastEmittedText = ''
   private thinkingContent = ''
   private toolCalls: Map<string, InternalToolCallState> = new Map()
   private toolCallOrder: Array<string> = []
   private finishReason: string | null = null
   private isDone = false
+  // Track if we've had tool calls since the last text segment started
+  // This is needed to detect when we should start a new text segment
+  private hasToolCallsSinceTextStart = false
 
   // Recording
   private recording: ChunkRecording | null = null
@@ -150,45 +156,61 @@ export class StreamProcessor {
     chunk: Extract<StreamChunk, { type: 'content' }>,
   ): void {
     // Content arriving means all current tool calls are complete
-    const hadPendingToolCalls = this.hasPendingToolCalls()
-    if (hadPendingToolCalls && this.textContent) {
-      // Emit any accumulated text before completing tool calls
-      if (this.textContent !== this.lastEmittedText) {
-        this.emitTextUpdate()
-      }
-      // Reset text accumulation for the new text segment after tool calls
-      this.textContent = ''
-      this.lastEmittedText = ''
-    }
-
     this.completeAllToolCalls()
 
-    const previous = this.textContent
-    let nextText = previous
+    const previousSegment = this.currentSegmentText
+
+    // Detect if this is a NEW text segment (after tool calls) vs continuation
+    // A new segment is detected when:
+    // 1. We've had tool calls since text started
+    // 2. We have existing text content
+    // 3. The incoming content doesn't look like a continuation
+    const isNewSegment =
+      this.hasToolCallsSinceTextStart &&
+      previousSegment.length > 0 &&
+      this.isNewTextSegment(chunk, previousSegment)
+
+    if (isNewSegment) {
+      // Emit any accumulated text before starting new segment
+      if (previousSegment !== this.lastEmittedText) {
+        this.emitTextUpdate()
+      }
+      // Reset SEGMENT text accumulation for the new text segment after tool calls
+      // But keep totalTextContent - it accumulates across all segments
+      this.currentSegmentText = ''
+      this.lastEmittedText = ''
+      this.hasToolCallsSinceTextStart = false
+    }
+
+    const currentText = this.currentSegmentText
+    let nextText = currentText
 
     // Prefer delta over content - delta is the incremental change
     if (chunk.delta !== undefined && chunk.delta !== '') {
-      nextText = previous + chunk.delta
+      nextText = currentText + chunk.delta
     } else if (chunk.content !== undefined && chunk.content !== '') {
       // Fallback: use content if delta is not provided
-      if (chunk.content.startsWith(previous)) {
+      if (chunk.content.startsWith(currentText)) {
         nextText = chunk.content
-      } else if (previous.startsWith(chunk.content)) {
-        nextText = previous
+      } else if (currentText.startsWith(chunk.content)) {
+        nextText = currentText
       } else {
-        nextText = previous + chunk.content
+        nextText = currentText + chunk.content
       }
     }
 
-    this.textContent = nextText
+    // Calculate the delta for totalTextContent
+    const textDelta = nextText.slice(currentText.length)
+    this.currentSegmentText = nextText
+    this.totalTextContent += textDelta
 
     // Use delta for chunk strategy if available
     const chunkPortion = chunk.delta ?? chunk.content ?? ''
     const shouldEmit = this.chunkStrategy.shouldEmit(
       chunkPortion,
-      this.textContent,
+      this.currentSegmentText,
     )
-    if (shouldEmit && this.textContent !== this.lastEmittedText) {
+    if (shouldEmit && this.currentSegmentText !== this.lastEmittedText) {
       this.emitTextUpdate()
     }
   }
@@ -199,6 +221,9 @@ export class StreamProcessor {
   private handleToolCallChunk(
     chunk: Extract<StreamChunk, { type: 'tool_call' }>,
   ): void {
+    // Mark that we've seen tool calls since the last text segment
+    this.hasToolCallsSinceTextStart = true
+
     const toolCallId = chunk.toolCall.id
     const existingToolCall = this.toolCalls.get(toolCallId)
 
@@ -379,14 +404,45 @@ export class StreamProcessor {
   }
 
   /**
-   * Check if there are any pending tool calls (not yet complete)
+   * Detect if an incoming content chunk represents a NEW text segment
+   * (vs a continuation of the current segment)
+   *
+   * This is needed to properly handle the pattern:
+   * Text1 -> ToolCall -> Text2
+   *
+   * We need to detect when Text2 starts so we can reset the text buffer
+   * and emit Text1 separately.
+   *
+   * A new segment is detected when the incoming content doesn't look like
+   * a continuation of the existing text (different starting text).
    */
-  private hasPendingToolCalls(): boolean {
-    for (const toolCall of this.toolCalls.values()) {
-      if (toolCall.state !== 'input-complete') {
+  private isNewTextSegment(
+    chunk: Extract<StreamChunk, { type: 'content' }>,
+    previous: string,
+  ): boolean {
+    // If using delta and previous is non-empty, check if this looks like fresh content
+    // For deltas, we rely on the content field (if available) to detect new segments
+    if (chunk.delta !== undefined && chunk.content !== undefined) {
+      // If the chunk's accumulated content is shorter than our previous text,
+      // it's definitely a new segment (e.g., previous="Hello world", content="Now")
+      if (chunk.content.length < previous.length) {
+        return true
+      }
+
+      // If the chunk's accumulated content doesn't start with our previous text,
+      // and our previous text doesn't start with it, it's a new segment
+      if (
+        !chunk.content.startsWith(previous) &&
+        !previous.startsWith(chunk.content)
+      ) {
         return true
       }
     }
+
+    // If only delta is provided (no accumulated content), we can't reliably detect
+    // new segments, so assume continuation
+    // If only content is provided, use the existing logic in handleContentChunk
+
     return false
   }
 
@@ -437,8 +493,8 @@ export class StreamProcessor {
    * Emit pending text update
    */
   private emitTextUpdate(): void {
-    this.lastEmittedText = this.textContent
-    this.handlers.onTextUpdate?.(this.textContent)
+    this.lastEmittedText = this.currentSegmentText
+    this.handlers.onTextUpdate?.(this.currentSegmentText)
   }
 
   /**
@@ -449,14 +505,14 @@ export class StreamProcessor {
     this.completeAllToolCalls()
 
     // Emit any pending text if not already emitted
-    if (this.textContent !== this.lastEmittedText) {
+    if (this.currentSegmentText !== this.lastEmittedText) {
       this.emitTextUpdate()
     }
 
-    // Emit stream end
+    // Emit stream end with total accumulated content
     const toolCalls = this.getCompletedToolCalls()
     this.handlers.onStreamEnd?.(
-      this.textContent,
+      this.totalTextContent,
       toolCalls.length > 0 ? toolCalls : undefined,
     )
   }
@@ -483,7 +539,7 @@ export class StreamProcessor {
   private getResult(): ProcessorResult {
     const toolCalls = this.getCompletedToolCalls()
     return {
-      content: this.textContent,
+      content: this.totalTextContent,
       thinking: this.thinkingContent || undefined,
       toolCalls: toolCalls.length > 0 ? toolCalls : undefined,
       finishReason: this.finishReason,
@@ -535,6 +591,7 @@ export class StreamProcessor {
     this.toolCallOrder = []
     this.finishReason = null
     this.isDone = false
+    this.hasToolCallsSinceTextStart = false
     this.chunkStrategy.reset?.()
   }
 

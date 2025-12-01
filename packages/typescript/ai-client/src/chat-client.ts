@@ -1,9 +1,4 @@
-import {
-  StreamProcessor,
-  type ChunkStrategy,
-  type ToolCallState,
-  type ToolResultState,
-} from '@tanstack/ai'
+import { StreamProcessor } from '@tanstack/ai'
 import {
   normalizeToUIMessage,
   uiMessageToModelMessages,
@@ -19,7 +14,12 @@ import {
   updateToolResultPart,
 } from './message-updaters'
 import { DefaultChatClientEventEmitter } from './events'
-import type { ModelMessage } from '@tanstack/ai'
+import type {
+  ChunkStrategy,
+  ModelMessage,
+  ToolCallState,
+  ToolResultState,
+} from '@tanstack/ai'
 import type { ChatClientOptions, ToolCallPart, UIMessage } from './types'
 import type { ConnectionAdapter } from './connection-adapters'
 import type { ChatClientEventEmitter } from './events'

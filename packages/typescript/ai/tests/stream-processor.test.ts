@@ -393,6 +393,83 @@ describe('StreamProcessor (Unified)', () => {
       expect(result.content).toBe('The weather in Paris is sunny')
       expect(result.toolCalls).toHaveLength(1)
     })
+
+    it('should emit separate text segments when text appears before and after tool calls', async () => {
+      const textUpdates: Array<string> = []
+      const handlers: StreamProcessorHandlers = {
+        onToolCallStart: vi.fn(),
+        onToolCallComplete: vi.fn(),
+        onTextUpdate: (text) => textUpdates.push(text),
+      }
+
+      const processor = new StreamProcessor({
+        handlers,
+      })
+
+      // Simulates the Anthropic-style pattern: Text1 -> ToolCall -> Text2
+      // Each text segment has its own accumulated content field
+      const stream = createMockStream([
+        // First text segment
+        {
+          type: 'content',
+          id: 'msg-1',
+          model: 'test',
+          timestamp: Date.now(),
+          delta: 'Let me check the guitars.',
+          content: 'Let me check the guitars.',
+          role: 'assistant',
+        },
+        // Tool call
+        {
+          type: 'tool_call',
+          id: 'msg-1',
+          model: 'test',
+          timestamp: Date.now(),
+          toolCall: {
+            id: 'call_1',
+            type: 'function',
+            function: { name: 'getGuitars', arguments: '{}' },
+          },
+          index: 0,
+        },
+        // Second text segment - note the content field starts fresh, not including first segment
+        {
+          type: 'content',
+          id: 'msg-1',
+          model: 'test',
+          timestamp: Date.now(),
+          delta: 'Based on the results,',
+          content: 'Based on the results,', // Fresh start, not "Let me check the guitars.Based on..."
+          role: 'assistant',
+        },
+        {
+          type: 'content',
+          id: 'msg-1',
+          model: 'test',
+          timestamp: Date.now(),
+          delta: ' I recommend the Taylor.',
+          content: 'Based on the results, I recommend the Taylor.',
+          role: 'assistant',
+        },
+      ])
+
+      const result = await processor.process(stream)
+
+      // Should have both text segments combined
+      expect(result.content).toBe(
+        'Let me check the guitars.Based on the results, I recommend the Taylor.',
+      )
+
+      // Should have emitted text updates for both segments
+      // The first segment should be emitted completely
+      expect(textUpdates).toContain('Let me check the guitars.')
+      // The final text should include both segments
+      expect(textUpdates[textUpdates.length - 1]).toBe(
+        'Let me check the guitars.Based on the results, I recommend the Taylor.',
+      )
+
+      expect(result.toolCalls).toHaveLength(1)
+    })
   })
 
   describe('Thinking Chunks', () => {
