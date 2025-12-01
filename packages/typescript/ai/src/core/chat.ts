@@ -62,7 +62,7 @@ class ChatEngine<
   constructor(config: ChatEngineConfig<TAdapter, TParams>) {
     this.adapter = config.adapter
     this.params = config.params
-    this.systemPrompts = config.systemPrompts || []
+    this.systemPrompts = config.params.systemPrompts || []
     this.tools = config.params.tools || []
     this.loopStrategy =
       config.params.agentLoopStrategy || maxIterationsStrategy(5)
@@ -745,8 +745,8 @@ export async function* chat<
     any,
     any
   >
-    ? Models[number]
-    : string,
+  ? Models[number]
+  : string,
 >(
   options: Omit<
     ChatStreamOptionsUnion<TAdapter>,
@@ -761,10 +761,10 @@ export async function* chat<
       any,
       infer ModelProviderOptions
     >
-      ? TModel extends keyof ModelProviderOptions
-        ? ModelProviderOptions[TModel]
-        : never
-      : never
+    ? TModel extends keyof ModelProviderOptions
+    ? ModelProviderOptions[TModel]
+    : never
+    : never
   },
 ): AsyncIterable<StreamChunk> {
   const { adapter, ...chatOptions } = options
