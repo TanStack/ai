@@ -18,6 +18,16 @@ export * from './types'
 export { chatOptions } from './utilities/chat-options'
 export { aiEventClient } from './event-client'
 
+// Message converters
+export {
+  convertMessagesToModelMessages,
+  uiMessageToModelMessages,
+  modelMessageToUIMessage,
+  modelMessagesToUIMessages,
+  normalizeToUIMessage,
+  generateMessageId,
+} from './message-converters'
+
 // Stream processing (unified for server and client)
 export {
   StreamProcessor,
@@ -37,6 +47,7 @@ export type {
   InternalToolCallState,
   ProcessorResult,
   ProcessorState,
+  StreamProcessorEvents,
   StreamProcessorHandlers,
   StreamProcessorOptions,
   ToolCallState,

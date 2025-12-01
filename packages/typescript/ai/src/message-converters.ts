@@ -1,6 +1,12 @@
-import type { ModelMessage } from '@tanstack/ai'
+/**
+ * Message Converters
+ *
+ * Functions for converting between UIMessage and ModelMessage formats.
+ */
+
 import type {
   MessagePart,
+  ModelMessage,
   TextPart,
   ToolCallPart,
   ToolResultPart,
@@ -249,6 +255,6 @@ export function normalizeToUIMessage(
 /**
  * Generate a unique message ID
  */
-function generateMessageId(): string {
+export function generateMessageId(): string {
   return `msg-${Date.now()}-${Math.random().toString(36).substring(7)}`
 }

@@ -1,11 +1,12 @@
 export { ChatClient } from './chat-client'
 export type {
-  // Core message types
+  // Core message types (re-exported from @tanstack/ai via types.ts)
   UIMessage,
   MessagePart,
   TextPart,
   ToolCallPart,
   ToolResultPart,
+  ThinkingPart,
   // Client configuration types
   ChatClientOptions,
   ChatRequestBody,
@@ -18,11 +19,16 @@ export {
   type ConnectionAdapter,
   type FetchConnectionOptions,
 } from './connection-adapters'
+
+// Re-export message converters from @tanstack/ai
 export {
   uiMessageToModelMessages,
   modelMessageToUIMessage,
   modelMessagesToUIMessages,
-} from './message-converters'
+  convertMessagesToModelMessages,
+  normalizeToUIMessage,
+  generateMessageId,
+} from '@tanstack/ai'
 
 // Re-export stream processing from @tanstack/ai (shared implementation)
 export {
@@ -38,6 +44,7 @@ export {
   type ChunkStrategy,
   type StreamProcessorOptions,
   type StreamProcessorHandlers,
+  type StreamProcessorEvents,
   type InternalToolCallState,
   type ToolCallState,
   type ToolResultState,

@@ -1,15 +1,29 @@
 /**
  * Unified Stream Processor
  *
- * Core stream processing engine used by both server and client.
+ * Core stream processing engine that manages the full UIMessage[] conversation.
+ * Single source of truth for message state.
+ *
  * Handles:
+ * - Full conversation management (UIMessage[])
  * - Text content accumulation with configurable chunking strategies
  * - Parallel tool calls with lifecycle state tracking
+ * - Tool results and approval flows
  * - Thinking/reasoning content
  * - Recording/replay for testing
+ * - Event-driven architecture for UI updates
  */
 
 import { defaultJSONParser } from './json-parser'
+import {
+  updateTextPart,
+  updateToolCallPart,
+  updateToolResultPart,
+  updateThinkingPart,
+  updateToolCallApproval,
+  updateToolCallWithOutput,
+  updateToolCallApprovalResponse,
+} from './message-updaters'
 import { ImmediateStrategy } from './strategies'
 import type {
   ChunkRecording,
@@ -17,17 +31,135 @@ import type {
   InternalToolCallState,
   ProcessorResult,
   ProcessorState,
-  StreamProcessorHandlers,
-  StreamProcessorOptions,
   ToolCallState,
   ToolResultState,
 } from './types'
-import type { StreamChunk, ToolCall } from '../types'
+import type {
+  ModelMessage,
+  StreamChunk,
+  ToolCall,
+  ToolCallPart,
+  UIMessage,
+} from '../types'
+import {
+  uiMessageToModelMessages,
+  generateMessageId,
+} from '../message-converters'
+
+/**
+ * Events emitted by the StreamProcessor
+ */
+export interface StreamProcessorEvents {
+  // State events - full array on any change
+  onMessagesChange?: (messages: Array<UIMessage>) => void
+
+  // Lifecycle events
+  onStreamStart?: () => void
+  onStreamEnd?: (message: UIMessage) => void
+  onError?: (error: Error) => void
+
+  // Interaction events - client must handle these
+  onToolCall?: (args: {
+    toolCallId: string
+    toolName: string
+    input: any
+  }) => void
+  onApprovalRequest?: (args: {
+    toolCallId: string
+    toolName: string
+    input: any
+    approvalId: string
+  }) => void
+
+  // Granular events for UI optimization (character-by-character, state tracking)
+  onTextUpdate?: (messageId: string, content: string) => void
+  onToolCallStateChange?: (
+    messageId: string,
+    toolCallId: string,
+    state: ToolCallState,
+    args: string,
+  ) => void
+  onThinkingUpdate?: (messageId: string, content: string) => void
+}
+
+/**
+ * Legacy handlers for backward compatibility
+ * These are the old callback-style handlers
+ */
+export interface StreamProcessorHandlers {
+  onTextUpdate?: (content: string) => void
+  onThinkingUpdate?: (content: string) => void
+
+  // Tool call lifecycle handlers
+  onToolCallStart?: (index: number, id: string, name: string) => void
+  onToolCallDelta?: (index: number, args: string) => void
+  onToolCallComplete?: (
+    index: number,
+    id: string,
+    name: string,
+    args: string,
+  ) => void
+  onToolCallStateChange?: (
+    index: number,
+    id: string,
+    name: string,
+    state: ToolCallState,
+    args: string,
+    parsedArgs?: any,
+  ) => void
+
+  // Tool result handlers
+  onToolResultStateChange?: (
+    toolCallId: string,
+    content: string,
+    state: ToolResultState,
+    error?: string,
+  ) => void
+
+  // Approval/client tool handlers
+  onApprovalRequested?: (
+    toolCallId: string,
+    toolName: string,
+    input: any,
+    approvalId: string,
+  ) => void
+  onToolInputAvailable?: (
+    toolCallId: string,
+    toolName: string,
+    input: any,
+  ) => void
+
+  // Stream lifecycle
+  onStreamEnd?: (content: string, toolCalls?: Array<ToolCall>) => void
+  onError?: (error: { message: string; code?: string }) => void
+}
+
+/**
+ * Options for StreamProcessor
+ */
+export interface StreamProcessorOptions {
+  chunkStrategy?: ChunkStrategy
+  /** New event-driven handlers */
+  events?: StreamProcessorEvents
+  /** Legacy callback handlers (for backward compatibility) */
+  handlers?: StreamProcessorHandlers
+  jsonParser?: {
+    parse: (jsonString: string) => any
+  }
+  /** Enable recording for replay testing */
+  recording?: boolean
+  /** Initial messages to populate the processor */
+  initialMessages?: Array<UIMessage>
+}
 
 /**
  * StreamProcessor - State machine for processing AI response streams
  *
+ * Manages the full UIMessage[] conversation and emits events on changes.
+ *
  * State tracking:
+ * - Full message array
+ * - Current assistant message being streamed
  * - Text content accumulation
  * - Multiple parallel tool calls
  * - Tool call completion detection
@@ -39,11 +171,16 @@ import type { StreamChunk, ToolCall } from '../types'
  */
 export class StreamProcessor {
   private chunkStrategy: ChunkStrategy
+  private events: StreamProcessorEvents
   private handlers: StreamProcessorHandlers
   private jsonParser: { parse: (jsonString: string) => any }
   private recordingEnabled: boolean
 
-  // State
+  // Message state
+  private messages: Array<UIMessage> = []
+  private currentAssistantMessageId: string | null = null
+
+  // Stream state for current assistant message
   // Total accumulated text across all segments (for the final result)
   private totalTextContent = ''
   // Current segment's text content (for onTextUpdate callbacks)
@@ -55,7 +192,6 @@ export class StreamProcessor {
   private finishReason: string | null = null
   private isDone = false
   // Track if we've had tool calls since the last text segment started
-  // This is needed to detect when we should start a new text segment
   private hasToolCallsSinceTextStart = false
 
   // Recording
@@ -64,17 +200,197 @@ export class StreamProcessor {
 
   constructor(options: StreamProcessorOptions = {}) {
     this.chunkStrategy = options.chunkStrategy || new ImmediateStrategy()
+    this.events = options.events || {}
     this.handlers = options.handlers || {}
     this.jsonParser = options.jsonParser || defaultJSONParser
     this.recordingEnabled = options.recording ?? false
+
+    // Initialize with provided messages
+    if (options.initialMessages) {
+      this.messages = [...options.initialMessages]
+    }
   }
+
+  // ============================================
+  // Message Management Methods
+  // ============================================
+
+  /**
+   * Set the messages array (e.g., from persisted state)
+   */
+  setMessages(messages: Array<UIMessage>): void {
+    this.messages = [...messages]
+    this.emitMessagesChange()
+  }
+
+  /**
+   * Add a user message to the conversation
+   */
+  addUserMessage(content: string): UIMessage {
+    const userMessage: UIMessage = {
+      id: generateMessageId(),
+      role: 'user',
+      parts: [{ type: 'text', content }],
+      createdAt: new Date(),
+    }
+
+    this.messages = [...this.messages, userMessage]
+    this.emitMessagesChange()
+
+    return userMessage
+  }
+
+  /**
+   * Start streaming a new assistant message
+   * Returns the message ID
+   */
+  startAssistantMessage(): string {
+    // Reset stream state for new message
+    this.resetStreamState()
+
+    const assistantMessage: UIMessage = {
+      id: generateMessageId(),
+      role: 'assistant',
+      parts: [],
+      createdAt: new Date(),
+    }
+
+    this.currentAssistantMessageId = assistantMessage.id
+    this.messages = [...this.messages, assistantMessage]
+
+    // Emit events
+    this.events.onStreamStart?.()
+    this.emitMessagesChange()
+
+    return assistantMessage.id
+  }
+
+  /**
+   * Add a tool result (called by client after handling onToolCall)
+   */
+  addToolResult(toolCallId: string, output: any, error?: string): void {
+    // Find the message containing this tool call
+    const messageWithToolCall = this.messages.find((msg) =>
+      msg.parts.some(
+        (p): p is ToolCallPart => p.type === 'tool-call' && p.id === toolCallId,
+      ),
+    )
+
+    if (!messageWithToolCall) {
+      console.warn(
+        `[StreamProcessor] Could not find message with tool call ${toolCallId}`,
+      )
+      return
+    }
+
+    // Step 1: Update the tool-call part's output field (for UI rendering)
+    let updatedMessages = updateToolCallWithOutput(
+      this.messages,
+      toolCallId,
+      output,
+      error ? 'input-complete' : undefined,
+      error,
+    )
+
+    // Step 2: Create a tool-result part (for LLM conversation history)
+    const content = typeof output === 'string' ? output : JSON.stringify(output)
+    const toolResultState: ToolResultState = error ? 'error' : 'complete'
+
+    updatedMessages = updateToolResultPart(
+      updatedMessages,
+      messageWithToolCall.id,
+      toolCallId,
+      content,
+      toolResultState,
+      error,
+    )
+
+    this.messages = updatedMessages
+    this.emitMessagesChange()
+  }
+
+  /**
+   * Add an approval response (called by client after handling onApprovalRequest)
+   */
+  addToolApprovalResponse(approvalId: string, approved: boolean): void {
+    this.messages = updateToolCallApprovalResponse(
+      this.messages,
+      approvalId,
+      approved,
+    )
+    this.emitMessagesChange()
+  }
+
+  /**
+   * Get the conversation as ModelMessages (for sending to LLM)
+   */
+  toModelMessages(): Array<ModelMessage> {
+    const modelMessages: Array<ModelMessage> = []
+    for (const msg of this.messages) {
+      modelMessages.push(...uiMessageToModelMessages(msg))
+    }
+    return modelMessages
+  }
+
+  /**
+   * Get current messages
+   */
+  getMessages(): Array<UIMessage> {
+    return this.messages
+  }
+
+  /**
+   * Check if all tool calls in the last assistant message are complete
+   * Useful for auto-continue logic
+   */
+  areAllToolsComplete(): boolean {
+    const lastAssistant = this.messages.findLast(
+      (m: UIMessage) => m.role === 'assistant',
+    )
+
+    if (!lastAssistant) return true
+
+    const toolParts = lastAssistant.parts.filter(
+      (p): p is ToolCallPart => p.type === 'tool-call',
+    )
+
+    if (toolParts.length === 0) return true
+
+    // All tool calls must be in a terminal state
+    return toolParts.every(
+      (part) =>
+        part.state === 'approval-responded' ||
+        (part.output !== undefined && !part.approval),
+    )
+  }
+
+  /**
+   * Remove messages after a certain index (for reload/retry)
+   */
+  removeMessagesAfter(index: number): void {
+    this.messages = this.messages.slice(0, index + 1)
+    this.emitMessagesChange()
+  }
+
+  /**
+   * Clear all messages
+   */
+  clearMessages(): void {
+    this.messages = []
+    this.currentAssistantMessageId = null
+    this.emitMessagesChange()
+  }
+
+  // ============================================
+  // Stream Processing Methods
+  // ============================================
 
   /**
    * Process a stream and emit events through handlers
    */
   async process(stream: AsyncIterable<any>): Promise<ProcessorResult> {
-    // Reset state
-    this.reset()
+    // Reset stream state (but keep messages)
+    this.resetStreamState()
 
     // Start recording if enabled
     if (this.recordingEnabled) {
@@ -161,10 +477,6 @@ export class StreamProcessor {
     const previousSegment = this.currentSegmentText
 
     // Detect if this is a NEW text segment (after tool calls) vs continuation
-    // A new segment is detected when:
-    // 1. We've had tool calls since text started
-    // 2. We have existing text content
-    // 3. The incoming content doesn't look like a continuation
     const isNewSegment =
       this.hasToolCallsSinceTextStart &&
       previousSegment.length > 0 &&
@@ -176,7 +488,6 @@ export class StreamProcessor {
         this.emitTextUpdate()
       }
       // Reset SEGMENT text accumulation for the new text segment after tool calls
-      // But keep totalTextContent - it accumulates across all segments
       this.currentSegmentText = ''
       this.lastEmittedText = ''
       this.hasToolCallsSinceTextStart = false
@@ -255,14 +566,14 @@ export class StreamProcessor {
       // Get actual index for this tool call (based on order)
       const actualIndex = this.toolCallOrder.indexOf(toolCallId)
 
-      // Emit lifecycle event
+      // Emit legacy lifecycle event
       this.handlers.onToolCallStart?.(
         actualIndex,
         chunk.toolCall.id,
         chunk.toolCall.function.name,
       )
 
-      // Emit state change event
+      // Emit legacy state change event
       this.handlers.onToolCallStateChange?.(
         actualIndex,
         chunk.toolCall.id,
@@ -277,6 +588,29 @@ export class StreamProcessor {
         this.handlers.onToolCallDelta?.(
           actualIndex,
           chunk.toolCall.function.arguments,
+        )
+      }
+
+      // Update UIMessage
+      if (this.currentAssistantMessageId) {
+        this.messages = updateToolCallPart(
+          this.messages,
+          this.currentAssistantMessageId,
+          {
+            id: chunk.toolCall.id,
+            name: chunk.toolCall.function.name,
+            arguments: chunk.toolCall.function.arguments || '',
+            state: initialState,
+          },
+        )
+        this.emitMessagesChange()
+
+        // Emit new granular event
+        this.events.onToolCallStateChange?.(
+          this.currentAssistantMessageId,
+          chunk.toolCall.id,
+          initialState,
+          chunk.toolCall.function.arguments || '',
         )
       }
     } else {
@@ -298,7 +632,7 @@ export class StreamProcessor {
       // Get actual index for this tool call
       const actualIndex = this.toolCallOrder.indexOf(toolCallId)
 
-      // Emit state change event
+      // Emit legacy state change event
       this.handlers.onToolCallStateChange?.(
         actualIndex,
         existingToolCall.id,
@@ -315,6 +649,29 @@ export class StreamProcessor {
           chunk.toolCall.function.arguments,
         )
       }
+
+      // Update UIMessage
+      if (this.currentAssistantMessageId) {
+        this.messages = updateToolCallPart(
+          this.messages,
+          this.currentAssistantMessageId,
+          {
+            id: existingToolCall.id,
+            name: existingToolCall.name,
+            arguments: existingToolCall.arguments,
+            state: existingToolCall.state,
+          },
+        )
+        this.emitMessagesChange()
+
+        // Emit new granular event
+        this.events.onToolCallStateChange?.(
+          this.currentAssistantMessageId,
+          existingToolCall.id,
+          existingToolCall.state,
+          existingToolCall.arguments,
+        )
+      }
     }
   }
 
@@ -325,11 +682,25 @@ export class StreamProcessor {
     chunk: Extract<StreamChunk, { type: 'tool_result' }>,
   ): void {
     const state: ToolResultState = 'complete'
+
+    // Emit legacy handler
     this.handlers.onToolResultStateChange?.(
       chunk.toolCallId,
       chunk.content,
       state,
     )
+
+    // Update UIMessage if we have a current assistant message
+    if (this.currentAssistantMessageId) {
+      this.messages = updateToolResultPart(
+        this.messages,
+        this.currentAssistantMessageId,
+        chunk.toolCallId,
+        chunk.content,
+        state,
+      )
+      this.emitMessagesChange()
+    }
   }
 
   /**
@@ -347,7 +718,11 @@ export class StreamProcessor {
   private handleErrorChunk(
     chunk: Extract<StreamChunk, { type: 'error' }>,
   ): void {
+    // Emit legacy handler
     this.handlers.onError?.(chunk.error)
+
+    // Emit new event
+    this.events.onError?.(new Error(chunk.error.message))
   }
 
   /**
@@ -373,7 +748,25 @@ export class StreamProcessor {
     }
 
     this.thinkingContent = nextThinking
+
+    // Emit legacy handler
     this.handlers.onThinkingUpdate?.(this.thinkingContent)
+
+    // Update UIMessage
+    if (this.currentAssistantMessageId) {
+      this.messages = updateThinkingPart(
+        this.messages,
+        this.currentAssistantMessageId,
+        this.thinkingContent,
+      )
+      this.emitMessagesChange()
+
+      // Emit new granular event
+      this.events.onThinkingUpdate?.(
+        this.currentAssistantMessageId,
+        this.thinkingContent,
+      )
+    }
   }
 
   /**
@@ -382,12 +775,32 @@ export class StreamProcessor {
   private handleApprovalRequestedChunk(
     chunk: Extract<StreamChunk, { type: 'approval-requested' }>,
   ): void {
+    // Emit legacy handler
     this.handlers.onApprovalRequested?.(
       chunk.toolCallId,
       chunk.toolName,
       chunk.input,
       chunk.approval.id,
     )
+
+    // Update UIMessage with approval metadata
+    if (this.currentAssistantMessageId) {
+      this.messages = updateToolCallApproval(
+        this.messages,
+        this.currentAssistantMessageId,
+        chunk.toolCallId,
+        chunk.approval.id,
+      )
+      this.emitMessagesChange()
+    }
+
+    // Emit new event
+    this.events.onApprovalRequest?.({
+      toolCallId: chunk.toolCallId,
+      toolName: chunk.toolName,
+      input: chunk.input,
+      approvalId: chunk.approval.id,
+    })
   }
 
   /**
@@ -396,41 +809,32 @@ export class StreamProcessor {
   private handleToolInputAvailableChunk(
     chunk: Extract<StreamChunk, { type: 'tool-input-available' }>,
   ): void {
+    // Emit legacy handler
     this.handlers.onToolInputAvailable?.(
       chunk.toolCallId,
       chunk.toolName,
       chunk.input,
     )
+
+    // Emit new event
+    this.events.onToolCall?.({
+      toolCallId: chunk.toolCallId,
+      toolName: chunk.toolName,
+      input: chunk.input,
+    })
   }
 
   /**
    * Detect if an incoming content chunk represents a NEW text segment
-   * (vs a continuation of the current segment)
-   *
-   * This is needed to properly handle the pattern:
-   * Text1 -> ToolCall -> Text2
-   *
-   * We need to detect when Text2 starts so we can reset the text buffer
-   * and emit Text1 separately.
-   *
-   * A new segment is detected when the incoming content doesn't look like
-   * a continuation of the existing text (different starting text).
    */
   private isNewTextSegment(
     chunk: Extract<StreamChunk, { type: 'content' }>,
     previous: string,
   ): boolean {
-    // If using delta and previous is non-empty, check if this looks like fresh content
-    // For deltas, we rely on the content field (if available) to detect new segments
     if (chunk.delta !== undefined && chunk.content !== undefined) {
-      // If the chunk's accumulated content is shorter than our previous text,
-      // it's definitely a new segment (e.g., previous="Hello world", content="Now")
       if (chunk.content.length < previous.length) {
         return true
       }
-
-      // If the chunk's accumulated content doesn't start with our previous text,
-      // and our previous text doesn't start with it, it's a new segment
       if (
         !chunk.content.startsWith(previous) &&
         !previous.startsWith(chunk.content)
@@ -438,11 +842,6 @@ export class StreamProcessor {
         return true
       }
     }
-
-    // If only delta is provided (no accumulated content), we can't reliably detect
-    // new segments, so assume continuation
-    // If only content is provided, use the existing logic in handleContentChunk
-
     return false
   }
 
@@ -470,7 +869,7 @@ export class StreamProcessor {
     // Try final parse
     toolCall.parsedArguments = this.jsonParser.parse(toolCall.arguments)
 
-    // Emit state change event
+    // Emit legacy state change event
     this.handlers.onToolCallStateChange?.(
       index,
       toolCall.id,
@@ -480,13 +879,36 @@ export class StreamProcessor {
       toolCall.parsedArguments,
     )
 
-    // Emit complete event
+    // Emit legacy complete event
     this.handlers.onToolCallComplete?.(
       index,
       toolCall.id,
       toolCall.name,
       toolCall.arguments,
     )
+
+    // Update UIMessage
+    if (this.currentAssistantMessageId) {
+      this.messages = updateToolCallPart(
+        this.messages,
+        this.currentAssistantMessageId,
+        {
+          id: toolCall.id,
+          name: toolCall.name,
+          arguments: toolCall.arguments,
+          state: 'input-complete',
+        },
+      )
+      this.emitMessagesChange()
+
+      // Emit new granular event
+      this.events.onToolCallStateChange?.(
+        this.currentAssistantMessageId,
+        toolCall.id,
+        'input-complete',
+        toolCall.arguments,
+      )
+    }
   }
 
   /**
@@ -494,7 +916,32 @@ export class StreamProcessor {
    */
   private emitTextUpdate(): void {
     this.lastEmittedText = this.currentSegmentText
+
+    // Emit legacy handler
     this.handlers.onTextUpdate?.(this.currentSegmentText)
+
+    // Update UIMessage
+    if (this.currentAssistantMessageId) {
+      this.messages = updateTextPart(
+        this.messages,
+        this.currentAssistantMessageId,
+        this.currentSegmentText,
+      )
+      this.emitMessagesChange()
+
+      // Emit new granular event
+      this.events.onTextUpdate?.(
+        this.currentAssistantMessageId,
+        this.currentSegmentText,
+      )
+    }
+  }
+
+  /**
+   * Emit messages change event
+   */
+  private emitMessagesChange(): void {
+    this.events.onMessagesChange?.([...this.messages])
   }
 
   /**
@@ -509,12 +956,22 @@ export class StreamProcessor {
       this.emitTextUpdate()
     }
 
-    // Emit stream end with total accumulated content
+    // Emit legacy stream end with total accumulated content
     const toolCalls = this.getCompletedToolCalls()
     this.handlers.onStreamEnd?.(
       this.totalTextContent,
       toolCalls.length > 0 ? toolCalls : undefined,
     )
+
+    // Emit new stream end event
+    if (this.currentAssistantMessageId) {
+      const assistantMessage = this.messages.find(
+        (m) => m.id === this.currentAssistantMessageId,
+      )
+      if (assistantMessage) {
+        this.events.onStreamEnd?.(assistantMessage)
+      }
+    }
   }
 
   /**
@@ -547,11 +1004,11 @@ export class StreamProcessor {
   }
 
   /**
-   * Get current processor state
+   * Get current processor state (legacy)
    */
   getState(): ProcessorState {
     return {
-      content: this.textContent,
+      content: this.totalTextContent,
       thinking: this.thinkingContent,
       toolCalls: new Map(this.toolCalls),
       toolCallOrder: [...this.toolCallOrder],
@@ -581,10 +1038,11 @@ export class StreamProcessor {
   }
 
   /**
-   * Reset processor state
+   * Reset stream state (but keep messages)
    */
-  reset(): void {
-    this.textContent = ''
+  private resetStreamState(): void {
+    this.totalTextContent = ''
+    this.currentSegmentText = ''
     this.lastEmittedText = ''
     this.thinkingContent = ''
     this.toolCalls.clear()
@@ -593,6 +1051,15 @@ export class StreamProcessor {
     this.isDone = false
     this.hasToolCallsSinceTextStart = false
     this.chunkStrategy.reset?.()
+  }
+
+  /**
+   * Full reset (including messages)
+   */
+  reset(): void {
+    this.resetStreamState()
+    this.messages = []
+    this.currentAssistantMessageId = null
   }
 
   /**

@@ -10,23 +10,14 @@ import {
   SkipForward,
   Upload,
 } from 'lucide-react'
-import { StreamProcessor } from '@tanstack/ai'
-import { uiMessageToModelMessages } from '@tanstack/ai-client'
-import {
-  updateTextPart,
-  updateToolCallPart,
-  updateToolResultPart,
-  updateThinkingPart,
-} from '../../../../packages/typescript/ai-client/src/message-updaters'
+import { StreamProcessor, uiMessageToModelMessages } from '@tanstack/ai'
 
 import type {
   ChunkRecording,
   ProcessorResult,
   StreamChunk,
-  ToolCallState,
-  ToolResultState,
+  UIMessage,
 } from '@tanstack/ai'
-import type { UIMessage } from '@tanstack/ai-client'
 
 // Import sample traces
 import * as sampleTraces from '@/traces'
@@ -94,62 +85,36 @@ function TestPanel() {
   }, [])
 
   const createProcessor = useCallback(() => {
-    // Start with an empty assistant message
-    const messageId = 'debug-message'
-    setUIMessage({
-      id: messageId,
-      role: 'assistant',
-      parts: [],
-    })
-
     const processor = new StreamProcessor({
-      handlers: {
-        onTextUpdate: (content: string) => {
-          setUIMessage((prev) =>
-            prev ? updateTextPart([prev], messageId, content)[0] : prev,
-          )
+      events: {
+        onMessagesChange: (messages: Array<UIMessage>) => {
+          // Get the assistant message (should be the last one)
+          const assistantMessage = messages.find((m) => m.role === 'assistant')
+          if (assistantMessage) {
+            setUIMessage(assistantMessage)
+          }
         },
-        onThinkingUpdate: (content: string) => {
-          setUIMessage((prev) =>
-            prev ? updateThinkingPart([prev], messageId, content)[0] : prev,
+        onStreamEnd: (message: UIMessage) => {
+          // Get text content from parts
+          const textParts = message.parts.filter((p) => p.type === 'text')
+          const content = textParts.map((p) => (p as any).content).join('')
+
+          // Get tool calls from parts
+          const toolCallParts = message.parts.filter(
+            (p) => p.type === 'tool-call',
           )
-        },
-        onToolCallStateChange: (
-          _index: number,
-          id: string,
-          name: string,
-          state: ToolCallState,
-          args: string,
-        ) => {
-          setUIMessage((prev) =>
-            prev
-              ? updateToolCallPart([prev], messageId, {
-                  id,
-                  name,
-                  arguments: args,
-                  state,
-                })[0]
-              : prev,
-          )
-        },
-        onToolResultStateChange: (
-          toolCallId: string,
-          content: string,
-          state: ToolResultState,
-        ) => {
-          setUIMessage((prev) =>
-            prev
-              ? updateToolResultPart(
-                  [prev],
-                  messageId,
-                  toolCallId,
-                  content,
-                  state,
-                )[0]
-              : prev,
-          )
-        },
-        onStreamEnd: (content: string, toolCalls?: Array<any>) => {
+          const toolCalls =
+            toolCallParts.length > 0
+              ? toolCallParts.map((p: any) => ({
+                  id: p.id,
+                  type: 'function' as const,
+                  function: {
+                    name: p.name,
+                    arguments: p.arguments,
+                  },
+                }))
+              : undefined
+
           setResult({
             content,
             toolCalls,
@@ -158,6 +123,9 @@ function TestPanel() {
         },
       },
     })
+
+    // Start an assistant message using the new API
+    processor.startAssistantMessage()
 
     processorRef.current = processor
     return processor
@@ -279,7 +247,7 @@ function TestPanel() {
       }))
 
       setResult({
-        content: state.textContent,
+        content: state.content,
         toolCalls: toolCallsArray.length > 0 ? toolCallsArray : undefined,
         finishReason: null,
       })
@@ -318,7 +286,7 @@ function TestPanel() {
     }))
 
     setResult({
-      content: state.textContent,
+      content: state.content,
       toolCalls: toolCallsArray.length > 0 ? toolCallsArray : undefined,
       finishReason: null,
     })
@@ -352,7 +320,7 @@ function TestPanel() {
         )
 
         setResult({
-          content: state.textContent,
+          content: state.content,
           toolCalls: toolCallsArray.length > 0 ? toolCallsArray : undefined,
           finishReason: null,
         })

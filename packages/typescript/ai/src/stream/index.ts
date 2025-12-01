@@ -6,6 +6,11 @@
 
 // Core processor
 export { StreamProcessor, createReplayStream } from './processor'
+export type {
+  StreamProcessorEvents,
+  StreamProcessorHandlers,
+  StreamProcessorOptions,
+} from './processor'
 
 // Strategies
 export {
@@ -31,8 +36,6 @@ export type {
   InternalToolCallState,
   ProcessorResult,
   ProcessorState,
-  StreamProcessorHandlers,
-  StreamProcessorOptions,
   ToolCallState,
   ToolResultState,
 } from './types'

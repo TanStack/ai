@@ -1,10 +1,17 @@
-import type { ToolCallState, ToolResultState } from '@tanstack/ai'
+/**
+ * Message Updaters (Internal)
+ *
+ * Internal helper functions for updating UIMessage parts.
+ * These are used by StreamProcessor to manage the message array.
+ */
+
 import type {
   ThinkingPart,
   ToolCallPart,
   ToolResultPart,
   UIMessage,
-} from './types'
+} from '../types'
+import type { ToolCallState, ToolResultState } from './types'
 
 /**
  * Update or add a text part to a message.
