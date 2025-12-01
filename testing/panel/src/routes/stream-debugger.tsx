@@ -1,15 +1,23 @@
-import { createFileRoute } from '@tanstack/react-router'
-import { useCallback, useMemo, useRef, useState } from 'react'
+import { createFileRoute, useSearch } from '@tanstack/react-router'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
   Check,
   Copy,
   FastForward,
+  RefreshCw,
   RotateCcw,
   SkipBack,
   SkipForward,
   Upload,
 } from 'lucide-react'
 import { StreamProcessor } from '@tanstack/ai'
+import { uiMessageToModelMessages } from '@tanstack/ai-client'
+import {
+  updateTextPart,
+  updateToolCallPart,
+  updateToolResultPart,
+  updateThinkingPart,
+} from '../../../../packages/typescript/ai-client/src/message-updaters'
 
 import type {
   ChunkRecording,
@@ -18,29 +26,32 @@ import type {
   ToolCallState,
   ToolResultState,
 } from '@tanstack/ai'
+import type { UIMessage } from '@tanstack/ai-client'
 
 // Import sample traces
 import * as sampleTraces from '@/traces'
 
 export const Route = createFileRoute('/stream-debugger')({
   component: TestPanel,
+  validateSearch: (search: Record<string, unknown>) => {
+    return {
+      trace: (search.trace as string) || undefined,
+    }
+  },
 })
 
-interface UIMessagePart {
-  type: 'text' | 'tool-call' | 'tool-result' | 'thinking'
-  content?: string
-  id?: string
-  name?: string
-  arguments?: string
-  state?: ToolCallState | ToolResultState
-  toolCallId?: string
-}
-interface UIMessage {
-  role: 'assistant'
-  parts: Array<UIMessagePart>
+interface RecordedTrace {
+  id: string
+  filename: string
+  timestamp: string
+  provider: string
+  model: string
+  size: number
+  chunkCount: number
 }
 
 function TestPanel() {
+  const searchParams = useSearch({ from: '/stream-debugger' })
   const [recording, setRecording] = useState<ChunkRecording | null>(null)
   const [currentChunkIndex, setCurrentChunkIndex] = useState(-1)
   const [uiMessage, setUIMessage] = useState<UIMessage | null>(null)
@@ -48,87 +59,97 @@ function TestPanel() {
   const [isDragging, setIsDragging] = useState(false)
   const [selectedSample, setSelectedSample] = useState<string>('')
   const [copied, setCopied] = useState(false)
+  const [recordedTraces, setRecordedTraces] = useState<Array<RecordedTrace>>([])
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   // Processor ref for step-through mode
   const processorRef = useRef<StreamProcessor | null>(null)
-  const partsRef = useRef<UIMessagePart[]>([])
 
   const sampleOptions = useMemo(() => Object.keys(sampleTraces), [])
+
+  // Function to fetch recorded traces
+  const fetchRecordedTraces = useCallback(() => {
+    fetch('/api/list-traces')
+      .then((res) => res.json())
+      .then((data) => {
+        if (data.traces) {
+          setRecordedTraces(data.traces)
+        }
+      })
+      .catch((error) => {
+        console.error('[TestPanel] Failed to load trace list:', error)
+      })
+  }, [])
+
+  // Fetch recorded traces on mount
+  useEffect(() => {
+    fetchRecordedTraces()
+  }, [fetchRecordedTraces])
 
   const resetState = useCallback(() => {
     setCurrentChunkIndex(-1)
     setUIMessage(null)
     setResult(null)
-    partsRef.current = []
     processorRef.current = null
   }, [])
 
   const createProcessor = useCallback(() => {
-    partsRef.current = []
+    // Start with an empty assistant message
+    const messageId = 'debug-message'
+    setUIMessage({
+      id: messageId,
+      role: 'assistant',
+      parts: [],
+    })
 
     const processor = new StreamProcessor({
       handlers: {
-        onTextUpdate: (content) => {
-          // Find or create text part
-          const textPartIndex = partsRef.current.findIndex(
-            (p) => p.type === 'text',
+        onTextUpdate: (content: string) => {
+          setUIMessage((prev) =>
+            prev ? updateTextPart([prev], messageId, content)[0] : prev,
           )
-          if (textPartIndex >= 0) {
-            partsRef.current[textPartIndex] = { type: 'text', content }
-          } else {
-            partsRef.current.push({ type: 'text', content })
-          }
-          setUIMessage({ role: 'assistant', parts: [...partsRef.current] })
         },
-        onThinkingUpdate: (content) => {
-          const thinkingPartIndex = partsRef.current.findIndex(
-            (p) => p.type === 'thinking',
+        onThinkingUpdate: (content: string) => {
+          setUIMessage((prev) =>
+            prev ? updateThinkingPart([prev], messageId, content)[0] : prev,
           )
-          if (thinkingPartIndex >= 0) {
-            partsRef.current[thinkingPartIndex] = { type: 'thinking', content }
-          } else {
-            // Insert thinking before text
-            partsRef.current.unshift({ type: 'thinking', content })
-          }
-          setUIMessage({ role: 'assistant', parts: [...partsRef.current] })
         },
-        onToolCallStateChange: (_index, id, name, state, args) => {
-          const toolCallIndex = partsRef.current.findIndex(
-            (p) => p.type === 'tool-call' && p.id === id,
+        onToolCallStateChange: (
+          _index: number,
+          id: string,
+          name: string,
+          state: ToolCallState,
+          args: string,
+        ) => {
+          setUIMessage((prev) =>
+            prev
+              ? updateToolCallPart([prev], messageId, {
+                  id,
+                  name,
+                  arguments: args,
+                  state,
+                })[0]
+              : prev,
           )
-          const toolCallPart: UIMessagePart = {
-            type: 'tool-call',
-            id,
-            name,
-            arguments: args,
-            state,
-          }
-          if (toolCallIndex >= 0) {
-            partsRef.current[toolCallIndex] = toolCallPart
-          } else {
-            partsRef.current.push(toolCallPart)
-          }
-          setUIMessage({ role: 'assistant', parts: [...partsRef.current] })
         },
-        onToolResultStateChange: (toolCallId, content, state) => {
-          const toolResultIndex = partsRef.current.findIndex(
-            (p) => p.type === 'tool-result' && p.toolCallId === toolCallId,
+        onToolResultStateChange: (
+          toolCallId: string,
+          content: string,
+          state: ToolResultState,
+        ) => {
+          setUIMessage((prev) =>
+            prev
+              ? updateToolResultPart(
+                  [prev],
+                  messageId,
+                  toolCallId,
+                  content,
+                  state,
+                )[0]
+              : prev,
           )
-          const toolResultPart: UIMessagePart = {
-            type: 'tool-result',
-            toolCallId,
-            content,
-            state,
-          }
-          if (toolResultIndex >= 0) {
-            partsRef.current[toolResultIndex] = toolResultPart
-          } else {
-            partsRef.current.push(toolResultPart)
-          }
-          setUIMessage({ role: 'assistant', parts: [...partsRef.current] })
         },
-        onStreamEnd: (content, toolCalls) => {
+        onStreamEnd: (content: string, toolCalls?: Array<any>) => {
           setResult({
             content,
             toolCalls,
@@ -181,12 +202,49 @@ function TestPanel() {
   )
 
   const handleSampleSelect = useCallback(
-    (name: string) => {
-      setSelectedSample(name)
-      if (name && sampleTraces[name as keyof typeof sampleTraces]) {
-        loadRecording(
-          sampleTraces[name as keyof typeof sampleTraces] as ChunkRecording,
-        )
+    (value: string) => {
+      setSelectedSample(value)
+
+      if (!value) return
+
+      // Check if it's a recorded trace (trace:id) or sample trace (sample:name)
+      if (value.startsWith('trace:')) {
+        const traceId = value.substring(6) // Remove "trace:" prefix
+
+        // Load the trace from API
+        fetch(`/api/load-trace?id=${traceId}`)
+          .then((res) => {
+            if (!res.ok) {
+              throw new Error(`Failed to load trace: ${res.statusText}`)
+            }
+            return res.json()
+          })
+          .then((traceData) => {
+            const chunkRecording: ChunkRecording = {
+              id: traceData.id,
+              timestamp: traceData.timestamp,
+              metadata: {
+                provider: traceData.provider,
+                model: traceData.model,
+                messages: traceData.messages,
+              },
+              chunks: traceData.chunks,
+            }
+            loadRecording(chunkRecording)
+          })
+          .catch((error) => {
+            console.error('[TestPanel] Failed to load trace:', error)
+            alert(`Failed to load trace: ${error.message}`)
+          })
+      } else if (value.startsWith('sample:')) {
+        const sampleName = value.substring(7) // Remove "sample:" prefix
+        if (sampleTraces[sampleName as keyof typeof sampleTraces]) {
+          loadRecording(
+            sampleTraces[
+              sampleName as keyof typeof sampleTraces
+            ] as ChunkRecording,
+          )
+        }
       }
     },
     [loadRecording],
@@ -324,7 +382,7 @@ function TestPanel() {
           chunk,
         })),
       uiMessage,
-      modelMessage: result ? convertToModelMessage(result) : null,
+      modelMessage: uiMessage ? convertToModelMessage(uiMessage) : null,
       processorState: processorRef.current?.getState(),
     }
 
@@ -360,8 +418,49 @@ ${JSON.stringify(report.processorState, null, 2)}
     })
   }, [recording, selectedSample, currentChunkIndex, uiMessage, result])
 
+  // Load trace from query param
+  useEffect(() => {
+    if (searchParams.trace) {
+      // Reset state first
+      setCurrentChunkIndex(-1)
+      setUIMessage(null)
+      setResult(null)
+      processorRef.current = null
+
+      // Set the dropdown to show this trace
+      setSelectedSample(`trace:${searchParams.trace}`)
+
+      // Then load the trace
+      fetch(`/api/load-trace?id=${searchParams.trace}`)
+        .then((res) => {
+          if (!res.ok) {
+            throw new Error(`Failed to load trace: ${res.statusText}`)
+          }
+          return res.json()
+        })
+        .then((traceData) => {
+          // Convert trace data to ChunkRecording format
+          const chunkRecording: ChunkRecording = {
+            id: traceData.id,
+            timestamp: traceData.timestamp,
+            metadata: {
+              provider: traceData.provider,
+              model: traceData.model,
+              messages: traceData.messages,
+            },
+            chunks: traceData.chunks,
+          }
+          setRecording(chunkRecording)
+        })
+        .catch((error) => {
+          console.error('[TestPanel] Failed to load trace:', error)
+          alert(`Failed to load trace: ${error.message}`)
+        })
+    }
+  }, [searchParams.trace])
+
   return (
-    <div className="p-6 flex flex-col gap-6 h-[calc(100vh-88px)]">
+    <div className="p-6 flex flex-col gap-6 h-[calc(100vh-88px)] bg-gray-900">
       {/* Controls Row */}
       <div className="flex gap-4 items-center">
         {/* File Upload / Drop Zone */}
@@ -369,8 +468,8 @@ ${JSON.stringify(report.processorState, null, 2)}
           className={`flex-1 border-2 border-dashed rounded-lg p-4 transition-all cursor-pointer
             ${
               isDragging
-                ? 'border-[var(--accent)] bg-[var(--accent-dim)] drop-zone-active'
-                : 'border-[var(--border-color)] hover:border-[var(--text-muted)]'
+                ? 'border-orange-500 bg-orange-500/20'
+                : 'border-gray-700 hover:border-gray-500'
             }`}
           onDragOver={(e) => {
             e.preventDefault()
@@ -380,7 +479,7 @@ ${JSON.stringify(report.processorState, null, 2)}
           onDrop={handleDrop}
           onClick={() => fileInputRef.current?.click()}
         >
-          <div className="flex items-center gap-3 text-[var(--text-secondary)]">
+          <div className="flex items-center gap-3 text-gray-400">
             <Upload className="w-5 h-5" />
             <span>Drop trace JSON file or click to upload</span>
           </div>
@@ -397,26 +496,47 @@ ${JSON.stringify(report.processorState, null, 2)}
 
         {/* Sample Selector */}
         <div className="flex items-center gap-2">
-          <label className="text-sm text-[var(--text-muted)]">Sample:</label>
+          <label className="text-sm text-gray-400">Load Trace:</label>
           <select
             value={selectedSample}
             onChange={(e) => handleSampleSelect(e.target.value)}
-            className="bg-[var(--bg-tertiary)] border border-[var(--border-color)] rounded px-3 py-2 text-sm text-[var(--text-primary)] min-w-[200px]"
+            className="bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white min-w-[280px] focus:outline-none focus:ring-2 focus:ring-orange-500/50 hover:border-gray-600 transition-colors"
           >
-            <option value="">Select a sample...</option>
-            {sampleOptions.map((name) => (
-              <option key={name} value={name}>
-                {name}
-              </option>
-            ))}
+            <option value="">Select a trace...</option>
+            {recordedTraces.length > 0 && (
+              <optgroup label="Recorded Traces">
+                {recordedTraces.map((trace) => (
+                  <option key={trace.id} value={`trace:${trace.id}`}>
+                    {trace.id} - {trace.provider}/{trace.model} (
+                    {trace.chunkCount} chunks)
+                  </option>
+                ))}
+              </optgroup>
+            )}
+            {sampleOptions.length > 0 && (
+              <optgroup label="Sample Traces">
+                {sampleOptions.map((name) => (
+                  <option key={name} value={`sample:${name}`}>
+                    {name}
+                  </option>
+                ))}
+              </optgroup>
+            )}
           </select>
+          <button
+            onClick={fetchRecordedTraces}
+            className="p-2 bg-gray-800 hover:bg-gray-700 border border-gray-700 rounded-lg text-white transition-colors"
+            title="Refresh trace list"
+          >
+            <RefreshCw className="w-4 h-4" />
+          </button>
         </div>
 
         {/* Copy For IDE Button */}
         <button
           onClick={copyForIDE}
           disabled={!recording || currentChunkIndex < 0}
-          className="flex items-center gap-2 px-4 py-2 bg-[var(--accent)] hover:bg-[var(--accent-hover)] text-white rounded disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+          className="flex items-center gap-2 px-4 py-2 bg-orange-600 hover:bg-orange-700 text-white rounded-lg disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
         >
           {copied ? (
             <>
@@ -435,16 +555,16 @@ ${JSON.stringify(report.processorState, null, 2)}
       {/* Main Content */}
       <div className="flex-1 grid grid-cols-2 gap-6 min-h-0">
         {/* Left Panel - Raw Chunks */}
-        <div className="flex flex-col bg-[var(--bg-secondary)] rounded-lg border border-[var(--border-color)] overflow-hidden">
-          <div className="px-4 py-3 border-b border-[var(--border-color)] flex items-center justify-between">
-            <h2 className="font-semibold text-[var(--text-primary)]">
+        <div className="flex flex-col bg-gray-800 rounded-lg border border-gray-700 overflow-hidden">
+          <div className="px-4 py-3 border-b border-gray-700 flex items-center justify-between">
+            <h2 className="font-semibold text-white">
               Raw Chunks {recording && `(${recording.chunks.length})`}
             </h2>
             <div className="flex items-center gap-1">
               <button
                 onClick={stepBackward}
                 disabled={!recording || currentChunkIndex < 0}
-                className="p-1.5 rounded hover:bg-[var(--bg-tertiary)] disabled:opacity-30 disabled:cursor-not-allowed"
+                className="p-2 rounded-lg hover:bg-gray-700 disabled:opacity-30 disabled:cursor-not-allowed text-gray-300 hover:text-white transition-colors"
                 title="Step Back"
               >
                 <SkipBack className="w-4 h-4" />
@@ -455,7 +575,7 @@ ${JSON.stringify(report.processorState, null, 2)}
                   !recording ||
                   currentChunkIndex >= (recording?.chunks.length ?? 0) - 1
                 }
-                className="p-1.5 rounded hover:bg-[var(--bg-tertiary)] disabled:opacity-30 disabled:cursor-not-allowed"
+                className="p-2 rounded-lg hover:bg-gray-700 disabled:opacity-30 disabled:cursor-not-allowed text-gray-300 hover:text-white transition-colors"
                 title="Step Forward"
               >
                 <SkipForward className="w-4 h-4" />
@@ -463,7 +583,7 @@ ${JSON.stringify(report.processorState, null, 2)}
               <button
                 onClick={runAll}
                 disabled={!recording}
-                className="p-1.5 rounded hover:bg-[var(--bg-tertiary)] disabled:opacity-30 disabled:cursor-not-allowed"
+                className="p-2 rounded-lg hover:bg-gray-700 disabled:opacity-30 disabled:cursor-not-allowed text-gray-300 hover:text-white transition-colors"
                 title="Run All"
               >
                 <FastForward className="w-4 h-4" />
@@ -471,28 +591,28 @@ ${JSON.stringify(report.processorState, null, 2)}
               <button
                 onClick={reset}
                 disabled={!recording}
-                className="p-1.5 rounded hover:bg-[var(--bg-tertiary)] disabled:opacity-30 disabled:cursor-not-allowed"
+                className="p-2 rounded-lg hover:bg-gray-700 disabled:opacity-30 disabled:cursor-not-allowed text-gray-300 hover:text-white transition-colors"
                 title="Reset"
               >
                 <RotateCcw className="w-4 h-4" />
               </button>
             </div>
           </div>
-          <div className="flex-1 overflow-auto p-4">
+          <div className="flex-1 overflow-auto p-4 scrollbar-thin">
             {recording ? (
               <div className="space-y-2">
-                {recording.chunks.map(({ chunk, index }) => (
+                {recording.chunks.map(({ chunk }, arrayIndex) => (
                   <ChunkItem
-                    key={index}
+                    key={arrayIndex}
                     chunk={chunk}
-                    index={index}
-                    isActive={index === currentChunkIndex}
-                    isProcessed={index <= currentChunkIndex}
+                    index={arrayIndex}
+                    isActive={arrayIndex === currentChunkIndex}
+                    isProcessed={arrayIndex <= currentChunkIndex}
                   />
                 ))}
               </div>
             ) : (
-              <div className="text-center text-[var(--text-muted)] py-12">
+              <div className="text-center text-gray-500 py-12">
                 Load a trace file to see chunks
               </div>
             )}
@@ -502,17 +622,15 @@ ${JSON.stringify(report.processorState, null, 2)}
         {/* Right Panel - Parsed Output */}
         <div className="flex flex-col gap-4 min-h-0">
           {/* UIMessage */}
-          <div className="flex-1 bg-[var(--bg-secondary)] rounded-lg border border-[var(--border-color)] overflow-hidden flex flex-col">
-            <div className="px-4 py-3 border-b border-[var(--border-color)]">
-              <h2 className="font-semibold text-[var(--text-primary)]">
-                UIMessage (Parsed)
-              </h2>
+          <div className="flex-1 bg-gray-800 rounded-lg border border-gray-700 overflow-hidden flex flex-col">
+            <div className="px-4 py-3 border-b border-gray-700">
+              <h2 className="font-semibold text-white">UIMessage (Parsed)</h2>
             </div>
-            <div className="flex-1 overflow-auto p-4">
+            <div className="flex-1 overflow-auto p-4 scrollbar-thin">
               {uiMessage ? (
                 <JsonView data={uiMessage} />
               ) : (
-                <div className="text-center text-[var(--text-muted)] py-12">
+                <div className="text-center text-gray-500 py-12">
                   Process chunks to see UIMessage
                 </div>
               )}
@@ -520,17 +638,17 @@ ${JSON.stringify(report.processorState, null, 2)}
           </div>
 
           {/* ModelMessage */}
-          <div className="flex-1 bg-[var(--bg-secondary)] rounded-lg border border-[var(--border-color)] overflow-hidden flex flex-col">
-            <div className="px-4 py-3 border-b border-[var(--border-color)]">
-              <h2 className="font-semibold text-[var(--text-primary)]">
+          <div className="flex-1 bg-gray-800 rounded-lg border border-gray-700 overflow-hidden flex flex-col">
+            <div className="px-4 py-3 border-b border-gray-700">
+              <h2 className="font-semibold text-white">
                 ModelMessage (for server)
               </h2>
             </div>
-            <div className="flex-1 overflow-auto p-4">
-              {result ? (
-                <JsonView data={convertToModelMessage(result)} />
+            <div className="flex-1 overflow-auto p-4 scrollbar-thin">
+              {uiMessage ? (
+                <JsonView data={convertToModelMessage(uiMessage)} />
               ) : (
-                <div className="text-center text-[var(--text-muted)] py-12">
+                <div className="text-center text-gray-500 py-12">
                   Process chunks to see ModelMessage
                 </div>
               )}
@@ -585,22 +703,20 @@ function ChunkItem({
 
   return (
     <div
-      className={`p-2 rounded text-sm font-mono transition-all ${
+      className={`p-2 rounded-lg text-sm font-mono transition-all ${
         isActive
-          ? 'bg-[var(--accent-dim)] border border-[var(--accent)]'
+          ? 'bg-orange-500/20 border border-orange-500'
           : isProcessed
-            ? 'bg-[var(--bg-tertiary)] opacity-60'
-            : 'bg-[var(--bg-primary)]'
+            ? 'bg-gray-700 opacity-60'
+            : 'bg-gray-900'
       }`}
     >
       <div className="flex items-center gap-2">
-        <span className="text-[var(--text-muted)] w-6">{index}</span>
+        <span className="text-gray-500 w-6">{index}</span>
         <span className={typeColors[chunk.type] || 'text-gray-400'}>
           {chunk.type}
         </span>
-        <span className="text-[var(--text-secondary)] truncate">
-          {getSummary(chunk)}
-        </span>
+        <span className="text-gray-400 truncate">{getSummary(chunk)}</span>
       </div>
     </div>
   )
@@ -662,21 +778,15 @@ function JsonView({ data }: { data: any }) {
   }
 
   return (
-    <pre className="text-sm whitespace-pre-wrap break-all">
+    <pre className="text-sm whitespace-pre-wrap break-all text-gray-100 font-mono">
       {formatValue(data)}
     </pre>
   )
 }
 
-function convertToModelMessage(result: ProcessorResult): any {
-  const message: any = {
-    role: 'assistant',
-    content: result.content || null,
-  }
-
-  if (result.toolCalls && result.toolCalls.length > 0) {
-    message.toolCalls = result.toolCalls
-  }
-
-  return message
+function convertToModelMessage(uiMessage: UIMessage): any {
+  // Use the actual uiMessageToModelMessages utility from @tanstack/ai-client
+  const modelMessages = uiMessageToModelMessages(uiMessage)
+  // Return the first message (the assistant message)
+  return modelMessages[0] || null
 }

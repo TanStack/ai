@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { createFileRoute } from '@tanstack/react-router'
 import { Send, Square } from 'lucide-react'
 import ReactMarkdown from 'react-markdown'
@@ -379,16 +379,34 @@ function ChatPage() {
     modelOptions[0],
   )
 
+  // Generate trace ID on mount: chat_YYMMDD_HHMMSS
+  const [traceId] = useState(() => {
+    const now = new Date()
+    const year = String(now.getFullYear()).slice(-2)
+    const month = String(now.getMonth() + 1).padStart(2, '0')
+    const day = String(now.getDate()).padStart(2, '0')
+    const hours = String(now.getHours()).padStart(2, '0')
+    const minutes = String(now.getMinutes()).padStart(2, '0')
+    const seconds = String(now.getSeconds()).padStart(2, '0')
+    return `chat_${year}${month}${day}_${hours}${minutes}${seconds}`
+  })
+
+  const body = useMemo(
+    () => ({
+      provider: selectedModel.provider,
+      model: selectedModel.model,
+      traceId,
+    }),
+    [selectedModel.provider, selectedModel.model, traceId],
+  )
+
   const { messages, sendMessage, isLoading, addToolApprovalResponse, stop } =
     useChat({
-      connection: fetchServerSentEvents('/api/tanchat'),
-      body: {
-        provider: selectedModel.provider,
-        model: selectedModel.model,
-      },
+      connection: fetchServerSentEvents('/api/chat'),
       onChunk: (chunk: any) => {
         setChunks((prev) => [...prev, chunk])
       },
+      body,
       onToolCall: async ({ toolName, input }) => {
         // Handle client-side tool execution
         switch (toolName) {
@@ -427,28 +445,38 @@ function ChatPage() {
       <div className="w-1/2 flex flex-col border-r border-orange-500/20">
         {/* Model selector bar */}
         <div className="border-b border-orange-500/20 bg-gray-800 px-4 py-3">
-          <label className="text-sm text-gray-400 mb-2 block">
-            Select Model:
-          </label>
-          <select
-            value={modelOptions.findIndex(
-              (opt) =>
-                opt.provider === selectedModel.provider &&
-                opt.model === selectedModel.model,
-            )}
-            onChange={(e) => {
-              const option = modelOptions[parseInt(e.target.value)]
-              setSelectedModel(option)
-            }}
-            disabled={isLoading}
-            className="w-full rounded-lg border border-orange-500/20 bg-gray-900 px-3 py-2 text-sm text-white focus:outline-none focus:ring-2 focus:ring-orange-500/50 disabled:opacity-50"
-          >
-            {modelOptions.map((option, index) => (
-              <option key={index} value={index}>
-                {option.label}
-              </option>
-            ))}
-          </select>
+          <div className="flex items-end gap-3">
+            <div className="flex-1">
+              <label className="text-sm text-gray-400 mb-2 block">
+                Select Model:
+              </label>
+              <select
+                value={modelOptions.findIndex(
+                  (opt) =>
+                    opt.provider === selectedModel.provider &&
+                    opt.model === selectedModel.model,
+                )}
+                onChange={(e) => {
+                  const option = modelOptions[parseInt(e.target.value)]
+                  setSelectedModel(option)
+                }}
+                disabled={isLoading}
+                className="w-full rounded-lg border border-orange-500/20 bg-gray-900 px-3 py-2 text-sm text-white focus:outline-none focus:ring-2 focus:ring-orange-500/50 disabled:opacity-50"
+              >
+                {modelOptions.map((option, index) => (
+                  <option key={index} value={index}>
+                    {option.label}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <a
+              href={`/stream-debugger?trace=${traceId}`}
+              className="shrink-0 px-4 py-2 bg-orange-600 hover:bg-orange-700 text-white text-sm font-medium rounded-lg transition-colors"
+            >
+              Debug Trace
+            </a>
+          </div>
         </div>
 
         <Messages

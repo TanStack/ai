@@ -57,7 +57,7 @@ export function useChat(options: UseChatOptions): UseChatReturn {
     })
     // Only recreate when clientId changes
     // Connection and other options are captured at creation time
-  }, [clientId])
+  }, [clientId, options.body])
 
   // Sync initial messages on mount only
   // Note: initialMessages are passed to ChatClient constructor, but we also
