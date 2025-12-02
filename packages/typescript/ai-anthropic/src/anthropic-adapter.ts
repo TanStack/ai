@@ -3,6 +3,7 @@ import { BaseAdapter } from '@tanstack/ai'
 import { ANTHROPIC_MODELS } from './model-meta'
 import { convertToolsToProviderFormat } from './tools/tool-converter'
 import { validateTextProviderOptions } from './text/text-provider-options'
+import type { AnthropicImageMetadata } from './message-types'
 import type {
   ChatOptions,
   ContentPart,
@@ -257,14 +258,13 @@ export class Anthropic extends BaseAdapter<
           text: part.text,
         }
       case 'image': {
-        const metadata = part.metadata as { media_type?: string } | undefined
+        const metadata = part.metadata as AnthropicImageMetadata | undefined
         const imageSource: Base64ImageSource | URLImageSource =
           part.source.type === 'data'
             ? {
               type: 'base64',
               data: part.source.value,
-              media_type: (metadata?.media_type ??
-                'image/jpeg') as Base64ImageSource['media_type'],
+              media_type: (metadata?.mediaType ?? 'image/jpeg'),
             }
             : {
               type: 'url',
@@ -335,13 +335,10 @@ export class Anthropic extends BaseAdapter<
         const contentBlocks: AnthropicContentBlocks = []
 
         if (message.content) {
-          // For assistant with tool calls, content is always string
+          const content = typeof message.content === 'string' ? message.content : ''
           const textBlock: AnthropicContentBlock = {
             type: 'text',
-            text:
-              typeof message.content === 'string'
-                ? message.content
-                : JSON.stringify(message.content),
+            text: content,
           }
           contentBlocks.push(textBlock)
         }
@@ -388,7 +385,7 @@ export class Anthropic extends BaseAdapter<
       formattedMessages.push({
         role: role === 'assistant' ? 'assistant' : 'user',
         content:
-          typeof message.content === 'string' ? message.content : '',
+          typeof message.content === 'string' ? message.content : message.content ? message.content.map(c => this.convertContentPartToAnthropic(c)) : "",
       })
     }
 

@@ -5,14 +5,19 @@ import {
   OPENAI_EMBEDDING_MODELS,
 } from './model-meta'
 import {
-  convertMessagesToInput,
+  convertContentPartToOpenAI,
+  extractTextContent,
+  normalizeContent,
   validateTextProviderOptions,
 } from './text/text-provider-options'
 import { convertToolsToProviderFormat } from './tools'
+import type { Responses } from 'openai/resources'
 import type {
   ChatOptions,
+  ContentPart,
   EmbeddingOptions,
   EmbeddingResult,
+  ModelMessage,
   StreamChunk,
   SummarizationOptions,
   SummarizationResult,
@@ -25,6 +30,7 @@ import type {
   ExternalTextProviderOptions,
   InternalTextProviderOptions,
 } from './text/text-provider-options'
+import type { OpenAIAudioMetadata, OpenAIImageMetadata } from './message-types'
 
 export interface OpenAIConfig {
   apiKey: string
@@ -427,7 +433,7 @@ export class OpenAI extends BaseAdapter<
         | 'top_p'
       >
       | undefined
-    const input = convertMessagesToInput(options.messages)
+    const input = this.convertMessagesToInput(options.messages)
     if (providerOptions) {
       validateTextProviderOptions({ ...providerOptions, input })
     }
@@ -452,6 +458,92 @@ export class OpenAI extends BaseAdapter<
     }
 
     return requestParams
+  }
+
+  private convertMessagesToInput(
+    messages: Array<ModelMessage>,
+  ): Responses.ResponseInput {
+    const result: Responses.ResponseInput = []
+
+    for (const message of messages) {
+      // Handle tool messages - convert to FunctionToolCallOutput
+      if (message.role === 'tool') {
+        result.push({
+          type: 'function_call_output',
+          call_id: message.toolCallId || '',
+          output:
+            typeof message.content === 'string'
+              ? message.content
+              : JSON.stringify(message.content),
+        })
+        continue
+      }
+
+      // Handle assistant messages
+      if (message.role === 'assistant') {
+        // If the assistant message has tool calls, add them as FunctionToolCall objects
+        // OpenAI Responses API expects arguments as a string (JSON string)
+        if (message.toolCalls && message.toolCalls.length > 0) {
+          for (const toolCall of message.toolCalls) {
+            // Keep arguments as string for Responses API
+            // Our internal format stores arguments as a JSON string, which is what API expects
+            const argumentsString =
+              typeof toolCall.function.arguments === 'string'
+                ? toolCall.function.arguments
+                : JSON.stringify(toolCall.function.arguments)
+
+            result.push({
+              type: 'function_call',
+              call_id: toolCall.id,
+              name: toolCall.function.name,
+              arguments: argumentsString,
+            })
+          }
+        }
+
+        // Add the assistant's text message if there is content
+        if (message.content) {
+          // Assistant messages are typically text-only
+          const contentStr = extractTextContent(message.content)
+          if (contentStr) {
+            result.push({
+              type: 'message',
+              role: 'assistant',
+              content: contentStr,
+            })
+          }
+        }
+
+        continue
+      }
+
+
+
+      // Handle user messages (default case) - support multimodal content
+      const contentParts = normalizeContent(message.content)
+      const openAIContent: Array<Responses.ResponseInputContent> = []
+
+      for (const part of contentParts) {
+        openAIContent.push(
+          convertContentPartToOpenAI(
+            part as ContentPart<OpenAIImageMetadata, OpenAIAudioMetadata, unknown, unknown>,
+          ),
+        )
+      }
+
+      // If no content parts, add empty text
+      if (openAIContent.length === 0) {
+        openAIContent.push({ type: 'input_text', text: '' })
+      }
+
+      result.push({
+        type: 'message',
+        role: 'user',
+        content: openAIContent,
+      })
+    }
+
+    return result
   }
 }
 

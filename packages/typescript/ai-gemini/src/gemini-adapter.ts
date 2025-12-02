@@ -23,6 +23,7 @@ import type {
   GenerateContentResponse,
   Part,
 } from '@google/genai'
+import type { GeminiAudioMetadata, GeminiDocumentMetadata, GeminiImageMetadata, GeminiVideoMetadata } from './message-types'
 
 export interface GeminiAdapterConfig extends AIAdapterConfig {
   apiKey: string
@@ -377,7 +378,7 @@ export class GeminiAdapter extends BaseAdapter<
       case 'audio':
       case 'video':
       case 'document': {
-        const metadata = part.metadata as { mimeType?: string } | undefined
+        const metadata = part.metadata as GeminiDocumentMetadata | GeminiImageMetadata | GeminiVideoMetadata | GeminiAudioMetadata | undefined
         // Gemini uses inlineData for base64 and fileData for URLs
         if (part.source.type === 'data') {
           return {
@@ -431,8 +432,7 @@ export class GeminiAdapter extends BaseAdapter<
               ? JSON.parse(toolCall.function.arguments)
               : {}
           } catch {
-            // If JSON parsing fails, wrap the raw arguments in an object
-            parsedArgs = { _raw: toolCall.function.arguments }
+            parsedArgs = toolCall.function.arguments as any
           }
 
           parts.push({
