@@ -1,9 +1,5 @@
-import {
-  convertMessagesToModelMessages,
-  type ModelMessage,
-  type StreamChunk,
-  type UIMessage,
-} from '@tanstack/ai'
+import { convertMessagesToModelMessages } from '@tanstack/ai'
+import type { ModelMessage, StreamChunk, UIMessage } from '@tanstack/ai'
 
 /**
  * Merge custom headers into request headers

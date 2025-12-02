@@ -48,6 +48,11 @@ export function uiMessageToModelMessages(
 ): Array<ModelMessage> {
   const messages: Array<ModelMessage> = []
 
+  // Skip system messages - they're handled via systemPrompts, not ModelMessages
+  if (uiMessage.role === 'system') {
+    return messages
+  }
+
   // Separate parts by type
   // Note: thinking parts are UI-only and not included in ModelMessages
   const textParts: Array<TextPart> = []
@@ -65,7 +70,7 @@ export function uiMessageToModelMessages(
     // thinking parts are skipped - they're UI-only
   }
 
-  // Build the main message (system, user, or assistant)
+  // Build the main message (user or assistant)
   const content = textParts.map((p) => p.content).join('') || null
   const toolCalls =
     toolCallParts.length > 0
