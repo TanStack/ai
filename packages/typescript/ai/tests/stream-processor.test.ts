@@ -1,16 +1,15 @@
-import { describe, it, expect, vi } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import {
-  StreamProcessor,
   ImmediateStrategy,
   PunctuationStrategy,
-  BatchStrategy,
+  StreamProcessor,
 } from '../src/stream'
 import type { StreamProcessorHandlers } from '../src/stream'
 import type { StreamChunk, UIMessage } from '../src/types'
 
 // Mock stream generator helper
 async function* createMockStream(
-  chunks: StreamChunk[],
+  chunks: Array<StreamChunk>,
 ): AsyncGenerator<StreamChunk> {
   for (const chunk of chunks) {
     yield chunk

@@ -22,19 +22,26 @@ Then open http://localhost:3001
 
 ## Creating Trace Files
 
-You can create trace files by enabling recording in the `chat()` function:
+Trace files are automatically created when you use the chat interface with a `traceId`. The panel subscribes to `aiEventClient` events to record all stream activity.
+
+You can also create trace files programmatically by subscribing to events:
 
 ```typescript
-import { chat } from '@tanstack/ai'
+import { createEventRecording } from '@/lib/recording'
 
-const stream = chat({
-  adapter,
-  model: 'gpt-4o',
-  messages,
-  // Add recording option (implementation pending)
-  recordTo: 'tmp/my-trace.json',
-})
+// Create a recording instance that listens to aiEventClient events
+const recording = createEventRecording('tmp/my-trace.json', 'my-trace-id')
+
+// When done, clean up
+recording.stop()
 ```
+
+The recording utility automatically captures:
+
+- Stream chunks (content, tool calls, tool results, done, errors, thinking)
+- Final accumulated content
+- Tool calls and their results
+- Finish reason
 
 Or capture traces from the test panel and save them.
 

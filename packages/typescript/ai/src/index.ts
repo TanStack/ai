@@ -12,7 +12,7 @@ export {
   type InferToolName,
   type InferToolInput,
   type InferToolOutput,
-} from './tools/tool-factory'
+} from './tools/tool-definition'
 export { convertZodToJsonSchema } from './tools/zod-converter'
 export {
   toServerSentEventsStream,

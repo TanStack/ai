@@ -13,16 +13,19 @@
  * - Recording/replay for testing
  * - Event-driven architecture for UI updates
  */
-
+import {
+  generateMessageId,
+  uiMessageToModelMessages,
+} from '../message-converters'
 import { defaultJSONParser } from './json-parser'
 import {
   updateTextPart,
-  updateToolCallPart,
-  updateToolResultPart,
   updateThinkingPart,
   updateToolCallApproval,
-  updateToolCallWithOutput,
   updateToolCallApprovalResponse,
+  updateToolCallPart,
+  updateToolCallWithOutput,
+  updateToolResultPart,
 } from './message-updaters'
 import { ImmediateStrategy } from './strategies'
 import type {
@@ -41,10 +44,6 @@ import type {
   ToolCallPart,
   UIMessage,
 } from '../types'
-import {
-  uiMessageToModelMessages,
-  generateMessageId,
-} from '../message-converters'
 
 /**
  * Events emitted by the StreamProcessor
@@ -497,9 +496,9 @@ export class StreamProcessor {
     let nextText = currentText
 
     // Prefer delta over content - delta is the incremental change
-    if (chunk.delta !== undefined && chunk.delta !== '') {
+    if (chunk.delta !== '') {
       nextText = currentText + chunk.delta
-    } else if (chunk.content !== undefined && chunk.content !== '') {
+    } else if (chunk.content !== '') {
       // Fallback: use content if delta is not provided
       if (chunk.content.startsWith(currentText)) {
         nextText = chunk.content
@@ -735,9 +734,9 @@ export class StreamProcessor {
     let nextThinking = previous
 
     // Prefer delta over content
-    if (chunk.delta !== undefined && chunk.delta !== '') {
+    if (chunk.delta !== '') {
       nextThinking = previous + chunk.delta
-    } else if (chunk.content !== undefined && chunk.content !== '') {
+    } else if (chunk.content !== '') {
       if (chunk.content.startsWith(previous)) {
         nextThinking = chunk.content
       } else if (previous.startsWith(chunk.content)) {

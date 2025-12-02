@@ -35,6 +35,8 @@
     "clean": "premove ./build ./dist",
     "lint:fix": "eslint ./src --fix",
     "test:build": "publint --strict",
+    "test:coverage": "vitest run --coverage",
+    "test:coverage:watch": "vitest --coverage --watch",
     "test:eslint": "eslint ./src",
     "test:lib": "vitest",
     "test:lib:dev": "pnpm test:lib --watch",

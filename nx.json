@@ -31,6 +31,12 @@
       "inputs": ["default", "^production"],
       "outputs": ["{projectRoot}/coverage"]
     },
+    "test:coverage": {
+      "cache": true,
+      "dependsOn": ["^build"],
+      "inputs": ["default", "^production"],
+      "outputs": ["{projectRoot}/coverage"]
+    },
     "test:eslint": {
       "cache": true,
       "dependsOn": ["^build"],

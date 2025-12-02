@@ -1,7 +1,6 @@
 import { aiEventClient } from '../event-client.js'
 import { ToolCallManager, executeToolCalls } from '../tools/tool-calls'
 import { maxIterations as maxIterationsStrategy } from '../utilities/agent-loop-strategies'
-import type { ChunkRecording } from '../stream/types'
 import type {
   ApprovalRequest,
   ClientToolRequest,
@@ -60,10 +59,6 @@ class ChatEngine<
   private toolPhase: ToolPhaseResult = 'continue'
   private cyclePhase: CyclePhase = 'processChat'
 
-  // Recording
-  private recording: ChunkRecording | null = null
-  private recordTo: string | undefined
-
   constructor(config: ChatEngineConfig<TAdapter, TParams>) {
     this.adapter = config.adapter
     this.params = config.params
@@ -80,18 +75,6 @@ class ChatEngine<
       ? { signal: config.params.abortController.signal }
       : undefined
     this.effectiveSignal = config.params.abortController?.signal
-    this.recordTo = config.params.recordTo
-
-    // Initialize recording if requested
-    if (this.recordTo) {
-      this.recording = {
-        version: '1.0',
-        timestamp: Date.now(),
-        model: config.params.model,
-        provider: this.adapter.name,
-        chunks: [],
-      }
-    }
   }
 
   async *chat(): AsyncGenerator<StreamChunk> {
@@ -119,7 +102,7 @@ class ChatEngine<
         this.endCycle()
       } while (this.shouldContinue())
     } finally {
-      await this.afterChat()
+      this.afterChat()
     }
   }
 
@@ -149,7 +132,7 @@ class ChatEngine<
     })
   }
 
-  private async afterChat(): Promise<void> {
+  private afterChat(): void {
     if (!this.shouldEmitStreamEnd) {
       return
     }
@@ -175,36 +158,6 @@ class ChatEngine<
       duration: now - this.streamStartTime,
       timestamp: now,
     })
-
-    // Save recording if requested
-    if (this.recording && this.recordTo) {
-      this.recording.result = {
-        content: this.accumulatedContent,
-        toolCalls: this.toolCallManager.getToolCalls(),
-        finishReason: this.lastFinishReason,
-      }
-
-      try {
-        // Import dynamically to avoid bundling fs in browser builds
-        const fs = await import('fs/promises')
-        const path = await import('path')
-
-        // Ensure directory exists
-        const dir = path.dirname(this.recordTo)
-        await fs.mkdir(dir, { recursive: true })
-
-        // Write recording
-        await fs.writeFile(
-          this.recordTo,
-          JSON.stringify(this.recording, null, 2),
-          'utf-8',
-        )
-
-        console.log(`Recording saved to: ${this.recordTo}`)
-      } catch (error) {
-        console.error('Failed to save recording:', error)
-      }
-    }
   }
 
   private beginCycle(): void {
@@ -248,15 +201,6 @@ class ChatEngine<
       }
 
       this.totalChunkCount++
-
-      // Record chunk if recording is enabled
-      if (this.recording) {
-        this.recording.chunks.push({
-          chunk,
-          timestamp: Date.now(),
-          index: this.recording.chunks.length,
-        })
-      }
 
       yield chunk
       this.handleStreamChunk(chunk)

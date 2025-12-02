@@ -6,7 +6,7 @@ import { anthropic } from '@tanstack/ai-anthropic'
 import { gemini } from '@tanstack/ai-gemini'
 import { openai } from '@tanstack/ai-openai'
 import { ollama } from '@tanstack/ai-ollama'
-import type { AIAdapter, ChatOptions, StreamChunk } from '@tanstack/ai'
+import { createEventRecording } from '@/lib/recording'
 import { allTools } from '@/lib/guitar-tools'
 
 const SYSTEM_PROMPT = `You are a helpful assistant for a guitar store.
@@ -33,51 +33,6 @@ Step 3: Done - do NOT add any text after calling recommendGuitar
 `
 
 type Provider = 'openai' | 'anthropic' | 'gemini' | 'ollama'
-
-/**
- * Wraps an adapter to record raw chunks from chatStream() before they're processed by chat()
- */
-function createRecordingAdapter<
-  TAdapter extends AIAdapter<any, any, any, any, any>,
->(
-  adapter: TAdapter,
-  recordedChunks: Array<{
-    chunk: StreamChunk
-    timestamp: number
-    index: number
-  }>,
-): TAdapter {
-  // Create a proxy that intercepts chatStream calls
-  const wrappedAdapter = new Proxy(adapter, {
-    get(target, prop) {
-      if (prop === 'chatStream') {
-        return function (options: ChatOptions<string, any>) {
-          const originalStream = target.chatStream(options)
-          let chunkIndex = 0
-
-          return (async function* () {
-            for await (const chunk of originalStream) {
-              // Record the raw chunk from the adapter
-              recordedChunks.push({
-                chunk,
-                timestamp: Date.now(),
-                index: chunkIndex++,
-              })
-              // Yield the chunk normally so chat() can process it
-              yield chunk
-            }
-          })()
-        }
-      }
-      // Preserve all other adapter properties and methods
-      const value = target[prop as keyof typeof target]
-      return typeof value === 'function' ? value.bind(target) : value
-    },
-  })
-  // Type assertion needed: Proxy doesn't preserve exact generic type
-  // @ts-ignore - Proxy type is compatible but TypeScript can't infer it
-  return wrappedAdapter
-}
 
 export const Route = createFileRoute('/api/chat')({
   server: {
@@ -132,27 +87,25 @@ export const Route = createFileRoute('/api/chat')({
           // Determine model - use provided model or default based on provider
           const selectedModel = model || defaultModel
 
-          // If we have a traceId, wrap the adapter to record raw chunks
-          let recordedChunks: Array<{
-            chunk: StreamChunk
-            timestamp: number
-            index: number
-          }> = []
-          let recordingAdapter = adapter
+          // If we have a traceId, set up event-based recording
+          let recording: ReturnType<typeof createEventRecording> | undefined
           if (traceId) {
-            recordedChunks = []
-            recordingAdapter = createRecordingAdapter(adapter, recordedChunks)
+            const traceDir = path.join(process.cwd(), 'test-traces')
+            const traceFile = path.join(traceDir, `${traceId}.json`)
+            recording = createEventRecording(traceFile, traceId)
           }
 
           // Use the stream abort signal for proper cancellation handling
           const stream = chat({
-            adapter: recordingAdapter,
+            adapter,
             model: selectedModel as any, // Dynamic model selection
             tools: allTools,
             systemPrompts: [SYSTEM_PROMPT],
             agentLoopStrategy: maxIterations(20),
             messages,
             providerOptions: {
+              // Pass traceId through options so it appears in events
+              ...(traceId ? { traceId } : {}),
               // Enable reasoning for OpenAI (gpt-5, o3 models):
               // reasoning: {
               //   effort: "medium", // or "low", "high", "minimal", "none" (for gpt-5.1)
@@ -166,34 +119,17 @@ export const Route = createFileRoute('/api/chat')({
             abortController,
           })
 
-          // If we have a traceId, write trace file after stream completes
-          if (traceId) {
+          // If we have a traceId, ensure recording is cleaned up after stream completes
+          if (traceId && recording) {
             const recordingStream = (async function* () {
-              for await (const chunk of stream) {
-                yield chunk
-              }
-
-              // Write trace file after stream completes
               try {
-                const traceDir = path.join(process.cwd(), 'test-traces')
-                if (!fs.existsSync(traceDir)) {
-                  fs.mkdirSync(traceDir, { recursive: true })
+                for await (const chunk of stream) {
+                  yield chunk
                 }
-
-                const traceFile = path.join(traceDir, `${traceId}.json`)
-                const traceData = {
-                  id: traceId,
-                  timestamp: new Date().toISOString(),
-                  provider,
-                  model: selectedModel,
-                  messages,
-                  chunks: recordedChunks, // Raw chunks from adapter
-                }
-
-                fs.writeFileSync(traceFile, JSON.stringify(traceData, null, 2))
-                console.log(`[Trace] Saved trace to ${traceFile}`)
-              } catch (error) {
-                console.error('[Trace] Failed to save trace:', error)
+              } finally {
+                // Recording will be saved automatically when stream:ended event fires
+                // But we can clean up the subscription here if needed
+                // (Actually, the recording will clean itself up on stream:ended)
               }
             })()
 
