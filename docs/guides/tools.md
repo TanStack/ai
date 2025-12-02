@@ -18,7 +18,7 @@ TanStack AI works with **any** JavaScript framework:
 - Next.js, Express, Remix, Fastify, etc.
 - React, Vue, Solid, Svelte, vanilla JS, etc.
 
-**Recommended:** Use with **TanStack Start** (React Start or Solid Start) for the best experience. See [`createServerFnTool`](./server-function-tools.md) to share implementations between AI tools and server functions.
+TanStack AI works with any JavaScript framework.
 
 ## Isomorphic Tool Architecture
 
@@ -33,29 +33,6 @@ This approach provides:
 - **Code Reuse**: Define schemas once, use everywhere
 - **Flexibility**: Tools can execute on server, client, or both
 
-### Bonus: TanStack Start Integration
-
-If you're using **TanStack Start** specifically, you can use `createServerFnTool` to avoid duplicating logic between AI tools and server functions:
-
-```typescript
-import { createServerFnTool } from '@tanstack/ai-react/start' // or '@tanstack/ai-solid/start'
-
-const getProducts = createServerFnTool({
-  name: 'getProducts',
-  inputSchema: z.object({ query: z.string() }),
-  outputSchema: z.array(z.object({ id: z.string(), name: z.string() })),
-  execute: async ({ query }) => db.products.search(query),
-})
-
-// Three variants from one definition:
-// 1. getProducts.toolDefinition - for client execution
-// 2. getProducts.server - for AI chat server execution
-// 3. getProducts.serverFn({ query: 'laptop' }) - call directly (TanStack Start only!)
-```
-
-**Note:** `createServerFnTool` requires TanStack Start. For other frameworks, use the standard `toolDefinition()` API shown above.
-
-See [Server Function Tools](./server-function-tools.md) for details.
 
 ## Tool Definition
 

@@ -5,7 +5,7 @@
     "@playwright/test",
     "@tanstack/react-start"
   ],
-  "ignoreWorkspaces": ["examples/**"],
+  "ignoreWorkspaces": ["examples/**", "testing/**"],
   "ignore": [
     "packages/typescript/ai-openai/live-tests/**",
     "packages/typescript/ai-openai/src/**/*.test.ts",

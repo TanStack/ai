@@ -98,7 +98,7 @@ export const Route = createFileRoute('/api/tanchat')({
             adapter,
             model: selectedModel as any,
             tools: [
-              getGuitars.server, // Server function tool
+              getGuitars, // Server tool
               recommendGuitarToolDef, // No server execute - client will handle
               addToCartToolServer,
               addToWishListToolDef,

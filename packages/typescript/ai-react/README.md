@@ -49,17 +49,22 @@ A powerful, type-safe AI SDK for building AI-powered applications.
 
 TanStack AI works with **any** framework (Next.js, Express, Remix, etc.).
 
-**With TanStack Start**, you get a bonus: share implementations between AI tools and server functions with `createServerFnTool`:
+You can create tools using `toolDefinition` from `@tanstack/ai`:
 
 ```typescript
-import { createServerFnTool } from '@tanstack/ai-react'
+import { toolDefinition } from '@tanstack/ai'
 
-// Define once, get AI tool AND server function (TanStack Start only)
-const getProducts = createServerFnTool({
+// Define a tool
+const getProductsTool = toolDefinition({
   name: 'getProducts',
   inputSchema: z.object({ query: z.string() }),
-  execute: async ({ query }) => db.products.search(query),
+  outputSchema: z.array(z.object({ id: z.string(), name: z.string() })),
 })
+
+// Create server implementation
+const getProducts = getProductsTool.server(async ({ query }) =>
+  db.products.search(query),
+)
 
 // Use in AI chat
 chat({ tools: [getProducts.server] })
