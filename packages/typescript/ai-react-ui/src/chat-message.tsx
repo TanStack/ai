@@ -101,11 +101,8 @@ export function ChatMessage({
 }: ChatMessageProps) {
   // Combine classes based on role
   const roleClassName =
-    message.role === 'user'
-      ? userClassName
-      : message.role === 'assistant'
-        ? assistantClassName
-        : ''
+    message.role === 'user' ? userClassName : assistantClassName
+
   const combinedClassName = [className, roleClassName].filter(Boolean).join(' ')
 
   return (

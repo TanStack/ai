@@ -31,7 +31,7 @@ vi.mock('@anthropic-ai/sdk', () => {
     beta = client.beta
     messages = client.messages
 
-    constructor(_: { apiKey: string }) {}
+    constructor(_: { apiKey: string }) { }
   }
 
   return { default: MockAnthropic }
@@ -111,7 +111,6 @@ describe('Anthropic adapter option mapping', () => {
       adapter,
       model: 'claude-3-7-sonnet-20250219',
       messages: [
-        { role: 'system', content: 'Keep it structured' },
         { role: 'user', content: 'What is the forecast?' },
         {
           role: 'assistant',

@@ -41,22 +41,22 @@ export interface TextPart {
  */
 type ToolCallPartForTool<T> = T extends AnyClientTool
   ? {
-      type: 'tool-call'
-      id: string
-      name: T['name']
-      arguments: string // JSON string (may be incomplete)
-      /** Parsed tool input (typed from inputSchema) */
-      input?: InferToolInput<T>
-      state: ToolCallState
-      /** Approval metadata if tool requires user approval */
-      approval?: {
-        id: string // Unique approval ID
-        needsApproval: boolean // Always true if present
-        approved?: boolean // User's decision (undefined until responded)
-      }
-      /** Tool execution output (for client tools or after approval) */
-      output?: InferToolOutput<T>
+    type: 'tool-call'
+    id: string
+    name: T['name']
+    arguments: string // JSON string (may be incomplete)
+    /** Parsed tool input (typed from inputSchema) */
+    input?: InferToolInput<T>
+    state: ToolCallState
+    /** Approval metadata if tool requires user approval */
+    approval?: {
+      id: string // Unique approval ID
+      needsApproval: boolean // Always true if present
+      approved?: boolean // User's decision (undefined until responded)
     }
+    /** Tool execution output (for client tools or after approval) */
+    output?: InferToolOutput<T>
+  }
   : never
 
 /**
@@ -92,14 +92,14 @@ type UntypedToolCallPart = {
 export type ToolCallPart<TTools extends ReadonlyArray<AnyClientTool> = any> =
   // Check if we have a concrete tools array (not 'any' or 'never')
   [TTools] extends [never]
-    ? UntypedToolCallPart
-    : unknown extends TTools
-      ? UntypedToolCallPart
-      : TTools extends ReadonlyArray<infer Tool>
-        ? Tool extends AnyClientTool
-          ? ToolCallPartForTool<Tool>
-          : UntypedToolCallPart
-        : UntypedToolCallPart
+  ? UntypedToolCallPart
+  : unknown extends TTools
+  ? UntypedToolCallPart
+  : TTools extends ReadonlyArray<infer Tool>
+  ? Tool extends AnyClientTool
+  ? ToolCallPartForTool<Tool>
+  : UntypedToolCallPart
+  : UntypedToolCallPart
 
 export interface ToolResultPart {
   type: 'tool-result'
@@ -126,7 +126,7 @@ export type MessagePart<TTools extends ReadonlyArray<AnyClientTool> = any> =
  */
 export interface UIMessage<TTools extends ReadonlyArray<AnyClientTool> = any> {
   id: string
-  role: 'system' | 'user' | 'assistant'
+  role: 'user' | 'assistant'
   parts: Array<MessagePart<TTools>>
   createdAt?: Date
 }
