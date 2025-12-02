@@ -1,6 +1,6 @@
 # Tools
 
-Tools (also called "function calling") allow AI models to interact with external systems, APIs, or perform computations. TanStack AI supports both server-side and client-side tool execution.
+Tools (also called "function calling") allow AI models to interact with external systems, APIs, or perform computations. TanStack AI provides an isomorphic tool system that enables type-safe, framework-agnostic tool definitions that work on both server and client.
 
 ## Overview
 
@@ -10,37 +10,63 @@ Tools enable your AI application to:
 - **Perform calculations** or data transformations
 - **Interact with services** like email, calendars, or payment systems
 - **Execute client-side operations** like updating UI or local storage
+- **Create hybrid tools** that execute in both server and client contexts
 
-## Tool Types
+## Framework Support
 
-### Server Tools
+TanStack AI works with **any** JavaScript framework:
+- Next.js, Express, Remix, Fastify, etc.
+- React, Vue, Solid, Svelte, vanilla JS, etc.
 
-Tools that execute on the server. These are secure and can access:
+**Recommended:** Use with **TanStack Start** (React Start or Solid Start) for the best experience. See [`createServerFnTool`](./server-function-tools.md) to share implementations between AI tools and server functions.
 
-- Databases
-- External APIs
-- File systems
-- Environment variables
-- Server-only resources
+## Isomorphic Tool Architecture
 
-### Client Tools
+TanStack AI uses a two-step tool definition process:
 
-Tools that execute in the browser. These are useful for:
+1. **Define once** with `toolDefinition()` - Creates a shared tool schema
+2. **Implement** with `.server()` or `.client()` - Add execution logic for each environment
 
-- UI updates
-- Local storage operations
-- Browser APIs
-- Client-side state management
+This approach provides:
 
-## Basic Tool Definition
+- **Type Safety**: Full TypeScript inference from Zod schemas
+- **Code Reuse**: Define schemas once, use everywhere
+- **Flexibility**: Tools can execute on server, client, or both
 
-Tools are defined using the `tool` utility from `@tanstack/ai` with Zod schemas:
+### Bonus: TanStack Start Integration
+
+If you're using **TanStack Start** specifically, you can use `createServerFnTool` to avoid duplicating logic between AI tools and server functions:
 
 ```typescript
-import { tool } from "@tanstack/ai";
+import { createServerFnTool } from '@tanstack/ai-react/start' // or '@tanstack/ai-solid/start'
+
+const getProducts = createServerFnTool({
+  name: 'getProducts',
+  inputSchema: z.object({ query: z.string() }),
+  outputSchema: z.array(z.object({ id: z.string(), name: z.string() })),
+  execute: async ({ query }) => db.products.search(query),
+})
+
+// Three variants from one definition:
+// 1. getProducts.toolDefinition - for client execution
+// 2. getProducts.server - for AI chat server execution
+// 3. getProducts.serverFn({ query: 'laptop' }) - call directly (TanStack Start only!)
+```
+
+**Note:** `createServerFnTool` requires TanStack Start. For other frameworks, use the standard `toolDefinition()` API shown above.
+
+See [Server Function Tools](./server-function-tools.md) for details.
+
+## Tool Definition
+
+Tools are defined using `toolDefinition()` from `@tanstack/ai`:
+
+```typescript
+import { toolDefinition } from "@tanstack/ai";
 import { z } from "zod";
 
-const getWeather = tool({
+// Step 1: Define the tool schema
+const getWeatherDef = toolDefinition({
   name: "get_weather",
   description: "Get the current weather for a location",
   inputSchema: z.object({
@@ -52,21 +78,21 @@ const getWeather = tool({
     conditions: z.string(),
     location: z.string(),
   }),
-  execute: async ({ location, unit }) => {
-    // Fetch weather data
-    const response = await fetch(
-      `https://api.weather.com/v1/current?location=${location}&unit=${
-        unit || "fahrenheit"
-      }`
-    );
-    const data = await response.json();
-    // Return value is validated against outputSchema
-    return {
-      temperature: data.temperature,
-      conditions: data.conditions,
-      location: data.location,
-    };
-  },
+});
+
+// Step 2: Create a server implementation
+const getWeatherServer = getWeatherDef.server(async ({ location, unit }) => {
+  const response = await fetch(
+    `https://api.weather.com/v1/current?location=${location}&unit=${
+      unit || "fahrenheit"
+    }`
+  );
+  const data = await response.json();
+  return {
+    temperature: data.temperature,
+    conditions: data.conditions,
+    location: data.location,
+  };
 });
 ```
 
@@ -77,50 +103,144 @@ const getWeather = tool({
 ```typescript
 import { chat, toStreamResponse } from "@tanstack/ai";
 import { openai } from "@tanstack/ai-openai";
-import { getWeather } from "./tools";
+import { getWeatherDef } from "./tools";
 
 export async function POST(request: Request) {
   const { messages } = await request.json();
+
+  // Create server implementation
+  const getWeather = getWeatherDef.server(async ({ location, unit }) => {
+    const response = await fetch(`https://api.weather.com/v1/current?...`);
+    return await response.json();
+  });
 
   const stream = chat({
     adapter: openai(),
     messages,
     model: "gpt-4o",
-    tools: [getWeather], // Pass tools array
+    tools: [getWeather], // Pass server tools
   });
 
   return toStreamResponse(stream);
 }
 ```
 
-### Client-Side
+### Client-Side with Type Safety
 
 ```typescript
 import { useChat, fetchServerSentEvents } from "@tanstack/ai-react";
+import { 
+  clientTools, 
+  createChatClientOptions, 
+  type InferChatMessages 
+} from "@tanstack/ai-client";
+import { updateUIDef, saveToStorageDef } from "./tools";
 
-const { messages, sendMessage } = useChat({
+// Create client implementations
+const updateUI = updateUIDef.client((input) => {
+  // Update UI state
+  setNotification(input.message);
+  return { success: true };
+});
+
+const saveToStorage = saveToStorageDef.client((input) => {
+  localStorage.setItem("data", JSON.stringify(input));
+  return { saved: true };
+});
+
+// Create typed tools array (no 'as const' needed!)
+const tools = clientTools(updateUI, saveToStorage);
+
+const chatOptions = createChatClientOptions({
   connection: fetchServerSentEvents("/api/chat"),
-  onToolCall: async ({ toolName, input }) => {
-    // Handle client-side tool execution
-    switch (toolName) {
-      case "updateUI":
-        // Update UI state
-        return { success: true };
-      case "saveToLocalStorage":
-        localStorage.setItem("data", JSON.stringify(input));
-        return { saved: true };
-      default:
-        throw new Error(`Unknown tool: ${toolName}`);
+  tools,
+});
+
+// Infer message types for full type safety
+type ChatMessages = InferChatMessages<typeof chatOptions>;
+
+function ChatComponent() {
+  const { messages, sendMessage } = useChat(chatOptions);
+  
+  // messages is now fully typed with tool names and outputs!
+  return <Messages messages={messages} />;
+}
+```
+
+## Hybrid Tools
+
+Tools can be implemented for both server and client, enabling flexible execution patterns:
+
+```typescript
+// Define once
+const addToCartDef = toolDefinition({
+  name: "add_to_cart",
+  description: "Add item to shopping cart",
+  inputSchema: z.object({
+    itemId: z.string(),
+    quantity: z.number(),
+  }),
+  outputSchema: z.object({
+    success: z.boolean(),
+    cartId: z.string(),
+  }),
+  needsApproval: true,
+});
+
+// Server implementation - Store in database
+const addToCartServer = addToCartDef.server(async (input) => {
+  const cart = await db.carts.create({
+    data: { itemId: input.itemId, quantity: input.quantity },
+  });
+  return { success: true, cartId: cart.id };
+});
+
+// Client implementation - Update local wishlist
+const addToCartClient = addToCartDef.client((input) => {
+  const wishlist = JSON.parse(localStorage.getItem("wishlist") || "[]");
+  wishlist.push(input.itemId);
+  localStorage.setItem("wishlist", JSON.stringify(wishlist));
+  return { success: true, cartId: "local" };
+});
+```
+
+On the server, pass the definition (for client execution) or server implementation:
+
+```typescript
+chat({
+  adapter: openai(),
+  messages,
+  tools: [addToCartDef], // Client will execute, or
+  tools: [addToCartServer], // Server will execute
+});
+```
+
+## Type Safety Benefits
+
+The isomorphic architecture provides complete type safety:
+
+```typescript
+// In your React component
+messages.forEach((message) => {
+  message.parts.forEach((part) => {
+    if (part.type === 'tool-call' && part.name === 'add_to_cart') {
+      // ✅ TypeScript knows part.name is literally 'add_to_cart'
+      // ✅ part.input is typed as { itemId: string, quantity: number }
+      // ✅ part.output is typed as { success: boolean, cartId: string } | undefined
+      
+      if (part.output) {
+        console.log(part.output.cartId); // ✅ Fully typed!
+      }
     }
-  },
+  });
 });
 ```
 
 ## Tool Execution Flow
 
 1. **Model decides to call a tool** - Based on user input and tool descriptions
-2. **Tool is identified** - Server or client tool
-3. **Tool executes** - With the provided arguments
+2. **Tool is identified** - Server or client implementation
+3. **Tool executes** - Automatically on server or client
 4. **Result is returned** - To the model as a tool result message
 5. **Model continues** - Uses the result to generate a response
 
@@ -128,14 +248,15 @@ const { messages, sendMessage } = useChat({
 
 Tools go through different states during execution:
 
-- `pending` - Tool call has been made, waiting for execution
-- `executing` - Tool is currently executing
-- `output-available` - Tool execution completed successfully
-- `output-error` - Tool execution failed
-- `approval-requested` - Tool requires user approval before execution
+- `awaiting-input` - Tool call received, waiting for arguments
+- `input-streaming` - Partial arguments being streamed
+- `input-complete` - All arguments received
+- `approval-requested` - Tool requires user approval (if `needsApproval: true`)
+- `approval-responded` - User has approved/denied
 
 ## Next Steps
 
-- [Server Tools](../server-tools) - Learn about server-side tool execution
-- [Client Tools](../client-tools) - Learn about client-side tool execution
-- [Tool Approval Flow](../tool-approval) - Implement approval workflows
+- [Server Tools](./server-tools) - Learn about server-side tool execution
+- [Client Tools](./client-tools) - Learn about client-side tool execution
+- [Tool Approval Flow](./tool-approval) - Implement approval workflows
+- [How Tools Work](./how-tools-work) - Deep dive into the tool architecture

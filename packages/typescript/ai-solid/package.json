@@ -16,6 +16,10 @@
     ".": {
       "types": "./dist/index.d.ts",
       "import": "./dist/index.js"
+    },
+    "./start": {
+      "types": "./dist/start.d.ts",
+      "import": "./dist/start.js"
     }
   },
   "files": [
@@ -25,9 +29,11 @@
   "scripts": {
     "build": "tsdown",
     "dev": "tsdown --watch",
-    "test": "vitest run",
-    "test:watch": "vitest",
-    "test:coverage": "vitest run --coverage",
+    "test:eslint": "eslint ./src",
+    "test:types": "tsc --noEmit",
+    "test:lib": "vitest run",
+    "test:lib:dev": "pnpm run test:lib --watch",
+    "test:build": "pnpm run build",
     "clean": "rm -rf dist node_modules",
     "typecheck": "tsc --noEmit",
     "lint": "tsc --noEmit"
@@ -42,7 +48,8 @@
   ],
   "dependencies": {
     "@tanstack/ai": "workspace:*",
-    "@tanstack/ai-client": "workspace:*"
+    "@tanstack/ai-client": "workspace:*",
+    "zod": "^4.1.13"
   },
   "devDependencies": {
     "@solidjs/testing-library": "^0.8.10",

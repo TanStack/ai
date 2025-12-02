@@ -19,7 +19,7 @@ Includes automatic tool execution loop
 
 ### TAdapter
 
-`TAdapter` *extends* [`AIAdapter`](../../interfaces/AIAdapter.md)\<`any`, `any`, `any`, `any`, `any`\>
+`TAdapter` *extends* [`AIAdapter`](../interfaces/AIAdapter.md)\<`any`, `any`, `any`, `any`, `any`\>
 
 ### TModel
 
@@ -29,13 +29,13 @@ Includes automatic tool execution loop
 
 ### options
 
-`Omit`\<[`ChatStreamOptionsUnion`](../../type-aliases/ChatStreamOptionsUnion.md)\<`TAdapter`\>, `"model"` \| `"providerOptions"` \| `"adapter"`\> & `object`
+`Omit`\<[`ChatStreamOptionsUnion`](../type-aliases/ChatStreamOptionsUnion.md)\<`TAdapter`\>, `"model"` \| `"providerOptions"` \| `"adapter"`\> & `object`
 
 Chat options
 
 ## Returns
 
-`AsyncIterable`\<[`StreamChunk`](../../type-aliases/StreamChunk.md)\>
+`AsyncIterable`\<[`StreamChunk`](../type-aliases/StreamChunk.md)\>
 
 ## Example
 

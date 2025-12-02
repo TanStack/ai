@@ -10,31 +10,47 @@ npm install @tanstack/ai-solid
 
 ## `useChat(options?)`
 
-Main primitive for managing chat state in SolidJS.
+Main primitive for managing chat state in SolidJS with full type safety.
 
 ```typescript
 import { useChat, fetchServerSentEvents } from "@tanstack/ai-solid";
+import { 
+  clientTools, 
+  createChatClientOptions, 
+  type InferChatMessages 
+} from "@tanstack/ai-client";
 
 function ChatComponent() {
-  const { messages, sendMessage, isLoading, error, addToolApprovalResponse } =
-    useChat({
-      connection: fetchServerSentEvents("/api/chat"),
-      initialMessages: [],
-      onToolCall: async ({ toolName, input }) => {
-        // Handle client tool execution
-        return { result: "..." };
-      },
-    });
+  // Create client tool implementations
+  const updateUI = updateUIDef.client((input) => {
+    setNotification(input.message);
+    return { success: true };
+  });
 
-  return <div>{/* Chat UI */}</div>;
+  // Create typed tools array (no 'as const' needed!)
+  const tools = clientTools(updateUI);
+
+  const chatOptions = createChatClientOptions({
+    connection: fetchServerSentEvents("/api/chat"),
+    tools,
+  });
+
+  // Fully typed messages!
+  type ChatMessages = InferChatMessages<typeof chatOptions>;
+
+  const { messages, sendMessage, isLoading, error, addToolApprovalResponse } =
+    useChat(chatOptions);
+
+  return <div>{/* Chat UI with typed messages */}</div>;
 }
 ```
 
 ### Options
 
-Extends `ChatClientOptions` but omits state change callbacks (handled by SolidJS signals):
+Extends `ChatClientOptions` from `@tanstack/ai-client`:
 
 - `connection` - Connection adapter (required)
+- `tools?` - Array of client tool implementations (with `.client()` method)
 - `initialMessages?` - Initial messages array
 - `id?` - Unique identifier for this chat instance
 - `body?` - Additional body parameters to send
@@ -42,8 +58,9 @@ Extends `ChatClientOptions` but omits state change callbacks (handled by SolidJS
 - `onChunk?` - Callback when stream chunk is received
 - `onFinish?` - Callback when response finishes
 - `onError?` - Callback when error occurs
-- `onToolCall?` - Callback for client-side tool execution
 - `streamProcessor?` - Stream processing configuration
+
+**Note:** Client tools are now automatically executed - no `onToolCall` callback needed!
 
 ### Returns
 
@@ -206,54 +223,146 @@ export function ChatWithApproval() {
 }
 ```
 
-## Example: Client Tools
+## Example: Client Tools with Type Safety
 
 ```typescript
 import { useChat, fetchServerSentEvents } from "@tanstack/ai-solid";
-import { createSignal } from "solid-js";
+import { 
+  clientTools, 
+  createChatClientOptions, 
+  type InferChatMessages 
+} from "@tanstack/ai-client";
+import { updateUIDef, saveToStorageDef } from "./tool-definitions";
+import { createSignal, For } from "solid-js";
 
 export function ChatWithClientTools() {
-  const [notification, setNotification] = createSignal("");
+  const [notification, setNotification] = createSignal(null);
+
+  // Create client implementations
+  const updateUI = updateUIDef.client((input) => {
+    // ✅ input is fully typed!
+    setNotification({ message: input.message, type: input.type });
+    return { success: true };
+  });
+
+  const saveToStorage = saveToStorageDef.client((input) => {
+    localStorage.setItem(input.key, input.value);
+    return { saved: true };
+  });
+
+  // Create typed tools array (no 'as const' needed!)
+  const tools = clientTools(updateUI, saveToStorage);
 
   const { messages, sendMessage } = useChat({
     connection: fetchServerSentEvents("/api/chat"),
-    onToolCall: async ({ toolName, input }) => {
-      switch (toolName) {
-        case "updateUI":
-          // Update SolidJS state
-          setNotification(input.message);
-          return { success: true };
-
-        case "saveToLocalStorage":
-          localStorage.setItem(input.key, input.value);
-          return { saved: true };
-
-        default:
-          throw new Error(`Unknown tool: ${toolName}`);
-      }
-    },
+    tools, // ✅ Automatic execution, full type safety
   });
 
-  // ... rest of component
+  return (
+    <div>
+      <For each={messages()}>
+        {(message) => (
+          <For each={message.parts}>
+            {(part) => {
+              if (part.type === "tool-call" && part.name === "updateUI") {
+                // ✅ part.input and part.output are fully typed!
+                return <div>Tool executed: {part.name}</div>;
+              }
+            }}
+          </For>
+        )}
+      </For>
+    </div>
+  );
 }
+```
+
+## `createServerFnTool(config)`
+
+**Solid Start Integration** - Create a tool that works as both an AI tool and a server function.
+
+```typescript
+import { createServerFnTool } from "@tanstack/ai-solid/start";
+import { z } from "zod";
+
+const getProducts = createServerFnTool({
+  name: "getProducts",
+  description: "Search for products",
+  inputSchema: z.object({
+    query: z.string(),
+  }),
+  outputSchema: z.array(
+    z.object({
+      id: z.string(),
+      name: z.string(),
+      price: z.number(),
+    })
+  ),
+  execute: async ({ query }) => {
+    return await db.products.search(query);
+  },
+});
+
+// Three variants from one definition:
+// 1. getProducts.toolDefinition - Pass to chat() for client execution
+// 2. getProducts.server - Pass to chat() for server execution
+// 3. await getProducts.serverFn({ query: 'laptop' }) - Call directly
+```
+
+**Returns:**
+- `toolDefinition` - For client-side tool execution
+- `server` - Server tool for AI chat
+- `serverFn` - Callable server function with Zod validation
+
+See [Server Function Tools](../guides/server-function-tools.md) for details.
+
+## `createChatClientOptions(options)`
+
+Helper to create typed chat options (re-exported from `@tanstack/ai-client`).
+
+```typescript
+import { 
+  clientTools, 
+  createChatClientOptions, 
+  type InferChatMessages 
+} from "@tanstack/ai-client";
+
+// Create typed tools array (no 'as const' needed!)
+const tools = clientTools(tool1, tool2);
+
+const chatOptions = createChatClientOptions({
+  connection: fetchServerSentEvents("/api/chat"),
+  tools,
+});
+
+type Messages = InferChatMessages<typeof chatOptions>;
 ```
 
 ## Types
 
-All types are re-exported from `@tanstack/ai-client`:
+Re-exported from `@tanstack/ai-client`:
 
-- `UIMessage`
-- `MessagePart`
-- `TextPart`
-- `ThinkingPart`
-- `ToolCallPart`
-- `ToolResultPart`
-- `ChatClientOptions`
-- `ConnectionAdapter`
-- `ChatRequestBody`
+- `UIMessage<TTools>` - Message type with tool type parameter
+- `MessagePart<TTools>` - Message part with tool type parameter
+- `TextPart` - Text content part
+- `ThinkingPart` - Thinking content part
+- `ToolCallPart<TTools>` - Tool call part (discriminated union)
+- `ToolResultPart` - Tool result part
+- `ChatClientOptions<TTools>` - Chat client options
+- `ConnectionAdapter` - Connection adapter interface
+- `InferChatMessages<T>` - Extract message type from options
+- `ChatRequestBody` - Request body type
+
+Re-exported from `@tanstack/ai`:
+
+- `toolDefinition()` - Create isomorphic tool definition
+- `ToolDefinitionInstance` - Tool definition type
+- `ClientTool` - Client tool type
+- `ServerTool` - Server tool type
 
 ## Next Steps
 
-- [Getting Started](../../getting-started/quick-start) - Learn the basics
-- [Tools Guide](../../guides/tools) - Learn about tools
-- [Client Tools](../../guides/client-tools) - Learn about client-side tools
+- [Getting Started](../getting-started/quick-start) - Learn the basics
+- [Tools Guide](../guides/tools) - Learn about the isomorphic tool system
+- [Server Function Tools](../guides/server-function-tools) - Solid Start integration
+- [Client Tools](../guides/client-tools) - Learn about client-side tools

@@ -95,37 +95,63 @@ const result = await embedding({
 
 An `EmbeddingResult` with embeddings array.
 
-## `tool(config)`
+## `toolDefinition(config)`
 
-Creates a tool definition.
+Creates an isomorphic tool definition that can be instantiated for server or client execution.
 
 ```typescript
-import { tool } from "@tanstack/ai";
+import { toolDefinition } from "@tanstack/ai";
 import { z } from "zod";
 
-const myTool = tool({
+const myToolDef = toolDefinition({
+  name: "my_tool",
   description: "Tool description",
   inputSchema: z.object({
     param: z.string(),
   }),
-  execute: async ({ param }) => {
-    // Tool implementation
-    return { result: "..." };
-  },
+  outputSchema: z.object({
+    result: z.string(),
+  }),
   needsApproval: false, // Optional
+});
+
+// Or create client implementation
+const myClientTool = myToolDef.client(async ({ param }) => {
+  // Client-side implementation
+  return { result: "..." };
+});
+
+// Use directly in chat() (server-side, no execute)
+chat({
+  tools: [myToolDef],
+  // ...
+});
+
+// Or create server implementation
+const myServerTool = myToolDef.server(async ({ param }) => {
+  // Server-side implementation
+  return { result: "..." };
+});
+
+// Use directly in chat() (server-side, no execute)
+chat({
+  tools: [myServerTool],
+  // ...
 });
 ```
 
 ### Parameters
 
+- `name` - Tool name (must be unique)
 - `description` - Tool description for the model
 - `inputSchema` - Zod schema for input validation
-- `execute` - Async function to execute the tool
+- `outputSchema?` - Zod schema for output validation
 - `needsApproval?` - Whether tool requires user approval
+- `metadata?` - Additional metadata
 
 ### Returns
 
-A `Tool` object.
+A `ToolDefinition` object with `.server()` and `.client()` methods for creating concrete implementations.
 
 ## `toServerSentEventsStream(stream, abortController?)`
 
@@ -294,6 +320,6 @@ const embeddings = await embedding({
 
 ## Next Steps
 
-- [Getting Started](../../getting-started/quick-start) - Learn the basics
-- [Tools Guide](../../guides/tools) - Learn about tools
-- [Adapters](../../adapters/openai) - Explore adapter options
+- [Getting Started](../getting-started/quick-start) - Learn the basics
+- [Tools Guide](../guides/tools) - Learn about tools
+- [Adapters](../adapters/openai) - Explore adapter options

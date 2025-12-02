@@ -9,26 +9,14 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
-import { Route as DemoRouteImport } from './routes/demo'
 import { Route as IndexRouteImport } from './routes/index'
-import { Route as ApiTestChatRouteImport } from './routes/api.test-chat'
 import { Route as ApiTanchatRouteImport } from './routes/api.tanchat'
 import { Route as ExampleGuitarsIndexRouteImport } from './routes/example.guitars/index'
 import { Route as ExampleGuitarsGuitarIdRouteImport } from './routes/example.guitars/$guitarId'
 
-const DemoRoute = DemoRouteImport.update({
-  id: '/demo',
-  path: '/demo',
-  getParentRoute: () => rootRouteImport,
-} as any)
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const ApiTestChatRoute = ApiTestChatRouteImport.update({
-  id: '/api/test-chat',
-  path: '/api/test-chat',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiTanchatRoute = ApiTanchatRouteImport.update({
@@ -49,26 +37,20 @@ const ExampleGuitarsGuitarIdRoute = ExampleGuitarsGuitarIdRouteImport.update({
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
-  '/demo': typeof DemoRoute
   '/api/tanchat': typeof ApiTanchatRoute
-  '/api/test-chat': typeof ApiTestChatRoute
   '/example/guitars/$guitarId': typeof ExampleGuitarsGuitarIdRoute
   '/example/guitars': typeof ExampleGuitarsIndexRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
-  '/demo': typeof DemoRoute
   '/api/tanchat': typeof ApiTanchatRoute
-  '/api/test-chat': typeof ApiTestChatRoute
   '/example/guitars/$guitarId': typeof ExampleGuitarsGuitarIdRoute
   '/example/guitars': typeof ExampleGuitarsIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
-  '/demo': typeof DemoRoute
   '/api/tanchat': typeof ApiTanchatRoute
-  '/api/test-chat': typeof ApiTestChatRoute
   '/example/guitars/$guitarId': typeof ExampleGuitarsGuitarIdRoute
   '/example/guitars/': typeof ExampleGuitarsIndexRoute
 }
@@ -76,59 +58,33 @@ export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
-    | '/demo'
     | '/api/tanchat'
-    | '/api/test-chat'
     | '/example/guitars/$guitarId'
     | '/example/guitars'
   fileRoutesByTo: FileRoutesByTo
-  to:
-    | '/'
-    | '/demo'
-    | '/api/tanchat'
-    | '/api/test-chat'
-    | '/example/guitars/$guitarId'
-    | '/example/guitars'
+  to: '/' | '/api/tanchat' | '/example/guitars/$guitarId' | '/example/guitars'
   id:
     | '__root__'
     | '/'
-    | '/demo'
     | '/api/tanchat'
-    | '/api/test-chat'
     | '/example/guitars/$guitarId'
     | '/example/guitars/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
-  DemoRoute: typeof DemoRoute
   ApiTanchatRoute: typeof ApiTanchatRoute
-  ApiTestChatRoute: typeof ApiTestChatRoute
   ExampleGuitarsGuitarIdRoute: typeof ExampleGuitarsGuitarIdRoute
   ExampleGuitarsIndexRoute: typeof ExampleGuitarsIndexRoute
 }
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
-    '/demo': {
-      id: '/demo'
-      path: '/demo'
-      fullPath: '/demo'
-      preLoaderRoute: typeof DemoRouteImport
-      parentRoute: typeof rootRouteImport
-    }
     '/': {
       id: '/'
       path: '/'
       fullPath: '/'
       preLoaderRoute: typeof IndexRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/api/test-chat': {
-      id: '/api/test-chat'
-      path: '/api/test-chat'
-      fullPath: '/api/test-chat'
-      preLoaderRoute: typeof ApiTestChatRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/tanchat': {
@@ -157,9 +113,7 @@ declare module '@tanstack/react-router' {
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
-  DemoRoute: DemoRoute,
   ApiTanchatRoute: ApiTanchatRoute,
-  ApiTestChatRoute: ApiTestChatRoute,
   ExampleGuitarsGuitarIdRoute: ExampleGuitarsGuitarIdRoute,
   ExampleGuitarsIndexRoute: ExampleGuitarsIndexRoute,
 }

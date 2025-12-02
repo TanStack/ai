@@ -23,7 +23,7 @@ Finish reasons that should stop the loop
 
 ## Returns
 
-[`AgentLoopStrategy`](../../type-aliases/AgentLoopStrategy.md)
+[`AgentLoopStrategy`](../type-aliases/AgentLoopStrategy.md)
 
 AgentLoopStrategy that stops on specific finish reasons
 

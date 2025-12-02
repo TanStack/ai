@@ -350,7 +350,7 @@ data: [DONE]
 
 ## See Also
 
-- [Chunk Definitions](../chunk-definitions.md) - StreamChunk type reference
-- [HTTP Stream Protocol](../http-stream-protocol.md) - Alternative protocol
-- [Connection Adapters Guide](../../guides/connection-adapters.md) - Client implementation
+- [Chunk Definitions](./chunk-definitions.md) - StreamChunk type reference
+- [HTTP Stream Protocol](./http-stream-protocol.md) - Alternative protocol
+- [Connection Adapters Guide](../guides/connection-adapters.md) - Client implementation
 - [MDN: Server-Sent Events](https://developer.mozilla.org/en-US/docs/Web/API/Server-sent_events)

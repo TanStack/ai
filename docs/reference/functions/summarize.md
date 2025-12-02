@@ -17,14 +17,14 @@ Standalone summarize function with type inference from adapter
 
 ### TAdapter
 
-`TAdapter` *extends* [`AIAdapter`](../../interfaces/AIAdapter.md)\<`any`, `any`, `any`, `any`, `any`\>
+`TAdapter` *extends* [`AIAdapter`](../interfaces/AIAdapter.md)\<`any`, `any`, `any`, `any`, `any`\>
 
 ## Parameters
 
 ### options
 
-`Omit`\<[`SummarizationOptions`](../../interfaces/SummarizationOptions.md), `"model"`\> & `object`
+`Omit`\<[`SummarizationOptions`](../interfaces/SummarizationOptions.md), `"model"`\> & `object`
 
 ## Returns
 
-`Promise`\<[`SummarizationResult`](../../interfaces/SummarizationResult.md)\>
+`Promise`\<[`SummarizationResult`](../interfaces/SummarizationResult.md)\>

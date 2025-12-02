@@ -7,11 +7,57 @@ import rehypeSanitize from 'rehype-sanitize'
 import rehypeHighlight from 'rehype-highlight'
 import remarkGfm from 'remark-gfm'
 import { fetchServerSentEvents, useChat } from '@tanstack/ai-react'
+import { clientTools, createChatClientOptions } from '@tanstack/ai-client'
 import { ThinkingPart } from '@tanstack/ai-react-ui'
-
-import type { UIMessage } from '@tanstack/ai-react'
-
+import type { InferChatMessages } from '@tanstack/ai-client'
+import type { StreamChunk } from '@tanstack/ai'
 import GuitarRecommendation from '@/components/example-GuitarRecommendation'
+import {
+  addToCartToolDef,
+  addToWishListToolDef,
+  getPersonalGuitarPreferenceToolDef,
+  recommendGuitarToolDef,
+} from '@/lib/guitar-tools'
+
+const getPersonalGuitarPreferenceToolClient =
+  getPersonalGuitarPreferenceToolDef.client(() => ({ preference: 'acoustic' }))
+
+const addToWishListToolClient = addToWishListToolDef.client((args) => {
+  const wishList = JSON.parse(localStorage.getItem('wishList') || '[]')
+  wishList.push(args.guitarId)
+  localStorage.setItem('wishList', JSON.stringify(wishList))
+  return {
+    success: true,
+    guitarId: args.guitarId,
+    totalItems: wishList.length,
+  }
+})
+
+const addToCartToolClient = addToCartToolDef.client((args) => ({
+  success: true,
+  cartId: 'CART_CLIENT_' + Date.now(),
+  guitarId: args.guitarId,
+  quantity: args.quantity,
+  totalItems: args.quantity,
+}))
+
+const recommendGuitarToolClient = recommendGuitarToolDef.client(({ id }) => ({
+  id,
+}))
+
+const tools = clientTools(
+  getPersonalGuitarPreferenceToolClient,
+  addToWishListToolClient,
+  addToCartToolClient,
+  recommendGuitarToolClient,
+)
+
+const chatOptions = createChatClientOptions({
+  connection: fetchServerSentEvents('/api/tanchat'),
+  tools,
+})
+
+type ChatMessages = InferChatMessages<typeof chatOptions>
 
 function ChatInputArea({ children }: { children: React.ReactNode }) {
   return (
@@ -25,7 +71,7 @@ function Messages({
   messages,
   addToolApprovalResponse,
 }: {
-  messages: Array<UIMessage>
+  messages: ChatMessages
   addToolApprovalResponse: (response: {
     id: string
     approved: boolean
@@ -49,33 +95,32 @@ function Messages({
       ref={messagesContainerRef}
       className="flex-1 overflow-y-auto px-4 py-4"
     >
-      {messages.map(({ id, role, parts }) => {
+      {messages.map((message) => {
         return (
           <div
-            key={id}
+            key={message.id}
             className={`p-4 rounded-lg mb-2 ${
-              role === 'assistant'
+              message.role === 'assistant'
                 ? 'bg-linear-to-r from-orange-500/5 to-red-600/5'
                 : 'bg-transparent'
             }`}
           >
             <div className="flex items-start gap-4">
-              {role === 'assistant' ? (
-                <div className="w-8 h-8 rounded-lg bg-linear-to-r from-orange-500 to-red-600 flex items-center justify-center text-sm font-medium text-white flex-shrink-0">
+              {message.role === 'assistant' ? (
+                <div className="w-8 h-8 rounded-lg bg-linear-to-r from-orange-500 to-red-600 flex items-center justify-center text-sm font-medium text-white shrink-0">
                   AI
                 </div>
               ) : (
-                <div className="w-8 h-8 rounded-lg bg-gray-700 flex items-center justify-center text-sm font-medium text-white flex-shrink-0">
+                <div className="w-8 h-8 rounded-lg bg-gray-700 flex items-center justify-center text-sm font-medium text-white shrink-0">
                   U
                 </div>
               )}
               <div className="flex-1 min-w-0">
                 {/* Render parts in order */}
-                {parts.map((part, index) => {
-                  // Thinking part
+                {message.parts.map((part, index) => {
                   if (part.type === 'thinking') {
                     // Check if thinking is complete (if there's a text part after)
-                    const isComplete = parts
+                    const isComplete = message.parts
                       .slice(index + 1)
                       .some((p) => p.type === 'text')
                     return (
@@ -166,15 +211,11 @@ function Messages({
                     part.name === 'recommendGuitar' &&
                     part.output
                   ) {
-                    try {
-                      return (
-                        <div key={part.id} className="mt-2">
-                          <GuitarRecommendation id={part.output.id} />
-                        </div>
-                      )
-                    } catch {
-                      return null
-                    }
+                    return (
+                      <div key={part.id} className="mt-2">
+                        <GuitarRecommendation id={part.output?.id} />
+                      </div>
+                    )
                   }
 
                   return null
@@ -193,8 +234,8 @@ function DebugPanel({
   chunks,
   onClearChunks,
 }: {
-  messages: Array<UIMessage>
-  chunks: any[]
+  messages: ChatMessages
+  chunks: Array<StreamChunk>
   onClearChunks: () => void
 }) {
   const [activeTab, setActiveTab] = useState<'messages' | 'chunks'>('messages')
@@ -279,17 +320,21 @@ function DebugPanel({
                   </tr>
                 </thead>
                 <tbody className="text-gray-300">
-                  {chunks.map((chunk, idx) => {
-                    const role = chunk.role || '-'
-                    const toolType = chunk.toolCall?.type || '-'
-                    const toolName = chunk.toolCall?.function?.name || '-'
+                  {chunks.map((chunk, idx: number) => {
+                    const role = chunk.type === 'content' ? chunk.role : '-'
+                    const toolType =
+                      chunk.type === 'tool_call' ? chunk.toolCall.type : '-'
+                    const toolName =
+                      chunk.type === 'tool_call'
+                        ? chunk.toolCall.function.name
+                        : '-'
 
                     let detail = '-'
                     if (chunk.type === 'content' && chunk.content) {
                       detail = chunk.content
                     } else if (
                       chunk.type === 'tool_call' &&
-                      chunk.toolCall?.function?.arguments
+                      chunk.toolCall.function.arguments
                     ) {
                       detail = chunk.toolCall.function.arguments
                     } else if (chunk.type === 'tool_result' && chunk.content) {
@@ -328,43 +373,15 @@ function DebugPanel({
   )
 }
 
-const connection = fetchServerSentEvents('/api/tanchat')
-
 function ChatPage() {
-  const [chunks, setChunks] = useState<any[]>([])
+  const [chunks, setChunks] = useState<Array<StreamChunk>>([])
 
   const { messages, sendMessage, isLoading, addToolApprovalResponse, stop } =
     useChat({
-      connection,
-      onChunk: (chunk: any) => {
+      connection: chatOptions.connection,
+      tools,
+      onChunk: (chunk) => {
         setChunks((prev) => [...prev, chunk])
-      },
-      onToolCall: async ({ toolName, input }) => {
-        // Handle client-side tool execution
-        switch (toolName) {
-          case 'getPersonalGuitarPreference':
-            // Pure client tool - executes immediately
-            return { preference: 'acoustic' }
-
-          case 'recommendGuitar':
-            // Client tool for UI display
-            return { id: input.id }
-
-          case 'addToWishList':
-            // Hybrid: client execution AFTER approval
-            // Only runs after user approves
-            const wishList = JSON.parse(
-              localStorage.getItem('wishList') || '[]',
-            )
-            wishList.push(input.guitarId)
-            localStorage.setItem('wishList', JSON.stringify(wishList))
-            return {
-              success: true,
-              guitarId: input.guitarId,
-              totalItems: wishList.length,
-            }
-        }
-        return Promise.resolve({ result: 'Unknown client tool' })
       },
     })
   const [input, setInput] = useState('')

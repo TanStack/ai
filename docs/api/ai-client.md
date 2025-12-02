@@ -171,6 +171,66 @@ const adapter = stream(async (messages, data, signal) => {
 });
 ```
 
+## Helper Functions
+
+### `clientTools(...tools)`
+
+Creates a typed array of client tools with proper type inference. This eliminates the need for `as const` when defining tool arrays and enables proper discriminated union type narrowing.
+
+```typescript
+import { clientTools } from "@tanstack/ai-client";
+import { myTool1, myTool2 } from "./tools";
+
+// Create client implementations
+const tool1Client = myTool1.client((input) => {
+  // Implementation
+  return { result: "..." };
+});
+
+const tool2Client = myTool2.client((input) => {
+  // Implementation
+  return { result: "..." };
+});
+
+// Create typed tools array (no 'as const' needed!)
+const tools = clientTools(tool1Client, tool2Client);
+
+// Now when you use these tools in chat options:
+const chatOptions = createChatClientOptions({
+  connection: fetchServerSentEvents("/api/chat"),
+  tools, // Fully typed with literal tool names
+});
+
+// In your component:
+messages.forEach((message) => {
+  message.parts.forEach((part) => {
+    if (part.type === "tool-call" && part.name === "myTool1") {
+      // ✅ TypeScript knows part.name is literally "myTool1"
+      // ✅ part.input is typed from myTool1's input schema
+      // ✅ part.output is typed from myTool1's output schema
+    }
+  });
+});
+```
+
+### `createChatClientOptions(options)`
+
+Helper function to create typed chat client options with proper type inference.
+
+```typescript
+import { createChatClientOptions, clientTools } from "@tanstack/ai-client";
+
+const tools = clientTools(tool1, tool2);
+
+const chatOptions = createChatClientOptions({
+  connection: fetchServerSentEvents("/api/chat"),
+  tools,
+});
+
+// Use InferChatMessages to extract message types
+type ChatMessages = InferChatMessages<typeof chatOptions>;
+```
+
 ## Types
 
 ### `UIMessage`
@@ -219,12 +279,15 @@ interface ToolCallPart {
   type: "tool-call";
   id: string;
   name: string;
-  arguments: string;
+  arguments: string; // JSON string (may be incomplete during streaming)
+  input?: any; // Parsed tool input (typed from tool's inputSchema)
   state: ToolCallState;
   approval?: ApprovalRequest;
-  output?: any;
+  output?: any; // Tool execution output (typed from tool's outputSchema)
 }
 ```
+
+When using typed tools with `clientTools()` and `createChatClientOptions()`, the `input` and `output` fields are automatically typed based on your tool's Zod schemas, and `name` becomes a discriminated union enabling type narrowing.
 
 ### `ToolResultPart`
 
@@ -279,6 +342,6 @@ const client = new ChatClient({
 
 ## Next Steps
 
-- [Getting Started](../../getting-started/quick-start) - Learn the basics
-- [Connection Adapters](../../guides/connection-adapters) - Learn about adapters
-- [@tanstack/ai-react API](../ai-react) - React hooks wrapper
+- [Getting Started](../getting-started/quick-start) - Learn the basics
+- [Connection Adapters](../guides/connection-adapters) - Learn about adapters
+- [@tanstack/ai-react API](./ai-react) - React hooks wrapper

@@ -1,7 +1,18 @@
 export { chat } from './core/chat'
 export { summarize } from './core/summarize'
 export { embedding } from './core/embedding'
-export { tool } from './tools/tool-utils'
+export {
+  toolDefinition,
+  type ToolDefinition,
+  type ToolDefinitionInstance,
+  type ToolDefinitionConfig,
+  type ServerTool,
+  type ClientTool,
+  type AnyClientTool,
+  type InferToolName,
+  type InferToolInput,
+  type InferToolOutput,
+} from './tools/tool-factory'
 export { convertZodToJsonSchema } from './tools/zod-converter'
 export {
   toServerSentEventsStream,

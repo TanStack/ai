@@ -1,4 +1,4 @@
-import type { ModelMessage } from '@tanstack/ai'
+import type { AnyClientTool, ModelMessage } from '@tanstack/ai'
 import type {
   ChatClientOptions,
   ChatRequestBody,
@@ -17,22 +17,25 @@ export type { UIMessage, ChatRequestBody }
  * - `onLoadingChange` - Managed by React state (exposed as `isLoading`)
  * - `onErrorChange` - Managed by React state (exposed as `error`)
  *
- * All other callbacks (onResponse, onChunk, onFinish, onError, onToolCall) are
+ * All other callbacks (onResponse, onChunk, onFinish, onError) are
  * passed through to the underlying ChatClient and can be used for side effects.
  *
  * Note: Connection and body changes will recreate the ChatClient instance.
  * To update these options, remount the component or use a key prop.
  */
-export type UseChatOptions = Omit<
-  ChatClientOptions,
-  'onMessagesChange' | 'onLoadingChange' | 'onErrorChange'
->
+export type UseChatOptions<TTools extends ReadonlyArray<AnyClientTool> = any> =
+  Omit<
+    ChatClientOptions<TTools>,
+    'onMessagesChange' | 'onLoadingChange' | 'onErrorChange'
+  >
 
-export interface UseChatReturn {
+export interface UseChatReturn<
+  TTools extends ReadonlyArray<AnyClientTool> = any,
+> {
   /**
    * Current messages in the conversation
    */
-  messages: Array<UIMessage>
+  messages: Array<UIMessage<TTools>>
 
   /**
    * Send a message and get a response
@@ -42,7 +45,7 @@ export interface UseChatReturn {
   /**
    * Append a message to the conversation
    */
-  append: (message: ModelMessage | UIMessage) => Promise<void>
+  append: (message: ModelMessage | UIMessage<TTools>) => Promise<void>
 
   /**
    * Add the result of a client-side tool execution
@@ -86,10 +89,13 @@ export interface UseChatReturn {
   /**
    * Set messages manually
    */
-  setMessages: (messages: Array<UIMessage>) => void
+  setMessages: (messages: Array<UIMessage<TTools>>) => void
 
   /**
    * Clear all messages
    */
   clear: () => void
 }
+
+// Note: createChatClientOptions and InferChatMessages are now in @tanstack/ai-client
+// and re-exported from there for convenience

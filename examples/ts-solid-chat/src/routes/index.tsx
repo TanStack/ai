@@ -2,11 +2,25 @@ import { createFileRoute } from '@tanstack/solid-router'
 import Send from 'lucide-solid/icons/send'
 import Square from 'lucide-solid/icons/square'
 import { fetchServerSentEvents, useChat } from '@tanstack/ai-solid'
+import {
+  createChatClientOptions,
+  type InferChatMessages,
+} from '@tanstack/ai-client'
 import { ThinkingPart, TextPart } from '@tanstack/ai-solid-ui'
-import { createSignal, For } from 'solid-js'
-import type { UIMessage } from '@tanstack/ai-solid'
+import { createSignal, For, Show } from 'solid-js'
+
 import type { JSXElement } from 'solid-js'
 import GuitarRecommendation from '@/components/example-GuitarRecommendation'
+import { clientTools } from '@/lib/guitar-tools'
+
+// Create typed chat options for type inference
+const chatOptions = createChatClientOptions({
+  connection: fetchServerSentEvents('/api/tanchat'),
+  tools: clientTools,
+})
+
+// Extract the typed messages from the options
+type ChatMessages = InferChatMessages<typeof chatOptions>
 
 function ChatInputArea(props: { children: JSXElement }) {
   return (
@@ -17,7 +31,7 @@ function ChatInputArea(props: { children: JSXElement }) {
 }
 
 function Messages(props: {
-  messages: Array<UIMessage>
+  messages: ChatMessages
   addToolApprovalResponse: (response: {
     id: string
     approved: boolean
@@ -26,16 +40,16 @@ function Messages(props: {
   return (
     <div class="flex-1 overflow-y-auto px-4 py-4">
       <For each={props.messages}>
-        {({ role, parts }) => (
+        {(message) => (
           <div
             class={`p-4 rounded-lg mb-2 ${
-              role === 'assistant'
+              message.role === 'assistant'
                 ? 'bg-linear-to-r from-orange-500/5 to-red-600/5'
                 : 'bg-transparent'
             }`}
           >
             <div class="flex items-start gap-4">
-              {role === 'assistant' ? (
+              {message.role === 'assistant' ? (
                 <div class="w-8 h-8 rounded-lg bg-linear-to-r from-orange-500 to-red-600 flex items-center justify-center text-sm font-medium text-white shrink-0">
                   AI
                 </div>
@@ -46,12 +60,12 @@ function Messages(props: {
               )}
               <div class="flex-1 min-w-0">
                 {/* Render parts in order */}
-                <For each={parts}>
+                <For each={message.parts}>
                   {(part, index) => {
                     // Thinking part
                     if (part.type === 'thinking') {
                       // Check if thinking is complete (if there's a text part after)
-                      const isComplete = parts
+                      const isComplete = message.parts
                         .slice(index() + 1)
                         .some((p) => p.type === 'text')
                       return (
@@ -69,7 +83,7 @@ function Messages(props: {
                       return (
                         <TextPart
                           content={part.content}
-                          role={role}
+                          role={message.role}
                           class="text-white prose dark:prose-invert max-w-none"
                         />
                       )
@@ -297,38 +311,10 @@ function ChatPage() {
 
   const { messages, sendMessage, isLoading, addToolApprovalResponse, stop } =
     useChat({
-      connection: fetchServerSentEvents('/api/tanchat'),
+      connection: chatOptions.connection,
+      tools: clientTools,
       onChunk: (chunk: any) => {
         setChunks((prev) => [...prev, chunk])
-      },
-      onToolCall: async ({ toolName, input }) => {
-        // Handle client-side tool execution
-        switch (toolName) {
-          case 'getPersonalGuitarPreference':
-            // Pure client tool - executes immediately
-            return { preference: 'acoustic' }
-
-          case 'recommendGuitar':
-            // Client tool for UI display
-            return { id: input.id }
-
-          case 'addToWishList':
-            // Hybrid: client execution AFTER approval
-            // Only runs after user approves
-            const wishList = JSON.parse(
-              localStorage.getItem('wishList') || '[]',
-            )
-            wishList.push(input.guitarId)
-            localStorage.setItem('wishList', JSON.stringify(wishList))
-            return {
-              success: true,
-              guitarId: input.guitarId,
-              totalItems: wishList.length,
-            }
-
-          default:
-            throw new Error(`Unknown client tool: ${toolName}`)
-        }
       },
     })
   const [input, setInput] = createSignal('')

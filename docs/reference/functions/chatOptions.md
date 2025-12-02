@@ -15,7 +15,7 @@ Defined in: [utilities/chat-options.ts:3](https://github.com/TanStack/ai/blob/ma
 
 ### TAdapter
 
-`TAdapter` *extends* [`AIAdapter`](../../interfaces/AIAdapter.md)\<`any`, `any`, `any`, `any`, `any`\>
+`TAdapter` *extends* [`AIAdapter`](../interfaces/AIAdapter.md)\<`any`, `any`, `any`, `any`, `any`\>
 
 ### TModel
 
@@ -25,8 +25,8 @@ Defined in: [utilities/chat-options.ts:3](https://github.com/TanStack/ai/blob/ma
 
 ### options
 
-`Omit`\<[`ChatStreamOptionsUnion`](../../type-aliases/ChatStreamOptionsUnion.md)\<`TAdapter`\>, `"model"` \| `"providerOptions"` \| `"messages"` \| `"abortController"`\> & `object`
+`Omit`\<[`ChatStreamOptionsUnion`](../type-aliases/ChatStreamOptionsUnion.md)\<`TAdapter`\>, `"model"` \| `"providerOptions"` \| `"messages"` \| `"abortController"`\> & `object`
 
 ## Returns
 
-`Omit`\<[`ChatStreamOptionsUnion`](../../type-aliases/ChatStreamOptionsUnion.md)\<`TAdapter`\>, `"model"` \| `"providerOptions"` \| `"messages"` \| `"abortController"`\> & `object`
+`Omit`\<[`ChatStreamOptionsUnion`](../type-aliases/ChatStreamOptionsUnion.md)\<`TAdapter`\>, `"model"` \| `"providerOptions"` \| `"messages"` \| `"abortController"`\> & `object`

@@ -423,8 +423,8 @@ This makes streams compatible with standard NDJSON tools and libraries.
 
 ## See Also
 
-- [Chunk Definitions](../chunk-definitions.md) - StreamChunk type reference
-- [SSE Protocol](../sse-protocol.md) - Recommended protocol (with auto-reconnect)
-- [Connection Adapters Guide](../../guides/connection-adapters.md) - Client implementation
+- [Chunk Definitions](./chunk-definitions.md) - StreamChunk type reference
+- [SSE Protocol](./sse-protocol) - Recommended protocol (with auto-reconnect)
+- [Connection Adapters Guide](../guides/connection-adapters.md) - Client implementation
 - [JSON Lines Specification](http://jsonlines.org/)
 - [NDJSON Specification](http://ndjson.org/)

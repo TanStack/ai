@@ -16,6 +16,10 @@
     ".": {
       "types": "./dist/esm/index.d.ts",
       "import": "./dist/esm/index.js"
+    },
+    "./start": {
+      "types": "./dist/esm/start.d.ts",
+      "import": "./dist/esm/start.js"
     }
   },
   "files": [
@@ -49,7 +53,8 @@
     "@types/react": "^19.2.7",
     "@vitest/coverage-v8": "4.0.14",
     "jsdom": "^27.2.0",
-    "vite": "^7.2.4"
+    "vite": "^7.2.4",
+    "zod": "^4.1.13"
   },
   "peerDependencies": {
     "@tanstack/ai": "workspace:*",

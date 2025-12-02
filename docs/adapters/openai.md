@@ -87,7 +87,7 @@ export async function POST(request: Request) {
 ## Example: With Tools
 
 ```typescript
-import { chat, tool } from "@tanstack/ai";
+import { chat, toolDefinition } from "@tanstack/ai";
 import { openai } from "@tanstack/ai-openai";
 import { z } from "zod";
 
@@ -95,15 +95,17 @@ const adapter = openai({
   apiKey: process.env.OPENAI_API_KEY!,
 });
 
-const getWeather = tool({
+const getWeatherDef = toolDefinition({
+  name: "get_weather",
   description: "Get the current weather",
   inputSchema: z.object({
     location: z.string(),
   }),
-  execute: async ({ location }) => {
-    // Fetch weather data
-    return { temperature: 72, conditions: "sunny" };
-  },
+});
+
+const getWeather = getWeatherDef.server(async ({ location }) => {
+  // Fetch weather data
+  return { temperature: 72, conditions: "sunny" };
 });
 
 const stream = chat({
@@ -176,6 +178,6 @@ Creates an OpenAI adapter instance.
 
 ## Next Steps
 
-- [Getting Started](../../getting-started/quick-start) - Learn the basics
-- [Tools Guide](../../guides/tools) - Learn about tools
-- [Other Adapters](../anthropic) - Explore other providers
+- [Getting Started](../getting-started/quick-start) - Learn the basics
+- [Tools Guide](../guides/tools) - Learn about tools
+- [Other Adapters](./anthropic) - Explore other providers

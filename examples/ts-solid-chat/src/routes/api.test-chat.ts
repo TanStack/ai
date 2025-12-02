@@ -1,7 +1,7 @@
 import { createFileRoute } from '@tanstack/solid-router'
 import { chat, maxIterations, toStreamResponse } from '@tanstack/ai'
 import { stubAdapter } from '@/lib/stub-adapter'
-import { allTools } from '@/lib/guitar-tools'
+import { serverTools } from '@/lib/guitar-tools'
 
 export const Route = createFileRoute('/api/test-chat')({
   server: {
@@ -14,7 +14,7 @@ export const Route = createFileRoute('/api/test-chat')({
             adapter: stubAdapter(),
             messages,
             model: 'gpt-4.1-nano', // Doesn't matter for stub
-            tools: allTools,
+            tools: serverTools,
             systemPrompts: [],
             options: {
               temperature: 0.7,

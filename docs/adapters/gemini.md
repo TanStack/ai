@@ -72,7 +72,7 @@ export async function POST(request: Request) {
 ## Example: With Tools
 
 ```typescript
-import { chat, tool } from "@tanstack/ai";
+import { chat, toolDefinition } from "@tanstack/ai";
 import { gemini } from "@tanstack/ai-gemini";
 import { z } from "zod";
 
@@ -80,15 +80,17 @@ const adapter = gemini({
   apiKey: process.env.GEMINI_API_KEY!,
 });
 
-const getCalendarEvents = tool({
+const getCalendarEventsDef = toolDefinition({
+  name: "get_calendar_events",
   description: "Get calendar events",
   inputSchema: z.object({
     date: z.string(),
   }),
-  execute: async ({ date }) => {
-    // Fetch calendar events
-    return { events: [...] };
-  },
+});
+
+const getCalendarEvents = getCalendarEventsDef.server(async ({ date }) => {
+  // Fetch calendar events
+  return { events: [...] };
 });
 
 const stream = chat({
@@ -146,6 +148,6 @@ Creates a Gemini adapter instance.
 
 ## Next Steps
 
-- [Getting Started](../../getting-started/quick-start) - Learn the basics
-- [Tools Guide](../../guides/tools) - Learn about tools
-- [Other Adapters](../openai) - Explore other providers
+- [Getting Started](../getting-started/quick-start) - Learn the basics
+- [Tools Guide](../guides/tools) - Learn about tools
+- [Other Adapters](./openai) - Explore other providers
