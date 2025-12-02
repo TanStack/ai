@@ -1,20 +1,24 @@
 import { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react'
 import { ChatClient } from '@tanstack/ai-client'
-import type { ModelMessage } from '@tanstack/ai'
+import type { AnyClientTool, ModelMessage } from '@tanstack/ai'
 import type { UIMessage, UseChatOptions, UseChatReturn } from './types'
 
-export function useChat(options: UseChatOptions): UseChatReturn {
+export function useChat<TTools extends ReadonlyArray<AnyClientTool> = any>(
+  options: UseChatOptions<TTools>,
+): UseChatReturn<TTools> {
   const hookId = useId()
   const clientId = options.id || hookId
 
-  const [messages, setMessages] = useState<Array<UIMessage>>(
+  const [messages, setMessages] = useState<Array<UIMessage<TTools>>>(
     options.initialMessages || [],
   )
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<Error | undefined>(undefined)
 
   // Track current messages in a ref to preserve them when client is recreated
-  const messagesRef = useRef<Array<UIMessage>>(options.initialMessages || [])
+  const messagesRef = useRef<Array<UIMessage<TTools>>>(
+    options.initialMessages || [],
+  )
   const isFirstMountRef = useRef(true)
 
   // Update ref whenever messages change
@@ -43,9 +47,9 @@ export function useChat(options: UseChatOptions): UseChatReturn {
       onChunk: options.onChunk,
       onFinish: options.onFinish,
       onError: options.onError,
-      onToolCall: options.onToolCall,
+      tools: options.tools,
       streamProcessor: options.streamProcessor,
-      onMessagesChange: (newMessages: Array<UIMessage>) => {
+      onMessagesChange: (newMessages: Array<UIMessage<TTools>>) => {
         setMessages(newMessages)
       },
       onLoadingChange: (newIsLoading: boolean) => {
@@ -112,7 +116,7 @@ export function useChat(options: UseChatOptions): UseChatReturn {
   }, [client])
 
   const setMessagesManually = useCallback(
-    (newMessages: Array<UIMessage>) => {
+    (newMessages: Array<UIMessage<TTools>>) => {
       client.setMessagesManually(newMessages)
     },
     [client],

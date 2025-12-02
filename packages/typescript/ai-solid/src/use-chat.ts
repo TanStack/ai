@@ -1,18 +1,20 @@
-import { ChatClient } from '@tanstack/ai-client'
-import type { ModelMessage } from '@tanstack/ai'
-import type { UseChatOptions, UseChatReturn, UIMessage } from './types'
 import {
   createEffect,
   createMemo,
   createSignal,
   createUniqueId,
 } from 'solid-js'
+import { ChatClient } from '@tanstack/ai-client'
+import type { AnyClientTool, ModelMessage } from '@tanstack/ai'
+import type { UIMessage, UseChatOptions, UseChatReturn } from './types'
 
-export function useChat(options: UseChatOptions = {}): UseChatReturn {
+export function useChat<TTools extends ReadonlyArray<AnyClientTool> = any>(
+  options: UseChatOptions<TTools> = {} as UseChatOptions<TTools>,
+): UseChatReturn<TTools> {
   const hookId = createUniqueId()
   const clientId = options.id || hookId
 
-  const [messages, setMessages] = createSignal<UIMessage[]>(
+  const [messages, setMessages] = createSignal<Array<UIMessage<TTools>>>(
     options.initialMessages || [],
   )
   const [isLoading, setIsLoading] = createSignal(false)
@@ -32,9 +34,9 @@ export function useChat(options: UseChatOptions = {}): UseChatReturn {
       onChunk: options.onChunk,
       onFinish: options.onFinish,
       onError: options.onError,
-      onToolCall: options.onToolCall,
+      tools: options.tools,
       streamProcessor: options.streamProcessor,
-      onMessagesChange: (newMessages: UIMessage[]) => {
+      onMessagesChange: (newMessages: Array<UIMessage<TTools>>) => {
         setMessages(newMessages)
       },
       onLoadingChange: (newIsLoading: boolean) => {
@@ -46,7 +48,6 @@ export function useChat(options: UseChatOptions = {}): UseChatReturn {
     })
     // Only recreate when clientId changes
     // Connection and other options are captured at creation time
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [clientId])
 
   // Sync initial messages on mount only
@@ -55,7 +56,7 @@ export function useChat(options: UseChatOptions = {}): UseChatReturn {
   createEffect(() => {
     if (options.initialMessages && options.initialMessages.length > 0) {
       // Only set if current messages are empty (initial state)
-      if (messages.length === 0) {
+      if (messages().length === 0) {
         client().setMessagesManually(options.initialMessages)
       }
     }
@@ -79,7 +80,7 @@ export function useChat(options: UseChatOptions = {}): UseChatReturn {
     await client().sendMessage(content)
   }
 
-  const append = async (message: ModelMessage | UIMessage) => {
+  const append = async (message: ModelMessage | UIMessage<TTools>) => {
     await client().append(message)
   }
 
@@ -95,7 +96,7 @@ export function useChat(options: UseChatOptions = {}): UseChatReturn {
     client().clear()
   }
 
-  const setMessagesManually = (newMessages: UIMessage[]) => {
+  const setMessagesManually = (newMessages: Array<UIMessage<TTools>>) => {
     client().setMessagesManually(newMessages)
   }
 

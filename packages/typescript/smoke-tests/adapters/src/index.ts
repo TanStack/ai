@@ -3,7 +3,7 @@ import {
   chat,
   embedding,
   summarize,
-  tool,
+  toolDefinition,
   maxIterations,
   type Tool,
 } from '@tanstack/ai'
@@ -110,7 +110,7 @@ async function testTemperatureTool(
 
   const expectedLocation = 'San Francisco'
 
-  const temperatureTool = tool({
+  const temperatureTool = toolDefinition({
     name: 'get_temperature',
     description:
       'Get the current temperature in degrees for a specific location',
@@ -119,32 +119,31 @@ async function testTemperatureTool(
         .string()
         .describe('The city or location to get the temperature for'),
     }),
-    execute: async (args) => {
-      toolExecuteCalled = true
-      toolExecuteCallCount++
-      const callInfo: any = {
-        timestamp: new Date().toISOString(),
-        arguments: args,
+  }).server(async (args) => {
+    toolExecuteCalled = true
+    toolExecuteCallCount++
+    const callInfo: any = {
+      timestamp: new Date().toISOString(),
+      arguments: args,
+    }
+    try {
+      // Verify location was passed correctly
+      if (!args || typeof args !== 'object') {
+        throw new Error('Arguments must be an object')
       }
-      try {
-        // Verify location was passed correctly
-        if (!args || typeof args !== 'object') {
-          throw new Error('Arguments must be an object')
-        }
-        if (!args.location || typeof args.location !== 'string') {
-          throw new Error('Location argument is missing or invalid')
-        }
+      if (!args.location || typeof args.location !== 'string') {
+        throw new Error('Location argument is missing or invalid')
+      }
 
-        const result = '70'
-        callInfo.result = result
-        toolExecuteCalls.push(callInfo)
-        return result
-      } catch (error: any) {
-        callInfo.error = error.message
-        toolExecuteCalls.push(callInfo)
-        throw error
-      }
-    },
+      const result = '70'
+      callInfo.result = result
+      toolExecuteCalls.push(callInfo)
+      return result
+    } catch (error: any) {
+      callInfo.error = error.message
+      toolExecuteCalls.push(callInfo)
+      throw error
+    }
   })
 
   return runTestCase({
@@ -239,31 +238,30 @@ async function testApprovalToolFlow(
     error?: string
   }> = []
 
-  const addToCartTool: Tool = tool({
+  const addToCartTool: Tool = toolDefinition({
     name: 'addToCart',
     description: 'Add an item to the shopping cart',
     inputSchema: z.object({
       item: z.string().describe('The name of the item to add to the cart'),
     }),
     needsApproval: true,
-    execute: async (args) => {
-      toolExecuteCalled = true
-      toolExecuteCallCount++
-      const callInfo: any = {
-        timestamp: new Date().toISOString(),
-        arguments: args,
-      }
-      try {
-        const result = JSON.stringify({ success: true, item: args.item })
-        callInfo.result = result
-        toolExecuteCalls.push(callInfo)
-        return result
-      } catch (error: any) {
-        callInfo.error = error.message
-        toolExecuteCalls.push(callInfo)
-        throw error
-      }
-    },
+  }).server(async (args) => {
+    toolExecuteCalled = true
+    toolExecuteCallCount++
+    const callInfo: any = {
+      timestamp: new Date().toISOString(),
+      arguments: args,
+    }
+    try {
+      const result = JSON.stringify({ success: true, item: args.item })
+      callInfo.result = result
+      toolExecuteCalls.push(callInfo)
+      return result
+    } catch (error: any) {
+      callInfo.error = error.message
+      toolExecuteCalls.push(callInfo)
+      throw error
+    }
   })
 
   const messages = [

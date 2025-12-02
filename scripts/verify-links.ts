@@ -32,14 +32,14 @@ function fileExistsForLink(
   // If the link is empty after removing hash, it's not a file
   if (!filePart) return false
 
-  // Normalize the markdown file path
-  markdownFile = normalizePath(markdownFile)
+  // Get the absolute directory of the markdown file
+  const markdownDir = path.dirname(path.resolve(markdownFile))
 
   // Normalize the path
   const normalizedPath = normalizePath(filePart)
 
   // Resolve the path relative to the markdown file's directory
-  let absPath = resolve(markdownFile, normalizedPath)
+  let absPath = resolve(markdownDir, normalizedPath)
 
   // Ensure the resolved path is within /docs
   const docsRoot = resolve('docs')

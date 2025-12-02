@@ -10,7 +10,15 @@ export type {
   // Client configuration types
   ChatClientOptions,
   ChatRequestBody,
+  InferChatMessages,
 } from './types'
+export { clientTools, createChatClientOptions } from './types'
+export type {
+  ExtractToolNames,
+  ExtractToolInput,
+  ExtractToolOutput,
+} from './tool-types'
+export type { AnyClientTool } from '@tanstack/ai'
 export {
   fetchServerSentEvents,
   fetchHttpStream,

@@ -1,10 +1,18 @@
 import { createFileRoute } from '@tanstack/react-router'
 import { chat, maxIterations, toStreamResponse } from '@tanstack/ai'
 import { openai } from '@tanstack/ai-openai'
-// import { ollama } from "@tanstack/ai-ollama";
+import { ollama } from '@tanstack/ai-ollama'
 import { anthropic } from '@tanstack/ai-anthropic'
-// import { gemini } from "@tanstack/ai-gemini";
-import { allTools } from '@/lib/guitar-tools'
+import { gemini } from '@tanstack/ai-gemini'
+import {
+  addToCartToolDef,
+  addToWishListToolDef,
+  getGuitars,
+  getPersonalGuitarPreferenceToolDef,
+  recommendGuitarToolDef,
+} from '@/lib/guitar-tools'
+
+type Provider = 'openai' | 'anthropic' | 'gemini' | 'ollama'
 
 const SYSTEM_PROMPT = `You are a helpful assistant for a guitar store.
 
@@ -29,6 +37,14 @@ Step 2: Call recommendGuitar(id: "6")
 Step 3: Done - do NOT add any text after calling recommendGuitar
 `
 
+const addToCartToolServer = addToCartToolDef.server((args) => ({
+  success: true,
+  cartId: 'CART_' + Date.now(),
+  guitarId: args.guitarId,
+  quantity: args.quantity,
+  totalItems: args.quantity,
+}))
+
 export const Route = createFileRoute('/api/tanchat')({
   server: {
     handlers: {
@@ -43,35 +59,54 @@ export const Route = createFileRoute('/api/tanchat')({
 
         const abortController = new AbortController()
 
-        const { messages } = await request.json()
+        const body = await request.json()
+        const { messages, data } = body
+
+        // Extract provider and model from data
+        const provider: Provider = data?.provider || 'openai'
+        const model: string | undefined = data?.model
+
         try {
-          // Use the stream abort signal for proper cancellation handling
+          // Select adapter based on provider
+          let adapter
+          let defaultModel
+
+          switch (provider) {
+            case 'anthropic':
+              adapter = anthropic()
+              defaultModel = 'claude-sonnet-4-5-20250929'
+              break
+            case 'gemini':
+              adapter = gemini()
+              defaultModel = 'gemini-2.0-flash-exp'
+              break
+            case 'ollama':
+              adapter = ollama()
+              defaultModel = 'mistral:7b'
+              break
+            case 'openai':
+            default:
+              adapter = openai()
+              defaultModel = 'gpt-4o'
+              break
+          }
+
+          // Determine model - use provided model or default based on provider
+          const selectedModel = model || defaultModel
+
           const stream = chat({
-            adapter: openai(),
-            model: 'gpt-4o',
-            // For thinking/reasoning support, use one of these models:
-            // - OpenAI: "gpt-5", "o3", "o3-pro", "o3-mini" (with reasoning option)
-            // - Anthropic: "claude-sonnet-4-5-20250929", "claude-opus-4-5-20251101" (with thinking option)
-            // - Gemini: "gemini-3-pro-preview", "gemini-2.5-pro" (with thinkingConfig option)
-            // model: 'claude-sonnet-4-5-20250929',
-            // model: 'claude-sonnet-4-5-20250929',
-            // model: "smollm",
-            // model: "gemini-2.5-flash",
-            tools: allTools,
+            adapter,
+            model: selectedModel as any,
+            tools: [
+              getGuitars.server, // Server function tool
+              recommendGuitarToolDef, // No server execute - client will handle
+              addToCartToolServer,
+              addToWishListToolDef,
+              getPersonalGuitarPreferenceToolDef,
+            ],
             systemPrompts: [SYSTEM_PROMPT],
             agentLoopStrategy: maxIterations(20),
             messages,
-            providerOptions: {
-              // Enable reasoning for OpenAI (gpt-5, o3 models):
-              // reasoning: {
-              //   effort: "medium", // or "low", "high", "minimal", "none" (for gpt-5.1)
-              // },
-              // Enable thinking for Anthropic:
-              /*   thinking: {
-                  type: "enabled",
-                  budget_tokens: 2048,
-                }, */
-            },
             abortController,
           })
 

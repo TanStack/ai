@@ -87,6 +87,7 @@ export interface UIMessage {
 export interface Tool<
   TInput extends z.ZodType = z.ZodType,
   TOutput extends z.ZodType = z.ZodType,
+  TName extends string = string,
 > {
   /**
    * Unique name of the tool (used by the model to call it).
@@ -96,7 +97,7 @@ export interface Tool<
    *
    * @example "get_weather", "search_database", "sendEmail"
    */
-  name: string
+  name: TName
 
   /**
    * Clear description of what the tool does.
@@ -162,9 +163,7 @@ export interface Tool<
    *   return weather; // Can return object or string
    * }
    */
-  execute?: (
-    args: z.infer<TInput>,
-  ) => Promise<z.infer<TOutput>> | z.infer<TOutput>
+  execute?: (args: any) => Promise<any> | any
 
   /** If true, tool execution requires user approval before running. Works with both server and client tools. */
   needsApproval?: boolean

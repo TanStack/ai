@@ -47,14 +47,13 @@ export interface ChatProps {
   onFinish?: (message: UIMessage) => void
   /** Callback when an error occurs */
   onError?: (error: Error) => void
-  /** Callback when client-side tool needs execution */
-  onToolCall?: (args: {
-    toolCallId: string
-    toolName: string
-    input: any
-  }) => Promise<any>
-  /** Custom tool components registry */
-  tools?: Record<string, (props: { input: any; output?: any }) => JSX.Element>
+  /** Client-side tools with execute functions */
+  tools?: Array<any>
+  /** Custom tool components registry for rendering */
+  toolComponents?: Record<
+    string,
+    (props: { input: any; output?: any }) => JSX.Element
+  >
 }
 
 /**
@@ -78,7 +77,7 @@ export function Chat(props: ChatProps) {
     onChunk: props.onChunk,
     onFinish: props.onFinish,
     onError: props.onError,
-    onToolCall: props.onToolCall,
+    tools: props.tools,
   })
 
   return (

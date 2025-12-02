@@ -322,6 +322,32 @@ export class OpenAI extends BaseAdapter<
           yield handleContentPart(contentPart)
         }
 
+        // handle content deltas - this is where streaming happens!
+        if (chunk.type === 'response.output_text.delta') {
+          accumulatedContent += chunk.delta
+          yield {
+            type: 'content',
+            id: responseId || generateId(),
+            model: model || options.model,
+            timestamp,
+            delta: chunk.delta,
+            content: accumulatedContent,
+            role: 'assistant',
+          }
+        }
+
+        if (chunk.type === 'response.reasoning_text.delta') {
+          accumulatedReasoning += chunk.delta
+          yield {
+            type: 'thinking',
+            id: responseId || generateId(),
+            model: model || options.model,
+            timestamp,
+            delta: chunk.delta,
+            content: accumulatedReasoning,
+          }
+        }
+
         if (chunk.type === 'response.content_part.done') {
           const contentPart = chunk.part
 

@@ -5,6 +5,7 @@ import { chat, maxIterations, toStreamResponse } from '@tanstack/ai'
 import { anthropic } from '@tanstack/ai-anthropic'
 import { gemini } from '@tanstack/ai-gemini'
 import { openai } from '@tanstack/ai-openai'
+import { ollama } from '@tanstack/ai-ollama'
 import type { AIAdapter, ChatOptions, StreamChunk } from '@tanstack/ai'
 import { allTools } from '@/lib/guitar-tools'
 
@@ -31,7 +32,7 @@ Step 2: Call recommendGuitar(id: "6")
 Step 3: Done - do NOT add any text after calling recommendGuitar
 `
 
-type Provider = 'openai' | 'anthropic' | 'gemini'
+type Provider = 'openai' | 'anthropic' | 'gemini' | 'ollama'
 
 /**
  * Wraps an adapter to record raw chunks from chatStream() before they're processed by chat()
@@ -116,6 +117,10 @@ export const Route = createFileRoute('/api/chat')({
             case 'gemini':
               adapter = gemini()
               defaultModel = 'gemini-2.0-flash-exp'
+              break
+            case 'ollama':
+              adapter = ollama()
+              defaultModel = 'mistral:7b'
               break
             case 'openai':
             default:

@@ -12,6 +12,12 @@ import { ThinkingPart } from '@tanstack/ai-react-ui'
 import type { UIMessage } from '@tanstack/ai-react'
 
 import GuitarRecommendation from '@/components/example-GuitarRecommendation'
+import {
+  MODEL_OPTIONS,
+  getDefaultModelOption,
+  setStoredModelPreference,
+  type ModelOption,
+} from '@/lib/model-selection'
 import './tanchat.css'
 
 function ChatInputArea({ children }: { children: React.ReactNode }) {
@@ -329,54 +335,10 @@ function DebugPanel({
   )
 }
 
-type Provider = 'openai' | 'anthropic' | 'gemini'
-
-interface ModelOption {
-  provider: Provider
-  model: string
-  label: string
-}
-
-const modelOptions: Array<ModelOption> = [
-  // OpenAI
-  { provider: 'openai', model: 'gpt-4o', label: 'OpenAI - GPT-4o' },
-  { provider: 'openai', model: 'gpt-4o-mini', label: 'OpenAI - GPT-4o Mini' },
-  { provider: 'openai', model: 'gpt-5', label: 'OpenAI - GPT-5' },
-
-  // Anthropic
-  {
-    provider: 'anthropic',
-    model: 'claude-sonnet-4-5-20250929',
-    label: 'Anthropic - Claude Sonnet 4.5',
-  },
-  {
-    provider: 'anthropic',
-    model: 'claude-opus-4-5-20251101',
-    label: 'Anthropic - Claude Opus 4.5',
-  },
-  {
-    provider: 'anthropic',
-    model: 'claude-haiku-4-0-20250514',
-    label: 'Anthropic - Claude Haiku 4.0',
-  },
-
-  // Gemini
-  {
-    provider: 'gemini',
-    model: 'gemini-2.0-flash-exp',
-    label: 'Gemini - 2.0 Flash',
-  },
-  {
-    provider: 'gemini',
-    model: 'gemini-exp-1206',
-    label: 'Gemini - Exp 1206 (Pro)',
-  },
-]
-
 function ChatPage() {
   const [chunks, setChunks] = useState<Array<any>>([])
-  const [selectedModel, setSelectedModel] = useState<ModelOption>(
-    modelOptions[0],
+  const [selectedModel, setSelectedModel] = useState<ModelOption>(() =>
+    getDefaultModelOption(),
   )
 
   // Generate trace ID on mount: chat_YYMMDD_HHMMSS
@@ -451,19 +413,20 @@ function ChatPage() {
                 Select Model:
               </label>
               <select
-                value={modelOptions.findIndex(
+                value={MODEL_OPTIONS.findIndex(
                   (opt) =>
                     opt.provider === selectedModel.provider &&
                     opt.model === selectedModel.model,
                 )}
                 onChange={(e) => {
-                  const option = modelOptions[parseInt(e.target.value)]
+                  const option = MODEL_OPTIONS[parseInt(e.target.value)]
                   setSelectedModel(option)
+                  setStoredModelPreference(option)
                 }}
                 disabled={isLoading}
                 className="w-full rounded-lg border border-orange-500/20 bg-gray-900 px-3 py-2 text-sm text-white focus:outline-none focus:ring-2 focus:ring-orange-500/50 disabled:opacity-50"
               >
-                {modelOptions.map((option, index) => (
+                {MODEL_OPTIONS.map((option, index) => (
                   <option key={index} value={index}>
                     {option.label}
                   </option>

@@ -4,12 +4,15 @@ import {
   generateMessageId,
   type ModelMessage,
   type StreamChunk,
-  type UIMessage,
-  type ToolCallPart,
-  type MessagePart,
+  type AnyClientTool,
 } from '@tanstack/ai'
 import { DefaultChatClientEventEmitter } from './events'
-import type { ChatClientOptions } from './types'
+import type {
+  ChatClientOptions,
+  ToolCallPart,
+  UIMessage,
+  MessagePart,
+} from './types'
 import type { ConnectionAdapter } from './connection-adapters'
 import type { ChatClientEventEmitter } from './events'
 
@@ -22,6 +25,7 @@ export class ChatClient {
   private error: Error | undefined = undefined
   private abortController: AbortController | null = null
   private events: ChatClientEventEmitter
+  private clientTools: Map<string, AnyClientTool>
 
   private callbacks: {
     onResponse: (response?: Response) => void | Promise<void>
@@ -31,11 +35,6 @@ export class ChatClient {
     onMessagesChange: (messages: Array<UIMessage>) => void
     onLoadingChange: (isLoading: boolean) => void
     onErrorChange: (error: Error | undefined) => void
-    onToolCall?: (args: {
-      toolCallId: string
-      toolName: string
-      input: any
-    }) => Promise<any>
   }
 
   constructor(options: ChatClientOptions) {
@@ -43,6 +42,14 @@ export class ChatClient {
     this.body = options.body
     this.connection = options.connection
     this.events = new DefaultChatClientEventEmitter(this.uniqueId)
+
+    // Build client tools map
+    this.clientTools = new Map()
+    if (options.tools) {
+      for (const tool of options.tools) {
+        this.clientTools.set(tool.name, tool)
+      }
+    }
 
     this.callbacks = {
       onResponse: options.onResponse || (() => {}),
@@ -52,7 +59,6 @@ export class ChatClient {
       onMessagesChange: options.onMessagesChange || (() => {}),
       onLoadingChange: options.onLoadingChange || (() => {}),
       onErrorChange: options.onErrorChange || (() => {}),
-      onToolCall: options.onToolCall,
     }
 
     // Create StreamProcessor with event handlers
@@ -78,10 +84,11 @@ export class ChatClient {
           toolName: string
           input: any
         }) => {
-          // Handle client-side tool execution
-          if (this.callbacks.onToolCall) {
+          // Handle client-side tool execution automatically
+          const clientTool = this.clientTools.get(args.toolName)
+          if (clientTool?.execute) {
             try {
-              const output = await this.callbacks.onToolCall(args)
+              const output = await clientTool.execute(args.input)
               await this.addToolResult({
                 toolCallId: args.toolCallId,
                 tool: args.toolName,

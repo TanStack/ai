@@ -81,7 +81,7 @@ export async function POST(request: Request) {
 ## Example: With Tools
 
 ```typescript
-import { chat, tool } from "@tanstack/ai";
+import { chat, toolDefinition } from "@tanstack/ai";
 import { ollama } from "@tanstack/ai-ollama";
 import { z } from "zod";
 
@@ -89,15 +89,17 @@ const adapter = ollama({
   baseURL: "http://localhost:11434",
 });
 
-const getLocalData = tool({
+const getLocalDataDef = toolDefinition({
+  name: "get_local_data",
   description: "Get data from local storage",
   inputSchema: z.object({
     key: z.string(),
   }),
-  execute: async ({ key }) => {
-    // Access local data
-    return { data: "..." };
-  },
+});
+
+const getLocalData = getLocalDataDef.server(async ({ key }) => {
+  // Access local data
+  return { data: "..." };
 });
 
 const stream = chat({
@@ -183,6 +185,6 @@ Creates an Ollama adapter instance.
 
 ## Next Steps
 
-- [Getting Started](../../getting-started/quick-start) - Learn the basics
-- [Tools Guide](../../guides/tools) - Learn about tools
-- [Other Adapters](../openai) - Explore other providers
+- [Getting Started](../getting-started/quick-start) - Learn the basics
+- [Tools Guide](../guides/tools) - Learn about tools
+- [Other Adapters](./openai) - Explore other providers
