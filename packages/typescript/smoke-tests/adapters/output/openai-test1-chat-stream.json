@@ -1,0 +1,154 @@
+{
+  "adapter": "OpenAI",
+  "test": "test1-chat-stream",
+  "model": "gpt-4o-mini",
+  "timestamp": "2025-12-02T18:46:33.207Z",
+  "input": {
+    "messages": [
+      {
+        "role": "user",
+        "content": "what is the capital of france"
+      }
+    ],
+    "tools": []
+  },
+  "chunks": [
+    {
+      "phase": "main",
+      "index": 1,
+      "type": "content",
+      "timestamp": 1764701193994,
+      "id": "resp_0a758aebda2b62b000692f3409ec9081a196b052b7c2843045",
+      "model": "gpt-4o-mini-2024-07-18",
+      "delta": "",
+      "content": "",
+      "role": "assistant"
+    },
+    {
+      "phase": "main",
+      "index": 2,
+      "type": "content",
+      "timestamp": 1764701193994,
+      "id": "resp_0a758aebda2b62b000692f3409ec9081a196b052b7c2843045",
+      "model": "gpt-4o-mini-2024-07-18",
+      "delta": "The",
+      "content": "The",
+      "role": "assistant"
+    },
+    {
+      "phase": "main",
+      "index": 3,
+      "type": "content",
+      "timestamp": 1764701193994,
+      "id": "resp_0a758aebda2b62b000692f3409ec9081a196b052b7c2843045",
+      "model": "gpt-4o-mini-2024-07-18",
+      "delta": " capital",
+      "content": "The capital",
+      "role": "assistant"
+    },
+    {
+      "phase": "main",
+      "index": 4,
+      "type": "content",
+      "timestamp": 1764701193994,
+      "id": "resp_0a758aebda2b62b000692f3409ec9081a196b052b7c2843045",
+      "model": "gpt-4o-mini-2024-07-18",
+      "delta": " of",
+      "content": "The capital of",
+      "role": "assistant"
+    },
+    {
+      "phase": "main",
+      "index": 5,
+      "type": "content",
+      "timestamp": 1764701193994,
+      "id": "resp_0a758aebda2b62b000692f3409ec9081a196b052b7c2843045",
+      "model": "gpt-4o-mini-2024-07-18",
+      "delta": " France",
+      "content": "The capital of France",
+      "role": "assistant"
+    },
+    {
+      "phase": "main",
+      "index": 6,
+      "type": "content",
+      "timestamp": 1764701193994,
+      "id": "resp_0a758aebda2b62b000692f3409ec9081a196b052b7c2843045",
+      "model": "gpt-4o-mini-2024-07-18",
+      "delta": " is",
+      "content": "The capital of France is",
+      "role": "assistant"
+    },
+    {
+      "phase": "main",
+      "index": 7,
+      "type": "content",
+      "timestamp": 1764701193994,
+      "id": "resp_0a758aebda2b62b000692f3409ec9081a196b052b7c2843045",
+      "model": "gpt-4o-mini-2024-07-18",
+      "delta": " Paris",
+      "content": "The capital of France is Paris",
+      "role": "assistant"
+    },
+    {
+      "phase": "main",
+      "index": 8,
+      "type": "content",
+      "timestamp": 1764701193994,
+      "id": "resp_0a758aebda2b62b000692f3409ec9081a196b052b7c2843045",
+      "model": "gpt-4o-mini-2024-07-18",
+      "delta": ".",
+      "content": "The capital of France is Paris.",
+      "role": "assistant"
+    },
+    {
+      "phase": "main",
+      "index": 9,
+      "type": "content",
+      "timestamp": 1764701193994,
+      "id": "resp_0a758aebda2b62b000692f3409ec9081a196b052b7c2843045",
+      "model": "gpt-4o-mini-2024-07-18",
+      "delta": "The capital of France is Paris.",
+      "content": "The capital of France is Paris.The capital of France is Paris.",
+      "role": "assistant"
+    },
+    {
+      "phase": "main",
+      "index": 10,
+      "type": "done",
+      "timestamp": 1764701193994,
+      "id": "resp_0a758aebda2b62b000692f3409ec9081a196b052b7c2843045",
+      "model": "gpt-4o-mini-2024-07-18",
+      "finishReason": "stop",
+      "usage": {
+        "promptTokens": 13,
+        "completionTokens": 8,
+        "totalTokens": 21
+      }
+    }
+  ],
+  "summary": {
+    "phase": "main",
+    "totalChunks": 10,
+    "responseLength": 62,
+    "toolCalls": [],
+    "toolResults": [],
+    "approvalRequests": [],
+    "fullResponse": "The capital of France is Paris.The capital of France is Paris.",
+    "hasParis": true
+  },
+  "finalMessages": [
+    {
+      "role": "user",
+      "content": "what is the capital of france"
+    },
+    {
+      "role": "assistant",
+      "content": "The capital of France is Paris.The capital of France is Paris.",
+      "toolCalls": []
+    }
+  ],
+  "result": {
+    "passed": true
+  }
+}

@@ -1,0 +1,23 @@
+{
+  "adapter": "Ollama",
+  "test": "test5-summarize",
+  "model": "mistral:7b",
+  "timestamp": "2025-12-02T18:47:14.066Z",
+  "input": {
+    "text": "Paris is the capital and most populous city of France, known for landmarks like the Eiffel Tower and the Louvre. It is a major center for art, fashion, gastronomy, and culture.",
+    "maxLength": 80,
+    "style": "concise"
+  },
+  "summary": {
+    "summary": " Paris, the capital of France, is renowned globally for iconic landmarks such as the Eiffel Tower and the Louvre, while being a significant hub for art, fashion, cuisine, and culture.",
+    "usage": {
+      "promptTokens": 73,
+      "completionTokens": 46,
+      "totalTokens": 119
+    },
+    "summaryLength": 183
+  },
+  "result": {
+    "passed": true
+  }
+}

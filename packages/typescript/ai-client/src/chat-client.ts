@@ -16,47 +16,51 @@ import type { ChatClientEventEmitter } from './events'
 
 export class ChatClient {
   private processor: StreamProcessor
-  private connection: ConnectionAdapter
+  private connectionRef: { current: ConnectionAdapter }
   private uniqueId: string
-  private body?: Record<string, any>
+  private bodyRef: { current?: Record<string, any> }
   private isLoading = false
   private error: Error | undefined = undefined
   private abortController: AbortController | null = null
   private events: ChatClientEventEmitter
-  private clientTools: Map<string, AnyClientTool>
+  private clientToolsRef: { current: Map<string, AnyClientTool> }
 
-  private callbacks: {
-    onResponse: (response?: Response) => void | Promise<void>
-    onChunk: (chunk: StreamChunk) => void
-    onFinish: (message: UIMessage) => void
-    onError: (error: Error) => void
-    onMessagesChange: (messages: Array<UIMessage>) => void
-    onLoadingChange: (isLoading: boolean) => void
-    onErrorChange: (error: Error | undefined) => void
+  private callbacksRef: {
+    current: {
+      onResponse: (response?: Response) => void | Promise<void>
+      onChunk: (chunk: StreamChunk) => void
+      onFinish: (message: UIMessage) => void
+      onError: (error: Error) => void
+      onMessagesChange: (messages: Array<UIMessage>) => void
+      onLoadingChange: (isLoading: boolean) => void
+      onErrorChange: (error: Error | undefined) => void
+    }
   }
 
   constructor(options: ChatClientOptions) {
     this.uniqueId = options.id || this.generateUniqueId('chat')
-    this.body = options.body
-    this.connection = options.connection
+    this.bodyRef = { current: options.body }
+    this.connectionRef = { current: options.connection }
     this.events = new DefaultChatClientEventEmitter(this.uniqueId)
 
     // Build client tools map
-    this.clientTools = new Map()
+    this.clientToolsRef = { current: new Map() }
     if (options.tools) {
       for (const tool of options.tools) {
-        this.clientTools.set(tool.name, tool)
+        this.clientToolsRef.current.set(tool.name, tool)
       }
     }
 
-    this.callbacks = {
-      onResponse: options.onResponse || (() => {}),
-      onChunk: options.onChunk || (() => {}),
-      onFinish: options.onFinish || (() => {}),
-      onError: options.onError || (() => {}),
-      onMessagesChange: options.onMessagesChange || (() => {}),
-      onLoadingChange: options.onLoadingChange || (() => {}),
-      onErrorChange: options.onErrorChange || (() => {}),
+    this.callbacksRef = {
+      current: {
+        onResponse: options.onResponse || (() => {}),
+        onChunk: options.onChunk || (() => {}),
+        onFinish: options.onFinish || (() => {}),
+        onError: options.onError || (() => {}),
+        onMessagesChange: options.onMessagesChange || (() => {}),
+        onLoadingChange: options.onLoadingChange || (() => {}),
+        onErrorChange: options.onErrorChange || (() => {}),
+      },
     }
 
     // Create StreamProcessor with event handlers
@@ -65,17 +69,17 @@ export class ChatClient {
       initialMessages: options.initialMessages,
       events: {
         onMessagesChange: (messages: Array<UIMessage>) => {
-          this.callbacks.onMessagesChange(messages)
+          this.callbacksRef.current.onMessagesChange(messages)
         },
         onStreamStart: () => {
           // Stream started
         },
         onStreamEnd: (message: UIMessage) => {
-          this.callbacks.onFinish(message)
+          this.callbacksRef.current.onFinish(message)
         },
         onError: (error: Error) => {
           this.setError(error)
-          this.callbacks.onError(error)
+          this.callbacksRef.current.onError(error)
         },
         onToolCall: async (args: {
           toolCallId: string
@@ -83,7 +87,7 @@ export class ChatClient {
           input: any
         }) => {
           // Handle client-side tool execution automatically
-          const clientTool = this.clientTools.get(args.toolName)
+          const clientTool = this.clientToolsRef.current.get(args.toolName)
           if (clientTool?.execute) {
             try {
               const output = await clientTool.execute(args.input)
@@ -130,13 +134,13 @@ export class ChatClient {
 
   private setIsLoading(isLoading: boolean): void {
     this.isLoading = isLoading
-    this.callbacks.onLoadingChange(isLoading)
+    this.callbacksRef.current.onLoadingChange(isLoading)
     this.events.loadingChanged(isLoading)
   }
 
   private setError(error: Error | undefined): void {
     this.error = error
-    this.callbacks.onErrorChange(error)
+    this.callbacksRef.current.onErrorChange(error)
     this.events.errorChanged(error?.message || null)
   }
 
@@ -151,7 +155,7 @@ export class ChatClient {
 
     // Process each chunk
     for await (const chunk of source) {
-      this.callbacks.onChunk(chunk)
+      this.callbacksRef.current.onChunk(chunk)
       this.processor.processChunk(chunk)
 
       // Yield control back to event loop to allow UI updates
@@ -220,12 +224,12 @@ export class ChatClient {
       const modelMessages = this.processor.toModelMessages()
 
       // Call onResponse callback
-      await this.callbacks.onResponse()
+      await this.callbacksRef.current.onResponse()
 
       // Connect and stream
-      const stream = this.connection.connect(
+      const stream = this.connectionRef.current.connect(
         modelMessages,
-        this.body,
+        this.bodyRef.current,
         this.abortController.signal,
       )
 
@@ -236,7 +240,7 @@ export class ChatClient {
           return
         }
         this.setError(err)
-        this.callbacks.onError(err)
+        this.callbacksRef.current.onError(err)
       }
     } finally {
       this.abortController = null
@@ -398,5 +402,43 @@ export class ChatClient {
    */
   setMessagesManually(messages: Array<UIMessage>): void {
     this.processor.setMessages(messages)
+  }
+
+  /**
+   * Update options refs (for use in React hooks to avoid recreating client)
+   */
+  updateOptions(options: {
+    connection?: ConnectionAdapter
+    body?: Record<string, any>
+    tools?: ReadonlyArray<AnyClientTool>
+    onResponse?: (response?: Response) => void | Promise<void>
+    onChunk?: (chunk: StreamChunk) => void
+    onFinish?: (message: UIMessage) => void
+    onError?: (error: Error) => void
+  }): void {
+    if (options.connection !== undefined) {
+      this.connectionRef.current = options.connection
+    }
+    if (options.body !== undefined) {
+      this.bodyRef.current = options.body
+    }
+    if (options.tools !== undefined) {
+      this.clientToolsRef.current = new Map()
+      for (const tool of options.tools) {
+        this.clientToolsRef.current.set(tool.name, tool)
+      }
+    }
+    if (options.onResponse !== undefined) {
+      this.callbacksRef.current.onResponse = options.onResponse
+    }
+    if (options.onChunk !== undefined) {
+      this.callbacksRef.current.onChunk = options.onChunk
+    }
+    if (options.onFinish !== undefined) {
+      this.callbacksRef.current.onFinish = options.onFinish
+    }
+    if (options.onError !== undefined) {
+      this.callbacksRef.current.onError = options.onError
+    }
   }
 }

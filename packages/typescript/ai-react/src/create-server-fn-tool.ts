@@ -1,4 +1,5 @@
 import { toolDefinition } from '@tanstack/ai'
+import { createServerFn } from '@tanstack/react-start'
 import type {
   ServerTool,
   ToolDefinitionConfig,
@@ -42,9 +43,9 @@ export interface ServerFnToolResult<
   server: ServerTool<TInput, TOutput, TName>
   /**
    * The server function (for calling directly from React components)
-   * Note: Wrap this with createServerFn() from @tanstack/react-start for full integration
+   * This is a proper createServerFn instance from @tanstack/react-start
    */
-  serverFn: (args: z.infer<TInput>) => Promise<z.infer<TOutput>>
+  serverFn: (data: z.infer<TInput>, options?: any) => Promise<z.infer<TOutput>>
 }
 
 /**
@@ -99,19 +100,27 @@ export function createServerFnTool<
   // Create the server implementation
   const server = definition.server(execute)
 
-  // Create a validated server function
-  const serverFn = async (args: z.infer<TInput>): Promise<z.infer<TOutput>> => {
-    // Validate the input against the schema if provided
-    if (config.inputSchema) {
-      const result = config.inputSchema.safeParse(args)
-      if (!result.success) {
-        throw new Error(
-          `Invalid input for ${config.name}: ${result.error.message}`,
-        )
+  // Create a validated server function using createServerFn from @tanstack/react-start
+  type InputType = z.infer<TInput>
+  type OutputType = z.infer<TOutput>
+
+  const serverFn = createServerFn({ method: 'POST' })
+    .inputValidator((data: unknown): InputType => {
+      // Validate the input against the schema if provided
+      if (config.inputSchema) {
+        const result = config.inputSchema.safeParse(data)
+        if (!result.success) {
+          throw new Error(
+            `Invalid input for ${config.name}: ${result.error.message}`,
+          )
+        }
+        return result.data
       }
-    }
-    return await execute(args)
-  }
+      return data as InputType
+    })
+    .handler(async (ctx: any) => {
+      return await execute(ctx.data as InputType)
+    }) as unknown as (data: InputType, options?: any) => Promise<OutputType>
 
   return {
     toolDefinition: definition,

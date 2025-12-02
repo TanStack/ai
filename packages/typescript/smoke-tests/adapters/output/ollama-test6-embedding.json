@@ -1,0 +1,35 @@
+{
+  "adapter": "Ollama",
+  "test": "test6-embedding",
+  "model": "nomic-embed-text",
+  "timestamp": "2025-12-02T18:47:14.783Z",
+  "input": {
+    "inputs": [
+      "The Eiffel Tower is located in Paris.",
+      "The Colosseum is located in Rome."
+    ]
+  },
+  "summary": {
+    "embeddingLengths": [
+      768,
+      768
+    ],
+    "firstEmbeddingPreview": [
+      0.592477023601532,
+      1.4689178466796875,
+      -4.040518283843994,
+      -0.5263113975524902,
+      1.6075478792190552,
+      1.2835756540298462,
+      -0.676770806312561,
+      1.6488146781921387
+    ],
+    "usage": {
+      "promptTokens": 19,
+      "totalTokens": 19
+    }
+  },
+  "result": {
+    "passed": true
+  }
+}

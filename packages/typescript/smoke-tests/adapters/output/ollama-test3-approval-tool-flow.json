@@ -1,0 +1,649 @@
+{
+  "adapter": "Ollama",
+  "test": "test3-approval-tool-flow",
+  "model": "mistral:7b",
+  "timestamp": "2025-12-02T18:47:13.000Z",
+  "input": {
+    "messages": [
+      {
+        "role": "user",
+        "content": "add a hammer to the cart"
+      }
+    ],
+    "tools": [
+      {
+        "name": "addToCart",
+        "description": "Add an item to the shopping cart",
+        "needsApproval": true,
+        "hasExecute": true,
+        "hasInputSchema": true,
+        "hasOutputSchema": false
+      }
+    ]
+  },
+  "chunks": [
+    {
+      "phase": "request",
+      "index": 1,
+      "type": "tool_call",
+      "timestamp": 1764701233002,
+      "id": "ollama-1764701233378-h5aakl",
+      "model": "mistral:7b",
+      "toolCall": {
+        "id": "call_v9n5s251",
+        "type": "function",
+        "function": {
+          "name": "addToCart",
+          "arguments": "{\"item\":\"hammer\"}"
+        }
+      }
+    },
+    {
+      "phase": "request",
+      "index": 2,
+      "type": "done",
+      "timestamp": 1764701233002,
+      "id": "ollama-1764701233405-zz3ere",
+      "model": "mistral:7b",
+      "finishReason": "tool_calls"
+    },
+    {
+      "phase": "request",
+      "index": 3,
+      "type": "approval-requested",
+      "timestamp": 1764701233406,
+      "id": "ollama-1764701233405-zz3ere",
+      "model": "mistral:7b",
+      "toolCallId": "call_v9n5s251",
+      "toolName": "addToCart",
+      "input": {
+        "item": "hammer"
+      },
+      "approval": {
+        "id": "approval_call_v9n5s251",
+        "needsApproval": true
+      }
+    },
+    {
+      "phase": "approved",
+      "index": 1,
+      "type": "tool_result",
+      "timestamp": 1764701233406,
+      "id": "pending-1764701233406-7xrei6u",
+      "model": "mistral:7b",
+      "toolCallId": "call_v9n5s251",
+      "content": "{\"success\":true,\"item\":\"hammer\"}"
+    },
+    {
+      "phase": "approved",
+      "index": 2,
+      "type": "content",
+      "timestamp": 1764701233406,
+      "id": "ollama-1764701233508-md91vf",
+      "model": "mistral:7b",
+      "delta": " The",
+      "content": " The",
+      "role": "assistant"
+    },
+    {
+      "phase": "approved",
+      "index": 3,
+      "type": "content",
+      "timestamp": 1764701233406,
+      "id": "ollama-1764701233521-e860fr",
+      "model": "mistral:7b",
+      "delta": " hammer",
+      "content": " The hammer",
+      "role": "assistant"
+    },
+    {
+      "phase": "approved",
+      "index": 4,
+      "type": "content",
+      "timestamp": 1764701233406,
+      "id": "ollama-1764701233535-jp81z",
+      "model": "mistral:7b",
+      "delta": " has",
+      "content": " The hammer has",
+      "role": "assistant"
+    },
+    {
+      "phase": "approved",
+      "index": 5,
+      "type": "content",
+      "timestamp": 1764701233406,
+      "id": "ollama-1764701233547-mscxso",
+      "model": "mistral:7b",
+      "delta": " been",
+      "content": " The hammer has been",
+      "role": "assistant"
+    },
+    {
+      "phase": "approved",
+      "index": 6,
+      "type": "content",
+      "timestamp": 1764701233406,
+      "id": "ollama-1764701233560-osa5sb",
+      "model": "mistral:7b",
+      "delta": " added",
+      "content": " The hammer has been added",
+      "role": "assistant"
+    },
+    {
+      "phase": "approved",
+      "index": 7,
+      "type": "content",
+      "timestamp": 1764701233406,
+      "id": "ollama-1764701233573-nm1qmh",
+      "model": "mistral:7b",
+      "delta": " to",
+      "content": " The hammer has been added to",
+      "role": "assistant"
+    },
+    {
+      "phase": "approved",
+      "index": 8,
+      "type": "content",
+      "timestamp": 1764701233406,
+      "id": "ollama-1764701233586-lwlthk",
+      "model": "mistral:7b",
+      "delta": " your",
+      "content": " The hammer has been added to your",
+      "role": "assistant"
+    },
+    {
+      "phase": "approved",
+      "index": 9,
+      "type": "content",
+      "timestamp": 1764701233406,
+      "id": "ollama-1764701233599-99uylj",
+      "model": "mistral:7b",
+      "delta": " cart",
+      "content": " The hammer has been added to your cart",
+      "role": "assistant"
+    },
+    {
+      "phase": "approved",
+      "index": 10,
+      "type": "content",
+      "timestamp": 1764701233406,
+      "id": "ollama-1764701233613-44pcuq",
+      "model": "mistral:7b",
+      "delta": " successfully",
+      "content": " The hammer has been added to your cart successfully",
+      "role": "assistant"
+    },
+    {
+      "phase": "approved",
+      "index": 11,
+      "type": "content",
+      "timestamp": 1764701233406,
+      "id": "ollama-1764701233626-nx24pv",
+      "model": "mistral:7b",
+      "delta": ".",
+      "content": " The hammer has been added to your cart successfully.",
+      "role": "assistant"
+    },
+    {
+      "phase": "approved",
+      "index": 12,
+      "type": "content",
+      "timestamp": 1764701233406,
+      "id": "ollama-1764701233639-a5fhpm",
+      "model": "mistral:7b",
+      "delta": " Here",
+      "content": " The hammer has been added to your cart successfully. Here",
+      "role": "assistant"
+    },
+    {
+      "phase": "approved",
+      "index": 13,
+      "type": "content",
+      "timestamp": 1764701233406,
+      "id": "ollama-1764701233653-ndzbx",
+      "model": "mistral:7b",
+      "delta": " is",
+      "content": " The hammer has been added to your cart successfully. Here is",
+      "role": "assistant"
+    },
+    {
+      "phase": "approved",
+      "index": 14,
+      "type": "content",
+      "timestamp": 1764701233406,
+      "id": "ollama-1764701233666-0wvea7b",
+      "model": "mistral:7b",
+      "delta": " a",
+      "content": " The hammer has been added to your cart successfully. Here is a",
+      "role": "assistant"
+    },
+    {
+      "phase": "approved",
+      "index": 15,
+      "type": "content",
+      "timestamp": 1764701233406,
+      "id": "ollama-1764701233680-k67jx",
+      "model": "mistral:7b",
+      "delta": " summary",
+      "content": " The hammer has been added to your cart successfully. Here is a summary",
+      "role": "assistant"
+    },
+    {
+      "phase": "approved",
+      "index": 16,
+      "type": "content",
+      "timestamp": 1764701233406,
+      "id": "ollama-1764701233694-67rj7",
+      "model": "mistral:7b",
+      "delta": " of",
+      "content": " The hammer has been added to your cart successfully. Here is a summary of",
+      "role": "assistant"
+    },
+    {
+      "phase": "approved",
+      "index": 17,
+      "type": "content",
+      "timestamp": 1764701233406,
+      "id": "ollama-1764701233707-shjeqj",
+      "model": "mistral:7b",
+      "delta": " your",
+      "content": " The hammer has been added to your cart successfully. Here is a summary of your",
+      "role": "assistant"
+    },
+    {
+      "phase": "approved",
+      "index": 18,
+      "type": "content",
+      "timestamp": 1764701233406,
+      "id": "ollama-1764701233720-7fh7yj",
+      "model": "mistral:7b",
+      "delta": " current",
+      "content": " The hammer has been added to your cart successfully. Here is a summary of your current",
+      "role": "assistant"
+    },
+    {
+      "phase": "approved",
+      "index": 19,
+      "type": "content",
+      "timestamp": 1764701233406,
+      "id": "ollama-1764701233733-iu4f3o",
+      "model": "mistral:7b",
+      "delta": " cart",
+      "content": " The hammer has been added to your cart successfully. Here is a summary of your current cart",
+      "role": "assistant"
+    },
+    {
+      "phase": "approved",
+      "index": 20,
+      "type": "content",
+      "timestamp": 1764701233406,
+      "id": "ollama-1764701233747-6odmnn",
+      "model": "mistral:7b",
+      "delta": ":",
+      "content": " The hammer has been added to your cart successfully. Here is a summary of your current cart:",
+      "role": "assistant"
+    },
+    {
+      "phase": "approved",
+      "index": 21,
+      "type": "content",
+      "timestamp": 1764701233406,
+      "id": "ollama-1764701233760-osdhm",
+      "model": "mistral:7b",
+      "delta": "\n",
+      "content": " The hammer has been added to your cart successfully. Here is a summary of your current cart:\n",
+      "role": "assistant"
+    },
+    {
+      "phase": "approved",
+      "index": 22,
+      "type": "content",
+      "timestamp": 1764701233406,
+      "id": "ollama-1764701233773-j7voao",
+      "model": "mistral:7b",
+      "delta": "\n",
+      "content": " The hammer has been added to your cart successfully. Here is a summary of your current cart:\n\n",
+      "role": "assistant"
+    },
+    {
+      "phase": "approved",
+      "index": 23,
+      "type": "content",
+      "timestamp": 1764701233406,
+      "id": "ollama-1764701233787-nul5gi",
+      "model": "mistral:7b",
+      "delta": "1",
+      "content": " The hammer has been added to your cart successfully. Here is a summary of your current cart:\n\n1",
+      "role": "assistant"
+    },
+    {
+      "phase": "approved",
+      "index": 24,
+      "type": "content",
+      "timestamp": 1764701233406,
+      "id": "ollama-1764701233800-m6vre",
+      "model": "mistral:7b",
+      "delta": ".",
+      "content": " The hammer has been added to your cart successfully. Here is a summary of your current cart:\n\n1.",
+      "role": "assistant"
+    },
+    {
+      "phase": "approved",
+      "index": 25,
+      "type": "content",
+      "timestamp": 1764701233406,
+      "id": "ollama-1764701233814-kz2el8",
+      "model": "mistral:7b",
+      "delta": " Ham",
+      "content": " The hammer has been added to your cart successfully. Here is a summary of your current cart:\n\n1. Ham",
+      "role": "assistant"
+    },
+    {
+      "phase": "approved",
+      "index": 26,
+      "type": "content",
+      "timestamp": 1764701233406,
+      "id": "ollama-1764701233827-0zvk1q",
+      "model": "mistral:7b",
+      "delta": "mer",
+      "content": " The hammer has been added to your cart successfully. Here is a summary of your current cart:\n\n1. Hammer",
+      "role": "assistant"
+    },
+    {
+      "phase": "approved",
+      "index": 27,
+      "type": "content",
+      "timestamp": 1764701233406,
+      "id": "ollama-1764701233840-3m3kib",
+      "model": "mistral:7b",
+      "delta": "\n",
+      "content": " The hammer has been added to your cart successfully. Here is a summary of your current cart:\n\n1. Hammer\n",
+      "role": "assistant"
+    },
+    {
+      "phase": "approved",
+      "index": 28,
+      "type": "content",
+      "timestamp": 1764701233406,
+      "id": "ollama-1764701233854-roc3r",
+      "model": "mistral:7b",
+      "delta": "\n",
+      "content": " The hammer has been added to your cart successfully. Here is a summary of your current cart:\n\n1. Hammer\n\n",
+      "role": "assistant"
+    },
+    {
+      "phase": "approved",
+      "index": 29,
+      "type": "content",
+      "timestamp": 1764701233406,
+      "id": "ollama-1764701233867-uqzyyhh",
+      "model": "mistral:7b",
+      "delta": "If",
+      "content": " The hammer has been added to your cart successfully. Here is a summary of your current cart:\n\n1. Hammer\n\nIf",
+      "role": "assistant"
+    },
+    {
+      "phase": "approved",
+      "index": 30,
+      "type": "content",
+      "timestamp": 1764701233406,
+      "id": "ollama-1764701233880-8b672s",
+      "model": "mistral:7b",
+      "delta": " you",
+      "content": " The hammer has been added to your cart successfully. Here is a summary of your current cart:\n\n1. Hammer\n\nIf you",
+      "role": "assistant"
+    },
+    {
+      "phase": "approved",
+      "index": 31,
+      "type": "content",
+      "timestamp": 1764701233406,
+      "id": "ollama-1764701233893-w1bghc",
+      "model": "mistral:7b",
+      "delta": " wish",
+      "content": " The hammer has been added to your cart successfully. Here is a summary of your current cart:\n\n1. Hammer\n\nIf you wish",
+      "role": "assistant"
+    },
+    {
+      "phase": "approved",
+      "index": 32,
+      "type": "content",
+      "timestamp": 1764701233406,
+      "id": "ollama-1764701233906-9g4lfx",
+      "model": "mistral:7b",
+      "delta": " to",
+      "content": " The hammer has been added to your cart successfully. Here is a summary of your current cart:\n\n1. Hammer\n\nIf you wish to",
+      "role": "assistant"
+    },
+    {
+      "phase": "approved",
+      "index": 33,
+      "type": "content",
+      "timestamp": 1764701233406,
+      "id": "ollama-1764701233920-ovqbzm",
+      "model": "mistral:7b",
+      "delta": " continue",
+      "content": " The hammer has been added to your cart successfully. Here is a summary of your current cart:\n\n1. Hammer\n\nIf you wish to continue",
+      "role": "assistant"
+    },
+    {
+      "phase": "approved",
+      "index": 34,
+      "type": "content",
+      "timestamp": 1764701233406,
+      "id": "ollama-1764701233933-oc451r",
+      "model": "mistral:7b",
+      "delta": " shopping",
+      "content": " The hammer has been added to your cart successfully. Here is a summary of your current cart:\n\n1. Hammer\n\nIf you wish to continue shopping",
+      "role": "assistant"
+    },
+    {
+      "phase": "approved",
+      "index": 35,
+      "type": "content",
+      "timestamp": 1764701233406,
+      "id": "ollama-1764701233946-2u6yf4",
+      "model": "mistral:7b",
+      "delta": ",",
+      "content": " The hammer has been added to your cart successfully. Here is a summary of your current cart:\n\n1. Hammer\n\nIf you wish to continue shopping,",
+      "role": "assistant"
+    },
+    {
+      "phase": "approved",
+      "index": 36,
+      "type": "content",
+      "timestamp": 1764701233406,
+      "id": "ollama-1764701233960-6evdp5",
+      "model": "mistral:7b",
+      "delta": " please",
+      "content": " The hammer has been added to your cart successfully. Here is a summary of your current cart:\n\n1. Hammer\n\nIf you wish to continue shopping, please",
+      "role": "assistant"
+    },
+    {
+      "phase": "approved",
+      "index": 37,
+      "type": "content",
+      "timestamp": 1764701233406,
+      "id": "ollama-1764701233973-ou33c4",
+      "model": "mistral:7b",
+      "delta": " visit",
+      "content": " The hammer has been added to your cart successfully. Here is a summary of your current cart:\n\n1. Hammer\n\nIf you wish to continue shopping, please visit",
+      "role": "assistant"
+    },
+    {
+      "phase": "approved",
+      "index": 38,
+      "type": "content",
+      "timestamp": 1764701233406,
+      "id": "ollama-1764701233986-zc04be",
+      "model": "mistral:7b",
+      "delta": " the",
+      "content": " The hammer has been added to your cart successfully. Here is a summary of your current cart:\n\n1. Hammer\n\nIf you wish to continue shopping, please visit the",
+      "role": "assistant"
+    },
+    {
+      "phase": "approved",
+      "index": 39,
+      "type": "content",
+      "timestamp": 1764701233406,
+      "id": "ollama-1764701233999-1gttue",
+      "model": "mistral:7b",
+      "delta": " store",
+      "content": " The hammer has been added to your cart successfully. Here is a summary of your current cart:\n\n1. Hammer\n\nIf you wish to continue shopping, please visit the store",
+      "role": "assistant"
+    },
+    {
+      "phase": "approved",
+      "index": 40,
+      "type": "content",
+      "timestamp": 1764701233406,
+      "id": "ollama-1764701234013-70u1lr",
+      "model": "mistral:7b",
+      "delta": ".",
+      "content": " The hammer has been added to your cart successfully. Here is a summary of your current cart:\n\n1. Hammer\n\nIf you wish to continue shopping, please visit the store.",
+      "role": "assistant"
+    },
+    {
+      "phase": "approved",
+      "index": 41,
+      "type": "content",
+      "timestamp": 1764701233406,
+      "id": "ollama-1764701234026-sb1ok",
+      "model": "mistral:7b",
+      "delta": " Happy",
+      "content": " The hammer has been added to your cart successfully. Here is a summary of your current cart:\n\n1. Hammer\n\nIf you wish to continue shopping, please visit the store. Happy",
+      "role": "assistant"
+    },
+    {
+      "phase": "approved",
+      "index": 42,
+      "type": "content",
+      "timestamp": 1764701233406,
+      "id": "ollama-1764701234039-vq8q6g",
+      "model": "mistral:7b",
+      "delta": " shopping",
+      "content": " The hammer has been added to your cart successfully. Here is a summary of your current cart:\n\n1. Hammer\n\nIf you wish to continue shopping, please visit the store. Happy shopping",
+      "role": "assistant"
+    },
+    {
+      "phase": "approved",
+      "index": 43,
+      "type": "content",
+      "timestamp": 1764701233406,
+      "id": "ollama-1764701234052-syv4be",
+      "model": "mistral:7b",
+      "delta": "!",
+      "content": " The hammer has been added to your cart successfully. Here is a summary of your current cart:\n\n1. Hammer\n\nIf you wish to continue shopping, please visit the store. Happy shopping!",
+      "role": "assistant"
+    },
+    {
+      "phase": "approved",
+      "index": 44,
+      "type": "done",
+      "timestamp": 1764701233406,
+      "id": "ollama-1764701234064-iljfs8",
+      "model": "mistral:7b",
+      "finishReason": "stop"
+    }
+  ],
+  "summary": {
+    "request": {
+      "phase": "request",
+      "totalChunks": 3,
+      "responseLength": 0,
+      "toolCalls": [
+        {
+          "id": "call_v9n5s251",
+          "name": "addToCart",
+          "arguments": "{\"item\":\"hammer\"}"
+        }
+      ],
+      "toolResults": [],
+      "approvalRequests": [
+        {
+          "toolCallId": "call_v9n5s251",
+          "toolName": "addToCart",
+          "input": {
+            "item": "hammer"
+          },
+          "approval": {
+            "id": "approval_call_v9n5s251",
+            "needsApproval": true
+          }
+        }
+      ]
+    },
+    "approved": {
+      "phase": "approved",
+      "totalChunks": 44,
+      "responseLength": 179,
+      "toolCalls": [],
+      "toolResults": [
+        {
+          "toolCallId": "call_v9n5s251",
+          "content": "{\"success\":true,\"item\":\"hammer\"}"
+        }
+      ],
+      "approvalRequests": []
+    },
+    "hasHammerInResponse": true,
+    "toolExecuteCalled": true,
+    "toolExecuteCallCount": 1,
+    "toolExecuteCalls": [
+      {
+        "timestamp": "2025-12-02T18:47:13.406Z",
+        "arguments": {
+          "item": "hammer"
+        },
+        "result": "{\"success\":true,\"item\":\"hammer\"}"
+      }
+    ]
+  },
+  "finalMessages": [
+    {
+      "role": "user",
+      "content": "add a hammer to the cart"
+    },
+    {
+      "role": "assistant",
+      "content": null,
+      "toolCalls": [
+        {
+          "id": "call_v9n5s251",
+          "type": "function",
+          "function": {
+            "name": "addToCart",
+            "arguments": "{\"item\":\"hammer\"}"
+          }
+        }
+      ],
+      "parts": [
+        {
+          "type": "tool-call",
+          "id": "call_v9n5s251",
+          "name": "addToCart",
+          "arguments": "{\"item\":\"hammer\"}",
+          "state": "approval-responded",
+          "approval": {
+            "id": "approval_call_v9n5s251",
+            "needsApproval": true,
+            "approved": true
+          }
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "toolCallId": "call_v9n5s251",
+      "content": "{\"success\":true,\"item\":\"hammer\"}"
+    },
+    {
+      "role": "assistant",
+      "content": " The hammer has been added to your cart successfully. Here is a summary of your current cart:\n\n1. Hammer\n\nIf you wish to continue shopping, please visit the store. Happy shopping!",
+      "toolCalls": []
+    }
+  ],
+  "result": {
+    "passed": true
+  }
+}

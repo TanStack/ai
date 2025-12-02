@@ -1,0 +1,379 @@
+{
+  "adapter": "Anthropic",
+  "test": "test2-temperature-tool",
+  "model": "claude-3-5-haiku-20241022",
+  "timestamp": "2025-12-02T18:46:26.098Z",
+  "input": {
+    "messages": [
+      {
+        "role": "user",
+        "content": "use the get_temperature tool to get the temperature for San Francisco and report the answer as a number"
+      }
+    ],
+    "tools": [
+      {
+        "name": "get_temperature",
+        "description": "Get the current temperature in degrees for a specific location",
+        "hasExecute": true,
+        "hasInputSchema": true,
+        "hasOutputSchema": false
+      }
+    ]
+  },
+  "chunks": [
+    {
+      "phase": "main",
+      "index": 1,
+      "type": "content",
+      "timestamp": 1764701186830,
+      "id": "anthropic-1764701186831-5cxtre",
+      "model": "claude-3-5-haiku-20241022",
+      "delta": "I",
+      "content": "I",
+      "role": "assistant"
+    },
+    {
+      "phase": "main",
+      "index": 2,
+      "type": "content",
+      "timestamp": 1764701186830,
+      "id": "anthropic-1764701187292-77ljls",
+      "model": "claude-3-5-haiku-20241022",
+      "delta": "'ll use the get_",
+      "content": "I'll use the get_",
+      "role": "assistant"
+    },
+    {
+      "phase": "main",
+      "index": 3,
+      "type": "content",
+      "timestamp": 1764701186830,
+      "id": "anthropic-1764701187333-om1s4s",
+      "model": "claude-3-5-haiku-20241022",
+      "delta": "temperature tool to retrieve",
+      "content": "I'll use the get_temperature tool to retrieve",
+      "role": "assistant"
+    },
+    {
+      "phase": "main",
+      "index": 4,
+      "type": "content",
+      "timestamp": 1764701186830,
+      "id": "anthropic-1764701187341-dxv2j5",
+      "model": "claude-3-5-haiku-20241022",
+      "delta": " the current temperature for",
+      "content": "I'll use the get_temperature tool to retrieve the current temperature for",
+      "role": "assistant"
+    },
+    {
+      "phase": "main",
+      "index": 5,
+      "type": "content",
+      "timestamp": 1764701186830,
+      "id": "anthropic-1764701187349-hzno7l",
+      "model": "claude-3-5-haiku-20241022",
+      "delta": " San Francisco.",
+      "content": "I'll use the get_temperature tool to retrieve the current temperature for San Francisco.",
+      "role": "assistant"
+    },
+    {
+      "phase": "main",
+      "index": 6,
+      "type": "tool_call",
+      "timestamp": 1764701186830,
+      "id": "anthropic-1764701187359-2tzkr9",
+      "model": "claude-3-5-haiku-20241022",
+      "toolCall": {
+        "id": "toolu_01DPzsvpjNqiD599CB9M5VLe",
+        "type": "function",
+        "function": {
+          "name": "get_temperature",
+          "arguments": ""
+        }
+      }
+    },
+    {
+      "phase": "main",
+      "index": 7,
+      "type": "tool_call",
+      "timestamp": 1764701186830,
+      "id": "anthropic-1764701187594-w5tg4",
+      "model": "claude-3-5-haiku-20241022",
+      "toolCall": {
+        "id": "toolu_01DPzsvpjNqiD599CB9M5VLe",
+        "type": "function",
+        "function": {
+          "name": "get_temperature",
+          "arguments": "{\"loc"
+        }
+      }
+    },
+    {
+      "phase": "main",
+      "index": 8,
+      "type": "tool_call",
+      "timestamp": 1764701186830,
+      "id": "anthropic-1764701187603-m25znl",
+      "model": "claude-3-5-haiku-20241022",
+      "toolCall": {
+        "id": "toolu_01DPzsvpjNqiD599CB9M5VLe",
+        "type": "function",
+        "function": {
+          "name": "get_temperature",
+          "arguments": "ation"
+        }
+      }
+    },
+    {
+      "phase": "main",
+      "index": 9,
+      "type": "tool_call",
+      "timestamp": 1764701186830,
+      "id": "anthropic-1764701187606-sexipu9",
+      "model": "claude-3-5-haiku-20241022",
+      "toolCall": {
+        "id": "toolu_01DPzsvpjNqiD599CB9M5VLe",
+        "type": "function",
+        "function": {
+          "name": "get_temperature",
+          "arguments": "\": \""
+        }
+      }
+    },
+    {
+      "phase": "main",
+      "index": 10,
+      "type": "tool_call",
+      "timestamp": 1764701186830,
+      "id": "anthropic-1764701187611-0wn76b",
+      "model": "claude-3-5-haiku-20241022",
+      "toolCall": {
+        "id": "toolu_01DPzsvpjNqiD599CB9M5VLe",
+        "type": "function",
+        "function": {
+          "name": "get_temperature",
+          "arguments": "San "
+        }
+      }
+    },
+    {
+      "phase": "main",
+      "index": 11,
+      "type": "tool_call",
+      "timestamp": 1764701186830,
+      "id": "anthropic-1764701187618-rrxizv",
+      "model": "claude-3-5-haiku-20241022",
+      "toolCall": {
+        "id": "toolu_01DPzsvpjNqiD599CB9M5VLe",
+        "type": "function",
+        "function": {
+          "name": "get_temperature",
+          "arguments": "Fran"
+        }
+      }
+    },
+    {
+      "phase": "main",
+      "index": 12,
+      "type": "tool_call",
+      "timestamp": 1764701186830,
+      "id": "anthropic-1764701187620-6k8evd",
+      "model": "claude-3-5-haiku-20241022",
+      "toolCall": {
+        "id": "toolu_01DPzsvpjNqiD599CB9M5VLe",
+        "type": "function",
+        "function": {
+          "name": "get_temperature",
+          "arguments": "cisco"
+        }
+      }
+    },
+    {
+      "phase": "main",
+      "index": 13,
+      "type": "tool_call",
+      "timestamp": 1764701186830,
+      "id": "anthropic-1764701187633-sp75ue",
+      "model": "claude-3-5-haiku-20241022",
+      "toolCall": {
+        "id": "toolu_01DPzsvpjNqiD599CB9M5VLe",
+        "type": "function",
+        "function": {
+          "name": "get_temperature",
+          "arguments": "\"}"
+        }
+      }
+    },
+    {
+      "phase": "main",
+      "index": 14,
+      "type": "done",
+      "timestamp": 1764701186830,
+      "id": "anthropic-1764701187677-9wr7r8",
+      "model": "claude-3-5-haiku-20241022",
+      "finishReason": "tool_calls",
+      "usage": {
+        "promptTokens": 363,
+        "completionTokens": 72,
+        "totalTokens": 435
+      }
+    },
+    {
+      "phase": "main",
+      "index": 15,
+      "type": "done",
+      "timestamp": 1764701186830,
+      "id": "anthropic-1764701187681-7kc77m",
+      "model": "claude-3-5-haiku-20241022",
+      "finishReason": "stop"
+    },
+    {
+      "phase": "main",
+      "index": 16,
+      "type": "tool_result",
+      "timestamp": 1764701187695,
+      "id": "anthropic-1764701187677-9wr7r8",
+      "model": "claude-3-5-haiku-20241022",
+      "toolCallId": "toolu_01DPzsvpjNqiD599CB9M5VLe",
+      "content": "70"
+    },
+    {
+      "phase": "main",
+      "index": 17,
+      "type": "content",
+      "timestamp": 1764701188297,
+      "id": "anthropic-1764701188297-1zz84a",
+      "model": "claude-3-5-haiku-20241022",
+      "delta": "The",
+      "content": "The",
+      "role": "assistant"
+    },
+    {
+      "phase": "main",
+      "index": 18,
+      "type": "content",
+      "timestamp": 1764701188297,
+      "id": "anthropic-1764701188347-1y7cc9",
+      "model": "claude-3-5-haiku-20241022",
+      "delta": " current",
+      "content": "The current",
+      "role": "assistant"
+    },
+    {
+      "phase": "main",
+      "index": 19,
+      "type": "content",
+      "timestamp": 1764701188297,
+      "id": "anthropic-1764701188590-jtxsc",
+      "model": "claude-3-5-haiku-20241022",
+      "delta": " temperature in San Francisco is",
+      "content": "The current temperature in San Francisco is",
+      "role": "assistant"
+    },
+    {
+      "phase": "main",
+      "index": 20,
+      "type": "content",
+      "timestamp": 1764701188297,
+      "id": "anthropic-1764701188590-68m33q",
+      "model": "claude-3-5-haiku-20241022",
+      "delta": " 70 degrees.",
+      "content": "The current temperature in San Francisco is 70 degrees.",
+      "role": "assistant"
+    },
+    {
+      "phase": "main",
+      "index": 21,
+      "type": "done",
+      "timestamp": 1764701188297,
+      "id": "anthropic-1764701188590-kcvsrp",
+      "model": "claude-3-5-haiku-20241022",
+      "finishReason": "end_turn",
+      "usage": {
+        "promptTokens": 447,
+        "completionTokens": 16,
+        "totalTokens": 463
+      }
+    },
+    {
+      "phase": "main",
+      "index": 22,
+      "type": "done",
+      "timestamp": 1764701188297,
+      "id": "anthropic-1764701188590-lwj38c",
+      "model": "claude-3-5-haiku-20241022",
+      "finishReason": "stop"
+    }
+  ],
+  "summary": {
+    "phase": "main",
+    "totalChunks": 22,
+    "responseLength": 143,
+    "toolCalls": [
+      {
+        "id": "toolu_01DPzsvpjNqiD599CB9M5VLe",
+        "name": "get_temperature",
+        "arguments": "{\"location\": \"San Francisco\"}"
+      }
+    ],
+    "toolResults": [
+      {
+        "toolCallId": "toolu_01DPzsvpjNqiD599CB9M5VLe",
+        "content": "70"
+      }
+    ],
+    "approvalRequests": [],
+    "fullResponse": "I'll use the get_temperature tool to retrieve the current temperature for San Francisco.The current temperature in San Francisco is 70 degrees.",
+    "hasSeventy": true,
+    "toolCallFound": true,
+    "toolResultFound": true,
+    "toolExecuteCalled": true,
+    "toolExecuteCallCount": 1,
+    "toolExecuteCalls": [
+      {
+        "timestamp": "2025-12-02T18:46:27.695Z",
+        "arguments": {
+          "location": "San Francisco"
+        },
+        "result": "70"
+      }
+    ],
+    "locationPassedCorrectly": true,
+    "locationMatches": true,
+    "expectedLocation": "San Francisco",
+    "actualLocation": "San Francisco"
+  },
+  "finalMessages": [
+    {
+      "role": "user",
+      "content": "use the get_temperature tool to get the temperature for San Francisco and report the answer as a number"
+    },
+    {
+      "role": "assistant",
+      "content": "I'll use the get_temperature tool to retrieve the current temperature for San Francisco.",
+      "toolCalls": [
+        {
+          "id": "toolu_01DPzsvpjNqiD599CB9M5VLe",
+          "type": "function",
+          "function": {
+            "name": "get_temperature",
+            "arguments": "{\"location\": \"San Francisco\"}"
+          }
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "toolCallId": "toolu_01DPzsvpjNqiD599CB9M5VLe",
+      "content": "70"
+    },
+    {
+      "role": "assistant",
+      "content": "The current temperature in San Francisco is 70 degrees.",
+      "toolCalls": []
+    }
+  ],
+  "result": {
+    "passed": true
+  }
+}
