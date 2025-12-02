@@ -84,6 +84,8 @@ describe('StreamProcessor (Unified)', () => {
           model: 'test',
           timestamp: Date.now(),
           delta: 'Hello',
+          content: 'Hello',
+          role: 'assistant',
         },
         {
           type: 'content',
@@ -91,6 +93,8 @@ describe('StreamProcessor (Unified)', () => {
           model: 'test',
           timestamp: Date.now(),
           delta: ' world',
+          content: 'Hello world',
+          role: 'assistant',
         },
       ])
 
@@ -118,6 +122,8 @@ describe('StreamProcessor (Unified)', () => {
           model: 'test',
           timestamp: Date.now(),
           delta: 'Hello',
+          content: 'Hello',
+          role: 'assistant',
         },
         {
           type: 'content',
@@ -125,6 +131,8 @@ describe('StreamProcessor (Unified)', () => {
           model: 'test',
           timestamp: Date.now(),
           delta: ' world',
+          content: 'Hello world',
+          role: 'assistant',
         },
         {
           type: 'content',
@@ -132,6 +140,8 @@ describe('StreamProcessor (Unified)', () => {
           model: 'test',
           timestamp: Date.now(),
           delta: '!',
+          content: 'Hello world!',
+          role: 'assistant',
         },
         {
           type: 'content',
@@ -139,6 +149,8 @@ describe('StreamProcessor (Unified)', () => {
           model: 'test',
           timestamp: Date.now(),
           delta: ' How',
+          content: 'Hello world! How',
+          role: 'assistant',
         },
         {
           type: 'content',
@@ -146,6 +158,8 @@ describe('StreamProcessor (Unified)', () => {
           model: 'test',
           timestamp: Date.now(),
           delta: ' are',
+          content: 'Hello world! How are',
+          role: 'assistant',
         },
         {
           type: 'content',
@@ -153,6 +167,8 @@ describe('StreamProcessor (Unified)', () => {
           model: 'test',
           timestamp: Date.now(),
           delta: ' you?',
+          content: 'Hello world! How are you?',
+          role: 'assistant',
         },
       ])
 

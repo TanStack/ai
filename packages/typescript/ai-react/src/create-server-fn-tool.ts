@@ -104,8 +104,8 @@ export function createServerFnTool<
   type InputType = z.infer<TInput>
   type OutputType = z.infer<TOutput>
 
-  const serverFn = createServerFn({ method: 'POST' })
-    .inputValidator((data: unknown): InputType => {
+  const serverFnBase = createServerFn({ method: 'POST' }).inputValidator(
+    (data: unknown): InputType => {
       // Validate the input against the schema if provided
       if (config.inputSchema) {
         const result = config.inputSchema.safeParse(data)
@@ -117,10 +117,13 @@ export function createServerFnTool<
         return result.data
       }
       return data as InputType
-    })
-    .handler(async (ctx: any) => {
-      return await execute(ctx.data as InputType)
-    }) as unknown as (data: InputType, options?: any) => Promise<OutputType>
+    },
+  )
+
+  // @ts-expect-error - createServerFn handler types are complex, runtime behavior is correct
+  const serverFn = serverFnBase.handler(async (ctx: any) => {
+    return await execute(ctx.data as InputType)
+  }) as unknown as (data: InputType, options?: any) => Promise<OutputType>
 
   return {
     toolDefinition: definition,

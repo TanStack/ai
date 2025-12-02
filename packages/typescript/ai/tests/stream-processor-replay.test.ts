@@ -26,10 +26,12 @@ describe('StreamProcessor - Replay from Fixtures', () => {
 
     expect(result.content).toBe('')
     expect(result.toolCalls).toHaveLength(2)
-    expect(result.toolCalls![0].function.name).toBe('getWeather')
-    expect(result.toolCalls![0].function.arguments).toBe('{"location":"Paris"}')
-    expect(result.toolCalls![1].function.name).toBe('getTime')
-    expect(result.toolCalls![1].function.arguments).toBe('{"city":"Tokyo"}')
+    expect(result.toolCalls?.[0]?.function.name).toBe('getWeather')
+    expect(result.toolCalls?.[0]?.function.arguments).toBe(
+      '{"location":"Paris"}',
+    )
+    expect(result.toolCalls?.[1]?.function.name).toBe('getTime')
+    expect(result.toolCalls?.[1]?.function.arguments).toBe('{"city":"Tokyo"}')
     expect(result.finishReason).toBe('tool_calls')
   })
 

@@ -486,8 +486,8 @@ describe('ChatClient', () => {
       await client.sendMessage('Fail')
       expect(client.getError()).toBeDefined()
 
-      // @ts-ignore - Replace adapter for second request
-      client.connection = successAdapter
+      // Update connection via updateOptions
+      client.updateOptions({ connection: successAdapter })
 
       await client.sendMessage('Success')
       expect(client.getError()).toBeUndefined()

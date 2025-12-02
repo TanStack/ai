@@ -201,12 +201,20 @@ export class ChatClient {
     // Normalize the message to ensure it has id and createdAt
     const normalizedMessage = normalizeToUIMessage(message, generateMessageId)
 
+    // Skip system messages - they're handled via systemPrompts, not UIMessages
+    if (normalizedMessage.role === 'system') {
+      return
+    }
+
+    // Type assertion: after checking for system, we know it's user or assistant
+    const uiMessage = normalizedMessage as UIMessage
+
     // Emit message appended event
-    this.events.messageAppended(normalizedMessage)
+    this.events.messageAppended(uiMessage)
 
     // Add to messages
     const messages = this.processor.getMessages()
-    this.processor.setMessages([...messages, normalizedMessage])
+    this.processor.setMessages([...messages, uiMessage])
 
     await this.streamResponse()
   }

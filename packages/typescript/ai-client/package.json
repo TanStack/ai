@@ -43,8 +43,7 @@
     "test:types": "tsc"
   },
   "dependencies": {
-    "@tanstack/ai": "workspace:*",
-    "partial-json": "^0.1.7"
+    "@tanstack/ai": "workspace:*"
   },
   "devDependencies": {
     "@vitest/coverage-v8": "4.0.14",

@@ -68,7 +68,12 @@ export function createMockConnectionAdapter(
   return {
     async *connect(messages, data, abortSignal) {
       if (onConnect) {
-        onConnect(messages, data, abortSignal)
+        // Type assertion: messages can be ModelMessage[] or UIMessage[]
+        // Filter out system messages if present
+        const filteredMessages = (messages as any[]).filter(
+          (m: any) => !('role' in m) || m.role !== 'system',
+        )
+        onConnect(filteredMessages as any, data, abortSignal)
       }
 
       if (shouldError) {

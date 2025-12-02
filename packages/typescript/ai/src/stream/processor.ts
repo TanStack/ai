@@ -515,6 +515,7 @@ export class StreamProcessor {
     this.totalTextContent += textDelta
 
     // Use delta for chunk strategy if available
+    // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
     const chunkPortion = chunk.delta ?? chunk.content ?? ''
     const shouldEmit = this.chunkStrategy.shouldEmit(
       chunkPortion,
@@ -830,6 +831,7 @@ export class StreamProcessor {
     chunk: Extract<StreamChunk, { type: 'content' }>,
     previous: string,
   ): boolean {
+    // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
     if (chunk.delta !== undefined && chunk.content !== undefined) {
       if (chunk.content.length < previous.length) {
         return true
@@ -1080,6 +1082,7 @@ export function createReplayStream(
   recording: ChunkRecording,
 ): AsyncIterable<StreamChunk> {
   return {
+    // eslint-disable-next-line @typescript-eslint/require-await
     async *[Symbol.asyncIterator]() {
       for (const { chunk } of recording.chunks) {
         yield chunk

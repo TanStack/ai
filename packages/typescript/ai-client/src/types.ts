@@ -205,7 +205,7 @@ export interface ChatClientOptions<
      * Strategy for when to emit text updates
      * Defaults to ImmediateStrategy (every chunk)
      */
-    chunkStrategy?: import('@tanstack/ai').ChunkStrategy
+    chunkStrategy?: import('@tanstack/ai').ChunkStrategy // eslint-disable-line @typescript-eslint/consistent-type-imports
   }
 }
 
