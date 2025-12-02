@@ -1,0 +1,21 @@
+#!/usr/bin/env php
+<?php
+
+define('LARAVEL_START', microtime(true));
+
+// Register the Composer autoloader...
+require __DIR__.'/vendor/autoload.php';
+
+// Bootstrap Laravel and handle the command...
+$app = require_once __DIR__.'/bootstrap/app.php';
+
+$kernel = $app->make(Illuminate\Contracts\Console\Kernel::class);
+
+$status = $kernel->handle(
+    $input = new Symfony\Component\Console\Input\ArgvInput,
+    new Symfony\Component\Console\Output\ConsoleOutput
+);
+
+$kernel->terminate($input, $status);
+
+exit($status);

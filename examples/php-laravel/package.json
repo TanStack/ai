@@ -1,0 +1,13 @@
+{
+  "name": "php-laravel-example",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Laravel + React example for TanStack AI",
+  "scripts": {
+    "backend:install": "cd backend && composer install",
+    "backend:start": "cd backend && php artisan serve --host=0.0.0.0 --port=8020",
+    "frontend:install": "cd frontend && pnpm install",
+    "frontend:dev": "cd frontend && pnpm dev",
+    "setup": "pnpm run backend:install && pnpm run frontend:install"
+  }
+}
