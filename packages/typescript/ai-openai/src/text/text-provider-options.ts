@@ -338,7 +338,7 @@ export function convertContentPartToOpenAI(
       // For base64 data, construct a data URI
       return {
         type: 'input_image',
-        image_url: `data:image/png;base64,${part.source.value}`,
+        image_url: part.source.value,
         detail: imageMetadata?.detail || 'auto',
       }
     }

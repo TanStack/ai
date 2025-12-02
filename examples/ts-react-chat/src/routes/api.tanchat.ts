@@ -3,8 +3,7 @@ import { chat, maxIterations, toStreamResponse } from '@tanstack/ai'
 import { openai } from '@tanstack/ai-openai'
 // import { ollama } from "@tanstack/ai-ollama";
 // import { anthropic } from '@tanstack/ai-anthropic'
-// import { gemini } from "@tanstack/ai-gemini";
-import { gemini } from '@tanstack/ai-gemini'
+// import { gemini } from "@tanstack/ai-gemini"; 
 import {
   addToCartToolDef,
   addToWishListToolDef,
@@ -35,7 +34,6 @@ Step 1: Call getGuitars()
 Step 2: Call recommendGuitar(id: "6") 
 Step 3: Done - do NOT add any text after calling recommendGuitar
 `
-
 const addToCartToolServer = addToCartToolDef.server((args) => ({
   success: true,
   cartId: 'CART_' + Date.now(),
@@ -61,10 +59,10 @@ export const Route = createFileRoute('/api/tanchat')({
         const { messages } = await request.json()
 
         // Create adapter instance for type inference
-        const adapter = openai()
+
         try {
           const stream = chat({
-            adapter,
+            adapter: openai(),
             model: "gpt-5",
             tools: [
               getGuitars.server, // Server function tool
@@ -75,8 +73,6 @@ export const Route = createFileRoute('/api/tanchat')({
             ],
             systemPrompts: [SYSTEM_PROMPT],
             agentLoopStrategy: maxIterations(20),
-
-            // Now TypeScript will properly check that we only use text + image content
             messages,
             abortController,
           })

@@ -64,9 +64,26 @@ export class GeminiAdapter extends BaseAdapter<
     // Map common options to Gemini format
     const mappedOptions = this.mapCommonOptionsToGemini(options)
 
-    const result = await this.client.models.generateContentStream(mappedOptions)
+    try {
+      const result = await this.client.models.generateContentStream(mappedOptions)
 
-    yield* this.processStreamChunks(result, options.model)
+      yield* this.processStreamChunks(result, options.model)
+    } catch (error) {
+
+      const timestamp = Date.now()
+      yield {
+        type: 'error',
+        id: this.generateId(),
+        model: options.model,
+        timestamp,
+        error: {
+          message:
+            error instanceof Error
+              ? error.message
+              : 'An unknown error occurred during the chat stream.',
+        },
+      }
+    }
   }
 
   async summarize(options: SummarizationOptions): Promise<SummarizationResult> {
@@ -384,14 +401,14 @@ export class GeminiAdapter extends BaseAdapter<
           return {
             inlineData: {
               data: part.source.value,
-              mimeType: metadata?.mimeType,
+              mimeType: metadata?.mimeType ?? "image/jpeg",
             },
           }
         } else {
           return {
             fileData: {
               fileUri: part.source.value,
-              mimeType: metadata?.mimeType,
+              mimeType: metadata?.mimeType ?? "image/jpeg",
             },
           }
         }
