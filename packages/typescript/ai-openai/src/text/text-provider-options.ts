@@ -363,7 +363,6 @@ export function convertMessagesToInput(
       continue
     }
 
-
     // Handle user messages (default case)
     result.push({
       type: 'message',
