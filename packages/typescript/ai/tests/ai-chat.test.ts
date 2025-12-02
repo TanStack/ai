@@ -44,6 +44,7 @@ class MockAdapter extends BaseAdapter<
     messages: Array<ModelMessage>
     tools?: Array<Tool>
     request?: ChatOptions['request']
+    systemPrompts?: Array<string>
     providerOptions?: any
   }> = []
 
@@ -58,6 +59,7 @@ class MockAdapter extends BaseAdapter<
       messages: options.messages,
       tools: options.tools,
       request: options.request,
+      systemPrompts: options.systemPrompts,
       providerOptions: options.providerOptions,
     })
   }
@@ -182,7 +184,7 @@ describe('chat() - Comprehensive Logic Path Coverage', () => {
       expect(event?.data.provider).toBe('mock')
     })
 
-    it('should prepend system prompts correctly', async () => {
+    it('should forward system prompts correctly to the adapter', async () => {
       const adapter = new MockAdapter()
 
       await collectChunks(
@@ -195,9 +197,14 @@ describe('chat() - Comprehensive Logic Path Coverage', () => {
       )
 
       const call = adapter.chatStreamCalls[0]
-      expect(call?.messages[0]?.role).toBe('system')
-      expect(call?.messages[0]?.content).toBe('You are concise')
-      expect(call?.messages.length).toBe(2)
+
+      expect(call?.messages[0]?.role).not.toBe('system')
+      expect(call?.messages[0]?.content).not.toBe('You are concise')
+      expect(call?.messages[0]?.role).toBe('user')
+      expect(call?.messages[0]?.content).toBe('Hello')
+      expect(call?.systemPrompts).toBeDefined()
+      expect(call?.systemPrompts?.[0]).toBe('You are concise')
+      expect(call?.messages.length).toBe(1)
     })
 
     it('should prepend system prompts when provided', async () => {
@@ -213,12 +220,13 @@ describe('chat() - Comprehensive Logic Path Coverage', () => {
       )
 
       const call = adapter.chatStreamCalls[0]
-      expect(call?.messages).toHaveLength(3)
-      expect(call?.messages[0]?.role).toBe('system')
-      expect(call?.messages[0]?.content).toBe('You are helpful')
-      expect(call?.messages[1]?.role).toBe('system')
-      expect(call?.messages[1]?.content).toBe('You are concise')
-      expect(call?.messages[2]?.role).toBe('user')
+      expect(call?.messages).toHaveLength(1)
+      expect(call?.messages[0]?.role).not.toBe('system')
+      expect(call?.systemPrompts).toBeDefined()
+      expect(call?.systemPrompts).toEqual([
+        'You are helpful',
+        'You are concise',
+      ])
     })
 
     it('should pass providerOptions to adapter', async () => {

@@ -363,21 +363,6 @@ export function convertMessagesToInput(
       continue
     }
 
-    // Handle system messages
-    if (message.role === 'system') {
-      result.push({
-        type: 'message',
-        role: 'system',
-        content: [
-          {
-            type: 'input_text',
-            text: message.content || '',
-          },
-        ],
-      })
-      continue
-    }
-
     // Handle user messages (default case)
     result.push({
       type: 'message',

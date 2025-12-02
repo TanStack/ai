@@ -482,6 +482,7 @@ export class OpenAI extends BaseAdapter<
       max_output_tokens: options.options?.maxTokens,
       top_p: options.options?.topP,
       metadata: options.options?.metadata,
+      instructions: options.systemPrompts?.join('\n'),
       ...providerOptions,
       input,
       tools,

@@ -370,60 +370,57 @@ export class GeminiAdapter extends BaseAdapter<
       functionResponse?: { name: string; response: Record<string, any> }
     }>
   }> {
-    return messages
-      .filter((m) => m.role !== 'system') // Skip system messages
-      .map((msg) => {
-        const role: 'user' | 'model' =
-          msg.role === 'assistant' ? 'model' : 'user'
-        const parts: Array<{
-          text?: string
-          functionCall?: { name: string; args: Record<string, any> }
-          functionResponse?: { name: string; response: Record<string, any> }
-        }> = []
+    return messages.map((msg) => {
+      const role: 'user' | 'model' = msg.role === 'assistant' ? 'model' : 'user'
+      const parts: Array<{
+        text?: string
+        functionCall?: { name: string; args: Record<string, any> }
+        functionResponse?: { name: string; response: Record<string, any> }
+      }> = []
 
-        // Add text content if present
-        if (msg.content) {
-          parts.push({ text: msg.content })
-        }
+      // Add text content if present
+      if (msg.content) {
+        parts.push({ text: msg.content })
+      }
 
-        // Handle tool calls (from assistant)
-        if (msg.role === 'assistant' && msg.toolCalls?.length) {
-          for (const toolCall of msg.toolCalls) {
-            let parsedArgs: Record<string, any> = {}
-            try {
-              parsedArgs = toolCall.function.arguments
-                ? JSON.parse(toolCall.function.arguments)
-                : {}
-            } catch {
-              parsedArgs = toolCall.function.arguments as any
-            }
-
-            parts.push({
-              functionCall: {
-                name: toolCall.function.name,
-                args: parsedArgs,
-              },
-            })
+      // Handle tool calls (from assistant)
+      if (msg.role === 'assistant' && msg.toolCalls?.length) {
+        for (const toolCall of msg.toolCalls) {
+          let parsedArgs: Record<string, any> = {}
+          try {
+            parsedArgs = toolCall.function.arguments
+              ? JSON.parse(toolCall.function.arguments)
+              : {}
+          } catch {
+            parsedArgs = toolCall.function.arguments as any
           }
-        }
 
-        // Handle tool results (from tool role)
-        if (msg.role === 'tool' && msg.toolCallId) {
           parts.push({
-            functionResponse: {
-              name: msg.toolCallId, // Gemini uses function name here
-              response: {
-                content: msg.content || '',
-              },
+            functionCall: {
+              name: toolCall.function.name,
+              args: parsedArgs,
             },
           })
         }
+      }
 
-        return {
-          role,
-          parts: parts.length > 0 ? parts : [{ text: '' }],
-        }
-      })
+      // Handle tool results (from tool role)
+      if (msg.role === 'tool' && msg.toolCallId) {
+        parts.push({
+          functionResponse: {
+            name: msg.toolCallId, // Gemini uses function name here
+            response: {
+              content: msg.content || '',
+            },
+          },
+        })
+      }
+
+      return {
+        role,
+        parts: parts.length > 0 ? parts : [{ text: '' }],
+      }
+    })
   }
 
   /**

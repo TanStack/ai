@@ -125,7 +125,7 @@ export type MessagePart<TTools extends ReadonlyArray<AnyClientTool> = any> =
  */
 export interface UIMessage<TTools extends ReadonlyArray<AnyClientTool> = any> {
   id: string
-  role: 'system' | 'user' | 'assistant'
+  role: 'user' | 'assistant'
   parts: Array<MessagePart<TTools>>
   createdAt?: Date
 }

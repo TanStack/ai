@@ -224,6 +224,7 @@ export class Anthropic extends BaseAdapter<
       temperature: options.options?.temperature,
       top_p: options.options?.topP,
       messages: formattedMessages,
+      system: options.systemPrompts?.join('\n'),
       tools: tools,
       ...validProviderOptions,
     }
@@ -238,10 +239,6 @@ export class Anthropic extends BaseAdapter<
 
     for (const message of messages) {
       const role = message.role
-
-      if (role === 'system') {
-        continue
-      }
 
       if (role === 'tool' && message.toolCallId) {
         formattedMessages.push({
@@ -415,24 +412,82 @@ export class Anthropic extends BaseAdapter<
           }
         } else if (event.type === 'message_delta') {
           if (event.delta.stop_reason) {
-            yield {
-              type: 'done',
-              id: generateId(),
-              model: model,
-              timestamp,
-              finishReason:
-                event.delta.stop_reason === 'tool_use'
-                  ? 'tool_calls'
-                  : // TODO Fix the any and map the responses properly
-                    (event.delta.stop_reason as any),
+            switch (event.delta.stop_reason) {
+              case 'tool_use': {
+                yield {
+                  type: 'done',
+                  id: generateId(),
+                  model: model,
+                  timestamp,
+                  finishReason: 'tool_calls',
 
-              usage: {
-                promptTokens: event.usage.input_tokens || 0,
-                completionTokens: event.usage.output_tokens || 0,
-                totalTokens:
-                  (event.usage.input_tokens || 0) +
-                  (event.usage.output_tokens || 0),
-              },
+                  usage: {
+                    promptTokens: event.usage.input_tokens || 0,
+                    completionTokens: event.usage.output_tokens || 0,
+                    totalTokens:
+                      (event.usage.input_tokens || 0) +
+                      (event.usage.output_tokens || 0),
+                  },
+                }
+                break
+              }
+              case 'max_tokens': {
+                yield {
+                  type: 'error',
+                  id: generateId(),
+                  model: model,
+                  timestamp,
+                  error: {
+                    message:
+                      'The response was cut off because the maximum token limit was reached.',
+                    code: 'max_tokens',
+                  },
+                }
+                break
+              }
+              case 'model_context_window_exceeded': {
+                yield {
+                  type: 'error',
+                  id: generateId(),
+                  model: model,
+                  timestamp,
+                  error: {
+                    message:
+                      "The response was cut off because the model's context window was exceeded.",
+                    code: 'context_window_exceeded',
+                  },
+                }
+                break
+              }
+              case 'refusal': {
+                yield {
+                  type: 'error',
+                  id: generateId(),
+                  model: model,
+                  timestamp,
+                  error: {
+                    message: 'The model refused to complete the request.',
+                    code: 'refusal',
+                  },
+                }
+                break
+              }
+              default: {
+                yield {
+                  type: 'done',
+                  id: generateId(),
+                  model: model,
+                  timestamp,
+                  finishReason: 'stop',
+                  usage: {
+                    promptTokens: event.usage.input_tokens || 0,
+                    completionTokens: event.usage.output_tokens || 0,
+                    totalTokens:
+                      (event.usage.input_tokens || 0) +
+                      (event.usage.output_tokens || 0),
+                  },
+                }
+              }
             }
           }
         }
@@ -461,7 +516,6 @@ export class Anthropic extends BaseAdapter<
     }
   }
 }
-
 /**
  * Creates an Anthropic adapter with simplified configuration
  * @param apiKey - Your Anthropic API key

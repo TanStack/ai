@@ -94,9 +94,8 @@ export function ChatMessage(props: ChatMessageProps) {
   const roleClass = () =>
     props.message.role === 'user'
       ? (props.userClass ?? '')
-      : props.message.role === 'assistant'
-        ? (props.assistantClass ?? '')
-        : ''
+      : (props.assistantClass ?? '')
+
   const combinedClass = () =>
     [props.class ?? '', roleClass()].filter(Boolean).join(' ')
 
