@@ -14,3 +14,7 @@ yarn-error.log
 /.nova
 .DS_Store
 Thumbs.db
+
+# Database
+/database/*.sqlite
+/database/*.sqlite-journal

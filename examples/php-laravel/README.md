@@ -1,36 +1,48 @@
-# TanStack AI - Laravel + React Example
+# TanStack AI - Laravel + Lunar E-Commerce Example
 
-This example demonstrates how to use TanStack AI with a Laravel 11+ backend and React frontend, showcasing Laravel's native `response()->eventStream()` method for Server-Sent Events (SSE) streaming.
+This example demonstrates how to use TanStack AI with a Laravel 11+ backend powered by Lunar (headless e-Commerce) and a React frontend, showcasing an e-Commerce storefront with an AI sales assistant.
 
 ## Features
 
-- ✅ Laravel 11+ backend with native SSE streaming support
-- ✅ React frontend using `@tanstack/ai-react` hook
+- ✅ Laravel 11+ backend with Lunar e-Commerce integration
+- ✅ React frontend with product catalog and shopping cart
+- ✅ AI-powered sales assistant chat (using TanStack AI)
+- ✅ Server-Sent Events (SSE) streaming for real-time chat
 - ✅ Support for both Anthropic and OpenAI providers
-- ✅ Real-time streaming chat interface
-- ✅ Proper error handling and CORS configuration
+- ✅ Product browsing and cart management
 - ✅ Uses TanStack AI PHP package for message conversion
 
 ## Prerequisites
 
 - **PHP 8.2+** with Composer
 - **Node.js 18+** with pnpm
+- **SQLite** (default, for easy setup) or **MySQL 8.0+** / **PostgreSQL 9.4+** (for production)
+- **Required PHP extensions:** exif, intl, bcmath, GD, pdo_sqlite (for SQLite)
 - **Anthropic API Key** (for Anthropic provider)
 - **OpenAI API Key** (for OpenAI provider)
+
+> **Note:** Lunar officially supports MySQL and PostgreSQL. SQLite works for basic functionality in this example, but for production use or advanced Lunar features, consider using MySQL or PostgreSQL.
 
 ## Project Structure
 
 ```
 php-laravel/
-├── backend/                    # Laravel application
+├── backend/                    # Laravel + Lunar application
 │   ├── app/
-│   │   └── Http/
-│   │       └── Controllers/
-│   │           └── ChatController.php
+│   │   ├── Http/
+│   │   │   └── Controllers/
+│   │   │       ├── ChatController.php      # AI chat endpoint
+│   │   │       ├── ProductController.php  # Product API
+│   │   │       └── CartController.php      # Cart API
+│   │   ├── Models/
+│   │   │   └── User.php                    # User model with LunarUser trait
+│   │   └── Providers/
+│   │       └── AppServiceProvider.php     # Lunar panel registration
 │   ├── routes/
-│   │   └── api.php
+│   │   └── api.php                         # API routes
 │   ├── config/
 │   │   ├── cors.php
+│   │   ├── database.php
 │   │   └── services.php
 │   ├── composer.json
 │   └── .env.example
@@ -39,7 +51,9 @@ php-laravel/
 │   │   ├── App.tsx
 │   │   ├── main.tsx
 │   │   └── components/
-│   │       └── Chat.tsx
+│   │       ├── Chat.tsx                    # AI sales assistant
+│   │       ├── ProductList.tsx            # Product catalog
+│   │       └── Cart.tsx                   # Shopping cart
 │   ├── package.json
 │   └── vite.config.ts
 └── README.md
@@ -86,13 +100,87 @@ pnpm install
    php artisan key:generate
    ```
 
-3. Edit `.env` and add your API keys:
+3. Configure your database in `.env`:
+
+   **For SQLite (default, easiest setup):**
+
+   ```env
+   DB_CONNECTION=sqlite
+   # DB_DATABASE defaults to database/database.sqlite
+   ```
+
+   Then create the database directory and file:
+
+   ```bash
+   mkdir -p database
+   touch database/database.sqlite
+   ```
+
+   **For MySQL/PostgreSQL (recommended for production):**
+
+   ```env
+   DB_CONNECTION=mysql
+   DB_HOST=127.0.0.1
+   DB_PORT=3306
+   DB_DATABASE=your_database_name
+   DB_USERNAME=your_username
+   DB_PASSWORD=your_password
+   ```
+
+4. Add your AI API keys:
+
    ```env
    ANTHROPIC_API_KEY=your-anthropic-api-key-here
    OPENAI_API_KEY=your-openai-api-key-here
    ```
 
-### 3. Run the Application
+### 3. Install and Configure Lunar
+
+1. **Create the database file** (if using SQLite):
+
+   ```bash
+   cd backend
+   mkdir -p database
+   touch database/database.sqlite
+   ```
+
+2. Publish Lunar configuration files:
+
+   ```bash
+   php artisan vendor:publish --tag=lunar
+   ```
+
+3. Run Lunar installer:
+
+   ```bash
+   php artisan lunar:install
+   ```
+
+   This will:
+   - Run all necessary migrations
+   - Create the default admin user
+   - Set up initial data
+
+4. Create storage link (for product images):
+
+   ```bash
+   php artisan storage:link
+   ```
+
+5. Seed sample guitar products:
+
+   ```bash
+   php artisan db:seed --class=GuitarSeeder
+   ```
+
+   This will:
+   - Copy guitar images from the `ts-react-chat` example
+   - Create 7 guitar products with variants, prices, and images
+   - Set up USD currency and tax class if they don't exist
+
+   Alternatively, you can add products through the Lunar admin panel at `http://localhost:8020/lunar`.
+
+### 4. Run the Application
 
 **Terminal 1 - Backend (Laravel):**
 
@@ -108,6 +196,7 @@ pnpm run backend:start
 ```
 
 The backend will be available at `http://localhost:8020`
+The Lunar admin panel will be available at `http://localhost:8020/lunar`
 
 **Terminal 2 - Frontend (React):**
 
@@ -127,75 +216,58 @@ The frontend will be available at `http://localhost:3200`
 ## Usage
 
 1. Open `http://localhost:3200` in your browser
-2. Type a message in the chat input
-3. Press Enter or click Send
-4. Watch the AI response stream in real-time!
+2. Browse products in the **Products** tab
+3. Add products to your cart
+4. View your cart by clicking the cart icon in the header
+5. Switch to the **Sales Assistant** tab to chat with the AI assistant
 
 ## Architecture
 
-### Data Flow
+### E-Commerce Backend
 
-```
-React Frontend (localhost:3200)
-  ↓ POST /api/chat
-Laravel Backend (localhost:8020)
-  ↓ Convert messages (MessageFormatters)
-  ↓ Stream from Provider API (Anthropic/OpenAI)
-  ↓ Convert events to StreamChunks (StreamChunkConverter)
-  ↓ Yield StreamedEvent instances
-  ↓ SSE stream back to frontend
-React Frontend
-  ↓ Parse SSE chunks
-  ↓ Update UI with streaming messages
-```
+The backend uses **Lunar** for e-Commerce functionality:
 
-### Key Components
+- **Products**: Managed through Lunar's product system
+- **Cart**: Uses Lunar's cart session management
+- **Variants**: Products can have multiple variants (sizes, colors, etc.)
+- **Pricing**: Supports multiple currencies and price tiers
 
-**Backend (`ChatController.php`):**
+### AI Chat Backend
 
-- Uses Laravel's `response()->eventStream()` for SSE streaming
+The chat functionality uses Laravel's `response()->stream()` for SSE streaming:
+
 - Converts TanStack AI message format to provider format using `MessageFormatters`
 - Streams provider events and converts them to `StreamChunk` format using `StreamChunkConverter`
-- Yields `StreamedEvent` instances with JSON-encoded chunks
+- Formats chunks as SSE data lines using `SSEFormatter`
 - Sends `[DONE]` marker before stream completion
 
-**Frontend (`Chat.tsx`):**
+### Frontend
 
-- Uses `useChat` hook from `@tanstack/ai-react`
-- Configures `fetchServerSentEvents` connection adapter
-- Displays messages with support for text, thinking, and tool call parts
-- Handles loading states and errors
+- **ProductList**: Fetches and displays products from the API
+- **Cart**: Manages cart state and syncs with backend
+- **Chat**: AI sales assistant using `@tanstack/ai-react` hook
 
-### SSE Format Compatibility
+### API Endpoints
 
-Laravel's `eventStream()` method automatically:
+**Products:**
 
-- Sets proper SSE headers (`Content-Type: text/event-stream`)
-- Formats events as `event: <name>` and `data: <content>` lines
-- Sends `</stream>` marker when the stream completes
+- `GET /api/products` - List all products
+- `GET /api/products/{id}` - Get single product
 
-The TanStack AI client parser:
+**Cart:**
 
-- Reads lines starting with `data: ` prefix
-- Parses JSON-encoded chunks
-- Handles `[DONE]` marker for stream completion
+- `GET /api/cart` - Get current cart
+- `POST /api/cart/items` - Add item to cart
+- `PUT /api/cart/items/{lineId}` - Update cart item quantity
+- `DELETE /api/cart/items/{lineId}` - Remove item from cart
 
-**Note:** Laravel sends both the `event:` line and `data:` line. The TanStack AI client parser skips non-`data:` lines, so this works seamlessly.
+**Chat:**
+
+- `POST /api/chat` - Stream AI chat responses (SSE)
 
 ## Provider Selection
 
-By default, the example uses Anthropic. To use OpenAI, modify the frontend connection:
-
-```typescript
-const chatOptions = createChatClientOptions({
-  connection: fetchServerSentEvents('http://localhost:8020/api/chat', {
-    // You can pass provider selection in the request body
-    // The backend checks data.provider field
-  }),
-})
-```
-
-Or modify the backend to accept a `provider` parameter in the request `data` object:
+By default, the example uses Anthropic. To use OpenAI, modify the frontend connection or pass provider in the request:
 
 ```json
 {
@@ -216,6 +288,7 @@ CORS is configured in `backend/config/cors.php` to allow requests from the front
 - Backend errors are converted to error `StreamChunk` format using `StreamChunkConverter::convertError()`
 - Frontend displays errors in the chat interface
 - Network errors are handled by the `useChat` hook
+- Product loading errors show helpful messages
 
 ## Development
 
@@ -226,6 +299,26 @@ The Laravel backend uses the local `tanstack/ai` PHP package from `packages/php/
 ### Frontend Development
 
 The React frontend uses workspace dependencies for `@tanstack/ai-react` and `@tanstack/ai-client`. Changes to these packages will be reflected after restarting the dev server.
+
+### Adding Products
+
+**Option 1: Use the Seeder (Recommended for Quick Start)**
+
+Run the guitar products seeder:
+
+```bash
+php artisan db:seed --class=GuitarSeeder
+```
+
+This will create 7 guitar products with images, variants, and pricing.
+
+**Option 2: Use the Lunar Admin Panel**
+
+1. Navigate to `http://localhost:8020/lunar`
+2. Log in with the admin credentials created during installation
+3. Go to Products → Create Product
+4. Fill in product details, variants, and pricing
+5. Products will appear in the frontend automatically
 
 ## Troubleshooting
 
@@ -240,14 +333,46 @@ The React frontend uses workspace dependencies for `@tanstack/ai-react` and `@ta
 - Check that the keys are not wrapped in quotes
 - Ensure the API keys have the correct format (Anthropic: `sk-ant-...`, OpenAI: `sk-...`)
 
+**Database Errors:**
+
+- **SQLite:** Ensure `database/database.sqlite` file exists and is writable
+- **MySQL/PostgreSQL:** Ensure your database server is running and accessible
+- Verify database credentials in `.env`
+- Run migrations: `php artisan migrate`
+- If using SQLite and getting foreign key constraint errors, ensure `DB_FOREIGN_KEYS=true` in `.env`
+
+**Lunar Installation Issues:**
+
+- Ensure all required PHP extensions are installed
+- Check that database connection is working
+- Verify Laravel version is 11+
+
+**No Products Showing:**
+
+- Check that products exist in the database
+- Verify products have `status = 'published'`
+- Ensure products have at least one variant
+- Check browser console for API errors
+
 **Streaming Not Working:**
 
 - Check browser console for errors
 - Verify the backend is receiving requests (check Laravel logs)
 - Ensure SSE headers are being sent correctly
 
+## Next Steps
+
+This example provides a foundation for building an AI-powered e-Commerce store. Future enhancements could include:
+
+- Integrating the AI assistant with product search and recommendations
+- Adding tool functions for cart operations (add to cart, view cart, etc.)
+- Implementing product filtering and search
+- Adding user authentication and order management
+- Integrating payment processing
+
 ## See Also
 
 - [TanStack AI Documentation](../../../docs/)
 - [PHP Package Documentation](../../../packages/php/tanstack-ai/README.md)
-- [Laravel SSE Documentation](https://laravel.com/docs/11.x/responses#server-sent-events)
+- [Lunar Documentation](https://docs.lunarphp.io/)
+- [Laravel Documentation](https://laravel.com/docs/11.x)

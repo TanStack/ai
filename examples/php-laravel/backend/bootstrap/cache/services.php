@@ -26,6 +26,10 @@
     22 => 'Illuminate\\View\\ViewServiceProvider',
     23 => 'Carbon\\Laravel\\ServiceProvider',
     24 => 'Termwind\\Laravel\\TermwindServiceProvider',
+    25 => 'App\\Providers\\AppServiceProvider',
+    26 => 'Cartalyst\\Converter\\Laravel\\ConverterServiceProvider',
+    27 => 'Kalnoy\\Nestedset\\NestedSetServiceProvider',
+    28 => 'Lunar\\LunarServiceProvider',
   ),
   'eager' => 
   array (
@@ -41,6 +45,10 @@
     9 => 'Illuminate\\View\\ViewServiceProvider',
     10 => 'Carbon\\Laravel\\ServiceProvider',
     11 => 'Termwind\\Laravel\\TermwindServiceProvider',
+    12 => 'App\\Providers\\AppServiceProvider',
+    13 => 'Cartalyst\\Converter\\Laravel\\ConverterServiceProvider',
+    14 => 'Kalnoy\\Nestedset\\NestedSetServiceProvider',
+    15 => 'Lunar\\LunarServiceProvider',
   ),
   'deferred' => 
   array (

@@ -13,7 +13,10 @@
     "laravel/framework": "^11.0",
     "anthropic-ai/sdk": "^0.3.0",
     "openai-php/client": "^0.10.0",
-    "tanstack/ai": "@dev"
+    "tanstack/ai": "@dev",
+    "lunarphp/lunar": "^1.0",
+    "cartalyst/converter": "^9.0",
+    "kalnoy/nestedset": "^6.0"
   },
   "require-dev": {
     "laravel/pint": "^1.0"
