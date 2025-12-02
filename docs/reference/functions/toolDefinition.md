@@ -9,7 +9,7 @@ title: toolDefinition
 function toolDefinition<TInput, TOutput, TName>(config): ToolDefinition<TInput, TOutput, TName>;
 ```
 
-Defined in: [tools/tool-factory.ts:170](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/tools/tool-factory.ts#L170)
+Defined in: [tools/tool-definition.ts:170](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/tools/tool-definition.ts#L170)
 
 Create an isomorphic tool definition that can be used directly or instantiated for server/client
 

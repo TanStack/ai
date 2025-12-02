@@ -5,7 +5,7 @@ title: EmbeddingResult
 
 # Interface: EmbeddingResult
 
-Defined in: [types.ts:414](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L414)
+Defined in: [types.ts:469](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L469)
 
 ## Properties
 
@@ -15,7 +15,7 @@ Defined in: [types.ts:414](https://github.com/TanStack/ai/blob/main/packages/typ
 embeddings: number[][];
 ```
 
-Defined in: [types.ts:417](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L417)
+Defined in: [types.ts:472](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L472)
 
 ***
 
@@ -25,7 +25,7 @@ Defined in: [types.ts:417](https://github.com/TanStack/ai/blob/main/packages/typ
 id: string;
 ```
 
-Defined in: [types.ts:415](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L415)
+Defined in: [types.ts:470](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L470)
 
 ***
 
@@ -35,7 +35,7 @@ Defined in: [types.ts:415](https://github.com/TanStack/ai/blob/main/packages/typ
 model: string;
 ```
 
-Defined in: [types.ts:416](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L416)
+Defined in: [types.ts:471](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L471)
 
 ***
 
@@ -45,7 +45,7 @@ Defined in: [types.ts:416](https://github.com/TanStack/ai/blob/main/packages/typ
 usage: object;
 ```
 
-Defined in: [types.ts:418](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L418)
+Defined in: [types.ts:473](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L473)
 
 #### promptTokens
 
