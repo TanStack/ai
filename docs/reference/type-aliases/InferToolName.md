@@ -9,7 +9,7 @@ title: InferToolName
 type InferToolName<T> = T extends object ? N : never;
 ```
 
-Defined in: [tools/tool-factory.ts:56](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/tools/tool-factory.ts#L56)
+Defined in: [tools/tool-definition.ts:56](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/tools/tool-definition.ts#L56)
 
 Extract the tool name as a literal type
 
