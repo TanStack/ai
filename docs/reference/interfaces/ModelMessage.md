@@ -32,7 +32,7 @@ Defined in: [types.ts:16](https://github.com/TanStack/ai/blob/main/packages/type
 ### role
 
 ```ts
-role: "system" | "user" | "assistant" | "tool";
+role: "user" | "assistant" | "tool";
 ```
 
 Defined in: [types.ts:14](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L14)
