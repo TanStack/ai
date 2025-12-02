@@ -491,18 +491,18 @@ export type ChatStreamOptionsUnion<
     any,
     infer ModelProviderOptions
   >
-  ? Models[number] extends infer TModel
-  ? TModel extends string
-  ? Omit<ChatOptions, 'model' | 'providerOptions' | 'responseFormat'> & {
-    adapter: TAdapter
-    model: TModel
-    providerOptions?: TModel extends keyof ModelProviderOptions
-    ? ModelProviderOptions[TModel]
+    ? Models[number] extends infer TModel
+      ? TModel extends string
+        ? Omit<ChatOptions, 'model' | 'providerOptions' | 'responseFormat'> & {
+            adapter: TAdapter
+            model: TModel
+            providerOptions?: TModel extends keyof ModelProviderOptions
+              ? ModelProviderOptions[TModel]
+              : never
+          }
+        : never
+      : never
     : never
-  }
-  : never
-  : never
-  : never
 
 // Extract types from adapter (updated to 5 generics)
 export type ExtractModelsFromAdapter<T> =
