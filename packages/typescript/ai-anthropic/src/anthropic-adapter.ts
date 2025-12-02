@@ -5,6 +5,7 @@ import { convertToolsToProviderFormat } from './tools/tool-converter'
 import { validateTextProviderOptions } from './text/text-provider-options'
 import type {
   ChatOptions,
+  ContentPart,
   EmbeddingOptions,
   EmbeddingResult,
   ModelMessage,
@@ -12,12 +13,24 @@ import type {
   SummarizationOptions,
   SummarizationResult,
 } from '@tanstack/ai'
-import type { AnthropicChatModelProviderOptionsByName } from './model-meta'
+import type {
+  AnthropicChatModelProviderOptionsByName,
+  AnthropicModelInputModalitiesByName,
+} from './model-meta'
 import type {
   ExternalTextProviderOptions,
   InternalTextProviderOptions,
 } from './text/text-provider-options'
-import type { MessageParam } from '@anthropic-ai/sdk/resources/messages'
+import type {
+  Base64ImageSource,
+  Base64PDFSource,
+  DocumentBlockParam,
+  ImageBlockParam,
+  MessageParam,
+  TextBlockParam,
+  URLImageSource,
+  URLPDFSource,
+} from '@anthropic-ai/sdk/resources/messages'
 
 export interface AnthropicConfig {
   apiKey: string
@@ -31,8 +44,8 @@ export type AnthropicProviderOptions = ExternalTextProviderOptions
 
 type AnthropicContentBlocks =
   Extract<MessageParam['content'], Array<unknown>> extends Array<infer Block>
-    ? Array<Block>
-    : never
+  ? Array<Block>
+  : never
 type AnthropicContentBlock =
   AnthropicContentBlocks extends Array<infer Block> ? Block : never
 
@@ -41,12 +54,14 @@ export class Anthropic extends BaseAdapter<
   [],
   AnthropicProviderOptions,
   Record<string, any>,
-  AnthropicChatModelProviderOptionsByName
+  AnthropicChatModelProviderOptionsByName,
+  AnthropicModelInputModalitiesByName
 > {
   name = 'anthropic' as const
   models = ANTHROPIC_MODELS
 
   declare _modelProviderOptionsByName: AnthropicChatModelProviderOptionsByName
+  declare _modelInputModalitiesByName: AnthropicModelInputModalitiesByName
 
   private client: Anthropic_SDK
 
@@ -199,9 +214,9 @@ export class Anthropic extends BaseAdapter<
           const value = providerOptions[key]
           // Anthropic expects tool_choice to be an object, not a string
           if (key === 'tool_choice' && typeof value === 'string') {
-            ;(validProviderOptions as any)[key] = { type: value }
+            ; (validProviderOptions as any)[key] = { type: value }
           } else {
-            ;(validProviderOptions as any)[key] = value
+            ; (validProviderOptions as any)[key] = value
           }
         }
       }
@@ -232,6 +247,67 @@ export class Anthropic extends BaseAdapter<
     return requestParams
   }
 
+  private convertContentPartToAnthropic(
+    part: ContentPart,
+  ): TextBlockParam | ImageBlockParam | DocumentBlockParam {
+    switch (part.type) {
+      case 'text':
+        return {
+          type: 'text',
+          text: part.text,
+        }
+      case 'image': {
+        const metadata = part.metadata as { media_type?: string } | undefined
+        const imageSource: Base64ImageSource | URLImageSource =
+          part.source.type === 'data'
+            ? {
+              type: 'base64',
+              data: part.source.value,
+              media_type: (metadata?.media_type ??
+                'image/jpeg') as Base64ImageSource['media_type'],
+            }
+            : {
+              type: 'url',
+              url: part.source.value,
+            }
+        return {
+          type: 'image',
+          source: imageSource,
+        }
+      }
+      case 'document': {
+        const docSource: Base64PDFSource | URLPDFSource =
+          part.source.type === 'data'
+            ? {
+              type: 'base64',
+              data: part.source.value,
+              media_type: 'application/pdf',
+            }
+            : {
+              type: 'url',
+              url: part.source.value,
+            }
+        return {
+          type: 'document',
+          source: docSource,
+        }
+      }
+      case 'audio':
+      case 'video':
+        // Anthropic doesn't support audio/video directly, treat as text with a note
+        throw new Error(
+          `Anthropic does not support ${part.type} content directly`,
+        )
+      default: {
+        // Exhaustive check - this should never happen with known types
+        const _exhaustiveCheck: never = part
+        throw new Error(
+          `Unsupported content part type: ${(_exhaustiveCheck as ContentPart).type}`,
+        )
+      }
+    }
+  }
+
   private formatMessages(
     messages: Array<ModelMessage>,
   ): InternalTextProviderOptions['messages'] {
@@ -247,7 +323,8 @@ export class Anthropic extends BaseAdapter<
             {
               type: 'tool_result',
               tool_use_id: message.toolCallId,
-              content: message.content ?? '',
+              content:
+                typeof message.content === 'string' ? message.content : '',
             },
           ],
         })
@@ -258,9 +335,13 @@ export class Anthropic extends BaseAdapter<
         const contentBlocks: AnthropicContentBlocks = []
 
         if (message.content) {
+          // For assistant with tool calls, content is always string
           const textBlock: AnthropicContentBlock = {
             type: 'text',
-            text: message.content,
+            text:
+              typeof message.content === 'string'
+                ? message.content
+                : JSON.stringify(message.content),
           }
           contentBlocks.push(textBlock)
         }
@@ -292,9 +373,22 @@ export class Anthropic extends BaseAdapter<
         continue
       }
 
+      // Handle user messages with multimodal content
+      if (role === 'user' && Array.isArray(message.content)) {
+        const contentBlocks = message.content.map((part) =>
+          this.convertContentPartToAnthropic(part),
+        )
+        formattedMessages.push({
+          role: 'user',
+          content: contentBlocks,
+        })
+        continue
+      }
+
       formattedMessages.push({
         role: role === 'assistant' ? 'assistant' : 'user',
-        content: message.content ?? '',
+        content:
+          typeof message.content === 'string' ? message.content : '',
       })
     }
 

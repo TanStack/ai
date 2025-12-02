@@ -1,4 +1,4 @@
-import type { ModelMessage } from '@tanstack/ai'
+import type { ContentPart, ModelMessage } from '@tanstack/ai'
 import type {
   MessagePart,
   TextPart,
@@ -6,6 +6,26 @@ import type {
   ToolResultPart,
   UIMessage,
 } from './types'
+
+/**
+ * Helper to extract text content from string or ContentPart array
+ * For multimodal content, this extracts only the text parts
+ */
+function getTextContent(
+  content: string | null | Array<ContentPart>,
+): string {
+  if (content === null) {
+    return ''
+  }
+  if (typeof content === 'string') {
+    return content
+  }
+  // Extract text from ContentPart array
+  return content
+    .filter((part): part is { type: 'text'; text: string } => part.type === 'text')
+    .map((part) => part.text)
+    .join('')
+}
 
 /**
  * Convert UIMessages or ModelMessages to ModelMessages
@@ -64,20 +84,20 @@ export function uiMessageToModelMessages(
   const toolCalls =
     toolCallParts.length > 0
       ? toolCallParts
-          .filter(
-            (p) =>
-              p.state === 'input-complete' ||
-              p.state === 'approval-responded' ||
-              p.output !== undefined, // Include if has output (client tool result)
-          )
-          .map((p) => ({
-            id: p.id,
-            type: 'function' as const,
-            function: {
-              name: p.name,
-              arguments: p.arguments,
-            },
-          }))
+        .filter(
+          (p) =>
+            p.state === 'input-complete' ||
+            p.state === 'approval-responded' ||
+            p.output !== undefined, // Include if has output (client tool result)
+        )
+        .map((p) => ({
+          id: p.id,
+          type: 'function' as const,
+          function: {
+            name: p.name,
+            arguments: p.arguments,
+          },
+        }))
       : undefined
 
   // Create the main message
@@ -131,11 +151,12 @@ export function modelMessageToUIMessage(
 ): UIMessage {
   const parts: Array<MessagePart> = []
 
-  // Handle content
-  if (modelMessage.content) {
+  // Handle content (convert multimodal content to text for UI)
+  const textContent = getTextContent(modelMessage.content)
+  if (textContent) {
     parts.push({
       type: 'text',
-      content: modelMessage.content,
+      content: textContent,
     })
   }
 
@@ -157,7 +178,7 @@ export function modelMessageToUIMessage(
     parts.push({
       type: 'tool-result',
       toolCallId: modelMessage.toolCallId,
-      content: modelMessage.content || '',
+      content: getTextContent(modelMessage.content),
       state: 'complete',
     })
   }
@@ -193,7 +214,7 @@ export function modelMessagesToUIMessages(
         currentAssistantMessage.parts.push({
           type: 'tool-result',
           toolCallId: msg.toolCallId!,
-          content: msg.content || '',
+          content: getTextContent(msg.content),
           state: 'complete',
         })
       } else {

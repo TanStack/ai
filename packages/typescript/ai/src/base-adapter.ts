@@ -4,6 +4,7 @@ import type {
   ChatOptions,
   EmbeddingOptions,
   EmbeddingResult,
+  Modality,
   StreamChunk,
   SummarizationOptions,
   SummarizationResult,
@@ -18,6 +19,7 @@ import type {
  * - TChatProviderOptions: Provider-specific options for chat endpoint
  * - TEmbeddingProviderOptions: Provider-specific options for embedding endpoint
  * - TModelProviderOptionsByName: Provider-specific options for model by name
+ * - TModelInputModalitiesByName: Map from model name to its supported input modalities
  */
 export abstract class BaseAdapter<
   TChatModels extends ReadonlyArray<string> = ReadonlyArray<string>,
@@ -25,15 +27,19 @@ export abstract class BaseAdapter<
   TChatProviderOptions extends Record<string, any> = Record<string, any>,
   TEmbeddingProviderOptions extends Record<string, any> = Record<string, any>,
   TModelProviderOptionsByName extends Record<string, any> = Record<string, any>,
+  TModelInputModalitiesByName extends Record<
+    string,
+    ReadonlyArray<Modality>
+  > = Record<string, ReadonlyArray<Modality>>,
 > implements
-    AIAdapter<
-      TChatModels,
-      TEmbeddingModels,
-      TChatProviderOptions,
-      TEmbeddingProviderOptions,
-      TModelProviderOptionsByName
-    >
-{
+  AIAdapter<
+    TChatModels,
+    TEmbeddingModels,
+    TChatProviderOptions,
+    TEmbeddingProviderOptions,
+    TModelProviderOptionsByName,
+    TModelInputModalitiesByName
+  > {
   abstract name: string
   abstract models: TChatModels
   embeddingModels?: TEmbeddingModels
@@ -45,6 +51,8 @@ export abstract class BaseAdapter<
   _embeddingProviderOptions?: TEmbeddingProviderOptions
   // Type-only map; concrete adapters should override this with a precise type
   _modelProviderOptionsByName!: TModelProviderOptionsByName
+  // Type-only map for model input modalities; concrete adapters should override this
+  _modelInputModalitiesByName?: TModelInputModalitiesByName
 
   constructor(config: AIAdapterConfig = {}) {
     this.config = config

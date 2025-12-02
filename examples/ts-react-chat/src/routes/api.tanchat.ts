@@ -4,6 +4,7 @@ import { openai } from '@tanstack/ai-openai'
 // import { ollama } from "@tanstack/ai-ollama";
 // import { anthropic } from '@tanstack/ai-anthropic'
 // import { gemini } from "@tanstack/ai-gemini";
+import { gemini } from '@tanstack/ai-gemini'
 import {
   addToCartToolDef,
   addToWishListToolDef,
@@ -58,10 +59,13 @@ export const Route = createFileRoute('/api/tanchat')({
         const abortController = new AbortController()
 
         const { messages } = await request.json()
+
+        // Create adapter instance for type inference
+        const adapter = openai()
         try {
           const stream = chat({
-            adapter: openai(),
-            model: 'gpt-5',
+            adapter,
+            model: "gpt-5",
             tools: [
               getGuitars.server, // Server function tool
               recommendGuitarToolDef, // No server execute - client will handle
@@ -71,6 +75,8 @@ export const Route = createFileRoute('/api/tanchat')({
             ],
             systemPrompts: [SYSTEM_PROMPT],
             agentLoopStrategy: maxIterations(20),
+
+            // Now TypeScript will properly check that we only use text + image content
             messages,
             abortController,
           })

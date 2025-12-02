@@ -12,7 +12,8 @@ import type { ShellTool } from '../tools/shell-tool'
 import type { ToolChoice } from '../tools/tool-choice'
 import type { WebSearchPreviewTool } from '../tools/web-search-preview-tool'
 import type { WebSearchTool } from '../tools/web-search-tool'
-import type { ModelMessage } from '@tanstack/ai'
+import type { ContentPart, ModelMessage } from '@tanstack/ai'
+import type { OpenAIAudioMetadata, OpenAIImageMetadata } from '../message-types'
 
 // Core, always-available options for Responses API
 export interface OpenAIBaseOptions {
@@ -310,6 +311,114 @@ const validateMetadata = (options: InternalTextProviderOptions) => {
   }
 }
 
+/**
+ * Content part type for OpenAI input messages.
+ * Using 'any' here as OpenAI types vary between API versions.
+ */
+type OpenAIInputContentPart = {
+  type: string
+  text?: string
+  image_url?: string
+  detail?: string
+  audio?: string
+  format?: string
+}
+
+/**
+ * Converts a ContentPart to OpenAI input content item.
+ * Handles text, image, and audio content parts.
+ */
+function convertContentPartToOpenAI(
+  part: ContentPart<OpenAIImageMetadata, OpenAIAudioMetadata, unknown, unknown>,
+): OpenAIInputContentPart {
+  switch (part.type) {
+    case 'text':
+      return {
+        type: 'input_text',
+        text: part.text,
+      }
+    case 'image': {
+      const imageMetadata = part.metadata
+      if (part.source.type === 'url') {
+        return {
+          type: 'input_image',
+          image_url: part.source.value,
+          detail: imageMetadata?.detail || 'auto',
+        }
+      }
+      // For base64 data, construct a data URI
+      return {
+        type: 'input_image',
+        image_url: `data:image/png;base64,${part.source.value}`,
+        detail: imageMetadata?.detail || 'auto',
+      }
+    }
+    case 'audio': {
+      const audioMetadata = part.metadata
+      if (part.source.type === 'url') {
+        // OpenAI may support audio URLs in the future
+        // For now, treat as data URI
+        return {
+          type: 'input_audio',
+          audio: part.source.value,
+          format: audioMetadata?.format || 'mp3',
+        }
+      }
+      return {
+        type: 'input_audio',
+        audio: part.source.value,
+        format: audioMetadata?.format || 'mp3',
+      }
+    }
+    case 'video':
+    case 'document':
+      // Video and document types are not directly supported by OpenAI Responses API
+      // Fall back to text representation
+      return {
+        type: 'input_text',
+        text: `[${part.type}: content not directly supported]`,
+      }
+    default:
+      return {
+        type: 'input_text',
+        text: '',
+      }
+  }
+}
+
+/**
+ * Normalizes message content to an array of ContentPart.
+ * Handles backward compatibility with string content.
+ */
+function normalizeContent(
+  content: string | null | Array<ContentPart>,
+): Array<ContentPart> {
+  if (content === null) {
+    return []
+  }
+  if (typeof content === 'string') {
+    return [{ type: 'text', text: content }]
+  }
+  return content
+}
+
+/**
+ * Extracts text content from a content value that may be string, null, or ContentPart array.
+ */
+function extractTextContent(content: string | null | Array<ContentPart>): string {
+  if (content === null) {
+    return ''
+  }
+  if (typeof content === 'string') {
+    return content
+  }
+  // It's an array of ContentPart
+  return content
+    .filter((p): p is { type: 'text'; text: string } => p.type === 'text')
+    .map((p) => p.text)
+    .join('')
+}
+
 export function convertMessagesToInput(
   messages: Array<ModelMessage>,
 ): OpenAI.Responses.ResponseInput {
@@ -353,26 +462,43 @@ export function convertMessagesToInput(
 
       // Add the assistant's text message if there is content
       if (message.content) {
-        result.push({
-          type: 'message',
-          role: 'assistant',
-          content: message.content,
-        })
+        // Assistant messages are typically text-only
+        const contentStr = extractTextContent(message.content)
+        if (contentStr) {
+          result.push({
+            type: 'message',
+            role: 'assistant',
+            content: contentStr,
+          })
+        }
       }
 
       continue
     }
 
-    // Handle user messages (default case)
+
+
+    // Handle user messages (default case) - support multimodal content
+    const contentParts = normalizeContent(message.content)
+    const openAIContent: Array<OpenAIInputContentPart> = []
+
+    for (const part of contentParts) {
+      openAIContent.push(
+        convertContentPartToOpenAI(
+          part as ContentPart<OpenAIImageMetadata, OpenAIAudioMetadata, unknown, unknown>,
+        ),
+      )
+    }
+
+    // If no content parts, add empty text
+    if (openAIContent.length === 0) {
+      openAIContent.push({ type: 'input_text', text: '' })
+    }
+
     result.push({
       type: 'message',
       role: 'user',
-      content: [
-        {
-          type: 'input_text',
-          text: message.content || '',
-        },
-      ],
+      content: openAIContent as any,
     })
   }
 

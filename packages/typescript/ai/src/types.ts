@@ -10,12 +10,191 @@ export interface ToolCall {
   }
 }
 
-export interface ModelMessage {
+// ============================================================================
+// Multimodal Content Types
+// ============================================================================
+
+/**
+ * Supported input modality types for multimodal content.
+ * - 'text': Plain text content
+ * - 'image': Image content (base64 or URL)
+ * - 'audio': Audio content (base64 or URL)
+ * - 'video': Video content (base64 or URL)
+ * - 'document': Document content like PDFs (base64 or URL)
+ */
+export type Modality = 'text' | 'image' | 'audio' | 'video' | 'document'
+
+/**
+ * Source specification for multimodal content.
+ * Supports both inline data (base64) and URL-based content.
+ */
+export interface ContentPartSource {
+  /**
+   * The type of source:
+   * - 'data': Inline data (typically base64 encoded)
+   * - 'url': URL reference to the content
+   */
+  type: 'data' | 'url'
+  /**
+   * The actual content value:
+   * - For 'data': base64-encoded string
+   * - For 'url': HTTP(S) URL or data URI
+   */
+  value: string
+}
+
+/**
+ * Text content part for multimodal messages.
+ */
+export interface TextPart {
+  type: 'text'
+  /** The text content */
+  text: string
+}
+
+/**
+ * Image content part for multimodal messages.
+ * @template TMetadata - Provider-specific metadata type (e.g., OpenAI's detail level)
+ */
+export interface ImagePart<TMetadata = unknown> {
+  type: 'image'
+  /** Source of the image content */
+  source: ContentPartSource
+  /** Provider-specific metadata (e.g., OpenAI's detail: 'auto' | 'low' | 'high') */
+  metadata?: TMetadata
+}
+
+/**
+ * Audio content part for multimodal messages.
+ * @template TMetadata - Provider-specific metadata type
+ */
+export interface AudioPart<TMetadata = unknown> {
+  type: 'audio'
+  /** Source of the audio content */
+  source: ContentPartSource
+  /** Provider-specific metadata (e.g., format, sample rate) */
+  metadata?: TMetadata
+}
+
+/**
+ * Video content part for multimodal messages.
+ * @template TMetadata - Provider-specific metadata type
+ */
+export interface VideoPart<TMetadata = unknown> {
+  type: 'video'
+  /** Source of the video content */
+  source: ContentPartSource
+  /** Provider-specific metadata (e.g., duration, resolution) */
+  metadata?: TMetadata
+}
+
+/**
+ * Document content part for multimodal messages (e.g., PDFs).
+ * @template TMetadata - Provider-specific metadata type (e.g., Anthropic's media_type)
+ */
+export interface DocumentPart<TMetadata = unknown> {
+  type: 'document'
+  /** Source of the document content */
+  source: ContentPartSource
+  /** Provider-specific metadata (e.g., media_type for PDFs) */
+  metadata?: TMetadata
+}
+
+/**
+ * Union type for all multimodal content parts.
+ * @template TImageMeta - Provider-specific image metadata type
+ * @template TAudioMeta - Provider-specific audio metadata type
+ * @template TVideoMeta - Provider-specific video metadata type
+ * @template TDocumentMeta - Provider-specific document metadata type
+ */
+export type ContentPart<
+  TImageMeta = unknown,
+  TAudioMeta = unknown,
+  TVideoMeta = unknown,
+  TDocumentMeta = unknown,
+> =
+  | TextPart
+  | ImagePart<TImageMeta>
+  | AudioPart<TAudioMeta>
+  | VideoPart<TVideoMeta>
+  | DocumentPart<TDocumentMeta>
+
+/**
+ * Helper type to filter ContentPart union to only include specific modalities.
+ * Used to constrain message content based on model capabilities.
+ */
+export type ContentPartForModalities<
+  TModalities extends Modality,
+  TImageMeta = unknown,
+  TAudioMeta = unknown,
+  TVideoMeta = unknown,
+  TDocumentMeta = unknown,
+> = Extract<
+  ContentPart<TImageMeta, TAudioMeta, TVideoMeta, TDocumentMeta>,
+  { type: TModalities }
+>
+
+/**
+ * Helper type to convert a readonly array of modalities to a union type.
+ * e.g., readonly ['text', 'image'] -> 'text' | 'image'
+ */
+export type ModalitiesArrayToUnion<T extends ReadonlyArray<Modality>> =
+  T[number]
+
+/**
+ * Type for message content constrained by supported modalities.
+ * When modalities is ['text', 'image'], only TextPart and ImagePart are allowed in the array.
+ */
+export type ConstrainedContent<
+  TModalities extends ReadonlyArray<Modality>,
+  TImageMeta = unknown,
+  TAudioMeta = unknown,
+  TVideoMeta = unknown,
+  TDocumentMeta = unknown,
+> =
+  | string
+  | null
+  | Array<
+    ContentPartForModalities<
+      ModalitiesArrayToUnion<TModalities>,
+      TImageMeta,
+      TAudioMeta,
+      TVideoMeta,
+      TDocumentMeta
+    >
+  >
+
+export interface ModelMessage<
+  TContent extends
+  | string
+  | null
+  | Array<ContentPart> = string | null | Array<ContentPart>,
+> {
   role: 'user' | 'assistant' | 'tool'
-  content: string | null
+  content: TContent
   name?: string
   toolCalls?: Array<ToolCall>
   toolCallId?: string
+}
+
+/**
+ * A ModelMessage with content constrained to only allow content parts
+ * matching the specified input modalities.
+ */
+export type ConstrainedModelMessage<
+  TModalities extends ReadonlyArray<Modality>,
+  TImageMeta = unknown,
+  TAudioMeta = unknown,
+  TVideoMeta = unknown,
+  TDocumentMeta = unknown,
+> = Omit<ModelMessage, 'content'> & {
+  content: ConstrainedContent<
+    TModalities,
+    TImageMeta,
+    TAudioMeta,
+    TVideoMeta,
+    TDocumentMeta
+  >
 }
 
 /**
@@ -426,15 +605,11 @@ export interface EmbeddingResult {
  *
  * Generic parameters:
  * - TChatModels: Models that support chat/text completion
- * - TImageModels: Models that support image generation
  * - TEmbeddingModels: Models that support embeddings
- * - TAudioModels: Models that support audio (transcription and text-to-speech)
- * - TVideoModels: Models that support video generation
  * - TChatProviderOptions: Provider-specific options for chat endpoint
- * - TImageProviderOptions: Provider-specific options for image endpoint
  * - TEmbeddingProviderOptions: Provider-specific options for embedding endpoint
- * - TAudioProviderOptions: Provider-specific options for audio endpoint
- * - TVideoProviderOptions: Provider-specific options for video endpoint
+ * - TModelProviderOptionsByName: Map from model name to its specific provider options
+ * - TModelInputModalitiesByName: Map from model name to its supported input modalities
  */
 export interface AIAdapter<
   TChatModels extends ReadonlyArray<string> = ReadonlyArray<string>,
@@ -442,6 +617,10 @@ export interface AIAdapter<
   TChatProviderOptions extends Record<string, any> = Record<string, any>,
   TEmbeddingProviderOptions extends Record<string, any> = Record<string, any>,
   TModelProviderOptionsByName extends Record<string, any> = Record<string, any>,
+  TModelInputModalitiesByName extends Record<
+    string,
+    ReadonlyArray<Modality>
+  > = Record<string, ReadonlyArray<Modality>>,
 > {
   name: string
   /** Models that support chat/text completion */
@@ -460,6 +639,12 @@ export interface AIAdapter<
    * Must be provided by all adapters.
    */
   _modelProviderOptionsByName: TModelProviderOptionsByName
+  /**
+   * Type-only map from model name to its supported input modalities.
+   * Used by the core AI types to narrow ContentPart types based on the selected model.
+   * Must be provided by all adapters.
+   */
+  _modelInputModalitiesByName?: TModelInputModalitiesByName
 
   // Structured streaming with JSON chunks (supports tool calls and rich content)
   chatStream: (
@@ -482,28 +667,92 @@ export interface AIAdapterConfig {
 }
 
 export type ChatStreamOptionsUnion<
-  TAdapter extends AIAdapter<any, any, any, any, any>,
+  TAdapter extends AIAdapter<any, any, any, any, any, any>,
 > =
   TAdapter extends AIAdapter<
     infer Models,
     any,
     any,
     any,
-    infer ModelProviderOptions
+    infer ModelProviderOptions,
+    infer ModelInputModalities
   >
-    ? Models[number] extends infer TModel
-      ? TModel extends string
-        ? Omit<ChatOptions, 'model' | 'providerOptions' | 'responseFormat'> & {
-            adapter: TAdapter
-            model: TModel
-            providerOptions?: TModel extends keyof ModelProviderOptions
-              ? ModelProviderOptions[TModel]
-              : never
-          }
-        : never
-      : never
+  ? Models[number] extends infer TModel
+  ? TModel extends string
+  ? Omit<
+    ChatOptions,
+    'model' | 'providerOptions' | 'responseFormat' | 'messages'
+  > & {
+    adapter: TAdapter
+    model: TModel
+    providerOptions?: TModel extends keyof ModelProviderOptions
+    ? ModelProviderOptions[TModel]
     : never
+    /**
+     * Messages array with content constrained to the model's supported input modalities.
+     * For example, if a model only supports ['text', 'image'], you cannot pass audio or video content.
+     */
+    messages: TModel extends keyof ModelInputModalities
+    ? ModelInputModalities[TModel] extends ReadonlyArray<Modality>
+    ? Array<ConstrainedModelMessage<ModelInputModalities[TModel]>>
+    : Array<ModelMessage>
+    : Array<ModelMessage>
+  }
+  : never
+  : never
+  : never
 
-// Extract types from adapter (updated to 5 generics)
+/**
+ * Chat options constrained by a specific model's capabilities.
+ * Unlike ChatStreamOptionsUnion which creates a union over all models,
+ * this type takes a specific model and constrains messages accordingly.
+ */
+export type ChatStreamOptionsForModel<
+  TAdapter extends AIAdapter<any, any, any, any, any, any>,
+  TModel extends string,
+> =
+  TAdapter extends AIAdapter<
+    any,
+    any,
+    any,
+    any,
+    infer ModelProviderOptions,
+    infer ModelInputModalities
+  >
+  ? Omit<
+    ChatOptions,
+    'model' | 'providerOptions' | 'responseFormat' | 'messages'
+  > & {
+    adapter: TAdapter
+    model: TModel
+    providerOptions?: TModel extends keyof ModelProviderOptions
+    ? ModelProviderOptions[TModel]
+    : never
+    /**
+     * Messages array with content constrained to the model's supported input modalities.
+     * For example, if a model only supports ['text', 'image'], you cannot pass audio or video content.
+     */
+    messages: TModel extends keyof ModelInputModalities
+    ? ModelInputModalities[TModel] extends ReadonlyArray<Modality>
+    ? Array<ConstrainedModelMessage<ModelInputModalities[TModel]>>
+    : Array<ModelMessage>
+    : Array<ModelMessage>
+  }
+  : never
+
+// Extract types from adapter (updated to 6 generics)
 export type ExtractModelsFromAdapter<T> =
-  T extends AIAdapter<infer M, any, any, any, any> ? M[number] : never
+  T extends AIAdapter<infer M, any, any, any, any, any> ? M[number] : never
+
+/**
+ * Extract the supported input modalities for a specific model from an adapter.
+ */
+export type ExtractModalitiesForModel<
+  TAdapter extends AIAdapter<any, any, any, any, any, any>,
+  TModel extends string,
+> =
+  TAdapter extends AIAdapter<any, any, any, any, any, infer ModelInputModalities>
+  ? TModel extends keyof ModelInputModalities
+  ? ModelInputModalities[TModel]
+  : ReadonlyArray<Modality>
+  : ReadonlyArray<Modality>

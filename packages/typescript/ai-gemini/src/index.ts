@@ -6,3 +6,14 @@ export type {
   GeminiThinkingOptions,
 } from './text/text-provider-options'
 export type { GoogleGeminiTool } from './tools/index'
+export type {
+  GeminiImageMetadata,
+  GeminiAudioMetadata,
+  GeminiVideoMetadata,
+  GeminiDocumentMetadata,
+  GeminiImageMimeType,
+  GeminiAudioMimeType,
+  GeminiVideoMimeType,
+  GeminiDocumentMimeType,
+  GeminiMessageMetadataByModality,
+} from './message-types'

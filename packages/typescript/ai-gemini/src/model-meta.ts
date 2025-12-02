@@ -10,7 +10,7 @@ import type {
 interface ModelMeta<TProviderOptions = unknown> {
   name: string
   supports: {
-    input: Array<'text' | 'image' | 'audio' | 'video' | 'pdf'>
+    input: Array<'text' | 'image' | 'audio' | 'video' | 'document'>
     output: Array<'text' | 'image' | 'audio' | 'video'>
     capabilities?: Array<
       | 'audio_generation'
@@ -52,7 +52,7 @@ const GEMINI_3_PRO = {
   max_output_tokens: 65_536,
   knowledge_cutoff: '2025-01-01',
   supports: {
-    input: ['text', 'image', 'audio', 'video', 'pdf'],
+    input: ['text', 'image', 'audio', 'video', 'document'],
     output: ['text'],
     capabilities: [
       'batch_api',
@@ -76,11 +76,11 @@ const GEMINI_3_PRO = {
   },
 } as const satisfies ModelMeta<
   GeminiToolConfigOptions &
-    GeminiSafetyOptions &
-    GeminiGenerationConfigOptions &
-    GeminiCachedContentOptions &
-    GeminiStructuredOutputOptions &
-    GeminiThinkingOptions
+  GeminiSafetyOptions &
+  GeminiGenerationConfigOptions &
+  GeminiCachedContentOptions &
+  GeminiStructuredOutputOptions &
+  GeminiThinkingOptions
 >
 
 const GEMINI_2_5_PRO = {
@@ -89,7 +89,7 @@ const GEMINI_2_5_PRO = {
   max_output_tokens: 65_536,
   knowledge_cutoff: '2025-01-01',
   supports: {
-    input: ['text', 'image', 'audio', 'video', 'pdf'],
+    input: ['text', 'image', 'audio', 'video', 'document'],
     output: ['text'],
     capabilities: [
       'batch_api',
@@ -114,11 +114,11 @@ const GEMINI_2_5_PRO = {
   },
 } as const satisfies ModelMeta<
   GeminiToolConfigOptions &
-    GeminiSafetyOptions &
-    GeminiGenerationConfigOptions &
-    GeminiCachedContentOptions &
-    GeminiStructuredOutputOptions &
-    GeminiThinkingOptions
+  GeminiSafetyOptions &
+  GeminiGenerationConfigOptions &
+  GeminiCachedContentOptions &
+  GeminiStructuredOutputOptions &
+  GeminiThinkingOptions
 >
 
 /* const GEMINI_2_5_PRO_TTS = {
@@ -177,11 +177,11 @@ const GEMINI_2_5_FLASH = {
   },
 } as const satisfies ModelMeta<
   GeminiToolConfigOptions &
-    GeminiSafetyOptions &
-    GeminiGenerationConfigOptions &
-    GeminiCachedContentOptions &
-    GeminiStructuredOutputOptions &
-    GeminiThinkingOptions
+  GeminiSafetyOptions &
+  GeminiGenerationConfigOptions &
+  GeminiCachedContentOptions &
+  GeminiStructuredOutputOptions &
+  GeminiThinkingOptions
 >
 
 const GEMINI_2_5_FLASH_PREVIEW = {
@@ -214,11 +214,11 @@ const GEMINI_2_5_FLASH_PREVIEW = {
   },
 } as const satisfies ModelMeta<
   GeminiToolConfigOptions &
-    GeminiSafetyOptions &
-    GeminiGenerationConfigOptions &
-    GeminiCachedContentOptions &
-    GeminiStructuredOutputOptions &
-    GeminiThinkingOptions
+  GeminiSafetyOptions &
+  GeminiGenerationConfigOptions &
+  GeminiCachedContentOptions &
+  GeminiStructuredOutputOptions &
+  GeminiThinkingOptions
 >
 /* 
 const GEMINI_2_5_FLASH_IMAGE = {
@@ -317,7 +317,7 @@ const GEMINI_2_5_FLASH_LITE = {
   max_output_tokens: 65_536,
   knowledge_cutoff: '2025-01-01',
   supports: {
-    input: ['text', 'image', 'audio', 'video', 'pdf'],
+    input: ['text', 'image', 'audio', 'video', 'document'],
     output: ['text'],
     capabilities: [
       'batch_api',
@@ -341,11 +341,11 @@ const GEMINI_2_5_FLASH_LITE = {
   },
 } as const satisfies ModelMeta<
   GeminiToolConfigOptions &
-    GeminiSafetyOptions &
-    GeminiGenerationConfigOptions &
-    GeminiCachedContentOptions &
-    GeminiStructuredOutputOptions &
-    GeminiThinkingOptions
+  GeminiSafetyOptions &
+  GeminiGenerationConfigOptions &
+  GeminiCachedContentOptions &
+  GeminiStructuredOutputOptions &
+  GeminiThinkingOptions
 >
 
 const GEMINI_2_5_FLASH_LITE_PREVIEW = {
@@ -354,7 +354,7 @@ const GEMINI_2_5_FLASH_LITE_PREVIEW = {
   max_output_tokens: 65_536,
   knowledge_cutoff: '2025-01-01',
   supports: {
-    input: ['text', 'image', 'audio', 'video', 'pdf'],
+    input: ['text', 'image', 'audio', 'video', 'document'],
     output: ['text'],
     capabilities: [
       'batch_api',
@@ -377,11 +377,11 @@ const GEMINI_2_5_FLASH_LITE_PREVIEW = {
   },
 } as const satisfies ModelMeta<
   GeminiToolConfigOptions &
-    GeminiSafetyOptions &
-    GeminiGenerationConfigOptions &
-    GeminiCachedContentOptions &
-    GeminiStructuredOutputOptions &
-    GeminiThinkingOptions
+  GeminiSafetyOptions &
+  GeminiGenerationConfigOptions &
+  GeminiCachedContentOptions &
+  GeminiStructuredOutputOptions &
+  GeminiThinkingOptions
 >
 
 const GEMINI_2_FLASH = {
@@ -413,10 +413,10 @@ const GEMINI_2_FLASH = {
   },
 } as const satisfies ModelMeta<
   GeminiToolConfigOptions &
-    GeminiSafetyOptions &
-    GeminiGenerationConfigOptions &
-    GeminiCachedContentOptions &
-    GeminiStructuredOutputOptions
+  GeminiSafetyOptions &
+  GeminiGenerationConfigOptions &
+  GeminiCachedContentOptions &
+  GeminiStructuredOutputOptions
 >
 /* 
 const GEMINI_2_FLASH_IMAGE = {
@@ -508,10 +508,10 @@ const GEMINI_2_FLASH_LITE = {
   },
 } as const satisfies ModelMeta<
   GeminiToolConfigOptions &
-    GeminiSafetyOptions &
-    GeminiGenerationConfigOptions &
-    GeminiCachedContentOptions &
-    GeminiStructuredOutputOptions
+  GeminiSafetyOptions &
+  GeminiGenerationConfigOptions &
+  GeminiCachedContentOptions &
+  GeminiStructuredOutputOptions
 >
 
 /* const IMAGEN_4_GENERATE = {
@@ -736,9 +736,9 @@ const GEMINI_EMBEDDING = {
   },
 } as const satisfies ModelMeta<
   GeminiToolConfigOptions &
-    GeminiSafetyOptions &
-    GeminiGenerationConfigOptions &
-    GeminiCachedContentOptions
+  GeminiSafetyOptions &
+  GeminiGenerationConfigOptions &
+  GeminiCachedContentOptions
 >
 
 /* const GEMINI_MODEL_META = {
@@ -811,50 +811,77 @@ export const GEMINI_EMBEDDING_MODELS = [GEMINI_EMBEDDING.name] as const
 export type GeminiChatModelProviderOptionsByName = {
   // Models with thinking and structured output support
   [GEMINI_3_PRO.name]: GeminiToolConfigOptions &
-    GeminiSafetyOptions &
-    GeminiGenerationConfigOptions &
-    GeminiCachedContentOptions &
-    GeminiStructuredOutputOptions &
-    GeminiThinkingOptions
+  GeminiSafetyOptions &
+  GeminiGenerationConfigOptions &
+  GeminiCachedContentOptions &
+  GeminiStructuredOutputOptions &
+  GeminiThinkingOptions
   [GEMINI_2_5_PRO.name]: GeminiToolConfigOptions &
-    GeminiSafetyOptions &
-    GeminiGenerationConfigOptions &
-    GeminiCachedContentOptions &
-    GeminiStructuredOutputOptions &
-    GeminiThinkingOptions
+  GeminiSafetyOptions &
+  GeminiGenerationConfigOptions &
+  GeminiCachedContentOptions &
+  GeminiStructuredOutputOptions &
+  GeminiThinkingOptions
   [GEMINI_2_5_FLASH.name]: GeminiToolConfigOptions &
-    GeminiSafetyOptions &
-    GeminiGenerationConfigOptions &
-    GeminiCachedContentOptions &
-    GeminiStructuredOutputOptions &
-    GeminiThinkingOptions
+  GeminiSafetyOptions &
+  GeminiGenerationConfigOptions &
+  GeminiCachedContentOptions &
+  GeminiStructuredOutputOptions &
+  GeminiThinkingOptions
   [GEMINI_2_5_FLASH_PREVIEW.name]: GeminiToolConfigOptions &
-    GeminiSafetyOptions &
-    GeminiGenerationConfigOptions &
-    GeminiCachedContentOptions &
-    GeminiStructuredOutputOptions &
-    GeminiThinkingOptions
+  GeminiSafetyOptions &
+  GeminiGenerationConfigOptions &
+  GeminiCachedContentOptions &
+  GeminiStructuredOutputOptions &
+  GeminiThinkingOptions
   [GEMINI_2_5_FLASH_LITE.name]: GeminiToolConfigOptions &
-    GeminiSafetyOptions &
-    GeminiGenerationConfigOptions &
-    GeminiCachedContentOptions &
-    GeminiStructuredOutputOptions &
-    GeminiThinkingOptions
+  GeminiSafetyOptions &
+  GeminiGenerationConfigOptions &
+  GeminiCachedContentOptions &
+  GeminiStructuredOutputOptions &
+  GeminiThinkingOptions
   [GEMINI_2_5_FLASH_LITE_PREVIEW.name]: GeminiToolConfigOptions &
-    GeminiSafetyOptions &
-    GeminiGenerationConfigOptions &
-    GeminiCachedContentOptions &
-    GeminiStructuredOutputOptions &
-    GeminiThinkingOptions
+  GeminiSafetyOptions &
+  GeminiGenerationConfigOptions &
+  GeminiCachedContentOptions &
+  GeminiStructuredOutputOptions &
+  GeminiThinkingOptions
   // Models with structured output but no thinking support
   [GEMINI_2_FLASH.name]: GeminiToolConfigOptions &
-    GeminiSafetyOptions &
-    GeminiGenerationConfigOptions &
-    GeminiCachedContentOptions &
-    GeminiStructuredOutputOptions
+  GeminiSafetyOptions &
+  GeminiGenerationConfigOptions &
+  GeminiCachedContentOptions &
+  GeminiStructuredOutputOptions
   [GEMINI_2_FLASH_LITE.name]: GeminiToolConfigOptions &
-    GeminiSafetyOptions &
-    GeminiGenerationConfigOptions &
-    GeminiCachedContentOptions &
-    GeminiStructuredOutputOptions
+  GeminiSafetyOptions &
+  GeminiGenerationConfigOptions &
+  GeminiCachedContentOptions &
+  GeminiStructuredOutputOptions
+}
+
+/**
+ * Type-only map from chat model name to its supported input modalities.
+ * Based on the 'supports.input' arrays defined for each model.
+ * Note: 'document' in the model meta is mapped to 'document' modality.
+ * Used by the core AI types to constrain ContentPart types based on the selected model.
+ * Note: These must be inlined as readonly arrays (not typeof) because the model
+ * constants are not exported and typeof references don't work in .d.ts files
+ * when consumed by external packages.
+ *
+ * @see https://ai.google.dev/gemini-api/docs/vision
+ * @see https://ai.google.dev/gemini-api/docs/audio
+ * @see https://ai.google.dev/gemini-api/docs/document-processing
+ */
+export type GeminiModelInputModalitiesByName = {
+  // Models with full multimodal support (text, image, audio, video, document)
+  'gemini-3-pro-preview': typeof GEMINI_3_PRO.supports.input
+  'gemini-2.5-pro': typeof GEMINI_2_5_PRO.supports.input
+  'gemini-2.5-flash-lite': typeof GEMINI_2_5_FLASH_LITE.supports.input
+  'gemini-2.5-flash-lite-preview-09-2025': typeof GEMINI_2_5_FLASH_LITE_PREVIEW.supports.input
+
+  // Models with text, image, audio, video (no document)
+  'gemini-2.5-flash': typeof GEMINI_2_5_FLASH.supports.input
+  'gemini-2.5-flash-preview-09-2025': typeof GEMINI_2_5_FLASH_PREVIEW.supports.input
+  'gemini-2.0-flash': typeof GEMINI_2_FLASH.supports.input
+  'gemini-2.0-flash-lite': typeof GEMINI_2_FLASH_LITE.supports.input
 }

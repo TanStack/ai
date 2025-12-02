@@ -7,7 +7,7 @@ import {
   uiMessageToModelMessages,
 } from '../src/message-converters'
 import type { UIMessage } from '../src/types'
-import type { ModelMessage } from '@tanstack/ai'
+import type { ContentPart, ModelMessage } from '@tanstack/ai'
 
 describe('message-converters', () => {
   describe('convertMessagesToModelMessages', () => {
@@ -632,6 +632,130 @@ describe('message-converters', () => {
 
       expect(result.parts).toHaveLength(1)
       expect(result.parts[0]?.type).toBe('tool-call')
+    })
+  })
+
+  describe('multimodal content handling', () => {
+    it('should extract text from multimodal ContentPart array', () => {
+      const modelMessage: ModelMessage = {
+        role: 'user',
+        content: [
+          { type: 'text', text: 'Hello ' },
+          {
+            type: 'image',
+            source: { type: 'data', value: 'base64data' },
+          },
+          { type: 'text', text: 'world' },
+        ] as Array<ContentPart>,
+      }
+
+      const result = modelMessageToUIMessage(modelMessage, 'msg-1')
+      expect(result.parts).toHaveLength(1)
+      expect(result.parts[0]).toEqual({
+        type: 'text',
+        content: 'Hello world',
+      })
+    })
+
+    it('should handle multimodal content with only image parts', () => {
+      const modelMessage: ModelMessage = {
+        role: 'user',
+        content: [
+          {
+            type: 'image',
+            source: { type: 'url', value: 'https://example.com/image.jpg' },
+          },
+        ] as Array<ContentPart>,
+      }
+
+      const result = modelMessageToUIMessage(modelMessage, 'msg-1')
+      // No text parts, so no text part in output
+      expect(result.parts).toHaveLength(0)
+    })
+
+    it('should handle multimodal content in tool results', () => {
+      const modelMessage: ModelMessage = {
+        role: 'tool',
+        toolCallId: 'call-1',
+        content: [
+          { type: 'text', text: 'Tool result with ' },
+          { type: 'text', text: 'multiple parts' },
+        ] as Array<ContentPart>,
+      }
+
+      const result = modelMessageToUIMessage(modelMessage, 'msg-1')
+      const toolResultPart = result.parts.find((p) => p.type === 'tool-result')
+      expect(toolResultPart).toEqual({
+        type: 'tool-result',
+        toolCallId: 'call-1',
+        content: 'Tool result with multiple parts',
+        state: 'complete',
+      })
+    })
+
+    it('should pass through string content unchanged', () => {
+      const modelMessage: ModelMessage = {
+        role: 'user',
+        content: 'Simple string content',
+      }
+
+      const result = modelMessageToUIMessage(modelMessage, 'msg-1')
+      expect(result.parts).toHaveLength(1)
+      expect(result.parts[0]).toEqual({
+        type: 'text',
+        content: 'Simple string content',
+      })
+    })
+
+    it('should handle mixed multimodal content in modelMessagesToUIMessages', () => {
+      const modelMessages: Array<ModelMessage> = [
+        {
+          role: 'user',
+          content: [
+            { type: 'text', text: 'Check this image: ' },
+            {
+              type: 'image',
+              source: { type: 'data', value: 'base64...' },
+            },
+          ] as Array<ContentPart>,
+        },
+        {
+          role: 'assistant',
+          content: 'I can see the image',
+        },
+      ]
+
+      const result = modelMessagesToUIMessages(modelMessages)
+      expect(result).toHaveLength(2)
+      expect(result[0]?.parts[0]).toEqual({
+        type: 'text',
+        content: 'Check this image: ',
+      })
+      expect(result[1]?.parts[0]).toEqual({
+        type: 'text',
+        content: 'I can see the image',
+      })
+    })
+
+    it('should handle document parts by extracting only text', () => {
+      const modelMessage: ModelMessage = {
+        role: 'user',
+        content: [
+          { type: 'text', text: 'Here is the document: ' },
+          {
+            type: 'document',
+            source: { type: 'data', value: 'pdf-base64' },
+            metadata: { media_type: 'application/pdf' },
+          },
+          { type: 'text', text: ' Please analyze it.' },
+        ] as Array<ContentPart>,
+      }
+
+      const result = modelMessageToUIMessage(modelMessage, 'msg-1')
+      expect(result.parts[0]).toEqual({
+        type: 'text',
+        content: 'Here is the document:  Please analyze it.',
+      })
     })
   })
 })

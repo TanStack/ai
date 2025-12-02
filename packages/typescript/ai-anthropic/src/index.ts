@@ -5,6 +5,15 @@ export {
   type AnthropicConfig,
 } from './anthropic-adapter'
 export type { AnthropicChatModelProviderOptionsByName } from './model-meta'
+export type {
+  AnthropicImageMetadata,
+  AnthropicDocumentMetadata,
+  AnthropicAudioMetadata,
+  AnthropicVideoMetadata,
+  AnthropicImageMediaType,
+  AnthropicDocumentMediaType,
+  AnthropicMessageMetadataByModality,
+} from './message-types'
 
 // Export tool conversion utilities
 export { convertToolsToProviderFormat } from './tools/tool-converter'

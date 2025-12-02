@@ -17,6 +17,7 @@ interface ModelMeta<
   name: string
   id: string
   supports: {
+    input: Array<'text' | 'image' | 'audio' | 'video' | 'document'>
     extended_thinking?: boolean
     priority_tier?: boolean
   }
@@ -60,18 +61,19 @@ const CLAUDE_SONNET_4_5 = {
     },
   },
   supports: {
+    input: ['text', 'image', 'document'],
     extended_thinking: true,
     priority_tier: true,
   },
 } as const satisfies ModelMeta<
   AnthropicContainerOptions &
-    AnthropicContextManagementOptions &
-    AnthropicMCPOptions &
-    AnthropicServiceTierOptions &
-    AnthropicStopSequencesOptions &
-    AnthropicThinkingOptions &
-    AnthropicToolChoiceOptions &
-    AnthropicSamplingOptions
+  AnthropicContextManagementOptions &
+  AnthropicMCPOptions &
+  AnthropicServiceTierOptions &
+  AnthropicStopSequencesOptions &
+  AnthropicThinkingOptions &
+  AnthropicToolChoiceOptions &
+  AnthropicSamplingOptions
 >
 
 const CLAUDE_HAIKU_4_5 = {
@@ -89,18 +91,19 @@ const CLAUDE_HAIKU_4_5 = {
     },
   },
   supports: {
+    input: ['text', 'image', 'document'],
     extended_thinking: true,
     priority_tier: true,
   },
 } as const satisfies ModelMeta<
   AnthropicContainerOptions &
-    AnthropicContextManagementOptions &
-    AnthropicMCPOptions &
-    AnthropicServiceTierOptions &
-    AnthropicStopSequencesOptions &
-    AnthropicThinkingOptions &
-    AnthropicToolChoiceOptions &
-    AnthropicSamplingOptions
+  AnthropicContextManagementOptions &
+  AnthropicMCPOptions &
+  AnthropicServiceTierOptions &
+  AnthropicStopSequencesOptions &
+  AnthropicThinkingOptions &
+  AnthropicToolChoiceOptions &
+  AnthropicSamplingOptions
 >
 
 const CLAUDE_OPUS_4_1 = {
@@ -118,18 +121,19 @@ const CLAUDE_OPUS_4_1 = {
     },
   },
   supports: {
+    input: ['text', 'image', 'document'],
     extended_thinking: true,
     priority_tier: true,
   },
 } as const satisfies ModelMeta<
   AnthropicContainerOptions &
-    AnthropicContextManagementOptions &
-    AnthropicMCPOptions &
-    AnthropicServiceTierOptions &
-    AnthropicStopSequencesOptions &
-    AnthropicThinkingOptions &
-    AnthropicToolChoiceOptions &
-    AnthropicSamplingOptions
+  AnthropicContextManagementOptions &
+  AnthropicMCPOptions &
+  AnthropicServiceTierOptions &
+  AnthropicStopSequencesOptions &
+  AnthropicThinkingOptions &
+  AnthropicToolChoiceOptions &
+  AnthropicSamplingOptions
 >
 
 const CLAUDE_OPUS_4_5 = {
@@ -147,18 +151,19 @@ const CLAUDE_OPUS_4_5 = {
     },
   },
   supports: {
+    input: ['text', 'image', 'document'],
     extended_thinking: true,
     priority_tier: true,
   },
 } as const satisfies ModelMeta<
   AnthropicContainerOptions &
-    AnthropicContextManagementOptions &
-    AnthropicMCPOptions &
-    AnthropicServiceTierOptions &
-    AnthropicStopSequencesOptions &
-    AnthropicThinkingOptions &
-    AnthropicToolChoiceOptions &
-    AnthropicSamplingOptions
+  AnthropicContextManagementOptions &
+  AnthropicMCPOptions &
+  AnthropicServiceTierOptions &
+  AnthropicStopSequencesOptions &
+  AnthropicThinkingOptions &
+  AnthropicToolChoiceOptions &
+  AnthropicSamplingOptions
 >
 
 const CLAUDE_SONNET_4 = {
@@ -176,18 +181,19 @@ const CLAUDE_SONNET_4 = {
     },
   },
   supports: {
+    input: ['text', 'image', 'document'],
     extended_thinking: true,
     priority_tier: true,
   },
 } as const satisfies ModelMeta<
   AnthropicContainerOptions &
-    AnthropicContextManagementOptions &
-    AnthropicMCPOptions &
-    AnthropicServiceTierOptions &
-    AnthropicStopSequencesOptions &
-    AnthropicThinkingOptions &
-    AnthropicToolChoiceOptions &
-    AnthropicSamplingOptions
+  AnthropicContextManagementOptions &
+  AnthropicMCPOptions &
+  AnthropicServiceTierOptions &
+  AnthropicStopSequencesOptions &
+  AnthropicThinkingOptions &
+  AnthropicToolChoiceOptions &
+  AnthropicSamplingOptions
 >
 
 const CLAUDE_SONNET_3_7 = {
@@ -204,18 +210,19 @@ const CLAUDE_SONNET_3_7 = {
     },
   },
   supports: {
+    input: ['text', 'image', 'document'],
     extended_thinking: true,
     priority_tier: true,
   },
 } as const satisfies ModelMeta<
   AnthropicContainerOptions &
-    AnthropicContextManagementOptions &
-    AnthropicMCPOptions &
-    AnthropicServiceTierOptions &
-    AnthropicStopSequencesOptions &
-    AnthropicThinkingOptions &
-    AnthropicToolChoiceOptions &
-    AnthropicSamplingOptions
+  AnthropicContextManagementOptions &
+  AnthropicMCPOptions &
+  AnthropicServiceTierOptions &
+  AnthropicStopSequencesOptions &
+  AnthropicThinkingOptions &
+  AnthropicToolChoiceOptions &
+  AnthropicSamplingOptions
 >
 
 const CLAUDE_OPUS_4 = {
@@ -233,18 +240,19 @@ const CLAUDE_OPUS_4 = {
     },
   },
   supports: {
+    input: ['text', 'image', 'document'],
     extended_thinking: true,
     priority_tier: true,
   },
 } as const satisfies ModelMeta<
   AnthropicContainerOptions &
-    AnthropicContextManagementOptions &
-    AnthropicMCPOptions &
-    AnthropicServiceTierOptions &
-    AnthropicStopSequencesOptions &
-    AnthropicThinkingOptions &
-    AnthropicToolChoiceOptions &
-    AnthropicSamplingOptions
+  AnthropicContextManagementOptions &
+  AnthropicMCPOptions &
+  AnthropicServiceTierOptions &
+  AnthropicStopSequencesOptions &
+  AnthropicThinkingOptions &
+  AnthropicToolChoiceOptions &
+  AnthropicSamplingOptions
 >
 
 const CLAUDE_HAIKU_3_5 = {
@@ -262,18 +270,19 @@ const CLAUDE_HAIKU_3_5 = {
     },
   },
   supports: {
+    input: ['text', 'image', 'document'],
     extended_thinking: false,
     priority_tier: true,
   },
 } as const satisfies ModelMeta<
   AnthropicContainerOptions &
-    AnthropicContextManagementOptions &
-    AnthropicMCPOptions &
-    AnthropicServiceTierOptions &
-    AnthropicStopSequencesOptions &
-    AnthropicThinkingOptions &
-    AnthropicToolChoiceOptions &
-    AnthropicSamplingOptions
+  AnthropicContextManagementOptions &
+  AnthropicMCPOptions &
+  AnthropicServiceTierOptions &
+  AnthropicStopSequencesOptions &
+  AnthropicThinkingOptions &
+  AnthropicToolChoiceOptions &
+  AnthropicSamplingOptions
 >
 
 const CLAUDE_HAIKU_3 = {
@@ -291,18 +300,19 @@ const CLAUDE_HAIKU_3 = {
     },
   },
   supports: {
+    input: ['text', 'image', 'document'],
     extended_thinking: false,
     priority_tier: false,
   },
 } as const satisfies ModelMeta<
   AnthropicContainerOptions &
-    AnthropicContextManagementOptions &
-    AnthropicMCPOptions &
-    AnthropicServiceTierOptions &
-    AnthropicStopSequencesOptions &
-    AnthropicThinkingOptions &
-    AnthropicToolChoiceOptions &
-    AnthropicSamplingOptions
+  AnthropicContextManagementOptions &
+  AnthropicMCPOptions &
+  AnthropicServiceTierOptions &
+  AnthropicStopSequencesOptions &
+  AnthropicThinkingOptions &
+  AnthropicToolChoiceOptions &
+  AnthropicSamplingOptions
 >
 
 /* const ANTHROPIC_MODEL_META = {
@@ -374,76 +384,99 @@ export const ANTHROPIC_MODELS = [
 export type AnthropicChatModelProviderOptionsByName = {
   // Models with both extended_thinking and priority_tier
   [CLAUDE_OPUS_4_5.id]: AnthropicContainerOptions &
-    AnthropicContextManagementOptions &
-    AnthropicMCPOptions &
-    AnthropicServiceTierOptions &
-    AnthropicStopSequencesOptions &
-    AnthropicThinkingOptions &
-    AnthropicToolChoiceOptions &
-    AnthropicSamplingOptions
+  AnthropicContextManagementOptions &
+  AnthropicMCPOptions &
+  AnthropicServiceTierOptions &
+  AnthropicStopSequencesOptions &
+  AnthropicThinkingOptions &
+  AnthropicToolChoiceOptions &
+  AnthropicSamplingOptions
   [CLAUDE_SONNET_4_5.id]: AnthropicContainerOptions &
-    AnthropicContextManagementOptions &
-    AnthropicMCPOptions &
-    AnthropicServiceTierOptions &
-    AnthropicStopSequencesOptions &
-    AnthropicThinkingOptions &
-    AnthropicToolChoiceOptions &
-    AnthropicSamplingOptions
+  AnthropicContextManagementOptions &
+  AnthropicMCPOptions &
+  AnthropicServiceTierOptions &
+  AnthropicStopSequencesOptions &
+  AnthropicThinkingOptions &
+  AnthropicToolChoiceOptions &
+  AnthropicSamplingOptions
   [CLAUDE_HAIKU_4_5.id]: AnthropicContainerOptions &
-    AnthropicContextManagementOptions &
-    AnthropicMCPOptions &
-    AnthropicServiceTierOptions &
-    AnthropicStopSequencesOptions &
-    AnthropicThinkingOptions &
-    AnthropicToolChoiceOptions &
-    AnthropicSamplingOptions
+  AnthropicContextManagementOptions &
+  AnthropicMCPOptions &
+  AnthropicServiceTierOptions &
+  AnthropicStopSequencesOptions &
+  AnthropicThinkingOptions &
+  AnthropicToolChoiceOptions &
+  AnthropicSamplingOptions
   [CLAUDE_OPUS_4_1.id]: AnthropicContainerOptions &
-    AnthropicContextManagementOptions &
-    AnthropicMCPOptions &
-    AnthropicServiceTierOptions &
-    AnthropicStopSequencesOptions &
-    AnthropicThinkingOptions &
-    AnthropicToolChoiceOptions &
-    AnthropicSamplingOptions
+  AnthropicContextManagementOptions &
+  AnthropicMCPOptions &
+  AnthropicServiceTierOptions &
+  AnthropicStopSequencesOptions &
+  AnthropicThinkingOptions &
+  AnthropicToolChoiceOptions &
+  AnthropicSamplingOptions
   [CLAUDE_SONNET_4.id]: AnthropicContainerOptions &
-    AnthropicContextManagementOptions &
-    AnthropicMCPOptions &
-    AnthropicServiceTierOptions &
-    AnthropicStopSequencesOptions &
-    AnthropicThinkingOptions &
-    AnthropicToolChoiceOptions &
-    AnthropicSamplingOptions
+  AnthropicContextManagementOptions &
+  AnthropicMCPOptions &
+  AnthropicServiceTierOptions &
+  AnthropicStopSequencesOptions &
+  AnthropicThinkingOptions &
+  AnthropicToolChoiceOptions &
+  AnthropicSamplingOptions
   [CLAUDE_SONNET_3_7.id]: AnthropicContainerOptions &
-    AnthropicContextManagementOptions &
-    AnthropicMCPOptions &
-    AnthropicServiceTierOptions &
-    AnthropicStopSequencesOptions &
-    AnthropicThinkingOptions &
-    AnthropicToolChoiceOptions &
-    AnthropicSamplingOptions
+  AnthropicContextManagementOptions &
+  AnthropicMCPOptions &
+  AnthropicServiceTierOptions &
+  AnthropicStopSequencesOptions &
+  AnthropicThinkingOptions &
+  AnthropicToolChoiceOptions &
+  AnthropicSamplingOptions
   [CLAUDE_OPUS_4.id]: AnthropicContainerOptions &
-    AnthropicContextManagementOptions &
-    AnthropicMCPOptions &
-    AnthropicServiceTierOptions &
-    AnthropicStopSequencesOptions &
-    AnthropicThinkingOptions &
-    AnthropicToolChoiceOptions &
-    AnthropicSamplingOptions
+  AnthropicContextManagementOptions &
+  AnthropicMCPOptions &
+  AnthropicServiceTierOptions &
+  AnthropicStopSequencesOptions &
+  AnthropicThinkingOptions &
+  AnthropicToolChoiceOptions &
+  AnthropicSamplingOptions
 
   // Model with priority_tier but NO extended_thinking
   [CLAUDE_HAIKU_3_5.id]: AnthropicContainerOptions &
-    AnthropicContextManagementOptions &
-    AnthropicMCPOptions &
-    AnthropicServiceTierOptions &
-    AnthropicStopSequencesOptions &
-    AnthropicToolChoiceOptions &
-    AnthropicSamplingOptions
+  AnthropicContextManagementOptions &
+  AnthropicMCPOptions &
+  AnthropicServiceTierOptions &
+  AnthropicStopSequencesOptions &
+  AnthropicToolChoiceOptions &
+  AnthropicSamplingOptions
 
   // Model with neither extended_thinking nor priority_tier
   [CLAUDE_HAIKU_3.id]: AnthropicContainerOptions &
-    AnthropicContextManagementOptions &
-    AnthropicMCPOptions &
-    AnthropicStopSequencesOptions &
-    AnthropicToolChoiceOptions &
-    AnthropicSamplingOptions
+  AnthropicContextManagementOptions &
+  AnthropicMCPOptions &
+  AnthropicStopSequencesOptions &
+  AnthropicToolChoiceOptions &
+  AnthropicSamplingOptions
+}
+
+/**
+ * Type-only map from chat model name to its supported input modalities.
+ * All Anthropic Claude models support text, image, and document (PDF) input.
+ * Used by the core AI types to constrain ContentPart types based on the selected model.
+ * Note: These must be inlined as readonly arrays (not typeof) because the model
+ * constants are not exported and typeof references don't work in .d.ts files
+ * when consumed by external packages.
+ *
+ * @see https://docs.anthropic.com/claude/docs/vision
+ * @see https://docs.anthropic.com/claude/docs/pdf-support
+ */
+export type AnthropicModelInputModalitiesByName = {
+  'claude-opus-4-5-20250514': typeof CLAUDE_OPUS_4_5.supports.input
+  'claude-sonnet-4-5-20250514': typeof CLAUDE_SONNET_4_5.supports.input
+  'claude-haiku-4-5-20250514': typeof CLAUDE_HAIKU_4_5.supports.input
+  'claude-opus-4-1-20250414': typeof CLAUDE_OPUS_4_1.supports.input
+  'claude-sonnet-4-20250514': typeof CLAUDE_SONNET_4.supports.input
+  'claude-3-7-sonnet-20250219': typeof CLAUDE_SONNET_3_7.supports.input
+  'claude-opus-4-20250514': typeof CLAUDE_OPUS_4.supports.input
+  'claude-3-5-haiku-20241022': typeof CLAUDE_HAIKU_3_5.supports.input
+  'claude-3-haiku-20240307': typeof CLAUDE_HAIKU_3.supports.input
 }

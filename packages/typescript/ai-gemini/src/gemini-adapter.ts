@@ -5,6 +5,7 @@ import { convertToolsToProviderFormat } from './tools/tool-converter'
 import type {
   AIAdapterConfig,
   ChatOptions,
+  ContentPart,
   EmbeddingOptions,
   EmbeddingResult,
   ModelMessage,
@@ -12,11 +13,15 @@ import type {
   SummarizationOptions,
   SummarizationResult,
 } from '@tanstack/ai'
-import type { GeminiChatModelProviderOptionsByName } from './model-meta'
+import type {
+  GeminiChatModelProviderOptionsByName,
+  GeminiModelInputModalitiesByName,
+} from './model-meta'
 import type { ExternalTextProviderOptions } from './text/text-provider-options'
 import type {
   GenerateContentParameters,
   GenerateContentResponse,
+  Part,
 } from '@google/genai'
 
 export interface GeminiAdapterConfig extends AIAdapterConfig {
@@ -35,12 +40,14 @@ export class GeminiAdapter extends BaseAdapter<
   typeof GEMINI_EMBEDDING_MODELS,
   GeminiProviderOptions,
   Record<string, any>,
-  GeminiChatModelProviderOptionsByName
+  GeminiChatModelProviderOptionsByName,
+  GeminiModelInputModalitiesByName
 > {
   name = 'gemini'
   models = GEMINI_MODELS
   embeddingModels = GEMINI_EMBEDDING_MODELS
   declare _modelProviderOptionsByName: GeminiChatModelProviderOptionsByName
+  declare _modelInputModalitiesByName: GeminiModelInputModalitiesByName
   private client: GoogleGenAI
 
   constructor(config: GeminiAdapterConfig) {
@@ -352,47 +359,80 @@ export class GeminiAdapter extends BaseAdapter<
           finishReason: toolCallMap.size > 0 ? 'tool_calls' : 'stop',
           usage: chunk.usageMetadata
             ? {
-                promptTokens: chunk.usageMetadata.promptTokenCount ?? 0,
-                completionTokens: chunk.usageMetadata.thoughtsTokenCount ?? 0,
-                totalTokens: chunk.usageMetadata.totalTokenCount ?? 0,
-              }
+              promptTokens: chunk.usageMetadata.promptTokenCount ?? 0,
+              completionTokens: chunk.usageMetadata.thoughtsTokenCount ?? 0,
+              totalTokens: chunk.usageMetadata.totalTokenCount ?? 0,
+            }
             : undefined,
         }
       }
     }
   }
 
-  private formatMessages(messages: Array<ModelMessage>): Array<{
-    role: 'user' | 'model'
-    parts: Array<{
-      text?: string
-      functionCall?: { name: string; args: Record<string, any> }
-      functionResponse?: { name: string; response: Record<string, any> }
-    }>
-  }> {
+  private convertContentPartToGemini(part: ContentPart): Part {
+    switch (part.type) {
+      case 'text':
+        return { text: part.text }
+      case 'image':
+      case 'audio':
+      case 'video':
+      case 'document': {
+        const metadata = part.metadata as { mimeType?: string } | undefined
+        // Gemini uses inlineData for base64 and fileData for URLs
+        if (part.source.type === 'data') {
+          return {
+            inlineData: {
+              data: part.source.value,
+              mimeType: metadata?.mimeType,
+            },
+          }
+        } else {
+          return {
+            fileData: {
+              fileUri: part.source.value,
+              mimeType: metadata?.mimeType,
+            },
+          }
+        }
+      }
+      default: {
+        // Exhaustive check - this should never happen with known types
+        const _exhaustiveCheck: never = part
+        throw new Error(
+          `Unsupported content part type: ${(_exhaustiveCheck as ContentPart).type}`,
+        )
+      }
+    }
+  }
+
+  private formatMessages(
+    messages: Array<ModelMessage>,
+  ): GenerateContentParameters['contents'] {
     return messages.map((msg) => {
       const role: 'user' | 'model' = msg.role === 'assistant' ? 'model' : 'user'
-      const parts: Array<{
-        text?: string
-        functionCall?: { name: string; args: Record<string, any> }
-        functionResponse?: { name: string; response: Record<string, any> }
-      }> = []
+      const parts: Array<Part> = []
 
-      // Add text content if present
-      if (msg.content) {
+      // Handle multimodal content (array of ContentPart)
+      if (Array.isArray(msg.content)) {
+        for (const contentPart of msg.content) {
+          parts.push(this.convertContentPartToGemini(contentPart))
+        }
+      } else if (msg.content) {
+        // Handle string content (backward compatibility)
         parts.push({ text: msg.content })
       }
 
       // Handle tool calls (from assistant)
       if (msg.role === 'assistant' && msg.toolCalls?.length) {
         for (const toolCall of msg.toolCalls) {
-          let parsedArgs: Record<string, any> = {}
+          let parsedArgs: Record<string, unknown> = {}
           try {
             parsedArgs = toolCall.function.arguments
               ? JSON.parse(toolCall.function.arguments)
               : {}
           } catch {
-            parsedArgs = toolCall.function.arguments as any
+            // If JSON parsing fails, wrap the raw arguments in an object
+            parsedArgs = { _raw: toolCall.function.arguments }
           }
 
           parts.push({
@@ -422,7 +462,6 @@ export class GeminiAdapter extends BaseAdapter<
       }
     })
   }
-
   /**
    * Maps common options to Gemini-specific format
    * Handles translation of normalized options to Gemini's API format

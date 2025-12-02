@@ -28,3 +28,6 @@ When modifying existing functionality, ensure backward compatibility unless ther
 When subscribing to an event using `aiEventClient.on` in the devtools packages, always add the option `{ withEventTarget: false }` as the second argument to prevent over-subscriptions in the devtools.
 
 Under no circumstances should casting `as any` be used in the codebase. Always strive to find or create the appropriate type definitions. Avoid casting unless absolutely neccessary, and even then, prefer using `satisfies` for type assertions to maintain type safety.
+
+Do not add ` Select-Object -Last X` at the end of PowerShell commands in the CI scripts. This can hide important error messages and make debugging more difficult and it also makes the
+process hang

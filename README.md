@@ -38,6 +38,7 @@
 A powerful, type-safe AI SDK for building AI-powered applications.
 
 - Provider-agnostic adapters (OpenAI, Anthropic, Gemini, Ollama, etc.)
+- **Multimodal content support** - Send images, audio, video, and documents
 - Chat completion, streaming, and agent loop strategies
 - Headless chat state management with adapters (SSE, HTTP stream, custom)
 - Isomorphic type-safe tools with server/client execution

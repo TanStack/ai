@@ -27,4 +27,5 @@ export {
 } from './utilities/agent-loop-strategies'
 export * from './types'
 export { chatOptions } from './utilities/chat-options'
+export { messages, assertMessages } from './utilities/messages'
 export { aiEventClient } from './event-client'

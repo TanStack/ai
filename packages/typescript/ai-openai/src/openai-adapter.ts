@@ -1,6 +1,9 @@
 import OpenAI_SDK from 'openai'
 import { BaseAdapter } from '@tanstack/ai'
-import { OPENAI_CHAT_MODELS, OPENAI_EMBEDDING_MODELS } from './model-meta'
+import {
+  OPENAI_CHAT_MODELS,
+  OPENAI_EMBEDDING_MODELS,
+} from './model-meta'
 import {
   convertMessagesToInput,
   validateTextProviderOptions,
@@ -14,7 +17,10 @@ import type {
   SummarizationOptions,
   SummarizationResult,
 } from '@tanstack/ai'
-import type { OpenAIChatModelProviderOptionsByName } from './model-meta'
+import type {
+  OpenAIChatModelProviderOptionsByName,
+  OpenAIModelInputModalitiesByName,
+} from './model-meta'
 import type {
   ExternalTextProviderOptions,
   InternalTextProviderOptions,
@@ -48,7 +54,8 @@ export class OpenAI extends BaseAdapter<
   typeof OPENAI_EMBEDDING_MODELS,
   OpenAIProviderOptions,
   OpenAIEmbeddingProviderOptions,
-  OpenAIChatModelProviderOptionsByName
+  OpenAIChatModelProviderOptionsByName,
+  OpenAIModelInputModalitiesByName
 > {
   name = 'openai' as const
   models = OPENAI_CHAT_MODELS
@@ -61,6 +68,9 @@ export class OpenAI extends BaseAdapter<
   // Using definite assignment assertion (!) since this is type-only.
   // @ts-ignore - We never assign this at runtime and it's only used for types
   _modelProviderOptionsByName: OpenAIChatModelProviderOptionsByName
+  // Type-only map for model input modalities; used for multimodal content type constraints
+  // @ts-ignore - We never assign this at runtime and it's only used for types
+  _modelInputModalitiesByName?: OpenAIModelInputModalitiesByName
 
   constructor(config: OpenAIConfig) {
     super({})
@@ -408,14 +418,14 @@ export class OpenAI extends BaseAdapter<
   private mapChatOptionsToOpenAI(options: ChatOptions) {
     const providerOptions = options.providerOptions as
       | Omit<
-          InternalTextProviderOptions,
-          | 'max_output_tokens'
-          | 'tools'
-          | 'metadata'
-          | 'temperature'
-          | 'input'
-          | 'top_p'
-        >
+        InternalTextProviderOptions,
+        | 'max_output_tokens'
+        | 'tools'
+        | 'metadata'
+        | 'temperature'
+        | 'input'
+        | 'top_p'
+      >
       | undefined
     const input = convertMessagesToInput(options.messages)
     if (providerOptions) {
