@@ -1,10 +1,12 @@
-# Stream Chunk Definitions
+---
+title: Chunk Definitions
+id: chunk-definitions
+---
+
+All streaming responses in TanStack AI consist of a series of **StreamChunks** - discrete JSON objects representing different events during the conversation. These chunks enable real-time updates for content generation, tool calls, errors, and completion signals. 
 
 This document defines the data structures (chunks) that flow between the TanStack AI server and client during streaming chat operations.
 
-## Overview
-
-All streaming responses in TanStack AI consist of a series of **StreamChunks** - discrete JSON objects representing different events during the conversation. These chunks enable real-time updates for content generation, tool calls, errors, and completion signals.
 
 ## Base Structure
 

@@ -1,8 +1,7 @@
-# HTTP Stream Protocol
-
-This document describes how TanStack AI transmits StreamChunks over raw HTTP streaming (newline-delimited JSON), an alternative to Server-Sent Events.
-
-## Overview
+---
+title: HTTP Stream Protocol
+id: http-stream-protocol
+---
 
 HTTP streaming with newline-delimited JSON (NDJSON) is a simpler protocol than SSE that sends one JSON object per line. It's useful when:
 
@@ -12,6 +11,8 @@ HTTP streaming with newline-delimited JSON (NDJSON) is a simpler protocol than S
 - Building custom protocols on top of the stream
 
 This protocol is **less common** than SSE for TanStack AI applications, but supported for flexibility.
+
+This document describes how TanStack AI transmits StreamChunks over raw HTTP streaming (newline-delimited JSON), an alternative to Server-Sent Events.
 
 ---
 

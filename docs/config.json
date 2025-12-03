@@ -27,6 +27,10 @@
           "to": "guides/tools"
         },
         {
+          "label": "Tool Architecture",
+          "to": "guides/tool-architecture"
+        },
+        {
           "label": "Server Tools",
           "to": "guides/server-tools"
         },
@@ -47,8 +51,16 @@
           "to": "guides/streaming"
         },
         {
+          "label": "Multimodal Content",
+          "to": "guides/multimodal-content"
+        },
+        {
           "label": "Connection Adapters",
           "to": "guides/connection-adapters"
+        }
+        {
+          "label": "Per-Model Type Safety",
+          "to": "guides/per-model-type-safety"
         }
       ]
     },

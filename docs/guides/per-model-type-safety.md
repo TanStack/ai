@@ -1,6 +1,7 @@
-# Per-Model Provider Options Type Safety
-
-## Overview
+---
+title: Per-Model Type Safety
+id: per-model-type-safety
+---
 
 The AI SDK now provides **model-specific type safety** for `providerOptions`. Each model's capabilities (defined in `model-meta.ts`) determine which provider options are allowed, and TypeScript will enforce this at compile time.
 

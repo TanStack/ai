@@ -1,6 +1,6 @@
 ---
-title: How Tools Work
-id: how-tools-work
+title: Tool Architecture
+id: tool-architecture
 ---
 
 The TanStack AI tool system provides a powerful, flexible architecture for enabling AI agents to interact with external systems:
@@ -198,8 +198,6 @@ function ChatComponent() {
 }
 ```
 
-## Advanced Patterns
-
 ### Approval Flow
 
 For sensitive operations, tools can require user approval before execution:
@@ -384,3 +382,4 @@ All execute simultaneously, then LLM generates comparison.
 - [Client Tools](./client-tools.md) - Deep dive into client-side tools
 - [Tool Approval Flow](./tool-approval.md) - Implementing approval workflows
 - [Stream Chunk Definitions](../protocol/chunk-definitions.md) - Understanding the streaming protocol
+

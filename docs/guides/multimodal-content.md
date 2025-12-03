@@ -5,8 +5,6 @@ id: multimodal-content
 
 TanStack AI supports multimodal content in messages, allowing you to send images, audio, video, and documents alongside text to AI models that support these modalities.
 
-## Overview
-
 When sending messages to AI models, you can include different types of content:
 - **Text** - Plain text messages
 - **Images** - JPEG, PNG, GIF, WebP images

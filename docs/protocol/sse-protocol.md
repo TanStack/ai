@@ -1,8 +1,7 @@
-# Server-Sent Events (SSE) Protocol
-
-This document describes how TanStack AI transmits StreamChunks over Server-Sent Events (SSE), the recommended protocol for most use cases.
-
-## Overview
+---
+title: Server-Sent Events (SSE) Protocol
+id: sse-protocol
+---
 
 Server-Sent Events (SSE) is a standard HTTP-based protocol for server-to-client streaming. It provides:
 
@@ -12,7 +11,7 @@ Server-Sent Events (SSE) is a standard HTTP-based protocol for server-to-client 
 - ✅ **Wide support** - Works in all modern browsers
 - ✅ **Efficient** - Single long-lived HTTP connection
 
----
+This document describes how TanStack AI transmits StreamChunks over Server-Sent Events (SSE), the recommended protocol for most use cases.
 
 ## Protocol Specification
 

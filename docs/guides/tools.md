@@ -1,8 +1,9 @@
-# Tools
+---
+title: Tools
+id: tools
+---
 
 Tools (also called "function calling") allow AI models to interact with external systems, APIs, or perform computations. TanStack AI provides an isomorphic tool system that enables type-safe, framework-agnostic tool definitions that work on both server and client.
-
-## Overview
 
 Tools enable your AI application to:
 
