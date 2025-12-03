@@ -287,7 +287,7 @@ export class Ollama extends BaseAdapter<
       if (Array.isArray(msg.content)) {
         for (const part of msg.content) {
           if (part.type === 'text') {
-            textContent += part.text
+            textContent += part.content
           } else if (part.type === 'image') {
             // Ollama accepts base64 strings for images
             if (part.source.type === 'data') {

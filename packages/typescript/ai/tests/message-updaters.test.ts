@@ -1,15 +1,15 @@
-import { describe, it, expect } from 'vitest'
+import { describe, expect, it } from 'vitest'
 import {
   updateTextPart,
-  updateToolCallPart,
-  updateToolResultPart,
+  updateThinkingPart,
   updateToolCallApproval,
+  updateToolCallApprovalResponse,
+  updateToolCallPart,
   updateToolCallState,
   updateToolCallWithOutput,
-  updateToolCallApprovalResponse,
-  updateThinkingPart,
+  updateToolResultPart,
 } from '../src/stream/message-updaters'
-import type { UIMessage, ToolCallPart } from '../src/types'
+import type { ToolCallPart, UIMessage } from '../src/types'
 
 // Helper to create a test message
 function createMessage(

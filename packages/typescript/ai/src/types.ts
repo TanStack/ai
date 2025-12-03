@@ -44,14 +44,7 @@ export interface ContentPartSource {
   value: string
 }
 
-/**
- * Text content part for multimodal messages.
- */
-export interface TextPart {
-  type: 'text'
-  /** The text content */
-  text: string
-}
+
 
 /**
  * Image content part for multimodal messages.

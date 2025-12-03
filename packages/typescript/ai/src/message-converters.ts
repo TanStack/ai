@@ -4,14 +4,14 @@
  * Functions for converting between UIMessage and ModelMessage formats.
  */
 
-import type { ContentPart, } from '@tanstack/ai'
 import type {
+  ContentPart,
   MessagePart,
   ModelMessage,
   TextPart,
   ToolCallPart,
   ToolResultPart,
-  UIMessage,
+  UIMessage
 } from './types'
 
 /**
@@ -28,9 +28,9 @@ function getTextContent(content: string | null | Array<ContentPart>): string {
   // Extract text from ContentPart array
   return content
     .filter(
-      (part): part is { type: 'text'; text: string } => part.type === 'text',
+      (part) => part.type === 'text',
     )
-    .map((part) => part.text)
+    .map((part) => part.content)
     .join('')
 }
 

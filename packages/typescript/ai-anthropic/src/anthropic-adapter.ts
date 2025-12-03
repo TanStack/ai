@@ -48,8 +48,8 @@ export type AnthropicProviderOptions = ExternalTextProviderOptions
 
 type AnthropicContentBlocks =
   Extract<MessageParam['content'], Array<unknown>> extends Array<infer Block>
-    ? Array<Block>
-    : never
+  ? Array<Block>
+  : never
 type AnthropicContentBlock =
   AnthropicContentBlocks extends Array<infer Block> ? Block : never
 
@@ -220,9 +220,9 @@ export class Anthropic extends BaseAdapter<
           const value = providerOptions[key]
           // Anthropic expects tool_choice to be an object, not a string
           if (key === 'tool_choice' && typeof value === 'string') {
-            ;(validProviderOptions as any)[key] = { type: value }
+            ; (validProviderOptions as any)[key] = { type: value }
           } else {
-            ;(validProviderOptions as any)[key] = value
+            ; (validProviderOptions as any)[key] = value
           }
         }
       }
@@ -260,21 +260,21 @@ export class Anthropic extends BaseAdapter<
       case 'text':
         return {
           type: 'text',
-          text: part.text,
+          text: part.content,
         }
       case 'image': {
-        const metadata = part.metadata as AnthropicImageMetadata | undefined
+        const metadata = part.metadata as any as AnthropicImageMetadata | undefined
         const imageSource: Base64ImageSource | URLImageSource =
           part.source.type === 'data'
             ? {
-                type: 'base64',
-                data: part.source.value,
-                media_type: metadata?.mediaType ?? 'image/jpeg',
-              }
+              type: 'base64',
+              data: part.source.value,
+              media_type: metadata?.mediaType ?? 'image/jpeg',
+            }
             : {
-                type: 'url',
-                url: part.source.value,
-              }
+              type: 'url',
+              url: part.source.value,
+            }
         return {
           type: 'image',
           source: imageSource,
@@ -284,14 +284,14 @@ export class Anthropic extends BaseAdapter<
         const docSource: Base64PDFSource | URLPDFSource =
           part.source.type === 'data'
             ? {
-                type: 'base64',
-                data: part.source.value,
-                media_type: 'application/pdf',
-              }
+              type: 'base64',
+              data: part.source.value,
+              media_type: 'application/pdf',
+            }
             : {
-                type: 'url',
-                url: part.source.value,
-              }
+              type: 'url',
+              url: part.source.value,
+            }
         return {
           type: 'document',
           source: docSource,
@@ -395,8 +395,8 @@ export class Anthropic extends BaseAdapter<
             ? message.content
             : message.content
               ? message.content.map((c) =>
-                  this.convertContentPartToAnthropic(c),
-                )
+                this.convertContentPartToAnthropic(c),
+              )
               : '',
       })
     }

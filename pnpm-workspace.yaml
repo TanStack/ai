@@ -3,5 +3,6 @@ linkWorkspacePackages: true
 preferWorkspacePackages: true
 
 packages:
-  - 'packages/typescript/*'
-  - 'examples/*'
+  - "packages/typescript/*"
+  - "packages/typescript/smoke-tests/*"
+  - "examples/*"

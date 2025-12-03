@@ -471,14 +471,14 @@ export class OpenAI extends BaseAdapter<
   private mapChatOptionsToOpenAI(options: ChatOptions) {
     const providerOptions = options.providerOptions as
       | Omit<
-          InternalTextProviderOptions,
-          | 'max_output_tokens'
-          | 'tools'
-          | 'metadata'
-          | 'temperature'
-          | 'input'
-          | 'top_p'
-        >
+        InternalTextProviderOptions,
+        | 'max_output_tokens'
+        | 'tools'
+        | 'metadata'
+        | 'temperature'
+        | 'input'
+        | 'top_p'
+      >
       | undefined
     const input = this.convertMessagesToInput(options.messages)
     if (providerOptions) {
@@ -612,7 +612,7 @@ export class OpenAI extends BaseAdapter<
       case 'text':
         return {
           type: 'input_text',
-          text: part.text,
+          text: part.content,
         }
       case 'image': {
         const imageMetadata = part.metadata
@@ -661,7 +661,7 @@ export class OpenAI extends BaseAdapter<
       return []
     }
     if (typeof content === 'string') {
-      return [{ type: 'text', text: content }]
+      return [{ type: 'text', content: content }]
     }
     return content
   }
@@ -680,8 +680,8 @@ export class OpenAI extends BaseAdapter<
     }
     // It's an array of ContentPart
     return content
-      .filter((p): p is { type: 'text'; text: string } => p.type === 'text')
-      .map((p) => p.text)
+      .filter((p) => p.type === 'text')
+      .map((p) => p.content)
       .join('')
   }
 }

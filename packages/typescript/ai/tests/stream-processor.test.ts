@@ -275,7 +275,7 @@ describe('StreamProcessor (Unified)', () => {
     it('should record chunks when recording is enabled', async () => {
       const processor = new StreamProcessor({ recording: true })
 
-      const chunks: StreamChunk[] = [
+      const chunks: Array<StreamChunk> = [
         {
           type: 'content',
           id: 'msg-1',
@@ -306,7 +306,7 @@ describe('StreamProcessor (Unified)', () => {
     it('should replay a recording and produce the same result', async () => {
       // First, create a recording
       const processor1 = new StreamProcessor({ recording: true })
-      const chunks: StreamChunk[] = [
+      const chunks: Array<StreamChunk> = [
         {
           type: 'content',
           id: 'msg-1',
@@ -531,7 +531,7 @@ describe('StreamProcessor (Unified)', () => {
     })
 
     it('should initialize with provided messages', () => {
-      const initialMessages: UIMessage[] = [
+      const initialMessages: Array<UIMessage> = [
         {
           id: 'msg-1',
           role: 'user',
@@ -761,7 +761,7 @@ describe('StreamProcessor (Unified)', () => {
     it('should set messages manually', () => {
       const processor = new StreamProcessor({})
 
-      const newMessages: UIMessage[] = [
+      const newMessages: Array<UIMessage> = [
         {
           id: 'msg-1',
           role: 'user',
