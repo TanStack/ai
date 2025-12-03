@@ -1,7 +1,7 @@
 import { createFileRoute } from '@tanstack/react-router'
 import { chat, maxIterations, toStreamResponse } from '@tanstack/ai'
 import { openai } from '@tanstack/ai-openai'
-import { ollama } from "@tanstack/ai-ollama";
+import { ollama } from '@tanstack/ai-ollama'
 // import { anthropic } from '@tanstack/ai-anthropic'
 // import { gemini } from "@tanstack/ai-gemini";
 import {
@@ -63,7 +63,7 @@ export const Route = createFileRoute('/api/tanchat')({
         try {
           const stream = chat({
             adapter: ollama(),
-            model: "gpt-oss:20b",
+            model: 'gpt-oss:20b',
             tools: [
               getGuitars.server, // Server function tool
               recommendGuitarToolDef, // No server execute - client will handle
