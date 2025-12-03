@@ -44,8 +44,6 @@ export interface ContentPartSource {
   value: string
 }
 
-
-
 /**
  * Image content part for multimodal messages.
  * @template TMetadata - Provider-specific metadata type (e.g., OpenAI's detail level)

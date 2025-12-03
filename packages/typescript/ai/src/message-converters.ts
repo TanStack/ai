@@ -11,7 +11,7 @@ import type {
   TextPart,
   ToolCallPart,
   ToolResultPart,
-  UIMessage
+  UIMessage,
 } from './types'
 
 /**
@@ -27,9 +27,7 @@ function getTextContent(content: string | null | Array<ContentPart>): string {
   }
   // Extract text from ContentPart array
   return content
-    .filter(
-      (part) => part.type === 'text',
-    )
+    .filter((part) => part.type === 'text')
     .map((part) => part.content)
     .join('')
 }
@@ -96,20 +94,20 @@ export function uiMessageToModelMessages(
   const toolCalls =
     toolCallParts.length > 0
       ? toolCallParts
-        .filter(
-          (p) =>
-            p.state === 'input-complete' ||
-            p.state === 'approval-responded' ||
-            p.output !== undefined, // Include if has output (client tool result)
-        )
-        .map((p) => ({
-          id: p.id,
-          type: 'function' as const,
-          function: {
-            name: p.name,
-            arguments: p.arguments,
-          },
-        }))
+          .filter(
+            (p) =>
+              p.state === 'input-complete' ||
+              p.state === 'approval-responded' ||
+              p.output !== undefined, // Include if has output (client tool result)
+          )
+          .map((p) => ({
+            id: p.id,
+            type: 'function' as const,
+            function: {
+              name: p.name,
+              arguments: p.arguments,
+            },
+          }))
       : undefined
 
   // Create the main message

@@ -9,7 +9,7 @@ title: modelMessagesToUIMessages
 function modelMessagesToUIMessages(modelMessages): UIMessage[];
 ```
 
-Defined in: [message-converters.ts:213](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/message-converters.ts#L213)
+Defined in: [message-converters.ts:211](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/message-converters.ts#L211)
 
 Convert an array of ModelMessages to UIMessages
 
