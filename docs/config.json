@@ -105,6 +105,432 @@
           "to": "adapters/ollama"
         }
       ]
+    },
+    {
+      "label": "Class References",
+      "defaultCollapsed": true,
+      "children": [
+        {
+          "label": "BaseAdapter",
+          "to": "reference/classes/BaseAdapter.md"
+        },
+        {
+          "label": "BatchStrategy",
+          "to": "reference/classes/BatchStrategy.md"
+        },
+        {
+          "label": "CompositeStrategy",
+          "to": "reference/classes/CompositeStrategy.md"
+        },
+        {
+          "label": "ImmediateStrategy",
+          "to": "reference/classes/ImmediateStrategy.md"
+        },
+        {
+          "label": "PartialJSONParser",
+          "to": "reference/classes/PartialJSONParser.md"
+        },
+        {
+          "label": "PunctuationStrategy",
+          "to": "reference/classes/PunctuationStrategy.md"
+        },
+        {
+          "label": "StreamProcessor",
+          "to": "reference/classes/StreamProcessor.md"
+        },
+        {
+          "label": "ToolCallManager",
+          "to": "reference/classes/ToolCallManager.md"
+        },
+        {
+          "label": "WordBoundaryStrategy",
+          "to": "reference/classes/WordBoundaryStrategy.md"
+        }
+      ]
+    },
+    {
+      "label": "Function References",
+      "defaultCollapsed": true,
+      "children": [
+        {
+          "label": "chat",
+          "to": "reference/functions/chat.md"
+        },
+        {
+          "label": "chatOptions",
+          "to": "reference/functions/chatOptions.md"
+        },
+        {
+          "label": "combineStrategies",
+          "to": "reference/functions/combineStrategies.md"
+        },
+        {
+          "label": "convertMessagesToModelMessages",
+          "to": "reference/functions/convertMessagesToModelMessages.md"
+        },
+        {
+          "label": "convertZodToJsonSchema",
+          "to": "reference/functions/convertZodToJsonSchema.md"
+        },
+        {
+          "label": "createReplayStream",
+          "to": "reference/functions/createReplayStream.md"
+        },
+        {
+          "label": "embedding",
+          "to": "reference/functions/embedding.md"
+        },
+        {
+          "label": "generateMessageId",
+          "to": "reference/functions/generateMessageId.md"
+        },
+        {
+          "label": "maxIterations",
+          "to": "reference/functions/maxIterations.md"
+        },
+        {
+          "label": "messages",
+          "to": "reference/functions/messages.md"
+        },
+        {
+          "label": "modelMessageToUIMessage",
+          "to": "reference/functions/modelMessageToUIMessage.md"
+        },
+        {
+          "label": "modelMessagesToUIMessages",
+          "to": "reference/functions/modelMessagesToUIMessages.md"
+        },
+        {
+          "label": "normalizeToUIMessage",
+          "to": "reference/functions/normalizeToUIMessage.md"
+        },
+        {
+          "label": "parsePartialJSON",
+          "to": "reference/functions/parsePartialJSON.md"
+        },
+        {
+          "label": "summarize",
+          "to": "reference/functions/summarize.md"
+        },
+        {
+          "label": "toServerSentEventsStream",
+          "to": "reference/functions/toServerSentEventsStream.md"
+        },
+        {
+          "label": "toStreamResponse",
+          "to": "reference/functions/toStreamResponse.md"
+        },
+        {
+          "label": "toolDefinition",
+          "to": "reference/functions/toolDefinition.md"
+        },
+        {
+          "label": "uiMessageToModelMessages",
+          "to": "reference/functions/uiMessageToModelMessages.md"
+        },
+        {
+          "label": "untilFinishReason",
+          "to": "reference/functions/untilFinishReason.md"
+        }
+      ]
+    },
+    {
+      "label": "Interface References",
+      "defaultCollapsed": true,
+      "children": [
+        {
+          "label": "AIAdapter",
+          "to": "reference/interfaces/AIAdapter.md"
+        },
+        {
+          "label": "AIAdapterConfig",
+          "to": "reference/interfaces/AIAdapterConfig.md"
+        },
+        {
+          "label": "AgentLoopState",
+          "to": "reference/interfaces/AgentLoopState.md"
+        },
+        {
+          "label": "ApprovalRequestedStreamChunk",
+          "to": "reference/interfaces/ApprovalRequestedStreamChunk.md"
+        },
+        {
+          "label": "AudioPart",
+          "to": "reference/interfaces/AudioPart.md"
+        },
+        {
+          "label": "BaseStreamChunk",
+          "to": "reference/interfaces/BaseStreamChunk.md"
+        },
+        {
+          "label": "ChatCompletionChunk",
+          "to": "reference/interfaces/ChatCompletionChunk.md"
+        },
+        {
+          "label": "ChatOptions",
+          "to": "reference/interfaces/ChatOptions.md"
+        },
+        {
+          "label": "ChunkRecording",
+          "to": "reference/interfaces/ChunkRecording.md"
+        },
+        {
+          "label": "ChunkStrategy",
+          "to": "reference/interfaces/ChunkStrategy.md"
+        },
+        {
+          "label": "ClientTool",
+          "to": "reference/interfaces/ClientTool.md"
+        },
+        {
+          "label": "ContentPartSource",
+          "to": "reference/interfaces/ContentPartSource.md"
+        },
+        {
+          "label": "ContentStreamChunk",
+          "to": "reference/interfaces/ContentStreamChunk.md"
+        },
+        {
+          "label": "DefaultMessageMetadataByModality",
+          "to": "reference/interfaces/DefaultMessageMetadataByModality.md"
+        },
+        {
+          "label": "DocumentPart",
+          "to": "reference/interfaces/DocumentPart.md"
+        },
+        {
+          "label": "DoneStreamChunk",
+          "to": "reference/interfaces/DoneStreamChunk.md"
+        },
+        {
+          "label": "EmbeddingOptions",
+          "to": "reference/interfaces/EmbeddingOptions.md"
+        },
+        {
+          "label": "EmbeddingResult",
+          "to": "reference/interfaces/EmbeddingResult.md"
+        },
+        {
+          "label": "ErrorStreamChunk",
+          "to": "reference/interfaces/ErrorStreamChunk.md"
+        },
+        {
+          "label": "ImagePart",
+          "to": "reference/interfaces/ImagePart.md"
+        },
+        {
+          "label": "InternalToolCallState",
+          "to": "reference/interfaces/InternalToolCallState.md"
+        },
+        {
+          "label": "JSONParser",
+          "to": "reference/interfaces/JSONParser.md"
+        },
+        {
+          "label": "ModelMessage",
+          "to": "reference/interfaces/ModelMessage.md"
+        },
+        {
+          "label": "ProcessorResult",
+          "to": "reference/interfaces/ProcessorResult.md"
+        },
+        {
+          "label": "ProcessorState",
+          "to": "reference/interfaces/ProcessorState.md"
+        },
+        {
+          "label": "ResponseFormat",
+          "to": "reference/interfaces/ResponseFormat.md"
+        },
+        {
+          "label": "ServerTool",
+          "to": "reference/interfaces/ServerTool.md"
+        },
+        {
+          "label": "StreamProcessorEvents",
+          "to": "reference/interfaces/StreamProcessorEvents.md"
+        },
+        {
+          "label": "StreamProcessorHandlers",
+          "to": "reference/interfaces/StreamProcessorHandlers.md"
+        },
+        {
+          "label": "StreamProcessorOptions",
+          "to": "reference/interfaces/StreamProcessorOptions.md"
+        },
+        {
+          "label": "SummarizationOptions",
+          "to": "reference/interfaces/SummarizationOptions.md"
+        },
+        {
+          "label": "SummarizationResult",
+          "to": "reference/interfaces/SummarizationResult.md"
+        },
+        {
+          "label": "TextPart",
+          "to": "reference/interfaces/TextPart.md"
+        },
+        {
+          "label": "ThinkingPart",
+          "to": "reference/interfaces/ThinkingPart.md"
+        },
+        {
+          "label": "ThinkingStreamChunk",
+          "to": "reference/interfaces/ThinkingStreamChunk.md"
+        },
+        {
+          "label": "Tool",
+          "to": "reference/interfaces/Tool.md"
+        },
+        {
+          "label": "ToolCall",
+          "to": "reference/interfaces/ToolCall.md"
+        },
+        {
+          "label": "ToolCallPart",
+          "to": "reference/interfaces/ToolCallPart.md"
+        },
+        {
+          "label": "ToolCallStreamChunk",
+          "to": "reference/interfaces/ToolCallStreamChunk.md"
+        },
+        {
+          "label": "ToolConfig",
+          "to": "reference/interfaces/ToolConfig.md"
+        },
+        {
+          "label": "ToolDefinition",
+          "to": "reference/interfaces/ToolDefinition.md"
+        },
+        {
+          "label": "ToolDefinitionConfig",
+          "to": "reference/interfaces/ToolDefinitionConfig.md"
+        },
+        {
+          "label": "ToolDefinitionInstance",
+          "to": "reference/interfaces/ToolDefinitionInstance.md"
+        },
+        {
+          "label": "ToolInputAvailableStreamChunk",
+          "to": "reference/interfaces/ToolInputAvailableStreamChunk.md"
+        },
+        {
+          "label": "ToolResultPart",
+          "to": "reference/interfaces/ToolResultPart.md"
+        },
+        {
+          "label": "ToolResultStreamChunk",
+          "to": "reference/interfaces/ToolResultStreamChunk.md"
+        },
+        {
+          "label": "UIMessage",
+          "to": "reference/interfaces/UIMessage.md"
+        },
+        {
+          "label": "VideoPart",
+          "to": "reference/interfaces/VideoPart.md"
+        }
+      ]
+    },
+    {
+      "label": "Type Alias References",
+      "defaultCollapsed": true,
+      "children": [
+        {
+          "label": "AgentLoopStrategy",
+          "to": "reference/type-aliases/AgentLoopStrategy.md"
+        },
+        {
+          "label": "AnyClientTool",
+          "to": "reference/type-aliases/AnyClientTool.md"
+        },
+        {
+          "label": "ChatStreamOptionsForModel",
+          "to": "reference/type-aliases/ChatStreamOptionsForModel.md"
+        },
+        {
+          "label": "ChatStreamOptionsUnion",
+          "to": "reference/type-aliases/ChatStreamOptionsUnion.md"
+        },
+        {
+          "label": "ConstrainedContent",
+          "to": "reference/type-aliases/ConstrainedContent.md"
+        },
+        {
+          "label": "ConstrainedModelMessage",
+          "to": "reference/type-aliases/ConstrainedModelMessage.md"
+        },
+        {
+          "label": "ContentPart",
+          "to": "reference/type-aliases/ContentPart.md"
+        },
+        {
+          "label": "ContentPartForModalities",
+          "to": "reference/type-aliases/ContentPartForModalities.md"
+        },
+        {
+          "label": "ExtractModalitiesForModel",
+          "to": "reference/type-aliases/ExtractModalitiesForModel.md"
+        },
+        {
+          "label": "ExtractModelsFromAdapter",
+          "to": "reference/type-aliases/ExtractModelsFromAdapter.md"
+        },
+        {
+          "label": "InferToolInput",
+          "to": "reference/type-aliases/InferToolInput.md"
+        },
+        {
+          "label": "InferToolName",
+          "to": "reference/type-aliases/InferToolName.md"
+        },
+        {
+          "label": "InferToolOutput",
+          "to": "reference/type-aliases/InferToolOutput.md"
+        },
+        {
+          "label": "MessagePart",
+          "to": "reference/type-aliases/MessagePart.md"
+        },
+        {
+          "label": "ModalitiesArrayToUnion",
+          "to": "reference/type-aliases/ModalitiesArrayToUnion.md"
+        },
+        {
+          "label": "Modality",
+          "to": "reference/type-aliases/Modality.md"
+        },
+        {
+          "label": "StreamChunk",
+          "to": "reference/type-aliases/StreamChunk.md"
+        },
+        {
+          "label": "StreamChunkType",
+          "to": "reference/type-aliases/StreamChunkType.md"
+        },
+        {
+          "label": "ToolCallState",
+          "to": "reference/type-aliases/ToolCallState.md"
+        },
+        {
+          "label": "ToolResultState",
+          "to": "reference/type-aliases/ToolResultState.md"
+        }
+      ]
+    },
+    {
+      "label": "Variable References",
+      "defaultCollapsed": true,
+      "children": [
+        {
+          "label": "aiEventClient",
+          "to": "reference/variables/aiEventClient.md"
+        },
+        {
+          "label": "defaultJSONParser",
+          "to": "reference/variables/defaultJSONParser.md"
+        }
+      ]
     }
   ]
 }
