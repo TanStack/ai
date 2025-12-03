@@ -12,7 +12,7 @@ export {
   type InferToolName,
   type InferToolInput,
   type InferToolOutput,
-} from './tools/tool-factory'
+} from './tools/tool-definition'
 export { convertZodToJsonSchema } from './tools/zod-converter'
 export {
   toServerSentEventsStream,
@@ -29,3 +29,40 @@ export * from './types'
 export { chatOptions } from './utilities/chat-options'
 export { messages } from './utilities/messages'
 export { aiEventClient } from './event-client'
+
+// Message converters
+export {
+  convertMessagesToModelMessages,
+  uiMessageToModelMessages,
+  modelMessageToUIMessage,
+  modelMessagesToUIMessages,
+  normalizeToUIMessage,
+  generateMessageId,
+} from './message-converters'
+
+// Stream processing (unified for server and client)
+export {
+  StreamProcessor,
+  createReplayStream,
+  ImmediateStrategy,
+  PunctuationStrategy,
+  BatchStrategy,
+  WordBoundaryStrategy,
+  CompositeStrategy,
+  PartialJSONParser,
+  defaultJSONParser,
+  parsePartialJSON,
+} from './stream'
+export type {
+  ChunkStrategy,
+  ChunkRecording,
+  InternalToolCallState,
+  ProcessorResult,
+  ProcessorState,
+  StreamProcessorEvents,
+  StreamProcessorHandlers,
+  StreamProcessorOptions,
+  ToolCallState,
+  ToolResultState,
+  JSONParser,
+} from './stream'

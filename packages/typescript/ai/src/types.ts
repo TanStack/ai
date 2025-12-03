@@ -1,5 +1,6 @@
 import type { CommonOptions } from './core/chat-common-options'
 import type { z } from 'zod'
+import type { ToolCallState, ToolResultState } from './stream/types'
 
 export interface ToolCall {
   id: string
@@ -41,15 +42,6 @@ export interface ContentPartSource {
    * - For 'url': HTTP(S) URL or data URI
    */
   value: string
-}
-
-/**
- * Text content part for multimodal messages.
- */
-export interface TextPart {
-  type: 'text'
-  /** The text content */
-  text: string
 }
 
 /**
@@ -177,6 +169,59 @@ export interface ModelMessage<
   toolCallId?: string
 }
 
+/**
+ * Message parts - building blocks of UIMessage
+ */
+export interface TextPart {
+  type: 'text'
+  content: string
+}
+
+export interface ToolCallPart {
+  type: 'tool-call'
+  id: string
+  name: string
+  arguments: string // JSON string (may be incomplete)
+  state: ToolCallState
+  /** Approval metadata if tool requires user approval */
+  approval?: {
+    id: string // Unique approval ID
+    needsApproval: boolean // Always true if present
+    approved?: boolean // User's decision (undefined until responded)
+  }
+  /** Tool execution output (for client tools or after approval) */
+  output?: any
+}
+
+export interface ToolResultPart {
+  type: 'tool-result'
+  toolCallId: string
+  content: string
+  state: ToolResultState
+  error?: string // Error message if state is "error"
+}
+
+export interface ThinkingPart {
+  type: 'thinking'
+  content: string
+}
+
+export type MessagePart =
+  | TextPart
+  | ToolCallPart
+  | ToolResultPart
+  | ThinkingPart
+
+/**
+ * UIMessage - Domain-specific message format optimized for building chat UIs
+ * Contains parts that can be text, tool calls, or tool results
+ */
+export interface UIMessage {
+  id: string
+  role: 'system' | 'user' | 'assistant'
+  parts: Array<MessagePart>
+  createdAt?: Date
+}
 /**
  * A ModelMessage with content constrained to only allow content parts
  * matching the specified input modalities.

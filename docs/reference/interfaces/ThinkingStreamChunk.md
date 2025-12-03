@@ -5,7 +5,7 @@ title: ThinkingStreamChunk
 
 # Interface: ThinkingStreamChunk
 
-Defined in: [types.ts:534](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L534)
+Defined in: [types.ts:579](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L579)
 
 ## Extends
 
@@ -19,7 +19,7 @@ Defined in: [types.ts:534](https://github.com/TanStack/ai/blob/main/packages/typ
 content: string;
 ```
 
-Defined in: [types.ts:537](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L537)
+Defined in: [types.ts:582](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L582)
 
 ***
 
@@ -29,7 +29,7 @@ Defined in: [types.ts:537](https://github.com/TanStack/ai/blob/main/packages/typ
 optional delta: string;
 ```
 
-Defined in: [types.ts:536](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L536)
+Defined in: [types.ts:581](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L581)
 
 ***
 
@@ -39,7 +39,7 @@ Defined in: [types.ts:536](https://github.com/TanStack/ai/blob/main/packages/typ
 id: string;
 ```
 
-Defined in: [types.ts:467](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L467)
+Defined in: [types.ts:512](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L512)
 
 #### Inherited from
 
@@ -53,7 +53,7 @@ Defined in: [types.ts:467](https://github.com/TanStack/ai/blob/main/packages/typ
 model: string;
 ```
 
-Defined in: [types.ts:468](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L468)
+Defined in: [types.ts:513](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L513)
 
 #### Inherited from
 
@@ -67,7 +67,7 @@ Defined in: [types.ts:468](https://github.com/TanStack/ai/blob/main/packages/typ
 timestamp: number;
 ```
 
-Defined in: [types.ts:469](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L469)
+Defined in: [types.ts:514](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L514)
 
 #### Inherited from
 
@@ -81,7 +81,7 @@ Defined in: [types.ts:469](https://github.com/TanStack/ai/blob/main/packages/typ
 type: "thinking";
 ```
 
-Defined in: [types.ts:535](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L535)
+Defined in: [types.ts:580](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L580)
 
 #### Overrides
 

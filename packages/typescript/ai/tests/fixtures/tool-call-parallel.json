@@ -1,0 +1,117 @@
+{
+  "version": "1.0",
+  "timestamp": 1234567890,
+  "model": "gpt-4o",
+  "provider": "openai",
+  "chunks": [
+    {
+      "chunk": {
+        "type": "tool_call",
+        "id": "msg-1",
+        "model": "gpt-4o",
+        "timestamp": 1234567891,
+        "toolCall": {
+          "id": "call_weather",
+          "type": "function",
+          "function": {
+            "name": "getWeather",
+            "arguments": "{\"lo"
+          }
+        },
+        "index": 0
+      },
+      "timestamp": 1234567891,
+      "index": 0
+    },
+    {
+      "chunk": {
+        "type": "tool_call",
+        "id": "msg-1",
+        "model": "gpt-4o",
+        "timestamp": 1234567892,
+        "toolCall": {
+          "id": "call_time",
+          "type": "function",
+          "function": {
+            "name": "getTime",
+            "arguments": "{\"ci"
+          }
+        },
+        "index": 1
+      },
+      "timestamp": 1234567892,
+      "index": 1
+    },
+    {
+      "chunk": {
+        "type": "tool_call",
+        "id": "msg-1",
+        "model": "gpt-4o",
+        "timestamp": 1234567893,
+        "toolCall": {
+          "id": "call_weather",
+          "type": "function",
+          "function": {
+            "name": "getWeather",
+            "arguments": "cation\":\"Paris\"}"
+          }
+        },
+        "index": 0
+      },
+      "timestamp": 1234567893,
+      "index": 2
+    },
+    {
+      "chunk": {
+        "type": "tool_call",
+        "id": "msg-1",
+        "model": "gpt-4o",
+        "timestamp": 1234567894,
+        "toolCall": {
+          "id": "call_time",
+          "type": "function",
+          "function": {
+            "name": "getTime",
+            "arguments": "ty\":\"Tokyo\"}"
+          }
+        },
+        "index": 1
+      },
+      "timestamp": 1234567894,
+      "index": 3
+    },
+    {
+      "chunk": {
+        "type": "done",
+        "id": "msg-1",
+        "model": "gpt-4o",
+        "timestamp": 1234567895,
+        "finishReason": "tool_calls"
+      },
+      "timestamp": 1234567895,
+      "index": 4
+    }
+  ],
+  "result": {
+    "content": "",
+    "toolCalls": [
+      {
+        "id": "call_weather",
+        "type": "function",
+        "function": {
+          "name": "getWeather",
+          "arguments": "{\"location\":\"Paris\"}"
+        }
+      },
+      {
+        "id": "call_time",
+        "type": "function",
+        "function": {
+          "name": "getTime",
+          "arguments": "{\"city\":\"Tokyo\"}"
+        }
+      }
+    ],
+    "finishReason": "tool_calls"
+  }
+}

@@ -398,7 +398,7 @@ export class GeminiAdapter extends BaseAdapter<
   private convertContentPartToGemini(part: ContentPart): Part {
     switch (part.type) {
       case 'text':
-        return { text: part.text }
+        return { text: part.content }
       case 'image':
       case 'audio':
       case 'video':

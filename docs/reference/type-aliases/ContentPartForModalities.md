@@ -11,7 +11,7 @@ type ContentPartForModalities<TModalities, TImageMeta, TAudioMeta, TVideoMeta, T
 }>;
 ```
 
-Defined in: [types.ts:126](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L126)
+Defined in: [types.ts:118](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L118)
 
 Helper type to filter ContentPart union to only include specific modalities.
 Used to constrain message content based on model capabilities.

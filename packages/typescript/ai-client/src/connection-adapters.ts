@@ -1,6 +1,5 @@
-import { convertMessagesToModelMessages } from './message-converters'
-import type { ModelMessage, StreamChunk } from '@tanstack/ai'
-import type { UIMessage } from './types'
+import { convertMessagesToModelMessages } from '@tanstack/ai'
+import type { ModelMessage, StreamChunk, UIMessage } from '@tanstack/ai'
 
 /**
  * Merge custom headers into request headers
@@ -88,13 +87,14 @@ export interface FetchConnectionOptions {
   headers?: Record<string, string> | Headers
   credentials?: RequestCredentials
   signal?: AbortSignal
+  body?: Record<string, any>
 }
 
 /**
  * Create a Server-Sent Events connection adapter
  *
  * @param url - The API endpoint URL (or a function that returns the URL)
- * @param options - Fetch options (headers, credentials, etc.) or a function that returns options
+ * @param options - Fetch options (headers, credentials, body, etc.) or a function that returns options (can be async)
  * @returns A connection adapter for SSE streams
  *
  * @example
@@ -114,18 +114,28 @@ export interface FetchConnectionOptions {
  * const connection = fetchServerSentEvents('/api/chat', () => ({
  *   headers: { 'Authorization': `Bearer ${getToken()}` }
  * }));
+ *
+ * // With additional body data
+ * const connection = fetchServerSentEvents('/api/chat', async () => ({
+ *   body: {
+ *     provider: 'openai',
+ *     model: 'gpt-4o',
+ *   }
+ * }));
  * ```
  */
 export function fetchServerSentEvents(
   url: string | (() => string),
-  options: FetchConnectionOptions | (() => FetchConnectionOptions) = {},
+  options:
+    | FetchConnectionOptions
+    | (() => FetchConnectionOptions | Promise<FetchConnectionOptions>) = {},
 ): ConnectionAdapter {
   return {
     async *connect(messages, data, abortSignal) {
       // Resolve URL and options if they are functions
       const resolvedUrl = typeof url === 'function' ? url() : url
       const resolvedOptions =
-        typeof options === 'function' ? options() : options
+        typeof options === 'function' ? await options() : options
 
       const modelMessages = convertMessagesToModelMessages(messages)
 
@@ -134,10 +144,17 @@ export function fetchServerSentEvents(
         ...mergeHeaders(resolvedOptions.headers),
       }
 
+      // Merge body from options with messages and data
+      const requestBody = {
+        messages: modelMessages,
+        data,
+        ...resolvedOptions.body,
+      }
+
       const response = await fetch(resolvedUrl, {
         method: 'POST',
         headers: requestHeaders,
-        body: JSON.stringify({ messages: modelMessages, data }),
+        body: JSON.stringify(requestBody),
         credentials: resolvedOptions.credentials || 'same-origin',
         signal: abortSignal || resolvedOptions.signal,
       })
@@ -176,7 +193,7 @@ export function fetchServerSentEvents(
  * Create an HTTP streaming connection adapter (for raw streaming without SSE format)
  *
  * @param url - The API endpoint URL (or a function that returns the URL)
- * @param options - Fetch options (headers, credentials, etc.) or a function that returns options
+ * @param options - Fetch options (headers, credentials, body, etc.) or a function that returns options (can be async)
  * @returns A connection adapter for HTTP streams
  *
  * @example
@@ -196,18 +213,28 @@ export function fetchServerSentEvents(
  * const connection = fetchHttpStream('/api/chat', () => ({
  *   headers: { 'Authorization': `Bearer ${getToken()}` }
  * }));
+ *
+ * // With additional body data
+ * const connection = fetchHttpStream('/api/chat', async () => ({
+ *   body: {
+ *     provider: 'openai',
+ *     model: 'gpt-4o',
+ *   }
+ * }));
  * ```
  */
 export function fetchHttpStream(
   url: string | (() => string),
-  options: FetchConnectionOptions | (() => FetchConnectionOptions) = {},
+  options:
+    | FetchConnectionOptions
+    | (() => FetchConnectionOptions | Promise<FetchConnectionOptions>) = {},
 ): ConnectionAdapter {
   return {
     async *connect(messages, data, abortSignal) {
       // Resolve URL and options if they are functions
       const resolvedUrl = typeof url === 'function' ? url() : url
       const resolvedOptions =
-        typeof options === 'function' ? options() : options
+        typeof options === 'function' ? await options() : options
 
       // Convert UIMessages to ModelMessages if needed
       const modelMessages = convertMessagesToModelMessages(messages)
@@ -217,10 +244,17 @@ export function fetchHttpStream(
         ...mergeHeaders(resolvedOptions.headers),
       }
 
+      // Merge body from options with messages and data
+      const requestBody = {
+        messages: modelMessages,
+        data,
+        ...resolvedOptions.body,
+      }
+
       const response = await fetch(resolvedUrl, {
         method: 'POST',
         headers: requestHeaders,
-        body: JSON.stringify({ messages: modelMessages, data }),
+        body: JSON.stringify(requestBody),
         credentials: resolvedOptions.credentials || 'same-origin',
         signal: abortSignal || resolvedOptions.signal,
       })

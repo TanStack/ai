@@ -1,7 +1,7 @@
 {
   "$schema": "https://unpkg.com/knip@5/schema.json",
-  "ignoreDependencies": ["@faker-js/faker", "@playwright/test"],
-  "ignoreWorkspaces": ["examples/**"],
+  "ignoreDependencies": ["@faker-js/faker"],
+  "ignoreWorkspaces": ["examples/**", "testing/**", "**/smoke-tests/**"],
   "ignore": [
     "packages/typescript/ai-openai/live-tests/**",
     "packages/typescript/ai-openai/src/**/*.test.ts",

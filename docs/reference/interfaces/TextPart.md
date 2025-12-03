@@ -5,21 +5,19 @@ title: TextPart
 
 # Interface: TextPart
 
-Defined in: [types.ts:49](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L49)
+Defined in: [types.ts:175](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L175)
 
-Text content part for multimodal messages.
+Message parts - building blocks of UIMessage
 
 ## Properties
 
-### text
+### content
 
 ```ts
-text: string;
+content: string;
 ```
 
-Defined in: [types.ts:52](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L52)
-
-The text content
+Defined in: [types.ts:177](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L177)
 
 ***
 
@@ -29,4 +27,4 @@ The text content
 type: "text";
 ```
 
-Defined in: [types.ts:50](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L50)
+Defined in: [types.ts:176](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L176)

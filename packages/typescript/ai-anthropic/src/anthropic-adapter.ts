@@ -260,10 +260,12 @@ export class Anthropic extends BaseAdapter<
       case 'text':
         return {
           type: 'text',
-          text: part.text,
+          text: part.content,
         }
       case 'image': {
-        const metadata = part.metadata as AnthropicImageMetadata | undefined
+        const metadata = part.metadata as any as
+          | AnthropicImageMetadata
+          | undefined
         const imageSource: Base64ImageSource | URLImageSource =
           part.source.type === 'data'
             ? {

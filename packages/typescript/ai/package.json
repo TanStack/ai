@@ -35,6 +35,8 @@
     "clean": "premove ./build ./dist",
     "lint:fix": "eslint ./src --fix",
     "test:build": "publint --strict",
+    "test:coverage": "vitest run --coverage",
+    "test:coverage:watch": "vitest --coverage --watch",
     "test:eslint": "eslint ./src",
     "test:lib": "vitest",
     "test:lib:dev": "pnpm test:lib --watch",
@@ -49,7 +51,8 @@
     "embeddings"
   ],
   "dependencies": {
-    "@tanstack/devtools-event-client": "^0.3.5"
+    "@tanstack/devtools-event-client": "^0.3.5",
+    "partial-json": "^0.1.7"
   },
   "peerDependencies": {
     "@alcyone-labs/zod-to-json-schema": "^4.0.0",

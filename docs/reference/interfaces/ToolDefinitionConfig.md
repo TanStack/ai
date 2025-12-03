@@ -5,7 +5,7 @@ title: ToolDefinitionConfig
 
 # Interface: ToolDefinitionConfig\<TInput, TOutput, TName\>
 
-Defined in: [tools/tool-factory.ts:79](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/tools/tool-factory.ts#L79)
+Defined in: [tools/tool-definition.ts:79](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/tools/tool-definition.ts#L79)
 
 Tool definition configuration
 
@@ -31,7 +31,7 @@ Tool definition configuration
 description: string;
 ```
 
-Defined in: [tools/tool-factory.ts:85](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/tools/tool-factory.ts#L85)
+Defined in: [tools/tool-definition.ts:85](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/tools/tool-definition.ts#L85)
 
 ***
 
@@ -41,7 +41,7 @@ Defined in: [tools/tool-factory.ts:85](https://github.com/TanStack/ai/blob/main/
 optional inputSchema: TInput;
 ```
 
-Defined in: [tools/tool-factory.ts:86](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/tools/tool-factory.ts#L86)
+Defined in: [tools/tool-definition.ts:86](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/tools/tool-definition.ts#L86)
 
 ***
 
@@ -51,7 +51,7 @@ Defined in: [tools/tool-factory.ts:86](https://github.com/TanStack/ai/blob/main/
 optional metadata: Record<string, any>;
 ```
 
-Defined in: [tools/tool-factory.ts:89](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/tools/tool-factory.ts#L89)
+Defined in: [tools/tool-definition.ts:89](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/tools/tool-definition.ts#L89)
 
 ***
 
@@ -61,7 +61,7 @@ Defined in: [tools/tool-factory.ts:89](https://github.com/TanStack/ai/blob/main/
 name: TName;
 ```
 
-Defined in: [tools/tool-factory.ts:84](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/tools/tool-factory.ts#L84)
+Defined in: [tools/tool-definition.ts:84](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/tools/tool-definition.ts#L84)
 
 ***
 
@@ -71,7 +71,7 @@ Defined in: [tools/tool-factory.ts:84](https://github.com/TanStack/ai/blob/main/
 optional needsApproval: boolean;
 ```
 
-Defined in: [tools/tool-factory.ts:88](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/tools/tool-factory.ts#L88)
+Defined in: [tools/tool-definition.ts:88](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/tools/tool-definition.ts#L88)
 
 ***
 
@@ -81,4 +81,4 @@ Defined in: [tools/tool-factory.ts:88](https://github.com/TanStack/ai/blob/main/
 optional outputSchema: TOutput;
 ```
 
-Defined in: [tools/tool-factory.ts:87](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/tools/tool-factory.ts#L87)
+Defined in: [tools/tool-definition.ts:87](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/tools/tool-definition.ts#L87)

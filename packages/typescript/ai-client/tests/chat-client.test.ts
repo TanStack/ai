@@ -51,28 +51,27 @@ describe('ChatClient', () => {
         connection: adapter,
       })
 
-      // Message IDs are generated using the client's uniqueId as prefix
-      // Format: `${this.uniqueId}-${Date.now()}-${random}`
-      // So we can verify the custom ID is used by checking message ID format
+      // Message IDs are generated using generateMessageId() from @tanstack/ai
+      // Format: `msg-${Date.now()}-${random}`
       await client1.sendMessage('Test')
       await client2.sendMessage('Test')
 
       const messages1 = client1.getMessages()
       const messages2 = client2.getMessages()
 
-      // Both should have messages
+      // Both should have messages with valid IDs
       expect(messages1.length).toBeGreaterThan(0)
       expect(messages2.length).toBeGreaterThan(0)
 
-      // Message IDs from client1 should start with "custom-id-"
+      // Both clients should generate message IDs with msg- prefix
       const client1MessageId = messages1[0]?.id
-      expect(client1MessageId).toMatch(/^custom-id-/)
+      expect(client1MessageId).toMatch(/^msg-/)
 
-      // Message IDs from client2 should NOT start with "custom-id-"
-      // (they'll have a generated ID like "chat-...")
       const client2MessageId = messages2[0]?.id
-      expect(client2MessageId).not.toMatch(/^custom-id-/)
-      expect(client2MessageId).toMatch(/^chat-/)
+      expect(client2MessageId).toMatch(/^msg-/)
+
+      // Message IDs should be unique between clients
+      expect(client1MessageId).not.toBe(client2MessageId)
     })
   })
 
@@ -487,8 +486,8 @@ describe('ChatClient', () => {
       await client.sendMessage('Fail')
       expect(client.getError()).toBeDefined()
 
-      // @ts-ignore - Replace adapter for second request
-      client.connection = successAdapter
+      // Update connection via updateOptions
+      client.updateOptions({ connection: successAdapter })
 
       await client.sendMessage('Success')
       expect(client.getError()).toBeUndefined()

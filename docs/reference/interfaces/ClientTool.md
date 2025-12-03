@@ -5,7 +5,7 @@ title: ClientTool
 
 # Interface: ClientTool\<TInput, TOutput, TName\>
 
-Defined in: [tools/tool-factory.ts:18](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/tools/tool-factory.ts#L18)
+Defined in: [tools/tool-definition.ts:18](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/tools/tool-definition.ts#L18)
 
 Marker type for client-side tools
 
@@ -31,7 +31,7 @@ Marker type for client-side tools
 __toolSide: "client";
 ```
 
-Defined in: [tools/tool-factory.ts:23](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/tools/tool-factory.ts#L23)
+Defined in: [tools/tool-definition.ts:23](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/tools/tool-definition.ts#L23)
 
 ***
 
@@ -41,7 +41,7 @@ Defined in: [tools/tool-factory.ts:23](https://github.com/TanStack/ai/blob/main/
 description: string;
 ```
 
-Defined in: [tools/tool-factory.ts:25](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/tools/tool-factory.ts#L25)
+Defined in: [tools/tool-definition.ts:25](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/tools/tool-definition.ts#L25)
 
 ***
 
@@ -51,7 +51,7 @@ Defined in: [tools/tool-factory.ts:25](https://github.com/TanStack/ai/blob/main/
 optional execute: (args) => output<TOutput> | Promise<output<TOutput>>;
 ```
 
-Defined in: [tools/tool-factory.ts:30](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/tools/tool-factory.ts#L30)
+Defined in: [tools/tool-definition.ts:30](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/tools/tool-definition.ts#L30)
 
 #### Parameters
 
@@ -71,7 +71,7 @@ Defined in: [tools/tool-factory.ts:30](https://github.com/TanStack/ai/blob/main/
 optional inputSchema: TInput;
 ```
 
-Defined in: [tools/tool-factory.ts:26](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/tools/tool-factory.ts#L26)
+Defined in: [tools/tool-definition.ts:26](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/tools/tool-definition.ts#L26)
 
 ***
 
@@ -81,7 +81,7 @@ Defined in: [tools/tool-factory.ts:26](https://github.com/TanStack/ai/blob/main/
 optional metadata: Record<string, any>;
 ```
 
-Defined in: [tools/tool-factory.ts:29](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/tools/tool-factory.ts#L29)
+Defined in: [tools/tool-definition.ts:29](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/tools/tool-definition.ts#L29)
 
 ***
 
@@ -91,7 +91,7 @@ Defined in: [tools/tool-factory.ts:29](https://github.com/TanStack/ai/blob/main/
 name: TName;
 ```
 
-Defined in: [tools/tool-factory.ts:24](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/tools/tool-factory.ts#L24)
+Defined in: [tools/tool-definition.ts:24](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/tools/tool-definition.ts#L24)
 
 ***
 
@@ -101,7 +101,7 @@ Defined in: [tools/tool-factory.ts:24](https://github.com/TanStack/ai/blob/main/
 optional needsApproval: boolean;
 ```
 
-Defined in: [tools/tool-factory.ts:28](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/tools/tool-factory.ts#L28)
+Defined in: [tools/tool-definition.ts:28](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/tools/tool-definition.ts#L28)
 
 ***
 
@@ -111,4 +111,4 @@ Defined in: [tools/tool-factory.ts:28](https://github.com/TanStack/ai/blob/main/
 optional outputSchema: TOutput;
 ```
 
-Defined in: [tools/tool-factory.ts:27](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/tools/tool-factory.ts#L27)
+Defined in: [tools/tool-definition.ts:27](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/tools/tool-definition.ts#L27)

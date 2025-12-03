@@ -5,7 +5,7 @@ title: ErrorStreamChunk
 
 # Interface: ErrorStreamChunk
 
-Defined in: [types.ts:508](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L508)
+Defined in: [types.ts:553](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L553)
 
 ## Extends
 
@@ -19,7 +19,7 @@ Defined in: [types.ts:508](https://github.com/TanStack/ai/blob/main/packages/typ
 error: object;
 ```
 
-Defined in: [types.ts:510](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L510)
+Defined in: [types.ts:555](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L555)
 
 #### code?
 
@@ -41,7 +41,7 @@ message: string;
 id: string;
 ```
 
-Defined in: [types.ts:467](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L467)
+Defined in: [types.ts:512](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L512)
 
 #### Inherited from
 
@@ -55,7 +55,7 @@ Defined in: [types.ts:467](https://github.com/TanStack/ai/blob/main/packages/typ
 model: string;
 ```
 
-Defined in: [types.ts:468](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L468)
+Defined in: [types.ts:513](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L513)
 
 #### Inherited from
 
@@ -69,7 +69,7 @@ Defined in: [types.ts:468](https://github.com/TanStack/ai/blob/main/packages/typ
 timestamp: number;
 ```
 
-Defined in: [types.ts:469](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L469)
+Defined in: [types.ts:514](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L514)
 
 #### Inherited from
 
@@ -83,7 +83,7 @@ Defined in: [types.ts:469](https://github.com/TanStack/ai/blob/main/packages/typ
 type: "error";
 ```
 
-Defined in: [types.ts:509](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L509)
+Defined in: [types.ts:554](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L554)
 
 #### Overrides
 

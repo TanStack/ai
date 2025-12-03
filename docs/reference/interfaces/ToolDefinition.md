@@ -5,7 +5,7 @@ title: ToolDefinition
 
 # Interface: ToolDefinition\<TInput, TOutput, TName\>
 
-Defined in: [tools/tool-factory.ts:95](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/tools/tool-factory.ts#L95)
+Defined in: [tools/tool-definition.ts:95](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/tools/tool-definition.ts#L95)
 
 Tool definition builder that allows creating server or client tools from a shared definition
 
@@ -35,7 +35,7 @@ Tool definition builder that allows creating server or client tools from a share
 __toolSide: "definition";
 ```
 
-Defined in: [tools/tool-factory.ts:43](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/tools/tool-factory.ts#L43)
+Defined in: [tools/tool-definition.ts:43](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/tools/tool-definition.ts#L43)
 
 #### Inherited from
 
@@ -49,7 +49,7 @@ Defined in: [tools/tool-factory.ts:43](https://github.com/TanStack/ai/blob/main/
 client: (execute?) => ClientTool<TInput, TOutput, TName>;
 ```
 
-Defined in: [tools/tool-factory.ts:112](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/tools/tool-factory.ts#L112)
+Defined in: [tools/tool-definition.ts:112](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/tools/tool-definition.ts#L112)
 
 Create a client-side tool with optional execute function
 
@@ -71,7 +71,7 @@ Create a client-side tool with optional execute function
 description: string;
 ```
 
-Defined in: [types.ts:234](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L234)
+Defined in: [types.ts:279](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L279)
 
 Clear description of what the tool does.
 
@@ -96,7 +96,7 @@ Be specific about what the tool does, what parameters it needs, and what it retu
 optional execute: (args) => any;
 ```
 
-Defined in: [types.ts:290](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L290)
+Defined in: [types.ts:335](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L335)
 
 Optional function to execute when the model calls this tool.
 
@@ -140,7 +140,7 @@ execute: async (args) => {
 optional inputSchema: TInput;
 ```
 
-Defined in: [types.ts:253](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L253)
+Defined in: [types.ts:298](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L298)
 
 Zod schema describing the tool's input parameters.
 
@@ -175,7 +175,7 @@ z.object({
 optional metadata: Record<string, any>;
 ```
 
-Defined in: [types.ts:296](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L296)
+Defined in: [types.ts:341](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L341)
 
 Additional metadata for adapters or custom extensions
 
@@ -191,7 +191,7 @@ Additional metadata for adapters or custom extensions
 name: TName;
 ```
 
-Defined in: [types.ts:224](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L224)
+Defined in: [types.ts:269](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L269)
 
 Unique name of the tool (used by the model to call it).
 
@@ -216,7 +216,7 @@ Must be unique within the tools array.
 optional needsApproval: boolean;
 ```
 
-Defined in: [types.ts:293](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L293)
+Defined in: [types.ts:338](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L338)
 
 If true, tool execution requires user approval before running. Works with both server and client tools.
 
@@ -232,7 +232,7 @@ If true, tool execution requires user approval before running. Works with both s
 optional outputSchema: TOutput;
 ```
 
-Defined in: [types.ts:271](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L271)
+Defined in: [types.ts:316](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L316)
 
 Optional Zod schema for validating tool output.
 
@@ -264,7 +264,7 @@ z.object({
 server: (execute) => ServerTool<TInput, TOutput, TName>;
 ```
 
-Defined in: [tools/tool-factory.ts:103](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/tools/tool-factory.ts#L103)
+Defined in: [tools/tool-definition.ts:103](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/tools/tool-definition.ts#L103)
 
 Create a server-side tool with execute function
 

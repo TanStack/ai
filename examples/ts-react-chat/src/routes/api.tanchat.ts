@@ -2,8 +2,8 @@ import { createFileRoute } from '@tanstack/react-router'
 import { chat, maxIterations, toStreamResponse } from '@tanstack/ai'
 import { openai } from '@tanstack/ai-openai'
 import { ollama } from '@tanstack/ai-ollama'
-// import { anthropic } from '@tanstack/ai-anthropic'
-// import { gemini } from "@tanstack/ai-gemini";
+import { anthropic } from '@tanstack/ai-anthropic'
+import { gemini } from '@tanstack/ai-gemini'
 import {
   addToCartToolDef,
   addToWishListToolDef,
@@ -11,6 +11,8 @@ import {
   getPersonalGuitarPreferenceToolDef,
   recommendGuitarToolDef,
 } from '@/lib/guitar-tools'
+
+type Provider = 'openai' | 'anthropic' | 'gemini' | 'ollama'
 
 const SYSTEM_PROMPT = `You are a helpful assistant for a guitar store.
 
@@ -56,16 +58,46 @@ export const Route = createFileRoute('/api/tanchat')({
 
         const abortController = new AbortController()
 
-        const { messages } = await request.json()
+        const body = await request.json()
+        const { messages, data } = body
 
-        // Create adapter instance for type inference
+        // Extract provider and model from data
+        const provider: Provider = data?.provider || 'openai'
+        const model: string | undefined = data?.model
 
         try {
+          // Select adapter based on provider
+          let adapter
+          let defaultModel
+
+          switch (provider) {
+            case 'anthropic':
+              adapter = anthropic()
+              defaultModel = 'claude-sonnet-4-5-20250929'
+              break
+            case 'gemini':
+              adapter = gemini()
+              defaultModel = 'gemini-2.0-flash-exp'
+              break
+            case 'ollama':
+              adapter = ollama()
+              defaultModel = 'mistral:7b'
+              break
+            case 'openai':
+            default:
+              adapter = openai()
+              defaultModel = 'gpt-4o'
+              break
+          }
+
+          // Determine model - use provided model or default based on provider
+          const selectedModel = model || defaultModel
+
           const stream = chat({
-            adapter: ollama(),
-            model: 'gpt-oss:20b',
+            adapter: adapter as any,
+            model: selectedModel as any,
             tools: [
-              getGuitars.server, // Server function tool
+              getGuitars, // Server tool
               recommendGuitarToolDef, // No server execute - client will handle
               addToCartToolServer,
               addToWishListToolDef,

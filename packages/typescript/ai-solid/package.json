@@ -16,10 +16,6 @@
     ".": {
       "types": "./dist/index.d.ts",
       "import": "./dist/index.js"
-    },
-    "./start": {
-      "types": "./dist/start.d.ts",
-      "import": "./dist/start.js"
     }
   },
   "files": [

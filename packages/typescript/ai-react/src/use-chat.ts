@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react'
 import { ChatClient } from '@tanstack/ai-client'
 import type { AnyClientTool, ModelMessage } from '@tanstack/ai'
+
 import type { UIMessage, UseChatOptions, UseChatReturn } from './types'
 
 export function useChat<TTools extends ReadonlyArray<AnyClientTool> = any>(
@@ -21,10 +22,15 @@ export function useChat<TTools extends ReadonlyArray<AnyClientTool> = any>(
   )
   const isFirstMountRef = useRef(true)
 
+  // Track current options in a ref to avoid recreating client when options change
+  const optionsRef = useRef<UseChatOptions<TTools>>(options)
+
   // Update ref whenever messages change
   useEffect(() => {
     messagesRef.current = messages
   }, [messages])
+
+  optionsRef.current = options
 
   // Create ChatClient instance with callbacks to sync state
   // Note: Options are captured at client creation time.
@@ -39,15 +45,15 @@ export function useChat<TTools extends ReadonlyArray<AnyClientTool> = any>(
     isFirstMountRef.current = false
 
     return new ChatClient({
-      connection: options.connection,
+      connection: optionsRef.current.connection,
       id: clientId,
       initialMessages: messagesToUse,
-      body: options.body,
-      onResponse: options.onResponse,
-      onChunk: options.onChunk,
-      onFinish: options.onFinish,
-      onError: options.onError,
-      tools: options.tools,
+      body: optionsRef.current.body,
+      onResponse: optionsRef.current.onResponse,
+      onChunk: optionsRef.current.onChunk,
+      onFinish: optionsRef.current.onFinish,
+      onError: optionsRef.current.onError,
+      tools: optionsRef.current.tools,
       streamProcessor: options.streamProcessor,
       onMessagesChange: (newMessages: Array<UIMessage<TTools>>) => {
         setMessages(newMessages)
@@ -59,8 +65,6 @@ export function useChat<TTools extends ReadonlyArray<AnyClientTool> = any>(
         setError(newError)
       },
     })
-    // Only recreate when clientId changes
-    // Connection and other options are captured at creation time
   }, [clientId])
 
   // Sync initial messages on mount only

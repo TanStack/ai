@@ -5,7 +5,7 @@ title: DoneStreamChunk
 
 # Interface: DoneStreamChunk
 
-Defined in: [types.ts:498](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L498)
+Defined in: [types.ts:543](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L543)
 
 ## Extends
 
@@ -19,7 +19,7 @@ Defined in: [types.ts:498](https://github.com/TanStack/ai/blob/main/packages/typ
 finishReason: "length" | "stop" | "content_filter" | "tool_calls" | null;
 ```
 
-Defined in: [types.ts:500](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L500)
+Defined in: [types.ts:545](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L545)
 
 ***
 
@@ -29,7 +29,7 @@ Defined in: [types.ts:500](https://github.com/TanStack/ai/blob/main/packages/typ
 id: string;
 ```
 
-Defined in: [types.ts:467](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L467)
+Defined in: [types.ts:512](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L512)
 
 #### Inherited from
 
@@ -43,7 +43,7 @@ Defined in: [types.ts:467](https://github.com/TanStack/ai/blob/main/packages/typ
 model: string;
 ```
 
-Defined in: [types.ts:468](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L468)
+Defined in: [types.ts:513](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L513)
 
 #### Inherited from
 
@@ -57,7 +57,7 @@ Defined in: [types.ts:468](https://github.com/TanStack/ai/blob/main/packages/typ
 timestamp: number;
 ```
 
-Defined in: [types.ts:469](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L469)
+Defined in: [types.ts:514](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L514)
 
 #### Inherited from
 
@@ -71,7 +71,7 @@ Defined in: [types.ts:469](https://github.com/TanStack/ai/blob/main/packages/typ
 type: "done";
 ```
 
-Defined in: [types.ts:499](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L499)
+Defined in: [types.ts:544](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L544)
 
 #### Overrides
 
@@ -85,7 +85,7 @@ Defined in: [types.ts:499](https://github.com/TanStack/ai/blob/main/packages/typ
 optional usage: object;
 ```
 
-Defined in: [types.ts:501](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L501)
+Defined in: [types.ts:546](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L546)
 
 #### completionTokens
 

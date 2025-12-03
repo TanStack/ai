@@ -1,12 +1,12 @@
 import type {
   AnyClientTool,
+  ChunkStrategy,
   InferToolInput,
   InferToolOutput,
   ModelMessage,
   StreamChunk,
 } from '@tanstack/ai'
 import type { ConnectionAdapter } from './connection-adapters'
-import type { ChunkStrategy, StreamParser } from './stream/types'
 
 /**
  * Tool call states - track the lifecycle of a tool call
@@ -199,7 +199,7 @@ export interface ChatClientOptions<
 
   /**
    * Stream processing options (optional)
-   * Configure chunking strategy and custom parsers
+   * Configure chunking strategy
    */
   streamProcessor?: {
     /**
@@ -207,12 +207,6 @@ export interface ChatClientOptions<
      * Defaults to ImmediateStrategy (every chunk)
      */
     chunkStrategy?: ChunkStrategy
-
-    /**
-     * Custom stream parser
-     * Override to handle different stream formats
-     */
-    parser?: StreamParser
   }
 }
 

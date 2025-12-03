@@ -277,45 +277,6 @@ export function ChatWithClientTools() {
 }
 ```
 
-## `createServerFnTool(config)`
-
-**Solid Start Integration** - Create a tool that works as both an AI tool and a server function.
-
-```typescript
-import { createServerFnTool } from "@tanstack/ai-solid/start";
-import { z } from "zod";
-
-const getProducts = createServerFnTool({
-  name: "getProducts",
-  description: "Search for products",
-  inputSchema: z.object({
-    query: z.string(),
-  }),
-  outputSchema: z.array(
-    z.object({
-      id: z.string(),
-      name: z.string(),
-      price: z.number(),
-    })
-  ),
-  execute: async ({ query }) => {
-    return await db.products.search(query);
-  },
-});
-
-// Three variants from one definition:
-// 1. getProducts.toolDefinition - Pass to chat() for client execution
-// 2. getProducts.server - Pass to chat() for server execution
-// 3. await getProducts.serverFn({ query: 'laptop' }) - Call directly
-```
-
-**Returns:**
-- `toolDefinition` - For client-side tool execution
-- `server` - Server tool for AI chat
-- `serverFn` - Callable server function with Zod validation
-
-See [Server Function Tools](../guides/server-function-tools.md) for details.
-
 ## `createChatClientOptions(options)`
 
 Helper to create typed chat options (re-exported from `@tanstack/ai-client`).
@@ -364,5 +325,4 @@ Re-exported from `@tanstack/ai`:
 
 - [Getting Started](../getting-started/quick-start) - Learn the basics
 - [Tools Guide](../guides/tools) - Learn about the isomorphic tool system
-- [Server Function Tools](../guides/server-function-tools) - Solid Start integration
 - [Client Tools](../guides/client-tools) - Learn about client-side tools

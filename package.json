@@ -17,6 +17,7 @@
     "test:sherif": "sherif",
     "test:lib": "nx affected --targets=test:lib --exclude=examples/**",
     "test:lib:dev": "pnpm test:lib && nx watch --all -- pnpm test:lib",
+    "test:coverage": "nx affected --targets=test:coverage --exclude=examples/**",
     "test:build": "nx affected --target=test:build --exclude=examples/**",
     "test:types": "nx affected --targets=test:types --exclude=examples/**",
     "test:knip": "knip",

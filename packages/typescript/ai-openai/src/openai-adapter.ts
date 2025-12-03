@@ -285,6 +285,53 @@ export class OpenAI extends BaseAdapter<
             }
           }
         }
+        // Handle output text deltas (token-by-token streaming)
+        // response.output_text.delta provides incremental text updates
+        if (chunk.type === 'response.output_text.delta' && chunk.delta) {
+          // Delta can be an array of strings or a single string
+          const textDelta = Array.isArray(chunk.delta)
+            ? chunk.delta.join('')
+            : typeof chunk.delta === 'string'
+              ? chunk.delta
+              : ''
+
+          if (textDelta) {
+            accumulatedContent += textDelta
+            yield {
+              type: 'content',
+              id: responseId || generateId(),
+              model: model || options.model,
+              timestamp,
+              delta: textDelta,
+              content: accumulatedContent,
+              role: 'assistant',
+            }
+          }
+        }
+
+        // Handle reasoning deltas (token-by-token thinking/reasoning streaming)
+        // response.reasoning_text.delta provides incremental reasoning updates
+        if (chunk.type === 'response.reasoning_text.delta' && chunk.delta) {
+          // Delta can be an array of strings or a single string
+          const reasoningDelta = Array.isArray(chunk.delta)
+            ? chunk.delta.join('')
+            : typeof chunk.delta === 'string'
+              ? chunk.delta
+              : ''
+
+          if (reasoningDelta) {
+            accumulatedReasoning += reasoningDelta
+            yield {
+              type: 'thinking',
+              id: responseId || generateId(),
+              model: model || options.model,
+              timestamp,
+              delta: reasoningDelta,
+              content: accumulatedReasoning,
+            }
+          }
+        }
+
         // handle content_part added events for text, reasoning and refusals
         if (chunk.type === 'response.content_part.added') {
           const contentPart = chunk.part
@@ -565,7 +612,7 @@ export class OpenAI extends BaseAdapter<
       case 'text':
         return {
           type: 'input_text',
-          text: part.text,
+          text: part.content,
         }
       case 'image': {
         const imageMetadata = part.metadata
@@ -614,7 +661,7 @@ export class OpenAI extends BaseAdapter<
       return []
     }
     if (typeof content === 'string') {
-      return [{ type: 'text', text: content }]
+      return [{ type: 'text', content: content }]
     }
     return content
   }
@@ -633,8 +680,8 @@ export class OpenAI extends BaseAdapter<
     }
     // It's an array of ContentPart
     return content
-      .filter((p): p is { type: 'text'; text: string } => p.type === 'text')
-      .map((p) => p.text)
+      .filter((p) => p.type === 'text')
+      .map((p) => p.content)
       .join('')
   }
 }

@@ -35,14 +35,15 @@
     "clean": "premove ./build ./dist",
     "lint:fix": "eslint ./src --fix",
     "test:build": "publint --strict",
+    "test:coverage": "vitest run --coverage",
+    "test:coverage:watch": "vitest --coverage --watch",
     "test:eslint": "eslint ./src",
     "test:lib": "vitest",
     "test:lib:dev": "pnpm test:lib --watch",
     "test:types": "tsc"
   },
   "dependencies": {
-    "@tanstack/ai": "workspace:*",
-    "partial-json": "^0.1.7"
+    "@tanstack/ai": "workspace:*"
   },
   "devDependencies": {
     "@vitest/coverage-v8": "4.0.14",

@@ -5,7 +5,7 @@ title: BaseStreamChunk
 
 # Interface: BaseStreamChunk
 
-Defined in: [types.ts:465](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L465)
+Defined in: [types.ts:510](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L510)
 
 ## Extended by
 
@@ -26,7 +26,7 @@ Defined in: [types.ts:465](https://github.com/TanStack/ai/blob/main/packages/typ
 id: string;
 ```
 
-Defined in: [types.ts:467](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L467)
+Defined in: [types.ts:512](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L512)
 
 ***
 
@@ -36,7 +36,7 @@ Defined in: [types.ts:467](https://github.com/TanStack/ai/blob/main/packages/typ
 model: string;
 ```
 
-Defined in: [types.ts:468](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L468)
+Defined in: [types.ts:513](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L513)
 
 ***
 
@@ -46,7 +46,7 @@ Defined in: [types.ts:468](https://github.com/TanStack/ai/blob/main/packages/typ
 timestamp: number;
 ```
 
-Defined in: [types.ts:469](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L469)
+Defined in: [types.ts:514](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L514)
 
 ***
 
@@ -56,4 +56,4 @@ Defined in: [types.ts:469](https://github.com/TanStack/ai/blob/main/packages/typ
 type: StreamChunkType;
 ```
 
-Defined in: [types.ts:466](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L466)
+Defined in: [types.ts:511](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L511)

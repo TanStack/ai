@@ -1,0 +1,62 @@
+{
+  "version": "1.0",
+  "timestamp": 1234567890,
+  "model": "test-model",
+  "provider": "test",
+  "chunks": [
+    {
+      "chunk": {
+        "type": "content",
+        "id": "msg-1",
+        "model": "test",
+        "timestamp": 1234567891,
+        "delta": "Hello",
+        "content": "Hello",
+        "role": "assistant"
+      },
+      "timestamp": 1234567891,
+      "index": 0
+    },
+    {
+      "chunk": {
+        "type": "content",
+        "id": "msg-1",
+        "model": "test",
+        "timestamp": 1234567892,
+        "delta": " world",
+        "content": "Hello world",
+        "role": "assistant"
+      },
+      "timestamp": 1234567892,
+      "index": 1
+    },
+    {
+      "chunk": {
+        "type": "content",
+        "id": "msg-1",
+        "model": "test",
+        "timestamp": 1234567893,
+        "delta": "!",
+        "content": "Hello world!",
+        "role": "assistant"
+      },
+      "timestamp": 1234567893,
+      "index": 2
+    },
+    {
+      "chunk": {
+        "type": "done",
+        "id": "msg-1",
+        "model": "test",
+        "timestamp": 1234567894,
+        "finishReason": "stop"
+      },
+      "timestamp": 1234567894,
+      "index": 3
+    }
+  ],
+  "result": {
+    "content": "Hello world!",
+    "finishReason": "stop"
+  }
+}

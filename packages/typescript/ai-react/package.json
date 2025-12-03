@@ -16,10 +16,6 @@
     ".": {
       "types": "./dist/esm/index.d.ts",
       "import": "./dist/esm/index.js"
-    },
-    "./start": {
-      "types": "./dist/esm/start.d.ts",
-      "import": "./dist/esm/start.js"
     }
   },
   "files": [
