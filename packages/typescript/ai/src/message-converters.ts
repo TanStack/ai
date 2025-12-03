@@ -4,7 +4,7 @@
  * Functions for converting between UIMessage and ModelMessage formats.
  */
 
-import type { ContentPart, } from '@tanstack/ai'
+import type { ContentPart } from '@tanstack/ai'
 import type {
   MessagePart,
   ModelMessage,
@@ -96,20 +96,20 @@ export function uiMessageToModelMessages(
   const toolCalls =
     toolCallParts.length > 0
       ? toolCallParts
-        .filter(
-          (p) =>
-            p.state === 'input-complete' ||
-            p.state === 'approval-responded' ||
-            p.output !== undefined, // Include if has output (client tool result)
-        )
-        .map((p) => ({
-          id: p.id,
-          type: 'function' as const,
-          function: {
-            name: p.name,
-            arguments: p.arguments,
-          },
-        }))
+          .filter(
+            (p) =>
+              p.state === 'input-complete' ||
+              p.state === 'approval-responded' ||
+              p.output !== undefined, // Include if has output (client tool result)
+          )
+          .map((p) => ({
+            id: p.id,
+            type: 'function' as const,
+            function: {
+              name: p.name,
+              arguments: p.arguments,
+            },
+          }))
       : undefined
 
   // Create the main message
