@@ -1,6 +1,55 @@
-# Client Tools
+---
+title: Client Tools
+id: client-tools
+---
 
-Client tools execute in the browser, allowing you to interact with the UI, local storage, and browser APIs with full type safety.
+Client tools execute in the browser, enabling UI updates, local storage access, and browser API interactions. Unlike server tools, client tools don't have an `execute` function in their server definition.
+
+```mermaid
+sequenceDiagram
+    participant LLM Service
+    participant Server
+    participant Browser
+    participant ClientTool
+    
+    LLM Service->>Server: tool_call chunk<br/>{name: "updateUI", args: {...}}
+    Server->>Server: Check if tool has<br/>server execute
+    
+    Note over Server: No execute function<br/>= client tool
+    
+    Server->>Browser: Forward tool-input-available<br/>chunk via SSE/HTTP
+    Browser->>Browser: onToolCall callback<br/>triggered
+    Browser->>ClientTool: execute(args)
+    ClientTool->>ClientTool: Update UI,<br/>localStorage, etc.
+    ClientTool-->>Browser: Return result
+    Browser->>Server: POST tool result
+    Server->>LLM Service: Add tool_result<br/>to conversation
+    
+    Note over LLM Service: Model uses result<br/>to continue
+    
+    LLM Service-->>Server: Stream response
+    Server-->>Browser: Forward chunks
+```
+
+## When to Use Client Tools
+
+- **UI Updates**: Show notifications, update forms, toggle visibility
+- **Local Storage**: Save user preferences, cache data
+- **Browser APIs**: Access geolocation, camera, clipboard
+- **State Management**: Update React/Vue/Solid state
+- **Navigation**: Change routes, scroll to sections
+
+## How It Works
+
+1. **Tool Call from LLM**: LLM decides to call a client tool
+2. **Server Detection**: Server sees the tool has no `execute` function
+3. **Client Notification**: Server sends a `tool-input-available` chunk to the browser
+4. **Client Execution**: Browser's `onToolCall` callback is triggered with:
+   - `toolName`: Name of the tool to execute
+   - `input`: Parsed arguments
+5. **Result Return**: Client executes the tool and returns the result
+6. **Server Update**: Result is sent back to the server and added to the conversation
+7. **LLM Continuation**: LLM receives the result and continues the conversation
 
 ## Defining Client Tools
 

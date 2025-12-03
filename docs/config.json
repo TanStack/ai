@@ -35,6 +35,10 @@
           "to": "guides/client-tools"
         },
         {
+          "label": "Agentic Cycle",
+          "to": "guides/agentic-cycle"
+        },
+        {
           "label": "Tool Approval Flow",
           "to": "guides/tool-approval"
         },

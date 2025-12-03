@@ -1,6 +1,80 @@
 # Server Tools
 
-Server tools execute on the backend, giving you secure access to databases, APIs, and server-only resources.
+Server tools execute automatically when called by the LLM. They have full access to server resources like databases, APIs, and environment variables.
+
+```mermaid
+sequenceDiagram
+    participant LLM Service
+    participant Server
+    participant Tool
+    participant Database/API
+    
+    LLM Service->>Server: tool_call chunk<br/>{name: "getUserData", args: {...}}
+    Server->>Server: Parse tool call<br/>arguments
+    Server->>Tool: execute(parsedArgs)
+    Tool->>Database/API: Query/Fetch data
+    Database/API-->>Tool: Return data
+    Tool-->>Server: Return result
+    Server->>Server: Create tool_result<br/>message
+    Server->>LLM Service: Continue chat with<br/>tool_result in history
+    
+    Note over LLM Service: Model uses result<br/>to generate response
+    
+    LLM Service-->>Server: Stream content chunks
+    Server-->>Server: Stream to client
+```
+
+## How It Works
+
+1. **Tool Call Received**: Server receives a `tool_call` chunk from the LLM
+2. **Argument Parsing**: The tool arguments (JSON string) are parsed and validated against the input schema
+3. **Execution**: The tool's `execute` function is called with the parsed arguments
+4. **Result Processing**: The result is:
+   - Validated against the output schema (if defined)
+   - Converted to a tool result message
+   - Added to the conversation history
+5. **Continuation**: The chat continues with the tool result, allowing the LLM to generate a response based on the result
+  
+## Automatic vs. Manual Execution
+
+**Automatic (Default):**
+- Server tools with an `execute` function run automatically
+- Results are added to the conversation immediately
+- No client-side handling required
+
+**Manual (Advanced):**
+- You can handle tool calls manually by intercepting the stream
+- Useful for custom orchestration or approval flows
+
+## Server Tool Definition
+
+```typescript
+import { toolDefinition } from "@tanstack/ai";
+import { z } from "zod";
+
+const getUserDataDef = toolDefinition({
+  name: "get_user_data",
+  description: "Get user information from the database",
+  inputSchema: z.object({
+    userId: z.string().describe("The user ID to look up"),
+  }),
+  outputSchema: z.object({
+    name: z.string(),
+    email: z.string().email(),
+    createdAt: z.string(),
+  }),
+});
+
+const getUserData = getUserDataDef.server(async ({ userId }) => {
+  // This runs on the server - secure access to database
+  const user = await db.users.findUnique({ where: { id: userId } });
+  return {
+    name: user.name,
+    email: user.email,
+    createdAt: user.createdAt.toISOString(),
+  };
+});
+```
 
 ## Defining Server Tools
 

@@ -1,4 +1,8 @@
-# Connection Adapters
+---
+title: Connection Adapters
+id: connection-adapters
+---
+
 
 Connection adapters handle the communication between your client and server for streaming chat responses. TanStack AI provides built-in adapters and supports custom implementations.
 
