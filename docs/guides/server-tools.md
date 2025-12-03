@@ -1,4 +1,7 @@
-# Server Tools
+---
+title: Server Tools
+id: server-tools
+---
 
 Server tools execute automatically when called by the LLM. They have full access to server resources like databases, APIs, and environment variables.
 

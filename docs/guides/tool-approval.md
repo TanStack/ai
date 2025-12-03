@@ -1,10 +1,17 @@
-# Tool Approval Flow
+---
+title: Tool Approval Flow
+id: tool-approval-flow
+---
 
-The tool approval flow allows you to require user approval before executing sensitive tools, giving users control over actions like sending emails, making purchases, or deleting data.
+The tool approval flow allows you to require user approval before executing sensitive tools, giving users control over actions like sending emails, making purchases, or deleting data. Tools go through these states during approval:
 
-## Overview
+1. **`approval-requested`** - Waiting for user approval
+2. **`executing`** - Approved, now executing
+3. **`output-available`** - Execution completed
+4. **`output-error`** - Execution failed
+5. **`cancelled`** - User denied approval
 
-When a tool requires approval:
+When a tool requires approval, the typical flow is:
 
 1. Model calls the tool
 2. Tool execution is paused
@@ -194,24 +201,6 @@ const { messages, addToolApprovalResponse } = useChat({
 });
 ```
 
-## Approval States
-
-Tools go through these states during approval:
-
-1. **`approval-requested`** - Waiting for user approval
-2. **`executing`** - Approved, now executing
-3. **`output-available`** - Execution completed
-4. **`output-error`** - Execution failed
-5. **`cancelled`** - User denied approval
-
-## Best Practices
-
-1. **Use approval for sensitive operations** - Sending emails, making payments, deleting data
-2. **Show clear information** - Display what the tool will do before approval
-3. **Provide context** - Show tool arguments in a readable format
-4. **Handle denial gracefully** - Don't break the conversation if a tool is denied
-5. **Timeout handling** - Consider timeouts for approval requests
-
 ## Example: E-commerce Purchase
 
 ```typescript
@@ -239,6 +228,14 @@ const purchaseItem = purchaseItemDef.server(async ({ itemId, quantity, price }) 
 ```
 
 The user will see an approval prompt showing the item, quantity, and price before the purchase is made. The tool will only execute after the user approves.
+
+## Best Practices
+
+- **Use approval for sensitive operations** - Sending emails, making payments, deleting data
+- **Show clear information** - Display what the tool will do before approval
+- **Provide context** - Show tool arguments in a readable format
+- **Handle denial gracefully** - Don't break the conversation if a tool is denied
+- **Timeout handling** - Consider timeouts for approval requests
 
 ## Next Steps
 
