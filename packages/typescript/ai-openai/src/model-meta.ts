@@ -1850,9 +1850,15 @@ export type OpenAIChatModelProviderOptionsByName = {
     OpenAIStreamingOptions &
     OpenAIMetadataOptions
   [O3.name]: OpenAIBaseOptions & OpenAIReasoningOptions & OpenAIMetadataOptions
-  [O3_PRO.name]: OpenAIBaseOptions & OpenAIReasoningOptions & OpenAIMetadataOptions
-  [O3_MINI.name]: OpenAIBaseOptions & OpenAIReasoningOptions & OpenAIMetadataOptions
-  [O4_MINI.name]: OpenAIBaseOptions & OpenAIReasoningOptions & OpenAIMetadataOptions
+  [O3_PRO.name]: OpenAIBaseOptions &
+    OpenAIReasoningOptions &
+    OpenAIMetadataOptions
+  [O3_MINI.name]: OpenAIBaseOptions &
+    OpenAIReasoningOptions &
+    OpenAIMetadataOptions
+  [O4_MINI.name]: OpenAIBaseOptions &
+    OpenAIReasoningOptions &
+    OpenAIMetadataOptions
   [O3_DEEP_RESEARCH.name]: OpenAIBaseOptions &
     OpenAIReasoningOptions &
     OpenAIMetadataOptions
@@ -1860,7 +1866,9 @@ export type OpenAIChatModelProviderOptionsByName = {
     OpenAIReasoningOptions &
     OpenAIMetadataOptions
   [O1.name]: OpenAIBaseOptions & OpenAIReasoningOptions & OpenAIMetadataOptions
-  [O1_PRO.name]: OpenAIBaseOptions & OpenAIReasoningOptions & OpenAIMetadataOptions
+  [O1_PRO.name]: OpenAIBaseOptions &
+    OpenAIReasoningOptions &
+    OpenAIMetadataOptions
 
   // Audio models
   [GPT_AUDIO.name]: OpenAIBaseOptions &

@@ -68,8 +68,7 @@ describe('Anthropic Model Provider Options Type Assertions', () => {
     })
 
     it('claude-haiku-4-5 should support thinking options', () => {
-      type Options =
-        AnthropicChatModelProviderOptionsByName['claude-haiku-4-5']
+      type Options = AnthropicChatModelProviderOptionsByName['claude-haiku-4-5']
 
       expectTypeOf<Options>().toExtend<AnthropicThinkingOptions>()
       expectTypeOf<Options>().toExtend<AnthropicServiceTierOptions>()
@@ -77,8 +76,7 @@ describe('Anthropic Model Provider Options Type Assertions', () => {
     })
 
     it('claude-opus-4-1 should support thinking options', () => {
-      type Options =
-        AnthropicChatModelProviderOptionsByName['claude-opus-4-1']
+      type Options = AnthropicChatModelProviderOptionsByName['claude-opus-4-1']
 
       expectTypeOf<Options>().toExtend<AnthropicThinkingOptions>()
       expectTypeOf<Options>().toExtend<AnthropicServiceTierOptions>()
@@ -86,8 +84,7 @@ describe('Anthropic Model Provider Options Type Assertions', () => {
     })
 
     it('claude-sonnet-4 should support thinking options', () => {
-      type Options =
-        AnthropicChatModelProviderOptionsByName['claude-sonnet-4']
+      type Options = AnthropicChatModelProviderOptionsByName['claude-sonnet-4']
 
       expectTypeOf<Options>().toExtend<AnthropicThinkingOptions>()
       expectTypeOf<Options>().toExtend<AnthropicServiceTierOptions>()
@@ -104,8 +101,7 @@ describe('Anthropic Model Provider Options Type Assertions', () => {
     })
 
     it('claude-opus-4 should support thinking options', () => {
-      type Options =
-        AnthropicChatModelProviderOptionsByName['claude-opus-4']
+      type Options = AnthropicChatModelProviderOptionsByName['claude-opus-4']
 
       expectTypeOf<Options>().toExtend<AnthropicThinkingOptions>()
       expectTypeOf<Options>().toExtend<AnthropicServiceTierOptions>()
@@ -113,8 +109,7 @@ describe('Anthropic Model Provider Options Type Assertions', () => {
     })
 
     it('claude-opus-4-5 should support thinking options', () => {
-      type Options =
-        AnthropicChatModelProviderOptionsByName['claude-opus-4-5']
+      type Options = AnthropicChatModelProviderOptionsByName['claude-opus-4-5']
 
       expectTypeOf<Options>().toExtend<AnthropicThinkingOptions>()
       expectTypeOf<Options>().toExtend<AnthropicServiceTierOptions>()
@@ -134,8 +129,7 @@ describe('Anthropic Model Provider Options Type Assertions', () => {
 
   describe('Models WITHOUT extended_thinking support', () => {
     it('claude-3-5-haiku should NOT have thinking options but SHOULD have service tier', () => {
-      type Options =
-        AnthropicChatModelProviderOptionsByName['claude-3-5-haiku']
+      type Options = AnthropicChatModelProviderOptionsByName['claude-3-5-haiku']
 
       // Should NOT have thinking options
       expectTypeOf<Options>().not.toExtend<AnthropicThinkingOptions>()
@@ -157,8 +151,7 @@ describe('Anthropic Model Provider Options Type Assertions', () => {
     })
 
     it('claude-3-haiku should NOT have thinking options AND NOT have service tier', () => {
-      type Options =
-        AnthropicChatModelProviderOptionsByName['claude-3-haiku']
+      type Options = AnthropicChatModelProviderOptionsByName['claude-3-haiku']
 
       // Should NOT have thinking options
       expectTypeOf<Options>().not.toExtend<AnthropicThinkingOptions>()
@@ -490,8 +483,7 @@ describe('Anthropic Model Input Modality Type Assertions', () => {
   type MessageWithContent<T> = { role: 'user'; content: Array<T> }
 
   describe('Claude Opus 4.5 (text + image + document)', () => {
-    type Modalities =
-      AnthropicModelInputModalitiesByName['claude-opus-4-5']
+    type Modalities = AnthropicModelInputModalitiesByName['claude-opus-4-5']
     type Message = ConstrainedModelMessage<Modalities>
 
     it('should allow TextPart, ImagePart, and DocumentPart', () => {
@@ -507,8 +499,7 @@ describe('Anthropic Model Input Modality Type Assertions', () => {
   })
 
   describe('Claude Sonnet 4.5 (text + image + document)', () => {
-    type Modalities =
-      AnthropicModelInputModalitiesByName['claude-sonnet-4-5']
+    type Modalities = AnthropicModelInputModalitiesByName['claude-sonnet-4-5']
     type Message = ConstrainedModelMessage<Modalities>
 
     it('should allow TextPart, ImagePart, and DocumentPart', () => {
@@ -524,8 +515,7 @@ describe('Anthropic Model Input Modality Type Assertions', () => {
   })
 
   describe('Claude Haiku 4.5 (text + image + document)', () => {
-    type Modalities =
-      AnthropicModelInputModalitiesByName['claude-haiku-4-5']
+    type Modalities = AnthropicModelInputModalitiesByName['claude-haiku-4-5']
     type Message = ConstrainedModelMessage<Modalities>
 
     it('should allow TextPart, ImagePart, and DocumentPart', () => {
@@ -541,8 +531,7 @@ describe('Anthropic Model Input Modality Type Assertions', () => {
   })
 
   describe('Claude Opus 4.1 (text + image + document)', () => {
-    type Modalities =
-      AnthropicModelInputModalitiesByName['claude-opus-4-1']
+    type Modalities = AnthropicModelInputModalitiesByName['claude-opus-4-1']
     type Message = ConstrainedModelMessage<Modalities>
 
     it('should allow TextPart, ImagePart, and DocumentPart', () => {
@@ -558,8 +547,7 @@ describe('Anthropic Model Input Modality Type Assertions', () => {
   })
 
   describe('Claude Sonnet 4 (text + image + document)', () => {
-    type Modalities =
-      AnthropicModelInputModalitiesByName['claude-sonnet-4']
+    type Modalities = AnthropicModelInputModalitiesByName['claude-sonnet-4']
     type Message = ConstrainedModelMessage<Modalities>
 
     it('should allow TextPart, ImagePart, and DocumentPart', () => {
@@ -575,8 +563,7 @@ describe('Anthropic Model Input Modality Type Assertions', () => {
   })
 
   describe('Claude 3.7 Sonnet (text + image + document)', () => {
-    type Modalities =
-      AnthropicModelInputModalitiesByName['claude-3-7-sonnet']
+    type Modalities = AnthropicModelInputModalitiesByName['claude-3-7-sonnet']
     type Message = ConstrainedModelMessage<Modalities>
 
     it('should allow TextPart, ImagePart, and DocumentPart', () => {
@@ -592,8 +579,7 @@ describe('Anthropic Model Input Modality Type Assertions', () => {
   })
 
   describe('Claude Opus 4 (text + image + document)', () => {
-    type Modalities =
-      AnthropicModelInputModalitiesByName['claude-opus-4']
+    type Modalities = AnthropicModelInputModalitiesByName['claude-opus-4']
     type Message = ConstrainedModelMessage<Modalities>
 
     it('should allow TextPart, ImagePart, and DocumentPart', () => {
@@ -609,8 +595,7 @@ describe('Anthropic Model Input Modality Type Assertions', () => {
   })
 
   describe('Claude 3.5 Haiku (text + image + document)', () => {
-    type Modalities =
-      AnthropicModelInputModalitiesByName['claude-3-5-haiku']
+    type Modalities = AnthropicModelInputModalitiesByName['claude-3-5-haiku']
     type Message = ConstrainedModelMessage<Modalities>
 
     it('should allow TextPart, ImagePart, and DocumentPart', () => {
@@ -626,8 +611,7 @@ describe('Anthropic Model Input Modality Type Assertions', () => {
   })
 
   describe('Claude 3 Haiku (text + image + document)', () => {
-    type Modalities =
-      AnthropicModelInputModalitiesByName['claude-3-haiku']
+    type Modalities = AnthropicModelInputModalitiesByName['claude-3-haiku']
     type Message = ConstrainedModelMessage<Modalities>
 
     it('should allow TextPart, ImagePart, and DocumentPart', () => {
