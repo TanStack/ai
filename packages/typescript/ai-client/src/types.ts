@@ -6,6 +6,7 @@ import type {
   StreamChunk,
 } from '@tanstack/ai'
 import type { ConnectionAdapter } from './connection-adapters'
+import { ChunkStrategy } from './stream/types';
 
 /**
  * Tool call states - track the lifecycle of a tool call
@@ -205,7 +206,7 @@ export interface ChatClientOptions<
      * Strategy for when to emit text updates
      * Defaults to ImmediateStrategy (every chunk)
      */
-    chunkStrategy?: import('@tanstack/ai').ChunkStrategy // eslint-disable-line @typescript-eslint/consistent-type-imports
+    chunkStrategy?:  ChunkStrategy  
   }
 }
 
