@@ -1,24 +1,32 @@
 import OpenAI_SDK from 'openai'
 import { BaseAdapter } from '@tanstack/ai'
 import { OPENAI_CHAT_MODELS, OPENAI_EMBEDDING_MODELS } from './model-meta'
-import {
-  convertMessagesToInput,
-  validateTextProviderOptions,
-} from './text/text-provider-options'
+import { validateTextProviderOptions } from './text/text-provider-options'
 import { convertToolsToProviderFormat } from './tools'
+import type { Responses } from 'openai/resources'
 import type {
   ChatOptions,
+  ContentPart,
   EmbeddingOptions,
   EmbeddingResult,
+  ModelMessage,
   StreamChunk,
   SummarizationOptions,
   SummarizationResult,
 } from '@tanstack/ai'
-import type { OpenAIChatModelProviderOptionsByName } from './model-meta'
+import type {
+  OpenAIChatModelProviderOptionsByName,
+  OpenAIModelInputModalitiesByName,
+} from './model-meta'
 import type {
   ExternalTextProviderOptions,
   InternalTextProviderOptions,
 } from './text/text-provider-options'
+import type {
+  OpenAIAudioMetadata,
+  OpenAIImageMetadata,
+  OpenAIMessageMetadataByModality,
+} from './message-types'
 
 export interface OpenAIConfig {
   apiKey: string
@@ -48,7 +56,9 @@ export class OpenAI extends BaseAdapter<
   typeof OPENAI_EMBEDDING_MODELS,
   OpenAIProviderOptions,
   OpenAIEmbeddingProviderOptions,
-  OpenAIChatModelProviderOptionsByName
+  OpenAIChatModelProviderOptionsByName,
+  OpenAIModelInputModalitiesByName,
+  OpenAIMessageMetadataByModality
 > {
   name = 'openai' as const
   models = OPENAI_CHAT_MODELS
@@ -61,6 +71,12 @@ export class OpenAI extends BaseAdapter<
   // Using definite assignment assertion (!) since this is type-only.
   // @ts-ignore - We never assign this at runtime and it's only used for types
   _modelProviderOptionsByName: OpenAIChatModelProviderOptionsByName
+  // Type-only map for model input modalities; used for multimodal content type constraints
+  // @ts-ignore - We never assign this at runtime and it's only used for types
+  _modelInputModalitiesByName?: OpenAIModelInputModalitiesByName
+  // Type-only map for message metadata types; used for type-safe metadata autocomplete
+  // @ts-ignore - We never assign this at runtime and it's only used for types
+  _messageMetadataByModality?: OpenAIMessageMetadataByModality
 
   constructor(config: OpenAIConfig) {
     super({})
@@ -464,7 +480,7 @@ export class OpenAI extends BaseAdapter<
           | 'top_p'
         >
       | undefined
-    const input = convertMessagesToInput(options.messages)
+    const input = this.convertMessagesToInput(options.messages)
     if (providerOptions) {
       validateTextProviderOptions({ ...providerOptions, input })
     }
@@ -489,6 +505,184 @@ export class OpenAI extends BaseAdapter<
     }
 
     return requestParams
+  }
+
+  private convertMessagesToInput(
+    messages: Array<ModelMessage>,
+  ): Responses.ResponseInput {
+    const result: Responses.ResponseInput = []
+
+    for (const message of messages) {
+      // Handle tool messages - convert to FunctionToolCallOutput
+      if (message.role === 'tool') {
+        result.push({
+          type: 'function_call_output',
+          call_id: message.toolCallId || '',
+          output:
+            typeof message.content === 'string'
+              ? message.content
+              : JSON.stringify(message.content),
+        })
+        continue
+      }
+
+      // Handle assistant messages
+      if (message.role === 'assistant') {
+        // If the assistant message has tool calls, add them as FunctionToolCall objects
+        // OpenAI Responses API expects arguments as a string (JSON string)
+        if (message.toolCalls && message.toolCalls.length > 0) {
+          for (const toolCall of message.toolCalls) {
+            // Keep arguments as string for Responses API
+            // Our internal format stores arguments as a JSON string, which is what API expects
+            const argumentsString =
+              typeof toolCall.function.arguments === 'string'
+                ? toolCall.function.arguments
+                : JSON.stringify(toolCall.function.arguments)
+
+            result.push({
+              type: 'function_call',
+              call_id: toolCall.id,
+              name: toolCall.function.name,
+              arguments: argumentsString,
+            })
+          }
+        }
+
+        // Add the assistant's text message if there is content
+        if (message.content) {
+          // Assistant messages are typically text-only
+          const contentStr = this.extractTextContent(message.content)
+          if (contentStr) {
+            result.push({
+              type: 'message',
+              role: 'assistant',
+              content: contentStr,
+            })
+          }
+        }
+
+        continue
+      }
+
+      // Handle user messages (default case) - support multimodal content
+      const contentParts = this.normalizeContent(message.content)
+      const openAIContent: Array<Responses.ResponseInputContent> = []
+
+      for (const part of contentParts) {
+        openAIContent.push(
+          this.convertContentPartToOpenAI(
+            part as ContentPart<
+              OpenAIImageMetadata,
+              OpenAIAudioMetadata,
+              unknown,
+              unknown
+            >,
+          ),
+        )
+      }
+
+      // If no content parts, add empty text
+      if (openAIContent.length === 0) {
+        openAIContent.push({ type: 'input_text', text: '' })
+      }
+
+      result.push({
+        type: 'message',
+        role: 'user',
+        content: openAIContent,
+      })
+    }
+
+    return result
+  }
+
+  /**
+   * Converts a ContentPart to OpenAI input content item.
+   * Handles text, image, and audio content parts.
+   */
+  private convertContentPartToOpenAI(
+    part: ContentPart<
+      OpenAIImageMetadata,
+      OpenAIAudioMetadata,
+      unknown,
+      unknown
+    >,
+  ): Responses.ResponseInputContent {
+    switch (part.type) {
+      case 'text':
+        return {
+          type: 'input_text',
+          text: part.text,
+        }
+      case 'image': {
+        const imageMetadata = part.metadata
+        if (part.source.type === 'url') {
+          return {
+            type: 'input_image',
+            image_url: part.source.value,
+            detail: imageMetadata?.detail || 'auto',
+          }
+        }
+        // For base64 data, construct a data URI
+        return {
+          type: 'input_image',
+          image_url: part.source.value,
+          detail: imageMetadata?.detail || 'auto',
+        }
+      }
+      case 'audio': {
+        if (part.source.type === 'url') {
+          // OpenAI may support audio URLs in the future
+          // For now, treat as data URI
+          return {
+            type: 'input_file',
+            file_url: part.source.value,
+          }
+        }
+        return {
+          type: 'input_file',
+          file_data: part.source.value,
+        }
+      }
+
+      default:
+        throw new Error(`Unsupported content part type: ${part.type}`)
+    }
+  }
+
+  /**
+   * Normalizes message content to an array of ContentPart.
+   * Handles backward compatibility with string content.
+   */
+  private normalizeContent(
+    content: string | null | Array<ContentPart>,
+  ): Array<ContentPart> {
+    if (content === null) {
+      return []
+    }
+    if (typeof content === 'string') {
+      return [{ type: 'text', text: content }]
+    }
+    return content
+  }
+
+  /**
+   * Extracts text content from a content value that may be string, null, or ContentPart array.
+   */
+  private extractTextContent(
+    content: string | null | Array<ContentPart>,
+  ): string {
+    if (content === null) {
+      return ''
+    }
+    if (typeof content === 'string') {
+      return content
+    }
+    // It's an array of ContentPart
+    return content
+      .filter((p): p is { type: 'text'; text: string } => p.type === 'text')
+      .map((p) => p.text)
+      .join('')
   }
 }
 

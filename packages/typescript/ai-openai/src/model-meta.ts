@@ -1768,151 +1768,210 @@ const OPENAI_VIDEO_MODELS = [SORA2.name, SORA2_PRO.name] as const
  */
 export type OpenAIChatModelProviderOptionsByName = {
   // Models WITH structured output support (have 'text' field)
-  'gpt-5.1': OpenAIBaseOptions &
+  [GPT5_1.name]: OpenAIBaseOptions &
     OpenAIReasoningOptions &
     OpenAIStructuredOutputOptions &
     OpenAIToolsOptions &
     OpenAIStreamingOptions &
     OpenAIMetadataOptions
-  'gpt-5.1-codex': OpenAIBaseOptions &
+  [GPT5_1_CODEX.name]: OpenAIBaseOptions &
     OpenAIReasoningOptions &
     OpenAIStructuredOutputOptions &
     OpenAIToolsOptions &
     OpenAIStreamingOptions &
     OpenAIMetadataOptions
-  'gpt-5': OpenAIBaseOptions &
+  [GPT5.name]: OpenAIBaseOptions &
     OpenAIReasoningOptions &
     OpenAIStructuredOutputOptions &
     OpenAIToolsOptions &
     OpenAIStreamingOptions &
     OpenAIMetadataOptions
-  'gpt-5-mini': OpenAIBaseOptions &
+  [GPT5_MINI.name]: OpenAIBaseOptions &
     OpenAIStructuredOutputOptions &
     OpenAIToolsOptions &
     OpenAIStreamingOptions &
     OpenAIMetadataOptions
-  'gpt-5-nano': OpenAIBaseOptions &
+  [GPT5_NANO.name]: OpenAIBaseOptions &
     OpenAIStructuredOutputOptions &
     OpenAIToolsOptions &
     OpenAIStreamingOptions &
     OpenAIMetadataOptions
-  'gpt-5-pro': OpenAIBaseOptions &
+  [GPT5_PRO.name]: OpenAIBaseOptions &
     OpenAIReasoningOptions &
     OpenAIStructuredOutputOptions &
     OpenAIToolsOptions &
     OpenAIStreamingOptions &
     OpenAIMetadataOptions
-  'gpt-5-codex': OpenAIBaseOptions &
+  [GPT5_CODEX.name]: OpenAIBaseOptions &
     OpenAIStructuredOutputOptions &
     OpenAIToolsOptions &
     OpenAIStreamingOptions &
     OpenAIMetadataOptions
-  'gpt-4.1': OpenAIBaseOptions &
+  [GPT4_1.name]: OpenAIBaseOptions &
     OpenAIStructuredOutputOptions &
     OpenAIToolsOptions &
     OpenAIStreamingOptions &
     OpenAIMetadataOptions
-  'gpt-4.1-mini': OpenAIBaseOptions &
+  [GPT4_1_MINI.name]: OpenAIBaseOptions &
     OpenAIStructuredOutputOptions &
     OpenAIToolsOptions &
     OpenAIStreamingOptions &
     OpenAIMetadataOptions
-  'gpt-4.1-nano': OpenAIBaseOptions &
+  [GPT4_1_NANO.name]: OpenAIBaseOptions &
     OpenAIStructuredOutputOptions &
     OpenAIToolsOptions &
     OpenAIStreamingOptions &
     OpenAIMetadataOptions
-  'gpt-4o': OpenAIBaseOptions &
+  [GPT_4O.name]: OpenAIBaseOptions &
     OpenAIStructuredOutputOptions &
     OpenAIToolsOptions &
     OpenAIStreamingOptions &
     OpenAIMetadataOptions
-  'gpt-4o-mini': OpenAIBaseOptions &
+  [GPT_40_MINI.name]: OpenAIBaseOptions &
     OpenAIStructuredOutputOptions &
     OpenAIToolsOptions &
     OpenAIStreamingOptions &
     OpenAIMetadataOptions
 
   // Models WITHOUT structured output support (NO 'text' field)
-  'gpt-4': OpenAIBaseOptions &
+  [GPT_4.name]: OpenAIBaseOptions &
     OpenAIToolsOptions &
     OpenAIStreamingOptions &
     OpenAIMetadataOptions
-  'gpt-4-turbo': OpenAIBaseOptions &
+  [GPT_4_TURBO.name]: OpenAIBaseOptions &
     OpenAIToolsOptions &
     OpenAIStreamingOptions &
     OpenAIMetadataOptions
-  'gpt-3.5-turbo': OpenAIBaseOptions &
+  [GPT_3_5_TURBO.name]: OpenAIBaseOptions &
     OpenAIToolsOptions &
     OpenAIStreamingOptions &
     OpenAIMetadataOptions
-  'chatgpt-4.0': OpenAIBaseOptions &
+  [CHATGPT_40.name]: OpenAIBaseOptions &
     OpenAIStreamingOptions &
     OpenAIMetadataOptions
-  o3: OpenAIBaseOptions & OpenAIReasoningOptions & OpenAIMetadataOptions
-  'o3-pro': OpenAIBaseOptions & OpenAIReasoningOptions & OpenAIMetadataOptions
-  'o3-mini': OpenAIBaseOptions & OpenAIReasoningOptions & OpenAIMetadataOptions
-  'o4-mini': OpenAIBaseOptions & OpenAIReasoningOptions & OpenAIMetadataOptions
-  'o3-deep-research': OpenAIBaseOptions &
+  [O3.name]: OpenAIBaseOptions & OpenAIReasoningOptions & OpenAIMetadataOptions
+  [O3_PRO.name]: OpenAIBaseOptions &
     OpenAIReasoningOptions &
     OpenAIMetadataOptions
-  'o4-mini-deep-research': OpenAIBaseOptions &
+  [O3_MINI.name]: OpenAIBaseOptions &
     OpenAIReasoningOptions &
     OpenAIMetadataOptions
-  o1: OpenAIBaseOptions & OpenAIReasoningOptions & OpenAIMetadataOptions
-  'o1-pro': OpenAIBaseOptions & OpenAIReasoningOptions & OpenAIMetadataOptions
+  [O4_MINI.name]: OpenAIBaseOptions &
+    OpenAIReasoningOptions &
+    OpenAIMetadataOptions
+  [O3_DEEP_RESEARCH.name]: OpenAIBaseOptions &
+    OpenAIReasoningOptions &
+    OpenAIMetadataOptions
+  [O4_MINI_DEEP_RESEARCH.name]: OpenAIBaseOptions &
+    OpenAIReasoningOptions &
+    OpenAIMetadataOptions
+  [O1.name]: OpenAIBaseOptions & OpenAIReasoningOptions & OpenAIMetadataOptions
+  [O1_PRO.name]: OpenAIBaseOptions &
+    OpenAIReasoningOptions &
+    OpenAIMetadataOptions
 
   // Audio models
-  'gpt-audio': OpenAIBaseOptions &
+  [GPT_AUDIO.name]: OpenAIBaseOptions &
     OpenAIStreamingOptions &
     OpenAIMetadataOptions
-  'gpt-audio-mini': OpenAIBaseOptions &
+  [GPT_AUDIO_MINI.name]: OpenAIBaseOptions &
     OpenAIStreamingOptions &
     OpenAIMetadataOptions
-  'gpt-4o-audio': OpenAIBaseOptions &
+  [GPT_4O_AUDIO.name]: OpenAIBaseOptions &
     OpenAIStreamingOptions &
     OpenAIMetadataOptions
-  'gpt-4o-mini-audio': OpenAIBaseOptions &
+  [GPT_4O_MINI_AUDIO.name]: OpenAIBaseOptions &
     OpenAIStreamingOptions &
     OpenAIMetadataOptions
 
   // Chat-only models
-  'gpt-5.1-chat': OpenAIBaseOptions &
+  [GPT_5_1_CHAT.name]: OpenAIBaseOptions &
     OpenAIReasoningOptions &
     OpenAIStructuredOutputOptions &
     OpenAIMetadataOptions
-  'gpt-5-chat': OpenAIBaseOptions &
+  [GPT_5_CHAT.name]: OpenAIBaseOptions &
     OpenAIReasoningOptions &
     OpenAIStructuredOutputOptions &
     OpenAIMetadataOptions
 
   // Codex models
-  'gpt-5.1-codex-mini': OpenAIBaseOptions &
+  [GPT_5_1_CODEX_MINI.name]: OpenAIBaseOptions &
     OpenAIStructuredOutputOptions &
     OpenAIToolsOptions &
     OpenAIStreamingOptions &
     OpenAIMetadataOptions
-  'codex-mini-latest': OpenAIBaseOptions &
+  [CODEX_MINI_LATEST.name]: OpenAIBaseOptions &
     OpenAIStructuredOutputOptions &
     OpenAIToolsOptions &
     OpenAIStreamingOptions &
     OpenAIMetadataOptions
 
   // Search models
-  'gpt-4o-search-preview': OpenAIBaseOptions &
+  [GPT_4O_SEARCH_PREVIEW.name]: OpenAIBaseOptions &
     OpenAIStructuredOutputOptions &
     OpenAIToolsOptions &
     OpenAIStreamingOptions &
     OpenAIMetadataOptions
-  'gpt-4o-mini-search-preview': OpenAIBaseOptions &
+  [GPT_4O_MINI_SEARCH_PREVIEW.name]: OpenAIBaseOptions &
     OpenAIStructuredOutputOptions &
     OpenAIToolsOptions &
     OpenAIStreamingOptions &
     OpenAIMetadataOptions
 
   // Special models
-  'computer-use-preview': OpenAIBaseOptions &
+  [COMPUTER_USE_PREVIEW.name]: OpenAIBaseOptions &
     OpenAIToolsOptions &
     OpenAIStreamingOptions &
     OpenAIMetadataOptions
+}
+
+/**
+ * Type-only map from chat model name to its supported input modalities.
+ * Based on the 'supports.input' arrays defined for each model.
+ * Used by the core AI types to constrain ContentPart types based on the selected model.
+ * Note: These must be inlined as readonly arrays (not typeof) because the model
+ * constants are not exported and typeof references don't work in .d.ts files
+ * when consumed by external packages.
+ */
+export type OpenAIModelInputModalitiesByName = {
+  // Models with text + image input
+  [GPT5_1.name]: typeof GPT5_1.supports.input
+  [GPT5_1_CODEX.name]: typeof GPT5_1_CODEX.supports.input
+  [GPT5.name]: typeof GPT5.supports.input
+  [GPT5_MINI.name]: typeof GPT5_MINI.supports.input
+  [GPT5_NANO.name]: typeof GPT5_NANO.supports.input
+  [GPT5_PRO.name]: typeof GPT5_PRO.supports.input
+  [GPT5_CODEX.name]: typeof GPT5_CODEX.supports.input
+  [GPT4_1.name]: typeof GPT4_1.supports.input
+  [GPT4_1_MINI.name]: typeof GPT4_1_MINI.supports.input
+  [GPT4_1_NANO.name]: typeof GPT4_1_NANO.supports.input
+  // 'gpt-4o': typeof GPT4O.supports.input
+  // 'gpt-4o-mini': typeof GPT4O_MINI.supports.input
+  // 'gpt-4-turbo': typeof GPT4_TURBO.supports.input
+  // 'chatgpt-4.0': typeof CHATGPT_4_0.supports.input
+  // 'gpt-5.1-chat': typeof GPT5_1_CHAT.supports.input
+  // 'gpt-5-chat': typeof GPT5_CHAT.supports.input
+  // 'gpt-5.1-codex-mini': typeof GPT5_1_CODEX_MINI.supports.input
+  [CODEX_MINI_LATEST.name]: typeof CODEX_MINI_LATEST.supports.input
+  [COMPUTER_USE_PREVIEW.name]: typeof COMPUTER_USE_PREVIEW.supports.input
+  [O3.name]: typeof O3.supports.input
+  [O3_PRO.name]: typeof O3_PRO.supports.input
+  [O3_DEEP_RESEARCH.name]: typeof O3_DEEP_RESEARCH.supports.input
+  [O4_MINI_DEEP_RESEARCH.name]: typeof O4_MINI_DEEP_RESEARCH.supports.input
+  [O4_MINI.name]: typeof O4_MINI.supports.input
+  [O1.name]: typeof O1.supports.input
+  [O1_PRO.name]: typeof O1_PRO.supports.input
+
+  // Models with text + audio input
+  [GPT_AUDIO.name]: typeof GPT_AUDIO.supports.input
+  [GPT_AUDIO_MINI.name]: typeof GPT_AUDIO_MINI.supports.input
+  // 'gpt-4o-audio': typeof GPT4O_AUDIO.supports.input
+  // 'gpt-4o-mini-audio': typeof GPT4O_MINI_AUDIO.supports.input
+
+  // Text-only models
+  //  'gpt-4':  typeof GPT4.supports.input
+  // 'gpt-3.5-turbo': typeof GPT3_5_TURBO.supports.input
+  [O3_MINI.name]: typeof O3_MINI.supports.input
+  // 'gpt-4o-search-preview': typeof GPT4O_SEARCH_PREVIEW.supports.input
+  // 'gpt-4o-mini-search-preview': typeof GPT4O_MINI_SEARCH_PREVIEW.supports.input
 }

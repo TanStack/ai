@@ -17,6 +17,7 @@ interface ModelMeta<
   name: string
   id: string
   supports: {
+    input: Array<'text' | 'image' | 'audio' | 'video' | 'document'>
     extended_thinking?: boolean
     priority_tier?: boolean
   }
@@ -47,7 +48,7 @@ interface ModelMeta<
 }
 const CLAUDE_SONNET_4_5 = {
   name: 'claude-sonnet-4-5',
-  id: 'claude-sonnet-4-5-20250929',
+  id: 'claude-sonnet-4-5',
   context_window: 200_000,
   max_output_tokens: 64_000,
   knowledge_cutoff: '2025-09-29',
@@ -60,6 +61,7 @@ const CLAUDE_SONNET_4_5 = {
     },
   },
   supports: {
+    input: ['text', 'image', 'document'],
     extended_thinking: true,
     priority_tier: true,
   },
@@ -76,7 +78,7 @@ const CLAUDE_SONNET_4_5 = {
 
 const CLAUDE_HAIKU_4_5 = {
   name: 'claude-haiku-4-5',
-  id: 'claude-haiku-4-5-20251001',
+  id: 'claude-haiku-4-5',
   context_window: 200_000,
   max_output_tokens: 64_000,
   knowledge_cutoff: '2025-10-01',
@@ -89,6 +91,7 @@ const CLAUDE_HAIKU_4_5 = {
     },
   },
   supports: {
+    input: ['text', 'image', 'document'],
     extended_thinking: true,
     priority_tier: true,
   },
@@ -105,7 +108,7 @@ const CLAUDE_HAIKU_4_5 = {
 
 const CLAUDE_OPUS_4_1 = {
   name: 'claude-opus-4-1',
-  id: 'claude-opus-4-1-20250805',
+  id: 'claude-opus-4-1',
   context_window: 200_000,
   max_output_tokens: 64_000,
   knowledge_cutoff: '2025-08-05',
@@ -118,6 +121,7 @@ const CLAUDE_OPUS_4_1 = {
     },
   },
   supports: {
+    input: ['text', 'image', 'document'],
     extended_thinking: true,
     priority_tier: true,
   },
@@ -134,7 +138,7 @@ const CLAUDE_OPUS_4_1 = {
 
 const CLAUDE_OPUS_4_5 = {
   name: 'claude-opus-4-5',
-  id: 'claude-opus-4-5-20251101',
+  id: 'claude-opus-4-5',
   context_window: 200_000,
   max_output_tokens: 32_000,
   knowledge_cutoff: '2025-11-01',
@@ -147,6 +151,7 @@ const CLAUDE_OPUS_4_5 = {
     },
   },
   supports: {
+    input: ['text', 'image', 'document'],
     extended_thinking: true,
     priority_tier: true,
   },
@@ -163,7 +168,7 @@ const CLAUDE_OPUS_4_5 = {
 
 const CLAUDE_SONNET_4 = {
   name: 'claude-sonnet-4',
-  id: 'claude-sonnet-4-20250514',
+  id: 'claude-sonnet-4',
   context_window: 200_000,
   max_output_tokens: 64_000,
   knowledge_cutoff: '2025-05-14',
@@ -176,6 +181,7 @@ const CLAUDE_SONNET_4 = {
     },
   },
   supports: {
+    input: ['text', 'image', 'document'],
     extended_thinking: true,
     priority_tier: true,
   },
@@ -192,7 +198,7 @@ const CLAUDE_SONNET_4 = {
 
 const CLAUDE_SONNET_3_7 = {
   name: 'claude-sonnet-3-7',
-  id: 'claude-3-7-sonnet-20250219',
+  id: 'claude-3-7-sonnet',
   max_output_tokens: 64_000,
   knowledge_cutoff: '2025-05-14',
   pricing: {
@@ -204,6 +210,7 @@ const CLAUDE_SONNET_3_7 = {
     },
   },
   supports: {
+    input: ['text', 'image', 'document'],
     extended_thinking: true,
     priority_tier: true,
   },
@@ -220,7 +227,7 @@ const CLAUDE_SONNET_3_7 = {
 
 const CLAUDE_OPUS_4 = {
   name: 'claude-opus-4',
-  id: 'claude-opus-4-20250514',
+  id: 'claude-opus-4',
   context_window: 200_000,
   max_output_tokens: 32_000,
   knowledge_cutoff: '2025-05-14',
@@ -233,6 +240,7 @@ const CLAUDE_OPUS_4 = {
     },
   },
   supports: {
+    input: ['text', 'image', 'document'],
     extended_thinking: true,
     priority_tier: true,
   },
@@ -249,7 +257,7 @@ const CLAUDE_OPUS_4 = {
 
 const CLAUDE_HAIKU_3_5 = {
   name: 'claude-haiku-3-5',
-  id: 'claude-3-5-haiku-20241022',
+  id: 'claude-3-5-haiku',
   context_window: 200_000,
   max_output_tokens: 8_000,
   knowledge_cutoff: '2025-10-22',
@@ -262,6 +270,7 @@ const CLAUDE_HAIKU_3_5 = {
     },
   },
   supports: {
+    input: ['text', 'image', 'document'],
     extended_thinking: false,
     priority_tier: true,
   },
@@ -278,7 +287,7 @@ const CLAUDE_HAIKU_3_5 = {
 
 const CLAUDE_HAIKU_3 = {
   name: 'claude-haiku-3',
-  id: 'claude-3-haiku-20240307',
+  id: 'claude-3-haiku',
   context_window: 200_000,
   max_output_tokens: 4_000,
   knowledge_cutoff: '2024-03-07',
@@ -291,6 +300,7 @@ const CLAUDE_HAIKU_3 = {
     },
   },
   supports: {
+    input: ['text', 'image', 'document'],
     extended_thinking: false,
     priority_tier: false,
   },
@@ -446,4 +456,27 @@ export type AnthropicChatModelProviderOptionsByName = {
     AnthropicStopSequencesOptions &
     AnthropicToolChoiceOptions &
     AnthropicSamplingOptions
+}
+
+/**
+ * Type-only map from chat model name to its supported input modalities.
+ * All Anthropic Claude models support text, image, and document (PDF) input.
+ * Used by the core AI types to constrain ContentPart types based on the selected model.
+ * Note: These must be inlined as readonly arrays (not typeof) because the model
+ * constants are not exported and typeof references don't work in .d.ts files
+ * when consumed by external packages.
+ *
+ * @see https://docs.anthropic.com/claude/docs/vision
+ * @see https://docs.anthropic.com/claude/docs/pdf-support
+ */
+export type AnthropicModelInputModalitiesByName = {
+  [CLAUDE_OPUS_4_5.id]: typeof CLAUDE_OPUS_4_5.supports.input
+  [CLAUDE_SONNET_4_5.id]: typeof CLAUDE_SONNET_4_5.supports.input
+  [CLAUDE_HAIKU_4_5.id]: typeof CLAUDE_HAIKU_4_5.supports.input
+  [CLAUDE_OPUS_4_1.id]: typeof CLAUDE_OPUS_4_1.supports.input
+  [CLAUDE_SONNET_4.id]: typeof CLAUDE_SONNET_4.supports.input
+  [CLAUDE_SONNET_3_7.id]: typeof CLAUDE_SONNET_3_7.supports.input
+  [CLAUDE_OPUS_4.id]: typeof CLAUDE_OPUS_4.supports.input
+  [CLAUDE_HAIKU_3_5.id]: typeof CLAUDE_HAIKU_3_5.supports.input
+  [CLAUDE_HAIKU_3.id]: typeof CLAUDE_HAIKU_3.supports.input
 }

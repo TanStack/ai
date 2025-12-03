@@ -34,6 +34,42 @@ const OLLAMA_EMBEDDING_MODELS = [] as const
 const OLLAMA_AUDIO_MODELS = [] as const
 const OLLAMA_VIDEO_MODELS = [] as const
 
+/**
+ * Type-only map from Ollama model name to its supported input modalities.
+ * Ollama models have varying multimodal capabilities:
+ * - Vision models (llava, bakllava, etc.) support text + image
+ * - Most text models support text only
+ *
+ * Note: This is a placeholder - Ollama models are dynamically loaded,
+ * so we provide a base type that can be extended.
+ *
+ * @see https://github.com/ollama/ollama/blob/main/docs/api.md
+ */
+export type OllamaModelInputModalitiesByName = {
+  // Vision-capable models (text + image)
+  llava: readonly ['text', 'image']
+  bakllava: readonly ['text', 'image']
+  'llava-llama3': readonly ['text', 'image']
+  'llava-phi3': readonly ['text', 'image']
+  moondream: readonly ['text', 'image']
+  minicpm: readonly ['text', 'image']
+
+  // Text-only models
+  llama2: readonly ['text']
+  llama3: readonly ['text']
+  codellama: readonly ['text']
+  mistral: readonly ['text']
+  mixtral: readonly ['text']
+  phi: readonly ['text']
+  'neural-chat': readonly ['text']
+  'starling-lm': readonly ['text']
+  'orca-mini': readonly ['text']
+  vicuna: readonly ['text']
+  'nous-hermes': readonly ['text']
+  'nomic-embed-text': readonly ['text']
+  'gpt-oss:20b': readonly ['text']
+}
+
 // type OllamaModel = (typeof OLLAMA_MODELS)[number]
 
 /**
@@ -212,7 +248,9 @@ export class Ollama extends BaseAdapter<
   typeof OLLAMA_MODELS,
   typeof OLLAMA_EMBEDDING_MODELS,
   OllamaProviderOptions,
-  Record<string, any>
+  Record<string, any>,
+  Record<string, any>,
+  OllamaModelInputModalitiesByName
 > {
   name = 'ollama'
   models = OLLAMA_MODELS
@@ -220,6 +258,7 @@ export class Ollama extends BaseAdapter<
   embeddingModels = OLLAMA_EMBEDDING_MODELS
   audioModels = OLLAMA_AUDIO_MODELS
   videoModels = OLLAMA_VIDEO_MODELS
+  declare _modelInputModalitiesByName: OllamaModelInputModalitiesByName
   private client: OllamaSDK
 
   constructor(config: OllamaConfig = {}) {
@@ -239,11 +278,50 @@ export class Ollama extends BaseAdapter<
     // Map common options to Ollama format
     const mappedOptions = mapCommonOptionsToOllama(options, providerOpts)
 
-    // Format messages for Ollama (handle tool calls and tool results)
+    // Format messages for Ollama (handle tool calls, tool results, and multimodal)
     const formattedMessages = options.messages.map((msg) => {
-      const baseMessage: any = {
+      let textContent = ''
+      const images: Array<string> = []
+
+      // Handle multimodal content
+      if (Array.isArray(msg.content)) {
+        for (const part of msg.content) {
+          if (part.type === 'text') {
+            textContent += part.text
+          } else if (part.type === 'image') {
+            // Ollama accepts base64 strings for images
+            if (part.source.type === 'data') {
+              images.push(part.source.value)
+            } else {
+              // URL-based images not directly supported, but we pass the URL
+              // Ollama may need the image to be fetched externally
+              images.push(part.source.value)
+            }
+          }
+          // Ollama doesn't support audio/video/document directly, skip them
+        }
+      } else {
+        textContent = msg.content || ''
+      }
+
+      const baseMessage: {
+        role: 'user' | 'assistant' | 'system' | 'tool'
+        content: string
+        images?: Array<string>
+        tool_calls?: Array<{
+          id: string
+          type: string
+          function: { name: string; arguments: Record<string, unknown> }
+        }>
+        tool_call_id?: string
+      } = {
         role: msg.role as 'user' | 'assistant' | 'system',
-        content: msg.content || '',
+        content: textContent,
+      }
+
+      // Add images if present
+      if (images.length > 0) {
+        baseMessage.images = images
       }
 
       // Handle tool calls (assistant messages)
@@ -255,7 +333,7 @@ export class Ollama extends BaseAdapter<
       ) {
         baseMessage.tool_calls = msg.toolCalls.map((toolCall) => {
           // Parse string arguments to object for Ollama
-          let parsedArguments: any = {}
+          let parsedArguments: Record<string, unknown> = {}
           if (typeof toolCall.function.arguments === 'string') {
             try {
               parsedArguments = JSON.parse(toolCall.function.arguments)
@@ -263,7 +341,10 @@ export class Ollama extends BaseAdapter<
               parsedArguments = {}
             }
           } else {
-            parsedArguments = toolCall.function.arguments
+            parsedArguments = toolCall.function.arguments as Record<
+              string,
+              unknown
+            >
           }
 
           return {

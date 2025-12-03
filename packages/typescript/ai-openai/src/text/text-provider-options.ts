@@ -12,7 +12,6 @@ import type { ShellTool } from '../tools/shell-tool'
 import type { ToolChoice } from '../tools/tool-choice'
 import type { WebSearchPreviewTool } from '../tools/web-search-preview-tool'
 import type { WebSearchTool } from '../tools/web-search-tool'
-import type { ModelMessage } from '@tanstack/ai'
 
 // Core, always-available options for Responses API
 export interface OpenAIBaseOptions {
@@ -308,73 +307,4 @@ const validateMetadata = (options: InternalTextProviderOptions) => {
   if (valueTooLong) {
     throw new Error('Metadata values cannot be longer than 512 characters.')
   }
-}
-
-export function convertMessagesToInput(
-  messages: Array<ModelMessage>,
-): OpenAI.Responses.ResponseInput {
-  const result: OpenAI.Responses.ResponseInput = []
-
-  for (const message of messages) {
-    // Handle tool messages - convert to FunctionToolCallOutput
-    if (message.role === 'tool') {
-      result.push({
-        type: 'function_call_output',
-        call_id: message.toolCallId || '',
-        output:
-          typeof message.content === 'string'
-            ? message.content
-            : JSON.stringify(message.content),
-      })
-      continue
-    }
-
-    // Handle assistant messages
-    if (message.role === 'assistant') {
-      // If the assistant message has tool calls, add them as FunctionToolCall objects
-      // OpenAI Responses API expects arguments as a string (JSON string)
-      if (message.toolCalls && message.toolCalls.length > 0) {
-        for (const toolCall of message.toolCalls) {
-          // Keep arguments as string for Responses API
-          // Our internal format stores arguments as a JSON string, which is what API expects
-          const argumentsString =
-            typeof toolCall.function.arguments === 'string'
-              ? toolCall.function.arguments
-              : JSON.stringify(toolCall.function.arguments)
-
-          result.push({
-            type: 'function_call',
-            call_id: toolCall.id,
-            name: toolCall.function.name,
-            arguments: argumentsString,
-          } as any)
-        }
-      }
-
-      // Add the assistant's text message if there is content
-      if (message.content) {
-        result.push({
-          type: 'message',
-          role: 'assistant',
-          content: message.content,
-        })
-      }
-
-      continue
-    }
-
-    // Handle user messages (default case)
-    result.push({
-      type: 'message',
-      role: 'user',
-      content: [
-        {
-          type: 'input_text',
-          text: message.content || '',
-        },
-      ],
-    })
-  }
-
-  return result
 }

@@ -5,6 +5,7 @@ import { convertToolsToProviderFormat } from './tools/tool-converter'
 import type {
   AIAdapterConfig,
   ChatOptions,
+  ContentPart,
   EmbeddingOptions,
   EmbeddingResult,
   ModelMessage,
@@ -12,12 +13,23 @@ import type {
   SummarizationOptions,
   SummarizationResult,
 } from '@tanstack/ai'
-import type { GeminiChatModelProviderOptionsByName } from './model-meta'
+import type {
+  GeminiChatModelProviderOptionsByName,
+  GeminiModelInputModalitiesByName,
+} from './model-meta'
 import type { ExternalTextProviderOptions } from './text/text-provider-options'
 import type {
   GenerateContentParameters,
   GenerateContentResponse,
+  Part,
 } from '@google/genai'
+import type {
+  GeminiAudioMetadata,
+  GeminiDocumentMetadata,
+  GeminiImageMetadata,
+  GeminiMessageMetadataByModality,
+  GeminiVideoMetadata,
+} from './message-types'
 
 export interface GeminiAdapterConfig extends AIAdapterConfig {
   apiKey: string
@@ -35,12 +47,16 @@ export class GeminiAdapter extends BaseAdapter<
   typeof GEMINI_EMBEDDING_MODELS,
   GeminiProviderOptions,
   Record<string, any>,
-  GeminiChatModelProviderOptionsByName
+  GeminiChatModelProviderOptionsByName,
+  GeminiModelInputModalitiesByName,
+  GeminiMessageMetadataByModality
 > {
   name = 'gemini'
   models = GEMINI_MODELS
   embeddingModels = GEMINI_EMBEDDING_MODELS
   declare _modelProviderOptionsByName: GeminiChatModelProviderOptionsByName
+  declare _modelInputModalitiesByName: GeminiModelInputModalitiesByName
+  declare _messageMetadataByModality: GeminiMessageMetadataByModality
   private client: GoogleGenAI
 
   constructor(config: GeminiAdapterConfig) {
@@ -56,9 +72,26 @@ export class GeminiAdapter extends BaseAdapter<
     // Map common options to Gemini format
     const mappedOptions = this.mapCommonOptionsToGemini(options)
 
-    const result = await this.client.models.generateContentStream(mappedOptions)
+    try {
+      const result =
+        await this.client.models.generateContentStream(mappedOptions)
 
-    yield* this.processStreamChunks(result, options.model)
+      yield* this.processStreamChunks(result, options.model)
+    } catch (error) {
+      const timestamp = Date.now()
+      yield {
+        type: 'error',
+        id: this.generateId(),
+        model: options.model,
+        timestamp,
+        error: {
+          message:
+            error instanceof Error
+              ? error.message
+              : 'An unknown error occurred during the chat stream.',
+        },
+      }
+    }
   }
 
   async summarize(options: SummarizationOptions): Promise<SummarizationResult> {
@@ -362,31 +395,68 @@ export class GeminiAdapter extends BaseAdapter<
     }
   }
 
-  private formatMessages(messages: Array<ModelMessage>): Array<{
-    role: 'user' | 'model'
-    parts: Array<{
-      text?: string
-      functionCall?: { name: string; args: Record<string, any> }
-      functionResponse?: { name: string; response: Record<string, any> }
-    }>
-  }> {
+  private convertContentPartToGemini(part: ContentPart): Part {
+    switch (part.type) {
+      case 'text':
+        return { text: part.text }
+      case 'image':
+      case 'audio':
+      case 'video':
+      case 'document': {
+        const metadata = part.metadata as
+          | GeminiDocumentMetadata
+          | GeminiImageMetadata
+          | GeminiVideoMetadata
+          | GeminiAudioMetadata
+          | undefined
+        // Gemini uses inlineData for base64 and fileData for URLs
+        if (part.source.type === 'data') {
+          return {
+            inlineData: {
+              data: part.source.value,
+              mimeType: metadata?.mimeType ?? 'image/jpeg',
+            },
+          }
+        } else {
+          return {
+            fileData: {
+              fileUri: part.source.value,
+              mimeType: metadata?.mimeType ?? 'image/jpeg',
+            },
+          }
+        }
+      }
+      default: {
+        // Exhaustive check - this should never happen with known types
+        const _exhaustiveCheck: never = part
+        throw new Error(
+          `Unsupported content part type: ${(_exhaustiveCheck as ContentPart).type}`,
+        )
+      }
+    }
+  }
+
+  private formatMessages(
+    messages: Array<ModelMessage>,
+  ): GenerateContentParameters['contents'] {
     return messages.map((msg) => {
       const role: 'user' | 'model' = msg.role === 'assistant' ? 'model' : 'user'
-      const parts: Array<{
-        text?: string
-        functionCall?: { name: string; args: Record<string, any> }
-        functionResponse?: { name: string; response: Record<string, any> }
-      }> = []
+      const parts: Array<Part> = []
 
-      // Add text content if present
-      if (msg.content) {
+      // Handle multimodal content (array of ContentPart)
+      if (Array.isArray(msg.content)) {
+        for (const contentPart of msg.content) {
+          parts.push(this.convertContentPartToGemini(contentPart))
+        }
+      } else if (msg.content) {
+        // Handle string content (backward compatibility)
         parts.push({ text: msg.content })
       }
 
       // Handle tool calls (from assistant)
       if (msg.role === 'assistant' && msg.toolCalls?.length) {
         for (const toolCall of msg.toolCalls) {
-          let parsedArgs: Record<string, any> = {}
+          let parsedArgs: Record<string, unknown> = {}
           try {
             parsedArgs = toolCall.function.arguments
               ? JSON.parse(toolCall.function.arguments)
@@ -422,7 +492,6 @@ export class GeminiAdapter extends BaseAdapter<
       }
     })
   }
-
   /**
    * Maps common options to Gemini-specific format
    * Handles translation of normalized options to Gemini's API format

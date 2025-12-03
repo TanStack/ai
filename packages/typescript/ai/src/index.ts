@@ -27,6 +27,7 @@ export {
 } from './utilities/agent-loop-strategies'
 export * from './types'
 export { chatOptions } from './utilities/chat-options'
+export { messages } from './utilities/messages'
 export { aiEventClient } from './event-client'
 
 // Message converters

@@ -10,7 +10,7 @@ import type {
 interface ModelMeta<TProviderOptions = unknown> {
   name: string
   supports: {
-    input: Array<'text' | 'image' | 'audio' | 'video' | 'pdf'>
+    input: Array<'text' | 'image' | 'audio' | 'video' | 'document'>
     output: Array<'text' | 'image' | 'audio' | 'video'>
     capabilities?: Array<
       | 'audio_generation'
@@ -52,7 +52,7 @@ const GEMINI_3_PRO = {
   max_output_tokens: 65_536,
   knowledge_cutoff: '2025-01-01',
   supports: {
-    input: ['text', 'image', 'audio', 'video', 'pdf'],
+    input: ['text', 'image', 'audio', 'video', 'document'],
     output: ['text'],
     capabilities: [
       'batch_api',
@@ -89,7 +89,7 @@ const GEMINI_2_5_PRO = {
   max_output_tokens: 65_536,
   knowledge_cutoff: '2025-01-01',
   supports: {
-    input: ['text', 'image', 'audio', 'video', 'pdf'],
+    input: ['text', 'image', 'audio', 'video', 'document'],
     output: ['text'],
     capabilities: [
       'batch_api',
@@ -317,7 +317,7 @@ const GEMINI_2_5_FLASH_LITE = {
   max_output_tokens: 65_536,
   knowledge_cutoff: '2025-01-01',
   supports: {
-    input: ['text', 'image', 'audio', 'video', 'pdf'],
+    input: ['text', 'image', 'audio', 'video', 'document'],
     output: ['text'],
     capabilities: [
       'batch_api',
@@ -354,7 +354,7 @@ const GEMINI_2_5_FLASH_LITE_PREVIEW = {
   max_output_tokens: 65_536,
   knowledge_cutoff: '2025-01-01',
   supports: {
-    input: ['text', 'image', 'audio', 'video', 'pdf'],
+    input: ['text', 'image', 'audio', 'video', 'document'],
     output: ['text'],
     capabilities: [
       'batch_api',
@@ -857,4 +857,31 @@ export type GeminiChatModelProviderOptionsByName = {
     GeminiGenerationConfigOptions &
     GeminiCachedContentOptions &
     GeminiStructuredOutputOptions
+}
+
+/**
+ * Type-only map from chat model name to its supported input modalities.
+ * Based on the 'supports.input' arrays defined for each model.
+ * Note: 'document' in the model meta is mapped to 'document' modality.
+ * Used by the core AI types to constrain ContentPart types based on the selected model.
+ * Note: These must be inlined as readonly arrays (not typeof) because the model
+ * constants are not exported and typeof references don't work in .d.ts files
+ * when consumed by external packages.
+ *
+ * @see https://ai.google.dev/gemini-api/docs/vision
+ * @see https://ai.google.dev/gemini-api/docs/audio
+ * @see https://ai.google.dev/gemini-api/docs/document-processing
+ */
+export type GeminiModelInputModalitiesByName = {
+  // Models with full multimodal support (text, image, audio, video, document)
+  [GEMINI_3_PRO.name]: typeof GEMINI_3_PRO.supports.input
+  [GEMINI_2_5_PRO.name]: typeof GEMINI_2_5_PRO.supports.input
+  [GEMINI_2_5_FLASH_LITE.name]: typeof GEMINI_2_5_FLASH_LITE.supports.input
+  [GEMINI_2_5_FLASH_LITE_PREVIEW.name]: typeof GEMINI_2_5_FLASH_LITE_PREVIEW.supports.input
+
+  // Models with text, image, audio, video (no document)
+  [GEMINI_2_5_FLASH.name]: typeof GEMINI_2_5_FLASH.supports.input
+  [GEMINI_2_5_FLASH_PREVIEW.name]: typeof GEMINI_2_5_FLASH_PREVIEW.supports.input
+  [GEMINI_2_FLASH.name]: typeof GEMINI_2_FLASH.supports.input
+  [GEMINI_2_FLASH_LITE.name]: typeof GEMINI_2_FLASH_LITE.supports.input
 }
