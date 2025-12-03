@@ -27,11 +27,25 @@ cd examples/php-slim
 
 2. **Install dependencies:**
 
+Install PHP dependencies:
+
 ```bash
 composer install
 ```
 
 This will install all required packages (Slim Framework, Anthropic SDK, OpenAI SDK, etc.).
+
+Install Node.js dependencies (for running the UI):
+
+```bash
+pnpm install
+```
+
+Or if you're at the repository root, you can install all dependencies at once:
+
+```bash
+pnpm install
+```
 
 3. **Set up environment variables:**
 
@@ -42,36 +56,41 @@ cp env.example .env
 # Edit .env and add your ANTHROPIC_API_KEY and/or OPENAI_API_KEY
 ```
 
-4. **Run the server:**
+4. **Run the server and UI:**
 
 **For Anthropic:**
 
 ```bash
-php -S 0.0.0.0:8000 -t public public/anthropic-server.php
+pnpm start
 ```
 
-Or using Composer:
+Or using npm:
 
 ```bash
-composer start-anthropic
+npm start
 ```
+
+This will start both the PHP server and the vanilla-chat UI concurrently.
 
 **For OpenAI:**
 
 ```bash
-php -S 0.0.0.0:8001 -t public public/openai-server.php
+pnpm start-openai
 ```
 
-Or using Composer:
+Or using npm:
 
 ```bash
-composer start-openai
+npm start-openai
 ```
 
 The servers will start on:
 
-- Anthropic: `http://localhost:8000`
-- OpenAI: `http://localhost:8001`
+- PHP Server (Anthropic): `http://localhost:8000`
+- PHP Server (OpenAI): `http://localhost:8001`
+- UI: `http://localhost:3001`
+
+**Note:** The UI (vanilla-chat) is required to interact with the PHP server. The `start` script runs both servers together.
 
 ## API Endpoints
 

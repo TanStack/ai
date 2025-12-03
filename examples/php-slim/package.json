@@ -1,5 +1,12 @@
 {
   "name": "php-slim",
   "version": "0.0.0",
-  "private": true
+  "private": true,
+  "scripts": {
+    "start": "concurrently -n \"php,ui\" -c \"cyan,magenta\" \"composer start-anthropic\" \"pnpm --filter vanilla-chat start\"",
+    "start-openai": "concurrently -n \"php,ui\" -c \"cyan,magenta\" \"composer start-openai\" \"pnpm --filter vanilla-chat start\""
+  },
+  "devDependencies": {
+    "concurrently": "^9.1.2"
+  }
 }

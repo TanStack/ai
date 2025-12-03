@@ -7,10 +7,10 @@ This directory contains comprehensive examples demonstrating TanStack AI across 
 Choose an example based on your use case:
 
 - **Want a full-stack TypeScript app?** → [TanStack Chat (ts-react-chat)](#tanstack-chat-ts-react-chat)
-- **Want a simple CLI tool?** → [CLI Example](#cli-example)
 - **Need a vanilla JS frontend?** → [Vanilla Chat](#vanilla-chat)
 - **Building a Python backend?** → [Python FastAPI Server](#python-fastapi-server)
 - **Building a PHP backend?** → [PHP Slim Framework Server](#php-slim-framework-server)
+- **Multi-User TypeScript chat app?** → [Group Chat (ts-group-chat)](#group-chat-ts-group-chat)
 
 ## TypeScript Examples
 
@@ -49,47 +49,62 @@ pnpm start
 
 ---
 
-### CLI Example
+### Group Chat (ts-group-chat)
 
-An interactive command-line interface for AI interactions.
+A real-time multi-user chat application with AI integration, demonstrating WebSocket-based communication and TanStack AI.
+
+**Tech Stack:**
+
+- TanStack Start (full-stack React framework)
+- TanStack Router (type-safe routing)
+- Cap'n Web RPC (bidirectional WebSocket RPC)
+- `@tanstack/ai` (AI backend)
+- `@tanstack/ai-anthropic` (Claude adapter)
+- `@tanstack/ai-client` (headless client)
+- `@tanstack/ai-react` (React hooks)
 
 **Features:**
 
-- ✅ Multi-provider support (OpenAI, Anthropic, Ollama, Gemini)
-- ✅ Interactive chat with streaming
-- ✅ Automatic tool/function calling
-- ✅ Smart API key management
-- ✅ Debug mode for development
+- ✅ Real-time multi-user chat with WebSocket
+- ✅ Online presence tracking
+- ✅ AI assistant (Claude) integration with queuing
+- ✅ Message broadcasting to all users
+- ✅ Modern chat UI (iMessage-style)
+- ✅ Username-based authentication (no registration)
 
 **Getting Started:**
 
 ```bash
-cd examples/cli
+cd examples/ts-group-chat
 pnpm install
-pnpm dev chat --provider openai
+cp .env.example .env
+# Edit .env and add your ANTHROPIC_API_KEY
+pnpm dev
 ```
 
-**Available Commands:**
+Open `http://localhost:4000` in multiple browser tabs to test multi-user functionality.
 
-- `chat` - Interactive chat with streaming
-- `generate` - One-shot text generation
-- `summarize` - Text summarization
-- `embed` - Generate embeddings
+**Key Concepts:**
 
-📖 [Full Documentation](cli/README.md)
+- **WebSocket RPC**: Uses Cap'n Web RPC for type-safe bidirectional communication
+- **AI Queuing**: Claude requests are queued and processed sequentially
+- **Real-time Updates**: Messages and online users update in real-time
+- **Message Broadcasting**: Server broadcasts messages to all connected clients
+
+📖 [Full Documentation](ts-group-chat/README.md)
 
 ---
 
 ### Vanilla Chat
 
-A framework-free chat application using pure JavaScript and `@tanstack/ai-client`.
+A framework-free chat application using pure JavaScript and `@tanstack/ai-client`. Works with both PHP and Python backends.
 
 **Tech Stack:**
 
 - Vanilla JavaScript (no frameworks!)
 - `@tanstack/ai-client` (headless client)
 - Vite (dev server)
-- Connects to Python FastAPI backend
+- Compatible with PHP Slim or Python FastAPI backends
 
 **Features:**
 
@@ -97,8 +112,11 @@ A framework-free chat application using pure JavaScript and `@tanstack/ai-client
 - ✅ Real-time streaming messages
 - ✅ Beautiful, responsive UI
 - ✅ No framework dependencies
+- ✅ Works with multiple backend languages
 
 **Getting Started:**
+
+**Option 1: With Python Backend**
 
 ```bash
 # Start the Python backend first
@@ -108,10 +126,22 @@ python anthropic-server.py
 # Then start the frontend
 cd examples/vanilla-chat
 pnpm install
-pnpm dev
+pnpm start
 ```
 
-Open `http://localhost:3000`
+**Option 2: With PHP Backend**
+
+```bash
+# Start the PHP backend and UI together
+cd examples/php-slim
+pnpm install
+composer install
+cp env.example .env
+# Edit .env and add your ANTHROPIC_API_KEY
+pnpm start
+```
+
+Open `http://localhost:3001` (UI) - connects to backend on port 8000
 
 📖 [Full Documentation](vanilla-chat/README.md)
 
@@ -266,23 +296,8 @@ AI Provider (OpenAI/Anthropic/etc.)
 **Examples:**
 
 - [Python FastAPI](python-fastapi/README.md) + [Vanilla Chat](vanilla-chat/README.md)
+- [PHP Slim](php-slim/README.md) + [Vanilla Chat](vanilla-chat/README.md)
 - [PHP Slim](php-slim/README.md) + any frontend with `@tanstack/ai-client`
-
-### CLI Tool
-
-Use TanStack AI in command-line applications:
-
-```
-CLI
-  ↓ (chat() function)
-@tanstack/ai
-  ↓ (adapter)
-AI Provider (OpenAI/Anthropic/Ollama/Gemini)
-```
-
-**Example:** [CLI Example](cli/README.md)
-
----
 
 ## Common Patterns
 
@@ -345,20 +360,26 @@ const client = new ChatClient({
 The TypeScript backend (`@tanstack/ai`) automatically handles tool execution:
 
 ```typescript
-import { chat, tool } from '@tanstack/ai'
+import { chat, toolDefinition } from '@tanstack/ai'
+import { z } from 'zod'
 
-const weatherTool = tool({
-  function: {
-    name: 'getWeather',
-    description: 'Get weather for a location',
-    parameters: {
-      /* ... */
-    },
-  },
-  execute: async (args) => {
-    // This is called automatically by the SDK
-    return JSON.stringify({ temp: 72, condition: 'sunny' })
-  },
+// Step 1: Define the tool schema
+const weatherToolDef = toolDefinition({
+  name: 'getWeather',
+  description: 'Get weather for a location',
+  inputSchema: z.object({
+    location: z.string().describe('The city and state, e.g. San Francisco, CA'),
+  }),
+  outputSchema: z.object({
+    temp: z.number(),
+    condition: z.string(),
+  }),
+})
+
+// Step 2: Create server implementation
+const weatherTool = weatherToolDef.server(async ({ location }) => {
+  // This is called automatically by the SDK
+  return { temp: 72, condition: 'sunny' }
 })
 
 const stream = chat({
@@ -385,15 +406,20 @@ Clients receive:
 You can run backend and frontend examples together:
 
 ```bash
+# Option 1: Python backend + Vanilla Chat frontend
 # Terminal 1: Start Python backend
 cd examples/python-fastapi
 python anthropic-server.py
 
 # Terminal 2: Start vanilla frontend
 cd examples/vanilla-chat
-pnpm dev
+pnpm start
 
-# Terminal 3: Start ts-react-chat (full-stack)
+# Option 2: PHP backend + Vanilla Chat frontend (runs together)
+cd examples/php-slim
+pnpm start  # Starts both PHP server and vanilla-chat UI
+
+# Option 3: Full-stack TypeScript
 cd examples/ts-react-chat
 pnpm start
 ```

@@ -6,9 +6,9 @@ A simple vanilla JavaScript chat interface using `@tanstack/ai-client` and the P
 
 - ✅ Pure vanilla JavaScript (no frameworks)
 - ✅ Uses `@tanstack/ai-client` for chat functionality
-- ✅ Connects to FastAPI server on port 8080
+- ✅ Connects to API servers on port 8000
 - ✅ Real-time streaming messages
-- ✅ Beautiful, responsive UI
+- ✅ Beautiful, responsive UI :)
 
 ## Setup
 
@@ -38,11 +38,11 @@ npm run dev
 pnpm dev
 ```
 
-The app will be available at `http://localhost:3000`
+The app will be available at `http://localhost:3001`
 
 ## Usage
 
-1. Open `http://localhost:3000` in your browser
+1. Open `http://localhost:3001` in your browser
 2. Type a message and press Enter (or click Send)
 3. Watch the AI response stream in real-time!
 

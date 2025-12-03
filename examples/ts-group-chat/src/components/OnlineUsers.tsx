@@ -39,8 +39,19 @@ export function OnlineUsers({
         </div>
       )}
 
-      <div className="mt-4 pt-4 border-t border-gray-600 text-xs text-gray-400 text-center">
-        Real-time presence via Cap'n Web RPC
+      <div className="mt-4 pt-4 border-t border-gray-600">
+        <h3 className="text-sm font-semibold text-white mb-2">How to use</h3>
+        <div className="text-xs text-gray-400 space-y-1">
+          <p>
+            • Type <span className="text-blue-400">@Claude</span> to ask Claude
+            a question
+          </p>
+          <p>• Messages are sent to all online users</p>
+          <p>• Claude responds in the chat</p>
+        </div>
+        <div className="mt-3 pt-3 border-t border-gray-700 text-xs text-gray-500 text-center">
+          Real-time presence via Cap'n Web RPC
+        </div>
       </div>
     </div>
   )

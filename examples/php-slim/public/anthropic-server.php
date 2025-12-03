@@ -32,14 +32,13 @@ $logger->pushHandler(new StreamHandler('php://stdout', Logger::INFO));
 // Initialize Slim app
 $app = AppFactory::create();
 
-// CORS middleware
+// CORS middleware - wide open for development
 $app->add(function (Request $request, $handler) {
     // Handle preflight OPTIONS request
     if ($request->getMethod() === 'OPTIONS') {
         $response = new SlimResponse();
         return $response
             ->withHeader('Access-Control-Allow-Origin', '*')
-            ->withHeader('Access-Control-Allow-Credentials', 'true')
             ->withHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS')
             ->withHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With')
             ->withHeader('Access-Control-Max-Age', '86400')
@@ -49,7 +48,6 @@ $app->add(function (Request $request, $handler) {
     $response = $handler->handle($request);
     return $response
         ->withHeader('Access-Control-Allow-Origin', '*')
-        ->withHeader('Access-Control-Allow-Credentials', 'true')
         ->withHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS')
         ->withHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With');
 });
@@ -105,7 +103,6 @@ $client = new Client(apiKey: $anthropicApiKey);
 $app->options('/chat', function (Request $request, Response $response) {
     return $response
         ->withHeader('Access-Control-Allow-Origin', '*')
-        ->withHeader('Access-Control-Allow-Credentials', 'true')
         ->withHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS')
         ->withHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With')
         ->withHeader('Access-Control-Max-Age', '86400')
@@ -147,7 +144,6 @@ $app->post('/chat', function (Request $request, Response $response) use ($client
         header('Connection: keep-alive');
         header('X-Accel-Buffering: no');
         header('Access-Control-Allow-Origin: *');
-        header('Access-Control-Allow-Credentials: true');
         header('Access-Control-Allow-Methods: GET, POST, OPTIONS');
         header('Access-Control-Allow-Headers: Content-Type, Authorization, X-Requested-With');
         
@@ -161,7 +157,6 @@ $app->post('/chat', function (Request $request, Response $response) use ($client
             ->withHeader('Connection', 'keep-alive')
             ->withHeader('X-Accel-Buffering', 'no')
             ->withHeader('Access-Control-Allow-Origin', '*')
-            ->withHeader('Access-Control-Allow-Credentials', 'true')
             ->withHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS')
             ->withHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With');
 

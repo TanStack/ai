@@ -1,5 +1,15 @@
 {
   "name": "python-fastapi",
   "version": "0.0.0",
-  "private": true
+  "private": true,
+  "scripts": {
+    "setup": "python3 -m venv venv && venv/bin/pip install -r requirements.txt",
+    "setup:windows": "python -m venv venv && venv\\Scripts\\pip install -r requirements.txt",
+    "start": "concurrently -n \"python,ui\" -c \"cyan,magenta\" \"venv/bin/python anthropic-server.py\" \"pnpm --filter vanilla-chat start\"",
+    "start:windows": "concurrently -n \"python,ui\" -c \"cyan,magenta\" \"venv\\Scripts\\python anthropic-server.py\" \"pnpm --filter vanilla-chat start\"",
+    "start:openai": "concurrently -n \"python,ui\" -c \"cyan,magenta\" \"venv/bin/python openai-server.py\" \"pnpm --filter vanilla-chat start\""
+  },
+  "devDependencies": {
+    "concurrently": "^9.1.2"
+  }
 }

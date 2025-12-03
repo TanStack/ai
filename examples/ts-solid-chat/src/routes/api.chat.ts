@@ -26,7 +26,7 @@ Step 2: Call recommendGuitar(id: "6")
 Step 3: Done - do NOT add any text after calling recommendGuitar
 `
 
-export const Route = createFileRoute('/api/tanchat')({
+export const Route = createFileRoute('/api/chat')({
   server: {
     handlers: {
       POST: async ({ request }) => {

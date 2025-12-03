@@ -234,8 +234,15 @@ export class ChatServer extends RpcTarget {
       throw new Error('Message cannot be empty')
     }
 
-    // Check for Claude trigger pattern
-    const isClaudeMention = messageText.trim().match(/^(@?Claude,|Claude)/i)
+    // Check for Claude trigger pattern - matches @Claude anywhere in message or Claude at start
+    const trimmedMessage = messageText.trim()
+    const isClaudeMention =
+      /@Claude/i.test(messageText) || // @Claude anywhere in message
+      /^Claude/i.test(trimmedMessage) || // Claude at start
+      /^@Claude/i.test(trimmedMessage) // @Claude at start
+    console.log(
+      `📨 [${this.currentUsername}] Checking for Claude mention in: "${messageText.substring(0, 50)}..."`,
+    )
     console.log(
       `📨 [${this.currentUsername}] isClaudeMention: ${
         isClaudeMention ? 'YES' : 'NO'

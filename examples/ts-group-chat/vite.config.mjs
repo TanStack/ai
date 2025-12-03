@@ -4,9 +4,11 @@ import viteReact from '@vitejs/plugin-react'
 import viteTsConfigPaths from 'vite-tsconfig-paths'
 import tailwindcss from '@tailwindcss/vite'
 import { websocketRpcPlugin } from './chat-server/vite-plugin.js'
+import { devtools } from '@tanstack/devtools-vite'
 
 const config = defineConfig({
   plugins: [
+    devtools(),
     viteTsConfigPaths({
       projects: ['./tsconfig.json'],
     }),

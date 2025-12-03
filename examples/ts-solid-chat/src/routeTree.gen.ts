@@ -10,8 +10,7 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
-import { Route as ApiTestChatRouteImport } from './routes/api.test-chat'
-import { Route as ApiTanchatRouteImport } from './routes/api.tanchat'
+import { Route as ApiChatRouteImport } from './routes/api.chat'
 import { Route as ExampleGuitarsIndexRouteImport } from './routes/example.guitars/index'
 import { Route as ExampleGuitarsGuitarIdRouteImport } from './routes/example.guitars/$guitarId'
 
@@ -20,14 +19,9 @@ const IndexRoute = IndexRouteImport.update({
   path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
-const ApiTestChatRoute = ApiTestChatRouteImport.update({
-  id: '/api/test-chat',
-  path: '/api/test-chat',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const ApiTanchatRoute = ApiTanchatRouteImport.update({
-  id: '/api/tanchat',
-  path: '/api/tanchat',
+const ApiChatRoute = ApiChatRouteImport.update({
+  id: '/api/chat',
+  path: '/api/chat',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ExampleGuitarsIndexRoute = ExampleGuitarsIndexRouteImport.update({
@@ -43,23 +37,20 @@ const ExampleGuitarsGuitarIdRoute = ExampleGuitarsGuitarIdRouteImport.update({
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
-  '/api/tanchat': typeof ApiTanchatRoute
-  '/api/test-chat': typeof ApiTestChatRoute
+  '/api/chat': typeof ApiChatRoute
   '/example/guitars/$guitarId': typeof ExampleGuitarsGuitarIdRoute
   '/example/guitars': typeof ExampleGuitarsIndexRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
-  '/api/tanchat': typeof ApiTanchatRoute
-  '/api/test-chat': typeof ApiTestChatRoute
+  '/api/chat': typeof ApiChatRoute
   '/example/guitars/$guitarId': typeof ExampleGuitarsGuitarIdRoute
   '/example/guitars': typeof ExampleGuitarsIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
-  '/api/tanchat': typeof ApiTanchatRoute
-  '/api/test-chat': typeof ApiTestChatRoute
+  '/api/chat': typeof ApiChatRoute
   '/example/guitars/$guitarId': typeof ExampleGuitarsGuitarIdRoute
   '/example/guitars/': typeof ExampleGuitarsIndexRoute
 }
@@ -67,30 +58,22 @@ export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
-    | '/api/tanchat'
-    | '/api/test-chat'
+    | '/api/chat'
     | '/example/guitars/$guitarId'
     | '/example/guitars'
   fileRoutesByTo: FileRoutesByTo
-  to:
-    | '/'
-    | '/api/tanchat'
-    | '/api/test-chat'
-    | '/example/guitars/$guitarId'
-    | '/example/guitars'
+  to: '/' | '/api/chat' | '/example/guitars/$guitarId' | '/example/guitars'
   id:
     | '__root__'
     | '/'
-    | '/api/tanchat'
-    | '/api/test-chat'
+    | '/api/chat'
     | '/example/guitars/$guitarId'
     | '/example/guitars/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
-  ApiTanchatRoute: typeof ApiTanchatRoute
-  ApiTestChatRoute: typeof ApiTestChatRoute
+  ApiChatRoute: typeof ApiChatRoute
   ExampleGuitarsGuitarIdRoute: typeof ExampleGuitarsGuitarIdRoute
   ExampleGuitarsIndexRoute: typeof ExampleGuitarsIndexRoute
 }
@@ -104,18 +87,11 @@ declare module '@tanstack/solid-router' {
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/api/test-chat': {
-      id: '/api/test-chat'
-      path: '/api/test-chat'
-      fullPath: '/api/test-chat'
-      preLoaderRoute: typeof ApiTestChatRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/api/tanchat': {
-      id: '/api/tanchat'
-      path: '/api/tanchat'
-      fullPath: '/api/tanchat'
-      preLoaderRoute: typeof ApiTanchatRouteImport
+    '/api/chat': {
+      id: '/api/chat'
+      path: '/api/chat'
+      fullPath: '/api/chat'
+      preLoaderRoute: typeof ApiChatRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/example/guitars/': {
@@ -137,8 +113,7 @@ declare module '@tanstack/solid-router' {
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
-  ApiTanchatRoute: ApiTanchatRoute,
-  ApiTestChatRoute: ApiTestChatRoute,
+  ApiChatRoute: ApiChatRoute,
   ExampleGuitarsGuitarIdRoute: ExampleGuitarsGuitarIdRoute,
   ExampleGuitarsIndexRoute: ExampleGuitarsIndexRoute,
 }

@@ -2,12 +2,11 @@ import { createFileRoute } from '@tanstack/solid-router'
 import Send from 'lucide-solid/icons/send'
 import Square from 'lucide-solid/icons/square'
 import { fetchServerSentEvents, useChat } from '@tanstack/ai-solid'
-import {
-  createChatClientOptions,
-  type InferChatMessages,
-} from '@tanstack/ai-client'
-import { ThinkingPart, TextPart } from '@tanstack/ai-solid-ui'
-import { createSignal, For, Show } from 'solid-js'
+import { createChatClientOptions } from '@tanstack/ai-client'
+import { TextPart, ThinkingPart } from '@tanstack/ai-solid-ui'
+import { For, createSignal } from 'solid-js'
+
+import type { InferChatMessages, UIMessage } from '@tanstack/ai-client'
 
 import type { JSXElement } from 'solid-js'
 import GuitarRecommendation from '@/components/example-GuitarRecommendation'
@@ -15,7 +14,7 @@ import { clientTools } from '@/lib/guitar-tools'
 
 // Create typed chat options for type inference
 const chatOptions = createChatClientOptions({
-  connection: fetchServerSentEvents('/api/tanchat'),
+  connection: fetchServerSentEvents('/api/chat'),
   tools: clientTools,
 })
 
@@ -324,14 +323,11 @@ function ChatPage() {
   return (
     <div class="flex h-[calc(100vh-72px)]  bg-gray-900">
       {/* Left side - Chat (1/4 width) */}
-      <div class="w-1/4 flex flex-col border-r border-orange-500/20">
+      <div class="w-1/2 flex flex-col border-r border-orange-500/20">
         <div class="p-4 border-b border-orange-500/20">
           <h1 class="text-2xl font-bold bg-linear-to-r from-orange-500 to-red-600 text-transparent bg-clip-text">
-            TanStack Chat
+            TanStack AI on SolidJS
           </h1>
-          <p class="text-gray-400 text-sm mt-1">
-            Parts-based UIMessages with tool states
-          </p>
         </div>
 
         <Messages
@@ -355,7 +351,7 @@ function ChatPage() {
             <div class="relative">
               <textarea
                 value={input()}
-                placeholder="Type something clever (or don't, we won't judge)..."
+                placeholder="Type something"
                 class="w-full rounded-lg border border-orange-500/20 bg-gray-800/50 pl-4 pr-12 py-3 text-sm text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-orange-500/50 focus:border-transparent resize-none overflow-hidden shadow-lg"
                 rows={1}
                 style={{ 'min-height': '44px', 'max-height': '200px' }}
@@ -393,7 +389,7 @@ function ChatPage() {
       </div>
 
       {/* Right side - Debug Panel (3/4 width) */}
-      <div class="w-3/4 bg-gray-950 flex flex-col">
+      <div class="w-1/2 bg-gray-950 flex flex-col">
         <DebugPanel
           messages={messages()}
           chunks={chunks()}

@@ -30,7 +30,7 @@
   "scripts": {
     "start": "php -S 0.0.0.0:8000 -t public public/index.php",
     "start-anthropic": "php -S 0.0.0.0:8000 -t public public/anthropic-server.php",
-    "start-openai": "php -S 0.0.0.0:8001 -t public public/openai-server.php"
+    "start-openai": "php -S 0.0.0.0:8000 -t public public/openai-server.php"
   },
   "config": {
     "allow-plugins": {
