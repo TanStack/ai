@@ -45,7 +45,7 @@ const { messages } = useChat({
 
 ### HTTP Stream
 
-For environments that don't support SSE:
+For environments that don't support SSE, use the HTTP stream adapter:
 
 ```typescript
 import { useChat, fetchHttpStream } from "@tanstack/ai-react";
@@ -57,7 +57,7 @@ const { messages } = useChat({
 
 ## Custom Adapters
 
-Create custom adapters for specific protocols or requirements:
+For specialized use cases, you can create custom adapters to meet specific protocols or requirements:
 
 ```typescript
 import { stream, type ConnectionAdapter } from "@tanstack/ai-react";
@@ -91,7 +91,7 @@ const { messages } = useChat({
 
 ## WebSocket Adapter Example
 
-Here's an example of a WebSocket adapter:
+To create a WebSocket-based adapter:
 
 ```typescript
 import { stream, type ConnectionAdapter } from "@tanstack/ai-react";
@@ -201,14 +201,13 @@ const { messages } = useChat({
 
 ## Best Practices
 
-1. **Use SSE for most cases** - It's reliable and well-supported
-2. **Handle reconnection** - Built-in adapters handle this automatically
-3. **Cancel on unmount** - Clean up connections when components unmount
-4. **Handle errors** - Provide meaningful error messages
-5. **Support abort signals** - Allow cancellation of in-flight requests
+- **Use SSE for most cases** - When possible, prefer the SSE adapter for it's reliable, well-supported capabilities
+- **Handle reconnection** - Adapters should manage reconnections for transient network issues
+- **Cancel on unmount** - When components unmount, cleanup connections to avoid memory leaks
+- **Handle errors** - Provide meaningful error messages to users when requests fail
+- **Support abort signals** - Adapters should allow for request cancellation via abort signals
 
 ## Next Steps
 
 - [Streaming](./streaming) - Learn about streaming responses
 - [API Reference](../api/ai-client) - Explore connection adapter APIs
-
