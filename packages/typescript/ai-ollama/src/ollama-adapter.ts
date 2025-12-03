@@ -1,12 +1,22 @@
 import { Ollama as OllamaSDK } from 'ollama'
 import { BaseAdapter, convertZodToJsonSchema } from '@tanstack/ai'
 import type {
+  AbortableAsyncIterator,
+  ChatRequest,
+  ChatResponse,
+  Message,
+  Tool as OllamaTool,
+  ToolCall,
+} from 'ollama'
+import type {
   ChatOptions,
+  DefaultMessageMetadataByModality,
   EmbeddingOptions,
   EmbeddingResult,
   StreamChunk,
   SummarizationOptions,
   SummarizationResult,
+  Tool,
 } from '@tanstack/ai'
 
 export interface OllamaConfig {
@@ -29,10 +39,7 @@ const OLLAMA_MODELS = [
   'gpt-oss:20b',
 ] as const
 
-const OLLAMA_IMAGE_MODELS = [] as const
 const OLLAMA_EMBEDDING_MODELS = [] as const
-const OLLAMA_AUDIO_MODELS = [] as const
-const OLLAMA_VIDEO_MODELS = [] as const
 
 /**
  * Type-only map from Ollama model name to its supported input modalities.
@@ -70,7 +77,13 @@ export type OllamaModelInputModalitiesByName = {
   'gpt-oss:20b': readonly ['text']
 }
 
-// type OllamaModel = (typeof OLLAMA_MODELS)[number]
+/**
+ * Type-only map from Ollama model name to its provider-specific options.
+ * Ollama models share the same options interface.
+ */
+export type OllamaChatModelProviderOptionsByName = {
+  [K in (typeof OLLAMA_MODELS)[number]]: OllamaProviderOptions
+}
 
 /**
  * Ollama-specific provider options
@@ -120,145 +133,27 @@ interface OllamaProviderOptions {
   num_thread?: number
 }
 
-interface ChatCompletionChunk {
-  id: string
-  model: string
-  content: string
-  role?: 'assistant'
-  finishReason?: 'stop' | 'length' | 'content_filter' | 'tool_calls' | null
-  toolCalls?: Array<{
-    id: string
-    type: 'function'
-    function: {
-      name: string
-      arguments: string
-    }
-  }>
-  usage?: {
-    promptTokens: number
-    completionTokens: number
-    totalTokens: number
-  }
-}
-
-async function* convertChatCompletionStream(
-  stream: AsyncIterable<ChatCompletionChunk>,
-  _model: string,
-): AsyncIterable<StreamChunk> {
-  let accumulatedContent = ''
-  const timestamp = Date.now()
-  let nextToolIndex = 0
-
-  for await (const chunk of stream) {
-    if (chunk.content) {
-      accumulatedContent += chunk.content
-      yield {
-        type: 'content',
-        id: chunk.id,
-        model: chunk.model,
-        timestamp,
-        delta: chunk.content,
-        content: accumulatedContent,
-        role: chunk.role,
-      }
-    }
-
-    // Handle tool calls if present
-    if (chunk.toolCalls && chunk.toolCalls.length > 0) {
-      for (const toolCall of chunk.toolCalls) {
-        yield {
-          type: 'tool_call',
-          id: chunk.id,
-          model: chunk.model,
-          timestamp,
-          toolCall: {
-            id: toolCall.id,
-            type: toolCall.type,
-            function: {
-              name: toolCall.function.name,
-              arguments: toolCall.function.arguments,
-            },
-          },
-          index: nextToolIndex++,
-        }
-      }
-    }
-
-    if (chunk.finishReason) {
-      yield {
-        type: 'done',
-        id: chunk.id,
-        model: chunk.model,
-        timestamp,
-        finishReason: chunk.finishReason,
-        usage: chunk.usage,
-      }
-    }
-  }
-}
-
-/**
- * Converts standard Tool format to Ollama-specific tool format
- * Ollama uses OpenAI-compatible tool format
- */
-function convertToolsToOllamaFormat(
-  tools?: Array<any>,
-): Array<any> | undefined {
-  if (!tools || tools.length === 0) {
-    return undefined
-  }
-
-  return tools.map((tool) => ({
-    type: 'function',
-    function: {
-      name: tool.name,
-      description: tool.description,
-      parameters: convertZodToJsonSchema(tool.inputSchema),
-    },
-  }))
-}
-
-/**
- * Maps common options to Ollama-specific format
- * Handles translation of normalized options to Ollama's API format
- */
-function mapCommonOptionsToOllama(
-  options: ChatOptions,
-  providerOpts?: OllamaProviderOptions,
-): any {
-  const ollamaOptions = {
-    temperature: options.options?.temperature,
-    top_p: options.options?.topP,
-    num_predict: options.options?.maxTokens,
-  }
-
-  // Apply Ollama-specific provider options
-  if (providerOpts) {
-    Object.assign(ollamaOptions, providerOpts)
-  }
-
-  return {
-    model: options.model,
-    options: ollamaOptions,
-    tools: convertToolsToOllamaFormat(options.tools),
-  }
-}
-
 export class Ollama extends BaseAdapter<
   typeof OLLAMA_MODELS,
   typeof OLLAMA_EMBEDDING_MODELS,
   OllamaProviderOptions,
   Record<string, any>,
-  Record<string, any>,
-  OllamaModelInputModalitiesByName
+  OllamaChatModelProviderOptionsByName,
+  OllamaModelInputModalitiesByName,
+  DefaultMessageMetadataByModality
 > {
-  name = 'ollama'
+  name = 'ollama' as const
   models = OLLAMA_MODELS
-  imageModels = OLLAMA_IMAGE_MODELS
   embeddingModels = OLLAMA_EMBEDDING_MODELS
-  audioModels = OLLAMA_AUDIO_MODELS
-  videoModels = OLLAMA_VIDEO_MODELS
+
+  // Type-only map used by core AI to infer per-model provider options.
+  // This is never set at runtime; it exists purely for TypeScript.
+  declare _modelProviderOptionsByName: OllamaChatModelProviderOptionsByName
+  // Type-only map for model input modalities; used for multimodal content type constraints
   declare _modelInputModalitiesByName: OllamaModelInputModalitiesByName
+  // Type-only map for message metadata types; used for type-safe metadata autocomplete
+  declare _messageMetadataByModality: DefaultMessageMetadataByModality
+
   private client: OllamaSDK
 
   constructor(config: OllamaConfig = {}) {
@@ -268,164 +163,15 @@ export class Ollama extends BaseAdapter<
     })
   }
 
-  async *chatCompletionStream(
-    options: ChatOptions,
-  ): AsyncIterable<ChatCompletionChunk> {
-    const providerOpts = options.providerOptions as
-      | OllamaProviderOptions
-      | undefined
-
-    // Map common options to Ollama format
-    const mappedOptions = mapCommonOptionsToOllama(options, providerOpts)
-
-    // Format messages for Ollama (handle tool calls, tool results, and multimodal)
-    const formattedMessages = options.messages.map((msg) => {
-      let textContent = ''
-      const images: Array<string> = []
-
-      // Handle multimodal content
-      if (Array.isArray(msg.content)) {
-        for (const part of msg.content) {
-          if (part.type === 'text') {
-            textContent += part.text
-          } else if (part.type === 'image') {
-            // Ollama accepts base64 strings for images
-            if (part.source.type === 'data') {
-              images.push(part.source.value)
-            } else {
-              // URL-based images not directly supported, but we pass the URL
-              // Ollama may need the image to be fetched externally
-              images.push(part.source.value)
-            }
-          }
-          // Ollama doesn't support audio/video/document directly, skip them
-        }
-      } else {
-        textContent = msg.content || ''
-      }
-
-      const baseMessage: {
-        role: 'user' | 'assistant' | 'system' | 'tool'
-        content: string
-        images?: Array<string>
-        tool_calls?: Array<{
-          id: string
-          type: string
-          function: { name: string; arguments: Record<string, unknown> }
-        }>
-        tool_call_id?: string
-      } = {
-        role: msg.role as 'user' | 'assistant' | 'system',
-        content: textContent,
-      }
-
-      // Add images if present
-      if (images.length > 0) {
-        baseMessage.images = images
-      }
-
-      // Handle tool calls (assistant messages)
-      // Ollama expects arguments as an object, not a JSON string
-      if (
-        msg.role === 'assistant' &&
-        msg.toolCalls &&
-        msg.toolCalls.length > 0
-      ) {
-        baseMessage.tool_calls = msg.toolCalls.map((toolCall) => {
-          // Parse string arguments to object for Ollama
-          let parsedArguments: Record<string, unknown> = {}
-          if (typeof toolCall.function.arguments === 'string') {
-            try {
-              parsedArguments = JSON.parse(toolCall.function.arguments)
-            } catch {
-              parsedArguments = {}
-            }
-          } else {
-            parsedArguments = toolCall.function.arguments as Record<
-              string,
-              unknown
-            >
-          }
-
-          return {
-            id: toolCall.id,
-            type: toolCall.type,
-            function: {
-              name: toolCall.function.name,
-              arguments: parsedArguments,
-            },
-          }
-        })
-      }
-
-      // Handle tool results (tool messages)
-      if (msg.role === 'tool' && msg.toolCallId) {
-        baseMessage.role = 'tool'
-        baseMessage.tool_call_id = msg.toolCallId
-        baseMessage.content =
-          typeof msg.content === 'string'
-            ? msg.content
-            : JSON.stringify(msg.content)
-      }
-
-      return baseMessage
-    })
-
-    const response = await this.client.chat({
-      model: mappedOptions.model,
-      messages: formattedMessages,
-      options: mappedOptions.options,
-      tools: mappedOptions.tools,
-      stream: true,
-    })
-
-    let hasToolCalls = false
-
-    for await (const chunk of response) {
-      // Check if tool calls are present in this chunk
-      const toolCalls = chunk.message.tool_calls || []
-      if (toolCalls.length > 0) {
-        hasToolCalls = true
-      }
-
-      const result: ChatCompletionChunk = {
-        id: this.generateId(),
-        model: chunk.model || options.model || 'llama2',
-        content: chunk.message.content || '',
-        role: 'assistant',
-        finishReason: chunk.done
-          ? hasToolCalls
-            ? 'tool_calls'
-            : 'stop'
-          : null,
-      }
-
-      // Handle tool calls if present
-      if (toolCalls.length > 0) {
-        result.toolCalls = toolCalls.map((tc: any) => ({
-          id: tc.id || this.generateId(),
-          type: tc.type || 'function',
-          function: {
-            name: tc.function?.name || '',
-            arguments:
-              typeof tc.function?.arguments === 'string'
-                ? tc.function.arguments
-                : JSON.stringify(tc.function?.arguments || {}),
-          },
-        }))
-      }
-
-      yield result
-    }
-  }
-
   async *chatStream(options: ChatOptions): AsyncIterable<StreamChunk> {
     // Use stream converter for now
-    // TODO: Implement native structured streaming for Ollama
-    yield* convertChatCompletionStream(
-      this.chatCompletionStream(options),
-      options.model || 'llama2',
-    )
+    // Map common options to Ollama format
+    const mappedOptions = this.mapCommonOptionsToOllama(options)
+    const response = await this.client.chat({
+      ...mappedOptions,
+      stream: true,
+    })
+    yield* this.processOllamaStreamChunks(response)
   }
 
   async summarize(options: SummarizationOptions): Promise<SummarizationResult> {
@@ -518,6 +264,211 @@ export class Ollama extends BaseAdapter<
   private estimateTokens(text: string): number {
     // Rough approximation: 1 token ≈ 4 characters
     return Math.ceil(text.length / 4)
+  }
+
+  private async *processOllamaStreamChunks(
+    stream: AbortableAsyncIterator<ChatResponse>,
+  ): AsyncIterable<StreamChunk> {
+    let accumulatedContent = ''
+    const timestamp = Date.now()
+    let chunkCount = 0
+    const responseId: string = this.generateId()
+    let accumulatedReasoning = ''
+    for await (const chunk of stream) {
+      function handleToolCall(toolCall: ToolCall): StreamChunk {
+        // we cast because the library types are missing id and index
+        const actualToolCall = toolCall as ToolCall & { id: string, function: { index: number } }
+        return {
+          type: 'tool_call',
+          id: responseId,
+          model: chunk.model,
+          timestamp,
+          toolCall: {
+            type: 'function',
+            id: actualToolCall.id,
+            function: {
+              name: actualToolCall.function.name || '',
+              arguments:
+                typeof actualToolCall.function.arguments === 'string'
+                  ? actualToolCall.function.arguments
+                  : JSON.stringify(actualToolCall.function.arguments),
+            },
+          },
+          index: actualToolCall.function.index,
+        }
+      }
+      chunkCount++
+      console.log(chunk)
+      if (chunk.done) {
+        if (chunk.message.tool_calls && chunk.message.tool_calls.length > 0) {
+          for (const toolCall of chunk.message.tool_calls) {
+            yield handleToolCall(toolCall)
+          }
+          yield {
+            type: "done",
+            id: responseId || this.generateId(),
+            model: chunk.model,
+            timestamp,
+            finishReason: "tool_calls",
+          }
+          continue;
+        }
+        yield {
+          type: 'done',
+          id: responseId || this.generateId(),
+          model: chunk.model,
+          timestamp,
+
+          finishReason: 'stop',
+        }
+        continue
+      }
+      if (chunk.message.content) {
+        accumulatedContent += chunk.message.content
+        yield {
+          type: 'content',
+          id: responseId || this.generateId(),
+          model: chunk.model,
+          timestamp,
+          delta: chunk.message.content,
+          content: accumulatedContent,
+          role: 'assistant',
+        }
+      }
+
+      if (chunk.message.tool_calls && chunk.message.tool_calls.length > 0) {
+        for (const toolCall of chunk.message.tool_calls) {
+          yield handleToolCall(toolCall)
+        }
+      }
+      if (chunk.message.thinking) {
+        accumulatedReasoning += chunk.message.thinking
+        yield {
+          type: 'thinking',
+          id: responseId || this.generateId(),
+          model: chunk.model,
+          timestamp,
+          content: accumulatedReasoning,
+          delta: chunk.message.thinking,
+        }
+      }
+    }
+  }
+
+  /**
+   * Converts standard Tool format to Ollama-specific tool format
+   * Ollama uses OpenAI-compatible tool format
+   */
+  private convertToolsToOllamaFormat(
+    tools?: Array<Tool>,
+  ): Array<OllamaTool> | undefined {
+    if (!tools || tools.length === 0) {
+      return undefined
+    }
+
+    return tools.map((tool) => ({
+      type: 'function',
+      function: {
+        name: tool.name,
+        description: tool.description,
+        parameters: convertZodToJsonSchema(tool.inputSchema),
+      },
+    }))
+  }
+
+  /**
+   * Formats messages for Ollama, handling tool calls, tool results, and multimodal content
+   */
+  private formatMessages(messages: ChatOptions['messages']): Array<Message> {
+    return messages.map((msg) => {
+      let textContent = ''
+      const images: Array<string> = []
+
+      // Handle multimodal content
+      if (Array.isArray(msg.content)) {
+        for (const part of msg.content) {
+          if (part.type === 'text') {
+            textContent += part.text
+          } else if (part.type === 'image') {
+            // Ollama accepts base64 strings for images
+            if (part.source.type === 'data') {
+              images.push(part.source.value)
+            } else {
+              // URL-based images not directly supported, but we pass the URL
+              // Ollama may need the image to be fetched externally
+              images.push(part.source.value)
+            }
+          }
+          // Ollama doesn't support audio/video/document directly, skip them
+        }
+      } else {
+        textContent = msg.content || ''
+      }
+
+      const hasToolCallId = msg.role === 'tool' && msg.toolCallId
+      return {
+        role: hasToolCallId ? 'tool' : msg.role,
+        content:
+          hasToolCallId
+            ? typeof msg.content === 'string'
+              ? msg.content
+              : JSON.stringify(msg.content)
+            : textContent,
+        // Add images if present
+        ...(images.length > 0 ? { images: images } : {}),
+        ...(msg.role === 'assistant' &&
+          msg.toolCalls &&
+          msg.toolCalls.length > 0
+          ? {
+            tool_calls: msg.toolCalls.map((toolCall) => {
+              // Parse string arguments to object for Ollama
+              let parsedArguments = {}
+              if (typeof toolCall.function.arguments === 'string') {
+                try {
+                  parsedArguments = JSON.parse(toolCall.function.arguments)
+                } catch {
+                  parsedArguments = {}
+                }
+              } else {
+                parsedArguments = toolCall.function.arguments
+              }
+
+              return {
+                id: toolCall.id,
+                type: toolCall.type,
+                function: {
+                  name: toolCall.function.name,
+                  arguments: parsedArguments,
+                },
+              }
+            }),
+          }
+          : {}),
+      }
+    })
+  }
+
+  /**
+   * Maps common options to Ollama-specific format
+   * Handles translation of normalized options to Ollama's API format
+   */
+  private mapCommonOptionsToOllama(options: ChatOptions): ChatRequest {
+    const providerOptions = options.providerOptions as
+      | OllamaProviderOptions
+      | undefined
+    const ollamaOptions = {
+      temperature: options.options?.temperature,
+      top_p: options.options?.topP,
+      num_predict: options.options?.maxTokens,
+      ...providerOptions,
+    }
+
+    return {
+      model: options.model,
+      options: ollamaOptions,
+      messages: this.formatMessages(options.messages),
+      tools: this.convertToolsToOllamaFormat(options.tools),
+    }
   }
 }
 
