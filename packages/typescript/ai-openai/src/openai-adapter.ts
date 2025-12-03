@@ -207,6 +207,10 @@ export class OpenAI extends BaseAdapter<
     const timestamp = Date.now()
     let chunkCount = 0
 
+    // Track if we've been streaming deltas to avoid duplicating content from done events
+    let hasStreamedContentDeltas = false
+    let hasStreamedReasoningDeltas = false
+
     // Preserve response metadata across events
     let responseId: string | null = null
     let model: string = options.model
@@ -264,6 +268,11 @@ export class OpenAI extends BaseAdapter<
         ) {
           responseId = chunk.response.id
           model = chunk.response.model
+          // Reset streaming flags for new response
+          hasStreamedContentDeltas = false
+          hasStreamedReasoningDeltas = false
+          accumulatedContent = ''
+          accumulatedReasoning = ''
           if (chunk.response.error) {
             yield {
               type: 'error',
@@ -297,6 +306,7 @@ export class OpenAI extends BaseAdapter<
 
           if (textDelta) {
             accumulatedContent += textDelta
+            hasStreamedContentDeltas = true
             yield {
               type: 'content',
               id: responseId || generateId(),
@@ -321,6 +331,7 @@ export class OpenAI extends BaseAdapter<
 
           if (reasoningDelta) {
             accumulatedReasoning += reasoningDelta
+            hasStreamedReasoningDeltas = true
             yield {
               type: 'thinking',
               id: responseId || generateId(),
@@ -338,35 +349,24 @@ export class OpenAI extends BaseAdapter<
           yield handleContentPart(contentPart)
         }
 
-        // handle content deltas - this is where streaming happens!
-        if (chunk.type === 'response.output_text.delta') {
-          accumulatedContent += chunk.delta
-          yield {
-            type: 'content',
-            id: responseId || generateId(),
-            model: model || options.model,
-            timestamp,
-            delta: chunk.delta,
-            content: accumulatedContent,
-            role: 'assistant',
-          }
-        }
-
-        if (chunk.type === 'response.reasoning_text.delta') {
-          accumulatedReasoning += chunk.delta
-          yield {
-            type: 'thinking',
-            id: responseId || generateId(),
-            model: model || options.model,
-            timestamp,
-            delta: chunk.delta,
-            content: accumulatedReasoning,
-          }
-        }
-
         if (chunk.type === 'response.content_part.done') {
           const contentPart = chunk.part
 
+          // Skip emitting chunks for content parts that we've already streamed via deltas
+          // The done event is just a completion marker, not new content
+          if (contentPart.type === 'output_text' && hasStreamedContentDeltas) {
+            // Content already accumulated from deltas, skip
+            continue
+          }
+          if (
+            contentPart.type === 'reasoning_text' &&
+            hasStreamedReasoningDeltas
+          ) {
+            // Reasoning already accumulated from deltas, skip
+            continue
+          }
+
+          // Only emit if we haven't been streaming deltas (e.g., for non-streaming responses)
           yield handleContentPart(contentPart)
         }
 

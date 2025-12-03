@@ -1,12 +1,13 @@
-import * as fs from 'node:fs'
 import * as path from 'node:path'
+import * as fs from 'node:fs'
 import { createFileRoute } from '@tanstack/react-router'
 import { chat, maxIterations, toStreamResponse } from '@tanstack/ai'
 import { anthropic } from '@tanstack/ai-anthropic'
 import { gemini } from '@tanstack/ai-gemini'
 import { openai } from '@tanstack/ai-openai'
 import { ollama } from '@tanstack/ai-ollama'
-import { createEventRecording } from '@/lib/recording'
+import type { AIAdapter, ChatOptions, StreamChunk } from '@tanstack/ai'
+import type { ChunkRecording } from '@/lib/recording'
 import {
   addToCartToolDef,
   addToWishListToolDef,
@@ -47,6 +48,85 @@ const addToCartToolServer = addToCartToolDef.server((args) => ({
 
 type Provider = 'openai' | 'anthropic' | 'gemini' | 'ollama'
 
+/**
+ * Wraps an adapter to intercept chatStream and record raw chunks from the adapter
+ * before they're processed by the stream processor.
+ */
+function wrapAdapterForRecording<TAdapter extends AIAdapter>(
+  adapter: TAdapter,
+  recordingFilePath: string,
+  model: string,
+  provider: string,
+): TAdapter {
+  const originalChatStream = adapter.chatStream.bind(adapter)
+
+  // Track chunks for recording
+  const chunks: Array<{
+    chunk: StreamChunk
+    timestamp: number
+    index: number
+  }> = []
+  let chunkIndex = 0
+
+  // Create a wrapper that intercepts chatStream
+  const wrappedAdapter = {
+    ...adapter,
+    chatStream: async function* (
+      options: ChatOptions<string, any>,
+    ): AsyncIterable<StreamChunk> {
+      const startTime = Date.now()
+
+      try {
+        // Iterate over chunks from the original adapter
+        for await (const chunk of originalChatStream(options)) {
+          const timestamp = Date.now()
+          const index = chunkIndex++
+
+          // Record the chunk
+          chunks.push({
+            chunk,
+            timestamp,
+            index,
+          })
+
+          // Yield the chunk to continue normal processing
+          yield chunk
+        }
+      } finally {
+        // Save recording when stream completes
+        try {
+          const recording: ChunkRecording = {
+            version: '1.0',
+            timestamp: startTime,
+            model,
+            provider,
+            chunks,
+          }
+
+          // Ensure directory exists
+          const dir = path.dirname(recordingFilePath)
+          if (!fs.existsSync(dir)) {
+            fs.mkdirSync(dir, { recursive: true })
+          }
+
+          // Write recording
+          fs.writeFileSync(
+            recordingFilePath,
+            JSON.stringify(recording, null, 2),
+            'utf-8',
+          )
+
+          console.log(`Adapter chunks recorded to: ${recordingFilePath}`)
+        } catch (error) {
+          console.error('Failed to save adapter chunk recording:', error)
+        }
+      }
+    },
+  } as TAdapter
+
+  return wrappedAdapter
+}
+
 export const Route = createFileRoute('/api/chat')({
   server: {
     handlers: {
@@ -69,8 +149,6 @@ export const Route = createFileRoute('/api/chat')({
         const provider: Provider = data.provider || 'openai'
         const model: string | undefined = data.model
         const traceId: string | undefined = data.traceId
-
-        console.log('body', body)
 
         try {
           // Select adapter based on provider
@@ -100,12 +178,19 @@ export const Route = createFileRoute('/api/chat')({
           // Determine model - use provided model or default based on provider
           const selectedModel = model || defaultModel
 
-          // If we have a traceId, set up event-based recording
-          let recording: ReturnType<typeof createEventRecording> | undefined
+          // If we have a traceId, wrap the adapter to record raw chunks from chatStream
           if (traceId) {
             const traceDir = path.join(process.cwd(), 'test-traces')
+            if (!fs.existsSync(traceDir)) {
+              fs.mkdirSync(traceDir, { recursive: true })
+            }
             const traceFile = path.join(traceDir, `${traceId}.json`)
-            recording = createEventRecording(traceFile, traceId)
+            adapter = wrapAdapterForRecording(
+              adapter,
+              traceFile,
+              selectedModel,
+              provider,
+            )
           }
 
           // Use the stream abort signal for proper cancellation handling
@@ -123,8 +208,6 @@ export const Route = createFileRoute('/api/chat')({
             agentLoopStrategy: maxIterations(20),
             messages,
             providerOptions: {
-              // Pass traceId through options so it appears in events
-              ...(traceId ? { traceId } : {}),
               // Enable reasoning for OpenAI (gpt-5, o3 models):
               // reasoning: {
               //   effort: "medium", // or "low", "high", "minimal", "none" (for gpt-5.1)
@@ -137,23 +220,6 @@ export const Route = createFileRoute('/api/chat')({
             },
             abortController,
           })
-
-          // If we have a traceId, ensure recording is cleaned up after stream completes
-          if (traceId && recording) {
-            const recordingStream = (async function* () {
-              try {
-                for await (const chunk of stream) {
-                  yield chunk
-                }
-              } finally {
-                // Recording will be saved automatically when stream:ended event fires
-                // But we can clean up the subscription here if needed
-                // (Actually, the recording will clean itself up on stream:ended)
-              }
-            })()
-
-            return toStreamResponse(recordingStream, { abortController })
-          }
 
           return toStreamResponse(stream, { abortController })
         } catch (error: any) {
