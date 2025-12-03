@@ -1,12 +1,7 @@
 import OpenAI_SDK from 'openai'
 import { BaseAdapter } from '@tanstack/ai'
 import { OPENAI_CHAT_MODELS, OPENAI_EMBEDDING_MODELS } from './model-meta'
-import {
-  convertContentPartToOpenAI,
-  extractTextContent,
-  normalizeContent,
-  validateTextProviderOptions,
-} from './text/text-provider-options'
+import { validateTextProviderOptions } from './text/text-provider-options'
 import { convertToolsToProviderFormat } from './tools'
 import type { Responses } from 'openai/resources'
 import type {
@@ -509,7 +504,7 @@ export class OpenAI extends BaseAdapter<
         // Add the assistant's text message if there is content
         if (message.content) {
           // Assistant messages are typically text-only
-          const contentStr = extractTextContent(message.content)
+          const contentStr = this.extractTextContent(message.content)
           if (contentStr) {
             result.push({
               type: 'message',
@@ -523,12 +518,12 @@ export class OpenAI extends BaseAdapter<
       }
 
       // Handle user messages (default case) - support multimodal content
-      const contentParts = normalizeContent(message.content)
+      const contentParts = this.normalizeContent(message.content)
       const openAIContent: Array<Responses.ResponseInputContent> = []
 
       for (const part of contentParts) {
         openAIContent.push(
-          convertContentPartToOpenAI(
+          this.convertContentPartToOpenAI(
             part as ContentPart<
               OpenAIImageMetadata,
               OpenAIAudioMetadata,
@@ -552,6 +547,90 @@ export class OpenAI extends BaseAdapter<
     }
 
     return result
+  }
+
+  /**
+   * Converts a ContentPart to OpenAI input content item.
+   * Handles text, image, and audio content parts.
+   */
+  private convertContentPartToOpenAI(
+    part: ContentPart<OpenAIImageMetadata, OpenAIAudioMetadata, unknown, unknown>,
+  ): Responses.ResponseInputContent {
+    switch (part.type) {
+      case 'text':
+        return {
+          type: 'input_text',
+          text: part.text,
+        }
+      case 'image': {
+        const imageMetadata = part.metadata
+        if (part.source.type === 'url') {
+          return {
+            type: 'input_image',
+            image_url: part.source.value,
+            detail: imageMetadata?.detail || 'auto',
+          }
+        }
+        // For base64 data, construct a data URI
+        return {
+          type: 'input_image',
+          image_url: part.source.value,
+          detail: imageMetadata?.detail || 'auto',
+        }
+      }
+      case 'audio': {
+        if (part.source.type === 'url') {
+          // OpenAI may support audio URLs in the future
+          // For now, treat as data URI
+          return {
+            type: 'input_file',
+            file_url: part.source.value,
+          }
+        }
+        return {
+          type: 'input_file',
+          file_data: part.source.value,
+        }
+      }
+
+      default:
+        throw new Error(`Unsupported content part type: ${part.type}`)
+    }
+  }
+
+  /**
+   * Normalizes message content to an array of ContentPart.
+   * Handles backward compatibility with string content.
+   */
+  private normalizeContent(
+    content: string | null | Array<ContentPart>,
+  ): Array<ContentPart> {
+    if (content === null) {
+      return []
+    }
+    if (typeof content === 'string') {
+      return [{ type: 'text', text: content }]
+    }
+    return content
+  }
+
+  /**
+   * Extracts text content from a content value that may be string, null, or ContentPart array.
+   */
+  private extractTextContent(
+    content: string | null | Array<ContentPart>,
+  ): string {
+    if (content === null) {
+      return ''
+    }
+    if (typeof content === 'string') {
+      return content
+    }
+    // It's an array of ContentPart
+    return content
+      .filter((p): p is { type: 'text'; text: string } => p.type === 'text')
+      .map((p) => p.text)
+      .join('')
   }
 }
 

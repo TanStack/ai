@@ -12,8 +12,6 @@ import type { ShellTool } from '../tools/shell-tool'
 import type { ToolChoice } from '../tools/tool-choice'
 import type { WebSearchPreviewTool } from '../tools/web-search-preview-tool'
 import type { WebSearchTool } from '../tools/web-search-tool'
-import type { ContentPart } from '@tanstack/ai'
-import type { OpenAIAudioMetadata, OpenAIImageMetadata } from '../message-types'
 
 // Core, always-available options for Responses API
 export interface OpenAIBaseOptions {
@@ -309,89 +307,4 @@ const validateMetadata = (options: InternalTextProviderOptions) => {
   if (valueTooLong) {
     throw new Error('Metadata values cannot be longer than 512 characters.')
   }
-}
-
-/**
- * Converts a ContentPart to OpenAI input content item.
- * Handles text, image, and audio content parts.
- */
-export function convertContentPartToOpenAI(
-  part: ContentPart<OpenAIImageMetadata, OpenAIAudioMetadata, unknown, unknown>,
-): OpenAI.Responses.ResponseInputContent {
-  switch (part.type) {
-    case 'text':
-      return {
-        type: 'input_text',
-        text: part.text,
-      }
-    case 'image': {
-      const imageMetadata = part.metadata
-      if (part.source.type === 'url') {
-        return {
-          type: 'input_image',
-          image_url: part.source.value,
-          detail: imageMetadata?.detail || 'auto',
-        }
-      }
-      // For base64 data, construct a data URI
-      return {
-        type: 'input_image',
-        image_url: part.source.value,
-        detail: imageMetadata?.detail || 'auto',
-      }
-    }
-    case 'audio': {
-      if (part.source.type === 'url') {
-        // OpenAI may support audio URLs in the future
-        // For now, treat as data URI
-        return {
-          type: 'input_file',
-
-          file_url: part.source.value,
-        }
-      }
-      return {
-        type: 'input_file',
-        file_data: part.source.value,
-      }
-    }
-
-    default:
-      throw new Error(`Unsupported content part type: ${part.type}`)
-  }
-}
-
-/**
- * Normalizes message content to an array of ContentPart.
- * Handles backward compatibility with string content.
- */
-export function normalizeContent(
-  content: string | null | Array<ContentPart>,
-): Array<ContentPart> {
-  if (content === null) {
-    return []
-  }
-  if (typeof content === 'string') {
-    return [{ type: 'text', text: content }]
-  }
-  return content
-}
-
-/**
- * Extracts text content from a content value that may be string, null, or ContentPart array.
- */
-export function extractTextContent(
-  content: string | null | Array<ContentPart>,
-): string {
-  if (content === null) {
-    return ''
-  }
-  if (typeof content === 'string') {
-    return content
-  }
-  // It's an array of ContentPart
-  return content
-    .filter((p): p is { type: 'text'; text: string } => p.type === 'text')
-    .map((p) => p.text)
-    .join('')
 }
