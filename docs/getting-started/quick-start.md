@@ -1,16 +1,30 @@
 # Quick Start
 
-Get started with TanStack AI in minutes. This guide will walk you through creating a simple chat application.
+Get started with TanStack AI in minutes. This guide will walk you through creating a simple chat application using the React integration and OpenAI adapter.
 
 ## Installation
 
+<!-- ::tabs:start id="install" -->
+
+# npm
+
 ```bash
 npm install @tanstack/ai @tanstack/ai-react @tanstack/ai-openai
-# or
+```
+
+# pnpm
+
+```bash
 pnpm add @tanstack/ai @tanstack/ai-react @tanstack/ai-openai
-# or
+```
+
+# Yarn
+
+```bash
 yarn add @tanstack/ai @tanstack/ai-react @tanstack/ai-openai
 ```
+
+<!-- ::tabs:end -->
 
 ## Server Setup
 
@@ -64,7 +78,7 @@ export async function POST(request: Request) {
 
 ## Client Setup
 
-Now create a React component that uses the chat:
+To use the chat API from your React frontend, create a `Chat` component:
 
 ```typescript
 // components/Chat.tsx
@@ -149,7 +163,7 @@ export function Chat() {
 
 ## Environment Variables
 
-Create a `.env.local` file (or `.env` depending on your setup):
+To connect to the OpenAI API, you'll need to set your `OPENAI_API_KEY` in your environment variables. Create a `.env.local` file (or `.env` depending on your setup):
 
 ```bash
 OPENAI_API_KEY=your-api-key-here
@@ -166,7 +180,7 @@ You now have a working chat application. The `useChat` hook handles:
 
 ## Using Tools
 
-TanStack AI works with any framework. Here's how to use tools:
+Since TanStack AI is framework-agnostic, you can define and use tools in any environment. Here’s a quick example of defining a tool and using it in a chat:
 
 ```typescript
 import { toolDefinition } from '@tanstack/ai'
