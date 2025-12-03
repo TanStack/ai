@@ -7,7 +7,6 @@ import type {
   StreamChunk,
 } from '@tanstack/ai'
 import type { ConnectionAdapter } from './connection-adapters'
- 
 
 /**
  * Tool call states - track the lifecycle of a tool call
