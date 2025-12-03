@@ -47,6 +47,18 @@ const { messages } = useChat({
 });
 ```
 
+**Custom fetch:**
+
+You can also pass in a custom fetch client (for proxies, retries, or custom transports):
+
+```typescript
+const { messages } = useChat({
+  connection: fetchServerSentEvents("/api/chat", {
+    fetchClient: myCustomFetch,
+  }),
+});
+```
+
 ### HTTP Stream
 
 For environments that don't support SSE, use the HTTP stream adapter:

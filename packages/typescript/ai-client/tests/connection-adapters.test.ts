@@ -317,6 +317,32 @@ describe('connection-adapters', () => {
       const body = JSON.parse(call?.[1]?.body as string)
       expect(body.data).toEqual({ key: 'value' })
     })
+
+    it('should use custom fetchClient when provided', async () => {
+      const customFetch = vi.fn()
+      const mockReader = {
+        read: vi.fn().mockResolvedValue({ done: true, value: undefined }),
+        releaseLock: vi.fn(),
+      }
+      const mockResponse = {
+        ok: true,
+        body: { getReader: () => mockReader },
+      }
+      customFetch.mockResolvedValue(mockResponse as any)
+
+      const adapter = fetchServerSentEvents('/api/chat', {
+        fetchClient: customFetch,
+      })
+
+      for await (const _ of adapter.connect([
+        { role: 'user', content: 'Hello' },
+      ])) {
+        // Consume
+      }
+
+      expect(customFetch).toHaveBeenCalledWith('/api/chat', expect.any(Object))
+      expect(fetchMock).not.toHaveBeenCalled()
+    })
   })
 
   describe('fetchHttpStream', () => {
@@ -414,6 +440,32 @@ describe('connection-adapters', () => {
           }
         })(),
       ).rejects.toThrow('HTTP error! status: 404 Not Found')
+    })
+
+    it('should use custom fetchClient when provided', async () => {
+      const customFetch = vi.fn()
+      const mockReader = {
+        read: vi.fn().mockResolvedValue({ done: true, value: undefined }),
+        releaseLock: vi.fn(),
+      }
+      const mockResponse = {
+        ok: true,
+        body: { getReader: () => mockReader },
+      }
+      customFetch.mockResolvedValue(mockResponse as any)
+
+      const adapter = fetchHttpStream('/api/chat', {
+        fetchClient: customFetch,
+      })
+
+      for await (const _ of adapter.connect([
+        { role: 'user', content: 'Hello' },
+      ])) {
+        // Consume
+      }
+
+      expect(customFetch).toHaveBeenCalledWith('/api/chat', expect.any(Object))
+      expect(fetchMock).not.toHaveBeenCalled()
     })
   })
 
