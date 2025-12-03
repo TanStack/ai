@@ -1,4 +1,7 @@
-# @tanstack/ai-solid API
+---
+title: Tanstack AI Solid API
+slug: /api/ai-solid
+---
 
 SolidJS primitives for TanStack AI, providing convenient SolidJS bindings for the headless client.
 

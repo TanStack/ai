@@ -1,4 +1,7 @@
-# Anthropic Adapter
+---
+title: Anthropic Adapter
+slug: /adapters/anthropic
+---
 
 The Anthropic adapter provides access to Claude models, including Claude 3.5 Sonnet, Claude 3 Opus, and more.
 

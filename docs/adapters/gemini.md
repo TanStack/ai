@@ -1,4 +1,7 @@
-# Google Gemini Adapter
+---
+title: Gemini Adapter
+id: gemini-adapter
+---
 
 The Google Gemini adapter provides access to Google's Gemini models, including Gemini Pro and Gemini Ultra.
 

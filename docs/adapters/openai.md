@@ -1,4 +1,7 @@
-# OpenAI Adapter
+---
+title: OpenAI Adapter
+id: openai-adapter
+---
 
 The OpenAI adapter provides access to OpenAI's GPT models, including GPT-4, GPT-3.5, and more.
 

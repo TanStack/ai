@@ -78,6 +78,10 @@
         {
           "label": "@tanstack/ai-react",
           "to": "api/ai-react"
+        },
+        {
+          "label": "@tanstack/ai-solid",
+          "to": "api/ai-solid"
         }
       ]
     },

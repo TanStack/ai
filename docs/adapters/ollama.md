@@ -1,4 +1,7 @@
-# Ollama Adapter
+---
+title: Ollama Adapter
+id: ollama-adapter
+---
 
 The Ollama adapter provides access to local models running via Ollama, allowing you to run AI models on your own infrastructure.
 
