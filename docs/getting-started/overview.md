@@ -1,19 +1,27 @@
 # Overview
 
-TanStack AI is a powerful, type-safe AI SDK for building AI-powered applications with React, Node.js, and other JavaScript frameworks.
+TanStack AI is a lightweight, type-safe SDK for building production-ready AI experiences. Its framework-agnostic core provides type-safe tool/function calling, streaming responses, and first-class React and Solid integrations, with adapters for multiple LLM providers — enabling predictable, composable, and testable AI features across any stack.
 
-## Works With Any Framework
+## Key Features
 
-TanStack AI works great with:
+- ✅ **Type-Safe** - Full TypeScript support with Zod schema inference
+- ✅ **Streaming** - Built-in streaming support for real-time responses
+- ✅ **Isomorphic Tools** - Define once with `toolDefinition()`, implement with `.server()` or `.client()`
+- ✅ **Framework Agnostic** - Core library works anywhere
+- ✅ **Multiple Providers** - OpenAI, Anthropic, Gemini, Ollama, and more
+- ✅ **Approval Flow** - Built-in support for tool approval workflows
+- ✅ **Automatic Execution** - Both server and client tools execute automatically
+
+## Framework Agnostic
+
+The framework-agnostic core of TanStack AI provides the building blocks for creating AI experiences in any environment, including:
+
 - **Next.js** - API routes and App Router
 - **TanStack Start** - React Start or Solid Start (recommended!)
 - **Express** - Node.js server
 - **Remix Router v7** - Loaders and actions
-- **Any framework** - Framework-agnostic core
 
-## Framework Agnostic
-
-TanStack AI works with any framework using `toolDefinition()` and `.server()`:
+TanStack AI lets you define a tool once and provide environment-specific implementations. Using `toolDefinition()` to declare the tool’s input/output types and the server behavior with `.server()` (or a client implementation with `.client()`). These isomorphic tools can be invoked from the AI runtime regardless of framework.
 
 ```typescript
 import { toolDefinition } from '@tanstack/ai'
@@ -34,9 +42,9 @@ const getProducts = getProductsDef.server(async ({ query }) => {
 chat({ tools: [getProducts] })
 ```
 
-The base library works with any framework!
-
 ## Core Packages
+
+The TanStack AI ecosystem consists of several packages:
 
 ### `@tanstack/ai`
 The core AI library that provides:
@@ -70,26 +78,15 @@ Solid hooks for TanStack AI:
 
 ## Adapters
 
-TanStack AI supports multiple LLM providers through adapters:
+With the help of adapters, TanStack AI can connect to various LLM providers. Available adapters include:
 
 - **@tanstack/ai-openai** - OpenAI (GPT-4, GPT-3.5, etc.)
 - **@tanstack/ai-anthropic** - Anthropic (Claude)
 - **@tanstack/ai-gemini** - Google Gemini
 - **@tanstack/ai-ollama** - Ollama (local models)
 
-## Key Features
-
-- ✅ **Type-Safe** - Full TypeScript support with Zod schema inference
-- ✅ **Streaming** - Built-in streaming support for real-time responses
-- ✅ **Isomorphic Tools** - Define once with `toolDefinition()`, implement with `.server()` or `.client()`
-- ✅ **Framework Agnostic** - Core library works anywhere
-- ✅ **Multiple Providers** - OpenAI, Anthropic, Gemini, Ollama, and more
-- ✅ **Approval Flow** - Built-in support for tool approval workflows
-- ✅ **Automatic Execution** - Both server and client tools execute automatically
-
 ## Next Steps
 
 - [Quick Start Guide](./quick-start) - Get up and running in minutes
 - [Tools Guide](../guides/tools) - Learn about the isomorphic tool system
 - [API Reference](../api/ai) - Explore the full API
-
