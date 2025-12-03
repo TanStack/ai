@@ -178,6 +178,8 @@ export const Route = createFileRoute('/api/chat')({
           // Determine model - use provided model or default based on provider
           const selectedModel = model || defaultModel
 
+          console.log(`>> model: ${selectedModel} on provider: ${provider}`)
+
           // If we have a traceId, wrap the adapter to record raw chunks from chatStream
           if (traceId) {
             const traceDir = path.join(process.cwd(), 'test-traces')

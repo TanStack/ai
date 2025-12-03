@@ -29,13 +29,13 @@ export const recommendGuitarToolDef = toolDefinition({
     'REQUIRED tool to display a guitar recommendation to the user. This tool MUST be used whenever recommending a guitar - do NOT write recommendations yourself. This displays the guitar in a special appealing format with a buy button.',
   inputSchema: z.object({
     id: z
-      .string()
+      .union([z.string(), z.number()])
       .describe(
         'The ID of the guitar to recommend (from the getGuitars results)',
       ),
   }),
   outputSchema: z.object({
-    id: z.string(),
+    id: z.number(),
   }),
 })
 

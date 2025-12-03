@@ -271,9 +271,9 @@ export class Ollama extends BaseAdapter<
   ): AsyncIterable<StreamChunk> {
     let accumulatedContent = ''
     const timestamp = Date.now()
-    let chunkCount = 0
     const responseId: string = this.generateId()
     let accumulatedReasoning = ''
+    let hasEmittedToolCalls = false
     for await (const chunk of stream) {
       function handleToolCall(toolCall: ToolCall): StreamChunk {
         // we cast because the library types are missing id and index
@@ -300,12 +300,11 @@ export class Ollama extends BaseAdapter<
           index: actualToolCall.function.index,
         }
       }
-      chunkCount++
-      console.log(chunk)
       if (chunk.done) {
         if (chunk.message.tool_calls && chunk.message.tool_calls.length > 0) {
           for (const toolCall of chunk.message.tool_calls) {
             yield handleToolCall(toolCall)
+            hasEmittedToolCalls = true
           }
           yield {
             type: 'done',
@@ -321,8 +320,7 @@ export class Ollama extends BaseAdapter<
           id: responseId || this.generateId(),
           model: chunk.model,
           timestamp,
-
-          finishReason: 'stop',
+          finishReason: hasEmittedToolCalls ? 'tool_calls' : 'stop',
         }
         continue
       }
@@ -342,6 +340,7 @@ export class Ollama extends BaseAdapter<
       if (chunk.message.tool_calls && chunk.message.tool_calls.length > 0) {
         for (const toolCall of chunk.message.tool_calls) {
           yield handleToolCall(toolCall)
+          hasEmittedToolCalls = true
         }
       }
       if (chunk.message.thinking) {

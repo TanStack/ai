@@ -47,7 +47,7 @@ const addToCartToolClient = addToCartToolDef.client((args) => ({
 }))
 
 const recommendGuitarToolClient = recommendGuitarToolDef.client(({ id }) => ({
-  id,
+  id: +id,
 }))
 
 const tools = clientTools(
