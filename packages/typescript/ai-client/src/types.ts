@@ -1,12 +1,13 @@
 import type {
   AnyClientTool,
+  ChunkStrategy,
   InferToolInput,
   InferToolOutput,
   ModelMessage,
   StreamChunk,
 } from '@tanstack/ai'
 import type { ConnectionAdapter } from './connection-adapters'
-import { ChunkStrategy } from './stream/types'
+ 
 
 /**
  * Tool call states - track the lifecycle of a tool call
