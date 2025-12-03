@@ -7,11 +7,18 @@ import rehypeSanitize from 'rehype-sanitize'
 import rehypeHighlight from 'rehype-highlight'
 import remarkGfm from 'remark-gfm'
 import { fetchServerSentEvents, useChat } from '@tanstack/ai-react'
+import { clientTools } from '@tanstack/ai-client'
 import { ThinkingPart } from '@tanstack/ai-react-ui'
 
 import type { UIMessage } from '@tanstack/ai-react'
 
 import GuitarRecommendation from '@/components/example-GuitarRecommendation'
+import {
+  addToCartToolDef,
+  addToWishListToolDef,
+  getPersonalGuitarPreferenceToolDef,
+  recommendGuitarToolDef,
+} from '@/lib/guitar-tools'
 import {
   MODEL_OPTIONS,
   getDefaultModelOption,
@@ -19,6 +26,39 @@ import {
   type ModelOption,
 } from '@/lib/model-selection'
 import './tanchat.css'
+
+const getPersonalGuitarPreferenceToolClient =
+  getPersonalGuitarPreferenceToolDef.client(() => ({ preference: 'acoustic' }))
+
+const addToWishListToolClient = addToWishListToolDef.client((args) => {
+  const wishList = JSON.parse(localStorage.getItem('wishList') || '[]')
+  wishList.push(args.guitarId)
+  localStorage.setItem('wishList', JSON.stringify(wishList))
+  return {
+    success: true,
+    guitarId: args.guitarId,
+    totalItems: wishList.length,
+  }
+})
+
+const addToCartToolClient = addToCartToolDef.client((args) => ({
+  success: true,
+  cartId: 'CART_CLIENT_' + Date.now(),
+  guitarId: args.guitarId,
+  quantity: args.quantity,
+  totalItems: args.quantity,
+}))
+
+const recommendGuitarToolClient = recommendGuitarToolDef.client(({ id }) => ({
+  id,
+}))
+
+const tools = clientTools(
+  getPersonalGuitarPreferenceToolClient,
+  addToWishListToolClient,
+  addToCartToolClient,
+  recommendGuitarToolClient,
+)
 
 function ChatInputArea({ children }: { children: React.ReactNode }) {
   return (
@@ -365,37 +405,11 @@ function ChatPage() {
   const { messages, sendMessage, isLoading, addToolApprovalResponse, stop } =
     useChat({
       connection: fetchServerSentEvents('/api/chat'),
+      tools,
       onChunk: (chunk: any) => {
         setChunks((prev) => [...prev, chunk])
       },
       body,
-      onToolCall: async ({ toolName, input }) => {
-        // Handle client-side tool execution
-        switch (toolName) {
-          case 'getPersonalGuitarPreference':
-            // Pure client tool - executes immediately
-            return { preference: 'acoustic' }
-
-          case 'recommendGuitar':
-            // Client tool for UI display
-            return { id: input.id }
-
-          case 'addToWishList':
-            // Hybrid: client execution AFTER approval
-            // Only runs after user approves
-            const wishList = JSON.parse(
-              localStorage.getItem('wishList') || '[]',
-            )
-            wishList.push(input.guitarId)
-            localStorage.setItem('wishList', JSON.stringify(wishList))
-            return {
-              success: true,
-              guitarId: input.guitarId,
-              totalItems: wishList.length,
-            }
-        }
-        return Promise.resolve({ result: 'Unknown client tool' })
-      },
     })
   const [input, setInput] = useState('')
 

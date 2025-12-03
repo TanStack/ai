@@ -16,9 +16,9 @@ import type { ChatClientEventEmitter } from './events'
 
 export class ChatClient {
   private processor: StreamProcessor
-  private connectionRef: { current: ConnectionAdapter }
+  private connection: ConnectionAdapter
   private uniqueId: string
-  private bodyRef: { current?: Record<string, any> }
+  private body: Record<string, any> = {}
   private isLoading = false
   private error: Error | undefined = undefined
   private abortController: AbortController | null = null
@@ -39,8 +39,8 @@ export class ChatClient {
 
   constructor(options: ChatClientOptions) {
     this.uniqueId = options.id || this.generateUniqueId('chat')
-    this.bodyRef = { current: options.body }
-    this.connectionRef = { current: options.connection }
+    this.body = options.body || {}
+    this.connection = options.connection
     this.events = new DefaultChatClientEventEmitter(this.uniqueId)
 
     // Build client tools map
@@ -235,9 +235,9 @@ export class ChatClient {
       await this.callbacksRef.current.onResponse()
 
       // Connect and stream
-      const stream = this.connectionRef.current.connect(
+      const stream = this.connection.connect(
         modelMessages,
-        this.bodyRef.current,
+        this.body,
         this.abortController.signal,
       )
 
@@ -425,10 +425,10 @@ export class ChatClient {
     onError?: (error: Error) => void
   }): void {
     if (options.connection !== undefined) {
-      this.connectionRef.current = options.connection
+      this.connection = options.connection
     }
     if (options.body !== undefined) {
-      this.bodyRef.current = options.body
+      this.body = options.body
     }
     if (options.tools !== undefined) {
       this.clientToolsRef.current = new Map()

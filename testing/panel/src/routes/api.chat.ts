@@ -7,7 +7,13 @@ import { gemini } from '@tanstack/ai-gemini'
 import { openai } from '@tanstack/ai-openai'
 import { ollama } from '@tanstack/ai-ollama'
 import { createEventRecording } from '@/lib/recording'
-import { allTools } from '@/lib/guitar-tools'
+import {
+  addToCartToolDef,
+  addToWishListToolDef,
+  getGuitars,
+  getPersonalGuitarPreferenceToolDef,
+  recommendGuitarToolDef,
+} from '@/lib/guitar-tools'
 
 const SYSTEM_PROMPT = `You are a helpful assistant for a guitar store.
 
@@ -31,6 +37,13 @@ Step 1: Call getGuitars()
 Step 2: Call recommendGuitar(id: "6") 
 Step 3: Done - do NOT add any text after calling recommendGuitar
 `
+const addToCartToolServer = addToCartToolDef.server((args) => ({
+  success: true,
+  cartId: 'CART_' + Date.now(),
+  guitarId: args.guitarId,
+  quantity: args.quantity,
+  totalItems: args.quantity,
+}))
 
 type Provider = 'openai' | 'anthropic' | 'gemini' | 'ollama'
 
@@ -97,9 +110,15 @@ export const Route = createFileRoute('/api/chat')({
 
           // Use the stream abort signal for proper cancellation handling
           const stream = chat({
-            adapter,
-            model: selectedModel as any, // Dynamic model selection
-            tools: allTools,
+            adapter: adapter as any,
+            model: selectedModel as any,
+            tools: [
+              getGuitars, // Server tool
+              recommendGuitarToolDef, // No server execute - client will handle
+              addToCartToolServer,
+              addToWishListToolDef,
+              getPersonalGuitarPreferenceToolDef,
+            ],
             systemPrompts: [SYSTEM_PROMPT],
             agentLoopStrategy: maxIterations(20),
             messages,
