@@ -51,3 +51,5 @@ vite.config.js.timestamp-*
 vite.config.ts.timestamp-*
 test-traces
 **/adapters/output
+.nitro
+.output

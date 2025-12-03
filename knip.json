@@ -1,11 +1,13 @@
 {
   "$schema": "https://unpkg.com/knip@5/schema.json",
   "ignoreDependencies": [
-    "@faker-js/faker",
-    "@playwright/test",
-    "@tanstack/react-start"
+    "@faker-js/faker"
   ],
-  "ignoreWorkspaces": ["examples/**", "testing/**"],
+  "ignoreWorkspaces": [
+    "examples/**",
+    "testing/**",
+    "**/smoke-tests/**"
+  ],
   "ignore": [
     "packages/typescript/ai-openai/live-tests/**",
     "packages/typescript/ai-openai/src/**/*.test.ts",
@@ -23,13 +25,19 @@
       "ignore": []
     },
     "packages/typescript/ai-anthropic": {
-      "ignore": ["src/tools/**"]
+      "ignore": [
+        "src/tools/**"
+      ]
     },
     "packages/typescript/ai-gemini": {
-      "ignore": ["src/tools/**"]
+      "ignore": [
+        "src/tools/**"
+      ]
     },
     "packages/typescript/ai-openai": {
-      "ignore": ["src/tools/**"]
+      "ignore": [
+        "src/tools/**"
+      ]
     }
   }
 }
