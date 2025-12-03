@@ -40,7 +40,7 @@ export const saveToLocalStorageDef = toolDefinition({
 
 ### Server-Side
 
-Pass tool definitions (not implementations) to the server so the LLM knows about them:
+To give the LLM access to client tools, pass the tool definitions (not implementations) to the server when creating the chat:
 
 ```typescript
 // api/chat/route.ts
@@ -150,7 +150,7 @@ function MessageComponent({ message }: { message: ChatMessages[number] }) {
 
 ## Automatic Execution
 
-Client tools are **automatically executed** when the model calls them. No manual `onToolCall` callback needed!
+Client tools are **automatically executed** when the model calls them. No manual `onToolCall` callback needed! The flow is:
 
 1. LLM calls a client tool
 2. Server sends `tool-input-available` chunk to browser
@@ -181,8 +181,14 @@ messages.forEach((message) => {
 ```
 
 ## Tool States
+Client tools go through a small set of observable lifecycle states you can surface in the UI to indicate progress:
 
-Client tools go through different states that you can observe in the UI:
+- `awaiting-input` — the model intends to call the tool but arguments haven’t arrived yet.
+- `input-streaming` — the model is streaming the tool arguments (partial input may be available).
+- `input-complete` — all arguments have been received and the tool is executing.
+- `completed` — the tool finished; part.output contains the result (or error details).
+
+Use these states to show loading indicators, streaming progress, and final success/error feedback. The example below maps each state to a simple UI message.
 
 ```typescript
 function ToolCallDisplay({ part }: { part: ToolCallPart }) {
@@ -250,12 +256,12 @@ chat({ tools: [addToCartServer] }); // Server will execute
 
 ## Best Practices
 
-1. **Keep client tools simple** - They run in the browser, so avoid heavy computations
-2. **Handle errors gracefully** - Return meaningful error messages in your output schema
-3. **Update UI reactively** - Use React/Vue/Solid state updates for UI changes
-4. **Secure sensitive data** - Never store sensitive data in local storage
-5. **Provide feedback** - Use tool states to show loading/success/error UI
-6. **Type everything** - Use Zod schemas for complete type safety
+- **Keep client tools simple** - Since client tools run in the browser, avoid heavy computations or large dependencies that could bloat your bundle size.
+- **Handle errors gracefully** - Define clear error handling in your tool implementations and return meaningful error messages in your output schema.
+- **Update UI reactively** - Use your framework’s state management (eg. React/Vue/Solid) to update the UI in response to tool executions.
+- **Secure sensitive data** - Never store sensitive data (like API keys or personal info) in local storage or expose it via client tools.
+- **Provide feedback** - Use tool states to inform users about ongoing operations and results of client tool executions (loading spinners, success messages, error alerts).
+- **Type everything** - Leverage TypeScript and Zod schemas for full type safety from tool definitions to implementations to usage.
 
 ## Common Use Cases
 
