@@ -304,8 +304,8 @@ const stylesFactory = (theme: 'light' | 'dark') => {
       background: ${t(colors.gray[100], colors.darkGray[800])};
       border-radius: ${border.radius.lg};
       box-shadow: ${tokens.shadow.md(
-      t(colors.gray[400] + alpha[80], colors.black + alpha[80]),
-    )};
+        t(colors.gray[400] + alpha[80], colors.black + alpha[80]),
+      )};
       padding: ${size[4]};
       margin-bottom: ${size[4]};
       border: 1px solid ${t(colors.gray[200], colors.darkGray[700])};

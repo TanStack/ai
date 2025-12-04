@@ -9,7 +9,7 @@ title: chat
 function chat<TAdapter, TModel>(options): AsyncIterable<StreamChunk>;
 ```
 
-Defined in: [core/chat.ts:739](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/core/chat.ts#L739)
+Defined in: [core/chat.ts:741](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/core/chat.ts#L741)
 
 Standalone chat streaming function with type inference from adapter
 Returns an async iterable of StreamChunks for streaming responses
