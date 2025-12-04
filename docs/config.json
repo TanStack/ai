@@ -19,7 +19,8 @@
         },
         {
           "label": "Devtools",
-          "to": "getting-started/devtools"        }
+          "to": "getting-started/devtools"        
+        }
       ]
     },
     {
