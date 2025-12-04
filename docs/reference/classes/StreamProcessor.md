@@ -37,7 +37,7 @@ Defined in: [stream/processor.ts:200](https://github.com/TanStack/ai/blob/main/p
 
 ##### options
 
-[`StreamProcessorOptions`](../interfaces/StreamProcessorOptions.md) = `{}`
+[`StreamProcessorOptions`](../../interfaces/StreamProcessorOptions) = `{}`
 
 #### Returns
 
@@ -122,7 +122,7 @@ Add a user message to the conversation
 
 #### Returns
 
-[`UIMessage`](../interfaces/UIMessage.md)
+[`UIMessage`](../../interfaces/UIMessage)
 
 ***
 
@@ -187,7 +187,7 @@ Get current messages
 
 #### Returns
 
-[`UIMessage`](../interfaces/UIMessage.md)[]
+[`UIMessage`](../../interfaces/UIMessage)[]
 
 ***
 
@@ -203,7 +203,7 @@ Get the current recording
 
 #### Returns
 
-[`ChunkRecording`](../interfaces/ChunkRecording.md) \| `null`
+[`ChunkRecording`](../../interfaces/ChunkRecording) \| `null`
 
 ***
 
@@ -219,7 +219,7 @@ Get current processor state (legacy)
 
 #### Returns
 
-[`ProcessorState`](../interfaces/ProcessorState.md)
+[`ProcessorState`](../../interfaces/ProcessorState)
 
 ***
 
@@ -241,7 +241,7 @@ Process a stream and emit events through handlers
 
 #### Returns
 
-`Promise`\<[`ProcessorResult`](../interfaces/ProcessorResult.md)\>
+`Promise`\<[`ProcessorResult`](../../interfaces/ProcessorResult)\>
 
 ***
 
@@ -259,7 +259,7 @@ Process a single chunk from the stream
 
 ##### chunk
 
-[`StreamChunk`](../type-aliases/StreamChunk.md)
+[`StreamChunk`](../../type-aliases/StreamChunk)
 
 #### Returns
 
@@ -319,7 +319,7 @@ Set the messages array (e.g., from persisted state)
 
 ##### messages
 
-[`UIMessage`](../interfaces/UIMessage.md)[]
+[`UIMessage`](../../interfaces/UIMessage)[]
 
 #### Returns
 
@@ -375,9 +375,9 @@ Get the conversation as ModelMessages (for sending to LLM)
 
 #### Returns
 
-[`ModelMessage`](../interfaces/ModelMessage.md)\<
+[`ModelMessage`](../../interfaces/ModelMessage)\<
   \| `string`
-  \| [`ContentPart`](../type-aliases/ContentPart.md)\<`unknown`, `unknown`, `unknown`, `unknown`\>[]
+  \| [`ContentPart`](../../type-aliases/ContentPart)\<`unknown`, `unknown`, `unknown`, `unknown`\>[]
   \| `null`\>[]
 
 ***
@@ -396,12 +396,12 @@ Replay a recording through the processor
 
 ##### recording
 
-[`ChunkRecording`](../interfaces/ChunkRecording.md)
+[`ChunkRecording`](../../interfaces/ChunkRecording)
 
 ##### options?
 
-[`StreamProcessorOptions`](../interfaces/StreamProcessorOptions.md)
+[`StreamProcessorOptions`](../../interfaces/StreamProcessorOptions)
 
 #### Returns
 
-`Promise`\<[`ProcessorResult`](../interfaces/ProcessorResult.md)\>
+`Promise`\<[`ProcessorResult`](../../interfaces/ProcessorResult)\>

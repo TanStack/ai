@@ -377,9 +377,9 @@ All execute simultaneously, then LLM generates comparison.
 
 ## Next Steps
 
-- [Tools Overview](./tools.md) - Basic tool concepts and examples
-- [Server Tools](./server-tools.md) - Deep dive into server-side tools
-- [Client Tools](./client-tools.md) - Deep dive into client-side tools
-- [Tool Approval Flow](./tool-approval.md) - Implementing approval workflows
-- [Stream Chunk Definitions](../protocol/chunk-definitions.md) - Understanding the streaming protocol
+- [Tools Overview](../tools) - Basic tool concepts and examples
+- [Server Tools](../server-tools) - Deep dive into server-side tools
+- [Client Tools](../client-tools) - Deep dive into client-side tools
+- [Tool Approval Flow](../tool-approval) - Implementing approval workflows
+- [Stream Chunk Definitions](../protocol/chunk-definitions) - Understanding the streaming protocol
 

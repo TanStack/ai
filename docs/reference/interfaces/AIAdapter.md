@@ -42,11 +42,11 @@ Generic parameters:
 
 ### TModelInputModalitiesByName
 
-`TModelInputModalitiesByName` *extends* `Record`\<`string`, `ReadonlyArray`\<[`Modality`](../type-aliases/Modality.md)\>\> = `Record`\<`string`, `ReadonlyArray`\<[`Modality`](../type-aliases/Modality.md)\>\>
+`TModelInputModalitiesByName` *extends* `Record`\<`string`, `ReadonlyArray`\<[`Modality`](../../type-aliases/Modality)\>\> = `Record`\<`string`, `ReadonlyArray`\<[`Modality`](../../type-aliases/Modality)\>\>
 
 ### TMessageMetadataByModality
 
-`TMessageMetadataByModality` *extends* `object` = [`DefaultMessageMetadataByModality`](./DefaultMessageMetadataByModality.md)
+`TMessageMetadataByModality` *extends* `object` = [`DefaultMessageMetadataByModality`](../DefaultMessageMetadataByModality)
 
 ## Properties
 
@@ -133,11 +133,11 @@ Defined in: [types.ts:723](https://github.com/TanStack/ai/blob/main/packages/typ
 
 ##### options
 
-[`ChatOptions`](./ChatOptions.md)\<`string`, `TChatProviderOptions`\>
+[`ChatOptions`](../ChatOptions)\<`string`, `TChatProviderOptions`\>
 
 #### Returns
 
-`AsyncIterable`\<[`StreamChunk`](../type-aliases/StreamChunk.md)\>
+`AsyncIterable`\<[`StreamChunk`](../../type-aliases/StreamChunk)\>
 
 ***
 
@@ -153,11 +153,11 @@ Defined in: [types.ts:731](https://github.com/TanStack/ai/blob/main/packages/typ
 
 ##### options
 
-[`EmbeddingOptions`](./EmbeddingOptions.md)
+[`EmbeddingOptions`](../EmbeddingOptions)
 
 #### Returns
 
-`Promise`\<[`EmbeddingResult`](./EmbeddingResult.md)\>
+`Promise`\<[`EmbeddingResult`](../EmbeddingResult)\>
 
 ***
 
@@ -207,8 +207,8 @@ Defined in: [types.ts:728](https://github.com/TanStack/ai/blob/main/packages/typ
 
 ##### options
 
-[`SummarizationOptions`](./SummarizationOptions.md)
+[`SummarizationOptions`](../SummarizationOptions)
 
 #### Returns
 
-`Promise`\<[`SummarizationResult`](./SummarizationResult.md)\>
+`Promise`\<[`SummarizationResult`](../SummarizationResult)\>

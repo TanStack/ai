@@ -11,7 +11,7 @@ Marker type for server-side tools
 
 ## Extends
 
-- [`Tool`](./Tool.md)\<`TInput`, `TOutput`, `TName`\>
+- [`Tool`](../Tool)\<`TInput`, `TOutput`, `TName`\>
 
 ## Type Parameters
 
@@ -60,7 +60,7 @@ Be specific about what the tool does, what parameters it needs, and what it retu
 
 #### Inherited from
 
-[`Tool`](./Tool.md).[`description`](./Tool.md#description)
+[`Tool`](../Tool).[`description`](../Tool#description)
 
 ***
 
@@ -104,7 +104,7 @@ execute: async (args) => {
 
 #### Inherited from
 
-[`Tool`](./Tool.md).[`execute`](./Tool.md#execute)
+[`Tool`](../Tool).[`execute`](../Tool#execute)
 
 ***
 
@@ -139,7 +139,7 @@ z.object({
 
 #### Inherited from
 
-[`Tool`](./Tool.md).[`inputSchema`](./Tool.md#inputschema)
+[`Tool`](../Tool).[`inputSchema`](../Tool#inputschema)
 
 ***
 
@@ -155,7 +155,7 @@ Additional metadata for adapters or custom extensions
 
 #### Inherited from
 
-[`Tool`](./Tool.md).[`metadata`](./Tool.md#metadata)
+[`Tool`](../Tool).[`metadata`](../Tool#metadata)
 
 ***
 
@@ -180,7 +180,7 @@ Must be unique within the tools array.
 
 #### Inherited from
 
-[`Tool`](./Tool.md).[`name`](./Tool.md#name)
+[`Tool`](../Tool).[`name`](../Tool#name)
 
 ***
 
@@ -196,7 +196,7 @@ If true, tool execution requires user approval before running. Works with both s
 
 #### Inherited from
 
-[`Tool`](./Tool.md).[`needsApproval`](./Tool.md#needsapproval)
+[`Tool`](../Tool).[`needsApproval`](../Tool#needsapproval)
 
 ***
 
@@ -228,4 +228,4 @@ z.object({
 
 #### Inherited from
 
-[`Tool`](./Tool.md).[`outputSchema`](./Tool.md#outputschema)
+[`Tool`](../Tool).[`outputSchema`](../Tool#outputschema)

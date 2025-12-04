@@ -21,8 +21,8 @@ Tools use Zod schemas for runtime validation and type safety.
 
 ## Extended by
 
-- [`ToolDefinitionInstance`](./ToolDefinitionInstance.md)
-- [`ServerTool`](./ServerTool.md)
+- [`ToolDefinitionInstance`](../ToolDefinitionInstance)
+- [`ServerTool`](../ServerTool)
 
 ## Type Parameters
 

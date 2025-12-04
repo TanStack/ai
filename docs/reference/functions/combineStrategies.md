@@ -18,13 +18,13 @@ All strategies must return true to continue
 
 ### strategies
 
-[`AgentLoopStrategy`](../type-aliases/AgentLoopStrategy.md)[]
+[`AgentLoopStrategy`](../../type-aliases/AgentLoopStrategy)[]
 
 Array of strategies to combine
 
 ## Returns
 
-[`AgentLoopStrategy`](../type-aliases/AgentLoopStrategy.md)
+[`AgentLoopStrategy`](../../type-aliases/AgentLoopStrategy)
 
 AgentLoopStrategy that continues only if all strategies return true
 
