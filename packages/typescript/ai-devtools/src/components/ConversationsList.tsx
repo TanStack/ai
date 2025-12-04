@@ -5,23 +5,15 @@ import { ConversationRow } from './list'
 import type { Conversation } from '../store/ai-context'
 import type { Component } from 'solid-js'
 
-export const ConversationsList: Component<{
-  filterType: 'all' | 'client' | 'server'
-}> = (props) => {
+export const ConversationsList: Component = () => {
   const { state } = useAIStore()
   const styles = useStyles()
 
-  const filteredConversations = () => {
-    const conversations = Object.values(state.conversations)
-    if (props.filterType === 'all') return conversations
-    return conversations.filter(
-      (conv: Conversation) => conv.type === props.filterType,
-    )
-  }
+  const conversations = () => Object.values(state.conversations)
 
   return (
     <div class={styles().utilList}>
-      <For each={filteredConversations()}>
+      <For each={conversations()}>
         {(conv: Conversation) => <ConversationRow conversation={conv} />}
       </For>
     </div>
