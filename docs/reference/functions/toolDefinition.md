@@ -36,11 +36,11 @@ The definition contains all tool metadata (name, description, schemas) and can b
 
 ### config
 
-[`ToolDefinitionConfig`](../../interfaces/ToolDefinitionConfig)\<`TInput`, `TOutput`, `TName`\>
+[`ToolDefinitionConfig`](../interfaces/ToolDefinitionConfig.md)\<`TInput`, `TOutput`, `TName`\>
 
 ## Returns
 
-[`ToolDefinition`](../../interfaces/ToolDefinition)\<`TInput`, `TOutput`, `TName`\>
+[`ToolDefinition`](../interfaces/ToolDefinition.md)\<`TInput`, `TOutput`, `TName`\>
 
 ## Example
 

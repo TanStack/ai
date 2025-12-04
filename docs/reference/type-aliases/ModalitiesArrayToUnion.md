@@ -18,4 +18,4 @@ e.g., readonly ['text', 'image'] -> 'text' | 'image'
 
 ### T
 
-`T` *extends* `ReadonlyArray`\<[`Modality`](../Modality)\>
+`T` *extends* `ReadonlyArray`\<[`Modality`](./Modality.md)\>

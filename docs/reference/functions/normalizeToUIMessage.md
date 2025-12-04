@@ -20,9 +20,9 @@ Ensures the message has an ID and createdAt timestamp
 
 Either a UIMessage or ModelMessage
 
-[`UIMessage`](../../interfaces/UIMessage) | [`ModelMessage`](../../interfaces/ModelMessage)\<
+[`UIMessage`](../interfaces/UIMessage.md) | [`ModelMessage`](../interfaces/ModelMessage.md)\<
 \| `string`
-\| [`ContentPart`](../../type-aliases/ContentPart)\<`unknown`, `unknown`, `unknown`, `unknown`\>[]
+\| [`ContentPart`](../type-aliases/ContentPart.md)\<`unknown`, `unknown`, `unknown`, `unknown`\>[]
 \| `null`\>
 
 ### generateId
@@ -33,6 +33,6 @@ Function to generate a message ID if needed
 
 ## Returns
 
-[`UIMessage`](../../interfaces/UIMessage)
+[`UIMessage`](../interfaces/UIMessage.md)
 
 A UIMessage with guaranteed id and createdAt

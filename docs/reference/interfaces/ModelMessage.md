@@ -11,7 +11,7 @@ Defined in: [types.ts:159](https://github.com/TanStack/ai/blob/main/packages/typ
 
 ### TContent
 
-`TContent` *extends* `string` \| `null` \| [`ContentPart`](../../type-aliases/ContentPart)[] = `string` \| `null` \| [`ContentPart`](../../type-aliases/ContentPart)[]
+`TContent` *extends* `string` \| `null` \| [`ContentPart`](../type-aliases/ContentPart.md)[] = `string` \| `null` \| [`ContentPart`](../type-aliases/ContentPart.md)[]
 
 ## Properties
 
