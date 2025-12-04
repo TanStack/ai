@@ -10,8 +10,8 @@
   "scripts": {
     "clean": "pnpm --filter \"./packages/**\" run clean",
     "test": "pnpm run test:ci",
-    "test:pr": "nx affected --targets=test:sherif,test:knip,test:docs,test:eslint,test:lib,test:types,test:build,build",
-    "test:ci": "nx run-many --targets=test:sherif,test:knip,test:docs,test:eslint,test:lib,test:types,test:build,build",
+    "test:pr": "nx affected --targets=test:sherif,test:knip,test:eslint,test:lib,test:types,test:build,build",
+    "test:ci": "nx run-many --targets=test:sherif,test:knip,test:eslint,test:lib,test:types,test:build,build",
     "test:eslint": "nx affected --target=test:eslint --exclude=examples/**",
     "test:format": "pnpm run prettier --check",
     "test:sherif": "sherif",
@@ -46,7 +46,6 @@
     "@changesets/cli": "^2.29.8",
     "@faker-js/faker": "^10.1.0",
     "@svitejs/changesets-changelog-github-compact": "^1.2.0",
-    "@tanstack/config": "^0.22.2",
     "@tanstack/eslint-config": "0.3.3",
     "@tanstack/typedoc-config": "0.3.1",
     "@tanstack/vite-config": "0.4.1",

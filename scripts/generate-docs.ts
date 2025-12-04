@@ -6,7 +6,7 @@ import { glob } from 'tinyglobby'
 
 const __dirname = fileURLToPath(new URL('.', import.meta.url))
 
-/** @type {import('@tanstack/config/typedoc').Package[]} */
+/** @type {import('@tanstack/typedoc-config').Package[]} */
 const packages = [
   {
     name: 'ai',

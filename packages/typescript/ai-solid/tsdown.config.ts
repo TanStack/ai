@@ -8,5 +8,7 @@ export default defineConfig({
   sourcemap: true,
   clean: true,
   minify: false,
-  external: ['react'],
+  publint: {
+    strict: true,
+  },
 })
