@@ -38,4 +38,3 @@
     <p class="text-red-400">Guitar with ID {id} not found</p>
   </div>
 {/if}
-

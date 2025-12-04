@@ -91,4 +91,3 @@ const guitars: Array<Guitar> = [
 ]
 
 export default guitars
-

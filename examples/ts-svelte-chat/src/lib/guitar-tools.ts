@@ -82,4 +82,3 @@ export const addToCartToolDef = toolDefinition({
   }),
   needsApproval: true,
 })
-

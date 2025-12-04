@@ -106,4 +106,3 @@ export function getDefaultModelOption(): ModelOption {
   const stored = getStoredModelPreference()
   return stored || MODEL_OPTIONS[0]
 }
-
