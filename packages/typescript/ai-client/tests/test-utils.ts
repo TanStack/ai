@@ -203,3 +203,56 @@ export function createToolCallChunks(
 
   return chunks
 }
+
+/**
+ * Helper to create thinking chunks
+ */
+export function createThinkingChunks(
+  thinkingContent: string,
+  textContent: string = '',
+  messageId: string = 'msg-1',
+  model: string = 'test',
+): Array<StreamChunk> {
+  const chunks: Array<StreamChunk> = []
+  let accumulatedThinking = ''
+
+  // Add thinking chunks
+  for (const chunk of thinkingContent) {
+    accumulatedThinking += chunk
+    chunks.push({
+      type: 'thinking',
+      id: messageId,
+      model,
+      timestamp: Date.now(),
+      delta: chunk,
+      content: accumulatedThinking,
+    } as StreamChunk)
+  }
+
+  // Optionally add text content after thinking
+  if (textContent) {
+    let accumulatedText = ''
+    for (const chunk of textContent) {
+      accumulatedText += chunk
+      chunks.push({
+        type: 'content',
+        id: messageId,
+        model,
+        timestamp: Date.now(),
+        delta: chunk,
+        content: accumulatedText,
+        role: 'assistant',
+      } as StreamChunk)
+    }
+  }
+
+  chunks.push({
+    type: 'done',
+    id: messageId,
+    model,
+    timestamp: Date.now(),
+    finishReason: 'stop',
+  } as StreamChunk)
+
+  return chunks
+}

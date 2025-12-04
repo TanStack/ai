@@ -35,7 +35,7 @@ Options passed into the SDK and further piped to the AI provider.
 optional abortController: AbortController;
 ```
 
-Defined in: [types.ts:497](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L497)
+Defined in: [types.ts:502](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L502)
 
 AbortController for request cancellation.
 
@@ -63,6 +63,19 @@ optional agentLoopStrategy: AgentLoopStrategy;
 ```
 
 Defined in: [types.ts:479](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L479)
+
+***
+
+### conversationId?
+
+```ts
+optional conversationId: string;
+```
+
+Defined in: [types.ts:488](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L488)
+
+Conversation ID for correlating client and server-side devtools events.
+When provided, server-side events will be linked to the client conversation in devtools.
 
 ***
 

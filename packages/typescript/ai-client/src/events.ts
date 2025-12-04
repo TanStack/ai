@@ -108,6 +108,23 @@ export abstract class ChatClientEventEmitter {
   }
 
   /**
+   * Emit thinking update event
+   */
+  thinkingUpdated(
+    streamId: string,
+    messageId: string,
+    content: string,
+    delta?: string,
+  ): void {
+    this.emitEvent('stream:chunk:thinking', {
+      streamId,
+      messageId,
+      content,
+      delta,
+    })
+  }
+
+  /**
    * Emit approval requested event
    */
   approvalRequested(

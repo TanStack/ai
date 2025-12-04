@@ -351,6 +351,17 @@ const stylesFactory = (theme: 'light' | 'dark') => {
     `,
     // Shell component styles
     shell: {
+      sectionHeader: css`
+        padding: ${size[3]} ${size[4]};
+        font-size: ${fontSize.sm};
+        font-weight: ${font.weight.semibold};
+        color: ${t(colors.gray[100], colors.gray[200])};
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+        text-align: center;
+        background: ${t(colors.gray[700], colors.darkGray[600])};
+        border-bottom: 1px solid ${t(colors.gray[600], colors.darkGray[500])};
+      `,
       filterContainer: css`
         display: flex;
         flex-direction: column;
@@ -697,25 +708,22 @@ const stylesFactory = (theme: 'light' | 'dark') => {
         gap: ${size[3]};
       `,
       messageCard: css`
-        padding: ${size[4]};
         border-radius: ${border.radius.lg};
-        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.12);
+        overflow: hidden;
       `,
       messageCardUser: css`
-        background: linear-gradient(
-          135deg,
-          oklch(0.25 0.04 260) 0%,
-          oklch(0.22 0.03 260) 100%
-        );
-        border: 1.5px solid oklch(0.5 0.15 260);
+        padding: ${size[4]};
+        border: 1.5px solid oklch(0.45 0.12 260);
       `,
       messageCardAssistant: css`
-        background: linear-gradient(
-          135deg,
-          oklch(0.25 0.04 142) 0%,
-          oklch(0.22 0.03 142) 100%
-        );
-        border: 1.5px solid oklch(0.5 0.15 142);
+        padding: ${size[4]};
+        border: 1.5px solid oklch(0.45 0.12 142);
+      `,
+      messageCardClient: css`
+        border: 2px solid oklch(0.45 0.15 142);
+      `,
+      messageCardServer: css`
+        border: 2px solid oklch(0.45 0.12 45);
       `,
       messageHeader: css`
         display: flex;
@@ -749,6 +757,32 @@ const stylesFactory = (theme: 'light' | 'dark') => {
         color: ${colors.white};
         flex-shrink: 0;
       `,
+      avatarClient: css`
+        width: 28px;
+        height: 28px;
+        border-radius: 50%;
+        background: oklch(0.5 0.22 142);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-weight: ${font.weight.bold};
+        font-size: ${fontSize.sm};
+        color: ${colors.white};
+        flex-shrink: 0;
+      `,
+      avatarServer: css`
+        width: 28px;
+        height: 28px;
+        border-radius: 50%;
+        background: oklch(0.55 0.18 45);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-weight: ${font.weight.bold};
+        font-size: ${fontSize.sm};
+        color: ${colors.white};
+        flex-shrink: 0;
+      `,
       roleLabel: css`
         flex: 1;
       `,
@@ -763,6 +797,61 @@ const stylesFactory = (theme: 'light' | 'dark') => {
         font-size: ${fontSize.sm};
         color: oklch(0.7 0.15 142);
         text-transform: capitalize;
+      `,
+      roleLabelClient: css`
+        font-weight: ${font.weight.semibold};
+        font-size: ${fontSize.sm};
+        color: oklch(0.75 0.18 142);
+        text-transform: capitalize;
+      `,
+      roleLabelServer: css`
+        font-weight: ${font.weight.semibold};
+        font-size: ${fontSize.sm};
+        color: oklch(0.75 0.15 45);
+        text-transform: capitalize;
+      `,
+      sourceBanner: css`
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        padding: 6px 12px;
+        font-size: 10px;
+        font-weight: ${font.weight.medium};
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+      `,
+      sourceBannerClient: css`
+        background: oklch(0.25 0.04 142);
+        color: oklch(0.7 0.08 142);
+      `,
+      sourceBannerServer: css`
+        background: oklch(0.25 0.04 45);
+        color: oklch(0.7 0.06 45);
+      `,
+      sourceBannerIcon: css`
+        font-size: 14px;
+      `,
+      sourceBannerText: css`
+        flex: 1;
+      `,
+      messageCardContent: css`
+        padding: ${size[4]};
+        padding-top: ${size[3]};
+      `,
+      sourceBadge: css`
+        font-size: 10px;
+        padding: 2px 6px;
+        border-radius: 4px;
+        font-family: ${fontFamily.mono};
+        font-weight: ${font.weight.medium};
+      `,
+      sourceBadgeClient: css`
+        background: oklch(0.25 0.08 260);
+        color: oklch(0.75 0.12 260);
+      `,
+      sourceBadgeServer: css`
+        background: oklch(0.25 0.08 45);
+        color: oklch(0.75 0.12 45);
       `,
       timestamp: css`
         font-size: 10px;
@@ -825,15 +914,15 @@ const stylesFactory = (theme: 'light' | 'dark') => {
           sans-serif;
       `,
       toolCallsContainer: css`
-        margin-top: ${size[2]};
+        margin-top: ${size[3]};
         display: flex;
         flex-direction: column;
-        gap: 6px;
+        gap: 8px;
       `,
       toolCall: css`
-        padding: ${size[2]};
-        border-radius: 6px;
+        border-radius: 8px;
         font-size: ${fontSize.xs};
+        overflow: hidden;
       `,
       toolCallNormal: css`
         background: oklch(0.22 0.02 260);
@@ -847,7 +936,28 @@ const stylesFactory = (theme: 'light' | 'dark') => {
         display: flex;
         align-items: center;
         gap: 6px;
-        margin-bottom: ${size[1]};
+        padding: 10px 12px;
+        cursor: pointer;
+        list-style: none;
+        &::-webkit-details-marker {
+          display: none;
+        }
+        &::before {
+          content: '▶';
+          font-size: 10px;
+          color: oklch(0.6 0.1 280);
+          transition: transform 0.2s ease;
+        }
+        details[open] > &::before {
+          transform: rotate(90deg);
+        }
+        &:hover {
+          background: oklch(0.25 0.04 280);
+        }
+      `,
+      toolCallContent: css`
+        padding: ${size[2]} ${size[3]} ${size[3]};
+        border-top: 1px solid oklch(0.3 0.05 280);
       `,
       toolCallName: css`
         font-weight: ${font.weight.semibold};

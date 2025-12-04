@@ -46,6 +46,8 @@ export interface Message {
   model?: string
   usage?: TokenUsage
   thinkingContent?: string
+  /** Source of the message: 'client' for aggregated client-side data, 'server' for individual server chunks */
+  source?: 'client' | 'server'
 }
 
 /**
@@ -580,12 +582,13 @@ export const AIProvider: ParentComponent = (props) => {
     const existingMessage = conv.messages.find((m) => m.id === messageId)
     if (existingMessage) return
 
-    // Create a new message for this messageId
+    // Create a new message for this messageId (server-side message)
     addMessage(conversationId, {
       id: messageId,
       role: 'assistant',
       content: '',
       timestamp,
+      source: 'server',
     })
   }
 
@@ -628,6 +631,7 @@ export const AIProvider: ParentComponent = (props) => {
             role: 'user',
             content: e.payload.content,
             timestamp: e.payload.timestamp,
+            source: 'client',
           })
           updateConversation(clientId, { status: 'active' })
         },
@@ -651,6 +655,7 @@ export const AIProvider: ParentComponent = (props) => {
               role: 'assistant',
               content: e.payload.contentPreview,
               timestamp: e.payload.timestamp,
+              source: 'client',
             })
           } else if (role === 'tool') {
             // Tool result message from the LLM
@@ -659,6 +664,7 @@ export const AIProvider: ParentComponent = (props) => {
               role: 'tool',
               content: e.payload.contentPreview,
               timestamp: e.payload.timestamp,
+              source: 'client',
             })
           }
         },
@@ -755,25 +761,18 @@ export const AIProvider: ParentComponent = (props) => {
           if (!state.conversations[clientId]) return
 
           const conv = state.conversations[clientId]
-          const lastMessage = conv.messages[conv.messages.length - 1]
 
-          if (
-            lastMessage &&
-            lastMessage.role === 'assistant' &&
-            lastMessage.id === messageId
-          ) {
-            updateMessage(clientId, conv.messages.length - 1, {
+          // Find message by ID anywhere in the list, not just the last one
+          const messageIndex = conv.messages.findIndex(
+            (m: Message) => m.id === messageId,
+          )
+
+          // Only update existing messages, don't create new ones
+          // (client:message-appended is responsible for creating messages)
+          if (messageIndex >= 0) {
+            updateMessage(clientId, messageIndex, {
               content,
               model: conv.model,
-            })
-          } else {
-            addMessage(clientId, {
-              id: messageId,
-              role: 'assistant',
-              content: content,
-              timestamp: e.payload.timestamp,
-              model: conv.model,
-              chunks: [],
             })
           }
         },
@@ -1317,17 +1316,12 @@ export const AIProvider: ParentComponent = (props) => {
           const conv = state.conversations[conversationId]
           if (!conv) return
 
+          // Only update existing assistant messages, don't create new ones
+          // (client:message-appended is responsible for creating messages)
           const lastMessage = conv.messages[conv.messages.length - 1]
           if (lastMessage && lastMessage.role === 'assistant') {
             updateMessage(conversationId, conv.messages.length - 1, {
               content: e.payload.content,
-            })
-          } else {
-            addMessage(conversationId, {
-              id: `msg-assistant-${Date.now()}`,
-              role: 'assistant',
-              content: e.payload.content,
-              timestamp: e.payload.timestamp,
             })
           }
         },

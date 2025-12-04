@@ -108,7 +108,8 @@ class ChatEngine<
 
   private beforeChat(): void {
     this.streamStartTime = Date.now()
-    const { model, tools, options, providerOptions } = this.params
+    const { model, tools, options, providerOptions, conversationId } =
+      this.params
 
     aiEventClient.emit('chat:started', {
       requestId: this.requestId,
@@ -119,6 +120,7 @@ class ChatEngine<
       hasTools: !!tools && tools.length > 0,
       streaming: true,
       timestamp: Date.now(),
+      clientId: conversationId,
       toolNames: tools?.map((t) => t.name),
       options: options as Record<string, unknown> | undefined,
       providerOptions: providerOptions as Record<string, unknown> | undefined,

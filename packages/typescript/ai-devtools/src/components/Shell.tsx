@@ -1,7 +1,7 @@
 import { createSignal, onCleanup, onMount } from 'solid-js'
 import { Header, HeaderLogo, MainPanel } from '@tanstack/devtools-ui'
 import { useStyles } from '../styles/use-styles'
-import { AIProvider, useAIStore } from '../store/ai-context'
+import { AIProvider } from '../store/ai-context'
 import { ConversationsList } from './ConversationsList'
 import { ConversationDetails } from './ConversationDetails'
 
@@ -14,13 +14,9 @@ export default function Devtools() {
 }
 
 function DevtoolsContent() {
-  const { state, clearAllConversations } = useAIStore()
   const styles = useStyles()
   const [leftPanelWidth, setLeftPanelWidth] = createSignal(300)
   const [isDragging, setIsDragging] = createSignal(false)
-  const [filterType, setFilterType] = createSignal<'all' | 'client' | 'server'>(
-    'all',
-  )
 
   let dragStartX = 0
   let dragStartWidth = 0
@@ -60,8 +56,6 @@ function DevtoolsContent() {
     document.removeEventListener('mouseup', handleMouseUp)
   })
 
-  const conversationCount = () => Object.keys(state.conversations).length
-
   return (
     <MainPanel>
       <Header>
@@ -79,53 +73,10 @@ function DevtoolsContent() {
             'max-width': '800px',
           }}
         >
-          {/* Filter tabs and action buttons */}
-          <div class={styles().shell.filterContainer}>
-            <div class={styles().shell.filterButtonsRow}>
-              <button
-                class={`${styles().shell.filterButton} ${
-                  filterType() === 'all'
-                    ? styles().shell.filterButtonActive
-                    : ''
-                }`}
-                onClick={() => setFilterType('all')}
-              >
-                All
-              </button>
-              <button
-                class={`${styles().shell.filterButton} ${
-                  filterType() === 'client'
-                    ? styles().shell.filterButtonActive
-                    : ''
-                }`}
-                onClick={() => setFilterType('client')}
-              >
-                Client
-              </button>
-              <button
-                class={`${styles().shell.filterButton} ${
-                  filterType() === 'server'
-                    ? styles().shell.filterButtonActive
-                    : ''
-                }`}
-                onClick={() => setFilterType('server')}
-              >
-                Server
-              </button>
-            </div>
-            <div class={styles().shell.actionsRow}>
-              <button
-                class={`${styles().actionButton} ${styles().shell.clearAllButton}`}
-                onClick={() => clearAllConversations()}
-                disabled={conversationCount() === 0}
-              >
-                <div class={styles().actionDotRed} />
-                Clear All ({conversationCount()})
-              </button>
-            </div>
-          </div>
+          {/* Section header */}
+          <div class={styles().shell.sectionHeader}>Active Conversations</div>
 
-          <ConversationsList filterType={filterType()} />
+          <ConversationsList />
         </div>
 
         <div

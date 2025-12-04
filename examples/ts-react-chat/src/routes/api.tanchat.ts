@@ -61,9 +61,10 @@ export const Route = createFileRoute('/api/tanchat')({
         const body = await request.json()
         const { messages, data } = body
 
-        // Extract provider and model from data
+        // Extract provider, model, and conversationId from data
         const provider: Provider = data?.provider || 'openai'
         const model: string | undefined = data?.model
+        const conversationId: string | undefined = data?.conversationId
 
         try {
           // Select adapter based on provider
@@ -92,7 +93,9 @@ export const Route = createFileRoute('/api/tanchat')({
 
           // Determine model - use provided model or default based on provider
           const selectedModel = model || defaultModel
-
+          console.log(
+            `[API Route] Using provider: ${provider}, model: ${selectedModel}`,
+          )
           const stream = chat({
             adapter: adapter as any,
             model: selectedModel as any,
@@ -107,6 +110,7 @@ export const Route = createFileRoute('/api/tanchat')({
             agentLoopStrategy: maxIterations(20),
             messages,
             abortController,
+            conversationId,
           })
 
           return toStreamResponse(stream, { abortController })

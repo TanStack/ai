@@ -3,6 +3,7 @@ import { ChatClient } from '../src/chat-client'
 import {
   createMockConnectionAdapter,
   createTextChunks,
+  createThinkingChunks,
   createToolCallChunks,
 } from './test-utils'
 import type { UIMessage } from '../src/types'
@@ -491,6 +492,97 @@ describe('ChatClient', () => {
 
       await client.sendMessage('Success')
       expect(client.getError()).toBeUndefined()
+    })
+  })
+
+  describe('devtools events', () => {
+    it('should emit messageAppended event when assistant message starts', async () => {
+      const chunks = createTextChunks('Hello, world!')
+      const adapter = createMockConnectionAdapter({ chunks })
+
+      const { aiEventClient } = await import('@tanstack/ai/event-client')
+      const emitSpy = vi.spyOn(aiEventClient, 'emit')
+
+      const client = new ChatClient({ connection: adapter })
+
+      await client.sendMessage('Hello')
+
+      // Find the messageAppended event for the assistant message
+      const messageAppendedCalls = emitSpy.mock.calls.filter(
+        ([eventName]) => eventName === 'client:message-appended',
+      )
+
+      // Should have at least one call for the assistant message
+      const assistantAppendedCall = messageAppendedCalls.find(([, data]) => {
+        const payload = data as Record<string, unknown>
+        return payload && payload.role === 'assistant'
+      })
+      expect(assistantAppendedCall).toBeDefined()
+    })
+
+    it('should emit textUpdated events during streaming', async () => {
+      const chunks = createTextChunks('Hello, world!')
+      const adapter = createMockConnectionAdapter({ chunks })
+
+      const { aiEventClient } = await import('@tanstack/ai/event-client')
+      const emitSpy = vi.spyOn(aiEventClient, 'emit')
+
+      const client = new ChatClient({ connection: adapter })
+
+      await client.sendMessage('Hello')
+
+      // Find text-updated events
+      const textUpdatedCalls = emitSpy.mock.calls.filter(
+        ([eventName]) => eventName === 'client:assistant-message-updated',
+      )
+
+      // Should have text update events
+      expect(textUpdatedCalls.length).toBeGreaterThan(0)
+    })
+
+    it('should emit toolCallStateChanged events for tool calls', async () => {
+      const chunks = createToolCallChunks([
+        { id: 'tool-1', name: 'getWeather', arguments: '{"city": "NYC"}' },
+      ])
+      const adapter = createMockConnectionAdapter({ chunks })
+
+      const { aiEventClient } = await import('@tanstack/ai/event-client')
+      const emitSpy = vi.spyOn(aiEventClient, 'emit')
+
+      const client = new ChatClient({ connection: adapter })
+
+      await client.sendMessage('What is the weather?')
+
+      // Find tool call events
+      const toolCallUpdatedCalls = emitSpy.mock.calls.filter(
+        ([eventName]) => eventName === 'client:tool-call-updated',
+      )
+
+      // Should have tool call events
+      expect(toolCallUpdatedCalls.length).toBeGreaterThan(0)
+    })
+
+    it('should emit thinkingUpdated events for thinking content', async () => {
+      const chunks = createThinkingChunks(
+        'Let me think...',
+        'Here is my answer',
+      )
+      const adapter = createMockConnectionAdapter({ chunks })
+
+      const { aiEventClient } = await import('@tanstack/ai/event-client')
+      const emitSpy = vi.spyOn(aiEventClient, 'emit')
+
+      const client = new ChatClient({ connection: adapter })
+
+      await client.sendMessage('Hello')
+
+      // Find thinking events
+      const thinkingCalls = emitSpy.mock.calls.filter(
+        ([eventName]) => eventName === 'stream:chunk:thinking',
+      )
+
+      // Should have thinking events
+      expect(thinkingCalls.length).toBeGreaterThan(0)
     })
   })
 })
