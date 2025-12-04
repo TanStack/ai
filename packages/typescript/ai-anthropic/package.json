@@ -1,6 +1,6 @@
 {
   "name": "@tanstack/ai-anthropic",
-  "version": "0.0.0",
+  "version": "0.0.1",
   "description": "Anthropic Claude adapter for TanStack AI",
   "author": "",
   "license": "MIT",

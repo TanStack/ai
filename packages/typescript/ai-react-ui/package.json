@@ -1,6 +1,6 @@
 {
   "name": "@tanstack/ai-react-ui",
-  "version": "0.0.0",
+  "version": "0.0.1",
   "description": "Headless React components for building AI chat interfaces",
   "module": "./dist/esm/index.js",
   "types": "./dist/esm/index.d.ts",
