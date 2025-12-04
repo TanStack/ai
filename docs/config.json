@@ -16,7 +16,10 @@
         {
           "label": "Quick Start",
           "to": "getting-started/quick-start"
-        }
+        },
+        {
+          "label": "Devtools",
+          "to": "getting-started/devtools"        }
       ]
     },
     {
