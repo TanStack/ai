@@ -709,42 +709,21 @@ const stylesFactory = (theme: 'light' | 'dark') => {
       `,
       messageCard: css`
         border-radius: ${border.radius.lg};
-        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.12);
         overflow: hidden;
       `,
       messageCardUser: css`
         padding: ${size[4]};
-        background: linear-gradient(
-          135deg,
-          oklch(0.25 0.04 260) 0%,
-          oklch(0.22 0.03 260) 100%
-        );
-        border: 1.5px solid oklch(0.5 0.15 260);
+        border: 1.5px solid oklch(0.45 0.12 260);
       `,
       messageCardAssistant: css`
         padding: ${size[4]};
-        background: linear-gradient(
-          135deg,
-          oklch(0.25 0.04 142) 0%,
-          oklch(0.22 0.03 142) 100%
-        );
-        border: 1.5px solid oklch(0.5 0.15 142);
+        border: 1.5px solid oklch(0.45 0.12 142);
       `,
       messageCardClient: css`
-        background: linear-gradient(
-          135deg,
-          oklch(0.22 0.06 142) 0%,
-          oklch(0.18 0.04 142) 100%
-        );
-        border: 2px solid oklch(0.45 0.18 142);
+        border: 2px solid oklch(0.45 0.15 142);
       `,
       messageCardServer: css`
-        background: linear-gradient(
-          135deg,
-          oklch(0.22 0.06 45) 0%,
-          oklch(0.18 0.04 45) 100%
-        );
-        border: 2px solid oklch(0.5 0.15 45);
+        border: 2px solid oklch(0.45 0.12 45);
       `,
       messageHeader: css`
         display: flex;
@@ -835,19 +814,19 @@ const stylesFactory = (theme: 'light' | 'dark') => {
         display: flex;
         align-items: center;
         gap: 8px;
-        padding: 8px 12px;
-        font-size: 11px;
-        font-weight: ${font.weight.semibold};
+        padding: 6px 12px;
+        font-size: 10px;
+        font-weight: ${font.weight.medium};
         text-transform: uppercase;
         letter-spacing: 0.5px;
       `,
       sourceBannerClient: css`
-        background: oklch(0.35 0.12 142);
-        color: oklch(0.85 0.12 142);
+        background: oklch(0.25 0.04 142);
+        color: oklch(0.7 0.08 142);
       `,
       sourceBannerServer: css`
-        background: oklch(0.38 0.12 45);
-        color: oklch(0.9 0.1 45);
+        background: oklch(0.25 0.04 45);
+        color: oklch(0.7 0.06 45);
       `,
       sourceBannerIcon: css`
         font-size: 14px;

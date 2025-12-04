@@ -27,6 +27,23 @@ export const ConversationTabs: Component<ConversationTabsProps> = (props) => {
   const hasMessages = () =>
     conv().type === 'client' && conv().messages.length > 0
   const hasChunks = () => conv().chunks.length > 0 || conv().type === 'server'
+  const hasEmbeddings = () => conv().hasEmbedding || embeddingsCount() > 0
+  const hasSummaries = () => conv().hasSummarize || summariesCount() > 0
+
+  // Count how many tabs would be visible
+  const visibleTabCount = () => {
+    let count = 0
+    if (hasMessages()) count++
+    if (hasChunks() && conv().type === 'server') count++
+    if (hasEmbeddings()) count++
+    if (hasSummaries()) count++
+    return count
+  }
+
+  // Don't render tabs if only one tab would be visible
+  if (visibleTabCount() <= 1) {
+    return null
+  }
 
   return (
     <div class={styles().conversationDetails.tabsContainer}>
@@ -57,7 +74,7 @@ export const ConversationTabs: Component<ConversationTabsProps> = (props) => {
         </button>
       </Show>
       {/* Show embeddings tab if there are embedding operations */}
-      <Show when={conv().hasEmbedding || embeddingsCount() > 0}>
+      <Show when={hasEmbeddings()}>
         <button
           class={`${styles().actionButton} ${
             props.activeTab === 'embeddings'
@@ -70,7 +87,7 @@ export const ConversationTabs: Component<ConversationTabsProps> = (props) => {
         </button>
       </Show>
       {/* Show summaries tab if there are summarize operations */}
-      <Show when={conv().hasSummarize || summariesCount() > 0}>
+      <Show when={hasSummaries()}>
         <button
           class={`${styles().actionButton} ${
             props.activeTab === 'summaries'
