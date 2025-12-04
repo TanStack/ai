@@ -1,11 +1,8 @@
-import { useState } from 'react'
-import Chat from './components/Chat'
 import ProductList from './components/ProductList'
 import Cart from './components/Cart'
+import Chat from './components/Chat'
 
 function App() {
-  const [activeTab, setActiveTab] = useState<'products' | 'chat'>('products')
-
   const handleAddToCart = async (purchasableId: string) => {
     try {
       const response = await fetch('http://localhost:8020/api/cart/items', {
@@ -35,37 +32,26 @@ function App() {
     <div className="app">
       <header className="app-header">
         <div className="header-content">
-          <h1>TanStack AI - E-Commerce Example</h1>
-          <p>Laravel + Lunar e-Commerce with AI Sales Assistant</p>
+          <h1>🎸 Guitar Shop</h1>
+          <p>Find your perfect guitar with our AI sales assistant</p>
         </div>
         <Cart />
       </header>
       <main className="app-main">
-        <div className="tabs">
-          <button
-            className={`tab ${activeTab === 'products' ? 'active' : ''}`}
-            onClick={() => setActiveTab('products')}
-          >
-            Products
-          </button>
-          <button
-            className={`tab ${activeTab === 'chat' ? 'active' : ''}`}
-            onClick={() => setActiveTab('chat')}
-          >
-            Sales Assistant
-          </button>
-        </div>
-        <div className="tab-content">
-          {activeTab === 'products' && (
-            <div className="products-section">
-              <ProductList onAddToCart={handleAddToCart} />
+        <div className="main-content">
+          <div className="products-section">
+            <h2 className="section-title">Our Collection</h2>
+            <ProductList onAddToCart={handleAddToCart} />
+          </div>
+          <aside className="chat-sidebar">
+            <div className="sidebar-header">
+              <h3>Sales Assistant</h3>
+              <p className="sidebar-subtitle">
+                Ask me anything about our guitars!
+              </p>
             </div>
-          )}
-          {activeTab === 'chat' && (
-            <div className="chat-section">
-              <Chat />
-            </div>
-          )}
+            <Chat />
+          </aside>
         </div>
       </main>
     </div>

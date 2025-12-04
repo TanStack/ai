@@ -30,10 +30,37 @@ class ProductController extends Controller
         $data = $products->map(function ($product) {
             $rawData = json_decode($product->getRawOriginal('attribute_data') ?? '{}', true);
             
+            // Map product names to their image files (from GuitarSeeder)
+            $imageMap = [
+                'Video Game Guitar' => 'example-guitar-video-games.jpg',
+                'Superhero Guitar' => 'example-guitar-superhero.jpg',
+                'Motherboard Guitar' => 'example-guitar-motherboard.jpg',
+                'Racing Guitar' => 'example-guitar-racing.jpg',
+                'Steamer Trunk Guitar' => 'example-guitar-steamer-trunk.jpg',
+                "Travelin' Man Guitar" => 'example-guitar-traveling.jpg',
+                'Flowerly Love Guitar' => 'example-guitar-flowers.jpg',
+            ];
+            
+            $productName = $rawData['name']['en'] ?? '';
+            $thumbnail = null;
+            
+            if (isset($imageMap[$productName])) {
+                $imagePath = 'storage/products/' . $imageMap[$productName];
+                $fullPath = public_path($imagePath);
+                
+                // Check if file exists before returning URL
+                if (file_exists($fullPath)) {
+                    $thumbnail = [
+                        'url' => url($imagePath),
+                    ];
+                }
+            }
+            
             return [
                 'id' => $product->id,
                 'attribute_data' => $rawData,
                 'status' => $product->status,
+                'thumbnail' => $thumbnail,
                 'variants' => $product->variants->map(function ($variant) {
                     // Load prices directly from database
                     $priceRecords = DB::table('lunar_prices')
