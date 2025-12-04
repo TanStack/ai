@@ -482,6 +482,11 @@ export interface ChatOptions<
   request?: Request | RequestInit
   output?: TOutput
   /**
+   * Conversation ID for correlating client and server-side devtools events.
+   * When provided, server-side events will be linked to the client conversation in devtools.
+   */
+  conversationId?: string
+  /**
    * AbortController for request cancellation.
    *
    * Allows you to cancel an in-progress request using an AbortController.

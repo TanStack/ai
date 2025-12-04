@@ -53,7 +53,7 @@ export async function POST(request: Request) {
     );
   }
 
-  const { messages } = await request.json();
+  const { messages, conversationId } = await request.json();
 
   try {
     // Create a streaming chat response
@@ -61,6 +61,7 @@ export async function POST(request: Request) {
       adapter: openai(),
       messages,
       model: "gpt-4o",
+      conversationId
     });
 
     // Convert stream to HTTP response

@@ -27,14 +27,14 @@ export const ToolCallDisplay: Component<ToolCallDisplayProps> = (props) => {
   }
 
   return (
-    <div
+    <details
       class={`${styles().conversationDetails.toolCall} ${
         tool().approvalRequired
           ? styles().conversationDetails.toolCallApproval
           : styles().conversationDetails.toolCallNormal
       }`}
     >
-      <div class={styles().conversationDetails.toolCallHeader}>
+      <summary class={styles().conversationDetails.toolCallHeader}>
         <div
           class={`${styles().conversationDetails.toolCallName} ${
             tool().approvalRequired
@@ -63,35 +63,37 @@ export const ToolCallDisplay: Component<ToolCallDisplayProps> = (props) => {
             APPROVAL REQUIRED
           </div>
         </Show>
+      </summary>
+      <div class={styles().conversationDetails.toolCallContent}>
+        <Show when={tool().arguments}>
+          <div class={styles().conversationDetails.toolSection}>
+            <div class={styles().conversationDetails.toolSectionLabel}>
+              Arguments
+            </div>
+            <div class={styles().conversationDetails.toolJsonContainer}>
+              <JsonTree
+                value={parsedArguments() as Record<string, unknown>}
+                defaultExpansionDepth={2}
+                copyable
+              />
+            </div>
+          </div>
+        </Show>
+        <Show when={tool().result !== undefined}>
+          <div class={styles().conversationDetails.toolSection}>
+            <div class={styles().conversationDetails.toolSectionLabel}>
+              Result
+            </div>
+            <div class={styles().conversationDetails.toolJsonContainer}>
+              <JsonTree
+                value={tool().result as Record<string, unknown>}
+                defaultExpansionDepth={2}
+                copyable
+              />
+            </div>
+          </div>
+        </Show>
       </div>
-      <Show when={tool().arguments}>
-        <div class={styles().conversationDetails.toolSection}>
-          <div class={styles().conversationDetails.toolSectionLabel}>
-            Arguments
-          </div>
-          <div class={styles().conversationDetails.toolJsonContainer}>
-            <JsonTree
-              value={parsedArguments() as Record<string, unknown>}
-              defaultExpansionDepth={2}
-              copyable
-            />
-          </div>
-        </div>
-      </Show>
-      <Show when={tool().result !== undefined}>
-        <div class={styles().conversationDetails.toolSection}>
-          <div class={styles().conversationDetails.toolSectionLabel}>
-            Result
-          </div>
-          <div class={styles().conversationDetails.toolJsonContainer}>
-            <JsonTree
-              value={tool().result as Record<string, unknown>}
-              defaultExpansionDepth={2}
-              copyable
-            />
-          </div>
-        </div>
-      </Show>
-    </div>
+    </details>
   )
 }

@@ -24,6 +24,8 @@ export class ChatClient {
   private abortController: AbortController | null = null
   private events: ChatClientEventEmitter
   private clientToolsRef: { current: Map<string, AnyClientTool> }
+  private currentStreamId: string | null = null
+  private currentMessageId: string | null = null
 
   private callbacksRef: {
     current: {
@@ -81,6 +83,49 @@ export class ChatClient {
           this.setError(error)
           this.callbacksRef.current.onError(error)
         },
+        onTextUpdate: (messageId: string, content: string) => {
+          // Emit text update to devtools
+          if (this.currentStreamId) {
+            this.events.textUpdated(this.currentStreamId, messageId, content)
+          }
+        },
+        onThinkingUpdate: (messageId: string, content: string) => {
+          // Emit thinking update to devtools
+          if (this.currentStreamId) {
+            this.events.thinkingUpdated(
+              this.currentStreamId,
+              messageId,
+              content,
+            )
+          }
+        },
+        onToolCallStateChange: (
+          messageId: string,
+          toolCallId: string,
+          state: string,
+          args: string,
+        ) => {
+          // Get the tool name from the messages
+          const messages = this.processor.getMessages()
+          const message = messages.find((m: UIMessage) => m.id === messageId)
+          const toolCallPart = message?.parts.find(
+            (p: MessagePart): p is ToolCallPart =>
+              p.type === 'tool-call' && p.id === toolCallId,
+          )
+          const toolName = toolCallPart?.name || 'unknown'
+
+          // Emit tool call state change to devtools
+          if (this.currentStreamId) {
+            this.events.toolCallStateChanged(
+              this.currentStreamId,
+              messageId,
+              toolCallId,
+              toolName,
+              state,
+              args,
+            )
+          }
+        },
         onToolCall: async (args: {
           toolCallId: string
           toolName: string
@@ -115,7 +160,7 @@ export class ChatClient {
           approvalId: string
         }) => {
           this.events.approvalRequested(
-            '', // messageId - we don't track this separately now
+            this.currentMessageId || '',
             args.toolCallId,
             args.toolName,
             args.input,
@@ -150,8 +195,21 @@ export class ChatClient {
   private async processStream(
     source: AsyncIterable<StreamChunk>,
   ): Promise<UIMessage> {
+    // Generate a stream ID for this streaming operation
+    this.currentStreamId = this.generateUniqueId('stream')
+
     // Start a new assistant message
     const messageId = this.processor.startAssistantMessage()
+    this.currentMessageId = messageId
+
+    // Emit message appended event for the new assistant message
+    const assistantMessage: UIMessage = {
+      id: messageId,
+      role: 'assistant',
+      parts: [],
+      createdAt: new Date(),
+    }
+    this.events.messageAppended(assistantMessage)
 
     // Process each chunk
     for await (const chunk of source) {
@@ -165,12 +223,18 @@ export class ChatClient {
     // Finalize the stream
     this.processor.finalizeStream()
 
+    // Clear the current stream and message IDs
+    this.currentStreamId = null
+    this.currentMessageId = null
+
     // Return the assistant message
     const messages = this.processor.getMessages()
-    const assistantMessage = messages.find((m: UIMessage) => m.id === messageId)
+    const finalAssistantMessage = messages.find(
+      (m: UIMessage) => m.id === messageId,
+    )
 
     return (
-      assistantMessage || {
+      finalAssistantMessage || {
         id: messageId,
         role: 'assistant',
         parts: [],
@@ -234,10 +298,16 @@ export class ChatClient {
       // Call onResponse callback
       await this.callbacksRef.current.onResponse()
 
+      // Include conversationId in the body for server-side event correlation
+      const bodyWithConversationId = {
+        ...this.body,
+        conversationId: this.uniqueId,
+      }
+
       // Connect and stream
       const stream = this.connection.connect(
         modelMessages,
-        this.body,
+        bodyWithConversationId,
         this.abortController.signal,
       )
 
