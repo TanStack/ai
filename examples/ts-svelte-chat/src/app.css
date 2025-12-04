@@ -1,0 +1,74 @@
+@import 'tailwindcss';
+
+/* Code highlighting styles */
+@import 'highlight.js/styles/github-dark.css';
+
+body {
+  margin: 0;
+  padding: 0;
+}
+
+/* Markdown prose styles for dark mode */
+.prose {
+  color: #e5e7eb;
+}
+
+.prose h1,
+.prose h2,
+.prose h3,
+.prose h4,
+.prose h5,
+.prose h6 {
+  color: #f3f4f6;
+}
+
+.prose a {
+  color: #60a5fa;
+}
+
+.prose a:hover {
+  color: #93c5fd;
+}
+
+.prose code {
+  color: #f3f4f6;
+  background-color: #374151;
+  padding: 0.125rem 0.25rem;
+  border-radius: 0.25rem;
+  font-size: 0.875em;
+}
+
+.prose pre {
+  background-color: #1f2937;
+  color: #f3f4f6;
+  padding: 1rem;
+  border-radius: 0.5rem;
+  overflow-x: auto;
+}
+
+.prose pre code {
+  background-color: transparent;
+  padding: 0;
+  color: inherit;
+}
+
+.prose strong {
+  color: #f3f4f6;
+}
+
+.prose ul,
+.prose ol {
+  color: #e5e7eb;
+}
+
+.prose blockquote {
+  color: #d1d5db;
+  border-left-color: #4b5563;
+}
+
+/* Ensure links in markdown are visible */
+.prose p a {
+  color: #60a5fa;
+  text-decoration: underline;
+}
+
