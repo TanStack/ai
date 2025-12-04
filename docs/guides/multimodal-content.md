@@ -92,12 +92,12 @@ const openai = new OpenAI({ apiKey: 'your-key' })
 
 // Image with detail level metadata
 const message = {
-  role: 'user' as const,
+  role: 'user' ,
   content: [
-    { type: 'text' as const, text: 'Describe this image' },
+    { type: 'text' , text: 'Describe this image' },
     {
-      type: 'image' as const,
-      source: { type: 'data' as const, value: imageBase64 },
+      type: 'image' ,
+      source: { type: 'data' , value: imageBase64 },
       metadata: { detail: 'high' } // 'auto' | 'low' | 'high'
     }
   ]
@@ -119,12 +119,12 @@ const anthropic = new Anthropic({ apiKey: 'your-key' })
 
 // Image with media type
 const imageMessage = {
-  role: 'user' as const,
+  role: 'user' ,
   content: [
-    { type: 'text' as const, text: 'What do you see?' },
+    { type: 'text' , text: 'What do you see?' },
     {
-      type: 'image' as const,
-      source: { type: 'data' as const, value: imageBase64 },
+      type: 'image' ,
+      source: { type: 'data' , value: imageBase64 },
       metadata: { media_type: 'image/jpeg' }
     }
   ]
@@ -132,12 +132,12 @@ const imageMessage = {
 
 // PDF document
 const docMessage = {
-  role: 'user' as const,
+  role: 'user',
   content: [
-    { type: 'text' as const, text: 'Summarize this document' },
+    { type: 'text', text: 'Summarize this document' },
     {
-      type: 'document' as const,
-      source: { type: 'data' as const, value: pdfBase64 }
+      type: 'document',
+      source: { type: 'data', value: pdfBase64 }
     }
   ]
 }
@@ -158,12 +158,12 @@ const gemini = new GeminiAdapter({ apiKey: 'your-key' })
 
 // Image with mimeType
 const message = {
-  role: 'user' as const,
+  role: 'user',
   content: [
-    { type: 'text' as const, text: 'Analyze this image' },
+    { type: 'text', text: 'Analyze this image' },
     {
-      type: 'image' as const,
-      source: { type: 'data' as const, value: imageBase64 },
+      type: 'image',
+      source: { type: 'data', value: imageBase64 },
       metadata: { mimeType: 'image/png' }
     }
   ]
@@ -185,12 +185,12 @@ const ollama = new OllamaAdapter({ host: 'http://localhost:11434' })
 
 // Image as base64
 const message = {
-  role: 'user' as const,
+  role: 'user',
   content: [
-    { type: 'text' as const, text: 'What is in this image?' },
+    { type: 'text', text: 'What is in this image?' },
     {
-      type: 'image' as const,
-      source: { type: 'data' as const, value: imageBase64 }
+      type: 'image',
+      source: { type: 'data', value: imageBase64 }
     }
   ]
 }
@@ -208,9 +208,9 @@ Use `type: 'data'` for inline base64-encoded content:
 
 ```typescript
 const imagePart = {
-  type: 'image' as const,
+  type: 'image',
   source: {
-    type: 'data' as const,
+    type: 'data',
     value: 'iVBORw0KGgoAAAANSUhEUgAAAAUA...' // Base64 string
   }
 }
@@ -222,9 +222,9 @@ Use `type: 'url'` for content hosted at a URL:
 
 ```typescript
 const imagePart = {
-  type: 'image' as const,
+  type: 'image' ,
   source: {
-    type: 'url' as const,
+    type: 'url' ,
     value: 'https://example.com/image.jpg'
   }
 }
