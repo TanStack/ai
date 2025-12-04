@@ -108,7 +108,8 @@ class ChatEngine<
 
   private beforeChat(): void {
     this.streamStartTime = Date.now()
-    const { model, tools, options, providerOptions, conversationId } = this.params
+    const { model, tools, options, providerOptions, conversationId } =
+      this.params
 
     aiEventClient.emit('chat:started', {
       requestId: this.requestId,
@@ -747,8 +748,8 @@ export async function* chat<
     any,
     any
   >
-  ? Models[number]
-  : string,
+    ? Models[number]
+    : string,
 >(
   options: ChatStreamOptionsForModel<TAdapter, TModel>,
 ): AsyncIterable<StreamChunk> {

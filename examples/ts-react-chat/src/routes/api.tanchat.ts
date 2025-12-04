@@ -93,7 +93,9 @@ export const Route = createFileRoute('/api/tanchat')({
 
           // Determine model - use provided model or default based on provider
           const selectedModel = model || defaultModel
-          console.log(`[API Route] Using provider: ${provider}, model: ${selectedModel}`)
+          console.log(
+            `[API Route] Using provider: ${provider}, model: ${selectedModel}`,
+          )
           const stream = chat({
             adapter: adapter as any,
             model: selectedModel as any,

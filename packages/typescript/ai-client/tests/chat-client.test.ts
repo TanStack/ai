@@ -563,7 +563,10 @@ describe('ChatClient', () => {
     })
 
     it('should emit thinkingUpdated events for thinking content', async () => {
-      const chunks = createThinkingChunks('Let me think...', 'Here is my answer')
+      const chunks = createThinkingChunks(
+        'Let me think...',
+        'Here is my answer',
+      )
       const adapter = createMockConnectionAdapter({ chunks })
 
       const { aiEventClient } = await import('@tanstack/ai/event-client')
