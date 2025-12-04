@@ -5,7 +5,7 @@ id: tool-architecture
 
 The TanStack AI tool system provides a powerful, flexible architecture for enabling AI agents to interact with external systems:
 
-- [**Server Tools**](../guides/server-tools) execute securely on the backend with automatic handling
+- [**Server Tools**](../server-tools) execute securely on the backend with automatic handling
 - [**Client Tools**](../client-tools) execute in the browser for UI updates and local operations
 - [**The Agentic Cycle**](../agentic-cycle) enables multi-step reasoning and complex workflows
 - [**Tool States**](#call-states) provide real-time feedback and enable robust UIs
