@@ -7,7 +7,6 @@ import markdownLinkExtractor from 'markdown-link-extractor'
 function isRelativeLink(link: string) {
   return (
     link &&
-    !link.startsWith('/') &&
     !link.startsWith('http://') &&
     !link.startsWith('https://') &&
     !link.startsWith('//') &&
@@ -32,14 +31,14 @@ function fileExistsForLink(
   // If the link is empty after removing hash, it's not a file
   if (!filePart) return false
 
-  // Get the absolute directory of the markdown file
-  const markdownDir = path.dirname(path.resolve(markdownFile))
+  // Normalize the markdown file path
+  markdownFile = normalizePath(markdownFile)
 
   // Normalize the path
   const normalizedPath = normalizePath(filePart)
 
   // Resolve the path relative to the markdown file's directory
-  let absPath = resolve(markdownDir, normalizedPath)
+  let absPath = resolve(markdownFile, normalizedPath)
 
   // Ensure the resolved path is within /docs
   const docsRoot = resolve('docs')
