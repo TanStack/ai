@@ -45,11 +45,11 @@ console.log(`Found ${markdownFiles.length} markdown files to process\n`)
 markdownFiles.forEach((file) => {
   const content = readFileSync(file, 'utf-8')
   let updatedContent = content
-  updatedContent = updatedContent.replaceAll(/\]\(\.\.\//gm, '](../')
+  updatedContent = updatedContent.replaceAll(/\]\(\.\.\//gm, '](../../')
   // updatedContent = content.replaceAll(/\]\(\.\//gm, '](../')
   updatedContent = updatedContent.replaceAll(
     /\]\((?!https?:\/\/|\/\/|\/|\.\/|\.\.\/|#)([^)]+)\)/gm,
-    (match, p1) => `](./${p1})`,
+    (match, p1) => `](../${p1})`,
   )
 
   // Write the updated content back to the file
