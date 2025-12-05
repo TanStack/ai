@@ -1042,7 +1042,9 @@ export const AIProvider: ParentComponent = (props) => {
             type: 'tool_result',
             messageId: e.payload.messageId,
             toolCallId: e.payload.toolCallId,
-            content: e.payload.result,
+            content: typeof e.payload.result === 'string' 
+              ? e.payload.result 
+              : JSON.stringify(e.payload.result),
             timestamp: e.payload.timestamp,
             chunkCount: 1,
           }

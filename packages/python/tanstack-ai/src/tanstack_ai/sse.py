@@ -33,7 +33,7 @@ def format_sse_done() -> str:
 
 def format_sse_error(error: Exception) -> str:
     """
-    Format an error as an SSE error chunk.
+    Format an error as an SSE RUN_ERROR event (AG-UI protocol).
     
     Args:
         error: Exception to format
@@ -42,9 +42,9 @@ def format_sse_error(error: Exception) -> str:
         SSE-formatted error chunk
     """
     error_chunk = {
-        "type": "error",
+        "type": "RUN_ERROR",
         "error": {
-            "type": type(error).__name__,
+            "code": type(error).__name__,
             "message": str(error)
         }
     }

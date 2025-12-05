@@ -69,24 +69,48 @@ data: {JSON_ENCODED_CHUNK}\n\n
 3. **Ends with double newline `\n\n`**
 4. **No event names or IDs** (not required for our use case)
 
-### Examples
+### Examples (AG-UI Events)
 
-#### Content Chunk
-
-```
-data: {"type":"content","id":"chatcmpl-abc123","model":"gpt-4o","timestamp":1701234567890,"delta":"Hello","content":"Hello","role":"assistant"}\n\n
-```
-
-#### Tool Call Chunk
+#### Run Started
 
 ```
-data: {"type":"tool_call","id":"chatcmpl-abc123","model":"gpt-4o","timestamp":1701234567891,"toolCall":{"id":"call_xyz","type":"function","function":{"name":"get_weather","arguments":"{\"location\":\"SF\"}"}},"index":0}\n\n
+data: {"type":"RUN_STARTED","runId":"run_abc123","model":"gpt-4o","timestamp":1701234567890}\n\n
 ```
 
-#### Done Chunk
+#### Text Message Start
 
 ```
-data: {"type":"done","id":"chatcmpl-abc123","model":"gpt-4o","timestamp":1701234567892,"finishReason":"stop","usage":{"promptTokens":10,"completionTokens":5,"totalTokens":15}}\n\n
+data: {"type":"TEXT_MESSAGE_START","messageId":"msg_xyz789","model":"gpt-4o","timestamp":1701234567890,"role":"assistant"}\n\n
+```
+
+#### Text Message Content
+
+```
+data: {"type":"TEXT_MESSAGE_CONTENT","messageId":"msg_xyz789","model":"gpt-4o","timestamp":1701234567890,"delta":"Hello","content":"Hello"}\n\n
+```
+
+#### Tool Call Start
+
+```
+data: {"type":"TOOL_CALL_START","toolCallId":"call_xyz","toolName":"get_weather","model":"gpt-4o","timestamp":1701234567891,"index":0}\n\n
+```
+
+#### Tool Call Args
+
+```
+data: {"type":"TOOL_CALL_ARGS","toolCallId":"call_xyz","model":"gpt-4o","timestamp":1701234567891,"delta":"{\"location\":\"SF\"}","args":"{\"location\":\"SF\"}"}\n\n
+```
+
+#### Tool Call End
+
+```
+data: {"type":"TOOL_CALL_END","toolCallId":"call_xyz","toolName":"get_weather","model":"gpt-4o","timestamp":1701234567892,"input":{"location":"SF"}}\n\n
+```
+
+#### Run Finished
+
+```
+data: {"type":"RUN_FINISHED","runId":"run_abc123","model":"gpt-4o","timestamp":1701234567892,"finishReason":"stop","usage":{"promptTokens":10,"completionTokens":5,"totalTokens":15}}\n\n
 ```
 
 ---
@@ -115,16 +139,18 @@ Cache-Control: no-cache
 Connection: keep-alive
 ```
 
-### 3. Server Streams Chunks
+### 3. Server Streams Events
 
-The server sends multiple `data:` events as chunks are generated:
+The server sends multiple AG-UI events as content is generated:
 
 ```
-data: {"type":"content","id":"msg_1","model":"gpt-4o","timestamp":1701234567890,"delta":"The","content":"The"}\n\n
-data: {"type":"content","id":"msg_1","model":"gpt-4o","timestamp":1701234567891,"delta":" weather","content":"The weather"}\n\n
-data: {"type":"content","id":"msg_1","model":"gpt-4o","timestamp":1701234567892,"delta":" is","content":"The weather is"}\n\n
-data: {"type":"content","id":"msg_1","model":"gpt-4o","timestamp":1701234567893,"delta":" sunny","content":"The weather is sunny"}\n\n
-data: {"type":"done","id":"msg_1","model":"gpt-4o","timestamp":1701234567894,"finishReason":"stop"}\n\n
+data: {"type":"RUN_STARTED","runId":"run_1","model":"gpt-4o","timestamp":1701234567889}\n\n
+data: {"type":"TEXT_MESSAGE_START","messageId":"msg_1","model":"gpt-4o","timestamp":1701234567890,"role":"assistant"}\n\n
+data: {"type":"TEXT_MESSAGE_CONTENT","messageId":"msg_1","model":"gpt-4o","timestamp":1701234567890,"delta":"The","content":"The"}\n\n
+data: {"type":"TEXT_MESSAGE_CONTENT","messageId":"msg_1","model":"gpt-4o","timestamp":1701234567891,"delta":" weather","content":"The weather"}\n\n
+data: {"type":"TEXT_MESSAGE_CONTENT","messageId":"msg_1","model":"gpt-4o","timestamp":1701234567892,"delta":" is sunny","content":"The weather is sunny"}\n\n
+data: {"type":"TEXT_MESSAGE_END","messageId":"msg_1","model":"gpt-4o","timestamp":1701234567893}\n\n
+data: {"type":"RUN_FINISHED","runId":"run_1","model":"gpt-4o","timestamp":1701234567894,"finishReason":"stop"}\n\n
 ```
 
 ### 4. Stream Completion
@@ -143,10 +169,10 @@ Then closes the connection.
 
 ### Server-Side Errors
 
-If an error occurs during generation, send an error chunk:
+If an error occurs during generation, send a RUN_ERROR event:
 
 ```
-data: {"type":"error","id":"msg_1","model":"gpt-4o","timestamp":1701234567895,"error":{"message":"Rate limit exceeded","code":"rate_limit_exceeded"}}\n\n
+data: {"type":"RUN_ERROR","runId":"run_1","model":"gpt-4o","timestamp":1701234567895,"error":{"message":"Rate limit exceeded","code":"rate_limit_exceeded"}}\n\n
 ```
 
 Then close the connection.
@@ -231,11 +257,11 @@ export async function POST(request: Request) {
         controller.enqueue(encoder.encode('data: [DONE]\n\n'));
         controller.close();
       } catch (error) {
-        const errorChunk = {
-          type: 'error',
+        const errorEvent = {
+          type: 'RUN_ERROR',
           error: { message: error.message }
         };
-        controller.enqueue(encoder.encode(`data: ${JSON.stringify(errorChunk)}\n\n`));
+        controller.enqueue(encoder.encode(`data: ${JSON.stringify(errorEvent)}\n\n`));
         controller.close();
       }
     }
@@ -305,11 +331,17 @@ The `-N` flag disables buffering to see real-time output.
 
 **Example Output:**
 ```
-data: {"type":"content","id":"msg_1","model":"gpt-4o","timestamp":1701234567890,"delta":"Hello","content":"Hello"}
+data: {"type":"RUN_STARTED","runId":"run_1","model":"gpt-4o","timestamp":1701234567889}
 
-data: {"type":"content","id":"msg_1","model":"gpt-4o","timestamp":1701234567891,"delta":" there","content":"Hello there"}
+data: {"type":"TEXT_MESSAGE_START","messageId":"msg_1","model":"gpt-4o","timestamp":1701234567890,"role":"assistant"}
 
-data: {"type":"done","id":"msg_1","model":"gpt-4o","timestamp":1701234567892,"finishReason":"stop"}
+data: {"type":"TEXT_MESSAGE_CONTENT","messageId":"msg_1","model":"gpt-4o","timestamp":1701234567890,"delta":"Hello","content":"Hello"}
+
+data: {"type":"TEXT_MESSAGE_CONTENT","messageId":"msg_1","model":"gpt-4o","timestamp":1701234567891,"delta":" there","content":"Hello there"}
+
+data: {"type":"TEXT_MESSAGE_END","messageId":"msg_1","model":"gpt-4o","timestamp":1701234567891}
+
+data: {"type":"RUN_FINISHED","runId":"run_1","model":"gpt-4o","timestamp":1701234567892,"finishReason":"stop"}
 
 data: [DONE]
 ```

@@ -326,18 +326,27 @@ describe('GeminiAdapter through AI', () => {
     expect(mocks.generateContentStreamSpy).toHaveBeenCalledTimes(1)
     const [streamPayload] = mocks.generateContentStreamSpy.mock.calls[0]
     expect(streamPayload.config?.topK).toBe(3)
+    // First chunk is RUN_STARTED
     expect(received[0]).toMatchObject({
-      type: 'content',
-      delta: 'Partly ',
-      content: 'Partly ',
+      type: 'RUN_STARTED',
     })
+    // Then TEXT_MESSAGE_START before content
     expect(received[1]).toMatchObject({
-      type: 'content',
-      delta: 'cloudy',
-      content: 'Partly cloudy',
+      type: 'TEXT_MESSAGE_START',
+      role: 'assistant',
     })
+    // Then TEXT_MESSAGE_CONTENT chunks
+    expect(received[2]).toMatchObject({
+      type: 'TEXT_MESSAGE_CONTENT',
+      delta: 'Partly ',
+    })
+    expect(received[3]).toMatchObject({
+      type: 'TEXT_MESSAGE_CONTENT',
+      delta: 'cloudy',
+    })
+    // Last chunk is RUN_FINISHED
     expect(received.at(-1)).toMatchObject({
-      type: 'done',
+      type: 'RUN_FINISHED',
       finishReason: 'stop',
       usage: {
         promptTokens: 4,

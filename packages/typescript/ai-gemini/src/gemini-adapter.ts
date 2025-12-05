@@ -80,8 +80,7 @@ export class GeminiAdapter extends BaseAdapter<
     } catch (error) {
       const timestamp = Date.now()
       yield {
-        type: 'error',
-        id: this.generateId(),
+        type: 'RUN_ERROR',
         model: options.model,
         timestamp,
         error: {
@@ -219,11 +218,29 @@ export class GeminiAdapter extends BaseAdapter<
     let accumulatedContent = ''
     const toolCallMap = new Map<
       string,
-      { name: string; args: string; index: number }
+      { name: string; args: string; index: number; started: boolean }
     >()
     let nextToolIndex = 0
+
+    // AG-UI lifecycle tracking
+    const runId = this.generateId()
+    const messageId = this.generateId()
+    let hasEmittedRunStarted = false
+    let hasEmittedTextMessageStart = false
+
     // Iterate over the stream result (it's already an AsyncGenerator)
     for await (const chunk of result) {
+      // Emit RUN_STARTED on first chunk
+      if (!hasEmittedRunStarted) {
+        hasEmittedRunStarted = true
+        yield {
+          type: 'RUN_STARTED',
+          runId,
+          model,
+          timestamp,
+        }
+      }
+
       // Extract content from candidates[0].content.parts
       // Parts can contain text or functionCall
       if (chunk.candidates?.[0]?.content?.parts) {
@@ -232,20 +249,30 @@ export class GeminiAdapter extends BaseAdapter<
         for (const part of parts) {
           // Handle text content
           if (part.text) {
+            // Emit TEXT_MESSAGE_START on first text
+            if (!hasEmittedTextMessageStart) {
+              hasEmittedTextMessageStart = true
+              yield {
+                type: 'TEXT_MESSAGE_START',
+                messageId,
+                model,
+                timestamp,
+                role: 'assistant',
+              }
+            }
+
             accumulatedContent += part.text
             yield {
-              type: 'content',
-              id: this.generateId(),
+              type: 'TEXT_MESSAGE_CONTENT',
+              messageId,
               model,
               timestamp,
               delta: part.text,
               content: accumulatedContent,
-              role: 'assistant',
             }
           }
 
           // Handle function calls (tool calls)
-          // Check both camelCase (SDK) and snake_case (direct API) formats
           const functionCall = part.functionCall
           if (functionCall) {
             const toolCallId =
@@ -262,11 +289,22 @@ export class GeminiAdapter extends BaseAdapter<
                     ? functionArgs
                     : JSON.stringify(functionArgs),
                 index: nextToolIndex++,
+                started: false,
               }
               toolCallMap.set(toolCallId, toolCallData)
+
+              // Emit TOOL_CALL_START
+              yield {
+                type: 'TOOL_CALL_START',
+                toolCallId,
+                toolName: toolCallData.name,
+                model,
+                timestamp,
+                index: toolCallData.index,
+              }
+              toolCallData.started = true
             } else {
               // Merge arguments if streaming
-
               try {
                 const existingArgs = JSON.parse(toolCallData.args)
                 const newArgs =
@@ -276,7 +314,6 @@ export class GeminiAdapter extends BaseAdapter<
                 const mergedArgs = { ...existingArgs, ...newArgs }
                 toolCallData.args = JSON.stringify(mergedArgs)
               } catch {
-                // If parsing fails, use new args
                 toolCallData.args =
                   typeof functionArgs === 'string'
                     ? functionArgs
@@ -284,34 +321,38 @@ export class GeminiAdapter extends BaseAdapter<
               }
             }
 
+            // Emit TOOL_CALL_ARGS with the arguments
             yield {
-              type: 'tool_call',
-              id: this.generateId(),
+              type: 'TOOL_CALL_ARGS',
+              toolCallId,
               model,
               timestamp,
-              toolCall: {
-                id: toolCallId,
-                type: 'function',
-                function: {
-                  name: toolCallData.name,
-                  arguments: toolCallData.args,
-                },
-              },
-              index: toolCallData.index,
+              delta: toolCallData.args,
+              args: toolCallData.args,
             }
           }
         }
       } else if (chunk.data) {
         // Fallback to chunk.data if available
+        if (!hasEmittedTextMessageStart) {
+          hasEmittedTextMessageStart = true
+          yield {
+            type: 'TEXT_MESSAGE_START',
+            messageId,
+            model,
+            timestamp,
+            role: 'assistant',
+          }
+        }
+
         accumulatedContent += chunk.data
         yield {
-          type: 'content',
-          id: this.generateId(),
+          type: 'TEXT_MESSAGE_CONTENT',
+          messageId,
           model,
           timestamp,
           delta: chunk.data,
           content: accumulatedContent,
-          role: 'assistant',
         }
       }
 
@@ -319,16 +360,34 @@ export class GeminiAdapter extends BaseAdapter<
       if (chunk.candidates?.[0]?.finishReason) {
         const finishReason = chunk.candidates[0].finishReason
 
+        // Emit TEXT_MESSAGE_END if we had text content
+        if (hasEmittedTextMessageStart) {
+          yield {
+            type: 'TEXT_MESSAGE_END',
+            messageId,
+            model,
+            timestamp,
+          }
+        }
+
+        // Emit TOOL_CALL_END for all tool calls
+        for (const [toolCallId, toolData] of toolCallMap) {
+          yield {
+            type: 'TOOL_CALL_END',
+            toolCallId,
+            toolName: toolData.name,
+            model,
+            timestamp,
+            input: this.safeJsonParse(toolData.args),
+          }
+        }
+
         // UNEXPECTED_TOOL_CALL means Gemini tried to call a function but it wasn't properly declared
-        // This typically means there's an issue with the tool declaration format
-        // We should map it to tool_calls to try to process it anyway
         if (finishReason === FinishReason.UNEXPECTED_TOOL_CALL) {
-          // Try to extract function call from content.parts if available
           if (chunk.candidates[0].content?.parts) {
             for (const part of chunk.candidates[0].content.parts) {
               const functionCall = part.functionCall
               if (functionCall) {
-                // We found a function call - process it
                 const toolCallId =
                   functionCall.name || `call_${Date.now()}_${nextToolIndex}`
                 const functionArgs = functionCall.args || {}
@@ -340,25 +399,28 @@ export class GeminiAdapter extends BaseAdapter<
                       ? functionArgs
                       : JSON.stringify(functionArgs),
                   index: nextToolIndex++,
+                  started: true,
                 })
 
                 yield {
-                  type: 'tool_call',
-                  id: this.generateId(),
+                  type: 'TOOL_CALL_START',
+                  toolCallId,
+                  toolName: functionCall.name || '',
                   model,
                   timestamp,
-                  toolCall: {
-                    id: toolCallId,
-                    type: 'function',
-                    function: {
-                      name: functionCall.name || '',
-                      arguments:
-                        typeof functionArgs === 'string'
-                          ? functionArgs
-                          : JSON.stringify(functionArgs),
-                    },
-                  },
                   index: nextToolIndex - 1,
+                }
+
+                yield {
+                  type: 'TOOL_CALL_END',
+                  toolCallId,
+                  toolName: functionCall.name || '',
+                  model,
+                  timestamp,
+                  input:
+                    typeof functionArgs === 'string'
+                      ? this.safeJsonParse(functionArgs)
+                      : functionArgs,
                 }
               }
             }
@@ -366,8 +428,8 @@ export class GeminiAdapter extends BaseAdapter<
         }
         if (finishReason === FinishReason.MAX_TOKENS) {
           yield {
-            type: 'error',
-            id: this.generateId(),
+            type: 'RUN_ERROR',
+            runId,
             model,
             timestamp,
             error: {
@@ -378,8 +440,8 @@ export class GeminiAdapter extends BaseAdapter<
         }
 
         yield {
-          type: 'done',
-          id: this.generateId(),
+          type: 'RUN_FINISHED',
+          runId,
           model,
           timestamp,
           finishReason: toolCallMap.size > 0 ? 'tool_calls' : 'stop',
@@ -392,6 +454,14 @@ export class GeminiAdapter extends BaseAdapter<
             : undefined,
         }
       }
+    }
+  }
+
+  private safeJsonParse(jsonString: string): any {
+    try {
+      return JSON.parse(jsonString)
+    } catch {
+      return jsonString
     }
   }
 

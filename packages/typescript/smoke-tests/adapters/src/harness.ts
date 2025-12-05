@@ -168,78 +168,115 @@ export async function captureStream(opts: {
       model: chunk.model,
     }
 
-    if (chunk.type === 'content') {
+    if (chunk.type === 'TEXT_MESSAGE_CONTENT') {
       chunkData.delta = chunk.delta
       chunkData.content = chunk.content
-      chunkData.role = chunk.role
-      const delta = chunk.delta || chunk.content || ''
+      const delta = chunk.delta || ''
       fullResponse += delta
 
-      if (chunk.role === 'assistant') {
-        if (!assistantDraft) {
-          assistantDraft = {
-            role: 'assistant',
-            content: chunk.content || '',
-            toolCalls: [],
-          }
-        } else {
-          assistantDraft.content = (assistantDraft.content || '') + delta
+      if (!assistantDraft) {
+        assistantDraft = {
+          role: 'assistant',
+          content: delta,
+          toolCalls: [],
         }
+      } else {
+        assistantDraft.content = (assistantDraft.content || '') + delta
       }
-    } else if (chunk.type === 'tool_call') {
-      const id = chunk.toolCall.id
+    } else if (chunk.type === 'TOOL_CALL_START') {
+      const id = chunk.toolCallId
       const existing = toolCallMap.get(id) || {
         id,
-        name: chunk.toolCall.function.name,
+        name: chunk.toolName,
         arguments: '',
       }
-      existing.arguments += chunk.toolCall.function.arguments || ''
       toolCallMap.set(id, existing)
 
-      chunkData.toolCall = chunk.toolCall
+      chunkData.toolCallId = chunk.toolCallId
+      chunkData.toolName = chunk.toolName
 
       if (!assistantDraft) {
         assistantDraft = { role: 'assistant', content: null, toolCalls: [] }
       }
-      const existingToolCall = assistantDraft.toolCalls?.find(
-        (tc: any) => tc.id === id,
-      )
-      if (existingToolCall) {
-        existingToolCall.function.arguments = existing.arguments
-      } else {
-        assistantDraft.toolCalls?.push({
-          ...chunk.toolCall,
-          function: {
-            ...chunk.toolCall.function,
-            arguments: existing.arguments,
-          },
+      assistantDraft.toolCalls?.push({
+        id,
+        type: 'function',
+        function: {
+          name: chunk.toolName,
+          arguments: '',
+        },
+      })
+    } else if (chunk.type === 'TOOL_CALL_ARGS') {
+      const id = chunk.toolCallId
+      const existing = toolCallMap.get(id)
+      if (existing) {
+        existing.arguments += chunk.delta || ''
+        toolCallMap.set(id, existing)
+      }
+
+      chunkData.toolCallId = chunk.toolCallId
+      chunkData.delta = chunk.delta
+
+      if (assistantDraft) {
+        const existingToolCall = assistantDraft.toolCalls?.find(
+          (tc: any) => tc.id === id,
+        )
+        if (existingToolCall) {
+          existingToolCall.function.arguments += chunk.delta || ''
+        }
+      }
+    } else if (chunk.type === 'TOOL_CALL_END') {
+      chunkData.toolCallId = chunk.toolCallId
+      
+      // Capture input/arguments from TOOL_CALL_END (OpenAI sends complete args here)
+      if (chunk.input !== undefined) {
+        const id = chunk.toolCallId
+        const existing = toolCallMap.get(id)
+        if (existing) {
+          existing.arguments = JSON.stringify(chunk.input)
+          toolCallMap.set(id, existing)
+        }
+        
+        // Update the assistant draft's tool call arguments
+        if (assistantDraft) {
+          const existingToolCall = assistantDraft.toolCalls?.find(
+            (tc: any) => tc.id === id,
+          )
+          if (existingToolCall) {
+            existingToolCall.function.arguments = JSON.stringify(chunk.input)
+          }
+        }
+      }
+      
+      // Tool result is included in TOOL_CALL_END for server-executed tools
+      if (chunk.result !== undefined) {
+        const content =
+          typeof chunk.result === 'string'
+            ? chunk.result
+            : JSON.stringify(chunk.result)
+        toolResults.push({
+          toolCallId: chunk.toolCallId,
+          content,
+        })
+        reconstructedMessages.push({
+          role: 'tool',
+          toolCallId: chunk.toolCallId,
+          content,
         })
       }
-    } else if (chunk.type === 'tool_result') {
-      chunkData.toolCallId = chunk.toolCallId
-      chunkData.content = chunk.content
-      toolResults.push({
-        toolCallId: chunk.toolCallId,
-        content: chunk.content,
-      })
-      reconstructedMessages.push({
-        role: 'tool',
-        toolCallId: chunk.toolCallId,
-        content: chunk.content,
-      })
-    } else if (chunk.type === 'approval-requested') {
+    } else if (chunk.type === 'CUSTOM' && chunk.name === 'approval-requested') {
       const approval: ApprovalCapture = {
-        toolCallId: chunk.toolCallId,
-        toolName: chunk.toolName,
-        input: chunk.input,
-        approval: chunk.approval,
+        toolCallId: chunk.value.toolCallId,
+        toolName: chunk.value.toolName,
+        input: chunk.value.input,
+        approval: chunk.value.approval,
       }
-      chunkData.toolCallId = chunk.toolCallId
-      chunkData.toolName = chunk.toolName
-      chunkData.input = chunk.input
-      chunkData.approval = chunk.approval
+      chunkData.toolCallId = chunk.value.toolCallId
+      chunkData.toolName = chunk.value.toolName
+      chunkData.input = chunk.value.input
+      chunkData.approval = chunk.value.approval
       approvalRequests.push(approval)
-    } else if (chunk.type === 'done') {
+    } else if (chunk.type === 'RUN_FINISHED') {
       chunkData.finishReason = chunk.finishReason
       chunkData.usage = chunk.usage
       if (chunk.finishReason === 'stop' && assistantDraft) {

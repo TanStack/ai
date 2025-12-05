@@ -1,12 +1,12 @@
 import { describe, expect, it, vi } from 'vitest'
 import { z } from 'zod'
 import { ToolCallManager } from '../src/tools/tool-calls'
-import type { DoneStreamChunk, Tool } from '../src/types'
+import type { RunFinishedEvent, Tool } from '../src/types'
 
 describe('ToolCallManager', () => {
-  const mockDoneChunk: DoneStreamChunk = {
-    type: 'done',
-    id: 'test-id',
+  const mockDoneChunk: RunFinishedEvent = {
+    type: 'RUN_FINISHED',
+    runId: 'test-run',
     model: 'gpt-4',
     timestamp: Date.now(),
     finishReason: 'tool_calls',
@@ -94,7 +94,7 @@ describe('ToolCallManager', () => {
     expect(toolCalls[0]?.id).toBe('call_123')
   })
 
-  it('should execute tools and emit tool_result chunks', async () => {
+  it('should execute tools and emit TOOL_CALL_END events', async () => {
     const manager = new ToolCallManager([mockWeatherTool])
 
     manager.addToolCallChunk({
@@ -109,11 +109,11 @@ describe('ToolCallManager', () => {
     const { chunks: emittedChunks, result: finalResult } =
       await collectGeneratorOutput(manager.executeTools(mockDoneChunk))
 
-    // Should emit one tool_result chunk
+    // Should emit one TOOL_CALL_END event
     expect(emittedChunks).toHaveLength(1)
-    expect(emittedChunks[0]?.type).toBe('tool_result')
+    expect(emittedChunks[0]?.type).toBe('TOOL_CALL_END')
     expect(emittedChunks[0]?.toolCallId).toBe('call_123')
-    expect(emittedChunks[0]?.content).toContain('temp')
+    expect(emittedChunks[0]?.result).toContain('temp')
 
     // Should return one tool result message
     expect(finalResult).toHaveLength(1)
@@ -150,9 +150,9 @@ describe('ToolCallManager', () => {
       manager.executeTools(mockDoneChunk),
     )
 
-    // Should still emit chunk with error message
+    // Should still emit event with error message
     expect(chunks).toHaveLength(1)
-    expect(chunks[0]?.content).toContain('Error executing tool: Tool failed')
+    expect(chunks[0]?.result).toContain('Error executing tool: Tool failed')
 
     // Should still return tool result message
     expect(toolResults).toHaveLength(1)
@@ -182,7 +182,7 @@ describe('ToolCallManager', () => {
       manager.executeTools(mockDoneChunk),
     )
 
-    expect(chunks[0]?.content).toContain('does not have an execute function')
+    expect(chunks[0]?.result).toContain('does not have an execute function')
     expect(toolResults[0]?.content).toContain(
       'does not have an execute function',
     )
@@ -248,7 +248,7 @@ describe('ToolCallManager', () => {
       manager.executeTools(mockDoneChunk),
     )
 
-    // Should emit two tool_result chunks
+    // Should emit two TOOL_CALL_END events
     expect(chunks).toHaveLength(2)
     expect(chunks[0]?.toolCallId).toBe('call_weather')
     expect(chunks[1]?.toolCallId).toBe('call_calc')

@@ -502,51 +502,71 @@ export interface ChatOptions<
   abortController?: AbortController
 }
 
-export type StreamChunkType =
+// ============================================================================
+// AG-UI Protocol Event Types
+// ============================================================================
+
+/**
+ * AG-UI Protocol event types.
+ * Based on the AG-UI specification for agent-user interaction.
+ * @see https://docs.ag-ui.com/concepts/events
+ * 
+ * Includes legacy type aliases for backward compatibility during migration.
+ */
+export type EventType =
+  // AG-UI Standard Events
+  | 'RUN_STARTED'
+  | 'RUN_FINISHED'
+  | 'RUN_ERROR'
+  | 'TEXT_MESSAGE_START'
+  | 'TEXT_MESSAGE_CONTENT'
+  | 'TEXT_MESSAGE_END'
+  | 'TOOL_CALL_START'
+  | 'TOOL_CALL_ARGS'
+  | 'TOOL_CALL_END'
+  | 'STEP_STARTED'
+  | 'STEP_FINISHED'
+  | 'STATE_SNAPSHOT'
+  | 'STATE_DELTA'
+  | 'CUSTOM'
+  // Legacy types (deprecated, for backward compatibility)
   | 'content'
-  | 'tool_call'
-  | 'tool_result'
   | 'done'
   | 'error'
+  | 'tool_call'
+  | 'tool_result'
+  | 'thinking'
   | 'approval-requested'
   | 'tool-input-available'
-  | 'thinking'
 
-export interface BaseStreamChunk {
-  type: StreamChunkType
-  id: string
-  model: string
+/**
+ * Base structure for all AG-UI events.
+ * Extends AG-UI spec with TanStack AI additions (model field).
+ */
+export interface BaseEvent {
+  type: EventType
   timestamp: number
+  /** TanStack AI addition: Model identifier for multi-model support */
+  model?: string
+  /** Original provider event for debugging/advanced use cases */
+  rawEvent?: unknown
 }
 
-export interface ContentStreamChunk extends BaseStreamChunk {
-  type: 'content'
-  delta: string // The incremental content token
-  content: string // Full accumulated content so far
-  role?: 'assistant'
+/**
+ * Emitted when a run starts.
+ */
+export interface RunStartedEvent extends BaseEvent {
+  type: 'RUN_STARTED'
+  runId: string
+  threadId?: string
 }
 
-export interface ToolCallStreamChunk extends BaseStreamChunk {
-  type: 'tool_call'
-  toolCall: {
-    id: string
-    type: 'function'
-    function: {
-      name: string
-      arguments: string // Incremental JSON arguments
-    }
-  }
-  index: number
-}
-
-export interface ToolResultStreamChunk extends BaseStreamChunk {
-  type: 'tool_result'
-  toolCallId: string
-  content: string
-}
-
-export interface DoneStreamChunk extends BaseStreamChunk {
-  type: 'done'
+/**
+ * Emitted when a run completes successfully.
+ */
+export interface RunFinishedEvent extends BaseEvent {
+  type: 'RUN_FINISHED'
+  runId: string
   finishReason: 'stop' | 'length' | 'content_filter' | 'tool_calls' | null
   usage?: {
     promptTokens: number
@@ -555,50 +575,292 @@ export interface DoneStreamChunk extends BaseStreamChunk {
   }
 }
 
-export interface ErrorStreamChunk extends BaseStreamChunk {
-  type: 'error'
+/**
+ * Emitted when an error occurs during a run.
+ */
+export interface RunErrorEvent extends BaseEvent {
+  type: 'RUN_ERROR'
+  runId?: string
   error: {
     message: string
     code?: string
   }
 }
 
-export interface ApprovalRequestedStreamChunk extends BaseStreamChunk {
-  type: 'approval-requested'
+/**
+ * Emitted when a text message starts.
+ */
+export interface TextMessageStartEvent extends BaseEvent {
+  type: 'TEXT_MESSAGE_START'
+  messageId: string
+  role: 'assistant'
+}
+
+/**
+ * Emitted when text content is generated (streaming tokens).
+ */
+export interface TextMessageContentEvent extends BaseEvent {
+  type: 'TEXT_MESSAGE_CONTENT'
+  messageId: string
+  delta: string
+  /** TanStack AI addition: Full accumulated content so far */
+  content?: string
+}
+
+/**
+ * Emitted when a text message completes.
+ */
+export interface TextMessageEndEvent extends BaseEvent {
+  type: 'TEXT_MESSAGE_END'
+  messageId: string
+}
+
+/**
+ * Emitted when a tool call starts.
+ */
+export interface ToolCallStartEvent extends BaseEvent {
+  type: 'TOOL_CALL_START'
   toolCallId: string
   toolName: string
-  input: any
-  approval: {
+  /** Index for parallel tool calls */
+  index?: number
+  /** Approval metadata if tool requires user approval */
+  approval?: {
     id: string
     needsApproval: true
   }
 }
 
-export interface ToolInputAvailableStreamChunk extends BaseStreamChunk {
-  type: 'tool-input-available'
+/**
+ * Emitted when tool call arguments are streaming.
+ */
+export interface ToolCallArgsEvent extends BaseEvent {
+  type: 'TOOL_CALL_ARGS'
   toolCallId: string
-  toolName: string
-  input: any
-}
-
-export interface ThinkingStreamChunk extends BaseStreamChunk {
-  type: 'thinking'
-  delta?: string // The incremental thinking token
-  content: string // Full accumulated thinking content so far
+  /** Incremental JSON arguments delta */
+  delta: string
+  /** Full accumulated arguments so far */
+  args?: string
 }
 
 /**
- * Chunk returned by the sdk during streaming chat completions.
+ * Emitted when a tool call completes (with optional result).
+ */
+export interface ToolCallEndEvent extends BaseEvent {
+  type: 'TOOL_CALL_END'
+  toolCallId: string
+  toolName: string
+  /** Final parsed input arguments */
+  input?: unknown
+  /** Tool execution result (present when tool has executed) */
+  result?: unknown
+}
+
+/**
+ * Emitted when a reasoning/thinking step starts.
+ */
+export interface StepStartedEvent extends BaseEvent {
+  type: 'STEP_STARTED'
+  stepId: string
+  stepType: 'thinking' | 'reasoning' | 'planning'
+}
+
+/**
+ * Emitted when a reasoning/thinking step completes or streams content.
+ */
+export interface StepFinishedEvent extends BaseEvent {
+  type: 'STEP_FINISHED'
+  stepId: string
+  /** Incremental thinking token */
+  delta?: string
+  /** Full accumulated thinking content */
+  content: string
+}
+
+/**
+ * Emitted for full state synchronization.
+ */
+export interface StateSnapshotEvent extends BaseEvent {
+  type: 'STATE_SNAPSHOT'
+  state: Record<string, unknown>
+}
+
+/**
+ * Emitted for incremental state updates.
+ */
+export interface StateDeltaEvent extends BaseEvent {
+  type: 'STATE_DELTA'
+  delta: Array<{
+    op: 'add' | 'remove' | 'replace'
+    path: string
+    value?: unknown
+  }>
+}
+
+/**
+ * Custom event for extensibility.
+ * Used for features not covered by standard AG-UI events (e.g., approval flows).
+ */
+export interface CustomEvent extends BaseEvent {
+  type: 'CUSTOM'
+  name: string
+  value: unknown
+}
+
+/**
+ * Union type for all AG-UI events.
+ * This is the primary type for streaming chat completions.
+ * Includes legacy types for backward compatibility.
  */
 export type StreamChunk =
+  // AG-UI Standard Events
+  | RunStartedEvent
+  | RunFinishedEvent
+  | RunErrorEvent
+  | TextMessageStartEvent
+  | TextMessageContentEvent
+  | TextMessageEndEvent
+  | ToolCallStartEvent
+  | ToolCallArgsEvent
+  | ToolCallEndEvent
+  | StepStartedEvent
+  | StepFinishedEvent
+  | StateSnapshotEvent
+  | StateDeltaEvent
+  | CustomEvent
+  // Legacy types (deprecated)
   | ContentStreamChunk
-  | ToolCallStreamChunk
-  | ToolResultStreamChunk
   | DoneStreamChunk
   | ErrorStreamChunk
+  | ToolCallStreamChunk
+  | ToolResultStreamChunk
+  | ThinkingStreamChunk
   | ApprovalRequestedStreamChunk
   | ToolInputAvailableStreamChunk
-  | ThinkingStreamChunk
+
+// Legacy type aliases for transition (can be removed in future version)
+export type StreamChunkType = EventType
+
+// ============================================================================
+// Legacy Chunk Type Aliases (Deprecated - for backward compatibility)
+// ============================================================================
+// These types provide backward compatibility during the transition to AG-UI.
+// They map old chunk type names to the new AG-UI event types.
+// These will be removed in a future major version.
+
+/**
+ * @deprecated Use TextMessageContentEvent instead
+ */
+export interface ContentStreamChunk {
+  type: 'content'
+  id: string
+  model: string
+  timestamp: number
+  /** Incremental text delta */
+  delta: string
+  /** Full accumulated content so far */
+  content: string
+  /** Role of the message */
+  role?: 'assistant'
+}
+
+/**
+ * @deprecated Use RunFinishedEvent instead
+ */
+export interface DoneStreamChunk {
+  type: 'done'
+  id: string
+  model: string
+  timestamp: number
+  finishReason?: 'stop' | 'length' | 'content_filter' | 'tool_calls' | null
+  usage?: {
+    promptTokens: number
+    completionTokens: number
+    totalTokens: number
+  }
+}
+
+/**
+ * @deprecated Use RunErrorEvent instead
+ */
+export interface ErrorStreamChunk {
+  type: 'error'
+  id: string
+  model: string
+  timestamp: number
+  error: string | { message: string; code?: string }
+  code?: string
+}
+
+/**
+ * @deprecated Use ToolCallStartEvent and ToolCallArgsEvent instead
+ */
+export interface ToolCallStreamChunk {
+  type: 'tool_call'
+  id: string
+  model: string
+  timestamp: number
+  toolCall: ToolCall
+  index: number
+  approval?: {
+    id: string
+    needsApproval: true
+  }
+}
+
+/**
+ * @deprecated Use ToolCallEndEvent instead
+ */
+export interface ToolResultStreamChunk {
+  type: 'tool_result'
+  id: string
+  model: string
+  timestamp: number
+  toolCallId: string
+  content: string
+}
+
+/**
+ * @deprecated Use StepStartedEvent/StepFinishedEvent instead
+ */
+export interface ThinkingStreamChunk {
+  type: 'thinking'
+  id: string
+  model: string
+  timestamp: number
+  delta?: string
+  content: string
+}
+
+/**
+ * @deprecated Use CustomEvent with name='approval-requested' instead
+ */
+export interface ApprovalRequestedStreamChunk {
+  type: 'approval-requested'
+  id: string
+  model: string
+  timestamp: number
+  toolCallId: string
+  toolName: string
+  input: Record<string, any>
+  approval?: {
+    id: string
+    needsApproval: true
+  }
+}
+
+/**
+ * @deprecated Use CustomEvent with name='tool-input-available' instead
+ */
+export interface ToolInputAvailableStreamChunk {
+  type: 'tool-input-available'
+  id: string
+  model: string
+  timestamp: number
+  toolCallId: string
+  toolName: string
+  input: Record<string, any>
+}
 
 // Simple streaming format for basic chat completions
 // Converted to StreamChunk format by convertChatCompletionStream()

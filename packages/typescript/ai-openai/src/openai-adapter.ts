@@ -210,10 +210,14 @@ export class OpenAI extends BaseAdapter<
     // Track if we've been streaming deltas to avoid duplicating content from done events
     let hasStreamedContentDeltas = false
     let hasStreamedReasoningDeltas = false
+    let hasEmittedTextMessageStart = false
+    let hasEmittedStepStarted = false
 
     // Preserve response metadata across events
     let responseId: string | null = null
     let model: string = options.model
+    let messageId: string | null = null
+    let stepId: string | null = null
 
     const eventTypeCounts = new Map<string, number>()
 
@@ -229,21 +233,20 @@ export class OpenAI extends BaseAdapter<
           if (contentPart.type === 'output_text') {
             accumulatedContent += contentPart.text
             return {
-              type: 'content',
-              id: responseId || generateId(),
+              type: 'TEXT_MESSAGE_CONTENT',
+              messageId: messageId || generateId(),
               model: model || options.model,
               timestamp,
               delta: contentPart.text,
               content: accumulatedContent,
-              role: 'assistant',
             }
           }
 
           if (contentPart.type === 'reasoning_text') {
             accumulatedReasoning += contentPart.text
             return {
-              type: 'thinking',
-              id: responseId || generateId(),
+              type: 'STEP_FINISHED',
+              stepId: stepId || generateId(),
               model: model || options.model,
               timestamp,
               delta: contentPart.text,
@@ -251,8 +254,8 @@ export class OpenAI extends BaseAdapter<
             }
           }
           return {
-            type: 'error',
-            id: responseId || generateId(),
+            type: 'RUN_ERROR',
+            runId: responseId || undefined,
             model: model || options.model,
             timestamp,
             error: {
@@ -268,15 +271,30 @@ export class OpenAI extends BaseAdapter<
         ) {
           responseId = chunk.response.id
           model = chunk.response.model
+          messageId = generateId()
+          stepId = generateId()
           // Reset streaming flags for new response
           hasStreamedContentDeltas = false
           hasStreamedReasoningDeltas = false
+          hasEmittedTextMessageStart = false
+          hasEmittedStepStarted = false
           accumulatedContent = ''
           accumulatedReasoning = ''
+
+          // Emit RUN_STARTED event
+          if (chunk.type === 'response.created') {
+            yield {
+              type: 'RUN_STARTED',
+              runId: chunk.response.id,
+              model: chunk.response.model,
+              timestamp,
+            }
+          }
+
           if (chunk.response.error) {
             yield {
-              type: 'error',
-              id: chunk.response.id,
+              type: 'RUN_ERROR',
+              runId: chunk.response.id,
               model: chunk.response.model,
               timestamp,
               error: chunk.response.error,
@@ -284,8 +302,8 @@ export class OpenAI extends BaseAdapter<
           }
           if (chunk.response.incomplete_details) {
             yield {
-              type: 'error',
-              id: chunk.response.id,
+              type: 'RUN_ERROR',
+              runId: chunk.response.id,
               model: chunk.response.model,
               timestamp,
               error: {
@@ -305,16 +323,27 @@ export class OpenAI extends BaseAdapter<
               : ''
 
           if (textDelta) {
+            // Emit TEXT_MESSAGE_START on first content
+            if (!hasEmittedTextMessageStart) {
+              hasEmittedTextMessageStart = true
+              yield {
+                type: 'TEXT_MESSAGE_START',
+                messageId: messageId || generateId(),
+                model: model || options.model,
+                timestamp,
+                role: 'assistant',
+              }
+            }
+
             accumulatedContent += textDelta
             hasStreamedContentDeltas = true
             yield {
-              type: 'content',
-              id: responseId || generateId(),
+              type: 'TEXT_MESSAGE_CONTENT',
+              messageId: messageId || generateId(),
               model: model || options.model,
               timestamp,
               delta: textDelta,
               content: accumulatedContent,
-              role: 'assistant',
             }
           }
         }
@@ -330,11 +359,23 @@ export class OpenAI extends BaseAdapter<
               : ''
 
           if (reasoningDelta) {
+            // Emit STEP_STARTED on first reasoning content
+            if (!hasEmittedStepStarted) {
+              hasEmittedStepStarted = true
+              yield {
+                type: 'STEP_STARTED',
+                stepId: stepId || generateId(),
+                model: model || options.model,
+                timestamp,
+                stepType: 'thinking',
+              }
+            }
+
             accumulatedReasoning += reasoningDelta
             hasStreamedReasoningDeltas = true
             yield {
-              type: 'thinking',
-              id: responseId || generateId(),
+              type: 'STEP_FINISHED',
+              stepId: stepId || generateId(),
               model: model || options.model,
               timestamp,
               delta: reasoningDelta,
@@ -355,7 +396,13 @@ export class OpenAI extends BaseAdapter<
           // Skip emitting chunks for content parts that we've already streamed via deltas
           // The done event is just a completion marker, not new content
           if (contentPart.type === 'output_text' && hasStreamedContentDeltas) {
-            // Content already accumulated from deltas, skip
+            // Emit TEXT_MESSAGE_END
+            yield {
+              type: 'TEXT_MESSAGE_END',
+              messageId: messageId || generateId(),
+              model: model || options.model,
+              timestamp,
+            }
             continue
           }
           if (
@@ -380,31 +427,35 @@ export class OpenAI extends BaseAdapter<
                 index: chunk.output_index,
                 name: item.name || '',
               })
+
+              // Emit TOOL_CALL_START when we first see the function call
+              yield {
+                type: 'TOOL_CALL_START',
+                toolCallId: item.id,
+                toolName: item.name || '',
+                model: model || options.model,
+                timestamp,
+                index: chunk.output_index,
+              }
             }
           }
         }
 
         if (chunk.type === 'response.function_call_arguments.done') {
-          const { item_id, output_index } = chunk
+          const { item_id } = chunk
 
           // Get the function name from metadata (captured in output_item.added)
           const metadata = toolCallMetadata.get(item_id)
           const name = metadata?.name || ''
 
+          // Emit TOOL_CALL_END with the complete arguments
           yield {
-            type: 'tool_call',
-            id: responseId || generateId(),
+            type: 'TOOL_CALL_END',
+            toolCallId: item_id,
+            toolName: name,
             model: model || options.model,
             timestamp,
-            index: output_index,
-            toolCall: {
-              id: item_id,
-              type: 'function',
-              function: {
-                name,
-                arguments: chunk.arguments,
-              },
-            },
+            input: this.safeJsonParse(chunk.arguments),
           }
         }
 
@@ -416,8 +467,8 @@ export class OpenAI extends BaseAdapter<
           )
 
           yield {
-            type: 'done',
-            id: responseId || generateId(),
+            type: 'RUN_FINISHED',
+            runId: responseId || generateId(),
             model: model || options.model,
             timestamp,
             usage: {
@@ -431,8 +482,8 @@ export class OpenAI extends BaseAdapter<
 
         if (chunk.type === 'error') {
           yield {
-            type: 'error',
-            id: responseId || generateId(),
+            type: 'RUN_ERROR',
+            runId: responseId || undefined,
             model: model || options.model,
             timestamp,
             error: {
@@ -452,8 +503,7 @@ export class OpenAI extends BaseAdapter<
         },
       )
       yield {
-        type: 'error',
-        id: generateId(),
+        type: 'RUN_ERROR',
         model: options.model,
         timestamp,
         error: {
@@ -461,6 +511,14 @@ export class OpenAI extends BaseAdapter<
           code: error.code,
         },
       }
+    }
+  }
+
+  private safeJsonParse(jsonString: string): any {
+    try {
+      return JSON.parse(jsonString)
+    } catch {
+      return jsonString
     }
   }
 

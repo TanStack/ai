@@ -426,36 +426,101 @@ export class StreamProcessor {
     }
 
     switch (chunk.type) {
+      // Run lifecycle events
+      case 'RUN_STARTED':
+        // Run started - could be used for initialization
+        break
+
+      case 'RUN_FINISHED':
+        this.handleRunFinishedEvent(chunk)
+        break
+
+      case 'RUN_ERROR':
+        this.handleRunErrorEvent(chunk)
+        break
+
+      // Text message events
+      case 'TEXT_MESSAGE_START':
+        // Message starting - could track message ID
+        break
+
+      case 'TEXT_MESSAGE_CONTENT':
+        this.handleTextMessageContentEvent(chunk)
+        break
+
+      case 'TEXT_MESSAGE_END':
+        // Message ended - finalize text if needed
+        break
+
+      // Tool call events
+      case 'TOOL_CALL_START':
+        this.handleToolCallStartEvent(chunk)
+        break
+
+      case 'TOOL_CALL_ARGS':
+        this.handleToolCallArgsEvent(chunk)
+        break
+
+      case 'TOOL_CALL_END':
+        this.handleToolCallEndEvent(chunk)
+        break
+
+      // Step/thinking events
+      case 'STEP_STARTED':
+        // Step started - could track step ID
+        break
+
+      case 'STEP_FINISHED':
+        this.handleStepFinishedEvent(chunk)
+        break
+
+      // State events
+      case 'STATE_SNAPSHOT':
+        // Full state sync - custom handling
+        break
+
+      case 'STATE_DELTA':
+        // Incremental state update - custom handling
+        break
+
+      // Custom events (including approval flows)
+      case 'CUSTOM':
+        this.handleCustomEvent(chunk)
+        break
+
+      // ============================================
+      // Legacy event types (backward compatibility)
+      // ============================================
       case 'content':
-        this.handleContentChunk(chunk)
-        break
-
-      case 'tool_call':
-        this.handleToolCallChunk(chunk)
-        break
-
-      case 'tool_result':
-        this.handleToolResultChunk(chunk)
+        this.handleLegacyContentChunk(chunk)
         break
 
       case 'done':
-        this.handleDoneChunk(chunk)
+        this.handleLegacyDoneChunk(chunk)
         break
 
       case 'error':
-        this.handleErrorChunk(chunk)
+        this.handleLegacyErrorChunk(chunk)
+        break
+
+      case 'tool_call':
+        this.handleLegacyToolCallChunk(chunk)
+        break
+
+      case 'tool_result':
+        this.handleLegacyToolResultChunk(chunk)
         break
 
       case 'thinking':
-        this.handleThinkingChunk(chunk)
+        this.handleLegacyThinkingChunk(chunk)
         break
 
       case 'approval-requested':
-        this.handleApprovalRequestedChunk(chunk)
+        this.handleLegacyApprovalRequestedChunk(chunk)
         break
 
       case 'tool-input-available':
-        this.handleToolInputAvailableChunk(chunk)
+        this.handleLegacyToolInputAvailableChunk(chunk)
         break
 
       default:
@@ -465,10 +530,10 @@ export class StreamProcessor {
   }
 
   /**
-   * Handle a content chunk
+   * Handle TEXT_MESSAGE_CONTENT event (AG-UI)
    */
-  private handleContentChunk(
-    chunk: Extract<StreamChunk, { type: 'content' }>,
+  private handleTextMessageContentEvent(
+    chunk: Extract<StreamChunk, { type: 'TEXT_MESSAGE_CONTENT' }>,
   ): void {
     // Content arriving means all current tool calls are complete
     this.completeAllToolCalls()
@@ -498,7 +563,7 @@ export class StreamProcessor {
     // Prefer delta over content - delta is the incremental change
     if (chunk.delta !== '') {
       nextText = currentText + chunk.delta
-    } else if (chunk.content !== '') {
+    } else if (chunk.content && chunk.content !== '') {
       // Fallback: use content if delta is not provided
       if (chunk.content.startsWith(currentText)) {
         nextText = chunk.content
@@ -514,9 +579,8 @@ export class StreamProcessor {
     this.currentSegmentText = nextText
     this.totalTextContent += textDelta
 
-    // Use delta for chunk strategy if available
-    // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
-    const chunkPortion = chunk.delta ?? chunk.content ?? ''
+    // Use delta for chunk strategy
+    const chunkPortion = chunk.delta
     const shouldEmit = this.chunkStrategy.shouldEmit(
       chunkPortion,
       this.currentSegmentText,
@@ -527,37 +591,28 @@ export class StreamProcessor {
   }
 
   /**
-   * Handle a tool call chunk
+   * Handle TOOL_CALL_START event (AG-UI)
    */
-  private handleToolCallChunk(
-    chunk: Extract<StreamChunk, { type: 'tool_call' }>,
+  private handleToolCallStartEvent(
+    chunk: Extract<StreamChunk, { type: 'TOOL_CALL_START' }>,
   ): void {
     // Mark that we've seen tool calls since the last text segment
     this.hasToolCallsSinceTextStart = true
 
-    const toolCallId = chunk.toolCall.id
+    const toolCallId = chunk.toolCallId
     const existingToolCall = this.toolCalls.get(toolCallId)
 
     if (!existingToolCall) {
       // New tool call starting
-      const initialState: ToolCallState = chunk.toolCall.function.arguments
-        ? 'input-streaming'
-        : 'awaiting-input'
+      const initialState: ToolCallState = 'awaiting-input'
 
       const newToolCall: InternalToolCallState = {
-        id: chunk.toolCall.id,
-        name: chunk.toolCall.function.name,
-        arguments: chunk.toolCall.function.arguments || '',
+        id: toolCallId,
+        name: chunk.toolName,
+        arguments: '',
         state: initialState,
         parsedArguments: undefined,
-        index: chunk.index,
-      }
-
-      // Try to parse the arguments
-      if (chunk.toolCall.function.arguments) {
-        newToolCall.parsedArguments = this.jsonParser.parse(
-          chunk.toolCall.function.arguments,
-        )
+        index: chunk.index ?? this.toolCallOrder.length,
       }
 
       this.toolCalls.set(toolCallId, newToolCall)
@@ -567,29 +622,17 @@ export class StreamProcessor {
       const actualIndex = this.toolCallOrder.indexOf(toolCallId)
 
       // Emit legacy lifecycle event
-      this.handlers.onToolCallStart?.(
-        actualIndex,
-        chunk.toolCall.id,
-        chunk.toolCall.function.name,
-      )
+      this.handlers.onToolCallStart?.(actualIndex, toolCallId, chunk.toolName)
 
       // Emit legacy state change event
       this.handlers.onToolCallStateChange?.(
         actualIndex,
-        chunk.toolCall.id,
-        chunk.toolCall.function.name,
+        toolCallId,
+        chunk.toolName,
         initialState,
-        chunk.toolCall.function.arguments || '',
-        newToolCall.parsedArguments,
+        '',
+        undefined,
       )
-
-      // Emit initial delta
-      if (chunk.toolCall.function.arguments) {
-        this.handlers.onToolCallDelta?.(
-          actualIndex,
-          chunk.toolCall.function.arguments,
-        )
-      }
 
       // Update UIMessage
       if (this.currentAssistantMessageId) {
@@ -597,30 +640,52 @@ export class StreamProcessor {
           this.messages,
           this.currentAssistantMessageId,
           {
-            id: chunk.toolCall.id,
-            name: chunk.toolCall.function.name,
-            arguments: chunk.toolCall.function.arguments || '',
+            id: toolCallId,
+            name: chunk.toolName,
+            arguments: '',
             state: initialState,
           },
         )
+
+        // If there's approval metadata, update it
+        if (chunk.approval) {
+          this.messages = updateToolCallApproval(
+            this.messages,
+            this.currentAssistantMessageId,
+            toolCallId,
+            chunk.approval.id,
+          )
+        }
         this.emitMessagesChange()
 
         // Emit new granular event
         this.events.onToolCallStateChange?.(
           this.currentAssistantMessageId,
-          chunk.toolCall.id,
+          toolCallId,
           initialState,
-          chunk.toolCall.function.arguments || '',
+          '',
         )
       }
-    } else {
-      // Continuing existing tool call
+    }
+  }
+
+  /**
+   * Handle TOOL_CALL_ARGS event (AG-UI)
+   */
+  private handleToolCallArgsEvent(
+    chunk: Extract<StreamChunk, { type: 'TOOL_CALL_ARGS' }>,
+  ): void {
+    const toolCallId = chunk.toolCallId
+    const existingToolCall = this.toolCalls.get(toolCallId)
+
+    if (existingToolCall) {
       const wasAwaitingInput = existingToolCall.state === 'awaiting-input'
 
-      existingToolCall.arguments += chunk.toolCall.function.arguments || ''
+      // Append delta to arguments
+      existingToolCall.arguments += chunk.delta || ''
 
       // Update state
-      if (wasAwaitingInput && chunk.toolCall.function.arguments) {
+      if (wasAwaitingInput && chunk.delta) {
         existingToolCall.state = 'input-streaming'
       }
 
@@ -643,11 +708,8 @@ export class StreamProcessor {
       )
 
       // Emit delta
-      if (chunk.toolCall.function.arguments) {
-        this.handlers.onToolCallDelta?.(
-          actualIndex,
-          chunk.toolCall.function.arguments,
-        )
+      if (chunk.delta) {
+        this.handlers.onToolCallDelta?.(actualIndex, chunk.delta)
       }
 
       // Update UIMessage
@@ -676,47 +738,79 @@ export class StreamProcessor {
   }
 
   /**
-   * Handle a tool result chunk
+   * Handle TOOL_CALL_END event (AG-UI)
+   * This handles both tool completion and tool results
    */
-  private handleToolResultChunk(
-    chunk: Extract<StreamChunk, { type: 'tool_result' }>,
+  private handleToolCallEndEvent(
+    chunk: Extract<StreamChunk, { type: 'TOOL_CALL_END' }>,
   ): void {
-    const state: ToolResultState = 'complete'
+    const toolCallId = chunk.toolCallId
+    const existingToolCall = this.toolCalls.get(toolCallId)
 
-    // Emit legacy handler
-    this.handlers.onToolResultStateChange?.(
-      chunk.toolCallId,
-      chunk.content,
-      state,
-    )
+    if (existingToolCall) {
+      // Mark tool call as complete
+      existingToolCall.state = 'input-complete'
+      if (chunk.input) {
+        existingToolCall.parsedArguments = chunk.input
+      }
+    }
 
-    // Update UIMessage if we have a current assistant message
-    if (this.currentAssistantMessageId) {
-      this.messages = updateToolResultPart(
-        this.messages,
-        this.currentAssistantMessageId,
-        chunk.toolCallId,
-        chunk.content,
-        state,
+    // If there's a result, this is a tool result
+    if (chunk.result !== undefined) {
+      const state: ToolResultState = 'complete'
+      const resultContent =
+        typeof chunk.result === 'string'
+          ? chunk.result
+          : JSON.stringify(chunk.result)
+
+      // Emit handler
+      this.handlers.onToolResultStateChange?.(toolCallId, resultContent, state)
+
+      // Update UIMessage if we have a current assistant message
+      if (this.currentAssistantMessageId) {
+        this.messages = updateToolResultPart(
+          this.messages,
+          this.currentAssistantMessageId,
+          toolCallId,
+          resultContent,
+          state,
+        )
+        this.emitMessagesChange()
+      }
+    } else if (chunk.input !== undefined) {
+      // This is tool input available (client tool ready for execution)
+      // Emit legacy handler
+      this.handlers.onToolInputAvailable?.(
+        toolCallId,
+        chunk.toolName,
+        chunk.input,
       )
-      this.emitMessagesChange()
+
+      // Emit new event
+      this.events.onToolCall?.({
+        toolCallId,
+        toolName: chunk.toolName,
+        input: chunk.input,
+      })
     }
   }
 
   /**
-   * Handle a done chunk
+   * Handle RUN_FINISHED event (AG-UI)
    */
-  private handleDoneChunk(chunk: Extract<StreamChunk, { type: 'done' }>): void {
+  private handleRunFinishedEvent(
+    chunk: Extract<StreamChunk, { type: 'RUN_FINISHED' }>,
+  ): void {
     this.finishReason = chunk.finishReason
     this.isDone = true
     this.completeAllToolCalls()
   }
 
   /**
-   * Handle an error chunk
+   * Handle RUN_ERROR event (AG-UI)
    */
-  private handleErrorChunk(
-    chunk: Extract<StreamChunk, { type: 'error' }>,
+  private handleRunErrorEvent(
+    chunk: Extract<StreamChunk, { type: 'RUN_ERROR' }>,
   ): void {
     // Emit legacy handler
     this.handlers.onError?.(chunk.error)
@@ -726,16 +820,16 @@ export class StreamProcessor {
   }
 
   /**
-   * Handle a thinking chunk
+   * Handle STEP_FINISHED event (AG-UI) - for thinking/reasoning content
    */
-  private handleThinkingChunk(
-    chunk: Extract<StreamChunk, { type: 'thinking' }>,
+  private handleStepFinishedEvent(
+    chunk: Extract<StreamChunk, { type: 'STEP_FINISHED' }>,
   ): void {
     const previous = this.thinkingContent
     let nextThinking = previous
 
     // Prefer delta over content
-    if (chunk.delta !== '') {
+    if (chunk.delta && chunk.delta !== '') {
       nextThinking = previous + chunk.delta
     } else if (chunk.content !== '') {
       if (chunk.content.startsWith(previous)) {
@@ -770,69 +864,57 @@ export class StreamProcessor {
   }
 
   /**
-   * Handle an approval-requested chunk
+   * Handle CUSTOM event (AG-UI) - for approval flows and other custom events
    */
-  private handleApprovalRequestedChunk(
-    chunk: Extract<StreamChunk, { type: 'approval-requested' }>,
+  private handleCustomEvent(
+    chunk: Extract<StreamChunk, { type: 'CUSTOM' }>,
   ): void {
-    // Emit legacy handler
-    this.handlers.onApprovalRequested?.(
-      chunk.toolCallId,
-      chunk.toolName,
-      chunk.input,
-      chunk.approval.id,
-    )
+    // Handle approval-requested custom event
+    if (chunk.name === 'approval-requested') {
+      const value = chunk.value as {
+        toolCallId: string
+        toolName: string
+        input: any
+        approval: { id: string }
+      }
 
-    // Update UIMessage with approval metadata
-    if (this.currentAssistantMessageId) {
-      this.messages = updateToolCallApproval(
-        this.messages,
-        this.currentAssistantMessageId,
-        chunk.toolCallId,
-        chunk.approval.id,
+      // Emit legacy handler
+      this.handlers.onApprovalRequested?.(
+        value.toolCallId,
+        value.toolName,
+        value.input,
+        value.approval.id,
       )
-      this.emitMessagesChange()
+
+      // Update UIMessage with approval metadata
+      if (this.currentAssistantMessageId) {
+        this.messages = updateToolCallApproval(
+          this.messages,
+          this.currentAssistantMessageId,
+          value.toolCallId,
+          value.approval.id,
+        )
+        this.emitMessagesChange()
+      }
+
+      // Emit new event
+      this.events.onApprovalRequest?.({
+        toolCallId: value.toolCallId,
+        toolName: value.toolName,
+        input: value.input,
+        approvalId: value.approval.id,
+      })
     }
-
-    // Emit new event
-    this.events.onApprovalRequest?.({
-      toolCallId: chunk.toolCallId,
-      toolName: chunk.toolName,
-      input: chunk.input,
-      approvalId: chunk.approval.id,
-    })
-  }
-
-  /**
-   * Handle a tool-input-available chunk
-   */
-  private handleToolInputAvailableChunk(
-    chunk: Extract<StreamChunk, { type: 'tool-input-available' }>,
-  ): void {
-    // Emit legacy handler
-    this.handlers.onToolInputAvailable?.(
-      chunk.toolCallId,
-      chunk.toolName,
-      chunk.input,
-    )
-
-    // Emit new event
-    this.events.onToolCall?.({
-      toolCallId: chunk.toolCallId,
-      toolName: chunk.toolName,
-      input: chunk.input,
-    })
   }
 
   /**
    * Detect if an incoming content chunk represents a NEW text segment
    */
   private isNewTextSegment(
-    chunk: Extract<StreamChunk, { type: 'content' }>,
+    chunk: Extract<StreamChunk, { type: 'TEXT_MESSAGE_CONTENT' }>,
     previous: string,
   ): boolean {
-    // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
-    if (chunk.delta !== undefined && chunk.content !== undefined) {
+    if (chunk.content !== undefined) {
       if (chunk.content.length < previous.length) {
         return true
       }
@@ -1016,6 +1098,411 @@ export class StreamProcessor {
       finishReason: this.finishReason,
       done: this.isDone,
     }
+  }
+
+  // ============================================
+  // Legacy Event Handlers (Backward Compatibility)
+  // ============================================
+
+  /**
+   * Handle legacy 'content' chunk type
+   */
+  private handleLegacyContentChunk(
+    chunk: Extract<StreamChunk, { type: 'content' }>,
+  ): void {
+    // Convert to TEXT_MESSAGE_CONTENT handling
+    this.completeAllToolCalls()
+
+    const previousSegment = this.currentSegmentText
+
+    const isNewSegment =
+      this.hasToolCallsSinceTextStart &&
+      previousSegment.length > 0 &&
+      this.isNewTextSegmentFromLegacy(chunk, previousSegment)
+
+    if (isNewSegment) {
+      if (previousSegment !== this.lastEmittedText) {
+        this.emitTextUpdate()
+      }
+      this.currentSegmentText = ''
+      this.lastEmittedText = ''
+      this.hasToolCallsSinceTextStart = false
+    }
+
+    const currentText = this.currentSegmentText
+    let nextText = currentText
+
+    // In a new segment (after tool call), prefer content field if it contains more
+    // than just the delta (i.e., it includes accumulated text from before)
+    if (
+      isNewSegment &&
+      chunk.content &&
+      chunk.content !== '' &&
+      chunk.content.length > chunk.delta.length
+    ) {
+      // Use content field for accumulated text in new segments
+      nextText = chunk.content
+    } else if (chunk.delta && chunk.delta !== '') {
+      nextText = currentText + chunk.delta
+    } else if (chunk.content && chunk.content !== '') {
+      if (chunk.content.startsWith(currentText)) {
+        nextText = chunk.content
+      } else if (currentText.startsWith(chunk.content)) {
+        nextText = currentText
+      } else {
+        nextText = currentText + chunk.content
+      }
+    }
+
+    const textDelta = nextText.slice(currentText.length)
+    this.currentSegmentText = nextText
+    this.totalTextContent += textDelta
+
+    // Reset hasToolCallsSinceTextStart after processing content
+    // This prevents subsequent chunks in the same segment from being treated as new segments
+    this.hasToolCallsSinceTextStart = false
+
+    const chunkPortion = chunk.delta || chunk.content
+    const shouldEmit = this.chunkStrategy.shouldEmit(
+      chunkPortion,
+      this.currentSegmentText,
+    )
+    if (shouldEmit && this.currentSegmentText !== this.lastEmittedText) {
+      this.emitTextUpdate()
+    }
+  }
+
+  /**
+   * Check if this is a new text segment from legacy chunk
+   */
+  private isNewTextSegmentFromLegacy(
+    chunk: Extract<StreamChunk, { type: 'content' }>,
+    previousSegment: string,
+  ): boolean {
+    if (!chunk.delta && !chunk.content) return false
+    const newContent = chunk.delta || chunk.content || ''
+    return (
+      !newContent.startsWith(previousSegment.slice(0, 10)) &&
+      !previousSegment.endsWith(newContent.slice(-10))
+    )
+  }
+
+  /**
+   * Handle legacy 'done' chunk type
+   */
+  private handleLegacyDoneChunk(
+    chunk: Extract<StreamChunk, { type: 'done' }>,
+  ): void {
+    this.finishReason = chunk.finishReason ?? 'stop'
+    this.isDone = true
+  }
+
+  /**
+   * Handle legacy 'error' chunk type
+   */
+  private handleLegacyErrorChunk(
+    chunk: Extract<StreamChunk, { type: 'error' }>,
+  ): void {
+    const errorMessage =
+      typeof chunk.error === 'string' ? chunk.error : chunk.error.message
+    const errorCode =
+      typeof chunk.error === 'object' ? chunk.error.code : chunk.code
+    this.handlers.onError?.(new Error(errorMessage))
+    this.events.onError?.(new Error(`${errorCode}: ${errorMessage}`))
+  }
+
+  /**
+   * Handle legacy 'tool_call' chunk type
+   */
+  private handleLegacyToolCallChunk(
+    chunk: Extract<StreamChunk, { type: 'tool_call' }>,
+  ): void {
+    this.hasToolCallsSinceTextStart = true
+
+    const toolCall = chunk.toolCall
+    const toolCallId = toolCall.id
+    const existingToolCall = this.toolCalls.get(toolCallId)
+
+    if (!existingToolCall) {
+      // New tool call - use approval-requested state if approval is needed
+      const initialState: ToolCallState = chunk.approval?.needsApproval
+        ? 'approval-requested'
+        : 'awaiting-input'
+
+      const actualIndex = this.toolCallOrder.length
+
+      const newToolCall: InternalToolCallState = {
+        id: toolCallId,
+        name: toolCall.function.name,
+        arguments: toolCall.function.arguments,
+        state: initialState,
+        parsedArguments: undefined,
+        index: actualIndex,
+      }
+
+      this.toolCalls.set(toolCallId, newToolCall)
+      this.toolCallOrder.push(toolCallId)
+
+      // Emit legacy lifecycle event
+      this.handlers.onToolCallStart?.(actualIndex, toolCallId, toolCall.function.name)
+
+      // Emit legacy delta for initial arguments
+      if (toolCall.function.arguments) {
+        this.handlers.onToolCallDelta?.(actualIndex, toolCall.function.arguments)
+      }
+
+      // Update UIMessage
+      if (this.currentAssistantMessageId) {
+        this.messages = updateToolCallPart(
+          this.messages,
+          this.currentAssistantMessageId,
+          {
+            id: toolCallId,
+            name: toolCall.function.name,
+            arguments: toolCall.function.arguments,
+            state: initialState,
+          },
+        )
+        if (chunk.approval) {
+          this.messages = updateToolCallApproval(
+            this.messages,
+            this.currentAssistantMessageId,
+            toolCallId,
+            chunk.approval.id,
+          )
+        }
+        this.emitMessagesChange()
+      }
+
+      this.handlers.onToolCallStateChange?.(
+        actualIndex,
+        toolCallId,
+        toolCall.function.name,
+        initialState,
+        toolCall.function.arguments,
+        this.jsonParser.parse(toolCall.function.arguments),
+      )
+
+      this.events.onToolCallStateChange?.(
+        this.currentAssistantMessageId || '',
+        toolCallId,
+        initialState,
+        toolCall.function.arguments,
+      )
+    } else {
+      // Update existing tool call arguments
+      existingToolCall.name =
+        existingToolCall.name || toolCall.function.name
+      existingToolCall.arguments += toolCall.function.arguments
+
+      // Emit delta event for additional arguments
+      if (toolCall.function.arguments) {
+        this.handlers.onToolCallDelta?.(existingToolCall.index, toolCall.function.arguments)
+      }
+    }
+  }
+
+  /**
+   * Handle legacy 'tool_result' chunk type
+   */
+  private handleLegacyToolResultChunk(
+    chunk: Extract<StreamChunk, { type: 'tool_result' }>,
+  ): void {
+    const toolCallId = chunk.toolCallId
+    const existingToolCall = this.toolCalls.get(toolCallId)
+
+    if (existingToolCall) {
+      existingToolCall.state = 'input-complete'
+    }
+
+    if (this.currentAssistantMessageId) {
+      // Add a tool-result part (separate from the tool-call part)
+      this.messages = updateToolResultPart(
+        this.messages,
+        this.currentAssistantMessageId,
+        toolCallId,
+        chunk.content,
+        'complete',
+      )
+      this.emitMessagesChange()
+    }
+
+    this.handlers.onToolResultStateChange?.(
+      toolCallId,
+      chunk.content,
+      'complete',
+    )
+  }
+
+  /**
+   * Handle legacy 'thinking' chunk type
+   */
+  private handleLegacyThinkingChunk(
+    chunk: Extract<StreamChunk, { type: 'thinking' }>,
+  ): void {
+    const previousThinking = this.thinkingContent
+
+    if (chunk.delta && chunk.delta !== '') {
+      this.thinkingContent = previousThinking + chunk.delta
+    } else if (chunk.content) {
+      if (chunk.content.startsWith(previousThinking)) {
+        this.thinkingContent = chunk.content
+      } else if (previousThinking.startsWith(chunk.content)) {
+        // Current thinking already includes this content
+      } else {
+        this.thinkingContent = previousThinking + chunk.content
+      }
+    }
+
+    this.handlers.onThinkingUpdate?.(this.thinkingContent)
+
+    if (this.currentAssistantMessageId) {
+      this.messages = updateThinkingPart(
+        this.messages,
+        this.currentAssistantMessageId,
+        this.thinkingContent,
+      )
+      this.emitMessagesChange()
+
+      // Emit new granular event
+      this.events.onThinkingUpdate?.(
+        this.currentAssistantMessageId,
+        this.thinkingContent,
+      )
+    }
+  }
+
+  /**
+   * Handle legacy 'approval-requested' chunk type
+   */
+  private handleLegacyApprovalRequestedChunk(
+    chunk: Extract<StreamChunk, { type: 'approval-requested' }>,
+  ): void {
+    const toolCallId = chunk.toolCallId
+    const existingToolCall = this.toolCalls.get(toolCallId)
+
+    if (existingToolCall) {
+      existingToolCall.state = 'approval-requested'
+      existingToolCall.parsedArguments = chunk.input
+
+      if (this.currentAssistantMessageId) {
+        this.messages = updateToolCallPart(
+          this.messages,
+          this.currentAssistantMessageId,
+          {
+            id: toolCallId,
+            name: existingToolCall.name,
+            arguments: JSON.stringify(chunk.input),
+            state: 'approval-requested',
+          },
+        )
+        if (chunk.approval) {
+          this.messages = updateToolCallApproval(
+            this.messages,
+            this.currentAssistantMessageId,
+            toolCallId,
+            chunk.approval.id,
+          )
+        }
+        this.emitMessagesChange()
+      }
+
+      this.handlers.onToolCallStateChange?.(
+        existingToolCall.index,
+        toolCallId,
+        chunk.toolName,
+        'approval-requested',
+        JSON.stringify(chunk.input),
+        chunk.input,
+      )
+
+      this.events.onToolCallStateChange?.(
+        this.currentAssistantMessageId || '',
+        toolCallId,
+        'approval-requested',
+        JSON.stringify(chunk.input),
+      )
+    }
+
+    // Always call onApprovalRequested and onApprovalRequest regardless of existingToolCall
+    this.handlers.onApprovalRequested?.(
+      toolCallId,
+      chunk.toolName,
+      chunk.input,
+      chunk.approval?.id || '',
+    )
+
+    this.events.onApprovalRequest?.({
+      toolCallId,
+      toolName: chunk.toolName,
+      input: chunk.input,
+      approvalId: chunk.approval?.id || '',
+    })
+  }
+
+  /**
+   * Handle legacy 'tool-input-available' chunk type
+   */
+  private handleLegacyToolInputAvailableChunk(
+    chunk: Extract<StreamChunk, { type: 'tool-input-available' }>,
+  ): void {
+    const toolCallId = chunk.toolCallId
+    const existingToolCall = this.toolCalls.get(toolCallId)
+
+    if (existingToolCall) {
+      existingToolCall.state = 'input-complete'
+      existingToolCall.parsedArguments = chunk.input
+
+      if (this.currentAssistantMessageId) {
+        this.messages = updateToolCallPart(
+          this.messages,
+          this.currentAssistantMessageId,
+          {
+            id: toolCallId,
+            name: existingToolCall.name,
+            arguments: JSON.stringify(chunk.input),
+            state: 'input-complete',
+          },
+        )
+        this.emitMessagesChange()
+      }
+
+      this.handlers.onToolCallStateChange?.(
+        existingToolCall.index,
+        toolCallId,
+        chunk.toolName,
+        'input-complete',
+        JSON.stringify(chunk.input),
+        chunk.input,
+      )
+
+      this.events.onToolCallStateChange?.(
+        this.currentAssistantMessageId || '',
+        toolCallId,
+        'input-complete',
+        JSON.stringify(chunk.input),
+      )
+
+      // Also invoke the onToolCall handler
+      this.events.onToolCall?.({
+        toolCallId,
+        toolName: chunk.toolName,
+        input: chunk.input,
+      })
+    }
+
+    // Always call onToolInputAvailable and onToolCall regardless of existingToolCall
+    this.handlers.onToolInputAvailable?.(
+      toolCallId,
+      chunk.toolName,
+      chunk.input,
+    )
+
+    this.events.onToolCall?.({
+      toolCallId,
+      toolName: chunk.toolName,
+      input: chunk.input,
+    })
   }
 
   /**

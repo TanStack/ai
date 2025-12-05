@@ -2,8 +2,9 @@
 TanStack AI Stream Chunk Converter
 
 Converts streaming events from various AI providers (Anthropic, OpenAI) 
-into TanStack AI StreamChunk format.
+into TanStack AI AG-UI event format.
 """
+import json
 import uuid
 from typing import List, Dict, Any, Optional
 from datetime import datetime
@@ -11,7 +12,7 @@ from datetime import datetime
 
 class StreamChunkConverter:
     """
-    Converts provider-specific streaming events to TanStack AI StreamChunk format.
+    Converts provider-specific streaming events to TanStack AI AG-UI event format.
     
     Supports:
     - Anthropic streaming events
@@ -33,10 +34,16 @@ class StreamChunkConverter:
         self.tool_calls_map: Dict[int, Dict[str, Any]] = {}
         self.current_tool_index = -1
         self.done_emitted = False
+        
+        # AG-UI lifecycle tracking
+        self.run_id = self.generate_id()
+        self.message_id = self.generate_id()
+        self.run_started_emitted = False
+        self.text_message_started = False
     
     def generate_id(self) -> str:
-        """Generate a unique ID for the chunk"""
-        return f"chatcmpl-{uuid.uuid4().hex[:8]}"
+        """Generate a unique ID for the event"""
+        return f"evt-{uuid.uuid4().hex[:8]}"
     
     def _get_event_type(self, event: Any) -> str:
         """Get event type from either dict or object"""
@@ -50,38 +57,76 @@ class StreamChunkConverter:
             return obj.get(attr, default)
         return getattr(obj, attr, default)
     
+    def _safe_json_parse(self, json_str: str) -> Any:
+        """Safely parse JSON string"""
+        try:
+            return json.loads(json_str)
+        except:
+            return json_str
+    
     async def convert_anthropic_event(self, event: Any) -> List[Dict[str, Any]]:
-        """Convert Anthropic streaming event to StreamChunk format"""
+        """Convert Anthropic streaming event to AG-UI event format"""
         chunks = []
         event_type = self._get_event_type(event)
+        
+        # Emit RUN_STARTED on first event
+        if not self.run_started_emitted:
+            self.run_started_emitted = True
+            chunks.append({
+                "type": "RUN_STARTED",
+                "runId": self.run_id,
+                "model": self.model,
+                "timestamp": self.timestamp,
+            })
         
         if event_type == "content_block_start":
             # Tool call is starting
             content_block = self._get_attr(event, "content_block")
             if content_block and self._get_attr(content_block, "type") == "tool_use":
                 self.current_tool_index += 1
+                tool_call_id = self._get_attr(content_block, "id")
+                tool_name = self._get_attr(content_block, "name")
                 self.tool_calls_map[self.current_tool_index] = {
-                    "id": self._get_attr(content_block, "id"),
-                    "name": self._get_attr(content_block, "name"),
+                    "id": tool_call_id,
+                    "name": tool_name,
                     "input": ""
                 }
+                # Emit TOOL_CALL_START
+                chunks.append({
+                    "type": "TOOL_CALL_START",
+                    "toolCallId": tool_call_id,
+                    "toolName": tool_name,
+                    "model": self.model,
+                    "timestamp": self.timestamp,
+                    "index": self.current_tool_index,
+                })
         
         elif event_type == "content_block_delta":
             delta = self._get_attr(event, "delta")
             
             if delta and self._get_attr(delta, "type") == "text_delta":
+                # Emit TEXT_MESSAGE_START on first text
+                if not self.text_message_started:
+                    self.text_message_started = True
+                    chunks.append({
+                        "type": "TEXT_MESSAGE_START",
+                        "messageId": self.message_id,
+                        "model": self.model,
+                        "timestamp": self.timestamp,
+                        "role": "assistant",
+                    })
+                
                 # Text content delta
                 delta_text = self._get_attr(delta, "text", "")
                 self.accumulated_content += delta_text
                 
                 chunks.append({
-                    "type": "content",
-                    "id": self.generate_id(),
+                    "type": "TEXT_MESSAGE_CONTENT",
+                    "messageId": self.message_id,
                     "model": self.model,
                     "timestamp": self.timestamp,
                     "delta": delta_text,
                     "content": self.accumulated_content,
-                    "role": "assistant"
                 })
             
             elif delta and self._get_attr(delta, "type") == "input_json_delta":
@@ -92,21 +137,37 @@ class StreamChunkConverter:
                 if tool_call:
                     tool_call["input"] += partial_json
                     
+                    # Emit TOOL_CALL_ARGS
                     chunks.append({
-                        "type": "tool_call",
-                        "id": self.generate_id(),
+                        "type": "TOOL_CALL_ARGS",
+                        "toolCallId": tool_call["id"],
                         "model": self.model,
                         "timestamp": self.timestamp,
-                        "toolCall": {
-                            "id": tool_call["id"],
-                            "type": "function",
-                            "function": {
-                                "name": tool_call["name"],
-                                "arguments": partial_json  # Incremental JSON
-                            }
-                        },
-                        "index": self.current_tool_index
+                        "delta": partial_json,
+                        "args": tool_call["input"],
                     })
+        
+        elif event_type == "content_block_stop":
+            # Emit TEXT_MESSAGE_END if we had text content
+            if self.text_message_started and self.accumulated_content:
+                chunks.append({
+                    "type": "TEXT_MESSAGE_END",
+                    "messageId": self.message_id,
+                    "model": self.model,
+                    "timestamp": self.timestamp,
+                })
+            
+            # Emit TOOL_CALL_END for tool calls
+            tool_call = self.tool_calls_map.get(self.current_tool_index)
+            if tool_call:
+                chunks.append({
+                    "type": "TOOL_CALL_END",
+                    "toolCallId": tool_call["id"],
+                    "toolName": tool_call["name"],
+                    "model": self.model,
+                    "timestamp": self.timestamp,
+                    "input": self._safe_json_parse(tool_call["input"] or "{}"),
+                })
         
         elif event_type == "message_delta":
             # Message metadata update (includes stop_reason and usage)
@@ -115,7 +176,7 @@ class StreamChunkConverter:
             
             stop_reason = self._get_attr(delta, "stop_reason") if delta else None
             if stop_reason:
-                # Map Anthropic stop_reason to TanStack format
+                # Map Anthropic stop_reason to AG-UI format
                 if stop_reason == "tool_use":
                     finish_reason = "tool_calls"
                 elif stop_reason == "end_turn":
@@ -133,8 +194,8 @@ class StreamChunkConverter:
                 
                 self.done_emitted = True
                 chunks.append({
-                    "type": "done",
-                    "id": self.generate_id(),
+                    "type": "RUN_FINISHED",
+                    "runId": self.run_id,
                     "model": self.model,
                     "timestamp": self.timestamp,
                     "finishReason": finish_reason,
@@ -146,8 +207,8 @@ class StreamChunkConverter:
             if not self.done_emitted:
                 self.done_emitted = True
                 chunks.append({
-                    "type": "done",
-                    "id": self.generate_id(),
+                    "type": "RUN_FINISHED",
+                    "runId": self.run_id,
                     "model": self.model,
                     "timestamp": self.timestamp,
                     "finishReason": "stop"
@@ -156,8 +217,18 @@ class StreamChunkConverter:
         return chunks
     
     async def convert_openai_event(self, event: Any) -> List[Dict[str, Any]]:
-        """Convert OpenAI streaming event to StreamChunk format"""
+        """Convert OpenAI streaming event to AG-UI event format"""
         chunks = []
+        
+        # Emit RUN_STARTED on first event
+        if not self.run_started_emitted:
+            self.run_started_emitted = True
+            chunks.append({
+                "type": "RUN_STARTED",
+                "runId": self.run_id,
+                "model": self.model,
+                "timestamp": self.timestamp,
+            })
         
         # OpenAI events have chunk.choices[0].delta structure
         choice = self._get_attr(event, "choices", [])
@@ -173,40 +244,70 @@ class StreamChunkConverter:
         if delta:
             content = self._get_attr(delta, "content")
             if content:
+                # Emit TEXT_MESSAGE_START on first text
+                if not self.text_message_started:
+                    self.text_message_started = True
+                    chunks.append({
+                        "type": "TEXT_MESSAGE_START",
+                        "messageId": self.message_id,
+                        "model": self._get_attr(event, "model", self.model),
+                        "timestamp": self.timestamp,
+                        "role": "assistant",
+                    })
+                
                 self.accumulated_content += content
                 chunks.append({
-                    "type": "content",
-                    "id": self._get_attr(event, "id", self.generate_id()),
+                    "type": "TEXT_MESSAGE_CONTENT",
+                    "messageId": self.message_id,
                     "model": self._get_attr(event, "model", self.model),
                     "timestamp": self.timestamp,
                     "delta": content,
                     "content": self.accumulated_content,
-                    "role": "assistant"
                 })
             
             # Handle tool calls
             tool_calls = self._get_attr(delta, "tool_calls")
             if tool_calls:
                 for tool_call in tool_calls:
+                    tool_call_id = self._get_attr(tool_call, "id", f"call_{self.timestamp}")
+                    function = self._get_attr(tool_call, "function", {})
+                    tool_name = self._get_attr(function, "name", "")
+                    args = self._get_attr(function, "arguments", "")
+                    index = self._get_attr(tool_call, "index", 0)
+                    
+                    # Emit TOOL_CALL_START
                     chunks.append({
-                        "type": "tool_call",
-                        "id": self._get_attr(event, "id", self.generate_id()),
+                        "type": "TOOL_CALL_START",
+                        "toolCallId": tool_call_id,
+                        "toolName": tool_name,
                         "model": self._get_attr(event, "model", self.model),
                         "timestamp": self.timestamp,
-                        "toolCall": {
-                            "id": self._get_attr(tool_call, "id", f"call_{self.timestamp}"),
-                            "type": "function",
-                            "function": {
-                                "name": self._get_attr(self._get_attr(tool_call, "function", {}), "name", ""),
-                                "arguments": self._get_attr(self._get_attr(tool_call, "function", {}), "arguments", "")
-                            }
-                        },
-                        "index": self._get_attr(tool_call, "index", 0)
+                        "index": index,
                     })
+                    
+                    # Emit TOOL_CALL_ARGS if there are arguments
+                    if args:
+                        chunks.append({
+                            "type": "TOOL_CALL_ARGS",
+                            "toolCallId": tool_call_id,
+                            "model": self._get_attr(event, "model", self.model),
+                            "timestamp": self.timestamp,
+                            "delta": args,
+                            "args": args,
+                        })
         
         # Handle completion
         finish_reason = self._get_attr(choice, "finish_reason")
         if finish_reason:
+            # Emit TEXT_MESSAGE_END if we had text
+            if self.text_message_started:
+                chunks.append({
+                    "type": "TEXT_MESSAGE_END",
+                    "messageId": self.message_id,
+                    "model": self._get_attr(event, "model", self.model),
+                    "timestamp": self.timestamp,
+                })
+            
             usage = self._get_attr(event, "usage")
             usage_dict = None
             if usage:
@@ -218,8 +319,8 @@ class StreamChunkConverter:
             
             self.done_emitted = True
             chunks.append({
-                "type": "done",
-                "id": self._get_attr(event, "id", self.generate_id()),
+                "type": "RUN_FINISHED",
+                "runId": self.run_id,
                 "model": self._get_attr(event, "model", self.model),
                 "timestamp": self.timestamp,
                 "finishReason": finish_reason,
@@ -230,7 +331,7 @@ class StreamChunkConverter:
     
     async def convert_event(self, event: Any) -> List[Dict[str, Any]]:
         """
-        Convert provider streaming event to StreamChunk format.
+        Convert provider streaming event to AG-UI event format.
         Automatically detects provider based on event structure.
         """
         if self.provider == "anthropic":
@@ -252,10 +353,10 @@ class StreamChunkConverter:
                 return await self.convert_anthropic_event(event)
     
     async def convert_error(self, error: Exception) -> Dict[str, Any]:
-        """Convert an error to ErrorStreamChunk format"""
+        """Convert an error to RUN_ERROR event format"""
         return {
-            "type": "error",
-            "id": self.generate_id(),
+            "type": "RUN_ERROR",
+            "runId": self.run_id,
             "model": self.model,
             "timestamp": self.timestamp,
             "error": {

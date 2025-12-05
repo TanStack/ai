@@ -227,7 +227,7 @@ describe('toServerSentEventsStream', () => {
     const sseStream = toServerSentEventsStream(errorStream())
     const output = await readStream(sseStream)
 
-    expect(output).toContain('"type":"error"')
+    expect(output).toContain('"type":"RUN_ERROR"')
     expect(output).toContain('"message":"Stream error"')
   })
 

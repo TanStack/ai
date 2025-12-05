@@ -107,10 +107,9 @@ export class Anthropic extends BaseAdapter<
         stack: error?.stack,
       })
 
-      // Emit an error chunk
+      // Emit an error chunk (AG-UI RUN_ERROR)
       yield {
-        type: 'error',
-        id: this.generateId(),
+        type: 'RUN_ERROR',
         model: options.model,
         timestamp: Date.now(),
         error: {
@@ -416,12 +415,31 @@ export class Anthropic extends BaseAdapter<
     const timestamp = Date.now()
     const toolCallsMap = new Map<
       number,
-      { id: string; name: string; input: string }
+      { id: string; name: string; input: string; started: boolean }
     >()
     let currentToolIndex = -1
 
+    // AG-UI lifecycle tracking
+    const runId = generateId()
+    const messageId = generateId()
+    const stepId = generateId()
+    let hasEmittedRunStarted = false
+    let hasEmittedTextMessageStart = false
+    let hasEmittedStepStarted = false
+
     try {
       for await (const event of stream) {
+        // Emit RUN_STARTED on first event
+        if (!hasEmittedRunStarted) {
+          hasEmittedRunStarted = true
+          yield {
+            type: 'RUN_STARTED',
+            runId,
+            model,
+            timestamp,
+          }
+        }
+
         if (event.type === 'content_block_start') {
           if (event.content_block.type === 'tool_use') {
             currentToolIndex++
@@ -429,32 +447,55 @@ export class Anthropic extends BaseAdapter<
               id: event.content_block.id,
               name: event.content_block.name,
               input: '',
+              started: false,
             })
           } else if (event.content_block.type === 'thinking') {
             // Reset thinking content when a new thinking block starts
             accumulatedThinking = ''
+            // Emit STEP_STARTED for thinking
+            if (!hasEmittedStepStarted) {
+              hasEmittedStepStarted = true
+              yield {
+                type: 'STEP_STARTED',
+                stepId,
+                model,
+                timestamp,
+                stepType: 'thinking',
+              }
+            }
           }
         } else if (event.type === 'content_block_delta') {
           if (event.delta.type === 'text_delta') {
+            // Emit TEXT_MESSAGE_START on first text content
+            if (!hasEmittedTextMessageStart) {
+              hasEmittedTextMessageStart = true
+              yield {
+                type: 'TEXT_MESSAGE_START',
+                messageId,
+                model,
+                timestamp,
+                role: 'assistant',
+              }
+            }
+
             const delta = event.delta.text
             accumulatedContent += delta
             yield {
-              type: 'content',
-              id: generateId(),
-              model: model,
+              type: 'TEXT_MESSAGE_CONTENT',
+              messageId,
+              model,
               timestamp,
               delta,
               content: accumulatedContent,
-              role: 'assistant',
             }
           } else if (event.delta.type === 'thinking_delta') {
             // Handle thinking content
             const delta = event.delta.thinking
             accumulatedThinking += delta
             yield {
-              type: 'thinking',
-              id: generateId(),
-              model: model,
+              type: 'STEP_FINISHED',
+              stepId,
+              model,
               timestamp,
               delta,
               content: accumulatedThinking,
@@ -463,55 +504,75 @@ export class Anthropic extends BaseAdapter<
             // Tool input is being streamed
             const existing = toolCallsMap.get(currentToolIndex)
             if (existing) {
+              // Emit TOOL_CALL_START on first args
+              if (!existing.started) {
+                existing.started = true
+                yield {
+                  type: 'TOOL_CALL_START',
+                  toolCallId: existing.id,
+                  toolName: existing.name,
+                  model,
+                  timestamp,
+                  index: currentToolIndex,
+                }
+              }
+
               // Accumulate the input for final processing
               existing.input += event.delta.partial_json
 
-              // Yield the DELTA (partial_json), not the full accumulated input
-              // The stream processor will concatenate these deltas
+              // Yield the DELTA (partial_json) as TOOL_CALL_ARGS
               yield {
-                type: 'tool_call',
-                id: generateId(),
-                model: model,
+                type: 'TOOL_CALL_ARGS',
+                toolCallId: existing.id,
+                model,
                 timestamp,
-                toolCall: {
-                  id: existing.id,
-                  type: 'function',
-                  function: {
-                    name: existing.name,
-                    arguments: event.delta.partial_json,
-                  },
-                },
-                index: currentToolIndex,
+                delta: event.delta.partial_json,
+                args: existing.input,
               }
             }
           }
         } else if (event.type === 'content_block_stop') {
-          // If this is a tool call and we haven't received any input deltas,
-          // emit a tool_call chunk with empty arguments
+          // If this is a tool call, emit TOOL_CALL_END
           const existing = toolCallsMap.get(currentToolIndex)
-          if (existing && existing.input === '') {
-            // No input_json_delta events received, emit empty arguments
+          if (existing) {
+            // If we never started (no input deltas), emit start first
+            if (!existing.started) {
+              existing.started = true
+              yield {
+                type: 'TOOL_CALL_START',
+                toolCallId: existing.id,
+                toolName: existing.name,
+                model,
+                timestamp,
+                index: currentToolIndex,
+              }
+            }
+
+            // Emit TOOL_CALL_END with final input
             yield {
-              type: 'tool_call',
-              id: generateId(),
-              model: model,
+              type: 'TOOL_CALL_END',
+              toolCallId: existing.id,
+              toolName: existing.name,
+              model,
               timestamp,
-              toolCall: {
-                id: existing.id,
-                type: 'function',
-                function: {
-                  name: existing.name,
-                  arguments: '{}',
-                },
-              },
-              index: currentToolIndex,
+              input: this.safeJsonParse(existing.input || '{}'),
+            }
+          }
+
+          // Emit TEXT_MESSAGE_END if we had text content
+          if (hasEmittedTextMessageStart && accumulatedContent) {
+            yield {
+              type: 'TEXT_MESSAGE_END',
+              messageId,
+              model,
+              timestamp,
             }
           }
         } else if (event.type === 'message_stop') {
           yield {
-            type: 'done',
-            id: generateId(),
-            model: model,
+            type: 'RUN_FINISHED',
+            runId,
+            model,
             timestamp,
             finishReason: 'stop',
           }
@@ -520,12 +581,11 @@ export class Anthropic extends BaseAdapter<
             switch (event.delta.stop_reason) {
               case 'tool_use': {
                 yield {
-                  type: 'done',
-                  id: generateId(),
-                  model: model,
+                  type: 'RUN_FINISHED',
+                  runId,
+                  model,
                   timestamp,
                   finishReason: 'tool_calls',
-
                   usage: {
                     promptTokens: event.usage.input_tokens || 0,
                     completionTokens: event.usage.output_tokens || 0,
@@ -538,9 +598,9 @@ export class Anthropic extends BaseAdapter<
               }
               case 'max_tokens': {
                 yield {
-                  type: 'error',
-                  id: generateId(),
-                  model: model,
+                  type: 'RUN_ERROR',
+                  runId,
+                  model,
                   timestamp,
                   error: {
                     message:
@@ -552,9 +612,9 @@ export class Anthropic extends BaseAdapter<
               }
               case 'model_context_window_exceeded': {
                 yield {
-                  type: 'error',
-                  id: generateId(),
-                  model: model,
+                  type: 'RUN_ERROR',
+                  runId,
+                  model,
                   timestamp,
                   error: {
                     message:
@@ -566,9 +626,9 @@ export class Anthropic extends BaseAdapter<
               }
               case 'refusal': {
                 yield {
-                  type: 'error',
-                  id: generateId(),
-                  model: model,
+                  type: 'RUN_ERROR',
+                  runId,
+                  model,
                   timestamp,
                   error: {
                     message: 'The model refused to complete the request.',
@@ -579,9 +639,9 @@ export class Anthropic extends BaseAdapter<
               }
               default: {
                 yield {
-                  type: 'done',
-                  id: generateId(),
-                  model: model,
+                  type: 'RUN_FINISHED',
+                  runId,
+                  model,
                   timestamp,
                   finishReason: 'stop',
                   usage: {
@@ -609,15 +669,23 @@ export class Anthropic extends BaseAdapter<
       })
 
       yield {
-        type: 'error',
-        id: generateId(),
-        model: model,
+        type: 'RUN_ERROR',
+        runId,
+        model,
         timestamp,
         error: {
           message: error?.message || 'Unknown error occurred',
           code: error?.code || error?.status,
         },
       }
+    }
+  }
+
+  private safeJsonParse(jsonString: string): any {
+    try {
+      return JSON.parse(jsonString)
+    } catch {
+      return jsonString
     }
   }
 }

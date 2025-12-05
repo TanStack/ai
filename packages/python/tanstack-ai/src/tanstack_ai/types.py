@@ -84,75 +84,37 @@ class Tool:
 
 
 # ============================================================================
-# Stream Chunk Types
+# AG-UI Protocol Event Types
 # ============================================================================
 
-
-StreamChunkType = Literal[
-    "content",
-    "thinking",
-    "tool_call",
-    "tool-input-available",
-    "approval-requested",
-    "tool_result",
-    "done",
-    "error",
+EventType = Literal[
+    "RUN_STARTED",
+    "RUN_FINISHED",
+    "RUN_ERROR",
+    "TEXT_MESSAGE_START",
+    "TEXT_MESSAGE_CONTENT",
+    "TEXT_MESSAGE_END",
+    "TOOL_CALL_START",
+    "TOOL_CALL_ARGS",
+    "TOOL_CALL_END",
+    "STEP_STARTED",
+    "STEP_FINISHED",
+    "STATE_SNAPSHOT",
+    "STATE_DELTA",
+    "CUSTOM",
 ]
 
+# Legacy alias for backwards compatibility
+StreamChunkType = EventType
 
-class BaseStreamChunk(TypedDict):
-    """Base structure for all stream chunks."""
 
-    type: StreamChunkType
-    id: str
-    model: str
+class BaseEvent(TypedDict, total=False):
+    """Base structure for all AG-UI events."""
+
+    type: EventType
     timestamp: int  # Unix timestamp in milliseconds
-
-
-class ContentStreamChunk(BaseStreamChunk):
-    """Emitted when the model generates text content."""
-
-    delta: str  # The incremental content token
-    content: str  # Full accumulated content so far
-    role: Optional[Literal["assistant"]]
-
-
-class ThinkingStreamChunk(BaseStreamChunk):
-    """Emitted when the model exposes its reasoning process."""
-
-    delta: Optional[str]  # The incremental thinking token
-    content: str  # Full accumulated thinking content so far
-
-
-class ToolCallStreamChunk(BaseStreamChunk):
-    """Emitted when the model decides to call a tool/function."""
-
-    toolCall: ToolCall
-    index: int  # Index of this tool call (for parallel calls)
-
-
-class ToolInputAvailableStreamChunk(BaseStreamChunk):
-    """Emitted when tool inputs are complete and ready for client-side execution."""
-
-    toolCallId: str
-    toolName: str
-    input: Any  # Parsed tool arguments
-
-
-class ApprovalRequestedStreamChunk(BaseStreamChunk):
-    """Emitted when a tool requires user approval before execution."""
-
-    toolCallId: str
-    toolName: str
-    input: Any
-    approval: Dict[str, Any]  # Contains 'id' and 'needsApproval'
-
-
-class ToolResultStreamChunk(BaseStreamChunk):
-    """Emitted when a tool execution completes."""
-
-    toolCallId: str
-    content: str  # Result of the tool execution (JSON stringified)
+    model: Optional[str]  # TanStack AI addition
+    rawEvent: Optional[Any]  # Original provider event
 
 
 class UsageInfo(TypedDict, total=False):
@@ -163,13 +125,6 @@ class UsageInfo(TypedDict, total=False):
     totalTokens: int
 
 
-class DoneStreamChunk(BaseStreamChunk):
-    """Emitted when the stream completes successfully."""
-
-    finishReason: Optional[Literal["stop", "length", "content_filter", "tool_calls"]]
-    usage: Optional[UsageInfo]
-
-
 class ErrorInfo(TypedDict, total=False):
     """Error information."""
 
@@ -177,22 +132,140 @@ class ErrorInfo(TypedDict, total=False):
     code: Optional[str]
 
 
-class ErrorStreamChunk(BaseStreamChunk):
-    """Emitted when an error occurs during streaming."""
+class RunStartedEvent(BaseEvent):
+    """Emitted when a run starts."""
 
+    runId: str
+    threadId: Optional[str]
+
+
+class RunFinishedEvent(BaseEvent):
+    """Emitted when a run completes successfully."""
+
+    runId: str
+    finishReason: Optional[Literal["stop", "length", "content_filter", "tool_calls"]]
+    usage: Optional[UsageInfo]
+
+
+class RunErrorEvent(BaseEvent):
+    """Emitted when an error occurs during a run."""
+
+    runId: Optional[str]
     error: ErrorInfo
 
 
-# Union type for all stream chunks
+class TextMessageStartEvent(BaseEvent):
+    """Emitted when a text message starts."""
+
+    messageId: str
+    role: Literal["assistant"]
+
+
+class TextMessageContentEvent(BaseEvent):
+    """Emitted when text content is generated (streaming tokens)."""
+
+    messageId: str
+    delta: str
+    content: Optional[str]  # Full accumulated content so far
+
+
+class TextMessageEndEvent(BaseEvent):
+    """Emitted when a text message completes."""
+
+    messageId: str
+
+
+class ApprovalInfo(TypedDict, total=False):
+    """Approval metadata for tools requiring user approval."""
+
+    id: str
+    needsApproval: bool
+
+
+class ToolCallStartEvent(BaseEvent):
+    """Emitted when a tool call starts."""
+
+    toolCallId: str
+    toolName: str
+    index: Optional[int]
+    approval: Optional[ApprovalInfo]
+
+
+class ToolCallArgsEvent(BaseEvent):
+    """Emitted when tool call arguments are streaming."""
+
+    toolCallId: str
+    delta: str  # Incremental JSON arguments delta
+    args: Optional[str]  # Full accumulated arguments
+
+
+class ToolCallEndEvent(BaseEvent):
+    """Emitted when a tool call completes (with optional result)."""
+
+    toolCallId: str
+    toolName: str
+    input: Optional[Any]  # Final parsed input arguments
+    result: Optional[str]  # Tool execution result
+
+
+class StepStartedEvent(BaseEvent):
+    """Emitted when a reasoning/thinking step starts."""
+
+    stepId: str
+    stepType: Literal["thinking", "reasoning", "planning"]
+
+
+class StepFinishedEvent(BaseEvent):
+    """Emitted when a reasoning/thinking step completes or streams content."""
+
+    stepId: str
+    delta: Optional[str]  # Incremental thinking token
+    content: str  # Full accumulated thinking content
+
+
+class StateDeltaOp(TypedDict):
+    """A single state delta operation."""
+
+    op: Literal["add", "remove", "replace"]
+    path: str
+    value: Optional[Any]
+
+
+class StateSnapshotEvent(BaseEvent):
+    """Emitted for full state synchronization."""
+
+    state: Dict[str, Any]
+
+
+class StateDeltaEvent(BaseEvent):
+    """Emitted for incremental state updates."""
+
+    delta: List[StateDeltaOp]
+
+
+class CustomEvent(BaseEvent):
+    """Custom event for extensibility."""
+
+    name: str
+    value: Any
+
+
+# Union type for all AG-UI events
 StreamChunk = Union[
-    ContentStreamChunk,
-    ThinkingStreamChunk,
-    ToolCallStreamChunk,
-    ToolInputAvailableStreamChunk,
-    ApprovalRequestedStreamChunk,
-    ToolResultStreamChunk,
-    DoneStreamChunk,
-    ErrorStreamChunk,
+    RunStartedEvent,
+    RunFinishedEvent,
+    RunErrorEvent,
+    TextMessageStartEvent,
+    TextMessageContentEvent,
+    TextMessageEndEvent,
+    ToolCallStartEvent,
+    ToolCallArgsEvent,
+    ToolCallEndEvent,
+    StepStartedEvent,
+    StepFinishedEvent,
+    StateSnapshotEvent,
+    StateDeltaEvent,
+    CustomEvent,
 ]
 
 
