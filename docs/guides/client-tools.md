@@ -12,23 +12,24 @@ sequenceDiagram
     participant Browser
     participant ClientTool
     
-    LLM Service->>Server: tool_call chunk<br/>{name: "updateUI", args: {...}}
+    LLM Service->>Server: TOOL_CALL_START event<br/>{toolName: "updateUI", toolCallId: "..."}
+    LLM Service->>Server: TOOL_CALL_ARGS event<br/>{delta: "{...}"}
     Server->>Server: Check if tool has<br/>server execute
     
     Note over Server: No execute function<br/>= client tool
     
-    Server->>Browser: Forward tool-input-available<br/>chunk via SSE/HTTP
-    Browser->>Browser: onToolCall callback<br/>triggered
+    Server->>Browser: Forward CUSTOM event<br/>(tool-input-available) via SSE/HTTP
+    Browser->>Browser: Client tool handler<br/>triggered
     Browser->>ClientTool: execute(args)
     ClientTool->>ClientTool: Update UI,<br/>localStorage, etc.
     ClientTool-->>Browser: Return result
     Browser->>Server: POST tool result
-    Server->>LLM Service: Add tool_result<br/>to conversation
+    Server->>LLM Service: Add TOOL_CALL_END with<br/>result to conversation
     
     Note over LLM Service: Model uses result<br/>to continue
     
-    LLM Service-->>Server: Stream response
-    Server-->>Browser: Forward chunks
+    LLM Service-->>Server: Stream TEXT_MESSAGE_CONTENT events
+    Server-->>Browser: Forward events
 ```
 
 ## When to Use Client Tools
@@ -41,15 +42,16 @@ sequenceDiagram
 
 ## How It Works
 
-1. **Tool Call from LLM**: LLM decides to call a client tool
-2. **Server Detection**: Server sees the tool has no `execute` function
-3. **Client Notification**: Server sends a `tool-input-available` chunk to the browser
-4. **Client Execution**: Browser's `onToolCall` callback is triggered with:
+1. **Tool Call from LLM**: LLM decides to call a client tool via `TOOL_CALL_START` event
+2. **Arguments Streaming**: Tool arguments stream via `TOOL_CALL_ARGS` events
+3. **Server Detection**: Server sees the tool has no `execute` function
+4. **Client Notification**: Server sends a `CUSTOM` event (name: `tool-input-available`) to the browser
+5. **Client Execution**: Browser's client tool handler is triggered with:
    - `toolName`: Name of the tool to execute
    - `input`: Parsed arguments
-5. **Result Return**: Client executes the tool and returns the result
-6. **Server Update**: Result is sent back to the server and added to the conversation
-7. **LLM Continuation**: LLM receives the result and continues the conversation
+6. **Result Return**: Client executes the tool and returns the result
+7. **Server Update**: Result is sent back as a `TOOL_CALL_END` event with the result
+8. **LLM Continuation**: LLM receives the result and continues the conversation
 
 ## Defining Client Tools
 
@@ -199,12 +201,12 @@ function MessageComponent({ message }: { message: ChatMessages[number] }) {
 
 ## Automatic Execution
 
-Client tools are **automatically executed** when the model calls them. No manual `onToolCall` callback needed! The flow is:
+Client tools are **automatically executed** when the model calls them. No manual callback needed! The flow is:
 
-1. LLM calls a client tool
-2. Server sends `tool-input-available` chunk to browser
+1. LLM calls a client tool via `TOOL_CALL_START` and `TOOL_CALL_ARGS` events
+2. Server sends `CUSTOM` event (name: `tool-input-available`) to browser
 3. Client automatically executes the matching tool implementation
-4. Result is sent back to server
+4. Result is sent back to server as a `TOOL_CALL_END` event
 5. Conversation continues with the result
 
 ## Type Safety Benefits

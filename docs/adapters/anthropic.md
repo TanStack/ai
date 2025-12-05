@@ -132,7 +132,7 @@ const stream = chat({
 
 ### Thinking (Extended Thinking)
 
-Enable extended thinking with a token budget. This allows Claude to show its reasoning process, which is streamed as `thinking` chunks and displayed as `ThinkingPart` in messages:
+Enable extended thinking with a token budget. This allows Claude to show its reasoning process, which is streamed as `STEP_STARTED` and `STEP_FINISHED` events and displayed as `ThinkingPart` in messages:
 
 ```typescript
 providerOptions: {

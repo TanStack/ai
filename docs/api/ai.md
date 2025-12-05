@@ -247,33 +247,68 @@ interface ModelMessage {
 
 ### `StreamChunk`
 
-```typescript
-type StreamChunk =
-  | ContentStreamChunk
-  | ThinkingStreamChunk
-  | ToolCallStreamChunk
-  | ToolResultStreamChunk
-  | DoneStreamChunk
-  | ErrorStreamChunk;
+TanStack AI implements the [AG-UI Protocol](https://docs.ag-ui.com/introduction) for streaming. All events share a common base structure:
 
-interface ThinkingStreamChunk {
-  type: "thinking";
-  id: string;
-  model: string;
+```typescript
+interface BaseEvent {
+  type: EventType;
   timestamp: number;
-  delta?: string; // Incremental thinking token
+  model?: string;
+  rawEvent?: unknown;
+}
+
+type EventType =
+  | 'RUN_STARTED'           // Run lifecycle begins
+  | 'RUN_FINISHED'          // Run completed successfully
+  | 'RUN_ERROR'             // Error occurred
+  | 'TEXT_MESSAGE_START'    // Text message begins
+  | 'TEXT_MESSAGE_CONTENT'  // Text content streaming
+  | 'TEXT_MESSAGE_END'      // Text message completes
+  | 'TOOL_CALL_START'       // Tool invocation begins
+  | 'TOOL_CALL_ARGS'        // Tool arguments streaming
+  | 'TOOL_CALL_END'         // Tool call completes (with result)
+  | 'STEP_STARTED'          // Thinking/reasoning step begins
+  | 'STEP_FINISHED'         // Thinking/reasoning step completes
+  | 'STATE_SNAPSHOT'        // Full state synchronization
+  | 'STATE_DELTA'           // Incremental state update
+  | 'CUSTOM';               // Custom extensibility events
+
+type StreamChunk =
+  | RunStartedEvent
+  | RunFinishedEvent
+  | RunErrorEvent
+  | TextMessageStartEvent
+  | TextMessageContentEvent
+  | TextMessageEndEvent
+  | ToolCallStartEvent
+  | ToolCallArgsEvent
+  | ToolCallEndEvent
+  | StepStartedEvent
+  | StepFinishedEvent
+  | StateSnapshotEvent
+  | StateDeltaEvent
+  | CustomEvent;
+
+// Example: Thinking/reasoning event
+interface StepFinishedEvent extends BaseEvent {
+  type: "STEP_FINISHED";
+  stepId: string;
+  delta?: string;  // Incremental thinking token
   content: string; // Accumulated thinking content
 }
 ```
 
-Stream chunks represent different types of data in the stream:
+Stream events represent different types of data in the stream:
 
-- **Content chunks** - Text content being generated
-- **Thinking chunks** - Model's reasoning process (when supported by the model)
-- **Tool call chunks** - When the model calls a tool
-- **Tool result chunks** - Results from tool execution
-- **Done chunks** - Stream completion
-- **Error chunks** - Stream errors
+- **`RUN_STARTED` / `RUN_FINISHED`** - Run lifecycle events
+- **`TEXT_MESSAGE_*`** - Text content being generated
+- **`STEP_STARTED` / `STEP_FINISHED`** - Model's reasoning process (thinking)
+- **`TOOL_CALL_*`** - Tool invocation and results
+- **`RUN_ERROR`** - Stream errors
+- **`STATE_*`** - Shared state updates
+- **`CUSTOM`** - Custom extensibility events
+
+See [AG-UI Event Definitions](../protocol/chunk-definitions) for full details.
 
 ### `Tool`
 

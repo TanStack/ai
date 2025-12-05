@@ -12,24 +12,25 @@ sequenceDiagram
     participant Tool
     participant Database/API
     
-    LLM Service->>Server: tool_call chunk<br/>{name: "getUserData", args: {...}}
+    LLM Service->>Server: TOOL_CALL_START event<br/>{toolName: "getUserData", toolCallId: "..."}
+    LLM Service->>Server: TOOL_CALL_ARGS event<br/>{delta: "{...}"}
     Server->>Server: Parse tool call<br/>arguments
     Server->>Tool: execute(parsedArgs)
     Tool->>Database/API: Query/Fetch data
     Database/API-->>Tool: Return data
     Tool-->>Server: Return result
-    Server->>Server: Create tool_result<br/>message
-    Server->>LLM Service: Continue chat with<br/>tool_result in history
+    Server->>Server: Create TOOL_CALL_END<br/>with result
+    Server->>LLM Service: Continue chat with<br/>tool result in history
     
     Note over LLM Service: Model uses result<br/>to generate response
     
-    LLM Service-->>Server: Stream content chunks
+    LLM Service-->>Server: Stream TEXT_MESSAGE_CONTENT events
     Server-->>Server: Stream to client
 ```
 
 ## How It Works
 
-1. **Tool Call Received**: Server receives a `tool_call` chunk from the LLM
+1. **Tool Call Received**: Server receives `TOOL_CALL_START` and `TOOL_CALL_ARGS` events from the LLM
 2. **Argument Parsing**: The tool arguments (JSON string) are parsed and validated against the input schema
 3. **Execution**: The tool's `execute` function is called with the parsed arguments
 4. **Result Processing**: The result is:

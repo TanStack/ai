@@ -140,7 +140,7 @@ const stream = chat({
 
 ### Reasoning
 
-Enable reasoning for models that support it (e.g., GPT-5). This allows the model to show its reasoning process, which is streamed as `thinking` chunks:
+Enable reasoning for models that support it (e.g., GPT-5). This allows the model to show its reasoning process, which is streamed as `STEP_STARTED` and `STEP_FINISHED` events:
 
 ```typescript
 providerOptions: {
