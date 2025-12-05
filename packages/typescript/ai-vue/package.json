@@ -1,0 +1,61 @@
+{
+  "name": "@tanstack/ai-vue",
+  "version": "0.0.1",
+  "description": "Vue hooks for TanStack AI",
+  "author": "",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/TanStack/ai.git",
+    "directory": "packages/typescript/ai-vue"
+  },
+  "type": "module",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist",
+    "src"
+  ],
+  "scripts": {
+    "clean": "premove ./build ./dist",
+    "test:eslint": "eslint ./src",
+    "test:lib": "vitest run",
+    "test:lib:dev": "pnpm test:lib --watch",
+    "test:types": "tsc",
+    "build": "tsdown"
+  },
+  "keywords": [
+    "ai",
+    "vue",
+    "hooks",
+    "tanstack",
+    "chat",
+    "streaming"
+  ],
+  "dependencies": {
+    "@tanstack/ai": "workspace:*",
+    "@tanstack/ai-client": "workspace:*",
+    "zod": "^4.1.13"
+  },
+  "devDependencies": {
+    "@vue/test-utils": "^2.4.6",
+    "@types/node": "^24.10.1",
+    "@vitest/coverage-v8": "4.0.14",
+    "jsdom": "^27.2.0",
+    "vue": "^3.5.25",
+    "tsdown": "^0.17.0-beta.6",
+    "typescript": "5.9.3",
+    "vitest": "^4.0.14"
+  },
+  "peerDependencies": {
+    "@tanstack/ai": "workspace:*",
+    "@tanstack/ai-client": "workspace:*",
+    "vue": ">=3.5.0"
+  }
+}
