@@ -99,7 +99,7 @@ export const Route = createFileRoute('/api/tanchat')({
 
           const stream = chat({
             adapter: adapter as any,
-            model: model as any,
+            model: selectedModel as any,
             tools: [
               getGuitars, // Server tool
               recommendGuitarToolDef, // No server execute - client will handle
