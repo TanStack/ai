@@ -96,6 +96,7 @@ export const Route = createFileRoute('/api/tanchat')({
           console.log(
             `[API Route] Using provider: ${provider}, model: ${selectedModel}`,
           )
+
           const stream = chat({
             adapter: adapter as any,
             model: selectedModel as any,
@@ -112,7 +113,6 @@ export const Route = createFileRoute('/api/tanchat')({
             abortController,
             conversationId,
           })
-
           return toStreamResponse(stream, { abortController })
         } catch (error: any) {
           console.error('[API Route] Error in chat request:', {

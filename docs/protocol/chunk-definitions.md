@@ -588,6 +588,6 @@ For more information about AG-UI, visit the [official documentation](https://doc
 
 ## See Also
 
-- [SSE Protocol](../sse-protocol) - How events are transmitted via Server-Sent Events
-- [HTTP Stream Protocol](../http-stream-protocol) - How events are transmitted via HTTP streaming
-- [Connection Adapters Guide](../../guides/connection-adapters) - Client implementation
+- [SSE Protocol](./sse-protocol) - How events are transmitted via Server-Sent Events
+- [HTTP Stream Protocol](./http-stream-protocol) - How events are transmitted via HTTP streaming
+- [Connection Adapters Guide](../guides/connection-adapters) - Client implementation

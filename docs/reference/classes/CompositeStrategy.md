@@ -12,7 +12,7 @@ Emits if ANY strategy says to emit
 
 ## Implements
 
-- [`ChunkStrategy`](../../interfaces/ChunkStrategy.md)
+- [`ChunkStrategy`](../interfaces/ChunkStrategy.md)
 
 ## Constructors
 
@@ -28,7 +28,7 @@ Defined in: [stream/strategies.ts:69](https://github.com/TanStack/ai/blob/main/p
 
 ##### strategies
 
-[`ChunkStrategy`](../../interfaces/ChunkStrategy.md)[]
+[`ChunkStrategy`](../interfaces/ChunkStrategy.md)[]
 
 #### Returns
 
@@ -52,7 +52,7 @@ Optional: Reset strategy state (called when streaming starts)
 
 #### Implementation of
 
-[`ChunkStrategy`](../../interfaces/ChunkStrategy.md).[`reset`](../../interfaces/ChunkStrategy.md#reset)
+[`ChunkStrategy`](../interfaces/ChunkStrategy.md).[`reset`](../interfaces/ChunkStrategy.md#reset)
 
 ***
 
@@ -88,4 +88,4 @@ true if an update should be emitted now
 
 #### Implementation of
 
-[`ChunkStrategy`](../../interfaces/ChunkStrategy.md).[`shouldEmit`](../../interfaces/ChunkStrategy.md#shouldemit)
+[`ChunkStrategy`](../interfaces/ChunkStrategy.md).[`shouldEmit`](../interfaces/ChunkStrategy.md#shouldemit)

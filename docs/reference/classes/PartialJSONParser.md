@@ -12,7 +12,7 @@ This parser can handle incomplete JSON strings during streaming
 
 ## Implements
 
-- [`JSONParser`](../../interfaces/JSONParser.md)
+- [`JSONParser`](../interfaces/JSONParser.md)
 
 ## Constructors
 
@@ -54,4 +54,4 @@ The parsed object, or undefined if parsing fails
 
 #### Implementation of
 
-[`JSONParser`](../../interfaces/JSONParser.md).[`parse`](../../interfaces/JSONParser.md#parse)
+[`JSONParser`](../interfaces/JSONParser.md).[`parse`](../interfaces/JSONParser.md#parse)

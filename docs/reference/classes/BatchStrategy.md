@@ -12,7 +12,7 @@ Useful for reducing UI update frequency
 
 ## Implements
 
-- [`ChunkStrategy`](../../interfaces/ChunkStrategy.md)
+- [`ChunkStrategy`](../interfaces/ChunkStrategy.md)
 
 ## Constructors
 
@@ -52,7 +52,7 @@ Optional: Reset strategy state (called when streaming starts)
 
 #### Implementation of
 
-[`ChunkStrategy`](../../interfaces/ChunkStrategy.md).[`reset`](../../interfaces/ChunkStrategy.md#reset)
+[`ChunkStrategy`](../interfaces/ChunkStrategy.md).[`reset`](../interfaces/ChunkStrategy.md#reset)
 
 ***
 
@@ -84,4 +84,4 @@ true if an update should be emitted now
 
 #### Implementation of
 
-[`ChunkStrategy`](../../interfaces/ChunkStrategy.md).[`shouldEmit`](../../interfaces/ChunkStrategy.md#shouldemit)
+[`ChunkStrategy`](../interfaces/ChunkStrategy.md).[`shouldEmit`](../interfaces/ChunkStrategy.md#shouldemit)

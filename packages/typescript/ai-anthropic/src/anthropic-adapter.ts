@@ -4,8 +4,10 @@ import { ANTHROPIC_MODELS } from './model-meta'
 import { convertToolsToProviderFormat } from './tools/tool-converter'
 import { validateTextProviderOptions } from './text/text-provider-options'
 import type {
+  AnthropicDocumentMetadata,
   AnthropicImageMetadata,
   AnthropicMessageMetadataByModality,
+  AnthropicTextMetadata,
 } from './message-types'
 import type {
   ChatOptions,
@@ -256,11 +258,17 @@ export class Anthropic extends BaseAdapter<
     part: ContentPart,
   ): TextBlockParam | ImageBlockParam | DocumentBlockParam {
     switch (part.type) {
-      case 'text':
+      case 'text': {
+        const metadata = part.metadata as any as
+          | AnthropicTextMetadata
+          | undefined
         return {
           type: 'text',
           text: part.content,
+          ...metadata,
         }
+      }
+
       case 'image': {
         const metadata = part.metadata as any as
           | AnthropicImageMetadata
@@ -276,12 +284,18 @@ export class Anthropic extends BaseAdapter<
                 type: 'url',
                 url: part.source.value,
               }
+        // exclude the media type
+        const { mediaType, ...meta } = metadata || {}
         return {
           type: 'image',
           source: imageSource,
+          ...meta,
         }
       }
       case 'document': {
+        const metadata = part.metadata as any as
+          | AnthropicDocumentMetadata
+          | undefined
         const docSource: Base64PDFSource | URLPDFSource =
           part.source.type === 'data'
             ? {
@@ -296,6 +310,7 @@ export class Anthropic extends BaseAdapter<
         return {
           type: 'document',
           source: docSource,
+          ...metadata,
         }
       }
       case 'audio':

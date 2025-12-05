@@ -11,7 +11,7 @@ Immediate Strategy - emit on every chunk (default behavior)
 
 ## Implements
 
-- [`ChunkStrategy`](../../interfaces/ChunkStrategy.md)
+- [`ChunkStrategy`](../interfaces/ChunkStrategy.md)
 
 ## Constructors
 
@@ -55,4 +55,4 @@ true if an update should be emitted now
 
 #### Implementation of
 
-[`ChunkStrategy`](../../interfaces/ChunkStrategy.md).[`shouldEmit`](../../interfaces/ChunkStrategy.md#shouldemit)
+[`ChunkStrategy`](../interfaces/ChunkStrategy.md).[`shouldEmit`](../interfaces/ChunkStrategy.md#shouldemit)

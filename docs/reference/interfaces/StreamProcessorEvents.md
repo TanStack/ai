@@ -77,7 +77,7 @@ Defined in: [stream/processor.ts:53](https://github.com/TanStack/ai/blob/main/pa
 
 ##### messages
 
-[`UIMessage`](../UIMessage.md)[]
+[`UIMessage`](UIMessage.md)[]
 
 #### Returns
 
@@ -97,7 +97,7 @@ Defined in: [stream/processor.ts:57](https://github.com/TanStack/ai/blob/main/pa
 
 ##### message
 
-[`UIMessage`](../UIMessage.md)
+[`UIMessage`](UIMessage.md)
 
 #### Returns
 
@@ -217,7 +217,7 @@ Defined in: [stream/processor.ts:75](https://github.com/TanStack/ai/blob/main/pa
 
 ##### state
 
-[`ToolCallState`](../../type-aliases/ToolCallState.md)
+[`ToolCallState`](../type-aliases/ToolCallState.md)
 
 ##### args
 

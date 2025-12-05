@@ -311,6 +311,6 @@ Re-exported from `@tanstack/ai`:
 
 ## Next Steps
 
-- [Getting Started](../../getting-started/quick-start) - Learn the basics
-- [Tools Guide](../../guides/tools) - Learn about the isomorphic tool system
-- [Client Tools](../../guides/client-tools) - Learn about client-side tools
+- [Getting Started](../getting-started/quick-start) - Learn the basics
+- [Tools Guide](../guides/tools) - Learn about the isomorphic tool system
+- [Client Tools](../guides/client-tools) - Learn about client-side tools

@@ -17,8 +17,8 @@ Create an async iterable from a recording
 
 ### recording
 
-[`ChunkRecording`](../../interfaces/ChunkRecording.md)
+[`ChunkRecording`](../interfaces/ChunkRecording.md)
 
 ## Returns
 
-`AsyncIterable`\<[`StreamChunk`](../../type-aliases/StreamChunk.md)\>
+`AsyncIterable`\<[`StreamChunk`](../type-aliases/StreamChunk.md)\>

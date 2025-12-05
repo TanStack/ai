@@ -18,7 +18,7 @@ Includes proper headers for Server-Sent Events
 
 ### stream
 
-`AsyncIterable`\<[`StreamChunk`](../../type-aliases/StreamChunk.md)\>
+`AsyncIterable`\<[`StreamChunk`](../type-aliases/StreamChunk.md)\>
 
 AsyncIterable of StreamChunks from chat()
 

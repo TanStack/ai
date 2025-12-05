@@ -104,8 +104,9 @@ export type ContentPart<
   TAudioMeta = unknown,
   TVideoMeta = unknown,
   TDocumentMeta = unknown,
+  TTextMeta = unknown,
 > =
-  | TextPart
+  | TextPart<TTextMeta>
   | ImagePart<TImageMeta>
   | AudioPart<TAudioMeta>
   | VideoPart<TVideoMeta>
@@ -121,8 +122,9 @@ export type ContentPartForModalities<
   TAudioMeta = unknown,
   TVideoMeta = unknown,
   TDocumentMeta = unknown,
+  TTextMeta = unknown,
 > = Extract<
-  ContentPart<TImageMeta, TAudioMeta, TVideoMeta, TDocumentMeta>,
+  ContentPart<TImageMeta, TAudioMeta, TVideoMeta, TDocumentMeta, TTextMeta>,
   { type: TModalities }
 >
 
@@ -143,6 +145,7 @@ export type ConstrainedContent<
   TAudioMeta = unknown,
   TVideoMeta = unknown,
   TDocumentMeta = unknown,
+  TTextMeta = unknown,
 > =
   | string
   | null
@@ -152,7 +155,8 @@ export type ConstrainedContent<
         TImageMeta,
         TAudioMeta,
         TVideoMeta,
-        TDocumentMeta
+        TDocumentMeta,
+        TTextMeta
       >
     >
 
@@ -172,9 +176,10 @@ export interface ModelMessage<
 /**
  * Message parts - building blocks of UIMessage
  */
-export interface TextPart {
+export interface TextPart<TMetadata = unknown> {
   type: 'text'
   content: string
+  metadata?: TMetadata
 }
 
 export interface ToolCallPart {
@@ -232,13 +237,15 @@ export type ConstrainedModelMessage<
   TAudioMeta = unknown,
   TVideoMeta = unknown,
   TDocumentMeta = unknown,
+  TTextMeta = unknown,
 > = Omit<ModelMessage, 'content'> & {
   content: ConstrainedContent<
     TModalities,
     TImageMeta,
     TAudioMeta,
     TVideoMeta,
-    TDocumentMeta
+    TDocumentMeta,
+    TTextMeta
   >
 }
 
@@ -917,6 +924,7 @@ export interface EmbeddingResult {
  * Uses unknown for all modalities.
  */
 export interface DefaultMessageMetadataByModality {
+  text: unknown
   image: unknown
   audio: unknown
   video: unknown
@@ -946,6 +954,7 @@ export interface AIAdapter<
     ReadonlyArray<Modality>
   > = Record<string, ReadonlyArray<Modality>>,
   TMessageMetadataByModality extends {
+    text: unknown
     image: unknown
     audio: unknown
     video: unknown
@@ -1032,6 +1041,7 @@ export type ChatStreamOptionsUnion<
             messages: TModel extends keyof ModelInputModalities
               ? ModelInputModalities[TModel] extends ReadonlyArray<Modality>
                 ? MessageMetadata extends {
+                    text: infer TTextMeta
                     image: infer TImageMeta
                     audio: infer TAudioMeta
                     video: infer TVideoMeta
@@ -1043,7 +1053,8 @@ export type ChatStreamOptionsUnion<
                         TImageMeta,
                         TAudioMeta,
                         TVideoMeta,
-                        TDocumentMeta
+                        TDocumentMeta,
+                        TTextMeta
                       >
                     >
                   : Array<ConstrainedModelMessage<ModelInputModalities[TModel]>>
@@ -1089,6 +1100,7 @@ export type ChatStreamOptionsForModel<
         messages: TModel extends keyof ModelInputModalities
           ? ModelInputModalities[TModel] extends ReadonlyArray<Modality>
             ? MessageMetadata extends {
+                text: infer TTextMeta
                 image: infer TImageMeta
                 audio: infer TAudioMeta
                 video: infer TVideoMeta
@@ -1100,7 +1112,8 @@ export type ChatStreamOptionsForModel<
                     TImageMeta,
                     TAudioMeta,
                     TVideoMeta,
-                    TDocumentMeta
+                    TDocumentMeta,
+                    TTextMeta
                   >
                 >
               : Array<ConstrainedModelMessage<ModelInputModalities[TModel]>>

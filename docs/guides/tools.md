@@ -234,7 +234,7 @@ Tools go through different states during execution:
 
 ## Next Steps
 
-- [Server Tools](../server-tools) - Learn about server-side tool execution
-- [Client Tools](../client-tools) - Learn about client-side tool execution
-- [Tool Approval Flow](../tool-approval) - Implement approval workflows
-- [How Tools Work](../tool-architecture) - Deep dive into the tool architecture
+- [Server Tools](./server-tools) - Learn about server-side tool execution
+- [Client Tools](./client-tools) - Learn about client-side tool execution
+- [Tool Approval Flow](./tool-approval) - Implement approval workflows
+- [How Tools Work](./tool-architecture) - Deep dive into the tool architecture
