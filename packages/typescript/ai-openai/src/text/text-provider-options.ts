@@ -139,12 +139,13 @@ export interface OpenAIReasoningOptions {
      * The gpt-5-pro model defaults to (and only supports) high reasoning effort.
      */
     effort?: 'none' | 'minimal' | 'low' | 'medium' | 'high'
+    /**
+     * A summary of the reasoning performed by the model. This can be useful for debugging and understanding the model's reasoning process.
+     * `concise` is only supported for `computer-use-preview` models.
+     * https://platform.openai.com/docs/api-reference/responses/create#responses_create-reasoning-summary
+     */
+    summary?: 'auto' | 'concise' | 'detailed'
   }
-  /**
-   * A summary of the reasoning performed by the model. This can be useful for debugging and understanding the model's reasoning process
-   * https://platform.openai.com/docs/api-reference/responses/create#responses_create-reasoning-summary
-   */
-  summary?: 'auto' | 'concise' | 'detailed'
 }
 
 export interface OpenAIStructuredOutputOptions {
