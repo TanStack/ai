@@ -517,7 +517,7 @@ export interface ChatOptions<
  * AG-UI Protocol event types.
  * Based on the AG-UI specification for agent-user interaction.
  * @see https://docs.ag-ui.com/concepts/events
- * 
+ *
  * Includes legacy type aliases for backward compatibility during migration.
  */
 export type EventType =

@@ -1244,11 +1244,18 @@ export class StreamProcessor {
       this.toolCallOrder.push(toolCallId)
 
       // Emit legacy lifecycle event
-      this.handlers.onToolCallStart?.(actualIndex, toolCallId, toolCall.function.name)
+      this.handlers.onToolCallStart?.(
+        actualIndex,
+        toolCallId,
+        toolCall.function.name,
+      )
 
       // Emit legacy delta for initial arguments
       if (toolCall.function.arguments) {
-        this.handlers.onToolCallDelta?.(actualIndex, toolCall.function.arguments)
+        this.handlers.onToolCallDelta?.(
+          actualIndex,
+          toolCall.function.arguments,
+        )
       }
 
       // Update UIMessage
@@ -1291,13 +1298,15 @@ export class StreamProcessor {
       )
     } else {
       // Update existing tool call arguments
-      existingToolCall.name =
-        existingToolCall.name || toolCall.function.name
+      existingToolCall.name = existingToolCall.name || toolCall.function.name
       existingToolCall.arguments += toolCall.function.arguments
 
       // Emit delta event for additional arguments
       if (toolCall.function.arguments) {
-        this.handlers.onToolCallDelta?.(existingToolCall.index, toolCall.function.arguments)
+        this.handlers.onToolCallDelta?.(
+          existingToolCall.index,
+          toolCall.function.arguments,
+        )
       }
     }
   }
