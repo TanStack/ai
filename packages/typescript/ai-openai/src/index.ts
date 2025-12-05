@@ -9,6 +9,7 @@ export type {
   OpenAIModelInputModalitiesByName,
 } from './model-meta'
 export type {
+  OpenAITextMetadata,
   OpenAIImageMetadata,
   OpenAIAudioMetadata,
   OpenAIVideoMetadata,

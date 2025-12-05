@@ -96,24 +96,76 @@ export const Route = createFileRoute('/api/tanchat')({
           console.log(
             `[API Route] Using provider: ${provider}, model: ${selectedModel}`,
           )
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
           const stream = chat({
-            adapter: adapter as any,
-            model: selectedModel as any,
-            tools: [
-              getGuitars, // Server tool
-              recommendGuitarToolDef, // No server execute - client will handle
-              addToCartToolServer,
-              addToWishListToolDef,
-              getPersonalGuitarPreferenceToolDef,
-            ],
-            systemPrompts: [SYSTEM_PROMPT],
-            agentLoopStrategy: maxIterations(20),
-            messages,
-            abortController,
-            conversationId,
+            adapter: anthropic(),
+            model: "claude-sonnet-4-5",
+            providerOptions: {
+
+            },
+            messages: [{
+              role: "user",
+              content: [
+                {
+                  type: "text",
+                  content: "Generate a list of 5 creative story ideas for a fantasy novel.",
+                  metadata: {
+
+                  }
+                }, {
+                  type: "image",
+
+                  source: {
+                    type: "url",
+                    value: "https://example.com/fantasy-art.jpg"
+                  },
+                  metadata: {}
+                }
+              ]
+            }]
           })
 
           return toStreamResponse(stream, { abortController })
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
         } catch (error: any) {
           console.error('[API Route] Error in chat request:', {
             message: error?.message,

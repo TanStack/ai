@@ -6,6 +6,8 @@
  * @see https://docs.anthropic.com/claude/docs/pdf-support
  */
 
+import type { CacheControlEphemeral, TextCitationParam } from "@anthropic-ai/sdk/resources";
+
 /**
  * Supported image media types for Anthropic.
  */
@@ -26,8 +28,22 @@ export interface AnthropicImageMetadata {
    * @see https://docs.anthropic.com/claude/docs/vision#supported-image-types
    */
   mediaType?: AnthropicImageMediaType
+  /**
+   * Cache control settings for the image content.
+   */
+  cache_control?: CacheControlEphemeral
 }
 
+export interface AnthropicTextMetadata {
+  /**
+   * Cache control settings for the text content.
+   */
+  cache_control?: CacheControlEphemeral
+  /**
+   * Text citations to include with the text content.
+   */
+  citations?: Array<TextCitationParam>
+}
 /**
  * Supported document media types for Anthropic.
  */
@@ -44,6 +60,14 @@ export interface AnthropicDocumentMetadata {
    * @see https://docs.anthropic.com/claude/docs/pdf-support
    */
   mediaType?: AnthropicDocumentMediaType
+  /**
+   * Cache control settings for the document.
+   */
+  cache_control?: CacheControlEphemeral
+
+  context?: string
+
+  title?: string
 }
 
 /**
@@ -55,11 +79,11 @@ export interface AnthropicAudioMetadata {
    * The MIME type of the audio.
    */
   mediaType?:
-    | 'audio/mpeg'
-    | 'audio/wav'
-    | 'audio/ogg'
-    | 'audio/webm'
-    | 'audio/flac'
+  | 'audio/mpeg'
+  | 'audio/wav'
+  | 'audio/ogg'
+  | 'audio/webm'
+  | 'audio/flac'
 }
 
 /**
@@ -78,6 +102,7 @@ export interface AnthropicVideoMetadata {
  * Used for type inference when constructing multimodal messages.
  */
 export interface AnthropicMessageMetadataByModality {
+  text: AnthropicTextMetadata
   image: AnthropicImageMetadata
   audio: AnthropicAudioMetadata
   video: AnthropicVideoMetadata

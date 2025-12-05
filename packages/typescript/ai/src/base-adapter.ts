@@ -34,22 +34,22 @@ export abstract class BaseAdapter<
     ReadonlyArray<Modality>
   > = Record<string, ReadonlyArray<Modality>>,
   TMessageMetadataByModality extends {
+    text: unknown
     image: unknown
     audio: unknown
     video: unknown
     document: unknown
   } = DefaultMessageMetadataByModality,
 > implements
-    AIAdapter<
-      TChatModels,
-      TEmbeddingModels,
-      TChatProviderOptions,
-      TEmbeddingProviderOptions,
-      TModelProviderOptionsByName,
-      TModelInputModalitiesByName,
-      TMessageMetadataByModality
-    >
-{
+  AIAdapter<
+    TChatModels,
+    TEmbeddingModels,
+    TChatProviderOptions,
+    TEmbeddingProviderOptions,
+    TModelProviderOptionsByName,
+    TModelInputModalitiesByName,
+    TMessageMetadataByModality
+  > {
   abstract name: string
   abstract models: TChatModels
   embeddingModels?: TEmbeddingModels

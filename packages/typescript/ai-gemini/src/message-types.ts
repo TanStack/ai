@@ -114,10 +114,17 @@ export interface GeminiDocumentMetadata {
 }
 
 /**
+ * Metadata for Gemini text content parts.
+ * Currently no specific metadata options for text in Gemini.
+ */
+export interface GeminiTextMetadata { }
+
+/**
  * Map of modality types to their Gemini-specific metadata types.
  * Used for type inference when constructing multimodal messages.
  */
 export interface GeminiMessageMetadataByModality {
+  text: GeminiTextMetadata
   image: GeminiImageMetadata
   audio: GeminiAudioMetadata
   video: GeminiVideoMetadata
