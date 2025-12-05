@@ -6,7 +6,10 @@
  * @see https://docs.anthropic.com/claude/docs/pdf-support
  */
 
-import type { CacheControlEphemeral, TextCitationParam } from "@anthropic-ai/sdk/resources";
+import type {
+  CacheControlEphemeral,
+  TextCitationParam,
+} from '@anthropic-ai/sdk/resources'
 
 /**
  * Supported image media types for Anthropic.
@@ -79,11 +82,11 @@ export interface AnthropicAudioMetadata {
    * The MIME type of the audio.
    */
   mediaType?:
-  | 'audio/mpeg'
-  | 'audio/wav'
-  | 'audio/ogg'
-  | 'audio/webm'
-  | 'audio/flac'
+    | 'audio/mpeg'
+    | 'audio/wav'
+    | 'audio/ogg'
+    | 'audio/webm'
+    | 'audio/flac'
 }
 
 /**

@@ -21,7 +21,7 @@ This handles merging tool result messages with their corresponding assistant mes
 
 [`ModelMessage`](../interfaces/ModelMessage.md)\<
   \| `string`
-  \| [`ContentPart`](../type-aliases/ContentPart.md)\<`unknown`, `unknown`, `unknown`, `unknown`\>[]
+  \| [`ContentPart`](../type-aliases/ContentPart.md)\<`unknown`, `unknown`, `unknown`, `unknown`, `unknown`\>[]
   \| `null`\>[]
 
 Array of ModelMessages to convert

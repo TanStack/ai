@@ -41,15 +41,16 @@ export abstract class BaseAdapter<
     document: unknown
   } = DefaultMessageMetadataByModality,
 > implements
-  AIAdapter<
-    TChatModels,
-    TEmbeddingModels,
-    TChatProviderOptions,
-    TEmbeddingProviderOptions,
-    TModelProviderOptionsByName,
-    TModelInputModalitiesByName,
-    TMessageMetadataByModality
-  > {
+    AIAdapter<
+      TChatModels,
+      TEmbeddingModels,
+      TChatProviderOptions,
+      TEmbeddingProviderOptions,
+      TModelProviderOptionsByName,
+      TModelInputModalitiesByName,
+      TMessageMetadataByModality
+    >
+{
   abstract name: string
   abstract models: TChatModels
   embeddingModels?: TEmbeddingModels

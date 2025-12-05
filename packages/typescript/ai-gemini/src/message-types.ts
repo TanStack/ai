@@ -117,7 +117,7 @@ export interface GeminiDocumentMetadata {
  * Metadata for Gemini text content parts.
  * Currently no specific metadata options for text in Gemini.
  */
-export interface GeminiTextMetadata { }
+export interface GeminiTextMetadata {}
 
 /**
  * Map of modality types to their Gemini-specific metadata types.

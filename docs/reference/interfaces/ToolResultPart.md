@@ -5,7 +5,7 @@ title: ToolResultPart
 
 # Interface: ToolResultPart
 
-Defined in: [types.ts:196](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L196)
+Defined in: [types.ts:201](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L201)
 
 ## Properties
 
@@ -15,7 +15,7 @@ Defined in: [types.ts:196](https://github.com/TanStack/ai/blob/main/packages/typ
 content: string;
 ```
 
-Defined in: [types.ts:199](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L199)
+Defined in: [types.ts:204](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L204)
 
 ***
 
@@ -25,7 +25,7 @@ Defined in: [types.ts:199](https://github.com/TanStack/ai/blob/main/packages/typ
 optional error: string;
 ```
 
-Defined in: [types.ts:201](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L201)
+Defined in: [types.ts:206](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L206)
 
 ***
 
@@ -35,7 +35,7 @@ Defined in: [types.ts:201](https://github.com/TanStack/ai/blob/main/packages/typ
 state: ToolResultState;
 ```
 
-Defined in: [types.ts:200](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L200)
+Defined in: [types.ts:205](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L205)
 
 ***
 
@@ -45,7 +45,7 @@ Defined in: [types.ts:200](https://github.com/TanStack/ai/blob/main/packages/typ
 toolCallId: string;
 ```
 
-Defined in: [types.ts:198](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L198)
+Defined in: [types.ts:203](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L203)
 
 ***
 
@@ -55,4 +55,4 @@ Defined in: [types.ts:198](https://github.com/TanStack/ai/blob/main/packages/typ
 type: "tool-result";
 ```
 
-Defined in: [types.ts:197](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L197)
+Defined in: [types.ts:202](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L202)

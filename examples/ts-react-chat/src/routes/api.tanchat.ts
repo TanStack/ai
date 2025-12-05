@@ -97,75 +97,35 @@ export const Route = createFileRoute('/api/tanchat')({
             `[API Route] Using provider: ${provider}, model: ${selectedModel}`,
           )
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
           const stream = chat({
             adapter: anthropic(),
-            model: "claude-sonnet-4-5",
-            providerOptions: {
-
-            },
-            messages: [{
-              role: "user",
-              content: [
-                {
-                  type: "text",
-                  content: "Generate a list of 5 creative story ideas for a fantasy novel.",
-                  metadata: {
-
-                  }
-                }, {
-                  type: "image",
-
-                  source: {
-                    type: "url",
-                    value: "https://example.com/fantasy-art.jpg"
+            model: 'claude-sonnet-4-5',
+            providerOptions: {},
+            messages: [
+              {
+                role: 'user',
+                content: [
+                  {
+                    type: 'text',
+                    content:
+                      'Generate a list of 5 creative story ideas for a fantasy novel.',
+                    metadata: {},
                   },
-                  metadata: {}
-                }
-              ]
-            }]
+                  {
+                    type: 'image',
+
+                    source: {
+                      type: 'url',
+                      value: 'https://example.com/fantasy-art.jpg',
+                    },
+                    metadata: {},
+                  },
+                ],
+              },
+            ],
           })
 
           return toStreamResponse(stream, { abortController })
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
         } catch (error: any) {
           console.error('[API Route] Error in chat request:', {
             message: error?.message,

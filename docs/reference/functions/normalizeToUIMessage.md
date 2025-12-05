@@ -22,7 +22,7 @@ Either a UIMessage or ModelMessage
 
 [`UIMessage`](../interfaces/UIMessage.md) | [`ModelMessage`](../interfaces/ModelMessage.md)\<
 \| `string`
-\| [`ContentPart`](../type-aliases/ContentPart.md)\<`unknown`, `unknown`, `unknown`, `unknown`\>[]
+\| [`ContentPart`](../type-aliases/ContentPart.md)\<`unknown`, `unknown`, `unknown`, `unknown`, `unknown`\>[]
 \| `null`\>
 
 ### generateId
