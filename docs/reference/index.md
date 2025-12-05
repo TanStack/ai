@@ -63,6 +63,7 @@ title: "@tanstack/ai"
 - [ToolDefinitionConfig](interfaces/ToolDefinitionConfig.md)
 - [ToolDefinitionInstance](interfaces/ToolDefinitionInstance.md)
 - [ToolInputAvailableStreamChunk](interfaces/ToolInputAvailableStreamChunk.md)
+- [ToolOptions](interfaces/ToolOptions.md)
 - [ToolResultPart](interfaces/ToolResultPart.md)
 - [ToolResultStreamChunk](interfaces/ToolResultStreamChunk.md)
 - [UIMessage](interfaces/UIMessage.md)
