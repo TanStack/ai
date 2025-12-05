@@ -12,15 +12,15 @@ TanStack Devtools is a unified devtools panel for inspecting and debugging TanSt
 - **Error Tracking** - Monitor errors and exceptions in AI interactions.
 
 ## Installation
-To use TanStack Devtools with TanStack AI, install the `@tanstack/ai-react-devtools` package:
+To use TanStack Devtools with TanStack AI, install the `@tanstack/react-ai-devtools` package:
 
 ```bash
-npm install @tanstack/ai-react-devtools
+npm install @tanstack/react-ai-devtools
 ```
 
-Or the `@tanstack/ai-solid-devtools` package for SolidJS:
+Or the `@tanstack/solid-ai-devtools` package for SolidJS:
 ```bash
-npm install @tanstack/ai-solid-devtools
+npm install @tanstack/solid-ai-devtools
 ```
 
 ## Usage
@@ -28,7 +28,7 @@ npm install @tanstack/ai-solid-devtools
 Import and include the Devtools component in your application:
 
 ```tsx
-import { aiDevtoolsPlugin } from '@tanstack/ai-react-devtools'
+import { aiDevtoolsPlugin } from '@tanstack/react-ai-devtools'
 
 const App = () => {
   return (
