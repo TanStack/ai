@@ -21,7 +21,7 @@ Options passed into the SDK and further piped to the AI provider.
 
 ### TOutput
 
-`TOutput` *extends* [`ResponseFormat`](../ResponseFormat.md)\<`any`\> \| `undefined` = `undefined`
+`TOutput` *extends* [`ResponseFormat`](ResponseFormat.md)\<`any`\> \| `undefined` = `undefined`
 
 ### TProviderOptionsForModel
 

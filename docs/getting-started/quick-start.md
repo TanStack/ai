@@ -189,6 +189,6 @@ chat({ tools: [getProducts] })
 
 ## Next Steps
 
-- Learn about [Tools](../../guides/tools) to add function calling
-- Check out [Client Tools](../../guides/client-tools) for frontend operations
-- See the [API Reference](../../api/ai) for more options
+- Learn about [Tools](../guides/tools) to add function calling
+- Check out [Client Tools](../guides/client-tools) for frontend operations
+- See the [API Reference](../api/ai) for more options

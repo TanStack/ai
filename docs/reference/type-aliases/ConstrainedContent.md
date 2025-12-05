@@ -21,7 +21,7 @@ When modalities is ['text', 'image'], only TextPart and ImagePart are allowed in
 
 ### TModalities
 
-`TModalities` *extends* `ReadonlyArray`\<[`Modality`](../Modality.md)\>
+`TModalities` *extends* `ReadonlyArray`\<[`Modality`](Modality.md)\>
 
 ### TImageMeta
 

@@ -22,7 +22,7 @@ This conversion creates a parts-based structure:
 
 ### modelMessage
 
-[`ModelMessage`](../../interfaces/ModelMessage.md)
+[`ModelMessage`](../interfaces/ModelMessage.md)
 
 The ModelMessage to convert
 
@@ -34,6 +34,6 @@ Optional ID for the UIMessage (generated if not provided)
 
 ## Returns
 
-[`UIMessage`](../../interfaces/UIMessage.md)
+[`UIMessage`](../interfaces/UIMessage.md)
 
 A UIMessage with parts

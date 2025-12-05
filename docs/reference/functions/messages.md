@@ -30,7 +30,7 @@ combining typed messages with untyped data (like from request.json()).
 
 ### TAdapter
 
-`TAdapter` *extends* [`AIAdapter`](../../interfaces/AIAdapter.md)\<`any`, `any`, `any`, `any`, `any`, `any`, [`DefaultMessageMetadataByModality`](../../interfaces/DefaultMessageMetadataByModality.md)\>
+`TAdapter` *extends* [`AIAdapter`](../interfaces/AIAdapter.md)\<`any`, `any`, `any`, `any`, `any`, `any`, [`DefaultMessageMetadataByModality`](../interfaces/DefaultMessageMetadataByModality.md)\>
 
 ### TModel
 
@@ -50,28 +50,28 @@ combining typed messages with untyped data (like from request.json()).
 
 ### msgs
 
-`TAdapter` *extends* [`AIAdapter`](../../interfaces/AIAdapter.md)\<`any`, `any`, `any`, `any`, `any`, `ModelInputModalities`, [`DefaultMessageMetadataByModality`](../../interfaces/DefaultMessageMetadataByModality.md)\> ? `TModel` *extends* keyof `ModelInputModalities` ? `ModelInputModalities`\[`TModel`\<`TModel`\>\] *extends* readonly [`Modality`](../../type-aliases/Modality.md)[] ? [`ConstrainedModelMessage`](../../type-aliases/ConstrainedModelMessage.md)\<`any`\[`any`\]\>[] : [`ModelMessage`](../../interfaces/ModelMessage.md)\<
+`TAdapter` *extends* [`AIAdapter`](../interfaces/AIAdapter.md)\<`any`, `any`, `any`, `any`, `any`, `ModelInputModalities`, [`DefaultMessageMetadataByModality`](../interfaces/DefaultMessageMetadataByModality.md)\> ? `TModel` *extends* keyof `ModelInputModalities` ? `ModelInputModalities`\[`TModel`\<`TModel`\>\] *extends* readonly [`Modality`](../type-aliases/Modality.md)[] ? [`ConstrainedModelMessage`](../type-aliases/ConstrainedModelMessage.md)\<`any`\[`any`\]\>[] : [`ModelMessage`](../interfaces/ModelMessage.md)\<
   \| `string`
-  \| [`ContentPart`](../../type-aliases/ContentPart.md)\<`unknown`, `unknown`, `unknown`, `unknown`\>[]
-  \| `null`\>[] : [`ModelMessage`](../../interfaces/ModelMessage.md)\<
+  \| [`ContentPart`](../type-aliases/ContentPart.md)\<`unknown`, `unknown`, `unknown`, `unknown`\>[]
+  \| `null`\>[] : [`ModelMessage`](../interfaces/ModelMessage.md)\<
   \| `string`
-  \| [`ContentPart`](../../type-aliases/ContentPart.md)\<`unknown`, `unknown`, `unknown`, `unknown`\>[]
-  \| `null`\>[] : [`ModelMessage`](../../interfaces/ModelMessage.md)\<
+  \| [`ContentPart`](../type-aliases/ContentPart.md)\<`unknown`, `unknown`, `unknown`, `unknown`\>[]
+  \| `null`\>[] : [`ModelMessage`](../interfaces/ModelMessage.md)\<
   \| `string`
-  \| [`ContentPart`](../../type-aliases/ContentPart.md)\<`unknown`, `unknown`, `unknown`, `unknown`\>[]
+  \| [`ContentPart`](../type-aliases/ContentPart.md)\<`unknown`, `unknown`, `unknown`, `unknown`\>[]
   \| `null`\>[]
 
 ## Returns
 
-`TAdapter` *extends* [`AIAdapter`](../../interfaces/AIAdapter.md)\<`any`, `any`, `any`, `any`, `any`, `ModelInputModalities`, [`DefaultMessageMetadataByModality`](../../interfaces/DefaultMessageMetadataByModality.md)\> ? `TModel` *extends* keyof `ModelInputModalities` ? `ModelInputModalities`\[`TModel`\<`TModel`\>\] *extends* readonly [`Modality`](../../type-aliases/Modality.md)[] ? [`ConstrainedModelMessage`](../../type-aliases/ConstrainedModelMessage.md)\<`any`\[`any`\]\>[] : [`ModelMessage`](../../interfaces/ModelMessage.md)\<
+`TAdapter` *extends* [`AIAdapter`](../interfaces/AIAdapter.md)\<`any`, `any`, `any`, `any`, `any`, `ModelInputModalities`, [`DefaultMessageMetadataByModality`](../interfaces/DefaultMessageMetadataByModality.md)\> ? `TModel` *extends* keyof `ModelInputModalities` ? `ModelInputModalities`\[`TModel`\<`TModel`\>\] *extends* readonly [`Modality`](../type-aliases/Modality.md)[] ? [`ConstrainedModelMessage`](../type-aliases/ConstrainedModelMessage.md)\<`any`\[`any`\]\>[] : [`ModelMessage`](../interfaces/ModelMessage.md)\<
   \| `string`
-  \| [`ContentPart`](../../type-aliases/ContentPart.md)\<`unknown`, `unknown`, `unknown`, `unknown`\>[]
-  \| `null`\>[] : [`ModelMessage`](../../interfaces/ModelMessage.md)\<
+  \| [`ContentPart`](../type-aliases/ContentPart.md)\<`unknown`, `unknown`, `unknown`, `unknown`\>[]
+  \| `null`\>[] : [`ModelMessage`](../interfaces/ModelMessage.md)\<
   \| `string`
-  \| [`ContentPart`](../../type-aliases/ContentPart.md)\<`unknown`, `unknown`, `unknown`, `unknown`\>[]
-  \| `null`\>[] : [`ModelMessage`](../../interfaces/ModelMessage.md)\<
+  \| [`ContentPart`](../type-aliases/ContentPart.md)\<`unknown`, `unknown`, `unknown`, `unknown`\>[]
+  \| `null`\>[] : [`ModelMessage`](../interfaces/ModelMessage.md)\<
   \| `string`
-  \| [`ContentPart`](../../type-aliases/ContentPart.md)\<`unknown`, `unknown`, `unknown`, `unknown`\>[]
+  \| [`ContentPart`](../type-aliases/ContentPart.md)\<`unknown`, `unknown`, `unknown`, `unknown`\>[]
   \| `null`\>[]
 
 ## Example

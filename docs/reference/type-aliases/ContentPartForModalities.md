@@ -20,7 +20,7 @@ Used to constrain message content based on model capabilities.
 
 ### TModalities
 
-`TModalities` *extends* [`Modality`](../Modality.md)
+`TModalities` *extends* [`Modality`](Modality.md)
 
 ### TImageMeta
 

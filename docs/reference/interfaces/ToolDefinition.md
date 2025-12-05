@@ -11,7 +11,7 @@ Tool definition builder that allows creating server or client tools from a share
 
 ## Extends
 
-- [`ToolDefinitionInstance`](../ToolDefinitionInstance.md)\<`TInput`, `TOutput`, `TName`\>
+- [`ToolDefinitionInstance`](ToolDefinitionInstance.md)\<`TInput`, `TOutput`, `TName`\>
 
 ## Type Parameters
 
@@ -39,7 +39,7 @@ Defined in: [tools/tool-definition.ts:43](https://github.com/TanStack/ai/blob/ma
 
 #### Inherited from
 
-[`ToolDefinitionInstance`](../ToolDefinitionInstance.md).[`__toolSide`](../ToolDefinitionInstance.md#__toolside)
+[`ToolDefinitionInstance`](ToolDefinitionInstance.md).[`__toolSide`](ToolDefinitionInstance.md#__toolside)
 
 ***
 
@@ -61,7 +61,7 @@ Create a client-side tool with optional execute function
 
 #### Returns
 
-[`ClientTool`](../ClientTool.md)\<`TInput`, `TOutput`, `TName`\>
+[`ClientTool`](ClientTool.md)\<`TInput`, `TOutput`, `TName`\>
 
 ***
 
@@ -86,7 +86,7 @@ Be specific about what the tool does, what parameters it needs, and what it retu
 
 #### Inherited from
 
-[`ToolDefinitionInstance`](../ToolDefinitionInstance.md).[`description`](../ToolDefinitionInstance.md#description)
+[`ToolDefinitionInstance`](ToolDefinitionInstance.md).[`description`](ToolDefinitionInstance.md#description)
 
 ***
 
@@ -130,7 +130,7 @@ execute: async (args) => {
 
 #### Inherited from
 
-[`ToolDefinitionInstance`](../ToolDefinitionInstance.md).[`execute`](../ToolDefinitionInstance.md#execute)
+[`ToolDefinitionInstance`](ToolDefinitionInstance.md).[`execute`](ToolDefinitionInstance.md#execute)
 
 ***
 
@@ -165,7 +165,7 @@ z.object({
 
 #### Inherited from
 
-[`ToolDefinitionInstance`](../ToolDefinitionInstance.md).[`inputSchema`](../ToolDefinitionInstance.md#inputschema)
+[`ToolDefinitionInstance`](ToolDefinitionInstance.md).[`inputSchema`](ToolDefinitionInstance.md#inputschema)
 
 ***
 
@@ -181,7 +181,7 @@ Additional metadata for adapters or custom extensions
 
 #### Inherited from
 
-[`ToolDefinitionInstance`](../ToolDefinitionInstance.md).[`metadata`](../ToolDefinitionInstance.md#metadata)
+[`ToolDefinitionInstance`](ToolDefinitionInstance.md).[`metadata`](ToolDefinitionInstance.md#metadata)
 
 ***
 
@@ -206,7 +206,7 @@ Must be unique within the tools array.
 
 #### Inherited from
 
-[`ToolDefinitionInstance`](../ToolDefinitionInstance.md).[`name`](../ToolDefinitionInstance.md#name)
+[`ToolDefinitionInstance`](ToolDefinitionInstance.md).[`name`](ToolDefinitionInstance.md#name)
 
 ***
 
@@ -222,7 +222,7 @@ If true, tool execution requires user approval before running. Works with both s
 
 #### Inherited from
 
-[`ToolDefinitionInstance`](../ToolDefinitionInstance.md).[`needsApproval`](../ToolDefinitionInstance.md#needsapproval)
+[`ToolDefinitionInstance`](ToolDefinitionInstance.md).[`needsApproval`](ToolDefinitionInstance.md#needsapproval)
 
 ***
 
@@ -254,7 +254,7 @@ z.object({
 
 #### Inherited from
 
-[`ToolDefinitionInstance`](../ToolDefinitionInstance.md).[`outputSchema`](../ToolDefinitionInstance.md#outputschema)
+[`ToolDefinitionInstance`](ToolDefinitionInstance.md).[`outputSchema`](ToolDefinitionInstance.md#outputschema)
 
 ***
 
@@ -276,4 +276,4 @@ Create a server-side tool with execute function
 
 #### Returns
 
-[`ServerTool`](../ServerTool.md)\<`TInput`, `TOutput`, `TName`\>
+[`ServerTool`](ServerTool.md)\<`TInput`, `TOutput`, `TName`\>

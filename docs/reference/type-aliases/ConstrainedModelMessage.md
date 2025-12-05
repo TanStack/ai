@@ -26,7 +26,7 @@ content: ConstrainedContent<TModalities, TImageMeta, TAudioMeta, TVideoMeta, TDo
 
 ### TModalities
 
-`TModalities` *extends* `ReadonlyArray`\<[`Modality`](../Modality.md)\>
+`TModalities` *extends* `ReadonlyArray`\<[`Modality`](Modality.md)\>
 
 ### TImageMeta
 

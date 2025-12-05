@@ -19,7 +19,7 @@ this type takes a specific model and constrains messages accordingly.
 
 ### TAdapter
 
-`TAdapter` *extends* [`AIAdapter`](../../interfaces/AIAdapter.md)\<`any`, `any`, `any`, `any`, `any`, `any`, `any`\>
+`TAdapter` *extends* [`AIAdapter`](../interfaces/AIAdapter.md)\<`any`, `any`, `any`, `any`, `any`, `any`, `any`\>
 
 ### TModel
 

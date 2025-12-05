@@ -323,7 +323,7 @@ chat({ tools: [addToCartServer] }); // Server will execute
 
 ## Next Steps
 
-- [How Tools Work](../tools) - Deep dive into the tool architecture
-- [Server Tools](../server-tools) - Learn about server-side tool execution
-- [Tool Approval Flow](../tool-approval) - Add approval workflows for sensitive operations
+- [How Tools Work](./tools) - Deep dive into the tool architecture
+- [Server Tools](./server-tools) - Learn about server-side tool execution
+- [Tool Approval Flow](./tool-approval) - Add approval workflows for sensitive operations
 

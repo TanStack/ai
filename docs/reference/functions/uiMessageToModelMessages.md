@@ -25,15 +25,15 @@ This conversion handles the parts-based structure:
 
 ### uiMessage
 
-[`UIMessage`](../../interfaces/UIMessage.md)
+[`UIMessage`](../interfaces/UIMessage.md)
 
 The UIMessage to convert
 
 ## Returns
 
-[`ModelMessage`](../../interfaces/ModelMessage.md)\<
+[`ModelMessage`](../interfaces/ModelMessage.md)\<
   \| `string`
-  \| [`ContentPart`](../../type-aliases/ContentPart.md)\<`unknown`, `unknown`, `unknown`, `unknown`\>[]
+  \| [`ContentPart`](../type-aliases/ContentPart.md)\<`unknown`, `unknown`, `unknown`, `unknown`\>[]
   \| `null`\>[]
 
 An array of ModelMessages (may be multiple if tool results are present)

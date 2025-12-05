@@ -17,7 +17,7 @@ Extract the supported input modalities for a specific model from an adapter.
 
 ### TAdapter
 
-`TAdapter` *extends* [`AIAdapter`](../../interfaces/AIAdapter.md)\<`any`, `any`, `any`, `any`, `any`, `any`\>
+`TAdapter` *extends* [`AIAdapter`](../interfaces/AIAdapter.md)\<`any`, `any`, `any`, `any`, `any`, `any`\>
 
 ### TModel
 

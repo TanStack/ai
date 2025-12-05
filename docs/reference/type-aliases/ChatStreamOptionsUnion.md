@@ -15,4 +15,4 @@ Defined in: [types.ts:742](https://github.com/TanStack/ai/blob/main/packages/typ
 
 ### TAdapter
 
-`TAdapter` *extends* [`AIAdapter`](../../interfaces/AIAdapter.md)\<`any`, `any`, `any`, `any`, `any`, `any`, `any`\>
+`TAdapter` *extends* [`AIAdapter`](../interfaces/AIAdapter.md)\<`any`, `any`, `any`, `any`, `any`, `any`, `any`\>

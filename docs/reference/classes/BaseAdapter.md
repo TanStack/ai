@@ -42,15 +42,15 @@ Generic parameters:
 
 ### TModelInputModalitiesByName
 
-`TModelInputModalitiesByName` *extends* `Record`\<`string`, `ReadonlyArray`\<[`Modality`](../../type-aliases/Modality.md)\>\> = `Record`\<`string`, `ReadonlyArray`\<[`Modality`](../../type-aliases/Modality.md)\>\>
+`TModelInputModalitiesByName` *extends* `Record`\<`string`, `ReadonlyArray`\<[`Modality`](../type-aliases/Modality.md)\>\> = `Record`\<`string`, `ReadonlyArray`\<[`Modality`](../type-aliases/Modality.md)\>\>
 
 ### TMessageMetadataByModality
 
-`TMessageMetadataByModality` *extends* `object` = [`DefaultMessageMetadataByModality`](../../interfaces/DefaultMessageMetadataByModality.md)
+`TMessageMetadataByModality` *extends* `object` = [`DefaultMessageMetadataByModality`](../interfaces/DefaultMessageMetadataByModality.md)
 
 ## Implements
 
-- [`AIAdapter`](../../interfaces/AIAdapter.md)\<`TChatModels`, `TEmbeddingModels`, `TChatProviderOptions`, `TEmbeddingProviderOptions`, `TModelProviderOptionsByName`, `TModelInputModalitiesByName`, `TMessageMetadataByModality`\>
+- [`AIAdapter`](../interfaces/AIAdapter.md)\<`TChatModels`, `TEmbeddingModels`, `TChatProviderOptions`, `TEmbeddingProviderOptions`, `TModelProviderOptionsByName`, `TModelInputModalitiesByName`, `TMessageMetadataByModality`\>
 
 ## Constructors
 
@@ -66,7 +66,7 @@ Defined in: [base-adapter.ts:69](https://github.com/TanStack/ai/blob/main/packag
 
 ##### config
 
-[`AIAdapterConfig`](../../interfaces/AIAdapterConfig.md) = `{}`
+[`AIAdapterConfig`](../interfaces/AIAdapterConfig.md) = `{}`
 
 #### Returns
 
@@ -84,7 +84,7 @@ Defined in: [base-adapter.ts:60](https://github.com/TanStack/ai/blob/main/packag
 
 #### Implementation of
 
-[`AIAdapter`](../../interfaces/AIAdapter.md).[`_chatProviderOptions`](../../interfaces/AIAdapter.md#_chatprovideroptions)
+[`AIAdapter`](../interfaces/AIAdapter.md).[`_chatProviderOptions`](../interfaces/AIAdapter.md#_chatprovideroptions)
 
 ***
 
@@ -98,7 +98,7 @@ Defined in: [base-adapter.ts:61](https://github.com/TanStack/ai/blob/main/packag
 
 #### Implementation of
 
-[`AIAdapter`](../../interfaces/AIAdapter.md).[`_embeddingProviderOptions`](../../interfaces/AIAdapter.md#_embeddingprovideroptions)
+[`AIAdapter`](../interfaces/AIAdapter.md).[`_embeddingProviderOptions`](../interfaces/AIAdapter.md#_embeddingprovideroptions)
 
 ***
 
@@ -115,7 +115,7 @@ Used to provide type-safe autocomplete for metadata on content parts.
 
 #### Implementation of
 
-[`AIAdapter`](../../interfaces/AIAdapter.md).[`_messageMetadataByModality`](../../interfaces/AIAdapter.md#_messagemetadatabymodality)
+[`AIAdapter`](../interfaces/AIAdapter.md).[`_messageMetadataByModality`](../interfaces/AIAdapter.md#_messagemetadatabymodality)
 
 ***
 
@@ -133,7 +133,7 @@ Must be provided by all adapters.
 
 #### Implementation of
 
-[`AIAdapter`](../../interfaces/AIAdapter.md).[`_modelInputModalitiesByName`](../../interfaces/AIAdapter.md#_modelinputmodalitiesbyname)
+[`AIAdapter`](../interfaces/AIAdapter.md).[`_modelInputModalitiesByName`](../interfaces/AIAdapter.md#_modelinputmodalitiesbyname)
 
 ***
 
@@ -151,7 +151,7 @@ Must be provided by all adapters.
 
 #### Implementation of
 
-[`AIAdapter`](../../interfaces/AIAdapter.md).[`_modelProviderOptionsByName`](../../interfaces/AIAdapter.md#_modelprovideroptionsbyname)
+[`AIAdapter`](../interfaces/AIAdapter.md).[`_modelProviderOptionsByName`](../interfaces/AIAdapter.md#_modelprovideroptionsbyname)
 
 ***
 
@@ -165,7 +165,7 @@ Defined in: [base-adapter.ts:59](https://github.com/TanStack/ai/blob/main/packag
 
 #### Implementation of
 
-[`AIAdapter`](../../interfaces/AIAdapter.md).[`_providerOptions`](../../interfaces/AIAdapter.md#_provideroptions)
+[`AIAdapter`](../interfaces/AIAdapter.md).[`_providerOptions`](../interfaces/AIAdapter.md#_provideroptions)
 
 ***
 
@@ -191,7 +191,7 @@ Models that support embeddings
 
 #### Implementation of
 
-[`AIAdapter`](../../interfaces/AIAdapter.md).[`embeddingModels`](../../interfaces/AIAdapter.md#embeddingmodels)
+[`AIAdapter`](../interfaces/AIAdapter.md).[`embeddingModels`](../interfaces/AIAdapter.md#embeddingmodels)
 
 ***
 
@@ -207,7 +207,7 @@ Models that support chat/text completion
 
 #### Implementation of
 
-[`AIAdapter`](../../interfaces/AIAdapter.md).[`models`](../../interfaces/AIAdapter.md#models)
+[`AIAdapter`](../interfaces/AIAdapter.md).[`models`](../interfaces/AIAdapter.md#models)
 
 ***
 
@@ -221,7 +221,7 @@ Defined in: [base-adapter.ts:53](https://github.com/TanStack/ai/blob/main/packag
 
 #### Implementation of
 
-[`AIAdapter`](../../interfaces/AIAdapter.md).[`name`](../../interfaces/AIAdapter.md#name)
+[`AIAdapter`](../interfaces/AIAdapter.md).[`name`](../interfaces/AIAdapter.md#name)
 
 ## Methods
 
@@ -237,15 +237,15 @@ Defined in: [base-adapter.ts:73](https://github.com/TanStack/ai/blob/main/packag
 
 ##### options
 
-[`ChatOptions`](../../interfaces/ChatOptions.md)
+[`ChatOptions`](../interfaces/ChatOptions.md)
 
 #### Returns
 
-`AsyncIterable`\<[`StreamChunk`](../../type-aliases/StreamChunk.md)\>
+`AsyncIterable`\<[`StreamChunk`](../type-aliases/StreamChunk.md)\>
 
 #### Implementation of
 
-[`AIAdapter`](../../interfaces/AIAdapter.md).[`chatStream`](../../interfaces/AIAdapter.md#chatstream)
+[`AIAdapter`](../interfaces/AIAdapter.md).[`chatStream`](../interfaces/AIAdapter.md#chatstream)
 
 ***
 
@@ -261,15 +261,15 @@ Defined in: [base-adapter.ts:78](https://github.com/TanStack/ai/blob/main/packag
 
 ##### options
 
-[`EmbeddingOptions`](../../interfaces/EmbeddingOptions.md)
+[`EmbeddingOptions`](../interfaces/EmbeddingOptions.md)
 
 #### Returns
 
-`Promise`\<[`EmbeddingResult`](../../interfaces/EmbeddingResult.md)\>
+`Promise`\<[`EmbeddingResult`](../interfaces/EmbeddingResult.md)\>
 
 #### Implementation of
 
-[`AIAdapter`](../../interfaces/AIAdapter.md).[`createEmbeddings`](../../interfaces/AIAdapter.md#createembeddings)
+[`AIAdapter`](../interfaces/AIAdapter.md).[`createEmbeddings`](../interfaces/AIAdapter.md#createembeddings)
 
 ***
 
@@ -299,12 +299,12 @@ Defined in: [base-adapter.ts:75](https://github.com/TanStack/ai/blob/main/packag
 
 ##### options
 
-[`SummarizationOptions`](../../interfaces/SummarizationOptions.md)
+[`SummarizationOptions`](../interfaces/SummarizationOptions.md)
 
 #### Returns
 
-`Promise`\<[`SummarizationResult`](../../interfaces/SummarizationResult.md)\>
+`Promise`\<[`SummarizationResult`](../interfaces/SummarizationResult.md)\>
 
 #### Implementation of
 
-[`AIAdapter`](../../interfaces/AIAdapter.md).[`summarize`](../../interfaces/AIAdapter.md#summarize)
+[`AIAdapter`](../interfaces/AIAdapter.md).[`summarize`](../interfaces/AIAdapter.md#summarize)

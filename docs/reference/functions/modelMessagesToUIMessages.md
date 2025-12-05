@@ -19,15 +19,15 @@ This handles merging tool result messages with their corresponding assistant mes
 
 ### modelMessages
 
-[`ModelMessage`](../../interfaces/ModelMessage.md)\<
+[`ModelMessage`](../interfaces/ModelMessage.md)\<
   \| `string`
-  \| [`ContentPart`](../../type-aliases/ContentPart.md)\<`unknown`, `unknown`, `unknown`, `unknown`\>[]
+  \| [`ContentPart`](../type-aliases/ContentPart.md)\<`unknown`, `unknown`, `unknown`, `unknown`\>[]
   \| `null`\>[]
 
 Array of ModelMessages to convert
 
 ## Returns
 
-[`UIMessage`](../../interfaces/UIMessage.md)[]
+[`UIMessage`](../interfaces/UIMessage.md)[]
 
 Array of UIMessages

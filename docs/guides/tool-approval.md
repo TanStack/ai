@@ -239,5 +239,5 @@ The user will see an approval prompt showing the item, quantity, and price befor
 
 ## Next Steps
 
-- [Server Tools](../server-tools) - Learn about server-side tool execution
-- [Client Tools](../client-tools) - Learn about client-side tool execution
+- [Server Tools](./server-tools) - Learn about server-side tool execution
+- [Client Tools](./client-tools) - Learn about client-side tool execution

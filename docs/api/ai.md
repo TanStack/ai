@@ -323,6 +323,6 @@ const embeddings = await embedding({
 
 ## Next Steps
 
-- [Getting Started](../../getting-started/quick-start) - Learn the basics
-- [Tools Guide](../../guides/tools) - Learn about tools
-- [Adapters](../../adapters/openai) - Explore adapter options
+- [Getting Started](../getting-started/quick-start) - Learn the basics
+- [Tools Guide](../guides/tools) - Learn about tools
+- [Adapters](../adapters/openai) - Explore adapter options

@@ -92,6 +92,6 @@ With the help of adapters, TanStack AI can connect to various LLM providers. Ava
 
 ## Next Steps
 
-- [Quick Start Guide](../quick-start) - Get up and running in minutes
-- [Tools Guide](../../guides/tools) - Learn about the isomorphic tool system
-- [API Reference](../../api/ai) - Explore the full API
+- [Quick Start Guide](./quick-start) - Get up and running in minutes
+- [Tools Guide](../guides/tools) - Learn about the isomorphic tool system
+- [API Reference](../api/ai) - Explore the full API

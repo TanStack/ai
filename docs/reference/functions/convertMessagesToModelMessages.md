@@ -21,15 +21,15 @@ Convert UIMessages or ModelMessages to ModelMessages
 ### messages
 
 (
-  \| [`UIMessage`](../../interfaces/UIMessage.md)
-  \| [`ModelMessage`](../../interfaces/ModelMessage.md)\<
+  \| [`UIMessage`](../interfaces/UIMessage.md)
+  \| [`ModelMessage`](../interfaces/ModelMessage.md)\<
   \| `string`
-  \| [`ContentPart`](../../type-aliases/ContentPart.md)\<`unknown`, `unknown`, `unknown`, `unknown`\>[]
+  \| [`ContentPart`](../type-aliases/ContentPart.md)\<`unknown`, `unknown`, `unknown`, `unknown`\>[]
   \| `null`\>)[]
 
 ## Returns
 
-[`ModelMessage`](../../interfaces/ModelMessage.md)\<
+[`ModelMessage`](../interfaces/ModelMessage.md)\<
   \| `string`
-  \| [`ContentPart`](../../type-aliases/ContentPart.md)\<`unknown`, `unknown`, `unknown`, `unknown`\>[]
+  \| [`ContentPart`](../type-aliases/ContentPart.md)\<`unknown`, `unknown`, `unknown`, `unknown`\>[]
   \| `null`\>[]

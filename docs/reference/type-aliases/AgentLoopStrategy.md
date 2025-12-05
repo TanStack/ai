@@ -17,7 +17,7 @@ Strategy function that determines whether the agent loop should continue
 
 ### state
 
-[`AgentLoopState`](../../interfaces/AgentLoopState.md)
+[`AgentLoopState`](../interfaces/AgentLoopState.md)
 
 Current state of the agent loop
 

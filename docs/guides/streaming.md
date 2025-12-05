@@ -171,5 +171,5 @@ stop();
 
 ## Next Steps
 
-- [Connection Adapters](../connection-adapters) - Learn about different connection types
-- [API Reference](../../api/ai) - Explore streaming APIs
+- [Connection Adapters](./connection-adapters) - Learn about different connection types
+- [API Reference](../api/ai) - Explore streaming APIs

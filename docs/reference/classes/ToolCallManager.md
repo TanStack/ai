@@ -53,7 +53,7 @@ Defined in: [tools/tool-calls.ts:45](https://github.com/TanStack/ai/blob/main/pa
 
 ##### tools
 
-readonly [`Tool`](../../interfaces/Tool.md)\<`ZodType`\<`unknown`, `unknown`, `$ZodTypeInternals`\<`unknown`, `unknown`\>\>, `ZodType`\<`unknown`, `unknown`, `$ZodTypeInternals`\<`unknown`, `unknown`\>\>, `string`\>[]
+readonly [`Tool`](../interfaces/Tool.md)\<`ZodType`\<`unknown`, `unknown`, `$ZodTypeInternals`\<`unknown`, `unknown`\>\>, `ZodType`\<`unknown`, `unknown`, `$ZodTypeInternals`\<`unknown`, `unknown`\>\>, `string`\>[]
 
 #### Returns
 
@@ -154,13 +154,13 @@ Also yields tool_result chunks for streaming
 
 ##### doneChunk
 
-[`DoneStreamChunk`](../../interfaces/DoneStreamChunk.md)
+[`DoneStreamChunk`](../interfaces/DoneStreamChunk.md)
 
 #### Returns
 
-`AsyncGenerator`\<[`ToolResultStreamChunk`](../../interfaces/ToolResultStreamChunk.md), [`ModelMessage`](../../interfaces/ModelMessage.md)\<
+`AsyncGenerator`\<[`ToolResultStreamChunk`](../interfaces/ToolResultStreamChunk.md), [`ModelMessage`](../interfaces/ModelMessage.md)\<
   \| `string`
-  \| [`ContentPart`](../../type-aliases/ContentPart.md)\<`unknown`, `unknown`, `unknown`, `unknown`\>[]
+  \| [`ContentPart`](../type-aliases/ContentPart.md)\<`unknown`, `unknown`, `unknown`, `unknown`\>[]
   \| `null`\>[], `void`\>
 
 ***
@@ -177,7 +177,7 @@ Get all complete tool calls (filtered for valid ID and name)
 
 #### Returns
 
-[`ToolCall`](../../interfaces/ToolCall.md)[]
+[`ToolCall`](../interfaces/ToolCall.md)[]
 
 ***
 
