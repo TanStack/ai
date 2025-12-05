@@ -115,7 +115,7 @@ We're looking for TanStack AI Partners to join our mission! Partner with us to p
 
 - <a href="https://github.com/tanstack/config"><b>TanStack Config</b></a> – Tooling for JS/TS packages
 - <a href="https://github.com/tanstack/db"><b>TanStack DB</b></a> – Reactive sync client store
-- <a href="https://github.com/tanstack/devtools">TanStack Devtools</a> – Unified devtools panel
+- <a href="https://github.com/tanstack/devtools"><b>TanStack Devtools</b></a> – Unified devtools panel
 - <a href="https://github.com/tanstack/form"><b>TanStack Form</b></a> – Type‑safe form state
 - <a href="https://github.com/tanstack/pacer"><b>TanStack Pacer</b></a> – Debouncing, throttling, batching
 - <a href="https://github.com/tanstack/query"><b>TanStack Query</b></a> – Async state & caching
