@@ -141,7 +141,7 @@ Clear the tool calls map for the next iteration
 ```ts
 executeTools(doneChunk): AsyncGenerator<ToolResultStreamChunk, ModelMessage<
   | string
-  | ContentPart<unknown, unknown, unknown, unknown>[]
+  | ContentPart<unknown, unknown, unknown, unknown, unknown>[]
 | null>[], void>;
 ```
 
@@ -160,7 +160,7 @@ Also yields tool_result chunks for streaming
 
 `AsyncGenerator`\<[`ToolResultStreamChunk`](../interfaces/ToolResultStreamChunk.md), [`ModelMessage`](../interfaces/ModelMessage.md)\<
   \| `string`
-  \| [`ContentPart`](../type-aliases/ContentPart.md)\<`unknown`, `unknown`, `unknown`, `unknown`\>[]
+  \| [`ContentPart`](../type-aliases/ContentPart.md)\<`unknown`, `unknown`, `unknown`, `unknown`, `unknown`\>[]
   \| `null`\>[], `void`\>
 
 ***

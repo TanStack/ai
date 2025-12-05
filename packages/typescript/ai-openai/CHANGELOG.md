@@ -1,5 +1,14 @@
 # @tanstack/ai-openai
 
+## 0.0.2
+
+### Patch Changes
+
+- added text metadata support for message inputs ([#95](https://github.com/TanStack/ai/pull/95))
+
+- Updated dependencies [[`64fda55`](https://github.com/TanStack/ai/commit/64fda55f839062bc67b8c24850123e879fdbf0b3)]:
+  - @tanstack/ai@0.0.2
+
 ## 0.0.1
 
 ### Patch Changes
