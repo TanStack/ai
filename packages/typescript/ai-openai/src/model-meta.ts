@@ -2,6 +2,7 @@ import type {
   OpenAIBaseOptions,
   OpenAIMetadataOptions,
   OpenAIReasoningOptions,
+  OpenAIReasoningOptionsWithConcise,
   OpenAIStreamingOptions,
   OpenAIStructuredOutputOptions,
   OpenAIToolsOptions,
@@ -817,6 +818,7 @@ const COMPUTER_USE_PREVIEW = {
   },
 } as const satisfies ModelMeta<
   OpenAIBaseOptions &
+    OpenAIReasoningOptionsWithConcise &
     OpenAIToolsOptions &
     OpenAIStreamingOptions &
     OpenAIMetadataOptions
@@ -1924,6 +1926,7 @@ export type OpenAIChatModelProviderOptionsByName = {
 
   // Special models
   [COMPUTER_USE_PREVIEW.name]: OpenAIBaseOptions &
+    OpenAIReasoningOptionsWithConcise &
     OpenAIToolsOptions &
     OpenAIStreamingOptions &
     OpenAIMetadataOptions

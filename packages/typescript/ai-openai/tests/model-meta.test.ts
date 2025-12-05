@@ -6,6 +6,7 @@ import type {
 import type {
   OpenAIBaseOptions,
   OpenAIReasoningOptions,
+  OpenAIReasoningOptionsWithConcise,
   OpenAIStructuredOutputOptions,
   OpenAIToolsOptions,
   OpenAIStreamingOptions,
@@ -441,11 +442,12 @@ describe('OpenAI Chat Model Provider Options Type Assertions', () => {
       expectTypeOf<Options>().toExtend<BaseOptions>()
     })
 
-    it('computer-use-preview should have tools but NOT structured output', () => {
+    it('computer-use-preview should have tools and reasoning with concise but NOT structured output', () => {
       type Options =
         OpenAIChatModelProviderOptionsByName['computer-use-preview']
 
-      expectTypeOf<Options>().not.toExtend<OpenAIReasoningOptions>()
+      // Should have reasoning options with 'concise' summary support
+      expectTypeOf<Options>().toExtend<OpenAIReasoningOptionsWithConcise>()
       expectTypeOf<Options>().not.toExtend<OpenAIStructuredOutputOptions>()
       expectTypeOf<Options>().toExtend<OpenAIToolsOptions>()
       expectTypeOf<Options>().toExtend<OpenAIStreamingOptions>()
