@@ -10,13 +10,13 @@ import type {
 export type { UIMessage, ChatRequestBody }
 
 /**
- * Options for the useChat hook.
+ * Options for the useChat composable.
  *
  * This extends ChatClientOptions but omits the state change callbacks that are
- * managed internally by Solid signals:
- * - `onMessagesChange` - Managed by Solid signal (exposed as `messages`)
- * - `onLoadingChange` - Managed by Solid signal (exposed as `isLoading`)
- * - `onErrorChange` - Managed by Solid signal (exposed as `error`)
+ * managed internally by Vue refs:
+ * - `onMessagesChange` - Managed by Vue ref (exposed as `messages`)
+ * - `onLoadingChange` - Managed by Vue ref (exposed as `isLoading`)
+ * - `onErrorChange` - Managed by Vue ref (exposed as `error`)
  *
  * All other callbacks (onResponse, onChunk, onFinish, onError) are
  * passed through to the underlying ChatClient and can be used for side effects.
