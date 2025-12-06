@@ -271,44 +271,75 @@ export class Ollama extends BaseAdapter<
   ): AsyncIterable<StreamChunk> {
     let accumulatedContent = ''
     const timestamp = Date.now()
-    const responseId: string = this.generateId()
+    const runId: string = this.generateId()
+    const messageId: string = this.generateId()
+    const stepId: string = this.generateId()
     let accumulatedReasoning = ''
     let hasEmittedToolCalls = false
+    let hasEmittedRunStarted = false
+    let hasEmittedTextMessageStart = false
+    let hasEmittedStepStarted = false
+
     for await (const chunk of stream) {
-      function handleToolCall(toolCall: ToolCall): StreamChunk {
-        // we cast because the library types are missing id and index
-        const actualToolCall = toolCall as ToolCall & {
-          id: string
-          function: { index: number }
-        }
-        return {
-          type: 'tool_call',
-          id: responseId,
+      // Emit RUN_STARTED on first chunk
+      if (!hasEmittedRunStarted) {
+        hasEmittedRunStarted = true
+        yield {
+          type: 'RUN_STARTED',
+          runId,
           model: chunk.model,
           timestamp,
-          toolCall: {
-            type: 'function',
-            id: actualToolCall.id,
-            function: {
-              name: actualToolCall.function.name || '',
-              arguments:
-                typeof actualToolCall.function.arguments === 'string'
-                  ? actualToolCall.function.arguments
-                  : JSON.stringify(actualToolCall.function.arguments),
-            },
-          },
-          index: actualToolCall.function.index,
         }
       }
+
       if (chunk.done) {
+        // Emit TEXT_MESSAGE_END if we had text
+        if (hasEmittedTextMessageStart) {
+          yield {
+            type: 'TEXT_MESSAGE_END',
+            messageId,
+            model: chunk.model,
+            timestamp,
+          }
+        }
+
         if (chunk.message.tool_calls && chunk.message.tool_calls.length > 0) {
-          for (const toolCall of chunk.message.tool_calls) {
-            yield handleToolCall(toolCall)
+          for (let i = 0; i < chunk.message.tool_calls.length; i++) {
+            const toolCall = chunk.message.tool_calls[i]
+            const actualToolCall = toolCall as ToolCall & {
+              id: string
+              function: { index: number }
+            }
+            const toolCallId = actualToolCall.id || `call_${timestamp}_${i}`
+            const toolName = actualToolCall.function.name || ''
+            const args =
+              typeof actualToolCall.function.arguments === 'string'
+                ? actualToolCall.function.arguments
+                : JSON.stringify(actualToolCall.function.arguments)
+
+            // Emit TOOL_CALL_START and TOOL_CALL_END together
+            yield {
+              type: 'TOOL_CALL_START',
+              toolCallId,
+              toolName,
+              model: chunk.model,
+              timestamp,
+              index: actualToolCall.function.index,
+            }
+
+            yield {
+              type: 'TOOL_CALL_END',
+              toolCallId,
+              toolName,
+              model: chunk.model,
+              timestamp,
+              input: this.safeJsonParse(args),
+            }
             hasEmittedToolCalls = true
           }
           yield {
-            type: 'done',
-            id: responseId || this.generateId(),
+            type: 'RUN_FINISHED',
+            runId,
             model: chunk.model,
             timestamp,
             finishReason: 'tool_calls',
@@ -316,44 +347,105 @@ export class Ollama extends BaseAdapter<
           continue
         }
         yield {
-          type: 'done',
-          id: responseId || this.generateId(),
+          type: 'RUN_FINISHED',
+          runId,
           model: chunk.model,
           timestamp,
           finishReason: hasEmittedToolCalls ? 'tool_calls' : 'stop',
         }
         continue
       }
+
       if (chunk.message.content) {
+        // Emit TEXT_MESSAGE_START on first content
+        if (!hasEmittedTextMessageStart) {
+          hasEmittedTextMessageStart = true
+          yield {
+            type: 'TEXT_MESSAGE_START',
+            messageId,
+            model: chunk.model,
+            timestamp,
+            role: 'assistant',
+          }
+        }
+
         accumulatedContent += chunk.message.content
         yield {
-          type: 'content',
-          id: responseId || this.generateId(),
+          type: 'TEXT_MESSAGE_CONTENT',
+          messageId,
           model: chunk.model,
           timestamp,
           delta: chunk.message.content,
           content: accumulatedContent,
-          role: 'assistant',
         }
       }
 
       if (chunk.message.tool_calls && chunk.message.tool_calls.length > 0) {
-        for (const toolCall of chunk.message.tool_calls) {
-          yield handleToolCall(toolCall)
+        for (let i = 0; i < chunk.message.tool_calls.length; i++) {
+          const toolCall = chunk.message.tool_calls[i]
+          const actualToolCall = toolCall as ToolCall & {
+            id: string
+            function: { index: number }
+          }
+          const toolCallId = actualToolCall.id || `call_${timestamp}_${i}`
+          const toolName = actualToolCall.function.name || ''
+          const args =
+            typeof actualToolCall.function.arguments === 'string'
+              ? actualToolCall.function.arguments
+              : JSON.stringify(actualToolCall.function.arguments)
+
+          yield {
+            type: 'TOOL_CALL_START',
+            toolCallId,
+            toolName,
+            model: chunk.model,
+            timestamp,
+            index: actualToolCall.function.index,
+          }
+
+          yield {
+            type: 'TOOL_CALL_ARGS',
+            toolCallId,
+            model: chunk.model,
+            timestamp,
+            delta: args,
+            args,
+          }
           hasEmittedToolCalls = true
         }
       }
+
       if (chunk.message.thinking) {
+        // Emit STEP_STARTED on first thinking
+        if (!hasEmittedStepStarted) {
+          hasEmittedStepStarted = true
+          yield {
+            type: 'STEP_STARTED',
+            stepId,
+            model: chunk.model,
+            timestamp,
+            stepType: 'thinking',
+          }
+        }
+
         accumulatedReasoning += chunk.message.thinking
         yield {
-          type: 'thinking',
-          id: responseId || this.generateId(),
+          type: 'STEP_FINISHED',
+          stepId,
           model: chunk.model,
           timestamp,
           content: accumulatedReasoning,
           delta: chunk.message.thinking,
         }
       }
+    }
+  }
+
+  private safeJsonParse(jsonString: string): any {
+    try {
+      return JSON.parse(jsonString)
+    } catch {
+      return jsonString
     }
   }
 

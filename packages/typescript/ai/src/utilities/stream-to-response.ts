@@ -50,11 +50,12 @@ export function toServerSentEventsStream(
           return
         }
 
-        // Send error chunk
+        // Send error event (AG-UI RUN_ERROR)
         controller.enqueue(
           encoder.encode(
             `data: ${JSON.stringify({
-              type: 'error',
+              type: 'RUN_ERROR',
+              timestamp: Date.now(),
               error: {
                 message: error.message || 'Unknown error occurred',
                 code: error.code,

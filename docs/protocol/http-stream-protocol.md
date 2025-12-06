@@ -80,25 +80,29 @@ Each StreamChunk is transmitted as a single line of JSON followed by a newline (
 
 ### Examples
 
-#### Content Chunks
+#### Content Streaming (AG-UI Events)
 
 ```json
-{"type":"content","id":"chatcmpl-abc123","model":"gpt-4o","timestamp":1701234567890,"delta":"Hello","content":"Hello","role":"assistant"}
-{"type":"content","id":"chatcmpl-abc123","model":"gpt-4o","timestamp":1701234567891,"delta":" world","content":"Hello world","role":"assistant"}
-{"type":"content","id":"chatcmpl-abc123","model":"gpt-4o","timestamp":1701234567892,"delta":"!","content":"Hello world!","role":"assistant"}
+{"type":"RUN_STARTED","runId":"run_abc123","model":"gpt-4o","timestamp":1701234567890}
+{"type":"TEXT_MESSAGE_START","messageId":"msg_xyz789","model":"gpt-4o","timestamp":1701234567890,"role":"assistant"}
+{"type":"TEXT_MESSAGE_CONTENT","messageId":"msg_xyz789","model":"gpt-4o","timestamp":1701234567890,"delta":"Hello","content":"Hello"}
+{"type":"TEXT_MESSAGE_CONTENT","messageId":"msg_xyz789","model":"gpt-4o","timestamp":1701234567891,"delta":" world","content":"Hello world"}
+{"type":"TEXT_MESSAGE_CONTENT","messageId":"msg_xyz789","model":"gpt-4o","timestamp":1701234567892,"delta":"!","content":"Hello world!"}
+{"type":"TEXT_MESSAGE_END","messageId":"msg_xyz789","model":"gpt-4o","timestamp":1701234567892}
 ```
 
 #### Tool Call
 
 ```json
-{"type":"tool_call","id":"chatcmpl-abc123","model":"gpt-4o","timestamp":1701234567893,"toolCall":{"id":"call_xyz","type":"function","function":{"name":"get_weather","arguments":"{\"location\":\"SF\"}"}},"index":0}
-{"type":"tool_result","id":"chatcmpl-abc123","model":"gpt-4o","timestamp":1701234567894,"toolCallId":"call_xyz","content":"{\"temperature\":72,\"conditions\":\"sunny\"}"}
+{"type":"TOOL_CALL_START","toolCallId":"call_xyz","toolName":"get_weather","model":"gpt-4o","timestamp":1701234567893,"index":0}
+{"type":"TOOL_CALL_ARGS","toolCallId":"call_xyz","model":"gpt-4o","timestamp":1701234567893,"delta":"{\"location\":\"SF\"}","args":"{\"location\":\"SF\"}"}
+{"type":"TOOL_CALL_END","toolCallId":"call_xyz","toolName":"get_weather","model":"gpt-4o","timestamp":1701234567894,"input":{"location":"SF"},"result":"{\"temperature\":72,\"conditions\":\"sunny\"}"}
 ```
 
 #### Stream Completion
 
 ```json
-{"type":"done","id":"chatcmpl-abc123","model":"gpt-4o","timestamp":1701234567895,"finishReason":"stop","usage":{"promptTokens":10,"completionTokens":15,"totalTokens":25}}
+{"type":"RUN_FINISHED","runId":"run_abc123","model":"gpt-4o","timestamp":1701234567895,"finishReason":"stop","usage":{"promptTokens":10,"completionTokens":15,"totalTokens":25}}
 ```
 
 ---
@@ -127,14 +131,16 @@ Transfer-Encoding: chunked
 
 ### 3. Server Streams Chunks
 
-The server sends newline-delimited JSON:
+The server sends newline-delimited AG-UI events:
 
 ```json
-{"type":"content","id":"msg_1","model":"gpt-4o","timestamp":1701234567890,"delta":"The","content":"The"}
-{"type":"content","id":"msg_1","model":"gpt-4o","timestamp":1701234567891,"delta":" weather","content":"The weather"}
-{"type":"content","id":"msg_1","model":"gpt-4o","timestamp":1701234567892,"delta":" is","content":"The weather is"}
-{"type":"content","id":"msg_1","model":"gpt-4o","timestamp":1701234567893,"delta":" sunny","content":"The weather is sunny"}
-{"type":"done","id":"msg_1","model":"gpt-4o","timestamp":1701234567894,"finishReason":"stop"}
+{"type":"RUN_STARTED","runId":"run_1","model":"gpt-4o","timestamp":1701234567890}
+{"type":"TEXT_MESSAGE_START","messageId":"msg_1","model":"gpt-4o","timestamp":1701234567890,"role":"assistant"}
+{"type":"TEXT_MESSAGE_CONTENT","messageId":"msg_1","model":"gpt-4o","timestamp":1701234567890,"delta":"The","content":"The"}
+{"type":"TEXT_MESSAGE_CONTENT","messageId":"msg_1","model":"gpt-4o","timestamp":1701234567891,"delta":" weather","content":"The weather"}
+{"type":"TEXT_MESSAGE_CONTENT","messageId":"msg_1","model":"gpt-4o","timestamp":1701234567892,"delta":" is sunny","content":"The weather is sunny"}
+{"type":"TEXT_MESSAGE_END","messageId":"msg_1","model":"gpt-4o","timestamp":1701234567893}
+{"type":"RUN_FINISHED","runId":"run_1","model":"gpt-4o","timestamp":1701234567894,"finishReason":"stop"}
 ```
 
 ### 4. Stream Completion
@@ -147,10 +153,10 @@ Server closes the connection. No special marker needed (unlike SSE's `[DONE]`).
 
 ### Server-Side Errors
 
-If an error occurs during generation, send an error chunk:
+If an error occurs during generation, send a RUN_ERROR event:
 
 ```json
-{"type":"error","id":"msg_1","model":"gpt-4o","timestamp":1701234567895,"error":{"message":"Rate limit exceeded","code":"rate_limit_exceeded"}}
+{"type":"RUN_ERROR","runId":"run_1","model":"gpt-4o","timestamp":1701234567895,"error":{"message":"Rate limit exceeded","code":"rate_limit_exceeded"}}
 ```
 
 Then close the connection.
@@ -196,14 +202,14 @@ export async function POST(request: Request) {
         }
         controller.close();
       } catch (error: any) {
-        const errorChunk = {
-          type: 'error',
+        const errorEvent = {
+          type: 'RUN_ERROR',
           error: {
             message: error.message || 'Unknown error',
             code: error.code,
           },
         };
-        controller.enqueue(encoder.encode(JSON.stringify(errorChunk) + '\n'));
+        controller.enqueue(encoder.encode(JSON.stringify(errorEvent) + '\n'));
         controller.close();
       }
     },
@@ -246,11 +252,11 @@ app.post('/api/chat', async (req, res) => {
       res.write(JSON.stringify(chunk) + '\n');
     }
   } catch (error: any) {
-    const errorChunk = {
-      type: 'error',
+    const errorEvent = {
+      type: 'RUN_ERROR',
       error: { message: error.message },
     };
-    res.write(JSON.stringify(errorChunk) + '\n');
+    res.write(JSON.stringify(errorEvent) + '\n');
   } finally {
     res.end();
   }
@@ -362,9 +368,12 @@ The `-N` flag disables buffering to see real-time output.
 
 **Example Output:**
 ```json
-{"type":"content","id":"msg_1","model":"gpt-4o","timestamp":1701234567890,"delta":"Hello","content":"Hello"}
-{"type":"content","id":"msg_1","model":"gpt-4o","timestamp":1701234567891,"delta":" there","content":"Hello there"}
-{"type":"done","id":"msg_1","model":"gpt-4o","timestamp":1701234567892,"finishReason":"stop"}
+{"type":"RUN_STARTED","runId":"run_1","model":"gpt-4o","timestamp":1701234567889}
+{"type":"TEXT_MESSAGE_START","messageId":"msg_1","model":"gpt-4o","timestamp":1701234567890,"role":"assistant"}
+{"type":"TEXT_MESSAGE_CONTENT","messageId":"msg_1","model":"gpt-4o","timestamp":1701234567890,"delta":"Hello","content":"Hello"}
+{"type":"TEXT_MESSAGE_CONTENT","messageId":"msg_1","model":"gpt-4o","timestamp":1701234567891,"delta":" there","content":"Hello there"}
+{"type":"TEXT_MESSAGE_END","messageId":"msg_1","model":"gpt-4o","timestamp":1701234567892}
+{"type":"RUN_FINISHED","runId":"run_1","model":"gpt-4o","timestamp":1701234567892,"finishReason":"stop"}
 ```
 
 ### Validating NDJSON

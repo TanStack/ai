@@ -3,7 +3,7 @@
 namespace TanStack\AI;
 
 /**
- * Converts provider-specific streaming events to TanStack AI StreamChunk format.
+ * Converts provider-specific streaming events to TanStack AI AG-UI event format.
  * 
  * Supports:
  * - Anthropic streaming events
@@ -18,20 +18,28 @@ class StreamChunkConverter
     private array $toolCallsMap = [];
     private int $currentToolIndex = -1;
     private bool $doneEmitted = false;
+    
+    // AG-UI lifecycle tracking
+    private string $runId;
+    private string $messageId;
+    private bool $runStartedEmitted = false;
+    private bool $textMessageStarted = false;
 
     public function __construct(string $model, string $provider = 'anthropic')
     {
         $this->model = $model;
         $this->provider = strtolower($provider);
         $this->timestamp = (int)(microtime(true) * 1000);
+        $this->runId = $this->generateId();
+        $this->messageId = $this->generateId();
     }
 
     /**
-     * Generate a unique ID for the chunk
+     * Generate a unique ID for the event
      */
     public function generateId(): string
     {
-        return 'chatcmpl-' . bin2hex(random_bytes(4));
+        return 'evt-' . bin2hex(random_bytes(4));
     }
 
     /**
@@ -60,40 +68,86 @@ class StreamChunkConverter
     }
 
     /**
-     * Convert Anthropic streaming event to StreamChunk format
+     * Safely parse JSON string
+     */
+    private function safeJsonParse(string $json): mixed
+    {
+        try {
+            return json_decode($json, true) ?? $json;
+        } catch (\Exception $e) {
+            return $json;
+        }
+    }
+
+    /**
+     * Convert Anthropic streaming event to AG-UI event format
      */
     public function convertAnthropicEvent(mixed $event): array
     {
         $chunks = [];
         $eventType = $this->getEventType($event);
 
+        // Emit RUN_STARTED on first event
+        if (!$this->runStartedEmitted) {
+            $this->runStartedEmitted = true;
+            $chunks[] = [
+                'type' => 'RUN_STARTED',
+                'runId' => $this->runId,
+                'model' => $this->model,
+                'timestamp' => $this->timestamp,
+            ];
+        }
+
         if ($eventType === 'content_block_start') {
             // Tool call is starting
             $contentBlock = $this->getAttr($event, 'content_block');
             if ($contentBlock && $this->getAttr($contentBlock, 'type') === 'tool_use') {
                 $this->currentToolIndex++;
+                $toolCallId = $this->getAttr($contentBlock, 'id');
+                $toolName = $this->getAttr($contentBlock, 'name');
                 $this->toolCallsMap[$this->currentToolIndex] = [
-                    'id' => $this->getAttr($contentBlock, 'id'),
-                    'name' => $this->getAttr($contentBlock, 'name'),
+                    'id' => $toolCallId,
+                    'name' => $toolName,
                     'input' => ''
+                ];
+                
+                // Emit TOOL_CALL_START
+                $chunks[] = [
+                    'type' => 'TOOL_CALL_START',
+                    'toolCallId' => $toolCallId,
+                    'toolName' => $toolName,
+                    'model' => $this->model,
+                    'timestamp' => $this->timestamp,
+                    'index' => $this->currentToolIndex,
                 ];
             }
         } elseif ($eventType === 'content_block_delta') {
             $delta = $this->getAttr($event, 'delta');
 
             if ($delta && $this->getAttr($delta, 'type') === 'text_delta') {
+                // Emit TEXT_MESSAGE_START on first text
+                if (!$this->textMessageStarted) {
+                    $this->textMessageStarted = true;
+                    $chunks[] = [
+                        'type' => 'TEXT_MESSAGE_START',
+                        'messageId' => $this->messageId,
+                        'model' => $this->model,
+                        'timestamp' => $this->timestamp,
+                        'role' => 'assistant',
+                    ];
+                }
+
                 // Text content delta
                 $deltaText = $this->getAttr($delta, 'text', '');
                 $this->accumulatedContent .= $deltaText;
 
                 $chunks[] = [
-                    'type' => 'content',
-                    'id' => $this->generateId(),
+                    'type' => 'TEXT_MESSAGE_CONTENT',
+                    'messageId' => $this->messageId,
                     'model' => $this->model,
                     'timestamp' => $this->timestamp,
                     'delta' => $deltaText,
                     'content' => $this->accumulatedContent,
-                    'role' => 'assistant'
                 ];
             } elseif ($delta && $this->getAttr($delta, 'type') === 'input_json_delta') {
                 // Tool input is being streamed
@@ -104,22 +158,39 @@ class StreamChunkConverter
                     $toolCall['input'] .= $partialJson;
                     $this->toolCallsMap[$this->currentToolIndex] = $toolCall;
 
+                    // Emit TOOL_CALL_ARGS
                     $chunks[] = [
-                        'type' => 'tool_call',
-                        'id' => $this->generateId(),
+                        'type' => 'TOOL_CALL_ARGS',
+                        'toolCallId' => $toolCall['id'],
                         'model' => $this->model,
                         'timestamp' => $this->timestamp,
-                        'toolCall' => [
-                            'id' => $toolCall['id'],
-                            'type' => 'function',
-                            'function' => [
-                                'name' => $toolCall['name'],
-                                'arguments' => $partialJson // Incremental JSON
-                            ]
-                        ],
-                        'index' => $this->currentToolIndex
+                        'delta' => $partialJson,
+                        'args' => $toolCall['input'],
                     ];
                 }
+            }
+        } elseif ($eventType === 'content_block_stop') {
+            // Emit TEXT_MESSAGE_END if we had text content
+            if ($this->textMessageStarted && $this->accumulatedContent) {
+                $chunks[] = [
+                    'type' => 'TEXT_MESSAGE_END',
+                    'messageId' => $this->messageId,
+                    'model' => $this->model,
+                    'timestamp' => $this->timestamp,
+                ];
+            }
+            
+            // Emit TOOL_CALL_END for tool calls
+            $toolCall = $this->toolCallsMap[$this->currentToolIndex] ?? null;
+            if ($toolCall) {
+                $chunks[] = [
+                    'type' => 'TOOL_CALL_END',
+                    'toolCallId' => $toolCall['id'],
+                    'toolName' => $toolCall['name'],
+                    'model' => $this->model,
+                    'timestamp' => $this->timestamp,
+                    'input' => $this->safeJsonParse($toolCall['input'] ?: '{}'),
+                ];
             }
         } elseif ($eventType === 'message_delta') {
             // Message metadata update (includes stop_reason and usage)
@@ -128,7 +199,7 @@ class StreamChunkConverter
 
             $stopReason = $delta ? $this->getAttr($delta, 'stop_reason') : null;
             if ($stopReason) {
-                // Map Anthropic stop_reason to TanStack format
+                // Map Anthropic stop_reason to AG-UI format
                 $finishReason = match ($stopReason) {
                     'tool_use' => 'tool_calls',
                     'end_turn' => 'stop',
@@ -146,8 +217,8 @@ class StreamChunkConverter
 
                 $this->doneEmitted = true;
                 $chunks[] = [
-                    'type' => 'done',
-                    'id' => $this->generateId(),
+                    'type' => 'RUN_FINISHED',
+                    'runId' => $this->runId,
                     'model' => $this->model,
                     'timestamp' => $this->timestamp,
                     'finishReason' => $finishReason,
@@ -159,8 +230,8 @@ class StreamChunkConverter
             if (!$this->doneEmitted) {
                 $this->doneEmitted = true;
                 $chunks[] = [
-                    'type' => 'done',
-                    'id' => $this->generateId(),
+                    'type' => 'RUN_FINISHED',
+                    'runId' => $this->runId,
                     'model' => $this->model,
                     'timestamp' => $this->timestamp,
                     'finishReason' => 'stop'
@@ -172,11 +243,22 @@ class StreamChunkConverter
     }
 
     /**
-     * Convert OpenAI streaming event to StreamChunk format
+     * Convert OpenAI streaming event to AG-UI event format
      */
     public function convertOpenAIEvent(mixed $event): array
     {
         $chunks = [];
+
+        // Emit RUN_STARTED on first event
+        if (!$this->runStartedEmitted) {
+            $this->runStartedEmitted = true;
+            $chunks[] = [
+                'type' => 'RUN_STARTED',
+                'runId' => $this->runId,
+                'model' => $this->model,
+                'timestamp' => $this->timestamp,
+            ];
+        }
 
         // OpenAI events have chunk.choices[0].delta structure
         $choices = $this->getAttr($event, 'choices', []);
@@ -188,15 +270,26 @@ class StreamChunkConverter
         if ($delta) {
             $content = $this->getAttr($delta, 'content');
             if ($content !== null) {
+                // Emit TEXT_MESSAGE_START on first text
+                if (!$this->textMessageStarted) {
+                    $this->textMessageStarted = true;
+                    $chunks[] = [
+                        'type' => 'TEXT_MESSAGE_START',
+                        'messageId' => $this->messageId,
+                        'model' => $this->getAttr($event, 'model', $this->model),
+                        'timestamp' => $this->timestamp,
+                        'role' => 'assistant',
+                    ];
+                }
+
                 $this->accumulatedContent .= $content;
                 $chunks[] = [
-                    'type' => 'content',
-                    'id' => $this->getAttr($event, 'id', $this->generateId()),
+                    'type' => 'TEXT_MESSAGE_CONTENT',
+                    'messageId' => $this->messageId,
                     'model' => $this->getAttr($event, 'model', $this->model),
                     'timestamp' => $this->timestamp,
                     'delta' => $content,
                     'content' => $this->accumulatedContent,
-                    'role' => 'assistant'
                 ];
             }
 
@@ -205,21 +298,32 @@ class StreamChunkConverter
             if ($toolCalls) {
                 foreach ($toolCalls as $index => $toolCall) {
                     $function = $this->getAttr($toolCall, 'function', []);
+                    $toolCallId = $this->getAttr($toolCall, 'id', 'call_' . $this->timestamp);
+                    $toolName = $this->getAttr($function, 'name', '');
+                    $args = $this->getAttr($function, 'arguments', '');
+                    $toolIndex = $this->getAttr($toolCall, 'index', $index);
+                    
+                    // Emit TOOL_CALL_START
                     $chunks[] = [
-                        'type' => 'tool_call',
-                        'id' => $this->getAttr($event, 'id', $this->generateId()),
+                        'type' => 'TOOL_CALL_START',
+                        'toolCallId' => $toolCallId,
+                        'toolName' => $toolName,
                         'model' => $this->getAttr($event, 'model', $this->model),
                         'timestamp' => $this->timestamp,
-                        'toolCall' => [
-                            'id' => $this->getAttr($toolCall, 'id', 'call_' . $this->timestamp),
-                            'type' => 'function',
-                            'function' => [
-                                'name' => $this->getAttr($function, 'name', ''),
-                                'arguments' => $this->getAttr($function, 'arguments', '')
-                            ]
-                        ],
-                        'index' => $this->getAttr($toolCall, 'index', $index)
+                        'index' => $toolIndex,
                     ];
+                    
+                    // Emit TOOL_CALL_ARGS if there are arguments
+                    if ($args) {
+                        $chunks[] = [
+                            'type' => 'TOOL_CALL_ARGS',
+                            'toolCallId' => $toolCallId,
+                            'model' => $this->getAttr($event, 'model', $this->model),
+                            'timestamp' => $this->timestamp,
+                            'delta' => $args,
+                            'args' => $args,
+                        ];
+                    }
                 }
             }
         }
@@ -227,6 +331,16 @@ class StreamChunkConverter
         // Handle completion
         $finishReason = $this->getAttr($choice, 'finish_reason');
         if ($finishReason) {
+            // Emit TEXT_MESSAGE_END if we had text
+            if ($this->textMessageStarted) {
+                $chunks[] = [
+                    'type' => 'TEXT_MESSAGE_END',
+                    'messageId' => $this->messageId,
+                    'model' => $this->getAttr($event, 'model', $this->model),
+                    'timestamp' => $this->timestamp,
+                ];
+            }
+
             $usage = $this->getAttr($event, 'usage');
             $usageDict = null;
             if ($usage) {
@@ -239,8 +353,8 @@ class StreamChunkConverter
 
             $this->doneEmitted = true;
             $chunks[] = [
-                'type' => 'done',
-                'id' => $this->getAttr($event, 'id', $this->generateId()),
+                'type' => 'RUN_FINISHED',
+                'runId' => $this->runId,
                 'model' => $this->getAttr($event, 'model', $this->model),
                 'timestamp' => $this->timestamp,
                 'finishReason' => $finishReason,
@@ -279,18 +393,18 @@ class StreamChunkConverter
     }
 
     /**
-     * Convert an error to ErrorStreamChunk format
+     * Convert an error to RUN_ERROR event format
      */
     public function convertError(\Throwable $error): array
     {
         return [
-            'type' => 'error',
-            'id' => $this->generateId(),
+            'type' => 'RUN_ERROR',
+            'runId' => $this->runId,
             'model' => $this->model,
             'timestamp' => $this->timestamp,
             'error' => [
                 'message' => $error->getMessage(),
-                'code' => $error->getCode()
+                'code' => $error->getCode() ?: null
             ]
         ];
     }

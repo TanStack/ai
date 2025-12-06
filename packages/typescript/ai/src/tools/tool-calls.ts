@@ -1,9 +1,11 @@
 import type {
-  DoneStreamChunk,
   ModelMessage,
+  RunFinishedEvent,
   Tool,
   ToolCall,
-  ToolResultStreamChunk,
+  ToolCallArgsEvent,
+  ToolCallEndEvent,
+  ToolCallStartEvent,
 } from '../types'
 
 /**
@@ -47,8 +49,49 @@ export class ToolCallManager {
   }
 
   /**
-   * Add a tool call chunk to the accumulator
+   * Add a TOOL_CALL_START event to begin tracking a tool call
+   */
+  addToolCallStartEvent(chunk: ToolCallStartEvent): void {
+    const index = chunk.index ?? this.toolCallsMap.size
+    this.toolCallsMap.set(index, {
+      id: chunk.toolCallId,
+      type: 'function',
+      function: {
+        name: chunk.toolName,
+        arguments: '',
+      },
+    })
+  }
+
+  /**
+   * Add a TOOL_CALL_ARGS event to accumulate arguments
+   */
+  addToolCallArgsEvent(chunk: ToolCallArgsEvent): void {
+    // Find the tool call by ID
+    for (const [, toolCall] of this.toolCallsMap.entries()) {
+      if (toolCall.id === chunk.toolCallId) {
+        toolCall.function.arguments += chunk.delta
+        break
+      }
+    }
+  }
+
+  /**
+   * Complete a tool call with its final input
+   */
+  completeToolCall(toolCallId: string, input?: any): void {
+    for (const [, toolCall] of this.toolCallsMap.entries()) {
+      if (toolCall.id === toolCallId && input !== undefined) {
+        toolCall.function.arguments = JSON.stringify(input)
+        break
+      }
+    }
+  }
+
+  /**
+   * Add a tool call chunk to the accumulator (legacy format)
    * Handles streaming tool calls by accumulating arguments
+   * @deprecated Use addToolCallStartEvent and addToolCallArgsEvent instead
    */
   addToolCallChunk(chunk: {
     toolCall: {
@@ -106,11 +149,11 @@ export class ToolCallManager {
 
   /**
    * Execute all tool calls and return tool result messages
-   * Also yields tool_result chunks for streaming
+   * Also yields TOOL_CALL_END events for streaming
    */
   async *executeTools(
-    doneChunk: DoneStreamChunk,
-  ): AsyncGenerator<ToolResultStreamChunk, Array<ModelMessage>, void> {
+    doneChunk: RunFinishedEvent,
+  ): AsyncGenerator<ToolCallEndEvent, Array<ModelMessage>, void> {
     const toolCallsArray = this.getToolCalls()
     const toolResults: Array<ModelMessage> = []
 
@@ -166,14 +209,14 @@ export class ToolCallManager {
         toolResultContent = `Tool ${toolCall.function.name} does not have an execute function`
       }
 
-      // Emit tool_result chunk so callers can track tool execution
+      // Emit TOOL_CALL_END event with result
       yield {
-        type: 'tool_result',
-        id: doneChunk.id,
-        model: doneChunk.model,
+        type: 'TOOL_CALL_END',
         timestamp: Date.now(),
+        model: doneChunk.model,
         toolCallId: toolCall.id,
-        content: toolResultContent,
+        toolName: toolCall.function.name,
+        result: toolResultContent,
       }
 
       // Add tool result message
