@@ -61,8 +61,8 @@ export interface ToolCallRenderProps {
 }
 
 export interface ChatMessageProps {
-  /** The message to render */
-  message: import('@tanstack/ai-vue').UIMessage
+  /** The message to render (accepts readonly from useChat) */
+  message: any // Using any to accept DeepReadonly<UIMessage> from useChat
   /** Base CSS class name */
   class?: string
   /** Additional class for user messages */
