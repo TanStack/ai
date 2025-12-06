@@ -158,7 +158,7 @@ To connect to AI providers, set your API keys in your environment variables. Cre
 # OpenAI
 OPENAI_API_KEY=your-openai-api-key
 
-# Anthropic (Claude)
+# Anthropic
 ANTHROPIC_API_KEY=your-anthropic-api-key
 
 # Google Gemini
