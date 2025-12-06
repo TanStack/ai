@@ -5,7 +5,7 @@ title: ApprovalRequestedStreamChunk
 
 # Interface: ApprovalRequestedStreamChunk
 
-Defined in: [types.ts:573](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L573)
+Defined in: [types.ts:616](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L616)
 
 ## Extends
 
@@ -19,7 +19,7 @@ Defined in: [types.ts:573](https://github.com/TanStack/ai/blob/main/packages/typ
 approval: object;
 ```
 
-Defined in: [types.ts:578](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L578)
+Defined in: [types.ts:621](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L621)
 
 #### id
 
@@ -41,7 +41,7 @@ needsApproval: true;
 id: string;
 ```
 
-Defined in: [types.ts:524](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L524)
+Defined in: [types.ts:567](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L567)
 
 #### Inherited from
 
@@ -55,7 +55,7 @@ Defined in: [types.ts:524](https://github.com/TanStack/ai/blob/main/packages/typ
 input: any;
 ```
 
-Defined in: [types.ts:577](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L577)
+Defined in: [types.ts:620](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L620)
 
 ***
 
@@ -65,7 +65,7 @@ Defined in: [types.ts:577](https://github.com/TanStack/ai/blob/main/packages/typ
 model: string;
 ```
 
-Defined in: [types.ts:525](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L525)
+Defined in: [types.ts:568](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L568)
 
 #### Inherited from
 
@@ -79,7 +79,7 @@ Defined in: [types.ts:525](https://github.com/TanStack/ai/blob/main/packages/typ
 timestamp: number;
 ```
 
-Defined in: [types.ts:526](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L526)
+Defined in: [types.ts:569](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L569)
 
 #### Inherited from
 
@@ -93,7 +93,7 @@ Defined in: [types.ts:526](https://github.com/TanStack/ai/blob/main/packages/typ
 toolCallId: string;
 ```
 
-Defined in: [types.ts:575](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L575)
+Defined in: [types.ts:618](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L618)
 
 ***
 
@@ -103,7 +103,7 @@ Defined in: [types.ts:575](https://github.com/TanStack/ai/blob/main/packages/typ
 toolName: string;
 ```
 
-Defined in: [types.ts:576](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L576)
+Defined in: [types.ts:619](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L619)
 
 ***
 
@@ -113,7 +113,7 @@ Defined in: [types.ts:576](https://github.com/TanStack/ai/blob/main/packages/typ
 type: "approval-requested";
 ```
 
-Defined in: [types.ts:574](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L574)
+Defined in: [types.ts:617](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L617)
 
 #### Overrides
 

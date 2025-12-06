@@ -5,7 +5,7 @@ title: ToolResultStreamChunk
 
 # Interface: ToolResultStreamChunk
 
-Defined in: [types.ts:549](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L549)
+Defined in: [types.ts:592](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L592)
 
 ## Extends
 
@@ -19,7 +19,7 @@ Defined in: [types.ts:549](https://github.com/TanStack/ai/blob/main/packages/typ
 content: string;
 ```
 
-Defined in: [types.ts:552](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L552)
+Defined in: [types.ts:595](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L595)
 
 ***
 
@@ -29,7 +29,7 @@ Defined in: [types.ts:552](https://github.com/TanStack/ai/blob/main/packages/typ
 id: string;
 ```
 
-Defined in: [types.ts:524](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L524)
+Defined in: [types.ts:567](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L567)
 
 #### Inherited from
 
@@ -43,7 +43,7 @@ Defined in: [types.ts:524](https://github.com/TanStack/ai/blob/main/packages/typ
 model: string;
 ```
 
-Defined in: [types.ts:525](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L525)
+Defined in: [types.ts:568](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L568)
 
 #### Inherited from
 
@@ -57,7 +57,7 @@ Defined in: [types.ts:525](https://github.com/TanStack/ai/blob/main/packages/typ
 timestamp: number;
 ```
 
-Defined in: [types.ts:526](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L526)
+Defined in: [types.ts:569](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L569)
 
 #### Inherited from
 
@@ -71,7 +71,7 @@ Defined in: [types.ts:526](https://github.com/TanStack/ai/blob/main/packages/typ
 toolCallId: string;
 ```
 
-Defined in: [types.ts:551](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L551)
+Defined in: [types.ts:594](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L594)
 
 ***
 
@@ -81,7 +81,7 @@ Defined in: [types.ts:551](https://github.com/TanStack/ai/blob/main/packages/typ
 type: "tool_result";
 ```
 
-Defined in: [types.ts:550](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L550)
+Defined in: [types.ts:593](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L593)
 
 #### Overrides
 

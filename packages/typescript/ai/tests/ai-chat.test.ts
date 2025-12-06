@@ -5,7 +5,13 @@ import { chat } from '../src/core/chat'
 import { BaseAdapter } from '../src/base-adapter'
 import { aiEventClient } from '../src/event-client.js'
 import { maxIterations } from '../src/utilities/agent-loop-strategies'
-import type { ChatOptions, ModelMessage, StreamChunk, Tool } from '../src/types'
+import type {
+  ChatOptions,
+  ModelMessage,
+  StreamChunk,
+  Tool,
+  ToolOptions,
+} from '../src/types'
 
 // Mock event client to track events
 const eventListeners = new Map<string, Set<(...args: Array<any>) => void>>()
@@ -452,7 +458,10 @@ describe('chat() - Comprehensive Logic Path Coverage', () => {
         }),
       )
 
-      expect(tool.execute).toHaveBeenCalledWith({ location: 'Paris' })
+      expect(tool.execute).toHaveBeenCalledWith(
+        { location: 'Paris' },
+        { context: undefined },
+      )
       expect(adapter.chatStreamCallCount).toBeGreaterThanOrEqual(2)
 
       const toolResultChunks = chunks.filter((c) => c.type === 'tool_result')
@@ -559,7 +568,10 @@ describe('chat() - Comprehensive Logic Path Coverage', () => {
       )
 
       // Tool should be executed with complete arguments
-      expect(tool.execute).toHaveBeenCalledWith({ a: 10, b: 20 })
+      expect(tool.execute).toHaveBeenCalledWith(
+        { a: 10, b: 20 },
+        { context: undefined },
+      )
       const toolResultChunks = chunks.filter((c) => c.type === 'tool_result')
       expect(toolResultChunks.length).toBeGreaterThan(0)
     })
@@ -1489,7 +1501,10 @@ describe('chat() - Comprehensive Logic Path Coverage', () => {
 
       const chunks = await collectChunks(stream)
       expect(chunks[0]?.type).toBe('tool_result')
-      expect(toolExecute).toHaveBeenCalledWith({ path: '/tmp/test.txt' })
+      expect(toolExecute).toHaveBeenCalledWith(
+        { path: '/tmp/test.txt' },
+        { context: undefined },
+      )
       expect(adapter.chatStreamCallCount).toBe(1)
     })
   })
@@ -2601,7 +2616,10 @@ describe('chat() - Comprehensive Logic Path Coverage', () => {
       await collectChunks(stream2)
 
       // Tool should have been executed because approval was provided
-      expect(tool.execute).toHaveBeenCalledWith({ path: '/tmp/test.txt' })
+      expect(tool.execute).toHaveBeenCalledWith(
+        { path: '/tmp/test.txt' },
+        { context: undefined },
+      )
     })
 
     it('should extract client tool outputs from messages with parts', async () => {
@@ -2996,6 +3014,238 @@ describe('chat() - Comprehensive Logic Path Coverage', () => {
         (c as any).content?.toLowerCase().includes('70'),
       )
       expect(hasSeventy).toBe(true)
+    })
+  })
+
+  describe('Context Support', () => {
+    it('should pass context to tool execute functions', async () => {
+      interface TestContext {
+        userId: string
+        db: {
+          users: {
+            find: (id: string) => Promise<{ name: string; email: string }>
+          }
+        }
+      }
+
+      const contextTool = {
+        name: 'get_user',
+        description: 'Get user by ID',
+        inputSchema: z.object({
+          userId: z.string(),
+        }),
+        execute: vi.fn(
+          async <TContext = unknown>(
+            args: any,
+            options: ToolOptions<TContext>,
+          ) => {
+            const testContext = options.context as TestContext
+            const user = await testContext.db.users.find(args.userId)
+            return JSON.stringify({
+              name: user.name,
+              email: user.email,
+              fromContext: testContext.userId,
+            })
+          },
+        ),
+      } satisfies Tool
+
+      const mockDb = {
+        users: {
+          find: vi.fn(async (id: string) => ({
+            name: `User ${id}`,
+            email: `user${id}@example.com`,
+          })),
+        },
+      }
+
+      const testContext: TestContext = {
+        userId: '123',
+        db: mockDb,
+      }
+
+      class ContextToolAdapter extends MockAdapter {
+        iteration = 0
+        async *chatStream(options: ChatOptions): AsyncIterable<StreamChunk> {
+          this.trackStreamCall(options)
+          const baseId = 'test-id'
+
+          if (this.chatStreamCallCount === 1) {
+            // First iteration: request tool call
+            yield {
+              type: 'content',
+              id: baseId,
+              model: 'test-model',
+              timestamp: Date.now(),
+              delta: 'Getting user...',
+              content: 'Getting user...',
+              role: 'assistant',
+            }
+            yield {
+              type: 'tool_call',
+              id: baseId,
+              model: 'test-model',
+              timestamp: Date.now(),
+              toolCall: {
+                id: 'call_123',
+                type: 'function',
+                function: {
+                  name: 'get_user',
+                  arguments: '{"userId":"456"}',
+                },
+              },
+              index: 0,
+            }
+            yield {
+              type: 'done',
+              id: baseId,
+              model: 'test-model',
+              timestamp: Date.now(),
+              finishReason: 'tool_calls',
+            }
+            this.iteration++
+          } else {
+            // Second iteration: should receive tool result
+            const toolResults = options.messages.filter(
+              (m) => m.role === 'tool',
+            )
+            expect(toolResults.length).toBeGreaterThan(0)
+
+            yield {
+              type: 'content',
+              id: `${baseId}-2`,
+              model: 'test-model',
+              timestamp: Date.now(),
+              delta: 'User found',
+              content: 'User found',
+              role: 'assistant',
+            }
+            yield {
+              type: 'done',
+              id: `${baseId}-2`,
+              model: 'test-model',
+              timestamp: Date.now(),
+              finishReason: 'stop',
+            }
+            this.iteration++
+          }
+        }
+      }
+
+      const adapter = new ContextToolAdapter()
+
+      const stream = chat({
+        adapter,
+        model: 'test-model',
+        messages: [{ role: 'user', content: 'Get user 456' }],
+        tools: [contextTool],
+        context: testContext,
+        agentLoopStrategy: maxIterations(2),
+      })
+
+      const chunks = await collectChunks(stream)
+
+      // Tool should have been called with context
+      expect(contextTool.execute).toHaveBeenCalledWith(
+        { userId: '456' },
+        { context: testContext },
+      )
+
+      // Database should have been called
+      expect(mockDb.users.find).toHaveBeenCalledWith('456')
+
+      // Should have tool result chunks
+      const toolResultChunks = chunks.filter((c) => c.type === 'tool_result')
+      expect(toolResultChunks.length).toBeGreaterThan(0)
+
+      // Verify result contains context data
+      const resultContent = toolResultChunks[0]?.content || ''
+      const result = JSON.parse(resultContent)
+      expect(result.name).toBe('User 456')
+      expect(result.fromContext).toBe('123')
+    })
+
+    it('should work without context (context is optional)', async () => {
+      const noContextTool = {
+        name: 'simple_tool',
+        description: 'Simple tool',
+        inputSchema: z.object({
+          value: z.string(),
+        }),
+        execute: vi.fn(async (args: any) => {
+          return JSON.stringify({ result: args.value })
+        }),
+      }
+
+      class SimpleToolAdapter extends MockAdapter {
+        iteration = 0
+        async *chatStream(options: ChatOptions): AsyncIterable<StreamChunk> {
+          this.trackStreamCall(options)
+          const baseId = 'test-id'
+
+          if (this.chatStreamCallCount === 1) {
+            yield {
+              type: 'tool_call',
+              id: baseId,
+              model: 'test-model',
+              timestamp: Date.now(),
+              toolCall: {
+                id: 'call_123',
+                type: 'function',
+                function: {
+                  name: 'simple_tool',
+                  arguments: '{"value":"test"}',
+                },
+              },
+              index: 0,
+            }
+            yield {
+              type: 'done',
+              id: baseId,
+              model: 'test-model',
+              timestamp: Date.now(),
+              finishReason: 'tool_calls',
+            }
+            this.iteration++
+          } else {
+            yield {
+              type: 'content',
+              id: `${baseId}-2`,
+              model: 'test-model',
+              timestamp: Date.now(),
+              delta: 'Done',
+              content: 'Done',
+              role: 'assistant',
+            }
+            yield {
+              type: 'done',
+              id: `${baseId}-2`,
+              model: 'test-model',
+              timestamp: Date.now(),
+              finishReason: 'stop',
+            }
+            this.iteration++
+          }
+        }
+      }
+
+      const adapter = new SimpleToolAdapter()
+
+      const stream = chat({
+        adapter,
+        model: 'test-model',
+        messages: [{ role: 'user', content: 'Test' }],
+        tools: [noContextTool],
+        agentLoopStrategy: maxIterations(2),
+      })
+
+      await collectChunks(stream)
+
+      // Tool should have been called without context
+      expect(noContextTool.execute).toHaveBeenCalledWith(
+        { value: 'test' },
+        { context: undefined },
+      )
     })
   })
 })

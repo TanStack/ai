@@ -97,6 +97,13 @@ export const Route = createFileRoute('/api/tanchat')({
             `[API Route] Using provider: ${provider}, model: ${selectedModel}`,
           )
 
+          // Server-side context (e.g., database connections, user session)
+          // This is separate from client context and only used for server tools
+          const serverContext = {
+            // Add server-side context here if needed
+            // e.g., db, userId from session, etc.
+          }
+
           const stream = chat({
             adapter: adapter as any,
             model: selectedModel as any,
@@ -112,6 +119,7 @@ export const Route = createFileRoute('/api/tanchat')({
             messages,
             abortController,
             conversationId,
+            context: serverContext,
           })
           return toStreamResponse(stream, { abortController })
         } catch (error: any) {

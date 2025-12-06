@@ -5,7 +5,7 @@ title: ToolInputAvailableStreamChunk
 
 # Interface: ToolInputAvailableStreamChunk
 
-Defined in: [types.ts:584](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L584)
+Defined in: [types.ts:627](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L627)
 
 ## Extends
 
@@ -19,7 +19,7 @@ Defined in: [types.ts:584](https://github.com/TanStack/ai/blob/main/packages/typ
 id: string;
 ```
 
-Defined in: [types.ts:524](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L524)
+Defined in: [types.ts:567](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L567)
 
 #### Inherited from
 
@@ -33,7 +33,7 @@ Defined in: [types.ts:524](https://github.com/TanStack/ai/blob/main/packages/typ
 input: any;
 ```
 
-Defined in: [types.ts:588](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L588)
+Defined in: [types.ts:631](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L631)
 
 ***
 
@@ -43,7 +43,7 @@ Defined in: [types.ts:588](https://github.com/TanStack/ai/blob/main/packages/typ
 model: string;
 ```
 
-Defined in: [types.ts:525](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L525)
+Defined in: [types.ts:568](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L568)
 
 #### Inherited from
 
@@ -57,7 +57,7 @@ Defined in: [types.ts:525](https://github.com/TanStack/ai/blob/main/packages/typ
 timestamp: number;
 ```
 
-Defined in: [types.ts:526](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L526)
+Defined in: [types.ts:569](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L569)
 
 #### Inherited from
 
@@ -71,7 +71,7 @@ Defined in: [types.ts:526](https://github.com/TanStack/ai/blob/main/packages/typ
 toolCallId: string;
 ```
 
-Defined in: [types.ts:586](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L586)
+Defined in: [types.ts:629](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L629)
 
 ***
 
@@ -81,7 +81,7 @@ Defined in: [types.ts:586](https://github.com/TanStack/ai/blob/main/packages/typ
 toolName: string;
 ```
 
-Defined in: [types.ts:587](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L587)
+Defined in: [types.ts:630](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L630)
 
 ***
 
@@ -91,7 +91,7 @@ Defined in: [types.ts:587](https://github.com/TanStack/ai/blob/main/packages/typ
 type: "tool-input-available";
 ```
 
-Defined in: [types.ts:585](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L585)
+Defined in: [types.ts:628](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L628)
 
 #### Overrides
 

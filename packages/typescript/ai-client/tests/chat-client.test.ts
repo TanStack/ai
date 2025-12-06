@@ -1,4 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
+import { toolDefinition } from '@tanstack/ai'
+import { z } from 'zod'
 import { ChatClient } from '../src/chat-client'
 import {
   createMockConnectionAdapter,
@@ -6,6 +8,7 @@ import {
   createThinkingChunks,
   createToolCallChunks,
 } from './test-utils'
+import type { ToolOptions } from '@tanstack/ai'
 import type { UIMessage } from '../src/types'
 
 describe('ChatClient', () => {
@@ -515,7 +518,7 @@ describe('ChatClient', () => {
       // Should have at least one call for the assistant message
       const assistantAppendedCall = messageAppendedCalls.find(([, data]) => {
         const payload = data as Record<string, unknown>
-        return payload && payload.role === 'assistant'
+        return payload.role === 'assistant'
       })
       expect(assistantAppendedCall).toBeDefined()
     })
@@ -583,6 +586,148 @@ describe('ChatClient', () => {
 
       // Should have thinking events
       expect(thinkingCalls.length).toBeGreaterThan(0)
+    })
+  })
+
+  describe('context support', () => {
+    it('should pass context to client tool execute functions', async () => {
+      interface TestContext {
+        userId: string
+        localStorage: {
+          setItem: (key: string, value: string) => void
+          getItem: (key: string) => string | null
+        }
+      }
+
+      const mockStorage = {
+        setItem: vi.fn(),
+        getItem: vi.fn(() => null),
+      }
+
+      const testContext: TestContext = {
+        userId: '123',
+        localStorage: mockStorage,
+      }
+
+      const executeFn = vi.fn(
+        async <TContext = unknown>(
+          _args: any,
+          options: ToolOptions<TContext>,
+        ) => {
+          const ctx = options.context as TestContext
+          ctx.localStorage.setItem(
+            `pref_${ctx.userId}_${_args.key}`,
+            _args.value,
+          )
+          return { success: true }
+        },
+      )
+
+      const toolDef = toolDefinition({
+        name: 'savePreference',
+        description: 'Save user preference',
+        inputSchema: z.object({
+          key: z.string(),
+          value: z.string(),
+        }),
+        outputSchema: z.object({
+          success: z.boolean(),
+        }),
+      })
+
+      const tool = toolDef.client<TestContext>(executeFn)
+
+      const chunks = createToolCallChunks([
+        {
+          id: 'tool-1',
+          name: 'savePreference',
+          arguments: '{"key":"theme","value":"dark"}',
+        },
+      ])
+      const adapter = createMockConnectionAdapter({ chunks })
+
+      const client = new ChatClient({
+        connection: adapter,
+        tools: [tool],
+        context: testContext,
+      })
+
+      await client.sendMessage('Save my preference')
+
+      // Wait a bit for async tool execution
+      await new Promise((resolve) => setTimeout(resolve, 10))
+
+      // Tool should have been called with context
+      expect(executeFn).toHaveBeenCalled()
+      const lastCall = executeFn.mock.calls[0]
+      expect(lastCall?.[0]).toEqual({ key: 'theme', value: 'dark' })
+      expect(lastCall?.[1]).toEqual({ context: testContext })
+
+      // localStorage should have been called
+      expect(mockStorage.setItem).toHaveBeenCalledWith('pref_123_theme', 'dark')
+    })
+
+    it('should not send context to server (context is only for client tools)', async () => {
+      const testContext = {
+        userId: '123',
+        sessionId: 'session-456',
+      }
+
+      let capturedBody: any = null
+      const adapter = createMockConnectionAdapter({
+        chunks: createTextChunks('Response'),
+        onConnect: (_messages, body) => {
+          capturedBody = body
+        },
+      })
+
+      const client = new ChatClient({
+        connection: adapter,
+        context: testContext,
+      })
+
+      await client.sendMessage('Hello')
+
+      // Context should NOT be in the request body (only used for client tools)
+      expect(capturedBody).toBeDefined()
+      expect(capturedBody.context).toBeUndefined()
+    })
+
+    it('should work without context (context is optional)', async () => {
+      const executeFn = vi.fn(async (args: any) => {
+        return { result: args.value }
+      })
+
+      const toolDef = toolDefinition({
+        name: 'simpleTool',
+        description: 'Simple tool',
+        inputSchema: z.object({
+          value: z.string(),
+        }),
+        outputSchema: z.object({
+          result: z.string(),
+        }),
+      })
+
+      const tool = toolDef.client(executeFn)
+
+      const chunks = createToolCallChunks([
+        { id: 'tool-1', name: 'simpleTool', arguments: '{"value":"test"}' },
+      ])
+      const adapter = createMockConnectionAdapter({ chunks })
+
+      const client = new ChatClient({
+        connection: adapter,
+        tools: [tool],
+      })
+
+      await client.sendMessage('Test')
+
+      // Tool should have been called without context
+      expect(executeFn).toHaveBeenCalledWith(
+        { value: 'test' },
+        { context: undefined },
+      )
     })
   })
 })

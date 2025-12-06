@@ -133,6 +133,7 @@ export interface UIMessage<TTools extends ReadonlyArray<AnyClientTool> = any> {
 
 export interface ChatClientOptions<
   TTools extends ReadonlyArray<AnyClientTool> = any,
+  TContext = unknown,
 > {
   /**
    * Connection adapter for streaming
@@ -208,6 +209,24 @@ export interface ChatClientOptions<
      */
     chunkStrategy?: ChunkStrategy
   }
+
+  /**
+   * Context object that is automatically passed to client-side tool execute functions.
+   *
+   * This allows client tools to access shared context (like user ID, local storage,
+   * browser APIs, etc.) without needing to capture them via closures.
+   *
+   * Note: This context is only used for client-side tools. Server tools should receive
+   * their own context from the server-side chat() function.
+   *
+   * @example
+   * const client = new ChatClient({
+   *   connection: fetchServerSentEvents('/api/chat'),
+   *   context: { userId: '123', localStorage },
+   *   tools: [clientTool],
+   * });
+   */
+  context?: TContext
 }
 
 export interface ChatRequestBody {
