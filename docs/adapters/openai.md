@@ -145,15 +145,17 @@ Enable reasoning for models that support it (e.g., GPT-5). This allows the model
 ```typescript
 providerOptions: {
   reasoning: {
-    effort: "medium", // "minimal" | "low" | "medium" | "high"
+    effort: "medium", // "none" | "minimal" | "low" | "medium" | "high"
+    summary: "detailed", // "auto" | "detailed" (optional)
   },
 }
 ```
 
 **Supported Models:**
 
-- `gpt-5` - Supports reasoning with configurable effort
+- `gpt-5.1`, `gpt-5`, `gpt-5-mini`, `gpt-5-nano` - Supports reasoning with configurable effort
 - `o3`, `o3-pro`, `o3-mini` - Support reasoning
+- `computer-use-preview` - Supports reasoning with `summary: "concise"` option (only model that supports `concise`)
 
 When reasoning is enabled, the model's reasoning process is streamed separately from the response text and appears as a collapsible thinking section in the UI.
 
