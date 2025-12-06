@@ -41,3 +41,12 @@ export interface ChatInputRenderProps {
   /** Is input disabled */
   disabled: boolean
 }
+
+export interface ThinkingPartProps {
+  /** The thinking content to render */
+  content: string
+  /** Base class applied to thinking parts */
+  class?: string
+  /** Whether thinking is complete (has text content after) */
+  isComplete?: boolean
+}
