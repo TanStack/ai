@@ -52,7 +52,7 @@ export {
   PartialJSONParser,
   defaultJSONParser,
   parsePartialJSON,
-} from './stream'
+} from './stream/index'
 export type {
   ChunkStrategy,
   ChunkRecording,
@@ -65,4 +65,4 @@ export type {
   ToolCallState,
   ToolResultState,
   JSONParser,
-} from './stream'
+} from './stream/index'
