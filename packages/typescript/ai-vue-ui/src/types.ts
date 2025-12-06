@@ -50,3 +50,75 @@ export interface ThinkingPartProps {
   /** Whether thinking is complete (has text content after) */
   isComplete?: boolean
 }
+
+export interface ToolCallRenderProps {
+  id: string
+  name: string
+  arguments: string
+  state: string
+  approval?: any
+  output?: any
+}
+
+export interface ChatMessageProps {
+  /** The message to render */
+  message: import('@tanstack/ai-vue').UIMessage
+  /** Base CSS class name */
+  class?: string
+  /** Additional class for user messages */
+  userClass?: string
+  /** Additional class for assistant messages */
+  assistantClass?: string
+}
+
+export interface ChatMessagesProps {
+  /** CSS class name */
+  class?: string
+  /** Auto-scroll to bottom on new messages */
+  autoScroll?: boolean
+}
+
+export interface TextPartProps {
+  /** The text content to render */
+  content: string
+  /** The role of the message (user, assistant, or system) - optional for standalone use */
+  role?: 'user' | 'assistant' | 'system'
+  /** Base class applied to all text parts */
+  class?: string
+  /** Additional class for user messages */
+  userClass?: string
+  /** Additional class for assistant messages (also used for system messages) */
+  assistantClass?: string
+}
+
+export interface ToolApprovalProps {
+  /** Tool call ID */
+  toolCallId: string
+  /** Tool name */
+  toolName: string
+  /** Parsed tool arguments/input */
+  input: any
+  /** Approval metadata */
+  approval: {
+    id: string
+    needsApproval: boolean
+    approved?: boolean
+  }
+  /** CSS class name */
+  class?: string
+}
+
+export interface ToolApprovalRenderProps {
+  /** Tool name */
+  toolName: string
+  /** Parsed input */
+  input: any
+  /** Approve the tool call */
+  onApprove: () => void
+  /** Deny the tool call */
+  onDeny: () => void
+  /** Whether user has responded */
+  hasResponded: boolean
+  /** User's decision (if responded) */
+  approved?: boolean
+}
