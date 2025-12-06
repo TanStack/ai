@@ -1,20 +1,21 @@
 <script setup lang="ts">
-import { useChat, type UIMessage } from '@tanstack/ai-vue'
-import type { ChatProps } from './types'
 import { provide } from 'vue'
+import { useChat } from '@tanstack/ai-vue'
 import { CHAT_KEY } from './use-chat-context'
+import type { UIMessage } from '@tanstack/ai-vue'
+import type { ChatProps } from './types'
 
 const props = defineProps<ChatProps>()
 
 const emit = defineEmits<{
   response: [response?: Response]
-  chunk: [chunk: any]
+  chunk: [chunk: unknown]
   finish: [message: UIMessage]
   error: [error: Error]
 }>()
 
 defineSlots<{
-  default(): any
+  default: () => unknown
 }>()
 
 const chat = useChat({

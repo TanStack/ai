@@ -458,11 +458,14 @@ importers:
       '@tanstack/ai-vue':
         specifier: workspace:*
         version: link:../../packages/typescript/ai-vue
+      '@tanstack/ai-vue-ui':
+        specifier: workspace:*
+        version: link:../../packages/typescript/ai-vue-ui
       marked:
         specifier: ^15.0.6
         version: 15.0.12
       vue:
-        specifier: ^3.5.13
+        specifier: ^3.5.25
         version: 3.5.25(typescript@5.9.3)
       vue-router:
         specifier: ^4.5.0
@@ -472,7 +475,7 @@ importers:
         version: 4.1.13
     devDependencies:
       '@tailwindcss/vite':
-        specifier: ^4.1.7
+        specifier: ^4.1.17
         version: 4.1.17(vite@7.2.4(@types/node@24.10.1)(jiti@2.6.1)(lightningcss@1.30.2)(terser@5.44.0)(tsx@4.20.6)(yaml@2.8.1))
       '@types/node':
         specifier: ^24.10.1
@@ -487,22 +490,22 @@ importers:
         specifier: ^9.1.2
         version: 9.2.1
       dotenv:
-        specifier: ^17.1.0
+        specifier: ^17.2.3
         version: 17.2.3
       express:
         specifier: ^5.1.0
         version: 5.2.1
       tailwindcss:
-        specifier: ^4.1.7
+        specifier: ^4.1.17
         version: 4.1.17
       tsx:
-        specifier: ^4.19.2
+        specifier: ^4.20.6
         version: 4.20.6
       typescript:
         specifier: 5.9.3
         version: 5.9.3
       vite:
-        specifier: ^7.0.0
+        specifier: ^7.2.4
         version: 7.2.4(@types/node@24.10.1)(jiti@2.6.1)(lightningcss@1.30.2)(terser@5.44.0)(tsx@4.20.6)(yaml@2.8.1)
       vue-tsc:
         specifier: ^2.2.10
@@ -866,6 +869,9 @@ importers:
       vite:
         specifier: ^7.2.4
         version: 7.2.4(@types/node@24.10.1)(jiti@2.6.1)(lightningcss@1.30.2)(terser@5.44.0)(tsx@4.20.6)(yaml@2.8.1)
+      vue-tsc:
+        specifier: ^2.2.10
+        version: 2.2.12(typescript@5.9.3)
 
   packages/typescript/react-ai-devtools:
     dependencies:

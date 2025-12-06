@@ -93,6 +93,28 @@ const isOpen = ref(false)
       <hr class="border-gray-700 my-2" />
 
       <RouterLink
+        to="/vue-ui"
+        @click="isOpen = false"
+        class="flex items-center gap-3 p-3 rounded-lg hover:bg-gray-800 transition-colors mb-2"
+        active-class="bg-cyan-600 hover:bg-cyan-700"
+      >
+        <svg
+          class="w-5 h-5"
+          fill="none"
+          stroke="currentColor"
+          viewBox="0 0 24 24"
+        >
+          <path
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            stroke-width="2"
+            d="M4 5a1 1 0 011-1h14a1 1 0 011 1v2a1 1 0 01-1 1H5a1 1 0 01-1-1V5zM4 13a1 1 0 011-1h6a1 1 0 011 1v6a1 1 0 01-1 1H5a1 1 0 01-1-1v-6zM16 13a1 1 0 011-1h2a1 1 0 011 1v6a1 1 0 01-1 1h-2a1 1 0 01-1-1v-6z"
+          />
+        </svg>
+        <span class="font-medium">Vue UI Demo</span>
+      </RouterLink>
+
+      <RouterLink
         to="/guitars"
         @click="isOpen = false"
         class="flex items-center gap-3 p-3 rounded-lg hover:bg-gray-800 transition-colors mb-2"

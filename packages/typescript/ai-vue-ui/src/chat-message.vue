@@ -33,7 +33,9 @@ const combinedClass = computed(() =>
 const isThinkingComplete = (partIndex: number) => {
   const part = props.message.parts[partIndex]
   if (!part || part.type !== 'thinking') return false
-  return props.message.parts.slice(partIndex + 1).some((p: any) => p.type === 'text')
+  return props.message.parts
+    .slice(partIndex + 1)
+    .some((p: any) => p.type === 'text')
 }
 </script>
 

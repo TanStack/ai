@@ -23,7 +23,7 @@
     "test:eslint": "eslint ./src",
     "test:lib": "vitest --passWithNoTests",
     "test:lib:dev": "pnpm test:lib --watch",
-    "test:types": "tsc"
+    "test:types": "vue-tsc --noEmit"
   },
   "keywords": [
     "tanstack",
@@ -35,13 +35,13 @@
     "components"
   ],
   "dependencies": {
+    "@crazydos/vue-markdown": "^1.1.4",
     "@tanstack/ai-client": "workspace:*",
     "@tanstack/ai-vue": "workspace:*",
     "rehype-highlight": "^7.0.2",
     "rehype-raw": "^7.0.0",
     "rehype-sanitize": "^6.0.0",
-    "remark-gfm": "^4.0.1",
-    "@crazydos/vue-markdown": "^1.1.4"
+    "remark-gfm": "^4.0.1"
   },
   "peerDependencies": {
     "@tanstack/ai-client": "workspace:*",
@@ -51,7 +51,8 @@
   },
   "devDependencies": {
     "@vitest/coverage-v8": "4.0.14",
-    "vite": "^7.2.4"
+    "vite": "^7.2.4",
+    "vue-tsc": "^2.2.10"
   },
   "files": [
     "src",

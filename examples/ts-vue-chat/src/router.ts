@@ -2,6 +2,7 @@ import { createRouter, createWebHistory } from 'vue-router'
 import ChatView from './views/ChatView.vue'
 import GuitarDetailView from './views/GuitarDetailView.vue'
 import GuitarsView from './views/GuitarsView.vue'
+import VueUIView from './views/VueUIView.vue'
 
 const router = createRouter({
   history: createWebHistory(),
@@ -10,6 +11,11 @@ const router = createRouter({
       path: '/',
       name: 'chat',
       component: ChatView,
+    },
+    {
+      path: '/vue-ui',
+      name: 'vue-ui',
+      component: VueUIView,
     },
     {
       path: '/guitars',

@@ -17,23 +17,24 @@
     "@tanstack/ai-ollama": "workspace:*",
     "@tanstack/ai-openai": "workspace:*",
     "@tanstack/ai-vue": "workspace:*",
+    "@tanstack/ai-vue-ui": "workspace:*",
     "marked": "^15.0.6",
-    "vue": "^3.5.13",
+    "vue": "^3.5.25",
     "vue-router": "^4.5.0",
     "zod": "^4.1.13"
   },
   "devDependencies": {
-    "@tailwindcss/vite": "^4.1.7",
+    "@tailwindcss/vite": "^4.1.17",
     "@types/node": "^24.10.1",
     "@vitejs/plugin-vue": "^5.2.3",
     "autoprefixer": "^10.4.21",
     "concurrently": "^9.1.2",
-    "dotenv": "^17.1.0",
+    "dotenv": "^17.2.3",
     "express": "^5.1.0",
-    "tailwindcss": "^4.1.7",
-    "tsx": "^4.19.2",
+    "tailwindcss": "^4.1.17",
+    "tsx": "^4.20.6",
     "typescript": "5.9.3",
-    "vite": "^7.0.0",
+    "vite": "^7.2.4",
     "vue-tsc": "^2.2.10"
   }
 }
