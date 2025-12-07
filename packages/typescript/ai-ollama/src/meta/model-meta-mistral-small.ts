@@ -1,0 +1,66 @@
+import type { ChatRequest } from 'ollama'
+import type { DefaultOllamaModelMeta } from './models-meta'
+
+const MISTRAL_SMALL_LATEST = {
+  name: 'mistral-small:latest',
+  supports: {
+    input: ['text'],
+    output: ['text'],
+    capabilities: ['tools'],
+  },
+  size: '14gb',
+  context: 32_000,
+} as const satisfies DefaultOllamaModelMeta<any>
+
+const MISTRAL_SMALL_22b = {
+  name: 'mistral-small:12b',
+  supports: {
+    input: ['text'],
+    output: ['text'],
+    capabilities: ['tools'],
+  },
+  size: '13gb',
+  context: 32_000,
+} as const satisfies DefaultOllamaModelMeta<any>
+
+const MISTRAL_SMALL_24b = {
+  name: 'mistral-small:12b',
+  supports: {
+    input: ['text'],
+    output: ['text'],
+    capabilities: ['tools'],
+  },
+  size: '13gb',
+  context: 32_000,
+} as const satisfies DefaultOllamaModelMeta<any>
+
+export const MISTRAL_SMALL_MODELS = [
+  MISTRAL_SMALL_LATEST.name,
+  MISTRAL_SMALL_22b.name,
+  MISTRAL_SMALL_24b.name,
+] as const
+
+// const MISTRAL_SMALL_IMAGE_MODELS = [] as const
+
+// export const MISTRAL_SMALL_EMBEDDING_MODELS = [] as const
+
+// const MISTRAL_SMALL_AUDIO_MODELS = [] as const
+
+// const MISTRAL_SMALL_VIDEO_MODELS = [] as const
+
+// export type MistralSmallChatModels = (typeof MISTRAL_SMALL_MODELS)[number]
+
+// Manual type map for per-model provider options
+export type MistralSmallChatModelProviderOptionsByName = {
+  // Models with thinking and structured output support
+  [MISTRAL_SMALL_LATEST.name]: ChatRequest
+  [MISTRAL_SMALL_22b.name]: ChatRequest
+  [MISTRAL_SMALL_24b.name]: ChatRequest
+}
+
+export type MistralSmallModelInputModalitiesByName = {
+  // Models with text, image, audio, video (no document)
+  [MISTRAL_SMALL_LATEST.name]: typeof MISTRAL_SMALL_LATEST.supports.input
+  [MISTRAL_SMALL_22b.name]: typeof MISTRAL_SMALL_22b.supports.input
+  [MISTRAL_SMALL_24b.name]: typeof MISTRAL_SMALL_24b.supports.input
+}
