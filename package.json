@@ -31,7 +31,7 @@
     "build:all": "nx run-many --targets=build --exclude=examples/**",
     "watch": "pnpm run build:all && nx watch --all -- pnpm run build:all",
     "dev": "pnpm run watch",
-    "prettier": "prettier --ignore-unknown '**/*'",
+    "prettier": "prettier --ignore-unknown **/*",
     "prettier:write": "pnpm run prettier --write",
     "generate-docs": "node scripts/generate-docs.ts && pnpm run copy:readme",
     "copy:readme": "cp README.md packages/typescript/ai/README.md && cp README.md packages/typescript/ai-devtools/README.md && cp README.md packages/typescript/ai-client/README.md && cp README.md packages/typescript/ai-gemini/README.md && cp README.md packages/typescript/ai-ollama/README.md && cp README.md packages/typescript/ai-openai/README.md && cp README.md packages/typescript/ai-react/README.md && cp README.md packages/typescript/ai-react-ui/README.md && cp README.md packages/typescript/react-ai-devtools/README.md && cp README.md packages/typescript/solid-ai-devtools/README.md",
