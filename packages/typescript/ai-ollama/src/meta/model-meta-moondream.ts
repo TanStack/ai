@@ -1,0 +1,63 @@
+import type { ChatRequest } from 'ollama'
+
+interface ModelMeta<TProviderOptions = unknown> {
+  name: string
+  providerOptions?: TProviderOptions
+  supports?: {
+    input?: Array<'text' | 'image' | 'video'>
+    output?: Array<'text' | 'image' | 'video'>
+    capabilities?: Array<'tools' | 'thinking' | 'vision' | 'embedding'>
+  }
+  size?: string
+  context?: number
+}
+
+const MOONDREAM_LATEST = {
+  name: 'moondream:latest',
+  supports: {
+    input: ['text', 'image'],
+    output: ['text'],
+    capabilities: ['vision'],
+  },
+  size: '1.7gb',
+  context: 2_000,
+} as const satisfies ModelMeta<any>
+
+const MOONDREAM_1_8b = {
+  name: 'moondream:1.8b',
+  supports: {
+    input: ['text', 'image'],
+    output: ['text'],
+    capabilities: ['vision'],
+  },
+  size: '1.7gb',
+  context: 2_000,
+} as const satisfies ModelMeta<any>
+
+export const MOONDREAM_MODELS = [
+  MOONDREAM_LATEST.name,
+  MOONDREAM_1_8b.name,
+] as const
+
+const MOONDREAM_IMAGE_MODELS = [] as const
+
+export const MOONDREAM_EMBEDDING_MODELS = [] as const
+
+const MOONDREAM_AUDIO_MODELS = [] as const
+
+const MOONDREAM_VIDEO_MODELS = [] as const
+
+// export type MoondreamChatModels = (typeof MOONDREAM_MODELS)[number]
+
+// Manual type map for per-model provider options
+export type MoondreamChatModelProviderOptionsByName = {
+  // Models with thinking and structured output support
+  [MOONDREAM_LATEST.name]: ChatRequest
+  [MOONDREAM_1_8b.name]: ChatRequest
+}
+
+export type MoondreamModelInputModalitiesByName = {
+  // Models with text, image, audio, video (no document)
+  [MOONDREAM_LATEST.name]: typeof MOONDREAM_LATEST.supports.input
+  [MOONDREAM_1_8b.name]: typeof MOONDREAM_1_8b.supports.input
+}

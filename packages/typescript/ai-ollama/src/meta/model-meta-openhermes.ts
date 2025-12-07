@@ -1,0 +1,77 @@
+import type { ChatRequest } from 'ollama'
+
+interface ModelMeta<TProviderOptions = unknown> {
+  name: string
+  providerOptions?: TProviderOptions
+  supports?: {
+    input?: Array<'text' | 'image' | 'video'>
+    output?: Array<'text' | 'image' | 'video'>
+    capabilities?: Array<'tools' | 'thinking' | 'vision' | 'embedding'>
+  }
+  size?: string
+  context?: number
+}
+
+const OPENHERMES_LATEST = {
+  name: 'openhermes:latest',
+  supports: {
+    input: ['text'],
+    output: ['text'],
+    capabilities: [],
+  },
+  size: '4.1gb',
+  context: 32_000,
+} as const satisfies ModelMeta<any>
+
+const OPENHERMES_V2 = {
+  name: 'openhermes:v2',
+  supports: {
+    input: ['text'],
+    output: ['text'],
+    capabilities: [],
+  },
+  size: '4.1gb',
+  context: 32_000,
+} as const satisfies ModelMeta<any>
+
+const OPENHERMES_V2_5 = {
+  name: 'openhermes:v2.5',
+  supports: {
+    input: ['text'],
+    output: ['text'],
+    capabilities: [],
+  },
+  size: '4.1gb',
+  context: 32_000,
+} as const satisfies ModelMeta<any>
+
+export const OPENHERMES_MODELS = [
+  OPENHERMES_LATEST.name,
+  OPENHERMES_V2.name,
+  OPENHERMES_V2_5.name,
+] as const
+
+const OPENHERMES_IMAGE_MODELS = [] as const
+
+export const OPENHERMES_EMBEDDING_MODELS = [] as const
+
+const OPENHERMES_AUDIO_MODELS = [] as const
+
+const OPENHERMES_VIDEO_MODELS = [] as const
+
+// export type OpenhermesChatModels = (typeof OPENHERMES_MODELS)[number]
+
+// Manual type map for per-model provider options
+export type OpenhermesChatModelProviderOptionsByName = {
+  // Models with thinking and structured output support
+  [OPENHERMES_LATEST.name]: ChatRequest
+  [OPENHERMES_V2.name]: ChatRequest
+  [OPENHERMES_V2_5.name]: ChatRequest
+}
+
+export type OpenhermesModelInputModalitiesByName = {
+  // Models with text, image, audio, video (no document)
+  [OPENHERMES_LATEST.name]: typeof OPENHERMES_LATEST.supports.input
+  [OPENHERMES_V2.name]: typeof OPENHERMES_V2.supports.input
+  [OPENHERMES_V2_5.name]: typeof OPENHERMES_V2_5.supports.input
+}

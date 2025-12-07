@@ -4,6 +4,6 @@
     "outDir": "dist",
     "rootDir": "src"
   },
-  "include": ["src/**/*.ts", "src/**/*.tsx"],
+  "include": ["src/**/*.ts", "src/**/*.tsx", "src/meta/model-meta-devstralts"],
   "exclude": ["node_modules", "dist", "**/*.config.ts"]
 }
