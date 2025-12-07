@@ -315,11 +315,16 @@ class ChatEngine<
   ): void {
     this.toolCallManager.completeToolCall(chunk.toolCallId, chunk.input)
     if (chunk.result !== undefined) {
+      // Serialize result to string
+      const resultString =
+        typeof chunk.result === 'string'
+          ? chunk.result
+          : JSON.stringify(chunk.result)
       aiEventClient.emit('stream:chunk:tool-result', {
         streamId: this.streamId,
         messageId: this.currentMessageId || undefined,
         toolCallId: chunk.toolCallId,
-        result: chunk.result,
+        result: resultString,
         timestamp: Date.now(),
       })
     }
