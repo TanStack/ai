@@ -53,55 +53,8 @@ type BedrockConversePayload = Omit<ConverseRequest, 'modelId'>
 type BedrockConverseStreamPayload = Omit<ConverseStreamRequest, 'modelId'>
 type BedrockStreamEvent = ConverseStreamOutput
 
-/**
- * TanStack AI finish reason type
- */
-type FinishReason = 'stop' | 'tool_calls' | 'length' | 'content_filter'
-
-/**
- * Maps Bedrock StopReason to TanStack AI finish reason.
- * Uses the SDK's StopReason type for exhaustive handling.
- *
- * @param stopReason - The Bedrock stop reason from the stream event
- * @param hasToolCalls - Whether tool calls were made in this response
- * @returns The normalized TanStack AI finish reason
- */
-function mapBedrockStopReason(
-  stopReason: StopReason | undefined,
-  hasToolCalls: boolean,
-): FinishReason {
-  if (hasToolCalls || stopReason === 'tool_use') {
-    return 'tool_calls'
-  }
-
-  switch (stopReason) {
-    case 'max_tokens':
-    case 'model_context_window_exceeded':
-      return 'length'
-    case 'content_filtered':
-    case 'guardrail_intervened':
-      return 'content_filter'
-    case 'end_turn':
-    case 'stop_sequence':
-    case undefined:
-    default:
-      return 'stop'
-  }
-}
-
-/**
- * Maps Bedrock TokenUsage to TanStack AI usage format.
- *
- * @param usage - The Bedrock token usage from the metadata event
- * @returns The normalized TanStack AI usage object
- */
-function mapBedrockTokenUsage(usage: TokenUsage | undefined): {
-  promptTokens: number
-  completionTokens: number
-  totalTokens: number
-} | undefined {
+function mapTokenUsage(usage: TokenUsage | undefined) {
   if (!usage) return undefined
-
   return {
     promptTokens: usage.inputTokens ?? 0,
     completionTokens: usage.outputTokens ?? 0,
@@ -376,7 +329,7 @@ export class Bedrock extends BaseAdapter<
     const result = (await response.json()) as ConverseResponse
     const outputMessage = result.output?.message
     const summary = outputMessage?.content?.map((block) => block.text || '').join('') ?? ''
-    const usage = mapBedrockTokenUsage(result.usage)
+    const usage = mapTokenUsage(result.usage)
 
     return {
       id: this.generateId(),
@@ -842,7 +795,7 @@ export class Bedrock extends BaseAdapter<
       { id: string; name: string; input: string }
     >()
     let currentBlockIndex = -1
-    let pendingFinishReason: FinishReason | null = null
+    let pendingFinishReason: 'stop' | 'tool_calls' | 'length' | 'content_filter' | null = null
 
     const reader = response.body?.getReader()
     if (!reader) {
@@ -967,15 +920,22 @@ export class Bedrock extends BaseAdapter<
               }
 
               if (event.messageStop) {
-                pendingFinishReason = mapBedrockStopReason(
-                  event.messageStop.stopReason,
-                  toolCallMap.size > 0,
-                )
+                const stopReason: StopReason | undefined = event.messageStop.stopReason
+                const hasToolCalls = toolCallMap.size > 0
+                if (hasToolCalls || stopReason === 'tool_use') {
+                  pendingFinishReason = 'tool_calls'
+                } else if (stopReason === 'max_tokens' || stopReason === 'model_context_window_exceeded') {
+                  pendingFinishReason = 'length'
+                } else if (stopReason === 'content_filtered' || stopReason === 'guardrail_intervened') {
+                  pendingFinishReason = 'content_filter'
+                } else {
+                  pendingFinishReason = 'stop'
+                }
               }
 
               if (event.metadata) {
                 const finishReason = pendingFinishReason ?? 'stop'
-                const usage = mapBedrockTokenUsage(event.metadata.usage)
+                const usage = mapTokenUsage(event.metadata.usage)
 
                 yield {
                   type: 'done',
