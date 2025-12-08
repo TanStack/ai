@@ -1,14 +1,10 @@
 import { Link } from '@tanstack/react-router'
-import { Route as homeRoute } from '@/routes'
-import { Route as ordersRoute } from '@/routes/_layout/orders'
-import { Route as disputesRoute } from '@/routes/_layout/disputes'
-import { Route as settlementsRoute } from '@/routes/_layout/settlements'
 
 const NAVIGATION = [
-  { name: 'Home', to: homeRoute.to },
-  { name: 'Orders', to: ordersRoute.to },
-  { name: 'Disputes', to: disputesRoute.to },
-  { name: 'Settlements', to: settlementsRoute.to },
+  { name: 'Home', to: '/' },
+  { name: 'Orders', to: '/orders' },
+  { name: 'Disputes', to: '/disputes' },
+  { name: 'Settlements', to: '/settlements' },
 ]
 
 function Navigation() {
