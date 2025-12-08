@@ -1,5 +1,6 @@
-import type { Tool } from '@tanstack/ai'
-import type { BedrockToolSpec } from './custom-tool'
+import type { Tool as AiTool } from '@tanstack/ai'
+import type { Tool } from '@aws-sdk/client-bedrock-runtime'
+import type { DocumentType } from '@smithy/types'
 
 const BASH_INPUT_SCHEMA = {
   type: 'object',
@@ -10,12 +11,12 @@ const BASH_INPUT_SCHEMA = {
   required: ['command'],
 } as const
 
-export function convertBashToolToAdapterFormat(tool: Tool): BedrockToolSpec {
+export function convertBashToolToAdapterFormat(tool: AiTool): Tool {
   return {
     toolSpec: {
       name: tool.name,
       inputSchema: {
-        json: BASH_INPUT_SCHEMA as unknown as Record<string, unknown>,
+        json: BASH_INPUT_SCHEMA as unknown as DocumentType,
       },
     },
   }

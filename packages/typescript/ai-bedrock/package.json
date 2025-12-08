@@ -46,6 +46,8 @@
     "aws4fetch": "^1.0.20"
   },
   "devDependencies": {
+    "@aws-sdk/client-bedrock": "^3.947.0",
+    "@aws-sdk/client-bedrock-runtime": "^3.947.0",
     "@vitest/coverage-v8": "4.0.14",
     "vite": "^7.2.4"
   },

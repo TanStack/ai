@@ -1,5 +1,6 @@
-import type { Tool } from '@tanstack/ai'
-import type { BedrockToolSpec } from './custom-tool'
+import type { Tool as AiTool } from '@tanstack/ai'
+import type { Tool } from '@aws-sdk/client-bedrock-runtime'
+import type { DocumentType } from '@smithy/types'
 
 const TEXT_EDITOR_INPUT_SCHEMA = {
   type: 'object',
@@ -22,13 +23,13 @@ const TEXT_EDITOR_INPUT_SCHEMA = {
 } as const
 
 export function convertTextEditorToolToAdapterFormat(
-  tool: Tool,
-): BedrockToolSpec {
+  tool: AiTool,
+): Tool {
   return {
     toolSpec: {
       name: tool.name,
       inputSchema: {
-        json: TEXT_EDITOR_INPUT_SCHEMA as unknown as Record<string, unknown>,
+        json: TEXT_EDITOR_INPUT_SCHEMA as unknown as DocumentType,
       },
     },
   }

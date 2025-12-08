@@ -2,11 +2,29 @@ import { AwsV4Signer } from 'aws4fetch'
 import { EventStreamCodec } from '@smithy/eventstream-codec'
 import { fromUtf8, toUtf8 } from '@smithy/util-utf8'
 import { BaseAdapter } from '@tanstack/ai'
-import {
-  BEDROCK_EMBEDDING_MODELS,
-  BEDROCK_MODELS,
-} from './model-meta'
+import { BEDROCK_EMBEDDING_MODELS, BEDROCK_MODELS } from './model-meta'
 import { convertToolsToProviderFormat } from './tools/tool-converter'
+import type {
+  ContentBlock,
+  ConverseRequest,
+  ConverseResponse,
+  ConverseStreamOutput,
+  ConverseStreamRequest,
+  DocumentFormat,
+  ImageFormat,
+  InferenceConfiguration,
+  Message,
+  StopReason,
+  SystemContentBlock,
+  TokenUsage,
+  ToolConfiguration,
+  VideoFormat,
+} from '@aws-sdk/client-bedrock-runtime'
+import type {
+  AwsCredentialIdentity,
+  AwsCredentialIdentityProvider,
+  DocumentType,
+} from '@smithy/types'
 import type {
   ChatOptions,
   ContentPart,
@@ -23,146 +41,95 @@ import type {
 } from './model-meta'
 import type { BedrockProviderOptions } from './text/text-provider-options'
 import type {
-  BedrockDocumentFormat,
   BedrockDocumentMetadata,
-  BedrockImageFormat,
   BedrockImageMetadata,
   BedrockMessageMetadataByModality,
-  BedrockVideoFormat,
   BedrockVideoMetadata,
 } from './message-types'
+
+type BedrockMessage = Message
+type BedrockContentBlock = ContentBlock
+type BedrockConversePayload = Omit<ConverseRequest, 'modelId'>
+type BedrockConverseStreamPayload = Omit<ConverseStreamRequest, 'modelId'>
+type BedrockStreamEvent = ConverseStreamOutput
+
+/**
+ * TanStack AI finish reason type
+ */
+type FinishReason = 'stop' | 'tool_calls' | 'length' | 'content_filter'
+
+/**
+ * Maps Bedrock StopReason to TanStack AI finish reason.
+ * Uses the SDK's StopReason type for exhaustive handling.
+ *
+ * @param stopReason - The Bedrock stop reason from the stream event
+ * @param hasToolCalls - Whether tool calls were made in this response
+ * @returns The normalized TanStack AI finish reason
+ */
+function mapBedrockStopReason(
+  stopReason: StopReason | undefined,
+  hasToolCalls: boolean,
+): FinishReason {
+  if (hasToolCalls || stopReason === 'tool_use') {
+    return 'tool_calls'
+  }
+
+  switch (stopReason) {
+    case 'max_tokens':
+    case 'model_context_window_exceeded':
+      return 'length'
+    case 'content_filtered':
+    case 'guardrail_intervened':
+      return 'content_filter'
+    case 'end_turn':
+    case 'stop_sequence':
+    case undefined:
+    default:
+      return 'stop'
+  }
+}
+
+/**
+ * Maps Bedrock TokenUsage to TanStack AI usage format.
+ *
+ * @param usage - The Bedrock token usage from the metadata event
+ * @returns The normalized TanStack AI usage object
+ */
+function mapBedrockTokenUsage(usage: TokenUsage | undefined): {
+  promptTokens: number
+  completionTokens: number
+  totalTokens: number
+} | undefined {
+  if (!usage) return undefined
+
+  return {
+    promptTokens: usage.inputTokens ?? 0,
+    completionTokens: usage.outputTokens ?? 0,
+    totalTokens: usage.totalTokens ?? 0,
+  }
+}
+
+function toUint8Array(base64: string): Uint8Array {
+  if (typeof Buffer !== 'undefined') {
+    return Uint8Array.from(Buffer.from(base64, 'base64'))
+  }
+
+  if (typeof atob !== 'undefined') {
+    const binary = atob(base64)
+    const bytes = new Uint8Array(binary.length)
+    for (let i = 0; i < binary.length; i++) {
+      bytes[i] = binary.charCodeAt(i)
+    }
+    return bytes
+  }
+
+  throw new Error('Inline data sources require base64 decoding, which is not available in this environment')
+}
 
 /**
  * AWS credentials returned by a credential provider
  */
-export interface BedrockCredentials {
-  accessKeyId: string
-  secretAccessKey: string
-  sessionToken?: string
-}
-
-interface BedrockTextBlock {
-  text: string
-}
-
-interface BedrockImageBlock {
-  image: {
-    format: BedrockImageFormat
-    source: { bytes: string } | { s3Location: { uri: string; bucketOwner?: string } }
-  }
-}
-
-interface BedrockVideoBlock {
-  video: {
-    format: BedrockVideoFormat
-    source: { bytes: string } | { s3Location: { uri: string; bucketOwner?: string } }
-  }
-}
-
-interface BedrockDocumentBlock {
-  document: {
-    format: BedrockDocumentFormat
-    name: string
-    source:
-      | { bytes: string }
-      | { s3Location: { uri: string; bucketOwner?: string } }
-      | { text: string }
-  }
-}
-
-interface BedrockToolUseBlock {
-  toolUse: {
-    toolUseId: string
-    name: string
-    input: Record<string, unknown>
-  }
-}
-
-interface BedrockToolResultBlock {
-  toolResult: {
-    toolUseId: string
-    content: Array<BedrockTextBlock | BedrockImageBlock>
-  }
-}
-
-type BedrockContentBlock =
-  | BedrockTextBlock
-  | BedrockImageBlock
-  | BedrockVideoBlock
-  | BedrockDocumentBlock
-  | BedrockToolUseBlock
-  | BedrockToolResultBlock
-
-interface BedrockMessage {
-  role: 'user' | 'assistant'
-  content: Array<BedrockContentBlock>
-}
-
-interface BedrockConverseInput {
-  messages: Array<BedrockMessage>
-  system?: Array<{ text: string }>
-  inferenceConfig?: {
-    maxTokens?: number
-    temperature?: number
-    topP?: number
-    topK?: number
-    stopSequences?: Array<string>
-  }
-  toolConfig?: {
-    tools?: Array<{
-      toolSpec: {
-        name: string
-        description?: string
-        inputSchema: { json: Record<string, unknown> }
-      }
-    }>
-    toolChoice?: { auto: object } | { any: object } | { tool: { name: string } }
-  }
-  additionalModelRequestFields?: Record<string, unknown>
-  performanceConfig?: {
-    latency: 'standard' | 'optimized'
-  }
-  serviceTier?: {
-    type: 'priority' | 'default' | 'flex' | 'reserved'
-  }
-  requestMetadata?: Record<string, string>
-}
-
-interface BedrockStreamEvent {
-  messageStart?: { role: string }
-  contentBlockStart?: {
-    contentBlockIndex?: number
-    start?: {
-      toolUse?: {
-        toolUseId?: string
-        name?: string
-      }
-    }
-  }
-  contentBlockDelta?: {
-    contentBlockIndex?: number
-    delta?: {
-      text?: string
-      reasoningContent?: { text?: string }
-      toolUse?: { input?: string }
-    }
-  }
-  contentBlockStop?: { contentBlockIndex?: number }
-  messageStop?: { stopReason?: string }
-  metadata?: {
-    usage?: {
-      inputTokens?: number
-      outputTokens?: number
-      totalTokens?: number
-      cacheReadInputTokens?: number
-      cacheWriteInputTokens?: number
-    }
-  }
-  internalServerException?: { message?: string }
-  modelStreamErrorException?: { message?: string }
-  throttlingException?: { message?: string }
-  validationException?: { message?: string }
-}
+export type BedrockCredentials = AwsCredentialIdentity
 
 /**
  * Configuration options for the Bedrock adapter.
@@ -275,7 +242,7 @@ export interface BedrockConfig {
    * }
    * ```
    */
-  credentialProvider?: () => Promise<BedrockCredentials>
+  credentialProvider?: AwsCredentialIdentityProvider
 
   /**
    * Custom base URL for Bedrock API.
@@ -382,7 +349,7 @@ export class Bedrock extends BaseAdapter<
     const modelId = encodeURIComponent(options.model)
     const url = `${this._resolvedBaseURL}/model/${modelId}/converse`
 
-    const converseInput: BedrockConverseInput = {
+    const converseInput: BedrockConversePayload = {
       messages: [
         {
           role: 'user',
@@ -392,7 +359,6 @@ export class Bedrock extends BaseAdapter<
       system: [{ text: prompt }],
       inferenceConfig: {
         maxTokens: options.maxLength || 500,
-        temperature: 0.7,
       },
     }
 
@@ -407,23 +373,19 @@ export class Bedrock extends BaseAdapter<
       throw new Error(`Bedrock API error (${response.status}): ${errorText}`)
     }
 
-    const result = (await response.json()) as {
-      output: { message: { content: Array<{ text?: string }> } }
-      usage: { inputTokens: number; outputTokens: number; totalTokens: number }
-    }
-
-    const summary = result.output.message.content
-      .map((block) => block.text || '')
-      .join('')
+    const result = (await response.json()) as ConverseResponse
+    const outputMessage = result.output?.message
+    const summary = outputMessage?.content?.map((block) => block.text || '').join('') ?? ''
+    const usage = mapBedrockTokenUsage(result.usage)
 
     return {
       id: this.generateId(),
       model: options.model,
       summary,
-      usage: {
-        promptTokens: result.usage.inputTokens,
-        completionTokens: result.usage.outputTokens,
-        totalTokens: result.usage.totalTokens,
+      usage: usage ?? {
+        promptTokens: 0,
+        completionTokens: 0,
+        totalTokens: 0,
       },
     }
   }
@@ -603,11 +565,14 @@ export class Bedrock extends BaseAdapter<
 
   private mapCommonOptionsToBedrock(
     options: ChatOptions<string, BedrockProviderOptions>,
-  ): BedrockConverseInput {
+  ): BedrockConverseStreamPayload {
     const { messages } = this.formatMessages(options.messages)
     const providerOptions = options.providerOptions
 
-    const inferenceConfig: BedrockConverseInput['inferenceConfig'] = {}
+    const inferenceConfig: Partial<InferenceConfiguration> = {}
+    const additionalModelRequestFields: Record<string, DocumentType> = {
+      ...(providerOptions?.additionalModelRequestFields ?? {}),
+    }
     if (options.options?.maxTokens != null) {
       inferenceConfig.maxTokens = options.options.maxTokens
     }
@@ -621,18 +586,18 @@ export class Bedrock extends BaseAdapter<
       inferenceConfig.topP = options.options.topP
     }
     if (providerOptions?.topK != null) {
-      inferenceConfig.topK = providerOptions.topK
+      additionalModelRequestFields.topK = providerOptions.topK
     }
     if (providerOptions?.stopSequences != null) {
       inferenceConfig.stopSequences = providerOptions.stopSequences
     }
 
-    const systemMessages: Array<{ text: string }> = []
+    const systemMessages: Array<SystemContentBlock> = []
     if (options.systemPrompts?.length) {
       systemMessages.push({ text: options.systemPrompts.join('\n') })
     }
 
-    const converseInput: BedrockConverseInput = {
+    const converseInput: BedrockConverseStreamPayload = {
       messages,
       ...(systemMessages.length > 0 && { system: systemMessages }),
       ...(Object.keys(inferenceConfig).length > 0 && { inferenceConfig }),
@@ -643,31 +608,30 @@ export class Bedrock extends BaseAdapter<
         options.tools,
         options.model,
       )
-      converseInput.toolConfig = {
+
+      const toolConfig: ToolConfiguration = {
         tools: bedrockTools,
       }
 
       if (providerOptions?.toolChoice) {
-        converseInput.toolConfig.toolChoice = providerOptions.toolChoice
+        toolConfig.toolChoice = providerOptions.toolChoice
       }
-    }
 
-    if (providerOptions?.additionalModelRequestFields) {
-      converseInput.additionalModelRequestFields =
-        providerOptions.additionalModelRequestFields
+      converseInput.toolConfig = toolConfig
     }
 
     if (providerOptions?.reasoningConfig) {
       const reasoningConfig = providerOptions.reasoningConfig
-      converseInput.additionalModelRequestFields = {
-        ...converseInput.additionalModelRequestFields,
-        thinking: {
-          type: reasoningConfig.type,
-          ...(reasoningConfig.budgetTokens != null && {
-            budget_tokens: reasoningConfig.budgetTokens,
-          }),
-        },
+      additionalModelRequestFields.thinking = {
+        type: reasoningConfig.type,
+        ...(reasoningConfig.budgetTokens != null && {
+          budget_tokens: reasoningConfig.budgetTokens,
+        }),
       }
+    }
+
+    if (Object.keys(additionalModelRequestFields).length > 0) {
+      converseInput.additionalModelRequestFields = additionalModelRequestFields
     }
 
     if (providerOptions?.performanceConfig) {
@@ -693,7 +657,7 @@ export class Bedrock extends BaseAdapter<
     for (const message of messages) {
       if (message.role === 'tool' && message.toolCallId) {
         const lastMessage = bedrockMessages[bedrockMessages.length - 1]
-        const toolResultBlock: BedrockToolResultBlock = {
+        const toolResultBlock: BedrockContentBlock = {
           toolResult: {
             toolUseId: message.toolCallId,
             content: [
@@ -707,7 +671,7 @@ export class Bedrock extends BaseAdapter<
           },
         }
 
-        if (lastMessage?.role === 'user') {
+        if (lastMessage?.role === 'user' && lastMessage.content) {
           lastMessage.content.push(toolResultBlock)
         } else {
           bedrockMessages.push({
@@ -730,14 +694,9 @@ export class Bedrock extends BaseAdapter<
 
       if (message.role === 'assistant' && message.toolCalls?.length) {
         for (const toolCall of message.toolCalls) {
-          let parsedInput: Record<string, unknown> = {}
-          try {
-            parsedInput = toolCall.function.arguments
-              ? JSON.parse(toolCall.function.arguments)
-              : {}
-          } catch {
-            parsedInput = {}
-          }
+          const parsedInput = this.parseToolArguments(
+            toolCall.function.arguments,
+          )
           bedrockContent.push({
             toolUse: {
               toolUseId: toolCall.id,
@@ -760,43 +719,91 @@ export class Bedrock extends BaseAdapter<
   }
 
   private convertContentPartToBedrock(part: ContentPart): BedrockContentBlock {
+    const DEFAULT_IMAGE_FORMAT: ImageFormat = 'jpeg'
+    const DEFAULT_VIDEO_FORMAT: VideoFormat = 'mp4'
+    const DEFAULT_DOCUMENT_FORMAT: DocumentFormat = 'pdf'
+
     switch (part.type) {
       case 'text':
         return { text: part.content }
       case 'image': {
         const metadata = part.metadata as BedrockImageMetadata | undefined
-        const source = metadata?.s3Location
-          ? { s3Location: metadata.s3Location }
-          : { bytes: part.source.value }
-        return {
-          image: {
-            format: metadata?.format ?? 'jpeg',
-            source,
-          },
+        const format = metadata?.format ?? DEFAULT_IMAGE_FORMAT
+
+        if (metadata?.s3Location) {
+          return {
+            image: {
+              format,
+              source: { s3Location: metadata.s3Location },
+            },
+          }
         }
+
+        if (part.source.type === 'data') {
+          return {
+            image: {
+              format,
+              source: { bytes: toUint8Array(part.source.value) },
+            },
+          }
+        }
+
+        throw new Error('Bedrock only supports image sources as inline base64 data or S3 locations')
       }
       case 'video': {
         const metadata = part.metadata as BedrockVideoMetadata | undefined
-        const source = metadata?.s3Location
-          ? { s3Location: metadata.s3Location }
-          : { bytes: part.source.value }
-        return {
-          video: {
-            format: metadata?.format ?? 'mp4',
-            source,
-          },
+        const format = metadata?.format ?? DEFAULT_VIDEO_FORMAT
+
+        if (metadata?.s3Location) {
+          return {
+            video: {
+              format,
+              source: { s3Location: metadata.s3Location },
+            },
+          }
         }
+
+        if (part.source.type === 'data') {
+          return {
+            video: {
+              format,
+              source: { bytes: toUint8Array(part.source.value) },
+            },
+          }
+        }
+
+        throw new Error('Bedrock only supports video sources as inline base64 data or S3 locations')
       }
       case 'document': {
         const metadata = part.metadata as BedrockDocumentMetadata | undefined
-        const source = metadata?.s3Location
-          ? { s3Location: metadata.s3Location }
-          : { bytes: part.source.value }
+        const format = metadata?.format ?? DEFAULT_DOCUMENT_FORMAT
+        const name = metadata?.name ?? `document-${Date.now()}`
+
+        if (metadata?.s3Location) {
+          return {
+            document: {
+              format,
+              name,
+              source: { s3Location: metadata.s3Location },
+            },
+          }
+        }
+
+        if (part.source.type === 'data') {
+          return {
+            document: {
+              format,
+              name,
+              source: { bytes: toUint8Array(part.source.value) },
+            },
+          }
+        }
+
         return {
           document: {
-            format: metadata?.format ?? 'pdf',
-            name: metadata?.name ?? `document-${Date.now()}`,
-            source,
+            format,
+            name,
+            source: { text: part.source.value },
           },
         }
       }
@@ -813,6 +820,16 @@ export class Bedrock extends BaseAdapter<
     }
   }
 
+  private parseToolArguments(args?: string): DocumentType {
+    if (!args) return {} as DocumentType
+
+    try {
+      return JSON.parse(args) as DocumentType
+    } catch {
+      return {} as DocumentType
+    }
+  }
+
   private async *processBedrockStream(
     response: Response,
     model: string,
@@ -825,12 +842,7 @@ export class Bedrock extends BaseAdapter<
       { id: string; name: string; input: string }
     >()
     let currentBlockIndex = -1
-    let pendingFinishReason:
-      | 'stop'
-      | 'tool_calls'
-      | 'length'
-      | 'content_filter'
-      | null = null
+    let pendingFinishReason: FinishReason | null = null
 
     const reader = response.body?.getReader()
     if (!reader) {
@@ -884,13 +896,13 @@ export class Bedrock extends BaseAdapter<
               }
 
               if (event.contentBlockStart) {
-                currentBlockIndex =
-                  event.contentBlockStart.contentBlockIndex ?? 0
-                if (event.contentBlockStart.start?.toolUse) {
-                  const toolUse = event.contentBlockStart.start.toolUse
+                currentBlockIndex = event.contentBlockStart.contentBlockIndex ?? 0
+
+                const toolUseStart = event.contentBlockStart.start?.toolUse
+                if (toolUseStart) {
                   toolCallMap.set(currentBlockIndex, {
-                    id: toolUse.toolUseId || this.generateId(),
-                    name: toolUse.name || '',
+                    id: toolUseStart.toolUseId || this.generateId(),
+                    name: toolUseStart.name || '',
                     input: '',
                   })
                 }
@@ -933,8 +945,7 @@ export class Bedrock extends BaseAdapter<
               }
 
               if (event.contentBlockStop) {
-                const blockIndex =
-                  event.contentBlockStop.contentBlockIndex ?? currentBlockIndex
+                const blockIndex = event.contentBlockStop.contentBlockIndex ?? currentBlockIndex
                 const toolData = toolCallMap.get(blockIndex)
                 if (toolData) {
                   yield {
@@ -956,42 +967,23 @@ export class Bedrock extends BaseAdapter<
               }
 
               if (event.messageStop) {
-                const stopReason = event.messageStop.stopReason
-                let finishReason: 'stop' | 'tool_calls' | 'length' | 'content_filter' =
-                  'stop'
-
-                if (stopReason === 'tool_use' || toolCallMap.size > 0) {
-                  finishReason = 'tool_calls'
-                } else if (
-                  stopReason === 'max_tokens' ||
-                  stopReason === 'model_context_window_exceeded'
-                ) {
-                  finishReason = 'length'
-                } else if (
-                  stopReason === 'content_filtered' ||
-                  stopReason === 'guardrail_intervened'
-                ) {
-                  finishReason = 'content_filter'
-                }
-
-                pendingFinishReason = finishReason
+                pendingFinishReason = mapBedrockStopReason(
+                  event.messageStop.stopReason,
+                  toolCallMap.size > 0,
+                )
               }
 
               if (event.metadata) {
                 const finishReason = pendingFinishReason ?? 'stop'
+                const usage = mapBedrockTokenUsage(event.metadata.usage)
+
                 yield {
                   type: 'done',
                   id: this.generateId(),
                   model,
                   timestamp,
                   finishReason,
-                  usage: event.metadata.usage
-                    ? {
-                        promptTokens: event.metadata.usage.inputTokens ?? 0,
-                        completionTokens: event.metadata.usage.outputTokens ?? 0,
-                        totalTokens: event.metadata.usage.totalTokens ?? 0,
-                      }
-                    : undefined,
+                  usage,
                 }
                 pendingFinishReason = null
               }
@@ -1013,7 +1005,7 @@ export class Bedrock extends BaseAdapter<
                   model,
                   timestamp,
                   error: {
-                    message: errorObj?.message || 'Bedrock stream error',
+                    message: errorObj.message || 'Bedrock stream error',
                   },
                 }
               }
@@ -1070,18 +1062,23 @@ export class Bedrock extends BaseAdapter<
 /**
  * Creates a Bedrock adapter with the provided configuration.
  *
- * @param config - Bedrock configuration options
+ * Supports two calling patterns for flexibility:
+ * 1. `createBedrock(apiKey)` or `createBedrock(apiKey, config)` - Simple API key auth
+ * 2. `createBedrock(config)` - Full config object for SigV4 or advanced options
+ *
+ * @param apiKeyOrConfig - API key string or full configuration object
+ * @param config - Optional additional configuration when first arg is API key
  * @returns A configured Bedrock adapter instance
  *
- * @example API Key Authentication
+ * @example Simple API Key (like OpenAI/Anthropic)
  * ```typescript
- * const bedrockAdapter = createBedrock({
- *   apiKey: 'your-bedrock-api-key',
- *   region: 'us-east-1'
- * });
+ * const bedrock = createBedrock('your-bedrock-api-key');
+ * ```
  *
- * const ai = new AI({
- *   adapters: { bedrock: bedrockAdapter }
+ * @example API Key with Region
+ * ```typescript
+ * const bedrock = createBedrock('your-bedrock-api-key', {
+ *   region: 'us-east-1'
  * });
  * ```
  *
@@ -1106,15 +1103,26 @@ export class Bedrock extends BaseAdapter<
  * });
  * ```
  */
-export function createBedrock(config?: BedrockConfig): Bedrock {
-  return new Bedrock(config ?? {})
+export function createBedrock(
+  apiKey: string,
+  config?: Omit<BedrockConfig, 'apiKey'>,
+): Bedrock
+export function createBedrock(config?: BedrockConfig): Bedrock
+export function createBedrock(
+  apiKeyOrConfig?: string | BedrockConfig,
+  maybeConfig?: Omit<BedrockConfig, 'apiKey'>,
+): Bedrock {
+  if (typeof apiKeyOrConfig === 'string') {
+    return new Bedrock({ apiKey: apiKeyOrConfig, ...(maybeConfig ?? {}) })
+  }
+  return new Bedrock(apiKeyOrConfig ?? {})
 }
 
 /**
- * Creates a Bedrock adapter with automatic environment variable detection.
+ * Create a Bedrock adapter with automatic environment variable detection.
  *
- * This is an alias for `createBedrock()` that provides a cleaner API.
- * Authentication is automatically detected from environment variables:
+ * Authentication is automatically detected from environment variables.
+ * Throws an error if no valid authentication is configured.
  *
  * **Authentication (checked in order):**
  * 1. `AWS_BEARER_TOKEN_BEDROCK` - API key for Bearer token auth
@@ -1131,6 +1139,7 @@ export function createBedrock(config?: BedrockConfig): Bedrock {
  *
  * @param config - Optional configuration to override environment defaults
  * @returns Configured Bedrock adapter instance
+ * @throws Error if no authentication credentials are found
  *
  * @example Basic Usage (relies on environment variables)
  * ```typescript
@@ -1145,8 +1154,7 @@ export function createBedrock(config?: BedrockConfig): Bedrock {
  * const ai = new AI({
  *   adapters: {
  *     bedrock: bedrock({
- *       region: 'eu-central-1',
- *       baseURL: 'https://custom-endpoint.example.com'
+ *       region: 'eu-central-1'
  *     })
  *   }
  * });

@@ -1,25 +1,21 @@
+import type {
+  PerformanceConfigLatency,
+  ServiceTierType,
+  ToolChoice,
+} from '@aws-sdk/client-bedrock-runtime'
+import type { DocumentType } from '@smithy/types'
+
 /**
  * Bedrock provider options interfaces
  * Split by feature for per-model type-safety
+ *
+ * Note: Common options (maxTokens, temperature, topP) are passed via ChatOptions.options,
+ * not via providerOptions. These interfaces only contain Bedrock-specific options.
  *
  * @see https://docs.aws.amazon.com/bedrock/latest/userguide/conversation-inference.html
  */
 
 export interface BedrockBaseOptions {
-  /**
-   * The maximum number of tokens to generate in the response.
-   */
-  maxTokens?: number
-  /**
-   * Controls randomness in the output. Higher values produce more random results.
-   * Range: 0.0 to 1.0
-   */
-  temperature?: number
-  /**
-   * Nucleus sampling parameter. Only consider tokens with cumulative probability up to this value.
-   * Range: 0.0 to 1.0
-   */
-  topP?: number
   /**
    * Only sample from the top K options for each subsequent token.
    * Not all models support this parameter.
@@ -36,7 +32,7 @@ export interface BedrockAdditionalFieldsOptions {
    * Escape hatch for provider-specific fields not exposed by the Converse API.
    * Use this to pass model-specific parameters directly.
    */
-  additionalModelRequestFields?: Record<string, unknown>
+  additionalModelRequestFields?: Record<string, DocumentType>
 }
 
 export interface BedrockPerformanceOptions {
@@ -54,7 +50,7 @@ export interface BedrockPerformanceOptions {
    * @see https://docs.aws.amazon.com/bedrock/latest/userguide/latency-optimized-inference.html
    */
   performanceConfig?: {
-    latency: 'standard' | 'optimized'
+    latency: PerformanceConfigLatency
   }
 }
 
@@ -70,7 +66,7 @@ export interface BedrockServiceTierOptions {
    * @see https://docs.aws.amazon.com/bedrock/latest/userguide/service-tiers.html
    */
   serviceTier?: {
-    type: 'priority' | 'default' | 'flex' | 'reserved'
+    type: ServiceTierType
   }
 }
 
@@ -117,7 +113,7 @@ export interface BedrockToolChoiceOptions {
    *
    * @see https://docs.aws.amazon.com/bedrock/latest/APIReference/API_runtime_ToolChoice.html
    */
-  toolChoice?: { auto: object } | { any: object } | { tool: { name: string } }
+  toolChoice?: ToolChoice
 }
 
 export interface BedrockAnthropicReasoningOptions {

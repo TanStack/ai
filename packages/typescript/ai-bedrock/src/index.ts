@@ -5,12 +5,7 @@ export {
   type BedrockConfig,
   type BedrockCredentials,
 } from './bedrock-adapter'
-export {
-  isAnthropicModel,
-  isInferenceProfileId,
-  toInferenceProfileId,
-  type InferenceProfileRegion,
-} from './model-meta'
+export { BEDROCK_EMBEDDING_MODELS, BEDROCK_MODELS } from './model-meta'
 export type {
   BedrockChatModelProviderOptionsByName,
   BedrockModelInputModalitiesByName,
@@ -41,4 +36,3 @@ export type {
 } from './message-types'
 
 export { convertToolsToProviderFormat } from './tools/tool-converter'
-export type { BedrockToolSpec } from './tools/custom-tool'

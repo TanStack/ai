@@ -6,9 +6,8 @@ import { convertTextEditorToolToAdapterFormat } from './anthropic-text-editor-to
 import { convertWebFetchToolToAdapterFormat } from './anthropic-web-fetch-tool'
 import { convertWebSearchToolToAdapterFormat } from './anthropic-web-search-tool'
 import { convertCustomToolToAdapterFormat } from './custom-tool'
-import { isAnthropicModel } from '../model-meta'
-import type { Tool } from '@tanstack/ai'
-import type { BedrockToolSpec } from './custom-tool'
+import type { Tool } from '@aws-sdk/client-bedrock-runtime'
+import type { Tool as AiTool } from '@tanstack/ai'
 
 /**
  * Converts standard Tool format to Bedrock-specific tool format
@@ -35,10 +34,10 @@ import type { BedrockToolSpec } from './custom-tool'
  * ```
  */
 export function convertToolsToProviderFormat(
-  tools: Array<Tool>,
+  tools: Array<AiTool>,
   modelId: string,
-): Array<BedrockToolSpec> {
-  const isAnthropic = isAnthropicModel(modelId)
+): Array<Tool> {
+  const isAnthropic = modelId.includes('anthropic.')
 
   return tools.map((tool) => {
     const name = tool.name

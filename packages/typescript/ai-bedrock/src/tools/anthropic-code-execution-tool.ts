@@ -1,5 +1,6 @@
-import type { Tool } from '@tanstack/ai'
-import type { BedrockToolSpec } from './custom-tool'
+import type { Tool as AiTool } from '@tanstack/ai'
+import type { Tool } from '@aws-sdk/client-bedrock-runtime'
+import type { DocumentType } from '@smithy/types'
 
 const CODE_EXECUTION_INPUT_SCHEMA_20250522 = {
   type: 'object',
@@ -35,8 +36,8 @@ const CODE_EXECUTION_INPUT_SCHEMA_20250825 = {
 } as const
 
 export function convertCodeExecutionToolToAdapterFormat(
-  tool: Tool,
-): BedrockToolSpec {
+  tool: AiTool,
+): Tool {
   const metadata = tool.metadata as { type?: string } | undefined
   const toolType = metadata?.type
 
@@ -49,7 +50,7 @@ export function convertCodeExecutionToolToAdapterFormat(
     toolSpec: {
       name: tool.name,
       inputSchema: {
-        json: schema as unknown as Record<string, unknown>,
+        json: schema as unknown as DocumentType,
       },
     },
   }

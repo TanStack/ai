@@ -1,5 +1,6 @@
-import type { Tool } from '@tanstack/ai'
-import type { BedrockToolSpec } from './custom-tool'
+import type { Tool as AiTool } from '@tanstack/ai'
+import type { Tool } from '@aws-sdk/client-bedrock-runtime'
+import type { DocumentType } from '@smithy/types'
 
 const MEMORY_INPUT_SCHEMA = {
   oneOf: [
@@ -66,12 +67,12 @@ const MEMORY_INPUT_SCHEMA = {
   ],
 } as const
 
-export function convertMemoryToolToAdapterFormat(tool: Tool): BedrockToolSpec {
+export function convertMemoryToolToAdapterFormat(tool: AiTool): Tool {
   return {
     toolSpec: {
       name: tool.name,
       inputSchema: {
-        json: MEMORY_INPUT_SCHEMA as unknown as Record<string, unknown>,
+        json: MEMORY_INPUT_SCHEMA as unknown as DocumentType,
       },
     },
   }

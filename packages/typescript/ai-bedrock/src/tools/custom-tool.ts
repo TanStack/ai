@@ -1,15 +1,9 @@
 import { convertZodToJsonSchema } from '@tanstack/ai'
-import type { Tool } from '@tanstack/ai'
+import type { Tool as AiTool } from '@tanstack/ai'
+import type { Tool } from '@aws-sdk/client-bedrock-runtime'
+import type { DocumentType } from '@smithy/types'
 
-export interface BedrockToolSpec {
-  toolSpec: {
-    name: string
-    description?: string
-    inputSchema: { json: Record<string, unknown> }
-  }
-}
-
-export function convertCustomToolToAdapterFormat(tool: Tool): BedrockToolSpec {
+export function convertCustomToolToAdapterFormat(tool: AiTool): Tool {
   const jsonSchema = convertZodToJsonSchema(tool.inputSchema)
 
   return {
@@ -17,7 +11,7 @@ export function convertCustomToolToAdapterFormat(tool: Tool): BedrockToolSpec {
       name: tool.name,
       ...(tool.description && { description: tool.description }),
       inputSchema: {
-        json: jsonSchema || { type: 'object', properties: {} },
+        json: (jsonSchema || { type: 'object', properties: {} }) as DocumentType,
       },
     },
   }
