@@ -115,6 +115,7 @@ export const Route = createFileRoute('/api/tanchat')({
           })
           return toStreamResponse(stream, { abortController })
         } catch (error: any) {
+
           console.error('[API Route] Error in chat request:', {
             message: error?.message,
             name: error?.name,
