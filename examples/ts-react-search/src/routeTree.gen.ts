@@ -11,7 +11,7 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as LayoutRouteRouteImport } from './routes/_layout/route'
 import { Route as IndexRouteImport } from './routes/index'
-import { Route as ApiSearchRouteImport } from './routes/api.search'
+import { Route as ApiSearchRouteImport } from './routes/api/search'
 import { Route as LayoutSettlementsRouteImport } from './routes/_layout/settlements'
 import { Route as LayoutOrdersRouteImport } from './routes/_layout/orders'
 import { Route as LayoutDisputesRouteImport } from './routes/_layout/disputes'
