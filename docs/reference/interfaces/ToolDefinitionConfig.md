@@ -5,7 +5,7 @@ title: ToolDefinitionConfig
 
 # Interface: ToolDefinitionConfig\<TInput, TOutput, TName\>
 
-Defined in: [tools/tool-definition.ts:79](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/tools/tool-definition.ts#L79)
+Defined in: [tools/tool-definition.ts:84](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/tools/tool-definition.ts#L84)
 
 Tool definition configuration
 
@@ -13,11 +13,11 @@ Tool definition configuration
 
 ### TInput
 
-`TInput` *extends* `z.ZodType` = `z.ZodType`
+`TInput` *extends* `StandardSchemaV1` = `StandardSchemaV1`
 
 ### TOutput
 
-`TOutput` *extends* `z.ZodType` = `z.ZodType`
+`TOutput` *extends* `StandardSchemaV1` = `StandardSchemaV1`
 
 ### TName
 
@@ -31,7 +31,7 @@ Tool definition configuration
 description: string;
 ```
 
-Defined in: [tools/tool-definition.ts:85](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/tools/tool-definition.ts#L85)
+Defined in: [tools/tool-definition.ts:90](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/tools/tool-definition.ts#L90)
 
 ***
 
@@ -41,7 +41,7 @@ Defined in: [tools/tool-definition.ts:85](https://github.com/TanStack/ai/blob/ma
 optional inputSchema: TInput;
 ```
 
-Defined in: [tools/tool-definition.ts:86](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/tools/tool-definition.ts#L86)
+Defined in: [tools/tool-definition.ts:91](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/tools/tool-definition.ts#L91)
 
 ***
 
@@ -51,7 +51,7 @@ Defined in: [tools/tool-definition.ts:86](https://github.com/TanStack/ai/blob/ma
 optional metadata: Record<string, any>;
 ```
 
-Defined in: [tools/tool-definition.ts:89](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/tools/tool-definition.ts#L89)
+Defined in: [tools/tool-definition.ts:97](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/tools/tool-definition.ts#L97)
 
 ***
 
@@ -61,7 +61,7 @@ Defined in: [tools/tool-definition.ts:89](https://github.com/TanStack/ai/blob/ma
 name: TName;
 ```
 
-Defined in: [tools/tool-definition.ts:84](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/tools/tool-definition.ts#L84)
+Defined in: [tools/tool-definition.ts:89](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/tools/tool-definition.ts#L89)
 
 ***
 
@@ -71,7 +71,7 @@ Defined in: [tools/tool-definition.ts:84](https://github.com/TanStack/ai/blob/ma
 optional needsApproval: boolean;
 ```
 
-Defined in: [tools/tool-definition.ts:88](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/tools/tool-definition.ts#L88)
+Defined in: [tools/tool-definition.ts:96](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/tools/tool-definition.ts#L96)
 
 ***
 
@@ -81,4 +81,24 @@ Defined in: [tools/tool-definition.ts:88](https://github.com/TanStack/ai/blob/ma
 optional outputSchema: TOutput;
 ```
 
-Defined in: [tools/tool-definition.ts:87](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/tools/tool-definition.ts#L87)
+Defined in: [tools/tool-definition.ts:92](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/tools/tool-definition.ts#L92)
+
+***
+
+### toJsonSchema()?
+
+```ts
+optional toJsonSchema: (inputSchema) => Record<string, any> | undefined;
+```
+
+Defined in: [tools/tool-definition.ts:93](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/tools/tool-definition.ts#L93)
+
+#### Parameters
+
+##### inputSchema
+
+`StandardSchemaV1`
+
+#### Returns
+
+`Record`\<`string`, `any`\> \| `undefined`

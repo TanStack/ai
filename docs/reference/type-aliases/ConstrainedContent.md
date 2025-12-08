@@ -12,7 +12,7 @@ type ConstrainedContent<TModalities, TImageMeta, TAudioMeta, TVideoMeta, TDocume
   | ContentPartForModalities<ModalitiesArrayToUnion<TModalities>, TImageMeta, TAudioMeta, TVideoMeta, TDocumentMeta, TTextMeta>[];
 ```
 
-Defined in: [types.ts:142](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L142)
+Defined in: [types.ts:145](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L145)
 
 Type for message content constrained by supported modalities.
 When modalities is ['text', 'image'], only TextPart and ImagePart are allowed in the array.

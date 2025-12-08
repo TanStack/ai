@@ -5,7 +5,7 @@ title: UIMessage
 
 # Interface: UIMessage
 
-Defined in: [types.ts:224](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L224)
+Defined in: [types.ts:227](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L227)
 
 UIMessage - Domain-specific message format optimized for building chat UIs
 Contains parts that can be text, tool calls, or tool results
@@ -18,7 +18,7 @@ Contains parts that can be text, tool calls, or tool results
 optional createdAt: Date;
 ```
 
-Defined in: [types.ts:228](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L228)
+Defined in: [types.ts:231](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L231)
 
 ***
 
@@ -28,7 +28,7 @@ Defined in: [types.ts:228](https://github.com/TanStack/ai/blob/main/packages/typ
 id: string;
 ```
 
-Defined in: [types.ts:225](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L225)
+Defined in: [types.ts:228](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L228)
 
 ***
 
@@ -38,7 +38,7 @@ Defined in: [types.ts:225](https://github.com/TanStack/ai/blob/main/packages/typ
 parts: MessagePart[];
 ```
 
-Defined in: [types.ts:227](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L227)
+Defined in: [types.ts:230](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L230)
 
 ***
 
@@ -48,4 +48,4 @@ Defined in: [types.ts:227](https://github.com/TanStack/ai/blob/main/packages/typ
 role: "user" | "assistant" | "system";
 ```
 
-Defined in: [types.ts:226](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L226)
+Defined in: [types.ts:229](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L229)

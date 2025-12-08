@@ -102,7 +102,6 @@ title: "@tanstack/ai"
 - [chatOptions](functions/chatOptions.md)
 - [combineStrategies](functions/combineStrategies.md)
 - [convertMessagesToModelMessages](functions/convertMessagesToModelMessages.md)
-- [convertZodToJsonSchema](functions/convertZodToJsonSchema.md)
 - [createReplayStream](functions/createReplayStream.md)
 - [embedding](functions/embedding.md)
 - [generateMessageId](functions/generateMessageId.md)

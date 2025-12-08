@@ -5,7 +5,7 @@ title: ToolDefinition
 
 # Interface: ToolDefinition\<TInput, TOutput, TName\>
 
-Defined in: [tools/tool-definition.ts:95](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/tools/tool-definition.ts#L95)
+Defined in: [tools/tool-definition.ts:103](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/tools/tool-definition.ts#L103)
 
 Tool definition builder that allows creating server or client tools from a shared definition
 
@@ -17,11 +17,11 @@ Tool definition builder that allows creating server or client tools from a share
 
 ### TInput
 
-`TInput` *extends* `z.ZodType` = `z.ZodType`
+`TInput` *extends* `StandardSchemaV1` = `StandardSchemaV1`
 
 ### TOutput
 
-`TOutput` *extends* `z.ZodType` = `z.ZodType`
+`TOutput` *extends* `StandardSchemaV1` = `StandardSchemaV1`
 
 ### TName
 
@@ -35,7 +35,7 @@ Tool definition builder that allows creating server or client tools from a share
 __toolSide: "definition";
 ```
 
-Defined in: [tools/tool-definition.ts:43](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/tools/tool-definition.ts#L43)
+Defined in: [tools/tool-definition.ts:48](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/tools/tool-definition.ts#L48)
 
 #### Inherited from
 
@@ -49,7 +49,7 @@ Defined in: [tools/tool-definition.ts:43](https://github.com/TanStack/ai/blob/ma
 client: (execute?) => ClientTool<TInput, TOutput, TName>;
 ```
 
-Defined in: [tools/tool-definition.ts:112](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/tools/tool-definition.ts#L112)
+Defined in: [tools/tool-definition.ts:120](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/tools/tool-definition.ts#L120)
 
 Create a client-side tool with optional execute function
 
@@ -57,7 +57,7 @@ Create a client-side tool with optional execute function
 
 ##### execute?
 
-(`args`) => `output`\<`TOutput`\> \| `Promise`\<`output`\<`TOutput`\>\>
+(`args`) => `InferOutput`\<`TOutput`\> \| `Promise`\<`InferOutput`\<`TOutput`\>\>
 
 #### Returns
 
@@ -71,7 +71,7 @@ Create a client-side tool with optional execute function
 description: string;
 ```
 
-Defined in: [types.ts:286](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L286)
+Defined in: [types.ts:291](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L291)
 
 Clear description of what the tool does.
 
@@ -96,7 +96,7 @@ Be specific about what the tool does, what parameters it needs, and what it retu
 optional execute: (args) => any;
 ```
 
-Defined in: [types.ts:342](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L342)
+Defined in: [types.ts:359](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L359)
 
 Optional function to execute when the model calls this tool.
 
@@ -140,26 +140,39 @@ execute: async (args) => {
 optional inputSchema: TInput;
 ```
 
-Defined in: [types.ts:305](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L305)
+Defined in: [types.ts:322](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L322)
 
-Zod schema describing the tool's input parameters.
+Standard Schema describing the tool's input parameters.
 
 Defines the structure and types of arguments the tool accepts.
 The model will generate arguments matching this schema.
 The schema is converted to JSON Schema for LLM providers.
 
+Supports any Standard Schema compliant library (Zod, Valibot, ArkType, etc.)
+
 #### See
 
-https://zod.dev/
+https://github.com/standard-schema/standard-schema
 
-#### Example
+#### Examples
 
 ```ts
+// Using Zod
 import { z } from 'zod';
 
 z.object({
   location: z.string().describe("City name or coordinates"),
   unit: z.enum(["celsius", "fahrenheit"]).optional()
+})
+```
+
+```ts
+// Using Valibot
+import * as v from 'valibot';
+
+v.object({
+  location: v.string(),
+  unit: v.optional(v.picklist(["celsius", "fahrenheit"]))
 })
 ```
 
@@ -175,7 +188,7 @@ z.object({
 optional metadata: Record<string, any>;
 ```
 
-Defined in: [types.ts:348](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L348)
+Defined in: [types.ts:365](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L365)
 
 Additional metadata for adapters or custom extensions
 
@@ -191,7 +204,7 @@ Additional metadata for adapters or custom extensions
 name: TName;
 ```
 
-Defined in: [types.ts:276](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L276)
+Defined in: [types.ts:281](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L281)
 
 Unique name of the tool (used by the model to call it).
 
@@ -216,7 +229,7 @@ Must be unique within the tools array.
 optional needsApproval: boolean;
 ```
 
-Defined in: [types.ts:345](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L345)
+Defined in: [types.ts:362](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L362)
 
 If true, tool execution requires user approval before running. Works with both server and client tools.
 
@@ -232,9 +245,9 @@ If true, tool execution requires user approval before running. Works with both s
 optional outputSchema: TOutput;
 ```
 
-Defined in: [types.ts:323](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L323)
+Defined in: [types.ts:340](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L340)
 
-Optional Zod schema for validating tool output.
+Optional Standard Schema for validating tool output.
 
 If provided, tool results will be validated against this schema before
 being sent back to the model. This catches bugs in tool implementations
@@ -264,7 +277,7 @@ z.object({
 server: (execute) => ServerTool<TInput, TOutput, TName>;
 ```
 
-Defined in: [tools/tool-definition.ts:103](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/tools/tool-definition.ts#L103)
+Defined in: [tools/tool-definition.ts:111](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/tools/tool-definition.ts#L111)
 
 Create a server-side tool with execute function
 
@@ -272,8 +285,54 @@ Create a server-side tool with execute function
 
 ##### execute
 
-(`args`) => `output`\<`TOutput`\> \| `Promise`\<`output`\<`TOutput`\>\>
+(`args`) => `InferOutput`\<`TOutput`\> \| `Promise`\<`InferOutput`\<`TOutput`\>\>
 
 #### Returns
 
 [`ServerTool`](ServerTool.md)\<`TInput`, `TOutput`, `TName`\>
+
+***
+
+### toJsonSchema()?
+
+```ts
+optional toJsonSchema: (inputSchema) => Record<string, any> | undefined;
+```
+
+Defined in: [types.ts:386](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L386)
+
+Optional function to convert the inputSchema to JSON Schema format.
+
+This allows tools to use any schema library (Zod, Valibot, ArkType, etc.)
+and provide their own conversion logic. Each adapter will call this function
+to get the JSON Schema representation of the tool's parameters.
+
+#### Parameters
+
+##### inputSchema
+
+`StandardSchemaV1`
+
+The Standard Schema input schema to convert
+
+#### Returns
+
+`Record`\<`string`, `any`\> \| `undefined`
+
+JSON Schema object describing the tool's input parameters, or undefined
+
+#### Example
+
+```ts
+// With Zod
+import { toJSONSchema } from 'zod';
+toJsonSchema: (schema) => toJSONSchema(schema)
+
+// With Valibot
+import { toJSONSchema } from '@valibot/to-json-schema';
+toJsonSchema: (schema) => toJSONSchema(schema)
+```
+
+#### Inherited from
+
+[`ToolDefinitionInstance`](ToolDefinitionInstance.md).[`toJsonSchema`](ToolDefinitionInstance.md#tojsonschema)

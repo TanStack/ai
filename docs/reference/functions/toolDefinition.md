@@ -9,7 +9,7 @@ title: toolDefinition
 function toolDefinition<TInput, TOutput, TName>(config): ToolDefinition<TInput, TOutput, TName>;
 ```
 
-Defined in: [tools/tool-definition.ts:170](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/tools/tool-definition.ts#L170)
+Defined in: [tools/tool-definition.ts:193](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/tools/tool-definition.ts#L193)
 
 Create an isomorphic tool definition that can be used directly or instantiated for server/client
 
@@ -18,15 +18,17 @@ The definition contains all tool metadata (name, description, schemas) and can b
 2. Instantiated as a server tool with .server()
 3. Instantiated as a client tool with .client()
 
+This function supports any Standard Schema compliant library (Zod, Valibot, ArkType, etc.)
+
 ## Type Parameters
 
 ### TInput
 
-`TInput` *extends* `ZodType`\<`unknown`, `unknown`, `$ZodTypeInternals`\<`unknown`, `unknown`\>\> = `ZodAny`
+`TInput` *extends* `StandardSchemaV1`\<`unknown`, `unknown`\> = `StandardSchemaV1`\<`unknown`, `unknown`\>
 
 ### TOutput
 
-`TOutput` *extends* `ZodType`\<`unknown`, `unknown`, `$ZodTypeInternals`\<`unknown`, `unknown`\>\> = `ZodAny`
+`TOutput` *extends* `StandardSchemaV1`\<`unknown`, `unknown`\> = `StandardSchemaV1`\<`unknown`, `unknown`\>
 
 ### TName
 
@@ -48,6 +50,7 @@ The definition contains all tool metadata (name, description, schemas) and can b
 import { toolDefinition } from '@tanstack/ai';
 import { z } from 'zod';
 
+// Using Zod (Standard Schema compliant)
 const addToCartTool = toolDefinition({
   name: 'addToCart',
   description: 'Add a guitar to the shopping cart (requires approval)',
@@ -60,6 +63,18 @@ const addToCartTool = toolDefinition({
     success: z.boolean(),
     cartId: z.string(),
     totalItems: z.number(),
+  }),
+});
+
+// Using Valibot (Standard Schema compliant)
+import * as v from 'valibot';
+
+const searchTool = toolDefinition({
+  name: 'search',
+  description: 'Search the database',
+  inputSchema: v.object({
+    query: v.string(),
+    limit: v.optional(v.number()),
   }),
 });
 

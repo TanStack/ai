@@ -5,7 +5,7 @@ title: SummarizationResult
 
 # Interface: SummarizationResult
 
-Defined in: [types.ts:633](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L633)
+Defined in: [types.ts:673](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L673)
 
 ## Properties
 
@@ -15,7 +15,7 @@ Defined in: [types.ts:633](https://github.com/TanStack/ai/blob/main/packages/typ
 id: string;
 ```
 
-Defined in: [types.ts:634](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L634)
+Defined in: [types.ts:674](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L674)
 
 ***
 
@@ -25,7 +25,7 @@ Defined in: [types.ts:634](https://github.com/TanStack/ai/blob/main/packages/typ
 model: string;
 ```
 
-Defined in: [types.ts:635](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L635)
+Defined in: [types.ts:675](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L675)
 
 ***
 
@@ -35,7 +35,7 @@ Defined in: [types.ts:635](https://github.com/TanStack/ai/blob/main/packages/typ
 summary: string;
 ```
 
-Defined in: [types.ts:636](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L636)
+Defined in: [types.ts:676](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L676)
 
 ***
 
@@ -45,7 +45,7 @@ Defined in: [types.ts:636](https://github.com/TanStack/ai/blob/main/packages/typ
 usage: object;
 ```
 
-Defined in: [types.ts:637](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L637)
+Defined in: [types.ts:677](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L677)
 
 #### completionTokens
 

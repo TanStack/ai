@@ -17,6 +17,6 @@ type StreamChunk =
   | ThinkingStreamChunk;
 ```
 
-Defined in: [types.ts:600](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L600)
+Defined in: [types.ts:640](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L640)
 
 Chunk returned by the sdk during streaming chat completions.
