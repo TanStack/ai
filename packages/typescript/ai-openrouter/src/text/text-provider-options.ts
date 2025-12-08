@@ -1,74 +1,247 @@
 export interface WebPlugin {
+  /**
+   * The plugin identifier. Currently only 'web' is supported.
+   */
   id: 'web'
+  /**
+   * The search engine to use for web search.
+   * @default 'native'
+   */
   engine?: 'native' | 'exa'
+  /**
+   * Maximum number of search results to return.
+   */
   max_results?: number
+  /**
+   * Custom search prompt to guide the web search.
+   */
   search_prompt?: string
 }
 
 export interface ProviderPreferences {
+  /**
+   * An ordered list of provider names. The router will attempt to use the first available provider from this list.
+   * https://openrouter.ai/docs/guides/routing/provider-selection
+   */
   order?: Array<string>
+  /**
+   * Whether to allow fallback to other providers if the preferred ones are unavailable.
+   * @default true
+   */
   allow_fallbacks?: boolean
+  /**
+   * Whether to require all parameters to be supported by the provider.
+   * @default false
+   */
   require_parameters?: boolean
+  /**
+   * Controls whether to allow providers that may collect data.
+   * 'allow' - Allow all providers
+   * 'deny' - Only use providers that don't collect data
+   */
   data_collection?: 'allow' | 'deny'
+  /**
+   * Whether to prefer Zero Data Retention (ZDR) providers.
+   */
   zdr?: boolean
+  /**
+   * An exclusive list of provider names to use. Only these providers will be considered.
+   */
   only?: Array<string>
+  /**
+   * A list of provider names to exclude from consideration.
+   */
   ignore?: Array<string>
+  /**
+   * A list of quantization levels to allow (e.g., 'int4', 'int8', 'fp8', 'fp16', 'bf16').
+   */
   quantizations?: Array<string>
+  /**
+   * How to sort/prioritize providers.
+   * 'price' - Sort by lowest price
+   * 'throughput' - Sort by highest throughput
+   */
   sort?: 'price' | 'throughput'
+  /**
+   * Maximum price limits for tokens.
+   */
   max_price?: {
+    /**
+     * Maximum price per completion token in credits.
+     */
     completion_tokens?: number
+    /**
+     * Maximum price per prompt token in credits.
+     */
     prompt_tokens?: number
   }
 }
 
 export interface ReasoningOptions {
+  /**
+   * The level of reasoning effort the model should apply.
+   * Higher values produce more thorough reasoning but use more tokens.
+   */
   effort?: 'none' | 'minimal' | 'low' | 'medium' | 'high'
+  /**
+   * Maximum number of tokens to allocate for reasoning.
+   */
   max_tokens?: number
+  /**
+   * Whether to exclude reasoning content from the response.
+   */
   exclude?: boolean
 }
 
 export interface StreamOptions {
+  /**
+   * Whether to include token usage information in the stream.
+   */
   include_usage?: boolean
 }
 
 export interface ImageConfig {
+  /**
+   * The aspect ratio for generated images.
+   */
   aspect_ratio?: '1:1' | '16:9' | '9:16' | '4:3' | '3:4' | string
 }
 
 export interface OpenRouterBaseOptions {
+  /**
+   * Up to 4 sequences where the API will stop generating further tokens.
+   */
   stop?: string | Array<string>
+  /**
+   * Whether to stream the response using server-sent events.
+   * @default false
+   */
   stream?: boolean
+  /**
+   * The maximum number of tokens to generate in the completion.
+   * @deprecated Use max_completion_tokens instead.
+   */
   max_tokens?: number
+  /**
+   * The maximum number of tokens to generate in the completion.
+   */
   max_completion_tokens?: number
+  /**
+   * What sampling temperature to use, between 0 and 2. Higher values make output more random.
+   * @default 1
+   */
   temperature?: number
+  /**
+   * Nucleus sampling: only consider tokens with top_p cumulative probability.
+   * @default 1
+   */
   top_p?: number
+  /**
+   * Only sample from the top K options for each subsequent token.
+   */
   top_k?: number
+  /**
+   * Penalizes new tokens based on their existing frequency in the text so far.
+   * Range: -2.0 to 2.0
+   */
   frequency_penalty?: number
+  /**
+   * Penalizes new tokens based on whether they appear in the text so far.
+   * Range: -2.0 to 2.0
+   */
   presence_penalty?: number
+  /**
+   * Penalizes tokens that have already appeared in the generated text.
+   * Range: 0.0 to 2.0 (1.0 = no penalty)
+   */
   repetition_penalty?: number
+  /**
+   * Modify the likelihood of specified tokens appearing in the completion.
+   * Maps token IDs to bias values from -100 to 100.
+   */
   logit_bias?: { [key: number]: number }
+  /**
+   * Whether to return log probabilities of the output tokens.
+   */
   logprobs?: boolean
+  /**
+   * Number of most likely tokens to return at each position (0-20). Requires logprobs: true.
+   */
   top_logprobs?: number
+  /**
+   * Minimum probability threshold for token sampling.
+   */
   min_p?: number
+  /**
+   * Consider only top tokens with "top_a" cumulative probability.
+   */
   top_a?: number
+  /**
+   * Random seed for deterministic sampling. Same seed should produce same results.
+   */
   seed?: number
+  /**
+   * Force the model to respond in a specific format.
+   */
   response_format?: { type: 'json_object' }
+  /**
+   * Message transforms to apply (e.g., 'middle-out' for context compression).
+   */
   transforms?: Array<string>
+  /**
+   * A list of model IDs to use as fallbacks if the primary model is unavailable.
+   */
   models?: Array<string>
+  /**
+   * The routing strategy to use.
+   * 'fallback' - Try models in order until one succeeds
+   */
   route?: 'fallback'
+  /**
+   * Provider routing preferences.
+   * https://openrouter.ai/docs/guides/routing/provider-selection
+   */
   provider?: ProviderPreferences
+  /**
+   * A unique identifier representing your end-user for abuse monitoring.
+   */
   user?: string
+  /**
+   * Metadata to attach to the request for tracking and analytics.
+   */
   metadata?: Record<string, string>
-  prediction?: {
-    type: 'content'
-    content: string
-  }
+  /**
+   * Reasoning configuration for models that support chain-of-thought reasoning.
+   */
   reasoning?: ReasoningOptions
+  /**
+   * Options for streaming responses.
+   */
   stream_options?: StreamOptions
+  /**
+   * Whether to allow the model to call multiple tools in parallel.
+   * @default true
+   */
   parallel_tool_calls?: boolean
+  /**
+   * Constrains the verbosity of the model's response.
+   */
   verbosity?: 'low' | 'medium' | 'high'
+  /**
+   * The modalities to enable for the response.
+   */
   modalities?: Array<'text' | 'image'>
+  /**
+   * Configuration for image generation in the response.
+   */
   image_config?: ImageConfig
+  /**
+   * Controls which (if any) tool the model should use.
+   * 'none' - Don't call any tools
+   * 'auto' - Model decides whether to call tools
+   * 'required' - Model must call at least one tool
+   * Or specify a specific function to call
+   */
   tool_choice?:
     | 'none'
     | 'auto'
@@ -79,8 +252,18 @@ export interface OpenRouterBaseOptions {
           name: string
         }
       }
+  /**
+   * Plugins to enable for the request (e.g., web search).
+   * https://openrouter.ai/docs/features/web-search
+   */
   plugins?: Array<WebPlugin>
+  /**
+   * Debug options for troubleshooting.
+   */
   debug?: {
+    /**
+     * Whether to echo the upstream request body in the response for debugging.
+     */
     echo_upstream_body?: boolean
   }
 }
@@ -89,7 +272,14 @@ export type ExternalTextProviderOptions = OpenRouterBaseOptions
 
 export interface InternalTextProviderOptions
   extends ExternalTextProviderOptions {
+  /**
+   * The model ID to use for the request.
+   * https://openrouter.ai/models
+   */
   model: string
+  /**
+   * The messages to send to the model.
+   */
   messages: Array<{
     role: 'user' | 'assistant' | 'system' | 'tool'
     content:
@@ -105,6 +295,9 @@ export interface InternalTextProviderOptions
     tool_call_id?: string
     name?: string
   }>
+  /**
+   * Tools the model may call (functions).
+   */
   tools?: Array<{
     type: 'function'
     function: {
@@ -113,6 +306,9 @@ export interface InternalTextProviderOptions
       parameters: Record<string, unknown>
     }
   }>
+  /**
+   * Controls which (if any) tool the model should use.
+   */
   tool_choice?:
     | 'none'
     | 'auto'
