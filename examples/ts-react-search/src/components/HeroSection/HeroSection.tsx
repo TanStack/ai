@@ -1,6 +1,7 @@
 import Brand from './Brand'
 import Search from './Search'
 import ProjectDescription from './ProjectDescription'
+import Navigation from './Navigation'
 
 function HeroSection() {
   return (
@@ -8,6 +9,7 @@ function HeroSection() {
       <Brand />
       <ProjectDescription />
       <Search />
+      <Navigation />
     </section>
   )
 }
