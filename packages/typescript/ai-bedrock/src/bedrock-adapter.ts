@@ -62,23 +62,6 @@ function mapTokenUsage(usage: TokenUsage | undefined) {
   }
 }
 
-function toUint8Array(base64: string): Uint8Array {
-  if (typeof Buffer !== 'undefined') {
-    return Uint8Array.from(Buffer.from(base64, 'base64'))
-  }
-
-  if (typeof atob !== 'undefined') {
-    const binary = atob(base64)
-    const bytes = new Uint8Array(binary.length)
-    for (let i = 0; i < binary.length; i++) {
-      bytes[i] = binary.charCodeAt(i)
-    }
-    return bytes
-  }
-
-  throw new Error('Inline data sources require base64 decoding, which is not available in this environment')
-}
-
 /**
  * AWS credentials returned by a credential provider
  */
@@ -696,7 +679,7 @@ export class Bedrock extends BaseAdapter<
           return {
             image: {
               format,
-              source: { bytes: toUint8Array(part.source.value) },
+              source: { bytes: base64ToBytes(part.source.value) },
             },
           }
         }
@@ -720,7 +703,7 @@ export class Bedrock extends BaseAdapter<
           return {
             video: {
               format,
-              source: { bytes: toUint8Array(part.source.value) },
+              source: { bytes: base64ToBytes(part.source.value) },
             },
           }
         }
@@ -747,7 +730,7 @@ export class Bedrock extends BaseAdapter<
             document: {
               format,
               name,
-              source: { bytes: toUint8Array(part.source.value) },
+              source: { bytes: base64ToBytes(part.source.value) },
             },
           }
         }
@@ -1122,4 +1105,12 @@ export function createBedrock(
  */
 export function bedrock(config?: BedrockConfig): Bedrock {
   return createBedrock(config)
+}
+
+function base64ToBytes(base64: string): Uint8Array {
+  if (typeof Buffer !== 'undefined') {
+    return Uint8Array.from(Buffer.from(base64, 'base64'))
+  }
+  const binary = atob(base64)
+  return Uint8Array.from(binary, (c) => c.charCodeAt(0))
 }
