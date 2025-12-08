@@ -9,7 +9,7 @@ title: toolDefinition
 function toolDefinition<TInput, TOutput, TName>(config): ToolDefinition<TInput, TOutput, TName>;
 ```
 
-Defined in: [tools/tool-definition.ts:170](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/tools/tool-definition.ts#L170)
+Defined in: [tools/tool-definition.ts:174](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/tools/tool-definition.ts#L174)
 
 Create an isomorphic tool definition that can be used directly or instantiated for server/client
 
@@ -22,11 +22,11 @@ The definition contains all tool metadata (name, description, schemas) and can b
 
 ### TInput
 
-`TInput` *extends* `ZodType`\<`unknown`, `unknown`, `$ZodTypeInternals`\<`unknown`, `unknown`\>\> = `ZodAny`
+`TInput` *extends* [`SchemaInput`](../type-aliases/SchemaInput.md) = `ZodAny`
 
 ### TOutput
 
-`TOutput` *extends* `ZodType`\<`unknown`, `unknown`, `$ZodTypeInternals`\<`unknown`, `unknown`\>\> = `ZodAny`
+`TOutput` *extends* [`SchemaInput`](../type-aliases/SchemaInput.md) = `ZodAny`
 
 ### TName
 

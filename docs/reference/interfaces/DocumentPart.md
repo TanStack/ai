@@ -5,7 +5,7 @@ title: DocumentPart
 
 # Interface: DocumentPart\<TMetadata\>
 
-Defined in: [types.ts:87](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L87)
+Defined in: [types.ts:144](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L144)
 
 Document content part for multimodal messages (e.g., PDFs).
 
@@ -25,7 +25,7 @@ Provider-specific metadata type (e.g., Anthropic's media_type)
 optional metadata: TMetadata;
 ```
 
-Defined in: [types.ts:92](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L92)
+Defined in: [types.ts:149](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L149)
 
 Provider-specific metadata (e.g., media_type for PDFs)
 
@@ -37,7 +37,7 @@ Provider-specific metadata (e.g., media_type for PDFs)
 source: ContentPartSource;
 ```
 
-Defined in: [types.ts:90](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L90)
+Defined in: [types.ts:147](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L147)
 
 Source of the document content
 
@@ -49,4 +49,4 @@ Source of the document content
 type: "document";
 ```
 
-Defined in: [types.ts:88](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L88)
+Defined in: [types.ts:145](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L145)
