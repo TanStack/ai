@@ -1,6 +1,4 @@
-import { convertZodToJsonSchema } from '@tanstack/ai'
-import type { Tool } from '@tanstack/ai'
-import type { z } from 'zod'
+import type { StandardSchemaV1, Tool } from '@tanstack/ai'
 import type { CacheControl } from '../text/text-provider-options'
 
 export interface CustomTool {
@@ -29,8 +27,10 @@ export function convertCustomToolToAdapterFormat(tool: Tool): CustomTool {
   const metadata =
     (tool.metadata as { cacheControl?: CacheControl | null } | undefined) || {}
 
-  // Convert Zod schema to JSON Schema
-  const jsonSchema = convertZodToJsonSchema(tool.inputSchema)
+  // Get JSON Schema from tool's converter function
+  const jsonSchema = tool.inputSchema && tool.toJsonSchema
+    ? tool.toJsonSchema(tool.inputSchema)
+    : undefined
 
   const inputSchema = {
     type: 'object' as const,
@@ -50,7 +50,7 @@ export function convertCustomToolToAdapterFormat(tool: Tool): CustomTool {
 export function customTool(
   name: string,
   description: string,
-  inputSchema: z.ZodType,
+  inputSchema: StandardSchemaV1,
   cacheControl?: CacheControl | null,
 ): Tool {
   return {

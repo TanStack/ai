@@ -1,4 +1,3 @@
-import { convertZodToJsonSchema } from '@tanstack/ai'
 import type { Tool } from '@tanstack/ai'
 import type OpenAI from 'openai'
 
@@ -8,9 +7,9 @@ export type FunctionTool = OpenAI.Responses.FunctionTool
  * Converts a standard Tool to OpenAI FunctionTool format
  */
 export function convertFunctionToolToAdapterFormat(tool: Tool): FunctionTool {
-  // Convert Zod schema to JSON Schema
-  const jsonSchema = tool.inputSchema
-    ? convertZodToJsonSchema(tool.inputSchema)
+  // Get JSON Schema from tool's converter function
+  const jsonSchema = tool.inputSchema && tool.toJsonSchema
+    ? tool.toJsonSchema(tool.inputSchema)
     : undefined
 
   // Determine if we can use strict mode

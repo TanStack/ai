@@ -165,6 +165,7 @@ For better organization, define tool schemas and implementations separately:
 ```typescript
 // tools/definitions.ts
 import { toolDefinition } from "@tanstack/ai";
+import { convertZodToJsonSchema } from "@tanstack/ai/zod";
 import { z } from "zod";
 
 export const getUserDataDef = toolDefinition({
@@ -173,6 +174,7 @@ export const getUserDataDef = toolDefinition({
   inputSchema: z.object({
     userId: z.string(),
   }),
+  toJsonSchema: convertZodToJsonSchema,
   outputSchema: z.object({
     name: z.string(),
     email: z.string(),
@@ -182,6 +184,7 @@ export const getUserDataDef = toolDefinition({
 export const searchProductsDef = toolDefinition({
   name: "search_products",
   description: "Search products",
+  toJsonSchema: convertZodToJsonSchema,
   inputSchema: z.object({
     query: z.string(),
   }),
@@ -236,6 +239,7 @@ const getUserDataDef = toolDefinition({
   inputSchema: z.object({
     userId: z.string(),
   }),
+  toJsonSchema: convertZodToJsonSchema,
   outputSchema: z.object({
     name: z.string().optional(),
     email: z.string().optional(),

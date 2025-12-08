@@ -174,9 +174,13 @@ Since TanStack AI is framework-agnostic, you can define and use tools in any env
 
 ```typescript
 import { toolDefinition } from '@tanstack/ai'
+import { convertZodToJsonSchema } from "@tanstack/ai/zod";
+import { z } from 'zod'
+
 
 const getProductsDef = toolDefinition({
   name: 'getProducts',
+  toJsonSchema: convertZodToJsonSchema,
   inputSchema: z.object({ query: z.string() }),
 })
 

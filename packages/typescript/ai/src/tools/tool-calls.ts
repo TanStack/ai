@@ -1,3 +1,4 @@
+import type { StandardSchemaV1 } from '@standard-schema/spec'
 import type {
   DoneStreamChunk,
   ModelMessage,
@@ -5,6 +6,45 @@ import type {
   ToolCall,
   ToolResultStreamChunk,
 } from '../types'
+
+/**
+ * Validate a value against a Standard Schema.
+ * Returns the validated/transformed value on success, throws on failure.
+ */
+async function validateSchema<T extends StandardSchemaV1>(
+  schema: T,
+  value: unknown,
+): Promise<StandardSchemaV1.InferOutput<T>> {
+  const result = await schema['~standard'].validate(value)
+  if (result.issues) {
+    const message = result.issues
+      .map((issue) => issue.message)
+      .join('; ')
+    throw new Error(message)
+  }
+  return result.value as StandardSchemaV1.InferOutput<T>
+}
+
+/**
+ * Validate a value against a Standard Schema safely.
+ * Returns { success: true, data } on success, { success: false, error } on failure.
+ */
+async function safeValidateSchema<T extends StandardSchemaV1>(
+  schema: T,
+  value: unknown,
+): Promise<
+  | { success: true; data: StandardSchemaV1.InferOutput<T> }
+  | { success: false; error: { message: string } }
+> {
+  const result = await schema['~standard'].validate(value)
+  if (result.issues) {
+    const message = result.issues
+      .map((issue) => issue.message)
+      .join('; ')
+    return { success: false, error: { message } }
+  }
+  return { success: true, data: result.value as StandardSchemaV1.InferOutput<T> }
+}
 
 /**
  * Manages tool call accumulation and execution for the chat() method's automatic tool execution loop.
@@ -133,7 +173,7 @@ export class ToolCallManager {
           // Validate input against inputSchema
           if (tool.inputSchema) {
             try {
-              args = tool.inputSchema.parse(args)
+              args = await validateSchema(tool.inputSchema, args)
             } catch (validationError: any) {
               throw new Error(
                 `Input validation failed for tool ${tool.name}: ${validationError.message}`,
@@ -147,7 +187,7 @@ export class ToolCallManager {
           // Validate output against outputSchema if provided
           if (tool.outputSchema && result !== undefined && result !== null) {
             try {
-              result = tool.outputSchema.parse(result)
+              result = await validateSchema(tool.outputSchema, result)
             } catch (validationError: any) {
               throw new Error(
                 `Output validation failed for tool ${tool.name}: ${validationError.message}`,
@@ -285,7 +325,7 @@ export async function executeToolCalls(
     // Validate input against inputSchema
     if (tool.inputSchema) {
       try {
-        input = tool.inputSchema.parse(input)
+        input = await validateSchema(tool.inputSchema, input)
       } catch (validationError: any) {
         results.push({
           toolCallId: toolCall.id,
@@ -380,7 +420,7 @@ export async function executeToolCalls(
 
             // Validate output against outputSchema if provided
             if (tool.outputSchema && result !== undefined && result !== null) {
-              const parsed = tool.outputSchema.safeParse(result)
+              const parsed = await safeValidateSchema(tool.outputSchema, result)
               if (parsed.success) {
                 result = parsed.data
               } else {
@@ -438,7 +478,7 @@ export async function executeToolCalls(
 
       // Validate output against outputSchema if provided
       if (tool.outputSchema && result !== undefined && result !== null) {
-        const parsed = tool.outputSchema.safeParse(result)
+        const parsed = await safeValidateSchema(tool.outputSchema, result)
         if (parsed.success) {
           result = parsed.data
         } else {

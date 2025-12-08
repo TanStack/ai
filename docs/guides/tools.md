@@ -41,6 +41,7 @@ Tools are defined using `toolDefinition()` from `@tanstack/ai`:
 
 ```typescript
 import { toolDefinition } from "@tanstack/ai";
+import { convertZodToJsonSchema } from "@tanstack/ai/zod";
 import { z } from "zod";
 
 // Step 1: Define the tool schema
@@ -51,6 +52,8 @@ const getWeatherDef = toolDefinition({
     location: z.string().describe("The city and state, e.g. San Francisco, CA"),
     unit: z.enum(["celsius", "fahrenheit"]).optional(),
   }),
+  // Do not forget to pass in the toJsonSchema function to convert it to JSON Schema
+  toJsonSchema: convertZodToJsonSchema,
   outputSchema: z.object({
     temperature: z.number(),
     conditions: z.string(),
@@ -73,6 +76,13 @@ const getWeatherServer = getWeatherDef.server(async ({ location, unit }) => {
   };
 });
 ```
+
+## Tool validation
+
+We support ANY validation library by requiring you to provide a `toJsonSchema` function when defining your tool. 
+This function converts your input and output schemas to JSON Schema, which is the format used for tool calling with LLMs.
+In the example above, we use `convertZodToJsonSchema` from `@tanstack/ai/zod` to convert Zod schemas to JSON Schema. 
+You can implement similar functions for other validation libraries if needed.
 
 ## Using Tools in Chat
 
@@ -158,6 +168,7 @@ const addToCartDef = toolDefinition({
     itemId: z.string(),
     quantity: z.number(),
   }),
+   toJsonSchema: convertZodToJsonSchema,
   outputSchema: z.object({
     success: z.boolean(),
     cartId: z.string(),

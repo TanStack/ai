@@ -1,6 +1,9 @@
 import type { CommonOptions } from './core/chat-common-options'
-import type { z } from 'zod'
+import type { StandardSchemaV1 } from '@standard-schema/spec'
 import type { ToolCallState, ToolResultState } from './stream/types'
+
+// Re-export StandardSchemaV1 for convenience
+export type { StandardSchemaV1 } from '@standard-schema/spec'
 
 export interface ToolCall {
   id: string
@@ -150,21 +153,21 @@ export type ConstrainedContent<
   | string
   | null
   | Array<
-      ContentPartForModalities<
-        ModalitiesArrayToUnion<TModalities>,
-        TImageMeta,
-        TAudioMeta,
-        TVideoMeta,
-        TDocumentMeta,
-        TTextMeta
-      >
+    ContentPartForModalities<
+      ModalitiesArrayToUnion<TModalities>,
+      TImageMeta,
+      TAudioMeta,
+      TVideoMeta,
+      TDocumentMeta,
+      TTextMeta
     >
+  >
 
 export interface ModelMessage<
   TContent extends string | null | Array<ContentPart> =
-    | string
-    | null
-    | Array<ContentPart>,
+  | string
+  | null
+  | Array<ContentPart>,
 > {
   role: 'user' | 'assistant' | 'tool'
   content: TContent
@@ -255,14 +258,16 @@ export type ConstrainedModelMessage<
  * Tools allow the model to interact with external systems, APIs, or perform computations.
  * The model will decide when to call tools based on the user's request and the tool descriptions.
  *
- * Tools use Zod schemas for runtime validation and type safety.
+ * Tools use Standard Schema for runtime validation and type safety, supporting any
+ * compliant schema library (Zod, Valibot, ArkType, etc.).
  *
  * @see https://platform.openai.com/docs/guides/function-calling
  * @see https://docs.anthropic.com/claude/docs/tool-use
+ * @see https://github.com/standard-schema/standard-schema
  */
 export interface Tool<
-  TInput extends z.ZodType = z.ZodType,
-  TOutput extends z.ZodType = z.ZodType,
+  TInput extends StandardSchemaV1 = StandardSchemaV1,
+  TOutput extends StandardSchemaV1 = StandardSchemaV1,
   TName extends string = string,
 > {
   /**
@@ -286,26 +291,38 @@ export interface Tool<
   description: string
 
   /**
-   * Zod schema describing the tool's input parameters.
+   * Standard Schema describing the tool's input parameters.
    *
    * Defines the structure and types of arguments the tool accepts.
    * The model will generate arguments matching this schema.
    * The schema is converted to JSON Schema for LLM providers.
    *
-   * @see https://zod.dev/
+   * Supports any Standard Schema compliant library (Zod, Valibot, ArkType, etc.)
+   *
+   * @see https://github.com/standard-schema/standard-schema
    *
    * @example
+   * // Using Zod
    * import { z } from 'zod';
    *
    * z.object({
    *   location: z.string().describe("City name or coordinates"),
    *   unit: z.enum(["celsius", "fahrenheit"]).optional()
    * })
+   *
+   * @example
+   * // Using Valibot
+   * import * as v from 'valibot';
+   *
+   * v.object({
+   *   location: v.string(),
+   *   unit: v.optional(v.picklist(["celsius", "fahrenheit"]))
+   * })
    */
   inputSchema?: TInput
 
   /**
-   * Optional Zod schema for validating tool output.
+   * Optional Standard Schema for validating tool output.
    *
    * If provided, tool results will be validated against this schema before
    * being sent back to the model. This catches bugs in tool implementations
@@ -346,6 +363,27 @@ export interface Tool<
 
   /** Additional metadata for adapters or custom extensions */
   metadata?: Record<string, any>
+
+  /**
+   * Optional function to convert the inputSchema to JSON Schema format.
+   *
+   * This allows tools to use any schema library (Zod, Valibot, ArkType, etc.)
+   * and provide their own conversion logic. Each adapter will call this function
+   * to get the JSON Schema representation of the tool's parameters.
+   *
+   * @param inputSchema - The Standard Schema input schema to convert
+   * @returns JSON Schema object describing the tool's input parameters, or undefined
+   *
+   * @example
+   * // With Zod
+   * import { toJSONSchema } from 'zod';
+   * toJsonSchema: (schema) => toJSONSchema(schema)
+   *
+   * // With Valibot
+   * import { toJSONSchema } from '@valibot/to-json-schema';
+   * toJsonSchema: (schema) => toJSONSchema(schema)
+   */
+  toJsonSchema?: (inputSchema: StandardSchemaV1) => Record<string, any> | undefined
 }
 
 export interface ToolConfig {
@@ -760,48 +798,48 @@ export type ChatStreamOptionsUnion<
     infer ModelInputModalities,
     infer MessageMetadata
   >
-    ? Models[number] extends infer TModel
-      ? TModel extends string
-        ? Omit<
-            ChatOptions,
-            'model' | 'providerOptions' | 'responseFormat' | 'messages'
-          > & {
-            adapter: TAdapter
-            model: TModel
-            providerOptions?: TModel extends keyof ModelProviderOptions
-              ? ModelProviderOptions[TModel]
-              : never
-            /**
-             * Messages array with content constrained to the model's supported input modalities.
-             * For example, if a model only supports ['text', 'image'], you cannot pass audio or video content.
-             * Metadata types are also constrained based on the adapter's metadata type definitions.
-             */
-            messages: TModel extends keyof ModelInputModalities
-              ? ModelInputModalities[TModel] extends ReadonlyArray<Modality>
-                ? MessageMetadata extends {
-                    text: infer TTextMeta
-                    image: infer TImageMeta
-                    audio: infer TAudioMeta
-                    video: infer TVideoMeta
-                    document: infer TDocumentMeta
-                  }
-                  ? Array<
-                      ConstrainedModelMessage<
-                        ModelInputModalities[TModel],
-                        TImageMeta,
-                        TAudioMeta,
-                        TVideoMeta,
-                        TDocumentMeta,
-                        TTextMeta
-                      >
-                    >
-                  : Array<ConstrainedModelMessage<ModelInputModalities[TModel]>>
-                : Array<ModelMessage>
-              : Array<ModelMessage>
-          }
-        : never
-      : never
+  ? Models[number] extends infer TModel
+  ? TModel extends string
+  ? Omit<
+    ChatOptions,
+    'model' | 'providerOptions' | 'responseFormat' | 'messages'
+  > & {
+    adapter: TAdapter
+    model: TModel
+    providerOptions?: TModel extends keyof ModelProviderOptions
+    ? ModelProviderOptions[TModel]
     : never
+    /**
+     * Messages array with content constrained to the model's supported input modalities.
+     * For example, if a model only supports ['text', 'image'], you cannot pass audio or video content.
+     * Metadata types are also constrained based on the adapter's metadata type definitions.
+     */
+    messages: TModel extends keyof ModelInputModalities
+    ? ModelInputModalities[TModel] extends ReadonlyArray<Modality>
+    ? MessageMetadata extends {
+      text: infer TTextMeta
+      image: infer TImageMeta
+      audio: infer TAudioMeta
+      video: infer TVideoMeta
+      document: infer TDocumentMeta
+    }
+    ? Array<
+      ConstrainedModelMessage<
+        ModelInputModalities[TModel],
+        TImageMeta,
+        TAudioMeta,
+        TVideoMeta,
+        TDocumentMeta,
+        TTextMeta
+      >
+    >
+    : Array<ConstrainedModelMessage<ModelInputModalities[TModel]>>
+    : Array<ModelMessage>
+    : Array<ModelMessage>
+  }
+  : never
+  : never
+  : never
 
 /**
  * Chat options constrained by a specific model's capabilities.
@@ -821,44 +859,44 @@ export type ChatStreamOptionsForModel<
     infer ModelInputModalities,
     infer MessageMetadata
   >
-    ? Omit<
-        ChatOptions,
-        'model' | 'providerOptions' | 'responseFormat' | 'messages'
-      > & {
-        adapter: TAdapter
-        model: TModel
-        providerOptions?: TModel extends keyof ModelProviderOptions
-          ? ModelProviderOptions[TModel]
-          : never
-        /**
-         * Messages array with content constrained to the model's supported input modalities.
-         * For example, if a model only supports ['text', 'image'], you cannot pass audio or video content.
-         * Metadata types are also constrained based on the adapter's metadata type definitions.
-         */
-        messages: TModel extends keyof ModelInputModalities
-          ? ModelInputModalities[TModel] extends ReadonlyArray<Modality>
-            ? MessageMetadata extends {
-                text: infer TTextMeta
-                image: infer TImageMeta
-                audio: infer TAudioMeta
-                video: infer TVideoMeta
-                document: infer TDocumentMeta
-              }
-              ? Array<
-                  ConstrainedModelMessage<
-                    ModelInputModalities[TModel],
-                    TImageMeta,
-                    TAudioMeta,
-                    TVideoMeta,
-                    TDocumentMeta,
-                    TTextMeta
-                  >
-                >
-              : Array<ConstrainedModelMessage<ModelInputModalities[TModel]>>
-            : Array<ModelMessage>
-          : Array<ModelMessage>
-      }
+  ? Omit<
+    ChatOptions,
+    'model' | 'providerOptions' | 'responseFormat' | 'messages'
+  > & {
+    adapter: TAdapter
+    model: TModel
+    providerOptions?: TModel extends keyof ModelProviderOptions
+    ? ModelProviderOptions[TModel]
     : never
+    /**
+     * Messages array with content constrained to the model's supported input modalities.
+     * For example, if a model only supports ['text', 'image'], you cannot pass audio or video content.
+     * Metadata types are also constrained based on the adapter's metadata type definitions.
+     */
+    messages: TModel extends keyof ModelInputModalities
+    ? ModelInputModalities[TModel] extends ReadonlyArray<Modality>
+    ? MessageMetadata extends {
+      text: infer TTextMeta
+      image: infer TImageMeta
+      audio: infer TAudioMeta
+      video: infer TVideoMeta
+      document: infer TDocumentMeta
+    }
+    ? Array<
+      ConstrainedModelMessage<
+        ModelInputModalities[TModel],
+        TImageMeta,
+        TAudioMeta,
+        TVideoMeta,
+        TDocumentMeta,
+        TTextMeta
+      >
+    >
+    : Array<ConstrainedModelMessage<ModelInputModalities[TModel]>>
+    : Array<ModelMessage>
+    : Array<ModelMessage>
+  }
+  : never
 
 // Extract types from adapter (updated to 6 generics)
 export type ExtractModelsFromAdapter<T> =
@@ -879,7 +917,7 @@ export type ExtractModalitiesForModel<
     any,
     infer ModelInputModalities
   >
-    ? TModel extends keyof ModelInputModalities
-      ? ModelInputModalities[TModel]
-      : ReadonlyArray<Modality>
-    : ReadonlyArray<Modality>
+  ? TModel extends keyof ModelInputModalities
+  ? ModelInputModalities[TModel]
+  : ReadonlyArray<Modality>
+  : ReadonlyArray<Modality>

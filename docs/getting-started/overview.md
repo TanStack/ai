@@ -28,10 +28,13 @@ TanStack AI lets you define a tool once and provide environment-specific impleme
 
 ```typescript
 import { toolDefinition } from '@tanstack/ai'
+import { convertZodToJsonSchema } from "@tanstack/ai/zod";
+import { z } from 'zod'
 
 // Define a tool
 const getProductsDef = toolDefinition({
   name: 'getProducts',
+  toJsonSchema: convertZodToJsonSchema,
   inputSchema: z.object({ query: z.string() }),
   outputSchema: z.array(z.object({ id: z.string(), name: z.string() })),
 })

@@ -20,6 +20,10 @@
     "./event-client": {
       "types": "./dist/esm/event-client.d.ts",
       "import": "./dist/esm/event-client.js"
+    },
+    "./zod": {
+      "types": "./dist/esm/tools/zod-converter.d.ts",
+      "import": "./dist/esm/tools/zod-converter.js"
     }
   },
   "sideEffects": false,
@@ -51,12 +55,17 @@
     "embeddings"
   ],
   "dependencies": {
+    "@standard-schema/spec": "^1.0.0",
     "@tanstack/devtools-event-client": "^0.3.5",
     "partial-json": "^0.1.7"
   },
   "peerDependencies": {
-    "@alcyone-labs/zod-to-json-schema": "^4.0.0",
     "zod": "^3.0.0 || ^4.0.0"
+  },
+  "peerDependenciesMeta": {
+    "zod": {
+      "optional": true
+    }
   },
   "devDependencies": {
     "@vitest/coverage-v8": "4.0.14",

@@ -89,6 +89,7 @@ Here's a real-world example of the agentic cycle:
 const getWeatherDef = toolDefinition({
   name: "get_weather",
   description: "Get current weather for a city",
+  toJsonSchema: convertZodToJsonSchema,
   inputSchema: z.object({
     city: z.string(),
   }),
@@ -97,6 +98,7 @@ const getWeatherDef = toolDefinition({
 const getClothingAdviceDef = toolDefinition({
   name: "get_clothing_advice",
   description: "Get clothing recommendations based on weather",
+  toJsonSchema: convertZodToJsonSchema,
   inputSchema: z.object({
     temperature: z.number(),
     conditions: z.string(),

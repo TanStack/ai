@@ -58,6 +58,7 @@ Client tools use the same `toolDefinition()` API but with the `.client()` method
 ```typescript
 // tools/definitions.ts - Shared between server and client
 import { toolDefinition } from "@tanstack/ai";
+import { convertZodToJsonSchema } from "@tanstack/ai/zod";
 import { z } from "zod";
 
 export const updateUIDef = toolDefinition({
@@ -67,6 +68,7 @@ export const updateUIDef = toolDefinition({
     message: z.string().describe("Message to display"),
     type: z.enum(["success", "error", "info"]).describe("Message type"),
   }),
+  toJsonSchema: convertZodToJsonSchema,
   outputSchema: z.object({
     success: z.boolean(),
   }),
@@ -79,6 +81,7 @@ export const saveToLocalStorageDef = toolDefinition({
     key: z.string().describe("Storage key"),
     value: z.string().describe("Value to store"),
   }),
+  toJsonSchema: convertZodToJsonSchema,
   outputSchema: z.object({
     saved: z.boolean(),
   }),
@@ -274,6 +277,7 @@ const addToCartDef = toolDefinition({
     itemId: z.string(),
     quantity: z.number(),
   }),
+  toJsonSchema: convertZodToJsonSchema,
   outputSchema: z.object({
     success: z.boolean(),
     cartId: z.string(),

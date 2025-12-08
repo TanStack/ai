@@ -1,10 +1,13 @@
 import { toJSONSchema } from 'zod'
+import type { StandardSchemaV1 } from '@standard-schema/spec'
 import type { z } from 'zod'
 /**
  * Converts a Zod schema to JSON Schema format compatible with LLM providers.
  *
+ * Accepts StandardSchemaV1 for compatibility with the toJsonSchema callback,
+ * but internally expects a Zod schema.
  *
- * @param schema - Zod schema to convert
+ * @param schema - Zod schema to convert (typed as StandardSchemaV1 for compatibility)
  * @returns JSON Schema object that can be sent to LLM providers
  *
  * @example
@@ -29,12 +32,15 @@ import type { z } from 'zod'
  * ```
  */
 export function convertZodToJsonSchema(
-  schema: z.ZodType | undefined,
+  schema: StandardSchemaV1 | undefined,
 ): Record<string, any> | undefined {
   if (!schema) return undefined
 
+  // Cast to z.ZodType since we know this function is only used with Zod schemas
+  const zodSchema = schema as z.ZodType
+
   // Use Alcyone Labs fork which is compatible with Zod v4
-  const jsonSchema = toJSONSchema(schema, {
+  const jsonSchema = toJSONSchema(zodSchema, {
     target: 'openapi-3.0',
     reused: 'ref',
   })
@@ -51,9 +57,9 @@ export function convertZodToJsonSchema(
   if (typeof result === 'object') {
     // Check if the input schema is a ZodObject by inspecting its internal structure
     const isZodObject =
-      typeof schema === 'object' &&
-      'def' in schema &&
-      schema.def.type === 'object'
+      typeof zodSchema === 'object' &&
+      'def' in zodSchema &&
+      (zodSchema as any).def.type === 'object'
 
     // If we know it's a ZodObject but result doesn't have type, set it
     if (isZodObject && !result.type) {

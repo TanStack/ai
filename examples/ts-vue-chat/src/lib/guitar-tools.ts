@@ -1,4 +1,5 @@
 import { toolDefinition } from '@tanstack/ai'
+import { convertZodToJsonSchema } from '@tanstack/ai/zod'
 import { z } from 'zod'
 
 // Tool definition for getting guitars
@@ -6,6 +7,7 @@ export const getGuitarsToolDef = toolDefinition({
   name: 'getGuitars',
   description: 'Get all products from the database',
   inputSchema: z.object({}),
+  toJsonSchema: convertZodToJsonSchema,
   outputSchema: z.array(
     z.object({
       id: z.number(),
@@ -30,6 +32,7 @@ export const recommendGuitarToolDef = toolDefinition({
         'The ID of the guitar to recommend (from the getGuitars results)',
       ),
   }),
+  toJsonSchema: convertZodToJsonSchema,
   outputSchema: z.object({
     id: z.number(),
   }),
@@ -41,6 +44,7 @@ export const getPersonalGuitarPreferenceToolDef = toolDefinition({
   description:
     "Get the user's guitar preference from their local browser storage",
   inputSchema: z.object({}),
+  toJsonSchema: convertZodToJsonSchema,
   outputSchema: z.object({
     preference: z.string(),
   }),
@@ -53,6 +57,7 @@ export const addToWishListToolDef = toolDefinition({
   inputSchema: z.object({
     guitarId: z.string(),
   }),
+  toJsonSchema: convertZodToJsonSchema,
   outputSchema: z.object({
     success: z.boolean(),
     guitarId: z.string(),
@@ -69,6 +74,7 @@ export const addToCartToolDef = toolDefinition({
     guitarId: z.string(),
     quantity: z.number(),
   }),
+  toJsonSchema: convertZodToJsonSchema,
   outputSchema: z.object({
     success: z.boolean(),
     cartId: z.string(),
