@@ -65,8 +65,8 @@ export type InferToolName<T> = T extends { name: infer N } ? N : never
  */
 export type InferToolInput<T> = T extends { inputSchema?: infer TInput }
   ? TInput extends StandardSchemaV1
-  ? InferOutput<TInput>
-  : any
+    ? InferOutput<TInput>
+    : any
   : any
 
 /**
@@ -74,8 +74,8 @@ export type InferToolInput<T> = T extends { inputSchema?: infer TInput }
  */
 export type InferToolOutput<T> = T extends { outputSchema?: infer TOutput }
   ? TOutput extends StandardSchemaV1
-  ? InferOutput<TOutput>
-  : any
+    ? InferOutput<TOutput>
+    : any
   : any
 
 /**
@@ -90,7 +90,9 @@ export interface ToolDefinitionConfig<
   description: string
   inputSchema?: TInput
   outputSchema?: TOutput
-  toJsonSchema?: (inputSchema: StandardSchemaV1) => Record<string, any> | undefined
+  toJsonSchema?: (
+    inputSchema: StandardSchemaV1,
+  ) => Record<string, any> | undefined
   needsApproval?: boolean
   metadata?: Record<string, any>
 }

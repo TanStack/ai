@@ -29,7 +29,11 @@ const config = defineConfig({
 export default mergeConfig(
   config,
   tanstackViteConfig({
-    entry: ['./src/index.ts', './src/event-client.ts', "./src/tools/zod-converter.ts"],
+    entry: [
+      './src/index.ts',
+      './src/event-client.ts',
+      './src/tools/zod-converter.ts',
+    ],
     srcDir: './src',
     cjs: false,
   }),

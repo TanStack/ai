@@ -523,9 +523,6 @@ importers:
 
   packages/typescript/ai:
     dependencies:
-      '@alcyone-labs/zod-to-json-schema':
-        specifier: ^4.0.0
-        version: 4.0.10(zod@4.1.13)
       '@standard-schema/spec':
         specifier: ^1.0.0
         version: 1.0.0

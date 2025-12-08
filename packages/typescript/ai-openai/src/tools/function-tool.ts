@@ -8,9 +8,10 @@ export type FunctionTool = OpenAI.Responses.FunctionTool
  */
 export function convertFunctionToolToAdapterFormat(tool: Tool): FunctionTool {
   // Get JSON Schema from tool's converter function
-  const jsonSchema = tool.inputSchema && tool.toJsonSchema
-    ? tool.toJsonSchema(tool.inputSchema)
-    : undefined
+  const jsonSchema =
+    tool.inputSchema && tool.toJsonSchema
+      ? tool.toJsonSchema(tool.inputSchema)
+      : undefined
 
   // Determine if we can use strict mode
   // Strict mode requires all properties to be in the required array

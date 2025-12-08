@@ -28,9 +28,10 @@ export function convertCustomToolToAdapterFormat(tool: Tool): CustomTool {
     (tool.metadata as { cacheControl?: CacheControl | null } | undefined) || {}
 
   // Get JSON Schema from tool's converter function
-  const jsonSchema = tool.inputSchema && tool.toJsonSchema
-    ? tool.toJsonSchema(tool.inputSchema)
-    : undefined
+  const jsonSchema =
+    tool.inputSchema && tool.toJsonSchema
+      ? tool.toJsonSchema(tool.inputSchema)
+      : undefined
 
   const inputSchema = {
     type: 'object' as const,

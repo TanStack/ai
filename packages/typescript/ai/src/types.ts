@@ -153,21 +153,21 @@ export type ConstrainedContent<
   | string
   | null
   | Array<
-    ContentPartForModalities<
-      ModalitiesArrayToUnion<TModalities>,
-      TImageMeta,
-      TAudioMeta,
-      TVideoMeta,
-      TDocumentMeta,
-      TTextMeta
+      ContentPartForModalities<
+        ModalitiesArrayToUnion<TModalities>,
+        TImageMeta,
+        TAudioMeta,
+        TVideoMeta,
+        TDocumentMeta,
+        TTextMeta
+      >
     >
-  >
 
 export interface ModelMessage<
   TContent extends string | null | Array<ContentPart> =
-  | string
-  | null
-  | Array<ContentPart>,
+    | string
+    | null
+    | Array<ContentPart>,
 > {
   role: 'user' | 'assistant' | 'tool'
   content: TContent
@@ -383,7 +383,9 @@ export interface Tool<
    * import { toJSONSchema } from '@valibot/to-json-schema';
    * toJsonSchema: (schema) => toJSONSchema(schema)
    */
-  toJsonSchema?: (inputSchema: StandardSchemaV1) => Record<string, any> | undefined
+  toJsonSchema?: (
+    inputSchema: StandardSchemaV1,
+  ) => Record<string, any> | undefined
 }
 
 export interface ToolConfig {
@@ -798,48 +800,48 @@ export type ChatStreamOptionsUnion<
     infer ModelInputModalities,
     infer MessageMetadata
   >
-  ? Models[number] extends infer TModel
-  ? TModel extends string
-  ? Omit<
-    ChatOptions,
-    'model' | 'providerOptions' | 'responseFormat' | 'messages'
-  > & {
-    adapter: TAdapter
-    model: TModel
-    providerOptions?: TModel extends keyof ModelProviderOptions
-    ? ModelProviderOptions[TModel]
+    ? Models[number] extends infer TModel
+      ? TModel extends string
+        ? Omit<
+            ChatOptions,
+            'model' | 'providerOptions' | 'responseFormat' | 'messages'
+          > & {
+            adapter: TAdapter
+            model: TModel
+            providerOptions?: TModel extends keyof ModelProviderOptions
+              ? ModelProviderOptions[TModel]
+              : never
+            /**
+             * Messages array with content constrained to the model's supported input modalities.
+             * For example, if a model only supports ['text', 'image'], you cannot pass audio or video content.
+             * Metadata types are also constrained based on the adapter's metadata type definitions.
+             */
+            messages: TModel extends keyof ModelInputModalities
+              ? ModelInputModalities[TModel] extends ReadonlyArray<Modality>
+                ? MessageMetadata extends {
+                    text: infer TTextMeta
+                    image: infer TImageMeta
+                    audio: infer TAudioMeta
+                    video: infer TVideoMeta
+                    document: infer TDocumentMeta
+                  }
+                  ? Array<
+                      ConstrainedModelMessage<
+                        ModelInputModalities[TModel],
+                        TImageMeta,
+                        TAudioMeta,
+                        TVideoMeta,
+                        TDocumentMeta,
+                        TTextMeta
+                      >
+                    >
+                  : Array<ConstrainedModelMessage<ModelInputModalities[TModel]>>
+                : Array<ModelMessage>
+              : Array<ModelMessage>
+          }
+        : never
+      : never
     : never
-    /**
-     * Messages array with content constrained to the model's supported input modalities.
-     * For example, if a model only supports ['text', 'image'], you cannot pass audio or video content.
-     * Metadata types are also constrained based on the adapter's metadata type definitions.
-     */
-    messages: TModel extends keyof ModelInputModalities
-    ? ModelInputModalities[TModel] extends ReadonlyArray<Modality>
-    ? MessageMetadata extends {
-      text: infer TTextMeta
-      image: infer TImageMeta
-      audio: infer TAudioMeta
-      video: infer TVideoMeta
-      document: infer TDocumentMeta
-    }
-    ? Array<
-      ConstrainedModelMessage<
-        ModelInputModalities[TModel],
-        TImageMeta,
-        TAudioMeta,
-        TVideoMeta,
-        TDocumentMeta,
-        TTextMeta
-      >
-    >
-    : Array<ConstrainedModelMessage<ModelInputModalities[TModel]>>
-    : Array<ModelMessage>
-    : Array<ModelMessage>
-  }
-  : never
-  : never
-  : never
 
 /**
  * Chat options constrained by a specific model's capabilities.
@@ -859,44 +861,44 @@ export type ChatStreamOptionsForModel<
     infer ModelInputModalities,
     infer MessageMetadata
   >
-  ? Omit<
-    ChatOptions,
-    'model' | 'providerOptions' | 'responseFormat' | 'messages'
-  > & {
-    adapter: TAdapter
-    model: TModel
-    providerOptions?: TModel extends keyof ModelProviderOptions
-    ? ModelProviderOptions[TModel]
+    ? Omit<
+        ChatOptions,
+        'model' | 'providerOptions' | 'responseFormat' | 'messages'
+      > & {
+        adapter: TAdapter
+        model: TModel
+        providerOptions?: TModel extends keyof ModelProviderOptions
+          ? ModelProviderOptions[TModel]
+          : never
+        /**
+         * Messages array with content constrained to the model's supported input modalities.
+         * For example, if a model only supports ['text', 'image'], you cannot pass audio or video content.
+         * Metadata types are also constrained based on the adapter's metadata type definitions.
+         */
+        messages: TModel extends keyof ModelInputModalities
+          ? ModelInputModalities[TModel] extends ReadonlyArray<Modality>
+            ? MessageMetadata extends {
+                text: infer TTextMeta
+                image: infer TImageMeta
+                audio: infer TAudioMeta
+                video: infer TVideoMeta
+                document: infer TDocumentMeta
+              }
+              ? Array<
+                  ConstrainedModelMessage<
+                    ModelInputModalities[TModel],
+                    TImageMeta,
+                    TAudioMeta,
+                    TVideoMeta,
+                    TDocumentMeta,
+                    TTextMeta
+                  >
+                >
+              : Array<ConstrainedModelMessage<ModelInputModalities[TModel]>>
+            : Array<ModelMessage>
+          : Array<ModelMessage>
+      }
     : never
-    /**
-     * Messages array with content constrained to the model's supported input modalities.
-     * For example, if a model only supports ['text', 'image'], you cannot pass audio or video content.
-     * Metadata types are also constrained based on the adapter's metadata type definitions.
-     */
-    messages: TModel extends keyof ModelInputModalities
-    ? ModelInputModalities[TModel] extends ReadonlyArray<Modality>
-    ? MessageMetadata extends {
-      text: infer TTextMeta
-      image: infer TImageMeta
-      audio: infer TAudioMeta
-      video: infer TVideoMeta
-      document: infer TDocumentMeta
-    }
-    ? Array<
-      ConstrainedModelMessage<
-        ModelInputModalities[TModel],
-        TImageMeta,
-        TAudioMeta,
-        TVideoMeta,
-        TDocumentMeta,
-        TTextMeta
-      >
-    >
-    : Array<ConstrainedModelMessage<ModelInputModalities[TModel]>>
-    : Array<ModelMessage>
-    : Array<ModelMessage>
-  }
-  : never
 
 // Extract types from adapter (updated to 6 generics)
 export type ExtractModelsFromAdapter<T> =
@@ -917,7 +919,7 @@ export type ExtractModalitiesForModel<
     any,
     infer ModelInputModalities
   >
-  ? TModel extends keyof ModelInputModalities
-  ? ModelInputModalities[TModel]
-  : ReadonlyArray<Modality>
-  : ReadonlyArray<Modality>
+    ? TModel extends keyof ModelInputModalities
+      ? ModelInputModalities[TModel]
+      : ReadonlyArray<Modality>
+    : ReadonlyArray<Modality>

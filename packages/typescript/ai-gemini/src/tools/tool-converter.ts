@@ -76,9 +76,10 @@ export function convertToolsToProviderFormat<TTool extends Tool>(
         }
 
         // Get JSON Schema from tool's converter function
-        const jsonSchema = tool.inputSchema && tool.toJsonSchema
-          ? tool.toJsonSchema(tool.inputSchema)
-          : undefined
+        const jsonSchema =
+          tool.inputSchema && tool.toJsonSchema
+            ? tool.toJsonSchema(tool.inputSchema)
+            : undefined
 
         functionDeclarations.push({
           name: tool.name,

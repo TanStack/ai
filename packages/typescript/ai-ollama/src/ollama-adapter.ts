@@ -373,9 +373,10 @@ export class Ollama extends BaseAdapter<
       function: {
         name: tool.name,
         description: tool.description,
-        parameters: tool.inputSchema && tool.toJsonSchema
-          ? tool.toJsonSchema(tool.inputSchema)
-          : undefined,
+        parameters:
+          tool.inputSchema && tool.toJsonSchema
+            ? tool.toJsonSchema(tool.inputSchema)
+            : undefined,
       },
     }))
   }
@@ -420,32 +421,32 @@ export class Ollama extends BaseAdapter<
         // Add images if present
         ...(images.length > 0 ? { images: images } : {}),
         ...(msg.role === 'assistant' &&
-          msg.toolCalls &&
-          msg.toolCalls.length > 0
+        msg.toolCalls &&
+        msg.toolCalls.length > 0
           ? {
-            tool_calls: msg.toolCalls.map((toolCall) => {
-              // Parse string arguments to object for Ollama
-              let parsedArguments = {}
-              if (typeof toolCall.function.arguments === 'string') {
-                try {
-                  parsedArguments = JSON.parse(toolCall.function.arguments)
-                } catch {
-                  parsedArguments = {}
+              tool_calls: msg.toolCalls.map((toolCall) => {
+                // Parse string arguments to object for Ollama
+                let parsedArguments = {}
+                if (typeof toolCall.function.arguments === 'string') {
+                  try {
+                    parsedArguments = JSON.parse(toolCall.function.arguments)
+                  } catch {
+                    parsedArguments = {}
+                  }
+                } else {
+                  parsedArguments = toolCall.function.arguments
                 }
-              } else {
-                parsedArguments = toolCall.function.arguments
-              }
 
-              return {
-                id: toolCall.id,
-                type: toolCall.type,
-                function: {
-                  name: toolCall.function.name,
-                  arguments: parsedArguments,
-                },
-              }
-            }),
-          }
+                return {
+                  id: toolCall.id,
+                  type: toolCall.type,
+                  function: {
+                    name: toolCall.function.name,
+                    arguments: parsedArguments,
+                  },
+                }
+              }),
+            }
           : {}),
       }
     })

@@ -17,9 +17,7 @@ async function validateSchema<T extends StandardSchemaV1>(
 ): Promise<StandardSchemaV1.InferOutput<T>> {
   const result = await schema['~standard'].validate(value)
   if (result.issues) {
-    const message = result.issues
-      .map((issue) => issue.message)
-      .join('; ')
+    const message = result.issues.map((issue) => issue.message).join('; ')
     throw new Error(message)
   }
   return result.value as StandardSchemaV1.InferOutput<T>
@@ -38,12 +36,13 @@ async function safeValidateSchema<T extends StandardSchemaV1>(
 > {
   const result = await schema['~standard'].validate(value)
   if (result.issues) {
-    const message = result.issues
-      .map((issue) => issue.message)
-      .join('; ')
+    const message = result.issues.map((issue) => issue.message).join('; ')
     return { success: false, error: { message } }
   }
-  return { success: true, data: result.value as StandardSchemaV1.InferOutput<T> }
+  return {
+    success: true,
+    data: result.value as StandardSchemaV1.InferOutput<T>,
+  }
 }
 
 /**
