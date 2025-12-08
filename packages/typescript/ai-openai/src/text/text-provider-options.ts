@@ -211,8 +211,7 @@ export type ExternalTextProviderOptions = OpenAIBaseOptions &
  * Options your SDK forwards to OpenAI when doing chat/responses.
  * Tip: gate these by model capability in your SDK, not just by presence.
  */
-export interface InternalTextProviderOptions
-  extends ExternalTextProviderOptions {
+export interface InternalTextProviderOptions extends ExternalTextProviderOptions {
   input: string | OpenAI.Responses.ResponseInput
   /**
    * A system (or developer) message inserted into the model's context.
