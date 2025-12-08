@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest'
 import { createChat } from '../src/create-chat.svelte'
-import { createMockConnection } from './test-utils'
+import { createMockConnectionAdapter } from './test-utils'
 
 describe('createChat', () => {
   beforeEach(() => {
@@ -8,7 +8,7 @@ describe('createChat', () => {
   })
 
   it('should initialize with empty messages', () => {
-    const mockConnection = createMockConnection([])
+    const mockConnection = createMockConnectionAdapter({ chunks: [] })
 
     const chat = createChat({
       connection: mockConnection,
@@ -20,7 +20,7 @@ describe('createChat', () => {
   })
 
   it('should initialize with initial messages', () => {
-    const mockConnection = createMockConnection([])
+    const mockConnection = createMockConnectionAdapter({ chunks: [] })
     const initialMessages = [
       {
         id: '1',
@@ -40,7 +40,7 @@ describe('createChat', () => {
   })
 
   it('should have sendMessage method', () => {
-    const mockConnection = createMockConnection([])
+    const mockConnection = createMockConnectionAdapter({ chunks: [] })
 
     const chat = createChat({
       connection: mockConnection,
@@ -50,7 +50,7 @@ describe('createChat', () => {
   })
 
   it('should have stop method', () => {
-    const mockConnection = createMockConnection([])
+    const mockConnection = createMockConnectionAdapter({ chunks: [] })
 
     const chat = createChat({
       connection: mockConnection,
@@ -61,7 +61,7 @@ describe('createChat', () => {
   })
 
   it('should have clear method', () => {
-    const mockConnection = createMockConnection([])
+    const mockConnection = createMockConnectionAdapter({ chunks: [] })
 
     const chat = createChat({
       connection: mockConnection,
@@ -72,7 +72,7 @@ describe('createChat', () => {
   })
 
   it('should have reload method', () => {
-    const mockConnection = createMockConnection([])
+    const mockConnection = createMockConnectionAdapter({ chunks: [] })
 
     const chat = createChat({
       connection: mockConnection,
@@ -82,7 +82,7 @@ describe('createChat', () => {
   })
 
   it('should have setMessages method', () => {
-    const mockConnection = createMockConnection([])
+    const mockConnection = createMockConnectionAdapter({ chunks: [] })
 
     const chat = createChat({
       connection: mockConnection,
@@ -92,7 +92,7 @@ describe('createChat', () => {
   })
 
   it('should have addToolResult method', () => {
-    const mockConnection = createMockConnection([])
+    const mockConnection = createMockConnectionAdapter({ chunks: [] })
 
     const chat = createChat({
       connection: mockConnection,
@@ -102,7 +102,7 @@ describe('createChat', () => {
   })
 
   it('should have addToolApprovalResponse method', () => {
-    const mockConnection = createMockConnection([])
+    const mockConnection = createMockConnectionAdapter({ chunks: [] })
 
     const chat = createChat({
       connection: mockConnection,
@@ -112,7 +112,7 @@ describe('createChat', () => {
   })
 
   it('should expose reactive messages property', () => {
-    const mockConnection = createMockConnection([])
+    const mockConnection = createMockConnectionAdapter({ chunks: [] })
 
     const chat = createChat({
       connection: mockConnection,
@@ -124,7 +124,7 @@ describe('createChat', () => {
   })
 
   it('should expose reactive isLoading property', () => {
-    const mockConnection = createMockConnection([])
+    const mockConnection = createMockConnectionAdapter({ chunks: [] })
 
     const chat = createChat({
       connection: mockConnection,
@@ -136,7 +136,7 @@ describe('createChat', () => {
   })
 
   it('should expose reactive error property', () => {
-    const mockConnection = createMockConnection([])
+    const mockConnection = createMockConnectionAdapter({ chunks: [] })
 
     const chat = createChat({
       connection: mockConnection,

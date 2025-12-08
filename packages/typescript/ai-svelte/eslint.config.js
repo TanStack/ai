@@ -1,3 +1,9 @@
-import baseConfig from '@tanstack/config/eslint'
+import rootConfig from '../../../eslint.config.js'
 
-export default [...baseConfig]
+/** @type {import('eslint').Linter.Config[]} */
+export default [
+  ...rootConfig,
+  {
+    rules: {},
+  },
+]

@@ -1,6 +1,6 @@
 import { ChatClient } from '@tanstack/ai-client'
 import type { AnyClientTool, ModelMessage } from '@tanstack/ai'
-import type { UIMessage, CreateChatOptions, CreateChatReturn } from './types'
+import type { CreateChatOptions, CreateChatReturn, UIMessage } from './types'
 
 /**
  * Creates a reactive chat instance for Svelte 5.
