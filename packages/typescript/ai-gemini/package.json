@@ -40,12 +40,12 @@
     "adapter"
   ],
   "dependencies": {
-    "@google/genai": "^1.30.0",
+    "@google/genai": "^1.31.0",
     "@tanstack/ai": "workspace:*"
   },
   "devDependencies": {
-    "@vitest/coverage-v8": "4.0.14",
-    "vite": "^7.2.4"
+    "@vitest/coverage-v8": "4.0.15",
+    "vite": "^7.2.6"
   },
   "peerDependencies": {
     "@tanstack/ai": "workspace:*"

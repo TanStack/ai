@@ -48,14 +48,14 @@
   "dependencies": {
     "@tanstack/ai": "workspace:*",
     "@tanstack/devtools-ui": "^0.4.4",
-    "@tanstack/devtools-utils": "^0.0.8",
+    "@tanstack/devtools-utils": "^0.1.0",
     "goober": "^2.1.18",
     "solid-js": "^1.9.10"
   },
   "devDependencies": {
-    "@vitest/coverage-v8": "4.0.14",
+    "@vitest/coverage-v8": "4.0.15",
     "jsdom": "^27.2.0",
-    "vite": "^7.2.4",
+    "vite": "^7.2.6",
     "vite-plugin-solid": "^2.11.10"
   }
 }

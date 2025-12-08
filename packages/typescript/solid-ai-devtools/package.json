@@ -48,11 +48,11 @@
   ],
   "dependencies": {
     "@tanstack/ai-devtools-core": "workspace:*",
-    "@tanstack/devtools-utils": "^0.0.8"
+    "@tanstack/devtools-utils": "^0.1.0"
   },
   "devDependencies": {
-    "@vitest/coverage-v8": "4.0.14",
-    "vite": "^7.2.4",
+    "@vitest/coverage-v8": "4.0.15",
+    "vite": "^7.2.6",
     "vite-plugin-solid": "^2.11.10"
   },
   "peerDependencies": {

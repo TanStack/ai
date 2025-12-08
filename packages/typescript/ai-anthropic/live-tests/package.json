@@ -11,9 +11,9 @@
   "dependencies": {
     "@tanstack/ai": "workspace:*",
     "@tanstack/ai-anthropic": "workspace:*",
-    "zod": "^3.24.1"
+    "zod": "^3.25.76"
   },
   "devDependencies": {
-    "tsx": "^4.19.2"
+    "tsx": "^4.21.0"
   }
 }

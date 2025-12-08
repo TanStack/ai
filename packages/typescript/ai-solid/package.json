@@ -46,12 +46,12 @@
   "devDependencies": {
     "@solidjs/testing-library": "^0.8.10",
     "@types/node": "^24.10.1",
-    "@vitest/coverage-v8": "4.0.14",
+    "@vitest/coverage-v8": "4.0.15",
     "jsdom": "^27.2.0",
     "solid-js": "^1.9.10",
-    "tsdown": "^0.17.0-beta.6",
+    "tsdown": "^0.17.0",
     "typescript": "5.9.3",
-    "vitest": "^4.0.14"
+    "vitest": "^4.0.15"
   },
   "peerDependencies": {
     "@tanstack/ai": "workspace:*",

@@ -46,8 +46,8 @@
     "zod": "^4.1.13"
   },
   "devDependencies": {
-    "@vitest/coverage-v8": "4.0.14",
-    "vite": "^7.2.4"
+    "@vitest/coverage-v8": "4.0.15",
+    "vite": "^7.2.6"
   },
   "peerDependencies": {
     "@tanstack/ai": "workspace:*"

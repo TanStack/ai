@@ -41,11 +41,11 @@
   ],
   "dependencies": {
     "@tanstack/ai": "workspace:*",
-    "openai": "^6.9.1"
+    "openai": "^6.10.0"
   },
   "devDependencies": {
-    "@vitest/coverage-v8": "4.0.14",
-    "vite": "^7.2.4"
+    "@vitest/coverage-v8": "4.0.15",
+    "vite": "^7.2.6"
   },
   "peerDependencies": {
     "@tanstack/ai": "workspace:*"

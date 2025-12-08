@@ -1,5 +1,5 @@
 [build-system]
-requires = ["setuptools>=61.0", "wheel"]
+requires = ["setuptools>=61.3.1", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
@@ -7,7 +7,7 @@ name = "tanstack-ai"
 version = "0.1.0"
 description = "Python utilities for TanStack AI - Convert provider events to StreamChunk format"
 readme = "README.md"
-requires-python = ">=3.8"
+requires-python = ">=3.14.1"
 license = {text = "MIT"}
 authors = [
     {name = "TanStack"}
