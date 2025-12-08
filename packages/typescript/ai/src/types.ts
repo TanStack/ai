@@ -2,6 +2,63 @@ import type { CommonOptions } from './core/chat-common-options'
 import type { z } from 'zod'
 import type { ToolCallState, ToolResultState } from './stream/types'
 
+/**
+ * JSON Schema type for defining tool input/output schemas as raw JSON Schema objects.
+ * This allows tools to be defined without Zod when you have JSON Schema definitions available.
+ */
+export interface JSONSchema {
+  type?: string | Array<string>
+  properties?: Record<string, JSONSchema>
+  items?: JSONSchema | Array<JSONSchema>
+  required?: Array<string>
+  enum?: Array<any>
+  const?: any
+  description?: string
+  default?: any
+  $ref?: string
+  $defs?: Record<string, JSONSchema>
+  definitions?: Record<string, JSONSchema>
+  allOf?: Array<JSONSchema>
+  anyOf?: Array<JSONSchema>
+  oneOf?: Array<JSONSchema>
+  not?: JSONSchema
+  if?: JSONSchema
+  then?: JSONSchema
+  else?: JSONSchema
+  minimum?: number
+  maximum?: number
+  exclusiveMinimum?: number
+  exclusiveMaximum?: number
+  minLength?: number
+  maxLength?: number
+  pattern?: string
+  format?: string
+  minItems?: number
+  maxItems?: number
+  uniqueItems?: boolean
+  additionalProperties?: boolean | JSONSchema
+  additionalItems?: boolean | JSONSchema
+  patternProperties?: Record<string, JSONSchema>
+  propertyNames?: JSONSchema
+  minProperties?: number
+  maxProperties?: number
+  title?: string
+  examples?: Array<any>
+  [key: string]: any // Allow additional properties for extensibility
+}
+
+/**
+ * Union type for schema input - can be either a Zod schema or a JSONSchema object.
+ */
+export type SchemaInput = z.ZodType | JSONSchema
+
+/**
+ * Infer the TypeScript type from a schema.
+ * For Zod schemas, uses z.infer to get the proper type.
+ * For JSONSchema, returns `any` since we can't infer types from JSON Schema at compile time.
+ */
+export type InferSchemaType<T> = T extends z.ZodType ? z.infer<T> : any
+
 export interface ToolCall {
   id: string
   type: 'function'
@@ -255,14 +312,14 @@ export type ConstrainedModelMessage<
  * Tools allow the model to interact with external systems, APIs, or perform computations.
  * The model will decide when to call tools based on the user's request and the tool descriptions.
  *
- * Tools use Zod schemas for runtime validation and type safety.
+ * Tools can use either Zod schemas or JSON Schema objects for runtime validation and type safety.
  *
  * @see https://platform.openai.com/docs/guides/function-calling
  * @see https://docs.anthropic.com/claude/docs/tool-use
  */
 export interface Tool<
-  TInput extends z.ZodType = z.ZodType,
-  TOutput extends z.ZodType = z.ZodType,
+  TInput extends SchemaInput = z.ZodType,
+  TOutput extends SchemaInput = z.ZodType,
   TName extends string = string,
 > {
   /**
@@ -286,32 +343,47 @@ export interface Tool<
   description: string
 
   /**
-   * Zod schema describing the tool's input parameters.
+   * Schema describing the tool's input parameters.
    *
+   * Can be either a Zod schema or a JSON Schema object.
    * Defines the structure and types of arguments the tool accepts.
    * The model will generate arguments matching this schema.
-   * The schema is converted to JSON Schema for LLM providers.
+   * Zod schemas are converted to JSON Schema for LLM providers.
    *
    * @see https://zod.dev/
+   * @see https://json-schema.org/
    *
    * @example
+   * // Using Zod schema
    * import { z } from 'zod';
-   *
    * z.object({
    *   location: z.string().describe("City name or coordinates"),
    *   unit: z.enum(["celsius", "fahrenheit"]).optional()
    * })
+   *
+   * @example
+   * // Using JSON Schema
+   * {
+   *   type: 'object',
+   *   properties: {
+   *     location: { type: 'string', description: 'City name or coordinates' },
+   *     unit: { type: 'string', enum: ['celsius', 'fahrenheit'] }
+   *   },
+   *   required: ['location']
+   * }
    */
   inputSchema?: TInput
 
   /**
-   * Optional Zod schema for validating tool output.
+   * Optional schema for validating tool output.
    *
-   * If provided, tool results will be validated against this schema before
+   * Can be either a Zod schema or a JSON Schema object.
+   * If provided with a Zod schema, tool results will be validated against this schema before
    * being sent back to the model. This catches bugs in tool implementations
    * and ensures consistent output formatting.
    *
    * Note: This is client-side validation only - not sent to LLM providers.
+   * Note: JSON Schema output validation is not performed at runtime.
    *
    * @example
    * z.object({
@@ -481,7 +553,7 @@ export interface ChatOptions<
 > {
   model: TModel
   messages: Array<ModelMessage>
-  tools?: Array<Tool>
+  tools?: Array<Tool<any, any, any>>
   systemPrompts?: Array<string>
   agentLoopStrategy?: AgentLoopStrategy
   options?: CommonOptions

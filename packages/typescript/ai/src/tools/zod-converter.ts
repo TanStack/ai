@@ -1,22 +1,39 @@
 import { toJSONSchema } from 'zod'
 import type { z } from 'zod'
+import type { SchemaInput } from '../types'
+
 /**
- * Converts a Zod schema to JSON Schema format compatible with LLM providers.
+ * Check if a value is a Zod schema by looking for Zod-specific internals.
+ * Zod schemas have a `_zod` property that contains metadata.
+ */
+function isZodSchema(schema: unknown): schema is z.ZodType {
+  return (
+    typeof schema === 'object' &&
+    schema !== null &&
+    '_zod' in schema &&
+    typeof (schema as any)._zod === 'object'
+  )
+}
+
+/**
+ * Converts a schema (Zod or JSONSchema) to JSON Schema format compatible with LLM providers.
+ * If the input is already a JSONSchema object, it is returned as-is.
+ * If the input is a Zod schema, it is converted to JSON Schema.
  *
- *
- * @param schema - Zod schema to convert
+ * @param schema - Zod schema or JSONSchema object to convert
  * @returns JSON Schema object that can be sent to LLM providers
  *
  * @example
  * ```typescript
  * import { z } from 'zod';
  *
- * const schema = z.object({
+ * // Using Zod schema
+ * const zodSchema = z.object({
  *   location: z.string().describe('City name'),
  *   unit: z.enum(['celsius', 'fahrenheit']).optional()
  * });
  *
- * const jsonSchema = convertZodToJsonSchema(schema);
+ * const jsonSchema = convertZodToJsonSchema(zodSchema);
  * // Returns:
  * // {
  * //   type: 'object',
@@ -26,12 +43,26 @@ import type { z } from 'zod'
  * //   },
  * //   required: ['location']
  * // }
+ *
+ * // Using JSONSchema directly (passes through unchanged)
+ * const rawSchema = {
+ *   type: 'object',
+ *   properties: { location: { type: 'string' } },
+ *   required: ['location']
+ * };
+ * const result = convertZodToJsonSchema(rawSchema);
+ * // Returns the same object
  * ```
  */
 export function convertZodToJsonSchema(
-  schema: z.ZodType | undefined,
+  schema: SchemaInput | undefined,
 ): Record<string, any> | undefined {
   if (!schema) return undefined
+
+  // If it's not a Zod schema, assume it's already a JSONSchema and pass through
+  if (!isZodSchema(schema)) {
+    return schema
+  }
 
   // Use Alcyone Labs fork which is compatible with Zod v4
   const jsonSchema = toJSONSchema(schema, {

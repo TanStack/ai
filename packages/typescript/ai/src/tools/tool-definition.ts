@@ -1,12 +1,12 @@
 import type { z } from 'zod'
-import type { Tool } from '../types'
+import type { InferSchemaType, JSONSchema, SchemaInput, Tool } from '../types'
 
 /**
  * Marker type for server-side tools
  */
 export interface ServerTool<
-  TInput extends z.ZodType = z.ZodType,
-  TOutput extends z.ZodType = z.ZodType,
+  TInput extends SchemaInput = z.ZodType,
+  TOutput extends SchemaInput = z.ZodType,
   TName extends string = string,
 > extends Tool<TInput, TOutput, TName> {
   __toolSide: 'server'
@@ -16,8 +16,8 @@ export interface ServerTool<
  * Marker type for client-side tools
  */
 export interface ClientTool<
-  TInput extends z.ZodType = z.ZodType,
-  TOutput extends z.ZodType = z.ZodType,
+  TInput extends SchemaInput = z.ZodType,
+  TOutput extends SchemaInput = z.ZodType,
   TName extends string = string,
 > {
   __toolSide: 'client'
@@ -28,16 +28,16 @@ export interface ClientTool<
   needsApproval?: boolean
   metadata?: Record<string, any>
   execute?: (
-    args: z.infer<TInput>,
-  ) => Promise<z.infer<TOutput>> | z.infer<TOutput>
+    args: InferSchemaType<TInput>,
+  ) => Promise<InferSchemaType<TOutput>> | InferSchemaType<TOutput>
 }
 
 /**
  * Tool definition that can be used directly or instantiated for server/client
  */
 export interface ToolDefinitionInstance<
-  TInput extends z.ZodType = z.ZodType,
-  TOutput extends z.ZodType = z.ZodType,
+  TInput extends SchemaInput = z.ZodType,
+  TOutput extends SchemaInput = z.ZodType,
   TName extends string = string,
 > extends Tool<TInput, TOutput, TName> {
   __toolSide: 'definition'
@@ -56,29 +56,33 @@ export type AnyClientTool =
 export type InferToolName<T> = T extends { name: infer N } ? N : never
 
 /**
- * Extract the input type from a tool (inferred from Zod schema)
+ * Extract the input type from a tool (inferred from Zod schema, or `any` for JSONSchema)
  */
 export type InferToolInput<T> = T extends { inputSchema?: infer TInput }
   ? TInput extends z.ZodType
     ? z.infer<TInput>
-    : any
+    : TInput extends JSONSchema
+      ? any
+      : any
   : any
 
 /**
- * Extract the output type from a tool (inferred from Zod schema)
+ * Extract the output type from a tool (inferred from Zod schema, or `any` for JSONSchema)
  */
 export type InferToolOutput<T> = T extends { outputSchema?: infer TOutput }
   ? TOutput extends z.ZodType
     ? z.infer<TOutput>
-    : any
+    : TOutput extends JSONSchema
+      ? any
+      : any
   : any
 
 /**
  * Tool definition configuration
  */
 export interface ToolDefinitionConfig<
-  TInput extends z.ZodType = z.ZodType,
-  TOutput extends z.ZodType = z.ZodType,
+  TInput extends SchemaInput = z.ZodType,
+  TOutput extends SchemaInput = z.ZodType,
   TName extends string = string,
 > {
   name: TName
@@ -93,8 +97,8 @@ export interface ToolDefinitionConfig<
  * Tool definition builder that allows creating server or client tools from a shared definition
  */
 export interface ToolDefinition<
-  TInput extends z.ZodType = z.ZodType,
-  TOutput extends z.ZodType = z.ZodType,
+  TInput extends SchemaInput = z.ZodType,
+  TOutput extends SchemaInput = z.ZodType,
   TName extends string = string,
 > extends ToolDefinitionInstance<TInput, TOutput, TName> {
   /**
@@ -102,8 +106,8 @@ export interface ToolDefinition<
    */
   server: (
     execute: (
-      args: z.infer<TInput>,
-    ) => Promise<z.infer<TOutput>> | z.infer<TOutput>,
+      args: InferSchemaType<TInput>,
+    ) => Promise<InferSchemaType<TOutput>> | InferSchemaType<TOutput>,
   ) => ServerTool<TInput, TOutput, TName>
 
   /**
@@ -111,8 +115,8 @@ export interface ToolDefinition<
    */
   client: (
     execute?: (
-      args: z.infer<TInput>,
-    ) => Promise<z.infer<TOutput>> | z.infer<TOutput>,
+      args: InferSchemaType<TInput>,
+    ) => Promise<InferSchemaType<TOutput>> | InferSchemaType<TOutput>,
   ) => ClientTool<TInput, TOutput, TName>
 }
 
@@ -168,8 +172,8 @@ export interface ToolDefinition<
  * ```
  */
 export function toolDefinition<
-  TInput extends z.ZodType = z.ZodAny,
-  TOutput extends z.ZodType = z.ZodAny,
+  TInput extends SchemaInput = z.ZodAny,
+  TOutput extends SchemaInput = z.ZodAny,
   TName extends string = string,
 >(
   config: ToolDefinitionConfig<TInput, TOutput, TName>,
@@ -179,8 +183,8 @@ export function toolDefinition<
     ...config,
     server(
       execute: (
-        args: z.infer<TInput>,
-      ) => Promise<z.infer<TOutput>> | z.infer<TOutput>,
+        args: InferSchemaType<TInput>,
+      ) => Promise<InferSchemaType<TOutput>> | InferSchemaType<TOutput>,
     ): ServerTool<TInput, TOutput, TName> {
       return {
         __toolSide: 'server',
@@ -191,8 +195,8 @@ export function toolDefinition<
 
     client(
       execute?: (
-        args: z.infer<TInput>,
-      ) => Promise<z.infer<TOutput>> | z.infer<TOutput>,
+        args: InferSchemaType<TInput>,
+      ) => Promise<InferSchemaType<TOutput>> | InferSchemaType<TOutput>,
     ): ClientTool<TInput, TOutput, TName> {
       return {
         __toolSide: 'client',
