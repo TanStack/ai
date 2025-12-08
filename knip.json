@@ -1,14 +1,7 @@
 {
   "$schema": "https://unpkg.com/knip@5/schema.json",
-  "ignoreDependencies": [
-    "@faker-js/faker",
-    "zod"
-  ],
-  "ignoreWorkspaces": [
-    "examples/**",
-    "testing/**",
-    "**/smoke-tests/**"
-  ],
+  "ignoreDependencies": ["@faker-js/faker", "zod"],
+  "ignoreWorkspaces": ["examples/**", "testing/**", "**/smoke-tests/**"],
   "ignore": [
     "packages/typescript/ai-openai/live-tests/**",
     "packages/typescript/ai-openai/src/**/*.test.ts",
@@ -26,19 +19,13 @@
       "ignore": []
     },
     "packages/typescript/ai-anthropic": {
-      "ignore": [
-        "src/tools/**"
-      ]
+      "ignore": ["src/tools/**"]
     },
     "packages/typescript/ai-gemini": {
-      "ignore": [
-        "src/tools/**"
-      ]
+      "ignore": ["src/tools/**"]
     },
     "packages/typescript/ai-openai": {
-      "ignore": [
-        "src/tools/**"
-      ]
+      "ignore": ["src/tools/**"]
     },
     "packages/typescript/ai-vue-ui": {
       "ignoreDependencies": [
@@ -48,9 +35,7 @@
         "rehype-sanitize",
         "remark-gfm"
       ],
-      "ignore": [
-        "src/use-chat-context.ts"
-      ]
+      "ignore": ["src/use-chat-context.ts"]
     }
   }
 }
