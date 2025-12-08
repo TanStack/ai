@@ -1,14 +1,18 @@
 {
   "$schema": "https://unpkg.com/knip@5/schema.json",
   "ignoreDependencies": [
-    "@faker-js/faker",
-    "zod"
+    "@faker-js/faker"
   ],
   "ignoreWorkspaces": [
     "examples/**",
     "testing/**",
     "**/smoke-tests/**"
   ],
+  "ignoreIssues": {
+    "packages/typescript/ai/package.json": [
+      "optionalPeerDependencies"
+    ]
+  },
   "ignore": [
     "packages/typescript/ai-openai/live-tests/**",
     "packages/typescript/ai-openai/src/**/*.test.ts",
