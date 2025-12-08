@@ -38,11 +38,38 @@
 A powerful, type-safe AI SDK for building AI-powered applications.
 
 - Provider-agnostic adapters (OpenAI, Anthropic, Gemini, Ollama, etc.)
+- **Multimodal content support** - Send images, audio, video, and documents
 - Chat completion, streaming, and agent loop strategies
 - Headless chat state management with adapters (SSE, HTTP stream, custom)
-- Type-safe tools with server/client execution
+- Isomorphic type-safe tools with server/client execution
+- **Enhanced integration with TanStack Start** - Share implementations between AI tools and server functions
 
 ### <a href="https://tanstack.com/ai">Read the docs →</b></a>
+
+## Bonus: TanStack Start Integration
+
+TanStack AI works with **any** framework (Next.js, Express, Remix, etc.).
+
+**With TanStack Start**, you get a bonus: share implementations between AI tools and server functions with `createServerFnTool`:
+
+```typescript
+import { createServerFnTool } from '@tanstack/ai-react'
+
+// Define once, get AI tool AND server function (TanStack Start only)
+const getProducts = createServerFnTool({
+  name: 'getProducts',
+  inputSchema: z.object({ query: z.string() }),
+  execute: async ({ query }) => db.products.search(query),
+})
+
+// Use in AI chat
+chat({ tools: [getProducts.server] })
+
+// Call directly from components (no API endpoint needed!)
+const products = await getProducts.serverFn({ query: 'laptop' })
+```
+
+No duplicate logic, full type safety, automatic validation. The `serverFn` feature requires TanStack Start. See [docs](https://tanstack.com/ai) for details.
 
 ## Get Involved
 
@@ -88,7 +115,7 @@ We're looking for TanStack AI Partners to join our mission! Partner with us to p
 
 - <a href="https://github.com/tanstack/config"><b>TanStack Config</b></a> – Tooling for JS/TS packages
 - <a href="https://github.com/tanstack/db"><b>TanStack DB</b></a> – Reactive sync client store
-- <a href="https://github.com/tanstack/devtools">TanStack Devtools</a> – Unified devtools panel
+- <a href="https://github.com/tanstack/devtools"><b>TanStack Devtools</b></a> – Unified devtools panel
 - <a href="https://github.com/tanstack/form"><b>TanStack Form</b></a> – Type‑safe form state
 - <a href="https://github.com/tanstack/pacer"><b>TanStack Pacer</b></a> – Debouncing, throttling, batching
 - <a href="https://github.com/tanstack/query"><b>TanStack Query</b></a> – Async state & caching
