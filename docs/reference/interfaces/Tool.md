@@ -12,7 +12,7 @@ Tool/Function definition for function calling.
 Tools allow the model to interact with external systems, APIs, or perform computations.
 The model will decide when to call tools based on the user's request and the tool descriptions.
 
-Tools can use either Zod schemas or JSON Schema objects for defining input/output types.
+Tools can use either Zod schemas or JSON Schema objects for runtime validation and type safety.
 
 ## See
 
@@ -28,15 +28,11 @@ Tools can use either Zod schemas or JSON Schema objects for defining input/outpu
 
 ### TInput
 
-`TInput` *extends* `SchemaInput` = `z.ZodType`
-
-The input schema type - can be a Zod schema or JSON Schema object.
+`TInput` *extends* [`SchemaInput`](../type-aliases/SchemaInput.md) = `z.ZodType`
 
 ### TOutput
 
-`TOutput` *extends* `SchemaInput` = `z.ZodType`
-
-The output schema type - can be a Zod schema or JSON Schema object.
+`TOutput` *extends* [`SchemaInput`](../type-aliases/SchemaInput.md) = `z.ZodType`
 
 ### TName
 
@@ -86,13 +82,13 @@ Can return any value - will be automatically stringified if needed.
 
 `any`
 
-The arguments parsed from the model's tool call (validated against inputSchema if using Zod)
+The arguments parsed from the model's tool call (validated against inputSchema)
 
 #### Returns
 
 `any`
 
-Result to send back to the model (validated against outputSchema if using Zod)
+Result to send back to the model (validated against outputSchema if provided)
 
 #### Example
 
@@ -115,14 +111,17 @@ Defined in: [types.ts:375](https://github.com/TanStack/ai/blob/main/packages/typ
 
 Schema describing the tool's input parameters.
 
-Can be either a **Zod schema** or a **JSON Schema object**.
-
 Can be either a Zod schema or a JSON Schema object.
 Defines the structure and types of arguments the tool accepts.
 The model will generate arguments matching this schema.
-Zod schemas are converted to JSON Schema for LLM providers; JSON Schema objects are passed through as-is.
+Zod schemas are converted to JSON Schema for LLM providers.
 
-#### Example: Using Zod
+#### See
+
+ - https://zod.dev/
+ - https://json-schema.org/
+
+#### Examples
 
 ```ts
 // Using Zod schema
@@ -133,9 +132,8 @@ z.object({
 })
 ```
 
-#### Example: Using JSON Schema
-
 ```ts
+// Using JSON Schema
 {
   type: 'object',
   properties: {
@@ -203,15 +201,15 @@ Defined in: [types.ts:395](https://github.com/TanStack/ai/blob/main/packages/typ
 
 Optional schema for validating tool output.
 
-Can be either a **Zod schema** or a **JSON Schema object**.
-
+Can be either a Zod schema or a JSON Schema object.
 If provided with a Zod schema, tool results will be validated against this schema before
 being sent back to the model. This catches bugs in tool implementations
 and ensures consistent output formatting.
 
-Note: JSON Schema output validation is not performed at runtime. Zod schemas are recommended for validation.
+Note: This is client-side validation only - not sent to LLM providers.
+Note: JSON Schema output validation is not performed at runtime.
 
-#### Example: Using Zod
+#### Example
 
 ```ts
 z.object({
@@ -219,18 +217,4 @@ z.object({
   conditions: z.string(),
   forecast: z.array(z.string()).optional()
 })
-```
-
-#### Example: Using JSON Schema
-
-```ts
-{
-  type: 'object',
-  properties: {
-    temperature: { type: 'number' },
-    conditions: { type: 'string' },
-    forecast: { type: 'array', items: { type: 'string' } }
-  },
-  required: ['temperature', 'conditions']
-}
 ```

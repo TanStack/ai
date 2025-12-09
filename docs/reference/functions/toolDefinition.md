@@ -22,15 +22,11 @@ The definition contains all tool metadata (name, description, schemas) and can b
 
 ### TInput
 
-`TInput` *extends* `SchemaInput` = `ZodAny`
-
-The input schema type - can be a Zod schema or JSON Schema object.
+`TInput` *extends* [`SchemaInput`](../type-aliases/SchemaInput.md) = `ZodAny`
 
 ### TOutput
 
-`TOutput` *extends* `SchemaInput` = `ZodAny`
-
-The output schema type - can be a Zod schema or JSON Schema object.
+`TOutput` *extends* [`SchemaInput`](../type-aliases/SchemaInput.md) = `ZodAny`
 
 ### TName
 
@@ -46,16 +42,7 @@ The output schema type - can be a Zod schema or JSON Schema object.
 
 [`ToolDefinition`](../interfaces/ToolDefinition.md)\<`TInput`, `TOutput`, `TName`\>
 
-## Schema Options
-
-Tool schemas can be defined using either **Zod schemas** or **JSON Schema objects**:
-
-- **Zod schemas**: Provide full TypeScript type inference and runtime validation
-- **JSON Schema objects**: Useful when you have existing JSON Schema definitions or prefer not to use Zod
-
-> **Note:** When using JSON Schema, TypeScript will infer `any` for input/output types. Zod schemas are recommended for full type safety.
-
-## Example: Using Zod Schemas
+## Example
 
 ```typescript
 import { toolDefinition } from '@tanstack/ai';
@@ -96,72 +83,5 @@ const addToCartServer = addToCartTool.server(async (args) => {
 const addToCartClient = addToCartTool.client(async (args) => {
   // Client-specific logic (e.g., localStorage)
   return { success: true, cartId: 'local', totalItems: 1 };
-});
-```
-
-## Example: Using JSON Schema
-
-```typescript
-import { toolDefinition } from '@tanstack/ai';
-import type { JSONSchema } from '@tanstack/ai';
-
-// Define input schema using JSON Schema
-const inputSchema: JSONSchema = {
-  type: 'object',
-  properties: {
-    location: {
-      type: 'string',
-      description: 'The city or location to get weather for',
-    },
-    unit: {
-      type: 'string',
-      enum: ['celsius', 'fahrenheit'],
-      description: 'Temperature unit (defaults to celsius)',
-    },
-  },
-  required: ['location'],
-};
-
-// Define output schema using JSON Schema
-const outputSchema: JSONSchema = {
-  type: 'object',
-  properties: {
-    location: { type: 'string' },
-    temperature: { type: 'number' },
-    unit: { type: 'string' },
-    conditions: { type: 'string' },
-  },
-  required: ['location', 'temperature', 'unit', 'conditions'],
-};
-
-// Create tool definition with JSON Schema
-const getWeatherTool = toolDefinition({
-  name: 'getWeather',
-  description: 'Get the current weather for a location',
-  inputSchema,
-  outputSchema,
-});
-
-// Create server implementation
-// Note: args is typed as `any` when using JSON Schema
-const getWeatherServer = getWeatherTool.server((args) => {
-  const location = args.location.toLowerCase();
-  const unit = args.unit || 'celsius';
-  
-  // Mock weather data
-  return {
-    location: args.location,
-    temperature: 22,
-    unit,
-    conditions: 'Partly cloudy',
-  };
-});
-
-// Use in chat
-chat({
-  adapter: anthropic(),
-  model: 'claude-sonnet-4-5',
-  messages,
-  tools: [getWeatherServer],
 });
 ```
