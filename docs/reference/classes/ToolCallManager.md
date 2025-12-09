@@ -5,7 +5,7 @@ title: ToolCallManager
 
 # Class: ToolCallManager
 
-Defined in: [tools/tool-calls.ts:41](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/tools/tool-calls.ts#L41)
+Defined in: [tools/tool-calls.ts:51](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/tools/tool-calls.ts#L51)
 
 Manages tool call accumulation and execution for the chat() method's automatic tool execution loop.
 
@@ -47,7 +47,7 @@ if (manager.hasToolCalls()) {
 new ToolCallManager(tools): ToolCallManager;
 ```
 
-Defined in: [tools/tool-calls.ts:45](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/tools/tool-calls.ts#L45)
+Defined in: [tools/tool-calls.ts:55](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/tools/tool-calls.ts#L55)
 
 #### Parameters
 
@@ -67,7 +67,7 @@ readonly [`Tool`](../interfaces/Tool.md)\<`ZodType`\<`unknown`, `unknown`, `$Zod
 addToolCallChunk(chunk): void;
 ```
 
-Defined in: [tools/tool-calls.ts:53](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/tools/tool-calls.ts#L53)
+Defined in: [tools/tool-calls.ts:63](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/tools/tool-calls.ts#L63)
 
 Add a tool call chunk to the accumulator
 Handles streaming tool calls by accumulating arguments
@@ -126,7 +126,7 @@ Handles streaming tool calls by accumulating arguments
 clear(): void;
 ```
 
-Defined in: [tools/tool-calls.ts:193](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/tools/tool-calls.ts#L193)
+Defined in: [tools/tool-calls.ts:208](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/tools/tool-calls.ts#L208)
 
 Clear the tool calls map for the next iteration
 
@@ -145,7 +145,7 @@ executeTools(doneChunk): AsyncGenerator<ToolResultStreamChunk, ModelMessage<
 | null>[], void>;
 ```
 
-Defined in: [tools/tool-calls.ts:111](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/tools/tool-calls.ts#L111)
+Defined in: [tools/tool-calls.ts:121](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/tools/tool-calls.ts#L121)
 
 Execute all tool calls and return tool result messages
 Also yields tool_result chunks for streaming
@@ -171,7 +171,7 @@ Also yields tool_result chunks for streaming
 getToolCalls(): ToolCall[];
 ```
 
-Defined in: [tools/tool-calls.ts:101](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/tools/tool-calls.ts#L101)
+Defined in: [tools/tool-calls.ts:111](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/tools/tool-calls.ts#L111)
 
 Get all complete tool calls (filtered for valid ID and name)
 
@@ -187,7 +187,7 @@ Get all complete tool calls (filtered for valid ID and name)
 hasToolCalls(): boolean;
 ```
 
-Defined in: [tools/tool-calls.ts:94](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/tools/tool-calls.ts#L94)
+Defined in: [tools/tool-calls.ts:104](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/tools/tool-calls.ts#L104)
 
 Check if there are any complete tool calls to execute
 
