@@ -9,7 +9,7 @@ title: ModalitiesArrayToUnion
 type ModalitiesArrayToUnion<T> = T[number];
 ```
 
-Defined in: [types.ts:133](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L133)
+Defined in: [types.ts:135](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L135)
 
 Helper type to convert a readonly array of modalities to a union type.
 e.g., readonly ['text', 'image'] -> 'text' | 'image'
@@ -18,4 +18,4 @@ e.g., readonly ['text', 'image'] -> 'text' | 'image'
 
 ### T
 
-`T` *extends* `ReadonlyArray`\<[`Modality`](./Modality.md)\>
+`T` *extends* `ReadonlyArray`\<[`Modality`](Modality.md)\>

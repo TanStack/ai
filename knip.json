@@ -26,6 +26,16 @@
     },
     "packages/typescript/ai-openai": {
       "ignore": ["src/tools/**"]
+    },
+    "packages/typescript/ai-vue-ui": {
+      "ignoreDependencies": [
+        "@crazydos/vue-markdown",
+        "rehype-highlight",
+        "rehype-raw",
+        "rehype-sanitize",
+        "remark-gfm"
+      ],
+      "ignore": ["src/use-chat-context.ts"]
     }
   }
 }

@@ -1,10 +1,15 @@
 {
   "name": "@tanstack/react-ai-devtools",
-  "version": "0.0.1",
+  "version": "0.0.2",
   "description": "React Devtools for TanStack AI.",
   "author": "tannerlinsley",
   "license": "MIT",
   "homepage": "https://tanstack.com/ai",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/TanStack/ai.git",
+    "directory": "packages/typescript/ai"
+  },
   "funding": {
     "type": "github",
     "url": "https://github.com/sponsors/tannerlinsley"

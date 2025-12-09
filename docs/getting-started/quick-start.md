@@ -7,27 +7,13 @@ Get started with TanStack AI in minutes. This guide will walk you through creati
 
 ## Installation
 
-<!-- ::tabs:start id="install" -->
-
-# npm
-
 ```bash
 npm install @tanstack/ai @tanstack/ai-react @tanstack/ai-openai
-```
-
-# pnpm
-
-```bash
+# or
 pnpm add @tanstack/ai @tanstack/ai-react @tanstack/ai-openai
-```
-
-# Yarn
-
-```bash
+#or
 yarn add @tanstack/ai @tanstack/ai-react @tanstack/ai-openai
 ```
-
-<!-- ::tabs:end -->
 
 ## Server Setup
 
@@ -66,10 +52,10 @@ export async function POST(request: Request) {
 
     // Convert stream to HTTP response
     return toStreamResponse(stream);
-  } catch (error: any) {
+  } catch (error) {
     return new Response(
       JSON.stringify({
-        error: error.message || "An error occurred",
+        error: error instanceof Error ? error.message : "An error occurred",
       }),
       {
         status: 500,

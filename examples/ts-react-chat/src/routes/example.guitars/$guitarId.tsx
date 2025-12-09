@@ -3,7 +3,7 @@ import guitars from '../../data/example-guitars'
 
 export const Route = createFileRoute('/example/guitars/$guitarId')({
   component: RouteComponent,
-  loader: async ({ params }) => {
+  loader: ({ params }) => {
     const guitar = guitars.find((guitar) => guitar.id === +params.guitarId)
     if (!guitar) {
       throw new Error('Guitar not found')
@@ -16,7 +16,7 @@ function RouteComponent() {
   const guitar = Route.useLoaderData()
 
   return (
-    <div className="relative min-h-[100vh] flex items-center bg-black text-white p-5">
+    <div className="relative min-h-screen flex items-center bg-black text-white p-5">
       <div className="relative z-10 w-[60%] bg-gray-900/60 backdrop-blur-md rounded-2xl p-8 border border-gray-800/50 shadow-xl">
         <Link
           to="/example/guitars"

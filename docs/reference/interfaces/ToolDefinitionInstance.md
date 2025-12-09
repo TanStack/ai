@@ -11,11 +11,11 @@ Tool definition that can be used directly or instantiated for server/client
 
 ## Extends
 
-- [`Tool`](./Tool.md)\<`TInput`, `TOutput`, `TName`\>
+- [`Tool`](Tool.md)\<`TInput`, `TOutput`, `TName`\>
 
 ## Extended by
 
-- [`ToolDefinition`](./ToolDefinition.md)
+- [`ToolDefinition`](ToolDefinition.md)
 
 ## Type Parameters
 
@@ -49,7 +49,7 @@ Defined in: [tools/tool-definition.ts:43](https://github.com/TanStack/ai/blob/ma
 description: string;
 ```
 
-Defined in: [types.ts:279](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L279)
+Defined in: [types.ts:286](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L286)
 
 Clear description of what the tool does.
 
@@ -64,7 +64,7 @@ Be specific about what the tool does, what parameters it needs, and what it retu
 
 #### Inherited from
 
-[`Tool`](./Tool.md).[`description`](./Tool.md#description)
+[`Tool`](Tool.md).[`description`](Tool.md#description)
 
 ***
 
@@ -74,7 +74,7 @@ Be specific about what the tool does, what parameters it needs, and what it retu
 optional execute: (args) => any;
 ```
 
-Defined in: [types.ts:335](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L335)
+Defined in: [types.ts:342](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L342)
 
 Optional function to execute when the model calls this tool.
 
@@ -108,7 +108,7 @@ execute: async (args) => {
 
 #### Inherited from
 
-[`Tool`](./Tool.md).[`execute`](./Tool.md#execute)
+[`Tool`](Tool.md).[`execute`](Tool.md#execute)
 
 ***
 
@@ -118,7 +118,7 @@ execute: async (args) => {
 optional inputSchema: TInput;
 ```
 
-Defined in: [types.ts:298](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L298)
+Defined in: [types.ts:305](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L305)
 
 Zod schema describing the tool's input parameters.
 
@@ -143,7 +143,7 @@ z.object({
 
 #### Inherited from
 
-[`Tool`](./Tool.md).[`inputSchema`](./Tool.md#inputschema)
+[`Tool`](Tool.md).[`inputSchema`](Tool.md#inputschema)
 
 ***
 
@@ -153,13 +153,13 @@ z.object({
 optional metadata: Record<string, any>;
 ```
 
-Defined in: [types.ts:341](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L341)
+Defined in: [types.ts:348](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L348)
 
 Additional metadata for adapters or custom extensions
 
 #### Inherited from
 
-[`Tool`](./Tool.md).[`metadata`](./Tool.md#metadata)
+[`Tool`](Tool.md).[`metadata`](Tool.md#metadata)
 
 ***
 
@@ -169,7 +169,7 @@ Additional metadata for adapters or custom extensions
 name: TName;
 ```
 
-Defined in: [types.ts:269](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L269)
+Defined in: [types.ts:276](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L276)
 
 Unique name of the tool (used by the model to call it).
 
@@ -184,7 +184,7 @@ Must be unique within the tools array.
 
 #### Inherited from
 
-[`Tool`](./Tool.md).[`name`](./Tool.md#name)
+[`Tool`](Tool.md).[`name`](Tool.md#name)
 
 ***
 
@@ -194,13 +194,13 @@ Must be unique within the tools array.
 optional needsApproval: boolean;
 ```
 
-Defined in: [types.ts:338](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L338)
+Defined in: [types.ts:345](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L345)
 
 If true, tool execution requires user approval before running. Works with both server and client tools.
 
 #### Inherited from
 
-[`Tool`](./Tool.md).[`needsApproval`](./Tool.md#needsapproval)
+[`Tool`](Tool.md).[`needsApproval`](Tool.md#needsapproval)
 
 ***
 
@@ -210,7 +210,7 @@ If true, tool execution requires user approval before running. Works with both s
 optional outputSchema: TOutput;
 ```
 
-Defined in: [types.ts:316](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L316)
+Defined in: [types.ts:323](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L323)
 
 Optional Zod schema for validating tool output.
 
@@ -232,4 +232,4 @@ z.object({
 
 #### Inherited from
 
-[`Tool`](./Tool.md).[`outputSchema`](./Tool.md#outputschema)
+[`Tool`](Tool.md).[`outputSchema`](Tool.md#outputschema)
