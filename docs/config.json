@@ -19,7 +19,7 @@
         },
         {
           "label": "Devtools",
-          "to": "getting-started/devtools"        
+          "to": "getting-started/devtools"
         }
       ]
     },
@@ -86,6 +86,10 @@
         {
           "label": "@tanstack/ai-solid",
           "to": "api/ai-solid"
+        },
+        {
+          "label": "@tanstack/ai-vue",
+          "to": "api/ai-vue"
         }
       ]
     },
