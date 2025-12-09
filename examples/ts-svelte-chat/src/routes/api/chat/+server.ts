@@ -1,8 +1,4 @@
-import {
-  OPENAI_API_KEY,
-  ANTHROPIC_API_KEY,
-  GEMINI_API_KEY,
-} from '$env/static/private'
+import { env } from '$env/dynamic/private'
 import { chat, maxIterations, toStreamResponse } from '@tanstack/ai'
 import { openai } from '@tanstack/ai-openai'
 import { ollama } from '@tanstack/ai-ollama'
@@ -23,9 +19,9 @@ type Provider = 'openai' | 'anthropic' | 'gemini' | 'ollama'
 
 // Populate process.env with the SvelteKit environment variables
 // This is needed because the TanStack AI adapters read from process.env
-if (OPENAI_API_KEY) process.env.OPENAI_API_KEY = OPENAI_API_KEY
-if (ANTHROPIC_API_KEY) process.env.ANTHROPIC_API_KEY = ANTHROPIC_API_KEY
-if (GEMINI_API_KEY) process.env.GEMINI_API_KEY = GEMINI_API_KEY
+if (env.OPENAI_API_KEY) process.env.OPENAI_API_KEY = env.OPENAI_API_KEY
+if (env.ANTHROPIC_API_KEY) process.env.ANTHROPIC_API_KEY = env.ANTHROPIC_API_KEY
+if (env.GEMINI_API_KEY) process.env.GEMINI_API_KEY = env.GEMINI_API_KEY
 
 const SYSTEM_PROMPT = `You are a helpful assistant for a guitar store.
 
