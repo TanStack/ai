@@ -24,6 +24,7 @@ import {
   createChatClientOptions,
   type InferChatMessages
 } from "@tanstack/ai-client";
+// see more in https://tanstack.com/ai/latest/docs/guides/client-tools#defining-client-tools
 import { updateUIDef } from "@/tools/definitions";
 
 const notification = ref<string | null>(null);
@@ -74,7 +75,7 @@ Extends `ChatClientOptions` from `@tanstack/ai-client`:
 
 ```typescript
 interface UseChatReturn {
-  messages: UIMessage[];
+  messages: DeepReadonly<ShallowRef<Array<UIMessage>>>;
   sendMessage: (content: string) => Promise<void>;
   append: (message: ModelMessage | UIMessage) => Promise<void>;
   addToolResult: (result: {
@@ -90,8 +91,8 @@ interface UseChatReturn {
   }) => Promise<void>;
   reload: () => Promise<void>;
   stop: () => void;
-  isLoading: boolean;
-  error: Error | undefined;
+  isLoading: DeepReadonly<ShallowRef<boolean>>;
+  error: DeepReadonly<ShallowRef<Error | undefined>>;
   setMessages: (messages: UIMessage[]) => void;
   clear: () => void;
 }
@@ -127,6 +128,7 @@ const handleSubmit = (e: Event) => {
   const val = input.value.trim()
   if (((val ?? '') !== '') && !isLoading) {
     sendMessage(input.value);
+    input.value = '';
   }
 };
 </script>
@@ -136,9 +138,8 @@ const handleSubmit = (e: Event) => {
       <strong>{{ message.role }}</strong>
       <div v-for="part in message.parts" :key="part.id">
         <span v-if="part.type === 'text'">{{ part.content }}</span>
-        <div v-else-if="part.type === 'thinking'">
-          <div class="text-sm text-gray-500 italic">💭 Thinking: {{ part.content }}</div>
-        </div>
+        <div v-else-if="part.type === 'thinking'" class="text-sm text-gray-500 italic"> 💭 Thinking: {{ part.content }}</div>
+        <!-- you can custom more parts -->
       </div>
     </div>
     <form @submit.prevent="handleSubmit">
