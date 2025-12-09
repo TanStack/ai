@@ -42,7 +42,7 @@ export const GEMMA_MODELS = [
 
 // const GEMMA_IMAGE_MODELS = [] as const
 
-export const GEMMA_EMBEDDING_MODELS = [] as const
+// export const GEMMA_EMBEDDING_MODELS = [] as const
 
 // const GEMMA_AUDIO_MODELS = [] as const
 

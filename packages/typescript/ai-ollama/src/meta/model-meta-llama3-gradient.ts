@@ -42,7 +42,7 @@ export const LLAMA3_GRADIENT_MODELS = [
 
 // const LLAMA3_GRADIENT_IMAGE_MODELS = [] as const
 
-export const LLAMA3_GRADIENT_EMBEDDING_MODELS = [] as const
+// export const LLAMA3_GRADIENT_EMBEDDING_MODELS = [] as const
 
 // const LLAMA3_GRADIENT_AUDIO_MODELS = [] as const
 
