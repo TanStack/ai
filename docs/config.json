@@ -19,7 +19,7 @@
         },
         {
           "label": "Devtools",
-          "to": "getting-started/devtools"        
+          "to": "getting-started/devtools"
         }
       ]
     },
@@ -61,6 +61,10 @@
         {
           "label": "Connection Adapters",
           "to": "guides/connection-adapters"
+        },
+        {
+          "label": "Observability",
+          "to": "guides/observability"
         },
         {
           "label": "Per-Model Type Safety",
