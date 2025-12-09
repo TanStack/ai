@@ -1,16 +1,5 @@
 import type { ChatRequest } from 'ollama'
-
-interface ModelMeta<TProviderOptions = unknown> {
-  name: string
-  providerOptions?: TProviderOptions
-  supports?: {
-    input?: Array<'text' | 'image' | 'video'>
-    output?: Array<'text' | 'image' | 'video'>
-    capabilities?: Array<'tools' | 'thinking' | 'vision' | 'embedding'>
-  }
-  size?: string
-  context?: number
-}
+import type { DefaultOllamaModelMeta } from './models-meta'
 
 const CODELLAMA_LATEST = {
   name: 'codellama:latest',
@@ -21,7 +10,7 @@ const CODELLAMA_LATEST = {
   },
   size: '3.8gb',
   context: 16_000,
-} as const satisfies ModelMeta<any>
+} as const satisfies DefaultOllamaModelMeta<any>
 
 const CODELLAMA_7b = {
   name: 'codellama:7b',
@@ -32,7 +21,7 @@ const CODELLAMA_7b = {
   },
   size: '3.8gb',
   context: 16_000,
-} as const satisfies ModelMeta<any>
+} as const satisfies DefaultOllamaModelMeta<any>
 
 const CODELLAMA_13b = {
   name: 'codellama:13b',
@@ -43,7 +32,7 @@ const CODELLAMA_13b = {
   },
   size: '7.4gb',
   context: 16_000,
-} as const satisfies ModelMeta<any>
+} as const satisfies DefaultOllamaModelMeta<any>
 
 const CODELLAMA_34b = {
   name: 'codellama:34b',
@@ -54,7 +43,7 @@ const CODELLAMA_34b = {
   },
   size: '19gb',
   context: 16_000,
-} as const satisfies ModelMeta<any>
+} as const satisfies DefaultOllamaModelMeta<any>
 
 const CODELLAMA_70b = {
   name: 'codellama:70b',
@@ -65,7 +54,7 @@ const CODELLAMA_70b = {
   },
   size: '39gb',
   context: 2_000,
-} as const satisfies ModelMeta<any>
+} as const satisfies DefaultOllamaModelMeta<any>
 
 export const CODELLAMA_MODELS = [
   CODELLAMA_LATEST.name,

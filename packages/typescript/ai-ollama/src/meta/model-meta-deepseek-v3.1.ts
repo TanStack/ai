@@ -1,16 +1,5 @@
 import type { ChatRequest } from 'ollama'
-
-interface ModelMeta<TProviderOptions = unknown> {
-  name: string
-  providerOptions?: TProviderOptions
-  supports?: {
-    input?: Array<'text' | 'image' | 'video'>
-    output?: Array<'text' | 'image' | 'video'>
-    capabilities?: Array<'tools' | 'thinking' | 'vision' | 'embedding'>
-  }
-  size?: string
-  context?: number
-}
+import type { DefaultOllamaModelMeta } from './models-meta'
 
 const DEEPSEEK_V3_1_LATEST = {
   name: 'deepseek-v3.1:latest',
@@ -21,7 +10,7 @@ const DEEPSEEK_V3_1_LATEST = {
   },
   size: '404gb',
   context: 160_000,
-} as const satisfies ModelMeta<any>
+} as const satisfies DefaultOllamaModelMeta<any>
 
 const DEEPSEEK_V3_1_671b = {
   name: 'deepseek-v3.1:671',
@@ -33,7 +22,7 @@ const DEEPSEEK_V3_1_671b = {
 
   size: '404gb',
   context: 160_000,
-} as const satisfies ModelMeta<any>
+} as const satisfies DefaultOllamaModelMeta<any>
 
 const DEEPSEEK_V3_1_671b_cloud = {
   name: 'deepseek-v3.1:671-cloud',
@@ -44,7 +33,7 @@ const DEEPSEEK_V3_1_671b_cloud = {
   },
   size: '404gb',
   context: 160_000,
-} as const satisfies ModelMeta<any>
+} as const satisfies DefaultOllamaModelMeta<any>
 
 export const DEEPSEEK_V3_1_MODELS = [
   DEEPSEEK_V3_1_LATEST.name,

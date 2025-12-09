@@ -1,16 +1,5 @@
 import type { ChatRequest } from 'ollama'
-
-interface ModelMeta<TProviderOptions = unknown> {
-  name: string
-  providerOptions?: TProviderOptions
-  supports?: {
-    input?: Array<'text' | 'image' | 'video'>
-    output?: Array<'text' | 'image' | 'video'>
-    capabilities?: Array<'tools' | 'thinking' | 'vision' | 'embedding'>
-  }
-  size?: string
-  context?: number
-}
+import type { DefaultOllamaModelMeta } from './models-meta'
 
 const AYA_LATEST = {
   name: 'aya:latest',
@@ -21,7 +10,7 @@ const AYA_LATEST = {
   },
   size: '4.8gb',
   context: 8_000,
-} as const satisfies ModelMeta<any>
+} as const satisfies DefaultOllamaModelMeta<any>
 
 const AYA_8b = {
   name: 'aya:8b',
@@ -32,7 +21,7 @@ const AYA_8b = {
   },
   size: '4.8gb',
   context: 8_000,
-} as const satisfies ModelMeta<any>
+} as const satisfies DefaultOllamaModelMeta<any>
 
 const AYA_35b = {
   name: 'aya:35b',
@@ -43,7 +32,7 @@ const AYA_35b = {
   },
   size: '20gb',
   context: 8_000,
-} as const satisfies ModelMeta<any>
+} as const satisfies DefaultOllamaModelMeta<any>
 
 export const AYA_MODELS = [AYA_LATEST.name, AYA_8b.name, AYA_35b.name] as const
 

@@ -1,16 +1,5 @@
 import type { ChatRequest } from 'ollama'
-
-interface ModelMeta<TProviderOptions = unknown> {
-  name: string
-  providerOptions?: TProviderOptions
-  supports?: {
-    input?: Array<'text' | 'image' | 'video'>
-    output?: Array<'text' | 'image' | 'video'>
-    capabilities?: Array<'tools' | 'thinking' | 'vision' | 'embedding'>
-  }
-  size?: string
-  context?: number
-}
+import type { DefaultOllamaModelMeta } from './models-meta'
 
 const ATHENE_V2_LATEST = {
   name: 'athene-v2:latest',
@@ -21,7 +10,7 @@ const ATHENE_V2_LATEST = {
   },
   size: '47gb',
   context: 32_000,
-} as const satisfies ModelMeta<any>
+} as const satisfies DefaultOllamaModelMeta<any>
 
 const ATHENE_V2_72b = {
   name: 'athene-v2:72b',
@@ -32,7 +21,7 @@ const ATHENE_V2_72b = {
   },
   size: '47gb',
   context: 32_000,
-} as const satisfies ModelMeta<any>
+} as const satisfies DefaultOllamaModelMeta<any>
 
 export const ATHENE_MODELS = [
   ATHENE_V2_LATEST.name,

@@ -1,16 +1,5 @@
 import type { ChatRequest } from 'ollama'
-
-interface ModelMeta<TProviderOptions = unknown> {
-  name: string
-  providerOptions?: TProviderOptions
-  supports?: {
-    input?: Array<'text' | 'image' | 'video'>
-    output?: Array<'text' | 'image' | 'video'>
-    capabilities?: Array<'tools' | 'thinking' | 'vision' | 'embedding'>
-  }
-  size?: string
-  context?: number
-}
+import type { DefaultOllamaModelMeta } from './models-meta'
 
 const DEEPSEEK_OCR_LATEST = {
   name: 'deepseek-ocr:latest',
@@ -21,7 +10,7 @@ const DEEPSEEK_OCR_LATEST = {
   },
   size: '6.7gb',
   context: 8_000,
-} as const satisfies ModelMeta<any>
+} as const satisfies DefaultOllamaModelMeta<any>
 
 const DEEPSEEK_OCR_3b = {
   name: 'deepseek-ocr:3b',
@@ -33,7 +22,7 @@ const DEEPSEEK_OCR_3b = {
 
   size: '6.7gb',
   context: 8_000,
-} as const satisfies ModelMeta<any>
+} as const satisfies DefaultOllamaModelMeta<any>
 
 export const DEEPSEEK_OCR_MODELS = [
   DEEPSEEK_OCR_LATEST.name,

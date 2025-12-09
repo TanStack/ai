@@ -1,16 +1,5 @@
 import type { ChatRequest } from 'ollama'
-
-interface ModelMeta<TProviderOptions = unknown> {
-  name: string
-  providerOptions?: TProviderOptions
-  supports?: {
-    input?: Array<'text' | 'image' | 'video'>
-    output?: Array<'text' | 'image' | 'video'>
-    capabilities?: Array<'tools' | 'thinking' | 'vision' | 'embedding'>
-  }
-  size?: string
-  context?: number
-}
+import type { DefaultOllamaModelMeta } from './models-meta'
 
 const CODEGEMMA_LATEST = {
   name: 'codegemma:latest',
@@ -21,7 +10,7 @@ const CODEGEMMA_LATEST = {
   },
   size: '5gb',
   context: 8_000,
-} as const satisfies ModelMeta<any>
+} as const satisfies DefaultOllamaModelMeta<any>
 
 const CODEGEMMA_8b = {
   name: 'codegemma:2b',
@@ -32,7 +21,7 @@ const CODEGEMMA_8b = {
   },
   size: '1.65gb',
   context: 8_000,
-} as const satisfies ModelMeta<any>
+} as const satisfies DefaultOllamaModelMeta<any>
 
 const CODEGEMMA_35b = {
   name: 'codegemma:7b',
@@ -43,7 +32,7 @@ const CODEGEMMA_35b = {
   },
   size: '5gb',
   context: 8_000,
-} as const satisfies ModelMeta<any>
+} as const satisfies DefaultOllamaModelMeta<any>
 
 export const CODEGEMMA_MODELS = [
   CODEGEMMA_LATEST.name,

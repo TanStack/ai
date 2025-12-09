@@ -1,16 +1,5 @@
 import type { ChatRequest } from 'ollama'
-
-interface ModelMeta<TProviderOptions = unknown> {
-  name: string
-  providerOptions?: TProviderOptions
-  supports?: {
-    input?: Array<'text' | 'image' | 'video'>
-    output?: Array<'text' | 'image' | 'video'>
-    capabilities?: Array<'tools' | 'thinking' | 'vision' | 'embedding'>
-  }
-  size?: string
-  context?: number
-}
+import type { DefaultOllamaModelMeta } from './models-meta'
 
 const COMMAND_R_LATEST = {
   name: 'command-r:latest',
@@ -21,7 +10,7 @@ const COMMAND_R_LATEST = {
   },
   size: '19gb',
   context: 128_000,
-} as const satisfies ModelMeta<any>
+} as const satisfies DefaultOllamaModelMeta<any>
 
 const COMMAND_R_35b = {
   name: 'command-r:35b',
@@ -32,7 +21,7 @@ const COMMAND_R_35b = {
   },
   size: '19gb',
   context: 128_000,
-} as const satisfies ModelMeta<any>
+} as const satisfies DefaultOllamaModelMeta<any>
 
 export const COMMAND_R_MODELS = [
   COMMAND_R_LATEST.name,

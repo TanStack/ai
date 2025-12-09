@@ -1,16 +1,5 @@
 import type { ChatRequest } from 'ollama'
-
-interface ModelMeta<TProviderOptions = unknown> {
-  name: string
-  providerOptions?: TProviderOptions
-  supports?: {
-    input?: Array<'text' | 'image' | 'video'>
-    output?: Array<'text' | 'image' | 'video'>
-    capabilities?: Array<'tools' | 'thinking' | 'vision' | 'embedding'>
-  }
-  size?: string
-  context?: number
-}
+import type { DefaultOllamaModelMeta } from './models-meta'
 
 const DEEPSEEK_CODER_V2_LATEST = {
   name: 'deepseek-coder-v2:latest',
@@ -21,7 +10,7 @@ const DEEPSEEK_CODER_V2_LATEST = {
   },
   size: '4.8gb',
   context: 160_900,
-} as const satisfies ModelMeta<any>
+} as const satisfies DefaultOllamaModelMeta<any>
 
 const DEEPSEEK_CODER_V2_16b = {
   name: 'deepseek-coder-v2:16b',
@@ -32,7 +21,7 @@ const DEEPSEEK_CODER_V2_16b = {
   },
   size: '8.9gb',
   context: 160_000,
-} as const satisfies ModelMeta<any>
+} as const satisfies DefaultOllamaModelMeta<any>
 
 const DEEPSEEK_CODER_V2_236b = {
   name: 'deepseek-coder-v2:236b',
@@ -43,7 +32,7 @@ const DEEPSEEK_CODER_V2_236b = {
   },
   size: '133gb',
   context: 4_000,
-} as const satisfies ModelMeta<any>
+} as const satisfies DefaultOllamaModelMeta<any>
 
 export const DEEPSEEK_CODER_V2_MODELS = [
   DEEPSEEK_CODER_V2_LATEST.name,

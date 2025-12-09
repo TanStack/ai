@@ -1,16 +1,5 @@
 import type { ChatRequest } from 'ollama'
-
-interface ModelMeta<TProviderOptions = unknown> {
-  name: string
-  providerOptions?: TProviderOptions
-  supports?: {
-    input?: Array<'text' | 'image' | 'video'>
-    output?: Array<'text' | 'image' | 'video'>
-    capabilities?: Array<'tools' | 'thinking' | 'vision' | 'embedding'>
-  }
-  size?: string
-  context?: number
-}
+import type { DefaultOllamaModelMeta } from './models-meta'
 
 const DEVSTRAL_LATEST = {
   name: 'devstral:latest',
@@ -21,7 +10,7 @@ const DEVSTRAL_LATEST = {
   },
   size: '14gb',
   context: 128_000,
-} as const satisfies ModelMeta<any>
+} as const satisfies DefaultOllamaModelMeta<any>
 
 const DEVSTRAL_24b = {
   name: 'devstral:24b',
@@ -32,7 +21,7 @@ const DEVSTRAL_24b = {
   },
   size: '14gb',
   context: 128_000,
-} as const satisfies ModelMeta<any>
+} as const satisfies DefaultOllamaModelMeta<any>
 
 export const DEVSTRAL_MODELS = [
   DEVSTRAL_LATEST.name,

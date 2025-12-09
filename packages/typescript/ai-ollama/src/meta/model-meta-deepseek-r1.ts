@@ -1,16 +1,5 @@
 import type { ChatRequest } from 'ollama'
-
-interface ModelMeta<TProviderOptions = unknown> {
-  name: string
-  providerOptions?: TProviderOptions
-  supports?: {
-    input?: Array<'text' | 'image' | 'video'>
-    output?: Array<'text' | 'image' | 'video'>
-    capabilities?: Array<'tools' | 'thinking' | 'vision' | 'embedding'>
-  }
-  size?: string
-  context?: number
-}
+import type { DefaultOllamaModelMeta } from './models-meta'
 
 const DEEPSEEK_R1_LATEST = {
   name: 'deepseek-r1:latest',
@@ -21,7 +10,7 @@ const DEEPSEEK_R1_LATEST = {
   },
   size: '5.2gb',
   context: 128_000,
-} as const satisfies ModelMeta<any>
+} as const satisfies DefaultOllamaModelMeta<any>
 
 const DEEPSEEK_R1_1_5b = {
   name: 'deepseek-r1:1.5b',
@@ -32,7 +21,7 @@ const DEEPSEEK_R1_1_5b = {
   },
   size: '1.1gb',
   context: 128_000,
-} as const satisfies ModelMeta<any>
+} as const satisfies DefaultOllamaModelMeta<any>
 
 const DEEPSEEK_R1_7b = {
   name: 'deepseek-r1:7b',
@@ -43,7 +32,7 @@ const DEEPSEEK_R1_7b = {
   },
   size: '4.7gb',
   context: 128_000,
-} as const satisfies ModelMeta<any>
+} as const satisfies DefaultOllamaModelMeta<any>
 
 const DEEPSEEK_R1_8b = {
   name: 'deepseek-r1:8b',
@@ -54,7 +43,7 @@ const DEEPSEEK_R1_8b = {
   },
   size: '5.2gb',
   context: 128_000,
-} as const satisfies ModelMeta<any>
+} as const satisfies DefaultOllamaModelMeta<any>
 
 const DEEPSEEK_R1_32b = {
   name: 'deepseek-r1:32b',
@@ -65,7 +54,7 @@ const DEEPSEEK_R1_32b = {
   },
   size: '20gb',
   context: 128_000,
-} as const satisfies ModelMeta<any>
+} as const satisfies DefaultOllamaModelMeta<any>
 
 const DEEPSEEK_R1_70b = {
   name: 'deepseek-r1:70b',
@@ -76,7 +65,7 @@ const DEEPSEEK_R1_70b = {
   },
   size: '43gb',
   context: 128_000,
-} as const satisfies ModelMeta<any>
+} as const satisfies DefaultOllamaModelMeta<any>
 
 const DEEPSEEK_R1_671b = {
   name: 'deepseek-r1:671b',
@@ -87,7 +76,7 @@ const DEEPSEEK_R1_671b = {
   },
   size: '404gb',
   context: 128_000,
-} as const satisfies ModelMeta<any>
+} as const satisfies DefaultOllamaModelMeta<any>
 
 export const DEEPSEEK_R1_MODELS = [
   DEEPSEEK_R1_LATEST.name,
