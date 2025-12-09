@@ -32,7 +32,7 @@ class ProductController extends Controller
             
             // Map product names to their image files (from GuitarSeeder)
             $imageMap = [
-                'Video Game Guitar' => 'example-guitar-video-games.jpg',
+                'TanStack Ukelele' => 'example-ukelele-tanstack.jpg',
                 'Superhero Guitar' => 'example-guitar-superhero.jpg',
                 'Motherboard Guitar' => 'example-guitar-motherboard.jpg',
                 'Racing Guitar' => 'example-guitar-racing.jpg',

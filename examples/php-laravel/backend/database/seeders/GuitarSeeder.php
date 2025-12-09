@@ -60,7 +60,7 @@ class GuitarSeeder extends Seeder
         $guitars = [
             [
                 'name' => 'TanStack Ukelele',
-                'image' => 'example-ukulele-tanstack.jpg',
+                'image' => 'example-ukelele-tanstack.jpg',
                 'description' => "Introducing the TanStack Signature Ukulele—a beautifully handcrafted concert ukulele that combines exceptional sound quality with distinctive style. Featuring a warm, resonant koa-wood body with natural grain patterns, this instrument delivers the rich, mellow tones Hawaii is famous for. The exclusive TanStack palm tree inlay on the soundhole adds a unique touch of island flair, while the matching branded headstock makes this a true collector's piece for developers and musicians alike. Whether you're a beginner looking for a quality starter instrument or an experienced player wanting something special, the TanStack Ukulele brings together craftsmanship, character, and that unmistakable tropical spirit.",
                 'shortDescription' => 'Premium koa-wood ukulele featuring exclusive TanStack branding, perfect for beach vibes and island-inspired melodies.',
                 'price' => 29900, // $299.00 in cents
@@ -109,9 +109,8 @@ class GuitarSeeder extends Seeder
             ],
         ];
 
-        // Copy images from ts-react-chat example to Laravel storage
-        // Use absolute path to ts-react-chat/public
-        $sourceImagePath = '/Users/jherr/projects/tanstack/ai/examples/ts-react-chat/public';
+        // Copy images from product-images directory to Laravel storage
+        $sourceImagePath = base_path('product-images');
         $targetImagePath = storage_path('app/public/products');
 
         if (!File::exists($targetImagePath)) {
