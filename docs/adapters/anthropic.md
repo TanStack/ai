@@ -17,9 +17,24 @@ npm install @tanstack/ai-anthropic
 import { chat } from "@tanstack/ai";
 import { anthropic } from "@tanstack/ai-anthropic";
 
-const adapter = anthropic({
-  apiKey: process.env.ANTHROPIC_API_KEY!,
+const adapter = anthropic();
+
+const stream = chat({
+  adapter,
+  messages: [{ role: "user", content: "Hello!" }],
+  model: "claude-3-5-sonnet-20241022",
 });
+```
+
+## Basic Usage - Custom API Key
+
+```typescript
+import { chat } from "@tanstack/ai";
+import { createAnthropic } from "@tanstack/ai-anthropic";
+
+const adapter = createAnthropic(process.env.ANTHROPIC_API_KEY, {
+  // ... your config options
+ });
 
 const stream = chat({
   adapter,
@@ -34,23 +49,12 @@ const stream = chat({
 import { anthropic, type AnthropicConfig } from "@tanstack/ai-anthropic";
 
 const config: AnthropicConfig = {
-  apiKey: process.env.ANTHROPIC_API_KEY!,
+  // ... your config options
 };
 
 const adapter = anthropic(config);
 ```
-
-## Available Models
-
-### Chat Models
-
-- `claude-3-5-sonnet-20241022` - Latest Claude 3.5 Sonnet
-- `claude-3-5-sonnet-20240620` - Claude 3.5 Sonnet
-- `claude-3-opus-20240229` - Claude 3 Opus
-- `claude-3-sonnet-20240229` - Claude 3 Sonnet
-- `claude-3-haiku-20240307` - Claude 3 Haiku
-- `claude-2.1` - Claude 2.1
-- `claude-2.0` - Claude 2.0
+ 
 
 ## Example: Chat Completion
 
@@ -58,9 +62,7 @@ const adapter = anthropic(config);
 import { chat, toStreamResponse } from "@tanstack/ai";
 import { anthropic } from "@tanstack/ai-anthropic";
 
-const adapter = anthropic({
-  apiKey: process.env.ANTHROPIC_API_KEY!,
-});
+const adapter = anthropic();
 
 export async function POST(request: Request) {
   const { messages } = await request.json();
@@ -82,9 +84,7 @@ import { chat, toolDefinition } from "@tanstack/ai";
 import { anthropic } from "@tanstack/ai-anthropic";
 import { z } from "zod";
 
-const adapter = anthropic({
-  apiKey: process.env.ANTHROPIC_API_KEY!,
-});
+const adapter = anthropic();
 
 const searchDatabaseDef = toolDefinition({
   name: "search_database",
@@ -113,7 +113,7 @@ Anthropic supports provider-specific options:
 
 ```typescript
 const stream = chat({
-  adapter: anthropic({ apiKey: process.env.ANTHROPIC_API_KEY! }),
+  adapter: anthropic(),
   messages,
   model: "claude-3-5-sonnet-20241022",
   providerOptions: {
@@ -157,13 +157,20 @@ When thinking is enabled, the model's reasoning process is streamed separately f
 Cache prompts for better performance:
 
 ```typescript
-providerOptions: {
-  cacheControl: {
-    type: "ephemeral",
-    ttl: "5m", // Cache TTL: '5m' or '1h'
-  },
-}
+messages: [
+  { role: "user", content: [{
+    type: "text",
+    content: "What is the capital of France?",
+    metadata: {
+      cache_control: {
+        type: "ephemeral",
+        ttl: "5m",
+      }
+    }
+  }]}
+]
 ```
+
 
 ## Environment Variables
 
@@ -187,6 +194,6 @@ Creates an Anthropic adapter instance.
 
 ## Next Steps
 
-- [Getting Started](../../getting-started/quick-start) - Learn the basics
-- [Tools Guide](../../guides/tools) - Learn about tools
-- [Other Adapters](../openai) - Explore other providers
+- [Getting Started](../getting-started/quick-start) - Learn the basics
+- [Tools Guide](../guides/tools) - Learn about tools
+- [Other Adapters](./openai) - Explore other providers

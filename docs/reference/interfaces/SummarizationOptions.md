@@ -5,7 +5,7 @@ title: SummarizationOptions
 
 # Interface: SummarizationOptions
 
-Defined in: [types.ts:618](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L618)
+Defined in: [types.ts:625](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L625)
 
 ## Properties
 
@@ -15,7 +15,7 @@ Defined in: [types.ts:618](https://github.com/TanStack/ai/blob/main/packages/typ
 optional focus: string[];
 ```
 
-Defined in: [types.ts:623](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L623)
+Defined in: [types.ts:630](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L630)
 
 ***
 
@@ -25,7 +25,7 @@ Defined in: [types.ts:623](https://github.com/TanStack/ai/blob/main/packages/typ
 optional maxLength: number;
 ```
 
-Defined in: [types.ts:621](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L621)
+Defined in: [types.ts:628](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L628)
 
 ***
 
@@ -35,7 +35,7 @@ Defined in: [types.ts:621](https://github.com/TanStack/ai/blob/main/packages/typ
 model: string;
 ```
 
-Defined in: [types.ts:619](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L619)
+Defined in: [types.ts:626](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L626)
 
 ***
 
@@ -45,7 +45,7 @@ Defined in: [types.ts:619](https://github.com/TanStack/ai/blob/main/packages/typ
 optional style: "bullet-points" | "paragraph" | "concise";
 ```
 
-Defined in: [types.ts:622](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L622)
+Defined in: [types.ts:629](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L629)
 
 ***
 
@@ -55,4 +55,4 @@ Defined in: [types.ts:622](https://github.com/TanStack/ai/blob/main/packages/typ
 text: string;
 ```
 
-Defined in: [types.ts:620](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L620)
+Defined in: [types.ts:627](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L627)

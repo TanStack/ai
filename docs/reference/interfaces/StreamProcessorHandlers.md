@@ -86,7 +86,7 @@ Defined in: [stream/processor.ts:132](https://github.com/TanStack/ai/blob/main/p
 
 ##### toolCalls?
 
-[`ToolCall`](../ToolCall.md)[]
+[`ToolCall`](ToolCall.md)[]
 
 #### Returns
 
@@ -242,7 +242,7 @@ Defined in: [stream/processor.ts:101](https://github.com/TanStack/ai/blob/main/p
 
 ##### state
 
-[`ToolCallState`](../../type-aliases/ToolCallState.md)
+[`ToolCallState`](../type-aliases/ToolCallState.md)
 
 ##### args
 
@@ -306,7 +306,7 @@ Defined in: [stream/processor.ts:111](https://github.com/TanStack/ai/blob/main/p
 
 ##### state
 
-[`ToolResultState`](../../type-aliases/ToolResultState.md)
+[`ToolResultState`](../type-aliases/ToolResultState.md)
 
 ##### error?
 

@@ -5,9 +5,9 @@ id: tool-architecture
 
 The TanStack AI tool system provides a powerful, flexible architecture for enabling AI agents to interact with external systems:
 
-- [**Server Tools**](../server-tools) execute securely on the backend with automatic handling
-- [**Client Tools**](../client-tools) execute in the browser for UI updates and local operations
-- [**The Agentic Cycle**](../agentic-cycle) enables multi-step reasoning and complex workflows
+- [**Server Tools**](./server-tools) execute securely on the backend with automatic handling
+- [**Client Tools**](./client-tools) execute in the browser for UI updates and local operations
+- [**The Agentic Cycle**](./agentic-cycle) enables multi-step reasoning and complex workflows
 - [**Tool States**](#call-states) provide real-time feedback and enable robust UIs
 - [**Approval Flow**](#approval-flow) gives users control over sensitive operations
 This architecture enables building sophisticated AI applications that can:
@@ -377,9 +377,9 @@ All execute simultaneously, then LLM generates comparison.
 
 ## Next Steps
 
-- [Tools Overview](../tools) - Basic tool concepts and examples
-- [Server Tools](../server-tools) - Deep dive into server-side tools
-- [Client Tools](../client-tools) - Deep dive into client-side tools
-- [Tool Approval Flow](../tool-approval) - Implementing approval workflows
-- [Stream Chunk Definitions](../../protocol/chunk-definitions) - Understanding the streaming protocol
+- [Tools Overview](./tools) - Basic tool concepts and examples
+- [Server Tools](./server-tools) - Deep dive into server-side tools
+- [Client Tools](./client-tools) - Deep dive into client-side tools
+- [Tool Approval Flow](./tool-approval) - Implementing approval workflows
+- [Stream Chunk Definitions](../protocol/chunk-definitions) - Understanding the streaming protocol
 

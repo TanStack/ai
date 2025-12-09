@@ -52,10 +52,10 @@ export async function POST(request: Request) {
 
     // Convert stream to HTTP response
     return toStreamResponse(stream);
-  } catch (error: any) {
+  } catch (error) {
     return new Response(
       JSON.stringify({
-        error: error.message || "An error occurred",
+        error: error instanceof Error ? error.message : "An error occurred",
       }),
       {
         status: 500,
@@ -189,6 +189,6 @@ chat({ tools: [getProducts] })
 
 ## Next Steps
 
-- Learn about [Tools](../../guides/tools) to add function calling
-- Check out [Client Tools](../../guides/client-tools) for frontend operations
-- See the [API Reference](../../api/ai) for more options
+- Learn about [Tools](../guides/tools) to add function calling
+- Check out [Client Tools](../guides/client-tools) for frontend operations
+- See the [API Reference](../api/ai) for more options

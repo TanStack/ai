@@ -41,16 +41,7 @@ const config: OllamaConfig = {
 const adapter = ollama(config);
 ```
 
-## Available Models
-
-Ollama models depend on what you have installed locally. Common models include:
-
-- `llama2` - Llama 2
-- `llama3` - Llama 3
-- `mistral` - Mistral
-- `codellama` - Code Llama
-- `phi` - Phi models
-- `gemma` - Gemma models
+## Available Models 
 
 To see available models, run:
 
@@ -188,6 +179,6 @@ Creates an Ollama adapter instance.
 
 ## Next Steps
 
-- [Getting Started](../../getting-started/quick-start) - Learn the basics
-- [Tools Guide](../../guides/tools) - Learn about tools
-- [Other Adapters](../openai) - Explore other providers
+- [Getting Started](../getting-started/quick-start) - Learn the basics
+- [Tools Guide](../guides/tools) - Learn about tools
+- [Other Adapters](./openai) - Explore other providers

@@ -34,6 +34,7 @@ export abstract class BaseAdapter<
     ReadonlyArray<Modality>
   > = Record<string, ReadonlyArray<Modality>>,
   TMessageMetadataByModality extends {
+    text: unknown
     image: unknown
     audio: unknown
     video: unknown

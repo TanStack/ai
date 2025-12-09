@@ -17,14 +17,14 @@ Standalone embedding function with type inference from adapter
 
 ### TAdapter
 
-`TAdapter` *extends* [`AIAdapter`](../../interfaces/AIAdapter.md)\<`any`, `any`, `any`, `any`, `any`, `Record`\<`string`, readonly [`Modality`](../../type-aliases/Modality.md)[]\>, [`DefaultMessageMetadataByModality`](../../interfaces/DefaultMessageMetadataByModality.md)\>
+`TAdapter` *extends* [`AIAdapter`](../interfaces/AIAdapter.md)\<`any`, `any`, `any`, `any`, `any`, `Record`\<`string`, readonly [`Modality`](../type-aliases/Modality.md)[]\>, [`DefaultMessageMetadataByModality`](../interfaces/DefaultMessageMetadataByModality.md)\>
 
 ## Parameters
 
 ### options
 
-`Omit`\<[`EmbeddingOptions`](../../interfaces/EmbeddingOptions.md), `"model"`\> & `object`
+`Omit`\<[`EmbeddingOptions`](../interfaces/EmbeddingOptions.md), `"model"`\> & `object`
 
 ## Returns
 
-`Promise`\<[`EmbeddingResult`](../../interfaces/EmbeddingResult.md)\>
+`Promise`\<[`EmbeddingResult`](../interfaces/EmbeddingResult.md)\>
