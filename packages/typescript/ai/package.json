@@ -1,6 +1,6 @@
 {
   "name": "@tanstack/ai",
-  "version": "0.0.1",
+  "version": "0.0.2",
   "description": "Core TanStack AI library - Open source AI SDK",
   "author": "Tanner Linsley",
   "license": "MIT",
@@ -51,7 +51,7 @@
     "embeddings"
   ],
   "dependencies": {
-    "@tanstack/devtools-event-client": "^0.3.5",
+    "@tanstack/devtools-event-client": "^0.4.0",
     "partial-json": "^0.1.7"
   },
   "peerDependencies": {

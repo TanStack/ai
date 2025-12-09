@@ -60,7 +60,7 @@ Generic parameters:
 new BaseAdapter<TChatModels, TEmbeddingModels, TChatProviderOptions, TEmbeddingProviderOptions, TModelProviderOptionsByName, TModelInputModalitiesByName, TMessageMetadataByModality>(config): BaseAdapter<TChatModels, TEmbeddingModels, TChatProviderOptions, TEmbeddingProviderOptions, TModelProviderOptionsByName, TModelInputModalitiesByName, TMessageMetadataByModality>;
 ```
 
-Defined in: [base-adapter.ts:69](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/base-adapter.ts#L69)
+Defined in: [base-adapter.ts:70](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/base-adapter.ts#L70)
 
 #### Parameters
 
@@ -80,7 +80,7 @@ Defined in: [base-adapter.ts:69](https://github.com/TanStack/ai/blob/main/packag
 optional _chatProviderOptions: TChatProviderOptions;
 ```
 
-Defined in: [base-adapter.ts:60](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/base-adapter.ts#L60)
+Defined in: [base-adapter.ts:61](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/base-adapter.ts#L61)
 
 #### Implementation of
 
@@ -94,7 +94,7 @@ Defined in: [base-adapter.ts:60](https://github.com/TanStack/ai/blob/main/packag
 optional _embeddingProviderOptions: TEmbeddingProviderOptions;
 ```
 
-Defined in: [base-adapter.ts:61](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/base-adapter.ts#L61)
+Defined in: [base-adapter.ts:62](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/base-adapter.ts#L62)
 
 #### Implementation of
 
@@ -108,7 +108,7 @@ Defined in: [base-adapter.ts:61](https://github.com/TanStack/ai/blob/main/packag
 optional _messageMetadataByModality: TMessageMetadataByModality;
 ```
 
-Defined in: [base-adapter.ts:67](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/base-adapter.ts#L67)
+Defined in: [base-adapter.ts:68](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/base-adapter.ts#L68)
 
 Type-only map from modality type to adapter-specific metadata types.
 Used to provide type-safe autocomplete for metadata on content parts.
@@ -125,7 +125,7 @@ Used to provide type-safe autocomplete for metadata on content parts.
 optional _modelInputModalitiesByName: TModelInputModalitiesByName;
 ```
 
-Defined in: [base-adapter.ts:65](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/base-adapter.ts#L65)
+Defined in: [base-adapter.ts:66](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/base-adapter.ts#L66)
 
 Type-only map from model name to its supported input modalities.
 Used by the core AI types to narrow ContentPart types based on the selected model.
@@ -143,7 +143,7 @@ Must be provided by all adapters.
 _modelProviderOptionsByName: TModelProviderOptionsByName;
 ```
 
-Defined in: [base-adapter.ts:63](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/base-adapter.ts#L63)
+Defined in: [base-adapter.ts:64](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/base-adapter.ts#L64)
 
 Type-only map from model name to its specific provider options.
 Used by the core AI types to narrow providerOptions based on the selected model.
@@ -161,7 +161,7 @@ Must be provided by all adapters.
 optional _providerOptions: TChatProviderOptions;
 ```
 
-Defined in: [base-adapter.ts:59](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/base-adapter.ts#L59)
+Defined in: [base-adapter.ts:60](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/base-adapter.ts#L60)
 
 #### Implementation of
 
@@ -175,7 +175,7 @@ Defined in: [base-adapter.ts:59](https://github.com/TanStack/ai/blob/main/packag
 protected config: AIAdapterConfig;
 ```
 
-Defined in: [base-adapter.ts:56](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/base-adapter.ts#L56)
+Defined in: [base-adapter.ts:57](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/base-adapter.ts#L57)
 
 ***
 
@@ -185,7 +185,7 @@ Defined in: [base-adapter.ts:56](https://github.com/TanStack/ai/blob/main/packag
 optional embeddingModels: TEmbeddingModels;
 ```
 
-Defined in: [base-adapter.ts:55](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/base-adapter.ts#L55)
+Defined in: [base-adapter.ts:56](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/base-adapter.ts#L56)
 
 Models that support embeddings
 
@@ -201,7 +201,7 @@ Models that support embeddings
 abstract models: TChatModels;
 ```
 
-Defined in: [base-adapter.ts:54](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/base-adapter.ts#L54)
+Defined in: [base-adapter.ts:55](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/base-adapter.ts#L55)
 
 Models that support chat/text completion
 
@@ -217,7 +217,7 @@ Models that support chat/text completion
 abstract name: string;
 ```
 
-Defined in: [base-adapter.ts:53](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/base-adapter.ts#L53)
+Defined in: [base-adapter.ts:54](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/base-adapter.ts#L54)
 
 #### Implementation of
 
@@ -231,7 +231,7 @@ Defined in: [base-adapter.ts:53](https://github.com/TanStack/ai/blob/main/packag
 abstract chatStream(options): AsyncIterable<StreamChunk>;
 ```
 
-Defined in: [base-adapter.ts:73](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/base-adapter.ts#L73)
+Defined in: [base-adapter.ts:74](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/base-adapter.ts#L74)
 
 #### Parameters
 
@@ -255,7 +255,7 @@ Defined in: [base-adapter.ts:73](https://github.com/TanStack/ai/blob/main/packag
 abstract createEmbeddings(options): Promise<EmbeddingResult>;
 ```
 
-Defined in: [base-adapter.ts:78](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/base-adapter.ts#L78)
+Defined in: [base-adapter.ts:79](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/base-adapter.ts#L79)
 
 #### Parameters
 
@@ -279,7 +279,7 @@ Defined in: [base-adapter.ts:78](https://github.com/TanStack/ai/blob/main/packag
 protected generateId(): string;
 ```
 
-Defined in: [base-adapter.ts:80](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/base-adapter.ts#L80)
+Defined in: [base-adapter.ts:81](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/base-adapter.ts#L81)
 
 #### Returns
 
@@ -293,7 +293,7 @@ Defined in: [base-adapter.ts:80](https://github.com/TanStack/ai/blob/main/packag
 abstract summarize(options): Promise<SummarizationResult>;
 ```
 
-Defined in: [base-adapter.ts:75](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/base-adapter.ts#L75)
+Defined in: [base-adapter.ts:76](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/base-adapter.ts#L76)
 
 #### Parameters
 

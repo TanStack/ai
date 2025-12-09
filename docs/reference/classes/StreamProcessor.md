@@ -365,7 +365,7 @@ Start recording chunks
 ```ts
 toModelMessages(): ModelMessage<
   | string
-  | ContentPart<unknown, unknown, unknown, unknown>[]
+  | ContentPart<unknown, unknown, unknown, unknown, unknown>[]
   | null>[];
 ```
 
@@ -377,7 +377,7 @@ Get the conversation as ModelMessages (for sending to LLM)
 
 [`ModelMessage`](../interfaces/ModelMessage.md)\<
   \| `string`
-  \| [`ContentPart`](../type-aliases/ContentPart.md)\<`unknown`, `unknown`, `unknown`, `unknown`\>[]
+  \| [`ContentPart`](../type-aliases/ContentPart.md)\<`unknown`, `unknown`, `unknown`, `unknown`, `unknown`\>[]
   \| `null`\>[]
 
 ***

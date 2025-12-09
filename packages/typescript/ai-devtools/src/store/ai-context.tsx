@@ -599,1165 +599,1029 @@ export const AIProvider: ParentComponent = (props) => {
     // ============= Client Events =============
 
     cleanupFns.push(
-      aiEventClient.on(
-        'client:created',
-        (e) => {
-          const clientId = e.payload.clientId
+      aiEventClient.on('client:created', (e) => {
+        const clientId = e.payload.clientId
+        getOrCreateConversation(
+          clientId,
+          'client',
+          `Client Chat (${clientId.substring(0, 8)})`,
+        )
+        updateConversation(clientId, { model: undefined, provider: 'Client' })
+      }),
+    )
+
+    cleanupFns.push(
+      aiEventClient.on('client:message-sent', (e) => {
+        const clientId = e.payload.clientId
+        if (!state.conversations[clientId]) {
           getOrCreateConversation(
             clientId,
             'client',
             `Client Chat (${clientId.substring(0, 8)})`,
           )
-          updateConversation(clientId, { model: undefined, provider: 'Client' })
-        },
-        { withEventTarget: false },
-      ),
+        }
+        addMessage(clientId, {
+          id: e.payload.messageId,
+          role: 'user',
+          content: e.payload.content,
+          timestamp: e.payload.timestamp,
+          source: 'client',
+        })
+        updateConversation(clientId, { status: 'active' })
+      }),
     )
 
     cleanupFns.push(
-      aiEventClient.on(
-        'client:message-sent',
-        (e) => {
-          const clientId = e.payload.clientId
-          if (!state.conversations[clientId]) {
-            getOrCreateConversation(
-              clientId,
-              'client',
-              `Client Chat (${clientId.substring(0, 8)})`,
-            )
-          }
+      aiEventClient.on('client:message-appended', (e) => {
+        const clientId = e.payload.clientId
+        const role = e.payload.role
+
+        if (role === 'user') return
+        if (!state.conversations[clientId]) return
+
+        if (role === 'assistant') {
           addMessage(clientId, {
             id: e.payload.messageId,
-            role: 'user',
-            content: e.payload.content,
+            role: 'assistant',
+            content: e.payload.contentPreview,
             timestamp: e.payload.timestamp,
             source: 'client',
           })
-          updateConversation(clientId, { status: 'active' })
-        },
-        { withEventTarget: false },
-      ),
-    )
-
-    cleanupFns.push(
-      aiEventClient.on(
-        'client:message-appended',
-        (e) => {
-          const clientId = e.payload.clientId
-          const role = e.payload.role
-
-          if (role === 'user') return
-          if (!state.conversations[clientId]) return
-
-          if (role === 'assistant') {
-            addMessage(clientId, {
-              id: e.payload.messageId,
-              role: 'assistant',
-              content: e.payload.contentPreview,
-              timestamp: e.payload.timestamp,
-              source: 'client',
-            })
-          } else if (role === 'tool') {
-            // Tool result message from the LLM
-            addMessage(clientId, {
-              id: e.payload.messageId,
-              role: 'tool',
-              content: e.payload.contentPreview,
-              timestamp: e.payload.timestamp,
-              source: 'client',
-            })
-          }
-        },
-        { withEventTarget: false },
-      ),
-    )
-
-    cleanupFns.push(
-      aiEventClient.on(
-        'client:loading-changed',
-        (e) => {
-          const clientId = e.payload.clientId
-          if (state.conversations[clientId]) {
-            updateConversation(clientId, {
-              status: e.payload.isLoading ? 'active' : 'completed',
-            })
-          }
-        },
-        { withEventTarget: false },
-      ),
-    )
-
-    cleanupFns.push(
-      aiEventClient.on(
-        'client:stopped',
-        (e) => {
-          const clientId = e.payload.clientId
-          if (state.conversations[clientId]) {
-            updateConversation(clientId, {
-              status: 'completed',
-              completedAt: e.payload.timestamp,
-            })
-          }
-        },
-        { withEventTarget: false },
-      ),
-    )
-
-    cleanupFns.push(
-      aiEventClient.on(
-        'client:messages-cleared',
-        (e) => {
-          const clientId = e.payload.clientId
-          if (state.conversations[clientId]) {
-            updateConversation(clientId, {
-              messages: [],
-              chunks: [],
-              usage: undefined,
-            })
-          }
-        },
-        { withEventTarget: false },
-      ),
-    )
-
-    cleanupFns.push(
-      aiEventClient.on(
-        'client:reloaded',
-        (e) => {
-          const clientId = e.payload.clientId
-          const conv = state.conversations[clientId]
-          if (conv) {
-            updateConversation(clientId, {
-              messages: conv.messages.slice(0, e.payload.fromMessageIndex),
-              status: 'active',
-            })
-          }
-        },
-        { withEventTarget: false },
-      ),
-    )
-
-    cleanupFns.push(
-      aiEventClient.on(
-        'client:error-changed',
-        (e) => {
-          const clientId = e.payload.clientId
-          if (state.conversations[clientId] && e.payload.error) {
-            updateConversation(clientId, { status: 'error' })
-          }
-        },
-        { withEventTarget: false },
-      ),
-    )
-
-    cleanupFns.push(
-      aiEventClient.on(
-        'client:assistant-message-updated',
-        (e) => {
-          const clientId = e.payload.clientId
-          const messageId = e.payload.messageId
-          const content = e.payload.content
-
-          if (!state.conversations[clientId]) return
-
-          const conv = state.conversations[clientId]
-
-          // Find message by ID anywhere in the list, not just the last one
-          const messageIndex = conv.messages.findIndex(
-            (m: Message) => m.id === messageId,
-          )
-
-          // Only update existing messages, don't create new ones
-          // (client:message-appended is responsible for creating messages)
-          if (messageIndex >= 0) {
-            updateMessage(clientId, messageIndex, {
-              content,
-              model: conv.model,
-            })
-          }
-        },
-        { withEventTarget: false },
-      ),
-    )
-
-    cleanupFns.push(
-      aiEventClient.on(
-        'client:tool-call-updated',
-        (e) => {
-          const {
-            clientId,
-            messageId,
-            toolCallId,
-            toolName,
-            state: toolCallState,
-            arguments: args,
-          } = e.payload as {
-            clientId: string
-            messageId: string
-            toolCallId: string
-            toolName: string
-            state: string
-            arguments: unknown
-            timestamp: number
-          }
-
-          if (!state.conversations[clientId]) return
-
-          const conv = state.conversations[clientId]
-          const messageIndex = conv.messages.findIndex(
-            (m: Message) => m.id === messageId,
-          )
-          if (messageIndex === -1) return
-
-          const message = conv.messages[messageIndex]
-          if (!message) return
-
-          const toolCalls = message.toolCalls || []
-          const existingToolIndex = toolCalls.findIndex(
-            (t: ToolCall) => t.id === toolCallId,
-          )
-
-          const toolCall: ToolCall = {
-            id: toolCallId,
-            name: toolName,
-            arguments: JSON.stringify(args, null, 2),
-            state: toolCallState,
-          }
-
-          if (existingToolIndex >= 0) {
-            updateToolCall(clientId, messageIndex, existingToolIndex, toolCall)
-          } else {
-            setToolCalls(clientId, messageIndex, [...toolCalls, toolCall])
-          }
-        },
-        { withEventTarget: false },
-      ),
-    )
-
-    cleanupFns.push(
-      aiEventClient.on(
-        'client:approval-requested',
-        (e) => {
-          const { clientId, messageId, toolCallId, approvalId } = e.payload
-
-          if (!state.conversations[clientId]) return
-
-          const conv = state.conversations[clientId]
-          const messageIndex = conv.messages.findIndex(
-            (m) => m.id === messageId,
-          )
-          if (messageIndex === -1) return
-
-          const message = conv.messages[messageIndex]
-          if (!message?.toolCalls) return
-
-          const toolCallIndex = message.toolCalls.findIndex(
-            (t) => t.id === toolCallId,
-          )
-          if (toolCallIndex === -1) return
-
-          updateToolCall(clientId, messageIndex, toolCallIndex, {
-            approvalRequired: true,
-            approvalId,
-            state: 'approval-requested',
+        } else if (role === 'tool') {
+          // Tool result message from the LLM
+          addMessage(clientId, {
+            id: e.payload.messageId,
+            role: 'tool',
+            content: e.payload.contentPreview,
+            timestamp: e.payload.timestamp,
+            source: 'client',
           })
-        },
-        { withEventTarget: false },
-      ),
+        }
+      }),
+    )
+
+    cleanupFns.push(
+      aiEventClient.on('client:loading-changed', (e) => {
+        const clientId = e.payload.clientId
+        if (state.conversations[clientId]) {
+          updateConversation(clientId, {
+            status: e.payload.isLoading ? 'active' : 'completed',
+          })
+        }
+      }),
+    )
+
+    cleanupFns.push(
+      aiEventClient.on('client:stopped', (e) => {
+        const clientId = e.payload.clientId
+        if (state.conversations[clientId]) {
+          updateConversation(clientId, {
+            status: 'completed',
+            completedAt: e.payload.timestamp,
+          })
+        }
+      }),
+    )
+
+    cleanupFns.push(
+      aiEventClient.on('client:messages-cleared', (e) => {
+        const clientId = e.payload.clientId
+        if (state.conversations[clientId]) {
+          updateConversation(clientId, {
+            messages: [],
+            chunks: [],
+            usage: undefined,
+          })
+        }
+      }),
+    )
+
+    cleanupFns.push(
+      aiEventClient.on('client:reloaded', (e) => {
+        const clientId = e.payload.clientId
+        const conv = state.conversations[clientId]
+        if (conv) {
+          updateConversation(clientId, {
+            messages: conv.messages.slice(0, e.payload.fromMessageIndex),
+            status: 'active',
+          })
+        }
+      }),
+    )
+
+    cleanupFns.push(
+      aiEventClient.on('client:error-changed', (e) => {
+        const clientId = e.payload.clientId
+        if (state.conversations[clientId] && e.payload.error) {
+          updateConversation(clientId, { status: 'error' })
+        }
+      }),
+    )
+
+    cleanupFns.push(
+      aiEventClient.on('client:assistant-message-updated', (e) => {
+        const clientId = e.payload.clientId
+        const messageId = e.payload.messageId
+        const content = e.payload.content
+
+        if (!state.conversations[clientId]) return
+
+        const conv = state.conversations[clientId]
+
+        // Find message by ID anywhere in the list, not just the last one
+        const messageIndex = conv.messages.findIndex(
+          (m: Message) => m.id === messageId,
+        )
+
+        // Only update existing messages, don't create new ones
+        // (client:message-appended is responsible for creating messages)
+        if (messageIndex >= 0) {
+          updateMessage(clientId, messageIndex, {
+            content,
+            model: conv.model,
+          })
+        }
+      }),
+    )
+
+    cleanupFns.push(
+      aiEventClient.on('client:tool-call-updated', (e) => {
+        const {
+          clientId,
+          messageId,
+          toolCallId,
+          toolName,
+          state: toolCallState,
+          arguments: args,
+        } = e.payload as {
+          clientId: string
+          messageId: string
+          toolCallId: string
+          toolName: string
+          state: string
+          arguments: unknown
+          timestamp: number
+        }
+
+        if (!state.conversations[clientId]) return
+
+        const conv = state.conversations[clientId]
+        const messageIndex = conv.messages.findIndex(
+          (m: Message) => m.id === messageId,
+        )
+        if (messageIndex === -1) return
+
+        const message = conv.messages[messageIndex]
+        if (!message) return
+
+        const toolCalls = message.toolCalls || []
+        const existingToolIndex = toolCalls.findIndex(
+          (t: ToolCall) => t.id === toolCallId,
+        )
+
+        const toolCall: ToolCall = {
+          id: toolCallId,
+          name: toolName,
+          arguments: JSON.stringify(args, null, 2),
+          state: toolCallState,
+        }
+
+        if (existingToolIndex >= 0) {
+          updateToolCall(clientId, messageIndex, existingToolIndex, toolCall)
+        } else {
+          setToolCalls(clientId, messageIndex, [...toolCalls, toolCall])
+        }
+      }),
+    )
+
+    cleanupFns.push(
+      aiEventClient.on('client:approval-requested', (e) => {
+        const { clientId, messageId, toolCallId, approvalId } = e.payload
+
+        if (!state.conversations[clientId]) return
+
+        const conv = state.conversations[clientId]
+        const messageIndex = conv.messages.findIndex((m) => m.id === messageId)
+        if (messageIndex === -1) return
+
+        const message = conv.messages[messageIndex]
+        if (!message?.toolCalls) return
+
+        const toolCallIndex = message.toolCalls.findIndex(
+          (t) => t.id === toolCallId,
+        )
+        if (toolCallIndex === -1) return
+
+        updateToolCall(clientId, messageIndex, toolCallIndex, {
+          approvalRequired: true,
+          approvalId,
+          state: 'approval-requested',
+        })
+      }),
     )
 
     // ============= Tool Events =============
 
     cleanupFns.push(
-      aiEventClient.on(
-        'tool:result-added',
-        (e) => {
-          const {
-            clientId,
-            toolCallId,
-            toolName,
-            output,
-            state: resultState,
-            timestamp,
-          } = e.payload
+      aiEventClient.on('tool:result-added', (e) => {
+        const {
+          clientId,
+          toolCallId,
+          toolName,
+          output,
+          state: resultState,
+          timestamp,
+        } = e.payload
 
-          if (!state.conversations[clientId]) return
+        if (!state.conversations[clientId]) return
 
-          const conv = state.conversations[clientId]
+        const conv = state.conversations[clientId]
 
-          // Find the message with the tool call and update it
-          for (
-            let messageIndex = conv.messages.length - 1;
-            messageIndex >= 0;
-            messageIndex--
-          ) {
-            const message = conv.messages[messageIndex]
-            if (!message?.toolCalls) continue
+        // Find the message with the tool call and update it
+        for (
+          let messageIndex = conv.messages.length - 1;
+          messageIndex >= 0;
+          messageIndex--
+        ) {
+          const message = conv.messages[messageIndex]
+          if (!message?.toolCalls) continue
 
-            const toolCallIndex = message.toolCalls.findIndex(
-              (t: ToolCall) => t.id === toolCallId,
-            )
-            if (toolCallIndex >= 0) {
-              // Update the tool call state
-              updateToolCall(clientId, messageIndex, toolCallIndex, {
-                result: output,
-                state: resultState === 'output-error' ? 'error' : 'complete',
-              })
+          const toolCallIndex = message.toolCalls.findIndex(
+            (t: ToolCall) => t.id === toolCallId,
+          )
+          if (toolCallIndex >= 0) {
+            // Update the tool call state
+            updateToolCall(clientId, messageIndex, toolCallIndex, {
+              result: output,
+              state: resultState === 'output-error' ? 'error' : 'complete',
+            })
 
-              // Also add a chunk to show the tool result in the chunks view
-              const chunk: Chunk = {
-                id: `chunk-tool-result-${toolCallId}-${Date.now()}`,
-                type: 'tool_result',
-                messageId: message.id,
-                toolCallId,
-                toolName,
-                result: output,
-                timestamp,
-                chunkCount: 1,
-              }
-              addChunkToMessage(clientId, chunk)
-              return
+            // Also add a chunk to show the tool result in the chunks view
+            const chunk: Chunk = {
+              id: `chunk-tool-result-${toolCallId}-${Date.now()}`,
+              type: 'tool_result',
+              messageId: message.id,
+              toolCallId,
+              toolName,
+              result: output,
+              timestamp,
+              chunkCount: 1,
             }
+            addChunkToMessage(clientId, chunk)
+            return
           }
-        },
-        { withEventTarget: false },
-      ),
+        }
+      }),
     )
 
     cleanupFns.push(
-      aiEventClient.on(
-        'tool:approval-responded',
-        (e) => {
-          const { clientId, toolCallId, approved } = e.payload
+      aiEventClient.on('tool:approval-responded', (e) => {
+        const { clientId, toolCallId, approved } = e.payload
 
-          if (!state.conversations[clientId]) return
+        if (!state.conversations[clientId]) return
 
-          const conv = state.conversations[clientId]
+        const conv = state.conversations[clientId]
 
-          for (
-            let messageIndex = conv.messages.length - 1;
-            messageIndex >= 0;
-            messageIndex--
-          ) {
-            const message = conv.messages[messageIndex]
-            if (!message?.toolCalls) continue
+        for (
+          let messageIndex = conv.messages.length - 1;
+          messageIndex >= 0;
+          messageIndex--
+        ) {
+          const message = conv.messages[messageIndex]
+          if (!message?.toolCalls) continue
 
-            const toolCallIndex = message.toolCalls.findIndex(
-              (t: ToolCall) => t.id === toolCallId,
-            )
-            if (toolCallIndex >= 0) {
-              updateToolCall(clientId, messageIndex, toolCallIndex, {
-                state: approved ? 'approved' : 'denied',
-                approvalRequired: false,
-              })
-              return
-            }
+          const toolCallIndex = message.toolCalls.findIndex(
+            (t: ToolCall) => t.id === toolCallId,
+          )
+          if (toolCallIndex >= 0) {
+            updateToolCall(clientId, messageIndex, toolCallIndex, {
+              state: approved ? 'approved' : 'denied',
+              approvalRequired: false,
+            })
+            return
           }
-        },
-        { withEventTarget: false },
-      ),
+        }
+      }),
     )
 
     // ============= Stream Events =============
 
     cleanupFns.push(
-      aiEventClient.on(
-        'stream:chunk:content',
-        (e) => {
-          const streamId = e.payload.streamId
-          const conversationId = streamToConversation.get(streamId)
-          if (!conversationId) return
+      aiEventClient.on('stream:chunk:content', (e) => {
+        const streamId = e.payload.streamId
+        const conversationId = streamToConversation.get(streamId)
+        if (!conversationId) return
 
-          const chunk: Chunk = {
-            id: `chunk-${Date.now()}-${Math.random()}`,
-            type: 'content',
-            messageId: e.payload.messageId,
-            content: e.payload.content,
-            delta: e.payload.delta,
-            timestamp: e.payload.timestamp,
-            chunkCount: 1,
-          }
+        const chunk: Chunk = {
+          id: `chunk-${Date.now()}-${Math.random()}`,
+          type: 'content',
+          messageId: e.payload.messageId,
+          content: e.payload.content,
+          delta: e.payload.delta,
+          timestamp: e.payload.timestamp,
+          chunkCount: 1,
+        }
 
-          const conv = state.conversations[conversationId]
-          if (conv?.type === 'client') {
-            addChunkToMessage(conversationId, chunk)
-          } else {
-            ensureMessageForChunk(
-              conversationId,
-              e.payload.messageId,
-              e.payload.timestamp,
-            )
-            addChunk(conversationId, chunk)
-          }
-        },
-        { withEventTarget: false },
-      ),
+        const conv = state.conversations[conversationId]
+        if (conv?.type === 'client') {
+          addChunkToMessage(conversationId, chunk)
+        } else {
+          ensureMessageForChunk(
+            conversationId,
+            e.payload.messageId,
+            e.payload.timestamp,
+          )
+          addChunk(conversationId, chunk)
+        }
+      }),
     )
 
     cleanupFns.push(
-      aiEventClient.on(
-        'stream:chunk:tool-call',
-        (e) => {
-          const streamId = e.payload.streamId
-          const conversationId = streamToConversation.get(streamId)
-          if (!conversationId) return
+      aiEventClient.on('stream:chunk:tool-call', (e) => {
+        const streamId = e.payload.streamId
+        const conversationId = streamToConversation.get(streamId)
+        if (!conversationId) return
 
-          const chunk: Chunk = {
-            id: `chunk-${Date.now()}-${Math.random()}`,
-            type: 'tool_call',
-            messageId: e.payload.messageId,
-            toolCallId: e.payload.toolCallId,
-            toolName: e.payload.toolName,
-            arguments: e.payload.arguments,
-            timestamp: e.payload.timestamp,
-            chunkCount: 1,
-          }
+        const chunk: Chunk = {
+          id: `chunk-${Date.now()}-${Math.random()}`,
+          type: 'tool_call',
+          messageId: e.payload.messageId,
+          toolCallId: e.payload.toolCallId,
+          toolName: e.payload.toolName,
+          arguments: e.payload.arguments,
+          timestamp: e.payload.timestamp,
+          chunkCount: 1,
+        }
 
-          const conv = state.conversations[conversationId]
-          if (conv?.type === 'client') {
-            addChunkToMessage(conversationId, chunk)
-          } else {
-            ensureMessageForChunk(
-              conversationId,
-              e.payload.messageId,
-              e.payload.timestamp,
-            )
-            addChunk(conversationId, chunk)
-          }
-        },
-        { withEventTarget: false },
-      ),
+        const conv = state.conversations[conversationId]
+        if (conv?.type === 'client') {
+          addChunkToMessage(conversationId, chunk)
+        } else {
+          ensureMessageForChunk(
+            conversationId,
+            e.payload.messageId,
+            e.payload.timestamp,
+          )
+          addChunk(conversationId, chunk)
+        }
+      }),
     )
 
     cleanupFns.push(
-      aiEventClient.on(
-        'stream:chunk:tool-result',
-        (e) => {
-          const streamId = e.payload.streamId
-          const conversationId = streamToConversation.get(streamId)
-          if (!conversationId) return
+      aiEventClient.on('stream:chunk:tool-result', (e) => {
+        const streamId = e.payload.streamId
+        const conversationId = streamToConversation.get(streamId)
+        if (!conversationId) return
 
-          const chunk: Chunk = {
-            id: `chunk-${Date.now()}-${Math.random()}`,
-            type: 'tool_result',
-            messageId: e.payload.messageId,
-            toolCallId: e.payload.toolCallId,
-            content: e.payload.result,
-            timestamp: e.payload.timestamp,
-            chunkCount: 1,
-          }
+        const chunk: Chunk = {
+          id: `chunk-${Date.now()}-${Math.random()}`,
+          type: 'tool_result',
+          messageId: e.payload.messageId,
+          toolCallId: e.payload.toolCallId,
+          content: e.payload.result,
+          timestamp: e.payload.timestamp,
+          chunkCount: 1,
+        }
 
-          const conv = state.conversations[conversationId]
-          if (conv?.type === 'client') {
-            addChunkToMessage(conversationId, chunk)
-          } else {
-            ensureMessageForChunk(
-              conversationId,
-              e.payload.messageId,
-              e.payload.timestamp,
-            )
-            addChunk(conversationId, chunk)
-          }
+        const conv = state.conversations[conversationId]
+        if (conv?.type === 'client') {
+          addChunkToMessage(conversationId, chunk)
+        } else {
+          ensureMessageForChunk(
+            conversationId,
+            e.payload.messageId,
+            e.payload.timestamp,
+          )
+          addChunk(conversationId, chunk)
+        }
 
-          // Also update the toolCalls array with the result
-          if (conv && e.payload.toolCallId) {
-            for (let i = conv.messages.length - 1; i >= 0; i--) {
-              const message = conv.messages[i]
-              if (!message?.toolCalls) continue
-
-              const toolCallIndex = message.toolCalls.findIndex(
-                (t) => t.id === e.payload.toolCallId,
-              )
-              if (toolCallIndex >= 0) {
-                updateToolCall(conversationId, i, toolCallIndex, {
-                  result: e.payload.result,
-                  state: 'complete',
-                })
-                break
-              }
-            }
-          }
-        },
-        { withEventTarget: false },
-      ),
-    )
-
-    cleanupFns.push(
-      aiEventClient.on(
-        'stream:chunk:thinking',
-        (e) => {
-          const streamId = e.payload.streamId
-          const conversationId = streamToConversation.get(streamId)
-          if (!conversationId) return
-
-          const chunk: Chunk = {
-            id: `chunk-${Date.now()}-${Math.random()}`,
-            type: 'thinking',
-            messageId: e.payload.messageId,
-            content: e.payload.content,
-            delta: e.payload.delta,
-            timestamp: e.payload.timestamp,
-            chunkCount: 1,
-          }
-
-          const conv = state.conversations[conversationId]
-          if (conv?.type === 'client') {
-            addChunkToMessage(conversationId, chunk)
-
-            if (e.payload.messageId) {
-              const messageIndex = conv.messages.findIndex(
-                (msg) => msg.id === e.payload.messageId,
-              )
-              if (messageIndex !== -1) {
-                updateMessage(conversationId, messageIndex, {
-                  thinkingContent: e.payload.content,
-                })
-              }
-            }
-          } else {
-            ensureMessageForChunk(
-              conversationId,
-              e.payload.messageId,
-              e.payload.timestamp,
-            )
-            addChunk(conversationId, chunk)
-          }
-        },
-        { withEventTarget: false },
-      ),
-    )
-
-    cleanupFns.push(
-      aiEventClient.on(
-        'stream:chunk:done',
-        (e) => {
-          const streamId = e.payload.streamId
-          const conversationId = streamToConversation.get(streamId)
-          if (!conversationId) return
-
-          const chunk: Chunk = {
-            id: `chunk-${Date.now()}-${Math.random()}`,
-            type: 'done',
-            messageId: e.payload.messageId,
-            finishReason: e.payload.finishReason || undefined,
-            timestamp: e.payload.timestamp,
-            chunkCount: 1,
-          }
-
-          if (e.payload.usage) {
-            updateConversation(conversationId, { usage: e.payload.usage })
-            updateMessageUsage(
-              conversationId,
-              e.payload.messageId,
-              e.payload.usage,
-            )
-          }
-
-          const conv = state.conversations[conversationId]
-          if (conv?.type === 'client') {
-            addChunkToMessage(conversationId, chunk)
-          } else {
-            ensureMessageForChunk(
-              conversationId,
-              e.payload.messageId,
-              e.payload.timestamp,
-            )
-            addChunk(conversationId, chunk)
-          }
-
-          updateConversation(conversationId, {
-            status: 'completed',
-            completedAt: e.payload.timestamp,
-          })
-        },
-        { withEventTarget: false },
-      ),
-    )
-
-    cleanupFns.push(
-      aiEventClient.on(
-        'stream:chunk:error',
-        (e) => {
-          const streamId = e.payload.streamId
-          const conversationId = streamToConversation.get(streamId)
-          if (!conversationId) return
-
-          const chunk: Chunk = {
-            id: `chunk-${Date.now()}-${Math.random()}`,
-            type: 'error',
-            messageId: e.payload.messageId,
-            error: e.payload.error,
-            timestamp: e.payload.timestamp,
-            chunkCount: 1,
-          }
-
-          const conv = state.conversations[conversationId]
-          if (conv?.type === 'client') {
-            addChunkToMessage(conversationId, chunk)
-          } else {
-            ensureMessageForChunk(
-              conversationId,
-              e.payload.messageId,
-              e.payload.timestamp,
-            )
-            addChunk(conversationId, chunk)
-          }
-
-          updateConversation(conversationId, {
-            status: 'error',
-            completedAt: e.payload.timestamp,
-          })
-        },
-        { withEventTarget: false },
-      ),
-    )
-
-    cleanupFns.push(
-      aiEventClient.on(
-        'stream:ended',
-        (e) => {
-          const streamId = e.payload.streamId
-          const conversationId = streamToConversation.get(streamId)
-          if (!conversationId) return
-
-          updateConversation(conversationId, {
-            status: 'completed',
-            completedAt: e.payload.timestamp,
-          })
-        },
-        { withEventTarget: false },
-      ),
-    )
-
-    cleanupFns.push(
-      aiEventClient.on(
-        'stream:approval-requested',
-        (e) => {
-          const {
-            streamId,
-            messageId,
-            toolCallId,
-            toolName,
-            input,
-            approvalId,
-            timestamp,
-          } = e.payload
-
-          const conversationId = streamToConversation.get(streamId)
-          if (!conversationId) return
-
-          const conv = state.conversations[conversationId]
-          if (!conv) return
-
-          const chunk: Chunk = {
-            id: `chunk-${Date.now()}-${Math.random()}`,
-            type: 'approval',
-            messageId: messageId,
-            toolCallId,
-            toolName,
-            approvalId,
-            input,
-            timestamp,
-            chunkCount: 1,
-          }
-
-          if (conv.type === 'client') {
-            addChunkToMessage(conversationId, chunk)
-          } else {
-            addChunk(conversationId, chunk)
-          }
-
+        // Also update the toolCalls array with the result
+        if (conv && e.payload.toolCallId) {
           for (let i = conv.messages.length - 1; i >= 0; i--) {
             const message = conv.messages[i]
-            if (!message) continue
+            if (!message?.toolCalls) continue
 
-            if (message.role === 'assistant' && message.toolCalls) {
-              const toolCallIndex = message.toolCalls.findIndex(
-                (t: ToolCall) => t.id === toolCallId,
-              )
-              if (toolCallIndex >= 0) {
-                updateToolCall(conversationId, i, toolCallIndex, {
-                  approvalRequired: true,
-                  approvalId,
-                  state: 'approval-requested',
-                })
-                return
-              }
+            const toolCallIndex = message.toolCalls.findIndex(
+              (t) => t.id === e.payload.toolCallId,
+            )
+            if (toolCallIndex >= 0) {
+              updateToolCall(conversationId, i, toolCallIndex, {
+                result: e.payload.result,
+                state: 'complete',
+              })
+              break
             }
           }
-        },
-        { withEventTarget: false },
-      ),
+        }
+      }),
+    )
+
+    cleanupFns.push(
+      aiEventClient.on('stream:chunk:thinking', (e) => {
+        const streamId = e.payload.streamId
+        const conversationId = streamToConversation.get(streamId)
+        if (!conversationId) return
+
+        const chunk: Chunk = {
+          id: `chunk-${Date.now()}-${Math.random()}`,
+          type: 'thinking',
+          messageId: e.payload.messageId,
+          content: e.payload.content,
+          delta: e.payload.delta,
+          timestamp: e.payload.timestamp,
+          chunkCount: 1,
+        }
+
+        const conv = state.conversations[conversationId]
+        if (conv?.type === 'client') {
+          addChunkToMessage(conversationId, chunk)
+
+          if (e.payload.messageId) {
+            const messageIndex = conv.messages.findIndex(
+              (msg) => msg.id === e.payload.messageId,
+            )
+            if (messageIndex !== -1) {
+              updateMessage(conversationId, messageIndex, {
+                thinkingContent: e.payload.content,
+              })
+            }
+          }
+        } else {
+          ensureMessageForChunk(
+            conversationId,
+            e.payload.messageId,
+            e.payload.timestamp,
+          )
+          addChunk(conversationId, chunk)
+        }
+      }),
+    )
+
+    cleanupFns.push(
+      aiEventClient.on('stream:chunk:done', (e) => {
+        const streamId = e.payload.streamId
+        const conversationId = streamToConversation.get(streamId)
+        if (!conversationId) return
+
+        const chunk: Chunk = {
+          id: `chunk-${Date.now()}-${Math.random()}`,
+          type: 'done',
+          messageId: e.payload.messageId,
+          finishReason: e.payload.finishReason || undefined,
+          timestamp: e.payload.timestamp,
+          chunkCount: 1,
+        }
+
+        if (e.payload.usage) {
+          updateConversation(conversationId, { usage: e.payload.usage })
+          updateMessageUsage(
+            conversationId,
+            e.payload.messageId,
+            e.payload.usage,
+          )
+        }
+
+        const conv = state.conversations[conversationId]
+        if (conv?.type === 'client') {
+          addChunkToMessage(conversationId, chunk)
+        } else {
+          ensureMessageForChunk(
+            conversationId,
+            e.payload.messageId,
+            e.payload.timestamp,
+          )
+          addChunk(conversationId, chunk)
+        }
+
+        updateConversation(conversationId, {
+          status: 'completed',
+          completedAt: e.payload.timestamp,
+        })
+      }),
+    )
+
+    cleanupFns.push(
+      aiEventClient.on('stream:chunk:error', (e) => {
+        const streamId = e.payload.streamId
+        const conversationId = streamToConversation.get(streamId)
+        if (!conversationId) return
+
+        const chunk: Chunk = {
+          id: `chunk-${Date.now()}-${Math.random()}`,
+          type: 'error',
+          messageId: e.payload.messageId,
+          error: e.payload.error,
+          timestamp: e.payload.timestamp,
+          chunkCount: 1,
+        }
+
+        const conv = state.conversations[conversationId]
+        if (conv?.type === 'client') {
+          addChunkToMessage(conversationId, chunk)
+        } else {
+          ensureMessageForChunk(
+            conversationId,
+            e.payload.messageId,
+            e.payload.timestamp,
+          )
+          addChunk(conversationId, chunk)
+        }
+
+        updateConversation(conversationId, {
+          status: 'error',
+          completedAt: e.payload.timestamp,
+        })
+      }),
+    )
+
+    cleanupFns.push(
+      aiEventClient.on('stream:ended', (e) => {
+        const streamId = e.payload.streamId
+        const conversationId = streamToConversation.get(streamId)
+        if (!conversationId) return
+
+        updateConversation(conversationId, {
+          status: 'completed',
+          completedAt: e.payload.timestamp,
+        })
+      }),
+    )
+
+    cleanupFns.push(
+      aiEventClient.on('stream:approval-requested', (e) => {
+        const {
+          streamId,
+          messageId,
+          toolCallId,
+          toolName,
+          input,
+          approvalId,
+          timestamp,
+        } = e.payload
+
+        const conversationId = streamToConversation.get(streamId)
+        if (!conversationId) return
+
+        const conv = state.conversations[conversationId]
+        if (!conv) return
+
+        const chunk: Chunk = {
+          id: `chunk-${Date.now()}-${Math.random()}`,
+          type: 'approval',
+          messageId: messageId,
+          toolCallId,
+          toolName,
+          approvalId,
+          input,
+          timestamp,
+          chunkCount: 1,
+        }
+
+        if (conv.type === 'client') {
+          addChunkToMessage(conversationId, chunk)
+        } else {
+          addChunk(conversationId, chunk)
+        }
+
+        for (let i = conv.messages.length - 1; i >= 0; i--) {
+          const message = conv.messages[i]
+          if (!message) continue
+
+          if (message.role === 'assistant' && message.toolCalls) {
+            const toolCallIndex = message.toolCalls.findIndex(
+              (t: ToolCall) => t.id === toolCallId,
+            )
+            if (toolCallIndex >= 0) {
+              updateToolCall(conversationId, i, toolCallIndex, {
+                approvalRequired: true,
+                approvalId,
+                state: 'approval-requested',
+              })
+              return
+            }
+          }
+        }
+      }),
     )
 
     // ============= Processor Events =============
 
     cleanupFns.push(
-      aiEventClient.on(
-        'processor:text-updated',
-        (e) => {
-          const streamId = e.payload.streamId
+      aiEventClient.on('processor:text-updated', (e) => {
+        const streamId = e.payload.streamId
 
-          let conversationId = streamToConversation.get(streamId)
+        let conversationId = streamToConversation.get(streamId)
 
-          if (!conversationId) {
-            const activeClients = Object.values(state.conversations)
-              .filter((c) => c.type === 'client' && c.status === 'active')
-              .sort((a, b) => b.startedAt - a.startedAt)
+        if (!conversationId) {
+          const activeClients = Object.values(state.conversations)
+            .filter((c) => c.type === 'client' && c.status === 'active')
+            .sort((a, b) => b.startedAt - a.startedAt)
 
-            if (activeClients.length > 0 && activeClients[0]) {
-              conversationId = activeClients[0].id
-              streamToConversation.set(streamId, conversationId)
-            }
+          if (activeClients.length > 0 && activeClients[0]) {
+            conversationId = activeClients[0].id
+            streamToConversation.set(streamId, conversationId)
+          }
+        }
+
+        if (!conversationId) return
+
+        const conv = state.conversations[conversationId]
+        if (!conv) return
+
+        // Only update existing assistant messages, don't create new ones
+        // (client:message-appended is responsible for creating messages)
+        const lastMessage = conv.messages[conv.messages.length - 1]
+        if (lastMessage && lastMessage.role === 'assistant') {
+          updateMessage(conversationId, conv.messages.length - 1, {
+            content: e.payload.content,
+          })
+        }
+      }),
+    )
+
+    cleanupFns.push(
+      aiEventClient.on('processor:tool-call-state-changed', (e) => {
+        const streamId = e.payload.streamId
+        const conversationId = streamToConversation.get(streamId)
+
+        if (!conversationId || !state.conversations[conversationId]) return
+
+        const conv = state.conversations[conversationId]
+        const lastMessage = conv.messages[conv.messages.length - 1]
+
+        if (lastMessage && lastMessage.role === 'assistant') {
+          const toolCalls = lastMessage.toolCalls || []
+          const existingToolIndex = toolCalls.findIndex(
+            (t) => t.id === e.payload.toolCallId,
+          )
+
+          const toolCall: ToolCall = {
+            id: e.payload.toolCallId,
+            name: e.payload.toolName,
+            arguments: JSON.stringify(e.payload.arguments, null, 2),
+            state: e.payload.state,
           }
 
-          if (!conversationId) return
+          if (existingToolIndex >= 0) {
+            updateToolCall(
+              conversationId,
+              conv.messages.length - 1,
+              existingToolIndex,
+              toolCall,
+            )
+          } else {
+            setToolCalls(conversationId, conv.messages.length - 1, [
+              ...toolCalls,
+              toolCall,
+            ])
+          }
+        }
+      }),
+    )
 
-          const conv = state.conversations[conversationId]
-          if (!conv) return
+    cleanupFns.push(
+      aiEventClient.on('processor:tool-result-state-changed', (e) => {
+        const streamId = e.payload.streamId
+        const conversationId = streamToConversation.get(streamId)
 
-          // Only update existing assistant messages, don't create new ones
-          // (client:message-appended is responsible for creating messages)
-          const lastMessage = conv.messages[conv.messages.length - 1]
-          if (lastMessage && lastMessage.role === 'assistant') {
-            updateMessage(conversationId, conv.messages.length - 1, {
-              content: e.payload.content,
+        if (!conversationId || !state.conversations[conversationId]) return
+
+        const conv = state.conversations[conversationId]
+
+        for (let i = conv.messages.length - 1; i >= 0; i--) {
+          const message = conv.messages[i]
+          if (!message?.toolCalls) continue
+
+          const toolCallIndex = message.toolCalls.findIndex(
+            (t) => t.id === e.payload.toolCallId,
+          )
+          if (toolCallIndex >= 0) {
+            updateToolCall(conversationId, i, toolCallIndex, {
+              result: e.payload.content,
+              state: e.payload.error ? 'error' : e.payload.state,
             })
+            return
           }
-        },
-        { withEventTarget: false },
-      ),
-    )
-
-    cleanupFns.push(
-      aiEventClient.on(
-        'processor:tool-call-state-changed',
-        (e) => {
-          const streamId = e.payload.streamId
-          const conversationId = streamToConversation.get(streamId)
-
-          if (!conversationId || !state.conversations[conversationId]) return
-
-          const conv = state.conversations[conversationId]
-          const lastMessage = conv.messages[conv.messages.length - 1]
-
-          if (lastMessage && lastMessage.role === 'assistant') {
-            const toolCalls = lastMessage.toolCalls || []
-            const existingToolIndex = toolCalls.findIndex(
-              (t) => t.id === e.payload.toolCallId,
-            )
-
-            const toolCall: ToolCall = {
-              id: e.payload.toolCallId,
-              name: e.payload.toolName,
-              arguments: JSON.stringify(e.payload.arguments, null, 2),
-              state: e.payload.state,
-            }
-
-            if (existingToolIndex >= 0) {
-              updateToolCall(
-                conversationId,
-                conv.messages.length - 1,
-                existingToolIndex,
-                toolCall,
-              )
-            } else {
-              setToolCalls(conversationId, conv.messages.length - 1, [
-                ...toolCalls,
-                toolCall,
-              ])
-            }
-          }
-        },
-        { withEventTarget: false },
-      ),
-    )
-
-    cleanupFns.push(
-      aiEventClient.on(
-        'processor:tool-result-state-changed',
-        (e) => {
-          const streamId = e.payload.streamId
-          const conversationId = streamToConversation.get(streamId)
-
-          if (!conversationId || !state.conversations[conversationId]) return
-
-          const conv = state.conversations[conversationId]
-
-          for (let i = conv.messages.length - 1; i >= 0; i--) {
-            const message = conv.messages[i]
-            if (!message?.toolCalls) continue
-
-            const toolCallIndex = message.toolCalls.findIndex(
-              (t) => t.id === e.payload.toolCallId,
-            )
-            if (toolCallIndex >= 0) {
-              updateToolCall(conversationId, i, toolCallIndex, {
-                result: e.payload.content,
-                state: e.payload.error ? 'error' : e.payload.state,
-              })
-              return
-            }
-          }
-        },
-        { withEventTarget: false },
-      ),
+        }
+      }),
     )
 
     // ============= Chat Events (for usage tracking) =============
 
     cleanupFns.push(
-      aiEventClient.on(
-        'chat:started',
-        (e) => {
-          const streamId = e.payload.streamId
-          const model = e.payload.model
-          const provider = e.payload.provider
-          const clientId = e.payload.clientId
+      aiEventClient.on('chat:started', (e) => {
+        const streamId = e.payload.streamId
+        const model = e.payload.model
+        const provider = e.payload.provider
+        const clientId = e.payload.clientId
 
-          if (clientId && state.conversations[clientId]) {
-            streamToConversation.set(streamId, clientId)
-            updateConversation(clientId, { status: 'active', ...e.payload })
-            return
-          }
+        if (clientId && state.conversations[clientId]) {
+          streamToConversation.set(streamId, clientId)
+          updateConversation(clientId, { status: 'active', ...e.payload })
+          return
+        }
 
-          const activeClient = Object.values(state.conversations).find(
-            (c) => c.type === 'client' && c.status === 'active' && !c.model,
+        const activeClient = Object.values(state.conversations).find(
+          (c) => c.type === 'client' && c.status === 'active' && !c.model,
+        )
+
+        if (activeClient) {
+          streamToConversation.set(streamId, activeClient.id)
+          updateConversation(activeClient.id, { ...e.payload })
+        } else {
+          const existingServerConv = Object.values(state.conversations).find(
+            (c) => c.type === 'server' && c.model === model,
           )
 
-          if (activeClient) {
-            streamToConversation.set(streamId, activeClient.id)
-            updateConversation(activeClient.id, { ...e.payload })
-          } else {
-            const existingServerConv = Object.values(state.conversations).find(
-              (c) => c.type === 'server' && c.model === model,
-            )
-
-            if (existingServerConv) {
-              streamToConversation.set(streamId, existingServerConv.id)
-              updateConversation(existingServerConv.id, {
-                status: 'active',
-                ...e.payload,
-              })
-            } else {
-              const serverId = `server-${model}`
-              getOrCreateConversation(serverId, 'server', `${model} Server`)
-              streamToConversation.set(streamId, serverId)
-              updateConversation(serverId, { ...e.payload })
-            }
-          }
-        },
-        { withEventTarget: false },
-      ),
-    )
-
-    cleanupFns.push(
-      aiEventClient.on(
-        'chat:completed',
-        (e) => {
-          const { requestId, usage } = e.payload
-
-          const conversationId = requestToConversation.get(requestId)
-          if (conversationId && state.conversations[conversationId]) {
-            const updates: Partial<Conversation> = {
-              status: 'completed',
-              completedAt: e.payload.timestamp,
-            }
-            if (usage) {
-              updates.usage = usage
-            }
-            updateConversation(conversationId, updates)
-            if (usage) {
-              updateMessageUsage(conversationId, e.payload.messageId, usage)
-            }
-          }
-        },
-        { withEventTarget: false },
-      ),
-    )
-
-    cleanupFns.push(
-      aiEventClient.on(
-        'chat:iteration',
-        (e) => {
-          const { requestId, iterationNumber } = e.payload
-
-          const conversationId = requestToConversation.get(requestId)
-          if (conversationId && state.conversations[conversationId]) {
-            updateConversation(conversationId, {
-              iterationCount: iterationNumber,
+          if (existingServerConv) {
+            streamToConversation.set(streamId, existingServerConv.id)
+            updateConversation(existingServerConv.id, {
+              status: 'active',
+              ...e.payload,
             })
+          } else {
+            const serverId = `server-${model}`
+            getOrCreateConversation(serverId, 'server', `${model} Server`)
+            streamToConversation.set(streamId, serverId)
+            updateConversation(serverId, { ...e.payload })
           }
-        },
-        { withEventTarget: false },
-      ),
+        }
+      }),
     )
 
     cleanupFns.push(
-      aiEventClient.on(
-        'usage:tokens',
-        (e) => {
-          const { requestId, usage, messageId } = e.payload
+      aiEventClient.on('chat:completed', (e) => {
+        const { requestId, usage } = e.payload
 
-          const conversationId = requestToConversation.get(requestId)
-          if (conversationId && state.conversations[conversationId]) {
-            updateConversation(conversationId, { usage })
-            updateMessageUsage(conversationId, messageId, usage)
+        const conversationId = requestToConversation.get(requestId)
+        if (conversationId && state.conversations[conversationId]) {
+          const updates: Partial<Conversation> = {
+            status: 'completed',
+            completedAt: e.payload.timestamp,
           }
-        },
-        { withEventTarget: false },
-      ),
+          if (usage) {
+            updates.usage = usage
+          }
+          updateConversation(conversationId, updates)
+          if (usage) {
+            updateMessageUsage(conversationId, e.payload.messageId, usage)
+          }
+        }
+      }),
+    )
+
+    cleanupFns.push(
+      aiEventClient.on('chat:iteration', (e) => {
+        const { requestId, iterationNumber } = e.payload
+
+        const conversationId = requestToConversation.get(requestId)
+        if (conversationId && state.conversations[conversationId]) {
+          updateConversation(conversationId, {
+            iterationCount: iterationNumber,
+          })
+        }
+      }),
+    )
+
+    cleanupFns.push(
+      aiEventClient.on('usage:tokens', (e) => {
+        const { requestId, usage, messageId } = e.payload
+
+        const conversationId = requestToConversation.get(requestId)
+        if (conversationId && state.conversations[conversationId]) {
+          updateConversation(conversationId, { usage })
+          updateMessageUsage(conversationId, messageId, usage)
+        }
+      }),
     )
 
     // ============= Tool Call Completed (with duration) =============
 
     cleanupFns.push(
-      aiEventClient.on(
-        'tool:call-completed',
-        (e) => {
-          const {
-            streamId,
-            toolCallId,
-            toolName,
-            result,
-            duration,
-            messageId,
-            timestamp,
-          } = e.payload
+      aiEventClient.on('tool:call-completed', (e) => {
+        const {
+          streamId,
+          toolCallId,
+          toolName,
+          result,
+          duration,
+          messageId,
+          timestamp,
+        } = e.payload
 
-          const conversationId = streamToConversation.get(streamId)
-          if (!conversationId || !state.conversations[conversationId]) return
+        const conversationId = streamToConversation.get(streamId)
+        if (!conversationId || !state.conversations[conversationId]) return
 
-          const conv = state.conversations[conversationId]
+        const conv = state.conversations[conversationId]
 
-          // Add a tool_result chunk to show the result in the chunks view
-          const chunk: Chunk = {
-            id: `chunk-tool-result-${toolCallId}-${Date.now()}`,
-            type: 'tool_result',
-            messageId: messageId,
-            toolCallId,
-            toolName,
-            result,
-            duration,
-            timestamp,
-            chunkCount: 1,
-          }
+        // Add a tool_result chunk to show the result in the chunks view
+        const chunk: Chunk = {
+          id: `chunk-tool-result-${toolCallId}-${Date.now()}`,
+          type: 'tool_result',
+          messageId: messageId,
+          toolCallId,
+          toolName,
+          result,
+          duration,
+          timestamp,
+          chunkCount: 1,
+        }
 
-          // Add chunk to message if it's a client conversation, otherwise to conversation
-          if (conv.type === 'client' && messageId) {
-            const messageIndex = conv.messages.findIndex(
-              (m) => m.id === messageId,
-            )
-            if (messageIndex !== -1) {
-              queueMessageChunk(conversationId, messageIndex, chunk)
-            } else {
-              // If message not found, add to last assistant message
-              for (let i = conv.messages.length - 1; i >= 0; i--) {
-                if (conv.messages[i]?.role === 'assistant') {
-                  queueMessageChunk(conversationId, i, chunk)
-                  break
-                }
+        // Add chunk to message if it's a client conversation, otherwise to conversation
+        if (conv.type === 'client' && messageId) {
+          const messageIndex = conv.messages.findIndex(
+            (m) => m.id === messageId,
+          )
+          if (messageIndex !== -1) {
+            queueMessageChunk(conversationId, messageIndex, chunk)
+          } else {
+            // If message not found, add to last assistant message
+            for (let i = conv.messages.length - 1; i >= 0; i--) {
+              if (conv.messages[i]?.role === 'assistant') {
+                queueMessageChunk(conversationId, i, chunk)
+                break
               }
             }
-          } else {
-            addChunk(conversationId, chunk)
           }
+        } else {
+          addChunk(conversationId, chunk)
+        }
 
-          // Update the tool call with duration
-          for (let i = conv.messages.length - 1; i >= 0; i--) {
-            const message = conv.messages[i]
-            if (!message?.toolCalls) continue
+        // Update the tool call with duration
+        for (let i = conv.messages.length - 1; i >= 0; i--) {
+          const message = conv.messages[i]
+          if (!message?.toolCalls) continue
 
-            const toolCallIndex = message.toolCalls.findIndex(
-              (t) => t.id === toolCallId,
-            )
-            if (toolCallIndex >= 0) {
-              updateToolCall(conversationId, i, toolCallIndex, {
-                duration,
-                result,
-              })
-              return
-            }
+          const toolCallIndex = message.toolCalls.findIndex(
+            (t) => t.id === toolCallId,
+          )
+          if (toolCallIndex >= 0) {
+            updateToolCall(conversationId, i, toolCallIndex, {
+              duration,
+              result,
+            })
+            return
           }
-        },
-        { withEventTarget: false },
-      ),
+        }
+      }),
     )
 
     // ============= Embedding Events =============
 
     cleanupFns.push(
-      aiEventClient.on(
-        'embedding:started',
-        (e) => {
-          const { requestId, model, inputCount, timestamp, clientId } =
-            e.payload
+      aiEventClient.on('embedding:started', (e) => {
+        const { requestId, model, inputCount, timestamp, clientId } = e.payload
 
-          // Try to find an active conversation to attach to, or create a new one
-          let conversationId = clientId
-          if (!conversationId || !state.conversations[conversationId]) {
-            // Find most recent active client conversation
-            const activeClients = Object.values(state.conversations)
-              .filter((c) => c.type === 'client' && c.status === 'active')
-              .sort((a, b) => b.startedAt - a.startedAt)
+        // Try to find an active conversation to attach to, or create a new one
+        let conversationId = clientId
+        if (!conversationId || !state.conversations[conversationId]) {
+          // Find most recent active client conversation
+          const activeClients = Object.values(state.conversations)
+            .filter((c) => c.type === 'client' && c.status === 'active')
+            .sort((a, b) => b.startedAt - a.startedAt)
 
-            if (activeClients.length > 0 && activeClients[0]) {
-              conversationId = activeClients[0].id
-            } else {
-              // Create a new conversation for embeddings
-              conversationId = `embedding-${requestId}`
-              getOrCreateConversation(
-                conversationId,
-                'server',
-                `Embedding (${model})`,
-              )
-              updateConversation(conversationId, { model })
-            }
+          if (activeClients.length > 0 && activeClients[0]) {
+            conversationId = activeClients[0].id
+          } else {
+            // Create a new conversation for embeddings
+            conversationId = `embedding-${requestId}`
+            getOrCreateConversation(
+              conversationId,
+              'server',
+              `Embedding (${model})`,
+            )
+            updateConversation(conversationId, { model })
           }
+        }
 
-          requestToConversation.set(requestId, conversationId)
+        requestToConversation.set(requestId, conversationId)
 
-          const embeddingOp: EmbeddingOperation = {
-            id: requestId,
-            model,
-            inputCount,
-            duration: 0,
-            timestamp,
-            status: 'started',
-          }
+        const embeddingOp: EmbeddingOperation = {
+          id: requestId,
+          model,
+          inputCount,
+          duration: 0,
+          timestamp,
+          status: 'started',
+        }
 
-          const conv = state.conversations[conversationId]
-          if (conv) {
-            const embeddings = conv.embeddings || []
-            setState('conversations', conversationId, 'embeddings', [
-              ...embeddings,
-              embeddingOp,
-            ])
-            setState('conversations', conversationId, 'hasEmbedding', true)
-          }
-        },
-        { withEventTarget: false },
-      ),
+        const conv = state.conversations[conversationId]
+        if (conv) {
+          const embeddings = conv.embeddings || []
+          setState('conversations', conversationId, 'embeddings', [
+            ...embeddings,
+            embeddingOp,
+          ])
+          setState('conversations', conversationId, 'hasEmbedding', true)
+        }
+      }),
     )
 
     cleanupFns.push(
-      aiEventClient.on(
-        'embedding:completed',
-        (e) => {
-          const { requestId, duration } = e.payload
+      aiEventClient.on('embedding:completed', (e) => {
+        const { requestId, duration } = e.payload
 
-          const conversationId = requestToConversation.get(requestId)
-          if (!conversationId || !state.conversations[conversationId]) return
+        const conversationId = requestToConversation.get(requestId)
+        if (!conversationId || !state.conversations[conversationId]) return
 
-          const conv = state.conversations[conversationId]
-          if (!conv.embeddings) return
+        const conv = state.conversations[conversationId]
+        if (!conv.embeddings) return
 
-          const embeddingIndex = conv.embeddings.findIndex(
-            (op) => op.id === requestId,
+        const embeddingIndex = conv.embeddings.findIndex(
+          (op) => op.id === requestId,
+        )
+        if (embeddingIndex >= 0) {
+          setState(
+            'conversations',
+            conversationId,
+            'embeddings',
+            embeddingIndex,
+            produce((op: EmbeddingOperation) => {
+              op.duration = duration
+              op.status = 'completed'
+            }),
           )
-          if (embeddingIndex >= 0) {
-            setState(
-              'conversations',
-              conversationId,
-              'embeddings',
-              embeddingIndex,
-              produce((op: EmbeddingOperation) => {
-                op.duration = duration
-                op.status = 'completed'
-              }),
-            )
-          }
-        },
-        { withEventTarget: false },
-      ),
+        }
+      }),
     )
 
     // ============= Summarize Events =============
 
     cleanupFns.push(
-      aiEventClient.on(
-        'summarize:started',
-        (e) => {
-          const { requestId, model, inputLength, timestamp, clientId } =
-            e.payload
+      aiEventClient.on('summarize:started', (e) => {
+        const { requestId, model, inputLength, timestamp, clientId } = e.payload
 
-          // Try to find an active conversation to attach to, or create a new one
-          let conversationId = clientId
-          if (!conversationId || !state.conversations[conversationId]) {
-            // Find most recent active client conversation
-            const activeClients = Object.values(state.conversations)
-              .filter((c) => c.type === 'client' && c.status === 'active')
-              .sort((a, b) => b.startedAt - a.startedAt)
+        // Try to find an active conversation to attach to, or create a new one
+        let conversationId = clientId
+        if (!conversationId || !state.conversations[conversationId]) {
+          // Find most recent active client conversation
+          const activeClients = Object.values(state.conversations)
+            .filter((c) => c.type === 'client' && c.status === 'active')
+            .sort((a, b) => b.startedAt - a.startedAt)
 
-            if (activeClients.length > 0 && activeClients[0]) {
-              conversationId = activeClients[0].id
-            } else {
-              // Create a new conversation for summaries
-              conversationId = `summarize-${requestId}`
-              getOrCreateConversation(
-                conversationId,
-                'server',
-                `Summarize (${model})`,
-              )
-              updateConversation(conversationId, { model })
-            }
+          if (activeClients.length > 0 && activeClients[0]) {
+            conversationId = activeClients[0].id
+          } else {
+            // Create a new conversation for summaries
+            conversationId = `summarize-${requestId}`
+            getOrCreateConversation(
+              conversationId,
+              'server',
+              `Summarize (${model})`,
+            )
+            updateConversation(conversationId, { model })
           }
+        }
 
-          requestToConversation.set(requestId, conversationId)
+        requestToConversation.set(requestId, conversationId)
 
-          const summarizeOp: SummarizeOperation = {
-            id: requestId,
-            model,
-            inputLength,
-            timestamp,
-            status: 'started',
-          }
+        const summarizeOp: SummarizeOperation = {
+          id: requestId,
+          model,
+          inputLength,
+          timestamp,
+          status: 'started',
+        }
 
-          const conv = state.conversations[conversationId]
-          if (conv) {
-            const summaries = conv.summaries || []
-            setState('conversations', conversationId, 'summaries', [
-              ...summaries,
-              summarizeOp,
-            ])
-            setState('conversations', conversationId, 'hasSummarize', true)
-          }
-        },
-        { withEventTarget: false },
-      ),
+        const conv = state.conversations[conversationId]
+        if (conv) {
+          const summaries = conv.summaries || []
+          setState('conversations', conversationId, 'summaries', [
+            ...summaries,
+            summarizeOp,
+          ])
+          setState('conversations', conversationId, 'hasSummarize', true)
+        }
+      }),
     )
 
     cleanupFns.push(
-      aiEventClient.on(
-        'summarize:completed',
-        (e) => {
-          const { requestId, outputLength, duration } = e.payload
+      aiEventClient.on('summarize:completed', (e) => {
+        const { requestId, outputLength, duration } = e.payload
 
-          const conversationId = requestToConversation.get(requestId)
-          if (!conversationId || !state.conversations[conversationId]) return
+        const conversationId = requestToConversation.get(requestId)
+        if (!conversationId || !state.conversations[conversationId]) return
 
-          const conv = state.conversations[conversationId]
-          if (!conv.summaries) return
+        const conv = state.conversations[conversationId]
+        if (!conv.summaries) return
 
-          const summaryIndex = conv.summaries.findIndex(
-            (op) => op.id === requestId,
+        const summaryIndex = conv.summaries.findIndex(
+          (op) => op.id === requestId,
+        )
+        if (summaryIndex >= 0) {
+          setState(
+            'conversations',
+            conversationId,
+            'summaries',
+            summaryIndex,
+            produce((op: SummarizeOperation) => {
+              op.duration = duration
+              op.outputLength = outputLength
+              op.status = 'completed'
+            }),
           )
-          if (summaryIndex >= 0) {
-            setState(
-              'conversations',
-              conversationId,
-              'summaries',
-              summaryIndex,
-              produce((op: SummarizeOperation) => {
-                op.duration = duration
-                op.outputLength = outputLength
-                op.status = 'completed'
-              }),
-            )
-          }
-        },
-        { withEventTarget: false },
-      ),
+        }
+      }),
     )
 
     // Cleanup all listeners on unmount

@@ -9,6 +9,7 @@ export type {
   AnthropicModelInputModalitiesByName,
 } from './model-meta'
 export type {
+  AnthropicTextMetadata,
   AnthropicImageMetadata,
   AnthropicDocumentMetadata,
   AnthropicAudioMetadata,
