@@ -88,6 +88,7 @@ export interface FetchConnectionOptions {
   credentials?: RequestCredentials
   signal?: AbortSignal
   body?: Record<string, any>
+  fetchClient?: typeof globalThis.fetch
 }
 
 /**
@@ -151,7 +152,8 @@ export function fetchServerSentEvents(
         ...resolvedOptions.body,
       }
 
-      const response = await fetch(resolvedUrl, {
+      const fetchClient = resolvedOptions.fetchClient ?? fetch
+      const response = await fetchClient(resolvedUrl, {
         method: 'POST',
         headers: requestHeaders,
         body: JSON.stringify(requestBody),
@@ -251,7 +253,8 @@ export function fetchHttpStream(
         ...resolvedOptions.body,
       }
 
-      const response = await fetch(resolvedUrl, {
+      const fetchClient = resolvedOptions.fetchClient ?? fetch
+      const response = await fetchClient(resolvedUrl, {
         method: 'POST',
         headers: requestHeaders,
         body: JSON.stringify(requestBody),

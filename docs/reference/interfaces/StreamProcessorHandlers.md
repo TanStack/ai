@@ -86,7 +86,7 @@ Defined in: [stream/processor.ts:132](https://github.com/TanStack/ai/blob/main/p
 
 ##### toolCalls?
 
-[`ToolCall`](./ToolCall.md)[]
+[`ToolCall`](ToolCall.md)[]
 
 #### Returns
 

@@ -3,11 +3,11 @@ id: ContentPart
 title: ContentPart
 ---
 
-# Type Alias: ContentPart\<TImageMeta, TAudioMeta, TVideoMeta, TDocumentMeta\>
+# Type Alias: ContentPart\<TImageMeta, TAudioMeta, TVideoMeta, TDocumentMeta, TTextMeta\>
 
 ```ts
-type ContentPart<TImageMeta, TAudioMeta, TVideoMeta, TDocumentMeta> = 
-  | TextPart
+type ContentPart<TImageMeta, TAudioMeta, TVideoMeta, TDocumentMeta, TTextMeta> = 
+  | TextPart<TTextMeta>
   | ImagePart<TImageMeta>
   | AudioPart<TAudioMeta>
   | VideoPart<TVideoMeta>
@@ -43,3 +43,7 @@ Provider-specific video metadata type
 `TDocumentMeta` = `unknown`
 
 Provider-specific document metadata type
+
+### TTextMeta
+
+`TTextMeta` = `unknown`

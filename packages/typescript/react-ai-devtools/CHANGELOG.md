@@ -1,5 +1,18 @@
 # @tanstack/react-ai-devtools
 
+## 0.0.2
+
+### Patch Changes
+
+- Updated dependencies []:
+  - @tanstack/ai-devtools-core@0.0.2
+
+## 0.0.1
+
+### Patch Changes
+
+- initial release of AI ([#76](https://github.com/TanStack/ai/pull/76))
+
 ## 0.0.1
 
 ### Patch Changes

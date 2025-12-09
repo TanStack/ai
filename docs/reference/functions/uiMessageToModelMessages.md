@@ -8,7 +8,7 @@ title: uiMessageToModelMessages
 ```ts
 function uiMessageToModelMessages(uiMessage): ModelMessage<
   | string
-  | ContentPart<unknown, unknown, unknown, unknown>[]
+  | ContentPart<unknown, unknown, unknown, unknown, unknown>[]
   | null>[];
 ```
 
@@ -33,7 +33,7 @@ The UIMessage to convert
 
 [`ModelMessage`](../interfaces/ModelMessage.md)\<
   \| `string`
-  \| [`ContentPart`](../type-aliases/ContentPart.md)\<`unknown`, `unknown`, `unknown`, `unknown`\>[]
+  \| [`ContentPart`](../type-aliases/ContentPart.md)\<`unknown`, `unknown`, `unknown`, `unknown`, `unknown`\>[]
   \| `null`\>[]
 
 An array of ModelMessages (may be multiple if tool results are present)

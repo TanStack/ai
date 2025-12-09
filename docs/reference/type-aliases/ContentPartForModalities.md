@@ -3,15 +3,15 @@ id: ContentPartForModalities
 title: ContentPartForModalities
 ---
 
-# Type Alias: ContentPartForModalities\<TModalities, TImageMeta, TAudioMeta, TVideoMeta, TDocumentMeta\>
+# Type Alias: ContentPartForModalities\<TModalities, TImageMeta, TAudioMeta, TVideoMeta, TDocumentMeta, TTextMeta\>
 
 ```ts
-type ContentPartForModalities<TModalities, TImageMeta, TAudioMeta, TVideoMeta, TDocumentMeta> = Extract<ContentPart<TImageMeta, TAudioMeta, TVideoMeta, TDocumentMeta>, {
+type ContentPartForModalities<TModalities, TImageMeta, TAudioMeta, TVideoMeta, TDocumentMeta, TTextMeta> = Extract<ContentPart<TImageMeta, TAudioMeta, TVideoMeta, TDocumentMeta, TTextMeta>, {
   type: TModalities;
 }>;
 ```
 
-Defined in: [types.ts:118](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L118)
+Defined in: [types.ts:119](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L119)
 
 Helper type to filter ContentPart union to only include specific modalities.
 Used to constrain message content based on model capabilities.
@@ -20,7 +20,7 @@ Used to constrain message content based on model capabilities.
 
 ### TModalities
 
-`TModalities` *extends* [`Modality`](./Modality.md)
+`TModalities` *extends* [`Modality`](Modality.md)
 
 ### TImageMeta
 
@@ -37,3 +37,7 @@ Used to constrain message content based on model capabilities.
 ### TDocumentMeta
 
 `TDocumentMeta` = `unknown`
+
+### TTextMeta
+
+`TTextMeta` = `unknown`

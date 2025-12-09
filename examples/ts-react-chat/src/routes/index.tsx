@@ -10,6 +10,7 @@ import { fetchServerSentEvents, useChat } from '@tanstack/ai-react'
 import { clientTools } from '@tanstack/ai-client'
 import { ThinkingPart } from '@tanstack/ai-react-ui'
 import type { UIMessage } from '@tanstack/ai-react'
+import type { ModelOption } from '@/lib/model-selection'
 import GuitarRecommendation from '@/components/example-GuitarRecommendation'
 import {
   addToCartToolDef,
@@ -21,7 +22,6 @@ import {
   MODEL_OPTIONS,
   getDefaultModelOption,
   setStoredModelPreference,
-  type ModelOption,
 } from '@/lib/model-selection'
 
 const getPersonalGuitarPreferenceToolClient =

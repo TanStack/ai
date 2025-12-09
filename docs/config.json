@@ -16,6 +16,10 @@
         {
           "label": "Quick Start",
           "to": "getting-started/quick-start"
+        },
+        {
+          "label": "Devtools",
+          "to": "getting-started/devtools"        
         }
       ]
     },
@@ -57,7 +61,7 @@
         {
           "label": "Connection Adapters",
           "to": "guides/connection-adapters"
-        }
+        },
         {
           "label": "Per-Model Type Safety",
           "to": "guides/per-model-type-safety"
@@ -108,430 +112,434 @@
     },
     {
       "label": "Class References",
+      "collapsible": true,
       "defaultCollapsed": true,
       "children": [
         {
           "label": "BaseAdapter",
-          "to": "reference/classes/BaseAdapter.md"
+          "to": "reference/classes/BaseAdapter"
         },
         {
           "label": "BatchStrategy",
-          "to": "reference/classes/BatchStrategy.md"
+          "to": "reference/classes/BatchStrategy"
         },
         {
           "label": "CompositeStrategy",
-          "to": "reference/classes/CompositeStrategy.md"
+          "to": "reference/classes/CompositeStrategy"
         },
         {
           "label": "ImmediateStrategy",
-          "to": "reference/classes/ImmediateStrategy.md"
+          "to": "reference/classes/ImmediateStrategy"
         },
         {
           "label": "PartialJSONParser",
-          "to": "reference/classes/PartialJSONParser.md"
+          "to": "reference/classes/PartialJSONParser"
         },
         {
           "label": "PunctuationStrategy",
-          "to": "reference/classes/PunctuationStrategy.md"
+          "to": "reference/classes/PunctuationStrategy"
         },
         {
           "label": "StreamProcessor",
-          "to": "reference/classes/StreamProcessor.md"
+          "to": "reference/classes/StreamProcessor"
         },
         {
           "label": "ToolCallManager",
-          "to": "reference/classes/ToolCallManager.md"
+          "to": "reference/classes/ToolCallManager"
         },
         {
           "label": "WordBoundaryStrategy",
-          "to": "reference/classes/WordBoundaryStrategy.md"
+          "to": "reference/classes/WordBoundaryStrategy"
         }
       ]
     },
     {
       "label": "Function References",
+      "collapsible": true,
       "defaultCollapsed": true,
       "children": [
         {
           "label": "chat",
-          "to": "reference/functions/chat.md"
+          "to": "reference/functions/chat"
         },
         {
           "label": "chatOptions",
-          "to": "reference/functions/chatOptions.md"
+          "to": "reference/functions/chatOptions"
         },
         {
           "label": "combineStrategies",
-          "to": "reference/functions/combineStrategies.md"
+          "to": "reference/functions/combineStrategies"
         },
         {
           "label": "convertMessagesToModelMessages",
-          "to": "reference/functions/convertMessagesToModelMessages.md"
+          "to": "reference/functions/convertMessagesToModelMessages"
         },
         {
           "label": "convertZodToJsonSchema",
-          "to": "reference/functions/convertZodToJsonSchema.md"
+          "to": "reference/functions/convertZodToJsonSchema"
         },
         {
           "label": "createReplayStream",
-          "to": "reference/functions/createReplayStream.md"
+          "to": "reference/functions/createReplayStream"
         },
         {
           "label": "embedding",
-          "to": "reference/functions/embedding.md"
+          "to": "reference/functions/embedding"
         },
         {
           "label": "generateMessageId",
-          "to": "reference/functions/generateMessageId.md"
+          "to": "reference/functions/generateMessageId"
         },
         {
           "label": "maxIterations",
-          "to": "reference/functions/maxIterations.md"
+          "to": "reference/functions/maxIterations"
         },
         {
           "label": "messages",
-          "to": "reference/functions/messages.md"
+          "to": "reference/functions/messages"
         },
         {
           "label": "modelMessageToUIMessage",
-          "to": "reference/functions/modelMessageToUIMessage.md"
+          "to": "reference/functions/modelMessageToUIMessage"
         },
         {
           "label": "modelMessagesToUIMessages",
-          "to": "reference/functions/modelMessagesToUIMessages.md"
+          "to": "reference/functions/modelMessagesToUIMessages"
         },
         {
           "label": "normalizeToUIMessage",
-          "to": "reference/functions/normalizeToUIMessage.md"
+          "to": "reference/functions/normalizeToUIMessage"
         },
         {
           "label": "parsePartialJSON",
-          "to": "reference/functions/parsePartialJSON.md"
+          "to": "reference/functions/parsePartialJSON"
         },
         {
           "label": "summarize",
-          "to": "reference/functions/summarize.md"
+          "to": "reference/functions/summarize"
         },
         {
           "label": "toServerSentEventsStream",
-          "to": "reference/functions/toServerSentEventsStream.md"
+          "to": "reference/functions/toServerSentEventsStream"
         },
         {
           "label": "toStreamResponse",
-          "to": "reference/functions/toStreamResponse.md"
+          "to": "reference/functions/toStreamResponse"
         },
         {
           "label": "toolDefinition",
-          "to": "reference/functions/toolDefinition.md"
+          "to": "reference/functions/toolDefinition"
         },
         {
           "label": "uiMessageToModelMessages",
-          "to": "reference/functions/uiMessageToModelMessages.md"
+          "to": "reference/functions/uiMessageToModelMessages"
         },
         {
           "label": "untilFinishReason",
-          "to": "reference/functions/untilFinishReason.md"
+          "to": "reference/functions/untilFinishReason"
         }
       ]
     },
     {
       "label": "Interface References",
+      "collapsible": true,
       "defaultCollapsed": true,
       "children": [
         {
           "label": "AIAdapter",
-          "to": "reference/interfaces/AIAdapter.md"
+          "to": "reference/interfaces/AIAdapter"
         },
         {
           "label": "AIAdapterConfig",
-          "to": "reference/interfaces/AIAdapterConfig.md"
+          "to": "reference/interfaces/AIAdapterConfig"
         },
         {
           "label": "AgentLoopState",
-          "to": "reference/interfaces/AgentLoopState.md"
+          "to": "reference/interfaces/AgentLoopState"
         },
         {
           "label": "ApprovalRequestedStreamChunk",
-          "to": "reference/interfaces/ApprovalRequestedStreamChunk.md"
+          "to": "reference/interfaces/ApprovalRequestedStreamChunk"
         },
         {
           "label": "AudioPart",
-          "to": "reference/interfaces/AudioPart.md"
+          "to": "reference/interfaces/AudioPart"
         },
         {
           "label": "BaseStreamChunk",
-          "to": "reference/interfaces/BaseStreamChunk.md"
+          "to": "reference/interfaces/BaseStreamChunk"
         },
         {
           "label": "ChatCompletionChunk",
-          "to": "reference/interfaces/ChatCompletionChunk.md"
+          "to": "reference/interfaces/ChatCompletionChunk"
         },
         {
           "label": "ChatOptions",
-          "to": "reference/interfaces/ChatOptions.md"
+          "to": "reference/interfaces/ChatOptions"
         },
         {
           "label": "ChunkRecording",
-          "to": "reference/interfaces/ChunkRecording.md"
+          "to": "reference/interfaces/ChunkRecording"
         },
         {
           "label": "ChunkStrategy",
-          "to": "reference/interfaces/ChunkStrategy.md"
+          "to": "reference/interfaces/ChunkStrategy"
         },
         {
           "label": "ClientTool",
-          "to": "reference/interfaces/ClientTool.md"
+          "to": "reference/interfaces/ClientTool"
         },
         {
           "label": "ContentPartSource",
-          "to": "reference/interfaces/ContentPartSource.md"
+          "to": "reference/interfaces/ContentPartSource"
         },
         {
           "label": "ContentStreamChunk",
-          "to": "reference/interfaces/ContentStreamChunk.md"
+          "to": "reference/interfaces/ContentStreamChunk"
         },
         {
           "label": "DefaultMessageMetadataByModality",
-          "to": "reference/interfaces/DefaultMessageMetadataByModality.md"
+          "to": "reference/interfaces/DefaultMessageMetadataByModality"
         },
         {
           "label": "DocumentPart",
-          "to": "reference/interfaces/DocumentPart.md"
+          "to": "reference/interfaces/DocumentPart"
         },
         {
           "label": "DoneStreamChunk",
-          "to": "reference/interfaces/DoneStreamChunk.md"
+          "to": "reference/interfaces/DoneStreamChunk"
         },
         {
           "label": "EmbeddingOptions",
-          "to": "reference/interfaces/EmbeddingOptions.md"
+          "to": "reference/interfaces/EmbeddingOptions"
         },
         {
           "label": "EmbeddingResult",
-          "to": "reference/interfaces/EmbeddingResult.md"
+          "to": "reference/interfaces/EmbeddingResult"
         },
         {
           "label": "ErrorStreamChunk",
-          "to": "reference/interfaces/ErrorStreamChunk.md"
+          "to": "reference/interfaces/ErrorStreamChunk"
         },
         {
           "label": "ImagePart",
-          "to": "reference/interfaces/ImagePart.md"
+          "to": "reference/interfaces/ImagePart"
         },
         {
           "label": "InternalToolCallState",
-          "to": "reference/interfaces/InternalToolCallState.md"
+          "to": "reference/interfaces/InternalToolCallState"
         },
         {
           "label": "JSONParser",
-          "to": "reference/interfaces/JSONParser.md"
+          "to": "reference/interfaces/JSONParser"
         },
         {
           "label": "ModelMessage",
-          "to": "reference/interfaces/ModelMessage.md"
+          "to": "reference/interfaces/ModelMessage"
         },
         {
           "label": "ProcessorResult",
-          "to": "reference/interfaces/ProcessorResult.md"
+          "to": "reference/interfaces/ProcessorResult"
         },
         {
           "label": "ProcessorState",
-          "to": "reference/interfaces/ProcessorState.md"
+          "to": "reference/interfaces/ProcessorState"
         },
         {
           "label": "ResponseFormat",
-          "to": "reference/interfaces/ResponseFormat.md"
+          "to": "reference/interfaces/ResponseFormat"
         },
         {
           "label": "ServerTool",
-          "to": "reference/interfaces/ServerTool.md"
+          "to": "reference/interfaces/ServerTool"
         },
         {
           "label": "StreamProcessorEvents",
-          "to": "reference/interfaces/StreamProcessorEvents.md"
+          "to": "reference/interfaces/StreamProcessorEvents"
         },
         {
           "label": "StreamProcessorHandlers",
-          "to": "reference/interfaces/StreamProcessorHandlers.md"
+          "to": "reference/interfaces/StreamProcessorHandlers"
         },
         {
           "label": "StreamProcessorOptions",
-          "to": "reference/interfaces/StreamProcessorOptions.md"
+          "to": "reference/interfaces/StreamProcessorOptions"
         },
         {
           "label": "SummarizationOptions",
-          "to": "reference/interfaces/SummarizationOptions.md"
+          "to": "reference/interfaces/SummarizationOptions"
         },
         {
           "label": "SummarizationResult",
-          "to": "reference/interfaces/SummarizationResult.md"
+          "to": "reference/interfaces/SummarizationResult"
         },
         {
           "label": "TextPart",
-          "to": "reference/interfaces/TextPart.md"
+          "to": "reference/interfaces/TextPart"
         },
         {
           "label": "ThinkingPart",
-          "to": "reference/interfaces/ThinkingPart.md"
+          "to": "reference/interfaces/ThinkingPart"
         },
         {
           "label": "ThinkingStreamChunk",
-          "to": "reference/interfaces/ThinkingStreamChunk.md"
+          "to": "reference/interfaces/ThinkingStreamChunk"
         },
         {
           "label": "Tool",
-          "to": "reference/interfaces/Tool.md"
+          "to": "reference/interfaces/Tool"
         },
         {
           "label": "ToolCall",
-          "to": "reference/interfaces/ToolCall.md"
+          "to": "reference/interfaces/ToolCall"
         },
         {
           "label": "ToolCallPart",
-          "to": "reference/interfaces/ToolCallPart.md"
+          "to": "reference/interfaces/ToolCallPart"
         },
         {
           "label": "ToolCallStreamChunk",
-          "to": "reference/interfaces/ToolCallStreamChunk.md"
+          "to": "reference/interfaces/ToolCallStreamChunk"
         },
         {
           "label": "ToolConfig",
-          "to": "reference/interfaces/ToolConfig.md"
+          "to": "reference/interfaces/ToolConfig"
         },
         {
           "label": "ToolDefinition",
-          "to": "reference/interfaces/ToolDefinition.md"
+          "to": "reference/interfaces/ToolDefinition"
         },
         {
           "label": "ToolDefinitionConfig",
-          "to": "reference/interfaces/ToolDefinitionConfig.md"
+          "to": "reference/interfaces/ToolDefinitionConfig"
         },
         {
           "label": "ToolDefinitionInstance",
-          "to": "reference/interfaces/ToolDefinitionInstance.md"
+          "to": "reference/interfaces/ToolDefinitionInstance"
         },
         {
           "label": "ToolInputAvailableStreamChunk",
-          "to": "reference/interfaces/ToolInputAvailableStreamChunk.md"
+          "to": "reference/interfaces/ToolInputAvailableStreamChunk"
         },
         {
           "label": "ToolResultPart",
-          "to": "reference/interfaces/ToolResultPart.md"
+          "to": "reference/interfaces/ToolResultPart"
         },
         {
           "label": "ToolResultStreamChunk",
-          "to": "reference/interfaces/ToolResultStreamChunk.md"
+          "to": "reference/interfaces/ToolResultStreamChunk"
         },
         {
           "label": "UIMessage",
-          "to": "reference/interfaces/UIMessage.md"
+          "to": "reference/interfaces/UIMessage"
         },
         {
           "label": "VideoPart",
-          "to": "reference/interfaces/VideoPart.md"
+          "to": "reference/interfaces/VideoPart"
         }
       ]
     },
     {
       "label": "Type Alias References",
+      "collapsible": true,
       "defaultCollapsed": true,
       "children": [
         {
           "label": "AgentLoopStrategy",
-          "to": "reference/type-aliases/AgentLoopStrategy.md"
+          "to": "reference/type-aliases/AgentLoopStrategy"
         },
         {
           "label": "AnyClientTool",
-          "to": "reference/type-aliases/AnyClientTool.md"
+          "to": "reference/type-aliases/AnyClientTool"
         },
         {
           "label": "ChatStreamOptionsForModel",
-          "to": "reference/type-aliases/ChatStreamOptionsForModel.md"
+          "to": "reference/type-aliases/ChatStreamOptionsForModel"
         },
         {
           "label": "ChatStreamOptionsUnion",
-          "to": "reference/type-aliases/ChatStreamOptionsUnion.md"
+          "to": "reference/type-aliases/ChatStreamOptionsUnion"
         },
         {
           "label": "ConstrainedContent",
-          "to": "reference/type-aliases/ConstrainedContent.md"
+          "to": "reference/type-aliases/ConstrainedContent"
         },
         {
           "label": "ConstrainedModelMessage",
-          "to": "reference/type-aliases/ConstrainedModelMessage.md"
+          "to": "reference/type-aliases/ConstrainedModelMessage"
         },
         {
           "label": "ContentPart",
-          "to": "reference/type-aliases/ContentPart.md"
+          "to": "reference/type-aliases/ContentPart"
         },
         {
           "label": "ContentPartForModalities",
-          "to": "reference/type-aliases/ContentPartForModalities.md"
+          "to": "reference/type-aliases/ContentPartForModalities"
         },
         {
           "label": "ExtractModalitiesForModel",
-          "to": "reference/type-aliases/ExtractModalitiesForModel.md"
+          "to": "reference/type-aliases/ExtractModalitiesForModel"
         },
         {
           "label": "ExtractModelsFromAdapter",
-          "to": "reference/type-aliases/ExtractModelsFromAdapter.md"
+          "to": "reference/type-aliases/ExtractModelsFromAdapter"
         },
         {
           "label": "InferToolInput",
-          "to": "reference/type-aliases/InferToolInput.md"
+          "to": "reference/type-aliases/InferToolInput"
         },
         {
           "label": "InferToolName",
-          "to": "reference/type-aliases/InferToolName.md"
+          "to": "reference/type-aliases/InferToolName"
         },
         {
           "label": "InferToolOutput",
-          "to": "reference/type-aliases/InferToolOutput.md"
+          "to": "reference/type-aliases/InferToolOutput"
         },
         {
           "label": "MessagePart",
-          "to": "reference/type-aliases/MessagePart.md"
+          "to": "reference/type-aliases/MessagePart"
         },
         {
           "label": "ModalitiesArrayToUnion",
-          "to": "reference/type-aliases/ModalitiesArrayToUnion.md"
+          "to": "reference/type-aliases/ModalitiesArrayToUnion"
         },
         {
           "label": "Modality",
-          "to": "reference/type-aliases/Modality.md"
+          "to": "reference/type-aliases/Modality"
         },
         {
           "label": "StreamChunk",
-          "to": "reference/type-aliases/StreamChunk.md"
+          "to": "reference/type-aliases/StreamChunk"
         },
         {
           "label": "StreamChunkType",
-          "to": "reference/type-aliases/StreamChunkType.md"
+          "to": "reference/type-aliases/StreamChunkType"
         },
         {
           "label": "ToolCallState",
-          "to": "reference/type-aliases/ToolCallState.md"
+          "to": "reference/type-aliases/ToolCallState"
         },
         {
           "label": "ToolResultState",
-          "to": "reference/type-aliases/ToolResultState.md"
+          "to": "reference/type-aliases/ToolResultState"
         }
       ]
     },
     {
       "label": "Variable References",
+      "collapsible": true,
       "defaultCollapsed": true,
       "children": [
         {
           "label": "aiEventClient",
-          "to": "reference/variables/aiEventClient.md"
+          "to": "reference/variables/aiEventClient"
         },
         {
           "label": "defaultJSONParser",
-          "to": "reference/variables/defaultJSONParser.md"
+          "to": "reference/variables/defaultJSONParser"
         }
       ]
     }
   ]
 }
-

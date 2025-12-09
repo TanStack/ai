@@ -10,6 +10,7 @@ export type {
 } from './text/text-provider-options'
 export type { GoogleGeminiTool } from './tools/index'
 export type {
+  GeminiTextMetadata,
   GeminiImageMetadata,
   GeminiAudioMetadata,
   GeminiVideoMetadata,
