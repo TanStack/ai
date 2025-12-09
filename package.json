@@ -3,10 +3,15 @@
   "private": true,
   "repository": {
     "type": "git",
-    "url": "https://github.com/TanStack/ai.git"
+    "url": "git+https://github.com/TanStack/ai.git"
   },
   "packageManager": "pnpm@10.17.0",
   "type": "module",
+  "pnpm": {
+    "overrides": {
+      "abbrev": "^3.0.0"
+    }
+  },
   "scripts": {
     "clean": "pnpm --filter \"./packages/**\" run clean",
     "test": "pnpm run test:ci",

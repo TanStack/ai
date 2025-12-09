@@ -1,5 +1,11 @@
 # @tanstack/ai
 
+## 0.0.2
+
+### Patch Changes
+
+- added text metadata support for message inputs ([#95](https://github.com/TanStack/ai/pull/95))
+
 ## 0.0.1
 
 ### Patch Changes

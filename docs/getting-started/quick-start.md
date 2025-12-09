@@ -52,10 +52,10 @@ export async function POST(request: Request) {
 
     // Convert stream to HTTP response
     return toStreamResponse(stream);
-  } catch (error: any) {
+  } catch (error) {
     return new Response(
       JSON.stringify({
-        error: error.message || "An error occurred",
+        error: error instanceof Error ? error.message : "An error occurred",
       }),
       {
         status: 500,

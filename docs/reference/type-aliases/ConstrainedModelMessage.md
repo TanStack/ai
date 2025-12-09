@@ -3,13 +3,13 @@ id: ConstrainedModelMessage
 title: ConstrainedModelMessage
 ---
 
-# Type Alias: ConstrainedModelMessage\<TModalities, TImageMeta, TAudioMeta, TVideoMeta, TDocumentMeta\>
+# Type Alias: ConstrainedModelMessage\<TModalities, TImageMeta, TAudioMeta, TVideoMeta, TDocumentMeta, TTextMeta\>
 
 ```ts
-type ConstrainedModelMessage<TModalities, TImageMeta, TAudioMeta, TVideoMeta, TDocumentMeta> = Omit<ModelMessage, "content"> & object;
+type ConstrainedModelMessage<TModalities, TImageMeta, TAudioMeta, TVideoMeta, TDocumentMeta, TTextMeta> = Omit<ModelMessage, "content"> & object;
 ```
 
-Defined in: [types.ts:229](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L229)
+Defined in: [types.ts:234](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L234)
 
 A ModelMessage with content constrained to only allow content parts
 matching the specified input modalities.
@@ -19,7 +19,7 @@ matching the specified input modalities.
 ### content
 
 ```ts
-content: ConstrainedContent<TModalities, TImageMeta, TAudioMeta, TVideoMeta, TDocumentMeta>;
+content: ConstrainedContent<TModalities, TImageMeta, TAudioMeta, TVideoMeta, TDocumentMeta, TTextMeta>;
 ```
 
 ## Type Parameters
@@ -43,3 +43,7 @@ content: ConstrainedContent<TModalities, TImageMeta, TAudioMeta, TVideoMeta, TDo
 ### TDocumentMeta
 
 `TDocumentMeta` = `unknown`
+
+### TTextMeta
+
+`TTextMeta` = `unknown`

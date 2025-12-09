@@ -1,6 +1,6 @@
 {
   "name": "@tanstack/ai-client",
-  "version": "0.0.1",
+  "version": "0.0.2",
   "description": "Framework-agnostic headless client for TanStack AI",
   "author": "",
   "license": "MIT",

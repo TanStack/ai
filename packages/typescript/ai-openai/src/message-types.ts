@@ -49,10 +49,17 @@ export interface OpenAIVideoMetadata {}
 export interface OpenAIDocumentMetadata {}
 
 /**
+ * Metadata for OpenAI text content parts.
+ * Currently no specific metadata options for text in OpenAI.
+ */
+export interface OpenAITextMetadata {}
+
+/**
  * Map of modality types to their OpenAI-specific metadata types.
  * Used for type inference when constructing multimodal messages.
  */
 export interface OpenAIMessageMetadataByModality {
+  text: OpenAITextMetadata
   image: OpenAIImageMetadata
   audio: OpenAIAudioMetadata
   video: OpenAIVideoMetadata
