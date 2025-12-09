@@ -687,10 +687,8 @@ export interface AIAdapter<
   TChatProviderOptions extends Record<string, any> = Record<string, any>,
   TEmbeddingProviderOptions extends Record<string, any> = Record<string, any>,
   TModelProviderOptionsByName extends Record<string, any> = Record<string, any>,
-  TModelInputModalitiesByName extends Record<
-    string,
-    ReadonlyArray<Modality>
-  > = Record<string, ReadonlyArray<Modality>>,
+  TModelInputModalitiesByName extends Record<string, ReadonlyArray<Modality>> =
+    Record<string, ReadonlyArray<Modality>>,
   TMessageMetadataByModality extends {
     text: unknown
     image: unknown

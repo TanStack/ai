@@ -7,6 +7,6 @@
     "start-openai": "concurrently -n \"php,ui\" -c \"cyan,magenta\" \"composer start-openai\" \"pnpm --filter vanilla-chat start\""
   },
   "devDependencies": {
-    "concurrently": "^9.1.2"
+    "concurrently": "^9.2.1"
   }
 }

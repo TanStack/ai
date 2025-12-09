@@ -45,12 +45,12 @@
   },
   "devDependencies": {
     "@types/node": "^24.10.1",
-    "@vitest/coverage-v8": "4.0.14",
+    "@vitest/coverage-v8": "4.0.15",
     "@vue/test-utils": "^2.4.6",
     "jsdom": "^27.2.0",
-    "tsdown": "^0.17.0-beta.6",
+    "tsdown": "^0.17.0",
     "typescript": "5.9.3",
-    "vitest": "^4.0.14",
+    "vitest": "^4.0.15",
     "vue": "^3.5.25"
   },
   "peerDependencies": {
