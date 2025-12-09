@@ -2420,6 +2420,7 @@ describe('chat() - Comprehensive Logic Path Coverage', () => {
           this.trackStreamCall(options)
           yield {
             type: 'TEXT_MESSAGE_CONTENT',
+            messageId: 'test-msg-id',
             model: 'test-model',
             timestamp: Date.now(),
             delta: 'Using tool',
@@ -2460,9 +2461,9 @@ describe('chat() - Comprehensive Logic Path Coverage', () => {
       )
       expect(toolResultEvents.length).toBeGreaterThan(0)
       expect(toolResultEvents[0]?.data.toolCallId).toBe('call-previous')
-      expect(toolResultEvents[0]?.data.result).toEqual({
-        result: 'previous result',
-      })
+      expect(toolResultEvents[0]?.data.result).toBe(
+        JSON.stringify({ result: 'previous result' }),
+      )
     })
   })
 

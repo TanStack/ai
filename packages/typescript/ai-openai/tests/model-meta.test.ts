@@ -6,6 +6,7 @@ import type {
 import type {
   OpenAIBaseOptions,
   OpenAIReasoningOptions,
+  OpenAIReasoningOptionsWithConcise,
   OpenAIStructuredOutputOptions,
   OpenAIToolsOptions,
   OpenAIStreamingOptions,
@@ -111,12 +112,12 @@ describe('OpenAI Chat Model Provider Options Type Assertions', () => {
     })
   })
 
-  describe('Models WITH structured output AND tools but WITHOUT reasoning (Standard)', () => {
-    it('gpt-5-mini should have structured output and tools but NOT reasoning', () => {
+  describe('Models WITH reasoning AND structured output AND tools (gpt-5-mini/nano)', () => {
+    it('gpt-5-mini should have reasoning, structured output and tools', () => {
       type Options = OpenAIChatModelProviderOptionsByName['gpt-5-mini']
 
-      // Should NOT have reasoning options
-      expectTypeOf<Options>().not.toExtend<OpenAIReasoningOptions>()
+      // Should have reasoning options
+      expectTypeOf<Options>().toExtend<OpenAIReasoningOptions>()
 
       // Should have structured output options
       expectTypeOf<Options>().toExtend<OpenAIStructuredOutputOptions>()
@@ -131,16 +132,18 @@ describe('OpenAI Chat Model Provider Options Type Assertions', () => {
       expectTypeOf<Options>().toExtend<BaseOptions>()
     })
 
-    it('gpt-5-nano should have structured output and tools but NOT reasoning', () => {
+    it('gpt-5-nano should have reasoning, structured output and tools', () => {
       type Options = OpenAIChatModelProviderOptionsByName['gpt-5-nano']
 
-      expectTypeOf<Options>().not.toExtend<OpenAIReasoningOptions>()
+      expectTypeOf<Options>().toExtend<OpenAIReasoningOptions>()
       expectTypeOf<Options>().toExtend<OpenAIStructuredOutputOptions>()
       expectTypeOf<Options>().toExtend<OpenAIToolsOptions>()
       expectTypeOf<Options>().toExtend<OpenAIStreamingOptions>()
       expectTypeOf<Options>().toExtend<BaseOptions>()
     })
+  })
 
+  describe('Models WITH structured output AND tools but WITHOUT reasoning (Standard)', () => {
     it('gpt-5-codex should have structured output and tools but NOT reasoning', () => {
       type Options = OpenAIChatModelProviderOptionsByName['gpt-5-codex']
 
@@ -439,11 +442,12 @@ describe('OpenAI Chat Model Provider Options Type Assertions', () => {
       expectTypeOf<Options>().toExtend<BaseOptions>()
     })
 
-    it('computer-use-preview should have tools but NOT structured output', () => {
+    it('computer-use-preview should have tools and reasoning with concise but NOT structured output', () => {
       type Options =
         OpenAIChatModelProviderOptionsByName['computer-use-preview']
 
-      expectTypeOf<Options>().not.toExtend<OpenAIReasoningOptions>()
+      // Should have reasoning options with 'concise' summary support
+      expectTypeOf<Options>().toExtend<OpenAIReasoningOptionsWithConcise>()
       expectTypeOf<Options>().not.toExtend<OpenAIStructuredOutputOptions>()
       expectTypeOf<Options>().toExtend<OpenAIToolsOptions>()
       expectTypeOf<Options>().toExtend<OpenAIStreamingOptions>()
@@ -462,8 +466,6 @@ describe('OpenAI Chat Model Provider Options Type Assertions', () => {
       expectTypeOf<'gpt-5-pro'>().toExtend<Keys>()
 
       // Standard models (structured output + tools, no reasoning)
-      expectTypeOf<'gpt-5-mini'>().toExtend<Keys>()
-      expectTypeOf<'gpt-5-nano'>().toExtend<Keys>()
       expectTypeOf<'gpt-5-codex'>().toExtend<Keys>()
       expectTypeOf<'gpt-4.1'>().toExtend<Keys>()
       expectTypeOf<'gpt-4.1-mini'>().toExtend<Keys>()
@@ -696,15 +698,15 @@ describe('OpenAI Chat Model Provider Options Type Assertions', () => {
       expectTypeOf<
         OpenAIChatModelProviderOptionsByName['gpt-5-pro']
       >().toExtend<FullFeaturedOptions>()
+      expectTypeOf<
+        OpenAIChatModelProviderOptionsByName['gpt-5-mini']
+      >().toExtend<FullFeaturedOptions>()
+      expectTypeOf<
+        OpenAIChatModelProviderOptionsByName['gpt-5-nano']
+      >().toExtend<FullFeaturedOptions>()
     })
 
     it('standard models should NOT extend reasoning options but should extend structured output and tools', () => {
-      expectTypeOf<
-        OpenAIChatModelProviderOptionsByName['gpt-5-mini']
-      >().toExtend<StandardOptions>()
-      expectTypeOf<
-        OpenAIChatModelProviderOptionsByName['gpt-5-nano']
-      >().toExtend<StandardOptions>()
       expectTypeOf<
         OpenAIChatModelProviderOptionsByName['gpt-4.1']
       >().toExtend<StandardOptions>()
@@ -719,9 +721,6 @@ describe('OpenAI Chat Model Provider Options Type Assertions', () => {
       >().toExtend<StandardOptions>()
 
       // Verify these do NOT extend reasoning options (discrimination already tested above)
-      expectTypeOf<
-        OpenAIChatModelProviderOptionsByName['gpt-5-mini']
-      >().not.toExtend<OpenAIReasoningOptions>()
       expectTypeOf<
         OpenAIChatModelProviderOptionsByName['gpt-4.1']
       >().not.toExtend<OpenAIReasoningOptions>()
