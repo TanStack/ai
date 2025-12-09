@@ -1,0 +1,54 @@
+{
+  "name": "@tanstack/ai-opentelemetry",
+  "version": "0.0.3",
+  "description": "OpenTelemetry instrumentation for TanStack AI",
+  "author": "",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/TanStack/ai.git",
+    "directory": "packages/typescript/ai-opentelemetry"
+  },
+  "keywords": [
+    "ai",
+    "opentelemetry",
+    "tracing",
+    "observability",
+    "tanstack",
+    "instrumentation"
+  ],
+  "type": "module",
+  "module": "./dist/esm/index.js",
+  "types": "./dist/esm/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/esm/index.d.ts",
+      "import": "./dist/esm/index.js"
+    }
+  },
+  "files": [
+    "dist",
+    "src"
+  ],
+  "scripts": {
+    "build": "vite build",
+    "clean": "premove ./build ./dist",
+    "lint:fix": "eslint ./src --fix",
+    "test:build": "publint --strict",
+    "test:eslint": "eslint ./src",
+    "test:lib": "vitest",
+    "test:lib:dev": "pnpm test:lib --watch",
+    "test:types": "tsc"
+  },
+  "dependencies": {
+    "@opentelemetry/api": "^1.9.0",
+    "@opentelemetry/semantic-conventions": "^1.28.0"
+  },
+  "devDependencies": {
+    "@tanstack/ai": "workspace:*",
+    "@vitest/coverage-v8": "4.0.14"
+  },
+  "peerDependencies": {
+    "@tanstack/ai": "workspace:*"
+  }
+}

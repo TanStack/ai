@@ -99,16 +99,6 @@ export class Anthropic extends BaseAdapter<
         this.generateId(),
       )
     } catch (error: any) {
-      console.error('[Anthropic Adapter] Error in chatStream:', {
-        message: error?.message,
-        status: error?.status,
-        statusText: error?.statusText,
-        code: error?.code,
-        type: error?.type,
-        error: error,
-        stack: error?.stack,
-      })
-
       // Emit an error chunk
       yield {
         type: 'error',
@@ -613,16 +603,6 @@ export class Anthropic extends BaseAdapter<
         }
       }
     } catch (error: any) {
-      console.error('[Anthropic Adapter] Error in processAnthropicStream:', {
-        message: error?.message,
-        status: error?.status,
-        statusText: error?.statusText,
-        code: error?.code,
-        type: error?.type,
-        error: error,
-        stack: error?.stack,
-      })
-
       yield {
         type: 'error',
         id: generateId(),
