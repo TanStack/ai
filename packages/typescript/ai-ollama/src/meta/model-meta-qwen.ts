@@ -1,16 +1,5 @@
 import type { ChatRequest } from 'ollama'
-
-interface ModelMeta<TProviderOptions = unknown> {
-  name: string
-  providerOptions?: TProviderOptions
-  supports?: {
-    input?: Array<'text' | 'image' | 'video'>
-    output?: Array<'text' | 'image' | 'video'>
-    capabilities?: Array<'tools' | 'thinking' | 'vision' | 'embedding'>
-  }
-  size?: string
-  context?: number
-}
+import type { DefaultOllamaModelMeta } from './models-meta'
 
 const QWEN_LATEST = {
   name: 'qwen:latest',
@@ -21,7 +10,7 @@ const QWEN_LATEST = {
   },
   size: '2.3gb',
   context: 32_000,
-} as const satisfies ModelMeta<any>
+} as const satisfies DefaultOllamaModelMeta<any>
 
 const QWEN_0_5b = {
   name: 'qwen:0.5b',
@@ -32,7 +21,7 @@ const QWEN_0_5b = {
   },
   size: '395mb',
   context: 32_000,
-} as const satisfies ModelMeta<any>
+} as const satisfies DefaultOllamaModelMeta<any>
 
 const QWEN_1_8b = {
   name: 'qwen:1.8b',
@@ -43,7 +32,7 @@ const QWEN_1_8b = {
   },
   size: '1.1gb',
   context: 32_000,
-} as const satisfies ModelMeta<any>
+} as const satisfies DefaultOllamaModelMeta<any>
 
 const QWEN_4b = {
   name: 'qwen:4b',
@@ -54,7 +43,7 @@ const QWEN_4b = {
   },
   size: '2.3gb',
   context: 32_000,
-} as const satisfies ModelMeta<any>
+} as const satisfies DefaultOllamaModelMeta<any>
 
 const QWEN_7b = {
   name: 'qwen:7b',
@@ -65,7 +54,7 @@ const QWEN_7b = {
   },
   size: '4.5gb',
   context: 32_000,
-} as const satisfies ModelMeta<any>
+} as const satisfies DefaultOllamaModelMeta<any>
 
 const QWEN_14b = {
   name: 'qwen:14b',
@@ -76,7 +65,7 @@ const QWEN_14b = {
   },
   size: '8.2gb',
   context: 32_000,
-} as const satisfies ModelMeta<any>
+} as const satisfies DefaultOllamaModelMeta<any>
 
 const QWEN_32b = {
   name: 'qwen:32b',
@@ -87,7 +76,7 @@ const QWEN_32b = {
   },
   size: '18gb',
   context: 32_000,
-} as const satisfies ModelMeta<any>
+} as const satisfies DefaultOllamaModelMeta<any>
 
 const QWEN_72b = {
   name: 'qwen:72b',
@@ -98,7 +87,7 @@ const QWEN_72b = {
   },
   size: '41gb',
   context: 32_000,
-} as const satisfies ModelMeta<any>
+} as const satisfies DefaultOllamaModelMeta<any>
 
 const QWEN_110b = {
   name: 'qwen:110b',
@@ -109,7 +98,7 @@ const QWEN_110b = {
   },
   size: '63gb',
   context: 32_000,
-} as const satisfies ModelMeta<any>
+} as const satisfies DefaultOllamaModelMeta<any>
 
 export const QWEN_MODELS = [
   QWEN_LATEST.name,
@@ -123,13 +112,13 @@ export const QWEN_MODELS = [
   QWEN_110b.name,
 ] as const
 
-const QWEN_IMAGE_MODELS = [] as const
+// const QWEN_IMAGE_MODELS = [] as const
 
-export const QWEN_EMBEDDING_MODELS = [] as const
+// export const QWEN_EMBEDDING_MODELS = [] as const
 
-const QWEN_AUDIO_MODELS = [] as const
+// const QWEN_AUDIO_MODELS = [] as const
 
-const QWEN_VIDEO_MODELS = [] as const
+// const QWEN_VIDEO_MODELS = [] as const
 
 // export type QwenChatModels = (typeof QWEN_MODELS)[number]
 

@@ -1,16 +1,5 @@
 import type { ChatRequest } from 'ollama'
-
-interface ModelMeta<TProviderOptions = unknown> {
-  name: string
-  providerOptions?: TProviderOptions
-  supports?: {
-    input?: Array<'text' | 'image' | 'video'>
-    output?: Array<'text' | 'image' | 'video'>
-    capabilities?: Array<'tools' | 'thinking' | 'vision' | 'embedding'>
-  }
-  size?: string
-  context?: number
-}
+import type { DefaultOllamaModelMeta } from './models-meta'
 
 const GEMMA3_LATEST = {
   name: 'gemma3:latest',
@@ -21,7 +10,7 @@ const GEMMA3_LATEST = {
   },
   size: '3.3gb',
   context: 128_000,
-} as const satisfies ModelMeta<any>
+} as const satisfies DefaultOllamaModelMeta<any>
 
 const GEMMA3_270m = {
   name: 'gemma3:270m',
@@ -32,7 +21,7 @@ const GEMMA3_270m = {
   },
   size: '298mb',
   context: 32_000,
-} as const satisfies ModelMeta<any>
+} as const satisfies DefaultOllamaModelMeta<any>
 
 const GEMMA3_1b = {
   name: 'gemma3:1b',
@@ -43,7 +32,7 @@ const GEMMA3_1b = {
   },
   size: '815mb',
   context: 32_000,
-} as const satisfies ModelMeta<any>
+} as const satisfies DefaultOllamaModelMeta<any>
 
 const GEMMA3_4b = {
   name: 'gemma3:4b',
@@ -54,7 +43,7 @@ const GEMMA3_4b = {
   },
   size: '3.3gb',
   context: 128_000,
-} as const satisfies ModelMeta<any>
+} as const satisfies DefaultOllamaModelMeta<any>
 
 const GEMMA3_12b = {
   name: 'gemma3:12b',
@@ -65,7 +54,7 @@ const GEMMA3_12b = {
   },
   size: '8.1gb',
   context: 128_000,
-} as const satisfies ModelMeta<any>
+} as const satisfies DefaultOllamaModelMeta<any>
 
 const GEMMA3_27b = {
   name: 'gemma3:27b',
@@ -76,7 +65,7 @@ const GEMMA3_27b = {
   },
   size: '17gb',
   context: 128_000,
-} as const satisfies ModelMeta<any>
+} as const satisfies DefaultOllamaModelMeta<any>
 
 export const GEMMA3_MODELS = [
   GEMMA3_LATEST.name,
@@ -87,13 +76,13 @@ export const GEMMA3_MODELS = [
   GEMMA3_27b.name,
 ] as const
 
-const GEMMA3_IMAGE_MODELS = [] as const
+// const GEMMA3_IMAGE_MODELS = [] as const
 
-export const GEMMA3_EMBEDDING_MODELS = [] as const
+// export const GEMMA3_EMBEDDING_MODELS = [] as const
 
-const GEMMA3_AUDIO_MODELS = [] as const
+// const GEMMA3_AUDIO_MODELS = [] as const
 
-const GEMMA3_VIDEO_MODELS = [] as const
+// const GEMMA3_VIDEO_MODELS = [] as const
 
 // export type Gemma3ChatModels = (typeof GEMMA3_MODELS)[number]
 

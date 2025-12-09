@@ -47,13 +47,13 @@ const AYA_35b = {
 
 export const AYA_MODELS = [AYA_LATEST.name, AYA_8b.name, AYA_35b.name] as const
 
-const AYA_IMAGE_MODELS = [] as const
+// const AYA_IMAGE_MODELS = [] as const
 
-export const AYA_EMBEDDING_MODELS = [] as const
+// export const AYA_EMBEDDING_MODELS = [] as const
 
-const AYA_AUDIO_MODELS = [] as const
+// const AYA_AUDIO_MODELS = [] as const
 
-const AYA_VIDEO_MODELS = [] as const
+// const AYA_VIDEO_MODELS = [] as const
 
 // export type AyaChatModels = (typeof AYA_MODELS)[number]
 

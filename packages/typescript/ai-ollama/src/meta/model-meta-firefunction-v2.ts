@@ -1,16 +1,5 @@
 import type { ChatRequest } from 'ollama'
-
-interface ModelMeta<TProviderOptions = unknown> {
-  name: string
-  providerOptions?: TProviderOptions
-  supports?: {
-    input?: Array<'text' | 'image' | 'video'>
-    output?: Array<'text' | 'image' | 'video'>
-    capabilities?: Array<'tools' | 'thinking' | 'vision' | 'embedding'>
-  }
-  size?: string
-  context?: number
-}
+import type { DefaultOllamaModelMeta } from './models-meta'
 
 const FIREFUNCTION_V2_LATEST = {
   name: 'firefunction-v2:latest',
@@ -21,7 +10,7 @@ const FIREFUNCTION_V2_LATEST = {
   },
   size: '40gb',
   context: 8_000,
-} as const satisfies ModelMeta<any>
+} as const satisfies DefaultOllamaModelMeta<any>
 
 const FIREFUNCTION_V2_70b = {
   name: 'firefunction-v2:70b',
@@ -32,20 +21,20 @@ const FIREFUNCTION_V2_70b = {
   },
   size: '40gb',
   context: 8_000,
-} as const satisfies ModelMeta<any>
+} as const satisfies DefaultOllamaModelMeta<any>
 
 export const FIREFUNCTION_V2_MODELS = [
   FIREFUNCTION_V2_LATEST.name,
   FIREFUNCTION_V2_70b.name,
 ] as const
 
-const FIREFUNCTION_V2_IMAGE_MODELS = [] as const
+// const FIREFUNCTION_V2_IMAGE_MODELS = [] as const
 
-export const FIREFUNCTION_V2_EMBEDDING_MODELS = [] as const
+// export const FIREFUNCTION_V2_EMBEDDING_MODELS = [] as const
 
-const FIREFUNCTION_V2_AUDIO_MODELS = [] as const
+// const FIREFUNCTION_V2_AUDIO_MODELS = [] as const
 
-const FIREFUNCTION_V2_VIDEO_MODELS = [] as const
+// const FIREFUNCTION_V2_VIDEO_MODELS = [] as const
 
 // export type Firefunction_V2ChatModels = (typeof FIREFUNCTION_V2_MODELS)[number]
 

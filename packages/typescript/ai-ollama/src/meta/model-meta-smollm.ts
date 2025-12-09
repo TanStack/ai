@@ -1,16 +1,5 @@
 import type { ChatRequest } from 'ollama'
-
-interface ModelMeta<TProviderOptions = unknown> {
-  name: string
-  providerOptions?: TProviderOptions
-  supports?: {
-    input?: Array<'text' | 'image' | 'video'>
-    output?: Array<'text' | 'image' | 'video'>
-    capabilities?: Array<'tools' | 'thinking' | 'vision' | 'embedding'>
-  }
-  size?: string
-  context?: number
-}
+import type { DefaultOllamaModelMeta } from './models-meta'
 
 const SMOLLM_LATEST = {
   name: 'smollm:latest',
@@ -21,7 +10,7 @@ const SMOLLM_LATEST = {
   },
   size: '991mb',
   context: 2_000,
-} as const satisfies ModelMeta<any>
+} as const satisfies DefaultOllamaModelMeta<any>
 
 const SMOLLM_135m = {
   name: 'smollm:135m',
@@ -32,7 +21,7 @@ const SMOLLM_135m = {
   },
   size: '92mb',
   context: 2_000,
-} as const satisfies ModelMeta<any>
+} as const satisfies DefaultOllamaModelMeta<any>
 
 const SMOLLM_360m = {
   name: 'smollm:360m',
@@ -43,7 +32,7 @@ const SMOLLM_360m = {
   },
   size: '229mb',
   context: 2_000,
-} as const satisfies ModelMeta<any>
+} as const satisfies DefaultOllamaModelMeta<any>
 
 const SMOLLM_1_7b = {
   name: 'smollm:1.7b',
@@ -54,7 +43,7 @@ const SMOLLM_1_7b = {
   },
   size: '991mb',
   context: 2_000,
-} as const satisfies ModelMeta<any>
+} as const satisfies DefaultOllamaModelMeta<any>
 
 export const SMOLLM_MODELS = [
   SMOLLM_LATEST.name,
@@ -63,13 +52,13 @@ export const SMOLLM_MODELS = [
   SMOLLM_1_7b.name,
 ] as const
 
-const SMOLLM_IMAGE_MODELS = [] as const
+// const SMOLLM_IMAGE_MODELS = [] as const
 
-export const SMOLLM_EMBEDDING_MODELS = [] as const
+// export const SMOLLM_EMBEDDING_MODELS = [] as const
 
-const SMOLLM_AUDIO_MODELS = [] as const
+// const SMOLLM_AUDIO_MODELS = [] as const
 
-const SMOLLM_VIDEO_MODELS = [] as const
+// const SMOLLM_VIDEO_MODELS = [] as const
 
 // export type SmollmChatModels = (typeof SMOLLM_MODELS)[number]
 

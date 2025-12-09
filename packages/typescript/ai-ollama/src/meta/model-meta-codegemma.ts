@@ -51,13 +51,13 @@ export const CODEGEMMA_MODELS = [
   CODEGEMMA_35b.name,
 ] as const
 
-const CODEGEMMA_IMAGE_MODELS = [] as const
+// const CODEGEMMA_IMAGE_MODELS = [] as const
 
-export const CODEGEMMA_EMBEDDING_MODELS = [] as const
+// export const CODEGEMMA_EMBEDDING_MODELS = [] as const
 
-const CODEGEMMA_AUDIO_MODELS = [] as const
+// const CODEGEMMA_AUDIO_MODELS = [] as const
 
-const CODEGEMMA_VIDEO_MODELS = [] as const
+// const CODEGEMMA_VIDEO_MODELS = [] as const
 
 // export type CodegemmaChatModels = (typeof CODEGEMMA_MODELS)[number]
 

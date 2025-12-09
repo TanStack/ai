@@ -1,16 +1,5 @@
 import type { ChatRequest } from 'ollama'
-
-interface ModelMeta<TProviderOptions = unknown> {
-  name: string
-  providerOptions?: TProviderOptions
-  supports?: {
-    input?: Array<'text' | 'image' | 'video'>
-    output?: Array<'text' | 'image' | 'video'>
-    capabilities?: Array<'tools' | 'thinking' | 'vision' | 'embedding'>
-  }
-  size?: string
-  context?: number
-}
+import type { DefaultOllamaModelMeta } from './models-meta'
 
 const SAILOR2_LATEST = {
   name: 'sailor2:latest',
@@ -21,7 +10,7 @@ const SAILOR2_LATEST = {
   },
   size: '5.2gb',
   context: 32_000,
-} as const satisfies ModelMeta<any>
+} as const satisfies DefaultOllamaModelMeta<any>
 
 const SAILOR2_1b = {
   name: 'sailor2:1b',
@@ -32,7 +21,7 @@ const SAILOR2_1b = {
   },
   size: '1.1gb',
   context: 32_000,
-} as const satisfies ModelMeta<any>
+} as const satisfies DefaultOllamaModelMeta<any>
 
 const SAILOR2_8b = {
   name: 'sailor2:8b',
@@ -43,7 +32,7 @@ const SAILOR2_8b = {
   },
   size: '5.2gb',
   context: 32_000,
-} as const satisfies ModelMeta<any>
+} as const satisfies DefaultOllamaModelMeta<any>
 
 const SAILOR2_20b = {
   name: 'sailor2:20b',
@@ -54,7 +43,7 @@ const SAILOR2_20b = {
   },
   size: '12gb',
   context: 32_000,
-} as const satisfies ModelMeta<any>
+} as const satisfies DefaultOllamaModelMeta<any>
 
 export const SAILOR2_MODELS = [
   SAILOR2_LATEST.name,
@@ -62,13 +51,13 @@ export const SAILOR2_MODELS = [
   SAILOR2_20b.name,
 ] as const
 
-const SAILOR2_IMAGE_MODELS = [] as const
+// const SAILOR2_IMAGE_MODELS = [] as const
 
-export const SAILOR2_EMBEDDING_MODELS = [] as const
+// export const SAILOR2_EMBEDDING_MODELS = [] as const
 
-const SAILOR2_AUDIO_MODELS = [] as const
+// const SAILOR2_AUDIO_MODELS = [] as const
 
-const SAILOR2_VIDEO_MODELS = [] as const
+// const SAILOR2_VIDEO_MODELS = [] as const
 
 // export type Sailor2ChatModels = (typeof SAILOR2_MODELS)[number]
 

@@ -75,13 +75,13 @@ export const CODELLAMA_MODELS = [
   CODELLAMA_70b.name,
 ] as const
 
-const CODELLAMA_IMAGE_MODELS = [] as const
+// const CODELLAMA_IMAGE_MODELS = [] as const
 
-export const CODELLAMA_EMBEDDING_MODELS = [] as const
+// export const CODELLAMA_EMBEDDING_MODELS = [] as const
 
-const CODELLAMA_AUDIO_MODELS = [] as const
+// const CODELLAMA_AUDIO_MODELS = [] as const
 
-const CODELLAMA_VIDEO_MODELS = [] as const
+// const CODELLAMA_VIDEO_MODELS = [] as const
 
 // export type CodellamaChatModels = (typeof CODELLAMA_MODELS)[number]
 

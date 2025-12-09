@@ -1,16 +1,5 @@
 import type { ChatRequest } from 'ollama'
-
-interface ModelMeta<TProviderOptions = unknown> {
-  name: string
-  providerOptions?: TProviderOptions
-  supports?: {
-    input?: Array<'text' | 'image' | 'video'>
-    output?: Array<'text' | 'image' | 'video'>
-    capabilities?: Array<'tools' | 'thinking' | 'vision' | 'embedding'>
-  }
-  size?: string
-  context?: number
-}
+import type { DefaultOllamaModelMeta } from './models-meta'
 
 const MISTRAL_SMALL_LATEST = {
   name: 'mistral-small:latest',
@@ -21,7 +10,7 @@ const MISTRAL_SMALL_LATEST = {
   },
   size: '14gb',
   context: 32_000,
-} as const satisfies ModelMeta<any>
+} as const satisfies DefaultOllamaModelMeta<any>
 
 const MISTRAL_SMALL_22b = {
   name: 'mistral-small:12b',
@@ -32,7 +21,7 @@ const MISTRAL_SMALL_22b = {
   },
   size: '13gb',
   context: 32_000,
-} as const satisfies ModelMeta<any>
+} as const satisfies DefaultOllamaModelMeta<any>
 
 const MISTRAL_SMALL_24b = {
   name: 'mistral-small:12b',
@@ -43,7 +32,7 @@ const MISTRAL_SMALL_24b = {
   },
   size: '13gb',
   context: 32_000,
-} as const satisfies ModelMeta<any>
+} as const satisfies DefaultOllamaModelMeta<any>
 
 export const MISTRAL_SMALL_MODELS = [
   MISTRAL_SMALL_LATEST.name,
@@ -51,13 +40,13 @@ export const MISTRAL_SMALL_MODELS = [
   MISTRAL_SMALL_24b.name,
 ] as const
 
-const MISTRAL_SMALL_IMAGE_MODELS = [] as const
+// const MISTRAL_SMALL_IMAGE_MODELS = [] as const
 
-export const MISTRAL_SMALL_EMBEDDING_MODELS = [] as const
+// export const MISTRAL_SMALL_EMBEDDING_MODELS = [] as const
 
-const MISTRAL_SMALL_AUDIO_MODELS = [] as const
+// const MISTRAL_SMALL_AUDIO_MODELS = [] as const
 
-const MISTRAL_SMALL_VIDEO_MODELS = [] as const
+// const MISTRAL_SMALL_VIDEO_MODELS = [] as const
 
 // export type MistralSmallChatModels = (typeof MISTRAL_SMALL_MODELS)[number]
 

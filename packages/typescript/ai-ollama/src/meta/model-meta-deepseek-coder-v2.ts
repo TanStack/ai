@@ -51,13 +51,13 @@ export const DEEPSEEK_CODER_V2_MODELS = [
   DEEPSEEK_CODER_V2_236b.name,
 ] as const
 
-const DEEPSEEK_CODER_V2_IMAGE_MODELS = [] as const
+// const DEEPSEEK_CODER_V2_IMAGE_MODELS = [] as const
 
-export const DEEPSEEK_CODER_V2_EMBEDDING_MODELS = [] as const
+// export const DEEPSEEK_CODER_V2_EMBEDDING_MODELS = [] as const
 
-const DEEPSEEK_CODER_V2_AUDIO_MODELS = [] as const
+// const DEEPSEEK_CODER_V2_AUDIO_MODELS = [] as const
 
-const DEEPSEEK_CODER_V2_VIDEO_MODELS = [] as const
+// const DEEPSEEK_CODER_V2_VIDEO_MODELS = [] as const
 
 // export type DeepseekCoderV2ChatModels = (typeof DEEPSEEK_CODER_V2_MODELS)[number]
 

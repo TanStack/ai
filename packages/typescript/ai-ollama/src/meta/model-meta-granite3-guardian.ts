@@ -1,16 +1,5 @@
 import type { ChatRequest } from 'ollama'
-
-interface ModelMeta<TProviderOptions = unknown> {
-  name: string
-  providerOptions?: TProviderOptions
-  supports?: {
-    input?: Array<'text' | 'image' | 'video'>
-    output?: Array<'text' | 'image' | 'video'>
-    capabilities?: Array<'tools' | 'thinking' | 'vision' | 'embedding'>
-  }
-  size?: string
-  context?: number
-}
+import type { DefaultOllamaModelMeta } from './models-meta'
 
 const GRANITE3_GUARDIAN_LATEST = {
   name: 'granite3-guardian:latest',
@@ -21,7 +10,7 @@ const GRANITE3_GUARDIAN_LATEST = {
   },
   size: '2.7gb',
   context: 8_000,
-} as const satisfies ModelMeta<any>
+} as const satisfies DefaultOllamaModelMeta<any>
 
 const GRANITE3_GUARDIAN_2b = {
   name: 'granite3-guardian:2b',
@@ -32,7 +21,7 @@ const GRANITE3_GUARDIAN_2b = {
   },
   size: '2.7gb',
   context: 8_000,
-} as const satisfies ModelMeta<any>
+} as const satisfies DefaultOllamaModelMeta<any>
 
 const GRANITE3_GUARDIAN_8b = {
   name: 'granite3-guardian:8b',
@@ -43,7 +32,7 @@ const GRANITE3_GUARDIAN_8b = {
   },
   size: '5.8gb',
   context: 8_000,
-} as const satisfies ModelMeta<any>
+} as const satisfies DefaultOllamaModelMeta<any>
 
 export const GRANITE3_GUARDIAN_MODELS = [
   GRANITE3_GUARDIAN_LATEST.name,
@@ -51,13 +40,13 @@ export const GRANITE3_GUARDIAN_MODELS = [
   GRANITE3_GUARDIAN_8b.name,
 ] as const
 
-const GRANITE3_GUARDIAN_IMAGE_MODELS = [] as const
+// const GRANITE3_GUARDIAN_IMAGE_MODELS = [] as const
 
-export const GRANITE3_GUARDIAN_EMBEDDING_MODELS = [] as const
+// export const GRANITE3_GUARDIAN_EMBEDDING_MODELS = [] as const
 
-const GRANITE3_GUARDIAN_AUDIO_MODELS = [] as const
+// const GRANITE3_GUARDIAN_AUDIO_MODELS = [] as const
 
-const GRANITE3_GUARDIAN_VIDEO_MODELS = [] as const
+// const GRANITE3_GUARDIAN_VIDEO_MODELS = [] as const
 
 // export type GraniteGuardian3ChatModels = (typeof GRANITE3_GUARDIAN_MODELS)[number]
 

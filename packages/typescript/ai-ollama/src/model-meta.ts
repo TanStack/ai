@@ -128,18 +128,6 @@ import type { SmollmModelInputModalitiesByName } from './meta/model-meta-smollm'
 import type { TinnyllamaModelInputModalitiesByName } from './meta/model-meta-tinyllama'
 import type { Tulu3ModelInputModalitiesByName } from './meta/model-meta-tulu3'
 
-export interface LlamaModelMeta<TProviderOptions = unknown> {
-  name: string
-  providerOptions?: TProviderOptions
-  supports?: {
-    input?: Array<'text' | 'image' | 'video'>
-    output?: Array<'text' | 'image' | 'video'>
-    capabilities?: Array<'tools' | 'thinking' | 'vision' | 'embedding'>
-  }
-  size?: string
-  context?: number
-}
-
 export const OLLAMA_MODELS = [
   ...ATHENE_MODELS,
   ...AYA_MODELS,

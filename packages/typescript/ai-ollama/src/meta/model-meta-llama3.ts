@@ -1,16 +1,5 @@
 import type { ChatRequest } from 'ollama'
-
-interface ModelMeta<TProviderOptions = unknown> {
-  name: string
-  providerOptions?: TProviderOptions
-  supports?: {
-    input?: Array<'text' | 'image' | 'video'>
-    output?: Array<'text' | 'image' | 'video'>
-    capabilities?: Array<'tools' | 'thinking' | 'vision' | 'embedding'>
-  }
-  size?: string
-  context?: number
-}
+import type { DefaultOllamaModelMeta } from './models-meta'
 
 const LLAMA3_LATEST = {
   name: 'llama3:latest',
@@ -21,7 +10,7 @@ const LLAMA3_LATEST = {
   },
   size: '4.7b',
   context: 8_000,
-} as const satisfies ModelMeta<any>
+} as const satisfies DefaultOllamaModelMeta<any>
 
 const LLAMA3_8b = {
   name: 'llama3:7b',
@@ -32,7 +21,7 @@ const LLAMA3_8b = {
   },
   size: '4.7gb',
   context: 8_000,
-} as const satisfies ModelMeta<any>
+} as const satisfies DefaultOllamaModelMeta<any>
 
 const LLAMA3_70b = {
   name: 'llama3:70b',
@@ -43,7 +32,7 @@ const LLAMA3_70b = {
   },
   size: '40gb',
   context: 8_000,
-} as const satisfies ModelMeta<any>
+} as const satisfies DefaultOllamaModelMeta<any>
 
 export const LLAMA3_MODELS = [
   LLAMA3_LATEST.name,
@@ -51,13 +40,13 @@ export const LLAMA3_MODELS = [
   LLAMA3_70b.name,
 ] as const
 
-const LLAMA3_IMAGE_MODELS = [] as const
+// const LLAMA3_IMAGE_MODELS = [] as const
 
-export const LLAMA3_EMBEDDING_MODELS = [] as const
+// export const LLAMA3_EMBEDDING_MODELS = [] as const
 
-const LLAMA3_AUDIO_MODELS = [] as const
+// const LLAMA3_AUDIO_MODELS = [] as const
 
-const LLAMA3_VIDEO_MODELS = [] as const
+// const LLAMA3_VIDEO_MODELS = [] as const
 
 // export type Llama3ChatModels = (typeof LLAMA3_MODELS)[number]
 

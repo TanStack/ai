@@ -1,16 +1,5 @@
 import type { ChatRequest } from 'ollama'
-
-interface ModelMeta<TProviderOptions = unknown> {
-  name: string
-  providerOptions?: TProviderOptions
-  supports?: {
-    input?: Array<'text' | 'image' | 'video'>
-    output?: Array<'text' | 'image' | 'video'>
-    capabilities?: Array<'tools' | 'thinking' | 'vision' | 'embedding'>
-  }
-  size?: string
-  context?: number
-}
+import type { DefaultOllamaModelMeta } from './models-meta'
 
 const PHI3_LATEST = {
   name: 'phi3:latest',
@@ -21,7 +10,7 @@ const PHI3_LATEST = {
   },
   size: '2.2gb',
   context: 128_000,
-} as const satisfies ModelMeta<any>
+} as const satisfies DefaultOllamaModelMeta<any>
 
 const PHI3_3_8b = {
   name: 'phi3:8b',
@@ -32,7 +21,7 @@ const PHI3_3_8b = {
   },
   size: '2.2gb',
   context: 128_000,
-} as const satisfies ModelMeta<any>
+} as const satisfies DefaultOllamaModelMeta<any>
 
 const PHI3_14b = {
   name: 'phi3:14b',
@@ -43,7 +32,7 @@ const PHI3_14b = {
   },
   size: '7.9gb',
   context: 128_000,
-} as const satisfies ModelMeta<any>
+} as const satisfies DefaultOllamaModelMeta<any>
 
 export const PHI3_MODELS = [
   PHI3_LATEST.name,
@@ -51,13 +40,13 @@ export const PHI3_MODELS = [
   PHI3_14b.name,
 ] as const
 
-const PHI3_IMAGE_MODELS = [] as const
+// const PHI3_IMAGE_MODELS = [] as const
 
-export const PHI3_EMBEDDING_MODELS = [] as const
+// export const PHI3_EMBEDDING_MODELS = [] as const
 
-const PHI3_AUDIO_MODELS = [] as const
+// const PHI3_AUDIO_MODELS = [] as const
 
-const PHI3_VIDEO_MODELS = [] as const
+// const PHI3_VIDEO_MODELS = [] as const
 
 // export type Phi3ChatModels = (typeof PHI3_MODELS)[number]
 

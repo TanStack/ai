@@ -39,13 +39,13 @@ export const COMMAND_R_MODELS = [
   COMMAND_R_35b.name,
 ] as const
 
-const COMMAND_R_IMAGE_MODELS = [] as const
+// const COMMAND_R_IMAGE_MODELS = [] as const
 
-export const COMMAND_R_EMBEDDING_MODELS = [] as const
+// export const COMMAND_R_EMBEDDING_MODELS = [] as const
 
-const COMMAND_R_AUDIO_MODELS = [] as const
+// const COMMAND_R_AUDIO_MODELS = [] as const
 
-const COMMAND_R_VIDEO_MODELS = [] as const
+// const COMMAND_R_VIDEO_MODELS = [] as const
 
 // export type CommandRChatModels = (typeof COMMAND_R_MODELS)[number]
 

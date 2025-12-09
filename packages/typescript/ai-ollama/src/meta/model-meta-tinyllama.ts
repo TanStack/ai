@@ -1,16 +1,5 @@
 import type { ChatRequest } from 'ollama'
-
-interface ModelMeta<TProviderOptions = unknown> {
-  name: string
-  providerOptions?: TProviderOptions
-  supports?: {
-    input?: Array<'text' | 'image' | 'video'>
-    output?: Array<'text' | 'image' | 'video'>
-    capabilities?: Array<'tools' | 'thinking' | 'vision' | 'embedding'>
-  }
-  size?: string
-  context?: number
-}
+import type { DefaultOllamaModelMeta } from './models-meta'
 
 const TINNYLLAMA_LATEST = {
   name: 'tinnyllama:latest',
@@ -21,7 +10,7 @@ const TINNYLLAMA_LATEST = {
   },
   size: '638mb',
   context: 2_000,
-} as const satisfies ModelMeta<any>
+} as const satisfies DefaultOllamaModelMeta<any>
 
 const TINNYLLAMA_1_1b = {
   name: 'tinnyllama:1.1b',
@@ -32,20 +21,20 @@ const TINNYLLAMA_1_1b = {
   },
   size: '638mb',
   context: 2_000,
-} as const satisfies ModelMeta<any>
+} as const satisfies DefaultOllamaModelMeta<any>
 
 export const TINNYLLAMA_MODELS = [
   TINNYLLAMA_LATEST.name,
   TINNYLLAMA_1_1b.name,
 ] as const
 
-const TINNYLLAMA_IMAGE_MODELS = [] as const
+// const TINNYLLAMA_IMAGE_MODELS = [] as const
 
-export const TINNYLLAMA_EMBEDDING_MODELS = [] as const
+// export const TINNYLLAMA_EMBEDDING_MODELS = [] as const
 
-const TINNYLLAMA_AUDIO_MODELS = [] as const
+// const TINNYLLAMA_AUDIO_MODELS = [] as const
 
-const TINNYLLAMA_VIDEO_MODELS = [] as const
+// const TINNYLLAMA_VIDEO_MODELS = [] as const
 
 // export type TinnyllamaChatModels = (typeof TINNYLLAMA_MODELS)[number]
 

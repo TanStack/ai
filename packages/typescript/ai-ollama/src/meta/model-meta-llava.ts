@@ -1,16 +1,5 @@
 import type { ChatRequest } from 'ollama'
-
-interface ModelMeta<TProviderOptions = unknown> {
-  name: string
-  providerOptions?: TProviderOptions
-  supports?: {
-    input?: Array<'text' | 'image' | 'video'>
-    output?: Array<'text' | 'image' | 'video'>
-    capabilities?: Array<'tools' | 'thinking' | 'vision' | 'embedding'>
-  }
-  size?: string
-  context?: number
-}
+import type { DefaultOllamaModelMeta } from './models-meta'
 
 const LLAVA_LATEST = {
   name: 'llava:latest',
@@ -21,7 +10,7 @@ const LLAVA_LATEST = {
   },
   size: '4.7b',
   context: 32_000,
-} as const satisfies ModelMeta<any>
+} as const satisfies DefaultOllamaModelMeta<any>
 
 const LLAVA_7b = {
   name: 'llava:7b',
@@ -32,7 +21,7 @@ const LLAVA_7b = {
   },
   size: '4.7gb',
   context: 32_000,
-} as const satisfies ModelMeta<any>
+} as const satisfies DefaultOllamaModelMeta<any>
 
 const LLAVA_13b = {
   name: 'llava:13b',
@@ -43,7 +32,7 @@ const LLAVA_13b = {
   },
   size: '8gb',
   context: 4_000,
-} as const satisfies ModelMeta<any>
+} as const satisfies DefaultOllamaModelMeta<any>
 
 const LLAVA_34b = {
   name: 'llava:34b',
@@ -54,7 +43,7 @@ const LLAVA_34b = {
   },
   size: '20gb',
   context: 4_000,
-} as const satisfies ModelMeta<any>
+} as const satisfies DefaultOllamaModelMeta<any>
 
 export const LLAVA_MODELS = [
   LLAVA_LATEST.name,
@@ -63,13 +52,13 @@ export const LLAVA_MODELS = [
   LLAVA_34b.name,
 ] as const
 
-const LLAVA_IMAGE_MODELS = [] as const
+// const LLAVA_IMAGE_MODELS = [] as const
 
-export const LLAVA_EMBEDDING_MODELS = [] as const
+// export const LLAVA_EMBEDDING_MODELS = [] as const
 
-const LLAVA_AUDIO_MODELS = [] as const
+// const LLAVA_AUDIO_MODELS = [] as const
 
-const LLAVA_VIDEO_MODELS = [] as const
+// const LLAVA_VIDEO_MODELS = [] as const
 
 // export type llavaChatModels = (typeof LLAVA_MODELS)[number]
 

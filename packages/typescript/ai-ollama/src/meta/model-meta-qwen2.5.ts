@@ -1,16 +1,5 @@
 import type { ChatRequest } from 'ollama'
-
-interface ModelMeta<TProviderOptions = unknown> {
-  name: string
-  providerOptions?: TProviderOptions
-  supports?: {
-    input?: Array<'text' | 'image' | 'video'>
-    output?: Array<'text' | 'image' | 'video'>
-    capabilities?: Array<'tools' | 'thinking' | 'vision' | 'embedding'>
-  }
-  size?: string
-  context?: number
-}
+import type { DefaultOllamaModelMeta } from './models-meta'
 
 const QWEN2_5_LATEST = {
   name: 'qwen2.5:latest',
@@ -21,7 +10,7 @@ const QWEN2_5_LATEST = {
   },
   size: '4.7gb',
   context: 32_000,
-} as const satisfies ModelMeta<any>
+} as const satisfies DefaultOllamaModelMeta<any>
 
 const QWEN2_5_0_5b = {
   name: 'qwen2.5:0.5b',
@@ -32,7 +21,7 @@ const QWEN2_5_0_5b = {
   },
   size: '398mb',
   context: 32_000,
-} as const satisfies ModelMeta<any>
+} as const satisfies DefaultOllamaModelMeta<any>
 
 const QWEN2_5_1_5b = {
   name: 'qwen2.5:1.5b',
@@ -43,7 +32,7 @@ const QWEN2_5_1_5b = {
   },
   size: '986mb',
   context: 32_000,
-} as const satisfies ModelMeta<any>
+} as const satisfies DefaultOllamaModelMeta<any>
 
 const QWEN2_5_3b = {
   name: 'qwen2.5:3b',
@@ -54,7 +43,7 @@ const QWEN2_5_3b = {
   },
   size: '1.9gb',
   context: 32_000,
-} as const satisfies ModelMeta<any>
+} as const satisfies DefaultOllamaModelMeta<any>
 
 const QWEN2_5_7b = {
   name: 'qwen2.5:7b',
@@ -65,7 +54,7 @@ const QWEN2_5_7b = {
   },
   size: '4.7gb',
   context: 32_000,
-} as const satisfies ModelMeta<any>
+} as const satisfies DefaultOllamaModelMeta<any>
 
 const QWEN2_5_32b = {
   name: 'qwen2.5:32b',
@@ -76,7 +65,7 @@ const QWEN2_5_32b = {
   },
   size: '20gb',
   context: 32_000,
-} as const satisfies ModelMeta<any>
+} as const satisfies DefaultOllamaModelMeta<any>
 
 const QWEN2_5_72b = {
   name: 'qwen2.5:72b',
@@ -87,7 +76,7 @@ const QWEN2_5_72b = {
   },
   size: '47gb',
   context: 32_000,
-} as const satisfies ModelMeta<any>
+} as const satisfies DefaultOllamaModelMeta<any>
 
 export const QWEN2_5_MODELS = [
   QWEN2_5_LATEST.name,
@@ -99,13 +88,13 @@ export const QWEN2_5_MODELS = [
   QWEN2_5_72b.name,
 ] as const
 
-const QWEN2_5_IMAGE_MODELS = [] as const
+// const QWEN2_5_IMAGE_MODELS = [] as const
 
-export const QWEN2_5_EMBEDDING_MODELS = [] as const
+// export const QWEN2_5_EMBEDDING_MODELS = [] as const
 
-const QWEN2_5_AUDIO_MODELS = [] as const
+// const QWEN2_5_AUDIO_MODELS = [] as const
 
-const QWEN2_5_VIDEO_MODELS = [] as const
+// const QWEN2_5_VIDEO_MODELS = [] as const
 
 // export type Qwen2_5ChatModels = (typeof QWEN2_5_MODELS)[number]
 

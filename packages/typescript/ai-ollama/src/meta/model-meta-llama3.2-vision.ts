@@ -1,16 +1,5 @@
 import type { ChatRequest } from 'ollama'
-
-interface ModelMeta<TProviderOptions = unknown> {
-  name: string
-  providerOptions?: TProviderOptions
-  supports?: {
-    input?: Array<'text' | 'image' | 'video'>
-    output?: Array<'text' | 'image' | 'video'>
-    capabilities?: Array<'tools' | 'thinking' | 'vision' | 'embedding'>
-  }
-  size?: string
-  context?: number
-}
+import type { DefaultOllamaModelMeta } from './models-meta'
 
 const LLAMA3_2_VISION_LATEST = {
   name: 'llama3.2:latest',
@@ -21,7 +10,7 @@ const LLAMA3_2_VISION_LATEST = {
   },
   size: '7.8b',
   context: 128_000,
-} as const satisfies ModelMeta<any>
+} as const satisfies DefaultOllamaModelMeta<any>
 
 const LLAMA3_2_VISION_11b = {
   name: 'llama3.2:11b',
@@ -32,7 +21,7 @@ const LLAMA3_2_VISION_11b = {
   },
   size: '1gb',
   context: 128_000,
-} as const satisfies ModelMeta<any>
+} as const satisfies DefaultOllamaModelMeta<any>
 
 const LLAMA3_2_VISION_90b = {
   name: 'llama3.2:90b',
@@ -43,7 +32,7 @@ const LLAMA3_2_VISION_90b = {
   },
   size: '55gb',
   context: 128_000,
-} as const satisfies ModelMeta<any>
+} as const satisfies DefaultOllamaModelMeta<any>
 
 export const LLAMA3_2_VISION_MODELS = [
   LLAMA3_2_VISION_LATEST.name,
@@ -51,15 +40,15 @@ export const LLAMA3_2_VISION_MODELS = [
   LLAMA3_2_VISION_90b.name,
 ] as const
 
-export const LLAMA3_2_VISION_IMAGE_MODELS = [] as const
+// export const LLAMA3_2_VISION_IMAGE_MODELS = [] as const
 
-export const LLAMA3_2_VISION_EMBEDDING_MODELS = [] as const
+// export const LLAMA3_2_VISION_EMBEDDING_MODELS = [] as const
 
-const LLAMA3_2_VISION_AUDIO_MODELS = [] as const
+// export const LLAMA3_2_VISION_AUDIO_MODELS = [] as const
 
-const LLAMA3_2_VISION_VIDEO_MODELS = [] as const
+// export const LLAMA3_2_VISION_VIDEO_MODELS = [] as const
 
-// export type Llama3_2VisionChatModels = (typeof LLAMA3_2Vision_MODELS)[number]
+// export export type Llama3_2VisionChatModels = (typeof LLAMA3_2Vision_MODELS)[number]
 
 // Manual type map for per-model provider options
 export type Llama3_2VisionChatModelProviderOptionsByName = {

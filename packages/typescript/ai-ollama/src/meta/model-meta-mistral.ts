@@ -1,16 +1,5 @@
 import type { ChatRequest } from 'ollama'
-
-interface ModelMeta<TProviderOptions = unknown> {
-  name: string
-  providerOptions?: TProviderOptions
-  supports?: {
-    input?: Array<'text' | 'image' | 'video'>
-    output?: Array<'text' | 'image' | 'video'>
-    capabilities?: Array<'tools' | 'thinking' | 'vision' | 'embedding'>
-  }
-  size?: string
-  context?: number
-}
+import type { DefaultOllamaModelMeta } from './models-meta'
 
 const MISTRAL_LATEST = {
   name: 'mistral:latest',
@@ -21,7 +10,7 @@ const MISTRAL_LATEST = {
   },
   size: '2.9gb',
   context: 4_000,
-} as const satisfies ModelMeta<any>
+} as const satisfies DefaultOllamaModelMeta<any>
 
 const MISTRAL_7b = {
   name: 'mistral:87',
@@ -32,17 +21,17 @@ const MISTRAL_7b = {
   },
   size: '2.9gb',
   context: 4_000,
-} as const satisfies ModelMeta<any>
+} as const satisfies DefaultOllamaModelMeta<any>
 
 export const MISTRAL_MODELS = [MISTRAL_LATEST.name, MISTRAL_7b.name] as const
 
-const MISTRAL_IMAGE_MODELS = [] as const
+// const MISTRAL_IMAGE_MODELS = [] as const
 
-export const MISTRAL_EMBEDDING_MODELS = [] as const
+// export const MISTRAL_EMBEDDING_MODELS = [] as const
 
-const MISTRAL_AUDIO_MODELS = [] as const
+// const MISTRAL_AUDIO_MODELS = [] as const
 
-const MISTRAL_VIDEO_MODELS = [] as const
+// const MISTRAL_VIDEO_MODELS = [] as const
 
 // export type MistralChatModels = (typeof MISTRAL_MODELS)[number]
 

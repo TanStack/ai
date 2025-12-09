@@ -1,16 +1,5 @@
 import type { ChatRequest } from 'ollama'
-
-interface ModelMeta<TProviderOptions = unknown> {
-  name: string
-  providerOptions?: TProviderOptions
-  supports?: {
-    input?: Array<'text' | 'image' | 'video'>
-    output?: Array<'text' | 'image' | 'video'>
-    capabilities?: Array<'tools' | 'thinking' | 'vision' | 'embedding'>
-  }
-  size?: string
-  context?: number
-}
+import type { DefaultOllamaModelMeta } from './models-meta'
 
 const GRANITE3_DENSE_LATEST = {
   name: 'granite3-dense:latest',
@@ -21,7 +10,7 @@ const GRANITE3_DENSE_LATEST = {
   },
   size: '1.6gb',
   context: 4_000,
-} as const satisfies ModelMeta<any>
+} as const satisfies DefaultOllamaModelMeta<any>
 
 const GRANITE3_DENSE_2b = {
   name: 'granite3-dense:2b',
@@ -32,7 +21,7 @@ const GRANITE3_DENSE_2b = {
   },
   size: '1.6gb',
   context: 4_000,
-} as const satisfies ModelMeta<any>
+} as const satisfies DefaultOllamaModelMeta<any>
 
 const GRANITE3_DENSE_8b = {
   name: 'granite3-dense:8b',
@@ -43,7 +32,7 @@ const GRANITE3_DENSE_8b = {
   },
   size: '4.9gb',
   context: 4_000,
-} as const satisfies ModelMeta<any>
+} as const satisfies DefaultOllamaModelMeta<any>
 
 export const GRANITE3_DENSE_MODELS = [
   GRANITE3_DENSE_LATEST.name,
@@ -51,13 +40,13 @@ export const GRANITE3_DENSE_MODELS = [
   GRANITE3_DENSE_8b.name,
 ] as const
 
-const GRANITE3_DENSE_IMAGE_MODELS = [] as const
+// const GRANITE3_DENSE_IMAGE_MODELS = [] as const
 
-export const GRANITE3_DENSE_EMBEDDING_MODELS = [] as const
+// export const GRANITE3_DENSE_EMBEDDING_MODELS = [] as const
 
-const GRANITE3_DENSE_AUDIO_MODELS = [] as const
+// const GRANITE3_DENSE_AUDIO_MODELS = [] as const
 
-const GRANITE3_DENSE_VIDEO_MODELS = [] as const
+// const GRANITE3_DENSE_VIDEO_MODELS = [] as const
 
 // export type Granite3Dense3ChatModels = (typeof GRANITE3_DENSE_MODELS)[number]
 

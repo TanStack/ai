@@ -1,16 +1,5 @@
 import type { ChatRequest } from 'ollama'
-
-interface ModelMeta<TProviderOptions = unknown> {
-  name: string
-  providerOptions?: TProviderOptions
-  supports?: {
-    input?: Array<'text' | 'image' | 'video'>
-    output?: Array<'text' | 'image' | 'video'>
-    capabilities?: Array<'tools' | 'thinking' | 'vision' | 'embedding'>
-  }
-  size?: string
-  context?: number
-}
+import type { DefaultOllamaModelMeta } from './models-meta'
 
 const MOONDREAM_LATEST = {
   name: 'moondream:latest',
@@ -21,7 +10,7 @@ const MOONDREAM_LATEST = {
   },
   size: '1.7gb',
   context: 2_000,
-} as const satisfies ModelMeta<any>
+} as const satisfies DefaultOllamaModelMeta<any>
 
 const MOONDREAM_1_8b = {
   name: 'moondream:1.8b',
@@ -32,20 +21,20 @@ const MOONDREAM_1_8b = {
   },
   size: '1.7gb',
   context: 2_000,
-} as const satisfies ModelMeta<any>
+} as const satisfies DefaultOllamaModelMeta<any>
 
 export const MOONDREAM_MODELS = [
   MOONDREAM_LATEST.name,
   MOONDREAM_1_8b.name,
 ] as const
 
-const MOONDREAM_IMAGE_MODELS = [] as const
+// const MOONDREAM_IMAGE_MODELS = [] as const
 
-export const MOONDREAM_EMBEDDING_MODELS = [] as const
+// export const MOONDREAM_EMBEDDING_MODELS = [] as const
 
-const MOONDREAM_AUDIO_MODELS = [] as const
+// const MOONDREAM_AUDIO_MODELS = [] as const
 
-const MOONDREAM_VIDEO_MODELS = [] as const
+// const MOONDREAM_VIDEO_MODELS = [] as const
 
 // export type MoondreamChatModels = (typeof MOONDREAM_MODELS)[number]
 

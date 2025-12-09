@@ -1,16 +1,5 @@
 import type { ChatRequest } from 'ollama'
-
-interface ModelMeta<TProviderOptions = unknown> {
-  name: string
-  providerOptions?: TProviderOptions
-  supports?: {
-    input?: Array<'text' | 'image' | 'video'>
-    output?: Array<'text' | 'image' | 'video'>
-    capabilities?: Array<'tools' | 'thinking' | 'vision' | 'embedding'>
-  }
-  size?: string
-  context?: number
-}
+import type { DefaultOllamaModelMeta } from './models-meta'
 
 const OLMO2_LATEST = {
   name: 'olmo2:latest',
@@ -21,7 +10,7 @@ const OLMO2_LATEST = {
   },
   size: '4.5gb',
   context: 4_000,
-} as const satisfies ModelMeta<any>
+} as const satisfies DefaultOllamaModelMeta<any>
 
 const OLMO2_7b = {
   name: 'olmo2:7b',
@@ -32,7 +21,7 @@ const OLMO2_7b = {
   },
   size: '4.5gb',
   context: 4_000,
-} as const satisfies ModelMeta<any>
+} as const satisfies DefaultOllamaModelMeta<any>
 
 const OLMO2_13b = {
   name: 'olmo2:13b',
@@ -43,7 +32,7 @@ const OLMO2_13b = {
   },
   size: '8.4gb',
   context: 4_000,
-} as const satisfies ModelMeta<any>
+} as const satisfies DefaultOllamaModelMeta<any>
 
 export const OLMO2_MODELS = [
   OLMO2_LATEST.name,
@@ -51,13 +40,13 @@ export const OLMO2_MODELS = [
   OLMO2_13b.name,
 ] as const
 
-const OLMO2_IMAGE_MODELS = [] as const
+// const OLMO2_IMAGE_MODELS = [] as const
 
-export const OLMO2_EMBEDDING_MODELS = [] as const
+// export const OLMO2_EMBEDDING_MODELS = [] as const
 
-const OLMO2_AUDIO_MODELS = [] as const
+// const OLMO2_AUDIO_MODELS = [] as const
 
-const OLMO2_VIDEO_MODELS = [] as const
+// const OLMO2_VIDEO_MODELS = [] as const
 
 // export type Olmo2ChatModels = (typeof OLMO2_MODELS)[number]
 

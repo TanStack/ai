@@ -36,13 +36,13 @@ const DOLPHIN3_8b = {
 
 export const DOLPHIN3_MODELS = [DOLPHIN3_LATEST.name, DOLPHIN3_8b.name] as const
 
-const DOLPHIN3_IMAGE_MODELS = [] as const
+// const DOLPHIN3_IMAGE_MODELS = [] as const
 
-export const DOLPHIN3_EMBEDDING_MODELS = [] as const
+// export const DOLPHIN3_EMBEDDING_MODELS = [] as const
 
-const DOLPHIN3_AUDIO_MODELS = [] as const
+// const DOLPHIN3_AUDIO_MODELS = [] as const
 
-const DOLPHIN3_VIDEO_MODELS = [] as const
+// const DOLPHIN3_VIDEO_MODELS = [] as const
 
 // export type Dolphin3ChatModels = (typeof DOLPHIN3_MODELS)[number]
 

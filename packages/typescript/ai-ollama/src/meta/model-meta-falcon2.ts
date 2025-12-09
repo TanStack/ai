@@ -1,16 +1,5 @@
 import type { ChatRequest } from 'ollama'
-
-interface ModelMeta<TProviderOptions = unknown> {
-  name: string
-  providerOptions?: TProviderOptions
-  supports?: {
-    input?: Array<'text' | 'image' | 'video'>
-    output?: Array<'text' | 'image' | 'video'>
-    capabilities?: Array<'tools' | 'thinking' | 'vision' | 'embedding'>
-  }
-  size?: string
-  context?: number
-}
+import type { DefaultOllamaModelMeta } from './models-meta'
 
 const FALCON2_LATEST = {
   name: 'falcon2:latest',
@@ -21,7 +10,7 @@ const FALCON2_LATEST = {
   },
   size: '6.4gb',
   context: 2_000,
-} as const satisfies ModelMeta<any>
+} as const satisfies DefaultOllamaModelMeta<any>
 
 const FALCON2_11b = {
   name: 'falcon2:11b',
@@ -32,17 +21,17 @@ const FALCON2_11b = {
   },
   size: '6.4gb',
   context: 2_000,
-} as const satisfies ModelMeta<any>
+} as const satisfies DefaultOllamaModelMeta<any>
 
 export const FALCON2_MODELS = [FALCON2_LATEST.name, FALCON2_11b.name] as const
 
-const FALCON2_IMAGE_MODELS = [] as const
+// const FALCON2_IMAGE_MODELS = [] as const
 
-export const FALCON2_EMBEDDING_MODELS = [] as const
+// export const FALCON2_EMBEDDING_MODELS = [] as const
 
-const FALCON2_AUDIO_MODELS = [] as const
+// const FALCON2_AUDIO_MODELS = [] as const
 
-const FALCON2_VIDEO_MODELS = [] as const
+// const FALCON2_VIDEO_MODELS = [] as const
 
 // export type Falcon2ChatModels = (typeof FALCON2_MODELS)[number]
 

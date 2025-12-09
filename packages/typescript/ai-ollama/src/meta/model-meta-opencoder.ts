@@ -1,16 +1,5 @@
 import type { ChatRequest } from 'ollama'
-
-interface ModelMeta<TProviderOptions = unknown> {
-  name: string
-  providerOptions?: TProviderOptions
-  supports?: {
-    input?: Array<'text' | 'image' | 'video'>
-    output?: Array<'text' | 'image' | 'video'>
-    capabilities?: Array<'tools' | 'thinking' | 'vision' | 'embedding'>
-  }
-  size?: string
-  context?: number
-}
+import type { DefaultOllamaModelMeta } from './models-meta'
 
 const OPENCODER_LATEST = {
   name: 'opencoder:latest',
@@ -21,7 +10,7 @@ const OPENCODER_LATEST = {
   },
   size: '4.7gb',
   context: 8_000,
-} as const satisfies ModelMeta<any>
+} as const satisfies DefaultOllamaModelMeta<any>
 
 const OPENCODER_1_5b = {
   name: 'opencoder:1.5b',
@@ -32,7 +21,7 @@ const OPENCODER_1_5b = {
   },
   size: '1.4gb',
   context: 4_000,
-} as const satisfies ModelMeta<any>
+} as const satisfies DefaultOllamaModelMeta<any>
 
 const OPENCODER_8b = {
   name: 'opencoder:8b',
@@ -43,7 +32,7 @@ const OPENCODER_8b = {
   },
   size: '4.7gb',
   context: 8_000,
-} as const satisfies ModelMeta<any>
+} as const satisfies DefaultOllamaModelMeta<any>
 
 export const OPENCODER_MODELS = [
   OPENCODER_LATEST.name,
@@ -51,13 +40,13 @@ export const OPENCODER_MODELS = [
   OPENCODER_8b.name,
 ] as const
 
-const OPENCODER_IMAGE_MODELS = [] as const
+// const OPENCODER_IMAGE_MODELS = [] as const
 
-export const OPENCODER_EMBEDDING_MODELS = [] as const
+// export const OPENCODER_EMBEDDING_MODELS = [] as const
 
-const OPENCODER_AUDIO_MODELS = [] as const
+// const OPENCODER_AUDIO_MODELS = [] as const
 
-const OPENCODER_VIDEO_MODELS = [] as const
+// const OPENCODER_VIDEO_MODELS = [] as const
 
 // export type OpencoderChatModels = (typeof OPENCODER_MODELS)[number]
 

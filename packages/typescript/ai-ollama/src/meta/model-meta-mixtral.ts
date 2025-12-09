@@ -1,16 +1,5 @@
 import type { ChatRequest } from 'ollama'
-
-interface ModelMeta<TProviderOptions = unknown> {
-  name: string
-  providerOptions?: TProviderOptions
-  supports?: {
-    input?: Array<'text' | 'image' | 'video'>
-    output?: Array<'text' | 'image' | 'video'>
-    capabilities?: Array<'tools' | 'thinking' | 'vision' | 'embedding'>
-  }
-  size?: string
-  context?: number
-}
+import type { DefaultOllamaModelMeta } from './models-meta'
 
 const MIXTRAL_LATEST = {
   name: 'mixtral:latest',
@@ -21,7 +10,7 @@ const MIXTRAL_LATEST = {
   },
   size: '26gb',
   context: 32_000,
-} as const satisfies ModelMeta<any>
+} as const satisfies DefaultOllamaModelMeta<any>
 
 const MIXTRAL_8X7b = {
   name: 'mixtral:8x7b',
@@ -32,7 +21,7 @@ const MIXTRAL_8X7b = {
   },
   size: '26gb',
   context: 32_000,
-} as const satisfies ModelMeta<any>
+} as const satisfies DefaultOllamaModelMeta<any>
 
 const MIXTRAL_8X22b = {
   name: 'mixtral:8x22b',
@@ -43,7 +32,7 @@ const MIXTRAL_8X22b = {
   },
   size: '80gb',
   context: 64_000,
-} as const satisfies ModelMeta<any>
+} as const satisfies DefaultOllamaModelMeta<any>
 
 export const MIXTRAL_MODELS = [
   MIXTRAL_LATEST.name,
@@ -51,13 +40,13 @@ export const MIXTRAL_MODELS = [
   MIXTRAL_8X22b.name,
 ] as const
 
-const MIXTRAL_IMAGE_MODELS = [] as const
+// const MIXTRAL_IMAGE_MODELS = [] as const
 
-export const MIXTRAL_EMBEDDING_MODELS = [] as const
+// export const MIXTRAL_EMBEDDING_MODELS = [] as const
 
-const MIXTRAL_AUDIO_MODELS = [] as const
+// const MIXTRAL_AUDIO_MODELS = [] as const
 
-const MIXTRAL_VIDEO_MODELS = [] as const
+// const MIXTRAL_VIDEO_MODELS = [] as const
 
 // export type MixtralChatModels = (typeof MIXTRAL_MODELS)[number]
 

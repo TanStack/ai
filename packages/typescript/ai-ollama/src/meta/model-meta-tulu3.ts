@@ -1,16 +1,5 @@
 import type { ChatRequest } from 'ollama'
-
-interface ModelMeta<TProviderOptions = unknown> {
-  name: string
-  providerOptions?: TProviderOptions
-  supports?: {
-    input?: Array<'text' | 'image' | 'video'>
-    output?: Array<'text' | 'image' | 'video'>
-    capabilities?: Array<'tools' | 'thinking' | 'vision' | 'embedding'>
-  }
-  size?: string
-  context?: number
-}
+import type { DefaultOllamaModelMeta } from './models-meta'
 
 const TULU3_LATEST = {
   name: 'tulu3:latest',
@@ -21,7 +10,7 @@ const TULU3_LATEST = {
   },
   size: '4.9gb',
   context: 128_000,
-} as const satisfies ModelMeta<any>
+} as const satisfies DefaultOllamaModelMeta<any>
 
 const TULU3_8b = {
   name: 'tulu3:8b',
@@ -32,7 +21,7 @@ const TULU3_8b = {
   },
   size: '4.9gb',
   context: 128_000,
-} as const satisfies ModelMeta<any>
+} as const satisfies DefaultOllamaModelMeta<any>
 
 const TULU3_70b = {
   name: 'tulu3:70b',
@@ -43,7 +32,7 @@ const TULU3_70b = {
   },
   size: '43gb',
   context: 128_000,
-} as const satisfies ModelMeta<any>
+} as const satisfies DefaultOllamaModelMeta<any>
 
 export const TULU3_MODELS = [
   TULU3_LATEST.name,
@@ -51,13 +40,13 @@ export const TULU3_MODELS = [
   TULU3_70b.name,
 ] as const
 
-const TULU3_IMAGE_MODELS = [] as const
+// const TULU3_IMAGE_MODELS = [] as const
 
-export const TULU3_EMBEDDING_MODELS = [] as const
+// export const TULU3_EMBEDDING_MODELS = [] as const
 
-const TULU3_AUDIO_MODELS = [] as const
+// const TULU3_AUDIO_MODELS = [] as const
 
-const TULU3_VIDEO_MODELS = [] as const
+// const TULU3_VIDEO_MODELS = [] as const
 
 // export type Tulu3ChatModels = (typeof TULU3_MODELS)[number]
 

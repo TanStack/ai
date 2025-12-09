@@ -99,13 +99,13 @@ export const DEEPSEEK_R1_MODELS = [
   DEEPSEEK_R1_671b.name,
 ] as const
 
-const DEEPSEEK_R1_IMAGE_MODELS = [] as const
+// const DEEPSEEK_R1_IMAGE_MODELS = [] as const
 
-export const DEEPSEEK_R1_EMBEDDING_MODELS = [] as const
+// export const DEEPSEEK_R1_EMBEDDING_MODELS = [] as const
 
-const DEEPSEEK_R1_AUDIO_MODELS = [] as const
+// const DEEPSEEK_R1_AUDIO_MODELS = [] as const
 
-const DEEPSEEK_R1_VIDEO_MODELS = [] as const
+// const DEEPSEEK_R1_VIDEO_MODELS = [] as const
 
 // export type DeepseekChatModels = (typeof DEEPSEEK_R1_MODELS)[number]
 

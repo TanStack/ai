@@ -1,16 +1,5 @@
 import type { ChatRequest } from 'ollama'
-
-interface ModelMeta<TProviderOptions = unknown> {
-  name: string
-  providerOptions?: TProviderOptions
-  supports?: {
-    input?: Array<'text' | 'image' | 'video'>
-    output?: Array<'text' | 'image' | 'video'>
-    capabilities?: Array<'tools' | 'thinking' | 'vision' | 'embedding'>
-  }
-  size?: string
-  context?: number
-}
+import type { DefaultOllamaModelMeta } from './models-meta'
 
 const MISTRAL_NEMO_LATEST = {
   name: 'mistral-nemo:latest',
@@ -21,7 +10,7 @@ const MISTRAL_NEMO_LATEST = {
   },
   size: '7.1gb',
   context: 1_000,
-} as const satisfies ModelMeta<any>
+} as const satisfies DefaultOllamaModelMeta<any>
 
 const MISTRAL_NEMO_12b = {
   name: 'mistral-nemo:12b',
@@ -32,20 +21,20 @@ const MISTRAL_NEMO_12b = {
   },
   size: '7.1gb',
   context: 1_000,
-} as const satisfies ModelMeta<any>
+} as const satisfies DefaultOllamaModelMeta<any>
 
 export const MISTRAL_NEMO_MODELS = [
   MISTRAL_NEMO_LATEST.name,
   MISTRAL_NEMO_12b.name,
 ] as const
 
-const MISTRAL_NEMO_IMAGE_MODELS = [] as const
+// const MISTRAL_NEMO_IMAGE_MODELS = [] as const
 
-export const MISTRAL_NEMO_EMBEDDING_MODELS = [] as const
+// export const MISTRAL_NEMO_EMBEDDING_MODELS = [] as const
 
-const MISTRAL_NEMO_AUDIO_MODELS = [] as const
+// const MISTRAL_NEMO_AUDIO_MODELS = [] as const
 
-const MISTRAL_NEMO_VIDEO_MODELS = [] as const
+// const MISTRAL_NEMO_VIDEO_MODELS = [] as const
 
 // export type MistralNemoChatModels = (typeof MISTRAL_NEMO_MODELS)[number]
 

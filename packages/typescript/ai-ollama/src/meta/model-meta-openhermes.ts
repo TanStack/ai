@@ -1,16 +1,5 @@
 import type { ChatRequest } from 'ollama'
-
-interface ModelMeta<TProviderOptions = unknown> {
-  name: string
-  providerOptions?: TProviderOptions
-  supports?: {
-    input?: Array<'text' | 'image' | 'video'>
-    output?: Array<'text' | 'image' | 'video'>
-    capabilities?: Array<'tools' | 'thinking' | 'vision' | 'embedding'>
-  }
-  size?: string
-  context?: number
-}
+import type { DefaultOllamaModelMeta } from './models-meta'
 
 const OPENHERMES_LATEST = {
   name: 'openhermes:latest',
@@ -21,7 +10,7 @@ const OPENHERMES_LATEST = {
   },
   size: '4.1gb',
   context: 32_000,
-} as const satisfies ModelMeta<any>
+} as const satisfies DefaultOllamaModelMeta<any>
 
 const OPENHERMES_V2 = {
   name: 'openhermes:v2',
@@ -32,7 +21,7 @@ const OPENHERMES_V2 = {
   },
   size: '4.1gb',
   context: 32_000,
-} as const satisfies ModelMeta<any>
+} as const satisfies DefaultOllamaModelMeta<any>
 
 const OPENHERMES_V2_5 = {
   name: 'openhermes:v2.5',
@@ -43,7 +32,7 @@ const OPENHERMES_V2_5 = {
   },
   size: '4.1gb',
   context: 32_000,
-} as const satisfies ModelMeta<any>
+} as const satisfies DefaultOllamaModelMeta<any>
 
 export const OPENHERMES_MODELS = [
   OPENHERMES_LATEST.name,
@@ -51,13 +40,13 @@ export const OPENHERMES_MODELS = [
   OPENHERMES_V2_5.name,
 ] as const
 
-const OPENHERMES_IMAGE_MODELS = [] as const
+// const OPENHERMES_IMAGE_MODELS = [] as const
 
-export const OPENHERMES_EMBEDDING_MODELS = [] as const
+// export const OPENHERMES_EMBEDDING_MODELS = [] as const
 
-const OPENHERMES_AUDIO_MODELS = [] as const
+// const OPENHERMES_AUDIO_MODELS = [] as const
 
-const OPENHERMES_VIDEO_MODELS = [] as const
+// const OPENHERMES_VIDEO_MODELS = [] as const
 
 // export type OpenhermesChatModels = (typeof OPENHERMES_MODELS)[number]
 

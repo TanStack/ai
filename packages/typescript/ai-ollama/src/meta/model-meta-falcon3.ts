@@ -1,16 +1,5 @@
 import type { ChatRequest } from 'ollama'
-
-interface ModelMeta<TProviderOptions = unknown> {
-  name: string
-  providerOptions?: TProviderOptions
-  supports?: {
-    input?: Array<'text' | 'image' | 'video'>
-    output?: Array<'text' | 'image' | 'video'>
-    capabilities?: Array<'tools' | 'thinking' | 'vision' | 'embedding'>
-  }
-  size?: string
-  context?: number
-}
+import type { DefaultOllamaModelMeta } from './models-meta'
 
 const FALCON3_LATEST = {
   name: 'falcon3:latest',
@@ -21,7 +10,7 @@ const FALCON3_LATEST = {
   },
   size: '4.6gb',
   context: 32_000,
-} as const satisfies ModelMeta<any>
+} as const satisfies DefaultOllamaModelMeta<any>
 
 const FALCON3_1b = {
   name: 'falcon3:1b',
@@ -32,7 +21,7 @@ const FALCON3_1b = {
   },
   size: '1.8gb',
   context: 8_000,
-} as const satisfies ModelMeta<any>
+} as const satisfies DefaultOllamaModelMeta<any>
 
 const FALCON3_3b = {
   name: 'falcon3:3b',
@@ -43,7 +32,7 @@ const FALCON3_3b = {
   },
   size: '2gb',
   context: 32_000,
-} as const satisfies ModelMeta<any>
+} as const satisfies DefaultOllamaModelMeta<any>
 
 const FALCON3_7b = {
   name: 'falcon3:7b',
@@ -54,7 +43,7 @@ const FALCON3_7b = {
   },
   size: '4.6gb',
   context: 32_000,
-} as const satisfies ModelMeta<any>
+} as const satisfies DefaultOllamaModelMeta<any>
 
 const FALCON3_10b = {
   name: 'falcon3:10b',
@@ -65,7 +54,7 @@ const FALCON3_10b = {
   },
   size: '6.3gb',
   context: 32_000,
-} as const satisfies ModelMeta<any>
+} as const satisfies DefaultOllamaModelMeta<any>
 
 export const FALCON3_MODELS = [
   FALCON3_LATEST.name,
@@ -75,13 +64,13 @@ export const FALCON3_MODELS = [
   FALCON3_10b.name,
 ] as const
 
-const FALCON3_IMAGE_MODELS = [] as const
+// const FALCON3_IMAGE_MODELS = [] as const
 
-export const FALCON3_EMBEDDING_MODELS = [] as const
+// export const FALCON3_EMBEDDING_MODELS = [] as const
 
-const FALCON3_AUDIO_MODELS = [] as const
+// const FALCON3_AUDIO_MODELS = [] as const
 
-const FALCON3_VIDEO_MODELS = [] as const
+// const FALCON3_VIDEO_MODELS = [] as const
 
 // export type Falcon3ChatModels = (typeof FALCON3_MODELS)[number]
 

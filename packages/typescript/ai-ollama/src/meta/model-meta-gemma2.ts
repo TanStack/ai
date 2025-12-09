@@ -1,16 +1,5 @@
 import type { ChatRequest } from 'ollama'
-
-interface ModelMeta<TProviderOptions = unknown> {
-  name: string
-  providerOptions?: TProviderOptions
-  supports?: {
-    input?: Array<'text' | 'image' | 'video'>
-    output?: Array<'text' | 'image' | 'video'>
-    capabilities?: Array<'tools' | 'thinking' | 'vision' | 'embedding'>
-  }
-  size?: string
-  context?: number
-}
+import type { DefaultOllamaModelMeta } from './models-meta'
 
 const GEMMA2_LATEST = {
   name: 'gemma2:latest',
@@ -21,7 +10,7 @@ const GEMMA2_LATEST = {
   },
   size: '5.4gb',
   context: 8_000,
-} as const satisfies ModelMeta<any>
+} as const satisfies DefaultOllamaModelMeta<any>
 
 const GEMMA2_2b = {
   name: 'gemma2:2b',
@@ -32,7 +21,7 @@ const GEMMA2_2b = {
   },
   size: '1.6gb',
   context: 8_000,
-} as const satisfies ModelMeta<any>
+} as const satisfies DefaultOllamaModelMeta<any>
 
 const GEMMA2_9b = {
   name: 'gemma2:9b',
@@ -43,7 +32,7 @@ const GEMMA2_9b = {
   },
   size: '5.4gb',
   context: 8_000,
-} as const satisfies ModelMeta<any>
+} as const satisfies DefaultOllamaModelMeta<any>
 
 const GEMMA2_27b = {
   name: 'gemma2:27b',
@@ -54,7 +43,7 @@ const GEMMA2_27b = {
   },
   size: '16gb',
   context: 8_000,
-} as const satisfies ModelMeta<any>
+} as const satisfies DefaultOllamaModelMeta<any>
 
 export const GEMMA2_MODELS = [
   GEMMA2_LATEST.name,
@@ -63,13 +52,13 @@ export const GEMMA2_MODELS = [
   GEMMA2_27b.name,
 ] as const
 
-const GEMMA2_IMAGE_MODELS = [] as const
+// const GEMMA2_IMAGE_MODELS = [] as const
 
-export const GEMMA2_EMBEDDING_MODELS = [] as const
+// export const GEMMA2_EMBEDDING_MODELS = [] as const
 
-const GEMMA2_AUDIO_MODELS = [] as const
+// const GEMMA2_AUDIO_MODELS = [] as const
 
-const GEMMA2_VIDEO_MODELS = [] as const
+// const GEMMA2_VIDEO_MODELS = [] as const
 
 // export type Gemma2ChatModels = (typeof GEMMA2_MODELS)[number]
 

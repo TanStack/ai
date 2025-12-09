@@ -1,16 +1,5 @@
 import type { ChatRequest } from 'ollama'
-
-interface ModelMeta<TProviderOptions = unknown> {
-  name: string
-  providerOptions?: TProviderOptions
-  supports?: {
-    input?: Array<'text' | 'image' | 'video'>
-    output?: Array<'text' | 'image' | 'video'>
-    capabilities?: Array<'tools' | 'thinking' | 'vision' | 'embedding'>
-  }
-  size?: string
-  context?: number
-}
+import type { DefaultOllamaModelMeta } from './models-meta'
 
 const NEMOTRON_MINI_LATEST = {
   name: 'nemotron-mini:latest',
@@ -21,7 +10,7 @@ const NEMOTRON_MINI_LATEST = {
   },
   size: '2.7gb',
   context: 4_000,
-} as const satisfies ModelMeta<any>
+} as const satisfies DefaultOllamaModelMeta<any>
 
 const NEMOTRON_MINI_4b = {
   name: 'nemotron-mini:4b',
@@ -32,20 +21,20 @@ const NEMOTRON_MINI_4b = {
   },
   size: '2.7gb',
   context: 4_000,
-} as const satisfies ModelMeta<any>
+} as const satisfies DefaultOllamaModelMeta<any>
 
 export const NEMOTRON_MINI_MODELS = [
   NEMOTRON_MINI_LATEST.name,
   NEMOTRON_MINI_4b.name,
 ] as const
 
-const NEMOTRON_MINI_IMAGE_MODELS = [] as const
+// const NEMOTRON_MINI_IMAGE_MODELS = [] as const
 
-export const NEMOTRON_MINI_EMBEDDING_MODELS = [] as const
+// export const NEMOTRON_MINI_EMBEDDING_MODELS = [] as const
 
-const NEMOTRON_MINI_AUDIO_MODELS = [] as const
+// const NEMOTRON_MINI_AUDIO_MODELS = [] as const
 
-const NEMOTRON_MINI_VIDEO_MODELS = [] as const
+// const NEMOTRON_MINI_VIDEO_MODELS = [] as const
 
 // export type NemotronMiniChatModels = (typeof NEMOTRON_MINI_MODELS)[number]
 

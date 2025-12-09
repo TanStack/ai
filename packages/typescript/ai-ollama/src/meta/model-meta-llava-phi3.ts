@@ -1,16 +1,5 @@
 import type { ChatRequest } from 'ollama'
-
-interface ModelMeta<TProviderOptions = unknown> {
-  name: string
-  providerOptions?: TProviderOptions
-  supports?: {
-    input?: Array<'text' | 'image' | 'video'>
-    output?: Array<'text' | 'image' | 'video'>
-    capabilities?: Array<'tools' | 'thinking' | 'vision' | 'embedding'>
-  }
-  size?: string
-  context?: number
-}
+import type { DefaultOllamaModelMeta } from './models-meta'
 
 const LLAVA_PHI3_LATEST = {
   name: 'llava-phi3:latest',
@@ -21,7 +10,7 @@ const LLAVA_PHI3_LATEST = {
   },
   size: '2.9b',
   context: 4_000,
-} as const satisfies ModelMeta<any>
+} as const satisfies DefaultOllamaModelMeta<any>
 
 const LLAVA_PHI3_8b = {
   name: 'llava-phi3:8b',
@@ -32,20 +21,20 @@ const LLAVA_PHI3_8b = {
   },
   size: '2.9gb',
   context: 4_000,
-} as const satisfies ModelMeta<any>
+} as const satisfies DefaultOllamaModelMeta<any>
 
 export const LLAVA_PHI3_MODELS = [
   LLAVA_PHI3_LATEST.name,
   LLAVA_PHI3_8b.name,
 ] as const
 
-const LLAVA_PHI3_IMAGE_MODELS = [] as const
+// const LLAVA_PHI3_IMAGE_MODELS = [] as const
 
-export const LLAVA_PHI3_EMBEDDING_MODELS = [] as const
+// export const LLAVA_PHI3_EMBEDDING_MODELS = [] as const
 
-const LLAVA_PHI3_AUDIO_MODELS = [] as const
+// const LLAVA_PHI3_AUDIO_MODELS = [] as const
 
-const LLAVA_PHI3_VIDEO_MODELS = [] as const
+// const LLAVA_PHI3_VIDEO_MODELS = [] as const
 
 // export type LlavaPhi3ChatModels = (typeof LLAVA_PHI3_MODELS)[number]
 

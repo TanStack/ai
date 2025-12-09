@@ -1,16 +1,5 @@
 import type { ChatRequest } from 'ollama'
-
-interface ModelMeta<TProviderOptions = unknown> {
-  name: string
-  providerOptions?: TProviderOptions
-  supports?: {
-    input?: Array<'text' | 'image' | 'video'>
-    output?: Array<'text' | 'image' | 'video'>
-    capabilities?: Array<'tools' | 'thinking' | 'vision' | 'embedding'>
-  }
-  size?: string
-  context?: number
-}
+import type { DefaultOllamaModelMeta } from './models-meta'
 
 const QWEN2_LATEST = {
   name: 'qwen2:latest',
@@ -21,7 +10,7 @@ const QWEN2_LATEST = {
   },
   size: '4.4gb',
   context: 32_000,
-} as const satisfies ModelMeta<any>
+} as const satisfies DefaultOllamaModelMeta<any>
 
 const QWEN2_0_5b = {
   name: 'qwen2:0.5b',
@@ -32,7 +21,7 @@ const QWEN2_0_5b = {
   },
   size: '352mb',
   context: 32_000,
-} as const satisfies ModelMeta<any>
+} as const satisfies DefaultOllamaModelMeta<any>
 
 const QWEN2_1_5b = {
   name: 'qwen2:1.5b',
@@ -43,7 +32,7 @@ const QWEN2_1_5b = {
   },
   size: '935mb',
   context: 32_000,
-} as const satisfies ModelMeta<any>
+} as const satisfies DefaultOllamaModelMeta<any>
 
 const QWEN2_7b = {
   name: 'qwen2:7b',
@@ -54,7 +43,7 @@ const QWEN2_7b = {
   },
   size: '4.4gb',
   context: 32_000,
-} as const satisfies ModelMeta<any>
+} as const satisfies DefaultOllamaModelMeta<any>
 
 const QWEN2_72b = {
   name: 'qwen2:72b',
@@ -65,7 +54,7 @@ const QWEN2_72b = {
   },
   size: '41gb',
   context: 32_000,
-} as const satisfies ModelMeta<any>
+} as const satisfies DefaultOllamaModelMeta<any>
 
 export const QWEN2_MODELS = [
   QWEN2_LATEST.name,
@@ -75,13 +64,13 @@ export const QWEN2_MODELS = [
   QWEN2_72b.name,
 ] as const
 
-const QWEN2_IMAGE_MODELS = [] as const
+// const QWEN2_IMAGE_MODELS = [] as const
 
-export const QWEN2_EMBEDDING_MODELS = [] as const
+// export const QWEN2_EMBEDDING_MODELS = [] as const
 
-const QWEN2_AUDIO_MODELS = [] as const
+// const QWEN2_AUDIO_MODELS = [] as const
 
-const QWEN2_VIDEO_MODELS = [] as const
+// const QWEN2_VIDEO_MODELS = [] as const
 
 // export type Qwen2ChatModels = (typeof QWEN2_MODELS)[number]
 

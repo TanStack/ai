@@ -52,13 +52,13 @@ export const DEEPSEEK_V3_1_MODELS = [
   DEEPSEEK_V3_1_671b_cloud.name,
 ] as const
 
-const DEEPSEEK_V3_1_IMAGE_MODELS = [] as const
+// export const DEEPSEEK_V3_1_IMAGE_MODELS = [] as const
 
-export const DEEPSEEK_V3_1_EMBEDDING_MODELS = [] as const
+// export const DEEPSEEK_V3_1_EMBEDDING_MODELS = [] as const
 
-const DEEPSEEK_V3_1_AUDIO_MODELS = [] as const
+// export const DEEPSEEK_V3_1_AUDIO_MODELS = [] as const
 
-const DEEPSEEK_V3_1_VIDEO_MODELS = [] as const
+// export const DEEPSEEK_V3_1_VIDEO_MODELS = [] as const
 
 // export type DeepseekV3_1ChatModels = (typeof DEEPSEEK_V3_1__MODELS)[number]
 

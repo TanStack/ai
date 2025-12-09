@@ -1,16 +1,5 @@
 import type { ChatRequest } from 'ollama'
-
-interface ModelMeta<TProviderOptions = unknown> {
-  name: string
-  providerOptions?: TProviderOptions
-  supports?: {
-    input?: Array<'text' | 'image' | 'video'>
-    output?: Array<'text' | 'image' | 'video'>
-    capabilities?: Array<'tools' | 'thinking' | 'vision' | 'embedding'>
-  }
-  size?: string
-  context?: number
-}
+import type { DefaultOllamaModelMeta } from './models-meta'
 
 const EXAONE3_5_LATEST = {
   name: 'exaone3.5:latest',
@@ -21,7 +10,7 @@ const EXAONE3_5_LATEST = {
   },
   size: '4.8gb',
   context: 32_000,
-} as const satisfies ModelMeta<any>
+} as const satisfies DefaultOllamaModelMeta<any>
 
 const EXAONE3_5_2_4b = {
   name: 'exaone3.5:2.4b',
@@ -32,7 +21,7 @@ const EXAONE3_5_2_4b = {
   },
   size: '1.6gb',
   context: 32_000,
-} as const satisfies ModelMeta<any>
+} as const satisfies DefaultOllamaModelMeta<any>
 
 const EXAONE3_5_7_1b = {
   name: 'exaone3.5:7.8b',
@@ -43,7 +32,7 @@ const EXAONE3_5_7_1b = {
   },
   size: '4.8gb',
   context: 32_000,
-} as const satisfies ModelMeta<any>
+} as const satisfies DefaultOllamaModelMeta<any>
 
 const EXAONE3_5_32b = {
   name: 'exaone3.5:32b',
@@ -54,7 +43,7 @@ const EXAONE3_5_32b = {
   },
   size: '19gb',
   context: 32_000,
-} as const satisfies ModelMeta<any>
+} as const satisfies DefaultOllamaModelMeta<any>
 
 export const EXAONE3_5MODELS = [
   EXAONE3_5_LATEST.name,
@@ -63,13 +52,13 @@ export const EXAONE3_5MODELS = [
   EXAONE3_5_32b.name,
 ] as const
 
-const EXAONE3_5IMAGE_MODELS = [] as const
+// const EXAONE3_5IMAGE_MODELS = [] as const
 
-export const EXAONE3_5EMBEDDING_MODELS = [] as const
+// export const EXAONE3_5EMBEDDING_MODELS = [] as const
 
-const EXAONE3_5AUDIO_MODELS = [] as const
+// const EXAONE3_5AUDIO_MODELS = [] as const
 
-const EXAONE3_5VIDEO_MODELS = [] as const
+// const EXAONE3_5VIDEO_MODELS = [] as const
 
 // export type AyaChatModels = (typeof EXAONE3_5MODELS)[number]
 

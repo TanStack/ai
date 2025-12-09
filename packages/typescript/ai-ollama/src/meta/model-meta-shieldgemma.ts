@@ -1,16 +1,5 @@
 import type { ChatRequest } from 'ollama'
-
-interface ModelMeta<TProviderOptions = unknown> {
-  name: string
-  providerOptions?: TProviderOptions
-  supports?: {
-    input?: Array<'text' | 'image' | 'video'>
-    output?: Array<'text' | 'image' | 'video'>
-    capabilities?: Array<'tools' | 'thinking' | 'vision' | 'embedding'>
-  }
-  size?: string
-  context?: number
-}
+import type { DefaultOllamaModelMeta } from './models-meta'
 
 const SHIELDGEMMA_LATEST = {
   name: 'shieldgemma:latest',
@@ -21,7 +10,7 @@ const SHIELDGEMMA_LATEST = {
   },
   size: '5.8gb',
   context: 8_000,
-} as const satisfies ModelMeta<any>
+} as const satisfies DefaultOllamaModelMeta<any>
 
 const SHIELDGEMMA_2b = {
   name: 'shieldgemma:2b',
@@ -32,7 +21,7 @@ const SHIELDGEMMA_2b = {
   },
   size: '1.7gb',
   context: 8_000,
-} as const satisfies ModelMeta<any>
+} as const satisfies DefaultOllamaModelMeta<any>
 
 const SHIELDGEMMA_9b = {
   name: 'shieldgemma:9b',
@@ -43,7 +32,7 @@ const SHIELDGEMMA_9b = {
   },
   size: '5.8gb',
   context: 8_000,
-} as const satisfies ModelMeta<any>
+} as const satisfies DefaultOllamaModelMeta<any>
 
 const SHIELDGEMMA_27b = {
   name: 'shieldgemma:27b',
@@ -54,7 +43,7 @@ const SHIELDGEMMA_27b = {
   },
   size: '17gb',
   context: 8_000,
-} as const satisfies ModelMeta<any>
+} as const satisfies DefaultOllamaModelMeta<any>
 
 export const SHIELDGEMMA_MODELS = [
   SHIELDGEMMA_LATEST.name,
@@ -63,13 +52,13 @@ export const SHIELDGEMMA_MODELS = [
   SHIELDGEMMA_27b.name,
 ] as const
 
-const SHIELDGEMMA_IMAGE_MODELS = [] as const
+// const SHIELDGEMMA_IMAGE_MODELS = [] as const
 
-export const SHIELDGEMMA_EMBEDDING_MODELS = [] as const
+// export const SHIELDGEMMA_EMBEDDING_MODELS = [] as const
 
-const SHIELDGEMMA_AUDIO_MODELS = [] as const
+// const SHIELDGEMMA_AUDIO_MODELS = [] as const
 
-const SHIELDGEMMA_VIDEO_MODELS = [] as const
+// const SHIELDGEMMA_VIDEO_MODELS = [] as const
 
 // export type ShieldgemmaChatModels = (typeof SHIELDGEMMA_MODELS)[number]
 

@@ -1,16 +1,5 @@
 import type { ChatRequest } from 'ollama'
-
-interface ModelMeta<TProviderOptions = unknown> {
-  name: string
-  providerOptions?: TProviderOptions
-  supports?: {
-    input?: Array<'text' | 'image' | 'video'>
-    output?: Array<'text' | 'image' | 'video'>
-    capabilities?: Array<'tools' | 'thinking' | 'vision' | 'embedding'>
-  }
-  size?: string
-  context?: number
-}
+import type { DefaultOllamaModelMeta } from './models-meta'
 
 const QWQ_LATEST = {
   name: 'qwq:latest',
@@ -21,7 +10,7 @@ const QWQ_LATEST = {
   },
   size: '20gb',
   context: 40_000,
-} as const satisfies ModelMeta<any>
+} as const satisfies DefaultOllamaModelMeta<any>
 
 const QWQ_32b = {
   name: 'qwq:32b',
@@ -32,17 +21,17 @@ const QWQ_32b = {
   },
   size: '20gb',
   context: 40_000,
-} as const satisfies ModelMeta<any>
+} as const satisfies DefaultOllamaModelMeta<any>
 
 export const QWQ_MODELS = [QWQ_LATEST.name, QWQ_32b.name] as const
 
-const QWQ_IMAGE_MODELS = [] as const
+// const QWQ_IMAGE_MODELS = [] as const
 
-export const QWQ_EMBEDDING_MODELS = [] as const
+// export const QWQ_EMBEDDING_MODELS = [] as const
 
-const QWQ_AUDIO_MODELS = [] as const
+// const QWQ_AUDIO_MODELS = [] as const
 
-const QWQ_VIDEO_MODELS = [] as const
+// const QWQ_VIDEO_MODELS = [] as const
 
 // export type QwqChatModels = (typeof QWQ_MODELS)[number]
 

@@ -39,13 +39,13 @@ export const DEVSTRAL_MODELS = [
   DEVSTRAL_24b.name,
 ] as const
 
-const DEVSTRAL_IMAGE_MODELS = [] as const
+// const DEVSTRAL_IMAGE_MODELS = [] as const
 
-export const DEVSTRAL_EMBEDDING_MODELS = [] as const
+// export const DEVSTRAL_EMBEDDING_MODELS = [] as const
 
-const DEVSTRAL_AUDIO_MODELS = [] as const
+// const DEVSTRAL_AUDIO_MODELS = [] as const
 
-const DEVSTRAL_VIDEO_MODELS = [] as const
+// const DEVSTRAL_VIDEO_MODELS = [] as const
 
 // export type DevstralChatModels = (typeof DEVSTRAL_MODELS)[number]
 

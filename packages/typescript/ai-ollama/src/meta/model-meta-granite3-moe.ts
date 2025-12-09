@@ -1,16 +1,5 @@
 import type { ChatRequest } from 'ollama'
-
-interface ModelMeta<TProviderOptions = unknown> {
-  name: string
-  providerOptions?: TProviderOptions
-  supports?: {
-    input?: Array<'text' | 'image' | 'video'>
-    output?: Array<'text' | 'image' | 'video'>
-    capabilities?: Array<'tools' | 'thinking' | 'vision' | 'embedding'>
-  }
-  size?: string
-  context?: number
-}
+import type { DefaultOllamaModelMeta } from './models-meta'
 
 const GRANITE3_MOE_LATEST = {
   name: 'granite3-moe:latest',
@@ -21,7 +10,7 @@ const GRANITE3_MOE_LATEST = {
   },
   size: '822mb',
   context: 4_000,
-} as const satisfies ModelMeta<any>
+} as const satisfies DefaultOllamaModelMeta<any>
 
 const GRANITE3_MOE_1b = {
   name: 'granite3-moe:2b',
@@ -32,7 +21,7 @@ const GRANITE3_MOE_1b = {
   },
   size: '822mb',
   context: 4_000,
-} as const satisfies ModelMeta<any>
+} as const satisfies DefaultOllamaModelMeta<any>
 
 const GRANITE3_MOE_3b = {
   name: 'granite3-moe:8b',
@@ -43,7 +32,7 @@ const GRANITE3_MOE_3b = {
   },
   size: '2.1gb',
   context: 4_000,
-} as const satisfies ModelMeta<any>
+} as const satisfies DefaultOllamaModelMeta<any>
 
 export const GRANITE3_MOE_MODELS = [
   GRANITE3_MOE_LATEST.name,
@@ -51,13 +40,13 @@ export const GRANITE3_MOE_MODELS = [
   GRANITE3_MOE_3b.name,
 ] as const
 
-const GRANITE3_MOE_IMAGE_MODELS = [] as const
+// const GRANITE3_MOE_IMAGE_MODELS = [] as const
 
-export const GRANITE3_MOE_EMBEDDING_MODELS = [] as const
+// export const GRANITE3_MOE_EMBEDDING_MODELS = [] as const
 
-const GRANITE3_MOE_AUDIO_MODELS = [] as const
+// const GRANITE3_MOE_AUDIO_MODELS = [] as const
 
-const GRANITE3_MOE_VIDEO_MODELS = [] as const
+// const GRANITE3_MOE_VIDEO_MODELS = [] as const
 
 // export type GraniteMoe3ChatModels = (typeof GRANITE3_MOE_MODELS)[number]
 

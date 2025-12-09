@@ -39,13 +39,13 @@ export const ATHENE_MODELS = [
   ATHENE_V2_72b.name,
 ] as const
 
-const ATHENE_IMAGE_MODELS = [] as const
+// const ATHENE_IMAGE_MODELS = [] as const
 
-export const ATHENE_EMBEDDING_MODELS = [] as const
+// export const ATHENE_EMBEDDING_MODELS = [] as const
 
-const ATHENE_AUDIO_MODELS = [] as const
+// const ATHENE_AUDIO_MODELS = [] as const
 
-const ATHENE_VIDEO_MODELS = [] as const
+// const ATHENE_VIDEO_MODELS = [] as const
 
 // export type AtheneChatModels = (typeof ATHENE_MODELS)[number]
 
