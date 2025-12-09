@@ -3,7 +3,7 @@
   "private": true,
   "repository": {
     "type": "git",
-    "url": "https://github.com/TanStack/ai.git"
+    "url": "git+https://github.com/TanStack/ai.git"
   },
   "packageManager": "pnpm@10.17.0",
   "type": "module",
