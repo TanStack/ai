@@ -73,7 +73,7 @@ import type { CommandRModelInputModalitiesByName } from './meta/model-meta-comma
 import type { CommandRPlusModelInputModalitiesByName } from './meta/model-meta-command-r-plus'
 import type { CommandR7bModelInputModalitiesByName } from './meta/model-meta-command-r7b'
 import type { DeepseekCoderV2ModelInputModalitiesByName } from './meta/model-meta-deepseek-coder-v2'
-import type { DeepseekOcrChatModelProviderOptionsByName } from './meta/model-meta-deepseek-ocr'
+import type { DeepseekOcrModelInputModalitiesByName } from './meta/model-meta-deepseek-ocr'
 import type { DeepseekR1ModelInputModalitiesByName } from './meta/model-meta-deepseek-r1'
 import type { Deepseekv3_1ModelInputModalitiesByName } from './meta/model-meta-deepseek-v3.1'
 import type { DevstralModelInputModalitiesByName } from './meta/model-meta-devstral'
@@ -207,7 +207,7 @@ export type OllamaModelInputModalitiesByName =
     CommandRModelInputModalitiesByName &
     CommandR7bModelInputModalitiesByName &
     DeepseekCoderV2ModelInputModalitiesByName &
-    DeepseekOcrChatModelProviderOptionsByName &
+    DeepseekOcrModelInputModalitiesByName &
     DeepseekR1ModelInputModalitiesByName &
     Deepseekv3_1ModelInputModalitiesByName &
     DevstralModelInputModalitiesByName &
