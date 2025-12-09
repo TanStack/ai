@@ -1,32 +1,21 @@
 /**
- * Bedrock model metadata and provider options
+ * Bedrock model metadata and provider options.
  *
- * ## Inference Profiles (Cross-Region Inference)
+ * Cross-region inference profiles are automatically resolved based on your AWS region.
+ * Just pass the base model ID and the adapter handles the rest.
  *
- * AWS Bedrock uses "inference profiles" to enable cross-region model invocation.
- * For newer Claude models (Claude 3.5 Sonnet v2, Claude 3.7 Sonnet, Claude 4 series),
- * **inference profiles are required** - direct model IDs will return an error.
- *
- * To use inference profiles, pass the full inference profile ID as the model:
- *
+ * @example
  * ```typescript
+ * // The adapter automatically resolves to 'us.anthropic.claude-sonnet-4-20250514-v1:0'
+ * // when your region is us-east-1
  * await bedrock.chat({
- *   model: 'us.anthropic.claude-sonnet-4-20250514-v1:0',
+ *   model: 'anthropic.claude-sonnet-4-20250514-v1:0',
  *   messages: [...]
  * });
  * ```
  *
- * ### Model ID Formats
- *
- * | Format | Example | Use Case |
- * |--------|---------|----------|
- * | Direct | `anthropic.claude-3-haiku-20240307-v1:0` | Legacy models in single region |
- * | US Profile | `us.anthropic.claude-3-5-sonnet-20241022-v2:0` | US cross-region |
- * | EU Profile | `eu.anthropic.claude-3-5-sonnet-20241022-v2:0` | EU cross-region (GDPR compliance) |
- * | APAC Profile | `apac.anthropic.claude-sonnet-4-20250514-v1:0` | Asia Pacific cross-region |
- *
- * @see https://docs.aws.amazon.com/bedrock/latest/userguide/models-supported.html
- * @see https://docs.aws.amazon.com/bedrock/latest/userguide/inference-profiles.html
+* @see https://docs.aws.amazon.com/bedrock/latest/userguide/models-supported.html
+* @see https://docs.aws.amazon.com/bedrock/latest/userguide/cross-region-inference.html
  */
 
 import type {
@@ -35,11 +24,8 @@ import type {
   BedrockProviderOptions,
   BedrockReasoningEffortOptions,
 } from './text/text-provider-options'
+import type { InferenceProfileConfig } from './bedrock-regions'
 
-/**
- * Model metadata structure aligned with AWS Bedrock Converse API supported features.
- * @see https://docs.aws.amazon.com/bedrock/latest/userguide/conversation-inference-supported-models-features.html
- */
 interface ModelMeta<TProviderOptions = unknown> {
   name: string
   id: string
@@ -58,6 +44,7 @@ interface ModelMeta<TProviderOptions = unknown> {
   contextWindow?: number
   maxOutputTokens?: number
   providerOptions?: TProviderOptions
+  inferenceProfile?: InferenceProfileConfig
 }
 
 const NOVA_LITE = {
@@ -65,6 +52,7 @@ const NOVA_LITE = {
   id: 'amazon.nova-lite-v1:0',
   contextWindow: 300_000,
   maxOutputTokens: 5_000,
+  inferenceProfile: { regions: ['us', 'eu', 'apac'] },
   supports: {
     converse: true,
     streaming: true,
@@ -83,6 +71,7 @@ const NOVA_MICRO = {
   id: 'amazon.nova-micro-v1:0',
   contextWindow: 128_000,
   maxOutputTokens: 5_000,
+  inferenceProfile: { regions: ['us', 'eu', 'apac'] },
   supports: {
     converse: true,
     streaming: true,
@@ -101,6 +90,7 @@ const NOVA_PRO = {
   id: 'amazon.nova-pro-v1:0',
   contextWindow: 300_000,
   maxOutputTokens: 5_000,
+  inferenceProfile: { regions: ['us', 'eu', 'apac'] },
   supports: {
     converse: true,
     streaming: true,
@@ -114,11 +104,12 @@ const NOVA_PRO = {
   },
 } as const satisfies ModelMeta<BedrockProviderOptions>
 
-const US_NOVA_PREMIER = {
+const NOVA_PREMIER = {
   name: 'Nova Premier',
-  id: 'us.amazon.nova-premier-v1:0',
+  id: 'amazon.nova-premier-v1:0',
   contextWindow: 1_000_000,
   maxOutputTokens: 32_000,
+  inferenceProfile: { regions: ['us'], required: true },
   supports: {
     converse: true,
     streaming: true,
@@ -133,11 +124,12 @@ const US_NOVA_PREMIER = {
   },
 } as const satisfies ModelMeta<BedrockProviderOptions & BedrockReasoningEffortOptions>
 
-const US_NOVA_2_LITE = {
+const NOVA_2_LITE = {
   name: 'Nova 2 Lite',
-  id: 'us.amazon.nova-2-lite-v1:0',
+  id: 'amazon.nova-2-lite-v1:0',
   contextWindow: 1_000_000,
   maxOutputTokens: 32_000,
+  inferenceProfile: { regions: ['us', 'global'], required: true },
   supports: {
     converse: true,
     streaming: true,
@@ -152,10 +144,11 @@ const US_NOVA_2_LITE = {
   },
 } as const satisfies ModelMeta<BedrockProviderOptions & BedrockReasoningEffortOptions>
 
-const US_NOVA_2_SONIC = {
+const NOVA_2_SONIC = {
   name: 'Nova 2 Sonic',
-  id: 'us.amazon.nova-2-sonic-v1:0',
+  id: 'amazon.nova-2-sonic-v1:0',
   contextWindow: 1_000_000,
+  inferenceProfile: { regions: ['us'], required: true },
   supports: {
     converse: true,
     streaming: true,
@@ -174,6 +167,7 @@ const CLAUDE_3_HAIKU = {
   id: 'anthropic.claude-3-haiku-20240307-v1:0',
   contextWindow: 200_000,
   maxOutputTokens: 4_096,
+  inferenceProfile: { regions: ['us', 'eu', 'apac'] },
   supports: {
     converse: true,
     streaming: true,
@@ -192,6 +186,7 @@ const CLAUDE_3_SONNET = {
   id: 'anthropic.claude-3-sonnet-20240229-v1:0',
   contextWindow: 200_000,
   maxOutputTokens: 4_096,
+  inferenceProfile: { regions: ['us', 'eu', 'apac'] },
   supports: {
     converse: true,
     streaming: true,
@@ -210,6 +205,7 @@ const CLAUDE_3_OPUS = {
   id: 'anthropic.claude-3-opus-20240229-v1:0',
   contextWindow: 200_000,
   maxOutputTokens: 4_096,
+  inferenceProfile: { regions: ['us'] },
   supports: {
     converse: true,
     streaming: true,
@@ -228,6 +224,7 @@ const CLAUDE_3_5_HAIKU = {
   id: 'anthropic.claude-3-5-haiku-20241022-v1:0',
   contextWindow: 200_000,
   maxOutputTokens: 8_192,
+  inferenceProfile: { regions: ['us', 'eu', 'apac'] },
   supports: {
     converse: true,
     streaming: true,
@@ -246,6 +243,7 @@ const CLAUDE_3_5_SONNET = {
   id: 'anthropic.claude-3-5-sonnet-20240620-v1:0',
   contextWindow: 200_000,
   maxOutputTokens: 8_192,
+  inferenceProfile: { regions: ['us', 'eu', 'apac'] },
   supports: {
     converse: true,
     streaming: true,
@@ -264,6 +262,7 @@ const CLAUDE_3_5_SONNET_V2 = {
   id: 'anthropic.claude-3-5-sonnet-20241022-v2:0',
   contextWindow: 200_000,
   maxOutputTokens: 8_192,
+  inferenceProfile: { regions: ['us', 'eu', 'apac'], required: true },
   supports: {
     converse: true,
     streaming: true,
@@ -282,6 +281,7 @@ const CLAUDE_3_7_SONNET = {
   id: 'anthropic.claude-3-7-sonnet-20250219-v1:0',
   contextWindow: 200_000,
   maxOutputTokens: 64_000,
+  inferenceProfile: { regions: ['us', 'eu', 'apac'], required: true },
   supports: {
     converse: true,
     streaming: true,
@@ -303,6 +303,7 @@ const CLAUDE_HAIKU_4_5 = {
   id: 'anthropic.claude-haiku-4-5-20251001-v1:0',
   contextWindow: 200_000,
   maxOutputTokens: 64_000,
+  inferenceProfile: { regions: ['us', 'eu', 'apac', 'global'], required: true },
   supports: {
     converse: true,
     streaming: true,
@@ -324,6 +325,7 @@ const CLAUDE_SONNET_4 = {
   id: 'anthropic.claude-sonnet-4-20250514-v1:0',
   contextWindow: 200_000,
   maxOutputTokens: 64_000,
+  inferenceProfile: { regions: ['us', 'eu', 'apac', 'global'], required: true },
   supports: {
     converse: true,
     streaming: true,
@@ -345,6 +347,7 @@ const CLAUDE_SONNET_4_5 = {
   id: 'anthropic.claude-sonnet-4-5-20250929-v1:0',
   contextWindow: 200_000,
   maxOutputTokens: 64_000,
+  inferenceProfile: { regions: ['us', 'eu', 'apac', 'global'], required: true },
   supports: {
     converse: true,
     streaming: true,
@@ -366,6 +369,7 @@ const CLAUDE_OPUS_4 = {
   id: 'anthropic.claude-opus-4-20250514-v1:0',
   contextWindow: 200_000,
   maxOutputTokens: 32_000,
+  inferenceProfile: { regions: ['us', 'eu', 'apac'], required: true },
   supports: {
     converse: true,
     streaming: true,
@@ -387,6 +391,29 @@ const CLAUDE_OPUS_4_1 = {
   id: 'anthropic.claude-opus-4-1-20250805-v1:0',
   contextWindow: 200_000,
   maxOutputTokens: 64_000,
+  inferenceProfile: { regions: ['us', 'eu', 'apac'], required: true },
+  supports: {
+    converse: true,
+    streaming: true,
+    systemPrompts: true,
+    documentChat: true,
+    vision: true,
+    toolUse: true,
+    streamingToolUse: true,
+    guardrails: false,
+    s3Links: false,
+    reasoning: true,
+  },
+} as const satisfies ModelMeta<
+  BedrockProviderOptions & BedrockAnthropicOptions & BedrockAnthropicReasoningOptions
+>
+
+const CLAUDE_OPUS_4_5 = {
+  name: 'Claude Opus 4.5',
+  id: 'anthropic.claude-opus-4-5-20251101-v1:0',
+  contextWindow: 200_000,
+  maxOutputTokens: 64_000,
+  inferenceProfile: { regions: ['us', 'eu', 'global'], required: true },
   supports: {
     converse: true,
     streaming: true,
@@ -444,6 +471,7 @@ const LLAMA_3_1_8B = {
   id: 'meta.llama3-1-8b-instruct-v1:0',
   contextWindow: 128_000,
   maxOutputTokens: 2_048,
+  inferenceProfile: { regions: ['us', 'eu'] },
   supports: {
     converse: true,
     streaming: true,
@@ -462,6 +490,7 @@ const LLAMA_3_1_70B = {
   id: 'meta.llama3-1-70b-instruct-v1:0',
   contextWindow: 128_000,
   maxOutputTokens: 2_048,
+  inferenceProfile: { regions: ['us', 'eu'] },
   supports: {
     converse: true,
     streaming: true,
@@ -480,6 +509,7 @@ const LLAMA_3_1_405B = {
   id: 'meta.llama3-1-405b-instruct-v1:0',
   contextWindow: 128_000,
   maxOutputTokens: 2_048,
+  inferenceProfile: { regions: ['us'] },
   supports: {
     converse: true,
     streaming: true,
@@ -498,6 +528,7 @@ const LLAMA_3_2_1B = {
   id: 'meta.llama3-2-1b-instruct-v1:0',
   contextWindow: 128_000,
   maxOutputTokens: 2_048,
+  inferenceProfile: { regions: ['us'] },
   supports: {
     converse: true,
     streaming: true,
@@ -516,6 +547,7 @@ const LLAMA_3_2_3B = {
   id: 'meta.llama3-2-3b-instruct-v1:0',
   contextWindow: 128_000,
   maxOutputTokens: 2_048,
+  inferenceProfile: { regions: ['us'] },
   supports: {
     converse: true,
     streaming: true,
@@ -534,6 +566,7 @@ const LLAMA_3_2_11B = {
   id: 'meta.llama3-2-11b-instruct-v1:0',
   contextWindow: 128_000,
   maxOutputTokens: 2_048,
+  inferenceProfile: { regions: ['us'] },
   supports: {
     converse: true,
     streaming: true,
@@ -552,6 +585,7 @@ const LLAMA_3_2_90B = {
   id: 'meta.llama3-2-90b-instruct-v1:0',
   contextWindow: 128_000,
   maxOutputTokens: 2_048,
+  inferenceProfile: { regions: ['us'] },
   supports: {
     converse: true,
     streaming: true,
@@ -570,6 +604,7 @@ const LLAMA_3_3_70B = {
   id: 'meta.llama3-3-70b-instruct-v1:0',
   contextWindow: 128_000,
   maxOutputTokens: 2_048,
+  inferenceProfile: { regions: ['us'] },
   supports: {
     converse: true,
     streaming: true,
@@ -586,8 +621,9 @@ const LLAMA_3_3_70B = {
 const LLAMA_4_SCOUT = {
   name: 'Llama 4 Scout 17B Instruct',
   id: 'meta.llama4-scout-17b-instruct-v1:0',
-  contextWindow: 3_500_000,
+  contextWindow: 10_000_000,
   maxOutputTokens: 16_384,
+  inferenceProfile: { regions: ['us'] },
   supports: {
     converse: true,
     streaming: true,
@@ -606,6 +642,7 @@ const LLAMA_4_MAVERICK = {
   id: 'meta.llama4-maverick-17b-instruct-v1:0',
   contextWindow: 1_000_000,
   maxOutputTokens: 16_384,
+  inferenceProfile: { regions: ['us'] },
   supports: {
     converse: true,
     streaming: true,
@@ -709,11 +746,12 @@ const MISTRAL_SMALL_2402 = {
   },
 } as const satisfies ModelMeta<BedrockProviderOptions>
 
-const US_PIXTRAL_LARGE = {
+const PIXTRAL_LARGE = {
   name: 'Pixtral Large (25.02)',
-  id: 'us.mistral.pixtral-large-2502-v1:0',
+  id: 'mistral.pixtral-large-2502-v1:0',
   contextWindow: 128_000,
   maxOutputTokens: 8_192,
+  inferenceProfile: { regions: ['us', 'eu'], required: true },
   supports: {
     converse: true,
     streaming: true,
@@ -754,8 +792,8 @@ const MINISTRAL_3_3B = {
     converse: true,
     streaming: true,
     systemPrompts: true,
-    documentChat: true,
-    vision: true,
+    documentChat: false,
+    vision: false,
     toolUse: false,
     streamingToolUse: false,
     guardrails: true,
@@ -772,8 +810,8 @@ const MINISTRAL_3_8B = {
     converse: true,
     streaming: true,
     systemPrompts: true,
-    documentChat: true,
-    vision: true,
+    documentChat: false,
+    vision: false,
     toolUse: false,
     streamingToolUse: false,
     guardrails: true,
@@ -790,8 +828,8 @@ const MINISTRAL_3_14B = {
     converse: true,
     streaming: true,
     systemPrompts: true,
-    documentChat: true,
-    vision: true,
+    documentChat: false,
+    vision: false,
     toolUse: false,
     streamingToolUse: false,
     guardrails: true,
@@ -983,6 +1021,7 @@ const DEEPSEEK_R1 = {
   id: 'deepseek.r1-v1:0',
   contextWindow: 64_000,
   maxOutputTokens: 8_192,
+  inferenceProfile: { regions: ['us'], required: true },
   supports: {
     converse: true,
     streaming: true,
@@ -1028,7 +1067,7 @@ const AI21_JAMBA_LARGE = {
     vision: false,
     toolUse: true,
     streamingToolUse: true,
-    guardrails: true,
+    guardrails: false,
     s3Links: false,
   },
 } as const satisfies ModelMeta<BedrockProviderOptions>
@@ -1046,7 +1085,7 @@ const AI21_JAMBA_MINI = {
     vision: false,
     toolUse: true,
     streamingToolUse: true,
-    guardrails: true,
+    guardrails: false,
     s3Links: false,
   },
 } as const satisfies ModelMeta<BedrockProviderOptions>
@@ -1087,10 +1126,14 @@ const WRITER_PALMYRA_X5 = {
   },
 } as const satisfies ModelMeta<BedrockProviderOptions>
 
+// =============================================================================
+// Other Models
+// =============================================================================
+
 const GEMMA_3_4B = {
-  name: 'Gemma 3 4B IT',
+  name: 'Gemma 3 4B',
   id: 'google.gemma-3-4b-it',
-  contextWindow: 32_768,
+  contextWindow: 128_000,
   maxOutputTokens: 8_192,
   supports: {
     converse: true,
@@ -1106,9 +1149,9 @@ const GEMMA_3_4B = {
 } as const satisfies ModelMeta<BedrockProviderOptions>
 
 const GEMMA_3_12B = {
-  name: 'Gemma 3 12B IT',
+  name: 'Gemma 3 12B',
   id: 'google.gemma-3-12b-it',
-  contextWindow: 32_768,
+  contextWindow: 128_000,
   maxOutputTokens: 8_192,
   supports: {
     converse: true,
@@ -1124,9 +1167,9 @@ const GEMMA_3_12B = {
 } as const satisfies ModelMeta<BedrockProviderOptions>
 
 const GEMMA_3_27B = {
-  name: 'Gemma 3 27B IT',
+  name: 'Gemma 3 27B',
   id: 'google.gemma-3-27b-it',
-  contextWindow: 32_768,
+  contextWindow: 128_000,
   maxOutputTokens: 8_192,
   supports: {
     converse: true,
@@ -1144,7 +1187,7 @@ const GEMMA_3_27B = {
 const NVIDIA_NEMOTRON_9B = {
   name: 'NVIDIA Nemotron Nano 9B v2',
   id: 'nvidia.nemotron-nano-9b-v2',
-  contextWindow: 32_768,
+  contextWindow: 128_000,
   maxOutputTokens: 8_192,
   supports: {
     converse: true,
@@ -1152,7 +1195,7 @@ const NVIDIA_NEMOTRON_9B = {
     systemPrompts: true,
     documentChat: false,
     vision: false,
-    toolUse: true,
+    toolUse: false,
     streamingToolUse: false,
     guardrails: true,
     s3Links: false,
@@ -1163,7 +1206,7 @@ const NVIDIA_NEMOTRON_9B = {
 const NVIDIA_NEMOTRON_12B_VL = {
   name: 'NVIDIA Nemotron Nano 12B v2 VL',
   id: 'nvidia.nemotron-nano-12b-v2',
-  contextWindow: 32_768,
+  contextWindow: 128_000,
   maxOutputTokens: 8_192,
   supports: {
     converse: true,
@@ -1189,7 +1232,7 @@ const MINIMAX_M2 = {
     systemPrompts: true,
     documentChat: false,
     vision: false,
-    toolUse: true,
+    toolUse: false,
     streamingToolUse: false,
     guardrails: true,
     s3Links: false,
@@ -1197,7 +1240,7 @@ const MINIMAX_M2 = {
 } as const satisfies ModelMeta<BedrockProviderOptions>
 
 const MOONSHOT_KIMI_K2 = {
-  name: 'Kimi K2 Thinking',
+  name: 'Moonshot Kimi K2 Thinking',
   id: 'moonshot.kimi-k2-thinking',
   contextWindow: 128_000,
   maxOutputTokens: 8_192,
@@ -1205,9 +1248,9 @@ const MOONSHOT_KIMI_K2 = {
     converse: true,
     streaming: true,
     systemPrompts: true,
-    documentChat: false,
+    documentChat: true,
     vision: false,
-    toolUse: true,
+    toolUse: false,
     streamingToolUse: false,
     guardrails: true,
     s3Links: false,
@@ -1289,8 +1332,9 @@ const QWEN_3_VL_235B = {
 
 const TWELVELABS_PEGASUS = {
   name: 'Pegasus v1.2',
-  id: 'twelvelabs.pegasus-v1.2:0',
+  id: 'twelvelabs.pegasus-1-2-v1:0',
   contextWindow: 128_000,
+  inferenceProfile: { regions: ['us', 'eu', 'apac', 'global'] },
   supports: {
     converse: true,
     streaming: true,
@@ -1425,6 +1469,7 @@ const COHERE_EMBED_V4 = {
   name: 'Cohere Embed v4',
   id: 'cohere.embed-v4:0',
   contextWindow: 128_000,
+  inferenceProfile: { regions: ['us', 'eu', 'global'] },
   supports: {
     converse: false,
     streaming: false,
@@ -1458,9 +1503,9 @@ export const BEDROCK_MODELS = [
   NOVA_LITE.id,
   NOVA_MICRO.id,
   NOVA_PRO.id,
-  US_NOVA_PREMIER.id,
-  US_NOVA_2_LITE.id,
-  US_NOVA_2_SONIC.id,
+  NOVA_PREMIER.id,
+  NOVA_2_LITE.id,
+  NOVA_2_SONIC.id,
   CLAUDE_3_HAIKU.id,
   CLAUDE_3_SONNET.id,
   CLAUDE_3_OPUS.id,
@@ -1473,6 +1518,7 @@ export const BEDROCK_MODELS = [
   CLAUDE_SONNET_4_5.id,
   CLAUDE_OPUS_4.id,
   CLAUDE_OPUS_4_1.id,
+  CLAUDE_OPUS_4_5.id,
   LLAMA_3_8B.id,
   LLAMA_3_70B.id,
   LLAMA_3_1_8B.id,
@@ -1490,7 +1536,7 @@ export const BEDROCK_MODELS = [
   MISTRAL_LARGE_2402.id,
   MISTRAL_LARGE_2407.id,
   MISTRAL_SMALL_2402.id,
-  US_PIXTRAL_LARGE.id,
+  PIXTRAL_LARGE.id,
   TITAN_TEXT_LARGE.id,
   TITAN_TEXT_EXPRESS.id,
   TITAN_TEXT_LITE.id,
@@ -1537,17 +1583,99 @@ export const BEDROCK_EMBEDDING_MODELS = [
   TWELVELABS_MARENGO_EMBED.id,
 ] as const
 
-/**
- * Type-only map from Bedrock model name to its provider-specific options.
- * Options vary by model capabilities (reasoning, Anthropic-specific features).
- */
+export const BEDROCK_MODEL_META: Record<string, ModelMeta<any>> = {
+  [NOVA_LITE.id]: NOVA_LITE,
+  [NOVA_MICRO.id]: NOVA_MICRO,
+  [NOVA_PRO.id]: NOVA_PRO,
+  [NOVA_PREMIER.id]: NOVA_PREMIER,
+  [NOVA_2_LITE.id]: NOVA_2_LITE,
+  [NOVA_2_SONIC.id]: NOVA_2_SONIC,
+  [CLAUDE_3_HAIKU.id]: CLAUDE_3_HAIKU,
+  [CLAUDE_3_SONNET.id]: CLAUDE_3_SONNET,
+  [CLAUDE_3_OPUS.id]: CLAUDE_3_OPUS,
+  [CLAUDE_3_5_HAIKU.id]: CLAUDE_3_5_HAIKU,
+  [CLAUDE_3_5_SONNET.id]: CLAUDE_3_5_SONNET,
+  [CLAUDE_3_5_SONNET_V2.id]: CLAUDE_3_5_SONNET_V2,
+  [CLAUDE_3_7_SONNET.id]: CLAUDE_3_7_SONNET,
+  [CLAUDE_HAIKU_4_5.id]: CLAUDE_HAIKU_4_5,
+  [CLAUDE_SONNET_4.id]: CLAUDE_SONNET_4,
+  [CLAUDE_SONNET_4_5.id]: CLAUDE_SONNET_4_5,
+  [CLAUDE_OPUS_4.id]: CLAUDE_OPUS_4,
+  [CLAUDE_OPUS_4_1.id]: CLAUDE_OPUS_4_1,
+  [CLAUDE_OPUS_4_5.id]: CLAUDE_OPUS_4_5,
+  [LLAMA_3_8B.id]: LLAMA_3_8B,
+  [LLAMA_3_70B.id]: LLAMA_3_70B,
+  [LLAMA_3_1_8B.id]: LLAMA_3_1_8B,
+  [LLAMA_3_1_70B.id]: LLAMA_3_1_70B,
+  [LLAMA_3_1_405B.id]: LLAMA_3_1_405B,
+  [LLAMA_3_2_1B.id]: LLAMA_3_2_1B,
+  [LLAMA_3_2_3B.id]: LLAMA_3_2_3B,
+  [LLAMA_3_2_11B.id]: LLAMA_3_2_11B,
+  [LLAMA_3_2_90B.id]: LLAMA_3_2_90B,
+  [LLAMA_3_3_70B.id]: LLAMA_3_3_70B,
+  [LLAMA_4_SCOUT.id]: LLAMA_4_SCOUT,
+  [LLAMA_4_MAVERICK.id]: LLAMA_4_MAVERICK,
+  [MISTRAL_7B.id]: MISTRAL_7B,
+  [MIXTRAL_8X7B.id]: MIXTRAL_8X7B,
+  [MISTRAL_LARGE_2402.id]: MISTRAL_LARGE_2402,
+  [MISTRAL_LARGE_2407.id]: MISTRAL_LARGE_2407,
+  [MISTRAL_SMALL_2402.id]: MISTRAL_SMALL_2402,
+  [PIXTRAL_LARGE.id]: PIXTRAL_LARGE,
+  [TITAN_TEXT_LARGE.id]: TITAN_TEXT_LARGE,
+  [TITAN_TEXT_EXPRESS.id]: TITAN_TEXT_EXPRESS,
+  [TITAN_TEXT_LITE.id]: TITAN_TEXT_LITE,
+  [COHERE_COMMAND_TEXT.id]: COHERE_COMMAND_TEXT,
+  [COHERE_COMMAND_LIGHT.id]: COHERE_COMMAND_LIGHT,
+  [COHERE_COMMAND_R.id]: COHERE_COMMAND_R,
+  [COHERE_COMMAND_R_PLUS.id]: COHERE_COMMAND_R_PLUS,
+  [DEEPSEEK_R1.id]: DEEPSEEK_R1,
+  [DEEPSEEK_V3.id]: DEEPSEEK_V3,
+  [AI21_JAMBA_LARGE.id]: AI21_JAMBA_LARGE,
+  [AI21_JAMBA_MINI.id]: AI21_JAMBA_MINI,
+  [WRITER_PALMYRA_X4.id]: WRITER_PALMYRA_X4,
+  [WRITER_PALMYRA_X5.id]: WRITER_PALMYRA_X5,
+  [TWELVELABS_PEGASUS.id]: TWELVELABS_PEGASUS,
+  [LUMA_RAY_V2.id]: LUMA_RAY_V2,
+  [MISTRAL_LARGE_3.id]: MISTRAL_LARGE_3,
+  [MINISTRAL_3_3B.id]: MINISTRAL_3_3B,
+  [MINISTRAL_3_8B.id]: MINISTRAL_3_8B,
+  [MINISTRAL_3_14B.id]: MINISTRAL_3_14B,
+  [MAGISTRAL_SMALL.id]: MAGISTRAL_SMALL,
+  [VOXTRAL_MINI.id]: VOXTRAL_MINI,
+  [VOXTRAL_SMALL.id]: VOXTRAL_SMALL,
+  [GEMMA_3_4B.id]: GEMMA_3_4B,
+  [GEMMA_3_12B.id]: GEMMA_3_12B,
+  [GEMMA_3_27B.id]: GEMMA_3_27B,
+  [NVIDIA_NEMOTRON_9B.id]: NVIDIA_NEMOTRON_9B,
+  [NVIDIA_NEMOTRON_12B_VL.id]: NVIDIA_NEMOTRON_12B_VL,
+  [MINIMAX_M2.id]: MINIMAX_M2,
+  [MOONSHOT_KIMI_K2.id]: MOONSHOT_KIMI_K2,
+  [OPENAI_SAFEGUARD_20B.id]: OPENAI_SAFEGUARD_20B,
+  [OPENAI_SAFEGUARD_120B.id]: OPENAI_SAFEGUARD_120B,
+  [QWEN_3_NEXT_80B.id]: QWEN_3_NEXT_80B,
+  [QWEN_3_VL_235B.id]: QWEN_3_VL_235B,
+  [TITAN_EMBED_TEXT_V1.id]: TITAN_EMBED_TEXT_V1,
+  [TITAN_EMBED_TEXT_V2.id]: TITAN_EMBED_TEXT_V2,
+  [TITAN_EMBED_IMAGE.id]: TITAN_EMBED_IMAGE,
+  [NOVA_MULTIMODAL_EMBED.id]: NOVA_MULTIMODAL_EMBED,
+  [COHERE_EMBED_ENGLISH.id]: COHERE_EMBED_ENGLISH,
+  [COHERE_EMBED_MULTILINGUAL.id]: COHERE_EMBED_MULTILINGUAL,
+  [COHERE_EMBED_V4.id]: COHERE_EMBED_V4,
+  [TWELVELABS_MARENGO_EMBED.id]: TWELVELABS_MARENGO_EMBED,
+}
+
+type TextOnly = readonly ['text']
+type TextImage = readonly ['text', 'image']
+type TextImageDocument = readonly ['text', 'image', 'document']
+type TextDocument = readonly ['text', 'document']
+
 export type BedrockChatModelProviderOptionsByName = {
   [NOVA_LITE.id]: BedrockProviderOptions
   [NOVA_MICRO.id]: BedrockProviderOptions
   [NOVA_PRO.id]: BedrockProviderOptions
-  [US_NOVA_PREMIER.id]: BedrockProviderOptions & BedrockReasoningEffortOptions
-  [US_NOVA_2_LITE.id]: BedrockProviderOptions & BedrockReasoningEffortOptions
-  [US_NOVA_2_SONIC.id]: BedrockProviderOptions
+  [NOVA_PREMIER.id]: BedrockProviderOptions & BedrockReasoningEffortOptions
+  [NOVA_2_LITE.id]: BedrockProviderOptions & BedrockReasoningEffortOptions
+  [NOVA_2_SONIC.id]: BedrockProviderOptions
   [CLAUDE_3_HAIKU.id]: BedrockProviderOptions & BedrockAnthropicOptions
   [CLAUDE_3_SONNET.id]: BedrockProviderOptions & BedrockAnthropicOptions
   [CLAUDE_3_OPUS.id]: BedrockProviderOptions & BedrockAnthropicOptions
@@ -1572,6 +1700,9 @@ export type BedrockChatModelProviderOptionsByName = {
   [CLAUDE_OPUS_4_1.id]: BedrockProviderOptions &
     BedrockAnthropicOptions &
     BedrockAnthropicReasoningOptions
+  [CLAUDE_OPUS_4_5.id]: BedrockProviderOptions &
+    BedrockAnthropicOptions &
+    BedrockAnthropicReasoningOptions
   [LLAMA_3_8B.id]: BedrockProviderOptions
   [LLAMA_3_70B.id]: BedrockProviderOptions
   [LLAMA_3_1_8B.id]: BedrockProviderOptions
@@ -1589,7 +1720,7 @@ export type BedrockChatModelProviderOptionsByName = {
   [MISTRAL_LARGE_2402.id]: BedrockProviderOptions
   [MISTRAL_LARGE_2407.id]: BedrockProviderOptions
   [MISTRAL_SMALL_2402.id]: BedrockProviderOptions
-  [US_PIXTRAL_LARGE.id]: BedrockProviderOptions
+  [PIXTRAL_LARGE.id]: BedrockProviderOptions
   [TITAN_TEXT_LARGE.id]: BedrockProviderOptions
   [TITAN_TEXT_EXPRESS.id]: BedrockProviderOptions
   [TITAN_TEXT_LITE.id]: BedrockProviderOptions
@@ -1625,24 +1756,13 @@ export type BedrockChatModelProviderOptionsByName = {
   [QWEN_3_VL_235B.id]: BedrockProviderOptions
 }
 
-type TextOnly = readonly ['text']
-type TextImage = readonly ['text', 'image']
-type TextImageDocument = readonly ['text', 'image', 'document']
-type TextDocument = readonly ['text', 'document']
-
-/**
- * Type-only map from Bedrock model name to its supported input modalities.
- * Derived from the supports.vision and supports.documentChat flags.
- *
- * @see https://docs.aws.amazon.com/bedrock/latest/userguide/models-supported.html
- */
 export type BedrockModelInputModalitiesByName = {
   [NOVA_LITE.id]: TextImageDocument
   [NOVA_MICRO.id]: TextOnly
   [NOVA_PRO.id]: TextImageDocument
-  [US_NOVA_PREMIER.id]: TextImageDocument
-  [US_NOVA_2_LITE.id]: TextImageDocument
-  [US_NOVA_2_SONIC.id]: TextOnly
+  [NOVA_PREMIER.id]: TextImageDocument
+  [NOVA_2_LITE.id]: TextImageDocument
+  [NOVA_2_SONIC.id]: TextOnly
   [CLAUDE_3_HAIKU.id]: TextImageDocument
   [CLAUDE_3_SONNET.id]: TextImageDocument
   [CLAUDE_3_OPUS.id]: TextImageDocument
@@ -1655,6 +1775,7 @@ export type BedrockModelInputModalitiesByName = {
   [CLAUDE_SONNET_4_5.id]: TextImageDocument
   [CLAUDE_OPUS_4.id]: TextImageDocument
   [CLAUDE_OPUS_4_1.id]: TextImageDocument
+  [CLAUDE_OPUS_4_5.id]: TextImageDocument
   [LLAMA_3_8B.id]: TextDocument
   [LLAMA_3_70B.id]: TextDocument
   [LLAMA_3_1_8B.id]: TextDocument
@@ -1672,7 +1793,7 @@ export type BedrockModelInputModalitiesByName = {
   [MISTRAL_LARGE_2402.id]: TextDocument
   [MISTRAL_LARGE_2407.id]: TextDocument
   [MISTRAL_SMALL_2402.id]: TextOnly
-  [US_PIXTRAL_LARGE.id]: TextImageDocument
+  [PIXTRAL_LARGE.id]: TextImageDocument
   [TITAN_TEXT_LARGE.id]: TextDocument
   [TITAN_TEXT_EXPRESS.id]: TextDocument
   [TITAN_TEXT_LITE.id]: TextDocument
@@ -1689,9 +1810,9 @@ export type BedrockModelInputModalitiesByName = {
   [TWELVELABS_PEGASUS.id]: TextOnly
   [LUMA_RAY_V2.id]: TextOnly
   [MISTRAL_LARGE_3.id]: TextImageDocument
-  [MINISTRAL_3_3B.id]: TextImageDocument
-  [MINISTRAL_3_8B.id]: TextImageDocument
-  [MINISTRAL_3_14B.id]: TextImageDocument
+  [MINISTRAL_3_3B.id]: TextOnly
+  [MINISTRAL_3_8B.id]: TextOnly
+  [MINISTRAL_3_14B.id]: TextOnly
   [MAGISTRAL_SMALL.id]: TextImageDocument
   [VOXTRAL_MINI.id]: TextOnly
   [VOXTRAL_SMALL.id]: TextOnly
@@ -1707,4 +1828,3 @@ export type BedrockModelInputModalitiesByName = {
   [QWEN_3_NEXT_80B.id]: TextOnly
   [QWEN_3_VL_235B.id]: TextImage
 }
-

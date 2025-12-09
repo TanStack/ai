@@ -2,8 +2,14 @@ import { AwsV4Signer } from 'aws4fetch'
 import { EventStreamCodec } from '@smithy/eventstream-codec'
 import { fromUtf8, toUtf8 } from '@smithy/util-utf8'
 import { BaseAdapter } from '@tanstack/ai'
-import { BEDROCK_EMBEDDING_MODELS, BEDROCK_MODELS } from './model-meta'
+import {
+  BEDROCK_EMBEDDING_MODELS,
+  BEDROCK_MODELS,
+  BEDROCK_MODEL_META,
+} from './model-meta'
 import { convertToolsToProviderFormat } from './tools/tool-converter'
+import { getProfileGeography } from './bedrock-regions'
+import type { InferenceProfileGeography } from './bedrock-regions'
 import type {
   ContentBlock,
   ConverseRequest,
@@ -190,6 +196,21 @@ export interface BedrockConfig {
    * - Local development/testing
    */
   baseURL?: string
+
+  /**
+   * Explicit geography for cross-region inference profiles.
+   * Overrides automatic detection from AWS region.
+   *
+   * Use this for:
+   * - Data residency requirements (e.g., force 'eu' for GDPR)
+   * - Using 'global' profiles for maximum throughput
+   *
+   * If not set, geography is inferred from `region`:
+   * - us-* → 'us'
+   * - eu-*, me-*, af-*, il-* → 'eu'
+   * - ap-* → 'apac'
+   */
+  inferenceProfileRegion?: InferenceProfileGeography
 }
 
 export class Bedrock extends BaseAdapter<
@@ -225,7 +246,8 @@ export class Bedrock extends BaseAdapter<
     options: ChatOptions<string, BedrockProviderOptions>,
   ): AsyncIterable<StreamChunk> {
     const converseInput = this.mapCommonOptionsToBedrock(options)
-    const modelId = encodeURIComponent(options.model)
+    const resolvedModelId = this.resolveModelId(options.model)
+    const modelId = encodeURIComponent(resolvedModelId)
     const url = `${this._resolvedBaseURL}/model/${modelId}/converse-stream`
 
     try {
@@ -282,7 +304,8 @@ export class Bedrock extends BaseAdapter<
 
   async summarize(options: SummarizationOptions): Promise<SummarizationResult> {
     const prompt = this.buildSummarizationPrompt(options)
-    const modelId = encodeURIComponent(options.model)
+    const resolvedModelId = this.resolveModelId(options.model)
+    const modelId = encodeURIComponent(resolvedModelId)
     const url = `${this._resolvedBaseURL}/model/${modelId}/converse`
 
     const converseInput: BedrockConversePayload = {
@@ -333,8 +356,10 @@ export class Bedrock extends BaseAdapter<
     const embeddings: Array<Array<number>> = []
     let totalInputTokens = 0
 
+    const resolvedModelId = this.resolveModelId(options.model)
+    const modelId = encodeURIComponent(resolvedModelId)
+
     for (const inputText of inputs) {
-      const modelId = encodeURIComponent(options.model)
       const url = `${this._resolvedBaseURL}/model/${modelId}/invoke`
 
       const body = {
@@ -402,6 +427,65 @@ export class Bedrock extends BaseAdapter<
       return this.bedrockConfig.baseURL
     }
     return `https://bedrock-runtime.${this._resolvedRegion}.amazonaws.com`
+  }
+
+  private resolveModelId(modelId: string): string {
+    const isAlreadyPrefixed =
+      /^(us|eu|apac|global)\./.test(modelId) || modelId.startsWith('arn:')
+    if (isAlreadyPrefixed) {
+      return modelId
+    }
+
+    const profile = BEDROCK_MODEL_META[modelId]?.inferenceProfile
+    if (!profile) {
+      return modelId
+    }
+
+    const geography = this.resolveProfileGeography(profile.regions)
+    if (geography) {
+      return `${geography}.${modelId}`
+    }
+
+    if (!profile.required) {
+      return modelId
+    }
+
+    if (profile.regions.includes('global')) {
+      return `global.${modelId}`
+    }
+
+    const configured = this.bedrockConfig.inferenceProfileRegion
+    const inferred = getProfileGeography(this._resolvedRegion)
+    const context = configured
+      ? ` (configured: '${configured}', not supported)`
+      : inferred
+        ? ` (inferred: '${inferred}', not supported)`
+        : ''
+
+    throw new Error(
+      `Model "${modelId}" requires a cross-region inference profile.\n\n` +
+        `Your region: ${this._resolvedRegion}${context}\n` +
+        `Supported: ${profile.regions.join(', ')}\n\n` +
+        `Fix options:\n` +
+        `  • Set inferenceProfileRegion: '${profile.regions[0]}' in config\n` +
+        `  • Use full profile ID: "${profile.regions[0]}.${modelId}"`,
+    )
+  }
+
+  private resolveProfileGeography(
+    supportedRegions: Array<InferenceProfileGeography>,
+  ): InferenceProfileGeography | null {
+    const preferred = this.bedrockConfig.inferenceProfileRegion
+    if (preferred && supportedRegions.includes(preferred)) {
+      return preferred
+    }
+
+    const inferred = getProfileGeography(this._resolvedRegion)
+    if (inferred && supportedRegions.includes(inferred)) {
+      return inferred
+    }
+
+    return null
   }
 
   private validateAuthConfig(): void {
