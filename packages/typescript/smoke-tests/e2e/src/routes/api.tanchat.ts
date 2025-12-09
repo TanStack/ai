@@ -2,6 +2,7 @@ import { createFileRoute } from '@tanstack/react-router'
 import { chat, toStreamResponse, maxIterations } from '@tanstack/ai'
 import { openai } from '@tanstack/ai-openai'
 
+
 export const Route = createFileRoute('/api/tanchat')({
   server: {
     handlers: {

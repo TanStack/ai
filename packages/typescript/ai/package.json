@@ -51,7 +51,7 @@
     "embeddings"
   ],
   "dependencies": {
-    "@tanstack/devtools-event-client": "^0.3.5",
+    "@tanstack/devtools-event-client": "^0.4.0",
     "partial-json": "^0.1.7"
   },
   "peerDependencies": {
