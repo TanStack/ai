@@ -17,20 +17,23 @@ npm install @tanstack/ai-gemini
 import { chat } from "@tanstack/ai";
 import { gemini } from "@tanstack/ai-gemini";
 
-// NOTE:
-// The `gemini()` function does NOT accept an `apiKey` in its config.
-// Instead, it automatically reads the API key from one of the following
-// environment variables:
-//
-//   - process.env.GEMINI_API_KEY
-//   - process.env.GOOGLE_API_KEY
-//
-// Make sure to set one of these variables in your environment before running the code.
+const adapter = gemini();
 
-const adapter = gemini({
-  // config options
+const stream = chat({
+  adapter,
+  messages: [{ role: "user", content: "Hello!" }],
+  model: "gemini-2.5-pro",
 });
+```
 
+## Basic Usage - Custom API Key
+
+```typescript
+import { chat } from "@tanstack/ai";
+import { createGemini } from "@tanstack/ai-gemini";
+const adapter = createGemini(process.env.GEMINI_API_KEY, {
+  // ... your config options
+ });
 const stream = chat({
   adapter,
   messages: [{ role: "user", content: "Hello!" }],
@@ -118,10 +121,8 @@ const stream = chat({
   adapter: gemini(),
   messages,
   model: "gemini-2.5-pro",
-  providerOptions: {
-    temperature: 0.7,
-    maxOutputTokens: 1000,
-    topP: 0.9,
+  providerOptions: { 
+    maxOutputTokens: 1000, 
     topK: 40,
   },
 });

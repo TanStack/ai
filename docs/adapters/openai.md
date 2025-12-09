@@ -17,10 +17,23 @@ npm install @tanstack/ai-openai
 import { chat } from "@tanstack/ai";
 import { openai } from "@tanstack/ai-openai";
 
-const adapter = openai({
-  apiKey: process.env.OPENAI_API_KEY!,
-});
+const adapter = openai();
 
+const stream = chat({
+  adapter,
+  messages: [{ role: "user", content: "Hello!" }],
+  model: "gpt-4o",
+});
+```
+
+## Basic Usage - Custom API Key
+
+```typescript
+import { chat } from "@tanstack/ai";
+import { createOpenAI } from "@tanstack/ai-openai";
+const adapter = createOpenAI(process.env.OPENAI_API_KEY!, {
+  // ... your config options
+ });
 const stream = chat({
   adapter,
   messages: [{ role: "user", content: "Hello!" }],
@@ -33,46 +46,21 @@ const stream = chat({
 ```typescript
 import { openai, type OpenAIConfig } from "@tanstack/ai-openai";
 
-const config: OpenAIConfig = {
-  apiKey: process.env.OPENAI_API_KEY!,
+const config: OpenAIConfig = { 
   organization: "org-...", // Optional
   baseURL: "https://api.openai.com/v1", // Optional, for custom endpoints
 };
 
 const adapter = openai(config);
 ```
-
-## Available Models
-
-### Chat Models
-
-- `gpt-4o` - Latest GPT-4 model
-- `gpt-4o-mini` - Faster, cheaper GPT-4 variant
-- `gpt-4-turbo` - GPT-4 Turbo
-- `gpt-4` - GPT-4 base model
-- `gpt-3.5-turbo` - GPT-3.5 Turbo
-- And many more...
-
-### Image Models
-
-- `dall-e-3` - DALL-E 3 image generation
-- `dall-e-2` - DALL-E 2 image generation
-
-### Embedding Models
-
-- `text-embedding-3-large` - Large embedding model
-- `text-embedding-3-small` - Small embedding model
-- `text-embedding-ada-002` - Ada embedding model
-
+ 
 ## Example: Chat Completion
 
 ```typescript
 import { chat, toStreamResponse } from "@tanstack/ai";
 import { openai } from "@tanstack/ai-openai";
 
-const adapter = openai({
-  apiKey: process.env.OPENAI_API_KEY!,
-});
+const adapter = openai();
 
 export async function POST(request: Request) {
   const { messages } = await request.json();
@@ -94,9 +82,7 @@ import { chat, toolDefinition } from "@tanstack/ai";
 import { openai } from "@tanstack/ai-openai";
 import { z } from "zod";
 
-const adapter = openai({
-  apiKey: process.env.OPENAI_API_KEY!,
-});
+const adapter = openai();
 
 const getWeatherDef = toolDefinition({
   name: "get_weather",
@@ -125,7 +111,7 @@ OpenAI supports various provider-specific options:
 
 ```typescript
 const stream = chat({
-  adapter: openai({ apiKey: process.env.OPENAI_API_KEY! }),
+  adapter: openai(),
   messages,
   model: "gpt-4o",
   providerOptions: {
@@ -145,15 +131,12 @@ Enable reasoning for models that support it (e.g., GPT-5). This allows the model
 ```typescript
 providerOptions: {
   reasoning: {
-    effort: "medium", // "minimal" | "low" | "medium" | "high"
+    effort: "medium", // "none" | "minimal" | "low" | "medium" | "high"
+    summary: "detailed", // "auto" | "detailed" (optional)
   },
 }
 ```
-
-**Supported Models:**
-
-- `gpt-5` - Supports reasoning with configurable effort
-- `o3`, `o3-pro`, `o3-mini` - Support reasoning
+ 
 
 When reasoning is enabled, the model's reasoning process is streamed separately from the response text and appears as a collapsible thinking section in the UI.
 
@@ -172,8 +155,7 @@ OPENAI_API_KEY=sk-...
 Creates an OpenAI adapter instance.
 
 **Parameters:**
-
-- `config.apiKey` - OpenAI API key (required)
+ 
 - `config.organization?` - Organization ID (optional)
 - `config.baseURL?` - Custom base URL (optional)
 
