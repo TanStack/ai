@@ -7,6 +7,7 @@ import { COMMAND_R_MODELS } from './meta/model-meta-command-r'
 import { COMMAND_R_PLUS_MODELS } from './meta/model-meta-command-r-plus'
 import { COMMAND_R_7b_MODELS } from './meta/model-meta-command-r7b'
 import { DEEPSEEK_CODER_V2_MODELS } from './meta/model-meta-deepseek-coder-v2'
+import { DEEPSEEK_OCR_MODELS } from './meta/model-meta-deepseek-ocr'
 import { DEEPSEEK_R1_MODELS } from './meta/model-meta-deepseek-r1'
 import { DEEPSEEK_V3_1_MODELS } from './meta/model-meta-deepseek-v3.1'
 import { DEVSTRAL_MODELS } from './meta/model-meta-devstral'
@@ -72,6 +73,7 @@ import type { CommandRModelInputModalitiesByName } from './meta/model-meta-comma
 import type { CommandRPlusModelInputModalitiesByName } from './meta/model-meta-command-r-plus'
 import type { CommandR7bModelInputModalitiesByName } from './meta/model-meta-command-r7b'
 import type { DeepseekCoderV2ModelInputModalitiesByName } from './meta/model-meta-deepseek-coder-v2'
+import type { DeepseekOcrChatModelProviderOptionsByName } from './meta/model-meta-deepseek-ocr'
 import type { DeepseekR1ModelInputModalitiesByName } from './meta/model-meta-deepseek-r1'
 import type { Deepseekv3_1ModelInputModalitiesByName } from './meta/model-meta-deepseek-v3.1'
 import type { DevstralModelInputModalitiesByName } from './meta/model-meta-devstral'
@@ -137,6 +139,7 @@ export const OLLAMA_MODELS = [
   ...COMMAND_R_MODELS,
   ...COMMAND_R_7b_MODELS,
   ...DEEPSEEK_CODER_V2_MODELS,
+  ...DEEPSEEK_OCR_MODELS,
   ...DEEPSEEK_R1_MODELS,
   ...DEEPSEEK_V3_1_MODELS,
   ...DEVSTRAL_MODELS,
@@ -204,6 +207,7 @@ export type OllamaModelInputModalitiesByName =
     CommandRModelInputModalitiesByName &
     CommandR7bModelInputModalitiesByName &
     DeepseekCoderV2ModelInputModalitiesByName &
+    DeepseekOcrChatModelProviderOptionsByName &
     DeepseekR1ModelInputModalitiesByName &
     Deepseekv3_1ModelInputModalitiesByName &
     DevstralModelInputModalitiesByName &
