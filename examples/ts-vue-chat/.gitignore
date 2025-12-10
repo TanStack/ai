@@ -1,0 +1,22 @@
+# Dependencies
+node_modules
+
+# Build
+dist
+
+# Logs
+*.log
+
+# Environment
+.env
+.env.local
+.env.*.local
+
+# IDE
+.vscode
+.idea
+*.swp
+*.swo
+
+# OS
+.DS_Store

@@ -2,6 +2,7 @@ import type {
   OpenAIBaseOptions,
   OpenAIMetadataOptions,
   OpenAIReasoningOptions,
+  OpenAIReasoningOptionsWithConcise,
   OpenAIStreamingOptions,
   OpenAIStructuredOutputOptions,
   OpenAIToolsOptions,
@@ -198,6 +199,7 @@ const GPT5_MINI = {
   },
 } as const satisfies ModelMeta<
   OpenAIBaseOptions &
+    OpenAIReasoningOptions &
     OpenAIStructuredOutputOptions &
     OpenAIToolsOptions &
     OpenAIStreamingOptions &
@@ -233,6 +235,7 @@ const GPT5_NANO = {
   },
 } as const satisfies ModelMeta<
   OpenAIBaseOptions &
+    OpenAIReasoningOptions &
     OpenAIStructuredOutputOptions &
     OpenAIToolsOptions &
     OpenAIStreamingOptions &
@@ -815,6 +818,7 @@ const COMPUTER_USE_PREVIEW = {
   },
 } as const satisfies ModelMeta<
   OpenAIBaseOptions &
+    OpenAIReasoningOptionsWithConcise &
     OpenAIToolsOptions &
     OpenAIStreamingOptions &
     OpenAIMetadataOptions
@@ -1787,11 +1791,13 @@ export type OpenAIChatModelProviderOptionsByName = {
     OpenAIStreamingOptions &
     OpenAIMetadataOptions
   [GPT5_MINI.name]: OpenAIBaseOptions &
+    OpenAIReasoningOptions &
     OpenAIStructuredOutputOptions &
     OpenAIToolsOptions &
     OpenAIStreamingOptions &
     OpenAIMetadataOptions
   [GPT5_NANO.name]: OpenAIBaseOptions &
+    OpenAIReasoningOptions &
     OpenAIStructuredOutputOptions &
     OpenAIToolsOptions &
     OpenAIStreamingOptions &
@@ -1920,6 +1926,7 @@ export type OpenAIChatModelProviderOptionsByName = {
 
   // Special models
   [COMPUTER_USE_PREVIEW.name]: OpenAIBaseOptions &
+    OpenAIReasoningOptionsWithConcise &
     OpenAIToolsOptions &
     OpenAIStreamingOptions &
     OpenAIMetadataOptions

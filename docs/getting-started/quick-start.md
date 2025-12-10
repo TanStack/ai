@@ -52,10 +52,10 @@ export async function POST(request: Request) {
 
     // Convert stream to HTTP response
     return toStreamResponse(stream);
-  } catch (error: any) {
+  } catch (error) {
     return new Response(
       JSON.stringify({
-        error: error.message || "An error occurred",
+        error: error instanceof Error ? error.message : "An error occurred",
       }),
       {
         status: 500,
@@ -153,10 +153,16 @@ export function Chat() {
 
 ## Environment Variables
 
-To connect to the OpenAI API, you'll need to set your `OPENAI_API_KEY` in your environment variables. Create a `.env.local` file (or `.env` depending on your setup):
-
+To connect to AI providers, set your API keys in your environment variables. Create a `.env.local` file (or `.env` depending on your setup):
 ```bash
-OPENAI_API_KEY=your-api-key-here
+# OpenAI
+OPENAI_API_KEY=your-openai-api-key
+
+# Anthropic
+ANTHROPIC_API_KEY=your-anthropic-api-key
+
+# Google Gemini
+GEMINI_API_KEY=your-gemini-api-key
 ```
 
 ## That's It!

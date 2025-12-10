@@ -1,12 +1,22 @@
 import type {
   ModelMessage,
   RunFinishedEvent,
+  SchemaInput,
   Tool,
   ToolCall,
   ToolCallArgsEvent,
   ToolCallEndEvent,
   ToolCallStartEvent,
 } from '../types'
+import type { z } from 'zod'
+
+/**
+ * Check if a value is a Zod schema by looking for Zod-specific internals.
+ */
+function isZodSchema(schema: SchemaInput | undefined): schema is z.ZodType {
+  if (!schema) return false
+  return '_zod' in schema && typeof (schema as any)._zod === 'object'
+}
 
 /**
  * Manages tool call accumulation and execution for the chat() method's automatic tool execution loop.
@@ -173,8 +183,8 @@ export class ToolCallManager {
             )
           }
 
-          // Validate input against inputSchema
-          if (tool.inputSchema) {
+          // Validate input against inputSchema (only for Zod schemas)
+          if (tool.inputSchema && isZodSchema(tool.inputSchema)) {
             try {
               args = tool.inputSchema.parse(args)
             } catch (validationError: any) {
@@ -187,8 +197,13 @@ export class ToolCallManager {
           // Execute the tool
           let result = await tool.execute(args)
 
-          // Validate output against outputSchema if provided
-          if (tool.outputSchema && result !== undefined && result !== null) {
+          // Validate output against outputSchema if provided (only for Zod schemas)
+          if (
+            tool.outputSchema &&
+            isZodSchema(tool.outputSchema) &&
+            result !== undefined &&
+            result !== null
+          ) {
             try {
               result = tool.outputSchema.parse(result)
             } catch (validationError: any) {
@@ -325,8 +340,8 @@ export async function executeToolCalls(
       }
     }
 
-    // Validate input against inputSchema
-    if (tool.inputSchema) {
+    // Validate input against inputSchema (only for Zod schemas)
+    if (tool.inputSchema && isZodSchema(tool.inputSchema)) {
       try {
         input = tool.inputSchema.parse(input)
       } catch (validationError: any) {
@@ -421,8 +436,13 @@ export async function executeToolCalls(
             let result = await tool.execute(input)
             const duration = Date.now() - startTime
 
-            // Validate output against outputSchema if provided
-            if (tool.outputSchema && result !== undefined && result !== null) {
+            // Validate output against outputSchema if provided (only for Zod schemas)
+            if (
+              tool.outputSchema &&
+              isZodSchema(tool.outputSchema) &&
+              result !== undefined &&
+              result !== null
+            ) {
               const parsed = tool.outputSchema.safeParse(result)
               if (parsed.success) {
                 result = parsed.data
@@ -479,8 +499,13 @@ export async function executeToolCalls(
       let result = await tool.execute(input)
       const duration = Date.now() - startTime
 
-      // Validate output against outputSchema if provided
-      if (tool.outputSchema && result !== undefined && result !== null) {
+      // Validate output against outputSchema if provided (only for Zod schemas)
+      if (
+        tool.outputSchema &&
+        isZodSchema(tool.outputSchema) &&
+        result !== undefined &&
+        result !== null
+      ) {
         const parsed = tool.outputSchema.safeParse(result)
         if (parsed.success) {
           result = parsed.data

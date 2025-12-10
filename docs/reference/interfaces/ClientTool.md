@@ -13,11 +13,11 @@ Marker type for client-side tools
 
 ### TInput
 
-`TInput` *extends* `z.ZodType` = `z.ZodType`
+`TInput` *extends* [`SchemaInput`](../type-aliases/SchemaInput.md) = `z.ZodType`
 
 ### TOutput
 
-`TOutput` *extends* `z.ZodType` = `z.ZodType`
+`TOutput` *extends* [`SchemaInput`](../type-aliases/SchemaInput.md) = `z.ZodType`
 
 ### TName
 
@@ -48,7 +48,9 @@ Defined in: [tools/tool-definition.ts:25](https://github.com/TanStack/ai/blob/ma
 ### execute()?
 
 ```ts
-optional execute: (args) => output<TOutput> | Promise<output<TOutput>>;
+optional execute: (args) => 
+  | InferSchemaType<TOutput>
+| Promise<InferSchemaType<TOutput>>;
 ```
 
 Defined in: [tools/tool-definition.ts:30](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/tools/tool-definition.ts#L30)
@@ -57,11 +59,12 @@ Defined in: [tools/tool-definition.ts:30](https://github.com/TanStack/ai/blob/ma
 
 ##### args
 
-`output`\<`TInput`\>
+[`InferSchemaType`](../type-aliases/InferSchemaType.md)\<`TInput`\>
 
 #### Returns
 
-`output`\<`TOutput`\> \| `Promise`\<`output`\<`TOutput`\>\>
+  \| [`InferSchemaType`](../type-aliases/InferSchemaType.md)\<`TOutput`\>
+  \| `Promise`\<[`InferSchemaType`](../type-aliases/InferSchemaType.md)\<`TOutput`\>\>
 
 ***
 

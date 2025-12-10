@@ -1,5 +1,11 @@
 # @tanstack/ai
 
+## 0.0.3
+
+### Patch Changes
+
+- update event client ([#128](https://github.com/TanStack/ai/pull/128))
+
 ## 0.0.2
 
 ### Patch Changes
