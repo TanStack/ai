@@ -192,6 +192,55 @@ export interface AIDevtoolsEventMap {
     timestamp: number
   }
 
+  // Transcription events
+  'tanstack-ai-devtools:transcribe:started': {
+    requestId: string
+    model: string
+    provider: string
+    timestamp: number
+    streaming?: boolean
+    clientId?: string
+  }
+  'tanstack-ai-devtools:transcribe:completed': {
+    requestId: string
+    model: string
+    provider: string
+    textLength: number
+    duration: number
+    usage?: {
+      type: 'tokens' | 'duration'
+      inputTokens?: number
+      outputTokens?: number
+      totalTokens?: number
+      seconds?: number
+    }
+    timestamp: number
+  }
+  'tanstack-ai-devtools:transcribe:error': {
+    requestId: string
+    model: string
+    provider: string
+    error: string
+    timestamp: number
+  }
+  'tanstack-ai-devtools:stream:chunk:transcript': {
+    streamId: string
+    delta: string
+    text: string
+    timestamp: number
+  }
+  'tanstack-ai-devtools:stream:chunk:transcript-segment': {
+    streamId: string
+    segment: {
+      id?: string
+      start: number
+      end: number
+      text: string
+      speaker?: string
+    }
+    timestamp: number
+  }
+
   // Chat Client events - from @tanstack/ai-client package
   'tanstack-ai-devtools:client:created': {
     clientId: string

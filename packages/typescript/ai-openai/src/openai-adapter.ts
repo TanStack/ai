@@ -1,6 +1,10 @@
 import OpenAI_SDK from 'openai'
 import { BaseAdapter } from '@tanstack/ai'
-import { OPENAI_CHAT_MODELS, OPENAI_EMBEDDING_MODELS } from './model-meta'
+import {
+  OPENAI_CHAT_MODELS,
+  OPENAI_EMBEDDING_MODELS,
+  OPENAI_TRANSCRIPTION_MODELS,
+} from './model-meta'
 import { validateTextProviderOptions } from './text/text-provider-options'
 import { convertToolsToProviderFormat } from './tools'
 import type { Responses } from 'openai/resources'
@@ -13,6 +17,11 @@ import type {
   StreamChunk,
   SummarizationOptions,
   SummarizationResult,
+  TranscriptionOptions,
+  TranscriptionResult,
+  TranscriptionStreamChunk,
+  TranscriptionSegment,
+  TranscriptionUsage,
 } from '@tanstack/ai'
 import type {
   OpenAIChatModelProviderOptionsByName,
@@ -22,6 +31,7 @@ import type {
   ExternalTextProviderOptions,
   InternalTextProviderOptions,
 } from './text/text-provider-options'
+import type { OpenAITranscriptionProviderOptions } from './audio/transcribe-provider-options'
 import type {
   OpenAIAudioMetadata,
   OpenAIImageMetadata,
@@ -54,8 +64,10 @@ interface OpenAIEmbeddingProviderOptions {
 export class OpenAI extends BaseAdapter<
   typeof OPENAI_CHAT_MODELS,
   typeof OPENAI_EMBEDDING_MODELS,
+  typeof OPENAI_TRANSCRIPTION_MODELS,
   OpenAIProviderOptions,
   OpenAIEmbeddingProviderOptions,
+  OpenAITranscriptionProviderOptions,
   OpenAIChatModelProviderOptionsByName,
   OpenAIModelInputModalitiesByName,
   OpenAIMessageMetadataByModality
@@ -63,6 +75,7 @@ export class OpenAI extends BaseAdapter<
   name = 'openai' as const
   models = OPENAI_CHAT_MODELS
   embeddingModels = OPENAI_EMBEDDING_MODELS
+  transcriptionModels = OPENAI_TRANSCRIPTION_MODELS
 
   private client: OpenAI_SDK
 
@@ -85,6 +98,331 @@ export class OpenAI extends BaseAdapter<
       organization: config.organization,
       baseURL: config.baseURL,
     })
+  }
+
+  /**
+   * Maps unified transcription options to OpenAI-specific format.
+   */
+  private mapTranscriptionOptionsToOpenAI(
+    options: TranscriptionOptions<string, OpenAITranscriptionProviderOptions>,
+    file: File,
+  ): OpenAI_SDK.Audio.Transcriptions.TranscriptionCreateParams {
+    const providerOptions = options.providerOptions || {}
+
+    return {
+      file,
+      model: options.model,
+      language: options.language,
+      prompt: options.prompt,
+      temperature: options.temperature,
+      ...providerOptions,
+    }
+  }
+
+  /**
+   * Transcribe audio to text.
+   * Supports whisper-1 and gpt-4o-transcribe models.
+   */
+  async transcribe(
+    options: TranscriptionOptions<string, OpenAITranscriptionProviderOptions>,
+  ): Promise<TranscriptionResult> {
+    // Normalize the audio input to a File object
+    const file = await this.normalizeAudioInputToFile(options.file)
+    const requestOptions = this.mapTranscriptionOptionsToOpenAI(options, file)
+
+    // Get response format for proper parsing
+    const responseFormat = options.providerOptions?.response_format || 'json'
+
+    // Use verbose_json to get segments if supported
+    const effectiveFormat =
+      responseFormat === 'json' || responseFormat === 'verbose_json'
+        ? responseFormat
+        : responseFormat
+
+    const response = await this.client.audio.transcriptions.create({
+      ...requestOptions,
+      response_format: effectiveFormat,
+      stream: false,
+    })
+
+    return this.parseTranscriptionResponse(response, options.model)
+  }
+
+  /**
+   * Transcribe audio to text with streaming output.
+   * Note: Streaming is not supported for whisper-1 model.
+   */
+  async *transcribeStream(
+    options: TranscriptionOptions<string, OpenAITranscriptionProviderOptions>,
+  ): AsyncIterable<TranscriptionStreamChunk> {
+    // Validate streaming support
+    if (options.model === 'whisper-1') {
+      throw new Error(
+        'Streaming transcription is not supported for the whisper-1 model. ' +
+          'Use gpt-4o-transcribe, gpt-4o-mini-transcribe, or gpt-4o-transcribe-diarize instead.',
+      )
+    }
+
+    const file = await this.normalizeAudioInputToFile(options.file)
+    const requestOptions = this.mapTranscriptionOptionsToOpenAI(options, file)
+    const timestamp = Date.now()
+    const id = this.generateId()
+    let accumulatedText = ''
+
+    try {
+      const stream = await this.client.audio.transcriptions.create({
+        ...requestOptions,
+        stream: true,
+      })
+
+      for await (const event of stream as AsyncIterable<
+        OpenAI_SDK.Audio.Transcriptions.TranscriptionStreamEvent
+      >) {
+        if (event.type === 'transcript.text.delta') {
+          accumulatedText += event.delta
+          yield {
+            type: 'transcript-delta',
+            id,
+            model: options.model,
+            timestamp,
+            delta: event.delta,
+            text: accumulatedText,
+            segmentId: (event as { segment_id?: string }).segment_id,
+          }
+        } else if (event.type === 'transcript.text.segment') {
+          const segmentEvent = event as {
+            id: string
+            start: number
+            end: number
+            text: string
+            speaker?: string
+          }
+          yield {
+            type: 'transcript-segment',
+            id: this.generateId(),
+            model: options.model,
+            timestamp: Date.now(),
+            segment: {
+              id: segmentEvent.id,
+              start: segmentEvent.start,
+              end: segmentEvent.end,
+              text: segmentEvent.text,
+              speaker: segmentEvent.speaker,
+            },
+          }
+        } else if (event.type === 'transcript.text.done') {
+          const doneEvent = event as {
+            text: string
+            usage?: {
+              type: 'tokens' | 'duration'
+              input_tokens?: number
+              output_tokens?: number
+              total_tokens?: number
+              seconds?: number
+            }
+          }
+          yield {
+            type: 'transcript-done',
+            id,
+            model: options.model,
+            timestamp: Date.now(),
+            text: doneEvent.text,
+            usage: doneEvent.usage
+              ? this.mapUsage(doneEvent.usage)
+              : undefined,
+          }
+        }
+      }
+    } catch (error) {
+      yield {
+        type: 'error',
+        id,
+        model: options.model,
+        timestamp: Date.now(),
+        error: {
+          message:
+            error instanceof Error ? error.message : 'Unknown error occurred',
+          code: (error as { code?: string }).code,
+        },
+      }
+    }
+  }
+
+  /**
+   * Normalizes AudioInput to a File object for the OpenAI SDK.
+   */
+  private async normalizeAudioInputToFile(
+    input: TranscriptionOptions['file'],
+  ): Promise<File> {
+    // If it's already a File, return it
+    if (typeof File !== 'undefined' && input instanceof File) {
+      return input
+    }
+
+    // If it's a Blob, convert to File
+    if (input instanceof Blob) {
+      return new File([input], 'audio.mp3', { type: input.type || 'audio/mpeg' })
+    }
+
+    // If it's an ArrayBuffer, convert to File
+    if (input instanceof ArrayBuffer) {
+      const blob = new Blob([input], { type: 'audio/mpeg' })
+      return new File([blob], 'audio.mp3', { type: 'audio/mpeg' })
+    }
+
+    // If it's a Node.js Buffer
+    if (typeof Buffer !== 'undefined' && Buffer.isBuffer(input)) {
+      const blob = new Blob([new Uint8Array(input).buffer], {
+        type: 'audio/mpeg',
+      })
+      return new File([blob], 'audio.mp3', { type: 'audio/mpeg' })
+    }
+
+    // If it's a string (base64 data URL or file path)
+    if (typeof input === 'string') {
+      // Check if it's a data URL
+      const dataUrlMatch = input.match(/^data:([^;]+);base64,(.+)$/)
+      if (dataUrlMatch && dataUrlMatch[1] && dataUrlMatch[2]) {
+        const mimeType = dataUrlMatch[1]
+        const base64Data = dataUrlMatch[2]
+        const bytes = this.base64ToUint8Array(base64Data)
+        const blob = new Blob([bytes.buffer as ArrayBuffer], { type: mimeType })
+        const ext = mimeType.split('/')[1] || 'mp3'
+        return new File([blob], `audio.${ext}`, { type: mimeType })
+      }
+
+      // Assume it's a file path (Node.js only)
+      try {
+        const fs = await import('node:fs/promises')
+        const path = await import('node:path')
+        const data = await fs.readFile(input)
+        const filename = path.basename(input)
+        const ext = path.extname(input).slice(1).toLowerCase()
+        const mimeType = this.getMimeTypeFromExtension(ext)
+        return new File([data], filename, { type: mimeType })
+      } catch {
+        throw new Error(
+          `Failed to read audio file from path "${input}". ` +
+            'Ensure the file exists and is accessible.',
+        )
+      }
+    }
+
+    throw new Error(
+      `Unsupported audio input type: ${typeof input}. ` +
+        'Expected File, Blob, ArrayBuffer, Buffer, or string (base64 data URL or file path).',
+    )
+  }
+
+  private base64ToUint8Array(base64: string): Uint8Array {
+    if (typeof atob === 'function') {
+      const binaryString = atob(base64)
+      const bytes = new Uint8Array(binaryString.length)
+      for (let i = 0; i < binaryString.length; i++) {
+        bytes[i] = binaryString.charCodeAt(i)
+      }
+      return bytes
+    }
+    if (typeof Buffer !== 'undefined') {
+      return new Uint8Array(Buffer.from(base64, 'base64'))
+    }
+    throw new Error('Unable to decode base64: neither atob nor Buffer available')
+  }
+
+  private getMimeTypeFromExtension(ext: string): string {
+    const mimeTypes: Record<string, string> = {
+      mp3: 'audio/mpeg',
+      mpeg: 'audio/mpeg',
+      mpga: 'audio/mpeg',
+      mp4: 'audio/mp4',
+      m4a: 'audio/mp4',
+      wav: 'audio/wav',
+      webm: 'audio/webm',
+      ogg: 'audio/ogg',
+      flac: 'audio/flac',
+      aac: 'audio/aac',
+      aiff: 'audio/aiff',
+    }
+    return mimeTypes[ext] || 'audio/mpeg'
+  }
+
+  /**
+   * Parse transcription response into unified format.
+   */
+  private parseTranscriptionResponse(
+    response:
+      | OpenAI_SDK.Audio.Transcription
+      | OpenAI_SDK.Audio.Transcriptions.TranscriptionVerbose
+      | string,
+    model: string,
+  ): TranscriptionResult {
+    // Handle string response (text format)
+    if (typeof response === 'string') {
+      return {
+        id: this.generateId(),
+        model,
+        text: response,
+      }
+    }
+
+    // Handle object response (json/verbose_json formats)
+    const result: TranscriptionResult = {
+      id: this.generateId(),
+      model,
+      text: response.text,
+    }
+
+    // Add verbose fields if available
+    const verboseResponse =
+      response as OpenAI_SDK.Audio.Transcriptions.TranscriptionVerbose
+    if (verboseResponse.duration !== undefined) {
+      result.duration = verboseResponse.duration
+    }
+    if (verboseResponse.language) {
+      result.language = verboseResponse.language
+    }
+    if (verboseResponse.segments) {
+      result.segments = verboseResponse.segments.map(
+        (seg: OpenAI_SDK.Audio.Transcriptions.TranscriptionSegment): TranscriptionSegment => ({
+          id: String(seg.id),
+          start: seg.start,
+          end: seg.end,
+          text: seg.text,
+        }),
+      )
+    }
+
+    // Handle usage if present (newer models)
+    const usageResponse = response as {
+      usage?: {
+        type: 'tokens' | 'duration'
+        input_tokens?: number
+        output_tokens?: number
+        total_tokens?: number
+        seconds?: number
+      }
+    }
+    if (usageResponse.usage) {
+      result.usage = this.mapUsage(usageResponse.usage)
+    }
+
+    return result
+  }
+
+  private mapUsage(usage: {
+    type: 'tokens' | 'duration'
+    input_tokens?: number
+    output_tokens?: number
+    total_tokens?: number
+    seconds?: number
+  }): TranscriptionUsage {
+    return {
+      type: usage.type,
+      inputTokens: usage.input_tokens,
+      outputTokens: usage.output_tokens,
+      totalTokens: usage.total_tokens,
+      seconds: usage.seconds,
+    }
   }
 
   async *chatStream(
@@ -494,14 +832,14 @@ export class OpenAI extends BaseAdapter<
   private mapChatOptionsToOpenAI(options: ChatOptions) {
     const providerOptions = options.providerOptions as
       | Omit<
-          InternalTextProviderOptions,
-          | 'max_output_tokens'
-          | 'tools'
-          | 'metadata'
-          | 'temperature'
-          | 'input'
-          | 'top_p'
-        >
+        InternalTextProviderOptions,
+        | 'max_output_tokens'
+        | 'tools'
+        | 'metadata'
+        | 'temperature'
+        | 'input'
+        | 'top_p'
+      >
       | undefined
     const input = this.convertMessagesToInput(options.messages)
     if (providerOptions) {

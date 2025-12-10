@@ -58,8 +58,10 @@ type AnthropicContentBlock =
 export class Anthropic extends BaseAdapter<
   typeof ANTHROPIC_MODELS,
   [],
+  [], // No transcription models
   AnthropicProviderOptions,
   Record<string, any>,
+  Record<string, any>, // No transcription provider options
   AnthropicChatModelProviderOptionsByName,
   AnthropicModelInputModalitiesByName,
   AnthropicMessageMetadataByModality

@@ -1667,6 +1667,14 @@ export const OPENAI_EMBEDDING_MODELS = [
   TEXT_EMBEDDING_3_ADA_002.name,
 ] as const
 
+// Transcription models (based on endpoints: "transcription")
+export const OPENAI_TRANSCRIPTION_MODELS = [
+  'whisper-1',
+  'gpt-4o-transcribe',
+  'gpt-4o-mini-transcribe',
+  'gpt-4o-transcribe-diarize',
+] as const
+
 // Audio models (based on endpoints: "transcription", "speech_generation", or "realtime")
 /* const OPENAI_AUDIO_MODELS = [
   // Transcription models

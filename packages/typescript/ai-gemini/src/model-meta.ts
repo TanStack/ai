@@ -790,6 +790,17 @@ export const GEMINI_MODELS = [
 
 export const GEMINI_EMBEDDING_MODELS = [GEMINI_EMBEDDING.name] as const
 
+/**
+ * Models that support transcription via chat API with audio input.
+ * These models accept audio input and can be prompted to transcribe.
+ */
+export const GEMINI_TRANSCRIPTION_MODELS = [
+  GEMINI_2_5_PRO.name,
+  GEMINI_2_5_FLASH.name,
+  GEMINI_2_5_FLASH_PREVIEW.name,
+  GEMINI_2_FLASH.name,
+] as const
+
 /*   const GEMINI_AUDIO_MODELS = [
   GEMINI_2_5_PRO_TTS.name,
   GEMINI_2_5_FLASH_TTS.name,

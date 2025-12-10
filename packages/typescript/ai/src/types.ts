@@ -883,3 +883,190 @@ export type ExtractModalitiesForModel<
       ? ModelInputModalities[TModel]
       : ReadonlyArray<Modality>
     : ReadonlyArray<Modality>
+
+// ============================================================================
+// Transcription Types
+// ============================================================================
+
+/**
+ * Flexible audio input type that supports multiple formats.
+ * Adapters will normalize this to their provider's expected format.
+ *
+ * - `File`: Browser File object
+ * - `Blob`: Binary data with MIME type
+ * - `ArrayBuffer`: Raw binary data (will infer MIME type or default to audio/mpeg)
+ * - `Buffer`: Node.js Buffer (will infer MIME type or default to audio/mpeg)
+ * - `string`: Either a base64 data URL (e.g., "data:audio/mp3;base64,...") or a file path
+ */
+export type AudioInput = File | Blob | ArrayBuffer | Buffer | string
+
+/**
+ * A segment of transcribed audio with timing and optional speaker information.
+ */
+export interface TranscriptionSegment {
+  /** Optional unique identifier for the segment */
+  id?: string
+  /** Start time in seconds */
+  start: number
+  /** End time in seconds */
+  end: number
+  /** Transcribed text for this segment */
+  text: string
+  /** Speaker label (for diarization) */
+  speaker?: string
+}
+
+/**
+ * Usage statistics for transcription requests.
+ */
+export interface TranscriptionUsage {
+  /** Type of billing: 'tokens' or 'duration' */
+  type: 'tokens' | 'duration'
+  /** Input tokens (for token-based billing) */
+  inputTokens?: number
+  /** Output tokens (for token-based billing) */
+  outputTokens?: number
+  /** Total tokens (for token-based billing) */
+  totalTokens?: number
+  /** Duration in seconds (for duration-based billing) */
+  seconds?: number
+}
+
+/**
+ * Options for transcription requests.
+ * @template TModel - The model type (constrained by adapter's transcription models)
+ * @template TProviderOptions - Provider-specific options type
+ */
+export interface TranscriptionOptions<
+  TModel extends string = string,
+  TProviderOptions extends Record<string, any> = Record<string, any>,
+> {
+  /**
+   * The audio file to transcribe.
+   * Accepts File, Blob, ArrayBuffer, Buffer, base64 data URL, or file path.
+   */
+  file: AudioInput
+  /**
+   * The model to use for transcription.
+   */
+  model: TModel
+  /**
+   * The language of the input audio in ISO-639-1 format (e.g., 'en', 'es', 'fr').
+   * Providing this improves accuracy and latency.
+   */
+  language?: string
+  /**
+   * An optional prompt to guide the transcription style or help with uncommon words/phrases.
+   */
+  prompt?: string
+  /**
+   * Sampling temperature between 0 and 1.
+   * Higher values make output more random, lower values more focused.
+   */
+  temperature?: number
+  /**
+   * Provider-specific options passed through to the underlying API.
+   * Use this for options like response_format, timestamp_granularities, etc.
+   */
+  providerOptions?: TProviderOptions
+  /**
+   * Request configuration for headers, signal, etc.
+   */
+  request?: Request | RequestInit
+}
+
+/**
+ * Result of a transcription request.
+ */
+export interface TranscriptionResult {
+  /** Unique identifier for the transcription */
+  id: string
+  /** Model used for transcription */
+  model: string
+  /** The transcribed text */
+  text: string
+  /** Duration of the audio in seconds */
+  duration?: number
+  /** Detected or provided language */
+  language?: string
+  /** Segments with timestamps and optional speaker labels */
+  segments?: Array<TranscriptionSegment>
+  /** Usage statistics */
+  usage?: TranscriptionUsage
+}
+
+// ============================================================================
+// Transcription Stream Chunk Types
+// ============================================================================
+
+/**
+ * Types of chunks that can be emitted during transcription streaming.
+ */
+export type TranscriptionStreamChunkType =
+  | 'transcript-delta'
+  | 'transcript-segment'
+  | 'transcript-done'
+  | 'error'
+
+/**
+ * Base interface for all transcription stream chunks.
+ */
+export interface BaseTranscriptionStreamChunk {
+  type: TranscriptionStreamChunkType
+  id: string
+  model: string
+  timestamp: number
+}
+
+/**
+ * Chunk emitted when new transcription text is available.
+ */
+export interface TranscriptDeltaChunk extends BaseTranscriptionStreamChunk {
+  type: 'transcript-delta'
+  /** The incremental text delta */
+  delta: string
+  /** Full accumulated text so far */
+  text: string
+  /** Segment ID this delta belongs to (for diarization) */
+  segmentId?: string
+}
+
+/**
+ * Chunk emitted when a complete segment is available (for diarization/timestamps).
+ */
+export interface TranscriptSegmentChunk extends BaseTranscriptionStreamChunk {
+  type: 'transcript-segment'
+  /** The completed segment */
+  segment: TranscriptionSegment
+}
+
+/**
+ * Chunk emitted when transcription is complete.
+ */
+export interface TranscriptDoneChunk extends BaseTranscriptionStreamChunk {
+  type: 'transcript-done'
+  /** The complete transcribed text */
+  text: string
+  /** Usage statistics */
+  usage?: TranscriptionUsage
+}
+
+/**
+ * Chunk emitted when an error occurs during transcription.
+ */
+export interface TranscriptErrorChunk extends BaseTranscriptionStreamChunk {
+  type: 'error'
+  error: {
+    message: string
+    code?: string
+  }
+}
+
+/**
+ * Union type for all transcription stream chunks.
+ */
+export type TranscriptionStreamChunk =
+  | TranscriptDeltaChunk
+  | TranscriptSegmentChunk
+  | TranscriptDoneChunk
+  | TranscriptErrorChunk

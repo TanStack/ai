@@ -1,6 +1,7 @@
 export { chat } from './core/chat'
 export { summarize } from './core/summarize'
 export { embedding } from './core/embedding'
+export { transcribe, transcribeStream } from './core/transcribe'
 export {
   toolDefinition,
   type ToolDefinition,
@@ -66,3 +67,7 @@ export type {
   ToolResultState,
   JSONParser,
 } from './stream'
+
+// Audio utilities
+export { normalizeAudioInput, toFile } from './utilities/audio-input'
+export type { NormalizedAudioInput } from './utilities/audio-input'

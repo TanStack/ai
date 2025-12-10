@@ -1,3 +1,5 @@
+import type OpenAI from "openai"
+
 export interface TranscribeProviderOptions {
   /**
    * The audio file object (not file name) to transcribe, in one of these formats: flac, mp3, mp4, mpeg, mpga, m4a, ogg, wav, or webm.
@@ -10,26 +12,7 @@ export interface TranscribeProviderOptions {
    */
   model: string
 
-  chunking_strategy:
-    | 'auto'
-    | {
-        type: 'server_vad'
-        /**
-         * Amount of audio to include before the VAD detected speech (in milliseconds).
-         * @default 300
-         */
-        prefix_padding_ms?: number
-        /**
-         * Duration of silence to detect speech stop (in milliseconds). With shorter values the model will respond more quickly, but may jump in on short pauses from the user.
-         * @default 200
-         */
-        silence_duration_ms: number
-        /**
-         * Sensitivity threshold (0.0 to 1.0) for voice activity detection. A higher threshold will require louder audio to activate the model, and thus might perform better in noisy environments.
-         * @default 0.5
-         */
-        threshold?: number
-      }
+  chunking_strategy: OpenAI.Audio.Transcriptions.TranscriptionCreateParams["chunking_strategy"]
   /**
    * Additional information to include in the transcription response. logprobs will return the log probabilities of the tokens in the response to understand the model's confidence in the transcription. logprobs only works with response_format set to json and only with the models gpt-4o-transcribe and gpt-4o-mini-transcribe. This field is not supported when using gpt-4o-transcribe-diarize.
    */
@@ -54,12 +37,12 @@ export interface TranscribeProviderOptions {
    * The format of the output, in one of these options: json, text, srt, verbose_json, vtt, or diarized_json. For gpt-4o-transcribe and gpt-4o-mini-transcribe, the only supported format is json. For gpt-4o-transcribe-diarize, the supported formats are json, text, and diarized_json, with diarized_json required to receive speaker annotations.
    */
   response_format?:
-    | 'json'
-    | 'text'
-    | 'srt'
-    | 'verbose_json'
-    | 'vtt'
-    | 'diarized_json'
+  | 'json'
+  | 'text'
+  | 'srt'
+  | 'verbose_json'
+  | 'vtt'
+  | 'diarized_json'
 
   /**
    * If set to true, the model response data will be streamed to the client as it is generated using server-sent events
@@ -75,6 +58,16 @@ export interface TranscribeProviderOptions {
    */
   timestamp_granularities?: Array<'word' | 'segment'>
 }
+
+/**
+ * OpenAI transcription provider options for use with the unified TanStack AI transcription API.
+ * Excludes `file` and `model` which are handled by the unified API.
+ * These options are passed through to the OpenAI API as provider-specific configuration.
+ */
+export type OpenAITranscriptionProviderOptions = Omit<
+  TranscribeProviderOptions,
+  'file' | 'model' | 'language' | 'prompt' | 'temperature' | 'stream'
+>
 
 export const validateTemperature = (options: TranscribeProviderOptions) => {
   if (options.temperature) {

@@ -1,9 +1,14 @@
 import { FinishReason, GoogleGenAI } from '@google/genai'
-import { BaseAdapter } from '@tanstack/ai'
-import { GEMINI_EMBEDDING_MODELS, GEMINI_MODELS } from './model-meta'
+import { BaseAdapter, normalizeAudioInput, toFile } from '@tanstack/ai'
+import {
+  GEMINI_EMBEDDING_MODELS,
+  GEMINI_MODELS,
+  GEMINI_TRANSCRIPTION_MODELS,
+} from './model-meta'
 import { convertToolsToProviderFormat } from './tools/tool-converter'
 import type {
   AIAdapterConfig,
+  AudioInput,
   ChatOptions,
   ContentPart,
   EmbeddingOptions,
@@ -12,11 +17,15 @@ import type {
   StreamChunk,
   SummarizationOptions,
   SummarizationResult,
+  TranscriptionOptions,
+  TranscriptionResult,
+  TranscriptionStreamChunk,
 } from '@tanstack/ai'
 import type {
   GeminiChatModelProviderOptionsByName,
   GeminiModelInputModalitiesByName,
 } from './model-meta'
+import type { GeminiTranscriptionProviderOptions } from './audio/transcribe-provider-options'
 import type { ExternalTextProviderOptions } from './text/text-provider-options'
 import type {
   GenerateContentParameters,
@@ -45,8 +54,10 @@ export type GeminiProviderOptions = ExternalTextProviderOptions
 export class GeminiAdapter extends BaseAdapter<
   typeof GEMINI_MODELS,
   typeof GEMINI_EMBEDDING_MODELS,
+  typeof GEMINI_TRANSCRIPTION_MODELS,
   GeminiProviderOptions,
   Record<string, any>,
+  GeminiTranscriptionProviderOptions,
   GeminiChatModelProviderOptionsByName,
   GeminiModelInputModalitiesByName,
   GeminiMessageMetadataByModality
@@ -54,9 +65,11 @@ export class GeminiAdapter extends BaseAdapter<
   name = 'gemini'
   models = GEMINI_MODELS
   embeddingModels = GEMINI_EMBEDDING_MODELS
+  transcriptionModels = GEMINI_TRANSCRIPTION_MODELS
   declare _modelProviderOptionsByName: GeminiChatModelProviderOptionsByName
   declare _modelInputModalitiesByName: GeminiModelInputModalitiesByName
   declare _messageMetadataByModality: GeminiMessageMetadataByModality
+  declare _transcriptionProviderOptions: GeminiTranscriptionProviderOptions
   private client: GoogleGenAI
 
   constructor(config: GeminiAdapterConfig) {
@@ -513,6 +526,245 @@ export class GeminiAdapter extends BaseAdapter<
     }
 
     return requestOptions
+  }
+
+  /**
+   * Transcribe audio to text using Gemini's chat API with audio input.
+   *
+   * Since Gemini doesn't have a dedicated transcription API, this method
+   * sends the audio to the chat API with a transcription prompt.
+   *
+   * @param options - Transcription options including file and model
+   * @returns Promise resolving to transcription result
+   */
+  async transcribe(
+    options: TranscriptionOptions<string, GeminiTranscriptionProviderOptions>,
+  ): Promise<TranscriptionResult> {
+    const audioPart = await this.prepareAudioPart(options.file)
+    const prompt = this.buildTranscriptionPrompt(options.providerOptions)
+
+    const result = await this.client.models.generateContent({
+      model: options.model,
+      contents: [
+        {
+          role: 'user',
+          parts: [audioPart, { text: prompt }],
+        },
+      ],
+      config: {
+        temperature: options.providerOptions?.temperature ?? 0.1,
+        maxOutputTokens: options.providerOptions?.maxOutputTokens ?? 8192,
+      },
+    })
+
+    let text = ''
+    if (result.candidates?.[0]?.content?.parts) {
+      for (const part of result.candidates[0].content.parts) {
+        if (part.text) {
+          text += part.text
+        }
+      }
+    }
+
+    if (!text && typeof result.text === 'string') {
+      text = result.text
+    }
+
+    const inputTokens = result.usageMetadata?.promptTokenCount ?? 0
+    const outputTokens = result.usageMetadata?.candidatesTokenCount ?? 0
+
+    return {
+      id: this.generateId(),
+      model: options.model,
+      text,
+      usage: {
+        type: 'tokens',
+        inputTokens,
+        outputTokens,
+        totalTokens: inputTokens + outputTokens,
+      },
+    }
+  }
+
+  /**
+   * Transcribe audio to text with streaming output using Gemini's chat API.
+   *
+   * Since Gemini doesn't have a dedicated transcription streaming API, this method
+   * streams the chat response and yields transcription chunks.
+   *
+   * @param options - Transcription options including file and model
+   * @yields TranscriptionStreamChunk for each piece of transcription
+   */
+  async *transcribeStream(
+    options: TranscriptionOptions<string, GeminiTranscriptionProviderOptions>,
+  ): AsyncIterable<TranscriptionStreamChunk> {
+    const audioPart = await this.prepareAudioPart(options.file)
+    const prompt = this.buildTranscriptionPrompt(options.providerOptions)
+    const timestamp = Date.now()
+
+    try {
+      const result = await this.client.models.generateContentStream({
+        model: options.model,
+        contents: [
+          {
+            role: 'user',
+            parts: [audioPart, { text: prompt }],
+          },
+        ],
+        config: {
+          temperature: options.providerOptions?.temperature ?? 0.1,
+          maxOutputTokens: options.providerOptions?.maxOutputTokens ?? 8192,
+        },
+      })
+
+      let accumulatedText = ''
+
+      for await (const chunk of result) {
+        if (chunk.candidates?.[0]?.content?.parts) {
+          for (const part of chunk.candidates[0].content.parts) {
+            if (part.text) {
+              accumulatedText += part.text
+              yield {
+                type: 'transcript-delta',
+                id: this.generateId(),
+                model: options.model,
+                timestamp,
+                delta: part.text,
+                text: accumulatedText,
+              }
+            }
+          }
+        }
+
+        // Check for completion
+        if (chunk.candidates?.[0]?.finishReason) {
+          const inputTokens = chunk.usageMetadata?.promptTokenCount ?? 0
+          const outputTokens = chunk.usageMetadata?.candidatesTokenCount ?? 0
+
+          yield {
+            type: 'transcript-done',
+            id: this.generateId(),
+            model: options.model,
+            timestamp,
+            text: accumulatedText,
+            usage: {
+              type: 'tokens',
+              inputTokens,
+              outputTokens,
+              totalTokens: inputTokens + outputTokens,
+            },
+          }
+        }
+      }
+    } catch (error) {
+      yield {
+        type: 'error',
+        id: this.generateId(),
+        model: options.model,
+        timestamp,
+        error: {
+          message:
+            error instanceof Error
+              ? error.message
+              : 'An unknown error occurred during transcription.',
+        },
+      }
+    }
+  }
+
+  /**
+   * Prepares an audio input for the Gemini API.
+   * Converts various audio input formats to the Gemini inlineData format.
+   */
+  private async prepareAudioPart(
+    input: AudioInput,
+  ): Promise<Part> {
+    const normalized = await normalizeAudioInput(input)
+
+    // Convert to base64 if we have a Blob
+    if (normalized instanceof Blob) {
+      const arrayBuffer = await normalized.arrayBuffer()
+      const base64 = this.arrayBufferToBase64(arrayBuffer)
+      const mimeType = normalized.type || 'audio/wav'
+      return {
+        inlineData: {
+          data: base64,
+          mimeType,
+        },
+      }
+    }
+
+    // It's already a File (which extends Blob)
+    const file = await toFile(normalized)
+    const arrayBuffer = await file.arrayBuffer()
+    const base64 = this.arrayBufferToBase64(arrayBuffer)
+    return {
+      inlineData: {
+        data: base64,
+        mimeType: file.type || 'audio/wav',
+      },
+    }
+  }
+
+  /**
+   * Converts an ArrayBuffer to a base64 string.
+   */
+  private arrayBufferToBase64(buffer: ArrayBuffer): string {
+    const bytes = new Uint8Array(buffer)
+    let binary = ''
+    for (let i = 0; i < bytes.byteLength; i++) {
+      binary += String.fromCharCode(bytes[i]!)
+    }
+    // Use btoa in browser, or Buffer in Node.js
+    if (typeof btoa === 'function') {
+      return btoa(binary)
+    }
+    return Buffer.from(buffer).toString('base64')
+  }
+
+  /**
+   * Builds the transcription prompt based on provider options.
+   */
+  private buildTranscriptionPrompt(
+    options?: GeminiTranscriptionProviderOptions,
+  ): string {
+    // Use custom prompt if provided
+    if (options?.transcriptionPrompt) {
+      return options.transcriptionPrompt
+    }
+
+    let prompt =
+      'Transcribe the following audio accurately. Output only the transcription text, nothing else.'
+
+    if (options?.languageHint) {
+      prompt += ` The audio is in ${options.languageHint}.`
+    }
+
+    if (options?.includeTimestamps) {
+      prompt =
+        'Transcribe the following audio accurately with timestamps. Format each segment as [HH:MM:SS] followed by the text. Output only the timestamped transcription, nothing else.'
+    }
+
+    if (options?.speakerDiarization?.enabled) {
+      prompt =
+        'Transcribe the following audio accurately and identify different speakers. Format each segment as "Speaker X: [text]" where X is the speaker number. '
+      if (options.speakerDiarization.expectedSpeakerCount) {
+        prompt += `There are approximately ${options.speakerDiarization.expectedSpeakerCount} speakers. `
+      }
+      prompt += 'Output only the transcription with speaker labels, nothing else.'
+
+      if (options?.includeTimestamps) {
+        prompt =
+          'Transcribe the following audio accurately with timestamps and identify different speakers. Format each segment as "[HH:MM:SS] Speaker X: [text]". '
+        if (options.speakerDiarization.expectedSpeakerCount) {
+          prompt += `There are approximately ${options.speakerDiarization.expectedSpeakerCount} speakers. `
+        }
+        prompt +=
+          'Output only the timestamped transcription with speaker labels, nothing else.'
+      }
+    }
+
+    return prompt
   }
 }
 

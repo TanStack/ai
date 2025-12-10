@@ -136,8 +136,10 @@ interface OllamaProviderOptions {
 export class Ollama extends BaseAdapter<
   typeof OLLAMA_MODELS,
   typeof OLLAMA_EMBEDDING_MODELS,
+  [], // No transcription models
   OllamaProviderOptions,
   Record<string, any>,
+  Record<string, any>, // No transcription provider options
   OllamaChatModelProviderOptionsByName,
   OllamaModelInputModalitiesByName,
   DefaultMessageMetadataByModality
