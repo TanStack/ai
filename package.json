@@ -15,10 +15,9 @@
   "scripts": {
     "clean": "pnpm --filter \"./packages/**\" run clean",
     "test": "pnpm run test:ci",
-    "test:pr": "nx affected --targets=test:sherif,test:knip,test:eslint,test:lib,test:types,test:build,build",
-    "test:ci": "nx run-many --targets=test:sherif,test:knip,test:eslint,test:lib,test:types,test:build,build",
+    "test:pr": "nx affected --targets=test:sherif,test:knip,test:docs,test:eslint,test:lib,test:types,test:build,build",
+    "test:ci": "nx run-many --targets=test:sherif,test:knip,test:docs,test:eslint,test:lib,test:types,test:build,build",
     "test:eslint": "nx affected --target=test:eslint --exclude=examples/**",
-    "test:format": "pnpm run prettier --check",
     "test:sherif": "sherif",
     "test:lib": "nx affected --targets=test:lib --exclude=examples/**",
     "test:lib:dev": "pnpm test:lib && nx watch --all -- pnpm test:lib",
@@ -31,17 +30,16 @@
     "build:all": "nx run-many --targets=build --exclude=examples/**",
     "watch": "pnpm run build:all && nx watch --all -- pnpm run build:all",
     "dev": "pnpm run watch",
-    "prettier": "prettier --ignore-unknown '**/*'",
-    "prettier:write": "pnpm run prettier --write",
+    "format": "prettier --experimental-cli --ignore-unknown '**/*' --write",
     "generate-docs": "node scripts/generate-docs.ts && pnpm run copy:readme",
     "copy:readme": "cp README.md packages/typescript/ai/README.md && cp README.md packages/typescript/ai-devtools/README.md && cp README.md packages/typescript/ai-client/README.md && cp README.md packages/typescript/ai-gemini/README.md && cp README.md packages/typescript/ai-ollama/README.md && cp README.md packages/typescript/ai-openai/README.md && cp README.md packages/typescript/ai-react/README.md && cp README.md packages/typescript/ai-react-ui/README.md && cp README.md packages/typescript/react-ai-devtools/README.md && cp README.md packages/typescript/solid-ai-devtools/README.md",
-    "format": "pnpm run prettier:write",
     "changeset": "changeset",
     "changeset:publish": "changeset publish",
-    "changeset:version": "changeset version && pnpm install --no-frozen-lockfile && pnpm prettier:write"
+    "changeset:version": "changeset version && pnpm install --no-frozen-lockfile && pnpm format"
   },
   "nx": {
     "includedScripts": [
+      "test:docs",
       "test:knip",
       "test:sherif"
     ]
@@ -61,7 +59,7 @@
     "markdown-link-extractor": "^4.0.3",
     "nx": "22.1.2",
     "premove": "^4.0.0",
-    "prettier": "^3.6.2",
+    "prettier": "^3.7.4",
     "prettier-plugin-svelte": "^3.4.0",
     "publint": "^0.3.15",
     "sherif": "^1.9.0",

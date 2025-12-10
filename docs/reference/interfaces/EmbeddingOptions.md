@@ -5,7 +5,7 @@ title: EmbeddingOptions
 
 # Interface: EmbeddingOptions
 
-Defined in: [types.ts:644](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L644)
+Defined in: [types.ts:716](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L716)
 
 ## Properties
 
@@ -15,7 +15,7 @@ Defined in: [types.ts:644](https://github.com/TanStack/ai/blob/main/packages/typ
 optional dimensions: number;
 ```
 
-Defined in: [types.ts:647](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L647)
+Defined in: [types.ts:719](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L719)
 
 ***
 
@@ -25,7 +25,7 @@ Defined in: [types.ts:647](https://github.com/TanStack/ai/blob/main/packages/typ
 input: string | string[];
 ```
 
-Defined in: [types.ts:646](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L646)
+Defined in: [types.ts:718](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L718)
 
 ***
 
@@ -35,4 +35,4 @@ Defined in: [types.ts:646](https://github.com/TanStack/ai/blob/main/packages/typ
 model: string;
 ```
 
-Defined in: [types.ts:645](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L645)
+Defined in: [types.ts:717](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L717)
