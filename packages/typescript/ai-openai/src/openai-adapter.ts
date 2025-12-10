@@ -343,6 +343,29 @@ export class OpenAI extends BaseAdapter<
           }
         }
 
+        // Handle reasoning summary deltas (when using reasoning.summary option)
+        // response.reasoning_summary_text.delta provides incremental summary updates
+        if (
+          chunk.type === 'response.reasoning_summary_text.delta' &&
+          chunk.delta
+        ) {
+          const summaryDelta =
+            typeof chunk.delta === 'string' ? chunk.delta : ''
+
+          if (summaryDelta) {
+            accumulatedReasoning += summaryDelta
+            hasStreamedReasoningDeltas = true
+            yield {
+              type: 'thinking',
+              id: responseId || generateId(),
+              model: model || options.model,
+              timestamp,
+              delta: summaryDelta,
+              content: accumulatedReasoning,
+            }
+          }
+        }
+
         // handle content_part added events for text, reasoning and refusals
         if (chunk.type === 'response.content_part.added') {
           const contentPart = chunk.part
