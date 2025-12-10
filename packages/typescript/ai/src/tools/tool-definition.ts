@@ -1,5 +1,5 @@
 import type { z } from 'zod'
-import type { Tool } from '../types'
+import type { Tool, ToolOptions } from '../types'
 
 /**
  * Marker type for server-side tools
@@ -8,8 +8,10 @@ export interface ServerTool<
   TInput extends z.ZodType = z.ZodType,
   TOutput extends z.ZodType = z.ZodType,
   TName extends string = string,
+  TContext = unknown,
 > extends Tool<TInput, TOutput, TName> {
   __toolSide: 'server'
+  __contextType?: TContext
 }
 
 /**
@@ -19,8 +21,10 @@ export interface ClientTool<
   TInput extends z.ZodType = z.ZodType,
   TOutput extends z.ZodType = z.ZodType,
   TName extends string = string,
+  TContext = unknown,
 > {
   __toolSide: 'client'
+  __contextType?: TContext
   name: TName
   description: string
   inputSchema?: TInput
@@ -29,6 +33,7 @@ export interface ClientTool<
   metadata?: Record<string, any>
   execute?: (
     args: z.infer<TInput>,
+    options: ToolOptions<TContext>,
   ) => Promise<z.infer<TOutput>> | z.infer<TOutput>
 }
 
@@ -47,7 +52,7 @@ export interface ToolDefinitionInstance<
  * Union type for any kind of client-side tool (client tool or definition)
  */
 export type AnyClientTool =
-  | ClientTool<any, any>
+  | ClientTool<any, any, any, any>
   | ToolDefinitionInstance<any, any>
 
 /**
@@ -100,20 +105,22 @@ export interface ToolDefinition<
   /**
    * Create a server-side tool with execute function
    */
-  server: (
+  server: <TContext = unknown>(
     execute: (
       args: z.infer<TInput>,
+      options: ToolOptions<TContext>,
     ) => Promise<z.infer<TOutput>> | z.infer<TOutput>,
-  ) => ServerTool<TInput, TOutput, TName>
+  ) => ServerTool<TInput, TOutput, TName, TContext>
 
   /**
    * Create a client-side tool with optional execute function
    */
-  client: (
+  client: <TContext = unknown>(
     execute?: (
       args: z.infer<TInput>,
+      options: ToolOptions<TContext>,
     ) => Promise<z.infer<TOutput>> | z.infer<TOutput>,
-  ) => ClientTool<TInput, TOutput, TName>
+  ) => ClientTool<TInput, TOutput, TName, TContext>
 }
 
 /**
@@ -177,27 +184,31 @@ export function toolDefinition<
   const definition: ToolDefinition<TInput, TOutput, TName> = {
     __toolSide: 'definition',
     ...config,
-    server(
+    server<TContext = unknown>(
       execute: (
         args: z.infer<TInput>,
+        options: ToolOptions<TContext>,
       ) => Promise<z.infer<TOutput>> | z.infer<TOutput>,
-    ): ServerTool<TInput, TOutput, TName> {
+    ): ServerTool<TInput, TOutput, TName, TContext> {
       return {
         __toolSide: 'server',
+        __contextType: undefined as any, // Type-only marker
         ...config,
-        execute,
+        execute: execute as any,
       }
     },
 
-    client(
+    client<TContext = unknown>(
       execute?: (
         args: z.infer<TInput>,
+        options: ToolOptions<TContext>,
       ) => Promise<z.infer<TOutput>> | z.infer<TOutput>,
-    ): ClientTool<TInput, TOutput, TName> {
+    ): ClientTool<TInput, TOutput, TName, TContext> {
       return {
         __toolSide: 'client',
+        __contextType: undefined as any, // Type-only marker
         ...config,
-        execute,
+        execute: execute as any,
       }
     },
   }

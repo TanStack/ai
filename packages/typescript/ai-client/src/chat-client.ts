@@ -10,11 +10,19 @@ import type {
   ToolCallPart,
   UIMessage,
 } from './types'
-import type { AnyClientTool, ModelMessage, StreamChunk } from '@tanstack/ai'
+import type {
+  AnyClientTool,
+  ModelMessage,
+  StreamChunk,
+  ToolOptions,
+} from '@tanstack/ai'
 import type { ConnectionAdapter } from './connection-adapters'
 import type { ChatClientEventEmitter } from './events'
 
-export class ChatClient {
+export class ChatClient<
+  TTools extends ReadonlyArray<AnyClientTool> = any,
+  TContext = unknown,
+> {
   private processor: StreamProcessor
   private connection: ConnectionAdapter
   private uniqueId: string
@@ -26,6 +34,7 @@ export class ChatClient {
   private clientToolsRef: { current: Map<string, AnyClientTool> }
   private currentStreamId: string | null = null
   private currentMessageId: string | null = null
+  private options: Partial<ToolOptions<TContext>>
 
   private callbacksRef: {
     current: {
@@ -39,9 +48,10 @@ export class ChatClient {
     }
   }
 
-  constructor(options: ChatClientOptions) {
+  constructor(options: ChatClientOptions<TTools, TContext>) {
     this.uniqueId = options.id || this.generateUniqueId('chat')
     this.body = options.body || {}
+    this.options = { context: options.context }
     this.connection = options.connection
     this.events = new DefaultChatClientEventEmitter(this.uniqueId)
 
@@ -135,7 +145,9 @@ export class ChatClient {
           const clientTool = this.clientToolsRef.current.get(args.toolName)
           if (clientTool?.execute) {
             try {
-              const output = await clientTool.execute(args.input)
+              const output = await clientTool.execute(args.input, {
+                context: this.options.context,
+              })
               await this.addToolResult({
                 toolCallId: args.toolCallId,
                 tool: args.toolName,

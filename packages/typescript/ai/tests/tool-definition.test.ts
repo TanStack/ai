@@ -1,4 +1,4 @@
-import { describe, it, expect, vi } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { z } from 'zod'
 import { toolDefinition } from '../src/tools/tool-definition'
 
@@ -60,9 +60,15 @@ describe('toolDefinition', () => {
     expect(serverTool.execute).toBeDefined()
 
     if (serverTool.execute) {
-      const result = await serverTool.execute({ location: 'Paris' })
+      const result = await serverTool.execute(
+        { location: 'Paris' },
+        { context: undefined as any },
+      )
       expect(result).toEqual({ temperature: 72, conditions: 'sunny' })
-      expect(executeFn).toHaveBeenCalledWith({ location: 'Paris' })
+      expect(executeFn).toHaveBeenCalledWith(
+        { location: 'Paris' },
+        { context: undefined as any },
+      )
     }
   })
 
@@ -90,9 +96,15 @@ describe('toolDefinition', () => {
     expect(clientTool.execute).toBeDefined()
 
     if (clientTool.execute) {
-      const result = await clientTool.execute({ key: 'test', value: 'data' })
+      const result = await clientTool.execute(
+        { key: 'test', value: 'data' },
+        { context: undefined as any },
+      )
       expect(result).toEqual({ success: true })
-      expect(executeFn).toHaveBeenCalledWith({ key: 'test', value: 'data' })
+      expect(executeFn).toHaveBeenCalledWith(
+        { key: 'test', value: 'data' },
+        { context: undefined as any },
+      )
     }
   })
 
@@ -176,7 +188,10 @@ describe('toolDefinition', () => {
     })
 
     if (serverTool.execute) {
-      const result = serverTool.execute({ value: 5 })
+      const result = serverTool.execute(
+        { value: 5 },
+        { context: undefined as any },
+      )
       expect(result).toEqual({ doubled: 10 })
     }
   })
@@ -218,11 +233,14 @@ describe('toolDefinition', () => {
     })
 
     // Verify it can be called
-    void serverTool.execute?.({
-      orderId: '123',
-      items: [],
-      shipping: { address: '123 Main St', method: 'standard' },
-    })
+    void serverTool.execute?.(
+      {
+        orderId: '123',
+        items: [],
+        shipping: { address: '123 Main St', method: 'standard' },
+      },
+      { context: undefined as any },
+    )
 
     expect(serverTool.__toolSide).toBe('server')
   })
@@ -254,5 +272,68 @@ describe('toolDefinition', () => {
     expect(tool.description).toBe('Can be used directly')
     expect(tool.__toolSide).toBe('definition')
     expect(tool.inputSchema).toBeDefined()
+  })
+
+  describe('context support', () => {
+    it('should pass context to tool execute functions', async () => {
+      interface TestContext {
+        userId: string
+        db: {
+          users: {
+            find: (id: string) => Promise<{ name: string; email: string }>
+          }
+        }
+      }
+
+      const tool = toolDefinition({
+        name: 'getUser',
+        description: 'Get user by ID',
+        inputSchema: z.object({
+          userId: z.string(),
+        }),
+        outputSchema: z.object({
+          name: z.string(),
+          email: z.string(),
+        }),
+      })
+
+      const mockContext: TestContext = {
+        userId: '123',
+        db: {
+          users: {
+            find: vi.fn(async (_id: string) => ({
+              name: 'John Doe',
+              email: 'john@example.com',
+            })),
+          },
+        },
+      }
+
+      const executeFn = vi.fn(
+        async (args: any, options: { context: TestContext }) => {
+          const user = await options.context.db.users.find(args.userId)
+          return user
+        },
+      )
+
+      const serverTool = tool.server<TestContext>(executeFn)
+
+      if (serverTool.execute) {
+        const result = await serverTool.execute(
+          { userId: '123' },
+          { context: mockContext },
+        )
+
+        expect(result).toEqual({
+          name: 'John Doe',
+          email: 'john@example.com',
+        })
+        expect(executeFn).toHaveBeenCalledWith(
+          { userId: '123' },
+          { context: mockContext },
+        )
+        expect(mockContext.db.users.find).toHaveBeenCalledWith('123')
+      }
+    })
   })
 })
