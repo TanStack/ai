@@ -12,13 +12,13 @@ Instead of importing a monolithic adapter that includes chat, embedding, and sum
 
 ## Installation
 
-Each provider package (e.g., `@tanstack/ai-openai`, `@tanstack/ai-anthropic`) exports tree-shakeable adapters from the `adapters` subpath:
+Each provider package (e.g., `@tanstack/ai-openai`, `@tanstack/ai-anthropic`) exports tree-shakeable adapters:
 
 ```ts
 // Import only what you need
-import { openaiText } from '@tanstack/ai-openai/adapters'
-import { openaiEmbed } from '@tanstack/ai-openai/adapters'
-import { openaiSummarize } from '@tanstack/ai-openai/adapters'
+import { openaiText } from '@tanstack/ai-openai'
+import { openaiEmbed } from '@tanstack/ai-openai'
+import { openaiSummarize } from '@tanstack/ai-openai'
 ```
 
 ## Available Adapters
@@ -33,7 +33,7 @@ import {
   createOpenAIText,
   createOpenAIEmbed,
   createOpenAISummarize,
-} from '@tanstack/ai-openai/adapters'
+} from '@tanstack/ai-openai'
 ```
 
 ### Anthropic
@@ -44,7 +44,7 @@ import {
   anthropicSummarize,  // Summarization
   createAnthropicText,
   createAnthropicSummarize,
-} from '@tanstack/ai-anthropic/adapters'
+} from '@tanstack/ai-anthropic'
 ```
 
 > Note: Anthropic does not support embeddings natively.
@@ -59,7 +59,7 @@ import {
   createGeminiText,
   createGeminiEmbed,
   createGeminiSummarize,
-} from '@tanstack/ai-gemini/adapters'
+} from '@tanstack/ai-gemini'
 ```
 
 ### Ollama
@@ -72,7 +72,7 @@ import {
   createOllamaText,
   createOllamaEmbed,
   createOllamaSummarize,
-} from '@tanstack/ai-ollama/adapters'
+} from '@tanstack/ai-ollama'
 ```
 
 ## Usage
@@ -84,13 +84,10 @@ Each adapter type has two ways to create instances:
 1. **Factory function** (recommended for quick setup):
 
 ```ts
-import { openaiText } from '@tanstack/ai-openai/adapters'
+import { openaiText } from '@tanstack/ai-openai'
 
-// Automatically uses OPENAI_API_KEY from environment
 const textAdapter = openaiText()
 
-// Or provide API key explicitly
-const textAdapter = openaiText({ apiKey: 'your-api-key' })
 ```
 
 2. **Class constructor** (for more control):
@@ -147,7 +144,7 @@ console.log(summarizeResult.summary)
 Each adapter provides full type safety for its supported models and options:
 
 ```ts
-import { openaiText, type OpenAITextModel } from '@tanstack/ai-openai/adapters'
+import { openaiText, type OpenAITextModel } from '@tanstack/ai-openai'
 
 const adapter = openaiText()
 
@@ -180,7 +177,7 @@ For example, if you only need chat functionality:
 
 ```ts
 // Only chat code is bundled
-import { openaiText } from '@tanstack/ai-openai/adapters'
+import { openaiText } from '@tanstack/ai-openai'
 ```
 
 vs.
