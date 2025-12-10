@@ -1,94 +1,76 @@
-import OpenAI_SDK from 'openai'
-import { BaseAdapter } from '@tanstack/ai'
-import { OPENAI_CHAT_MODELS, OPENAI_EMBEDDING_MODELS } from './model-meta'
-import { validateTextProviderOptions } from './text/text-provider-options'
-import { convertToolsToProviderFormat } from './tools'
+import { BaseChatAdapter } from '@tanstack/ai/adapters'
+import { OPENAI_CHAT_MODELS } from '../model-meta'
+import { validateTextProviderOptions } from '../text/text-provider-options'
+import { convertToolsToProviderFormat } from '../tools'
+import {
+  createOpenAIClient,
+  generateId,
+  getOpenAIApiKeyFromEnv,
+} from '../utils'
+import type OpenAI_SDK from 'openai'
 import type { Responses } from 'openai/resources'
 import type {
   ChatOptions,
   ContentPart,
-  EmbeddingOptions,
-  EmbeddingResult,
   ModelMessage,
   StreamChunk,
-  SummarizationOptions,
-  SummarizationResult,
 } from '@tanstack/ai'
 import type {
   OpenAIChatModelProviderOptionsByName,
   OpenAIModelInputModalitiesByName,
-} from './model-meta'
+} from '../model-meta'
 import type {
   ExternalTextProviderOptions,
   InternalTextProviderOptions,
-} from './text/text-provider-options'
+} from '../text/text-provider-options'
 import type {
   OpenAIAudioMetadata,
   OpenAIImageMetadata,
   OpenAIMessageMetadataByModality,
-} from './message-types'
+} from '../message-types'
+import type { OpenAIClientConfig } from '../utils'
 
-export interface OpenAIConfig {
-  apiKey: string
-  organization?: string
-  baseURL?: string
-}
+/**
+ * Configuration for OpenAI text adapter
+ */
+export interface OpenAITextConfig extends OpenAIClientConfig {}
 
 /**
  * Alias for TextProviderOptions
  */
-export type OpenAIProviderOptions = ExternalTextProviderOptions
+export type OpenAITextProviderOptions = ExternalTextProviderOptions
 
 /**
- * OpenAI-specific provider options for embeddings
- * Based on OpenAI Embeddings API documentation
- * @see https://platform.openai.com/docs/api-reference/embeddings/create
+ * OpenAI Text (Chat) Adapter
+ *
+ * Tree-shakeable adapter for OpenAI chat/text completion functionality.
+ * Import only what you need for smaller bundle sizes.
  */
-interface OpenAIEmbeddingProviderOptions {
-  /** Encoding format for embeddings: 'float' | 'base64' */
-  encodingFormat?: 'float' | 'base64'
-  /** Unique identifier for end-user (for abuse monitoring) */
-  user?: string
-}
-
-export class OpenAI extends BaseAdapter<
+export class OpenAITextAdapter extends BaseChatAdapter<
   typeof OPENAI_CHAT_MODELS,
-  typeof OPENAI_EMBEDDING_MODELS,
-  OpenAIProviderOptions,
-  OpenAIEmbeddingProviderOptions,
+  OpenAITextProviderOptions,
   OpenAIChatModelProviderOptionsByName,
   OpenAIModelInputModalitiesByName,
   OpenAIMessageMetadataByModality
 > {
-  name = 'openai' as const
-  models = OPENAI_CHAT_MODELS
-  embeddingModels = OPENAI_EMBEDDING_MODELS
+  readonly kind = 'chat' as const
+  readonly name = 'openai' as const
+  readonly models = OPENAI_CHAT_MODELS
+
+  // Type-only properties for type inference
+  declare _modelProviderOptionsByName: OpenAIChatModelProviderOptionsByName
+  declare _modelInputModalitiesByName: OpenAIModelInputModalitiesByName
+  declare _messageMetadataByModality: OpenAIMessageMetadataByModality
 
   private client: OpenAI_SDK
 
-  // Type-only map used by core AI to infer per-model provider options.
-  // This is never set at runtime; it exists purely for TypeScript.
-  // Using definite assignment assertion (!) since this is type-only.
-  // @ts-ignore - We never assign this at runtime and it's only used for types
-  _modelProviderOptionsByName: OpenAIChatModelProviderOptionsByName
-  // Type-only map for model input modalities; used for multimodal content type constraints
-  // @ts-ignore - We never assign this at runtime and it's only used for types
-  _modelInputModalitiesByName?: OpenAIModelInputModalitiesByName
-  // Type-only map for message metadata types; used for type-safe metadata autocomplete
-  // @ts-ignore - We never assign this at runtime and it's only used for types
-  _messageMetadataByModality?: OpenAIMessageMetadataByModality
-
-  constructor(config: OpenAIConfig) {
+  constructor(config: OpenAITextConfig) {
     super({})
-    this.client = new OpenAI_SDK({
-      apiKey: config.apiKey,
-      organization: config.organization,
-      baseURL: config.baseURL,
-    })
+    this.client = createOpenAIClient(config)
   }
 
   async *chatStream(
-    options: ChatOptions<string, OpenAIProviderOptions>,
+    options: ChatOptions<string, OpenAITextProviderOptions>,
   ): AsyncIterable<StreamChunk> {
     // Track tool call metadata by unique ID
     // OpenAI streams tool calls with deltas - first chunk has ID/name, subsequent chunks only have args
@@ -113,94 +95,23 @@ export class OpenAI extends BaseAdapter<
         response,
         toolCallMetadata,
         options,
-        () => this.generateId(),
+        () => generateId(this.name),
       )
-    } catch (error: any) {
+    } catch (error: unknown) {
+      const err = error as Error
       console.error('>>> chatStream: Fatal error during response creation <<<')
-      console.error('>>> Error message:', error?.message)
-      console.error('>>> Error stack:', error?.stack)
-      console.error('>>> Full error:', error)
+      console.error('>>> Error message:', err.message)
+      console.error('>>> Error stack:', err.stack)
+      console.error('>>> Full error:', err)
       throw error
     }
-  }
-
-  async summarize(options: SummarizationOptions): Promise<SummarizationResult> {
-    const systemPrompt = this.buildSummarizationPrompt(options)
-
-    const response = await this.client.chat.completions.create({
-      model: options.model || 'gpt-3.5-turbo',
-      messages: [
-        { role: 'system', content: systemPrompt },
-        { role: 'user', content: options.text },
-      ],
-      max_tokens: options.maxLength,
-      temperature: 0.3,
-      stream: false,
-    })
-
-    return {
-      id: response.id,
-      model: response.model,
-      summary: response.choices[0]?.message.content || '',
-      usage: {
-        promptTokens: response.usage?.prompt_tokens || 0,
-        completionTokens: response.usage?.completion_tokens || 0,
-        totalTokens: response.usage?.total_tokens || 0,
-      },
-    }
-  }
-
-  async createEmbeddings(options: EmbeddingOptions): Promise<EmbeddingResult> {
-    const response = await this.client.embeddings.create({
-      model: options.model || 'text-embedding-ada-002',
-      input: options.input,
-      dimensions: options.dimensions,
-    })
-
-    return {
-      id: this.generateId(),
-      model: response.model,
-      embeddings: response.data.map((d) => d.embedding),
-      usage: {
-        promptTokens: response.usage.prompt_tokens,
-        totalTokens: response.usage.total_tokens,
-      },
-    }
-  }
-
-  private buildSummarizationPrompt(options: SummarizationOptions): string {
-    let prompt = 'You are a professional summarizer. '
-
-    switch (options.style) {
-      case 'bullet-points':
-        prompt += 'Provide a summary in bullet point format. '
-        break
-      case 'paragraph':
-        prompt += 'Provide a summary in paragraph format. '
-        break
-      case 'concise':
-        prompt += 'Provide a very concise summary in 1-2 sentences. '
-        break
-      default:
-        prompt += 'Provide a clear and concise summary. '
-    }
-
-    if (options.focus && options.focus.length > 0) {
-      prompt += `Focus on the following aspects: ${options.focus.join(', ')}. `
-    }
-
-    if (options.maxLength) {
-      prompt += `Keep the summary under ${options.maxLength} tokens. `
-    }
-
-    return prompt
   }
 
   private async *processOpenAIStreamChunks(
     stream: AsyncIterable<OpenAI_SDK.Responses.ResponseStreamEvent>,
     toolCallMetadata: Map<string, { index: number; name: string }>,
     options: ChatOptions,
-    generateId: () => string,
+    genId: () => string,
   ): AsyncIterable<StreamChunk> {
     let accumulatedContent = ''
     let accumulatedReasoning = ''
@@ -230,7 +141,7 @@ export class OpenAI extends BaseAdapter<
             accumulatedContent += contentPart.text
             return {
               type: 'content',
-              id: responseId || generateId(),
+              id: responseId || genId(),
               model: model || options.model,
               timestamp,
               delta: contentPart.text,
@@ -243,7 +154,7 @@ export class OpenAI extends BaseAdapter<
             accumulatedReasoning += contentPart.text
             return {
               type: 'thinking',
-              id: responseId || generateId(),
+              id: responseId || genId(),
               model: model || options.model,
               timestamp,
               delta: contentPart.text,
@@ -252,7 +163,7 @@ export class OpenAI extends BaseAdapter<
           }
           return {
             type: 'error',
-            id: responseId || generateId(),
+            id: responseId || genId(),
             model: model || options.model,
             timestamp,
             error: {
@@ -309,7 +220,7 @@ export class OpenAI extends BaseAdapter<
             hasStreamedContentDeltas = true
             yield {
               type: 'content',
-              id: responseId || generateId(),
+              id: responseId || genId(),
               model: model || options.model,
               timestamp,
               delta: textDelta,
@@ -334,7 +245,7 @@ export class OpenAI extends BaseAdapter<
             hasStreamedReasoningDeltas = true
             yield {
               type: 'thinking',
-              id: responseId || generateId(),
+              id: responseId || genId(),
               model: model || options.model,
               timestamp,
               delta: reasoningDelta,
@@ -357,7 +268,7 @@ export class OpenAI extends BaseAdapter<
             hasStreamedReasoningDeltas = true
             yield {
               type: 'thinking',
-              id: responseId || generateId(),
+              id: responseId || genId(),
               model: model || options.model,
               timestamp,
               delta: summaryDelta,
@@ -416,7 +327,7 @@ export class OpenAI extends BaseAdapter<
 
           yield {
             type: 'tool_call',
-            id: responseId || generateId(),
+            id: responseId || genId(),
             model: model || options.model,
             timestamp,
             index: output_index,
@@ -435,12 +346,13 @@ export class OpenAI extends BaseAdapter<
           // Determine finish reason based on output
           // If there are function_call items in the output, it's a tool_calls finish
           const hasFunctionCalls = chunk.response.output.some(
-            (item: any) => item.type === 'function_call',
+            (item: unknown) =>
+              (item as { type: string }).type === 'function_call',
           )
 
           yield {
             type: 'done',
-            id: responseId || generateId(),
+            id: responseId || genId(),
             model: model || options.model,
             timestamp,
             usage: {
@@ -455,7 +367,7 @@ export class OpenAI extends BaseAdapter<
         if (chunk.type === 'error') {
           yield {
             type: 'error',
-            id: responseId || generateId(),
+            id: responseId || genId(),
             model: model || options.model,
             timestamp,
             error: {
@@ -465,23 +377,24 @@ export class OpenAI extends BaseAdapter<
           }
         }
       }
-    } catch (error: any) {
+    } catch (error: unknown) {
+      const err = error as Error & { code?: string }
       console.log(
         '[OpenAI Adapter] Stream ended with error. Event type summary:',
         {
           totalChunks: chunkCount,
           eventTypes: Object.fromEntries(eventTypeCounts),
-          error: error.message,
+          error: err.message,
         },
       )
       yield {
         type: 'error',
-        id: generateId(),
+        id: genId(),
         model: options.model,
         timestamp,
         error: {
-          message: error.message || 'Unknown error occurred',
-          code: error.code,
+          message: err.message || 'Unknown error occurred',
+          code: err.code,
         },
       }
     }
@@ -714,59 +627,50 @@ export class OpenAI extends BaseAdapter<
 }
 
 /**
- * Creates an OpenAI adapter with simplified configuration
+ * Creates an OpenAI text adapter with explicit API key
+ *
  * @param apiKey - Your OpenAI API key
- * @returns A fully configured OpenAI adapter instance
+ * @param config - Optional additional configuration
+ * @returns Configured OpenAI text adapter instance
  *
  * @example
  * ```typescript
- * const openai = createOpenAI("sk-...");
- *
- * const ai = new AI({
- *   adapters: {
- *     openai,
- *   }
- * });
+ * const adapter = createOpenaiText("sk-...");
  * ```
  */
-export function createOpenAI(
+export function createOpenaiText(
   apiKey: string,
-  config?: Omit<OpenAIConfig, 'apiKey'>,
-): OpenAI {
-  return new OpenAI({ apiKey, ...config })
+  config?: Omit<OpenAITextConfig, 'apiKey'>,
+): OpenAITextAdapter {
+  return new OpenAITextAdapter({ apiKey, ...config })
 }
 
 /**
- * Create an OpenAI adapter with automatic API key detection from environment variables.
+ * Creates an OpenAI text adapter with automatic API key detection from environment variables.
  *
  * Looks for `OPENAI_API_KEY` in:
  * - `process.env` (Node.js)
  * - `window.env` (Browser with injected env)
  *
  * @param config - Optional configuration (excluding apiKey which is auto-detected)
- * @returns Configured OpenAI adapter instance
+ * @returns Configured OpenAI text adapter instance
  * @throws Error if OPENAI_API_KEY is not found in environment
  *
  * @example
  * ```typescript
  * // Automatically uses OPENAI_API_KEY from environment
- * const aiInstance = ai(openai());
+ * const adapter = openaiText();
+ *
+ * await generate({
+ *   adapter,
+ *   model: "gpt-4",
+ *   messages: [{ role: "user", content: "Hello!" }]
+ * });
  * ```
  */
-export function openai(config?: Omit<OpenAIConfig, 'apiKey'>): OpenAI {
-  const env =
-    typeof globalThis !== 'undefined' && (globalThis as any).window?.env
-      ? (globalThis as any).window.env
-      : typeof process !== 'undefined'
-        ? process.env
-        : undefined
-  const key = env?.OPENAI_API_KEY
-
-  if (!key) {
-    throw new Error(
-      'OPENAI_API_KEY is required. Please set it in your environment variables or use createOpenAI(apiKey, config) instead.',
-    )
-  }
-
-  return createOpenAI(key, config)
+export function openaiText(
+  config?: Omit<OpenAITextConfig, 'apiKey'>,
+): OpenAITextAdapter {
+  const apiKey = getOpenAIApiKeyFromEnv()
+  return createOpenaiText(apiKey, config)
 }

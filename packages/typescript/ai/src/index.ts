@@ -2,6 +2,15 @@ export { chat } from './core/chat'
 export { summarize } from './core/summarize'
 export { embedding } from './core/embedding'
 export {
+  generate,
+  type AnyAdapter,
+  type GenerateAdapter,
+  type GenerateOptions,
+  type ChatGenerateOptions,
+  type EmbeddingGenerateOptions,
+  type SummarizeGenerateOptions,
+} from './core/generate'
+export {
   toolDefinition,
   type ToolDefinition,
   type ToolDefinitionInstance,

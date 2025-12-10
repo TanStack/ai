@@ -779,6 +779,8 @@ export const GEMINI_MODELS = [
   GEMINI_2_FLASH_LITE.name,
 ] as const
 
+export type GeminiModels = (typeof GEMINI_MODELS)[number]
+
 /*   const GEMINI_IMAGE_MODELS = [
   GEMINI_2_5_FLASH_IMAGE.name,
   GEMINI_2_FLASH_IMAGE.name,

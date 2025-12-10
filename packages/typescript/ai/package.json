@@ -17,6 +17,10 @@
       "types": "./dist/esm/index.d.ts",
       "import": "./dist/esm/index.js"
     },
+    "./adapters": {
+      "types": "./dist/esm/adapters/index.d.ts",
+      "import": "./dist/esm/adapters/index.js"
+    },
     "./event-client": {
       "types": "./dist/esm/event-client.d.ts",
       "import": "./dist/esm/event-client.js"

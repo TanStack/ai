@@ -1,6 +1,12 @@
 import type { CommonOptions } from './core/chat-common-options'
 import type { z } from 'zod'
 import type { ToolCallState, ToolResultState } from './stream/types'
+import type {
+  AnyAdapter,
+  ChatAdapter,
+  EmbeddingAdapter,
+  SummarizeAdapter,
+} from './adapters'
 
 export interface ToolCall {
   id: string
@@ -883,3 +889,82 @@ export type ExtractModalitiesForModel<
       ? ModelInputModalities[TModel]
       : ReadonlyArray<Modality>
     : ReadonlyArray<Modality>
+
+// ============================================================================
+// New Adapter Types (Tree-Shakeable Architecture)
+// ============================================================================
+
+/**
+ * Extract models from any of the new adapter types
+ */
+export type ExtractModelsFromChatAdapter<T> =
+  T extends ChatAdapter<infer M, any, any, any, any> ? M[number] : never
+
+export type ExtractModelsFromEmbeddingAdapter<T> =
+  T extends EmbeddingAdapter<infer M, any> ? M[number] : never
+
+export type ExtractModelsFromSummarizeAdapter<T> =
+  T extends SummarizeAdapter<infer M, any> ? M[number] : never
+
+/**
+ * Extract models from any adapter type (unified)
+ */
+export type ExtractModelsFromAnyAdapter<T> =
+  T extends ChatAdapter<infer M, any, any, any, any>
+    ? M[number]
+    : T extends EmbeddingAdapter<infer M, any>
+      ? M[number]
+      : T extends SummarizeAdapter<infer M, any>
+        ? M[number]
+        : never
+
+/**
+ * Chat options for the new ChatAdapter type
+ */
+export type ChatOptionsForChatAdapter<
+  TAdapter extends ChatAdapter<any, any, any, any, any>,
+  TModel extends string,
+> =
+  TAdapter extends ChatAdapter<
+    any,
+    any,
+    infer ModelProviderOptions,
+    infer ModelInputModalities,
+    infer MessageMetadata
+  >
+    ? Omit<
+        ChatOptions,
+        'model' | 'providerOptions' | 'responseFormat' | 'messages'
+      > & {
+        adapter: TAdapter
+        model: TModel
+        providerOptions?: TModel extends keyof ModelProviderOptions
+          ? ModelProviderOptions[TModel]
+          : never
+        messages: TModel extends keyof ModelInputModalities
+          ? ModelInputModalities[TModel] extends ReadonlyArray<Modality>
+            ? MessageMetadata extends {
+                text: infer TTextMeta
+                image: infer TImageMeta
+                audio: infer TAudioMeta
+                video: infer TVideoMeta
+                document: infer TDocumentMeta
+              }
+              ? Array<
+                  ConstrainedModelMessage<
+                    ModelInputModalities[TModel],
+                    TImageMeta,
+                    TAudioMeta,
+                    TVideoMeta,
+                    TDocumentMeta,
+                    TTextMeta
+                  >
+                >
+              : Array<ConstrainedModelMessage<ModelInputModalities[TModel]>>
+            : Array<ModelMessage>
+          : Array<ModelMessage>
+      }
+    : never
+
+// Re-export adapter types from adapters module
+export type { ChatAdapter, EmbeddingAdapter, SummarizeAdapter, AnyAdapter }

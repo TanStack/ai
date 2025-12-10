@@ -29,7 +29,11 @@ const config = defineConfig({
 export default mergeConfig(
   config,
   tanstackViteConfig({
-    entry: ['./src/index.ts', './src/event-client.ts'],
+    entry: [
+      './src/index.ts',
+      './src/event-client.ts',
+      './src/adapters/index.ts',
+    ],
     srcDir: './src',
     cjs: false,
   }),

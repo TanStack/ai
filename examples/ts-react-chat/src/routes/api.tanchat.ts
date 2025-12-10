@@ -1,6 +1,11 @@
 import { createFileRoute } from '@tanstack/react-router'
-import { chat, maxIterations, toStreamResponse } from '@tanstack/ai'
-import { openai } from '@tanstack/ai-openai'
+import { chat, generate, maxIterations, toStreamResponse } from '@tanstack/ai'
+import {
+  openai,
+  openaiEmbed,
+  openaiSummarize,
+  openaiText,
+} from '@tanstack/ai-openai'
 import { ollama } from '@tanstack/ai-ollama'
 import { anthropic } from '@tanstack/ai-anthropic'
 import { gemini } from '@tanstack/ai-gemini'
@@ -11,6 +16,15 @@ import {
   getPersonalGuitarPreferenceToolDef,
   recommendGuitarToolDef,
 } from '@/lib/guitar-tools'
+
+/* const test = generate({
+  adapter: openaiText(),
+  model: "gpt-5",
+  messages: [{}],
+
+  providerOptions: {
+  },
+}) */
 
 type Provider = 'openai' | 'anthropic' | 'gemini' | 'ollama'
 
