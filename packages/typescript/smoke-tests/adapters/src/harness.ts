@@ -227,7 +227,7 @@ export async function captureStream(opts: {
       }
     } else if (chunk.type === 'TOOL_CALL_END') {
       chunkData.toolCallId = chunk.toolCallId
-      
+
       // Capture input/arguments from TOOL_CALL_END (OpenAI sends complete args here)
       if (chunk.input !== undefined) {
         const id = chunk.toolCallId
@@ -236,7 +236,7 @@ export async function captureStream(opts: {
           existing.arguments = JSON.stringify(chunk.input)
           toolCallMap.set(id, existing)
         }
-        
+
         // Update the assistant draft's tool call arguments
         if (assistantDraft) {
           const existingToolCall = assistantDraft.toolCalls?.find(
@@ -247,7 +247,7 @@ export async function captureStream(opts: {
           }
         }
       }
-      
+
       // Tool result is included in TOOL_CALL_END for server-executed tools
       if (chunk.result !== undefined) {
         const content =
