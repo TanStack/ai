@@ -47,8 +47,7 @@ export interface EmbeddingAdapter<
 export abstract class BaseEmbeddingAdapter<
   TModels extends ReadonlyArray<string> = ReadonlyArray<string>,
   TProviderOptions extends object = Record<string, unknown>,
-> implements EmbeddingAdapter<TModels, TProviderOptions>
-{
+> implements EmbeddingAdapter<TModels, TProviderOptions> {
   readonly kind = 'embedding' as const
   abstract readonly name: string
   abstract readonly models: TModels

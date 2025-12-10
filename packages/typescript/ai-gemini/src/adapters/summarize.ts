@@ -47,13 +47,10 @@ export interface GeminiSummarizeAdapterOptions {
  * Gemini Summarize Adapter
  * A tree-shakeable summarization adapter for Google Gemini
  */
-export class GeminiSummarizeAdapter
-  implements
-    SummarizeAdapter<
-      typeof GeminiSummarizeModels,
-      GeminiSummarizeProviderOptions
-    >
-{
+export class GeminiSummarizeAdapter implements SummarizeAdapter<
+  typeof GeminiSummarizeModels,
+  GeminiSummarizeProviderOptions
+> {
   readonly kind = 'summarize' as const
   readonly name = 'gemini' as const
   readonly models = GeminiSummarizeModels

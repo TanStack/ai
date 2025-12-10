@@ -36,10 +36,10 @@ export interface GeminiEmbedAdapterOptions {
  * Gemini Embedding Adapter
  * A tree-shakeable embedding adapter for Google Gemini
  */
-export class GeminiEmbedAdapter
-  implements
-    EmbeddingAdapter<typeof GeminiEmbeddingModels, GeminiEmbedProviderOptions>
-{
+export class GeminiEmbedAdapter implements EmbeddingAdapter<
+  typeof GeminiEmbeddingModels,
+  GeminiEmbedProviderOptions
+> {
   readonly kind = 'embedding' as const
   readonly name = 'gemini' as const
   readonly models = GeminiEmbeddingModels

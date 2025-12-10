@@ -46,10 +46,10 @@ export interface OllamaEmbedAdapterOptions {
  * Ollama Embedding Adapter
  * A tree-shakeable embedding adapter for Ollama
  */
-export class OllamaEmbedAdapter
-  implements
-    EmbeddingAdapter<typeof OllamaEmbeddingModels, OllamaEmbedProviderOptions>
-{
+export class OllamaEmbedAdapter implements EmbeddingAdapter<
+  typeof OllamaEmbeddingModels,
+  OllamaEmbedProviderOptions
+> {
   readonly kind = 'embedding' as const
   readonly name = 'ollama' as const
   readonly models = OllamaEmbeddingModels

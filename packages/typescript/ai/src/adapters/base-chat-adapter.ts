@@ -34,10 +34,8 @@ export interface ChatAdapter<
     string,
     unknown
   >,
-  TModelInputModalitiesByName extends Record<
-    string,
-    ReadonlyArray<Modality>
-  > = Record<string, ReadonlyArray<Modality>>,
+  TModelInputModalitiesByName extends Record<string, ReadonlyArray<Modality>> =
+    Record<string, ReadonlyArray<Modality>>,
   TMessageMetadataByModality extends {
     text: unknown
     image: unknown
@@ -82,10 +80,8 @@ export abstract class BaseChatAdapter<
     string,
     unknown
   >,
-  TModelInputModalitiesByName extends Record<
-    string,
-    ReadonlyArray<Modality>
-  > = Record<string, ReadonlyArray<Modality>>,
+  TModelInputModalitiesByName extends Record<string, ReadonlyArray<Modality>> =
+    Record<string, ReadonlyArray<Modality>>,
   TMessageMetadataByModality extends {
     text: unknown
     image: unknown
@@ -93,15 +89,13 @@ export abstract class BaseChatAdapter<
     video: unknown
     document: unknown
   } = DefaultMessageMetadataByModality,
-> implements
-    ChatAdapter<
-      TModels,
-      TProviderOptions,
-      TModelProviderOptionsByName,
-      TModelInputModalitiesByName,
-      TMessageMetadataByModality
-    >
-{
+> implements ChatAdapter<
+  TModels,
+  TProviderOptions,
+  TModelProviderOptionsByName,
+  TModelInputModalitiesByName,
+  TMessageMetadataByModality
+> {
   readonly kind = 'chat' as const
   abstract readonly name: string
   abstract readonly models: TModels

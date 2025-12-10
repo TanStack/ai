@@ -61,13 +61,10 @@ export interface OllamaSummarizeAdapterOptions {
  * Ollama Summarize Adapter
  * A tree-shakeable summarization adapter for Ollama
  */
-export class OllamaSummarizeAdapter
-  implements
-    SummarizeAdapter<
-      typeof OllamaSummarizeModels,
-      OllamaSummarizeProviderOptions
-    >
-{
+export class OllamaSummarizeAdapter implements SummarizeAdapter<
+  typeof OllamaSummarizeModels,
+  OllamaSummarizeProviderOptions
+> {
   readonly kind = 'summarize' as const
   readonly name = 'ollama' as const
   readonly models = OllamaSummarizeModels

@@ -47,8 +47,7 @@ export interface SummarizeAdapter<
 export abstract class BaseSummarizeAdapter<
   TModels extends ReadonlyArray<string> = ReadonlyArray<string>,
   TProviderOptions extends object = Record<string, unknown>,
-> implements SummarizeAdapter<TModels, TProviderOptions>
-{
+> implements SummarizeAdapter<TModels, TProviderOptions> {
   readonly kind = 'summarize' as const
   abstract readonly name: string
   abstract readonly models: TModels
