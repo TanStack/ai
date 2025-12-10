@@ -40,7 +40,9 @@ jobs:
           title: "ci: Version Packages"
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
+      - name: Generate Docs
+        if: steps.changesets.outputs.published == 'true'
+        run: pnpm generate-docs
       - name: Commit Generated Docs
         if: steps.changesets.outputs.published == 'true'
         run: |
@@ -56,3 +58,8 @@ jobs:
           fi
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Comment on PRs about release
+        if: steps.changesets.outputs.published == 'true'
+        uses: tanstack/config/.github/comment-on-release@main
+        with:
+          published-packages: ${{ steps.changesets.outputs.publishedPackages }}
