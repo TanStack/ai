@@ -1,29 +1,29 @@
-import { createFileRoute } from '@tanstack/react-router'
-import getSettlements from '@/features/settlements/getSettlements'
-import SettlementsTable from '@/features/settlements/SettlementsTable'
-import TableSummary from '@/components/TableSummary'
+import { ClientOnly, createFileRoute } from '@tanstack/react-router'
+import { zodValidator } from '@tanstack/zod-adapter'
 import SettlementsFilters from '@/features/settlements/SettlementsFilters'
 import { settlementsSearchSchema } from '@/features/settlements/constants'
+import Spinner from '@/components/Spinner'
+import SettlementsManager from '@/features/settlements/SettlementsManager'
+import settlementsCollection from '@/features/settlements/settlementsCollection'
 
 export const Route = createFileRoute('/_layout/settlements')({
   component: SettlementsPage,
-  loader: async ({ location }) => {
-    return await getSettlements({ data: { search: location.search } })
+  loader: async () => {
+    await settlementsCollection.preload()
+    return null
   },
-  validateSearch: (search) => {
-    return settlementsSearchSchema.parse(search)
-  },
+  validateSearch: zodValidator(settlementsSearchSchema),
 })
 
 function SettlementsPage() {
-  const { totalCount, settlements } = Route.useLoaderData()
   const search = Route.useSearch()
 
   return (
     <div className="flex flex-col gap-6 py-6 max-w-7xl mx-auto">
       <SettlementsFilters key={JSON.stringify(search)} search={search} />
-      <SettlementsTable settlements={settlements} />
-      <TableSummary totalCount={totalCount} resultCount={settlements.length} />
+      <ClientOnly fallback={<Spinner />}>
+        <SettlementsManager search={search} />
+      </ClientOnly>
     </div>
   )
 }

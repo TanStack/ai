@@ -29,7 +29,7 @@ function OrdersTable({ orders }: OrdersTableProps) {
         {orders.length === 0 ? (
           <TableRow>
             <TableCell
-              colSpan={4}
+              colSpan={5}
               className="text-center text-muted-foreground"
             >
               No orders match the selected filters.

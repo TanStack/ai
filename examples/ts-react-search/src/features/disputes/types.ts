@@ -1,21 +1,15 @@
 import type {
-  DISPUTE_REASON_MAP,
-  DISPUTE_STATUS_MAP,
+  DISPUTE_REASONS,
+  DISPUTE_STATUSES,
+  disputeSchema,
   disputesSearchSchema,
 } from './constants'
 import type z from 'zod'
 
-type DisputeStatus =
-  (typeof DISPUTE_STATUS_MAP)[keyof typeof DISPUTE_STATUS_MAP]
-type DisputeReason =
-  (typeof DISPUTE_REASON_MAP)[keyof typeof DISPUTE_REASON_MAP]
+export type DisputeStatus = (typeof DISPUTE_STATUSES)[number]
 
-export type Dispute = {
-  id: string
-  status: DisputeStatus
-  reason: DisputeReason
-  from: string
-  to: string
-}
+export type DisputeReason = (typeof DISPUTE_REASONS)[number]
+
+export type Dispute = z.infer<typeof disputeSchema>
 
 export type DisputesSearch = z.infer<typeof disputesSearchSchema>
