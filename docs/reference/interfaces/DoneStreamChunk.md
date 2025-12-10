@@ -3,103 +3,87 @@ id: DoneStreamChunk
 title: DoneStreamChunk
 ---
 
-# Interface: DoneStreamChunk
+# ~~Interface: DoneStreamChunk~~
 
-Defined in: [types.ts:627](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L627)
+Defined in: [types.ts:849](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L849)
 
-## Extends
+## Deprecated
 
-- [`BaseStreamChunk`](BaseStreamChunk.md)
+Use RunFinishedEvent instead
 
 ## Properties
 
-### finishReason
+### ~~finishReason?~~
 
 ```ts
-finishReason: "length" | "stop" | "content_filter" | "tool_calls" | null;
+optional finishReason: "length" | "stop" | "content_filter" | "tool_calls" | null;
 ```
 
-Defined in: [types.ts:629](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L629)
+Defined in: [types.ts:854](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L854)
 
 ***
 
-### id
+### ~~id~~
 
 ```ts
 id: string;
 ```
 
-Defined in: [types.ts:596](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L596)
-
-#### Inherited from
-
-[`BaseStreamChunk`](BaseStreamChunk.md).[`id`](BaseStreamChunk.md#id)
+Defined in: [types.ts:851](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L851)
 
 ***
 
-### model
+### ~~model~~
 
 ```ts
 model: string;
 ```
 
-Defined in: [types.ts:597](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L597)
-
-#### Inherited from
-
-[`BaseStreamChunk`](BaseStreamChunk.md).[`model`](BaseStreamChunk.md#model)
+Defined in: [types.ts:852](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L852)
 
 ***
 
-### timestamp
+### ~~timestamp~~
 
 ```ts
 timestamp: number;
 ```
 
-Defined in: [types.ts:598](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L598)
-
-#### Inherited from
-
-[`BaseStreamChunk`](BaseStreamChunk.md).[`timestamp`](BaseStreamChunk.md#timestamp)
+Defined in: [types.ts:853](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L853)
 
 ***
 
-### type
+### ~~type~~
 
 ```ts
 type: "done";
 ```
 
-Defined in: [types.ts:628](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L628)
-
-#### Overrides
-
-[`BaseStreamChunk`](BaseStreamChunk.md).[`type`](BaseStreamChunk.md#type)
+Defined in: [types.ts:850](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L850)
 
 ***
 
-### usage?
+### ~~usage?~~
 
 ```ts
 optional usage: object;
 ```
 
-Defined in: [types.ts:630](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L630)
+Defined in: [types.ts:855](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L855)
 
-#### completionTokens
+#### ~~completionTokens~~
 
 ```ts
 completionTokens: number;
 ```
 
-#### promptTokens
+#### ~~promptTokens~~
 
 ```ts
 promptTokens: number;
 ```
 
-#### totalTokens
+#### ~~totalTokens~~
 
 ```ts
 totalTokens: number;

@@ -3,31 +3,31 @@ id: ApprovalRequestedStreamChunk
 title: ApprovalRequestedStreamChunk
 ---
 
-# Interface: ApprovalRequestedStreamChunk
+# ~~Interface: ApprovalRequestedStreamChunk~~
 
-Defined in: [types.ts:645](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L645)
+Defined in: [types.ts:917](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L917)
 
-## Extends
+## Deprecated
 
-- [`BaseStreamChunk`](BaseStreamChunk.md)
+Use CustomEvent with name='approval-requested' instead
 
 ## Properties
 
-### approval
+### ~~approval?~~
 
 ```ts
-approval: object;
+optional approval: object;
 ```
 
-Defined in: [types.ts:650](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L650)
+Defined in: [types.ts:925](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L925)
 
-#### id
+#### ~~id~~
 
 ```ts
 id: string;
 ```
 
-#### needsApproval
+#### ~~needsApproval~~
 
 ```ts
 needsApproval: true;
@@ -35,86 +35,70 @@ needsApproval: true;
 
 ***
 
-### id
+### ~~id~~
 
 ```ts
 id: string;
 ```
 
-Defined in: [types.ts:596](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L596)
-
-#### Inherited from
-
-[`BaseStreamChunk`](BaseStreamChunk.md).[`id`](BaseStreamChunk.md#id)
+Defined in: [types.ts:919](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L919)
 
 ***
 
-### input
+### ~~input~~
 
 ```ts
-input: any;
+input: Record<string, any>;
 ```
 
-Defined in: [types.ts:649](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L649)
+Defined in: [types.ts:924](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L924)
 
 ***
 
-### model
+### ~~model~~
 
 ```ts
 model: string;
 ```
 
-Defined in: [types.ts:597](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L597)
-
-#### Inherited from
-
-[`BaseStreamChunk`](BaseStreamChunk.md).[`model`](BaseStreamChunk.md#model)
+Defined in: [types.ts:920](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L920)
 
 ***
 
-### timestamp
+### ~~timestamp~~
 
 ```ts
 timestamp: number;
 ```
 
-Defined in: [types.ts:598](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L598)
-
-#### Inherited from
-
-[`BaseStreamChunk`](BaseStreamChunk.md).[`timestamp`](BaseStreamChunk.md#timestamp)
+Defined in: [types.ts:921](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L921)
 
 ***
 
-### toolCallId
+### ~~toolCallId~~
 
 ```ts
 toolCallId: string;
 ```
 
-Defined in: [types.ts:647](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L647)
+Defined in: [types.ts:922](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L922)
 
 ***
 
-### toolName
+### ~~toolName~~
 
 ```ts
 toolName: string;
 ```
 
-Defined in: [types.ts:648](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L648)
+Defined in: [types.ts:923](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L923)
 
 ***
 
-### type
+### ~~type~~
 
 ```ts
 type: "approval-requested";
 ```
 
-Defined in: [types.ts:646](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L646)
-
-#### Overrides
-
-[`BaseStreamChunk`](BaseStreamChunk.md).[`type`](BaseStreamChunk.md#type)
+Defined in: [types.ts:918](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L918)

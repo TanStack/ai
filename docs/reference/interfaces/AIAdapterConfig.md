@@ -5,7 +5,7 @@ title: AIAdapterConfig
 
 # Interface: AIAdapterConfig
 
-Defined in: [types.ts:815](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L815)
+Defined in: [types.ts:1075](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L1075)
 
 ## Properties
 
@@ -15,7 +15,7 @@ Defined in: [types.ts:815](https://github.com/TanStack/ai/blob/main/packages/typ
 optional apiKey: string;
 ```
 
-Defined in: [types.ts:816](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L816)
+Defined in: [types.ts:1076](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L1076)
 
 ***
 
@@ -25,7 +25,7 @@ Defined in: [types.ts:816](https://github.com/TanStack/ai/blob/main/packages/typ
 optional baseUrl: string;
 ```
 
-Defined in: [types.ts:817](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L817)
+Defined in: [types.ts:1077](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L1077)
 
 ***
 
@@ -35,7 +35,7 @@ Defined in: [types.ts:817](https://github.com/TanStack/ai/blob/main/packages/typ
 optional headers: Record<string, string>;
 ```
 
-Defined in: [types.ts:820](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L820)
+Defined in: [types.ts:1080](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L1080)
 
 ***
 
@@ -45,7 +45,7 @@ Defined in: [types.ts:820](https://github.com/TanStack/ai/blob/main/packages/typ
 optional maxRetries: number;
 ```
 
-Defined in: [types.ts:819](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L819)
+Defined in: [types.ts:1079](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L1079)
 
 ***
 
@@ -55,4 +55,4 @@ Defined in: [types.ts:819](https://github.com/TanStack/ai/blob/main/packages/typ
 optional timeout: number;
 ```
 
-Defined in: [types.ts:818](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L818)
+Defined in: [types.ts:1078](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L1078)

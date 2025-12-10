@@ -6,15 +6,7 @@ title: StreamChunkType
 # Type Alias: StreamChunkType
 
 ```ts
-type StreamChunkType = 
-  | "content"
-  | "tool_call"
-  | "tool_result"
-  | "done"
-  | "error"
-  | "approval-requested"
-  | "tool-input-available"
-  | "thinking";
+type StreamChunkType = EventType;
 ```
 
-Defined in: [types.ts:584](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L584)
+Defined in: [types.ts:821](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L821)
