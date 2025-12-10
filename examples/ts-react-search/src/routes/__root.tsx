@@ -1,9 +1,15 @@
-import { HeadContent, Scripts, createRootRoute } from '@tanstack/react-router'
+import {
+  HeadContent,
+  Outlet,
+  Scripts,
+  createRootRoute,
+} from '@tanstack/react-router'
 import { TanStackRouterDevtoolsPanel } from '@tanstack/react-router-devtools'
 import { TanStackDevtools } from '@tanstack/react-devtools'
 
+import { QueryClientProvider } from '@tanstack/react-query'
 import appCss from '../styles.css?url'
-import type { ReactNode } from 'react'
+import queryClient from '../queryClient'
 import HeroSection from '@/components/HeroSection'
 
 export const Route = createRootRoute({
@@ -29,13 +35,11 @@ export const Route = createRootRoute({
   }),
 
   shellComponent: RootDocument,
+
+  notFoundComponent: () => <h1>Not Found</h1>,
 })
 
-type RootDocumentProps = {
-  children: ReactNode
-}
-
-function RootDocument({ children }: RootDocumentProps) {
+function RootDocument() {
   return (
     <html lang="en" className="dark">
       <head>
@@ -43,8 +47,10 @@ function RootDocument({ children }: RootDocumentProps) {
       </head>
       <body className="bg-linear-to-b from-slate-900 via-slate-800 to-slate-900">
         <div className="min-h-screen bg-linear-to-r from-cyan-500/10 via-blue-500/10 to-purple-500/10 flex flex-col">
-          <HeroSection />
-          {children}
+          <QueryClientProvider client={queryClient}>
+            <HeroSection />
+            <Outlet />
+          </QueryClientProvider>
         </div>
         <TanStackDevtools
           config={{
@@ -52,7 +58,7 @@ function RootDocument({ children }: RootDocumentProps) {
           }}
           plugins={[
             {
-              name: 'Tanstack Router',
+              name: 'TanStack Router Devtools Panel',
               render: <TanStackRouterDevtoolsPanel />,
             },
           ]}

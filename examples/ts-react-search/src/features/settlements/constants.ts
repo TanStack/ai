@@ -1,6 +1,18 @@
 import { z } from 'zod'
+import { fallback } from '@tanstack/zod-adapter'
+import type { SettlementCurrency } from './types'
 
-export const SETTLEMENT_CURRENCY_MAP = {
+export const SETTLEMENT_CURRENCIES = [
+  'DKK',
+  'EUR',
+  'GBP',
+  'NOK',
+  'PLN',
+  'SEK',
+  'USD',
+] as const
+
+export const SETTLEMENT_CURRENCY_MAP: Record<SettlementCurrency, string> = {
   DKK: 'DKK',
   EUR: 'EUR',
   GBP: 'GBP',
@@ -8,10 +20,17 @@ export const SETTLEMENT_CURRENCY_MAP = {
   PLN: 'PLN',
   SEK: 'SEK',
   USD: 'USD',
-} as const
+}
+
+export const settlementSchema = z.object({
+  id: z.string(),
+  currency: z.enum(SETTLEMENT_CURRENCIES),
+  from: z.iso.datetime(),
+  to: z.iso.datetime(),
+})
 
 export const settlementsSearchSchema = z.object({
-  currency: z.enum(Object.keys(SETTLEMENT_CURRENCY_MAP)).optional(),
-  from: z.string().optional(),
-  to: z.string().optional(),
+  currency: fallback(z.enum(SETTLEMENT_CURRENCIES).optional(), undefined),
+  from: fallback(z.string().optional(), undefined),
+  to: fallback(z.string().optional(), undefined),
 })
