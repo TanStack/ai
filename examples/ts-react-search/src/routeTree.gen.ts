@@ -11,7 +11,10 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as LayoutRouteRouteImport } from './routes/_layout/route'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as ApiSettlementsRouteImport } from './routes/api/settlements'
 import { Route as ApiSearchRouteImport } from './routes/api/search'
+import { Route as ApiOrdersRouteImport } from './routes/api/orders'
+import { Route as ApiDisputesRouteImport } from './routes/api/disputes'
 import { Route as LayoutSettlementsRouteImport } from './routes/_layout/settlements'
 import { Route as LayoutOrdersRouteImport } from './routes/_layout/orders'
 import { Route as LayoutDisputesRouteImport } from './routes/_layout/disputes'
@@ -25,9 +28,24 @@ const IndexRoute = IndexRouteImport.update({
   path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiSettlementsRoute = ApiSettlementsRouteImport.update({
+  id: '/api/settlements',
+  path: '/api/settlements',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiSearchRoute = ApiSearchRouteImport.update({
   id: '/api/search',
   path: '/api/search',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiOrdersRoute = ApiOrdersRouteImport.update({
+  id: '/api/orders',
+  path: '/api/orders',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiDisputesRoute = ApiDisputesRouteImport.update({
+  id: '/api/disputes',
+  path: '/api/disputes',
   getParentRoute: () => rootRouteImport,
 } as any)
 const LayoutSettlementsRoute = LayoutSettlementsRouteImport.update({
@@ -51,14 +69,20 @@ export interface FileRoutesByFullPath {
   '/disputes': typeof LayoutDisputesRoute
   '/orders': typeof LayoutOrdersRoute
   '/settlements': typeof LayoutSettlementsRoute
+  '/api/disputes': typeof ApiDisputesRoute
+  '/api/orders': typeof ApiOrdersRoute
   '/api/search': typeof ApiSearchRoute
+  '/api/settlements': typeof ApiSettlementsRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/disputes': typeof LayoutDisputesRoute
   '/orders': typeof LayoutOrdersRoute
   '/settlements': typeof LayoutSettlementsRoute
+  '/api/disputes': typeof ApiDisputesRoute
+  '/api/orders': typeof ApiOrdersRoute
   '/api/search': typeof ApiSearchRoute
+  '/api/settlements': typeof ApiSettlementsRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -67,13 +91,32 @@ export interface FileRoutesById {
   '/_layout/disputes': typeof LayoutDisputesRoute
   '/_layout/orders': typeof LayoutOrdersRoute
   '/_layout/settlements': typeof LayoutSettlementsRoute
+  '/api/disputes': typeof ApiDisputesRoute
+  '/api/orders': typeof ApiOrdersRoute
   '/api/search': typeof ApiSearchRoute
+  '/api/settlements': typeof ApiSettlementsRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/disputes' | '/orders' | '/settlements' | '/api/search'
+  fullPaths:
+    | '/'
+    | '/disputes'
+    | '/orders'
+    | '/settlements'
+    | '/api/disputes'
+    | '/api/orders'
+    | '/api/search'
+    | '/api/settlements'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/disputes' | '/orders' | '/settlements' | '/api/search'
+  to:
+    | '/'
+    | '/disputes'
+    | '/orders'
+    | '/settlements'
+    | '/api/disputes'
+    | '/api/orders'
+    | '/api/search'
+    | '/api/settlements'
   id:
     | '__root__'
     | '/'
@@ -81,13 +124,19 @@ export interface FileRouteTypes {
     | '/_layout/disputes'
     | '/_layout/orders'
     | '/_layout/settlements'
+    | '/api/disputes'
+    | '/api/orders'
     | '/api/search'
+    | '/api/settlements'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   LayoutRouteRoute: typeof LayoutRouteRouteWithChildren
+  ApiDisputesRoute: typeof ApiDisputesRoute
+  ApiOrdersRoute: typeof ApiOrdersRoute
   ApiSearchRoute: typeof ApiSearchRoute
+  ApiSettlementsRoute: typeof ApiSettlementsRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -106,11 +155,32 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/settlements': {
+      id: '/api/settlements'
+      path: '/api/settlements'
+      fullPath: '/api/settlements'
+      preLoaderRoute: typeof ApiSettlementsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/search': {
       id: '/api/search'
       path: '/api/search'
       fullPath: '/api/search'
       preLoaderRoute: typeof ApiSearchRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/orders': {
+      id: '/api/orders'
+      path: '/api/orders'
+      fullPath: '/api/orders'
+      preLoaderRoute: typeof ApiOrdersRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/disputes': {
+      id: '/api/disputes'
+      path: '/api/disputes'
+      fullPath: '/api/disputes'
+      preLoaderRoute: typeof ApiDisputesRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/_layout/settlements': {
@@ -156,7 +226,10 @@ const LayoutRouteRouteWithChildren = LayoutRouteRoute._addFileChildren(
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   LayoutRouteRoute: LayoutRouteRouteWithChildren,
+  ApiDisputesRoute: ApiDisputesRoute,
+  ApiOrdersRoute: ApiOrdersRoute,
   ApiSearchRoute: ApiSearchRoute,
+  ApiSettlementsRoute: ApiSettlementsRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

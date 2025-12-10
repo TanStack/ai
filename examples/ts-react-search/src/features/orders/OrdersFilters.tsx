@@ -2,18 +2,17 @@
 
 import { useState } from 'react'
 import { useNavigate } from '@tanstack/react-router'
-import { ORDER_STATUS_MAP, PAYMENT_METHOD_MAP } from './constants'
+import {
+  ORDER_STATUS_MAP,
+  PAYMENT_METHOD_MAP,
+  ordersSearchSchema,
+} from './constants'
+import type { FormEvent } from 'react'
 import type { OrdersSearch } from './types'
-import { Label } from '@/components/ui/label'
 import { DatePicker } from '@/components/ui/date-picker'
 import { Button } from '@/components/ui/button'
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select'
+import { ALL_OPTION } from '@/constants'
+import FilterSelect from '@/components/FilterSelect'
 
 type OrdersFiltersProps = {
   search: OrdersSearch
@@ -22,41 +21,41 @@ type OrdersFiltersProps = {
 function OrdersFilters({ search }: OrdersFiltersProps) {
   const navigate = useNavigate()
 
-  const statusId = 'status'
-  const paymentMethodId = 'paymentMethod'
-
   const [pendingStatus, setPendingStatus] = useState<string>(
-    search.status || 'ALL',
+    search.status || ALL_OPTION,
   )
   const [pendingPaymentMethod, setPendingPaymentMethod] = useState<string>(
-    search.paymentMethod || 'ALL',
+    search.paymentMethod || ALL_OPTION,
   )
   const [pendingFrom, setPendingFrom] = useState<string | undefined>(
     search.from,
   )
   const [pendingTo, setPendingTo] = useState<string | undefined>(search.to)
 
-  function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
+  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
 
-    navigate({
+    await navigate({
       to: '/orders',
-      search: {
-        status: pendingStatus === 'ALL' ? undefined : pendingStatus,
+      search: ordersSearchSchema.parse({
+        status: pendingStatus === ALL_OPTION ? undefined : pendingStatus,
         paymentMethod:
-          pendingPaymentMethod === 'ALL' ? undefined : pendingPaymentMethod,
+          pendingPaymentMethod === ALL_OPTION
+            ? undefined
+            : pendingPaymentMethod,
         from: pendingFrom === '' ? undefined : pendingFrom,
         to: pendingTo === '' ? undefined : pendingTo,
-      },
+      }),
     })
   }
 
-  function handleClear() {
-    setPendingStatus('ALL')
-    setPendingPaymentMethod('ALL')
+  async function handleClear() {
+    setPendingStatus(ALL_OPTION)
+    setPendingPaymentMethod(ALL_OPTION)
     setPendingFrom(undefined)
     setPendingTo(undefined)
-    navigate({ to: '/orders' })
+
+    await navigate({ to: '/orders', search: ordersSearchSchema.parse({}) })
   }
 
   return (
@@ -64,50 +63,20 @@ function OrdersFilters({ search }: OrdersFiltersProps) {
       className="grid gap-4 lg:grid-cols-[repeat(4,minmax(0,1fr))_auto] px-6"
       onSubmit={handleSubmit}
     >
-      <div className="flex min-w-0 flex-col gap-2">
-        <Label htmlFor={statusId}>Status</Label>
-        <Select
-          name="status"
-          value={pendingStatus || ''}
-          onValueChange={setPendingStatus}
-        >
-          <SelectTrigger id={statusId}>
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="ALL">All</SelectItem>
-            {Object.entries(ORDER_STATUS_MAP).map(
-              ([statusKey, statusLabel]) => (
-                <SelectItem key={statusKey} value={statusKey}>
-                  {statusLabel}
-                </SelectItem>
-              ),
-            )}
-          </SelectContent>
-        </Select>
-      </div>
-      <div className="flex min-w-0 flex-col gap-2">
-        <Label htmlFor={paymentMethodId}>Payment method</Label>
-        <Select
-          name="paymentMethod"
-          value={pendingPaymentMethod || ''}
-          onValueChange={setPendingPaymentMethod}
-        >
-          <SelectTrigger id={paymentMethodId}>
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="ALL">All</SelectItem>
-            {Object.entries(PAYMENT_METHOD_MAP).map(
-              ([paymentMethodKey, paymentMethodLabel]) => (
-                <SelectItem key={paymentMethodKey} value={paymentMethodKey}>
-                  {paymentMethodLabel}
-                </SelectItem>
-              ),
-            )}
-          </SelectContent>
-        </Select>
-      </div>
+      <FilterSelect
+        id="status"
+        label="Status"
+        value={pendingStatus}
+        onChange={setPendingStatus}
+        options={Object.entries(ORDER_STATUS_MAP)}
+      />
+      <FilterSelect
+        id="paymentMethod"
+        label="Payment method"
+        value={pendingPaymentMethod}
+        onChange={setPendingPaymentMethod}
+        options={Object.entries(PAYMENT_METHOD_MAP)}
+      />
       <DatePicker
         label="From"
         value={pendingFrom}

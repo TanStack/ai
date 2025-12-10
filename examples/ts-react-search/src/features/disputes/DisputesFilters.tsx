@@ -2,18 +2,17 @@
 
 import { useState } from 'react'
 import { useNavigate } from '@tanstack/react-router'
-import { DISPUTE_REASON_MAP, DISPUTE_STATUS_MAP } from './constants'
+import {
+  DISPUTE_REASON_MAP,
+  DISPUTE_STATUS_MAP,
+  disputesSearchSchema,
+} from './constants'
+import type { FormEvent } from 'react'
 import type { DisputesSearch } from './types'
-import { Label } from '@/components/ui/label'
 import { DatePicker } from '@/components/ui/date-picker'
 import { Button } from '@/components/ui/button'
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select'
+import { ALL_OPTION } from '@/constants'
+import FilterSelect from '@/components/FilterSelect'
 
 type DisputesFiltersProps = {
   search: DisputesSearch
@@ -23,36 +22,37 @@ function DisputesFilters({ search }: DisputesFiltersProps) {
   const navigate = useNavigate()
 
   const [pendingStatus, setPendingStatus] = useState<string>(
-    search.status || 'ALL',
+    search.status || ALL_OPTION,
   )
   const [pendingReason, setPendingReason] = useState<string>(
-    search.reason || 'ALL',
+    search.reason || ALL_OPTION,
   )
   const [pendingFrom, setPendingFrom] = useState<string | undefined>(
     search.from,
   )
   const [pendingTo, setPendingTo] = useState<string | undefined>(search.to)
 
-  function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
+  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
 
-    navigate({
+    await navigate({
       to: '/disputes',
-      search: {
-        status: pendingStatus === 'ALL' ? undefined : pendingStatus,
-        reason: pendingReason === 'ALL' ? undefined : pendingReason,
+      search: disputesSearchSchema.parse({
+        status: pendingStatus === ALL_OPTION ? undefined : pendingStatus,
+        reason: pendingReason === ALL_OPTION ? undefined : pendingReason,
         from: pendingFrom === '' ? undefined : pendingFrom,
         to: pendingTo === '' ? undefined : pendingTo,
-      },
+      }),
     })
   }
 
-  function handleClear() {
-    setPendingStatus('ALL')
-    setPendingReason('ALL')
+  async function handleClear() {
+    setPendingStatus(ALL_OPTION)
+    setPendingReason(ALL_OPTION)
     setPendingFrom(undefined)
     setPendingTo(undefined)
-    navigate({ to: '/disputes' })
+
+    await navigate({ to: '/disputes', search: disputesSearchSchema.parse({}) })
   }
 
   return (
@@ -60,50 +60,20 @@ function DisputesFilters({ search }: DisputesFiltersProps) {
       className="grid gap-4 lg:grid-cols-[repeat(4,minmax(0,1fr))_auto] px-6"
       onSubmit={handleSubmit}
     >
-      <div className="flex min-w-0 flex-col gap-2">
-        <Label htmlFor="status">Status</Label>
-        <Select
-          name="status"
-          value={pendingStatus || ''}
-          onValueChange={setPendingStatus}
-        >
-          <SelectTrigger id="status">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="ALL">All</SelectItem>
-            {Object.entries(DISPUTE_STATUS_MAP).map(
-              ([statusKey, statusLabel]) => (
-                <SelectItem key={statusKey} value={statusKey}>
-                  {statusLabel}
-                </SelectItem>
-              ),
-            )}
-          </SelectContent>
-        </Select>
-      </div>
-      <div className="flex min-w-0 flex-col gap-2">
-        <Label htmlFor="reason">Reason</Label>
-        <Select
-          name="reason"
-          value={pendingReason || ''}
-          onValueChange={setPendingReason}
-        >
-          <SelectTrigger id="reason">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="ALL">All</SelectItem>
-            {Object.entries(DISPUTE_REASON_MAP).map(
-              ([reasonKey, reasonLabel]) => (
-                <SelectItem key={reasonKey} value={reasonKey}>
-                  {reasonLabel}
-                </SelectItem>
-              ),
-            )}
-          </SelectContent>
-        </Select>
-      </div>
+      <FilterSelect
+        id="status"
+        label="Status"
+        value={pendingStatus}
+        onChange={setPendingStatus}
+        options={Object.entries(DISPUTE_STATUS_MAP)}
+      />
+      <FilterSelect
+        id="resason"
+        label="Reason"
+        value={pendingReason}
+        onChange={setPendingReason}
+        options={Object.entries(DISPUTE_REASON_MAP)}
+      />
       <DatePicker
         label="From"
         value={pendingFrom}

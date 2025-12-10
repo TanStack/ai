@@ -2,18 +2,13 @@
 
 import { useState } from 'react'
 import { useNavigate } from '@tanstack/react-router'
-import { SETTLEMENT_CURRENCY_MAP } from './constants'
+import { SETTLEMENT_CURRENCY_MAP, settlementsSearchSchema } from './constants'
+import type { FormEvent } from 'react'
 import type { SettlementsSearch } from './types'
-import { Label } from '@/components/ui/label'
 import { DatePicker } from '@/components/ui/date-picker'
 import { Button } from '@/components/ui/button'
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select'
+import { ALL_OPTION } from '@/constants'
+import FilterSelect from '@/components/FilterSelect'
 
 type SettlementsFiltersProps = {
   search: SettlementsSearch
@@ -23,31 +18,35 @@ function SettlementsFilters({ search }: SettlementsFiltersProps) {
   const navigate = useNavigate()
 
   const [pendingCurrency, setPendingCurrency] = useState<string>(
-    search.currency || 'ALL',
+    search.currency || ALL_OPTION,
   )
   const [pendingFrom, setPendingFrom] = useState<string | undefined>(
     search.from,
   )
   const [pendingTo, setPendingTo] = useState<string | undefined>(search.to)
 
-  function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
+  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
 
-    navigate({
+    await navigate({
       to: '/settlements',
-      search: {
-        currency: pendingCurrency === 'ALL' ? undefined : pendingCurrency,
+      search: settlementsSearchSchema.parse({
+        currency: pendingCurrency === ALL_OPTION ? undefined : pendingCurrency,
         from: pendingFrom === '' ? undefined : pendingFrom,
         to: pendingTo === '' ? undefined : pendingTo,
-      },
+      }),
     })
   }
 
-  function handleClear() {
-    setPendingCurrency('ALL')
+  async function handleClear() {
+    setPendingCurrency(ALL_OPTION)
     setPendingFrom(undefined)
     setPendingTo(undefined)
-    navigate({ to: '/settlements' })
+
+    await navigate({
+      to: '/settlements',
+      search: settlementsSearchSchema.parse({}),
+    })
   }
 
   return (
@@ -55,28 +54,13 @@ function SettlementsFilters({ search }: SettlementsFiltersProps) {
       className="grid gap-4 lg:grid-cols-[repeat(3,minmax(0,1fr))_auto] px-6"
       onSubmit={handleSubmit}
     >
-      <div className="flex min-w-0 flex-col gap-2">
-        <Label htmlFor="currency">Currency</Label>
-        <Select
-          name="currency"
-          value={pendingCurrency || ''}
-          onValueChange={setPendingCurrency}
-        >
-          <SelectTrigger id="currency">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="ALL">All</SelectItem>
-            {Object.entries(SETTLEMENT_CURRENCY_MAP).map(
-              ([currencyKey, currencyLabel]) => (
-                <SelectItem key={currencyKey} value={currencyKey}>
-                  {currencyLabel}
-                </SelectItem>
-              ),
-            )}
-          </SelectContent>
-        </Select>
-      </div>
+      <FilterSelect
+        id="currency"
+        label="Currency"
+        value={pendingCurrency}
+        onChange={setPendingCurrency}
+        options={Object.entries(SETTLEMENT_CURRENCY_MAP)}
+      />
       <DatePicker
         label="From"
         value={pendingFrom}

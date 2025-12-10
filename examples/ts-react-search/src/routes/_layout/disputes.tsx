@@ -1,29 +1,29 @@
-import { createFileRoute } from '@tanstack/react-router'
-import getDisputes from '@/features/disputes/getDisputes'
-import DisputesTable from '@/features/disputes/DisputesTable'
-import TableSummary from '@/components/TableSummary'
+import { ClientOnly, createFileRoute } from '@tanstack/react-router'
+import { zodValidator } from '@tanstack/zod-adapter'
 import DisputesFilters from '@/features/disputes/DisputesFilters'
 import { disputesSearchSchema } from '@/features/disputes/constants'
+import disputesCollection from '@/features/disputes/disputesCollection'
+import DisputesManager from '@/features/disputes/DisputesManager'
+import Spinner from '@/components/Spinner'
 
 export const Route = createFileRoute('/_layout/disputes')({
   component: DisputesPage,
-  loader: async ({ location }) => {
-    return await getDisputes({ data: { search: location.search } })
+  loader: async () => {
+    await disputesCollection.preload()
+    return null
   },
-  validateSearch: (search) => {
-    return disputesSearchSchema.parse(search)
-  },
+  validateSearch: zodValidator(disputesSearchSchema),
 })
 
 function DisputesPage() {
-  const { totalCount, disputes } = Route.useLoaderData()
   const search = Route.useSearch()
 
   return (
     <div className="flex flex-col gap-6 py-6 max-w-7xl mx-auto">
       <DisputesFilters key={JSON.stringify(search)} search={search} />
-      <DisputesTable disputes={disputes} />
-      <TableSummary totalCount={totalCount} resultCount={disputes.length} />
+      <ClientOnly fallback={<Spinner />}>
+        <DisputesManager search={search} />
+      </ClientOnly>
     </div>
   )
 }
