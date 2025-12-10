@@ -455,7 +455,9 @@ describe('chat() - Comprehensive Logic Path Coverage', () => {
       expect(tool.execute).toHaveBeenCalledWith({ location: 'Paris' })
       expect(adapter.chatStreamCallCount).toBeGreaterThanOrEqual(2)
 
-      const toolResultChunks = chunks.filter((c) => c.type === 'TOOL_CALL_END' && (c as any).result !== undefined)
+      const toolResultChunks = chunks.filter(
+        (c) => c.type === 'TOOL_CALL_END' && (c as any).result !== undefined,
+      )
       expect(toolResultChunks).toHaveLength(1)
 
       // Check events
@@ -560,7 +562,9 @@ describe('chat() - Comprehensive Logic Path Coverage', () => {
 
       // Tool should be executed with complete arguments
       expect(tool.execute).toHaveBeenCalledWith({ a: 10, b: 20 })
-      const toolResultChunks = chunks.filter((c) => c.type === 'TOOL_CALL_END' && (c as any).result !== undefined)
+      const toolResultChunks = chunks.filter(
+        (c) => c.type === 'TOOL_CALL_END' && (c as any).result !== undefined,
+      )
       expect(toolResultChunks.length).toBeGreaterThan(0)
     })
 
@@ -652,7 +656,9 @@ describe('chat() - Comprehensive Logic Path Coverage', () => {
       expect(tool1.execute).toHaveBeenCalled()
       expect(tool2.execute).toHaveBeenCalled()
 
-      const toolResultChunks = chunks.filter((c) => c.type === 'TOOL_CALL_END' && (c as any).result !== undefined)
+      const toolResultChunks = chunks.filter(
+        (c) => c.type === 'TOOL_CALL_END' && (c as any).result !== undefined,
+      )
       expect(toolResultChunks).toHaveLength(2)
 
       // Check iteration event
@@ -950,7 +956,9 @@ describe('chat() - Comprehensive Logic Path Coverage', () => {
         }),
       )
 
-      const toolResultChunks = chunks.filter((c) => c.type === 'TOOL_CALL_END' && (c as any).result !== undefined)
+      const toolResultChunks = chunks.filter(
+        (c) => c.type === 'TOOL_CALL_END' && (c as any).result !== undefined,
+      )
       expect(toolResultChunks).toHaveLength(1)
 
       const resultChunk = toolResultChunks[0] as any
@@ -1103,7 +1111,9 @@ describe('chat() - Comprehensive Logic Path Coverage', () => {
         }),
       )
 
-      const toolResultChunks = chunks.filter((c) => c.type === 'TOOL_CALL_END' && (c as any).result !== undefined)
+      const toolResultChunks = chunks.filter(
+        (c) => c.type === 'TOOL_CALL_END' && (c as any).result !== undefined,
+      )
       expect(toolResultChunks).toHaveLength(1)
 
       const resultChunk = toolResultChunks[0] as any
@@ -1156,7 +1166,9 @@ describe('chat() - Comprehensive Logic Path Coverage', () => {
       )
 
       // Should still produce a tool_result with error
-      const toolResultChunks = chunks.filter((c) => c.type === 'TOOL_CALL_END' && (c as any).result !== undefined)
+      const toolResultChunks = chunks.filter(
+        (c) => c.type === 'TOOL_CALL_END' && (c as any).result !== undefined,
+      )
       expect(toolResultChunks.length).toBeGreaterThan(0)
 
       const resultChunk = toolResultChunks[0] as any
@@ -1282,7 +1294,8 @@ describe('chat() - Comprehensive Logic Path Coverage', () => {
       )
 
       const inputChunks = chunks.filter(
-        (c) => c.type === 'CUSTOM' && (c as any).name === 'tool-input-available',
+        (c) =>
+          c.type === 'CUSTOM' && (c as any).name === 'tool-input-available',
       )
       expect(inputChunks).toHaveLength(1)
 
@@ -1387,7 +1400,8 @@ describe('chat() - Comprehensive Logic Path Coverage', () => {
         (c) => c.type === 'CUSTOM' && (c as any).name === 'approval-requested',
       )
       const inputChunks = chunks.filter(
-        (c) => c.type === 'CUSTOM' && (c as any).name === 'tool-input-available',
+        (c) =>
+          c.type === 'CUSTOM' && (c as any).name === 'tool-input-available',
       )
 
       expect(approvalChunks.length + inputChunks.length).toBeGreaterThan(0)
@@ -2407,6 +2421,7 @@ describe('chat() - Comprehensive Logic Path Coverage', () => {
           yield {
             type: 'TEXT_MESSAGE_CONTENT',
             model: 'test-model',
+            messageId: 'msg-1',
             timestamp: Date.now(),
             delta: 'Using tool',
             content: 'Using tool',
@@ -2446,7 +2461,9 @@ describe('chat() - Comprehensive Logic Path Coverage', () => {
       )
       expect(toolResultEvents.length).toBeGreaterThan(0)
       expect(toolResultEvents[0]?.data.toolCallId).toBe('call-previous')
-      expect(toolResultEvents[0]?.data.result).toEqual({ result: 'previous result' })
+      expect(toolResultEvents[0]?.data.result).toEqual(
+        JSON.stringify({ result: 'previous result' }),
+      )
     })
   })
 
@@ -2547,7 +2564,9 @@ describe('chat() - Comprehensive Logic Path Coverage', () => {
       })
 
       const chunks1 = await collectChunks(stream1)
-      const approvalChunk = chunks1.find((c) => c.type === 'CUSTOM' && (c as any).name === 'approval-requested')
+      const approvalChunk = chunks1.find(
+        (c) => c.type === 'CUSTOM' && (c as any).name === 'approval-requested',
+      )
       expect(approvalChunk).toBeDefined()
 
       // Second call - with approval response in message parts
@@ -2670,7 +2689,10 @@ describe('chat() - Comprehensive Logic Path Coverage', () => {
       })
 
       const chunks1 = await collectChunks(stream1)
-      const inputChunk = chunks1.find((c) => c.type === 'CUSTOM' && (c as any).name === 'tool-input-available')
+      const inputChunk = chunks1.find(
+        (c) =>
+          c.type === 'CUSTOM' && (c as any).name === 'tool-input-available',
+      )
       expect(inputChunk).toBeDefined()
 
       // Second call - with client tool output in message parts
@@ -2969,7 +2991,9 @@ describe('chat() - Comprehensive Logic Path Coverage', () => {
       const chunks = await collectChunks(stream)
 
       const toolCallChunks = chunks.filter((c) => c.type === 'tool_call')
-      const toolResultChunks = chunks.filter((c) => c.type === 'TOOL_CALL_END' && (c as any).result !== undefined)
+      const toolResultChunks = chunks.filter(
+        (c) => c.type === 'TOOL_CALL_END' && (c as any).result !== undefined,
+      )
 
       // We should have received tool_call chunks
       expect(toolCallChunks.length).toBeGreaterThan(0)

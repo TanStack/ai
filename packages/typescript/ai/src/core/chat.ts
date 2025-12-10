@@ -319,7 +319,10 @@ class ChatEngine<
         streamId: this.streamId,
         messageId: this.currentMessageId || undefined,
         toolCallId: chunk.toolCallId,
-        result: chunk.result,
+        result:
+          typeof chunk.result === 'string'
+            ? chunk.result
+            : JSON.stringify(chunk.result),
         timestamp: Date.now(),
       })
     }
