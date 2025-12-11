@@ -1,9 +1,9 @@
-import type { SummarizationOptions, SummarizationResult } from '../types'
+import type { EmbeddingOptions, EmbeddingResult } from '../../types'
 
 /**
- * Configuration for summarize adapter instances
+ * Configuration for embedding adapter instances
  */
-export interface SummarizeAdapterConfig {
+export interface EmbeddingAdapterConfig {
   apiKey?: string
   baseUrl?: string
   timeout?: number
@@ -12,22 +12,22 @@ export interface SummarizeAdapterConfig {
 }
 
 /**
- * Base interface for summarize adapters.
- * Provides type-safe summarization functionality.
+ * Base interface for embedding adapters.
+ * Provides type-safe embedding generation functionality.
  *
  * Generic parameters:
- * - TModels: Array of supported model names for summarization
- * - TProviderOptions: Provider-specific options for summarization endpoint
+ * - TModels: Array of supported embedding model names
+ * - TProviderOptions: Provider-specific options for embedding endpoint
  */
-export interface SummarizeAdapter<
+export interface EmbeddingAdapter<
   TModels extends ReadonlyArray<string> = ReadonlyArray<string>,
   TProviderOptions extends object = Record<string, unknown>,
 > {
   /** Discriminator for adapter kind - used by generate() to determine API shape */
-  readonly kind: 'summarize'
+  readonly kind: 'embedding'
   /** Adapter name identifier */
   readonly name: string
-  /** Supported models for summarization */
+  /** Supported embedding models */
   readonly models: TModels
 
   // Type-only properties for type inference
@@ -35,35 +35,33 @@ export interface SummarizeAdapter<
   _providerOptions?: TProviderOptions
 
   /**
-   * Summarize the given text
+   * Create embeddings for the given input
    */
-  summarize: (options: SummarizationOptions) => Promise<SummarizationResult>
+  createEmbeddings: (options: EmbeddingOptions) => Promise<EmbeddingResult>
 }
 
 /**
- * Abstract base class for summarize adapters.
- * Extend this class to implement a summarize adapter for a specific provider.
+ * Abstract base class for embedding adapters.
+ * Extend this class to implement an embedding adapter for a specific provider.
  */
-export abstract class BaseSummarizeAdapter<
+export abstract class BaseEmbeddingAdapter<
   TModels extends ReadonlyArray<string> = ReadonlyArray<string>,
   TProviderOptions extends object = Record<string, unknown>,
-> implements SummarizeAdapter<TModels, TProviderOptions> {
-  readonly kind = 'summarize' as const
+> implements EmbeddingAdapter<TModels, TProviderOptions> {
+  readonly kind = 'embedding' as const
   abstract readonly name: string
   abstract readonly models: TModels
 
   // Type-only property - never assigned at runtime
   declare _providerOptions?: TProviderOptions
 
-  protected config: SummarizeAdapterConfig
+  protected config: EmbeddingAdapterConfig
 
-  constructor(config: SummarizeAdapterConfig = {}) {
+  constructor(config: EmbeddingAdapterConfig = {}) {
     this.config = config
   }
 
-  abstract summarize(
-    options: SummarizationOptions,
-  ): Promise<SummarizationResult>
+  abstract createEmbeddings(options: EmbeddingOptions): Promise<EmbeddingResult>
 
   protected generateId(): string {
     return `${this.name}-${Date.now()}-${Math.random().toString(36).substring(7)}`

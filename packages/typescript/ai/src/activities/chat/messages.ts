@@ -1,18 +1,76 @@
-/**
- * Message Converters
- *
- * Functions for converting between UIMessage and ModelMessage formats.
- */
-
 import type {
+  AIAdapter,
+  ConstrainedModelMessage,
   ContentPart,
   MessagePart,
+  Modality,
   ModelMessage,
   TextPart,
   ToolCallPart,
   ToolResultPart,
   UIMessage,
-} from './types'
+} from '../../types'
+
+/**
+ * Type-safe helper to create a messages array constrained by a model's supported modalities.
+ *
+ * This function provides compile-time checking that your messages only contain
+ * content types supported by the specified model. It's particularly useful when
+ * combining typed messages with untyped data (like from request.json()).
+ *
+ * @example
+ * ```typescript
+ * import { messages, chat } from '@tanstack/ai'
+ * import { openai } from '@tanstack/ai-openai'
+ *
+ * const adapter = openai()
+ *
+ * // This will error at compile time because gpt-4o only supports text+image
+ * const msgs = messages({ adapter, model: 'gpt-4o' }, [
+ *   {
+ *     role: 'user',
+ *     content: [
+ *       { type: 'video', source: { type: 'url', value: '...' } } // Error!
+ *     ]
+ *   }
+ * ])
+ * ```
+ */
+export function messages<
+  TAdapter extends AIAdapter<any, any, any, any, any, any>,
+  const TModel extends TAdapter extends AIAdapter<
+    infer Models,
+    any,
+    any,
+    any,
+    any,
+    any
+  >
+    ? Models[number]
+    : string,
+>(
+  _options: { adapter: TAdapter; model: TModel },
+  msgs: TAdapter extends AIAdapter<
+    any,
+    any,
+    any,
+    any,
+    any,
+    infer ModelInputModalities
+  >
+    ? TModel extends keyof ModelInputModalities
+      ? ModelInputModalities[TModel] extends ReadonlyArray<Modality>
+        ? Array<ConstrainedModelMessage<ModelInputModalities[TModel]>>
+        : Array<ModelMessage>
+      : Array<ModelMessage>
+    : Array<ModelMessage>,
+): typeof msgs {
+  return msgs
+}
+
+// ===========================
+// Message Converters
+// ===========================
 
 /**
  * Helper to extract text content from string or ContentPart array
@@ -65,11 +123,11 @@ export function convertMessagesToModelMessages(
 export function uiMessageToModelMessages(
   uiMessage: UIMessage,
 ): Array<ModelMessage> {
-  const messages: Array<ModelMessage> = []
+  const messageList: Array<ModelMessage> = []
 
   // Skip system messages - they're handled via systemPrompts, not ModelMessages
   if (uiMessage.role === 'system') {
-    return messages
+    return messageList
   }
 
   // Separate parts by type
@@ -112,14 +170,14 @@ export function uiMessageToModelMessages(
 
   // Create the main message
   if (uiMessage.role !== 'assistant' || content || !toolCalls) {
-    messages.push({
+    messageList.push({
       role: uiMessage.role,
       content,
       ...(toolCalls && toolCalls.length > 0 && { toolCalls }),
     })
   } else if (toolCalls.length > 0) {
     // Assistant message with only tool calls
-    messages.push({
+    messageList.push({
       role: 'assistant',
       content,
       toolCalls,
@@ -132,7 +190,7 @@ export function uiMessageToModelMessages(
       toolResultPart.state === 'complete' ||
       toolResultPart.state === 'error'
     ) {
-      messages.push({
+      messageList.push({
         role: 'tool',
         content: toolResultPart.content,
         toolCallId: toolResultPart.toolCallId,
@@ -140,7 +198,7 @@ export function uiMessageToModelMessages(
     }
   }
 
-  return messages
+  return messageList
 }
 
 /**

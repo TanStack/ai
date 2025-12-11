@@ -1,5 +1,5 @@
 import { createFileRoute } from '@tanstack/react-router'
-import { ai, chat, maxIterations, toStreamResponse } from '@tanstack/ai'
+import { ai, maxIterations, toStreamResponse } from '@tanstack/ai'
 import {
   openai,
   openaiImage,
@@ -115,7 +115,7 @@ export const Route = createFileRoute('/api/tanchat')({
             `[API Route] Using provider: ${provider}, model: ${selectedModel}`,
           )
 
-          const stream = chat({
+          const stream = ai({
             adapter: adapter as any,
             model: selectedModel as any,
             tools: [

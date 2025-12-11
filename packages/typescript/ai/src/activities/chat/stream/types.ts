@@ -5,7 +5,7 @@
  * The canonical chunk format is StreamChunk from @tanstack/ai types.
  */
 
-import type { StreamChunk, ToolCall } from '../types'
+import type { StreamChunk, ToolCall } from '../../../types'
 
 /**
  * Tool call states - track the lifecycle of a tool call

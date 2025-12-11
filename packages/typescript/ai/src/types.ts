@@ -1,12 +1,15 @@
-import type { CommonOptions } from './core/chat-common-options'
+import type { CommonOptions } from './activities/chat/index'
 import type { z } from 'zod'
-import type { ToolCallState, ToolResultState } from './stream/types'
+import type {
+  ToolCallState,
+  ToolResultState,
+} from './activities/chat/stream/types'
 import type {
   AnyAdapter,
   ChatAdapter,
   EmbeddingAdapter,
   SummarizeAdapter,
-} from './adapters'
+} from './activities'
 
 /**
  * JSON Schema type for defining tool input/output schemas as raw JSON Schema objects.

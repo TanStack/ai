@@ -8,12 +8,12 @@ import {
   BaseChatAdapter,
   BaseEmbeddingAdapter,
   BaseSummarizeAdapter,
-} from '../src/adapters'
-import { ai } from '../src/core/generate'
+} from '../src/activities'
+import { ai } from '../src/ai'
 import type {
   StructuredOutputOptions,
   StructuredOutputResult,
-} from '../src/adapters'
+} from '../src/activities'
 import type {
   ChatOptions,
   EmbeddingOptions,

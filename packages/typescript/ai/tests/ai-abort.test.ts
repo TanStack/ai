@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import { z } from 'zod'
-import { chat } from '../src/core/chat'
+import { chatActivity } from '../src/activities/chat'
 import type { ChatOptions, StreamChunk } from '../src/types'
 import { BaseAdapter } from '../src/base-adapter'
 
@@ -15,6 +15,7 @@ class MockAdapter extends BaseAdapter<
   public receivedAbortSignals: (AbortSignal | undefined)[] = []
   public chatStreamCallCount = 0
 
+  readonly kind = 'chat' as const
   name = 'mock'
   models = ['test-model'] as const
 
@@ -63,6 +64,10 @@ class MockAdapter extends BaseAdapter<
     }
   }
 
+  async structuredOutput(_options: any): Promise<any> {
+    return { data: {}, rawText: '{}' }
+  }
+
   async summarize(_options: any): Promise<any> {
     return { summary: 'test' }
   }
@@ -72,14 +77,14 @@ class MockAdapter extends BaseAdapter<
   }
 }
 
-describe('chat() - Abort Signal Handling', () => {
+describe('chatActivity() - Abort Signal Handling', () => {
   it('should propagate abortSignal to adapter.chatStream()', async () => {
     const mockAdapter = new MockAdapter()
 
     const abortController = new AbortController()
     const abortSignal = abortController.signal
 
-    const stream = chat({
+    const stream = chatActivity({
       adapter: mockAdapter,
       model: 'test-model',
       messages: [{ role: 'user', content: 'Hello' }],
@@ -100,7 +105,7 @@ describe('chat() - Abort Signal Handling', () => {
 
     const abortController = new AbortController()
 
-    const stream = chat({
+    const stream = chatActivity({
       adapter: mockAdapter,
       model: 'test-model',
       messages: [{ role: 'user', content: 'Hello' }],
@@ -132,7 +137,7 @@ describe('chat() - Abort Signal Handling', () => {
     // Abort before starting
     abortController.abort()
 
-    const stream = chat({
+    const stream = chatActivity({
       adapter: mockAdapter,
       model: 'test-model',
       messages: [{ role: 'user', content: 'Hello' }],
@@ -182,7 +187,7 @@ describe('chat() - Abort Signal Handling', () => {
 
     const toolAdapter = new ToolCallAdapter()
 
-    const stream = chat({
+    const stream = chatActivity({
       adapter: toolAdapter,
       model: 'test-model',
       messages: [{ role: 'user', content: 'Hello' }],
@@ -216,7 +221,7 @@ describe('chat() - Abort Signal Handling', () => {
   it('should handle undefined abortSignal gracefully', async () => {
     const mockAdapter = new MockAdapter()
 
-    const stream = chat({
+    const stream = chatActivity({
       adapter: mockAdapter,
       model: 'test-model',
       messages: [{ role: 'user', content: 'Hello' }],

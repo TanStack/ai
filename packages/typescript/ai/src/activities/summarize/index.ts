@@ -1,0 +1,277 @@
+/**
+ * Summarize Activity
+ *
+ * Generates summaries from text input.
+ * This is a self-contained module with implementation, types, and JSDoc.
+ */
+
+import { aiEventClient } from '../../event-client.js'
+import type { SummarizeAdapter } from './adapter'
+import type {
+  StreamChunk,
+  SummarizationOptions,
+  SummarizationResult,
+} from '../../types'
+
+// ===========================
+// Activity Kind
+// ===========================
+
+/** The adapter kind this activity handles */
+export const kind = 'summarize' as const
+
+// ===========================
+// Type Extraction Helpers
+// ===========================
+
+/** Extract model types from a SummarizeAdapter */
+type SummarizeModels<TAdapter> =
+  TAdapter extends SummarizeAdapter<infer M, any> ? M[number] : string
+
+/** Extract provider options from a SummarizeAdapter */
+type SummarizeProviderOptions<TAdapter> =
+  TAdapter extends SummarizeAdapter<any, infer P> ? P : object
+
+// ===========================
+// Activity Options Type
+// ===========================
+
+/**
+ * Options for the summarize activity.
+ *
+ * @template TAdapter - The summarize adapter type
+ * @template TModel - The model name type (inferred from adapter)
+ * @template TStream - Whether to stream the output
+ */
+export interface SummarizeActivityOptions<
+  TAdapter extends SummarizeAdapter<ReadonlyArray<string>, object>,
+  TModel extends SummarizeModels<TAdapter>,
+  TStream extends boolean = false,
+> {
+  /** The summarize adapter to use */
+  adapter: TAdapter & { kind: typeof kind }
+  /** The model name (autocompletes based on adapter) */
+  model: TModel
+  /** The text to summarize */
+  text: string
+  /** Maximum length of the summary (in words or characters, provider-dependent) */
+  maxLength?: number
+  /** Style of summary to generate */
+  style?: 'bullet-points' | 'paragraph' | 'concise'
+  /** Topics or aspects to focus on in the summary */
+  focus?: Array<string>
+  /** Provider-specific options */
+  providerOptions?: SummarizeProviderOptions<TAdapter>
+  /**
+   * Whether to stream the summarization result.
+   * When true, returns an AsyncIterable<StreamChunk> for streaming output.
+   * When false or not provided, returns a Promise<SummarizationResult>.
+   *
+   * @default false
+   */
+  stream?: TStream
+}
+
+// ===========================
+// Activity Result Type
+// ===========================
+
+/**
+ * Result type for the summarize activity.
+ * - If stream is true: AsyncIterable<StreamChunk>
+ * - Otherwise: Promise<SummarizationResult>
+ */
+export type SummarizeActivityResult<TStream extends boolean> =
+  TStream extends true
+    ? AsyncIterable<StreamChunk>
+    : Promise<SummarizationResult>
+
+// ===========================
+// Helper Functions
+// ===========================
+
+function createId(prefix: string): string {
+  return `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`
+}
+
+// ===========================
+// Activity Implementation
+// ===========================
+
+/**
+ * Summarize activity - generates summaries from text.
+ *
+ * Supports both streaming and non-streaming modes.
+ *
+ * @example Basic summarization
+ * ```ts
+ * import { ai } from '@tanstack/ai'
+ * import { openaiSummarize } from '@tanstack/ai-openai'
+ *
+ * const result = await ai({
+ *   adapter: openaiSummarize(),
+ *   model: 'gpt-4o-mini',
+ *   text: 'Long article text here...'
+ * })
+ *
+ * console.log(result.summary)
+ * ```
+ *
+ * @example Summarization with style
+ * ```ts
+ * const result = await ai({
+ *   adapter: openaiSummarize(),
+ *   model: 'gpt-4o-mini',
+ *   text: 'Long article text here...',
+ *   style: 'bullet-points',
+ *   maxLength: 100
+ * })
+ * ```
+ *
+ * @example Focused summarization
+ * ```ts
+ * const result = await ai({
+ *   adapter: openaiSummarize(),
+ *   model: 'gpt-4o-mini',
+ *   text: 'Long technical document...',
+ *   focus: ['key findings', 'methodology']
+ * })
+ * ```
+ *
+ * @example Streaming summarization
+ * ```ts
+ * for await (const chunk of ai({
+ *   adapter: openaiSummarize(),
+ *   model: 'gpt-4o-mini',
+ *   text: 'Long article text here...',
+ *   stream: true
+ * })) {
+ *   if (chunk.type === 'content') {
+ *     process.stdout.write(chunk.delta)
+ *   }
+ * }
+ * ```
+ */
+export function summarizeActivity<
+  TAdapter extends SummarizeAdapter<ReadonlyArray<string>, object>,
+  TModel extends SummarizeModels<TAdapter>,
+  TStream extends boolean = false,
+>(
+  options: SummarizeActivityOptions<TAdapter, TModel, TStream>,
+): SummarizeActivityResult<TStream> {
+  const { stream } = options
+
+  if (stream) {
+    return runStreamingSummarize(
+      options as unknown as SummarizeActivityOptions<
+        SummarizeAdapter<ReadonlyArray<string>, object>,
+        string,
+        true
+      >,
+    ) as SummarizeActivityResult<TStream>
+  }
+
+  return runSummarize(
+    options as unknown as SummarizeActivityOptions<
+      SummarizeAdapter<ReadonlyArray<string>, object>,
+      string,
+      false
+    >,
+  ) as SummarizeActivityResult<TStream>
+}
+
+/**
+ * Run non-streaming summarization
+ */
+async function runSummarize(
+  options: SummarizeActivityOptions<
+    SummarizeAdapter<ReadonlyArray<string>, object>,
+    string,
+    false
+  >,
+): Promise<SummarizationResult> {
+  const { adapter, model, text, maxLength, style, focus } = options
+  const requestId = createId('summarize')
+  const inputLength = text.length
+  const startTime = Date.now()
+
+  aiEventClient.emit('summarize:started', {
+    requestId,
+    model,
+    inputLength,
+    timestamp: startTime,
+  })
+
+  const summarizeOptions: SummarizationOptions = {
+    model,
+    text,
+    maxLength,
+    style,
+    focus,
+  }
+
+  const result = await adapter.summarize(summarizeOptions)
+
+  const duration = Date.now() - startTime
+  const outputLength = result.summary.length
+
+  aiEventClient.emit('summarize:completed', {
+    requestId,
+    model,
+    inputLength,
+    outputLength,
+    duration,
+    timestamp: Date.now(),
+  })
+
+  return result
+}
+
+/**
+ * Run streaming summarization
+ * Wraps the non-streaming summarize into a streaming interface.
+ */
+async function* runStreamingSummarize(
+  options: SummarizeActivityOptions<
+    SummarizeAdapter<ReadonlyArray<string>, object>,
+    string,
+    true
+  >,
+): AsyncIterable<StreamChunk> {
+  const { adapter, model, text, maxLength, style, focus } = options
+
+  const summarizeOptions: SummarizationOptions = {
+    model,
+    text,
+    maxLength,
+    style,
+    focus,
+  }
+
+  const result = await adapter.summarize(summarizeOptions)
+
+  // Yield content chunk with the summary
+  yield {
+    type: 'content',
+    id: result.id,
+    model: result.model,
+    timestamp: Date.now(),
+    delta: result.summary,
+    content: result.summary,
+    role: 'assistant',
+  }
+
+  // Yield done chunk
+  yield {
+    type: 'done',
+    id: result.id,
+    model: result.model,
+    timestamp: Date.now(),
+    finishReason: 'stop',
+    usage: result.usage,
+  }
+}
+
+// Re-export adapter types
+export type { SummarizeAdapter, SummarizeAdapterConfig } from './adapter'
+export { BaseSummarizeAdapter } from './adapter'

@@ -1,8 +1,7 @@
-export { chat } from './core/chat'
-export { summarize } from './core/summarize'
-export { embedding } from './core/embedding'
+// Main AI function - the one export to rule them all
 export {
   ai,
+  type AIAdapter,
   type AnyAdapter,
   type GenerateAdapter,
   type GenerateOptions,
@@ -10,7 +9,13 @@ export {
   type EmbeddingGenerateOptions,
   type SummarizeGenerateOptions,
   type ImageGenerateOptions,
-} from './core/generate'
+  type GenerateChatOptions,
+  type GenerateEmbeddingOptions,
+  type GenerateSummarizeOptions,
+  type GenerateImageOptions,
+} from './ai'
+
+// Tool definition
 export {
   toolDefinition,
   type ToolDefinition,
@@ -22,33 +27,47 @@ export {
   type InferToolName,
   type InferToolInput,
   type InferToolOutput,
-} from './tools/tool-definition'
-export { convertZodToJsonSchema } from './tools/zod-converter'
+} from './activities/chat/tools/tool-definition'
+export { convertZodToJsonSchema } from './activities/chat/tools/zod-converter'
+
+// Stream utilities
 export {
   toServerSentEventsStream,
   toStreamResponse,
-} from './utilities/stream-to-response'
+} from './stream-to-response'
+
+// Base adapter
 export { BaseAdapter } from './base-adapter'
-export { ToolCallManager } from './tools/tool-calls'
+
+// Tool call management
+export { ToolCallManager } from './activities/chat/tools/tool-calls'
+
+// Agent loop strategies
 export {
   maxIterations,
   untilFinishReason,
   combineStrategies,
-} from './utilities/agent-loop-strategies'
+} from './activities/chat/agent-loop-strategies'
+
+// All types
 export * from './types'
-export { chatOptions } from './utilities/chat-options'
-export { messages } from './utilities/messages'
+
+// Utility builders
+export { chatOptions } from './activities/chat/index'
+export { messages } from './activities/chat/messages'
+
+// Event client
 export { aiEventClient } from './event-client'
 
 // Message converters
 export {
   convertMessagesToModelMessages,
+  generateMessageId,
   uiMessageToModelMessages,
   modelMessageToUIMessage,
   modelMessagesToUIMessages,
   normalizeToUIMessage,
-  generateMessageId,
-} from './message-converters'
+} from './activities/chat/messages'
 
 // Stream processing (unified for server and client)
 export {
@@ -62,7 +81,7 @@ export {
   PartialJSONParser,
   defaultJSONParser,
   parsePartialJSON,
-} from './stream'
+} from './activities/chat/stream'
 export type {
   ChunkStrategy,
   ChunkRecording,
@@ -75,4 +94,4 @@ export type {
   ToolCallState,
   ToolResultState,
   JSONParser,
-} from './stream'
+} from './activities/chat/stream'

@@ -1,8 +1,9 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest'
-import { chat, type Tool, type StreamChunk } from '@tanstack/ai'
-import { OpenAI, type OpenAIProviderOptions } from '../src/openai-adapter'
+import { ai, type Tool, type StreamChunk } from '@tanstack/ai'
+import { OpenAITextAdapter } from '../src/adapters/text'
+import type { OpenAIProviderOptions } from '../src/openai-adapter'
 
-const createAdapter = () => new OpenAI({ apiKey: 'test-key' })
+const createAdapter = () => new OpenAITextAdapter({ apiKey: 'test-key' })
 
 const toolArguments = JSON.stringify({ location: 'Berlin' })
 
@@ -77,7 +78,7 @@ describe('OpenAI adapter option mapping', () => {
     }
 
     const chunks: StreamChunk[] = []
-    for await (const chunk of chat({
+    for await (const chunk of ai({
       adapter,
       model: 'gpt-4o-mini',
       messages: [

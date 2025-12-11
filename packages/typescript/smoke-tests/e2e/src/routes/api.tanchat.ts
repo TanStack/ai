@@ -1,5 +1,5 @@
 import { createFileRoute } from '@tanstack/react-router'
-import { chat, toStreamResponse, maxIterations } from '@tanstack/ai'
+import { ai, toStreamResponse, maxIterations } from '@tanstack/ai'
 import { openai } from '@tanstack/ai-openai'
 
 export const Route = createFileRoute('/api/tanchat')({
@@ -16,7 +16,7 @@ export const Route = createFileRoute('/api/tanchat')({
 
         const { messages } = await request.json()
         try {
-          const stream = chat({
+          const stream = ai({
             adapter: openai(),
             model: 'gpt-4o-mini',
             systemPrompts: [

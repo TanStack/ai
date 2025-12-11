@@ -1,8 +1,8 @@
 import { describe, it, expect } from 'vitest'
 import { readFile } from 'fs/promises'
 import { join } from 'path'
-import { StreamProcessor } from '../src/stream'
-import type { ChunkRecording } from '../src/stream/types'
+import { StreamProcessor } from '../src/activities/chat/stream'
+import type { ChunkRecording } from '../src/activities/chat/stream/types'
 
 async function loadFixture(name: string): Promise<ChunkRecording> {
   const fixturePath = join(__dirname, 'fixtures', `${name}.json`)

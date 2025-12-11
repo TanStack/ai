@@ -1,7 +1,7 @@
 import * as path from 'node:path'
 import * as fs from 'node:fs'
 import { createFileRoute } from '@tanstack/react-router'
-import { chat, maxIterations, toStreamResponse } from '@tanstack/ai'
+import { ai, maxIterations, toStreamResponse } from '@tanstack/ai'
 import { anthropic } from '@tanstack/ai-anthropic'
 import { gemini } from '@tanstack/ai-gemini'
 import { openai } from '@tanstack/ai-openai'
@@ -196,7 +196,7 @@ export const Route = createFileRoute('/api/chat')({
           }
 
           // Use the stream abort signal for proper cancellation handling
-          const stream = chat({
+          const stream = ai({
             adapter: adapter as any,
             model: selectedModel as any,
             tools: [

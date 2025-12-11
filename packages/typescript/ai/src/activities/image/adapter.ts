@@ -1,4 +1,4 @@
-import type { ImageGenerationOptions, ImageGenerationResult } from '../types'
+import type { ImageGenerationOptions, ImageGenerationResult } from '../../types'
 
 /**
  * Configuration for image adapter instances

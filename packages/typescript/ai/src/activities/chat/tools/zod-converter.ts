@@ -1,6 +1,6 @@
 import { toJSONSchema } from 'zod'
 import type { z } from 'zod'
-import type { SchemaInput } from '../types'
+import type { SchemaInput } from '../../../types'
 
 /**
  * Check if a value is a Zod schema by looking for Zod-specific internals.

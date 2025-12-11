@@ -13,10 +13,7 @@
  * - Recording/replay for testing
  * - Event-driven architecture for UI updates
  */
-import {
-  generateMessageId,
-  uiMessageToModelMessages,
-} from '../message-converters'
+import { generateMessageId, uiMessageToModelMessages } from '../messages.js'
 import { defaultJSONParser } from './json-parser'
 import {
   updateTextPart,
@@ -43,7 +40,7 @@ import type {
   ToolCall,
   ToolCallPart,
   UIMessage,
-} from '../types'
+} from '../../../types'
 
 /**
  * Events emitted by the StreamProcessor

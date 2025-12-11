@@ -1,6 +1,6 @@
 // Claude AI service for handling queued AI responses
 import { anthropic } from '@tanstack/ai-anthropic'
-import { chat, toolDefinition } from '@tanstack/ai'
+import { ai, toolDefinition } from '@tanstack/ai'
 import type { JSONSchema, ModelMessage, StreamChunk } from '@tanstack/ai'
 
 // Define input schema for getWeather tool using JSONSchema
@@ -149,7 +149,7 @@ export class ClaudeService {
       let chunkCount = 0
       let accumulatedContent = ''
 
-      for await (const chunk of chat({
+      for await (const chunk of ai({
         adapter: this.adapter,
         systemPrompts: [systemMessage],
         messages: [...conversationHistory] as any,

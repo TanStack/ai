@@ -1,14 +1,14 @@
 import { describe, expect, it, vi } from 'vitest'
-import { ai } from '../src/core/generate'
+import { ai } from '../src/ai'
 import {
   BaseChatAdapter,
   BaseEmbeddingAdapter,
   BaseSummarizeAdapter,
-} from '../src/adapters'
+} from '../src/activities'
 import type {
   StructuredOutputOptions,
   StructuredOutputResult,
-} from '../src/adapters'
+} from '../src/activities'
 import type {
   ChatOptions,
   EmbeddingOptions,

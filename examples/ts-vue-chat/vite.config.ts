@@ -2,7 +2,7 @@ import { fileURLToPath, URL } from 'node:url'
 import { defineConfig } from 'vite'
 import vue from '@vitejs/plugin-vue'
 import tailwindcss from '@tailwindcss/vite'
-import { chat, maxIterations, toStreamResponse } from '@tanstack/ai'
+import { ai, maxIterations, toStreamResponse } from '@tanstack/ai'
 import { openai } from '@tanstack/ai-openai'
 import { anthropic } from '@tanstack/ai-anthropic'
 import { gemini } from '@tanstack/ai-gemini'
@@ -231,7 +231,7 @@ export default defineConfig({
 
             const abortController = new AbortController()
 
-            const stream = chat({
+            const stream = ai({
               adapter: adapter as any,
               model: selectedModel as any,
               tools: [

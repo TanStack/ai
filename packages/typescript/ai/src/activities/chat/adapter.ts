@@ -3,7 +3,7 @@ import type {
   DefaultMessageMetadataByModality,
   Modality,
   StreamChunk,
-} from '../types'
+} from '../../types'
 
 /**
  * Configuration for adapter instances

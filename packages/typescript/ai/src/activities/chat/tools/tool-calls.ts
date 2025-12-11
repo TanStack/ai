@@ -5,7 +5,7 @@ import type {
   Tool,
   ToolCall,
   ToolResultStreamChunk,
-} from '../types'
+} from '../../../types'
 import type { z } from 'zod'
 
 /**

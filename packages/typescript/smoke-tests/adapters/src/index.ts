@@ -1,12 +1,5 @@
 import { config } from 'dotenv'
-import {
-  chat,
-  embedding,
-  summarize,
-  toolDefinition,
-  maxIterations,
-  type Tool,
-} from '@tanstack/ai'
+import { ai, toolDefinition, maxIterations, type Tool } from '@tanstack/ai'
 import { z } from 'zod'
 import { createAnthropic } from '@tanstack/ai-anthropic'
 import { createGemini } from '@tanstack/ai-gemini'
@@ -379,7 +372,7 @@ async function testSummarize(
   }
 
   try {
-    const result = await summarize({
+    const result = await ai({
       adapter: adapterContext.adapter,
       model,
       text,
@@ -447,7 +440,7 @@ async function testEmbedding(
   }
 
   try {
-    const result = await embedding({
+    const result = await ai({
       adapter: adapterContext.adapter,
       model,
       input: inputs,

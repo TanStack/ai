@@ -10,7 +10,7 @@ import type {
   ToolCallPart,
   ToolResultPart,
   UIMessage,
-} from '../types'
+} from '../../../types'
 import type { ToolCallState, ToolResultState } from './types'
 
 /**

@@ -1,5 +1,10 @@
 import type { z } from 'zod'
-import type { InferSchemaType, JSONSchema, SchemaInput, Tool } from '../types'
+import type {
+  InferSchemaType,
+  JSONSchema,
+  SchemaInput,
+  Tool,
+} from '../../../types'
 
 /**
  * Marker type for server-side tools

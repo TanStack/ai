@@ -1,25 +1,206 @@
-import { aiEventClient } from '../event-client.js'
-import { ToolCallManager, executeToolCalls } from '../tools/tool-calls'
-import { maxIterations as maxIterationsStrategy } from '../utilities/agent-loop-strategies'
+/**
+ * Chat Activity
+ *
+ * Handles agentic chat, one-shot chat, and agentic structured output.
+ * This is a self-contained module with implementation, types, and JSDoc.
+ */
+
+import { aiEventClient } from '../../event-client.js'
+import { ToolCallManager, executeToolCalls } from './tools/tool-calls'
+import { convertZodToJsonSchema } from './tools/zod-converter'
+import { maxIterations as maxIterationsStrategy } from './agent-loop-strategies'
 import type {
   ApprovalRequest,
   ClientToolRequest,
   ToolResult,
-} from '../tools/tool-calls'
+} from './tools/tool-calls'
+import type { z } from 'zod'
+import type { ChatAdapter } from './adapter'
 import type {
   AIAdapter,
   AgentLoopStrategy,
   ChatOptions,
-  ChatStreamOptionsForModel,
+  ChatStreamOptionsUnion,
   DoneStreamChunk,
   ModelMessage,
   StreamChunk,
   Tool,
   ToolCall,
-} from '../types'
+} from '../../types'
+
+// ===========================
+// Activity Kind
+// ===========================
+
+/** The adapter kind this activity handles */
+export const kind = 'chat' as const
+
+// ===========================
+// Common Options
+// ===========================
+
+/**
+ * Common options shared across different AI provider implementations.
+ * These options represent the standard parameters that work across OpenAI, Anthropic, and Gemini.
+ */
+export interface CommonOptions {
+  /**
+   * Controls the randomness of the output.
+   * Higher values (e.g., 0.8) make output more random, lower values (e.g., 0.2) make it more focused and deterministic.
+   * Range: [0.0, 2.0]
+   *
+   * Note: Generally recommended to use either temperature or topP, but not both.
+   *
+   * Provider usage:
+   * - OpenAI: `temperature` (number) - in text.top_p field
+   * - Anthropic: `temperature` (number) - ranges from 0.0 to 1.0, default 1.0
+   * - Gemini: `generationConfig.temperature` (number) - ranges from 0.0 to 2.0
+   */
+  temperature?: number
+
+  /**
+   * Nucleus sampling parameter. An alternative to temperature sampling.
+   * The model considers the results of tokens with topP probability mass.
+   * For example, 0.1 means only tokens comprising the top 10% probability mass are considered.
+   *
+   * Note: Generally recommended to use either temperature or topP, but not both.
+   *
+   * Provider usage:
+   * - OpenAI: `text.top_p` (number)
+   * - Anthropic: `top_p` (number | null)
+   * - Gemini: `generationConfig.topP` (number)
+   */
+  topP?: number
+
+  /**
+   * The maximum number of tokens to generate in the response.
+   *
+   * Provider usage:
+   * - OpenAI: `max_output_tokens` (number) - includes visible output and reasoning tokens
+   * - Anthropic: `max_tokens` (number, required) - range x >= 1
+   * - Gemini: `generationConfig.maxOutputTokens` (number)
+   */
+  maxTokens?: number
+
+  /**
+   * Additional metadata to attach to the request.
+   * Can be used for tracking, debugging, or passing custom information.
+   * Structure and constraints vary by provider.
+   *
+   * Provider usage:
+   * - OpenAI: `metadata` (Record<string, string>) - max 16 key-value pairs, keys max 64 chars, values max 512 chars
+   * - Anthropic: `metadata` (Record<string, any>) - includes optional user_id (max 256 chars)
+   * - Gemini: Not directly available in TextProviderOptions
+   */
+  metadata?: Record<string, any>
+}
+
+// ===========================
+// Type Extraction Helpers
+// ===========================
+
+/** Extract model types from a ChatAdapter */
+type ChatModels<TAdapter> =
+  TAdapter extends ChatAdapter<infer M, any, any, any, any> ? M[number] : string
+
+/**
+ * Extract model-specific provider options from a ChatAdapter.
+ * If the model has specific options defined in ModelOptions (and not just via index signature),
+ * use those; otherwise fall back to base provider options.
+ */
+type ChatProviderOptionsForModel<TAdapter, TModel extends string> =
+  TAdapter extends ChatAdapter<
+    any,
+    infer BaseOptions,
+    infer ModelOptions,
+    any,
+    any
+  >
+    ? string extends keyof ModelOptions
+      ? // ModelOptions is Record<string, unknown> or has index signature - use BaseOptions
+        BaseOptions
+      : // ModelOptions has explicit keys - check if TModel is one of them
+        TModel extends keyof ModelOptions
+        ? ModelOptions[TModel]
+        : BaseOptions
+    : object
+
+// ===========================
+// Activity Options Type
+// ===========================
+
+/**
+ * Options for the chat activity.
+ *
+ * @template TAdapter - The chat adapter type
+ * @template TModel - The model name type (inferred from adapter)
+ * @template TSchema - Optional Zod schema for structured output
+ */
+export interface ChatActivityOptions<
+  TAdapter extends ChatAdapter<ReadonlyArray<string>, object, any, any, any>,
+  TModel extends ChatModels<TAdapter>,
+  TSchema extends z.ZodType | undefined = undefined,
+> {
+  /** The chat adapter to use */
+  adapter: TAdapter & { kind: typeof kind }
+  /** The model name (autocompletes based on adapter) */
+  model: TModel
+  /** Conversation messages */
+  messages: Array<ModelMessage>
+  /** System prompts to prepend to the conversation */
+  systemPrompts?: ChatOptions['systemPrompts']
+  /** Tools for function calling (auto-executed when called) */
+  tools?: ChatOptions['tools']
+  /** Additional options like temperature, maxTokens, etc. */
+  options?: ChatOptions['options']
+  /** Provider-specific options */
+  providerOptions?: ChatProviderOptionsForModel<TAdapter, TModel>
+  /** AbortController for cancellation */
+  abortController?: ChatOptions['abortController']
+  /** Strategy for controlling the agent loop */
+  agentLoopStrategy?: ChatOptions['agentLoopStrategy']
+  /** Unique conversation identifier for tracking */
+  conversationId?: ChatOptions['conversationId']
+  /**
+   * Optional Zod schema for structured output.
+   * When provided, the activity will:
+   * 1. Run the full agentic loop (executing tools as needed)
+   * 2. Once complete, return a Promise with the parsed output matching the schema
+   *
+   * @example
+   * ```ts
+   * const result = await ai({
+   *   adapter: openaiText(),
+   *   model: 'gpt-4o',
+   *   messages: [{ role: 'user', content: 'Generate a person' }],
+   *   outputSchema: z.object({ name: z.string(), age: z.number() })
+   * })
+   * // result is { name: string, age: number }
+   * ```
+   */
+  outputSchema?: TSchema
+}
+
+// ===========================
+// Activity Result Type
+// ===========================
+
+/**
+ * Result type for the chat activity.
+ * - If outputSchema is provided: Promise<z.infer<TSchema>>
+ * - Otherwise: AsyncIterable<StreamChunk>
+ */
+export type ChatActivityResult<TSchema extends z.ZodType | undefined> =
+  TSchema extends z.ZodType
+    ? Promise<z.infer<TSchema>>
+    : AsyncIterable<StreamChunk>
+
+// ===========================
+// ChatEngine Implementation
+// ===========================
 
 interface ChatEngineConfig<
-  TAdapter extends AIAdapter<any, any, any, any>,
+  TAdapter extends ChatAdapter<any, any, any, any, any>,
   TParams extends ChatOptions<any, any> = ChatOptions<any>,
 > {
   adapter: TAdapter
@@ -31,7 +212,7 @@ type ToolPhaseResult = 'continue' | 'stop' | 'wait'
 type CyclePhase = 'processChat' | 'executeToolCalls'
 
 class ChatEngine<
-  TAdapter extends AIAdapter<any, any, any, any>,
+  TAdapter extends ChatAdapter<any, any, any, any, any>,
   TParams extends ChatOptions<any, any> = ChatOptions<any>,
 > {
   private readonly adapter: TAdapter
@@ -75,6 +256,16 @@ class ChatEngine<
       ? { signal: config.params.abortController.signal }
       : undefined
     this.effectiveSignal = config.params.abortController?.signal
+  }
+
+  /** Get the accumulated content after the chat loop completes */
+  getAccumulatedContent(): string {
+    return this.accumulatedContent
+  }
+
+  /** Get the final messages array after the chat loop completes */
+  getMessages(): Array<ModelMessage> {
+    return this.messages
   }
 
   async *chat(): AsyncGenerator<StreamChunk> {
@@ -710,48 +901,102 @@ class ChatEngine<
   }
 }
 
+// ===========================
+// Activity Implementation
+// ===========================
+
 /**
- * Standalone chat streaming function with type inference from adapter
- * Returns an async iterable of StreamChunks for streaming responses
- * Includes automatic tool execution loop
+ * Chat activity - handles agentic chat, one-shot chat, and agentic structured output.
  *
- * @param options Chat options
- * @param options.adapter - AI adapter instance to use
- * @param options.model - Model name (autocompletes based on adapter)
- * @param options.messages - Conversation messages
- * @param options.tools - Optional tools for function calling (auto-executed)
- * @param options.agentLoopStrategy - Optional strategy for controlling tool execution loop
+ * This activity supports three modes:
+ * 1. **Full agentic chat**: Stream responses with automatic tool execution
+ * 2. **One-shot chat**: Simple request/response without tools
+ * 3. **Agentic structured output**: Run tools, then return structured data
  *
- * @example
- * ```typescript
- * const stream = chat({
- *   adapter: openai(),
+ * @example Full agentic chat (streaming with tools)
+ * ```ts
+ * import { ai } from '@tanstack/ai'
+ * import { openaiText } from '@tanstack/ai-openai'
+ *
+ * for await (const chunk of ai({
+ *   adapter: openaiText(),
  *   model: 'gpt-4o',
- *   messages: [{ role: 'user', content: 'Hello!' }],
- *   tools: [weatherTool], // Optional: auto-executed when called
- * });
- *
- * for await (const chunk of stream) {
+ *   messages: [{ role: 'user', content: 'What is the weather?' }],
+ *   tools: [weatherTool]
+ * })) {
  *   if (chunk.type === 'content') {
- *     console.log(chunk.delta);
+ *     console.log(chunk.delta)
  *   }
  * }
  * ```
+ *
+ * @example One-shot chat (streaming without tools)
+ * ```ts
+ * for await (const chunk of ai({
+ *   adapter: openaiText(),
+ *   model: 'gpt-4o',
+ *   messages: [{ role: 'user', content: 'Hello!' }]
+ * })) {
+ *   console.log(chunk)
+ * }
+ * ```
+ *
+ * @example Agentic structured output (tools + structured response)
+ * ```ts
+ * import { z } from 'zod'
+ *
+ * const result = await ai({
+ *   adapter: openaiText(),
+ *   model: 'gpt-4o',
+ *   messages: [{ role: 'user', content: 'Research and summarize the topic' }],
+ *   tools: [researchTool, analyzeTool],
+ *   outputSchema: z.object({
+ *     summary: z.string(),
+ *     keyPoints: z.array(z.string())
+ *   })
+ * })
+ * // result is { summary: string, keyPoints: string[] }
+ * ```
  */
-export async function* chat<
-  TAdapter extends AIAdapter<any, any, any, any, any, any>,
-  const TModel extends TAdapter extends AIAdapter<
-    infer Models,
-    any,
-    any,
-    any,
-    any,
-    any
-  >
-    ? Models[number]
-    : string,
+export function chatActivity<
+  TAdapter extends ChatAdapter<ReadonlyArray<string>, object, any, any, any>,
+  TModel extends ChatModels<TAdapter>,
+  TSchema extends z.ZodType | undefined = undefined,
 >(
-  options: ChatStreamOptionsForModel<TAdapter, TModel>,
+  options: ChatActivityOptions<TAdapter, TModel, TSchema>,
+): ChatActivityResult<TSchema> {
+  const { outputSchema } = options
+
+  // If outputSchema is provided, run agentic structured output
+  if (outputSchema) {
+    return runAgenticStructuredOutput(
+      options as unknown as ChatActivityOptions<
+        ChatAdapter<ReadonlyArray<string>, object, any, any, any>,
+        string,
+        z.ZodType
+      >,
+    ) as ChatActivityResult<TSchema>
+  }
+
+  // Otherwise, run streaming chat
+  return runStreamingChat(
+    options as unknown as ChatActivityOptions<
+      ChatAdapter<ReadonlyArray<string>, object, any, any, any>,
+      string,
+      undefined
+    >,
+  ) as ChatActivityResult<TSchema>
+}
+
+/**
+ * Run streaming chat (agentic or one-shot depending on tools)
+ */
+async function* runStreamingChat(
+  options: ChatActivityOptions<
+    ChatAdapter<ReadonlyArray<string>, object, any, any, any>,
+    string,
+    undefined
+  >,
 ): AsyncIterable<StreamChunk> {
   const { adapter, ...chatOptions } = options
 
@@ -769,3 +1014,129 @@ export async function* chat<
     yield chunk
   }
 }
+
+/**
+ * Run agentic structured output:
+ * 1. Execute the full agentic loop (with tools)
+ * 2. Once complete, call adapter.structuredOutput with the conversation context
+ * 3. Validate and return the structured result
+ */
+async function runAgenticStructuredOutput<TSchema extends z.ZodType>(
+  options: ChatActivityOptions<
+    ChatAdapter<ReadonlyArray<string>, object, any, any, any>,
+    string,
+    TSchema
+  >,
+): Promise<z.infer<TSchema>> {
+  const { adapter, outputSchema, ...chatOptions } = options
+
+  if (!outputSchema) {
+    throw new Error('outputSchema is required for structured output')
+  }
+
+  // Create the engine and run the agentic loop
+  const engine = new ChatEngine({
+    adapter,
+    params: chatOptions as ChatOptions<
+      string,
+      Record<string, any>,
+      undefined,
+      Record<string, any>
+    >,
+  })
+
+  // Consume the stream to run the agentic loop
+  for await (const _chunk of engine.chat()) {
+    // Just consume the stream to execute the agentic loop
+  }
+
+  // Now make the structured output call with the updated messages
+  const jsonSchema = convertZodToJsonSchema(outputSchema)
+  if (!jsonSchema) {
+    throw new Error('Failed to convert outputSchema to JSON Schema')
+  }
+
+  // Get the final messages from the engine (includes tool results)
+  const finalMessages = engine.getMessages()
+
+  // Call the adapter's structured output method with the conversation context
+  const result = await adapter.structuredOutput({
+    chatOptions: {
+      ...chatOptions,
+      messages: finalMessages,
+    },
+    jsonSchema,
+  })
+
+  // Validate the result against the Zod schema
+  const validationResult = outputSchema.safeParse(result.data)
+  if (!validationResult.success) {
+    throw new Error(
+      `Structured output validation failed: ${validationResult.error.message}`,
+    )
+  }
+
+  return validationResult.data
+}
+
+// ===========================
+// Chat Options Helper
+// ===========================
+
+/**
+ * Type-safe helper to create chat options with model-specific provider options.
+ *
+ * @example
+ * ```ts
+ * import { chatOptions, ai } from '@tanstack/ai'
+ * import { openaiText } from '@tanstack/ai-openai'
+ *
+ * const opts = chatOptions({
+ *   adapter: openaiText(),
+ *   model: 'gpt-4o',
+ *   options: { temperature: 0.7 }
+ * })
+ * ```
+ */
+export function chatOptions<
+  TAdapter extends AIAdapter<any, any, any, any, any>,
+  const TModel extends TAdapter extends AIAdapter<
+    infer Models,
+    any,
+    any,
+    any,
+    any
+  >
+    ? Models[number]
+    : string,
+>(
+  options: Omit<
+    ChatStreamOptionsUnion<TAdapter>,
+    'providerOptions' | 'model' | 'messages' | 'abortController'
+  > & {
+    adapter: TAdapter
+    model: TModel
+    providerOptions?: TAdapter extends AIAdapter<
+      any,
+      any,
+      any,
+      any,
+      infer ModelProviderOptions
+    >
+      ? TModel extends keyof ModelProviderOptions
+        ? ModelProviderOptions[TModel]
+        : never
+      : never
+  },
+): typeof options {
+  return options
+}
+
+// Re-export adapter types
+export type {
+  ChatAdapter,
+  ChatAdapterConfig,
+  StructuredOutputOptions,
+  StructuredOutputResult,
+} from './adapter'
+export { BaseChatAdapter } from './adapter'

@@ -1,5 +1,5 @@
 import { env } from '$env/dynamic/private'
-import { chat, maxIterations, toStreamResponse } from '@tanstack/ai'
+import { ai, maxIterations, toStreamResponse } from '@tanstack/ai'
 import { openai } from '@tanstack/ai-openai'
 import { ollama } from '@tanstack/ai-ollama'
 import { anthropic } from '@tanstack/ai-anthropic'
@@ -102,7 +102,7 @@ export const POST: RequestHandler = async ({ request }) => {
     // Determine model - use provided model or default based on provider
     const selectedModel = model || defaultModel
 
-    const stream = chat({
+    const stream = ai({
       adapter: adapter as any,
       model: selectedModel as any,
       tools: [
