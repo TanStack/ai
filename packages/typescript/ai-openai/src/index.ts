@@ -29,6 +29,18 @@ export {
   type OpenAISummarizeProviderOptions,
 } from './adapters/summarize'
 
+// Image adapter - for image generation
+export {
+  OpenAIImageAdapter,
+  createOpenaiImage,
+  openaiImage,
+  type OpenAIImageConfig,
+} from './adapters/image'
+export type {
+  OpenAIImageProviderOptions,
+  OpenAIImageModelProviderOptionsByName,
+} from './image/image-provider-options'
+
 // ============================================================================
 // Legacy Exports (Deprecated - will be removed in future versions)
 // ============================================================================
@@ -52,6 +64,7 @@ export type {
   OpenAIChatModelProviderOptionsByName,
   OpenAIModelInputModalitiesByName,
 } from './model-meta'
+export { OPENAI_IMAGE_MODELS } from './model-meta'
 export type {
   OpenAITextMetadata,
   OpenAIImageMetadata,

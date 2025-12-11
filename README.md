@@ -40,6 +40,7 @@ A powerful, type-safe AI SDK for building AI-powered applications.
 - Provider-agnostic adapters (OpenAI, Anthropic, Gemini, Ollama, etc.)
 - **Tree-shakeable adapters** - Import only what you need for smaller bundles
 - **Multimodal content support** - Send images, audio, video, and documents
+- **Image generation** - Generate images with OpenAI DALL-E/GPT-Image and Gemini Imagen
 - Chat completion, streaming, and agent loop strategies
 - Headless chat state management with adapters (SSE, HTTP stream, custom)
 - Isomorphic type-safe tools with server/client execution

@@ -10,6 +10,7 @@ import type {
   ChatOptions,
   EmbeddingOptions,
   EmbeddingResult,
+  ImageGenerationResult,
   ModelMessage,
   StreamChunk,
   SummarizationOptions,
@@ -18,6 +19,7 @@ import type {
 import type { ChatAdapter } from '../adapters/base-chat-adapter'
 import type { EmbeddingAdapter } from '../adapters/base-embedding-adapter'
 import type { SummarizeAdapter } from '../adapters/base-summarize-adapter'
+import type { ImageAdapter } from '../adapters/base-image-adapter'
 
 // ===========================
 // Adapter Union Type
@@ -28,6 +30,7 @@ export type GenerateAdapter =
   | ChatAdapter<ReadonlyArray<string>, object, any, any, any>
   | EmbeddingAdapter<ReadonlyArray<string>, object>
   | SummarizeAdapter<ReadonlyArray<string>, object>
+  | ImageAdapter<ReadonlyArray<string>, object, any, any>
 
 // Alias for backwards compatibility
 export type AnyAdapter = GenerateAdapter
@@ -48,6 +51,10 @@ type EmbeddingModels<TAdapter> =
 type SummarizeModels<TAdapter> =
   TAdapter extends SummarizeAdapter<infer M, any> ? M[number] : string
 
+/** Extract model types from an ImageAdapter */
+type ImageModels<TAdapter> =
+  TAdapter extends ImageAdapter<infer M, any, any, any> ? M[number] : string
+
 // ===========================
 // Provider Options Extraction
 // ===========================
@@ -65,14 +72,14 @@ type ChatProviderOptionsForModel<TAdapter, TModel extends string> =
     any,
     any
   >
-    ? string extends keyof ModelOptions
-      ? // ModelOptions is Record<string, unknown> or has index signature - use BaseOptions
-        BaseOptions
-      : // ModelOptions has explicit keys - check if TModel is one of them
-        TModel extends keyof ModelOptions
-        ? ModelOptions[TModel]
-        : BaseOptions
-    : object
+  ? string extends keyof ModelOptions
+  ? // ModelOptions is Record<string, unknown> or has index signature - use BaseOptions
+  BaseOptions
+  : // ModelOptions has explicit keys - check if TModel is one of them
+  TModel extends keyof ModelOptions
+  ? ModelOptions[TModel]
+  : BaseOptions
+  : object
 
 /** Extract provider options from an EmbeddingAdapter */
 type EmbeddingProviderOptions<TAdapter> =
@@ -81,6 +88,37 @@ type EmbeddingProviderOptions<TAdapter> =
 /** Extract provider options from a SummarizeAdapter */
 type SummarizeProviderOptions<TAdapter> =
   TAdapter extends SummarizeAdapter<any, infer P> ? P : object
+
+/**
+ * Extract model-specific provider options from an ImageAdapter.
+ * If the model has specific options defined in ModelProviderOptions (and not just via index signature),
+ * use those; otherwise fall back to base provider options.
+ */
+type ImageProviderOptionsForModel<TAdapter, TModel extends string> =
+  TAdapter extends ImageAdapter<any, infer BaseOptions, infer ModelOptions, any>
+  ? string extends keyof ModelOptions
+  ? // ModelOptions is Record<string, unknown> or has index signature - use BaseOptions
+  BaseOptions
+  : // ModelOptions has explicit keys - check if TModel is one of them
+  TModel extends keyof ModelOptions
+  ? ModelOptions[TModel]
+  : BaseOptions
+  : object
+
+/**
+ * Extract model-specific size options from an ImageAdapter.
+ * If the model has specific sizes defined, use those; otherwise fall back to string.
+ */
+type ImageSizeForModel<TAdapter, TModel extends string> =
+  TAdapter extends ImageAdapter<any, any, any, infer SizeByName>
+  ? string extends keyof SizeByName
+  ? // SizeByName has index signature - fall back to string
+  string
+  : // SizeByName has explicit keys - check if TModel is one of them
+  TModel extends keyof SizeByName
+  ? SizeByName[TModel]
+  : string
+  : string
 
 // ===========================
 // Strict Option Types
@@ -186,6 +224,21 @@ export interface GenerateSummarizeOptions<
   stream?: TStream
 }
 
+/** Options for image generation */
+export interface GenerateImageOptions<
+  TAdapter extends ImageAdapter<ReadonlyArray<string>, object, any, any>,
+  TModel extends ImageModels<TAdapter>,
+> extends GenerateBaseOptions<TAdapter & { kind: 'image' }, TModel> {
+  /** Text description of the desired image(s) */
+  prompt: string
+  /** Number of images to generate (default: 1) */
+  numberOfImages?: number
+  /** Image size in WIDTHxHEIGHT format (e.g., "1024x1024") */
+  size?: ImageSizeForModel<TAdapter, TModel>
+  /** Provider-specific options for image generation */
+  providerOptions?: ImageProviderOptionsForModel<TAdapter, TModel>
+}
+
 // ===========================
 // Generate Function
 // ===========================
@@ -193,10 +246,11 @@ export interface GenerateSummarizeOptions<
 /** Union of all adapter types */
 type AnyGenerateAdapter =
   | (ChatAdapter<ReadonlyArray<string>, object, any, any, any> & {
-      kind: 'chat'
-    })
+    kind: 'chat'
+  })
   | (EmbeddingAdapter<ReadonlyArray<string>, object> & { kind: 'embedding' })
   | (SummarizeAdapter<ReadonlyArray<string>, object> & { kind: 'summarize' })
+  | (ImageAdapter<ReadonlyArray<string>, object, any, any> & { kind: 'image' })
 
 /** Infer the correct options type based on adapter kind */
 type GenerateOptionsFor<
@@ -206,36 +260,42 @@ type GenerateOptionsFor<
   TStream extends boolean = false,
 > = TAdapter extends { kind: 'chat' }
   ? TAdapter extends ChatAdapter<ReadonlyArray<string>, object, any, any, any>
-    ? GenerateChatOptions<TAdapter, TModel & ChatModels<TAdapter>, TSchema>
-    : never
+  ? GenerateChatOptions<TAdapter, TModel & ChatModels<TAdapter>, TSchema>
+  : never
   : TAdapter extends { kind: 'embedding' }
-    ? TAdapter extends EmbeddingAdapter<ReadonlyArray<string>, object>
-      ? GenerateEmbeddingOptions<TAdapter, TModel & EmbeddingModels<TAdapter>>
-      : never
-    : TAdapter extends { kind: 'summarize' }
-      ? TAdapter extends SummarizeAdapter<ReadonlyArray<string>, object>
-        ? GenerateSummarizeOptions<
-            TAdapter,
-            TModel & SummarizeModels<TAdapter>,
-            TStream
-          >
-        : never
-      : never /** Infer the return type based on adapter kind, schema, and stream */
+  ? TAdapter extends EmbeddingAdapter<ReadonlyArray<string>, object>
+  ? GenerateEmbeddingOptions<TAdapter, TModel & EmbeddingModels<TAdapter>>
+  : never
+  : TAdapter extends { kind: 'summarize' }
+  ? TAdapter extends SummarizeAdapter<ReadonlyArray<string>, object>
+  ? GenerateSummarizeOptions<
+    TAdapter,
+    TModel & SummarizeModels<TAdapter>,
+    TStream
+  >
+  : never
+  : TAdapter extends { kind: 'image' }
+  ? TAdapter extends ImageAdapter<ReadonlyArray<string>, object, any, any>
+  ? GenerateImageOptions<TAdapter, TModel & ImageModels<TAdapter>>
+  : never
+  : never /** Infer the return type based on adapter kind, schema, and stream */
 type GenerateReturnType<
   TAdapter extends AnyGenerateAdapter,
   TSchema extends z.ZodType | undefined = undefined,
   TStream extends boolean = false,
 > = TAdapter extends { kind: 'chat' }
   ? TSchema extends z.ZodType
-    ? Promise<z.infer<TSchema>>
-    : AsyncIterable<StreamChunk>
+  ? Promise<z.infer<TSchema>>
+  : AsyncIterable<StreamChunk>
   : TAdapter extends { kind: 'embedding' }
-    ? Promise<EmbeddingResult>
-    : TAdapter extends { kind: 'summarize' }
-      ? TStream extends true
-        ? AsyncIterable<StreamChunk>
-        : Promise<SummarizationResult>
-      : never /**
+  ? Promise<EmbeddingResult>
+  : TAdapter extends { kind: 'summarize' }
+  ? TStream extends true
+  ? AsyncIterable<StreamChunk>
+  : Promise<SummarizationResult>
+  : TAdapter extends { kind: 'image' }
+  ? Promise<ImageGenerationResult>
+  : never /**
  * Unified ai function that adapts its API based on the adapter type.
  *
  * @example Chat generation
@@ -315,23 +375,28 @@ export function ai<
 export function ai(
   options:
     | GenerateChatOptions<
-        ChatAdapter<ReadonlyArray<string>, object, any, any, any>,
-        string,
-        z.ZodType | undefined
-      >
+      ChatAdapter<ReadonlyArray<string>, object, any, any, any>,
+      string,
+      z.ZodType | undefined
+    >
     | GenerateEmbeddingOptions<
-        EmbeddingAdapter<ReadonlyArray<string>, object>,
-        string
-      >
+      EmbeddingAdapter<ReadonlyArray<string>, object>,
+      string
+    >
     | GenerateSummarizeOptions<
-        SummarizeAdapter<ReadonlyArray<string>, object>,
-        string,
-        boolean
-      >,
+      SummarizeAdapter<ReadonlyArray<string>, object>,
+      string,
+      boolean
+    >
+    | GenerateImageOptions<
+      ImageAdapter<ReadonlyArray<string>, object, any, any>,
+      string
+    >,
 ):
   | AsyncIterable<StreamChunk>
   | Promise<EmbeddingResult>
   | Promise<SummarizationResult>
+  | Promise<ImageGenerationResult>
   | Promise<unknown> {
   const { adapter } = options
 
@@ -384,6 +449,14 @@ export function ai(
 
       // Otherwise return the promise
       return generateSummary(summarizeOptions)
+    }
+    case 'image': {
+      const imageOptions = options as GenerateImageOptions<
+        ImageAdapter<ReadonlyArray<string>, object, any, any>,
+        string
+      >
+
+      return generateImage(imageOptions)
     }
     default:
       throw new Error(
@@ -588,10 +661,26 @@ async function* generateSummaryStream(
   }
 }
 
+/**
+ * Generate image from a prompt.
+ * Returns a promise with all generated images.
+ */
+async function generateImage(
+  options: GenerateImageOptions<
+    ImageAdapter<ReadonlyArray<string>, object, any, any>,
+    string
+  >,
+): Promise<ImageGenerationResult> {
+  const { adapter, ...rest } = options
+
+  return adapter.generateImages(rest)
+}
+
 // Re-export option types for external use
 export type { GenerateChatOptions as ChatGenerateOptions }
 export type { GenerateEmbeddingOptions as EmbeddingGenerateOptions }
 export type { GenerateSummarizeOptions as SummarizeGenerateOptions }
+export type { GenerateImageOptions as ImageGenerateOptions }
 
 // Unified options type for those who need it
 export type GenerateOptions<
@@ -601,13 +690,15 @@ export type GenerateOptions<
   TStream extends boolean = false,
 > =
   TAdapter extends ChatAdapter<ReadonlyArray<string>, object, any, any, any>
-    ? GenerateChatOptions<TAdapter, TModel & ChatModels<TAdapter>, TSchema>
-    : TAdapter extends EmbeddingAdapter<ReadonlyArray<string>, object>
-      ? GenerateEmbeddingOptions<TAdapter, TModel & EmbeddingModels<TAdapter>>
-      : TAdapter extends SummarizeAdapter<ReadonlyArray<string>, object>
-        ? GenerateSummarizeOptions<
-            TAdapter,
-            TModel & SummarizeModels<TAdapter>,
-            TStream
-          >
-        : never
+  ? GenerateChatOptions<TAdapter, TModel & ChatModels<TAdapter>, TSchema>
+  : TAdapter extends EmbeddingAdapter<ReadonlyArray<string>, object>
+  ? GenerateEmbeddingOptions<TAdapter, TModel & EmbeddingModels<TAdapter>>
+  : TAdapter extends SummarizeAdapter<ReadonlyArray<string>, object>
+  ? GenerateSummarizeOptions<
+    TAdapter,
+    TModel & SummarizeModels<TAdapter>,
+    TStream
+  >
+  : TAdapter extends ImageAdapter<ReadonlyArray<string>, object, any, any>
+  ? GenerateImageOptions<TAdapter, TModel & ImageModels<TAdapter>>
+  : never

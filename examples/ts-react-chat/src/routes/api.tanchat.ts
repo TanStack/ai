@@ -1,6 +1,6 @@
 import { createFileRoute } from '@tanstack/react-router'
 import { ai, chat, maxIterations, toStreamResponse } from '@tanstack/ai'
-import { openai, openaiSummarize, openaiText } from '@tanstack/ai-openai'
+import { openai, openaiImage, openaiSummarize, openaiText } from '@tanstack/ai-openai'
 import { ollama } from '@tanstack/ai-ollama'
 import { anthropic } from '@tanstack/ai-anthropic'
 import { gemini } from '@tanstack/ai-gemini'
@@ -14,11 +14,14 @@ import {
 } from '@/lib/guitar-tools'
 
 const test = ai({
-  adapter: openaiText(),
-  model: 'gpt-5',
-  messages: [],
-  outputSchema: z.object({}),
-  providerOptions: {},
+  adapter: openaiImage(),
+  model: "gpt-image-1",
+  prompt: "A cute baby sea otter wearing a beret and glasses, sitting at a small cafe table, sipping a cappuccino, with a croissant on a plate. The background shows a picturesque Parisian street with the Eiffel Tower in the distance. The scene is bathed in the warm, golden light of a late afternoon.",
+  numberOfImages: 2,
+  size: "auto",
+  providerOptions: {
+    "quality": "high",
+  }
 })
 
 type Provider = 'openai' | 'anthropic' | 'gemini' | 'ollama'

@@ -33,9 +33,28 @@ export {
   type GeminiSummarizeProviderOptions,
 } from './adapters/summarize'
 
+// Image adapter
+export {
+  GeminiImageAdapter,
+  createGeminiImage,
+  geminiImage,
+  type GeminiImageConfig,
+} from './adapters/image'
+export type {
+  GeminiImageProviderOptions,
+  GeminiImageModelProviderOptionsByName,
+  GeminiAspectRatio,
+  // Re-export SDK types for convenience
+  PersonGeneration,
+  SafetyFilterLevel,
+  ImagePromptLanguage,
+} from './image/image-provider-options'
+
 // Re-export models from model-meta for convenience
 export { GEMINI_MODELS as GeminiTextModels } from './model-meta'
+export { GEMINI_IMAGE_MODELS as GeminiImageModels } from './model-meta'
 export type { GeminiModels as GeminiTextModel } from './model-meta'
+export type { GeminiImageModels as GeminiImageModel } from './model-meta'
 
 // ===========================
 // Legacy monolithic adapter (deprecated)

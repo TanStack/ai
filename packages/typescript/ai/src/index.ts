@@ -9,6 +9,7 @@ export {
   type ChatGenerateOptions,
   type EmbeddingGenerateOptions,
   type SummarizeGenerateOptions,
+  type ImageGenerateOptions,
 } from './core/generate'
 export {
   toolDefinition,

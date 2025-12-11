@@ -340,7 +340,7 @@ const SORA2_PRO = {
   },
 } as const satisfies ModelMeta<
   OpenAIBaseOptions & OpenAIStreamingOptions & OpenAIMetadataOptions
->
+> */
 
 const GPT_IMAGE_1 = {
   name: 'gpt-image-1',
@@ -386,7 +386,7 @@ const GPT_IMAGE_1_MINI = {
   },
 } as const satisfies ModelMeta<
   OpenAIBaseOptions & OpenAIStreamingOptions & OpenAIMetadataOptions
-> */
+>
 
 const O3_DEEP_RESEARCH = {
   name: 'o3-deep-research',
@@ -1246,7 +1246,7 @@ const CODEX_MINI_LATEST = {
     OpenAIStreamingOptions &
     OpenAIMetadataOptions
 >
-/* 
+
 const DALL_E_2 = {
   name: 'dall-e-2',
   pricing: {
@@ -1287,7 +1287,7 @@ const DALL_E_3 = {
   },
 } as const satisfies ModelMeta<
   OpenAIBaseOptions & OpenAIStreamingOptions & OpenAIMetadataOptions
-> */
+>
 
 const GPT_3_5_TURBO = {
   name: 'gpt-3.5-turbo',
@@ -1653,12 +1653,12 @@ export const OPENAI_CHAT_MODELS = [
 ] as const
 
 // Image generation models (based on endpoints: "image-generation" or "image-edit")
-/* const OPENAI_IMAGE_MODELS = [
+export const OPENAI_IMAGE_MODELS = [
   GPT_IMAGE_1.name,
   GPT_IMAGE_1_MINI.name,
   DALL_E_3.name,
   DALL_E_2.name,
-] as const */
+] as const
 
 // Embedding models (based on endpoints: "embedding")
 export const OPENAI_EMBEDDING_MODELS = [
