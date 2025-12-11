@@ -31,7 +31,7 @@ from .agent_strategies import (
     combine_strategies,
 )
 
-# Types
+# Types - AG-UI Events
 from .types import (
     # Core types
     Tool,
@@ -39,16 +39,27 @@ from .types import (
     ModelMessage,
     ChatOptions,
     AIAdapterConfig,
-    # Stream chunk types
+    # AG-UI Event types
+    EventType,
+    BaseEvent,
     StreamChunk,
-    ContentStreamChunk,
-    ThinkingStreamChunk,
-    ToolCallStreamChunk,
-    ToolInputAvailableStreamChunk,
-    ApprovalRequestedStreamChunk,
-    ToolResultStreamChunk,
-    DoneStreamChunk,
-    ErrorStreamChunk,
+    UsageInfo,
+    ErrorInfo,
+    RunStartedEvent,
+    RunFinishedEvent,
+    RunErrorEvent,
+    TextMessageStartEvent,
+    TextMessageContentEvent,
+    TextMessageEndEvent,
+    ToolCallStartEvent,
+    ToolCallArgsEvent,
+    ToolCallEndEvent,
+    StepStartedEvent,
+    StepFinishedEvent,
+    StateSnapshotEvent,
+    StateDeltaEvent,
+    CustomEvent,
+    ApprovalInfo,
     # Agent loop types
     AgentLoopState,
     AgentLoopStrategy,
@@ -83,23 +94,37 @@ __all__ = [
     "max_iterations",
     "until_finish_reason",
     "combine_strategies",
-    # Types
+    # Core types
     "Tool",
     "ToolCall",
     "ModelMessage",
     "ChatOptions",
     "AIAdapterConfig",
+    # AG-UI Event types
+    "EventType",
+    "BaseEvent",
     "StreamChunk",
-    "ContentStreamChunk",
-    "ThinkingStreamChunk",
-    "ToolCallStreamChunk",
-    "ToolInputAvailableStreamChunk",
-    "ApprovalRequestedStreamChunk",
-    "ToolResultStreamChunk",
-    "DoneStreamChunk",
-    "ErrorStreamChunk",
+    "UsageInfo",
+    "ErrorInfo",
+    "RunStartedEvent",
+    "RunFinishedEvent",
+    "RunErrorEvent",
+    "TextMessageStartEvent",
+    "TextMessageContentEvent",
+    "TextMessageEndEvent",
+    "ToolCallStartEvent",
+    "ToolCallArgsEvent",
+    "ToolCallEndEvent",
+    "StepStartedEvent",
+    "StepFinishedEvent",
+    "StateSnapshotEvent",
+    "StateDeltaEvent",
+    "CustomEvent",
+    "ApprovalInfo",
+    # Agent loop types
     "AgentLoopState",
     "AgentLoopStrategy",
+    # Other types
     "SummarizationOptions",
     "SummarizationResult",
     "EmbeddingOptions",
@@ -115,4 +140,3 @@ __all__ = [
 ]
 
 __version__ = "0.1.0"
-

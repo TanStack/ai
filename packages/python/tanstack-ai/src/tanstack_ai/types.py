@@ -1,8 +1,8 @@
 """
 Type definitions for TanStack AI Python package.
 
-This module defines the core types used throughout the package, mirroring the
-TypeScript implementation for consistency across platforms.
+This module defines the core types used throughout the package, following the
+AG-UI (Agent-User Interface) protocol for consistent event streaming.
 """
 
 from dataclasses import dataclass, field
@@ -103,9 +103,6 @@ EventType = Literal[
     "STATE_DELTA",
     "CUSTOM",
 ]
-
-# Legacy alias for backwards compatibility
-StreamChunkType = EventType
 
 
 class BaseEvent(TypedDict, total=False):
