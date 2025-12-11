@@ -18,6 +18,7 @@ TanStack AI is a type-safe, provider-agnostic AI SDK for building AI-powered app
 ## Common Commands
 
 ### Testing
+
 ```bash
 # Run all tests (full CI suite)
 pnpm test
@@ -38,6 +39,7 @@ pnpm test:docs             # Verify documentation links
 ```
 
 ### Testing Individual Packages
+
 ```bash
 # Navigate to package directory and run tests
 cd packages/typescript/ai
@@ -48,6 +50,7 @@ pnpm test:eslint           # Lint
 ```
 
 ### Building
+
 ```bash
 # Build affected packages
 pnpm build
@@ -61,11 +64,13 @@ pnpm dev  # alias for watch
 ```
 
 ### Code Quality
+
 ```bash
 pnpm format                # Format all files with Prettier
 ```
 
 ### Changesets (Release Management)
+
 ```bash
 pnpm changeset             # Create a new changeset
 pnpm changeset:version     # Bump versions based on changesets
@@ -109,13 +114,16 @@ examples/                # Example applications
 ### Core Architecture Concepts
 
 #### 1. Adapter System (Tree-Shakeable)
+
 The library uses a **tree-shakeable adapter architecture** where each provider (OpenAI, Anthropic, Gemini, Ollama) exports multiple specialized adapters:
+
 - **Text adapters** (`openaiText`, `anthropicText`) - Chat/completion
 - **Embedding adapters** (`openaiEmbed`) - Text embeddings
 - **Summarize adapters** (`openaiSummarize`) - Summarization
 - **Image adapters** (`openaiImage`) - Image generation
 
 Each adapter is a separate import to minimize bundle size:
+
 ```typescript
 import { openaiText } from '@tanstack/ai-openai/adapters'
 import { ai } from '@tanstack/ai'
@@ -125,7 +133,9 @@ const result = ai({ adapter: textAdapter, model: 'gpt-4o', messages: [...] })
 ```
 
 #### 2. Core Functions
+
 The `@tanstack/ai` package provides core functions:
+
 - **`ai()`** / **`generate()`** - Unified generation function for any adapter type
 - **`chat()`** - Chat completion with streaming, tools, and agent loops
 - **`embedding()`** - Generate embeddings
@@ -133,7 +143,9 @@ The `@tanstack/ai` package provides core functions:
 - Legacy adapters (monolithic, deprecated) use `openai()`, `anthropic()`, etc.
 
 #### 3. Isomorphic Tool System
+
 Tools are defined once with `toolDefinition()` and can have `.server()` or `.client()` implementations:
+
 ```typescript
 const tool = toolDefinition({
   name: 'getTodos',
@@ -145,10 +157,13 @@ const tool = toolDefinition({
 const serverTool = tool.server(async ({ userId }) => db.todos.find({ userId }))
 
 // Client implementation (runs in browser)
-const clientTool = tool.client(async ({ userId }) => fetch(`/api/todos/${userId}`))
+const clientTool = tool.client(async ({ userId }) =>
+  fetch(`/api/todos/${userId}`),
+)
 ```
 
 #### 4. Framework Integrations
+
 - **`@tanstack/ai-client`** - Headless chat state management with connection adapters (SSE, HTTP stream, custom)
 - **`@tanstack/ai-react`** - `useChat` hook for React
 - **`@tanstack/ai-solid`** - `useChat` hook for Solid
@@ -158,6 +173,7 @@ const clientTool = tool.client(async ({ userId }) => fetch(`/api/todos/${userId}
 Each framework integration uses the headless `ai-client` under the hood.
 
 #### 5. Type Safety Features
+
 - **Per-model type safety** - Provider options are typed based on selected model
 - **Multimodal content** - Type-safe image, audio, video, document support based on model capabilities
 - **Zod schema inference** - Tools use Zod for runtime validation and type inference
@@ -166,6 +182,7 @@ Each framework integration uses the headless `ai-client` under the hood.
 ### Key Files & Directories
 
 #### Core Package (`packages/typescript/ai/src/`)
+
 - **`index.ts`** - Main exports (chat, embedding, summarize, toolDefinition, etc.)
 - **`types.ts`** - Core type definitions (ModelMessage, ContentPart, StreamChunk, etc.)
 - **`core/`** - Core functions (chat.ts, generate.ts, embedding.ts, summarize.ts)
@@ -175,6 +192,7 @@ Each framework integration uses the headless `ai-client` under the hood.
 - **`utilities/`** - Helpers (message converters, agent loop strategies, SSE utilities)
 
 #### Provider Adapters (e.g., `packages/typescript/ai-openai/src/`)
+
 - **`index.ts`** - Exports tree-shakeable adapters (openaiText, openaiEmbed, etc.)
 - **`adapters/`** - Individual adapter implementations (text.ts, embed.ts, summarize.ts, image.ts)
 - **`model-meta.ts`** - Model metadata for type safety (provider options per model)
@@ -183,6 +201,7 @@ Each framework integration uses the headless `ai-client` under the hood.
 ## Development Workflow
 
 ### Adding a New Feature
+
 1. Create a changeset: `pnpm changeset`
 2. Make changes in the appropriate package(s)
 3. Run tests: `pnpm test:lib` (or package-specific tests)
@@ -192,7 +211,9 @@ Each framework integration uses the headless `ai-client` under the hood.
 7. Verify build: `pnpm test:build` or `pnpm build`
 
 ### Working with Examples
+
 Examples are not built by Nx. To run an example:
+
 ```bash
 cd examples/ts-react-chat
 pnpm install  # if needed
@@ -200,6 +221,7 @@ pnpm dev      # start dev server
 ```
 
 ### Nx Workspace
+
 - Uses Nx affected commands to only test/build changed packages
 - Nx caching speeds up builds and tests
 - `nx.json` configures Nx behavior
@@ -208,21 +230,26 @@ pnpm dev      # start dev server
 ## Important Conventions
 
 ### Workspace Dependencies
+
 - Use `workspace:*` protocol for internal package dependencies in `package.json`
 - Example: `"@tanstack/ai": "workspace:*"`
 
 ### Tree-Shakeable Exports
+
 When adding new functionality to provider adapters, create separate adapters rather than adding to monolithic ones. Export from `/adapters` subpath.
 
 ### Exports Field
+
 Each package uses `exports` field in package.json for subpath exports (e.g., `@tanstack/ai/adapters`, `@tanstack/ai/event-client`)
 
 ### Testing Strategy
+
 - Unit tests in `*.test.ts` files alongside source
 - Uses Vitest with happy-dom for DOM testing
 - Test coverage via `pnpm test:coverage`
 
 ### Documentation
+
 - Docs are in `docs/` directory (Markdown)
 - Auto-generated docs via `pnpm generate-docs` (TypeDoc)
 - Link verification via `pnpm test:docs`
@@ -230,15 +257,18 @@ Each package uses `exports` field in package.json for subpath exports (e.g., `@t
 ## Key Dependencies
 
 ### Core Runtime Dependencies
+
 - `zod` - Schema validation (peer dependency)
 - `@alcyone-labs/zod-to-json-schema` - Convert Zod schemas to JSON Schema for LLM tools
 - `partial-json` - Parse incomplete JSON from streaming responses
 
 ### Provider SDKs (in adapter packages)
+
 - `openai` - OpenAI SDK
 - `@anthropic-ai/sdk` - Anthropic SDK
 - `@google/generative-ai` - Gemini SDK
 - `ollama` - Ollama SDK
 
 ### DevTools
+
 - `@tanstack/devtools-event-client` - TanStack DevTools integration
