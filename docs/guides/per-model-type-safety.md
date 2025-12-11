@@ -12,13 +12,13 @@ The AI SDK provides **model-specific type safety** for `providerOptions`. Each m
 ### ✅ Correct Usage
 
 ```typescript
-import { chat } from "@tanstack/ai";
-import { openai } from "@tanstack/ai-openai";
+import ai from "@tanstack/ai";
+import { openaiChat } from "@tanstack/ai-openai";
 
-const adapter = openai();
+const adapter = openaiChat();
 
 // ✅ gpt-5 supports structured outputs - `text` is allowed
-const validCall = chat({
+const validCall = ai({
   adapter,
   model: "gpt-5",
   messages: [],
@@ -38,8 +38,8 @@ const validCall = chat({
 
 ```typescript
 // ❌ gpt-4-turbo does NOT support structured outputs - `text` is rejected
-const invalidCall = chat({
-  adapter: openai(),
+const invalidCall = ai({
+  adapter: openaiChat(),
   model: "gpt-4-turbo",
   messages: [],
   providerOptions: {

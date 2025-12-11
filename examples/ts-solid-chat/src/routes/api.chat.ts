@@ -1,5 +1,5 @@
 import { createFileRoute } from '@tanstack/solid-router'
-import { ai, maxIterations, toStreamResponse } from '@tanstack/ai'
+import ai, { maxIterations, toStreamResponse } from '@tanstack/ai'
 import { anthropic } from '@tanstack/ai-anthropic'
 import { serverTools } from '@/lib/guitar-tools'
 

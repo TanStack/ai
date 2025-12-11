@@ -68,16 +68,16 @@ sequenceDiagram
 **Server (API Route):**
 
 ```typescript
-import { chat, toStreamResponse } from "@tanstack/ai";
-import { openai } from "@tanstack/ai-openai";
+import ai, { toStreamResponse } from "@tanstack/ai";
+import { openaiChat } from "@tanstack/ai-openai";
 import { getWeather, sendEmail } from "./tools";
 
 export async function POST(request: Request) {
   const { messages } = await request.json();
 
   // Create streaming chat with tools
-  const stream = chat({
-    adapter: openai(),
+  const stream = ai({
+    adapter: openaiChat(),
     messages,
     model: "gpt-4o",
     tools: [getWeather, sendEmail], // Tool definitions passed here

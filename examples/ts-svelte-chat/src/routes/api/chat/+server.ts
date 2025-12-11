@@ -1,5 +1,5 @@
 import { env } from '$env/dynamic/private'
-import { ai, maxIterations, toStreamResponse } from '@tanstack/ai'
+import ai, { maxIterations, toStreamResponse } from '@tanstack/ai'
 import { openai } from '@tanstack/ai-openai'
 import { ollama } from '@tanstack/ai-ollama'
 import { anthropic } from '@tanstack/ai-anthropic'

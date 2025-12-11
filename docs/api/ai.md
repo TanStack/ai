@@ -11,16 +11,16 @@ The core AI library for TanStack AI.
 npm install @tanstack/ai
 ```
 
-## `chat(options)`
+## `ai(options)`
 
 Creates a streaming chat response.
 
 ```typescript
-import { chat } from "@tanstack/ai";
-import { openai } from "@tanstack/ai-openai";
+import ai from "@tanstack/ai";
+import { openaiChat } from "@tanstack/ai-openai";
 
-const stream = chat({
-  adapter: openai(),
+const stream = ai({
+  adapter: openaiChat(),
   messages: [{ role: "user", content: "Hello!" }],
   model: "gpt-4o",
   tools: [myTool],
@@ -31,7 +31,7 @@ const stream = chat({
 
 ### Parameters
 
-- `adapter` - An AI adapter instance (e.g., `openai()`, `anthropic()`)
+- `adapter` - An AI adapter instance (e.g., `openaiChat()`, `anthropicChat()`)
 - `messages` - Array of chat messages
 - `model` - Model identifier (type-safe based on adapter)
 - `tools?` - Array of tools for function calling
@@ -49,11 +49,11 @@ An async iterable of `StreamChunk`.
 Creates a text summarization.
 
 ```typescript
-import { summarize } from "@tanstack/ai";
-import { openai } from "@tanstack/ai-openai";
+import ai from "@tanstack/ai";
+import { openaiSummarize } from "@tanstack/ai-openai";
 
-const result = await summarize({
-  adapter: openai(),
+const result = await ai({
+  adapter: openaiSummarize(),
   model: "gpt-4o",
   text: "Long text to summarize...",
   maxLength: 100,
@@ -78,11 +78,11 @@ A `SummarizationResult` with the summary text.
 Creates embeddings for text input.
 
 ```typescript
-import { embedding } from "@tanstack/ai";
-import { openai } from "@tanstack/ai-openai";
+import ai from "@tanstack/ai";
+import { openaiEmbed } from "@tanstack/ai-openai";
 
-const result = await embedding({
-  adapter: openai(),
+const result = await ai({
+  adapter: openaiEmbed(),
   model: "text-embedding-3-small",
   input: "Text to embed",
 });
@@ -124,8 +124,8 @@ const myClientTool = myToolDef.client(async ({ param }) => {
   return { result: "..." };
 });
 
-// Use directly in chat() (server-side, no execute)
-chat({
+// Use directly in ai() (server-side, no execute)
+ai({
   tools: [myToolDef],
   // ...
 });
@@ -136,8 +136,8 @@ const myServerTool = myToolDef.server(async ({ param }) => {
   return { result: "..." };
 });
 
-// Use directly in chat() (server-side, no execute)
-chat({
+// Use directly in ai() (server-side, no execute)
+ai({
   tools: [myServerTool],
   // ...
 });
@@ -161,11 +161,11 @@ A `ToolDefinition` object with `.server()` and `.client()` methods for creating 
 Converts a stream to a ReadableStream in Server-Sent Events format.
 
 ```typescript
-import { toServerSentEventsStream, chat } from "@tanstack/ai";
-import { openai } from "@tanstack/ai-openai";
+import ai, { toServerSentEventsStream } from "@tanstack/ai";
+import { openaiChat } from "@tanstack/ai-openai";
 
-const stream = chat({
-  adapter: openai(),
+const stream = ai({
+  adapter: openaiChat(),
   messages: [...],
   model: "gpt-4o",
 });
@@ -189,11 +189,11 @@ A `ReadableStream<Uint8Array>` in Server-Sent Events format. Each chunk is:
 Converts a stream to an HTTP Response with proper SSE headers.
 
 ```typescript
-import { toStreamResponse, chat } from "@tanstack/ai";
-import { openai } from "@tanstack/ai-openai";
+import ai, { toStreamResponse } from "@tanstack/ai";
+import { openaiChat } from "@tanstack/ai-openai";
 
-const stream = chat({
-  adapter: openai(),
+const stream = ai({
+  adapter: openaiChat(),
   messages: [...],
   model: "gpt-4o",
 });
@@ -214,11 +214,11 @@ A `Response` object suitable for HTTP endpoints with SSE headers (`Content-Type:
 Creates an agent loop strategy that limits iterations.
 
 ```typescript
-import { maxIterations, chat } from "@tanstack/ai";
-import { openai } from "@tanstack/ai-openai";
+import ai, { maxIterations } from "@tanstack/ai";
+import { openaiChat } from "@tanstack/ai-openai";
 
-const stream = chat({
-  adapter: openai(),
+const stream = ai({
+  adapter: openaiChat(),
   messages: [...],
   model: "gpt-4o",
   agentLoopStrategy: maxIterations(20),
@@ -293,29 +293,27 @@ interface Tool {
 ## Usage Examples
 
 ```typescript
-import { chat, summarize, embedding } from "@tanstack/ai";
-import { openai } from "@tanstack/ai-openai";
-
-const adapter = openai();
+import ai from "@tanstack/ai";
+import { openaiChat, openaiSummarize, openaiEmbed } from "@tanstack/ai-openai";
 
 // Streaming chat
-const stream = chat({
-  adapter,
+const stream = ai({
+  adapter: openaiChat(),
   messages: [{ role: "user", content: "Hello!" }],
   model: "gpt-4o",
 });
 
 // Summarization
-const summary = await summarize({
-  adapter,
+const summary = await ai({
+  adapter: openaiSummarize(),
   model: "gpt-4o",
   text: "Long text to summarize...",
   maxLength: 100,
 });
 
 // Embeddings
-const embeddings = await embedding({
-  adapter,
+const embeddings = await ai({
+  adapter: openaiEmbed(),
   model: "text-embedding-3-small",
   input: "Text to embed",
 });

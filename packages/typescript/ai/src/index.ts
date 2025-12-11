@@ -1,4 +1,7 @@
 // Main AI function - the one export to rule them all
+import { ai } from './ai'
+
+export default ai
 export {
   ai,
   type AIAdapter,

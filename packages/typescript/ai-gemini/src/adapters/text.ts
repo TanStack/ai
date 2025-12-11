@@ -443,9 +443,8 @@ export class GeminiTextAdapter extends BaseChatAdapter<
         topP: options.options?.topP,
         maxOutputTokens: options.options?.maxTokens,
         systemInstruction: options.systemPrompts?.join('\n'),
-        ...((providerOpts as Record<string, unknown>).generationConfig as
-          | Record<string, unknown>
-          | undefined),
+        ...((providerOpts as Record<string, unknown> | undefined)
+          ?.generationConfig as Record<string, unknown> | undefined),
         tools: convertToolsToProviderFormat(options.tools),
       },
     }

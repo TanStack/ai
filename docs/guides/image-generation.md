@@ -14,7 +14,7 @@ Image generation is handled by image adapters that follow the same tree-shakeabl
 ### OpenAI Image Generation
 
 ```typescript
-import { ai } from '@tanstack/ai'
+import ai from '@tanstack/ai'
 import { openaiImage } from '@tanstack/ai-openai'
 
 // Create an image adapter (uses OPENAI_API_KEY from environment)
@@ -33,7 +33,7 @@ console.log(result.images[0].url) // URL to the generated image
 ### Gemini Image Generation
 
 ```typescript
-import { ai } from '@tanstack/ai'
+import ai from '@tanstack/ai'
 import { geminiImage } from '@tanstack/ai-gemini'
 
 // Create an image adapter (uses GOOGLE_API_KEY from environment)

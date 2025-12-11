@@ -14,12 +14,12 @@ npm install @tanstack/ai-anthropic
 ## Basic Usage
 
 ```typescript
-import { chat } from "@tanstack/ai";
-import { anthropic } from "@tanstack/ai-anthropic";
+import ai from "@tanstack/ai";
+import { anthropicChat } from "@tanstack/ai-anthropic";
 
-const adapter = anthropic();
+const adapter = anthropicChat();
 
-const stream = chat({
+const stream = ai({
   adapter,
   messages: [{ role: "user", content: "Hello!" }],
   model: "claude-3-5-sonnet-20241022",
@@ -29,14 +29,14 @@ const stream = chat({
 ## Basic Usage - Custom API Key
 
 ```typescript
-import { chat } from "@tanstack/ai";
+import ai from "@tanstack/ai";
 import { createAnthropic } from "@tanstack/ai-anthropic";
 
 const adapter = createAnthropic(process.env.ANTHROPIC_API_KEY, {
   // ... your config options
  });
 
-const stream = chat({
+const stream = ai({
   adapter,
   messages: [{ role: "user", content: "Hello!" }],
   model: "claude-3-5-sonnet-20241022",
@@ -46,28 +46,28 @@ const stream = chat({
 ## Configuration
 
 ```typescript
-import { anthropic, type AnthropicConfig } from "@tanstack/ai-anthropic";
+import { anthropicChat, type AnthropicConfig } from "@tanstack/ai-anthropic";
 
 const config: AnthropicConfig = {
   // ... your config options
 };
 
-const adapter = anthropic(config);
+const adapter = anthropicChat(config);
 ```
  
 
 ## Example: Chat Completion
 
 ```typescript
-import { chat, toStreamResponse } from "@tanstack/ai";
-import { anthropic } from "@tanstack/ai-anthropic";
+import ai, { toStreamResponse } from "@tanstack/ai";
+import { anthropicChat } from "@tanstack/ai-anthropic";
 
-const adapter = anthropic();
+const adapter = anthropicChat();
 
 export async function POST(request: Request) {
   const { messages } = await request.json();
 
-  const stream = chat({
+  const stream = ai({
     adapter,
     messages,
     model: "claude-3-5-sonnet-20241022",
@@ -80,11 +80,11 @@ export async function POST(request: Request) {
 ## Example: With Tools
 
 ```typescript
-import { chat, toolDefinition } from "@tanstack/ai";
-import { anthropic } from "@tanstack/ai-anthropic";
+import ai, { toolDefinition } from "@tanstack/ai";
+import { anthropicChat } from "@tanstack/ai-anthropic";
 import { z } from "zod";
 
-const adapter = anthropic();
+const adapter = anthropicChat();
 
 const searchDatabaseDef = toolDefinition({
   name: "search_database",
@@ -99,7 +99,7 @@ const searchDatabase = searchDatabaseDef.server(async ({ query }) => {
   return { results: [...] };
 });
 
-const stream = chat({
+const stream = ai({
   adapter,
   messages,
   model: "claude-3-5-sonnet-20241022",
@@ -112,8 +112,8 @@ const stream = chat({
 Anthropic supports provider-specific options:
 
 ```typescript
-const stream = chat({
-  adapter: anthropic(),
+const stream = ai({
+  adapter: anthropicChat(),
   messages,
   model: "claude-3-5-sonnet-20241022",
   providerOptions: {
@@ -182,9 +182,9 @@ ANTHROPIC_API_KEY=sk-ant-...
 
 ## API Reference
 
-### `anthropic(config)`
+### `anthropicChat(config)`
 
-Creates an Anthropic adapter instance.
+Creates an Anthropic chat adapter instance.
 
 **Parameters:**
 

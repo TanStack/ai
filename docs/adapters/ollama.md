@@ -14,14 +14,14 @@ npm install @tanstack/ai-ollama
 ## Basic Usage
 
 ```typescript
-import { chat } from "@tanstack/ai";
-import { ollama } from "@tanstack/ai-ollama";
+import ai from "@tanstack/ai";
+import { ollamaChat } from "@tanstack/ai-ollama";
 
-const adapter = ollama({
+const adapter = ollamaChat({
   baseURL: "http://localhost:11434", // Default Ollama URL
 });
 
-const stream = chat({
+const stream = ai({
   adapter,
   messages: [{ role: "user", content: "Hello!" }],
   model: "llama3",
@@ -31,14 +31,14 @@ const stream = chat({
 ## Configuration
 
 ```typescript
-import { ollama, type OllamaConfig } from "@tanstack/ai-ollama";
+import { ollamaChat, type OllamaConfig } from "@tanstack/ai-ollama";
 
 const config: OllamaConfig = {
   baseURL: "http://localhost:11434", // Ollama server URL
   // No API key needed for local Ollama
 };
 
-const adapter = ollama(config);
+const adapter = ollamaChat(config);
 ```
 
 ## Available Models 
@@ -52,17 +52,17 @@ ollama list
 ## Example: Chat Completion
 
 ```typescript
-import { chat, toStreamResponse } from "@tanstack/ai";
-import { ollama } from "@tanstack/ai-ollama";
+import ai, { toStreamResponse } from "@tanstack/ai";
+import { ollamaChat } from "@tanstack/ai-ollama";
 
-const adapter = ollama({
+const adapter = ollamaChat({
   baseURL: "http://localhost:11434",
 });
 
 export async function POST(request: Request) {
   const { messages } = await request.json();
 
-  const stream = chat({
+  const stream = ai({
     adapter,
     messages,
     model: "llama3", // Use a model you have installed
@@ -75,11 +75,11 @@ export async function POST(request: Request) {
 ## Example: With Tools
 
 ```typescript
-import { chat, toolDefinition } from "@tanstack/ai";
-import { ollama } from "@tanstack/ai-ollama";
+import ai, { toolDefinition } from "@tanstack/ai";
+import { ollamaChat } from "@tanstack/ai-ollama";
 import { z } from "zod";
 
-const adapter = ollama({
+const adapter = ollamaChat({
   baseURL: "http://localhost:11434",
 });
 
@@ -96,7 +96,7 @@ const getLocalData = getLocalDataDef.server(async ({ key }) => {
   return { data: "..." };
 });
 
-const stream = chat({
+const stream = ai({
   adapter,
   messages,
   model: "llama3",
@@ -135,8 +135,8 @@ const stream = chat({
 Ollama supports various provider-specific options:
 
 ```typescript
-const stream = chat({
-  adapter: ollama({ baseURL: "http://localhost:11434" }),
+const stream = ai({
+  adapter: ollamaChat({ baseURL: "http://localhost:11434" }),
   messages,
   model: "llama3",
   providerOptions: {
@@ -153,16 +153,16 @@ const stream = chat({
 If you're running Ollama on a different host or port:
 
 ```typescript
-const adapter = ollama({
+const adapter = ollamaChat({
   baseURL: "http://your-server:11434",
 });
 ```
 
 ## API Reference
 
-### `ollama(config)`
+### `ollamaChat(config)`
 
-Creates an Ollama adapter instance.
+Creates an Ollama chat adapter instance.
 
 **Parameters:**
 

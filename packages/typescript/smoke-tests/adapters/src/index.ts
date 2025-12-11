@@ -1,12 +1,26 @@
 import { config } from 'dotenv'
-import { ai, toolDefinition, maxIterations, type Tool } from '@tanstack/ai'
+import ai, { maxIterations, toolDefinition } from '@tanstack/ai'
 import { z } from 'zod'
-import { createAnthropic } from '@tanstack/ai-anthropic'
-import { createGemini } from '@tanstack/ai-gemini'
-import { ollama } from '@tanstack/ai-ollama'
-import { createOpenAI } from '@tanstack/ai-openai'
 import {
-  AdapterContext,
+  createAnthropicSummarize,
+  createAnthropicText,
+} from '@tanstack/ai-anthropic'
+import {
+  createGeminiEmbed,
+  createGeminiSummarize,
+  createGeminiText,
+} from '@tanstack/ai-gemini'
+import {
+  createOllamaEmbed,
+  createOllamaSummarize,
+  createOllamaText,
+} from '@tanstack/ai-ollama'
+import {
+  createOpenaiEmbed,
+  createOpenaiSummarize,
+  createOpenaiText,
+} from '@tanstack/ai-openai'
+import {
   buildApprovalMessages,
   captureStream,
   createDebugEnvelope,
@@ -14,6 +28,8 @@ import {
   summarizeRun,
   writeDebugFile,
 } from './harness'
+import type { Tool } from '@tanstack/ai'
+import type { AdapterContext } from './harness'
 
 // Load .env.local first (higher priority), then .env
 config({ path: '.env.local' })
@@ -59,7 +75,10 @@ interface AdapterConfig {
   chatModel: string
   summarizeModel: string
   embeddingModel: string
-  adapter: any
+  textAdapter: any
+  summarizeAdapter?: any
+  embeddingAdapter?: any
+  imageAdapter?: any
 }
 
 interface TestDefinition {
@@ -121,7 +140,7 @@ async function testTemperatureTool(
     }
     try {
       // Verify location was passed correctly
-      if (!args || typeof args !== 'object') {
+      if (typeof args !== 'object') {
         throw new Error('Arguments must be an object')
       }
       if (!args.location || typeof args.location !== 'string') {
@@ -276,7 +295,7 @@ async function testApprovalToolFlow(
     adapterName: adapterContext.adapterName,
     testName,
     phase: 'request',
-    adapter: adapterContext.adapter,
+    textAdapter: adapterContext.textAdapter,
     model: adapterContext.model,
     messages,
     tools: [addToCartTool],
@@ -307,7 +326,7 @@ async function testApprovalToolFlow(
     adapterName: adapterContext.adapterName,
     testName,
     phase: 'approved',
-    adapter: adapterContext.adapter,
+    textAdapter: adapterContext.textAdapter,
     model: adapterContext.model,
     messages: approvalMessages,
     tools: [addToCartTool],
@@ -359,6 +378,15 @@ async function testSummarize(
 ): Promise<TestOutcome> {
   const testName = 'test5-summarize'
   const adapterName = adapterContext.adapterName
+
+  // Skip if no summarize adapter is available
+  if (!adapterContext.summarizeAdapter) {
+    console.log(
+      `[${adapterName}] ⋯ ${testName}: Ignored (no summarize adapter)`,
+    )
+    return { passed: true, ignored: true }
+  }
+
   const model = adapterContext.summarizeModel || adapterContext.model
   const text =
     'Paris is the capital and most populous city of France, known for landmarks like the Eiffel Tower and the Louvre. It is a major center for art, fashion, gastronomy, and culture.'
@@ -373,7 +401,7 @@ async function testSummarize(
 
   try {
     const result = await ai({
-      adapter: adapterContext.adapter,
+      adapter: adapterContext.summarizeAdapter,
       model,
       text,
       maxLength: 80,
@@ -419,9 +447,11 @@ async function testEmbedding(
   const testName = 'test6-embedding'
   const adapterName = adapterContext.adapterName
 
-  // Anthropic embedding is not supported, mark as ignored
-  if (adapterName === 'Anthropic') {
-    console.log(`[${adapterName}] ⋯ ${testName}: Ignored (not supported)`)
+  // Skip if no embedding adapter is available
+  if (!adapterContext.embeddingAdapter) {
+    console.log(
+      `[${adapterName}] ⋯ ${testName}: Ignored (no embedding adapter)`,
+    )
     return { passed: true, ignored: true }
   }
 
@@ -441,20 +471,21 @@ async function testEmbedding(
 
   try {
     const result = await ai({
-      adapter: adapterContext.adapter,
+      adapter: adapterContext.embeddingAdapter,
       model,
       input: inputs,
     })
 
-    const embeddings = result.embeddings || []
-    const lengths = embeddings.map((e) => e?.length || 0)
+    const embeddings: Array<Array<number>> = result.embeddings || []
+    const lengths = embeddings.map((e: Array<number>) => e?.length || 0)
     const vectorsAreNumeric = embeddings.every(
-      (vec) => Array.isArray(vec) && vec.every((n) => typeof n === 'number'),
+      (vec: Array<number>) =>
+        Array.isArray(vec) && vec.every((n: number) => typeof n === 'number'),
     )
     const passed =
       embeddings.length === inputs.length &&
       vectorsAreNumeric &&
-      lengths.every((len) => len > 0)
+      lengths.every((len: number) => len > 0)
 
     debugData.summary = {
       embeddingLengths: lengths,
@@ -485,7 +516,7 @@ async function testEmbedding(
   }
 }
 
-const TEST_DEFINITIONS: TestDefinition[] = [
+const TEST_DEFINITIONS: Array<TestDefinition> = [
   { id: 'chat-stream', label: 'chat (stream)', run: testCapitalOfFrance },
   { id: 'tools', label: 'tools', run: testTemperatureTool },
   { id: 'approval', label: 'approval', run: testApprovalToolFlow },
@@ -498,7 +529,7 @@ function shouldTestAdapter(adapterName: string, filter?: string): boolean {
   return adapterName.toLowerCase() === filter.toLowerCase()
 }
 
-function formatGrid(results: AdapterResult[]) {
+function formatGrid(results: Array<AdapterResult>) {
   const headers = ['Adapter', ...TEST_DEFINITIONS.map((t) => t.label)]
   const rows = results.map((result) => [
     `${result.adapter} (chat: ${result.model})`,
@@ -518,8 +549,8 @@ function formatGrid(results: AdapterResult[]) {
   )
 
   const separator = colWidths.map((w) => '-'.repeat(w)).join('-+-')
-  const formatRow = (row: string[]) =>
-    row.map((cell, idx) => cell.padEnd(colWidths[idx])).join(' | ')
+  const formatRow = (row: Array<string>) =>
+    row.map((cell, idx) => cell.padEnd(colWidths[idx]!)).join(' | ')
 
   console.log(formatRow(headers))
   console.log(separator)
@@ -533,12 +564,15 @@ async function runTests(filterAdapter?: string) {
     console.log('🚀 Starting adapter tests for all adapters')
   }
 
-  const results: AdapterResult[] = []
+  const results: Array<AdapterResult> = []
 
   const runAdapterSuite = async (config: AdapterConfig) => {
     const ctx: AdapterContext = {
       adapterName: config.name,
-      adapter: config.adapter,
+      textAdapter: config.textAdapter,
+      summarizeAdapter: config.summarizeAdapter,
+      embeddingAdapter: config.embeddingAdapter,
+      imageAdapter: config.imageAdapter,
       model: config.chatModel,
       summarizeModel: config.summarizeModel,
       embeddingModel: config.embeddingModel,
@@ -563,7 +597,7 @@ async function runTests(filterAdapter?: string) {
     results.push(adapterResult)
   }
 
-  // Anthropic
+  // Anthropic (note: embeddings not supported)
   if (shouldTestAdapter('Anthropic', filterAdapter)) {
     const anthropicApiKey = process.env.ANTHROPIC_API_KEY
     if (anthropicApiKey) {
@@ -572,7 +606,10 @@ async function runTests(filterAdapter?: string) {
         chatModel: ANTHROPIC_MODEL,
         summarizeModel: ANTHROPIC_SUMMARY_MODEL,
         embeddingModel: ANTHROPIC_EMBEDDING_MODEL,
-        adapter: createAnthropic(anthropicApiKey),
+        textAdapter: createAnthropicText(anthropicApiKey),
+        summarizeAdapter: createAnthropicSummarize(anthropicApiKey),
+        // Anthropic does not support embeddings natively
+        embeddingAdapter: undefined,
       })
     } else {
       console.log('⚠️  Skipping Anthropic tests: ANTHROPIC_API_KEY not set')
@@ -588,7 +625,9 @@ async function runTests(filterAdapter?: string) {
         chatModel: OPENAI_MODEL,
         summarizeModel: OPENAI_SUMMARY_MODEL,
         embeddingModel: OPENAI_EMBEDDING_MODEL,
-        adapter: createOpenAI(openaiApiKey),
+        textAdapter: createOpenaiText(openaiApiKey),
+        summarizeAdapter: createOpenaiSummarize(openaiApiKey),
+        embeddingAdapter: createOpenaiEmbed(openaiApiKey),
       })
     } else {
       console.log('⚠️  Skipping OpenAI tests: OPENAI_API_KEY not set')
@@ -605,7 +644,9 @@ async function runTests(filterAdapter?: string) {
         chatModel: GEMINI_MODEL,
         summarizeModel: GEMINI_SUMMARY_MODEL,
         embeddingModel: GEMINI_EMBEDDING_MODEL,
-        adapter: createGemini(geminiApiKey),
+        textAdapter: createGeminiText(geminiApiKey),
+        summarizeAdapter: createGeminiSummarize(geminiApiKey),
+        embeddingAdapter: createGeminiEmbed(geminiApiKey),
       })
     } else {
       console.log(
@@ -621,7 +662,9 @@ async function runTests(filterAdapter?: string) {
       chatModel: OLLAMA_MODEL,
       summarizeModel: OLLAMA_SUMMARY_MODEL,
       embeddingModel: OLLAMA_EMBEDDING_MODEL,
-      adapter: ollama(),
+      textAdapter: createOllamaText(),
+      summarizeAdapter: createOllamaSummarize(),
+      embeddingAdapter: createOllamaEmbed(),
     })
   }
 

@@ -121,8 +121,8 @@ const getClothingAdvice = getClothingAdviceDef.server(async ({ temperature, cond
 export async function POST(request: Request) {
   const { messages } = await request.json();
 
-  const stream = chat({
-    adapter: openai(),
+  const stream = ai({
+    adapter: openaiChat(),
     messages,
     model: "gpt-4o",
     tools: [getWeather, getClothingAdvice],

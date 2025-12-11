@@ -14,12 +14,12 @@ npm install @tanstack/ai-openai
 ## Basic Usage
 
 ```typescript
-import { chat } from "@tanstack/ai";
-import { openai } from "@tanstack/ai-openai";
+import ai from "@tanstack/ai";
+import { openaiChat } from "@tanstack/ai-openai";
 
-const adapter = openai();
+const adapter = openaiChat();
 
-const stream = chat({
+const stream = ai({
   adapter,
   messages: [{ role: "user", content: "Hello!" }],
   model: "gpt-4o",
@@ -29,12 +29,12 @@ const stream = chat({
 ## Basic Usage - Custom API Key
 
 ```typescript
-import { chat } from "@tanstack/ai";
+import ai from "@tanstack/ai";
 import { createOpenAI } from "@tanstack/ai-openai";
 const adapter = createOpenAI(process.env.OPENAI_API_KEY!, {
   // ... your config options
  });
-const stream = chat({
+const stream = ai({
   adapter,
   messages: [{ role: "user", content: "Hello!" }],
   model: "gpt-4o",
@@ -44,28 +44,28 @@ const stream = chat({
 ## Configuration
 
 ```typescript
-import { openai, type OpenAIConfig } from "@tanstack/ai-openai";
+import { openaiChat, type OpenAIConfig } from "@tanstack/ai-openai";
 
 const config: OpenAIConfig = { 
   organization: "org-...", // Optional
   baseURL: "https://api.openai.com/v1", // Optional, for custom endpoints
 };
 
-const adapter = openai(config);
+const adapter = openaiChat(config);
 ```
  
 ## Example: Chat Completion
 
 ```typescript
-import { chat, toStreamResponse } from "@tanstack/ai";
-import { openai } from "@tanstack/ai-openai";
+import ai, { toStreamResponse } from "@tanstack/ai";
+import { openaiChat } from "@tanstack/ai-openai";
 
-const adapter = openai();
+const adapter = openaiChat();
 
 export async function POST(request: Request) {
   const { messages } = await request.json();
 
-  const stream = chat({
+  const stream = ai({
     adapter,
     messages,
     model: "gpt-4o",
@@ -78,11 +78,11 @@ export async function POST(request: Request) {
 ## Example: With Tools
 
 ```typescript
-import { chat, toolDefinition } from "@tanstack/ai";
-import { openai } from "@tanstack/ai-openai";
+import ai, { toolDefinition } from "@tanstack/ai";
+import { openaiChat } from "@tanstack/ai-openai";
 import { z } from "zod";
 
-const adapter = openai();
+const adapter = openaiChat();
 
 const getWeatherDef = toolDefinition({
   name: "get_weather",
@@ -97,7 +97,7 @@ const getWeather = getWeatherDef.server(async ({ location }) => {
   return { temperature: 72, conditions: "sunny" };
 });
 
-const stream = chat({
+const stream = ai({
   adapter,
   messages,
   model: "gpt-4o",
@@ -110,8 +110,8 @@ const stream = chat({
 OpenAI supports various provider-specific options:
 
 ```typescript
-const stream = chat({
-  adapter: openai(),
+const stream = ai({
+  adapter: openaiChat(),
   messages,
   model: "gpt-4o",
   providerOptions: {
@@ -150,9 +150,9 @@ OPENAI_API_KEY=sk-...
 
 ## API Reference
 
-### `openai(config)`
+### `openaiChat(config)`
 
-Creates an OpenAI adapter instance.
+Creates an OpenAI chat adapter instance.
 
 **Parameters:**
  
