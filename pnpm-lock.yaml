@@ -691,9 +691,6 @@ importers:
       vite:
         specifier: ^7.2.4
         version: 7.2.4(@types/node@24.10.1)(jiti@2.6.1)(lightningcss@1.30.2)(terser@5.44.0)(tsx@4.20.6)(yaml@2.8.1)
-      zod:
-        specifier: ^4.1.13
-        version: 4.1.13
 
   packages/typescript/ai-ollama:
     dependencies:
@@ -729,9 +726,6 @@ importers:
       vite:
         specifier: ^7.2.4
         version: 7.2.4(@types/node@24.10.1)(jiti@2.6.1)(lightningcss@1.30.2)(terser@5.44.0)(tsx@4.20.6)(yaml@2.8.1)
-      zod:
-        specifier: ^4.1.13
-        version: 4.1.13
 
   packages/typescript/ai-react:
     dependencies:
