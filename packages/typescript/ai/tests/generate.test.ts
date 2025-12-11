@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
-import { generate } from '../src/core/generate'
+import { ai } from '../src/core/generate'
 import {
   BaseChatAdapter,
   BaseEmbeddingAdapter,
@@ -125,7 +125,7 @@ describe('generate function', () => {
         { role: 'user', content: [{ type: 'text', content: 'Hi' }] },
       ]
 
-      const result = generate({
+      const result = ai({
         adapter,
         model: 'model-a',
         messages,
@@ -155,7 +155,7 @@ describe('generate function', () => {
       ]
 
       // Consume the iterable to trigger the method
-      const result = generate({
+      const result = ai({
         adapter,
         model: 'model-a',
         messages,
@@ -181,7 +181,7 @@ describe('generate function', () => {
 
       const adapter = new MockEmbeddingAdapter(expectedResult)
 
-      const result = await generate({
+      const result = await ai({
         adapter,
         model: 'model-a',
         input: ['Test text'],
@@ -194,7 +194,7 @@ describe('generate function', () => {
       const adapter = new MockEmbeddingAdapter()
       const createEmbeddingsSpy = vi.spyOn(adapter, 'createEmbeddings')
 
-      await generate({
+      await ai({
         adapter,
         model: 'model-a',
         input: ['Hello', 'World'],
@@ -215,7 +215,7 @@ describe('generate function', () => {
 
       const adapter = new MockSummarizeAdapter(expectedResult)
 
-      const result = await generate({
+      const result = await ai({
         adapter,
         model: 'model-b',
         text: 'Long text to summarize...',
@@ -228,7 +228,7 @@ describe('generate function', () => {
       const adapter = new MockSummarizeAdapter()
       const summarizeSpy = vi.spyOn(adapter, 'summarize')
 
-      await generate({
+      await ai({
         adapter,
         model: 'model-a',
         text: 'Some text to summarize',
@@ -246,7 +246,7 @@ describe('generate function', () => {
       const messages: Array<ModelMessage> = []
 
       // TypeScript should infer AsyncIterable<StreamChunk>
-      const result = generate({
+      const result = ai({
         adapter,
         model: 'model-a',
         messages,
@@ -260,7 +260,7 @@ describe('generate function', () => {
       const adapter = new MockEmbeddingAdapter()
 
       // TypeScript should infer Promise<EmbeddingResult>
-      const result = generate({
+      const result = ai({
         adapter,
         model: 'model-a',
         input: ['test'],
@@ -274,7 +274,7 @@ describe('generate function', () => {
       const adapter = new MockSummarizeAdapter()
 
       // TypeScript should infer Promise<SummarizationResult>
-      const result = generate({
+      const result = ai({
         adapter,
         model: 'model-a',
         text: 'test',

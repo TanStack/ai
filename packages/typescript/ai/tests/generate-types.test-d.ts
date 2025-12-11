@@ -1,5 +1,5 @@
 /**
- * Type tests for the generate function
+ * Type tests for the ai function
  * These tests verify that TypeScript correctly infers types and provides autocomplete
  */
 
@@ -9,7 +9,7 @@ import {
   BaseEmbeddingAdapter,
   BaseSummarizeAdapter,
 } from '../src/adapters'
-import { generate } from '../src/core/generate'
+import { ai } from '../src/core/generate'
 import type {
   ChatOptions,
   EmbeddingOptions,
@@ -103,10 +103,10 @@ class TestSummarizeAdapter extends BaseSummarizeAdapter<
   }
 }
 
-describe('generate() type inference', () => {
+describe('ai() type inference', () => {
   it('should infer chat adapter return type as AsyncIterable<StreamChunk>', () => {
     const chatAdapter = new TestChatAdapter()
-    const result = generate({
+    const result = ai({
       adapter: chatAdapter,
       model: 'gpt-4o',
       messages: [{ role: 'user', content: 'Hello' }],
@@ -117,7 +117,7 @@ describe('generate() type inference', () => {
 
   it('should infer embedding adapter return type as Promise<EmbeddingResult>', () => {
     const embedAdapter = new TestEmbedAdapter()
-    const result = generate({
+    const result = ai({
       adapter: embedAdapter,
       model: 'text-embedding-3-small',
       input: 'Hello',
@@ -128,7 +128,7 @@ describe('generate() type inference', () => {
 
   it('should infer summarize adapter return type as Promise<SummarizationResult>', () => {
     const summarizeAdapter = new TestSummarizeAdapter()
-    const result = generate({
+    const result = ai({
       adapter: summarizeAdapter,
       model: 'summarize-v1',
       text: 'Long text to summarize',
@@ -141,14 +141,14 @@ describe('generate() type inference', () => {
     const chatAdapter = new TestChatAdapter()
 
     // This should work - valid model
-    generate({
+    ai({
       adapter: chatAdapter,
       model: 'gpt-4o',
       messages: [{ role: 'user', content: 'Hello' }],
     })
 
     // invalid model should error
-    generate({
+    ai({
       adapter: chatAdapter,
       // @ts-expect-error - invalid model
       model: 'invalid-model',
@@ -160,14 +160,14 @@ describe('generate() type inference', () => {
     const embedAdapter = new TestEmbedAdapter()
 
     // This should work - valid model
-    generate({
+    ai({
       adapter: embedAdapter,
       model: 'text-embedding-3-small',
       input: 'Hello',
     })
 
     // invalid model should error
-    generate({
+    ai({
       adapter: embedAdapter,
       // @ts-expect-error - invalid model
       model: 'invalid-embedding-model',
@@ -179,14 +179,14 @@ describe('generate() type inference', () => {
     const summarizeAdapter = new TestSummarizeAdapter()
 
     // This should work - valid model
-    generate({
+    ai({
       adapter: summarizeAdapter,
       model: 'summarize-v1',
       text: 'Text to summarize',
     })
 
     // invalid model should error
-    generate({
+    ai({
       adapter: summarizeAdapter,
       // @ts-expect-error - invalid model
       model: 'invalid-summarize-model',
@@ -198,7 +198,7 @@ describe('generate() type inference', () => {
     const chatAdapter = new TestChatAdapter()
 
     // This should work - valid provider options
-    generate({
+    ai({
       adapter: chatAdapter,
       model: 'gpt-4o',
       messages: [{ role: 'user', content: 'Hello' }],
@@ -209,7 +209,7 @@ describe('generate() type inference', () => {
     })
 
     // invalid property should error
-    generate({
+    ai({
       adapter: chatAdapter,
       model: 'gpt-4o',
       messages: [{ role: 'user', content: 'Hello' }],
@@ -225,7 +225,7 @@ describe('generate() type inference', () => {
     const embedAdapter = new TestEmbedAdapter()
 
     // This should work - valid provider options
-    generate({
+    ai({
       adapter: embedAdapter,
       model: 'text-embedding-3-small',
       input: 'Hello',
@@ -235,7 +235,7 @@ describe('generate() type inference', () => {
     })
 
     // temperature is not valid for embedding adapter
-    generate({
+    ai({
       adapter: embedAdapter,
       model: 'text-embedding-3-small',
       input: 'Hello',
@@ -250,7 +250,7 @@ describe('generate() type inference', () => {
     const summarizeAdapter = new TestSummarizeAdapter()
 
     // This should work - valid provider options
-    generate({
+    ai({
       adapter: summarizeAdapter,
       model: 'summarize-v1',
       text: 'Text to summarize',
@@ -260,7 +260,7 @@ describe('generate() type inference', () => {
     })
 
     // invalid property should error
-    generate({
+    ai({
       adapter: summarizeAdapter,
       model: 'summarize-v1',
       text: 'Text to summarize',
@@ -274,7 +274,7 @@ describe('generate() type inference', () => {
   it('should not allow chat-specific options for embedding adapter', () => {
     const embedAdapter = new TestEmbedAdapter()
 
-    generate({
+    ai({
       adapter: embedAdapter,
       model: 'text-embedding-3-small',
       input: 'Hello',
@@ -286,7 +286,7 @@ describe('generate() type inference', () => {
   it('should not allow chat-specific options for summarize adapter', () => {
     const summarizeAdapter = new TestSummarizeAdapter()
 
-    generate({
+    ai({
       adapter: summarizeAdapter,
       model: 'summarize-v1',
       text: 'Text to summarize',
@@ -298,7 +298,7 @@ describe('generate() type inference', () => {
   it('should not allow embedding-specific options for chat adapter', () => {
     const chatAdapter = new TestChatAdapter()
 
-    generate({
+    ai({
       adapter: chatAdapter,
       model: 'gpt-4o',
       messages: [{ role: 'user', content: 'Hello' }],
@@ -310,12 +310,221 @@ describe('generate() type inference', () => {
   it('should not allow summarize-specific options for chat adapter', () => {
     const chatAdapter = new TestChatAdapter()
 
-    generate({
+    ai({
       adapter: chatAdapter,
       model: 'gpt-4o',
       messages: [{ role: 'user', content: 'Hello' }],
       // @ts-expect-error - text is not valid for chat adapter
       text: 'Text to summarize',
+    })
+  })
+})
+
+describe('ai() with outputSchema', () => {
+  // Import zod for schema tests
+  // eslint-disable-next-line @typescript-eslint/consistent-type-imports
+  const { z } = require('zod') as typeof import('zod')
+
+  it('should return Promise<T> when outputSchema is provided', () => {
+    const chatAdapter = new TestChatAdapter()
+
+    const PersonSchema = z.object({
+      name: z.string(),
+      age: z.number(),
+    })
+
+    const result = ai({
+      adapter: chatAdapter,
+      model: 'gpt-4o',
+      messages: [{ role: 'user', content: 'Generate a person' }],
+      outputSchema: PersonSchema,
+    })
+
+    // Return type should be Promise<{ name: string; age: number }>
+    expectTypeOf(result).toMatchTypeOf<Promise<{ name: string; age: number }>>()
+  })
+
+  it('should return AsyncIterable<StreamChunk> when outputSchema is not provided', () => {
+    const chatAdapter = new TestChatAdapter()
+
+    const result = ai({
+      adapter: chatAdapter,
+      model: 'gpt-4o',
+      messages: [{ role: 'user', content: 'Hello' }],
+    })
+
+    // Return type should be AsyncIterable<StreamChunk>
+    expectTypeOf(result).toMatchTypeOf<AsyncIterable<StreamChunk>>()
+  })
+
+  it('should infer complex nested schema types', () => {
+    const chatAdapter = new TestChatAdapter()
+
+    const AddressSchema = z.object({
+      street: z.string(),
+      city: z.string(),
+      country: z.string(),
+    })
+
+    const PersonWithAddressSchema = z.object({
+      name: z.string(),
+      addresses: z.array(AddressSchema),
+    })
+
+    const result = ai({
+      adapter: chatAdapter,
+      model: 'gpt-4o',
+      messages: [{ role: 'user', content: 'Generate a person with addresses' }],
+      outputSchema: PersonWithAddressSchema,
+    })
+
+    // Return type should be Promise with the correct nested structure
+    expectTypeOf(result).toMatchTypeOf<
+      Promise<{
+        name: string
+        addresses: Array<{ street: string; city: string; country: string }>
+      }>
+    >()
+  })
+
+  it('should not allow outputSchema for embedding adapter', () => {
+    const embedAdapter = new TestEmbedAdapter()
+
+    const PersonSchema = z.object({
+      name: z.string(),
+    })
+
+    ai({
+      adapter: embedAdapter,
+      model: 'text-embedding-3-small',
+      input: 'Hello',
+      // @ts-expect-error - outputSchema is not valid for embedding adapter
+      outputSchema: PersonSchema,
+    })
+  })
+
+  it('should not allow outputSchema for summarize adapter', () => {
+    const summarizeAdapter = new TestSummarizeAdapter()
+
+    const PersonSchema = z.object({
+      name: z.string(),
+    })
+
+    ai({
+      adapter: summarizeAdapter,
+      model: 'summarize-v1',
+      text: 'Text to summarize',
+      // @ts-expect-error - outputSchema is not valid for summarize adapter
+      outputSchema: PersonSchema,
+    })
+  })
+
+  it('should infer schema with optional fields', () => {
+    const chatAdapter = new TestChatAdapter()
+
+    const PersonSchema = z.object({
+      name: z.string(),
+      age: z.number().optional(),
+      email: z.string().nullable(),
+    })
+
+    const result = ai({
+      adapter: chatAdapter,
+      model: 'gpt-4o',
+      messages: [{ role: 'user', content: 'Generate a person' }],
+      outputSchema: PersonSchema,
+    })
+
+    expectTypeOf(result).toMatchTypeOf<
+      Promise<{
+        name: string
+        age?: number
+        email: string | null
+      }>
+    >()
+  })
+
+  it('should work with union types in schema', () => {
+    const chatAdapter = new TestChatAdapter()
+
+    const ResponseSchema = z.discriminatedUnion('type', [
+      z.object({ type: z.literal('success'), data: z.string() }),
+      z.object({ type: z.literal('error'), message: z.string() }),
+    ])
+
+    const result = ai({
+      adapter: chatAdapter,
+      model: 'gpt-4o',
+      messages: [{ role: 'user', content: 'Generate a response' }],
+      outputSchema: ResponseSchema,
+    })
+
+    expectTypeOf(result).toMatchTypeOf<
+      Promise<
+        | { type: 'success'; data: string }
+        | { type: 'error'; message: string }
+      >
+    >()
+  })
+})
+
+describe('ai() with summarize streaming', () => {
+  it('should return Promise<SummarizationResult> when stream is not provided', () => {
+    const summarizeAdapter = new TestSummarizeAdapter()
+    const result = ai({
+      adapter: summarizeAdapter,
+      model: 'summarize-v1',
+      text: 'Long text to summarize',
+    })
+
+    expectTypeOf(result).toMatchTypeOf<Promise<SummarizationResult>>()
+  })
+
+  it('should return Promise<SummarizationResult> when stream is false', () => {
+    const summarizeAdapter = new TestSummarizeAdapter()
+    const result = ai({
+      adapter: summarizeAdapter,
+      model: 'summarize-v1',
+      text: 'Long text to summarize',
+      stream: false,
+    })
+
+    expectTypeOf(result).toMatchTypeOf<Promise<SummarizationResult>>()
+  })
+
+  it('should return AsyncIterable<StreamChunk> when stream is true', () => {
+    const summarizeAdapter = new TestSummarizeAdapter()
+    const result = ai({
+      adapter: summarizeAdapter,
+      model: 'summarize-v1',
+      text: 'Long text to summarize',
+      stream: true,
+    })
+
+    expectTypeOf(result).toMatchTypeOf<AsyncIterable<StreamChunk>>()
+  })
+
+  it('should not allow stream option for chat adapter', () => {
+    const chatAdapter = new TestChatAdapter()
+
+    ai({
+      adapter: chatAdapter,
+      model: 'gpt-4o',
+      messages: [{ role: 'user', content: 'Hello' }],
+      // @ts-expect-error - stream is not valid for chat adapter
+      stream: true,
+    })
+  })
+
+  it('should not allow stream option for embedding adapter', () => {
+    const embedAdapter = new TestEmbedAdapter()
+
+    ai({
+      adapter: embedAdapter,
+      model: 'text-embedding-3-small',
+      input: 'Hello',
+      // @ts-expect-error - stream is not valid for embedding adapter
+      stream: true,
     })
   })
 })

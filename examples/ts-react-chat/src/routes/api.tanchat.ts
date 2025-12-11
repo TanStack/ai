@@ -1,14 +1,14 @@
 import { createFileRoute } from '@tanstack/react-router'
-import { chat, generate, maxIterations, toStreamResponse } from '@tanstack/ai'
+import { ai, chat, maxIterations, toStreamResponse } from '@tanstack/ai'
 import {
   openai,
-  openaiEmbed,
   openaiSummarize,
   openaiText,
 } from '@tanstack/ai-openai'
 import { ollama } from '@tanstack/ai-ollama'
 import { anthropic } from '@tanstack/ai-anthropic'
 import { gemini } from '@tanstack/ai-gemini'
+import z from 'zod'
 import {
   addToCartToolDef,
   addToWishListToolDef,
@@ -17,14 +17,15 @@ import {
   recommendGuitarToolDef,
 } from '@/lib/guitar-tools'
 
-/* const test = generate({
+const test = ai({
   adapter: openaiText(),
   model: "gpt-5",
-  messages: [{}],
-
+  messages: [],
+  outputSchema: z.object({
+  }),
   providerOptions: {
   },
-}) */
+})
 
 type Provider = 'openai' | 'anthropic' | 'gemini' | 'ollama'
 

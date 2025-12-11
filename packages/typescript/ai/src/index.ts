@@ -2,7 +2,7 @@ export { chat } from './core/chat'
 export { summarize } from './core/summarize'
 export { embedding } from './core/embedding'
 export {
-  generate,
+  ai,
   type AnyAdapter,
   type GenerateAdapter,
   type GenerateOptions,
