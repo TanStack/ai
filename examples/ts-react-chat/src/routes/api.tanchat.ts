@@ -1,10 +1,6 @@
 import { createFileRoute } from '@tanstack/react-router'
 import { ai, chat, maxIterations, toStreamResponse } from '@tanstack/ai'
-import {
-  openai,
-  openaiSummarize,
-  openaiText,
-} from '@tanstack/ai-openai'
+import { openai, openaiSummarize, openaiText } from '@tanstack/ai-openai'
 import { ollama } from '@tanstack/ai-ollama'
 import { anthropic } from '@tanstack/ai-anthropic'
 import { gemini } from '@tanstack/ai-gemini'
@@ -19,12 +15,10 @@ import {
 
 const test = ai({
   adapter: openaiText(),
-  model: "gpt-5",
+  model: 'gpt-5',
   messages: [],
-  outputSchema: z.object({
-  }),
-  providerOptions: {
-  },
+  outputSchema: z.object({}),
+  providerOptions: {},
 })
 
 type Provider = 'openai' | 'anthropic' | 'gemini' | 'ollama'

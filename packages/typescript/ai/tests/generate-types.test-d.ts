@@ -461,8 +461,7 @@ describe('ai() with outputSchema', () => {
 
     expectTypeOf(result).toMatchTypeOf<
       Promise<
-        | { type: 'success'; data: string }
-        | { type: 'error'; message: string }
+        { type: 'success'; data: string } | { type: 'error'; message: string }
       >
     >()
   })

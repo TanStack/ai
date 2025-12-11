@@ -65,14 +65,14 @@ type ChatProviderOptionsForModel<TAdapter, TModel extends string> =
     any,
     any
   >
-  ? string extends keyof ModelOptions
-  ? // ModelOptions is Record<string, unknown> or has index signature - use BaseOptions
-  BaseOptions
-  : // ModelOptions has explicit keys - check if TModel is one of them
-  TModel extends keyof ModelOptions
-  ? ModelOptions[TModel]
-  : BaseOptions
-  : object
+    ? string extends keyof ModelOptions
+      ? // ModelOptions is Record<string, unknown> or has index signature - use BaseOptions
+        BaseOptions
+      : // ModelOptions has explicit keys - check if TModel is one of them
+        TModel extends keyof ModelOptions
+        ? ModelOptions[TModel]
+        : BaseOptions
+    : object
 
 /** Extract provider options from an EmbeddingAdapter */
 type EmbeddingProviderOptions<TAdapter> =
@@ -193,8 +193,8 @@ export interface GenerateSummarizeOptions<
 /** Union of all adapter types */
 type AnyGenerateAdapter =
   | (ChatAdapter<ReadonlyArray<string>, object, any, any, any> & {
-    kind: 'chat'
-  })
+      kind: 'chat'
+    })
   | (EmbeddingAdapter<ReadonlyArray<string>, object> & { kind: 'embedding' })
   | (SummarizeAdapter<ReadonlyArray<string>, object> & { kind: 'summarize' })
 
@@ -206,36 +206,36 @@ type GenerateOptionsFor<
   TStream extends boolean = false,
 > = TAdapter extends { kind: 'chat' }
   ? TAdapter extends ChatAdapter<ReadonlyArray<string>, object, any, any, any>
-  ? GenerateChatOptions<TAdapter, TModel & ChatModels<TAdapter>, TSchema>
-  : never
+    ? GenerateChatOptions<TAdapter, TModel & ChatModels<TAdapter>, TSchema>
+    : never
   : TAdapter extends { kind: 'embedding' }
-  ? TAdapter extends EmbeddingAdapter<ReadonlyArray<string>, object>
-  ? GenerateEmbeddingOptions<TAdapter, TModel & EmbeddingModels<TAdapter>>
-  : never
-  : TAdapter extends { kind: 'summarize' }
-  ? TAdapter extends SummarizeAdapter<ReadonlyArray<string>, object>
-  ? GenerateSummarizeOptions<
-    TAdapter,
-    TModel & SummarizeModels<TAdapter>,
-    TStream
-  >
-  : never
-  : never/** Infer the return type based on adapter kind, schema, and stream */
+    ? TAdapter extends EmbeddingAdapter<ReadonlyArray<string>, object>
+      ? GenerateEmbeddingOptions<TAdapter, TModel & EmbeddingModels<TAdapter>>
+      : never
+    : TAdapter extends { kind: 'summarize' }
+      ? TAdapter extends SummarizeAdapter<ReadonlyArray<string>, object>
+        ? GenerateSummarizeOptions<
+            TAdapter,
+            TModel & SummarizeModels<TAdapter>,
+            TStream
+          >
+        : never
+      : never /** Infer the return type based on adapter kind, schema, and stream */
 type GenerateReturnType<
   TAdapter extends AnyGenerateAdapter,
   TSchema extends z.ZodType | undefined = undefined,
   TStream extends boolean = false,
 > = TAdapter extends { kind: 'chat' }
   ? TSchema extends z.ZodType
-  ? Promise<z.infer<TSchema>>
-  : AsyncIterable<StreamChunk>
+    ? Promise<z.infer<TSchema>>
+    : AsyncIterable<StreamChunk>
   : TAdapter extends { kind: 'embedding' }
-  ? Promise<EmbeddingResult>
-  : TAdapter extends { kind: 'summarize' }
-  ? TStream extends true
-  ? AsyncIterable<StreamChunk>
-  : Promise<SummarizationResult>
-  : never/**
+    ? Promise<EmbeddingResult>
+    : TAdapter extends { kind: 'summarize' }
+      ? TStream extends true
+        ? AsyncIterable<StreamChunk>
+        : Promise<SummarizationResult>
+      : never /**
  * Unified ai function that adapts its API based on the adapter type.
  *
  * @example Chat generation
@@ -315,19 +315,19 @@ export function ai<
 export function ai(
   options:
     | GenerateChatOptions<
-      ChatAdapter<ReadonlyArray<string>, object, any, any, any>,
-      string,
-      z.ZodType | undefined
-    >
+        ChatAdapter<ReadonlyArray<string>, object, any, any, any>,
+        string,
+        z.ZodType | undefined
+      >
     | GenerateEmbeddingOptions<
-      EmbeddingAdapter<ReadonlyArray<string>, object>,
-      string
-    >
+        EmbeddingAdapter<ReadonlyArray<string>, object>,
+        string
+      >
     | GenerateSummarizeOptions<
-      SummarizeAdapter<ReadonlyArray<string>, object>,
-      string,
-      boolean
-    >,
+        SummarizeAdapter<ReadonlyArray<string>, object>,
+        string,
+        boolean
+      >,
 ):
   | AsyncIterable<StreamChunk>
   | Promise<EmbeddingResult>
@@ -601,9 +601,13 @@ export type GenerateOptions<
   TStream extends boolean = false,
 > =
   TAdapter extends ChatAdapter<ReadonlyArray<string>, object, any, any, any>
-  ? GenerateChatOptions<TAdapter, TModel & ChatModels<TAdapter>, TSchema>
-  : TAdapter extends EmbeddingAdapter<ReadonlyArray<string>, object>
-  ? GenerateEmbeddingOptions<TAdapter, TModel & EmbeddingModels<TAdapter>>
-  : TAdapter extends SummarizeAdapter<ReadonlyArray<string>, object>
-  ? GenerateSummarizeOptions<TAdapter, TModel & SummarizeModels<TAdapter>, TStream>
-  : never
+    ? GenerateChatOptions<TAdapter, TModel & ChatModels<TAdapter>, TSchema>
+    : TAdapter extends EmbeddingAdapter<ReadonlyArray<string>, object>
+      ? GenerateEmbeddingOptions<TAdapter, TModel & EmbeddingModels<TAdapter>>
+      : TAdapter extends SummarizeAdapter<ReadonlyArray<string>, object>
+        ? GenerateSummarizeOptions<
+            TAdapter,
+            TModel & SummarizeModels<TAdapter>,
+            TStream
+          >
+        : never
