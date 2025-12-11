@@ -8,6 +8,10 @@ import {
   getAnthropicApiKeyFromEnv,
 } from '../utils'
 import type {
+  StructuredOutputOptions,
+  StructuredOutputResult,
+} from '@tanstack/ai/adapters'
+import type {
   Base64ImageSource,
   Base64PDFSource,
   DocumentBlockParam,
@@ -43,7 +47,7 @@ import type { AnthropicClientConfig } from '../utils'
 /**
  * Configuration for Anthropic text adapter
  */
-export interface AnthropicTextConfig extends AnthropicClientConfig {}
+export interface AnthropicTextConfig extends AnthropicClientConfig { }
 
 /**
  * Anthropic-specific provider options for text/chat
@@ -52,8 +56,8 @@ export type AnthropicTextProviderOptions = ExternalTextProviderOptions
 
 type AnthropicContentBlocks =
   Extract<MessageParam['content'], Array<unknown>> extends Array<infer Block>
-    ? Array<Block>
-    : never
+  ? Array<Block>
+  : never
 type AnthropicContentBlock =
   AnthropicContentBlocks extends Array<infer Block> ? Block : never
 
@@ -117,6 +121,63 @@ export class AnthropicTextAdapter extends BaseChatAdapter<
     }
   }
 
+  /**
+   * Generate structured output using Anthropic's tool use pattern.
+   * Anthropic doesn't have native JSON schema support, so we use a tool with the schema
+   * and extract the arguments as the structured output.
+   */
+  async structuredOutput(
+    options: StructuredOutputOptions<AnthropicTextProviderOptions>,
+  ): Promise<StructuredOutputResult<unknown>> {
+    const { chatOptions, jsonSchema } = options
+
+    const requestParams = this.mapCommonOptionsToAnthropic(chatOptions)
+
+    try {
+      // Make non-streaming request with tool_choice forced to our structured output tool
+      const response = await this.client.beta.messages.create(
+        {
+          ...requestParams,
+          stream: false,
+          output_config: {
+            effort: 'high',
+          },
+          output_format: {
+            schema: jsonSchema,
+            type: 'json_schema',
+          },
+        },
+        {
+          signal: chatOptions.request?.signal,
+          headers: chatOptions.request?.headers,
+        },
+      )
+      const text = response.content
+        .map((b) => {
+          if (b.type === 'text') {
+            return b.text
+          }
+          return ''
+        })
+        .join('')
+      let parsed: unknown = null
+      try {
+        parsed = JSON.parse(text)
+      } catch {
+        parsed = null
+      }
+      return {
+        data: parsed,
+        rawText: text,
+      }
+    } catch (error: unknown) {
+      const err = error as Error
+      throw new Error(
+        `Structured output generation failed: ${err.message || 'Unknown error occurred'}`,
+      )
+    }
+  }
+
   private mapCommonOptionsToAnthropic(
     options: ChatOptions<string, AnthropicTextProviderOptions>,
   ) {
@@ -146,11 +207,11 @@ export class AnthropicTextAdapter extends BaseChatAdapter<
         if (key in providerOptions) {
           const value = providerOptions[key]
           if (key === 'tool_choice' && typeof value === 'string') {
-            ;(validProviderOptions as Record<string, unknown>)[key] = {
+            ; (validProviderOptions as Record<string, unknown>)[key] = {
               type: value,
             }
           } else {
-            ;(validProviderOptions as Record<string, unknown>)[key] = value
+            ; (validProviderOptions as Record<string, unknown>)[key] = value
           }
         }
       }
@@ -198,14 +259,14 @@ export class AnthropicTextAdapter extends BaseChatAdapter<
         const imageSource: Base64ImageSource | URLImageSource =
           part.source.type === 'data'
             ? {
-                type: 'base64',
-                data: part.source.value,
-                media_type: metadata?.mediaType ?? 'image/jpeg',
-              }
+              type: 'base64',
+              data: part.source.value,
+              media_type: metadata?.mediaType ?? 'image/jpeg',
+            }
             : {
-                type: 'url',
-                url: part.source.value,
-              }
+              type: 'url',
+              url: part.source.value,
+            }
         const { mediaType: _mediaType, ...meta } = metadata || {}
         return {
           type: 'image',
@@ -218,14 +279,14 @@ export class AnthropicTextAdapter extends BaseChatAdapter<
         const docSource: Base64PDFSource | URLPDFSource =
           part.source.type === 'data'
             ? {
-                type: 'base64',
-                data: part.source.value,
-                media_type: 'application/pdf',
-              }
+              type: 'base64',
+              data: part.source.value,
+              media_type: 'application/pdf',
+            }
             : {
-                type: 'url',
-                url: part.source.value,
-              }
+              type: 'url',
+              url: part.source.value,
+            }
         return {
           type: 'document',
           source: docSource,
@@ -327,8 +388,8 @@ export class AnthropicTextAdapter extends BaseChatAdapter<
             ? message.content
             : message.content
               ? message.content.map((c) =>
-                  this.convertContentPartToAnthropic(c),
-                )
+                this.convertContentPartToAnthropic(c),
+              )
               : '',
       })
     }

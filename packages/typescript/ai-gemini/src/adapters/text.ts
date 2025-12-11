@@ -8,6 +8,10 @@ import {
   getGeminiApiKeyFromEnv,
 } from '../utils'
 import type {
+  StructuredOutputOptions,
+  StructuredOutputResult,
+} from '@tanstack/ai/adapters'
+import type {
   GenerateContentParameters,
   GenerateContentResponse,
   GoogleGenAI,
@@ -96,6 +100,70 @@ export class GeminiTextAdapter extends BaseChatAdapter<
         },
       }
     }
+  }
+
+  /**
+   * Generate structured output using Gemini's native JSON response format.
+   * Uses responseMimeType: 'application/json' and responseSchema for structured output.
+   */
+  async structuredOutput(
+    options: StructuredOutputOptions<GeminiTextProviderOptions>,
+  ): Promise<StructuredOutputResult<unknown>> {
+    const { chatOptions, jsonSchema } = options
+    const mappedOptions = this.mapCommonOptionsToGemini(chatOptions)
+
+    try {
+      // Add structured output configuration
+      const result = await this.client.models.generateContent({
+        ...mappedOptions,
+        config: {
+          ...mappedOptions.config,
+          responseMimeType: 'application/json',
+          responseSchema: jsonSchema,
+        },
+      })
+
+      // Extract text content from the response
+      const rawText = this.extractTextFromResponse(result)
+
+      // Parse the JSON response
+      let parsed: unknown
+      try {
+        parsed = JSON.parse(rawText)
+      } catch {
+        throw new Error(
+          `Failed to parse structured output as JSON. Content: ${rawText.slice(0, 200)}${rawText.length > 200 ? '...' : ''}`,
+        )
+      }
+
+      return {
+        data: parsed,
+        rawText,
+      }
+    } catch (error) {
+      throw new Error(
+        error instanceof Error
+          ? error.message
+          : 'An unknown error occurred during structured output generation.',
+      )
+    }
+  }
+
+  /**
+   * Extract text content from a non-streaming response
+   */
+  private extractTextFromResponse(response: GenerateContentResponse): string {
+    let textContent = ''
+
+    if (response.candidates?.[0]?.content?.parts) {
+      for (const part of response.candidates[0].content.parts) {
+        if (part.text) {
+          textContent += part.text
+        }
+      }
+    }
+
+    return textContent
   }
 
   private async *processStreamChunks(

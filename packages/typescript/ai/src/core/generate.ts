@@ -5,6 +5,8 @@
  * Uses conditional types to ensure proper type checking based on adapter kind and options.
  */
 
+import { convertZodToJsonSchema } from '../tools/zod-converter'
+import { chat } from './chat'
 import type { z } from 'zod'
 import type {
   ChatOptions,
@@ -72,14 +74,14 @@ type ChatProviderOptionsForModel<TAdapter, TModel extends string> =
     any,
     any
   >
-  ? string extends keyof ModelOptions
-  ? // ModelOptions is Record<string, unknown> or has index signature - use BaseOptions
-  BaseOptions
-  : // ModelOptions has explicit keys - check if TModel is one of them
-  TModel extends keyof ModelOptions
-  ? ModelOptions[TModel]
-  : BaseOptions
-  : object
+    ? string extends keyof ModelOptions
+      ? // ModelOptions is Record<string, unknown> or has index signature - use BaseOptions
+        BaseOptions
+      : // ModelOptions has explicit keys - check if TModel is one of them
+        TModel extends keyof ModelOptions
+        ? ModelOptions[TModel]
+        : BaseOptions
+    : object
 
 /** Extract provider options from an EmbeddingAdapter */
 type EmbeddingProviderOptions<TAdapter> =
@@ -96,14 +98,14 @@ type SummarizeProviderOptions<TAdapter> =
  */
 type ImageProviderOptionsForModel<TAdapter, TModel extends string> =
   TAdapter extends ImageAdapter<any, infer BaseOptions, infer ModelOptions, any>
-  ? string extends keyof ModelOptions
-  ? // ModelOptions is Record<string, unknown> or has index signature - use BaseOptions
-  BaseOptions
-  : // ModelOptions has explicit keys - check if TModel is one of them
-  TModel extends keyof ModelOptions
-  ? ModelOptions[TModel]
-  : BaseOptions
-  : object
+    ? string extends keyof ModelOptions
+      ? // ModelOptions is Record<string, unknown> or has index signature - use BaseOptions
+        BaseOptions
+      : // ModelOptions has explicit keys - check if TModel is one of them
+        TModel extends keyof ModelOptions
+        ? ModelOptions[TModel]
+        : BaseOptions
+    : object
 
 /**
  * Extract model-specific size options from an ImageAdapter.
@@ -111,14 +113,14 @@ type ImageProviderOptionsForModel<TAdapter, TModel extends string> =
  */
 type ImageSizeForModel<TAdapter, TModel extends string> =
   TAdapter extends ImageAdapter<any, any, any, infer SizeByName>
-  ? string extends keyof SizeByName
-  ? // SizeByName has index signature - fall back to string
-  string
-  : // SizeByName has explicit keys - check if TModel is one of them
-  TModel extends keyof SizeByName
-  ? SizeByName[TModel]
-  : string
-  : string
+    ? string extends keyof SizeByName
+      ? // SizeByName has index signature - fall back to string
+        string
+      : // SizeByName has explicit keys - check if TModel is one of them
+        TModel extends keyof SizeByName
+        ? SizeByName[TModel]
+        : string
+    : string
 
 // ===========================
 // Strict Option Types
@@ -246,8 +248,8 @@ export interface GenerateImageOptions<
 /** Union of all adapter types */
 type AnyGenerateAdapter =
   | (ChatAdapter<ReadonlyArray<string>, object, any, any, any> & {
-    kind: 'chat'
-  })
+      kind: 'chat'
+    })
   | (EmbeddingAdapter<ReadonlyArray<string>, object> & { kind: 'embedding' })
   | (SummarizeAdapter<ReadonlyArray<string>, object> & { kind: 'summarize' })
   | (ImageAdapter<ReadonlyArray<string>, object, any, any> & { kind: 'image' })
@@ -260,42 +262,42 @@ type GenerateOptionsFor<
   TStream extends boolean = false,
 > = TAdapter extends { kind: 'chat' }
   ? TAdapter extends ChatAdapter<ReadonlyArray<string>, object, any, any, any>
-  ? GenerateChatOptions<TAdapter, TModel & ChatModels<TAdapter>, TSchema>
-  : never
+    ? GenerateChatOptions<TAdapter, TModel & ChatModels<TAdapter>, TSchema>
+    : never
   : TAdapter extends { kind: 'embedding' }
-  ? TAdapter extends EmbeddingAdapter<ReadonlyArray<string>, object>
-  ? GenerateEmbeddingOptions<TAdapter, TModel & EmbeddingModels<TAdapter>>
-  : never
-  : TAdapter extends { kind: 'summarize' }
-  ? TAdapter extends SummarizeAdapter<ReadonlyArray<string>, object>
-  ? GenerateSummarizeOptions<
-    TAdapter,
-    TModel & SummarizeModels<TAdapter>,
-    TStream
-  >
-  : never
-  : TAdapter extends { kind: 'image' }
-  ? TAdapter extends ImageAdapter<ReadonlyArray<string>, object, any, any>
-  ? GenerateImageOptions<TAdapter, TModel & ImageModels<TAdapter>>
-  : never
-  : never /** Infer the return type based on adapter kind, schema, and stream */
+    ? TAdapter extends EmbeddingAdapter<ReadonlyArray<string>, object>
+      ? GenerateEmbeddingOptions<TAdapter, TModel & EmbeddingModels<TAdapter>>
+      : never
+    : TAdapter extends { kind: 'summarize' }
+      ? TAdapter extends SummarizeAdapter<ReadonlyArray<string>, object>
+        ? GenerateSummarizeOptions<
+            TAdapter,
+            TModel & SummarizeModels<TAdapter>,
+            TStream
+          >
+        : never
+      : TAdapter extends { kind: 'image' }
+        ? TAdapter extends ImageAdapter<ReadonlyArray<string>, object, any, any>
+          ? GenerateImageOptions<TAdapter, TModel & ImageModels<TAdapter>>
+          : never
+        : never /** Infer the return type based on adapter kind, schema, and stream */
 type GenerateReturnType<
   TAdapter extends AnyGenerateAdapter,
   TSchema extends z.ZodType | undefined = undefined,
   TStream extends boolean = false,
 > = TAdapter extends { kind: 'chat' }
   ? TSchema extends z.ZodType
-  ? Promise<z.infer<TSchema>>
-  : AsyncIterable<StreamChunk>
+    ? Promise<z.infer<TSchema>>
+    : AsyncIterable<StreamChunk>
   : TAdapter extends { kind: 'embedding' }
-  ? Promise<EmbeddingResult>
-  : TAdapter extends { kind: 'summarize' }
-  ? TStream extends true
-  ? AsyncIterable<StreamChunk>
-  : Promise<SummarizationResult>
-  : TAdapter extends { kind: 'image' }
-  ? Promise<ImageGenerationResult>
-  : never /**
+    ? Promise<EmbeddingResult>
+    : TAdapter extends { kind: 'summarize' }
+      ? TStream extends true
+        ? AsyncIterable<StreamChunk>
+        : Promise<SummarizationResult>
+      : TAdapter extends { kind: 'image' }
+        ? Promise<ImageGenerationResult>
+        : never /**
  * Unified ai function that adapts its API based on the adapter type.
  *
  * @example Chat generation
@@ -375,23 +377,23 @@ export function ai<
 export function ai(
   options:
     | GenerateChatOptions<
-      ChatAdapter<ReadonlyArray<string>, object, any, any, any>,
-      string,
-      z.ZodType | undefined
-    >
+        ChatAdapter<ReadonlyArray<string>, object, any, any, any>,
+        string,
+        z.ZodType | undefined
+      >
     | GenerateEmbeddingOptions<
-      EmbeddingAdapter<ReadonlyArray<string>, object>,
-      string
-    >
+        EmbeddingAdapter<ReadonlyArray<string>, object>,
+        string
+      >
     | GenerateSummarizeOptions<
-      SummarizeAdapter<ReadonlyArray<string>, object>,
-      string,
-      boolean
-    >
+        SummarizeAdapter<ReadonlyArray<string>, object>,
+        string,
+        boolean
+      >
     | GenerateImageOptions<
-      ImageAdapter<ReadonlyArray<string>, object, any, any>,
-      string
-    >,
+        ImageAdapter<ReadonlyArray<string>, object, any, any>,
+        string
+      >,
 ):
   | AsyncIterable<StreamChunk>
   | Promise<EmbeddingResult>
@@ -476,40 +478,13 @@ async function* generateChat(
     z.ZodType | undefined
   >,
 ): AsyncIterable<StreamChunk> {
-  const {
-    adapter,
-    model,
-    messages,
-    systemPrompts,
-    tools,
-    providerOptions,
-    abortController,
-    agentLoopStrategy,
-    conversationId,
-  } = options
-
-  const chatOptions: ChatOptions = {
-    model,
-    messages,
-    systemPrompts,
-    tools,
-    options: options.options,
-    providerOptions,
-    abortController,
-    agentLoopStrategy,
-    conversationId,
-  }
-
-  const stream = adapter.chatStream(chatOptions)
-  for await (const chunk of stream) {
-    yield chunk
-  }
+  yield* chat(options as any)
 }
 
 /**
- * Generate structured output by collecting the stream and parsing with the schema.
- * When outputSchema is provided, we collect all text content from the stream,
- * then parse it as JSON and validate against the schema.
+ * Generate structured output using the adapter's native structured output API.
+ * When outputSchema is provided, we convert it to JSON Schema and call the adapter's
+ * structuredOutput method which uses stream: false and sends the JSON schema to the provider.
  */
 async function generateStructuredChat<TSchema extends z.ZodType>(
   options: GenerateChatOptions<
@@ -518,65 +493,33 @@ async function generateStructuredChat<TSchema extends z.ZodType>(
     TSchema
   >,
 ): Promise<z.infer<TSchema>> {
-  const {
-    adapter,
-    model,
-    messages,
-    systemPrompts,
-    tools,
-    providerOptions,
-    abortController,
-    agentLoopStrategy,
-    conversationId,
-    outputSchema,
-  } = options
+  const { outputSchema, adapter } = options
 
-  const chatOptions: ChatOptions = {
-    model,
-    messages,
-    systemPrompts,
-    tools,
-    options: options.options,
-    providerOptions,
-    abortController,
-    agentLoopStrategy,
-    conversationId,
-  }
-
-  // Collect all text content from the stream
-  let fullContent = ''
-  const stream = adapter.chatStream(chatOptions)
-
-  for await (const chunk of stream) {
-    if (chunk.type === 'content') {
-      // Use the accumulated content from the final chunk
-      fullContent = chunk.content
-    }
-  }
-
-  // Parse the collected content as JSON
-  let parsed: unknown
-  try {
-    parsed = JSON.parse(fullContent)
-  } catch {
-    throw new Error(
-      `Failed to parse structured output as JSON. Content: ${fullContent.slice(0, 200)}${fullContent.length > 200 ? '...' : ''}`,
-    )
-  }
-
-  // Validate against the schema
   if (!outputSchema) {
     throw new Error('outputSchema is required for structured output')
   }
 
-  const result = outputSchema.safeParse(parsed)
-  if (!result.success) {
+  // Convert Zod schema to JSON Schema in the ai function
+  const jsonSchema = convertZodToJsonSchema(outputSchema)
+  if (!jsonSchema) {
+    throw new Error('Failed to convert outputSchema to JSON Schema')
+  }
+
+  // Use the adapter's native structured output method with pre-converted JSON schema
+  const result = await adapter.structuredOutput({
+    chatOptions: options,
+    jsonSchema,
+  })
+
+  // Validate the result against the Zod schema
+  const validationResult = outputSchema.safeParse(result.data)
+  if (!validationResult.success) {
     throw new Error(
-      `Structured output validation failed: ${result.error.message}`,
+      `Structured output validation failed: ${validationResult.error.message}`,
     )
   }
 
-  return result.data
+  return validationResult.data
 }
 
 async function generateEmbedding(
@@ -690,15 +633,15 @@ export type GenerateOptions<
   TStream extends boolean = false,
 > =
   TAdapter extends ChatAdapter<ReadonlyArray<string>, object, any, any, any>
-  ? GenerateChatOptions<TAdapter, TModel & ChatModels<TAdapter>, TSchema>
-  : TAdapter extends EmbeddingAdapter<ReadonlyArray<string>, object>
-  ? GenerateEmbeddingOptions<TAdapter, TModel & EmbeddingModels<TAdapter>>
-  : TAdapter extends SummarizeAdapter<ReadonlyArray<string>, object>
-  ? GenerateSummarizeOptions<
-    TAdapter,
-    TModel & SummarizeModels<TAdapter>,
-    TStream
-  >
-  : TAdapter extends ImageAdapter<ReadonlyArray<string>, object, any, any>
-  ? GenerateImageOptions<TAdapter, TModel & ImageModels<TAdapter>>
-  : never
+    ? GenerateChatOptions<TAdapter, TModel & ChatModels<TAdapter>, TSchema>
+    : TAdapter extends EmbeddingAdapter<ReadonlyArray<string>, object>
+      ? GenerateEmbeddingOptions<TAdapter, TModel & EmbeddingModels<TAdapter>>
+      : TAdapter extends SummarizeAdapter<ReadonlyArray<string>, object>
+        ? GenerateSummarizeOptions<
+            TAdapter,
+            TModel & SummarizeModels<TAdapter>,
+            TStream
+          >
+        : TAdapter extends ImageAdapter<ReadonlyArray<string>, object, any, any>
+          ? GenerateImageOptions<TAdapter, TModel & ImageModels<TAdapter>>
+          : never

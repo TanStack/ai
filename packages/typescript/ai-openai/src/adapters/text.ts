@@ -7,6 +7,10 @@ import {
   generateId,
   getOpenAIApiKeyFromEnv,
 } from '../utils'
+import type {
+  StructuredOutputOptions,
+  StructuredOutputResult,
+} from '@tanstack/ai/adapters'
 import type OpenAI_SDK from 'openai'
 import type { Responses } from 'openai/resources'
 import type {
@@ -105,6 +109,83 @@ export class OpenAITextAdapter extends BaseChatAdapter<
       console.error('>>> Full error:', err)
       throw error
     }
+  }
+
+  /**
+   * Generate structured output using OpenAI's native JSON Schema response format.
+   * Uses stream: false to get the complete response in one call.
+   */
+  async structuredOutput(
+    options: StructuredOutputOptions<OpenAITextProviderOptions>,
+  ): Promise<StructuredOutputResult<unknown>> {
+    const { chatOptions, jsonSchema } = options
+    const requestArguments = this.mapChatOptionsToOpenAI(chatOptions)
+
+    try {
+      const response = await this.client.responses.create(
+        {
+          ...requestArguments,
+          stream: false,
+          // Configure structured output via text.format
+          text: {
+            format: {
+              type: 'json_schema',
+              name: 'structured_output',
+              schema: jsonSchema,
+              strict: true,
+            },
+          },
+        },
+        {
+          headers: chatOptions.request?.headers,
+          signal: chatOptions.request?.signal,
+        },
+      )
+
+      // Extract text content from the response
+      const rawText = this.extractTextFromResponse(response)
+
+      // Parse the JSON response
+      let parsed: unknown
+      try {
+        parsed = JSON.parse(rawText)
+      } catch {
+        throw new Error(
+          `Failed to parse structured output as JSON. Content: ${rawText.slice(0, 200)}${rawText.length > 200 ? '...' : ''}`,
+        )
+      }
+
+      return {
+        data: parsed,
+        rawText,
+      }
+    } catch (error: unknown) {
+      const err = error as Error
+      console.error('>>> structuredOutput: Error during response creation <<<')
+      console.error('>>> Error message:', err.message)
+      throw error
+    }
+  }
+
+  /**
+   * Extract text content from a non-streaming response
+   */
+  private extractTextFromResponse(
+    response: OpenAI_SDK.Responses.Response,
+  ): string {
+    let textContent = ''
+
+    for (const item of response.output) {
+      if (item.type === 'message') {
+        for (const part of item.content) {
+          if (part.type === 'output_text') {
+            textContent += part.text
+          }
+        }
+      }
+    }
+
+    return textContent
   }
 
   private async *processOpenAIStreamChunks(

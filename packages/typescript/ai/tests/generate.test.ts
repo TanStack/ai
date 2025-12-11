@@ -6,6 +6,10 @@ import {
   BaseSummarizeAdapter,
 } from '../src/adapters'
 import type {
+  StructuredOutputOptions,
+  StructuredOutputResult,
+} from '../src/adapters'
+import type {
   ChatOptions,
   EmbeddingOptions,
   EmbeddingResult,
@@ -19,10 +23,7 @@ import type {
 
 const MOCK_MODELS = ['model-a', 'model-b'] as const
 
-class MockChatAdapter extends BaseChatAdapter<
-  typeof MOCK_MODELS,
-  Record<string, unknown>
-> {
+class MockChatAdapter extends BaseChatAdapter<typeof MOCK_MODELS> {
   readonly kind = 'chat' as const
   readonly name = 'mock' as const
   readonly models = MOCK_MODELS
@@ -38,6 +39,15 @@ class MockChatAdapter extends BaseChatAdapter<
     for (const chunk of this.mockChunks) {
       yield chunk
     }
+  }
+
+  structuredOutput(
+    _options: StructuredOutputOptions<object>,
+  ): Promise<StructuredOutputResult<unknown>> {
+    return Promise.resolve({
+      data: {},
+      rawText: '{}',
+    })
   }
 }
 

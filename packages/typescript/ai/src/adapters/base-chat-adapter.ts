@@ -17,6 +17,26 @@ export interface ChatAdapterConfig {
 }
 
 /**
+ * Options for structured output generation
+ */
+export interface StructuredOutputOptions<TProviderOptions extends object> {
+  /** Chat options for the request */
+  chatOptions: ChatOptions<string, TProviderOptions>
+  /** JSON Schema for the structured output (already converted from Zod) */
+  jsonSchema: Record<string, unknown>
+}
+
+/**
+ * Result from structured output generation
+ */
+export interface StructuredOutputResult<T = unknown> {
+  /** The parsed data conforming to the schema */
+  data: T
+  /** The raw text response from the model before parsing */
+  rawText: string
+}
+
+/**
  * Base interface for chat adapters.
  * Provides type-safe chat/text completion functionality.
  *
@@ -67,6 +87,18 @@ export interface ChatAdapter<
   chatStream: (
     options: ChatOptions<string, TProviderOptions>,
   ) => AsyncIterable<StreamChunk>
+
+  /**
+   * Generate structured output using the provider's native structured output API.
+   * This method uses stream: false and sends the JSON schema to the provider
+   * to ensure the response conforms to the expected structure.
+   *
+   * @param options - Structured output options containing chat options and JSON schema
+   * @returns Promise with the raw data (validation is done in the ai function)
+   */
+  structuredOutput: (
+    options: StructuredOutputOptions<TProviderOptions>,
+  ) => Promise<StructuredOutputResult<unknown>>
 }
 
 /**
@@ -115,6 +147,14 @@ export abstract class BaseChatAdapter<
   abstract chatStream(
     options: ChatOptions<string, TProviderOptions>,
   ): AsyncIterable<StreamChunk>
+
+  /**
+   * Generate structured output using the provider's native structured output API.
+   * Concrete implementations should override this to use provider-specific structured output.
+   */
+  abstract structuredOutput(
+    options: StructuredOutputOptions<TProviderOptions>,
+  ): Promise<StructuredOutputResult<unknown>>
 
   protected generateId(): string {
     return `${this.name}-${Date.now()}-${Math.random().toString(36).substring(7)}`

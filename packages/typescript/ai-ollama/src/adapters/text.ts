@@ -4,6 +4,10 @@ import { BaseChatAdapter } from '@tanstack/ai/adapters'
 import { createOllamaClient, generateId, getOllamaHostFromEnv } from '../utils'
 
 import type {
+  StructuredOutputOptions,
+  StructuredOutputResult,
+} from '@tanstack/ai/adapters'
+import type {
   AbortableAsyncIterator,
   ChatRequest,
   ChatResponse,
@@ -129,6 +133,48 @@ export class OllamaTextAdapter extends BaseChatAdapter<
       stream: true,
     })
     yield* this.processOllamaStreamChunks(response)
+  }
+
+  /**
+   * Generate structured output using Ollama's JSON format option.
+   * Uses format: 'json' with the schema to ensure structured output.
+   */
+  async structuredOutput(
+    options: StructuredOutputOptions<OllamaTextProviderOptions>,
+  ): Promise<StructuredOutputResult<unknown>> {
+    const { chatOptions, jsonSchema } = options
+    const mappedOptions = this.mapCommonOptionsToOllama(chatOptions)
+
+    try {
+      // Make non-streaming request with JSON format
+      const response = await this.client.chat({
+        ...mappedOptions,
+        stream: false,
+        format: jsonSchema,
+      })
+
+      const rawText = response.message.content
+
+      // Parse the JSON response
+      let parsed: unknown
+      try {
+        parsed = JSON.parse(rawText)
+      } catch {
+        throw new Error(
+          `Failed to parse structured output as JSON. Content: ${rawText.slice(0, 200)}${rawText.length > 200 ? '...' : ''}`,
+        )
+      }
+
+      return {
+        data: parsed,
+        rawText,
+      }
+    } catch (error: unknown) {
+      const err = error as Error
+      throw new Error(
+        `Structured output generation failed: ${err.message || 'Unknown error occurred'}`,
+      )
+    }
   }
 
   private async *processOllamaStreamChunks(

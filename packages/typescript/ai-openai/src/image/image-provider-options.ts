@@ -231,7 +231,7 @@ export function validateImageSize(
   if (!modelSizes.includes(size)) {
     throw new Error(
       `Size "${size}" is not supported by model "${model}". ` +
-      `Supported sizes: ${modelSizes.join(', ')}`,
+        `Supported sizes: ${modelSizes.join(', ')}`,
     )
   }
 }
@@ -249,7 +249,7 @@ export function validateNumberOfImages(
   if (model === 'dall-e-3' && numberOfImages !== 1) {
     throw new Error(
       `Model "dall-e-3" only supports generating 1 image at a time. ` +
-      `Requested: ${numberOfImages}`,
+        `Requested: ${numberOfImages}`,
     )
   }
 

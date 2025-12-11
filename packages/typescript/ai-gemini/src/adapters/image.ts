@@ -21,13 +21,17 @@ import type {
   ImageGenerationOptions,
   ImageGenerationResult,
 } from '@tanstack/ai'
-import type { GenerateImagesConfig, GenerateImagesResponse, GoogleGenAI } from '@google/genai'
+import type {
+  GenerateImagesConfig,
+  GenerateImagesResponse,
+  GoogleGenAI,
+} from '@google/genai'
 import type { GeminiClientConfig } from '../utils'
 
 /**
  * Configuration for Gemini image adapter
  */
-export interface GeminiImageConfig extends GeminiClientConfig { }
+export interface GeminiImageConfig extends GeminiClientConfig {}
 
 /**
  * Gemini Image Generation Adapter
@@ -64,7 +68,7 @@ export class GeminiImageAdapter extends BaseImageAdapter<
   async generateImages(
     options: ImageGenerationOptions<GeminiImageProviderOptions>,
   ): Promise<ImageGenerationResult> {
-    const { model, prompt, numberOfImages, size, } = options
+    const { model, prompt, numberOfImages, size } = options
 
     // Validate inputs
     validatePrompt({ prompt, model })
@@ -84,13 +88,12 @@ export class GeminiImageAdapter extends BaseImageAdapter<
   }
 
   private buildConfig(
-    options: ImageGenerationOptions<GeminiImageProviderOptions>
+    options: ImageGenerationOptions<GeminiImageProviderOptions>,
   ): GenerateImagesConfig {
     const { size, numberOfImages, providerOptions } = options
 
     return {
       numberOfImages: numberOfImages ?? 1,
-      imageSize: size,
       // Map size to aspect ratio if provided (providerOptions.aspectRatio will override)
       aspectRatio: size ? sizeToAspectRatio(size) : undefined,
       ...providerOptions,
@@ -104,10 +107,9 @@ export class GeminiImageAdapter extends BaseImageAdapter<
     const images: Array<GeneratedImage> = (response.generatedImages ?? []).map(
       (item) => ({
         b64Json: item.image?.imageBytes,
-        revisedPrompt: item.enhancedPrompt
+        revisedPrompt: item.enhancedPrompt,
       }),
     )
-
 
     return {
       id: generateId(this.name),

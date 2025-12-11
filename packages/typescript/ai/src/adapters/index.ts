@@ -8,6 +8,8 @@ export {
   BaseChatAdapter,
   type ChatAdapter,
   type ChatAdapterConfig,
+  type StructuredOutputOptions,
+  type StructuredOutputResult,
 } from './base-chat-adapter'
 
 // Base embedding adapter

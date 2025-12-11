@@ -11,6 +11,10 @@ import {
 } from '../src/adapters'
 import { ai } from '../src/core/generate'
 import type {
+  StructuredOutputOptions,
+  StructuredOutputResult,
+} from '../src/adapters'
+import type {
   ChatOptions,
   EmbeddingOptions,
   EmbeddingResult,
@@ -56,6 +60,15 @@ class TestChatAdapter extends BaseChatAdapter<
 
   async *chatStream(_options: ChatOptions): AsyncIterable<StreamChunk> {
     // Mock implementation
+  }
+
+  structuredOutput(
+    _options: StructuredOutputOptions<TestChatProviderOptions>,
+  ): Promise<StructuredOutputResult<unknown>> {
+    return Promise.resolve({
+      data: {},
+      rawText: '{}',
+    })
   }
 }
 
