@@ -1,6 +1,6 @@
 import { createFileRoute } from '@tanstack/solid-router'
 import ai, { maxIterations, toStreamResponse } from '@tanstack/ai'
-import { anthropic } from '@tanstack/ai-anthropic'
+import { anthropicText } from '@tanstack/ai-anthropic'
 import { serverTools } from '@/lib/guitar-tools'
 
 const SYSTEM_PROMPT = `You are a helpful assistant for a guitar store.
@@ -57,8 +57,8 @@ export const Route = createFileRoute('/api/chat')({
         try {
           // Use the stream abort signal for proper cancellation handling
           const stream = ai({
-            adapter: anthropic(),
-            model: 'claude-sonnet-4-5-20250929',
+            adapter: anthropicText(),
+            model: 'claude-sonnet-4-5',
             tools: serverTools,
             systemPrompts: [SYSTEM_PROMPT],
             agentLoopStrategy: maxIterations(20),

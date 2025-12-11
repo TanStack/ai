@@ -1,9 +1,9 @@
 import { env } from '$env/dynamic/private'
 import ai, { maxIterations, toStreamResponse } from '@tanstack/ai'
-import { openai } from '@tanstack/ai-openai'
-import { ollama } from '@tanstack/ai-ollama'
-import { anthropic } from '@tanstack/ai-anthropic'
-import { gemini } from '@tanstack/ai-gemini'
+import { openaiText } from '@tanstack/ai-openai'
+import { ollamaText } from '@tanstack/ai-ollama'
+import { anthropicText } from '@tanstack/ai-anthropic'
+import { geminiText } from '@tanstack/ai-gemini'
 
 import type { RequestHandler } from './$types'
 
@@ -81,20 +81,20 @@ export const POST: RequestHandler = async ({ request }) => {
 
     switch (provider) {
       case 'anthropic':
-        adapter = anthropic()
-        defaultModel = 'claude-sonnet-4-5-20250929'
+        adapter = anthropicText()
+        defaultModel = 'claude-sonnet-4-5'
         break
       case 'gemini':
-        adapter = gemini()
+        adapter = geminiText()
         defaultModel = 'gemini-2.0-flash-exp'
         break
       case 'ollama':
-        adapter = ollama()
+        adapter = ollamaText()
         defaultModel = 'mistral:7b'
         break
       case 'openai':
       default:
-        adapter = openai()
+        adapter = openaiText()
         defaultModel = 'gpt-4o'
         break
     }

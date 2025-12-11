@@ -1,15 +1,9 @@
 import { createFileRoute } from '@tanstack/react-router'
 import ai, { maxIterations, toStreamResponse } from '@tanstack/ai'
-import {
-  openai,
-  openaiImage,
-  openaiSummarize,
-  openaiText,
-} from '@tanstack/ai-openai'
-import { ollama } from '@tanstack/ai-ollama'
-import { anthropic } from '@tanstack/ai-anthropic'
-import { gemini } from '@tanstack/ai-gemini'
-import z from 'zod'
+import { openaiText } from '@tanstack/ai-openai'
+import { ollamaText } from '@tanstack/ai-ollama'
+import { anthropicText } from '@tanstack/ai-anthropic'
+import { geminiText } from '@tanstack/ai-gemini'
 import {
   addToCartToolDef,
   addToWishListToolDef,
@@ -17,18 +11,6 @@ import {
   getPersonalGuitarPreferenceToolDef,
   recommendGuitarToolDef,
 } from '@/lib/guitar-tools'
-
-const test = ai({
-  adapter: openaiImage(),
-  model: 'gpt-image-1',
-  prompt:
-    'A cute baby sea otter wearing a beret and glasses, sitting at a small cafe table, sipping a cappuccino, with a croissant on a plate. The background shows a picturesque Parisian street with the Eiffel Tower in the distance. The scene is bathed in the warm, golden light of a late afternoon.',
-  numberOfImages: 2,
-  size: 'auto',
-  providerOptions: {
-    quality: 'high',
-  },
-})
 
 type Provider = 'openai' | 'anthropic' | 'gemini' | 'ollama'
 
@@ -91,20 +73,20 @@ export const Route = createFileRoute('/api/tanchat')({
 
           switch (provider) {
             case 'anthropic':
-              adapter = anthropic()
-              defaultModel = 'claude-sonnet-4-5-20250929'
+              adapter = anthropicText()
+              defaultModel = 'claude-sonnet-4-5'
               break
             case 'gemini':
-              adapter = gemini()
+              adapter = geminiText()
               defaultModel = 'gemini-2.0-flash-exp'
               break
             case 'ollama':
-              adapter = ollama()
+              adapter = ollamaText()
               defaultModel = 'mistral:7b'
               break
             case 'openai':
             default:
-              adapter = openai()
+              adapter = openaiText()
               defaultModel = 'gpt-4o'
               break
           }
