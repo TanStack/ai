@@ -26,7 +26,7 @@ import type { OpenAIClientConfig } from '../utils'
 /**
  * Configuration for OpenAI image adapter
  */
-export interface OpenAIImageConfig extends OpenAIClientConfig { }
+export interface OpenAIImageConfig extends OpenAIClientConfig {}
 
 /**
  * OpenAI Image Generation Adapter
@@ -78,7 +78,7 @@ export class OpenAIImageAdapter extends BaseImageAdapter<
   }
 
   private buildRequest(
-    options: ImageGenerationOptions<OpenAIImageProviderOptions>
+    options: ImageGenerationOptions<OpenAIImageProviderOptions>,
   ): OpenAI_SDK.Images.ImageGenerateParams {
     const { model, prompt, numberOfImages, size, providerOptions } = options
 
@@ -107,10 +107,10 @@ export class OpenAIImageAdapter extends BaseImageAdapter<
       images,
       usage: response.usage
         ? {
-          inputTokens: response.usage.input_tokens,
-          outputTokens: response.usage.output_tokens,
-          totalTokens: response.usage.total_tokens,
-        }
+            inputTokens: response.usage.input_tokens,
+            outputTokens: response.usage.output_tokens,
+            totalTokens: response.usage.total_tokens,
+          }
         : undefined,
     }
   }
