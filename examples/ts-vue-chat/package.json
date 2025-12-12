@@ -28,7 +28,7 @@
   "devDependencies": {
     "@tailwindcss/vite": "^4.1.18",
     "@types/node": "^24.10.1",
-    "@vitejs/plugin-vue": "^6.0.2",
+    "@vitejs/plugin-vue": "^6.0.3",
     "autoprefixer": "^10.4.21",
     "concurrently": "^9.1.2",
     "dotenv": "^17.2.3",
