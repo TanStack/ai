@@ -67,7 +67,8 @@ export async function runEMB(
     await writeDebugFile(adapterName, testName, debugData)
 
     console.log(
-      `[${adapterName}] ${passed ? '✅' : '❌'} ${testName}${passed ? '' : `: ${debugData.result.error}`
+      `[${adapterName}] ${passed ? '✅' : '❌'} ${testName}${
+        passed ? '' : `: ${debugData.result.error}`
       }`,
     )
 

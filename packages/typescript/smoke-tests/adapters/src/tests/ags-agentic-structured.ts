@@ -111,7 +111,8 @@ export async function runAGS(
     await writeDebugFile(adapterName, testName, debugData)
 
     console.log(
-      `[${adapterName}] ${passed ? '✅' : '❌'} ${testName}${passed ? '' : `: ${debugData.result.error}`
+      `[${adapterName}] ${passed ? '✅' : '❌'} ${testName}${
+        passed ? '' : `: ${debugData.result.error}`
       }`,
     )
 

@@ -355,7 +355,8 @@ export async function runTestCase(opts: {
     console.log(`[${adapterContext.adapterName}] ✅ ${testName}`)
   } else {
     console.log(
-      `[${adapterContext.adapterName}] ❌ ${testName}: ${validation.error || 'Unknown error'
+      `[${adapterContext.adapterName}] ❌ ${testName}: ${
+        validation.error || 'Unknown error'
       }`,
     )
   }
@@ -381,9 +382,9 @@ export function buildApprovalMessages(
       const aggregated = firstRun.toolCalls.find((call) => call.id === tc.id)
       return aggregated
         ? {
-          ...tc,
-          function: { ...tc.function, arguments: aggregated.arguments },
-        }
+            ...tc,
+            function: { ...tc.function, arguments: aggregated.arguments },
+          }
         : tc
     }) || []
 

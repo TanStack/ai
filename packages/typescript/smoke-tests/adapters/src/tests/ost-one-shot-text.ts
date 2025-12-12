@@ -52,7 +52,8 @@ export async function runOST(
     await writeDebugFile(adapterName, testName, debugData)
 
     console.log(
-      `[${adapterName}] ${hasFour ? '✅' : '❌'} ${testName}${hasFour ? '' : `: ${debugData.result.error}`
+      `[${adapterName}] ${hasFour ? '✅' : '❌'} ${testName}${
+        hasFour ? '' : `: ${debugData.result.error}`
       }`,
     )
 

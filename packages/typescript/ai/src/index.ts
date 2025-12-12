@@ -1,4 +1,4 @@
-// Main AI function - the one export to rule them all  
+// Main AI function - the one export to rule them all
 export {
   ai,
   type AIAdapter,
