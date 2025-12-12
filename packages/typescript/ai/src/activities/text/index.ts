@@ -21,7 +21,9 @@ import type { TextAdapter } from './adapter'
 import type {
   AIAdapter,
   AgentLoopStrategy,
+  DefaultMessageMetadataByModality,
   DoneStreamChunk,
+  Modality,
   ModelMessage,
   StreamChunk,
   TextOptions,
@@ -102,7 +104,7 @@ export interface CommonOptions {
 // ===========================
 
 /** Extract model types from a TextAdapter */
-type TextModels<TAdapter> =
+export type TextModels<TAdapter> =
   TAdapter extends TextAdapter<infer M, any, any, any, any> ? M[number] : string
 
 /**
@@ -110,7 +112,7 @@ type TextModels<TAdapter> =
  * If the model has specific options defined in ModelOptions (and not just via index signature),
  * use those; otherwise fall back to base provider options.
  */
-type TextProviderOptionsForModel<TAdapter, TModel extends string> =
+export type TextProviderOptionsForModel<TAdapter, TModel extends string> =
   TAdapter extends TextAdapter<
     any,
     infer BaseOptions,
@@ -118,14 +120,34 @@ type TextProviderOptionsForModel<TAdapter, TModel extends string> =
     any,
     any
   >
-    ? string extends keyof ModelOptions
-      ? // ModelOptions is Record<string, unknown> or has index signature - use BaseOptions
-        BaseOptions
-      : // ModelOptions has explicit keys - check if TModel is one of them
-        TModel extends keyof ModelOptions
-        ? ModelOptions[TModel]
-        : BaseOptions
-    : object
+  ? string extends keyof ModelOptions
+  ? // ModelOptions is Record<string, unknown> or has index signature - use BaseOptions
+  BaseOptions
+  : // ModelOptions has explicit keys - check if TModel is one of them
+  TModel extends keyof ModelOptions
+  ? ModelOptions[TModel]
+  : BaseOptions
+  : object
+
+/**
+ * Extract input modalities for a specific model from a TextAdapter.
+ * Returns the modalities array if the model is defined in the map, otherwise all modalities.
+ */
+export type InputModalitiesForModel<TAdapter, TModel extends string> =
+  TAdapter extends TextAdapter<any, any, any, infer ModalitiesByName, any>
+  ? TModel extends keyof ModalitiesByName
+  ? ModalitiesByName[TModel]
+  : ReadonlyArray<Modality>
+  : ReadonlyArray<Modality>
+
+/**
+ * Extract message metadata types by modality from a TextAdapter.
+ * Returns the adapter's metadata map or defaults if not defined.
+ */
+export type MessageMetadataForAdapter<TAdapter> =
+  TAdapter extends TextAdapter<any, any, any, any, infer MetadataByModality>
+  ? MetadataByModality
+  : DefaultMessageMetadataByModality
 
 // ===========================
 // Activity Options Type
@@ -223,8 +245,8 @@ export type TextActivityResult<
 > = TSchema extends z.ZodType
   ? Promise<z.infer<TSchema>>
   : TStream extends false
-    ? Promise<string>
-    : AsyncIterable<StreamChunk>
+  ? Promise<string>
+  : AsyncIterable<StreamChunk>
 
 // ===========================
 // ChatEngine Implementation
@@ -1195,8 +1217,8 @@ export function textOptions<
     any,
     any
   >
-    ? Models[number]
-    : string,
+  ? Models[number]
+  : string,
 >(
   options: Omit<
     TextStreamOptionsUnion<TAdapter>,
@@ -1211,10 +1233,10 @@ export function textOptions<
       any,
       infer ModelProviderOptions
     >
-      ? TModel extends keyof ModelProviderOptions
-        ? ModelProviderOptions[TModel]
-        : never
-      : never
+    ? TModel extends keyof ModelProviderOptions
+    ? ModelProviderOptions[TModel]
+    : never
+    : never
   },
 ): typeof options {
   return options

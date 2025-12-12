@@ -21,11 +21,11 @@ export const kind = 'embedding' as const
 // ===========================
 
 /** Extract model types from an EmbeddingAdapter */
-type EmbeddingModels<TAdapter> =
+export type EmbeddingModels<TAdapter> =
   TAdapter extends EmbeddingAdapter<infer M, any> ? M[number] : string
 
 /** Extract provider options from an EmbeddingAdapter */
-type EmbeddingProviderOptions<TAdapter> =
+export type EmbeddingProviderOptions<TAdapter> =
   TAdapter extends EmbeddingAdapter<any, infer P> ? P : object
 
 // ===========================

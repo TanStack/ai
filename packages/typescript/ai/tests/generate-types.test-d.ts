@@ -989,8 +989,8 @@ describe('ai() text adapter input modality constraints', () => {
         {
           role: 'user',
           content: [
-            // @ts-expect-error - image content not allowed on text-only model
             {
+              // @ts-expect-error - image content not allowed on text-only model
               type: 'image',
               source: { type: 'url', value: 'https://example.com/image.png' },
             },
@@ -1010,8 +1010,8 @@ describe('ai() text adapter input modality constraints', () => {
         {
           role: 'user',
           content: [
-            // @ts-expect-error - document content not allowed on text-only model
             {
+              // @ts-expect-error - document content not allowed on text-only model
               type: 'document',
               source: { type: 'url', value: 'https://example.com/doc.pdf' },
             },
@@ -1031,8 +1031,8 @@ describe('ai() text adapter input modality constraints', () => {
         {
           role: 'user',
           content: [
-            // @ts-expect-error - audio content not allowed on text-only model
             {
+              // @ts-expect-error - audio content not allowed on text-only model
               type: 'audio',
               source: { type: 'url', value: 'https://example.com/audio.mp3' },
             },
@@ -1082,8 +1082,8 @@ describe('ai() text adapter input modality constraints', () => {
         {
           role: 'user',
           content: [
-            // @ts-expect-error - document content not allowed on text-image model
             {
+              // @ts-expect-error - document content not allowed on text-image model
               type: 'document',
               source: { type: 'url', value: 'https://example.com/doc.pdf' },
             },
@@ -1103,8 +1103,8 @@ describe('ai() text adapter input modality constraints', () => {
         {
           role: 'user',
           content: [
-            // @ts-expect-error - audio content not allowed on text-image model
             {
+              // @ts-expect-error - audio content not allowed on text-image model
               type: 'audio',
               source: { type: 'url', value: 'https://example.com/audio.mp3' },
             },
@@ -1154,8 +1154,8 @@ describe('ai() text adapter input modality constraints', () => {
         {
           role: 'user',
           content: [
-            // @ts-expect-error - video content not allowed (multimodal-model only supports text, image, audio, document)
             {
+              // @ts-expect-error - video content not allowed (multimodal-model only supports text, image, audio, document)
               type: 'video',
               source: { type: 'url', value: 'https://example.com/video.mp4' },
             },

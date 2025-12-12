@@ -24,28 +24,48 @@ import {
 } from './summarize/index'
 import { imageActivity, kind as imageKindValue } from './image/index'
 
+// Import model types for use in local type definitions
+import type {
+  InputModalitiesForModel,
+  MessageMetadataForAdapter,
+  TextModels,
+  TextProviderOptionsForModel,
+  // eslint-disable-next-line import/no-duplicates
+} from './text/index'
+import type {
+  EmbeddingActivityOptions,
+  EmbeddingActivityResult,
+  EmbeddingModels,
+  EmbeddingProviderOptions
+} from './embedding/index'
+import type {
+  SummarizeActivityOptions,
+  SummarizeActivityResult,
+  SummarizeModels,
+  SummarizeProviderOptions
+} from './summarize/index'
+import type {
+  ImageActivityOptions,
+  ImageActivityResult,
+  ImageModels, ImageProviderOptionsForModel, ImageSizeForModel
+} from './image/index'
+
 // Import adapter types for type definitions
 import type { TextAdapter } from './text/adapter'
 import type { EmbeddingAdapter } from './embedding/adapter'
 import type { SummarizeAdapter } from './summarize/adapter'
 import type { ImageAdapter } from './image/adapter'
+// eslint-disable-next-line import/no-duplicates
 import type { TextActivityOptions, TextActivityResult } from './text/index'
-import type {
-  EmbeddingActivityOptions,
-  EmbeddingActivityResult,
-} from './embedding/index'
-import type {
-  SummarizeActivityOptions,
-  SummarizeActivityResult,
-} from './summarize/index'
-import type { ImageActivityOptions, ImageActivityResult } from './image/index'
 
 import type { z } from 'zod'
 import type {
+  ConstrainedModelMessage,
   EmbeddingResult,
   ImageGenerationResult,
   StreamChunk,
   SummarizationResult,
+  TextOptions,
 } from '../types'
 
 // ===========================
@@ -59,6 +79,10 @@ export {
   type TextActivityOptions,
   type TextActivityResult,
   type CommonOptions,
+  type TextModels,
+  type TextProviderOptionsForModel,
+  type InputModalitiesForModel,
+  type MessageMetadataForAdapter,
 } from './text/index'
 
 export {
@@ -78,6 +102,8 @@ export {
   embeddingActivity,
   type EmbeddingActivityOptions,
   type EmbeddingActivityResult,
+  type EmbeddingModels,
+  type EmbeddingProviderOptions,
 } from './embedding/index'
 
 export {
@@ -95,6 +121,8 @@ export {
   summarizeActivity,
   type SummarizeActivityOptions,
   type SummarizeActivityResult,
+  type SummarizeModels,
+  type SummarizeProviderOptions,
 } from './summarize/index'
 
 export {
@@ -112,6 +140,9 @@ export {
   imageActivity,
   type ImageActivityOptions,
   type ImageActivityResult,
+  type ImageModels,
+  type ImageProviderOptionsForModel,
+  type ImageSizeForModel,
 } from './image/index'
 
 export {
@@ -167,34 +198,14 @@ export type AnyAdapter =
 export type AdapterKind = 'text' | 'embedding' | 'summarize' | 'image'
 
 // ===========================
-// Model Extraction Helpers
-// ===========================
-
-/** Extract model types from a TextAdapter */
-export type TextModels<TAdapter> =
-  TAdapter extends TextAdapter<infer M, any, any, any, any> ? M[number] : string
-
-/** Extract model types from an EmbeddingAdapter */
-export type EmbeddingModels<TAdapter> =
-  TAdapter extends EmbeddingAdapter<infer M, any> ? M[number] : string
-
-/** Extract model types from a SummarizeAdapter */
-export type SummarizeModels<TAdapter> =
-  TAdapter extends SummarizeAdapter<infer M, any> ? M[number] : string
-
-/** Extract model types from an ImageAdapter */
-export type ImageModels<TAdapter> =
-  TAdapter extends ImageAdapter<infer M, any, any, any> ? M[number] : string
-
-// ===========================
 // Unified Options Type
 // ===========================
 
 /** Union of all adapter types with their kind discriminator */
 export type AnyAIAdapter =
   | (TextAdapter<ReadonlyArray<string>, object, any, any, any> & {
-      kind: 'text'
-    })
+    kind: 'text'
+  })
   | (EmbeddingAdapter<ReadonlyArray<string>, object> & { kind: 'embedding' })
   | (SummarizeAdapter<ReadonlyArray<string>, object> & { kind: 'summarize' })
   | (ImageAdapter<ReadonlyArray<string>, object, any, any> & { kind: 'image' })
@@ -207,30 +218,30 @@ export type AIOptionsFor<
   TStream extends boolean | undefined = undefined,
 > = TAdapter extends { kind: 'text' }
   ? TAdapter extends TextAdapter<ReadonlyArray<string>, object, any, any, any>
-    ? TextActivityOptions<
-        TAdapter,
-        TModel & TextModels<TAdapter>,
-        TSchema,
-        TStream extends boolean ? TStream : true
-      >
-    : never
+  ? TextActivityOptions<
+    TAdapter,
+    TModel & TextModels<TAdapter>,
+    TSchema,
+    TStream extends boolean ? TStream : true
+  >
+  : never
   : TAdapter extends { kind: 'embedding' }
-    ? TAdapter extends EmbeddingAdapter<ReadonlyArray<string>, object>
-      ? EmbeddingActivityOptions<TAdapter, TModel & EmbeddingModels<TAdapter>>
-      : never
-    : TAdapter extends { kind: 'summarize' }
-      ? TAdapter extends SummarizeAdapter<ReadonlyArray<string>, object>
-        ? SummarizeActivityOptions<
-            TAdapter,
-            TModel & SummarizeModels<TAdapter>,
-            TStream extends boolean ? TStream : false
-          >
-        : never
-      : TAdapter extends { kind: 'image' }
-        ? TAdapter extends ImageAdapter<ReadonlyArray<string>, object, any, any>
-          ? ImageActivityOptions<TAdapter, TModel & ImageModels<TAdapter>>
-          : never
-        : never
+  ? TAdapter extends EmbeddingAdapter<ReadonlyArray<string>, object>
+  ? EmbeddingActivityOptions<TAdapter, TModel & EmbeddingModels<TAdapter>>
+  : never
+  : TAdapter extends { kind: 'summarize' }
+  ? TAdapter extends SummarizeAdapter<ReadonlyArray<string>, object>
+  ? SummarizeActivityOptions<
+    TAdapter,
+    TModel & SummarizeModels<TAdapter>,
+    TStream extends boolean ? TStream : false
+  >
+  : never
+  : TAdapter extends { kind: 'image' }
+  ? TAdapter extends ImageAdapter<ReadonlyArray<string>, object, any, any>
+  ? ImageActivityOptions<TAdapter, TModel & ImageModels<TAdapter>>
+  : never
+  : never
 
 // ===========================
 // Unified Result Type
@@ -244,12 +255,12 @@ export type AIResultFor<
 > = TAdapter extends { kind: 'text' }
   ? TextActivityResult<TSchema, TStream extends boolean ? TStream : true>
   : TAdapter extends { kind: 'embedding' }
-    ? EmbeddingActivityResult
-    : TAdapter extends { kind: 'summarize' }
-      ? SummarizeActivityResult<TStream extends boolean ? TStream : false>
-      : TAdapter extends { kind: 'image' }
-        ? ImageActivityResult
-        : never
+  ? EmbeddingActivityResult
+  : TAdapter extends { kind: 'summarize' }
+  ? SummarizeActivityResult<TStream extends boolean ? TStream : false>
+  : TAdapter extends { kind: 'image' }
+  ? ImageActivityResult
+  : never
 
 // ===========================
 // Unified Options Type (Legacy)
@@ -263,23 +274,23 @@ export type GenerateOptions<
   TStream extends boolean = true,
 > =
   TAdapter extends TextAdapter<ReadonlyArray<string>, object, any, any, any>
-    ? TextActivityOptions<
-        TAdapter,
-        TModel & TextModels<TAdapter>,
-        TSchema,
-        TStream
-      >
-    : TAdapter extends EmbeddingAdapter<ReadonlyArray<string>, object>
-      ? EmbeddingActivityOptions<TAdapter, TModel & EmbeddingModels<TAdapter>>
-      : TAdapter extends SummarizeAdapter<ReadonlyArray<string>, object>
-        ? SummarizeActivityOptions<
-            TAdapter,
-            TModel & SummarizeModels<TAdapter>,
-            TStream
-          >
-        : TAdapter extends ImageAdapter<ReadonlyArray<string>, object, any, any>
-          ? ImageActivityOptions<TAdapter, TModel & ImageModels<TAdapter>>
-          : never
+  ? TextActivityOptions<
+    TAdapter,
+    TModel & TextModels<TAdapter>,
+    TSchema,
+    TStream
+  >
+  : TAdapter extends EmbeddingAdapter<ReadonlyArray<string>, object>
+  ? EmbeddingActivityOptions<TAdapter, TModel & EmbeddingModels<TAdapter>>
+  : TAdapter extends SummarizeAdapter<ReadonlyArray<string>, object>
+  ? SummarizeActivityOptions<
+    TAdapter,
+    TModel & SummarizeModels<TAdapter>,
+    TStream
+  >
+  : TAdapter extends ImageAdapter<ReadonlyArray<string>, object, any, any>
+  ? ImageActivityOptions<TAdapter, TModel & ImageModels<TAdapter>>
+  : never
 
 // ===========================
 // Legacy Type Aliases
@@ -321,24 +332,24 @@ export type GenerateImageOptions<
  */
 export type AIOptionsUnion =
   | TextActivityOptions<
-      TextAdapter<ReadonlyArray<string>, object, any, any, any>,
-      string,
-      z.ZodType | undefined,
-      boolean
-    >
+    TextAdapter<ReadonlyArray<string>, object, any, any, any>,
+    string,
+    z.ZodType | undefined,
+    boolean
+  >
   | EmbeddingActivityOptions<
-      EmbeddingAdapter<ReadonlyArray<string>, object>,
-      string
-    >
+    EmbeddingAdapter<ReadonlyArray<string>, object>,
+    string
+  >
   | SummarizeActivityOptions<
-      SummarizeAdapter<ReadonlyArray<string>, object>,
-      string,
-      boolean
-    >
+    SummarizeAdapter<ReadonlyArray<string>, object>,
+    string,
+    boolean
+  >
   | ImageActivityOptions<
-      ImageAdapter<ReadonlyArray<string>, object, any, any>,
-      string
-    >
+    ImageAdapter<ReadonlyArray<string>, object, any, any>,
+    string
+  >
 
 /**
  * Union type for all possible ai() return types (used in implementation signature)
@@ -350,6 +361,125 @@ export type AIResultUnion =
   | Promise<SummarizationResult>
   | Promise<ImageGenerationResult>
   | Promise<unknown>
+
+// ===========================
+// Explicit AI Option Types
+// ===========================
+// These types provide clear autocomplete and required field enforcement
+// for the ai() function. They are slightly different from ActivityOptions
+// as they include constraints like ConstrainedModelMessage for text.
+
+/**
+ * Explicit embedding options - provides clear autocomplete and required field enforcement
+ */
+export type AIEmbeddingOptions<
+  TAdapter extends EmbeddingAdapter<ReadonlyArray<string>, object>,
+  TModel extends EmbeddingModels<TAdapter>,
+> = {
+  /** The embedding adapter to use */
+  adapter: TAdapter & { kind: 'embedding' }
+  /** The model name (autocompletes based on adapter) */
+  model: TModel
+  /** Text input to embed (single string or array of strings) - REQUIRED */
+  input: string | Array<string>
+  /** Optional: Number of dimensions for the embedding vector */
+  dimensions?: number
+  /** Provider-specific options */
+  providerOptions?: EmbeddingProviderOptions<TAdapter>
+}
+
+/**
+ * Explicit summarize options - provides clear autocomplete and required field enforcement
+ */
+export type AISummarizeOptions<
+  TAdapter extends SummarizeAdapter<ReadonlyArray<string>, object>,
+  TModel extends SummarizeModels<TAdapter>,
+  TStream extends boolean = false,
+> = {
+  /** The summarize adapter to use */
+  adapter: TAdapter & { kind: 'summarize' }
+  /** The model name (autocompletes based on adapter) */
+  model: TModel
+  /** The text to summarize - REQUIRED */
+  text: string
+  /** Maximum length of the summary (in words or characters, provider-dependent) */
+  maxLength?: number
+  /** Style of summary to generate */
+  style?: 'bullet-points' | 'paragraph' | 'concise'
+  /** Topics or aspects to focus on in the summary */
+  focus?: Array<string>
+  /** Whether to stream the response */
+  stream?: TStream
+  /** Provider-specific options */
+  providerOptions?: SummarizeProviderOptions<TAdapter>
+}
+
+/**
+ * Explicit image options - provides clear autocomplete and required field enforcement
+ */
+export type AIImageOptions<
+  TAdapter extends ImageAdapter<ReadonlyArray<string>, object, any, any>,
+  TModel extends ImageModels<TAdapter>,
+> = {
+  /** The image adapter to use */
+  adapter: TAdapter & { kind: 'image' }
+  /** The model name (autocompletes based on adapter) */
+  model: TModel
+  /** The prompt describing the image to generate - REQUIRED */
+  prompt: string
+  /** Number of images to generate (default: 1) */
+  numberOfImages?: number
+  /** Image size in WIDTHxHEIGHT format (e.g., "1024x1024") - autocompletes based on model */
+  size?: ImageSizeForModel<TAdapter, TModel>
+  /** Provider-specific options */
+  providerOptions?: ImageProviderOptionsForModel<TAdapter, TModel>
+}
+
+/**
+ * Explicit text options - provides clear autocomplete and required field enforcement.
+ * Uses NoInfer on providerOptions to prevent inference widening.
+ * Uses ConstrainedModelMessage to constrain content types by model's supported input modalities.
+ */
+export type AITextOptions<
+  TAdapter extends TextAdapter<ReadonlyArray<string>, object, any, any, any>,
+  TModel extends TextModels<TAdapter>,
+  TSchema extends z.ZodType | undefined,
+  TStream extends boolean,
+> = {
+  /** The text adapter to use */
+  adapter: TAdapter & { kind: 'text' }
+  /** The model name (autocompletes based on adapter) */
+  model: TModel
+  /** Conversation messages - content types are constrained by the model's supported input modalities */
+  messages: Array<
+    ConstrainedModelMessage<
+      InputModalitiesForModel<TAdapter, TModel>,
+      MessageMetadataForAdapter<TAdapter>['image'],
+      MessageMetadataForAdapter<TAdapter>['audio'],
+      MessageMetadataForAdapter<TAdapter>['video'],
+      MessageMetadataForAdapter<TAdapter>['document'],
+      MessageMetadataForAdapter<TAdapter>['text']
+    >
+  >
+  /** System prompts to prepend to the conversation */
+  systemPrompts?: TextOptions['systemPrompts']
+  /** Tools for function calling (auto-executed when called) */
+  tools?: TextOptions['tools']
+  /** Additional options like temperature, maxTokens, etc. */
+  options?: TextOptions['options']
+  /** Provider-specific options (narrowed by model) */
+  providerOptions?: NoInfer<TextProviderOptionsForModel<TAdapter, TModel>>
+  /** AbortController for cancellation */
+  abortController?: TextOptions['abortController']
+  /** Strategy for controlling the agent loop */
+  agentLoopStrategy?: TextOptions['agentLoopStrategy']
+  /** Unique conversation identifier for tracking */
+  conversationId?: TextOptions['conversationId']
+  /** Optional Zod schema for structured output */
+  outputSchema?: TSchema
+  /** Whether to stream the text result (default: true) */
+  stream?: TStream
+}
 
 // ===========================
 // Re-exported Type Aliases for ai.ts compatibility

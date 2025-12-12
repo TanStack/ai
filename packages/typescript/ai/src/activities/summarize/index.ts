@@ -25,11 +25,11 @@ export const kind = 'summarize' as const
 // ===========================
 
 /** Extract model types from a SummarizeAdapter */
-type SummarizeModels<TAdapter> =
+export type SummarizeModels<TAdapter> =
   TAdapter extends SummarizeAdapter<infer M, any> ? M[number] : string
 
 /** Extract provider options from a SummarizeAdapter */
-type SummarizeProviderOptions<TAdapter> =
+export type SummarizeProviderOptions<TAdapter> =
   TAdapter extends SummarizeAdapter<any, infer P> ? P : object
 
 // ===========================
@@ -83,8 +83,8 @@ export interface SummarizeActivityOptions<
  */
 export type SummarizeActivityResult<TStream extends boolean> =
   TStream extends true
-    ? AsyncIterable<StreamChunk>
-    : Promise<SummarizationResult>
+  ? AsyncIterable<StreamChunk>
+  : Promise<SummarizationResult>
 
 // ===========================
 // Helper Functions
