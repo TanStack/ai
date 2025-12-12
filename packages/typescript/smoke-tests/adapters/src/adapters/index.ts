@@ -7,6 +7,7 @@ import {
   createGeminiImage,
   createGeminiSummarize,
   createGeminiText,
+  createGeminiTTS,
 } from '@tanstack/ai-gemini'
 import {
   createOllamaEmbed,
@@ -18,6 +19,8 @@ import {
   createOpenaiImage,
   createOpenaiSummarize,
   createOpenaiText,
+  createOpenaiTTS,
+  createOpenaiTranscription,
 } from '@tanstack/ai-openai'
 
 /**
@@ -32,6 +35,10 @@ export interface AdapterSet {
   embeddingAdapter?: any
   /** Image adapter for image generation */
   imageAdapter?: any
+  /** TTS adapter for text-to-speech */
+  ttsAdapter?: any
+  /** Transcription adapter for speech-to-text */
+  transcriptionAdapter?: any
   /** Model to use for chat */
   chatModel: string
   /** Model to use for summarization */
@@ -40,6 +47,10 @@ export interface AdapterSet {
   embeddingModel: string
   /** Model to use for image generation */
   imageModel?: string
+  /** Model to use for TTS */
+  ttsModel?: string
+  /** Model to use for transcription */
+  transcriptionModel?: string
 }
 
 /**
@@ -69,6 +80,9 @@ const OPENAI_SUMMARY_MODEL = process.env.OPENAI_SUMMARY_MODEL || OPENAI_MODEL
 const OPENAI_EMBEDDING_MODEL =
   process.env.OPENAI_EMBEDDING_MODEL || 'text-embedding-3-small'
 const OPENAI_IMAGE_MODEL = process.env.OPENAI_IMAGE_MODEL || 'gpt-image-1'
+const OPENAI_TTS_MODEL = process.env.OPENAI_TTS_MODEL || 'tts-1'
+const OPENAI_TRANSCRIPTION_MODEL =
+  process.env.OPENAI_TRANSCRIPTION_MODEL || 'whisper-1'
 
 const GEMINI_MODEL = process.env.GEMINI_MODEL || 'gemini-2.0-flash-lite'
 const GEMINI_SUMMARY_MODEL = process.env.GEMINI_SUMMARY_MODEL || GEMINI_MODEL
@@ -76,6 +90,8 @@ const GEMINI_EMBEDDING_MODEL =
   process.env.GEMINI_EMBEDDING_MODEL || 'gemini-embedding-001'
 const GEMINI_IMAGE_MODEL =
   process.env.GEMINI_IMAGE_MODEL || 'imagen-3.0-generate-002'
+const GEMINI_TTS_MODEL =
+  process.env.GEMINI_TTS_MODEL || 'gemini-2.5-flash-preview-tts'
 
 const OLLAMA_MODEL = process.env.OLLAMA_MODEL || 'mistral:7b'
 const OLLAMA_SUMMARY_MODEL = process.env.OLLAMA_SUMMARY_MODEL || OLLAMA_MODEL
@@ -113,10 +129,14 @@ function createOpenAIAdapters(): AdapterSet | null {
     summarizeAdapter: createOpenaiSummarize(apiKey),
     embeddingAdapter: createOpenaiEmbed(apiKey),
     imageAdapter: createOpenaiImage(apiKey),
+    ttsAdapter: createOpenaiTTS(apiKey),
+    transcriptionAdapter: createOpenaiTranscription(apiKey),
     chatModel: OPENAI_MODEL,
     summarizeModel: OPENAI_SUMMARY_MODEL,
     embeddingModel: OPENAI_EMBEDDING_MODEL,
     imageModel: OPENAI_IMAGE_MODEL,
+    ttsModel: OPENAI_TTS_MODEL,
+    transcriptionModel: OPENAI_TRANSCRIPTION_MODEL,
   }
 }
 
@@ -132,10 +152,12 @@ function createGeminiAdapters(): AdapterSet | null {
     summarizeAdapter: createGeminiSummarize(apiKey),
     embeddingAdapter: createGeminiEmbed(apiKey),
     imageAdapter: createGeminiImage(apiKey),
+    ttsAdapter: createGeminiTTS(apiKey),
     chatModel: GEMINI_MODEL,
     summarizeModel: GEMINI_SUMMARY_MODEL,
     embeddingModel: GEMINI_EMBEDDING_MODEL,
     imageModel: GEMINI_IMAGE_MODEL,
+    ttsModel: GEMINI_TTS_MODEL,
   }
 }
 

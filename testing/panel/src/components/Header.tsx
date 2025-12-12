@@ -2,14 +2,16 @@ import { Link } from '@tanstack/react-router'
 
 import { useState } from 'react'
 import {
-  Home,
-  Menu,
-  X,
-  FlaskConical,
-  FileText,
-  ImageIcon,
-  Video,
   ChefHat,
+  FileText,
+  FlaskConical,
+  Home,
+  ImageIcon,
+  Menu,
+  Mic,
+  Video,
+  Volume2,
+  X,
 } from 'lucide-react'
 
 export default function Header() {
@@ -126,6 +128,32 @@ export default function Header() {
                 Exp
               </span>
             </div>
+          </Link>
+
+          <Link
+            to="/tts"
+            onClick={() => setIsOpen(false)}
+            className="flex items-center gap-3 p-3 rounded-lg hover:bg-gray-800 transition-colors mb-2"
+            activeProps={{
+              className:
+                'flex items-center gap-3 p-3 rounded-lg bg-emerald-600 hover:bg-emerald-700 transition-colors mb-2',
+            }}
+          >
+            <Volume2 size={20} />
+            <span className="font-medium">Text-to-Speech</span>
+          </Link>
+
+          <Link
+            to="/transcription"
+            onClick={() => setIsOpen(false)}
+            className="flex items-center gap-3 p-3 rounded-lg hover:bg-gray-800 transition-colors mb-2"
+            activeProps={{
+              className:
+                'flex items-center gap-3 p-3 rounded-lg bg-amber-600 hover:bg-amber-700 transition-colors mb-2',
+            }}
+          >
+            <Mic size={20} />
+            <span className="font-medium">Transcription</span>
           </Link>
 
           <Link

@@ -10,12 +10,16 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as VideoRouteImport } from './routes/video'
+import { Route as TtsRouteImport } from './routes/tts'
+import { Route as TranscriptionRouteImport } from './routes/transcription'
 import { Route as SummarizeRouteImport } from './routes/summarize'
 import { Route as StructuredRouteImport } from './routes/structured'
 import { Route as StreamDebuggerRouteImport } from './routes/stream-debugger'
 import { Route as ImageRouteImport } from './routes/image'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as ApiVideoRouteImport } from './routes/api.video'
+import { Route as ApiTtsRouteImport } from './routes/api.tts'
+import { Route as ApiTranscriptionRouteImport } from './routes/api.transcription'
 import { Route as ApiSummarizeRouteImport } from './routes/api.summarize'
 import { Route as ApiStructuredRouteImport } from './routes/api.structured'
 import { Route as ApiLoadTraceRouteImport } from './routes/api.load-trace'
@@ -26,6 +30,16 @@ import { Route as ApiChatRouteImport } from './routes/api.chat'
 const VideoRoute = VideoRouteImport.update({
   id: '/video',
   path: '/video',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const TtsRoute = TtsRouteImport.update({
+  id: '/tts',
+  path: '/tts',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const TranscriptionRoute = TranscriptionRouteImport.update({
+  id: '/transcription',
+  path: '/transcription',
   getParentRoute: () => rootRouteImport,
 } as any)
 const SummarizeRoute = SummarizeRouteImport.update({
@@ -56,6 +70,16 @@ const IndexRoute = IndexRouteImport.update({
 const ApiVideoRoute = ApiVideoRouteImport.update({
   id: '/api/video',
   path: '/api/video',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiTtsRoute = ApiTtsRouteImport.update({
+  id: '/api/tts',
+  path: '/api/tts',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiTranscriptionRoute = ApiTranscriptionRouteImport.update({
+  id: '/api/transcription',
+  path: '/api/transcription',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiSummarizeRoute = ApiSummarizeRouteImport.update({
@@ -95,6 +119,8 @@ export interface FileRoutesByFullPath {
   '/stream-debugger': typeof StreamDebuggerRoute
   '/structured': typeof StructuredRoute
   '/summarize': typeof SummarizeRoute
+  '/transcription': typeof TranscriptionRoute
+  '/tts': typeof TtsRoute
   '/video': typeof VideoRoute
   '/api/chat': typeof ApiChatRoute
   '/api/image': typeof ApiImageRoute
@@ -102,6 +128,8 @@ export interface FileRoutesByFullPath {
   '/api/load-trace': typeof ApiLoadTraceRoute
   '/api/structured': typeof ApiStructuredRoute
   '/api/summarize': typeof ApiSummarizeRoute
+  '/api/transcription': typeof ApiTranscriptionRoute
+  '/api/tts': typeof ApiTtsRoute
   '/api/video': typeof ApiVideoRoute
 }
 export interface FileRoutesByTo {
@@ -110,6 +138,8 @@ export interface FileRoutesByTo {
   '/stream-debugger': typeof StreamDebuggerRoute
   '/structured': typeof StructuredRoute
   '/summarize': typeof SummarizeRoute
+  '/transcription': typeof TranscriptionRoute
+  '/tts': typeof TtsRoute
   '/video': typeof VideoRoute
   '/api/chat': typeof ApiChatRoute
   '/api/image': typeof ApiImageRoute
@@ -117,6 +147,8 @@ export interface FileRoutesByTo {
   '/api/load-trace': typeof ApiLoadTraceRoute
   '/api/structured': typeof ApiStructuredRoute
   '/api/summarize': typeof ApiSummarizeRoute
+  '/api/transcription': typeof ApiTranscriptionRoute
+  '/api/tts': typeof ApiTtsRoute
   '/api/video': typeof ApiVideoRoute
 }
 export interface FileRoutesById {
@@ -126,6 +158,8 @@ export interface FileRoutesById {
   '/stream-debugger': typeof StreamDebuggerRoute
   '/structured': typeof StructuredRoute
   '/summarize': typeof SummarizeRoute
+  '/transcription': typeof TranscriptionRoute
+  '/tts': typeof TtsRoute
   '/video': typeof VideoRoute
   '/api/chat': typeof ApiChatRoute
   '/api/image': typeof ApiImageRoute
@@ -133,6 +167,8 @@ export interface FileRoutesById {
   '/api/load-trace': typeof ApiLoadTraceRoute
   '/api/structured': typeof ApiStructuredRoute
   '/api/summarize': typeof ApiSummarizeRoute
+  '/api/transcription': typeof ApiTranscriptionRoute
+  '/api/tts': typeof ApiTtsRoute
   '/api/video': typeof ApiVideoRoute
 }
 export interface FileRouteTypes {
@@ -143,6 +179,8 @@ export interface FileRouteTypes {
     | '/stream-debugger'
     | '/structured'
     | '/summarize'
+    | '/transcription'
+    | '/tts'
     | '/video'
     | '/api/chat'
     | '/api/image'
@@ -150,6 +188,8 @@ export interface FileRouteTypes {
     | '/api/load-trace'
     | '/api/structured'
     | '/api/summarize'
+    | '/api/transcription'
+    | '/api/tts'
     | '/api/video'
   fileRoutesByTo: FileRoutesByTo
   to:
@@ -158,6 +198,8 @@ export interface FileRouteTypes {
     | '/stream-debugger'
     | '/structured'
     | '/summarize'
+    | '/transcription'
+    | '/tts'
     | '/video'
     | '/api/chat'
     | '/api/image'
@@ -165,6 +207,8 @@ export interface FileRouteTypes {
     | '/api/load-trace'
     | '/api/structured'
     | '/api/summarize'
+    | '/api/transcription'
+    | '/api/tts'
     | '/api/video'
   id:
     | '__root__'
@@ -173,6 +217,8 @@ export interface FileRouteTypes {
     | '/stream-debugger'
     | '/structured'
     | '/summarize'
+    | '/transcription'
+    | '/tts'
     | '/video'
     | '/api/chat'
     | '/api/image'
@@ -180,6 +226,8 @@ export interface FileRouteTypes {
     | '/api/load-trace'
     | '/api/structured'
     | '/api/summarize'
+    | '/api/transcription'
+    | '/api/tts'
     | '/api/video'
   fileRoutesById: FileRoutesById
 }
@@ -189,6 +237,8 @@ export interface RootRouteChildren {
   StreamDebuggerRoute: typeof StreamDebuggerRoute
   StructuredRoute: typeof StructuredRoute
   SummarizeRoute: typeof SummarizeRoute
+  TranscriptionRoute: typeof TranscriptionRoute
+  TtsRoute: typeof TtsRoute
   VideoRoute: typeof VideoRoute
   ApiChatRoute: typeof ApiChatRoute
   ApiImageRoute: typeof ApiImageRoute
@@ -196,6 +246,8 @@ export interface RootRouteChildren {
   ApiLoadTraceRoute: typeof ApiLoadTraceRoute
   ApiStructuredRoute: typeof ApiStructuredRoute
   ApiSummarizeRoute: typeof ApiSummarizeRoute
+  ApiTranscriptionRoute: typeof ApiTranscriptionRoute
+  ApiTtsRoute: typeof ApiTtsRoute
   ApiVideoRoute: typeof ApiVideoRoute
 }
 
@@ -206,6 +258,20 @@ declare module '@tanstack/react-router' {
       path: '/video'
       fullPath: '/video'
       preLoaderRoute: typeof VideoRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/tts': {
+      id: '/tts'
+      path: '/tts'
+      fullPath: '/tts'
+      preLoaderRoute: typeof TtsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/transcription': {
+      id: '/transcription'
+      path: '/transcription'
+      fullPath: '/transcription'
+      preLoaderRoute: typeof TranscriptionRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/summarize': {
@@ -248,6 +314,20 @@ declare module '@tanstack/react-router' {
       path: '/api/video'
       fullPath: '/api/video'
       preLoaderRoute: typeof ApiVideoRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/tts': {
+      id: '/api/tts'
+      path: '/api/tts'
+      fullPath: '/api/tts'
+      preLoaderRoute: typeof ApiTtsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/transcription': {
+      id: '/api/transcription'
+      path: '/api/transcription'
+      fullPath: '/api/transcription'
+      preLoaderRoute: typeof ApiTranscriptionRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/summarize': {
@@ -301,6 +381,8 @@ const rootRouteChildren: RootRouteChildren = {
   StreamDebuggerRoute: StreamDebuggerRoute,
   StructuredRoute: StructuredRoute,
   SummarizeRoute: SummarizeRoute,
+  TranscriptionRoute: TranscriptionRoute,
+  TtsRoute: TtsRoute,
   VideoRoute: VideoRoute,
   ApiChatRoute: ApiChatRoute,
   ApiImageRoute: ApiImageRoute,
@@ -308,6 +390,8 @@ const rootRouteChildren: RootRouteChildren = {
   ApiLoadTraceRoute: ApiLoadTraceRoute,
   ApiStructuredRoute: ApiStructuredRoute,
   ApiSummarizeRoute: ApiSummarizeRoute,
+  ApiTranscriptionRoute: ApiTranscriptionRoute,
+  ApiTtsRoute: ApiTtsRoute,
   ApiVideoRoute: ApiVideoRoute,
 }
 export const routeTree = rootRouteImport

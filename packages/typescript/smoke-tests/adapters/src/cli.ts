@@ -14,7 +14,6 @@ config({ path: '.env' })
 
 interface AdapterResult {
   adapter: string
-  model: string
   tests: Record<string, TestOutcome>
 }
 
@@ -32,7 +31,7 @@ function displayWidth(str: string): number {
   // Emojis and some special characters take 2 columns
   // This regex matches most common emojis
   const emojiRegex =
-    /[\u{1F300}-\u{1F9FF}]|[\u{2600}-\u{26FF}]|[\u{2700}-\u{27BF}]|✅|❌|⋯|⚠️/gu
+    /[\u{1F300}-\u{1F9FF}]|[\u{2600}-\u{26FF}]|[\u{2700}-\u{27BF}]|✅|❌|⚠️/gu
   const emojiCount = (str.match(emojiRegex) || []).length
   // Each emoji takes ~2 display columns but counts as 1-2 in length
   // We need to add extra padding for emojis
@@ -105,6 +104,10 @@ function hasCapability(
       return !!adapterSet.embeddingAdapter
     case 'image':
       return !!adapterSet.imageAdapter
+    case 'tts':
+      return !!adapterSet.ttsAdapter
+    case 'transcription':
+      return !!adapterSet.transcriptionAdapter
     default:
       return false
   }
@@ -118,11 +121,11 @@ function formatGrid(results: AdapterResult[], testsRun: TestDefinition[]) {
 
   // Build rows with result indicators
   const rows = results.map((result) => [
-    `${result.adapter} (${result.model})`,
+    result.adapter,
     ...testsRun.map((test) => {
       const outcome = result.tests[test.id]
       if (!outcome) return '—'
-      if (outcome.ignored) return '⋯'
+      if (outcome.ignored) return '—'
       return outcome.passed ? '✅' : '❌'
     }),
   ])
@@ -189,11 +192,10 @@ async function runSequential(
       continue
     }
 
-    console.log(`\n${adapterDef.name} (chat: ${adapterSet.chatModel})`)
+    console.log(`\n${adapterDef.name}`)
 
     const adapterResult: AdapterResult = {
       adapter: adapterDef.name,
-      model: adapterSet.chatModel,
       tests: {},
     }
 
@@ -203,10 +205,14 @@ async function runSequential(
       summarizeAdapter: adapterSet.summarizeAdapter,
       embeddingAdapter: adapterSet.embeddingAdapter,
       imageAdapter: adapterSet.imageAdapter,
+      ttsAdapter: adapterSet.ttsAdapter,
+      transcriptionAdapter: adapterSet.transcriptionAdapter,
       model: adapterSet.chatModel,
       summarizeModel: adapterSet.summarizeModel,
       embeddingModel: adapterSet.embeddingModel,
       imageModel: adapterSet.imageModel,
+      ttsModel: adapterSet.ttsModel,
+      transcriptionModel: adapterSet.transcriptionModel,
     }
 
     for (const test of testsToRun) {
@@ -216,7 +222,7 @@ async function runSequential(
 
       if (missingCapabilities.length > 0) {
         console.log(
-          `[${adapterDef.name}] ⋯ ${test.id}: Ignored (missing: ${missingCapabilities.join(', ')})`,
+          `[${adapterDef.name}] — ${test.id}: Ignored (missing: ${missingCapabilities.join(', ')})`,
         )
         adapterResult.tests[test.id] = { passed: true, ignored: true }
         continue
@@ -255,7 +261,6 @@ async function runParallel(
     // Initialize result for this adapter
     const adapterResult: AdapterResult = {
       adapter: adapterDef.name,
-      model: adapterSet.chatModel,
       tests: {},
     }
     resultsMap.set(adapterDef.id, adapterResult)
@@ -266,10 +271,14 @@ async function runParallel(
       summarizeAdapter: adapterSet.summarizeAdapter,
       embeddingAdapter: adapterSet.embeddingAdapter,
       imageAdapter: adapterSet.imageAdapter,
+      ttsAdapter: adapterSet.ttsAdapter,
+      transcriptionAdapter: adapterSet.transcriptionAdapter,
       model: adapterSet.chatModel,
       summarizeModel: adapterSet.summarizeModel,
       embeddingModel: adapterSet.embeddingModel,
       imageModel: adapterSet.imageModel,
+      ttsModel: adapterSet.ttsModel,
+      transcriptionModel: adapterSet.transcriptionModel,
     }
 
     for (const test of testsToRun) {

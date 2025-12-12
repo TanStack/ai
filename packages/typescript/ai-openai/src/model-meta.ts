@@ -1704,6 +1704,25 @@ export const OPENAI_EMBEDDING_MODELS = [
  * @experimental Video generation is an experimental feature and may change.
  */
 export const OPENAI_VIDEO_MODELS = [SORA2.name, SORA2_PRO.name] as const
+
+/**
+ * Text-to-speech models (based on endpoints: "speech_generation")
+ */
+export const OPENAI_TTS_MODELS = [
+  'tts-1',
+  'tts-1-hd',
+  'gpt-4o-audio-preview',
+] as const
+
+/**
+ * Transcription models (based on endpoints: "transcription")
+ */
+export const OPENAI_TRANSCRIPTION_MODELS = [
+  'whisper-1',
+  'gpt-4o-transcribe',
+  'gpt-4o-mini-transcribe',
+  'gpt-4o-transcribe-diarize',
+] as const
 //  const OPENAI_MODERATION_MODELS = [OMNI_MODERATION.name] as const
 
 // export type OpenAIChatModel = (typeof OPENAI_CHAT_MODELS)[number]

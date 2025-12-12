@@ -24,6 +24,11 @@ import {
 } from './summarize/index'
 import { imageActivity, kind as imageKindValue } from './image/index'
 import { videoActivity, kind as videoKindValue } from './video/index'
+import { ttsActivity, kind as ttsKindValue } from './tts/index'
+import {
+  transcriptionActivity,
+  kind as transcriptionKindValue,
+} from './transcription/index'
 
 // Import model types for use in local type definitions
 import type {
@@ -55,12 +60,24 @@ import type {
 import type {
   VideoActivityOptions,
   VideoActivityResult,
+  VideoCreateOptions,
   VideoModels,
   VideoProviderOptions,
-  VideoCreateOptions,
   VideoStatusOptions,
   VideoUrlOptions,
 } from './video/index'
+import type {
+  TTSActivityOptions,
+  TTSActivityResult,
+  TTSModels,
+  TTSProviderOptions,
+} from './tts/index'
+import type {
+  TranscriptionActivityOptions,
+  TranscriptionActivityResult,
+  TranscriptionModels,
+  TranscriptionProviderOptions,
+} from './transcription/index'
 
 // Import adapter types for type definitions
 import type { TextAdapter } from './text/adapter'
@@ -68,17 +85,22 @@ import type { EmbeddingAdapter } from './embedding/adapter'
 import type { SummarizeAdapter } from './summarize/adapter'
 import type { ImageAdapter } from './image/adapter'
 import type { VideoAdapter } from './video/adapter'
+import type { TTSAdapter } from './tts/adapter'
+import type { TranscriptionAdapter } from './transcription/adapter'
 // eslint-disable-next-line import/no-duplicates
 import type { TextActivityOptions, TextActivityResult } from './text/index'
 
 import type { z } from 'zod'
+
 import type {
   ConstrainedModelMessage,
   EmbeddingResult,
   ImageGenerationResult,
   StreamChunk,
   SummarizationResult,
+  TTSResult,
   TextOptions,
+  TranscriptionResult,
   VideoJobResult,
   VideoStatusResult,
   VideoUrlResult,
@@ -190,6 +212,44 @@ export {
 } from './video/adapter'
 
 // ===========================
+// TTS Activity
+// ===========================
+
+export {
+  kind as ttsKind,
+  ttsActivity,
+  type TTSActivityOptions,
+  type TTSActivityResult,
+  type TTSModels,
+  type TTSProviderOptions,
+} from './tts/index'
+
+export {
+  BaseTTSAdapter,
+  type TTSAdapter,
+  type TTSAdapterConfig,
+} from './tts/adapter'
+
+// ===========================
+// Transcription Activity
+// ===========================
+
+export {
+  kind as transcriptionKind,
+  transcriptionActivity,
+  type TranscriptionActivityOptions,
+  type TranscriptionActivityResult,
+  type TranscriptionModels,
+  type TranscriptionProviderOptions,
+} from './transcription/index'
+
+export {
+  BaseTranscriptionAdapter,
+  type TranscriptionAdapter,
+  type TranscriptionAdapterConfig,
+} from './transcription/adapter'
+
+// ===========================
 // Activity Handler Type
 // ===========================
 
@@ -210,6 +270,8 @@ export const activityMap = new Map<string, ActivityHandler>([
   [summarizeKindValue, summarizeActivity],
   [imageKindValue, imageActivity],
   [videoKindValue, videoActivity],
+  [ttsKindValue, ttsActivity],
+  [transcriptionKindValue, transcriptionActivity],
 ])
 
 // ===========================
@@ -223,6 +285,8 @@ export type AIAdapter =
   | SummarizeAdapter<ReadonlyArray<string>, object>
   | ImageAdapter<ReadonlyArray<string>, object, any, any>
   | VideoAdapter<ReadonlyArray<string>, object>
+  | TTSAdapter<ReadonlyArray<string>, object>
+  | TranscriptionAdapter<ReadonlyArray<string>, object>
 
 /** Alias for backwards compatibility */
 export type GenerateAdapter = AIAdapter
@@ -234,9 +298,18 @@ export type AnyAdapter =
   | SummarizeAdapter<any, any>
   | ImageAdapter<any, any, any>
   | VideoAdapter<any, any>
+  | TTSAdapter<any, any>
+  | TranscriptionAdapter<any, any>
 
 /** Union type of all adapter kinds */
-export type AdapterKind = 'text' | 'embedding' | 'summarize' | 'image' | 'video'
+export type AdapterKind =
+  | 'text'
+  | 'embedding'
+  | 'summarize'
+  | 'image'
+  | 'video'
+  | 'tts'
+  | 'transcription'
 
 // ===========================
 // Unified Options Type
@@ -251,6 +324,10 @@ export type AnyAIAdapter =
   | (SummarizeAdapter<ReadonlyArray<string>, object> & { kind: 'summarize' })
   | (ImageAdapter<ReadonlyArray<string>, object, any, any> & { kind: 'image' })
   | (VideoAdapter<ReadonlyArray<string>, object> & { kind: 'video' })
+  | (TTSAdapter<ReadonlyArray<string>, object> & { kind: 'tts' })
+  | (TranscriptionAdapter<ReadonlyArray<string>, object> & {
+      kind: 'transcription'
+    })
 
 /** Infer the correct options type based on adapter kind */
 export type AIOptionsFor<
@@ -292,7 +369,21 @@ export type AIOptionsFor<
                 TRequest
               >
             : never
-          : never
+          : TAdapter extends { kind: 'tts' }
+            ? TAdapter extends TTSAdapter<ReadonlyArray<string>, object>
+              ? TTSActivityOptions<TAdapter, TModel & TTSModels<TAdapter>>
+              : never
+            : TAdapter extends { kind: 'transcription' }
+              ? TAdapter extends TranscriptionAdapter<
+                  ReadonlyArray<string>,
+                  object
+                >
+                ? TranscriptionActivityOptions<
+                    TAdapter,
+                    TModel & TranscriptionModels<TAdapter>
+                  >
+                : never
+              : never
 
 // ===========================
 // Unified Result Type
@@ -314,7 +405,11 @@ export type AIResultFor<
         ? ImageActivityResult
         : TAdapter extends { kind: 'video' }
           ? VideoActivityResult<TRequest>
-          : never
+          : TAdapter extends { kind: 'tts' }
+            ? TTSActivityResult
+            : TAdapter extends { kind: 'transcription' }
+              ? TranscriptionActivityResult
+              : never
 
 // ===========================
 // Unified Options Type (Legacy)
@@ -407,6 +502,11 @@ export type AIOptionsUnion =
   | VideoCreateOptions<VideoAdapter<ReadonlyArray<string>, object>, string>
   | VideoStatusOptions<VideoAdapter<ReadonlyArray<string>, object>, string>
   | VideoUrlOptions<VideoAdapter<ReadonlyArray<string>, object>, string>
+  | TTSActivityOptions<TTSAdapter<ReadonlyArray<string>, object>, string>
+  | TranscriptionActivityOptions<
+      TranscriptionAdapter<ReadonlyArray<string>, object>,
+      string
+    >
 
 /**
  * Union type for all possible ai() return types (used in implementation signature)
@@ -420,6 +520,8 @@ export type AIResultUnion =
   | Promise<VideoJobResult>
   | Promise<VideoStatusResult>
   | Promise<VideoUrlResult>
+  | Promise<TTSResult>
+  | Promise<TranscriptionResult>
   | Promise<unknown>
 
 // ===========================
@@ -570,6 +672,52 @@ export type AIVideoOptions<
   | AIVideoCreateOptions<TAdapter, TModel>
   | AIVideoStatusOptions<TAdapter, TModel>
   | AIVideoUrlOptions<TAdapter, TModel>
+
+/**
+ * Explicit TTS options - provides clear autocomplete and required field enforcement.
+ */
+export type AITTSOptions<
+  TAdapter extends TTSAdapter<ReadonlyArray<string>, object>,
+  TModel extends TTSModels<TAdapter>,
+> = {
+  /** The TTS adapter to use */
+  adapter: TAdapter & { kind: 'tts' }
+  /** The model name (autocompletes based on adapter) */
+  model: TModel
+  /** The text to convert to speech - REQUIRED */
+  text: string
+  /** The voice to use for generation */
+  voice?: string
+  /** The output audio format */
+  format?: 'mp3' | 'opus' | 'aac' | 'flac' | 'wav' | 'pcm'
+  /** The speed of the generated audio (0.25 to 4.0) */
+  speed?: number
+  /** Provider-specific options */
+  providerOptions?: TTSProviderOptions<TAdapter>
+}
+
+/**
+ * Explicit transcription options - provides clear autocomplete and required field enforcement.
+ */
+export type AITranscriptionOptions<
+  TAdapter extends TranscriptionAdapter<ReadonlyArray<string>, object>,
+  TModel extends TranscriptionModels<TAdapter>,
+> = {
+  /** The transcription adapter to use */
+  adapter: TAdapter & { kind: 'transcription' }
+  /** The model name (autocompletes based on adapter) */
+  model: TModel
+  /** The audio data to transcribe - REQUIRED */
+  audio: string | File | Blob | ArrayBuffer
+  /** The language of the audio in ISO-639-1 format (e.g., 'en') */
+  language?: string
+  /** An optional prompt to guide the transcription */
+  prompt?: string
+  /** The format of the transcription output */
+  responseFormat?: 'json' | 'text' | 'srt' | 'verbose_json' | 'vtt'
+  /** Provider-specific options */
+  providerOptions?: TranscriptionProviderOptions<TAdapter>
+}
 
 /**
  * Explicit text options - provides clear autocomplete and required field enforcement.

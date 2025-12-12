@@ -17,7 +17,7 @@ export async function runEMB(
   // Skip if no embedding adapter is available
   if (!adapterContext.embeddingAdapter) {
     console.log(
-      `[${adapterName}] ⋯ ${testName}: Ignored (no embedding adapter)`,
+      `[${adapterName}] — ${testName}: Ignored (no embedding adapter)`,
     )
     return { passed: true, ignored: true }
   }
