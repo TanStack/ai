@@ -537,6 +537,12 @@ importers:
       '@tanstack/ai-vue-ui':
         specifier: workspace:*
         version: link:../../packages/typescript/ai-vue-ui
+      '@tanstack/vue-ai-devtools':
+        specifier: workspace:*
+        version: link:../../packages/typescript/vue-ai-devtools
+      '@tanstack/vue-devtools':
+        specifier: ^0.1.2
+        version: 0.1.2(csstype@3.2.3)(solid-js@1.9.10)
       marked:
         specifier: ^15.0.6
         version: 15.0.12
