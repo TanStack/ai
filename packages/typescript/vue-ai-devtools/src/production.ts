@@ -1,8 +1,8 @@
+import { AiDevtoolsPanelInProd } from './AiDevtoolsPanelInProd'
+import type { AiDevtoolsVueInit } from './AiDevtoolsPanel'
+
 export { AiDevtoolsPanelInProd as AiDevtoolsPanel } from './AiDevtoolsPanelInProd'
 export type { AiDevtoolsVueInit } from './AiDevtoolsPanel'
-
-import type { AiDevtoolsVueInit } from './AiDevtoolsPanel'
-import { AiDevtoolsPanelInProd } from './AiDevtoolsPanelInProd'
 
 /**
  * Production entry: always-on plugin/panel (mirrors `@tanstack/*-ai-devtools/production`).
