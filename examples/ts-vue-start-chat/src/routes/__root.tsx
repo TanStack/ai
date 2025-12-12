@@ -7,8 +7,8 @@ import {
   Scripts,
   createRootRoute,
 } from '@tanstack/vue-router'
-import { TanStackRouterDevtoolsInProd, TanStackRouterDevtoolsPanelInProd } from '@tanstack/vue-router-devtools'
-import { AiDevtoolsPanel } from '@tanstack/vue-ai-devtools'
+import { TanStackRouterDevtoolsPanel } from '@tanstack/vue-router-devtools'
+import { aiDevtoolsPlugin } from '@tanstack/vue-ai-devtools'
 
 import { TanStackDevtools } from '@tanstack/vue-devtools'
 
@@ -55,12 +55,10 @@ function RootComponent() {
           plugins={[
             {
               name: 'Tanstack Router',
-              component: <TanStackRouterDevtoolsPanelInProd />,
+              id: 'tanstack-router',
+              component: TanStackRouterDevtoolsPanel,
             },
-            {
-              name: 'Tanstack AI',
-              component: <AiDevtoolsPanel />,
-            },
+            aiDevtoolsPlugin(),
           ]}
           eventBusConfig={{
             connectToServerBus: true,

@@ -15,3 +15,13 @@ const NullComponent = /* #__PURE__ */ defineComponent({
 export const AiDevtoolsPanel = NullComponent
 export const AiDevtoolsPanelInProd = NullComponent
 
+export function aiDevtoolsPlugin(_props: AiDevtoolsVueInit = {}) {
+  return {
+    id: 'tanstack-ai',
+    name: 'TanStack AI',
+    component: NullComponent,
+    props: _props,
+  }
+}
+
+export const aiDevtoolsNoOpPlugin = aiDevtoolsPlugin

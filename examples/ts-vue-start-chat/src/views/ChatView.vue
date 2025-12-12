@@ -74,6 +74,7 @@ const handleModelChange = (e: Event) => {
 // Chat setup
 const { messages, sendMessage, isLoading, addToolApprovalResponse, stop } =
   useChat({
+    id: 'client-chat',
     connection: fetchServerSentEvents('/api/chat'),
     tools,
     get body() {

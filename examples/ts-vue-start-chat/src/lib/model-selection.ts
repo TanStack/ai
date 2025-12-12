@@ -11,6 +11,7 @@ export const MODEL_OPTIONS: Array<ModelOption> = [
   { provider: 'openai', model: 'gpt-4o', label: 'OpenAI - GPT-4o' },
   { provider: 'openai', model: 'gpt-4o-mini', label: 'OpenAI - GPT-4o Mini' },
   { provider: 'openai', model: 'gpt-5', label: 'OpenAI - GPT-5' },
+  { provider: 'openai', model: 'gpt-5.2-2025-12-11', label: 'OpenAI - GPT-5.2' },
 
   // Anthropic
   {

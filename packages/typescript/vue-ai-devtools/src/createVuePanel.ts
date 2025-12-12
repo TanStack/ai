@@ -35,6 +35,8 @@ export function createVuePanel<
       // Keep devtools instance non-reactive to avoid proxying,
       // since private fields (e.g. #isMounted) break on proxies.
       let devtools: TCoreDevtoolsClass | null = null
+      let didMount = false
+      let isUnmounted = false
 
       onMounted(async () => {
         const instance = new CoreClass(config.devtoolsProps as TComponentProps)
@@ -42,11 +44,28 @@ export function createVuePanel<
 
         if (devToolRef.value) {
           await instance.mount(devToolRef.value, config.theme ?? 'dark')
+          if (isUnmounted) {
+            // If we unmounted before mount finished, clean up.
+            try {
+              instance.unmount()
+            } catch {
+              // ignore
+            }
+          } else {
+            didMount = true
+          }
         }
       })
 
       onUnmounted(() => {
-        devtools?.unmount()
+        isUnmounted = true
+        if (didMount) {
+          try {
+            devtools?.unmount()
+          } catch {
+            // ignore
+          }
+        }
       })
 
       return () =>

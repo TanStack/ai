@@ -1,5 +1,6 @@
 import { defineComponent } from 'vue'
 import { AiDevtoolsPanel as DevToolsPanelComponent } from './AiDevtoolsPanel'
+import * as plugin from './plugin'
 
 export type { AiDevtoolsVueInit } from './AiDevtoolsPanel'
 
@@ -15,3 +16,9 @@ export const AiDevtoolsPanel =
 
 export const AiDevtoolsPanelInProd = DevToolsPanelComponent
 
+export const aiDevtoolsPlugin =
+  process.env.NODE_ENV !== 'development'
+    ? plugin.aiDevtoolsNoOpPlugin
+    : plugin.aiDevtoolsPlugin
+
+export type { AiDevtoolsVueInit as AiDevtoolsVuePluginInit } from './AiDevtoolsPanel'
