@@ -28,6 +28,7 @@
     "zod": "^4.1.13"
   },
   "devDependencies": {
+    "@tanstack/devtools-vite": "^0.3.11",
     "@tailwindcss/vite": "^4.1.17",
     "@types/node": "^24.10.1",
     "@vitejs/plugin-vue": "^5.2.3",
