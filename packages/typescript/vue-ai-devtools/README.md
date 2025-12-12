@@ -1,14 +1,40 @@
 # @tanstack/vue-ai-devtools
 
-Vue Devtools panel for TanStack AI.
+Vue Devtools for TanStack AI.
 
 ## Usage
 
 ```ts
-import { AiDevtoolsPanel } from '@tanstack/vue-ai-devtools'
+import { aiDevtoolsPlugin } from '@tanstack/vue-ai-devtools'
+import { TanStackDevtools } from '@tanstack/vue-devtools'
+
+const devtoolsPlugins = [aiDevtoolsPlugin()]
+
+// in .vue file
+   <TanStackDevtools
+      :config="devtoolsConfig"
+      :plugins="devtoolsPlugins"
+      :eventBusConfig="devtoolsEventBusConfig"
+    />
+
+// in jsx
+	<TanStackDevtools
+		config={{
+			position: 'bottom-right',
+		}}
+		plugins={[
+			{
+				name: 'Tanstack Router',
+				id: 'tanstack-router',
+				component: TanStackRouterDevtoolsPanel,
+			},
+			aiDevtoolsPlugin(),
+		]}
+		eventBusConfig={{
+			connectToServerBus: true,
+		}}
+	/>
+
 ```
 
-Render `<AiDevtoolsPanel />` somewhere in your app (typically near the root). In
-production it becomes a no-op; use `AiDevtoolsPanelInProd` if you want to force
-it on.
-
+## 
