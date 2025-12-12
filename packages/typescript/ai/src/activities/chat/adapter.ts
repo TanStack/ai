@@ -1,3 +1,4 @@
+import type { z } from 'zod'
 import type {
   ChatOptions,
   DefaultMessageMetadataByModality,
@@ -22,8 +23,8 @@ export interface ChatAdapterConfig {
 export interface StructuredOutputOptions<TProviderOptions extends object> {
   /** Chat options for the request */
   chatOptions: ChatOptions<string, TProviderOptions>
-  /** JSON Schema for the structured output (already converted from Zod) */
-  jsonSchema: Record<string, unknown>
+  /** Zod schema for the structured output - adapters convert this to their provider's format */
+  outputSchema: z.ZodType
 }
 
 /**

@@ -6,6 +6,7 @@ import {
   createGeminiClient,
   generateId,
   getGeminiApiKeyFromEnv,
+  convertZodToGeminiSchema,
 } from '../utils'
 import type {
   StructuredOutputOptions,
@@ -105,11 +106,16 @@ export class GeminiTextAdapter extends BaseChatAdapter<
   /**
    * Generate structured output using Gemini's native JSON response format.
    * Uses responseMimeType: 'application/json' and responseSchema for structured output.
+   * Converts the Zod schema to JSON Schema format compatible with Gemini's API.
    */
   async structuredOutput(
     options: StructuredOutputOptions<GeminiTextProviderOptions>,
   ): Promise<StructuredOutputResult<unknown>> {
-    const { chatOptions, jsonSchema } = options
+    const { chatOptions, outputSchema } = options
+
+    // Convert Zod schema to Gemini-compatible JSON Schema
+    const jsonSchema = convertZodToGeminiSchema(outputSchema)
+
     const mappedOptions = this.mapCommonOptionsToGemini(chatOptions)
 
     try {

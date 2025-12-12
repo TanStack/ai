@@ -1,7 +1,11 @@
-import { convertZodToJsonSchema } from '@tanstack/ai'
 import { BaseChatAdapter } from '@tanstack/ai/adapters'
 
-import { createOllamaClient, generateId, getOllamaHostFromEnv } from '../utils'
+import {
+  createOllamaClient,
+  generateId,
+  getOllamaHostFromEnv,
+  convertZodToOllamaSchema,
+} from '../utils'
 
 import type {
   StructuredOutputOptions,
@@ -138,11 +142,16 @@ export class OllamaTextAdapter extends BaseChatAdapter<
   /**
    * Generate structured output using Ollama's JSON format option.
    * Uses format: 'json' with the schema to ensure structured output.
+   * Converts the Zod schema to JSON Schema format compatible with Ollama's API.
    */
   async structuredOutput(
     options: StructuredOutputOptions<OllamaTextProviderOptions>,
   ): Promise<StructuredOutputResult<unknown>> {
-    const { chatOptions, jsonSchema } = options
+    const { chatOptions, outputSchema } = options
+
+    // Convert Zod schema to Ollama-compatible JSON Schema
+    const jsonSchema = convertZodToOllamaSchema(outputSchema)
+
     const mappedOptions = this.mapCommonOptionsToOllama(chatOptions)
 
     try {
@@ -283,7 +292,9 @@ export class OllamaTextAdapter extends BaseChatAdapter<
       function: {
         name: tool.name,
         description: tool.description,
-        parameters: convertZodToJsonSchema(tool.inputSchema),
+        parameters: tool.inputSchema
+          ? convertZodToOllamaSchema(tool.inputSchema)
+          : { type: 'object', properties: {}, required: [] },
       },
     }))
   }

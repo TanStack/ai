@@ -204,10 +204,15 @@ export type AIOptionsFor<
   TAdapter extends AnyAIAdapter,
   TModel extends string,
   TSchema extends z.ZodType | undefined = undefined,
-  TStream extends boolean = false,
+  TStream extends boolean = true,
 > = TAdapter extends { kind: 'chat' }
   ? TAdapter extends ChatAdapter<ReadonlyArray<string>, object, any, any, any>
-    ? ChatActivityOptions<TAdapter, TModel & ChatModels<TAdapter>, TSchema>
+    ? ChatActivityOptions<
+        TAdapter,
+        TModel & ChatModels<TAdapter>,
+        TSchema,
+        TStream
+      >
     : never
   : TAdapter extends { kind: 'embedding' }
     ? TAdapter extends EmbeddingAdapter<ReadonlyArray<string>, object>
@@ -235,9 +240,9 @@ export type AIOptionsFor<
 export type AIResultFor<
   TAdapter extends AnyAIAdapter,
   TSchema extends z.ZodType | undefined = undefined,
-  TStream extends boolean = false,
+  TStream extends boolean = true,
 > = TAdapter extends { kind: 'chat' }
-  ? ChatActivityResult<TSchema>
+  ? ChatActivityResult<TSchema, TStream>
   : TAdapter extends { kind: 'embedding' }
     ? EmbeddingActivityResult
     : TAdapter extends { kind: 'summarize' }
@@ -255,10 +260,15 @@ export type GenerateOptions<
   TAdapter extends AIAdapter,
   TModel extends string,
   TSchema extends z.ZodType | undefined = undefined,
-  TStream extends boolean = false,
+  TStream extends boolean = true,
 > =
   TAdapter extends ChatAdapter<ReadonlyArray<string>, object, any, any, any>
-    ? ChatActivityOptions<TAdapter, TModel & ChatModels<TAdapter>, TSchema>
+    ? ChatActivityOptions<
+        TAdapter,
+        TModel & ChatModels<TAdapter>,
+        TSchema,
+        TStream
+      >
     : TAdapter extends EmbeddingAdapter<ReadonlyArray<string>, object>
       ? EmbeddingActivityOptions<TAdapter, TModel & EmbeddingModels<TAdapter>>
       : TAdapter extends SummarizeAdapter<ReadonlyArray<string>, object>
@@ -280,7 +290,8 @@ export type GenerateChatOptions<
   TAdapter extends ChatAdapter<ReadonlyArray<string>, object, any, any, any>,
   TModel extends ChatModels<TAdapter>,
   TSchema extends z.ZodType | undefined = undefined,
-> = ChatActivityOptions<TAdapter, TModel, TSchema>
+  TStream extends boolean = true,
+> = ChatActivityOptions<TAdapter, TModel, TSchema, TStream>
 
 /** @deprecated Use EmbeddingActivityOptions */
 export type GenerateEmbeddingOptions<
@@ -312,7 +323,8 @@ export type AIOptionsUnion =
   | ChatActivityOptions<
       ChatAdapter<ReadonlyArray<string>, object, any, any, any>,
       string,
-      z.ZodType | undefined
+      z.ZodType | undefined,
+      boolean
     >
   | EmbeddingActivityOptions<
       EmbeddingAdapter<ReadonlyArray<string>, object>,
@@ -333,6 +345,7 @@ export type AIOptionsUnion =
  */
 export type AIResultUnion =
   | AsyncIterable<StreamChunk>
+  | Promise<string>
   | Promise<EmbeddingResult>
   | Promise<SummarizationResult>
   | Promise<ImageGenerationResult>
@@ -347,7 +360,8 @@ export type ChatGenerateOptions<
   TAdapter extends ChatAdapter<ReadonlyArray<string>, object, any, any, any>,
   TModel extends ChatModels<TAdapter>,
   TSchema extends z.ZodType | undefined = undefined,
-> = ChatActivityOptions<TAdapter, TModel, TSchema>
+  TStream extends boolean = true,
+> = ChatActivityOptions<TAdapter, TModel, TSchema, TStream>
 
 /** @deprecated Use EmbeddingActivityOptions */
 export type EmbeddingGenerateOptions<

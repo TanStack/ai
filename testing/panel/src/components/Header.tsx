@@ -1,7 +1,15 @@
 import { Link } from '@tanstack/react-router'
 
 import { useState } from 'react'
-import { Home, Menu, X, FlaskConical } from 'lucide-react'
+import {
+  Home,
+  Menu,
+  X,
+  FlaskConical,
+  FileText,
+  ImageIcon,
+  ChefHat,
+} from 'lucide-react'
 
 export default function Header() {
   const [isOpen, setIsOpen] = useState(false)
@@ -68,6 +76,50 @@ export default function Header() {
           >
             <FlaskConical size={20} />
             <span className="font-medium">Stream Debugger</span>
+          </Link>
+
+          <div className="my-4 border-t border-gray-700" />
+          <p className="px-3 py-2 text-xs font-semibold text-gray-500 uppercase tracking-wider">
+            Activities
+          </p>
+
+          <Link
+            to="/summarize"
+            onClick={() => setIsOpen(false)}
+            className="flex items-center gap-3 p-3 rounded-lg hover:bg-gray-800 transition-colors mb-2"
+            activeProps={{
+              className:
+                'flex items-center gap-3 p-3 rounded-lg bg-cyan-600 hover:bg-cyan-700 transition-colors mb-2',
+            }}
+          >
+            <FileText size={20} />
+            <span className="font-medium">Summarize</span>
+          </Link>
+
+          <Link
+            to="/image"
+            onClick={() => setIsOpen(false)}
+            className="flex items-center gap-3 p-3 rounded-lg hover:bg-gray-800 transition-colors mb-2"
+            activeProps={{
+              className:
+                'flex items-center gap-3 p-3 rounded-lg bg-cyan-600 hover:bg-cyan-700 transition-colors mb-2',
+            }}
+          >
+            <ImageIcon size={20} />
+            <span className="font-medium">Image Generation</span>
+          </Link>
+
+          <Link
+            to="/structured"
+            onClick={() => setIsOpen(false)}
+            className="flex items-center gap-3 p-3 rounded-lg hover:bg-gray-800 transition-colors mb-2"
+            activeProps={{
+              className:
+                'flex items-center gap-3 p-3 rounded-lg bg-cyan-600 hover:bg-cyan-700 transition-colors mb-2',
+            }}
+          >
+            <ChefHat size={20} />
+            <span className="font-medium">Structured Output</span>
           </Link>
         </nav>
       </aside>

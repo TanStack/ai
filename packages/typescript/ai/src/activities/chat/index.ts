@@ -6,8 +6,10 @@
  */
 
 import { aiEventClient } from '../../event-client.js'
+import { streamToText } from '../../stream-to-response.js'
 import { ToolCallManager, executeToolCalls } from './tools/tool-calls'
-import { convertZodToJsonSchema } from './tools/zod-converter'
+// Schema conversion is now done at the adapter level
+// Each adapter imports and uses convertZodToJsonSchema with provider-specific options
 import { maxIterations as maxIterationsStrategy } from './agent-loop-strategies'
 import type {
   ApprovalRequest,
@@ -135,11 +137,13 @@ type ChatProviderOptionsForModel<TAdapter, TModel extends string> =
  * @template TAdapter - The chat adapter type
  * @template TModel - The model name type (inferred from adapter)
  * @template TSchema - Optional Zod schema for structured output
+ * @template TStream - Whether to stream the output (default: true)
  */
 export interface ChatActivityOptions<
   TAdapter extends ChatAdapter<ReadonlyArray<string>, object, any, any, any>,
   TModel extends ChatModels<TAdapter>,
   TSchema extends z.ZodType | undefined = undefined,
+  TStream extends boolean = true,
 > {
   /** The chat adapter to use */
   adapter: TAdapter & { kind: typeof kind }
@@ -179,6 +183,28 @@ export interface ChatActivityOptions<
    * ```
    */
   outputSchema?: TSchema
+  /**
+   * Whether to stream the chat result.
+   * When true (default), returns an AsyncIterable<StreamChunk> for streaming output.
+   * When false, returns a Promise<string> with the collected text content.
+   *
+   * Note: If outputSchema is provided, this option is ignored and the result
+   * is always a Promise<z.infer<TSchema>>.
+   *
+   * @default true
+   *
+   * @example Non-streaming chat
+   * ```ts
+   * const text = await ai({
+   *   adapter: openaiText(),
+   *   model: 'gpt-4o',
+   *   messages: [{ role: 'user', content: 'Hello!' }],
+   *   stream: false
+   * })
+   * // text is a string with the full response
+   * ```
+   */
+  stream?: TStream
 }
 
 // ===========================
@@ -188,11 +214,16 @@ export interface ChatActivityOptions<
 /**
  * Result type for the chat activity.
  * - If outputSchema is provided: Promise<z.infer<TSchema>>
- * - Otherwise: AsyncIterable<StreamChunk>
+ * - If stream is false: Promise<string>
+ * - Otherwise (stream is true, default): AsyncIterable<StreamChunk>
  */
-export type ChatActivityResult<TSchema extends z.ZodType | undefined> =
-  TSchema extends z.ZodType
-    ? Promise<z.infer<TSchema>>
+export type ChatActivityResult<
+  TSchema extends z.ZodType | undefined,
+  TStream extends boolean = true,
+> = TSchema extends z.ZodType
+  ? Promise<z.infer<TSchema>>
+  : TStream extends false
+    ? Promise<string>
     : AsyncIterable<StreamChunk>
 
 // ===========================
@@ -908,10 +939,11 @@ class ChatEngine<
 /**
  * Chat activity - handles agentic chat, one-shot chat, and agentic structured output.
  *
- * This activity supports three modes:
- * 1. **Full agentic chat**: Stream responses with automatic tool execution
- * 2. **One-shot chat**: Simple request/response without tools
- * 3. **Agentic structured output**: Run tools, then return structured data
+ * This activity supports four modes:
+ * 1. **Streaming agentic chat**: Stream responses with automatic tool execution
+ * 2. **Streaming one-shot chat**: Simple streaming request/response without tools
+ * 3. **Non-streaming chat**: Returns collected text as a string (stream: false)
+ * 4. **Agentic structured output**: Run tools, then return structured data
  *
  * @example Full agentic chat (streaming with tools)
  * ```ts
@@ -941,6 +973,17 @@ class ChatEngine<
  * }
  * ```
  *
+ * @example Non-streaming chat (stream: false)
+ * ```ts
+ * const text = await ai({
+ *   adapter: openaiText(),
+ *   model: 'gpt-4o',
+ *   messages: [{ role: 'user', content: 'Hello!' }],
+ *   stream: false
+ * })
+ * // text is a string with the full response
+ * ```
+ *
  * @example Agentic structured output (tools + structured response)
  * ```ts
  * import { z } from 'zod'
@@ -962,10 +1005,11 @@ export function chatActivity<
   TAdapter extends ChatAdapter<ReadonlyArray<string>, object, any, any, any>,
   TModel extends ChatModels<TAdapter>,
   TSchema extends z.ZodType | undefined = undefined,
+  TStream extends boolean = true,
 >(
-  options: ChatActivityOptions<TAdapter, TModel, TSchema>,
-): ChatActivityResult<TSchema> {
-  const { outputSchema } = options
+  options: ChatActivityOptions<TAdapter, TModel, TSchema, TStream>,
+): ChatActivityResult<TSchema, TStream> {
+  const { outputSchema, stream } = options
 
   // If outputSchema is provided, run agentic structured output
   if (outputSchema) {
@@ -973,19 +1017,33 @@ export function chatActivity<
       options as unknown as ChatActivityOptions<
         ChatAdapter<ReadonlyArray<string>, object, any, any, any>,
         string,
-        z.ZodType
+        z.ZodType,
+        boolean
       >,
-    ) as ChatActivityResult<TSchema>
+    ) as ChatActivityResult<TSchema, TStream>
   }
 
-  // Otherwise, run streaming chat
+  // If stream is explicitly false, run non-streaming chat
+  if (stream === false) {
+    return runNonStreamingChat(
+      options as unknown as ChatActivityOptions<
+        ChatAdapter<ReadonlyArray<string>, object, any, any, any>,
+        string,
+        undefined,
+        false
+      >,
+    ) as ChatActivityResult<TSchema, TStream>
+  }
+
+  // Otherwise, run streaming chat (default)
   return runStreamingChat(
     options as unknown as ChatActivityOptions<
       ChatAdapter<ReadonlyArray<string>, object, any, any, any>,
       string,
-      undefined
+      undefined,
+      true
     >,
-  ) as ChatActivityResult<TSchema>
+  ) as ChatActivityResult<TSchema, TStream>
 }
 
 /**
@@ -995,7 +1053,8 @@ async function* runStreamingChat(
   options: ChatActivityOptions<
     ChatAdapter<ReadonlyArray<string>, object, any, any, any>,
     string,
-    undefined
+    undefined,
+    true
   >,
 ): AsyncIterable<StreamChunk> {
   const { adapter, ...chatOptions } = options
@@ -1016,6 +1075,31 @@ async function* runStreamingChat(
 }
 
 /**
+ * Run non-streaming chat - collects all content and returns as a string.
+ * Runs the full agentic loop (if tools are provided) but returns collected text.
+ */
+function runNonStreamingChat(
+  options: ChatActivityOptions<
+    ChatAdapter<ReadonlyArray<string>, object, any, any, any>,
+    string,
+    undefined,
+    false
+  >,
+): Promise<string> {
+  // Run the streaming chat and collect all text using streamToText
+  const stream = runStreamingChat(
+    options as unknown as ChatActivityOptions<
+      ChatAdapter<ReadonlyArray<string>, object, any, any, any>,
+      string,
+      undefined,
+      true
+    >,
+  )
+
+  return streamToText(stream)
+}
+
+/**
  * Run agentic structured output:
  * 1. Execute the full agentic loop (with tools)
  * 2. Once complete, call adapter.structuredOutput with the conversation context
@@ -1025,7 +1109,8 @@ async function runAgenticStructuredOutput<TSchema extends z.ZodType>(
   options: ChatActivityOptions<
     ChatAdapter<ReadonlyArray<string>, object, any, any, any>,
     string,
-    TSchema
+    TSchema,
+    boolean
   >,
 ): Promise<z.infer<TSchema>> {
   const { adapter, outputSchema, ...chatOptions } = options
@@ -1050,22 +1135,17 @@ async function runAgenticStructuredOutput<TSchema extends z.ZodType>(
     // Just consume the stream to execute the agentic loop
   }
 
-  // Now make the structured output call with the updated messages
-  const jsonSchema = convertZodToJsonSchema(outputSchema)
-  if (!jsonSchema) {
-    throw new Error('Failed to convert outputSchema to JSON Schema')
-  }
-
   // Get the final messages from the engine (includes tool results)
   const finalMessages = engine.getMessages()
 
   // Call the adapter's structured output method with the conversation context
+  // Each adapter is responsible for converting the Zod schema to its provider's format
   const result = await adapter.structuredOutput({
     chatOptions: {
       ...chatOptions,
       messages: finalMessages,
     },
-    jsonSchema,
+    outputSchema,
   })
 
   // Validate the result against the Zod schema

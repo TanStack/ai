@@ -6,6 +6,8 @@ import {
   createOpenAIClient,
   generateId,
   getOpenAIApiKeyFromEnv,
+  convertZodToOpenAISchema,
+  transformNullsToUndefined,
 } from '../utils'
 import type {
   StructuredOutputOptions,
@@ -114,12 +116,22 @@ export class OpenAITextAdapter extends BaseChatAdapter<
   /**
    * Generate structured output using OpenAI's native JSON Schema response format.
    * Uses stream: false to get the complete response in one call.
+   *
+   * OpenAI has strict requirements for structured output:
+   * - All properties must be in the `required` array
+   * - Optional fields should have null added to their type union
+   * - additionalProperties must be false for all objects
+   *
+   * The schema conversion is handled by convertZodToOpenAISchema.
    */
   async structuredOutput(
     options: StructuredOutputOptions<OpenAITextProviderOptions>,
   ): Promise<StructuredOutputResult<unknown>> {
-    const { chatOptions, jsonSchema } = options
+    const { chatOptions, outputSchema } = options
     const requestArguments = this.mapChatOptionsToOpenAI(chatOptions)
+
+    // Convert Zod schema to OpenAI-compatible JSON Schema
+    const jsonSchema = convertZodToOpenAISchema(outputSchema)
 
     try {
       const response = await this.client.responses.create(
@@ -155,8 +167,12 @@ export class OpenAITextAdapter extends BaseChatAdapter<
         )
       }
 
+      // Transform null values to undefined to match original Zod schema expectations
+      // OpenAI returns null for optional fields we made nullable in the schema
+      const transformed = transformNullsToUndefined(parsed)
+
       return {
-        data: parsed,
+        data: transformed,
         rawText,
       }
     } catch (error: unknown) {

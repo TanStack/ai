@@ -104,7 +104,7 @@ export function ai<
   TAdapter extends AnyAIAdapter,
   const TModel extends string,
   TSchema extends z.ZodType | undefined = undefined,
-  TStream extends boolean = false,
+  TStream extends boolean = true,
 >(
   options: AIOptionsFor<TAdapter, TModel, TSchema, TStream>,
 ): AIResultFor<TAdapter, TSchema, TStream>

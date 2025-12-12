@@ -1,6 +1,40 @@
 import type { StreamChunk } from './types'
 
 /**
+ * Collect all text content from a StreamChunk async iterable and return as a string.
+ *
+ * This function consumes the entire stream, accumulating content from 'content' type chunks,
+ * and returns the final concatenated text.
+ *
+ * @param stream - AsyncIterable of StreamChunks from chat()
+ * @returns Promise<string> - The accumulated text content
+ *
+ * @example
+ * ```typescript
+ * const stream = ai({
+ *   adapter: openaiText(),
+ *   model: 'gpt-4o',
+ *   messages: [{ role: 'user', content: 'Hello!' }]
+ * });
+ * const text = await streamToText(stream);
+ * console.log(text); // "Hello! How can I help you today?"
+ * ```
+ */
+export async function streamToText(
+  stream: AsyncIterable<StreamChunk>,
+): Promise<string> {
+  let accumulatedContent = ''
+
+  for await (const chunk of stream) {
+    if (chunk.type === 'content' && chunk.delta) {
+      accumulatedContent += chunk.delta
+    }
+  }
+
+  return accumulatedContent
+}
+
+/**
  * Convert a StreamChunk async iterable to a ReadableStream in Server-Sent Events format
  *
  * This creates a ReadableStream that emits chunks in SSE format:

@@ -48,6 +48,7 @@
     "vite": "^7.2.4"
   },
   "peerDependencies": {
-    "@tanstack/ai": "workspace:*"
+    "@tanstack/ai": "workspace:*",
+    "zod": "^4.0.0"
   }
 }

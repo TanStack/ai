@@ -1,5 +1,6 @@
 import { Ollama as OllamaSDK } from 'ollama'
-import { BaseAdapter, convertZodToJsonSchema } from '@tanstack/ai'
+import { BaseAdapter } from '@tanstack/ai'
+import { convertZodToOllamaSchema } from './utils/schema-converter'
 import type {
   AbortableAsyncIterator,
   ChatRequest,
@@ -373,7 +374,9 @@ export class Ollama extends BaseAdapter<
       function: {
         name: tool.name,
         description: tool.description,
-        parameters: convertZodToJsonSchema(tool.inputSchema),
+        parameters: tool.inputSchema
+          ? convertZodToOllamaSchema(tool.inputSchema)
+          : { type: 'object', properties: {}, required: [] },
       },
     }))
   }

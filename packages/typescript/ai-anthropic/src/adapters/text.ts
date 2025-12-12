@@ -6,6 +6,7 @@ import {
   createAnthropicClient,
   generateId,
   getAnthropicApiKeyFromEnv,
+  convertZodToAnthropicSchema,
 } from '../utils'
 import type {
   StructuredOutputOptions,
@@ -122,53 +123,83 @@ export class AnthropicTextAdapter extends BaseChatAdapter<
   }
 
   /**
-   * Generate structured output using Anthropic's tool use pattern.
-   * Anthropic doesn't have native JSON schema support, so we use a tool with the schema
-   * and extract the arguments as the structured output.
+   * Generate structured output using Anthropic's tool-based approach.
+   * Anthropic doesn't have native structured output, so we use a tool with the schema
+   * and force the model to call it.
    */
   async structuredOutput(
     options: StructuredOutputOptions<AnthropicTextProviderOptions>,
   ): Promise<StructuredOutputResult<unknown>> {
-    const { chatOptions, jsonSchema } = options
+    const { chatOptions, outputSchema } = options
+
+    // Convert Zod schema to Anthropic-compatible JSON Schema
+    const jsonSchema = convertZodToAnthropicSchema(outputSchema)
 
     const requestParams = this.mapCommonOptionsToAnthropic(chatOptions)
 
+    // Create a tool that will capture the structured output
+    // Ensure the schema has type: 'object' as required by Anthropic's SDK
+    const inputSchema = {
+      type: 'object' as const,
+      ...jsonSchema,
+    }
+
+    const structuredOutputTool = {
+      name: 'structured_output',
+      description:
+        'Use this tool to provide your response in the required structured format.',
+      input_schema: inputSchema,
+    }
+
     try {
       // Make non-streaming request with tool_choice forced to our structured output tool
-      const response = await this.client.beta.messages.create(
+      const response = await this.client.messages.create(
         {
           ...requestParams,
           stream: false,
-          output_config: {
-            effort: 'high',
-          },
-          output_format: {
-            schema: jsonSchema,
-            type: 'json_schema',
-          },
+          tools: [structuredOutputTool],
+          tool_choice: { type: 'tool', name: 'structured_output' },
         },
         {
           signal: chatOptions.request?.signal,
           headers: chatOptions.request?.headers,
         },
       )
-      const text = response.content
-        .map((b) => {
-          if (b.type === 'text') {
-            return b.text
-          }
-          return ''
-        })
-        .join('')
+
+      // Extract the tool use content from the response
       let parsed: unknown = null
-      try {
-        parsed = JSON.parse(text)
-      } catch {
-        parsed = null
+      let rawText = ''
+
+      for (const block of response.content) {
+        if (block.type === 'tool_use' && block.name === 'structured_output') {
+          parsed = block.input
+          rawText = JSON.stringify(block.input)
+          break
+        }
       }
+
+      if (parsed === null) {
+        // Fallback: try to extract text content and parse as JSON
+        rawText = response.content
+          .map((b) => {
+            if (b.type === 'text') {
+              return b.text
+            }
+            return ''
+          })
+          .join('')
+        try {
+          parsed = JSON.parse(rawText)
+        } catch {
+          throw new Error(
+            `Failed to extract structured output from response. Content: ${rawText.slice(0, 200)}${rawText.length > 200 ? '...' : ''}`,
+          )
+        }
+      }
+
       return {
         data: parsed,
-        rawText: text,
+        rawText,
       }
     } catch (error: unknown) {
       const err = error as Error

@@ -35,6 +35,7 @@ export { convertZodToJsonSchema } from './activities/chat/tools/zod-converter'
 
 // Stream utilities
 export {
+  streamToText,
   toServerSentEventsStream,
   toStreamResponse,
 } from './stream-to-response'
