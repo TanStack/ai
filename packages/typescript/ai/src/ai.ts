@@ -67,34 +67,34 @@ type AIOptionsFor<
   TSummarizeStream extends boolean = false,
 > = TAdapter extends { kind: 'text' }
   ? AITextOptions<
-    Extract<
-      TAdapter,
-      TextAdapter<ReadonlyArray<string>, object, any, any, any>
-    >,
-    TModel & ExtractTextModels<TAdapter>,
-    TSchema,
-    TTextStream
-  >
+      Extract<
+        TAdapter,
+        TextAdapter<ReadonlyArray<string>, object, any, any, any>
+      >,
+      TModel & ExtractTextModels<TAdapter>,
+      TSchema,
+      TTextStream
+    >
   : TAdapter extends { kind: 'embedding' }
-  ? AIEmbeddingOptions<
-    Extract<TAdapter, EmbeddingAdapter<ReadonlyArray<string>, object>>,
-    TModel & ExtractEmbeddingModels<TAdapter>
-  >
-  : TAdapter extends { kind: 'summarize' }
-  ? AISummarizeOptions<
-    Extract<TAdapter, SummarizeAdapter<ReadonlyArray<string>, object>>,
-    TModel & ExtractSummarizeModels<TAdapter>,
-    TSummarizeStream
-  >
-  : TAdapter extends { kind: 'image' }
-  ? AIImageOptions<
-    Extract<
-      TAdapter,
-      ImageAdapter<ReadonlyArray<string>, object, any, any>
-    >,
-    TModel & ExtractImageModels<TAdapter>
-  >
-  : never
+    ? AIEmbeddingOptions<
+        Extract<TAdapter, EmbeddingAdapter<ReadonlyArray<string>, object>>,
+        TModel & ExtractEmbeddingModels<TAdapter>
+      >
+    : TAdapter extends { kind: 'summarize' }
+      ? AISummarizeOptions<
+          Extract<TAdapter, SummarizeAdapter<ReadonlyArray<string>, object>>,
+          TModel & ExtractSummarizeModels<TAdapter>,
+          TSummarizeStream
+        >
+      : TAdapter extends { kind: 'image' }
+        ? AIImageOptions<
+            Extract<
+              TAdapter,
+              ImageAdapter<ReadonlyArray<string>, object, any, any>
+            >,
+            TModel & ExtractImageModels<TAdapter>
+          >
+        : never
 
 type AIReturnFor<
   TAdapter extends AnyAIAdapter,
@@ -103,19 +103,19 @@ type AIReturnFor<
   TSummarizeStream extends boolean = false,
 > = TAdapter extends { kind: 'text' }
   ? TSchema extends z.ZodType
-  ? Promise<z.infer<TSchema>>
-  : TTextStream extends false
-  ? Promise<string>
-  : AsyncIterable<StreamChunk>
+    ? Promise<z.infer<TSchema>>
+    : TTextStream extends false
+      ? Promise<string>
+      : AsyncIterable<StreamChunk>
   : TAdapter extends { kind: 'embedding' }
-  ? Promise<EmbeddingResult>
-  : TAdapter extends { kind: 'summarize' }
-  ? TSummarizeStream extends true
-  ? AsyncIterable<StreamChunk>
-  : Promise<SummarizationResult>
-  : TAdapter extends { kind: 'image' }
-  ? Promise<ImageGenerationResult>
-  : never
+    ? Promise<EmbeddingResult>
+    : TAdapter extends { kind: 'summarize' }
+      ? TSummarizeStream extends true
+        ? AsyncIterable<StreamChunk>
+        : Promise<SummarizationResult>
+      : TAdapter extends { kind: 'image' }
+        ? Promise<ImageGenerationResult>
+        : never
 
 // ===========================
 // AI Function

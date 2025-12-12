@@ -83,8 +83,8 @@ export interface SummarizeActivityOptions<
  */
 export type SummarizeActivityResult<TStream extends boolean> =
   TStream extends true
-  ? AsyncIterable<StreamChunk>
-  : Promise<SummarizationResult>
+    ? AsyncIterable<StreamChunk>
+    : Promise<SummarizationResult>
 
 // ===========================
 // Helper Functions

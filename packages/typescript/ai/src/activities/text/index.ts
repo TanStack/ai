@@ -120,14 +120,14 @@ export type TextProviderOptionsForModel<TAdapter, TModel extends string> =
     any,
     any
   >
-  ? string extends keyof ModelOptions
-  ? // ModelOptions is Record<string, unknown> or has index signature - use BaseOptions
-  BaseOptions
-  : // ModelOptions has explicit keys - check if TModel is one of them
-  TModel extends keyof ModelOptions
-  ? ModelOptions[TModel]
-  : BaseOptions
-  : object
+    ? string extends keyof ModelOptions
+      ? // ModelOptions is Record<string, unknown> or has index signature - use BaseOptions
+        BaseOptions
+      : // ModelOptions has explicit keys - check if TModel is one of them
+        TModel extends keyof ModelOptions
+        ? ModelOptions[TModel]
+        : BaseOptions
+    : object
 
 /**
  * Extract input modalities for a specific model from a TextAdapter.
@@ -135,10 +135,10 @@ export type TextProviderOptionsForModel<TAdapter, TModel extends string> =
  */
 export type InputModalitiesForModel<TAdapter, TModel extends string> =
   TAdapter extends TextAdapter<any, any, any, infer ModalitiesByName, any>
-  ? TModel extends keyof ModalitiesByName
-  ? ModalitiesByName[TModel]
-  : ReadonlyArray<Modality>
-  : ReadonlyArray<Modality>
+    ? TModel extends keyof ModalitiesByName
+      ? ModalitiesByName[TModel]
+      : ReadonlyArray<Modality>
+    : ReadonlyArray<Modality>
 
 /**
  * Extract message metadata types by modality from a TextAdapter.
@@ -146,8 +146,8 @@ export type InputModalitiesForModel<TAdapter, TModel extends string> =
  */
 export type MessageMetadataForAdapter<TAdapter> =
   TAdapter extends TextAdapter<any, any, any, any, infer MetadataByModality>
-  ? MetadataByModality
-  : DefaultMessageMetadataByModality
+    ? MetadataByModality
+    : DefaultMessageMetadataByModality
 
 // ===========================
 // Activity Options Type
@@ -245,8 +245,8 @@ export type TextActivityResult<
 > = TSchema extends z.ZodType
   ? Promise<z.infer<TSchema>>
   : TStream extends false
-  ? Promise<string>
-  : AsyncIterable<StreamChunk>
+    ? Promise<string>
+    : AsyncIterable<StreamChunk>
 
 // ===========================
 // ChatEngine Implementation
@@ -1217,8 +1217,8 @@ export function textOptions<
     any,
     any
   >
-  ? Models[number]
-  : string,
+    ? Models[number]
+    : string,
 >(
   options: Omit<
     TextStreamOptionsUnion<TAdapter>,
@@ -1233,10 +1233,10 @@ export function textOptions<
       any,
       infer ModelProviderOptions
     >
-    ? TModel extends keyof ModelProviderOptions
-    ? ModelProviderOptions[TModel]
-    : never
-    : never
+      ? TModel extends keyof ModelProviderOptions
+        ? ModelProviderOptions[TModel]
+        : never
+      : never
   },
 ): typeof options {
   return options

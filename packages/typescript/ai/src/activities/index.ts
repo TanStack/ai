@@ -36,18 +36,20 @@ import type {
   EmbeddingActivityOptions,
   EmbeddingActivityResult,
   EmbeddingModels,
-  EmbeddingProviderOptions
+  EmbeddingProviderOptions,
 } from './embedding/index'
 import type {
   SummarizeActivityOptions,
   SummarizeActivityResult,
   SummarizeModels,
-  SummarizeProviderOptions
+  SummarizeProviderOptions,
 } from './summarize/index'
 import type {
   ImageActivityOptions,
   ImageActivityResult,
-  ImageModels, ImageProviderOptionsForModel, ImageSizeForModel
+  ImageModels,
+  ImageProviderOptionsForModel,
+  ImageSizeForModel,
 } from './image/index'
 
 // Import adapter types for type definitions
@@ -204,8 +206,8 @@ export type AdapterKind = 'text' | 'embedding' | 'summarize' | 'image'
 /** Union of all adapter types with their kind discriminator */
 export type AnyAIAdapter =
   | (TextAdapter<ReadonlyArray<string>, object, any, any, any> & {
-    kind: 'text'
-  })
+      kind: 'text'
+    })
   | (EmbeddingAdapter<ReadonlyArray<string>, object> & { kind: 'embedding' })
   | (SummarizeAdapter<ReadonlyArray<string>, object> & { kind: 'summarize' })
   | (ImageAdapter<ReadonlyArray<string>, object, any, any> & { kind: 'image' })
@@ -218,30 +220,30 @@ export type AIOptionsFor<
   TStream extends boolean | undefined = undefined,
 > = TAdapter extends { kind: 'text' }
   ? TAdapter extends TextAdapter<ReadonlyArray<string>, object, any, any, any>
-  ? TextActivityOptions<
-    TAdapter,
-    TModel & TextModels<TAdapter>,
-    TSchema,
-    TStream extends boolean ? TStream : true
-  >
-  : never
+    ? TextActivityOptions<
+        TAdapter,
+        TModel & TextModels<TAdapter>,
+        TSchema,
+        TStream extends boolean ? TStream : true
+      >
+    : never
   : TAdapter extends { kind: 'embedding' }
-  ? TAdapter extends EmbeddingAdapter<ReadonlyArray<string>, object>
-  ? EmbeddingActivityOptions<TAdapter, TModel & EmbeddingModels<TAdapter>>
-  : never
-  : TAdapter extends { kind: 'summarize' }
-  ? TAdapter extends SummarizeAdapter<ReadonlyArray<string>, object>
-  ? SummarizeActivityOptions<
-    TAdapter,
-    TModel & SummarizeModels<TAdapter>,
-    TStream extends boolean ? TStream : false
-  >
-  : never
-  : TAdapter extends { kind: 'image' }
-  ? TAdapter extends ImageAdapter<ReadonlyArray<string>, object, any, any>
-  ? ImageActivityOptions<TAdapter, TModel & ImageModels<TAdapter>>
-  : never
-  : never
+    ? TAdapter extends EmbeddingAdapter<ReadonlyArray<string>, object>
+      ? EmbeddingActivityOptions<TAdapter, TModel & EmbeddingModels<TAdapter>>
+      : never
+    : TAdapter extends { kind: 'summarize' }
+      ? TAdapter extends SummarizeAdapter<ReadonlyArray<string>, object>
+        ? SummarizeActivityOptions<
+            TAdapter,
+            TModel & SummarizeModels<TAdapter>,
+            TStream extends boolean ? TStream : false
+          >
+        : never
+      : TAdapter extends { kind: 'image' }
+        ? TAdapter extends ImageAdapter<ReadonlyArray<string>, object, any, any>
+          ? ImageActivityOptions<TAdapter, TModel & ImageModels<TAdapter>>
+          : never
+        : never
 
 // ===========================
 // Unified Result Type
@@ -255,12 +257,12 @@ export type AIResultFor<
 > = TAdapter extends { kind: 'text' }
   ? TextActivityResult<TSchema, TStream extends boolean ? TStream : true>
   : TAdapter extends { kind: 'embedding' }
-  ? EmbeddingActivityResult
-  : TAdapter extends { kind: 'summarize' }
-  ? SummarizeActivityResult<TStream extends boolean ? TStream : false>
-  : TAdapter extends { kind: 'image' }
-  ? ImageActivityResult
-  : never
+    ? EmbeddingActivityResult
+    : TAdapter extends { kind: 'summarize' }
+      ? SummarizeActivityResult<TStream extends boolean ? TStream : false>
+      : TAdapter extends { kind: 'image' }
+        ? ImageActivityResult
+        : never
 
 // ===========================
 // Unified Options Type (Legacy)
@@ -274,23 +276,23 @@ export type GenerateOptions<
   TStream extends boolean = true,
 > =
   TAdapter extends TextAdapter<ReadonlyArray<string>, object, any, any, any>
-  ? TextActivityOptions<
-    TAdapter,
-    TModel & TextModels<TAdapter>,
-    TSchema,
-    TStream
-  >
-  : TAdapter extends EmbeddingAdapter<ReadonlyArray<string>, object>
-  ? EmbeddingActivityOptions<TAdapter, TModel & EmbeddingModels<TAdapter>>
-  : TAdapter extends SummarizeAdapter<ReadonlyArray<string>, object>
-  ? SummarizeActivityOptions<
-    TAdapter,
-    TModel & SummarizeModels<TAdapter>,
-    TStream
-  >
-  : TAdapter extends ImageAdapter<ReadonlyArray<string>, object, any, any>
-  ? ImageActivityOptions<TAdapter, TModel & ImageModels<TAdapter>>
-  : never
+    ? TextActivityOptions<
+        TAdapter,
+        TModel & TextModels<TAdapter>,
+        TSchema,
+        TStream
+      >
+    : TAdapter extends EmbeddingAdapter<ReadonlyArray<string>, object>
+      ? EmbeddingActivityOptions<TAdapter, TModel & EmbeddingModels<TAdapter>>
+      : TAdapter extends SummarizeAdapter<ReadonlyArray<string>, object>
+        ? SummarizeActivityOptions<
+            TAdapter,
+            TModel & SummarizeModels<TAdapter>,
+            TStream
+          >
+        : TAdapter extends ImageAdapter<ReadonlyArray<string>, object, any, any>
+          ? ImageActivityOptions<TAdapter, TModel & ImageModels<TAdapter>>
+          : never
 
 // ===========================
 // Legacy Type Aliases
@@ -332,24 +334,24 @@ export type GenerateImageOptions<
  */
 export type AIOptionsUnion =
   | TextActivityOptions<
-    TextAdapter<ReadonlyArray<string>, object, any, any, any>,
-    string,
-    z.ZodType | undefined,
-    boolean
-  >
+      TextAdapter<ReadonlyArray<string>, object, any, any, any>,
+      string,
+      z.ZodType | undefined,
+      boolean
+    >
   | EmbeddingActivityOptions<
-    EmbeddingAdapter<ReadonlyArray<string>, object>,
-    string
-  >
+      EmbeddingAdapter<ReadonlyArray<string>, object>,
+      string
+    >
   | SummarizeActivityOptions<
-    SummarizeAdapter<ReadonlyArray<string>, object>,
-    string,
-    boolean
-  >
+      SummarizeAdapter<ReadonlyArray<string>, object>,
+      string,
+      boolean
+    >
   | ImageActivityOptions<
-    ImageAdapter<ReadonlyArray<string>, object, any, any>,
-    string
-  >
+      ImageAdapter<ReadonlyArray<string>, object, any, any>,
+      string
+    >
 
 /**
  * Union type for all possible ai() return types (used in implementation signature)
