@@ -6,10 +6,7 @@
  */
 
 import { activityMap } from './activities'
-import type {
-  AIOptionsUnion,
-  AIResultUnion,
-} from './activities'
+import type { AIOptionsUnion, AIResultUnion } from './activities'
 import type { TextAdapter } from './activities/text/adapter'
 import type { EmbeddingAdapter } from './activities/embedding/adapter'
 import type { SummarizeAdapter } from './activities/summarize/adapter'
@@ -47,8 +44,8 @@ export type AnyAdapter = GenerateAdapter
 /** Union of all adapter types with their kind discriminator */
 type AnyAiAdapter =
   | (TextAdapter<ReadonlyArray<string>, object, any, any, any> & {
-    kind: 'text'
-  })
+      kind: 'text'
+    })
   | (EmbeddingAdapter<ReadonlyArray<string>, object> & { kind: 'embedding' })
   | (SummarizeAdapter<ReadonlyArray<string>, object> & { kind: 'summarize' })
   | (ImageAdapter<ReadonlyArray<string>, object, any, any> & { kind: 'image' })
@@ -57,39 +54,41 @@ type AnyAiAdapter =
 // Provider Options Extraction
 // ===========================
 
-type AdapterBaseProviderOptions<TAdapter> =
-  TAdapter extends { _providerOptions: infer P }
+type AdapterBaseProviderOptions<TAdapter> = TAdapter extends {
+  _providerOptions: infer P
+}
   ? P extends object
-  ? P
-  : object
+    ? P
+    : object
   : TAdapter extends { _providerOptions?: infer P }
-  ? P extends object
-  ? P
-  : object
-  : object
+    ? P extends object
+      ? P
+      : object
+    : object
 
 // Extract the model-specific provider options map from an adapter
 // Handle both optional and non-optional declarations
-type ExtractModelProviderOptionsMap<TAdapter> =
-  TAdapter extends { _modelProviderOptionsByName: infer M }
+type ExtractModelProviderOptionsMap<TAdapter> = TAdapter extends {
+  _modelProviderOptionsByName: infer M
+}
   ? M extends Record<string, object>
-  ? M
-  : never
+    ? M
+    : never
   : TAdapter extends { _modelProviderOptionsByName?: infer M }
-  ? M extends Record<string, object>
-  ? M
-  : never
-  : never
+    ? M extends Record<string, object>
+      ? M
+      : never
+    : never
 
 // Get provider options for a specific model
 // If the adapter has per-model options and the model is in the map, use those
 // Otherwise fall back to base provider options
 type ProviderOptionsForModel<TAdapter, TModel extends string> =
   ExtractModelProviderOptionsMap<TAdapter> extends never
-  ? AdapterBaseProviderOptions<TAdapter>
-  : TModel extends keyof ExtractModelProviderOptionsMap<TAdapter>
-  ? ExtractModelProviderOptionsMap<TAdapter>[TModel]
-  : AdapterBaseProviderOptions<TAdapter>
+    ? AdapterBaseProviderOptions<TAdapter>
+    : TModel extends keyof ExtractModelProviderOptionsMap<TAdapter>
+      ? ExtractModelProviderOptionsMap<TAdapter>[TModel]
+      : AdapterBaseProviderOptions<TAdapter>
 
 type EmbeddingProviderOptions<TAdapter> = AdapterBaseProviderOptions<TAdapter>
 
@@ -162,57 +161,53 @@ type AIImageOptions<
 // Extract model-specific size options from an ImageAdapter
 type ImageSizeForModel<TAdapter, TModel extends string> =
   TAdapter extends ImageAdapter<any, any, any, infer SizeByName>
-  ? string extends keyof SizeByName
-  ? string
-  : TModel extends keyof SizeByName
-  ? SizeByName[TModel]
-  : string
-  : string
+    ? string extends keyof SizeByName
+      ? string
+      : TModel extends keyof SizeByName
+        ? SizeByName[TModel]
+        : string
+    : string
 
 // Extract model-specific provider options from an ImageAdapter
 type ImageProviderOptionsForModel<TAdapter, TModel extends string> =
   TAdapter extends ImageAdapter<any, infer BaseOptions, infer ModelOptions, any>
-  ? string extends keyof ModelOptions
-  ? BaseOptions
-  : TModel extends keyof ModelOptions
-  ? ModelOptions[TModel]
-  : BaseOptions
-  : object
+    ? string extends keyof ModelOptions
+      ? BaseOptions
+      : TModel extends keyof ModelOptions
+        ? ModelOptions[TModel]
+        : BaseOptions
+    : object
 
 // ===========================
 // Conditional Options / Return Types
 // ===========================
 
 // Extract models directly from adapter type to avoid deferred resolution
-type ExtractTextModels<T> = T extends TextAdapter<infer M, any, any, any, any>
-  ? M[number]
-  : string
+type ExtractTextModels<T> =
+  T extends TextAdapter<infer M, any, any, any, any> ? M[number] : string
 
-type ExtractEmbeddingModels<T> = T extends EmbeddingAdapter<infer M, any>
-  ? M[number]
-  : string
+type ExtractEmbeddingModels<T> =
+  T extends EmbeddingAdapter<infer M, any> ? M[number] : string
 
-type ExtractSummarizeModels<T> = T extends SummarizeAdapter<infer M, any>
-  ? M[number]
-  : string
+type ExtractSummarizeModels<T> =
+  T extends SummarizeAdapter<infer M, any> ? M[number] : string
 
-type ExtractImageModels<T> = T extends ImageAdapter<infer M, any, any, any>
-  ? M[number]
-  : string
+type ExtractImageModels<T> =
+  T extends ImageAdapter<infer M, any, any, any> ? M[number] : string
 
 // Extract input modalities for a specific model from a TextAdapter
 type InputModalitiesForModel<TAdapter, TModel extends string> =
   TAdapter extends TextAdapter<any, any, any, infer ModalitiesByName, any>
-  ? TModel extends keyof ModalitiesByName
-  ? ModalitiesByName[TModel]
-  : ReadonlyArray<Modality>
-  : ReadonlyArray<Modality>
+    ? TModel extends keyof ModalitiesByName
+      ? ModalitiesByName[TModel]
+      : ReadonlyArray<Modality>
+    : ReadonlyArray<Modality>
 
 // Extract message metadata by modality from a TextAdapter
 type MessageMetadataForAdapter<TAdapter> =
   TAdapter extends TextAdapter<any, any, any, any, infer MetadataByModality>
-  ? MetadataByModality
-  : DefaultMessageMetadataByModality
+    ? MetadataByModality
+    : DefaultMessageMetadataByModality
 
 // Text options type that takes model as a parameter for proper narrowing
 // Use NoInfer on providerOptions to prevent inference widening
@@ -228,14 +223,16 @@ type AITextOptions<
   /** The model name (autocompletes based on adapter) */
   model: TModel
   /** Conversation messages - content types are constrained by the model's supported input modalities */
-  messages: Array<ConstrainedModelMessage<
-    InputModalitiesForModel<TAdapter, TModel>,
-    MessageMetadataForAdapter<TAdapter>['image'],
-    MessageMetadataForAdapter<TAdapter>['audio'],
-    MessageMetadataForAdapter<TAdapter>['video'],
-    MessageMetadataForAdapter<TAdapter>['document'],
-    MessageMetadataForAdapter<TAdapter>['text']
-  >>
+  messages: Array<
+    ConstrainedModelMessage<
+      InputModalitiesForModel<TAdapter, TModel>,
+      MessageMetadataForAdapter<TAdapter>['image'],
+      MessageMetadataForAdapter<TAdapter>['audio'],
+      MessageMetadataForAdapter<TAdapter>['video'],
+      MessageMetadataForAdapter<TAdapter>['document'],
+      MessageMetadataForAdapter<TAdapter>['text']
+    >
+  >
   /** System prompts to prepend to the conversation */
   systemPrompts?: TextOptions['systemPrompts']
   /** Tools for function calling (auto-executed when called) */
@@ -264,28 +261,34 @@ type AIOptionsFor<
   TSummarizeStream extends boolean = false,
 > = TAdapter extends { kind: 'text' }
   ? AITextOptions<
-    Extract<TAdapter, TextAdapter<ReadonlyArray<string>, object, any, any, any>>,
-    TModel & ExtractTextModels<TAdapter>,
-    TSchema,
-    TTextStream
-  >
+      Extract<
+        TAdapter,
+        TextAdapter<ReadonlyArray<string>, object, any, any, any>
+      >,
+      TModel & ExtractTextModels<TAdapter>,
+      TSchema,
+      TTextStream
+    >
   : TAdapter extends { kind: 'embedding' }
-  ? AIEmbeddingOptions<
-    Extract<TAdapter, EmbeddingAdapter<ReadonlyArray<string>, object>>,
-    TModel & ExtractEmbeddingModels<TAdapter>
-  >
-  : TAdapter extends { kind: 'summarize' }
-  ? AISummarizeOptions<
-    Extract<TAdapter, SummarizeAdapter<ReadonlyArray<string>, object>>,
-    TModel & ExtractSummarizeModels<TAdapter>,
-    TSummarizeStream
-  >
-  : TAdapter extends { kind: 'image' }
-  ? AIImageOptions<
-    Extract<TAdapter, ImageAdapter<ReadonlyArray<string>, object, any, any>>,
-    TModel & ExtractImageModels<TAdapter>
-  >
-  : never
+    ? AIEmbeddingOptions<
+        Extract<TAdapter, EmbeddingAdapter<ReadonlyArray<string>, object>>,
+        TModel & ExtractEmbeddingModels<TAdapter>
+      >
+    : TAdapter extends { kind: 'summarize' }
+      ? AISummarizeOptions<
+          Extract<TAdapter, SummarizeAdapter<ReadonlyArray<string>, object>>,
+          TModel & ExtractSummarizeModels<TAdapter>,
+          TSummarizeStream
+        >
+      : TAdapter extends { kind: 'image' }
+        ? AIImageOptions<
+            Extract<
+              TAdapter,
+              ImageAdapter<ReadonlyArray<string>, object, any, any>
+            >,
+            TModel & ExtractImageModels<TAdapter>
+          >
+        : never
 
 type AIReturnFor<
   TAdapter extends AnyAiAdapter,
@@ -294,19 +297,19 @@ type AIReturnFor<
   TSummarizeStream extends boolean = false,
 > = TAdapter extends { kind: 'text' }
   ? TSchema extends z.ZodType
-  ? Promise<z.infer<TSchema>>
-  : TTextStream extends false
-  ? Promise<string>
-  : AsyncIterable<StreamChunk>
+    ? Promise<z.infer<TSchema>>
+    : TTextStream extends false
+      ? Promise<string>
+      : AsyncIterable<StreamChunk>
   : TAdapter extends { kind: 'embedding' }
-  ? Promise<EmbeddingResult>
-  : TAdapter extends { kind: 'summarize' }
-  ? TSummarizeStream extends true
-  ? AsyncIterable<StreamChunk>
-  : Promise<SummarizationResult>
-  : TAdapter extends { kind: 'image' }
-  ? Promise<ImageGenerationResult>
-  : never
+    ? Promise<EmbeddingResult>
+    : TAdapter extends { kind: 'summarize' }
+      ? TSummarizeStream extends true
+        ? AsyncIterable<StreamChunk>
+        : Promise<SummarizationResult>
+      : TAdapter extends { kind: 'image' }
+        ? Promise<ImageGenerationResult>
+        : never
 
 // ===========================
 // AI Function
@@ -401,13 +404,17 @@ export function ai<
   TTextStream extends boolean = true,
   TSummarizeStream extends boolean = false,
 >(
-  options: AIOptionsFor<TAdapter, TModel, TSchema, TTextStream, TSummarizeStream>,
+  options: AIOptionsFor<
+    TAdapter,
+    TModel,
+    TSchema,
+    TTextStream,
+    TSummarizeStream
+  >,
 ): AIReturnFor<TAdapter, TSchema, TTextStream, TSummarizeStream>
 
 // Implementation
-export function ai(
-  options: AIOptionsUnion,
-): AIResultUnion {
+export function ai(options: AIOptionsUnion): AIResultUnion {
   const { adapter } = options
 
   const handler = activityMap.get(adapter.kind)

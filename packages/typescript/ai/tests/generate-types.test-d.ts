@@ -663,7 +663,9 @@ interface TestImageProviderOptions {
 
 type TestImageModelProviderOptionsByName = {
   'image-model-1': TestImageProviderOptions & { style?: 'vivid' | 'natural' }
-  'image-model-2': TestImageProviderOptions & { background?: 'transparent' | 'opaque' }
+  'image-model-2': TestImageProviderOptions & {
+    background?: 'transparent' | 'opaque'
+  }
 }
 
 type TestImageModelSizeByName = {
@@ -688,7 +690,9 @@ class TestImageAdapter extends BaseImageAdapter<
     super({})
   }
 
-  generateImages(_options: ImageGenerationOptions<TestImageProviderOptions>): Promise<ImageGenerationResult> {
+  generateImages(
+    _options: ImageGenerationOptions<TestImageProviderOptions>,
+  ): Promise<ImageGenerationResult> {
     return Promise.resolve({
       id: 'test',
       model: 'image-model-1',
@@ -701,7 +705,11 @@ class TestImageAdapter extends BaseImageAdapter<
 // Text Adapter with Different Input Modalities Per Model
 // ===========================
 
-const TEST_MULTIMODAL_MODELS = ['text-only-model', 'text-image-model', 'multimodal-model'] as const
+const TEST_MULTIMODAL_MODELS = [
+  'text-only-model',
+  'text-image-model',
+  'multimodal-model',
+] as const
 
 interface TestMultimodalProviderOptions {
   temperature?: number
@@ -977,13 +985,18 @@ describe('ai() text adapter input modality constraints', () => {
     ai({
       adapter,
       model: 'text-only-model',
-      messages: [{
-        role: 'user',
-        content: [
-          // @ts-expect-error - image content not allowed on text-only model
-          { type: 'image', source: { type: 'url', value: 'https://example.com/image.png' } },
-        ],
-      }],
+      messages: [
+        {
+          role: 'user',
+          content: [
+            // @ts-expect-error - image content not allowed on text-only model
+            {
+              type: 'image',
+              source: { type: 'url', value: 'https://example.com/image.png' },
+            },
+          ],
+        },
+      ],
     })
   })
 
@@ -993,13 +1006,18 @@ describe('ai() text adapter input modality constraints', () => {
     ai({
       adapter,
       model: 'text-only-model',
-      messages: [{
-        role: 'user',
-        content: [
-          // @ts-expect-error - document content not allowed on text-only model
-          { type: 'document', source: { type: 'url', value: 'https://example.com/doc.pdf' } },
-        ],
-      }],
+      messages: [
+        {
+          role: 'user',
+          content: [
+            // @ts-expect-error - document content not allowed on text-only model
+            {
+              type: 'document',
+              source: { type: 'url', value: 'https://example.com/doc.pdf' },
+            },
+          ],
+        },
+      ],
     })
   })
 
@@ -1009,13 +1027,18 @@ describe('ai() text adapter input modality constraints', () => {
     ai({
       adapter,
       model: 'text-only-model',
-      messages: [{
-        role: 'user',
-        content: [
-          // @ts-expect-error - audio content not allowed on text-only model
-          { type: 'audio', source: { type: 'url', value: 'https://example.com/audio.mp3' } },
-        ],
-      }],
+      messages: [
+        {
+          role: 'user',
+          content: [
+            // @ts-expect-error - audio content not allowed on text-only model
+            {
+              type: 'audio',
+              source: { type: 'url', value: 'https://example.com/audio.mp3' },
+            },
+          ],
+        },
+      ],
     })
   })
 
@@ -1033,13 +1056,19 @@ describe('ai() text adapter input modality constraints', () => {
     ai({
       adapter,
       model: 'text-image-model',
-      messages: [{
-        role: 'user',
-        content: [
-          { type: 'text', content: 'What is in this image?' },
-          { type: 'image', source: { type: 'url', value: 'https://example.com/image.png' }, metadata: { altText: 'A photo' } },
-        ],
-      }],
+      messages: [
+        {
+          role: 'user',
+          content: [
+            { type: 'text', content: 'What is in this image?' },
+            {
+              type: 'image',
+              source: { type: 'url', value: 'https://example.com/image.png' },
+              metadata: { altText: 'A photo' },
+            },
+          ],
+        },
+      ],
     })
   })
 
@@ -1049,13 +1078,18 @@ describe('ai() text adapter input modality constraints', () => {
     ai({
       adapter,
       model: 'text-image-model',
-      messages: [{
-        role: 'user',
-        content: [
-          // @ts-expect-error - document content not allowed on text-image model
-          { type: 'document', source: { type: 'url', value: 'https://example.com/doc.pdf' } },
-        ],
-      }],
+      messages: [
+        {
+          role: 'user',
+          content: [
+            // @ts-expect-error - document content not allowed on text-image model
+            {
+              type: 'document',
+              source: { type: 'url', value: 'https://example.com/doc.pdf' },
+            },
+          ],
+        },
+      ],
     })
   })
 
@@ -1065,13 +1099,18 @@ describe('ai() text adapter input modality constraints', () => {
     ai({
       adapter,
       model: 'text-image-model',
-      messages: [{
-        role: 'user',
-        content: [
-          // @ts-expect-error - audio content not allowed on text-image model
-          { type: 'audio', source: { type: 'url', value: 'https://example.com/audio.mp3' } },
-        ],
-      }],
+      messages: [
+        {
+          role: 'user',
+          content: [
+            // @ts-expect-error - audio content not allowed on text-image model
+            {
+              type: 'audio',
+              source: { type: 'url', value: 'https://example.com/audio.mp3' },
+            },
+          ],
+        },
+      ],
     })
   })
 
@@ -1082,15 +1121,26 @@ describe('ai() text adapter input modality constraints', () => {
     ai({
       adapter,
       model: 'multimodal-model',
-      messages: [{
-        role: 'user',
-        content: [
-          { type: 'text', content: 'Analyze these files' },
-          { type: 'image', source: { type: 'url', value: 'https://example.com/image.png' } },
-          { type: 'audio', source: { type: 'url', value: 'https://example.com/audio.mp3' } },
-          { type: 'document', source: { type: 'url', value: 'https://example.com/doc.pdf' } },
-        ],
-      }],
+      messages: [
+        {
+          role: 'user',
+          content: [
+            { type: 'text', content: 'Analyze these files' },
+            {
+              type: 'image',
+              source: { type: 'url', value: 'https://example.com/image.png' },
+            },
+            {
+              type: 'audio',
+              source: { type: 'url', value: 'https://example.com/audio.mp3' },
+            },
+            {
+              type: 'document',
+              source: { type: 'url', value: 'https://example.com/doc.pdf' },
+            },
+          ],
+        },
+      ],
     })
   })
 
@@ -1100,13 +1150,18 @@ describe('ai() text adapter input modality constraints', () => {
     ai({
       adapter,
       model: 'multimodal-model',
-      messages: [{
-        role: 'user',
-        content: [
-          // @ts-expect-error - video content not allowed (multimodal-model only supports text, image, audio, document)
-          { type: 'video', source: { type: 'url', value: 'https://example.com/video.mp4' } },
-        ],
-      }],
+      messages: [
+        {
+          role: 'user',
+          content: [
+            // @ts-expect-error - video content not allowed (multimodal-model only supports text, image, audio, document)
+            {
+              type: 'video',
+              source: { type: 'url', value: 'https://example.com/video.mp4' },
+            },
+          ],
+        },
+      ],
     })
   })
 
@@ -1117,12 +1172,18 @@ describe('ai() text adapter input modality constraints', () => {
     ai({
       adapter,
       model: 'text-image-model',
-      messages: [{
-        role: 'user',
-        content: [
-          { type: 'image', source: { type: 'url', value: 'https://example.com/image.png' }, metadata: { altText: 'Description' } },
-        ],
-      }],
+      messages: [
+        {
+          role: 'user',
+          content: [
+            {
+              type: 'image',
+              source: { type: 'url', value: 'https://example.com/image.png' },
+              metadata: { altText: 'Description' },
+            },
+          ],
+        },
+      ],
     })
   })
 })
