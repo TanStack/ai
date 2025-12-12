@@ -82,7 +82,6 @@ const OLLAMA_SUMMARY_MODEL = process.env.OLLAMA_SUMMARY_MODEL || OLLAMA_MODEL
 const OLLAMA_EMBEDDING_MODEL =
   process.env.OLLAMA_EMBEDDING_MODEL || 'nomic-embed-text'
 
-
 /**
  * Create Anthropic adapters
  */
@@ -155,7 +154,6 @@ function createOllamaAdapters(): AdapterSet | null {
     embeddingModel: OLLAMA_EMBEDDING_MODEL,
   }
 }
-
 
 /**
  * Registry of all available adapters
