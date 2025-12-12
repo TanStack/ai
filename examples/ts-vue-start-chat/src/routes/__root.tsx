@@ -58,11 +58,11 @@ function RootComponent() {
               id: 'tanstack-router',
               component: TanStackRouterDevtoolsPanelInProd,
             },
-						{
-							name: 'TanStack AI',
-							id: 'tanstack-ai',
-							component: AiDevtoolsPanelInProd,
-						}
+            {
+              name: 'TanStack AI',
+              id: 'tanstack-ai',
+              component: AiDevtoolsPanelInProd,
+            },
           ]}
           eventBusConfig={{
             connectToServerBus: true,
