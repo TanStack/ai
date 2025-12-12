@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref } from 'vue'
-import { RouterLink } from 'vue-router'
+import { Link } from '@tanstack/vue-router'
 
 const isOpen = ref(false)
 </script>
@@ -27,13 +27,13 @@ const isOpen = ref(false)
       </svg>
     </button>
     <h1 class="ml-4 text-xl font-semibold">
-      <RouterLink to="/">
+      <Link to="/">
         <img
           src="/tanstack-word-logo-white.svg"
           alt="TanStack Logo"
           class="h-10"
         />
-      </RouterLink>
+      </Link>
     </h1>
   </header>
 
@@ -68,11 +68,11 @@ const isOpen = ref(false)
     </div>
 
     <nav class="flex-1 p-4 overflow-y-auto">
-      <RouterLink
+      <Link
         to="/"
         @click="isOpen = false"
         class="flex items-center gap-3 p-3 rounded-lg hover:bg-gray-800 transition-colors mb-2"
-        active-class="bg-cyan-600 hover:bg-cyan-700"
+        :activeProps="{ class: 'bg-cyan-600 hover:bg-cyan-700' }"
       >
         <svg
           class="w-5 h-5"
@@ -88,15 +88,15 @@ const isOpen = ref(false)
           />
         </svg>
         <span class="font-medium">Home</span>
-      </RouterLink>
+      </Link>
 
       <hr class="border-gray-700 my-2" />
 
-      <RouterLink
+      <Link
         to="/vue-ui"
         @click="isOpen = false"
         class="flex items-center gap-3 p-3 rounded-lg hover:bg-gray-800 transition-colors mb-2"
-        active-class="bg-cyan-600 hover:bg-cyan-700"
+        :activeProps="{ class: 'bg-cyan-600 hover:bg-cyan-700' }"
       >
         <svg
           class="w-5 h-5"
@@ -112,13 +112,13 @@ const isOpen = ref(false)
           />
         </svg>
         <span class="font-medium">Vue UI Demo</span>
-      </RouterLink>
+      </Link>
 
-      <RouterLink
+      <Link
         to="/guitars"
         @click="isOpen = false"
         class="flex items-center gap-3 p-3 rounded-lg hover:bg-gray-800 transition-colors mb-2"
-        active-class="bg-cyan-600 hover:bg-cyan-700"
+        :activeProps="{ class: 'bg-cyan-600 hover:bg-cyan-700' }"
       >
         <svg
           class="w-5 h-5"
@@ -134,7 +134,7 @@ const isOpen = ref(false)
           />
         </svg>
         <span class="font-medium">Guitar Demo</span>
-      </RouterLink>
+      </Link>
     </nav>
   </aside>
 

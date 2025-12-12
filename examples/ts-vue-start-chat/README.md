@@ -1,6 +1,7 @@
-# TanStack AI - Vue Chat Example
+# TanStack AI - Vue Start Chat Example
 
-A Vue 3 chat application demonstrating the use of `@tanstack/ai-vue`.
+A Vue 3 chat application demonstrating the use of `@tanstack/ai-vue` with
+file-based routing powered by `@tanstack/vue-start`.
 
 ## Setup
 
@@ -22,7 +23,7 @@ pnpm install
 pnpm dev
 ```
 
-4. Open [http://localhost:5173](http://localhost:5173) in your browser.
+4. Open [http://localhost:3000](http://localhost:3000) in your browser.
 
 ## Features
 
@@ -36,9 +37,16 @@ pnpm dev
 
 ```
 src/
-├── main.ts           # App entry point
-├── App.vue           # Root component
-├── router.ts         # Vue Router setup
+├── routes/           # File-based routes (TanStack Router/Start)
+│   ├── __root.tsx
+│   ├── index.ts
+│   ├── vue-ui.ts
+│   ├── api.chat.ts   # Server route for chat
+│   └── guitars/
+│       ├── index.ts
+│       └── $id.ts
+├── router.ts         # TanStack Vue Router setup
+├── routeTree.gen.ts  # Generated route tree
 ├── styles.css        # Global styles
 ├── components/       # UI components
 │   ├── Header.vue
@@ -62,4 +70,6 @@ src/
 - TypeScript
 - Vite
 - Tailwind CSS
+- @tanstack/vue-start
+- @tanstack/vue-router
 - @tanstack/ai-vue

@@ -2,7 +2,7 @@
 import { ref, watch, nextTick } from 'vue'
 import { marked } from 'marked'
 import type { UIMessage } from '@tanstack/ai-client'
-import ThinkingPart from './ThinkingPart.vue'
+import { ThinkingPart } from '@tanstack/ai-vue-ui'
 import GuitarRecommendation from './GuitarRecommendation.vue'
 
 // Using readonly any[] to accept deep readonly messages from useChat
@@ -76,6 +76,7 @@ const isThinkingComplete = (message: UIMessage, partIndex: number) => {
               <ThinkingPart
                 :content="part.content"
                 :is-complete="isThinkingComplete(message, index)"
+                class="p-4 bg-gray-800/50 border border-gray-700/50 rounded-lg"
               />
             </div>
 

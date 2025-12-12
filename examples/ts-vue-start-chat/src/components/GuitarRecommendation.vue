@@ -1,19 +1,22 @@
 <script setup lang="ts">
 import { computed } from 'vue'
-import { useRouter } from 'vue-router'
+import { useNavigate } from '@tanstack/vue-router'
 import { guitars } from '@/data/guitars'
 
 const props = defineProps<{
   id: string | number
 }>()
 
-const router = useRouter()
+const navigate = useNavigate()
 
 const guitar = computed(() => guitars.find((g) => g.id === +props.id))
 
 const handleViewDetails = () => {
   if (guitar.value) {
-    router.push(`/guitars/${guitar.value.id}`)
+    navigate({
+      to: '/guitars/$id',
+      params: { id: guitar.value.id.toString() },
+    })
   }
 }
 </script>
