@@ -41,6 +41,23 @@ export type {
   OpenAIImageModelProviderOptionsByName,
 } from './image/image-provider-options'
 
+// Video adapter - for video generation (experimental)
+/**
+ * @experimental Video generation is an experimental feature and may change.
+ */
+export {
+  OpenAIVideoAdapter,
+  createOpenaiVideo,
+  openaiVideo,
+  type OpenAIVideoConfig,
+} from './adapters/video'
+export type {
+  OpenAIVideoProviderOptions,
+  OpenAIVideoModelProviderOptionsByName,
+  OpenAIVideoSize,
+  OpenAIVideoDuration,
+} from './video/video-provider-options'
+
 // ============================================================================
 // Legacy Exports (Deprecated - will be removed in future versions)
 // ============================================================================
@@ -64,7 +81,7 @@ export type {
   OpenAIChatModelProviderOptionsByName,
   OpenAIModelInputModalitiesByName,
 } from './model-meta'
-export { OPENAI_IMAGE_MODELS } from './model-meta'
+export { OPENAI_IMAGE_MODELS, OPENAI_VIDEO_MODELS } from './model-meta'
 export type {
   OpenAITextMetadata,
   OpenAIImageMetadata,

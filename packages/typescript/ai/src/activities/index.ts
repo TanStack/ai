@@ -23,6 +23,7 @@ import {
   kind as summarizeKindValue,
 } from './summarize/index'
 import { imageActivity, kind as imageKindValue } from './image/index'
+import { videoActivity, kind as videoKindValue } from './video/index'
 
 // Import model types for use in local type definitions
 import type {
@@ -51,12 +52,22 @@ import type {
   ImageProviderOptionsForModel,
   ImageSizeForModel,
 } from './image/index'
+import type {
+  VideoActivityOptions,
+  VideoActivityResult,
+  VideoModels,
+  VideoProviderOptions,
+  VideoCreateOptions,
+  VideoStatusOptions,
+  VideoUrlOptions,
+} from './video/index'
 
 // Import adapter types for type definitions
 import type { TextAdapter } from './text/adapter'
 import type { EmbeddingAdapter } from './embedding/adapter'
 import type { SummarizeAdapter } from './summarize/adapter'
 import type { ImageAdapter } from './image/adapter'
+import type { VideoAdapter } from './video/adapter'
 // eslint-disable-next-line import/no-duplicates
 import type { TextActivityOptions, TextActivityResult } from './text/index'
 
@@ -68,6 +79,9 @@ import type {
   StreamChunk,
   SummarizationResult,
   TextOptions,
+  VideoJobResult,
+  VideoStatusResult,
+  VideoUrlResult,
 } from '../types'
 
 // ===========================
@@ -154,6 +168,28 @@ export {
 } from './image/adapter'
 
 // ===========================
+// Video Activity (Experimental)
+// ===========================
+
+export {
+  kind as videoKind,
+  videoActivity,
+  type VideoActivityOptions,
+  type VideoActivityResult,
+  type VideoModels,
+  type VideoProviderOptions,
+  type VideoCreateOptions,
+  type VideoStatusOptions,
+  type VideoUrlOptions,
+} from './video/index'
+
+export {
+  BaseVideoAdapter,
+  type VideoAdapter,
+  type VideoAdapterConfig,
+} from './video/adapter'
+
+// ===========================
 // Activity Handler Type
 // ===========================
 
@@ -173,6 +209,7 @@ export const activityMap = new Map<string, ActivityHandler>([
   [embeddingKindValue, embeddingActivity],
   [summarizeKindValue, summarizeActivity],
   [imageKindValue, imageActivity],
+  [videoKindValue, videoActivity],
 ])
 
 // ===========================
@@ -185,6 +222,7 @@ export type AIAdapter =
   | EmbeddingAdapter<ReadonlyArray<string>, object>
   | SummarizeAdapter<ReadonlyArray<string>, object>
   | ImageAdapter<ReadonlyArray<string>, object, any, any>
+  | VideoAdapter<ReadonlyArray<string>, object>
 
 /** Alias for backwards compatibility */
 export type GenerateAdapter = AIAdapter
@@ -195,9 +233,10 @@ export type AnyAdapter =
   | EmbeddingAdapter<any, any>
   | SummarizeAdapter<any, any>
   | ImageAdapter<any, any, any>
+  | VideoAdapter<any, any>
 
 /** Union type of all adapter kinds */
-export type AdapterKind = 'text' | 'embedding' | 'summarize' | 'image'
+export type AdapterKind = 'text' | 'embedding' | 'summarize' | 'image' | 'video'
 
 // ===========================
 // Unified Options Type
@@ -211,6 +250,7 @@ export type AnyAIAdapter =
   | (EmbeddingAdapter<ReadonlyArray<string>, object> & { kind: 'embedding' })
   | (SummarizeAdapter<ReadonlyArray<string>, object> & { kind: 'summarize' })
   | (ImageAdapter<ReadonlyArray<string>, object, any, any> & { kind: 'image' })
+  | (VideoAdapter<ReadonlyArray<string>, object> & { kind: 'video' })
 
 /** Infer the correct options type based on adapter kind */
 export type AIOptionsFor<
@@ -218,6 +258,7 @@ export type AIOptionsFor<
   TModel extends string,
   TSchema extends z.ZodType | undefined = undefined,
   TStream extends boolean | undefined = undefined,
+  TRequest extends 'create' | 'status' | 'url' = 'create',
 > = TAdapter extends { kind: 'text' }
   ? TAdapter extends TextAdapter<ReadonlyArray<string>, object, any, any, any>
     ? TextActivityOptions<
@@ -243,7 +284,15 @@ export type AIOptionsFor<
         ? TAdapter extends ImageAdapter<ReadonlyArray<string>, object, any, any>
           ? ImageActivityOptions<TAdapter, TModel & ImageModels<TAdapter>>
           : never
-        : never
+        : TAdapter extends { kind: 'video' }
+          ? TAdapter extends VideoAdapter<ReadonlyArray<string>, object>
+            ? VideoActivityOptions<
+                TAdapter,
+                TModel & VideoModels<TAdapter>,
+                TRequest
+              >
+            : never
+          : never
 
 // ===========================
 // Unified Result Type
@@ -254,6 +303,7 @@ export type AIResultFor<
   TAdapter extends AnyAIAdapter,
   TSchema extends z.ZodType | undefined = undefined,
   TStream extends boolean | undefined = undefined,
+  TRequest extends 'create' | 'status' | 'url' = 'create',
 > = TAdapter extends { kind: 'text' }
   ? TextActivityResult<TSchema, TStream extends boolean ? TStream : true>
   : TAdapter extends { kind: 'embedding' }
@@ -262,7 +312,9 @@ export type AIResultFor<
       ? SummarizeActivityResult<TStream extends boolean ? TStream : false>
       : TAdapter extends { kind: 'image' }
         ? ImageActivityResult
-        : never
+        : TAdapter extends { kind: 'video' }
+          ? VideoActivityResult<TRequest>
+          : never
 
 // ===========================
 // Unified Options Type (Legacy)
@@ -352,6 +404,9 @@ export type AIOptionsUnion =
       ImageAdapter<ReadonlyArray<string>, object, any, any>,
       string
     >
+  | VideoCreateOptions<VideoAdapter<ReadonlyArray<string>, object>, string>
+  | VideoStatusOptions<VideoAdapter<ReadonlyArray<string>, object>, string>
+  | VideoUrlOptions<VideoAdapter<ReadonlyArray<string>, object>, string>
 
 /**
  * Union type for all possible ai() return types (used in implementation signature)
@@ -362,6 +417,9 @@ export type AIResultUnion =
   | Promise<EmbeddingResult>
   | Promise<SummarizationResult>
   | Promise<ImageGenerationResult>
+  | Promise<VideoJobResult>
+  | Promise<VideoStatusResult>
+  | Promise<VideoUrlResult>
   | Promise<unknown>
 
 // ===========================
@@ -436,6 +494,82 @@ export type AIImageOptions<
   /** Provider-specific options */
   providerOptions?: ImageProviderOptionsForModel<TAdapter, TModel>
 }
+
+/**
+ * Explicit video options for creating a job - provides clear autocomplete and required field enforcement.
+ *
+ * @experimental Video generation is an experimental feature and may change.
+ */
+export type AIVideoCreateOptions<
+  TAdapter extends VideoAdapter<ReadonlyArray<string>, object>,
+  TModel extends VideoModels<TAdapter>,
+> = {
+  /** The video adapter to use */
+  adapter: TAdapter & { kind: 'video' }
+  /** The model name (autocompletes based on adapter) */
+  model: TModel
+  /** Request type - create a new job */
+  request?: 'create'
+  /** Text description of the desired video - REQUIRED */
+  prompt: string
+  /** Video size in WIDTHxHEIGHT format (e.g., "1280x720") */
+  size?: string
+  /** Video duration in seconds */
+  duration?: number
+  /** Provider-specific options */
+  providerOptions?: VideoProviderOptions<TAdapter>
+}
+
+/**
+ * Explicit video options for checking status.
+ *
+ * @experimental Video generation is an experimental feature and may change.
+ */
+export type AIVideoStatusOptions<
+  TAdapter extends VideoAdapter<ReadonlyArray<string>, object>,
+  TModel extends VideoModels<TAdapter>,
+> = {
+  /** The video adapter to use */
+  adapter: TAdapter & { kind: 'video' }
+  /** The model name (autocompletes based on adapter) */
+  model: TModel
+  /** Request type - get status */
+  request: 'status'
+  /** Job ID to check status for - REQUIRED */
+  jobId: string
+}
+
+/**
+ * Explicit video options for getting the video URL.
+ *
+ * @experimental Video generation is an experimental feature and may change.
+ */
+export type AIVideoUrlOptions<
+  TAdapter extends VideoAdapter<ReadonlyArray<string>, object>,
+  TModel extends VideoModels<TAdapter>,
+> = {
+  /** The video adapter to use */
+  adapter: TAdapter & { kind: 'video' }
+  /** The model name (autocompletes based on adapter) */
+  model: TModel
+  /** Request type - get URL */
+  request: 'url'
+  /** Job ID to get URL for - REQUIRED */
+  jobId: string
+}
+
+/**
+ * Union of all video options types.
+ *
+ * @experimental Video generation is an experimental feature and may change.
+ */
+export type AIVideoOptions<
+  TAdapter extends VideoAdapter<ReadonlyArray<string>, object>,
+  TModel extends VideoModels<TAdapter>,
+> =
+  | AIVideoCreateOptions<TAdapter, TModel>
+  | AIVideoStatusOptions<TAdapter, TModel>
+  | AIVideoUrlOptions<TAdapter, TModel>
 
 /**
  * Explicit text options - provides clear autocomplete and required field enforcement.
@@ -513,3 +647,23 @@ export type ImageGenerateOptions<
   TAdapter extends ImageAdapter<ReadonlyArray<string>, object, any, any>,
   TModel extends ImageModels<TAdapter>,
 > = ImageActivityOptions<TAdapter, TModel>
+
+/**
+ * @deprecated Use VideoActivityOptions
+ * @experimental Video generation is an experimental feature and may change.
+ */
+export type VideoGenerateOptions<
+  TAdapter extends VideoAdapter<ReadonlyArray<string>, object>,
+  TModel extends VideoModels<TAdapter>,
+  TRequest extends 'create' | 'status' | 'url' = 'create',
+> = VideoActivityOptions<TAdapter, TModel, TRequest>
+
+/**
+ * @deprecated Use VideoActivityOptions
+ * @experimental Video generation is an experimental feature and may change.
+ */
+export type GenerateVideoOptions<
+  TAdapter extends VideoAdapter<ReadonlyArray<string>, object>,
+  TModel extends VideoModels<TAdapter>,
+  TRequest extends 'create' | 'status' | 'url' = 'create',
+> = VideoActivityOptions<TAdapter, TModel, TRequest>

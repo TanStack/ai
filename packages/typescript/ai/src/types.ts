@@ -798,6 +798,73 @@ export interface ImageGenerationResult {
   }
 }
 
+// ============================================================================
+// Video Generation Types (Experimental)
+// ============================================================================
+
+/**
+ * Options for video generation.
+ * These are the common options supported across providers.
+ *
+ * @experimental Video generation is an experimental feature and may change.
+ */
+export interface VideoGenerationOptions<
+  TProviderOptions extends object = object,
+> {
+  /** The model to use for video generation */
+  model: string
+  /** Text description of the desired video */
+  prompt: string
+  /** Video size in WIDTHxHEIGHT format (e.g., "1280x720") */
+  size?: string
+  /** Video duration in seconds */
+  duration?: number
+  /** Provider-specific options for video generation */
+  providerOptions?: TProviderOptions
+}
+
+/**
+ * Result of creating a video generation job.
+ *
+ * @experimental Video generation is an experimental feature and may change.
+ */
+export interface VideoJobResult {
+  /** Unique job identifier for polling status */
+  jobId: string
+  /** Model used for generation */
+  model: string
+}
+
+/**
+ * Status of a video generation job.
+ *
+ * @experimental Video generation is an experimental feature and may change.
+ */
+export interface VideoStatusResult {
+  /** Job identifier */
+  jobId: string
+  /** Current status of the job */
+  status: 'pending' | 'processing' | 'completed' | 'failed'
+  /** Progress percentage (0-100), if available */
+  progress?: number
+  /** Error message if status is 'failed' */
+  error?: string
+}
+
+/**
+ * Result containing the URL to a generated video.
+ *
+ * @experimental Video generation is an experimental feature and may change.
+ */
+export interface VideoUrlResult {
+  /** Job identifier */
+  jobId: string
+  /** URL to the generated video */
+  url: string
+  /** When the URL expires, if applicable */
+  expiresAt?: Date
+}
+
 /**
  * Default metadata type for adapters that don't define custom metadata.
  * Uses unknown for all modalities.
