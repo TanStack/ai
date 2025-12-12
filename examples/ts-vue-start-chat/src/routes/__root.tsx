@@ -49,28 +49,28 @@ function RootComponent() {
       <Body class="min-h-screen bg-gray-900">
         <Header />
         <Outlet />
-				<ClientOnly>
-					<TanStackDevtools
-						config={{
-							position: 'bottom-right',
-						}}
-						plugins={[
-							{
-								name: 'TanStack Router',
-								id: 'tanstack-router',
-								component: TanStackRouterDevtoolsPanelInProd,
-							},
-							{
-								name: 'TanStack AI',
-								id: 'tanstack-ai',
-								component: AiDevtoolsPanelInProd,
-							},
-						]}
-						eventBusConfig={{
-							connectToServerBus: true,
-						}}
-					/>
-				</ClientOnly>
+        <ClientOnly>
+          <TanStackDevtools
+            config={{
+              position: 'bottom-right',
+            }}
+            plugins={[
+              {
+                name: 'TanStack Router',
+                id: 'tanstack-router',
+                component: TanStackRouterDevtoolsPanelInProd,
+              },
+              {
+                name: 'TanStack AI',
+                id: 'tanstack-ai',
+                component: AiDevtoolsPanelInProd,
+              },
+            ]}
+            eventBusConfig={{
+              connectToServerBus: true,
+            }}
+          />
+        </ClientOnly>
         <Scripts />
       </Body>
     </Html>

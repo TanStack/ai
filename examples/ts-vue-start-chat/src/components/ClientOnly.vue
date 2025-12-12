@@ -11,4 +11,3 @@ onMounted(() => {
 <template>
   <slot v-if="mounted" />
 </template>
-
