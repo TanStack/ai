@@ -5,6 +5,15 @@ import type { Tool } from '@tanstack/ai'
 
 const OUTPUT_DIR = join(process.cwd(), 'output')
 
+/**
+ * Result of a test run
+ */
+export interface TestOutcome {
+  passed: boolean
+  error?: string
+  ignored?: boolean
+}
+
 interface ToolCallCapture {
   id: string
   name: string
@@ -46,9 +55,14 @@ export interface AdapterContext {
   embeddingAdapter?: any
   /** Image adapter for image generation */
   imageAdapter?: any
+  /** Model for chat/text */
   model: string
+  /** Model for summarization */
   summarizeModel?: string
+  /** Model for embeddings */
   embeddingModel?: string
+  /** Model for image generation */
+  imageModel?: string
 }
 
 interface DebugEnvelope {

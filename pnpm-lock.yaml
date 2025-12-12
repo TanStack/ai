@@ -621,13 +621,13 @@ importers:
       '@tanstack/ai':
         specifier: workspace:*
         version: link:../ai
+      zod:
+        specifier: ^4.0.0
+        version: 4.1.13
     devDependencies:
       '@vitest/coverage-v8':
         specifier: 4.0.14
         version: 4.0.14(vitest@4.0.14(@types/node@24.10.1)(happy-dom@20.0.10)(jiti@2.6.1)(jsdom@27.2.0(postcss@8.5.6))(lightningcss@1.30.2)(terser@5.44.0)(tsx@4.20.6)(yaml@2.8.1))
-      zod:
-        specifier: ^4.1.13
-        version: 4.1.13
 
   packages/typescript/ai-client:
     dependencies:
@@ -684,6 +684,9 @@ importers:
       '@tanstack/ai':
         specifier: workspace:*
         version: link:../ai
+      zod:
+        specifier: ^4.0.0
+        version: 4.1.13
     devDependencies:
       '@vitest/coverage-v8':
         specifier: 4.0.14
@@ -701,7 +704,7 @@ importers:
         specifier: ^0.6.3
         version: 0.6.3
       zod:
-        specifier: ^4.1.13
+        specifier: ^4.0.0
         version: 4.1.13
     devDependencies:
       '@vitest/coverage-v8':
@@ -719,6 +722,9 @@ importers:
       openai:
         specifier: ^6.9.1
         version: 6.9.1(ws@8.18.3)(zod@4.1.13)
+      zod:
+        specifier: ^4.0.0
+        version: 4.1.13
     devDependencies:
       '@vitest/coverage-v8':
         specifier: 4.0.14
@@ -1027,6 +1033,9 @@ importers:
       '@tanstack/ai-openai':
         specifier: workspace:*
         version: link:../../ai-openai
+      commander:
+        specifier: ^13.1.0
+        version: 13.1.0
     devDependencies:
       '@alcyone-labs/zod-to-json-schema':
         specifier: ^4.0.10
@@ -3820,6 +3829,10 @@ packages:
   commander@10.0.1:
     resolution: {integrity: sha512-y4Mg2tXshplEbSGzx7amzPwKKOCGuoSRP/CjEdwwk0FOGlUbq6lKuoyDZTNZkmxHdJtp54hdfY/JUrdL7Xfdug==}
     engines: {node: '>=14'}
+
+  commander@13.1.0:
+    resolution: {integrity: sha512-/rFeCpNJQbhSZjGVwO9RFV3xPqbnERS8MmIQzCtD/zl6gpJuV/bMLuN92oG3F7d8oDEHHRrujSXNUr8fpjntKw==}
+    engines: {node: '>=18'}
 
   commander@2.20.3:
     resolution: {integrity: sha512-GpVkmM8vF2vQUkj2LvZmD35JxeJOLCwJ9cUkugyk2nuhbv3+mJvpLYYt+0+USMxE+oj+ey/lJEnhZw75x/OMcQ==}
@@ -10313,6 +10326,8 @@ snapshots:
   comma-separated-tokens@2.0.3: {}
 
   commander@10.0.1: {}
+
+  commander@13.1.0: {}
 
   commander@2.20.3: {}
 

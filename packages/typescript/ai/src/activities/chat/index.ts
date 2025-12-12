@@ -1138,11 +1138,19 @@ async function runAgenticStructuredOutput<TSchema extends z.ZodType>(
   // Get the final messages from the engine (includes tool results)
   const finalMessages = engine.getMessages()
 
+  // Build chat options for structured output, excluding tools since
+  // the agentic loop is complete and we only need the final response
+  const {
+    tools: _tools,
+    agentLoopStrategy: _als,
+    ...structuredChatOptions
+  } = chatOptions
+
   // Call the adapter's structured output method with the conversation context
   // Each adapter is responsible for converting the Zod schema to its provider's format
   const result = await adapter.structuredOutput({
     chatOptions: {
-      ...chatOptions,
+      ...structuredChatOptions,
       messages: finalMessages,
     },
     outputSchema,
