@@ -6,36 +6,6 @@ import type { UIMessage, UseChatOptions, UseChatReturn } from './types'
 export function useChat<TTools extends ReadonlyArray<AnyClientTool> = any>(
   options: UseChatOptions<TTools> = {} as UseChatOptions<TTools>,
 ): UseChatReturn<TTools> {
-  // Avoid creating a ChatClient during SSR. Server-side instantiation would
-  // emit client:* events into the devtools server bus, which then get replayed
-  // to the browser and cause duplicate conversations/messages.
-  if (typeof window === 'undefined') {
-    const messages = shallowRef<Array<UIMessage<TTools>>>(
-      options.initialMessages || [],
-    )
-    const isLoading = shallowRef(false)
-    const error = shallowRef<Error | undefined>(undefined)
-
-    return {
-      messages: readonly(messages),
-      sendMessage: async () => {},
-      append: async (message: ModelMessage | UIMessage<TTools>) => {
-        messages.value = [...messages.value, message as any]
-      },
-      reload: async () => {},
-      stop: () => {},
-      isLoading: readonly(isLoading),
-      error: readonly(error),
-      setMessages: (newMessages: Array<UIMessage<TTools>>) => {
-        messages.value = newMessages
-      },
-      clear: () => {
-        messages.value = []
-      },
-      addToolResult: async () => {},
-      addToolApprovalResponse: async () => {},
-    }
-  }
 
   const hookId = useId() // Available in Vue 3.5+
   const clientId = options.id || hookId
