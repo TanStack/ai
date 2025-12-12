@@ -1,4 +1,4 @@
-import { BaseChatAdapter } from '@tanstack/ai/adapters'
+import { BaseTextAdapter } from '@tanstack/ai/adapters'
 
 import {
   convertZodToOllamaSchema,
@@ -20,7 +20,7 @@ import type {
   Tool as OllamaTool,
   ToolCall,
 } from 'ollama'
-import type { ChatOptions, StreamChunk, Tool } from '@tanstack/ai'
+import type { StreamChunk, TextOptions, Tool } from '@tanstack/ai'
 
 /**
  * Ollama text models
@@ -106,11 +106,11 @@ export interface OllamaTextAdapterOptions {
  * Ollama Text/Chat Adapter
  * A tree-shakeable chat adapter for Ollama
  */
-export class OllamaTextAdapter extends BaseChatAdapter<
+export class OllamaTextAdapter extends BaseTextAdapter<
   typeof OllamaTextModels,
   OllamaTextProviderOptions
 > {
-  readonly kind = 'chat' as const
+  readonly kind = 'text' as const
   readonly name = 'ollama' as const
   readonly models = OllamaTextModels
 
@@ -130,7 +130,7 @@ export class OllamaTextAdapter extends BaseChatAdapter<
     this.defaultModel = options.model ?? 'llama3'
   }
 
-  async *chatStream(options: ChatOptions): AsyncIterable<StreamChunk> {
+  async *chatStream(options: TextOptions): AsyncIterable<StreamChunk> {
     const mappedOptions = this.mapCommonOptionsToOllama(options)
     const response = await this.client.chat({
       ...mappedOptions,
@@ -299,7 +299,7 @@ export class OllamaTextAdapter extends BaseChatAdapter<
     }))
   }
 
-  private formatMessages(messages: ChatOptions['messages']): Array<Message> {
+  private formatMessages(messages: TextOptions['messages']): Array<Message> {
     return messages.map((msg) => {
       let textContent = ''
       const images: Array<string> = []
@@ -363,7 +363,7 @@ export class OllamaTextAdapter extends BaseChatAdapter<
     })
   }
 
-  private mapCommonOptionsToOllama(options: ChatOptions): ChatRequest {
+  private mapCommonOptionsToOllama(options: TextOptions): ChatRequest {
     const model = options.model || this.defaultModel
     const providerOptions = options.providerOptions as
       | OllamaTextProviderOptions

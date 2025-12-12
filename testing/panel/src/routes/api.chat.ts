@@ -4,6 +4,7 @@ import { createFileRoute } from '@tanstack/react-router'
 import ai, { maxIterations, toStreamResponse } from '@tanstack/ai'
 import { anthropicText } from '@tanstack/ai-anthropic'
 import { geminiText } from '@tanstack/ai-gemini'
+import { grokText } from '@tanstack/ai-grok'
 import { openaiText } from '@tanstack/ai-openai'
 import { ollamaText } from '@tanstack/ai-ollama'
 import type { AIAdapter, ChatOptions, StreamChunk } from '@tanstack/ai'
@@ -46,7 +47,7 @@ const addToCartToolServer = addToCartToolDef.server((args) => ({
   totalItems: args.quantity,
 }))
 
-type Provider = 'openai' | 'anthropic' | 'gemini' | 'ollama'
+type Provider = 'openai' | 'anthropic' | 'gemini' | 'grok' | 'ollama'
 
 /**
  * Wraps an adapter to intercept chatStream and record raw chunks from the adapter
@@ -163,6 +164,10 @@ export const Route = createFileRoute('/api/chat')({
             case 'gemini':
               adapter = geminiText()
               defaultModel = 'gemini-2.0-flash-exp'
+              break
+            case 'grok':
+              adapter = grokText()
+              defaultModel = 'grok-3'
               break
             case 'ollama':
               adapter = ollamaText()

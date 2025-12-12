@@ -122,7 +122,7 @@ export async function POST(request: Request) {
   const { messages } = await request.json();
 
   const stream = ai({
-    adapter: openaiChat(),
+    adapter: openaiText(),
     messages,
     model: "gpt-4o",
     tools: [getWeather, getClothingAdvice],

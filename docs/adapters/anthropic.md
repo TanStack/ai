@@ -1,9 +1,9 @@
 ---
 title: Anthropic Adapter
-slug: /adapters/anthropic
+id: anthropic-adapter
 ---
 
-The Anthropic adapter provides access to Claude models, including Claude 3.5 Sonnet, Claude 3 Opus, and more.
+The Anthropic adapter provides access to Claude models, including Claude Sonnet 4.5, Claude Opus 4.5, and more.
 
 ## Installation
 
@@ -15,14 +15,14 @@ npm install @tanstack/ai-anthropic
 
 ```typescript
 import ai from "@tanstack/ai";
-import { anthropicChat } from "@tanstack/ai-anthropic";
+import { anthropicText } from "@tanstack/ai-anthropic";
 
-const adapter = anthropicChat();
+const adapter = anthropicText();
 
 const stream = ai({
   adapter,
   messages: [{ role: "user", content: "Hello!" }],
-  model: "claude-3-5-sonnet-20241022",
+  model: "claude-sonnet-4-5-20250929",
 });
 ```
 
@@ -30,39 +30,48 @@ const stream = ai({
 
 ```typescript
 import ai from "@tanstack/ai";
-import { createAnthropic } from "@tanstack/ai-anthropic";
+import { createAnthropicText } from "@tanstack/ai-anthropic";
 
-const adapter = createAnthropic(process.env.ANTHROPIC_API_KEY, {
+const adapter = createAnthropicText(process.env.ANTHROPIC_API_KEY!, {
   // ... your config options
- });
+});
 
 const stream = ai({
   adapter,
   messages: [{ role: "user", content: "Hello!" }],
-  model: "claude-3-5-sonnet-20241022",
+  model: "claude-sonnet-4-5-20250929",
 });
 ```
 
 ## Configuration
 
 ```typescript
-import { anthropicChat, type AnthropicConfig } from "@tanstack/ai-anthropic";
+import { createAnthropicText, type AnthropicTextConfig } from "@tanstack/ai-anthropic";
 
-const config: AnthropicConfig = {
-  // ... your config options
+const config: AnthropicTextConfig = {
+  baseURL: "https://api.anthropic.com", // Optional, for custom endpoints
 };
 
-const adapter = anthropicChat(config);
+const adapter = createAnthropicText(process.env.ANTHROPIC_API_KEY!, config);
 ```
- 
+
+## Available Models
+
+### Chat Models
+
+- `claude-sonnet-4-5-20250929` - Claude Sonnet 4.5 (balanced)
+- `claude-opus-4-5-20251101` - Claude Opus 4.5 (most capable)
+- `claude-haiku-4-0-20250514` - Claude Haiku 4.0 (fastest)
+- `claude-3-5-sonnet-20241022` - Claude 3.5 Sonnet
+- `claude-3-opus-20240229` - Claude 3 Opus
 
 ## Example: Chat Completion
 
 ```typescript
 import ai, { toStreamResponse } from "@tanstack/ai";
-import { anthropicChat } from "@tanstack/ai-anthropic";
+import { anthropicText } from "@tanstack/ai-anthropic";
 
-const adapter = anthropicChat();
+const adapter = anthropicText();
 
 export async function POST(request: Request) {
   const { messages } = await request.json();
@@ -70,7 +79,7 @@ export async function POST(request: Request) {
   const stream = ai({
     adapter,
     messages,
-    model: "claude-3-5-sonnet-20241022",
+    model: "claude-sonnet-4-5-20250929",
   });
 
   return toStreamResponse(stream);
@@ -81,10 +90,10 @@ export async function POST(request: Request) {
 
 ```typescript
 import ai, { toolDefinition } from "@tanstack/ai";
-import { anthropicChat } from "@tanstack/ai-anthropic";
+import { anthropicText } from "@tanstack/ai-anthropic";
 import { z } from "zod";
 
-const adapter = anthropicChat();
+const adapter = anthropicText();
 
 const searchDatabaseDef = toolDefinition({
   name: "search_database",
@@ -96,43 +105,39 @@ const searchDatabaseDef = toolDefinition({
 
 const searchDatabase = searchDatabaseDef.server(async ({ query }) => {
   // Search database
-  return { results: [...] };
+  return { results: [] };
 });
 
 const stream = ai({
   adapter,
   messages,
-  model: "claude-3-5-sonnet-20241022",
+  model: "claude-sonnet-4-5-20250929",
   tools: [searchDatabase],
 });
 ```
 
 ## Provider Options
 
-Anthropic supports provider-specific options:
+Anthropic supports various provider-specific options:
 
 ```typescript
 const stream = ai({
-  adapter: anthropicChat(),
+  adapter: anthropicText(),
   messages,
-  model: "claude-3-5-sonnet-20241022",
+  model: "claude-sonnet-4-5-20250929",
   providerOptions: {
-    thinking: {
-      type: "enabled",
-      budgetTokens: 1000,
-    },
-    cacheControl: {
-      type: "ephemeral",
-      ttl: "5m",
-    },
-    sendReasoning: true,
+    max_tokens: 4096,
+    temperature: 0.7,
+    top_p: 0.9,
+    top_k: 40,
+    stop_sequences: ["END"],
   },
 });
 ```
 
 ### Thinking (Extended Thinking)
 
-Enable extended thinking with a token budget. This allows Claude to show its reasoning process, which is streamed as `thinking` chunks and displayed as `ThinkingPart` in messages:
+Enable extended thinking with a token budget. This allows Claude to show its reasoning process, which is streamed as `thinking` chunks:
 
 ```typescript
 providerOptions: {
@@ -154,23 +159,51 @@ When thinking is enabled, the model's reasoning process is streamed separately f
 
 ### Prompt Caching
 
-Cache prompts for better performance:
+Cache prompts for better performance and reduced costs:
 
 ```typescript
-messages: [
-  { role: "user", content: [{
-    type: "text",
-    content: "What is the capital of France?",
-    metadata: {
-      cache_control: {
-        type: "ephemeral",
-        ttl: "5m",
-      }
-    }
-  }]}
-]
+const stream = ai({
+  adapter: anthropicText(),
+  messages: [
+    {
+      role: "user",
+      content: [
+        {
+          type: "text",
+          content: "What is the capital of France?",
+          metadata: {
+            cache_control: {
+              type: "ephemeral",
+            },
+          },
+        },
+      ],
+    },
+  ],
+  model: "claude-sonnet-4-5-20250929",
+});
 ```
 
+## Summarization
+
+Anthropic supports text summarization:
+
+```typescript
+import ai from "@tanstack/ai";
+import { anthropicSummarize } from "@tanstack/ai-anthropic";
+
+const adapter = anthropicSummarize();
+
+const result = await ai({
+  adapter,
+  model: "claude-sonnet-4-5-20250929",
+  text: "Your long text to summarize...",
+  maxLength: 100,
+  style: "concise", // "concise" | "bullet-points" | "paragraph"
+});
+
+console.log(result.summary);
+```
 
 ## Environment Variables
 
@@ -182,15 +215,44 @@ ANTHROPIC_API_KEY=sk-ant-...
 
 ## API Reference
 
-### `anthropicChat(config)`
+### `anthropicText(config?)`
 
-Creates an Anthropic chat adapter instance.
+Creates an Anthropic text/chat adapter using environment variables.
+
+**Returns:** An Anthropic text adapter instance.
+
+### `createAnthropicText(apiKey, config?)`
+
+Creates an Anthropic text/chat adapter with an explicit API key.
 
 **Parameters:**
 
-- `config.apiKey` - Anthropic API key (required)
+- `apiKey` - Your Anthropic API key
+- `config.baseURL?` - Custom base URL (optional)
 
-**Returns:** An Anthropic adapter instance.
+**Returns:** An Anthropic text adapter instance.
+
+### `anthropicSummarize(config?)`
+
+Creates an Anthropic summarization adapter using environment variables.
+
+**Returns:** An Anthropic summarize adapter instance.
+
+### `createAnthropicSummarize(apiKey, config?)`
+
+Creates an Anthropic summarization adapter with an explicit API key.
+
+**Parameters:**
+
+- `apiKey` - Your Anthropic API key
+- `config.baseURL?` - Custom base URL (optional)
+
+**Returns:** An Anthropic summarize adapter instance.
+
+## Limitations
+
+- **Embeddings**: Anthropic does not support embeddings natively. Use OpenAI or Gemini for embedding needs.
+- **Image Generation**: Anthropic does not support image generation. Use OpenAI, Gemini, or Grok for image generation.
 
 ## Next Steps
 

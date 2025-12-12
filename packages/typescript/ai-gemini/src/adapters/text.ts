@@ -1,5 +1,5 @@
 import { FinishReason } from '@google/genai'
-import { BaseChatAdapter } from '@tanstack/ai/adapters'
+import { BaseTextAdapter } from '@tanstack/ai/adapters'
 import { GEMINI_MODELS } from '../model-meta'
 import { convertToolsToProviderFormat } from '../tools/tool-converter'
 import {
@@ -19,10 +19,10 @@ import type {
   Part,
 } from '@google/genai'
 import type {
-  ChatOptions,
   ContentPart,
   ModelMessage,
   StreamChunk,
+  TextOptions,
 } from '@tanstack/ai'
 import type {
   GeminiChatModelProviderOptionsByName,
@@ -54,14 +54,14 @@ export type GeminiTextProviderOptions = ExternalTextProviderOptions
  * Tree-shakeable adapter for Gemini chat/text completion functionality.
  * Import only what you need for smaller bundle sizes.
  */
-export class GeminiTextAdapter extends BaseChatAdapter<
+export class GeminiTextAdapter extends BaseTextAdapter<
   typeof GEMINI_MODELS,
   GeminiTextProviderOptions,
   GeminiChatModelProviderOptionsByName,
   GeminiModelInputModalitiesByName,
   GeminiMessageMetadataByModality
 > {
-  readonly kind = 'chat' as const
+  readonly kind = 'text' as const
   readonly name = 'gemini' as const
   readonly models = GEMINI_MODELS
 
@@ -77,7 +77,7 @@ export class GeminiTextAdapter extends BaseChatAdapter<
   }
 
   async *chatStream(
-    options: ChatOptions<string, GeminiTextProviderOptions>,
+    options: TextOptions<string, GeminiTextProviderOptions>,
   ): AsyncIterable<StreamChunk> {
     const mappedOptions = this.mapCommonOptionsToGemini(options)
 
@@ -438,7 +438,7 @@ export class GeminiTextAdapter extends BaseChatAdapter<
     })
   }
 
-  private mapCommonOptionsToGemini(options: ChatOptions) {
+  private mapCommonOptionsToGemini(options: TextOptions) {
     const providerOpts = options.providerOptions
     const requestOptions: GenerateContentParameters = {
       model: options.model,

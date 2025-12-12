@@ -8,11 +8,11 @@ export {
   type AnyAdapter,
   type GenerateAdapter,
   type GenerateOptions,
-  type ChatGenerateOptions,
+  type TextGenerateOptions,
   type EmbeddingGenerateOptions,
   type SummarizeGenerateOptions,
   type ImageGenerateOptions,
-  type GenerateChatOptions,
+  type GenerateTextOptions,
   type GenerateEmbeddingOptions,
   type GenerateSummarizeOptions,
   type GenerateImageOptions,
@@ -30,8 +30,8 @@ export {
   type InferToolName,
   type InferToolInput,
   type InferToolOutput,
-} from './activities/chat/tools/tool-definition'
-export { convertZodToJsonSchema } from './activities/chat/tools/zod-converter'
+} from './activities/text/tools/tool-definition'
+export { convertZodToJsonSchema } from './activities/text/tools/zod-converter'
 
 // Stream utilities
 export {
@@ -44,21 +44,21 @@ export {
 export { BaseAdapter } from './base-adapter'
 
 // Tool call management
-export { ToolCallManager } from './activities/chat/tools/tool-calls'
+export { ToolCallManager } from './activities/text/tools/tool-calls'
 
 // Agent loop strategies
 export {
   maxIterations,
   untilFinishReason,
   combineStrategies,
-} from './activities/chat/agent-loop-strategies'
+} from './activities/text/agent-loop-strategies'
 
 // All types
 export * from './types'
 
 // Utility builders
-export { chatOptions } from './activities/chat/index'
-export { messages } from './activities/chat/messages'
+export { textOptions } from './activities/text/index'
+export { messages } from './activities/text/messages'
 
 // Event client
 export { aiEventClient } from './event-client'
@@ -71,7 +71,7 @@ export {
   modelMessageToUIMessage,
   modelMessagesToUIMessages,
   normalizeToUIMessage,
-} from './activities/chat/messages'
+} from './activities/text/messages'
 
 // Stream processing (unified for server and client)
 export {
@@ -85,7 +85,7 @@ export {
   PartialJSONParser,
   defaultJSONParser,
   parsePartialJSON,
-} from './activities/chat/stream'
+} from './activities/text/stream'
 export type {
   ChunkStrategy,
   ChunkRecording,
@@ -98,4 +98,4 @@ export type {
   ToolCallState,
   ToolResultState,
   JSONParser,
-} from './activities/chat/stream'
+} from './activities/text/stream'

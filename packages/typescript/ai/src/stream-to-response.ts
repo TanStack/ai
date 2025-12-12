@@ -6,7 +6,7 @@ import type { StreamChunk } from './types'
  * This function consumes the entire stream, accumulating content from 'content' type chunks,
  * and returns the final concatenated text.
  *
- * @param stream - AsyncIterable of StreamChunks from chat()
+ * @param stream - AsyncIterable of StreamChunks from ai()
  * @returns Promise<string> - The accumulated text content
  *
  * @example
@@ -42,13 +42,13 @@ export async function streamToText(
  * - Each chunk is followed by "\n\n"
  * - Stream ends with "data: [DONE]\n\n"
  *
- * @param stream - AsyncIterable of StreamChunks from chat()
+ * @param stream - AsyncIterable of StreamChunks from ai()
  * @param abortController - Optional AbortController to abort when stream is cancelled
  * @returns ReadableStream in Server-Sent Events format
  *
  * @example
  * ```typescript
- * const stream = chat({ adapter: openai(), model: "gpt-4o", messages: [...] });
+ * const stream = ai({ adapter: openaiText(), model: "gpt-4o", messages: [...] });
  * const readableStream = toServerSentEventsStream(stream);
  * // Use with Response, or any API that accepts ReadableStream
  * ```
@@ -113,7 +113,7 @@ export function toServerSentEventsStream(
  * Create a streaming HTTP response from a StreamChunk async iterable
  * Includes proper headers for Server-Sent Events
  *
- * @param stream - AsyncIterable of StreamChunks from chat()
+ * @param stream - AsyncIterable of StreamChunks from ai()
  * @param init - Optional Response initialization options
  * @param abortController - Optional AbortController to abort when client disconnects
  * @returns Response object with SSE headers and streaming body
@@ -123,8 +123,8 @@ export function toServerSentEventsStream(
  * export async function POST(request: Request) {
  *   const { messages } = await request.json();
  *   const abortController = new AbortController();
- *   const stream = chat({
- *     adapter: openai(),
+ *   const stream = ai({
+ *     adapter: openaiText(),
  *     model: "gpt-4o",
  *     messages,
  *     options: { abortSignal: abortController.signal }

@@ -17,10 +17,10 @@ Creates a streaming chat response.
 
 ```typescript
 import ai from "@tanstack/ai";
-import { openaiChat } from "@tanstack/ai-openai";
+import { openaiText } from "@tanstack/ai-openai";
 
 const stream = ai({
-  adapter: openaiChat(),
+  adapter: openaiText(),
   messages: [{ role: "user", content: "Hello!" }],
   model: "gpt-4o",
   tools: [myTool],
@@ -31,7 +31,7 @@ const stream = ai({
 
 ### Parameters
 
-- `adapter` - An AI adapter instance (e.g., `openaiChat()`, `anthropicChat()`)
+- `adapter` - An AI adapter instance (e.g., `openaiText()`, `anthropicText()`)
 - `messages` - Array of chat messages
 - `model` - Model identifier (type-safe based on adapter)
 - `tools?` - Array of tools for function calling
@@ -162,10 +162,10 @@ Converts a stream to a ReadableStream in Server-Sent Events format.
 
 ```typescript
 import ai, { toServerSentEventsStream } from "@tanstack/ai";
-import { openaiChat } from "@tanstack/ai-openai";
+import { openaiText } from "@tanstack/ai-openai";
 
 const stream = ai({
-  adapter: openaiChat(),
+  adapter: openaiText(),
   messages: [...],
   model: "gpt-4o",
 });
@@ -190,10 +190,10 @@ Converts a stream to an HTTP Response with proper SSE headers.
 
 ```typescript
 import ai, { toStreamResponse } from "@tanstack/ai";
-import { openaiChat } from "@tanstack/ai-openai";
+import { openaiText } from "@tanstack/ai-openai";
 
 const stream = ai({
-  adapter: openaiChat(),
+  adapter: openaiText(),
   messages: [...],
   model: "gpt-4o",
 });
@@ -215,10 +215,10 @@ Creates an agent loop strategy that limits iterations.
 
 ```typescript
 import ai, { maxIterations } from "@tanstack/ai";
-import { openaiChat } from "@tanstack/ai-openai";
+import { openaiText } from "@tanstack/ai-openai";
 
 const stream = ai({
-  adapter: openaiChat(),
+  adapter: openaiText(),
   messages: [...],
   model: "gpt-4o",
   agentLoopStrategy: maxIterations(20),
@@ -294,16 +294,71 @@ interface Tool {
 
 ```typescript
 import ai from "@tanstack/ai";
-import { openaiChat, openaiSummarize, openaiEmbed } from "@tanstack/ai-openai";
+import {
+  openaiText,
+  openaiSummarize,
+  openaiEmbed,
+  openaiImage,
+} from "@tanstack/ai-openai";
 
-// Streaming chat
+// --- Streaming chat
 const stream = ai({
-  adapter: openaiChat(),
+  adapter: openaiText(),
   messages: [{ role: "user", content: "Hello!" }],
   model: "gpt-4o",
 });
 
-// Summarization
+// --- One-shot chat response
+const response = await ai({
+  adapter: openaiText(),
+  messages: [{ role: "user", content: "What's the capital of France?" }],
+  model: "gpt-4o",
+  oneShot: true, // Resolves with a single, complete response
+});
+
+// --- Structured response
+const parsed = await ai({
+  adapter: openaiText(),
+  messages: [{ role: "user", content: "Summarize this text in JSON with keys 'summary' and 'keywords': ... " }],
+  model: "gpt-4o",
+  parse: (content) => {
+    // Example: Expecting JSON output from model
+    try {
+      return JSON.parse(content);
+    } catch {
+      return { summary: "", keywords: [] };
+    }
+  },
+});
+
+// --- Structured response with tools
+import { toolDefinition } from "@tanstack/ai";
+const weatherTool = toolDefinition({
+  name: "getWeather",
+  description: "Get the current weather for a city",
+  parameters: {
+    city: { type: "string", description: "City name" },
+  },
+  async execute({ city }) {
+    // Implementation that fetches weather info
+    return { temperature: 72, condition: "Sunny" };
+  },
+});
+
+const toolResult = await ai({
+  adapter: openaiText(),
+  model: "gpt-4o",
+  messages: [
+    { role: "user", content: "What's the weather in Paris?" }
+  ],
+  tools: [weatherTool],
+  parse: (content, toolsOutput) => ({
+    answer: content,
+    weather: toolsOutput.getWeather,
+  }),
+});
+
+// --- Summarization
 const summary = await ai({
   adapter: openaiSummarize(),
   model: "gpt-4o",
@@ -311,11 +366,20 @@ const summary = await ai({
   maxLength: 100,
 });
 
-// Embeddings
+// --- Embeddings
 const embeddings = await ai({
   adapter: openaiEmbed(),
   model: "text-embedding-3-small",
   input: "Text to embed",
+});
+
+// --- Image generation
+const image = await ai({
+  adapter: openaiImage(),
+  model: "dall-e-3",
+  prompt: "A futuristic city skyline at sunset",
+  n: 1, // number of images
+  size: "1024x1024",
 });
 ```
 

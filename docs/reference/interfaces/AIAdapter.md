@@ -133,7 +133,7 @@ Defined in: [types.ts:804](https://github.com/TanStack/ai/blob/main/packages/typ
 
 ##### options
 
-[`ChatOptions`](ChatOptions.md)\<`string`, `TChatProviderOptions`\>
+[`TextOptions`](TextOptions.md)\<`string`, `TChatProviderOptions`\>
 
 #### Returns
 

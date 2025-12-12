@@ -69,7 +69,7 @@ sequenceDiagram
 
 ```typescript
 import ai, { toStreamResponse } from "@tanstack/ai";
-import { openaiChat } from "@tanstack/ai-openai";
+import { openaiText } from "@tanstack/ai-openai";
 import { getWeather, sendEmail } from "./tools";
 
 export async function POST(request: Request) {
@@ -77,7 +77,7 @@ export async function POST(request: Request) {
 
   // Create streaming chat with tools
   const stream = ai({
-    adapter: openaiChat(),
+    adapter: openaiText(),
     messages,
     model: "gpt-4o",
     tools: [getWeather, sendEmail], // Tool definitions passed here

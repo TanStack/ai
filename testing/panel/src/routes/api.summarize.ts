@@ -2,10 +2,11 @@ import { createFileRoute } from '@tanstack/react-router'
 import ai from '@tanstack/ai'
 import { anthropicSummarize } from '@tanstack/ai-anthropic'
 import { geminiSummarize } from '@tanstack/ai-gemini'
+import { grokSummarize } from '@tanstack/ai-grok'
 import { openaiSummarize } from '@tanstack/ai-openai'
 import { ollamaSummarize } from '@tanstack/ai-ollama'
 
-type Provider = 'openai' | 'anthropic' | 'gemini' | 'ollama'
+type Provider = 'openai' | 'anthropic' | 'gemini' | 'grok' | 'ollama'
 
 export const Route = createFileRoute('/api/summarize')({
   server: {
@@ -28,6 +29,10 @@ export const Route = createFileRoute('/api/summarize')({
             case 'gemini':
               adapter = geminiSummarize()
               model = 'gemini-2.0-flash-exp'
+              break
+            case 'grok':
+              adapter = grokSummarize()
+              model = 'grok-3'
               break
             case 'ollama':
               adapter = ollamaSummarize()

@@ -3,8 +3,8 @@ import {
   ImmediateStrategy,
   PunctuationStrategy,
   StreamProcessor,
-} from '../src/activities/chat/stream'
-import type { StreamProcessorHandlers } from '../src/activities/chat/stream'
+} from '../src/activities/text/stream'
+import type { StreamProcessorHandlers } from '../src/activities/text/stream'
 import type { StreamChunk, UIMessage } from '../src/types'
 
 // Mock stream generator helper

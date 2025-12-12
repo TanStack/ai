@@ -13,7 +13,7 @@
  */
 
 // Import the activity functions and kinds for the map
-import { chatActivity, kind as chatKindValue } from './chat/index'
+import { textActivity, kind as textKindValue } from './text/index'
 import {
   embeddingActivity,
   kind as embeddingKindValue,
@@ -25,11 +25,11 @@ import {
 import { imageActivity, kind as imageKindValue } from './image/index'
 
 // Import adapter types for type definitions
-import type { ChatAdapter } from './chat/adapter'
+import type { TextAdapter } from './text/adapter'
 import type { EmbeddingAdapter } from './embedding/adapter'
 import type { SummarizeAdapter } from './summarize/adapter'
 import type { ImageAdapter } from './image/adapter'
-import type { ChatActivityOptions, ChatActivityResult } from './chat/index'
+import type { TextActivityOptions, TextActivityResult } from './text/index'
 import type {
   EmbeddingActivityOptions,
   EmbeddingActivityResult,
@@ -49,25 +49,25 @@ import type {
 } from '../types'
 
 // ===========================
-// Chat Activity
+// Text Activity
 // ===========================
 
 export {
-  kind as chatKind,
-  chatActivity,
-  chatOptions,
-  type ChatActivityOptions,
-  type ChatActivityResult,
+  kind as textKind,
+  textActivity,
+  textOptions,
+  type TextActivityOptions,
+  type TextActivityResult,
   type CommonOptions,
-} from './chat/index'
+} from './text/index'
 
 export {
-  BaseChatAdapter,
-  type ChatAdapter,
-  type ChatAdapterConfig,
+  BaseTextAdapter,
+  type TextAdapter,
+  type TextAdapterConfig,
   type StructuredOutputOptions,
   type StructuredOutputResult,
-} from './chat/adapter'
+} from './text/adapter'
 
 // ===========================
 // Embedding Activity
@@ -136,7 +136,7 @@ type ActivityHandler = (options: any) => any
  * This allows for pluggable activities without modifying the ai function.
  */
 export const activityMap = new Map<string, ActivityHandler>([
-  [chatKindValue, chatActivity],
+  [textKindValue, textActivity],
   [embeddingKindValue, embeddingActivity],
   [summarizeKindValue, summarizeActivity],
   [imageKindValue, imageActivity],
@@ -148,7 +148,7 @@ export const activityMap = new Map<string, ActivityHandler>([
 
 /** Union of all adapter types that can be passed to ai() */
 export type AIAdapter =
-  | ChatAdapter<ReadonlyArray<string>, object, any, any, any>
+  | TextAdapter<ReadonlyArray<string>, object, any, any, any>
   | EmbeddingAdapter<ReadonlyArray<string>, object>
   | SummarizeAdapter<ReadonlyArray<string>, object>
   | ImageAdapter<ReadonlyArray<string>, object, any, any>
@@ -158,21 +158,21 @@ export type GenerateAdapter = AIAdapter
 
 /** Union of all adapters (legacy name) */
 export type AnyAdapter =
-  | ChatAdapter<any, any, any, any, any>
+  | TextAdapter<any, any, any, any, any>
   | EmbeddingAdapter<any, any>
   | SummarizeAdapter<any, any>
   | ImageAdapter<any, any, any>
 
 /** Union type of all adapter kinds */
-export type AdapterKind = 'chat' | 'embedding' | 'summarize' | 'image'
+export type AdapterKind = 'text' | 'embedding' | 'summarize' | 'image'
 
 // ===========================
 // Model Extraction Helpers
 // ===========================
 
-/** Extract model types from a ChatAdapter */
-export type ChatModels<TAdapter> =
-  TAdapter extends ChatAdapter<infer M, any, any, any, any> ? M[number] : string
+/** Extract model types from a TextAdapter */
+export type TextModels<TAdapter> =
+  TAdapter extends TextAdapter<infer M, any, any, any, any> ? M[number] : string
 
 /** Extract model types from an EmbeddingAdapter */
 export type EmbeddingModels<TAdapter> =
@@ -192,8 +192,8 @@ export type ImageModels<TAdapter> =
 
 /** Union of all adapter types with their kind discriminator */
 export type AnyAIAdapter =
-  | (ChatAdapter<ReadonlyArray<string>, object, any, any, any> & {
-      kind: 'chat'
+  | (TextAdapter<ReadonlyArray<string>, object, any, any, any> & {
+      kind: 'text'
     })
   | (EmbeddingAdapter<ReadonlyArray<string>, object> & { kind: 'embedding' })
   | (SummarizeAdapter<ReadonlyArray<string>, object> & { kind: 'summarize' })
@@ -205,11 +205,11 @@ export type AIOptionsFor<
   TModel extends string,
   TSchema extends z.ZodType | undefined = undefined,
   TStream extends boolean | undefined = undefined,
-> = TAdapter extends { kind: 'chat' }
-  ? TAdapter extends ChatAdapter<ReadonlyArray<string>, object, any, any, any>
-    ? ChatActivityOptions<
+> = TAdapter extends { kind: 'text' }
+  ? TAdapter extends TextAdapter<ReadonlyArray<string>, object, any, any, any>
+    ? TextActivityOptions<
         TAdapter,
-        TModel & ChatModels<TAdapter>,
+        TModel & TextModels<TAdapter>,
         TSchema,
         TStream extends boolean ? TStream : true
       >
@@ -241,8 +241,8 @@ export type AIResultFor<
   TAdapter extends AnyAIAdapter,
   TSchema extends z.ZodType | undefined = undefined,
   TStream extends boolean | undefined = undefined,
-> = TAdapter extends { kind: 'chat' }
-  ? ChatActivityResult<TSchema, TStream extends boolean ? TStream : true>
+> = TAdapter extends { kind: 'text' }
+  ? TextActivityResult<TSchema, TStream extends boolean ? TStream : true>
   : TAdapter extends { kind: 'embedding' }
     ? EmbeddingActivityResult
     : TAdapter extends { kind: 'summarize' }
@@ -262,10 +262,10 @@ export type GenerateOptions<
   TSchema extends z.ZodType | undefined = undefined,
   TStream extends boolean = true,
 > =
-  TAdapter extends ChatAdapter<ReadonlyArray<string>, object, any, any, any>
-    ? ChatActivityOptions<
+  TAdapter extends TextAdapter<ReadonlyArray<string>, object, any, any, any>
+    ? TextActivityOptions<
         TAdapter,
-        TModel & ChatModels<TAdapter>,
+        TModel & TextModels<TAdapter>,
         TSchema,
         TStream
       >
@@ -285,13 +285,13 @@ export type GenerateOptions<
 // Legacy Type Aliases
 // ===========================
 
-/** @deprecated Use ChatActivityOptions */
-export type GenerateChatOptions<
-  TAdapter extends ChatAdapter<ReadonlyArray<string>, object, any, any, any>,
-  TModel extends ChatModels<TAdapter>,
+/** @deprecated Use TextActivityOptions */
+export type GenerateTextOptions<
+  TAdapter extends TextAdapter<ReadonlyArray<string>, object, any, any, any>,
+  TModel extends TextModels<TAdapter>,
   TSchema extends z.ZodType | undefined = undefined,
   TStream extends boolean = true,
-> = ChatActivityOptions<TAdapter, TModel, TSchema, TStream>
+> = TextActivityOptions<TAdapter, TModel, TSchema, TStream>
 
 /** @deprecated Use EmbeddingActivityOptions */
 export type GenerateEmbeddingOptions<
@@ -320,8 +320,8 @@ export type GenerateImageOptions<
  * Union type for all possible ai() options (used in implementation signature)
  */
 export type AIOptionsUnion =
-  | ChatActivityOptions<
-      ChatAdapter<ReadonlyArray<string>, object, any, any, any>,
+  | TextActivityOptions<
+      TextAdapter<ReadonlyArray<string>, object, any, any, any>,
       string,
       z.ZodType | undefined,
       boolean
@@ -355,13 +355,13 @@ export type AIResultUnion =
 // Re-exported Type Aliases for ai.ts compatibility
 // ===========================
 
-/** @deprecated Use ChatActivityOptions */
-export type ChatGenerateOptions<
-  TAdapter extends ChatAdapter<ReadonlyArray<string>, object, any, any, any>,
-  TModel extends ChatModels<TAdapter>,
+/** @deprecated Use TextActivityOptions */
+export type TextGenerateOptions<
+  TAdapter extends TextAdapter<ReadonlyArray<string>, object, any, any, any>,
+  TModel extends TextModels<TAdapter>,
   TSchema extends z.ZodType | undefined = undefined,
   TStream extends boolean = true,
-> = ChatActivityOptions<TAdapter, TModel, TSchema, TStream>
+> = TextActivityOptions<TAdapter, TModel, TSchema, TStream>
 
 /** @deprecated Use EmbeddingActivityOptions */
 export type EmbeddingGenerateOptions<

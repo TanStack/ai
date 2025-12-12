@@ -1,9 +1,9 @@
 ---
-id: ChatCompletionChunk
-title: ChatCompletionChunk
+id: TextCompletionChunk
+title: TextCompletionChunk
 ---
 
-# Interface: ChatCompletionChunk
+# Interface: TextCompletionChunk
 
 Defined in: [types.ts:684](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L684)
 

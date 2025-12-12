@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
 import { z } from 'zod'
-import { ToolCallManager } from '../src/activities/chat/tools/tool-calls'
+import { ToolCallManager } from '../src/activities/text/tools/tool-calls'
 import type { DoneStreamChunk, Tool } from '../src/types'
 
 describe('ToolCallManager', () => {

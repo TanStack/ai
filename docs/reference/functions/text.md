@@ -29,7 +29,7 @@ Includes automatic tool execution loop
 
 ### options
 
-[`ChatStreamOptionsForModel`](../type-aliases/ChatStreamOptionsForModel.md)\<`TAdapter`, `TModel`\>
+[`TextStreamOptionsForModel`](../type-aliases/TextStreamOptionsForModel.md)\<`TAdapter`, `TModel`\>
 
 Chat options
 

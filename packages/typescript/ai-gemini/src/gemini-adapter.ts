@@ -4,7 +4,6 @@ import { GEMINI_EMBEDDING_MODELS, GEMINI_MODELS } from './model-meta'
 import { convertToolsToProviderFormat } from './tools/tool-converter'
 import type {
   AIAdapterConfig,
-  ChatOptions,
   ContentPart,
   EmbeddingOptions,
   EmbeddingResult,
@@ -12,6 +11,7 @@ import type {
   StreamChunk,
   SummarizationOptions,
   SummarizationResult,
+  TextOptions,
 } from '@tanstack/ai'
 import type {
   GeminiChatModelProviderOptionsByName,
@@ -67,7 +67,7 @@ export class GeminiAdapter extends BaseAdapter<
   }
 
   async *chatStream(
-    options: ChatOptions<string, GeminiProviderOptions>,
+    options: TextOptions<string, GeminiProviderOptions>,
   ): AsyncIterable<StreamChunk> {
     // Map common options to Gemini format
     const mappedOptions = this.mapCommonOptionsToGemini(options)
@@ -496,7 +496,7 @@ export class GeminiAdapter extends BaseAdapter<
    * Maps common options to Gemini-specific format
    * Handles translation of normalized options to Gemini's API format
    */
-  private mapCommonOptionsToGemini(options: ChatOptions) {
+  private mapCommonOptionsToGemini(options: TextOptions) {
     const providerOpts = options.providerOptions
     const requestOptions: GenerateContentParameters = {
       model: options.model,

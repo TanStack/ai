@@ -5,7 +5,7 @@
 
 import { describe, expectTypeOf, it } from 'vitest'
 import {
-  BaseChatAdapter,
+  BaseTextAdapter,
   BaseEmbeddingAdapter,
   BaseSummarizeAdapter,
 } from '../src/activities'
@@ -15,7 +15,7 @@ import type {
   StructuredOutputResult,
 } from '../src/activities'
 import type {
-  ChatOptions,
+  TextOptions,
   EmbeddingOptions,
   EmbeddingResult,
   StreamChunk,
@@ -32,7 +32,7 @@ const TEST_EMBED_MODELS = [
 const TEST_SUMMARIZE_MODELS = ['summarize-v1', 'summarize-v2'] as const
 
 // Define strict provider options for testing (without index signatures)
-interface TestChatProviderOptions {
+interface TestTextProviderOptions {
   temperature?: number
   maxTokens?: number
 }
@@ -46,11 +46,11 @@ interface TestSummarizeProviderOptions {
 }
 
 // Mock adapters for type testing
-class TestChatAdapter extends BaseChatAdapter<
+class TestTextAdapter extends BaseTextAdapter<
   typeof TEST_CHAT_MODELS,
-  TestChatProviderOptions
+  TestTextProviderOptions
 > {
-  readonly kind = 'chat' as const
+  readonly kind = 'text' as const
   readonly name = 'test' as const
   readonly models = TEST_CHAT_MODELS
 
@@ -58,12 +58,12 @@ class TestChatAdapter extends BaseChatAdapter<
     super({})
   }
 
-  async *chatStream(_options: ChatOptions): AsyncIterable<StreamChunk> {
+  async *chatStream(_options: TextOptions): AsyncIterable<StreamChunk> {
     // Mock implementation
   }
 
   structuredOutput(
-    _options: StructuredOutputOptions<TestChatProviderOptions>,
+    _options: StructuredOutputOptions<TestTextProviderOptions>,
   ): Promise<StructuredOutputResult<unknown>> {
     return Promise.resolve({
       data: {},
@@ -117,10 +117,10 @@ class TestSummarizeAdapter extends BaseSummarizeAdapter<
 }
 
 describe('ai() type inference', () => {
-  it('should infer chat adapter return type as AsyncIterable<StreamChunk>', () => {
-    const chatAdapter = new TestChatAdapter()
+  it('should infer text adapter return type as AsyncIterable<StreamChunk>', () => {
+    const textAdapter = new TestTextAdapter()
     const result = ai({
-      adapter: chatAdapter,
+      adapter: textAdapter,
       model: 'gpt-4o',
       messages: [{ role: 'user', content: 'Hello' }],
     })
@@ -150,19 +150,19 @@ describe('ai() type inference', () => {
     expectTypeOf(result).toMatchTypeOf<Promise<SummarizationResult>>()
   })
 
-  it('should enforce valid model for chat adapter', () => {
-    const chatAdapter = new TestChatAdapter()
+  it('should enforce valid model for text adapter', () => {
+    const textAdapter = new TestTextAdapter()
 
     // This should work - valid model
     ai({
-      adapter: chatAdapter,
+      adapter: textAdapter,
       model: 'gpt-4o',
       messages: [{ role: 'user', content: 'Hello' }],
     })
 
     // invalid model should error
     ai({
-      adapter: chatAdapter,
+      adapter: textAdapter,
       // @ts-expect-error - invalid model
       model: 'invalid-model',
       messages: [{ role: 'user', content: 'Hello' }],
@@ -207,12 +207,12 @@ describe('ai() type inference', () => {
     })
   })
 
-  it('should enforce strict providerOptions for chat adapter', () => {
-    const chatAdapter = new TestChatAdapter()
+  it('should enforce strict providerOptions for text adapter', () => {
+    const textAdapter = new TestTextAdapter()
 
     // This should work - valid provider options
     ai({
-      adapter: chatAdapter,
+      adapter: textAdapter,
       model: 'gpt-4o',
       messages: [{ role: 'user', content: 'Hello' }],
       providerOptions: {
@@ -223,7 +223,7 @@ describe('ai() type inference', () => {
 
     // invalid property should error
     ai({
-      adapter: chatAdapter,
+      adapter: textAdapter,
       model: 'gpt-4o',
       messages: [{ role: 'user', content: 'Hello' }],
       providerOptions: {
@@ -308,11 +308,11 @@ describe('ai() type inference', () => {
     })
   })
 
-  it('should not allow embedding-specific options for chat adapter', () => {
-    const chatAdapter = new TestChatAdapter()
+  it('should not allow embedding-specific options for text adapter', () => {
+    const textAdapter = new TestTextAdapter()
 
     ai({
-      adapter: chatAdapter,
+      adapter: textAdapter,
       model: 'gpt-4o',
       messages: [{ role: 'user', content: 'Hello' }],
       // @ts-expect-error - input is not valid for chat adapter
@@ -320,11 +320,11 @@ describe('ai() type inference', () => {
     })
   })
 
-  it('should not allow summarize-specific options for chat adapter', () => {
-    const chatAdapter = new TestChatAdapter()
+  it('should not allow summarize-specific options for text adapter', () => {
+    const textAdapter = new TestTextAdapter()
 
     ai({
-      adapter: chatAdapter,
+      adapter: textAdapter,
       model: 'gpt-4o',
       messages: [{ role: 'user', content: 'Hello' }],
       // @ts-expect-error - text is not valid for chat adapter
@@ -339,7 +339,7 @@ describe('ai() with outputSchema', () => {
   const { z } = require('zod') as typeof import('zod')
 
   it('should return Promise<T> when outputSchema is provided', () => {
-    const chatAdapter = new TestChatAdapter()
+    const textAdapter = new TestTextAdapter()
 
     const PersonSchema = z.object({
       name: z.string(),
@@ -347,7 +347,7 @@ describe('ai() with outputSchema', () => {
     })
 
     const result = ai({
-      adapter: chatAdapter,
+      adapter: textAdapter,
       model: 'gpt-4o',
       messages: [{ role: 'user', content: 'Generate a person' }],
       outputSchema: PersonSchema,
@@ -358,10 +358,10 @@ describe('ai() with outputSchema', () => {
   })
 
   it('should return AsyncIterable<StreamChunk> when outputSchema is not provided', () => {
-    const chatAdapter = new TestChatAdapter()
+    const textAdapter = new TestTextAdapter()
 
     const result = ai({
-      adapter: chatAdapter,
+      adapter: textAdapter,
       model: 'gpt-4o',
       messages: [{ role: 'user', content: 'Hello' }],
     })
@@ -371,7 +371,7 @@ describe('ai() with outputSchema', () => {
   })
 
   it('should infer complex nested schema types', () => {
-    const chatAdapter = new TestChatAdapter()
+    const textAdapter = new TestTextAdapter()
 
     const AddressSchema = z.object({
       street: z.string(),
@@ -385,7 +385,7 @@ describe('ai() with outputSchema', () => {
     })
 
     const result = ai({
-      adapter: chatAdapter,
+      adapter: textAdapter,
       model: 'gpt-4o',
       messages: [{ role: 'user', content: 'Generate a person with addresses' }],
       outputSchema: PersonWithAddressSchema,
@@ -433,7 +433,7 @@ describe('ai() with outputSchema', () => {
   })
 
   it('should infer schema with optional fields', () => {
-    const chatAdapter = new TestChatAdapter()
+    const textAdapter = new TestTextAdapter()
 
     const PersonSchema = z.object({
       name: z.string(),
@@ -442,7 +442,7 @@ describe('ai() with outputSchema', () => {
     })
 
     const result = ai({
-      adapter: chatAdapter,
+      adapter: textAdapter,
       model: 'gpt-4o',
       messages: [{ role: 'user', content: 'Generate a person' }],
       outputSchema: PersonSchema,
@@ -458,7 +458,7 @@ describe('ai() with outputSchema', () => {
   })
 
   it('should work with union types in schema', () => {
-    const chatAdapter = new TestChatAdapter()
+    const textAdapter = new TestTextAdapter()
 
     const ResponseSchema = z.discriminatedUnion('type', [
       z.object({ type: z.literal('success'), data: z.string() }),
@@ -466,7 +466,7 @@ describe('ai() with outputSchema', () => {
     ])
 
     const result = ai({
-      adapter: chatAdapter,
+      adapter: textAdapter,
       model: 'gpt-4o',
       messages: [{ role: 'user', content: 'Generate a response' }],
       outputSchema: ResponseSchema,
@@ -516,12 +516,12 @@ describe('ai() with summarize streaming', () => {
     expectTypeOf(result).toMatchTypeOf<AsyncIterable<StreamChunk>>()
   })
 
-  it('should allow stream option for chat adapter', () => {
-    const chatAdapter = new TestChatAdapter()
+  it('should allow stream option for text adapter', () => {
+    const textAdapter = new TestTextAdapter()
 
     // stream: true is valid (explicit streaming, the default)
     ai({
-      adapter: chatAdapter,
+      adapter: textAdapter,
       model: 'gpt-4o',
       messages: [{ role: 'user', content: 'Hello' }],
       stream: true,
@@ -529,7 +529,7 @@ describe('ai() with summarize streaming', () => {
 
     // stream: false is valid (non-streaming mode)
     ai({
-      adapter: chatAdapter,
+      adapter: textAdapter,
       model: 'gpt-4o',
       messages: [{ role: 'user', content: 'Hello' }],
       stream: false,

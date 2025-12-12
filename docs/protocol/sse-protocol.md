@@ -168,13 +168,13 @@ TanStack AI provides `toServerSentEventsStream()` and `toStreamResponse()` utili
 
 ```typescript
 import ai, { toStreamResponse } from '@tanstack/ai';
-import { openaiChat } from '@tanstack/ai-openai';
+import { openaiText } from '@tanstack/ai-openai';
 
 export async function POST(request: Request) {
   const { messages } = await request.json();
 
   const stream = ai({
-    adapter: openaiChat(),
+    adapter: openaiText(),
     messages,
     model: 'gpt-4o',
   });

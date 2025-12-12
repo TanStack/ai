@@ -1,7 +1,7 @@
 /**
- * Chat Activity
+ * Text Activity
  *
- * Handles agentic chat, one-shot chat, and agentic structured output.
+ * Handles agentic text generation, one-shot text generation, and agentic structured output.
  * This is a self-contained module with implementation, types, and JSDoc.
  */
 
@@ -17,15 +17,15 @@ import type {
   ToolResult,
 } from './tools/tool-calls'
 import type { z } from 'zod'
-import type { ChatAdapter } from './adapter'
+import type { TextAdapter } from './adapter'
 import type {
   AIAdapter,
   AgentLoopStrategy,
-  ChatOptions,
-  ChatStreamOptionsUnion,
   DoneStreamChunk,
   ModelMessage,
   StreamChunk,
+  TextOptions,
+  TextStreamOptionsUnion,
   Tool,
   ToolCall,
 } from '../../types'
@@ -35,7 +35,7 @@ import type {
 // ===========================
 
 /** The adapter kind this activity handles */
-export const kind = 'chat' as const
+export const kind = 'text' as const
 
 // ===========================
 // Common Options
@@ -101,17 +101,17 @@ export interface CommonOptions {
 // Type Extraction Helpers
 // ===========================
 
-/** Extract model types from a ChatAdapter */
-type ChatModels<TAdapter> =
-  TAdapter extends ChatAdapter<infer M, any, any, any, any> ? M[number] : string
+/** Extract model types from a TextAdapter */
+type TextModels<TAdapter> =
+  TAdapter extends TextAdapter<infer M, any, any, any, any> ? M[number] : string
 
 /**
- * Extract model-specific provider options from a ChatAdapter.
+ * Extract model-specific provider options from a TextAdapter.
  * If the model has specific options defined in ModelOptions (and not just via index signature),
  * use those; otherwise fall back to base provider options.
  */
-type ChatProviderOptionsForModel<TAdapter, TModel extends string> =
-  TAdapter extends ChatAdapter<
+type TextProviderOptionsForModel<TAdapter, TModel extends string> =
+  TAdapter extends TextAdapter<
     any,
     infer BaseOptions,
     infer ModelOptions,
@@ -132,39 +132,39 @@ type ChatProviderOptionsForModel<TAdapter, TModel extends string> =
 // ===========================
 
 /**
- * Options for the chat activity.
+ * Options for the text activity.
  *
- * @template TAdapter - The chat adapter type
+ * @template TAdapter - The text adapter type
  * @template TModel - The model name type (inferred from adapter)
  * @template TSchema - Optional Zod schema for structured output
  * @template TStream - Whether to stream the output (default: true)
  */
-export interface ChatActivityOptions<
-  TAdapter extends ChatAdapter<ReadonlyArray<string>, object, any, any, any>,
-  TModel extends ChatModels<TAdapter>,
+export interface TextActivityOptions<
+  TAdapter extends TextAdapter<ReadonlyArray<string>, object, any, any, any>,
+  TModel extends TextModels<TAdapter>,
   TSchema extends z.ZodType | undefined = undefined,
   TStream extends boolean = true,
 > {
-  /** The chat adapter to use */
+  /** The text adapter to use */
   adapter: TAdapter & { kind: typeof kind }
   /** The model name (autocompletes based on adapter) */
   model: TModel
   /** Conversation messages */
   messages: Array<ModelMessage>
   /** System prompts to prepend to the conversation */
-  systemPrompts?: ChatOptions['systemPrompts']
+  systemPrompts?: TextOptions['systemPrompts']
   /** Tools for function calling (auto-executed when called) */
-  tools?: ChatOptions['tools']
+  tools?: TextOptions['tools']
   /** Additional options like temperature, maxTokens, etc. */
-  options?: ChatOptions['options']
+  options?: TextOptions['options']
   /** Provider-specific options */
-  providerOptions?: ChatProviderOptionsForModel<TAdapter, TModel>
+  providerOptions?: TextProviderOptionsForModel<TAdapter, TModel>
   /** AbortController for cancellation */
-  abortController?: ChatOptions['abortController']
+  abortController?: TextOptions['abortController']
   /** Strategy for controlling the agent loop */
-  agentLoopStrategy?: ChatOptions['agentLoopStrategy']
+  agentLoopStrategy?: TextOptions['agentLoopStrategy']
   /** Unique conversation identifier for tracking */
-  conversationId?: ChatOptions['conversationId']
+  conversationId?: TextOptions['conversationId']
   /**
    * Optional Zod schema for structured output.
    * When provided, the activity will:
@@ -184,7 +184,7 @@ export interface ChatActivityOptions<
    */
   outputSchema?: TSchema
   /**
-   * Whether to stream the chat result.
+   * Whether to stream the text result.
    * When true (default), returns an AsyncIterable<StreamChunk> for streaming output.
    * When false, returns a Promise<string> with the collected text content.
    *
@@ -193,7 +193,7 @@ export interface ChatActivityOptions<
    *
    * @default true
    *
-   * @example Non-streaming chat
+   * @example Non-streaming text
    * ```ts
    * const text = await ai({
    *   adapter: openaiText(),
@@ -212,12 +212,12 @@ export interface ChatActivityOptions<
 // ===========================
 
 /**
- * Result type for the chat activity.
+ * Result type for the text activity.
  * - If outputSchema is provided: Promise<z.infer<TSchema>>
  * - If stream is false: Promise<string>
  * - Otherwise (stream is true, default): AsyncIterable<StreamChunk>
  */
-export type ChatActivityResult<
+export type TextActivityResult<
   TSchema extends z.ZodType | undefined,
   TStream extends boolean = true,
 > = TSchema extends z.ZodType
@@ -230,9 +230,9 @@ export type ChatActivityResult<
 // ChatEngine Implementation
 // ===========================
 
-interface ChatEngineConfig<
-  TAdapter extends ChatAdapter<any, any, any, any, any>,
-  TParams extends ChatOptions<any, any> = ChatOptions<any>,
+interface TextEngineConfig<
+  TAdapter extends TextAdapter<any, any, any, any, any>,
+  TParams extends TextOptions<any, any> = TextOptions<any>,
 > {
   adapter: TAdapter
   systemPrompts?: Array<string>
@@ -240,11 +240,11 @@ interface ChatEngineConfig<
 }
 
 type ToolPhaseResult = 'continue' | 'stop' | 'wait'
-type CyclePhase = 'processChat' | 'executeToolCalls'
+type CyclePhase = 'processText' | 'executeToolCalls'
 
-class ChatEngine<
-  TAdapter extends ChatAdapter<any, any, any, any, any>,
-  TParams extends ChatOptions<any, any> = ChatOptions<any>,
+class TextEngine<
+  TAdapter extends TextAdapter<any, any, any, any, any>,
+  TParams extends TextOptions<any, any> = TextOptions<any>,
 > {
   private readonly adapter: TAdapter
   private readonly params: TParams
@@ -269,9 +269,9 @@ class ChatEngine<
   private shouldEmitStreamEnd = true
   private earlyTermination = false
   private toolPhase: ToolPhaseResult = 'continue'
-  private cyclePhase: CyclePhase = 'processChat'
+  private cyclePhase: CyclePhase = 'processText'
 
-  constructor(config: ChatEngineConfig<TAdapter, TParams>) {
+  constructor(config: TextEngineConfig<TAdapter, TParams>) {
     this.adapter = config.adapter
     this.params = config.params
     this.systemPrompts = config.params.systemPrompts || []
@@ -299,8 +299,8 @@ class ChatEngine<
     return this.messages
   }
 
-  async *chat(): AsyncGenerator<StreamChunk> {
-    this.beforeChat()
+  async *run(): AsyncGenerator<StreamChunk> {
+    this.beforeRun()
 
     try {
       const pendingPhase = yield* this.checkForPendingToolCalls()
@@ -315,7 +315,7 @@ class ChatEngine<
 
         this.beginCycle()
 
-        if (this.cyclePhase === 'processChat') {
+        if (this.cyclePhase === 'processText') {
           yield* this.streamModelResponse()
         } else {
           yield* this.processToolCalls()
@@ -324,16 +324,16 @@ class ChatEngine<
         this.endCycle()
       } while (this.shouldContinue())
     } finally {
-      this.afterChat()
+      this.afterRun()
     }
   }
 
-  private beforeChat(): void {
+  private beforeRun(): void {
     this.streamStartTime = Date.now()
     const { model, tools, options, providerOptions, conversationId } =
       this.params
 
-    aiEventClient.emit('chat:started', {
+    aiEventClient.emit('text:started', {
       requestId: this.requestId,
       streamId: this.streamId,
       model: model,
@@ -356,15 +356,15 @@ class ChatEngine<
     })
   }
 
-  private afterChat(): void {
+  private afterRun(): void {
     if (!this.shouldEmitStreamEnd) {
       return
     }
 
     const now = Date.now()
 
-    // Emit chat:completed with final state
-    aiEventClient.emit('chat:completed', {
+    // Emit text:completed with final state
+    aiEventClient.emit('text:completed', {
       requestId: this.requestId,
       streamId: this.streamId,
       model: this.params.model,
@@ -385,18 +385,18 @@ class ChatEngine<
   }
 
   private beginCycle(): void {
-    if (this.cyclePhase === 'processChat') {
+    if (this.cyclePhase === 'processText') {
       this.beginIteration()
     }
   }
 
   private endCycle(): void {
-    if (this.cyclePhase === 'processChat') {
+    if (this.cyclePhase === 'processText') {
       this.cyclePhase = 'executeToolCalls'
       return
     }
 
-    this.cyclePhase = 'processChat'
+    this.cyclePhase = 'processText'
     this.iterationCount++
   }
 
@@ -587,7 +587,7 @@ class ChatEngine<
 
     const doneChunk = this.createSyntheticDoneChunk()
 
-    aiEventClient.emit('chat:iteration', {
+    aiEventClient.emit('text:iteration', {
       requestId: this.requestId,
       streamId: this.streamId,
       iterationNumber: this.iterationCount + 1,
@@ -653,7 +653,7 @@ class ChatEngine<
       return
     }
 
-    aiEventClient.emit('chat:iteration', {
+    aiEventClient.emit('text:iteration', {
       requestId: this.requestId,
       streamId: this.streamId,
       iterationNumber: this.iterationCount + 1,
@@ -937,15 +937,15 @@ class ChatEngine<
 // ===========================
 
 /**
- * Chat activity - handles agentic chat, one-shot chat, and agentic structured output.
+ * Text activity - handles agentic text generation, one-shot text generation, and agentic structured output.
  *
  * This activity supports four modes:
- * 1. **Streaming agentic chat**: Stream responses with automatic tool execution
- * 2. **Streaming one-shot chat**: Simple streaming request/response without tools
- * 3. **Non-streaming chat**: Returns collected text as a string (stream: false)
+ * 1. **Streaming agentic text**: Stream responses with automatic tool execution
+ * 2. **Streaming one-shot text**: Simple streaming request/response without tools
+ * 3. **Non-streaming text**: Returns collected text as a string (stream: false)
  * 4. **Agentic structured output**: Run tools, then return structured data
  *
- * @example Full agentic chat (streaming with tools)
+ * @example Full agentic text (streaming with tools)
  * ```ts
  * import { ai } from '@tanstack/ai'
  * import { openaiText } from '@tanstack/ai-openai'
@@ -962,7 +962,7 @@ class ChatEngine<
  * }
  * ```
  *
- * @example One-shot chat (streaming without tools)
+ * @example One-shot text (streaming without tools)
  * ```ts
  * for await (const chunk of ai({
  *   adapter: openaiText(),
@@ -973,7 +973,7 @@ class ChatEngine<
  * }
  * ```
  *
- * @example Non-streaming chat (stream: false)
+ * @example Non-streaming text (stream: false)
  * ```ts
  * const text = await ai({
  *   adapter: openaiText(),
@@ -1001,67 +1001,67 @@ class ChatEngine<
  * // result is { summary: string, keyPoints: string[] }
  * ```
  */
-export function chatActivity<
-  TAdapter extends ChatAdapter<ReadonlyArray<string>, object, any, any, any>,
-  TModel extends ChatModels<TAdapter>,
+export function textActivity<
+  TAdapter extends TextAdapter<ReadonlyArray<string>, object, any, any, any>,
+  TModel extends TextModels<TAdapter>,
   TSchema extends z.ZodType | undefined = undefined,
   TStream extends boolean = true,
 >(
-  options: ChatActivityOptions<TAdapter, TModel, TSchema, TStream>,
-): ChatActivityResult<TSchema, TStream> {
+  options: TextActivityOptions<TAdapter, TModel, TSchema, TStream>,
+): TextActivityResult<TSchema, TStream> {
   const { outputSchema, stream } = options
 
   // If outputSchema is provided, run agentic structured output
   if (outputSchema) {
     return runAgenticStructuredOutput(
-      options as unknown as ChatActivityOptions<
-        ChatAdapter<ReadonlyArray<string>, object, any, any, any>,
+      options as unknown as TextActivityOptions<
+        TextAdapter<ReadonlyArray<string>, object, any, any, any>,
         string,
         z.ZodType,
         boolean
       >,
-    ) as ChatActivityResult<TSchema, TStream>
+    ) as TextActivityResult<TSchema, TStream>
   }
 
-  // If stream is explicitly false, run non-streaming chat
+  // If stream is explicitly false, run non-streaming text
   if (stream === false) {
-    return runNonStreamingChat(
-      options as unknown as ChatActivityOptions<
-        ChatAdapter<ReadonlyArray<string>, object, any, any, any>,
+    return runNonStreamingText(
+      options as unknown as TextActivityOptions<
+        TextAdapter<ReadonlyArray<string>, object, any, any, any>,
         string,
         undefined,
         false
       >,
-    ) as ChatActivityResult<TSchema, TStream>
+    ) as TextActivityResult<TSchema, TStream>
   }
 
-  // Otherwise, run streaming chat (default)
-  return runStreamingChat(
-    options as unknown as ChatActivityOptions<
-      ChatAdapter<ReadonlyArray<string>, object, any, any, any>,
+  // Otherwise, run streaming text (default)
+  return runStreamingText(
+    options as unknown as TextActivityOptions<
+      TextAdapter<ReadonlyArray<string>, object, any, any, any>,
       string,
       undefined,
       true
     >,
-  ) as ChatActivityResult<TSchema, TStream>
+  ) as TextActivityResult<TSchema, TStream>
 }
 
 /**
- * Run streaming chat (agentic or one-shot depending on tools)
+ * Run streaming text (agentic or one-shot depending on tools)
  */
-async function* runStreamingChat(
-  options: ChatActivityOptions<
-    ChatAdapter<ReadonlyArray<string>, object, any, any, any>,
+async function* runStreamingText(
+  options: TextActivityOptions<
+    TextAdapter<ReadonlyArray<string>, object, any, any, any>,
     string,
     undefined,
     true
   >,
 ): AsyncIterable<StreamChunk> {
-  const { adapter, ...chatOptions } = options
+  const { adapter, ...textOptions } = options
 
-  const engine = new ChatEngine({
+  const engine = new TextEngine({
     adapter,
-    params: chatOptions as ChatOptions<
+    params: textOptions as TextOptions<
       string,
       Record<string, any>,
       undefined,
@@ -1069,27 +1069,27 @@ async function* runStreamingChat(
     >,
   })
 
-  for await (const chunk of engine.chat()) {
+  for await (const chunk of engine.run()) {
     yield chunk
   }
 }
 
 /**
- * Run non-streaming chat - collects all content and returns as a string.
+ * Run non-streaming text - collects all content and returns as a string.
  * Runs the full agentic loop (if tools are provided) but returns collected text.
  */
-function runNonStreamingChat(
-  options: ChatActivityOptions<
-    ChatAdapter<ReadonlyArray<string>, object, any, any, any>,
+function runNonStreamingText(
+  options: TextActivityOptions<
+    TextAdapter<ReadonlyArray<string>, object, any, any, any>,
     string,
     undefined,
     false
   >,
 ): Promise<string> {
-  // Run the streaming chat and collect all text using streamToText
-  const stream = runStreamingChat(
-    options as unknown as ChatActivityOptions<
-      ChatAdapter<ReadonlyArray<string>, object, any, any, any>,
+  // Run the streaming text and collect all text using streamToText
+  const stream = runStreamingText(
+    options as unknown as TextActivityOptions<
+      TextAdapter<ReadonlyArray<string>, object, any, any, any>,
       string,
       undefined,
       true
@@ -1106,23 +1106,23 @@ function runNonStreamingChat(
  * 3. Validate and return the structured result
  */
 async function runAgenticStructuredOutput<TSchema extends z.ZodType>(
-  options: ChatActivityOptions<
-    ChatAdapter<ReadonlyArray<string>, object, any, any, any>,
+  options: TextActivityOptions<
+    TextAdapter<ReadonlyArray<string>, object, any, any, any>,
     string,
     TSchema,
     boolean
   >,
 ): Promise<z.infer<TSchema>> {
-  const { adapter, outputSchema, ...chatOptions } = options
+  const { adapter, outputSchema, ...textOptions } = options
 
   if (!outputSchema) {
     throw new Error('outputSchema is required for structured output')
   }
 
   // Create the engine and run the agentic loop
-  const engine = new ChatEngine({
+  const engine = new TextEngine({
     adapter,
-    params: chatOptions as ChatOptions<
+    params: textOptions as TextOptions<
       string,
       Record<string, any>,
       undefined,
@@ -1131,26 +1131,26 @@ async function runAgenticStructuredOutput<TSchema extends z.ZodType>(
   })
 
   // Consume the stream to run the agentic loop
-  for await (const _chunk of engine.chat()) {
+  for await (const _chunk of engine.run()) {
     // Just consume the stream to execute the agentic loop
   }
 
   // Get the final messages from the engine (includes tool results)
   const finalMessages = engine.getMessages()
 
-  // Build chat options for structured output, excluding tools since
+  // Build text options for structured output, excluding tools since
   // the agentic loop is complete and we only need the final response
   const {
     tools: _tools,
     agentLoopStrategy: _als,
-    ...structuredChatOptions
-  } = chatOptions
+    ...structuredTextOptions
+  } = textOptions
 
   // Call the adapter's structured output method with the conversation context
   // Each adapter is responsible for converting the Zod schema to its provider's format
   const result = await adapter.structuredOutput({
     chatOptions: {
-      ...structuredChatOptions,
+      ...structuredTextOptions,
       messages: finalMessages,
     },
     outputSchema,
@@ -1168,25 +1168,25 @@ async function runAgenticStructuredOutput<TSchema extends z.ZodType>(
 }
 
 // ===========================
-// Chat Options Helper
+// Text Options Helper
 // ===========================
 
 /**
- * Type-safe helper to create chat options with model-specific provider options.
+ * Type-safe helper to create text options with model-specific provider options.
  *
  * @example
  * ```ts
- * import { chatOptions, ai } from '@tanstack/ai'
+ * import { textOptions, ai } from '@tanstack/ai'
  * import { openaiText } from '@tanstack/ai-openai'
  *
- * const opts = chatOptions({
+ * const opts = textOptions({
  *   adapter: openaiText(),
  *   model: 'gpt-4o',
  *   options: { temperature: 0.7 }
  * })
  * ```
  */
-export function chatOptions<
+export function textOptions<
   TAdapter extends AIAdapter<any, any, any, any, any>,
   const TModel extends TAdapter extends AIAdapter<
     infer Models,
@@ -1199,7 +1199,7 @@ export function chatOptions<
     : string,
 >(
   options: Omit<
-    ChatStreamOptionsUnion<TAdapter>,
+    TextStreamOptionsUnion<TAdapter>,
     'providerOptions' | 'model' | 'messages' | 'abortController'
   > & {
     adapter: TAdapter
@@ -1222,9 +1222,9 @@ export function chatOptions<
 
 // Re-export adapter types
 export type {
-  ChatAdapter,
-  ChatAdapterConfig,
+  TextAdapter,
+  TextAdapterConfig,
   StructuredOutputOptions,
   StructuredOutputResult,
 } from './adapter'
-export { BaseChatAdapter } from './adapter'
+export { BaseTextAdapter } from './adapter'

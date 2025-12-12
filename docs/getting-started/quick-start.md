@@ -23,7 +23,7 @@ First, create an API route that handles chat requests. Here's a simplified examp
 // app/api/chat/route.ts (Next.js)
 // or src/routes/api/chat.ts (TanStack Start)
 import ai, { toStreamResponse } from "@tanstack/ai";
-import { openaiChat } from "@tanstack/ai-openai";
+import { openaiText } from "@tanstack/ai-openai";
 
 export async function POST(request: Request) {
   // Check for API key
@@ -44,7 +44,7 @@ export async function POST(request: Request) {
   try {
     // Create a streaming chat response
     const stream = ai({
-      adapter: openaiChat(),
+      adapter: openaiText(),
       messages,
       model: "gpt-4o",
       conversationId

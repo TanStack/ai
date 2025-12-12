@@ -14,6 +14,7 @@
     "@tanstack/ai": "workspace:*",
     "@tanstack/ai-anthropic": "workspace:*",
     "@tanstack/ai-gemini": "workspace:*",
+    "@tanstack/ai-grok": "workspace:*",
     "@tanstack/ai-ollama": "workspace:*",
     "@tanstack/ai-openai": "workspace:*",
     "commander": "^13.1.0"

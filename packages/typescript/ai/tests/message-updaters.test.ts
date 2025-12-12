@@ -8,7 +8,7 @@ import {
   updateToolCallState,
   updateToolCallWithOutput,
   updateToolResultPart,
-} from '../src/activities/chat/stream/message-updaters'
+} from '../src/activities/text/stream/message-updaters'
 import type { ToolCallPart, UIMessage } from '../src/types'
 
 // Helper to create a test message

@@ -5,7 +5,6 @@ import { validateTextProviderOptions } from './text/text-provider-options'
 import { convertToolsToProviderFormat } from './tools'
 import type { Responses } from 'openai/resources'
 import type {
-  ChatOptions,
   ContentPart,
   EmbeddingOptions,
   EmbeddingResult,
@@ -13,6 +12,7 @@ import type {
   StreamChunk,
   SummarizationOptions,
   SummarizationResult,
+  TextOptions,
 } from '@tanstack/ai'
 import type {
   OpenAIChatModelProviderOptionsByName,
@@ -88,13 +88,13 @@ export class OpenAI extends BaseAdapter<
   }
 
   async *chatStream(
-    options: ChatOptions<string, OpenAIProviderOptions>,
+    options: TextOptions<string, OpenAIProviderOptions>,
   ): AsyncIterable<StreamChunk> {
     // Track tool call metadata by unique ID
     // OpenAI streams tool calls with deltas - first chunk has ID/name, subsequent chunks only have args
     // We assign our own indices as we encounter unique tool call IDs
     const toolCallMetadata = new Map<string, { index: number; name: string }>()
-    const requestArguments = this.mapChatOptionsToOpenAI(options)
+    const requestArguments = this.mapTextOptionsToOpenAI(options)
 
     try {
       const response = await this.client.responses.create(
@@ -199,7 +199,7 @@ export class OpenAI extends BaseAdapter<
   private async *processOpenAIStreamChunks(
     stream: AsyncIterable<OpenAI_SDK.Responses.ResponseStreamEvent>,
     toolCallMetadata: Map<string, { index: number; name: string }>,
-    options: ChatOptions,
+    options: TextOptions,
     generateId: () => string,
   ): AsyncIterable<StreamChunk> {
     let accumulatedContent = ''
@@ -491,7 +491,7 @@ export class OpenAI extends BaseAdapter<
    * Maps common options to OpenAI-specific format
    * Handles translation of normalized options to OpenAI's API format
    */
-  private mapChatOptionsToOpenAI(options: ChatOptions) {
+  private mapTextOptionsToOpenAI(options: TextOptions) {
     const providerOptions = options.providerOptions as
       | Omit<
           InternalTextProviderOptions,

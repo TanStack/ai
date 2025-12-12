@@ -1,9 +1,9 @@
 ---
-id: ChatOptions
-title: ChatOptions
+id: TextOptions
+title: TextOptions
 ---
 
-# Interface: ChatOptions\<TModel, TProviderOptionsSuperset, TOutput, TProviderOptionsForModel\>
+# Interface: TextOptions\<TModel, TProviderOptionsSuperset, TOutput, TProviderOptionsForModel\>
 
 Defined in: [types.ts:548](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L548)
 

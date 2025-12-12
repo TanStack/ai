@@ -1,15 +1,15 @@
 import type { z } from 'zod'
 import type {
-  ChatOptions,
   DefaultMessageMetadataByModality,
   Modality,
   StreamChunk,
+  TextOptions,
 } from '../../types'
 
 /**
  * Configuration for adapter instances
  */
-export interface ChatAdapterConfig {
+export interface TextAdapterConfig {
   apiKey?: string
   baseUrl?: string
   timeout?: number
@@ -21,8 +21,8 @@ export interface ChatAdapterConfig {
  * Options for structured output generation
  */
 export interface StructuredOutputOptions<TProviderOptions extends object> {
-  /** Chat options for the request */
-  chatOptions: ChatOptions<string, TProviderOptions>
+  /** Text options for the request */
+  chatOptions: TextOptions<string, TProviderOptions>
   /** Zod schema for the structured output - adapters convert this to their provider's format */
   outputSchema: z.ZodType
 }
@@ -38,17 +38,17 @@ export interface StructuredOutputResult<T = unknown> {
 }
 
 /**
- * Base interface for chat adapters.
+ * Base interface for text adapters.
  * Provides type-safe chat/text completion functionality.
  *
  * Generic parameters:
  * - TModels: Array of supported model names
- * - TProviderOptions: Provider-specific options for chat endpoint
+ * - TProviderOptions: Provider-specific options for text endpoint
  * - TModelProviderOptionsByName: Map from model name to its specific provider options
  * - TModelInputModalitiesByName: Map from model name to its supported input modalities
  * - TMessageMetadataByModality: Map from modality type to adapter-specific metadata types
  */
-export interface ChatAdapter<
+export interface TextAdapter<
   TModels extends ReadonlyArray<string> = ReadonlyArray<string>,
   TProviderOptions extends object = Record<string, unknown>,
   TModelProviderOptionsByName extends Record<string, unknown> = Record<
@@ -66,7 +66,7 @@ export interface ChatAdapter<
   } = DefaultMessageMetadataByModality,
 > {
   /** Discriminator for adapter kind - used by generate() to determine API shape */
-  readonly kind: 'chat'
+  readonly kind: 'text'
   /** Adapter name identifier */
   readonly name: string
   /** Supported chat models */
@@ -83,10 +83,10 @@ export interface ChatAdapter<
   _messageMetadataByModality?: TMessageMetadataByModality
 
   /**
-   * Stream chat completions from the model
+   * Stream text completions from the model
    */
   chatStream: (
-    options: ChatOptions<string, TProviderOptions>,
+    options: TextOptions<string, TProviderOptions>,
   ) => AsyncIterable<StreamChunk>
 
   /**
@@ -103,10 +103,10 @@ export interface ChatAdapter<
 }
 
 /**
- * Abstract base class for chat adapters.
- * Extend this class to implement a chat adapter for a specific provider.
+ * Abstract base class for text adapters.
+ * Extend this class to implement a text adapter for a specific provider.
  */
-export abstract class BaseChatAdapter<
+export abstract class BaseTextAdapter<
   TModels extends ReadonlyArray<string> = ReadonlyArray<string>,
   TProviderOptions extends object = Record<string, unknown>,
   TModelProviderOptionsByName extends Record<string, unknown> = Record<
@@ -122,14 +122,14 @@ export abstract class BaseChatAdapter<
     video: unknown
     document: unknown
   } = DefaultMessageMetadataByModality,
-> implements ChatAdapter<
+> implements TextAdapter<
   TModels,
   TProviderOptions,
   TModelProviderOptionsByName,
   TModelInputModalitiesByName,
   TMessageMetadataByModality
 > {
-  readonly kind = 'chat' as const
+  readonly kind = 'text' as const
   abstract readonly name: string
   abstract readonly models: TModels
 
@@ -139,14 +139,14 @@ export abstract class BaseChatAdapter<
   declare _modelInputModalitiesByName?: TModelInputModalitiesByName
   declare _messageMetadataByModality?: TMessageMetadataByModality
 
-  protected config: ChatAdapterConfig
+  protected config: TextAdapterConfig
 
-  constructor(config: ChatAdapterConfig = {}) {
+  constructor(config: TextAdapterConfig = {}) {
     this.config = config
   }
 
   abstract chatStream(
-    options: ChatOptions<string, TProviderOptions>,
+    options: TextOptions<string, TProviderOptions>,
   ): AsyncIterable<StreamChunk>
 
   /**

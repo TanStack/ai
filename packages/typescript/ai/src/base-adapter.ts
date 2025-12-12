@@ -1,7 +1,6 @@
 import type {
   AIAdapter,
   AIAdapterConfig,
-  ChatOptions,
   DefaultMessageMetadataByModality,
   EmbeddingOptions,
   EmbeddingResult,
@@ -9,6 +8,7 @@ import type {
   StreamChunk,
   SummarizationOptions,
   SummarizationResult,
+  TextOptions,
 } from './types'
 
 /**
@@ -67,7 +67,7 @@ export abstract class BaseAdapter<
     this.config = config
   }
 
-  abstract chatStream(options: ChatOptions): AsyncIterable<StreamChunk>
+  abstract chatStream(options: TextOptions): AsyncIterable<StreamChunk>
 
   abstract summarize(
     options: SummarizationOptions,

@@ -23,7 +23,7 @@ import type { z } from 'zod'
  *
  * This is the main entry point for all AI operations. The adapter's `kind` property
  * determines which activity is executed:
- * - `'chat'` → Chat activity (streaming, tools, structured output)
+ * - `'text'` → Text activity (streaming, tools, structured output)
  * - `'embedding'` → Embedding activity (vector generation)
  * - `'summarize'` → Summarize activity (text summarization)
  * - `'image'` → Image activity (image generation)
@@ -138,11 +138,11 @@ export type {
   AIResultFor,
   GenerateOptions,
   // Legacy type aliases
-  ChatGenerateOptions,
+  TextGenerateOptions,
   EmbeddingGenerateOptions,
   SummarizeGenerateOptions,
   ImageGenerateOptions,
-  GenerateChatOptions,
+  GenerateTextOptions,
   GenerateEmbeddingOptions,
   GenerateSummarizeOptions,
   GenerateImageOptions,

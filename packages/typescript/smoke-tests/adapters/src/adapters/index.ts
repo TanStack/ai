@@ -9,6 +9,11 @@ import {
   createGeminiText,
 } from '@tanstack/ai-gemini'
 import {
+  createGrokImage,
+  createGrokSummarize,
+  createGrokText,
+} from '@tanstack/ai-grok'
+import {
   createOllamaEmbed,
   createOllamaSummarize,
   createOllamaText,
@@ -81,6 +86,10 @@ const OLLAMA_MODEL = process.env.OLLAMA_MODEL || 'mistral:7b'
 const OLLAMA_SUMMARY_MODEL = process.env.OLLAMA_SUMMARY_MODEL || OLLAMA_MODEL
 const OLLAMA_EMBEDDING_MODEL =
   process.env.OLLAMA_EMBEDDING_MODEL || 'nomic-embed-text'
+
+const GROK_MODEL = process.env.GROK_MODEL || 'grok-3'
+const GROK_SUMMARY_MODEL = process.env.GROK_SUMMARY_MODEL || GROK_MODEL
+const GROK_IMAGE_MODEL = process.env.GROK_IMAGE_MODEL || 'grok-2-image-1212'
 
 /**
  * Create Anthropic adapters
@@ -156,6 +165,26 @@ function createOllamaAdapters(): AdapterSet | null {
 }
 
 /**
+ * Create Grok adapters
+ */
+function createGrokAdapters(): AdapterSet | null {
+  const apiKey = process.env.XAI_API_KEY
+  if (!apiKey) return null
+
+  return {
+    textAdapter: createGrokText(apiKey),
+    summarizeAdapter: createGrokSummarize(apiKey),
+    // Grok does not support embeddings
+    embeddingAdapter: undefined,
+    imageAdapter: createGrokImage(apiKey),
+    chatModel: GROK_MODEL,
+    summarizeModel: GROK_SUMMARY_MODEL,
+    embeddingModel: '', // Not supported
+    imageModel: GROK_IMAGE_MODEL,
+  }
+}
+
+/**
  * Registry of all available adapters
  */
 export const ADAPTERS: AdapterDefinition[] = [
@@ -176,6 +205,12 @@ export const ADAPTERS: AdapterDefinition[] = [
     name: 'Gemini',
     envKey: 'GEMINI_API_KEY',
     create: createGeminiAdapters,
+  },
+  {
+    id: 'grok',
+    name: 'Grok',
+    envKey: 'XAI_API_KEY',
+    create: createGrokAdapters,
   },
   {
     id: 'ollama',

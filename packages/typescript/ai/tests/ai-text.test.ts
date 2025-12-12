@@ -1,11 +1,11 @@
 /* eslint-disable @typescript-eslint/require-await */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { z } from 'zod'
-import { chatActivity } from '../src/activities/chat'
+import { textActivity } from '../src/activities/text'
 import { BaseAdapter } from '../src/base-adapter'
 import { aiEventClient } from '../src/event-client.js'
-import { maxIterations } from '../src/activities/chat/agent-loop-strategies'
-import type { ChatOptions, ModelMessage, StreamChunk, Tool } from '../src/types'
+import { maxIterations } from '../src/activities/text/agent-loop-strategies'
+import type { TextOptions, ModelMessage, StreamChunk, Tool } from '../src/types'
 
 // Mock event client to track events
 const eventListeners = new Map<string, Set<(...args: Array<any>) => void>>()
@@ -43,17 +43,17 @@ class MockAdapter extends BaseAdapter<
     model: string
     messages: Array<ModelMessage>
     tools?: Array<Tool>
-    request?: ChatOptions['request']
+    request?: TextOptions['request']
     systemPrompts?: Array<string>
     providerOptions?: any
   }> = []
 
-  readonly kind = 'chat' as const
+  readonly kind = 'text' as const
   name = 'mock'
   models = ['test-model'] as const
 
   // Helper method for consistent tracking when subclasses override chatStream
-  protected trackStreamCall(options: ChatOptions): void {
+  protected trackStreamCall(options: TextOptions): void {
     this.chatStreamCallCount++
     this.chatStreamCalls.push({
       model: options.model,
@@ -66,7 +66,7 @@ class MockAdapter extends BaseAdapter<
   }
 
   // Default implementation - will be overridden in tests
-  async *chatStream(options: ChatOptions): AsyncIterable<StreamChunk> {
+  async *chatStream(options: TextOptions): AsyncIterable<StreamChunk> {
     this.trackStreamCall(options)
     yield {
       type: 'content',
@@ -108,18 +108,18 @@ async function collectChunks<T>(stream: AsyncIterable<T>): Promise<Array<T>> {
   return chunks
 }
 
-describe('chatActivity() - Comprehensive Logic Path Coverage', () => {
+describe('textActivity() - Comprehensive Logic Path Coverage', () => {
   describe('Initialization & Setup', () => {
     it('should generate unique request and stream IDs', async () => {
       const adapter = new MockAdapter()
 
-      const stream1 = chatActivity({
+      const stream1 = textActivity({
         adapter,
         model: 'test-model',
         messages: [{ role: 'user', content: 'Hello' }],
       })
 
-      const stream2 = chatActivity({
+      const stream2 = textActivity({
         adapter,
         model: 'test-model',
         messages: [{ role: 'user', content: 'Hi' }],
@@ -130,11 +130,11 @@ describe('chatActivity() - Comprehensive Logic Path Coverage', () => {
         collectChunks(stream2),
       ])
 
-      const event1 = capturedEvents.find((e) => e.type === 'chat:started')
+      const event1 = capturedEvents.find((e) => e.type === 'text:started')
       const event2 = capturedEvents
         .slice()
         .reverse()
-        .find((e) => e.type === 'chat:started')
+        .find((e) => e.type === 'text:started')
 
       expect(event1).toBeDefined()
       expect(event2).toBeDefined()
@@ -147,7 +147,7 @@ describe('chatActivity() - Comprehensive Logic Path Coverage', () => {
       const adapter = new MockAdapter()
 
       await collectChunks(
-        chatActivity({
+        textActivity({
           adapter,
           model: 'test-model',
           messages: [
@@ -164,7 +164,7 @@ describe('chatActivity() - Comprehensive Logic Path Coverage', () => {
         }),
       )
 
-      const event = capturedEvents.find((e) => e.type === 'chat:started')
+      const event = capturedEvents.find((e) => e.type === 'text:started')
       expect(event).toBeDefined()
       expect(event?.data.model).toBe('test-model')
       expect(event?.data.messageCount).toBe(2)
@@ -176,7 +176,7 @@ describe('chatActivity() - Comprehensive Logic Path Coverage', () => {
       const adapter = new MockAdapter()
 
       await collectChunks(
-        chatActivity({
+        textActivity({
           adapter,
           model: 'test-model',
           messages: [{ role: 'user', content: 'Hello' }],
@@ -193,7 +193,7 @@ describe('chatActivity() - Comprehensive Logic Path Coverage', () => {
       const adapter = new MockAdapter()
 
       await collectChunks(
-        chatActivity({
+        textActivity({
           adapter,
           model: 'test-model',
           messages: [{ role: 'user', content: 'Hello' }],
@@ -216,7 +216,7 @@ describe('chatActivity() - Comprehensive Logic Path Coverage', () => {
       const adapter = new MockAdapter()
 
       await collectChunks(
-        chatActivity({
+        textActivity({
           adapter,
           model: 'test-model',
           messages: [{ role: 'user', content: 'Hello' }],
@@ -238,7 +238,7 @@ describe('chatActivity() - Comprehensive Logic Path Coverage', () => {
       const adapter = new MockAdapter()
 
       await collectChunks(
-        chatActivity({
+        textActivity({
           adapter,
           model: 'test-model',
           messages: [{ role: 'user', content: 'Hello' }],
@@ -256,7 +256,7 @@ describe('chatActivity() - Comprehensive Logic Path Coverage', () => {
     it('should stream simple content without tools', async () => {
       const adapter = new MockAdapter()
 
-      const stream = chatActivity({
+      const stream = textActivity({
         adapter,
         model: 'test-model',
         messages: [{ role: 'user', content: 'Hello' }],
@@ -270,7 +270,7 @@ describe('chatActivity() - Comprehensive Logic Path Coverage', () => {
       expect(chunks[1]?.type).toBe('done')
 
       // Check events
-      expect(capturedEvents.some((e) => e.type === 'chat:started')).toBe(true)
+      expect(capturedEvents.some((e) => e.type === 'text:started')).toBe(true)
       expect(capturedEvents.some((e) => e.type === 'stream:started')).toBe(true)
       expect(
         capturedEvents.some((e) => e.type === 'stream:chunk:content'),
@@ -283,7 +283,7 @@ describe('chatActivity() - Comprehensive Logic Path Coverage', () => {
 
     it('should accumulate content across multiple chunks', async () => {
       class ContentAdapter extends MockAdapter {
-        async *chatStream(options: ChatOptions): AsyncIterable<StreamChunk> {
+        async *chatStream(options: TextOptions): AsyncIterable<StreamChunk> {
           this.trackStreamCall(options)
           yield {
             type: 'content',
@@ -324,7 +324,7 @@ describe('chatActivity() - Comprehensive Logic Path Coverage', () => {
 
       const adapter = new ContentAdapter()
 
-      const stream = chatActivity({
+      const stream = textActivity({
         adapter,
         model: 'test-model',
         messages: [{ role: 'user', content: 'Say hello' }],
@@ -347,7 +347,7 @@ describe('chatActivity() - Comprehensive Logic Path Coverage', () => {
 
     it('should handle empty content chunks', async () => {
       class EmptyContentAdapter extends MockAdapter {
-        async *chatStream(options: ChatOptions): AsyncIterable<StreamChunk> {
+        async *chatStream(options: TextOptions): AsyncIterable<StreamChunk> {
           this.trackStreamCall(options)
           yield {
             type: 'content',
@@ -371,7 +371,7 @@ describe('chatActivity() - Comprehensive Logic Path Coverage', () => {
       const adapter = new EmptyContentAdapter()
 
       const chunks = await collectChunks(
-        chatActivity({
+        textActivity({
           adapter,
           model: 'test-model',
           messages: [{ role: 'user', content: 'Test' }],
@@ -398,7 +398,7 @@ describe('chatActivity() - Comprehensive Logic Path Coverage', () => {
 
       class ToolAdapter extends MockAdapter {
         iteration = 0
-        async *chatStream(options: ChatOptions): AsyncIterable<StreamChunk> {
+        async *chatStream(options: TextOptions): AsyncIterable<StreamChunk> {
           this.trackStreamCall(options)
 
           if (this.iteration === 0) {
@@ -449,7 +449,7 @@ describe('chatActivity() - Comprehensive Logic Path Coverage', () => {
       const adapter = new ToolAdapter()
 
       const chunks = await collectChunks(
-        chatActivity({
+        textActivity({
           adapter,
           model: 'test-model',
           messages: [{ role: 'user', content: 'Weather?' }],
@@ -467,7 +467,7 @@ describe('chatActivity() - Comprehensive Logic Path Coverage', () => {
       expect(
         capturedEvents.some((e) => e.type === 'stream:chunk:tool-call'),
       ).toBe(true)
-      expect(capturedEvents.some((e) => e.type === 'chat:iteration')).toBe(true)
+      expect(capturedEvents.some((e) => e.type === 'text:iteration')).toBe(true)
       expect(capturedEvents.some((e) => e.type === 'tool:call-completed')).toBe(
         true,
       )
@@ -488,7 +488,7 @@ describe('chatActivity() - Comprehensive Logic Path Coverage', () => {
 
       class StreamingToolAdapter extends MockAdapter {
         iteration = 0
-        async *chatStream(options: ChatOptions): AsyncIterable<StreamChunk> {
+        async *chatStream(options: TextOptions): AsyncIterable<StreamChunk> {
           this.trackStreamCall(options)
 
           if (this.iteration === 0) {
@@ -555,7 +555,7 @@ describe('chatActivity() - Comprehensive Logic Path Coverage', () => {
       const adapter = new StreamingToolAdapter()
 
       const chunks = await collectChunks(
-        chatActivity({
+        textActivity({
           adapter,
           model: 'test-model',
           messages: [{ role: 'user', content: 'Calculate' }],
@@ -586,7 +586,7 @@ describe('chatActivity() - Comprehensive Logic Path Coverage', () => {
 
       class MultipleToolsAdapter extends MockAdapter {
         iteration = 0
-        async *chatStream(options: ChatOptions): AsyncIterable<StreamChunk> {
+        async *chatStream(options: TextOptions): AsyncIterable<StreamChunk> {
           this.trackStreamCall(options)
 
           if (this.iteration === 0) {
@@ -646,7 +646,7 @@ describe('chatActivity() - Comprehensive Logic Path Coverage', () => {
       const adapter = new MultipleToolsAdapter()
 
       const chunks = await collectChunks(
-        chatActivity({
+        textActivity({
           adapter,
           model: 'test-model',
           messages: [{ role: 'user', content: 'Use both tools' }],
@@ -662,7 +662,7 @@ describe('chatActivity() - Comprehensive Logic Path Coverage', () => {
 
       // Check iteration event
       const iterationEvents = capturedEvents.filter(
-        (e) => e.type === 'chat:iteration',
+        (e) => e.type === 'text:iteration',
       )
       expect(iterationEvents.length).toBeGreaterThan(0)
       expect(iterationEvents[0]?.data.toolCallCount).toBe(2)
@@ -678,7 +678,7 @@ describe('chatActivity() - Comprehensive Logic Path Coverage', () => {
 
       class ContentWithToolsAdapter extends MockAdapter {
         iteration = 0
-        async *chatStream(options: ChatOptions): AsyncIterable<StreamChunk> {
+        async *chatStream(options: TextOptions): AsyncIterable<StreamChunk> {
           this.trackStreamCall(options)
 
           if (this.iteration === 0) {
@@ -743,7 +743,7 @@ describe('chatActivity() - Comprehensive Logic Path Coverage', () => {
       const adapter = new ContentWithToolsAdapter()
 
       await collectChunks(
-        chatActivity({
+        textActivity({
           adapter,
           model: 'test-model',
           messages: [{ role: 'user', content: 'Test' }],
@@ -764,7 +764,7 @@ describe('chatActivity() - Comprehensive Logic Path Coverage', () => {
 
       class NoContentToolsAdapter extends MockAdapter {
         iteration = 0
-        async *chatStream(options: ChatOptions): AsyncIterable<StreamChunk> {
+        async *chatStream(options: TextOptions): AsyncIterable<StreamChunk> {
           this.trackStreamCall(options)
 
           if (this.iteration === 0) {
@@ -820,7 +820,7 @@ describe('chatActivity() - Comprehensive Logic Path Coverage', () => {
       const adapter = new NoContentToolsAdapter()
 
       await collectChunks(
-        chatActivity({
+        textActivity({
           adapter,
           model: 'test-model',
           messages: [{ role: 'user', content: 'Test' }],
@@ -842,7 +842,7 @@ describe('chatActivity() - Comprehensive Logic Path Coverage', () => {
       }
 
       class IncompleteToolAdapter extends MockAdapter {
-        async *chatStream(options: ChatOptions): AsyncIterable<StreamChunk> {
+        async *chatStream(options: TextOptions): AsyncIterable<StreamChunk> {
           this.trackStreamCall(options)
           // Incomplete tool call (empty name)
           yield {
@@ -873,7 +873,7 @@ describe('chatActivity() - Comprehensive Logic Path Coverage', () => {
       const adapter = new IncompleteToolAdapter()
 
       await collectChunks(
-        chatActivity({
+        textActivity({
           adapter,
           model: 'test-model',
           messages: [{ role: 'user', content: 'Test' }],
@@ -900,7 +900,7 @@ describe('chatActivity() - Comprehensive Logic Path Coverage', () => {
 
       class ToolResultAdapter extends MockAdapter {
         iteration = 0
-        async *chatStream(options: ChatOptions): AsyncIterable<StreamChunk> {
+        async *chatStream(options: TextOptions): AsyncIterable<StreamChunk> {
           this.trackStreamCall(options)
           if (this.iteration === 0) {
             this.iteration++
@@ -947,7 +947,7 @@ describe('chatActivity() - Comprehensive Logic Path Coverage', () => {
       const adapter = new ToolResultAdapter()
 
       const chunks = await collectChunks(
-        chatActivity({
+        textActivity({
           adapter,
           model: 'test-model',
           messages: [{ role: 'user', content: 'Test' }],
@@ -979,7 +979,7 @@ describe('chatActivity() - Comprehensive Logic Path Coverage', () => {
 
       class MessageHistoryAdapter extends MockAdapter {
         iteration = 0
-        async *chatStream(options: ChatOptions): AsyncIterable<StreamChunk> {
+        async *chatStream(options: TextOptions): AsyncIterable<StreamChunk> {
           this.trackStreamCall(options)
 
           if (this.iteration === 0) {
@@ -1033,7 +1033,7 @@ describe('chatActivity() - Comprehensive Logic Path Coverage', () => {
       const adapter = new MessageHistoryAdapter()
 
       await collectChunks(
-        chatActivity({
+        textActivity({
           adapter,
           model: 'test-model',
           messages: [{ role: 'user', content: 'Test' }],
@@ -1054,7 +1054,7 @@ describe('chatActivity() - Comprehensive Logic Path Coverage', () => {
 
       class ErrorToolAdapter extends MockAdapter {
         iteration = 0
-        async *chatStream(options: ChatOptions): AsyncIterable<StreamChunk> {
+        async *chatStream(options: TextOptions): AsyncIterable<StreamChunk> {
           this.trackStreamCall(options)
           if (this.iteration === 0) {
             this.iteration++
@@ -1101,7 +1101,7 @@ describe('chatActivity() - Comprehensive Logic Path Coverage', () => {
       const adapter = new ErrorToolAdapter()
 
       const chunks = await collectChunks(
-        chatActivity({
+        textActivity({
           adapter,
           model: 'test-model',
           messages: [{ role: 'user', content: 'Call error tool' }],
@@ -1119,7 +1119,7 @@ describe('chatActivity() - Comprehensive Logic Path Coverage', () => {
 
     it('should handle unknown tool calls', async () => {
       class UnknownToolAdapter extends MockAdapter {
-        async *chatStream(options: ChatOptions): AsyncIterable<StreamChunk> {
+        async *chatStream(options: TextOptions): AsyncIterable<StreamChunk> {
           this.trackStreamCall(options)
           yield {
             type: 'tool_call',
@@ -1146,7 +1146,7 @@ describe('chatActivity() - Comprehensive Logic Path Coverage', () => {
       const adapter = new UnknownToolAdapter()
 
       const chunks = await collectChunks(
-        chatActivity({
+        textActivity({
           adapter,
           model: 'test-model',
           messages: [{ role: 'user', content: 'Test' }],
@@ -1185,7 +1185,7 @@ describe('chatActivity() - Comprehensive Logic Path Coverage', () => {
       }
 
       class ApprovalAdapter extends MockAdapter {
-        async *chatStream(options: ChatOptions): AsyncIterable<StreamChunk> {
+        async *chatStream(options: TextOptions): AsyncIterable<StreamChunk> {
           this.trackStreamCall(options)
           yield {
             type: 'tool_call',
@@ -1215,7 +1215,7 @@ describe('chatActivity() - Comprehensive Logic Path Coverage', () => {
       const adapter = new ApprovalAdapter()
 
       const chunks = await collectChunks(
-        chatActivity({
+        textActivity({
           adapter,
           model: 'test-model',
           messages: [{ role: 'user', content: 'Delete file' }],
@@ -1254,7 +1254,7 @@ describe('chatActivity() - Comprehensive Logic Path Coverage', () => {
       }
 
       class ClientToolAdapter extends MockAdapter {
-        async *chatStream(options: ChatOptions): AsyncIterable<StreamChunk> {
+        async *chatStream(options: TextOptions): AsyncIterable<StreamChunk> {
           this.trackStreamCall(options)
           yield {
             type: 'tool_call',
@@ -1281,7 +1281,7 @@ describe('chatActivity() - Comprehensive Logic Path Coverage', () => {
       const adapter = new ClientToolAdapter()
 
       const chunks = await collectChunks(
-        chatActivity({
+        textActivity({
           adapter,
           model: 'test-model',
           messages: [{ role: 'user', content: 'Use client tool' }],
@@ -1328,7 +1328,7 @@ describe('chatActivity() - Comprehensive Logic Path Coverage', () => {
       }
 
       class MixedToolsAdapter extends MockAdapter {
-        async *chatStream(options: ChatOptions): AsyncIterable<StreamChunk> {
+        async *chatStream(options: TextOptions): AsyncIterable<StreamChunk> {
           this.trackStreamCall(options)
           yield {
             type: 'tool_call',
@@ -1379,7 +1379,7 @@ describe('chatActivity() - Comprehensive Logic Path Coverage', () => {
       const adapter = new MixedToolsAdapter()
 
       const chunks = await collectChunks(
-        chatActivity({
+        textActivity({
           adapter,
           model: 'test-model',
           messages: [{ role: 'user', content: 'Use all tools' }],
@@ -1422,7 +1422,7 @@ describe('chatActivity() - Comprehensive Logic Path Coverage', () => {
       }
 
       class PendingToolAdapter extends MockAdapter {
-        async *chatStream(options: ChatOptions): AsyncIterable<StreamChunk> {
+        async *chatStream(options: TextOptions): AsyncIterable<StreamChunk> {
           this.trackStreamCall(options)
 
           const toolMessage = options.messages.find(
@@ -1485,7 +1485,7 @@ describe('chatActivity() - Comprehensive Logic Path Coverage', () => {
         } as any,
       ]
 
-      const stream = chatActivity({
+      const stream = textActivity({
         adapter,
         model: 'test-model',
         messages,
@@ -1510,7 +1510,7 @@ describe('chatActivity() - Comprehensive Logic Path Coverage', () => {
 
       class LoopAdapter extends MockAdapter {
         iteration = 0
-        async *chatStream(options: ChatOptions): AsyncIterable<StreamChunk> {
+        async *chatStream(options: TextOptions): AsyncIterable<StreamChunk> {
           this.trackStreamCall(options)
           if (this.iteration < 3) {
             this.iteration++
@@ -1557,7 +1557,7 @@ describe('chatActivity() - Comprehensive Logic Path Coverage', () => {
       const adapter = new LoopAdapter()
 
       await collectChunks(
-        chatActivity({
+        textActivity({
           adapter,
           model: 'test-model',
           messages: [{ role: 'user', content: 'Loop' }],
@@ -1580,7 +1580,7 @@ describe('chatActivity() - Comprehensive Logic Path Coverage', () => {
 
       class InfiniteLoopAdapter extends MockAdapter {
         iteration = 0
-        async *chatStream(options: ChatOptions): AsyncIterable<StreamChunk> {
+        async *chatStream(options: TextOptions): AsyncIterable<StreamChunk> {
           this.trackStreamCall(options)
           yield {
             type: 'tool_call',
@@ -1609,7 +1609,7 @@ describe('chatActivity() - Comprehensive Logic Path Coverage', () => {
 
       // Consume stream - should stop after 5 iterations (default)
       const chunks: Array<StreamChunk> = []
-      for await (const chunk of chatActivity({
+      for await (const chunk of textActivity({
         adapter,
         model: 'test-model',
         messages: [{ role: 'user', content: 'Loop' }],
@@ -1634,7 +1634,7 @@ describe('chatActivity() - Comprehensive Logic Path Coverage', () => {
       }
 
       class StopAdapter extends MockAdapter {
-        async *chatStream(options: ChatOptions): AsyncIterable<StreamChunk> {
+        async *chatStream(options: TextOptions): AsyncIterable<StreamChunk> {
           this.trackStreamCall(options)
           yield {
             type: 'content',
@@ -1658,7 +1658,7 @@ describe('chatActivity() - Comprehensive Logic Path Coverage', () => {
       const adapter = new StopAdapter()
 
       await collectChunks(
-        chatActivity({
+        textActivity({
           adapter,
           model: 'test-model',
           messages: [{ role: 'user', content: 'Hello' }],
@@ -1672,7 +1672,7 @@ describe('chatActivity() - Comprehensive Logic Path Coverage', () => {
 
     it('should exit loop when no tools provided', async () => {
       class NoToolsAdapter extends MockAdapter {
-        async *chatStream(options: ChatOptions): AsyncIterable<StreamChunk> {
+        async *chatStream(options: TextOptions): AsyncIterable<StreamChunk> {
           this.trackStreamCall(options)
           yield {
             type: 'tool_call',
@@ -1699,7 +1699,7 @@ describe('chatActivity() - Comprehensive Logic Path Coverage', () => {
       const adapter = new NoToolsAdapter()
 
       await collectChunks(
-        chatActivity({
+        textActivity({
           adapter,
           model: 'test-model',
           messages: [{ role: 'user', content: 'Test' }],
@@ -1720,7 +1720,7 @@ describe('chatActivity() - Comprehensive Logic Path Coverage', () => {
       }
 
       class NoToolCallsAdapter extends MockAdapter {
-        async *chatStream(options: ChatOptions): AsyncIterable<StreamChunk> {
+        async *chatStream(options: TextOptions): AsyncIterable<StreamChunk> {
           this.trackStreamCall(options)
           // Tool call with empty name (invalid)
           yield {
@@ -1748,7 +1748,7 @@ describe('chatActivity() - Comprehensive Logic Path Coverage', () => {
       const adapter = new NoToolCallsAdapter()
 
       await collectChunks(
-        chatActivity({
+        textActivity({
           adapter,
           model: 'test-model',
           messages: [{ role: 'user', content: 'Test' }],
@@ -1770,7 +1770,7 @@ describe('chatActivity() - Comprehensive Logic Path Coverage', () => {
       abortController.abort() // Abort before starting
 
       const chunks = await collectChunks(
-        chatActivity({
+        textActivity({
           adapter,
           model: 'test-model',
           messages: [{ role: 'user', content: 'Hello' }],
@@ -1785,7 +1785,7 @@ describe('chatActivity() - Comprehensive Logic Path Coverage', () => {
 
     it('should check abort signal during streaming', async () => {
       class StreamingAdapter extends MockAdapter {
-        async *chatStream(options: ChatOptions): AsyncIterable<StreamChunk> {
+        async *chatStream(options: TextOptions): AsyncIterable<StreamChunk> {
           this.trackStreamCall(options)
           yield {
             type: 'content',
@@ -1819,7 +1819,7 @@ describe('chatActivity() - Comprehensive Logic Path Coverage', () => {
       const adapter = new StreamingAdapter()
 
       const abortController = new AbortController()
-      const stream = chatActivity({
+      const stream = textActivity({
         adapter,
         model: 'test-model',
         messages: [{ role: 'user', content: 'Hello' }],
@@ -1850,7 +1850,7 @@ describe('chatActivity() - Comprehensive Logic Path Coverage', () => {
       }
 
       class ToolCallAdapter extends MockAdapter {
-        async *chatStream(options: ChatOptions): AsyncIterable<StreamChunk> {
+        async *chatStream(options: TextOptions): AsyncIterable<StreamChunk> {
           this.trackStreamCall(options)
           yield {
             type: 'tool_call',
@@ -1877,7 +1877,7 @@ describe('chatActivity() - Comprehensive Logic Path Coverage', () => {
       const adapter = new ToolCallAdapter()
 
       const abortController = new AbortController()
-      const stream = chatActivity({
+      const stream = textActivity({
         adapter,
         model: 'test-model',
         messages: [{ role: 'user', content: 'Test' }],
@@ -1901,7 +1901,7 @@ describe('chatActivity() - Comprehensive Logic Path Coverage', () => {
   describe('Error Handling Paths', () => {
     it('should stop on error chunk and return early', async () => {
       class ErrorAdapter extends MockAdapter {
-        async *chatStream(options: ChatOptions): AsyncIterable<StreamChunk> {
+        async *chatStream(options: TextOptions): AsyncIterable<StreamChunk> {
           this.trackStreamCall(options)
           yield {
             type: 'content',
@@ -1936,7 +1936,7 @@ describe('chatActivity() - Comprehensive Logic Path Coverage', () => {
       const adapter = new ErrorAdapter()
 
       const chunks = await collectChunks(
-        chatActivity({
+        textActivity({
           adapter,
           model: 'test-model',
           messages: [{ role: 'user', content: 'Hello' }],
@@ -1965,7 +1965,7 @@ describe('chatActivity() - Comprehensive Logic Path Coverage', () => {
   describe('Finish Reason Paths', () => {
     it("should handle finish reason 'stop'", async () => {
       class StopFinishAdapter extends MockAdapter {
-        async *chatStream(options: ChatOptions): AsyncIterable<StreamChunk> {
+        async *chatStream(options: TextOptions): AsyncIterable<StreamChunk> {
           this.trackStreamCall(options)
           yield {
             type: 'content',
@@ -1989,7 +1989,7 @@ describe('chatActivity() - Comprehensive Logic Path Coverage', () => {
       const adapter = new StopFinishAdapter()
 
       const chunks = await collectChunks(
-        chatActivity({
+        textActivity({
           adapter,
           model: 'test-model',
           messages: [{ role: 'user', content: 'Test' }],
@@ -2002,7 +2002,7 @@ describe('chatActivity() - Comprehensive Logic Path Coverage', () => {
 
     it("should handle finish reason 'length'", async () => {
       class LengthAdapter extends MockAdapter {
-        async *chatStream(options: ChatOptions): AsyncIterable<StreamChunk> {
+        async *chatStream(options: TextOptions): AsyncIterable<StreamChunk> {
           this.trackStreamCall(options)
           yield {
             type: 'content',
@@ -2026,7 +2026,7 @@ describe('chatActivity() - Comprehensive Logic Path Coverage', () => {
       const adapter = new LengthAdapter()
 
       const chunks = await collectChunks(
-        chatActivity({
+        textActivity({
           adapter,
           model: 'test-model',
           messages: [{ role: 'user', content: 'Test' }],
@@ -2039,7 +2039,7 @@ describe('chatActivity() - Comprehensive Logic Path Coverage', () => {
 
     it('should handle finish reason null', async () => {
       class NullFinishAdapter extends MockAdapter {
-        async *chatStream(options: ChatOptions): AsyncIterable<StreamChunk> {
+        async *chatStream(options: TextOptions): AsyncIterable<StreamChunk> {
           this.trackStreamCall(options)
           yield {
             type: 'content',
@@ -2063,7 +2063,7 @@ describe('chatActivity() - Comprehensive Logic Path Coverage', () => {
       const adapter = new NullFinishAdapter()
 
       const chunks = await collectChunks(
-        chatActivity({
+        textActivity({
           adapter,
           model: 'test-model',
           messages: [{ role: 'user', content: 'Test' }],
@@ -2081,7 +2081,7 @@ describe('chatActivity() - Comprehensive Logic Path Coverage', () => {
       const adapter = new MockAdapter()
 
       await collectChunks(
-        chatActivity({
+        textActivity({
           adapter,
           model: 'test-model',
           messages: [{ role: 'user', content: 'Hello' }],
@@ -2091,14 +2091,14 @@ describe('chatActivity() - Comprehensive Logic Path Coverage', () => {
       const eventTypes = capturedEvents.map((e) => e.type)
 
       // Check event order and presence
-      expect(eventTypes.includes('chat:started')).toBe(true)
+      expect(eventTypes.includes('text:started')).toBe(true)
       expect(eventTypes.includes('stream:started')).toBe(true)
       expect(eventTypes.includes('stream:chunk:content')).toBe(true)
       expect(eventTypes.includes('stream:chunk:done')).toBe(true)
       expect(eventTypes.includes('stream:ended')).toBe(true)
 
       // chat:started should come before stream:started
-      const chatStartedIndex = eventTypes.indexOf('chat:started')
+      const chatStartedIndex = eventTypes.indexOf('text:started')
       const streamStartedIndex = eventTypes.indexOf('stream:started')
       expect(chatStartedIndex).toBeLessThan(streamStartedIndex)
 
@@ -2117,7 +2117,7 @@ describe('chatActivity() - Comprehensive Logic Path Coverage', () => {
 
       class ToolAdapter extends MockAdapter {
         iteration = 0
-        async *chatStream(options: ChatOptions): AsyncIterable<StreamChunk> {
+        async *chatStream(options: TextOptions): AsyncIterable<StreamChunk> {
           this.trackStreamCall(options)
           if (this.iteration === 0) {
             this.iteration++
@@ -2164,7 +2164,7 @@ describe('chatActivity() - Comprehensive Logic Path Coverage', () => {
       const adapter = new ToolAdapter()
 
       await collectChunks(
-        chatActivity({
+        textActivity({
           adapter,
           model: 'test-model',
           messages: [{ role: 'user', content: 'Test' }],
@@ -2174,7 +2174,7 @@ describe('chatActivity() - Comprehensive Logic Path Coverage', () => {
 
       // Should emit chat:iteration event
       const iterationEvents = capturedEvents.filter(
-        (e) => e.type === 'chat:iteration',
+        (e) => e.type === 'text:iteration',
       )
       expect(iterationEvents.length).toBeGreaterThan(0)
       expect(iterationEvents[0]?.data.iterationNumber).toBe(1)
@@ -2184,7 +2184,7 @@ describe('chatActivity() - Comprehensive Logic Path Coverage', () => {
       const adapter = new MockAdapter()
 
       await collectChunks(
-        chatActivity({
+        textActivity({
           adapter,
           model: 'test-model',
           messages: [{ role: 'user', content: 'Hello' }],
@@ -2207,7 +2207,7 @@ describe('chatActivity() - Comprehensive Logic Path Coverage', () => {
 
       class MultiIterationAdapter extends MockAdapter {
         iteration = 0
-        async *chatStream(options: ChatOptions): AsyncIterable<StreamChunk> {
+        async *chatStream(options: TextOptions): AsyncIterable<StreamChunk> {
           this.trackStreamCall(options)
           if (this.iteration === 0) {
             this.iteration++
@@ -2263,7 +2263,7 @@ describe('chatActivity() - Comprehensive Logic Path Coverage', () => {
       const adapter = new MultiIterationAdapter()
 
       await collectChunks(
-        chatActivity({
+        textActivity({
           adapter,
           model: 'test-model',
           messages: [{ role: 'user', content: 'Test' }],
@@ -2283,7 +2283,7 @@ describe('chatActivity() - Comprehensive Logic Path Coverage', () => {
       const adapter = new MockAdapter()
 
       const chunks = await collectChunks(
-        chatActivity({
+        textActivity({
           adapter,
           model: 'test-model',
           messages: [],
@@ -2298,7 +2298,7 @@ describe('chatActivity() - Comprehensive Logic Path Coverage', () => {
       const adapter = new MockAdapter()
 
       const chunks = await collectChunks(
-        chatActivity({
+        textActivity({
           adapter,
           model: 'test-model',
           messages: [{ role: 'user', content: 'Hello' }],
@@ -2318,7 +2318,7 @@ describe('chatActivity() - Comprehensive Logic Path Coverage', () => {
       }
 
       class MissingIdAdapter extends MockAdapter {
-        async *chatStream(options: ChatOptions): AsyncIterable<StreamChunk> {
+        async *chatStream(options: TextOptions): AsyncIterable<StreamChunk> {
           this.trackStreamCall(options)
           yield {
             type: 'tool_call',
@@ -2345,7 +2345,7 @@ describe('chatActivity() - Comprehensive Logic Path Coverage', () => {
       const adapter = new MissingIdAdapter()
 
       await collectChunks(
-        chatActivity({
+        textActivity({
           adapter,
           model: 'test-model',
           messages: [{ role: 'user', content: 'Test' }],
@@ -2366,7 +2366,7 @@ describe('chatActivity() - Comprehensive Logic Path Coverage', () => {
       }
 
       class InvalidJsonAdapter extends MockAdapter {
-        async *chatStream(options: ChatOptions): AsyncIterable<StreamChunk> {
+        async *chatStream(options: TextOptions): AsyncIterable<StreamChunk> {
           this.trackStreamCall(options)
           yield {
             type: 'tool_call',
@@ -2396,7 +2396,7 @@ describe('chatActivity() - Comprehensive Logic Path Coverage', () => {
       // This will cause an unhandled error, but we can test that it throws
       await expect(
         collectChunks(
-          chatActivity({
+          textActivity({
             adapter,
             model: 'test-model',
             messages: [{ role: 'user', content: 'Test' }],
@@ -2410,7 +2410,7 @@ describe('chatActivity() - Comprehensive Logic Path Coverage', () => {
   describe('Tool Result Chunk Events from Adapter', () => {
     it('should emit stream:chunk:tool-result event when adapter sends tool_result chunk', async () => {
       class ToolResultChunkAdapter extends MockAdapter {
-        async *chatStream(options: ChatOptions): AsyncIterable<StreamChunk> {
+        async *chatStream(options: TextOptions): AsyncIterable<StreamChunk> {
           this.trackStreamCall(options)
           yield {
             type: 'content',
@@ -2443,7 +2443,7 @@ describe('chatActivity() - Comprehensive Logic Path Coverage', () => {
       const adapter = new ToolResultChunkAdapter()
 
       await collectChunks(
-        chatActivity({
+        textActivity({
           adapter,
           model: 'test-model',
           messages: [{ role: 'user', content: 'Continue' }],
@@ -2478,7 +2478,7 @@ describe('chatActivity() - Comprehensive Logic Path Coverage', () => {
 
       class ApprovalResponseAdapter extends MockAdapter {
         iteration = 0
-        async *chatStream(options: ChatOptions): AsyncIterable<StreamChunk> {
+        async *chatStream(options: TextOptions): AsyncIterable<StreamChunk> {
           this.trackStreamCall(options)
 
           // Check if messages have approval response in parts
@@ -2551,7 +2551,7 @@ describe('chatActivity() - Comprehensive Logic Path Coverage', () => {
       const adapter = new ApprovalResponseAdapter()
 
       // First call - should request approval
-      const stream1 = chatActivity({
+      const stream1 = textActivity({
         adapter,
         model: 'test-model',
         messages: [{ role: 'user', content: 'Delete file' }],
@@ -2596,7 +2596,7 @@ describe('chatActivity() - Comprehensive Logic Path Coverage', () => {
         } as any,
       ]
 
-      const stream2 = chatActivity({
+      const stream2 = textActivity({
         adapter,
         model: 'test-model',
         messages: messagesWithApproval,
@@ -2621,7 +2621,7 @@ describe('chatActivity() - Comprehensive Logic Path Coverage', () => {
 
       class ClientOutputAdapter extends MockAdapter {
         iteration = 0
-        async *chatStream(options: ChatOptions): AsyncIterable<StreamChunk> {
+        async *chatStream(options: TextOptions): AsyncIterable<StreamChunk> {
           this.trackStreamCall(options)
 
           if (this.iteration === 0) {
@@ -2674,7 +2674,7 @@ describe('chatActivity() - Comprehensive Logic Path Coverage', () => {
       const adapter = new ClientOutputAdapter()
 
       // First call - should request client execution
-      const stream1 = chatActivity({
+      const stream1 = textActivity({
         adapter,
         model: 'test-model',
         messages: [{ role: 'user', content: 'Use client tool' }],
@@ -2714,7 +2714,7 @@ describe('chatActivity() - Comprehensive Logic Path Coverage', () => {
         } as any,
       ]
 
-      const stream2 = chatActivity({
+      const stream2 = textActivity({
         adapter,
         model: 'test-model',
         messages: messagesWithOutput,
@@ -2749,7 +2749,7 @@ describe('chatActivity() - Comprehensive Logic Path Coverage', () => {
 
       class MixedPartsAdapter extends MockAdapter {
         iteration = 0
-        async *chatStream(options: ChatOptions): AsyncIterable<StreamChunk> {
+        async *chatStream(options: TextOptions): AsyncIterable<StreamChunk> {
           this.trackStreamCall(options)
           if (this.iteration === 0) {
             this.iteration++
@@ -2850,7 +2850,7 @@ describe('chatActivity() - Comprehensive Logic Path Coverage', () => {
         } as any,
       ]
 
-      const stream = chatActivity({
+      const stream = textActivity({
         adapter,
         model: 'test-model',
         messages: messagesWithBoth,
@@ -2882,7 +2882,7 @@ describe('chatActivity() - Comprehensive Logic Path Coverage', () => {
       class TemperatureToolAdapter extends MockAdapter {
         iteration = 0
 
-        async *chatStream(options: ChatOptions): AsyncIterable<StreamChunk> {
+        async *chatStream(options: TextOptions): AsyncIterable<StreamChunk> {
           this.trackStreamCall(options)
           const baseId = `test-${Date.now()}-${Math.random()
             .toString(36)
@@ -2970,7 +2970,7 @@ describe('chatActivity() - Comprehensive Logic Path Coverage', () => {
 
       const adapter = new TemperatureToolAdapter()
 
-      const stream = chatActivity({
+      const stream = textActivity({
         adapter,
         model: 'test-model',
         messages: [{ role: 'user', content: 'what is the temperature?' }],

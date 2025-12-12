@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest'
 import { ai } from '../src/ai'
 import {
-  BaseChatAdapter,
+  BaseTextAdapter,
   BaseEmbeddingAdapter,
   BaseSummarizeAdapter,
 } from '../src/activities'
@@ -10,7 +10,7 @@ import type {
   StructuredOutputResult,
 } from '../src/activities'
 import type {
-  ChatOptions,
+  TextOptions,
   EmbeddingOptions,
   EmbeddingResult,
   ModelMessage,
@@ -23,8 +23,8 @@ import type {
 
 const MOCK_MODELS = ['model-a', 'model-b'] as const
 
-class MockChatAdapter extends BaseChatAdapter<typeof MOCK_MODELS> {
-  readonly kind = 'chat' as const
+class MockTextAdapter extends BaseTextAdapter<typeof MOCK_MODELS> {
+  readonly kind = 'text' as const
   readonly name = 'mock' as const
   readonly models = MOCK_MODELS
 
@@ -35,7 +35,7 @@ class MockChatAdapter extends BaseChatAdapter<typeof MOCK_MODELS> {
     this.mockChunks = mockChunks
   }
 
-  async *chatStream(_options: ChatOptions): AsyncIterable<StreamChunk> {
+  async *chatStream(_options: TextOptions): AsyncIterable<StreamChunk> {
     for (const chunk of this.mockChunks) {
       yield chunk
     }
@@ -130,7 +130,7 @@ describe('generate function', () => {
         },
       ]
 
-      const adapter = new MockChatAdapter(mockChunks)
+      const adapter = new MockTextAdapter(mockChunks)
       const messages: Array<ModelMessage> = [
         { role: 'user', content: [{ type: 'text', content: 'Hi' }] },
       ]
@@ -156,8 +156,8 @@ describe('generate function', () => {
       expect(collected[2]?.type).toBe('done')
     })
 
-    it('should pass options to the chat adapter', async () => {
-      const adapter = new MockChatAdapter([])
+    it('should pass options to the text adapter', async () => {
+      const adapter = new MockTextAdapter([])
       const chatStreamSpy = vi.spyOn(adapter, 'chatStream')
 
       const messages: Array<ModelMessage> = [
@@ -251,8 +251,8 @@ describe('generate function', () => {
   })
 
   describe('type safety', () => {
-    it('should have proper return type inference for chat adapter', () => {
-      const adapter = new MockChatAdapter([])
+    it('should have proper return type inference for text adapter', () => {
+      const adapter = new MockTextAdapter([])
       const messages: Array<ModelMessage> = []
 
       // TypeScript should infer AsyncIterable<StreamChunk>

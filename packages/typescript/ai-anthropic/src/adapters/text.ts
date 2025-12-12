@@ -1,4 +1,4 @@
-import { BaseChatAdapter } from '@tanstack/ai/adapters'
+import { BaseTextAdapter } from '@tanstack/ai/adapters'
 import { ANTHROPIC_MODELS } from '../model-meta'
 import { convertToolsToProviderFormat } from '../tools/tool-converter'
 import { validateTextProviderOptions } from '../text/text-provider-options'
@@ -24,10 +24,10 @@ import type {
 } from '@anthropic-ai/sdk/resources/messages'
 import type Anthropic_SDK from '@anthropic-ai/sdk'
 import type {
-  ChatOptions,
   ContentPart,
   ModelMessage,
   StreamChunk,
+  TextOptions,
 } from '@tanstack/ai'
 import type {
   AnthropicChatModelProviderOptionsByName,
@@ -68,14 +68,14 @@ type AnthropicContentBlock =
  * Tree-shakeable adapter for Anthropic chat/text completion functionality.
  * Import only what you need for smaller bundle sizes.
  */
-export class AnthropicTextAdapter extends BaseChatAdapter<
+export class AnthropicTextAdapter extends BaseTextAdapter<
   typeof ANTHROPIC_MODELS,
   AnthropicTextProviderOptions,
   AnthropicChatModelProviderOptionsByName,
   AnthropicModelInputModalitiesByName,
   AnthropicMessageMetadataByModality
 > {
-  readonly kind = 'chat' as const
+  readonly kind = 'text' as const
   readonly name = 'anthropic' as const
   readonly models = ANTHROPIC_MODELS
 
@@ -91,7 +91,7 @@ export class AnthropicTextAdapter extends BaseChatAdapter<
   }
 
   async *chatStream(
-    options: ChatOptions<string, AnthropicTextProviderOptions>,
+    options: TextOptions<string, AnthropicTextProviderOptions>,
   ): AsyncIterable<StreamChunk> {
     try {
       const requestParams = this.mapCommonOptionsToAnthropic(options)
@@ -210,7 +210,7 @@ export class AnthropicTextAdapter extends BaseChatAdapter<
   }
 
   private mapCommonOptionsToAnthropic(
-    options: ChatOptions<string, AnthropicTextProviderOptions>,
+    options: TextOptions<string, AnthropicTextProviderOptions>,
   ) {
     const providerOptions = options.providerOptions as
       | InternalTextProviderOptions
