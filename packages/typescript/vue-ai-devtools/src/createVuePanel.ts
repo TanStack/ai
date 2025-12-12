@@ -12,10 +12,7 @@ type Theme = NonNullable<DevtoolsPanelProps['theme']>
 export function createVuePanel<
   TComponentProps extends DevtoolsPanelProps,
   TCoreDevtoolsClass extends {
-    mount: (
-      el: HTMLElement,
-      theme: Theme,
-    ) => void | Promise<void>
+    mount: (el: HTMLElement, theme: Theme) => void | Promise<void>
     unmount: () => void
   },
 >(CoreClass: new (props: TComponentProps) => TCoreDevtoolsClass) {

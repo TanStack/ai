@@ -4,4 +4,3 @@ import VueUIView from '@/views/VueUIView.vue'
 export const Route = createFileRoute('/vue-ui')({
   component: VueUIView,
 })
-

@@ -12,7 +12,9 @@ const NullComponent = /* #__PURE__ */ defineComponent({
 })
 
 export const AiDevtoolsPanel =
-  process.env.NODE_ENV !== 'development' ? NullComponent : DevToolsPanelComponent
+  process.env.NODE_ENV !== 'development'
+    ? NullComponent
+    : DevToolsPanelComponent
 
 export const AiDevtoolsPanelInProd = DevToolsPanelComponent
 
