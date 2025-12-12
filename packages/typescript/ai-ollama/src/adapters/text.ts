@@ -1,10 +1,10 @@
 import { BaseChatAdapter } from '@tanstack/ai/adapters'
 
 import {
+  convertZodToOllamaSchema,
   createOllamaClient,
   generateId,
   getOllamaHostFromEnv,
-  convertZodToOllamaSchema,
 } from '../utils'
 
 import type {

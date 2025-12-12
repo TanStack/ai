@@ -3,7 +3,7 @@
 import { config } from 'dotenv'
 import { Command } from 'commander'
 import { ADAPTERS, getAdapter } from './adapters'
-import type { AdapterSet } from './adapters'
+import type { AdapterDefinition, AdapterSet } from './adapters'
 import { TESTS, getTest, getDefaultTests } from './tests'
 import type { TestDefinition, AdapterCapability } from './tests'
 import type { AdapterContext, TestOutcome } from './harness'
@@ -16,6 +16,36 @@ interface AdapterResult {
   adapter: string
   model: string
   tests: Record<string, TestOutcome>
+}
+
+interface TestTask {
+  adapterDef: AdapterDefinition
+  adapterSet: AdapterSet
+  test: TestDefinition
+  ctx: AdapterContext
+}
+
+/**
+ * Get the display width of a string, accounting for emojis
+ */
+function displayWidth(str: string): number {
+  // Emojis and some special characters take 2 columns
+  // This regex matches most common emojis
+  const emojiRegex =
+    /[\u{1F300}-\u{1F9FF}]|[\u{2600}-\u{26FF}]|[\u{2700}-\u{27BF}]|✅|❌|⋯|⚠️/gu
+  const emojiCount = (str.match(emojiRegex) || []).length
+  // Each emoji takes ~2 display columns but counts as 1-2 in length
+  // We need to add extra padding for emojis
+  return str.length + emojiCount
+}
+
+/**
+ * Pad a string to a display width, accounting for emojis
+ */
+function padEnd(str: string, width: number): string {
+  const currentWidth = displayWidth(str)
+  const padding = Math.max(0, width - currentWidth)
+  return str + ' '.repeat(padding)
 }
 
 /**
@@ -81,10 +111,12 @@ function hasCapability(
 }
 
 /**
- * Format the results grid
+ * Format the results grid with proper emoji alignment
  */
 function formatGrid(results: AdapterResult[], testsRun: TestDefinition[]) {
   const headers = ['Adapter', ...testsRun.map((t) => t.id)]
+
+  // Build rows with result indicators
   const rows = results.map((result) => [
     `${result.adapter} (${result.model})`,
     ...testsRun.map((test) => {
@@ -95,16 +127,18 @@ function formatGrid(results: AdapterResult[], testsRun: TestDefinition[]) {
     }),
   ])
 
-  const colWidths = headers.map((header, index) =>
-    Math.max(
-      header.length,
-      ...rows.map((row) => (row[index] ? row[index].length : 0)),
-    ),
-  )
+  // Calculate column widths based on display width
+  const colWidths = headers.map((header, index) => {
+    const headerWidth = displayWidth(header)
+    const maxCellWidth = Math.max(
+      ...rows.map((row) => displayWidth(row[index] || '')),
+    )
+    return Math.max(headerWidth, maxCellWidth)
+  })
 
   const separator = colWidths.map((w) => '-'.repeat(w)).join('-+-')
   const formatRow = (row: string[]) =>
-    row.map((cell, idx) => cell.padEnd(colWidths[idx]!)).join(' | ')
+    row.map((cell, idx) => padEnd(cell, colWidths[idx]!)).join(' | ')
 
   console.log(formatRow(headers))
   console.log(separator)
@@ -112,9 +146,251 @@ function formatGrid(results: AdapterResult[], testsRun: TestDefinition[]) {
 }
 
 /**
+ * Clear the current line and move cursor to beginning
+ */
+function clearLine() {
+  process.stdout.write('\r\x1b[K')
+}
+
+/**
+ * Update progress display
+ */
+function updateProgress(
+  completed: number,
+  total: number,
+  running: string[],
+  failed: number,
+) {
+  clearLine()
+  const runningStr =
+    running.length > 0 ? ` | Running: ${running.join(', ')}` : ''
+  const failedStr = failed > 0 ? ` | ❌ ${failed} failed` : ''
+  process.stdout.write(
+    `⏳ Progress: ${completed}/${total} completed${failedStr}${runningStr}`,
+  )
+}
+
+/**
+ * Run tests sequentially (original behavior)
+ */
+async function runSequential(
+  adaptersToRun: AdapterDefinition[],
+  testsToRun: TestDefinition[],
+): Promise<AdapterResult[]> {
+  const results: AdapterResult[] = []
+
+  for (const adapterDef of adaptersToRun) {
+    const adapterSet = adapterDef.create()
+
+    if (!adapterSet) {
+      console.log(
+        `⚠️  Skipping ${adapterDef.name}: ${adapterDef.envKey} not set`,
+      )
+      continue
+    }
+
+    console.log(`\n${adapterDef.name} (chat: ${adapterSet.chatModel})`)
+
+    const adapterResult: AdapterResult = {
+      adapter: adapterDef.name,
+      model: adapterSet.chatModel,
+      tests: {},
+    }
+
+    const ctx: AdapterContext = {
+      adapterName: adapterDef.name,
+      textAdapter: adapterSet.textAdapter,
+      summarizeAdapter: adapterSet.summarizeAdapter,
+      embeddingAdapter: adapterSet.embeddingAdapter,
+      imageAdapter: adapterSet.imageAdapter,
+      model: adapterSet.chatModel,
+      summarizeModel: adapterSet.summarizeModel,
+      embeddingModel: adapterSet.embeddingModel,
+      imageModel: adapterSet.imageModel,
+    }
+
+    for (const test of testsToRun) {
+      const missingCapabilities = test.requires.filter(
+        (cap) => !hasCapability(adapterSet, cap),
+      )
+
+      if (missingCapabilities.length > 0) {
+        console.log(
+          `[${adapterDef.name}] ⋯ ${test.id}: Ignored (missing: ${missingCapabilities.join(', ')})`,
+        )
+        adapterResult.tests[test.id] = { passed: true, ignored: true }
+        continue
+      }
+
+      adapterResult.tests[test.id] = await test.run(ctx)
+    }
+
+    results.push(adapterResult)
+  }
+
+  return results
+}
+
+/**
+ * Run tests in parallel with progress display
+ */
+async function runParallel(
+  adaptersToRun: AdapterDefinition[],
+  testsToRun: TestDefinition[],
+  concurrency: number,
+): Promise<AdapterResult[]> {
+  // Build task queue
+  const tasks: TestTask[] = []
+  const resultsMap = new Map<string, AdapterResult>()
+  const skippedAdapters: string[] = []
+
+  for (const adapterDef of adaptersToRun) {
+    const adapterSet = adapterDef.create()
+
+    if (!adapterSet) {
+      skippedAdapters.push(`${adapterDef.name} (${adapterDef.envKey} not set)`)
+      continue
+    }
+
+    // Initialize result for this adapter
+    const adapterResult: AdapterResult = {
+      adapter: adapterDef.name,
+      model: adapterSet.chatModel,
+      tests: {},
+    }
+    resultsMap.set(adapterDef.id, adapterResult)
+
+    const ctx: AdapterContext = {
+      adapterName: adapterDef.name,
+      textAdapter: adapterSet.textAdapter,
+      summarizeAdapter: adapterSet.summarizeAdapter,
+      embeddingAdapter: adapterSet.embeddingAdapter,
+      imageAdapter: adapterSet.imageAdapter,
+      model: adapterSet.chatModel,
+      summarizeModel: adapterSet.summarizeModel,
+      embeddingModel: adapterSet.embeddingModel,
+      imageModel: adapterSet.imageModel,
+    }
+
+    for (const test of testsToRun) {
+      const missingCapabilities = test.requires.filter(
+        (cap) => !hasCapability(adapterSet, cap),
+      )
+
+      if (missingCapabilities.length > 0) {
+        // Mark as ignored immediately
+        adapterResult.tests[test.id] = { passed: true, ignored: true }
+        continue
+      }
+
+      tasks.push({ adapterDef, adapterSet, test, ctx })
+    }
+  }
+
+  // Show skipped adapters
+  if (skippedAdapters.length > 0) {
+    console.log(`⚠️  Skipping: ${skippedAdapters.join(', ')}`)
+  }
+
+  const total = tasks.length
+  let completed = 0
+  let failed = 0
+  const running = new Set<string>()
+  const failedTests: Array<{ name: string; error: string }> = []
+
+  // Show initial progress
+  console.log(
+    `\n🔄 Running ${total} tests with ${concurrency} parallel workers\n`,
+  )
+  updateProgress(completed, total, Array.from(running), failed)
+
+  // Suppress console.log during parallel execution
+  const originalLog = console.log
+  console.log = () => {}
+
+  // Process tasks with limited concurrency
+  const taskQueue = [...tasks]
+
+  async function runTask(task: TestTask): Promise<void> {
+    const taskName = `${task.adapterDef.name}/${task.test.id}`
+    running.add(taskName)
+    updateProgress(completed, total, Array.from(running), failed)
+
+    try {
+      const outcome = await task.test.run(task.ctx)
+      const adapterResult = resultsMap.get(task.adapterDef.id)!
+      adapterResult.tests[task.test.id] = outcome
+
+      if (!outcome.passed && !outcome.ignored) {
+        failed++
+        failedTests.push({
+          name: taskName,
+          error: outcome.error || 'Unknown error',
+        })
+      }
+    } catch (error: any) {
+      const adapterResult = resultsMap.get(task.adapterDef.id)!
+      const errorMsg = error?.message || String(error)
+      adapterResult.tests[task.test.id] = { passed: false, error: errorMsg }
+      failed++
+      failedTests.push({ name: taskName, error: errorMsg })
+    }
+
+    running.delete(taskName)
+    completed++
+    updateProgress(completed, total, Array.from(running), failed)
+  }
+
+  // Run with concurrency limit
+  const workers: Promise<void>[] = []
+
+  async function worker() {
+    while (taskQueue.length > 0) {
+      const task = taskQueue.shift()
+      if (task) {
+        await runTask(task)
+      }
+    }
+  }
+
+  // Start workers
+  for (let i = 0; i < Math.min(concurrency, tasks.length); i++) {
+    workers.push(worker())
+  }
+
+  // Wait for all workers to complete
+  await Promise.all(workers)
+
+  // Restore console.log
+  console.log = originalLog
+
+  // Clear progress line and show completion
+  clearLine()
+  console.log(`✅ Completed ${total} tests (${failed} failed)\n`)
+
+  // Show failed tests summary
+  if (failedTests.length > 0) {
+    console.log('Failed tests:')
+    for (const ft of failedTests) {
+      console.log(`  ❌ ${ft.name}: ${ft.error}`)
+    }
+    console.log('')
+  }
+
+  // Return results in adapter order
+  return adaptersToRun
+    .filter((a) => resultsMap.has(a.id))
+    .map((a) => resultsMap.get(a.id)!)
+}
+
+/**
  * Run tests with optional filtering
  */
-async function runCommand(options: { adapters?: string; tests?: string }) {
+async function runCommand(options: {
+  adapters?: string
+  tests?: string
+  parallel?: string
+}) {
   // Parse adapter filter
   const adapterFilter = options.adapters
     ? options.adapters.split(',').map((a) => a.trim().toLowerCase())
@@ -124,6 +400,9 @@ async function runCommand(options: { adapters?: string; tests?: string }) {
   const testFilter = options.tests
     ? options.tests.split(',').map((t) => t.trim().toUpperCase())
     : null
+
+  // Parse parallel option (default to 5)
+  const parallel = options.parallel ? parseInt(options.parallel, 10) : 5
 
   // Determine which adapters to run
   const adaptersToRun = adapterFilter
@@ -157,69 +436,20 @@ async function runCommand(options: { adapters?: string; tests?: string }) {
       testsToRun.push(test)
     }
   } else {
-    // Run default tests (excluding skipByDefault like IMG)
     testsToRun = getDefaultTests()
   }
 
   console.log('🚀 Starting TanStack AI adapter tests')
   console.log(`   Adapters: ${adaptersToRun.map((a) => a.name).join(', ')}`)
   console.log(`   Tests: ${testsToRun.map((t) => t.id).join(', ')}`)
-  console.log('')
+  console.log(`   Parallel: ${parallel}`)
 
-  const results: AdapterResult[] = []
-
-  for (const adapterDef of adaptersToRun) {
-    // Try to create the adapter set
-    const adapterSet = adapterDef.create()
-
-    if (!adapterSet) {
-      console.log(
-        `⚠️  Skipping ${adapterDef.name}: ${adapterDef.envKey} not set`,
-      )
-      continue
-    }
-
-    console.log(`\n${adapterDef.name} (chat: ${adapterSet.chatModel})`)
-
-    const adapterResult: AdapterResult = {
-      adapter: adapterDef.name,
-      model: adapterSet.chatModel,
-      tests: {},
-    }
-
-    // Build adapter context
-    const ctx: AdapterContext = {
-      adapterName: adapterDef.name,
-      textAdapter: adapterSet.textAdapter,
-      summarizeAdapter: adapterSet.summarizeAdapter,
-      embeddingAdapter: adapterSet.embeddingAdapter,
-      imageAdapter: adapterSet.imageAdapter,
-      model: adapterSet.chatModel,
-      summarizeModel: adapterSet.summarizeModel,
-      embeddingModel: adapterSet.embeddingModel,
-      imageModel: adapterSet.imageModel,
-    }
-
-    // Run each test
-    for (const test of testsToRun) {
-      // Check if adapter has required capabilities
-      const missingCapabilities = test.requires.filter(
-        (cap) => !hasCapability(adapterSet, cap),
-      )
-
-      if (missingCapabilities.length > 0) {
-        console.log(
-          `[${adapterDef.name}] ⋯ ${test.id}: Ignored (missing: ${missingCapabilities.join(', ')})`,
-        )
-        adapterResult.tests[test.id] = { passed: true, ignored: true }
-        continue
-      }
-
-      // Run the test
-      adapterResult.tests[test.id] = await test.run(ctx)
-    }
-
-    results.push(adapterResult)
+  // Run tests
+  let results: AdapterResult[]
+  if (parallel > 1) {
+    results = await runParallel(adaptersToRun, testsToRun, parallel)
+  } else {
+    results = await runSequential(adaptersToRun, testsToRun)
   }
 
   console.log('\n')
@@ -241,7 +471,6 @@ async function runCommand(options: { adapters?: string; tests?: string }) {
   const allPassed = results.every((result) =>
     testsToRun.every((test) => {
       const outcome = result.tests[test.id]
-      // Ignored tests don't count as failures
       return !outcome || outcome.ignored || outcome.passed
     }),
   )
@@ -279,6 +508,11 @@ program
   .option(
     '--tests <acronyms>',
     'Comma-separated list of test acronyms (e.g., CST,OST,STR)',
+  )
+  .option(
+    '--parallel <n>',
+    'Number of tests to run in parallel (default: 5, use 1 for sequential)',
+    '5',
   )
   .action(runCommand)
 

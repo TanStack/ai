@@ -1,4 +1,5 @@
-import { toJSONSchema, type z } from 'zod'
+import { toJSONSchema } from 'zod'
+import type { z } from 'zod'
 
 /**
  * Check if a value is a Zod schema by looking for Zod-specific internals.
@@ -64,10 +65,6 @@ function makeOpenAIStructuredOutputCompatible(
   schema: Record<string, any>,
   originalRequired: Array<string> = [],
 ): Record<string, any> {
-  if (typeof schema !== 'object' || schema === null) {
-    return schema
-  }
-
   const result = { ...schema }
 
   // Handle object types

@@ -3,10 +3,10 @@ import { OPENAI_CHAT_MODELS } from '../model-meta'
 import { validateTextProviderOptions } from '../text/text-provider-options'
 import { convertToolsToProviderFormat } from '../tools'
 import {
+  convertZodToOpenAISchema,
   createOpenAIClient,
   generateId,
   getOpenAIApiKeyFromEnv,
-  convertZodToOpenAISchema,
   transformNullsToUndefined,
 } from '../utils'
 import type {

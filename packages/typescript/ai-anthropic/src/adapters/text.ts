@@ -3,10 +3,10 @@ import { ANTHROPIC_MODELS } from '../model-meta'
 import { convertToolsToProviderFormat } from '../tools/tool-converter'
 import { validateTextProviderOptions } from '../text/text-provider-options'
 import {
+  convertZodToAnthropicSchema,
   createAnthropicClient,
   generateId,
   getAnthropicApiKeyFromEnv,
-  convertZodToAnthropicSchema,
 } from '../utils'
 import type {
   StructuredOutputOptions,

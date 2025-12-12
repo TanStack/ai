@@ -204,14 +204,14 @@ export type AIOptionsFor<
   TAdapter extends AnyAIAdapter,
   TModel extends string,
   TSchema extends z.ZodType | undefined = undefined,
-  TStream extends boolean = true,
+  TStream extends boolean | undefined = undefined,
 > = TAdapter extends { kind: 'chat' }
   ? TAdapter extends ChatAdapter<ReadonlyArray<string>, object, any, any, any>
     ? ChatActivityOptions<
         TAdapter,
         TModel & ChatModels<TAdapter>,
         TSchema,
-        TStream
+        TStream extends boolean ? TStream : true
       >
     : never
   : TAdapter extends { kind: 'embedding' }
@@ -223,7 +223,7 @@ export type AIOptionsFor<
         ? SummarizeActivityOptions<
             TAdapter,
             TModel & SummarizeModels<TAdapter>,
-            TStream
+            TStream extends boolean ? TStream : false
           >
         : never
       : TAdapter extends { kind: 'image' }
@@ -240,13 +240,13 @@ export type AIOptionsFor<
 export type AIResultFor<
   TAdapter extends AnyAIAdapter,
   TSchema extends z.ZodType | undefined = undefined,
-  TStream extends boolean = true,
+  TStream extends boolean | undefined = undefined,
 > = TAdapter extends { kind: 'chat' }
-  ? ChatActivityResult<TSchema, TStream>
+  ? ChatActivityResult<TSchema, TStream extends boolean ? TStream : true>
   : TAdapter extends { kind: 'embedding' }
     ? EmbeddingActivityResult
     : TAdapter extends { kind: 'summarize' }
-      ? SummarizeActivityResult<TStream>
+      ? SummarizeActivityResult<TStream extends boolean ? TStream : false>
       : TAdapter extends { kind: 'image' }
         ? ImageActivityResult
         : never

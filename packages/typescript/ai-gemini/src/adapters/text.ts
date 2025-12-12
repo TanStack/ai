@@ -3,10 +3,10 @@ import { BaseChatAdapter } from '@tanstack/ai/adapters'
 import { GEMINI_MODELS } from '../model-meta'
 import { convertToolsToProviderFormat } from '../tools/tool-converter'
 import {
+  convertZodToGeminiSchema,
   createGeminiClient,
   generateId,
   getGeminiApiKeyFromEnv,
-  convertZodToGeminiSchema,
 } from '../utils'
 import type {
   StructuredOutputOptions,

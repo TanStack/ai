@@ -516,15 +516,23 @@ describe('ai() with summarize streaming', () => {
     expectTypeOf(result).toMatchTypeOf<AsyncIterable<StreamChunk>>()
   })
 
-  it('should not allow stream option for chat adapter', () => {
+  it('should allow stream option for chat adapter', () => {
     const chatAdapter = new TestChatAdapter()
 
+    // stream: true is valid (explicit streaming, the default)
     ai({
       adapter: chatAdapter,
       model: 'gpt-4o',
       messages: [{ role: 'user', content: 'Hello' }],
-      // @ts-expect-error - stream is not valid for chat adapter
       stream: true,
+    })
+
+    // stream: false is valid (non-streaming mode)
+    ai({
+      adapter: chatAdapter,
+      model: 'gpt-4o',
+      messages: [{ role: 'user', content: 'Hello' }],
+      stream: false,
     })
   })
 

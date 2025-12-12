@@ -30,10 +30,6 @@ function makeStructuredOutputCompatible(
   schema: Record<string, any>,
   originalRequired: Array<string> = [],
 ): Record<string, any> {
-  if (typeof schema !== 'object' || schema === null) {
-    return schema
-  }
-
   const result = { ...schema }
 
   // Handle object types

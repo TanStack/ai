@@ -1,4 +1,5 @@
-import { toJSONSchema, type z } from 'zod'
+import { toJSONSchema } from 'zod'
+import type { z } from 'zod'
 
 /**
  * Check if a value is a Zod schema by looking for Zod-specific internals.

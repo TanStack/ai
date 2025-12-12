@@ -36,8 +36,8 @@ export function convertCustomToolToAdapterFormat(tool: Tool): CustomTool {
 
   const inputSchema = {
     type: 'object' as const,
-    properties: jsonSchema?.properties || null,
-    required: jsonSchema?.required || null,
+    properties: jsonSchema.properties || null,
+    required: jsonSchema.required || null,
   }
 
   return {
