@@ -2,17 +2,12 @@
 import Header from './components/Header.vue'
 
 import { markRaw } from 'vue'
-import { AiDevtoolsPanel } from '@tanstack/vue-ai-devtools'
+import { aiDevtoolsPlugin } from '@tanstack/vue-ai-devtools'
 import { TanStackDevtools } from '@tanstack/vue-devtools'
 
 const devtoolsConfig = { position: 'bottom-right' as const }
 
-const devtoolsPlugins = [
-  {
-    name: 'Tanstack AI',
-    component: markRaw(AiDevtoolsPanel),
-  },
-]
+const devtoolsPlugins = [aiDevtoolsPlugin()]
 
 const devtoolsEventBusConfig = { connectToServerBus: true }
 </script>
