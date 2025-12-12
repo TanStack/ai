@@ -1,0 +1,85 @@
+{
+  "name": "@tanstack/vue-ai-devtools",
+  "version": "0.0.3",
+  "description": "Vue Devtools for TanStack AI.",
+  "author": "tannerlinsley",
+  "license": "MIT",
+  "homepage": "https://tanstack.com/ai",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/TanStack/ai.git",
+    "directory": "packages/typescript/ai"
+  },
+  "funding": {
+    "type": "github",
+    "url": "https://github.com/sponsors/tannerlinsley"
+  },
+  "scripts": {
+    "clean": "premove ./build ./dist",
+    "lint:fix": "eslint ./src --fix",
+    "test:eslint": "eslint ./src",
+    "test:lib": "vitest --passWithNoTests",
+    "test:lib:dev": "pnpm test:lib --watch",
+    "test:types": "tsc",
+    "test:build": "publint --strict",
+    "build": "vite build"
+  },
+  "type": "module",
+  "types": "./dist/esm/index.d.ts",
+  "module": "./dist/esm/index.js",
+  "exports": {
+    ".": {
+      "browser": {
+        "import": {
+          "types": "./dist/esm/index.d.ts",
+          "default": "./dist/esm/index.js"
+        }
+      },
+      "node": {
+        "import": {
+          "types": "./dist/esm/server.d.ts",
+          "default": "./dist/esm/server.js"
+        }
+      },
+      "import": {
+        "types": "./dist/esm/index.d.ts",
+        "default": "./dist/esm/index.js"
+      }
+    },
+    "./production": {
+      "browser": {
+        "import": {
+          "types": "./dist/esm/production.d.ts",
+          "default": "./dist/esm/production.js"
+        }
+      },
+      "node": {
+        "import": {
+          "types": "./dist/esm/server.d.ts",
+          "default": "./dist/esm/server.js"
+        }
+      },
+      "import": {
+        "types": "./dist/esm/production.d.ts",
+        "default": "./dist/esm/production.js"
+      }
+    },
+    "./package.json": "./package.json"
+  },
+  "sideEffects": false,
+  "files": [
+    "dist",
+    "src"
+  ],
+  "dependencies": {
+    "@tanstack/ai-devtools-core": "workspace:*"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-vue": "^5.2.3",
+    "@vitest/coverage-v8": "4.0.14",
+    "vite": "^7.2.4"
+  },
+  "peerDependencies": {
+    "vue": ">=3.2.0"
+  }
+}

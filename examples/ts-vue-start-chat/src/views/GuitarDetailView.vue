@@ -1,18 +1,18 @@
 <script setup lang="ts">
 import { computed } from 'vue'
-import { useRoute, useRouter } from 'vue-router'
+import { useParams, useRouter } from '@tanstack/vue-router'
 import { guitars } from '@/data/guitars'
 
-const route = useRoute()
+const params = useParams({ from: '/guitars/$id' })
 const router = useRouter()
 
 const guitar = computed(() => {
-  const id = parseInt(route.params.id as string)
+  const id = parseInt(params.value.id as string)
   return guitars.find((g) => g.id === id)
 })
 
 const handleBack = () => {
-  router.back()
+  router.history.back()
 }
 </script>
 

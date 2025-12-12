@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { RouterLink } from 'vue-router'
+import { Link } from '@tanstack/vue-router'
 import { guitars } from '@/data/guitars'
 </script>
 
@@ -10,7 +10,7 @@ import { guitars } from '@/data/guitars'
     <div
       class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6"
     >
-      <RouterLink
+      <Link
         v-for="guitar in guitars"
         :key="guitar.id"
         :to="`/guitars/${guitar.id}`"
@@ -34,7 +34,7 @@ import { guitars } from '@/data/guitars'
             ${{ guitar.price }}
           </div>
         </div>
-      </RouterLink>
+      </Link>
     </div>
   </div>
 </template>

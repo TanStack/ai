@@ -4,7 +4,7 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "vite",
+    "dev": "vite dev --port 3000",
     "build": "vue-tsc -b && vite build",
     "preview": "vite preview",
     "check": "vue-tsc --noEmit"
@@ -18,15 +18,20 @@
     "@tanstack/ai-openai": "workspace:*",
     "@tanstack/ai-vue": "workspace:*",
     "@tanstack/ai-vue-ui": "workspace:*",
+    "@tanstack/vue-ai-devtools": "workspace:*",
+		"@tanstack/vue-devtools": "^0.1.2",
+    "@tanstack/vue-router": "^1.140.5",
+    "@tanstack/vue-router-devtools": "^1.140.5",
+    "@tanstack/vue-start": "^1.0.0",
     "marked": "^15.0.6",
     "vue": "^3.5.25",
-    "vue-router": "^4.5.0",
     "zod": "^4.1.13"
   },
   "devDependencies": {
     "@tailwindcss/vite": "^4.1.17",
     "@types/node": "^24.10.1",
     "@vitejs/plugin-vue": "^5.2.3",
+    "@vitejs/plugin-vue-jsx": "^4.1.2",
     "autoprefixer": "^10.4.21",
     "concurrently": "^9.1.2",
     "dotenv": "^17.2.3",
@@ -35,6 +40,7 @@
     "tsx": "^4.20.6",
     "typescript": "5.9.3",
     "vite": "^7.2.4",
+    "vite-tsconfig-paths": "^5.1.4",
     "vue-tsc": "^2.2.10"
   }
 }
