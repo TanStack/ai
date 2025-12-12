@@ -13,6 +13,7 @@ import { AiDevtoolsPanelInProd } from '@tanstack/vue-ai-devtools'
 import { TanStackDevtools } from '@tanstack/vue-devtools'
 
 import Header from '@/components/Header.vue'
+import ClientOnly from '@/components/ClientOnly.vue'
 import appCss from '@/styles.css?url'
 
 export const Route = createRootRoute({
@@ -48,27 +49,28 @@ function RootComponent() {
       <Body class="min-h-screen bg-gray-900">
         <Header />
         <Outlet />
-        <TanStackDevtools
-          config={{
-            position: 'bottom-right',
-          }}
-          plugins={[
-            {
-              name: 'TanStack Router',
-              id: 'tanstack-router',
-              component: TanStackRouterDevtoolsPanelInProd,
-            },
-            {
-              name: 'TanStack AI',
-              id: 'tanstack-ai',
-              component: AiDevtoolsPanelInProd,
-            },
-          ]}
-          eventBusConfig={{
-            connectToServerBus: true,
-          }}
-        />
-
+				<ClientOnly>
+					<TanStackDevtools
+						config={{
+							position: 'bottom-right',
+						}}
+						plugins={[
+							{
+								name: 'TanStack Router',
+								id: 'tanstack-router',
+								component: TanStackRouterDevtoolsPanelInProd,
+							},
+							{
+								name: 'TanStack AI',
+								id: 'tanstack-ai',
+								component: AiDevtoolsPanelInProd,
+							},
+						]}
+						eventBusConfig={{
+							connectToServerBus: true,
+						}}
+					/>
+				</ClientOnly>
         <Scripts />
       </Body>
     </Html>

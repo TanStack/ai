@@ -16,7 +16,16 @@ export default defineConfig({
     },
   },
   plugins: [
-    devtools(),
+    devtools({
+      // Vue warns if arbitrary attributes are passed to components that render
+      // fragments/teleports (like `Html`/`HeadContent`). Ignore those components
+      // so `data-tsd-source` injection doesn't flood the dev server output.
+      injectSource: {
+        ignore: {
+          components: ['Html', 'HeadContent', 'Body', 'Outlet', 'Scripts'],
+        },
+      },
+    }),
     tsConfigPaths({
       projects: ['./tsconfig.json'],
     }),
