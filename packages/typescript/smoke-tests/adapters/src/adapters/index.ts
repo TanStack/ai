@@ -9,11 +9,6 @@ import {
   createGeminiText,
 } from '@tanstack/ai-gemini'
 import {
-  createGrokImage,
-  createGrokSummarize,
-  createGrokText,
-} from '@tanstack/ai-grok'
-import {
   createOllamaEmbed,
   createOllamaSummarize,
   createOllamaText,
@@ -87,9 +82,6 @@ const OLLAMA_SUMMARY_MODEL = process.env.OLLAMA_SUMMARY_MODEL || OLLAMA_MODEL
 const OLLAMA_EMBEDDING_MODEL =
   process.env.OLLAMA_EMBEDDING_MODEL || 'nomic-embed-text'
 
-const GROK_MODEL = process.env.GROK_MODEL || 'grok-3'
-const GROK_SUMMARY_MODEL = process.env.GROK_SUMMARY_MODEL || GROK_MODEL
-const GROK_IMAGE_MODEL = process.env.GROK_IMAGE_MODEL || 'grok-2-image-1212'
 
 /**
  * Create Anthropic adapters
@@ -164,30 +156,11 @@ function createOllamaAdapters(): AdapterSet | null {
   }
 }
 
-/**
- * Create Grok adapters
- */
-function createGrokAdapters(): AdapterSet | null {
-  const apiKey = process.env.XAI_API_KEY
-  if (!apiKey) return null
-
-  return {
-    textAdapter: createGrokText(apiKey),
-    summarizeAdapter: createGrokSummarize(apiKey),
-    // Grok does not support embeddings
-    embeddingAdapter: undefined,
-    imageAdapter: createGrokImage(apiKey),
-    chatModel: GROK_MODEL,
-    summarizeModel: GROK_SUMMARY_MODEL,
-    embeddingModel: '', // Not supported
-    imageModel: GROK_IMAGE_MODEL,
-  }
-}
 
 /**
  * Registry of all available adapters
  */
-export const ADAPTERS: AdapterDefinition[] = [
+export const ADAPTERS: Array<AdapterDefinition> = [
   {
     id: 'openai',
     name: 'OpenAI',
@@ -206,12 +179,7 @@ export const ADAPTERS: AdapterDefinition[] = [
     envKey: 'GEMINI_API_KEY',
     create: createGeminiAdapters,
   },
-  {
-    id: 'grok',
-    name: 'Grok',
-    envKey: 'XAI_API_KEY',
-    create: createGrokAdapters,
-  },
+
   {
     id: 'ollama',
     name: 'Ollama',
@@ -230,6 +198,6 @@ export function getAdapter(id: string): AdapterDefinition | undefined {
 /**
  * Get all adapter IDs
  */
-export function getAdapterIds(): string[] {
+export function getAdapterIds(): Array<string> {
   return ADAPTERS.map((a) => a.id)
 }

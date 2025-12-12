@@ -2,12 +2,11 @@ import { createFileRoute } from '@tanstack/react-router'
 import { ai } from '@tanstack/ai'
 import { anthropicText } from '@tanstack/ai-anthropic'
 import { geminiText } from '@tanstack/ai-gemini'
-import { grokText } from '@tanstack/ai-grok'
 import { openaiText } from '@tanstack/ai-openai'
 import { ollamaText } from '@tanstack/ai-ollama'
 import { z } from 'zod'
 
-type Provider = 'openai' | 'anthropic' | 'gemini' | 'grok' | 'ollama'
+type Provider = 'openai' | 'anthropic' | 'gemini' | 'ollama'
 
 // Schema for structured recipe output
 const RecipeSchema = z.object({
@@ -65,10 +64,7 @@ export const Route = createFileRoute('/api/structured')({
               adapter = geminiText()
               model = 'gemini-2.0-flash-exp'
               break
-            case 'grok':
-              adapter = grokText()
-              model = 'grok-3'
-              break
+
             case 'ollama':
               adapter = ollamaText()
               model = 'mistral:7b'

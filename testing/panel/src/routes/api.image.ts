@@ -1,10 +1,9 @@
 import { createFileRoute } from '@tanstack/react-router'
 import { ai } from '@tanstack/ai'
 import { geminiImage } from '@tanstack/ai-gemini'
-import { grokImage } from '@tanstack/ai-grok'
 import { openaiImage } from '@tanstack/ai-openai'
 
-type Provider = 'openai' | 'gemini' | 'grok'
+type Provider = 'openai' | 'gemini'
 
 export const Route = createFileRoute('/api/image')({
   server: {
@@ -26,10 +25,7 @@ export const Route = createFileRoute('/api/image')({
               // and is more widely available than dedicated Imagen models
               model = 'gemini-2.0-flash-preview-image-generation'
               break
-            case 'grok':
-              adapter = grokImage()
-              model = 'grok-2-image-1212'
-              break
+
             case 'openai':
             default:
               adapter = openaiImage()

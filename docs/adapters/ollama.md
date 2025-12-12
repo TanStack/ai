@@ -350,7 +350,7 @@ Creates an Ollama summarization adapter with a custom host.
 
 ## Limitations
 
-- **Image Generation**: Ollama does not support image generation. Use OpenAI, Gemini, or Grok for image generation.
+- **Image Generation**: Ollama does not support image generation. Use OpenAI or Gemini for image generation.
 - **Performance**: Depends on your hardware (GPU recommended for larger models)
 
 ## Next Steps
