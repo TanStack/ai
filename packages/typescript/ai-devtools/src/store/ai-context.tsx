@@ -173,10 +173,31 @@ export const AIProvider: ParentComponent = (props) => {
     return type === 'content' || type === 'thinking'
   }
 
+  /** Detect exact duplicate chunks so we can skip them */
+  function isDuplicateChunk(a: Chunk, b: Chunk): boolean {
+    return (
+      a.type === b.type &&
+      a.messageId === b.messageId &&
+      a.timestamp === b.timestamp &&
+      a.toolCallId === b.toolCallId &&
+      a.toolName === b.toolName &&
+      a.arguments === b.arguments &&
+      a.content === b.content &&
+      a.finishReason === b.finishReason &&
+      a.error === b.error &&
+      a.approvalId === b.approvalId
+    )
+  }
+
   /** Merge pending chunks into existing chunks array, consolidating consecutive same-type chunks */
   function mergeChunks(existing: Array<Chunk>, pending: Array<Chunk>): void {
     for (const chunk of pending) {
       const lastChunk = existing[existing.length - 1]
+
+      // Skip exact duplicates
+      if (lastChunk && isDuplicateChunk(lastChunk, chunk)) {
+        continue
+      }
 
       // If last chunk exists, is the same type, and both are mergeable types, merge them
       if (
@@ -271,6 +292,9 @@ export const AIProvider: ParentComponent = (props) => {
 
     // Pre-merge in pending buffer to reduce array operations during flush
     const lastPending = pending.chunks[pending.chunks.length - 1]
+    if (lastPending && isDuplicateChunk(lastPending, chunk)) {
+      return
+    }
     if (
       lastPending &&
       lastPending.type === chunk.type &&
@@ -305,6 +329,9 @@ export const AIProvider: ParentComponent = (props) => {
 
     // Pre-merge in pending buffer
     const lastPending = pending.chunks[pending.chunks.length - 1]
+    if (lastPending && isDuplicateChunk(lastPending, chunk)) {
+      return
+    }
     if (
       lastPending &&
       lastPending.type === chunk.type &&
@@ -608,6 +635,10 @@ export const AIProvider: ParentComponent = (props) => {
             `Client Chat (${clientId.substring(0, 8)})`,
           )
         }
+        const conv = state.conversations[clientId]
+        if (conv?.messages.some((m) => m.id === e.payload.messageId)) {
+          return
+        }
         addMessage(clientId, {
           id: e.payload.messageId,
           role: 'user',
@@ -626,6 +657,10 @@ export const AIProvider: ParentComponent = (props) => {
 
         if (role === 'user') return
         if (!state.conversations[clientId]) return
+        const conv = state.conversations[clientId]
+        if (conv?.messages.some((m) => m.id === e.payload.messageId)) {
+          return
+        }
 
         if (role === 'assistant') {
           addMessage(clientId, {

@@ -58,6 +58,7 @@ export const Route = createFileRoute('/api/chat')({
         const { messages, data } = await request.json()
         const provider: Provider = data?.provider || 'openai'
         const model: string | undefined = data?.model
+        const conversationId: string | undefined = data?.conversationId
 
         try {
           let adapter
@@ -102,6 +103,7 @@ export const Route = createFileRoute('/api/chat')({
             agentLoopStrategy: maxIterations(20),
             messages,
             abortController,
+            conversationId,
           })
 
           return toStreamResponse(stream, { abortController })
@@ -126,4 +128,3 @@ export const Route = createFileRoute('/api/chat')({
     },
   },
 })
-
