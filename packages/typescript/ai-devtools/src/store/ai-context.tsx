@@ -348,21 +348,6 @@ export const AIProvider: ParentComponent = (props) => {
   function addMessage(conversationId: string, message: Message): void {
     const conv = state.conversations[conversationId]
     if (!conv) return
-    const existingIndex = conv.messages.findIndex((m) => m.id === message.id)
-
-    // Deduplicate messages by id. This can happen if multiple clients emit the
-    // same event (e.g. SSR + hydration) or if the event bus reconnects.
-    if (existingIndex !== -1) {
-      setState(
-        'conversations',
-        conversationId,
-        'messages',
-        existingIndex,
-        produce((m: Message) => Object.assign(m, message)),
-      )
-      return
-    }
-
     setState(
       'conversations',
       conversationId,
@@ -1318,15 +1303,7 @@ export const AIProvider: ParentComponent = (props) => {
         const provider = e.payload.provider
         const clientId = e.payload.clientId
 
-        if (clientId) {
-          // If we have an explicit clientId, always attach the stream to it.
-          // This prevents "server-{model}" conversations from being created
-          // when client events arrive after server events.
-          getOrCreateConversation(
-            clientId,
-            'client',
-            `Client Chat (${clientId.substring(0, 8)})`,
-          )
+        if (clientId && state.conversations[clientId]) {
           streamToConversation.set(streamId, clientId)
           updateConversation(clientId, { status: 'active', ...e.payload })
           return
