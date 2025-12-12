@@ -1,7 +1,5 @@
 <script setup lang="ts">
 import Header from './components/Header.vue'
-
-import { markRaw } from 'vue'
 import { aiDevtoolsPlugin } from '@tanstack/vue-ai-devtools'
 import { TanStackDevtools } from '@tanstack/vue-devtools'
 
