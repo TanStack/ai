@@ -1,7 +1,8 @@
 /// <reference types="vite/client" />
 import { AiDevtoolsCore } from '@tanstack/ai-devtools-core'
-import { createVuePanel, type DevtoolsPanelProps } from './createVuePanel'
 import { defineComponent, h } from 'vue'
+import { createVuePanel } from './createVuePanel'
+import type { DevtoolsPanelProps } from './createVuePanel'
 import type { PropType } from 'vue'
 
 export interface AiDevtoolsVueInit {
@@ -33,7 +34,7 @@ export const AiDevtoolsPanel = defineComponent({
   setup(props) {
     return () =>
       h(InternalPanel, {
-        theme: props.theme ?? props.devtoolsProps?.theme,
+        theme: props.theme ?? props.devtoolsProps.theme,
         devtoolsProps: props.devtoolsProps,
       })
   },
