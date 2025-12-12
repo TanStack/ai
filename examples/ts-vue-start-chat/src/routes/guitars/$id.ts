@@ -4,4 +4,3 @@ import GuitarDetailView from '@/views/GuitarDetailView.vue'
 export const Route = createFileRoute('/guitars/$id')({
   component: GuitarDetailView,
 })
-

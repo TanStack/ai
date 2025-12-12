@@ -19,7 +19,7 @@
     "@tanstack/ai-vue": "workspace:*",
     "@tanstack/ai-vue-ui": "workspace:*",
     "@tanstack/vue-ai-devtools": "workspace:*",
-		"@tanstack/vue-devtools": "^0.1.2",
+    "@tanstack/vue-devtools": "^0.1.2",
     "@tanstack/vue-router": "^1.140.5",
     "@tanstack/vue-router-devtools": "^1.140.5",
     "@tanstack/vue-start": "^1.0.0",

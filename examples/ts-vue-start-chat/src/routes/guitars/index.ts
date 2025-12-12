@@ -4,4 +4,3 @@ import GuitarsView from '@/views/GuitarsView.vue'
 export const Route = createFileRoute('/guitars/')({
   component: GuitarsView,
 })
-

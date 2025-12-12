@@ -6,7 +6,6 @@ import type { UIMessage, UseChatOptions, UseChatReturn } from './types'
 export function useChat<TTools extends ReadonlyArray<AnyClientTool> = any>(
   options: UseChatOptions<TTools> = {} as UseChatOptions<TTools>,
 ): UseChatReturn<TTools> {
-
   const hookId = useId() // Available in Vue 3.5+
   const clientId = options.id || hookId
 
