@@ -93,7 +93,7 @@ To give the LLM access to client tools, pass the tool definitions (not implement
 
 ```typescript
 // api/chat/route.ts
-import ai, { toServerSentEventsStream } from "@tanstack/ai";
+import { ai, toServerSentEventsStream } from "@tanstack/ai";
 import { openaiText } from "@tanstack/ai-openai";
 import { updateUIDef, saveToLocalStorageDef } from "@/tools/definitions";
 

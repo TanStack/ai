@@ -140,7 +140,7 @@ const searchProducts = searchProductsDef.server(async ({ query, limit = 10 }) =>
 Pass tools to the `ai` function:
 
 ```typescript
-import ai, { toStreamResponse } from "@tanstack/ai";
+import { ai, toStreamResponse } from "@tanstack/ai";
 import { openaiText } from "@tanstack/ai-openai";
 import { getUserData, searchProducts } from "./tools";
 
@@ -202,7 +202,7 @@ export const searchProducts = searchProductsDef.server(async ({ query }) => {
 });
 
 // api/chat/route.ts
-import ai from "@tanstack/ai";
+import { ai } from "@tanstack/ai";
 import { openaiText } from "@tanstack/ai-openai";
 import { getUserData, searchProducts } from "@/tools/server";
 

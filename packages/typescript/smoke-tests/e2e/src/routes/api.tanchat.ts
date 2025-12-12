@@ -1,5 +1,5 @@
 import { createFileRoute } from '@tanstack/react-router'
-import ai, { maxIterations, toStreamResponse } from '@tanstack/ai'
+import { ai, maxIterations, toStreamResponse } from '@tanstack/ai'
 import { openaiText } from '@tanstack/ai-openai'
 
 export const Route = createFileRoute('/api/tanchat')({

@@ -53,7 +53,7 @@ const imageUrlPart: ImagePart = {
 Messages can have `content` as either a string or an array of `ContentPart`:
 
 ```typescript
-import ai from '@tanstack/ai'
+import { ai } from '@tanstack/ai'
 import { openaiText } from '@tanstack/ai-openai'
 
 const response = await ai({
@@ -276,7 +276,7 @@ import type { GeminiMediaMetadata } from '@tanstack/ai-gemini'
 When receiving messages from external sources (like `request.json()`), the data is typed as `any`, which can bypass TypeScript's type checking. Use `assertMessages` to restore type safety:
 
 ```typescript
-import ai, { assertMessages } from '@tanstack/ai'
+import { ai, assertMessages } from '@tanstack/ai'
 import { openaiText } from '@tanstack/ai-openai'
 
 // In an API route handler

@@ -14,7 +14,7 @@ npm install @tanstack/ai-ollama
 ## Basic Usage
 
 ```typescript
-import ai from "@tanstack/ai";
+import { ai } from "@tanstack/ai";
 import { ollamaText } from "@tanstack/ai-ollama";
 
 const adapter = ollamaText();
@@ -29,7 +29,7 @@ const stream = ai({
 ## Basic Usage - Custom Host
 
 ```typescript
-import ai from "@tanstack/ai";
+import { ai } from "@tanstack/ai";
 import { createOllamaText } from "@tanstack/ai-ollama";
 
 const adapter = createOllamaText("http://your-server:11434");
@@ -75,7 +75,7 @@ ollama list
 ## Example: Chat Completion
 
 ```typescript
-import ai, { toStreamResponse } from "@tanstack/ai";
+import { ai, toStreamResponse } from "@tanstack/ai";
 import { ollamaText } from "@tanstack/ai-ollama";
 
 const adapter = ollamaText();
@@ -96,7 +96,7 @@ export async function POST(request: Request) {
 ## Example: With Tools
 
 ```typescript
-import ai, { toolDefinition } from "@tanstack/ai";
+import { ai, toolDefinition } from "@tanstack/ai";
 import { ollamaText } from "@tanstack/ai-ollama";
 import { z } from "zod";
 
@@ -185,7 +185,7 @@ providerOptions: {
 Generate text embeddings locally:
 
 ```typescript
-import ai from "@tanstack/ai";
+import { ai } from "@tanstack/ai";
 import { ollamaEmbed } from "@tanstack/ai-ollama";
 
 const adapter = ollamaEmbed();
@@ -228,7 +228,7 @@ const result = await ai({
 Summarize long text content locally:
 
 ```typescript
-import ai from "@tanstack/ai";
+import { ai } from "@tanstack/ai";
 import { ollamaSummarize } from "@tanstack/ai-ollama";
 
 const adapter = ollamaSummarize();

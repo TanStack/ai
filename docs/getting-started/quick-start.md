@@ -22,7 +22,7 @@ First, create an API route that handles chat requests. Here's a simplified examp
 ```typescript
 // app/api/chat/route.ts (Next.js)
 // or src/routes/api/chat.ts (TanStack Start)
-import ai, { toStreamResponse } from "@tanstack/ai";
+import { ai, toStreamResponse } from "@tanstack/ai";
 import { openaiText } from "@tanstack/ai-openai";
 
 export async function POST(request: Request) {

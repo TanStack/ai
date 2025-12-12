@@ -30,7 +30,7 @@ import type { z } from 'zod'
  *
  * @example Chat generation (streaming)
  * ```ts
- * import ai from '@tanstack/ai'
+ * import { ai } from '@tanstack/ai'
  * import { openaiText } from '@tanstack/ai-openai'
  *
  * for await (const chunk of ai({

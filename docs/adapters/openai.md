@@ -14,7 +14,7 @@ npm install @tanstack/ai-openai
 ## Basic Usage
 
 ```typescript
-import ai from "@tanstack/ai";
+import { ai } from "@tanstack/ai";
 import { openaiText } from "@tanstack/ai-openai";
 
 const adapter = openaiText();
@@ -29,7 +29,7 @@ const stream = ai({
 ## Basic Usage - Custom API Key
 
 ```typescript
-import ai from "@tanstack/ai";
+import { ai } from "@tanstack/ai";
 import { createOpenaiText } from "@tanstack/ai-openai";
 
 const adapter = createOpenaiText(process.env.OPENAI_API_KEY!, {
@@ -80,7 +80,7 @@ const adapter = createOpenaiText(process.env.OPENAI_API_KEY!, config);
 ## Example: Chat Completion
 
 ```typescript
-import ai, { toStreamResponse } from "@tanstack/ai";
+import { ai, toStreamResponse } from "@tanstack/ai";
 import { openaiText } from "@tanstack/ai-openai";
 
 const adapter = openaiText();
@@ -101,7 +101,7 @@ export async function POST(request: Request) {
 ## Example: With Tools
 
 ```typescript
-import ai, { toolDefinition } from "@tanstack/ai";
+import { ai, toolDefinition } from "@tanstack/ai";
 import { openaiText } from "@tanstack/ai-openai";
 import { z } from "zod";
 
@@ -168,7 +168,7 @@ When reasoning is enabled, the model's reasoning process is streamed separately 
 Generate text embeddings for semantic search and similarity:
 
 ```typescript
-import ai from "@tanstack/ai";
+import { ai } from "@tanstack/ai";
 import { openaiEmbed } from "@tanstack/ai-openai";
 
 const adapter = openaiEmbed();
@@ -216,7 +216,7 @@ const result = await ai({
 Summarize long text content:
 
 ```typescript
-import ai from "@tanstack/ai";
+import { ai } from "@tanstack/ai";
 import { openaiSummarize } from "@tanstack/ai-openai";
 
 const adapter = openaiSummarize();
@@ -237,7 +237,7 @@ console.log(result.summary);
 Generate images with DALL-E:
 
 ```typescript
-import ai from "@tanstack/ai";
+import { ai } from "@tanstack/ai";
 import { openaiImage } from "@tanstack/ai-openai";
 
 const adapter = openaiImage();

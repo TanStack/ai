@@ -68,7 +68,7 @@ sequenceDiagram
 **Server (API Route):**
 
 ```typescript
-import ai, { toStreamResponse } from "@tanstack/ai";
+import { ai, toStreamResponse } from "@tanstack/ai";
 import { openaiText } from "@tanstack/ai-openai";
 import { getWeather, sendEmail } from "./tools";
 

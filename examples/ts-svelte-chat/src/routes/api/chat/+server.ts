@@ -1,11 +1,11 @@
-import { env } from '$env/dynamic/private'
-import ai, { maxIterations, toStreamResponse } from '@tanstack/ai'
+import { ai, maxIterations, toStreamResponse } from '@tanstack/ai'
 import { openaiText } from '@tanstack/ai-openai'
 import { ollamaText } from '@tanstack/ai-ollama'
 import { anthropicText } from '@tanstack/ai-anthropic'
 import { geminiText } from '@tanstack/ai-gemini'
 
 import type { RequestHandler } from './$types'
+import { env } from '$env/dynamic/private'
 
 import {
   addToCartToolDef,

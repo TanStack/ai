@@ -1,4 +1,4 @@
-import ai from '@tanstack/ai'
+import { ai } from '@tanstack/ai'
 import { z } from 'zod'
 import { writeDebugFile } from '../harness'
 import type { AdapterContext, TestOutcome } from '../harness'
@@ -95,8 +95,7 @@ export async function runSTR(
     await writeDebugFile(adapterName, testName, debugData)
 
     console.log(
-      `[${adapterName}] ${passed ? '✅' : '❌'} ${testName}${
-        passed ? '' : `: ${debugData.result.error}`
+      `[${adapterName}] ${passed ? '✅' : '❌'} ${testName}${passed ? '' : `: ${debugData.result.error}`
       }`,
     )
 

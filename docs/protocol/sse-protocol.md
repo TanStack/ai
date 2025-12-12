@@ -167,7 +167,7 @@ SSE provides automatic reconnection:
 TanStack AI provides `toServerSentEventsStream()` and `toStreamResponse()` utilities:
 
 ```typescript
-import ai, { toStreamResponse } from '@tanstack/ai';
+import { ai, toStreamResponse } from '@tanstack/ai';
 import { openaiText } from '@tanstack/ai-openai';
 
 export async function POST(request: Request) {

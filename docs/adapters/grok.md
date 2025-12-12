@@ -14,7 +14,7 @@ npm install @tanstack/ai-grok
 ## Basic Usage
 
 ```typescript
-import ai from "@tanstack/ai";
+import { ai } from "@tanstack/ai";
 import { grokText } from "@tanstack/ai-grok";
 
 const adapter = grokText();
@@ -29,7 +29,7 @@ const stream = ai({
 ## Basic Usage - Custom API Key
 
 ```typescript
-import ai from "@tanstack/ai";
+import { ai } from "@tanstack/ai";
 import { createGrokText } from "@tanstack/ai-grok";
 
 const adapter = createGrokText(process.env.XAI_API_KEY!, {
@@ -73,7 +73,7 @@ const adapter = createGrokText(process.env.XAI_API_KEY!, config);
 ## Example: Chat Completion
 
 ```typescript
-import ai, { toStreamResponse } from "@tanstack/ai";
+import { ai, toStreamResponse } from "@tanstack/ai";
 import { grokText } from "@tanstack/ai-grok";
 
 const adapter = grokText();
@@ -94,7 +94,7 @@ export async function POST(request: Request) {
 ## Example: With Tools
 
 ```typescript
-import ai, { toolDefinition } from "@tanstack/ai";
+import { ai, toolDefinition } from "@tanstack/ai";
 import { grokText } from "@tanstack/ai-grok";
 import { z } from "zod";
 
@@ -146,7 +146,7 @@ const stream = ai({
 Grok supports text summarization:
 
 ```typescript
-import ai from "@tanstack/ai";
+import { ai } from "@tanstack/ai";
 import { grokSummarize } from "@tanstack/ai-grok";
 
 const adapter = grokSummarize();
@@ -167,7 +167,7 @@ console.log(result.summary);
 Grok supports image generation with the `grok-2-image-1212` model:
 
 ```typescript
-import ai from "@tanstack/ai";
+import { ai } from "@tanstack/ai";
 import { grokImage } from "@tanstack/ai-grok";
 
 const adapter = grokImage();

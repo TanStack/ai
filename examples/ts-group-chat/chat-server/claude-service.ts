@@ -1,6 +1,6 @@
 // Claude AI service for handling queued AI responses
 import { anthropicText } from '@tanstack/ai-anthropic'
-import ai, { toolDefinition } from '@tanstack/ai'
+import { ai, toolDefinition } from '@tanstack/ai'
 import type { JSONSchema, ModelMessage, StreamChunk } from '@tanstack/ai'
 
 // Define input schema for getWeather tool using JSONSchema

@@ -12,7 +12,7 @@ The AI SDK provides **model-specific type safety** for `providerOptions`. Each m
 ### ✅ Correct Usage
 
 ```typescript
-import ai from "@tanstack/ai";
+import { ai } from "@tanstack/ai";
 import { openaiText } from "@tanstack/ai-openai";
 
 const adapter = openaiText();

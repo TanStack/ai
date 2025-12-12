@@ -14,7 +14,7 @@ npm install @tanstack/ai-gemini
 ## Basic Usage
 
 ```typescript
-import ai from "@tanstack/ai";
+import { ai } from "@tanstack/ai";
 import { geminiText } from "@tanstack/ai-gemini";
 
 const adapter = geminiText();
@@ -29,7 +29,7 @@ const stream = ai({
 ## Basic Usage - Custom API Key
 
 ```typescript
-import ai from "@tanstack/ai";
+import { ai } from "@tanstack/ai";
 import { createGeminiText } from "@tanstack/ai-gemini";
 
 const adapter = createGeminiText(process.env.GEMINI_API_KEY!, {
@@ -78,7 +78,7 @@ const adapter = createGeminiText(process.env.GEMINI_API_KEY!, config);
 ## Example: Chat Completion
 
 ```typescript
-import ai, { toStreamResponse } from "@tanstack/ai";
+import { ai, toStreamResponse } from "@tanstack/ai";
 import { geminiText } from "@tanstack/ai-gemini";
 
 const adapter = geminiText();
@@ -99,7 +99,7 @@ export async function POST(request: Request) {
 ## Example: With Tools
 
 ```typescript
-import ai, { toolDefinition } from "@tanstack/ai";
+import { ai, toolDefinition } from "@tanstack/ai";
 import { geminiText } from "@tanstack/ai-gemini";
 import { z } from "zod";
 
@@ -172,7 +172,7 @@ providerOptions: {
 Generate text embeddings for semantic search and similarity:
 
 ```typescript
-import ai from "@tanstack/ai";
+import { ai } from "@tanstack/ai";
 import { geminiEmbed } from "@tanstack/ai-gemini";
 
 const adapter = geminiEmbed();
@@ -218,7 +218,7 @@ const result = await ai({
 Summarize long text content:
 
 ```typescript
-import ai from "@tanstack/ai";
+import { ai } from "@tanstack/ai";
 import { geminiSummarize } from "@tanstack/ai-gemini";
 
 const adapter = geminiSummarize();
@@ -239,7 +239,7 @@ console.log(result.summary);
 Generate images with Imagen:
 
 ```typescript
-import ai from "@tanstack/ai";
+import { ai } from "@tanstack/ai";
 import { geminiImage } from "@tanstack/ai-gemini";
 
 const adapter = geminiImage();

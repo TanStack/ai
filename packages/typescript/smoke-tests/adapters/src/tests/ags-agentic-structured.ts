@@ -1,4 +1,4 @@
-import ai, { maxIterations, toolDefinition } from '@tanstack/ai'
+import { ai, maxIterations, toolDefinition } from '@tanstack/ai'
 import { z } from 'zod'
 import { writeDebugFile } from '../harness'
 import type { AdapterContext, TestOutcome } from '../harness'
@@ -111,8 +111,7 @@ export async function runAGS(
     await writeDebugFile(adapterName, testName, debugData)
 
     console.log(
-      `[${adapterName}] ${passed ? '✅' : '❌'} ${testName}${
-        passed ? '' : `: ${debugData.result.error}`
+      `[${adapterName}] ${passed ? '✅' : '❌'} ${testName}${passed ? '' : `: ${debugData.result.error}`
       }`,
     )
 

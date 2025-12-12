@@ -16,7 +16,7 @@ npm install @tanstack/ai
 Creates a streaming chat response.
 
 ```typescript
-import ai from "@tanstack/ai";
+import { ai } from "@tanstack/ai";
 import { openaiText } from "@tanstack/ai-openai";
 
 const stream = ai({
@@ -49,7 +49,7 @@ An async iterable of `StreamChunk`.
 Creates a text summarization.
 
 ```typescript
-import ai from "@tanstack/ai";
+import { ai } from "@tanstack/ai";
 import { openaiSummarize } from "@tanstack/ai-openai";
 
 const result = await ai({
@@ -78,7 +78,7 @@ A `SummarizationResult` with the summary text.
 Creates embeddings for text input.
 
 ```typescript
-import ai from "@tanstack/ai";
+import { ai } from "@tanstack/ai";
 import { openaiEmbed } from "@tanstack/ai-openai";
 
 const result = await ai({
@@ -161,7 +161,7 @@ A `ToolDefinition` object with `.server()` and `.client()` methods for creating 
 Converts a stream to a ReadableStream in Server-Sent Events format.
 
 ```typescript
-import ai, { toServerSentEventsStream } from "@tanstack/ai";
+import { ai, toServerSentEventsStream } from "@tanstack/ai";
 import { openaiText } from "@tanstack/ai-openai";
 
 const stream = ai({
@@ -189,7 +189,7 @@ A `ReadableStream<Uint8Array>` in Server-Sent Events format. Each chunk is:
 Converts a stream to an HTTP Response with proper SSE headers.
 
 ```typescript
-import ai, { toStreamResponse } from "@tanstack/ai";
+import { ai, toStreamResponse } from "@tanstack/ai";
 import { openaiText } from "@tanstack/ai-openai";
 
 const stream = ai({
@@ -214,7 +214,7 @@ A `Response` object suitable for HTTP endpoints with SSE headers (`Content-Type:
 Creates an agent loop strategy that limits iterations.
 
 ```typescript
-import ai, { maxIterations } from "@tanstack/ai";
+import { ai, maxIterations } from "@tanstack/ai";
 import { openaiText } from "@tanstack/ai-openai";
 
 const stream = ai({
@@ -293,7 +293,7 @@ interface Tool {
 ## Usage Examples
 
 ```typescript
-import ai from "@tanstack/ai";
+import { ai } from "@tanstack/ai";
 import {
   openaiText,
   openaiSummarize,

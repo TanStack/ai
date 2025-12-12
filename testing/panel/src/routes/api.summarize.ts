@@ -1,5 +1,5 @@
 import { createFileRoute } from '@tanstack/react-router'
-import ai from '@tanstack/ai'
+import { ai } from '@tanstack/ai'
 import { anthropicSummarize } from '@tanstack/ai-anthropic'
 import { geminiSummarize } from '@tanstack/ai-gemini'
 import { grokSummarize } from '@tanstack/ai-grok'

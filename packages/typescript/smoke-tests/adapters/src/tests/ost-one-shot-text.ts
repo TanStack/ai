@@ -1,4 +1,4 @@
-import ai from '@tanstack/ai'
+import { ai } from '@tanstack/ai'
 import { writeDebugFile } from '../harness'
 import type { AdapterContext, TestOutcome } from '../harness'
 
@@ -52,8 +52,7 @@ export async function runOST(
     await writeDebugFile(adapterName, testName, debugData)
 
     console.log(
-      `[${adapterName}] ${hasFour ? '✅' : '❌'} ${testName}${
-        hasFour ? '' : `: ${debugData.result.error}`
+      `[${adapterName}] ${hasFour ? '✅' : '❌'} ${testName}${hasFour ? '' : `: ${debugData.result.error}`
       }`,
     )
 

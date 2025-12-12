@@ -1,4 +1,4 @@
-import ai from '@tanstack/ai'
+import { ai } from '@tanstack/ai'
 import { writeDebugFile } from '../harness'
 import type { AdapterContext, TestOutcome } from '../harness'
 
@@ -60,8 +60,7 @@ export async function runSUM(
     await writeDebugFile(adapterName, testName, debugData)
 
     console.log(
-      `[${adapterName}] ${passed ? '✅' : '❌'} ${testName}${
-        passed ? '' : `: ${debugData.result.error}`
+      `[${adapterName}] ${passed ? '✅' : '❌'} ${testName}${passed ? '' : `: ${debugData.result.error}`
       }`,
     )
 

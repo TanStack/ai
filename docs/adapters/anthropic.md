@@ -14,7 +14,7 @@ npm install @tanstack/ai-anthropic
 ## Basic Usage
 
 ```typescript
-import ai from "@tanstack/ai";
+import { ai } from "@tanstack/ai";
 import { anthropicText } from "@tanstack/ai-anthropic";
 
 const adapter = anthropicText();
@@ -29,7 +29,7 @@ const stream = ai({
 ## Basic Usage - Custom API Key
 
 ```typescript
-import ai from "@tanstack/ai";
+import { ai } from "@tanstack/ai";
 import { createAnthropicText } from "@tanstack/ai-anthropic";
 
 const adapter = createAnthropicText(process.env.ANTHROPIC_API_KEY!, {
@@ -68,7 +68,7 @@ const adapter = createAnthropicText(process.env.ANTHROPIC_API_KEY!, config);
 ## Example: Chat Completion
 
 ```typescript
-import ai, { toStreamResponse } from "@tanstack/ai";
+import { ai, toStreamResponse } from "@tanstack/ai";
 import { anthropicText } from "@tanstack/ai-anthropic";
 
 const adapter = anthropicText();
@@ -89,7 +89,7 @@ export async function POST(request: Request) {
 ## Example: With Tools
 
 ```typescript
-import ai, { toolDefinition } from "@tanstack/ai";
+import { ai, toolDefinition } from "@tanstack/ai";
 import { anthropicText } from "@tanstack/ai-anthropic";
 import { z } from "zod";
 
@@ -189,7 +189,7 @@ const stream = ai({
 Anthropic supports text summarization:
 
 ```typescript
-import ai from "@tanstack/ai";
+import { ai } from "@tanstack/ai";
 import { anthropicSummarize } from "@tanstack/ai-anthropic";
 
 const adapter = anthropicSummarize();

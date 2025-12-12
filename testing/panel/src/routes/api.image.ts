@@ -1,5 +1,5 @@
 import { createFileRoute } from '@tanstack/react-router'
-import ai from '@tanstack/ai'
+import { ai } from '@tanstack/ai'
 import { geminiImage } from '@tanstack/ai-gemini'
 import { grokImage } from '@tanstack/ai-grok'
 import { openaiImage } from '@tanstack/ai-openai'
