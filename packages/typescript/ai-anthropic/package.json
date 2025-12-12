@@ -44,10 +44,10 @@
     "@tanstack/ai": "workspace:*"
   },
   "devDependencies": {
-    "@vitest/coverage-v8": "4.0.14",
-    "zod": "^4.1.13"
+    "@vitest/coverage-v8": "4.0.14"
   },
   "peerDependencies": {
-    "@tanstack/ai": "workspace:*"
+    "@tanstack/ai": "workspace:*",
+    "zod": "^4.0.0"
   }
 }

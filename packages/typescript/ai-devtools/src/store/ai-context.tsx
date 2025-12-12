@@ -1309,7 +1309,7 @@ export const AIProvider: ParentComponent = (props) => {
     // ============= Chat Events (for usage tracking) =============
 
     cleanupFns.push(
-      aiEventClient.on('chat:started', (e) => {
+      aiEventClient.on('text:started', (e) => {
         const streamId = e.payload.streamId
         const model = e.payload.model
         const provider = e.payload.provider
@@ -1350,7 +1350,7 @@ export const AIProvider: ParentComponent = (props) => {
     )
 
     cleanupFns.push(
-      aiEventClient.on('chat:completed', (e) => {
+      aiEventClient.on('text:completed', (e) => {
         const { requestId, usage } = e.payload
 
         const conversationId = requestToConversation.get(requestId)
@@ -1371,7 +1371,7 @@ export const AIProvider: ParentComponent = (props) => {
     )
 
     cleanupFns.push(
-      aiEventClient.on('chat:iteration', (e) => {
+      aiEventClient.on('text:iteration', (e) => {
         const { requestId, iterationNumber } = e.payload
 
         const conversationId = requestToConversation.get(requestId)

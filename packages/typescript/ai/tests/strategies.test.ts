@@ -5,7 +5,7 @@ import {
   BatchStrategy,
   WordBoundaryStrategy,
   CompositeStrategy,
-} from '../src/stream/strategies'
+} from '../src/activities/text/stream/strategies'
 
 describe('Chunk Strategies', () => {
   describe('ImmediateStrategy', () => {

@@ -1,12 +1,15 @@
-import type { CommonOptions } from './core/chat-common-options'
+import type { CommonOptions } from './activities/text/index'
 import type { z } from 'zod'
-import type { ToolCallState, ToolResultState } from './stream/types'
+import type {
+  ToolCallState,
+  ToolResultState,
+} from './activities/text/stream/types'
 import type {
   AnyAdapter,
-  ChatAdapter,
   EmbeddingAdapter,
   SummarizeAdapter,
-} from './adapters'
+  TextAdapter,
+} from './activities'
 
 /**
  * JSON Schema type for defining tool input/output schemas as raw JSON Schema objects.
@@ -551,7 +554,7 @@ export type AgentLoopStrategy = (state: AgentLoopState) => boolean
 /**
  * Options passed into the SDK and further piped to the AI provider.
  */
-export interface ChatOptions<
+export interface TextOptions<
   TModel extends string = string,
   TProviderOptionsSuperset extends Record<string, any> = Record<string, any>,
   TOutput extends ResponseFormat<any> | undefined = undefined,
@@ -692,9 +695,9 @@ export type StreamChunk =
   | ToolInputAvailableStreamChunk
   | ThinkingStreamChunk
 
-// Simple streaming format for basic chat completions
-// Converted to StreamChunk format by convertChatCompletionStream()
-export interface ChatCompletionChunk {
+// Simple streaming format for basic text completions
+// Converted to StreamChunk format by convertTextCompletionStream()
+export interface TextCompletionChunk {
   id: string
   model: string
   content: string
@@ -866,7 +869,7 @@ export interface AIAdapter<
 
   // Structured streaming with JSON chunks (supports tool calls and rich content)
   chatStream: (
-    options: ChatOptions<string, TChatProviderOptions>,
+    options: TextOptions<string, TChatProviderOptions>,
   ) => AsyncIterable<StreamChunk>
 
   // Summarization
@@ -884,7 +887,7 @@ export interface AIAdapterConfig {
   headers?: Record<string, string>
 }
 
-export type ChatStreamOptionsUnion<
+export type TextStreamOptionsUnion<
   TAdapter extends AIAdapter<any, any, any, any, any, any, any>,
 > =
   TAdapter extends AIAdapter<
@@ -899,7 +902,7 @@ export type ChatStreamOptionsUnion<
     ? Models[number] extends infer TModel
       ? TModel extends string
         ? Omit<
-            ChatOptions,
+            TextOptions,
             'model' | 'providerOptions' | 'responseFormat' | 'messages'
           > & {
             adapter: TAdapter
@@ -940,11 +943,11 @@ export type ChatStreamOptionsUnion<
     : never
 
 /**
- * Chat options constrained by a specific model's capabilities.
- * Unlike ChatStreamOptionsUnion which creates a union over all models,
+ * Text options constrained by a specific model's capabilities.
+ * Unlike TextStreamOptionsUnion which creates a union over all models,
  * this type takes a specific model and constrains messages accordingly.
  */
-export type ChatStreamOptionsForModel<
+export type TextStreamOptionsForModel<
   TAdapter extends AIAdapter<any, any, any, any, any, any, any>,
   TModel extends string,
 > =
@@ -958,7 +961,7 @@ export type ChatStreamOptionsForModel<
     infer MessageMetadata
   >
     ? Omit<
-        ChatOptions,
+        TextOptions,
         'model' | 'providerOptions' | 'responseFormat' | 'messages'
       > & {
         adapter: TAdapter
@@ -1027,8 +1030,8 @@ export type ExtractModalitiesForModel<
 /**
  * Extract models from any of the new adapter types
  */
-export type ExtractModelsFromChatAdapter<T> =
-  T extends ChatAdapter<infer M, any, any, any, any> ? M[number] : never
+export type ExtractModelsFromTextAdapter<T> =
+  T extends TextAdapter<infer M, any, any, any, any> ? M[number] : never
 
 export type ExtractModelsFromEmbeddingAdapter<T> =
   T extends EmbeddingAdapter<infer M, any> ? M[number] : never
@@ -1040,7 +1043,7 @@ export type ExtractModelsFromSummarizeAdapter<T> =
  * Extract models from any adapter type (unified)
  */
 export type ExtractModelsFromAnyAdapter<T> =
-  T extends ChatAdapter<infer M, any, any, any, any>
+  T extends TextAdapter<infer M, any, any, any, any>
     ? M[number]
     : T extends EmbeddingAdapter<infer M, any>
       ? M[number]
@@ -1049,13 +1052,13 @@ export type ExtractModelsFromAnyAdapter<T> =
         : never
 
 /**
- * Chat options for the new ChatAdapter type
+ * Text options for the new TextAdapter type
  */
-export type ChatOptionsForChatAdapter<
-  TAdapter extends ChatAdapter<any, any, any, any, any>,
+export type TextOptionsForTextAdapter<
+  TAdapter extends TextAdapter<any, any, any, any, any>,
   TModel extends string,
 > =
-  TAdapter extends ChatAdapter<
+  TAdapter extends TextAdapter<
     any,
     any,
     infer ModelProviderOptions,
@@ -1063,7 +1066,7 @@ export type ChatOptionsForChatAdapter<
     infer MessageMetadata
   >
     ? Omit<
-        ChatOptions,
+        TextOptions,
         'model' | 'providerOptions' | 'responseFormat' | 'messages'
       > & {
         adapter: TAdapter
@@ -1097,4 +1100,4 @@ export type ChatOptionsForChatAdapter<
     : never
 
 // Re-export adapter types from adapters module
-export type { ChatAdapter, EmbeddingAdapter, SummarizeAdapter, AnyAdapter }
+export type { TextAdapter, EmbeddingAdapter, SummarizeAdapter, AnyAdapter }

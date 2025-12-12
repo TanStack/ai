@@ -1,4 +1,4 @@
-import { convertZodToJsonSchema } from '@tanstack/ai'
+import { convertZodToGeminiSchema } from '../utils/schema-converter'
 import { convertCodeExecutionToolToAdapterFormat } from './code-execution-tool'
 import { convertComputerUseToolToAdapterFormat } from './computer-use-tool'
 import { convertFileSearchToolToAdapterFormat } from './file-search-tool'
@@ -76,8 +76,10 @@ export function convertToolsToProviderFormat<TTool extends Tool>(
           )
         }
 
-        // Convert Zod schema to JSON Schema
-        const jsonSchema = convertZodToJsonSchema(tool.inputSchema)
+        // Convert Zod schema to Gemini-compatible JSON Schema
+        const jsonSchema = tool.inputSchema
+          ? convertZodToGeminiSchema(tool.inputSchema)
+          : { type: 'object', properties: {}, required: [] }
 
         functionDeclarations.push({
           name: tool.name,

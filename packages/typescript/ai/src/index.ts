@@ -1,16 +1,21 @@
-export { chat } from './core/chat'
-export { summarize } from './core/summarize'
-export { embedding } from './core/embedding'
+// Main AI function - the one export to rule them all
 export {
   ai,
+  type AIAdapter,
   type AnyAdapter,
   type GenerateAdapter,
   type GenerateOptions,
-  type ChatGenerateOptions,
+  type TextGenerateOptions,
   type EmbeddingGenerateOptions,
   type SummarizeGenerateOptions,
   type ImageGenerateOptions,
-} from './core/generate'
+  type GenerateTextOptions,
+  type GenerateEmbeddingOptions,
+  type GenerateSummarizeOptions,
+  type GenerateImageOptions,
+} from './ai'
+
+// Tool definition
 export {
   toolDefinition,
   type ToolDefinition,
@@ -22,33 +27,48 @@ export {
   type InferToolName,
   type InferToolInput,
   type InferToolOutput,
-} from './tools/tool-definition'
-export { convertZodToJsonSchema } from './tools/zod-converter'
+} from './activities/text/tools/tool-definition'
+export { convertZodToJsonSchema } from './activities/text/tools/zod-converter'
+
+// Stream utilities
 export {
+  streamToText,
   toServerSentEventsStream,
   toStreamResponse,
-} from './utilities/stream-to-response'
+} from './stream-to-response'
+
+// Base adapter
 export { BaseAdapter } from './base-adapter'
-export { ToolCallManager } from './tools/tool-calls'
+
+// Tool call management
+export { ToolCallManager } from './activities/text/tools/tool-calls'
+
+// Agent loop strategies
 export {
   maxIterations,
   untilFinishReason,
   combineStrategies,
-} from './utilities/agent-loop-strategies'
+} from './activities/text/agent-loop-strategies'
+
+// All types
 export * from './types'
-export { chatOptions } from './utilities/chat-options'
-export { messages } from './utilities/messages'
+
+// Utility builders
+export { textOptions } from './activities/text/index'
+export { messages } from './activities/text/messages'
+
+// Event client
 export { aiEventClient } from './event-client'
 
 // Message converters
 export {
   convertMessagesToModelMessages,
+  generateMessageId,
   uiMessageToModelMessages,
   modelMessageToUIMessage,
   modelMessagesToUIMessages,
   normalizeToUIMessage,
-  generateMessageId,
-} from './message-converters'
+} from './activities/text/messages'
 
 // Stream processing (unified for server and client)
 export {
@@ -62,7 +82,7 @@ export {
   PartialJSONParser,
   defaultJSONParser,
   parsePartialJSON,
-} from './stream'
+} from './activities/text/stream'
 export type {
   ChunkStrategy,
   ChunkRecording,
@@ -75,4 +95,4 @@ export type {
   ToolCallState,
   ToolResultState,
   JSONParser,
-} from './stream'
+} from './activities/text/stream'

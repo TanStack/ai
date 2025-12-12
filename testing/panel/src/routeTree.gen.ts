@@ -9,20 +9,51 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
+import { Route as SummarizeRouteImport } from './routes/summarize'
+import { Route as StructuredRouteImport } from './routes/structured'
 import { Route as StreamDebuggerRouteImport } from './routes/stream-debugger'
+import { Route as ImageRouteImport } from './routes/image'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as ApiSummarizeRouteImport } from './routes/api.summarize'
+import { Route as ApiStructuredRouteImport } from './routes/api.structured'
 import { Route as ApiLoadTraceRouteImport } from './routes/api.load-trace'
 import { Route as ApiListTracesRouteImport } from './routes/api.list-traces'
+import { Route as ApiImageRouteImport } from './routes/api.image'
 import { Route as ApiChatRouteImport } from './routes/api.chat'
 
+const SummarizeRoute = SummarizeRouteImport.update({
+  id: '/summarize',
+  path: '/summarize',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const StructuredRoute = StructuredRouteImport.update({
+  id: '/structured',
+  path: '/structured',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const StreamDebuggerRoute = StreamDebuggerRouteImport.update({
   id: '/stream-debugger',
   path: '/stream-debugger',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ImageRoute = ImageRouteImport.update({
+  id: '/image',
+  path: '/image',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiSummarizeRoute = ApiSummarizeRouteImport.update({
+  id: '/api/summarize',
+  path: '/api/summarize',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiStructuredRoute = ApiStructuredRouteImport.update({
+  id: '/api/structured',
+  path: '/api/structured',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiLoadTraceRoute = ApiLoadTraceRouteImport.update({
@@ -35,6 +66,11 @@ const ApiListTracesRoute = ApiListTracesRouteImport.update({
   path: '/api/list-traces',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiImageRoute = ApiImageRouteImport.update({
+  id: '/api/image',
+  path: '/api/image',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiChatRoute = ApiChatRouteImport.update({
   id: '/api/chat',
   path: '/api/chat',
@@ -43,60 +79,116 @@ const ApiChatRoute = ApiChatRouteImport.update({
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/image': typeof ImageRoute
   '/stream-debugger': typeof StreamDebuggerRoute
+  '/structured': typeof StructuredRoute
+  '/summarize': typeof SummarizeRoute
   '/api/chat': typeof ApiChatRoute
+  '/api/image': typeof ApiImageRoute
   '/api/list-traces': typeof ApiListTracesRoute
   '/api/load-trace': typeof ApiLoadTraceRoute
+  '/api/structured': typeof ApiStructuredRoute
+  '/api/summarize': typeof ApiSummarizeRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/image': typeof ImageRoute
   '/stream-debugger': typeof StreamDebuggerRoute
+  '/structured': typeof StructuredRoute
+  '/summarize': typeof SummarizeRoute
   '/api/chat': typeof ApiChatRoute
+  '/api/image': typeof ApiImageRoute
   '/api/list-traces': typeof ApiListTracesRoute
   '/api/load-trace': typeof ApiLoadTraceRoute
+  '/api/structured': typeof ApiStructuredRoute
+  '/api/summarize': typeof ApiSummarizeRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/image': typeof ImageRoute
   '/stream-debugger': typeof StreamDebuggerRoute
+  '/structured': typeof StructuredRoute
+  '/summarize': typeof SummarizeRoute
   '/api/chat': typeof ApiChatRoute
+  '/api/image': typeof ApiImageRoute
   '/api/list-traces': typeof ApiListTracesRoute
   '/api/load-trace': typeof ApiLoadTraceRoute
+  '/api/structured': typeof ApiStructuredRoute
+  '/api/summarize': typeof ApiSummarizeRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
+    | '/image'
     | '/stream-debugger'
+    | '/structured'
+    | '/summarize'
     | '/api/chat'
+    | '/api/image'
     | '/api/list-traces'
     | '/api/load-trace'
+    | '/api/structured'
+    | '/api/summarize'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
+    | '/image'
     | '/stream-debugger'
+    | '/structured'
+    | '/summarize'
     | '/api/chat'
+    | '/api/image'
     | '/api/list-traces'
     | '/api/load-trace'
+    | '/api/structured'
+    | '/api/summarize'
   id:
     | '__root__'
     | '/'
+    | '/image'
     | '/stream-debugger'
+    | '/structured'
+    | '/summarize'
     | '/api/chat'
+    | '/api/image'
     | '/api/list-traces'
     | '/api/load-trace'
+    | '/api/structured'
+    | '/api/summarize'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  ImageRoute: typeof ImageRoute
   StreamDebuggerRoute: typeof StreamDebuggerRoute
+  StructuredRoute: typeof StructuredRoute
+  SummarizeRoute: typeof SummarizeRoute
   ApiChatRoute: typeof ApiChatRoute
+  ApiImageRoute: typeof ApiImageRoute
   ApiListTracesRoute: typeof ApiListTracesRoute
   ApiLoadTraceRoute: typeof ApiLoadTraceRoute
+  ApiStructuredRoute: typeof ApiStructuredRoute
+  ApiSummarizeRoute: typeof ApiSummarizeRoute
 }
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
+    '/summarize': {
+      id: '/summarize'
+      path: '/summarize'
+      fullPath: '/summarize'
+      preLoaderRoute: typeof SummarizeRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/structured': {
+      id: '/structured'
+      path: '/structured'
+      fullPath: '/structured'
+      preLoaderRoute: typeof StructuredRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/stream-debugger': {
       id: '/stream-debugger'
       path: '/stream-debugger'
@@ -104,11 +196,32 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof StreamDebuggerRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/image': {
+      id: '/image'
+      path: '/image'
+      fullPath: '/image'
+      preLoaderRoute: typeof ImageRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/': {
       id: '/'
       path: '/'
       fullPath: '/'
       preLoaderRoute: typeof IndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/summarize': {
+      id: '/api/summarize'
+      path: '/api/summarize'
+      fullPath: '/api/summarize'
+      preLoaderRoute: typeof ApiSummarizeRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/structured': {
+      id: '/api/structured'
+      path: '/api/structured'
+      fullPath: '/api/structured'
+      preLoaderRoute: typeof ApiStructuredRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/load-trace': {
@@ -125,6 +238,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiListTracesRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/image': {
+      id: '/api/image'
+      path: '/api/image'
+      fullPath: '/api/image'
+      preLoaderRoute: typeof ApiImageRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/chat': {
       id: '/api/chat'
       path: '/api/chat'
@@ -137,10 +257,16 @@ declare module '@tanstack/react-router' {
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  ImageRoute: ImageRoute,
   StreamDebuggerRoute: StreamDebuggerRoute,
+  StructuredRoute: StructuredRoute,
+  SummarizeRoute: SummarizeRoute,
   ApiChatRoute: ApiChatRoute,
+  ApiImageRoute: ApiImageRoute,
   ApiListTracesRoute: ApiListTracesRoute,
   ApiLoadTraceRoute: ApiLoadTraceRoute,
+  ApiStructuredRoute: ApiStructuredRoute,
+  ApiSummarizeRoute: ApiSummarizeRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

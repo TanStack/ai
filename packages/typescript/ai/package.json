@@ -18,8 +18,8 @@
       "import": "./dist/esm/index.js"
     },
     "./adapters": {
-      "types": "./dist/esm/adapters/index.d.ts",
-      "import": "./dist/esm/adapters/index.js"
+      "types": "./dist/esm/activities/index.d.ts",
+      "import": "./dist/esm/activities/index.js"
     },
     "./event-client": {
       "types": "./dist/esm/event-client.d.ts",

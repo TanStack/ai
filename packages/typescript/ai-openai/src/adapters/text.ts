@@ -1,11 +1,13 @@
-import { BaseChatAdapter } from '@tanstack/ai/adapters'
+import { BaseTextAdapter } from '@tanstack/ai/adapters'
 import { OPENAI_CHAT_MODELS } from '../model-meta'
 import { validateTextProviderOptions } from '../text/text-provider-options'
 import { convertToolsToProviderFormat } from '../tools'
 import {
+  convertZodToOpenAISchema,
   createOpenAIClient,
   generateId,
   getOpenAIApiKeyFromEnv,
+  transformNullsToUndefined,
 } from '../utils'
 import type {
   StructuredOutputOptions,
@@ -14,10 +16,10 @@ import type {
 import type OpenAI_SDK from 'openai'
 import type { Responses } from 'openai/resources'
 import type {
-  ChatOptions,
   ContentPart,
   ModelMessage,
   StreamChunk,
+  TextOptions,
 } from '@tanstack/ai'
 import type {
   OpenAIChatModelProviderOptionsByName,
@@ -50,14 +52,14 @@ export type OpenAITextProviderOptions = ExternalTextProviderOptions
  * Tree-shakeable adapter for OpenAI chat/text completion functionality.
  * Import only what you need for smaller bundle sizes.
  */
-export class OpenAITextAdapter extends BaseChatAdapter<
+export class OpenAITextAdapter extends BaseTextAdapter<
   typeof OPENAI_CHAT_MODELS,
   OpenAITextProviderOptions,
   OpenAIChatModelProviderOptionsByName,
   OpenAIModelInputModalitiesByName,
   OpenAIMessageMetadataByModality
 > {
-  readonly kind = 'chat' as const
+  readonly kind = 'text' as const
   readonly name = 'openai' as const
   readonly models = OPENAI_CHAT_MODELS
 
@@ -74,13 +76,13 @@ export class OpenAITextAdapter extends BaseChatAdapter<
   }
 
   async *chatStream(
-    options: ChatOptions<string, OpenAITextProviderOptions>,
+    options: TextOptions<string, OpenAITextProviderOptions>,
   ): AsyncIterable<StreamChunk> {
     // Track tool call metadata by unique ID
     // OpenAI streams tool calls with deltas - first chunk has ID/name, subsequent chunks only have args
     // We assign our own indices as we encounter unique tool call IDs
     const toolCallMetadata = new Map<string, { index: number; name: string }>()
-    const requestArguments = this.mapChatOptionsToOpenAI(options)
+    const requestArguments = this.mapTextOptionsToOpenAI(options)
 
     try {
       const response = await this.client.responses.create(
@@ -114,12 +116,22 @@ export class OpenAITextAdapter extends BaseChatAdapter<
   /**
    * Generate structured output using OpenAI's native JSON Schema response format.
    * Uses stream: false to get the complete response in one call.
+   *
+   * OpenAI has strict requirements for structured output:
+   * - All properties must be in the `required` array
+   * - Optional fields should have null added to their type union
+   * - additionalProperties must be false for all objects
+   *
+   * The schema conversion is handled by convertZodToOpenAISchema.
    */
   async structuredOutput(
     options: StructuredOutputOptions<OpenAITextProviderOptions>,
   ): Promise<StructuredOutputResult<unknown>> {
-    const { chatOptions, jsonSchema } = options
-    const requestArguments = this.mapChatOptionsToOpenAI(chatOptions)
+    const { chatOptions, outputSchema } = options
+    const requestArguments = this.mapTextOptionsToOpenAI(chatOptions)
+
+    // Convert Zod schema to OpenAI-compatible JSON Schema
+    const jsonSchema = convertZodToOpenAISchema(outputSchema)
 
     try {
       const response = await this.client.responses.create(
@@ -155,8 +167,12 @@ export class OpenAITextAdapter extends BaseChatAdapter<
         )
       }
 
+      // Transform null values to undefined to match original Zod schema expectations
+      // OpenAI returns null for optional fields we made nullable in the schema
+      const transformed = transformNullsToUndefined(parsed)
+
       return {
-        data: parsed,
+        data: transformed,
         rawText,
       }
     } catch (error: unknown) {
@@ -191,7 +207,7 @@ export class OpenAITextAdapter extends BaseChatAdapter<
   private async *processOpenAIStreamChunks(
     stream: AsyncIterable<OpenAI_SDK.Responses.ResponseStreamEvent>,
     toolCallMetadata: Map<string, { index: number; name: string }>,
-    options: ChatOptions,
+    options: TextOptions,
     genId: () => string,
   ): AsyncIterable<StreamChunk> {
     let accumulatedContent = ''
@@ -485,7 +501,7 @@ export class OpenAITextAdapter extends BaseChatAdapter<
    * Maps common options to OpenAI-specific format
    * Handles translation of normalized options to OpenAI's API format
    */
-  private mapChatOptionsToOpenAI(options: ChatOptions) {
+  private mapTextOptionsToOpenAI(options: TextOptions) {
     const providerOptions = options.providerOptions as
       | Omit<
           InternalTextProviderOptions,

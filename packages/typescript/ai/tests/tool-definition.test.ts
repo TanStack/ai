@@ -1,6 +1,6 @@
 import { describe, it, expect, vi } from 'vitest'
 import { z } from 'zod'
-import { toolDefinition } from '../src/tools/tool-definition'
+import { toolDefinition } from '../src/activities/text/tools/tool-definition'
 
 describe('toolDefinition', () => {
   it('should create a tool definition with basic properties', () => {

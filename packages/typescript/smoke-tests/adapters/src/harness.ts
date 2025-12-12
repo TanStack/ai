@@ -1,9 +1,18 @@
 import { mkdir, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
-import { chat } from '@tanstack/ai'
+import { ai } from '@tanstack/ai'
 import type { Tool } from '@tanstack/ai'
 
 const OUTPUT_DIR = join(process.cwd(), 'output')
+
+/**
+ * Result of a test run
+ */
+export interface TestOutcome {
+  passed: boolean
+  error?: string
+  ignored?: boolean
+}
 
 interface ToolCallCapture {
   id: string
@@ -38,10 +47,22 @@ interface StreamCapture {
 
 export interface AdapterContext {
   adapterName: string
-  adapter: any
+  /** Text/Chat adapter for conversational AI */
+  textAdapter: any
+  /** Summarize adapter for text summarization */
+  summarizeAdapter?: any
+  /** Embedding adapter for vector embeddings */
+  embeddingAdapter?: any
+  /** Image adapter for image generation */
+  imageAdapter?: any
+  /** Model for chat/text */
   model: string
+  /** Model for summarization */
   summarizeModel?: string
+  /** Model for embeddings */
   embeddingModel?: string
+  /** Model for image generation */
+  imageModel?: string
 }
 
 interface DebugEnvelope {
@@ -122,7 +143,7 @@ export async function captureStream(opts: {
   adapterName: string
   testName: string
   phase: string
-  adapter: any
+  textAdapter: any
   model: string
   messages: Array<any>
   tools?: Array<Tool>
@@ -132,15 +153,15 @@ export async function captureStream(opts: {
     adapterName: _adapterName,
     testName: _testName,
     phase,
-    adapter,
+    textAdapter,
     model,
     messages,
     tools,
     agentLoopStrategy,
   } = opts
 
-  const stream = chat({
-    adapter,
+  const stream = ai({
+    adapter: textAdapter,
     model,
     messages,
     tools,
@@ -289,7 +310,7 @@ export async function runTestCase(opts: {
   const {
     adapterContext,
     testName,
-    description,
+    description: _description,
     messages,
     tools,
     agentLoopStrategy,
@@ -308,7 +329,7 @@ export async function runTestCase(opts: {
     adapterName: adapterContext.adapterName,
     testName,
     phase: 'main',
-    adapter: adapterContext.adapter,
+    textAdapter: adapterContext.textAdapter,
     model: adapterContext.model,
     messages,
     tools,

@@ -24,17 +24,17 @@
     "zod": "^4.1.13"
   },
   "devDependencies": {
-    "@tailwindcss/vite": "^4.1.17",
+    "@tailwindcss/vite": "^4.1.18",
     "@types/node": "^24.10.1",
     "@vitejs/plugin-vue": "^5.2.3",
     "autoprefixer": "^10.4.21",
     "concurrently": "^9.1.2",
     "dotenv": "^17.2.3",
     "express": "^5.1.0",
-    "tailwindcss": "^4.1.17",
+    "tailwindcss": "^4.1.18",
     "tsx": "^4.20.6",
     "typescript": "5.9.3",
-    "vite": "^7.2.4",
+    "vite": "^7.2.7",
     "vue-tsc": "^2.2.10"
   }
 }

@@ -3,7 +3,7 @@ import {
   maxIterations,
   untilFinishReason,
   combineStrategies,
-} from '../src/utilities/agent-loop-strategies'
+} from '../src/activities/text/agent-loop-strategies'
 import type { AgentLoopState } from '../src/types'
 
 describe('Agent Loop Strategies', () => {

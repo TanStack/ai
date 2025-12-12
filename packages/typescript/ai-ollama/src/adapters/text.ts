@@ -1,7 +1,11 @@
-import { convertZodToJsonSchema } from '@tanstack/ai'
-import { BaseChatAdapter } from '@tanstack/ai/adapters'
+import { BaseTextAdapter } from '@tanstack/ai/adapters'
 
-import { createOllamaClient, generateId, getOllamaHostFromEnv } from '../utils'
+import {
+  convertZodToOllamaSchema,
+  createOllamaClient,
+  generateId,
+  getOllamaHostFromEnv,
+} from '../utils'
 
 import type {
   StructuredOutputOptions,
@@ -16,7 +20,7 @@ import type {
   Tool as OllamaTool,
   ToolCall,
 } from 'ollama'
-import type { ChatOptions, StreamChunk, Tool } from '@tanstack/ai'
+import type { StreamChunk, TextOptions, Tool } from '@tanstack/ai'
 
 /**
  * Ollama text models
@@ -102,11 +106,11 @@ export interface OllamaTextAdapterOptions {
  * Ollama Text/Chat Adapter
  * A tree-shakeable chat adapter for Ollama
  */
-export class OllamaTextAdapter extends BaseChatAdapter<
+export class OllamaTextAdapter extends BaseTextAdapter<
   typeof OllamaTextModels,
   OllamaTextProviderOptions
 > {
-  readonly kind = 'chat' as const
+  readonly kind = 'text' as const
   readonly name = 'ollama' as const
   readonly models = OllamaTextModels
 
@@ -126,7 +130,7 @@ export class OllamaTextAdapter extends BaseChatAdapter<
     this.defaultModel = options.model ?? 'llama3'
   }
 
-  async *chatStream(options: ChatOptions): AsyncIterable<StreamChunk> {
+  async *chatStream(options: TextOptions): AsyncIterable<StreamChunk> {
     const mappedOptions = this.mapCommonOptionsToOllama(options)
     const response = await this.client.chat({
       ...mappedOptions,
@@ -138,11 +142,16 @@ export class OllamaTextAdapter extends BaseChatAdapter<
   /**
    * Generate structured output using Ollama's JSON format option.
    * Uses format: 'json' with the schema to ensure structured output.
+   * Converts the Zod schema to JSON Schema format compatible with Ollama's API.
    */
   async structuredOutput(
     options: StructuredOutputOptions<OllamaTextProviderOptions>,
   ): Promise<StructuredOutputResult<unknown>> {
-    const { chatOptions, jsonSchema } = options
+    const { chatOptions, outputSchema } = options
+
+    // Convert Zod schema to Ollama-compatible JSON Schema
+    const jsonSchema = convertZodToOllamaSchema(outputSchema)
+
     const mappedOptions = this.mapCommonOptionsToOllama(chatOptions)
 
     try {
@@ -283,12 +292,14 @@ export class OllamaTextAdapter extends BaseChatAdapter<
       function: {
         name: tool.name,
         description: tool.description,
-        parameters: convertZodToJsonSchema(tool.inputSchema),
+        parameters: tool.inputSchema
+          ? convertZodToOllamaSchema(tool.inputSchema)
+          : { type: 'object', properties: {}, required: [] },
       },
     }))
   }
 
-  private formatMessages(messages: ChatOptions['messages']): Array<Message> {
+  private formatMessages(messages: TextOptions['messages']): Array<Message> {
     return messages.map((msg) => {
       let textContent = ''
       const images: Array<string> = []
@@ -352,7 +363,7 @@ export class OllamaTextAdapter extends BaseChatAdapter<
     })
   }
 
-  private mapCommonOptionsToOllama(options: ChatOptions): ChatRequest {
+  private mapCommonOptionsToOllama(options: TextOptions): ChatRequest {
     const model = options.model || this.defaultModel
     const providerOptions = options.providerOptions as
       | OllamaTextProviderOptions

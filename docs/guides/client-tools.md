@@ -93,15 +93,15 @@ To give the LLM access to client tools, pass the tool definitions (not implement
 
 ```typescript
 // api/chat/route.ts
-import { chat, toServerSentEventsStream } from "@tanstack/ai";
-import { openai } from "@tanstack/ai-openai";
+import { ai, toServerSentEventsStream } from "@tanstack/ai";
+import { openaiText } from "@tanstack/ai-openai";
 import { updateUIDef, saveToLocalStorageDef } from "@/tools/definitions";
 
 export async function POST(request: Request) {
   const { messages } = await request.json();
 
-  const stream = chat({
-    adapter: openai(),
+  const stream = ai({
+    adapter: openaiText(),
     messages,
     model: "gpt-4o",
     tools: [updateUIDef, saveToLocalStorageDef], // Pass definitions
@@ -232,7 +232,7 @@ messages.forEach((message) => {
 ## Tool States
 Client tools go through a small set of observable lifecycle states you can surface in the UI to indicate progress:
 
-- `awaiting-input` — the model intends to call the tool but arguments haven’t arrived yet.
+- `awaiting-input` — the model intends to call the tool but arguments haven't arrived yet.
 - `input-streaming` — the model is streaming the tool arguments (partial input may be available).
 - `input-complete` — all arguments have been received and the tool is executing.
 - `completed` — the tool finished; part.output contains the result (or error details).
@@ -297,17 +297,17 @@ const addToCartClient = addToCartDef.client((input) => {
 });
 
 // Server: Pass definition for client execution
-chat({ tools: [addToCartDef] }); // Client will execute
+ai({ tools: [addToCartDef] }); // Client will execute
 
 // Or pass server implementation for server execution
-chat({ tools: [addToCartServer] }); // Server will execute
+ai({ tools: [addToCartServer] }); // Server will execute
 ```
 
 ## Best Practices
 
 - **Keep client tools simple** - Since client tools run in the browser, avoid heavy computations or large dependencies that could bloat your bundle size.
 - **Handle errors gracefully** - Define clear error handling in your tool implementations and return meaningful error messages in your output schema.
-- **Update UI reactively** - Use your framework’s state management (eg. React/Vue/Solid) to update the UI in response to tool executions.
+- **Update UI reactively** - Use your framework's state management (eg. React/Vue/Solid) to update the UI in response to tool executions.
 - **Secure sensitive data** - Never store sensitive data (like API keys or personal info) in local storage or expose it via client tools.
 - **Provide feedback** - Use tool states to inform users about ongoing operations and results of client tool executions (loading spinners, success messages, error alerts).
 - **Type everything** - Leverage TypeScript and Zod schemas for full type safety from tool definitions to implementations to usage.

@@ -1,5 +1,6 @@
 import { Ollama as OllamaSDK } from 'ollama'
-import { BaseAdapter, convertZodToJsonSchema } from '@tanstack/ai'
+import { BaseAdapter } from '@tanstack/ai'
+import { convertZodToOllamaSchema } from './utils/schema-converter'
 import type {
   AbortableAsyncIterator,
   ChatRequest,
@@ -9,13 +10,13 @@ import type {
   ToolCall,
 } from 'ollama'
 import type {
-  ChatOptions,
   DefaultMessageMetadataByModality,
   EmbeddingOptions,
   EmbeddingResult,
   StreamChunk,
   SummarizationOptions,
   SummarizationResult,
+  TextOptions,
   Tool,
 } from '@tanstack/ai'
 
@@ -163,7 +164,7 @@ export class Ollama extends BaseAdapter<
     })
   }
 
-  async *chatStream(options: ChatOptions): AsyncIterable<StreamChunk> {
+  async *chatStream(options: TextOptions): AsyncIterable<StreamChunk> {
     // Use stream converter for now
     // Map common options to Ollama format
     const mappedOptions = this.mapCommonOptionsToOllama(options)
@@ -373,7 +374,9 @@ export class Ollama extends BaseAdapter<
       function: {
         name: tool.name,
         description: tool.description,
-        parameters: convertZodToJsonSchema(tool.inputSchema),
+        parameters: tool.inputSchema
+          ? convertZodToOllamaSchema(tool.inputSchema)
+          : { type: 'object', properties: {}, required: [] },
       },
     }))
   }
@@ -381,7 +384,7 @@ export class Ollama extends BaseAdapter<
   /**
    * Formats messages for Ollama, handling tool calls, tool results, and multimodal content
    */
-  private formatMessages(messages: ChatOptions['messages']): Array<Message> {
+  private formatMessages(messages: TextOptions['messages']): Array<Message> {
     return messages.map((msg) => {
       let textContent = ''
       const images: Array<string> = []
@@ -453,7 +456,7 @@ export class Ollama extends BaseAdapter<
    * Maps common options to Ollama-specific format
    * Handles translation of normalized options to Ollama's API format
    */
-  private mapCommonOptionsToOllama(options: ChatOptions): ChatRequest {
+  private mapCommonOptionsToOllama(options: TextOptions): ChatRequest {
     const providerOptions = options.providerOptions as
       | OllamaProviderOptions
       | undefined

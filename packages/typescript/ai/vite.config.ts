@@ -32,7 +32,7 @@ export default mergeConfig(
     entry: [
       './src/index.ts',
       './src/event-client.ts',
-      './src/adapters/index.ts',
+      './src/activities/index.ts',
     ],
     srcDir: './src',
     cjs: false,
