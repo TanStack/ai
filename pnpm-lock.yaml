@@ -626,13 +626,13 @@ importers:
         specifier: ^0.1.2
         version: 0.1.2(csstype@3.2.3)(solid-js@1.9.10)
       '@tanstack/vue-router':
-        specifier: ^1.140.5
+        specifier: ^1.141.0
         version: 1.141.1(vue@3.5.25(typescript@5.9.3))
       '@tanstack/vue-router-devtools':
-        specifier: ^1.140.5
+        specifier: ^1.141.0
         version: 1.141.1(@tanstack/router-core@1.141.1)(@tanstack/vue-router@1.141.1(vue@3.5.25(typescript@5.9.3)))(@types/node@24.10.1)(csstype@3.2.3)(jiti@2.6.1)(lightningcss@1.30.2)(solid-js@1.9.10)(terser@5.44.0)(tsx@4.20.6)(vue@3.5.25(typescript@5.9.3))(yaml@2.8.1)
       '@tanstack/vue-start':
-        specifier: ^1.0.0
+        specifier: ^1.141.0
         version: 1.141.1(vite-plugin-solid@2.11.10(@testing-library/jest-dom@6.9.1)(solid-js@1.9.10)(vite@7.2.4(@types/node@24.10.1)(jiti@2.6.1)(lightningcss@1.30.2)(terser@5.44.0)(tsx@4.20.6)(yaml@2.8.1)))(vite@7.2.4(@types/node@24.10.1)(jiti@2.6.1)(lightningcss@1.30.2)(terser@5.44.0)(tsx@4.20.6)(yaml@2.8.1))(vue@3.5.25(typescript@5.9.3))
       marked:
         specifier: ^15.0.6

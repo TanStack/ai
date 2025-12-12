@@ -20,9 +20,9 @@
     "@tanstack/ai-vue-ui": "workspace:*",
     "@tanstack/vue-ai-devtools": "workspace:*",
     "@tanstack/vue-devtools": "^0.1.2",
-    "@tanstack/vue-router": "^1.140.5",
-    "@tanstack/vue-router-devtools": "^1.140.5",
-    "@tanstack/vue-start": "^1.0.0",
+    "@tanstack/vue-router": "^1.141.0",
+    "@tanstack/vue-router-devtools": "^1.141.0",
+    "@tanstack/vue-start": "^1.141.0",
     "marked": "^15.0.6",
     "vue": "^3.5.25",
     "zod": "^4.1.13"
