@@ -48,7 +48,9 @@ export interface SummarizeAdapter<
    * Optional - if not implemented, the activity layer will fall back to
    * non-streaming summarize and yield the result as a single chunk.
    */
-  summarizeStream?: (options: SummarizationOptions) => AsyncIterable<StreamChunk>
+  summarizeStream?: (
+    options: SummarizationOptions,
+  ) => AsyncIterable<StreamChunk>
 }
 
 /**
@@ -81,9 +83,7 @@ export abstract class BaseSummarizeAdapter<
    * Override this method in concrete implementations to enable streaming.
    * If not overridden, the activity layer will fall back to non-streaming.
    */
-  summarizeStream?(
-    options: SummarizationOptions,
-  ): AsyncIterable<StreamChunk>
+  summarizeStream?(options: SummarizationOptions): AsyncIterable<StreamChunk>
 
   protected generateId(): string {
     return `${this.name}-${Date.now()}-${Math.random().toString(36).substring(7)}`

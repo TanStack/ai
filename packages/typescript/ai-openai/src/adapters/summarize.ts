@@ -1,6 +1,10 @@
 import { BaseSummarizeAdapter } from '@tanstack/ai/adapters'
 import { OPENAI_CHAT_MODELS } from '../model-meta'
-import { createOpenAIClient, generateId, getOpenAIApiKeyFromEnv } from '../utils'
+import {
+  createOpenAIClient,
+  generateId,
+  getOpenAIApiKeyFromEnv,
+} from '../utils'
 import type {
   SummarizationOptions,
   SummarizationResult,
