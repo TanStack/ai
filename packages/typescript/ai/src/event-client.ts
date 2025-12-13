@@ -296,91 +296,11 @@ export interface AIDevtoolsEventMap {
   }
 }
 
-// Helper type to strip the prefix at the type level
-type StripPrefix<T extends string> =
-  T extends `tanstack-ai-devtools:${infer Suffix}` ? Suffix : never
-
-// Get all event names without the prefix
-type EventSuffix = StripPrefix<keyof AIDevtoolsEventMap & string>
-
 class AiEventClient extends EventClient<AIDevtoolsEventMap> {
-  private eventTarget: EventTarget
-
   constructor() {
     super({
       pluginId: 'tanstack-ai-devtools',
     })
-    this.eventTarget = new EventTarget()
-  }
-
-  /**
-   * Subscribe to events using both the parent EventClient and EventTarget API
-   * @param eventSuffix - The event name without the prefix (e.g., "stream:started")
-   * @param handler - The event handler function
-   * @param options - Optional configuration for event subscription
-   * @returns A function to unsubscribe from the event
-   */
-  override on<TSuffix extends EventSuffix>(
-    eventSuffix: TSuffix,
-    handler: (event: {
-      type: `tanstack-ai-devtools:${TSuffix}`
-      payload: AIDevtoolsEventMap[`tanstack-ai-devtools:${TSuffix}`]
-    }) => void,
-    options?: { withEventTarget?: boolean },
-  ): () => void {
-    const parentUnsubscribe = super.on(eventSuffix, handler)
-
-    const withEventTarget = options?.withEventTarget ?? true
-    let eventListener: ((event: Event) => void) | undefined
-
-    if (withEventTarget) {
-      // Create a wrapper to handle CustomEvent for EventTarget
-      eventListener = (event: Event) => {
-        if (event instanceof CustomEvent) {
-          handler({
-            type: `${eventSuffix}` as `tanstack-ai-devtools:${TSuffix}`,
-            payload: event.detail,
-          })
-        }
-      }
-
-      // Add listener to EventTarget
-      this.eventTarget.addEventListener(eventSuffix, eventListener)
-    }
-
-    // Return unsubscribe function that cleans up both subscriptions
-    return () => {
-      parentUnsubscribe()
-      if (withEventTarget && eventListener) {
-        this.eventTarget.removeEventListener(eventSuffix, eventListener)
-      }
-    }
-  }
-
-  /**
-   * Emit an event to both the parent EventClient and the EventTarget
-   * @param eventSuffix - The event name without the prefix (e.g., "stream:started")
-   * @param data - The event data
-   */
-  override emit<TSuffix extends EventSuffix>(
-    eventSuffix: TSuffix,
-    data: AIDevtoolsEventMap[`tanstack-ai-devtools:${TSuffix}`],
-  ): void {
-    super.emit(eventSuffix, data)
-
-    // Always dispatch to EventTarget (for local listeners)
-    const customEvent = new CustomEvent(eventSuffix, {
-      detail: data,
-    })
-    this.eventTarget.dispatchEvent(customEvent)
-  }
-
-  /**
-   * Get the underlying EventTarget for advanced use cases
-   * @returns The EventTarget instance
-   */
-  getEventTarget(): EventTarget {
-    return this.eventTarget
   }
 }
 

@@ -33,7 +33,49 @@ This approach provides:
 - **Type Safety**: Full TypeScript inference from Zod schemas
 - **Code Reuse**: Define schemas once, use everywhere
 - **Flexibility**: Tools can execute on server, client, or both
+- **Schema Options**: Use Zod schemas or raw JSON Schema objects
 
+## Schema Options
+
+TanStack AI supports two ways to define tool schemas:
+
+### Option 1: Zod Schemas (Recommended)
+
+Zod schemas provide full TypeScript type inference and runtime validation:
+
+```typescript
+import { z } from "zod";
+
+const inputSchema = z.object({
+  location: z.string().describe("City name"),
+  unit: z.enum(["celsius", "fahrenheit"]).optional(),
+});
+```
+
+### Option 2: JSON Schema Objects
+
+For cases where you already have JSON Schema definitions or prefer not to use Zod, you can pass raw JSON Schema objects directly:
+
+```typescript
+import type { JSONSchema } from "@tanstack/ai";
+
+const inputSchema: JSONSchema = {
+  type: "object",
+  properties: {
+    location: {
+      type: "string",
+      description: "City name",
+    },
+    unit: {
+      type: "string",
+      enum: ["celsius", "fahrenheit"],
+    },
+  },
+  required: ["location"],
+};
+```
+
+> **Note:** When using JSON Schema, TypeScript will infer `any` for input/output types since JSON Schema cannot provide compile-time type information. Zod schemas are recommended for full type safety.
 
 ## Tool Definition
 
@@ -71,6 +113,58 @@ const getWeatherServer = getWeatherDef.server(async ({ location, unit }) => {
     conditions: data.conditions,
     location: data.location,
   };
+});
+```
+
+### Using JSON Schema
+
+If you prefer JSON Schema or have existing schema definitions:
+
+```typescript
+import { toolDefinition } from "@tanstack/ai";
+import type { JSONSchema } from "@tanstack/ai";
+
+// Define schemas using JSON Schema
+const inputSchema: JSONSchema = {
+  type: "object",
+  properties: {
+    location: {
+      type: "string",
+      description: "The city and state, e.g. San Francisco, CA",
+    },
+    unit: {
+      type: "string",
+      enum: ["celsius", "fahrenheit"],
+    },
+  },
+  required: ["location"],
+};
+
+const outputSchema: JSONSchema = {
+  type: "object",
+  properties: {
+    temperature: { type: "number" },
+    conditions: { type: "string" },
+    location: { type: "string" },
+  },
+  required: ["temperature", "conditions", "location"],
+};
+
+// Create the tool definition
+const getWeatherDef = toolDefinition({
+  name: "get_weather",
+  description: "Get the current weather for a location",
+  inputSchema,
+  outputSchema,
+});
+
+// Create server implementation (args is typed as `any` with JSON Schema)
+const getWeatherServer = getWeatherDef.server(async (args) => {
+  const { location, unit } = args;
+  const response = await fetch(
+    `https://api.weather.com/v1/current?location=${location}&unit=${unit || "fahrenheit"}`
+  );
+  return await response.json();
 });
 ```
 

@@ -1,5 +1,19 @@
 # @tanstack/ai-openai
 
+## 0.0.3
+
+### Patch Changes
+
+- Fix reasoning token streaming for `gpt-5-mini` and `gpt-5-nano` models ([#94](https://github.com/TanStack/ai/pull/94))
+  - Added `OpenAIReasoningOptions` to type definitions for `gpt-5-mini` and `gpt-5-nano` models
+  - Fixed `summary` option placement in `OpenAIReasoningOptions` (moved inside `reasoning` object to match OpenAI SDK)
+  - Added handler for `response.reasoning_summary_text.delta` events to stream reasoning summaries
+  - Added model-specific `reasoning.summary` types: `concise` only available for `computer-use-preview`
+  - Added `OpenAIReasoningOptionsWithConcise` for `computer-use-preview` model
+
+- Updated dependencies [[`52c3172`](https://github.com/TanStack/ai/commit/52c317244294a75b0c7f5e6cafc8583fbb6abfb7)]:
+  - @tanstack/ai@0.0.3
+
 ## 0.0.2
 
 ### Patch Changes

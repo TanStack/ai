@@ -1,6 +1,7 @@
-import { describe, it, expect } from 'vitest'
+import { describe, expect, it } from 'vitest'
 import { z } from 'zod'
 import { convertZodToJsonSchema } from '../src/tools/zod-converter'
+import type { JSONSchema } from '../src/types'
 
 describe('convertZodToJsonSchema', () => {
   it('should return undefined for undefined schema', () => {
@@ -298,5 +299,254 @@ describe('convertZodToJsonSchema', () => {
     expect(result?.properties?.max?.type).toBe('number')
     // z.number().int() returns type "integer" in JSON Schema
     expect(result?.properties?.int?.type).toBe('integer')
+  })
+
+  describe('JSONSchema passthrough', () => {
+    it('should pass through a simple JSONSchema object unchanged', () => {
+      const jsonSchema: JSONSchema = {
+        type: 'object',
+        properties: {
+          name: { type: 'string' },
+          age: { type: 'number' },
+        },
+        required: ['name'],
+      }
+      const result = convertZodToJsonSchema(jsonSchema)
+
+      expect(result).toBe(jsonSchema) // Same reference
+      expect(result).toEqual(jsonSchema)
+    })
+
+    it('should pass through JSONSchema with nested objects', () => {
+      const jsonSchema: JSONSchema = {
+        type: 'object',
+        properties: {
+          user: {
+            type: 'object',
+            properties: {
+              name: { type: 'string' },
+              email: { type: 'string', format: 'email' },
+            },
+            required: ['name', 'email'],
+          },
+        },
+        required: ['user'],
+      }
+      const result = convertZodToJsonSchema(jsonSchema)
+
+      expect(result).toBe(jsonSchema)
+    })
+
+    it('should pass through JSONSchema with arrays', () => {
+      const jsonSchema: JSONSchema = {
+        type: 'object',
+        properties: {
+          tags: {
+            type: 'array',
+            items: { type: 'string' },
+          },
+          users: {
+            type: 'array',
+            items: {
+              type: 'object',
+              properties: {
+                id: { type: 'number' },
+                name: { type: 'string' },
+              },
+            },
+          },
+        },
+      }
+      const result = convertZodToJsonSchema(jsonSchema)
+
+      expect(result).toBe(jsonSchema)
+    })
+
+    it('should pass through JSONSchema with enum', () => {
+      const jsonSchema: JSONSchema = {
+        type: 'object',
+        properties: {
+          status: {
+            type: 'string',
+            enum: ['pending', 'active', 'completed'],
+          },
+          priority: {
+            type: 'number',
+            enum: [1, 2, 3],
+          },
+        },
+      }
+      const result = convertZodToJsonSchema(jsonSchema)
+
+      expect(result).toBe(jsonSchema)
+    })
+
+    it('should pass through JSONSchema with descriptions', () => {
+      const jsonSchema: JSONSchema = {
+        type: 'object',
+        description: 'A weather request',
+        properties: {
+          location: {
+            type: 'string',
+            description: 'The city or location to get weather for',
+          },
+          unit: {
+            type: 'string',
+            enum: ['celsius', 'fahrenheit'],
+            description: 'Temperature unit',
+          },
+        },
+        required: ['location'],
+      }
+      const result = convertZodToJsonSchema(jsonSchema)
+
+      expect(result).toBe(jsonSchema)
+      expect(result?.description).toBe('A weather request')
+      expect(result?.properties?.location?.description).toBe(
+        'The city or location to get weather for',
+      )
+    })
+
+    it('should pass through JSONSchema with $ref and $defs', () => {
+      const jsonSchema: JSONSchema = {
+        type: 'object',
+        $defs: {
+          Address: {
+            type: 'object',
+            properties: {
+              street: { type: 'string' },
+              city: { type: 'string' },
+            },
+          },
+        },
+        properties: {
+          homeAddress: { $ref: '#/$defs/Address' },
+          workAddress: { $ref: '#/$defs/Address' },
+        },
+      }
+      const result = convertZodToJsonSchema(jsonSchema)
+
+      expect(result).toBe(jsonSchema)
+    })
+
+    it('should pass through JSONSchema with allOf/anyOf/oneOf', () => {
+      const jsonSchema: JSONSchema = {
+        type: 'object',
+        properties: {
+          value: {
+            oneOf: [{ type: 'string' }, { type: 'number' }],
+          },
+          config: {
+            allOf: [
+              { type: 'object', properties: { name: { type: 'string' } } },
+              { type: 'object', properties: { value: { type: 'number' } } },
+            ],
+          },
+        },
+      }
+      const result = convertZodToJsonSchema(jsonSchema)
+
+      expect(result).toBe(jsonSchema)
+    })
+
+    it('should pass through JSONSchema with validation constraints', () => {
+      const jsonSchema: JSONSchema = {
+        type: 'object',
+        properties: {
+          age: {
+            type: 'number',
+            minimum: 0,
+            maximum: 150,
+          },
+          email: {
+            type: 'string',
+            format: 'email',
+            minLength: 5,
+            maxLength: 100,
+          },
+          tags: {
+            type: 'array',
+            minItems: 1,
+            maxItems: 10,
+            uniqueItems: true,
+          },
+        },
+      }
+      const result = convertZodToJsonSchema(jsonSchema)
+
+      expect(result).toBe(jsonSchema)
+      expect(result?.properties?.age?.minimum).toBe(0)
+      expect(result?.properties?.age?.maximum).toBe(150)
+      expect(result?.properties?.email?.format).toBe('email')
+      expect(result?.properties?.tags?.uniqueItems).toBe(true)
+    })
+
+    it('should pass through empty JSONSchema object', () => {
+      const jsonSchema: JSONSchema = {}
+      const result = convertZodToJsonSchema(jsonSchema)
+
+      expect(result).toBe(jsonSchema)
+    })
+
+    it('should pass through JSONSchema with only type', () => {
+      const jsonSchema: JSONSchema = { type: 'string' }
+      const result = convertZodToJsonSchema(jsonSchema)
+
+      expect(result).toBe(jsonSchema)
+    })
+
+    it('should pass through JSONSchema with additionalProperties', () => {
+      const jsonSchema: JSONSchema = {
+        type: 'object',
+        properties: {
+          name: { type: 'string' },
+        },
+        additionalProperties: false,
+      }
+      const result = convertZodToJsonSchema(jsonSchema)
+
+      expect(result).toBe(jsonSchema)
+      expect(result?.additionalProperties).toBe(false)
+    })
+
+    it('should pass through JSONSchema with pattern', () => {
+      const jsonSchema: JSONSchema = {
+        type: 'object',
+        properties: {
+          phone: {
+            type: 'string',
+            pattern: '^\\+?[1-9]\\d{1,14}$',
+          },
+        },
+      }
+      const result = convertZodToJsonSchema(jsonSchema)
+
+      expect(result).toBe(jsonSchema)
+      expect(result?.properties?.phone?.pattern).toBe('^\\+?[1-9]\\d{1,14}$')
+    })
+
+    it('should distinguish between Zod schemas and plain objects', () => {
+      // Zod schema should be converted
+      const zodSchema = z.object({ name: z.string() })
+      const zodResult = convertZodToJsonSchema(zodSchema)
+
+      // JSONSchema should pass through
+      const jsonSchema: JSONSchema = {
+        type: 'object',
+        properties: { name: { type: 'string' } },
+      }
+      const jsonResult = convertZodToJsonSchema(jsonSchema)
+
+      // Both should produce similar output structure
+      expect(zodResult?.type).toBe('object')
+      expect(jsonResult?.type).toBe('object')
+      expect(zodResult?.properties?.name?.type).toBe('string')
+      expect(jsonResult?.properties?.name?.type).toBe('string')
+
+      // But JSONSchema should be the same reference
+      expect(jsonResult).toBe(jsonSchema)
+      // Zod result should be a new object
+      expect(zodResult).not.toBe(zodSchema)
+    })
   })
 })

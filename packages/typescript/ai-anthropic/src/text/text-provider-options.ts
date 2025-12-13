@@ -117,8 +117,7 @@ export type ExternalTextProviderOptions = AnthropicContainerOptions &
   AnthropicToolChoiceOptions &
   AnthropicSamplingOptions
 
-export interface InternalTextProviderOptions
-  extends ExternalTextProviderOptions {
+export interface InternalTextProviderOptions extends ExternalTextProviderOptions {
   model: string
 
   messages: Array<MessageParam>

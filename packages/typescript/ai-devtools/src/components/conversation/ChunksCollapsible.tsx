@@ -26,9 +26,7 @@ export const ChunksCollapsible: Component<ChunksCollapsibleProps> = (props) => {
     <details class={styles().conversationDetails.chunksDetails}>
       <summary class={styles().conversationDetails.chunksSummary}>
         <div class={styles().conversationDetails.chunksSummaryRow}>
-          <span class={styles().conversationDetails.chunksSummaryArrow}>
-            ▶
-          </span>
+          <span class={styles().conversationDetails.chunksSummaryArrow}>▶</span>
           <span class={styles().conversationDetails.chunksSummaryTitle}>
             📦 {totalRawChunks()} chunks
           </span>

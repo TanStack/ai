@@ -131,7 +131,8 @@ Enable reasoning for models that support it (e.g., GPT-5). This allows the model
 ```typescript
 providerOptions: {
   reasoning: {
-    effort: "medium", // "minimal" | "low" | "medium" | "high"
+    effort: "medium", // "none" | "minimal" | "low" | "medium" | "high"
+    summary: "detailed", // "auto" | "detailed" (optional)
   },
 }
 ```

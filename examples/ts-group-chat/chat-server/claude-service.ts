@@ -1,24 +1,99 @@
 // Claude AI service for handling queued AI responses
 import { anthropic } from '@tanstack/ai-anthropic'
-import { chat } from '@tanstack/ai'
-import type { ModelMessage, StreamChunk } from '@tanstack/ai'
+import { chat, toolDefinition } from '@tanstack/ai'
+import type { JSONSchema, ModelMessage, StreamChunk } from '@tanstack/ai'
+
+// Define input schema for getWeather tool using JSONSchema
+const getWeatherInputSchema: JSONSchema = {
+  type: 'object',
+  properties: {
+    location: {
+      type: 'string',
+      description: 'The city or location to get weather for',
+    },
+    unit: {
+      type: 'string',
+      enum: ['celsius', 'fahrenheit'],
+      description: 'Temperature unit (defaults to celsius)',
+    },
+  },
+  required: ['location'],
+}
+
+// Define output schema for getWeather tool using JSONSchema
+const getWeatherOutputSchema: JSONSchema = {
+  type: 'object',
+  properties: {
+    location: { type: 'string' },
+    temperature: { type: 'number' },
+    unit: { type: 'string' },
+    conditions: { type: 'string' },
+    humidity: { type: 'number' },
+  },
+  required: ['location', 'temperature', 'unit', 'conditions'],
+}
+
+// Create the getWeather tool using JSONSchema instead of Zod
+const getWeatherTool = toolDefinition({
+  name: 'getWeather',
+  description:
+    'Get the current weather for a location. Returns temperature, conditions, and humidity.',
+  inputSchema: getWeatherInputSchema,
+  outputSchema: getWeatherOutputSchema,
+}).server((args) => {
+  // Mock weather data - in a real app this would call a weather API
+  const mockWeatherData: Record<
+    string,
+    { temp: number; conditions: string; humidity: number }
+  > = {
+    'new york': { temp: 72, conditions: 'Partly cloudy', humidity: 65 },
+    london: { temp: 58, conditions: 'Overcast', humidity: 80 },
+    tokyo: { temp: 68, conditions: 'Sunny', humidity: 55 },
+    paris: { temp: 62, conditions: 'Light rain', humidity: 75 },
+    sydney: { temp: 78, conditions: 'Clear skies', humidity: 45 },
+  }
+
+  const location = (args.location as string).toLowerCase()
+  const unit = (args.unit as string | undefined) ?? 'celsius'
+  const weather = mockWeatherData[location] ?? {
+    temp: 65,
+    conditions: 'Unknown',
+    humidity: 50,
+  }
+
+  // Convert temperature if needed
+  let temperature = weather.temp
+  if (unit === 'celsius') {
+    temperature = Math.round(((temperature - 32) * 5) / 9)
+  }
+
+  console.log(`🌤️ Weather tool called for: ${args.location}`)
+
+  return {
+    location: args.location,
+    temperature,
+    unit,
+    conditions: weather.conditions,
+    humidity: weather.humidity,
+  }
+})
 
 export interface ClaudeRequest {
   id: string
   username: string
   message: string
-  conversationHistory: ModelMessage[]
+  conversationHistory: Array<ModelMessage>
 }
 
 export interface ClaudeQueueStatus {
   current: string | null
-  queue: string[]
+  queue: Array<string>
   isProcessing: boolean
 }
 
 export class ClaudeService {
   private adapter = anthropic() // Uses ANTHROPIC_API_KEY from env
-  private queue: ClaudeRequest[] = []
+  private queue: Array<ClaudeRequest> = []
   private currentRequest: ClaudeRequest | null = null
   private isProcessing = false
 
@@ -54,13 +129,11 @@ export class ClaudeService {
   }
 
   async *streamResponse(
-    conversationHistory: ModelMessage[],
+    conversationHistory: Array<ModelMessage>,
   ): AsyncIterable<StreamChunk> {
-    const systemMessage: ModelMessage = {
-      role: 'system',
-      content:
-        'You are Claude, a friendly AI assistant participating in a group chat. Keep responses conversational, concise (2-3 sentences max unless asked for more detail), and helpful. You can see the entire conversation history with all participants.',
-    }
+    const systemMessage = `You are Claude, a friendly AI assistant participating in a group chat.
+    Keep responses conversational, concise (2-3 sentences max unless asked for more detail), and helpful.
+    You can see the entire conversation history with all participants.`
 
     try {
       console.log(`🤖 Claude: ========== STARTING STREAM RESPONSE ==========`)
@@ -68,7 +141,9 @@ export class ClaudeService {
         `🤖 Claude: Conversation history (${conversationHistory.length} messages):`,
       )
       conversationHistory.forEach((m, i) => {
-        console.log(`  ${i + 1}. ${m.role}: ${m.content?.substring(0, 80)}...`)
+        const content =
+          typeof m.content === 'string' ? m.content.substring(0, 80) : '[array]'
+        console.log(`  ${i + 1}. ${m.role}: ${content}...`)
       })
 
       let chunkCount = 0
@@ -76,8 +151,10 @@ export class ClaudeService {
 
       for await (const chunk of chat({
         adapter: this.adapter,
-        messages: [systemMessage, ...conversationHistory],
-        model: 'claude-sonnet-4-5-20250929',
+        systemPrompts: [systemMessage],
+        messages: [...conversationHistory] as any,
+        model: 'claude-sonnet-4-5',
+        tools: [getWeatherTool],
       })) {
         chunkCount++
 

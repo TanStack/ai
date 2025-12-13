@@ -29,10 +29,8 @@ export abstract class BaseAdapter<
   TChatProviderOptions extends Record<string, any> = Record<string, any>,
   TEmbeddingProviderOptions extends Record<string, any> = Record<string, any>,
   TModelProviderOptionsByName extends Record<string, any> = Record<string, any>,
-  TModelInputModalitiesByName extends Record<
-    string,
-    ReadonlyArray<Modality>
-  > = Record<string, ReadonlyArray<Modality>>,
+  TModelInputModalitiesByName extends Record<string, ReadonlyArray<Modality>> =
+    Record<string, ReadonlyArray<Modality>>,
   TMessageMetadataByModality extends {
     text: unknown
     image: unknown
@@ -40,17 +38,15 @@ export abstract class BaseAdapter<
     video: unknown
     document: unknown
   } = DefaultMessageMetadataByModality,
-> implements
-    AIAdapter<
-      TChatModels,
-      TEmbeddingModels,
-      TChatProviderOptions,
-      TEmbeddingProviderOptions,
-      TModelProviderOptionsByName,
-      TModelInputModalitiesByName,
-      TMessageMetadataByModality
-    >
-{
+> implements AIAdapter<
+  TChatModels,
+  TEmbeddingModels,
+  TChatProviderOptions,
+  TEmbeddingProviderOptions,
+  TModelProviderOptionsByName,
+  TModelInputModalitiesByName,
+  TMessageMetadataByModality
+> {
   abstract name: string
   abstract models: TChatModels
   embeddingModels?: TEmbeddingModels

@@ -22,7 +22,7 @@ const adapter = gemini();
 const stream = chat({
   adapter,
   messages: [{ role: "user", content: "Hello!" }],
-  model: "gemini-pro",
+  model: "gemini-2.5-pro",
 });
 ```
 
@@ -37,7 +37,7 @@ const adapter = createGemini(process.env.GEMINI_API_KEY, {
 const stream = chat({
   adapter,
   messages: [{ role: "user", content: "Hello!" }],
-  model: "gemini-pro",
+  model: "gemini-2.5-pro",
 });
 ```
 
@@ -46,12 +46,20 @@ const stream = chat({
 ```typescript
 import { gemini, type GeminiConfig } from "@tanstack/ai-gemini";
 
-const config: GeminiConfig = { 
+const config: GeminiConfig = {
   baseURL: "https://generativelanguage.googleapis.com/v1", // Optional
 };
 
 const adapter = gemini(config);
-``` 
+```
+
+## Available Models
+
+### Chat Models
+
+- `gemini-2.5-pro` - Gemini Pro model
+- `gemini-2.5-pro-vision` - Gemini Pro with vision capabilities
+- `gemini-ultra` - Gemini Ultra model (when available)
 
 ## Example: Chat Completion
 
@@ -67,7 +75,7 @@ export async function POST(request: Request) {
   const stream = chat({
     adapter,
     messages,
-    model: "gemini-pro",
+    model: "gemini-2.5-pro",
   });
 
   return toStreamResponse(stream);
@@ -99,7 +107,7 @@ const getCalendarEvents = getCalendarEventsDef.server(async ({ date }) => {
 const stream = chat({
   adapter,
   messages,
-  model: "gemini-pro",
+  model: "gemini-2.5-pro",
   tools: [getCalendarEvents],
 });
 ```
@@ -112,7 +120,7 @@ Gemini supports various provider-specific options:
 const stream = chat({
   adapter: gemini(),
   messages,
-  model: "gemini-pro",
+  model: "gemini-2.5-pro",
   providerOptions: { 
     maxOutputTokens: 1000, 
     topK: 40,

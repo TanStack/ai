@@ -256,10 +256,54 @@ const getUserData = getUserDataDef.server(async ({ userId }) => {
 });
 ```
 
+## Using JSON Schema
+
+If you have existing JSON Schema definitions or prefer not to use Zod, you can define tool schemas using raw JSON Schema objects:
+
+```typescript
+import { toolDefinition } from "@tanstack/ai";
+import type { JSONSchema } from "@tanstack/ai";
+
+const inputSchema: JSONSchema = {
+  type: "object",
+  properties: {
+    userId: {
+      type: "string",
+      description: "The user ID to look up",
+    },
+  },
+  required: ["userId"],
+};
+
+const outputSchema: JSONSchema = {
+  type: "object",
+  properties: {
+    name: { type: "string" },
+    email: { type: "string" },
+  },
+  required: ["name", "email"],
+};
+
+const getUserDataDef = toolDefinition({
+  name: "get_user_data",
+  description: "Get user information from the database",
+  inputSchema,
+  outputSchema,
+});
+
+// When using JSON Schema, args is typed as `any`
+const getUserData = getUserDataDef.server(async (args) => {
+  const user = await db.users.findUnique({ where: { id: args.userId } });
+  return { name: user.name, email: user.email };
+});
+```
+
+> **Note:** JSON Schema tools skip runtime validation. Zod schemas are recommended for full type safety and validation.
+
 ## Best Practices
 
 1. **Keep tools focused** - Each tool should do one thing well
-2. **Validate inputs** - Use Zod schemas to ensure type safety
+2. **Validate inputs** - Use Zod schemas to ensure type safety (JSON Schema skips validation)
 3. **Handle errors** - Return meaningful error messages
 4. **Use descriptions** - Clear descriptions help the model use tools correctly
 5. **Secure sensitive operations** - Never expose API keys or secrets to the client
