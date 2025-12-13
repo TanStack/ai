@@ -41,6 +41,45 @@ export type {
   OpenAIImageModelProviderOptionsByName,
 } from './image/image-provider-options'
 
+// Video adapter - for video generation (experimental)
+/**
+ * @experimental Video generation is an experimental feature and may change.
+ */
+export {
+  OpenAIVideoAdapter,
+  createOpenaiVideo,
+  openaiVideo,
+  type OpenAIVideoConfig,
+} from './adapters/video'
+export type {
+  OpenAIVideoProviderOptions,
+  OpenAIVideoModelProviderOptionsByName,
+  OpenAIVideoSize,
+  OpenAIVideoDuration,
+} from './video/video-provider-options'
+
+// TTS adapter - for text-to-speech
+export {
+  OpenAITTSAdapter,
+  createOpenaiTTS,
+  openaiTTS,
+  type OpenAITTSConfig,
+} from './adapters/tts'
+export type {
+  OpenAITTSProviderOptions,
+  OpenAITTSVoice,
+  OpenAITTSFormat,
+} from './audio/tts-provider-options'
+
+// Transcription adapter - for speech-to-text
+export {
+  OpenAITranscriptionAdapter,
+  createOpenaiTranscription,
+  openaiTranscription,
+  type OpenAITranscriptionConfig,
+} from './adapters/transcription'
+export type { OpenAITranscriptionProviderOptions } from './audio/transcription-provider-options'
+
 // ============================================================================
 // Legacy Exports (Deprecated - will be removed in future versions)
 // ============================================================================
@@ -64,7 +103,12 @@ export type {
   OpenAIChatModelProviderOptionsByName,
   OpenAIModelInputModalitiesByName,
 } from './model-meta'
-export { OPENAI_IMAGE_MODELS } from './model-meta'
+export {
+  OPENAI_IMAGE_MODELS,
+  OPENAI_TTS_MODELS,
+  OPENAI_TRANSCRIPTION_MODELS,
+  OPENAI_VIDEO_MODELS,
+} from './model-meta'
 export type {
   OpenAITextMetadata,
   OpenAIImageMetadata,

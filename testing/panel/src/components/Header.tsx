@@ -2,13 +2,17 @@ import { Link } from '@tanstack/react-router'
 
 import { useState } from 'react'
 import {
-  Home,
-  Menu,
-  X,
-  FlaskConical,
-  FileText,
-  ImageIcon,
   ChefHat,
+  FileText,
+  FlaskConical,
+  Home,
+  ImageIcon,
+  Menu,
+  Mic,
+  Package,
+  Video,
+  Volume2,
+  X,
 } from 'lucide-react'
 
 export default function Header() {
@@ -78,6 +82,24 @@ export default function Header() {
             <span className="font-medium">Stream Debugger</span>
           </Link>
 
+          <Link
+            to="/addon-manager"
+            onClick={() => setIsOpen(false)}
+            className="flex items-center gap-3 p-3 rounded-lg hover:bg-gray-800 transition-colors mb-2"
+            activeProps={{
+              className:
+                'flex items-center gap-3 p-3 rounded-lg bg-green-600 hover:bg-green-700 transition-colors mb-2',
+            }}
+          >
+            <Package size={20} />
+            <div className="flex items-center gap-2">
+              <span className="font-medium">Add-on Manager</span>
+              <span className="text-xs px-1.5 py-0.5 bg-green-500/20 text-green-400 rounded">
+                Multi-Tool
+              </span>
+            </div>
+          </Link>
+
           <div className="my-4 border-t border-gray-700" />
           <p className="px-3 py-2 text-xs font-semibold text-gray-500 uppercase tracking-wider">
             Activities
@@ -107,6 +129,50 @@ export default function Header() {
           >
             <ImageIcon size={20} />
             <span className="font-medium">Image Generation</span>
+          </Link>
+
+          <Link
+            to="/video"
+            onClick={() => setIsOpen(false)}
+            className="flex items-center gap-3 p-3 rounded-lg hover:bg-gray-800 transition-colors mb-2"
+            activeProps={{
+              className:
+                'flex items-center gap-3 p-3 rounded-lg bg-purple-600 hover:bg-purple-700 transition-colors mb-2',
+            }}
+          >
+            <Video size={20} />
+            <div className="flex items-center gap-2">
+              <span className="font-medium">Video Generation</span>
+              <span className="text-xs px-1.5 py-0.5 bg-yellow-500/20 text-yellow-400 rounded">
+                Exp
+              </span>
+            </div>
+          </Link>
+
+          <Link
+            to="/tts"
+            onClick={() => setIsOpen(false)}
+            className="flex items-center gap-3 p-3 rounded-lg hover:bg-gray-800 transition-colors mb-2"
+            activeProps={{
+              className:
+                'flex items-center gap-3 p-3 rounded-lg bg-emerald-600 hover:bg-emerald-700 transition-colors mb-2',
+            }}
+          >
+            <Volume2 size={20} />
+            <span className="font-medium">Text-to-Speech</span>
+          </Link>
+
+          <Link
+            to="/transcription"
+            onClick={() => setIsOpen(false)}
+            className="flex items-center gap-3 p-3 rounded-lg hover:bg-gray-800 transition-colors mb-2"
+            activeProps={{
+              className:
+                'flex items-center gap-3 p-3 rounded-lg bg-amber-600 hover:bg-amber-700 transition-colors mb-2',
+            }}
+          >
+            <Mic size={20} />
+            <span className="font-medium">Transcription</span>
           </Link>
 
           <Link

@@ -69,6 +69,14 @@
         {
           "label": "Per-Model Type Safety",
           "to": "guides/per-model-type-safety"
+        },
+        {
+          "label": "Text-to-Speech",
+          "to": "guides/text-to-speech"
+        },
+        {
+          "label": "Transcription",
+          "to": "guides/transcription"
         }
       ]
     },

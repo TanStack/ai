@@ -17,7 +17,7 @@ export async function runSUM(
   // Skip if no summarize adapter is available
   if (!adapterContext.summarizeAdapter) {
     console.log(
-      `[${adapterName}] ⋯ ${testName}: Ignored (no summarize adapter)`,
+      `[${adapterName}] — ${testName}: Ignored (no summarize adapter)`,
     )
     return { passed: true, ignored: true }
   }

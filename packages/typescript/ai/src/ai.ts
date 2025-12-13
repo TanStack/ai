@@ -13,22 +13,30 @@ import type {
   AIResultUnion,
   AISummarizeOptions,
   AITextOptions,
+  AIVideoCreateOptions,
+  AIVideoStatusOptions,
+  AIVideoUrlOptions,
   AnyAIAdapter,
   EmbeddingModels,
   ImageModels,
   SummarizeModels,
   TextModels,
+  VideoModels,
 } from './activities'
 import type { TextAdapter } from './activities/text/adapter'
 import type { EmbeddingAdapter } from './activities/embedding/adapter'
 import type { SummarizeAdapter } from './activities/summarize/adapter'
 import type { ImageAdapter } from './activities/image/adapter'
+import type { VideoAdapter } from './activities/video/adapter'
 import type { z } from 'zod'
 import type {
   EmbeddingResult,
   ImageGenerationResult,
   StreamChunk,
   SummarizationResult,
+  VideoJobResult,
+  VideoStatusResult,
+  VideoUrlResult,
 } from './types'
 
 // ===========================
@@ -41,6 +49,7 @@ export type GenerateAdapter =
   | EmbeddingAdapter<ReadonlyArray<string>, object>
   | SummarizeAdapter<ReadonlyArray<string>, object>
   | ImageAdapter<ReadonlyArray<string>, object, any, any>
+  | VideoAdapter<ReadonlyArray<string>, object>
 
 /** Alias for backwards compatibility */
 export type AnyAdapter = GenerateAdapter
@@ -54,6 +63,7 @@ type ExtractTextModels<T> = TextModels<T>
 type ExtractEmbeddingModels<T> = EmbeddingModels<T>
 type ExtractSummarizeModels<T> = SummarizeModels<T>
 type ExtractImageModels<T> = ImageModels<T>
+type ExtractVideoModels<T> = VideoModels<T>
 
 // ===========================
 // Options/Return Type Mapping
@@ -65,6 +75,7 @@ type AIOptionsFor<
   TSchema extends z.ZodType | undefined = undefined,
   TTextStream extends boolean = true,
   TSummarizeStream extends boolean = false,
+  TVideoRequest extends 'create' | 'status' | 'url' = 'create',
 > = TAdapter extends { kind: 'text' }
   ? AITextOptions<
       Extract<
@@ -94,13 +105,35 @@ type AIOptionsFor<
             >,
             TModel & ExtractImageModels<TAdapter>
           >
-        : never
+        : TAdapter extends { kind: 'video' }
+          ? TVideoRequest extends 'status'
+            ? AIVideoStatusOptions<
+                Extract<TAdapter, VideoAdapter<ReadonlyArray<string>, object>>,
+                TModel & ExtractVideoModels<TAdapter>
+              >
+            : TVideoRequest extends 'url'
+              ? AIVideoUrlOptions<
+                  Extract<
+                    TAdapter,
+                    VideoAdapter<ReadonlyArray<string>, object>
+                  >,
+                  TModel & ExtractVideoModels<TAdapter>
+                >
+              : AIVideoCreateOptions<
+                  Extract<
+                    TAdapter,
+                    VideoAdapter<ReadonlyArray<string>, object>
+                  >,
+                  TModel & ExtractVideoModels<TAdapter>
+                >
+          : never
 
 type AIReturnFor<
   TAdapter extends AnyAIAdapter,
   TSchema extends z.ZodType | undefined = undefined,
   TTextStream extends boolean = true,
   TSummarizeStream extends boolean = false,
+  TVideoRequest extends 'create' | 'status' | 'url' = 'create',
 > = TAdapter extends { kind: 'text' }
   ? TSchema extends z.ZodType
     ? Promise<z.infer<TSchema>>
@@ -115,7 +148,13 @@ type AIReturnFor<
         : Promise<SummarizationResult>
       : TAdapter extends { kind: 'image' }
         ? Promise<ImageGenerationResult>
-        : never
+        : TAdapter extends { kind: 'video' }
+          ? TVideoRequest extends 'status'
+            ? Promise<VideoStatusResult>
+            : TVideoRequest extends 'url'
+              ? Promise<VideoUrlResult>
+              : Promise<VideoJobResult>
+          : never
 
 // ===========================
 // AI Function
@@ -130,6 +169,7 @@ type AIReturnFor<
  * - `'embedding'` → Embedding activity (vector generation)
  * - `'summarize'` → Summarize activity (text summarization)
  * - `'image'` → Image activity (image generation)
+ * - `'video'` → Video activity (video generation via jobs/polling) [experimental]
  *
  * @example Chat generation (streaming)
  * ```ts
@@ -202,6 +242,34 @@ type AIReturnFor<
  *   prompt: 'A serene mountain landscape'
  * })
  * ```
+ *
+ * @example Video generation (experimental)
+ * ```ts
+ * import { openaiVideo } from '@tanstack/ai-openai'
+ *
+ * // Create a video job
+ * const { jobId } = await ai({
+ *   adapter: openaiVideo(),
+ *   model: 'sora-2',
+ *   prompt: 'A cat chasing a dog'
+ * })
+ *
+ * // Poll for status
+ * const status = await ai({
+ *   adapter: openaiVideo(),
+ *   model: 'sora-2',
+ *   jobId,
+ *   request: 'status'
+ * })
+ *
+ * // Get video URL when complete
+ * const { url } = await ai({
+ *   adapter: openaiVideo(),
+ *   model: 'sora-2',
+ *   jobId,
+ *   request: 'url'
+ * })
+ * ```
  */
 export function ai<
   TAdapter extends AnyAIAdapter,
@@ -209,15 +277,17 @@ export function ai<
   TSchema extends z.ZodType | undefined = undefined,
   TTextStream extends boolean = true,
   TSummarizeStream extends boolean = false,
+  TVideoRequest extends 'create' | 'status' | 'url' = 'create',
 >(
   options: AIOptionsFor<
     TAdapter,
     TModel,
     TSchema,
     TTextStream,
-    TSummarizeStream
+    TSummarizeStream,
+    TVideoRequest
   >,
-): AIReturnFor<TAdapter, TSchema, TTextStream, TSummarizeStream>
+): AIReturnFor<TAdapter, TSchema, TTextStream, TSummarizeStream, TVideoRequest>
 
 // Implementation
 export function ai(options: AIOptionsUnion): AIResultUnion {
@@ -240,6 +310,7 @@ export type { TextAdapter } from './activities/text/adapter'
 export type { EmbeddingAdapter } from './activities/embedding/adapter'
 export type { SummarizeAdapter } from './activities/summarize/adapter'
 export type { ImageAdapter } from './activities/image/adapter'
+export type { VideoAdapter } from './activities/video/adapter'
 
 // Re-export type helpers
 export type {
@@ -247,6 +318,7 @@ export type {
   EmbeddingModels,
   SummarizeModels,
   ImageModels,
+  VideoModels,
 } from './activities'
 
 // Re-export activity option types and legacy aliases used by the package entrypoint
@@ -258,8 +330,10 @@ export type {
   EmbeddingGenerateOptions,
   SummarizeGenerateOptions,
   ImageGenerateOptions,
+  VideoGenerateOptions,
   GenerateTextOptions,
   GenerateEmbeddingOptions,
   GenerateSummarizeOptions,
   GenerateImageOptions,
+  GenerateVideoOptions,
 } from './activities'

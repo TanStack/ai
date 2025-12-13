@@ -3,7 +3,7 @@ title: OpenAI Adapter
 id: openai-adapter
 ---
 
-The OpenAI adapter provides access to OpenAI's models, including GPT-4o, GPT-5, embeddings, and image generation (DALL-E).
+The OpenAI adapter provides access to OpenAI's models, including GPT-4o, GPT-5, embeddings, image generation (DALL-E), text-to-speech (TTS), and audio transcription (Whisper).
 
 ## Installation
 
@@ -76,6 +76,18 @@ const adapter = createOpenaiText(process.env.OPENAI_API_KEY!, config);
 
 - `gpt-image-1` - Latest image generation model
 - `dall-e-3` - DALL-E 3
+
+### Text-to-Speech Models
+
+- `tts-1` - Standard TTS (fast)
+- `tts-1-hd` - High-definition TTS
+- `gpt-4o-audio-preview` - GPT-4o with audio output
+
+### Transcription Models
+
+- `whisper-1` - Whisper large-v2
+- `gpt-4o-transcribe` - GPT-4o transcription
+- `gpt-4o-mini-transcribe` - GPT-4o Mini transcription
 
 ## Example: Chat Completion
 
@@ -267,6 +279,83 @@ const result = await ai({
 });
 ```
 
+## Text-to-Speech
+
+Generate speech from text:
+
+```typescript
+import { ai } from "@tanstack/ai";
+import { openaiTTS } from "@tanstack/ai-openai";
+
+const adapter = openaiTTS();
+
+const result = await ai({
+  adapter,
+  model: "tts-1",
+  text: "Hello, welcome to TanStack AI!",
+  voice: "alloy",
+  format: "mp3",
+});
+
+// result.audio contains base64-encoded audio
+console.log(result.format); // "mp3"
+```
+
+### TTS Voices
+
+Available voices: `alloy`, `echo`, `fable`, `onyx`, `nova`, `shimmer`, `ash`, `ballad`, `coral`, `sage`, `verse`
+
+### TTS Provider Options
+
+```typescript
+const result = await ai({
+  adapter: openaiTTS(),
+  model: "tts-1-hd",
+  text: "High quality speech",
+  providerOptions: {
+    speed: 1.0, // 0.25 to 4.0
+  },
+});
+```
+
+## Transcription
+
+Transcribe audio to text:
+
+```typescript
+import { ai } from "@tanstack/ai";
+import { openaiTranscription } from "@tanstack/ai-openai";
+
+const adapter = openaiTranscription();
+
+const result = await ai({
+  adapter,
+  model: "whisper-1",
+  audio: audioFile, // File object or base64 string
+  language: "en",
+});
+
+console.log(result.text); // Transcribed text
+```
+
+### Transcription Provider Options
+
+```typescript
+const result = await ai({
+  adapter: openaiTranscription(),
+  model: "whisper-1",
+  audio: audioFile,
+  providerOptions: {
+    response_format: "verbose_json", // Get timestamps
+    temperature: 0,
+    prompt: "Technical terms: API, SDK",
+  },
+});
+
+// Access segments with timestamps
+console.log(result.segments);
+```
+
 ## Environment Variables
 
 Set your API key in environment variables:
@@ -330,6 +419,30 @@ Creates an OpenAI image generation adapter using environment variables.
 Creates an OpenAI image generation adapter with an explicit API key.
 
 **Returns:** An OpenAI image adapter instance.
+
+### `openaiTTS(config?)`
+
+Creates an OpenAI TTS adapter using environment variables.
+
+**Returns:** An OpenAI TTS adapter instance.
+
+### `createOpenaiTTS(apiKey, config?)`
+
+Creates an OpenAI TTS adapter with an explicit API key.
+
+**Returns:** An OpenAI TTS adapter instance.
+
+### `openaiTranscription(config?)`
+
+Creates an OpenAI transcription adapter using environment variables.
+
+**Returns:** An OpenAI transcription adapter instance.
+
+### `createOpenaiTranscription(apiKey, config?)`
+
+Creates an OpenAI transcription adapter with an explicit API key.
+
+**Returns:** An OpenAI transcription adapter instance.
 
 ## Next Steps
 

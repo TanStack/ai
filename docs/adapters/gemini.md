@@ -3,7 +3,7 @@ title: Gemini Adapter
 id: gemini-adapter
 ---
 
-The Google Gemini adapter provides access to Google's Gemini models, including text generation, embeddings, and image generation with Imagen.
+The Google Gemini adapter provides access to Google's Gemini models, including text generation, embeddings, image generation with Imagen, and experimental text-to-speech.
 
 ## Installation
 
@@ -74,6 +74,10 @@ const adapter = createGeminiText(process.env.GEMINI_API_KEY!, config);
 
 - `imagen-3.0-generate-002` - Imagen 3.0
 - `gemini-2.0-flash-preview-image-generation` - Gemini with image generation
+
+### Text-to-Speech Models (Experimental)
+
+- `gemini-2.5-flash-preview-tts` - Gemini TTS
 
 ## Example: Chat Completion
 
@@ -269,6 +273,27 @@ const result = await ai({
 });
 ```
 
+## Text-to-Speech (Experimental)
+
+> **Note:** Gemini TTS is experimental and may require the Live API for full functionality.
+
+Generate speech from text:
+
+```typescript
+import { ai } from "@tanstack/ai";
+import { geminiTTS } from "@tanstack/ai-gemini";
+
+const adapter = geminiTTS();
+
+const result = await ai({
+  adapter,
+  model: "gemini-2.5-flash-preview-tts",
+  text: "Hello from Gemini TTS!",
+});
+
+console.log(result.audio); // Base64 encoded audio
+```
+
 ## Environment Variables
 
 Set your API key in environment variables:
@@ -339,6 +364,18 @@ Creates a Gemini image generation adapter using environment variables.
 Creates a Gemini image generation adapter with an explicit API key.
 
 **Returns:** A Gemini image adapter instance.
+
+### `geminiTTS(config?)`
+
+Creates a Gemini TTS adapter using environment variables.
+
+**Returns:** A Gemini TTS adapter instance.
+
+### `createGeminiTTS(apiKey, config?)`
+
+Creates a Gemini TTS adapter with an explicit API key.
+
+**Returns:** A Gemini TTS adapter instance.
 
 ## Next Steps
 

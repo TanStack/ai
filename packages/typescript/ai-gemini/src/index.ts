@@ -50,9 +50,22 @@ export type {
   ImagePromptLanguage,
 } from './image/image-provider-options'
 
+// TTS adapter (experimental)
+/**
+ * @experimental Gemini TTS is an experimental feature and may change.
+ */
+export {
+  GeminiTTSAdapter,
+  createGeminiTTS,
+  geminiTTS,
+  type GeminiTTSConfig,
+  type GeminiTTSProviderOptions,
+} from './adapters/tts'
+
 // Re-export models from model-meta for convenience
 export { GEMINI_MODELS as GeminiTextModels } from './model-meta'
 export { GEMINI_IMAGE_MODELS as GeminiImageModels } from './model-meta'
+export { GEMINI_TTS_MODELS as GeminiTTSModels } from './model-meta'
 export type { GeminiModels as GeminiTextModel } from './model-meta'
 export type { GeminiImageModels as GeminiImageModel } from './model-meta'
 

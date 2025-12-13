@@ -798,6 +798,189 @@ export interface ImageGenerationResult {
   }
 }
 
+// ============================================================================
+// Video Generation Types (Experimental)
+// ============================================================================
+
+/**
+ * Options for video generation.
+ * These are the common options supported across providers.
+ *
+ * @experimental Video generation is an experimental feature and may change.
+ */
+export interface VideoGenerationOptions<
+  TProviderOptions extends object = object,
+> {
+  /** The model to use for video generation */
+  model: string
+  /** Text description of the desired video */
+  prompt: string
+  /** Video size in WIDTHxHEIGHT format (e.g., "1280x720") */
+  size?: string
+  /** Video duration in seconds */
+  duration?: number
+  /** Provider-specific options for video generation */
+  providerOptions?: TProviderOptions
+}
+
+/**
+ * Result of creating a video generation job.
+ *
+ * @experimental Video generation is an experimental feature and may change.
+ */
+export interface VideoJobResult {
+  /** Unique job identifier for polling status */
+  jobId: string
+  /** Model used for generation */
+  model: string
+}
+
+/**
+ * Status of a video generation job.
+ *
+ * @experimental Video generation is an experimental feature and may change.
+ */
+export interface VideoStatusResult {
+  /** Job identifier */
+  jobId: string
+  /** Current status of the job */
+  status: 'pending' | 'processing' | 'completed' | 'failed'
+  /** Progress percentage (0-100), if available */
+  progress?: number
+  /** Error message if status is 'failed' */
+  error?: string
+}
+
+/**
+ * Result containing the URL to a generated video.
+ *
+ * @experimental Video generation is an experimental feature and may change.
+ */
+export interface VideoUrlResult {
+  /** Job identifier */
+  jobId: string
+  /** URL to the generated video */
+  url: string
+  /** When the URL expires, if applicable */
+  expiresAt?: Date
+}
+
+// ============================================================================
+// Text-to-Speech (TTS) Types
+// ============================================================================
+
+/**
+ * Options for text-to-speech generation.
+ * These are the common options supported across providers.
+ */
+export interface TTSOptions<TProviderOptions extends object = object> {
+  /** The model to use for TTS generation */
+  model: string
+  /** The text to convert to speech */
+  text: string
+  /** The voice to use for generation */
+  voice?: string
+  /** The output audio format */
+  format?: 'mp3' | 'opus' | 'aac' | 'flac' | 'wav' | 'pcm'
+  /** The speed of the generated audio (0.25 to 4.0) */
+  speed?: number
+  /** Provider-specific options for TTS generation */
+  providerOptions?: TProviderOptions
+}
+
+/**
+ * Result of text-to-speech generation.
+ */
+export interface TTSResult {
+  /** Unique identifier for the generation */
+  id: string
+  /** Model used for generation */
+  model: string
+  /** Base64-encoded audio data */
+  audio: string
+  /** Audio format of the generated audio */
+  format: string
+  /** Duration of the audio in seconds, if available */
+  duration?: number
+  /** Content type of the audio (e.g., 'audio/mp3') */
+  contentType?: string
+}
+
+// ============================================================================
+// Transcription (Speech-to-Text) Types
+// ============================================================================
+
+/**
+ * Options for audio transcription.
+ * These are the common options supported across providers.
+ */
+export interface TranscriptionOptions<
+  TProviderOptions extends object = object,
+> {
+  /** The model to use for transcription */
+  model: string
+  /** The audio data to transcribe - can be base64 string, File, Blob, or Buffer */
+  audio: string | File | Blob | ArrayBuffer
+  /** The language of the audio in ISO-639-1 format (e.g., 'en') */
+  language?: string
+  /** An optional prompt to guide the transcription */
+  prompt?: string
+  /** The format of the transcription output */
+  responseFormat?: 'json' | 'text' | 'srt' | 'verbose_json' | 'vtt'
+  /** Provider-specific options for transcription */
+  providerOptions?: TProviderOptions
+}
+
+/**
+ * A single segment of transcribed audio with timing information.
+ */
+export interface TranscriptionSegment {
+  /** Unique identifier for the segment */
+  id: number
+  /** Start time of the segment in seconds */
+  start: number
+  /** End time of the segment in seconds */
+  end: number
+  /** Transcribed text for this segment */
+  text: string
+  /** Confidence score (0-1), if available */
+  confidence?: number
+  /** Speaker identifier, if diarization is enabled */
+  speaker?: string
+}
+
+/**
+ * A single word with timing information.
+ */
+export interface TranscriptionWord {
+  /** The transcribed word */
+  word: string
+  /** Start time in seconds */
+  start: number
+  /** End time in seconds */
+  end: number
+}
+
+/**
+ * Result of audio transcription.
+ */
+export interface TranscriptionResult {
+  /** Unique identifier for the transcription */
+  id: string
+  /** Model used for transcription */
+  model: string
+  /** The full transcribed text */
+  text: string
+  /** Language detected or specified */
+  language?: string
+  /** Duration of the audio in seconds */
+  duration?: number
+  /** Detailed segments with timing, if available */
+  segments?: Array<TranscriptionSegment>
+  /** Word-level timestamps, if available */
+  words?: Array<TranscriptionWord>
+}
+
 /**
  * Default metadata type for adapters that don't define custom metadata.
  * Uses unknown for all modalities.

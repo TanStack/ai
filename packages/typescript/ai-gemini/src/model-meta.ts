@@ -794,6 +794,12 @@ export const GEMINI_IMAGE_MODELS = [
 
 export const GEMINI_EMBEDDING_MODELS = [GEMINI_EMBEDDING.name] as const
 
+/**
+ * Text-to-speech models
+ * @experimental Gemini TTS is an experimental feature and may change.
+ */
+export const GEMINI_TTS_MODELS = ['gemini-2.5-flash-preview-tts'] as const
+
 /*   const GEMINI_AUDIO_MODELS = [
   GEMINI_2_5_PRO_TTS.name,
   GEMINI_2_5_FLASH_TTS.name,

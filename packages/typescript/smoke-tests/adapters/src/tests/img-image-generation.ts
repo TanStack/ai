@@ -19,7 +19,7 @@ export async function runIMG(
 
   // Skip if no image adapter is available
   if (!adapterContext.imageAdapter) {
-    console.log(`[${adapterName}] ⋯ ${testName}: Ignored (no image adapter)`)
+    console.log(`[${adapterName}] — ${testName}: Ignored (no image adapter)`)
     return { passed: true, ignored: true }
   }
 

@@ -10,11 +10,19 @@ import { runAGS } from './ags-agentic-structured'
 import { runSUM } from './sum-summarize'
 import { runEMB } from './emb-embedding'
 import { runIMG } from './img-image-generation'
+import { runTTS } from './tts-text-to-speech'
+import { runTRN } from './trn-transcription'
 
 /**
  * Adapter capability types
  */
-export type AdapterCapability = 'text' | 'summarize' | 'embedding' | 'image'
+export type AdapterCapability =
+  | 'text'
+  | 'summarize'
+  | 'embedding'
+  | 'image'
+  | 'tts'
+  | 'transcription'
 
 /**
  * Definition for a test
@@ -100,6 +108,22 @@ export const TESTS: TestDefinition[] = [
     description: 'Generate images from text prompt',
     run: runIMG,
     requires: ['image'],
+    skipByDefault: true, // Skip unless explicitly requested
+  },
+  {
+    id: 'TTS',
+    name: 'Text-to-Speech',
+    description: 'Generate speech audio from text',
+    run: runTTS,
+    requires: ['tts'],
+    skipByDefault: true, // Skip unless explicitly requested
+  },
+  {
+    id: 'TRN',
+    name: 'Transcription',
+    description: 'Transcribe audio to text',
+    run: runTRN,
+    requires: ['transcription'],
     skipByDefault: true, // Skip unless explicitly requested
   },
 ]

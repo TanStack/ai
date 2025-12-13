@@ -55,6 +55,10 @@ export interface AdapterContext {
   embeddingAdapter?: any
   /** Image adapter for image generation */
   imageAdapter?: any
+  /** TTS adapter for text-to-speech */
+  ttsAdapter?: any
+  /** Transcription adapter for speech-to-text */
+  transcriptionAdapter?: any
   /** Model for chat/text */
   model: string
   /** Model for summarization */
@@ -63,6 +67,10 @@ export interface AdapterContext {
   embeddingModel?: string
   /** Model for image generation */
   imageModel?: string
+  /** Model for TTS */
+  ttsModel?: string
+  /** Model for transcription */
+  transcriptionModel?: string
 }
 
 interface DebugEnvelope {

@@ -300,7 +300,11 @@ const GPT5_CODEX = {
     OpenAIMetadataOptions
 >
 
-/* const SORA2 = {
+/**
+ * Sora-2 video generation model.
+ * @experimental Video generation is an experimental feature and may change.
+ */
+const SORA2 = {
   name: 'sora-2',
   pricing: {
     input: {
@@ -321,6 +325,10 @@ const GPT5_CODEX = {
   OpenAIBaseOptions & OpenAIStreamingOptions & OpenAIMetadataOptions
 >
 
+/**
+ * Sora-2-Pro video generation model (higher quality).
+ * @experimental Video generation is an experimental feature and may change.
+ */
 const SORA2_PRO = {
   name: 'sora-2-pro',
   pricing: {
@@ -340,7 +348,7 @@ const SORA2_PRO = {
   },
 } as const satisfies ModelMeta<
   OpenAIBaseOptions & OpenAIStreamingOptions & OpenAIMetadataOptions
-> */
+>
 
 const GPT_IMAGE_1 = {
   name: 'gpt-image-1',
@@ -1691,9 +1699,30 @@ export const OPENAI_EMBEDDING_MODELS = [
   GPT_4O_MINI_TRANSCRIBE.name,
 ] as const
 
-// Video generation models (based on endpoints: "video")
-const OPENAI_VIDEO_MODELS = [SORA2.name, SORA2_PRO.name] as const
+/**
+ * Video generation models (based on endpoints: "video")
+ * @experimental Video generation is an experimental feature and may change.
  */
+export const OPENAI_VIDEO_MODELS = [SORA2.name, SORA2_PRO.name] as const
+
+/**
+ * Text-to-speech models (based on endpoints: "speech_generation")
+ */
+export const OPENAI_TTS_MODELS = [
+  'tts-1',
+  'tts-1-hd',
+  'gpt-4o-audio-preview',
+] as const
+
+/**
+ * Transcription models (based on endpoints: "transcription")
+ */
+export const OPENAI_TRANSCRIPTION_MODELS = [
+  'whisper-1',
+  'gpt-4o-transcribe',
+  'gpt-4o-mini-transcribe',
+  'gpt-4o-transcribe-diarize',
+] as const
 //  const OPENAI_MODERATION_MODELS = [OMNI_MODERATION.name] as const
 
 // export type OpenAIChatModel = (typeof OPENAI_CHAT_MODELS)[number]

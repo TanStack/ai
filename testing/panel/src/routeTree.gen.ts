@@ -9,18 +9,41 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
+import { Route as VideoRouteImport } from './routes/video'
+import { Route as TtsRouteImport } from './routes/tts'
+import { Route as TranscriptionRouteImport } from './routes/transcription'
 import { Route as SummarizeRouteImport } from './routes/summarize'
 import { Route as StructuredRouteImport } from './routes/structured'
 import { Route as StreamDebuggerRouteImport } from './routes/stream-debugger'
 import { Route as ImageRouteImport } from './routes/image'
+import { Route as AddonManagerRouteImport } from './routes/addon-manager'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as ApiVideoRouteImport } from './routes/api.video'
+import { Route as ApiTtsRouteImport } from './routes/api.tts'
+import { Route as ApiTranscriptionRouteImport } from './routes/api.transcription'
 import { Route as ApiSummarizeRouteImport } from './routes/api.summarize'
 import { Route as ApiStructuredRouteImport } from './routes/api.structured'
 import { Route as ApiLoadTraceRouteImport } from './routes/api.load-trace'
 import { Route as ApiListTracesRouteImport } from './routes/api.list-traces'
 import { Route as ApiImageRouteImport } from './routes/api.image'
 import { Route as ApiChatRouteImport } from './routes/api.chat'
+import { Route as ApiAddonChatRouteImport } from './routes/api.addon-chat'
 
+const VideoRoute = VideoRouteImport.update({
+  id: '/video',
+  path: '/video',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const TtsRoute = TtsRouteImport.update({
+  id: '/tts',
+  path: '/tts',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const TranscriptionRoute = TranscriptionRouteImport.update({
+  id: '/transcription',
+  path: '/transcription',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const SummarizeRoute = SummarizeRouteImport.update({
   id: '/summarize',
   path: '/summarize',
@@ -41,9 +64,29 @@ const ImageRoute = ImageRouteImport.update({
   path: '/image',
   getParentRoute: () => rootRouteImport,
 } as any)
+const AddonManagerRoute = AddonManagerRouteImport.update({
+  id: '/addon-manager',
+  path: '/addon-manager',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiVideoRoute = ApiVideoRouteImport.update({
+  id: '/api/video',
+  path: '/api/video',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiTtsRoute = ApiTtsRouteImport.update({
+  id: '/api/tts',
+  path: '/api/tts',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiTranscriptionRoute = ApiTranscriptionRouteImport.update({
+  id: '/api/transcription',
+  path: '/api/transcription',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiSummarizeRoute = ApiSummarizeRouteImport.update({
@@ -76,105 +119,187 @@ const ApiChatRoute = ApiChatRouteImport.update({
   path: '/api/chat',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiAddonChatRoute = ApiAddonChatRouteImport.update({
+  id: '/api/addon-chat',
+  path: '/api/addon-chat',
+  getParentRoute: () => rootRouteImport,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/addon-manager': typeof AddonManagerRoute
   '/image': typeof ImageRoute
   '/stream-debugger': typeof StreamDebuggerRoute
   '/structured': typeof StructuredRoute
   '/summarize': typeof SummarizeRoute
+  '/transcription': typeof TranscriptionRoute
+  '/tts': typeof TtsRoute
+  '/video': typeof VideoRoute
+  '/api/addon-chat': typeof ApiAddonChatRoute
   '/api/chat': typeof ApiChatRoute
   '/api/image': typeof ApiImageRoute
   '/api/list-traces': typeof ApiListTracesRoute
   '/api/load-trace': typeof ApiLoadTraceRoute
   '/api/structured': typeof ApiStructuredRoute
   '/api/summarize': typeof ApiSummarizeRoute
+  '/api/transcription': typeof ApiTranscriptionRoute
+  '/api/tts': typeof ApiTtsRoute
+  '/api/video': typeof ApiVideoRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/addon-manager': typeof AddonManagerRoute
   '/image': typeof ImageRoute
   '/stream-debugger': typeof StreamDebuggerRoute
   '/structured': typeof StructuredRoute
   '/summarize': typeof SummarizeRoute
+  '/transcription': typeof TranscriptionRoute
+  '/tts': typeof TtsRoute
+  '/video': typeof VideoRoute
+  '/api/addon-chat': typeof ApiAddonChatRoute
   '/api/chat': typeof ApiChatRoute
   '/api/image': typeof ApiImageRoute
   '/api/list-traces': typeof ApiListTracesRoute
   '/api/load-trace': typeof ApiLoadTraceRoute
   '/api/structured': typeof ApiStructuredRoute
   '/api/summarize': typeof ApiSummarizeRoute
+  '/api/transcription': typeof ApiTranscriptionRoute
+  '/api/tts': typeof ApiTtsRoute
+  '/api/video': typeof ApiVideoRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/addon-manager': typeof AddonManagerRoute
   '/image': typeof ImageRoute
   '/stream-debugger': typeof StreamDebuggerRoute
   '/structured': typeof StructuredRoute
   '/summarize': typeof SummarizeRoute
+  '/transcription': typeof TranscriptionRoute
+  '/tts': typeof TtsRoute
+  '/video': typeof VideoRoute
+  '/api/addon-chat': typeof ApiAddonChatRoute
   '/api/chat': typeof ApiChatRoute
   '/api/image': typeof ApiImageRoute
   '/api/list-traces': typeof ApiListTracesRoute
   '/api/load-trace': typeof ApiLoadTraceRoute
   '/api/structured': typeof ApiStructuredRoute
   '/api/summarize': typeof ApiSummarizeRoute
+  '/api/transcription': typeof ApiTranscriptionRoute
+  '/api/tts': typeof ApiTtsRoute
+  '/api/video': typeof ApiVideoRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
+    | '/addon-manager'
     | '/image'
     | '/stream-debugger'
     | '/structured'
     | '/summarize'
+    | '/transcription'
+    | '/tts'
+    | '/video'
+    | '/api/addon-chat'
     | '/api/chat'
     | '/api/image'
     | '/api/list-traces'
     | '/api/load-trace'
     | '/api/structured'
     | '/api/summarize'
+    | '/api/transcription'
+    | '/api/tts'
+    | '/api/video'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
+    | '/addon-manager'
     | '/image'
     | '/stream-debugger'
     | '/structured'
     | '/summarize'
+    | '/transcription'
+    | '/tts'
+    | '/video'
+    | '/api/addon-chat'
     | '/api/chat'
     | '/api/image'
     | '/api/list-traces'
     | '/api/load-trace'
     | '/api/structured'
     | '/api/summarize'
+    | '/api/transcription'
+    | '/api/tts'
+    | '/api/video'
   id:
     | '__root__'
     | '/'
+    | '/addon-manager'
     | '/image'
     | '/stream-debugger'
     | '/structured'
     | '/summarize'
+    | '/transcription'
+    | '/tts'
+    | '/video'
+    | '/api/addon-chat'
     | '/api/chat'
     | '/api/image'
     | '/api/list-traces'
     | '/api/load-trace'
     | '/api/structured'
     | '/api/summarize'
+    | '/api/transcription'
+    | '/api/tts'
+    | '/api/video'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  AddonManagerRoute: typeof AddonManagerRoute
   ImageRoute: typeof ImageRoute
   StreamDebuggerRoute: typeof StreamDebuggerRoute
   StructuredRoute: typeof StructuredRoute
   SummarizeRoute: typeof SummarizeRoute
+  TranscriptionRoute: typeof TranscriptionRoute
+  TtsRoute: typeof TtsRoute
+  VideoRoute: typeof VideoRoute
+  ApiAddonChatRoute: typeof ApiAddonChatRoute
   ApiChatRoute: typeof ApiChatRoute
   ApiImageRoute: typeof ApiImageRoute
   ApiListTracesRoute: typeof ApiListTracesRoute
   ApiLoadTraceRoute: typeof ApiLoadTraceRoute
   ApiStructuredRoute: typeof ApiStructuredRoute
   ApiSummarizeRoute: typeof ApiSummarizeRoute
+  ApiTranscriptionRoute: typeof ApiTranscriptionRoute
+  ApiTtsRoute: typeof ApiTtsRoute
+  ApiVideoRoute: typeof ApiVideoRoute
 }
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
+    '/video': {
+      id: '/video'
+      path: '/video'
+      fullPath: '/video'
+      preLoaderRoute: typeof VideoRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/tts': {
+      id: '/tts'
+      path: '/tts'
+      fullPath: '/tts'
+      preLoaderRoute: typeof TtsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/transcription': {
+      id: '/transcription'
+      path: '/transcription'
+      fullPath: '/transcription'
+      preLoaderRoute: typeof TranscriptionRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/summarize': {
       id: '/summarize'
       path: '/summarize'
@@ -203,11 +328,39 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ImageRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/addon-manager': {
+      id: '/addon-manager'
+      path: '/addon-manager'
+      fullPath: '/addon-manager'
+      preLoaderRoute: typeof AddonManagerRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/': {
       id: '/'
       path: '/'
       fullPath: '/'
       preLoaderRoute: typeof IndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/video': {
+      id: '/api/video'
+      path: '/api/video'
+      fullPath: '/api/video'
+      preLoaderRoute: typeof ApiVideoRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/tts': {
+      id: '/api/tts'
+      path: '/api/tts'
+      fullPath: '/api/tts'
+      preLoaderRoute: typeof ApiTtsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/transcription': {
+      id: '/api/transcription'
+      path: '/api/transcription'
+      fullPath: '/api/transcription'
+      preLoaderRoute: typeof ApiTranscriptionRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/summarize': {
@@ -252,21 +405,36 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiChatRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/addon-chat': {
+      id: '/api/addon-chat'
+      path: '/api/addon-chat'
+      fullPath: '/api/addon-chat'
+      preLoaderRoute: typeof ApiAddonChatRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  AddonManagerRoute: AddonManagerRoute,
   ImageRoute: ImageRoute,
   StreamDebuggerRoute: StreamDebuggerRoute,
   StructuredRoute: StructuredRoute,
   SummarizeRoute: SummarizeRoute,
+  TranscriptionRoute: TranscriptionRoute,
+  TtsRoute: TtsRoute,
+  VideoRoute: VideoRoute,
+  ApiAddonChatRoute: ApiAddonChatRoute,
   ApiChatRoute: ApiChatRoute,
   ApiImageRoute: ApiImageRoute,
   ApiListTracesRoute: ApiListTracesRoute,
   ApiLoadTraceRoute: ApiLoadTraceRoute,
   ApiStructuredRoute: ApiStructuredRoute,
   ApiSummarizeRoute: ApiSummarizeRoute,
+  ApiTranscriptionRoute: ApiTranscriptionRoute,
+  ApiTtsRoute: ApiTtsRoute,
+  ApiVideoRoute: ApiVideoRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
