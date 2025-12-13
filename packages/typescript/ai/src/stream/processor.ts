@@ -357,10 +357,11 @@ export class StreamProcessor {
 
     // Check for server tool completions via tool-result parts
     const toolResultParts = lastAssistant.parts.filter(
-      (p) => p.type === 'tool-result',
+      (p): p is Extract<typeof p, { type: 'tool-result' }> =>
+        p.type === 'tool-result',
     )
     const completedToolCallIds = new Set(
-      toolResultParts.map((p) => (p as { toolCallId: string }).toolCallId),
+      toolResultParts.map((p) => p.toolCallId),
     )
 
     // All tool calls must be in a terminal state
