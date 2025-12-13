@@ -355,11 +355,20 @@ export class StreamProcessor {
 
     if (toolParts.length === 0) return true
 
+    // Check for server tool completions via tool-result parts
+    const toolResultParts = lastAssistant.parts.filter(
+      (p) => p.type === 'tool-result',
+    )
+    const completedToolCallIds = new Set(
+      toolResultParts.map((p) => (p as { toolCallId: string }).toolCallId),
+    )
+
     // All tool calls must be in a terminal state
     return toolParts.every(
       (part) =>
         part.state === 'approval-responded' ||
-        (part.output !== undefined && !part.approval),
+        (part.output !== undefined && !part.approval) ||
+        completedToolCallIds.has(part.id),
     )
   }
 

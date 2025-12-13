@@ -27,6 +27,7 @@ export class ChatClient {
   private currentStreamId: string | null = null
   private currentMessageId: string | null = null
 
+
   private callbacksRef: {
     current: {
       onResponse: (response?: Response) => void | Promise<void>
@@ -323,6 +324,15 @@ export class ChatClient {
     } finally {
       this.abortController = null
       this.setIsLoading(false)
+
+      // Continue conversation if the stream ended with a tool result
+      const messages = this.processor.getMessages()
+      const lastMessage = messages[messages.length - 1]
+      const lastPart = lastMessage?.parts[lastMessage.parts.length - 1]
+
+      if (lastPart?.type === 'tool-result' && this.shouldAutoSend()) {
+        await this.continueFlow()
+      }
     }
   }
 
