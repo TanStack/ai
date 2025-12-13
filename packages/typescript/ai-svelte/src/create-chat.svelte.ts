@@ -68,6 +68,14 @@ export function createChat<TTools extends ReadonlyArray<AnyClientTool> = any>(
     },
   })
 
+  // Cleanup on component destroy: stop any in-flight requests
+  // Note: client.stop() is safe to call even if nothing is in progress
+  $effect(() => {
+    return () => {
+      client.stop()
+    }
+  })
+
   // Define methods
   const sendMessage = async (content: string) => {
     await client.sendMessage(content)

@@ -26,7 +26,7 @@ export class ChatClient {
   private clientToolsRef: { current: Map<string, AnyClientTool> }
   private currentStreamId: string | null = null
   private currentMessageId: string | null = null
-  private pendingContinuation = false
+  private postStreamActions: Array<() => Promise<void>> = []
 
   private callbacksRef: {
     current: {
@@ -325,12 +325,8 @@ export class ChatClient {
       this.abortController = null
       this.setIsLoading(false)
 
-      // Check if a continuation was requested while the stream was in progress
-      if (this.pendingContinuation) {
-        this.pendingContinuation = false
-        // Use setTimeout to avoid stack overflow and allow state to settle
-        setTimeout(() => this.continueFlow(), 0)
-      }
+      // Drain any actions that were queued while the stream was in progress
+      await this.drainPostStreamActions()
     }
   }
 
@@ -402,12 +398,13 @@ export class ChatClient {
       result.errorText,
     )
 
-    // Check if we should auto-send
-    const shouldSend = this.shouldAutoSend()
-
-    if (shouldSend) {
-      await this.continueFlow()
+    // If stream is in progress, queue continuation check for after it ends
+    if (this.isLoading) {
+      this.queuePostStreamAction(() => this.checkForContinuation())
+      return
     }
+
+    await this.checkForContinuation()
   }
 
   /**
@@ -443,22 +440,39 @@ export class ChatClient {
     // Add response via processor
     this.processor.addToolApprovalResponse(response.id, response.approved)
 
-    // Check if we should auto-send
-    if (this.shouldAutoSend()) {
-      await this.continueFlow()
+    // If stream is in progress, queue continuation check for after it ends
+    if (this.isLoading) {
+      this.queuePostStreamAction(() => this.checkForContinuation())
+      return
+    }
+
+    await this.checkForContinuation()
+  }
+
+  /**
+   * Queue an action to be executed after the current stream ends
+   */
+  private queuePostStreamAction(action: () => Promise<void>): void {
+    this.postStreamActions.push(action)
+  }
+
+  /**
+   * Drain and execute all queued post-stream actions
+   */
+  private async drainPostStreamActions(): Promise<void> {
+    while (this.postStreamActions.length > 0) {
+      const action = this.postStreamActions.shift()!
+      await action()
     }
   }
 
   /**
-   * Continue the agent flow with current messages
+   * Check if we should continue the flow and do so if needed
    */
-  private async continueFlow(): Promise<void> {
-    if (this.isLoading) {
-      // Stream is still in progress - mark that we need to continue after it ends
-      this.pendingContinuation = true
-      return
+  private async checkForContinuation(): Promise<void> {
+    if (this.shouldAutoSend()) {
+      await this.streamResponse()
     }
-    await this.streamResponse()
   }
 
   /**
