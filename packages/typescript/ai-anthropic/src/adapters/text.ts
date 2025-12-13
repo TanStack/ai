@@ -3,7 +3,6 @@ import { ANTHROPIC_MODELS } from '../model-meta'
 import { convertToolsToProviderFormat } from '../tools/tool-converter'
 import { validateTextProviderOptions } from '../text/text-provider-options'
 import {
-  convertZodToAnthropicSchema,
   createAnthropicClient,
   generateId,
   getAnthropicApiKeyFromEnv,
@@ -126,29 +125,26 @@ export class AnthropicTextAdapter extends BaseTextAdapter<
    * Generate structured output using Anthropic's tool-based approach.
    * Anthropic doesn't have native structured output, so we use a tool with the schema
    * and force the model to call it.
+   * The outputSchema is already JSON Schema (converted in the ai layer).
    */
   async structuredOutput(
     options: StructuredOutputOptions<AnthropicTextProviderOptions>,
   ): Promise<StructuredOutputResult<unknown>> {
     const { chatOptions, outputSchema } = options
 
-    // Convert Zod schema to Anthropic-compatible JSON Schema
-    const jsonSchema = convertZodToAnthropicSchema(outputSchema)
-
     const requestParams = this.mapCommonOptionsToAnthropic(chatOptions)
 
     // Create a tool that will capture the structured output
-    // Ensure the schema has type: 'object' as required by Anthropic's SDK
-    const inputSchema = {
-      type: 'object' as const,
-      ...jsonSchema,
-    }
-
+    // Anthropic's SDK requires input_schema with type: 'object' literal
     const structuredOutputTool = {
       name: 'structured_output',
       description:
         'Use this tool to provide your response in the required structured format.',
-      input_schema: inputSchema,
+      input_schema: {
+        type: 'object' as const,
+        properties: outputSchema.properties ?? {},
+        required: outputSchema.required ?? [],
+      },
     }
 
     try {

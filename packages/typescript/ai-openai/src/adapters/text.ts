@@ -3,10 +3,10 @@ import { OPENAI_CHAT_MODELS } from '../model-meta'
 import { validateTextProviderOptions } from '../text/text-provider-options'
 import { convertToolsToProviderFormat } from '../tools'
 import {
-  convertZodToOpenAISchema,
   createOpenAIClient,
   generateId,
   getOpenAIApiKeyFromEnv,
+  makeOpenAIStructuredOutputCompatible,
   transformNullsToUndefined,
 } from '../utils'
 import type {
@@ -122,7 +122,8 @@ export class OpenAITextAdapter extends BaseTextAdapter<
    * - Optional fields should have null added to their type union
    * - additionalProperties must be false for all objects
    *
-   * The schema conversion is handled by convertZodToOpenAISchema.
+   * The outputSchema is already JSON Schema (converted in the ai layer).
+   * We apply OpenAI-specific transformations for structured output compatibility.
    */
   async structuredOutput(
     options: StructuredOutputOptions<OpenAITextProviderOptions>,
@@ -130,8 +131,11 @@ export class OpenAITextAdapter extends BaseTextAdapter<
     const { chatOptions, outputSchema } = options
     const requestArguments = this.mapTextOptionsToOpenAI(chatOptions)
 
-    // Convert Zod schema to OpenAI-compatible JSON Schema
-    const jsonSchema = convertZodToOpenAISchema(outputSchema)
+    // Apply OpenAI-specific transformations for structured output compatibility
+    const jsonSchema = makeOpenAIStructuredOutputCompatible(
+      outputSchema,
+      outputSchema.required || [],
+    )
 
     try {
       const response = await this.client.responses.create(

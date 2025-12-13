@@ -1,6 +1,5 @@
 import { Ollama as OllamaSDK } from 'ollama'
 import { BaseAdapter } from '@tanstack/ai'
-import { convertZodToOllamaSchema } from './utils/schema-converter'
 import type {
   AbortableAsyncIterator,
   ChatRequest,
@@ -369,14 +368,17 @@ export class Ollama extends BaseAdapter<
       return undefined
     }
 
+    // Tool schemas are already converted to JSON Schema in the ai layer
     return tools.map((tool) => ({
       type: 'function',
       function: {
         name: tool.name,
         description: tool.description,
-        parameters: tool.inputSchema
-          ? convertZodToOllamaSchema(tool.inputSchema)
-          : { type: 'object', properties: {}, required: [] },
+        parameters: tool.inputSchema ?? {
+          type: 'object',
+          properties: {},
+          required: [],
+        },
       },
     }))
   }
