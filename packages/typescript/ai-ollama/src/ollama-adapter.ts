@@ -1,5 +1,9 @@
 import { Ollama as OllamaSDK } from 'ollama'
 import { BaseAdapter, convertZodToJsonSchema } from '@tanstack/ai'
+
+import { OLLAMA_MODELS } from './model-meta'
+
+import type { OllamaModelInputModalitiesByName } from './model-meta'
 import type {
   AbortableAsyncIterator,
   ChatRequest,
@@ -23,59 +27,7 @@ export interface OllamaConfig {
   host?: string
 }
 
-const OLLAMA_MODELS = [
-  'llama2',
-  'llama3',
-  'codellama',
-  'mistral',
-  'mixtral',
-  'phi',
-  'neural-chat',
-  'starling-lm',
-  'orca-mini',
-  'vicuna',
-  'nous-hermes',
-  'nomic-embed-text',
-  'gpt-oss:20b',
-] as const
-
 const OLLAMA_EMBEDDING_MODELS = [] as const
-
-/**
- * Type-only map from Ollama model name to its supported input modalities.
- * Ollama models have varying multimodal capabilities:
- * - Vision models (llava, bakllava, etc.) support text + image
- * - Most text models support text only
- *
- * Note: This is a placeholder - Ollama models are dynamically loaded,
- * so we provide a base type that can be extended.
- *
- * @see https://github.com/ollama/ollama/blob/main/docs/api.md
- */
-export type OllamaModelInputModalitiesByName = {
-  // Vision-capable models (text + image)
-  llava: readonly ['text', 'image']
-  bakllava: readonly ['text', 'image']
-  'llava-llama3': readonly ['text', 'image']
-  'llava-phi3': readonly ['text', 'image']
-  moondream: readonly ['text', 'image']
-  minicpm: readonly ['text', 'image']
-
-  // Text-only models
-  llama2: readonly ['text']
-  llama3: readonly ['text']
-  codellama: readonly ['text']
-  mistral: readonly ['text']
-  mixtral: readonly ['text']
-  phi: readonly ['text']
-  'neural-chat': readonly ['text']
-  'starling-lm': readonly ['text']
-  'orca-mini': readonly ['text']
-  vicuna: readonly ['text']
-  'nous-hermes': readonly ['text']
-  'nomic-embed-text': readonly ['text']
-  'gpt-oss:20b': readonly ['text']
-}
 
 /**
  * Type-only map from Ollama model name to its provider-specific options.
