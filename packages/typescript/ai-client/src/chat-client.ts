@@ -331,7 +331,11 @@ export class ChatClient {
       const lastPart = lastMessage?.parts[lastMessage.parts.length - 1]
 
       if (lastPart?.type === 'tool-result' && this.shouldAutoSend()) {
-        await this.continueFlow()
+        try {
+          await this.continueFlow()
+        } catch (error) {
+          console.error('Failed to continue flow after tool result:', error)
+        }
       }
     }
   }
