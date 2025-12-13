@@ -55,13 +55,13 @@ export class ChatClient {
 
     this.callbacksRef = {
       current: {
-        onResponse: options.onResponse || (() => {}),
-        onChunk: options.onChunk || (() => {}),
-        onFinish: options.onFinish || (() => {}),
-        onError: options.onError || (() => {}),
-        onMessagesChange: options.onMessagesChange || (() => {}),
-        onLoadingChange: options.onLoadingChange || (() => {}),
-        onErrorChange: options.onErrorChange || (() => {}),
+        onResponse: options.onResponse || (() => { }),
+        onChunk: options.onChunk || (() => { }),
+        onFinish: options.onFinish || (() => { }),
+        onError: options.onError || (() => { }),
+        onMessagesChange: options.onMessagesChange || (() => { }),
+        onLoadingChange: options.onLoadingChange || (() => { }),
+        onErrorChange: options.onErrorChange || (() => { }),
       },
     }
 
@@ -329,8 +329,7 @@ export class ChatClient {
       // Continue conversation if the stream ended with a tool result
       if (streamCompletedSuccessfully) {
         const messages = this.processor.getMessages()
-        const lastMessage = messages[messages.length - 1]
-        const lastPart = lastMessage?.parts[lastMessage.parts.length - 1]
+        const lastPart = messages.at(-1)?.parts?.at(-1)
 
         if (lastPart?.type === 'tool-result' && this.shouldAutoSend()) {
           try {
