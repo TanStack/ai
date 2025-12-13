@@ -1,4 +1,5 @@
 export { ChatClient } from './chat-client'
+export { ChatStore, type ChatState } from './chat-store'
 export type {
   // Core message types (re-exported from @tanstack/ai via types.ts)
   UIMessage,

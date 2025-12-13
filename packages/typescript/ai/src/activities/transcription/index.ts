@@ -109,13 +109,17 @@ export type TranscriptionActivityResult = Promise<TranscriptionResult>
 export async function transcriptionActivity<
   TAdapter extends TranscriptionAdapter<ReadonlyArray<string>, object>,
   TModel extends TranscriptionModels<TAdapter>,
->(options: TranscriptionActivityOptions<TAdapter, TModel>): TranscriptionActivityResult {
+>(
+  options: TranscriptionActivityOptions<TAdapter, TModel>,
+): TranscriptionActivityResult {
   const { adapter, ...rest } = options
 
   return adapter.transcribe(rest)
 }
 
 // Re-export adapter types
-export type { TranscriptionAdapter, TranscriptionAdapterConfig } from './adapter'
+export type {
+  TranscriptionAdapter,
+  TranscriptionAdapterConfig,
+} from './adapter'
 export { BaseTranscriptionAdapter } from './adapter'
-

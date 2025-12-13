@@ -41,6 +41,7 @@
   "dependencies": {
     "@tanstack/ai": "workspace:*",
     "@tanstack/ai-client": "workspace:*",
+    "@tanstack/solid-store": "^0.8.0",
     "zod": "^4.1.13"
   },
   "devDependencies": {

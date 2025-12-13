@@ -4,6 +4,7 @@ import {
   normalizeToUIMessage,
 } from '@tanstack/ai'
 import { DefaultChatClientEventEmitter } from './events'
+import { ChatStore } from './chat-store'
 import type {
   ChatClientOptions,
   MessagePart,
@@ -14,13 +15,18 @@ import type { AnyClientTool, ModelMessage, StreamChunk } from '@tanstack/ai'
 import type { ConnectionAdapter } from './connection-adapters'
 import type { ChatClientEventEmitter } from './events'
 
-export class ChatClient {
+export class ChatClient<TTools extends ReadonlyArray<AnyClientTool> = any> {
+  /**
+   * Public store for framework adapters to subscribe to.
+   * Framework adapters (React, Solid, Vue) should use this store
+   * with their respective useStore hooks for optimal reactivity.
+   */
+  public readonly store: ChatStore<TTools>
+
   private processor: StreamProcessor
   private connection: ConnectionAdapter
   private uniqueId: string
   private body: Record<string, any> = {}
-  private isLoading = false
-  private error: Error | undefined = undefined
   private abortController: AbortController | null = null
   private events: ChatClientEventEmitter
   private clientToolsRef: { current: Map<string, AnyClientTool> }
@@ -32,19 +38,22 @@ export class ChatClient {
     current: {
       onResponse: (response?: Response) => void | Promise<void>
       onChunk: (chunk: StreamChunk) => void
-      onFinish: (message: UIMessage) => void
+      onFinish: (message: UIMessage<TTools>) => void
       onError: (error: Error) => void
-      onMessagesChange: (messages: Array<UIMessage>) => void
+      onMessagesChange: (messages: Array<UIMessage<TTools>>) => void
       onLoadingChange: (isLoading: boolean) => void
       onErrorChange: (error: Error | undefined) => void
     }
   }
 
-  constructor(options: ChatClientOptions) {
+  constructor(options: ChatClientOptions<TTools>) {
     this.uniqueId = options.id || this.generateUniqueId('chat')
     this.body = options.body || {}
     this.connection = options.connection
     this.events = new DefaultChatClientEventEmitter(this.uniqueId)
+
+    // Initialize the store with initial messages
+    this.store = new ChatStore<TTools>(options.initialMessages || [])
 
     // Build client tools map
     this.clientToolsRef = { current: new Map() }
@@ -71,13 +80,16 @@ export class ChatClient {
       chunkStrategy: options.streamProcessor?.chunkStrategy,
       initialMessages: options.initialMessages,
       events: {
-        onMessagesChange: (messages: Array<UIMessage>) => {
+        onMessagesChange: (messages: Array<UIMessage<TTools>>) => {
+          // Update store (primary)
+          this.store.setMessages(messages)
+          // Also call callback for backward compatibility
           this.callbacksRef.current.onMessagesChange(messages)
         },
         onStreamStart: () => {
           // Stream started
         },
-        onStreamEnd: (message: UIMessage) => {
+        onStreamEnd: (message: UIMessage<TTools>) => {
           this.callbacksRef.current.onFinish(message)
         },
         onError: (error: Error) => {
@@ -179,13 +191,17 @@ export class ChatClient {
   }
 
   private setIsLoading(isLoading: boolean): void {
-    this.isLoading = isLoading
+    // Update store (primary)
+    this.store.setLoading(isLoading)
+    // Also call callback for backward compatibility
     this.callbacksRef.current.onLoadingChange(isLoading)
     this.events.loadingChanged(isLoading)
   }
 
   private setError(error: Error | undefined): void {
-    this.error = error
+    // Update store (primary)
+    this.store.setError(error)
+    // Also call callback for backward compatibility
     this.callbacksRef.current.onErrorChange(error)
     this.events.errorChanged(error?.message || null)
   }
@@ -248,7 +264,7 @@ export class ChatClient {
    * Send a message and stream the response
    */
   async sendMessage(content: string): Promise<void> {
-    if (!content.trim() || this.isLoading) {
+    if (!content.trim() || this.store.state.isLoading) {
       return
     }
 
@@ -471,22 +487,22 @@ export class ChatClient {
   /**
    * Get current messages
    */
-  getMessages(): Array<UIMessage> {
-    return this.processor.getMessages()
+  getMessages(): Array<UIMessage<TTools>> {
+    return this.store.state.messages
   }
 
   /**
    * Get loading state
    */
   getIsLoading(): boolean {
-    return this.isLoading
+    return this.store.state.isLoading
   }
 
   /**
    * Get current error
    */
   getError(): Error | undefined {
-    return this.error
+    return this.store.state.error
   }
 
   /**

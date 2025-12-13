@@ -83,4 +83,3 @@ export function useAudioRecorder() {
 
   return { isRecording, isTranscribing, startRecording, stopRecording }
 }
-

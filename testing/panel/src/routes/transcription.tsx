@@ -2,7 +2,11 @@ import { useRef, useState } from 'react'
 import { createFileRoute } from '@tanstack/react-router'
 import { Loader2, Mic, Upload } from 'lucide-react'
 
-type Model = 'whisper-1' | 'gpt-4o-transcribe' | 'gpt-4o-mini-transcribe' | 'gpt-4o-transcribe-diarize'
+type Model =
+  | 'whisper-1'
+  | 'gpt-4o-transcribe'
+  | 'gpt-4o-mini-transcribe'
+  | 'gpt-4o-transcribe-diarize'
 type ResponseFormat = 'json' | 'text' | 'srt' | 'verbose_json' | 'vtt'
 
 interface TranscriptionSegment {
@@ -57,7 +61,8 @@ function TranscriptionPage() {
   const [file, setFile] = useState<File | null>(null)
   const [model, setModel] = useState<Model>('whisper-1')
   const [language, setLanguage] = useState('')
-  const [responseFormat, setResponseFormat] = useState<ResponseFormat>('verbose_json')
+  const [responseFormat, setResponseFormat] =
+    useState<ResponseFormat>('verbose_json')
   const [result, setResult] = useState<TranscriptionResult | null>(null)
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -171,7 +176,9 @@ function TranscriptionPage() {
                 </div>
               ) : (
                 <div>
-                  <p className="text-gray-300">Drop an audio file here or click to browse</p>
+                  <p className="text-gray-300">
+                    Drop an audio file here or click to browse
+                  </p>
                   <p className="text-sm text-gray-500 mt-1">
                     Supports MP3, WAV, M4A, FLAC, OGG, WebM
                   </p>
@@ -222,7 +229,9 @@ function TranscriptionPage() {
               </label>
               <select
                 value={responseFormat}
-                onChange={(e) => setResponseFormat(e.target.value as ResponseFormat)}
+                onChange={(e) =>
+                  setResponseFormat(e.target.value as ResponseFormat)
+                }
                 disabled={isLoading}
                 className="w-full rounded-lg border border-amber-500/20 bg-gray-800 px-3 py-2 text-sm text-white focus:outline-none focus:ring-2 focus:ring-amber-500/50"
               >
@@ -271,16 +280,23 @@ function TranscriptionPage() {
                 <div className="p-4 bg-gray-900/50 rounded-lg border border-gray-700">
                   <div className="grid grid-cols-2 gap-2 text-sm">
                     <p className="text-gray-400">
-                      Model: <span className="text-amber-400">{result.model}</span>
+                      Model:{' '}
+                      <span className="text-amber-400">{result.model}</span>
                     </p>
                     {result.language && (
                       <p className="text-gray-400">
-                        Language: <span className="text-amber-400">{result.language}</span>
+                        Language:{' '}
+                        <span className="text-amber-400">
+                          {result.language}
+                        </span>
                       </p>
                     )}
                     {result.duration && (
                       <p className="text-gray-400">
-                        Duration: <span className="text-amber-400">{result.duration.toFixed(1)}s</span>
+                        Duration:{' '}
+                        <span className="text-amber-400">
+                          {result.duration.toFixed(1)}s
+                        </span>
                       </p>
                     )}
                   </div>
@@ -288,9 +304,13 @@ function TranscriptionPage() {
 
                 {/* Full Text */}
                 <div>
-                  <h3 className="text-sm font-medium text-gray-300 mb-2">Full Text</h3>
+                  <h3 className="text-sm font-medium text-gray-300 mb-2">
+                    Full Text
+                  </h3>
                   <div className="p-4 bg-gray-900/50 rounded-lg border border-gray-700 max-h-48 overflow-y-auto">
-                    <p className="text-gray-100 whitespace-pre-wrap">{result.text}</p>
+                    <p className="text-gray-100 whitespace-pre-wrap">
+                      {result.text}
+                    </p>
                   </div>
                 </div>
 
@@ -308,7 +328,8 @@ function TranscriptionPage() {
                         >
                           <div className="flex items-center gap-2 text-xs text-gray-500 mb-1">
                             <span className="font-mono">
-                              {formatTime(segment.start)} - {formatTime(segment.end)}
+                              {formatTime(segment.start)} -{' '}
+                              {formatTime(segment.end)}
                             </span>
                             {segment.speaker && (
                               <span className="px-1.5 py-0.5 bg-amber-500/20 text-amber-400 rounded">
@@ -321,7 +342,9 @@ function TranscriptionPage() {
                               </span>
                             )}
                           </div>
-                          <p className="text-gray-200 text-sm">{segment.text}</p>
+                          <p className="text-gray-200 text-sm">
+                            {segment.text}
+                          </p>
                         </div>
                       ))}
                     </div>
@@ -344,4 +367,3 @@ function TranscriptionPage() {
 export const Route = createFileRoute('/transcription')({
   component: TranscriptionPage,
 })
-

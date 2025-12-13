@@ -42,7 +42,8 @@
   ],
   "dependencies": {
     "@tanstack/ai": "workspace:*",
-    "@tanstack/ai-client": "workspace:*"
+    "@tanstack/ai-client": "workspace:*",
+    "@tanstack/react-store": "^0.8.0"
   },
   "devDependencies": {
     "@testing-library/react": "^16.3.0",

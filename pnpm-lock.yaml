@@ -634,6 +634,9 @@ importers:
       '@tanstack/ai':
         specifier: workspace:*
         version: link:../ai
+      '@tanstack/store':
+        specifier: ^0.8.0
+        version: 0.8.0
     devDependencies:
       '@vitest/coverage-v8':
         specifier: 4.0.14
@@ -741,6 +744,9 @@ importers:
       '@tanstack/ai-client':
         specifier: workspace:*
         version: link:../ai-client
+      '@tanstack/react-store':
+        specifier: ^0.8.0
+        version: 0.8.0(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
       react:
         specifier: '>=18.0.0'
         version: 19.2.3
@@ -812,6 +818,9 @@ importers:
       '@tanstack/ai-client':
         specifier: workspace:*
         version: link:../ai-client
+      '@tanstack/solid-store':
+        specifier: ^0.8.0
+        version: 0.8.0(solid-js@1.9.10)
       zod:
         specifier: ^4.1.13
         version: 4.1.13
@@ -923,6 +932,9 @@ importers:
       '@tanstack/ai-client':
         specifier: workspace:*
         version: link:../ai-client
+      '@tanstack/vue-store':
+        specifier: ^0.8.0
+        version: 0.8.0(vue@3.5.25(typescript@5.9.3))
       zod:
         specifier: ^4.1.13
         version: 4.1.13
@@ -3439,6 +3451,15 @@ packages:
   '@tanstack/vite-config@0.4.1':
     resolution: {integrity: sha512-FOl8EF6SAcljanKSm5aBeJaflFcxQAytTbxtNW8HC6D4x+UBW68IC4tBcrlrsI0wXHBmC/Gz4Ovvv8qCtiXSgQ==}
     engines: {node: '>=18'}
+
+  '@tanstack/vue-store@0.8.0':
+    resolution: {integrity: sha512-YLsinYboBLIjNkxDpAn1ydaMS35dKq3M3a788JRCJi4/stWcN7Swp0pxxJ+p0IwKSY4tBXx7vMz22OYWQ1QsUQ==}
+    peerDependencies:
+      '@vue/composition-api': ^1.2.1
+      vue: ^2.5.0 || ^3.0.0
+    peerDependenciesMeta:
+      '@vue/composition-api':
+        optional: true
 
   '@testing-library/dom@10.4.1':
     resolution: {integrity: sha512-o4PXJQidqJl82ckFaXUeoAW+XysPLauYI43Abki5hABd853iMhitooc6znOnczgbTYmEP6U6/y1ZyKAIsvMKGg==}
@@ -7606,6 +7627,17 @@ packages:
   vue-component-type-helpers@2.2.12:
     resolution: {integrity: sha512-YbGqHZ5/eW4SnkPNR44mKVc6ZKQoRs/Rux1sxC6rdwXb4qpbOSYfDr9DsTHolOTGmIKgM9j141mZbBeg05R1pw==}
 
+  vue-demi@0.14.10:
+    resolution: {integrity: sha512-nMZBOwuzabUO0nLgIcc6rycZEebF6eeUfaiQx9+WSk8e29IbLvPU9feI6tqW4kTo3hvoYAJkMh8n8D0fuISphg==}
+    engines: {node: '>=12'}
+    hasBin: true
+    peerDependencies:
+      '@vue/composition-api': ^1.0.0-rc.1
+      vue: ^3.0.0-0 || ^2.6.0
+    peerDependenciesMeta:
+      '@vue/composition-api':
+        optional: true
+
   vue-eslint-parser@10.2.0:
     resolution: {integrity: sha512-CydUvFOQKD928UzZhTp4pr2vWz1L+H99t7Pkln2QSPdvmURT0MoC4wUccfCnuEaihNsu9aYYyk+bep8rlfkUXw==}
     engines: {node: ^18.18.0 || ^20.9.0 || >=21.1.0}
@@ -10422,6 +10454,12 @@ snapshots:
       - supports-color
       - typescript
       - vite
+
+  '@tanstack/vue-store@0.8.0(vue@3.5.25(typescript@5.9.3))':
+    dependencies:
+      '@tanstack/store': 0.8.0
+      vue: 3.5.25(typescript@5.9.3)
+      vue-demi: 0.14.10(vue@3.5.25(typescript@5.9.3))
 
   '@testing-library/dom@10.4.1':
     dependencies:
@@ -15364,6 +15402,10 @@ snapshots:
   vscode-uri@3.1.0: {}
 
   vue-component-type-helpers@2.2.12: {}
+
+  vue-demi@0.14.10(vue@3.5.25(typescript@5.9.3)):
+    dependencies:
+      vue: 3.5.25(typescript@5.9.3)
 
   vue-eslint-parser@10.2.0(eslint@9.39.1(jiti@2.6.1)):
     dependencies:

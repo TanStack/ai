@@ -1,22 +1,22 @@
+import { computed, onBeforeUnmount } from 'vue'
+import { useStore } from '@tanstack/vue-store'
 import { ChatClient } from '@tanstack/ai-client'
-import { onScopeDispose, readonly, shallowRef, useId } from 'vue'
 import type { AnyClientTool, ModelMessage } from '@tanstack/ai'
 import type { UIMessage, UseChatOptions, UseChatReturn } from './types'
+
+let clientIdCounter = 0
+function generateClientId() {
+  return `vue-chat-${++clientIdCounter}`
+}
 
 export function useChat<TTools extends ReadonlyArray<AnyClientTool> = any>(
   options: UseChatOptions<TTools> = {} as UseChatOptions<TTools>,
 ): UseChatReturn<TTools> {
-  const hookId = useId() // Available in Vue 3.5+
-  const clientId = options.id || hookId
+  const clientId = options.id || generateClientId()
 
-  const messages = shallowRef<Array<UIMessage<TTools>>>(
-    options.initialMessages || [],
-  )
-  const isLoading = shallowRef(false)
-  const error = shallowRef<Error | undefined>(undefined)
-
-  // Create ChatClient instance with callbacks to sync state
-  const client = new ChatClient({
+  // Create ChatClient instance
+  // The client contains a TanStack Store that we subscribe to for reactivity
+  const client = new ChatClient<TTools>({
     connection: options.connection,
     id: clientId,
     initialMessages: options.initialMessages,
@@ -27,20 +27,16 @@ export function useChat<TTools extends ReadonlyArray<AnyClientTool> = any>(
     onError: options.onError,
     tools: options.tools,
     streamProcessor: options.streamProcessor,
-    onMessagesChange: (newMessages: Array<UIMessage<TTools>>) => {
-      messages.value = newMessages
-    },
-    onLoadingChange: (newIsLoading: boolean) => {
-      isLoading.value = newIsLoading
-    },
-    onErrorChange: (newError: Error | undefined) => {
-      error.value = newError
-    },
   })
 
-  // Cleanup on unmount: stop any in-flight requests
-  // Note: client.stop() is safe to call even if nothing is in progress
-  onScopeDispose(() => {
+  // Subscribe to store with selectors (returns readonly Refs for reactivity)
+  // Only re-render when the specific selected value changes
+  const messages = useStore(client.store, (state) => state.messages)
+  const isLoading = useStore(client.store, (state) => state.isLoading)
+  const error = useStore(client.store, (state) => state.error)
+
+  // Cleanup on unmount
+  onBeforeUnmount(() => {
     client.stop()
   })
 
@@ -48,58 +44,42 @@ export function useChat<TTools extends ReadonlyArray<AnyClientTool> = any>(
   // are captured at client creation time. Changes to these callbacks require
   // remounting the component or changing the connection to recreate the client.
 
-  const sendMessage = async (content: string) => {
-    await client.sendMessage(content)
-  }
-
-  const append = async (message: ModelMessage | UIMessage<TTools>) => {
-    await client.append(message)
-  }
-
-  const reload = async () => {
-    await client.reload()
-  }
-
-  const stop = () => {
-    client.stop()
-  }
-
-  const clear = () => {
-    client.clear()
-  }
-
-  const setMessagesManually = (newMessages: Array<UIMessage<TTools>>) => {
-    client.setMessagesManually(newMessages)
-  }
-
-  const addToolResult = async (result: {
-    toolCallId: string
-    tool: string
-    output: any
-    state?: 'output-available' | 'output-error'
-    errorText?: string
-  }) => {
-    await client.addToolResult(result)
-  }
-
-  const addToolApprovalResponse = async (response: {
-    id: string
-    approved: boolean
-  }) => {
-    await client.addToolApprovalResponse(response)
-  }
-
   return {
-    messages: readonly(messages),
-    sendMessage,
-    append,
-    reload,
-    stop,
-    isLoading: readonly(isLoading),
-    error: readonly(error),
-    setMessages: setMessagesManually,
-    clear,
-    addToolResult,
-    addToolApprovalResponse,
+    messages,
+    isLoading,
+    error,
+    sendMessage: async (content: string) => {
+      await client.sendMessage(content)
+    },
+    append: async (message: ModelMessage | UIMessage<TTools>) => {
+      await client.append(message)
+    },
+    reload: async () => {
+      await client.reload()
+    },
+    stop: () => {
+      client.stop()
+    },
+    clear: () => {
+      client.clear()
+    },
+    setMessages: (newMessages: Array<UIMessage<TTools>>) => {
+      client.setMessagesManually(newMessages)
+    },
+    addToolResult: async (result: {
+      toolCallId: string
+      tool: string
+      output: any
+      state?: 'output-available' | 'output-error'
+      errorText?: string
+    }) => {
+      await client.addToolResult(result)
+    },
+    addToolApprovalResponse: async (response: {
+      id: string
+      approved: boolean
+    }) => {
+      await client.addToolApprovalResponse(response)
+    },
   }
 }

@@ -44,7 +44,10 @@ export async function runTTS(
     })
 
     // Check that we got valid audio data
-    const hasAudio = result.audio && typeof result.audio === 'string' && result.audio.length > 0
+    const hasAudio =
+      result.audio &&
+      typeof result.audio === 'string' &&
+      result.audio.length > 0
     const hasFormat = result.format && typeof result.format === 'string'
     const hasId = result.id && typeof result.id === 'string'
 
@@ -89,4 +92,3 @@ export async function runTTS(
     return { passed: false, error: message }
   }
 }
-

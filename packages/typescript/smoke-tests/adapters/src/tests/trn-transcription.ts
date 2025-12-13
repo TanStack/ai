@@ -23,7 +23,9 @@ export async function runTRN(
 
   // Skip if no transcription adapter is available
   if (!adapterContext.transcriptionAdapter) {
-    console.log(`[${adapterName}] — ${testName}: Ignored (no transcription adapter)`)
+    console.log(
+      `[${adapterName}] — ${testName}: Ignored (no transcription adapter)`,
+    )
     return { passed: true, ignored: true }
   }
 
@@ -44,10 +46,15 @@ export async function runTRN(
     try {
       const audioBuffer = await readFile(testAudioPath)
       audioData = audioBuffer.toString('base64')
-      debugData.input = { audioFile: testAudioPath, audioSize: audioBuffer.length }
+      debugData.input = {
+        audioFile: testAudioPath,
+        audioSize: audioBuffer.length,
+      }
     } catch (fileError) {
       // No test audio file available - skip test
-      console.log(`[${adapterName}] — ${testName}: Ignored (no test audio file at fixtures/test-audio.mp3)`)
+      console.log(
+        `[${adapterName}] — ${testName}: Ignored (no test audio file at fixtures/test-audio.mp3)`,
+      )
       return { passed: true, ignored: true }
     }
 
@@ -59,7 +66,8 @@ export async function runTRN(
     })
 
     // Check that we got valid transcription data
-    const hasText = result.text && typeof result.text === 'string' && result.text.length > 0
+    const hasText =
+      result.text && typeof result.text === 'string' && result.text.length > 0
     const hasId = result.id && typeof result.id === 'string'
     const hasModel = result.model && typeof result.model === 'string'
 
@@ -105,4 +113,3 @@ export async function runTRN(
     return { passed: false, error: message }
   }
 }
-

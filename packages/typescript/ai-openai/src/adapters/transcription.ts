@@ -6,7 +6,11 @@ import {
   getOpenAIApiKeyFromEnv,
 } from '../utils'
 import type { OpenAITranscriptionProviderOptions } from '../audio/transcription-provider-options'
-import type { TranscriptionOptions, TranscriptionResult, TranscriptionSegment } from '@tanstack/ai'
+import type {
+  TranscriptionOptions,
+  TranscriptionResult,
+  TranscriptionSegment,
+} from '@tanstack/ai'
 import type OpenAI_SDK from 'openai'
 import type { OpenAIClientConfig } from '../utils'
 
@@ -45,7 +49,8 @@ export class OpenAITranscriptionAdapter extends BaseTranscriptionAdapter<
   async transcribe(
     options: TranscriptionOptions<OpenAITranscriptionProviderOptions>,
   ): Promise<TranscriptionResult> {
-    const { model, audio, language, prompt, responseFormat, providerOptions } = options
+    const { model, audio, language, prompt, responseFormat, providerOptions } =
+      options
 
     // Convert audio input to File object
     const file = this.prepareAudioFile(audio)
@@ -61,11 +66,15 @@ export class OpenAITranscriptionAdapter extends BaseTranscriptionAdapter<
     }
 
     // Call OpenAI API - use verbose_json to get timestamps when available
-    const useVerbose = responseFormat === 'verbose_json' || (!responseFormat && model !== 'whisper-1')
-    
+    const useVerbose =
+      responseFormat === 'verbose_json' ||
+      (!responseFormat && model !== 'whisper-1')
+
     if (useVerbose) {
       request.response_format = 'verbose_json'
-      const response = await this.client.audio.transcriptions.create(request) as OpenAI_SDK.Audio.Transcription & {
+      const response = (await this.client.audio.transcriptions.create(
+        request,
+      )) as OpenAI_SDK.Audio.Transcription & {
         segments?: Array<{
           id: number
           start: number
@@ -88,13 +97,15 @@ export class OpenAITranscriptionAdapter extends BaseTranscriptionAdapter<
         text: response.text,
         language: response.language,
         duration: response.duration,
-        segments: response.segments?.map((seg): TranscriptionSegment => ({
-          id: seg.id,
-          start: seg.start,
-          end: seg.end,
-          text: seg.text,
-          confidence: seg.avg_logprob ? Math.exp(seg.avg_logprob) : undefined,
-        })),
+        segments: response.segments?.map(
+          (seg): TranscriptionSegment => ({
+            id: seg.id,
+            start: seg.start,
+            end: seg.end,
+            text: seg.text,
+            confidence: seg.avg_logprob ? Math.exp(seg.avg_logprob) : undefined,
+          }),
+        ),
         words: response.words?.map((w) => ({
           word: w.word,
           start: w.start,
@@ -121,7 +132,9 @@ export class OpenAITranscriptionAdapter extends BaseTranscriptionAdapter<
 
     // If Blob, convert to File
     if (audio instanceof Blob) {
-      return new File([audio], 'audio.mp3', { type: audio.type || 'audio/mpeg' })
+      return new File([audio], 'audio.mp3', {
+        type: audio.type || 'audio/mpeg',
+      })
     }
 
     // If ArrayBuffer, convert to File
@@ -224,4 +237,3 @@ export function openaiTranscription(
   const apiKey = getOpenAIApiKeyFromEnv()
   return createOpenaiTranscription(apiKey, config)
 }
-

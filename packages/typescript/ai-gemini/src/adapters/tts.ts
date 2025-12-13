@@ -109,8 +109,8 @@ export class GeminiTTSAdapter extends BaseTTSAdapter<
     }
 
     // Look for inline data (audio)
-    const audioPart = parts.find(
-      (part: any) => part.inlineData?.mimeType?.startsWith('audio/'),
+    const audioPart = parts.find((part: any) =>
+      part.inlineData?.mimeType?.startsWith('audio/'),
     )
 
     if (!audioPart || !('inlineData' in audioPart)) {
@@ -190,4 +190,3 @@ export function geminiTTS(
   const apiKey = getGeminiApiKeyFromEnv()
   return createGeminiTTS(apiKey, config)
 }
-
