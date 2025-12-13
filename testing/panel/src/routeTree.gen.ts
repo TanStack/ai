@@ -16,6 +16,7 @@ import { Route as SummarizeRouteImport } from './routes/summarize'
 import { Route as StructuredRouteImport } from './routes/structured'
 import { Route as StreamDebuggerRouteImport } from './routes/stream-debugger'
 import { Route as ImageRouteImport } from './routes/image'
+import { Route as AddonManagerRouteImport } from './routes/addon-manager'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as ApiVideoRouteImport } from './routes/api.video'
 import { Route as ApiTtsRouteImport } from './routes/api.tts'
@@ -26,6 +27,7 @@ import { Route as ApiLoadTraceRouteImport } from './routes/api.load-trace'
 import { Route as ApiListTracesRouteImport } from './routes/api.list-traces'
 import { Route as ApiImageRouteImport } from './routes/api.image'
 import { Route as ApiChatRouteImport } from './routes/api.chat'
+import { Route as ApiAddonChatRouteImport } from './routes/api.addon-chat'
 
 const VideoRoute = VideoRouteImport.update({
   id: '/video',
@@ -60,6 +62,11 @@ const StreamDebuggerRoute = StreamDebuggerRouteImport.update({
 const ImageRoute = ImageRouteImport.update({
   id: '/image',
   path: '/image',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AddonManagerRoute = AddonManagerRouteImport.update({
+  id: '/addon-manager',
+  path: '/addon-manager',
   getParentRoute: () => rootRouteImport,
 } as any)
 const IndexRoute = IndexRouteImport.update({
@@ -112,9 +119,15 @@ const ApiChatRoute = ApiChatRouteImport.update({
   path: '/api/chat',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiAddonChatRoute = ApiAddonChatRouteImport.update({
+  id: '/api/addon-chat',
+  path: '/api/addon-chat',
+  getParentRoute: () => rootRouteImport,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/addon-manager': typeof AddonManagerRoute
   '/image': typeof ImageRoute
   '/stream-debugger': typeof StreamDebuggerRoute
   '/structured': typeof StructuredRoute
@@ -122,6 +135,7 @@ export interface FileRoutesByFullPath {
   '/transcription': typeof TranscriptionRoute
   '/tts': typeof TtsRoute
   '/video': typeof VideoRoute
+  '/api/addon-chat': typeof ApiAddonChatRoute
   '/api/chat': typeof ApiChatRoute
   '/api/image': typeof ApiImageRoute
   '/api/list-traces': typeof ApiListTracesRoute
@@ -134,6 +148,7 @@ export interface FileRoutesByFullPath {
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/addon-manager': typeof AddonManagerRoute
   '/image': typeof ImageRoute
   '/stream-debugger': typeof StreamDebuggerRoute
   '/structured': typeof StructuredRoute
@@ -141,6 +156,7 @@ export interface FileRoutesByTo {
   '/transcription': typeof TranscriptionRoute
   '/tts': typeof TtsRoute
   '/video': typeof VideoRoute
+  '/api/addon-chat': typeof ApiAddonChatRoute
   '/api/chat': typeof ApiChatRoute
   '/api/image': typeof ApiImageRoute
   '/api/list-traces': typeof ApiListTracesRoute
@@ -154,6 +170,7 @@ export interface FileRoutesByTo {
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/addon-manager': typeof AddonManagerRoute
   '/image': typeof ImageRoute
   '/stream-debugger': typeof StreamDebuggerRoute
   '/structured': typeof StructuredRoute
@@ -161,6 +178,7 @@ export interface FileRoutesById {
   '/transcription': typeof TranscriptionRoute
   '/tts': typeof TtsRoute
   '/video': typeof VideoRoute
+  '/api/addon-chat': typeof ApiAddonChatRoute
   '/api/chat': typeof ApiChatRoute
   '/api/image': typeof ApiImageRoute
   '/api/list-traces': typeof ApiListTracesRoute
@@ -175,6 +193,7 @@ export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
+    | '/addon-manager'
     | '/image'
     | '/stream-debugger'
     | '/structured'
@@ -182,6 +201,7 @@ export interface FileRouteTypes {
     | '/transcription'
     | '/tts'
     | '/video'
+    | '/api/addon-chat'
     | '/api/chat'
     | '/api/image'
     | '/api/list-traces'
@@ -194,6 +214,7 @@ export interface FileRouteTypes {
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
+    | '/addon-manager'
     | '/image'
     | '/stream-debugger'
     | '/structured'
@@ -201,6 +222,7 @@ export interface FileRouteTypes {
     | '/transcription'
     | '/tts'
     | '/video'
+    | '/api/addon-chat'
     | '/api/chat'
     | '/api/image'
     | '/api/list-traces'
@@ -213,6 +235,7 @@ export interface FileRouteTypes {
   id:
     | '__root__'
     | '/'
+    | '/addon-manager'
     | '/image'
     | '/stream-debugger'
     | '/structured'
@@ -220,6 +243,7 @@ export interface FileRouteTypes {
     | '/transcription'
     | '/tts'
     | '/video'
+    | '/api/addon-chat'
     | '/api/chat'
     | '/api/image'
     | '/api/list-traces'
@@ -233,6 +257,7 @@ export interface FileRouteTypes {
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  AddonManagerRoute: typeof AddonManagerRoute
   ImageRoute: typeof ImageRoute
   StreamDebuggerRoute: typeof StreamDebuggerRoute
   StructuredRoute: typeof StructuredRoute
@@ -240,6 +265,7 @@ export interface RootRouteChildren {
   TranscriptionRoute: typeof TranscriptionRoute
   TtsRoute: typeof TtsRoute
   VideoRoute: typeof VideoRoute
+  ApiAddonChatRoute: typeof ApiAddonChatRoute
   ApiChatRoute: typeof ApiChatRoute
   ApiImageRoute: typeof ApiImageRoute
   ApiListTracesRoute: typeof ApiListTracesRoute
@@ -300,6 +326,13 @@ declare module '@tanstack/react-router' {
       path: '/image'
       fullPath: '/image'
       preLoaderRoute: typeof ImageRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/addon-manager': {
+      id: '/addon-manager'
+      path: '/addon-manager'
+      fullPath: '/addon-manager'
+      preLoaderRoute: typeof AddonManagerRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/': {
@@ -372,11 +405,19 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiChatRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/addon-chat': {
+      id: '/api/addon-chat'
+      path: '/api/addon-chat'
+      fullPath: '/api/addon-chat'
+      preLoaderRoute: typeof ApiAddonChatRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  AddonManagerRoute: AddonManagerRoute,
   ImageRoute: ImageRoute,
   StreamDebuggerRoute: StreamDebuggerRoute,
   StructuredRoute: StructuredRoute,
@@ -384,6 +425,7 @@ const rootRouteChildren: RootRouteChildren = {
   TranscriptionRoute: TranscriptionRoute,
   TtsRoute: TtsRoute,
   VideoRoute: VideoRoute,
+  ApiAddonChatRoute: ApiAddonChatRoute,
   ApiChatRoute: ApiChatRoute,
   ApiImageRoute: ApiImageRoute,
   ApiListTracesRoute: ApiListTracesRoute,

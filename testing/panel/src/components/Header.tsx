@@ -9,6 +9,7 @@ import {
   ImageIcon,
   Menu,
   Mic,
+  Package,
   Video,
   Volume2,
   X,
@@ -79,6 +80,24 @@ export default function Header() {
           >
             <FlaskConical size={20} />
             <span className="font-medium">Stream Debugger</span>
+          </Link>
+
+          <Link
+            to="/addon-manager"
+            onClick={() => setIsOpen(false)}
+            className="flex items-center gap-3 p-3 rounded-lg hover:bg-gray-800 transition-colors mb-2"
+            activeProps={{
+              className:
+                'flex items-center gap-3 p-3 rounded-lg bg-green-600 hover:bg-green-700 transition-colors mb-2',
+            }}
+          >
+            <Package size={20} />
+            <div className="flex items-center gap-2">
+              <span className="font-medium">Add-on Manager</span>
+              <span className="text-xs px-1.5 py-0.5 bg-green-500/20 text-green-400 rounded">
+                Multi-Tool
+              </span>
+            </div>
           </Link>
 
           <div className="my-4 border-t border-gray-700" />

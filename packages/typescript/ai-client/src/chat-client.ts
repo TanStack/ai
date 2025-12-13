@@ -26,6 +26,7 @@ export class ChatClient {
   private clientToolsRef: { current: Map<string, AnyClientTool> }
   private currentStreamId: string | null = null
   private currentMessageId: string | null = null
+  private pendingContinuation = false
 
   private callbacksRef: {
     current: {
@@ -323,6 +324,13 @@ export class ChatClient {
     } finally {
       this.abortController = null
       this.setIsLoading(false)
+
+      // Check if a continuation was requested while the stream was in progress
+      if (this.pendingContinuation) {
+        this.pendingContinuation = false
+        // Use setTimeout to avoid stack overflow and allow state to settle
+        setTimeout(() => this.continueFlow(), 0)
+      }
     }
   }
 
@@ -395,7 +403,9 @@ export class ChatClient {
     )
 
     // Check if we should auto-send
-    if (this.shouldAutoSend()) {
+    const shouldSend = this.shouldAutoSend()
+
+    if (shouldSend) {
       await this.continueFlow()
     }
   }
@@ -443,7 +453,11 @@ export class ChatClient {
    * Continue the agent flow with current messages
    */
   private async continueFlow(): Promise<void> {
-    if (this.isLoading) return
+    if (this.isLoading) {
+      // Stream is still in progress - mark that we need to continue after it ends
+      this.pendingContinuation = true
+      return
+    }
     await this.streamResponse()
   }
 
