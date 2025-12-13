@@ -229,7 +229,8 @@ async function runSummarize(
 
 /**
  * Run streaming summarization
- * Wraps the non-streaming summarize into a streaming interface.
+ * Uses the adapter's native streaming if available, otherwise falls back
+ * to non-streaming and yields the result as a single chunk.
  */
 async function* runStreamingSummarize(
   options: SummarizeActivityOptions<
@@ -248,6 +249,13 @@ async function* runStreamingSummarize(
     focus,
   }
 
+  // Use real streaming if the adapter supports it
+  if (adapter.summarizeStream) {
+    yield* adapter.summarizeStream(summarizeOptions)
+    return
+  }
+
+  // Fall back to non-streaming and yield as a single chunk
   const result = await adapter.summarize(summarizeOptions)
 
   // Yield content chunk with the summary

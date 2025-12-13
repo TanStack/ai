@@ -1,19 +1,3 @@
-import { toJSONSchema } from 'zod'
-import type { z } from 'zod'
-
-/**
- * Check if a value is a Zod schema by looking for Zod-specific internals.
- * Zod schemas have a `_zod` property that contains metadata.
- */
-function isZodSchema(schema: unknown): schema is z.ZodType {
-  return (
-    typeof schema === 'object' &&
-    schema !== null &&
-    '_zod' in schema &&
-    typeof (schema as any)._zod === 'object'
-  )
-}
-
 /**
  * Recursively transform null values to undefined in an object.
  *
@@ -61,7 +45,7 @@ export function transformNullsToUndefined<T>(obj: T): T {
  * @param originalRequired - Original required array (to know which fields were optional)
  * @returns Transformed schema compatible with OpenAI structured output
  */
-function makeOpenAIStructuredOutputCompatible(
+export function makeOpenAIStructuredOutputCompatible(
   schema: Record<string, any>,
   originalRequired: Array<string> = [],
 ): Record<string, any> {
@@ -120,93 +104,6 @@ function makeOpenAIStructuredOutputCompatible(
       result.items,
       result.items.required || [],
     )
-  }
-
-  return result
-}
-
-/**
- * Converts a Zod schema to JSON Schema format compatible with OpenAI's structured output.
- *
- * OpenAI's structured output has strict requirements:
- * - All properties must be in the `required` array
- * - Optional fields should have null added to their type union
- * - additionalProperties must be false for all objects
- *
- * @param schema - Zod schema to convert
- * @returns JSON Schema object compatible with OpenAI's structured output API
- *
- * @example
- * ```typescript
- * import { z } from 'zod';
- *
- * const zodSchema = z.object({
- *   location: z.string().describe('City name'),
- *   unit: z.enum(['celsius', 'fahrenheit']).optional()
- * });
- *
- * const jsonSchema = convertZodToOpenAISchema(zodSchema);
- * // Returns:
- * // {
- * //   type: 'object',
- * //   properties: {
- * //     location: { type: 'string', description: 'City name' },
- * //     unit: { type: ['string', 'null'], enum: ['celsius', 'fahrenheit'] }
- * //   },
- * //   required: ['location', 'unit'],
- * //   additionalProperties: false
- * // }
- * ```
- */
-export function convertZodToOpenAISchema(
-  schema: z.ZodType,
-): Record<string, any> {
-  if (!isZodSchema(schema)) {
-    throw new Error('Expected a Zod schema')
-  }
-
-  // Use Zod's built-in toJSONSchema
-  const jsonSchema = toJSONSchema(schema, {
-    target: 'openapi-3.0',
-    reused: 'ref',
-  })
-
-  // Remove $schema property as it's not needed for LLM providers
-  let result = jsonSchema
-  if (typeof result === 'object' && '$schema' in result) {
-    const { $schema, ...rest } = result
-    result = rest
-  }
-
-  // Ensure object schemas always have type: "object"
-  if (typeof result === 'object') {
-    const isZodObject =
-      typeof schema === 'object' &&
-      'def' in schema &&
-      schema.def.type === 'object'
-
-    if (isZodObject && !result.type) {
-      result.type = 'object'
-    }
-
-    if (Object.keys(result).length === 0) {
-      result.type = 'object'
-    }
-
-    if ('properties' in result && !result.type) {
-      result.type = 'object'
-    }
-
-    if (result.type === 'object' && !('properties' in result)) {
-      result.properties = {}
-    }
-
-    if (result.type === 'object' && !('required' in result)) {
-      result.required = []
-    }
-
-    // Apply OpenAI-specific transformations for structured output
-    result = makeOpenAIStructuredOutputCompatible(result, result.required || [])
   }
 
   return result

@@ -8,8 +8,7 @@
 import { aiEventClient } from '../../event-client.js'
 import { streamToText } from '../../stream-to-response.js'
 import { ToolCallManager, executeToolCalls } from './tools/tool-calls'
-// Schema conversion is now done at the adapter level
-// Each adapter imports and uses convertZodToJsonSchema with provider-specific options
+import { convertZodToJsonSchema } from './tools/zod-converter'
 import { maxIterations as maxIterationsStrategy } from './agent-loop-strategies'
 import type {
   ApprovalRequest,
@@ -433,10 +432,21 @@ class TextEngine<
     const providerOptions = this.params.providerOptions
     const tools = this.params.tools
 
+    // Convert tool schemas from Zod to JSON Schema before passing to adapter
+    const toolsWithJsonSchemas = tools?.map((tool) => ({
+      ...tool,
+      inputSchema: tool.inputSchema
+        ? convertZodToJsonSchema(tool.inputSchema)
+        : undefined,
+      outputSchema: tool.outputSchema
+        ? convertZodToJsonSchema(tool.outputSchema)
+        : undefined,
+    }))
+
     for await (const chunk of this.adapter.chatStream({
       model: this.params.model,
       messages: this.messages,
-      tools,
+      tools: toolsWithJsonSchemas,
       options: adapterOptions,
       request: this.effectiveRequest,
       providerOptions,
@@ -1168,14 +1178,20 @@ async function runAgenticStructuredOutput<TSchema extends z.ZodType>(
     ...structuredTextOptions
   } = textOptions
 
+  // Convert the Zod schema to JSON Schema before passing to the adapter
+  const jsonSchema = convertZodToJsonSchema(outputSchema)
+  if (!jsonSchema) {
+    throw new Error('Failed to convert output schema to JSON Schema')
+  }
+
   // Call the adapter's structured output method with the conversation context
-  // Each adapter is responsible for converting the Zod schema to its provider's format
+  // The adapter receives JSON Schema and can apply vendor-specific patches
   const result = await adapter.structuredOutput({
     chatOptions: {
       ...structuredTextOptions,
       messages: finalMessages,
     },
-    outputSchema,
+    outputSchema: jsonSchema,
   })
 
   // Validate the result against the Zod schema

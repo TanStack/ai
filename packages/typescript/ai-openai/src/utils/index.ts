@@ -5,6 +5,6 @@ export {
   type OpenAIClientConfig,
 } from './client'
 export {
-  convertZodToOpenAISchema,
+  makeOpenAIStructuredOutputCompatible,
   transformNullsToUndefined,
 } from './schema-converter'

@@ -1,6 +1,6 @@
-import type { z } from 'zod'
 import type {
   DefaultMessageMetadataByModality,
+  JSONSchema,
   Modality,
   StreamChunk,
   TextOptions,
@@ -23,8 +23,8 @@ export interface TextAdapterConfig {
 export interface StructuredOutputOptions<TProviderOptions extends object> {
   /** Text options for the request */
   chatOptions: TextOptions<string, TProviderOptions>
-  /** Zod schema for the structured output - adapters convert this to their provider's format */
-  outputSchema: z.ZodType
+  /** JSON Schema for structured output - already converted from Zod in the ai layer */
+  outputSchema: JSONSchema
 }
 
 /**

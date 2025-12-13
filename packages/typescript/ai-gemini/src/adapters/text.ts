@@ -3,7 +3,6 @@ import { BaseTextAdapter } from '@tanstack/ai/adapters'
 import { GEMINI_MODELS } from '../model-meta'
 import { convertToolsToProviderFormat } from '../tools/tool-converter'
 import {
-  convertZodToGeminiSchema,
   createGeminiClient,
   generateId,
   getGeminiApiKeyFromEnv,
@@ -106,15 +105,12 @@ export class GeminiTextAdapter extends BaseTextAdapter<
   /**
    * Generate structured output using Gemini's native JSON response format.
    * Uses responseMimeType: 'application/json' and responseSchema for structured output.
-   * Converts the Zod schema to JSON Schema format compatible with Gemini's API.
+   * The outputSchema is already JSON Schema (converted in the ai layer).
    */
   async structuredOutput(
     options: StructuredOutputOptions<GeminiTextProviderOptions>,
   ): Promise<StructuredOutputResult<unknown>> {
     const { chatOptions, outputSchema } = options
-
-    // Convert Zod schema to Gemini-compatible JSON Schema
-    const jsonSchema = convertZodToGeminiSchema(outputSchema)
 
     const mappedOptions = this.mapCommonOptionsToGemini(chatOptions)
 
@@ -125,7 +121,7 @@ export class GeminiTextAdapter extends BaseTextAdapter<
         config: {
           ...mappedOptions.config,
           responseMimeType: 'application/json',
-          responseSchema: jsonSchema,
+          responseSchema: outputSchema,
         },
       })
 
