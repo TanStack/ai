@@ -165,7 +165,7 @@ Clear all messages
 finalizeStream(): void;
 ```
 
-Defined in: [stream/processor.ts:951](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/stream/processor.ts#L951)
+Defined in: [stream/processor.ts:1033](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/stream/processor.ts#L1033)
 
 Finalize the stream - complete all pending operations
 
@@ -197,7 +197,7 @@ Get current messages
 getRecording(): ChunkRecording | null;
 ```
 
-Defined in: [stream/processor.ts:1037](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/stream/processor.ts#L1037)
+Defined in: [stream/processor.ts:1533](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/stream/processor.ts#L1533)
 
 Get the current recording
 
@@ -213,7 +213,7 @@ Get the current recording
 getState(): ProcessorState;
 ```
 
-Defined in: [stream/processor.ts:1010](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/stream/processor.ts#L1010)
+Defined in: [stream/processor.ts:1092](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/stream/processor.ts#L1092)
 
 Get current processor state (legacy)
 
@@ -295,7 +295,7 @@ Remove messages after a certain index (for reload/retry)
 reset(): void;
 ```
 
-Defined in: [stream/processor.ts:1060](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/stream/processor.ts#L1060)
+Defined in: [stream/processor.ts:1556](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/stream/processor.ts#L1556)
 
 Full reset (including messages)
 
@@ -350,7 +350,7 @@ Returns the message ID
 startRecording(): void;
 ```
 
-Defined in: [stream/processor.ts:1024](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/stream/processor.ts#L1024)
+Defined in: [stream/processor.ts:1520](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/stream/processor.ts#L1520)
 
 Start recording chunks
 
@@ -388,7 +388,7 @@ Get the conversation as ModelMessages (for sending to LLM)
 static replay(recording, options?): Promise<ProcessorResult>;
 ```
 
-Defined in: [stream/processor.ts:1069](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/stream/processor.ts#L1069)
+Defined in: [stream/processor.ts:1565](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/stream/processor.ts#L1565)
 
 Replay a recording through the processor
 

@@ -28,16 +28,15 @@ from .message_formatters import format_messages_for_anthropic
 from .types import (
     AIAdapterConfig,
     ChatOptions,
-    ContentStreamChunk,
-    DoneStreamChunk,
     EmbeddingOptions,
     EmbeddingResult,
-    ErrorStreamChunk,
+    RunErrorEvent,
+    RunFinishedEvent,
     StreamChunk,
     SummarizationOptions,
     SummarizationResult,
-    ThinkingStreamChunk,
-    ToolCallStreamChunk,
+    TextMessageContentEvent,
+    ToolCallStartEvent,
 )
 
 
@@ -102,7 +101,7 @@ class AnthropicAdapter(BaseAdapter):
             options: Chat options
 
         Yields:
-            StreamChunk objects
+            StreamChunk objects (AG-UI events)
         """
         try:
             # Format messages for Anthropic (function returns tuple of (system, messages))
@@ -145,6 +144,7 @@ class AnthropicAdapter(BaseAdapter):
 
             # Make the streaming request
             message_id = self._generate_id()
+            run_id = self._generate_id()
             accumulated_content = ""
             accumulated_thinking = ""
             tool_calls: Dict[int, Dict[str, Any]] = {}
@@ -169,11 +169,8 @@ class AnthropicAdapter(BaseAdapter):
                                 # Tool use block
                                 tool_calls[event.index] = {
                                     "id": block.id,
-                                    "type": "function",
-                                    "function": {
-                                        "name": block.name,
-                                        "arguments": "",
-                                    },
+                                    "name": block.name,
+                                    "arguments": "",
                                 }
 
                     elif event.type == "content_block_delta":
@@ -182,35 +179,34 @@ class AnthropicAdapter(BaseAdapter):
                             if delta.type == "text_delta":
                                 # Text content delta
                                 accumulated_content += delta.text
-                                yield ContentStreamChunk(
-                                    type="content",
-                                    id=message_id,
-                                    model=options.model,
-                                    timestamp=timestamp,
-                                    delta=delta.text,
-                                    content=accumulated_content,
-                                    role="assistant",
-                                )
+                                chunk: TextMessageContentEvent = {
+                                    "type": "TEXT_MESSAGE_CONTENT",
+                                    "messageId": message_id,
+                                    "model": options.model,
+                                    "timestamp": timestamp,
+                                    "delta": delta.text,
+                                    "content": accumulated_content,
+                                }
+                                yield chunk
                             elif delta.type == "input_json_delta":
                                 # Tool input delta
                                 if event.index in tool_calls:
-                                    tool_calls[event.index]["function"][
-                                        "arguments"
-                                    ] += delta.partial_json
+                                    tool_calls[event.index]["arguments"] += delta.partial_json
 
                     elif event.type == "content_block_stop":
                         # Content block completed
                         if event.index in tool_calls:
                             # Emit tool call chunk
                             tool_call = tool_calls[event.index]
-                            yield ToolCallStreamChunk(
-                                type="tool_call",
-                                id=message_id,
-                                model=options.model,
-                                timestamp=timestamp,
-                                toolCall=tool_call,
-                                index=event.index,
-                            )
+                            chunk: ToolCallStartEvent = {
+                                "type": "TOOL_CALL_START",
+                                "timestamp": timestamp,
+                                "model": options.model,
+                                "toolCallId": tool_call["id"],
+                                "toolName": tool_call["name"],
+                                "index": event.index,
+                            }
+                            yield chunk
 
                     elif event.type == "message_delta":
                         # Message metadata delta (finish reason, usage)
@@ -238,27 +234,29 @@ class AnthropicAdapter(BaseAdapter):
                             elif final_message.stop_reason == "tool_use":
                                 finish_reason = "tool_calls"
 
-                        yield DoneStreamChunk(
-                            type="done",
-                            id=message_id,
-                            model=options.model,
-                            timestamp=timestamp,
-                            finishReason=finish_reason,
-                            usage=usage,
-                        )
+                        done_chunk: RunFinishedEvent = {
+                            "type": "RUN_FINISHED",
+                            "runId": run_id,
+                            "model": options.model,
+                            "timestamp": timestamp,
+                            "finishReason": finish_reason,
+                            "usage": usage,
+                        }
+                        yield done_chunk
 
         except Exception as e:
             # Emit error chunk
-            yield ErrorStreamChunk(
-                type="error",
-                id=self._generate_id(),
-                model=options.model,
-                timestamp=int(time.time() * 1000),
-                error={
+            error_chunk: RunErrorEvent = {
+                "type": "RUN_ERROR",
+                "runId": self._generate_id(),
+                "model": options.model,
+                "timestamp": int(time.time() * 1000),
+                "error": {
                     "message": str(e),
                     "code": getattr(e, "code", None),
                 },
-            )
+            }
+            yield error_chunk
 
     def _format_tools(self, tools: List[Any]) -> List[Dict[str, Any]]:
         """

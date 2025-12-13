@@ -36,9 +36,9 @@ sequenceDiagram
     
     Note over LLM Service: Model analyzes tools<br/>and decides to use one
     
-    LLM Service-->>Server: Stream chunks:<br/>tool_call, content, done
-    Server-->>Browser: Forward chunks via SSE/HTTP
-    Browser->>Browser: Parse chunks &<br/>update UI
+    LLM Service-->>Server: Stream AG-UI events:<br/>TOOL_CALL_*, TEXT_MESSAGE_*, RUN_FINISHED
+    Server-->>Browser: Forward events via SSE/HTTP
+    Browser->>Browser: Parse events &<br/>update UI
     Browser->>User: Show response
 ```
 
@@ -57,11 +57,11 @@ sequenceDiagram
    - Analyzes the conversation and available tools
    - Decides whether to call a tool based on the user's request
    - Generates tool calls with arguments
-5. **Streaming Response**: The LLM streams back chunks:
-   - `tool_call` chunks with tool name and arguments
-   - `content` chunks with text responses
-   - `done` chunk when complete
-6. **Client Updates**: The browser receives chunks and updates the UI in real-time
+5. **Streaming Response**: The LLM streams back AG-UI events:
+   - `TOOL_CALL_START` / `TOOL_CALL_ARGS` / `TOOL_CALL_END` events for tool invocations
+   - `TEXT_MESSAGE_CONTENT` events for text responses
+   - `RUN_FINISHED` event when complete
+6. **Client Updates**: The browser receives events and updates the UI in real-time
 
 ### Code Example
 
@@ -114,14 +114,14 @@ Tools progress through different states during their lifecycle. Understanding th
 
 ```mermaid
 stateDiagram-v2
-    [*] --> AwaitingInput: tool_call received
-    AwaitingInput --> InputStreaming: partial arguments
+    [*] --> AwaitingInput: TOOL_CALL_START received
+    AwaitingInput --> InputStreaming: TOOL_CALL_ARGS (partial)
     InputStreaming --> InputComplete: all arguments received
     InputComplete --> ApprovalRequested: needsApproval=true
     InputComplete --> Executing: needsApproval=false
     ApprovalRequested --> Executing: user approves
     ApprovalRequested --> Cancelled: user denies
-    Executing --> OutputAvailable: success
+    Executing --> OutputAvailable: TOOL_CALL_END (success)
     Executing --> OutputError: error
     OutputAvailable --> [*]
     OutputError --> [*]
@@ -210,15 +210,16 @@ sequenceDiagram
     participant LLM
     participant Tool
     
-    LLM->>Server: tool_call: send_email
+    LLM->>Server: TOOL_CALL_START: send_email
+    LLM->>Server: TOOL_CALL_ARGS: {to, subject, body}
     Server->>Server: Check needsApproval
-    Server->>Client: approval-requested chunk
+    Server->>Client: CUSTOM event (approval-requested)
     Client->>Client: Show approval UI
     User->>Client: Clicks "Approve"
     Client->>Server: POST approval response
     Server->>Tool: execute(args)
     Tool-->>Server: result
-    Server->>LLM: tool_result
+    Server->>LLM: TOOL_CALL_END with result
     LLM-->>Client: Generate response
 ```
 
@@ -325,13 +326,13 @@ The LLM can call multiple tools in parallel for efficiency:
 
 ```mermaid
 graph TD
-    A[LLM decides to call 3 tools] --> B[tool_call index: 0]
-    A --> C[tool_call index: 1]
-    A --> D[tool_call index: 2]
+    A[LLM decides to call 3 tools] --> B[TOOL_CALL_START index: 0]
+    A --> C[TOOL_CALL_START index: 1]
+    A --> D[TOOL_CALL_START index: 2]
     B --> E[Execute in parallel]
     C --> E
     D --> E
-    E --> F[Collect all results]
+    E --> F[Collect all TOOL_CALL_END results]
     F --> G[Continue with results]
 ```
 

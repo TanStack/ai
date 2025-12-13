@@ -9,7 +9,7 @@ title: createReplayStream
 function createReplayStream(recording): AsyncIterable<StreamChunk>;
 ```
 
-Defined in: [stream/processor.ts:1081](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/stream/processor.ts#L1081)
+Defined in: [stream/processor.ts:1577](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/stream/processor.ts#L1577)
 
 Create an async iterable from a recording
 

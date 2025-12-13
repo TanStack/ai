@@ -9,7 +9,7 @@ title: ChatStreamOptionsUnion
 type ChatStreamOptionsUnion<TAdapter> = TAdapter extends AIAdapter<infer Models, any, any, any, infer ModelProviderOptions, infer ModelInputModalities, infer MessageMetadata> ? Models[number] extends infer TModel ? TModel extends string ? Omit<ChatOptions, "model" | "providerOptions" | "responseFormat" | "messages"> & object : never : never : never;
 ```
 
-Defined in: [types.ts:823](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L823)
+Defined in: [types.ts:1083](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L1083)
 
 ## Type Parameters
 

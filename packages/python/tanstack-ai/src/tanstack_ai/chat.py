@@ -22,15 +22,14 @@ from .tool_manager import (
 )
 from .types import (
     AgentLoopStrategy,
-    ApprovalRequestedStreamChunk,
     ChatOptions,
-    DoneStreamChunk,
+    CustomEvent,
     ModelMessage,
+    RunFinishedEvent,
     StreamChunk,
     Tool,
     ToolCall,
-    ToolInputAvailableStreamChunk,
-    ToolResultStreamChunk,
+    ToolCallEndEvent,
 )
 
 
@@ -119,7 +118,7 @@ class ChatEngine:
         self.last_finish_reason: Optional[str] = None
         self.current_message_id: Optional[str] = None
         self.accumulated_content = ""
-        self.done_chunk: Optional[DoneStreamChunk] = None
+        self.done_chunk: Optional[RunFinishedEvent] = None
         self.should_emit_stream_end = True
         self.early_termination = False
         self.tool_phase: ToolPhaseResult = ToolPhaseResult.CONTINUE
@@ -128,6 +127,7 @@ class ChatEngine:
         # Generate IDs
         self.request_id = self._create_id("chat")
         self.stream_id = self._create_id("stream")
+        self.run_id = self._create_id("run")
 
     async def chat(self) -> AsyncIterator[StreamChunk]:
         """
@@ -215,17 +215,32 @@ class ChatEngine:
         """
         chunk_type = chunk.get("type")
 
-        if chunk_type == "content":
-            self.accumulated_content = chunk["content"]
-        elif chunk_type == "tool_call":
-            self.tool_call_manager.add_tool_call_chunk(chunk)
-        elif chunk_type == "done":
+        if chunk_type == "TEXT_MESSAGE_CONTENT":
+            self.accumulated_content = chunk.get("content", "")
+        elif chunk_type == "TOOL_CALL_START":
+            # Build legacy format for tool call manager
+            tool_call_chunk = {
+                "index": chunk.get("index", 0),
+                "toolCall": {
+                    "id": chunk.get("toolCallId"),
+                    "type": "function",
+                    "function": {
+                        "name": chunk.get("toolName"),
+                        "arguments": "",
+                    },
+                },
+            }
+            self.tool_call_manager.add_tool_call_chunk(tool_call_chunk)
+        elif chunk_type == "TOOL_CALL_ARGS":
+            # Accumulate arguments - find the tool call and append
+            pass  # Tool call manager handles this via TOOL_CALL_START chunks
+        elif chunk_type == "RUN_FINISHED":
             self._handle_done_chunk(chunk)
-        elif chunk_type == "error":
+        elif chunk_type == "RUN_ERROR":
             self.early_termination = True
             self.should_emit_stream_end = False
 
-    def _handle_done_chunk(self, chunk: DoneStreamChunk) -> None:
+    def _handle_done_chunk(self, chunk: RunFinishedEvent) -> None:
         """Handle a done chunk."""
         # Don't overwrite a tool_calls finishReason with a stop finishReason
         if (
@@ -373,21 +388,20 @@ class ChatEngine:
     async def _emit_approval_requests(
         self,
         approval_requests: List[ApprovalRequest],
-        done_chunk: DoneStreamChunk,
+        done_chunk: RunFinishedEvent,
     ) -> AsyncIterator[StreamChunk]:
         """Emit approval request chunks."""
         for approval in approval_requests:
-            chunk: ApprovalRequestedStreamChunk = {
-                "type": "approval-requested",
-                "id": done_chunk["id"],
-                "model": done_chunk["model"],
+            chunk: CustomEvent = {
+                "type": "CUSTOM",
+                "name": "approval-requested",
                 "timestamp": int(time.time() * 1000),
-                "toolCallId": approval.tool_call_id,
-                "toolName": approval.tool_name,
-                "input": approval.input,
-                "approval": {
-                    "id": approval.approval_id,
-                    "needsApproval": True,
+                "model": self.options.model,
+                "value": {
+                    "toolCallId": approval.tool_call_id,
+                    "toolName": approval.tool_name,
+                    "input": approval.input,
+                    "approvalId": approval.approval_id,
                 },
             }
             yield chunk
@@ -395,37 +409,39 @@ class ChatEngine:
     async def _emit_client_tool_inputs(
         self,
         client_requests: List[ClientToolRequest],
-        done_chunk: DoneStreamChunk,
+        done_chunk: RunFinishedEvent,
     ) -> AsyncIterator[StreamChunk]:
         """Emit tool-input-available chunks for client execution."""
         for client_tool in client_requests:
-            chunk: ToolInputAvailableStreamChunk = {
-                "type": "tool-input-available",
-                "id": done_chunk["id"],
-                "model": done_chunk["model"],
+            chunk: CustomEvent = {
+                "type": "CUSTOM",
+                "name": "tool-input-available",
                 "timestamp": int(time.time() * 1000),
-                "toolCallId": client_tool.tool_call_id,
-                "toolName": client_tool.tool_name,
-                "input": client_tool.input,
+                "model": self.options.model,
+                "value": {
+                    "toolCallId": client_tool.tool_call_id,
+                    "toolName": client_tool.tool_name,
+                    "input": client_tool.input,
+                },
             }
             yield chunk
 
     async def _emit_tool_results(
         self,
         results: List[ToolResult],
-        done_chunk: DoneStreamChunk,
+        done_chunk: RunFinishedEvent,
     ) -> AsyncIterator[StreamChunk]:
         """Emit tool result chunks and add to messages."""
         for result in results:
             content = json.dumps(result.result)
 
-            chunk: ToolResultStreamChunk = {
-                "type": "tool_result",
-                "id": done_chunk["id"],
-                "model": done_chunk["model"],
+            chunk: ToolCallEndEvent = {
+                "type": "TOOL_CALL_END",
                 "timestamp": int(time.time() * 1000),
+                "model": self.options.model,
                 "toolCallId": result.tool_call_id,
-                "content": content,
+                "toolName": "",  # We don't have the tool name here
+                "result": content,
             }
             yield chunk
 
@@ -454,11 +470,11 @@ class ChatEngine:
 
         return pending
 
-    def _create_synthetic_done_chunk(self) -> DoneStreamChunk:
+    def _create_synthetic_done_chunk(self) -> RunFinishedEvent:
         """Create a synthetic done chunk for pending tool calls."""
         return {
-            "type": "done",
-            "id": self._create_id("pending"),
+            "type": "RUN_FINISHED",
+            "runId": self.run_id,
             "model": self.options.model,
             "timestamp": int(time.time() * 1000),
             "finishReason": "tool_calls",
@@ -533,7 +549,7 @@ async def chat(
         ...     messages=[{"role": "user", "content": "Hello!"}],
         ...     tools=[weather_tool],
         ... ):
-        ...     if chunk["type"] == "content":
+        ...     if chunk["type"] == "TEXT_MESSAGE_CONTENT":
         ...         print(chunk["delta"], end="", flush=True)
     """
     chat_options = ChatOptions(

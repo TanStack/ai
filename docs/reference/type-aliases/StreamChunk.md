@@ -7,16 +7,32 @@ title: StreamChunk
 
 ```ts
 type StreamChunk = 
+  | RunStartedEvent
+  | RunFinishedEvent
+  | RunErrorEvent
+  | TextMessageStartEvent
+  | TextMessageContentEvent
+  | TextMessageEndEvent
+  | ToolCallStartEvent
+  | ToolCallArgsEvent
+  | ToolCallEndEvent
+  | StepStartedEvent
+  | StepFinishedEvent
+  | StateSnapshotEvent
+  | StateDeltaEvent
+  | CustomEvent
   | ContentStreamChunk
-  | ToolCallStreamChunk
-  | ToolResultStreamChunk
   | DoneStreamChunk
   | ErrorStreamChunk
+  | ToolCallStreamChunk
+  | ToolResultStreamChunk
+  | ThinkingStreamChunk
   | ApprovalRequestedStreamChunk
-  | ToolInputAvailableStreamChunk
-  | ThinkingStreamChunk;
+  | ToolInputAvailableStreamChunk;
 ```
 
-Defined in: [types.ts:672](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L672)
+Defined in: [types.ts:794](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L794)
 
-Chunk returned by the sdk during streaming chat completions.
+Union type for all AG-UI events.
+This is the primary type for streaming chat completions.
+Includes legacy types for backward compatibility.

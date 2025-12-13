@@ -3,116 +3,92 @@ id: ToolCallStreamChunk
 title: ToolCallStreamChunk
 ---
 
-# Interface: ToolCallStreamChunk
+# ~~Interface: ToolCallStreamChunk~~
 
-Defined in: [types.ts:608](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L608)
+Defined in: [types.ts:877](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L877)
 
-## Extends
+## Deprecated
 
-- [`BaseStreamChunk`](BaseStreamChunk.md)
+Use ToolCallStartEvent and ToolCallArgsEvent instead
 
 ## Properties
 
-### id
+### ~~approval?~~
+
+```ts
+optional approval: object;
+```
+
+Defined in: [types.ts:884](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L884)
+
+#### ~~id~~
 
 ```ts
 id: string;
 ```
 
-Defined in: [types.ts:596](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L596)
+#### ~~needsApproval~~
 
-#### Inherited from
-
-[`BaseStreamChunk`](BaseStreamChunk.md).[`id`](BaseStreamChunk.md#id)
+```ts
+needsApproval: true;
+```
 
 ***
 
-### index
+### ~~id~~
+
+```ts
+id: string;
+```
+
+Defined in: [types.ts:879](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L879)
+
+***
+
+### ~~index~~
 
 ```ts
 index: number;
 ```
 
-Defined in: [types.ts:618](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L618)
+Defined in: [types.ts:883](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L883)
 
 ***
 
-### model
+### ~~model~~
 
 ```ts
 model: string;
 ```
 
-Defined in: [types.ts:597](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L597)
-
-#### Inherited from
-
-[`BaseStreamChunk`](BaseStreamChunk.md).[`model`](BaseStreamChunk.md#model)
+Defined in: [types.ts:880](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L880)
 
 ***
 
-### timestamp
+### ~~timestamp~~
 
 ```ts
 timestamp: number;
 ```
 
-Defined in: [types.ts:598](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L598)
-
-#### Inherited from
-
-[`BaseStreamChunk`](BaseStreamChunk.md).[`timestamp`](BaseStreamChunk.md#timestamp)
+Defined in: [types.ts:881](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L881)
 
 ***
 
-### toolCall
+### ~~toolCall~~
 
 ```ts
-toolCall: object;
+toolCall: ToolCall;
 ```
 
-Defined in: [types.ts:610](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L610)
-
-#### function
-
-```ts
-function: object;
-```
-
-##### function.arguments
-
-```ts
-arguments: string;
-```
-
-##### function.name
-
-```ts
-name: string;
-```
-
-#### id
-
-```ts
-id: string;
-```
-
-#### type
-
-```ts
-type: "function";
-```
+Defined in: [types.ts:882](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L882)
 
 ***
 
-### type
+### ~~type~~
 
 ```ts
 type: "tool_call";
 ```
 
-Defined in: [types.ts:609](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L609)
-
-#### Overrides
-
-[`BaseStreamChunk`](BaseStreamChunk.md).[`type`](BaseStreamChunk.md#type)
+Defined in: [types.ts:878](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L878)

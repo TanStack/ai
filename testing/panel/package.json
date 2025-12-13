@@ -8,6 +8,7 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@alcyone-labs/zod-to-json-schema": "^4.0.10",
     "@tailwindcss/vite": "^4.1.17",
     "@tanstack/ai": "workspace:*",
     "@tanstack/ai-anthropic": "workspace:*",
@@ -16,22 +17,21 @@
     "@tanstack/ai-openai": "workspace:*",
     "@tanstack/ai-react": "workspace:*",
     "@tanstack/ai-react-ui": "workspace:*",
-    "@tanstack/nitro-v2-vite-plugin": "^1.139.7",
+    "@tanstack/nitro-v2-vite-plugin": "^1.139.0",
     "@tanstack/react-router": "^1.139.7",
-    "@tanstack/react-start": "^1.139.7",
-    "@tanstack/start": "^1.139.7",
-    "highlight.js": "^11.11.4",
+    "@tanstack/react-start": "^1.139.8",
+    "highlight.js": "^11.11.1",
     "lucide-react": "^0.555.0",
     "react": "^19.2.0",
     "react-dom": "^19.2.0",
-    "react-markdown": "^10.0.0",
-    "rehype-highlight": "^7.0.1",
+    "react-markdown": "^10.1.0",
+    "rehype-highlight": "^7.0.2",
     "rehype-raw": "^7.0.0",
     "rehype-sanitize": "^6.0.0",
-    "remark-gfm": "^4.0.0",
+    "remark-gfm": "^4.0.1",
     "tailwindcss": "^4.1.17",
     "vite-tsconfig-paths": "^5.1.4",
-    "zod": "^3.25.0"
+    "zod": "^4.1.13"
   },
   "devDependencies": {
     "@types/node": "^24.10.1",

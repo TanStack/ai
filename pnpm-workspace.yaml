@@ -6,3 +6,4 @@ packages:
   - 'packages/typescript/*'
   - 'packages/typescript/smoke-tests/*'
   - 'examples/*'
+  - 'testing/*'

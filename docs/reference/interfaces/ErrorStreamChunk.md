@@ -3,88 +3,75 @@ id: ErrorStreamChunk
 title: ErrorStreamChunk
 ---
 
-# Interface: ErrorStreamChunk
+# ~~Interface: ErrorStreamChunk~~
 
-Defined in: [types.ts:637](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L637)
+Defined in: [types.ts:865](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L865)
 
-## Extends
+## Deprecated
 
-- [`BaseStreamChunk`](BaseStreamChunk.md)
+Use RunErrorEvent instead
 
 ## Properties
 
-### error
-
-```ts
-error: object;
-```
-
-Defined in: [types.ts:639](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L639)
-
-#### code?
+### ~~code?~~
 
 ```ts
 optional code: string;
 ```
 
-#### message
-
-```ts
-message: string;
-```
+Defined in: [types.ts:871](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L871)
 
 ***
 
-### id
+### ~~error~~
+
+```ts
+error: 
+  | string
+  | {
+  code?: string;
+  message: string;
+};
+```
+
+Defined in: [types.ts:870](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L870)
+
+***
+
+### ~~id~~
 
 ```ts
 id: string;
 ```
 
-Defined in: [types.ts:596](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L596)
-
-#### Inherited from
-
-[`BaseStreamChunk`](BaseStreamChunk.md).[`id`](BaseStreamChunk.md#id)
+Defined in: [types.ts:867](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L867)
 
 ***
 
-### model
+### ~~model~~
 
 ```ts
 model: string;
 ```
 
-Defined in: [types.ts:597](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L597)
-
-#### Inherited from
-
-[`BaseStreamChunk`](BaseStreamChunk.md).[`model`](BaseStreamChunk.md#model)
+Defined in: [types.ts:868](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L868)
 
 ***
 
-### timestamp
+### ~~timestamp~~
 
 ```ts
 timestamp: number;
 ```
 
-Defined in: [types.ts:598](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L598)
-
-#### Inherited from
-
-[`BaseStreamChunk`](BaseStreamChunk.md).[`timestamp`](BaseStreamChunk.md#timestamp)
+Defined in: [types.ts:869](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L869)
 
 ***
 
-### type
+### ~~type~~
 
 ```ts
 type: "error";
 ```
 
-Defined in: [types.ts:638](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L638)
-
-#### Overrides
-
-[`BaseStreamChunk`](BaseStreamChunk.md).[`type`](BaseStreamChunk.md#type)
+Defined in: [types.ts:866](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L866)

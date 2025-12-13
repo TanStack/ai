@@ -1,19 +1,18 @@
 import { config } from 'dotenv'
+
 import {
-  chat,
   embedding,
+  maxIterations,
   summarize,
   toolDefinition,
-  maxIterations,
-  type Tool,
 } from '@tanstack/ai'
 import { z } from 'zod'
 import { createAnthropic } from '@tanstack/ai-anthropic'
 import { createGemini } from '@tanstack/ai-gemini'
 import { ollama } from '@tanstack/ai-ollama'
 import { createOpenAI } from '@tanstack/ai-openai'
+
 import {
-  AdapterContext,
   buildApprovalMessages,
   captureStream,
   createDebugEnvelope,
@@ -21,6 +20,10 @@ import {
   summarizeRun,
   writeDebugFile,
 } from './harness'
+
+import type { Tool } from '@tanstack/ai'
+
+import type { AdapterContext } from './harness'
 
 // Load .env.local first (higher priority), then .env
 config({ path: '.env.local' })
@@ -38,7 +41,7 @@ const OPENAI_SUMMARY_MODEL = process.env.OPENAI_SUMMARY_MODEL || OPENAI_MODEL
 const OPENAI_EMBEDDING_MODEL =
   process.env.OPENAI_EMBEDDING_MODEL || 'text-embedding-3-small'
 
-const GEMINI_MODEL = process.env.GEMINI_MODEL || 'gemini-2.0-flash-lite'
+const GEMINI_MODEL = process.env.GEMINI_MODEL || 'gemini-2.5-flash-lite'
 const GEMINI_SUMMARY_MODEL = process.env.GEMINI_SUMMARY_MODEL || GEMINI_MODEL
 const GEMINI_EMBEDDING_MODEL =
   process.env.GEMINI_EMBEDDING_MODEL || 'gemini-embedding-001'

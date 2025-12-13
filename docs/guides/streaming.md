@@ -64,30 +64,34 @@ messages.forEach((message) => {
 });
 ```
 
-## Stream Chunks
+## Stream Events
 
-Stream chunks contain different types of data:
+TanStack AI implements the [AG-UI Protocol](https://docs.ag-ui.com/introduction) for streaming. Stream events contain different types of data:
 
-- **Content chunks** - Text content being generated
-- **Thinking chunks** - Model's internal reasoning process (when supported)
-- **Tool call chunks** - When the model calls a tool
-- **Tool result chunks** - Results from tool execution
-- **Done chunks** - Stream completion
+- **`RUN_STARTED` / `RUN_FINISHED`** - Run lifecycle events
+- **`TEXT_MESSAGE_START` / `TEXT_MESSAGE_CONTENT` / `TEXT_MESSAGE_END`** - Text content streaming
+- **`STEP_STARTED` / `STEP_FINISHED`** - Model's internal reasoning process (thinking)
+- **`TOOL_CALL_START` / `TOOL_CALL_ARGS` / `TOOL_CALL_END`** - Tool invocation and results
+- **`STATE_SNAPSHOT` / `STATE_DELTA`** - Shared state updates
+- **`CUSTOM`** - Custom extensibility events
 
-### Thinking Chunks
+### Thinking Events
 
-Thinking chunks represent the model's reasoning process. They stream separately from the final response text:
+Thinking events (`STEP_STARTED` / `STEP_FINISHED`) represent the model's reasoning process. They stream separately from the final response text:
 
 ```typescript
 for await (const chunk of stream) {
-  if (chunk.type === "thinking") {
+  if (chunk.type === "STEP_STARTED") {
+    console.log("Thinking started:", chunk.stepId);
+  }
+  if (chunk.type === "STEP_FINISHED") {
     console.log("Thinking:", chunk.content); // Accumulated thinking content
     console.log("Delta:", chunk.delta); // Incremental thinking token
   }
 }
 ```
 
-Thinking chunks are automatically converted to `ThinkingPart` in `UIMessage` objects. They are UI-only and excluded from messages sent back to the model.
+Thinking events are automatically converted to `ThinkingPart` in `UIMessage` objects. They are UI-only and excluded from messages sent back to the model.
 
 ## Connection Adapters
 

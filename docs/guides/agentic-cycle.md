@@ -46,21 +46,21 @@ sequenceDiagram
     
     Note over LLM: Cycle 1: Call first tool
     
-    LLM->>Server: tool_call: get_weather(SF)
+    LLM->>Server: TOOL_CALL_START/ARGS: get_weather(SF)
     Server->>Tools: Execute get_weather
     Tools-->>Server: {temp: 65, conditions: "sunny"}
-    Server->>LLM: tool_result
+    Server->>LLM: TOOL_CALL_END with result
     
     Note over LLM: Cycle 2: Call second tool
     
-    LLM->>Server: tool_call: get_weather(LA)
+    LLM->>Server: TOOL_CALL_START/ARGS: get_weather(LA)
     Server->>Tools: Execute get_weather
     Tools-->>Server: {temp: 75, conditions: "clear"}
-    Server->>LLM: tool_result
+    Server->>LLM: TOOL_CALL_END with result
     
     Note over LLM: Cycle 3: Generate answer
     
-    LLM-->>Server: content: "SF is 65°F..."
+    LLM-->>Server: TEXT_MESSAGE_CONTENT: "SF is 65°F..."
     Server-->>Client: Stream response
     Client->>User: Display answer
 ```

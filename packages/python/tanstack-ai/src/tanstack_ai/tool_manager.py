@@ -10,11 +10,9 @@ import time
 from typing import Any, Dict, List, Optional, Tuple
 
 from .types import (
-    DoneStreamChunk,
     ModelMessage,
     Tool,
     ToolCall,
-    ToolResultStreamChunk,
 )
 
 
