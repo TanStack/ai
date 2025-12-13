@@ -36,7 +36,11 @@ class MessageFormatters
         $formattedMessages = [];
         foreach ($nonSystemMessages as $msg) {
             $role = $msg['role'] ?? 'user';
-            $content = $msg['content'] ?? null;
+            // Handle content - it might be null, empty string, or not set at all
+            $content = null;
+            if (isset($msg['content'])) {
+                $content = $msg['content'];
+            }
             $toolCalls = $msg['toolCalls'] ?? null;
             $toolCallId = $msg['toolCallId'] ?? null;
 
@@ -53,10 +57,13 @@ class MessageFormatters
             } elseif ($role === 'assistant' && $toolCalls) {
                 // Assistant message with tool calls
                 $contentList = [];
-                if ($content) {
+                
+                // Add text content if present (non-empty string)
+                if (!empty($content) && is_string($content) && trim($content) !== '') {
                     $contentList[] = ['type' => 'text', 'text' => $content];
                 }
 
+                // Add tool use items
                 foreach ($toolCalls as $toolCall) {
                     $contentList[] = [
                         'type' => 'tool_use',
@@ -66,10 +73,17 @@ class MessageFormatters
                     ];
                 }
 
-                $formattedMessages[] = [
-                    'role' => 'assistant',
-                    'content' => $contentList
-                ];
+                // Anthropic requires at least one content item, so if we only have tool calls, that's fine
+                // But we must ensure contentList is not empty (it shouldn't be if we have tool calls)
+                if (!empty($contentList)) {
+                    error_log('[MessageFormatters] Formatting assistant message with ' . count($toolCalls) . ' tool calls, content items=' . count($contentList) . ', hasText=' . (!empty($content) ? 'yes' : 'no'));
+                    $formattedMessages[] = [
+                        'role' => 'assistant',
+                        'content' => $contentList
+                    ];
+                } else {
+                    error_log('[MessageFormatters] WARNING: Assistant message with tool calls but empty contentList!');
+                }
             } else {
                 // Regular message
                 $formattedMessages[] = [
@@ -131,6 +145,63 @@ class MessageFormatters
         }
 
         return $formattedMessages;
+    }
+
+    /**
+     * Convert Tool objects to Anthropic format.
+     * 
+     * @param array<Tool> $tools List of Tool objects
+     * @return array List of Anthropic-formatted tools
+     */
+    public static function formatToolsForAnthropic(array $tools): array
+    {
+        $formattedTools = [];
+        
+        foreach ($tools as $tool) {
+            $toolDef = [
+                'name' => $tool->name,
+                'description' => $tool->description,
+            ];
+            
+            // Convert inputSchema to Anthropic format
+            if ($tool->inputSchema) {
+                $toolDef['input_schema'] = $tool->inputSchema;
+            }
+            
+            $formattedTools[] = $toolDef;
+        }
+        
+        return $formattedTools;
+    }
+
+    /**
+     * Convert Tool objects to OpenAI format.
+     * 
+     * @param array<Tool> $tools List of Tool objects
+     * @return array List of OpenAI-formatted tools
+     */
+    public static function formatToolsForOpenAI(array $tools): array
+    {
+        $formattedTools = [];
+        
+        foreach ($tools as $tool) {
+            $toolDef = [
+                'type' => 'function',
+                'function' => [
+                    'name' => $tool->name,
+                    'description' => $tool->description,
+                ],
+            ];
+            
+            // Convert inputSchema to OpenAI format (parameters)
+            if ($tool->inputSchema) {
+                $toolDef['function']['parameters'] = $tool->inputSchema;
+            }
+            
+            $formattedTools[] = $toolDef;
+        }
+        
+        return $formattedTools;
     }
 }
 

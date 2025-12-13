@@ -7,6 +7,8 @@ This directory contains comprehensive examples demonstrating TanStack AI across 
 Choose an example based on your use case:
 
 - **Want a full-stack TypeScript app?** → [TanStack Chat (ts-react-chat)](#tanstack-chat-ts-react-chat)
+- **Want an e-commerce demo with AI?** → [PHP Laravel E-Commerce](#php-laravel--lunar-e-commerce)
+- **Want a simple CLI tool?** → [CLI Example](#cli-example)
 - **Need a vanilla JS frontend?** → [Vanilla Chat](#vanilla-chat)
 - **Building a Python backend?** → [Python FastAPI Server](#python-fastapi-server)
 - **Building a PHP backend?** → [PHP Slim Framework Server](#php-slim-framework-server)
@@ -204,9 +206,55 @@ await client.sendMessage('Hello!')
 
 ## PHP Examples
 
+### PHP Laravel + Lunar E-Commerce
+
+A full-featured e-commerce guitar shop built with Laravel 11+ and Lunar, featuring an AI sales assistant powered by TanStack AI.
+
+**Tech Stack:**
+
+- Laravel 11+ (PHP backend)
+- Lunar (headless e-Commerce)
+- React + Vite (frontend)
+- `@tanstack/ai` PHP package (AI backend)
+- `@tanstack/ai-react` (React hooks)
+- `@tanstack/ai-client` (headless client)
+
+**Features:**
+
+- ✅ Full e-commerce functionality with Lunar
+- ✅ AI sales assistant with tool calling (getInventory)
+- ✅ Agentic flow with automatic tool execution
+- ✅ Real-time streaming with SSE
+- ✅ Product catalog with images and pricing
+- ✅ Shopping cart management
+- ✅ Beautiful sidebar chat interface
+- ✅ Support for Anthropic and OpenAI
+
+**Getting Started:**
+
+```bash
+cd examples/php-laravel
+
+# One-command setup (installs deps, sets up database, seeds products)
+pnpm run setup
+
+# Copy environment file and add API keys
+cp backend/.env.example backend/.env
+# Edit backend/.env and add your ANTHROPIC_API_KEY
+
+# Start both frontend and backend
+pnpm start
+```
+
+Open `http://localhost:3200/`
+
+📖 [Full Documentation](php-laravel/README.md)
+
+---
+
 ### PHP Slim Framework Server
 
-A PHP Slim Framework server that streams AI responses in SSE format, with support for both Anthropic and OpenAI.
+A lightweight PHP Slim Framework server that streams AI responses in SSE format, with support for both Anthropic and OpenAI.
 
 **Features:**
 
@@ -295,6 +343,7 @@ AI Provider (OpenAI/Anthropic/etc.)
 
 **Examples:**
 
+- [PHP Laravel E-Commerce](php-laravel/README.md) - Full-stack with Laravel + React
 - [Python FastAPI](python-fastapi/README.md) + [Vanilla Chat](vanilla-chat/README.md)
 - [PHP Slim](php-slim/README.md) + [Vanilla Chat](vanilla-chat/README.md)
 - [PHP Slim](php-slim/README.md) + any frontend with `@tanstack/ai-client`
