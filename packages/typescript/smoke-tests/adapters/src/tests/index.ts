@@ -8,6 +8,7 @@ import { runAPR } from './apr-approval-flow'
 import { runSTR } from './str-structured-output'
 import { runAGS } from './ags-agentic-structured'
 import { runSUM } from './sum-summarize'
+import { runSMS } from './sms-summarize-stream'
 import { runEMB } from './emb-embedding'
 import { runIMG } from './img-image-generation'
 import { runTTS } from './tts-text-to-speech'
@@ -93,6 +94,13 @@ export const TESTS: TestDefinition[] = [
     name: 'Summarize',
     description: 'Text summarization',
     run: runSUM,
+    requires: ['summarize'],
+  },
+  {
+    id: 'SMS',
+    name: 'Summarize Stream',
+    description: 'Streaming text summarization',
+    run: runSMS,
     requires: ['summarize'],
   },
   {

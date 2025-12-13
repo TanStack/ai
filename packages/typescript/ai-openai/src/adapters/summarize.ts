@@ -1,7 +1,11 @@
 import { BaseSummarizeAdapter } from '@tanstack/ai/adapters'
 import { OPENAI_CHAT_MODELS } from '../model-meta'
-import { createOpenAIClient, getOpenAIApiKeyFromEnv } from '../utils'
-import type { SummarizationOptions, SummarizationResult } from '@tanstack/ai'
+import { createOpenAIClient, generateId, getOpenAIApiKeyFromEnv } from '../utils'
+import type {
+  SummarizationOptions,
+  SummarizationResult,
+  StreamChunk,
+} from '@tanstack/ai'
 import type { OpenAIClientConfig } from '../utils'
 
 /**
@@ -63,6 +67,66 @@ export class OpenAISummarizeAdapter extends BaseSummarizeAdapter<
         completionTokens: response.usage?.completion_tokens || 0,
         totalTokens: response.usage?.total_tokens || 0,
       },
+    }
+  }
+
+  async *summarizeStream(
+    options: SummarizationOptions,
+  ): AsyncIterable<StreamChunk> {
+    const systemPrompt = this.buildSummarizationPrompt(options)
+    const id = generateId(this.name)
+    const model = options.model || 'gpt-3.5-turbo'
+    let accumulatedContent = ''
+
+    const stream = await this.client.chat.completions.create({
+      model,
+      messages: [
+        { role: 'system', content: systemPrompt },
+        { role: 'user', content: options.text },
+      ],
+      max_tokens: options.maxLength,
+      temperature: 0.3,
+      stream: true,
+      stream_options: { include_usage: true },
+    })
+
+    for await (const chunk of stream) {
+      const delta = chunk.choices[0]?.delta?.content || ''
+
+      if (delta) {
+        accumulatedContent += delta
+        yield {
+          type: 'content',
+          id,
+          model,
+          timestamp: Date.now(),
+          delta,
+          content: accumulatedContent,
+          role: 'assistant',
+        }
+      }
+
+      // Check for finish reason and usage (comes in the last chunk)
+      if (chunk.choices[0]?.finish_reason) {
+        yield {
+          type: 'done',
+          id,
+          model,
+          timestamp: Date.now(),
+          finishReason: chunk.choices[0].finish_reason as
+            | 'stop'
+            | 'length'
+            | 'content_filter'
+            | null,
+          usage: chunk.usage
+            ? {
+                promptTokens: chunk.usage.prompt_tokens,
+                completionTokens: chunk.usage.completion_tokens,
+                totalTokens: chunk.usage.total_tokens,
+              }
+            : undefined,
+        }
+      }
     }
   }
 

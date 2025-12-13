@@ -7,7 +7,11 @@ import {
 
 import type { Ollama } from 'ollama'
 import type { SummarizeAdapter } from '@tanstack/ai/adapters'
-import type { SummarizationOptions, SummarizationResult } from '@tanstack/ai'
+import type {
+  SummarizationOptions,
+  SummarizationResult,
+  StreamChunk,
+} from '@tanstack/ai'
 
 /**
  * Ollama models suitable for summarization
@@ -114,6 +118,57 @@ export class OllamaSummarizeAdapter implements SummarizeAdapter<
         completionTokens,
         totalTokens: promptTokens + completionTokens,
       },
+    }
+  }
+
+  async *summarizeStream(
+    options: SummarizationOptions,
+  ): AsyncIterable<StreamChunk> {
+    const model = options.model || this.defaultModel
+    const id = generateId('sum')
+    const prompt = this.buildSummarizationPrompt(options)
+    let accumulatedContent = ''
+
+    const stream = await this.client.generate({
+      model,
+      prompt,
+      options: {
+        temperature: 0.3,
+        num_predict: options.maxLength ?? 500,
+      },
+      stream: true,
+    })
+
+    for await (const chunk of stream) {
+      if (chunk.response) {
+        accumulatedContent += chunk.response
+        yield {
+          type: 'content',
+          id,
+          model: chunk.model,
+          timestamp: Date.now(),
+          delta: chunk.response,
+          content: accumulatedContent,
+          role: 'assistant',
+        }
+      }
+
+      if (chunk.done) {
+        const promptTokens = estimateTokens(prompt)
+        const completionTokens = estimateTokens(accumulatedContent)
+        yield {
+          type: 'done',
+          id,
+          model: chunk.model,
+          timestamp: Date.now(),
+          finishReason: 'stop',
+          usage: {
+            promptTokens,
+            completionTokens,
+            totalTokens: promptTokens + completionTokens,
+          },
+        }
+      }
     }
   }
 
