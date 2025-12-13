@@ -27,7 +27,6 @@ export class ChatClient {
   private currentStreamId: string | null = null
   private currentMessageId: string | null = null
 
-
   private callbacksRef: {
     current: {
       onResponse: (response?: Response) => void | Promise<void>
@@ -291,6 +290,7 @@ export class ChatClient {
     this.setIsLoading(true)
     this.setError(undefined)
     this.abortController = new AbortController()
+    let streamCompletedSuccessfully = false
 
     try {
       // Get model messages for the LLM
@@ -313,6 +313,7 @@ export class ChatClient {
       )
 
       await this.processStream(stream)
+      streamCompletedSuccessfully = true
     } catch (err) {
       if (err instanceof Error) {
         if (err.name === 'AbortError') {
@@ -326,15 +327,17 @@ export class ChatClient {
       this.setIsLoading(false)
 
       // Continue conversation if the stream ended with a tool result
-      const messages = this.processor.getMessages()
-      const lastMessage = messages[messages.length - 1]
-      const lastPart = lastMessage?.parts[lastMessage.parts.length - 1]
+      if (streamCompletedSuccessfully) {
+        const messages = this.processor.getMessages()
+        const lastMessage = messages[messages.length - 1]
+        const lastPart = lastMessage?.parts[lastMessage.parts.length - 1]
 
-      if (lastPart?.type === 'tool-result' && this.shouldAutoSend()) {
-        try {
-          await this.continueFlow()
-        } catch (error) {
-          console.error('Failed to continue flow after tool result:', error)
+        if (lastPart?.type === 'tool-result' && this.shouldAutoSend()) {
+          try {
+            await this.continueFlow()
+          } catch (error) {
+            console.error('Failed to continue flow after tool result:', error)
+          }
         }
       }
     }
