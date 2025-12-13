@@ -116,10 +116,6 @@ export class OpenAI extends BaseAdapter<
         () => this.generateId(),
       )
     } catch (error: any) {
-      console.error('>>> chatStream: Fatal error during response creation <<<')
-      console.error('>>> Error message:', error?.message)
-      console.error('>>> Error stack:', error?.stack)
-      console.error('>>> Full error:', error)
       throw error
     }
   }
@@ -214,8 +210,6 @@ export class OpenAI extends BaseAdapter<
     // Preserve response metadata across events
     let responseId: string | null = null
     let model: string = options.model
-
-    const eventTypeCounts = new Map<string, number>()
 
     try {
       for await (const chunk of stream) {
@@ -466,14 +460,6 @@ export class OpenAI extends BaseAdapter<
         }
       }
     } catch (error: any) {
-      console.log(
-        '[OpenAI Adapter] Stream ended with error. Event type summary:',
-        {
-          totalChunks: chunkCount,
-          eventTypes: Object.fromEntries(eventTypeCounts),
-          error: error.message,
-        },
-      )
       yield {
         type: 'error',
         id: generateId(),
