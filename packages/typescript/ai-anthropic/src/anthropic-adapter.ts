@@ -10,7 +10,6 @@ import type {
   AnthropicTextMetadata,
 } from './message-types'
 import type {
-  ChatOptions,
   ContentPart,
   EmbeddingOptions,
   EmbeddingResult,
@@ -18,6 +17,7 @@ import type {
   StreamChunk,
   SummarizationOptions,
   SummarizationResult,
+  TextOptions,
 } from '@tanstack/ai'
 import type {
   AnthropicChatModelProviderOptionsByName,
@@ -81,7 +81,7 @@ export class Anthropic extends BaseAdapter<
   }
 
   async *chatStream(
-    options: ChatOptions<string, AnthropicProviderOptions>,
+    options: TextOptions<string, AnthropicProviderOptions>,
   ): AsyncIterable<StreamChunk> {
     try {
       // Map common options to Anthropic format using the centralized mapping function
@@ -192,7 +192,7 @@ export class Anthropic extends BaseAdapter<
    * Handles translation of normalized options to Anthropic's API format
    */
   private mapCommonOptionsToAnthropic(
-    options: ChatOptions<string, AnthropicProviderOptions>,
+    options: TextOptions<string, AnthropicProviderOptions>,
   ) {
     const providerOptions = options.providerOptions as
       | InternalTextProviderOptions

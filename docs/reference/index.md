@@ -25,8 +25,8 @@ title: "@tanstack/ai"
 - [ApprovalRequestedStreamChunk](interfaces/ApprovalRequestedStreamChunk.md)
 - [AudioPart](interfaces/AudioPart.md)
 - [BaseStreamChunk](interfaces/BaseStreamChunk.md)
-- [ChatCompletionChunk](interfaces/ChatCompletionChunk.md)
-- [ChatOptions](interfaces/ChatOptions.md)
+- [TextCompletionChunk](interfaces/TextCompletionChunk.md)
+- [TextOptions](interfaces/TextOptions.md)
 - [ChunkRecording](interfaces/ChunkRecording.md)
 - [ChunkStrategy](interfaces/ChunkStrategy.md)
 - [ClientTool](interfaces/ClientTool.md)
@@ -73,8 +73,8 @@ title: "@tanstack/ai"
 
 - [AgentLoopStrategy](type-aliases/AgentLoopStrategy.md)
 - [AnyClientTool](type-aliases/AnyClientTool.md)
-- [ChatStreamOptionsForModel](type-aliases/ChatStreamOptionsForModel.md)
-- [ChatStreamOptionsUnion](type-aliases/ChatStreamOptionsUnion.md)
+- [TextStreamOptionsForModel](type-aliases/TextStreamOptionsForModel.md)
+- [TextStreamOptionsUnion](type-aliases/TextStreamOptionsUnion.md)
 - [ConstrainedContent](type-aliases/ConstrainedContent.md)
 - [ConstrainedModelMessage](type-aliases/ConstrainedModelMessage.md)
 - [ContentPart](type-aliases/ContentPart.md)
@@ -101,8 +101,8 @@ title: "@tanstack/ai"
 
 ## Functions
 
-- [chat](functions/chat.md)
-- [chatOptions](functions/chatOptions.md)
+- [chat](functions/text.md)
+- [textOptions](functions/textOptions.md)
 - [combineStrategies](functions/combineStrategies.md)
 - [convertMessagesToModelMessages](functions/convertMessagesToModelMessages.md)
 - [convertZodToJsonSchema](functions/convertZodToJsonSchema.md)

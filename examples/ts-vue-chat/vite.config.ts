@@ -2,11 +2,11 @@ import { fileURLToPath, URL } from 'node:url'
 import { defineConfig } from 'vite'
 import vue from '@vitejs/plugin-vue'
 import tailwindcss from '@tailwindcss/vite'
-import { chat, maxIterations, toStreamResponse } from '@tanstack/ai'
-import { openai } from '@tanstack/ai-openai'
-import { anthropic } from '@tanstack/ai-anthropic'
-import { gemini } from '@tanstack/ai-gemini'
-import { ollama } from '@tanstack/ai-ollama'
+import { ai, maxIterations, toStreamResponse } from '@tanstack/ai'
+import { openaiText } from '@tanstack/ai-openai'
+import { anthropicText } from '@tanstack/ai-anthropic'
+import { geminiText } from '@tanstack/ai-gemini'
+import { ollamaText } from '@tanstack/ai-ollama'
 import { toolDefinition } from '@tanstack/ai'
 import { z } from 'zod'
 import dotenv from 'dotenv'
@@ -206,20 +206,20 @@ export default defineConfig({
 
             switch (provider) {
               case 'anthropic':
-                adapter = anthropic()
+                adapter = anthropicText()
                 defaultModel = 'claude-sonnet-4-5-20250929'
                 break
               case 'gemini':
-                adapter = gemini()
+                adapter = geminiText()
                 defaultModel = 'gemini-2.0-flash-exp'
                 break
               case 'ollama':
-                adapter = ollama()
+                adapter = ollamaText()
                 defaultModel = 'mistral:7b'
                 break
               case 'openai':
               default:
-                adapter = openai()
+                adapter = openaiText()
                 defaultModel = 'gpt-4o'
                 break
             }
@@ -231,7 +231,7 @@ export default defineConfig({
 
             const abortController = new AbortController()
 
-            const stream = chat({
+            const stream = ai({
               adapter: adapter as any,
               model: selectedModel as any,
               tools: [

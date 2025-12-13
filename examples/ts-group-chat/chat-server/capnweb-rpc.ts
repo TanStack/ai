@@ -1,14 +1,15 @@
 // Cap'n Web RPC server implementation for chat
 import { RpcTarget } from 'capnweb'
-import { WebSocket } from 'ws'
 import { ChatLogic } from './chat-logic.js'
+
+import type { WebSocket } from 'ws'
 
 // Local type definition to avoid importing from @tanstack/ai at module parse time
 interface ModelMessage {
   role: 'system' | 'user' | 'assistant' | 'tool'
   content?: string
   toolCallId?: string
-  toolCalls?: any[]
+  toolCalls?: Array<any>
 }
 
 // Lazy-load claude service to avoid importing AI packages at module parse time
@@ -57,7 +58,7 @@ export const activeServers = new Set<ChatServer>()
 export const userMessageQueues = new Map<string, Array<any>>()
 
 // Global registry of client callbacks
-export const clients = new Map<string, Function>()
+export const clients = new Map<string, (...args: Array<any>) => void>()
 
 // Chat Server Implementation (one per connection)
 export class ChatServer extends RpcTarget {
@@ -95,7 +96,7 @@ export class ChatServer extends RpcTarget {
     console.log(`📬 Exclude user: ${excludeUser || 'none'}`)
 
     let successCount = 0
-    const successful: string[] = []
+    const successful: Array<string> = []
 
     for (const username of clients.keys()) {
       if (excludeUser && username === excludeUser) {
@@ -150,7 +151,10 @@ export class ChatServer extends RpcTarget {
   }
 
   // Client joins the chat
-  async joinChat(username: string, notificationCallback: Function) {
+  async joinChat(
+    username: string,
+    notificationCallback: (...args: Array<any>) => void,
+  ) {
     console.log(`${username} is joining the chat`)
     this.currentUsername = username
 
@@ -264,7 +268,7 @@ export class ChatServer extends RpcTarget {
       )
 
       // Build conversation history for Claude
-      const conversationHistory: ModelMessage[] = globalChat
+      const conversationHistory: Array<ModelMessage> = globalChat
         .getMessages()
         .map((msg) => ({
           role: 'user' as const,
@@ -345,7 +349,7 @@ export class ChatServer extends RpcTarget {
       })
 
       // Get conversation history from the current request
-      const conversationHistory: ModelMessage[] = globalChat
+      const conversationHistory: Array<ModelMessage> = globalChat
         .getMessages()
         .map((msg) => ({
           role: 'user' as const,
@@ -409,7 +413,7 @@ export class ChatServer extends RpcTarget {
   }
 
   // Stream Claude response (for future use if needed)
-  async *streamClaudeResponse(conversationHistory: ModelMessage[]) {
+  async *streamClaudeResponse(conversationHistory: Array<ModelMessage>) {
     const claudeService = await getClaudeService()
     yield* claudeService.streamResponse(conversationHistory)
   }

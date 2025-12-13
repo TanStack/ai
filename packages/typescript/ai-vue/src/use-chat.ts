@@ -39,10 +39,9 @@ export function useChat<TTools extends ReadonlyArray<AnyClientTool> = any>(
   })
 
   // Cleanup on unmount: stop any in-flight requests
+  // Note: client.stop() is safe to call even if nothing is in progress
   onScopeDispose(() => {
-    if (isLoading.value) {
-      client.stop()
-    }
+    client.stop()
   })
 
   // Note: Callback options (onResponse, onChunk, onFinish, onError, onToolCall)

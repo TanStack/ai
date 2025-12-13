@@ -24,7 +24,7 @@ The framework-agnostic core of TanStack AI provides the building blocks for crea
 - **Express** - Node.js server
 - **Remix Router v7** - Loaders and actions
 
-TanStack AI lets you define a tool once and provide environment-specific implementations. Using `toolDefinition()` to declare the tool’s input/output types and the server behavior with `.server()` (or a client implementation with `.client()`). These isomorphic tools can be invoked from the AI runtime regardless of framework.
+TanStack AI lets you define a tool once and provide environment-specific implementations. Using `toolDefinition()` to declare the tool's input/output types and the server behavior with `.server()` (or a client implementation with `.client()`). These isomorphic tools can be invoked from the AI runtime regardless of framework.
 
 ```typescript
 import { toolDefinition } from '@tanstack/ai'
@@ -42,7 +42,7 @@ const getProducts = getProductsDef.server(async ({ query }) => {
 })
 
 // Use in AI chat
-chat({ tools: [getProducts] })
+ai({ tools: [getProducts] })
 ```
 
 ## Core Packages

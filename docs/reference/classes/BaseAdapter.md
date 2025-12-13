@@ -237,7 +237,7 @@ Defined in: [base-adapter.ts:74](https://github.com/TanStack/ai/blob/main/packag
 
 ##### options
 
-[`ChatOptions`](../interfaces/ChatOptions.md)
+[`TextOptions`](../interfaces/TextOptions.md)
 
 #### Returns
 

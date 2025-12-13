@@ -65,7 +65,7 @@
     "sherif": "^1.9.0",
     "tinyglobby": "^0.2.15",
     "typescript": "5.9.3",
-    "vite": "^7.2.4",
+    "vite": "^7.2.7",
     "vitest": "^4.0.14"
   }
 }

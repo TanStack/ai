@@ -1,9 +1,7 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest'
-import { chat, type Tool, type StreamChunk } from '@tanstack/ai'
-import {
-  Anthropic,
-  type AnthropicProviderOptions,
-} from '../src/anthropic-adapter'
+import { ai, type Tool, type StreamChunk } from '@tanstack/ai'
+import { AnthropicTextAdapter } from '../src/adapters/text'
+import type { AnthropicProviderOptions } from '../src/anthropic-adapter'
 import { z } from 'zod'
 
 const mocks = vi.hoisted(() => {
@@ -37,7 +35,7 @@ vi.mock('@anthropic-ai/sdk', () => {
   return { default: MockAnthropic }
 })
 
-const createAdapter = () => new Anthropic({ apiKey: 'test-key' })
+const createAdapter = () => new AnthropicTextAdapter({ apiKey: 'test-key' })
 
 const toolArguments = JSON.stringify({ location: 'Berlin' })
 
@@ -107,7 +105,7 @@ describe('Anthropic adapter option mapping', () => {
 
     // Consume the stream to trigger the API call
     const chunks: StreamChunk[] = []
-    for await (const chunk of chat({
+    for await (const chunk of ai({
       adapter,
       model: 'claude-3-7-sonnet-20250219',
       messages: [

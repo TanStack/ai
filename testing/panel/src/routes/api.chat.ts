@@ -1,11 +1,11 @@
 import * as path from 'node:path'
 import * as fs from 'node:fs'
 import { createFileRoute } from '@tanstack/react-router'
-import { chat, maxIterations, toStreamResponse } from '@tanstack/ai'
-import { anthropic } from '@tanstack/ai-anthropic'
-import { gemini } from '@tanstack/ai-gemini'
-import { openai } from '@tanstack/ai-openai'
-import { ollama } from '@tanstack/ai-ollama'
+import { ai, maxIterations, toStreamResponse } from '@tanstack/ai'
+import { anthropicText } from '@tanstack/ai-anthropic'
+import { geminiText } from '@tanstack/ai-gemini'
+import { openaiText } from '@tanstack/ai-openai'
+import { ollamaText } from '@tanstack/ai-ollama'
 import type { AIAdapter, ChatOptions, StreamChunk } from '@tanstack/ai'
 import type { ChunkRecording } from '@/lib/recording'
 import {
@@ -157,20 +157,21 @@ export const Route = createFileRoute('/api/chat')({
 
           switch (provider) {
             case 'anthropic':
-              adapter = anthropic()
+              adapter = anthropicText()
               defaultModel = 'claude-sonnet-4-5-20250929'
               break
             case 'gemini':
-              adapter = gemini()
+              adapter = geminiText()
               defaultModel = 'gemini-2.0-flash-exp'
               break
+
             case 'ollama':
-              adapter = ollama()
+              adapter = ollamaText()
               defaultModel = 'mistral:7b'
               break
             case 'openai':
             default:
-              adapter = openai()
+              adapter = openaiText()
               defaultModel = 'gpt-4o'
               break
           }
@@ -196,7 +197,7 @@ export const Route = createFileRoute('/api/chat')({
           }
 
           // Use the stream abort signal for proper cancellation handling
-          const stream = chat({
+          const stream = ai({
             adapter: adapter as any,
             model: selectedModel as any,
             tools: [

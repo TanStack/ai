@@ -1,38 +1,35 @@
-import { convertZodToJsonSchema } from '@tanstack/ai'
+import { convertZodToOpenAISchema } from '../utils/schema-converter'
 import type { Tool } from '@tanstack/ai'
 import type OpenAI from 'openai'
 
 export type FunctionTool = OpenAI.Responses.FunctionTool
 
 /**
- * Converts a standard Tool to OpenAI FunctionTool format
+ * Converts a standard Tool to OpenAI FunctionTool format.
+ *
+ * Uses the OpenAI-specific schema converter which applies strict mode transformations:
+ * - All properties in required array
+ * - Optional fields made nullable
+ * - additionalProperties: false
+ *
+ * This enables strict mode for all tools automatically.
  */
 export function convertFunctionToolToAdapterFormat(tool: Tool): FunctionTool {
-  // Convert Zod schema to JSON Schema
+  // Convert Zod schema to OpenAI-compatible JSON Schema (with strict mode transformations)
   const jsonSchema = tool.inputSchema
-    ? convertZodToJsonSchema(tool.inputSchema)
-    : undefined
-
-  // Determine if we can use strict mode
-  // Strict mode requires all properties to be in the required array
-  const properties = jsonSchema?.properties || {}
-  const required = jsonSchema?.required || []
-  const propertyNames = Object.keys(properties)
-
-  // Only enable strict mode if all properties are required
-  // This ensures compatibility with tools that have optional parameters
-  const canUseStrict =
-    propertyNames.length > 0 &&
-    propertyNames.every((prop: string) => required.includes(prop))
+    ? convertZodToOpenAISchema(tool.inputSchema)
+    : {
+        type: 'object',
+        properties: {},
+        required: [],
+        additionalProperties: false,
+      }
 
   return {
     type: 'function',
     name: tool.name,
     description: tool.description,
-    parameters: {
-      ...jsonSchema,
-      additionalProperties: false,
-    },
-    strict: canUseStrict,
+    parameters: jsonSchema,
+    strict: true, // Always use strict mode since our schema converter handles the requirements
   } satisfies FunctionTool
 }
