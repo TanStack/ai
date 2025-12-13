@@ -20,6 +20,10 @@
         {
           "label": "Devtools",
           "to": "getting-started/devtools"
+        },
+        {
+          "label": "Migration Guide",
+          "to": "guides/migration-guide"
         }
       ]
     },
@@ -77,6 +81,18 @@
         {
           "label": "Transcription",
           "to": "guides/transcription"
+        },
+        {
+          "label": "Image Generation",
+          "to": "guides/image-generation"
+        },
+        {
+          "label": "Video Generation",
+          "to": "guides/video-generation"
+        },
+        {
+          "label": "Tree-Shakeable Adapters",
+          "to": "guides/tree-shakeable-adapters"
         }
       ]
     },
