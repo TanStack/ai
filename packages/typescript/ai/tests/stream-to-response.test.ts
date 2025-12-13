@@ -2,7 +2,7 @@ import { describe, it, expect, vi } from 'vitest'
 import {
   toServerSentEventsStream,
   toStreamResponse,
-} from '../src/utilities/stream-to-response'
+} from '../src/stream-to-response'
 import type { StreamChunk } from '../src/types'
 
 // Helper to create mock async iterable

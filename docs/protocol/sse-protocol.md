@@ -167,14 +167,14 @@ SSE provides automatic reconnection:
 TanStack AI provides `toServerSentEventsStream()` and `toStreamResponse()` utilities:
 
 ```typescript
-import { chat, toStreamResponse } from '@tanstack/ai';
-import { openai } from '@tanstack/ai-openai';
+import { ai, toStreamResponse } from '@tanstack/ai';
+import { openaiText } from '@tanstack/ai-openai';
 
 export async function POST(request: Request) {
   const { messages } = await request.json();
 
-  const stream = chat({
-    adapter: openai(),
+  const stream = ai({
+    adapter: openaiText(),
     messages,
     model: 'gpt-4o',
   });
@@ -224,7 +224,7 @@ export async function POST(request: Request) {
   const stream = new ReadableStream({
     async start(controller) {
       try {
-        for await (const chunk of chat({ ... })) {
+        for await (const chunk of ai({ ... })) {
           const sseData = `data: ${JSON.stringify(chunk)}\n\n`;
           controller.enqueue(encoder.encode(sseData));
         }

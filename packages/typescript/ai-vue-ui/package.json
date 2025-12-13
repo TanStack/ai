@@ -51,7 +51,7 @@
   },
   "devDependencies": {
     "@vitest/coverage-v8": "4.0.14",
-    "vite": "^7.2.4",
+    "vite": "^7.2.7",
     "vue-tsc": "^2.2.10"
   },
   "files": [

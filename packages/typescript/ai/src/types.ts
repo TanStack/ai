@@ -1,6 +1,15 @@
-import type { CommonOptions } from './core/chat-common-options'
+import type { CommonOptions } from './activities/text/index'
 import type { z } from 'zod'
-import type { ToolCallState, ToolResultState } from './stream/types'
+import type {
+  ToolCallState,
+  ToolResultState,
+} from './activities/text/stream/types'
+import type {
+  AnyAdapter,
+  EmbeddingAdapter,
+  SummarizeAdapter,
+  TextAdapter,
+} from './activities'
 
 /**
  * JSON Schema type for defining tool input/output schemas as raw JSON Schema objects.
@@ -545,7 +554,7 @@ export type AgentLoopStrategy = (state: AgentLoopState) => boolean
 /**
  * Options passed into the SDK and further piped to the AI provider.
  */
-export interface ChatOptions<
+export interface TextOptions<
   TModel extends string = string,
   TProviderOptionsSuperset extends Record<string, any> = Record<string, any>,
   TOutput extends ResponseFormat<any> | undefined = undefined,
@@ -560,6 +569,13 @@ export interface ChatOptions<
   providerOptions?: TProviderOptionsForModel
   request?: Request | RequestInit
   output?: TOutput
+  /**
+   * Zod schema for structured output.
+   * When provided, the adapter should use the provider's native structured output API
+   * to ensure the response conforms to this schema.
+   * The schema will be converted to JSON Schema format before being sent to the provider.
+   */
+  outputSchema?: z.ZodType
   /**
    * Conversation ID for correlating client and server-side devtools events.
    * When provided, server-side events will be linked to the client conversation in devtools.
@@ -679,9 +695,9 @@ export type StreamChunk =
   | ToolInputAvailableStreamChunk
   | ThinkingStreamChunk
 
-// Simple streaming format for basic chat completions
-// Converted to StreamChunk format by convertChatCompletionStream()
-export interface ChatCompletionChunk {
+// Simple streaming format for basic text completions
+// Converted to StreamChunk format by convertTextCompletionStream()
+export interface TextCompletionChunk {
   id: string
   model: string
   content: string
@@ -727,6 +743,242 @@ export interface EmbeddingResult {
     promptTokens: number
     totalTokens: number
   }
+}
+
+// ============================================================================
+// Image Generation Types
+// ============================================================================
+
+/**
+ * Options for image generation.
+ * These are the common options supported across providers.
+ */
+export interface ImageGenerationOptions<
+  TProviderOptions extends object = object,
+> {
+  /** The model to use for image generation */
+  model: string
+  /** Text description of the desired image(s) */
+  prompt: string
+  /** Number of images to generate (default: 1) */
+  numberOfImages?: number
+  /** Image size in WIDTHxHEIGHT format (e.g., "1024x1024") */
+  size?: string
+  /** Provider-specific options for image generation */
+  providerOptions?: TProviderOptions
+}
+
+/**
+ * A single generated image
+ */
+export interface GeneratedImage {
+  /** Base64-encoded image data */
+  b64Json?: string
+  /** URL to the generated image (may be temporary) */
+  url?: string
+  /** Revised prompt used by the model (if applicable) */
+  revisedPrompt?: string
+}
+
+/**
+ * Result of image generation
+ */
+export interface ImageGenerationResult {
+  /** Unique identifier for the generation */
+  id: string
+  /** Model used for generation */
+  model: string
+  /** Array of generated images */
+  images: Array<GeneratedImage>
+  /** Token usage information (if available) */
+  usage?: {
+    inputTokens?: number
+    outputTokens?: number
+    totalTokens?: number
+  }
+}
+
+// ============================================================================
+// Video Generation Types (Experimental)
+// ============================================================================
+
+/**
+ * Options for video generation.
+ * These are the common options supported across providers.
+ *
+ * @experimental Video generation is an experimental feature and may change.
+ */
+export interface VideoGenerationOptions<
+  TProviderOptions extends object = object,
+> {
+  /** The model to use for video generation */
+  model: string
+  /** Text description of the desired video */
+  prompt: string
+  /** Video size in WIDTHxHEIGHT format (e.g., "1280x720") */
+  size?: string
+  /** Video duration in seconds */
+  duration?: number
+  /** Provider-specific options for video generation */
+  providerOptions?: TProviderOptions
+}
+
+/**
+ * Result of creating a video generation job.
+ *
+ * @experimental Video generation is an experimental feature and may change.
+ */
+export interface VideoJobResult {
+  /** Unique job identifier for polling status */
+  jobId: string
+  /** Model used for generation */
+  model: string
+}
+
+/**
+ * Status of a video generation job.
+ *
+ * @experimental Video generation is an experimental feature and may change.
+ */
+export interface VideoStatusResult {
+  /** Job identifier */
+  jobId: string
+  /** Current status of the job */
+  status: 'pending' | 'processing' | 'completed' | 'failed'
+  /** Progress percentage (0-100), if available */
+  progress?: number
+  /** Error message if status is 'failed' */
+  error?: string
+}
+
+/**
+ * Result containing the URL to a generated video.
+ *
+ * @experimental Video generation is an experimental feature and may change.
+ */
+export interface VideoUrlResult {
+  /** Job identifier */
+  jobId: string
+  /** URL to the generated video */
+  url: string
+  /** When the URL expires, if applicable */
+  expiresAt?: Date
+}
+
+// ============================================================================
+// Text-to-Speech (TTS) Types
+// ============================================================================
+
+/**
+ * Options for text-to-speech generation.
+ * These are the common options supported across providers.
+ */
+export interface TTSOptions<TProviderOptions extends object = object> {
+  /** The model to use for TTS generation */
+  model: string
+  /** The text to convert to speech */
+  text: string
+  /** The voice to use for generation */
+  voice?: string
+  /** The output audio format */
+  format?: 'mp3' | 'opus' | 'aac' | 'flac' | 'wav' | 'pcm'
+  /** The speed of the generated audio (0.25 to 4.0) */
+  speed?: number
+  /** Provider-specific options for TTS generation */
+  providerOptions?: TProviderOptions
+}
+
+/**
+ * Result of text-to-speech generation.
+ */
+export interface TTSResult {
+  /** Unique identifier for the generation */
+  id: string
+  /** Model used for generation */
+  model: string
+  /** Base64-encoded audio data */
+  audio: string
+  /** Audio format of the generated audio */
+  format: string
+  /** Duration of the audio in seconds, if available */
+  duration?: number
+  /** Content type of the audio (e.g., 'audio/mp3') */
+  contentType?: string
+}
+
+// ============================================================================
+// Transcription (Speech-to-Text) Types
+// ============================================================================
+
+/**
+ * Options for audio transcription.
+ * These are the common options supported across providers.
+ */
+export interface TranscriptionOptions<
+  TProviderOptions extends object = object,
+> {
+  /** The model to use for transcription */
+  model: string
+  /** The audio data to transcribe - can be base64 string, File, Blob, or Buffer */
+  audio: string | File | Blob | ArrayBuffer
+  /** The language of the audio in ISO-639-1 format (e.g., 'en') */
+  language?: string
+  /** An optional prompt to guide the transcription */
+  prompt?: string
+  /** The format of the transcription output */
+  responseFormat?: 'json' | 'text' | 'srt' | 'verbose_json' | 'vtt'
+  /** Provider-specific options for transcription */
+  providerOptions?: TProviderOptions
+}
+
+/**
+ * A single segment of transcribed audio with timing information.
+ */
+export interface TranscriptionSegment {
+  /** Unique identifier for the segment */
+  id: number
+  /** Start time of the segment in seconds */
+  start: number
+  /** End time of the segment in seconds */
+  end: number
+  /** Transcribed text for this segment */
+  text: string
+  /** Confidence score (0-1), if available */
+  confidence?: number
+  /** Speaker identifier, if diarization is enabled */
+  speaker?: string
+}
+
+/**
+ * A single word with timing information.
+ */
+export interface TranscriptionWord {
+  /** The transcribed word */
+  word: string
+  /** Start time in seconds */
+  start: number
+  /** End time in seconds */
+  end: number
+}
+
+/**
+ * Result of audio transcription.
+ */
+export interface TranscriptionResult {
+  /** Unique identifier for the transcription */
+  id: string
+  /** Model used for transcription */
+  model: string
+  /** The full transcribed text */
+  text: string
+  /** Language detected or specified */
+  language?: string
+  /** Duration of the audio in seconds */
+  duration?: number
+  /** Detailed segments with timing, if available */
+  segments?: Array<TranscriptionSegment>
+  /** Word-level timestamps, if available */
+  words?: Array<TranscriptionWord>
 }
 
 /**
@@ -800,7 +1052,7 @@ export interface AIAdapter<
 
   // Structured streaming with JSON chunks (supports tool calls and rich content)
   chatStream: (
-    options: ChatOptions<string, TChatProviderOptions>,
+    options: TextOptions<string, TChatProviderOptions>,
   ) => AsyncIterable<StreamChunk>
 
   // Summarization
@@ -818,7 +1070,7 @@ export interface AIAdapterConfig {
   headers?: Record<string, string>
 }
 
-export type ChatStreamOptionsUnion<
+export type TextStreamOptionsUnion<
   TAdapter extends AIAdapter<any, any, any, any, any, any, any>,
 > =
   TAdapter extends AIAdapter<
@@ -833,7 +1085,7 @@ export type ChatStreamOptionsUnion<
     ? Models[number] extends infer TModel
       ? TModel extends string
         ? Omit<
-            ChatOptions,
+            TextOptions,
             'model' | 'providerOptions' | 'responseFormat' | 'messages'
           > & {
             adapter: TAdapter
@@ -874,11 +1126,11 @@ export type ChatStreamOptionsUnion<
     : never
 
 /**
- * Chat options constrained by a specific model's capabilities.
- * Unlike ChatStreamOptionsUnion which creates a union over all models,
+ * Text options constrained by a specific model's capabilities.
+ * Unlike TextStreamOptionsUnion which creates a union over all models,
  * this type takes a specific model and constrains messages accordingly.
  */
-export type ChatStreamOptionsForModel<
+export type TextStreamOptionsForModel<
   TAdapter extends AIAdapter<any, any, any, any, any, any, any>,
   TModel extends string,
 > =
@@ -892,7 +1144,7 @@ export type ChatStreamOptionsForModel<
     infer MessageMetadata
   >
     ? Omit<
-        ChatOptions,
+        TextOptions,
         'model' | 'providerOptions' | 'responseFormat' | 'messages'
       > & {
         adapter: TAdapter
@@ -953,3 +1205,82 @@ export type ExtractModalitiesForModel<
       ? ModelInputModalities[TModel]
       : ReadonlyArray<Modality>
     : ReadonlyArray<Modality>
+
+// ============================================================================
+// New Adapter Types (Tree-Shakeable Architecture)
+// ============================================================================
+
+/**
+ * Extract models from any of the new adapter types
+ */
+export type ExtractModelsFromTextAdapter<T> =
+  T extends TextAdapter<infer M, any, any, any, any> ? M[number] : never
+
+export type ExtractModelsFromEmbeddingAdapter<T> =
+  T extends EmbeddingAdapter<infer M, any> ? M[number] : never
+
+export type ExtractModelsFromSummarizeAdapter<T> =
+  T extends SummarizeAdapter<infer M, any> ? M[number] : never
+
+/**
+ * Extract models from any adapter type (unified)
+ */
+export type ExtractModelsFromAnyAdapter<T> =
+  T extends TextAdapter<infer M, any, any, any, any>
+    ? M[number]
+    : T extends EmbeddingAdapter<infer M, any>
+      ? M[number]
+      : T extends SummarizeAdapter<infer M, any>
+        ? M[number]
+        : never
+
+/**
+ * Text options for the new TextAdapter type
+ */
+export type TextOptionsForTextAdapter<
+  TAdapter extends TextAdapter<any, any, any, any, any>,
+  TModel extends string,
+> =
+  TAdapter extends TextAdapter<
+    any,
+    any,
+    infer ModelProviderOptions,
+    infer ModelInputModalities,
+    infer MessageMetadata
+  >
+    ? Omit<
+        TextOptions,
+        'model' | 'providerOptions' | 'responseFormat' | 'messages'
+      > & {
+        adapter: TAdapter
+        model: TModel
+        providerOptions?: TModel extends keyof ModelProviderOptions
+          ? ModelProviderOptions[TModel]
+          : never
+        messages: TModel extends keyof ModelInputModalities
+          ? ModelInputModalities[TModel] extends ReadonlyArray<Modality>
+            ? MessageMetadata extends {
+                text: infer TTextMeta
+                image: infer TImageMeta
+                audio: infer TAudioMeta
+                video: infer TVideoMeta
+                document: infer TDocumentMeta
+              }
+              ? Array<
+                  ConstrainedModelMessage<
+                    ModelInputModalities[TModel],
+                    TImageMeta,
+                    TAudioMeta,
+                    TVideoMeta,
+                    TDocumentMeta,
+                    TTextMeta
+                  >
+                >
+              : Array<ConstrainedModelMessage<ModelInputModalities[TModel]>>
+            : Array<ModelMessage>
+          : Array<ModelMessage>
+      }
+    : never
+
+// Re-export adapter types from adapters module
+export type { TextAdapter, EmbeddingAdapter, SummarizeAdapter, AnyAdapter }

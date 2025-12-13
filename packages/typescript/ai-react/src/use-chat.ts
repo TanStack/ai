@@ -80,14 +80,15 @@ export function useChat<TTools extends ReadonlyArray<AnyClientTool> = any>(
   }, []) // Only run on mount - initialMessages are handled by ChatClient constructor
 
   // Cleanup on unmount: stop any in-flight requests
+  // Note: We only cleanup when client changes or component unmounts.
+  // DO NOT include isLoading in dependencies - that would cause the cleanup
+  // to run when isLoading changes, aborting continuation requests.
   useEffect(() => {
     return () => {
-      // Stop any active generation when component unmounts
-      if (isLoading) {
-        client.stop()
-      }
+      // Stop any active generation when component unmounts or client changes
+      client.stop()
     }
-  }, [client, isLoading])
+  }, [client])
 
   // Note: Callback options (onResponse, onChunk, onFinish, onError, onToolCall)
   // are captured at client creation time. Changes to these callbacks require

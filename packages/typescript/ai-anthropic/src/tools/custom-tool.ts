@@ -1,4 +1,4 @@
-import { convertZodToJsonSchema } from '@tanstack/ai'
+import { convertZodToAnthropicSchema } from '../utils/schema-converter'
 import type { Tool } from '@tanstack/ai'
 import type { z } from 'zod'
 import type { CacheControl } from '../text/text-provider-options'
@@ -29,13 +29,15 @@ export function convertCustomToolToAdapterFormat(tool: Tool): CustomTool {
   const metadata =
     (tool.metadata as { cacheControl?: CacheControl | null } | undefined) || {}
 
-  // Convert Zod schema to JSON Schema
-  const jsonSchema = convertZodToJsonSchema(tool.inputSchema)
+  // Convert Zod schema to Anthropic-compatible JSON Schema
+  const jsonSchema = tool.inputSchema
+    ? convertZodToAnthropicSchema(tool.inputSchema)
+    : { type: 'object', properties: {}, required: [] }
 
   const inputSchema = {
     type: 'object' as const,
-    properties: jsonSchema?.properties || null,
-    required: jsonSchema?.required || null,
+    properties: jsonSchema.properties || null,
+    required: jsonSchema.required || null,
   }
 
   return {

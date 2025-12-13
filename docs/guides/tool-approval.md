@@ -56,15 +56,15 @@ const sendEmail = sendEmailDef.server(async ({ to, subject, body }) => {
 On the server, tools with `needsApproval: true` will pause execution and wait for approval:
 
 ```typescript
-import { chat, toStreamResponse } from "@tanstack/ai";
-import { openai } from "@tanstack/ai-openai";
+import { ai, toStreamResponse } from "@tanstack/ai";
+import { openaiText } from "@tanstack/ai-openai";
 import { sendEmail } from "./tools";
 
 export async function POST(request: Request) {
   const { messages } = await request.json();
 
-  const stream = chat({
-    adapter: openai(),
+  const stream = ai({
+    adapter: openaiText(),
     messages,
     model: "gpt-4o",
     tools: [sendEmail],

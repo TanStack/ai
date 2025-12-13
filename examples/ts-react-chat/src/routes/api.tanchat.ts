@@ -1,9 +1,9 @@
 import { createFileRoute } from '@tanstack/react-router'
-import { chat, maxIterations, toStreamResponse } from '@tanstack/ai'
-import { openai } from '@tanstack/ai-openai'
-import { ollama } from '@tanstack/ai-ollama'
-import { anthropic } from '@tanstack/ai-anthropic'
-import { gemini } from '@tanstack/ai-gemini'
+import { ai, maxIterations, toStreamResponse } from '@tanstack/ai'
+import { openaiText } from '@tanstack/ai-openai'
+import { ollamaText } from '@tanstack/ai-ollama'
+import { anthropicText } from '@tanstack/ai-anthropic'
+import { geminiText } from '@tanstack/ai-gemini'
 import {
   addToCartToolDef,
   addToWishListToolDef,
@@ -73,20 +73,20 @@ export const Route = createFileRoute('/api/tanchat')({
 
           switch (provider) {
             case 'anthropic':
-              adapter = anthropic()
-              defaultModel = 'claude-sonnet-4-5-20250929'
+              adapter = anthropicText()
+              defaultModel = 'claude-sonnet-4-5'
               break
             case 'gemini':
-              adapter = gemini()
+              adapter = geminiText()
               defaultModel = 'gemini-2.0-flash-exp'
               break
             case 'ollama':
-              adapter = ollama()
+              adapter = ollamaText()
               defaultModel = 'mistral:7b'
               break
             case 'openai':
             default:
-              adapter = openai()
+              adapter = openaiText()
               defaultModel = 'gpt-4o'
               break
           }
@@ -97,7 +97,7 @@ export const Route = createFileRoute('/api/tanchat')({
             `[API Route] Using provider: ${provider}, model: ${selectedModel}`,
           )
 
-          const stream = chat({
+          const stream = ai({
             adapter: adapter as any,
             model: selectedModel as any,
             tools: [
@@ -113,7 +113,7 @@ export const Route = createFileRoute('/api/tanchat')({
             abortController,
             conversationId,
           })
-          return toStreamResponse(stream, { abortController })
+          return toStreamResponse(stream as any, { abortController })
         } catch (error: any) {
           console.error('[API Route] Error in chat request:', {
             message: error?.message,
