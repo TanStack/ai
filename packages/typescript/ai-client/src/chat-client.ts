@@ -290,6 +290,7 @@ export class ChatClient {
     this.setIsLoading(true)
     this.setError(undefined)
     this.abortController = new AbortController()
+    let streamCompletedSuccessfully = false
 
     try {
       // Get model messages for the LLM
@@ -312,6 +313,7 @@ export class ChatClient {
       )
 
       await this.processStream(stream)
+      streamCompletedSuccessfully = true
     } catch (err) {
       if (err instanceof Error) {
         if (err.name === 'AbortError') {
@@ -323,6 +325,20 @@ export class ChatClient {
     } finally {
       this.abortController = null
       this.setIsLoading(false)
+
+      // Continue conversation if the stream ended with a tool result
+      if (streamCompletedSuccessfully) {
+        const messages = this.processor.getMessages()
+        const lastPart = messages.at(-1)?.parts?.at(-1)
+
+        if (lastPart?.type === 'tool-result' && this.shouldAutoSend()) {
+          try {
+            await this.continueFlow()
+          } catch (error) {
+            console.error('Failed to continue flow after tool result:', error)
+          }
+        }
+      }
     }
   }
 
