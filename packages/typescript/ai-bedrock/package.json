@@ -1,0 +1,57 @@
+{
+  "name": "@tanstack/ai-bedrock",
+  "version": "0.0.1",
+  "description": "AWS Bedrock adapter for TanStack AI",
+  "author": "",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/TanStack/ai.git",
+    "directory": "packages/typescript/ai-bedrock"
+  },
+  "type": "module",
+  "module": "./dist/esm/index.js",
+  "types": "./dist/esm/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/esm/index.d.ts",
+      "import": "./dist/esm/index.js"
+    }
+  },
+  "files": [
+    "dist",
+    "src"
+  ],
+  "scripts": {
+    "build": "vite build",
+    "clean": "premove ./build ./dist",
+    "lint:fix": "eslint ./src --fix",
+    "test:build": "publint --strict",
+    "test:eslint": "eslint ./src",
+    "test:lib": "vitest --passWithNoTests",
+    "test:lib:dev": "pnpm test:lib --watch",
+    "test:types": "tsc"
+  },
+  "keywords": [
+    "ai",
+    "aws",
+    "bedrock",
+    "tanstack",
+    "adapter"
+  ],
+  "dependencies": {
+    "@smithy/eventstream-codec": "^4.2.5",
+    "@smithy/util-utf8": "^4.2.0",
+    "@tanstack/ai": "workspace:*",
+    "aws4fetch": "^1.0.20"
+  },
+  "devDependencies": {
+    "@aws-sdk/client-bedrock": "^3.947.0",
+    "@aws-sdk/client-bedrock-runtime": "^3.947.0",
+    "@vitest/coverage-v8": "4.0.14",
+    "vite": "^7.2.4"
+  },
+  "peerDependencies": {
+    "@tanstack/ai": "workspace:*"
+  }
+}
