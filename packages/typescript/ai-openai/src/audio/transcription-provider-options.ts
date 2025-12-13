@@ -16,13 +16,3 @@ export interface OpenAITranscriptionProviderOptions {
    */
   timestamp_granularities?: Array<'word' | 'segment'>
 }
-
-/**
- * Validate temperature is within valid range
- */
-export const validateTemperature = (temperature?: number): void => {
-  if (temperature !== undefined && (temperature < 0 || temperature > 1)) {
-    throw new Error('Temperature must be between 0 and 1.')
-  }
-}
-

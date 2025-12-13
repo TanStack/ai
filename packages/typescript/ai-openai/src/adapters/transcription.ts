@@ -48,7 +48,7 @@ export class OpenAITranscriptionAdapter extends BaseTranscriptionAdapter<
     const { model, audio, language, prompt, responseFormat, providerOptions } = options
 
     // Convert audio input to File object
-    const file = await this.prepareAudioFile(audio)
+    const file = this.prepareAudioFile(audio)
 
     // Build request
     const request: OpenAI_SDK.Audio.TranscriptionCreateParams = {
@@ -113,7 +113,7 @@ export class OpenAITranscriptionAdapter extends BaseTranscriptionAdapter<
     }
   }
 
-  private async prepareAudioFile(audio: string | File | Blob | ArrayBuffer): Promise<File> {
+  private prepareAudioFile(audio: string | File | Blob | ArrayBuffer): File {
     // If already a File, return it
     if (audio instanceof File) {
       return audio

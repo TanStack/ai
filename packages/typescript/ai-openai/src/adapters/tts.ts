@@ -11,9 +11,9 @@ import {
   validateSpeed,
 } from '../audio/audio-provider-options'
 import type {
+  OpenAITTSFormat,
   OpenAITTSProviderOptions,
   OpenAITTSVoice,
-  OpenAITTSFormat,
 } from '../audio/tts-provider-options'
 import type { TTSOptions, TTSResult } from '@tanstack/ai'
 import type OpenAI_SDK from 'openai'
@@ -72,8 +72,8 @@ export class OpenAITTSAdapter extends BaseTTSAdapter<
     const request: OpenAI_SDK.Audio.SpeechCreateParams = {
       model,
       input: text,
-      voice: (voice || 'alloy') as OpenAI_SDK.Audio.SpeechCreateParams['voice'],
-      response_format: format as OpenAI_SDK.Audio.SpeechCreateParams['response_format'],
+      voice: voice || 'alloy',
+      response_format: format,
       speed,
       ...providerOptions,
     }

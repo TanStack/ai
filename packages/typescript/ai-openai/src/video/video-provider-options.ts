@@ -57,16 +57,6 @@ export type OpenAIVideoModelProviderOptionsByName = {
 }
 
 /**
- * Model-specific size options mapping.
- *
- * @experimental Video generation is an experimental feature and may change.
- */
-export type OpenAIVideoModelSizeByName = {
-  'sora-2': OpenAIVideoSize
-  'sora-2-pro': OpenAIVideoSize
-}
-
-/**
  * Validate video size for a given model.
  *
  * @experimental Video generation is an experimental feature and may change.
@@ -126,12 +116,6 @@ export function toApiSeconds(
   if (seconds === undefined) return undefined
   return String(seconds) as OpenAIVideoSeconds
 }
-
-// Keep for backwards compatibility but deprecate
-/**
- * @deprecated Use validateVideoSeconds instead
- */
-export const validateVideoDuration = validateVideoSeconds
 
 /**
  * @deprecated Use OpenAIVideoSeconds instead
