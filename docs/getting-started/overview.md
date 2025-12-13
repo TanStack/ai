@@ -27,7 +27,7 @@ The framework-agnostic core of TanStack AI provides the building blocks for crea
 TanStack AI lets you define a tool once and provide environment-specific implementations. Using `toolDefinition()` to declare the tool’s input/output types and the server behavior with `.server()` (or a client implementation with `.client()`). These isomorphic tools can be invoked from the AI runtime regardless of framework.
 
 ```typescript
-import { toolDefinition } from '@tanstack/ai'
+import { toolDefinition, chat } from '@tanstack/ai'
 
 // Define a tool
 const getProductsDef = toolDefinition({
