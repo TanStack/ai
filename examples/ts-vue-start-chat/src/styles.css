@@ -1,0 +1,95 @@
+@import 'tailwindcss';
+
+@layer base {
+  html {
+    @apply bg-gray-900;
+  }
+
+  body {
+    @apply min-h-screen text-white antialiased;
+  }
+
+  /* Markdown styling */
+  .prose {
+    @apply text-gray-200;
+  }
+
+  .prose h1,
+  .prose h2,
+  .prose h3,
+  .prose h4 {
+    @apply text-white font-semibold;
+  }
+
+  .prose p {
+    @apply mb-4 last:mb-0;
+  }
+
+  .prose code {
+    @apply bg-gray-800 px-1.5 py-0.5 rounded text-orange-400 text-sm;
+  }
+
+  .prose pre {
+    @apply bg-gray-800 p-4 rounded-lg overflow-x-auto mb-4;
+  }
+
+  .prose pre code {
+    @apply bg-transparent p-0;
+  }
+
+  .prose ul,
+  .prose ol {
+    @apply mb-4 pl-6;
+  }
+
+  .prose li {
+    @apply mb-1;
+  }
+
+  .prose ul li {
+    @apply list-disc;
+  }
+
+  .prose ol li {
+    @apply list-decimal;
+  }
+
+  .prose a {
+    @apply text-orange-400 hover:text-orange-300 underline;
+  }
+
+  .prose blockquote {
+    @apply border-l-4 border-orange-500 pl-4 italic text-gray-400;
+  }
+
+  .prose table {
+    @apply w-full border-collapse mb-4;
+  }
+
+  .prose th,
+  .prose td {
+    @apply border border-gray-700 px-3 py-2 text-left;
+  }
+
+  .prose th {
+    @apply bg-gray-800 font-semibold;
+  }
+}
+
+@layer components {
+  .btn-primary {
+    @apply bg-gradient-to-r from-orange-500 to-red-600 text-white px-4 py-2 rounded-lg font-medium hover:opacity-90 transition-opacity;
+  }
+
+  .btn-secondary {
+    @apply bg-gray-700 text-white px-4 py-2 rounded-lg font-medium hover:bg-gray-600 transition-colors;
+  }
+
+  .btn-danger {
+    @apply bg-red-600 text-white px-4 py-2 rounded-lg font-medium hover:bg-red-700 transition-colors;
+  }
+
+  .btn-success {
+    @apply bg-green-600 text-white px-4 py-2 rounded-lg font-medium hover:bg-green-700 transition-colors;
+  }
+}

@@ -1,0 +1,38 @@
+import { defineConfig, mergeConfig } from 'vitest/config'
+import { tanstackViteConfig } from '@tanstack/vite-config'
+import vue from '@vitejs/plugin-vue'
+import packageJson from './package.json'
+
+const config = defineConfig({
+  plugins: [vue()],
+  test: {
+    name: packageJson.name,
+    dir: './',
+    watch: false,
+    globals: true,
+    environment: 'node',
+    include: ['tests/**/*.test.ts'],
+    coverage: {
+      provider: 'v8',
+      reporter: ['text', 'json', 'html', 'lcov'],
+      exclude: [
+        'node_modules/',
+        'dist/',
+        'tests/',
+        '**/*.test.ts',
+        '**/*.config.ts',
+        '**/types.ts',
+      ],
+      include: ['src/**/*.ts'],
+    },
+  },
+})
+
+export default mergeConfig(
+  config,
+  tanstackViteConfig({
+    entry: ['./src/index.ts', './src/production.ts', './src/server.ts'],
+    srcDir: './src',
+    cjs: false,
+  }),
+)
