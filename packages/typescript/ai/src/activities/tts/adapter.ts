@@ -38,9 +38,7 @@ export interface TTSAdapter<
   /**
    * Generate speech from text
    */
-  generateSpeech: (
-    options: TTSOptions<TProviderOptions>,
-  ) => Promise<TTSResult>
+  generateSpeech: (options: TTSOptions<TProviderOptions>) => Promise<TTSResult>
 }
 
 /**
@@ -50,8 +48,7 @@ export interface TTSAdapter<
 export abstract class BaseTTSAdapter<
   TModels extends ReadonlyArray<string> = ReadonlyArray<string>,
   TProviderOptions extends object = Record<string, unknown>,
-> implements TTSAdapter<TModels, TProviderOptions>
-{
+> implements TTSAdapter<TModels, TProviderOptions> {
   readonly kind = 'tts' as const
   abstract readonly name: string
   abstract readonly models: TModels
@@ -73,4 +70,3 @@ export abstract class BaseTTSAdapter<
     return `${this.name}-${Date.now()}-${Math.random().toString(36).substring(7)}`
   }
 }
-

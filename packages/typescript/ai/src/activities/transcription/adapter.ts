@@ -50,8 +50,7 @@ export interface TranscriptionAdapter<
 export abstract class BaseTranscriptionAdapter<
   TModels extends ReadonlyArray<string> = ReadonlyArray<string>,
   TProviderOptions extends object = Record<string, unknown>,
-> implements TranscriptionAdapter<TModels, TProviderOptions>
-{
+> implements TranscriptionAdapter<TModels, TProviderOptions> {
   readonly kind = 'transcription' as const
   abstract readonly name: string
   abstract readonly models: TModels
@@ -73,4 +72,3 @@ export abstract class BaseTranscriptionAdapter<
     return `${this.name}-${Date.now()}-${Math.random().toString(36).substring(7)}`
   }
 }
-

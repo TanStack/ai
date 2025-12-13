@@ -29,4 +29,3 @@ export interface OpenAITTSProviderOptions {
    */
   instructions?: string
 }
-

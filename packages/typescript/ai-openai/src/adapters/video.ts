@@ -233,14 +233,17 @@ export class OpenAIVideoAdapter extends BaseVideoAdapter<
                 `Failed to get video content: ${contentResponse.status}`,
             )
           }
-          throw new Error(`Failed to get video content: ${contentResponse.status}`)
+          throw new Error(
+            `Failed to get video content: ${contentResponse.status}`,
+          )
         }
 
         // The response is the raw video file - convert to base64 data URL
         const videoBlob = await contentResponse.blob()
         const buffer = await videoBlob.arrayBuffer()
         const base64 = Buffer.from(buffer).toString('base64')
-        const mimeType = contentResponse.headers.get('content-type') || 'video/mp4'
+        const mimeType =
+          contentResponse.headers.get('content-type') || 'video/mp4'
 
         return {
           jobId,

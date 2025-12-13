@@ -914,7 +914,9 @@ export interface TTSResult {
  * Options for audio transcription.
  * These are the common options supported across providers.
  */
-export interface TranscriptionOptions<TProviderOptions extends object = object> {
+export interface TranscriptionOptions<
+  TProviderOptions extends object = object,
+> {
   /** The model to use for transcription */
   model: string
   /** The audio data to transcribe - can be base64 string, File, Blob, or Buffer */

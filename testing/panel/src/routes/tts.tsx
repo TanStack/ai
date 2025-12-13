@@ -278,18 +278,22 @@ function TTSPage() {
                 </div>
                 <div className="pt-4 border-t border-gray-700 text-sm text-gray-400">
                   <p>
-                    Model: <span className="text-emerald-400">{result.model}</span>
+                    Model:{' '}
+                    <span className="text-emerald-400">{result.model}</span>
                   </p>
                   <p>
                     Voice: <span className="text-emerald-400">{voice}</span>
                   </p>
                   <p>
-                    Format: <span className="text-emerald-400">{result.format}</span>
+                    Format:{' '}
+                    <span className="text-emerald-400">{result.format}</span>
                   </p>
                   {result.duration && (
                     <p>
                       Duration:{' '}
-                      <span className="text-emerald-400">{result.duration}s</span>
+                      <span className="text-emerald-400">
+                        {result.duration}s
+                      </span>
                     </p>
                   )}
                 </div>
@@ -310,4 +314,3 @@ function TTSPage() {
 export const Route = createFileRoute('/tts')({
   component: TTSPage,
 })
-

@@ -16,7 +16,13 @@ import { runTRN } from './trn-transcription'
 /**
  * Adapter capability types
  */
-export type AdapterCapability = 'text' | 'summarize' | 'embedding' | 'image' | 'tts' | 'transcription'
+export type AdapterCapability =
+  | 'text'
+  | 'summarize'
+  | 'embedding'
+  | 'image'
+  | 'tts'
+  | 'transcription'
 
 /**
  * Definition for a test
