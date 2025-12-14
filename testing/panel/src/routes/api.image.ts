@@ -1,9 +1,25 @@
 import { createFileRoute } from '@tanstack/react-router'
-import { ai } from '@tanstack/ai'
+import { ai, createOptions } from '@tanstack/ai'
 import { geminiImage } from '@tanstack/ai-gemini'
 import { openaiImage } from '@tanstack/ai-openai'
 
 type Provider = 'openai' | 'gemini'
+
+// Pre-define typed adapter configurations with full type inference
+const adapterConfig = {
+  gemini: () =>
+    createOptions({
+      adapter: geminiImage(),
+      // Use gemini-2.0-flash which has image generation capability
+      // and is more widely available than dedicated Imagen models
+      model: 'gemini-2.0-flash-preview-image-generation',
+    }),
+  openai: () =>
+    createOptions({
+      adapter: openaiImage(),
+      model: 'gpt-image-1',
+    }),
+}
 
 export const Route = createFileRoute('/api/image')({
   server: {
@@ -14,32 +30,15 @@ export const Route = createFileRoute('/api/image')({
         const provider: Provider = body.provider || 'openai'
 
         try {
-          // Select adapter and model based on provider
-          let adapter
-          let model
-
-          switch (provider) {
-            case 'gemini':
-              adapter = geminiImage()
-              // Use gemini-2.0-flash which has image generation capability
-              // and is more widely available than dedicated Imagen models
-              model = 'gemini-2.0-flash-preview-image-generation'
-              break
-
-            case 'openai':
-            default:
-              adapter = openaiImage()
-              model = 'gpt-image-1'
-              break
-          }
+          // Get typed adapter options using createOptions pattern
+          const options = adapterConfig[provider]()
 
           console.log(
-            `>> image generation with model: ${model} on provider: ${provider}`,
+            `>> image generation with model: ${options.model} on provider: ${provider}`,
           )
 
           const result = await ai({
-            adapter: adapter as any,
-            model: model as any,
+            ...options,
             prompt,
             numberOfImages,
             size,
@@ -54,7 +53,7 @@ export const Route = createFileRoute('/api/image')({
             JSON.stringify({
               images: result.images,
               provider,
-              model,
+              model: options.model,
             }),
             {
               status: 200,

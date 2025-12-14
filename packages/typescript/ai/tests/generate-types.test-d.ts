@@ -10,7 +10,7 @@ import {
   BaseSummarizeAdapter,
   BaseTextAdapter,
 } from '../src/activities'
-import { ai } from '../src/ai'
+import { ai, createOptions } from '../src/ai'
 import type {
   StructuredOutputOptions,
   StructuredOutputResult,
@@ -1688,6 +1688,225 @@ describe('ai() summarize adapter type safety', () => {
         // @ts-expect-error - quality is an image providerOption
         quality: 'hd',
       },
+    })
+  })
+})
+
+// ===========================
+// createOptions Type Tests
+// ===========================
+
+describe('createOptions() type inference', () => {
+  it('should return typed options for text adapter', () => {
+    const textAdapter = new TestTextAdapter()
+
+    const options = createOptions({
+      adapter: textAdapter,
+      model: 'gpt-4o',
+      messages: [{ role: 'user', content: 'Hello' }],
+    })
+
+    // Options should have the correct adapter type
+    expectTypeOf(options.adapter).toMatchTypeOf<TestTextAdapter>()
+    // Options should have the correct model type
+    expectTypeOf(options.model).toEqualTypeOf<'gpt-4o'>()
+  })
+
+  it('should enforce valid model for text adapter', () => {
+    const textAdapter = new TestTextAdapter()
+
+    // This should work - valid model
+    createOptions({
+      adapter: textAdapter,
+      model: 'gpt-4o',
+      messages: [{ role: 'user', content: 'Hello' }],
+    })
+
+    // invalid model should error
+    createOptions({
+      adapter: textAdapter,
+      // @ts-expect-error - invalid model
+      model: 'invalid-model',
+      messages: [{ role: 'user', content: 'Hello' }],
+    })
+  })
+
+  it('should enforce valid model for embedding adapter', () => {
+    const embedAdapter = new TestEmbedAdapter()
+
+    // This should work - valid model
+    createOptions({
+      adapter: embedAdapter,
+      model: 'text-embedding-3-small',
+      input: 'Hello',
+    })
+
+    // invalid model should error
+    createOptions({
+      adapter: embedAdapter,
+      // @ts-expect-error - invalid model
+      model: 'invalid-embedding-model',
+      input: 'Hello',
+    })
+  })
+
+  it('should enforce valid model for summarize adapter', () => {
+    const summarizeAdapter = new TestSummarizeAdapter()
+
+    // This should work - valid model
+    createOptions({
+      adapter: summarizeAdapter,
+      model: 'summarize-v1',
+      text: 'Text to summarize',
+    })
+
+    // invalid model should error
+    createOptions({
+      adapter: summarizeAdapter,
+      // @ts-expect-error - invalid model
+      model: 'invalid-summarize-model',
+      text: 'Text to summarize',
+    })
+  })
+
+  it('should enforce strict providerOptions for text adapter', () => {
+    const textAdapter = new TestTextAdapter()
+
+    // This should work - valid provider options
+    createOptions({
+      adapter: textAdapter,
+      model: 'gpt-4o',
+      messages: [{ role: 'user', content: 'Hello' }],
+      providerOptions: {
+        temperature: 0.7,
+        maxTokens: 100,
+      },
+    })
+
+    // invalid property should error
+    createOptions({
+      adapter: textAdapter,
+      model: 'gpt-4o',
+      messages: [{ role: 'user', content: 'Hello' }],
+      providerOptions: {
+        temperature: 0.7,
+        // @ts-expect-error - invalid property
+        invalidProperty: 'should-error',
+      },
+    })
+  })
+
+  it('should narrow providerOptions based on model (per-model map)', () => {
+    const adapter = new TestTextAdapterWithModelOptions()
+
+    // model-a should accept both baseOnly and foo
+    createOptions({
+      adapter,
+      model: 'model-a',
+      messages: [{ role: 'user', content: 'Hello' }],
+      providerOptions: {
+        baseOnly: true,
+        foo: 123,
+      },
+    })
+
+    // model-a should NOT accept bar (it's model-b specific)
+    createOptions({
+      adapter,
+      model: 'model-a',
+      messages: [{ role: 'user', content: 'Hello' }],
+      providerOptions: {
+        // @ts-expect-error - bar is not supported for model-a
+        bar: 'nope',
+      },
+    })
+
+    // model-b should accept both baseOnly and bar
+    createOptions({
+      adapter,
+      model: 'model-b',
+      messages: [{ role: 'user', content: 'Hello' }],
+      providerOptions: {
+        baseOnly: true,
+        bar: 'ok',
+      },
+    })
+
+    // model-b should NOT accept foo (it's model-a specific)
+    createOptions({
+      adapter,
+      model: 'model-b',
+      messages: [{ role: 'user', content: 'Hello' }],
+      providerOptions: {
+        // @ts-expect-error - foo is not supported for model-b
+        foo: 123,
+      },
+    })
+  })
+
+  it('should return options that can be spread into ai()', () => {
+    const textAdapter = new TestTextAdapter()
+
+    const options = createOptions({
+      adapter: textAdapter,
+      model: 'gpt-4o',
+      messages: [{ role: 'user', content: 'Hello' }],
+    })
+
+    // Should be able to spread into ai() and get correct return type
+    const result = ai({
+      ...options,
+    })
+
+    expectTypeOf(result).toMatchTypeOf<AsyncIterable<StreamChunk>>()
+  })
+
+  it('should work with image adapter', () => {
+    const imageAdapter = new TestImageAdapter()
+
+    // Valid options for image-model-1
+    createOptions({
+      adapter: imageAdapter,
+      model: 'image-model-1',
+      prompt: 'A beautiful sunset',
+      size: '512x512',
+    })
+
+    // Invalid size for image-model-1
+    createOptions({
+      adapter: imageAdapter,
+      model: 'image-model-1',
+      prompt: 'A beautiful sunset',
+      // @ts-expect-error - 1792x1024 is not valid for image-model-1
+      size: '1792x1024',
+    })
+  })
+
+  it('should not allow mixing activity-specific options', () => {
+    const textAdapter = new TestTextAdapter()
+
+    createOptions({
+      adapter: textAdapter,
+      model: 'gpt-4o',
+      messages: [{ role: 'user', content: 'Hello' }],
+      // @ts-expect-error - input is an embedding-specific property
+      input: 'not allowed on text adapter',
+    })
+
+    createOptions({
+      adapter: textAdapter,
+      model: 'gpt-4o',
+      messages: [{ role: 'user', content: 'Hello' }],
+      // @ts-expect-error - text is a summarize-specific property
+      text: 'not allowed on text adapter',
+    })
+
+    createOptions({
+      adapter: textAdapter,
+      model: 'gpt-4o',
+      messages: [{ role: 'user', content: 'Hello' }],
+      // @ts-expect-error - prompt is an image-specific property
+      prompt: 'not allowed on text adapter',
     })
   })
 })

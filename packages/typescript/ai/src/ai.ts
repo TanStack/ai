@@ -301,6 +301,53 @@ export function ai(options: AIOptionsUnion): AIResultUnion {
   return handler(options)
 }
 
+/**
+ * Create typed options for the ai() function without executing.
+ * This is useful for pre-defining configurations with full type inference.
+ *
+ * @example
+ * ```ts
+ * const config = {
+ *   'anthropic': () => createOptions({
+ *     adapter: anthropicText(),
+ *     model: 'claude-sonnet-4-5',  // autocomplete works!
+ *   }),
+ *   'openai': () => createOptions({
+ *     adapter: openaiText(),
+ *     model: 'gpt-4o',  // autocomplete works!
+ *   }),
+ * }
+ *
+ * const stream = ai({ ...config[provider](), messages })
+ * ```
+ */
+export function createOptions<
+  TAdapter extends AnyAIAdapter,
+  const TModel extends string,
+  TSchema extends z.ZodType | undefined = undefined,
+  TTextStream extends boolean = true,
+  TSummarizeStream extends boolean = false,
+  TVideoRequest extends 'create' | 'status' | 'url' = 'create',
+>(
+  options: AIOptionsFor<
+    TAdapter,
+    TModel,
+    TSchema,
+    TTextStream,
+    TSummarizeStream,
+    TVideoRequest
+  >,
+): AIOptionsFor<
+  TAdapter,
+  TModel,
+  TSchema,
+  TTextStream,
+  TSummarizeStream,
+  TVideoRequest
+> {
+  return options
+}
+
 // ===========================
 // Re-exported Types
 // ===========================

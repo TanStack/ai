@@ -1212,15 +1212,18 @@ async function runAgenticStructuredOutput<TSchema extends z.ZodType>(
 /**
  * Type-safe helper to create text options with model-specific provider options.
  *
+ * @deprecated Use `createOptions` from `@tanstack/ai` instead, which supports all adapter types
+ * (text, embedding, summarize, image, video) with the same type-safe model inference.
+ *
  * @example
  * ```ts
- * import { textOptions, ai } from '@tanstack/ai'
+ * import { createOptions, ai } from '@tanstack/ai'
  * import { openaiText } from '@tanstack/ai-openai'
  *
- * const opts = textOptions({
+ * const opts = createOptions({
  *   adapter: openaiText(),
  *   model: 'gpt-4o',
- *   options: { temperature: 0.7 }
+ *   messages: [],
  * })
  * ```
  */
