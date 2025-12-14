@@ -6,9 +6,9 @@ import {
   getAnthropicApiKeyFromEnv,
 } from '../utils'
 import type {
+  StreamChunk,
   SummarizationOptions,
   SummarizationResult,
-  StreamChunk,
 } from '@tanstack/ai'
 import type { AnthropicClientConfig } from '../utils'
 

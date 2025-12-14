@@ -1,10 +1,14 @@
 import { BaseSummarizeAdapter } from '@tanstack/ai/adapters'
 import { OPENAI_CHAT_MODELS } from '../model-meta'
-import { createOpenAIClient, generateId, getOpenAIApiKeyFromEnv } from '../utils'
+import {
+  createOpenAIClient,
+  generateId,
+  getOpenAIApiKeyFromEnv,
+} from '../utils'
 import type {
+  StreamChunk,
   SummarizationOptions,
   SummarizationResult,
-  StreamChunk,
 } from '@tanstack/ai'
 import type { OpenAIClientConfig } from '../utils'
 
@@ -91,7 +95,7 @@ export class OpenAISummarizeAdapter extends BaseSummarizeAdapter<
     })
 
     for await (const chunk of stream) {
-      const delta = chunk.choices[0]?.delta?.content || ''
+      const delta = chunk.choices[0]?.delta.content || ''
 
       if (delta) {
         accumulatedContent += delta

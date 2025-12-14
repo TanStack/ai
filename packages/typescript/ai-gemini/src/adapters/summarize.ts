@@ -8,9 +8,9 @@ import {
 import type { GoogleGenAI } from '@google/genai'
 import type { SummarizeAdapter } from '@tanstack/ai/adapters'
 import type {
+  StreamChunk,
   SummarizationOptions,
   SummarizationResult,
-  StreamChunk,
 } from '@tanstack/ai'
 
 /**
