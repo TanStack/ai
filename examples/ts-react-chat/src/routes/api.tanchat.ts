@@ -1,5 +1,5 @@
 import { createFileRoute } from '@tanstack/react-router'
-import { ai, maxIterations, toStreamResponse } from '@tanstack/ai'
+import { ai, aiOptions, maxIterations, toStreamResponse } from '@tanstack/ai'
 import { openaiText } from '@tanstack/ai-openai'
 import { ollamaText } from '@tanstack/ai-ollama'
 import { anthropicText } from '@tanstack/ai-anthropic'
@@ -79,9 +79,21 @@ export const Route = createFileRoute('/api/tanchat')({
           console.log(
             `[API Route] Using provider: ${provider}, model: ${adapter.model}`,
           )
+          const opts = aiOptions({
+            adapter: openaiText("gpt-5", {
+              "providerOptions": {
+                "text": {}
+              },
 
+            }),
+            stream: true,
+            options: {
+
+            },
+
+          })
           const stream = ai({
-            adapter,
+            ...opts,
             tools: [
               getGuitars, // Server tool
               recommendGuitarToolDef, // No server execute - client will handle
@@ -89,6 +101,10 @@ export const Route = createFileRoute('/api/tanchat')({
               addToWishListToolDef,
               getPersonalGuitarPreferenceToolDef,
             ],
+            options: {
+
+            },
+
             systemPrompts: [SYSTEM_PROMPT],
             agentLoopStrategy: maxIterations(20),
             messages,

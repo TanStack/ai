@@ -1,6 +1,7 @@
 // Main AI function - the one export to rule them all
 export {
   ai,
+  aiOptions,
   type AIAdapter,
   type AnyAdapter,
   type GenerateAdapter,

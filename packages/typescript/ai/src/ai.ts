@@ -182,8 +182,65 @@ export type AnyAdapter = GenerateAdapter
  */
 
 // ===========================
+// Conditional Return Type
+// ===========================
+
+/**
+ * Computes the return type of ai() based on the options provided.
+ * This conditional type approach provides better inference than overloads
+ * when options are spread from aiOptions().
+ */
+type AIReturnType<TOptions> =
+  // Text adapter with outputSchema → Promise<z.infer<TSchema>>
+  TOptions extends {
+    adapter: { kind: 'text' }
+    outputSchema: infer TSchema extends z.ZodType
+  }
+    ? Promise<z.infer<TSchema>>
+    : // Text adapter with stream: false → Promise<string>
+      TOptions extends { adapter: { kind: 'text' }; stream: false }
+      ? Promise<string>
+      : // Text adapter (streaming default) → AsyncIterable<StreamChunk>
+        TOptions extends { adapter: { kind: 'text' } }
+        ? AsyncIterable<StreamChunk>
+        : // Embedding adapter → Promise<EmbeddingResult>
+          TOptions extends { adapter: { kind: 'embedding' } }
+          ? Promise<EmbeddingResult>
+          : // Summarize adapter with stream: true → AsyncIterable<StreamChunk>
+            TOptions extends { adapter: { kind: 'summarize' }; stream: true }
+            ? AsyncIterable<StreamChunk>
+            : // Summarize adapter → Promise<SummarizationResult>
+              TOptions extends { adapter: { kind: 'summarize' } }
+              ? Promise<SummarizationResult>
+              : // Image adapter → Promise<ImageGenerationResult>
+                TOptions extends { adapter: { kind: 'image' } }
+                ? Promise<ImageGenerationResult>
+                : // Video adapter status → Promise<VideoStatusResult>
+                  TOptions extends {
+                    adapter: { kind: 'video' }
+                    request: 'status'
+                  }
+                  ? Promise<VideoStatusResult>
+                  : // Video adapter url → Promise<VideoUrlResult>
+                    TOptions extends {
+                      adapter: { kind: 'video' }
+                      request: 'url'
+                    }
+                    ? Promise<VideoUrlResult>
+                    : // Video adapter create → Promise<VideoJobResult>
+                      TOptions extends { adapter: { kind: 'video' } }
+                      ? Promise<VideoJobResult>
+                      : // Fallback
+                        AIResultUnion
+
+// ===========================
 // AI Function Overloads
 // ===========================
+
+// Primary overload using conditional return type for better spread inference
+export function ai<const TOptions extends AIOptionsUnion>(
+  options: TOptions,
+): AIReturnType<TOptions>
 
 // Text adapter with outputSchema → Promise<z.infer<TSchema>>
 export function ai<
@@ -208,6 +265,7 @@ export function ai<
 
 // Text adapter (streaming - default) → AsyncIterable<StreamChunk>
 // This overload uses simplified typing for better inference with dynamic adapter unions
+// Note: stream can be true, undefined, or not present at all - all mean "streaming mode"
 export function ai<
   TAdapter extends TextAdapter<ReadonlyArray<string>, object, any, any, any>,
 >(options: {
@@ -220,7 +278,8 @@ export function ai<
   abortController?: any
   agentLoopStrategy?: any
   conversationId?: string
-  stream?: true
+  stream?: true | undefined
+  outputSchema?: undefined
 }): AsyncIterable<StreamChunk>
 
 // Embedding adapter → Promise<EmbeddingResult>
@@ -279,6 +338,80 @@ export function ai(options: AIOptionsUnion): AIResultUnion {
   }
 
   return handler(options)
+}
+
+// ===========================
+// AI Options Helper
+// ===========================
+
+/**
+ * Pre-configure options for the ai() function with full type safety.
+ *
+ * This helper allows you to create reusable option configurations that maintain
+ * type safety when spread into ai(). The adapter's model and configuration are
+ * captured, and when the options are used in ai(), the correct types flow through.
+ *
+ * @example Basic usage
+ * ```ts
+ * import { ai, aiOptions } from '@tanstack/ai'
+ * import { geminiText } from '@tanstack/ai-gemini'
+ *
+ * const options = aiOptions({
+ *   adapter: geminiText('gemini-2.0-flash'),
+ *   systemPrompts: ['You are a helpful assistant'],
+ * })
+ *
+ * const stream = ai({
+ *   ...options,
+ *   messages: [{ role: 'user', content: 'Hello!' }],
+ * })
+ *
+ * for await (const chunk of stream) {
+ *   console.log(chunk)
+ * }
+ * ```
+ *
+ * @example With tools
+ * ```ts
+ * const options = aiOptions({
+ *   adapter: openaiText('gpt-4o'),
+ *   tools: [weatherTool, calculatorTool],
+ *   agentLoopStrategy: maxIterations(10),
+ * })
+ *
+ * // Reuse the options in multiple ai() calls
+ * const stream1 = ai({ ...options, messages: [...] })
+ * const stream2 = ai({ ...options, messages: [...] })
+ * ```
+ *
+ * @example With structured output
+ * ```ts
+ * import { z } from 'zod'
+ *
+ * const options = aiOptions({
+ *   adapter: openaiText('gpt-4o'),
+ *   outputSchema: z.object({ name: z.string(), age: z.number() }),
+ * })
+ *
+ * const result = await ai({
+ *   ...options,
+ *   messages: [{ role: 'user', content: 'Generate a person' }],
+ * })
+ * // result is { name: string, age: number }
+ * ```
+ */
+export function aiOptions<const T extends {
+  adapter: { kind: 'text' }
+  systemPrompts?: Array<string>
+  tools?: Array<any>
+  options?: Record<string, any>
+  agentLoopStrategy?: (state: any) => boolean
+  conversationId?: string
+  abortController?: AbortController
+  outputSchema?: z.ZodType
+  stream?: boolean
+}>(options: T): T {
+  return options
 }
 
 // ===========================
