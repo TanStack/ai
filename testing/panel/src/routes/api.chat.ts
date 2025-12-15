@@ -1,12 +1,7 @@
 import * as path from 'node:path'
 import * as fs from 'node:fs'
 import { createFileRoute } from '@tanstack/react-router'
-import {
-  ai,
-  createOptions,
-  maxIterations,
-  toStreamResponse,
-} from '@tanstack/ai'
+import { aiText, maxIterations, toStreamResponse } from '@tanstack/ai'
 import { anthropicText } from '@tanstack/ai-anthropic'
 import { geminiText } from '@tanstack/ai-gemini'
 import { openaiText } from '@tanstack/ai-openai'
@@ -53,29 +48,12 @@ const addToCartToolServer = addToCartToolDef.server((args) => ({
 
 type Provider = 'openai' | 'anthropic' | 'gemini' | 'ollama'
 
-// Pre-define typed adapter configurations with full type inference
-// This pattern gives you model autocomplete at definition time
-const adapterConfig = {
-  anthropic: () =>
-    createOptions({
-      adapter: anthropicText(),
-      model: 'claude-sonnet-4-5-20250929',
-    }),
-  gemini: () =>
-    createOptions({
-      adapter: geminiText(),
-      model: 'gemini-2.0-flash-exp',
-    }),
-  ollama: () =>
-    createOptions({
-      adapter: ollamaText(),
-      model: 'mistral:7b',
-    }),
-  openai: () =>
-    createOptions({
-      adapter: openaiText(),
-      model: 'gpt-4o',
-    }),
+// Pre-define adapters with model baked in
+const adapters = {
+  anthropic: () => anthropicText('claude-sonnet-4-5-20250929'),
+  gemini: () => geminiText('gemini-2.0-flash-exp'),
+  ollama: () => ollamaText('mistral:7b'),
+  openai: () => openaiText('gpt-4o'),
 }
 
 /**
@@ -180,11 +158,10 @@ export const Route = createFileRoute('/api/chat')({
         const traceId: string | undefined = data.traceId
 
         try {
-          // Get typed adapter options using createOptions pattern
-          const options = adapterConfig[provider]()
-          let { adapter } = options
+          // Get adapter with model baked in
+          let adapter = adapters[provider]()
 
-          console.log(`>> model: ${options.model} on provider: ${provider}`)
+          console.log(`>> model: ${adapter.model} on provider: ${provider}`)
 
           // If we have a traceId, wrap the adapter to record raw chunks from chatStream
           if (traceId) {
@@ -196,15 +173,14 @@ export const Route = createFileRoute('/api/chat')({
             adapter = wrapAdapterForRecording(
               adapter,
               traceFile,
-              options.model,
+              adapter.model,
               provider,
             )
           }
 
           // Use the stream abort signal for proper cancellation handling
-          const stream = ai({
-            ...options,
-            adapter, // Use potentially wrapped adapter
+          const stream = aiText({
+            adapter,
             tools: [
               getGuitars, // Server tool
               recommendGuitarToolDef, // No server execute - client will handle

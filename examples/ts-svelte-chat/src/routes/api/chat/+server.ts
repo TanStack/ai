@@ -1,9 +1,4 @@
-import {
-  ai,
-  createOptions,
-  maxIterations,
-  toStreamResponse,
-} from '@tanstack/ai'
+import { aiText, maxIterations, toStreamResponse } from '@tanstack/ai'
 import { openaiText } from '@tanstack/ai-openai'
 import { ollamaText } from '@tanstack/ai-ollama'
 import { anthropicText } from '@tanstack/ai-anthropic'
@@ -28,29 +23,12 @@ if (env.OPENAI_API_KEY) process.env.OPENAI_API_KEY = env.OPENAI_API_KEY
 if (env.ANTHROPIC_API_KEY) process.env.ANTHROPIC_API_KEY = env.ANTHROPIC_API_KEY
 if (env.GEMINI_API_KEY) process.env.GEMINI_API_KEY = env.GEMINI_API_KEY
 
-// Pre-define typed adapter configurations with full type inference
-// This pattern gives you model autocomplete at definition time
-const adapterConfig = {
-  anthropic: () =>
-    createOptions({
-      adapter: anthropicText(),
-      model: 'claude-sonnet-4-5',
-    }),
-  gemini: () =>
-    createOptions({
-      adapter: geminiText(),
-      model: 'gemini-2.0-flash-exp',
-    }),
-  ollama: () =>
-    createOptions({
-      adapter: ollamaText(),
-      model: 'mistral:7b',
-    }),
-  openai: () =>
-    createOptions({
-      adapter: openaiText(),
-      model: 'gpt-4o',
-    }),
+// Pre-define adapters with model baked in - full type inference!
+const adapters = {
+  anthropic: () => anthropicText('claude-sonnet-4-5'),
+  gemini: () => geminiText('gemini-2.0-flash-exp'),
+  ollama: () => ollamaText('mistral:7b'),
+  openai: () => openaiText('gpt-4o'),
 }
 
 const SYSTEM_PROMPT = `You are a helpful assistant for a guitar store.
@@ -102,11 +80,11 @@ export const POST: RequestHandler = async ({ request }) => {
     // Extract provider from data
     const provider: Provider = data?.provider || 'openai'
 
-    // Get typed adapter options using createOptions pattern
-    const options = adapterConfig[provider]()
+    // Get adapter with model baked in
+    const adapter = adapters[provider]()
 
-    const stream = ai({
-      ...options,
+    const stream = aiText({
+      adapter,
       tools: [
         getGuitars, // Server tool
         recommendGuitarToolDef, // No server execute - client will handle

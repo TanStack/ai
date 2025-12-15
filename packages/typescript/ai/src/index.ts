@@ -2,7 +2,6 @@
 export {
   ai,
   aiText,
-  createOptions,
   type AIAdapter,
   type AnyAdapter,
   type GenerateAdapter,

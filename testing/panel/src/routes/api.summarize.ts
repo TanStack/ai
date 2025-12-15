@@ -1,5 +1,5 @@
 import { createFileRoute } from '@tanstack/react-router'
-import { ai, createOptions } from '@tanstack/ai'
+import { ai } from '@tanstack/ai'
 import { anthropicSummarize } from '@tanstack/ai-anthropic'
 import { geminiSummarize } from '@tanstack/ai-gemini'
 import { openaiSummarize } from '@tanstack/ai-openai'
@@ -7,29 +7,20 @@ import { ollamaSummarize } from '@tanstack/ai-ollama'
 
 type Provider = 'openai' | 'anthropic' | 'gemini' | 'ollama'
 
-// Pre-define typed adapter configurations with full type inference
-const adapterConfig = {
-  anthropic: () =>
-    createOptions({
-      adapter: anthropicSummarize(),
-      model: 'claude-sonnet-4-5-20250929',
-    }),
-  gemini: () =>
-    createOptions({
-      adapter: geminiSummarize(),
-      model: 'gemini-2.0-flash-exp',
-    }),
-  ollama: () =>
-    createOptions({
-      adapter: ollamaSummarize(),
-      model: 'mistral:7b',
-    }),
-  openai: () =>
-    createOptions({
-      adapter: openaiSummarize(),
-      model: 'gpt-4o-mini',
-    }),
+// Pre-define adapters
+const adapters = {
+  anthropic: () => anthropicSummarize(),
+  gemini: () => geminiSummarize(),
+  ollama: () => ollamaSummarize(),
+  openai: () => openaiSummarize(),
 }
+
+const models = {
+  anthropic: 'claude-sonnet-4-5-20250929',
+  gemini: 'gemini-2.0-flash-exp',
+  ollama: 'mistral:7b',
+  openai: 'gpt-4o-mini',
+} as const
 
 export const Route = createFileRoute('/api/summarize')({
   server: {
@@ -45,11 +36,11 @@ export const Route = createFileRoute('/api/summarize')({
         const provider: Provider = body.provider || 'openai'
 
         try {
-          // Get typed adapter options using createOptions pattern
-          const options = adapterConfig[provider]()
+          const adapter = adapters[provider]()
+          const model = models[provider]
 
           console.log(
-            `>> summarize with model: ${options.model} on provider: ${provider} (stream: ${stream})`,
+            `>> summarize with model: ${model} on provider: ${provider} (stream: ${stream})`,
           )
 
           if (stream) {
@@ -59,7 +50,8 @@ export const Route = createFileRoute('/api/summarize')({
               async start(controller) {
                 try {
                   const streamResult = ai({
-                    ...options,
+                    adapter,
+                    model,
                     text,
                     maxLength,
                     style,
@@ -72,7 +64,7 @@ export const Route = createFileRoute('/api/summarize')({
                       delta: 'delta' in chunk ? chunk.delta : undefined,
                       content: 'content' in chunk ? chunk.content : undefined,
                       provider,
-                      model: options.model,
+                      model,
                     })
                     controller.enqueue(encoder.encode(`data: ${data}\n\n`))
                   }
@@ -102,7 +94,8 @@ export const Route = createFileRoute('/api/summarize')({
 
           // Non-streaming mode
           const result = await ai({
-            ...options,
+            adapter,
+            model,
             text,
             maxLength,
             style,
@@ -112,7 +105,7 @@ export const Route = createFileRoute('/api/summarize')({
             JSON.stringify({
               summary: result.summary,
               provider,
-              model: options.model,
+              model,
             }),
             {
               status: 200,

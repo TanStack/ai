@@ -1,25 +1,19 @@
 import { createFileRoute } from '@tanstack/react-router'
-import { ai, createOptions } from '@tanstack/ai'
+import { ai } from '@tanstack/ai'
 import { geminiImage } from '@tanstack/ai-gemini'
 import { openaiImage } from '@tanstack/ai-openai'
 
 type Provider = 'openai' | 'gemini'
 
-// Pre-define typed adapter configurations with full type inference
-const adapterConfig = {
-  gemini: () =>
-    createOptions({
-      adapter: geminiImage(),
-      // Use gemini-2.0-flash which has image generation capability
-      // and is more widely available than dedicated Imagen models
-      model: 'gemini-2.0-flash-preview-image-generation',
-    }),
-  openai: () =>
-    createOptions({
-      adapter: openaiImage(),
-      model: 'gpt-image-1',
-    }),
+const adapters = {
+  gemini: () => geminiImage(),
+  openai: () => openaiImage(),
 }
+
+const models = {
+  gemini: 'gemini-2.0-flash-preview-image-generation',
+  openai: 'gpt-image-1',
+} as const
 
 export const Route = createFileRoute('/api/image')({
   server: {
@@ -30,15 +24,16 @@ export const Route = createFileRoute('/api/image')({
         const provider: Provider = body.provider || 'openai'
 
         try {
-          // Get typed adapter options using createOptions pattern
-          const options = adapterConfig[provider]()
+          const adapter = adapters[provider]()
+          const model = models[provider]
 
           console.log(
-            `>> image generation with model: ${options.model} on provider: ${provider}`,
+            `>> image generation with model: ${model} on provider: ${provider}`,
           )
 
           const result = await ai({
-            ...options,
+            adapter,
+            model,
             prompt,
             numberOfImages,
             size,
@@ -53,7 +48,7 @@ export const Route = createFileRoute('/api/image')({
             JSON.stringify({
               images: result.images,
               provider,
-              model: options.model,
+              model,
             }),
             {
               status: 200,

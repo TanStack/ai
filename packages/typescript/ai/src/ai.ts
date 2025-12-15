@@ -16,7 +16,6 @@ import type {
   AIVideoCreateOptions,
   AIVideoStatusOptions,
   AIVideoUrlOptions,
-  AnyAIAdapter,
   EmbeddingModels,
   ImageModels,
   SummarizeModels,
@@ -53,108 +52,6 @@ export type GenerateAdapter =
 
 /** Alias for backwards compatibility */
 export type AnyAdapter = GenerateAdapter
-
-// ===========================
-// Local Type Aliases
-// ===========================
-
-// Alias imported types to internal names for consistency in this file
-type ExtractTextModels<T> = TextModels<T>
-type ExtractEmbeddingModels<T> = EmbeddingModels<T>
-type ExtractSummarizeModels<T> = SummarizeModels<T>
-type ExtractImageModels<T> = ImageModels<T>
-type ExtractVideoModels<T> = VideoModels<T>
-
-// ===========================
-// Options/Return Type Mapping
-// ===========================
-
-type AIOptionsFor<
-  TAdapter extends AnyAIAdapter,
-  TModel extends string,
-  TSchema extends z.ZodType | undefined = undefined,
-  TTextStream extends boolean = true,
-  TSummarizeStream extends boolean = false,
-  TVideoRequest extends 'create' | 'status' | 'url' = 'create',
-> = TAdapter extends { kind: 'text' }
-  ? AITextOptions<
-      Extract<
-        TAdapter,
-        TextAdapter<ReadonlyArray<string>, object, any, any, any>
-      >,
-      TModel & ExtractTextModels<TAdapter>,
-      TSchema,
-      TTextStream
-    >
-  : TAdapter extends { kind: 'embedding' }
-    ? AIEmbeddingOptions<
-        Extract<TAdapter, EmbeddingAdapter<ReadonlyArray<string>, object>>,
-        TModel & ExtractEmbeddingModels<TAdapter>
-      >
-    : TAdapter extends { kind: 'summarize' }
-      ? AISummarizeOptions<
-          Extract<TAdapter, SummarizeAdapter<ReadonlyArray<string>, object>>,
-          TModel & ExtractSummarizeModels<TAdapter>,
-          TSummarizeStream
-        >
-      : TAdapter extends { kind: 'image' }
-        ? AIImageOptions<
-            Extract<
-              TAdapter,
-              ImageAdapter<ReadonlyArray<string>, object, any, any>
-            >,
-            TModel & ExtractImageModels<TAdapter>
-          >
-        : TAdapter extends { kind: 'video' }
-          ? TVideoRequest extends 'status'
-            ? AIVideoStatusOptions<
-                Extract<TAdapter, VideoAdapter<ReadonlyArray<string>, object>>,
-                TModel & ExtractVideoModels<TAdapter>
-              >
-            : TVideoRequest extends 'url'
-              ? AIVideoUrlOptions<
-                  Extract<
-                    TAdapter,
-                    VideoAdapter<ReadonlyArray<string>, object>
-                  >,
-                  TModel & ExtractVideoModels<TAdapter>
-                >
-              : AIVideoCreateOptions<
-                  Extract<
-                    TAdapter,
-                    VideoAdapter<ReadonlyArray<string>, object>
-                  >,
-                  TModel & ExtractVideoModels<TAdapter>
-                >
-          : never
-
-type AIReturnFor<
-  TAdapter extends AnyAIAdapter,
-  TSchema extends z.ZodType | undefined = undefined,
-  TTextStream extends boolean = true,
-  TSummarizeStream extends boolean = false,
-  TVideoRequest extends 'create' | 'status' | 'url' = 'create',
-> = TAdapter extends { kind: 'text' }
-  ? TSchema extends z.ZodType
-    ? Promise<z.infer<TSchema>>
-    : TTextStream extends false
-      ? Promise<string>
-      : AsyncIterable<StreamChunk>
-  : TAdapter extends { kind: 'embedding' }
-    ? Promise<EmbeddingResult>
-    : TAdapter extends { kind: 'summarize' }
-      ? TSummarizeStream extends true
-        ? AsyncIterable<StreamChunk>
-        : Promise<SummarizationResult>
-      : TAdapter extends { kind: 'image' }
-        ? Promise<ImageGenerationResult>
-        : TAdapter extends { kind: 'video' }
-          ? TVideoRequest extends 'status'
-            ? Promise<VideoStatusResult>
-            : TVideoRequest extends 'url'
-              ? Promise<VideoUrlResult>
-              : Promise<VideoJobResult>
-          : never
 
 // ===========================
 // AI Function
@@ -273,27 +170,86 @@ type AIReturnFor<
  */
 
 // ===========================
-// AI Function
+// AI Function Overloads
 // ===========================
 
-// Single overload using conditional types
+// Text adapter with outputSchema → Promise<z.infer<TSchema>>
 export function ai<
-  TAdapter extends AnyAIAdapter,
-  const TModel extends string,
-  TSchema extends z.ZodType | undefined = undefined,
-  TTextStream extends boolean = true,
-  TSummarizeStream extends boolean = false,
-  TVideoRequest extends 'create' | 'status' | 'url' = 'create',
+  TAdapter extends TextAdapter<ReadonlyArray<string>, object, any, any, any>,
+  TModel extends TextModels<TAdapter>,
+  TSchema extends z.ZodType,
 >(
-  options: AIOptionsFor<
-    TAdapter,
-    TModel,
-    TSchema,
-    TTextStream,
-    TSummarizeStream,
-    TVideoRequest
+  options: AITextOptions<TAdapter, TModel, TSchema, boolean> & {
+    outputSchema: TSchema
+  },
+): Promise<z.infer<TSchema>>
+
+// Text adapter with explicit stream: false → Promise<string>
+export function ai<
+  TAdapter extends TextAdapter<ReadonlyArray<string>, object, any, any, any>,
+  TModel extends TextModels<TAdapter>,
+>(
+  options: AITextOptions<TAdapter, TModel, undefined, false> & {
+    stream: false
+  },
+): Promise<string>
+
+// Text adapter (streaming - default) → AsyncIterable<StreamChunk>
+export function ai<
+  TAdapter extends TextAdapter<ReadonlyArray<string>, object, any, any, any>,
+  TModel extends TextModels<TAdapter>,
+>(
+  options: Omit<
+    AITextOptions<TAdapter, TModel, undefined, true>,
+    'outputSchema'
   >,
-): AIReturnFor<TAdapter, TSchema, TTextStream, TSummarizeStream, TVideoRequest>
+): AsyncIterable<StreamChunk>
+
+// Embedding adapter → Promise<EmbeddingResult>
+export function ai<
+  TAdapter extends EmbeddingAdapter<ReadonlyArray<string>, object>,
+  TModel extends EmbeddingModels<TAdapter>,
+>(options: AIEmbeddingOptions<TAdapter, TModel>): Promise<EmbeddingResult>
+
+// Summarize adapter with explicit stream: true → AsyncIterable<StreamChunk>
+export function ai<
+  TAdapter extends SummarizeAdapter<ReadonlyArray<string>, object>,
+  TModel extends SummarizeModels<TAdapter>,
+>(
+  options: AISummarizeOptions<TAdapter, TModel, true> & { stream: true },
+): AsyncIterable<StreamChunk>
+
+// Summarize adapter (non-streaming - default) → Promise<SummarizationResult>
+export function ai<
+  TAdapter extends SummarizeAdapter<ReadonlyArray<string>, object>,
+  TModel extends SummarizeModels<TAdapter>,
+>(
+  options: AISummarizeOptions<TAdapter, TModel, false>,
+): Promise<SummarizationResult>
+
+// Image adapter → Promise<ImageGenerationResult>
+export function ai<
+  TAdapter extends ImageAdapter<ReadonlyArray<string>, object, any, any>,
+  TModel extends ImageModels<TAdapter>,
+>(options: AIImageOptions<TAdapter, TModel>): Promise<ImageGenerationResult>
+
+// Video adapter status → Promise<VideoStatusResult>
+export function ai<
+  TAdapter extends VideoAdapter<ReadonlyArray<string>, object>,
+  TModel extends VideoModels<TAdapter>,
+>(options: AIVideoStatusOptions<TAdapter, TModel>): Promise<VideoStatusResult>
+
+// Video adapter url → Promise<VideoUrlResult>
+export function ai<
+  TAdapter extends VideoAdapter<ReadonlyArray<string>, object>,
+  TModel extends VideoModels<TAdapter>,
+>(options: AIVideoUrlOptions<TAdapter, TModel>): Promise<VideoUrlResult>
+
+// Video adapter create → Promise<VideoJobResult>
+export function ai<
+  TAdapter extends VideoAdapter<ReadonlyArray<string>, object>,
+  TModel extends VideoModels<TAdapter>,
+>(options: AIVideoCreateOptions<TAdapter, TModel>): Promise<VideoJobResult>
 
 // Implementation
 export function ai(options: AIOptionsUnion): AIResultUnion {
@@ -343,52 +299,6 @@ export function aiText(options: {
     throw new Error(`Unknown adapter kind: ${adapter.kind}`)
   }
   return handler(options as AIOptionsUnion) as AsyncIterable<StreamChunk>
-}
-
-/**
- * Create typed options for the ai() function without executing.
- * This is useful for pre-defining configurations with full type inference.
- *
- * @example
- * ```ts
- * const config = {
- *   'anthropic': () => createOptions({
- *     adapter: anthropicText('claude-sonnet-4-5'),
- *   }),
- *   'openai': () => createOptions({
- *     adapter: openaiText('gpt-4o'),
- *   }),
- * }
- *
- * // Use aiText() when provider is dynamic:
- * const stream = aiText({ ...config[provider](), messages })
- * ```
- */
-export function createOptions<
-  TAdapter extends AnyAIAdapter,
-  const TModel extends string,
-  TSchema extends z.ZodType | undefined = undefined,
-  TTextStream extends boolean = true,
-  TSummarizeStream extends boolean = false,
-  TVideoRequest extends 'create' | 'status' | 'url' = 'create',
->(
-  options: AIOptionsFor<
-    TAdapter,
-    TModel,
-    TSchema,
-    TTextStream,
-    TSummarizeStream,
-    TVideoRequest
-  >,
-): AIOptionsFor<
-  TAdapter,
-  TModel,
-  TSchema,
-  TTextStream,
-  TSummarizeStream,
-  TVideoRequest
-> {
-  return options
 }
 
 // ===========================
