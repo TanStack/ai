@@ -107,6 +107,14 @@ export function uiMessageToModelMessages(
               name: p.name,
               arguments: p.arguments,
             },
+            // Include approval info if tool was approved/denied (for server to know the decision)
+            ...(p.state === 'approval-responded' &&
+              p.approval?.approved !== undefined && {
+                approval: {
+                  id: p.approval.id,
+                  approved: p.approval.approved,
+                },
+              }),
           }))
       : undefined
 

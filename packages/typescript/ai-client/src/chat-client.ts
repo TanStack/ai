@@ -26,6 +26,11 @@ export class ChatClient {
   private clientToolsRef: { current: Map<string, AnyClientTool> }
   private currentStreamId: string | null = null
   private currentMessageId: string | null = null
+  private postStreamActions: Array<() => Promise<void>> = []
+  // Track pending client tool executions to await them before stream finalization
+  private pendingToolExecutions: Map<string, Promise<void>> = new Map()
+  // Flag to deduplicate continuation checks during action draining
+  private continuationPending = false
 
   private callbacksRef: {
     current: {
@@ -126,31 +131,41 @@ export class ChatClient {
             )
           }
         },
-        onToolCall: async (args: {
+        onToolCall: (args: {
           toolCallId: string
           toolName: string
           input: any
         }) => {
           // Handle client-side tool execution automatically
           const clientTool = this.clientToolsRef.current.get(args.toolName)
-          if (clientTool?.execute) {
-            try {
-              const output = await clientTool.execute(args.input)
-              await this.addToolResult({
-                toolCallId: args.toolCallId,
-                tool: args.toolName,
-                output,
-                state: 'output-available',
-              })
-            } catch (error: any) {
-              await this.addToolResult({
-                toolCallId: args.toolCallId,
-                tool: args.toolName,
-                output: null,
-                state: 'output-error',
-                errorText: error.message,
-              })
-            }
+          const executeFunc = clientTool?.execute
+          if (executeFunc) {
+            // Create and track the execution promise
+            const executionPromise = (async () => {
+              try {
+                const output = await executeFunc(args.input)
+                await this.addToolResult({
+                  toolCallId: args.toolCallId,
+                  tool: args.toolName,
+                  output,
+                  state: 'output-available',
+                })
+              } catch (error: any) {
+                await this.addToolResult({
+                  toolCallId: args.toolCallId,
+                  tool: args.toolName,
+                  output: null,
+                  state: 'output-error',
+                  errorText: error.message,
+                })
+              } finally {
+                // Remove from pending when complete
+                this.pendingToolExecutions.delete(args.toolCallId)
+              }
+            })()
+
+            // Track the pending execution
+            this.pendingToolExecutions.set(args.toolCallId, executionPromise)
           }
         },
         onApprovalRequest: (args: {
@@ -220,6 +235,12 @@ export class ChatClient {
       await new Promise((resolve) => setTimeout(resolve, 0))
     }
 
+    // Wait for all pending tool executions to complete before finalizing
+    // This ensures client tools finish before we check for continuation
+    if (this.pendingToolExecutions.size > 0) {
+      await Promise.all(this.pendingToolExecutions.values())
+    }
+
     // Finalize the stream
     this.processor.finalizeStream()
 
@@ -287,9 +308,17 @@ export class ChatClient {
    * Stream a response from the LLM
    */
   private async streamResponse(): Promise<void> {
+    // Guard against concurrent streams - if already loading, skip
+    if (this.isLoading) {
+      return
+    }
+
     this.setIsLoading(true)
     this.setError(undefined)
     this.abortController = new AbortController()
+    // Reset pending tool executions for the new stream
+    this.pendingToolExecutions.clear()
+    let streamCompletedSuccessfully = false
 
     try {
       // Get model messages for the LLM
@@ -312,6 +341,7 @@ export class ChatClient {
       )
 
       await this.processStream(stream)
+      streamCompletedSuccessfully = true
     } catch (err) {
       if (err instanceof Error) {
         if (err.name === 'AbortError') {
@@ -323,6 +353,23 @@ export class ChatClient {
     } finally {
       this.abortController = null
       this.setIsLoading(false)
+
+      // Drain any actions that were queued while the stream was in progress
+      await this.drainPostStreamActions()
+
+      // Continue conversation if the stream ended with a tool result (server tool completed)
+      if (streamCompletedSuccessfully) {
+        const messages = this.processor.getMessages()
+        const lastPart = messages.at(-1)?.parts?.at(-1)
+
+        if (lastPart?.type === 'tool-result' && this.shouldAutoSend()) {
+          try {
+            await this.checkForContinuation()
+          } catch (error) {
+            console.error('Failed to continue flow after tool result:', error)
+          }
+        }
+      }
     }
   }
 
@@ -394,10 +441,13 @@ export class ChatClient {
       result.errorText,
     )
 
-    // Check if we should auto-send
-    if (this.shouldAutoSend()) {
-      await this.continueFlow()
+    // If stream is in progress, queue continuation check for after it ends
+    if (this.isLoading) {
+      this.queuePostStreamAction(() => this.checkForContinuation())
+      return
     }
+
+    await this.checkForContinuation()
   }
 
   /**
@@ -433,18 +483,49 @@ export class ChatClient {
     // Add response via processor
     this.processor.addToolApprovalResponse(response.id, response.approved)
 
-    // Check if we should auto-send
-    if (this.shouldAutoSend()) {
-      await this.continueFlow()
+    // If stream is in progress, queue continuation check for after it ends
+    if (this.isLoading) {
+      this.queuePostStreamAction(() => this.checkForContinuation())
+      return
+    }
+
+    await this.checkForContinuation()
+  }
+
+  /**
+   * Queue an action to be executed after the current stream ends
+   */
+  private queuePostStreamAction(action: () => Promise<void>): void {
+    this.postStreamActions.push(action)
+  }
+
+  /**
+   * Drain and execute all queued post-stream actions
+   */
+  private async drainPostStreamActions(): Promise<void> {
+    while (this.postStreamActions.length > 0) {
+      const action = this.postStreamActions.shift()!
+      await action()
     }
   }
 
   /**
-   * Continue the agent flow with current messages
+   * Check if we should continue the flow and do so if needed
    */
-  private async continueFlow(): Promise<void> {
-    if (this.isLoading) return
-    await this.streamResponse()
+  private async checkForContinuation(): Promise<void> {
+    // Prevent duplicate continuation attempts
+    if (this.continuationPending || this.isLoading) {
+      return
+    }
+
+    if (this.shouldAutoSend()) {
+      this.continuationPending = true
+      try {
+        await this.streamResponse()
+      } finally {
+        this.continuationPending = false
+      }
+    }
   }
 
   /**
