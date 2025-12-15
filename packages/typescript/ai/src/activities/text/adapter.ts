@@ -64,6 +64,7 @@ export interface TextAdapter<
     video: unknown
     document: unknown
   } = DefaultMessageMetadataByModality,
+  TModel extends string = TModels[number],
 > {
   /** Discriminator for adapter kind - used by generate() to determine API shape */
   readonly kind: 'text'
@@ -71,6 +72,8 @@ export interface TextAdapter<
   readonly name: string
   /** Supported chat models */
   readonly models: TModels
+  /** The model to use for this adapter instance */
+  readonly model: TModel
 
   // Type-only properties for type inference
   /** @internal Type-only property for provider options inference */
@@ -122,16 +125,19 @@ export abstract class BaseTextAdapter<
     video: unknown
     document: unknown
   } = DefaultMessageMetadataByModality,
+  TModel extends string = TModels[number],
 > implements TextAdapter<
   TModels,
   TProviderOptions,
   TModelProviderOptionsByName,
   TModelInputModalitiesByName,
-  TMessageMetadataByModality
+  TMessageMetadataByModality,
+  TModel
 > {
   readonly kind = 'text' as const
   abstract readonly name: string
   abstract readonly models: TModels
+  readonly model: TModel
 
   // Type-only properties - never assigned at runtime
   declare _providerOptions?: TProviderOptions
@@ -141,7 +147,8 @@ export abstract class BaseTextAdapter<
 
   protected config: TextAdapterConfig
 
-  constructor(config: TextAdapterConfig = {}) {
+  constructor(model: TModel, config: TextAdapterConfig = {}) {
+    this.model = model
     this.config = config
   }
 

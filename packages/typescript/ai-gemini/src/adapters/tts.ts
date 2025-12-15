@@ -51,7 +51,7 @@ export class GeminiTTSAdapter extends BaseTTSAdapter<
   typeof GEMINI_TTS_MODELS,
   GeminiTTSProviderOptions
 > {
-  readonly name = 'gemini' as const
+  readonly name = 'gemini'
   readonly models = GEMINI_TTS_MODELS
 
   private client: GoogleGenAI

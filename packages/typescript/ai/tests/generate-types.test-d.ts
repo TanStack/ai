@@ -54,11 +54,11 @@ class TestTextAdapter extends BaseTextAdapter<
   TestTextProviderOptions
 > {
   readonly kind = 'text' as const
-  readonly name = 'test' as const
+  readonly name = 'test'
   readonly models = TEST_CHAT_MODELS
 
   constructor() {
-    super({})
+    super('gpt-4o', {})
   }
 
   async *chatStream(_options: TextOptions): AsyncIterable<StreamChunk> {
@@ -102,14 +102,14 @@ class TestTextAdapterWithModelOptions extends BaseTextAdapter<
   TestModelInputModalitiesByName
 > {
   readonly kind = 'text' as const
-  readonly name = 'test-with-map' as const
+  readonly name = 'test-with-map'
   readonly models = TEST_CHAT_MODELS_WITH_MAP
 
   _modelProviderOptionsByName!: TestModelProviderOptionsByName
   _modelInputModalitiesByName!: TestModelInputModalitiesByName
 
   constructor() {
-    super({})
+    super('model-a', {})
   }
 
   async *chatStream(_options: TextOptions): AsyncIterable<StreamChunk> {
@@ -131,7 +131,7 @@ class TestEmbedAdapter extends BaseEmbeddingAdapter<
   TestEmbedProviderOptions
 > {
   readonly kind = 'embedding' as const
-  readonly name = 'test' as const
+  readonly name = 'test'
   readonly models = TEST_EMBED_MODELS
 
   constructor() {
@@ -153,7 +153,7 @@ class TestSummarizeAdapter extends BaseSummarizeAdapter<
   TestSummarizeProviderOptions
 > {
   readonly kind = 'summarize' as const
-  readonly name = 'test' as const
+  readonly name = 'test'
   readonly models = TEST_SUMMARIZE_MODELS
 
   constructor() {
@@ -680,7 +680,7 @@ class TestImageAdapter extends BaseImageAdapter<
   TestImageModelSizeByName
 > {
   readonly kind = 'image' as const
-  readonly name = 'test-image' as const
+  readonly name = 'test-image'
   readonly models = TEST_IMAGE_MODELS
 
   _modelProviderOptionsByName!: TestImageModelProviderOptionsByName
@@ -743,14 +743,14 @@ class TestMultimodalAdapter extends BaseTextAdapter<
   TestMessageMetadataByModality
 > {
   readonly kind = 'text' as const
-  readonly name = 'test-multimodal' as const
+  readonly name = 'test-multimodal'
   readonly models = TEST_MULTIMODAL_MODELS
 
   declare _modelInputModalitiesByName: TestMultimodalInputModalitiesByName
   declare _messageMetadataByModality: TestMessageMetadataByModality
 
   constructor() {
-    super({})
+    super('text-only-model', {})
   }
 
   async *chatStream(_options: TextOptions): AsyncIterable<StreamChunk> {
@@ -1708,8 +1708,8 @@ describe('createOptions() type inference', () => {
 
     // Options should have the correct adapter type
     expectTypeOf(options.adapter).toMatchTypeOf<TestTextAdapter>()
-    // Options should have the correct model type
-    expectTypeOf(options.model).toEqualTypeOf<'gpt-4o'>()
+    // Options should have the correct model type (optional, so includes undefined)
+    expectTypeOf(options.model).toEqualTypeOf<'gpt-4o' | undefined>()
   })
 
   it('should enforce valid model for text adapter', () => {
@@ -1908,5 +1908,103 @@ describe('createOptions() type inference', () => {
       // @ts-expect-error - prompt is an image-specific property
       prompt: 'not allowed on text adapter',
     })
+  })
+})
+
+// ===========================
+// Union of Options Type Tests (Runtime Adapter Switching)
+// ===========================
+// These tests verify that when using createOptions to define multiple
+// adapter configurations and then dynamically selecting one, the return
+// type from ai() is correctly inferred.
+
+describe('ai() with union of text adapter options (runtime switching)', () => {
+  it('should return AsyncIterable<StreamChunk> with new model-in-adapter API', () => {
+    // NEW API: Model is passed to adapter constructor
+    const adapters = {
+      adapter1: () => new TestTextAdapter(), // model is 'gpt-4o' in constructor
+      adapter2: () => new TestTextAdapterWithModelOptions(), // model is 'model-a' in constructor
+    }
+
+    // Single adapter - should work
+    const adapter1 = adapters.adapter1()
+    const result1 = ai({
+      adapter: adapter1,
+      messages: [{ role: 'user' as const, content: 'Hello' }],
+    })
+    expectTypeOf(result1).toMatchTypeOf<AsyncIterable<StreamChunk>>()
+
+    // Dynamic adapter selection - this is the key test
+    const provider: 'adapter1' | 'adapter2' = 'adapter1'
+    const adapter = adapters[provider]()
+
+    // Check what kind the adapter has
+    expectTypeOf(adapter.kind).toEqualTypeOf<'text'>()
+
+    const result = ai({
+      adapter,
+      messages: [{ role: 'user' as const, content: 'Hello' }],
+    })
+
+    // This should be AsyncIterable<StreamChunk>, not a union of all return types!
+    expectTypeOf(result).toMatchTypeOf<AsyncIterable<StreamChunk>>()
+  })
+
+  it('should return AsyncIterable<StreamChunk> when spreading union of different text adapters', () => {
+    const adapterConfig = {
+      adapter1: () =>
+        createOptions({
+          adapter: new TestTextAdapter(),
+          model: 'gpt-4o' as const,
+          messages: [{ role: 'user' as const, content: 'Hello' }],
+        }),
+      adapter2: () =>
+        createOptions({
+          adapter: new TestTextAdapterWithModelOptions(),
+          model: 'model-a' as const,
+          messages: [{ role: 'user' as const, content: 'Hello' }],
+        }),
+    }
+
+    // Test with specific provider - should work
+    const options1 = adapterConfig.adapter1()
+    const result1 = ai({ ...options1 })
+    expectTypeOf(result1).toMatchTypeOf<AsyncIterable<StreamChunk>>()
+
+    const options2 = adapterConfig.adapter2()
+    const result2 = ai({ ...options2 })
+    expectTypeOf(result2).toMatchTypeOf<AsyncIterable<StreamChunk>>()
+
+    // Test with dynamic provider - THIS NOW WORKS!
+    // After removing 'as const' from adapter name properties, adapters are
+    // structurally compatible and TypeScript can unify them
+    const provider: 'adapter1' | 'adapter2' = 'adapter1'
+    const options = adapterConfig[provider]()
+    const result = ai({ ...options })
+    expectTypeOf(result).toMatchTypeOf<AsyncIterable<StreamChunk>>()
+  })
+
+  it('should work with same adapter type and different models', () => {
+    const textAdapter = new TestTextAdapter()
+
+    const adapterConfig = {
+      option1: createOptions({
+        adapter: textAdapter,
+        model: 'gpt-4o' as const,
+        messages: [{ role: 'user' as const, content: 'Hello' }],
+      }),
+      option2: createOptions({
+        adapter: textAdapter,
+        model: 'gpt-4o-mini' as const,
+        messages: [{ role: 'user' as const, content: 'Hello' }],
+      }),
+    }
+
+    // With the same adapter instance, spreading a union should work
+    const provider: 'option1' | 'option2' = 'option1'
+    const options = adapterConfig[provider]
+    const result = ai({ ...options })
+
+    expectTypeOf(result).toMatchTypeOf<AsyncIterable<StreamChunk>>()
   })
 })

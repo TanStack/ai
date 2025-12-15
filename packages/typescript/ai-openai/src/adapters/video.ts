@@ -44,7 +44,7 @@ export class OpenAIVideoAdapter extends BaseVideoAdapter<
   typeof OPENAI_VIDEO_MODELS,
   OpenAIVideoProviderOptions
 > {
-  readonly name = 'openai' as const
+  readonly name = 'openai'
   readonly models = OPENAI_VIDEO_MODELS
 
   // Type-only properties for type inference

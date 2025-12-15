@@ -41,7 +41,7 @@ export class GeminiEmbedAdapter implements EmbeddingAdapter<
   GeminiEmbedProviderOptions
 > {
   readonly kind = 'embedding' as const
-  readonly name = 'gemini' as const
+  readonly name = 'gemini'
   readonly models = GeminiEmbeddingModels
 
   /** Type-only property for provider options inference */

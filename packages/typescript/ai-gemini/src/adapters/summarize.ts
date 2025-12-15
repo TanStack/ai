@@ -57,7 +57,7 @@ export class GeminiSummarizeAdapter implements SummarizeAdapter<
   GeminiSummarizeProviderOptions
 > {
   readonly kind = 'summarize' as const
-  readonly name = 'gemini' as const
+  readonly name = 'gemini'
   readonly models = GeminiSummarizeModels
 
   /** Type-only property for provider options inference */

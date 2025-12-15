@@ -70,7 +70,7 @@ export class OllamaSummarizeAdapter implements SummarizeAdapter<
   OllamaSummarizeProviderOptions
 > {
   readonly kind = 'summarize' as const
-  readonly name = 'ollama' as const
+  readonly name = 'ollama'
   readonly models = OllamaSummarizeModels
 
   /** Type-only property for provider options inference */

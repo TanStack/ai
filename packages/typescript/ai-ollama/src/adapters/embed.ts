@@ -51,7 +51,7 @@ export class OllamaEmbedAdapter implements EmbeddingAdapter<
   OllamaEmbedProviderOptions
 > {
   readonly kind = 'embedding' as const
-  readonly name = 'ollama' as const
+  readonly name = 'ollama'
   readonly models = OllamaEmbeddingModels
 
   /** Type-only property for provider options inference */

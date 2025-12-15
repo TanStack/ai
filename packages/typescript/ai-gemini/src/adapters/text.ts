@@ -47,21 +47,27 @@ export interface GeminiTextConfig extends GeminiClientConfig {}
  */
 export type GeminiTextProviderOptions = ExternalTextProviderOptions
 
+/** Type alias for Gemini model names */
+export type GeminiModel = (typeof GEMINI_MODELS)[number]
+
 /**
  * Gemini Text (Chat) Adapter
  *
  * Tree-shakeable adapter for Gemini chat/text completion functionality.
  * Import only what you need for smaller bundle sizes.
  */
-export class GeminiTextAdapter extends BaseTextAdapter<
+export class GeminiTextAdapter<
+  TModel extends GeminiModel = GeminiModel,
+> extends BaseTextAdapter<
   typeof GEMINI_MODELS,
   GeminiTextProviderOptions,
   GeminiChatModelProviderOptionsByName,
   GeminiModelInputModalitiesByName,
-  GeminiMessageMetadataByModality
+  GeminiMessageMetadataByModality,
+  TModel
 > {
   readonly kind = 'text' as const
-  readonly name = 'gemini' as const
+  readonly name = 'gemini'
   readonly models = GEMINI_MODELS
 
   declare _modelProviderOptionsByName: GeminiChatModelProviderOptionsByName
@@ -70,8 +76,8 @@ export class GeminiTextAdapter extends BaseTextAdapter<
 
   private client: GoogleGenAI
 
-  constructor(config: GeminiTextConfig) {
-    super({})
+  constructor(model: TModel, config: GeminiTextConfig) {
+    super(model, {})
     this.client = createGeminiClient(config)
   }
 
@@ -458,19 +464,24 @@ export class GeminiTextAdapter extends BaseTextAdapter<
 /**
  * Creates a Gemini text adapter with explicit API key
  */
-export function createGeminiText(
+export function createGeminiText<TModel extends GeminiModel>(
+  model: TModel,
   apiKey: string,
   config?: Omit<GeminiTextConfig, 'apiKey'>,
-): GeminiTextAdapter {
-  return new GeminiTextAdapter({ apiKey, ...config })
+): GeminiTextAdapter<TModel> {
+  return new GeminiTextAdapter(model, { apiKey, ...config })
 }
 
 /**
  * Creates a Gemini text adapter with automatic API key detection
+ *
+ * @param model - The Gemini model to use (e.g., 'gemini-2.0-flash-exp')
+ * @param config - Optional configuration (excluding apiKey which is auto-detected)
  */
-export function geminiText(
+export function geminiText<TModel extends GeminiModel>(
+  model: TModel,
   config?: Omit<GeminiTextConfig, 'apiKey'>,
-): GeminiTextAdapter {
+): GeminiTextAdapter<TModel> {
   const apiKey = getGeminiApiKeyFromEnv()
-  return createGeminiText(apiKey, config)
+  return createGeminiText(model, apiKey, config)
 }

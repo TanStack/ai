@@ -36,7 +36,7 @@ export class OpenAITranscriptionAdapter extends BaseTranscriptionAdapter<
   typeof OPENAI_TRANSCRIPTION_MODELS,
   OpenAITranscriptionProviderOptions
 > {
-  readonly name = 'openai' as const
+  readonly name = 'openai'
   readonly models = OPENAI_TRANSCRIPTION_MODELS
 
   private client: OpenAI_SDK

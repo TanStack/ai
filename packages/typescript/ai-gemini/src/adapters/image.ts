@@ -52,7 +52,7 @@ export class GeminiImageAdapter extends BaseImageAdapter<
   GeminiImageModelSizeByName
 > {
   readonly kind = 'image' as const
-  readonly name = 'gemini' as const
+  readonly name = 'gemini'
   readonly models = GEMINI_IMAGE_MODELS
 
   declare _modelProviderOptionsByName: GeminiImageModelProviderOptionsByName

@@ -37,7 +37,7 @@ export class OpenAIEmbedAdapter extends BaseEmbeddingAdapter<
   OpenAIEmbedProviderOptions
 > {
   readonly kind = 'embedding' as const
-  readonly name = 'openai' as const
+  readonly name = 'openai'
   readonly models = OPENAI_EMBEDDING_MODELS
 
   private client: OpenAI_SDK

@@ -168,8 +168,8 @@ export interface TextActivityOptions<
 > {
   /** The text adapter to use */
   adapter: TAdapter & { kind: typeof kind }
-  /** The model name (autocompletes based on adapter) */
-  model: TModel
+  /** The model name - optional, defaults to adapter.model */
+  model?: TModel
   /** Conversation messages */
   messages: Array<ModelMessage>
   /** System prompts to prepend to the conversation */
@@ -1091,9 +1091,12 @@ async function* runStreamingText(
 ): AsyncIterable<StreamChunk> {
   const { adapter, ...textOptions } = options
 
+  // Use adapter.model if model is not provided in options
+  const model = textOptions.model ?? adapter.model
+
   const engine = new TextEngine({
     adapter,
-    params: textOptions as TextOptions<
+    params: { ...textOptions, model } as TextOptions<
       string,
       Record<string, any>,
       undefined,
@@ -1151,10 +1154,13 @@ async function runAgenticStructuredOutput<TSchema extends z.ZodType>(
     throw new Error('outputSchema is required for structured output')
   }
 
+  // Use adapter.model if model is not provided in options
+  const model = textOptions.model ?? adapter.model
+
   // Create the engine and run the agentic loop
   const engine = new TextEngine({
     adapter,
-    params: textOptions as TextOptions<
+    params: { ...textOptions, model } as TextOptions<
       string,
       Record<string, any>,
       undefined,
@@ -1189,6 +1195,7 @@ async function runAgenticStructuredOutput<TSchema extends z.ZodType>(
   const result = await adapter.structuredOutput({
     chatOptions: {
       ...structuredTextOptions,
+      model,
       messages: finalMessages,
     },
     outputSchema: jsonSchema,

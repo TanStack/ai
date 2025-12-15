@@ -93,7 +93,6 @@ export interface OllamaTextProviderOptions {
 }
 
 export interface OllamaTextAdapterOptions {
-  model?: OllamaTextModel
   host?: string
 }
 
@@ -101,28 +100,42 @@ export interface OllamaTextAdapterOptions {
  * Ollama Text/Chat Adapter
  * A tree-shakeable chat adapter for Ollama
  */
-export class OllamaTextAdapter extends BaseTextAdapter<
+export class OllamaTextAdapter<
+  TModel extends string = OllamaTextModel,
+> extends BaseTextAdapter<
   typeof OllamaTextModels,
-  OllamaTextProviderOptions
+  OllamaTextProviderOptions,
+  Record<string, unknown>,
+  Record<
+    string,
+    ReadonlyArray<'text' | 'image' | 'audio' | 'video' | 'document'>
+  >,
+  {
+    text: unknown
+    image: unknown
+    audio: unknown
+    video: unknown
+    document: unknown
+  },
+  TModel
 > {
   readonly kind = 'text' as const
-  readonly name = 'ollama' as const
+  readonly name = 'ollama'
   readonly models = OllamaTextModels
 
   private client: Ollama
-  private defaultModel: OllamaTextModel
 
   constructor(
+    model: TModel,
     hostOrClient?: string | Ollama,
     options: OllamaTextAdapterOptions = {},
   ) {
-    super({})
+    super(model, {})
     if (typeof hostOrClient === 'string' || hostOrClient === undefined) {
-      this.client = createOllamaClient({ host: hostOrClient })
+      this.client = createOllamaClient({ host: hostOrClient ?? options.host })
     } else {
       this.client = hostOrClient
     }
-    this.defaultModel = options.model ?? 'llama3'
   }
 
   async *chatStream(options: TextOptions): AsyncIterable<StreamChunk> {
@@ -359,7 +372,7 @@ export class OllamaTextAdapter extends BaseTextAdapter<
   }
 
   private mapCommonOptionsToOllama(options: TextOptions): ChatRequest {
-    const model = options.model || this.defaultModel
+    const model = options.model || this.model
     const providerOptions = options.providerOptions as
       | OllamaTextProviderOptions
       | undefined
@@ -383,19 +396,24 @@ export class OllamaTextAdapter extends BaseTextAdapter<
 /**
  * Creates an Ollama text adapter with explicit host
  */
-export function createOllamaText(
+export function createOllamaText<TModel extends OllamaTextModel>(
+  model: TModel,
   host?: string,
   options?: OllamaTextAdapterOptions,
-): OllamaTextAdapter {
-  return new OllamaTextAdapter(host, options)
+): OllamaTextAdapter<TModel> {
+  return new OllamaTextAdapter(model, host, options)
 }
 
 /**
  * Creates an Ollama text adapter with host from environment
+ *
+ * @param model - The Ollama model to use (e.g., 'llama3', 'mistral:7b')
+ * @param options - Optional configuration
  */
-export function ollamaText(
+export function ollamaText<TModel extends OllamaTextModel>(
+  model: TModel,
   options?: OllamaTextAdapterOptions,
-): OllamaTextAdapter {
+): OllamaTextAdapter<TModel> {
   const host = getOllamaHostFromEnv()
-  return new OllamaTextAdapter(host, options)
+  return new OllamaTextAdapter(model, host, options)
 }

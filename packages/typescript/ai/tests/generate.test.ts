@@ -25,13 +25,13 @@ const MOCK_MODELS = ['model-a', 'model-b'] as const
 
 class MockTextAdapter extends BaseTextAdapter<typeof MOCK_MODELS> {
   readonly kind = 'text' as const
-  readonly name = 'mock' as const
+  readonly name = 'mock'
   readonly models = MOCK_MODELS
 
   private mockChunks: Array<StreamChunk>
 
   constructor(mockChunks: Array<StreamChunk> = []) {
-    super({})
+    super('model-a', {})
     this.mockChunks = mockChunks
   }
 
@@ -56,7 +56,7 @@ class MockEmbeddingAdapter extends BaseEmbeddingAdapter<
   Record<string, unknown>
 > {
   readonly kind = 'embedding' as const
-  readonly name = 'mock' as const
+  readonly name = 'mock'
   readonly models = MOCK_MODELS
 
   private mockResult: EmbeddingResult
@@ -81,7 +81,7 @@ class MockSummarizeAdapter extends BaseSummarizeAdapter<
   Record<string, unknown>
 > {
   readonly kind = 'summarize' as const
-  readonly name = 'mock' as const
+  readonly name = 'mock'
   readonly models = MOCK_MODELS
 
   private mockResult: SummarizationResult

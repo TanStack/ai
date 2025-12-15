@@ -61,21 +61,27 @@ type AnthropicContentBlocks =
 type AnthropicContentBlock =
   AnthropicContentBlocks extends Array<infer Block> ? Block : never
 
+/** Type alias for Anthropic model names */
+export type AnthropicModel = (typeof ANTHROPIC_MODELS)[number]
+
 /**
  * Anthropic Text (Chat) Adapter
  *
  * Tree-shakeable adapter for Anthropic chat/text completion functionality.
  * Import only what you need for smaller bundle sizes.
  */
-export class AnthropicTextAdapter extends BaseTextAdapter<
+export class AnthropicTextAdapter<
+  TModel extends AnthropicModel = AnthropicModel,
+> extends BaseTextAdapter<
   typeof ANTHROPIC_MODELS,
   AnthropicTextProviderOptions,
   AnthropicChatModelProviderOptionsByName,
   AnthropicModelInputModalitiesByName,
-  AnthropicMessageMetadataByModality
+  AnthropicMessageMetadataByModality,
+  TModel
 > {
   readonly kind = 'text' as const
-  readonly name = 'anthropic' as const
+  readonly name = 'anthropic'
   readonly models = ANTHROPIC_MODELS
 
   declare _modelProviderOptionsByName: AnthropicChatModelProviderOptionsByName
@@ -84,8 +90,8 @@ export class AnthropicTextAdapter extends BaseTextAdapter<
 
   private client: Anthropic_SDK
 
-  constructor(config: AnthropicTextConfig) {
-    super({})
+  constructor(model: TModel, config: AnthropicTextConfig) {
+    super(model, {})
     this.client = createAnthropicClient(config)
   }
 
@@ -598,19 +604,24 @@ export class AnthropicTextAdapter extends BaseTextAdapter<
 /**
  * Creates an Anthropic text adapter with explicit API key
  */
-export function createAnthropicText(
+export function createAnthropicText<TModel extends AnthropicModel>(
+  model: TModel,
   apiKey: string,
   config?: Omit<AnthropicTextConfig, 'apiKey'>,
-): AnthropicTextAdapter {
-  return new AnthropicTextAdapter({ apiKey, ...config })
+): AnthropicTextAdapter<TModel> {
+  return new AnthropicTextAdapter(model, { apiKey, ...config })
 }
 
 /**
  * Creates an Anthropic text adapter with automatic API key detection
+ *
+ * @param model - The Anthropic model to use (e.g., 'claude-sonnet-4-5')
+ * @param config - Optional configuration (excluding apiKey which is auto-detected)
  */
-export function anthropicText(
+export function anthropicText<TModel extends AnthropicModel>(
+  model: TModel,
   config?: Omit<AnthropicTextConfig, 'apiKey'>,
-): AnthropicTextAdapter {
+): AnthropicTextAdapter<TModel> {
   const apiKey = getAnthropicApiKeyFromEnv()
-  return createAnthropicText(apiKey, config)
+  return createAnthropicText(model, apiKey, config)
 }

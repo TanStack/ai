@@ -271,6 +271,12 @@ type AIReturnFor<
  * })
  * ```
  */
+
+// ===========================
+// AI Function
+// ===========================
+
+// Single overload using conditional types
 export function ai<
   TAdapter extends AnyAIAdapter,
   const TModel extends string,
@@ -302,6 +308,44 @@ export function ai(options: AIOptionsUnion): AIResultUnion {
 }
 
 /**
+ * Call ai() with text adapter options and get AsyncIterable<StreamChunk> return type.
+ *
+ * Use this when you have a union of different text adapters (e.g., from
+ * dynamic provider selection) and want to avoid type casting.
+ *
+ * @example
+ * ```ts
+ * const adapters = {
+ *   openai: () => openaiText('gpt-4o'),
+ *   anthropic: () => anthropicText('claude-sonnet-4-5'),
+ * }
+ *
+ * const adapter = adapters[provider]()
+ * const stream = aiText({ adapter, messages })  // No cast needed!
+ * return toStreamResponse(stream)
+ * ```
+ */
+export function aiText(options: {
+  adapter: TextAdapter<ReadonlyArray<string>, object, any, any, any>
+  messages: Array<any>
+  model?: string
+  tools?: Array<any>
+  systemPrompts?: Array<string>
+  options?: any
+  providerOptions?: any
+  abortController?: any
+  agentLoopStrategy?: any
+  conversationId?: string
+}): AsyncIterable<StreamChunk> {
+  const { adapter } = options
+  const handler = activityMap.get(adapter.kind)
+  if (!handler) {
+    throw new Error(`Unknown adapter kind: ${adapter.kind}`)
+  }
+  return handler(options as AIOptionsUnion) as AsyncIterable<StreamChunk>
+}
+
+/**
  * Create typed options for the ai() function without executing.
  * This is useful for pre-defining configurations with full type inference.
  *
@@ -309,16 +353,15 @@ export function ai(options: AIOptionsUnion): AIResultUnion {
  * ```ts
  * const config = {
  *   'anthropic': () => createOptions({
- *     adapter: anthropicText(),
- *     model: 'claude-sonnet-4-5',  // autocomplete works!
+ *     adapter: anthropicText('claude-sonnet-4-5'),
  *   }),
  *   'openai': () => createOptions({
- *     adapter: openaiText(),
- *     model: 'gpt-4o',  // autocomplete works!
+ *     adapter: openaiText('gpt-4o'),
  *   }),
  * }
  *
- * const stream = ai({ ...config[provider](), messages })
+ * // Use aiText() when provider is dynamic:
+ * const stream = aiText({ ...config[provider](), messages })
  * ```
  */
 export function createOptions<

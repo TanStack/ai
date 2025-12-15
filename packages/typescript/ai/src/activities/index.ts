@@ -732,8 +732,8 @@ export type AITextOptions<
 > = {
   /** The text adapter to use */
   adapter: TAdapter & { kind: 'text' }
-  /** The model name (autocompletes based on adapter) */
-  model: TModel
+  /** The model name - optional, defaults to adapter.model */
+  model?: TModel
   /** Conversation messages - content types are constrained by the model's supported input modalities */
   messages: Array<
     ConstrainedModelMessage<

@@ -46,7 +46,7 @@ export class OpenAIImageAdapter extends BaseImageAdapter<
   OpenAIImageModelSizeByName
 > {
   readonly kind = 'image' as const
-  readonly name = 'openai' as const
+  readonly name = 'openai'
   readonly models = OPENAI_IMAGE_MODELS
 
   private client: OpenAI_SDK

@@ -38,7 +38,7 @@ export class AnthropicSummarizeAdapter extends BaseSummarizeAdapter<
   AnthropicSummarizeProviderOptions
 > {
   readonly kind = 'summarize' as const
-  readonly name = 'anthropic' as const
+  readonly name = 'anthropic'
   readonly models = ANTHROPIC_MODELS
 
   private client: ReturnType<typeof createAnthropicClient>

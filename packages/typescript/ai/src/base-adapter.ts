@@ -38,6 +38,7 @@ export abstract class BaseAdapter<
     video: unknown
     document: unknown
   } = DefaultMessageMetadataByModality,
+  TModel extends TChatModels[number] = TChatModels[number],
 > implements AIAdapter<
   TChatModels,
   TEmbeddingModels,
@@ -49,6 +50,8 @@ export abstract class BaseAdapter<
 > {
   abstract name: string
   abstract models: TChatModels
+  /** The model to use for this adapter instance */
+  model: TModel = 'test-model' as TModel
   embeddingModels?: TEmbeddingModels
   protected config: AIAdapterConfig
 

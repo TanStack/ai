@@ -39,7 +39,7 @@ export class OpenAITTSAdapter extends BaseTTSAdapter<
   typeof OPENAI_TTS_MODELS,
   OpenAITTSProviderOptions
 > {
-  readonly name = 'openai' as const
+  readonly name = 'openai'
   readonly models = OPENAI_TTS_MODELS
 
   private client: OpenAI_SDK

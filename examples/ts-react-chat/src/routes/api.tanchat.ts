@@ -1,15 +1,9 @@
 import { createFileRoute } from '@tanstack/react-router'
-import {
-  ai,
-  createOptions,
-  maxIterations,
-  toStreamResponse,
-} from '@tanstack/ai'
+import { aiText, maxIterations, toStreamResponse } from '@tanstack/ai'
 import { openaiText } from '@tanstack/ai-openai'
 import { ollamaText } from '@tanstack/ai-ollama'
 import { anthropicText } from '@tanstack/ai-anthropic'
 import { geminiText } from '@tanstack/ai-gemini'
-import type { StreamChunk } from '@tanstack/ai'
 import {
   addToCartToolDef,
   addToWishListToolDef,
@@ -20,29 +14,12 @@ import {
 
 type Provider = 'openai' | 'anthropic' | 'gemini' | 'ollama'
 
-// Pre-define typed adapter configurations with full type inference
-// This pattern gives you model autocomplete at definition time
-const adapterConfig = {
-  anthropic: () =>
-    createOptions({
-      adapter: anthropicText(),
-      model: 'claude-sonnet-4-5',
-    }),
-  gemini: () =>
-    createOptions({
-      adapter: geminiText(),
-      model: 'gemini-2.0-flash-exp',
-    }),
-  ollama: () =>
-    createOptions({
-      adapter: ollamaText(),
-      model: 'mistral:7b',
-    }),
-  openai: () =>
-    createOptions({
-      adapter: openaiText(),
-      model: 'gpt-4o',
-    }),
+// Pre-define adapters with model - full type inference and autocomplete!
+const adapters = {
+  anthropic: () => anthropicText('claude-sonnet-4-5'),
+  gemini: () => geminiText('gemini-2.0-flash'),
+  ollama: () => ollamaText('mistral'),
+  openai: () => openaiText('gpt-4o'),
 }
 
 const SYSTEM_PROMPT = `You are a helpful assistant for a guitar store.
@@ -97,16 +74,14 @@ export const Route = createFileRoute('/api/tanchat')({
         const conversationId: string | undefined = data?.conversationId
 
         try {
-          // Get typed adapter options using createOptions pattern
-          const options = adapterConfig[provider]()
+          // Get adapter with model baked in - full type safety!
+          const adapter = adapters[provider]()
           console.log(
-            `[API Route] Using provider: ${provider}, model: ${options.model}`,
+            `[API Route] Using provider: ${provider}, model: ${adapter.model}`,
           )
 
-          // Note: We cast to AsyncIterable<StreamChunk> because all text adapters
-          // return streams, but TypeScript sees a union of all possible ai() return types
-          const stream = ai({
-            ...options,
+          const stream = aiText({
+            adapter,
             tools: [
               getGuitars, // Server tool
               recommendGuitarToolDef, // No server execute - client will handle
@@ -119,7 +94,7 @@ export const Route = createFileRoute('/api/tanchat')({
             messages,
             abortController,
             conversationId,
-          }) as AsyncIterable<StreamChunk>
+          })
           return toStreamResponse(stream, { abortController })
         } catch (error: any) {
           console.error('[API Route] Error in chat request:', {
