@@ -10,7 +10,7 @@ import {
   BaseSummarizeAdapter,
   BaseTextAdapter,
 } from '../src/activities'
-import { ai, aiText } from '../src/ai'
+import { ai } from '../src/ai'
 import type {
   StructuredOutputOptions,
   StructuredOutputResult,
@@ -234,71 +234,9 @@ describe('ai() type inference', () => {
     })
   })
 
-  it('should accept valid providerOptions for text adapter', () => {
-    const textAdapter = new TestTextAdapter()
-
-    ai({
-      adapter: textAdapter,
-      model: 'gpt-4o',
-      messages: [{ role: 'user', content: 'Hello' }],
-      providerOptions: {
-        temperature: 0.7,
-        maxTokens: 100,
-      },
-    })
-  })
-
-  it('should accept valid providerOptions for embedding adapter', () => {
-    const embedAdapter = new TestEmbedAdapter()
-
-    ai({
-      adapter: embedAdapter,
-      model: 'text-embedding-3-small',
-      input: 'Hello',
-      providerOptions: {
-        encodingFormat: 'float',
-      },
-    })
-  })
-
-  it('should accept valid providerOptions for summarize adapter', () => {
-    const summarizeAdapter = new TestSummarizeAdapter()
-
-    ai({
-      adapter: summarizeAdapter,
-      model: 'summarize-v1',
-      text: 'Text to summarize',
-      providerOptions: {
-        style: 'bullet-points',
-      },
-    })
-  })
-
-  it('should narrow providerOptions based on model (per-model map)', () => {
-    const adapter = new TestTextAdapterWithModelOptions()
-
-    // model-a should accept both baseOnly and foo
-    ai({
-      adapter,
-      model: 'model-a',
-      messages: [{ role: 'user', content: 'Hello' }],
-      providerOptions: {
-        baseOnly: true,
-        foo: 123,
-      },
-    })
-
-    // model-b should accept both baseOnly and bar
-    ai({
-      adapter,
-      model: 'model-b',
-      messages: [{ role: 'user', content: 'Hello' }],
-      providerOptions: {
-        baseOnly: true,
-        bar: 'ok',
-      },
-    })
-  })
+  // providerOptions are now baked into the adapter at construction time
+  // e.g., openaiText('gpt-4o', { providerOptions: { temperature: 0.7 } })
+  // Tests for providerOptions type narrowing are handled in adapter factory tests
 })
 
 describe('ai() with outputSchema', () => {
@@ -617,31 +555,8 @@ describe('ai() text adapter type safety', () => {
     expectTypeOf(result).not.toExtend<Promise<{ foo: string }>>()
   })
 
-  it('should change providerOptions type based on model selected', () => {
-    const adapter = new TestTextAdapterWithModelOptions()
-
-    // model-a should accept foo (and baseOnly which is shared)
-    ai({
-      adapter,
-      model: 'model-a',
-      messages: [{ role: 'user', content: 'Hello' }],
-      providerOptions: {
-        baseOnly: true,
-        foo: 42,
-      },
-    })
-
-    // model-b should accept bar (and baseOnly which is shared)
-    ai({
-      adapter,
-      model: 'model-b',
-      messages: [{ role: 'user', content: 'Hello' }],
-      providerOptions: {
-        baseOnly: true,
-        bar: 'valid-for-model-b',
-      },
-    })
-  })
+  // providerOptions are now baked into the adapter at construction time
+  // Model-specific providerOptions typing is handled by adapter factory functions
 })
 
 // ===========================
@@ -799,20 +714,21 @@ describe('ai() with union of text adapter options (runtime switching)', () => {
     })
     expectTypeOf(result1).toMatchTypeOf<AsyncIterable<StreamChunk>>()
 
-    // Dynamic adapter selection - use aiText() for union of adapters
+    // Dynamic adapter selection - ai() now works with union of adapters
+    // since providerOptions is baked into the adapter at construction time
     const provider: 'adapter1' | 'adapter2' = 'adapter1'
     const adapter = adapters[provider]()
 
     // Check what kind the adapter has
     expectTypeOf(adapter.kind).toEqualTypeOf<'text'>()
 
-    // Use aiText() for dynamic adapter selection - always returns AsyncIterable<StreamChunk>
-    const result = aiText({
+    // ai() with dynamic adapter selection returns AsyncIterable<StreamChunk>
+    const result = ai({
       adapter,
       messages: [{ role: 'user' as const, content: 'Hello' }],
     })
 
-    // aiText() guarantees AsyncIterable<StreamChunk> return type
+    // ai() returns AsyncIterable<StreamChunk> for text adapters
     expectTypeOf(result).toMatchTypeOf<AsyncIterable<StreamChunk>>()
   })
 

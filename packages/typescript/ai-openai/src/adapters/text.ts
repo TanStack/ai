@@ -39,7 +39,12 @@ import type { OpenAIClientConfig } from '../utils'
 /**
  * Configuration for OpenAI text adapter
  */
-export interface OpenAITextConfig extends OpenAIClientConfig {}
+export interface OpenAITextConfig<
+  TProviderOptions extends object = object,
+> extends OpenAIClientConfig {
+  /** Provider-specific options baked into the adapter */
+  providerOptions?: TProviderOptions
+}
 
 /**
  * Alias for TextProviderOptions
@@ -77,7 +82,9 @@ export class OpenAITextAdapter<
   private client: OpenAI_SDK
 
   constructor(model: TModel, config: OpenAITextConfig) {
-    super(model, {})
+    super(model, {
+      providerOptions: config.providerOptions as OpenAITextProviderOptions,
+    })
     this.client = createOpenAIClient(config)
   }
 
@@ -733,22 +740,33 @@ export class OpenAITextAdapter<
   }
 }
 
+/** Get provider options type for a specific model */
+type ProviderOptionsForModel<TModel extends OpenAIChatModel> =
+  TModel extends keyof OpenAIChatModelProviderOptionsByName
+    ? OpenAIChatModelProviderOptionsByName[TModel]
+    : OpenAITextProviderOptions
+
 /**
  * Creates an OpenAI text adapter with explicit API key
  *
+ * @param model - The OpenAI model to use (e.g., 'gpt-4o', 'gpt-4o-mini')
  * @param apiKey - Your OpenAI API key
- * @param config - Optional additional configuration
+ * @param config - Optional additional configuration including providerOptions
  * @returns Configured OpenAI text adapter instance
  *
  * @example
  * ```typescript
- * const adapter = createOpenaiText("sk-...");
+ * const adapter = createOpenaiText('gpt-4o', "sk-...", {
+ *   providerOptions: { reasoning: { effort: 'high' } }
+ * });
  * ```
  */
 export function createOpenaiText<TModel extends OpenAIChatModel>(
   model: TModel,
   apiKey: string,
-  config?: Omit<OpenAITextConfig, 'apiKey'>,
+  config?: Omit<OpenAITextConfig, 'apiKey' | 'providerOptions'> & {
+    providerOptions?: ProviderOptionsForModel<TModel>
+  },
 ): OpenAITextAdapter<TModel> {
   return new OpenAITextAdapter(model, { apiKey, ...config })
 }
@@ -761,7 +779,7 @@ export function createOpenaiText<TModel extends OpenAIChatModel>(
  * - `window.env` (Browser with injected env)
  *
  * @param model - The OpenAI model to use (e.g., 'gpt-4o', 'gpt-4o-mini')
- * @param config - Optional configuration (excluding apiKey which is auto-detected)
+ * @param config - Optional configuration including providerOptions (apiKey is auto-detected)
  * @returns Configured OpenAI text adapter instance
  * @throws Error if OPENAI_API_KEY is not found in environment
  *
@@ -769,6 +787,11 @@ export function createOpenaiText<TModel extends OpenAIChatModel>(
  * ```typescript
  * // Automatically uses OPENAI_API_KEY from environment
  * const adapter = openaiText('gpt-4o');
+ *
+ * // With provider options
+ * const adapter = openaiText('o1', {
+ *   providerOptions: { reasoning: { effort: 'high' } }
+ * });
  *
  * await ai({
  *   adapter,
@@ -778,7 +801,9 @@ export function createOpenaiText<TModel extends OpenAIChatModel>(
  */
 export function openaiText<TModel extends OpenAIChatModel>(
   model: TModel,
-  config?: Omit<OpenAITextConfig, 'apiKey'>,
+  config?: Omit<OpenAITextConfig, 'apiKey' | 'providerOptions'> & {
+    providerOptions?: ProviderOptionsForModel<TModel>
+  },
 ): OpenAITextAdapter<TModel> {
   const apiKey = getOpenAIApiKeyFromEnv()
   return createOpenaiText(model, apiKey, config)

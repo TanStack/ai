@@ -47,7 +47,12 @@ import type { AnthropicClientConfig } from '../utils'
 /**
  * Configuration for Anthropic text adapter
  */
-export interface AnthropicTextConfig extends AnthropicClientConfig {}
+export interface AnthropicTextConfig<
+  TProviderOptions extends object = object,
+> extends AnthropicClientConfig {
+  /** Provider-specific options baked into the adapter */
+  providerOptions?: TProviderOptions
+}
 
 /**
  * Anthropic-specific provider options for text/chat
@@ -91,7 +96,9 @@ export class AnthropicTextAdapter<
   private client: Anthropic_SDK
 
   constructor(model: TModel, config: AnthropicTextConfig) {
-    super(model, {})
+    super(model, {
+      providerOptions: config.providerOptions as AnthropicTextProviderOptions,
+    })
     this.client = createAnthropicClient(config)
   }
 
@@ -601,13 +608,26 @@ export class AnthropicTextAdapter<
   }
 }
 
+/** Get provider options type for a specific model */
+type ProviderOptionsForModel<TModel extends AnthropicModel> =
+  TModel extends keyof AnthropicChatModelProviderOptionsByName
+    ? AnthropicChatModelProviderOptionsByName[TModel]
+    : AnthropicTextProviderOptions
+
 /**
  * Creates an Anthropic text adapter with explicit API key
+ *
+ * @param model - The Anthropic model to use (e.g., 'claude-sonnet-4-5')
+ * @param apiKey - Your Anthropic API key
+ * @param config - Optional additional configuration including providerOptions
+ * @returns Configured Anthropic text adapter instance
  */
 export function createAnthropicText<TModel extends AnthropicModel>(
   model: TModel,
   apiKey: string,
-  config?: Omit<AnthropicTextConfig, 'apiKey'>,
+  config?: Omit<AnthropicTextConfig, 'apiKey' | 'providerOptions'> & {
+    providerOptions?: ProviderOptionsForModel<TModel>
+  },
 ): AnthropicTextAdapter<TModel> {
   return new AnthropicTextAdapter(model, { apiKey, ...config })
 }
@@ -616,11 +636,25 @@ export function createAnthropicText<TModel extends AnthropicModel>(
  * Creates an Anthropic text adapter with automatic API key detection
  *
  * @param model - The Anthropic model to use (e.g., 'claude-sonnet-4-5')
- * @param config - Optional configuration (excluding apiKey which is auto-detected)
+ * @param config - Optional configuration including providerOptions (apiKey is auto-detected)
+ * @returns Configured Anthropic text adapter instance
+ *
+ * @example
+ * ```typescript
+ * // Basic usage
+ * const adapter = anthropicText('claude-sonnet-4-5');
+ *
+ * // With provider options
+ * const adapter = anthropicText('claude-sonnet-4-5', {
+ *   providerOptions: { thinking: { type: 'enabled', budget_tokens: 5000 } }
+ * });
+ * ```
  */
 export function anthropicText<TModel extends AnthropicModel>(
   model: TModel,
-  config?: Omit<AnthropicTextConfig, 'apiKey'>,
+  config?: Omit<AnthropicTextConfig, 'apiKey' | 'providerOptions'> & {
+    providerOptions?: ProviderOptionsForModel<TModel>
+  },
 ): AnthropicTextAdapter<TModel> {
   const apiKey = getAnthropicApiKeyFromEnv()
   return createAnthropicText(model, apiKey, config)

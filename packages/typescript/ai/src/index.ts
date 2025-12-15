@@ -1,7 +1,6 @@
 // Main AI function - the one export to rule them all
 export {
   ai,
-  aiText,
   type AIAdapter,
   type AnyAdapter,
   type GenerateAdapter,
@@ -55,7 +54,6 @@ export {
 export * from './types'
 
 // Utility builders
-export { textOptions } from './activities/text/index'
 export { messages } from './activities/text/messages'
 
 // Event client

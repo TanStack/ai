@@ -98,16 +98,18 @@ describe('GeminiAdapter through AI', () => {
 
     mocks.generateContentStreamSpy.mockResolvedValue(createStream(streamChunks))
 
-    const adapter = createTextAdapter()
+    // Create adapter with providerOptions baked in
+    const adapter = new GeminiTextAdapter('gemini-2.5-pro', {
+      apiKey: 'test-key',
+      providerOptions: {
+        generationConfig: { topK: 9 },
+      },
+    })
 
     // Consume the stream to trigger the API call
     for await (const _ of ai({
       adapter,
-      model: 'gemini-2.5-pro',
       messages: [{ role: 'user', content: 'How is the weather in Madrid?' }],
-      providerOptions: {
-        generationConfig: { topK: 9 },
-      },
       options: {
         temperature: 0.4,
         topP: 0.8,
@@ -210,12 +212,15 @@ describe('GeminiAdapter through AI', () => {
       cachedContent: 'cachedContents/weather-context',
     } as const
 
-    const adapter = createTextAdapter()
+    // Create adapter with providerOptions baked in
+    const adapter = new GeminiTextAdapter('gemini-2.5-pro', {
+      apiKey: 'test-key',
+      providerOptions,
+    })
 
     // Consume the stream to trigger the API call
     for await (const _ of ai({
       adapter,
-      model: 'gemini-2.5-pro',
       messages: [{ role: 'user', content: 'Provide structured response' }],
       options: {
         temperature: 0.61,
@@ -223,7 +228,6 @@ describe('GeminiAdapter through AI', () => {
         maxTokens: 512,
       },
       systemPrompts: ['Stay concise', 'Return JSON'],
-      providerOptions,
     })) {
       /* consume stream */
     }
@@ -312,15 +316,17 @@ describe('GeminiAdapter through AI', () => {
 
     mocks.generateContentStreamSpy.mockResolvedValue(createStream(streamChunks))
 
-    const adapter = createTextAdapter()
-    const received: StreamChunk[] = []
-    for await (const chunk of ai({
-      adapter,
-      model: 'gemini-2.5-pro',
-      messages: [{ role: 'user', content: 'Tell me a joke' }],
+    // Create adapter with providerOptions baked in
+    const adapter = new GeminiTextAdapter('gemini-2.5-pro', {
+      apiKey: 'test-key',
       providerOptions: {
         generationConfig: { topK: 3 },
       },
+    })
+    const received: StreamChunk[] = []
+    for await (const chunk of ai({
+      adapter,
+      messages: [{ role: 'user', content: 'Tell me a joke' }],
       options: { temperature: 0.2 },
     })) {
       received.push(chunk)

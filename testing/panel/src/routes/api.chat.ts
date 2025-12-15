@@ -1,7 +1,7 @@
 import * as path from 'node:path'
 import * as fs from 'node:fs'
 import { createFileRoute } from '@tanstack/react-router'
-import { aiText, maxIterations, toStreamResponse } from '@tanstack/ai'
+import { ai, maxIterations, toStreamResponse } from '@tanstack/ai'
 import { anthropicText } from '@tanstack/ai-anthropic'
 import { geminiText } from '@tanstack/ai-gemini'
 import { openaiText } from '@tanstack/ai-openai'
@@ -179,7 +179,10 @@ export const Route = createFileRoute('/api/chat')({
           }
 
           // Use the stream abort signal for proper cancellation handling
-          const stream = aiText({
+          // Note: providerOptions are now baked into the adapter at construction time
+          // To enable reasoning for OpenAI: openaiText('o1', { providerOptions: { reasoning: { effort: 'medium' } } })
+          // To enable thinking for Anthropic: anthropicText('...', { providerOptions: { thinking: { type: 'enabled', budget_tokens: 2048 } } })
+          const stream = ai({
             adapter,
             tools: [
               getGuitars, // Server tool
@@ -191,17 +194,6 @@ export const Route = createFileRoute('/api/chat')({
             systemPrompts: [SYSTEM_PROMPT],
             agentLoopStrategy: maxIterations(20),
             messages,
-            providerOptions: {
-              // Enable reasoning for OpenAI (gpt-5, o3 models):
-              // reasoning: {
-              //   effort: "medium", // or "low", "high", "minimal", "none" (for gpt-5.1)
-              // },
-              // Enable thinking for Anthropic:
-              /*   thinking: {
-                  type: "enabled",
-                  budget_tokens: 2048,
-                }, */
-            },
             abortController,
           })
 

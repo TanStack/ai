@@ -35,7 +35,6 @@ import type {
   InputModalitiesForModel,
   MessageMetadataForAdapter,
   TextModels,
-  TextProviderOptionsForModel,
   // eslint-disable-next-line import/no-duplicates
 } from './text/index'
 import type {
@@ -113,7 +112,6 @@ import type {
 export {
   kind as textKind,
   textActivity,
-  textOptions,
   type TextActivityOptions,
   type TextActivityResult,
   type CommonOptions,
@@ -721,8 +719,8 @@ export type AITranscriptionOptions<
 
 /**
  * Explicit text options - provides clear autocomplete and required field enforcement.
- * Uses NoInfer on providerOptions to prevent inference widening.
  * Uses ConstrainedModelMessage to constrain content types by model's supported input modalities.
+ * Provider-specific options are now baked into the adapter at construction time.
  */
 export type AITextOptions<
   TAdapter extends TextAdapter<ReadonlyArray<string>, object, any, any, any>,
@@ -751,8 +749,6 @@ export type AITextOptions<
   tools?: TextOptions['tools']
   /** Additional options like temperature, maxTokens, etc. */
   options?: TextOptions['options']
-  /** Provider-specific options (narrowed by model) */
-  providerOptions?: NoInfer<TextProviderOptionsForModel<TAdapter, TModel>>
   /** AbortController for cancellation */
   abortController?: TextOptions['abortController']
   /** Strategy for controlling the agent loop */

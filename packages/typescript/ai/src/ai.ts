@@ -74,8 +74,7 @@ export type AnyAdapter = GenerateAdapter
  * import { openaiText } from '@tanstack/ai-openai'
  *
  * for await (const chunk of ai({
- *   adapter: openaiText(),
- *   model: 'gpt-4o',
+ *   adapter: openaiText('gpt-4o'),
  *   messages: [{ role: 'user', content: 'Hello!' }]
  * })) {
  *   console.log(chunk)
@@ -85,8 +84,7 @@ export type AnyAdapter = GenerateAdapter
  * @example Chat with tools (agentic)
  * ```ts
  * for await (const chunk of ai({
- *   adapter: openaiText(),
- *   model: 'gpt-4o',
+ *   adapter: openaiText('gpt-4o'),
  *   messages: [{ role: 'user', content: 'What is the weather?' }],
  *   tools: [weatherTool]
  * })) {
@@ -99,12 +97,26 @@ export type AnyAdapter = GenerateAdapter
  * import { z } from 'zod'
  *
  * const result = await ai({
- *   adapter: openaiText(),
- *   model: 'gpt-4o',
+ *   adapter: openaiText('gpt-4o'),
  *   messages: [{ role: 'user', content: 'Generate a person' }],
  *   outputSchema: z.object({ name: z.string(), age: z.number() })
  * })
  * // result is { name: string, age: number }
+ * ```
+ *
+ * @example Provider-specific options
+ * ```ts
+ * // Provider options are baked into the adapter
+ * const adapter = openaiText('o1', {
+ *   providerOptions: { reasoning: { effort: 'high' } }
+ * })
+ *
+ * for await (const chunk of ai({
+ *   adapter,
+ *   messages: [{ role: 'user', content: 'Solve this complex problem...' }]
+ * })) {
+ *   console.log(chunk)
+ * }
  * ```
  *
  * @example Embedding generation
@@ -195,15 +207,21 @@ export function ai<
 ): Promise<string>
 
 // Text adapter (streaming - default) → AsyncIterable<StreamChunk>
+// This overload uses simplified typing for better inference with dynamic adapter unions
 export function ai<
   TAdapter extends TextAdapter<ReadonlyArray<string>, object, any, any, any>,
-  TModel extends TextModels<TAdapter>,
->(
-  options: Omit<
-    AITextOptions<TAdapter, TModel, undefined, true>,
-    'outputSchema'
-  >,
-): AsyncIterable<StreamChunk>
+>(options: {
+  adapter: TAdapter & { kind: 'text' }
+  messages: Array<any>
+  model?: string
+  tools?: Array<any>
+  systemPrompts?: Array<string>
+  options?: any
+  abortController?: any
+  agentLoopStrategy?: any
+  conversationId?: string
+  stream?: true
+}): AsyncIterable<StreamChunk>
 
 // Embedding adapter → Promise<EmbeddingResult>
 export function ai<
@@ -261,44 +279,6 @@ export function ai(options: AIOptionsUnion): AIResultUnion {
   }
 
   return handler(options)
-}
-
-/**
- * Call ai() with text adapter options and get AsyncIterable<StreamChunk> return type.
- *
- * Use this when you have a union of different text adapters (e.g., from
- * dynamic provider selection) and want to avoid type casting.
- *
- * @example
- * ```ts
- * const adapters = {
- *   openai: () => openaiText('gpt-4o'),
- *   anthropic: () => anthropicText('claude-sonnet-4-5'),
- * }
- *
- * const adapter = adapters[provider]()
- * const stream = aiText({ adapter, messages })  // No cast needed!
- * return toStreamResponse(stream)
- * ```
- */
-export function aiText(options: {
-  adapter: TextAdapter<ReadonlyArray<string>, object, any, any, any>
-  messages: Array<any>
-  model?: string
-  tools?: Array<any>
-  systemPrompts?: Array<string>
-  options?: any
-  providerOptions?: any
-  abortController?: any
-  agentLoopStrategy?: any
-  conversationId?: string
-}): AsyncIterable<StreamChunk> {
-  const { adapter } = options
-  const handler = activityMap.get(adapter.kind)
-  if (!handler) {
-    throw new Error(`Unknown adapter kind: ${adapter.kind}`)
-  }
-  return handler(options as AIOptionsUnion) as AsyncIterable<StreamChunk>
 }
 
 // ===========================

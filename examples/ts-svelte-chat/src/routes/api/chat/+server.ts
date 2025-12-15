@@ -1,4 +1,4 @@
-import { aiText, maxIterations, toStreamResponse } from '@tanstack/ai'
+import { ai, maxIterations, toStreamResponse } from '@tanstack/ai'
 import { openaiText } from '@tanstack/ai-openai'
 import { ollamaText } from '@tanstack/ai-ollama'
 import { anthropicText } from '@tanstack/ai-anthropic'
@@ -83,7 +83,7 @@ export const POST: RequestHandler = async ({ request }) => {
     // Get adapter with model baked in
     const adapter = adapters[provider]()
 
-    const stream = aiText({
+    const stream = ai({
       adapter,
       tools: [
         getGuitars, // Server tool

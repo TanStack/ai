@@ -9,12 +9,16 @@ import type {
 /**
  * Configuration for adapter instances
  */
-export interface TextAdapterConfig {
+export interface TextAdapterConfig<
+  TProviderOptions extends object = Record<string, unknown>,
+> {
   apiKey?: string
   baseUrl?: string
   timeout?: number
   maxRetries?: number
   headers?: Record<string, string>
+  /** Provider-specific options baked into the adapter */
+  providerOptions?: TProviderOptions
 }
 
 /**
@@ -74,6 +78,8 @@ export interface TextAdapter<
   readonly models: TModels
   /** The model to use for this adapter instance */
   readonly model: TModel
+  /** Provider-specific options baked into this adapter instance */
+  readonly providerOptions?: TProviderOptions
 
   // Type-only properties for type inference
   /** @internal Type-only property for provider options inference */
@@ -145,11 +151,15 @@ export abstract class BaseTextAdapter<
   declare _modelInputModalitiesByName?: TModelInputModalitiesByName
   declare _messageMetadataByModality?: TMessageMetadataByModality
 
-  protected config: TextAdapterConfig
+  protected config: TextAdapterConfig<TProviderOptions>
 
-  constructor(model: TModel, config: TextAdapterConfig = {}) {
+  /** Provider-specific options baked into this adapter instance */
+  readonly providerOptions?: TProviderOptions
+
+  constructor(model: TModel, config: TextAdapterConfig<TProviderOptions> = {}) {
     this.model = model
     this.config = config
+    this.providerOptions = config.providerOptions
   }
 
   abstract chatStream(

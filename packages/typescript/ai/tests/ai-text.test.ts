@@ -234,18 +234,21 @@ describe('textActivity() - Comprehensive Logic Path Coverage', () => {
       ])
     })
 
-    it('should pass providerOptions to adapter', async () => {
+    it('should get providerOptions from adapter', async () => {
+      // providerOptions are now baked into the adapter at construction time
       const adapter = new MockAdapter()
+      // Mock the providerOptions on the adapter
+      ;(adapter as any).providerOptions = { customOption: 'value' }
 
       await collectChunks(
         textActivity({
           adapter,
           model: 'test-model',
           messages: [{ role: 'user', content: 'Hello' }],
-          providerOptions: { customOption: 'value' },
         }),
       )
 
+      // The activity should use adapter.providerOptions
       expect(adapter.chatStreamCalls[0]?.providerOptions).toEqual({
         customOption: 'value',
       })

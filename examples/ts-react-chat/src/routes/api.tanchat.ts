@@ -1,5 +1,5 @@
 import { createFileRoute } from '@tanstack/react-router'
-import { aiText, maxIterations, toStreamResponse } from '@tanstack/ai'
+import { ai, maxIterations, toStreamResponse } from '@tanstack/ai'
 import { openaiText } from '@tanstack/ai-openai'
 import { ollamaText } from '@tanstack/ai-ollama'
 import { anthropicText } from '@tanstack/ai-anthropic'
@@ -80,7 +80,7 @@ export const Route = createFileRoute('/api/tanchat')({
             `[API Route] Using provider: ${provider}, model: ${adapter.model}`,
           )
 
-          const stream = aiText({
+          const stream = ai({
             adapter,
             tools: [
               getGuitars, // Server tool

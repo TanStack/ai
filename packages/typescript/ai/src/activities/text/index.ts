@@ -18,7 +18,6 @@ import type {
 import type { z } from 'zod'
 import type { TextAdapter } from './adapter'
 import type {
-  AIAdapter,
   AgentLoopStrategy,
   DefaultMessageMetadataByModality,
   DoneStreamChunk,
@@ -26,7 +25,6 @@ import type {
   ModelMessage,
   StreamChunk,
   TextOptions,
-  TextStreamOptionsUnion,
   Tool,
   ToolCall,
 } from '../../types'
@@ -154,6 +152,7 @@ export type MessageMetadataForAdapter<TAdapter> =
 
 /**
  * Options for the text activity.
+ * Provider-specific options are now baked into the adapter at construction time.
  *
  * @template TAdapter - The text adapter type
  * @template TModel - The model name type (inferred from adapter)
@@ -178,8 +177,6 @@ export interface TextActivityOptions<
   tools?: TextOptions['tools']
   /** Additional options like temperature, maxTokens, etc. */
   options?: TextOptions['options']
-  /** Provider-specific options */
-  providerOptions?: TextProviderOptionsForModel<TAdapter, TModel>
   /** AbortController for cancellation */
   abortController?: TextOptions['abortController']
   /** Strategy for controlling the agent loop */
@@ -195,8 +192,7 @@ export interface TextActivityOptions<
    * @example
    * ```ts
    * const result = await ai({
-   *   adapter: openaiText(),
-   *   model: 'gpt-4o',
+   *   adapter: openaiText('gpt-4o'),
    *   messages: [{ role: 'user', content: 'Generate a person' }],
    *   outputSchema: z.object({ name: z.string(), age: z.number() })
    * })
@@ -217,8 +213,7 @@ export interface TextActivityOptions<
    * @example Non-streaming text
    * ```ts
    * const text = await ai({
-   *   adapter: openaiText(),
-   *   model: 'gpt-4o',
+   *   adapter: openaiText('gpt-4o'),
    *   messages: [{ role: 'user', content: 'Hello!' }],
    *   stream: false
    * })
@@ -351,8 +346,9 @@ class TextEngine<
 
   private beforeRun(): void {
     this.streamStartTime = Date.now()
-    const { model, tools, options, providerOptions, conversationId } =
-      this.params
+    const { model, tools, options, conversationId } = this.params
+    // Get providerOptions from adapter (baked in at construction time)
+    const providerOptions = this.adapter.providerOptions
 
     aiEventClient.emit('text:started', {
       requestId: this.requestId,
@@ -429,7 +425,8 @@ class TextEngine<
 
   private async *streamModelResponse(): AsyncGenerator<StreamChunk> {
     const adapterOptions = this.params.options || {}
-    const providerOptions = this.params.providerOptions
+    // Get providerOptions from adapter (baked in at construction time)
+    const providerOptions = this.adapter.providerOptions
     const tools = this.params.tools
 
     // Convert tool schemas from Zod to JSON Schema before passing to adapter
@@ -1210,62 +1207,6 @@ async function runAgenticStructuredOutput<TSchema extends z.ZodType>(
   }
 
   return validationResult.data
-}
-
-// ===========================
-// Text Options Helper
-// ===========================
-
-/**
- * Type-safe helper to create text options with model-specific provider options.
- *
- * @deprecated Use `createOptions` from `@tanstack/ai` instead, which supports all adapter types
- * (text, embedding, summarize, image, video) with the same type-safe model inference.
- *
- * @example
- * ```ts
- * import { createOptions, ai } from '@tanstack/ai'
- * import { openaiText } from '@tanstack/ai-openai'
- *
- * const opts = createOptions({
- *   adapter: openaiText(),
- *   model: 'gpt-4o',
- *   messages: [],
- * })
- * ```
- */
-export function textOptions<
-  TAdapter extends AIAdapter<any, any, any, any, any>,
-  const TModel extends TAdapter extends AIAdapter<
-    infer Models,
-    any,
-    any,
-    any,
-    any
-  >
-    ? Models[number]
-    : string,
->(
-  options: Omit<
-    TextStreamOptionsUnion<TAdapter>,
-    'providerOptions' | 'model' | 'messages' | 'abortController'
-  > & {
-    adapter: TAdapter
-    model: TModel
-    providerOptions?: TAdapter extends AIAdapter<
-      any,
-      any,
-      any,
-      any,
-      infer ModelProviderOptions
-    >
-      ? TModel extends keyof ModelProviderOptions
-        ? ModelProviderOptions[TModel]
-        : never
-      : never
-  },
-): typeof options {
-  return options
 }
 
 // Re-export adapter types

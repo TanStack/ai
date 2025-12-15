@@ -40,7 +40,12 @@ import type { GeminiClientConfig } from '../utils'
 /**
  * Configuration for Gemini text adapter
  */
-export interface GeminiTextConfig extends GeminiClientConfig {}
+export interface GeminiTextConfig<
+  TProviderOptions extends object = object,
+> extends GeminiClientConfig {
+  /** Provider-specific options baked into the adapter */
+  providerOptions?: TProviderOptions
+}
 
 /**
  * Gemini-specific provider options for text/chat
@@ -77,7 +82,9 @@ export class GeminiTextAdapter<
   private client: GoogleGenAI
 
   constructor(model: TModel, config: GeminiTextConfig) {
-    super(model, {})
+    super(model, {
+      providerOptions: config.providerOptions as GeminiTextProviderOptions,
+    })
     this.client = createGeminiClient(config)
   }
 
@@ -461,13 +468,26 @@ export class GeminiTextAdapter<
   }
 }
 
+/** Get provider options type for a specific model */
+type ProviderOptionsForModel<TModel extends GeminiModel> =
+  TModel extends keyof GeminiChatModelProviderOptionsByName
+    ? GeminiChatModelProviderOptionsByName[TModel]
+    : GeminiTextProviderOptions
+
 /**
  * Creates a Gemini text adapter with explicit API key
+ *
+ * @param model - The Gemini model to use (e.g., 'gemini-2.0-flash-exp')
+ * @param apiKey - Your Gemini API key
+ * @param config - Optional additional configuration including providerOptions
+ * @returns Configured Gemini text adapter instance
  */
 export function createGeminiText<TModel extends GeminiModel>(
   model: TModel,
   apiKey: string,
-  config?: Omit<GeminiTextConfig, 'apiKey'>,
+  config?: Omit<GeminiTextConfig, 'apiKey' | 'providerOptions'> & {
+    providerOptions?: ProviderOptionsForModel<TModel>
+  },
 ): GeminiTextAdapter<TModel> {
   return new GeminiTextAdapter(model, { apiKey, ...config })
 }
@@ -476,11 +496,25 @@ export function createGeminiText<TModel extends GeminiModel>(
  * Creates a Gemini text adapter with automatic API key detection
  *
  * @param model - The Gemini model to use (e.g., 'gemini-2.0-flash-exp')
- * @param config - Optional configuration (excluding apiKey which is auto-detected)
+ * @param config - Optional configuration including providerOptions (apiKey is auto-detected)
+ * @returns Configured Gemini text adapter instance
+ *
+ * @example
+ * ```typescript
+ * // Basic usage
+ * const adapter = geminiText('gemini-2.0-flash-exp');
+ *
+ * // With provider options
+ * const adapter = geminiText('gemini-2.0-flash-exp', {
+ *   providerOptions: { safetySettings: [...] }
+ * });
+ * ```
  */
 export function geminiText<TModel extends GeminiModel>(
   model: TModel,
-  config?: Omit<GeminiTextConfig, 'apiKey'>,
+  config?: Omit<GeminiTextConfig, 'apiKey' | 'providerOptions'> & {
+    providerOptions?: ProviderOptionsForModel<TModel>
+  },
 ): GeminiTextAdapter<TModel> {
   const apiKey = getGeminiApiKeyFromEnv()
   return createGeminiText(model, apiKey, config)

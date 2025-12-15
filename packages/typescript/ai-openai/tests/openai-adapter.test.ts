@@ -66,7 +66,13 @@ describe('OpenAI adapter option mapping', () => {
 
     const responsesCreate = vi.fn().mockResolvedValueOnce(mockStream)
 
-    const adapter = createAdapter()
+    // Create adapter with providerOptions baked in
+    const adapter = new OpenAITextAdapter('gpt-4o-mini', {
+      apiKey: 'test-key',
+      providerOptions: {
+        tool_choice: 'required',
+      },
+    })
     // Replace the internal OpenAI SDK client with our mock
     ;(adapter as any).client = {
       responses: {
@@ -74,14 +80,9 @@ describe('OpenAI adapter option mapping', () => {
       },
     }
 
-    const providerOptions: OpenAIProviderOptions = {
-      tool_choice: 'required',
-    }
-
     const chunks: StreamChunk[] = []
     for await (const chunk of ai({
       adapter,
-      model: 'gpt-4o-mini',
       messages: [
         { role: 'system', content: 'Stay concise' },
         { role: 'user', content: 'How is the weather?' },
@@ -105,7 +106,6 @@ describe('OpenAI adapter option mapping', () => {
         maxTokens: 1024,
         metadata: { requestId: 'req-42' },
       },
-      providerOptions,
     })) {
       chunks.push(chunk)
     }

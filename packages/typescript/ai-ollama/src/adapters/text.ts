@@ -94,6 +94,8 @@ export interface OllamaTextProviderOptions {
 
 export interface OllamaTextAdapterOptions {
   host?: string
+  /** Provider-specific options baked into the adapter */
+  providerOptions?: OllamaTextProviderOptions
 }
 
 /**
@@ -130,7 +132,7 @@ export class OllamaTextAdapter<
     hostOrClient?: string | Ollama,
     options: OllamaTextAdapterOptions = {},
   ) {
-    super(model, {})
+    super(model, { providerOptions: options.providerOptions })
     if (typeof hostOrClient === 'string' || hostOrClient === undefined) {
       this.client = createOllamaClient({ host: hostOrClient ?? options.host })
     } else {
@@ -395,6 +397,11 @@ export class OllamaTextAdapter<
 
 /**
  * Creates an Ollama text adapter with explicit host
+ *
+ * @param model - The Ollama model to use (e.g., 'llama3', 'mistral:7b')
+ * @param host - Ollama host URL
+ * @param options - Optional configuration including providerOptions
+ * @returns Configured Ollama text adapter instance
  */
 export function createOllamaText<TModel extends OllamaTextModel>(
   model: TModel,
@@ -408,7 +415,19 @@ export function createOllamaText<TModel extends OllamaTextModel>(
  * Creates an Ollama text adapter with host from environment
  *
  * @param model - The Ollama model to use (e.g., 'llama3', 'mistral:7b')
- * @param options - Optional configuration
+ * @param options - Optional configuration including providerOptions
+ * @returns Configured Ollama text adapter instance
+ *
+ * @example
+ * ```typescript
+ * // Basic usage
+ * const adapter = ollamaText('llama3');
+ *
+ * // With provider options
+ * const adapter = ollamaText('llama3', {
+ *   providerOptions: { num_ctx: 4096, temperature: 0.7 }
+ * });
+ * ```
  */
 export function ollamaText<TModel extends OllamaTextModel>(
   model: TModel,

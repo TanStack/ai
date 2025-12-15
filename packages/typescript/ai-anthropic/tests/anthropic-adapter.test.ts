@@ -102,13 +102,16 @@ describe('Anthropic adapter option mapping', () => {
       system: 'Respond with JSON',
     } satisfies AnthropicProviderOptions & { system: string }
 
-    const adapter = createAdapter()
+    // Create adapter with providerOptions baked in
+    const adapter = new AnthropicTextAdapter('claude-3-7-sonnet-20250219', {
+      apiKey: 'test-key',
+      providerOptions,
+    })
 
     // Consume the stream to trigger the API call
     const chunks: StreamChunk[] = []
     for await (const chunk of ai({
       adapter,
-      model: 'claude-3-7-sonnet-20250219',
       messages: [
         { role: 'user', content: 'What is the forecast?' },
         {
@@ -129,7 +132,6 @@ describe('Anthropic adapter option mapping', () => {
         maxTokens: 3000,
         temperature: 0.4,
       },
-      providerOptions,
     })) {
       chunks.push(chunk)
     }
