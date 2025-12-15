@@ -35,7 +35,8 @@ vi.mock('@anthropic-ai/sdk', () => {
   return { default: MockAnthropic }
 })
 
-const createAdapter = () => new AnthropicTextAdapter({ apiKey: 'test-key' })
+const createAdapter = () =>
+  new AnthropicTextAdapter('claude-sonnet-4-5', { apiKey: 'test-key' })
 
 const toolArguments = JSON.stringify({ location: 'Berlin' })
 

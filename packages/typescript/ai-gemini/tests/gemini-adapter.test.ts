@@ -54,7 +54,8 @@ vi.mock('@google/genai', async () => {
   }
 })
 
-const createTextAdapter = () => new GeminiTextAdapter({ apiKey: 'test-key' })
+const createTextAdapter = () =>
+  new GeminiTextAdapter('gemini-2.0-flash', { apiKey: 'test-key' })
 const createSummarizeAdapter = () => new GeminiSummarizeAdapter('test-key')
 const createEmbedAdapter = () => new GeminiEmbedAdapter('test-key')
 

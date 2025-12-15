@@ -3,7 +3,8 @@ import { ai, type Tool, type StreamChunk } from '@tanstack/ai'
 import { OpenAITextAdapter } from '../src/adapters/text'
 import type { OpenAIProviderOptions } from '../src/openai-adapter'
 
-const createAdapter = () => new OpenAITextAdapter({ apiKey: 'test-key' })
+const createAdapter = () =>
+  new OpenAITextAdapter('gpt-4o', { apiKey: 'test-key' })
 
 const toolArguments = JSON.stringify({ location: 'Berlin' })
 
