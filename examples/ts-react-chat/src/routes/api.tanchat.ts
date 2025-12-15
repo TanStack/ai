@@ -14,14 +14,6 @@ import {
 
 type Provider = 'openai' | 'anthropic' | 'gemini' | 'ollama'
 
-// Pre-define adapters with model - full type inference and autocomplete!
-const adapters = {
-  anthropic: () => anthropicText('claude-sonnet-4-5'),
-  gemini: () => geminiText('gemini-2.0-flash'),
-  ollama: () => ollamaText('mistral'),
-  openai: () => openaiText('gpt-4o'),
-}
-
 const SYSTEM_PROMPT = `You are a helpful assistant for a guitar store.
 
 CRITICAL INSTRUCTIONS - YOU MUST FOLLOW THIS EXACT WORKFLOW:
@@ -72,6 +64,14 @@ export const Route = createFileRoute('/api/tanchat')({
         // Extract provider and conversationId from data
         const provider: Provider = data?.provider || 'openai'
         const conversationId: string | undefined = data?.conversationId
+
+        // Pre-define adapters with model - full type inference and autocomplete!
+        const adapters = {
+          anthropic: () => anthropicText(data.model || 'claude-sonnet-4-5'),
+          gemini: () => geminiText(data.model || 'gemini-2.0-flash'),
+          ollama: () => ollamaText(data.model || 'mistral'),
+          openai: () => openaiText(data.model || 'gpt-4o'),
+        }
 
         try {
           // Get adapter with model baked in - full type safety!
