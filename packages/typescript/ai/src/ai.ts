@@ -217,15 +217,15 @@ type AIReturnType<TOptions> =
                 ? Promise<ImageGenerationResult>
                 : // Video adapter status → Promise<VideoStatusResult>
                   TOptions extends {
-                    adapter: { kind: 'video' }
-                    request: 'status'
-                  }
+                      adapter: { kind: 'video' }
+                      request: 'status'
+                    }
                   ? Promise<VideoStatusResult>
                   : // Video adapter url → Promise<VideoUrlResult>
                     TOptions extends {
-                      adapter: { kind: 'video' }
-                      request: 'url'
-                    }
+                        adapter: { kind: 'video' }
+                        request: 'url'
+                      }
                     ? Promise<VideoUrlResult>
                     : // Video adapter create → Promise<VideoJobResult>
                       TOptions extends { adapter: { kind: 'video' } }
@@ -400,17 +400,19 @@ export function ai(options: AIOptionsUnion): AIResultUnion {
  * // result is { name: string, age: number }
  * ```
  */
-export function aiOptions<const T extends {
-  adapter: { kind: 'text' }
-  systemPrompts?: Array<string>
-  tools?: Array<any>
-  options?: Record<string, any>
-  agentLoopStrategy?: (state: any) => boolean
-  conversationId?: string
-  abortController?: AbortController
-  outputSchema?: z.ZodType
-  stream?: boolean
-}>(options: T): T {
+export function aiOptions<
+  const T extends {
+    adapter: { kind: 'text' }
+    systemPrompts?: Array<string>
+    tools?: Array<any>
+    options?: Record<string, any>
+    agentLoopStrategy?: (state: any) => boolean
+    conversationId?: string
+    abortController?: AbortController
+    outputSchema?: z.ZodType
+    stream?: boolean
+  },
+>(options: T): T {
   return options
 }
 

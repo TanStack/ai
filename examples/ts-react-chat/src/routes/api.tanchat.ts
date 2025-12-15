@@ -80,17 +80,13 @@ export const Route = createFileRoute('/api/tanchat')({
             `[API Route] Using provider: ${provider}, model: ${adapter.model}`,
           )
           const opts = aiOptions({
-            adapter: openaiText("gpt-5", {
-              "providerOptions": {
-                "text": {}
+            adapter: openaiText('gpt-5', {
+              providerOptions: {
+                text: {},
               },
-
             }),
             stream: true,
-            options: {
-
-            },
-
+            options: {},
           })
           const stream = ai({
             ...opts,
@@ -101,9 +97,7 @@ export const Route = createFileRoute('/api/tanchat')({
               addToWishListToolDef,
               getPersonalGuitarPreferenceToolDef,
             ],
-            options: {
-
-            },
+            options: {},
 
             systemPrompts: [SYSTEM_PROMPT],
             agentLoopStrategy: maxIterations(20),
