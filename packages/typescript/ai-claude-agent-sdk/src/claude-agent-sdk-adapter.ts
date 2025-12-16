@@ -132,6 +132,12 @@ export class ClaudeAgentSdk extends BaseAdapter<
       // Convert messages to a prompt string for the SDK
       const prompt = this.buildPromptString(options.messages)
 
+      if (!prompt) {
+        throw new Error(
+          'No user message found. At least one user message is required.',
+        )
+      }
+
       // Create abort controller if signal provided
       const abortController = new AbortController()
       if (options.request?.signal) {
@@ -165,7 +171,10 @@ export class ClaudeAgentSdk extends BaseAdapter<
       // Track accumulated content
       let accumulatedContent = ''
       let accumulatedThinking = ''
-      const toolCallsMap = new Map<string, { id: string; name: string; input: string }>()
+      const toolCallsMap = new Map<
+        string,
+        { id: string; name: string; input: string; index: number }
+      >()
 
       // Stream responses from the SDK
       const stream = query({ prompt, options: sdkOptions })
@@ -225,6 +234,7 @@ export class ClaudeAgentSdk extends BaseAdapter<
                 id: toolId,
                 name: event.content_block.name,
                 input: '',
+                index: toolCallsMap.size,
               })
             }
           }
@@ -275,9 +285,11 @@ export class ClaudeAgentSdk extends BaseAdapter<
                     id: toolId,
                     name: block.name,
                     input: inputStr,
+                    index: toolCallsMap.size,
                   })
                 }
 
+                const toolCall = toolCallsMap.get(toolId)!
                 yield {
                   type: 'tool_call',
                   id: this.generateId(),
@@ -291,7 +303,7 @@ export class ClaudeAgentSdk extends BaseAdapter<
                       arguments: inputStr,
                     },
                   },
-                  index: toolCallsMap.size - 1,
+                  index: toolCall.index,
                 }
               }
             }
