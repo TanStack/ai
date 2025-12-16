@@ -1,9 +1,9 @@
 import { createFileRoute } from '@tanstack/react-router'
-import { ai, createOptions } from '@tanstack/ai'
-import { anthropicText } from '@tanstack/ai-anthropic'
-import { geminiText } from '@tanstack/ai-gemini'
-import { openaiText } from '@tanstack/ai-openai'
-import { ollamaText } from '@tanstack/ai-ollama'
+import { chat, createChatOptions } from '@tanstack/ai'
+import { anthropicChat } from '@tanstack/ai-anthropic'
+import { geminiChat } from '@tanstack/ai-gemini'
+import { openaiChat } from '@tanstack/ai-openai'
+import { ollamaChat } from '@tanstack/ai-ollama'
 import { z } from 'zod'
 
 type Provider = 'openai' | 'anthropic' | 'gemini' | 'ollama'
@@ -11,23 +11,23 @@ type Provider = 'openai' | 'anthropic' | 'gemini' | 'ollama'
 // Pre-define typed adapter configurations with full type inference
 const adapterConfig = {
   anthropic: () =>
-    createOptions({
-      adapter: anthropicText(),
+    createChatOptions({
+      adapter: anthropicChat(),
       model: 'claude-sonnet-4-5-20250929',
     }),
   gemini: () =>
-    createOptions({
-      adapter: geminiText(),
+    createChatOptions({
+      adapter: geminiChat(),
       model: 'gemini-2.0-flash-exp',
     }),
   ollama: () =>
-    createOptions({
-      adapter: ollamaText(),
+    createChatOptions({
+      adapter: ollamaChat(),
       model: 'mistral:7b',
     }),
   openai: () =>
-    createOptions({
-      adapter: openaiText(),
+    createChatOptions({
+      adapter: openaiChat(),
       model: 'gpt-4o',
     }),
 }
@@ -75,16 +75,17 @@ export const Route = createFileRoute('/api/structured')({
         const provider: Provider = body.provider || 'openai'
 
         try {
-          // Get typed adapter options using createOptions pattern
+          // Get typed adapter options using createChatOptions pattern
           const options = adapterConfig[provider]()
+          const model = options.adapter.defaultModel || 'unknown'
 
           console.log(
-            `>> ${mode} output with model: ${options.model} on provider: ${provider}`,
+            `>> ${mode} output with model: ${model} on provider: ${provider}`,
           )
 
           if (mode === 'structured') {
             // Structured output mode - returns validated object
-            const result = await ai({
+            const result = await chat({
               ...options,
               messages: [
                 {
@@ -100,7 +101,7 @@ export const Route = createFileRoute('/api/structured')({
                 mode: 'structured',
                 recipe: result,
                 provider,
-                model: options.model,
+                model,
               }),
               {
                 status: 200,
@@ -109,7 +110,7 @@ export const Route = createFileRoute('/api/structured')({
             )
           } else {
             // One-shot markdown mode - returns streamed text
-            const markdown = await ai({
+            const markdown = await chat({
               ...options,
               stream: false,
               messages: [
@@ -138,7 +139,7 @@ Make it detailed and easy to follow.`,
                 mode: 'oneshot',
                 markdown,
                 provider,
-                model: options.model,
+                model,
               }),
               {
                 status: 200,

@@ -64,21 +64,19 @@ export class GeminiSummarizeAdapter implements SummarizeAdapter<
   declare _providerOptions?: GeminiSummarizeProviderOptions
 
   private client: GoogleGenAI
-  private defaultModel: GeminiSummarizeModel
 
   constructor(
     apiKeyOrClient: string | GoogleGenAI,
-    options: GeminiSummarizeAdapterOptions = {},
+    _options: GeminiSummarizeAdapterOptions = {},
   ) {
     this.client =
       typeof apiKeyOrClient === 'string'
         ? createGeminiClient({ apiKey: apiKeyOrClient })
         : apiKeyOrClient
-    this.defaultModel = options.model ?? 'gemini-2.0-flash'
   }
 
   async summarize(options: SummarizationOptions): Promise<SummarizationResult> {
-    const model = options.model || this.defaultModel
+    const model = options.model
 
     // Build the system prompt based on format
     const formatInstructions = this.getFormatInstructions(options.style)
@@ -122,7 +120,7 @@ export class GeminiSummarizeAdapter implements SummarizeAdapter<
   async *summarizeStream(
     options: SummarizationOptions,
   ): AsyncIterable<StreamChunk> {
-    const model = options.model || this.defaultModel
+    const model = options.model
     const id = generateId('sum')
     let accumulatedContent = ''
     let inputTokens = 0

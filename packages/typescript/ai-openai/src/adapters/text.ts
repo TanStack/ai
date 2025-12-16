@@ -506,7 +506,7 @@ export class OpenAITextAdapter extends BaseTextAdapter<
    * Handles translation of normalized options to OpenAI's API format
    */
   private mapTextOptionsToOpenAI(options: TextOptions) {
-    const providerOptions = options.providerOptions as
+    const modelOptions = options.modelOptions as
       | Omit<
           InternalTextProviderOptions,
           | 'max_output_tokens'
@@ -518,9 +518,9 @@ export class OpenAITextAdapter extends BaseTextAdapter<
         >
       | undefined
     const input = this.convertMessagesToInput(options.messages)
-    if (providerOptions) {
+    if (modelOptions) {
       validateTextProviderOptions({
-        ...providerOptions,
+        ...modelOptions,
         input,
         model: options.model,
       })
@@ -540,7 +540,7 @@ export class OpenAITextAdapter extends BaseTextAdapter<
       top_p: options.options?.topP,
       metadata: options.options?.metadata,
       instructions: options.systemPrompts?.join('\n'),
-      ...providerOptions,
+      ...modelOptions,
       input,
       tools,
     }
@@ -728,18 +728,19 @@ export class OpenAITextAdapter extends BaseTextAdapter<
 }
 
 /**
- * Creates an OpenAI text adapter with explicit API key
+ * Creates an OpenAI chat adapter with explicit API key
  *
+ * @param model - The model name (e.g., 'gpt-4o', 'gpt-4-turbo')
  * @param apiKey - Your OpenAI API key
  * @param config - Optional additional configuration
- * @returns Configured OpenAI text adapter instance
+ * @returns Configured OpenAI chat adapter instance
  *
  * @example
  * ```typescript
- * const adapter = createOpenaiText("sk-...");
+ * const adapter = createOpenaiChat('gpt-4o', "sk-...");
  * ```
  */
-export function createOpenaiText(
+export function createOpenaiChat(
   apiKey: string,
   config?: Omit<OpenAITextConfig, 'apiKey'>,
 ): OpenAITextAdapter {
@@ -747,31 +748,46 @@ export function createOpenaiText(
 }
 
 /**
- * Creates an OpenAI text adapter with automatic API key detection from environment variables.
+ * Creates an OpenAI chat adapter with automatic API key detection from environment variables.
  *
  * Looks for `OPENAI_API_KEY` in:
  * - `process.env` (Node.js)
  * - `window.env` (Browser with injected env)
  *
+ * @param model - The model name (e.g., 'gpt-4o', 'gpt-4-turbo')
  * @param config - Optional configuration (excluding apiKey which is auto-detected)
- * @returns Configured OpenAI text adapter instance
+ * @returns Configured OpenAI chat adapter instance
  * @throws Error if OPENAI_API_KEY is not found in environment
  *
  * @example
  * ```typescript
  * // Automatically uses OPENAI_API_KEY from environment
- * const adapter = openaiText();
+ * const adapter = openaiChat();
  *
- * await generate({
+ * const stream = chat({
  *   adapter,
- *   model: "gpt-4",
+ *   model: 'gpt-4o',
  *   messages: [{ role: "user", content: "Hello!" }]
  * });
  * ```
  */
+export function openaiChat(
+  config?: Omit<OpenAITextConfig, 'apiKey'>,
+): OpenAITextAdapter {
+  const apiKey = getOpenAIApiKeyFromEnv()
+  return createOpenaiChat(apiKey, config)
+}
+
 export function openaiText(
   config?: Omit<OpenAITextConfig, 'apiKey'>,
 ): OpenAITextAdapter {
   const apiKey = getOpenAIApiKeyFromEnv()
-  return createOpenaiText(apiKey, config)
+  return createOpenaiChat(apiKey, config)
+}
+
+export function createOpenaiText(
+  apiKey: string,
+  config?: Omit<OpenAITextConfig, 'apiKey'>,
+): OpenAITextAdapter {
+  return createOpenaiChat(apiKey, config)
 }

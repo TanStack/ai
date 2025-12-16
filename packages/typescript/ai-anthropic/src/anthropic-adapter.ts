@@ -194,7 +194,7 @@ export class Anthropic extends BaseAdapter<
   private mapCommonOptionsToAnthropic(
     options: TextOptions<string, AnthropicProviderOptions>,
   ) {
-    const providerOptions = options.providerOptions as
+    const modelOptions = options.modelOptions as
       | InternalTextProviderOptions
       | undefined
 
@@ -203,9 +203,9 @@ export class Anthropic extends BaseAdapter<
       ? convertToolsToProviderFormat(options.tools)
       : undefined
 
-    // Filter out invalid fields from providerOptions (like 'store' which is OpenAI-specific)
+    // Filter out invalid fields from modelOptions (like 'store' which is OpenAI-specific)
     const validProviderOptions: Partial<InternalTextProviderOptions> = {}
-    if (providerOptions) {
+    if (modelOptions) {
       const validKeys: Array<keyof InternalTextProviderOptions> = [
         'container',
         'context_management',
@@ -218,8 +218,8 @@ export class Anthropic extends BaseAdapter<
         'top_k',
       ]
       for (const key of validKeys) {
-        if (key in providerOptions) {
-          const value = providerOptions[key]
+        if (key in modelOptions) {
+          const value = modelOptions[key]
           // Anthropic expects tool_choice to be an object, not a string
           if (key === 'tool_choice' && typeof value === 'string') {
             ;(validProviderOptions as any)[key] = { type: value }

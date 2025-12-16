@@ -459,14 +459,14 @@ export class Ollama extends BaseAdapter<
    * Handles translation of normalized options to Ollama's API format
    */
   private mapCommonOptionsToOllama(options: TextOptions): ChatRequest {
-    const providerOptions = options.providerOptions as
+    const modelOptions = options.modelOptions as
       | OllamaProviderOptions
       | undefined
     const ollamaOptions = {
       temperature: options.options?.temperature,
       top_p: options.options?.topP,
       num_predict: options.options?.maxTokens,
-      ...providerOptions,
+      ...modelOptions,
     }
 
     return {

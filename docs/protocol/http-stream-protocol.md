@@ -173,17 +173,17 @@ Unlike SSE, HTTP streaming does not provide automatic reconnection:
 TanStack AI doesn't provide a built-in NDJSON formatter, but you can create one easily:
 
 ```typescript
-import { ai } from '@tanstack/ai';
-import { openaiText } from '@tanstack/ai-openai';
+import { chat } from '@tanstack/ai';
+import { openaiChat } from '@tanstack/ai-openai';
 
 export async function POST(request: Request) {
   const { messages } = await request.json();
   const encoder = new TextEncoder();
 
-  const stream = ai({
-    adapter: openaiText(),
-    messages,
+  const stream = chat({
+    adapter: openaiChat(),
     model: 'gpt-4o',
+    messages,
   });
 
   const readableStream = new ReadableStream({
@@ -222,8 +222,8 @@ export async function POST(request: Request) {
 
 ```typescript
 import express from 'express';
-import { ai } from '@tanstack/ai';
-import { openaiText } from '@tanstack/ai-openai';
+import { chat } from '@tanstack/ai';
+import { openaiChat } from '@tanstack/ai-openai';
 
 const app = express();
 app.use(express.json());
@@ -236,10 +236,10 @@ app.post('/api/chat', async (req, res) => {
   res.setHeader('Transfer-Encoding', 'chunked');
 
   try {
-    const stream = ai({
-      adapter: openaiText(),
-      messages,
+    const stream = chat({
+      adapter: openaiChat(),
       model: 'gpt-4o',
+      messages,
     });
 
     for await (const chunk of stream) {

@@ -137,20 +137,20 @@ const searchProducts = searchProductsDef.server(async ({ query, limit = 10 }) =>
 
 ## Using Server Tools
 
-Pass tools to the `ai` function:
+Pass tools to the `chat` function:
 
 ```typescript
-import { ai, toStreamResponse } from "@tanstack/ai";
-import { openaiText } from "@tanstack/ai-openai";
+import { chat, toStreamResponse } from "@tanstack/ai";
+import { openaiChat } from "@tanstack/ai-openai";
 import { getUserData, searchProducts } from "./tools";
 
 export async function POST(request: Request) {
   const { messages } = await request.json();
 
-  const stream = ai({
-    adapter: openaiText(),
-    messages,
+  const stream = chat({
+    adapter: openaiChat(),
     model: "gpt-4o",
+    messages,
     tools: [getUserData, searchProducts],
   });
 
@@ -202,14 +202,14 @@ export const searchProducts = searchProductsDef.server(async ({ query }) => {
 });
 
 // api/chat/route.ts
-import { ai } from "@tanstack/ai";
-import { openaiText } from "@tanstack/ai-openai";
+import { chat } from "@tanstack/ai";
+import { openaiChat } from "@tanstack/ai-openai";
 import { getUserData, searchProducts } from "@/tools/server";
 
-const stream = ai({
-  adapter: openaiText(),
-  messages,
+const stream = chat({
+  adapter: openaiChat(),
   model: "gpt-4o",
+  messages,
   tools: [getUserData, searchProducts],
 });
 ```

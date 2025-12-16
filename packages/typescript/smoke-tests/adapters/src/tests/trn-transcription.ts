@@ -1,6 +1,6 @@
 import { readFile } from 'node:fs/promises'
 import { join } from 'node:path'
-import { ai } from '@tanstack/ai'
+import { generateTranscription } from '@tanstack/ai'
 import { writeDebugFile } from '../harness'
 import type { AdapterContext, TestOutcome } from '../harness'
 
@@ -58,7 +58,7 @@ export async function runTRN(
       return { passed: true, ignored: true }
     }
 
-    const result = await ai({
+    const result = await generateTranscription({
       adapter: adapterContext.transcriptionAdapter,
       model,
       audio: audioData,

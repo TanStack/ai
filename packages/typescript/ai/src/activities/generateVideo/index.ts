@@ -72,7 +72,7 @@ export interface VideoCreateOptions<
   /** Video duration in seconds */
   duration?: number
   /** Provider-specific options for video generation */
-  providerOptions?: VideoProviderOptions<TAdapter>
+  modelOptions?: VideoProviderOptions<TAdapter>
 }
 
 /**
@@ -143,7 +143,7 @@ export type VideoActivityResult<
 // ===========================
 
 /**
- * Video activity - generates videos from text prompts using a jobs/polling pattern.
+ * Generate video - creates a video generation job from a text prompt.
  *
  * Uses AI video generation models to create videos based on natural language descriptions.
  * Unlike image generation, video generation is asynchronous and requires polling for completion.
@@ -152,76 +152,104 @@ export type VideoActivityResult<
  *
  * @example Create a video generation job
  * ```ts
- * import { ai } from '@tanstack/ai'
+ * import { generateVideo } from '@tanstack/ai'
  * import { openaiVideo } from '@tanstack/ai-openai'
  *
  * // Start a video generation job
- * const { jobId } = await ai({
- *   adapter: openaiVideo(),
- *   model: 'sora-2',
+ * const { jobId } = await generateVideo({
+ *   adapter: openaiVideo('sora-2'),
  *   prompt: 'A cat chasing a dog in a sunny park'
  * })
  *
  * console.log('Job started:', jobId)
  * ```
- *
- * @example Poll for job status
- * ```ts
- * // Check status of the job
- * const status = await ai({
- *   adapter: openaiVideo(),
- *   model: 'sora-2',
- *   jobId,
- *   request: 'status'
- * })
- *
- * console.log('Status:', status.status, 'Progress:', status.progress)
- * ```
- *
- * @example Get the video URL when complete
- * ```ts
- * // Get the video URL (after status is 'completed')
- * const { url } = await ai({
- *   adapter: openaiVideo(),
- *   model: 'sora-2',
- *   jobId,
- *   request: 'url'
- * })
- *
- * console.log('Video URL:', url)
- * ```
  */
-export async function videoActivity<
+export async function generateVideo<
   TAdapter extends VideoAdapter<ReadonlyArray<string>, object>,
   TModel extends VideoModels<TAdapter>,
 >(
-  options:
-    | VideoCreateOptions<TAdapter, TModel>
-    | VideoStatusOptions<TAdapter, TModel>
-    | VideoUrlOptions<TAdapter, TModel>,
-): Promise<VideoJobResult | VideoStatusResult | VideoUrlResult> {
-  const { adapter, request = 'create' } = options
+  options: VideoCreateOptions<TAdapter, TModel>,
+): Promise<VideoJobResult> {
+  const { adapter, model, prompt, size, duration, modelOptions } = options
 
-  switch (request) {
-    case 'status': {
-      const statusOptions = options as VideoStatusOptions<TAdapter, TModel>
-      return adapter.getVideoStatus(statusOptions.jobId)
+  return adapter.createVideoJob({
+    model,
+    prompt,
+    size,
+    duration,
+    modelOptions,
+  })
+}
+
+/**
+ * Get video job status - returns the current status, progress, and URL if available.
+ *
+ * This function combines status checking and URL retrieval. If the job is completed,
+ * it will automatically fetch and include the video URL.
+ *
+ * @experimental Video generation is an experimental feature and may change.
+ *
+ * @example Check job status
+ * ```ts
+ * import { getVideoJobStatus } from '@tanstack/ai'
+ * import { openaiVideo } from '@tanstack/ai-openai'
+ *
+ * const result = await getVideoJobStatus({
+ *   adapter: openaiVideo('sora-2'),
+ *   jobId: 'job-123'
+ * })
+ *
+ * console.log('Status:', result.status)
+ * console.log('Progress:', result.progress)
+ * if (result.url) {
+ *   console.log('Video URL:', result.url)
+ * }
+ * ```
+ */
+export async function getVideoJobStatus<
+  TAdapter extends VideoAdapter<ReadonlyArray<string>, object>,
+  TModel extends VideoModels<TAdapter>,
+>(
+  options: {
+    adapter: TAdapter & { kind: typeof kind }
+    model: TModel
+    jobId: string
+  },
+): Promise<{
+  status: 'pending' | 'processing' | 'completed' | 'failed'
+  progress?: number
+  url?: string
+  error?: string
+}> {
+  const { adapter, jobId } = options
+
+  // Get status first
+  const statusResult = await adapter.getVideoStatus(jobId)
+
+  // If completed, also get the URL
+  if (statusResult.status === 'completed') {
+    try {
+      const urlResult = await adapter.getVideoUrl(jobId)
+      return {
+        status: statusResult.status,
+        progress: statusResult.progress,
+        url: urlResult.url,
+      }
+    } catch (error) {
+      // If URL fetch fails, still return status
+      return {
+        status: statusResult.status,
+        progress: statusResult.progress,
+        error: error instanceof Error ? error.message : 'Failed to get video URL',
+      }
     }
-    case 'url': {
-      const urlOptions = options as VideoUrlOptions<TAdapter, TModel>
-      return adapter.getVideoUrl(urlOptions.jobId)
-    }
-    case 'create':
-    default: {
-      const createOptions = options as VideoCreateOptions<TAdapter, TModel>
-      return adapter.createVideoJob({
-        model: createOptions.model,
-        prompt: createOptions.prompt,
-        size: createOptions.size,
-        duration: createOptions.duration,
-        providerOptions: createOptions.providerOptions,
-      })
-    }
+  }
+
+  // Return status for non-completed jobs
+  return {
+    status: statusResult.status,
+    progress: statusResult.progress,
+    error: statusResult.error,
   }
 }
 

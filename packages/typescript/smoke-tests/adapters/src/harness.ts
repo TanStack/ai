@@ -1,6 +1,6 @@
 import { mkdir, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
-import { ai } from '@tanstack/ai'
+import { chat } from '@tanstack/ai'
 import type { Tool } from '@tanstack/ai'
 
 const OUTPUT_DIR = join(process.cwd(), 'output')
@@ -168,7 +168,7 @@ export async function captureStream(opts: {
     agentLoopStrategy,
   } = opts
 
-  const stream = ai({
+  const stream = chat({
     adapter: textAdapter,
     model,
     messages,

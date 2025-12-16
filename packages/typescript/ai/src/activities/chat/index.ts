@@ -178,8 +178,8 @@ export interface TextActivityOptions<
   tools?: TextOptions['tools']
   /** Additional options like temperature, maxTokens, etc. */
   options?: TextOptions['options']
-  /** Provider-specific options */
-  providerOptions?: TextProviderOptionsForModel<TAdapter, TModel>
+  /** Model-specific options */
+  modelOptions?: TextProviderOptionsForModel<TAdapter, TModel>
   /** AbortController for cancellation */
   abortController?: TextOptions['abortController']
   /** Strategy for controlling the agent loop */
@@ -351,8 +351,7 @@ class TextEngine<
 
   private beforeRun(): void {
     this.streamStartTime = Date.now()
-    const { model, tools, options, providerOptions, conversationId } =
-      this.params
+    const { model, tools, options, modelOptions, conversationId } = this.params
 
     aiEventClient.emit('text:started', {
       requestId: this.requestId,
@@ -366,7 +365,7 @@ class TextEngine<
       clientId: conversationId,
       toolNames: tools?.map((t) => t.name),
       options: options as Record<string, unknown> | undefined,
-      providerOptions: providerOptions as Record<string, unknown> | undefined,
+      modelOptions: modelOptions as Record<string, unknown> | undefined,
     })
 
     aiEventClient.emit('stream:started', {
@@ -429,7 +428,7 @@ class TextEngine<
 
   private async *streamModelResponse(): AsyncGenerator<StreamChunk> {
     const adapterOptions = this.params.options || {}
-    const providerOptions = this.params.providerOptions
+    const modelOptions = this.params.modelOptions
     const tools = this.params.tools
 
     // Convert tool schemas from Zod to JSON Schema before passing to adapter
@@ -449,7 +448,7 @@ class TextEngine<
       tools: toolsWithJsonSchemas,
       options: adapterOptions,
       request: this.effectiveRequest,
-      providerOptions,
+      modelOptions,
       systemPrompts: this.systemPrompts,
     })) {
       if (this.isAborted()) {
@@ -1033,7 +1032,7 @@ class TextEngine<
  * // result is { summary: string, keyPoints: string[] }
  * ```
  */
-export function textActivity<
+export function chat<
   TAdapter extends TextAdapter<ReadonlyArray<string>, object, any, any, any>,
   TModel extends TextModels<TAdapter>,
   TSchema extends z.ZodType | undefined = undefined,
@@ -1175,8 +1174,14 @@ async function runAgenticStructuredOutput<TSchema extends z.ZodType>(
   const {
     tools: _tools,
     agentLoopStrategy: _als,
+    model,
     ...structuredTextOptions
   } = textOptions
+
+  // Ensure model is present (should be resolved by chat() function)
+  if (!model) {
+    throw new Error('Model is required for structured output')
+  }
 
   // Convert the Zod schema to JSON Schema before passing to the adapter
   const jsonSchema = convertZodToJsonSchema(outputSchema)
@@ -1189,6 +1194,7 @@ async function runAgenticStructuredOutput<TSchema extends z.ZodType>(
   const result = await adapter.structuredOutput({
     chatOptions: {
       ...structuredTextOptions,
+      model,
       messages: finalMessages,
     },
     outputSchema: jsonSchema,
@@ -1241,11 +1247,11 @@ export function textOptions<
 >(
   options: Omit<
     TextStreamOptionsUnion<TAdapter>,
-    'providerOptions' | 'model' | 'messages' | 'abortController'
+    'modelOptions' | 'model' | 'messages' | 'abortController'
   > & {
     adapter: TAdapter
     model: TModel
-    providerOptions?: TAdapter extends AIAdapter<
+    modelOptions?: TAdapter extends AIAdapter<
       any,
       any,
       any,

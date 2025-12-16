@@ -77,22 +77,19 @@ export class OllamaSummarizeAdapter implements SummarizeAdapter<
   declare _providerOptions?: OllamaSummarizeProviderOptions
 
   private client: Ollama
-  private defaultModel: OllamaSummarizeModel
-
   constructor(
     hostOrClient?: string | Ollama,
-    options: OllamaSummarizeAdapterOptions = {},
+    _options: OllamaSummarizeAdapterOptions = {},
   ) {
     if (typeof hostOrClient === 'string' || hostOrClient === undefined) {
       this.client = createOllamaClient({ host: hostOrClient })
     } else {
       this.client = hostOrClient
     }
-    this.defaultModel = options.model ?? 'llama3'
   }
 
   async summarize(options: SummarizationOptions): Promise<SummarizationResult> {
-    const model = options.model || this.defaultModel
+    const model = options.model
 
     const prompt = this.buildSummarizationPrompt(options)
 
@@ -124,7 +121,7 @@ export class OllamaSummarizeAdapter implements SummarizeAdapter<
   async *summarizeStream(
     options: SummarizationOptions,
   ): AsyncIterable<StreamChunk> {
-    const model = options.model || this.defaultModel
+    const model = options.model
     const id = generateId('sum')
     const prompt = this.buildSummarizationPrompt(options)
     let accumulatedContent = ''

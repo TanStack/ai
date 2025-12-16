@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest'
-import { ai, type Tool, type StreamChunk } from '@tanstack/ai'
+import { chat, type Tool, type StreamChunk } from '@tanstack/ai'
 import { OpenAITextAdapter } from '../src/adapters/text'
 import type { OpenAIProviderOptions } from '../src/openai-adapter'
 
@@ -73,12 +73,12 @@ describe('OpenAI adapter option mapping', () => {
       },
     }
 
-    const providerOptions: OpenAIProviderOptions = {
+    const modelOptions: OpenAIProviderOptions = {
       tool_choice: 'required',
     }
 
     const chunks: StreamChunk[] = []
-    for await (const chunk of ai({
+    for await (const chunk of chat({
       adapter,
       model: 'gpt-4o-mini',
       messages: [
@@ -104,7 +104,7 @@ describe('OpenAI adapter option mapping', () => {
         maxTokens: 1024,
         metadata: { requestId: 'req-42' },
       },
-      providerOptions,
+      modelOptions,
     })) {
       chunks.push(chunk)
     }
@@ -119,7 +119,7 @@ describe('OpenAI adapter option mapping', () => {
       top_p: 0.6,
       max_output_tokens: 1024, // Responses API uses max_output_tokens instead of max_tokens
       stream: true,
-      tool_choice: 'required', // From providerOptions
+      tool_choice: 'required', // From modelOptions
     })
 
     // Responses API uses 'input' instead of 'messages'

@@ -157,7 +157,7 @@ export function createOpenaiSummarize(
  * // Automatically uses OPENAI_API_KEY from environment
  * const adapter = openaiSummarize();
  *
- * await generate({
+ * await summarize({
  *   adapter,
  *   model: "gpt-4",
  *   text: "Long article text..."

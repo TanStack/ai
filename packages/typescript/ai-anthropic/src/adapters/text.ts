@@ -208,7 +208,7 @@ export class AnthropicTextAdapter extends BaseTextAdapter<
   private mapCommonOptionsToAnthropic(
     options: TextOptions<string, AnthropicTextProviderOptions>,
   ) {
-    const providerOptions = options.providerOptions as
+    const modelOptions = options.modelOptions as
       | InternalTextProviderOptions
       | undefined
 
@@ -218,7 +218,7 @@ export class AnthropicTextAdapter extends BaseTextAdapter<
       : undefined
 
     const validProviderOptions: Partial<InternalTextProviderOptions> = {}
-    if (providerOptions) {
+    if (modelOptions) {
       const validKeys: Array<keyof InternalTextProviderOptions> = [
         'container',
         'context_management',
@@ -231,8 +231,8 @@ export class AnthropicTextAdapter extends BaseTextAdapter<
         'top_k',
       ]
       for (const key of validKeys) {
-        if (key in providerOptions) {
-          const value = providerOptions[key]
+        if (key in modelOptions) {
+          const value = modelOptions[key]
           if (key === 'tool_choice' && typeof value === 'string') {
             ;(validProviderOptions as Record<string, unknown>)[key] = {
               type: value,
@@ -596,9 +596,9 @@ export class AnthropicTextAdapter extends BaseTextAdapter<
 }
 
 /**
- * Creates an Anthropic text adapter with explicit API key
+ * Creates an Anthropic chat adapter with explicit API key
  */
-export function createAnthropicText(
+export function createAnthropicChat(
   apiKey: string,
   config?: Omit<AnthropicTextConfig, 'apiKey'>,
 ): AnthropicTextAdapter {
@@ -606,11 +606,25 @@ export function createAnthropicText(
 }
 
 /**
- * Creates an Anthropic text adapter with automatic API key detection
+ * Creates an Anthropic chat adapter with automatic API key detection
  */
+export function anthropicChat(
+  config?: Omit<AnthropicTextConfig, 'apiKey'>,
+): AnthropicTextAdapter {
+  const apiKey = getAnthropicApiKeyFromEnv()
+  return createAnthropicChat(apiKey, config)
+}
+
 export function anthropicText(
   config?: Omit<AnthropicTextConfig, 'apiKey'>,
 ): AnthropicTextAdapter {
   const apiKey = getAnthropicApiKeyFromEnv()
-  return createAnthropicText(apiKey, config)
+  return createAnthropicChat(apiKey, config)
+}
+
+export function createAnthropicText(
+  apiKey: string,
+  config?: Omit<AnthropicTextConfig, 'apiKey'>,
+): AnthropicTextAdapter {
+  return createAnthropicChat(apiKey, config)
 }

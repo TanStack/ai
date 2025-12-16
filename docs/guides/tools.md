@@ -174,7 +174,7 @@ const getWeatherServer = getWeatherDef.server(async (args) => {
 
 ```typescript
 import { ai, toStreamResponse } from "@tanstack/ai";
-import { openaiText } from "@tanstack/ai-openai";
+import { openaiChat } from "@tanstack/ai-openai";
 import { getWeatherDef } from "./tools";
 
 export async function POST(request: Request) {
@@ -186,10 +186,10 @@ export async function POST(request: Request) {
     return await response.json();
   });
 
-  const stream = ai({
-    adapter: openaiText(),
-    messages,
+  const stream = chat({
+    adapter: openaiChat(),
     model: "gpt-4o",
+    messages,
     tools: [getWeather], // Pass server tools
   });
 
@@ -279,8 +279,9 @@ const addToCartClient = addToCartDef.client((input) => {
 On the server, pass the definition (for client execution) or server implementation:
 
 ```typescript
-ai({
-  adapter: openaiText(),
+chat({
+  adapter: openaiChat(),
+  model: "gpt-4o",
   messages,
   tools: [addToCartDef], // Client will execute, or
   tools: [addToCartServer], // Server will execute

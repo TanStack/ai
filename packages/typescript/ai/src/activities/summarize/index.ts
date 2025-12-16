@@ -61,7 +61,7 @@ export interface SummarizeActivityOptions<
   /** Topics or aspects to focus on in the summary */
   focus?: Array<string>
   /** Provider-specific options */
-  providerOptions?: SummarizeProviderOptions<TAdapter>
+  modelOptions?: SummarizeProviderOptions<TAdapter>
   /**
    * Whether to stream the summarization result.
    * When true, returns an AsyncIterable<StreamChunk> for streaming output.
@@ -152,7 +152,7 @@ function createId(prefix: string): string {
  * }
  * ```
  */
-export function summarizeActivity<
+export function summarize<
   TAdapter extends SummarizeAdapter<ReadonlyArray<string>, object>,
   TModel extends SummarizeModels<TAdapter>,
   TStream extends boolean = false,
@@ -190,7 +190,7 @@ async function runSummarize(
     false
   >,
 ): Promise<SummarizationResult> {
-  const { adapter, model, text, maxLength, style, focus } = options
+  const { adapter, text, maxLength, style, focus, model } = options
   const requestId = createId('summarize')
   const inputLength = text.length
   const startTime = Date.now()
@@ -239,7 +239,7 @@ async function* runStreamingSummarize(
     true
   >,
 ): AsyncIterable<StreamChunk> {
-  const { adapter, model, text, maxLength, style, focus } = options
+  const { adapter, text, maxLength, style, focus, model } = options
 
   const summarizeOptions: SummarizationOptions = {
     model,

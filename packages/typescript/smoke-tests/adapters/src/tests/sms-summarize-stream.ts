@@ -1,4 +1,4 @@
-import { ai } from '@tanstack/ai'
+import { summarize } from '@tanstack/ai'
 import { writeDebugFile } from '../harness'
 import type { AdapterContext, TestOutcome } from '../harness'
 
@@ -41,7 +41,7 @@ export async function runSMS(
     let chunkCount = 0
 
     // Use streaming mode
-    const stream = ai({
+    const stream = summarize({
       adapter: adapterContext.summarizeAdapter,
       model,
       text,

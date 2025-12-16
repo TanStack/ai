@@ -435,7 +435,7 @@ export class GeminiTextAdapter extends BaseTextAdapter<
   }
 
   private mapCommonOptionsToGemini(options: TextOptions) {
-    const providerOpts = options.providerOptions
+    const providerOpts = options.modelOptions
     const requestOptions: GenerateContentParameters = {
       model: options.model,
       contents: this.formatMessages(options.messages),
@@ -458,7 +458,7 @@ export class GeminiTextAdapter extends BaseTextAdapter<
 /**
  * Creates a Gemini text adapter with explicit API key
  */
-export function createGeminiText(
+export function createGeminiChat(
   apiKey: string,
   config?: Omit<GeminiTextConfig, 'apiKey'>,
 ): GeminiTextAdapter {
@@ -466,11 +466,25 @@ export function createGeminiText(
 }
 
 /**
- * Creates a Gemini text adapter with automatic API key detection
+ * Creates a Gemini chat adapter with automatic API key detection
  */
+export function geminiChat(
+  config?: Omit<GeminiTextConfig, 'apiKey'>,
+): GeminiTextAdapter {
+  const apiKey = getGeminiApiKeyFromEnv()
+  return createGeminiChat(apiKey, config)
+}
+
 export function geminiText(
   config?: Omit<GeminiTextConfig, 'apiKey'>,
 ): GeminiTextAdapter {
   const apiKey = getGeminiApiKeyFromEnv()
-  return createGeminiText(apiKey, config)
+  return createGeminiChat(apiKey, config)
+}
+
+export function createGeminiText(
+  apiKey: string,
+  config?: Omit<GeminiTextConfig, 'apiKey'>,
+): GeminiTextAdapter {
+  return createGeminiChat(apiKey, config)
 }

@@ -14,45 +14,45 @@ npm install @tanstack/ai-anthropic
 ## Basic Usage
 
 ```typescript
-import { ai } from "@tanstack/ai";
-import { anthropicText } from "@tanstack/ai-anthropic";
+import { chat } from "@tanstack/ai";
+import { anthropicChat } from "@tanstack/ai-anthropic";
 
-const adapter = anthropicText();
+const adapter = anthropicChat();
 
-const stream = ai({
+const stream = chat({
   adapter,
-  messages: [{ role: "user", content: "Hello!" }],
   model: "claude-sonnet-4-5-20250929",
+  messages: [{ role: "user", content: "Hello!" }],
 });
 ```
 
 ## Basic Usage - Custom API Key
 
 ```typescript
-import { ai } from "@tanstack/ai";
-import { createAnthropicText } from "@tanstack/ai-anthropic";
+import { chat } from "@tanstack/ai";
+import { createAnthropicChat } from "@tanstack/ai-anthropic";
 
-const adapter = createAnthropicText(process.env.ANTHROPIC_API_KEY!, {
+const adapter = createAnthropicChat(process.env.ANTHROPIC_API_KEY!, {
   // ... your config options
 });
 
-const stream = ai({
+const stream = chat({
   adapter,
-  messages: [{ role: "user", content: "Hello!" }],
   model: "claude-sonnet-4-5-20250929",
+  messages: [{ role: "user", content: "Hello!" }],
 });
 ```
 
 ## Configuration
 
 ```typescript
-import { createAnthropicText, type AnthropicTextConfig } from "@tanstack/ai-anthropic";
+import { createAnthropicChat, type AnthropicChatConfig } from "@tanstack/ai-anthropic";
 
-const config: AnthropicTextConfig = {
+const config: Omit<AnthropicChatConfig, 'apiKey'> = {
   baseURL: "https://api.anthropic.com", // Optional, for custom endpoints
 };
 
-const adapter = createAnthropicText(process.env.ANTHROPIC_API_KEY!, config);
+const adapter = createAnthropicChat(process.env.ANTHROPIC_API_KEY!, config);
 ```
 
 ## Available Models
@@ -68,18 +68,18 @@ const adapter = createAnthropicText(process.env.ANTHROPIC_API_KEY!, config);
 ## Example: Chat Completion
 
 ```typescript
-import { ai, toStreamResponse } from "@tanstack/ai";
-import { anthropicText } from "@tanstack/ai-anthropic";
+import { chat, toStreamResponse } from "@tanstack/ai";
+import { anthropicChat } from "@tanstack/ai-anthropic";
 
-const adapter = anthropicText();
+const adapter = anthropicChat();
 
 export async function POST(request: Request) {
   const { messages } = await request.json();
 
-  const stream = ai({
+  const stream = chat({
     adapter,
-    messages,
     model: "claude-sonnet-4-5-20250929",
+    messages,
   });
 
   return toStreamResponse(stream);
@@ -89,11 +89,11 @@ export async function POST(request: Request) {
 ## Example: With Tools
 
 ```typescript
-import { ai, toolDefinition } from "@tanstack/ai";
-import { anthropicText } from "@tanstack/ai-anthropic";
+import { chat, toolDefinition } from "@tanstack/ai";
+import { anthropicChat } from "@tanstack/ai-anthropic";
 import { z } from "zod";
 
-const adapter = anthropicText();
+const adapter = anthropicChat();
 
 const searchDatabaseDef = toolDefinition({
   name: "search_database",
@@ -108,10 +108,10 @@ const searchDatabase = searchDatabaseDef.server(async ({ query }) => {
   return { results: [] };
 });
 
-const stream = ai({
+const stream = chat({
   adapter,
-  messages,
   model: "claude-sonnet-4-5-20250929",
+  messages,
   tools: [searchDatabase],
 });
 ```
@@ -121,11 +121,11 @@ const stream = ai({
 Anthropic supports various provider-specific options:
 
 ```typescript
-const stream = ai({
-  adapter: anthropicText(),
-  messages,
+const stream = chat({
+  adapter: anthropicChat(),
   model: "claude-sonnet-4-5-20250929",
-  providerOptions: {
+  messages,
+  modelOptions: {
     max_tokens: 4096,
     temperature: 0.7,
     top_p: 0.9,
@@ -140,7 +140,7 @@ const stream = ai({
 Enable extended thinking with a token budget. This allows Claude to show its reasoning process, which is streamed as `thinking` chunks:
 
 ```typescript
-providerOptions: {
+modelOptions: {
   thinking: {
     type: "enabled",
     budget_tokens: 2048, // Maximum tokens for thinking
@@ -162,8 +162,9 @@ When thinking is enabled, the model's reasoning process is streamed separately f
 Cache prompts for better performance and reduced costs:
 
 ```typescript
-const stream = ai({
-  adapter: anthropicText(),
+const stream = chat({
+  adapter: anthropicChat(),
+  model: "claude-sonnet-4-5-20250929",
   messages: [
     {
       role: "user",
@@ -194,7 +195,7 @@ import { anthropicSummarize } from "@tanstack/ai-anthropic";
 
 const adapter = anthropicSummarize();
 
-const result = await ai({
+const result = await summarize({
   adapter,
   model: "claude-sonnet-4-5-20250929",
   text: "Your long text to summarize...",
@@ -215,22 +216,22 @@ ANTHROPIC_API_KEY=sk-ant-...
 
 ## API Reference
 
-### `anthropicText(config?)`
+### `anthropicChat(config?)`
 
-Creates an Anthropic text/chat adapter using environment variables.
+Creates an Anthropic chat adapter using environment variables.
 
-**Returns:** An Anthropic text adapter instance.
+**Returns:** An Anthropic chat adapter instance.
 
-### `createAnthropicText(apiKey, config?)`
+### `createAnthropicChat(apiKey, config?)`
 
-Creates an Anthropic text/chat adapter with an explicit API key.
+Creates an Anthropic chat adapter with an explicit API key.
 
 **Parameters:**
 
 - `apiKey` - Your Anthropic API key
 - `config.baseURL?` - Custom base URL (optional)
 
-**Returns:** An Anthropic text adapter instance.
+**Returns:** An Anthropic chat adapter instance.
 
 ### `anthropicSummarize(config?)`
 

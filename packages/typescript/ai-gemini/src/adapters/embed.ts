@@ -48,21 +48,19 @@ export class GeminiEmbedAdapter implements EmbeddingAdapter<
   declare _providerOptions?: GeminiEmbedProviderOptions
 
   private client: GoogleGenAI
-  private defaultModel: GeminiEmbeddingModel
 
   constructor(
     apiKeyOrClient: string | GoogleGenAI,
-    options: GeminiEmbedAdapterOptions = {},
+    _options: GeminiEmbedAdapterOptions = {},
   ) {
     this.client =
       typeof apiKeyOrClient === 'string'
         ? createGeminiClient({ apiKey: apiKeyOrClient })
         : apiKeyOrClient
-    this.defaultModel = options.model ?? 'text-embedding-004'
   }
 
   async createEmbeddings(options: EmbeddingOptions): Promise<EmbeddingResult> {
-    const model = options.model || this.defaultModel
+    const model = options.model
 
     // Ensure input is an array
     const inputs = Array.isArray(options.input)
@@ -100,7 +98,7 @@ export class GeminiEmbedAdapter implements EmbeddingAdapter<
 /**
  * Creates a Gemini embedding adapter with explicit API key
  */
-export function createGeminiEmbed(
+export function createGeminiEmbedding(
   apiKey: string,
   options?: GeminiEmbedAdapterOptions,
 ): GeminiEmbedAdapter {
@@ -110,9 +108,23 @@ export function createGeminiEmbed(
 /**
  * Creates a Gemini embedding adapter with API key from environment
  */
+export function geminiEmbedding(
+  options?: GeminiEmbedAdapterOptions,
+): GeminiEmbedAdapter {
+  const apiKey = getGeminiApiKeyFromEnv()
+  return new GeminiEmbedAdapter(apiKey, options)
+}
+
 export function geminiEmbed(
   options?: GeminiEmbedAdapterOptions,
 ): GeminiEmbedAdapter {
   const apiKey = getGeminiApiKeyFromEnv()
+  return new GeminiEmbedAdapter(apiKey, options)
+}
+
+export function createGeminiEmbed(
+  apiKey: string,
+  options?: GeminiEmbedAdapterOptions,
+): GeminiEmbedAdapter {
   return new GeminiEmbedAdapter(apiKey, options)
 }

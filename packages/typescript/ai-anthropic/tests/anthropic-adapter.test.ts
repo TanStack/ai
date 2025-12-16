@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest'
-import { ai, type Tool, type StreamChunk } from '@tanstack/ai'
+import { chat, type Tool, type StreamChunk } from '@tanstack/ai'
 import { AnthropicTextAdapter } from '../src/adapters/text'
 import type { AnthropicProviderOptions } from '../src/anthropic-adapter'
 import { z } from 'zod'
@@ -105,7 +105,7 @@ describe('Anthropic adapter option mapping', () => {
 
     // Consume the stream to trigger the API call
     const chunks: StreamChunk[] = []
-    for await (const chunk of ai({
+    for await (const chunk of chat({
       adapter,
       model: 'claude-3-7-sonnet-20250219',
       messages: [
@@ -128,7 +128,7 @@ describe('Anthropic adapter option mapping', () => {
         maxTokens: 3000,
         temperature: 0.4,
       },
-      providerOptions,
+      modelOptions: providerOptions,
     })) {
       chunks.push(chunk)
     }

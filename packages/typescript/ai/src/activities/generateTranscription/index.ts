@@ -58,7 +58,7 @@ export interface TranscriptionActivityOptions<
   /** The format of the transcription output */
   responseFormat?: 'json' | 'text' | 'srt' | 'verbose_json' | 'vtt'
   /** Provider-specific options for transcription */
-  providerOptions?: TranscriptionProviderOptions<TAdapter>
+  modelOptions?: TranscriptionProviderOptions<TAdapter>
 }
 
 // ===========================
@@ -106,7 +106,7 @@ export type TranscriptionActivityResult = Promise<TranscriptionResult>
  * })
  * ```
  */
-export async function transcriptionActivity<
+export async function generateTranscription<
   TAdapter extends TranscriptionAdapter<ReadonlyArray<string>, object>,
   TModel extends TranscriptionModels<TAdapter>,
 >(

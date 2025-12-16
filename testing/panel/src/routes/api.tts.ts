@@ -1,6 +1,6 @@
 import { createFileRoute } from '@tanstack/react-router'
-import { ai } from '@tanstack/ai'
-import { openaiTTS } from '@tanstack/ai-openai'
+import { generateSpeech } from '@tanstack/ai'
+import { openaiSpeech } from '@tanstack/ai-openai'
 
 export const Route = createFileRoute('/api/tts')({
   server: {
@@ -28,11 +28,11 @@ export const Route = createFileRoute('/api/tts')({
         }
 
         try {
-          const adapter = openaiTTS()
+          const adapter = openaiSpeech()
 
-          const result = await ai({
-            adapter: adapter as any,
-            model: model as any,
+          const result = await generateSpeech({
+            adapter,
+            model,
             text,
             voice,
             format,

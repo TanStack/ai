@@ -1,6 +1,6 @@
 import { createFileRoute } from '@tanstack/react-router'
-import { ai, maxIterations, toStreamResponse } from '@tanstack/ai'
-import { openaiText } from '@tanstack/ai-openai'
+import { chat, maxIterations, toStreamResponse } from '@tanstack/ai'
+import { openaiChat } from '@tanstack/ai-openai'
 import {
   getAvailableAddOnsToolDef,
   selectAddOnsToolDef,
@@ -53,8 +53,8 @@ export const Route = createFileRoute('/api/addon-chat')({
         const messages = body.messages
 
         try {
-          const stream = ai({
-            adapter: openaiText(),
+          const stream = chat({
+            adapter: openaiChat(),
             model: 'gpt-4o',
             tools: [
               // Just the definitions - client will handle execution

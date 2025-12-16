@@ -14,45 +14,45 @@ npm install @tanstack/ai-gemini
 ## Basic Usage
 
 ```typescript
-import { ai } from "@tanstack/ai";
-import { geminiText } from "@tanstack/ai-gemini";
+import { chat } from "@tanstack/ai";
+import { geminiChat } from "@tanstack/ai-gemini";
 
-const adapter = geminiText();
+const adapter = geminiChat();
 
-const stream = ai({
+const stream = chat({
   adapter,
-  messages: [{ role: "user", content: "Hello!" }],
   model: "gemini-2.0-flash-exp",
+  messages: [{ role: "user", content: "Hello!" }],
 });
 ```
 
 ## Basic Usage - Custom API Key
 
 ```typescript
-import { ai } from "@tanstack/ai";
-import { createGeminiText } from "@tanstack/ai-gemini";
+import { chat } from "@tanstack/ai";
+import { createGeminiChat } from "@tanstack/ai-gemini";
 
-const adapter = createGeminiText(process.env.GEMINI_API_KEY!, {
+const adapter = createGeminiChat(process.env.GEMINI_API_KEY!, {
   // ... your config options
 });
 
-const stream = ai({
+const stream = chat({
   adapter,
-  messages: [{ role: "user", content: "Hello!" }],
   model: "gemini-2.0-flash-exp",
+  messages: [{ role: "user", content: "Hello!" }],
 });
 ```
 
 ## Configuration
 
 ```typescript
-import { createGeminiText, type GeminiTextConfig } from "@tanstack/ai-gemini";
+import { createGeminiChat, type GeminiChatConfig } from "@tanstack/ai-gemini";
 
-const config: GeminiTextConfig = {
+const config: Omit<GeminiChatConfig, 'apiKey'> = {
   baseURL: "https://generativelanguage.googleapis.com/v1beta", // Optional
 };
 
-const adapter = createGeminiText(process.env.GEMINI_API_KEY!, config);
+const adapter = createGeminiChat(process.env.GEMINI_API_KEY!, config);
 ```
 
 ## Available Models
@@ -82,18 +82,18 @@ const adapter = createGeminiText(process.env.GEMINI_API_KEY!, config);
 ## Example: Chat Completion
 
 ```typescript
-import { ai, toStreamResponse } from "@tanstack/ai";
-import { geminiText } from "@tanstack/ai-gemini";
+import { chat, toStreamResponse } from "@tanstack/ai";
+import { geminiChat } from "@tanstack/ai-gemini";
 
-const adapter = geminiText();
+const adapter = geminiChat();
 
 export async function POST(request: Request) {
   const { messages } = await request.json();
 
-  const stream = ai({
+  const stream = chat({
     adapter,
-    messages,
     model: "gemini-2.0-flash-exp",
+    messages,
   });
 
   return toStreamResponse(stream);
@@ -103,11 +103,11 @@ export async function POST(request: Request) {
 ## Example: With Tools
 
 ```typescript
-import { ai, toolDefinition } from "@tanstack/ai";
-import { geminiText } from "@tanstack/ai-gemini";
+import { chat, toolDefinition } from "@tanstack/ai";
+import { geminiChat } from "@tanstack/ai-gemini";
 import { z } from "zod";
 
-const adapter = geminiText();
+const adapter = geminiChat();
 
 const getCalendarEventsDef = toolDefinition({
   name: "get_calendar_events",
@@ -122,10 +122,10 @@ const getCalendarEvents = getCalendarEventsDef.server(async ({ date }) => {
   return { events: [] };
 });
 
-const stream = ai({
+const stream = chat({
   adapter,
-  messages,
   model: "gemini-2.0-flash-exp",
+  messages,
   tools: [getCalendarEvents],
 });
 ```
@@ -135,11 +135,11 @@ const stream = ai({
 Gemini supports various provider-specific options:
 
 ```typescript
-const stream = ai({
-  adapter: geminiText(),
-  messages,
+const stream = chat({
+  adapter: geminiChat(),
   model: "gemini-2.0-flash-exp",
-  providerOptions: {
+  messages,
+  modelOptions: {
     maxOutputTokens: 2048,
     temperature: 0.7,
     topP: 0.9,
@@ -154,7 +154,7 @@ const stream = ai({
 Enable thinking for models that support it:
 
 ```typescript
-providerOptions: {
+modelOptions: {
   thinking: {
     includeThoughts: true,
   },
@@ -166,7 +166,7 @@ providerOptions: {
 Configure structured output format:
 
 ```typescript
-providerOptions: {
+modelOptions: {
   responseMimeType: "application/json",
 }
 ```
@@ -176,12 +176,12 @@ providerOptions: {
 Generate text embeddings for semantic search and similarity:
 
 ```typescript
-import { ai } from "@tanstack/ai";
-import { geminiEmbed } from "@tanstack/ai-gemini";
+import { embedding } from "@tanstack/ai";
+import { geminiEmbedding } from "@tanstack/ai-gemini";
 
-const adapter = geminiEmbed();
+const adapter = geminiEmbedding();
 
-const result = await ai({
+const result = await embedding({
   adapter,
   model: "gemini-embedding-001",
   input: "The quick brown fox jumps over the lazy dog",
@@ -193,8 +193,8 @@ console.log(result.embeddings);
 ### Batch Embeddings
 
 ```typescript
-const result = await ai({
-  adapter: geminiEmbed(),
+const result = await embedding({
+  adapter: geminiEmbedding(),
   model: "gemini-embedding-001",
   input: [
     "First text to embed",
@@ -207,11 +207,11 @@ const result = await ai({
 ### Embedding Provider Options
 
 ```typescript
-const result = await ai({
-  adapter: geminiEmbed(),
+const result = await embedding({
+  adapter: geminiEmbedding(),
   model: "gemini-embedding-001",
   input: "...",
-  providerOptions: {
+  modelOptions: {
     taskType: "RETRIEVAL_DOCUMENT", // or "RETRIEVAL_QUERY", "SEMANTIC_SIMILARITY", etc.
   },
 });
@@ -222,12 +222,12 @@ const result = await ai({
 Summarize long text content:
 
 ```typescript
-import { ai } from "@tanstack/ai";
+import { summarize } from "@tanstack/ai";
 import { geminiSummarize } from "@tanstack/ai-gemini";
 
 const adapter = geminiSummarize();
 
-const result = await ai({
+const result = await summarize({
   adapter,
   model: "gemini-2.0-flash-exp",
   text: "Your long text to summarize...",
@@ -243,12 +243,12 @@ console.log(result.summary);
 Generate images with Imagen:
 
 ```typescript
-import { ai } from "@tanstack/ai";
+import { generateImage } from "@tanstack/ai";
 import { geminiImage } from "@tanstack/ai-gemini";
 
 const adapter = geminiImage();
 
-const result = await ai({
+const result = await generateImage({
   adapter,
   model: "imagen-3.0-generate-002",
   prompt: "A futuristic cityscape at sunset",
@@ -261,11 +261,11 @@ console.log(result.images);
 ### Image Provider Options
 
 ```typescript
-const result = await ai({
+const result = await generateImage({
   adapter: geminiImage(),
   model: "imagen-3.0-generate-002",
   prompt: "...",
-  providerOptions: {
+  modelOptions: {
     aspectRatio: "16:9", // "1:1" | "3:4" | "4:3" | "9:16" | "16:9"
     personGeneration: "DONT_ALLOW", // Control person generation
     safetyFilterLevel: "BLOCK_SOME", // Safety filtering
@@ -280,12 +280,12 @@ const result = await ai({
 Generate speech from text:
 
 ```typescript
-import { ai } from "@tanstack/ai";
-import { geminiTTS } from "@tanstack/ai-gemini";
+import { generateSpeech } from "@tanstack/ai";
+import { geminiSpeech } from "@tanstack/ai-gemini";
 
-const adapter = geminiTTS();
+const adapter = geminiSpeech();
 
-const result = await ai({
+const result = await generateSpeech({
   adapter,
   model: "gemini-2.5-flash-preview-tts",
   text: "Hello from Gemini TTS!",
@@ -312,7 +312,7 @@ GOOGLE_API_KEY=your-api-key-here
 
 ## API Reference
 
-### `geminiText(config?)`
+### `geminiChat(config?)`
 
 Creates a Gemini text/chat adapter using environment variables.
 

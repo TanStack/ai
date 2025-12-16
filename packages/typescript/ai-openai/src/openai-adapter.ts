@@ -492,7 +492,7 @@ export class OpenAI extends BaseAdapter<
    * Handles translation of normalized options to OpenAI's API format
    */
   private mapTextOptionsToOpenAI(options: TextOptions) {
-    const providerOptions = options.providerOptions as
+    const modelOptions = options.modelOptions as
       | Omit<
           InternalTextProviderOptions,
           | 'max_output_tokens'
@@ -504,9 +504,9 @@ export class OpenAI extends BaseAdapter<
         >
       | undefined
     const input = this.convertMessagesToInput(options.messages)
-    if (providerOptions) {
+    if (modelOptions) {
       validateTextProviderOptions({
-        ...providerOptions,
+        ...modelOptions,
         input,
         model: options.model,
       })
@@ -526,7 +526,7 @@ export class OpenAI extends BaseAdapter<
       top_p: options.options?.topP,
       metadata: options.options?.metadata,
       instructions: options.systemPrompts?.join('\n'),
-      ...providerOptions,
+      ...modelOptions,
       input,
       tools,
     }

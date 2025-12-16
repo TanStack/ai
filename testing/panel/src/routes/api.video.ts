@@ -1,5 +1,5 @@
 import { createFileRoute } from '@tanstack/react-router'
-import { ai } from '@tanstack/ai'
+import { generateVideo, getVideoJobStatus } from '@tanstack/ai'
 import { openaiVideo } from '@tanstack/ai-openai'
 
 type Action = 'create' | 'status' | 'url'
@@ -18,9 +18,8 @@ export const Route = createFileRoute('/api/video')({
             case 'create': {
               const { prompt, size = '1280x720', seconds = 8 } = body
 
-              const result = await ai({
-                adapter: adapter as any,
-                model: 'sora-2' as any,
+              const result = await generateVideo({
+                adapter,
                 prompt,
                 size,
                 duration: seconds,
@@ -54,11 +53,10 @@ export const Route = createFileRoute('/api/video')({
                 )
               }
 
-              const result = await ai({
-                adapter: adapter as any,
-                model: 'sora-2' as any,
+              const result = await getVideoJobStatus({
+                adapter,
+                model: 'sora-2',
                 jobId,
-                request: 'status',
               })
 
               return new Response(
@@ -91,12 +89,7 @@ export const Route = createFileRoute('/api/video')({
                 )
               }
 
-              const result = await ai({
-                adapter: adapter as any,
-                model: 'sora-2' as any,
-                jobId,
-                request: 'url',
-              })
+              const result = await adapter.getVideoUrl(jobId)
 
               return new Response(
                 JSON.stringify({

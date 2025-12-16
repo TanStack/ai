@@ -5,6 +5,9 @@
 // Text (Chat) adapter - for chat/text completion
 export {
   AnthropicTextAdapter,
+  anthropicChat,
+  createAnthropicChat,
+  // Deprecated exports
   anthropicText,
   createAnthropicText,
   type AnthropicTextConfig,

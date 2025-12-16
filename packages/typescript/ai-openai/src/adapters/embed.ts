@@ -49,7 +49,7 @@ export class OpenAIEmbedAdapter extends BaseEmbeddingAdapter<
 
   async createEmbeddings(options: EmbeddingOptions): Promise<EmbeddingResult> {
     const response = await this.client.embeddings.create({
-      model: options.model || 'text-embedding-ada-002',
+      model: options.model,
       input: options.input,
       dimensions: options.dimensions,
     })
@@ -69,16 +69,17 @@ export class OpenAIEmbedAdapter extends BaseEmbeddingAdapter<
 /**
  * Creates an OpenAI embedding adapter with explicit API key
  *
+ * @param model - The model name (e.g., 'text-embedding-3-small')
  * @param apiKey - Your OpenAI API key
  * @param config - Optional additional configuration
  * @returns Configured OpenAI embedding adapter instance
  *
  * @example
  * ```typescript
- * const adapter = createOpenaiEmbed("sk-...");
+ * const adapter = createOpenaiEmbedding('text-embedding-3-small', "sk-...");
  * ```
  */
-export function createOpenaiEmbed(
+export function createOpenaiEmbedding(
   apiKey: string,
   config?: Omit<OpenAIEmbedConfig, 'apiKey'>,
 ): OpenAIEmbedAdapter {
@@ -99,18 +100,32 @@ export function createOpenaiEmbed(
  * @example
  * ```typescript
  * // Automatically uses OPENAI_API_KEY from environment
- * const adapter = openaiEmbed();
+ * const adapter = openaiEmbedding();
  *
- * await generate({
+ * const result = await embedding({
  *   adapter,
- *   model: "text-embedding-3-small",
+ *   model: 'text-embedding-3-small',
  *   input: "Hello, world!"
  * });
  * ```
  */
+export function openaiEmbedding(
+  config?: Omit<OpenAIEmbedConfig, 'apiKey'>,
+): OpenAIEmbedAdapter {
+  const apiKey = getOpenAIApiKeyFromEnv()
+  return createOpenaiEmbedding(apiKey, config)
+}
+
 export function openaiEmbed(
   config?: Omit<OpenAIEmbedConfig, 'apiKey'>,
 ): OpenAIEmbedAdapter {
   const apiKey = getOpenAIApiKeyFromEnv()
-  return createOpenaiEmbed(apiKey, config)
+  return createOpenaiEmbedding(apiKey, config)
+}
+
+export function createOpenaiEmbed(
+  apiKey: string,
+  config?: Omit<OpenAIEmbedConfig, 'apiKey'>,
+): OpenAIEmbedAdapter {
+  return createOpenaiEmbedding(apiKey, config)
 }

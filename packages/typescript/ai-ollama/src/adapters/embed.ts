@@ -58,22 +58,20 @@ export class OllamaEmbedAdapter implements EmbeddingAdapter<
   declare _providerOptions?: OllamaEmbedProviderOptions
 
   private client: Ollama
-  private defaultModel: OllamaEmbeddingModel
 
   constructor(
     hostOrClient?: string | Ollama,
-    options: OllamaEmbedAdapterOptions = {},
+    _options: OllamaEmbedAdapterOptions = {},
   ) {
     if (typeof hostOrClient === 'string' || hostOrClient === undefined) {
       this.client = createOllamaClient({ host: hostOrClient })
     } else {
       this.client = hostOrClient
     }
-    this.defaultModel = options.model ?? 'nomic-embed-text'
   }
 
   async createEmbeddings(options: EmbeddingOptions): Promise<EmbeddingResult> {
-    const model = options.model || this.defaultModel
+    const model = options.model
 
     // Ensure input is an array
     const inputs = Array.isArray(options.input)
@@ -111,7 +109,7 @@ export class OllamaEmbedAdapter implements EmbeddingAdapter<
 /**
  * Creates an Ollama embedding adapter with explicit host
  */
-export function createOllamaEmbed(
+export function createOllamaEmbedding(
   host?: string,
   options?: OllamaEmbedAdapterOptions,
 ): OllamaEmbedAdapter {
@@ -121,9 +119,29 @@ export function createOllamaEmbed(
 /**
  * Creates an Ollama embedding adapter with host from environment
  */
+export function ollamaEmbedding(
+  options?: OllamaEmbedAdapterOptions,
+): OllamaEmbedAdapter {
+  const host = getOllamaHostFromEnv()
+  return new OllamaEmbedAdapter(host, options)
+}
+
+/**
+ * @deprecated Use ollamaEmbedding() instead
+ */
 export function ollamaEmbed(
   options?: OllamaEmbedAdapterOptions,
 ): OllamaEmbedAdapter {
   const host = getOllamaHostFromEnv()
+  return new OllamaEmbedAdapter(host, options)
+}
+
+/**
+ * @deprecated Use createOllamaEmbedding() instead
+ */
+export function createOllamaEmbed(
+  host?: string,
+  options?: OllamaEmbedAdapterOptions,
+): OllamaEmbedAdapter {
   return new OllamaEmbedAdapter(host, options)
 }

@@ -2,11 +2,11 @@ import { fileURLToPath, URL } from 'node:url'
 import { defineConfig } from 'vite'
 import vue from '@vitejs/plugin-vue'
 import tailwindcss from '@tailwindcss/vite'
-import { ai, maxIterations, toStreamResponse } from '@tanstack/ai'
-import { openaiText } from '@tanstack/ai-openai'
-import { anthropicText } from '@tanstack/ai-anthropic'
-import { geminiText } from '@tanstack/ai-gemini'
-import { ollamaText } from '@tanstack/ai-ollama'
+import { chat, maxIterations, toStreamResponse } from '@tanstack/ai'
+import { openaiChat } from '@tanstack/ai-openai'
+import { anthropicChat } from '@tanstack/ai-anthropic'
+import { geminiChat } from '@tanstack/ai-gemini'
+import { ollamaChat } from '@tanstack/ai-ollama'
 import { toolDefinition } from '@tanstack/ai'
 import { z } from 'zod'
 import dotenv from 'dotenv'
@@ -204,36 +204,37 @@ export default defineConfig({
             let adapter
             let defaultModel
 
+            let selectedModel: string
+
             switch (provider) {
               case 'anthropic':
-                adapter = anthropicText()
-                defaultModel = 'claude-sonnet-4-5-20250929'
+                selectedModel = model || 'claude-sonnet-4-5-20250929'
+                adapter = anthropicChat()
                 break
               case 'gemini':
-                adapter = geminiText()
-                defaultModel = 'gemini-2.0-flash-exp'
+                selectedModel = model || 'gemini-2.0-flash-exp'
+                adapter = geminiChat()
                 break
               case 'ollama':
-                adapter = ollamaText()
-                defaultModel = 'mistral:7b'
+                selectedModel = model || 'mistral:7b'
+                adapter = ollamaChat()
                 break
               case 'openai':
               default:
-                adapter = openaiText()
-                defaultModel = 'gpt-4o'
+                selectedModel = model || 'gpt-4o'
+                adapter = openaiChat()
                 break
             }
 
-            const selectedModel = model || defaultModel
             console.log(
               `[API] Using provider: ${provider}, model: ${selectedModel}`,
             )
 
             const abortController = new AbortController()
 
-            const stream = ai({
-              adapter: adapter as any,
-              model: selectedModel as any,
+            const stream = chat({
+              adapter,
+              model: selectedModel,
               tools: [
                 getGuitars,
                 recommendGuitarToolDef,

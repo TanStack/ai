@@ -1,10 +1,10 @@
 /* eslint-disable @typescript-eslint/require-await */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { z } from 'zod'
-import { textActivity } from '../src/activities/text'
+import { chat } from '../src/activities/chat'
 import { BaseAdapter } from '../src/base-adapter'
 import { aiEventClient } from '../src/event-client.js'
-import { maxIterations } from '../src/activities/text/agent-loop-strategies'
+import { maxIterations } from '../src/activities/chat/agent-loop-strategies'
 import type { TextOptions, ModelMessage, StreamChunk, Tool } from '../src/types'
 
 // Mock event client to track events
@@ -45,7 +45,7 @@ class MockAdapter extends BaseAdapter<
     tools?: Array<Tool>
     request?: TextOptions['request']
     systemPrompts?: Array<string>
-    providerOptions?: any
+    modelOptions?: any
   }> = []
 
   readonly kind = 'text' as const
@@ -61,7 +61,7 @@ class MockAdapter extends BaseAdapter<
       tools: options.tools,
       request: options.request,
       systemPrompts: options.systemPrompts,
-      providerOptions: options.providerOptions,
+      modelOptions: options.modelOptions,
     })
   }
 
@@ -70,8 +70,8 @@ class MockAdapter extends BaseAdapter<
     this.trackStreamCall(options)
     yield {
       type: 'content',
-      id: 'test-id',
-      model: 'test-model',
+              model: 'test-model',
+              id: 'test-id-2',
       timestamp: Date.now(),
       delta: 'Hello',
       content: 'Hello',
@@ -79,8 +79,8 @@ class MockAdapter extends BaseAdapter<
     }
     yield {
       type: 'done',
-      id: 'test-id',
-      model: 'test-model',
+              model: 'test-model',
+              id: 'test-id-2',
       timestamp: Date.now(),
       finishReason: 'stop',
     }
@@ -108,18 +108,18 @@ async function collectChunks<T>(stream: AsyncIterable<T>): Promise<Array<T>> {
   return chunks
 }
 
-describe('textActivity() - Comprehensive Logic Path Coverage', () => {
+describe('chat() - Comprehensive Logic Path Coverage', () => {
   describe('Initialization & Setup', () => {
     it('should generate unique request and stream IDs', async () => {
       const adapter = new MockAdapter()
 
-      const stream1 = textActivity({
+      const stream1 = chat({
         adapter,
         model: 'test-model',
         messages: [{ role: 'user', content: 'Hello' }],
       })
 
-      const stream2 = textActivity({
+      const stream2 = chat({
         adapter,
         model: 'test-model',
         messages: [{ role: 'user', content: 'Hi' }],
@@ -147,7 +147,7 @@ describe('textActivity() - Comprehensive Logic Path Coverage', () => {
       const adapter = new MockAdapter()
 
       await collectChunks(
-        textActivity({
+        chat({
           adapter,
           model: 'test-model',
           messages: [
@@ -176,7 +176,7 @@ describe('textActivity() - Comprehensive Logic Path Coverage', () => {
       const adapter = new MockAdapter()
 
       await collectChunks(
-        textActivity({
+        chat({
           adapter,
           model: 'test-model',
           messages: [{ role: 'user', content: 'Hello' }],
@@ -193,7 +193,7 @@ describe('textActivity() - Comprehensive Logic Path Coverage', () => {
       const adapter = new MockAdapter()
 
       await collectChunks(
-        textActivity({
+        chat({
           adapter,
           model: 'test-model',
           messages: [{ role: 'user', content: 'Hello' }],
@@ -216,7 +216,7 @@ describe('textActivity() - Comprehensive Logic Path Coverage', () => {
       const adapter = new MockAdapter()
 
       await collectChunks(
-        textActivity({
+        chat({
           adapter,
           model: 'test-model',
           messages: [{ role: 'user', content: 'Hello' }],
@@ -234,19 +234,19 @@ describe('textActivity() - Comprehensive Logic Path Coverage', () => {
       ])
     })
 
-    it('should pass providerOptions to adapter', async () => {
+    it('should pass modelOptions to adapter', async () => {
       const adapter = new MockAdapter()
 
       await collectChunks(
-        textActivity({
+        chat({
           adapter,
           model: 'test-model',
           messages: [{ role: 'user', content: 'Hello' }],
-          providerOptions: { customOption: 'value' },
+          modelOptions: { customOption: 'value' },
         }),
       )
 
-      expect(adapter.chatStreamCalls[0]?.providerOptions).toEqual({
+      expect(adapter.chatStreamCalls[0]?.modelOptions).toEqual({
         customOption: 'value',
       })
     })
@@ -256,9 +256,9 @@ describe('textActivity() - Comprehensive Logic Path Coverage', () => {
     it('should stream simple content without tools', async () => {
       const adapter = new MockAdapter()
 
-      const stream = textActivity({
+      const stream = chat({
         adapter,
-        model: 'test-model',
+          model: 'test-model',
         messages: [{ role: 'user', content: 'Hello' }],
       })
 
@@ -287,8 +287,8 @@ describe('textActivity() - Comprehensive Logic Path Coverage', () => {
           this.trackStreamCall(options)
           yield {
             type: 'content',
-            id: 'test-id',
-            model: 'test-model',
+              model: 'test-model',
+              id: 'test-id-2',
             timestamp: Date.now(),
             delta: 'Hello',
             content: 'Hello',
@@ -296,8 +296,8 @@ describe('textActivity() - Comprehensive Logic Path Coverage', () => {
           }
           yield {
             type: 'content',
-            id: 'test-id',
-            model: 'test-model',
+              model: 'test-model',
+              id: 'test-id-2',
             timestamp: Date.now(),
             delta: ' World',
             content: 'Hello World',
@@ -305,8 +305,8 @@ describe('textActivity() - Comprehensive Logic Path Coverage', () => {
           }
           yield {
             type: 'content',
-            id: 'test-id',
-            model: 'test-model',
+              model: 'test-model',
+              id: 'test-id-2',
             timestamp: Date.now(),
             delta: '!',
             content: 'Hello World!',
@@ -314,8 +314,8 @@ describe('textActivity() - Comprehensive Logic Path Coverage', () => {
           }
           yield {
             type: 'done',
-            id: 'test-id',
-            model: 'test-model',
+              model: 'test-model',
+              id: 'test-id-2',
             timestamp: Date.now(),
             finishReason: 'stop',
           }
@@ -324,9 +324,9 @@ describe('textActivity() - Comprehensive Logic Path Coverage', () => {
 
       const adapter = new ContentAdapter()
 
-      const stream = textActivity({
+      const stream = chat({
         adapter,
-        model: 'test-model',
+          model: 'test-model',
         messages: [{ role: 'user', content: 'Say hello' }],
       })
 
@@ -351,8 +351,8 @@ describe('textActivity() - Comprehensive Logic Path Coverage', () => {
           this.trackStreamCall(options)
           yield {
             type: 'content',
-            id: 'test-id',
-            model: 'test-model',
+              model: 'test-model',
+              id: 'test-id-2',
             timestamp: Date.now(),
             delta: '',
             content: '',
@@ -360,8 +360,8 @@ describe('textActivity() - Comprehensive Logic Path Coverage', () => {
           }
           yield {
             type: 'done',
-            id: 'test-id',
-            model: 'test-model',
+              model: 'test-model',
+              id: 'test-id-2',
             timestamp: Date.now(),
             finishReason: 'stop',
           }
@@ -371,7 +371,7 @@ describe('textActivity() - Comprehensive Logic Path Coverage', () => {
       const adapter = new EmptyContentAdapter()
 
       const chunks = await collectChunks(
-        textActivity({
+        chat({
           adapter,
           model: 'test-model',
           messages: [{ role: 'user', content: 'Test' }],
@@ -405,8 +405,8 @@ describe('textActivity() - Comprehensive Logic Path Coverage', () => {
             this.iteration++
             yield {
               type: 'tool_call',
-              id: 'test-id-1',
               model: 'test-model',
+              id: 'test-id-2',
               timestamp: Date.now(),
               toolCall: {
                 id: 'call-1',
@@ -420,16 +420,16 @@ describe('textActivity() - Comprehensive Logic Path Coverage', () => {
             }
             yield {
               type: 'done',
-              id: 'test-id-1',
               model: 'test-model',
+              id: 'test-id-2',
               timestamp: Date.now(),
               finishReason: 'tool_calls',
             }
           } else {
             yield {
               type: 'content',
-              id: 'test-id-2',
               model: 'test-model',
+              id: 'test-id-2',
               timestamp: Date.now(),
               delta: 'Done',
               content: 'Done',
@@ -437,8 +437,8 @@ describe('textActivity() - Comprehensive Logic Path Coverage', () => {
             }
             yield {
               type: 'done',
-              id: 'test-id-2',
               model: 'test-model',
+              id: 'test-id-2',
               timestamp: Date.now(),
               finishReason: 'stop',
             }
@@ -449,7 +449,7 @@ describe('textActivity() - Comprehensive Logic Path Coverage', () => {
       const adapter = new ToolAdapter()
 
       const chunks = await collectChunks(
-        textActivity({
+        chat({
           adapter,
           model: 'test-model',
           messages: [{ role: 'user', content: 'Weather?' }],
@@ -496,8 +496,8 @@ describe('textActivity() - Comprehensive Logic Path Coverage', () => {
             // Simulate streaming tool arguments
             yield {
               type: 'tool_call',
-              id: 'test-id-1',
               model: 'test-model',
+              id: 'test-id-2',
               timestamp: Date.now(),
               toolCall: {
                 id: 'call-1',
@@ -511,8 +511,8 @@ describe('textActivity() - Comprehensive Logic Path Coverage', () => {
             }
             yield {
               type: 'tool_call',
-              id: 'test-id-1',
               model: 'test-model',
+              id: 'test-id-2',
               timestamp: Date.now(),
               toolCall: {
                 id: 'call-1',
@@ -526,16 +526,16 @@ describe('textActivity() - Comprehensive Logic Path Coverage', () => {
             }
             yield {
               type: 'done',
-              id: 'test-id-1',
               model: 'test-model',
+              id: 'test-id-2',
               timestamp: Date.now(),
               finishReason: 'tool_calls',
             }
           } else {
             yield {
               type: 'content',
-              id: 'test-id-2',
               model: 'test-model',
+              id: 'test-id-2',
               timestamp: Date.now(),
               delta: 'Result',
               content: 'Result',
@@ -543,8 +543,8 @@ describe('textActivity() - Comprehensive Logic Path Coverage', () => {
             }
             yield {
               type: 'done',
-              id: 'test-id-2',
               model: 'test-model',
+              id: 'test-id-2',
               timestamp: Date.now(),
               finishReason: 'stop',
             }
@@ -555,7 +555,7 @@ describe('textActivity() - Comprehensive Logic Path Coverage', () => {
       const adapter = new StreamingToolAdapter()
 
       const chunks = await collectChunks(
-        textActivity({
+        chat({
           adapter,
           model: 'test-model',
           messages: [{ role: 'user', content: 'Calculate' }],
@@ -593,8 +593,8 @@ describe('textActivity() - Comprehensive Logic Path Coverage', () => {
             this.iteration++
             yield {
               type: 'tool_call',
-              id: 'test-id-1',
               model: 'test-model',
+              id: 'test-id-2',
               timestamp: Date.now(),
               toolCall: {
                 id: 'call-1',
@@ -605,8 +605,8 @@ describe('textActivity() - Comprehensive Logic Path Coverage', () => {
             }
             yield {
               type: 'tool_call',
-              id: 'test-id-1',
               model: 'test-model',
+              id: 'test-id-2',
               timestamp: Date.now(),
               toolCall: {
                 id: 'call-2',
@@ -617,16 +617,16 @@ describe('textActivity() - Comprehensive Logic Path Coverage', () => {
             }
             yield {
               type: 'done',
-              id: 'test-id-1',
               model: 'test-model',
+              id: 'test-id-2',
               timestamp: Date.now(),
               finishReason: 'tool_calls',
             }
           } else {
             yield {
               type: 'content',
-              id: 'test-id-2',
               model: 'test-model',
+              id: 'test-id-2',
               timestamp: Date.now(),
               delta: 'Done',
               content: 'Done',
@@ -634,8 +634,8 @@ describe('textActivity() - Comprehensive Logic Path Coverage', () => {
             }
             yield {
               type: 'done',
-              id: 'test-id-2',
               model: 'test-model',
+              id: 'test-id-2',
               timestamp: Date.now(),
               finishReason: 'stop',
             }
@@ -646,7 +646,7 @@ describe('textActivity() - Comprehensive Logic Path Coverage', () => {
       const adapter = new MultipleToolsAdapter()
 
       const chunks = await collectChunks(
-        textActivity({
+        chat({
           adapter,
           model: 'test-model',
           messages: [{ role: 'user', content: 'Use both tools' }],
@@ -685,8 +685,8 @@ describe('textActivity() - Comprehensive Logic Path Coverage', () => {
             this.iteration++
             yield {
               type: 'content',
-              id: 'test-id-1',
               model: 'test-model',
+              id: 'test-id-2',
               timestamp: Date.now(),
               delta: 'Let me',
               content: 'Let me',
@@ -694,8 +694,8 @@ describe('textActivity() - Comprehensive Logic Path Coverage', () => {
             }
             yield {
               type: 'tool_call',
-              id: 'test-id-1',
               model: 'test-model',
+              id: 'test-id-2',
               timestamp: Date.now(),
               toolCall: {
                 id: 'call-1',
@@ -706,8 +706,8 @@ describe('textActivity() - Comprehensive Logic Path Coverage', () => {
             }
             yield {
               type: 'done',
-              id: 'test-id-1',
               model: 'test-model',
+              id: 'test-id-2',
               timestamp: Date.now(),
               finishReason: 'tool_calls',
             }
@@ -722,8 +722,8 @@ describe('textActivity() - Comprehensive Logic Path Coverage', () => {
 
             yield {
               type: 'content',
-              id: 'test-id-2',
               model: 'test-model',
+              id: 'test-id-2',
               timestamp: Date.now(),
               delta: 'Done',
               content: 'Done',
@@ -731,8 +731,8 @@ describe('textActivity() - Comprehensive Logic Path Coverage', () => {
             }
             yield {
               type: 'done',
-              id: 'test-id-2',
               model: 'test-model',
+              id: 'test-id-2',
               timestamp: Date.now(),
               finishReason: 'stop',
             }
@@ -743,7 +743,7 @@ describe('textActivity() - Comprehensive Logic Path Coverage', () => {
       const adapter = new ContentWithToolsAdapter()
 
       await collectChunks(
-        textActivity({
+        chat({
           adapter,
           model: 'test-model',
           messages: [{ role: 'user', content: 'Test' }],
@@ -772,8 +772,8 @@ describe('textActivity() - Comprehensive Logic Path Coverage', () => {
             // Only tool call, no content
             yield {
               type: 'tool_call',
-              id: 'test-id-1',
               model: 'test-model',
+              id: 'test-id-2',
               timestamp: Date.now(),
               toolCall: {
                 id: 'call-1',
@@ -784,8 +784,8 @@ describe('textActivity() - Comprehensive Logic Path Coverage', () => {
             }
             yield {
               type: 'done',
-              id: 'test-id-1',
               model: 'test-model',
+              id: 'test-id-2',
               timestamp: Date.now(),
               finishReason: 'tool_calls',
             }
@@ -799,8 +799,8 @@ describe('textActivity() - Comprehensive Logic Path Coverage', () => {
 
             yield {
               type: 'content',
-              id: 'test-id-2',
               model: 'test-model',
+              id: 'test-id-2',
               timestamp: Date.now(),
               delta: 'Done',
               content: 'Done',
@@ -808,8 +808,8 @@ describe('textActivity() - Comprehensive Logic Path Coverage', () => {
             }
             yield {
               type: 'done',
-              id: 'test-id-2',
               model: 'test-model',
+              id: 'test-id-2',
               timestamp: Date.now(),
               finishReason: 'stop',
             }
@@ -820,7 +820,7 @@ describe('textActivity() - Comprehensive Logic Path Coverage', () => {
       const adapter = new NoContentToolsAdapter()
 
       await collectChunks(
-        textActivity({
+        chat({
           adapter,
           model: 'test-model',
           messages: [{ role: 'user', content: 'Test' }],
@@ -847,8 +847,8 @@ describe('textActivity() - Comprehensive Logic Path Coverage', () => {
           // Incomplete tool call (empty name)
           yield {
             type: 'tool_call',
-            id: 'test-id-1',
-            model: 'test-model',
+              model: 'test-model',
+              id: 'test-id-2',
             timestamp: Date.now(),
             toolCall: {
               id: 'call-1',
@@ -862,8 +862,8 @@ describe('textActivity() - Comprehensive Logic Path Coverage', () => {
           }
           yield {
             type: 'done',
-            id: 'test-id-1',
-            model: 'test-model',
+              model: 'test-model',
+              id: 'test-id-2',
             timestamp: Date.now(),
             finishReason: 'tool_calls',
           }
@@ -873,7 +873,7 @@ describe('textActivity() - Comprehensive Logic Path Coverage', () => {
       const adapter = new IncompleteToolAdapter()
 
       await collectChunks(
-        textActivity({
+        chat({
           adapter,
           model: 'test-model',
           messages: [{ role: 'user', content: 'Test' }],
@@ -906,8 +906,8 @@ describe('textActivity() - Comprehensive Logic Path Coverage', () => {
             this.iteration++
             yield {
               type: 'tool_call',
-              id: 'test-id-1',
               model: 'test-model',
+              id: 'test-id-1',
               timestamp: Date.now(),
               toolCall: {
                 id: 'call-1',
@@ -918,16 +918,16 @@ describe('textActivity() - Comprehensive Logic Path Coverage', () => {
             }
             yield {
               type: 'done',
-              id: 'test-id-1',
               model: 'test-model',
+              id: 'test-id-1',
               timestamp: Date.now(),
               finishReason: 'tool_calls',
             }
           } else {
             yield {
               type: 'content',
-              id: 'test-id-2',
               model: 'test-model',
+              id: 'test-id-2',
               timestamp: Date.now(),
               delta: 'Done',
               content: 'Done',
@@ -935,8 +935,8 @@ describe('textActivity() - Comprehensive Logic Path Coverage', () => {
             }
             yield {
               type: 'done',
-              id: 'test-id-2',
               model: 'test-model',
+              id: 'test-id-2',
               timestamp: Date.now(),
               finishReason: 'stop',
             }
@@ -947,7 +947,7 @@ describe('textActivity() - Comprehensive Logic Path Coverage', () => {
       const adapter = new ToolResultAdapter()
 
       const chunks = await collectChunks(
-        textActivity({
+        chat({
           adapter,
           model: 'test-model',
           messages: [{ role: 'user', content: 'Test' }],
@@ -986,8 +986,8 @@ describe('textActivity() - Comprehensive Logic Path Coverage', () => {
             this.iteration++
             yield {
               type: 'tool_call',
-              id: 'test-id-1',
               model: 'test-model',
+              id: 'test-id-2',
               timestamp: Date.now(),
               toolCall: {
                 id: 'call-1',
@@ -998,8 +998,8 @@ describe('textActivity() - Comprehensive Logic Path Coverage', () => {
             }
             yield {
               type: 'done',
-              id: 'test-id-1',
               model: 'test-model',
+              id: 'test-id-2',
               timestamp: Date.now(),
               finishReason: 'tool_calls',
             }
@@ -1012,8 +1012,8 @@ describe('textActivity() - Comprehensive Logic Path Coverage', () => {
 
             yield {
               type: 'content',
-              id: 'test-id-2',
               model: 'test-model',
+              id: 'test-id-2',
               timestamp: Date.now(),
               delta: 'Done',
               content: 'Done',
@@ -1021,8 +1021,8 @@ describe('textActivity() - Comprehensive Logic Path Coverage', () => {
             }
             yield {
               type: 'done',
-              id: 'test-id-2',
               model: 'test-model',
+              id: 'test-id-2',
               timestamp: Date.now(),
               finishReason: 'stop',
             }
@@ -1033,7 +1033,7 @@ describe('textActivity() - Comprehensive Logic Path Coverage', () => {
       const adapter = new MessageHistoryAdapter()
 
       await collectChunks(
-        textActivity({
+        chat({
           adapter,
           model: 'test-model',
           messages: [{ role: 'user', content: 'Test' }],
@@ -1060,8 +1060,8 @@ describe('textActivity() - Comprehensive Logic Path Coverage', () => {
             this.iteration++
             yield {
               type: 'tool_call',
-              id: 'test-id-1',
               model: 'test-model',
+              id: 'test-id-1',
               timestamp: Date.now(),
               toolCall: {
                 id: 'call-1',
@@ -1072,16 +1072,16 @@ describe('textActivity() - Comprehensive Logic Path Coverage', () => {
             }
             yield {
               type: 'done',
-              id: 'test-id-1',
               model: 'test-model',
+              id: 'test-id-1',
               timestamp: Date.now(),
               finishReason: 'tool_calls',
             }
           } else {
             yield {
               type: 'content',
-              id: 'test-id-2',
               model: 'test-model',
+              id: 'test-id-2',
               timestamp: Date.now(),
               delta: 'Error occurred',
               content: 'Error occurred',
@@ -1089,8 +1089,8 @@ describe('textActivity() - Comprehensive Logic Path Coverage', () => {
             }
             yield {
               type: 'done',
-              id: 'test-id-2',
               model: 'test-model',
+              id: 'test-id-2',
               timestamp: Date.now(),
               finishReason: 'stop',
             }
@@ -1101,7 +1101,7 @@ describe('textActivity() - Comprehensive Logic Path Coverage', () => {
       const adapter = new ErrorToolAdapter()
 
       const chunks = await collectChunks(
-        textActivity({
+        chat({
           adapter,
           model: 'test-model',
           messages: [{ role: 'user', content: 'Call error tool' }],
@@ -1123,8 +1123,8 @@ describe('textActivity() - Comprehensive Logic Path Coverage', () => {
           this.trackStreamCall(options)
           yield {
             type: 'tool_call',
-            id: 'test-id-1',
             model: 'test-model',
+            id: 'test-id-1',
             timestamp: Date.now(),
             toolCall: {
               id: 'call-1',
@@ -1135,8 +1135,8 @@ describe('textActivity() - Comprehensive Logic Path Coverage', () => {
           }
           yield {
             type: 'done',
-            id: 'test-id-1',
             model: 'test-model',
+            id: 'test-id-1',
             timestamp: Date.now(),
             finishReason: 'tool_calls',
           }
@@ -1146,7 +1146,7 @@ describe('textActivity() - Comprehensive Logic Path Coverage', () => {
       const adapter = new UnknownToolAdapter()
 
       const chunks = await collectChunks(
-        textActivity({
+        chat({
           adapter,
           model: 'test-model',
           messages: [{ role: 'user', content: 'Test' }],
@@ -1189,8 +1189,8 @@ describe('textActivity() - Comprehensive Logic Path Coverage', () => {
           this.trackStreamCall(options)
           yield {
             type: 'tool_call',
-            id: 'test-id-1',
             model: 'test-model',
+            id: 'test-id-1',
             timestamp: Date.now(),
             toolCall: {
               id: 'call-1',
@@ -1204,8 +1204,8 @@ describe('textActivity() - Comprehensive Logic Path Coverage', () => {
           }
           yield {
             type: 'done',
-            id: 'test-id-1',
             model: 'test-model',
+            id: 'test-id-1',
             timestamp: Date.now(),
             finishReason: 'tool_calls',
           }
@@ -1215,7 +1215,7 @@ describe('textActivity() - Comprehensive Logic Path Coverage', () => {
       const adapter = new ApprovalAdapter()
 
       const chunks = await collectChunks(
-        textActivity({
+        chat({
           adapter,
           model: 'test-model',
           messages: [{ role: 'user', content: 'Delete file' }],
@@ -1256,10 +1256,10 @@ describe('textActivity() - Comprehensive Logic Path Coverage', () => {
       class ClientToolAdapter extends MockAdapter {
         async *chatStream(options: TextOptions): AsyncIterable<StreamChunk> {
           this.trackStreamCall(options)
-          yield {
+            yield {
             type: 'tool_call',
-            id: 'test-id-1',
             model: 'test-model',
+            id: 'test-id-1',
             timestamp: Date.now(),
             toolCall: {
               id: 'call-1',
@@ -1270,8 +1270,8 @@ describe('textActivity() - Comprehensive Logic Path Coverage', () => {
           }
           yield {
             type: 'done',
-            id: 'test-id-1',
             model: 'test-model',
+            id: 'test-id-1',
             timestamp: Date.now(),
             finishReason: 'tool_calls',
           }
@@ -1281,7 +1281,7 @@ describe('textActivity() - Comprehensive Logic Path Coverage', () => {
       const adapter = new ClientToolAdapter()
 
       const chunks = await collectChunks(
-        textActivity({
+        chat({
           adapter,
           model: 'test-model',
           messages: [{ role: 'user', content: 'Use client tool' }],
@@ -1332,8 +1332,8 @@ describe('textActivity() - Comprehensive Logic Path Coverage', () => {
           this.trackStreamCall(options)
           yield {
             type: 'tool_call',
-            id: 'test-id-1',
             model: 'test-model',
+            id: 'test-id-1',
             timestamp: Date.now(),
             toolCall: {
               id: 'call-1',
@@ -1344,8 +1344,8 @@ describe('textActivity() - Comprehensive Logic Path Coverage', () => {
           }
           yield {
             type: 'tool_call',
-            id: 'test-id-1',
             model: 'test-model',
+            id: 'test-id-1',
             timestamp: Date.now(),
             toolCall: {
               id: 'call-2',
@@ -1356,8 +1356,8 @@ describe('textActivity() - Comprehensive Logic Path Coverage', () => {
           }
           yield {
             type: 'tool_call',
-            id: 'test-id-1',
             model: 'test-model',
+            id: 'test-id-1',
             timestamp: Date.now(),
             toolCall: {
               id: 'call-3',
@@ -1368,8 +1368,8 @@ describe('textActivity() - Comprehensive Logic Path Coverage', () => {
           }
           yield {
             type: 'done',
-            id: 'test-id-1',
             model: 'test-model',
+            id: 'test-id-1',
             timestamp: Date.now(),
             finishReason: 'tool_calls',
           }
@@ -1379,7 +1379,7 @@ describe('textActivity() - Comprehensive Logic Path Coverage', () => {
       const adapter = new MixedToolsAdapter()
 
       const chunks = await collectChunks(
-        textActivity({
+        chat({
           adapter,
           model: 'test-model',
           messages: [{ role: 'user', content: 'Use all tools' }],
@@ -1434,8 +1434,9 @@ describe('textActivity() - Comprehensive Logic Path Coverage', () => {
 
           yield {
             type: 'content',
+              model: 'test-model',
             id: 'done-id',
-            model: 'test-model',
+              model: 'test-model',
             timestamp: Date.now(),
             delta: 'Finished',
             content: 'Finished',
@@ -1443,8 +1444,9 @@ describe('textActivity() - Comprehensive Logic Path Coverage', () => {
           }
           yield {
             type: 'done',
+              model: 'test-model',
             id: 'done-id',
-            model: 'test-model',
+              model: 'test-model',
             timestamp: Date.now(),
             finishReason: 'stop',
           }
@@ -1485,9 +1487,9 @@ describe('textActivity() - Comprehensive Logic Path Coverage', () => {
         } as any,
       ]
 
-      const stream = textActivity({
+      const stream = chat({
         adapter,
-        model: 'test-model',
+          model: 'test-model',
         messages,
         tools: [approvalTool],
       })
@@ -1516,8 +1518,8 @@ describe('textActivity() - Comprehensive Logic Path Coverage', () => {
             this.iteration++
             yield {
               type: 'tool_call',
-              id: `test-id-${this.iteration}`,
               model: 'test-model',
+              id: `test-id-${this.iteration}`,
               timestamp: Date.now(),
               toolCall: {
                 id: `call-${this.iteration}`,
@@ -1528,16 +1530,16 @@ describe('textActivity() - Comprehensive Logic Path Coverage', () => {
             }
             yield {
               type: 'done',
-              id: `test-id-${this.iteration}`,
               model: 'test-model',
+              id: `test-id-${this.iteration}`,
               timestamp: Date.now(),
               finishReason: 'tool_calls',
             }
           } else {
             yield {
               type: 'content',
-              id: `test-id-${this.iteration}`,
               model: 'test-model',
+              id: `test-id-${this.iteration}`,
               timestamp: Date.now(),
               delta: 'Done',
               content: 'Done',
@@ -1545,8 +1547,8 @@ describe('textActivity() - Comprehensive Logic Path Coverage', () => {
             }
             yield {
               type: 'done',
-              id: `test-id-${this.iteration}`,
               model: 'test-model',
+              id: `test-id-${this.iteration}`,
               timestamp: Date.now(),
               finishReason: 'stop',
             }
@@ -1557,7 +1559,7 @@ describe('textActivity() - Comprehensive Logic Path Coverage', () => {
       const adapter = new LoopAdapter()
 
       await collectChunks(
-        textActivity({
+        chat({
           adapter,
           model: 'test-model',
           messages: [{ role: 'user', content: 'Loop' }],
@@ -1584,8 +1586,8 @@ describe('textActivity() - Comprehensive Logic Path Coverage', () => {
           this.trackStreamCall(options)
           yield {
             type: 'tool_call',
+              model: 'test-model',
             id: `test-id-${this.iteration}`,
-            model: 'test-model',
             timestamp: Date.now(),
             toolCall: {
               id: `call-${this.iteration}`,
@@ -1596,8 +1598,8 @@ describe('textActivity() - Comprehensive Logic Path Coverage', () => {
           }
           yield {
             type: 'done',
+              model: 'test-model',
             id: `test-id-${this.iteration}`,
-            model: 'test-model',
             timestamp: Date.now(),
             finishReason: 'tool_calls',
           }
@@ -1609,9 +1611,9 @@ describe('textActivity() - Comprehensive Logic Path Coverage', () => {
 
       // Consume stream - should stop after 5 iterations (default)
       const chunks: Array<StreamChunk> = []
-      for await (const chunk of textActivity({
+      for await (const chunk of chat({
         adapter,
-        model: 'test-model',
+          model: 'test-model',
         messages: [{ role: 'user', content: 'Loop' }],
         tools: [tool],
         // No custom strategy - should use default maxIterations(5)
@@ -1638,8 +1640,9 @@ describe('textActivity() - Comprehensive Logic Path Coverage', () => {
           this.trackStreamCall(options)
           yield {
             type: 'content',
+              model: 'test-model',
             id: 'test-id',
-            model: 'test-model',
+              model: 'test-model',
             timestamp: Date.now(),
             delta: 'Hello',
             content: 'Hello',
@@ -1647,8 +1650,9 @@ describe('textActivity() - Comprehensive Logic Path Coverage', () => {
           }
           yield {
             type: 'done',
+              model: 'test-model',
             id: 'test-id',
-            model: 'test-model',
+              model: 'test-model',
             timestamp: Date.now(),
             finishReason: 'stop', // Not tool_calls
           }
@@ -1658,7 +1662,7 @@ describe('textActivity() - Comprehensive Logic Path Coverage', () => {
       const adapter = new StopAdapter()
 
       await collectChunks(
-        textActivity({
+        chat({
           adapter,
           model: 'test-model',
           messages: [{ role: 'user', content: 'Hello' }],
@@ -1676,8 +1680,9 @@ describe('textActivity() - Comprehensive Logic Path Coverage', () => {
           this.trackStreamCall(options)
           yield {
             type: 'tool_call',
+              model: 'test-model',
             id: 'test-id',
-            model: 'test-model',
+              model: 'test-model',
             timestamp: Date.now(),
             toolCall: {
               id: 'call-1',
@@ -1688,8 +1693,9 @@ describe('textActivity() - Comprehensive Logic Path Coverage', () => {
           }
           yield {
             type: 'done',
+              model: 'test-model',
             id: 'test-id',
-            model: 'test-model',
+              model: 'test-model',
             timestamp: Date.now(),
             finishReason: 'tool_calls',
           }
@@ -1699,7 +1705,7 @@ describe('textActivity() - Comprehensive Logic Path Coverage', () => {
       const adapter = new NoToolsAdapter()
 
       await collectChunks(
-        textActivity({
+        chat({
           adapter,
           model: 'test-model',
           messages: [{ role: 'user', content: 'Test' }],
@@ -1725,8 +1731,9 @@ describe('textActivity() - Comprehensive Logic Path Coverage', () => {
           // Tool call with empty name (invalid)
           yield {
             type: 'tool_call',
+              model: 'test-model',
             id: 'test-id',
-            model: 'test-model',
+              model: 'test-model',
             timestamp: Date.now(),
             toolCall: {
               id: 'call-1',
@@ -1737,8 +1744,9 @@ describe('textActivity() - Comprehensive Logic Path Coverage', () => {
           }
           yield {
             type: 'done',
+              model: 'test-model',
             id: 'test-id',
-            model: 'test-model',
+              model: 'test-model',
             timestamp: Date.now(),
             finishReason: 'tool_calls',
           }
@@ -1748,7 +1756,7 @@ describe('textActivity() - Comprehensive Logic Path Coverage', () => {
       const adapter = new NoToolCallsAdapter()
 
       await collectChunks(
-        textActivity({
+        chat({
           adapter,
           model: 'test-model',
           messages: [{ role: 'user', content: 'Test' }],
@@ -1770,7 +1778,7 @@ describe('textActivity() - Comprehensive Logic Path Coverage', () => {
       abortController.abort() // Abort before starting
 
       const chunks = await collectChunks(
-        textActivity({
+        chat({
           adapter,
           model: 'test-model',
           messages: [{ role: 'user', content: 'Hello' }],
@@ -1789,8 +1797,9 @@ describe('textActivity() - Comprehensive Logic Path Coverage', () => {
           this.trackStreamCall(options)
           yield {
             type: 'content',
+              model: 'test-model',
             id: 'test-id',
-            model: 'test-model',
+              model: 'test-model',
             timestamp: Date.now(),
             delta: 'Chunk 1',
             content: 'Chunk 1',
@@ -1799,8 +1808,9 @@ describe('textActivity() - Comprehensive Logic Path Coverage', () => {
           // Abort check happens in chat method between chunks
           yield {
             type: 'content',
+              model: 'test-model',
             id: 'test-id',
-            model: 'test-model',
+              model: 'test-model',
             timestamp: Date.now(),
             delta: 'Chunk 2',
             content: 'Chunk 2',
@@ -1808,8 +1818,9 @@ describe('textActivity() - Comprehensive Logic Path Coverage', () => {
           }
           yield {
             type: 'done',
+              model: 'test-model',
             id: 'test-id',
-            model: 'test-model',
+              model: 'test-model',
             timestamp: Date.now(),
             finishReason: 'stop',
           }
@@ -1819,9 +1830,9 @@ describe('textActivity() - Comprehensive Logic Path Coverage', () => {
       const adapter = new StreamingAdapter()
 
       const abortController = new AbortController()
-      const stream = textActivity({
+      const stream = chat({
         adapter,
-        model: 'test-model',
+          model: 'test-model',
         messages: [{ role: 'user', content: 'Hello' }],
         abortController,
       })
@@ -1854,8 +1865,9 @@ describe('textActivity() - Comprehensive Logic Path Coverage', () => {
           this.trackStreamCall(options)
           yield {
             type: 'tool_call',
+              model: 'test-model',
             id: 'test-id',
-            model: 'test-model',
+              model: 'test-model',
             timestamp: Date.now(),
             toolCall: {
               id: 'call-1',
@@ -1866,8 +1878,9 @@ describe('textActivity() - Comprehensive Logic Path Coverage', () => {
           }
           yield {
             type: 'done',
+              model: 'test-model',
             id: 'test-id',
-            model: 'test-model',
+              model: 'test-model',
             timestamp: Date.now(),
             finishReason: 'tool_calls',
           }
@@ -1877,9 +1890,9 @@ describe('textActivity() - Comprehensive Logic Path Coverage', () => {
       const adapter = new ToolCallAdapter()
 
       const abortController = new AbortController()
-      const stream = textActivity({
+      const stream = chat({
         adapter,
-        model: 'test-model',
+          model: 'test-model',
         messages: [{ role: 'user', content: 'Test' }],
         tools: [tool],
         abortController,
@@ -1905,8 +1918,9 @@ describe('textActivity() - Comprehensive Logic Path Coverage', () => {
           this.trackStreamCall(options)
           yield {
             type: 'content',
+              model: 'test-model',
             id: 'test-id',
-            model: 'test-model',
+              model: 'test-model',
             timestamp: Date.now(),
             delta: 'Hello',
             content: 'Hello',
@@ -1915,7 +1929,6 @@ describe('textActivity() - Comprehensive Logic Path Coverage', () => {
           yield {
             type: 'error',
             id: 'test-id',
-            model: 'test-model',
             timestamp: Date.now(),
             error: {
               message: 'API error occurred',
@@ -1925,8 +1938,9 @@ describe('textActivity() - Comprehensive Logic Path Coverage', () => {
           // These should never be yielded
           yield {
             type: 'done',
+              model: 'test-model',
             id: 'test-id',
-            model: 'test-model',
+              model: 'test-model',
             timestamp: Date.now(),
             finishReason: 'stop',
           } as any
@@ -1936,7 +1950,7 @@ describe('textActivity() - Comprehensive Logic Path Coverage', () => {
       const adapter = new ErrorAdapter()
 
       const chunks = await collectChunks(
-        textActivity({
+        chat({
           adapter,
           model: 'test-model',
           messages: [{ role: 'user', content: 'Hello' }],
@@ -1969,8 +1983,9 @@ describe('textActivity() - Comprehensive Logic Path Coverage', () => {
           this.trackStreamCall(options)
           yield {
             type: 'content',
+              model: 'test-model',
             id: 'test-id',
-            model: 'test-model',
+              model: 'test-model',
             timestamp: Date.now(),
             delta: 'Done',
             content: 'Done',
@@ -1978,8 +1993,9 @@ describe('textActivity() - Comprehensive Logic Path Coverage', () => {
           }
           yield {
             type: 'done',
+              model: 'test-model',
             id: 'test-id',
-            model: 'test-model',
+              model: 'test-model',
             timestamp: Date.now(),
             finishReason: 'stop',
           }
@@ -1989,7 +2005,7 @@ describe('textActivity() - Comprehensive Logic Path Coverage', () => {
       const adapter = new StopFinishAdapter()
 
       const chunks = await collectChunks(
-        textActivity({
+        chat({
           adapter,
           model: 'test-model',
           messages: [{ role: 'user', content: 'Test' }],
@@ -2006,8 +2022,9 @@ describe('textActivity() - Comprehensive Logic Path Coverage', () => {
           this.trackStreamCall(options)
           yield {
             type: 'content',
+              model: 'test-model',
             id: 'test-id',
-            model: 'test-model',
+              model: 'test-model',
             timestamp: Date.now(),
             delta: 'Very long',
             content: 'Very long',
@@ -2015,8 +2032,9 @@ describe('textActivity() - Comprehensive Logic Path Coverage', () => {
           }
           yield {
             type: 'done',
+              model: 'test-model',
             id: 'test-id',
-            model: 'test-model',
+              model: 'test-model',
             timestamp: Date.now(),
             finishReason: 'length',
           }
@@ -2026,7 +2044,7 @@ describe('textActivity() - Comprehensive Logic Path Coverage', () => {
       const adapter = new LengthAdapter()
 
       const chunks = await collectChunks(
-        textActivity({
+        chat({
           adapter,
           model: 'test-model',
           messages: [{ role: 'user', content: 'Test' }],
@@ -2043,8 +2061,9 @@ describe('textActivity() - Comprehensive Logic Path Coverage', () => {
           this.trackStreamCall(options)
           yield {
             type: 'content',
+              model: 'test-model',
             id: 'test-id',
-            model: 'test-model',
+              model: 'test-model',
             timestamp: Date.now(),
             delta: 'Test',
             content: 'Test',
@@ -2052,8 +2071,9 @@ describe('textActivity() - Comprehensive Logic Path Coverage', () => {
           }
           yield {
             type: 'done',
+              model: 'test-model',
             id: 'test-id',
-            model: 'test-model',
+              model: 'test-model',
             timestamp: Date.now(),
             finishReason: null,
           }
@@ -2063,7 +2083,7 @@ describe('textActivity() - Comprehensive Logic Path Coverage', () => {
       const adapter = new NullFinishAdapter()
 
       const chunks = await collectChunks(
-        textActivity({
+        chat({
           adapter,
           model: 'test-model',
           messages: [{ role: 'user', content: 'Test' }],
@@ -2081,7 +2101,7 @@ describe('textActivity() - Comprehensive Logic Path Coverage', () => {
       const adapter = new MockAdapter()
 
       await collectChunks(
-        textActivity({
+        chat({
           adapter,
           model: 'test-model',
           messages: [{ role: 'user', content: 'Hello' }],
@@ -2123,8 +2143,8 @@ describe('textActivity() - Comprehensive Logic Path Coverage', () => {
             this.iteration++
             yield {
               type: 'tool_call',
-              id: 'test-id-1',
               model: 'test-model',
+              id: 'test-id-1',
               timestamp: Date.now(),
               toolCall: {
                 id: 'call-1',
@@ -2135,16 +2155,16 @@ describe('textActivity() - Comprehensive Logic Path Coverage', () => {
             }
             yield {
               type: 'done',
-              id: 'test-id-1',
               model: 'test-model',
+              id: 'test-id-1',
               timestamp: Date.now(),
               finishReason: 'tool_calls',
             }
           } else {
             yield {
               type: 'content',
-              id: 'test-id-2',
               model: 'test-model',
+              id: 'test-id-2',
               timestamp: Date.now(),
               delta: 'Done',
               content: 'Done',
@@ -2152,8 +2172,8 @@ describe('textActivity() - Comprehensive Logic Path Coverage', () => {
             }
             yield {
               type: 'done',
-              id: 'test-id-2',
               model: 'test-model',
+              id: 'test-id-2',
               timestamp: Date.now(),
               finishReason: 'stop',
             }
@@ -2164,7 +2184,7 @@ describe('textActivity() - Comprehensive Logic Path Coverage', () => {
       const adapter = new ToolAdapter()
 
       await collectChunks(
-        textActivity({
+        chat({
           adapter,
           model: 'test-model',
           messages: [{ role: 'user', content: 'Test' }],
@@ -2184,7 +2204,7 @@ describe('textActivity() - Comprehensive Logic Path Coverage', () => {
       const adapter = new MockAdapter()
 
       await collectChunks(
-        textActivity({
+        chat({
           adapter,
           model: 'test-model',
           messages: [{ role: 'user', content: 'Hello' }],
@@ -2213,6 +2233,7 @@ describe('textActivity() - Comprehensive Logic Path Coverage', () => {
             this.iteration++
             yield {
               type: 'content',
+              model: 'test-model',
               id: 'test-id-1',
               model: 'test-model',
               timestamp: Date.now(),
@@ -2222,8 +2243,8 @@ describe('textActivity() - Comprehensive Logic Path Coverage', () => {
             }
             yield {
               type: 'tool_call',
-              id: 'test-id-1',
               model: 'test-model',
+              id: 'test-id-1',
               timestamp: Date.now(),
               toolCall: {
                 id: 'call-1',
@@ -2234,16 +2255,16 @@ describe('textActivity() - Comprehensive Logic Path Coverage', () => {
             }
             yield {
               type: 'done',
-              id: 'test-id-1',
               model: 'test-model',
+              id: 'test-id-1',
               timestamp: Date.now(),
               finishReason: 'tool_calls',
             }
           } else {
             yield {
               type: 'content',
-              id: 'test-id-2',
               model: 'test-model',
+              id: 'test-id-2',
               timestamp: Date.now(),
               delta: 'Done',
               content: 'Done',
@@ -2251,8 +2272,8 @@ describe('textActivity() - Comprehensive Logic Path Coverage', () => {
             }
             yield {
               type: 'done',
-              id: 'test-id-2',
               model: 'test-model',
+              id: 'test-id-2',
               timestamp: Date.now(),
               finishReason: 'stop',
             }
@@ -2263,7 +2284,7 @@ describe('textActivity() - Comprehensive Logic Path Coverage', () => {
       const adapter = new MultiIterationAdapter()
 
       await collectChunks(
-        textActivity({
+        chat({
           adapter,
           model: 'test-model',
           messages: [{ role: 'user', content: 'Test' }],
@@ -2283,7 +2304,7 @@ describe('textActivity() - Comprehensive Logic Path Coverage', () => {
       const adapter = new MockAdapter()
 
       const chunks = await collectChunks(
-        textActivity({
+        chat({
           adapter,
           model: 'test-model',
           messages: [],
@@ -2298,7 +2319,7 @@ describe('textActivity() - Comprehensive Logic Path Coverage', () => {
       const adapter = new MockAdapter()
 
       const chunks = await collectChunks(
-        textActivity({
+        chat({
           adapter,
           model: 'test-model',
           messages: [{ role: 'user', content: 'Hello' }],
@@ -2322,8 +2343,9 @@ describe('textActivity() - Comprehensive Logic Path Coverage', () => {
           this.trackStreamCall(options)
           yield {
             type: 'tool_call',
+              model: 'test-model',
             id: 'test-id',
-            model: 'test-model',
+              model: 'test-model',
             timestamp: Date.now(),
             toolCall: {
               id: '', // Empty ID
@@ -2334,8 +2356,9 @@ describe('textActivity() - Comprehensive Logic Path Coverage', () => {
           }
           yield {
             type: 'done',
+              model: 'test-model',
             id: 'test-id',
-            model: 'test-model',
+              model: 'test-model',
             timestamp: Date.now(),
             finishReason: 'tool_calls',
           }
@@ -2345,7 +2368,7 @@ describe('textActivity() - Comprehensive Logic Path Coverage', () => {
       const adapter = new MissingIdAdapter()
 
       await collectChunks(
-        textActivity({
+        chat({
           adapter,
           model: 'test-model',
           messages: [{ role: 'user', content: 'Test' }],
@@ -2370,8 +2393,9 @@ describe('textActivity() - Comprehensive Logic Path Coverage', () => {
           this.trackStreamCall(options)
           yield {
             type: 'tool_call',
+              model: 'test-model',
             id: 'test-id',
-            model: 'test-model',
+              model: 'test-model',
             timestamp: Date.now(),
             toolCall: {
               id: 'call-1',
@@ -2382,8 +2406,9 @@ describe('textActivity() - Comprehensive Logic Path Coverage', () => {
           }
           yield {
             type: 'done',
+              model: 'test-model',
             id: 'test-id',
-            model: 'test-model',
+              model: 'test-model',
             timestamp: Date.now(),
             finishReason: 'tool_calls',
           }
@@ -2396,9 +2421,9 @@ describe('textActivity() - Comprehensive Logic Path Coverage', () => {
       // This will cause an unhandled error, but we can test that it throws
       await expect(
         collectChunks(
-          textActivity({
+          chat({
             adapter,
-            model: 'test-model',
+          model: 'test-model',
             messages: [{ role: 'user', content: 'Test' }],
             tools: [tool],
           }),
@@ -2414,8 +2439,9 @@ describe('textActivity() - Comprehensive Logic Path Coverage', () => {
           this.trackStreamCall(options)
           yield {
             type: 'content',
+              model: 'test-model',
             id: 'test-id',
-            model: 'test-model',
+              model: 'test-model',
             timestamp: Date.now(),
             delta: 'Using tool',
             content: 'Using tool',
@@ -2425,15 +2451,15 @@ describe('textActivity() - Comprehensive Logic Path Coverage', () => {
           yield {
             type: 'tool_result',
             id: 'test-id',
-            model: 'test-model',
             timestamp: Date.now(),
             toolCallId: 'call-previous',
             content: JSON.stringify({ result: 'previous result' }),
           }
           yield {
             type: 'done',
+              model: 'test-model',
             id: 'test-id',
-            model: 'test-model',
+              model: 'test-model',
             timestamp: Date.now(),
             finishReason: 'stop',
           }
@@ -2443,7 +2469,7 @@ describe('textActivity() - Comprehensive Logic Path Coverage', () => {
       const adapter = new ToolResultChunkAdapter()
 
       await collectChunks(
-        textActivity({
+        chat({
           adapter,
           model: 'test-model',
           messages: [{ role: 'user', content: 'Continue' }],
@@ -2500,8 +2526,8 @@ describe('textActivity() - Comprehensive Logic Path Coverage', () => {
             // The approval will be extracted from parts and tool will be executed
             yield {
               type: 'tool_call',
-              id: 'test-id-2',
               model: 'test-model',
+              id: 'test-id-2',
               timestamp: Date.now(),
               toolCall: {
                 id: 'call-1',
@@ -2515,8 +2541,8 @@ describe('textActivity() - Comprehensive Logic Path Coverage', () => {
             }
             yield {
               type: 'done',
-              id: 'test-id-2',
               model: 'test-model',
+              id: 'test-id-2',
               timestamp: Date.now(),
               finishReason: 'tool_calls',
             }
@@ -2524,8 +2550,8 @@ describe('textActivity() - Comprehensive Logic Path Coverage', () => {
             // First iteration: request approval
             yield {
               type: 'tool_call',
-              id: 'test-id-1',
               model: 'test-model',
+              id: 'test-id-1',
               timestamp: Date.now(),
               toolCall: {
                 id: 'call-1',
@@ -2539,8 +2565,8 @@ describe('textActivity() - Comprehensive Logic Path Coverage', () => {
             }
             yield {
               type: 'done',
-              id: 'test-id-1',
               model: 'test-model',
+              id: 'test-id-1',
               timestamp: Date.now(),
               finishReason: 'tool_calls',
             }
@@ -2551,9 +2577,9 @@ describe('textActivity() - Comprehensive Logic Path Coverage', () => {
       const adapter = new ApprovalResponseAdapter()
 
       // First call - should request approval
-      const stream1 = textActivity({
+      const stream1 = chat({
         adapter,
-        model: 'test-model',
+          model: 'test-model',
         messages: [{ role: 'user', content: 'Delete file' }],
         tools: [tool],
       })
@@ -2596,9 +2622,9 @@ describe('textActivity() - Comprehensive Logic Path Coverage', () => {
         } as any,
       ]
 
-      const stream2 = textActivity({
+      const stream2 = chat({
         adapter,
-        model: 'test-model',
+          model: 'test-model',
         messages: messagesWithApproval,
         tools: [tool],
       })
@@ -2629,8 +2655,8 @@ describe('textActivity() - Comprehensive Logic Path Coverage', () => {
             // First iteration: request client execution
             yield {
               type: 'tool_call',
-              id: 'test-id-1',
               model: 'test-model',
+              id: 'test-id-1',
               timestamp: Date.now(),
               toolCall: {
                 id: 'call-1',
@@ -2644,8 +2670,8 @@ describe('textActivity() - Comprehensive Logic Path Coverage', () => {
             }
             yield {
               type: 'done',
-              id: 'test-id-1',
               model: 'test-model',
+              id: 'test-id-1',
               timestamp: Date.now(),
               finishReason: 'tool_calls',
             }
@@ -2653,8 +2679,8 @@ describe('textActivity() - Comprehensive Logic Path Coverage', () => {
             // Second iteration: should have client tool output in parts
             yield {
               type: 'content',
-              id: 'test-id-2',
               model: 'test-model',
+              id: 'test-id-2',
               timestamp: Date.now(),
               delta: 'Received result',
               content: 'Received result',
@@ -2662,8 +2688,8 @@ describe('textActivity() - Comprehensive Logic Path Coverage', () => {
             }
             yield {
               type: 'done',
-              id: 'test-id-2',
               model: 'test-model',
+              id: 'test-id-2',
               timestamp: Date.now(),
               finishReason: 'stop',
             }
@@ -2674,9 +2700,9 @@ describe('textActivity() - Comprehensive Logic Path Coverage', () => {
       const adapter = new ClientOutputAdapter()
 
       // First call - should request client execution
-      const stream1 = textActivity({
+      const stream1 = chat({
         adapter,
-        model: 'test-model',
+          model: 'test-model',
         messages: [{ role: 'user', content: 'Use client tool' }],
         tools: [tool],
       })
@@ -2714,9 +2740,9 @@ describe('textActivity() - Comprehensive Logic Path Coverage', () => {
         } as any,
       ]
 
-      const stream2 = textActivity({
+      const stream2 = chat({
         adapter,
-        model: 'test-model',
+          model: 'test-model',
         messages: messagesWithOutput,
         tools: [tool],
       })
@@ -2755,8 +2781,8 @@ describe('textActivity() - Comprehensive Logic Path Coverage', () => {
             this.iteration++
             yield {
               type: 'tool_call',
-              id: 'test-id-1',
               model: 'test-model',
+              id: 'test-id-1',
               timestamp: Date.now(),
               toolCall: {
                 id: 'call-1',
@@ -2767,8 +2793,8 @@ describe('textActivity() - Comprehensive Logic Path Coverage', () => {
             }
             yield {
               type: 'tool_call',
-              id: 'test-id-1',
               model: 'test-model',
+              id: 'test-id-1',
               timestamp: Date.now(),
               toolCall: {
                 id: 'call-2',
@@ -2779,16 +2805,16 @@ describe('textActivity() - Comprehensive Logic Path Coverage', () => {
             }
             yield {
               type: 'done',
-              id: 'test-id-1',
               model: 'test-model',
+              id: 'test-id-1',
               timestamp: Date.now(),
               finishReason: 'tool_calls',
             }
           } else {
             yield {
               type: 'content',
-              id: 'test-id-2',
               model: 'test-model',
+              id: 'test-id-2',
               timestamp: Date.now(),
               delta: 'Done',
               content: 'Done',
@@ -2796,8 +2822,8 @@ describe('textActivity() - Comprehensive Logic Path Coverage', () => {
             }
             yield {
               type: 'done',
-              id: 'test-id-2',
               model: 'test-model',
+              id: 'test-id-2',
               timestamp: Date.now(),
               finishReason: 'stop',
             }
@@ -2850,9 +2876,9 @@ describe('textActivity() - Comprehensive Logic Path Coverage', () => {
         } as any,
       ]
 
-      const stream = textActivity({
+      const stream = chat({
         adapter,
-        model: 'test-model',
+          model: 'test-model',
         messages: messagesWithBoth,
         tools: [approvalTool, clientTool],
       })
@@ -2892,8 +2918,8 @@ describe('textActivity() - Comprehensive Logic Path Coverage', () => {
             // First iteration: emit content chunks, tool_call, then done with tool_calls
             yield {
               type: 'content',
-              id: baseId,
               model: 'test-model',
+              id: baseId,
               timestamp: Date.now(),
               delta: 'I',
               content: 'I',
@@ -2901,8 +2927,8 @@ describe('textActivity() - Comprehensive Logic Path Coverage', () => {
             }
             yield {
               type: 'content',
-              id: baseId,
               model: 'test-model',
+              id: baseId,
               timestamp: Date.now(),
               delta: "'ll help you check the current temperature right away.",
               content:
@@ -2911,8 +2937,8 @@ describe('textActivity() - Comprehensive Logic Path Coverage', () => {
             }
             yield {
               type: 'tool_call',
-              id: baseId,
               model: 'test-model',
+              id: baseId,
               timestamp: Date.now(),
               toolCall: {
                 id: 'toolu_01D28jUnxcHQ5qqewJ7X6p1K',
@@ -2927,8 +2953,8 @@ describe('textActivity() - Comprehensive Logic Path Coverage', () => {
             }
             yield {
               type: 'done',
-              id: baseId,
               model: 'test-model',
+              id: baseId,
               timestamp: Date.now(),
               finishReason: 'tool_calls',
               usage: {
@@ -2949,8 +2975,8 @@ describe('textActivity() - Comprehensive Logic Path Coverage', () => {
 
             yield {
               type: 'content',
-              id: `${baseId}-2`,
               model: 'test-model',
+              id: `${baseId}-2`,
               timestamp: Date.now(),
               delta: 'The current temperature is 70 degrees.',
               content: 'The current temperature is 70 degrees.',
@@ -2958,8 +2984,8 @@ describe('textActivity() - Comprehensive Logic Path Coverage', () => {
             }
             yield {
               type: 'done',
-              id: `${baseId}-2`,
               model: 'test-model',
+              id: `${baseId}-2`,
               timestamp: Date.now(),
               finishReason: 'stop',
             }
@@ -2970,9 +2996,9 @@ describe('textActivity() - Comprehensive Logic Path Coverage', () => {
 
       const adapter = new TemperatureToolAdapter()
 
-      const stream = textActivity({
+      const stream = chat({
         adapter,
-        model: 'test-model',
+          model: 'test-model',
         messages: [{ role: 'user', content: 'what is the temperature?' }],
         tools: [temperatureTool],
         agentLoopStrategy: maxIterations(20),

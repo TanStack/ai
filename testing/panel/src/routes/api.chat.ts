@@ -2,15 +2,15 @@ import * as path from 'node:path'
 import * as fs from 'node:fs'
 import { createFileRoute } from '@tanstack/react-router'
 import {
-  ai,
-  createOptions,
+  chat,
+  createChatOptions,
   maxIterations,
   toStreamResponse,
 } from '@tanstack/ai'
-import { anthropicText } from '@tanstack/ai-anthropic'
-import { geminiText } from '@tanstack/ai-gemini'
-import { openaiText } from '@tanstack/ai-openai'
-import { ollamaText } from '@tanstack/ai-ollama'
+import { anthropicChat } from '@tanstack/ai-anthropic'
+import { geminiChat } from '@tanstack/ai-gemini'
+import { openaiChat } from '@tanstack/ai-openai'
+import { ollamaChat } from '@tanstack/ai-ollama'
 import type { AIAdapter, ChatOptions, StreamChunk } from '@tanstack/ai'
 import type { ChunkRecording } from '@/lib/recording'
 import {
@@ -57,23 +57,23 @@ type Provider = 'openai' | 'anthropic' | 'gemini' | 'ollama'
 // This pattern gives you model autocomplete at definition time
 const adapterConfig = {
   anthropic: () =>
-    createOptions({
-      adapter: anthropicText(),
+    createChatOptions({
+      adapter: anthropicChat(),
       model: 'claude-sonnet-4-5-20250929',
     }),
   gemini: () =>
-    createOptions({
-      adapter: geminiText(),
+    createChatOptions({
+      adapter: geminiChat(),
       model: 'gemini-2.0-flash-exp',
     }),
   ollama: () =>
-    createOptions({
-      adapter: ollamaText(),
+    createChatOptions({
+      adapter: ollamaChat(),
       model: 'mistral:7b',
     }),
   openai: () =>
-    createOptions({
-      adapter: openaiText(),
+    createChatOptions({
+      adapter: openaiChat(),
       model: 'gpt-4o',
     }),
 }
@@ -180,11 +180,12 @@ export const Route = createFileRoute('/api/chat')({
         const traceId: string | undefined = data.traceId
 
         try {
-          // Get typed adapter options using createOptions pattern
+          // Get typed adapter options using createChatOptions pattern
           const options = adapterConfig[provider]()
           let { adapter } = options
+          const model = adapter.defaultModel || 'unknown'
 
-          console.log(`>> model: ${options.model} on provider: ${provider}`)
+          console.log(`>> model: ${model} on provider: ${provider}`)
 
           // If we have a traceId, wrap the adapter to record raw chunks from chatStream
           if (traceId) {
@@ -196,13 +197,13 @@ export const Route = createFileRoute('/api/chat')({
             adapter = wrapAdapterForRecording(
               adapter,
               traceFile,
-              options.model,
+              model,
               provider,
             )
           }
 
           // Use the stream abort signal for proper cancellation handling
-          const stream = ai({
+          const stream = chat({
             ...options,
             adapter, // Use potentially wrapped adapter
             tools: [
@@ -215,7 +216,7 @@ export const Route = createFileRoute('/api/chat')({
             systemPrompts: [SYSTEM_PROMPT],
             agentLoopStrategy: maxIterations(20),
             messages,
-            providerOptions: {
+            modelOptions: {
               // Enable reasoning for OpenAI (gpt-5, o3 models):
               // reasoning: {
               //   effort: "medium", // or "low", "high", "minimal", "none" (for gpt-5.1)

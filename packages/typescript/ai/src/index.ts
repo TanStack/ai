@@ -1,20 +1,43 @@
-// Main AI function - the one export to rule them all
+// Activity functions - individual exports for each activity
 export {
-  ai,
-  createOptions,
-  type AIAdapter,
-  type AnyAdapter,
-  type GenerateAdapter,
-  type GenerateOptions,
-  type TextGenerateOptions,
-  type EmbeddingGenerateOptions,
-  type SummarizeGenerateOptions,
-  type ImageGenerateOptions,
-  type GenerateTextOptions,
-  type GenerateEmbeddingOptions,
-  type GenerateSummarizeOptions,
-  type GenerateImageOptions,
-} from './ai'
+  chat,
+  embedding,
+  summarize,
+  generateImage,
+  generateVideo,
+  getVideoJobStatus,
+  generateSpeech,
+  generateTranscription,
+} from './activities'
+
+// Create options functions - for pre-defining typed configurations
+export {
+  createChatOptions,
+  createEmbeddingOptions,
+  createSummarizeOptions,
+  createImageOptions,
+  createVideoOptions,
+  createSpeechOptions,
+  createTranscriptionOptions,
+} from './activity-options'
+
+// Re-export types
+export type {
+  AIAdapter,
+  AnyAdapter,
+  GenerateAdapter,
+  GenerateOptions,
+  TextGenerateOptions,
+  EmbeddingGenerateOptions,
+  SummarizeGenerateOptions,
+  ImageGenerateOptions,
+  GenerateTextOptions,
+  GenerateEmbeddingOptions,
+  GenerateSummarizeOptions,
+  GenerateImageOptions,
+  VideoGenerateOptions,
+  GenerateVideoOptions,
+} from './activities'
 
 // Tool definition
 export {
@@ -28,8 +51,8 @@ export {
   type InferToolName,
   type InferToolInput,
   type InferToolOutput,
-} from './activities/text/tools/tool-definition'
-export { convertZodToJsonSchema } from './activities/text/tools/zod-converter'
+} from './activities/chat/tools/tool-definition'
+export { convertZodToJsonSchema } from './activities/chat/tools/zod-converter'
 
 // Stream utilities
 export {
@@ -42,21 +65,21 @@ export {
 export { BaseAdapter } from './base-adapter'
 
 // Tool call management
-export { ToolCallManager } from './activities/text/tools/tool-calls'
+export { ToolCallManager } from './activities/chat/tools/tool-calls'
 
 // Agent loop strategies
 export {
   maxIterations,
   untilFinishReason,
   combineStrategies,
-} from './activities/text/agent-loop-strategies'
+} from './activities/chat/agent-loop-strategies'
 
 // All types
 export * from './types'
 
 // Utility builders
-export { textOptions } from './activities/text/index'
-export { messages } from './activities/text/messages'
+export { textOptions } from './activities/chat/index'
+export { messages } from './activities/chat/messages'
 
 // Event client
 export { aiEventClient } from './event-client'
@@ -69,7 +92,7 @@ export {
   modelMessageToUIMessage,
   modelMessagesToUIMessages,
   normalizeToUIMessage,
-} from './activities/text/messages'
+} from './activities/chat/messages'
 
 // Stream processing (unified for server and client)
 export {
@@ -83,7 +106,7 @@ export {
   PartialJSONParser,
   defaultJSONParser,
   parsePartialJSON,
-} from './activities/text/stream'
+} from './activities/chat/stream'
 export type {
   ChunkStrategy,
   ChunkRecording,
@@ -96,4 +119,4 @@ export type {
   ToolCallState,
   ToolResultState,
   JSONParser,
-} from './activities/text/stream'
+} from './activities/chat/stream'

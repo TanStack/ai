@@ -5,6 +5,9 @@
 // Text/Chat adapter
 export {
   GeminiTextAdapter,
+  createGeminiChat,
+  geminiChat,
+  // Deprecated exports
   createGeminiText,
   geminiText,
   type GeminiTextConfig,
@@ -15,6 +18,9 @@ export {
 export {
   GeminiEmbedAdapter,
   GeminiEmbeddingModels,
+  createGeminiEmbedding,
+  geminiEmbedding,
+  // Deprecated exports
   createGeminiEmbed,
   geminiEmbed,
   type GeminiEmbedAdapterOptions,
@@ -56,6 +62,9 @@ export type {
  */
 export {
   GeminiTTSAdapter,
+  createGeminiSpeech,
+  geminiSpeech,
+  // Deprecated exports
   createGeminiTTS,
   geminiTTS,
   type GeminiTTSConfig,

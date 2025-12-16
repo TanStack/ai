@@ -497,7 +497,7 @@ export class GeminiAdapter extends BaseAdapter<
    * Handles translation of normalized options to Gemini's API format
    */
   private mapCommonOptionsToGemini(options: TextOptions) {
-    const providerOpts = options.providerOptions
+    const providerOpts = options.modelOptions
     const requestOptions: GenerateContentParameters = {
       model: options.model,
       contents: this.formatMessages(options.messages),

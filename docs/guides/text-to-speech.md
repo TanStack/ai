@@ -18,10 +18,10 @@ import { ai } from '@tanstack/ai'
 import { openaiTTS } from '@tanstack/ai-openai'
 
 // Create a TTS adapter (uses OPENAI_API_KEY from environment)
-const adapter = openaiTTS()
+const adapter = openaiSpeech()
 
 // Generate speech from text
-const result = await ai({
+const result = await generateSpeech({
   adapter,
   model: 'tts-1',
   text: 'Hello, welcome to TanStack AI!',
@@ -36,14 +36,14 @@ console.log(result.contentType) // 'audio/mpeg'
 ### Gemini Text-to-Speech (Experimental)
 
 ```typescript
-import { ai } from '@tanstack/ai'
-import { geminiTTS } from '@tanstack/ai-gemini'
+import { generateSpeech } from '@tanstack/ai'
+import { geminiSpeech } from '@tanstack/ai-gemini'
 
 // Create a TTS adapter (uses GOOGLE_API_KEY from environment)
-const adapter = geminiTTS()
+const adapter = geminiSpeech()
 
 // Generate speech from text
-const result = await ai({
+const result = await generateSpeech({
   adapter,
   model: 'gemini-2.5-flash-preview-tts',
   text: 'Hello from Gemini TTS!',
@@ -98,13 +98,13 @@ OpenAI provides several distinct voices:
 ### OpenAI Provider Options
 
 ```typescript
-const result = await ai({
-  adapter: openaiTTS(),
+const result = await generateSpeech({
+  adapter: openaiSpeech(),
   model: 'tts-1-hd',
   text: 'High quality speech synthesis',
   voice: 'nova',
   format: 'mp3',
-  providerOptions: {
+  modelOptions: {
     speed: 1.0, // 0.25 to 4.0
   },
 })
@@ -166,8 +166,8 @@ async function saveAudio(result: TTSResult, filename: string) {
 }
 
 // Usage
-const result = await ai({
-  adapter: openaiTTS(),
+const result = await generateSpeech({
+  adapter: openaiSpeech(),
   model: 'tts-1',
   text: 'Hello world!',
 })
@@ -196,8 +196,8 @@ await saveAudio(result, 'output.mp3')
 
 ```typescript
 try {
-  const result = await ai({
-    adapter: openaiTTS(),
+  const result = await generateSpeech({
+    adapter: openaiSpeech(),
     model: 'tts-1',
     text: 'Hello!',
   })

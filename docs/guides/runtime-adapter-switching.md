@@ -18,18 +18,18 @@ let model
 
 switch (provider) {
   case 'anthropic':
-    adapter = anthropicText()
+    adapter = anthropicChat()
     model = 'claude-sonnet-4-5'
     break
   case 'openai':
   default:
-    adapter = openaiText()
+    adapter = openaiChat()
     model = 'gpt-4o'
     break
 }
 
 // No autocomplete, no type checking - forced to use `as any`
-const stream = ai({
+const stream = chat({
   adapter: adapter as any,
   model: model as any,  // 😢 Could be a typo!
   messages,
@@ -42,25 +42,25 @@ This approach has several problems:
 - **No type validation** - Typos in model names won't be caught until runtime
 - **Messy `as any` casts** - TypeScript can't help you at all
 
-## The Solution: `createOptions`
+## The Solution: `createChatOptions`
 
-The `createOptions` helper lets you pre-define typed configurations for each provider:
+The `createChatOptions` helper lets you pre-define typed configurations for each provider:
 
 ```typescript
-import { ai, createOptions, toStreamResponse } from '@tanstack/ai'
-import { anthropicText } from '@tanstack/ai-anthropic'
-import { openaiText } from '@tanstack/ai-openai'
+import { chat, createChatOptions, toStreamResponse } from '@tanstack/ai'
+import { anthropicChat } from '@tanstack/ai-anthropic'
+import { openaiChat } from '@tanstack/ai-openai'
 
 // ✅ Define typed configurations - you get autocomplete here!
 const adapterConfig = {
   anthropic: () =>
-    createOptions({
-      adapter: anthropicText(),
+    createChatOptions({
+      adapter: anthropicChat(),
       model: 'claude-sonnet-4-5',  // ✅ Autocomplete works!
     }),
   openai: () =>
-    createOptions({
-      adapter: openaiText(),
+    createChatOptions({
+      adapter: openaiChat(),
       model: 'gpt-4o',  // ✅ Autocomplete works!
     }),
 }
@@ -69,7 +69,7 @@ const adapterConfig = {
 const provider = request.body.provider // 'anthropic' | 'openai'
 
 const options = adapterConfig[provider]()
-const stream = ai({
+const stream = chat({
   ...options,
   messages,
   // ... other runtime options
@@ -78,15 +78,15 @@ const stream = ai({
 
 ## How It Works
 
-`createOptions` is a simple identity function with the **exact same type signature** as `ai()`. It doesn't execute anything - it just returns the options object you pass in.
+`createChatOptions` is a simple identity function with the **exact same type signature** as `chat()`. It doesn't execute anything - it just returns the options object you pass in.
 
-The magic is in the types: when you call `createOptions({ adapter: openaiText(), model: '...' })`, TypeScript knows which models are valid for the OpenAI text adapter and provides autocomplete.
+The magic is in the types: when you call `createChatOptions({ adapter: openaiChat(), model: '...' })`, TypeScript knows which models are valid for the OpenAI chat adapter and provides autocomplete.
 
 ```typescript
-// This is essentially what createOptions does:
-export function createOptions<TAdapter, TModel, ...>(
-  options: AIOptionsFor<TAdapter, TModel, ...>
-): AIOptionsFor<TAdapter, TModel, ...> {
+// This is essentially what createChatOptions does:
+export function createChatOptions<TAdapter, TModel, ...>(
+  options: TextActivityOptionsFor<TAdapter, TModel, ...>
+): TextActivityOptionsFor<TAdapter, TModel, ...> {
   return options  // Just returns what you pass in!
 }
 ```
@@ -104,34 +104,34 @@ Here's a complete example showing a multi-provider chat API:
 
 ```typescript
 import { createFileRoute } from '@tanstack/react-router'
-import { ai, createOptions, maxIterations, toStreamResponse } from '@tanstack/ai'
-import { openaiText } from '@tanstack/ai-openai'
-import { anthropicText } from '@tanstack/ai-anthropic'
-import { geminiText } from '@tanstack/ai-gemini'
-import { ollamaText } from '@tanstack/ai-ollama'
+import { chat, createChatOptions, maxIterations, toStreamResponse } from '@tanstack/ai'
+import { openaiChat } from '@tanstack/ai-openai'
+import { anthropicChat } from '@tanstack/ai-anthropic'
+import { geminiChat } from '@tanstack/ai-gemini'
+import { ollamaChat } from '@tanstack/ai-ollama'
 
 type Provider = 'openai' | 'anthropic' | 'gemini' | 'ollama'
 
 // Pre-define typed adapter configurations
 const adapterConfig = {
   anthropic: () =>
-    createOptions({
-      adapter: anthropicText(),
+    createChatOptions({
+      adapter: anthropicChat(),
       model: 'claude-sonnet-4-5',
     }),
   gemini: () =>
-    createOptions({
-      adapter: geminiText(),
+    createChatOptions({
+      adapter: geminiChat(),
       model: 'gemini-2.0-flash-exp',
     }),
   ollama: () =>
-    createOptions({
-      adapter: ollamaText(),
+    createChatOptions({
+      adapter: ollamaChat(),
       model: 'mistral:7b',
     }),
   openai: () =>
-    createOptions({
-      adapter: openaiText(),
+    createChatOptions({
+      adapter: openaiChat(),
       model: 'gpt-4o',
     }),
 }
@@ -149,7 +149,7 @@ export const Route = createFileRoute('/api/chat')({
         // Get typed options for the selected provider
         const options = adapterConfig[provider]()
 
-        const stream = ai({
+        const stream = chat({
           ...options,
           tools: [...],
           systemPrompts: [...],
@@ -169,18 +169,18 @@ export const Route = createFileRoute('/api/chat')({
 The same pattern works for image generation:
 
 ```typescript
-import { createOptions } from '@tanstack/ai'
+import { createImageOptions } from '@tanstack/ai'
 import { openaiImage } from '@tanstack/ai-openai'
 import { geminiImage } from '@tanstack/ai-gemini'
 
 const imageConfig = {
   openai: () =>
-    createOptions({
+    createImageOptions({
       adapter: openaiImage(),
       model: 'gpt-image-1',  // ✅ Autocomplete for OpenAI image models
     }),
   gemini: () =>
-    createOptions({
+    createImageOptions({
       adapter: geminiImage(),
       model: 'gemini-2.0-flash-preview-image-generation',
     }),
@@ -188,7 +188,7 @@ const imageConfig = {
 
 // Usage
 const options = imageConfig[provider]()
-const result = await ai({
+const result = await generateImage({
   ...options,
   prompt: 'A beautiful sunset over mountains',
   size: '1024x1024',
@@ -200,18 +200,18 @@ const result = await ai({
 And for summarization:
 
 ```typescript
-import { createOptions } from '@tanstack/ai'
+import { createSummarizeOptions } from '@tanstack/ai'
 import { openaiSummarize } from '@tanstack/ai-openai'
 import { anthropicSummarize } from '@tanstack/ai-anthropic'
 
 const summarizeConfig = {
   openai: () =>
-    createOptions({
+    createSummarizeOptions({
       adapter: openaiSummarize(),
       model: 'gpt-4o-mini',
     }),
   anthropic: () =>
-    createOptions({
+    createSummarizeOptions({
       adapter: anthropicSummarize(),
       model: 'claude-sonnet-4-5',
     }),
@@ -219,7 +219,7 @@ const summarizeConfig = {
 
 // Usage
 const options = summarizeConfig[provider]()
-const result = await ai({
+const result = await summarize({
   ...options,
   text: longDocument,
   maxLength: 100,
@@ -239,17 +239,17 @@ let model
 
 switch (provider) {
   case 'anthropic':
-    adapter = anthropicText()
+    adapter = anthropicChat()
     model = 'claude-sonnet-4-5'
     break
   case 'openai':
   default:
-    adapter = openaiText()
+    adapter = openaiChat()
     model = 'gpt-4o'
     break
 }
 
-const stream = ai({
+const stream = chat({
   adapter: adapter as any,
   model: model as any,
   messages,
@@ -261,19 +261,19 @@ const stream = ai({
 ```typescript
 const adapterConfig = {
   anthropic: () =>
-    createOptions({
-      adapter: anthropicText(),
+    createChatOptions({
+      adapter: anthropicChat(),
       model: 'claude-sonnet-4-5',
     }),
   openai: () =>
-    createOptions({
-      adapter: openaiText(),
+    createChatOptions({
+      adapter: openaiChat(),
       model: 'gpt-4o',
     }),
 }
 
 const options = adapterConfig[provider]()
-const stream = ai({
+const stream = chat({
   ...options,
   messages,
 })
@@ -282,5 +282,5 @@ const stream = ai({
 The key changes:
 
 1. Replace the switch statement with an object of factory functions
-2. Each factory function uses `createOptions` for type safety
-3. Spread the options into `ai()` - no more `as any`!
+2. Each factory function uses `createChatOptions` for type safety
+3. Spread the options into `chat()` - no more `as any`!

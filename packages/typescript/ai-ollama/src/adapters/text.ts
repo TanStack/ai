@@ -110,11 +110,10 @@ export class OllamaTextAdapter extends BaseTextAdapter<
   readonly models = OllamaTextModels
 
   private client: Ollama
-  private defaultModel: OllamaTextModel
 
   constructor(
     hostOrClient?: string | Ollama,
-    options: OllamaTextAdapterOptions = {},
+    _options: OllamaTextAdapterOptions = {},
   ) {
     super({})
     if (typeof hostOrClient === 'string' || hostOrClient === undefined) {
@@ -122,7 +121,6 @@ export class OllamaTextAdapter extends BaseTextAdapter<
     } else {
       this.client = hostOrClient
     }
-    this.defaultModel = options.model ?? 'llama3'
   }
 
   async *chatStream(options: TextOptions): AsyncIterable<StreamChunk> {
@@ -359,8 +357,8 @@ export class OllamaTextAdapter extends BaseTextAdapter<
   }
 
   private mapCommonOptionsToOllama(options: TextOptions): ChatRequest {
-    const model = options.model || this.defaultModel
-    const providerOptions = options.providerOptions as
+    const model = options.model
+    const modelOptions = options.modelOptions as
       | OllamaTextProviderOptions
       | undefined
 
@@ -368,7 +366,7 @@ export class OllamaTextAdapter extends BaseTextAdapter<
       temperature: options.options?.temperature,
       top_p: options.options?.topP,
       num_predict: options.options?.maxTokens,
-      ...providerOptions,
+      ...modelOptions,
     }
 
     return {
@@ -381,9 +379,9 @@ export class OllamaTextAdapter extends BaseTextAdapter<
 }
 
 /**
- * Creates an Ollama text adapter with explicit host
+ * Creates an Ollama chat adapter with explicit host
  */
-export function createOllamaText(
+export function createOllamaChat(
   host?: string,
   options?: OllamaTextAdapterOptions,
 ): OllamaTextAdapter {
@@ -391,11 +389,31 @@ export function createOllamaText(
 }
 
 /**
- * Creates an Ollama text adapter with host from environment
+ * Creates an Ollama chat adapter with host from environment
+ */
+export function ollamaChat(
+  options?: OllamaTextAdapterOptions,
+): OllamaTextAdapter {
+  const host = getOllamaHostFromEnv()
+  return new OllamaTextAdapter(host, options)
+}
+
+/**
+ * @deprecated Use ollamaChat() instead
  */
 export function ollamaText(
   options?: OllamaTextAdapterOptions,
 ): OllamaTextAdapter {
   const host = getOllamaHostFromEnv()
+  return new OllamaTextAdapter(host, options)
+}
+
+/**
+ * @deprecated Use createOllamaChat() instead
+ */
+export function createOllamaText(
+  host?: string,
+  options?: OllamaTextAdapterOptions,
+): OllamaTextAdapter {
   return new OllamaTextAdapter(host, options)
 }

@@ -1,4 +1,4 @@
-import { ai } from '@tanstack/ai'
+import { summarize } from '@tanstack/ai'
 import { writeDebugFile } from '../harness'
 import type { AdapterContext, TestOutcome } from '../harness'
 
@@ -35,7 +35,7 @@ export async function runSUM(
   }
 
   try {
-    const result = await ai({
+    const result = await summarize({
       adapter: adapterContext.summarizeAdapter,
       model,
       text,

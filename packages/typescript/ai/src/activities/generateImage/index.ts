@@ -79,7 +79,7 @@ export interface ImageActivityOptions<
   /** Image size in WIDTHxHEIGHT format (e.g., "1024x1024") */
   size?: ImageSizeForModel<TAdapter, TModel>
   /** Provider-specific options for image generation */
-  providerOptions?: ImageProviderOptionsForModel<TAdapter, TModel>
+  modelOptions?: ImageProviderOptionsForModel<TAdapter, TModel>
 }
 
 // ===========================
@@ -134,14 +134,14 @@ export type ImageActivityResult = Promise<ImageGenerationResult>
  *   model: 'dall-e-3',
  *   prompt: 'A professional headshot photo',
  *   size: '1024x1024',
- *   providerOptions: {
+ *   modelOptions: {
  *     quality: 'hd',
  *     style: 'natural'
  *   }
  * })
  * ```
  */
-export async function imageActivity<
+export async function generateImage<
   TAdapter extends ImageAdapter<ReadonlyArray<string>, object, any, any>,
   TModel extends ImageModels<TAdapter>,
 >(options: ImageActivityOptions<TAdapter, TModel>): ImageActivityResult {

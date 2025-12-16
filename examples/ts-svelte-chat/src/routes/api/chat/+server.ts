@@ -1,13 +1,13 @@
 import {
-  ai,
-  createOptions,
+  chat,
+  createChatOptions,
   maxIterations,
   toStreamResponse,
 } from '@tanstack/ai'
-import { openaiText } from '@tanstack/ai-openai'
-import { ollamaText } from '@tanstack/ai-ollama'
-import { anthropicText } from '@tanstack/ai-anthropic'
-import { geminiText } from '@tanstack/ai-gemini'
+import { openaiChat } from '@tanstack/ai-openai'
+import { ollamaChat } from '@tanstack/ai-ollama'
+import { anthropicChat } from '@tanstack/ai-anthropic'
+import { geminiChat } from '@tanstack/ai-gemini'
 
 import type { RequestHandler } from './$types'
 import { env } from '$env/dynamic/private'
@@ -32,23 +32,23 @@ if (env.GEMINI_API_KEY) process.env.GEMINI_API_KEY = env.GEMINI_API_KEY
 // This pattern gives you model autocomplete at definition time
 const adapterConfig = {
   anthropic: () =>
-    createOptions({
-      adapter: anthropicText(),
+    createChatOptions({
+      adapter: anthropicChat(),
       model: 'claude-sonnet-4-5',
     }),
   gemini: () =>
-    createOptions({
-      adapter: geminiText(),
+    createChatOptions({
+      adapter: geminiChat(),
       model: 'gemini-2.0-flash-exp',
     }),
   ollama: () =>
-    createOptions({
-      adapter: ollamaText(),
+    createChatOptions({
+      adapter: ollamaChat(),
       model: 'mistral:7b',
     }),
   openai: () =>
-    createOptions({
-      adapter: openaiText(),
+    createChatOptions({
+      adapter: openaiChat(),
       model: 'gpt-4o',
     }),
 }
@@ -105,7 +105,7 @@ export const POST: RequestHandler = async ({ request }) => {
     // Get typed adapter options using createOptions pattern
     const options = adapterConfig[provider]()
 
-    const stream = ai({
+    const stream = chat({
       ...options,
       tools: [
         getGuitars, // Server tool

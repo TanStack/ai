@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import { z } from 'zod'
-import { textActivity } from '../src/activities/text'
+import { chat } from '../src/activities/chat'
 import type { TextOptions, StreamChunk } from '../src/types'
 import { BaseAdapter } from '../src/base-adapter'
 
@@ -77,14 +77,14 @@ class MockAdapter extends BaseAdapter<
   }
 }
 
-describe('textActivity() - Abort Signal Handling', () => {
+describe('chat() - Abort Signal Handling', () => {
   it('should propagate abortSignal to adapter.chatStream()', async () => {
     const mockAdapter = new MockAdapter()
 
     const abortController = new AbortController()
     const abortSignal = abortController.signal
 
-    const stream = textActivity({
+    const stream = chat({
       adapter: mockAdapter,
       model: 'test-model',
       messages: [{ role: 'user', content: 'Hello' }],
@@ -105,7 +105,7 @@ describe('textActivity() - Abort Signal Handling', () => {
 
     const abortController = new AbortController()
 
-    const stream = textActivity({
+    const stream = chat({
       adapter: mockAdapter,
       model: 'test-model',
       messages: [{ role: 'user', content: 'Hello' }],
@@ -137,7 +137,7 @@ describe('textActivity() - Abort Signal Handling', () => {
     // Abort before starting
     abortController.abort()
 
-    const stream = textActivity({
+    const stream = chat({
       adapter: mockAdapter,
       model: 'test-model',
       messages: [{ role: 'user', content: 'Hello' }],
@@ -187,7 +187,7 @@ describe('textActivity() - Abort Signal Handling', () => {
 
     const toolAdapter = new ToolCallAdapter()
 
-    const stream = textActivity({
+    const stream = chat({
       adapter: toolAdapter,
       model: 'test-model',
       messages: [{ role: 'user', content: 'Hello' }],
@@ -221,7 +221,7 @@ describe('textActivity() - Abort Signal Handling', () => {
   it('should handle undefined abortSignal gracefully', async () => {
     const mockAdapter = new MockAdapter()
 
-    const stream = textActivity({
+    const stream = chat({
       adapter: mockAdapter,
       model: 'test-model',
       messages: [{ role: 'user', content: 'Hello' }],

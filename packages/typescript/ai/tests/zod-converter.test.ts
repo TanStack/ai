@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { z } from 'zod'
-import { convertZodToJsonSchema } from '../src/activities/text/tools/zod-converter'
+import { convertZodToJsonSchema } from '../src/activities/chat/tools/zod-converter'
 import type { JSONSchema } from '../src/types'
 
 describe('convertZodToJsonSchema', () => {

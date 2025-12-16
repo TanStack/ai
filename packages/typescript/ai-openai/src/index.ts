@@ -5,6 +5,9 @@
 // Text (Chat) adapter - for chat/text completion
 export {
   OpenAITextAdapter,
+  createOpenaiChat,
+  openaiChat,
+  // Deprecated exports
   createOpenaiText,
   openaiText,
   type OpenAITextConfig,
@@ -14,6 +17,9 @@ export {
 // Embedding adapter - for text embeddings
 export {
   OpenAIEmbedAdapter,
+  createOpenaiEmbedding,
+  openaiEmbedding,
+  // Deprecated exports
   createOpenaiEmbed,
   openaiEmbed,
   type OpenAIEmbedConfig,
@@ -61,6 +67,9 @@ export type {
 // TTS adapter - for text-to-speech
 export {
   OpenAITTSAdapter,
+  createOpenaiSpeech,
+  openaiSpeech,
+  // Deprecated exports
   createOpenaiTTS,
   openaiTTS,
   type OpenAITTSConfig,

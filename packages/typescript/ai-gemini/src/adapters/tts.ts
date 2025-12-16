@@ -73,11 +73,11 @@ export class GeminiTTSAdapter extends BaseTTSAdapter<
   async generateSpeech(
     options: TTSOptions<GeminiTTSProviderOptions>,
   ): Promise<TTSResult> {
-    const { model, text, providerOptions } = options
+    const { model, text, modelOptions } = options
 
     // Use Gemini's multimodal content generation with audio output
     // Note: This requires the model to support audio output
-    const voiceConfig = providerOptions?.voiceConfig || {
+    const voiceConfig = modelOptions?.voiceConfig || {
       prebuiltVoiceConfig: {
         voiceName: 'Kore', // Default Gemini voice
       },
@@ -152,7 +152,7 @@ export class GeminiTTSAdapter extends BaseTTSAdapter<
  * });
  * ```
  */
-export function createGeminiTTS(
+export function createGeminiSpeech(
   apiKey: string,
   config?: Omit<GeminiTTSConfig, 'apiKey'>,
 ): GeminiTTSAdapter {
@@ -160,7 +160,7 @@ export function createGeminiTTS(
 }
 
 /**
- * Creates a Gemini TTS adapter with automatic API key detection from environment variables.
+ * Creates a Gemini speech adapter with automatic API key detection from environment variables.
  *
  * @experimental Gemini TTS is an experimental feature and may change.
  *
@@ -169,24 +169,38 @@ export function createGeminiTTS(
  * - `window.env` (Browser with injected env)
  *
  * @param config - Optional configuration (excluding apiKey which is auto-detected)
- * @returns Configured Gemini TTS adapter instance
+ * @returns Configured Gemini speech adapter instance
  * @throws Error if GOOGLE_API_KEY or GEMINI_API_KEY is not found in environment
  *
  * @example
  * ```typescript
  * // Automatically uses GOOGLE_API_KEY from environment
- * const adapter = geminiTTS();
+ * const adapter = geminiSpeech();
  *
- * const result = await ai({
+ * const result = await generateSpeech({
  *   adapter,
  *   model: 'gemini-2.5-flash-preview-tts',
  *   text: 'Welcome to TanStack AI!'
  * });
  * ```
  */
+export function geminiSpeech(
+  config?: Omit<GeminiTTSConfig, 'apiKey'>,
+): GeminiTTSAdapter {
+  const apiKey = getGeminiApiKeyFromEnv()
+  return createGeminiSpeech(apiKey, config)
+}
+
 export function geminiTTS(
   config?: Omit<GeminiTTSConfig, 'apiKey'>,
 ): GeminiTTSAdapter {
   const apiKey = getGeminiApiKeyFromEnv()
-  return createGeminiTTS(apiKey, config)
+  return createGeminiSpeech(apiKey, config)
+}
+
+export function createGeminiTTS(
+  apiKey: string,
+  config?: Omit<GeminiTTSConfig, 'apiKey'>,
+): GeminiTTSAdapter {
+  return createGeminiSpeech(apiKey, config)
 }

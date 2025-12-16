@@ -80,14 +80,14 @@ export class OpenAIImageAdapter extends BaseImageAdapter<
   private buildRequest(
     options: ImageGenerationOptions<OpenAIImageProviderOptions>,
   ): OpenAI_SDK.Images.ImageGenerateParams {
-    const { model, prompt, numberOfImages, size, providerOptions } = options
+    const { model, prompt, numberOfImages, size, modelOptions } = options
 
     return {
       model,
       prompt,
       n: numberOfImages ?? 1,
       size: size as OpenAI_SDK.Images.ImageGenerateParams['size'],
-      ...providerOptions,
+      ...modelOptions,
     }
   }
 
@@ -119,17 +119,18 @@ export class OpenAIImageAdapter extends BaseImageAdapter<
 /**
  * Creates an OpenAI image adapter with explicit API key
  *
+ * @param model - The model name (e.g., 'dall-e-3', 'gpt-image-1')
  * @param apiKey - Your OpenAI API key
  * @param config - Optional additional configuration
  * @returns Configured OpenAI image adapter instance
  *
  * @example
  * ```typescript
- * const adapter = createOpenaiImage("sk-...");
+ * const adapter = createOpenaiImage('dall-e-3', "sk-...");
  *
- * const result = await ai({
+ * const result = await generateImage({
  *   adapter,
- *   model: 'gpt-image-1',
+ *   model: 'dall-e-3',
  *   prompt: 'A cute baby sea otter'
  * });
  * ```
@@ -157,7 +158,7 @@ export function createOpenaiImage(
  * // Automatically uses OPENAI_API_KEY from environment
  * const adapter = openaiImage();
  *
- * const result = await ai({
+ * const result = await generateImage({
  *   adapter,
  *   model: 'dall-e-3',
  *   prompt: 'A beautiful sunset over mountains'

@@ -1,5 +1,5 @@
 import { createFileRoute } from '@tanstack/react-router'
-import { ai, createOptions } from '@tanstack/ai'
+import { generateImage, createImageOptions } from '@tanstack/ai'
 import { geminiImage } from '@tanstack/ai-gemini'
 import { openaiImage } from '@tanstack/ai-openai'
 
@@ -8,14 +8,12 @@ type Provider = 'openai' | 'gemini'
 // Pre-define typed adapter configurations with full type inference
 const adapterConfig = {
   gemini: () =>
-    createOptions({
+    createImageOptions({
       adapter: geminiImage(),
-      // Use gemini-2.0-flash which has image generation capability
-      // and is more widely available than dedicated Imagen models
       model: 'gemini-2.0-flash-preview-image-generation',
     }),
   openai: () =>
-    createOptions({
+    createImageOptions({
       adapter: openaiImage(),
       model: 'gpt-image-1',
     }),
@@ -30,14 +28,15 @@ export const Route = createFileRoute('/api/image')({
         const provider: Provider = body.provider || 'openai'
 
         try {
-          // Get typed adapter options using createOptions pattern
+          // Get typed adapter options using createImageOptions pattern
           const options = adapterConfig[provider]()
+          const model = options.adapter.defaultModel || 'unknown'
 
           console.log(
-            `>> image generation with model: ${options.model} on provider: ${provider}`,
+            `>> image generation with model: ${model} on provider: ${provider}`,
           )
 
-          const result = await ai({
+          const result = await generateImage({
             ...options,
             prompt,
             numberOfImages,
@@ -53,7 +52,7 @@ export const Route = createFileRoute('/api/image')({
             JSON.stringify({
               images: result.images,
               provider,
-              model: options.model,
+              model,
             }),
             {
               status: 200,

@@ -1,4 +1,4 @@
-import { ai } from '@tanstack/ai'
+import { generateImage } from '@tanstack/ai'
 import { writeDebugFile } from '../harness'
 import type { AdapterContext, TestOutcome } from '../harness'
 
@@ -35,11 +35,11 @@ export async function runIMG(
   }
 
   try {
-    const result = await ai({
+    const result = await generateImage({
       adapter: adapterContext.imageAdapter,
       model,
       prompt,
-      n: 1,
+      numberOfImages: 1,
       size: '1024x1024',
     })
 

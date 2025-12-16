@@ -77,6 +77,10 @@
         {
           "label": "Transcription",
           "to": "guides/transcription"
+        },
+        {
+          "label": "Tree-Shaking",
+          "to": "guides/tree-shaking"
         }
       ]
     },

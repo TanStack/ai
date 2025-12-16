@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest'
-import { ai } from '@tanstack/ai'
+import { chat, summarize, embedding } from '@tanstack/ai'
 import type { Tool, StreamChunk } from '@tanstack/ai'
 import {
   Type,
@@ -54,9 +54,12 @@ vi.mock('@google/genai', async () => {
   }
 })
 
-const createTextAdapter = () => new GeminiTextAdapter({ apiKey: 'test-key' })
-const createSummarizeAdapter = () => new GeminiSummarizeAdapter('test-key')
-const createEmbedAdapter = () => new GeminiEmbedAdapter('test-key')
+const createTextAdapter = () =>
+  new GeminiTextAdapter('gemini-2.5-pro', { apiKey: 'test-key' })
+const createSummarizeAdapter = () =>
+  new GeminiSummarizeAdapter('gemini-2.0-flash', 'test-key')
+const createEmbedAdapter = () =>
+  new GeminiEmbedAdapter('text-embedding-004', 'test-key')
 
 const weatherTool: Tool = {
   name: 'lookup_weather',
@@ -100,11 +103,11 @@ describe('GeminiAdapter through AI', () => {
     const adapter = createTextAdapter()
 
     // Consume the stream to trigger the API call
-    for await (const _ of ai({
+    for await (const _ of chat({
       adapter,
       model: 'gemini-2.5-pro',
       messages: [{ role: 'user', content: 'How is the weather in Madrid?' }],
-      providerOptions: {
+      modelOptions: {
         generationConfig: { topK: 9 },
       },
       options: {
@@ -212,9 +215,8 @@ describe('GeminiAdapter through AI', () => {
     const adapter = createTextAdapter()
 
     // Consume the stream to trigger the API call
-    for await (const _ of ai({
+    for await (const _ of chat({
       adapter,
-      model: 'gemini-2.5-pro',
       messages: [{ role: 'user', content: 'Provide structured response' }],
       options: {
         temperature: 0.61,
@@ -222,7 +224,7 @@ describe('GeminiAdapter through AI', () => {
         maxTokens: 512,
       },
       systemPrompts: ['Stay concise', 'Return JSON'],
-      providerOptions,
+      modelOptions: providerOptions,
     })) {
       /* consume stream */
     }
@@ -313,11 +315,11 @@ describe('GeminiAdapter through AI', () => {
 
     const adapter = createTextAdapter()
     const received: StreamChunk[] = []
-    for await (const chunk of ai({
+    for await (const chunk of chat({
       adapter,
-      model: 'gemini-2.5-pro',
+      model: 'gemini-2.0-flash',
       messages: [{ role: 'user', content: 'Tell me a joke' }],
-      providerOptions: {
+      modelOptions: {
         generationConfig: { topK: 3 },
       },
       options: { temperature: 0.2 },
@@ -360,7 +362,7 @@ describe('GeminiAdapter through AI', () => {
     })
 
     const adapter = createSummarizeAdapter()
-    const result = await ai({
+    const result = await summarize({
       adapter,
       model: 'gemini-2.0-flash',
       text: 'A very long passage that needs to be shortened',
@@ -387,7 +389,7 @@ describe('GeminiAdapter through AI', () => {
       })
 
     const adapter = createEmbedAdapter()
-    const result = await ai({
+    const result = await embedding({
       adapter,
       model: 'text-embedding-004',
       input: ['doc one', 'doc two'],
