@@ -36,11 +36,12 @@ function createBuiltinTool<T extends z.ZodType>(
  * Check if a tool is a built-in Claude Code tool.
  */
 export function isBuiltinTool(tool: unknown): tool is BuiltinToolDefinition {
+  if (typeof tool !== 'object' || tool === null) {
+    return false
+  }
   return (
-    typeof tool === 'object' &&
-    tool !== null &&
     BUILTIN_TOOL_MARKER in tool &&
-    (tool as BuiltinToolDefinition)[BUILTIN_TOOL_MARKER] === true
+    Boolean((tool as Record<symbol, unknown>)[BUILTIN_TOOL_MARKER])
   )
 }
 

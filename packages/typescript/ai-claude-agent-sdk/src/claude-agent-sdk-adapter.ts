@@ -1,8 +1,9 @@
 import { query } from '@anthropic-ai/claude-agent-sdk'
 import { BaseAdapter } from '@tanstack/ai'
+import { isBuiltinTool } from './builtin-tools'
 import { CLAUDE_AGENT_SDK_MODELS } from './model-meta'
 import { validateTextProviderOptions } from './text/text-provider-options'
-import { isBuiltinTool, type BuiltinToolDefinition } from './builtin-tools'
+import type { BuiltinToolDefinition } from './builtin-tools'
 import type {
   SDKAssistantMessage,
   SDKPartialAssistantMessage,
@@ -570,8 +571,7 @@ export class ClaudeAgentSdk extends BaseAdapter<
       if (isBuiltinTool(tool)) {
         builtinToolNames.push(tool.name)
       } else {
-        const customTool = tool as Tool<any, any, any>
-        customToolNames.push(customTool.name)
+        customToolNames.push((tool as Tool).name)
       }
     }
 
