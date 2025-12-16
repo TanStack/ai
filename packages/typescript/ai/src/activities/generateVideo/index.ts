@@ -167,9 +167,7 @@ export type VideoActivityResult<
 export async function generateVideo<
   TAdapter extends VideoAdapter<ReadonlyArray<string>, object>,
   TModel extends VideoModels<TAdapter>,
->(
-  options: VideoCreateOptions<TAdapter, TModel>,
-): Promise<VideoJobResult> {
+>(options: VideoCreateOptions<TAdapter, TModel>): Promise<VideoJobResult> {
   const { adapter, model, prompt, size, duration, modelOptions } = options
 
   return adapter.createVideoJob({
@@ -209,13 +207,11 @@ export async function generateVideo<
 export async function getVideoJobStatus<
   TAdapter extends VideoAdapter<ReadonlyArray<string>, object>,
   TModel extends VideoModels<TAdapter>,
->(
-  options: {
-    adapter: TAdapter & { kind: typeof kind }
-    model: TModel
-    jobId: string
-  },
-): Promise<{
+>(options: {
+  adapter: TAdapter & { kind: typeof kind }
+  model: TModel
+  jobId: string
+}): Promise<{
   status: 'pending' | 'processing' | 'completed' | 'failed'
   progress?: number
   url?: string
@@ -240,7 +236,8 @@ export async function getVideoJobStatus<
       return {
         status: statusResult.status,
         progress: statusResult.progress,
-        error: error instanceof Error ? error.message : 'Failed to get video URL',
+        error:
+          error instanceof Error ? error.message : 'Failed to get video URL',
       }
     }
   }

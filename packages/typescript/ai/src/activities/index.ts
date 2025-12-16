@@ -14,14 +14,8 @@
 
 // Import the activity functions and kinds for the map
 import { chat, kind as textKindValue } from './chat/index'
-import {
-  embedding,
-  kind as embeddingKindValue,
-} from './embedding/index'
-import {
-  summarize,
-  kind as summarizeKindValue,
-} from './summarize/index'
+import { embedding, kind as embeddingKindValue } from './embedding/index'
+import { summarize, kind as summarizeKindValue } from './summarize/index'
 import { generateImage, kind as imageKindValue } from './generateImage/index'
 import { generateVideo, kind as videoKindValue } from './generateVideo/index'
 import { generateSpeech, kind as ttsKindValue } from './generateSpeech/index'
