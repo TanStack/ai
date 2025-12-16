@@ -30,11 +30,11 @@ interface ModelMeta {
  * These map to the latest available version of each model tier.
  */
 const CLAUDE_HAIKU = {
-  name: 'Claude Haiku',
+  name: 'Claude Haiku 4.5',
   id: 'haiku',
   context_window: 200_000,
   max_output_tokens: 64_000,
-  knowledge_cutoff: '2025-01',
+  knowledge_cutoff: '2025-02',
   pricing: {
     input: { normal: 1 },
     output: { normal: 5 },
@@ -46,7 +46,7 @@ const CLAUDE_HAIKU = {
 } as const satisfies ModelMeta
 
 const CLAUDE_SONNET = {
-  name: 'Claude Sonnet',
+  name: 'Claude Sonnet 4.5',
   id: 'sonnet',
   context_window: 200_000,
   max_output_tokens: 64_000,
@@ -62,14 +62,14 @@ const CLAUDE_SONNET = {
 } as const satisfies ModelMeta
 
 const CLAUDE_OPUS = {
-  name: 'Claude Opus',
+  name: 'Claude Opus 4.5',
   id: 'opus',
   context_window: 200_000,
-  max_output_tokens: 64_000, // Opus 4.5 supports 64K output tokens
-  knowledge_cutoff: '2025-01',
+  max_output_tokens: 64_000,
+  knowledge_cutoff: '2025-05',
   pricing: {
-    input: { normal: 15 },
-    output: { normal: 75 },
+    input: { normal: 5 },
+    output: { normal: 25 },
   },
   supports: {
     input: ['text', 'image', 'document'] as const,
