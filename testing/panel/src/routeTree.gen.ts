@@ -10,7 +10,9 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as StreamDebuggerRouteImport } from './routes/stream-debugger'
+import { Route as SimulatorRouteImport } from './routes/simulator'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as ApiSimulatorChatRouteImport } from './routes/api.simulator-chat'
 import { Route as ApiLoadTraceRouteImport } from './routes/api.load-trace'
 import { Route as ApiListTracesRouteImport } from './routes/api.list-traces'
 import { Route as ApiChatRouteImport } from './routes/api.chat'
@@ -20,9 +22,19 @@ const StreamDebuggerRoute = StreamDebuggerRouteImport.update({
   path: '/stream-debugger',
   getParentRoute: () => rootRouteImport,
 } as any)
+const SimulatorRoute = SimulatorRouteImport.update({
+  id: '/simulator',
+  path: '/simulator',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiSimulatorChatRoute = ApiSimulatorChatRouteImport.update({
+  id: '/api/simulator-chat',
+  path: '/api/simulator-chat',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiLoadTraceRoute = ApiLoadTraceRouteImport.update({
@@ -43,56 +55,70 @@ const ApiChatRoute = ApiChatRouteImport.update({
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/simulator': typeof SimulatorRoute
   '/stream-debugger': typeof StreamDebuggerRoute
   '/api/chat': typeof ApiChatRoute
   '/api/list-traces': typeof ApiListTracesRoute
   '/api/load-trace': typeof ApiLoadTraceRoute
+  '/api/simulator-chat': typeof ApiSimulatorChatRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/simulator': typeof SimulatorRoute
   '/stream-debugger': typeof StreamDebuggerRoute
   '/api/chat': typeof ApiChatRoute
   '/api/list-traces': typeof ApiListTracesRoute
   '/api/load-trace': typeof ApiLoadTraceRoute
+  '/api/simulator-chat': typeof ApiSimulatorChatRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/simulator': typeof SimulatorRoute
   '/stream-debugger': typeof StreamDebuggerRoute
   '/api/chat': typeof ApiChatRoute
   '/api/list-traces': typeof ApiListTracesRoute
   '/api/load-trace': typeof ApiLoadTraceRoute
+  '/api/simulator-chat': typeof ApiSimulatorChatRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
+    | '/simulator'
     | '/stream-debugger'
     | '/api/chat'
     | '/api/list-traces'
     | '/api/load-trace'
+    | '/api/simulator-chat'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
+    | '/simulator'
     | '/stream-debugger'
     | '/api/chat'
     | '/api/list-traces'
     | '/api/load-trace'
+    | '/api/simulator-chat'
   id:
     | '__root__'
     | '/'
+    | '/simulator'
     | '/stream-debugger'
     | '/api/chat'
     | '/api/list-traces'
     | '/api/load-trace'
+    | '/api/simulator-chat'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  SimulatorRoute: typeof SimulatorRoute
   StreamDebuggerRoute: typeof StreamDebuggerRoute
   ApiChatRoute: typeof ApiChatRoute
   ApiListTracesRoute: typeof ApiListTracesRoute
   ApiLoadTraceRoute: typeof ApiLoadTraceRoute
+  ApiSimulatorChatRoute: typeof ApiSimulatorChatRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -104,11 +130,25 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof StreamDebuggerRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/simulator': {
+      id: '/simulator'
+      path: '/simulator'
+      fullPath: '/simulator'
+      preLoaderRoute: typeof SimulatorRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/': {
       id: '/'
       path: '/'
       fullPath: '/'
       preLoaderRoute: typeof IndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/simulator-chat': {
+      id: '/api/simulator-chat'
+      path: '/api/simulator-chat'
+      fullPath: '/api/simulator-chat'
+      preLoaderRoute: typeof ApiSimulatorChatRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/load-trace': {
@@ -137,10 +177,12 @@ declare module '@tanstack/react-router' {
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  SimulatorRoute: SimulatorRoute,
   StreamDebuggerRoute: StreamDebuggerRoute,
   ApiChatRoute: ApiChatRoute,
   ApiListTracesRoute: ApiListTracesRoute,
   ApiLoadTraceRoute: ApiLoadTraceRoute,
+  ApiSimulatorChatRoute: ApiSimulatorChatRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

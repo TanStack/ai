@@ -1,7 +1,7 @@
 import { Link } from '@tanstack/react-router'
 
 import { useState } from 'react'
-import { Home, Menu, X, FlaskConical } from 'lucide-react'
+import { Home, Menu, X, FlaskConical, Beaker } from 'lucide-react'
 
 export default function Header() {
   const [isOpen, setIsOpen] = useState(false)
@@ -68,6 +68,24 @@ export default function Header() {
           >
             <FlaskConical size={20} />
             <span className="font-medium">Stream Debugger</span>
+          </Link>
+
+          <Link
+            to="/simulator"
+            onClick={() => setIsOpen(false)}
+            className="flex items-center gap-3 p-3 rounded-lg hover:bg-gray-800 transition-colors mb-2"
+            activeProps={{
+              className:
+                'flex items-center gap-3 p-3 rounded-lg bg-purple-600 hover:bg-purple-700 transition-colors mb-2',
+            }}
+          >
+            <Beaker size={20} />
+            <div className="flex items-center gap-2">
+              <span className="font-medium">Tool Simulator</span>
+              <span className="text-xs px-1.5 py-0.5 bg-purple-500/20 text-purple-400 rounded">
+                Mock
+              </span>
+            </div>
           </Link>
         </nav>
       </aside>
