@@ -72,17 +72,13 @@ export interface ClaudeAgentSdkDocumentMetadata {
  * Metadata for Claude Agent SDK audio content parts.
  * Note: Audio is NOT supported by Claude - placeholder for type compatibility.
  */
-export interface ClaudeAgentSdkAudioMetadata {
-  // Audio not supported - placeholder for type compatibility
-}
+export type ClaudeAgentSdkAudioMetadata = Record<string, never>
 
 /**
  * Metadata for Claude Agent SDK video content parts.
  * Note: Video is NOT supported by Claude - placeholder for type compatibility.
  */
-export interface ClaudeAgentSdkVideoMetadata {
-  // Video not supported - placeholder for type compatibility
-}
+export type ClaudeAgentSdkVideoMetadata = Record<string, never>
 
 /**
  * Map of modality types to their Claude Agent SDK-specific metadata types.

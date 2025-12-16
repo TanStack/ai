@@ -587,28 +587,20 @@ export class ClaudeAgentSdk extends BaseAdapter<
    * Extracts text content from the last user message.
    */
   private buildPromptString(messages: Array<ModelMessage>): string {
-    // Find all user messages and combine them
-    const userMessages: Array<string> = []
-
-    for (const message of messages) {
-      if (message.role === 'user') {
-        let content: string
+    // Find the last user message by iterating in reverse
+    for (let i = messages.length - 1; i >= 0; i--) {
+      const message = messages[i]
+      if (message?.role === 'user') {
         if (typeof message.content === 'string') {
-          content = message.content
-        } else if (message.content) {
-          content = message.content
+          return message.content
+        } else if (message.content && message.content.length > 0) {
+          return message.content
             .map((part) => this.convertContentPartToText(part))
             .join('\n')
-        } else {
-          content = ''
         }
-        userMessages.push(content)
       }
     }
-
-    // Return the last user message or empty string
-    const lastMessage = userMessages[userMessages.length - 1]
-    return lastMessage ?? ''
+    return ''
   }
 
 }
@@ -660,7 +652,7 @@ export function createClaudeAgentSdk(
  * ```
  */
 export function claudeAgentSdk(config?: ClaudeAgentSdkConfig): ClaudeAgentSdk {
-  return new ClaudeAgentSdk(config)
+  return createClaudeAgentSdk(config)
 }
 
 export type { ClaudeAgentSdkConfig }

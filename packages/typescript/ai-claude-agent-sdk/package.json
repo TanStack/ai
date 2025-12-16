@@ -19,16 +19,16 @@
     "adapter"
   ],
   "type": "module",
-  "module": "./dist/esm/index.js",
+  "module": "./dist/esm/packages/typescript/ai-claude-agent-sdk/src/index.js",
   "types": "./dist/esm/index.d.ts",
   "exports": {
     ".": {
       "types": "./dist/esm/index.d.ts",
-      "import": "./dist/esm/index.js"
+      "import": "./dist/esm/packages/typescript/ai-claude-agent-sdk/src/index.js"
     },
     "./tools": {
       "types": "./dist/esm/tools/index.d.ts",
-      "import": "./dist/esm/tools/index.js"
+      "import": "./dist/esm/packages/typescript/ai-claude-agent-sdk/src/tools/index.js"
     }
   },
   "files": [

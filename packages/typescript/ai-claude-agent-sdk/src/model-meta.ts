@@ -65,7 +65,7 @@ const CLAUDE_OPUS = {
   name: 'Claude Opus',
   id: 'opus',
   context_window: 200_000,
-  max_output_tokens: 32_000,
+  max_output_tokens: 64_000, // Opus 4.5 supports 64K output tokens
   knowledge_cutoff: '2025-01',
   pricing: {
     input: { normal: 15 },
