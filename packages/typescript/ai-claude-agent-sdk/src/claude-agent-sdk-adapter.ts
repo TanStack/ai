@@ -135,9 +135,13 @@ export class ClaudeAgentSdk extends BaseAdapter<
       // Create abort controller if signal provided
       const abortController = new AbortController()
       if (options.request?.signal) {
-        options.request.signal.addEventListener('abort', () => {
-          abortController.abort()
-        })
+        options.request.signal.addEventListener(
+          'abort',
+          () => {
+            abortController.abort()
+          },
+          { once: true },
+        )
       }
 
       // Build SDK query options
