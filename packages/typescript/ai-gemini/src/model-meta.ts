@@ -832,8 +832,6 @@ export type GeminiTTSVoice = (typeof GEMINI_TTS_VOICES)[number]
   VEO_2.name,
 ] as const */
 
-// export type GeminiChatModels = (typeof GEMINI_MODELS)[number]
-
 // Manual type map for per-model provider options
 export type GeminiChatModelProviderOptionsByName = {
   // Models with thinking and structured output support

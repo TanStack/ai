@@ -44,9 +44,6 @@ export {
   toStreamResponse,
 } from './stream-to-response'
 
-// Base adapter
-// export { BaseAdapter } from './base-adapter'
-
 // Tool call management
 export { ToolCallManager } from './activities/chat/tools/tool-calls'
 

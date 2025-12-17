@@ -218,18 +218,3 @@ export function geminiSpeech(
   const apiKey = getGeminiApiKeyFromEnv()
   return createGeminiSpeech(apiKey, config)
 }
-
-// Deprecated (Unused or Untested)
-// export function geminiTTS(
-//   config?: Omit<GeminiTTSConfig, 'apiKey'>,
-// ): GeminiTTSAdapter {
-//   const apiKey = getGeminiApiKeyFromEnv()
-//   return createGeminiSpeech(apiKey, config)
-// }
-
-// export function createGeminiTTS(
-//   apiKey: string,
-//   config?: Omit<GeminiTTSConfig, 'apiKey'>,
-// ): GeminiTTSAdapter {
-//   return createGeminiSpeech(apiKey, config)
-// }
