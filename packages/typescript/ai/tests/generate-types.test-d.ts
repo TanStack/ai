@@ -10,7 +10,14 @@ import {
   BaseSummarizeAdapter,
   BaseTextAdapter,
 } from '../src/activities'
-import { chat, embedding, summarize, createChatOptions, createEmbeddingOptions, createSummarizeOptions } from '../src'
+import {
+  chat,
+  embedding,
+  summarize,
+  createChatOptions,
+  createEmbeddingOptions,
+  createSummarizeOptions,
+} from '../src'
 import type {
   StructuredOutputOptions,
   StructuredOutputResult,

@@ -159,4 +159,3 @@ export function createTranscriptionOptions<
 ): TranscriptionActivityOptions<TAdapter, TModel> {
   return options
 }
-

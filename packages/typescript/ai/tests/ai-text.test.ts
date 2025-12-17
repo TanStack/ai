@@ -5,7 +5,7 @@ import { chat } from '../src/activities/chat'
 import { BaseAdapter } from '../src/base-adapter'
 import { aiEventClient } from '../src/event-client.js'
 import { maxIterations } from '../src/activities/chat/agent-loop-strategies'
-import type { TextOptions, ModelMessage, StreamChunk, Tool } from '../src/types'
+import type { ModelMessage, StreamChunk, TextOptions, Tool } from '../src/types'
 
 // Mock event client to track events
 const eventListeners = new Map<string, Set<(...args: Array<any>) => void>>()
@@ -70,8 +70,8 @@ class MockAdapter extends BaseAdapter<
     this.trackStreamCall(options)
     yield {
       type: 'content',
-              model: 'test-model',
-              id: 'test-id-2',
+      model: 'test-model',
+      id: 'test-id-2',
       timestamp: Date.now(),
       delta: 'Hello',
       content: 'Hello',
@@ -79,8 +79,8 @@ class MockAdapter extends BaseAdapter<
     }
     yield {
       type: 'done',
-              model: 'test-model',
-              id: 'test-id-2',
+      model: 'test-model',
+      id: 'test-id-2',
       timestamp: Date.now(),
       finishReason: 'stop',
     }
@@ -258,7 +258,7 @@ describe('chat() - Comprehensive Logic Path Coverage', () => {
 
       const stream = chat({
         adapter,
-          model: 'test-model',
+        model: 'test-model',
         messages: [{ role: 'user', content: 'Hello' }],
       })
 
@@ -287,8 +287,8 @@ describe('chat() - Comprehensive Logic Path Coverage', () => {
           this.trackStreamCall(options)
           yield {
             type: 'content',
-              model: 'test-model',
-              id: 'test-id-2',
+            model: 'test-model',
+            id: 'test-id-2',
             timestamp: Date.now(),
             delta: 'Hello',
             content: 'Hello',
@@ -296,8 +296,8 @@ describe('chat() - Comprehensive Logic Path Coverage', () => {
           }
           yield {
             type: 'content',
-              model: 'test-model',
-              id: 'test-id-2',
+            model: 'test-model',
+            id: 'test-id-2',
             timestamp: Date.now(),
             delta: ' World',
             content: 'Hello World',
@@ -305,8 +305,8 @@ describe('chat() - Comprehensive Logic Path Coverage', () => {
           }
           yield {
             type: 'content',
-              model: 'test-model',
-              id: 'test-id-2',
+            model: 'test-model',
+            id: 'test-id-2',
             timestamp: Date.now(),
             delta: '!',
             content: 'Hello World!',
@@ -314,8 +314,8 @@ describe('chat() - Comprehensive Logic Path Coverage', () => {
           }
           yield {
             type: 'done',
-              model: 'test-model',
-              id: 'test-id-2',
+            model: 'test-model',
+            id: 'test-id-2',
             timestamp: Date.now(),
             finishReason: 'stop',
           }
@@ -326,7 +326,7 @@ describe('chat() - Comprehensive Logic Path Coverage', () => {
 
       const stream = chat({
         adapter,
-          model: 'test-model',
+        model: 'test-model',
         messages: [{ role: 'user', content: 'Say hello' }],
       })
 
@@ -351,8 +351,8 @@ describe('chat() - Comprehensive Logic Path Coverage', () => {
           this.trackStreamCall(options)
           yield {
             type: 'content',
-              model: 'test-model',
-              id: 'test-id-2',
+            model: 'test-model',
+            id: 'test-id-2',
             timestamp: Date.now(),
             delta: '',
             content: '',
@@ -360,8 +360,8 @@ describe('chat() - Comprehensive Logic Path Coverage', () => {
           }
           yield {
             type: 'done',
-              model: 'test-model',
-              id: 'test-id-2',
+            model: 'test-model',
+            id: 'test-id-2',
             timestamp: Date.now(),
             finishReason: 'stop',
           }
@@ -847,8 +847,8 @@ describe('chat() - Comprehensive Logic Path Coverage', () => {
           // Incomplete tool call (empty name)
           yield {
             type: 'tool_call',
-              model: 'test-model',
-              id: 'test-id-2',
+            model: 'test-model',
+            id: 'test-id-2',
             timestamp: Date.now(),
             toolCall: {
               id: 'call-1',
@@ -862,8 +862,8 @@ describe('chat() - Comprehensive Logic Path Coverage', () => {
           }
           yield {
             type: 'done',
-              model: 'test-model',
-              id: 'test-id-2',
+            model: 'test-model',
+            id: 'test-id-2',
             timestamp: Date.now(),
             finishReason: 'tool_calls',
           }
@@ -1256,7 +1256,7 @@ describe('chat() - Comprehensive Logic Path Coverage', () => {
       class ClientToolAdapter extends MockAdapter {
         async *chatStream(options: TextOptions): AsyncIterable<StreamChunk> {
           this.trackStreamCall(options)
-            yield {
+          yield {
             type: 'tool_call',
             model: 'test-model',
             id: 'test-id-1',
@@ -1487,7 +1487,7 @@ describe('chat() - Comprehensive Logic Path Coverage', () => {
 
       const stream = chat({
         adapter,
-          model: 'test-model',
+        model: 'test-model',
         messages,
         tools: [approvalTool],
       })
@@ -1584,7 +1584,7 @@ describe('chat() - Comprehensive Logic Path Coverage', () => {
           this.trackStreamCall(options)
           yield {
             type: 'tool_call',
-              model: 'test-model',
+            model: 'test-model',
             id: `test-id-${this.iteration}`,
             timestamp: Date.now(),
             toolCall: {
@@ -1596,7 +1596,7 @@ describe('chat() - Comprehensive Logic Path Coverage', () => {
           }
           yield {
             type: 'done',
-              model: 'test-model',
+            model: 'test-model',
             id: `test-id-${this.iteration}`,
             timestamp: Date.now(),
             finishReason: 'tool_calls',
@@ -1611,7 +1611,7 @@ describe('chat() - Comprehensive Logic Path Coverage', () => {
       const chunks: Array<StreamChunk> = []
       for await (const chunk of chat({
         adapter,
-          model: 'test-model',
+        model: 'test-model',
         messages: [{ role: 'user', content: 'Loop' }],
         tools: [tool],
         // No custom strategy - should use default maxIterations(5)
@@ -1821,7 +1821,7 @@ describe('chat() - Comprehensive Logic Path Coverage', () => {
       const abortController = new AbortController()
       const stream = chat({
         adapter,
-          model: 'test-model',
+        model: 'test-model',
         messages: [{ role: 'user', content: 'Hello' }],
         abortController,
       })
@@ -1879,7 +1879,7 @@ describe('chat() - Comprehensive Logic Path Coverage', () => {
       const abortController = new AbortController()
       const stream = chat({
         adapter,
-          model: 'test-model',
+        model: 'test-model',
         messages: [{ role: 'user', content: 'Test' }],
         tools: [tool],
         abortController,
@@ -2398,7 +2398,7 @@ describe('chat() - Comprehensive Logic Path Coverage', () => {
         collectChunks(
           chat({
             adapter,
-          model: 'test-model',
+            model: 'test-model',
             messages: [{ role: 'user', content: 'Test' }],
             tools: [tool],
           }),
@@ -2553,7 +2553,7 @@ describe('chat() - Comprehensive Logic Path Coverage', () => {
       // First call - should request approval
       const stream1 = chat({
         adapter,
-          model: 'test-model',
+        model: 'test-model',
         messages: [{ role: 'user', content: 'Delete file' }],
         tools: [tool],
       })
@@ -2598,7 +2598,7 @@ describe('chat() - Comprehensive Logic Path Coverage', () => {
 
       const stream2 = chat({
         adapter,
-          model: 'test-model',
+        model: 'test-model',
         messages: messagesWithApproval,
         tools: [tool],
       })
@@ -2676,7 +2676,7 @@ describe('chat() - Comprehensive Logic Path Coverage', () => {
       // First call - should request client execution
       const stream1 = chat({
         adapter,
-          model: 'test-model',
+        model: 'test-model',
         messages: [{ role: 'user', content: 'Use client tool' }],
         tools: [tool],
       })
@@ -2716,7 +2716,7 @@ describe('chat() - Comprehensive Logic Path Coverage', () => {
 
       const stream2 = chat({
         adapter,
-          model: 'test-model',
+        model: 'test-model',
         messages: messagesWithOutput,
         tools: [tool],
       })
@@ -2852,7 +2852,7 @@ describe('chat() - Comprehensive Logic Path Coverage', () => {
 
       const stream = chat({
         adapter,
-          model: 'test-model',
+        model: 'test-model',
         messages: messagesWithBoth,
         tools: [approvalTool, clientTool],
       })
@@ -2972,7 +2972,7 @@ describe('chat() - Comprehensive Logic Path Coverage', () => {
 
       const stream = chat({
         adapter,
-          model: 'test-model',
+        model: 'test-model',
         messages: [{ role: 'user', content: 'what is the temperature?' }],
         tools: [temperatureTool],
         agentLoopStrategy: maxIterations(20),
