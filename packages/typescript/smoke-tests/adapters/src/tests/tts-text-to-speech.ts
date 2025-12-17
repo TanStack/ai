@@ -1,4 +1,4 @@
-import { ai } from '@tanstack/ai'
+import { generateSpeech } from '@tanstack/ai'
 import { writeDebugFile } from '../harness'
 import type { AdapterContext, TestOutcome } from '../harness'
 
@@ -35,7 +35,7 @@ export async function runTTS(
   }
 
   try {
-    const result = await ai({
+    const result = await generateSpeech({
       adapter: adapterContext.ttsAdapter,
       model,
       text,

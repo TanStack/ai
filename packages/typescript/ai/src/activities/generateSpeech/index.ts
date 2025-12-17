@@ -58,7 +58,7 @@ export interface TTSActivityOptions<
   /** The speed of the generated audio (0.25 to 4.0) */
   speed?: number
   /** Provider-specific options for TTS generation */
-  providerOptions?: TTSProviderOptions<TAdapter>
+  modelOptions?: TTSProviderOptions<TAdapter>
 }
 
 // ===========================
@@ -79,10 +79,10 @@ export type TTSActivityResult = Promise<TTSResult>
  *
  * @example Generate speech from text
  * ```ts
- * import { ai } from '@tanstack/ai'
+ * import { generateSpeech } from '@tanstack/ai'
  * import { openaiTTS } from '@tanstack/ai-openai'
  *
- * const result = await ai({
+ * const result = await generateSpeech({
  *   adapter: openaiTTS(),
  *   model: 'tts-1-hd',
  *   text: 'Hello, welcome to TanStack AI!',
@@ -94,7 +94,7 @@ export type TTSActivityResult = Promise<TTSResult>
  *
  * @example With format and speed options
  * ```ts
- * const result = await ai({
+ * const result = await generateSpeech({
  *   adapter: openaiTTS(),
  *   model: 'tts-1',
  *   text: 'This is slower speech.',
@@ -104,7 +104,7 @@ export type TTSActivityResult = Promise<TTSResult>
  * })
  * ```
  */
-export async function ttsActivity<
+export async function generateSpeech<
   TAdapter extends TTSAdapter<ReadonlyArray<string>, object>,
   TModel extends TTSModels<TAdapter>,
 >(options: TTSActivityOptions<TAdapter, TModel>): TTSActivityResult {

@@ -122,7 +122,7 @@ export interface AIDevtoolsEventMap {
     clientId?: string
     toolNames?: Array<string>
     options?: Record<string, unknown>
-    providerOptions?: Record<string, unknown>
+    modelOptions?: Record<string, unknown>
   }
   'tanstack-ai-devtools:text:completed': {
     requestId: string

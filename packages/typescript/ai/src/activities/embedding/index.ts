@@ -51,7 +51,7 @@ export interface EmbeddingActivityOptions<
   /** Optional: Number of dimensions for the embedding vector */
   dimensions?: number
   /** Provider-specific options */
-  providerOptions?: EmbeddingProviderOptions<TAdapter>
+  modelOptions?: EmbeddingProviderOptions<TAdapter>
 }
 
 // ===========================
@@ -81,10 +81,10 @@ function createId(prefix: string): string {
  *
  * @example Generate embeddings for a single text
  * ```ts
- * import { ai } from '@tanstack/ai'
+ * import { embedding } from '@tanstack/ai'
  * import { openaiEmbed } from '@tanstack/ai-openai'
  *
- * const result = await ai({
+ * const result = await embedding({
  *   adapter: openaiEmbed(),
  *   model: 'text-embedding-3-small',
  *   input: 'Hello, world!'
@@ -95,7 +95,7 @@ function createId(prefix: string): string {
  *
  * @example Generate embeddings for multiple texts
  * ```ts
- * const result = await ai({
+ * const result = await embedding({
  *   adapter: openaiEmbed(),
  *   model: 'text-embedding-3-small',
  *   input: ['Hello', 'World', 'How are you?']
@@ -109,7 +109,7 @@ function createId(prefix: string): string {
  *
  * @example Specify embedding dimensions
  * ```ts
- * const result = await ai({
+ * const result = await embedding({
  *   adapter: openaiEmbed(),
  *   model: 'text-embedding-3-small',
  *   input: 'Hello, world!',
@@ -117,13 +117,13 @@ function createId(prefix: string): string {
  * })
  * ```
  */
-export async function embeddingActivity<
+export async function embedding<
   TAdapter extends EmbeddingAdapter<ReadonlyArray<string>, object>,
   TModel extends EmbeddingModels<TAdapter>,
 >(
   options: EmbeddingActivityOptions<TAdapter, TModel>,
 ): EmbeddingActivityResult {
-  const { adapter, model, input, dimensions } = options
+  const { adapter, input, dimensions, model } = options
   const requestId = createId('embedding')
   const inputCount = Array.isArray(input) ? input.length : 1
   const startTime = Date.now()

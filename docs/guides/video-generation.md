@@ -1,3 +1,9 @@
+---
+title: Video Generation
+id: video-generation
+order: 16
+---
+
 # Video Generation (Experimental)
 
 > **⚠️ EXPERIMENTAL FEATURE WARNING**
@@ -27,14 +33,14 @@ Currently supported:
 ### Creating a Video Job
 
 ```typescript
-import { ai } from '@tanstack/ai'
+import { generateVideo } from '@tanstack/ai'
 import { openaiVideo } from '@tanstack/ai-openai'
 
 // Create a video adapter (uses OPENAI_API_KEY from environment)
 const adapter = openaiVideo()
 
 // Start a video generation job
-const { jobId, model } = await ai({
+const { jobId, model } = await generateVideo({
   adapter,
   model: 'sora-2',
   prompt: 'A golden retriever puppy playing in a field of sunflowers',
@@ -46,12 +52,13 @@ console.log('Job started:', jobId)
 ### Polling for Status
 
 ```typescript
+import { getVideoJobStatus } from '@tanstack/ai'
+
 // Check the status of the job
-const status = await ai({
+const status = await getVideoJobStatus({
   adapter,
   model: 'sora-2',
   jobId,
-  request: 'status',
 })
 
 console.log('Status:', status.status) // 'pending' | 'processing' | 'completed' | 'failed'
@@ -65,29 +72,32 @@ if (status.status === 'failed') {
 ### Getting the Video URL
 
 ```typescript
+import { getVideoJobStatus } from '@tanstack/ai'
+
 // Only call this after status is 'completed'
-const { url, expiresAt } = await ai({
+const result = await getVideoJobStatus({
   adapter,
   model: 'sora-2',
   jobId,
-  request: 'url',
 })
 
-console.log('Video URL:', url)
-console.log('Expires at:', expiresAt)
+if (result.status === 'completed' && result.url) {
+  console.log('Video URL:', result.url)
+  console.log('Expires at:', result.expiresAt)
+}
 ```
 
 ### Complete Example with Polling Loop
 
 ```typescript
-import { ai } from '@tanstack/ai'
+import { generateVideo, getVideoJobStatus } from '@tanstack/ai'
 import { openaiVideo } from '@tanstack/ai-openai'
 
 async function generateVideo(prompt: string) {
   const adapter = openaiVideo()
 
   // 1. Create the job
-  const { jobId } = await ai({
+  const { jobId } = await generateVideo({
     adapter,
     model: 'sora-2',
     prompt,
@@ -103,11 +113,10 @@ async function generateVideo(prompt: string) {
     // Wait 5 seconds between polls
     await new Promise((resolve) => setTimeout(resolve, 5000))
 
-    const result = await ai({
+    const result = await getVideoJobStatus({
       adapter,
       model: 'sora-2',
       jobId,
-      request: 'status',
     })
 
     status = result.status
@@ -119,14 +128,17 @@ async function generateVideo(prompt: string) {
   }
 
   // 3. Get the video URL
-  const { url } = await ai({
+  const result = await getVideoJobStatus({
     adapter,
     model: 'sora-2',
     jobId,
-    request: 'url',
   })
 
-  return url
+  if (result.status === 'completed' && result.url) {
+    return result.url
+  }
+
+  throw new Error('Video generation failed or URL not available')
 }
 
 // Usage
@@ -140,10 +152,12 @@ console.log('Video ready:', videoUrl)
 
 | Option | Type | Description |
 |--------|------|-------------|
+| `adapter` | `VideoAdapter` | Video adapter instance (required) |
+| `model` | `string` | Model identifier (type-safe based on adapter) (required) |
 | `prompt` | `string` | Text description of the video to generate (required) |
 | `size` | `string` | Video resolution in WIDTHxHEIGHT format |
 | `duration` | `number` | Video duration in seconds (maps to `seconds` parameter in API) |
-| `providerOptions` | `object` | Provider-specific options |
+| `modelOptions?` | `object` | Model-specific options (renamed from `providerOptions`) |
 
 ### Supported Sizes
 
@@ -164,20 +178,20 @@ The API uses the `seconds` parameter. Allowed values:
 - `8` seconds (default)
 - `12` seconds
 
-## Provider Options
+## Model Options
 
-### OpenAI Provider Options
+### OpenAI Model Options
 
 Based on the [OpenAI Sora API](https://platform.openai.com/docs/api-reference/videos/create):
 
 ```typescript
-const { jobId } = await ai({
+const { jobId } = await generateVideo({
   adapter,
   model: 'sora-2',
   prompt: 'A beautiful sunset over the ocean',
   size: '1280x720',      // '1280x720', '720x1280', '1792x1024', '1024x1792'
   duration: 8,           // 4, 8, or 12 seconds
-  providerOptions: {
+  modelOptions: {
     size: '1280x720',    // Alternative way to specify size
     seconds: 8,          // Alternative way to specify duration
   }
@@ -229,14 +243,14 @@ Video generation can fail for various reasons. Always implement proper error han
 
 ```typescript
 try {
-  const { jobId } = await ai({
+  const { jobId } = await generateVideo({
     adapter,
     model: 'sora-2',
     prompt: 'A scene',
   })
 
   // Poll for status...
-  const status = await ai({
+  const status = await getVideoJobStatus({
     adapter,
     model: 'sora-2',
     jobId,

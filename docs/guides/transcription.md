@@ -1,3 +1,9 @@
+---
+title: Transcription
+id: transcription
+order: 14
+---
+
 # Audio Transcription
 
 TanStack AI provides support for audio transcription (speech-to-text) through dedicated transcription adapters. This guide covers how to convert spoken audio into text using OpenAI's Whisper and GPT-4o transcription models.
@@ -14,7 +20,7 @@ Currently supported:
 ### OpenAI Transcription
 
 ```typescript
-import { ai } from '@tanstack/ai'
+import { generateTranscription } from '@tanstack/ai'
 import { openaiTranscription } from '@tanstack/ai-openai'
 
 // Create a transcription adapter (uses OPENAI_API_KEY from environment)
@@ -23,7 +29,7 @@ const adapter = openaiTranscription()
 // Transcribe audio from a file
 const audioFile = new File([audioBuffer], 'audio.mp3', { type: 'audio/mpeg' })
 
-const result = await ai({
+const result = await generateTranscription({
   adapter,
   model: 'whisper-1',
   audio: audioFile,
@@ -42,7 +48,7 @@ import { readFile } from 'fs/promises'
 const audioBuffer = await readFile('recording.mp3')
 const base64Audio = audioBuffer.toString('base64')
 
-const result = await ai({
+const result = await generateTranscription({
   adapter: openaiTranscription(),
   model: 'whisper-1',
   audio: base64Audio,
@@ -56,7 +62,7 @@ console.log(result.text)
 ```typescript
 const dataUrl = `data:audio/mpeg;base64,${base64AudioData}`
 
-const result = await ai({
+const result = await generateTranscription({
   adapter: openaiTranscription(),
   model: 'whisper-1',
   audio: dataUrl,
@@ -91,16 +97,16 @@ Whisper supports many languages. Common codes include:
 
 > **Tip:** Providing the correct language code improves accuracy and reduces latency.
 
-## Provider Options
+## Model Options
 
-### OpenAI Provider Options
+### OpenAI Model Options
 
 ```typescript
-const result = await ai({
+const result = await generateTranscription({
   adapter: openaiTranscription(),
   model: 'whisper-1',
   audio: audioFile,
-  providerOptions: {
+  modelOptions: {
     response_format: 'verbose_json', // Get detailed output with timestamps
     temperature: 0, // Lower = more deterministic
     prompt: 'Technical terms: API, SDK, CLI', // Guide transcription
@@ -153,7 +159,7 @@ interface TranscriptionResult {
 ## Complete Example
 
 ```typescript
-import { ai } from '@tanstack/ai'
+import { generateTranscription } from '@tanstack/ai'
 import { openaiTranscription } from '@tanstack/ai-openai'
 import { readFile } from 'fs/promises'
 
@@ -169,12 +175,12 @@ async function transcribeAudio(filepath: string) {
   )
 
   // Transcribe with detailed output
-  const result = await ai({
+  const result = await generateTranscription({
     adapter,
     model: 'whisper-1',
     audio: audioFile,
     language: 'en',
-    providerOptions: {
+    modelOptions: {
       response_format: 'verbose_json',
       include: ['segment', 'word'],
     },
@@ -266,7 +272,7 @@ async function recordAndTranscribe() {
 
 ```typescript
 // api/transcribe.ts
-import { ai } from '@tanstack/ai'
+import { generateTranscription } from '@tanstack/ai'
 import { openaiTranscription } from '@tanstack/ai-openai'
 
 export async function POST(request: Request) {
@@ -275,7 +281,7 @@ export async function POST(request: Request) {
 
   const adapter = openaiTranscription()
   
-  const result = await ai({
+  const result = await generateTranscription({
     adapter,
     model: 'whisper-1',
     audio: audioFile,
@@ -289,7 +295,7 @@ export async function POST(request: Request) {
 
 ```typescript
 try {
-  const result = await ai({
+  const result = await generateTranscription({
     adapter: openaiTranscription(),
     model: 'whisper-1',
     audio: audioFile,

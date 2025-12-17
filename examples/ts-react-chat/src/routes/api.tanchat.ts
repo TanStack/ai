@@ -1,5 +1,10 @@
 import { createFileRoute } from '@tanstack/react-router'
-import { ai, maxIterations, toStreamResponse } from '@tanstack/ai'
+import {
+  chat,
+  createChatOptions,
+  maxIterations,
+  toStreamResponse,
+} from '@tanstack/ai'
 import { openaiText } from '@tanstack/ai-openai'
 import { ollamaText } from '@tanstack/ai-ollama'
 import { anthropicText } from '@tanstack/ai-anthropic'
@@ -13,6 +18,31 @@ import {
 } from '@/lib/guitar-tools'
 
 type Provider = 'openai' | 'anthropic' | 'gemini' | 'ollama'
+
+// Pre-define typed adapter configurations with full type inference
+// This pattern gives you model autocomplete at definition time
+const adapterConfig = {
+  anthropic: () =>
+    createChatOptions({
+      adapter: anthropicText(),
+      model: 'claude-sonnet-4-5',
+    }),
+  gemini: () =>
+    createChatOptions({
+      adapter: geminiText(),
+      model: 'gemini-2.0-flash-exp',
+    }),
+  ollama: () =>
+    createChatOptions({
+      adapter: ollamaText(),
+      model: 'mistral:7b',
+    }),
+  openai: () =>
+    createChatOptions({
+      adapter: openaiText(),
+      model: 'gpt-4o',
+    }),
+}
 
 const SYSTEM_PROMPT = `You are a helpful assistant for a guitar store.
 
@@ -61,45 +91,21 @@ export const Route = createFileRoute('/api/tanchat')({
         const body = await request.json()
         const { messages, data } = body
 
-        // Extract provider, model, and conversationId from data
+        // Extract provider and conversationId from data
         const provider: Provider = data?.provider || 'openai'
-        const model: string | undefined = data?.model
         const conversationId: string | undefined = data?.conversationId
 
         try {
-          // Select adapter based on provider
-          let adapter
-          let defaultModel
-
-          switch (provider) {
-            case 'anthropic':
-              adapter = anthropicText()
-              defaultModel = 'claude-sonnet-4-5'
-              break
-            case 'gemini':
-              adapter = geminiText()
-              defaultModel = 'gemini-2.0-flash-exp'
-              break
-            case 'ollama':
-              adapter = ollamaText()
-              defaultModel = 'mistral:7b'
-              break
-            case 'openai':
-            default:
-              adapter = openaiText()
-              defaultModel = 'gpt-4o'
-              break
-          }
-
-          // Determine model - use provided model or default based on provider
-          const selectedModel = model || defaultModel
+          // Get typed adapter options using createChatOptions pattern
+          const options = adapterConfig[provider]()
           console.log(
-            `[API Route] Using provider: ${provider}, model: ${selectedModel}`,
+            `[API Route] Using provider: ${provider}, adapter: ${options.adapter.name}`,
           )
 
-          const stream = ai({
-            adapter: adapter as any,
-            model: selectedModel as any,
+          // Note: We cast to AsyncIterable<StreamChunk> because all chat adapters
+          // return streams, but TypeScript sees a union of all possible return types
+          const stream = chat({
+            ...options,
             tools: [
               getGuitars, // Server tool
               recommendGuitarToolDef, // No server execute - client will handle
@@ -113,7 +119,7 @@ export const Route = createFileRoute('/api/tanchat')({
             abortController,
             conversationId,
           })
-          return toStreamResponse(stream as any, { abortController })
+          return toStreamResponse(stream, { abortController })
         } catch (error: any) {
           console.error('[API Route] Error in chat request:', {
             message: error?.message,

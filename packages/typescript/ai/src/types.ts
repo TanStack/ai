@@ -1,9 +1,9 @@
-import type { CommonOptions } from './activities/text/index'
+import type { CommonOptions } from './activities/chat/index'
 import type { z } from 'zod'
 import type {
   ToolCallState,
   ToolResultState,
-} from './activities/text/stream/types'
+} from './activities/chat/stream/types'
 import type {
   AnyAdapter,
   EmbeddingAdapter,
@@ -566,7 +566,7 @@ export interface TextOptions<
   systemPrompts?: Array<string>
   agentLoopStrategy?: AgentLoopStrategy
   options?: CommonOptions
-  providerOptions?: TProviderOptionsForModel
+  modelOptions?: TProviderOptionsForModel
   request?: Request | RequestInit
   output?: TOutput
   /**
@@ -764,8 +764,8 @@ export interface ImageGenerationOptions<
   numberOfImages?: number
   /** Image size in WIDTHxHEIGHT format (e.g., "1024x1024") */
   size?: string
-  /** Provider-specific options for image generation */
-  providerOptions?: TProviderOptions
+  /** Model-specific options for image generation */
+  modelOptions?: TProviderOptions
 }
 
 /**
@@ -819,8 +819,8 @@ export interface VideoGenerationOptions<
   size?: string
   /** Video duration in seconds */
   duration?: number
-  /** Provider-specific options for video generation */
-  providerOptions?: TProviderOptions
+  /** Model-specific options for video generation */
+  modelOptions?: TProviderOptions
 }
 
 /**
@@ -884,8 +884,8 @@ export interface TTSOptions<TProviderOptions extends object = object> {
   format?: 'mp3' | 'opus' | 'aac' | 'flac' | 'wav' | 'pcm'
   /** The speed of the generated audio (0.25 to 4.0) */
   speed?: number
-  /** Provider-specific options for TTS generation */
-  providerOptions?: TProviderOptions
+  /** Model-specific options for TTS generation */
+  modelOptions?: TProviderOptions
 }
 
 /**
@@ -927,8 +927,8 @@ export interface TranscriptionOptions<
   prompt?: string
   /** The format of the transcription output */
   responseFormat?: 'json' | 'text' | 'srt' | 'verbose_json' | 'vtt'
-  /** Provider-specific options for transcription */
-  providerOptions?: TProviderOptions
+  /** Model-specific options for transcription */
+  modelOptions?: TProviderOptions
 }
 
 /**
@@ -1034,7 +1034,7 @@ export interface AIAdapter<
   _embeddingProviderOptions?: TEmbeddingProviderOptions
   /**
    * Type-only map from model name to its specific provider options.
-   * Used by the core AI types to narrow providerOptions based on the selected model.
+   * Used by the core AI types to narrow modelOptions based on the selected model.
    * Must be provided by all adapters.
    */
   _modelProviderOptionsByName: TModelProviderOptionsByName
@@ -1086,11 +1086,11 @@ export type TextStreamOptionsUnion<
       ? TModel extends string
         ? Omit<
             TextOptions,
-            'model' | 'providerOptions' | 'responseFormat' | 'messages'
+            'model' | 'modelOptions' | 'responseFormat' | 'messages'
           > & {
             adapter: TAdapter
             model: TModel
-            providerOptions?: TModel extends keyof ModelProviderOptions
+            modelOptions?: TModel extends keyof ModelProviderOptions
               ? ModelProviderOptions[TModel]
               : never
             /**

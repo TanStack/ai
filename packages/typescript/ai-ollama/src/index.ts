@@ -6,8 +6,11 @@
 export {
   OllamaTextAdapter,
   OllamaTextModels,
-  createOllamaText,
+  createOllamaChat,
   ollamaText,
+  // Deprecated exports
+  createOllamaText,
+  ollamaChat,
   type OllamaTextAdapterOptions,
   type OllamaTextModel,
   type OllamaTextProviderOptions,
@@ -17,6 +20,9 @@ export {
 export {
   OllamaEmbedAdapter,
   OllamaEmbeddingModels,
+  createOllamaEmbedding,
+  ollamaEmbedding,
+  // Deprecated exports
   createOllamaEmbed,
   ollamaEmbed,
   type OllamaEmbedAdapterOptions,
@@ -36,21 +42,9 @@ export {
 } from './adapters/summarize'
 
 // ===========================
-// Legacy monolithic adapter (deprecated)
+// Type Exports
 // ===========================
 
-/**
- * @deprecated Use the new tree-shakeable adapters instead:
- * - `ollamaText()` / `createOllamaText()` for chat/text generation
- * - `ollamaEmbed()` / `createOllamaEmbed()` for embeddings
- * - `ollamaSummarize()` / `createOllamaSummarize()` for summarization
- */
-export {
-  Ollama,
-  createOllama,
-  ollama,
-  type OllamaConfig,
-} from './ollama-adapter'
 export type {
   OllamaImageMetadata,
   OllamaAudioMetadata,

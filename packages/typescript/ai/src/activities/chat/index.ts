@@ -8,8 +8,7 @@
 import { aiEventClient } from '../../event-client.js'
 import { streamToText } from '../../stream-to-response.js'
 import { ToolCallManager, executeToolCalls } from './tools/tool-calls'
-// Schema conversion is now done at the adapter level
-// Each adapter imports and uses convertZodToJsonSchema with provider-specific options
+import { convertZodToJsonSchema } from './tools/zod-converter'
 import { maxIterations as maxIterationsStrategy } from './agent-loop-strategies'
 import type {
   ApprovalRequest,
@@ -179,8 +178,8 @@ export interface TextActivityOptions<
   tools?: TextOptions['tools']
   /** Additional options like temperature, maxTokens, etc. */
   options?: TextOptions['options']
-  /** Provider-specific options */
-  providerOptions?: TextProviderOptionsForModel<TAdapter, TModel>
+  /** Model-specific options */
+  modelOptions?: TextProviderOptionsForModel<TAdapter, TModel>
   /** AbortController for cancellation */
   abortController?: TextOptions['abortController']
   /** Strategy for controlling the agent loop */
@@ -195,7 +194,7 @@ export interface TextActivityOptions<
    *
    * @example
    * ```ts
-   * const result = await ai({
+   * const result = await chat({
    *   adapter: openaiText(),
    *   model: 'gpt-4o',
    *   messages: [{ role: 'user', content: 'Generate a person' }],
@@ -217,7 +216,7 @@ export interface TextActivityOptions<
    *
    * @example Non-streaming text
    * ```ts
-   * const text = await ai({
+   * const text = await chat({
    *   adapter: openaiText(),
    *   model: 'gpt-4o',
    *   messages: [{ role: 'user', content: 'Hello!' }],
@@ -352,8 +351,7 @@ class TextEngine<
 
   private beforeRun(): void {
     this.streamStartTime = Date.now()
-    const { model, tools, options, providerOptions, conversationId } =
-      this.params
+    const { model, tools, options, modelOptions, conversationId } = this.params
 
     aiEventClient.emit('text:started', {
       requestId: this.requestId,
@@ -367,7 +365,7 @@ class TextEngine<
       clientId: conversationId,
       toolNames: tools?.map((t) => t.name),
       options: options as Record<string, unknown> | undefined,
-      providerOptions: providerOptions as Record<string, unknown> | undefined,
+      modelOptions: modelOptions as Record<string, unknown> | undefined,
     })
 
     aiEventClient.emit('stream:started', {
@@ -430,16 +428,27 @@ class TextEngine<
 
   private async *streamModelResponse(): AsyncGenerator<StreamChunk> {
     const adapterOptions = this.params.options || {}
-    const providerOptions = this.params.providerOptions
+    const modelOptions = this.params.modelOptions
     const tools = this.params.tools
+
+    // Convert tool schemas from Zod to JSON Schema before passing to adapter
+    const toolsWithJsonSchemas = tools?.map((tool) => ({
+      ...tool,
+      inputSchema: tool.inputSchema
+        ? convertZodToJsonSchema(tool.inputSchema)
+        : undefined,
+      outputSchema: tool.outputSchema
+        ? convertZodToJsonSchema(tool.outputSchema)
+        : undefined,
+    }))
 
     for await (const chunk of this.adapter.chatStream({
       model: this.params.model,
       messages: this.messages,
-      tools,
+      tools: toolsWithJsonSchemas,
       options: adapterOptions,
       request: this.effectiveRequest,
-      providerOptions,
+      modelOptions,
       systemPrompts: this.systemPrompts,
     })) {
       if (this.isAborted()) {
@@ -969,10 +978,10 @@ class TextEngine<
  *
  * @example Full agentic text (streaming with tools)
  * ```ts
- * import { ai } from '@tanstack/ai'
+ * import { chat } from '@tanstack/ai'
  * import { openaiText } from '@tanstack/ai-openai'
  *
- * for await (const chunk of ai({
+ * for await (const chunk of chat({
  *   adapter: openaiText(),
  *   model: 'gpt-4o',
  *   messages: [{ role: 'user', content: 'What is the weather?' }],
@@ -986,7 +995,7 @@ class TextEngine<
  *
  * @example One-shot text (streaming without tools)
  * ```ts
- * for await (const chunk of ai({
+ * for await (const chunk of chat({
  *   adapter: openaiText(),
  *   model: 'gpt-4o',
  *   messages: [{ role: 'user', content: 'Hello!' }]
@@ -997,7 +1006,7 @@ class TextEngine<
  *
  * @example Non-streaming text (stream: false)
  * ```ts
- * const text = await ai({
+ * const text = await chat({
  *   adapter: openaiText(),
  *   model: 'gpt-4o',
  *   messages: [{ role: 'user', content: 'Hello!' }],
@@ -1010,7 +1019,7 @@ class TextEngine<
  * ```ts
  * import { z } from 'zod'
  *
- * const result = await ai({
+ * const result = await chat({
  *   adapter: openaiText(),
  *   model: 'gpt-4o',
  *   messages: [{ role: 'user', content: 'Research and summarize the topic' }],
@@ -1023,7 +1032,7 @@ class TextEngine<
  * // result is { summary: string, keyPoints: string[] }
  * ```
  */
-export function textActivity<
+export function chat<
   TAdapter extends TextAdapter<ReadonlyArray<string>, object, any, any, any>,
   TModel extends TextModels<TAdapter>,
   TSchema extends z.ZodType | undefined = undefined,
@@ -1165,17 +1174,30 @@ async function runAgenticStructuredOutput<TSchema extends z.ZodType>(
   const {
     tools: _tools,
     agentLoopStrategy: _als,
+    model,
     ...structuredTextOptions
   } = textOptions
 
+  // Ensure model is present (should be resolved by chat() function)
+  if (!model) {
+    throw new Error('Model is required for structured output')
+  }
+
+  // Convert the Zod schema to JSON Schema before passing to the adapter
+  const jsonSchema = convertZodToJsonSchema(outputSchema)
+  if (!jsonSchema) {
+    throw new Error('Failed to convert output schema to JSON Schema')
+  }
+
   // Call the adapter's structured output method with the conversation context
-  // Each adapter is responsible for converting the Zod schema to its provider's format
+  // The adapter receives JSON Schema and can apply vendor-specific patches
   const result = await adapter.structuredOutput({
     chatOptions: {
       ...structuredTextOptions,
+      model,
       messages: finalMessages,
     },
-    outputSchema,
+    outputSchema: jsonSchema,
   })
 
   // Validate the result against the Zod schema
@@ -1196,15 +1218,18 @@ async function runAgenticStructuredOutput<TSchema extends z.ZodType>(
 /**
  * Type-safe helper to create text options with model-specific provider options.
  *
+ * @deprecated Use `createOptions` from `@tanstack/ai` instead, which supports all adapter types
+ * (text, embedding, summarize, image, video) with the same type-safe model inference.
+ *
  * @example
  * ```ts
- * import { textOptions, ai } from '@tanstack/ai'
+ * import { createChatOptions, chat } from '@tanstack/ai'
  * import { openaiText } from '@tanstack/ai-openai'
  *
- * const opts = textOptions({
+ * const opts = createChatOptions({
  *   adapter: openaiText(),
  *   model: 'gpt-4o',
- *   options: { temperature: 0.7 }
+ *   messages: [],
  * })
  * ```
  */
@@ -1222,11 +1247,11 @@ export function textOptions<
 >(
   options: Omit<
     TextStreamOptionsUnion<TAdapter>,
-    'providerOptions' | 'model' | 'messages' | 'abortController'
+    'modelOptions' | 'model' | 'messages' | 'abortController'
   > & {
     adapter: TAdapter
     model: TModel
-    providerOptions?: TAdapter extends AIAdapter<
+    modelOptions?: TAdapter extends AIAdapter<
       any,
       any,
       any,

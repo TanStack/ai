@@ -13,22 +13,16 @@
  */
 
 // Import the activity functions and kinds for the map
-import { textActivity, kind as textKindValue } from './text/index'
+import { chat, kind as textKindValue } from './chat/index'
+import { embedding, kind as embeddingKindValue } from './embedding/index'
+import { summarize, kind as summarizeKindValue } from './summarize/index'
+import { generateImage, kind as imageKindValue } from './generateImage/index'
+import { generateVideo, kind as videoKindValue } from './generateVideo/index'
+import { generateSpeech, kind as ttsKindValue } from './generateSpeech/index'
 import {
-  embeddingActivity,
-  kind as embeddingKindValue,
-} from './embedding/index'
-import {
-  summarizeActivity,
-  kind as summarizeKindValue,
-} from './summarize/index'
-import { imageActivity, kind as imageKindValue } from './image/index'
-import { videoActivity, kind as videoKindValue } from './video/index'
-import { ttsActivity, kind as ttsKindValue } from './tts/index'
-import {
-  transcriptionActivity,
+  generateTranscription,
   kind as transcriptionKindValue,
-} from './transcription/index'
+} from './generateTranscription/index'
 
 // Import model types for use in local type definitions
 import type {
@@ -37,7 +31,7 @@ import type {
   TextModels,
   TextProviderOptionsForModel,
   // eslint-disable-next-line import/no-duplicates
-} from './text/index'
+} from './chat/index'
 import type {
   EmbeddingActivityOptions,
   EmbeddingActivityResult,
@@ -56,7 +50,7 @@ import type {
   ImageModels,
   ImageProviderOptionsForModel,
   ImageSizeForModel,
-} from './image/index'
+} from './generateImage/index'
 import type {
   VideoActivityOptions,
   VideoActivityResult,
@@ -65,30 +59,30 @@ import type {
   VideoProviderOptions,
   VideoStatusOptions,
   VideoUrlOptions,
-} from './video/index'
+} from './generateVideo/index'
 import type {
   TTSActivityOptions,
   TTSActivityResult,
   TTSModels,
   TTSProviderOptions,
-} from './tts/index'
+} from './generateSpeech/index'
 import type {
   TranscriptionActivityOptions,
   TranscriptionActivityResult,
   TranscriptionModels,
   TranscriptionProviderOptions,
-} from './transcription/index'
+} from './generateTranscription/index'
 
 // Import adapter types for type definitions
-import type { TextAdapter } from './text/adapter'
+import type { TextAdapter } from './chat/adapter'
 import type { EmbeddingAdapter } from './embedding/adapter'
 import type { SummarizeAdapter } from './summarize/adapter'
-import type { ImageAdapter } from './image/adapter'
-import type { VideoAdapter } from './video/adapter'
-import type { TTSAdapter } from './tts/adapter'
-import type { TranscriptionAdapter } from './transcription/adapter'
+import type { ImageAdapter } from './generateImage/adapter'
+import type { VideoAdapter } from './generateVideo/adapter'
+import type { TTSAdapter } from './generateSpeech/adapter'
+import type { TranscriptionAdapter } from './generateTranscription/adapter'
 // eslint-disable-next-line import/no-duplicates
-import type { TextActivityOptions, TextActivityResult } from './text/index'
+import type { TextActivityOptions, TextActivityResult } from './chat/index'
 
 import type { z } from 'zod'
 
@@ -107,12 +101,12 @@ import type {
 } from '../types'
 
 // ===========================
-// Text Activity
+// Chat Activity
 // ===========================
 
 export {
   kind as textKind,
-  textActivity,
+  chat,
   textOptions,
   type TextActivityOptions,
   type TextActivityResult,
@@ -121,7 +115,7 @@ export {
   type TextProviderOptionsForModel,
   type InputModalitiesForModel,
   type MessageMetadataForAdapter,
-} from './text/index'
+} from './chat/index'
 
 export {
   BaseTextAdapter,
@@ -129,7 +123,7 @@ export {
   type TextAdapterConfig,
   type StructuredOutputOptions,
   type StructuredOutputResult,
-} from './text/adapter'
+} from './chat/adapter'
 
 // ===========================
 // Embedding Activity
@@ -137,7 +131,7 @@ export {
 
 export {
   kind as embeddingKind,
-  embeddingActivity,
+  embedding,
   type EmbeddingActivityOptions,
   type EmbeddingActivityResult,
   type EmbeddingModels,
@@ -156,7 +150,7 @@ export {
 
 export {
   kind as summarizeKind,
-  summarizeActivity,
+  summarize,
   type SummarizeActivityOptions,
   type SummarizeActivityResult,
   type SummarizeModels,
@@ -175,19 +169,19 @@ export {
 
 export {
   kind as imageKind,
-  imageActivity,
+  generateImage,
   type ImageActivityOptions,
   type ImageActivityResult,
   type ImageModels,
   type ImageProviderOptionsForModel,
   type ImageSizeForModel,
-} from './image/index'
+} from './generateImage/index'
 
 export {
   BaseImageAdapter,
   type ImageAdapter,
   type ImageAdapterConfig,
-} from './image/adapter'
+} from './generateImage/adapter'
 
 // ===========================
 // Video Activity (Experimental)
@@ -195,7 +189,8 @@ export {
 
 export {
   kind as videoKind,
-  videoActivity,
+  generateVideo,
+  getVideoJobStatus,
   type VideoActivityOptions,
   type VideoActivityResult,
   type VideoModels,
@@ -203,13 +198,13 @@ export {
   type VideoCreateOptions,
   type VideoStatusOptions,
   type VideoUrlOptions,
-} from './video/index'
+} from './generateVideo/index'
 
 export {
   BaseVideoAdapter,
   type VideoAdapter,
   type VideoAdapterConfig,
-} from './video/adapter'
+} from './generateVideo/adapter'
 
 // ===========================
 // TTS Activity
@@ -217,18 +212,18 @@ export {
 
 export {
   kind as ttsKind,
-  ttsActivity,
+  generateSpeech,
   type TTSActivityOptions,
   type TTSActivityResult,
   type TTSModels,
   type TTSProviderOptions,
-} from './tts/index'
+} from './generateSpeech/index'
 
 export {
   BaseTTSAdapter,
   type TTSAdapter,
   type TTSAdapterConfig,
-} from './tts/adapter'
+} from './generateSpeech/adapter'
 
 // ===========================
 // Transcription Activity
@@ -236,18 +231,18 @@ export {
 
 export {
   kind as transcriptionKind,
-  transcriptionActivity,
+  generateTranscription,
   type TranscriptionActivityOptions,
   type TranscriptionActivityResult,
   type TranscriptionModels,
   type TranscriptionProviderOptions,
-} from './transcription/index'
+} from './generateTranscription/index'
 
 export {
   BaseTranscriptionAdapter,
   type TranscriptionAdapter,
   type TranscriptionAdapterConfig,
-} from './transcription/adapter'
+} from './generateTranscription/adapter'
 
 // ===========================
 // Activity Handler Type
@@ -262,23 +257,24 @@ type ActivityHandler = (options: any) => any
 
 /**
  * Map of adapter kind to activity handler function.
- * This allows for pluggable activities without modifying the ai function.
+ * This allows for pluggable activities without modifying the chat function.
+ * @deprecated This map is no longer used as we've moved to individual activity functions.
  */
 export const activityMap = new Map<string, ActivityHandler>([
-  [textKindValue, textActivity],
-  [embeddingKindValue, embeddingActivity],
-  [summarizeKindValue, summarizeActivity],
-  [imageKindValue, imageActivity],
-  [videoKindValue, videoActivity],
-  [ttsKindValue, ttsActivity],
-  [transcriptionKindValue, transcriptionActivity],
+  [textKindValue, chat],
+  [embeddingKindValue, embedding],
+  [summarizeKindValue, summarize],
+  [imageKindValue, generateImage],
+  [videoKindValue, generateVideo],
+  [ttsKindValue, generateSpeech],
+  [transcriptionKindValue, generateTranscription],
 ])
 
 // ===========================
 // Adapter Union Types
 // ===========================
 
-/** Union of all adapter types that can be passed to ai() */
+/** Union of all adapter types that can be passed to chat() */
 export type AIAdapter =
   | TextAdapter<ReadonlyArray<string>, object, any, any, any>
   | EmbeddingAdapter<ReadonlyArray<string>, object>
@@ -473,11 +469,11 @@ export type GenerateImageOptions<
 > = ImageActivityOptions<TAdapter, TModel>
 
 // ===========================
-// Implementation Types for ai()
+// Implementation Types for chat()
 // ===========================
 
 /**
- * Union type for all possible ai() options (used in implementation signature)
+ * Union type for all possible chat() options (used in implementation signature)
  */
 export type AIOptionsUnion =
   | TextActivityOptions<
@@ -509,7 +505,7 @@ export type AIOptionsUnion =
     >
 
 /**
- * Union type for all possible ai() return types (used in implementation signature)
+ * Union type for all possible chat() return types (used in implementation signature)
  */
 export type AIResultUnion =
   | AsyncIterable<StreamChunk>
@@ -528,7 +524,7 @@ export type AIResultUnion =
 // Explicit AI Option Types
 // ===========================
 // These types provide clear autocomplete and required field enforcement
-// for the ai() function. They are slightly different from ActivityOptions
+// for the chat() function. They are slightly different from ActivityOptions
 // as they include constraints like ConstrainedModelMessage for text.
 
 /**
@@ -547,7 +543,7 @@ export type AIEmbeddingOptions<
   /** Optional: Number of dimensions for the embedding vector */
   dimensions?: number
   /** Provider-specific options */
-  providerOptions?: EmbeddingProviderOptions<TAdapter>
+  modelOptions?: EmbeddingProviderOptions<TAdapter>
 }
 
 /**
@@ -573,7 +569,7 @@ export type AISummarizeOptions<
   /** Whether to stream the response */
   stream?: TStream
   /** Provider-specific options */
-  providerOptions?: SummarizeProviderOptions<TAdapter>
+  modelOptions?: SummarizeProviderOptions<TAdapter>
 }
 
 /**
@@ -594,7 +590,7 @@ export type AIImageOptions<
   /** Image size in WIDTHxHEIGHT format (e.g., "1024x1024") - autocompletes based on model */
   size?: ImageSizeForModel<TAdapter, TModel>
   /** Provider-specific options */
-  providerOptions?: ImageProviderOptionsForModel<TAdapter, TModel>
+  modelOptions?: ImageProviderOptionsForModel<TAdapter, TModel>
 }
 
 /**
@@ -619,7 +615,7 @@ export type AIVideoCreateOptions<
   /** Video duration in seconds */
   duration?: number
   /** Provider-specific options */
-  providerOptions?: VideoProviderOptions<TAdapter>
+  modelOptions?: VideoProviderOptions<TAdapter>
 }
 
 /**
@@ -693,7 +689,7 @@ export type AITTSOptions<
   /** The speed of the generated audio (0.25 to 4.0) */
   speed?: number
   /** Provider-specific options */
-  providerOptions?: TTSProviderOptions<TAdapter>
+  modelOptions?: TTSProviderOptions<TAdapter>
 }
 
 /**
@@ -716,12 +712,12 @@ export type AITranscriptionOptions<
   /** The format of the transcription output */
   responseFormat?: 'json' | 'text' | 'srt' | 'verbose_json' | 'vtt'
   /** Provider-specific options */
-  providerOptions?: TranscriptionProviderOptions<TAdapter>
+  modelOptions?: TranscriptionProviderOptions<TAdapter>
 }
 
 /**
  * Explicit text options - provides clear autocomplete and required field enforcement.
- * Uses NoInfer on providerOptions to prevent inference widening.
+ * Uses NoInfer on modelOptions to prevent inference widening.
  * Uses ConstrainedModelMessage to constrain content types by model's supported input modalities.
  */
 export type AITextOptions<
@@ -752,7 +748,7 @@ export type AITextOptions<
   /** Additional options like temperature, maxTokens, etc. */
   options?: TextOptions['options']
   /** Provider-specific options (narrowed by model) */
-  providerOptions?: NoInfer<TextProviderOptionsForModel<TAdapter, TModel>>
+  modelOptions?: NoInfer<TextProviderOptionsForModel<TAdapter, TModel>>
   /** AbortController for cancellation */
   abortController?: TextOptions['abortController']
   /** Strategy for controlling the agent loop */

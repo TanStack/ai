@@ -5,8 +5,11 @@
 // Text (Chat) adapter - for chat/text completion
 export {
   OpenAITextAdapter,
-  createOpenaiText,
+  createOpenaiChat,
   openaiText,
+  // Deprecated exports
+  createOpenaiText,
+  openaiChat,
   type OpenAITextConfig,
   type OpenAITextProviderOptions,
 } from './adapters/text'
@@ -14,6 +17,9 @@ export {
 // Embedding adapter - for text embeddings
 export {
   OpenAIEmbedAdapter,
+  createOpenaiEmbedding,
+  openaiEmbedding,
+  // Deprecated exports
   createOpenaiEmbed,
   openaiEmbed,
   type OpenAIEmbedConfig,
@@ -61,6 +67,9 @@ export type {
 // TTS adapter - for text-to-speech
 export {
   OpenAITTSAdapter,
+  createOpenaiSpeech,
+  openaiSpeech,
+  // Deprecated exports
   createOpenaiTTS,
   openaiTTS,
   type OpenAITTSConfig,
@@ -79,21 +88,6 @@ export {
   type OpenAITranscriptionConfig,
 } from './adapters/transcription'
 export type { OpenAITranscriptionProviderOptions } from './audio/transcription-provider-options'
-
-// ============================================================================
-// Legacy Exports (Deprecated - will be removed in future versions)
-// ============================================================================
-
-/**
- * @deprecated Use `openaiText()`, `openaiEmbed()`, or `openaiSummarize()` instead.
- * This monolithic adapter will be removed in a future version.
- */
-export {
-  OpenAI,
-  createOpenAI,
-  openai,
-  type OpenAIConfig,
-} from './openai-adapter'
 
 // ============================================================================
 // Type Exports

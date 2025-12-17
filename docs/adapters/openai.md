@@ -1,6 +1,7 @@
 ---
-title: OpenAI Adapter
+title: OpenAI
 id: openai-adapter
+order: 1
 ---
 
 The OpenAI adapter provides access to OpenAI's models, including GPT-4o, GPT-5, embeddings, image generation (DALL-E), text-to-speech (TTS), and audio transcription (Whisper).
@@ -14,85 +15,52 @@ npm install @tanstack/ai-openai
 ## Basic Usage
 
 ```typescript
-import { ai } from "@tanstack/ai";
+import { chat } from "@tanstack/ai";
 import { openaiText } from "@tanstack/ai-openai";
 
 const adapter = openaiText();
 
-const stream = ai({
+const stream = chat({
   adapter,
-  messages: [{ role: "user", content: "Hello!" }],
   model: "gpt-4o",
+  messages: [{ role: "user", content: "Hello!" }],
 });
 ```
 
 ## Basic Usage - Custom API Key
 
 ```typescript
-import { ai } from "@tanstack/ai";
-import { createOpenaiText } from "@tanstack/ai-openai";
+import { chat } from "@tanstack/ai";
+import { createOpenaiChat } from "@tanstack/ai-openai";
 
-const adapter = createOpenaiText(process.env.OPENAI_API_KEY!, {
+const adapter = createOpenaiChat(process.env.OPENAI_API_KEY!, {
   // ... your config options
 });
 
-const stream = ai({
+const stream = chat({
   adapter,
-  messages: [{ role: "user", content: "Hello!" }],
   model: "gpt-4o",
+  messages: [{ role: "user", content: "Hello!" }],
 });
 ```
 
 ## Configuration
 
 ```typescript
-import { createOpenaiText, type OpenAITextConfig } from "@tanstack/ai-openai";
+import { createOpenaiChat, type OpenAIChatConfig } from "@tanstack/ai-openai";
 
-const config: OpenAITextConfig = {
+const config: Omit<OpenAIChatConfig, 'apiKey'> = {
   organization: "org-...", // Optional
   baseURL: "https://api.openai.com/v1", // Optional, for custom endpoints
 };
 
-const adapter = createOpenaiText(process.env.OPENAI_API_KEY!, config);
+const adapter = createOpenaiChat(process.env.OPENAI_API_KEY!, config);
 ```
-
-## Available Models
-
-### Chat Models
-
-- `gpt-4o` - GPT-4o (recommended)
-- `gpt-4o-mini` - GPT-4o Mini (faster, cheaper)
-- `gpt-5` - GPT-5 (with reasoning support)
-- `o3` - O3 reasoning model
-- `o3-mini` - O3 Mini
-
-### Embedding Models
-
-- `text-embedding-3-small` - Small embedding model
-- `text-embedding-3-large` - Large embedding model
-- `text-embedding-ada-002` - Legacy embedding model
-
-### Image Models
-
-- `gpt-image-1` - Latest image generation model
-- `dall-e-3` - DALL-E 3
-
-### Text-to-Speech Models
-
-- `tts-1` - Standard TTS (fast)
-- `tts-1-hd` - High-definition TTS
-- `gpt-4o-audio-preview` - GPT-4o with audio output
-
-### Transcription Models
-
-- `whisper-1` - Whisper large-v2
-- `gpt-4o-transcribe` - GPT-4o transcription
-- `gpt-4o-mini-transcribe` - GPT-4o Mini transcription
-
+ 
 ## Example: Chat Completion
 
 ```typescript
-import { ai, toStreamResponse } from "@tanstack/ai";
+import { chat, toStreamResponse } from "@tanstack/ai";
 import { openaiText } from "@tanstack/ai-openai";
 
 const adapter = openaiText();
@@ -100,10 +68,10 @@ const adapter = openaiText();
 export async function POST(request: Request) {
   const { messages } = await request.json();
 
-  const stream = ai({
+  const stream = chat({
     adapter,
-    messages,
     model: "gpt-4o",
+    messages,
   });
 
   return toStreamResponse(stream);
@@ -113,7 +81,7 @@ export async function POST(request: Request) {
 ## Example: With Tools
 
 ```typescript
-import { ai, toolDefinition } from "@tanstack/ai";
+import { chat, toolDefinition } from "@tanstack/ai";
 import { openaiText } from "@tanstack/ai-openai";
 import { z } from "zod";
 
@@ -132,24 +100,24 @@ const getWeather = getWeatherDef.server(async ({ location }) => {
   return { temperature: 72, conditions: "sunny" };
 });
 
-const stream = ai({
+const stream = chat({
   adapter,
-  messages,
   model: "gpt-4o",
+  messages,
   tools: [getWeather],
 });
 ```
 
-## Provider Options
+## Model Options
 
 OpenAI supports various provider-specific options:
 
 ```typescript
-const stream = ai({
+const stream = chat({
   adapter: openaiText(),
-  messages,
   model: "gpt-4o",
-  providerOptions: {
+  messages,
+  modelOptions: {
     temperature: 0.7,
     max_tokens: 1000,
     top_p: 0.9,
@@ -165,7 +133,7 @@ const stream = ai({
 Enable reasoning for models that support it (e.g., GPT-5, O3). This allows the model to show its reasoning process, which is streamed as `thinking` chunks:
 
 ```typescript
-providerOptions: {
+modelOptions: {
   reasoning: {
     effort: "medium", // "none" | "minimal" | "low" | "medium" | "high"
     summary: "detailed", // "auto" | "detailed" (optional)
@@ -180,12 +148,12 @@ When reasoning is enabled, the model's reasoning process is streamed separately 
 Generate text embeddings for semantic search and similarity:
 
 ```typescript
-import { ai } from "@tanstack/ai";
-import { openaiEmbed } from "@tanstack/ai-openai";
+import { embedding } from "@tanstack/ai";
+import { openaiEmbedding } from "@tanstack/ai-openai";
 
-const adapter = openaiEmbed();
+const adapter = openaiEmbedding();
 
-const result = await ai({
+const result = await embedding({
   adapter,
   model: "text-embedding-3-small",
   input: "The quick brown fox jumps over the lazy dog",
@@ -197,8 +165,8 @@ console.log(result.embeddings); // Array of embedding vectors
 ### Batch Embeddings
 
 ```typescript
-const result = await ai({
-  adapter: openaiEmbed(),
+const result = await embedding({
+  adapter: openaiEmbedding(),
   model: "text-embedding-3-small",
   input: [
     "First text to embed",
@@ -210,14 +178,14 @@ const result = await ai({
 // result.embeddings contains an array of vectors
 ```
 
-### Embedding Provider Options
+### Embedding Model Options
 
 ```typescript
-const result = await ai({
-  adapter: openaiEmbed(),
+const result = await embedding({
+  adapter: openaiEmbedding(),
   model: "text-embedding-3-small",
   input: "...",
-  providerOptions: {
+  modelOptions: {
     dimensions: 512, // Reduce dimensions for smaller storage
   },
 });
@@ -228,12 +196,12 @@ const result = await ai({
 Summarize long text content:
 
 ```typescript
-import { ai } from "@tanstack/ai";
+import { summarize } from "@tanstack/ai";
 import { openaiSummarize } from "@tanstack/ai-openai";
 
 const adapter = openaiSummarize();
 
-const result = await ai({
+const result = await summarize({
   adapter,
   model: "gpt-4o-mini",
   text: "Your long text to summarize...",
@@ -249,12 +217,12 @@ console.log(result.summary);
 Generate images with DALL-E:
 
 ```typescript
-import { ai } from "@tanstack/ai";
+import { generateImage } from "@tanstack/ai";
 import { openaiImage } from "@tanstack/ai-openai";
 
 const adapter = openaiImage();
 
-const result = await ai({
+const result = await generateImage({
   adapter,
   model: "gpt-image-1",
   prompt: "A futuristic cityscape at sunset",
@@ -265,14 +233,14 @@ const result = await ai({
 console.log(result.images);
 ```
 
-### Image Provider Options
+### Image Model Options
 
 ```typescript
-const result = await ai({
+const result = await generateImage({
   adapter: openaiImage(),
   model: "gpt-image-1",
   prompt: "...",
-  providerOptions: {
+  modelOptions: {
     quality: "hd", // "standard" | "hd"
     style: "natural", // "natural" | "vivid"
   },
@@ -284,12 +252,12 @@ const result = await ai({
 Generate speech from text:
 
 ```typescript
-import { ai } from "@tanstack/ai";
+import { generateSpeech } from "@tanstack/ai";
 import { openaiTTS } from "@tanstack/ai-openai";
 
 const adapter = openaiTTS();
 
-const result = await ai({
+const result = await generateSpeech({
   adapter,
   model: "tts-1",
   text: "Hello, welcome to TanStack AI!",
@@ -305,14 +273,14 @@ console.log(result.format); // "mp3"
 
 Available voices: `alloy`, `echo`, `fable`, `onyx`, `nova`, `shimmer`, `ash`, `ballad`, `coral`, `sage`, `verse`
 
-### TTS Provider Options
+### TTS Model Options
 
 ```typescript
-const result = await ai({
-  adapter: openaiTTS(),
+const result = await generateSpeech({
+  adapter: openaiSpeech(),
   model: "tts-1-hd",
   text: "High quality speech",
-  providerOptions: {
+  modelOptions: {
     speed: 1.0, // 0.25 to 4.0
   },
 });
@@ -323,12 +291,12 @@ const result = await ai({
 Transcribe audio to text:
 
 ```typescript
-import { ai } from "@tanstack/ai";
+import { generateTranscription } from "@tanstack/ai";
 import { openaiTranscription } from "@tanstack/ai-openai";
 
 const adapter = openaiTranscription();
 
-const result = await ai({
+const result = await generateTranscription({
   adapter,
   model: "whisper-1",
   audio: audioFile, // File object or base64 string
@@ -338,14 +306,14 @@ const result = await ai({
 console.log(result.text); // Transcribed text
 ```
 
-### Transcription Provider Options
+### Transcription Model Options
 
 ```typescript
-const result = await ai({
+const result = await generateTranscription({
   adapter: openaiTranscription(),
   model: "whisper-1",
   audio: audioFile,
-  providerOptions: {
+  modelOptions: {
     response_format: "verbose_json", // Get timestamps
     temperature: 0,
     prompt: "Technical terms: API, SDK",
@@ -368,13 +336,13 @@ OPENAI_API_KEY=sk-...
 
 ### `openaiText(config?)`
 
-Creates an OpenAI text/chat adapter using environment variables.
+Creates an OpenAI chat adapter using environment variables.
 
-**Returns:** An OpenAI text adapter instance.
+**Returns:** An OpenAI chat adapter instance.
 
-### `createOpenaiText(apiKey, config?)`
+### `createOpenaiChat(apiKey, config?)`
 
-Creates an OpenAI text/chat adapter with an explicit API key.
+Creates an OpenAI chat adapter with an explicit API key.
 
 **Parameters:**
 
@@ -382,15 +350,15 @@ Creates an OpenAI text/chat adapter with an explicit API key.
 - `config.organization?` - Organization ID (optional)
 - `config.baseURL?` - Custom base URL (optional)
 
-**Returns:** An OpenAI text adapter instance.
+**Returns:** An OpenAI chat adapter instance.
 
-### `openaiEmbed(config?)`
+### `openaiEmbedding(config?)`
 
 Creates an OpenAI embedding adapter using environment variables.
 
-**Returns:** An OpenAI embed adapter instance.
+**Returns:** An OpenAI embedding adapter instance.
 
-### `createOpenaiEmbed(apiKey, config?)`
+### `createOpenaiEmbedding(apiKey, config?)`
 
 Creates an OpenAI embedding adapter with an explicit API key.
 

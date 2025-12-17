@@ -3,10 +3,10 @@ import { OPENAI_CHAT_MODELS } from '../model-meta'
 import { validateTextProviderOptions } from '../text/text-provider-options'
 import { convertToolsToProviderFormat } from '../tools'
 import {
-  convertZodToOpenAISchema,
   createOpenAIClient,
   generateId,
   getOpenAIApiKeyFromEnv,
+  makeOpenAIStructuredOutputCompatible,
   transformNullsToUndefined,
 } from '../utils'
 import type {
@@ -122,7 +122,8 @@ export class OpenAITextAdapter extends BaseTextAdapter<
    * - Optional fields should have null added to their type union
    * - additionalProperties must be false for all objects
    *
-   * The schema conversion is handled by convertZodToOpenAISchema.
+   * The outputSchema is already JSON Schema (converted in the ai layer).
+   * We apply OpenAI-specific transformations for structured output compatibility.
    */
   async structuredOutput(
     options: StructuredOutputOptions<OpenAITextProviderOptions>,
@@ -130,8 +131,11 @@ export class OpenAITextAdapter extends BaseTextAdapter<
     const { chatOptions, outputSchema } = options
     const requestArguments = this.mapTextOptionsToOpenAI(chatOptions)
 
-    // Convert Zod schema to OpenAI-compatible JSON Schema
-    const jsonSchema = convertZodToOpenAISchema(outputSchema)
+    // Apply OpenAI-specific transformations for structured output compatibility
+    const jsonSchema = makeOpenAIStructuredOutputCompatible(
+      outputSchema,
+      outputSchema.required || [],
+    )
 
     try {
       const response = await this.client.responses.create(
@@ -502,7 +506,7 @@ export class OpenAITextAdapter extends BaseTextAdapter<
    * Handles translation of normalized options to OpenAI's API format
    */
   private mapTextOptionsToOpenAI(options: TextOptions) {
-    const providerOptions = options.providerOptions as
+    const modelOptions = options.modelOptions as
       | Omit<
           InternalTextProviderOptions,
           | 'max_output_tokens'
@@ -514,9 +518,9 @@ export class OpenAITextAdapter extends BaseTextAdapter<
         >
       | undefined
     const input = this.convertMessagesToInput(options.messages)
-    if (providerOptions) {
+    if (modelOptions) {
       validateTextProviderOptions({
-        ...providerOptions,
+        ...modelOptions,
         input,
         model: options.model,
       })
@@ -536,7 +540,7 @@ export class OpenAITextAdapter extends BaseTextAdapter<
       top_p: options.options?.topP,
       metadata: options.options?.metadata,
       instructions: options.systemPrompts?.join('\n'),
-      ...providerOptions,
+      ...modelOptions,
       input,
       tools,
     }
@@ -724,18 +728,19 @@ export class OpenAITextAdapter extends BaseTextAdapter<
 }
 
 /**
- * Creates an OpenAI text adapter with explicit API key
+ * Creates an OpenAI chat adapter with explicit API key
  *
+ * @param model - The model name (e.g., 'gpt-4o', 'gpt-4-turbo')
  * @param apiKey - Your OpenAI API key
  * @param config - Optional additional configuration
- * @returns Configured OpenAI text adapter instance
+ * @returns Configured OpenAI chat adapter instance
  *
  * @example
  * ```typescript
- * const adapter = createOpenaiText("sk-...");
+ * const adapter = createOpenaiChat('gpt-4o', "sk-...");
  * ```
  */
-export function createOpenaiText(
+export function createOpenaiChat(
   apiKey: string,
   config?: Omit<OpenAITextConfig, 'apiKey'>,
 ): OpenAITextAdapter {
@@ -749,6 +754,7 @@ export function createOpenaiText(
  * - `process.env` (Node.js)
  * - `window.env` (Browser with injected env)
  *
+ * @param model - The model name (e.g., 'gpt-4o', 'gpt-4-turbo')
  * @param config - Optional configuration (excluding apiKey which is auto-detected)
  * @returns Configured OpenAI text adapter instance
  * @throws Error if OPENAI_API_KEY is not found in environment
@@ -758,9 +764,9 @@ export function createOpenaiText(
  * // Automatically uses OPENAI_API_KEY from environment
  * const adapter = openaiText();
  *
- * await generate({
+ * const stream = chat({
  *   adapter,
- *   model: "gpt-4",
+ *   model: 'gpt-4o',
  *   messages: [{ role: "user", content: "Hello!" }]
  * });
  * ```
@@ -769,5 +775,22 @@ export function openaiText(
   config?: Omit<OpenAITextConfig, 'apiKey'>,
 ): OpenAITextAdapter {
   const apiKey = getOpenAIApiKeyFromEnv()
-  return createOpenaiText(apiKey, config)
+  return createOpenaiChat(apiKey, config)
+}
+
+/**
+ * @deprecated Use openaiText() instead
+ */
+export function openaiChat(
+  config?: Omit<OpenAITextConfig, 'apiKey'>,
+): OpenAITextAdapter {
+  const apiKey = getOpenAIApiKeyFromEnv()
+  return createOpenaiChat(apiKey, config)
+}
+
+export function createOpenaiText(
+  apiKey: string,
+  config?: Omit<OpenAITextConfig, 'apiKey'>,
+): OpenAITextAdapter {
+  return createOpenaiChat(apiKey, config)
 }

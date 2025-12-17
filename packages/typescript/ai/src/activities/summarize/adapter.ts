@@ -1,4 +1,8 @@
-import type { SummarizationOptions, SummarizationResult } from '../../types'
+import type {
+  StreamChunk,
+  SummarizationOptions,
+  SummarizationResult,
+} from '../../types'
 
 /**
  * Configuration for summarize adapter instances
@@ -38,6 +42,15 @@ export interface SummarizeAdapter<
    * Summarize the given text
    */
   summarize: (options: SummarizationOptions) => Promise<SummarizationResult>
+
+  /**
+   * Stream summarization of the given text.
+   * Optional - if not implemented, the activity layer will fall back to
+   * non-streaming summarize and yield the result as a single chunk.
+   */
+  summarizeStream?: (
+    options: SummarizationOptions,
+  ) => AsyncIterable<StreamChunk>
 }
 
 /**
@@ -64,6 +77,13 @@ export abstract class BaseSummarizeAdapter<
   abstract summarize(
     options: SummarizationOptions,
   ): Promise<SummarizationResult>
+
+  /**
+   * Stream summarization of the given text.
+   * Override this method in concrete implementations to enable streaming.
+   * If not overridden, the activity layer will fall back to non-streaming.
+   */
+  summarizeStream?(options: SummarizationOptions): AsyncIterable<StreamChunk>
 
   protected generateId(): string {
     return `${this.name}-${Date.now()}-${Math.random().toString(36).substring(7)}`

@@ -1,6 +1,7 @@
 ---
-title: Ollama Adapter
+title: Ollama
 id: ollama-adapter
+order: 4
 ---
 
 The Ollama adapter provides access to local models running via Ollama, allowing you to run AI models on your own infrastructure with full privacy and no API costs.
@@ -14,43 +15,43 @@ npm install @tanstack/ai-ollama
 ## Basic Usage
 
 ```typescript
-import { ai } from "@tanstack/ai";
+import { chat } from "@tanstack/ai";
 import { ollamaText } from "@tanstack/ai-ollama";
 
 const adapter = ollamaText();
 
-const stream = ai({
+const stream = chat({
   adapter,
-  messages: [{ role: "user", content: "Hello!" }],
   model: "llama3",
+  messages: [{ role: "user", content: "Hello!" }],
 });
 ```
 
 ## Basic Usage - Custom Host
 
 ```typescript
-import { ai } from "@tanstack/ai";
-import { createOllamaText } from "@tanstack/ai-ollama";
+import { chat } from "@tanstack/ai";
+import { createOllamaChat } from "@tanstack/ai-ollama";
 
-const adapter = createOllamaText("http://your-server:11434");
+const adapter = createOllamaChat("http://your-server:11434");
 
-const stream = ai({
+const stream = chat({
   adapter,
-  messages: [{ role: "user", content: "Hello!" }],
   model: "llama3",
+  messages: [{ role: "user", content: "Hello!" }],
 });
 ```
 
 ## Configuration
 
 ```typescript
-import { createOllamaText } from "@tanstack/ai-ollama";
+import { createOllamaChat } from "@tanstack/ai-ollama";
 
 // Default localhost
-const adapter = createOllamaText();
+const adapter = createOllamaChat();
 
 // Custom host
-const adapter = createOllamaText("http://your-server:11434");
+const adapter = createOllamaChat("http://your-server:11434");
 ```
 
 ## Available Models
@@ -75,7 +76,7 @@ ollama list
 ## Example: Chat Completion
 
 ```typescript
-import { ai, toStreamResponse } from "@tanstack/ai";
+import { chat, toStreamResponse } from "@tanstack/ai";
 import { ollamaText } from "@tanstack/ai-ollama";
 
 const adapter = ollamaText();
@@ -83,10 +84,10 @@ const adapter = ollamaText();
 export async function POST(request: Request) {
   const { messages } = await request.json();
 
-  const stream = ai({
+  const stream = chat({
     adapter,
-    messages,
     model: "llama3",
+    messages,
   });
 
   return toStreamResponse(stream);
@@ -96,7 +97,7 @@ export async function POST(request: Request) {
 ## Example: With Tools
 
 ```typescript
-import { ai, toolDefinition } from "@tanstack/ai";
+import { chat, toolDefinition } from "@tanstack/ai";
 import { ollamaText } from "@tanstack/ai-ollama";
 import { z } from "zod";
 
@@ -115,26 +116,26 @@ const getLocalData = getLocalDataDef.server(async ({ key }) => {
   return { data: "..." };
 });
 
-const stream = ai({
+const stream = chat({
   adapter,
-  messages,
   model: "llama3",
+  messages,
   tools: [getLocalData],
 });
 ```
 
 **Note:** Tool support varies by model. Models like `llama3`, `mistral`, and `qwen2` generally have good tool calling support.
 
-## Provider Options
+## Model Options
 
 Ollama supports various provider-specific options:
 
 ```typescript
-const stream = ai({
+const stream = chat({
   adapter: ollamaText(),
-  messages,
   model: "llama3",
-  providerOptions: {
+  messages,
+  modelOptions: {
     temperature: 0.7,
     top_p: 0.9,
     top_k: 40,
@@ -149,7 +150,7 @@ const stream = ai({
 ### Advanced Options
 
 ```typescript
-providerOptions: {
+modelOptions: {
   // Sampling
   temperature: 0.7,
   top_p: 0.9,
@@ -185,12 +186,12 @@ providerOptions: {
 Generate text embeddings locally:
 
 ```typescript
-import { ai } from "@tanstack/ai";
-import { ollamaEmbed } from "@tanstack/ai-ollama";
+import { embedding } from "@tanstack/ai";
+import { ollamaEmbedding } from "@tanstack/ai-ollama";
 
-const adapter = ollamaEmbed();
+const adapter = ollamaEmbedding();
 
-const result = await ai({
+const result = await embedding({
   adapter,
   model: "nomic-embed-text", // or "mxbai-embed-large"
   input: "The quick brown fox jumps over the lazy dog",
@@ -212,8 +213,8 @@ ollama pull mxbai-embed-large
 ### Batch Embeddings
 
 ```typescript
-const result = await ai({
-  adapter: ollamaEmbed(),
+const result = await embedding({
+  adapter: ollamaEmbedding(),
   model: "nomic-embed-text",
   input: [
     "First text to embed",
@@ -228,12 +229,12 @@ const result = await ai({
 Summarize long text content locally:
 
 ```typescript
-import { ai } from "@tanstack/ai";
+import { summarize } from "@tanstack/ai";
 import { ollamaSummarize } from "@tanstack/ai-ollama";
 
 const adapter = ollamaSummarize();
 
-const result = await ai({
+const result = await summarize({
   adapter,
   model: "llama3",
   text: "Your long text to summarize...",
@@ -276,7 +277,7 @@ The server runs on `http://localhost:11434` by default.
 ## Running on a Remote Server
 
 ```typescript
-const adapter = createOllamaText("http://your-server:11434");
+const adapter = createOllamaChat("http://your-server:11434");
 ```
 
 To expose Ollama on a network interface:

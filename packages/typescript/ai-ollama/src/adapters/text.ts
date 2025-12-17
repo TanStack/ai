@@ -1,11 +1,6 @@
 import { BaseTextAdapter } from '@tanstack/ai/adapters'
 
-import {
-  convertZodToOllamaSchema,
-  createOllamaClient,
-  generateId,
-  getOllamaHostFromEnv,
-} from '../utils'
+import { createOllamaClient, generateId, getOllamaHostFromEnv } from '../utils'
 
 import type {
   StructuredOutputOptions,
@@ -115,11 +110,10 @@ export class OllamaTextAdapter extends BaseTextAdapter<
   readonly models = OllamaTextModels
 
   private client: Ollama
-  private defaultModel: OllamaTextModel
 
   constructor(
     hostOrClient?: string | Ollama,
-    options: OllamaTextAdapterOptions = {},
+    _options: OllamaTextAdapterOptions = {},
   ) {
     super({})
     if (typeof hostOrClient === 'string' || hostOrClient === undefined) {
@@ -127,7 +121,6 @@ export class OllamaTextAdapter extends BaseTextAdapter<
     } else {
       this.client = hostOrClient
     }
-    this.defaultModel = options.model ?? 'llama3'
   }
 
   async *chatStream(options: TextOptions): AsyncIterable<StreamChunk> {
@@ -142,15 +135,12 @@ export class OllamaTextAdapter extends BaseTextAdapter<
   /**
    * Generate structured output using Ollama's JSON format option.
    * Uses format: 'json' with the schema to ensure structured output.
-   * Converts the Zod schema to JSON Schema format compatible with Ollama's API.
+   * The outputSchema is already JSON Schema (converted in the ai layer).
    */
   async structuredOutput(
     options: StructuredOutputOptions<OllamaTextProviderOptions>,
   ): Promise<StructuredOutputResult<unknown>> {
     const { chatOptions, outputSchema } = options
-
-    // Convert Zod schema to Ollama-compatible JSON Schema
-    const jsonSchema = convertZodToOllamaSchema(outputSchema)
 
     const mappedOptions = this.mapCommonOptionsToOllama(chatOptions)
 
@@ -159,7 +149,7 @@ export class OllamaTextAdapter extends BaseTextAdapter<
       const response = await this.client.chat({
         ...mappedOptions,
         stream: false,
-        format: jsonSchema,
+        format: outputSchema,
       })
 
       const rawText = response.message.content
@@ -287,14 +277,17 @@ export class OllamaTextAdapter extends BaseTextAdapter<
       return undefined
     }
 
+    // Tool schemas are already converted to JSON Schema in the ai layer
     return tools.map((tool) => ({
       type: 'function',
       function: {
         name: tool.name,
         description: tool.description,
-        parameters: tool.inputSchema
-          ? convertZodToOllamaSchema(tool.inputSchema)
-          : { type: 'object', properties: {}, required: [] },
+        parameters: tool.inputSchema ?? {
+          type: 'object',
+          properties: {},
+          required: [],
+        },
       },
     }))
   }
@@ -364,8 +357,8 @@ export class OllamaTextAdapter extends BaseTextAdapter<
   }
 
   private mapCommonOptionsToOllama(options: TextOptions): ChatRequest {
-    const model = options.model || this.defaultModel
-    const providerOptions = options.providerOptions as
+    const model = options.model
+    const modelOptions = options.modelOptions as
       | OllamaTextProviderOptions
       | undefined
 
@@ -373,7 +366,7 @@ export class OllamaTextAdapter extends BaseTextAdapter<
       temperature: options.options?.temperature,
       top_p: options.options?.topP,
       num_predict: options.options?.maxTokens,
-      ...providerOptions,
+      ...modelOptions,
     }
 
     return {
@@ -386,9 +379,9 @@ export class OllamaTextAdapter extends BaseTextAdapter<
 }
 
 /**
- * Creates an Ollama text adapter with explicit host
+ * Creates an Ollama chat adapter with explicit host
  */
-export function createOllamaText(
+export function createOllamaChat(
   host?: string,
   options?: OllamaTextAdapterOptions,
 ): OllamaTextAdapter {
@@ -402,5 +395,25 @@ export function ollamaText(
   options?: OllamaTextAdapterOptions,
 ): OllamaTextAdapter {
   const host = getOllamaHostFromEnv()
+  return new OllamaTextAdapter(host, options)
+}
+
+/**
+ * @deprecated Use ollamaText() instead
+ */
+export function ollamaChat(
+  options?: OllamaTextAdapterOptions,
+): OllamaTextAdapter {
+  const host = getOllamaHostFromEnv()
+  return new OllamaTextAdapter(host, options)
+}
+
+/**
+ * @deprecated Use createOllamaChat() instead
+ */
+export function createOllamaText(
+  host?: string,
+  options?: OllamaTextAdapterOptions,
+): OllamaTextAdapter {
   return new OllamaTextAdapter(host, options)
 }

@@ -1,3 +1,9 @@
+---
+title: Image Generation
+id: image-generation
+order: 15
+---
+
 # Image Generation
 
 TanStack AI provides support for image generation through dedicated image adapters. This guide covers how to use the image generation functionality with OpenAI and Gemini providers.
@@ -14,14 +20,14 @@ Image generation is handled by image adapters that follow the same tree-shakeabl
 ### OpenAI Image Generation
 
 ```typescript
-import { ai } from '@tanstack/ai'
+import { generateImage } from '@tanstack/ai'
 import { openaiImage } from '@tanstack/ai-openai'
 
 // Create an image adapter (uses OPENAI_API_KEY from environment)
 const adapter = openaiImage()
 
 // Generate an image
-const result = await ai({
+const result = await generateImage({
   adapter,
   model: 'dall-e-3',
   prompt: 'A beautiful sunset over mountains',
@@ -33,14 +39,14 @@ console.log(result.images[0].url) // URL to the generated image
 ### Gemini Image Generation
 
 ```typescript
-import { ai } from '@tanstack/ai'
+import { generateImage } from '@tanstack/ai'
 import { geminiImage } from '@tanstack/ai-gemini'
 
 // Create an image adapter (uses GOOGLE_API_KEY from environment)
 const adapter = geminiImage()
 
 // Generate an image
-const result = await ai({
+const result = await generateImage({
   adapter,
   model: 'imagen-3.0-generate-002',
   prompt: 'A futuristic cityscape at night',
@@ -57,9 +63,12 @@ All image adapters support these common options:
 
 | Option | Type | Description |
 |--------|------|-------------|
+| `adapter` | `ImageAdapter` | Image adapter instance (required) |
+| `model` | `string` | Model identifier (type-safe based on adapter) (required) |
 | `prompt` | `string` | Text description of the image to generate (required) |
 | `numberOfImages` | `number` | Number of images to generate |
 | `size` | `string` | Size of the generated image in WIDTHxHEIGHT format |
+| `modelOptions?` | `object` | Model-specific options (renamed from `providerOptions`) |
 
 ### Size Options
 
@@ -82,33 +91,33 @@ Gemini uses aspect ratios internally, but TanStack AI accepts WIDTHxHEIGHT forma
 | `1920x1080` | 16:9 |
 | `1080x1920` | 9:16 |
 
-Alternatively, you can specify the aspect ratio directly in provider options:
+Alternatively, you can specify the aspect ratio directly in Model Options:
 
 ```typescript
-const result = await ai({
+const result = await generateImage({
   adapter,
   model: 'imagen-4.0-generate-001',
   prompt: 'A landscape photo',
-  providerOptions: {
+  modelOptions: {
     aspectRatio: '16:9'
   }
 })
 ```
 
-## Provider Options
+## Model Options
 
-### OpenAI Provider Options
+### OpenAI Model Options
 
-OpenAI models support model-specific provider options:
+OpenAI models support model-specific Model Options:
 
 #### GPT-Image-1 / GPT-Image-1-Mini
 
 ```typescript
-const result = await ai({
+const result = await generateImage({
   adapter,
   model: 'gpt-image-1',
   prompt: 'A cat wearing a hat',
-  providerOptions: {
+  modelOptions: {
     quality: 'high', // 'high' | 'medium' | 'low' | 'auto'
     background: 'transparent', // 'transparent' | 'opaque' | 'auto'
     outputFormat: 'png', // 'png' | 'jpeg' | 'webp'
@@ -120,25 +129,25 @@ const result = await ai({
 #### DALL-E 3
 
 ```typescript
-const result = await ai({
+const result = await generateImage({
   adapter,
   model: 'dall-e-3',
   prompt: 'A futuristic car',
-  providerOptions: {
+  modelOptions: {
     quality: 'hd', // 'hd' | 'standard'
     style: 'vivid', // 'vivid' | 'natural'
   }
 })
 ```
 
-### Gemini Provider Options
+### Gemini Model Options
 
 ```typescript
-const result = await ai({
+const result = await generateImage({
   adapter,
   model: 'imagen-4.0-generate-001',
   prompt: 'A beautiful garden',
-  providerOptions: {
+  modelOptions: {
     aspectRatio: '16:9',
     personGeneration: 'ALLOW_ADULT', // 'DONT_ALLOW' | 'ALLOW_ADULT' | 'ALLOW_ALL'
     negativePrompt: 'blurry, low quality',
@@ -197,7 +206,7 @@ Image generation can fail for various reasons. The adapters validate inputs befo
 
 ```typescript
 try {
-  const result = await ai({
+  const result = await generateImage({
     adapter,
     model: 'dall-e-3',
     prompt: 'A cat',

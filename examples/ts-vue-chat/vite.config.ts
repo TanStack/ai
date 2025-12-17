@@ -2,7 +2,7 @@ import { fileURLToPath, URL } from 'node:url'
 import { defineConfig } from 'vite'
 import vue from '@vitejs/plugin-vue'
 import tailwindcss from '@tailwindcss/vite'
-import { ai, maxIterations, toStreamResponse } from '@tanstack/ai'
+import { chat, maxIterations, toStreamResponse } from '@tanstack/ai'
 import { openaiText } from '@tanstack/ai-openai'
 import { anthropicText } from '@tanstack/ai-anthropic'
 import { geminiText } from '@tanstack/ai-gemini'
@@ -204,36 +204,37 @@ export default defineConfig({
             let adapter
             let defaultModel
 
+            let selectedModel: string
+
             switch (provider) {
               case 'anthropic':
+                selectedModel = model || 'claude-sonnet-4-5-20250929'
                 adapter = anthropicText()
-                defaultModel = 'claude-sonnet-4-5-20250929'
                 break
               case 'gemini':
+                selectedModel = model || 'gemini-2.0-flash-exp'
                 adapter = geminiText()
-                defaultModel = 'gemini-2.0-flash-exp'
                 break
               case 'ollama':
+                selectedModel = model || 'mistral:7b'
                 adapter = ollamaText()
-                defaultModel = 'mistral:7b'
                 break
               case 'openai':
               default:
+                selectedModel = model || 'gpt-4o'
                 adapter = openaiText()
-                defaultModel = 'gpt-4o'
                 break
             }
 
-            const selectedModel = model || defaultModel
             console.log(
               `[API] Using provider: ${provider}, model: ${selectedModel}`,
             )
 
             const abortController = new AbortController()
 
-            const stream = ai({
-              adapter: adapter as any,
-              model: selectedModel as any,
+            const stream = chat({
+              adapter,
+              model: selectedModel,
               tools: [
                 getGuitars,
                 recommendGuitarToolDef,

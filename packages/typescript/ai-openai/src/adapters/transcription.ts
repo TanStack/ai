@@ -49,7 +49,7 @@ export class OpenAITranscriptionAdapter extends BaseTranscriptionAdapter<
   async transcribe(
     options: TranscriptionOptions<OpenAITranscriptionProviderOptions>,
   ): Promise<TranscriptionResult> {
-    const { model, audio, language, prompt, responseFormat, providerOptions } =
+    const { model, audio, language, prompt, responseFormat, modelOptions } =
       options
 
     // Convert audio input to File object
@@ -62,7 +62,7 @@ export class OpenAITranscriptionAdapter extends BaseTranscriptionAdapter<
       language,
       prompt,
       response_format: this.mapResponseFormat(responseFormat),
-      ...providerOptions,
+      ...modelOptions,
     }
 
     // Call OpenAI API - use verbose_json to get timestamps when available
@@ -191,12 +191,25 @@ export class OpenAITranscriptionAdapter extends BaseTranscriptionAdapter<
  * ```typescript
  * const adapter = createOpenaiTranscription("sk-...");
  *
- * const result = await ai({
+ * const result = await generateTranscription({
  *   adapter,
  *   model: 'whisper-1',
  *   audio: audioFile,
  *   language: 'en'
  * });
+ * ```
+ */
+/**
+ * Creates an OpenAI transcription adapter with explicit API key
+ *
+ * @param model - The model name (e.g., 'whisper-1')
+ * @param apiKey - Your OpenAI API key
+ * @param config - Optional additional configuration
+ * @returns Configured OpenAI transcription adapter instance
+ *
+ * @example
+ * ```typescript
+ * const adapter = createOpenaiTranscription('whisper-1', "sk-...");
  * ```
  */
 export function createOpenaiTranscription(
@@ -207,14 +220,14 @@ export function createOpenaiTranscription(
 }
 
 /**
- * Creates an OpenAI Transcription adapter with automatic API key detection from environment variables.
+ * Creates an OpenAI transcription adapter with automatic API key detection from environment variables.
  *
  * Looks for `OPENAI_API_KEY` in:
  * - `process.env` (Node.js)
  * - `window.env` (Browser with injected env)
  *
  * @param config - Optional configuration (excluding apiKey which is auto-detected)
- * @returns Configured OpenAI Transcription adapter instance
+ * @returns Configured OpenAI transcription adapter instance
  * @throws Error if OPENAI_API_KEY is not found in environment
  *
  * @example
@@ -222,7 +235,7 @@ export function createOpenaiTranscription(
  * // Automatically uses OPENAI_API_KEY from environment
  * const adapter = openaiTranscription();
  *
- * const result = await ai({
+ * const result = await generateTranscription({
  *   adapter,
  *   model: 'whisper-1',
  *   audio: audioFile

@@ -41,7 +41,7 @@ export async function POST(request: Request) {
   const { messages } = await request.json();
   const abortController = new AbortController();
   const stream = chat({
-    adapter: openai(),
+    adapter: openaiText(),
     model: "gpt-4o",
     messages,
     options: { abortSignal: abortController.signal }

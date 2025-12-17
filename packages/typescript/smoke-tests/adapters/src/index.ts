@@ -35,3 +35,15 @@ export {
   buildApprovalMessages,
 } from './harness'
 export type { AdapterContext, TestOutcome } from './harness'
+
+// Re-export LLM Simulator
+export {
+  LLMSimulatorAdapter,
+  createLLMSimulator,
+  SimulatorScripts,
+} from './llm-simulator'
+export type {
+  SimulatorScript,
+  SimulatorIteration,
+  SimulatorToolCall,
+} from './llm-simulator'

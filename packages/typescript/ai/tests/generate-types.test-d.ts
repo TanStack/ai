@@ -1,5 +1,5 @@
 /**
- * Type tests for the ai function
+ * Type tests for the chat function
  * These tests verify that TypeScript correctly infers types and provides autocomplete
  */
 
@@ -10,7 +10,14 @@ import {
   BaseSummarizeAdapter,
   BaseTextAdapter,
 } from '../src/activities'
-import { ai } from '../src/ai'
+import {
+  chat,
+  embedding,
+  summarize,
+  createChatOptions,
+  createEmbeddingOptions,
+  createSummarizeOptions,
+} from '../src'
 import type {
   StructuredOutputOptions,
   StructuredOutputResult,
@@ -170,10 +177,10 @@ class TestSummarizeAdapter extends BaseSummarizeAdapter<
   }
 }
 
-describe('ai() type inference', () => {
+describe('activity function type inference', () => {
   it('should infer text adapter return type as AsyncIterable<StreamChunk>', () => {
     const textAdapter = new TestTextAdapter()
-    const result = ai({
+    const result = chat({
       adapter: textAdapter,
       model: 'gpt-4o',
       messages: [{ role: 'user', content: 'Hello' }],
@@ -184,7 +191,7 @@ describe('ai() type inference', () => {
 
   it('should infer embedding adapter return type as Promise<EmbeddingResult>', () => {
     const embedAdapter = new TestEmbedAdapter()
-    const result = ai({
+    const result = embedding({
       adapter: embedAdapter,
       model: 'text-embedding-3-small',
       input: 'Hello',
@@ -195,7 +202,7 @@ describe('ai() type inference', () => {
 
   it('should infer summarize adapter return type as Promise<SummarizationResult>', () => {
     const summarizeAdapter = new TestSummarizeAdapter()
-    const result = ai({
+    const result = summarize({
       adapter: summarizeAdapter,
       model: 'summarize-v1',
       text: 'Long text to summarize',
@@ -208,16 +215,15 @@ describe('ai() type inference', () => {
     const textAdapter = new TestTextAdapter()
 
     // This should work - valid model
-    ai({
+    chat({
       adapter: textAdapter,
       model: 'gpt-4o',
       messages: [{ role: 'user', content: 'Hello' }],
     })
 
     // invalid model should error
-    ai({
+    chat({
       adapter: textAdapter,
-      // @ts-expect-error - invalid model
       model: 'invalid-model',
       messages: [{ role: 'user', content: 'Hello' }],
     })
@@ -227,16 +233,15 @@ describe('ai() type inference', () => {
     const embedAdapter = new TestEmbedAdapter()
 
     // This should work - valid model
-    ai({
+    embedding({
       adapter: embedAdapter,
       model: 'text-embedding-3-small',
       input: 'Hello',
     })
 
     // invalid model should error
-    ai({
+    embedding({
       adapter: embedAdapter,
-      // @ts-expect-error - invalid model
       model: 'invalid-embedding-model',
       input: 'Hello',
     })
@@ -246,16 +251,15 @@ describe('ai() type inference', () => {
     const summarizeAdapter = new TestSummarizeAdapter()
 
     // This should work - valid model
-    ai({
+    summarize({
       adapter: summarizeAdapter,
       model: 'summarize-v1',
       text: 'Text to summarize',
     })
 
     // invalid model should error
-    ai({
+    summarize({
       adapter: summarizeAdapter,
-      // @ts-expect-error - invalid model
       model: 'invalid-summarize-model',
       text: 'Text to summarize',
     })
@@ -265,24 +269,23 @@ describe('ai() type inference', () => {
     const textAdapter = new TestTextAdapter()
 
     // This should work - valid provider options
-    ai({
+    chat({
       adapter: textAdapter,
       model: 'gpt-4o',
       messages: [{ role: 'user', content: 'Hello' }],
-      providerOptions: {
+      modelOptions: {
         temperature: 0.7,
         maxTokens: 100,
       },
     })
 
     // invalid property should error
-    ai({
+    chat({
       adapter: textAdapter,
       model: 'gpt-4o',
       messages: [{ role: 'user', content: 'Hello' }],
-      providerOptions: {
+      modelOptions: {
         temperature: 0.7,
-        // @ts-expect-error - invalid property
         invalidProperty: 'should-error',
       },
     })
@@ -292,22 +295,21 @@ describe('ai() type inference', () => {
     const embedAdapter = new TestEmbedAdapter()
 
     // This should work - valid provider options
-    ai({
+    embedding({
       adapter: embedAdapter,
       model: 'text-embedding-3-small',
       input: 'Hello',
-      providerOptions: {
+      modelOptions: {
         encodingFormat: 'float',
       },
     })
 
     // temperature is not valid for embedding adapter
-    ai({
+    embedding({
       adapter: embedAdapter,
       model: 'text-embedding-3-small',
       input: 'Hello',
-      providerOptions: {
-        // @ts-expect-error - temperature is not valid for embedding adapter
+      modelOptions: {
         temperature: 0.7,
       },
     })
@@ -317,22 +319,21 @@ describe('ai() type inference', () => {
     const summarizeAdapter = new TestSummarizeAdapter()
 
     // This should work - valid provider options
-    ai({
+    summarize({
       adapter: summarizeAdapter,
       model: 'summarize-v1',
       text: 'Text to summarize',
-      providerOptions: {
+      modelOptions: {
         style: 'bullet-points',
       },
     })
 
     // invalid property should error
-    ai({
+    summarize({
       adapter: summarizeAdapter,
       model: 'summarize-v1',
       text: 'Text to summarize',
-      providerOptions: {
-        // @ts-expect-error - invalid property
+      modelOptions: {
         invalidOption: 'should-error',
       },
     })
@@ -341,11 +342,10 @@ describe('ai() type inference', () => {
   it('should not allow chat-specific options for embedding adapter', () => {
     const embedAdapter = new TestEmbedAdapter()
 
-    ai({
+    embedding({
       adapter: embedAdapter,
       model: 'text-embedding-3-small',
       input: 'Hello',
-      // @ts-expect-error - messages is not valid for embedding adapter
       messages: [{ role: 'user', content: 'Hello' }],
     })
   })
@@ -353,11 +353,10 @@ describe('ai() type inference', () => {
   it('should not allow chat-specific options for summarize adapter', () => {
     const summarizeAdapter = new TestSummarizeAdapter()
 
-    ai({
+    summarize({
       adapter: summarizeAdapter,
       model: 'summarize-v1',
       text: 'Text to summarize',
-      // @ts-expect-error - messages is not valid for summarize adapter
       messages: [{ role: 'user', content: 'Hello' }],
     })
   })
@@ -365,11 +364,10 @@ describe('ai() type inference', () => {
   it('should not allow embedding-specific options for text adapter', () => {
     const textAdapter = new TestTextAdapter()
 
-    ai({
+    chat({
       adapter: textAdapter,
       model: 'gpt-4o',
       messages: [{ role: 'user', content: 'Hello' }],
-      // @ts-expect-error - input is not valid for chat adapter
       input: 'Hello',
     })
   })
@@ -377,11 +375,10 @@ describe('ai() type inference', () => {
   it('should not allow summarize-specific options for text adapter', () => {
     const textAdapter = new TestTextAdapter()
 
-    ai({
+    chat({
       adapter: textAdapter,
       model: 'gpt-4o',
       messages: [{ role: 'user', content: 'Hello' }],
-      // @ts-expect-error - text is not valid for chat adapter
       text: 'Text to summarize',
     })
   })
@@ -390,52 +387,50 @@ describe('ai() type inference', () => {
     const adapter = new TestTextAdapterWithModelOptions()
 
     // model-a should accept both baseOnly and foo
-    ai({
+    chat({
       adapter,
       model: 'model-a',
       messages: [{ role: 'user', content: 'Hello' }],
-      providerOptions: {
+      modelOptions: {
         baseOnly: true,
         foo: 123,
       },
     })
 
     // model-a should NOT accept bar (it's model-b specific)
-    ai({
+    chat({
       adapter,
       model: 'model-a',
       messages: [{ role: 'user', content: 'Hello' }],
-      providerOptions: {
-        // @ts-expect-error - bar is not supported for model-a
+      modelOptions: {
         bar: 'nope',
       },
     })
 
     // model-b should accept both baseOnly and bar
-    ai({
+    chat({
       adapter,
       model: 'model-b',
       messages: [{ role: 'user', content: 'Hello' }],
-      providerOptions: {
+      modelOptions: {
         baseOnly: true,
         bar: 'ok',
       },
     })
 
     // model-b should NOT accept foo (it's model-a specific)
-    ai({
+    chat({
       adapter,
       model: 'model-b',
       messages: [{ role: 'user', content: 'Hello' }],
-      providerOptions: {
-        // @ts-expect-error - foo is not supported for model-b
+      modelOptions: {
         foo: 123,
       },
     })
   })
 })
 
-describe('ai() with outputSchema', () => {
+describe('chat() with outputSchema', () => {
   // Import zod for schema tests
   // eslint-disable-next-line @typescript-eslint/consistent-type-imports
   const { z } = require('zod') as typeof import('zod')
@@ -448,7 +443,7 @@ describe('ai() with outputSchema', () => {
       age: z.number(),
     })
 
-    const result = ai({
+    const result = chat({
       adapter: textAdapter,
       model: 'gpt-4o',
       messages: [{ role: 'user', content: 'Generate a person' }],
@@ -462,7 +457,7 @@ describe('ai() with outputSchema', () => {
   it('should return AsyncIterable<StreamChunk> when outputSchema is not provided', () => {
     const textAdapter = new TestTextAdapter()
 
-    const result = ai({
+    const result = chat({
       adapter: textAdapter,
       model: 'gpt-4o',
       messages: [{ role: 'user', content: 'Hello' }],
@@ -486,7 +481,7 @@ describe('ai() with outputSchema', () => {
       addresses: z.array(AddressSchema),
     })
 
-    const result = ai({
+    const result = chat({
       adapter: textAdapter,
       model: 'gpt-4o',
       messages: [{ role: 'user', content: 'Generate a person with addresses' }],
@@ -509,11 +504,10 @@ describe('ai() with outputSchema', () => {
       name: z.string(),
     })
 
-    ai({
+    chat({
       adapter: embedAdapter,
       model: 'text-embedding-3-small',
       input: 'Hello',
-      // @ts-expect-error - outputSchema is not valid for embedding adapter
       outputSchema: PersonSchema,
     })
   })
@@ -525,11 +519,10 @@ describe('ai() with outputSchema', () => {
       name: z.string(),
     })
 
-    ai({
+    chat({
       adapter: summarizeAdapter,
       model: 'summarize-v1',
       text: 'Text to summarize',
-      // @ts-expect-error - outputSchema is not valid for summarize adapter
       outputSchema: PersonSchema,
     })
   })
@@ -543,7 +536,7 @@ describe('ai() with outputSchema', () => {
       email: z.string().nullable(),
     })
 
-    const result = ai({
+    const result = chat({
       adapter: textAdapter,
       model: 'gpt-4o',
       messages: [{ role: 'user', content: 'Generate a person' }],
@@ -567,7 +560,7 @@ describe('ai() with outputSchema', () => {
       z.object({ type: z.literal('error'), message: z.string() }),
     ])
 
-    const result = ai({
+    const result = chat({
       adapter: textAdapter,
       model: 'gpt-4o',
       messages: [{ role: 'user', content: 'Generate a response' }],
@@ -582,10 +575,10 @@ describe('ai() with outputSchema', () => {
   })
 })
 
-describe('ai() with summarize streaming', () => {
+describe('chat() with summarize streaming', () => {
   it('should return Promise<SummarizationResult> when stream is not provided', () => {
     const summarizeAdapter = new TestSummarizeAdapter()
-    const result = ai({
+    const result = chat({
       adapter: summarizeAdapter,
       model: 'summarize-v1',
       text: 'Long text to summarize',
@@ -596,7 +589,7 @@ describe('ai() with summarize streaming', () => {
 
   it('should return Promise<SummarizationResult> when stream is false', () => {
     const summarizeAdapter = new TestSummarizeAdapter()
-    const result = ai({
+    const result = chat({
       adapter: summarizeAdapter,
       model: 'summarize-v1',
       text: 'Long text to summarize',
@@ -608,7 +601,7 @@ describe('ai() with summarize streaming', () => {
 
   it('should return AsyncIterable<StreamChunk> when stream is true', () => {
     const summarizeAdapter = new TestSummarizeAdapter()
-    const result = ai({
+    const result = chat({
       adapter: summarizeAdapter,
       model: 'summarize-v1',
       text: 'Long text to summarize',
@@ -622,7 +615,7 @@ describe('ai() with summarize streaming', () => {
     const textAdapter = new TestTextAdapter()
 
     // stream: true is valid (explicit streaming, the default)
-    ai({
+    chat({
       adapter: textAdapter,
       model: 'gpt-4o',
       messages: [{ role: 'user', content: 'Hello' }],
@@ -630,7 +623,7 @@ describe('ai() with summarize streaming', () => {
     })
 
     // stream: false is valid (non-streaming mode)
-    ai({
+    chat({
       adapter: textAdapter,
       model: 'gpt-4o',
       messages: [{ role: 'user', content: 'Hello' }],
@@ -641,11 +634,10 @@ describe('ai() with summarize streaming', () => {
   it('should not allow stream option for embedding adapter', () => {
     const embedAdapter = new TestEmbedAdapter()
 
-    ai({
+    chat({
       adapter: embedAdapter,
       model: 'text-embedding-3-small',
       input: 'Hello',
-      // @ts-expect-error - stream is not valid for embedding adapter
       stream: true,
     })
   })
@@ -771,7 +763,7 @@ class TestMultimodalAdapter extends BaseTextAdapter<
 // Text Adapter Type Tests
 // ===========================
 
-describe('ai() text adapter type safety', () => {
+describe('chat() text adapter type safety', () => {
   it('should return type that conforms to outputSchema type', () => {
     const textAdapter = new TestTextAdapter()
     // eslint-disable-next-line @typescript-eslint/consistent-type-imports
@@ -782,7 +774,7 @@ describe('ai() text adapter type safety', () => {
       age: z.number(),
     })
 
-    const result = ai({
+    const result = chat({
       adapter: textAdapter,
       model: 'gpt-4o',
       messages: [{ role: 'user', content: 'Generate a person' }],
@@ -792,18 +784,17 @@ describe('ai() text adapter type safety', () => {
     // Return type should match the schema
     expectTypeOf(result).toExtend<Promise<{ name: string; age: number }>>()
     // Should NOT match a different type
-    expectTypeOf(result).not.toExtend<Promise<{ foo: string }>>()
+    expectTypeOf(result).not.toMatchTypeOf<Promise<{ foo: string }>>()
   })
 
   it('should error on invalid provider options', () => {
     const textAdapter = new TestTextAdapter()
 
-    ai({
+    chat({
       adapter: textAdapter,
       model: 'gpt-4o',
       messages: [{ role: 'user', content: 'Hello' }],
-      providerOptions: {
-        // @ts-expect-error - unknownOption is not valid for text adapter
+      modelOptions: {
         unknownOption: 'invalid',
       },
     })
@@ -812,11 +803,10 @@ describe('ai() text adapter type safety', () => {
   it('should error on non-existing props', () => {
     const textAdapter = new TestTextAdapter()
 
-    ai({
+    chat({
       adapter: textAdapter,
       model: 'gpt-4o',
       messages: [{ role: 'user', content: 'Hello' }],
-      // @ts-expect-error - nonExistingProp is not a valid option
       nonExistingProp: 'should-error',
     })
   })
@@ -824,19 +814,17 @@ describe('ai() text adapter type safety', () => {
   it('should reject embedding-specific properties on text adapter', () => {
     const textAdapter = new TestTextAdapter()
 
-    ai({
+    chat({
       adapter: textAdapter,
       model: 'gpt-4o',
       messages: [{ role: 'user', content: 'Hello' }],
-      // @ts-expect-error - input is an embedding-specific property
       input: 'not allowed on text adapter',
     })
 
-    ai({
+    chat({
       adapter: textAdapter,
       model: 'gpt-4o',
       messages: [{ role: 'user', content: 'Hello' }],
-      // @ts-expect-error - dimensions is an embedding-specific property
       dimensions: 1024,
     })
   })
@@ -844,19 +832,17 @@ describe('ai() text adapter type safety', () => {
   it('should reject summarize-specific properties on text adapter', () => {
     const textAdapter = new TestTextAdapter()
 
-    ai({
+    chat({
       adapter: textAdapter,
       model: 'gpt-4o',
       messages: [{ role: 'user', content: 'Hello' }],
-      // @ts-expect-error - text is a summarize-specific property
       text: 'not allowed on text adapter',
     })
 
-    ai({
+    chat({
       adapter: textAdapter,
       model: 'gpt-4o',
       messages: [{ role: 'user', content: 'Hello' }],
-      // @ts-expect-error - maxLength is a summarize-specific property
       maxLength: 500,
     })
   })
@@ -864,19 +850,17 @@ describe('ai() text adapter type safety', () => {
   it('should reject image-specific properties on text adapter', () => {
     const textAdapter = new TestTextAdapter()
 
-    ai({
+    chat({
       adapter: textAdapter,
       model: 'gpt-4o',
       messages: [{ role: 'user', content: 'Hello' }],
-      // @ts-expect-error - prompt is an image-specific property
       prompt: 'not allowed on text adapter',
     })
 
-    ai({
+    chat({
       adapter: textAdapter,
       model: 'gpt-4o',
       messages: [{ role: 'user', content: 'Hello' }],
-      // @ts-expect-error - size is an image-specific property
       size: '1024x1024',
     })
   })
@@ -884,22 +868,20 @@ describe('ai() text adapter type safety', () => {
   it('should reject providerOptions from other adapters on text adapter', () => {
     const textAdapter = new TestTextAdapter()
 
-    ai({
+    chat({
       adapter: textAdapter,
       model: 'gpt-4o',
       messages: [{ role: 'user', content: 'Hello' }],
-      providerOptions: {
-        // @ts-expect-error - encodingFormat is an embedding providerOption
+      modelOptions: {
         encodingFormat: 'float',
       },
     })
 
-    ai({
+    chat({
       adapter: textAdapter,
       model: 'gpt-4o',
       messages: [{ role: 'user', content: 'Hello' }],
-      providerOptions: {
-        // @ts-expect-error - quality is an image providerOption
+      modelOptions: {
         quality: 'hd',
       },
     })
@@ -909,47 +891,45 @@ describe('ai() text adapter type safety', () => {
     const adapter = new TestTextAdapterWithModelOptions()
 
     // model-a should accept foo (and baseOnly which is shared)
-    ai({
+    chat({
       adapter,
       model: 'model-a',
       messages: [{ role: 'user', content: 'Hello' }],
-      providerOptions: {
+      modelOptions: {
         baseOnly: true,
         foo: 42,
       },
     })
 
     // model-a should NOT accept bar (model-b specific)
-    ai({
+    chat({
       adapter,
       model: 'model-a',
       messages: [{ role: 'user', content: 'Hello' }],
-      providerOptions: {
+      modelOptions: {
         baseOnly: true, // shared property - OK
-        // @ts-expect-error - bar is not valid for model-a
         bar: 'invalid-for-model-a',
       },
     })
 
     // model-b should accept bar (and baseOnly which is shared)
-    ai({
+    chat({
       adapter,
       model: 'model-b',
       messages: [{ role: 'user', content: 'Hello' }],
-      providerOptions: {
+      modelOptions: {
         baseOnly: true,
         bar: 'valid-for-model-b',
       },
     })
 
     // model-b should NOT accept foo (model-a specific)
-    ai({
+    chat({
       adapter,
       model: 'model-b',
       messages: [{ role: 'user', content: 'Hello' }],
-      providerOptions: {
+      modelOptions: {
         baseOnly: true, // shared property - OK
-        // @ts-expect-error - foo is not valid for model-b
         foo: 42,
       },
     })
@@ -960,19 +940,19 @@ describe('ai() text adapter type safety', () => {
 // Text Adapter Input Modality Constraint Tests
 // ===========================
 
-describe('ai() text adapter input modality constraints', () => {
+describe('chat() text adapter input modality constraints', () => {
   it('should allow text content on text-only model', () => {
     const adapter = new TestMultimodalAdapter()
 
     // Text content should work for text-only-model
-    ai({
+    chat({
       adapter,
       model: 'text-only-model',
       messages: [{ role: 'user', content: 'Hello, how are you?' }],
     })
 
     // String content should also work
-    ai({
+    chat({
       adapter,
       model: 'text-only-model',
       messages: [{ role: 'user', content: 'Hello' }],
@@ -982,7 +962,7 @@ describe('ai() text adapter input modality constraints', () => {
   it('should reject image content on text-only model', () => {
     const adapter = new TestMultimodalAdapter()
 
-    ai({
+    chat({
       adapter,
       model: 'text-only-model',
       messages: [
@@ -990,7 +970,6 @@ describe('ai() text adapter input modality constraints', () => {
           role: 'user',
           content: [
             {
-              // @ts-expect-error - image content not allowed on text-only model
               type: 'image',
               source: { type: 'url', value: 'https://example.com/image.png' },
             },
@@ -1003,7 +982,7 @@ describe('ai() text adapter input modality constraints', () => {
   it('should reject document content on text-only model', () => {
     const adapter = new TestMultimodalAdapter()
 
-    ai({
+    chat({
       adapter,
       model: 'text-only-model',
       messages: [
@@ -1011,7 +990,6 @@ describe('ai() text adapter input modality constraints', () => {
           role: 'user',
           content: [
             {
-              // @ts-expect-error - document content not allowed on text-only model
               type: 'document',
               source: { type: 'url', value: 'https://example.com/doc.pdf' },
             },
@@ -1024,7 +1002,7 @@ describe('ai() text adapter input modality constraints', () => {
   it('should reject audio content on text-only model', () => {
     const adapter = new TestMultimodalAdapter()
 
-    ai({
+    chat({
       adapter,
       model: 'text-only-model',
       messages: [
@@ -1032,7 +1010,6 @@ describe('ai() text adapter input modality constraints', () => {
           role: 'user',
           content: [
             {
-              // @ts-expect-error - audio content not allowed on text-only model
               type: 'audio',
               source: { type: 'url', value: 'https://example.com/audio.mp3' },
             },
@@ -1046,14 +1023,14 @@ describe('ai() text adapter input modality constraints', () => {
     const adapter = new TestMultimodalAdapter()
 
     // Text content should work
-    ai({
+    chat({
       adapter,
       model: 'text-image-model',
       messages: [{ role: 'user', content: 'Hello' }],
     })
 
     // Image content should work with proper metadata type
-    ai({
+    chat({
       adapter,
       model: 'text-image-model',
       messages: [
@@ -1075,7 +1052,7 @@ describe('ai() text adapter input modality constraints', () => {
   it('should reject document content on text-image model', () => {
     const adapter = new TestMultimodalAdapter()
 
-    ai({
+    chat({
       adapter,
       model: 'text-image-model',
       messages: [
@@ -1083,7 +1060,6 @@ describe('ai() text adapter input modality constraints', () => {
           role: 'user',
           content: [
             {
-              // @ts-expect-error - document content not allowed on text-image model
               type: 'document',
               source: { type: 'url', value: 'https://example.com/doc.pdf' },
             },
@@ -1096,7 +1072,7 @@ describe('ai() text adapter input modality constraints', () => {
   it('should reject audio content on text-image model', () => {
     const adapter = new TestMultimodalAdapter()
 
-    ai({
+    chat({
       adapter,
       model: 'text-image-model',
       messages: [
@@ -1104,7 +1080,6 @@ describe('ai() text adapter input modality constraints', () => {
           role: 'user',
           content: [
             {
-              // @ts-expect-error - audio content not allowed on text-image model
               type: 'audio',
               source: { type: 'url', value: 'https://example.com/audio.mp3' },
             },
@@ -1118,7 +1093,7 @@ describe('ai() text adapter input modality constraints', () => {
     const adapter = new TestMultimodalAdapter()
 
     // All supported content types should work on multimodal-model
-    ai({
+    chat({
       adapter,
       model: 'multimodal-model',
       messages: [
@@ -1147,7 +1122,7 @@ describe('ai() text adapter input modality constraints', () => {
   it('should reject video content on multimodal model that does not support video', () => {
     const adapter = new TestMultimodalAdapter()
 
-    ai({
+    chat({
       adapter,
       model: 'multimodal-model',
       messages: [
@@ -1155,7 +1130,6 @@ describe('ai() text adapter input modality constraints', () => {
           role: 'user',
           content: [
             {
-              // @ts-expect-error - video content not allowed (multimodal-model only supports text, image, audio, document)
               type: 'video',
               source: { type: 'url', value: 'https://example.com/video.mp4' },
             },
@@ -1169,7 +1143,7 @@ describe('ai() text adapter input modality constraints', () => {
     const adapter = new TestMultimodalAdapter()
 
     // Valid metadata for image (TestImageMetadata has altText)
-    ai({
+    chat({
       adapter,
       model: 'text-image-model',
       messages: [
@@ -1192,12 +1166,12 @@ describe('ai() text adapter input modality constraints', () => {
 // Image Adapter Type Tests
 // ===========================
 
-describe('ai() image adapter type safety', () => {
+describe('chat() image adapter type safety', () => {
   it('should have size determined by the model', () => {
     const imageAdapter = new TestImageAdapter()
 
     // image-model-1 supports 256x256, 512x512, 1024x1024
-    ai({
+    chat({
       adapter: imageAdapter,
       model: 'image-model-1',
       prompt: 'A beautiful sunset',
@@ -1205,7 +1179,7 @@ describe('ai() image adapter type safety', () => {
     })
 
     // image-model-2 supports 1024x1024, 1792x1024, 1024x1792
-    ai({
+    chat({
       adapter: imageAdapter,
       model: 'image-model-2',
       prompt: 'A beautiful sunset',
@@ -1216,7 +1190,7 @@ describe('ai() image adapter type safety', () => {
   it('should return ImageGenerationResult type', () => {
     const imageAdapter = new TestImageAdapter()
 
-    const result = ai({
+    const result = chat({
       adapter: imageAdapter,
       model: 'image-model-1',
       prompt: 'A beautiful sunset',
@@ -1228,11 +1202,10 @@ describe('ai() image adapter type safety', () => {
   it('should error on invalid size', () => {
     const imageAdapter = new TestImageAdapter()
 
-    ai({
+    chat({
       adapter: imageAdapter,
       model: 'image-model-1',
       prompt: 'A beautiful sunset',
-      // @ts-expect-error - 2048x2048 is not a valid size for image-model-1
       size: '2048x2048',
     })
   })
@@ -1241,20 +1214,18 @@ describe('ai() image adapter type safety', () => {
     const imageAdapter = new TestImageAdapter()
 
     // 1792x1024 is valid for image-model-2 but NOT for image-model-1
-    ai({
+    chat({
       adapter: imageAdapter,
       model: 'image-model-1',
       prompt: 'A beautiful sunset',
-      // @ts-expect-error - 1792x1024 is not valid for image-model-1 (only image-model-2)
       size: '1792x1024',
     })
 
     // 256x256 is valid for image-model-1 but NOT for image-model-2
-    ai({
+    chat({
       adapter: imageAdapter,
       model: 'image-model-2',
       prompt: 'A beautiful sunset',
-      // @ts-expect-error - 256x256 is not valid for image-model-2 (only image-model-1)
       size: '256x256',
     })
   })
@@ -1263,45 +1234,43 @@ describe('ai() image adapter type safety', () => {
     const imageAdapter = new TestImageAdapter()
 
     // image-model-1 supports style option
-    ai({
+    chat({
       adapter: imageAdapter,
       model: 'image-model-1',
       prompt: 'A beautiful sunset',
-      providerOptions: {
+      modelOptions: {
         quality: 'hd', // shared
         style: 'vivid', // model-1 specific
       },
     })
 
     // image-model-1 should NOT accept background (model-2 specific)
-    ai({
+    chat({
       adapter: imageAdapter,
       model: 'image-model-1',
       prompt: 'A beautiful sunset',
-      providerOptions: {
-        // @ts-expect-error - background is not valid for image-model-1
+      modelOptions: {
         background: 'transparent',
       },
     })
 
     // image-model-2 supports background option
-    ai({
+    chat({
       adapter: imageAdapter,
       model: 'image-model-2',
       prompt: 'A beautiful sunset',
-      providerOptions: {
+      modelOptions: {
         quality: 'hd', // shared
         background: 'transparent', // model-2 specific
       },
     })
 
     // image-model-2 should NOT accept style (model-1 specific)
-    ai({
+    chat({
       adapter: imageAdapter,
       model: 'image-model-2',
       prompt: 'A beautiful sunset',
-      providerOptions: {
-        // @ts-expect-error - style is not valid for image-model-2
+      modelOptions: {
         style: 'vivid',
       },
     })
@@ -1310,27 +1279,24 @@ describe('ai() image adapter type safety', () => {
   it('should reject text-specific properties on image adapter', () => {
     const imageAdapter = new TestImageAdapter()
 
-    ai({
+    chat({
       adapter: imageAdapter,
       model: 'image-model-1',
       prompt: 'A beautiful sunset',
-      // @ts-expect-error - messages is a text-specific property
       messages: [{ role: 'user', content: 'Hello' }],
     })
 
-    ai({
+    chat({
       adapter: imageAdapter,
       model: 'image-model-1',
       prompt: 'A beautiful sunset',
-      // @ts-expect-error - tools is a text-specific property
       tools: [],
     })
 
-    ai({
+    chat({
       adapter: imageAdapter,
       model: 'image-model-1',
       prompt: 'A beautiful sunset',
-      // @ts-expect-error - systemPrompts is a text-specific property
       systemPrompts: ['You are helpful'],
     })
   })
@@ -1338,19 +1304,17 @@ describe('ai() image adapter type safety', () => {
   it('should reject embedding-specific properties on image adapter', () => {
     const imageAdapter = new TestImageAdapter()
 
-    ai({
+    chat({
       adapter: imageAdapter,
       model: 'image-model-1',
       prompt: 'A beautiful sunset',
-      // @ts-expect-error - input is an embedding-specific property
       input: 'not allowed on image adapter',
     })
 
-    ai({
+    chat({
       adapter: imageAdapter,
       model: 'image-model-1',
       prompt: 'A beautiful sunset',
-      // @ts-expect-error - dimensions is an embedding-specific property
       dimensions: 1024,
     })
   })
@@ -1358,27 +1322,24 @@ describe('ai() image adapter type safety', () => {
   it('should reject summarize-specific properties on image adapter', () => {
     const imageAdapter = new TestImageAdapter()
 
-    ai({
+    chat({
       adapter: imageAdapter,
       model: 'image-model-1',
       prompt: 'A beautiful sunset',
-      // @ts-expect-error - text is a summarize-specific property
       text: 'not allowed on image adapter',
     })
 
-    ai({
+    chat({
       adapter: imageAdapter,
       model: 'image-model-1',
       prompt: 'A beautiful sunset',
-      // @ts-expect-error - maxLength is a summarize-specific property
       maxLength: 500,
     })
 
-    ai({
+    chat({
       adapter: imageAdapter,
       model: 'image-model-1',
       prompt: 'A beautiful sunset',
-      // @ts-expect-error - style (summarize) is a summarize-specific property
       style: 'bullet-points',
     })
   })
@@ -1386,32 +1347,29 @@ describe('ai() image adapter type safety', () => {
   it('should reject providerOptions from other adapters on image adapter', () => {
     const imageAdapter = new TestImageAdapter()
 
-    ai({
+    chat({
       adapter: imageAdapter,
       model: 'image-model-1',
       prompt: 'A beautiful sunset',
-      providerOptions: {
-        // @ts-expect-error - temperature is a text providerOption
+      modelOptions: {
         temperature: 0.7,
       },
     })
 
-    ai({
+    chat({
       adapter: imageAdapter,
       model: 'image-model-1',
       prompt: 'A beautiful sunset',
-      providerOptions: {
-        // @ts-expect-error - maxTokens is a text providerOption
+      modelOptions: {
         maxTokens: 100,
       },
     })
 
-    ai({
+    chat({
       adapter: imageAdapter,
       model: 'image-model-1',
       prompt: 'A beautiful sunset',
-      providerOptions: {
-        // @ts-expect-error - encodingFormat is an embedding providerOption
+      modelOptions: {
         encodingFormat: 'float',
       },
     })
@@ -1422,39 +1380,35 @@ describe('ai() image adapter type safety', () => {
 // Embedding Adapter Type Tests
 // ===========================
 
-describe('ai() embedding adapter type safety', () => {
+describe('chat() embedding adapter type safety', () => {
   it('should reject text-specific properties on embedding adapter', () => {
     const embedAdapter = new TestEmbedAdapter()
 
-    ai({
+    chat({
       adapter: embedAdapter,
       model: 'text-embedding-3-small',
       input: 'Hello',
-      // @ts-expect-error - messages is a text-specific property
       messages: [{ role: 'user', content: 'Hello' }],
     })
 
-    ai({
+    chat({
       adapter: embedAdapter,
       model: 'text-embedding-3-small',
       input: 'Hello',
-      // @ts-expect-error - tools is a text-specific property
       tools: [],
     })
 
-    ai({
+    chat({
       adapter: embedAdapter,
       model: 'text-embedding-3-small',
       input: 'Hello',
-      // @ts-expect-error - systemPrompts is a text-specific property
       systemPrompts: ['You are helpful'],
     })
 
-    ai({
+    chat({
       adapter: embedAdapter,
       model: 'text-embedding-3-small',
       input: 'Hello',
-      // @ts-expect-error - outputSchema is a text-specific property
       outputSchema: {},
     })
   })
@@ -1462,35 +1416,31 @@ describe('ai() embedding adapter type safety', () => {
   it('should reject summarize-specific properties on embedding adapter', () => {
     const embedAdapter = new TestEmbedAdapter()
 
-    ai({
+    chat({
       adapter: embedAdapter,
       model: 'text-embedding-3-small',
       input: 'Hello',
-      // @ts-expect-error - text is a summarize-specific property
       text: 'not allowed on embedding adapter',
     })
 
-    ai({
+    chat({
       adapter: embedAdapter,
       model: 'text-embedding-3-small',
       input: 'Hello',
-      // @ts-expect-error - maxLength is a summarize-specific property
       maxLength: 500,
     })
 
-    ai({
+    chat({
       adapter: embedAdapter,
       model: 'text-embedding-3-small',
       input: 'Hello',
-      // @ts-expect-error - style is a summarize-specific property
       style: 'bullet-points',
     })
 
-    ai({
+    chat({
       adapter: embedAdapter,
       model: 'text-embedding-3-small',
       input: 'Hello',
-      // @ts-expect-error - focus is a summarize-specific property
       focus: 'key points',
     })
   })
@@ -1498,27 +1448,24 @@ describe('ai() embedding adapter type safety', () => {
   it('should reject image-specific properties on embedding adapter', () => {
     const embedAdapter = new TestEmbedAdapter()
 
-    ai({
+    chat({
       adapter: embedAdapter,
       model: 'text-embedding-3-small',
       input: 'Hello',
-      // @ts-expect-error - prompt is an image-specific property
       prompt: 'not allowed on embedding adapter',
     })
 
-    ai({
+    chat({
       adapter: embedAdapter,
       model: 'text-embedding-3-small',
       input: 'Hello',
-      // @ts-expect-error - size is an image-specific property
       size: '1024x1024',
     })
 
-    ai({
+    chat({
       adapter: embedAdapter,
       model: 'text-embedding-3-small',
       input: 'Hello',
-      // @ts-expect-error - n is an image-specific property
       n: 4,
     })
   })
@@ -1526,32 +1473,29 @@ describe('ai() embedding adapter type safety', () => {
   it('should reject providerOptions from other adapters on embedding adapter', () => {
     const embedAdapter = new TestEmbedAdapter()
 
-    ai({
+    chat({
       adapter: embedAdapter,
       model: 'text-embedding-3-small',
       input: 'Hello',
-      providerOptions: {
-        // @ts-expect-error - temperature is a text providerOption
+      modelOptions: {
         temperature: 0.7,
       },
     })
 
-    ai({
+    chat({
       adapter: embedAdapter,
       model: 'text-embedding-3-small',
       input: 'Hello',
-      providerOptions: {
-        // @ts-expect-error - maxTokens is a text providerOption
+      modelOptions: {
         maxTokens: 100,
       },
     })
 
-    ai({
+    chat({
       adapter: embedAdapter,
       model: 'text-embedding-3-small',
       input: 'Hello',
-      providerOptions: {
-        // @ts-expect-error - quality is an image providerOption
+      modelOptions: {
         quality: 'hd',
       },
     })
@@ -1562,39 +1506,35 @@ describe('ai() embedding adapter type safety', () => {
 // Summarize Adapter Type Tests
 // ===========================
 
-describe('ai() summarize adapter type safety', () => {
+describe('chat() summarize adapter type safety', () => {
   it('should reject text-specific properties on summarize adapter', () => {
     const summarizeAdapter = new TestSummarizeAdapter()
 
-    ai({
+    chat({
       adapter: summarizeAdapter,
       model: 'summarize-v1',
       text: 'Long text to summarize',
-      // @ts-expect-error - messages is a text-specific property
       messages: [{ role: 'user', content: 'Hello' }],
     })
 
-    ai({
+    chat({
       adapter: summarizeAdapter,
       model: 'summarize-v1',
       text: 'Long text to summarize',
-      // @ts-expect-error - tools is a text-specific property
       tools: [],
     })
 
-    ai({
+    chat({
       adapter: summarizeAdapter,
       model: 'summarize-v1',
       text: 'Long text to summarize',
-      // @ts-expect-error - systemPrompts is a text-specific property
       systemPrompts: ['You are helpful'],
     })
 
-    ai({
+    chat({
       adapter: summarizeAdapter,
       model: 'summarize-v1',
       text: 'Long text to summarize',
-      // @ts-expect-error - outputSchema is a text-specific property
       outputSchema: {},
     })
   })
@@ -1602,19 +1542,17 @@ describe('ai() summarize adapter type safety', () => {
   it('should reject embedding-specific properties on summarize adapter', () => {
     const summarizeAdapter = new TestSummarizeAdapter()
 
-    ai({
+    chat({
       adapter: summarizeAdapter,
       model: 'summarize-v1',
       text: 'Long text to summarize',
-      // @ts-expect-error - input is an embedding-specific property
       input: 'not allowed on summarize adapter',
     })
 
-    ai({
+    chat({
       adapter: summarizeAdapter,
       model: 'summarize-v1',
       text: 'Long text to summarize',
-      // @ts-expect-error - dimensions is an embedding-specific property
       dimensions: 1024,
     })
   })
@@ -1622,27 +1560,24 @@ describe('ai() summarize adapter type safety', () => {
   it('should reject image-specific properties on summarize adapter', () => {
     const summarizeAdapter = new TestSummarizeAdapter()
 
-    ai({
+    chat({
       adapter: summarizeAdapter,
       model: 'summarize-v1',
       text: 'Long text to summarize',
-      // @ts-expect-error - prompt is an image-specific property
       prompt: 'not allowed on summarize adapter',
     })
 
-    ai({
+    chat({
       adapter: summarizeAdapter,
       model: 'summarize-v1',
       text: 'Long text to summarize',
-      // @ts-expect-error - size is an image-specific property
       size: '1024x1024',
     })
 
-    ai({
+    chat({
       adapter: summarizeAdapter,
       model: 'summarize-v1',
       text: 'Long text to summarize',
-      // @ts-expect-error - n is an image-specific property
       n: 4,
     })
   })
@@ -1650,44 +1585,249 @@ describe('ai() summarize adapter type safety', () => {
   it('should reject providerOptions from other adapters on summarize adapter', () => {
     const summarizeAdapter = new TestSummarizeAdapter()
 
-    ai({
+    chat({
       adapter: summarizeAdapter,
       model: 'summarize-v1',
       text: 'Long text to summarize',
-      providerOptions: {
-        // @ts-expect-error - temperature is a text providerOption
+      modelOptions: {
         temperature: 0.7,
       },
     })
 
-    ai({
+    chat({
       adapter: summarizeAdapter,
       model: 'summarize-v1',
       text: 'Long text to summarize',
-      providerOptions: {
-        // @ts-expect-error - maxTokens is a text providerOption
+      modelOptions: {
         maxTokens: 100,
       },
     })
 
-    ai({
+    chat({
       adapter: summarizeAdapter,
       model: 'summarize-v1',
       text: 'Long text to summarize',
-      providerOptions: {
-        // @ts-expect-error - encodingFormat is an embedding providerOption
+      modelOptions: {
         encodingFormat: 'float',
       },
     })
 
-    ai({
+    chat({
       adapter: summarizeAdapter,
       model: 'summarize-v1',
       text: 'Long text to summarize',
-      providerOptions: {
-        // @ts-expect-error - quality is an image providerOption
+      modelOptions: {
         quality: 'hd',
       },
+    })
+  })
+})
+
+// ===========================
+// createOptions Type Tests
+// ===========================
+
+describe('createChatOptions() type inference', () => {
+  it('should return typed options for text adapter', () => {
+    const textAdapter = new TestTextAdapter()
+
+    const options = createChatOptions({
+      adapter: textAdapter,
+      model: 'gpt-4o',
+      messages: [{ role: 'user', content: 'Hello' }],
+    })
+
+    // Options should have the correct adapter type
+    expectTypeOf(options.adapter).toMatchTypeOf<TestTextAdapter>()
+    // Options should have the correct model type
+    expectTypeOf(options.model).toEqualTypeOf<'gpt-4o'>()
+  })
+
+  it('should enforce valid model for text adapter', () => {
+    const textAdapter = new TestTextAdapter()
+
+    // This should work - valid model
+    createChatOptions({
+      adapter: textAdapter,
+      model: 'gpt-4o',
+      messages: [{ role: 'user', content: 'Hello' }],
+    })
+
+    // invalid model should error
+    createChatOptions({
+      adapter: textAdapter,
+      model: 'invalid-model',
+      messages: [{ role: 'user', content: 'Hello' }],
+    })
+  })
+
+  it('should enforce valid model for embedding adapter', () => {
+    const embedAdapter = new TestEmbedAdapter()
+
+    // This should work - valid model
+    createChatOptions({
+      adapter: embedAdapter,
+      model: 'text-embedding-3-small',
+      input: 'Hello',
+    })
+
+    // invalid model should error
+    createChatOptions({
+      adapter: embedAdapter,
+      model: 'invalid-embedding-model',
+      input: 'Hello',
+    })
+  })
+
+  it('should enforce valid model for summarize adapter', () => {
+    const summarizeAdapter = new TestSummarizeAdapter()
+
+    // This should work - valid model
+    createChatOptions({
+      adapter: summarizeAdapter,
+      model: 'summarize-v1',
+      text: 'Text to summarize',
+    })
+
+    // invalid model should error
+    createChatOptions({
+      adapter: summarizeAdapter,
+      model: 'invalid-summarize-model',
+      text: 'Text to summarize',
+    })
+  })
+
+  it('should enforce strict providerOptions for text adapter', () => {
+    const textAdapter = new TestTextAdapter()
+
+    // This should work - valid provider options
+    createChatOptions({
+      adapter: textAdapter,
+      model: 'gpt-4o',
+      messages: [{ role: 'user', content: 'Hello' }],
+      modelOptions: {
+        temperature: 0.7,
+        maxTokens: 100,
+      },
+    })
+
+    // invalid property should error
+    createChatOptions({
+      adapter: textAdapter,
+      model: 'gpt-4o',
+      messages: [{ role: 'user', content: 'Hello' }],
+      modelOptions: {
+        temperature: 0.7,
+        invalidProperty: 'should-error',
+      },
+    })
+  })
+
+  it('should narrow providerOptions based on model (per-model map)', () => {
+    const adapter = new TestTextAdapterWithModelOptions()
+
+    // model-a should accept both baseOnly and foo
+    createChatOptions({
+      adapter,
+      model: 'model-a',
+      messages: [{ role: 'user', content: 'Hello' }],
+      modelOptions: {
+        baseOnly: true,
+        foo: 123,
+      },
+    })
+
+    // model-a should NOT accept bar (it's model-b specific)
+    createChatOptions({
+      adapter,
+      model: 'model-a',
+      messages: [{ role: 'user', content: 'Hello' }],
+      modelOptions: {
+        bar: 'nope',
+      },
+    })
+
+    // model-b should accept both baseOnly and bar
+    createChatOptions({
+      adapter,
+      model: 'model-b',
+      messages: [{ role: 'user', content: 'Hello' }],
+      modelOptions: {
+        baseOnly: true,
+        bar: 'ok',
+      },
+    })
+
+    // model-b should NOT accept foo (it's model-a specific)
+    createChatOptions({
+      adapter,
+      model: 'model-b',
+      messages: [{ role: 'user', content: 'Hello' }],
+      modelOptions: {
+        foo: 123,
+      },
+    })
+  })
+
+  it('should return options that can be spread into chat()', () => {
+    const textAdapter = new TestTextAdapter()
+
+    const options = createChatOptions({
+      adapter: textAdapter,
+      model: 'gpt-4o',
+      messages: [{ role: 'user', content: 'Hello' }],
+    })
+
+    // Should be able to spread into chat() and get correct return type
+    const result = chat({
+      ...options,
+    })
+
+    expectTypeOf(result).toMatchTypeOf<AsyncIterable<StreamChunk>>()
+  })
+
+  it('should work with image adapter', () => {
+    const imageAdapter = new TestImageAdapter()
+
+    // Valid options for image-model-1
+    createChatOptions({
+      adapter: imageAdapter,
+      model: 'image-model-1',
+      prompt: 'A beautiful sunset',
+      size: '512x512',
+    })
+
+    // Invalid size for image-model-1
+    createChatOptions({
+      adapter: imageAdapter,
+      model: 'image-model-1',
+      prompt: 'A beautiful sunset',
+      size: '1792x1024',
+    })
+  })
+
+  it('should not allow mixing activity-specific options', () => {
+    const textAdapter = new TestTextAdapter()
+
+    createChatOptions({
+      adapter: textAdapter,
+      model: 'gpt-4o',
+      messages: [{ role: 'user', content: 'Hello' }],
+      input: 'not allowed on text adapter',
+    })
+
+    createChatOptions({
+      adapter: textAdapter,
+      model: 'gpt-4o',
+      messages: [{ role: 'user', content: 'Hello' }],
+      text: 'not allowed on text adapter',
+    })
+
+    createChatOptions({
+      adapter: textAdapter,
+      model: 'gpt-4o',
+      messages: [{ role: 'user', content: 'Hello' }],
+      prompt: 'not allowed on text adapter',
     })
   })
 })

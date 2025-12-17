@@ -52,7 +52,7 @@ export class OpenAITTSAdapter extends BaseTTSAdapter<
   async generateSpeech(
     options: TTSOptions<OpenAITTSProviderOptions>,
   ): Promise<TTSResult> {
-    const { model, text, voice, format, speed, providerOptions } = options
+    const { model, text, voice, format, speed, modelOptions } = options
 
     // Validate inputs using existing validators
     const audioOptions = {
@@ -61,7 +61,7 @@ export class OpenAITTSAdapter extends BaseTTSAdapter<
       voice: voice as OpenAITTSVoice,
       speed,
       response_format: format as OpenAITTSFormat,
-      ...providerOptions,
+      ...modelOptions,
     }
 
     validateAudioInput(audioOptions)
@@ -75,7 +75,7 @@ export class OpenAITTSAdapter extends BaseTTSAdapter<
       voice: voice || 'alloy',
       response_format: format,
       speed,
-      ...providerOptions,
+      ...modelOptions,
     }
 
     // Call OpenAI API
@@ -111,17 +111,18 @@ export class OpenAITTSAdapter extends BaseTTSAdapter<
 }
 
 /**
- * Creates an OpenAI TTS adapter with explicit API key
+ * Creates an OpenAI speech adapter with explicit API key
  *
+ * @param model - The model name (e.g., 'tts-1', 'tts-1-hd')
  * @param apiKey - Your OpenAI API key
  * @param config - Optional additional configuration
- * @returns Configured OpenAI TTS adapter instance
+ * @returns Configured OpenAI speech adapter instance
  *
  * @example
  * ```typescript
- * const adapter = createOpenaiTTS("sk-...");
+ * const adapter = createOpenaiSpeech('tts-1-hd', "sk-...");
  *
- * const result = await ai({
+ * const result = await generateSpeech({
  *   adapter,
  *   model: 'tts-1-hd',
  *   text: 'Hello, world!',
@@ -129,7 +130,7 @@ export class OpenAITTSAdapter extends BaseTTSAdapter<
  * });
  * ```
  */
-export function createOpenaiTTS(
+export function createOpenaiSpeech(
   apiKey: string,
   config?: Omit<OpenAITTSConfig, 'apiKey'>,
 ): OpenAITTSAdapter {
@@ -137,22 +138,22 @@ export function createOpenaiTTS(
 }
 
 /**
- * Creates an OpenAI TTS adapter with automatic API key detection from environment variables.
+ * Creates an OpenAI speech adapter with automatic API key detection from environment variables.
  *
  * Looks for `OPENAI_API_KEY` in:
  * - `process.env` (Node.js)
  * - `window.env` (Browser with injected env)
  *
  * @param config - Optional configuration (excluding apiKey which is auto-detected)
- * @returns Configured OpenAI TTS adapter instance
+ * @returns Configured OpenAI speech adapter instance
  * @throws Error if OPENAI_API_KEY is not found in environment
  *
  * @example
  * ```typescript
  * // Automatically uses OPENAI_API_KEY from environment
- * const adapter = openaiTTS();
+ * const adapter = openaiSpeech();
  *
- * const result = await ai({
+ * const result = await generateSpeech({
  *   adapter,
  *   model: 'tts-1',
  *   text: 'Welcome to TanStack AI!',
@@ -161,9 +162,23 @@ export function createOpenaiTTS(
  * });
  * ```
  */
+export function openaiSpeech(
+  config?: Omit<OpenAITTSConfig, 'apiKey'>,
+): OpenAITTSAdapter {
+  const apiKey = getOpenAIApiKeyFromEnv()
+  return createOpenaiSpeech(apiKey, config)
+}
+
 export function openaiTTS(
   config?: Omit<OpenAITTSConfig, 'apiKey'>,
 ): OpenAITTSAdapter {
   const apiKey = getOpenAIApiKeyFromEnv()
-  return createOpenaiTTS(apiKey, config)
+  return createOpenaiSpeech(apiKey, config)
+}
+
+export function createOpenaiTTS(
+  apiKey: string,
+  config?: Omit<OpenAITTSConfig, 'apiKey'>,
+): OpenAITTSAdapter {
+  return createOpenaiSpeech(apiKey, config)
 }

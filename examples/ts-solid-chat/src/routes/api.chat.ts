@@ -1,5 +1,5 @@
 import { createFileRoute } from '@tanstack/solid-router'
-import { ai, maxIterations, toStreamResponse } from '@tanstack/ai'
+import { chat, maxIterations, toStreamResponse } from '@tanstack/ai'
 import { anthropicText } from '@tanstack/ai-anthropic'
 import { serverTools } from '@/lib/guitar-tools'
 
@@ -56,14 +56,14 @@ export const Route = createFileRoute('/api/chat')({
         const { messages } = await request.json()
         try {
           // Use the stream abort signal for proper cancellation handling
-          const stream = ai({
+          const stream = chat({
             adapter: anthropicText(),
             model: 'claude-sonnet-4-5',
             tools: serverTools,
             systemPrompts: [SYSTEM_PROMPT],
             agentLoopStrategy: maxIterations(20),
             messages,
-            providerOptions: {
+            modelOptions: {
               thinking: {
                 type: 'enabled',
                 budget_tokens: 10000,

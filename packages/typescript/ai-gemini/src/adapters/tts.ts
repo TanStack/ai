@@ -8,22 +8,50 @@ import {
 import type { TTSOptions, TTSResult } from '@tanstack/ai'
 import type { GoogleGenAI } from '@google/genai'
 import type { GeminiClientConfig } from '../utils'
+import type { GeminiTTSVoice } from '../model-meta'
 
 /**
  * Provider-specific options for Gemini TTS
  *
- * @experimental Gemini TTS is an experimental feature and uses the Live API.
+ * @experimental Gemini TTS is an experimental feature.
+ * @see https://ai.google.dev/gemini-api/docs/speech-generation
  */
 export interface GeminiTTSProviderOptions {
   /**
    * Voice configuration for TTS.
-   * Note: Gemini TTS uses the Live API which has limited configuration options.
+   * Choose from 30 available voices with different characteristics.
    */
   voiceConfig?: {
     prebuiltVoiceConfig?: {
-      voiceName?: string
+      /**
+       * The voice name to use for speech synthesis.
+       * @see https://ai.google.dev/gemini-api/docs/speech-generation#voices
+       */
+      voiceName?: GeminiTTSVoice
     }
   }
+
+  /**
+   * System instruction for controlling speech style.
+   * Use natural language to describe the desired speaking style,
+   * pace, tone, accent, or other characteristics.
+   *
+   * @example "Speak slowly and calmly, as if telling a bedtime story"
+   * @example "Use an upbeat, enthusiastic tone with moderate pace"
+   * @example "Speak with a British accent"
+   */
+  systemInstruction?: string
+
+  /**
+   * Language code hint for the speech synthesis.
+   * Gemini TTS supports 24 languages and can auto-detect,
+   * but you can provide a hint for better results.
+   *
+   * @example "en-US" for American English
+   * @example "es-ES" for Spanish (Spain)
+   * @example "ja-JP" for Japanese
+   */
+  languageCode?: string
 }
 
 /**
@@ -64,22 +92,17 @@ export class GeminiTTSAdapter extends BaseTTSAdapter<
   /**
    * Generate speech from text using Gemini's TTS model.
    *
-   * Note: Gemini's TTS functionality uses the Live API, which is WebSocket-based.
-   * This implementation uses the multimodal generation endpoint with audio output
-   * configuration, which may have different capabilities than the full Live API.
-   *
    * @experimental This implementation is experimental and may change.
+   * @see https://ai.google.dev/gemini-api/docs/speech-generation
    */
   async generateSpeech(
     options: TTSOptions<GeminiTTSProviderOptions>,
   ): Promise<TTSResult> {
-    const { model, text, providerOptions } = options
+    const { model, text, modelOptions } = options
 
-    // Use Gemini's multimodal content generation with audio output
-    // Note: This requires the model to support audio output
-    const voiceConfig = providerOptions?.voiceConfig || {
+    const voiceConfig = modelOptions?.voiceConfig || {
       prebuiltVoiceConfig: {
-        voiceName: 'Kore', // Default Gemini voice
+        voiceName: 'Kore' as const,
       },
     }
 
@@ -88,16 +111,21 @@ export class GeminiTTSAdapter extends BaseTTSAdapter<
       contents: [
         {
           role: 'user',
-          parts: [{ text: `Please speak the following text: ${text}` }],
+          parts: [{ text }],
         },
       ],
       config: {
-        // Configure for audio output
         responseModalities: ['AUDIO'],
         speechConfig: {
           voiceConfig,
+          ...(modelOptions?.languageCode && {
+            languageCode: modelOptions.languageCode,
+          }),
         },
       },
+      ...(modelOptions?.systemInstruction && {
+        systemInstruction: modelOptions.systemInstruction,
+      }),
     })
 
     // Extract audio data from response
@@ -145,14 +173,14 @@ export class GeminiTTSAdapter extends BaseTTSAdapter<
  * ```typescript
  * const adapter = createGeminiTTS("your-api-key");
  *
- * const result = await ai({
+ * const result = await generateSpeech({
  *   adapter,
  *   model: 'gemini-2.5-flash-preview-tts',
  *   text: 'Hello, world!'
  * });
  * ```
  */
-export function createGeminiTTS(
+export function createGeminiSpeech(
   apiKey: string,
   config?: Omit<GeminiTTSConfig, 'apiKey'>,
 ): GeminiTTSAdapter {
@@ -160,7 +188,7 @@ export function createGeminiTTS(
 }
 
 /**
- * Creates a Gemini TTS adapter with automatic API key detection from environment variables.
+ * Creates a Gemini speech adapter with automatic API key detection from environment variables.
  *
  * @experimental Gemini TTS is an experimental feature and may change.
  *
@@ -169,24 +197,38 @@ export function createGeminiTTS(
  * - `window.env` (Browser with injected env)
  *
  * @param config - Optional configuration (excluding apiKey which is auto-detected)
- * @returns Configured Gemini TTS adapter instance
+ * @returns Configured Gemini speech adapter instance
  * @throws Error if GOOGLE_API_KEY or GEMINI_API_KEY is not found in environment
  *
  * @example
  * ```typescript
  * // Automatically uses GOOGLE_API_KEY from environment
- * const adapter = geminiTTS();
+ * const adapter = geminiSpeech();
  *
- * const result = await ai({
+ * const result = await generateSpeech({
  *   adapter,
  *   model: 'gemini-2.5-flash-preview-tts',
  *   text: 'Welcome to TanStack AI!'
  * });
  * ```
  */
+export function geminiSpeech(
+  config?: Omit<GeminiTTSConfig, 'apiKey'>,
+): GeminiTTSAdapter {
+  const apiKey = getGeminiApiKeyFromEnv()
+  return createGeminiSpeech(apiKey, config)
+}
+
 export function geminiTTS(
   config?: Omit<GeminiTTSConfig, 'apiKey'>,
 ): GeminiTTSAdapter {
   const apiKey = getGeminiApiKeyFromEnv()
-  return createGeminiTTS(apiKey, config)
+  return createGeminiSpeech(apiKey, config)
+}
+
+export function createGeminiTTS(
+  apiKey: string,
+  config?: Omit<GeminiTTSConfig, 'apiKey'>,
+): GeminiTTSAdapter {
+  return createGeminiSpeech(apiKey, config)
 }

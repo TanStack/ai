@@ -1,6 +1,7 @@
 ---
 title: Devtools
 id: devtools
+order: 3
 ---
 
 TanStack Devtools is a unified devtools panel for inspecting and debugging TanStack libraries, including TanStack AI. It provides real-time insights into AI interactions, tool calls, and state changes, making it easier to develop and troubleshoot AI-powered applications.

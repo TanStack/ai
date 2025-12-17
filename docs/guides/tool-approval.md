@@ -1,6 +1,7 @@
 ---
 title: Tool Approval Flow
 id: tool-approval-flow
+order: 5
 ---
 
 The tool approval flow allows you to require user approval before executing sensitive tools, giving users control over actions like sending emails, making purchases, or deleting data. Tools go through these states during approval:
@@ -56,17 +57,17 @@ const sendEmail = sendEmailDef.server(async ({ to, subject, body }) => {
 On the server, tools with `needsApproval: true` will pause execution and wait for approval:
 
 ```typescript
-import { ai, toStreamResponse } from "@tanstack/ai";
+import { chat, toStreamResponse } from "@tanstack/ai";
 import { openaiText } from "@tanstack/ai-openai";
 import { sendEmail } from "./tools";
 
 export async function POST(request: Request) {
   const { messages } = await request.json();
 
-  const stream = ai({
+  const stream = chat({
     adapter: openaiText(),
-    messages,
     model: "gpt-4o",
+    messages,
     tools: [sendEmail],
   });
 

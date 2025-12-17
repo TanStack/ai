@@ -61,7 +61,7 @@ export interface SummarizeActivityOptions<
   /** Topics or aspects to focus on in the summary */
   focus?: Array<string>
   /** Provider-specific options */
-  providerOptions?: SummarizeProviderOptions<TAdapter>
+  modelOptions?: SummarizeProviderOptions<TAdapter>
   /**
    * Whether to stream the summarization result.
    * When true, returns an AsyncIterable<StreamChunk> for streaming output.
@@ -105,10 +105,10 @@ function createId(prefix: string): string {
  *
  * @example Basic summarization
  * ```ts
- * import { ai } from '@tanstack/ai'
+ * import { summarize } from '@tanstack/ai'
  * import { openaiSummarize } from '@tanstack/ai-openai'
  *
- * const result = await ai({
+ * const result = await summarize({
  *   adapter: openaiSummarize(),
  *   model: 'gpt-4o-mini',
  *   text: 'Long article text here...'
@@ -119,7 +119,7 @@ function createId(prefix: string): string {
  *
  * @example Summarization with style
  * ```ts
- * const result = await ai({
+ * const result = await summarize({
  *   adapter: openaiSummarize(),
  *   model: 'gpt-4o-mini',
  *   text: 'Long article text here...',
@@ -130,7 +130,7 @@ function createId(prefix: string): string {
  *
  * @example Focused summarization
  * ```ts
- * const result = await ai({
+ * const result = await summarize({
  *   adapter: openaiSummarize(),
  *   model: 'gpt-4o-mini',
  *   text: 'Long technical document...',
@@ -140,7 +140,7 @@ function createId(prefix: string): string {
  *
  * @example Streaming summarization
  * ```ts
- * for await (const chunk of ai({
+ * for await (const chunk of summarize({
  *   adapter: openaiSummarize(),
  *   model: 'gpt-4o-mini',
  *   text: 'Long article text here...',
@@ -152,7 +152,7 @@ function createId(prefix: string): string {
  * }
  * ```
  */
-export function summarizeActivity<
+export function summarize<
   TAdapter extends SummarizeAdapter<ReadonlyArray<string>, object>,
   TModel extends SummarizeModels<TAdapter>,
   TStream extends boolean = false,
@@ -190,7 +190,7 @@ async function runSummarize(
     false
   >,
 ): Promise<SummarizationResult> {
-  const { adapter, model, text, maxLength, style, focus } = options
+  const { adapter, text, maxLength, style, focus, model } = options
   const requestId = createId('summarize')
   const inputLength = text.length
   const startTime = Date.now()
@@ -229,7 +229,8 @@ async function runSummarize(
 
 /**
  * Run streaming summarization
- * Wraps the non-streaming summarize into a streaming interface.
+ * Uses the adapter's native streaming if available, otherwise falls back
+ * to non-streaming and yields the result as a single chunk.
  */
 async function* runStreamingSummarize(
   options: SummarizeActivityOptions<
@@ -238,7 +239,7 @@ async function* runStreamingSummarize(
     true
   >,
 ): AsyncIterable<StreamChunk> {
-  const { adapter, model, text, maxLength, style, focus } = options
+  const { adapter, text, maxLength, style, focus, model } = options
 
   const summarizeOptions: SummarizationOptions = {
     model,
@@ -248,6 +249,13 @@ async function* runStreamingSummarize(
     focus,
   }
 
+  // Use real streaming if the adapter supports it
+  if (adapter.summarizeStream) {
+    yield* adapter.summarizeStream(summarizeOptions)
+    return
+  }
+
+  // Fall back to non-streaming and yield as a single chunk
   const result = await adapter.summarize(summarizeOptions)
 
   // Yield content chunk with the summary

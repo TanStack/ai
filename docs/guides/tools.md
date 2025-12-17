@@ -1,6 +1,7 @@
 ---
 title: Tools
 id: tools
+order: 1
 ---
 
 Tools (also called "function calling") allow AI models to interact with external systems, APIs, or perform computations. TanStack AI provides an isomorphic tool system that enables type-safe, framework-agnostic tool definitions that work on both server and client.
@@ -173,7 +174,7 @@ const getWeatherServer = getWeatherDef.server(async (args) => {
 ### Server-Side
 
 ```typescript
-import { ai, toStreamResponse } from "@tanstack/ai";
+import { chat, toStreamResponse } from "@tanstack/ai";
 import { openaiText } from "@tanstack/ai-openai";
 import { getWeatherDef } from "./tools";
 
@@ -186,10 +187,10 @@ export async function POST(request: Request) {
     return await response.json();
   });
 
-  const stream = ai({
+  const stream = chat({
     adapter: openaiText(),
-    messages,
     model: "gpt-4o",
+    messages,
     tools: [getWeather], // Pass server tools
   });
 
@@ -279,8 +280,9 @@ const addToCartClient = addToCartDef.client((input) => {
 On the server, pass the definition (for client execution) or server implementation:
 
 ```typescript
-ai({
+chat({
   adapter: openaiText(),
+  model: "gpt-4o",
   messages,
   tools: [addToCartDef], // Client will execute, or
   tools: [addToCartServer], // Server will execute

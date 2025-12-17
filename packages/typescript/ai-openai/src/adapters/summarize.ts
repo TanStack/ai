@@ -1,7 +1,12 @@
 import { BaseSummarizeAdapter } from '@tanstack/ai/adapters'
 import { OPENAI_CHAT_MODELS } from '../model-meta'
-import { createOpenAIClient, getOpenAIApiKeyFromEnv } from '../utils'
-import type { SummarizationOptions, SummarizationResult } from '@tanstack/ai'
+import { getOpenAIApiKeyFromEnv } from '../utils'
+import { OpenAITextAdapter } from './text'
+import type {
+  StreamChunk,
+  SummarizationOptions,
+  SummarizationResult,
+} from '@tanstack/ai'
 import type { OpenAIClientConfig } from '../utils'
 
 /**
@@ -22,8 +27,8 @@ export interface OpenAISummarizeProviderOptions {
 /**
  * OpenAI Summarize Adapter
  *
- * Tree-shakeable adapter for OpenAI summarization functionality.
- * Import only what you need for smaller bundle sizes.
+ * A thin wrapper around the text adapter that adds summarization-specific prompting.
+ * Delegates all API calls to the OpenAITextAdapter.
  */
 export class OpenAISummarizeAdapter extends BaseSummarizeAdapter<
   typeof OPENAI_CHAT_MODELS,
@@ -33,37 +38,59 @@ export class OpenAISummarizeAdapter extends BaseSummarizeAdapter<
   readonly name = 'openai' as const
   readonly models = OPENAI_CHAT_MODELS
 
-  private client: ReturnType<typeof createOpenAIClient>
+  private textAdapter: OpenAITextAdapter
 
   constructor(config: OpenAISummarizeConfig) {
     super({})
-    this.client = createOpenAIClient(config)
+    this.textAdapter = new OpenAITextAdapter(config)
   }
 
   async summarize(options: SummarizationOptions): Promise<SummarizationResult> {
     const systemPrompt = this.buildSummarizationPrompt(options)
 
-    const response = await this.client.chat.completions.create({
-      model: options.model || 'gpt-3.5-turbo',
-      messages: [
-        { role: 'system', content: systemPrompt },
-        { role: 'user', content: options.text },
-      ],
-      max_tokens: options.maxLength,
-      temperature: 0.3,
-      stream: false,
-    })
+    // Use the text adapter's streaming and collect the result
+    let summary = ''
+    let id = ''
+    let model = options.model
+    let usage = { promptTokens: 0, completionTokens: 0, totalTokens: 0 }
 
-    return {
-      id: response.id,
-      model: response.model,
-      summary: response.choices[0]?.message.content || '',
-      usage: {
-        promptTokens: response.usage?.prompt_tokens || 0,
-        completionTokens: response.usage?.completion_tokens || 0,
-        totalTokens: response.usage?.total_tokens || 0,
+    for await (const chunk of this.textAdapter.chatStream({
+      model: options.model,
+      messages: [{ role: 'user', content: options.text }],
+      systemPrompts: [systemPrompt],
+      options: {
+        maxTokens: options.maxLength,
+        temperature: 0.3,
       },
+    })) {
+      if (chunk.type === 'content') {
+        summary = chunk.content
+        id = chunk.id
+        model = chunk.model
+      }
+      if (chunk.type === 'done' && chunk.usage) {
+        usage = chunk.usage
+      }
     }
+
+    return { id, model, summary, usage }
+  }
+
+  async *summarizeStream(
+    options: SummarizationOptions,
+  ): AsyncIterable<StreamChunk> {
+    const systemPrompt = this.buildSummarizationPrompt(options)
+
+    // Delegate directly to the text adapter's streaming
+    yield* this.textAdapter.chatStream({
+      model: options.model,
+      messages: [{ role: 'user', content: options.text }],
+      systemPrompts: [systemPrompt],
+      options: {
+        maxTokens: options.maxLength,
+        temperature: 0.3,
+      },
+    })
   }
 
   private buildSummarizationPrompt(options: SummarizationOptions): string {
@@ -130,7 +157,7 @@ export function createOpenaiSummarize(
  * // Automatically uses OPENAI_API_KEY from environment
  * const adapter = openaiSummarize();
  *
- * await generate({
+ * await summarize({
  *   adapter,
  *   model: "gpt-4",
  *   text: "Long article text..."

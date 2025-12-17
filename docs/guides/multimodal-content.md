@@ -1,6 +1,7 @@
 ---
 title: Multimodal Content
 id: multimodal-content
+order: 8
 ---
 
 TanStack AI supports multimodal content in messages, allowing you to send images, audio, video, and documents alongside text to AI models that support these modalities.
@@ -53,10 +54,10 @@ const imageUrlPart: ImagePart = {
 Messages can have `content` as either a string or an array of `ContentPart`:
 
 ```typescript
-import { ai } from '@tanstack/ai'
+import { chat } from '@tanstack/ai'
 import { openaiText } from '@tanstack/ai-openai'
 
-const response = await ai({
+const response = await chat({
   adapter: openaiText(),
   model: 'gpt-4o',
   messages: [
@@ -179,7 +180,7 @@ Ollama supports images in compatible models:
 ```typescript
 import { ollamaText } from '@tanstack/ai-ollama'
 
-const adapter = ollamaText({ baseURL: 'http://localhost:11434' })
+const adapter = ollamaText('http://localhost:11434')
 
 // Image as base64
 const message = {
@@ -276,7 +277,7 @@ import type { GeminiMediaMetadata } from '@tanstack/ai-gemini'
 When receiving messages from external sources (like `request.json()`), the data is typed as `any`, which can bypass TypeScript's type checking. Use `assertMessages` to restore type safety:
 
 ```typescript
-import { ai, assertMessages } from '@tanstack/ai'
+import { chat, assertMessages } from '@tanstack/ai'
 import { openaiText } from '@tanstack/ai-openai'
 
 // In an API route handler
@@ -288,7 +289,7 @@ const adapter = openaiText()
 const typedMessages = assertMessages({ adapter, model: 'gpt-4o' }, incomingMessages)
 
 // Now TypeScript will properly check any additional messages you add
-const stream = ai({
+const stream = chat({
   adapter,
   model: 'gpt-4o',
   messages: [

@@ -1,5 +1,5 @@
 import { createFileRoute } from '@tanstack/react-router'
-import { ai } from '@tanstack/ai'
+import { chat, createChatOptions } from '@tanstack/ai'
 import { anthropicText } from '@tanstack/ai-anthropic'
 import { geminiText } from '@tanstack/ai-gemini'
 import { openaiText } from '@tanstack/ai-openai'
@@ -7,6 +7,30 @@ import { ollamaText } from '@tanstack/ai-ollama'
 import { z } from 'zod'
 
 type Provider = 'openai' | 'anthropic' | 'gemini' | 'ollama'
+
+// Pre-define typed adapter configurations with full type inference
+const adapterConfig = {
+  anthropic: () =>
+    createChatOptions({
+      adapter: anthropicText(),
+      model: 'claude-sonnet-4-5-20250929',
+    }),
+  gemini: () =>
+    createChatOptions({
+      adapter: geminiText(),
+      model: 'gemini-2.0-flash-exp',
+    }),
+  ollama: () =>
+    createChatOptions({
+      adapter: ollamaText(),
+      model: 'mistral:7b',
+    }),
+  openai: () =>
+    createChatOptions({
+      adapter: openaiText(),
+      model: 'gpt-4o',
+    }),
+}
 
 // Schema for structured recipe output
 const RecipeSchema = z.object({
@@ -51,30 +75,9 @@ export const Route = createFileRoute('/api/structured')({
         const provider: Provider = body.provider || 'openai'
 
         try {
-          // Select adapter and model based on provider
-          let adapter
-          let model
-
-          switch (provider) {
-            case 'anthropic':
-              adapter = anthropicText()
-              model = 'claude-sonnet-4-5-20250929'
-              break
-            case 'gemini':
-              adapter = geminiText()
-              model = 'gemini-2.0-flash-exp'
-              break
-
-            case 'ollama':
-              adapter = ollamaText()
-              model = 'mistral:7b'
-              break
-            case 'openai':
-            default:
-              adapter = openaiText()
-              model = 'gpt-4o'
-              break
-          }
+          // Get typed adapter options using createChatOptions pattern
+          const options = adapterConfig[provider]()
+          const model = options.adapter.defaultModel || 'unknown'
 
           console.log(
             `>> ${mode} output with model: ${model} on provider: ${provider}`,
@@ -82,9 +85,8 @@ export const Route = createFileRoute('/api/structured')({
 
           if (mode === 'structured') {
             // Structured output mode - returns validated object
-            const result = await ai({
-              adapter: adapter as any,
-              model: model as any,
+            const result = await chat({
+              ...options,
               messages: [
                 {
                   role: 'user',
@@ -108,9 +110,8 @@ export const Route = createFileRoute('/api/structured')({
             )
           } else {
             // One-shot markdown mode - returns streamed text
-            const markdown = await ai({
-              adapter: adapter as any,
-              model: model as any,
+            const markdown = await chat({
+              ...options,
               stream: false,
               messages: [
                 {

@@ -1,7 +1,12 @@
 import * as path from 'node:path'
 import * as fs from 'node:fs'
 import { createFileRoute } from '@tanstack/react-router'
-import { ai, maxIterations, toStreamResponse } from '@tanstack/ai'
+import {
+  chat,
+  createChatOptions,
+  maxIterations,
+  toStreamResponse,
+} from '@tanstack/ai'
 import { anthropicText } from '@tanstack/ai-anthropic'
 import { geminiText } from '@tanstack/ai-gemini'
 import { openaiText } from '@tanstack/ai-openai'
@@ -47,6 +52,31 @@ const addToCartToolServer = addToCartToolDef.server((args) => ({
 }))
 
 type Provider = 'openai' | 'anthropic' | 'gemini' | 'ollama'
+
+// Pre-define typed adapter configurations with full type inference
+// This pattern gives you model autocomplete at definition time
+const adapterConfig = {
+  anthropic: () =>
+    createChatOptions({
+      adapter: anthropicText(),
+      model: 'claude-sonnet-4-5-20250929',
+    }),
+  gemini: () =>
+    createChatOptions({
+      adapter: geminiText(),
+      model: 'gemini-2.0-flash-exp',
+    }),
+  ollama: () =>
+    createChatOptions({
+      adapter: ollamaText(),
+      model: 'mistral:7b',
+    }),
+  openai: () =>
+    createChatOptions({
+      adapter: openaiText(),
+      model: 'gpt-4o',
+    }),
+}
 
 /**
  * Wraps an adapter to intercept chatStream and record raw chunks from the adapter
@@ -145,41 +175,17 @@ export const Route = createFileRoute('/api/chat')({
         const messages = body.messages
         const data = body.data || {}
 
-        // Extract provider, model, and traceId from data
+        // Extract provider and traceId from data
         const provider: Provider = data.provider || 'openai'
-        const model: string | undefined = data.model
         const traceId: string | undefined = data.traceId
 
         try {
-          // Select adapter based on provider
-          let adapter
-          let defaultModel
+          // Get typed adapter options using createChatOptions pattern
+          const options = adapterConfig[provider]()
+          let { adapter } = options
+          const model = adapter.defaultModel || 'unknown'
 
-          switch (provider) {
-            case 'anthropic':
-              adapter = anthropicText()
-              defaultModel = 'claude-sonnet-4-5-20250929'
-              break
-            case 'gemini':
-              adapter = geminiText()
-              defaultModel = 'gemini-2.0-flash-exp'
-              break
-
-            case 'ollama':
-              adapter = ollamaText()
-              defaultModel = 'mistral:7b'
-              break
-            case 'openai':
-            default:
-              adapter = openaiText()
-              defaultModel = 'gpt-4o'
-              break
-          }
-
-          // Determine model - use provided model or default based on provider
-          const selectedModel = model || defaultModel
-
-          console.log(`>> model: ${selectedModel} on provider: ${provider}`)
+          console.log(`>> model: ${model} on provider: ${provider}`)
 
           // If we have a traceId, wrap the adapter to record raw chunks from chatStream
           if (traceId) {
@@ -191,15 +197,15 @@ export const Route = createFileRoute('/api/chat')({
             adapter = wrapAdapterForRecording(
               adapter,
               traceFile,
-              selectedModel,
+              model,
               provider,
             )
           }
 
           // Use the stream abort signal for proper cancellation handling
-          const stream = ai({
-            adapter: adapter as any,
-            model: selectedModel as any,
+          const stream = chat({
+            ...options,
+            adapter, // Use potentially wrapped adapter
             tools: [
               getGuitars, // Server tool
               recommendGuitarToolDef, // No server execute - client will handle
@@ -210,7 +216,7 @@ export const Route = createFileRoute('/api/chat')({
             systemPrompts: [SYSTEM_PROMPT],
             agentLoopStrategy: maxIterations(20),
             messages,
-            providerOptions: {
+            modelOptions: {
               // Enable reasoning for OpenAI (gpt-5, o3 models):
               // reasoning: {
               //   effort: "medium", // or "low", "high", "minimal", "none" (for gpt-5.1)

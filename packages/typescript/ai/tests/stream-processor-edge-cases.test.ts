@@ -1,9 +1,9 @@
 import { describe, expect, it, vi } from 'vitest'
-import { StreamProcessor } from '../src/activities/text/stream'
+import { StreamProcessor } from '../src/activities/chat/stream'
 import type {
   StreamProcessorEvents,
   StreamProcessorHandlers,
-} from '../src/activities/text/stream'
+} from '../src/activities/chat/stream'
 
 describe('StreamProcessor Edge Cases and Real-World Scenarios', () => {
   describe('Content Chunk Delta/Content Fallback Logic', () => {

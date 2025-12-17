@@ -90,13 +90,13 @@ export class GeminiImageAdapter extends BaseImageAdapter<
   private buildConfig(
     options: ImageGenerationOptions<GeminiImageProviderOptions>,
   ): GenerateImagesConfig {
-    const { size, numberOfImages, providerOptions } = options
+    const { size, numberOfImages, modelOptions } = options
 
     return {
       numberOfImages: numberOfImages ?? 1,
-      // Map size to aspect ratio if provided (providerOptions.aspectRatio will override)
+      // Map size to aspect ratio if provided (modelOptions.aspectRatio will override)
       aspectRatio: size ? sizeToAspectRatio(size) : undefined,
-      ...providerOptions,
+      ...modelOptions,
     }
   }
 
@@ -131,7 +131,7 @@ export class GeminiImageAdapter extends BaseImageAdapter<
  * ```typescript
  * const adapter = createGeminiImage("your-api-key");
  *
- * const result = await ai({
+ * const result = await generateImage({
  *   adapter,
  *   model: 'imagen-3.0-generate-002',
  *   prompt: 'A cute baby sea otter'
@@ -161,7 +161,7 @@ export function createGeminiImage(
  * // Automatically uses GOOGLE_API_KEY from environment
  * const adapter = geminiImage();
  *
- * const result = await ai({
+ * const result = await generateImage({
  *   adapter,
  *   model: 'imagen-4.0-generate-001',
  *   prompt: 'A beautiful sunset over mountains'

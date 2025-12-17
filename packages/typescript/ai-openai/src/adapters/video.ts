@@ -78,12 +78,12 @@ export class OpenAIVideoAdapter extends BaseVideoAdapter<
   async createVideoJob(
     options: VideoGenerationOptions<OpenAIVideoProviderOptions>,
   ): Promise<VideoJobResult> {
-    const { model, size, duration, providerOptions } = options
+    const { model, size, duration, modelOptions } = options
 
     // Validate inputs
     validateVideoSize(model, size)
     // Duration maps to 'seconds' in the API
-    const seconds = duration ?? providerOptions?.seconds
+    const seconds = duration ?? modelOptions?.seconds
     validateVideoSeconds(model, seconds)
 
     // Build request
@@ -275,7 +275,7 @@ export class OpenAIVideoAdapter extends BaseVideoAdapter<
   private buildRequest(
     options: VideoGenerationOptions<OpenAIVideoProviderOptions>,
   ): Record<string, unknown> {
-    const { model, prompt, size, duration, providerOptions } = options
+    const { model, prompt, size, duration, modelOptions } = options
 
     const request: Record<string, unknown> = {
       model,
@@ -286,13 +286,13 @@ export class OpenAIVideoAdapter extends BaseVideoAdapter<
     // Supported: '1280x720', '720x1280', '1792x1024', '1024x1792'
     if (size) {
       request.size = size
-    } else if (providerOptions?.size) {
-      request.size = providerOptions.size
+    } else if (modelOptions?.size) {
+      request.size = modelOptions.size
     }
 
     // Add seconds (duration)
     // Supported: '4', '8', or '12' - yes, the API wants strings
-    const seconds = duration ?? providerOptions?.seconds
+    const seconds = duration ?? modelOptions?.seconds
     if (seconds !== undefined) {
       request.seconds = toApiSeconds(seconds)
     }
@@ -336,7 +336,7 @@ export class OpenAIVideoAdapter extends BaseVideoAdapter<
  * ```typescript
  * const adapter = createOpenaiVideo('your-api-key');
  *
- * const { jobId } = await ai({
+ * const { jobId } = await generateVideo({
  *   adapter,
  *   model: 'sora-2',
  *   prompt: 'A beautiful sunset over the ocean'
@@ -369,26 +369,24 @@ export function createOpenaiVideo(
  * const adapter = openaiVideo();
  *
  * // Create a video generation job
- * const { jobId } = await ai({
+ * const { jobId } = await generateVideo({
  *   adapter,
  *   model: 'sora-2',
  *   prompt: 'A cat playing piano'
  * });
  *
  * // Poll for status
- * const status = await ai({
+ * const status = await getVideoJobStatus({
  *   adapter,
  *   model: 'sora-2',
- *   jobId,
- *   request: 'status'
+ *   jobId
  * });
  *
  * // Get video URL when complete
- * const { url } = await ai({
+ * const { url } = await getVideoUrl({
  *   adapter,
  *   model: 'sora-2',
- *   jobId,
- *   request: 'url'
+ *   jobId
  * });
  * ```
  */

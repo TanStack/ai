@@ -1,3 +1,4 @@
+import { FinishReason } from '@google/genai'
 import {
   createGeminiClient,
   generateId,
@@ -6,7 +7,11 @@ import {
 
 import type { GoogleGenAI } from '@google/genai'
 import type { SummarizeAdapter } from '@tanstack/ai/adapters'
-import type { SummarizationOptions, SummarizationResult } from '@tanstack/ai'
+import type {
+  StreamChunk,
+  SummarizationOptions,
+  SummarizationResult,
+} from '@tanstack/ai'
 
 /**
  * Available Gemini models for summarization
@@ -59,21 +64,19 @@ export class GeminiSummarizeAdapter implements SummarizeAdapter<
   declare _providerOptions?: GeminiSummarizeProviderOptions
 
   private client: GoogleGenAI
-  private defaultModel: GeminiSummarizeModel
 
   constructor(
     apiKeyOrClient: string | GoogleGenAI,
-    options: GeminiSummarizeAdapterOptions = {},
+    _options: GeminiSummarizeAdapterOptions = {},
   ) {
     this.client =
       typeof apiKeyOrClient === 'string'
         ? createGeminiClient({ apiKey: apiKeyOrClient })
         : apiKeyOrClient
-    this.defaultModel = options.model ?? 'gemini-2.0-flash'
   }
 
   async summarize(options: SummarizationOptions): Promise<SummarizationResult> {
-    const model = options.model || this.defaultModel
+    const model = options.model
 
     // Build the system prompt based on format
     const formatInstructions = this.getFormatInstructions(options.style)
@@ -111,6 +114,90 @@ export class GeminiSummarizeAdapter implements SummarizeAdapter<
         completionTokens: outputTokens,
         totalTokens: inputTokens + outputTokens,
       },
+    }
+  }
+
+  async *summarizeStream(
+    options: SummarizationOptions,
+  ): AsyncIterable<StreamChunk> {
+    const model = options.model
+    const id = generateId('sum')
+    let accumulatedContent = ''
+    let inputTokens = 0
+    let outputTokens = 0
+
+    // Build the system prompt based on format
+    const formatInstructions = this.getFormatInstructions(options.style)
+    const lengthInstructions = options.maxLength
+      ? ` Keep the summary under ${options.maxLength} words.`
+      : ''
+
+    const systemPrompt = `You are a helpful assistant that summarizes text. ${formatInstructions}${lengthInstructions}`
+
+    const result = await this.client.models.generateContentStream({
+      model,
+      contents: [
+        {
+          role: 'user',
+          parts: [
+            { text: `Please summarize the following:\n\n${options.text}` },
+          ],
+        },
+      ],
+      config: {
+        systemInstruction: systemPrompt,
+      },
+    })
+
+    for await (const chunk of result) {
+      // Track usage metadata
+      if (chunk.usageMetadata) {
+        inputTokens = chunk.usageMetadata.promptTokenCount ?? inputTokens
+        outputTokens = chunk.usageMetadata.candidatesTokenCount ?? outputTokens
+      }
+
+      if (chunk.candidates?.[0]?.content?.parts) {
+        for (const part of chunk.candidates[0].content.parts) {
+          if (part.text) {
+            accumulatedContent += part.text
+            yield {
+              type: 'content',
+              id,
+              model,
+              timestamp: Date.now(),
+              delta: part.text,
+              content: accumulatedContent,
+              role: 'assistant',
+            }
+          }
+        }
+      }
+
+      // Check for finish reason
+      const finishReason = chunk.candidates?.[0]?.finishReason
+      if (
+        finishReason === FinishReason.STOP ||
+        finishReason === FinishReason.MAX_TOKENS ||
+        finishReason === FinishReason.SAFETY
+      ) {
+        yield {
+          type: 'done',
+          id,
+          model,
+          timestamp: Date.now(),
+          finishReason:
+            finishReason === FinishReason.STOP
+              ? 'stop'
+              : finishReason === FinishReason.MAX_TOKENS
+                ? 'length'
+                : 'content_filter',
+          usage: {
+            promptTokens: inputTokens,
+            completionTokens: outputTokens,
+            totalTokens: inputTokens + outputTokens,
+          },
+        }
+      }
     }
   }
 

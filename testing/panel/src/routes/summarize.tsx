@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { createFileRoute } from '@tanstack/react-router'
-import { FileText, Loader2 } from 'lucide-react'
+import { FileText, Loader2, Zap } from 'lucide-react'
 
 type Provider = 'openai' | 'anthropic' | 'gemini' | 'ollama'
 
@@ -29,33 +29,85 @@ function SummarizePage() {
   const [style, setStyle] = useState<'concise' | 'detailed' | 'bullet-points'>(
     'concise',
   )
+  const [useStreaming, setUseStreaming] = useState(false)
   const [summary, setSummary] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [usedProvider, setUsedProvider] = useState<string | null>(null)
   const [usedModel, setUsedModel] = useState<string | null>(null)
+  const [chunkCount, setChunkCount] = useState<number>(0)
 
   const handleSummarize = async () => {
     setIsLoading(true)
     setError(null)
     setSummary(null)
+    setChunkCount(0)
 
     try {
       const response = await fetch('/api/summarize', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ text, provider, maxLength, style }),
+        body: JSON.stringify({
+          text,
+          provider,
+          maxLength,
+          style,
+          stream: useStreaming,
+        }),
       })
 
-      const data = await response.json()
+      if (useStreaming) {
+        // Handle streaming response
+        const reader = response.body?.getReader()
+        const decoder = new TextDecoder()
+        let chunks = 0
 
-      if (!response.ok) {
-        throw new Error(data.error || 'Failed to summarize')
+        if (!reader) {
+          throw new Error('No response body')
+        }
+
+        while (true) {
+          const { done, value } = await reader.read()
+          if (done) break
+
+          const text = decoder.decode(value)
+          const lines = text.split('\n')
+
+          for (const line of lines) {
+            if (line.startsWith('data: ')) {
+              const data = line.slice(6)
+              if (data === '[DONE]') continue
+
+              try {
+                const parsed = JSON.parse(data)
+                if (parsed.type === 'error') {
+                  throw new Error(parsed.error)
+                }
+                if (parsed.type === 'content' && parsed.content) {
+                  chunks++
+                  setChunkCount(chunks)
+                  setSummary(parsed.content)
+                  setUsedProvider(parsed.provider)
+                  setUsedModel(parsed.model)
+                }
+              } catch (e) {
+                // Ignore parse errors for incomplete chunks
+              }
+            }
+          }
+        }
+      } else {
+        // Handle non-streaming response
+        const data = await response.json()
+
+        if (!response.ok) {
+          throw new Error(data.error || 'Failed to summarize')
+        }
+
+        setSummary(data.summary)
+        setUsedProvider(data.provider)
+        setUsedModel(data.model)
       }
-
-      setSummary(data.summary)
-      setUsedProvider(data.provider)
-      setUsedModel(data.model)
     } catch (err: any) {
       setError(err.message)
     } finally {
@@ -126,6 +178,23 @@ function SummarizePage() {
               </div>
             </div>
 
+            <div className="flex items-center gap-3">
+              <label className="relative inline-flex items-center cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={useStreaming}
+                  onChange={(e) => setUseStreaming(e.target.checked)}
+                  disabled={isLoading}
+                  className="sr-only peer"
+                />
+                <div className="w-11 h-6 bg-gray-700 peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-orange-500/50 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-orange-600"></div>
+              </label>
+              <span className="flex items-center gap-2 text-sm text-gray-300">
+                <Zap className="w-4 h-4 text-orange-500" />
+                Enable Streaming
+              </span>
+            </div>
+
             <div>
               <label className="block text-sm font-medium text-gray-300 mb-2">
                 Text to Summarize
@@ -148,10 +217,13 @@ function SummarizePage() {
               {isLoading ? (
                 <>
                   <Loader2 className="w-5 h-5 animate-spin" />
-                  Summarizing...
+                  {useStreaming ? 'Streaming...' : 'Summarizing...'}
                 </>
               ) : (
-                'Summarize'
+                <>
+                  {useStreaming && <Zap className="w-4 h-4" />}
+                  {useStreaming ? 'Stream Summary' : 'Summarize'}
+                </>
               )}
             </button>
           </div>
@@ -179,6 +251,14 @@ function SummarizePage() {
                   <p>
                     Model: <span className="text-orange-400">{usedModel}</span>
                   </p>
+                  {chunkCount > 0 && (
+                    <p>
+                      Streaming:{' '}
+                      <span className="text-orange-400">
+                        {chunkCount} chunks
+                      </span>
+                    </p>
+                  )}
                 </div>
               </div>
             ) : !error && !isLoading ? (

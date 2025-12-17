@@ -1,4 +1,4 @@
-import { ai } from '@tanstack/ai'
+import { embedding } from '@tanstack/ai'
 import { writeDebugFile } from '../harness'
 import type { AdapterContext, TestOutcome } from '../harness'
 
@@ -37,7 +37,7 @@ export async function runEMB(
   }
 
   try {
-    const result = await ai({
+    const result = await embedding({
       adapter: adapterContext.embeddingAdapter,
       model,
       input: inputs,

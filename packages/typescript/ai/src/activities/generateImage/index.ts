@@ -79,7 +79,7 @@ export interface ImageActivityOptions<
   /** Image size in WIDTHxHEIGHT format (e.g., "1024x1024") */
   size?: ImageSizeForModel<TAdapter, TModel>
   /** Provider-specific options for image generation */
-  providerOptions?: ImageProviderOptionsForModel<TAdapter, TModel>
+  modelOptions?: ImageProviderOptionsForModel<TAdapter, TModel>
 }
 
 // ===========================
@@ -100,10 +100,10 @@ export type ImageActivityResult = Promise<ImageGenerationResult>
  *
  * @example Generate a single image
  * ```ts
- * import { ai } from '@tanstack/ai'
+ * import { generateImage } from '@tanstack/ai'
  * import { openaiImage } from '@tanstack/ai-openai'
  *
- * const result = await ai({
+ * const result = await generateImage({
  *   adapter: openaiImage(),
  *   model: 'dall-e-3',
  *   prompt: 'A serene mountain landscape at sunset'
@@ -114,7 +114,7 @@ export type ImageActivityResult = Promise<ImageGenerationResult>
  *
  * @example Generate multiple images
  * ```ts
- * const result = await ai({
+ * const result = await generateImage({
  *   adapter: openaiImage(),
  *   model: 'dall-e-2',
  *   prompt: 'A cute robot mascot',
@@ -129,19 +129,19 @@ export type ImageActivityResult = Promise<ImageGenerationResult>
  *
  * @example With provider-specific options
  * ```ts
- * const result = await ai({
+ * const result = await generateImage({
  *   adapter: openaiImage(),
  *   model: 'dall-e-3',
  *   prompt: 'A professional headshot photo',
  *   size: '1024x1024',
- *   providerOptions: {
+ *   modelOptions: {
  *     quality: 'hd',
  *     style: 'natural'
  *   }
  * })
  * ```
  */
-export async function imageActivity<
+export async function generateImage<
   TAdapter extends ImageAdapter<ReadonlyArray<string>, object, any, any>,
   TModel extends ImageModels<TAdapter>,
 >(options: ImageActivityOptions<TAdapter, TModel>): ImageActivityResult {

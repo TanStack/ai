@@ -1,7 +1,15 @@
 import { BaseSummarizeAdapter } from '@tanstack/ai/adapters'
 import { ANTHROPIC_MODELS } from '../model-meta'
-import { createAnthropicClient, getAnthropicApiKeyFromEnv } from '../utils'
-import type { SummarizationOptions, SummarizationResult } from '@tanstack/ai'
+import {
+  createAnthropicClient,
+  generateId,
+  getAnthropicApiKeyFromEnv,
+} from '../utils'
+import type {
+  StreamChunk,
+  SummarizationOptions,
+  SummarizationResult,
+} from '@tanstack/ai'
 import type { AnthropicClientConfig } from '../utils'
 
 /**
@@ -65,6 +73,64 @@ export class AnthropicSummarizeAdapter extends BaseSummarizeAdapter<
         completionTokens: response.usage.output_tokens,
         totalTokens: response.usage.input_tokens + response.usage.output_tokens,
       },
+    }
+  }
+
+  async *summarizeStream(
+    options: SummarizationOptions,
+  ): AsyncIterable<StreamChunk> {
+    const systemPrompt = this.buildSummarizationPrompt(options)
+    const id = generateId(this.name)
+    const model = options.model
+    let accumulatedContent = ''
+    let inputTokens = 0
+    let outputTokens = 0
+
+    const stream = await this.client.messages.create({
+      model: options.model,
+      messages: [{ role: 'user', content: options.text }],
+      system: systemPrompt,
+      max_tokens: options.maxLength || 500,
+      temperature: 0.3,
+      stream: true,
+    })
+
+    for await (const event of stream) {
+      if (event.type === 'message_start') {
+        inputTokens = event.message.usage.input_tokens
+      } else if (event.type === 'content_block_delta') {
+        if (event.delta.type === 'text_delta') {
+          const delta = event.delta.text
+          accumulatedContent += delta
+          yield {
+            type: 'content',
+            id,
+            model,
+            timestamp: Date.now(),
+            delta,
+            content: accumulatedContent,
+            role: 'assistant',
+          }
+        }
+      } else if (event.type === 'message_delta') {
+        outputTokens = event.usage.output_tokens
+        yield {
+          type: 'done',
+          id,
+          model,
+          timestamp: Date.now(),
+          finishReason: event.delta.stop_reason as
+            | 'stop'
+            | 'length'
+            | 'content_filter'
+            | null,
+          usage: {
+            promptTokens: inputTokens,
+            completionTokens: outputTokens,
+            totalTokens: inputTokens + outputTokens,
+          },
+        }
+      }
     }
   }
 

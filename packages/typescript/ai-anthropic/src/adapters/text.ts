@@ -3,7 +3,6 @@ import { ANTHROPIC_MODELS } from '../model-meta'
 import { convertToolsToProviderFormat } from '../tools/tool-converter'
 import { validateTextProviderOptions } from '../text/text-provider-options'
 import {
-  convertZodToAnthropicSchema,
   createAnthropicClient,
   generateId,
   getAnthropicApiKeyFromEnv,
@@ -126,29 +125,26 @@ export class AnthropicTextAdapter extends BaseTextAdapter<
    * Generate structured output using Anthropic's tool-based approach.
    * Anthropic doesn't have native structured output, so we use a tool with the schema
    * and force the model to call it.
+   * The outputSchema is already JSON Schema (converted in the ai layer).
    */
   async structuredOutput(
     options: StructuredOutputOptions<AnthropicTextProviderOptions>,
   ): Promise<StructuredOutputResult<unknown>> {
     const { chatOptions, outputSchema } = options
 
-    // Convert Zod schema to Anthropic-compatible JSON Schema
-    const jsonSchema = convertZodToAnthropicSchema(outputSchema)
-
     const requestParams = this.mapCommonOptionsToAnthropic(chatOptions)
 
     // Create a tool that will capture the structured output
-    // Ensure the schema has type: 'object' as required by Anthropic's SDK
-    const inputSchema = {
-      type: 'object' as const,
-      ...jsonSchema,
-    }
-
+    // Anthropic's SDK requires input_schema with type: 'object' literal
     const structuredOutputTool = {
       name: 'structured_output',
       description:
         'Use this tool to provide your response in the required structured format.',
-      input_schema: inputSchema,
+      input_schema: {
+        type: 'object' as const,
+        properties: outputSchema.properties ?? {},
+        required: outputSchema.required ?? [],
+      },
     }
 
     try {
@@ -212,7 +208,7 @@ export class AnthropicTextAdapter extends BaseTextAdapter<
   private mapCommonOptionsToAnthropic(
     options: TextOptions<string, AnthropicTextProviderOptions>,
   ) {
-    const providerOptions = options.providerOptions as
+    const modelOptions = options.modelOptions as
       | InternalTextProviderOptions
       | undefined
 
@@ -222,7 +218,7 @@ export class AnthropicTextAdapter extends BaseTextAdapter<
       : undefined
 
     const validProviderOptions: Partial<InternalTextProviderOptions> = {}
-    if (providerOptions) {
+    if (modelOptions) {
       const validKeys: Array<keyof InternalTextProviderOptions> = [
         'container',
         'context_management',
@@ -235,8 +231,8 @@ export class AnthropicTextAdapter extends BaseTextAdapter<
         'top_k',
       ]
       for (const key of validKeys) {
-        if (key in providerOptions) {
-          const value = providerOptions[key]
+        if (key in modelOptions) {
+          const value = modelOptions[key]
           if (key === 'tool_choice' && typeof value === 'string') {
             ;(validProviderOptions as Record<string, unknown>)[key] = {
               type: value,
@@ -600,9 +596,9 @@ export class AnthropicTextAdapter extends BaseTextAdapter<
 }
 
 /**
- * Creates an Anthropic text adapter with explicit API key
+ * Creates an Anthropic chat adapter with explicit API key
  */
-export function createAnthropicText(
+export function createAnthropicChat(
   apiKey: string,
   config?: Omit<AnthropicTextConfig, 'apiKey'>,
 ): AnthropicTextAdapter {
@@ -616,5 +612,22 @@ export function anthropicText(
   config?: Omit<AnthropicTextConfig, 'apiKey'>,
 ): AnthropicTextAdapter {
   const apiKey = getAnthropicApiKeyFromEnv()
-  return createAnthropicText(apiKey, config)
+  return createAnthropicChat(apiKey, config)
+}
+
+/**
+ * @deprecated Use anthropicText() instead
+ */
+export function anthropicChat(
+  config?: Omit<AnthropicTextConfig, 'apiKey'>,
+): AnthropicTextAdapter {
+  const apiKey = getAnthropicApiKeyFromEnv()
+  return createAnthropicChat(apiKey, config)
+}
+
+export function createAnthropicText(
+  apiKey: string,
+  config?: Omit<AnthropicTextConfig, 'apiKey'>,
+): AnthropicTextAdapter {
+  return createAnthropicChat(apiKey, config)
 }

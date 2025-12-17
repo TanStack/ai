@@ -58,7 +58,7 @@ export interface TranscriptionActivityOptions<
   /** The format of the transcription output */
   responseFormat?: 'json' | 'text' | 'srt' | 'verbose_json' | 'vtt'
   /** Provider-specific options for transcription */
-  providerOptions?: TranscriptionProviderOptions<TAdapter>
+  modelOptions?: TranscriptionProviderOptions<TAdapter>
 }
 
 // ===========================
@@ -79,10 +79,10 @@ export type TranscriptionActivityResult = Promise<TranscriptionResult>
  *
  * @example Transcribe an audio file
  * ```ts
- * import { ai } from '@tanstack/ai'
+ * import { generateTranscription } from '@tanstack/ai'
  * import { openaiTranscription } from '@tanstack/ai-openai'
  *
- * const result = await ai({
+ * const result = await generateTranscription({
  *   adapter: openaiTranscription(),
  *   model: 'whisper-1',
  *   audio: audioFile, // File, Blob, or base64 string
@@ -94,7 +94,7 @@ export type TranscriptionActivityResult = Promise<TranscriptionResult>
  *
  * @example With verbose output for timestamps
  * ```ts
- * const result = await ai({
+ * const result = await generateTranscription({
  *   adapter: openaiTranscription(),
  *   model: 'whisper-1',
  *   audio: audioFile,
@@ -106,7 +106,7 @@ export type TranscriptionActivityResult = Promise<TranscriptionResult>
  * })
  * ```
  */
-export async function transcriptionActivity<
+export async function generateTranscription<
   TAdapter extends TranscriptionAdapter<ReadonlyArray<string>, object>,
   TModel extends TranscriptionModels<TAdapter>,
 >(

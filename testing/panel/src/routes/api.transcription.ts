@@ -1,5 +1,5 @@
 import { createFileRoute } from '@tanstack/react-router'
-import { ai } from '@tanstack/ai'
+import { generateTranscription } from '@tanstack/ai'
 import { openaiTranscription } from '@tanstack/ai-openai'
 
 export const Route = createFileRoute('/api/transcription')({
@@ -38,9 +38,9 @@ export const Route = createFileRoute('/api/transcription')({
             throw new Error('No audio data provided')
           }
 
-          const result = await ai({
-            adapter: adapter as any,
-            model: model as any,
+          const result = await generateTranscription({
+            adapter,
+            model,
             audio: audioData,
             language: language || undefined,
             responseFormat: (responseFormat as any) || 'verbose_json',

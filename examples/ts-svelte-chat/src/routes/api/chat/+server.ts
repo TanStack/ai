@@ -1,4 +1,9 @@
-import { ai, maxIterations, toStreamResponse } from '@tanstack/ai'
+import {
+  chat,
+  createChatOptions,
+  maxIterations,
+  toStreamResponse,
+} from '@tanstack/ai'
 import { openaiText } from '@tanstack/ai-openai'
 import { ollamaText } from '@tanstack/ai-ollama'
 import { anthropicText } from '@tanstack/ai-anthropic'
@@ -22,6 +27,31 @@ type Provider = 'openai' | 'anthropic' | 'gemini' | 'ollama'
 if (env.OPENAI_API_KEY) process.env.OPENAI_API_KEY = env.OPENAI_API_KEY
 if (env.ANTHROPIC_API_KEY) process.env.ANTHROPIC_API_KEY = env.ANTHROPIC_API_KEY
 if (env.GEMINI_API_KEY) process.env.GEMINI_API_KEY = env.GEMINI_API_KEY
+
+// Pre-define typed adapter configurations with full type inference
+// This pattern gives you model autocomplete at definition time
+const adapterConfig = {
+  anthropic: () =>
+    createChatOptions({
+      adapter: anthropicText(),
+      model: 'claude-sonnet-4-5',
+    }),
+  gemini: () =>
+    createChatOptions({
+      adapter: geminiText(),
+      model: 'gemini-2.0-flash-exp',
+    }),
+  ollama: () =>
+    createChatOptions({
+      adapter: ollamaText(),
+      model: 'mistral:7b',
+    }),
+  openai: () =>
+    createChatOptions({
+      adapter: openaiText(),
+      model: 'gpt-4o',
+    }),
+}
 
 const SYSTEM_PROMPT = `You are a helpful assistant for a guitar store.
 
@@ -69,42 +99,14 @@ export const POST: RequestHandler = async ({ request }) => {
     const body = await request.json()
     const { messages, data } = body
 
-    // Extract provider and model from data
+    // Extract provider from data
     const provider: Provider = data?.provider || 'openai'
-    const model: string | undefined = data?.model
 
-    // Select adapter based on provider
-    // Note: Adapters automatically read API keys from environment variables
-    // Environment variables must be set in .env file and the dev server restarted
-    let adapter
-    let defaultModel
+    // Get typed adapter options using createOptions pattern
+    const options = adapterConfig[provider]()
 
-    switch (provider) {
-      case 'anthropic':
-        adapter = anthropicText()
-        defaultModel = 'claude-sonnet-4-5'
-        break
-      case 'gemini':
-        adapter = geminiText()
-        defaultModel = 'gemini-2.0-flash-exp'
-        break
-      case 'ollama':
-        adapter = ollamaText()
-        defaultModel = 'mistral:7b'
-        break
-      case 'openai':
-      default:
-        adapter = openaiText()
-        defaultModel = 'gpt-4o'
-        break
-    }
-
-    // Determine model - use provided model or default based on provider
-    const selectedModel = model || defaultModel
-
-    const stream = ai({
-      adapter: adapter as any,
-      model: selectedModel as any,
+    const stream = chat({
+      ...options,
       tools: [
         getGuitars, // Server tool
         recommendGuitarToolDef, // No server execute - client will handle

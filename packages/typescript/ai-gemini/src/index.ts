@@ -5,8 +5,11 @@
 // Text/Chat adapter
 export {
   GeminiTextAdapter,
-  createGeminiText,
+  createGeminiChat,
   geminiText,
+  // Deprecated exports
+  createGeminiText,
+  geminiChat,
   type GeminiTextConfig,
   type GeminiTextProviderOptions,
 } from './adapters/text'
@@ -15,6 +18,9 @@ export {
 export {
   GeminiEmbedAdapter,
   GeminiEmbeddingModels,
+  createGeminiEmbedding,
+  geminiEmbedding,
+  // Deprecated exports
   createGeminiEmbed,
   geminiEmbed,
   type GeminiEmbedAdapterOptions,
@@ -56,6 +62,9 @@ export type {
  */
 export {
   GeminiTTSAdapter,
+  createGeminiSpeech,
+  geminiSpeech,
+  // Deprecated exports
   createGeminiTTS,
   geminiTTS,
   type GeminiTTSConfig,
@@ -66,21 +75,15 @@ export {
 export { GEMINI_MODELS as GeminiTextModels } from './model-meta'
 export { GEMINI_IMAGE_MODELS as GeminiImageModels } from './model-meta'
 export { GEMINI_TTS_MODELS as GeminiTTSModels } from './model-meta'
+export { GEMINI_TTS_VOICES as GeminiTTSVoices } from './model-meta'
 export type { GeminiModels as GeminiTextModel } from './model-meta'
 export type { GeminiImageModels as GeminiImageModel } from './model-meta'
+export type { GeminiTTSVoice } from './model-meta'
 
 // ===========================
-// Legacy monolithic adapter (deprecated)
+// Type Exports
 // ===========================
 
-/**
- * @deprecated Use the new tree-shakeable adapters instead:
- * - `geminiText()` / `createGeminiText()` for chat/text generation
- * - `geminiEmbed()` / `createGeminiEmbed()` for embeddings
- * - `geminiSummarize()` / `createGeminiSummarize()` for summarization
- */
-export { GeminiAdapter, createGemini, gemini } from './gemini-adapter'
-export type { GeminiAdapterConfig } from './gemini-adapter'
 export type {
   GeminiChatModelProviderOptionsByName,
   GeminiModelInputModalitiesByName,
