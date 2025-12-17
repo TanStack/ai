@@ -97,8 +97,8 @@ type ResolveInputModalities<TModel extends string> =
 export class AnthropicTextAdapter<
   TModel extends (typeof ANTHROPIC_MODELS)[number],
   TProviderOptions extends object = ResolveProviderOptions<TModel>,
-  TInputModalities extends
-    ReadonlyArray<Modality> = ResolveInputModalities<TModel>,
+  TInputModalities extends ReadonlyArray<Modality> =
+    ResolveInputModalities<TModel>,
 > extends BaseTextAdapter<
   TModel,
   TProviderOptions,

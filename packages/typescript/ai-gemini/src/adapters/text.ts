@@ -83,7 +83,8 @@ type ResolveInputModalities<TModel extends string> =
 export class GeminiTextAdapter<
   TModel extends (typeof GEMINI_MODELS)[number],
   TProviderOptions extends object = ResolveProviderOptions<TModel>,
-  TInputModalities extends ReadonlyArray<Modality> = ResolveInputModalities<TModel>,
+  TInputModalities extends ReadonlyArray<Modality> =
+    ResolveInputModalities<TModel>,
 > extends BaseTextAdapter<
   TModel,
   TProviderOptions,

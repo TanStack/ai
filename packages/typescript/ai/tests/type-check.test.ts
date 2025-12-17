@@ -12,7 +12,13 @@ type MockAdapter = TextAdapter<
   'test-model',
   { validOption: string; anotherOption?: number },
   readonly ['text', 'image'],
-  { text: unknown; image: unknown; audio: unknown; video: unknown; document: unknown }
+  {
+    text: unknown
+    image: unknown
+    audio: unknown
+    video: unknown
+    document: unknown
+  }
 >
 
 const mockAdapter = {
