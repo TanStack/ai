@@ -21,7 +21,9 @@ import type {
 const MOCK_MODELS = ['model-a', 'model-b'] as const
 type MockModel = (typeof MOCK_MODELS)[number]
 
-class MockTextAdapter<TModel extends MockModel = 'model-a'> extends BaseTextAdapter<
+class MockTextAdapter<
+  TModel extends MockModel = 'model-a',
+> extends BaseTextAdapter<
   TModel,
   Record<string, unknown>,
   readonly ['text', 'image', 'audio', 'video', 'document'],

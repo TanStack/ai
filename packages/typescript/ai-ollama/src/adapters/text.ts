@@ -120,9 +120,7 @@ type OllamaMessageMetadataByModality = {
  * Note: Ollama supports any model name as a string since models are loaded dynamically.
  * The predefined OllamaTextModels are common models but any string is accepted.
  */
-export class OllamaTextAdapter<
-  TModel extends string,
-> extends BaseTextAdapter<
+export class OllamaTextAdapter<TModel extends string> extends BaseTextAdapter<
   TModel,
   OllamaTextProviderOptions,
   OllamaInputModalities,
