@@ -48,7 +48,7 @@ export class OpenAIVideoAdapter extends BaseVideoAdapter<
   readonly models = OPENAI_VIDEO_MODELS
 
   // Type-only property - never assigned at runtime
-  declare _types: {
+  declare ~types: {
     providerOptions: OpenAIVideoProviderOptions
     modelProviderOptionsByName: OpenAIVideoModelProviderOptionsByName
   }

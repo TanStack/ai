@@ -56,7 +56,7 @@ export class GeminiImageAdapter extends BaseImageAdapter<
   readonly models = GEMINI_IMAGE_MODELS
 
   // Type-only property - never assigned at runtime
-  declare _types: {
+  declare ~types: {
     providerOptions: GeminiImageProviderOptions
     modelProviderOptionsByName: GeminiImageModelProviderOptionsByName
     modelSizeByName: GeminiImageModelSizeByName

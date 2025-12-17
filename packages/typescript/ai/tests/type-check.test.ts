@@ -25,7 +25,7 @@ const mockAdapter = {
   kind: 'text' as const,
   name: 'mock',
   model: 'test-model' as const,
-  _types: {
+  ~types: {
     providerOptions: {} as { validOption: string; anotherOption?: number },
     inputModalities: ['text', 'image'] as const,
     messageMetadata: {

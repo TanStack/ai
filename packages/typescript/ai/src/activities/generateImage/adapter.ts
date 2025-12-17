@@ -42,7 +42,7 @@ export interface ImageAdapter<
   /**
    * @internal Type-only properties for inference. Not assigned at runtime.
    */
-  _types: {
+  ~types: {
     providerOptions: TProviderOptions
     modelProviderOptionsByName: TModelProviderOptionsByName
     modelSizeByName: TModelSizeByName
@@ -79,7 +79,7 @@ export abstract class BaseImageAdapter<
   readonly selectedModel: TSelectedModel
 
   // Type-only property - never assigned at runtime
-  declare _types: {
+  declare ~types: {
     providerOptions: TProviderOptions
     modelProviderOptionsByName: TModelProviderOptionsByName
     modelSizeByName: TModelSizeByName

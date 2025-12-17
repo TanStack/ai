@@ -38,7 +38,7 @@ export interface TTSAdapter<
   /**
    * @internal Type-only properties for inference. Not assigned at runtime.
    */
-  _types: {
+  ~types: {
     providerOptions: TProviderOptions
   }
 
@@ -63,7 +63,7 @@ export abstract class BaseTTSAdapter<
   readonly selectedModel: TSelectedModel
 
   // Type-only property - never assigned at runtime
-  declare _types: {
+  declare ~types: {
     providerOptions: TProviderOptions
   }
 

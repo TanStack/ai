@@ -56,7 +56,7 @@ export interface TextActivityOptions<
   adapter: TAdapter
   /** Conversation messages - content types are constrained by the adapter's input modalities */
   messages?: Array<
-    ConstrainedModelMessage<TAdapter['_types']['inputModalities']>
+    ConstrainedModelMessage<TAdapter['~types']['inputModalities']>
   >
   /** System prompts to prepend to the conversation */
   systemPrompts?: TextOptions['systemPrompts']
@@ -65,7 +65,7 @@ export interface TextActivityOptions<
   /** Additional options like temperature, maxTokens, etc. */
   options?: TextOptions['options']
   /** Model-specific provider options (type comes from adapter) */
-  modelOptions?: NonNullable<TAdapter['_types']>['providerOptions']
+  modelOptions?: NonNullable<TAdapter['~types']>['providerOptions']
   /** AbortController for cancellation */
   abortController?: TextOptions['abortController']
   /** Strategy for controlling the agent loop */

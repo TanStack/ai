@@ -38,7 +38,7 @@ export interface TranscriptionAdapter<
   /**
    * @internal Type-only properties for inference. Not assigned at runtime.
    */
-  _types: {
+  ~types: {
     providerOptions: TProviderOptions
   }
 
@@ -65,7 +65,7 @@ export abstract class BaseTranscriptionAdapter<
   readonly selectedModel: TSelectedModel
 
   // Type-only property - never assigned at runtime
-  declare _types: {
+  declare ~types: {
     providerOptions: TProviderOptions
   }
 

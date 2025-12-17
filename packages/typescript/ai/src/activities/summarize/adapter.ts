@@ -41,7 +41,7 @@ export interface SummarizeAdapter<
   /**
    * @internal Type-only properties for inference. Not assigned at runtime.
    */
-  _types: {
+  ~types: {
     providerOptions: TProviderOptions
   }
 
@@ -75,7 +75,7 @@ export abstract class BaseSummarizeAdapter<
   readonly selectedModel: TSelectedModel
 
   // Type-only property - never assigned at runtime
-  declare _types: {
+  declare ~types: {
     providerOptions: TProviderOptions
   }
 

@@ -77,7 +77,7 @@ export class OllamaSummarizeAdapter<
   readonly selectedModel: TSelectedModel
 
   // Type-only property - never assigned at runtime
-  declare _types: {
+  declare ~types: {
     providerOptions: OllamaSummarizeProviderOptions
   }
 

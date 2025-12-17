@@ -65,7 +65,7 @@ export class GeminiSummarizeAdapter<
   readonly selectedModel: TSelectedModel
 
   // Type-only property - never assigned at runtime
-  declare _types: {
+  declare ~types: {
     providerOptions: GeminiSummarizeProviderOptions
   }
 

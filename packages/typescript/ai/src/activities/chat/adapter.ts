@@ -65,7 +65,7 @@ export interface TextAdapter<
   /**
    * @internal Type-only properties for inference. Not assigned at runtime.
    */
-  _types: {
+  ~types: {
     providerOptions: TProviderOptions
     inputModalities: TInputModalities
     messageMetadataByModality: TMessageMetadataByModality
@@ -119,7 +119,7 @@ export abstract class BaseTextAdapter<
   readonly model: TModel
 
   // Type-only property - never assigned at runtime
-  declare _types: {
+  declare ~types: {
     providerOptions: TProviderOptions
     inputModalities: TInputModalities
     messageMetadataByModality: TMessageMetadataByModality
