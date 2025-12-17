@@ -9,7 +9,7 @@ import { describe, expectTypeOf, it } from 'vitest'
 import type {
   AudioPart,
   ConstrainedModelMessage,
-  ContentPartForAdapter,
+  ContentPartForModalities,
   DocumentPart,
   ImagePart,
   TextPart,
@@ -20,9 +20,9 @@ import type {
 type MessageWithContent<T> = { role: 'user'; content: Array<T> }
 
 describe('Multimodal Type Constraints', () => {
-  describe('ContentPartForAdapter', () => {
+  describe('ContentPartForModalities', () => {
     it('should only allow TextPart for text-only modality', () => {
-      type TextOnlyContent = ContentPartForAdapter<'text'>
+      type TextOnlyContent = ContentPartForModalities<'text'>
 
       expectTypeOf<TextPart>().toExtend<TextOnlyContent>()
 
@@ -34,7 +34,7 @@ describe('Multimodal Type Constraints', () => {
     })
 
     it('should allow TextPart and ImagePart for text|image modality', () => {
-      type TextImageContent = ContentPartForAdapter<'text' | 'image'>
+      type TextImageContent = ContentPartForModalities<'text' | 'image'>
 
       expectTypeOf<TextPart>().toExtend<TextImageContent>()
       expectTypeOf<ImagePart>().toExtend<TextImageContent>()
@@ -46,7 +46,7 @@ describe('Multimodal Type Constraints', () => {
     })
 
     it('should allow TextPart, ImagePart, and AudioPart for text|image|audio modality', () => {
-      type TextImageAudioContent = ContentPartForAdapter<
+      type TextImageAudioContent = ContentPartForModalities<
         'text' | 'image' | 'audio'
       >
 
@@ -60,7 +60,7 @@ describe('Multimodal Type Constraints', () => {
     })
 
     it('should allow all content parts for full multimodal', () => {
-      type FullContent = ContentPartForAdapter<
+      type FullContent = ContentPartForModalities<
         'text' | 'image' | 'audio' | 'video' | 'document'
       >
 

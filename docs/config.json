@@ -501,8 +501,8 @@
           "to": "reference/type-aliases/ContentPart"
         },
         {
-          "label": "ContentPartForAdapter",
-          "to": "reference/type-aliases/ContentPartForAdapter"
+          "label": "ContentPartForModalities",
+          "to": "reference/type-aliases/ContentPartForModalities"
         },
         {
           "label": "ExtractModalitiesForModel",
