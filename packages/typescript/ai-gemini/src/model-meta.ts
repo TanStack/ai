@@ -773,7 +773,49 @@ export const GEMINI_IMAGE_MODELS = [
  * Text-to-speech models
  * @experimental Gemini TTS is an experimental feature and may change.
  */
-export const GEMINI_TTS_MODELS = ['gemini-2.5-flash-preview-tts'] as const
+export const GEMINI_TTS_MODELS = [
+  'gemini-2.5-flash-preview-tts',
+  'gemini-2.5-pro-preview-tts',
+] as const
+
+/**
+ * Available voice names for Gemini TTS
+ * @see https://ai.google.dev/gemini-api/docs/speech-generation
+ */
+export const GEMINI_TTS_VOICES = [
+  'Zephyr',
+  'Puck',
+  'Charon',
+  'Kore',
+  'Fenrir',
+  'Leda',
+  'Orus',
+  'Aoede',
+  'Callirrhoe',
+  'Autonoe',
+  'Enceladus',
+  'Iapetus',
+  'Umbriel',
+  'Algieba',
+  'Despina',
+  'Erinome',
+  'Algenib',
+  'Rasalgethi',
+  'Laomedeia',
+  'Achernar',
+  'Alnilam',
+  'Schedar',
+  'Gacrux',
+  'Pulcherrima',
+  'Achird',
+  'Zubenelgenubi',
+  'Vindemiatrix',
+  'Sadachbia',
+  'Sadaltager',
+  'Sulafat',
+] as const
+
+export type GeminiTTSVoice = (typeof GEMINI_TTS_VOICES)[number]
 
 /*   const GEMINI_AUDIO_MODELS = [
   GEMINI_2_5_PRO_TTS.name,
