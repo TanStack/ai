@@ -123,18 +123,19 @@ export function geminiEmbedding<TModel extends GeminiEmbeddingModel>(
   return new GeminiEmbedAdapter(apiKey, model, options)
 }
 
-export function geminiEmbed<TModel extends GeminiEmbeddingModel>(
-  model: TModel,
-  options?: GeminiEmbedAdapterOptions,
-): GeminiEmbedAdapter<TModel> {
-  const apiKey = getGeminiApiKeyFromEnv()
-  return new GeminiEmbedAdapter(apiKey, model, options)
-}
+// Deprecated (Unused or Untested)
+// export function geminiEmbed<TModel extends GeminiEmbeddingModel>(
+//   model: TModel,
+//   options?: GeminiEmbedAdapterOptions,
+// ): GeminiEmbedAdapter<TModel> {
+//   const apiKey = getGeminiApiKeyFromEnv()
+//   return new GeminiEmbedAdapter(apiKey, model, options)
+// }
 
-export function createGeminiEmbed<TModel extends GeminiEmbeddingModel>(
-  apiKey: string,
-  model: TModel,
-  options?: GeminiEmbedAdapterOptions,
-): GeminiEmbedAdapter<TModel> {
-  return new GeminiEmbedAdapter(apiKey, model, options)
-}
+// export function createGeminiEmbed<TModel extends GeminiEmbeddingModel>(
+//   apiKey: string,
+//   model: TModel,
+//   options?: GeminiEmbedAdapterOptions,
+// ): GeminiEmbedAdapter<TModel> {
+//   return new GeminiEmbedAdapter(apiKey, model, options)
+// }

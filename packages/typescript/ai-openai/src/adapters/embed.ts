@@ -116,16 +116,17 @@ export function openaiEmbedding(
   return createOpenaiEmbedding(apiKey, config)
 }
 
-export function openaiEmbed(
-  config?: Omit<OpenAIEmbedConfig, 'apiKey'>,
-): OpenAIEmbedAdapter {
-  const apiKey = getOpenAIApiKeyFromEnv()
-  return createOpenaiEmbedding(apiKey, config)
-}
+// Deprecated (Unused or Untested)
+// export function openaiEmbed(
+//   config?: Omit<OpenAIEmbedConfig, 'apiKey'>,
+// ): OpenAIEmbedAdapter {
+//   const apiKey = getOpenAIApiKeyFromEnv()
+//   return createOpenaiEmbedding(apiKey, config)
+// }
 
-export function createOpenaiEmbed(
-  apiKey: string,
-  config?: Omit<OpenAIEmbedConfig, 'apiKey'>,
-): OpenAIEmbedAdapter {
-  return createOpenaiEmbedding(apiKey, config)
-}
+// export function createOpenaiEmbed(
+//   apiKey: string,
+//   config?: Omit<OpenAIEmbedConfig, 'apiKey'>,
+// ): OpenAIEmbedAdapter {
+//   return createOpenaiEmbedding(apiKey, config)
+// }

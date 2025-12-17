@@ -418,23 +418,3 @@ export function ollamaText<TModel extends string>(
   const host = getOllamaHostFromEnv()
   return new OllamaTextAdapter(host, model)
 }
-
-/**
- * @deprecated Use ollamaText() instead
- */
-export function ollamaChat<TModel extends string>(
-  model: TModel,
-): OllamaTextAdapter<TModel> {
-  const host = getOllamaHostFromEnv()
-  return new OllamaTextAdapter(host, model)
-}
-
-/**
- * @deprecated Use createOllamaChat() instead
- */
-export function createOllamaText<TModel extends string>(
-  model: TModel,
-  host?: string,
-): OllamaTextAdapter<TModel> {
-  return new OllamaTextAdapter(host, model)
-}

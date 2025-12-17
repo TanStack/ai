@@ -173,6 +173,25 @@ export async function generateImage<
   return adapter.generateImages({ ...rest, model })
 }
 
+// ===========================
+// Options Factory
+// ===========================
+
+/**
+ * Create typed options for the generateImage() function without executing.
+ */
+export function createImageOptions<
+  TAdapter extends ImageAdapter<
+    ReadonlyArray<string>,
+    object,
+    any,
+    any,
+    string
+  >,
+>(options: ImageActivityOptions<TAdapter>): ImageActivityOptions<TAdapter> {
+  return options
+}
+
 // Re-export adapter types
 export type { ImageAdapter, ImageAdapterConfig } from './adapter'
 export { BaseImageAdapter } from './adapter'

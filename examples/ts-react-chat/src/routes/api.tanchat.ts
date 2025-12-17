@@ -101,7 +101,7 @@ export const Route = createFileRoute('/api/tanchat')({
           const adapter = openaiText('gpt-5')
 
           const test = createChatOptions({
-            // adapter: openaiText('gpt-5'),
+            adapter: openaiText('gpt-5'),
             // thisIsntvalid: true,
           })
 

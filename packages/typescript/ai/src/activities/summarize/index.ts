@@ -270,6 +270,22 @@ async function* runStreamingSummarize(
   }
 }
 
+// ===========================
+// Options Factory
+// ===========================
+
+/**
+ * Create typed options for the summarize() function without executing.
+ */
+export function createSummarizeOptions<
+  TAdapter extends SummarizeAdapter<ReadonlyArray<string>, object, string>,
+  TStream extends boolean = false,
+>(
+  options: SummarizeActivityOptions<TAdapter, TStream>,
+): SummarizeActivityOptions<TAdapter, TStream> {
+  return options
+}
+
 // Re-export adapter types
 export type { SummarizeAdapter, SummarizeAdapterConfig } from './adapter'
 export { BaseSummarizeAdapter } from './adapter'

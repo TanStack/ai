@@ -11,33 +11,16 @@ export {
 } from './activities/index'
 
 // Create options functions - for pre-defining typed configurations
-export {
-  createChatOptions,
-  createEmbeddingOptions,
-  createSummarizeOptions,
-  createImageOptions,
-  createVideoOptions,
-  createSpeechOptions,
-  createTranscriptionOptions,
-} from './activity-options'
+export { createChatOptions } from './activities/chat/index'
+export { createEmbeddingOptions } from './activities/embedding/index'
+export { createSummarizeOptions } from './activities/summarize/index'
+export { createImageOptions } from './activities/generateImage/index'
+export { createVideoOptions } from './activities/generateVideo/index'
+export { createSpeechOptions } from './activities/generateSpeech/index'
+export { createTranscriptionOptions } from './activities/generateTranscription/index'
 
 // Re-export types
-export type {
-  AIAdapter,
-  AnyAdapter,
-  GenerateAdapter,
-  GenerateOptions,
-  TextGenerateOptions,
-  EmbeddingGenerateOptions,
-  SummarizeGenerateOptions,
-  ImageGenerateOptions,
-  GenerateTextOptions,
-  GenerateEmbeddingOptions,
-  GenerateSummarizeOptions,
-  GenerateImageOptions,
-  VideoGenerateOptions,
-  GenerateVideoOptions,
-} from './activities/index'
+export type { AIAdapter } from './activities/index'
 
 // Tool definition
 export {
@@ -62,7 +45,7 @@ export {
 } from './stream-to-response'
 
 // Base adapter
-export { BaseAdapter } from './base-adapter'
+// export { BaseAdapter } from './base-adapter'
 
 // Tool call management
 export { ToolCallManager } from './activities/chat/tools/tool-calls'
@@ -76,10 +59,6 @@ export {
 
 // All types
 export * from './types'
-
-// Utility builders
-export { textOptions } from './activities/chat/index'
-export { messages } from './activities/chat/messages'
 
 // Event client
 export { aiEventClient } from './event-client'
@@ -106,7 +85,7 @@ export {
   PartialJSONParser,
   defaultJSONParser,
   parsePartialJSON,
-} from './activities/chat/stream'
+} from './activities/chat/stream/index'
 export type {
   ChunkStrategy,
   ChunkRecording,
@@ -119,4 +98,4 @@ export type {
   ToolCallState,
   ToolResultState,
   JSONParser,
-} from './activities/chat/stream'
+} from './activities/chat/stream/index'

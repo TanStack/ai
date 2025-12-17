@@ -169,16 +169,17 @@ export function openaiSpeech(
   return createOpenaiSpeech(apiKey, config)
 }
 
-export function openaiTTS(
-  config?: Omit<OpenAITTSConfig, 'apiKey'>,
-): OpenAITTSAdapter {
-  const apiKey = getOpenAIApiKeyFromEnv()
-  return createOpenaiSpeech(apiKey, config)
-}
+// Deprecated (Unused or Untested)
+// export function openaiTTS(
+//   config?: Omit<OpenAITTSConfig, 'apiKey'>,
+// ): OpenAITTSAdapter {
+//   const apiKey = getOpenAIApiKeyFromEnv()
+//   return createOpenaiSpeech(apiKey, config)
+// }
 
-export function createOpenaiTTS(
-  apiKey: string,
-  config?: Omit<OpenAITTSConfig, 'apiKey'>,
-): OpenAITTSAdapter {
-  return createOpenaiSpeech(apiKey, config)
-}
+// export function createOpenaiTTS(
+//   apiKey: string,
+//   config?: Omit<OpenAITTSConfig, 'apiKey'>,
+// ): OpenAITTSAdapter {
+//   return createOpenaiSpeech(apiKey, config)
+// }

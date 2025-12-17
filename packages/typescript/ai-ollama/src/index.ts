@@ -8,9 +8,6 @@ export {
   OllamaTextModels,
   createOllamaChat,
   ollamaText,
-  // Deprecated exports
-  createOllamaText,
-  ollamaChat,
   type OllamaTextAdapterOptions,
   type OllamaTextModel,
   type OllamaTextProviderOptions,
@@ -22,9 +19,6 @@ export {
   OllamaEmbeddingModels,
   createOllamaEmbedding,
   ollamaEmbedding,
-  // Deprecated exports
-  createOllamaEmbed,
-  ollamaEmbed,
   type OllamaEmbedAdapterOptions,
   type OllamaEmbeddingModel,
   type OllamaEmbedProviderOptions,

@@ -29,7 +29,11 @@ import type {
   ExternalTextProviderOptions,
   InternalTextProviderOptions,
 } from '../text/text-provider-options'
-import type { OpenAIAudioMetadata, OpenAIImageMetadata } from '../message-types'
+import type {
+  OpenAIAudioMetadata,
+  OpenAIImageMetadata,
+  OpenAIMessageMetadataByModality,
+} from '../message-types'
 import type { OpenAIClientConfig } from '../utils'
 
 /**
@@ -80,7 +84,7 @@ export class OpenAITextAdapter<
   TModel,
   ResolveProviderOptions<TModel>,
   ResolveInputModalities<TModel>,
-  ResolveMessageMetadataByModality<TModel>
+  OpenAIMessageMetadataByModality
 > {
   readonly kind = 'text' as const
   readonly name = 'openai' as const
@@ -630,6 +634,7 @@ export class OpenAITextAdapter<
         openAIContent.push(
           this.convertContentPartToOpenAI(
             part as ContentPart<
+              unknown,
               OpenAIImageMetadata,
               OpenAIAudioMetadata,
               unknown,
@@ -660,6 +665,7 @@ export class OpenAITextAdapter<
    */
   private convertContentPartToOpenAI(
     part: ContentPart<
+      unknown,
       OpenAIImageMetadata,
       OpenAIAudioMetadata,
       unknown,
@@ -798,28 +804,5 @@ export function openaiText<TModel extends (typeof OPENAI_CHAT_MODELS)[number]>(
   config?: Omit<OpenAITextConfig, 'apiKey'>,
 ): OpenAITextAdapter<TModel> {
   const apiKey = getOpenAIApiKeyFromEnv()
-  return createOpenaiChat(model, apiKey, config)
-}
-
-/**
- * @deprecated Use openaiText() instead
- */
-export function openaiChat<TModel extends (typeof OPENAI_CHAT_MODELS)[number]>(
-  model: TModel,
-  config?: Omit<OpenAITextConfig, 'apiKey'>,
-): OpenAITextAdapter<TModel> {
-  return openaiText(model, config)
-}
-
-/**
- * @deprecated Use createOpenaiChat() instead
- */
-export function createOpenaiText<
-  TModel extends (typeof OPENAI_CHAT_MODELS)[number],
->(
-  model: TModel,
-  apiKey: string,
-  config?: Omit<OpenAITextConfig, 'apiKey'>,
-): OpenAITextAdapter<TModel> {
   return createOpenaiChat(model, apiKey, config)
 }

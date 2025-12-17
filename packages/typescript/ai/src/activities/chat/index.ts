@@ -18,14 +18,12 @@ import type {
 import type { z } from 'zod'
 import type { AnyTextAdapter } from './adapter'
 import type {
-  AIAdapter,
   AgentLoopStrategy,
   ConstrainedModelMessage,
   DoneStreamChunk,
   ModelMessage,
   StreamChunk,
   TextOptions,
-  TextStreamOptionsUnion,
   Tool,
   ToolCall,
 } from '../../types'
@@ -36,66 +34,6 @@ import type {
 
 /** The adapter kind this activity handles */
 export const kind = 'text' as const
-
-// ===========================
-// Common Options
-// ===========================
-
-/**
- * Common options shared across different AI provider implementations.
- * These options represent the standard parameters that work across OpenAI, Anthropic, and Gemini.
- */
-export interface CommonOptions {
-  /**
-   * Controls the randomness of the output.
-   * Higher values (e.g., 0.8) make output more random, lower values (e.g., 0.2) make it more focused and deterministic.
-   * Range: [0.0, 2.0]
-   *
-   * Note: Generally recommended to use either temperature or topP, but not both.
-   *
-   * Provider usage:
-   * - OpenAI: `temperature` (number) - in text.top_p field
-   * - Anthropic: `temperature` (number) - ranges from 0.0 to 1.0, default 1.0
-   * - Gemini: `generationConfig.temperature` (number) - ranges from 0.0 to 2.0
-   */
-  temperature?: number
-
-  /**
-   * Nucleus sampling parameter. An alternative to temperature sampling.
-   * The model considers the results of tokens with topP probability mass.
-   * For example, 0.1 means only tokens comprising the top 10% probability mass are considered.
-   *
-   * Note: Generally recommended to use either temperature or topP, but not both.
-   *
-   * Provider usage:
-   * - OpenAI: `text.top_p` (number)
-   * - Anthropic: `top_p` (number | null)
-   * - Gemini: `generationConfig.topP` (number)
-   */
-  topP?: number
-
-  /**
-   * The maximum number of tokens to generate in the response.
-   *
-   * Provider usage:
-   * - OpenAI: `max_output_tokens` (number) - includes visible output and reasoning tokens
-   * - Anthropic: `max_tokens` (number, required) - range x >= 1
-   * - Gemini: `generationConfig.maxOutputTokens` (number)
-   */
-  maxTokens?: number
-
-  /**
-   * Additional metadata to attach to the request.
-   * Can be used for tracking, debugging, or passing custom information.
-   * Structure and constraints vary by provider.
-   *
-   * Provider usage:
-   * - OpenAI: `metadata` (Record<string, string>) - max 16 key-value pairs, keys max 64 chars, values max 512 chars
-   * - Anthropic: `metadata` (Record<string, any>) - includes optional user_id (max 256 chars)
-   * - Gemini: Not directly available in TextProviderOptions
-   */
-  metadata?: Record<string, any>
-}
 
 // ===========================
 // Activity Options Type
@@ -111,13 +49,15 @@ export interface CommonOptions {
  */
 export interface TextActivityOptions<
   TAdapter extends AnyTextAdapter,
-  TSchema extends z.ZodType | undefined = undefined,
-  TStream extends boolean = true,
+  TSchema extends z.ZodType | undefined,
+  TStream extends boolean,
 > {
   /** The text adapter to use (created by a provider function like openaiText('gpt-4o')) */
   adapter: TAdapter
   /** Conversation messages - content types are constrained by the adapter's input modalities */
-  messages: Array<ConstrainedModelMessage<TAdapter>>
+  messages?: Array<
+    ConstrainedModelMessage<TAdapter['_types']['inputModalities']>
+  >
   /** System prompts to prepend to the conversation */
   systemPrompts?: TextOptions['systemPrompts']
   /** Tools for function calling (auto-executed when called) */
@@ -170,6 +110,33 @@ export interface TextActivityOptions<
    * ```
    */
   stream?: TStream
+}
+
+// ===========================
+// Chat Options Helper
+// ===========================
+
+/**
+ * Create typed options for the chat() function without executing.
+ * This is useful for pre-defining configurations with full type inference.
+ *
+ * @example
+ * ```ts
+ * const chatOptions = createChatOptions({
+ *   adapter: anthropicText('claude-sonnet-4-5'),
+ * })
+ *
+ * const stream = chat({ ...chatOptions, messages })
+ * ```
+ */
+export function createChatOptions<
+  TAdapter extends AnyTextAdapter,
+  TSchema extends z.ZodType | undefined = undefined,
+  TStream extends boolean = true,
+>(
+  options: TextActivityOptions<TAdapter, TSchema, TStream>,
+): TextActivityOptions<TAdapter, TSchema, TStream> {
+  return options
 }
 
 // ===========================
@@ -1115,62 +1082,6 @@ async function runAgenticStructuredOutput<TSchema extends z.ZodType>(
   }
 
   return validationResult.data
-}
-
-// ===========================
-// Text Options Helper
-// ===========================
-
-/**
- * Type-safe helper to create text options with model-specific provider options.
- *
- * @deprecated Use `createOptions` from `@tanstack/ai` instead, which supports all adapter types
- * (text, embedding, summarize, image, video) with the same type-safe model inference.
- *
- * @example
- * ```ts
- * import { createChatOptions, chat } from '@tanstack/ai'
- * import { openaiText } from '@tanstack/ai-openai'
- *
- * const opts = createChatOptions({
- *   adapter: openaiText(),
- *   model: 'gpt-4o',
- *   messages: [],
- * })
- * ```
- */
-export function textOptions<
-  TAdapter extends AIAdapter<any, any, any, any, any>,
-  const TModel extends TAdapter extends AIAdapter<
-    infer Models,
-    any,
-    any,
-    any,
-    any
-  >
-    ? Models[number]
-    : string,
->(
-  options: Omit<
-    TextStreamOptionsUnion<TAdapter>,
-    'modelOptions' | 'model' | 'messages' | 'abortController'
-  > & {
-    adapter: TAdapter
-    model: TModel
-    modelOptions?: TAdapter extends AIAdapter<
-      any,
-      any,
-      any,
-      any,
-      infer ModelProviderOptions
-    >
-      ? TModel extends keyof ModelProviderOptions
-        ? ModelProviderOptions[TModel]
-        : never
-      : never
-  },
-): typeof options {
-  return options
 }
 
 // Re-export adapter types

@@ -119,7 +119,7 @@ export abstract class BaseTextAdapter<
   readonly model: TModel
 
   // Type-only property - never assigned at runtime
-  declare _types?: {
+  declare _types: {
     providerOptions: TProviderOptions
     inputModalities: TInputModalities
     messageMetadataByModality: TMessageMetadataByModality

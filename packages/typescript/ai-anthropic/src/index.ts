@@ -7,9 +7,6 @@ export {
   AnthropicTextAdapter,
   anthropicText,
   createAnthropicChat,
-  // Deprecated exports
-  anthropicChat,
-  createAnthropicText,
   type AnthropicTextConfig,
   type AnthropicTextProviderOptions,
 } from './adapters/text'

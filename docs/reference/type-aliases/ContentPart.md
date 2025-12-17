@@ -6,7 +6,7 @@ title: ContentPart
 # Type Alias: ContentPart\<TImageMeta, TAudioMeta, TVideoMeta, TDocumentMeta, TTextMeta\>
 
 ```ts
-type ContentPart<TImageMeta, TAudioMeta, TVideoMeta, TDocumentMeta, TTextMeta> = 
+type ContentPart<TTextMeta, TImageMeta, TAudioMeta, TVideoMeta, TDocumentMeta> = 
   | TextPart<TTextMeta>
   | ImagePart<TImageMeta>
   | AudioPart<TAudioMeta>

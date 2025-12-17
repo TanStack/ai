@@ -108,6 +108,19 @@ export async function generateSpeech<
   return adapter.generateSpeech({ ...rest, model })
 }
 
+// ===========================
+// Options Factory
+// ===========================
+
+/**
+ * Create typed options for the generateSpeech() function without executing.
+ */
+export function createSpeechOptions<
+  TAdapter extends TTSAdapter<ReadonlyArray<string>, object, string>,
+>(options: TTSActivityOptions<TAdapter>): TTSActivityOptions<TAdapter> {
+  return options
+}
+
 // Re-export adapter types
 export type { TTSAdapter, TTSAdapterConfig } from './adapter'
 export { BaseTTSAdapter } from './adapter'

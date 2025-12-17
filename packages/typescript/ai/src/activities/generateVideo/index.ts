@@ -243,6 +243,19 @@ export async function getVideoJobStatus<
   }
 }
 
+// ===========================
+// Options Factory
+// ===========================
+
+/**
+ * Create typed options for the generateVideo() function without executing.
+ */
+export function createVideoOptions<
+  TAdapter extends VideoAdapter<ReadonlyArray<string>, object, string>,
+>(options: VideoCreateOptions<TAdapter>): VideoCreateOptions<TAdapter> {
+  return options
+}
+
 // Re-export adapter types
 export type { VideoAdapter, VideoAdapterConfig } from './adapter'
 export { BaseVideoAdapter } from './adapter'

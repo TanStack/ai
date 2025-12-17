@@ -511,33 +511,3 @@ export function geminiText<TModel extends (typeof GEMINI_MODELS)[number]>(
   const apiKey = getGeminiApiKeyFromEnv()
   return createGeminiChat(model, apiKey, config)
 }
-
-/**
- * @deprecated Use geminiText() instead
- */
-export function geminiChat<TModel extends (typeof GEMINI_MODELS)[number]>(
-  model: TModel,
-  config?: Omit<GeminiTextConfig, 'apiKey'>,
-): GeminiTextAdapter<
-  TModel,
-  ResolveProviderOptions<TModel>,
-  ResolveInputModalities<TModel>
-> {
-  const apiKey = getGeminiApiKeyFromEnv()
-  return createGeminiChat(model, apiKey, config)
-}
-
-/**
- * @deprecated Use createGeminiChat() instead
- */
-export function createGeminiText<TModel extends (typeof GEMINI_MODELS)[number]>(
-  model: TModel,
-  apiKey: string,
-  config?: Omit<GeminiTextConfig, 'apiKey'>,
-): GeminiTextAdapter<
-  TModel,
-  ResolveProviderOptions<TModel>,
-  ResolveInputModalities<TModel>
-> {
-  return createGeminiChat(model, apiKey, config)
-}

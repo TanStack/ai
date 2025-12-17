@@ -7,9 +7,6 @@ export {
   OpenAITextAdapter,
   createOpenaiChat,
   openaiText,
-  // Deprecated exports
-  createOpenaiText,
-  openaiChat,
   type OpenAITextConfig,
   type OpenAITextProviderOptions,
 } from './adapters/text'
@@ -19,9 +16,6 @@ export {
   OpenAIEmbedAdapter,
   createOpenaiEmbedding,
   openaiEmbedding,
-  // Deprecated exports
-  createOpenaiEmbed,
-  openaiEmbed,
   type OpenAIEmbedConfig,
   type OpenAIEmbedProviderOptions,
 } from './adapters/embed'
@@ -61,7 +55,7 @@ export type {
   OpenAIVideoProviderOptions,
   OpenAIVideoModelProviderOptionsByName,
   OpenAIVideoSize,
-  OpenAIVideoDuration,
+  // OpenAIVideoDuration,
 } from './video/video-provider-options'
 
 // TTS adapter - for text-to-speech
@@ -69,9 +63,6 @@ export {
   OpenAITTSAdapter,
   createOpenaiSpeech,
   openaiSpeech,
-  // Deprecated exports
-  createOpenaiTTS,
-  openaiTTS,
   type OpenAITTSConfig,
 } from './adapters/tts'
 export type {

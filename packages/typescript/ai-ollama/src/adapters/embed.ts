@@ -132,25 +132,3 @@ export function ollamaEmbedding<TModel extends OllamaEmbeddingModel>(
   const host = getOllamaHostFromEnv()
   return new OllamaEmbedAdapter(host, model, options)
 }
-
-/**
- * @deprecated Use ollamaEmbedding() instead
- */
-export function ollamaEmbed<TModel extends OllamaEmbeddingModel>(
-  model: TModel,
-  options?: OllamaEmbedAdapterOptions,
-): OllamaEmbedAdapter<TModel> {
-  const host = getOllamaHostFromEnv()
-  return new OllamaEmbedAdapter(host, model, options)
-}
-
-/**
- * @deprecated Use createOllamaEmbedding() instead
- */
-export function createOllamaEmbed<TModel extends OllamaEmbeddingModel>(
-  model: TModel,
-  host?: string,
-  options?: OllamaEmbedAdapterOptions,
-): OllamaEmbedAdapter<TModel> {
-  return new OllamaEmbedAdapter(host, model, options)
-}

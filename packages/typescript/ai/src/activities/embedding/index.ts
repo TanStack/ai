@@ -148,6 +148,21 @@ export async function embedding<
   return result
 }
 
+// ===========================
+// Options Factory
+// ===========================
+
+/**
+ * Create typed options for the embedding() function without executing.
+ */
+export function createEmbeddingOptions<
+  TAdapter extends EmbeddingAdapter<ReadonlyArray<string>, object, string>,
+>(
+  options: EmbeddingActivityOptions<TAdapter>,
+): EmbeddingActivityOptions<TAdapter> {
+  return options
+}
+
 // Re-export adapter types
 export type { EmbeddingAdapter, EmbeddingAdapterConfig } from './adapter'
 export { BaseEmbeddingAdapter } from './adapter'

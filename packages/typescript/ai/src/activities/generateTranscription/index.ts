@@ -112,6 +112,21 @@ export async function generateTranscription<
   return adapter.transcribe({ ...rest, model })
 }
 
+// ===========================
+// Options Factory
+// ===========================
+
+/**
+ * Create typed options for the generateTranscription() function without executing.
+ */
+export function createTranscriptionOptions<
+  TAdapter extends TranscriptionAdapter<ReadonlyArray<string>, object, string>,
+>(
+  options: TranscriptionActivityOptions<TAdapter>,
+): TranscriptionActivityOptions<TAdapter> {
+  return options
+}
+
 // Re-export adapter types
 export type {
   TranscriptionAdapter,

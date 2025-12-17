@@ -654,35 +654,3 @@ export function anthropicText<TModel extends (typeof ANTHROPIC_MODELS)[number]>(
   const apiKey = getAnthropicApiKeyFromEnv()
   return createAnthropicChat(model, apiKey, config)
 }
-
-/**
- * @deprecated Use anthropicText() instead
- */
-export function anthropicChat<TModel extends (typeof ANTHROPIC_MODELS)[number]>(
-  model: TModel,
-  config?: Omit<AnthropicTextConfig, 'apiKey'>,
-): AnthropicTextAdapter<
-  TModel,
-  ResolveProviderOptions<TModel>,
-  ResolveInputModalities<TModel>
-> {
-  const apiKey = getAnthropicApiKeyFromEnv()
-  return createAnthropicChat(model, apiKey, config)
-}
-
-/**
- * @deprecated Use createAnthropicChat() instead
- */
-export function createAnthropicText<
-  TModel extends (typeof ANTHROPIC_MODELS)[number],
->(
-  model: TModel,
-  apiKey: string,
-  config?: Omit<AnthropicTextConfig, 'apiKey'>,
-): AnthropicTextAdapter<
-  TModel,
-  ResolveProviderOptions<TModel>,
-  ResolveInputModalities<TModel>
-> {
-  return createAnthropicChat(model, apiKey, config)
-}
