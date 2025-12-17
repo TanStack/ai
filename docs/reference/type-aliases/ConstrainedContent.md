@@ -9,7 +9,7 @@ title: ConstrainedContent
 type ConstrainedContent<TModalities, TImageMeta, TAudioMeta, TVideoMeta, TDocumentMeta, TTextMeta> = 
   | string
   | null
-  | ContentPartForModalities<ModalitiesArrayToUnion<TModalities>, TImageMeta, TAudioMeta, TVideoMeta, TDocumentMeta, TTextMeta>[];
+  | ContentPartForAdapter<ModalitiesArrayToUnion<TModalities>, TImageMeta, TAudioMeta, TVideoMeta, TDocumentMeta, TTextMeta>[];
 ```
 
 Defined in: [types.ts:199](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L199)

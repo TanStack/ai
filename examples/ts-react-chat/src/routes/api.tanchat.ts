@@ -98,10 +98,13 @@ export const Route = createFileRoute('/api/tanchat')({
             `[API Route] Using provider: ${provider}, adapter: ${options.adapter.name}`,
           )
 
+          const adapter = openaiText('gpt-5')
+
           const test = createChatOptions({
-            adapter: openaiText('gpt-5'),
-            thisIsntvalid: true,
+            // adapter: openaiText('gpt-5'),
+            // thisIsntvalid: true,
           })
+
           // Note: We cast to AsyncIterable<StreamChunk> because all chat adapters
           // return streams, but TypeScript sees a union of all possible return types
           const stream = chat({

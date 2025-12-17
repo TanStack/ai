@@ -1,12 +1,12 @@
 ---
-id: ContentPartForModalities
-title: ContentPartForModalities
+id: ContentPartForAdapter
+title: ContentPartForAdapter
 ---
 
-# Type Alias: ContentPartForModalities\<TModalities, TImageMeta, TAudioMeta, TVideoMeta, TDocumentMeta, TTextMeta\>
+# Type Alias: ContentPartForAdapter\<TModalities, TImageMeta, TAudioMeta, TVideoMeta, TDocumentMeta, TTextMeta\>
 
 ```ts
-type ContentPartForModalities<TModalities, TImageMeta, TAudioMeta, TVideoMeta, TDocumentMeta, TTextMeta> = Extract<ContentPart<TImageMeta, TAudioMeta, TVideoMeta, TDocumentMeta, TTextMeta>, {
+type ContentPartForAdapter<TModalities, TImageMeta, TAudioMeta, TVideoMeta, TDocumentMeta, TTextMeta> = Extract<ContentPart<TImageMeta, TAudioMeta, TVideoMeta, TDocumentMeta, TTextMeta>, {
   type: TModalities;
 }>;
 ```

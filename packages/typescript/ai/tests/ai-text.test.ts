@@ -49,7 +49,7 @@ class MockAdapter extends BaseAdapter<
   }> = []
 
   readonly kind = 'text' as const
-  readonly selectedModel = 'test-model' as const
+  readonly model = 'test-model' as const
   name = 'mock'
   models = ['test-model'] as const
 

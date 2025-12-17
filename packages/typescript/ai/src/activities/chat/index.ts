@@ -16,14 +16,12 @@ import type {
   ToolResult,
 } from './tools/tool-calls'
 import type { z } from 'zod'
-import type { TextAdapter } from './adapter'
+import type { AnyTextAdapter } from './adapter'
 import type {
   AIAdapter,
   AgentLoopStrategy,
   ConstrainedModelMessage,
-  DefaultMessageMetadataByModality,
   DoneStreamChunk,
-  Modality,
   ModelMessage,
   StreamChunk,
   TextOptions,
@@ -100,119 +98,34 @@ export interface CommonOptions {
 }
 
 // ===========================
-// Type Extraction Helpers
-// ===========================
-
-/** Extract model types from a TextAdapter */
-export type TextModels<TAdapter> =
-  TAdapter extends TextAdapter<infer M, any, any, any, any, any>
-    ? M[number]
-    : string
-
-/** Extract the selected model from a TextAdapter */
-export type TextSelectedModel<TAdapter> =
-  TAdapter extends TextAdapter<any, any, any, any, any, infer TSelectedModel>
-    ? TSelectedModel
-    : undefined
-
-/**
- * Extract model-specific provider options from a TextAdapter.
- * If the model has specific options defined in ModelOptions (and not just via index signature),
- * use those; otherwise fall back to base provider options.
- */
-export type TextProviderOptionsForModel<TAdapter, TModel extends string> =
-  TAdapter extends TextAdapter<
-    any,
-    infer BaseOptions,
-    infer ModelOptions,
-    any,
-    any,
-    any
-  >
-    ? string extends keyof ModelOptions
-      ? // ModelOptions is Record<string, unknown> or has index signature - use BaseOptions
-        BaseOptions
-      : // ModelOptions has explicit keys - check if TModel is one of them
-        TModel extends keyof ModelOptions
-        ? ModelOptions[TModel]
-        : BaseOptions
-    : object
-
-/**
- * Extract input modalities for a specific model from a TextAdapter.
- * Returns the modalities array if the model is defined in the map, otherwise all modalities.
- */
-export type InputModalitiesForModel<TAdapter, TModel extends string> =
-  TAdapter extends TextAdapter<any, any, any, infer ModalitiesByName, any, any>
-    ? TModel extends keyof ModalitiesByName
-      ? ModalitiesByName[TModel]
-      : ReadonlyArray<Modality>
-    : ReadonlyArray<Modality>
-
-/**
- * Extract message metadata types by modality from a TextAdapter.
- * Returns the adapter's metadata map or defaults if not defined.
- */
-export type MessageMetadataForAdapter<TAdapter> =
-  TAdapter extends TextAdapter<
-    any,
-    any,
-    any,
-    any,
-    infer MetadataByModality,
-    any
-  >
-    ? MetadataByModality
-    : DefaultMessageMetadataByModality
-
-// ===========================
 // Activity Options Type
 // ===========================
 
 /**
  * Options for the text activity.
- * The model is extracted from the adapter's selectedModel property.
+ * Types are extracted directly from the adapter (which has pre-resolved generics).
  *
- * @template TAdapter - The text adapter type (must have a selectedModel)
+ * @template TAdapter - The text adapter type (created by a provider function)
  * @template TSchema - Optional Zod schema for structured output
  * @template TStream - Whether to stream the output (default: true)
  */
 export interface TextActivityOptions<
-  TAdapter extends TextAdapter<
-    ReadonlyArray<string>,
-    object,
-    any,
-    any,
-    any,
-    string
-  >,
+  TAdapter extends AnyTextAdapter,
   TSchema extends z.ZodType | undefined = undefined,
   TStream extends boolean = true,
 > {
-  /** The text adapter to use (must be created with a model) */
-  adapter: TAdapter & { kind: typeof kind }
-  /** Conversation messages - content types are constrained by the model's supported input modalities */
-  messages: Array<
-    ConstrainedModelMessage<
-      InputModalitiesForModel<TAdapter, TextSelectedModel<TAdapter> & string>,
-      MessageMetadataForAdapter<TAdapter>['image'],
-      MessageMetadataForAdapter<TAdapter>['audio'],
-      MessageMetadataForAdapter<TAdapter>['video'],
-      MessageMetadataForAdapter<TAdapter>['document'],
-      MessageMetadataForAdapter<TAdapter>['text']
-    >
-  >
+  /** The text adapter to use (created by a provider function like openaiText('gpt-4o')) */
+  adapter: TAdapter
+  /** Conversation messages - content types are constrained by the adapter's input modalities */
+  messages: Array<ConstrainedModelMessage<TAdapter>>
   /** System prompts to prepend to the conversation */
   systemPrompts?: TextOptions['systemPrompts']
   /** Tools for function calling (auto-executed when called) */
   tools?: TextOptions['tools']
   /** Additional options like temperature, maxTokens, etc. */
   options?: TextOptions['options']
-  /** Model-specific options */
-  modelOptions?: TextProviderOptionsForModel<
-    TAdapter,
-    TextSelectedModel<TAdapter> & string
-  >
+  /** Model-specific provider options (type comes from adapter) */
+  modelOptions?: NonNullable<TAdapter['_types']>['providerOptions']
   /** AbortController for cancellation */
   abortController?: TextOptions['abortController']
   /** Strategy for controlling the agent loop */
@@ -283,7 +196,7 @@ export type TextActivityResult<
 // ===========================
 
 interface TextEngineConfig<
-  TAdapter extends TextAdapter<any, any, any, any, any, any>,
+  TAdapter extends AnyTextAdapter,
   TParams extends TextOptions<any, any> = TextOptions<any>,
 > {
   adapter: TAdapter
@@ -295,7 +208,7 @@ type ToolPhaseResult = 'continue' | 'stop' | 'wait'
 type CyclePhase = 'processText' | 'executeToolCalls'
 
 class TextEngine<
-  TAdapter extends TextAdapter<any, any, any, any, any, any>,
+  TAdapter extends AnyTextAdapter,
   TParams extends TextOptions<any, any> = TextOptions<any>,
 > {
   private readonly adapter: TAdapter
@@ -1060,14 +973,7 @@ class TextEngine<
  * ```
  */
 export function chat<
-  TAdapter extends TextAdapter<
-    ReadonlyArray<string>,
-    object,
-    any,
-    any,
-    any,
-    string
-  >,
+  TAdapter extends AnyTextAdapter,
   TSchema extends z.ZodType | undefined = undefined,
   TStream extends boolean = true,
 >(
@@ -1079,7 +985,7 @@ export function chat<
   if (outputSchema) {
     return runAgenticStructuredOutput(
       options as unknown as TextActivityOptions<
-        TextAdapter<ReadonlyArray<string>, object, any, any, any, string>,
+        AnyTextAdapter,
         z.ZodType,
         boolean
       >,
@@ -1090,7 +996,7 @@ export function chat<
   if (stream === false) {
     return runNonStreamingText(
       options as unknown as TextActivityOptions<
-        TextAdapter<ReadonlyArray<string>, object, any, any, any, string>,
+        AnyTextAdapter,
         undefined,
         false
       >,
@@ -1099,11 +1005,7 @@ export function chat<
 
   // Otherwise, run streaming text (default)
   return runStreamingText(
-    options as unknown as TextActivityOptions<
-      TextAdapter<ReadonlyArray<string>, object, any, any, any, string>,
-      undefined,
-      true
-    >,
+    options as unknown as TextActivityOptions<AnyTextAdapter, undefined, true>,
   ) as TextActivityResult<TSchema, TStream>
 }
 
@@ -1111,19 +1013,14 @@ export function chat<
  * Run streaming text (agentic or one-shot depending on tools)
  */
 async function* runStreamingText(
-  options: TextActivityOptions<
-    TextAdapter<ReadonlyArray<string>, object, any, any, any, string>,
-    undefined,
-    true
-  >,
+  options: TextActivityOptions<AnyTextAdapter, undefined, true>,
 ): AsyncIterable<StreamChunk> {
   const { adapter, ...textOptions } = options
-  const model = adapter.selectedModel
+  const model = adapter.model
 
   const engine = new TextEngine({
     adapter,
     params: { ...textOptions, model } as TextOptions<
-      string,
       Record<string, any>,
       undefined,
       Record<string, any>
@@ -1140,19 +1037,11 @@ async function* runStreamingText(
  * Runs the full agentic loop (if tools are provided) but returns collected text.
  */
 function runNonStreamingText(
-  options: TextActivityOptions<
-    TextAdapter<ReadonlyArray<string>, object, any, any, any, string>,
-    undefined,
-    false
-  >,
+  options: TextActivityOptions<AnyTextAdapter, undefined, false>,
 ): Promise<string> {
   // Run the streaming text and collect all text using streamToText
   const stream = runStreamingText(
-    options as unknown as TextActivityOptions<
-      TextAdapter<ReadonlyArray<string>, object, any, any, any, string>,
-      undefined,
-      true
-    >,
+    options as unknown as TextActivityOptions<AnyTextAdapter, undefined, true>,
   )
 
   return streamToText(stream)
@@ -1165,14 +1054,10 @@ function runNonStreamingText(
  * 3. Validate and return the structured result
  */
 async function runAgenticStructuredOutput<TSchema extends z.ZodType>(
-  options: TextActivityOptions<
-    TextAdapter<ReadonlyArray<string>, object, any, any, any, string>,
-    TSchema,
-    boolean
-  >,
+  options: TextActivityOptions<AnyTextAdapter, TSchema, boolean>,
 ): Promise<z.infer<TSchema>> {
   const { adapter, outputSchema, ...textOptions } = options
-  const model = adapter.selectedModel
+  const model = adapter.model
 
   if (!outputSchema) {
     throw new Error('outputSchema is required for structured output')
@@ -1182,7 +1067,6 @@ async function runAgenticStructuredOutput<TSchema extends z.ZodType>(
   const engine = new TextEngine({
     adapter,
     params: { ...textOptions, model } as TextOptions<
-      string,
       Record<string, any>,
       undefined,
       Record<string, any>

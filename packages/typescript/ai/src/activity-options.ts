@@ -20,7 +20,7 @@ import type { ImageAdapter } from './activities/generateImage/adapter'
 import type { TranscriptionAdapter } from './activities/generateTranscription/adapter'
 import type { TTSAdapter } from './activities/generateSpeech/adapter'
 import type { VideoAdapter } from './activities/generateVideo/adapter'
-import type { TextAdapter } from './activities/chat/adapter'
+import type { AnyTextAdapter } from './activities/chat/adapter'
 import type { SummarizeAdapter } from './activities/summarize/adapter'
 
 // ===========================
@@ -46,20 +46,11 @@ import type { SummarizeAdapter } from './activities/summarize/adapter'
  * ```
  */
 export function createChatOptions<
-  TAdapter extends TextAdapter<
-    ReadonlyArray<string>,
-    object,
-    any,
-    any,
-    any,
-    string
-  >,
+  TAdapter extends AnyTextAdapter,
   TSchema extends z.ZodType | undefined = undefined,
   TStream extends boolean = true,
->(
-  options: TextActivityOptions<TAdapter, TSchema, TStream>,
-): TextActivityOptions<TAdapter, TSchema, TStream> {
-  return options
+>(options: TextActivityOptions<TAdapter, TSchema, TStream>): any {
+  return options as any
 }
 
 // ===========================

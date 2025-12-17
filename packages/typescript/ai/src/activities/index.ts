@@ -24,13 +24,6 @@ import {
   kind as transcriptionKindValue,
 } from './generateTranscription/index'
 
-// Import model types for use in local type definitions
-import type {
-  InputModalitiesForModel,
-  MessageMetadataForAdapter,
-  TextProviderOptionsForModel,
-  // eslint-disable-next-line import/no-duplicates
-} from './chat/index'
 import type {
   EmbeddingActivityOptions,
   EmbeddingActivityResult,
@@ -65,14 +58,14 @@ import type {
 } from './generateTranscription/index'
 
 // Import adapter types for type definitions
-import type { TextAdapter } from './chat/adapter'
+import type { AnyTextAdapter } from './chat/adapter'
 import type { EmbeddingAdapter } from './embedding/adapter'
 import type { SummarizeAdapter } from './summarize/adapter'
 import type { ImageAdapter } from './generateImage/adapter'
 import type { VideoAdapter } from './generateVideo/adapter'
 import type { TTSAdapter } from './generateSpeech/adapter'
 import type { TranscriptionAdapter } from './generateTranscription/adapter'
-// eslint-disable-next-line import/no-duplicates
+
 import type { TextActivityOptions, TextActivityResult } from './chat/index'
 
 import type { z } from 'zod'
@@ -102,14 +95,11 @@ export {
   type TextActivityOptions,
   type TextActivityResult,
   type CommonOptions,
-  type TextModels,
-  type TextProviderOptionsForModel,
-  type InputModalitiesForModel,
-  type MessageMetadataForAdapter,
 } from './chat/index'
 
 export {
   BaseTextAdapter,
+  type AnyTextAdapter,
   type TextAdapter,
   type TextAdapterConfig,
   type StructuredOutputOptions,
@@ -267,7 +257,7 @@ export const activityMap = new Map<string, ActivityHandler>([
 
 /** Union of all adapter types that can be passed to chat() */
 export type AIAdapter =
-  | TextAdapter<ReadonlyArray<string>, object, any, any, any, any>
+  | AnyTextAdapter
   | EmbeddingAdapter<ReadonlyArray<string>, object, any>
   | SummarizeAdapter<ReadonlyArray<string>, object, any>
   | ImageAdapter<ReadonlyArray<string>, object, any, any, any>
@@ -279,14 +269,14 @@ export type AIAdapter =
 export type GenerateAdapter = AIAdapter
 
 /** Union of all adapters (legacy name) */
-export type AnyAdapter =
-  | TextAdapter<any, any, any, any, any, any>
-  | EmbeddingAdapter<any, any, any>
-  | SummarizeAdapter<any, any, any>
-  | ImageAdapter<any, any, any, any, any>
-  | VideoAdapter<any, any, any>
-  | TTSAdapter<any, any, any>
-  | TranscriptionAdapter<any, any, any>
+export type AnyAdapter = AnyTextAdapter
+// TODO: bring these back
+// | AnyEmbeddingAdapter
+// | AnySummarizeAdapter
+// | AnyImageAdapter
+// | AnyVideoAdapter
+// | AnyTTSAdapter
+// | AnyTranscriptionAdapter
 
 /** Union type of all adapter kinds */
 export type AdapterKind =
@@ -304,7 +294,7 @@ export type AdapterKind =
 
 /** Union of all adapter types with their kind discriminator */
 export type AnyAIAdapter =
-  | (TextAdapter<ReadonlyArray<string>, object, any, any, any, string> & {
+  | (AnyTextAdapter & {
       kind: 'text'
     })
   | (EmbeddingAdapter<ReadonlyArray<string>, object, string> & {
@@ -329,14 +319,7 @@ export type AIOptionsFor<
   TStream extends boolean | undefined = undefined,
   TRequest extends 'create' | 'status' | 'url' = 'create',
 > = TAdapter extends { kind: 'text' }
-  ? TAdapter extends TextAdapter<
-      ReadonlyArray<string>,
-      object,
-      any,
-      any,
-      any,
-      string
-    >
+  ? TAdapter extends AnyTextAdapter
     ? TextActivityOptions<
         TAdapter,
         TSchema,
@@ -417,29 +400,21 @@ export type GenerateOptions<
   TAdapter extends AIAdapter,
   TSchema extends z.ZodType | undefined = undefined,
   TStream extends boolean = true,
-> =
-  TAdapter extends TextAdapter<
-    ReadonlyArray<string>,
-    object,
-    any,
-    any,
-    any,
-    string
-  >
-    ? TextActivityOptions<TAdapter, TSchema, TStream>
-    : TAdapter extends EmbeddingAdapter<ReadonlyArray<string>, object, string>
-      ? EmbeddingActivityOptions<TAdapter>
-      : TAdapter extends SummarizeAdapter<ReadonlyArray<string>, object, string>
-        ? SummarizeActivityOptions<TAdapter, TStream>
-        : TAdapter extends ImageAdapter<
-              ReadonlyArray<string>,
-              object,
-              any,
-              any,
-              string
-            >
-          ? ImageActivityOptions<TAdapter>
-          : never
+> = TAdapter extends AnyTextAdapter
+  ? TextActivityOptions<TAdapter, TSchema, TStream>
+  : TAdapter extends EmbeddingAdapter<ReadonlyArray<string>, object, string>
+    ? EmbeddingActivityOptions<TAdapter>
+    : TAdapter extends SummarizeAdapter<ReadonlyArray<string>, object, string>
+      ? SummarizeActivityOptions<TAdapter, TStream>
+      : TAdapter extends ImageAdapter<
+            ReadonlyArray<string>,
+            object,
+            any,
+            any,
+            string
+          >
+        ? ImageActivityOptions<TAdapter>
+        : never
 
 // ===========================
 // Legacy Type Aliases
@@ -447,14 +422,7 @@ export type GenerateOptions<
 
 /** @deprecated Use TextActivityOptions */
 export type GenerateTextOptions<
-  TAdapter extends TextAdapter<
-    ReadonlyArray<string>,
-    object,
-    any,
-    any,
-    any,
-    string
-  >,
+  TAdapter extends AnyTextAdapter,
   TSchema extends z.ZodType | undefined = undefined,
   TStream extends boolean = true,
 > = TextActivityOptions<TAdapter, TSchema, TStream>
@@ -489,11 +457,7 @@ export type GenerateImageOptions<
  * Union type for all possible chat() options (used in implementation signature)
  */
 export type AIOptionsUnion =
-  | TextActivityOptions<
-      TextAdapter<ReadonlyArray<string>, object, any, any, any, string>,
-      z.ZodType | undefined,
-      boolean
-    >
+  | TextActivityOptions<AnyTextAdapter, z.ZodType | undefined, boolean>
   | EmbeddingActivityOptions<
       EmbeddingAdapter<ReadonlyArray<string>, object, string>
     >
@@ -711,30 +675,14 @@ export type AITranscriptionOptions<
  * Uses ConstrainedModelMessage to constrain content types by model's supported input modalities.
  */
 export type AITextOptions<
-  TAdapter extends TextAdapter<
-    ReadonlyArray<string>,
-    object,
-    any,
-    any,
-    any,
-    string
-  >,
+  TAdapter extends AnyTextAdapter,
   TSchema extends z.ZodType | undefined,
   TStream extends boolean,
 > = {
   /** The text adapter to use (must be created with a model) */
   adapter: TAdapter & { kind: 'text' }
   /** Conversation messages - content types are constrained by the model's supported input modalities */
-  messages: Array<
-    ConstrainedModelMessage<
-      InputModalitiesForModel<TAdapter, TAdapter['selectedModel']>,
-      MessageMetadataForAdapter<TAdapter>['image'],
-      MessageMetadataForAdapter<TAdapter>['audio'],
-      MessageMetadataForAdapter<TAdapter>['video'],
-      MessageMetadataForAdapter<TAdapter>['document'],
-      MessageMetadataForAdapter<TAdapter>['text']
-    >
-  >
+  messages: Array<ConstrainedModelMessage<TAdapter>>
   /** System prompts to prepend to the conversation */
   systemPrompts?: TextOptions['systemPrompts']
   /** Tools for function calling (auto-executed when called) */
@@ -742,9 +690,7 @@ export type AITextOptions<
   /** Additional options like temperature, maxTokens, etc. */
   options?: TextOptions['options']
   /** Provider-specific options (narrowed by model) */
-  modelOptions?: NoInfer<
-    TextProviderOptionsForModel<TAdapter, TAdapter['selectedModel']>
-  >
+  modelOptions?: NoInfer<NonNullable<TAdapter['_types']>['providerOptions']>
   /** AbortController for cancellation */
   abortController?: TextOptions['abortController']
   /** Strategy for controlling the agent loop */
@@ -763,14 +709,7 @@ export type AITextOptions<
 
 /** @deprecated Use TextActivityOptions */
 export type TextGenerateOptions<
-  TAdapter extends TextAdapter<
-    ReadonlyArray<string>,
-    object,
-    any,
-    any,
-    any,
-    string
-  >,
+  TAdapter extends AnyTextAdapter,
   TSchema extends z.ZodType | undefined = undefined,
   TStream extends boolean = true,
 > = TextActivityOptions<TAdapter, TSchema, TStream>

@@ -78,7 +78,7 @@ title: "@tanstack/ai"
 - [ConstrainedContent](type-aliases/ConstrainedContent.md)
 - [ConstrainedModelMessage](type-aliases/ConstrainedModelMessage.md)
 - [ContentPart](type-aliases/ContentPart.md)
-- [ContentPartForModalities](type-aliases/ContentPartForModalities.md)
+- [ContentPartForAdapter](type-aliases/ContentPartForAdapter.md)
 - [ExtractModalitiesForModel](type-aliases/ExtractModalitiesForModel.md)
 - [ExtractModelsFromAdapter](type-aliases/ExtractModelsFromAdapter.md)
 - [InferSchemaType](type-aliases/InferSchemaType.md)

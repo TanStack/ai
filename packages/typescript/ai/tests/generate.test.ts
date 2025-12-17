@@ -19,35 +19,30 @@ import type {
 // Mock adapters for testing
 
 const MOCK_MODELS = ['model-a', 'model-b'] as const
+type MockModel = (typeof MOCK_MODELS)[number]
 
-class MockTextAdapter extends BaseTextAdapter<
-  typeof MOCK_MODELS,
+class MockTextAdapter<TModel extends MockModel = 'model-a'> extends BaseTextAdapter<
+  TModel,
   Record<string, unknown>,
-  Record<string, unknown>,
-  Record<
-    string,
-    ReadonlyArray<'text' | 'image' | 'audio' | 'video' | 'document'>
-  >,
+  readonly ['text', 'image', 'audio', 'video', 'document'],
   {
     text: unknown
     image: unknown
     audio: unknown
     video: unknown
     document: unknown
-  },
-  (typeof MOCK_MODELS)[number]
+  }
 > {
   readonly kind = 'text' as const
   readonly name = 'mock' as const
-  readonly models = MOCK_MODELS
 
   private mockChunks: Array<StreamChunk>
 
   constructor(
     mockChunks: Array<StreamChunk> = [],
-    selectedModel: (typeof MOCK_MODELS)[number] = 'model-a',
+    model: TModel = 'model-a' as TModel,
   ) {
-    super({}, selectedModel)
+    super({}, model)
     this.mockChunks = mockChunks
   }
 

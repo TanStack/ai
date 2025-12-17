@@ -166,11 +166,11 @@ export interface DocumentPart<TMetadata = unknown> {
  * @template TDocumentMeta - Provider-specific document metadata type
  */
 export type ContentPart<
+  TTextMeta = unknown,
   TImageMeta = unknown,
   TAudioMeta = unknown,
   TVideoMeta = unknown,
   TDocumentMeta = unknown,
-  TTextMeta = unknown,
 > =
   | TextPart<TTextMeta>
   | ImagePart<TImageMeta>
@@ -182,16 +182,15 @@ export type ContentPart<
  * Helper type to filter ContentPart union to only include specific modalities.
  * Used to constrain message content based on model capabilities.
  */
-export type ContentPartForModalities<
-  TModalities extends Modality,
-  TImageMeta = unknown,
-  TAudioMeta = unknown,
-  TVideoMeta = unknown,
-  TDocumentMeta = unknown,
-  TTextMeta = unknown,
-> = Extract<
-  ContentPart<TImageMeta, TAudioMeta, TVideoMeta, TDocumentMeta, TTextMeta>,
-  { type: TModalities }
+export type ContentPartForInputModalitiesTypes<TInputModalitiesTypes extends InputModalitiesTypes> = Extract<
+  ContentPart<
+    TInputModalitiesTypes['messageMetadataByModality']['text'],
+    TInputModalitiesTypes['messageMetadataByModality']['image'],
+    TInputModalitiesTypes['messageMetadataByModality']['audio'],
+    TInputModalitiesTypes['messageMetadataByModality']['video'],
+    TInputModalitiesTypes['messageMetadataByModality']['document']
+  >,
+  { type: TInputModalitiesTypes['inputModalities'] }
 >
 
 /**
@@ -205,26 +204,10 @@ export type ModalitiesArrayToUnion<T extends ReadonlyArray<Modality>> =
  * Type for message content constrained by supported modalities.
  * When modalities is ['text', 'image'], only TextPart and ImagePart are allowed in the array.
  */
-export type ConstrainedContent<
-  TModalities extends ReadonlyArray<Modality>,
-  TImageMeta = unknown,
-  TAudioMeta = unknown,
-  TVideoMeta = unknown,
-  TDocumentMeta = unknown,
-  TTextMeta = unknown,
-> =
+export type ConstrainedContent<TInputModalitiesTypes extends InputModalitiesTypes> =
   | string
   | null
-  | Array<
-      ContentPartForModalities<
-        ModalitiesArrayToUnion<TModalities>,
-        TImageMeta,
-        TAudioMeta,
-        TVideoMeta,
-        TDocumentMeta,
-        TTextMeta
-      >
-    >
+  | Array<ContentPartForInputModalitiesTypes<TInputModalitiesTypes>>
 
 export interface ModelMessage<
   TContent extends string | null | Array<ContentPart> =
@@ -293,26 +276,21 @@ export interface UIMessage {
   parts: Array<MessagePart>
   createdAt?: Date
 }
+
+export type InputModalitiesTypes = {
+  inputModalities: ReadonlyArray<Modality>
+  messageMetadataByModality: DefaultMessageMetadataByModality
+}
+
 /**
  * A ModelMessage with content constrained to only allow content parts
  * matching the specified input modalities.
  */
-export type ConstrainedModelMessage<
-  TModalities extends ReadonlyArray<Modality>,
-  TImageMeta = unknown,
-  TAudioMeta = unknown,
-  TVideoMeta = unknown,
-  TDocumentMeta = unknown,
-  TTextMeta = unknown,
-> = Omit<ModelMessage, 'content'> & {
-  content: ConstrainedContent<
-    TModalities,
-    TImageMeta,
-    TAudioMeta,
-    TVideoMeta,
-    TDocumentMeta,
-    TTextMeta
-  >
+export type ConstrainedModelMessage<TInputModalitiesTypes extends InputModalitiesTypes> = Omit<
+  ModelMessage,
+  'content'
+> & {
+  content: ConstrainedContent<TInputModalitiesTypes>
 }
 
 /**
@@ -555,12 +533,11 @@ export type AgentLoopStrategy = (state: AgentLoopState) => boolean
  * Options passed into the SDK and further piped to the AI provider.
  */
 export interface TextOptions<
-  TModel extends string = string,
   TProviderOptionsSuperset extends Record<string, any> = Record<string, any>,
   TOutput extends ResponseFormat<any> | undefined = undefined,
   TProviderOptionsForModel = TProviderOptionsSuperset,
 > {
-  model: TModel
+  model: string
   messages: Array<ModelMessage>
   tools?: Array<Tool<any, any, any>>
   systemPrompts?: Array<string>
@@ -993,74 +970,79 @@ export interface DefaultMessageMetadataByModality {
   document: unknown
 }
 
-/**
- * AI adapter interface with support for endpoint-specific models and provider options.
- *
- * Generic parameters:
- * - TChatModels: Models that support chat/text completion
- * - TEmbeddingModels: Models that support embeddings
- * - TChatProviderOptions: Provider-specific options for chat endpoint
- * - TEmbeddingProviderOptions: Provider-specific options for embedding endpoint
- * - TModelProviderOptionsByName: Map from model name to its specific provider options
- * - TModelInputModalitiesByName: Map from model name to its supported input modalities
- * - TMessageMetadataByModality: Map from modality type to adapter-specific metadata types
- */
-export interface AIAdapter<
-  TChatModels extends ReadonlyArray<string> = ReadonlyArray<string>,
-  TEmbeddingModels extends ReadonlyArray<string> = ReadonlyArray<string>,
-  TChatProviderOptions extends Record<string, any> = Record<string, any>,
-  TEmbeddingProviderOptions extends Record<string, any> = Record<string, any>,
-  TModelProviderOptionsByName extends Record<string, any> = Record<string, any>,
-  TModelInputModalitiesByName extends Record<string, ReadonlyArray<Modality>> =
-    Record<string, ReadonlyArray<Modality>>,
-  TMessageMetadataByModality extends {
-    text: unknown
-    image: unknown
-    audio: unknown
-    video: unknown
-    document: unknown
-  } = DefaultMessageMetadataByModality,
-> {
-  name: string
-  /** Models that support chat/text completion */
-  models: TChatModels
+// TODO: Remove?
+// /**
+//  * AI adapter interface with support for endpoint-specific models and provider options.
+//  *
+//  * Generic parameters:
+//  * - TChatModels: Models that support chat/text completion
+//  * - TEmbeddingModels: Models that support embeddings
+//  * - TChatProviderOptions: Provider-specific options for chat endpoint
+//  * - TEmbeddingProviderOptions: Provider-specific options for embedding endpoint
+//  * - TModelProviderOptionsByName: Map from model name to its specific provider options
+//  * - TModelInputModalitiesByName: Map from model name to its supported input modalities
+//  * - TMessageMetadataByModality: Map from modality type to adapter-specific metadata types
+//  */
+// export interface AIAdapter<
+//   TChatModels extends ReadonlyArray<string> = ReadonlyArray<string>,
+//   TEmbeddingModels extends ReadonlyArray<string> = ReadonlyArray<string>,
+//   TChatProviderOptions extends Record<string, any> = Record<string, any>,
+//   TEmbeddingProviderOptions extends Record<string, any> = Record<string, any>,
+//   TModelProviderOptionsByName extends Record<string, any> = Record<string, any>,
+//   TModelInputModalitiesByName extends Record<string, ReadonlyArray<Modality>> =
+//     Record<string, ReadonlyArray<Modality>>,
+//   TMessageMetadataByModality extends {
+//     text: unknown
+//     image: unknown
+//     audio: unknown
+//     video: unknown
+//     document: unknown
+//   } = DefaultMessageMetadataByModality,
+// > {
+//   _types: {
+//     inputModalities: ReadonlyArray<Modality>
+//   }
 
-  /** Models that support embeddings */
-  embeddingModels?: TEmbeddingModels
+//   name: string
+//   /** Models that support chat/text completion */
+//   models: TChatModels
 
-  // Type-only properties for provider options inference
-  _providerOptions?: TChatProviderOptions // Alias for _chatProviderOptions
-  _chatProviderOptions?: TChatProviderOptions
-  _embeddingProviderOptions?: TEmbeddingProviderOptions
-  /**
-   * Type-only map from model name to its specific provider options.
-   * Used by the core AI types to narrow modelOptions based on the selected model.
-   * Must be provided by all adapters.
-   */
-  _modelProviderOptionsByName: TModelProviderOptionsByName
-  /**
-   * Type-only map from model name to its supported input modalities.
-   * Used by the core AI types to narrow ContentPart types based on the selected model.
-   * Must be provided by all adapters.
-   */
-  _modelInputModalitiesByName?: TModelInputModalitiesByName
-  /**
-   * Type-only map from modality type to adapter-specific metadata types.
-   * Used to provide type-safe autocomplete for metadata on content parts.
-   */
-  _messageMetadataByModality?: TMessageMetadataByModality
+//   /** Models that support embeddings */
+//   embeddingModels?: TEmbeddingModels
 
-  // Structured streaming with JSON chunks (supports tool calls and rich content)
-  chatStream: (
-    options: TextOptions<string, TChatProviderOptions>,
-  ) => AsyncIterable<StreamChunk>
+//   // Type-only properties for provider options inference
+//   _providerOptions?: TChatProviderOptions // Alias for _chatProviderOptions
+//   _chatProviderOptions?: TChatProviderOptions
+//   _embeddingProviderOptions?: TEmbeddingProviderOptions
+//   /**
+//    * Type-only map from model name to its specific provider options.
+//    * Used by the core AI types to narrow modelOptions based on the selected model.
+//    * Must be provided by all adapters.
+//    */
+//   _modelProviderOptionsByName: TModelProviderOptionsByName
+//   /**
+//    * Type-only map from model name to its supported input modalities.
+//    * Used by the core AI types to narrow ContentPart types based on the selected model.
+//    * Must be provided by all adapters.
+//    */
+//   _modelInputModalitiesByName?: TModelInputModalitiesByName
+//   /**
+//    * Type-only map from modality type to adapter-specific metadata types.
+//    * Used to provide type-safe autocomplete for metadata on content parts.
+//    */
+//   _messageMetadataByModality?: TMessageMetadataByModality
 
-  // Summarization
-  summarize: (options: SummarizationOptions) => Promise<SummarizationResult>
+//   // Structured streaming with JSON chunks (supports tool calls and rich content)
+//   chatStream: (
+//     options: TextOptions<TChatProviderOptions>,
+//   ) => AsyncIterable<StreamChunk>
 
-  // Embeddings
-  createEmbeddings: (options: EmbeddingOptions) => Promise<EmbeddingResult>
-}
+//   // Summarization
+//   summarize: (options: SummarizationOptions) => Promise<SummarizationResult>
+
+//   // Embeddings
+//   createEmbeddings: (options: EmbeddingOptions) => Promise<EmbeddingResult>
+// }
 
 export interface AIAdapterConfig {
   apiKey?: string
@@ -1107,17 +1089,7 @@ export type TextStreamOptionsUnion<
                     video: infer TVideoMeta
                     document: infer TDocumentMeta
                   }
-                  ? Array<
-                      ConstrainedModelMessage<
-                        ModelInputModalities[TModel],
-                        TImageMeta,
-                        TAudioMeta,
-                        TVideoMeta,
-                        TDocumentMeta,
-                        TTextMeta
-                      >
-                    >
-                  : Array<ConstrainedModelMessage<ModelInputModalities[TModel]>>
+                  ? Array<ConstrainedModelMessage<TAdapter>>
                 : Array<ModelMessage>
               : Array<ModelMessage>
           }
@@ -1205,82 +1177,6 @@ export type ExtractModalitiesForModel<
       ? ModelInputModalities[TModel]
       : ReadonlyArray<Modality>
     : ReadonlyArray<Modality>
-
-// ============================================================================
-// New Adapter Types (Tree-Shakeable Architecture)
-// ============================================================================
-
-/**
- * Extract models from any of the new adapter types
- */
-export type ExtractModelsFromTextAdapter<T> =
-  T extends TextAdapter<infer M, any, any, any, any> ? M[number] : never
-
-export type ExtractModelsFromEmbeddingAdapter<T> =
-  T extends EmbeddingAdapter<infer M, any> ? M[number] : never
-
-export type ExtractModelsFromSummarizeAdapter<T> =
-  T extends SummarizeAdapter<infer M, any> ? M[number] : never
-
-/**
- * Extract models from any adapter type (unified)
- */
-export type ExtractModelsFromAnyAdapter<T> =
-  T extends TextAdapter<infer M, any, any, any, any>
-    ? M[number]
-    : T extends EmbeddingAdapter<infer M, any>
-      ? M[number]
-      : T extends SummarizeAdapter<infer M, any>
-        ? M[number]
-        : never
-
-/**
- * Text options for the new TextAdapter type
- */
-export type TextOptionsForTextAdapter<
-  TAdapter extends TextAdapter<any, any, any, any, any>,
-  TModel extends string,
-> =
-  TAdapter extends TextAdapter<
-    any,
-    any,
-    infer ModelProviderOptions,
-    infer ModelInputModalities,
-    infer MessageMetadata
-  >
-    ? Omit<
-        TextOptions,
-        'model' | 'providerOptions' | 'responseFormat' | 'messages'
-      > & {
-        adapter: TAdapter
-        model: TModel
-        providerOptions?: TModel extends keyof ModelProviderOptions
-          ? ModelProviderOptions[TModel]
-          : never
-        messages: TModel extends keyof ModelInputModalities
-          ? ModelInputModalities[TModel] extends ReadonlyArray<Modality>
-            ? MessageMetadata extends {
-                text: infer TTextMeta
-                image: infer TImageMeta
-                audio: infer TAudioMeta
-                video: infer TVideoMeta
-                document: infer TDocumentMeta
-              }
-              ? Array<
-                  ConstrainedModelMessage<
-                    ModelInputModalities[TModel],
-                    TImageMeta,
-                    TAudioMeta,
-                    TVideoMeta,
-                    TDocumentMeta,
-                    TTextMeta
-                  >
-                >
-              : Array<ConstrainedModelMessage<ModelInputModalities[TModel]>>
-            : Array<ModelMessage>
-          : Array<ModelMessage>
-      }
-    : never
 
 // Re-export adapter types from adapters module
 export type { TextAdapter, EmbeddingAdapter, SummarizeAdapter, AnyAdapter }

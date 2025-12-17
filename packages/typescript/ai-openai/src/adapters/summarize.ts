@@ -38,11 +38,12 @@ export class OpenAISummarizeAdapter extends BaseSummarizeAdapter<
   readonly name = 'openai' as const
   readonly models = OPENAI_CHAT_MODELS
 
-  private textAdapter: OpenAITextAdapter
+  private textAdapter: OpenAITextAdapter<(typeof OPENAI_CHAT_MODELS)[number]>
 
   constructor(config: OpenAISummarizeConfig) {
     super({})
-    this.textAdapter = new OpenAITextAdapter(config)
+    // Default model for the text adapter - will be overridden per request
+    this.textAdapter = new OpenAITextAdapter(config, 'gpt-4o')
   }
 
   async summarize(options: SummarizationOptions): Promise<SummarizationResult> {

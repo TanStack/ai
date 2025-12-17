@@ -1,5 +1,4 @@
 import { BaseTextAdapter } from '@tanstack/ai/adapters'
-import { OPENAI_CHAT_MODELS } from '../model-meta'
 import { validateTextProviderOptions } from '../text/text-provider-options'
 import { convertToolsToProviderFormat } from '../tools'
 import {
@@ -9,6 +8,11 @@ import {
   makeOpenAIStructuredOutputCompatible,
   transformNullsToUndefined,
 } from '../utils'
+import type {
+  OPENAI_CHAT_MODELS,
+  OpenAIChatModelProviderOptionsByName,
+  OpenAIModelInputModalitiesByName,
+} from '../model-meta'
 import type {
   StructuredOutputOptions,
   StructuredOutputResult,
@@ -22,18 +26,10 @@ import type {
   TextOptions,
 } from '@tanstack/ai'
 import type {
-  OpenAIChatModelProviderOptionsByName,
-  OpenAIModelInputModalitiesByName,
-} from '../model-meta'
-import type {
   ExternalTextProviderOptions,
   InternalTextProviderOptions,
 } from '../text/text-provider-options'
-import type {
-  OpenAIAudioMetadata,
-  OpenAIImageMetadata,
-  OpenAIMessageMetadataByModality,
-} from '../message-types'
+import type { OpenAIAudioMetadata, OpenAIImageMetadata } from '../message-types'
 import type { OpenAIClientConfig } from '../utils'
 
 /**
@@ -46,6 +42,32 @@ export interface OpenAITextConfig extends OpenAIClientConfig {}
  */
 export type OpenAITextProviderOptions = ExternalTextProviderOptions
 
+// ===========================
+// Type Resolution Helpers
+// ===========================
+
+/**
+ * Resolve provider options for a specific model.
+ * If the model has explicit options in the map, use those; otherwise use base options.
+ */
+type ResolveProviderOptions<TModel extends string> =
+  TModel extends keyof OpenAIChatModelProviderOptionsByName
+    ? OpenAIChatModelProviderOptionsByName[TModel]
+    : OpenAITextProviderOptions
+
+/**
+ * Resolve input modalities for a specific model.
+ * If the model has explicit modalities in the map, use those; otherwise use all modalities.
+ */
+type ResolveInputModalities<TModel extends string> =
+  TModel extends keyof OpenAIModelInputModalitiesByName
+    ? OpenAIModelInputModalitiesByName[TModel]
+    : readonly ['text', 'image', 'audio']
+
+// ===========================
+// Adapter Implementation
+// ===========================
+
 /**
  * OpenAI Text (Chat) Adapter
  *
@@ -53,35 +75,25 @@ export type OpenAITextProviderOptions = ExternalTextProviderOptions
  * Import only what you need for smaller bundle sizes.
  */
 export class OpenAITextAdapter<
-  TSelectedModel extends (typeof OPENAI_CHAT_MODELS)[number] | undefined =
-    undefined,
+  TModel extends (typeof OPENAI_CHAT_MODELS)[number],
 > extends BaseTextAdapter<
-  typeof OPENAI_CHAT_MODELS,
-  OpenAITextProviderOptions,
-  OpenAIChatModelProviderOptionsByName,
-  OpenAIModelInputModalitiesByName,
-  OpenAIMessageMetadataByModality,
-  TSelectedModel
+  TModel,
+  ResolveProviderOptions<TModel>,
+  ResolveInputModalities<TModel>,
+  ResolveMessageMetadataByModality<TModel>
 > {
   readonly kind = 'text' as const
   readonly name = 'openai' as const
-  readonly models = OPENAI_CHAT_MODELS
-
-  // Type-only properties for type inference
-  declare _modelProviderOptionsByName: OpenAIChatModelProviderOptionsByName
-  declare _modelInputModalitiesByName: OpenAIModelInputModalitiesByName
-  declare _messageMetadataByModality: OpenAIMessageMetadataByModality
-  declare _selectedModel?: TSelectedModel
 
   private client: OpenAI_SDK
 
-  constructor(config: OpenAITextConfig, selectedModel?: TSelectedModel) {
-    super({}, selectedModel)
+  constructor(config: OpenAITextConfig, model: TModel) {
+    super({}, model)
     this.client = createOpenAIClient(config)
   }
 
   async *chatStream(
-    options: TextOptions<string, OpenAITextProviderOptions>,
+    options: TextOptions<ResolveProviderOptions<TModel>>,
   ): AsyncIterable<StreamChunk> {
     // Track tool call metadata by unique ID
     // OpenAI streams tool calls with deltas - first chunk has ID/name, subsequent chunks only have args
@@ -131,7 +143,7 @@ export class OpenAITextAdapter<
    * We apply OpenAI-specific transformations for structured output compatibility.
    */
   async structuredOutput(
-    options: StructuredOutputOptions<OpenAITextProviderOptions>,
+    options: StructuredOutputOptions<ResolveProviderOptions<TModel>>,
   ): Promise<StructuredOutputResult<unknown>> {
     const { chatOptions, outputSchema } = options
     const requestArguments = this.mapTextOptionsToOpenAI(chatOptions)
@@ -733,30 +745,33 @@ export class OpenAITextAdapter<
 }
 
 /**
- * Creates an OpenAI chat adapter with explicit API key
+ * Creates an OpenAI chat adapter with explicit API key.
+ * Type resolution happens here at the call site.
  *
  * @param model - The model name (e.g., 'gpt-4o', 'gpt-4-turbo')
  * @param apiKey - Your OpenAI API key
  * @param config - Optional additional configuration
- * @returns Configured OpenAI chat adapter instance
+ * @returns Configured OpenAI chat adapter instance with resolved types
  *
  * @example
  * ```typescript
  * const adapter = createOpenaiChat('gpt-4o', "sk-...");
+ * // adapter has type-safe modelOptions for gpt-4o
  * ```
  */
 export function createOpenaiChat<
-  TSelectedModel extends (typeof OPENAI_CHAT_MODELS)[number],
+  TModel extends (typeof OPENAI_CHAT_MODELS)[number],
 >(
-  model: TSelectedModel,
+  model: TModel,
   apiKey: string,
   config?: Omit<OpenAITextConfig, 'apiKey'>,
-): OpenAITextAdapter<TSelectedModel> {
+): OpenAITextAdapter<TModel> {
   return new OpenAITextAdapter({ apiKey, ...config }, model)
 }
 
 /**
  * Creates an OpenAI text adapter with automatic API key detection from environment variables.
+ * Type resolution happens here at the call site.
  *
  * Looks for `OPENAI_API_KEY` in:
  * - `process.env` (Node.js)
@@ -764,7 +779,7 @@ export function createOpenaiChat<
  *
  * @param model - The model name (e.g., 'gpt-4o', 'gpt-4-turbo')
  * @param config - Optional configuration (excluding apiKey which is auto-detected)
- * @returns Configured OpenAI text adapter instance
+ * @returns Configured OpenAI text adapter instance with resolved types
  * @throws Error if OPENAI_API_KEY is not found in environment
  *
  * @example
@@ -778,12 +793,10 @@ export function createOpenaiChat<
  * });
  * ```
  */
-export function openaiText<
-  TSelectedModel extends (typeof OPENAI_CHAT_MODELS)[number],
->(
-  model: TSelectedModel,
+export function openaiText<TModel extends (typeof OPENAI_CHAT_MODELS)[number]>(
+  model: TModel,
   config?: Omit<OpenAITextConfig, 'apiKey'>,
-): OpenAITextAdapter<TSelectedModel> {
+): OpenAITextAdapter<TModel> {
   const apiKey = getOpenAIApiKeyFromEnv()
   return createOpenaiChat(model, apiKey, config)
 }
@@ -791,12 +804,10 @@ export function openaiText<
 /**
  * @deprecated Use openaiText() instead
  */
-export function openaiChat<
-  TSelectedModel extends (typeof OPENAI_CHAT_MODELS)[number],
->(
-  model: TSelectedModel,
+export function openaiChat<TModel extends (typeof OPENAI_CHAT_MODELS)[number]>(
+  model: TModel,
   config?: Omit<OpenAITextConfig, 'apiKey'>,
-): OpenAITextAdapter<TSelectedModel> {
+): OpenAITextAdapter<TModel> {
   return openaiText(model, config)
 }
 
@@ -804,11 +815,11 @@ export function openaiChat<
  * @deprecated Use createOpenaiChat() instead
  */
 export function createOpenaiText<
-  TSelectedModel extends (typeof OPENAI_CHAT_MODELS)[number],
+  TModel extends (typeof OPENAI_CHAT_MODELS)[number],
 >(
-  model: TSelectedModel,
+  model: TModel,
   apiKey: string,
   config?: Omit<OpenAITextConfig, 'apiKey'>,
-): OpenAITextAdapter<TSelectedModel> {
+): OpenAITextAdapter<TModel> {
   return createOpenaiChat(model, apiKey, config)
 }
