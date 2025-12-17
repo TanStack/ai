@@ -93,9 +93,9 @@ OpenAI provides several distinct voices:
 | `wav` | WAV audio (uncompressed) |
 | `pcm` | Raw PCM audio |
 
-## Provider Options
+## Model Options
 
-### OpenAI Provider Options
+### OpenAI Model Options
 
 ```typescript
 const result = await generateSpeech({

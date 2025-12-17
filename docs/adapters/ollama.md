@@ -125,7 +125,7 @@ const stream = chat({
 
 **Note:** Tool support varies by model. Models like `llama3`, `mistral`, and `qwen2` generally have good tool calling support.
 
-## Provider Options
+## Model Options
 
 Ollama supports various provider-specific options:
 

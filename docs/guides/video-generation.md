@@ -172,9 +172,9 @@ The API uses the `seconds` parameter. Allowed values:
 - `8` seconds (default)
 - `12` seconds
 
-## Provider Options
+## Model Options
 
-### OpenAI Provider Options
+### OpenAI Model Options
 
 Based on the [OpenAI Sora API](https://platform.openai.com/docs/api-reference/videos/create):
 

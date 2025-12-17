@@ -55,40 +55,7 @@ const config: Omit<OpenAIChatConfig, 'apiKey'> = {
 
 const adapter = createOpenaiChat(process.env.OPENAI_API_KEY!, config);
 ```
-
-## Available Models
-
-### Chat Models
-
-- `gpt-4o` - GPT-4o (recommended)
-- `gpt-4o-mini` - GPT-4o Mini (faster, cheaper)
-- `gpt-5` - GPT-5 (with reasoning support)
-- `o3` - O3 reasoning model
-- `o3-mini` - O3 Mini
-
-### Embedding Models
-
-- `text-embedding-3-small` - Small embedding model
-- `text-embedding-3-large` - Large embedding model
-- `text-embedding-ada-002` - Legacy embedding model
-
-### Image Models
-
-- `gpt-image-1` - Latest image generation model
-- `dall-e-3` - DALL-E 3
-
-### Text-to-Speech Models
-
-- `tts-1` - Standard TTS (fast)
-- `tts-1-hd` - High-definition TTS
-- `gpt-4o-audio-preview` - GPT-4o with audio output
-
-### Transcription Models
-
-- `whisper-1` - Whisper large-v2
-- `gpt-4o-transcribe` - GPT-4o transcription
-- `gpt-4o-mini-transcribe` - GPT-4o Mini transcription
-
+ 
 ## Example: Chat Completion
 
 ```typescript
@@ -140,7 +107,7 @@ const stream = chat({
 });
 ```
 
-## Provider Options
+## Model Options
 
 OpenAI supports various provider-specific options:
 
@@ -210,7 +177,7 @@ const result = await embedding({
 // result.embeddings contains an array of vectors
 ```
 
-### Embedding Provider Options
+### Embedding Model Options
 
 ```typescript
 const result = await embedding({
@@ -265,7 +232,7 @@ const result = await generateImage({
 console.log(result.images);
 ```
 
-### Image Provider Options
+### Image Model Options
 
 ```typescript
 const result = await generateImage({
@@ -305,7 +272,7 @@ console.log(result.format); // "mp3"
 
 Available voices: `alloy`, `echo`, `fable`, `onyx`, `nova`, `shimmer`, `ash`, `ballad`, `coral`, `sage`, `verse`
 
-### TTS Provider Options
+### TTS Model Options
 
 ```typescript
 const result = await generateSpeech({
@@ -338,7 +305,7 @@ const result = await generateTranscription({
 console.log(result.text); // Transcribed text
 ```
 
-### Transcription Provider Options
+### Transcription Model Options
 
 ```typescript
 const result = await generateTranscription({

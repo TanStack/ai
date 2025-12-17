@@ -91,9 +91,9 @@ Whisper supports many languages. Common codes include:
 
 > **Tip:** Providing the correct language code improves accuracy and reduces latency.
 
-## Provider Options
+## Model Options
 
-### OpenAI Provider Options
+### OpenAI Model Options
 
 ```typescript
 const result = await generateTranscription({

@@ -21,7 +21,7 @@ const adapter = geminiText();
 
 const stream = chat({
   adapter,
-  model: "gemini-2.0-flash-exp",
+  model: "gemini-2.5-pro",
   messages: [{ role: "user", content: "Hello!" }],
 });
 ```
@@ -38,7 +38,7 @@ const adapter = createGeminiChat(process.env.GEMINI_API_KEY!, {
 
 const stream = chat({
   adapter,
-  model: "gemini-2.0-flash-exp",
+  model: "gemini-2.5-pro",
   messages: [{ role: "user", content: "Hello!" }],
 });
 ```
@@ -54,30 +54,7 @@ const config: Omit<GeminiChatConfig, 'apiKey'> = {
 
 const adapter = createGeminiChat(process.env.GEMINI_API_KEY!, config);
 ```
-
-## Available Models
-
-### Chat Models
-
-- `gemini-2.0-flash-exp` - Gemini 2.0 Flash (fast, efficient)
-- `gemini-2.0-flash-lite` - Gemini 2.0 Flash Lite (fastest)
-- `gemini-2.5-pro` - Gemini 2.5 Pro (most capable)
-- `gemini-2.5-flash` - Gemini 2.5 Flash
-- `gemini-exp-1206` - Experimental Pro model
-
-### Embedding Models
-
-- `gemini-embedding-001` - Text embedding model
-- `text-embedding-004` - Latest embedding model
-
-### Image Generation Models
-
-- `imagen-3.0-generate-002` - Imagen 3.0
-- `gemini-2.0-flash-preview-image-generation` - Gemini with image generation
-
-### Text-to-Speech Models (Experimental)
-
-- `gemini-2.5-flash-preview-tts` - Gemini TTS
+  
 
 ## Example: Chat Completion
 
@@ -92,7 +69,7 @@ export async function POST(request: Request) {
 
   const stream = chat({
     adapter,
-    model: "gemini-2.0-flash-exp",
+    model: "gemini-2.5-pro",
     messages,
   });
 
@@ -124,20 +101,20 @@ const getCalendarEvents = getCalendarEventsDef.server(async ({ date }) => {
 
 const stream = chat({
   adapter,
-  model: "gemini-2.0-flash-exp",
+  model: "gemini-2.5-pro",
   messages,
   tools: [getCalendarEvents],
 });
 ```
 
-## Provider Options
+## Model Options
 
-Gemini supports various provider-specific options:
+Gemini supports various model-specific options:
 
 ```typescript
 const stream = chat({
   adapter: geminiText(),
-  model: "gemini-2.0-flash-exp",
+  model: "gemini-2.5-pro",
   messages,
   modelOptions: {
     maxOutputTokens: 2048,
@@ -204,7 +181,7 @@ const result = await embedding({
 });
 ```
 
-### Embedding Provider Options
+### Embedding Model Options
 
 ```typescript
 const result = await embedding({
@@ -229,7 +206,7 @@ const adapter = geminiSummarize();
 
 const result = await summarize({
   adapter,
-  model: "gemini-2.0-flash-exp",
+  model: "gemini-2.5-pro",
   text: "Your long text to summarize...",
   maxLength: 100,
   style: "concise", // "concise" | "bullet-points" | "paragraph"
@@ -258,7 +235,7 @@ const result = await generateImage({
 console.log(result.images);
 ```
 
-### Image Provider Options
+### Image Model Options
 
 ```typescript
 const result = await generateImage({

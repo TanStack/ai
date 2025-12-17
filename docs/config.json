@@ -43,12 +43,12 @@
           "to": "guides/client-tools"
         },
         {
-          "label": "Agentic Cycle",
-          "to": "guides/agentic-cycle"
-        },
-        {
           "label": "Tool Approval Flow",
           "to": "guides/tool-approval"
+        },
+        {
+          "label": "Agentic Cycle",
+          "to": "guides/agentic-cycle"
         },
         {
           "label": "Streaming",
@@ -71,12 +71,24 @@
           "to": "guides/per-model-type-safety"
         },
         {
+          "label": "Runtime Adapter Switching",
+          "to": "guides/runtime-adapter-switching"
+        },
+        {
           "label": "Text-to-Speech",
           "to": "guides/text-to-speech"
         },
         {
           "label": "Transcription",
           "to": "guides/transcription"
+        },
+        {
+          "label": "Image generation",
+          "to": "guides/image-generation"
+        },
+        {
+          "label": "Video Generation",
+          "to": "guides/video-generation"
         },
         {
           "label": "Tree-Shaking",

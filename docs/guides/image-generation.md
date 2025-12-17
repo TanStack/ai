@@ -85,7 +85,7 @@ Gemini uses aspect ratios internally, but TanStack AI accepts WIDTHxHEIGHT forma
 | `1920x1080` | 16:9 |
 | `1080x1920` | 9:16 |
 
-Alternatively, you can specify the aspect ratio directly in provider options:
+Alternatively, you can specify the aspect ratio directly in Model Options:
 
 ```typescript
 const result = await generateImage({
@@ -98,11 +98,11 @@ const result = await generateImage({
 })
 ```
 
-## Provider Options
+## Model Options
 
-### OpenAI Provider Options
+### OpenAI Model Options
 
-OpenAI models support model-specific provider options:
+OpenAI models support model-specific Model Options:
 
 #### GPT-Image-1 / GPT-Image-1-Mini
 
@@ -134,7 +134,7 @@ const result = await generateImage({
 })
 ```
 
-### Gemini Provider Options
+### Gemini Model Options
 
 ```typescript
 const result = await generateImage({

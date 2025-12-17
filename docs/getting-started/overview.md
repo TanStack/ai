@@ -63,7 +63,7 @@ The core AI library that provides:
 - Isomorphic tool/function calling system
 - Agent loop strategies
 - Type-safe tool definitions with `toolDefinition()`
-- Type-safe provider options based on adapter & model selection
+- Type-safe Model Options based on adapter & model selection
 - Type-safe content modalities (text, image, audio, video, document) based on model capabilities
 
 ### `@tanstack/ai-client`

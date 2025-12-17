@@ -21,7 +21,7 @@ const adapter = anthropicText();
 
 const stream = chat({
   adapter,
-  model: "claude-sonnet-4-5-20250929",
+  model: "claude-sonnet-4-5",
   messages: [{ role: "user", content: "Hello!" }],
 });
 ```
@@ -38,7 +38,7 @@ const adapter = createAnthropicChat(process.env.ANTHROPIC_API_KEY!, {
 
 const stream = chat({
   adapter,
-  model: "claude-sonnet-4-5-20250929",
+  model: "claude-sonnet-4-5",
   messages: [{ role: "user", content: "Hello!" }],
 });
 ```
@@ -54,16 +54,7 @@ const config: Omit<AnthropicChatConfig, 'apiKey'> = {
 
 const adapter = createAnthropicChat(process.env.ANTHROPIC_API_KEY!, config);
 ```
-
-## Available Models
-
-### Chat Models
-
-- `claude-sonnet-4-5-20250929` - Claude Sonnet 4.5 (balanced)
-- `claude-opus-4-5-20251101` - Claude Opus 4.5 (most capable)
-- `claude-haiku-4-0-20250514` - Claude Haiku 4.0 (fastest)
-- `claude-3-5-sonnet-20241022` - Claude 3.5 Sonnet
-- `claude-3-opus-20240229` - Claude 3 Opus
+ 
 
 ## Example: Chat Completion
 
@@ -78,7 +69,7 @@ export async function POST(request: Request) {
 
   const stream = chat({
     adapter,
-    model: "claude-sonnet-4-5-20250929",
+    model: "claude-sonnet-4-5",
     messages,
   });
 
@@ -110,20 +101,20 @@ const searchDatabase = searchDatabaseDef.server(async ({ query }) => {
 
 const stream = chat({
   adapter,
-  model: "claude-sonnet-4-5-20250929",
+  model: "claude-sonnet-4-5",
   messages,
   tools: [searchDatabase],
 });
 ```
 
-## Provider Options
+## Model Options
 
 Anthropic supports various provider-specific options:
 
 ```typescript
 const stream = chat({
   adapter: anthropicText(),
-  model: "claude-sonnet-4-5-20250929",
+  model: "claude-sonnet-4-5",
   messages,
   modelOptions: {
     max_tokens: 4096,
@@ -150,13 +141,6 @@ modelOptions: {
 
 **Note:** `max_tokens` must be greater than `budget_tokens`. The adapter automatically adjusts `max_tokens` if needed.
 
-**Supported Models:**
-
-- `claude-sonnet-4-5-20250929` and newer
-- `claude-opus-4-5-20251101` and newer
-
-When thinking is enabled, the model's reasoning process is streamed separately from the response text and appears as a collapsible thinking section in the UI.
-
 ### Prompt Caching
 
 Cache prompts for better performance and reduced costs:
@@ -164,7 +148,7 @@ Cache prompts for better performance and reduced costs:
 ```typescript
 const stream = chat({
   adapter: anthropicText(),
-  model: "claude-sonnet-4-5-20250929",
+  model: "claude-sonnet-4-5",
   messages: [
     {
       role: "user",
@@ -181,7 +165,7 @@ const stream = chat({
       ],
     },
   ],
-  model: "claude-sonnet-4-5-20250929",
+  model: "claude-sonnet-4-5",
 });
 ```
 
@@ -197,7 +181,7 @@ const adapter = anthropicSummarize();
 
 const result = await summarize({
   adapter,
-  model: "claude-sonnet-4-5-20250929",
+  model: "claude-sonnet-4-5",
   text: "Your long text to summarize...",
   maxLength: 100,
   style: "concise", // "concise" | "bullet-points" | "paragraph"
