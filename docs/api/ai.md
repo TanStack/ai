@@ -71,30 +71,6 @@ const result = await summarize({
 
 A `SummarizationResult` with the summary text.
 
-## `embedding(options)`
-
-Creates embeddings for text input.
-
-```typescript
-import { embedding } from "@tanstack/ai";
-import { openaiEmbedding } from "@tanstack/ai-openai";
-
-const result = await embedding({
-  adapter: openaiEmbedding("text-embedding-3-small"),
-  input: "Text to embed",
-});
-```
-
-### Parameters
-
-- `adapter` - An AI adapter instance with model
-- `input` - Text or array of texts to embed
-- `modelOptions?` - Model-specific options
-
-### Returns
-
-An `EmbeddingResult` with embeddings array.
-
 ## `toolDefinition(config)`
 
 Creates an isomorphic tool definition that can be instantiated for server or client execution.
@@ -289,11 +265,10 @@ interface Tool {
 ## Usage Examples
 
 ```typescript
-import { chat, summarize, embedding, generateImage } from "@tanstack/ai";
+import { chat, summarize, generateImage } from "@tanstack/ai";
 import {
   openaiText,
   openaiSummarize,
-  openaiEmbedding,
   openaiImage,
 } from "@tanstack/ai-openai";
 
@@ -354,12 +329,6 @@ const summary = await summarize({
   adapter: openaiSummarize("gpt-4o"),
   text: "Long text to summarize...",
   maxLength: 100,
-});
-
-// --- Embeddings
-const embeddings = await embedding({
-  adapter: openaiEmbedding("text-embedding-3-small"),
-  input: "Text to embed",
 });
 
 // --- Image generation

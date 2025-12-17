@@ -11,15 +11,6 @@ export {
   type OpenAITextProviderOptions,
 } from './adapters/text'
 
-// Embedding adapter - for text embeddings
-export {
-  OpenAIEmbedAdapter,
-  createOpenaiEmbedding,
-  openaiEmbedding,
-  type OpenAIEmbedConfig,
-  type OpenAIEmbedProviderOptions,
-} from './adapters/embed'
-
 // Summarize adapter - for text summarization
 export {
   OpenAISummarizeAdapter,

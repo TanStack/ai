@@ -11,17 +11,6 @@ export {
   type GeminiTextProviderOptions,
 } from './adapters/text'
 
-// Embedding adapter
-export {
-  GeminiEmbedAdapter,
-  GeminiEmbeddingModels,
-  createGeminiEmbedding,
-  geminiEmbedding,
-  type GeminiEmbedAdapterOptions,
-  type GeminiEmbeddingModel,
-  type GeminiEmbedProviderOptions,
-} from './adapters/embed'
-
 // Summarize adapter
 export {
   GeminiSummarizeAdapter,

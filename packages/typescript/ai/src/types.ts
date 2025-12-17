@@ -776,22 +776,6 @@ export interface SummarizationResult {
   }
 }
 
-export interface EmbeddingOptions {
-  model: string
-  input: string | Array<string>
-  dimensions?: number
-}
-
-export interface EmbeddingResult {
-  id: string
-  model: string
-  embeddings: Array<Array<number>>
-  usage: {
-    promptTokens: number
-    totalTokens: number
-  }
-}
-
 // ============================================================================
 // Image Generation Types
 // ============================================================================

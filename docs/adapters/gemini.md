@@ -4,7 +4,7 @@ id: gemini-adapter
 order: 3
 ---
 
-The Google Gemini adapter provides access to Google's Gemini models, including text generation, embeddings, image generation with Imagen, and experimental text-to-speech.
+The Google Gemini adapter provides access to Google's Gemini models, including text generation, image generation with Imagen, and experimental text-to-speech.
 
 ## Installation
 
@@ -138,47 +138,6 @@ modelOptions: {
 }
 ```
 
-## Embeddings
-
-Generate text embeddings for semantic search and similarity:
-
-```typescript
-import { embedding } from "@tanstack/ai";
-import { geminiEmbedding } from "@tanstack/ai-gemini";
-
-const result = await embedding({
-  adapter: geminiEmbedding("gemini-embedding-001"),
-  input: "The quick brown fox jumps over the lazy dog",
-});
-
-console.log(result.embeddings);
-```
-
-### Batch Embeddings
-
-```typescript
-const result = await embedding({
-  adapter: geminiEmbedding("gemini-embedding-001"),
-  input: [
-    "First text to embed",
-    "Second text to embed",
-    "Third text to embed",
-  ],
-});
-```
-
-### Embedding Model Options
-
-```typescript
-const result = await embedding({
-  adapter: geminiEmbedding("gemini-embedding-001"),
-  input: "...",
-  modelOptions: {
-    taskType: "RETRIEVAL_DOCUMENT", // or "RETRIEVAL_QUERY", "SEMANTIC_SIMILARITY", etc.
-  },
-});
-```
-
 ## Summarization
 
 Summarize long text content:
@@ -280,18 +239,6 @@ Creates a Gemini text/chat adapter with an explicit API key.
 - `config.baseURL?` - Custom base URL (optional)
 
 **Returns:** A Gemini text adapter instance.
-
-### `geminiEmbed(config?)`
-
-Creates a Gemini embedding adapter using environment variables.
-
-**Returns:** A Gemini embed adapter instance.
-
-### `createGeminiEmbed(apiKey, config?)`
-
-Creates a Gemini embedding adapter with an explicit API key.
-
-**Returns:** A Gemini embed adapter instance.
 
 ### `geminiSummarize(config?)`
 

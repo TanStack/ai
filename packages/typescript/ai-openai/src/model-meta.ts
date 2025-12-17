@@ -25,7 +25,6 @@ interface ModelMeta<TProviderOptions = unknown> {
       | 'moderation'
       | 'translation'
       | 'realtime'
-      | 'embedding'
       | 'audio'
       | 'video'
       | 'transcription'
@@ -1507,69 +1506,6 @@ const GPT_5_CHAT = {
     OpenAIMetadataOptions
 >
 
-const TEXT_EMBEDDING_3_LARGE = {
-  name: 'text-embedding-3-large',
-  pricing: {
-    // todo embedding tokens
-    input: {
-      normal: 0.13,
-    },
-    output: {
-      normal: 0.13,
-    },
-  },
-  supports: {
-    input: ['text'],
-    output: ['text'],
-    endpoints: ['embedding', 'batch'],
-    features: [],
-  },
-} as const satisfies ModelMeta<
-  OpenAIBaseOptions & OpenAIStreamingOptions & OpenAIMetadataOptions
->
-
-const TEXT_EMBEDDING_3_SMALL = {
-  name: 'text-embedding-3-small',
-  pricing: {
-    // todo embedding tokens
-    input: {
-      normal: 0.02,
-    },
-    output: {
-      normal: 0.02,
-    },
-  },
-  supports: {
-    input: ['text'],
-    output: ['text'],
-    endpoints: ['embedding', 'batch'],
-    features: [],
-  },
-} as const satisfies ModelMeta<
-  OpenAIBaseOptions & OpenAIStreamingOptions & OpenAIMetadataOptions
->
-
-const TEXT_EMBEDDING_3_ADA_002 = {
-  name: 'text-embedding-3-ada-002',
-  pricing: {
-    // todo embedding tokens
-    input: {
-      normal: 0.1,
-    },
-    output: {
-      normal: 0.1,
-    },
-  },
-  supports: {
-    input: ['text'],
-    output: ['text'],
-    endpoints: ['embedding', 'batch'],
-    features: [],
-  },
-} as const satisfies ModelMeta<
-  OpenAIBaseOptions & OpenAIStreamingOptions & OpenAIMetadataOptions
->
-
 /* const TTS_1 = {
   name: 'tts-1',
   pricing: {
@@ -1666,13 +1602,6 @@ export const OPENAI_IMAGE_MODELS = [
   GPT_IMAGE_1_MINI.name,
   DALL_E_3.name,
   DALL_E_2.name,
-] as const
-
-// Embedding models (based on endpoints: "embedding")
-export const OPENAI_EMBEDDING_MODELS = [
-  TEXT_EMBEDDING_3_LARGE.name,
-  TEXT_EMBEDDING_3_SMALL.name,
-  TEXT_EMBEDDING_3_ADA_002.name,
 ] as const
 
 // Audio models (based on endpoints: "transcription", "speech_generation", or "realtime")

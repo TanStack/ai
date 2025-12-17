@@ -13,17 +13,6 @@ export {
   type OllamaTextProviderOptions,
 } from './adapters/text'
 
-// Embedding adapter
-export {
-  OllamaEmbedAdapter,
-  OllamaEmbeddingModels,
-  createOllamaEmbedding,
-  ollamaEmbedding,
-  type OllamaEmbedAdapterOptions,
-  type OllamaEmbeddingModel,
-  type OllamaEmbedProviderOptions,
-} from './adapters/embed'
-
 // Summarize adapter
 export {
   OllamaSummarizeAdapter,

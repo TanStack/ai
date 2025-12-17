@@ -1,7 +1,6 @@
 // Activity functions - individual exports for each activity
 export {
   chat,
-  embedding,
   summarize,
   generateImage,
   generateVideo,
@@ -12,7 +11,6 @@ export {
 
 // Create options functions - for pre-defining typed configurations
 export { createChatOptions } from './activities/chat/index'
-export { createEmbeddingOptions } from './activities/embedding/index'
 export { createSummarizeOptions } from './activities/summarize/index'
 export { createImageOptions } from './activities/generateImage/index'
 export { createVideoOptions } from './activities/generateVideo/index'

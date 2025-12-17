@@ -15,7 +15,6 @@
 
 // Import adapter types for type definitions
 import type { AnyTextAdapter } from './chat/adapter'
-import type { EmbeddingAdapter } from './embedding/adapter'
 import type { SummarizeAdapter } from './summarize/adapter'
 import type { ImageAdapter } from './generateImage/adapter'
 import type { VideoAdapter } from './generateVideo/adapter'
@@ -41,25 +40,6 @@ export {
   type StructuredOutputOptions,
   type StructuredOutputResult,
 } from './chat/adapter'
-
-// ===========================
-// Embedding Activity
-// ===========================
-
-export {
-  kind as embeddingKind,
-  embedding,
-  type EmbeddingActivityOptions,
-  type EmbeddingActivityResult,
-  type EmbeddingModels,
-  type EmbeddingProviderOptions,
-} from './embedding/index'
-
-export {
-  BaseEmbeddingAdapter,
-  type EmbeddingAdapter,
-  type EmbeddingAdapterConfig,
-} from './embedding/adapter'
 
 // ===========================
 // Summarize Activity
@@ -168,7 +148,6 @@ export {
 /** Union of all adapter types that can be passed to chat() */
 export type AIAdapter =
   | AnyTextAdapter
-  | EmbeddingAdapter<ReadonlyArray<string>, object, any>
   | SummarizeAdapter<ReadonlyArray<string>, object, any>
   | ImageAdapter<ReadonlyArray<string>, object, any, any, any>
   | VideoAdapter<ReadonlyArray<string>, object, any>
@@ -178,7 +157,6 @@ export type AIAdapter =
 /** Union type of all adapter kinds */
 export type AdapterKind =
   | 'text'
-  | 'embedding'
   | 'summarize'
   | 'image'
   | 'video'

@@ -94,10 +94,6 @@ class MockAdapter extends BaseAdapter<
   async summarize(_options: any): Promise<any> {
     return { summary: 'test' }
   }
-
-  async createEmbeddings(_options: any): Promise<any> {
-    return { embeddings: [] }
-  }
 }
 
 // Helper to collect all chunks from a stream

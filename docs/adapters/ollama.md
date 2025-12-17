@@ -170,45 +170,6 @@ modelOptions: {
 }
 ```
 
-## Embeddings
-
-Generate text embeddings locally:
-
-```typescript
-import { embedding } from "@tanstack/ai";
-import { ollamaEmbedding } from "@tanstack/ai-ollama";
-
-const result = await embedding({
-  adapter: ollamaEmbedding("nomic-embed-text"),
-  input: "The quick brown fox jumps over the lazy dog",
-});
-
-console.log(result.embeddings);
-```
-
-### Embedding Models
-
-First, pull an embedding model:
-
-```bash
-ollama pull nomic-embed-text
-# or
-ollama pull mxbai-embed-large
-```
-
-### Batch Embeddings
-
-```typescript
-const result = await embedding({
-  adapter: ollamaEmbedding("nomic-embed-text"),
-  input: [
-    "First text to embed",
-    "Second text to embed",
-    "Third text to embed",
-  ],
-});
-```
-
 ## Summarization
 
 Summarize long text content locally:
@@ -298,18 +259,6 @@ Creates an Ollama text/chat adapter with a custom host.
 - `options.model?` - Default model (optional)
 
 **Returns:** An Ollama text adapter instance.
-
-### `ollamaEmbed(options?)`
-
-Creates an Ollama embedding adapter.
-
-**Returns:** An Ollama embed adapter instance.
-
-### `createOllamaEmbed(host?, options?)`
-
-Creates an Ollama embedding adapter with a custom host.
-
-**Returns:** An Ollama embed adapter instance.
 
 ### `ollamaSummarize(options?)`
 

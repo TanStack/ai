@@ -12,12 +12,12 @@ TanStack AI is designed from the ground up for maximum tree-shakeability. The en
 
 Instead of a monolithic API that includes everything, TanStack AI provides:
 
-- **Individual activity functions** - Import only the activities you need (`chat`, `embedding`, `summarize`, etc.)
-- **Individual adapter functions** - Import only the adapters you need (`openaiText`, `openaiEmbedding`, etc.)
+- **Individual activity functions** - Import only the activities you need (`chat`, `summarize`, etc.)
+- **Individual adapter functions** - Import only the adapters you need (`openaiText`, `openaiSummarize`, etc.)
 - **Functional API design** - Pure functions that can be easily eliminated by bundlers
 - **Separate modules** - Each activity and adapter lives in its own module
 
-This design means that if you only use `chat` with OpenAI, you won't bundle code for embeddings, summarization, image generation, or other providers.
+This design means that if you only use `chat` with OpenAI, you won't bundle code for summarization, image generation, or other providers.
 
 ## Activity Functions
 
@@ -26,7 +26,6 @@ Each AI activity is exported as a separate function from `@tanstack/ai`:
 ```ts
 // Import only the activities you need
 import { chat } from '@tanstack/ai'              // Chat/text generation
-import { embedding } from '@tanstack/ai'         // Embeddings
 import { summarize } from '@tanstack/ai'          // Summarization
 import { generateImage } from '@tanstack/ai'      // Image generation
 import { generateSpeech } from '@tanstack/ai'     // Text-to-speech
@@ -50,7 +49,6 @@ const stream = chat({
 ```
 
 Your bundle will **not** include:
-- Embedding logic
 - Summarization logic
 - Image generation logic
 - Other activity implementations
@@ -64,7 +62,6 @@ Each provider package exports individual adapter functions for each activity typ
 ```ts
 import {
   openaiText,       // Chat/text generation
-  openaiEmbedding,  // Embeddings
   openaiSummarize,  // Summarization
   openaiImage,      // Image generation
   openaiSpeech,     // Text-to-speech
@@ -82,14 +79,11 @@ import {
 } from '@tanstack/ai-anthropic'
 ```
 
-> Note: Anthropic does not support embeddings natively.
-
 ### Gemini
 
 ```ts
 import {
   geminiText,       // Chat/text generation
-  geminiEmbedding,  // Embeddings
   geminiSummarize,  // Summarization
   geminiImage,      // Image generation
   geminiSpeech,     // Text-to-speech (experimental)
@@ -101,7 +95,6 @@ import {
 ```ts
 import {
   ollamaText,       // Chat/text generation
-  ollamaEmbedding,  // Embeddings
   ollamaSummarize,  // Summarization
 } from '@tanstack/ai-ollama'
 ```
@@ -132,7 +125,6 @@ for await (const chunk of chatResult) {
 - ✅ Chat-specific streaming and tool handling logic
 
 **What doesn't get bundled:**
-- ❌ `embedding` function
 - ❌ `summarize` function
 - ❌ `generateImage` function
 - ❌ Other adapter implementations (Anthropic, Gemini, etc.)
@@ -143,22 +135,16 @@ for await (const chunk of chatResult) {
 If you need multiple activities, import only what you use:
 
 ```ts
-import { chat, embedding, summarize } from '@tanstack/ai'
-import { 
-  openaiText, 
-  openaiEmbedding, 
-  openaiSummarize 
+import { chat, summarize } from '@tanstack/ai'
+import {
+  openaiText,
+  openaiSummarize
 } from '@tanstack/ai-openai'
 
 // Each activity is independent
 const chatResult = chat({
   adapter: openaiText('gpt-4o'),
   messages: [{ role: 'user', content: 'Hello!' }],
-})
-
-const embedResult = await embedding({
-  adapter: openaiEmbedding('text-embedding-3-small'),
-  input: 'Hello, world!',
 })
 
 const summarizeResult = await summarize({
@@ -188,10 +174,9 @@ const model2: OpenAIChatModel = 'invalid' // ✗ Type error
 The `create___Options` functions are also tree-shakeable:
 
 ```ts
-import { 
+import {
   createChatOptions,
-  createEmbeddingOptions,
-  createImageOptions 
+  createImageOptions
 } from '@tanstack/ai'
 
 // Only import what you need
@@ -275,7 +260,6 @@ import * as openai from '@tanstack/ai-openai'
 Each adapter type implements a specific interface:
 
 - `ChatAdapter` - Provides `chatStream()` method for streaming chat responses
-- `EmbeddingAdapter` - Provides `createEmbeddings()` method for vector embeddings
 - `SummarizeAdapter` - Provides `summarize()` method for text summarization
 - `ImageAdapter` - Provides `generateImage()` method for image generation
 - `TTSAdapter` - Provides `generateSpeech()` method for text-to-speech
@@ -287,9 +271,6 @@ All adapters have a `kind` property that indicates their type:
 ```ts
 const chatAdapter = openaiText()
 console.log(chatAdapter.kind) // 'text'
-
-const embedAdapter = openaiEmbedding()
-console.log(embedAdapter.kind) // 'embedding'
 
 const summarizeAdapter = openaiSummarize()
 console.log(summarizeAdapter.kind) // 'summarize'

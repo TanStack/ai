@@ -20,8 +20,6 @@ export {
   type AnthropicSummarizeProviderOptions,
 } from './adapters/summarize'
 
-// Note: Anthropic does not support embeddings natively
-
 // ============================================================================
 // Type Exports
 // ============================================================================

@@ -53,7 +53,7 @@ A powerful, type-safe AI SDK for building AI-powered applications.
 Import only the functionality you need for smaller bundle sizes:
 
 ```typescript
-// Only chat functionality - no embedding or summarization code bundled
+// Only chat functionality - no summarization code bundled
 import { openaiText } from '@tanstack/ai-openai/adapters'
 import { generate } from '@tanstack/ai'
 
