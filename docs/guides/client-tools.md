@@ -1,6 +1,7 @@
 ---
 title: Client Tools
 id: client-tools
+order: 4
 ---
 
 Client tools execute in the browser, enabling UI updates, local storage access, and browser API interactions. Unlike server tools, client tools don't have an `execute` function in their server definition.

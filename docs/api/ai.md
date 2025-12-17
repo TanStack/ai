@@ -1,6 +1,7 @@
 ---
-title: TanStack AI Core API
+title: "@tanstack/ai"
 id: tanstack-ai-api
+order: 1
 ---
 
 The core AI library for TanStack AI.

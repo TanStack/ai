@@ -1,6 +1,7 @@
 ---
-title: Gemini Adapter
+title: Google Gemini
 id: gemini-adapter
+order: 3
 ---
 
 The Google Gemini adapter provides access to Google's Gemini models, including text generation, embeddings, image generation with Imagen, and experimental text-to-speech.

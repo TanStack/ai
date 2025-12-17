@@ -1,6 +1,7 @@
 ---
 title: Per-Model Type Safety
 id: per-model-type-safety
+order: 11
 ---
 
 The AI SDK provides **model-specific type safety** for `modelOptions`. Each model's capabilities determine which model options are allowed, and TypeScript will enforce this at compile time.

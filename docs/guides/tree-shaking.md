@@ -1,3 +1,9 @@
+---
+title: Tree-Shaking
+id: tree-shaking
+order: 17
+---
+
 # Tree-Shaking & Bundle Optimization
 
 TanStack AI is designed from the ground up for maximum tree-shakeability. The entire system—from activity functions to adapters—uses a functional, modular architecture that ensures you only bundle the code you actually use.

@@ -1,3 +1,9 @@
+---
+title: Video Generation
+id: video-generation
+order: 16
+---
+
 # Video Generation (Experimental)
 
 > **⚠️ EXPERIMENTAL FEATURE WARNING**

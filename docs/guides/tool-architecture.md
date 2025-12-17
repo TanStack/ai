@@ -1,6 +1,7 @@
 ---
 title: Tool Architecture
 id: tool-architecture
+order: 2
 ---
 
 The TanStack AI tool system provides a powerful, flexible architecture for enabling AI agents to interact with external systems:

@@ -1,6 +1,7 @@
 ---
-title: Anthropic Adapter
+title: Anthropic
 id: anthropic-adapter
+order: 2
 ---
 
 The Anthropic adapter provides access to Claude models, including Claude Sonnet 4.5, Claude Opus 4.5, and more.

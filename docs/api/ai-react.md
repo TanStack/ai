@@ -1,6 +1,7 @@
 ---
-title: TanStack AI React API
+title: "@tanstack/ai-react"
 slug: /api/ai-react
+order: 3
 ---
 
 React hooks for TanStack AI, providing convenient React bindings for the headless client.

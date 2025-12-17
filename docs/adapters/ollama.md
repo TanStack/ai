@@ -1,6 +1,7 @@
 ---
-title: Ollama Adapter
+title: Ollama
 id: ollama-adapter
+order: 4
 ---
 
 The Ollama adapter provides access to local models running via Ollama, allowing you to run AI models on your own infrastructure with full privacy and no API costs.

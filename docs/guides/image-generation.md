@@ -1,3 +1,9 @@
+---
+title: Image Generation
+id: image-generation
+order: 15
+---
+
 # Image Generation
 
 TanStack AI provides support for image generation through dedicated image adapters. This guide covers how to use the image generation functionality with OpenAI and Gemini providers.

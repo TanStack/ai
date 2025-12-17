@@ -1,6 +1,7 @@
 ---
 title: Runtime Adapter Switching
 id: runtime-adapter-switching
+order: 12
 ---
 
 # Runtime Adapter Switching with Type Safety

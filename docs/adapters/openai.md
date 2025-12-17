@@ -1,6 +1,7 @@
 ---
-title: OpenAI Adapter
+title: OpenAI
 id: openai-adapter
+order: 1
 ---
 
 The OpenAI adapter provides access to OpenAI's models, including GPT-4o, GPT-5, embeddings, image generation (DALL-E), text-to-speech (TTS), and audio transcription (Whisper).

@@ -1,3 +1,9 @@
+---
+title: Text-to-Speech
+id: text-to-speech
+order: 13
+---
+
 # Text-to-Speech (TTS)
 
 TanStack AI provides support for text-to-speech generation through dedicated TTS adapters. This guide covers how to convert text into spoken audio using OpenAI and Gemini providers.

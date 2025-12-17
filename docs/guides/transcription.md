@@ -1,3 +1,9 @@
+---
+title: Transcription
+id: transcription
+order: 14
+---
+
 # Audio Transcription
 
 TanStack AI provides support for audio transcription (speech-to-text) through dedicated transcription adapters. This guide covers how to convert spoken audio into text using OpenAI's Whisper and GPT-4o transcription models.

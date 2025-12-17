@@ -1,6 +1,7 @@
 ---
 title: Tool Approval Flow
 id: tool-approval-flow
+order: 5
 ---
 
 The tool approval flow allows you to require user approval before executing sensitive tools, giving users control over actions like sending emails, making purchases, or deleting data. Tools go through these states during approval:
