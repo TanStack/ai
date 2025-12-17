@@ -26,21 +26,6 @@ export {
 // Note: Anthropic does not support embeddings natively
 
 // ============================================================================
-// Legacy Exports (Deprecated - will be removed in future versions)
-// ============================================================================
-
-/**
- * @deprecated Use `anthropicText()` or `anthropicSummarize()` instead.
- * This monolithic adapter will be removed in a future version.
- */
-export {
-  Anthropic,
-  createAnthropic,
-  anthropic,
-  type AnthropicConfig,
-} from './anthropic-adapter'
-
-// ============================================================================
 // Type Exports
 // ============================================================================
 

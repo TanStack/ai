@@ -336,7 +336,7 @@ export class OpenAIVideoAdapter extends BaseVideoAdapter<
  * ```typescript
  * const adapter = createOpenaiVideo('your-api-key');
  *
- * const { jobId } = await ai({
+ * const { jobId } = await generateVideo({
  *   adapter,
  *   model: 'sora-2',
  *   prompt: 'A beautiful sunset over the ocean'
@@ -369,26 +369,24 @@ export function createOpenaiVideo(
  * const adapter = openaiVideo();
  *
  * // Create a video generation job
- * const { jobId } = await ai({
+ * const { jobId } = await generateVideo({
  *   adapter,
  *   model: 'sora-2',
  *   prompt: 'A cat playing piano'
  * });
  *
  * // Poll for status
- * const status = await ai({
+ * const status = await getVideoJobStatus({
  *   adapter,
  *   model: 'sora-2',
- *   jobId,
- *   request: 'status'
+ *   jobId
  * });
  *
  * // Get video URL when complete
- * const { url } = await ai({
+ * const { url } = await getVideoUrl({
  *   adapter,
  *   model: 'sora-2',
- *   jobId,
- *   request: 'url'
+ *   jobId
  * });
  * ```
  */

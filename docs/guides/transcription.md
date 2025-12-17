@@ -14,7 +14,7 @@ Currently supported:
 ### OpenAI Transcription
 
 ```typescript
-import { ai } from '@tanstack/ai'
+import { generateTranscription } from '@tanstack/ai'
 import { openaiTranscription } from '@tanstack/ai-openai'
 
 // Create a transcription adapter (uses OPENAI_API_KEY from environment)

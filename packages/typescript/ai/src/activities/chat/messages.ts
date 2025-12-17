@@ -21,9 +21,9 @@ import type {
  * @example
  * ```typescript
  * import { messages, chat } from '@tanstack/ai'
- * import { openai } from '@tanstack/ai-openai'
+ * import { openaiText } from '@tanstack/ai-openai'
  *
- * const adapter = openai()
+ * const adapter = openaiText()
  *
  * // This will error at compile time because gpt-4o only supports text+image
  * const msgs = messages({ adapter, model: 'gpt-4o' }, [

@@ -79,17 +79,9 @@ export type { GeminiModels as GeminiTextModel } from './model-meta'
 export type { GeminiImageModels as GeminiImageModel } from './model-meta'
 
 // ===========================
-// Legacy monolithic adapter (deprecated)
+// Type Exports
 // ===========================
 
-/**
- * @deprecated Use the new tree-shakeable adapters instead:
- * - `geminiText()` / `createGeminiText()` for chat/text generation
- * - `geminiEmbed()` / `createGeminiEmbed()` for embeddings
- * - `geminiSummarize()` / `createGeminiSummarize()` for summarization
- */
-export { GeminiAdapter, createGemini, gemini } from './gemini-adapter'
-export type { GeminiAdapterConfig } from './gemini-adapter'
 export type {
   GeminiChatModelProviderOptionsByName,
   GeminiModelInputModalitiesByName,

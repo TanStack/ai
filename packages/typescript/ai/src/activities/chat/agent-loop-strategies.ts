@@ -9,7 +9,7 @@ import type { AgentLoopStrategy } from '../../types'
  * @example
  * ```typescript
  * const stream = chat({
- *   adapter: openai(),
+ *   adapter: openaiText(),
  *   model: "gpt-4o",
  *   messages: [...],
  *   tools: [weatherTool],
@@ -30,7 +30,7 @@ export function maxIterations(max: number): AgentLoopStrategy {
  * @example
  * ```typescript
  * const stream = chat({
- *   adapter: openai(),
+ *   adapter: openaiText(),
  *   model: "gpt-4o",
  *   messages: [...],
  *   tools: [weatherTool],
@@ -65,7 +65,7 @@ export function untilFinishReason(
  * @example
  * ```typescript
  * const stream = chat({
- *   adapter: openai(),
+ *   adapter: openaiText(),
  *   model: "gpt-4o",
  *   messages: [...],
  *   tools: [weatherTool],

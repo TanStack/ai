@@ -191,7 +191,7 @@ export class OpenAITranscriptionAdapter extends BaseTranscriptionAdapter<
  * ```typescript
  * const adapter = createOpenaiTranscription("sk-...");
  *
- * const result = await ai({
+ * const result = await generateTranscription({
  *   adapter,
  *   model: 'whisper-1',
  *   audio: audioFile,

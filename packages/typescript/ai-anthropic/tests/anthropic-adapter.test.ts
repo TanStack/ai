@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest'
 import { chat, type Tool, type StreamChunk } from '@tanstack/ai'
 import { AnthropicTextAdapter } from '../src/adapters/text'
-import type { AnthropicProviderOptions } from '../src/anthropic-adapter'
+import type { AnthropicTextProviderOptions } from '../src/adapters/text'
 import { z } from 'zod'
 
 const mocks = vi.hoisted(() => {
@@ -99,7 +99,7 @@ describe('Anthropic adapter option mapping', () => {
       thinking: { type: 'enabled', budget_tokens: 1500 },
       top_k: 5,
       system: 'Respond with JSON',
-    } satisfies AnthropicProviderOptions & { system: string }
+    } satisfies AnthropicTextProviderOptions & { system: string }
 
     const adapter = createAdapter()
 

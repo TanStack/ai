@@ -10,7 +10,7 @@ import {
 import { GeminiTextAdapter } from '../src/adapters/text'
 import { GeminiSummarizeAdapter } from '../src/adapters/summarize'
 import { GeminiEmbedAdapter } from '../src/adapters/embed'
-import type { GeminiProviderOptions } from '../src/gemini-adapter'
+import type { GeminiTextProviderOptions } from '../src/adapters/text'
 import type { Schema } from '@google/genai'
 
 const mocks = vi.hoisted(() => {
@@ -178,7 +178,7 @@ describe('GeminiAdapter through AI', () => {
       },
     }
 
-    const providerOptions: GeminiProviderOptions = {
+    const providerOptions: GeminiTextProviderOptions = {
       safetySettings,
       generationConfig: {
         stopSequences: ['<done>', '###'],

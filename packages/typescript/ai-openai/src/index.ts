@@ -90,21 +90,6 @@ export {
 export type { OpenAITranscriptionProviderOptions } from './audio/transcription-provider-options'
 
 // ============================================================================
-// Legacy Exports (Deprecated - will be removed in future versions)
-// ============================================================================
-
-/**
- * @deprecated Use `openaiText()`, `openaiEmbed()`, or `openaiSummarize()` instead.
- * This monolithic adapter will be removed in a future version.
- */
-export {
-  OpenAI,
-  createOpenAI,
-  openai,
-  type OpenAIConfig,
-} from './openai-adapter'
-
-// ============================================================================
 // Type Exports
 // ============================================================================
 

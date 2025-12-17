@@ -105,10 +105,10 @@ function createId(prefix: string): string {
  *
  * @example Basic summarization
  * ```ts
- * import { ai } from '@tanstack/ai'
+ * import { summarize } from '@tanstack/ai'
  * import { openaiSummarize } from '@tanstack/ai-openai'
  *
- * const result = await ai({
+ * const result = await summarize({
  *   adapter: openaiSummarize(),
  *   model: 'gpt-4o-mini',
  *   text: 'Long article text here...'
@@ -119,7 +119,7 @@ function createId(prefix: string): string {
  *
  * @example Summarization with style
  * ```ts
- * const result = await ai({
+ * const result = await summarize({
  *   adapter: openaiSummarize(),
  *   model: 'gpt-4o-mini',
  *   text: 'Long article text here...',
@@ -130,7 +130,7 @@ function createId(prefix: string): string {
  *
  * @example Focused summarization
  * ```ts
- * const result = await ai({
+ * const result = await summarize({
  *   adapter: openaiSummarize(),
  *   model: 'gpt-4o-mini',
  *   text: 'Long technical document...',
@@ -140,7 +140,7 @@ function createId(prefix: string): string {
  *
  * @example Streaming summarization
  * ```ts
- * for await (const chunk of ai({
+ * for await (const chunk of summarize({
  *   adapter: openaiSummarize(),
  *   model: 'gpt-4o-mini',
  *   text: 'Long article text here...',

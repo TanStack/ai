@@ -204,20 +204,17 @@ const chatOptions = createChatOptions({
 
 The functional, modular design provides significant bundle size benefits:
 
-### Before (Monolithic Approach)
+### Importing Everything (Less Efficient)
 
 ```ts
-// ❌ Everything gets bundled
-import { ai } from '@tanstack/ai'
-import { openai } from '@tanstack/ai-openai'
+// ❌ Importing more than needed
+import * as ai from '@tanstack/ai'
+import * as openai from '@tanstack/ai-openai'
 
-// Even if you only use chat, you get:
-// - All activity implementations
-// - All adapter implementations
-// - All provider-specific code
+// This bundles all exports from both packages
 ```
 
-### After (Tree-Shakeable Approach)
+### Importing Only What You Need (Recommended)
 
 ```ts
 // ✅ Only what you use gets bundled
@@ -226,7 +223,7 @@ import { openaiText } from '@tanstack/ai-openai'
 
 // You only get:
 // - Chat activity implementation
-// - OpenAI chat adapter
+// - OpenAI text adapter
 // - Chat-specific dependencies
 ```
 

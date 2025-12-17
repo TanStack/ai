@@ -719,28 +719,6 @@ const VEO_2 = {
   GeminiCachedContentOptions
 > */
 
-const GEMINI_EMBEDDING = {
-  name: 'gemini-embedding-001',
-  max_input_tokens: 2048,
-  supports: {
-    input: ['text'],
-    output: ['text'],
-  },
-  pricing: {
-    input: {
-      normal: 0,
-    },
-    output: {
-      normal: 0.15,
-    },
-  },
-} as const satisfies ModelMeta<
-  GeminiToolConfigOptions &
-    GeminiSafetyOptions &
-    GeminiGenerationConfigOptions &
-    GeminiCachedContentOptions
->
-
 /* const GEMINI_MODEL_META = {
   [GEMINI_3_PRO.name]: GEMINI_3_PRO,
   [GEMINI_2_5_PRO.name]: GEMINI_2_5_PRO,
@@ -765,7 +743,6 @@ const GEMINI_EMBEDDING = {
   [VEO_3.name]: VEO_3,
   [VEO_3_FAST.name]: VEO_3_FAST,
   [VEO_2.name]: VEO_2,
-  [GEMINI_EMBEDDING.name]: GEMINI_EMBEDDING,
 } as const */
 
 export const GEMINI_MODELS = [
@@ -791,8 +768,6 @@ export const GEMINI_IMAGE_MODELS = [
   IMAGEN_4_GENERATE_FAST.name,
   IMAGEN_4_GENERATE_ULTRA.name,
 ] as const
-
-export const GEMINI_EMBEDDING_MODELS = [GEMINI_EMBEDDING.name] as const
 
 /**
  * Text-to-speech models

@@ -95,7 +95,7 @@ export interface TextAdapter<
    * to ensure the response conforms to the expected structure.
    *
    * @param options - Structured output options containing chat options and JSON schema
-   * @returns Promise with the raw data (validation is done in the ai function)
+   * @returns Promise with the raw data (validation is done in the chat function)
    */
   structuredOutput: (
     options: StructuredOutputOptions<TProviderOptions>,

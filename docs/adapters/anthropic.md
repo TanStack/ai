@@ -190,7 +190,7 @@ const stream = chat({
 Anthropic supports text summarization:
 
 ```typescript
-import { ai } from "@tanstack/ai";
+import { summarize } from "@tanstack/ai";
 import { anthropicSummarize } from "@tanstack/ai-anthropic";
 
 const adapter = anthropicSummarize();

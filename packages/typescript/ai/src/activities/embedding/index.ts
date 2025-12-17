@@ -81,10 +81,10 @@ function createId(prefix: string): string {
  *
  * @example Generate embeddings for a single text
  * ```ts
- * import { ai } from '@tanstack/ai'
+ * import { embedding } from '@tanstack/ai'
  * import { openaiEmbed } from '@tanstack/ai-openai'
  *
- * const result = await ai({
+ * const result = await embedding({
  *   adapter: openaiEmbed(),
  *   model: 'text-embedding-3-small',
  *   input: 'Hello, world!'
@@ -95,7 +95,7 @@ function createId(prefix: string): string {
  *
  * @example Generate embeddings for multiple texts
  * ```ts
- * const result = await ai({
+ * const result = await embedding({
  *   adapter: openaiEmbed(),
  *   model: 'text-embedding-3-small',
  *   input: ['Hello', 'World', 'How are you?']
@@ -109,7 +109,7 @@ function createId(prefix: string): string {
  *
  * @example Specify embedding dimensions
  * ```ts
- * const result = await ai({
+ * const result = await embedding({
  *   adapter: openaiEmbed(),
  *   model: 'text-embedding-3-small',
  *   input: 'Hello, world!',

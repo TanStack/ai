@@ -14,7 +14,7 @@ Text-to-speech (TTS) is handled by TTS adapters that follow the same tree-shakea
 ### OpenAI Text-to-Speech
 
 ```typescript
-import { ai } from '@tanstack/ai'
+import { generateSpeech } from '@tanstack/ai'
 import { openaiTTS } from '@tanstack/ai-openai'
 
 // Create a TTS adapter (uses OPENAI_API_KEY from environment)

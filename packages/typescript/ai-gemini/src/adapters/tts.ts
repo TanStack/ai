@@ -145,7 +145,7 @@ export class GeminiTTSAdapter extends BaseTTSAdapter<
  * ```typescript
  * const adapter = createGeminiTTS("your-api-key");
  *
- * const result = await ai({
+ * const result = await generateSpeech({
  *   adapter,
  *   model: 'gemini-2.5-flash-preview-tts',
  *   text: 'Hello, world!'

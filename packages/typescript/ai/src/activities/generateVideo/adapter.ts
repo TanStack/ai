@@ -33,7 +33,7 @@ export interface VideoAdapter<
   TModels extends ReadonlyArray<string> = ReadonlyArray<string>,
   TProviderOptions extends object = Record<string, unknown>,
 > {
-  /** Discriminator for adapter kind - used by ai() to determine API shape */
+  /** Discriminator for adapter kind - used to determine API shape */
   readonly kind: 'video'
   /** Adapter name identifier */
   readonly name: string

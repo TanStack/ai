@@ -100,10 +100,10 @@ export type ImageActivityResult = Promise<ImageGenerationResult>
  *
  * @example Generate a single image
  * ```ts
- * import { ai } from '@tanstack/ai'
+ * import { generateImage } from '@tanstack/ai'
  * import { openaiImage } from '@tanstack/ai-openai'
  *
- * const result = await ai({
+ * const result = await generateImage({
  *   adapter: openaiImage(),
  *   model: 'dall-e-3',
  *   prompt: 'A serene mountain landscape at sunset'
@@ -114,7 +114,7 @@ export type ImageActivityResult = Promise<ImageGenerationResult>
  *
  * @example Generate multiple images
  * ```ts
- * const result = await ai({
+ * const result = await generateImage({
  *   adapter: openaiImage(),
  *   model: 'dall-e-2',
  *   prompt: 'A cute robot mascot',
@@ -129,7 +129,7 @@ export type ImageActivityResult = Promise<ImageGenerationResult>
  *
  * @example With provider-specific options
  * ```ts
- * const result = await ai({
+ * const result = await generateImage({
  *   adapter: openaiImage(),
  *   model: 'dall-e-3',
  *   prompt: 'A professional headshot photo',

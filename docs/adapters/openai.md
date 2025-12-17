@@ -284,7 +284,7 @@ const result = await generateImage({
 Generate speech from text:
 
 ```typescript
-import { ai } from "@tanstack/ai";
+import { generateSpeech } from "@tanstack/ai";
 import { openaiTTS } from "@tanstack/ai-openai";
 
 const adapter = openaiTTS();
@@ -323,7 +323,7 @@ const result = await generateSpeech({
 Transcribe audio to text:
 
 ```typescript
-import { ai } from "@tanstack/ai";
+import { generateTranscription } from "@tanstack/ai";
 import { openaiTranscription } from "@tanstack/ai-openai";
 
 const adapter = openaiTranscription();

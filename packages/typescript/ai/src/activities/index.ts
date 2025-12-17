@@ -257,7 +257,7 @@ type ActivityHandler = (options: any) => any
 
 /**
  * Map of adapter kind to activity handler function.
- * This allows for pluggable activities without modifying the ai function.
+ * This allows for pluggable activities without modifying the chat function.
  * @deprecated This map is no longer used as we've moved to individual activity functions.
  */
 export const activityMap = new Map<string, ActivityHandler>([
@@ -274,7 +274,7 @@ export const activityMap = new Map<string, ActivityHandler>([
 // Adapter Union Types
 // ===========================
 
-/** Union of all adapter types that can be passed to ai() */
+/** Union of all adapter types that can be passed to chat() */
 export type AIAdapter =
   | TextAdapter<ReadonlyArray<string>, object, any, any, any>
   | EmbeddingAdapter<ReadonlyArray<string>, object>
@@ -469,11 +469,11 @@ export type GenerateImageOptions<
 > = ImageActivityOptions<TAdapter, TModel>
 
 // ===========================
-// Implementation Types for ai()
+// Implementation Types for chat()
 // ===========================
 
 /**
- * Union type for all possible ai() options (used in implementation signature)
+ * Union type for all possible chat() options (used in implementation signature)
  */
 export type AIOptionsUnion =
   | TextActivityOptions<
@@ -505,7 +505,7 @@ export type AIOptionsUnion =
     >
 
 /**
- * Union type for all possible ai() return types (used in implementation signature)
+ * Union type for all possible chat() return types (used in implementation signature)
  */
 export type AIResultUnion =
   | AsyncIterable<StreamChunk>
@@ -524,7 +524,7 @@ export type AIResultUnion =
 // Explicit AI Option Types
 // ===========================
 // These types provide clear autocomplete and required field enforcement
-// for the ai() function. They are slightly different from ActivityOptions
+// for the chat() function. They are slightly different from ActivityOptions
 // as they include constraints like ConstrainedModelMessage for text.
 
 /**

@@ -1,5 +1,5 @@
 /**
- * Type tests for the ai function
+ * Type tests for the chat function
  * These tests verify that TypeScript correctly infers types and provides autocomplete
  */
 
@@ -430,7 +430,7 @@ describe('activity function type inference', () => {
   })
 })
 
-describe('ai() with outputSchema', () => {
+describe('chat() with outputSchema', () => {
   // Import zod for schema tests
   // eslint-disable-next-line @typescript-eslint/consistent-type-imports
   const { z } = require('zod') as typeof import('zod')
@@ -575,7 +575,7 @@ describe('ai() with outputSchema', () => {
   })
 })
 
-describe('ai() with summarize streaming', () => {
+describe('chat() with summarize streaming', () => {
   it('should return Promise<SummarizationResult> when stream is not provided', () => {
     const summarizeAdapter = new TestSummarizeAdapter()
     const result = chat({
@@ -763,7 +763,7 @@ class TestMultimodalAdapter extends BaseTextAdapter<
 // Text Adapter Type Tests
 // ===========================
 
-describe('ai() text adapter type safety', () => {
+describe('chat() text adapter type safety', () => {
   it('should return type that conforms to outputSchema type', () => {
     const textAdapter = new TestTextAdapter()
     // eslint-disable-next-line @typescript-eslint/consistent-type-imports
@@ -940,7 +940,7 @@ describe('ai() text adapter type safety', () => {
 // Text Adapter Input Modality Constraint Tests
 // ===========================
 
-describe('ai() text adapter input modality constraints', () => {
+describe('chat() text adapter input modality constraints', () => {
   it('should allow text content on text-only model', () => {
     const adapter = new TestMultimodalAdapter()
 
@@ -1166,7 +1166,7 @@ describe('ai() text adapter input modality constraints', () => {
 // Image Adapter Type Tests
 // ===========================
 
-describe('ai() image adapter type safety', () => {
+describe('chat() image adapter type safety', () => {
   it('should have size determined by the model', () => {
     const imageAdapter = new TestImageAdapter()
 
@@ -1380,7 +1380,7 @@ describe('ai() image adapter type safety', () => {
 // Embedding Adapter Type Tests
 // ===========================
 
-describe('ai() embedding adapter type safety', () => {
+describe('chat() embedding adapter type safety', () => {
   it('should reject text-specific properties on embedding adapter', () => {
     const embedAdapter = new TestEmbedAdapter()
 
@@ -1506,7 +1506,7 @@ describe('ai() embedding adapter type safety', () => {
 // Summarize Adapter Type Tests
 // ===========================
 
-describe('ai() summarize adapter type safety', () => {
+describe('chat() summarize adapter type safety', () => {
   it('should reject text-specific properties on summarize adapter', () => {
     const summarizeAdapter = new TestSummarizeAdapter()
 
@@ -1769,7 +1769,7 @@ describe('createChatOptions() type inference', () => {
     })
   })
 
-  it('should return options that can be spread into ai()', () => {
+  it('should return options that can be spread into chat()', () => {
     const textAdapter = new TestTextAdapter()
 
     const options = createChatOptions({
@@ -1778,7 +1778,7 @@ describe('createChatOptions() type inference', () => {
       messages: [{ role: 'user', content: 'Hello' }],
     })
 
-    // Should be able to spread into ai() and get correct return type
+    // Should be able to spread into chat() and get correct return type
     const result = chat({
       ...options,
     })

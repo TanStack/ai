@@ -131,7 +131,7 @@ export class GeminiImageAdapter extends BaseImageAdapter<
  * ```typescript
  * const adapter = createGeminiImage("your-api-key");
  *
- * const result = await ai({
+ * const result = await generateImage({
  *   adapter,
  *   model: 'imagen-3.0-generate-002',
  *   prompt: 'A cute baby sea otter'

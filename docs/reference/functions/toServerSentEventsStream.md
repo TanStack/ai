@@ -41,7 +41,7 @@ ReadableStream in Server-Sent Events format
 ## Example
 
 ```typescript
-const stream = chat({ adapter: openai(), model: "gpt-4o", messages: [...] });
+const stream = chat({ adapter: openaiText(), model: "gpt-4o", messages: [...] });
 const readableStream = toServerSentEventsStream(stream);
 // Use with Response, or any API that accepts ReadableStream
 ```

@@ -42,21 +42,9 @@ export {
 } from './adapters/summarize'
 
 // ===========================
-// Legacy monolithic adapter (deprecated)
+// Type Exports
 // ===========================
 
-/**
- * @deprecated Use the new tree-shakeable adapters instead:
- * - `ollamaText()` / `createOllamaText()` for chat/text generation
- * - `ollamaEmbed()` / `createOllamaEmbed()` for embeddings
- * - `ollamaSummarize()` / `createOllamaSummarize()` for summarization
- */
-export {
-  Ollama,
-  createOllama,
-  ollama,
-  type OllamaConfig,
-} from './ollama-adapter'
 export type {
   OllamaImageMetadata,
   OllamaAudioMetadata,

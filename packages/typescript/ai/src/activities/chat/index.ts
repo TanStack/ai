@@ -194,7 +194,7 @@ export interface TextActivityOptions<
    *
    * @example
    * ```ts
-   * const result = await ai({
+   * const result = await chat({
    *   adapter: openaiText(),
    *   model: 'gpt-4o',
    *   messages: [{ role: 'user', content: 'Generate a person' }],
@@ -216,7 +216,7 @@ export interface TextActivityOptions<
    *
    * @example Non-streaming text
    * ```ts
-   * const text = await ai({
+   * const text = await chat({
    *   adapter: openaiText(),
    *   model: 'gpt-4o',
    *   messages: [{ role: 'user', content: 'Hello!' }],
@@ -978,10 +978,10 @@ class TextEngine<
  *
  * @example Full agentic text (streaming with tools)
  * ```ts
- * import { ai } from '@tanstack/ai'
+ * import { chat } from '@tanstack/ai'
  * import { openaiText } from '@tanstack/ai-openai'
  *
- * for await (const chunk of ai({
+ * for await (const chunk of chat({
  *   adapter: openaiText(),
  *   model: 'gpt-4o',
  *   messages: [{ role: 'user', content: 'What is the weather?' }],
@@ -995,7 +995,7 @@ class TextEngine<
  *
  * @example One-shot text (streaming without tools)
  * ```ts
- * for await (const chunk of ai({
+ * for await (const chunk of chat({
  *   adapter: openaiText(),
  *   model: 'gpt-4o',
  *   messages: [{ role: 'user', content: 'Hello!' }]
@@ -1006,7 +1006,7 @@ class TextEngine<
  *
  * @example Non-streaming text (stream: false)
  * ```ts
- * const text = await ai({
+ * const text = await chat({
  *   adapter: openaiText(),
  *   model: 'gpt-4o',
  *   messages: [{ role: 'user', content: 'Hello!' }],
@@ -1019,7 +1019,7 @@ class TextEngine<
  * ```ts
  * import { z } from 'zod'
  *
- * const result = await ai({
+ * const result = await chat({
  *   adapter: openaiText(),
  *   model: 'gpt-4o',
  *   messages: [{ role: 'user', content: 'Research and summarize the topic' }],
@@ -1223,10 +1223,10 @@ async function runAgenticStructuredOutput<TSchema extends z.ZodType>(
  *
  * @example
  * ```ts
- * import { createOptions, ai } from '@tanstack/ai'
+ * import { createChatOptions, chat } from '@tanstack/ai'
  * import { openaiText } from '@tanstack/ai-openai'
  *
- * const opts = createOptions({
+ * const opts = createChatOptions({
  *   adapter: openaiText(),
  *   model: 'gpt-4o',
  *   messages: [],

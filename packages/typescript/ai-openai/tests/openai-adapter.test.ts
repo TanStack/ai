@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest'
 import { chat, type Tool, type StreamChunk } from '@tanstack/ai'
 import { OpenAITextAdapter } from '../src/adapters/text'
-import type { OpenAIProviderOptions } from '../src/openai-adapter'
+import type { OpenAITextProviderOptions } from '../src/adapters/text'
 
 const createAdapter = () => new OpenAITextAdapter({ apiKey: 'test-key' })
 
@@ -73,7 +73,7 @@ describe('OpenAI adapter option mapping', () => {
       },
     }
 
-    const modelOptions: OpenAIProviderOptions = {
+    const modelOptions: OpenAITextProviderOptions = {
       tool_choice: 'required',
     }
 
