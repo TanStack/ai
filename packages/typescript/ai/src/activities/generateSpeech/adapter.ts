@@ -19,10 +19,12 @@ export interface TTSAdapterConfig {
  * Generic parameters:
  * - TModels: Array of supported TTS model names
  * - TProviderOptions: Base provider-specific options for TTS generation
+ * - TSelectedModel: The model selected when creating the adapter (undefined if not selected)
  */
 export interface TTSAdapter<
   TModels extends ReadonlyArray<string> = ReadonlyArray<string>,
   TProviderOptions extends object = Record<string, unknown>,
+  TSelectedModel extends TModels[number] | undefined = undefined,
 > {
   /** Discriminator for adapter kind - used to determine API shape */
   readonly kind: 'tts'
@@ -30,6 +32,8 @@ export interface TTSAdapter<
   readonly name: string
   /** Supported TTS models */
   readonly models: TModels
+  /** The model selected when creating the adapter */
+  readonly selectedModel: TSelectedModel
 
   // Type-only properties for type inference
   /** @internal Type-only property for provider options inference */
@@ -48,18 +52,21 @@ export interface TTSAdapter<
 export abstract class BaseTTSAdapter<
   TModels extends ReadonlyArray<string> = ReadonlyArray<string>,
   TProviderOptions extends object = Record<string, unknown>,
-> implements TTSAdapter<TModels, TProviderOptions> {
+  TSelectedModel extends TModels[number] | undefined = undefined,
+> implements TTSAdapter<TModels, TProviderOptions, TSelectedModel> {
   readonly kind = 'tts' as const
   abstract readonly name: string
   abstract readonly models: TModels
+  readonly selectedModel: TSelectedModel
 
   // Type-only properties - never assigned at runtime
   declare _providerOptions?: TProviderOptions
 
   protected config: TTSAdapterConfig
 
-  constructor(config: TTSAdapterConfig = {}) {
+  constructor(config: TTSAdapterConfig = {}, selectedModel?: TSelectedModel) {
     this.config = config
+    this.selectedModel = selectedModel as TSelectedModel
   }
 
   abstract generateSpeech(

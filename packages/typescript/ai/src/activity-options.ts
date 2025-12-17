@@ -8,19 +8,12 @@
 import type { z } from 'zod'
 import type {
   EmbeddingActivityOptions,
-  EmbeddingModels,
   ImageActivityOptions,
-  ImageModels,
   SummarizeActivityOptions,
-  SummarizeModels,
   TTSActivityOptions,
-  TTSModels,
   TextActivityOptions,
-  TextModels,
   TranscriptionActivityOptions,
-  TranscriptionModels,
   VideoCreateOptions,
-  VideoModels,
 } from './activities'
 import type { EmbeddingAdapter } from './activities/embedding/adapter'
 import type { ImageAdapter } from './activities/generateImage/adapter'
@@ -53,13 +46,19 @@ import type { SummarizeAdapter } from './activities/summarize/adapter'
  * ```
  */
 export function createChatOptions<
-  TAdapter extends TextAdapter<ReadonlyArray<string>, object, any, any, any>,
-  const TModel extends TextModels<TAdapter>,
+  TAdapter extends TextAdapter<
+    ReadonlyArray<string>,
+    object,
+    any,
+    any,
+    any,
+    string
+  >,
   TSchema extends z.ZodType | undefined = undefined,
   TStream extends boolean = true,
 >(
-  options: TextActivityOptions<TAdapter, TModel, TSchema, TStream>,
-): TextActivityOptions<TAdapter, TModel, TSchema, TStream> {
+  options: TextActivityOptions<TAdapter, TSchema, TStream>,
+): TextActivityOptions<TAdapter, TSchema, TStream> {
   return options
 }
 
@@ -71,11 +70,10 @@ export function createChatOptions<
  * Create typed options for the embedding() function without executing.
  */
 export function createEmbeddingOptions<
-  TAdapter extends EmbeddingAdapter<ReadonlyArray<string>, object>,
-  const TModel extends EmbeddingModels<TAdapter>,
+  TAdapter extends EmbeddingAdapter<ReadonlyArray<string>, object, string>,
 >(
-  options: EmbeddingActivityOptions<TAdapter, TModel>,
-): EmbeddingActivityOptions<TAdapter, TModel> {
+  options: EmbeddingActivityOptions<TAdapter>,
+): EmbeddingActivityOptions<TAdapter> {
   return options
 }
 
@@ -87,12 +85,11 @@ export function createEmbeddingOptions<
  * Create typed options for the summarize() function without executing.
  */
 export function createSummarizeOptions<
-  TAdapter extends SummarizeAdapter<ReadonlyArray<string>, object>,
-  const TModel extends SummarizeModels<TAdapter>,
+  TAdapter extends SummarizeAdapter<ReadonlyArray<string>, object, string>,
   TStream extends boolean = false,
 >(
-  options: SummarizeActivityOptions<TAdapter, TModel, TStream>,
-): SummarizeActivityOptions<TAdapter, TModel, TStream> {
+  options: SummarizeActivityOptions<TAdapter, TStream>,
+): SummarizeActivityOptions<TAdapter, TStream> {
   return options
 }
 
@@ -104,11 +101,10 @@ export function createSummarizeOptions<
  * Create typed options for the generateImage() function without executing.
  */
 export function createImageOptions<
-  TAdapter extends ImageAdapter<ReadonlyArray<string>, object, any, any>,
-  const TModel extends ImageModels<TAdapter>,
+  TAdapter extends ImageAdapter<ReadonlyArray<string>, object, any, any, string>,
 >(
-  options: ImageActivityOptions<TAdapter, TModel>,
-): ImageActivityOptions<TAdapter, TModel> {
+  options: ImageActivityOptions<TAdapter>,
+): ImageActivityOptions<TAdapter> {
   return options
 }
 
@@ -120,11 +116,10 @@ export function createImageOptions<
  * Create typed options for the generateVideo() function without executing.
  */
 export function createVideoOptions<
-  TAdapter extends VideoAdapter<ReadonlyArray<string>, object>,
-  const TModel extends VideoModels<TAdapter>,
+  TAdapter extends VideoAdapter<ReadonlyArray<string>, object, string>,
 >(
-  options: VideoCreateOptions<TAdapter, TModel>,
-): VideoCreateOptions<TAdapter, TModel> {
+  options: VideoCreateOptions<TAdapter>,
+): VideoCreateOptions<TAdapter> {
   return options
 }
 
@@ -136,11 +131,10 @@ export function createVideoOptions<
  * Create typed options for the generateSpeech() function without executing.
  */
 export function createSpeechOptions<
-  TAdapter extends TTSAdapter<ReadonlyArray<string>, object>,
-  const TModel extends TTSModels<TAdapter>,
+  TAdapter extends TTSAdapter<ReadonlyArray<string>, object, string>,
 >(
-  options: TTSActivityOptions<TAdapter, TModel>,
-): TTSActivityOptions<TAdapter, TModel> {
+  options: TTSActivityOptions<TAdapter>,
+): TTSActivityOptions<TAdapter> {
   return options
 }
 
@@ -152,10 +146,9 @@ export function createSpeechOptions<
  * Create typed options for the generateTranscription() function without executing.
  */
 export function createTranscriptionOptions<
-  TAdapter extends TranscriptionAdapter<ReadonlyArray<string>, object>,
-  const TModel extends TranscriptionModels<TAdapter>,
+  TAdapter extends TranscriptionAdapter<ReadonlyArray<string>, object, string>,
 >(
-  options: TranscriptionActivityOptions<TAdapter, TModel>,
-): TranscriptionActivityOptions<TAdapter, TModel> {
+  options: TranscriptionActivityOptions<TAdapter>,
+): TranscriptionActivityOptions<TAdapter> {
   return options
 }

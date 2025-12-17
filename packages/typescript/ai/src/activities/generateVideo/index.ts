@@ -27,15 +27,15 @@ export const kind = 'video' as const
 
 /** Extract model types from a VideoAdapter */
 export type VideoModels<TAdapter> =
-  TAdapter extends VideoAdapter<infer M, any> ? M[number] : string
+  TAdapter extends VideoAdapter<infer M, any, any> ? M[number] : string
 
 /**
  * Extract provider options from a VideoAdapter.
  */
 export type VideoProviderOptions<TAdapter> =
-  TAdapter extends VideoAdapter<any, infer TProviderOptions>
-    ? TProviderOptions
-    : object
+  TAdapter extends VideoAdapter<any, infer TProviderOptions, any>
+  ? TProviderOptions
+  : object
 
 // ===========================
 // Activity Options Types
@@ -43,26 +43,24 @@ export type VideoProviderOptions<TAdapter> =
 
 /**
  * Base options shared by all video activity operations.
+ * The model is extracted from the adapter's selectedModel property.
  */
 interface VideoActivityBaseOptions<
-  TAdapter extends VideoAdapter<ReadonlyArray<string>, object>,
-  TModel extends VideoModels<TAdapter>,
+  TAdapter extends VideoAdapter<ReadonlyArray<string>, object, string>,
 > {
-  /** The video adapter to use */
+  /** The video adapter to use (must be created with a model) */
   adapter: TAdapter & { kind: typeof kind }
-  /** The model name (autocompletes based on adapter) */
-  model: TModel
 }
 
 /**
  * Options for creating a new video generation job.
+ * The model is extracted from the adapter's selectedModel property.
  *
  * @experimental Video generation is an experimental feature and may change.
  */
 export interface VideoCreateOptions<
-  TAdapter extends VideoAdapter<ReadonlyArray<string>, object>,
-  TModel extends VideoModels<TAdapter>,
-> extends VideoActivityBaseOptions<TAdapter, TModel> {
+  TAdapter extends VideoAdapter<ReadonlyArray<string>, object, string>,
+> extends VideoActivityBaseOptions<TAdapter> {
   /** Request type - create a new job (default if not specified) */
   request?: 'create'
   /** Text description of the desired video */
@@ -81,9 +79,8 @@ export interface VideoCreateOptions<
  * @experimental Video generation is an experimental feature and may change.
  */
 export interface VideoStatusOptions<
-  TAdapter extends VideoAdapter<ReadonlyArray<string>, object>,
-  TModel extends VideoModels<TAdapter>,
-> extends VideoActivityBaseOptions<TAdapter, TModel> {
+  TAdapter extends VideoAdapter<ReadonlyArray<string>, object, string>,
+> extends VideoActivityBaseOptions<TAdapter> {
   /** Request type - get job status */
   request: 'status'
   /** The job ID to check status for */
@@ -96,9 +93,8 @@ export interface VideoStatusOptions<
  * @experimental Video generation is an experimental feature and may change.
  */
 export interface VideoUrlOptions<
-  TAdapter extends VideoAdapter<ReadonlyArray<string>, object>,
-  TModel extends VideoModels<TAdapter>,
-> extends VideoActivityBaseOptions<TAdapter, TModel> {
+  TAdapter extends VideoAdapter<ReadonlyArray<string>, object, string>,
+> extends VideoActivityBaseOptions<TAdapter> {
   /** Request type - get video URL */
   request: 'url'
   /** The job ID to get URL for */
@@ -112,14 +108,13 @@ export interface VideoUrlOptions<
  * @experimental Video generation is an experimental feature and may change.
  */
 export type VideoActivityOptions<
-  TAdapter extends VideoAdapter<ReadonlyArray<string>, object>,
-  TModel extends VideoModels<TAdapter>,
+  TAdapter extends VideoAdapter<ReadonlyArray<string>, object, string>,
   TRequest extends 'create' | 'status' | 'url' = 'create',
 > = TRequest extends 'status'
-  ? VideoStatusOptions<TAdapter, TModel>
+  ? VideoStatusOptions<TAdapter>
   : TRequest extends 'url'
-    ? VideoUrlOptions<TAdapter, TModel>
-    : VideoCreateOptions<TAdapter, TModel>
+  ? VideoUrlOptions<TAdapter>
+  : VideoCreateOptions<TAdapter>
 
 // ===========================
 // Activity Result Types
@@ -135,8 +130,8 @@ export type VideoActivityResult<
 > = TRequest extends 'status'
   ? Promise<VideoStatusResult>
   : TRequest extends 'url'
-    ? Promise<VideoUrlResult>
-    : Promise<VideoJobResult>
+  ? Promise<VideoUrlResult>
+  : Promise<VideoJobResult>
 
 // ===========================
 // Activity Implementation
@@ -165,10 +160,10 @@ export type VideoActivityResult<
  * ```
  */
 export async function generateVideo<
-  TAdapter extends VideoAdapter<ReadonlyArray<string>, object>,
-  TModel extends VideoModels<TAdapter>,
->(options: VideoCreateOptions<TAdapter, TModel>): Promise<VideoJobResult> {
-  const { adapter, model, prompt, size, duration, modelOptions } = options
+  TAdapter extends VideoAdapter<ReadonlyArray<string>, object, string>,
+>(options: VideoCreateOptions<TAdapter>): Promise<VideoJobResult> {
+  const { adapter, prompt, size, duration, modelOptions } = options
+  const model = adapter.selectedModel
 
   return adapter.createVideoJob({
     model,
@@ -205,11 +200,9 @@ export async function generateVideo<
  * ```
  */
 export async function getVideoJobStatus<
-  TAdapter extends VideoAdapter<ReadonlyArray<string>, object>,
-  TModel extends VideoModels<TAdapter>,
+  TAdapter extends VideoAdapter<ReadonlyArray<string>, object, string>,
 >(options: {
   adapter: TAdapter & { kind: typeof kind }
-  model: TModel
   jobId: string
 }): Promise<{
   status: 'pending' | 'processing' | 'completed' | 'failed'

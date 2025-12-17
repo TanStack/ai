@@ -44,8 +44,7 @@ import { chat } from '@tanstack/ai'
 import { openaiText } from '@tanstack/ai-openai'
 
 const stream = chat({
-  adapter: openaiText(),
-  model: 'gpt-4o',
+  adapter: openaiText('gpt-4o'),
   messages: [{ role: 'user', content: 'Hello!' }],
 })
 ```
@@ -118,8 +117,7 @@ import { openaiText } from '@tanstack/ai-openai'
 
 // Chat generation - returns AsyncIterable<StreamChunk>
 const chatResult = chat({
-  adapter: openaiText(),
-  model: 'gpt-4o',
+  adapter: openaiText('gpt-4o'),
   messages: [{ role: 'user', content: 'Hello!' }],
 })
 
@@ -154,20 +152,17 @@ import {
 
 // Each activity is independent
 const chatResult = chat({
-  adapter: openaiText(),
-  model: 'gpt-4o',
+  adapter: openaiText('gpt-4o'),
   messages: [{ role: 'user', content: 'Hello!' }],
 })
 
 const embedResult = await embedding({
-  adapter: openaiEmbedding(),
-  model: 'text-embedding-3-small',
+  adapter: openaiEmbedding('text-embedding-3-small'),
   input: 'Hello, world!',
 })
 
 const summarizeResult = await summarize({
-  adapter: openaiSummarize(),
-  model: 'gpt-4o-mini',
+  adapter: openaiSummarize('gpt-4o-mini'),
   text: 'Long text to summarize...',
 })
 ```
@@ -201,8 +196,7 @@ import {
 
 // Only import what you need
 const chatOptions = createChatOptions({
-  adapter: openaiText(),
-  model: 'gpt-4o',
+  adapter: openaiText('gpt-4o'),
 })
 ```
 

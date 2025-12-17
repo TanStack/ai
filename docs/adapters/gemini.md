@@ -18,11 +18,8 @@ npm install @tanstack/ai-gemini
 import { chat } from "@tanstack/ai";
 import { geminiText } from "@tanstack/ai-gemini";
 
-const adapter = geminiText();
-
 const stream = chat({
-  adapter,
-  model: "gemini-2.5-pro",
+  adapter: geminiText("gemini-2.5-pro"),
   messages: [{ role: "user", content: "Hello!" }],
 });
 ```
@@ -38,8 +35,7 @@ const adapter = createGeminiChat(process.env.GEMINI_API_KEY!, {
 });
 
 const stream = chat({
-  adapter,
-  model: "gemini-2.5-pro",
+  adapter: adapter("gemini-2.5-pro"),
   messages: [{ role: "user", content: "Hello!" }],
 });
 ```
@@ -63,14 +59,11 @@ const adapter = createGeminiChat(process.env.GEMINI_API_KEY!, config);
 import { chat, toStreamResponse } from "@tanstack/ai";
 import { geminiText } from "@tanstack/ai-gemini";
 
-const adapter = geminiText();
-
 export async function POST(request: Request) {
   const { messages } = await request.json();
 
   const stream = chat({
-    adapter,
-    model: "gemini-2.5-pro",
+    adapter: geminiText("gemini-2.5-pro"),
     messages,
   });
 
@@ -84,8 +77,6 @@ export async function POST(request: Request) {
 import { chat, toolDefinition } from "@tanstack/ai";
 import { geminiText } from "@tanstack/ai-gemini";
 import { z } from "zod";
-
-const adapter = geminiText();
 
 const getCalendarEventsDef = toolDefinition({
   name: "get_calendar_events",
@@ -101,8 +92,7 @@ const getCalendarEvents = getCalendarEventsDef.server(async ({ date }) => {
 });
 
 const stream = chat({
-  adapter,
-  model: "gemini-2.5-pro",
+  adapter: geminiText("gemini-2.5-pro"),
   messages,
   tools: [getCalendarEvents],
 });
@@ -114,8 +104,7 @@ Gemini supports various model-specific options:
 
 ```typescript
 const stream = chat({
-  adapter: geminiText(),
-  model: "gemini-2.5-pro",
+  adapter: geminiText("gemini-2.5-pro"),
   messages,
   modelOptions: {
     maxOutputTokens: 2048,
@@ -157,11 +146,8 @@ Generate text embeddings for semantic search and similarity:
 import { embedding } from "@tanstack/ai";
 import { geminiEmbedding } from "@tanstack/ai-gemini";
 
-const adapter = geminiEmbedding();
-
 const result = await embedding({
-  adapter,
-  model: "gemini-embedding-001",
+  adapter: geminiEmbedding("gemini-embedding-001"),
   input: "The quick brown fox jumps over the lazy dog",
 });
 
@@ -172,8 +158,7 @@ console.log(result.embeddings);
 
 ```typescript
 const result = await embedding({
-  adapter: geminiEmbedding(),
-  model: "gemini-embedding-001",
+  adapter: geminiEmbedding("gemini-embedding-001"),
   input: [
     "First text to embed",
     "Second text to embed",
@@ -186,8 +171,7 @@ const result = await embedding({
 
 ```typescript
 const result = await embedding({
-  adapter: geminiEmbedding(),
-  model: "gemini-embedding-001",
+  adapter: geminiEmbedding("gemini-embedding-001"),
   input: "...",
   modelOptions: {
     taskType: "RETRIEVAL_DOCUMENT", // or "RETRIEVAL_QUERY", "SEMANTIC_SIMILARITY", etc.
@@ -203,11 +187,8 @@ Summarize long text content:
 import { summarize } from "@tanstack/ai";
 import { geminiSummarize } from "@tanstack/ai-gemini";
 
-const adapter = geminiSummarize();
-
 const result = await summarize({
-  adapter,
-  model: "gemini-2.5-pro",
+  adapter: geminiSummarize("gemini-2.5-pro"),
   text: "Your long text to summarize...",
   maxLength: 100,
   style: "concise", // "concise" | "bullet-points" | "paragraph"
@@ -224,11 +205,8 @@ Generate images with Imagen:
 import { generateImage } from "@tanstack/ai";
 import { geminiImage } from "@tanstack/ai-gemini";
 
-const adapter = geminiImage();
-
 const result = await generateImage({
-  adapter,
-  model: "imagen-3.0-generate-002",
+  adapter: geminiImage("imagen-3.0-generate-002"),
   prompt: "A futuristic cityscape at sunset",
   numberOfImages: 1,
 });
@@ -240,8 +218,7 @@ console.log(result.images);
 
 ```typescript
 const result = await generateImage({
-  adapter: geminiImage(),
-  model: "imagen-3.0-generate-002",
+  adapter: geminiImage("imagen-3.0-generate-002"),
   prompt: "...",
   modelOptions: {
     aspectRatio: "16:9", // "1:1" | "3:4" | "4:3" | "9:16" | "16:9"
@@ -261,11 +238,8 @@ Generate speech from text:
 import { generateSpeech } from "@tanstack/ai";
 import { geminiSpeech } from "@tanstack/ai-gemini";
 
-const adapter = geminiSpeech();
-
 const result = await generateSpeech({
-  adapter,
-  model: "gemini-2.5-flash-preview-tts",
+  adapter: geminiSpeech("gemini-2.5-flash-preview-tts"),
   text: "Hello from Gemini TTS!",
 });
 

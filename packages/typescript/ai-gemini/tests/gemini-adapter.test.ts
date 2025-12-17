@@ -55,11 +55,11 @@ vi.mock('@google/genai', async () => {
 })
 
 const createTextAdapter = () =>
-  new GeminiTextAdapter('gemini-2.5-pro', { apiKey: 'test-key' })
+  new GeminiTextAdapter({ apiKey: 'test-key' }, 'gemini-2.5-pro')
 const createSummarizeAdapter = () =>
-  new GeminiSummarizeAdapter('gemini-2.0-flash', 'test-key')
+  new GeminiSummarizeAdapter('test-key', 'gemini-2.0-flash')
 const createEmbedAdapter = () =>
-  new GeminiEmbedAdapter('text-embedding-004', 'test-key')
+  new GeminiEmbedAdapter('test-key', 'text-embedding-004')
 
 const weatherTool: Tool = {
   name: 'lookup_weather',
@@ -105,7 +105,6 @@ describe('GeminiAdapter through AI', () => {
     // Consume the stream to trigger the API call
     for await (const _ of chat({
       adapter,
-      model: 'gemini-2.5-pro',
       messages: [{ role: 'user', content: 'How is the weather in Madrid?' }],
       modelOptions: {
         generationConfig: { topK: 9 },
@@ -317,7 +316,6 @@ describe('GeminiAdapter through AI', () => {
     const received: StreamChunk[] = []
     for await (const chunk of chat({
       adapter,
-      model: 'gemini-2.0-flash',
       messages: [{ role: 'user', content: 'Tell me a joke' }],
       modelOptions: {
         generationConfig: { topK: 3 },
@@ -364,7 +362,6 @@ describe('GeminiAdapter through AI', () => {
     const adapter = createSummarizeAdapter()
     const result = await summarize({
       adapter,
-      model: 'gemini-2.0-flash',
       text: 'A very long passage that needs to be shortened',
       maxLength: 123,
       style: 'paragraph',
@@ -391,7 +388,6 @@ describe('GeminiAdapter through AI', () => {
     const adapter = createEmbedAdapter()
     const result = await embedding({
       adapter,
-      model: 'text-embedding-004',
       input: ['doc one', 'doc two'],
     })
 

@@ -39,7 +39,7 @@ import type { OpenAIClientConfig } from '../utils'
 /**
  * Configuration for OpenAI text adapter
  */
-export interface OpenAITextConfig extends OpenAIClientConfig {}
+export interface OpenAITextConfig extends OpenAIClientConfig { }
 
 /**
  * Alias for TextProviderOptions
@@ -52,12 +52,15 @@ export type OpenAITextProviderOptions = ExternalTextProviderOptions
  * Tree-shakeable adapter for OpenAI chat/text completion functionality.
  * Import only what you need for smaller bundle sizes.
  */
-export class OpenAITextAdapter extends BaseTextAdapter<
+export class OpenAITextAdapter<
+  TSelectedModel extends (typeof OPENAI_CHAT_MODELS)[number] | undefined = undefined,
+> extends BaseTextAdapter<
   typeof OPENAI_CHAT_MODELS,
   OpenAITextProviderOptions,
   OpenAIChatModelProviderOptionsByName,
   OpenAIModelInputModalitiesByName,
-  OpenAIMessageMetadataByModality
+  OpenAIMessageMetadataByModality,
+  TSelectedModel
 > {
   readonly kind = 'text' as const
   readonly name = 'openai' as const
@@ -67,11 +70,12 @@ export class OpenAITextAdapter extends BaseTextAdapter<
   declare _modelProviderOptionsByName: OpenAIChatModelProviderOptionsByName
   declare _modelInputModalitiesByName: OpenAIModelInputModalitiesByName
   declare _messageMetadataByModality: OpenAIMessageMetadataByModality
+  declare _selectedModel?: TSelectedModel
 
   private client: OpenAI_SDK
 
-  constructor(config: OpenAITextConfig) {
-    super({})
+  constructor(config: OpenAITextConfig, selectedModel?: TSelectedModel) {
+    super({}, selectedModel)
     this.client = createOpenAIClient(config)
   }
 
@@ -508,14 +512,14 @@ export class OpenAITextAdapter extends BaseTextAdapter<
   private mapTextOptionsToOpenAI(options: TextOptions) {
     const modelOptions = options.modelOptions as
       | Omit<
-          InternalTextProviderOptions,
-          | 'max_output_tokens'
-          | 'tools'
-          | 'metadata'
-          | 'temperature'
-          | 'input'
-          | 'top_p'
-        >
+        InternalTextProviderOptions,
+        | 'max_output_tokens'
+        | 'tools'
+        | 'metadata'
+        | 'temperature'
+        | 'input'
+        | 'top_p'
+      >
       | undefined
     const input = this.convertMessagesToInput(options.messages)
     if (modelOptions) {
@@ -740,11 +744,14 @@ export class OpenAITextAdapter extends BaseTextAdapter<
  * const adapter = createOpenaiChat('gpt-4o', "sk-...");
  * ```
  */
-export function createOpenaiChat(
+export function createOpenaiChat<
+  TSelectedModel extends (typeof OPENAI_CHAT_MODELS)[number],
+>(
+  model: TSelectedModel,
   apiKey: string,
   config?: Omit<OpenAITextConfig, 'apiKey'>,
-): OpenAITextAdapter {
-  return new OpenAITextAdapter({ apiKey, ...config })
+): OpenAITextAdapter<TSelectedModel> {
+  return new OpenAITextAdapter({ apiKey, ...config }, model)
 }
 
 /**
@@ -762,35 +769,46 @@ export function createOpenaiChat(
  * @example
  * ```typescript
  * // Automatically uses OPENAI_API_KEY from environment
- * const adapter = openaiText();
+ * const adapter = openaiText('gpt-4o');
  *
  * const stream = chat({
  *   adapter,
- *   model: 'gpt-4o',
  *   messages: [{ role: "user", content: "Hello!" }]
  * });
  * ```
  */
-export function openaiText(
+export function openaiText<
+  TSelectedModel extends (typeof OPENAI_CHAT_MODELS)[number],
+>(
+  model: TSelectedModel,
   config?: Omit<OpenAITextConfig, 'apiKey'>,
-): OpenAITextAdapter {
+): OpenAITextAdapter<TSelectedModel> {
   const apiKey = getOpenAIApiKeyFromEnv()
-  return createOpenaiChat(apiKey, config)
+  return createOpenaiChat(model, apiKey, config)
 }
 
 /**
  * @deprecated Use openaiText() instead
  */
-export function openaiChat(
+export function openaiChat<
+  TSelectedModel extends (typeof OPENAI_CHAT_MODELS)[number],
+>(
+  model: TSelectedModel,
   config?: Omit<OpenAITextConfig, 'apiKey'>,
-): OpenAITextAdapter {
-  const apiKey = getOpenAIApiKeyFromEnv()
-  return createOpenaiChat(apiKey, config)
+): OpenAITextAdapter<TSelectedModel> {
+  return openaiText(model, config)
 }
 
-export function createOpenaiText(
+/**
+ * @deprecated Use createOpenaiChat() instead
+ */
+export function createOpenaiText<
+  TSelectedModel extends (typeof OPENAI_CHAT_MODELS)[number],
+>(
+  model: TSelectedModel,
   apiKey: string,
   config?: Omit<OpenAITextConfig, 'apiKey'>,
-): OpenAITextAdapter {
-  return createOpenaiChat(apiKey, config)
+): OpenAITextAdapter<TSelectedModel> {
+  return createOpenaiChat(model, apiKey, config)
 }
+

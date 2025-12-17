@@ -21,12 +21,14 @@ export interface ImageAdapterConfig {
  * - TProviderOptions: Base provider-specific options for image generation
  * - TModelProviderOptionsByName: Map from model name to its specific provider options
  * - TModelSizeByName: Map from model name to its supported sizes
+ * - TSelectedModel: The model selected when creating the adapter (undefined if not selected)
  */
 export interface ImageAdapter<
   TModels extends ReadonlyArray<string> = ReadonlyArray<string>,
   TProviderOptions extends object = Record<string, unknown>,
   TModelProviderOptionsByName extends Record<string, any> = Record<string, any>,
   TModelSizeByName extends Record<string, string> = Record<string, string>,
+  TSelectedModel extends TModels[number] | undefined = undefined,
 > {
   /** Discriminator for adapter kind - used by generate() to determine API shape */
   readonly kind: 'image'
@@ -34,6 +36,8 @@ export interface ImageAdapter<
   readonly name: string
   /** Supported image generation models */
   readonly models: TModels
+  /** The model selected when creating the adapter */
+  readonly selectedModel: TSelectedModel
 
   // Type-only properties for type inference
   /** @internal Type-only property for provider options inference */
@@ -60,15 +64,18 @@ export abstract class BaseImageAdapter<
   TProviderOptions extends object = Record<string, unknown>,
   TModelProviderOptionsByName extends Record<string, any> = Record<string, any>,
   TModelSizeByName extends Record<string, string> = Record<string, string>,
+  TSelectedModel extends TModels[number] | undefined = undefined,
 > implements ImageAdapter<
   TModels,
   TProviderOptions,
   TModelProviderOptionsByName,
-  TModelSizeByName
+  TModelSizeByName,
+  TSelectedModel
 > {
   readonly kind = 'image' as const
   abstract readonly name: string
   abstract readonly models: TModels
+  readonly selectedModel: TSelectedModel
 
   // Type-only properties - never assigned at runtime
   declare _providerOptions?: TProviderOptions
@@ -77,8 +84,9 @@ export abstract class BaseImageAdapter<
 
   protected config: ImageAdapterConfig
 
-  constructor(config: ImageAdapterConfig = {}) {
+  constructor(config: ImageAdapterConfig = {}, selectedModel?: TSelectedModel) {
     this.config = config
+    this.selectedModel = selectedModel as TSelectedModel
   }
 
   abstract generateImages(

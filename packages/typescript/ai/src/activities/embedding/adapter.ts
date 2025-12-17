@@ -18,10 +18,12 @@ export interface EmbeddingAdapterConfig {
  * Generic parameters:
  * - TModels: Array of supported embedding model names
  * - TProviderOptions: Provider-specific options for embedding endpoint
+ * - TSelectedModel: The model selected when creating the adapter (undefined if not selected)
  */
 export interface EmbeddingAdapter<
   TModels extends ReadonlyArray<string> = ReadonlyArray<string>,
   TProviderOptions extends object = Record<string, unknown>,
+  TSelectedModel extends string | undefined = undefined,
 > {
   /** Discriminator for adapter kind - used by generate() to determine API shape */
   readonly kind: 'embedding'
@@ -29,6 +31,8 @@ export interface EmbeddingAdapter<
   readonly name: string
   /** Supported embedding models */
   readonly models: TModels
+  /** The model selected when creating the adapter */
+  readonly selectedModel: TSelectedModel
 
   // Type-only properties for type inference
   /** @internal Type-only property for provider options inference */
@@ -47,18 +51,24 @@ export interface EmbeddingAdapter<
 export abstract class BaseEmbeddingAdapter<
   TModels extends ReadonlyArray<string> = ReadonlyArray<string>,
   TProviderOptions extends object = Record<string, unknown>,
-> implements EmbeddingAdapter<TModels, TProviderOptions> {
+  TSelectedModel extends TModels[number] | undefined = undefined,
+> implements EmbeddingAdapter<TModels, TProviderOptions, TSelectedModel> {
   readonly kind = 'embedding' as const
   abstract readonly name: string
   abstract readonly models: TModels
+  readonly selectedModel: TSelectedModel
 
   // Type-only property - never assigned at runtime
   declare _providerOptions?: TProviderOptions
 
   protected config: EmbeddingAdapterConfig
 
-  constructor(config: EmbeddingAdapterConfig = {}) {
+  constructor(
+    config: EmbeddingAdapterConfig = {},
+    selectedModel?: TSelectedModel,
+  ) {
     this.config = config
+    this.selectedModel = selectedModel as TSelectedModel
   }
 
   abstract createEmbeddings(options: EmbeddingOptions): Promise<EmbeddingResult>

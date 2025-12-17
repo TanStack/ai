@@ -26,11 +26,11 @@ export const kind = 'summarize' as const
 
 /** Extract model types from a SummarizeAdapter */
 export type SummarizeModels<TAdapter> =
-  TAdapter extends SummarizeAdapter<infer M, any> ? M[number] : string
+  TAdapter extends SummarizeAdapter<infer M, any, any> ? M[number] : string
 
 /** Extract provider options from a SummarizeAdapter */
 export type SummarizeProviderOptions<TAdapter> =
-  TAdapter extends SummarizeAdapter<any, infer P> ? P : object
+  TAdapter extends SummarizeAdapter<any, infer P, any> ? P : object
 
 // ===========================
 // Activity Options Type
@@ -38,20 +38,17 @@ export type SummarizeProviderOptions<TAdapter> =
 
 /**
  * Options for the summarize activity.
+ * The model is extracted from the adapter's selectedModel property.
  *
- * @template TAdapter - The summarize adapter type
- * @template TModel - The model name type (inferred from adapter)
+ * @template TAdapter - The summarize adapter type (must have a selectedModel)
  * @template TStream - Whether to stream the output
  */
 export interface SummarizeActivityOptions<
-  TAdapter extends SummarizeAdapter<ReadonlyArray<string>, object>,
-  TModel extends SummarizeModels<TAdapter>,
+  TAdapter extends SummarizeAdapter<ReadonlyArray<string>, object, string>,
   TStream extends boolean = false,
 > {
-  /** The summarize adapter to use */
+  /** The summarize adapter to use (must be created with a model) */
   adapter: TAdapter & { kind: typeof kind }
-  /** The model name (autocompletes based on adapter) */
-  model: TModel
   /** The text to summarize */
   text: string
   /** Maximum length of the summary (in words or characters, provider-dependent) */
@@ -83,8 +80,8 @@ export interface SummarizeActivityOptions<
  */
 export type SummarizeActivityResult<TStream extends boolean> =
   TStream extends true
-    ? AsyncIterable<StreamChunk>
-    : Promise<SummarizationResult>
+  ? AsyncIterable<StreamChunk>
+  : Promise<SummarizationResult>
 
 // ===========================
 // Helper Functions
@@ -109,8 +106,7 @@ function createId(prefix: string): string {
  * import { openaiSummarize } from '@tanstack/ai-openai'
  *
  * const result = await summarize({
- *   adapter: openaiSummarize(),
- *   model: 'gpt-4o-mini',
+ *   adapter: openaiSummarize('gpt-4o-mini'),
  *   text: 'Long article text here...'
  * })
  *
@@ -120,8 +116,7 @@ function createId(prefix: string): string {
  * @example Summarization with style
  * ```ts
  * const result = await summarize({
- *   adapter: openaiSummarize(),
- *   model: 'gpt-4o-mini',
+ *   adapter: openaiSummarize('gpt-4o-mini'),
  *   text: 'Long article text here...',
  *   style: 'bullet-points',
  *   maxLength: 100
@@ -131,8 +126,7 @@ function createId(prefix: string): string {
  * @example Focused summarization
  * ```ts
  * const result = await summarize({
- *   adapter: openaiSummarize(),
- *   model: 'gpt-4o-mini',
+ *   adapter: openaiSummarize('gpt-4o-mini'),
  *   text: 'Long technical document...',
  *   focus: ['key findings', 'methodology']
  * })
@@ -141,8 +135,7 @@ function createId(prefix: string): string {
  * @example Streaming summarization
  * ```ts
  * for await (const chunk of summarize({
- *   adapter: openaiSummarize(),
- *   model: 'gpt-4o-mini',
+ *   adapter: openaiSummarize('gpt-4o-mini'),
  *   text: 'Long article text here...',
  *   stream: true
  * })) {
@@ -153,19 +146,17 @@ function createId(prefix: string): string {
  * ```
  */
 export function summarize<
-  TAdapter extends SummarizeAdapter<ReadonlyArray<string>, object>,
-  TModel extends SummarizeModels<TAdapter>,
+  TAdapter extends SummarizeAdapter<ReadonlyArray<string>, object, string>,
   TStream extends boolean = false,
 >(
-  options: SummarizeActivityOptions<TAdapter, TModel, TStream>,
+  options: SummarizeActivityOptions<TAdapter, TStream>,
 ): SummarizeActivityResult<TStream> {
   const { stream } = options
 
   if (stream) {
     return runStreamingSummarize(
       options as unknown as SummarizeActivityOptions<
-        SummarizeAdapter<ReadonlyArray<string>, object>,
-        string,
+        SummarizeAdapter<ReadonlyArray<string>, object, string>,
         true
       >,
     ) as SummarizeActivityResult<TStream>
@@ -173,8 +164,7 @@ export function summarize<
 
   return runSummarize(
     options as unknown as SummarizeActivityOptions<
-      SummarizeAdapter<ReadonlyArray<string>, object>,
-      string,
+      SummarizeAdapter<ReadonlyArray<string>, object, string>,
       false
     >,
   ) as SummarizeActivityResult<TStream>
@@ -185,12 +175,12 @@ export function summarize<
  */
 async function runSummarize(
   options: SummarizeActivityOptions<
-    SummarizeAdapter<ReadonlyArray<string>, object>,
-    string,
+    SummarizeAdapter<ReadonlyArray<string>, object, string>,
     false
   >,
 ): Promise<SummarizationResult> {
-  const { adapter, text, maxLength, style, focus, model } = options
+  const { adapter, text, maxLength, style, focus } = options
+  const model = adapter.selectedModel
   const requestId = createId('summarize')
   const inputLength = text.length
   const startTime = Date.now()
@@ -234,12 +224,12 @@ async function runSummarize(
  */
 async function* runStreamingSummarize(
   options: SummarizeActivityOptions<
-    SummarizeAdapter<ReadonlyArray<string>, object>,
-    string,
+    SummarizeAdapter<ReadonlyArray<string>, object, string>,
     true
   >,
 ): AsyncIterable<StreamChunk> {
-  const { adapter, text, maxLength, style, focus, model } = options
+  const { adapter, text, maxLength, style, focus } = options
+  const model = adapter.selectedModel
 
   const summarizeOptions: SummarizationOptions = {
     model,

@@ -28,10 +28,12 @@ export interface VideoAdapterConfig {
  * Generic parameters:
  * - TModels: Array of supported video model names
  * - TProviderOptions: Base provider-specific options for video generation
+ * - TSelectedModel: The model selected when creating the adapter (undefined if not selected)
  */
 export interface VideoAdapter<
   TModels extends ReadonlyArray<string> = ReadonlyArray<string>,
   TProviderOptions extends object = Record<string, unknown>,
+  TSelectedModel extends TModels[number] | undefined = undefined,
 > {
   /** Discriminator for adapter kind - used to determine API shape */
   readonly kind: 'video'
@@ -39,6 +41,8 @@ export interface VideoAdapter<
   readonly name: string
   /** Supported video generation models */
   readonly models: TModels
+  /** The model selected when creating the adapter */
+  readonly selectedModel: TSelectedModel
 
   // Type-only properties for type inference
   /** @internal Type-only property for provider options inference */
@@ -73,18 +77,21 @@ export interface VideoAdapter<
 export abstract class BaseVideoAdapter<
   TModels extends ReadonlyArray<string> = ReadonlyArray<string>,
   TProviderOptions extends object = Record<string, unknown>,
-> implements VideoAdapter<TModels, TProviderOptions> {
+  TSelectedModel extends TModels[number] | undefined = undefined,
+> implements VideoAdapter<TModels, TProviderOptions, TSelectedModel> {
   readonly kind = 'video' as const
   abstract readonly name: string
   abstract readonly models: TModels
+  readonly selectedModel: TSelectedModel
 
   // Type-only properties - never assigned at runtime
   declare _providerOptions?: TProviderOptions
 
   protected config: VideoAdapterConfig
 
-  constructor(config: VideoAdapterConfig = {}) {
+  constructor(config: VideoAdapterConfig = {}, selectedModel?: TSelectedModel) {
     this.config = config
+    this.selectedModel = selectedModel as TSelectedModel
   }
 
   abstract createVideoJob(

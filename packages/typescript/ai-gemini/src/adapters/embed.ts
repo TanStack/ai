@@ -19,30 +19,34 @@ export type GeminiEmbeddingModel = (typeof GeminiEmbeddingModels)[number]
  */
 export interface GeminiEmbedProviderOptions {
   taskType?:
-    | 'RETRIEVAL_QUERY'
-    | 'RETRIEVAL_DOCUMENT'
-    | 'SEMANTIC_SIMILARITY'
-    | 'CLASSIFICATION'
-    | 'CLUSTERING'
+  | 'RETRIEVAL_QUERY'
+  | 'RETRIEVAL_DOCUMENT'
+  | 'SEMANTIC_SIMILARITY'
+  | 'CLASSIFICATION'
+  | 'CLUSTERING'
   title?: string
   outputDimensionality?: number
 }
 
 export interface GeminiEmbedAdapterOptions {
-  model?: GeminiEmbeddingModel
+  // Additional adapter options can be added here
 }
 
 /**
  * Gemini Embedding Adapter
  * A tree-shakeable embedding adapter for Google Gemini
  */
-export class GeminiEmbedAdapter implements EmbeddingAdapter<
+export class GeminiEmbedAdapter<
+  TSelectedModel extends GeminiEmbeddingModel | undefined = undefined,
+> implements EmbeddingAdapter<
   typeof GeminiEmbeddingModels,
-  GeminiEmbedProviderOptions
+  GeminiEmbedProviderOptions,
+  TSelectedModel
 > {
   readonly kind = 'embedding' as const
   readonly name = 'gemini' as const
   readonly models = GeminiEmbeddingModels
+  readonly selectedModel: TSelectedModel
 
   /** Type-only property for provider options inference */
   declare _providerOptions?: GeminiEmbedProviderOptions
@@ -51,12 +55,14 @@ export class GeminiEmbedAdapter implements EmbeddingAdapter<
 
   constructor(
     apiKeyOrClient: string | GoogleGenAI,
+    selectedModel?: TSelectedModel,
     _options: GeminiEmbedAdapterOptions = {},
   ) {
     this.client =
       typeof apiKeyOrClient === 'string'
         ? createGeminiClient({ apiKey: apiKeyOrClient })
         : apiKeyOrClient
+    this.selectedModel = selectedModel as TSelectedModel
   }
 
   async createEmbeddings(options: EmbeddingOptions): Promise<EmbeddingResult> {
@@ -96,35 +102,39 @@ export class GeminiEmbedAdapter implements EmbeddingAdapter<
 }
 
 /**
- * Creates a Gemini embedding adapter with explicit API key
+ * Creates a Gemini embedding adapter with explicit API key and model
  */
-export function createGeminiEmbedding(
+export function createGeminiEmbedding<TModel extends GeminiEmbeddingModel>(
   apiKey: string,
+  model: TModel,
   options?: GeminiEmbedAdapterOptions,
-): GeminiEmbedAdapter {
-  return new GeminiEmbedAdapter(apiKey, options)
+): GeminiEmbedAdapter<TModel> {
+  return new GeminiEmbedAdapter(apiKey, model, options)
 }
 
 /**
- * Creates a Gemini embedding adapter with API key from environment
+ * Creates a Gemini embedding adapter with API key from environment and required model
  */
-export function geminiEmbedding(
+export function geminiEmbedding<TModel extends GeminiEmbeddingModel>(
+  model: TModel,
   options?: GeminiEmbedAdapterOptions,
-): GeminiEmbedAdapter {
+): GeminiEmbedAdapter<TModel> {
   const apiKey = getGeminiApiKeyFromEnv()
-  return new GeminiEmbedAdapter(apiKey, options)
+  return new GeminiEmbedAdapter(apiKey, model, options)
 }
 
-export function geminiEmbed(
+export function geminiEmbed<TModel extends GeminiEmbeddingModel>(
+  model: TModel,
   options?: GeminiEmbedAdapterOptions,
-): GeminiEmbedAdapter {
+): GeminiEmbedAdapter<TModel> {
   const apiKey = getGeminiApiKeyFromEnv()
-  return new GeminiEmbedAdapter(apiKey, options)
+  return new GeminiEmbedAdapter(apiKey, model, options)
 }
 
-export function createGeminiEmbed(
+export function createGeminiEmbed<TModel extends GeminiEmbeddingModel>(
   apiKey: string,
+  model: TModel,
   options?: GeminiEmbedAdapterOptions,
-): GeminiEmbedAdapter {
-  return new GeminiEmbedAdapter(apiKey, options)
+): GeminiEmbedAdapter<TModel> {
+  return new GeminiEmbedAdapter(apiKey, model, options)
 }

@@ -41,8 +41,7 @@ const adapter = openaiVideo()
 
 // Start a video generation job
 const { jobId, model } = await generateVideo({
-  adapter,
-  model: 'sora-2',
+  adapter: openaiVideo('sora-2'),
   prompt: 'A golden retriever puppy playing in a field of sunflowers',
 })
 
@@ -56,8 +55,7 @@ import { getVideoJobStatus } from '@tanstack/ai'
 
 // Check the status of the job
 const status = await getVideoJobStatus({
-  adapter,
-  model: 'sora-2',
+  adapter: openaiVideo('sora-2'),
   jobId,
 })
 
@@ -76,8 +74,7 @@ import { getVideoJobStatus } from '@tanstack/ai'
 
 // Only call this after status is 'completed'
 const result = await getVideoJobStatus({
-  adapter,
-  model: 'sora-2',
+  adapter: openaiVideo('sora-2'),
   jobId,
 })
 
@@ -98,8 +95,7 @@ async function generateVideo(prompt: string) {
 
   // 1. Create the job
   const { jobId } = await generateVideo({
-    adapter,
-    model: 'sora-2',
+    adapter: openaiVideo('sora-2'),
     prompt,
     size: '1280x720',
     duration: 8, // 4, 8, or 12 seconds
@@ -114,8 +110,7 @@ async function generateVideo(prompt: string) {
     await new Promise((resolve) => setTimeout(resolve, 5000))
 
     const result = await getVideoJobStatus({
-      adapter,
-      model: 'sora-2',
+      adapter: openaiVideo('sora-2'),
       jobId,
     })
 
@@ -129,8 +124,7 @@ async function generateVideo(prompt: string) {
 
   // 3. Get the video URL
   const result = await getVideoJobStatus({
-    adapter,
-    model: 'sora-2',
+    adapter: openaiVideo('sora-2'),
     jobId,
   })
 
@@ -152,8 +146,7 @@ console.log('Video ready:', videoUrl)
 
 | Option | Type | Description |
 |--------|------|-------------|
-| `adapter` | `VideoAdapter` | Video adapter instance (required) |
-| `model` | `string` | Model identifier (type-safe based on adapter) (required) |
+| `adapter` | `VideoAdapter` | Video adapter instance with model (required) |
 | `prompt` | `string` | Text description of the video to generate (required) |
 | `size` | `string` | Video resolution in WIDTHxHEIGHT format |
 | `duration` | `number` | Video duration in seconds (maps to `seconds` parameter in API) |
@@ -186,8 +179,7 @@ Based on the [OpenAI Sora API](https://platform.openai.com/docs/api-reference/vi
 
 ```typescript
 const { jobId } = await generateVideo({
-  adapter,
-  model: 'sora-2',
+  adapter: openaiVideo('sora-2'),
   prompt: 'A beautiful sunset over the ocean',
   size: '1280x720',      // '1280x720', '720x1280', '1792x1024', '1024x1792'
   duration: 8,           // 4, 8, or 12 seconds
@@ -244,17 +236,14 @@ Video generation can fail for various reasons. Always implement proper error han
 ```typescript
 try {
   const { jobId } = await generateVideo({
-    adapter,
-    model: 'sora-2',
+    adapter: openaiVideo('sora-2'),
     prompt: 'A scene',
   })
 
   // Poll for status...
   const status = await getVideoJobStatus({
-    adapter,
-    model: 'sora-2',
+    adapter: openaiVideo('sora-2'),
     jobId,
-    request: 'status',
   })
 
   if (status.status === 'failed') {

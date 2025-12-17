@@ -28,8 +28,7 @@ const adapter = openaiSpeech()
 
 // Generate speech from text
 const result = await generateSpeech({
-  adapter,
-  model: 'tts-1',
+  adapter: openaiTTS('tts-1'),
   text: 'Hello, welcome to TanStack AI!',
   voice: 'alloy',
 })
@@ -50,8 +49,7 @@ const adapter = geminiSpeech()
 
 // Generate speech from text
 const result = await generateSpeech({
-  adapter,
-  model: 'gemini-2.5-flash-preview-tts',
+  adapter: geminiTTS('gemini-2.5-flash-preview-tts'),
   text: 'Hello from Gemini TTS!',
 })
 
@@ -105,8 +103,7 @@ OpenAI provides several distinct voices:
 
 ```typescript
 const result = await generateSpeech({
-  adapter: openaiSpeech(),
-  model: 'tts-1-hd',
+  adapter: openaiTTS('tts-1-hd'),
   text: 'High quality speech synthesis',
   voice: 'nova',
   format: 'mp3',
@@ -173,8 +170,7 @@ async function saveAudio(result: TTSResult, filename: string) {
 
 // Usage
 const result = await generateSpeech({
-  adapter: openaiSpeech(),
-  model: 'tts-1',
+  adapter: openaiTTS('tts-1'),
   text: 'Hello world!',
 })
 
@@ -203,8 +199,7 @@ await saveAudio(result, 'output.mp3')
 ```typescript
 try {
   const result = await generateSpeech({
-    adapter: openaiSpeech(),
-    model: 'tts-1',
+    adapter: openaiTTS('tts-1'),
     text: 'Hello!',
   })
 } catch (error) {

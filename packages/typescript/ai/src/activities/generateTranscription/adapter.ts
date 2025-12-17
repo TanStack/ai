@@ -19,10 +19,12 @@ export interface TranscriptionAdapterConfig {
  * Generic parameters:
  * - TModels: Array of supported transcription model names
  * - TProviderOptions: Base provider-specific options for transcription
+ * - TSelectedModel: The model selected when creating the adapter (undefined if not selected)
  */
 export interface TranscriptionAdapter<
   TModels extends ReadonlyArray<string> = ReadonlyArray<string>,
   TProviderOptions extends object = Record<string, unknown>,
+  TSelectedModel extends TModels[number] | undefined = undefined,
 > {
   /** Discriminator for adapter kind - used to determine API shape */
   readonly kind: 'transcription'
@@ -30,6 +32,8 @@ export interface TranscriptionAdapter<
   readonly name: string
   /** Supported transcription models */
   readonly models: TModels
+  /** The model selected when creating the adapter */
+  readonly selectedModel: TSelectedModel
 
   // Type-only properties for type inference
   /** @internal Type-only property for provider options inference */
@@ -50,18 +54,24 @@ export interface TranscriptionAdapter<
 export abstract class BaseTranscriptionAdapter<
   TModels extends ReadonlyArray<string> = ReadonlyArray<string>,
   TProviderOptions extends object = Record<string, unknown>,
-> implements TranscriptionAdapter<TModels, TProviderOptions> {
+  TSelectedModel extends TModels[number] | undefined = undefined,
+> implements TranscriptionAdapter<TModels, TProviderOptions, TSelectedModel> {
   readonly kind = 'transcription' as const
   abstract readonly name: string
   abstract readonly models: TModels
+  readonly selectedModel: TSelectedModel
 
   // Type-only properties - never assigned at runtime
   declare _providerOptions?: TProviderOptions
 
   protected config: TranscriptionAdapterConfig
 
-  constructor(config: TranscriptionAdapterConfig = {}) {
+  constructor(
+    config: TranscriptionAdapterConfig = {},
+    selectedModel?: TSelectedModel,
+  ) {
     this.config = config
+    this.selectedModel = selectedModel as TSelectedModel
   }
 
   abstract transcribe(

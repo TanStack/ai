@@ -21,15 +21,15 @@ export const kind = 'tts' as const
 
 /** Extract model types from a TTSAdapter */
 export type TTSModels<TAdapter> =
-  TAdapter extends TTSAdapter<infer M, any> ? M[number] : string
+  TAdapter extends TTSAdapter<infer M, any, any> ? M[number] : string
 
 /**
  * Extract provider options from a TTSAdapter.
  */
 export type TTSProviderOptions<TAdapter> =
-  TAdapter extends TTSAdapter<any, infer TProviderOptions>
-    ? TProviderOptions
-    : object
+  TAdapter extends TTSAdapter<any, infer TProviderOptions, any>
+  ? TProviderOptions
+  : object
 
 // ===========================
 // Activity Options Type
@@ -37,18 +37,15 @@ export type TTSProviderOptions<TAdapter> =
 
 /**
  * Options for the TTS activity.
+ * The model is extracted from the adapter's selectedModel property.
  *
- * @template TAdapter - The TTS adapter type
- * @template TModel - The model name type (inferred from adapter)
+ * @template TAdapter - The TTS adapter type (must have a selectedModel)
  */
 export interface TTSActivityOptions<
-  TAdapter extends TTSAdapter<ReadonlyArray<string>, object>,
-  TModel extends TTSModels<TAdapter>,
+  TAdapter extends TTSAdapter<ReadonlyArray<string>, object, string>,
 > {
-  /** The TTS adapter to use */
+  /** The TTS adapter to use (must be created with a model) */
   adapter: TAdapter & { kind: typeof kind }
-  /** The model name (autocompletes based on adapter) */
-  model: TModel
   /** The text to convert to speech */
   text: string
   /** The voice to use for generation */
@@ -83,8 +80,7 @@ export type TTSActivityResult = Promise<TTSResult>
  * import { openaiTTS } from '@tanstack/ai-openai'
  *
  * const result = await generateSpeech({
- *   adapter: openaiTTS(),
- *   model: 'tts-1-hd',
+ *   adapter: openaiTTS('tts-1-hd'),
  *   text: 'Hello, welcome to TanStack AI!',
  *   voice: 'nova'
  * })
@@ -95,8 +91,7 @@ export type TTSActivityResult = Promise<TTSResult>
  * @example With format and speed options
  * ```ts
  * const result = await generateSpeech({
- *   adapter: openaiTTS(),
- *   model: 'tts-1',
+ *   adapter: openaiTTS('tts-1'),
  *   text: 'This is slower speech.',
  *   voice: 'alloy',
  *   format: 'wav',
@@ -105,12 +100,12 @@ export type TTSActivityResult = Promise<TTSResult>
  * ```
  */
 export async function generateSpeech<
-  TAdapter extends TTSAdapter<ReadonlyArray<string>, object>,
-  TModel extends TTSModels<TAdapter>,
->(options: TTSActivityOptions<TAdapter, TModel>): TTSActivityResult {
+  TAdapter extends TTSAdapter<ReadonlyArray<string>, object, string>,
+>(options: TTSActivityOptions<TAdapter>): TTSActivityResult {
   const { adapter, ...rest } = options
+  const model = adapter.selectedModel
 
-  return adapter.generateSpeech(rest)
+  return adapter.generateSpeech({ ...rest, model })
 }
 
 // Re-export adapter types

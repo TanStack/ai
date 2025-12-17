@@ -5,10 +5,7 @@ import {
   BaseEmbeddingAdapter,
   BaseSummarizeAdapter,
 } from '../src/activities'
-import type {
-  StructuredOutputOptions,
-  StructuredOutputResult,
-} from '../src/activities'
+import type { StructuredOutputResult } from '../src/activities'
 import type {
   TextOptions,
   EmbeddingOptions,
@@ -23,15 +20,25 @@ import type {
 
 const MOCK_MODELS = ['model-a', 'model-b'] as const
 
-class MockTextAdapter extends BaseTextAdapter<typeof MOCK_MODELS> {
+class MockTextAdapter extends BaseTextAdapter<
+  typeof MOCK_MODELS,
+  Record<string, unknown>,
+  Record<string, unknown>,
+  Record<string, ReadonlyArray<'text' | 'image' | 'audio' | 'video' | 'document'>>,
+  { text: unknown; image: unknown; audio: unknown; video: unknown; document: unknown },
+  (typeof MOCK_MODELS)[number]
+> {
   readonly kind = 'text' as const
   readonly name = 'mock' as const
   readonly models = MOCK_MODELS
 
   private mockChunks: Array<StreamChunk>
 
-  constructor(mockChunks: Array<StreamChunk> = []) {
-    super({})
+  constructor(
+    mockChunks: Array<StreamChunk> = [],
+    selectedModel: (typeof MOCK_MODELS)[number] = 'model-a',
+  ) {
+    super({}, selectedModel)
     this.mockChunks = mockChunks
   }
 
@@ -41,9 +48,8 @@ class MockTextAdapter extends BaseTextAdapter<typeof MOCK_MODELS> {
     }
   }
 
-  structuredOutput(
-    _options: StructuredOutputOptions<object>,
-  ): Promise<StructuredOutputResult<unknown>> {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  structuredOutput(_options: any): Promise<StructuredOutputResult<unknown>> {
     return Promise.resolve({
       data: {},
       rawText: '{}',
@@ -53,7 +59,8 @@ class MockTextAdapter extends BaseTextAdapter<typeof MOCK_MODELS> {
 
 class MockEmbeddingAdapter extends BaseEmbeddingAdapter<
   typeof MOCK_MODELS,
-  Record<string, unknown>
+  Record<string, unknown>,
+  (typeof MOCK_MODELS)[number]
 > {
   readonly kind = 'embedding' as const
   readonly name = 'mock' as const
@@ -61,8 +68,11 @@ class MockEmbeddingAdapter extends BaseEmbeddingAdapter<
 
   private mockResult: EmbeddingResult
 
-  constructor(mockResult?: EmbeddingResult) {
-    super({})
+  constructor(
+    mockResult?: EmbeddingResult,
+    selectedModel: (typeof MOCK_MODELS)[number] = 'model-a',
+  ) {
+    super({}, selectedModel)
     this.mockResult = mockResult ?? {
       id: 'test-id',
       model: 'model-a',
@@ -78,7 +88,8 @@ class MockEmbeddingAdapter extends BaseEmbeddingAdapter<
 
 class MockSummarizeAdapter extends BaseSummarizeAdapter<
   typeof MOCK_MODELS,
-  Record<string, unknown>
+  Record<string, unknown>,
+  (typeof MOCK_MODELS)[number]
 > {
   readonly kind = 'summarize' as const
   readonly name = 'mock' as const
@@ -86,8 +97,11 @@ class MockSummarizeAdapter extends BaseSummarizeAdapter<
 
   private mockResult: SummarizationResult
 
-  constructor(mockResult?: SummarizationResult) {
-    super({})
+  constructor(
+    mockResult?: SummarizationResult,
+    selectedModel: (typeof MOCK_MODELS)[number] = 'model-a',
+  ) {
+    super({}, selectedModel)
     this.mockResult = mockResult ?? {
       id: 'test-id',
       model: 'model-a',
@@ -137,7 +151,6 @@ describe('generate function', () => {
 
       const result = chat({
         adapter,
-        model: 'model-a',
         messages,
       })
 
@@ -167,7 +180,6 @@ describe('generate function', () => {
       // Consume the iterable to trigger the method
       const result = chat({
         adapter,
-        model: 'model-a',
         messages,
         systemPrompts: ['Be helpful'],
         options: { temperature: 0.7 },
@@ -193,7 +205,6 @@ describe('generate function', () => {
 
       const result = await embedding({
         adapter,
-        model: 'model-a',
         input: ['Test text'],
       })
 
@@ -206,7 +217,6 @@ describe('generate function', () => {
 
       await embedding({
         adapter,
-        model: 'model-a',
         input: ['Hello', 'World'],
       })
 
@@ -223,11 +233,10 @@ describe('generate function', () => {
         usage: { promptTokens: 200, completionTokens: 30, totalTokens: 230 },
       }
 
-      const adapter = new MockSummarizeAdapter(expectedResult)
+      const adapter = new MockSummarizeAdapter(expectedResult, 'model-b')
 
       const result = await summarize({
         adapter,
-        model: 'model-b',
         text: 'Long text to summarize...',
       })
 
@@ -240,7 +249,6 @@ describe('generate function', () => {
 
       await summarize({
         adapter,
-        model: 'model-a',
         text: 'Some text to summarize',
         style: 'bullet-points',
         maxLength: 100,
@@ -258,7 +266,6 @@ describe('generate function', () => {
       // TypeScript should infer AsyncIterable<StreamChunk>
       const result = chat({
         adapter,
-        model: 'model-a',
         messages,
       })
 
@@ -272,7 +279,6 @@ describe('generate function', () => {
       // TypeScript should infer Promise<EmbeddingResult>
       const result = embedding({
         adapter,
-        model: 'model-a',
         input: ['test'],
       })
 
@@ -286,7 +292,6 @@ describe('generate function', () => {
       // TypeScript should infer Promise<SummarizationResult>
       const result = summarize({
         adapter,
-        model: 'model-a',
         text: 'test',
       })
 

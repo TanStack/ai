@@ -30,8 +30,7 @@ const adapter = openaiTranscription()
 const audioFile = new File([audioBuffer], 'audio.mp3', { type: 'audio/mpeg' })
 
 const result = await generateTranscription({
-  adapter,
-  model: 'whisper-1',
+  adapter: openaiTranscription('whisper-1'),
   audio: audioFile,
   language: 'en',
 })
@@ -49,8 +48,7 @@ const audioBuffer = await readFile('recording.mp3')
 const base64Audio = audioBuffer.toString('base64')
 
 const result = await generateTranscription({
-  adapter: openaiTranscription(),
-  model: 'whisper-1',
+  adapter: openaiTranscription('whisper-1'),
   audio: base64Audio,
 })
 
@@ -63,8 +61,7 @@ console.log(result.text)
 const dataUrl = `data:audio/mpeg;base64,${base64AudioData}`
 
 const result = await generateTranscription({
-  adapter: openaiTranscription(),
-  model: 'whisper-1',
+  adapter: openaiTranscription('whisper-1'),
   audio: dataUrl,
 })
 ```
@@ -103,8 +100,7 @@ Whisper supports many languages. Common codes include:
 
 ```typescript
 const result = await generateTranscription({
-  adapter: openaiTranscription(),
-  model: 'whisper-1',
+  adapter: openaiTranscription('whisper-1'),
   audio: audioFile,
   modelOptions: {
     response_format: 'verbose_json', // Get detailed output with timestamps
@@ -176,8 +172,7 @@ async function transcribeAudio(filepath: string) {
 
   // Transcribe with detailed output
   const result = await generateTranscription({
-    adapter,
-    model: 'whisper-1',
+    adapter: openaiTranscription('whisper-1'),
     audio: audioFile,
     language: 'en',
     modelOptions: {
@@ -279,11 +274,8 @@ export async function POST(request: Request) {
   const formData = await request.formData()
   const audioFile = formData.get('audio') as File
 
-  const adapter = openaiTranscription()
-  
   const result = await generateTranscription({
-    adapter,
-    model: 'whisper-1',
+    adapter: openaiTranscription('whisper-1'),
     audio: audioFile,
   })
 
@@ -296,8 +288,7 @@ export async function POST(request: Request) {
 ```typescript
 try {
   const result = await generateTranscription({
-    adapter: openaiTranscription(),
-    model: 'whisper-1',
+    adapter: openaiTranscription('whisper-1'),
     audio: audioFile,
   })
 } catch (error) {

@@ -28,34 +28,27 @@ import {
 import type {
   InputModalitiesForModel,
   MessageMetadataForAdapter,
-  TextModels,
   TextProviderOptionsForModel,
   // eslint-disable-next-line import/no-duplicates
 } from './chat/index'
 import type {
   EmbeddingActivityOptions,
   EmbeddingActivityResult,
-  EmbeddingModels,
   EmbeddingProviderOptions,
 } from './embedding/index'
 import type {
   SummarizeActivityOptions,
   SummarizeActivityResult,
-  SummarizeModels,
   SummarizeProviderOptions,
 } from './summarize/index'
 import type {
   ImageActivityOptions,
   ImageActivityResult,
-  ImageModels,
-  ImageProviderOptionsForModel,
-  ImageSizeForModel,
 } from './generateImage/index'
 import type {
   VideoActivityOptions,
   VideoActivityResult,
   VideoCreateOptions,
-  VideoModels,
   VideoProviderOptions,
   VideoStatusOptions,
   VideoUrlOptions,
@@ -63,13 +56,11 @@ import type {
 import type {
   TTSActivityOptions,
   TTSActivityResult,
-  TTSModels,
   TTSProviderOptions,
 } from './generateSpeech/index'
 import type {
   TranscriptionActivityOptions,
   TranscriptionActivityResult,
-  TranscriptionModels,
   TranscriptionProviderOptions,
 } from './generateTranscription/index'
 
@@ -276,26 +267,26 @@ export const activityMap = new Map<string, ActivityHandler>([
 
 /** Union of all adapter types that can be passed to chat() */
 export type AIAdapter =
-  | TextAdapter<ReadonlyArray<string>, object, any, any, any>
-  | EmbeddingAdapter<ReadonlyArray<string>, object>
-  | SummarizeAdapter<ReadonlyArray<string>, object>
-  | ImageAdapter<ReadonlyArray<string>, object, any, any>
-  | VideoAdapter<ReadonlyArray<string>, object>
-  | TTSAdapter<ReadonlyArray<string>, object>
-  | TranscriptionAdapter<ReadonlyArray<string>, object>
+  | TextAdapter<ReadonlyArray<string>, object, any, any, any, any>
+  | EmbeddingAdapter<ReadonlyArray<string>, object, any>
+  | SummarizeAdapter<ReadonlyArray<string>, object, any>
+  | ImageAdapter<ReadonlyArray<string>, object, any, any, any>
+  | VideoAdapter<ReadonlyArray<string>, object, any>
+  | TTSAdapter<ReadonlyArray<string>, object, any>
+  | TranscriptionAdapter<ReadonlyArray<string>, object, any>
 
 /** Alias for backwards compatibility */
 export type GenerateAdapter = AIAdapter
 
 /** Union of all adapters (legacy name) */
 export type AnyAdapter =
-  | TextAdapter<any, any, any, any, any>
-  | EmbeddingAdapter<any, any>
-  | SummarizeAdapter<any, any>
-  | ImageAdapter<any, any, any>
-  | VideoAdapter<any, any>
-  | TTSAdapter<any, any>
-  | TranscriptionAdapter<any, any>
+  | TextAdapter<any, any, any, any, any, any>
+  | EmbeddingAdapter<any, any, any>
+  | SummarizeAdapter<any, any, any>
+  | ImageAdapter<any, any, any, any, any>
+  | VideoAdapter<any, any, any>
+  | TTSAdapter<any, any, any>
+  | TranscriptionAdapter<any, any, any>
 
 /** Union type of all adapter kinds */
 export type AdapterKind =
@@ -313,73 +304,53 @@ export type AdapterKind =
 
 /** Union of all adapter types with their kind discriminator */
 export type AnyAIAdapter =
-  | (TextAdapter<ReadonlyArray<string>, object, any, any, any> & {
-      kind: 'text'
-    })
-  | (EmbeddingAdapter<ReadonlyArray<string>, object> & { kind: 'embedding' })
-  | (SummarizeAdapter<ReadonlyArray<string>, object> & { kind: 'summarize' })
-  | (ImageAdapter<ReadonlyArray<string>, object, any, any> & { kind: 'image' })
-  | (VideoAdapter<ReadonlyArray<string>, object> & { kind: 'video' })
-  | (TTSAdapter<ReadonlyArray<string>, object> & { kind: 'tts' })
-  | (TranscriptionAdapter<ReadonlyArray<string>, object> & {
-      kind: 'transcription'
-    })
+  | (TextAdapter<ReadonlyArray<string>, object, any, any, any, string> & {
+    kind: 'text'
+  })
+  | (EmbeddingAdapter<ReadonlyArray<string>, object, string> & { kind: 'embedding' })
+  | (SummarizeAdapter<ReadonlyArray<string>, object, string> & { kind: 'summarize' })
+  | (ImageAdapter<ReadonlyArray<string>, object, any, any, string> & { kind: 'image' })
+  | (VideoAdapter<ReadonlyArray<string>, object, string> & { kind: 'video' })
+  | (TTSAdapter<ReadonlyArray<string>, object, string> & { kind: 'tts' })
+  | (TranscriptionAdapter<ReadonlyArray<string>, object, string> & {
+    kind: 'transcription'
+  })
 
 /** Infer the correct options type based on adapter kind */
 export type AIOptionsFor<
   TAdapter extends AnyAIAdapter,
-  TModel extends string,
   TSchema extends z.ZodType | undefined = undefined,
   TStream extends boolean | undefined = undefined,
   TRequest extends 'create' | 'status' | 'url' = 'create',
 > = TAdapter extends { kind: 'text' }
-  ? TAdapter extends TextAdapter<ReadonlyArray<string>, object, any, any, any>
-    ? TextActivityOptions<
-        TAdapter,
-        TModel & TextModels<TAdapter>,
-        TSchema,
-        TStream extends boolean ? TStream : true
-      >
-    : never
+  ? TAdapter extends TextAdapter<ReadonlyArray<string>, object, any, any, any, string>
+  ? TextActivityOptions<TAdapter, TSchema, TStream extends boolean ? TStream : true>
+  : never
   : TAdapter extends { kind: 'embedding' }
-    ? TAdapter extends EmbeddingAdapter<ReadonlyArray<string>, object>
-      ? EmbeddingActivityOptions<TAdapter, TModel & EmbeddingModels<TAdapter>>
-      : never
-    : TAdapter extends { kind: 'summarize' }
-      ? TAdapter extends SummarizeAdapter<ReadonlyArray<string>, object>
-        ? SummarizeActivityOptions<
-            TAdapter,
-            TModel & SummarizeModels<TAdapter>,
-            TStream extends boolean ? TStream : false
-          >
-        : never
-      : TAdapter extends { kind: 'image' }
-        ? TAdapter extends ImageAdapter<ReadonlyArray<string>, object, any, any>
-          ? ImageActivityOptions<TAdapter, TModel & ImageModels<TAdapter>>
-          : never
-        : TAdapter extends { kind: 'video' }
-          ? TAdapter extends VideoAdapter<ReadonlyArray<string>, object>
-            ? VideoActivityOptions<
-                TAdapter,
-                TModel & VideoModels<TAdapter>,
-                TRequest
-              >
-            : never
-          : TAdapter extends { kind: 'tts' }
-            ? TAdapter extends TTSAdapter<ReadonlyArray<string>, object>
-              ? TTSActivityOptions<TAdapter, TModel & TTSModels<TAdapter>>
-              : never
-            : TAdapter extends { kind: 'transcription' }
-              ? TAdapter extends TranscriptionAdapter<
-                  ReadonlyArray<string>,
-                  object
-                >
-                ? TranscriptionActivityOptions<
-                    TAdapter,
-                    TModel & TranscriptionModels<TAdapter>
-                  >
-                : never
-              : never
+  ? TAdapter extends EmbeddingAdapter<ReadonlyArray<string>, object, string>
+  ? EmbeddingActivityOptions<TAdapter>
+  : never
+  : TAdapter extends { kind: 'summarize' }
+  ? TAdapter extends SummarizeAdapter<ReadonlyArray<string>, object, string>
+  ? SummarizeActivityOptions<TAdapter, TStream extends boolean ? TStream : false>
+  : never
+  : TAdapter extends { kind: 'image' }
+  ? TAdapter extends ImageAdapter<ReadonlyArray<string>, object, any, any, string>
+  ? ImageActivityOptions<TAdapter>
+  : never
+  : TAdapter extends { kind: 'video' }
+  ? TAdapter extends VideoAdapter<ReadonlyArray<string>, object, string>
+  ? VideoActivityOptions<TAdapter, TRequest>
+  : never
+  : TAdapter extends { kind: 'tts' }
+  ? TAdapter extends TTSAdapter<ReadonlyArray<string>, object, string>
+  ? TTSActivityOptions<TAdapter>
+  : never
+  : TAdapter extends { kind: 'transcription' }
+  ? TAdapter extends TranscriptionAdapter<ReadonlyArray<string>, object, string>
+  ? TranscriptionActivityOptions<TAdapter>
+  : never
+  : never
 
 // ===========================
 // Unified Result Type
@@ -394,18 +365,18 @@ export type AIResultFor<
 > = TAdapter extends { kind: 'text' }
   ? TextActivityResult<TSchema, TStream extends boolean ? TStream : true>
   : TAdapter extends { kind: 'embedding' }
-    ? EmbeddingActivityResult
-    : TAdapter extends { kind: 'summarize' }
-      ? SummarizeActivityResult<TStream extends boolean ? TStream : false>
-      : TAdapter extends { kind: 'image' }
-        ? ImageActivityResult
-        : TAdapter extends { kind: 'video' }
-          ? VideoActivityResult<TRequest>
-          : TAdapter extends { kind: 'tts' }
-            ? TTSActivityResult
-            : TAdapter extends { kind: 'transcription' }
-              ? TranscriptionActivityResult
-              : never
+  ? EmbeddingActivityResult
+  : TAdapter extends { kind: 'summarize' }
+  ? SummarizeActivityResult<TStream extends boolean ? TStream : false>
+  : TAdapter extends { kind: 'image' }
+  ? ImageActivityResult
+  : TAdapter extends { kind: 'video' }
+  ? VideoActivityResult<TRequest>
+  : TAdapter extends { kind: 'tts' }
+  ? TTSActivityResult
+  : TAdapter extends { kind: 'transcription' }
+  ? TranscriptionActivityResult
+  : never
 
 // ===========================
 // Unified Options Type (Legacy)
@@ -414,28 +385,18 @@ export type AIResultFor<
 /** Unified options type for those who need it */
 export type GenerateOptions<
   TAdapter extends AIAdapter,
-  TModel extends string,
   TSchema extends z.ZodType | undefined = undefined,
   TStream extends boolean = true,
 > =
-  TAdapter extends TextAdapter<ReadonlyArray<string>, object, any, any, any>
-    ? TextActivityOptions<
-        TAdapter,
-        TModel & TextModels<TAdapter>,
-        TSchema,
-        TStream
-      >
-    : TAdapter extends EmbeddingAdapter<ReadonlyArray<string>, object>
-      ? EmbeddingActivityOptions<TAdapter, TModel & EmbeddingModels<TAdapter>>
-      : TAdapter extends SummarizeAdapter<ReadonlyArray<string>, object>
-        ? SummarizeActivityOptions<
-            TAdapter,
-            TModel & SummarizeModels<TAdapter>,
-            TStream
-          >
-        : TAdapter extends ImageAdapter<ReadonlyArray<string>, object, any, any>
-          ? ImageActivityOptions<TAdapter, TModel & ImageModels<TAdapter>>
-          : never
+  TAdapter extends TextAdapter<ReadonlyArray<string>, object, any, any, any, string>
+  ? TextActivityOptions<TAdapter, TSchema, TStream>
+  : TAdapter extends EmbeddingAdapter<ReadonlyArray<string>, object, string>
+  ? EmbeddingActivityOptions<TAdapter>
+  : TAdapter extends SummarizeAdapter<ReadonlyArray<string>, object, string>
+  ? SummarizeActivityOptions<TAdapter, TStream>
+  : TAdapter extends ImageAdapter<ReadonlyArray<string>, object, any, any, string>
+  ? ImageActivityOptions<TAdapter>
+  : never
 
 // ===========================
 // Legacy Type Aliases
@@ -443,30 +404,26 @@ export type GenerateOptions<
 
 /** @deprecated Use TextActivityOptions */
 export type GenerateTextOptions<
-  TAdapter extends TextAdapter<ReadonlyArray<string>, object, any, any, any>,
-  TModel extends TextModels<TAdapter>,
+  TAdapter extends TextAdapter<ReadonlyArray<string>, object, any, any, any, string>,
   TSchema extends z.ZodType | undefined = undefined,
   TStream extends boolean = true,
-> = TextActivityOptions<TAdapter, TModel, TSchema, TStream>
+> = TextActivityOptions<TAdapter, TSchema, TStream>
 
 /** @deprecated Use EmbeddingActivityOptions */
 export type GenerateEmbeddingOptions<
-  TAdapter extends EmbeddingAdapter<ReadonlyArray<string>, object>,
-  TModel extends EmbeddingModels<TAdapter>,
-> = EmbeddingActivityOptions<TAdapter, TModel>
+  TAdapter extends EmbeddingAdapter<ReadonlyArray<string>, object, string>,
+> = EmbeddingActivityOptions<TAdapter>
 
 /** @deprecated Use SummarizeActivityOptions */
 export type GenerateSummarizeOptions<
-  TAdapter extends SummarizeAdapter<ReadonlyArray<string>, object>,
-  TModel extends SummarizeModels<TAdapter>,
+  TAdapter extends SummarizeAdapter<ReadonlyArray<string>, object, string>,
   TStream extends boolean = false,
-> = SummarizeActivityOptions<TAdapter, TModel, TStream>
+> = SummarizeActivityOptions<TAdapter, TStream>
 
 /** @deprecated Use ImageActivityOptions */
 export type GenerateImageOptions<
-  TAdapter extends ImageAdapter<ReadonlyArray<string>, object, any, any>,
-  TModel extends ImageModels<TAdapter>,
-> = ImageActivityOptions<TAdapter, TModel>
+  TAdapter extends ImageAdapter<ReadonlyArray<string>, object, any, any, string>,
+> = ImageActivityOptions<TAdapter>
 
 // ===========================
 // Implementation Types for chat()
@@ -477,32 +434,18 @@ export type GenerateImageOptions<
  */
 export type AIOptionsUnion =
   | TextActivityOptions<
-      TextAdapter<ReadonlyArray<string>, object, any, any, any>,
-      string,
-      z.ZodType | undefined,
-      boolean
-    >
-  | EmbeddingActivityOptions<
-      EmbeddingAdapter<ReadonlyArray<string>, object>,
-      string
-    >
-  | SummarizeActivityOptions<
-      SummarizeAdapter<ReadonlyArray<string>, object>,
-      string,
-      boolean
-    >
-  | ImageActivityOptions<
-      ImageAdapter<ReadonlyArray<string>, object, any, any>,
-      string
-    >
-  | VideoCreateOptions<VideoAdapter<ReadonlyArray<string>, object>, string>
-  | VideoStatusOptions<VideoAdapter<ReadonlyArray<string>, object>, string>
-  | VideoUrlOptions<VideoAdapter<ReadonlyArray<string>, object>, string>
-  | TTSActivityOptions<TTSAdapter<ReadonlyArray<string>, object>, string>
-  | TranscriptionActivityOptions<
-      TranscriptionAdapter<ReadonlyArray<string>, object>,
-      string
-    >
+    TextAdapter<ReadonlyArray<string>, object, any, any, any, string>,
+    z.ZodType | undefined,
+    boolean
+  >
+  | EmbeddingActivityOptions<EmbeddingAdapter<ReadonlyArray<string>, object, string>>
+  | SummarizeActivityOptions<SummarizeAdapter<ReadonlyArray<string>, object, string>, boolean>
+  | ImageActivityOptions<ImageAdapter<ReadonlyArray<string>, object, any, any, string>>
+  | VideoCreateOptions<VideoAdapter<ReadonlyArray<string>, object, string>>
+  | VideoStatusOptions<VideoAdapter<ReadonlyArray<string>, object, string>>
+  | VideoUrlOptions<VideoAdapter<ReadonlyArray<string>, object, string>>
+  | TTSActivityOptions<TTSAdapter<ReadonlyArray<string>, object, string>>
+  | TranscriptionActivityOptions<TranscriptionAdapter<ReadonlyArray<string>, object, string>>
 
 /**
  * Union type for all possible chat() return types (used in implementation signature)
@@ -526,18 +469,16 @@ export type AIResultUnion =
 // These types provide clear autocomplete and required field enforcement
 // for the chat() function. They are slightly different from ActivityOptions
 // as they include constraints like ConstrainedModelMessage for text.
+// The model is extracted from the adapter's selectedModel property.
 
 /**
  * Explicit embedding options - provides clear autocomplete and required field enforcement
  */
 export type AIEmbeddingOptions<
-  TAdapter extends EmbeddingAdapter<ReadonlyArray<string>, object>,
-  TModel extends EmbeddingModels<TAdapter>,
+  TAdapter extends EmbeddingAdapter<ReadonlyArray<string>, object, string>,
 > = {
-  /** The embedding adapter to use */
+  /** The embedding adapter to use (must be created with a model) */
   adapter: TAdapter & { kind: 'embedding' }
-  /** The model name (autocompletes based on adapter) */
-  model: TModel
   /** Text input to embed (single string or array of strings) - REQUIRED */
   input: string | Array<string>
   /** Optional: Number of dimensions for the embedding vector */
@@ -550,14 +491,11 @@ export type AIEmbeddingOptions<
  * Explicit summarize options - provides clear autocomplete and required field enforcement
  */
 export type AISummarizeOptions<
-  TAdapter extends SummarizeAdapter<ReadonlyArray<string>, object>,
-  TModel extends SummarizeModels<TAdapter>,
+  TAdapter extends SummarizeAdapter<ReadonlyArray<string>, object, string>,
   TStream extends boolean = false,
 > = {
-  /** The summarize adapter to use */
+  /** The summarize adapter to use (must be created with a model) */
   adapter: TAdapter & { kind: 'summarize' }
-  /** The model name (autocompletes based on adapter) */
-  model: TModel
   /** The text to summarize - REQUIRED */
   text: string
   /** Maximum length of the summary (in words or characters, provider-dependent) */
@@ -576,21 +514,18 @@ export type AISummarizeOptions<
  * Explicit image options - provides clear autocomplete and required field enforcement
  */
 export type AIImageOptions<
-  TAdapter extends ImageAdapter<ReadonlyArray<string>, object, any, any>,
-  TModel extends ImageModels<TAdapter>,
+  TAdapter extends ImageAdapter<ReadonlyArray<string>, object, any, any, string>,
 > = {
-  /** The image adapter to use */
+  /** The image adapter to use (must be created with a model) */
   adapter: TAdapter & { kind: 'image' }
-  /** The model name (autocompletes based on adapter) */
-  model: TModel
   /** The prompt describing the image to generate - REQUIRED */
   prompt: string
   /** Number of images to generate (default: 1) */
   numberOfImages?: number
-  /** Image size in WIDTHxHEIGHT format (e.g., "1024x1024") - autocompletes based on model */
-  size?: ImageSizeForModel<TAdapter, TModel>
+  /** Image size in WIDTHxHEIGHT format (e.g., "1024x1024") */
+  size?: string
   /** Provider-specific options */
-  modelOptions?: ImageProviderOptionsForModel<TAdapter, TModel>
+  modelOptions?: object
 }
 
 /**
@@ -599,13 +534,10 @@ export type AIImageOptions<
  * @experimental Video generation is an experimental feature and may change.
  */
 export type AIVideoCreateOptions<
-  TAdapter extends VideoAdapter<ReadonlyArray<string>, object>,
-  TModel extends VideoModels<TAdapter>,
+  TAdapter extends VideoAdapter<ReadonlyArray<string>, object, string>,
 > = {
-  /** The video adapter to use */
+  /** The video adapter to use (must be created with a model) */
   adapter: TAdapter & { kind: 'video' }
-  /** The model name (autocompletes based on adapter) */
-  model: TModel
   /** Request type - create a new job */
   request?: 'create'
   /** Text description of the desired video - REQUIRED */
@@ -624,13 +556,10 @@ export type AIVideoCreateOptions<
  * @experimental Video generation is an experimental feature and may change.
  */
 export type AIVideoStatusOptions<
-  TAdapter extends VideoAdapter<ReadonlyArray<string>, object>,
-  TModel extends VideoModels<TAdapter>,
+  TAdapter extends VideoAdapter<ReadonlyArray<string>, object, string>,
 > = {
-  /** The video adapter to use */
+  /** The video adapter to use (must be created with a model) */
   adapter: TAdapter & { kind: 'video' }
-  /** The model name (autocompletes based on adapter) */
-  model: TModel
   /** Request type - get status */
   request: 'status'
   /** Job ID to check status for - REQUIRED */
@@ -643,13 +572,10 @@ export type AIVideoStatusOptions<
  * @experimental Video generation is an experimental feature and may change.
  */
 export type AIVideoUrlOptions<
-  TAdapter extends VideoAdapter<ReadonlyArray<string>, object>,
-  TModel extends VideoModels<TAdapter>,
+  TAdapter extends VideoAdapter<ReadonlyArray<string>, object, string>,
 > = {
-  /** The video adapter to use */
+  /** The video adapter to use (must be created with a model) */
   adapter: TAdapter & { kind: 'video' }
-  /** The model name (autocompletes based on adapter) */
-  model: TModel
   /** Request type - get URL */
   request: 'url'
   /** Job ID to get URL for - REQUIRED */
@@ -662,24 +588,20 @@ export type AIVideoUrlOptions<
  * @experimental Video generation is an experimental feature and may change.
  */
 export type AIVideoOptions<
-  TAdapter extends VideoAdapter<ReadonlyArray<string>, object>,
-  TModel extends VideoModels<TAdapter>,
+  TAdapter extends VideoAdapter<ReadonlyArray<string>, object, string>,
 > =
-  | AIVideoCreateOptions<TAdapter, TModel>
-  | AIVideoStatusOptions<TAdapter, TModel>
-  | AIVideoUrlOptions<TAdapter, TModel>
+  | AIVideoCreateOptions<TAdapter>
+  | AIVideoStatusOptions<TAdapter>
+  | AIVideoUrlOptions<TAdapter>
 
 /**
  * Explicit TTS options - provides clear autocomplete and required field enforcement.
  */
 export type AITTSOptions<
-  TAdapter extends TTSAdapter<ReadonlyArray<string>, object>,
-  TModel extends TTSModels<TAdapter>,
+  TAdapter extends TTSAdapter<ReadonlyArray<string>, object, string>,
 > = {
-  /** The TTS adapter to use */
+  /** The TTS adapter to use (must be created with a model) */
   adapter: TAdapter & { kind: 'tts' }
-  /** The model name (autocompletes based on adapter) */
-  model: TModel
   /** The text to convert to speech - REQUIRED */
   text: string
   /** The voice to use for generation */
@@ -696,13 +618,10 @@ export type AITTSOptions<
  * Explicit transcription options - provides clear autocomplete and required field enforcement.
  */
 export type AITranscriptionOptions<
-  TAdapter extends TranscriptionAdapter<ReadonlyArray<string>, object>,
-  TModel extends TranscriptionModels<TAdapter>,
+  TAdapter extends TranscriptionAdapter<ReadonlyArray<string>, object, string>,
 > = {
-  /** The transcription adapter to use */
+  /** The transcription adapter to use (must be created with a model) */
   adapter: TAdapter & { kind: 'transcription' }
-  /** The model name (autocompletes based on adapter) */
-  model: TModel
   /** The audio data to transcribe - REQUIRED */
   audio: string | File | Blob | ArrayBuffer
   /** The language of the audio in ISO-639-1 format (e.g., 'en') */
@@ -721,19 +640,16 @@ export type AITranscriptionOptions<
  * Uses ConstrainedModelMessage to constrain content types by model's supported input modalities.
  */
 export type AITextOptions<
-  TAdapter extends TextAdapter<ReadonlyArray<string>, object, any, any, any>,
-  TModel extends TextModels<TAdapter>,
+  TAdapter extends TextAdapter<ReadonlyArray<string>, object, any, any, any, string>,
   TSchema extends z.ZodType | undefined,
   TStream extends boolean,
 > = {
-  /** The text adapter to use */
+  /** The text adapter to use (must be created with a model) */
   adapter: TAdapter & { kind: 'text' }
-  /** The model name (autocompletes based on adapter) */
-  model: TModel
   /** Conversation messages - content types are constrained by the model's supported input modalities */
   messages: Array<
     ConstrainedModelMessage<
-      InputModalitiesForModel<TAdapter, TModel>,
+      InputModalitiesForModel<TAdapter, TAdapter['selectedModel']>,
       MessageMetadataForAdapter<TAdapter>['image'],
       MessageMetadataForAdapter<TAdapter>['audio'],
       MessageMetadataForAdapter<TAdapter>['video'],
@@ -748,7 +664,7 @@ export type AITextOptions<
   /** Additional options like temperature, maxTokens, etc. */
   options?: TextOptions['options']
   /** Provider-specific options (narrowed by model) */
-  modelOptions?: NoInfer<TextProviderOptionsForModel<TAdapter, TModel>>
+  modelOptions?: NoInfer<TextProviderOptionsForModel<TAdapter, TAdapter['selectedModel']>>
   /** AbortController for cancellation */
   abortController?: TextOptions['abortController']
   /** Strategy for controlling the agent loop */
@@ -767,47 +683,41 @@ export type AITextOptions<
 
 /** @deprecated Use TextActivityOptions */
 export type TextGenerateOptions<
-  TAdapter extends TextAdapter<ReadonlyArray<string>, object, any, any, any>,
-  TModel extends TextModels<TAdapter>,
+  TAdapter extends TextAdapter<ReadonlyArray<string>, object, any, any, any, string>,
   TSchema extends z.ZodType | undefined = undefined,
   TStream extends boolean = true,
-> = TextActivityOptions<TAdapter, TModel, TSchema, TStream>
+> = TextActivityOptions<TAdapter, TSchema, TStream>
 
 /** @deprecated Use EmbeddingActivityOptions */
 export type EmbeddingGenerateOptions<
-  TAdapter extends EmbeddingAdapter<ReadonlyArray<string>, object>,
-  TModel extends EmbeddingModels<TAdapter>,
-> = EmbeddingActivityOptions<TAdapter, TModel>
+  TAdapter extends EmbeddingAdapter<ReadonlyArray<string>, object, string>,
+> = EmbeddingActivityOptions<TAdapter>
 
 /** @deprecated Use SummarizeActivityOptions */
 export type SummarizeGenerateOptions<
-  TAdapter extends SummarizeAdapter<ReadonlyArray<string>, object>,
-  TModel extends SummarizeModels<TAdapter>,
+  TAdapter extends SummarizeAdapter<ReadonlyArray<string>, object, string>,
   TStream extends boolean = false,
-> = SummarizeActivityOptions<TAdapter, TModel, TStream>
+> = SummarizeActivityOptions<TAdapter, TStream>
 
 /** @deprecated Use ImageActivityOptions */
 export type ImageGenerateOptions<
-  TAdapter extends ImageAdapter<ReadonlyArray<string>, object, any, any>,
-  TModel extends ImageModels<TAdapter>,
-> = ImageActivityOptions<TAdapter, TModel>
+  TAdapter extends ImageAdapter<ReadonlyArray<string>, object, any, any, string>,
+> = ImageActivityOptions<TAdapter>
 
 /**
  * @deprecated Use VideoActivityOptions
  * @experimental Video generation is an experimental feature and may change.
  */
 export type VideoGenerateOptions<
-  TAdapter extends VideoAdapter<ReadonlyArray<string>, object>,
-  TModel extends VideoModels<TAdapter>,
+  TAdapter extends VideoAdapter<ReadonlyArray<string>, object, string>,
   TRequest extends 'create' | 'status' | 'url' = 'create',
-> = VideoActivityOptions<TAdapter, TModel, TRequest>
+> = VideoActivityOptions<TAdapter, TRequest>
 
 /**
  * @deprecated Use VideoActivityOptions
  * @experimental Video generation is an experimental feature and may change.
  */
 export type GenerateVideoOptions<
-  TAdapter extends VideoAdapter<ReadonlyArray<string>, object>,
-  TModel extends VideoModels<TAdapter>,
+  TAdapter extends VideoAdapter<ReadonlyArray<string>, object, string>,
   TRequest extends 'create' | 'status' | 'url' = 'create',
-> = VideoActivityOptions<TAdapter, TModel, TRequest>
+> = VideoActivityOptions<TAdapter, TRequest>

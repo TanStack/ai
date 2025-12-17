@@ -47,7 +47,7 @@ import type { AnthropicClientConfig } from '../utils'
 /**
  * Configuration for Anthropic text adapter
  */
-export interface AnthropicTextConfig extends AnthropicClientConfig {}
+export interface AnthropicTextConfig extends AnthropicClientConfig { }
 
 /**
  * Anthropic-specific provider options for text/chat
@@ -56,8 +56,8 @@ export type AnthropicTextProviderOptions = ExternalTextProviderOptions
 
 type AnthropicContentBlocks =
   Extract<MessageParam['content'], Array<unknown>> extends Array<infer Block>
-    ? Array<Block>
-    : never
+  ? Array<Block>
+  : never
 type AnthropicContentBlock =
   AnthropicContentBlocks extends Array<infer Block> ? Block : never
 
@@ -67,12 +67,15 @@ type AnthropicContentBlock =
  * Tree-shakeable adapter for Anthropic chat/text completion functionality.
  * Import only what you need for smaller bundle sizes.
  */
-export class AnthropicTextAdapter extends BaseTextAdapter<
+export class AnthropicTextAdapter<
+  TSelectedModel extends (typeof ANTHROPIC_MODELS)[number] | undefined = undefined,
+> extends BaseTextAdapter<
   typeof ANTHROPIC_MODELS,
   AnthropicTextProviderOptions,
   AnthropicChatModelProviderOptionsByName,
   AnthropicModelInputModalitiesByName,
-  AnthropicMessageMetadataByModality
+  AnthropicMessageMetadataByModality,
+  TSelectedModel
 > {
   readonly kind = 'text' as const
   readonly name = 'anthropic' as const
@@ -81,11 +84,12 @@ export class AnthropicTextAdapter extends BaseTextAdapter<
   declare _modelProviderOptionsByName: AnthropicChatModelProviderOptionsByName
   declare _modelInputModalitiesByName: AnthropicModelInputModalitiesByName
   declare _messageMetadataByModality: AnthropicMessageMetadataByModality
+  declare _selectedModel?: TSelectedModel
 
   private client: Anthropic_SDK
 
-  constructor(config: AnthropicTextConfig) {
-    super({})
+  constructor(config: AnthropicTextConfig, selectedModel?: TSelectedModel) {
+    super({}, selectedModel)
     this.client = createAnthropicClient(config)
   }
 
@@ -234,11 +238,11 @@ export class AnthropicTextAdapter extends BaseTextAdapter<
         if (key in modelOptions) {
           const value = modelOptions[key]
           if (key === 'tool_choice' && typeof value === 'string') {
-            ;(validProviderOptions as Record<string, unknown>)[key] = {
+            ; (validProviderOptions as Record<string, unknown>)[key] = {
               type: value,
             }
           } else {
-            ;(validProviderOptions as Record<string, unknown>)[key] = value
+            ; (validProviderOptions as Record<string, unknown>)[key] = value
           }
         }
       }
@@ -286,14 +290,14 @@ export class AnthropicTextAdapter extends BaseTextAdapter<
         const imageSource: Base64ImageSource | URLImageSource =
           part.source.type === 'data'
             ? {
-                type: 'base64',
-                data: part.source.value,
-                media_type: metadata?.mediaType ?? 'image/jpeg',
-              }
+              type: 'base64',
+              data: part.source.value,
+              media_type: metadata?.mediaType ?? 'image/jpeg',
+            }
             : {
-                type: 'url',
-                url: part.source.value,
-              }
+              type: 'url',
+              url: part.source.value,
+            }
         const { mediaType: _mediaType, ...meta } = metadata || {}
         return {
           type: 'image',
@@ -306,14 +310,14 @@ export class AnthropicTextAdapter extends BaseTextAdapter<
         const docSource: Base64PDFSource | URLPDFSource =
           part.source.type === 'data'
             ? {
-                type: 'base64',
-                data: part.source.value,
-                media_type: 'application/pdf',
-              }
+              type: 'base64',
+              data: part.source.value,
+              media_type: 'application/pdf',
+            }
             : {
-                type: 'url',
-                url: part.source.value,
-              }
+              type: 'url',
+              url: part.source.value,
+            }
         return {
           type: 'document',
           source: docSource,
@@ -415,8 +419,8 @@ export class AnthropicTextAdapter extends BaseTextAdapter<
             ? message.content
             : message.content
               ? message.content.map((c) =>
-                  this.convertContentPartToAnthropic(c),
-                )
+                this.convertContentPartToAnthropic(c),
+              )
               : '',
       })
     }
@@ -598,36 +602,51 @@ export class AnthropicTextAdapter extends BaseTextAdapter<
 /**
  * Creates an Anthropic chat adapter with explicit API key
  */
-export function createAnthropicChat(
+export function createAnthropicChat<
+  TSelectedModel extends (typeof ANTHROPIC_MODELS)[number],
+>(
+  model: TSelectedModel,
   apiKey: string,
   config?: Omit<AnthropicTextConfig, 'apiKey'>,
-): AnthropicTextAdapter {
-  return new AnthropicTextAdapter({ apiKey, ...config })
+): AnthropicTextAdapter<TSelectedModel> {
+  return new AnthropicTextAdapter({ apiKey, ...config }, model)
 }
 
 /**
  * Creates an Anthropic text adapter with automatic API key detection
  */
-export function anthropicText(
+export function anthropicText<
+  TSelectedModel extends (typeof ANTHROPIC_MODELS)[number],
+>(
+  model: TSelectedModel,
   config?: Omit<AnthropicTextConfig, 'apiKey'>,
-): AnthropicTextAdapter {
+): AnthropicTextAdapter<TSelectedModel> {
   const apiKey = getAnthropicApiKeyFromEnv()
-  return createAnthropicChat(apiKey, config)
+  return createAnthropicChat(model, apiKey, config)
 }
 
 /**
  * @deprecated Use anthropicText() instead
  */
-export function anthropicChat(
+export function anthropicChat<
+  TSelectedModel extends (typeof ANTHROPIC_MODELS)[number],
+>(
+  model: TSelectedModel,
   config?: Omit<AnthropicTextConfig, 'apiKey'>,
-): AnthropicTextAdapter {
+): AnthropicTextAdapter<TSelectedModel> {
   const apiKey = getAnthropicApiKeyFromEnv()
-  return createAnthropicChat(apiKey, config)
+  return createAnthropicChat(model, apiKey, config)
 }
 
-export function createAnthropicText(
+/**
+ * @deprecated Use createAnthropicChat() instead
+ */
+export function createAnthropicText<
+  TSelectedModel extends (typeof ANTHROPIC_MODELS)[number],
+>(
+  model: TSelectedModel,
   apiKey: string,
   config?: Omit<AnthropicTextConfig, 'apiKey'>,
-): AnthropicTextAdapter {
-  return createAnthropicChat(apiKey, config)
+): AnthropicTextAdapter<TSelectedModel> {
+  return createAnthropicChat(model, apiKey, config)
 }

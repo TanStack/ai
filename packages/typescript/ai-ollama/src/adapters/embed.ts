@@ -38,7 +38,6 @@ export interface OllamaEmbedProviderOptions {
 }
 
 export interface OllamaEmbedAdapterOptions {
-  model?: OllamaEmbeddingModel
   host?: string
 }
 
@@ -46,13 +45,17 @@ export interface OllamaEmbedAdapterOptions {
  * Ollama Embedding Adapter
  * A tree-shakeable embedding adapter for Ollama
  */
-export class OllamaEmbedAdapter implements EmbeddingAdapter<
+export class OllamaEmbedAdapter<
+  TSelectedModel extends string | undefined = undefined,
+> implements EmbeddingAdapter<
   typeof OllamaEmbeddingModels,
-  OllamaEmbedProviderOptions
+  OllamaEmbedProviderOptions,
+  TSelectedModel
 > {
   readonly kind = 'embedding' as const
   readonly name = 'ollama' as const
   readonly models = OllamaEmbeddingModels
+  readonly selectedModel: TSelectedModel
 
   /** Type-only property for provider options inference */
   declare _providerOptions?: OllamaEmbedProviderOptions
@@ -61,6 +64,7 @@ export class OllamaEmbedAdapter implements EmbeddingAdapter<
 
   constructor(
     hostOrClient?: string | Ollama,
+    selectedModel?: TSelectedModel,
     _options: OllamaEmbedAdapterOptions = {},
   ) {
     if (typeof hostOrClient === 'string' || hostOrClient === undefined) {
@@ -68,6 +72,7 @@ export class OllamaEmbedAdapter implements EmbeddingAdapter<
     } else {
       this.client = hostOrClient
     }
+    this.selectedModel = selectedModel as TSelectedModel
   }
 
   async createEmbeddings(options: EmbeddingOptions): Promise<EmbeddingResult> {
@@ -107,41 +112,45 @@ export class OllamaEmbedAdapter implements EmbeddingAdapter<
 }
 
 /**
- * Creates an Ollama embedding adapter with explicit host
+ * Creates an Ollama embedding adapter with explicit host and model
  */
-export function createOllamaEmbedding(
+export function createOllamaEmbedding<TModel extends OllamaEmbeddingModel>(
+  model: TModel,
   host?: string,
   options?: OllamaEmbedAdapterOptions,
-): OllamaEmbedAdapter {
-  return new OllamaEmbedAdapter(host, options)
+): OllamaEmbedAdapter<TModel> {
+  return new OllamaEmbedAdapter(host, model, options)
 }
 
 /**
- * Creates an Ollama embedding adapter with host from environment
+ * Creates an Ollama embedding adapter with host from environment and required model
  */
-export function ollamaEmbedding(
+export function ollamaEmbedding<TModel extends OllamaEmbeddingModel>(
+  model: TModel,
   options?: OllamaEmbedAdapterOptions,
-): OllamaEmbedAdapter {
+): OllamaEmbedAdapter<TModel> {
   const host = getOllamaHostFromEnv()
-  return new OllamaEmbedAdapter(host, options)
+  return new OllamaEmbedAdapter(host, model, options)
 }
 
 /**
  * @deprecated Use ollamaEmbedding() instead
  */
-export function ollamaEmbed(
+export function ollamaEmbed<TModel extends OllamaEmbeddingModel>(
+  model: TModel,
   options?: OllamaEmbedAdapterOptions,
-): OllamaEmbedAdapter {
+): OllamaEmbedAdapter<TModel> {
   const host = getOllamaHostFromEnv()
-  return new OllamaEmbedAdapter(host, options)
+  return new OllamaEmbedAdapter(host, model, options)
 }
 
 /**
  * @deprecated Use createOllamaEmbedding() instead
  */
-export function createOllamaEmbed(
+export function createOllamaEmbed<TModel extends OllamaEmbeddingModel>(
+  model: TModel,
   host?: string,
   options?: OllamaEmbedAdapterOptions,
-): OllamaEmbedAdapter {
-  return new OllamaEmbedAdapter(host, options)
+): OllamaEmbedAdapter<TModel> {
+  return new OllamaEmbedAdapter(host, model, options)
 }

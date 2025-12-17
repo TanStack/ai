@@ -22,11 +22,11 @@ export const kind = 'embedding' as const
 
 /** Extract model types from an EmbeddingAdapter */
 export type EmbeddingModels<TAdapter> =
-  TAdapter extends EmbeddingAdapter<infer M, any> ? M[number] : string
+  TAdapter extends EmbeddingAdapter<infer M, any, any> ? M[number] : string
 
 /** Extract provider options from an EmbeddingAdapter */
 export type EmbeddingProviderOptions<TAdapter> =
-  TAdapter extends EmbeddingAdapter<any, infer P> ? P : object
+  TAdapter extends EmbeddingAdapter<any, infer P, any> ? P : object
 
 // ===========================
 // Activity Options Type
@@ -34,18 +34,15 @@ export type EmbeddingProviderOptions<TAdapter> =
 
 /**
  * Options for the embedding activity.
+ * The model is extracted from the adapter's selectedModel property.
  *
- * @template TAdapter - The embedding adapter type
- * @template TModel - The model name type (inferred from adapter)
+ * @template TAdapter - The embedding adapter type (must have a selectedModel)
  */
 export interface EmbeddingActivityOptions<
-  TAdapter extends EmbeddingAdapter<ReadonlyArray<string>, object>,
-  TModel extends EmbeddingModels<TAdapter>,
+  TAdapter extends EmbeddingAdapter<ReadonlyArray<string>, object, string>,
 > {
-  /** The embedding adapter to use */
+  /** The embedding adapter to use (must be created with a model) */
   adapter: TAdapter & { kind: typeof kind }
-  /** The model name (autocompletes based on adapter) */
-  model: TModel
   /** Text input to embed (single string or array of strings) */
   input: string | Array<string>
   /** Optional: Number of dimensions for the embedding vector */
@@ -85,8 +82,7 @@ function createId(prefix: string): string {
  * import { openaiEmbed } from '@tanstack/ai-openai'
  *
  * const result = await embedding({
- *   adapter: openaiEmbed(),
- *   model: 'text-embedding-3-small',
+ *   adapter: openaiEmbed('text-embedding-3-small'),
  *   input: 'Hello, world!'
  * })
  *
@@ -96,8 +92,7 @@ function createId(prefix: string): string {
  * @example Generate embeddings for multiple texts
  * ```ts
  * const result = await embedding({
- *   adapter: openaiEmbed(),
- *   model: 'text-embedding-3-small',
+ *   adapter: openaiEmbed('text-embedding-3-small'),
  *   input: ['Hello', 'World', 'How are you?']
  * })
  *
@@ -110,33 +105,30 @@ function createId(prefix: string): string {
  * @example Specify embedding dimensions
  * ```ts
  * const result = await embedding({
- *   adapter: openaiEmbed(),
- *   model: 'text-embedding-3-small',
+ *   adapter: openaiEmbed('text-embedding-3-small'),
  *   input: 'Hello, world!',
  *   dimensions: 256 // Reduce to 256 dimensions
  * })
  * ```
  */
 export async function embedding<
-  TAdapter extends EmbeddingAdapter<ReadonlyArray<string>, object>,
-  TModel extends EmbeddingModels<TAdapter>,
->(
-  options: EmbeddingActivityOptions<TAdapter, TModel>,
-): EmbeddingActivityResult {
-  const { adapter, input, dimensions, model } = options
+  TAdapter extends EmbeddingAdapter<ReadonlyArray<string>, object, string>,
+>(options: EmbeddingActivityOptions<TAdapter>): EmbeddingActivityResult {
+  const { adapter, input, dimensions } = options
+  const model = adapter.selectedModel
   const requestId = createId('embedding')
   const inputCount = Array.isArray(input) ? input.length : 1
   const startTime = Date.now()
 
   aiEventClient.emit('embedding:started', {
     requestId,
-    model: model as string,
+    model,
     inputCount,
     timestamp: startTime,
   })
 
   const embeddingOptions: EmbeddingOptions = {
-    model: model as string,
+    model,
     input,
     dimensions,
   }
@@ -147,7 +139,7 @@ export async function embedding<
 
   aiEventClient.emit('embedding:completed', {
     requestId,
-    model: model as string,
+    model,
     inputCount,
     duration,
     timestamp: Date.now(),

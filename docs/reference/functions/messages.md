@@ -80,10 +80,10 @@ combining typed messages with untyped data (like from request.json()).
 import { messages, chat } from '@tanstack/ai'
 import { openaiText } from '@tanstack/ai-openai'
 
-const adapter = openaiText()
+const adapter = openaiText('gpt-4o')
 
 // This will error at compile time because gpt-4o only supports text+image
-const msgs = messages({ adapter, model: 'gpt-4o' }, [
+const msgs = messages({ adapter }, [
   {
     role: 'user',
     content: [

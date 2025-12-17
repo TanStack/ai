@@ -16,6 +16,7 @@ class MockAdapter extends BaseAdapter<
   public chatStreamCallCount = 0
 
   readonly kind = 'text' as const
+  readonly selectedModel = 'test-model' as const
   name = 'mock'
   models = ['test-model'] as const
 
@@ -86,7 +87,6 @@ describe('chat() - Abort Signal Handling', () => {
 
     const stream = chat({
       adapter: mockAdapter,
-      model: 'test-model',
       messages: [{ role: 'user', content: 'Hello' }],
       abortController,
     })
@@ -107,7 +107,6 @@ describe('chat() - Abort Signal Handling', () => {
 
     const stream = chat({
       adapter: mockAdapter,
-      model: 'test-model',
       messages: [{ role: 'user', content: 'Hello' }],
       abortController,
     })
@@ -139,7 +138,6 @@ describe('chat() - Abort Signal Handling', () => {
 
     const stream = chat({
       adapter: mockAdapter,
-      model: 'test-model',
       messages: [{ role: 'user', content: 'Hello' }],
       abortController,
     })
@@ -189,7 +187,6 @@ describe('chat() - Abort Signal Handling', () => {
 
     const stream = chat({
       adapter: toolAdapter,
-      model: 'test-model',
       messages: [{ role: 'user', content: 'Hello' }],
       tools: [
         {
@@ -223,7 +220,6 @@ describe('chat() - Abort Signal Handling', () => {
 
     const stream = chat({
       adapter: mockAdapter,
-      model: 'test-model',
       messages: [{ role: 'user', content: 'Hello' }],
     })
 

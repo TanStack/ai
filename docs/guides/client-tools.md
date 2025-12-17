@@ -102,8 +102,7 @@ export async function POST(request: Request) {
   const { messages } = await request.json();
 
   const stream = chat({
-    adapter: openaiText(),
-    model: "gpt-4o",
+    adapter: openaiText("gpt-4o"),
     messages,
     tools: [updateUIDef, saveToLocalStorageDef], // Pass definitions
   });
@@ -298,10 +297,10 @@ const addToCartClient = addToCartDef.client((input) => {
 });
 
 // Server: Pass definition for client execution
-chat({ adapter: openaiText(), model: 'gpt-4o', messages: [], tools: [addToCartDef] }); // Client will execute
+chat({ adapter: openaiText('gpt-4o'), messages: [], tools: [addToCartDef] }); // Client will execute
 
 // Or pass server implementation for server execution
-chat({ adapter: openaiText(), model: 'gpt-4o', messages: [], tools: [addToCartServer] }); // Server will execute
+chat({ adapter: openaiText('gpt-4o'), messages: [], tools: [addToCartServer] }); // Server will execute
 ```
 
 ## Best Practices

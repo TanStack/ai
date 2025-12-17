@@ -8,7 +8,7 @@ export {
   getVideoJobStatus,
   generateSpeech,
   generateTranscription,
-} from './activities'
+} from './activities/index'
 
 // Create options functions - for pre-defining typed configurations
 export {
@@ -37,7 +37,7 @@ export type {
   GenerateImageOptions,
   VideoGenerateOptions,
   GenerateVideoOptions,
-} from './activities'
+} from './activities/index'
 
 // Tool definition
 export {

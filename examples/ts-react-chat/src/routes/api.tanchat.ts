@@ -17,30 +17,28 @@ import {
   recommendGuitarToolDef,
 } from '@/lib/guitar-tools'
 
+
 type Provider = 'openai' | 'anthropic' | 'gemini' | 'ollama'
 
 // Pre-define typed adapter configurations with full type inference
-// This pattern gives you model autocomplete at definition time
+// Model is passed to the adapter factory function for type-safe autocomplete
 const adapterConfig = {
   anthropic: () =>
     createChatOptions({
-      adapter: anthropicText(),
-      model: 'claude-sonnet-4-5',
+      adapter: anthropicText('claude-sonnet-4-5'),
     }),
   gemini: () =>
     createChatOptions({
-      adapter: geminiText(),
-      model: 'gemini-2.0-flash-exp',
+      adapter: geminiText('gemini-2.5-flash'),
+
     }),
   ollama: () =>
     createChatOptions({
-      adapter: ollamaText(),
-      model: 'mistral:7b',
+      adapter: ollamaText('mistral:7b'),
     }),
   openai: () =>
     createChatOptions({
-      adapter: openaiText(),
-      model: 'gpt-4o',
+      adapter: openaiText('gpt-4o'),
     }),
 }
 
@@ -102,10 +100,17 @@ export const Route = createFileRoute('/api/tanchat')({
             `[API Route] Using provider: ${provider}, adapter: ${options.adapter.name}`,
           )
 
+          const test = createChatOptions({
+            adapter: openaiText('gpt-5'),
+            thisIsntvalid: true,
+          })
           // Note: We cast to AsyncIterable<StreamChunk> because all chat adapters
           // return streams, but TypeScript sees a union of all possible return types
           const stream = chat({
-            ...options,
+            ...test,
+            modelOptions: {
+              test: "this hsouldn't be possible"
+            },
             tools: [
               getGuitars, // Server tool
               recommendGuitarToolDef, // No server execute - client will handle

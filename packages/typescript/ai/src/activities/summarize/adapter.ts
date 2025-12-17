@@ -22,10 +22,12 @@ export interface SummarizeAdapterConfig {
  * Generic parameters:
  * - TModels: Array of supported model names for summarization
  * - TProviderOptions: Provider-specific options for summarization endpoint
+ * - TSelectedModel: The model selected when creating the adapter (undefined if not selected)
  */
 export interface SummarizeAdapter<
   TModels extends ReadonlyArray<string> = ReadonlyArray<string>,
   TProviderOptions extends object = Record<string, unknown>,
+  TSelectedModel extends string | undefined = undefined,
 > {
   /** Discriminator for adapter kind - used by generate() to determine API shape */
   readonly kind: 'summarize'
@@ -33,6 +35,8 @@ export interface SummarizeAdapter<
   readonly name: string
   /** Supported models for summarization */
   readonly models: TModels
+  /** The model selected when creating the adapter */
+  readonly selectedModel: TSelectedModel
 
   // Type-only properties for type inference
   /** @internal Type-only property for provider options inference */
@@ -60,18 +64,24 @@ export interface SummarizeAdapter<
 export abstract class BaseSummarizeAdapter<
   TModels extends ReadonlyArray<string> = ReadonlyArray<string>,
   TProviderOptions extends object = Record<string, unknown>,
-> implements SummarizeAdapter<TModels, TProviderOptions> {
+  TSelectedModel extends TModels[number] | undefined = undefined,
+> implements SummarizeAdapter<TModels, TProviderOptions, TSelectedModel> {
   readonly kind = 'summarize' as const
   abstract readonly name: string
   abstract readonly models: TModels
+  readonly selectedModel: TSelectedModel
 
   // Type-only property - never assigned at runtime
   declare _providerOptions?: TProviderOptions
 
   protected config: SummarizeAdapterConfig
 
-  constructor(config: SummarizeAdapterConfig = {}) {
+  constructor(
+    config: SummarizeAdapterConfig = {},
+    selectedModel?: TSelectedModel,
+  ) {
     this.config = config
+    this.selectedModel = selectedModel as TSelectedModel
   }
 
   abstract summarize(

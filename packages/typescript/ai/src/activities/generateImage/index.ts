@@ -21,7 +21,13 @@ export const kind = 'image' as const
 
 /** Extract model types from an ImageAdapter */
 export type ImageModels<TAdapter> =
-  TAdapter extends ImageAdapter<infer M, any, any, any> ? M[number] : string
+  TAdapter extends ImageAdapter<infer M, any, any, any, any> ? M[number] : string
+
+/** Extract the selected model from an ImageAdapter */
+export type ImageSelectedModel<TAdapter> =
+  TAdapter extends ImageAdapter<any, any, any, any, infer TSelectedModel>
+  ? TSelectedModel
+  : undefined
 
 /**
  * Extract model-specific provider options from an ImageAdapter.
@@ -29,30 +35,36 @@ export type ImageModels<TAdapter> =
  * use those; otherwise fall back to base provider options.
  */
 export type ImageProviderOptionsForModel<TAdapter, TModel extends string> =
-  TAdapter extends ImageAdapter<any, infer BaseOptions, infer ModelOptions, any>
-    ? string extends keyof ModelOptions
-      ? // ModelOptions is Record<string, unknown> or has index signature - use BaseOptions
-        BaseOptions
-      : // ModelOptions has explicit keys - check if TModel is one of them
-        TModel extends keyof ModelOptions
-        ? ModelOptions[TModel]
-        : BaseOptions
-    : object
+  TAdapter extends ImageAdapter<
+    any,
+    infer BaseOptions,
+    infer ModelOptions,
+    any,
+    any
+  >
+  ? string extends keyof ModelOptions
+  ? // ModelOptions is Record<string, unknown> or has index signature - use BaseOptions
+  BaseOptions
+  : // ModelOptions has explicit keys - check if TModel is one of them
+  TModel extends keyof ModelOptions
+  ? ModelOptions[TModel]
+  : BaseOptions
+  : object
 
 /**
  * Extract model-specific size options from an ImageAdapter.
  * If the model has specific sizes defined, use those; otherwise fall back to string.
  */
 export type ImageSizeForModel<TAdapter, TModel extends string> =
-  TAdapter extends ImageAdapter<any, any, any, infer SizeByName>
-    ? string extends keyof SizeByName
-      ? // SizeByName has index signature - fall back to string
-        string
-      : // SizeByName has explicit keys - check if TModel is one of them
-        TModel extends keyof SizeByName
-        ? SizeByName[TModel]
-        : string
-    : string
+  TAdapter extends ImageAdapter<any, any, any, infer SizeByName, any>
+  ? string extends keyof SizeByName
+  ? // SizeByName has index signature - fall back to string
+  string
+  : // SizeByName has explicit keys - check if TModel is one of them
+  TModel extends keyof SizeByName
+  ? SizeByName[TModel]
+  : string
+  : string
 
 // ===========================
 // Activity Options Type
@@ -60,26 +72,32 @@ export type ImageSizeForModel<TAdapter, TModel extends string> =
 
 /**
  * Options for the image activity.
+ * The model is extracted from the adapter's selectedModel property.
  *
- * @template TAdapter - The image adapter type
- * @template TModel - The model name type (inferred from adapter)
+ * @template TAdapter - The image adapter type (must have a selectedModel)
  */
 export interface ImageActivityOptions<
-  TAdapter extends ImageAdapter<ReadonlyArray<string>, object, any, any>,
-  TModel extends ImageModels<TAdapter>,
+  TAdapter extends ImageAdapter<
+    ReadonlyArray<string>,
+    object,
+    any,
+    any,
+    string
+  >,
 > {
-  /** The image adapter to use */
+  /** The image adapter to use (must be created with a model) */
   adapter: TAdapter & { kind: typeof kind }
-  /** The model name (autocompletes based on adapter) */
-  model: TModel
   /** Text description of the desired image(s) */
   prompt: string
   /** Number of images to generate (default: 1) */
   numberOfImages?: number
   /** Image size in WIDTHxHEIGHT format (e.g., "1024x1024") */
-  size?: ImageSizeForModel<TAdapter, TModel>
+  size?: ImageSizeForModel<TAdapter, ImageSelectedModel<TAdapter> & string>
   /** Provider-specific options for image generation */
-  modelOptions?: ImageProviderOptionsForModel<TAdapter, TModel>
+  modelOptions?: ImageProviderOptionsForModel<
+    TAdapter,
+    ImageSelectedModel<TAdapter> & string
+  >
 }
 
 // ===========================
@@ -104,8 +122,7 @@ export type ImageActivityResult = Promise<ImageGenerationResult>
  * import { openaiImage } from '@tanstack/ai-openai'
  *
  * const result = await generateImage({
- *   adapter: openaiImage(),
- *   model: 'dall-e-3',
+ *   adapter: openaiImage('dall-e-3'),
  *   prompt: 'A serene mountain landscape at sunset'
  * })
  *
@@ -115,8 +132,7 @@ export type ImageActivityResult = Promise<ImageGenerationResult>
  * @example Generate multiple images
  * ```ts
  * const result = await generateImage({
- *   adapter: openaiImage(),
- *   model: 'dall-e-2',
+ *   adapter: openaiImage('dall-e-2'),
  *   prompt: 'A cute robot mascot',
  *   numberOfImages: 4,
  *   size: '512x512'
@@ -130,8 +146,7 @@ export type ImageActivityResult = Promise<ImageGenerationResult>
  * @example With provider-specific options
  * ```ts
  * const result = await generateImage({
- *   adapter: openaiImage(),
- *   model: 'dall-e-3',
+ *   adapter: openaiImage('dall-e-3'),
  *   prompt: 'A professional headshot photo',
  *   size: '1024x1024',
  *   modelOptions: {
@@ -142,12 +157,18 @@ export type ImageActivityResult = Promise<ImageGenerationResult>
  * ```
  */
 export async function generateImage<
-  TAdapter extends ImageAdapter<ReadonlyArray<string>, object, any, any>,
-  TModel extends ImageModels<TAdapter>,
->(options: ImageActivityOptions<TAdapter, TModel>): ImageActivityResult {
+  TAdapter extends ImageAdapter<
+    ReadonlyArray<string>,
+    object,
+    any,
+    any,
+    string
+  >,
+>(options: ImageActivityOptions<TAdapter>): ImageActivityResult {
   const { adapter, ...rest } = options
+  const model = adapter.selectedModel
 
-  return adapter.generateImages(rest)
+  return adapter.generateImages({ ...rest, model })
 }
 
 // Re-export adapter types

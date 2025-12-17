@@ -100,22 +100,30 @@ export interface OllamaTextAdapterOptions {
 /**
  * Ollama Text/Chat Adapter
  * A tree-shakeable chat adapter for Ollama
+ * 
+ * Note: Ollama supports any model name as a string since models are loaded dynamically.
+ * The predefined OllamaTextModels are common models but any string is accepted.
  */
-export class OllamaTextAdapter extends BaseTextAdapter<
+export class OllamaTextAdapter<
+  TSelectedModel extends string | undefined = undefined,
+> extends BaseTextAdapter<
   typeof OllamaTextModels,
   OllamaTextProviderOptions
 > {
   readonly kind = 'text' as const
   readonly name = 'ollama' as const
   readonly models = OllamaTextModels
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  override readonly selectedModel: any
 
   private client: Ollama
 
   constructor(
     hostOrClient?: string | Ollama,
-    _options: OllamaTextAdapterOptions = {},
+    selectedModel?: TSelectedModel,
   ) {
-    super({})
+    super({}, undefined)
+    this.selectedModel = selectedModel
     if (typeof hostOrClient === 'string' || hostOrClient === undefined) {
       this.client = createOllamaClient({ host: hostOrClient })
     } else {
@@ -323,34 +331,34 @@ export class OllamaTextAdapter extends BaseTextAdapter<
           : textContent,
         ...(images.length > 0 ? { images } : {}),
         ...(msg.role === 'assistant' &&
-        msg.toolCalls &&
-        msg.toolCalls.length > 0
+          msg.toolCalls &&
+          msg.toolCalls.length > 0
           ? {
-              tool_calls: msg.toolCalls.map((toolCall) => {
-                let parsedArguments: Record<string, unknown> = {}
-                if (typeof toolCall.function.arguments === 'string') {
-                  try {
-                    parsedArguments = JSON.parse(
-                      toolCall.function.arguments,
-                    ) as Record<string, unknown>
-                  } catch {
-                    parsedArguments = {}
-                  }
-                } else {
-                  parsedArguments = toolCall.function
-                    .arguments as unknown as Record<string, unknown>
+            tool_calls: msg.toolCalls.map((toolCall) => {
+              let parsedArguments: Record<string, unknown> = {}
+              if (typeof toolCall.function.arguments === 'string') {
+                try {
+                  parsedArguments = JSON.parse(
+                    toolCall.function.arguments,
+                  ) as Record<string, unknown>
+                } catch {
+                  parsedArguments = {}
                 }
+              } else {
+                parsedArguments = toolCall.function
+                  .arguments as unknown as Record<string, unknown>
+              }
 
-                return {
-                  id: toolCall.id,
-                  type: toolCall.type,
-                  function: {
-                    name: toolCall.function.name,
-                    arguments: parsedArguments,
-                  },
-                }
-              }),
-            }
+              return {
+                id: toolCall.id,
+                type: toolCall.type,
+                function: {
+                  name: toolCall.function.name,
+                  arguments: parsedArguments,
+                },
+              }
+            }),
+          }
           : {}),
       }
     })
@@ -381,39 +389,39 @@ export class OllamaTextAdapter extends BaseTextAdapter<
 /**
  * Creates an Ollama chat adapter with explicit host
  */
-export function createOllamaChat(
+export function createOllamaChat<TSelectedModel extends string>(
+  model: TSelectedModel,
   host?: string,
-  options?: OllamaTextAdapterOptions,
-): OllamaTextAdapter {
-  return new OllamaTextAdapter(host, options)
+): OllamaTextAdapter<TSelectedModel> {
+  return new OllamaTextAdapter(host, model)
 }
 
 /**
  * Creates an Ollama text adapter with host from environment
  */
-export function ollamaText(
-  options?: OllamaTextAdapterOptions,
-): OllamaTextAdapter {
+export function ollamaText<TSelectedModel extends string>(
+  model: TSelectedModel,
+): OllamaTextAdapter<TSelectedModel> {
   const host = getOllamaHostFromEnv()
-  return new OllamaTextAdapter(host, options)
+  return new OllamaTextAdapter(host, model)
 }
 
 /**
  * @deprecated Use ollamaText() instead
  */
-export function ollamaChat(
-  options?: OllamaTextAdapterOptions,
-): OllamaTextAdapter {
+export function ollamaChat<TSelectedModel extends string>(
+  model: TSelectedModel,
+): OllamaTextAdapter<TSelectedModel> {
   const host = getOllamaHostFromEnv()
-  return new OllamaTextAdapter(host, options)
+  return new OllamaTextAdapter(host, model)
 }
 
 /**
  * @deprecated Use createOllamaChat() instead
  */
-export function createOllamaText(
+export function createOllamaText<TSelectedModel extends string>(
+  model: TSelectedModel,
   host?: string,
-  options?: OllamaTextAdapterOptions,
-): OllamaTextAdapter {
-  return new OllamaTextAdapter(host, options)
+): OllamaTextAdapter<TSelectedModel> {
+  return new OllamaTextAdapter(host, model)
 }

@@ -40,7 +40,7 @@ import type { GeminiClientConfig } from '../utils'
 /**
  * Configuration for Gemini text adapter
  */
-export interface GeminiTextConfig extends GeminiClientConfig {}
+export interface GeminiTextConfig extends GeminiClientConfig { }
 
 /**
  * Gemini-specific provider options for text/chat
@@ -53,12 +53,15 @@ export type GeminiTextProviderOptions = ExternalTextProviderOptions
  * Tree-shakeable adapter for Gemini chat/text completion functionality.
  * Import only what you need for smaller bundle sizes.
  */
-export class GeminiTextAdapter extends BaseTextAdapter<
+export class GeminiTextAdapter<
+  TSelectedModel extends (typeof GEMINI_MODELS)[number] | undefined = undefined,
+> extends BaseTextAdapter<
   typeof GEMINI_MODELS,
   GeminiTextProviderOptions,
   GeminiChatModelProviderOptionsByName,
   GeminiModelInputModalitiesByName,
-  GeminiMessageMetadataByModality
+  GeminiMessageMetadataByModality,
+  TSelectedModel
 > {
   readonly kind = 'text' as const
   readonly name = 'gemini' as const
@@ -67,11 +70,12 @@ export class GeminiTextAdapter extends BaseTextAdapter<
   declare _modelProviderOptionsByName: GeminiChatModelProviderOptionsByName
   declare _modelInputModalitiesByName: GeminiModelInputModalitiesByName
   declare _messageMetadataByModality: GeminiMessageMetadataByModality
+  declare _selectedModel?: TSelectedModel
 
   private client: GoogleGenAI
 
-  constructor(config: GeminiTextConfig) {
-    super({})
+  constructor(config: GeminiTextConfig, selectedModel?: TSelectedModel) {
+    super({}, selectedModel)
     this.client = createGeminiClient(config)
   }
 
@@ -326,10 +330,10 @@ export class GeminiTextAdapter extends BaseTextAdapter<
           finishReason: toolCallMap.size > 0 ? 'tool_calls' : 'stop',
           usage: chunk.usageMetadata
             ? {
-                promptTokens: chunk.usageMetadata.promptTokenCount ?? 0,
-                completionTokens: chunk.usageMetadata.thoughtsTokenCount ?? 0,
-                totalTokens: chunk.usageMetadata.totalTokenCount ?? 0,
-              }
+              promptTokens: chunk.usageMetadata.promptTokenCount ?? 0,
+              completionTokens: chunk.usageMetadata.thoughtsTokenCount ?? 0,
+              totalTokens: chunk.usageMetadata.totalTokenCount ?? 0,
+            }
             : undefined,
         }
       }
@@ -396,9 +400,9 @@ export class GeminiTextAdapter extends BaseTextAdapter<
           try {
             parsedArgs = toolCall.function.arguments
               ? (JSON.parse(toolCall.function.arguments) as Record<
-                  string,
-                  unknown
-                >)
+                string,
+                unknown
+              >)
               : {}
           } catch {
             parsedArgs = toolCall.function.arguments as unknown as Record<
@@ -458,36 +462,53 @@ export class GeminiTextAdapter extends BaseTextAdapter<
 /**
  * Creates a Gemini text adapter with explicit API key
  */
-export function createGeminiChat(
+export function createGeminiChat<
+  TSelectedModel extends (typeof GEMINI_MODELS)[number],
+>(
+  model: TSelectedModel,
   apiKey: string,
   config?: Omit<GeminiTextConfig, 'apiKey'>,
-): GeminiTextAdapter {
-  return new GeminiTextAdapter({ apiKey, ...config })
+): GeminiTextAdapter<TSelectedModel> {
+  return new GeminiTextAdapter({ apiKey, ...config }, model)
 }
 
 /**
  * Creates a Gemini text adapter with automatic API key detection
  */
-export function geminiText(
+export function geminiText<
+  TSelectedModel extends (typeof GEMINI_MODELS)[number],
+>(
+  model: TSelectedModel,
   config?: Omit<GeminiTextConfig, 'apiKey'>,
-): GeminiTextAdapter {
+): GeminiTextAdapter<TSelectedModel> {
   const apiKey = getGeminiApiKeyFromEnv()
-  return createGeminiChat(apiKey, config)
+  return createGeminiChat(model, apiKey, config)
 }
 
 /**
  * @deprecated Use geminiText() instead
  */
-export function geminiChat(
+export function geminiChat<
+  TSelectedModel extends (typeof GEMINI_MODELS)[number],
+>(
+  model: TSelectedModel,
   config?: Omit<GeminiTextConfig, 'apiKey'>,
-): GeminiTextAdapter {
+): GeminiTextAdapter<TSelectedModel> {
   const apiKey = getGeminiApiKeyFromEnv()
-  return createGeminiChat(apiKey, config)
+  return createGeminiChat(model, apiKey, config)
 }
 
-export function createGeminiText(
+/**
+ * @deprecated Use createGeminiChat() instead
+ */
+export function createGeminiText<
+  TSelectedModel extends (typeof GEMINI_MODELS)[number],
+>(
+  model: TSelectedModel,
   apiKey: string,
   config?: Omit<GeminiTextConfig, 'apiKey'>,
-): GeminiTextAdapter {
-  return createGeminiChat(apiKey, config)
+): GeminiTextAdapter<TSelectedModel> {
+  return createGeminiChat(model, apiKey, config)
 }
+
+

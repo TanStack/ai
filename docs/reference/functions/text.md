@@ -41,8 +41,7 @@ Chat options
 
 ```typescript
 const stream = chat({
-  adapter: openaiText(),
-  model: 'gpt-4o',
+  adapter: openaiText('gpt-4o'),
   messages: [{ role: 'user', content: 'Hello!' }],
   tools: [weatherTool], // Optional: auto-executed when called
 });

@@ -3,7 +3,8 @@ import { chat, type Tool, type StreamChunk } from '@tanstack/ai'
 import { OpenAITextAdapter } from '../src/adapters/text'
 import type { OpenAITextProviderOptions } from '../src/adapters/text'
 
-const createAdapter = () => new OpenAITextAdapter({ apiKey: 'test-key' })
+const createAdapter = <TModel extends 'gpt-4o-mini' | 'gpt-4o'>(model: TModel) =>
+  new OpenAITextAdapter({ apiKey: 'test-key' }, model)
 
 const toolArguments = JSON.stringify({ location: 'Berlin' })
 
@@ -65,13 +66,13 @@ describe('OpenAI adapter option mapping', () => {
 
     const responsesCreate = vi.fn().mockResolvedValueOnce(mockStream)
 
-    const adapter = createAdapter()
-    // Replace the internal OpenAI SDK client with our mock
-    ;(adapter as any).client = {
-      responses: {
-        create: responsesCreate,
-      },
-    }
+    const adapter = createAdapter('gpt-4o-mini')
+      // Replace the internal OpenAI SDK client with our mock
+      ; (adapter as any).client = {
+        responses: {
+          create: responsesCreate,
+        },
+      }
 
     const modelOptions: OpenAITextProviderOptions = {
       tool_choice: 'required',
@@ -80,7 +81,6 @@ describe('OpenAI adapter option mapping', () => {
     const chunks: StreamChunk[] = []
     for await (const chunk of chat({
       adapter,
-      model: 'gpt-4o-mini',
       messages: [
         { role: 'system', content: 'Stay concise' },
         { role: 'user', content: 'How is the weather?' },

@@ -31,8 +31,7 @@ AgentLoopStrategy that stops on specific finish reasons
 
 ```typescript
 const stream = chat({
-  adapter: openaiText(),
-  model: "gpt-4o",
+  adapter: openaiText("gpt-4o"),
   messages: [...],
   tools: [weatherTool],
   agentLoopStrategy: untilFinishReason(["stop", "length"]),

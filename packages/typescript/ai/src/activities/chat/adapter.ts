@@ -47,6 +47,7 @@ export interface StructuredOutputResult<T = unknown> {
  * - TModelProviderOptionsByName: Map from model name to its specific provider options
  * - TModelInputModalitiesByName: Map from model name to its supported input modalities
  * - TMessageMetadataByModality: Map from modality type to adapter-specific metadata types
+ * - TSelectedModel: The model selected when creating the adapter (undefined if not selected)
  */
 export interface TextAdapter<
   TModels extends ReadonlyArray<string> = ReadonlyArray<string>,
@@ -56,7 +57,7 @@ export interface TextAdapter<
     unknown
   >,
   TModelInputModalitiesByName extends Record<string, ReadonlyArray<Modality>> =
-    Record<string, ReadonlyArray<Modality>>,
+  Record<string, ReadonlyArray<Modality>>,
   TMessageMetadataByModality extends {
     text: unknown
     image: unknown
@@ -64,6 +65,7 @@ export interface TextAdapter<
     video: unknown
     document: unknown
   } = DefaultMessageMetadataByModality,
+  TSelectedModel extends TModels[number] | undefined = undefined,
 > {
   /** Discriminator for adapter kind - used by generate() to determine API shape */
   readonly kind: 'text'
@@ -71,6 +73,8 @@ export interface TextAdapter<
   readonly name: string
   /** Supported chat models */
   readonly models: TModels
+  /** The model selected when creating the adapter */
+  readonly selectedModel: TSelectedModel
 
   // Type-only properties for type inference
   /** @internal Type-only property for provider options inference */
@@ -114,7 +118,7 @@ export abstract class BaseTextAdapter<
     unknown
   >,
   TModelInputModalitiesByName extends Record<string, ReadonlyArray<Modality>> =
-    Record<string, ReadonlyArray<Modality>>,
+  Record<string, ReadonlyArray<Modality>>,
   TMessageMetadataByModality extends {
     text: unknown
     image: unknown
@@ -122,16 +126,19 @@ export abstract class BaseTextAdapter<
     video: unknown
     document: unknown
   } = DefaultMessageMetadataByModality,
+  TSelectedModel extends TModels[number] | undefined = undefined,
 > implements TextAdapter<
   TModels,
   TProviderOptions,
   TModelProviderOptionsByName,
   TModelInputModalitiesByName,
-  TMessageMetadataByModality
+  TMessageMetadataByModality,
+  TSelectedModel
 > {
   readonly kind = 'text' as const
   abstract readonly name: string
   abstract readonly models: TModels
+  readonly selectedModel: TSelectedModel
 
   // Type-only properties - never assigned at runtime
   declare _providerOptions?: TProviderOptions
@@ -141,8 +148,9 @@ export abstract class BaseTextAdapter<
 
   protected config: TextAdapterConfig
 
-  constructor(config: TextAdapterConfig = {}) {
+  constructor(config: TextAdapterConfig = {}, selectedModel?: TSelectedModel) {
     this.config = config
+    this.selectedModel = selectedModel as TSelectedModel
   }
 
   abstract chatStream(
