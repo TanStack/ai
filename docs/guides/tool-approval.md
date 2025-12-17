@@ -57,14 +57,14 @@ On the server, tools with `needsApproval: true` will pause execution and wait fo
 
 ```typescript
 import { ai, toStreamResponse } from "@tanstack/ai";
-import { openaiChat } from "@tanstack/ai-openai";
+import { openaiText } from "@tanstack/ai-openai";
 import { sendEmail } from "./tools";
 
 export async function POST(request: Request) {
   const { messages } = await request.json();
 
   const stream = chat({
-    adapter: openaiChat(),
+    adapter: openaiText(),
     model: "gpt-4o",
     messages,
     tools: [sendEmail],

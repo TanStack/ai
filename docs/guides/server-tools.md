@@ -141,14 +141,14 @@ Pass tools to the `chat` function:
 
 ```typescript
 import { chat, toStreamResponse } from "@tanstack/ai";
-import { openaiChat } from "@tanstack/ai-openai";
+import { openaiText } from "@tanstack/ai-openai";
 import { getUserData, searchProducts } from "./tools";
 
 export async function POST(request: Request) {
   const { messages } = await request.json();
 
   const stream = chat({
-    adapter: openaiChat(),
+    adapter: openaiText(),
     model: "gpt-4o",
     messages,
     tools: [getUserData, searchProducts],
@@ -203,11 +203,11 @@ export const searchProducts = searchProductsDef.server(async ({ query }) => {
 
 // api/chat/route.ts
 import { chat } from "@tanstack/ai";
-import { openaiChat } from "@tanstack/ai-openai";
+import { openaiText } from "@tanstack/ai-openai";
 import { getUserData, searchProducts } from "@/tools/server";
 
 const stream = chat({
-  adapter: openaiChat(),
+  adapter: openaiText(),
   model: "gpt-4o",
   messages,
   tools: [getUserData, searchProducts],

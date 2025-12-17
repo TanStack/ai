@@ -1434,9 +1434,8 @@ describe('chat() - Comprehensive Logic Path Coverage', () => {
 
           yield {
             type: 'content',
-              model: 'test-model',
+            model: 'test-model',
             id: 'done-id',
-              model: 'test-model',
             timestamp: Date.now(),
             delta: 'Finished',
             content: 'Finished',
@@ -1444,9 +1443,8 @@ describe('chat() - Comprehensive Logic Path Coverage', () => {
           }
           yield {
             type: 'done',
-              model: 'test-model',
+            model: 'test-model',
             id: 'done-id',
-              model: 'test-model',
             timestamp: Date.now(),
             finishReason: 'stop',
           }
@@ -1640,9 +1638,8 @@ describe('chat() - Comprehensive Logic Path Coverage', () => {
           this.trackStreamCall(options)
           yield {
             type: 'content',
-              model: 'test-model',
+            model: 'test-model',
             id: 'test-id',
-              model: 'test-model',
             timestamp: Date.now(),
             delta: 'Hello',
             content: 'Hello',
@@ -1650,9 +1647,8 @@ describe('chat() - Comprehensive Logic Path Coverage', () => {
           }
           yield {
             type: 'done',
-              model: 'test-model',
+            model: 'test-model',
             id: 'test-id',
-              model: 'test-model',
             timestamp: Date.now(),
             finishReason: 'stop', // Not tool_calls
           }
@@ -1680,9 +1676,8 @@ describe('chat() - Comprehensive Logic Path Coverage', () => {
           this.trackStreamCall(options)
           yield {
             type: 'tool_call',
-              model: 'test-model',
+            model: 'test-model',
             id: 'test-id',
-              model: 'test-model',
             timestamp: Date.now(),
             toolCall: {
               id: 'call-1',
@@ -1693,9 +1688,8 @@ describe('chat() - Comprehensive Logic Path Coverage', () => {
           }
           yield {
             type: 'done',
-              model: 'test-model',
+            model: 'test-model',
             id: 'test-id',
-              model: 'test-model',
             timestamp: Date.now(),
             finishReason: 'tool_calls',
           }
@@ -1731,9 +1725,8 @@ describe('chat() - Comprehensive Logic Path Coverage', () => {
           // Tool call with empty name (invalid)
           yield {
             type: 'tool_call',
-              model: 'test-model',
+            model: 'test-model',
             id: 'test-id',
-              model: 'test-model',
             timestamp: Date.now(),
             toolCall: {
               id: 'call-1',
@@ -1744,9 +1737,8 @@ describe('chat() - Comprehensive Logic Path Coverage', () => {
           }
           yield {
             type: 'done',
-              model: 'test-model',
+            model: 'test-model',
             id: 'test-id',
-              model: 'test-model',
             timestamp: Date.now(),
             finishReason: 'tool_calls',
           }
@@ -1797,9 +1789,8 @@ describe('chat() - Comprehensive Logic Path Coverage', () => {
           this.trackStreamCall(options)
           yield {
             type: 'content',
-              model: 'test-model',
+            model: 'test-model',
             id: 'test-id',
-              model: 'test-model',
             timestamp: Date.now(),
             delta: 'Chunk 1',
             content: 'Chunk 1',
@@ -1808,9 +1799,8 @@ describe('chat() - Comprehensive Logic Path Coverage', () => {
           // Abort check happens in chat method between chunks
           yield {
             type: 'content',
-              model: 'test-model',
+            model: 'test-model',
             id: 'test-id',
-              model: 'test-model',
             timestamp: Date.now(),
             delta: 'Chunk 2',
             content: 'Chunk 2',
@@ -1818,9 +1808,8 @@ describe('chat() - Comprehensive Logic Path Coverage', () => {
           }
           yield {
             type: 'done',
-              model: 'test-model',
+            model: 'test-model',
             id: 'test-id',
-              model: 'test-model',
             timestamp: Date.now(),
             finishReason: 'stop',
           }
@@ -1865,9 +1854,8 @@ describe('chat() - Comprehensive Logic Path Coverage', () => {
           this.trackStreamCall(options)
           yield {
             type: 'tool_call',
-              model: 'test-model',
+            model: 'test-model',
             id: 'test-id',
-              model: 'test-model',
             timestamp: Date.now(),
             toolCall: {
               id: 'call-1',
@@ -1878,9 +1866,8 @@ describe('chat() - Comprehensive Logic Path Coverage', () => {
           }
           yield {
             type: 'done',
-              model: 'test-model',
+            model: 'test-model',
             id: 'test-id',
-              model: 'test-model',
             timestamp: Date.now(),
             finishReason: 'tool_calls',
           }
@@ -1918,9 +1905,8 @@ describe('chat() - Comprehensive Logic Path Coverage', () => {
           this.trackStreamCall(options)
           yield {
             type: 'content',
-              model: 'test-model',
+            model: 'test-model',
             id: 'test-id',
-              model: 'test-model',
             timestamp: Date.now(),
             delta: 'Hello',
             content: 'Hello',
@@ -1928,6 +1914,7 @@ describe('chat() - Comprehensive Logic Path Coverage', () => {
           }
           yield {
             type: 'error',
+            model: 'test-model',
             id: 'test-id',
             timestamp: Date.now(),
             error: {
@@ -1938,9 +1925,8 @@ describe('chat() - Comprehensive Logic Path Coverage', () => {
           // These should never be yielded
           yield {
             type: 'done',
-              model: 'test-model',
+            model: 'test-model',
             id: 'test-id',
-              model: 'test-model',
             timestamp: Date.now(),
             finishReason: 'stop',
           } as any
@@ -1983,9 +1969,8 @@ describe('chat() - Comprehensive Logic Path Coverage', () => {
           this.trackStreamCall(options)
           yield {
             type: 'content',
-              model: 'test-model',
+            model: 'test-model',
             id: 'test-id',
-              model: 'test-model',
             timestamp: Date.now(),
             delta: 'Done',
             content: 'Done',
@@ -1993,9 +1978,8 @@ describe('chat() - Comprehensive Logic Path Coverage', () => {
           }
           yield {
             type: 'done',
-              model: 'test-model',
+            model: 'test-model',
             id: 'test-id',
-              model: 'test-model',
             timestamp: Date.now(),
             finishReason: 'stop',
           }
@@ -2022,9 +2006,8 @@ describe('chat() - Comprehensive Logic Path Coverage', () => {
           this.trackStreamCall(options)
           yield {
             type: 'content',
-              model: 'test-model',
+            model: 'test-model',
             id: 'test-id',
-              model: 'test-model',
             timestamp: Date.now(),
             delta: 'Very long',
             content: 'Very long',
@@ -2032,9 +2015,8 @@ describe('chat() - Comprehensive Logic Path Coverage', () => {
           }
           yield {
             type: 'done',
-              model: 'test-model',
+            model: 'test-model',
             id: 'test-id',
-              model: 'test-model',
             timestamp: Date.now(),
             finishReason: 'length',
           }
@@ -2061,9 +2043,8 @@ describe('chat() - Comprehensive Logic Path Coverage', () => {
           this.trackStreamCall(options)
           yield {
             type: 'content',
-              model: 'test-model',
+            model: 'test-model',
             id: 'test-id',
-              model: 'test-model',
             timestamp: Date.now(),
             delta: 'Test',
             content: 'Test',
@@ -2071,9 +2052,8 @@ describe('chat() - Comprehensive Logic Path Coverage', () => {
           }
           yield {
             type: 'done',
-              model: 'test-model',
+            model: 'test-model',
             id: 'test-id',
-              model: 'test-model',
             timestamp: Date.now(),
             finishReason: null,
           }
@@ -2235,7 +2215,6 @@ describe('chat() - Comprehensive Logic Path Coverage', () => {
               type: 'content',
               model: 'test-model',
               id: 'test-id-1',
-              model: 'test-model',
               timestamp: Date.now(),
               delta: 'Let me',
               content: 'Let me',
@@ -2343,9 +2322,8 @@ describe('chat() - Comprehensive Logic Path Coverage', () => {
           this.trackStreamCall(options)
           yield {
             type: 'tool_call',
-              model: 'test-model',
+            model: 'test-model',
             id: 'test-id',
-              model: 'test-model',
             timestamp: Date.now(),
             toolCall: {
               id: '', // Empty ID
@@ -2356,9 +2334,8 @@ describe('chat() - Comprehensive Logic Path Coverage', () => {
           }
           yield {
             type: 'done',
-              model: 'test-model',
+            model: 'test-model',
             id: 'test-id',
-              model: 'test-model',
             timestamp: Date.now(),
             finishReason: 'tool_calls',
           }
@@ -2393,9 +2370,8 @@ describe('chat() - Comprehensive Logic Path Coverage', () => {
           this.trackStreamCall(options)
           yield {
             type: 'tool_call',
-              model: 'test-model',
+            model: 'test-model',
             id: 'test-id',
-              model: 'test-model',
             timestamp: Date.now(),
             toolCall: {
               id: 'call-1',
@@ -2406,9 +2382,8 @@ describe('chat() - Comprehensive Logic Path Coverage', () => {
           }
           yield {
             type: 'done',
-              model: 'test-model',
+            model: 'test-model',
             id: 'test-id',
-              model: 'test-model',
             timestamp: Date.now(),
             finishReason: 'tool_calls',
           }
@@ -2439,9 +2414,8 @@ describe('chat() - Comprehensive Logic Path Coverage', () => {
           this.trackStreamCall(options)
           yield {
             type: 'content',
-              model: 'test-model',
+            model: 'test-model',
             id: 'test-id',
-              model: 'test-model',
             timestamp: Date.now(),
             delta: 'Using tool',
             content: 'Using tool',
@@ -2450,6 +2424,7 @@ describe('chat() - Comprehensive Logic Path Coverage', () => {
           // Adapter sends tool_result chunk directly (from previous execution)
           yield {
             type: 'tool_result',
+            model: 'test-model',
             id: 'test-id',
             timestamp: Date.now(),
             toolCallId: 'call-previous',
@@ -2457,9 +2432,8 @@ describe('chat() - Comprehensive Logic Path Coverage', () => {
           }
           yield {
             type: 'done',
-              model: 'test-model',
+            model: 'test-model',
             id: 'test-id',
-              model: 'test-model',
             timestamp: Date.now(),
             finishReason: 'stop',
           }

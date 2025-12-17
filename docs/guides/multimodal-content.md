@@ -54,10 +54,10 @@ Messages can have `content` as either a string or an array of `ContentPart`:
 
 ```typescript
 import { chat } from '@tanstack/ai'
-import { openaiChat } from '@tanstack/ai-openai'
+import { openaiText } from '@tanstack/ai-openai'
 
 const response = await chat({
-  adapter: openaiChat(),
+  adapter: openaiText(),
   model: 'gpt-4o',
   messages: [
     {
@@ -84,9 +84,9 @@ const response = await chat({
 OpenAI supports images and audio in their vision and audio models:
 
 ```typescript
-import { openaiChat } from '@tanstack/ai-openai'
+import { openaiText } from '@tanstack/ai-openai'
 
-const adapter = openaiChat()
+const adapter = openaiText()
 
 // Image with detail level metadata
 const message = {
@@ -111,9 +111,9 @@ const message = {
 Anthropic's Claude models support images and PDF documents:
 
 ```typescript
-import { anthropicChat } from '@tanstack/ai-anthropic'
+import { anthropicText } from '@tanstack/ai-anthropic'
 
-const adapter = anthropicChat()
+const adapter = anthropicText()
 
 // Image with media type
 const imageMessage = {
@@ -150,9 +150,9 @@ const docMessage = {
 Google's Gemini models support a wide range of modalities:
 
 ```typescript
-import { geminiChat } from '@tanstack/ai-gemini'
+import { geminiText } from '@tanstack/ai-gemini'
 
-const adapter = geminiChat()
+const adapter = geminiText()
 
 // Image with mimeType
 const message = {
@@ -177,9 +177,9 @@ const message = {
 Ollama supports images in compatible models:
 
 ```typescript
-import { ollamaChat } from '@tanstack/ai-ollama'
+import { ollamaText } from '@tanstack/ai-ollama'
 
-const adapter = ollamaChat('http://localhost:11434')
+const adapter = ollamaText('http://localhost:11434')
 
 // Image as base64
 const message = {
@@ -277,12 +277,12 @@ When receiving messages from external sources (like `request.json()`), the data 
 
 ```typescript
 import { chat, assertMessages } from '@tanstack/ai'
-import { openaiChat } from '@tanstack/ai-openai'
+import { openaiText } from '@tanstack/ai-openai'
 
 // In an API route handler
 const { messages: incomingMessages } = await request.json()
 
-const adapter = openaiChat()
+const adapter = openaiText()
 
 // Assert incoming messages are compatible with gpt-4o (text + image only)
 const typedMessages = assertMessages({ adapter, model: 'gpt-4o' }, incomingMessages)

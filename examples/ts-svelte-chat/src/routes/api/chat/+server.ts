@@ -4,10 +4,10 @@ import {
   maxIterations,
   toStreamResponse,
 } from '@tanstack/ai'
-import { openaiChat } from '@tanstack/ai-openai'
-import { ollamaChat } from '@tanstack/ai-ollama'
-import { anthropicChat } from '@tanstack/ai-anthropic'
-import { geminiChat } from '@tanstack/ai-gemini'
+import { openaiText } from '@tanstack/ai-openai'
+import { ollamaText } from '@tanstack/ai-ollama'
+import { anthropicText } from '@tanstack/ai-anthropic'
+import { geminiText } from '@tanstack/ai-gemini'
 
 import type { RequestHandler } from './$types'
 import { env } from '$env/dynamic/private'
@@ -33,22 +33,22 @@ if (env.GEMINI_API_KEY) process.env.GEMINI_API_KEY = env.GEMINI_API_KEY
 const adapterConfig = {
   anthropic: () =>
     createChatOptions({
-      adapter: anthropicChat(),
+      adapter: anthropicText(),
       model: 'claude-sonnet-4-5',
     }),
   gemini: () =>
     createChatOptions({
-      adapter: geminiChat(),
+      adapter: geminiText(),
       model: 'gemini-2.0-flash-exp',
     }),
   ollama: () =>
     createChatOptions({
-      adapter: ollamaChat(),
+      adapter: ollamaText(),
       model: 'mistral:7b',
     }),
   openai: () =>
     createChatOptions({
-      adapter: openaiChat(),
+      adapter: openaiText(),
       model: 'gpt-4o',
     }),
 }

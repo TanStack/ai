@@ -18,12 +18,12 @@ let model
 
 switch (provider) {
   case 'anthropic':
-    adapter = anthropicChat()
+    adapter = anthropicText()
     model = 'claude-sonnet-4-5'
     break
   case 'openai':
   default:
-    adapter = openaiChat()
+    adapter = openaiText()
     model = 'gpt-4o'
     break
 }
@@ -48,19 +48,19 @@ The `createChatOptions` helper lets you pre-define typed configurations for each
 
 ```typescript
 import { chat, createChatOptions, toStreamResponse } from '@tanstack/ai'
-import { anthropicChat } from '@tanstack/ai-anthropic'
-import { openaiChat } from '@tanstack/ai-openai'
+import { anthropicText } from '@tanstack/ai-anthropic'
+import { openaiText } from '@tanstack/ai-openai'
 
 // ✅ Define typed configurations - you get autocomplete here!
 const adapterConfig = {
   anthropic: () =>
     createChatOptions({
-      adapter: anthropicChat(),
+      adapter: anthropicText(),
       model: 'claude-sonnet-4-5',  // ✅ Autocomplete works!
     }),
   openai: () =>
     createChatOptions({
-      adapter: openaiChat(),
+      adapter: openaiText(),
       model: 'gpt-4o',  // ✅ Autocomplete works!
     }),
 }
@@ -80,7 +80,7 @@ const stream = chat({
 
 `createChatOptions` is a simple identity function with the **exact same type signature** as `chat()`. It doesn't execute anything - it just returns the options object you pass in.
 
-The magic is in the types: when you call `createChatOptions({ adapter: openaiChat(), model: '...' })`, TypeScript knows which models are valid for the OpenAI chat adapter and provides autocomplete.
+The magic is in the types: when you call `createChatOptions({ adapter: openaiText(), model: '...' })`, TypeScript knows which models are valid for the OpenAI chat adapter and provides autocomplete.
 
 ```typescript
 // This is essentially what createChatOptions does:
@@ -105,10 +105,10 @@ Here's a complete example showing a multi-provider chat API:
 ```typescript
 import { createFileRoute } from '@tanstack/react-router'
 import { chat, createChatOptions, maxIterations, toStreamResponse } from '@tanstack/ai'
-import { openaiChat } from '@tanstack/ai-openai'
-import { anthropicChat } from '@tanstack/ai-anthropic'
-import { geminiChat } from '@tanstack/ai-gemini'
-import { ollamaChat } from '@tanstack/ai-ollama'
+import { openaiText } from '@tanstack/ai-openai'
+import { anthropicText } from '@tanstack/ai-anthropic'
+import { geminiText } from '@tanstack/ai-gemini'
+import { ollamaText } from '@tanstack/ai-ollama'
 
 type Provider = 'openai' | 'anthropic' | 'gemini' | 'ollama'
 
@@ -116,22 +116,22 @@ type Provider = 'openai' | 'anthropic' | 'gemini' | 'ollama'
 const adapterConfig = {
   anthropic: () =>
     createChatOptions({
-      adapter: anthropicChat(),
+      adapter: anthropicText(),
       model: 'claude-sonnet-4-5',
     }),
   gemini: () =>
     createChatOptions({
-      adapter: geminiChat(),
+      adapter: geminiText(),
       model: 'gemini-2.0-flash-exp',
     }),
   ollama: () =>
     createChatOptions({
-      adapter: ollamaChat(),
+      adapter: ollamaText(),
       model: 'mistral:7b',
     }),
   openai: () =>
     createChatOptions({
-      adapter: openaiChat(),
+      adapter: openaiText(),
       model: 'gpt-4o',
     }),
 }
@@ -239,12 +239,12 @@ let model
 
 switch (provider) {
   case 'anthropic':
-    adapter = anthropicChat()
+    adapter = anthropicText()
     model = 'claude-sonnet-4-5'
     break
   case 'openai':
   default:
-    adapter = openaiChat()
+    adapter = openaiText()
     model = 'gpt-4o'
     break
 }
@@ -262,12 +262,12 @@ const stream = chat({
 const adapterConfig = {
   anthropic: () =>
     createChatOptions({
-      adapter: anthropicChat(),
+      adapter: anthropicText(),
       model: 'claude-sonnet-4-5',
     }),
   openai: () =>
     createChatOptions({
-      adapter: openaiChat(),
+      adapter: openaiText(),
       model: 'gpt-4o',
     }),
 }

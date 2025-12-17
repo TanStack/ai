@@ -23,7 +23,7 @@ First, create an API route that handles chat requests. Here's a simplified examp
 // app/api/chat/route.ts (Next.js)
 // or src/routes/api/chat.ts (TanStack Start)
 import { chat, toStreamResponse } from "@tanstack/ai";
-import { openaiChat } from "@tanstack/ai-openai";
+import { openaiText } from "@tanstack/ai-openai";
 
 export async function POST(request: Request) {
   // Check for API key
@@ -44,7 +44,7 @@ export async function POST(request: Request) {
   try {
     // Create a streaming chat response
     const stream = chat({
-      adapter: openaiChat(),
+      adapter: openaiText(),
       model: "gpt-4o",
       messages,
       conversationId
@@ -181,7 +181,7 @@ Since TanStack AI is framework-agnostic, you can define and use tools in any env
 ```typescript
 import { chat } from '@tanstack/ai'
 import { toolDefinition } from '@tanstack/ai'
-import { openaiChat } from '@tanstack/ai-openai'
+import { openaiText } from '@tanstack/ai-openai'
 
 const getProductsDef = toolDefinition({
   name: 'getProducts',
@@ -193,7 +193,7 @@ const getProducts = getProductsDef.server(async ({ query }) => {
 })
 
 chat({
-  adapter: openaiChat(),
+  adapter: openaiText(),
   model: 'gpt-4o',
   messages: [{ role: 'user', content: 'Find products' }],
   tools: [getProducts]

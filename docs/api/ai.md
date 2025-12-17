@@ -17,10 +17,10 @@ Creates a streaming chat response.
 
 ```typescript
 import { chat } from "@tanstack/ai";
-import { openaiChat } from "@tanstack/ai-openai";
+import { openaiText } from "@tanstack/ai-openai";
 
 const stream = chat({
-  adapter: openaiChat(),
+  adapter: openaiText(),
   model: "gpt-4o",
   messages: [{ role: "user", content: "Hello!" }],
   tools: [myTool],
@@ -31,7 +31,7 @@ const stream = chat({
 
 ### Parameters
 
-- `adapter` - An AI adapter instance (e.g., `openaiChat()`, `anthropicChat()`)
+- `adapter` - An AI adapter instance (e.g., `openaiText()`, `anthropicText()`)
 - `model` - Model identifier (type-safe based on adapter) - **required**
 - `messages` - Array of chat messages
 - `tools?` - Array of tools for function calling
@@ -128,7 +128,7 @@ const myClientTool = myToolDef.client(async ({ param }) => {
 
 // Use directly in chat() (server-side, no execute)
 chat({
-  adapter: openaiChat(),
+  adapter: openaiText(),
   model: "gpt-4o",
   tools: [myToolDef],
   messages: [{ role: "user", content: "..." }],
@@ -142,7 +142,7 @@ const myServerTool = myToolDef.server(async ({ param }) => {
 
 // Use directly in chat() (server-side, no execute)
 chat({
-  adapter: openaiChat(),
+  adapter: openaiText(),
   model: "gpt-4o",
   tools: [myServerTool],
   messages: [{ role: "user", content: "..." }],
@@ -168,10 +168,10 @@ Converts a stream to a ReadableStream in Server-Sent Events format.
 
 ```typescript
 import { chat, toServerSentEventsStream } from "@tanstack/ai";
-import { openaiChat } from "@tanstack/ai-openai";
+import { openaiText } from "@tanstack/ai-openai";
 
 const stream = chat({
-  adapter: openaiChat(),
+  adapter: openaiText(),
   model: "gpt-4o",
   messages: [...],
 });
@@ -196,10 +196,10 @@ Converts a stream to an HTTP Response with proper SSE headers.
 
 ```typescript
 import { chat, toStreamResponse } from "@tanstack/ai";
-import { openaiChat } from "@tanstack/ai-openai";
+import { openaiText } from "@tanstack/ai-openai";
 
 const stream = chat({
-  adapter: openaiChat(),
+  adapter: openaiText(),
   model: "gpt-4o",
   messages: [...],
 });
@@ -221,10 +221,10 @@ Creates an agent loop strategy that limits iterations.
 
 ```typescript
 import { chat, maxIterations } from "@tanstack/ai";
-import { openaiChat } from "@tanstack/ai-openai";
+import { openaiText } from "@tanstack/ai-openai";
 
 const stream = chat({
-  adapter: openaiChat(),
+  adapter: openaiText(),
   model: "gpt-4o",
   messages: [...],
   agentLoopStrategy: maxIterations(20),
@@ -301,7 +301,7 @@ interface Tool {
 ```typescript
 import { chat, summarize, embedding, generateImage } from "@tanstack/ai";
 import {
-  openaiChat,
+  openaiText,
   openaiSummarize,
   openaiEmbedding,
   openaiImage,
@@ -309,14 +309,14 @@ import {
 
 // --- Streaming chat
 const stream = chat({
-  adapter: openaiChat(),
+  adapter: openaiText(),
   model: "gpt-4o",
   messages: [{ role: "user", content: "Hello!" }],
 });
 
 // --- One-shot chat response (stream: false)
 const response = await chat({
-  adapter: openaiChat(),
+  adapter: openaiText(),
   model: "gpt-4o",
   messages: [{ role: "user", content: "What's the capital of France?" }],
   stream: false, // Returns a Promise<string> instead of AsyncIterable
@@ -325,7 +325,7 @@ const response = await chat({
 // --- Structured response with outputSchema
 import { z } from "zod";
 const parsed = await chat({
-  adapter: openaiChat(),
+  adapter: openaiText(),
   model: "gpt-4o",
   messages: [{ role: "user", content: "Summarize this text in JSON with keys 'summary' and 'keywords': ... " }],
   outputSchema: z.object({
@@ -348,7 +348,7 @@ const weatherTool = toolDefinition({
 });
 
 const toolResult = await chat({
-  adapter: openaiChat(),
+  adapter: openaiText(),
   model: "gpt-4o",
   messages: [
     { role: "user", content: "What's the weather in Paris?" }

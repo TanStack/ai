@@ -7,7 +7,7 @@ TanStack AI is designed from the ground up for maximum tree-shakeability. The en
 Instead of a monolithic API that includes everything, TanStack AI provides:
 
 - **Individual activity functions** - Import only the activities you need (`chat`, `embedding`, `summarize`, etc.)
-- **Individual adapter functions** - Import only the adapters you need (`openaiChat`, `openaiEmbedding`, etc.)
+- **Individual adapter functions** - Import only the adapters you need (`openaiText`, `openaiEmbedding`, etc.)
 - **Functional API design** - Pure functions that can be easily eliminated by bundlers
 - **Separate modules** - Each activity and adapter lives in its own module
 
@@ -35,10 +35,10 @@ If you only need chat functionality:
 ```ts
 // Only chat code is bundled
 import { chat } from '@tanstack/ai'
-import { openaiChat } from '@tanstack/ai-openai'
+import { openaiText } from '@tanstack/ai-openai'
 
 const stream = chat({
-  adapter: openaiChat(),
+  adapter: openaiText(),
   model: 'gpt-4o',
   messages: [{ role: 'user', content: 'Hello!' }],
 })
@@ -58,7 +58,7 @@ Each provider package exports individual adapter functions for each activity typ
 
 ```ts
 import {
-  openaiChat,       // Chat/text generation
+  openaiText,       // Chat/text generation
   openaiEmbedding,  // Embeddings
   openaiSummarize,  // Summarization
   openaiImage,      // Image generation
@@ -72,7 +72,7 @@ import {
 
 ```ts
 import {
-  anthropicChat,       // Chat/text generation
+  anthropicText,       // Chat/text generation
   anthropicSummarize,  // Summarization
 } from '@tanstack/ai-anthropic'
 ```
@@ -83,7 +83,7 @@ import {
 
 ```ts
 import {
-  geminiChat,       // Chat/text generation
+  geminiText,       // Chat/text generation
   geminiEmbedding,  // Embeddings
   geminiSummarize,  // Summarization
   geminiImage,      // Image generation
@@ -95,7 +95,7 @@ import {
 
 ```ts
 import {
-  ollamaChat,       // Chat/text generation
+  ollamaText,       // Chat/text generation
   ollamaEmbedding,  // Embeddings
   ollamaSummarize,  // Summarization
 } from '@tanstack/ai-ollama'
@@ -108,11 +108,11 @@ Here's how the tree-shakeable design works in practice:
 ```ts
 // Only import what you need
 import { chat } from '@tanstack/ai'
-import { openaiChat } from '@tanstack/ai-openai'
+import { openaiText } from '@tanstack/ai-openai'
 
 // Chat generation - returns AsyncIterable<StreamChunk>
 const chatResult = chat({
-  adapter: openaiChat(),
+  adapter: openaiText(),
   model: 'gpt-4o',
   messages: [{ role: 'user', content: 'Hello!' }],
 })
@@ -124,7 +124,7 @@ for await (const chunk of chatResult) {
 
 **What gets bundled:**
 - ✅ `chat` function and its dependencies
-- ✅ `openaiChat` adapter and its dependencies
+- ✅ `openaiText` adapter and its dependencies
 - ✅ Chat-specific streaming and tool handling logic
 
 **What doesn't get bundled:**
@@ -141,14 +141,14 @@ If you need multiple activities, import only what you use:
 ```ts
 import { chat, embedding, summarize } from '@tanstack/ai'
 import { 
-  openaiChat, 
+  openaiText, 
   openaiEmbedding, 
   openaiSummarize 
 } from '@tanstack/ai-openai'
 
 // Each activity is independent
 const chatResult = chat({
-  adapter: openaiChat(),
+  adapter: openaiText(),
   model: 'gpt-4o',
   messages: [{ role: 'user', content: 'Hello!' }],
 })
@@ -173,9 +173,9 @@ Each activity is in its own module, so bundlers can eliminate unused ones.
 The tree-shakeable design doesn't sacrifice type safety. Each adapter provides full type safety for its supported models:
 
 ```ts
-import { openaiChat, type OpenAIChatModel } from '@tanstack/ai-openai'
+import { openaiText, type OpenAIChatModel } from '@tanstack/ai-openai'
 
-const adapter = openaiChat()
+const adapter = openaiText()
 
 // TypeScript knows the exact models supported
 const model: OpenAIChatModel = 'gpt-4o' // ✓ Valid
@@ -195,7 +195,7 @@ import {
 
 // Only import what you need
 const chatOptions = createChatOptions({
-  adapter: openaiChat(),
+  adapter: openaiText(),
   model: 'gpt-4o',
 })
 ```
@@ -222,7 +222,7 @@ import { openai } from '@tanstack/ai-openai'
 ```ts
 // ✅ Only what you use gets bundled
 import { chat } from '@tanstack/ai'
-import { openaiChat } from '@tanstack/ai-openai'
+import { openaiText } from '@tanstack/ai-openai'
 
 // You only get:
 // - Chat activity implementation
@@ -259,14 +259,14 @@ Modern bundlers (Vite, Webpack, Rollup, esbuild) can easily eliminate unused cod
 ## Best Practices
 
 1. **Import only what you need** - Don't import entire namespaces
-2. **Use specific adapter functions** - Import `openaiChat` not `openai`
+2. **Use specific adapter functions** - Import `openaiText` not `openai`
 3. **Separate activities by route** - Different API routes can use different activities
 4. **Lazy load when possible** - Use dynamic imports for code-split routes
 
 ```ts
 // ✅ Good - Only imports chat
 import { chat } from '@tanstack/ai'
-import { openaiChat } from '@tanstack/ai-openai'
+import { openaiText } from '@tanstack/ai-openai'
 
 // ❌ Bad - Imports everything
 import * as ai from '@tanstack/ai'
@@ -288,7 +288,7 @@ Each adapter type implements a specific interface:
 All adapters have a `kind` property that indicates their type:
 
 ```ts
-const chatAdapter = openaiChat()
+const chatAdapter = openaiText()
 console.log(chatAdapter.kind) // 'text'
 
 const embedAdapter = openaiEmbedding()

@@ -606,16 +606,19 @@ export function createAnthropicChat(
 }
 
 /**
- * Creates an Anthropic chat adapter with automatic API key detection
+ * Creates an Anthropic text adapter with automatic API key detection
  */
-export function anthropicChat(
+export function anthropicText(
   config?: Omit<AnthropicTextConfig, 'apiKey'>,
 ): AnthropicTextAdapter {
   const apiKey = getAnthropicApiKeyFromEnv()
   return createAnthropicChat(apiKey, config)
 }
 
-export function anthropicText(
+/**
+ * @deprecated Use anthropicText() instead
+ */
+export function anthropicChat(
   config?: Omit<AnthropicTextConfig, 'apiKey'>,
 ): AnthropicTextAdapter {
   const apiKey = getAnthropicApiKeyFromEnv()

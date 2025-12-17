@@ -6,10 +6,10 @@
 export {
   OpenAITextAdapter,
   createOpenaiChat,
-  openaiChat,
+  openaiText,
   // Deprecated exports
   createOpenaiText,
-  openaiText,
+  openaiChat,
   type OpenAITextConfig,
   type OpenAITextProviderOptions,
 } from './adapters/text'

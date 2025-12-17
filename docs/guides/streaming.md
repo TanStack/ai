@@ -11,10 +11,10 @@ When you use `chat()`, it returns an async iterable stream of chunks:
 
 ```typescript
 import { chat } from "@tanstack/ai";
-import { openaiChat } from "@tanstack/ai-openai";
+import { openaiText } from "@tanstack/ai-openai";
 
 const stream = chat({
-  adapter: openaiChat(),
+  adapter: openaiText(),
   model: "gpt-4o",
   messages,
 });
@@ -31,13 +31,13 @@ Convert the stream to an HTTP response using `toStreamResponse`:
 
 ```typescript
 import { chat, toStreamResponse } from "@tanstack/ai";
-import { openaiChat } from "@tanstack/ai-openai";
+import { openaiText } from "@tanstack/ai-openai";
 
 export async function POST(request: Request) {
   const { messages } = await request.json();
 
   const stream = chat({
-    adapter: openaiChat(),
+    adapter: openaiText(),
     model: "gpt-4o",
     messages,
   });

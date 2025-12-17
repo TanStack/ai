@@ -3,10 +3,10 @@ import { defineConfig } from 'vite'
 import vue from '@vitejs/plugin-vue'
 import tailwindcss from '@tailwindcss/vite'
 import { chat, maxIterations, toStreamResponse } from '@tanstack/ai'
-import { openaiChat } from '@tanstack/ai-openai'
-import { anthropicChat } from '@tanstack/ai-anthropic'
-import { geminiChat } from '@tanstack/ai-gemini'
-import { ollamaChat } from '@tanstack/ai-ollama'
+import { openaiText } from '@tanstack/ai-openai'
+import { anthropicText } from '@tanstack/ai-anthropic'
+import { geminiText } from '@tanstack/ai-gemini'
+import { ollamaText } from '@tanstack/ai-ollama'
 import { toolDefinition } from '@tanstack/ai'
 import { z } from 'zod'
 import dotenv from 'dotenv'
@@ -209,20 +209,20 @@ export default defineConfig({
             switch (provider) {
               case 'anthropic':
                 selectedModel = model || 'claude-sonnet-4-5-20250929'
-                adapter = anthropicChat()
+                adapter = anthropicText()
                 break
               case 'gemini':
                 selectedModel = model || 'gemini-2.0-flash-exp'
-                adapter = geminiChat()
+                adapter = geminiText()
                 break
               case 'ollama':
                 selectedModel = model || 'mistral:7b'
-                adapter = ollamaChat()
+                adapter = ollamaText()
                 break
               case 'openai':
               default:
                 selectedModel = model || 'gpt-4o'
-                adapter = openaiChat()
+                adapter = openaiText()
                 break
             }
 

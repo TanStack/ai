@@ -29,7 +29,7 @@ TanStack AI lets you define a tool once and provide environment-specific impleme
 ```typescript
 import { chat } from '@tanstack/ai'
 import { toolDefinition } from '@tanstack/ai'
-import { openaiChat } from '@tanstack/ai-openai'
+import { openaiText } from '@tanstack/ai-openai'
 
 // Define a tool
 const getProductsDef = toolDefinition({
@@ -45,7 +45,7 @@ const getProducts = getProductsDef.server(async ({ query }) => {
 
 // Use in AI chat
 chat({
-  adapter: openaiChat(),
+  adapter: openaiText(),
   model: 'gpt-4o',
   messages: [{ role: 'user', content: 'Find products' }],
   tools: [getProducts]

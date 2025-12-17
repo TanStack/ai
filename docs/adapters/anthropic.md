@@ -15,9 +15,9 @@ npm install @tanstack/ai-anthropic
 
 ```typescript
 import { chat } from "@tanstack/ai";
-import { anthropicChat } from "@tanstack/ai-anthropic";
+import { anthropicText } from "@tanstack/ai-anthropic";
 
-const adapter = anthropicChat();
+const adapter = anthropicText();
 
 const stream = chat({
   adapter,
@@ -69,9 +69,9 @@ const adapter = createAnthropicChat(process.env.ANTHROPIC_API_KEY!, config);
 
 ```typescript
 import { chat, toStreamResponse } from "@tanstack/ai";
-import { anthropicChat } from "@tanstack/ai-anthropic";
+import { anthropicText } from "@tanstack/ai-anthropic";
 
-const adapter = anthropicChat();
+const adapter = anthropicText();
 
 export async function POST(request: Request) {
   const { messages } = await request.json();
@@ -90,10 +90,10 @@ export async function POST(request: Request) {
 
 ```typescript
 import { chat, toolDefinition } from "@tanstack/ai";
-import { anthropicChat } from "@tanstack/ai-anthropic";
+import { anthropicText } from "@tanstack/ai-anthropic";
 import { z } from "zod";
 
-const adapter = anthropicChat();
+const adapter = anthropicText();
 
 const searchDatabaseDef = toolDefinition({
   name: "search_database",
@@ -122,7 +122,7 @@ Anthropic supports various provider-specific options:
 
 ```typescript
 const stream = chat({
-  adapter: anthropicChat(),
+  adapter: anthropicText(),
   model: "claude-sonnet-4-5-20250929",
   messages,
   modelOptions: {
@@ -163,7 +163,7 @@ Cache prompts for better performance and reduced costs:
 
 ```typescript
 const stream = chat({
-  adapter: anthropicChat(),
+  adapter: anthropicText(),
   model: "claude-sonnet-4-5-20250929",
   messages: [
     {
@@ -216,7 +216,7 @@ ANTHROPIC_API_KEY=sk-ant-...
 
 ## API Reference
 
-### `anthropicChat(config?)`
+### `anthropicText(config?)`
 
 Creates an Anthropic chat adapter using environment variables.
 

@@ -5,10 +5,10 @@
 // Text (Chat) adapter - for chat/text completion
 export {
   AnthropicTextAdapter,
-  anthropicChat,
+  anthropicText,
   createAnthropicChat,
   // Deprecated exports
-  anthropicText,
+  anthropicChat,
   createAnthropicText,
   type AnthropicTextConfig,
   type AnthropicTextProviderOptions,

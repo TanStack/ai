@@ -15,9 +15,9 @@ npm install @tanstack/ai-gemini
 
 ```typescript
 import { chat } from "@tanstack/ai";
-import { geminiChat } from "@tanstack/ai-gemini";
+import { geminiText } from "@tanstack/ai-gemini";
 
-const adapter = geminiChat();
+const adapter = geminiText();
 
 const stream = chat({
   adapter,
@@ -83,9 +83,9 @@ const adapter = createGeminiChat(process.env.GEMINI_API_KEY!, config);
 
 ```typescript
 import { chat, toStreamResponse } from "@tanstack/ai";
-import { geminiChat } from "@tanstack/ai-gemini";
+import { geminiText } from "@tanstack/ai-gemini";
 
-const adapter = geminiChat();
+const adapter = geminiText();
 
 export async function POST(request: Request) {
   const { messages } = await request.json();
@@ -104,10 +104,10 @@ export async function POST(request: Request) {
 
 ```typescript
 import { chat, toolDefinition } from "@tanstack/ai";
-import { geminiChat } from "@tanstack/ai-gemini";
+import { geminiText } from "@tanstack/ai-gemini";
 import { z } from "zod";
 
-const adapter = geminiChat();
+const adapter = geminiText();
 
 const getCalendarEventsDef = toolDefinition({
   name: "get_calendar_events",
@@ -136,7 +136,7 @@ Gemini supports various provider-specific options:
 
 ```typescript
 const stream = chat({
-  adapter: geminiChat(),
+  adapter: geminiText(),
   model: "gemini-2.0-flash-exp",
   messages,
   modelOptions: {
@@ -312,7 +312,7 @@ GOOGLE_API_KEY=your-api-key-here
 
 ## API Reference
 
-### `geminiChat(config?)`
+### `geminiText(config?)`
 
 Creates a Gemini text/chat adapter using environment variables.
 

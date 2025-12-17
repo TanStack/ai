@@ -94,14 +94,14 @@ To give the LLM access to client tools, pass the tool definitions (not implement
 ```typescript
 // api/chat/route.ts
 import { chat, toServerSentEventsStream } from "@tanstack/ai";
-import { openaiChat } from "@tanstack/ai-openai";
+import { openaiText } from "@tanstack/ai-openai";
 import { updateUIDef, saveToLocalStorageDef } from "@/tools/definitions";
 
 export async function POST(request: Request) {
   const { messages } = await request.json();
 
   const stream = chat({
-    adapter: openaiChat(),
+    adapter: openaiText(),
     model: "gpt-4o",
     messages,
     tools: [updateUIDef, saveToLocalStorageDef], // Pass definitions
@@ -297,10 +297,10 @@ const addToCartClient = addToCartDef.client((input) => {
 });
 
 // Server: Pass definition for client execution
-chat({ adapter: openaiChat(), model: 'gpt-4o', messages: [], tools: [addToCartDef] }); // Client will execute
+chat({ adapter: openaiText(), model: 'gpt-4o', messages: [], tools: [addToCartDef] }); // Client will execute
 
 // Or pass server implementation for server execution
-chat({ adapter: openaiChat(), model: 'gpt-4o', messages: [], tools: [addToCartServer] }); // Server will execute
+chat({ adapter: openaiText(), model: 'gpt-4o', messages: [], tools: [addToCartServer] }); // Server will execute
 ```
 
 ## Best Practices

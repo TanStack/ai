@@ -748,7 +748,7 @@ export function createOpenaiChat(
 }
 
 /**
- * Creates an OpenAI chat adapter with automatic API key detection from environment variables.
+ * Creates an OpenAI text adapter with automatic API key detection from environment variables.
  *
  * Looks for `OPENAI_API_KEY` in:
  * - `process.env` (Node.js)
@@ -756,13 +756,13 @@ export function createOpenaiChat(
  *
  * @param model - The model name (e.g., 'gpt-4o', 'gpt-4-turbo')
  * @param config - Optional configuration (excluding apiKey which is auto-detected)
- * @returns Configured OpenAI chat adapter instance
+ * @returns Configured OpenAI text adapter instance
  * @throws Error if OPENAI_API_KEY is not found in environment
  *
  * @example
  * ```typescript
  * // Automatically uses OPENAI_API_KEY from environment
- * const adapter = openaiChat();
+ * const adapter = openaiText();
  *
  * const stream = chat({
  *   adapter,
@@ -771,14 +771,17 @@ export function createOpenaiChat(
  * });
  * ```
  */
-export function openaiChat(
+export function openaiText(
   config?: Omit<OpenAITextConfig, 'apiKey'>,
 ): OpenAITextAdapter {
   const apiKey = getOpenAIApiKeyFromEnv()
   return createOpenaiChat(apiKey, config)
 }
 
-export function openaiText(
+/**
+ * @deprecated Use openaiText() instead
+ */
+export function openaiChat(
   config?: Omit<OpenAITextConfig, 'apiKey'>,
 ): OpenAITextAdapter {
   const apiKey = getOpenAIApiKeyFromEnv()

@@ -13,10 +13,10 @@ import type {
   ImageModels,
   SummarizeActivityOptions,
   SummarizeModels,
-  TextActivityOptions,
-  TextModels,
   TTSActivityOptions,
   TTSModels,
+  TextActivityOptions,
+  TextModels,
   TranscriptionActivityOptions,
   TranscriptionModels,
   VideoCreateOptions,
@@ -42,10 +42,10 @@ import type { SummarizeAdapter } from './activities/summarize/adapter'
  * ```ts
  * const config = {
  *   'anthropic': () => createChatOptions({
- *     adapter: anthropicChat('claude-sonnet-4-5'),
+ *     adapter: anthropicText('claude-sonnet-4-5'),
  *   }),
  *   'openai': () => createChatOptions({
- *     adapter: openaiChat('gpt-4o'),
+ *     adapter: openaiText('gpt-4o'),
  *   }),
  * }
  *

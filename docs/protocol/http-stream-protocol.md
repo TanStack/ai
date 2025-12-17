@@ -174,14 +174,14 @@ TanStack AI doesn't provide a built-in NDJSON formatter, but you can create one 
 
 ```typescript
 import { chat } from '@tanstack/ai';
-import { openaiChat } from '@tanstack/ai-openai';
+import { openaiText } from '@tanstack/ai-openai';
 
 export async function POST(request: Request) {
   const { messages } = await request.json();
   const encoder = new TextEncoder();
 
   const stream = chat({
-    adapter: openaiChat(),
+    adapter: openaiText(),
     model: 'gpt-4o',
     messages,
   });
@@ -223,7 +223,7 @@ export async function POST(request: Request) {
 ```typescript
 import express from 'express';
 import { chat } from '@tanstack/ai';
-import { openaiChat } from '@tanstack/ai-openai';
+import { openaiText } from '@tanstack/ai-openai';
 
 const app = express();
 app.use(express.json());
@@ -237,7 +237,7 @@ app.post('/api/chat', async (req, res) => {
 
   try {
     const stream = chat({
-      adapter: openaiChat(),
+      adapter: openaiText(),
       model: 'gpt-4o',
       messages,
     });

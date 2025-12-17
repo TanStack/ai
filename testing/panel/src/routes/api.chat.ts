@@ -7,10 +7,10 @@ import {
   maxIterations,
   toStreamResponse,
 } from '@tanstack/ai'
-import { anthropicChat } from '@tanstack/ai-anthropic'
-import { geminiChat } from '@tanstack/ai-gemini'
-import { openaiChat } from '@tanstack/ai-openai'
-import { ollamaChat } from '@tanstack/ai-ollama'
+import { anthropicText } from '@tanstack/ai-anthropic'
+import { geminiText } from '@tanstack/ai-gemini'
+import { openaiText } from '@tanstack/ai-openai'
+import { ollamaText } from '@tanstack/ai-ollama'
 import type { AIAdapter, ChatOptions, StreamChunk } from '@tanstack/ai'
 import type { ChunkRecording } from '@/lib/recording'
 import {
@@ -58,22 +58,22 @@ type Provider = 'openai' | 'anthropic' | 'gemini' | 'ollama'
 const adapterConfig = {
   anthropic: () =>
     createChatOptions({
-      adapter: anthropicChat(),
+      adapter: anthropicText(),
       model: 'claude-sonnet-4-5-20250929',
     }),
   gemini: () =>
     createChatOptions({
-      adapter: geminiChat(),
+      adapter: geminiText(),
       model: 'gemini-2.0-flash-exp',
     }),
   ollama: () =>
     createChatOptions({
-      adapter: ollamaChat(),
+      adapter: ollamaText(),
       model: 'mistral:7b',
     }),
   openai: () =>
     createChatOptions({
-      adapter: openaiChat(),
+      adapter: openaiText(),
       model: 'gpt-4o',
     }),
 }

@@ -6,10 +6,10 @@
 export {
   GeminiTextAdapter,
   createGeminiChat,
-  geminiChat,
+  geminiText,
   // Deprecated exports
   createGeminiText,
-  geminiText,
+  geminiChat,
   type GeminiTextConfig,
   type GeminiTextProviderOptions,
 } from './adapters/text'

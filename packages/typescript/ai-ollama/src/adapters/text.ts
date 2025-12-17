@@ -389,9 +389,9 @@ export function createOllamaChat(
 }
 
 /**
- * Creates an Ollama chat adapter with host from environment
+ * Creates an Ollama text adapter with host from environment
  */
-export function ollamaChat(
+export function ollamaText(
   options?: OllamaTextAdapterOptions,
 ): OllamaTextAdapter {
   const host = getOllamaHostFromEnv()
@@ -399,9 +399,9 @@ export function ollamaChat(
 }
 
 /**
- * @deprecated Use ollamaChat() instead
+ * @deprecated Use ollamaText() instead
  */
-export function ollamaText(
+export function ollamaChat(
   options?: OllamaTextAdapterOptions,
 ): OllamaTextAdapter {
   const host = getOllamaHostFromEnv()

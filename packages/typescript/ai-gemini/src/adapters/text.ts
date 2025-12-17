@@ -466,16 +466,19 @@ export function createGeminiChat(
 }
 
 /**
- * Creates a Gemini chat adapter with automatic API key detection
+ * Creates a Gemini text adapter with automatic API key detection
  */
-export function geminiChat(
+export function geminiText(
   config?: Omit<GeminiTextConfig, 'apiKey'>,
 ): GeminiTextAdapter {
   const apiKey = getGeminiApiKeyFromEnv()
   return createGeminiChat(apiKey, config)
 }
 
-export function geminiText(
+/**
+ * @deprecated Use geminiText() instead
+ */
+export function geminiChat(
   config?: Omit<GeminiTextConfig, 'apiKey'>,
 ): GeminiTextAdapter {
   const apiKey = getGeminiApiKeyFromEnv()

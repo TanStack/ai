@@ -4,5 +4,5 @@
     "outDir": "dist"
   },
   "include": ["src/**/*.ts", "src/**/*.tsx", "tests/**/*.ts", "vite.config.ts"],
-  "exclude": ["node_modules", "dist", "**/*.config.ts", "eslint.config.js"]
+  "exclude": ["node_modules", "dist", "**/*.config.ts", "eslint.config.js", "tests/**/*.test-d.ts"]
 }

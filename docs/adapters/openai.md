@@ -15,9 +15,9 @@ npm install @tanstack/ai-openai
 
 ```typescript
 import { chat } from "@tanstack/ai";
-import { openaiChat } from "@tanstack/ai-openai";
+import { openaiText } from "@tanstack/ai-openai";
 
-const adapter = openaiChat();
+const adapter = openaiText();
 
 const stream = chat({
   adapter,
@@ -93,9 +93,9 @@ const adapter = createOpenaiChat(process.env.OPENAI_API_KEY!, config);
 
 ```typescript
 import { chat, toStreamResponse } from "@tanstack/ai";
-import { openaiChat } from "@tanstack/ai-openai";
+import { openaiText } from "@tanstack/ai-openai";
 
-const adapter = openaiChat();
+const adapter = openaiText();
 
 export async function POST(request: Request) {
   const { messages } = await request.json();
@@ -114,10 +114,10 @@ export async function POST(request: Request) {
 
 ```typescript
 import { chat, toolDefinition } from "@tanstack/ai";
-import { openaiChat } from "@tanstack/ai-openai";
+import { openaiText } from "@tanstack/ai-openai";
 import { z } from "zod";
 
-const adapter = openaiChat();
+const adapter = openaiText();
 
 const getWeatherDef = toolDefinition({
   name: "get_weather",
@@ -146,7 +146,7 @@ OpenAI supports various provider-specific options:
 
 ```typescript
 const stream = chat({
-  adapter: openaiChat(),
+  adapter: openaiText(),
   model: "gpt-4o",
   messages,
   modelOptions: {
@@ -366,7 +366,7 @@ OPENAI_API_KEY=sk-...
 
 ## API Reference
 
-### `openaiChat(config?)`
+### `openaiText(config?)`
 
 Creates an OpenAI chat adapter using environment variables.
 

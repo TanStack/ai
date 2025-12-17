@@ -15,9 +15,9 @@ npm install @tanstack/ai-ollama
 
 ```typescript
 import { chat } from "@tanstack/ai";
-import { ollamaChat } from "@tanstack/ai-ollama";
+import { ollamaText } from "@tanstack/ai-ollama";
 
-const adapter = ollamaChat();
+const adapter = ollamaText();
 
 const stream = chat({
   adapter,
@@ -76,9 +76,9 @@ ollama list
 
 ```typescript
 import { chat, toStreamResponse } from "@tanstack/ai";
-import { ollamaChat } from "@tanstack/ai-ollama";
+import { ollamaText } from "@tanstack/ai-ollama";
 
-const adapter = ollamaChat();
+const adapter = ollamaText();
 
 export async function POST(request: Request) {
   const { messages } = await request.json();
@@ -97,10 +97,10 @@ export async function POST(request: Request) {
 
 ```typescript
 import { chat, toolDefinition } from "@tanstack/ai";
-import { ollamaChat } from "@tanstack/ai-ollama";
+import { ollamaText } from "@tanstack/ai-ollama";
 import { z } from "zod";
 
-const adapter = ollamaChat();
+const adapter = ollamaText();
 
 const getLocalDataDef = toolDefinition({
   name: "get_local_data",
@@ -131,7 +131,7 @@ Ollama supports various provider-specific options:
 
 ```typescript
 const stream = chat({
-  adapter: ollamaChat(),
+  adapter: ollamaText(),
   model: "llama3",
   messages,
   modelOptions: {
@@ -295,7 +295,7 @@ OLLAMA_HOST=http://localhost:11434
 
 ## API Reference
 
-### `ollamaChat(options?)`
+### `ollamaText(options?)`
 
 Creates an Ollama text/chat adapter.
 

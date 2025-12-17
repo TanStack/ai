@@ -7,10 +7,10 @@ export {
   OllamaTextAdapter,
   OllamaTextModels,
   createOllamaChat,
-  ollamaChat,
+  ollamaText,
   // Deprecated exports
   createOllamaText,
-  ollamaText,
+  ollamaChat,
   type OllamaTextAdapterOptions,
   type OllamaTextModel,
   type OllamaTextProviderOptions,

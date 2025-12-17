@@ -1,5 +1,5 @@
 // Claude AI service for handling queued AI responses
-import { anthropicChat } from '@tanstack/ai-anthropic'
+import { anthropicText } from '@tanstack/ai-anthropic'
 import { chat, toolDefinition } from '@tanstack/ai'
 import type { JSONSchema, ModelMessage, StreamChunk } from '@tanstack/ai'
 
@@ -92,7 +92,7 @@ export interface ClaudeQueueStatus {
 }
 
 export class ClaudeService {
-  private adapter = anthropicChat() // Uses ANTHROPIC_API_KEY from env
+  private adapter = anthropicText() // Uses ANTHROPIC_API_KEY from env
   private queue: Array<ClaudeRequest> = []
   private currentRequest: ClaudeRequest | null = null
   private isProcessing = false
