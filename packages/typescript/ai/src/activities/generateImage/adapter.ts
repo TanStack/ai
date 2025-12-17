@@ -39,13 +39,14 @@ export interface ImageAdapter<
   /** The model selected when creating the adapter */
   readonly selectedModel: TSelectedModel
 
-  // Type-only properties for type inference
-  /** @internal Type-only property for provider options inference */
-  _providerOptions?: TProviderOptions
-  /** @internal Type-only map from model name to its specific provider options */
-  _modelProviderOptionsByName?: TModelProviderOptionsByName
-  /** @internal Type-only map from model name to its supported sizes */
-  _modelSizeByName?: TModelSizeByName
+  /**
+   * @internal Type-only properties for inference. Not assigned at runtime.
+   */
+  _types: {
+    providerOptions: TProviderOptions
+    modelProviderOptionsByName: TModelProviderOptionsByName
+    modelSizeByName: TModelSizeByName
+  }
 
   /**
    * Generate images from a prompt
@@ -77,10 +78,12 @@ export abstract class BaseImageAdapter<
   abstract readonly models: TModels
   readonly selectedModel: TSelectedModel
 
-  // Type-only properties - never assigned at runtime
-  declare _providerOptions?: TProviderOptions
-  declare _modelProviderOptionsByName?: TModelProviderOptionsByName
-  declare _modelSizeByName?: TModelSizeByName
+  // Type-only property - never assigned at runtime
+  declare _types: {
+    providerOptions: TProviderOptions
+    modelProviderOptionsByName: TModelProviderOptionsByName
+    modelSizeByName: TModelSizeByName
+  }
 
   protected config: ImageAdapterConfig
 

@@ -57,8 +57,10 @@ export class OllamaEmbedAdapter<
   readonly models = OllamaEmbeddingModels
   readonly selectedModel: TSelectedModel
 
-  /** Type-only property for provider options inference */
-  declare _providerOptions?: OllamaEmbedProviderOptions
+  // Type-only property - never assigned at runtime
+  declare _types: {
+    providerOptions: OllamaEmbedProviderOptions
+  }
 
   private client: Ollama
 

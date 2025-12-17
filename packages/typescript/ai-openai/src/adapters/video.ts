@@ -47,8 +47,11 @@ export class OpenAIVideoAdapter extends BaseVideoAdapter<
   readonly name = 'openai' as const
   readonly models = OPENAI_VIDEO_MODELS
 
-  // Type-only properties for type inference
-  declare _modelProviderOptionsByName?: OpenAIVideoModelProviderOptionsByName
+  // Type-only property - never assigned at runtime
+  declare _types: {
+    providerOptions: OpenAIVideoProviderOptions
+    modelProviderOptionsByName: OpenAIVideoModelProviderOptionsByName
+  }
 
   private client: OpenAI_SDK
 

@@ -44,9 +44,12 @@ export interface VideoAdapter<
   /** The model selected when creating the adapter */
   readonly selectedModel: TSelectedModel
 
-  // Type-only properties for type inference
-  /** @internal Type-only property for provider options inference */
-  _providerOptions?: TProviderOptions
+  /**
+   * @internal Type-only properties for inference. Not assigned at runtime.
+   */
+  _types: {
+    providerOptions: TProviderOptions
+  }
 
   /**
    * Create a new video generation job.
@@ -84,8 +87,10 @@ export abstract class BaseVideoAdapter<
   abstract readonly models: TModels
   readonly selectedModel: TSelectedModel
 
-  // Type-only properties - never assigned at runtime
-  declare _providerOptions?: TProviderOptions
+  // Type-only property - never assigned at runtime
+  declare _types: {
+    providerOptions: TProviderOptions
+  }
 
   protected config: VideoAdapterConfig
 

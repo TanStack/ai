@@ -64,8 +64,10 @@ export class GeminiSummarizeAdapter<
   readonly models = GeminiSummarizeModels
   readonly selectedModel: TSelectedModel
 
-  /** Type-only property for provider options inference */
-  declare _providerOptions?: GeminiSummarizeProviderOptions
+  // Type-only property - never assigned at runtime
+  declare _types: {
+    providerOptions: GeminiSummarizeProviderOptions
+  }
 
   private client: GoogleGenAI
 

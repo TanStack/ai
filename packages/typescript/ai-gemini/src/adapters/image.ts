@@ -55,8 +55,12 @@ export class GeminiImageAdapter extends BaseImageAdapter<
   readonly name = 'gemini' as const
   readonly models = GEMINI_IMAGE_MODELS
 
-  declare _modelProviderOptionsByName: GeminiImageModelProviderOptionsByName
-  declare _modelSizeByName: GeminiImageModelSizeByName
+  // Type-only property - never assigned at runtime
+  declare _types: {
+    providerOptions: GeminiImageProviderOptions
+    modelProviderOptionsByName: GeminiImageModelProviderOptionsByName
+    modelSizeByName: GeminiImageModelSizeByName
+  }
 
   private client: GoogleGenAI
 

@@ -48,8 +48,10 @@ export class GeminiEmbedAdapter<
   readonly models = GeminiEmbeddingModels
   readonly selectedModel: TSelectedModel
 
-  /** Type-only property for provider options inference */
-  declare _providerOptions?: GeminiEmbedProviderOptions
+  // Type-only property - never assigned at runtime
+  declare _types: {
+    providerOptions: GeminiEmbedProviderOptions
+  }
 
   private client: GoogleGenAI
 

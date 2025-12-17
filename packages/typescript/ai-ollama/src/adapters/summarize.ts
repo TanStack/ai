@@ -76,8 +76,10 @@ export class OllamaSummarizeAdapter<
   readonly models = OllamaSummarizeModels
   readonly selectedModel: TSelectedModel
 
-  /** Type-only property for provider options inference */
-  declare _providerOptions?: OllamaSummarizeProviderOptions
+  // Type-only property - never assigned at runtime
+  declare _types: {
+    providerOptions: OllamaSummarizeProviderOptions
+  }
 
   private client: Ollama
   constructor(
