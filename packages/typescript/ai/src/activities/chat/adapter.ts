@@ -57,7 +57,7 @@ export interface TextAdapter<
     unknown
   >,
   TModelInputModalitiesByName extends Record<string, ReadonlyArray<Modality>> =
-  Record<string, ReadonlyArray<Modality>>,
+    Record<string, ReadonlyArray<Modality>>,
   TMessageMetadataByModality extends {
     text: unknown
     image: unknown
@@ -118,7 +118,7 @@ export abstract class BaseTextAdapter<
     unknown
   >,
   TModelInputModalitiesByName extends Record<string, ReadonlyArray<Modality>> =
-  Record<string, ReadonlyArray<Modality>>,
+    Record<string, ReadonlyArray<Modality>>,
   TMessageMetadataByModality extends {
     text: unknown
     image: unknown

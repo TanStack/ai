@@ -101,10 +101,14 @@ export function createSummarizeOptions<
  * Create typed options for the generateImage() function without executing.
  */
 export function createImageOptions<
-  TAdapter extends ImageAdapter<ReadonlyArray<string>, object, any, any, string>,
->(
-  options: ImageActivityOptions<TAdapter>,
-): ImageActivityOptions<TAdapter> {
+  TAdapter extends ImageAdapter<
+    ReadonlyArray<string>,
+    object,
+    any,
+    any,
+    string
+  >,
+>(options: ImageActivityOptions<TAdapter>): ImageActivityOptions<TAdapter> {
   return options
 }
 
@@ -117,9 +121,7 @@ export function createImageOptions<
  */
 export function createVideoOptions<
   TAdapter extends VideoAdapter<ReadonlyArray<string>, object, string>,
->(
-  options: VideoCreateOptions<TAdapter>,
-): VideoCreateOptions<TAdapter> {
+>(options: VideoCreateOptions<TAdapter>): VideoCreateOptions<TAdapter> {
   return options
 }
 
@@ -132,9 +134,7 @@ export function createVideoOptions<
  */
 export function createSpeechOptions<
   TAdapter extends TTSAdapter<ReadonlyArray<string>, object, string>,
->(
-  options: TTSActivityOptions<TAdapter>,
-): TTSActivityOptions<TAdapter> {
+>(options: TTSActivityOptions<TAdapter>): TTSActivityOptions<TAdapter> {
   return options
 }
 

@@ -28,8 +28,8 @@ export type TTSModels<TAdapter> =
  */
 export type TTSProviderOptions<TAdapter> =
   TAdapter extends TTSAdapter<any, infer TProviderOptions, any>
-  ? TProviderOptions
-  : object
+    ? TProviderOptions
+    : object
 
 // ===========================
 // Activity Options Type

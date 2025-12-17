@@ -24,8 +24,17 @@ class MockTextAdapter extends BaseTextAdapter<
   typeof MOCK_MODELS,
   Record<string, unknown>,
   Record<string, unknown>,
-  Record<string, ReadonlyArray<'text' | 'image' | 'audio' | 'video' | 'document'>>,
-  { text: unknown; image: unknown; audio: unknown; video: unknown; document: unknown },
+  Record<
+    string,
+    ReadonlyArray<'text' | 'image' | 'audio' | 'video' | 'document'>
+  >,
+  {
+    text: unknown
+    image: unknown
+    audio: unknown
+    video: unknown
+    document: unknown
+  },
   (typeof MOCK_MODELS)[number]
 > {
   readonly kind = 'text' as const

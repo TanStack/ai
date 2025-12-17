@@ -21,13 +21,15 @@ export const kind = 'image' as const
 
 /** Extract model types from an ImageAdapter */
 export type ImageModels<TAdapter> =
-  TAdapter extends ImageAdapter<infer M, any, any, any, any> ? M[number] : string
+  TAdapter extends ImageAdapter<infer M, any, any, any, any>
+    ? M[number]
+    : string
 
 /** Extract the selected model from an ImageAdapter */
 export type ImageSelectedModel<TAdapter> =
   TAdapter extends ImageAdapter<any, any, any, any, infer TSelectedModel>
-  ? TSelectedModel
-  : undefined
+    ? TSelectedModel
+    : undefined
 
 /**
  * Extract model-specific provider options from an ImageAdapter.
@@ -42,14 +44,14 @@ export type ImageProviderOptionsForModel<TAdapter, TModel extends string> =
     any,
     any
   >
-  ? string extends keyof ModelOptions
-  ? // ModelOptions is Record<string, unknown> or has index signature - use BaseOptions
-  BaseOptions
-  : // ModelOptions has explicit keys - check if TModel is one of them
-  TModel extends keyof ModelOptions
-  ? ModelOptions[TModel]
-  : BaseOptions
-  : object
+    ? string extends keyof ModelOptions
+      ? // ModelOptions is Record<string, unknown> or has index signature - use BaseOptions
+        BaseOptions
+      : // ModelOptions has explicit keys - check if TModel is one of them
+        TModel extends keyof ModelOptions
+        ? ModelOptions[TModel]
+        : BaseOptions
+    : object
 
 /**
  * Extract model-specific size options from an ImageAdapter.
@@ -57,14 +59,14 @@ export type ImageProviderOptionsForModel<TAdapter, TModel extends string> =
  */
 export type ImageSizeForModel<TAdapter, TModel extends string> =
   TAdapter extends ImageAdapter<any, any, any, infer SizeByName, any>
-  ? string extends keyof SizeByName
-  ? // SizeByName has index signature - fall back to string
-  string
-  : // SizeByName has explicit keys - check if TModel is one of them
-  TModel extends keyof SizeByName
-  ? SizeByName[TModel]
-  : string
-  : string
+    ? string extends keyof SizeByName
+      ? // SizeByName has index signature - fall back to string
+        string
+      : // SizeByName has explicit keys - check if TModel is one of them
+        TModel extends keyof SizeByName
+        ? SizeByName[TModel]
+        : string
+    : string
 
 // ===========================
 // Activity Options Type

@@ -19,11 +19,11 @@ export type GeminiEmbeddingModel = (typeof GeminiEmbeddingModels)[number]
  */
 export interface GeminiEmbedProviderOptions {
   taskType?:
-  | 'RETRIEVAL_QUERY'
-  | 'RETRIEVAL_DOCUMENT'
-  | 'SEMANTIC_SIMILARITY'
-  | 'CLASSIFICATION'
-  | 'CLUSTERING'
+    | 'RETRIEVAL_QUERY'
+    | 'RETRIEVAL_DOCUMENT'
+    | 'SEMANTIC_SIMILARITY'
+    | 'CLASSIFICATION'
+    | 'CLUSTERING'
   title?: string
   outputDimensionality?: number
 }

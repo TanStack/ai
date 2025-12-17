@@ -47,7 +47,7 @@ import type { AnthropicClientConfig } from '../utils'
 /**
  * Configuration for Anthropic text adapter
  */
-export interface AnthropicTextConfig extends AnthropicClientConfig { }
+export interface AnthropicTextConfig extends AnthropicClientConfig {}
 
 /**
  * Anthropic-specific provider options for text/chat
@@ -56,8 +56,8 @@ export type AnthropicTextProviderOptions = ExternalTextProviderOptions
 
 type AnthropicContentBlocks =
   Extract<MessageParam['content'], Array<unknown>> extends Array<infer Block>
-  ? Array<Block>
-  : never
+    ? Array<Block>
+    : never
 type AnthropicContentBlock =
   AnthropicContentBlocks extends Array<infer Block> ? Block : never
 
@@ -68,7 +68,8 @@ type AnthropicContentBlock =
  * Import only what you need for smaller bundle sizes.
  */
 export class AnthropicTextAdapter<
-  TSelectedModel extends (typeof ANTHROPIC_MODELS)[number] | undefined = undefined,
+  TSelectedModel extends (typeof ANTHROPIC_MODELS)[number] | undefined =
+    undefined,
 > extends BaseTextAdapter<
   typeof ANTHROPIC_MODELS,
   AnthropicTextProviderOptions,
@@ -238,11 +239,11 @@ export class AnthropicTextAdapter<
         if (key in modelOptions) {
           const value = modelOptions[key]
           if (key === 'tool_choice' && typeof value === 'string') {
-            ; (validProviderOptions as Record<string, unknown>)[key] = {
+            ;(validProviderOptions as Record<string, unknown>)[key] = {
               type: value,
             }
           } else {
-            ; (validProviderOptions as Record<string, unknown>)[key] = value
+            ;(validProviderOptions as Record<string, unknown>)[key] = value
           }
         }
       }
@@ -290,14 +291,14 @@ export class AnthropicTextAdapter<
         const imageSource: Base64ImageSource | URLImageSource =
           part.source.type === 'data'
             ? {
-              type: 'base64',
-              data: part.source.value,
-              media_type: metadata?.mediaType ?? 'image/jpeg',
-            }
+                type: 'base64',
+                data: part.source.value,
+                media_type: metadata?.mediaType ?? 'image/jpeg',
+              }
             : {
-              type: 'url',
-              url: part.source.value,
-            }
+                type: 'url',
+                url: part.source.value,
+              }
         const { mediaType: _mediaType, ...meta } = metadata || {}
         return {
           type: 'image',
@@ -310,14 +311,14 @@ export class AnthropicTextAdapter<
         const docSource: Base64PDFSource | URLPDFSource =
           part.source.type === 'data'
             ? {
-              type: 'base64',
-              data: part.source.value,
-              media_type: 'application/pdf',
-            }
+                type: 'base64',
+                data: part.source.value,
+                media_type: 'application/pdf',
+              }
             : {
-              type: 'url',
-              url: part.source.value,
-            }
+                type: 'url',
+                url: part.source.value,
+              }
         return {
           type: 'document',
           source: docSource,
@@ -419,8 +420,8 @@ export class AnthropicTextAdapter<
             ? message.content
             : message.content
               ? message.content.map((c) =>
-                this.convertContentPartToAnthropic(c),
-              )
+                  this.convertContentPartToAnthropic(c),
+                )
               : '',
       })
     }

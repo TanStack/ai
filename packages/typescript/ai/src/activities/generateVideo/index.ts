@@ -34,8 +34,8 @@ export type VideoModels<TAdapter> =
  */
 export type VideoProviderOptions<TAdapter> =
   TAdapter extends VideoAdapter<any, infer TProviderOptions, any>
-  ? TProviderOptions
-  : object
+    ? TProviderOptions
+    : object
 
 // ===========================
 // Activity Options Types
@@ -113,8 +113,8 @@ export type VideoActivityOptions<
 > = TRequest extends 'status'
   ? VideoStatusOptions<TAdapter>
   : TRequest extends 'url'
-  ? VideoUrlOptions<TAdapter>
-  : VideoCreateOptions<TAdapter>
+    ? VideoUrlOptions<TAdapter>
+    : VideoCreateOptions<TAdapter>
 
 // ===========================
 // Activity Result Types
@@ -130,8 +130,8 @@ export type VideoActivityResult<
 > = TRequest extends 'status'
   ? Promise<VideoStatusResult>
   : TRequest extends 'url'
-  ? Promise<VideoUrlResult>
-  : Promise<VideoJobResult>
+    ? Promise<VideoUrlResult>
+    : Promise<VideoJobResult>
 
 // ===========================
 // Activity Implementation

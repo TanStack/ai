@@ -17,7 +17,6 @@ import {
   recommendGuitarToolDef,
 } from '@/lib/guitar-tools'
 
-
 type Provider = 'openai' | 'anthropic' | 'gemini' | 'ollama'
 
 // Pre-define typed adapter configurations with full type inference
@@ -30,7 +29,6 @@ const adapterConfig = {
   gemini: () =>
     createChatOptions({
       adapter: geminiText('gemini-2.5-flash'),
-
     }),
   ollama: () =>
     createChatOptions({
@@ -109,7 +107,7 @@ export const Route = createFileRoute('/api/tanchat')({
           const stream = chat({
             ...test,
             modelOptions: {
-              test: "this hsouldn't be possible"
+              test: "this hsouldn't be possible",
             },
             tools: [
               getGuitars, // Server tool

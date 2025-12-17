@@ -106,14 +106,14 @@ export interface CommonOptions {
 /** Extract model types from a TextAdapter */
 export type TextModels<TAdapter> =
   TAdapter extends TextAdapter<infer M, any, any, any, any, any>
-  ? M[number]
-  : string
+    ? M[number]
+    : string
 
 /** Extract the selected model from a TextAdapter */
 export type TextSelectedModel<TAdapter> =
   TAdapter extends TextAdapter<any, any, any, any, any, infer TSelectedModel>
-  ? TSelectedModel
-  : undefined
+    ? TSelectedModel
+    : undefined
 
 /**
  * Extract model-specific provider options from a TextAdapter.
@@ -129,14 +129,14 @@ export type TextProviderOptionsForModel<TAdapter, TModel extends string> =
     any,
     any
   >
-  ? string extends keyof ModelOptions
-  ? // ModelOptions is Record<string, unknown> or has index signature - use BaseOptions
-  BaseOptions
-  : // ModelOptions has explicit keys - check if TModel is one of them
-  TModel extends keyof ModelOptions
-  ? ModelOptions[TModel]
-  : BaseOptions
-  : object
+    ? string extends keyof ModelOptions
+      ? // ModelOptions is Record<string, unknown> or has index signature - use BaseOptions
+        BaseOptions
+      : // ModelOptions has explicit keys - check if TModel is one of them
+        TModel extends keyof ModelOptions
+        ? ModelOptions[TModel]
+        : BaseOptions
+    : object
 
 /**
  * Extract input modalities for a specific model from a TextAdapter.
@@ -144,19 +144,26 @@ export type TextProviderOptionsForModel<TAdapter, TModel extends string> =
  */
 export type InputModalitiesForModel<TAdapter, TModel extends string> =
   TAdapter extends TextAdapter<any, any, any, infer ModalitiesByName, any, any>
-  ? TModel extends keyof ModalitiesByName
-  ? ModalitiesByName[TModel]
-  : ReadonlyArray<Modality>
-  : ReadonlyArray<Modality>
+    ? TModel extends keyof ModalitiesByName
+      ? ModalitiesByName[TModel]
+      : ReadonlyArray<Modality>
+    : ReadonlyArray<Modality>
 
 /**
  * Extract message metadata types by modality from a TextAdapter.
  * Returns the adapter's metadata map or defaults if not defined.
  */
 export type MessageMetadataForAdapter<TAdapter> =
-  TAdapter extends TextAdapter<any, any, any, any, infer MetadataByModality, any>
-  ? MetadataByModality
-  : DefaultMessageMetadataByModality
+  TAdapter extends TextAdapter<
+    any,
+    any,
+    any,
+    any,
+    infer MetadataByModality,
+    any
+  >
+    ? MetadataByModality
+    : DefaultMessageMetadataByModality
 
 // ===========================
 // Activity Options Type
@@ -202,7 +209,10 @@ export interface TextActivityOptions<
   /** Additional options like temperature, maxTokens, etc. */
   options?: TextOptions['options']
   /** Model-specific options */
-  modelOptions?: TextProviderOptionsForModel<TAdapter, TextSelectedModel<TAdapter> & string>
+  modelOptions?: TextProviderOptionsForModel<
+    TAdapter,
+    TextSelectedModel<TAdapter> & string
+  >
   /** AbortController for cancellation */
   abortController?: TextOptions['abortController']
   /** Strategy for controlling the agent loop */
@@ -265,8 +275,8 @@ export type TextActivityResult<
 > = TSchema extends z.ZodType
   ? Promise<z.infer<TSchema>>
   : TStream extends false
-  ? Promise<string>
-  : AsyncIterable<StreamChunk>
+    ? Promise<string>
+    : AsyncIterable<StreamChunk>
 
 // ===========================
 // ChatEngine Implementation
@@ -1254,8 +1264,8 @@ export function textOptions<
     any,
     any
   >
-  ? Models[number]
-  : string,
+    ? Models[number]
+    : string,
 >(
   options: Omit<
     TextStreamOptionsUnion<TAdapter>,
@@ -1270,10 +1280,10 @@ export function textOptions<
       any,
       infer ModelProviderOptions
     >
-    ? TModel extends keyof ModelProviderOptions
-    ? ModelProviderOptions[TModel]
-    : never
-    : never
+      ? TModel extends keyof ModelProviderOptions
+        ? ModelProviderOptions[TModel]
+        : never
+      : never
   },
 ): typeof options {
   return options

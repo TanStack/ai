@@ -39,7 +39,7 @@ import type { OpenAIClientConfig } from '../utils'
 /**
  * Configuration for OpenAI text adapter
  */
-export interface OpenAITextConfig extends OpenAIClientConfig { }
+export interface OpenAITextConfig extends OpenAIClientConfig {}
 
 /**
  * Alias for TextProviderOptions
@@ -53,7 +53,8 @@ export type OpenAITextProviderOptions = ExternalTextProviderOptions
  * Import only what you need for smaller bundle sizes.
  */
 export class OpenAITextAdapter<
-  TSelectedModel extends (typeof OPENAI_CHAT_MODELS)[number] | undefined = undefined,
+  TSelectedModel extends (typeof OPENAI_CHAT_MODELS)[number] | undefined =
+    undefined,
 > extends BaseTextAdapter<
   typeof OPENAI_CHAT_MODELS,
   OpenAITextProviderOptions,
@@ -512,14 +513,14 @@ export class OpenAITextAdapter<
   private mapTextOptionsToOpenAI(options: TextOptions) {
     const modelOptions = options.modelOptions as
       | Omit<
-        InternalTextProviderOptions,
-        | 'max_output_tokens'
-        | 'tools'
-        | 'metadata'
-        | 'temperature'
-        | 'input'
-        | 'top_p'
-      >
+          InternalTextProviderOptions,
+          | 'max_output_tokens'
+          | 'tools'
+          | 'metadata'
+          | 'temperature'
+          | 'input'
+          | 'top_p'
+        >
       | undefined
     const input = this.convertMessagesToInput(options.messages)
     if (modelOptions) {
@@ -811,4 +812,3 @@ export function createOpenaiText<
 ): OpenAITextAdapter<TSelectedModel> {
   return createOpenaiChat(model, apiKey, config)
 }
-

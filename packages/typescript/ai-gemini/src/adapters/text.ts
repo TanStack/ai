@@ -40,7 +40,7 @@ import type { GeminiClientConfig } from '../utils'
 /**
  * Configuration for Gemini text adapter
  */
-export interface GeminiTextConfig extends GeminiClientConfig { }
+export interface GeminiTextConfig extends GeminiClientConfig {}
 
 /**
  * Gemini-specific provider options for text/chat
@@ -330,10 +330,10 @@ export class GeminiTextAdapter<
           finishReason: toolCallMap.size > 0 ? 'tool_calls' : 'stop',
           usage: chunk.usageMetadata
             ? {
-              promptTokens: chunk.usageMetadata.promptTokenCount ?? 0,
-              completionTokens: chunk.usageMetadata.thoughtsTokenCount ?? 0,
-              totalTokens: chunk.usageMetadata.totalTokenCount ?? 0,
-            }
+                promptTokens: chunk.usageMetadata.promptTokenCount ?? 0,
+                completionTokens: chunk.usageMetadata.thoughtsTokenCount ?? 0,
+                totalTokens: chunk.usageMetadata.totalTokenCount ?? 0,
+              }
             : undefined,
         }
       }
@@ -400,9 +400,9 @@ export class GeminiTextAdapter<
           try {
             parsedArgs = toolCall.function.arguments
               ? (JSON.parse(toolCall.function.arguments) as Record<
-                string,
-                unknown
-              >)
+                  string,
+                  unknown
+                >)
               : {}
           } catch {
             parsedArgs = toolCall.function.arguments as unknown as Record<
@@ -510,5 +510,3 @@ export function createGeminiText<
 ): GeminiTextAdapter<TSelectedModel> {
   return createGeminiChat(model, apiKey, config)
 }
-
-

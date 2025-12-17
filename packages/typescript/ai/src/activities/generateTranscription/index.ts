@@ -28,8 +28,8 @@ export type TranscriptionModels<TAdapter> =
  */
 export type TranscriptionProviderOptions<TAdapter> =
   TAdapter extends TranscriptionAdapter<any, infer TProviderOptions, any>
-  ? TProviderOptions
-  : object
+    ? TProviderOptions
+    : object
 
 // ===========================
 // Activity Options Type

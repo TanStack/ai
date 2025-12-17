@@ -29,7 +29,7 @@ vi.mock('@anthropic-ai/sdk', () => {
     beta = client.beta
     messages = client.messages
 
-    constructor(_: { apiKey: string }) { }
+    constructor(_: { apiKey: string }) {}
   }
 
   return { default: MockAnthropic }

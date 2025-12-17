@@ -3,8 +3,9 @@ import { chat, type Tool, type StreamChunk } from '@tanstack/ai'
 import { OpenAITextAdapter } from '../src/adapters/text'
 import type { OpenAITextProviderOptions } from '../src/adapters/text'
 
-const createAdapter = <TModel extends 'gpt-4o-mini' | 'gpt-4o'>(model: TModel) =>
-  new OpenAITextAdapter({ apiKey: 'test-key' }, model)
+const createAdapter = <TModel extends 'gpt-4o-mini' | 'gpt-4o'>(
+  model: TModel,
+) => new OpenAITextAdapter({ apiKey: 'test-key' }, model)
 
 const toolArguments = JSON.stringify({ location: 'Berlin' })
 
@@ -67,12 +68,12 @@ describe('OpenAI adapter option mapping', () => {
     const responsesCreate = vi.fn().mockResolvedValueOnce(mockStream)
 
     const adapter = createAdapter('gpt-4o-mini')
-      // Replace the internal OpenAI SDK client with our mock
-      ; (adapter as any).client = {
-        responses: {
-          create: responsesCreate,
-        },
-      }
+    // Replace the internal OpenAI SDK client with our mock
+    ;(adapter as any).client = {
+      responses: {
+        create: responsesCreate,
+      },
+    }
 
     const modelOptions: OpenAITextProviderOptions = {
       tool_choice: 'required',
