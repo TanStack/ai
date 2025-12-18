@@ -10,7 +10,10 @@
 import { describe, expectTypeOf, it } from 'vitest'
 import { BaseImageAdapter } from '../src/activities/generateImage/adapter'
 import { generateImage } from '../src/activities/generateImage'
-import type { ImageGenerationOptions, ImageGenerationResult } from '../src/types'
+import type {
+  ImageGenerationOptions,
+  ImageGenerationResult,
+} from '../src/types'
 
 // ===========================
 // Mock Provider Options Types
