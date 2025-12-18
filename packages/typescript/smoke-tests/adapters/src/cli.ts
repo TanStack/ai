@@ -100,8 +100,6 @@ function hasCapability(
       return !!adapterSet.textAdapter
     case 'summarize':
       return !!adapterSet.summarizeAdapter
-    case 'embedding':
-      return !!adapterSet.embeddingAdapter
     case 'image':
       return !!adapterSet.imageAdapter
     case 'tts':
@@ -203,13 +201,11 @@ async function runSequential(
       adapterName: adapterDef.name,
       textAdapter: adapterSet.textAdapter,
       summarizeAdapter: adapterSet.summarizeAdapter,
-      embeddingAdapter: adapterSet.embeddingAdapter,
       imageAdapter: adapterSet.imageAdapter,
       ttsAdapter: adapterSet.ttsAdapter,
       transcriptionAdapter: adapterSet.transcriptionAdapter,
       model: adapterSet.chatModel,
       summarizeModel: adapterSet.summarizeModel,
-      embeddingModel: adapterSet.embeddingModel,
       imageModel: adapterSet.imageModel,
       ttsModel: adapterSet.ttsModel,
       transcriptionModel: adapterSet.transcriptionModel,
@@ -269,13 +265,11 @@ async function runParallel(
       adapterName: adapterDef.name,
       textAdapter: adapterSet.textAdapter,
       summarizeAdapter: adapterSet.summarizeAdapter,
-      embeddingAdapter: adapterSet.embeddingAdapter,
       imageAdapter: adapterSet.imageAdapter,
       ttsAdapter: adapterSet.ttsAdapter,
       transcriptionAdapter: adapterSet.transcriptionAdapter,
       model: adapterSet.chatModel,
       summarizeModel: adapterSet.summarizeModel,
-      embeddingModel: adapterSet.embeddingModel,
       imageModel: adapterSet.imageModel,
       ttsModel: adapterSet.ttsModel,
       transcriptionModel: adapterSet.transcriptionModel,

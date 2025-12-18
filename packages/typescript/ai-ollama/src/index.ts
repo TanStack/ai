@@ -8,27 +8,10 @@ export {
   OllamaTextModels,
   createOllamaChat,
   ollamaText,
-  // Deprecated exports
-  createOllamaText,
-  ollamaChat,
   type OllamaTextAdapterOptions,
   type OllamaTextModel,
   type OllamaTextProviderOptions,
 } from './adapters/text'
-
-// Embedding adapter
-export {
-  OllamaEmbedAdapter,
-  OllamaEmbeddingModels,
-  createOllamaEmbedding,
-  ollamaEmbedding,
-  // Deprecated exports
-  createOllamaEmbed,
-  ollamaEmbed,
-  type OllamaEmbedAdapterOptions,
-  type OllamaEmbeddingModel,
-  type OllamaEmbedProviderOptions,
-} from './adapters/embed'
 
 // Summarize adapter
 export {

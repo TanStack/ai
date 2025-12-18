@@ -19,16 +19,12 @@ export const kind = 'transcription' as const
 // Type Extraction Helpers
 // ===========================
 
-/** Extract model types from a TranscriptionAdapter */
-export type TranscriptionModels<TAdapter> =
-  TAdapter extends TranscriptionAdapter<infer M, any, any> ? M[number] : string
-
 /**
- * Extract provider options from a TranscriptionAdapter.
+ * Extract provider options from a TranscriptionAdapter via ~types.
  */
 export type TranscriptionProviderOptions<TAdapter> =
-  TAdapter extends TranscriptionAdapter<any, infer TProviderOptions, any>
-    ? TProviderOptions
+  TAdapter extends TranscriptionAdapter<any, any>
+    ? TAdapter['~types']['providerOptions']
     : object
 
 // ===========================
@@ -37,12 +33,12 @@ export type TranscriptionProviderOptions<TAdapter> =
 
 /**
  * Options for the transcription activity.
- * The model is extracted from the adapter's selectedModel property.
+ * The model is extracted from the adapter's model property.
  *
- * @template TAdapter - The transcription adapter type (must have a selectedModel)
+ * @template TAdapter - The transcription adapter type
  */
 export interface TranscriptionActivityOptions<
-  TAdapter extends TranscriptionAdapter<ReadonlyArray<string>, object, string>,
+  TAdapter extends TranscriptionAdapter<string, object>,
 > {
   /** The transcription adapter to use (must be created with a model) */
   adapter: TAdapter & { kind: typeof kind }
@@ -102,19 +98,35 @@ export type TranscriptionActivityResult = Promise<TranscriptionResult>
  * ```
  */
 export async function generateTranscription<
-  TAdapter extends TranscriptionAdapter<ReadonlyArray<string>, object, string>,
+  TAdapter extends TranscriptionAdapter<string, object>,
 >(
   options: TranscriptionActivityOptions<TAdapter>,
 ): TranscriptionActivityResult {
   const { adapter, ...rest } = options
-  const model = adapter.selectedModel
+  const model = adapter.model
 
   return adapter.transcribe({ ...rest, model })
+}
+
+// ===========================
+// Options Factory
+// ===========================
+
+/**
+ * Create typed options for the generateTranscription() function without executing.
+ */
+export function createTranscriptionOptions<
+  TAdapter extends TranscriptionAdapter<string, object>,
+>(
+  options: TranscriptionActivityOptions<TAdapter>,
+): TranscriptionActivityOptions<TAdapter> {
+  return options
 }
 
 // Re-export adapter types
 export type {
   TranscriptionAdapter,
   TranscriptionAdapterConfig,
+  AnyTranscriptionAdapter,
 } from './adapter'
 export { BaseTranscriptionAdapter } from './adapter'

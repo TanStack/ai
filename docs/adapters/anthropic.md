@@ -221,7 +221,6 @@ Creates an Anthropic summarization adapter with an explicit API key.
 
 ## Limitations
 
-- **Embeddings**: Anthropic does not support embeddings natively. Use OpenAI or Gemini for embedding needs.
 - **Image Generation**: Anthropic does not support image generation. Use OpenAI or Gemini for image generation.
 
 ## Next Steps

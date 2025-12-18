@@ -51,8 +51,6 @@ export interface AdapterContext {
   textAdapter: any
   /** Summarize adapter for text summarization */
   summarizeAdapter?: any
-  /** Embedding adapter for vector embeddings */
-  embeddingAdapter?: any
   /** Image adapter for image generation */
   imageAdapter?: any
   /** TTS adapter for text-to-speech */
@@ -63,8 +61,6 @@ export interface AdapterContext {
   model: string
   /** Model for summarization */
   summarizeModel?: string
-  /** Model for embeddings */
-  embeddingModel?: string
   /** Model for image generation */
   imageModel?: string
   /** Model for TTS */

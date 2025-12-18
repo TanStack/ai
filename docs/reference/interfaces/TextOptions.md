@@ -3,17 +3,13 @@ id: TextOptions
 title: TextOptions
 ---
 
-# Interface: TextOptions\<TModel, TProviderOptionsSuperset, TOutput, TProviderOptionsForModel\>
+# Interface: TextOptions\<TProviderOptionsSuperset, TOutput, TProviderOptionsForModel\>
 
-Defined in: [types.ts:548](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L548)
+Defined in: [types.ts:605](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L605)
 
 Options passed into the SDK and further piped to the AI provider.
 
 ## Type Parameters
-
-### TModel
-
-`TModel` *extends* `string` = `string`
 
 ### TProviderOptionsSuperset
 
@@ -35,7 +31,7 @@ Options passed into the SDK and further piped to the AI provider.
 optional abortController: AbortController;
 ```
 
-Defined in: [types.ts:581](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L581)
+Defined in: [types.ts:644](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L644)
 
 AbortController for request cancellation.
 
@@ -62,7 +58,7 @@ https://developer.mozilla.org/en-US/docs/Web/API/AbortController
 optional agentLoopStrategy: AgentLoopStrategy;
 ```
 
-Defined in: [types.ts:558](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L558)
+Defined in: [types.ts:614](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L614)
 
 ***
 
@@ -72,7 +68,7 @@ Defined in: [types.ts:558](https://github.com/TanStack/ai/blob/main/packages/typ
 optional conversationId: string;
 ```
 
-Defined in: [types.ts:567](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L567)
+Defined in: [types.ts:630](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L630)
 
 Conversation ID for correlating client and server-side devtools events.
 When provided, server-side events will be linked to the client conversation in devtools.
@@ -88,17 +84,27 @@ messages: ModelMessage<
   | null>[];
 ```
 
-Defined in: [types.ts:555](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L555)
+Defined in: [types.ts:611](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L611)
 
 ***
 
 ### model
 
 ```ts
-model: TModel;
+model: string;
 ```
 
-Defined in: [types.ts:554](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L554)
+Defined in: [types.ts:610](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L610)
+
+***
+
+### modelOptions?
+
+```ts
+optional modelOptions: TProviderOptionsForModel;
+```
+
+Defined in: [types.ts:616](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L616)
 
 ***
 
@@ -108,7 +114,7 @@ Defined in: [types.ts:554](https://github.com/TanStack/ai/blob/main/packages/typ
 optional options: CommonOptions;
 ```
 
-Defined in: [types.ts:559](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L559)
+Defined in: [types.ts:615](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L615)
 
 ***
 
@@ -118,17 +124,22 @@ Defined in: [types.ts:559](https://github.com/TanStack/ai/blob/main/packages/typ
 optional output: TOutput;
 ```
 
-Defined in: [types.ts:562](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L562)
+Defined in: [types.ts:618](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L618)
 
 ***
 
-### providerOptions?
+### outputSchema?
 
 ```ts
-optional providerOptions: TProviderOptionsForModel;
+optional outputSchema: ZodType<unknown, unknown, $ZodTypeInternals<unknown, unknown>>;
 ```
 
-Defined in: [types.ts:560](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L560)
+Defined in: [types.ts:625](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L625)
+
+Zod schema for structured output.
+When provided, the adapter should use the provider's native structured output API
+to ensure the response conforms to this schema.
+The schema will be converted to JSON Schema format before being sent to the provider.
 
 ***
 
@@ -138,7 +149,7 @@ Defined in: [types.ts:560](https://github.com/TanStack/ai/blob/main/packages/typ
 optional request: Request | RequestInit;
 ```
 
-Defined in: [types.ts:561](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L561)
+Defined in: [types.ts:617](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L617)
 
 ***
 
@@ -148,7 +159,7 @@ Defined in: [types.ts:561](https://github.com/TanStack/ai/blob/main/packages/typ
 optional systemPrompts: string[];
 ```
 
-Defined in: [types.ts:557](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L557)
+Defined in: [types.ts:613](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L613)
 
 ***
 
@@ -158,4 +169,4 @@ Defined in: [types.ts:557](https://github.com/TanStack/ai/blob/main/packages/typ
 optional tools: Tool<any, any, any>[];
 ```
 
-Defined in: [types.ts:556](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L556)
+Defined in: [types.ts:612](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L612)

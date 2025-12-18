@@ -98,26 +98,41 @@ export interface OllamaTextAdapterOptions {
 }
 
 /**
+ * Default input modalities for Ollama models
+ */
+type OllamaInputModalities = readonly ['text', 'image']
+
+/**
+ * Default message metadata for Ollama
+ */
+type OllamaMessageMetadataByModality = {
+  text: unknown
+  image: unknown
+  audio: unknown
+  video: unknown
+  document: unknown
+}
+
+/**
  * Ollama Text/Chat Adapter
  * A tree-shakeable chat adapter for Ollama
  *
  * Note: Ollama supports any model name as a string since models are loaded dynamically.
  * The predefined OllamaTextModels are common models but any string is accepted.
  */
-export class OllamaTextAdapter<
-  TSelectedModel extends string | undefined = undefined,
-> extends BaseTextAdapter<typeof OllamaTextModels, OllamaTextProviderOptions> {
+export class OllamaTextAdapter<TModel extends string> extends BaseTextAdapter<
+  TModel,
+  OllamaTextProviderOptions,
+  OllamaInputModalities,
+  OllamaMessageMetadataByModality
+> {
   readonly kind = 'text' as const
   readonly name = 'ollama' as const
-  readonly models = OllamaTextModels
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  override readonly selectedModel: any
 
   private client: Ollama
 
-  constructor(hostOrClient?: string | Ollama, selectedModel?: TSelectedModel) {
-    super({}, undefined)
-    this.selectedModel = selectedModel
+  constructor(hostOrClient: string | Ollama | undefined, model: TModel) {
+    super({}, model)
     if (typeof hostOrClient === 'string' || hostOrClient === undefined) {
       this.client = createOllamaClient({ host: hostOrClient })
     } else {
@@ -381,41 +396,23 @@ export class OllamaTextAdapter<
 }
 
 /**
- * Creates an Ollama chat adapter with explicit host
+ * Creates an Ollama chat adapter with explicit host.
+ * Type resolution happens here at the call site.
  */
-export function createOllamaChat<TSelectedModel extends string>(
-  model: TSelectedModel,
+export function createOllamaChat<TModel extends string>(
+  model: TModel,
   host?: string,
-): OllamaTextAdapter<TSelectedModel> {
+): OllamaTextAdapter<TModel> {
   return new OllamaTextAdapter(host, model)
 }
 
 /**
- * Creates an Ollama text adapter with host from environment
+ * Creates an Ollama text adapter with host from environment.
+ * Type resolution happens here at the call site.
  */
-export function ollamaText<TSelectedModel extends string>(
-  model: TSelectedModel,
-): OllamaTextAdapter<TSelectedModel> {
+export function ollamaText<TModel extends string>(
+  model: TModel,
+): OllamaTextAdapter<TModel> {
   const host = getOllamaHostFromEnv()
-  return new OllamaTextAdapter(host, model)
-}
-
-/**
- * @deprecated Use ollamaText() instead
- */
-export function ollamaChat<TSelectedModel extends string>(
-  model: TSelectedModel,
-): OllamaTextAdapter<TSelectedModel> {
-  const host = getOllamaHostFromEnv()
-  return new OllamaTextAdapter(host, model)
-}
-
-/**
- * @deprecated Use createOllamaChat() instead
- */
-export function createOllamaText<TSelectedModel extends string>(
-  model: TSelectedModel,
-  host?: string,
-): OllamaTextAdapter<TSelectedModel> {
   return new OllamaTextAdapter(host, model)
 }

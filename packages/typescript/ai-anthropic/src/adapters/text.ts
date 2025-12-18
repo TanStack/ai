@@ -1,5 +1,4 @@
 import { BaseTextAdapter } from '@tanstack/ai/adapters'
-import { ANTHROPIC_MODELS } from '../model-meta'
 import { convertToolsToProviderFormat } from '../tools/tool-converter'
 import { validateTextProviderOptions } from '../text/text-provider-options'
 import {
@@ -7,6 +6,11 @@ import {
   generateId,
   getAnthropicApiKeyFromEnv,
 } from '../utils'
+import type {
+  ANTHROPIC_MODELS,
+  AnthropicChatModelProviderOptionsByName,
+  AnthropicModelInputModalitiesByName,
+} from '../model-meta'
 import type {
   StructuredOutputOptions,
   StructuredOutputResult,
@@ -24,14 +28,11 @@ import type {
 import type Anthropic_SDK from '@anthropic-ai/sdk'
 import type {
   ContentPart,
+  Modality,
   ModelMessage,
   StreamChunk,
   TextOptions,
 } from '@tanstack/ai'
-import type {
-  AnthropicChatModelProviderOptionsByName,
-  AnthropicModelInputModalitiesByName,
-} from '../model-meta'
 import type {
   ExternalTextProviderOptions,
   InternalTextProviderOptions,
@@ -61,6 +62,32 @@ type AnthropicContentBlocks =
 type AnthropicContentBlock =
   AnthropicContentBlocks extends Array<infer Block> ? Block : never
 
+// ===========================
+// Type Resolution Helpers
+// ===========================
+
+/**
+ * Resolve provider options for a specific model.
+ * If the model has explicit options in the map, use those; otherwise use base options.
+ */
+type ResolveProviderOptions<TModel extends string> =
+  TModel extends keyof AnthropicChatModelProviderOptionsByName
+    ? AnthropicChatModelProviderOptionsByName[TModel]
+    : AnthropicTextProviderOptions
+
+/**
+ * Resolve input modalities for a specific model.
+ * If the model has explicit modalities in the map, use those; otherwise use default.
+ */
+type ResolveInputModalities<TModel extends string> =
+  TModel extends keyof AnthropicModelInputModalitiesByName
+    ? AnthropicModelInputModalitiesByName[TModel]
+    : readonly ['text', 'image', 'document']
+
+// ===========================
+// Adapter Implementation
+// ===========================
+
 /**
  * Anthropic Text (Chat) Adapter
  *
@@ -68,34 +95,28 @@ type AnthropicContentBlock =
  * Import only what you need for smaller bundle sizes.
  */
 export class AnthropicTextAdapter<
-  TSelectedModel extends (typeof ANTHROPIC_MODELS)[number] | undefined =
-    undefined,
+  TModel extends (typeof ANTHROPIC_MODELS)[number],
+  TProviderOptions extends object = ResolveProviderOptions<TModel>,
+  TInputModalities extends ReadonlyArray<Modality> =
+    ResolveInputModalities<TModel>,
 > extends BaseTextAdapter<
-  typeof ANTHROPIC_MODELS,
-  AnthropicTextProviderOptions,
-  AnthropicChatModelProviderOptionsByName,
-  AnthropicModelInputModalitiesByName,
-  AnthropicMessageMetadataByModality,
-  TSelectedModel
+  TModel,
+  TProviderOptions,
+  TInputModalities,
+  AnthropicMessageMetadataByModality
 > {
   readonly kind = 'text' as const
   readonly name = 'anthropic' as const
-  readonly models = ANTHROPIC_MODELS
-
-  declare _modelProviderOptionsByName: AnthropicChatModelProviderOptionsByName
-  declare _modelInputModalitiesByName: AnthropicModelInputModalitiesByName
-  declare _messageMetadataByModality: AnthropicMessageMetadataByModality
-  declare _selectedModel?: TSelectedModel
 
   private client: Anthropic_SDK
 
-  constructor(config: AnthropicTextConfig, selectedModel?: TSelectedModel) {
-    super({}, selectedModel)
+  constructor(config: AnthropicTextConfig, model: TModel) {
+    super({}, model)
     this.client = createAnthropicClient(config)
   }
 
   async *chatStream(
-    options: TextOptions<string, AnthropicTextProviderOptions>,
+    options: TextOptions<AnthropicTextProviderOptions>,
   ): AsyncIterable<StreamChunk> {
     try {
       const requestParams = this.mapCommonOptionsToAnthropic(options)
@@ -211,7 +232,7 @@ export class AnthropicTextAdapter<
   }
 
   private mapCommonOptionsToAnthropic(
-    options: TextOptions<string, AnthropicTextProviderOptions>,
+    options: TextOptions<AnthropicTextProviderOptions>,
   ) {
     const modelOptions = options.modelOptions as
       | InternalTextProviderOptions
@@ -601,53 +622,35 @@ export class AnthropicTextAdapter<
 }
 
 /**
- * Creates an Anthropic chat adapter with explicit API key
+ * Creates an Anthropic chat adapter with explicit API key.
+ * Type resolution happens here at the call site.
  */
 export function createAnthropicChat<
-  TSelectedModel extends (typeof ANTHROPIC_MODELS)[number],
+  TModel extends (typeof ANTHROPIC_MODELS)[number],
 >(
-  model: TSelectedModel,
+  model: TModel,
   apiKey: string,
   config?: Omit<AnthropicTextConfig, 'apiKey'>,
-): AnthropicTextAdapter<TSelectedModel> {
+): AnthropicTextAdapter<
+  TModel,
+  ResolveProviderOptions<TModel>,
+  ResolveInputModalities<TModel>
+> {
   return new AnthropicTextAdapter({ apiKey, ...config }, model)
 }
 
 /**
- * Creates an Anthropic text adapter with automatic API key detection
+ * Creates an Anthropic text adapter with automatic API key detection.
+ * Type resolution happens here at the call site.
  */
-export function anthropicText<
-  TSelectedModel extends (typeof ANTHROPIC_MODELS)[number],
->(
-  model: TSelectedModel,
+export function anthropicText<TModel extends (typeof ANTHROPIC_MODELS)[number]>(
+  model: TModel,
   config?: Omit<AnthropicTextConfig, 'apiKey'>,
-): AnthropicTextAdapter<TSelectedModel> {
+): AnthropicTextAdapter<
+  TModel,
+  ResolveProviderOptions<TModel>,
+  ResolveInputModalities<TModel>
+> {
   const apiKey = getAnthropicApiKeyFromEnv()
-  return createAnthropicChat(model, apiKey, config)
-}
-
-/**
- * @deprecated Use anthropicText() instead
- */
-export function anthropicChat<
-  TSelectedModel extends (typeof ANTHROPIC_MODELS)[number],
->(
-  model: TSelectedModel,
-  config?: Omit<AnthropicTextConfig, 'apiKey'>,
-): AnthropicTextAdapter<TSelectedModel> {
-  const apiKey = getAnthropicApiKeyFromEnv()
-  return createAnthropicChat(model, apiKey, config)
-}
-
-/**
- * @deprecated Use createAnthropicChat() instead
- */
-export function createAnthropicText<
-  TSelectedModel extends (typeof ANTHROPIC_MODELS)[number],
->(
-  model: TSelectedModel,
-  apiKey: string,
-  config?: Omit<AnthropicTextConfig, 'apiKey'>,
-): AnthropicTextAdapter<TSelectedModel> {
   return createAnthropicChat(model, apiKey, config)
 }

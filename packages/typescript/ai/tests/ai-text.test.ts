@@ -2,10 +2,16 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { z } from 'zod'
 import { chat } from '../src/activities/chat'
-import { BaseAdapter } from '../src/base-adapter'
+import { BaseTextAdapter } from '../src/activities/chat/adapter'
 import { aiEventClient } from '../src/event-client.js'
 import { maxIterations } from '../src/activities/chat/agent-loop-strategies'
-import type { ModelMessage, StreamChunk, TextOptions, Tool } from '../src/types'
+import type {
+  DefaultMessageMetadataByModality,
+  ModelMessage,
+  StreamChunk,
+  TextOptions,
+  Tool,
+} from '../src/types'
 
 // Mock event client to track events
 const eventListeners = new Map<string, Set<(...args: Array<any>) => void>>()
@@ -31,12 +37,11 @@ afterEach(() => {
 })
 
 // Mock adapter base class with consistent tracking helper
-class MockAdapter extends BaseAdapter<
-  readonly ['test-model'],
-  readonly [],
+class MockAdapter extends BaseTextAdapter<
+  'test-model',
   Record<string, any>,
-  Record<string, any>,
-  Record<string, any>
+  readonly ['text'],
+  DefaultMessageMetadataByModality
 > {
   public chatStreamCallCount = 0
   public chatStreamCalls: Array<{
@@ -48,10 +53,11 @@ class MockAdapter extends BaseAdapter<
     modelOptions?: any
   }> = []
 
-  readonly kind = 'text' as const
-  readonly selectedModel = 'test-model' as const
-  name = 'mock'
-  models = ['test-model'] as const
+  readonly name = 'mock'
+
+  constructor() {
+    super({}, 'test-model')
+  }
 
   // Helper method for consistent tracking when subclasses override chatStream
   protected trackStreamCall(options: TextOptions): void {
@@ -89,14 +95,6 @@ class MockAdapter extends BaseAdapter<
 
   async structuredOutput(_options: any): Promise<any> {
     return { data: {}, rawText: '{}' }
-  }
-
-  async summarize(_options: any): Promise<any> {
-    return { summary: 'test' }
-  }
-
-  async createEmbeddings(_options: any): Promise<any> {
-    return { embeddings: [] }
   }
 }
 
@@ -1431,7 +1429,7 @@ describe('chat() - Comprehensive Logic Path Coverage', () => {
 
       const adapter = new PendingToolAdapter()
 
-      const messages: Array<ModelMessage> = [
+      const messages = [
         { role: 'user', content: 'Delete file' },
         {
           role: 'assistant',
@@ -2519,7 +2517,7 @@ describe('chat() - Comprehensive Logic Path Coverage', () => {
 
       // Second call - with approval response in message parts
       // The approval ID should match the format: approval_${toolCall.id}
-      const messagesWithApproval: Array<ModelMessage> = [
+      const messagesWithApproval = [
         { role: 'user', content: 'Delete file' },
         {
           role: 'assistant',
@@ -2639,7 +2637,7 @@ describe('chat() - Comprehensive Logic Path Coverage', () => {
       expect(inputChunk).toBeDefined()
 
       // Second call - with client tool output in message parts
-      const messagesWithOutput: Array<ModelMessage> = [
+      const messagesWithOutput = [
         { role: 'user', content: 'Use client tool' },
         {
           role: 'assistant',
@@ -2760,7 +2758,7 @@ describe('chat() - Comprehensive Logic Path Coverage', () => {
       const adapter = new MixedPartsAdapter()
 
       // Call with messages containing both approval response and client tool output in parts
-      const messagesWithBoth: Array<ModelMessage> = [
+      const messagesWithBoth = [
         { role: 'user', content: 'Use both tools' },
         {
           role: 'assistant',

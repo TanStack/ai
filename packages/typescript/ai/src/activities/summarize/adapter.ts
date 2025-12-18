@@ -16,31 +16,32 @@ export interface SummarizeAdapterConfig {
 }
 
 /**
- * Base interface for summarize adapters.
- * Provides type-safe summarization functionality.
+ * Summarize adapter interface with pre-resolved generics.
+ *
+ * An adapter is created by a provider function: `provider('model')` → `adapter`
+ * All type resolution happens at the provider call site, not in this interface.
  *
  * Generic parameters:
- * - TModels: Array of supported model names for summarization
- * - TProviderOptions: Provider-specific options for summarization endpoint
- * - TSelectedModel: The model selected when creating the adapter (undefined if not selected)
+ * - TModel: The specific model name (e.g., 'gpt-4o')
+ * - TProviderOptions: Provider-specific options (already resolved)
  */
 export interface SummarizeAdapter<
-  TModels extends ReadonlyArray<string> = ReadonlyArray<string>,
+  TModel extends string = string,
   TProviderOptions extends object = Record<string, unknown>,
-  TSelectedModel extends string | undefined = undefined,
 > {
   /** Discriminator for adapter kind - used by generate() to determine API shape */
   readonly kind: 'summarize'
   /** Adapter name identifier */
   readonly name: string
-  /** Supported models for summarization */
-  readonly models: TModels
-  /** The model selected when creating the adapter */
-  readonly selectedModel: TSelectedModel
+  /** The model this adapter is configured for */
+  readonly model: TModel
 
-  // Type-only properties for type inference
-  /** @internal Type-only property for provider options inference */
-  _providerOptions?: TProviderOptions
+  /**
+   * @internal Type-only properties for inference. Not assigned at runtime.
+   */
+  '~types': {
+    providerOptions: TProviderOptions
+  }
 
   /**
    * Summarize the given text
@@ -58,30 +59,35 @@ export interface SummarizeAdapter<
 }
 
 /**
+ * A SummarizeAdapter with any/unknown type parameters.
+ * Useful as a constraint in generic functions and interfaces.
+ */
+export type AnySummarizeAdapter = SummarizeAdapter<any, any>
+
+/**
  * Abstract base class for summarize adapters.
  * Extend this class to implement a summarize adapter for a specific provider.
+ *
+ * Generic parameters match SummarizeAdapter - all pre-resolved by the provider function.
  */
 export abstract class BaseSummarizeAdapter<
-  TModels extends ReadonlyArray<string> = ReadonlyArray<string>,
+  TModel extends string = string,
   TProviderOptions extends object = Record<string, unknown>,
-  TSelectedModel extends TModels[number] | undefined = undefined,
-> implements SummarizeAdapter<TModels, TProviderOptions, TSelectedModel> {
+> implements SummarizeAdapter<TModel, TProviderOptions> {
   readonly kind = 'summarize' as const
   abstract readonly name: string
-  abstract readonly models: TModels
-  readonly selectedModel: TSelectedModel
+  readonly model: TModel
 
   // Type-only property - never assigned at runtime
-  declare _providerOptions?: TProviderOptions
+  declare '~types': {
+    providerOptions: TProviderOptions
+  }
 
   protected config: SummarizeAdapterConfig
 
-  constructor(
-    config: SummarizeAdapterConfig = {},
-    selectedModel?: TSelectedModel,
-  ) {
+  constructor(config: SummarizeAdapterConfig = {}, model: TModel) {
     this.config = config
-    this.selectedModel = selectedModel as TSelectedModel
+    this.model = model
   }
 
   abstract summarize(

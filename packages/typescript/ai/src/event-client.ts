@@ -159,22 +159,6 @@ export interface AIDevtoolsEventMap {
     timestamp: number
   }
 
-  // Embedding events
-  'tanstack-ai-devtools:embedding:started': {
-    requestId: string
-    model: string
-    inputCount: number
-    timestamp: number
-    clientId?: string
-  }
-  'tanstack-ai-devtools:embedding:completed': {
-    requestId: string
-    model: string
-    inputCount: number
-    duration: number
-    timestamp: number
-  }
-
   // Summarize events
   'tanstack-ai-devtools:summarize:started': {
     requestId: string

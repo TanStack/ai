@@ -3,19 +3,13 @@ import {
   createAnthropicText,
 } from '@tanstack/ai-anthropic'
 import {
-  createGeminiEmbed,
   createGeminiImage,
   createGeminiSummarize,
   createGeminiText,
   createGeminiTTS,
 } from '@tanstack/ai-gemini'
+import { createOllamaSummarize, createOllamaText } from '@tanstack/ai-ollama'
 import {
-  createOllamaEmbed,
-  createOllamaSummarize,
-  createOllamaText,
-} from '@tanstack/ai-ollama'
-import {
-  createOpenaiEmbed,
   createOpenaiImage,
   createOpenaiSummarize,
   createOpenaiText,
@@ -31,8 +25,6 @@ export interface AdapterSet {
   textAdapter: any
   /** Summarize adapter for text summarization */
   summarizeAdapter?: any
-  /** Embedding adapter for vector embeddings */
-  embeddingAdapter?: any
   /** Image adapter for image generation */
   imageAdapter?: any
   /** TTS adapter for text-to-speech */
@@ -43,8 +35,6 @@ export interface AdapterSet {
   chatModel: string
   /** Model to use for summarization */
   summarizeModel: string
-  /** Model to use for embeddings */
-  embeddingModel: string
   /** Model to use for image generation */
   imageModel?: string
   /** Model to use for TTS */
@@ -72,13 +62,9 @@ const ANTHROPIC_MODEL =
   process.env.ANTHROPIC_MODEL || 'claude-3-5-haiku-20241022'
 const ANTHROPIC_SUMMARY_MODEL =
   process.env.ANTHROPIC_SUMMARY_MODEL || ANTHROPIC_MODEL
-const ANTHROPIC_EMBEDDING_MODEL =
-  process.env.ANTHROPIC_EMBEDDING_MODEL || ANTHROPIC_MODEL
 
 const OPENAI_MODEL = process.env.OPENAI_MODEL || 'gpt-4o-mini'
 const OPENAI_SUMMARY_MODEL = process.env.OPENAI_SUMMARY_MODEL || OPENAI_MODEL
-const OPENAI_EMBEDDING_MODEL =
-  process.env.OPENAI_EMBEDDING_MODEL || 'text-embedding-3-small'
 const OPENAI_IMAGE_MODEL = process.env.OPENAI_IMAGE_MODEL || 'gpt-image-1'
 const OPENAI_TTS_MODEL = process.env.OPENAI_TTS_MODEL || 'tts-1'
 const OPENAI_TRANSCRIPTION_MODEL =
@@ -86,8 +72,6 @@ const OPENAI_TRANSCRIPTION_MODEL =
 
 const GEMINI_MODEL = process.env.GEMINI_MODEL || 'gemini-2.0-flash-lite'
 const GEMINI_SUMMARY_MODEL = process.env.GEMINI_SUMMARY_MODEL || GEMINI_MODEL
-const GEMINI_EMBEDDING_MODEL =
-  process.env.GEMINI_EMBEDDING_MODEL || 'gemini-embedding-001'
 const GEMINI_IMAGE_MODEL =
   process.env.GEMINI_IMAGE_MODEL || 'imagen-3.0-generate-002'
 const GEMINI_TTS_MODEL =
@@ -95,8 +79,6 @@ const GEMINI_TTS_MODEL =
 
 const OLLAMA_MODEL = process.env.OLLAMA_MODEL || 'mistral:7b'
 const OLLAMA_SUMMARY_MODEL = process.env.OLLAMA_SUMMARY_MODEL || OLLAMA_MODEL
-const OLLAMA_EMBEDDING_MODEL =
-  process.env.OLLAMA_EMBEDDING_MODEL || 'nomic-embed-text'
 
 /**
  * Create Anthropic adapters
@@ -108,12 +90,10 @@ function createAnthropicAdapters(): AdapterSet | null {
   return {
     textAdapter: createAnthropicText(apiKey),
     summarizeAdapter: createAnthropicSummarize(apiKey),
-    // Anthropic does not support embeddings or image generation natively
-    embeddingAdapter: undefined,
+    // Anthropic does not support image generation natively
     imageAdapter: undefined,
     chatModel: ANTHROPIC_MODEL,
     summarizeModel: ANTHROPIC_SUMMARY_MODEL,
-    embeddingModel: ANTHROPIC_EMBEDDING_MODEL,
   }
 }
 
@@ -127,13 +107,11 @@ function createOpenAIAdapters(): AdapterSet | null {
   return {
     textAdapter: createOpenaiText(apiKey),
     summarizeAdapter: createOpenaiSummarize(apiKey),
-    embeddingAdapter: createOpenaiEmbed(apiKey),
     imageAdapter: createOpenaiImage(apiKey),
     ttsAdapter: createOpenaiTTS(apiKey),
     transcriptionAdapter: createOpenaiTranscription(apiKey),
     chatModel: OPENAI_MODEL,
     summarizeModel: OPENAI_SUMMARY_MODEL,
-    embeddingModel: OPENAI_EMBEDDING_MODEL,
     imageModel: OPENAI_IMAGE_MODEL,
     ttsModel: OPENAI_TTS_MODEL,
     transcriptionModel: OPENAI_TRANSCRIPTION_MODEL,
@@ -150,12 +128,10 @@ function createGeminiAdapters(): AdapterSet | null {
   return {
     textAdapter: createGeminiText(apiKey),
     summarizeAdapter: createGeminiSummarize(apiKey),
-    embeddingAdapter: createGeminiEmbed(apiKey),
     imageAdapter: createGeminiImage(apiKey),
     ttsAdapter: createGeminiTTS(apiKey),
     chatModel: GEMINI_MODEL,
     summarizeModel: GEMINI_SUMMARY_MODEL,
-    embeddingModel: GEMINI_EMBEDDING_MODEL,
     imageModel: GEMINI_IMAGE_MODEL,
     ttsModel: GEMINI_TTS_MODEL,
   }
@@ -168,12 +144,10 @@ function createOllamaAdapters(): AdapterSet | null {
   return {
     textAdapter: createOllamaText(),
     summarizeAdapter: createOllamaSummarize(),
-    embeddingAdapter: createOllamaEmbed(),
     // Ollama does not support image generation
     imageAdapter: undefined,
     chatModel: OLLAMA_MODEL,
     summarizeModel: OLLAMA_SUMMARY_MODEL,
-    embeddingModel: OLLAMA_EMBEDDING_MODEL,
   }
 }
 

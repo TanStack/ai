@@ -1,5 +1,4 @@
 import { BaseImageAdapter } from '@tanstack/ai/adapters'
-import { GEMINI_IMAGE_MODELS } from '../model-meta'
 import {
   createGeminiClient,
   generateId,
@@ -11,6 +10,7 @@ import {
   validateNumberOfImages,
   validatePrompt,
 } from '../image/image-provider-options'
+import type { GEMINI_IMAGE_MODELS } from '../model-meta'
 import type {
   GeminiImageModelProviderOptionsByName,
   GeminiImageModelSizeByName,
@@ -33,6 +33,9 @@ import type { GeminiClientConfig } from '../utils'
  */
 export interface GeminiImageConfig extends GeminiClientConfig {}
 
+/** Model type for Gemini Image */
+export type GeminiImageModel = (typeof GEMINI_IMAGE_MODELS)[number]
+
 /**
  * Gemini Image Generation Adapter
  *
@@ -45,23 +48,28 @@ export interface GeminiImageConfig extends GeminiClientConfig {}
  * - Safety filtering
  * - Watermark options
  */
-export class GeminiImageAdapter extends BaseImageAdapter<
-  typeof GEMINI_IMAGE_MODELS,
+export class GeminiImageAdapter<
+  TModel extends GeminiImageModel,
+> extends BaseImageAdapter<
+  TModel,
   GeminiImageProviderOptions,
   GeminiImageModelProviderOptionsByName,
   GeminiImageModelSizeByName
 > {
   readonly kind = 'image' as const
   readonly name = 'gemini' as const
-  readonly models = GEMINI_IMAGE_MODELS
 
-  declare _modelProviderOptionsByName: GeminiImageModelProviderOptionsByName
-  declare _modelSizeByName: GeminiImageModelSizeByName
+  // Type-only property - never assigned at runtime
+  declare '~types': {
+    providerOptions: GeminiImageProviderOptions
+    modelProviderOptionsByName: GeminiImageModelProviderOptionsByName
+    modelSizeByName: GeminiImageModelSizeByName
+  }
 
   private client: GoogleGenAI
 
-  constructor(config: GeminiImageConfig) {
-    super({})
+  constructor(config: GeminiImageConfig, model: TModel) {
+    super({}, model)
     this.client = createGeminiClient(config)
   }
 
@@ -121,56 +129,60 @@ export class GeminiImageAdapter extends BaseImageAdapter<
 }
 
 /**
- * Creates a Gemini image adapter with explicit API key
+ * Creates a Gemini image adapter with explicit API key.
+ * Type resolution happens here at the call site.
  *
+ * @param model - The model name (e.g., 'imagen-3.0-generate-002')
  * @param apiKey - Your Google API key
  * @param config - Optional additional configuration
- * @returns Configured Gemini image adapter instance
+ * @returns Configured Gemini image adapter instance with resolved types
  *
  * @example
  * ```typescript
- * const adapter = createGeminiImage("your-api-key");
+ * const adapter = createGeminiImage('imagen-3.0-generate-002', "your-api-key");
  *
  * const result = await generateImage({
  *   adapter,
- *   model: 'imagen-3.0-generate-002',
  *   prompt: 'A cute baby sea otter'
  * });
  * ```
  */
-export function createGeminiImage(
+export function createGeminiImage<TModel extends GeminiImageModel>(
+  model: TModel,
   apiKey: string,
   config?: Omit<GeminiImageConfig, 'apiKey'>,
-): GeminiImageAdapter {
-  return new GeminiImageAdapter({ apiKey, ...config })
+): GeminiImageAdapter<TModel> {
+  return new GeminiImageAdapter({ apiKey, ...config }, model)
 }
 
 /**
  * Creates a Gemini image adapter with automatic API key detection from environment variables.
+ * Type resolution happens here at the call site.
  *
  * Looks for `GOOGLE_API_KEY` or `GEMINI_API_KEY` in:
  * - `process.env` (Node.js)
  * - `window.env` (Browser with injected env)
  *
+ * @param model - The model name (e.g., 'imagen-4.0-generate-001')
  * @param config - Optional configuration (excluding apiKey which is auto-detected)
- * @returns Configured Gemini image adapter instance
+ * @returns Configured Gemini image adapter instance with resolved types
  * @throws Error if GOOGLE_API_KEY or GEMINI_API_KEY is not found in environment
  *
  * @example
  * ```typescript
  * // Automatically uses GOOGLE_API_KEY from environment
- * const adapter = geminiImage();
+ * const adapter = geminiImage('imagen-4.0-generate-001');
  *
  * const result = await generateImage({
  *   adapter,
- *   model: 'imagen-4.0-generate-001',
  *   prompt: 'A beautiful sunset over mountains'
  * });
  * ```
  */
-export function geminiImage(
+export function geminiImage<TModel extends GeminiImageModel>(
+  model: TModel,
   config?: Omit<GeminiImageConfig, 'apiKey'>,
-): GeminiImageAdapter {
+): GeminiImageAdapter<TModel> {
   const apiKey = getGeminiApiKeyFromEnv()
-  return createGeminiImage(apiKey, config)
+  return createGeminiImage(model, apiKey, config)
 }

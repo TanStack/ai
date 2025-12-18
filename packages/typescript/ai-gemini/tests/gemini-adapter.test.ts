@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest'
-import { chat, summarize, embedding } from '@tanstack/ai'
+import { chat, summarize } from '@tanstack/ai'
 import type { Tool, StreamChunk } from '@tanstack/ai'
 import {
   Type,
@@ -9,7 +9,6 @@ import {
 } from '@google/genai'
 import { GeminiTextAdapter } from '../src/adapters/text'
 import { GeminiSummarizeAdapter } from '../src/adapters/summarize'
-import { GeminiEmbedAdapter } from '../src/adapters/embed'
 import type { GeminiTextProviderOptions } from '../src/adapters/text'
 import type { Schema } from '@google/genai'
 
@@ -18,7 +17,6 @@ const mocks = vi.hoisted(() => {
     constructorSpy: vi.fn<(options: { apiKey: string }) => void>(),
     generateContentSpy: vi.fn(),
     generateContentStreamSpy: vi.fn(),
-    embedContentSpy: vi.fn(),
     getGenerativeModelSpy: vi.fn(),
   }
 })
@@ -28,7 +26,6 @@ vi.mock('@google/genai', async () => {
     constructorSpy,
     generateContentSpy,
     generateContentStreamSpy,
-    embedContentSpy,
     getGenerativeModelSpy,
   } = mocks
 
@@ -37,7 +34,6 @@ vi.mock('@google/genai', async () => {
     public models = {
       generateContent: generateContentSpy,
       generateContentStream: generateContentStreamSpy,
-      embedContent: embedContentSpy,
     }
 
     public getGenerativeModel = getGenerativeModelSpy
@@ -58,8 +54,6 @@ const createTextAdapter = () =>
   new GeminiTextAdapter({ apiKey: 'test-key' }, 'gemini-2.5-pro')
 const createSummarizeAdapter = () =>
   new GeminiSummarizeAdapter('test-key', 'gemini-2.0-flash')
-const createEmbedAdapter = () =>
-  new GeminiEmbedAdapter('test-key', 'text-embedding-004')
 
 const weatherTool: Tool = {
   name: 'lookup_weather',
@@ -373,28 +367,5 @@ describe('GeminiAdapter through AI', () => {
     expect(payload.config.systemInstruction).toContain('summarizes text')
     expect(payload.config.systemInstruction).toContain('123 words')
     expect(result.summary).toBe(summaryText)
-  })
-
-  it('creates embeddings via embedding function', async () => {
-    // The embed adapter calls embedContent once per input
-    mocks.embedContentSpy
-      .mockResolvedValueOnce({
-        embeddings: [{ values: [0.1, 0.2] }],
-      })
-      .mockResolvedValueOnce({
-        embeddings: [{ values: [0.3, 0.4] }],
-      })
-
-    const adapter = createEmbedAdapter()
-    const result = await embedding({
-      adapter,
-      input: ['doc one', 'doc two'],
-    })
-
-    expect(mocks.embedContentSpy).toHaveBeenCalledTimes(2)
-    expect(result.embeddings).toEqual([
-      [0.1, 0.2],
-      [0.3, 0.4],
-    ])
   })
 })

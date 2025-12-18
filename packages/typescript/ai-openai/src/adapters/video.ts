@@ -1,11 +1,11 @@
 import { BaseVideoAdapter } from '@tanstack/ai/adapters'
-import { OPENAI_VIDEO_MODELS } from '../model-meta'
 import { createOpenAIClient, getOpenAIApiKeyFromEnv } from '../utils'
 import {
   toApiSeconds,
   validateVideoSeconds,
   validateVideoSize,
 } from '../video/video-provider-options'
+import type { OPENAI_VIDEO_MODELS } from '../model-meta'
 import type {
   OpenAIVideoModelProviderOptionsByName,
   OpenAIVideoProviderOptions,
@@ -26,6 +26,9 @@ import type { OpenAIClientConfig } from '../utils'
  */
 export interface OpenAIVideoConfig extends OpenAIClientConfig {}
 
+/** Model type for OpenAI Video */
+export type OpenAIVideoModel = (typeof OPENAI_VIDEO_MODELS)[number]
+
 /**
  * OpenAI Video Generation Adapter
  *
@@ -40,20 +43,21 @@ export interface OpenAIVideoConfig extends OpenAIClientConfig {}
  * - URL retrieval for completed videos
  * - Model-specific type-safe provider options
  */
-export class OpenAIVideoAdapter extends BaseVideoAdapter<
-  typeof OPENAI_VIDEO_MODELS,
-  OpenAIVideoProviderOptions
-> {
+export class OpenAIVideoAdapter<
+  TModel extends OpenAIVideoModel,
+> extends BaseVideoAdapter<TModel, OpenAIVideoProviderOptions> {
   readonly name = 'openai' as const
-  readonly models = OPENAI_VIDEO_MODELS
 
-  // Type-only properties for type inference
-  declare _modelProviderOptionsByName?: OpenAIVideoModelProviderOptionsByName
+  // Type-only property - never assigned at runtime
+  declare '~types': {
+    providerOptions: OpenAIVideoProviderOptions
+    modelProviderOptionsByName: OpenAIVideoModelProviderOptionsByName
+  }
 
   private client: OpenAI_SDK
 
-  constructor(config: OpenAIVideoConfig) {
-    super(config)
+  constructor(config: OpenAIVideoConfig, model: TModel) {
+    super(config, model)
     this.client = createOpenAIClient(config)
   }
 
@@ -325,33 +329,36 @@ export class OpenAIVideoAdapter extends BaseVideoAdapter<
 
 /**
  * Creates an OpenAI video adapter with an explicit API key.
+ * Type resolution happens here at the call site.
  *
  * @experimental Video generation is an experimental feature and may change.
  *
+ * @param model - The model name (e.g., 'sora-2')
  * @param apiKey - Your OpenAI API key
  * @param config - Optional additional configuration
- * @returns Configured OpenAI video adapter instance
+ * @returns Configured OpenAI video adapter instance with resolved types
  *
  * @example
  * ```typescript
- * const adapter = createOpenaiVideo('your-api-key');
+ * const adapter = createOpenaiVideo('sora-2', 'your-api-key');
  *
  * const { jobId } = await generateVideo({
  *   adapter,
- *   model: 'sora-2',
  *   prompt: 'A beautiful sunset over the ocean'
  * });
  * ```
  */
-export function createOpenaiVideo(
+export function createOpenaiVideo<TModel extends OpenAIVideoModel>(
+  model: TModel,
   apiKey: string,
   config?: Omit<OpenAIVideoConfig, 'apiKey'>,
-): OpenAIVideoAdapter {
-  return new OpenAIVideoAdapter({ apiKey, ...config })
+): OpenAIVideoAdapter<TModel> {
+  return new OpenAIVideoAdapter({ apiKey, ...config }, model)
 }
 
 /**
  * Creates an OpenAI video adapter with automatic API key detection from environment variables.
+ * Type resolution happens here at the call site.
  *
  * Looks for `OPENAI_API_KEY` in:
  * - `process.env` (Node.js)
@@ -359,40 +366,33 @@ export function createOpenaiVideo(
  *
  * @experimental Video generation is an experimental feature and may change.
  *
+ * @param model - The model name (e.g., 'sora-2')
  * @param config - Optional configuration (excluding apiKey which is auto-detected)
- * @returns Configured OpenAI video adapter instance
+ * @returns Configured OpenAI video adapter instance with resolved types
  * @throws Error if OPENAI_API_KEY is not found in environment
  *
  * @example
  * ```typescript
  * // Automatically uses OPENAI_API_KEY from environment
- * const adapter = openaiVideo();
+ * const adapter = openaiVideo('sora-2');
  *
  * // Create a video generation job
  * const { jobId } = await generateVideo({
  *   adapter,
- *   model: 'sora-2',
  *   prompt: 'A cat playing piano'
  * });
  *
  * // Poll for status
  * const status = await getVideoJobStatus({
  *   adapter,
- *   model: 'sora-2',
- *   jobId
- * });
- *
- * // Get video URL when complete
- * const { url } = await getVideoUrl({
- *   adapter,
- *   model: 'sora-2',
  *   jobId
  * });
  * ```
  */
-export function openaiVideo(
+export function openaiVideo<TModel extends OpenAIVideoModel>(
+  model: TModel,
   config?: Omit<OpenAIVideoConfig, 'apiKey'>,
-): OpenAIVideoAdapter {
+): OpenAIVideoAdapter<TModel> {
   const apiKey = getOpenAIApiKeyFromEnv()
-  return createOpenaiVideo(apiKey, config)
+  return createOpenaiVideo(model, apiKey, config)
 }

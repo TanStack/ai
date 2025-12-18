@@ -19,34 +19,34 @@ export interface VideoAdapterConfig {
 }
 
 /**
- * Base interface for video generation adapters.
- * Provides type-safe video generation functionality with support for
- * job-based async operations (create, poll status, get URL).
+ * Video adapter interface with pre-resolved generics.
+ *
+ * An adapter is created by a provider function: `provider('model')` → `adapter`
+ * All type resolution happens at the provider call site, not in this interface.
  *
  * @experimental Video generation is an experimental feature and may change.
  *
  * Generic parameters:
- * - TModels: Array of supported video model names
- * - TProviderOptions: Base provider-specific options for video generation
- * - TSelectedModel: The model selected when creating the adapter (undefined if not selected)
+ * - TModel: The specific model name (e.g., 'sora-2')
+ * - TProviderOptions: Provider-specific options (already resolved)
  */
 export interface VideoAdapter<
-  TModels extends ReadonlyArray<string> = ReadonlyArray<string>,
+  TModel extends string = string,
   TProviderOptions extends object = Record<string, unknown>,
-  TSelectedModel extends TModels[number] | undefined = undefined,
 > {
   /** Discriminator for adapter kind - used to determine API shape */
   readonly kind: 'video'
   /** Adapter name identifier */
   readonly name: string
-  /** Supported video generation models */
-  readonly models: TModels
-  /** The model selected when creating the adapter */
-  readonly selectedModel: TSelectedModel
+  /** The model this adapter is configured for */
+  readonly model: TModel
 
-  // Type-only properties for type inference
-  /** @internal Type-only property for provider options inference */
-  _providerOptions?: TProviderOptions
+  /**
+   * @internal Type-only properties for inference. Not assigned at runtime.
+   */
+  '~types': {
+    providerOptions: TProviderOptions
+  }
 
   /**
    * Create a new video generation job.
@@ -69,29 +69,37 @@ export interface VideoAdapter<
 }
 
 /**
+ * A VideoAdapter with any/unknown type parameters.
+ * Useful as a constraint in generic functions and interfaces.
+ */
+export type AnyVideoAdapter = VideoAdapter<any, any>
+
+/**
  * Abstract base class for video generation adapters.
  * Extend this class to implement a video adapter for a specific provider.
  *
  * @experimental Video generation is an experimental feature and may change.
+ *
+ * Generic parameters match VideoAdapter - all pre-resolved by the provider function.
  */
 export abstract class BaseVideoAdapter<
-  TModels extends ReadonlyArray<string> = ReadonlyArray<string>,
+  TModel extends string = string,
   TProviderOptions extends object = Record<string, unknown>,
-  TSelectedModel extends TModels[number] | undefined = undefined,
-> implements VideoAdapter<TModels, TProviderOptions, TSelectedModel> {
+> implements VideoAdapter<TModel, TProviderOptions> {
   readonly kind = 'video' as const
   abstract readonly name: string
-  abstract readonly models: TModels
-  readonly selectedModel: TSelectedModel
+  readonly model: TModel
 
-  // Type-only properties - never assigned at runtime
-  declare _providerOptions?: TProviderOptions
+  // Type-only property - never assigned at runtime
+  declare '~types': {
+    providerOptions: TProviderOptions
+  }
 
   protected config: VideoAdapterConfig
 
-  constructor(config: VideoAdapterConfig = {}, selectedModel?: TSelectedModel) {
+  constructor(config: VideoAdapterConfig = {}, model: TModel) {
     this.config = config
-    this.selectedModel = selectedModel as TSelectedModel
+    this.model = model
   }
 
   abstract createVideoJob(

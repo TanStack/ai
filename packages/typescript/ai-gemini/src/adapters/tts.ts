@@ -1,14 +1,13 @@
 import { BaseTTSAdapter } from '@tanstack/ai/adapters'
-import { GEMINI_TTS_MODELS } from '../model-meta'
 import {
   createGeminiClient,
   generateId,
   getGeminiApiKeyFromEnv,
 } from '../utils'
+import type { GEMINI_TTS_MODELS, GeminiTTSVoice } from '../model-meta'
 import type { TTSOptions, TTSResult } from '@tanstack/ai'
 import type { GoogleGenAI } from '@google/genai'
 import type { GeminiClientConfig } from '../utils'
-import type { GeminiTTSVoice } from '../model-meta'
 
 /**
  * Provider-specific options for Gemini TTS
@@ -61,6 +60,9 @@ export interface GeminiTTSProviderOptions {
  */
 export interface GeminiTTSConfig extends GeminiClientConfig {}
 
+/** Model type for Gemini TTS */
+export type GeminiTTSModel = (typeof GEMINI_TTS_MODELS)[number]
+
 /**
  * Gemini Text-to-Speech Adapter
  *
@@ -75,17 +77,15 @@ export interface GeminiTTSConfig extends GeminiClientConfig {}
  * Models:
  * - gemini-2.5-flash-preview-tts
  */
-export class GeminiTTSAdapter extends BaseTTSAdapter<
-  typeof GEMINI_TTS_MODELS,
-  GeminiTTSProviderOptions
-> {
+export class GeminiTTSAdapter<
+  TModel extends GeminiTTSModel,
+> extends BaseTTSAdapter<TModel, GeminiTTSProviderOptions> {
   readonly name = 'gemini' as const
-  readonly models = GEMINI_TTS_MODELS
 
   private client: GoogleGenAI
 
-  constructor(config: GeminiTTSConfig) {
-    super(config)
+  constructor(config: GeminiTTSConfig, model: TModel) {
+    super(config, model)
     this.client = createGeminiClient(config)
   }
 
@@ -161,34 +161,37 @@ export class GeminiTTSAdapter extends BaseTTSAdapter<
 }
 
 /**
- * Creates a Gemini TTS adapter with explicit API key
+ * Creates a Gemini TTS adapter with explicit API key.
+ * Type resolution happens here at the call site.
  *
  * @experimental Gemini TTS is an experimental feature and may change.
  *
+ * @param model - The model name (e.g., 'gemini-2.5-flash-preview-tts')
  * @param apiKey - Your Google API key
  * @param config - Optional additional configuration
- * @returns Configured Gemini TTS adapter instance
+ * @returns Configured Gemini TTS adapter instance with resolved types
  *
  * @example
  * ```typescript
- * const adapter = createGeminiTTS("your-api-key");
+ * const adapter = createGeminiSpeech('gemini-2.5-flash-preview-tts', "your-api-key");
  *
  * const result = await generateSpeech({
  *   adapter,
- *   model: 'gemini-2.5-flash-preview-tts',
  *   text: 'Hello, world!'
  * });
  * ```
  */
-export function createGeminiSpeech(
+export function createGeminiSpeech<TModel extends GeminiTTSModel>(
+  model: TModel,
   apiKey: string,
   config?: Omit<GeminiTTSConfig, 'apiKey'>,
-): GeminiTTSAdapter {
-  return new GeminiTTSAdapter({ apiKey, ...config })
+): GeminiTTSAdapter<TModel> {
+  return new GeminiTTSAdapter({ apiKey, ...config }, model)
 }
 
 /**
  * Creates a Gemini speech adapter with automatic API key detection from environment variables.
+ * Type resolution happens here at the call site.
  *
  * @experimental Gemini TTS is an experimental feature and may change.
  *
@@ -196,39 +199,26 @@ export function createGeminiSpeech(
  * - `process.env` (Node.js)
  * - `window.env` (Browser with injected env)
  *
+ * @param model - The model name (e.g., 'gemini-2.5-flash-preview-tts')
  * @param config - Optional configuration (excluding apiKey which is auto-detected)
- * @returns Configured Gemini speech adapter instance
+ * @returns Configured Gemini speech adapter instance with resolved types
  * @throws Error if GOOGLE_API_KEY or GEMINI_API_KEY is not found in environment
  *
  * @example
  * ```typescript
  * // Automatically uses GOOGLE_API_KEY from environment
- * const adapter = geminiSpeech();
+ * const adapter = geminiSpeech('gemini-2.5-flash-preview-tts');
  *
  * const result = await generateSpeech({
  *   adapter,
- *   model: 'gemini-2.5-flash-preview-tts',
  *   text: 'Welcome to TanStack AI!'
  * });
  * ```
  */
-export function geminiSpeech(
+export function geminiSpeech<TModel extends GeminiTTSModel>(
+  model: TModel,
   config?: Omit<GeminiTTSConfig, 'apiKey'>,
-): GeminiTTSAdapter {
+): GeminiTTSAdapter<TModel> {
   const apiKey = getGeminiApiKeyFromEnv()
-  return createGeminiSpeech(apiKey, config)
-}
-
-export function geminiTTS(
-  config?: Omit<GeminiTTSConfig, 'apiKey'>,
-): GeminiTTSAdapter {
-  const apiKey = getGeminiApiKeyFromEnv()
-  return createGeminiSpeech(apiKey, config)
-}
-
-export function createGeminiTTS(
-  apiKey: string,
-  config?: Omit<GeminiTTSConfig, 'apiKey'>,
-): GeminiTTSAdapter {
-  return createGeminiSpeech(apiKey, config)
+  return createGeminiSpeech(model, apiKey, config)
 }

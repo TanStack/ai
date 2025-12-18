@@ -65,24 +65,21 @@ export interface OllamaSummarizeAdapterOptions {
  * A tree-shakeable summarization adapter for Ollama
  */
 export class OllamaSummarizeAdapter<
-  TSelectedModel extends string | undefined = undefined,
-> implements SummarizeAdapter<
-  typeof OllamaSummarizeModels,
-  OllamaSummarizeProviderOptions,
-  TSelectedModel
-> {
+  TModel extends OllamaSummarizeModel,
+> implements SummarizeAdapter<TModel, OllamaSummarizeProviderOptions> {
   readonly kind = 'summarize' as const
   readonly name = 'ollama' as const
-  readonly models = OllamaSummarizeModels
-  readonly selectedModel: TSelectedModel
+  readonly model: TModel
 
-  /** Type-only property for provider options inference */
-  declare _providerOptions?: OllamaSummarizeProviderOptions
+  // Type-only property - never assigned at runtime
+  declare '~types': {
+    providerOptions: OllamaSummarizeProviderOptions
+  }
 
   private client: Ollama
   constructor(
-    hostOrClient?: string | Ollama,
-    selectedModel?: TSelectedModel,
+    hostOrClient: string | Ollama | undefined,
+    model: TModel,
     _options: OllamaSummarizeAdapterOptions = {},
   ) {
     if (typeof hostOrClient === 'string' || hostOrClient === undefined) {
@@ -90,7 +87,7 @@ export class OllamaSummarizeAdapter<
     } else {
       this.client = hostOrClient
     }
-    this.selectedModel = selectedModel as TSelectedModel
+    this.model = model
   }
 
   async summarize(options: SummarizationOptions): Promise<SummarizationResult> {
