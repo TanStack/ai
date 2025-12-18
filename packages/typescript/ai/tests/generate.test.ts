@@ -1,13 +1,12 @@
 import { describe, expect, it, vi } from 'vitest'
-import { chat, summarize } from '../src/activities'
-import { BaseTextAdapter, BaseSummarizeAdapter } from '../src/activities'
+import { BaseSummarizeAdapter, BaseTextAdapter, chat, summarize } from '../src/activities'
 import type { StructuredOutputResult } from '../src/activities'
 import type {
-  TextOptions,
   ModelMessage,
   StreamChunk,
   SummarizationOptions,
   SummarizationResult,
+  TextOptions,
 } from '../src'
 
 // Mock adapters for testing
@@ -42,13 +41,14 @@ class MockTextAdapter<
     this.mockChunks = mockChunks
   }
 
+  // eslint-disable-next-line @typescript-eslint/require-await
   async *chatStream(_options: TextOptions): AsyncIterable<StreamChunk> {
     for (const chunk of this.mockChunks) {
       yield chunk
     }
   }
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+
   structuredOutput(_options: any): Promise<StructuredOutputResult<unknown>> {
     return Promise.resolve({
       data: {},
