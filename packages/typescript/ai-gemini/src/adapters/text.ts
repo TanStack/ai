@@ -1,12 +1,16 @@
 import { FinishReason } from '@google/genai'
 import { BaseTextAdapter } from '@tanstack/ai/adapters'
-import { GEMINI_MODELS } from '../model-meta'
 import { convertToolsToProviderFormat } from '../tools/tool-converter'
 import {
   createGeminiClient,
   generateId,
   getGeminiApiKeyFromEnv,
 } from '../utils'
+import type {
+  GEMINI_MODELS,
+  GeminiChatModelProviderOptionsByName,
+  GeminiModelInputModalitiesByName,
+} from '../model-meta'
 import type {
   StructuredOutputOptions,
   StructuredOutputResult,
@@ -19,14 +23,11 @@ import type {
 } from '@google/genai'
 import type {
   ContentPart,
+  Modality,
   ModelMessage,
   StreamChunk,
   TextOptions,
 } from '@tanstack/ai'
-import type {
-  GeminiChatModelProviderOptionsByName,
-  GeminiModelInputModalitiesByName,
-} from '../model-meta'
 import type { ExternalTextProviderOptions } from '../text/text-provider-options'
 import type {
   GeminiAudioMetadata,
@@ -47,36 +48,61 @@ export interface GeminiTextConfig extends GeminiClientConfig {}
  */
 export type GeminiTextProviderOptions = ExternalTextProviderOptions
 
+// ===========================
+// Type Resolution Helpers
+// ===========================
+
+/**
+ * Resolve provider options for a specific model.
+ * If the model has explicit options in the map, use those; otherwise use base options.
+ */
+type ResolveProviderOptions<TModel extends string> =
+  TModel extends keyof GeminiChatModelProviderOptionsByName
+    ? GeminiChatModelProviderOptionsByName[TModel]
+    : GeminiTextProviderOptions
+
+/**
+ * Resolve input modalities for a specific model.
+ * If the model has explicit modalities in the map, use those; otherwise use all modalities.
+ */
+type ResolveInputModalities<TModel extends string> =
+  TModel extends keyof GeminiModelInputModalitiesByName
+    ? GeminiModelInputModalitiesByName[TModel]
+    : readonly ['text', 'image', 'audio', 'video', 'document']
+
+// ===========================
+// Adapter Implementation
+// ===========================
+
 /**
  * Gemini Text (Chat) Adapter
  *
  * Tree-shakeable adapter for Gemini chat/text completion functionality.
  * Import only what you need for smaller bundle sizes.
  */
-export class GeminiTextAdapter extends BaseTextAdapter<
-  typeof GEMINI_MODELS,
-  GeminiTextProviderOptions,
-  GeminiChatModelProviderOptionsByName,
-  GeminiModelInputModalitiesByName,
+export class GeminiTextAdapter<
+  TModel extends (typeof GEMINI_MODELS)[number],
+  TProviderOptions extends object = ResolveProviderOptions<TModel>,
+  TInputModalities extends ReadonlyArray<Modality> =
+    ResolveInputModalities<TModel>,
+> extends BaseTextAdapter<
+  TModel,
+  TProviderOptions,
+  TInputModalities,
   GeminiMessageMetadataByModality
 > {
   readonly kind = 'text' as const
   readonly name = 'gemini' as const
-  readonly models = GEMINI_MODELS
-
-  declare _modelProviderOptionsByName: GeminiChatModelProviderOptionsByName
-  declare _modelInputModalitiesByName: GeminiModelInputModalitiesByName
-  declare _messageMetadataByModality: GeminiMessageMetadataByModality
 
   private client: GoogleGenAI
 
-  constructor(config: GeminiTextConfig) {
-    super({})
+  constructor(config: GeminiTextConfig, model: TModel) {
+    super({}, model)
     this.client = createGeminiClient(config)
   }
 
   async *chatStream(
-    options: TextOptions<string, GeminiTextProviderOptions>,
+    options: TextOptions<GeminiTextProviderOptions>,
   ): AsyncIterable<StreamChunk> {
     const mappedOptions = this.mapCommonOptionsToGemini(options)
 
@@ -456,38 +482,33 @@ export class GeminiTextAdapter extends BaseTextAdapter<
 }
 
 /**
- * Creates a Gemini text adapter with explicit API key
+ * Creates a Gemini text adapter with explicit API key.
+ * Type resolution happens here at the call site.
  */
-export function createGeminiChat(
+export function createGeminiChat<TModel extends (typeof GEMINI_MODELS)[number]>(
+  model: TModel,
   apiKey: string,
   config?: Omit<GeminiTextConfig, 'apiKey'>,
-): GeminiTextAdapter {
-  return new GeminiTextAdapter({ apiKey, ...config })
+): GeminiTextAdapter<
+  TModel,
+  ResolveProviderOptions<TModel>,
+  ResolveInputModalities<TModel>
+> {
+  return new GeminiTextAdapter({ apiKey, ...config }, model)
 }
 
 /**
- * Creates a Gemini text adapter with automatic API key detection
+ * Creates a Gemini text adapter with automatic API key detection.
+ * Type resolution happens here at the call site.
  */
-export function geminiText(
+export function geminiText<TModel extends (typeof GEMINI_MODELS)[number]>(
+  model: TModel,
   config?: Omit<GeminiTextConfig, 'apiKey'>,
-): GeminiTextAdapter {
+): GeminiTextAdapter<
+  TModel,
+  ResolveProviderOptions<TModel>,
+  ResolveInputModalities<TModel>
+> {
   const apiKey = getGeminiApiKeyFromEnv()
-  return createGeminiChat(apiKey, config)
-}
-
-/**
- * @deprecated Use geminiText() instead
- */
-export function geminiChat(
-  config?: Omit<GeminiTextConfig, 'apiKey'>,
-): GeminiTextAdapter {
-  const apiKey = getGeminiApiKeyFromEnv()
-  return createGeminiChat(apiKey, config)
-}
-
-export function createGeminiText(
-  apiKey: string,
-  config?: Omit<GeminiTextConfig, 'apiKey'>,
-): GeminiTextAdapter {
-  return createGeminiChat(apiKey, config)
+  return createGeminiChat(model, apiKey, config)
 }

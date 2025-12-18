@@ -9,7 +9,7 @@ title: maxIterations
 function maxIterations(max): AgentLoopStrategy;
 ```
 
-Defined in: [utilities/agent-loop-strategies.ts:20](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/utilities/agent-loop-strategies.ts#L20)
+Defined in: [activities/chat/agent-loop-strategies.ts:20](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/activities/chat/agent-loop-strategies.ts#L20)
 
 Creates a strategy that continues for a maximum number of iterations
 

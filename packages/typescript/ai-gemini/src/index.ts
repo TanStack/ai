@@ -7,26 +7,9 @@ export {
   GeminiTextAdapter,
   createGeminiChat,
   geminiText,
-  // Deprecated exports
-  createGeminiText,
-  geminiChat,
   type GeminiTextConfig,
   type GeminiTextProviderOptions,
 } from './adapters/text'
-
-// Embedding adapter
-export {
-  GeminiEmbedAdapter,
-  GeminiEmbeddingModels,
-  createGeminiEmbedding,
-  geminiEmbedding,
-  // Deprecated exports
-  createGeminiEmbed,
-  geminiEmbed,
-  type GeminiEmbedAdapterOptions,
-  type GeminiEmbeddingModel,
-  type GeminiEmbedProviderOptions,
-} from './adapters/embed'
 
 // Summarize adapter
 export {
@@ -64,9 +47,6 @@ export {
   GeminiTTSAdapter,
   createGeminiSpeech,
   geminiSpeech,
-  // Deprecated exports
-  createGeminiTTS,
-  geminiTTS,
   type GeminiTTSConfig,
   type GeminiTTSProviderOptions,
 } from './adapters/tts'

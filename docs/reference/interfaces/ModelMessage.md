@@ -5,7 +5,7 @@ title: ModelMessage
 
 # Interface: ModelMessage\<TContent\>
 
-Defined in: [types.ts:220](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L220)
+Defined in: [types.ts:283](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L283)
 
 ## Type Parameters
 
@@ -21,7 +21,7 @@ Defined in: [types.ts:220](https://github.com/TanStack/ai/blob/main/packages/typ
 content: TContent;
 ```
 
-Defined in: [types.ts:227](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L227)
+Defined in: [types.ts:290](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L290)
 
 ***
 
@@ -31,7 +31,7 @@ Defined in: [types.ts:227](https://github.com/TanStack/ai/blob/main/packages/typ
 optional name: string;
 ```
 
-Defined in: [types.ts:228](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L228)
+Defined in: [types.ts:291](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L291)
 
 ***
 
@@ -41,7 +41,7 @@ Defined in: [types.ts:228](https://github.com/TanStack/ai/blob/main/packages/typ
 role: "user" | "assistant" | "tool";
 ```
 
-Defined in: [types.ts:226](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L226)
+Defined in: [types.ts:289](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L289)
 
 ***
 
@@ -51,7 +51,7 @@ Defined in: [types.ts:226](https://github.com/TanStack/ai/blob/main/packages/typ
 optional toolCallId: string;
 ```
 
-Defined in: [types.ts:230](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L230)
+Defined in: [types.ts:293](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L293)
 
 ***
 
@@ -61,4 +61,4 @@ Defined in: [types.ts:230](https://github.com/TanStack/ai/blob/main/packages/typ
 optional toolCalls: ToolCall[];
 ```
 
-Defined in: [types.ts:229](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L229)
+Defined in: [types.ts:292](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L292)

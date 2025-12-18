@@ -19,16 +19,12 @@ export const kind = 'tts' as const
 // Type Extraction Helpers
 // ===========================
 
-/** Extract model types from a TTSAdapter */
-export type TTSModels<TAdapter> =
-  TAdapter extends TTSAdapter<infer M, any> ? M[number] : string
-
 /**
- * Extract provider options from a TTSAdapter.
+ * Extract provider options from a TTSAdapter via ~types.
  */
 export type TTSProviderOptions<TAdapter> =
-  TAdapter extends TTSAdapter<any, infer TProviderOptions>
-    ? TProviderOptions
+  TAdapter extends TTSAdapter<any, any>
+    ? TAdapter['~types']['providerOptions']
     : object
 
 // ===========================
@@ -37,18 +33,15 @@ export type TTSProviderOptions<TAdapter> =
 
 /**
  * Options for the TTS activity.
+ * The model is extracted from the adapter's model property.
  *
  * @template TAdapter - The TTS adapter type
- * @template TModel - The model name type (inferred from adapter)
  */
 export interface TTSActivityOptions<
-  TAdapter extends TTSAdapter<ReadonlyArray<string>, object>,
-  TModel extends TTSModels<TAdapter>,
+  TAdapter extends TTSAdapter<string, object>,
 > {
-  /** The TTS adapter to use */
+  /** The TTS adapter to use (must be created with a model) */
   adapter: TAdapter & { kind: typeof kind }
-  /** The model name (autocompletes based on adapter) */
-  model: TModel
   /** The text to convert to speech */
   text: string
   /** The voice to use for generation */
@@ -83,8 +76,7 @@ export type TTSActivityResult = Promise<TTSResult>
  * import { openaiTTS } from '@tanstack/ai-openai'
  *
  * const result = await generateSpeech({
- *   adapter: openaiTTS(),
- *   model: 'tts-1-hd',
+ *   adapter: openaiTTS('tts-1-hd'),
  *   text: 'Hello, welcome to TanStack AI!',
  *   voice: 'nova'
  * })
@@ -95,8 +87,7 @@ export type TTSActivityResult = Promise<TTSResult>
  * @example With format and speed options
  * ```ts
  * const result = await generateSpeech({
- *   adapter: openaiTTS(),
- *   model: 'tts-1',
+ *   adapter: openaiTTS('tts-1'),
  *   text: 'This is slower speech.',
  *   voice: 'alloy',
  *   format: 'wav',
@@ -105,14 +96,27 @@ export type TTSActivityResult = Promise<TTSResult>
  * ```
  */
 export async function generateSpeech<
-  TAdapter extends TTSAdapter<ReadonlyArray<string>, object>,
-  TModel extends TTSModels<TAdapter>,
->(options: TTSActivityOptions<TAdapter, TModel>): TTSActivityResult {
+  TAdapter extends TTSAdapter<string, object>,
+>(options: TTSActivityOptions<TAdapter>): TTSActivityResult {
   const { adapter, ...rest } = options
+  const model = adapter.model
 
-  return adapter.generateSpeech(rest)
+  return adapter.generateSpeech({ ...rest, model })
+}
+
+// ===========================
+// Options Factory
+// ===========================
+
+/**
+ * Create typed options for the generateSpeech() function without executing.
+ */
+export function createSpeechOptions<
+  TAdapter extends TTSAdapter<string, object>,
+>(options: TTSActivityOptions<TAdapter>): TTSActivityOptions<TAdapter> {
+  return options
 }
 
 // Re-export adapter types
-export type { TTSAdapter, TTSAdapterConfig } from './adapter'
+export type { TTSAdapter, TTSAdapterConfig, AnyTTSAdapter } from './adapter'
 export { BaseTTSAdapter } from './adapter'

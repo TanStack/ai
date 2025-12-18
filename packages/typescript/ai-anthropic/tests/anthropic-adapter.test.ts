@@ -35,7 +35,9 @@ vi.mock('@anthropic-ai/sdk', () => {
   return { default: MockAnthropic }
 })
 
-const createAdapter = () => new AnthropicTextAdapter({ apiKey: 'test-key' })
+const createAdapter = <TModel extends 'claude-3-7-sonnet-20250219'>(
+  model: TModel,
+) => new AnthropicTextAdapter({ apiKey: 'test-key' }, model)
 
 const toolArguments = JSON.stringify({ location: 'Berlin' })
 
@@ -101,13 +103,12 @@ describe('Anthropic adapter option mapping', () => {
       system: 'Respond with JSON',
     } satisfies AnthropicTextProviderOptions & { system: string }
 
-    const adapter = createAdapter()
+    const adapter = createAdapter('claude-3-7-sonnet-20250219')
 
     // Consume the stream to trigger the API call
     const chunks: StreamChunk[] = []
     for await (const chunk of chat({
       adapter,
-      model: 'claude-3-7-sonnet-20250219',
       messages: [
         { role: 'user', content: 'What is the forecast?' },
         {

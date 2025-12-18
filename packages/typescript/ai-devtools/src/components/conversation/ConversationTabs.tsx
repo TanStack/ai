@@ -3,7 +3,7 @@ import { useStyles } from '../../styles/use-styles'
 import type { Component } from 'solid-js'
 import type { Conversation } from '../../store/ai-context'
 
-export type TabType = 'messages' | 'chunks' | 'embeddings' | 'summaries'
+export type TabType = 'messages' | 'chunks' | 'summaries'
 
 interface ConversationTabsProps {
   conversation: Conversation
@@ -19,7 +19,6 @@ export const ConversationTabs: Component<ConversationTabsProps> = (props) => {
   const totalRawChunks = () =>
     conv().chunks.reduce((sum, c) => sum + (c.chunkCount || 1), 0)
 
-  const embeddingsCount = () => conv().embeddings?.length ?? 0
   const summariesCount = () => conv().summaries?.length ?? 0
 
   // Determine if we should show any chat-related tabs
@@ -27,7 +26,6 @@ export const ConversationTabs: Component<ConversationTabsProps> = (props) => {
   const hasMessages = () =>
     conv().type === 'client' && conv().messages.length > 0
   const hasChunks = () => conv().chunks.length > 0 || conv().type === 'server'
-  const hasEmbeddings = () => conv().hasEmbedding || embeddingsCount() > 0
   const hasSummaries = () => conv().hasSummarize || summariesCount() > 0
 
   // Count how many tabs would be visible
@@ -35,7 +33,6 @@ export const ConversationTabs: Component<ConversationTabsProps> = (props) => {
     let count = 0
     if (hasMessages()) count++
     if (hasChunks() && conv().type === 'server') count++
-    if (hasEmbeddings()) count++
     if (hasSummaries()) count++
     return count
   }
@@ -71,19 +68,6 @@ export const ConversationTabs: Component<ConversationTabsProps> = (props) => {
           onClick={() => props.onTabChange('chunks')}
         >
           📦 Chunks ({totalRawChunks()})
-        </button>
-      </Show>
-      {/* Show embeddings tab if there are embedding operations */}
-      <Show when={hasEmbeddings()}>
-        <button
-          class={`${styles().actionButton} ${
-            props.activeTab === 'embeddings'
-              ? styles().conversationDetails.tabButtonActive
-              : ''
-          }`}
-          onClick={() => props.onTabChange('embeddings')}
-        >
-          🔢 Embeddings ({embeddingsCount()})
         </button>
       </Show>
       {/* Show summaries tab if there are summarize operations */}

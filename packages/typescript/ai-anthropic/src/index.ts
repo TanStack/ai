@@ -7,9 +7,6 @@ export {
   AnthropicTextAdapter,
   anthropicText,
   createAnthropicChat,
-  // Deprecated exports
-  anthropicChat,
-  createAnthropicText,
   type AnthropicTextConfig,
   type AnthropicTextProviderOptions,
 } from './adapters/text'
@@ -22,8 +19,6 @@ export {
   type AnthropicSummarizeConfig,
   type AnthropicSummarizeProviderOptions,
 } from './adapters/summarize'
-
-// Note: Anthropic does not support embeddings natively
 
 // ============================================================================
 // Type Exports

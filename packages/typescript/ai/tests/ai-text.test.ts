@@ -2,10 +2,16 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { z } from 'zod'
 import { chat } from '../src/activities/chat'
-import { BaseAdapter } from '../src/base-adapter'
+import { BaseTextAdapter } from '../src/activities/chat/adapter'
 import { aiEventClient } from '../src/event-client.js'
 import { maxIterations } from '../src/activities/chat/agent-loop-strategies'
-import type { ModelMessage, StreamChunk, TextOptions, Tool } from '../src/types'
+import type {
+  DefaultMessageMetadataByModality,
+  ModelMessage,
+  StreamChunk,
+  TextOptions,
+  Tool,
+} from '../src/types'
 
 // Mock event client to track events
 const eventListeners = new Map<string, Set<(...args: Array<any>) => void>>()
@@ -31,12 +37,11 @@ afterEach(() => {
 })
 
 // Mock adapter base class with consistent tracking helper
-class MockAdapter extends BaseAdapter<
-  readonly ['test-model'],
-  readonly [],
+class MockAdapter extends BaseTextAdapter<
+  'test-model',
   Record<string, any>,
-  Record<string, any>,
-  Record<string, any>
+  readonly ['text'],
+  DefaultMessageMetadataByModality
 > {
   public chatStreamCallCount = 0
   public chatStreamCalls: Array<{
@@ -48,9 +53,11 @@ class MockAdapter extends BaseAdapter<
     modelOptions?: any
   }> = []
 
-  readonly kind = 'text' as const
-  name = 'mock'
-  models = ['test-model'] as const
+  readonly name = 'mock'
+
+  constructor() {
+    super({}, 'test-model')
+  }
 
   // Helper method for consistent tracking when subclasses override chatStream
   protected trackStreamCall(options: TextOptions): void {
@@ -89,14 +96,6 @@ class MockAdapter extends BaseAdapter<
   async structuredOutput(_options: any): Promise<any> {
     return { data: {}, rawText: '{}' }
   }
-
-  async summarize(_options: any): Promise<any> {
-    return { summary: 'test' }
-  }
-
-  async createEmbeddings(_options: any): Promise<any> {
-    return { embeddings: [] }
-  }
 }
 
 // Helper to collect all chunks from a stream
@@ -115,13 +114,11 @@ describe('chat() - Comprehensive Logic Path Coverage', () => {
 
       const stream1 = chat({
         adapter,
-        model: 'test-model',
         messages: [{ role: 'user', content: 'Hello' }],
       })
 
       const stream2 = chat({
         adapter,
-        model: 'test-model',
         messages: [{ role: 'user', content: 'Hi' }],
       })
 
@@ -149,7 +146,6 @@ describe('chat() - Comprehensive Logic Path Coverage', () => {
       await collectChunks(
         chat({
           adapter,
-          model: 'test-model',
           messages: [
             { role: 'user', content: 'Hello' },
             { role: 'user', content: 'Hi' },
@@ -178,7 +174,6 @@ describe('chat() - Comprehensive Logic Path Coverage', () => {
       await collectChunks(
         chat({
           adapter,
-          model: 'test-model',
           messages: [{ role: 'user', content: 'Hello' }],
         }),
       )
@@ -195,7 +190,6 @@ describe('chat() - Comprehensive Logic Path Coverage', () => {
       await collectChunks(
         chat({
           adapter,
-          model: 'test-model',
           messages: [{ role: 'user', content: 'Hello' }],
           systemPrompts: ['You are concise'],
         }),
@@ -218,7 +212,6 @@ describe('chat() - Comprehensive Logic Path Coverage', () => {
       await collectChunks(
         chat({
           adapter,
-          model: 'test-model',
           messages: [{ role: 'user', content: 'Hello' }],
           systemPrompts: ['You are helpful', 'You are concise'],
         }),
@@ -240,7 +233,6 @@ describe('chat() - Comprehensive Logic Path Coverage', () => {
       await collectChunks(
         chat({
           adapter,
-          model: 'test-model',
           messages: [{ role: 'user', content: 'Hello' }],
           modelOptions: { customOption: 'value' },
         }),
@@ -258,7 +250,6 @@ describe('chat() - Comprehensive Logic Path Coverage', () => {
 
       const stream = chat({
         adapter,
-        model: 'test-model',
         messages: [{ role: 'user', content: 'Hello' }],
       })
 
@@ -326,7 +317,6 @@ describe('chat() - Comprehensive Logic Path Coverage', () => {
 
       const stream = chat({
         adapter,
-        model: 'test-model',
         messages: [{ role: 'user', content: 'Say hello' }],
       })
 
@@ -373,7 +363,6 @@ describe('chat() - Comprehensive Logic Path Coverage', () => {
       const chunks = await collectChunks(
         chat({
           adapter,
-          model: 'test-model',
           messages: [{ role: 'user', content: 'Test' }],
         }),
       )
@@ -451,7 +440,6 @@ describe('chat() - Comprehensive Logic Path Coverage', () => {
       const chunks = await collectChunks(
         chat({
           adapter,
-          model: 'test-model',
           messages: [{ role: 'user', content: 'Weather?' }],
           tools: [tool],
         }),
@@ -557,7 +545,6 @@ describe('chat() - Comprehensive Logic Path Coverage', () => {
       const chunks = await collectChunks(
         chat({
           adapter,
-          model: 'test-model',
           messages: [{ role: 'user', content: 'Calculate' }],
           tools: [tool],
         }),
@@ -648,7 +635,6 @@ describe('chat() - Comprehensive Logic Path Coverage', () => {
       const chunks = await collectChunks(
         chat({
           adapter,
-          model: 'test-model',
           messages: [{ role: 'user', content: 'Use both tools' }],
           tools: [tool1, tool2],
         }),
@@ -745,7 +731,6 @@ describe('chat() - Comprehensive Logic Path Coverage', () => {
       await collectChunks(
         chat({
           adapter,
-          model: 'test-model',
           messages: [{ role: 'user', content: 'Test' }],
           tools: [tool],
         }),
@@ -822,7 +807,6 @@ describe('chat() - Comprehensive Logic Path Coverage', () => {
       await collectChunks(
         chat({
           adapter,
-          model: 'test-model',
           messages: [{ role: 'user', content: 'Test' }],
           tools: [tool],
         }),
@@ -875,7 +859,6 @@ describe('chat() - Comprehensive Logic Path Coverage', () => {
       await collectChunks(
         chat({
           adapter,
-          model: 'test-model',
           messages: [{ role: 'user', content: 'Test' }],
           tools: [tool],
         }),
@@ -949,7 +932,6 @@ describe('chat() - Comprehensive Logic Path Coverage', () => {
       const chunks = await collectChunks(
         chat({
           adapter,
-          model: 'test-model',
           messages: [{ role: 'user', content: 'Test' }],
           tools: [tool],
         }),
@@ -1035,7 +1017,6 @@ describe('chat() - Comprehensive Logic Path Coverage', () => {
       await collectChunks(
         chat({
           adapter,
-          model: 'test-model',
           messages: [{ role: 'user', content: 'Test' }],
           tools: [tool],
         }),
@@ -1103,7 +1084,6 @@ describe('chat() - Comprehensive Logic Path Coverage', () => {
       const chunks = await collectChunks(
         chat({
           adapter,
-          model: 'test-model',
           messages: [{ role: 'user', content: 'Call error tool' }],
           tools: [tool],
         }),
@@ -1148,7 +1128,6 @@ describe('chat() - Comprehensive Logic Path Coverage', () => {
       const chunks = await collectChunks(
         chat({
           adapter,
-          model: 'test-model',
           messages: [{ role: 'user', content: 'Test' }],
           tools: [
             {
@@ -1217,7 +1196,6 @@ describe('chat() - Comprehensive Logic Path Coverage', () => {
       const chunks = await collectChunks(
         chat({
           adapter,
-          model: 'test-model',
           messages: [{ role: 'user', content: 'Delete file' }],
           tools: [tool],
         }),
@@ -1283,7 +1261,6 @@ describe('chat() - Comprehensive Logic Path Coverage', () => {
       const chunks = await collectChunks(
         chat({
           adapter,
-          model: 'test-model',
           messages: [{ role: 'user', content: 'Use client tool' }],
           tools: [tool],
         }),
@@ -1381,7 +1358,6 @@ describe('chat() - Comprehensive Logic Path Coverage', () => {
       const chunks = await collectChunks(
         chat({
           adapter,
-          model: 'test-model',
           messages: [{ role: 'user', content: 'Use all tools' }],
           tools: [normalTool, approvalTool, clientTool],
         }),
@@ -1453,7 +1429,7 @@ describe('chat() - Comprehensive Logic Path Coverage', () => {
 
       const adapter = new PendingToolAdapter()
 
-      const messages: Array<ModelMessage> = [
+      const messages = [
         { role: 'user', content: 'Delete file' },
         {
           role: 'assistant',
@@ -1487,7 +1463,6 @@ describe('chat() - Comprehensive Logic Path Coverage', () => {
 
       const stream = chat({
         adapter,
-        model: 'test-model',
         messages,
         tools: [approvalTool],
       })
@@ -1559,7 +1534,6 @@ describe('chat() - Comprehensive Logic Path Coverage', () => {
       await collectChunks(
         chat({
           adapter,
-          model: 'test-model',
           messages: [{ role: 'user', content: 'Loop' }],
           tools: [tool],
           agentLoopStrategy: ({ iterationCount }) => iterationCount < 2, // Max 2 iterations
@@ -1611,7 +1585,6 @@ describe('chat() - Comprehensive Logic Path Coverage', () => {
       const chunks: Array<StreamChunk> = []
       for await (const chunk of chat({
         adapter,
-        model: 'test-model',
         messages: [{ role: 'user', content: 'Loop' }],
         tools: [tool],
         // No custom strategy - should use default maxIterations(5)
@@ -1660,7 +1633,6 @@ describe('chat() - Comprehensive Logic Path Coverage', () => {
       await collectChunks(
         chat({
           adapter,
-          model: 'test-model',
           messages: [{ role: 'user', content: 'Hello' }],
           tools: [tool],
         }),
@@ -1701,7 +1673,6 @@ describe('chat() - Comprehensive Logic Path Coverage', () => {
       await collectChunks(
         chat({
           adapter,
-          model: 'test-model',
           messages: [{ role: 'user', content: 'Test' }],
           // No tools provided
         }),
@@ -1750,7 +1721,6 @@ describe('chat() - Comprehensive Logic Path Coverage', () => {
       await collectChunks(
         chat({
           adapter,
-          model: 'test-model',
           messages: [{ role: 'user', content: 'Test' }],
           tools: [tool],
         }),
@@ -1772,7 +1742,6 @@ describe('chat() - Comprehensive Logic Path Coverage', () => {
       const chunks = await collectChunks(
         chat({
           adapter,
-          model: 'test-model',
           messages: [{ role: 'user', content: 'Hello' }],
           abortController,
         }),
@@ -1821,7 +1790,6 @@ describe('chat() - Comprehensive Logic Path Coverage', () => {
       const abortController = new AbortController()
       const stream = chat({
         adapter,
-        model: 'test-model',
         messages: [{ role: 'user', content: 'Hello' }],
         abortController,
       })
@@ -1879,7 +1847,6 @@ describe('chat() - Comprehensive Logic Path Coverage', () => {
       const abortController = new AbortController()
       const stream = chat({
         adapter,
-        model: 'test-model',
         messages: [{ role: 'user', content: 'Test' }],
         tools: [tool],
         abortController,
@@ -1938,7 +1905,6 @@ describe('chat() - Comprehensive Logic Path Coverage', () => {
       const chunks = await collectChunks(
         chat({
           adapter,
-          model: 'test-model',
           messages: [{ role: 'user', content: 'Hello' }],
         }),
       )
@@ -1991,7 +1957,6 @@ describe('chat() - Comprehensive Logic Path Coverage', () => {
       const chunks = await collectChunks(
         chat({
           adapter,
-          model: 'test-model',
           messages: [{ role: 'user', content: 'Test' }],
         }),
       )
@@ -2028,7 +1993,6 @@ describe('chat() - Comprehensive Logic Path Coverage', () => {
       const chunks = await collectChunks(
         chat({
           adapter,
-          model: 'test-model',
           messages: [{ role: 'user', content: 'Test' }],
         }),
       )
@@ -2065,7 +2029,6 @@ describe('chat() - Comprehensive Logic Path Coverage', () => {
       const chunks = await collectChunks(
         chat({
           adapter,
-          model: 'test-model',
           messages: [{ role: 'user', content: 'Test' }],
         }),
       )
@@ -2083,7 +2046,6 @@ describe('chat() - Comprehensive Logic Path Coverage', () => {
       await collectChunks(
         chat({
           adapter,
-          model: 'test-model',
           messages: [{ role: 'user', content: 'Hello' }],
         }),
       )
@@ -2166,7 +2128,6 @@ describe('chat() - Comprehensive Logic Path Coverage', () => {
       await collectChunks(
         chat({
           adapter,
-          model: 'test-model',
           messages: [{ role: 'user', content: 'Test' }],
           tools: [tool],
         }),
@@ -2186,7 +2147,6 @@ describe('chat() - Comprehensive Logic Path Coverage', () => {
       await collectChunks(
         chat({
           adapter,
-          model: 'test-model',
           messages: [{ role: 'user', content: 'Hello' }],
         }),
       )
@@ -2265,7 +2225,6 @@ describe('chat() - Comprehensive Logic Path Coverage', () => {
       await collectChunks(
         chat({
           adapter,
-          model: 'test-model',
           messages: [{ role: 'user', content: 'Test' }],
           tools: [tool],
         }),
@@ -2285,7 +2244,6 @@ describe('chat() - Comprehensive Logic Path Coverage', () => {
       const chunks = await collectChunks(
         chat({
           adapter,
-          model: 'test-model',
           messages: [],
         }),
       )
@@ -2300,7 +2258,6 @@ describe('chat() - Comprehensive Logic Path Coverage', () => {
       const chunks = await collectChunks(
         chat({
           adapter,
-          model: 'test-model',
           messages: [{ role: 'user', content: 'Hello' }],
           tools: [],
         }),
@@ -2347,7 +2304,6 @@ describe('chat() - Comprehensive Logic Path Coverage', () => {
       await collectChunks(
         chat({
           adapter,
-          model: 'test-model',
           messages: [{ role: 'user', content: 'Test' }],
           tools: [tool],
         }),
@@ -2398,7 +2354,6 @@ describe('chat() - Comprehensive Logic Path Coverage', () => {
         collectChunks(
           chat({
             adapter,
-            model: 'test-model',
             messages: [{ role: 'user', content: 'Test' }],
             tools: [tool],
           }),
@@ -2445,7 +2400,6 @@ describe('chat() - Comprehensive Logic Path Coverage', () => {
       await collectChunks(
         chat({
           adapter,
-          model: 'test-model',
           messages: [{ role: 'user', content: 'Continue' }],
         }),
       )
@@ -2553,7 +2507,6 @@ describe('chat() - Comprehensive Logic Path Coverage', () => {
       // First call - should request approval
       const stream1 = chat({
         adapter,
-        model: 'test-model',
         messages: [{ role: 'user', content: 'Delete file' }],
         tools: [tool],
       })
@@ -2564,7 +2517,7 @@ describe('chat() - Comprehensive Logic Path Coverage', () => {
 
       // Second call - with approval response in message parts
       // The approval ID should match the format: approval_${toolCall.id}
-      const messagesWithApproval: Array<ModelMessage> = [
+      const messagesWithApproval = [
         { role: 'user', content: 'Delete file' },
         {
           role: 'assistant',
@@ -2598,7 +2551,6 @@ describe('chat() - Comprehensive Logic Path Coverage', () => {
 
       const stream2 = chat({
         adapter,
-        model: 'test-model',
         messages: messagesWithApproval,
         tools: [tool],
       })
@@ -2676,7 +2628,6 @@ describe('chat() - Comprehensive Logic Path Coverage', () => {
       // First call - should request client execution
       const stream1 = chat({
         adapter,
-        model: 'test-model',
         messages: [{ role: 'user', content: 'Use client tool' }],
         tools: [tool],
       })
@@ -2686,7 +2637,7 @@ describe('chat() - Comprehensive Logic Path Coverage', () => {
       expect(inputChunk).toBeDefined()
 
       // Second call - with client tool output in message parts
-      const messagesWithOutput: Array<ModelMessage> = [
+      const messagesWithOutput = [
         { role: 'user', content: 'Use client tool' },
         {
           role: 'assistant',
@@ -2716,7 +2667,6 @@ describe('chat() - Comprehensive Logic Path Coverage', () => {
 
       const stream2 = chat({
         adapter,
-        model: 'test-model',
         messages: messagesWithOutput,
         tools: [tool],
       })
@@ -2808,7 +2758,7 @@ describe('chat() - Comprehensive Logic Path Coverage', () => {
       const adapter = new MixedPartsAdapter()
 
       // Call with messages containing both approval response and client tool output in parts
-      const messagesWithBoth: Array<ModelMessage> = [
+      const messagesWithBoth = [
         { role: 'user', content: 'Use both tools' },
         {
           role: 'assistant',
@@ -2852,7 +2802,6 @@ describe('chat() - Comprehensive Logic Path Coverage', () => {
 
       const stream = chat({
         adapter,
-        model: 'test-model',
         messages: messagesWithBoth,
         tools: [approvalTool, clientTool],
       })
@@ -2972,7 +2921,6 @@ describe('chat() - Comprehensive Logic Path Coverage', () => {
 
       const stream = chat({
         adapter,
-        model: 'test-model',
         messages: [{ role: 'user', content: 'what is the temperature?' }],
         tools: [temperatureTool],
         agentLoopStrategy: maxIterations(20),

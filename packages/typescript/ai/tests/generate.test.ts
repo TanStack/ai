@@ -1,18 +1,9 @@
 import { describe, expect, it, vi } from 'vitest'
-import { chat, embedding, summarize } from '../src/activities'
-import {
-  BaseTextAdapter,
-  BaseEmbeddingAdapter,
-  BaseSummarizeAdapter,
-} from '../src/activities'
-import type {
-  StructuredOutputOptions,
-  StructuredOutputResult,
-} from '../src/activities'
+import { chat, summarize } from '../src/activities'
+import { BaseTextAdapter, BaseSummarizeAdapter } from '../src/activities'
+import type { StructuredOutputResult } from '../src/activities'
 import type {
   TextOptions,
-  EmbeddingOptions,
-  EmbeddingResult,
   ModelMessage,
   StreamChunk,
   SummarizationOptions,
@@ -22,16 +13,32 @@ import type {
 // Mock adapters for testing
 
 const MOCK_MODELS = ['model-a', 'model-b'] as const
+type MockModel = (typeof MOCK_MODELS)[number]
 
-class MockTextAdapter extends BaseTextAdapter<typeof MOCK_MODELS> {
+class MockTextAdapter<
+  TModel extends MockModel = 'model-a',
+> extends BaseTextAdapter<
+  TModel,
+  Record<string, unknown>,
+  readonly ['text', 'image', 'audio', 'video', 'document'],
+  {
+    text: unknown
+    image: unknown
+    audio: unknown
+    video: unknown
+    document: unknown
+  }
+> {
   readonly kind = 'text' as const
   readonly name = 'mock' as const
-  readonly models = MOCK_MODELS
 
   private mockChunks: Array<StreamChunk>
 
-  constructor(mockChunks: Array<StreamChunk> = []) {
-    super({})
+  constructor(
+    mockChunks: Array<StreamChunk> = [],
+    model: TModel = 'model-a' as TModel,
+  ) {
+    super({}, model)
     this.mockChunks = mockChunks
   }
 
@@ -41,9 +48,8 @@ class MockTextAdapter extends BaseTextAdapter<typeof MOCK_MODELS> {
     }
   }
 
-  structuredOutput(
-    _options: StructuredOutputOptions<object>,
-  ): Promise<StructuredOutputResult<unknown>> {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  structuredOutput(_options: any): Promise<StructuredOutputResult<unknown>> {
     return Promise.resolve({
       data: {},
       rawText: '{}',
@@ -51,46 +57,22 @@ class MockTextAdapter extends BaseTextAdapter<typeof MOCK_MODELS> {
   }
 }
 
-class MockEmbeddingAdapter extends BaseEmbeddingAdapter<
-  typeof MOCK_MODELS,
-  Record<string, unknown>
-> {
-  readonly kind = 'embedding' as const
-  readonly name = 'mock' as const
-  readonly models = MOCK_MODELS
-
-  private mockResult: EmbeddingResult
-
-  constructor(mockResult?: EmbeddingResult) {
-    super({})
-    this.mockResult = mockResult ?? {
-      id: 'test-id',
-      model: 'model-a',
-      embeddings: [[0.1, 0.2, 0.3]],
-      usage: { promptTokens: 10, totalTokens: 10 },
-    }
-  }
-
-  createEmbeddings(_options: EmbeddingOptions): Promise<EmbeddingResult> {
-    return Promise.resolve(this.mockResult)
-  }
-}
-
-class MockSummarizeAdapter extends BaseSummarizeAdapter<
-  typeof MOCK_MODELS,
-  Record<string, unknown>
-> {
+class MockSummarizeAdapter<
+  TModel extends MockModel = 'model-a',
+> extends BaseSummarizeAdapter<TModel, Record<string, unknown>> {
   readonly kind = 'summarize' as const
   readonly name = 'mock' as const
-  readonly models = MOCK_MODELS
 
   private mockResult: SummarizationResult
 
-  constructor(mockResult?: SummarizationResult) {
-    super({})
+  constructor(
+    mockResult?: SummarizationResult,
+    model: TModel = 'model-a' as TModel,
+  ) {
+    super({}, model)
     this.mockResult = mockResult ?? {
       id: 'test-id',
-      model: 'model-a',
+      model: model,
       summary: 'This is a summary.',
       usage: { promptTokens: 100, completionTokens: 20, totalTokens: 120 },
     }
@@ -137,7 +119,6 @@ describe('generate function', () => {
 
       const result = chat({
         adapter,
-        model: 'model-a',
         messages,
       })
 
@@ -167,7 +148,6 @@ describe('generate function', () => {
       // Consume the iterable to trigger the method
       const result = chat({
         adapter,
-        model: 'model-a',
         messages,
         systemPrompts: ['Be helpful'],
         options: { temperature: 0.7 },
@@ -180,40 +160,6 @@ describe('generate function', () => {
     })
   })
 
-  describe('with embedding adapter', () => {
-    it('should return an EmbeddingResult', async () => {
-      const expectedResult: EmbeddingResult = {
-        id: 'embed-123',
-        model: 'model-a',
-        embeddings: [[0.5, 0.6, 0.7]],
-        usage: { promptTokens: 15, totalTokens: 15 },
-      }
-
-      const adapter = new MockEmbeddingAdapter(expectedResult)
-
-      const result = await embedding({
-        adapter,
-        model: 'model-a',
-        input: ['Test text'],
-      })
-
-      expect(result).toEqual(expectedResult)
-    })
-
-    it('should pass options to the embedding adapter', async () => {
-      const adapter = new MockEmbeddingAdapter()
-      const createEmbeddingsSpy = vi.spyOn(adapter, 'createEmbeddings')
-
-      await embedding({
-        adapter,
-        model: 'model-a',
-        input: ['Hello', 'World'],
-      })
-
-      expect(createEmbeddingsSpy).toHaveBeenCalled()
-    })
-  })
-
   describe('with summarize adapter', () => {
     it('should return a SummarizationResult', async () => {
       const expectedResult: SummarizationResult = {
@@ -223,11 +169,10 @@ describe('generate function', () => {
         usage: { promptTokens: 200, completionTokens: 30, totalTokens: 230 },
       }
 
-      const adapter = new MockSummarizeAdapter(expectedResult)
+      const adapter = new MockSummarizeAdapter(expectedResult, 'model-b')
 
       const result = await summarize({
         adapter,
-        model: 'model-b',
         text: 'Long text to summarize...',
       })
 
@@ -240,7 +185,6 @@ describe('generate function', () => {
 
       await summarize({
         adapter,
-        model: 'model-a',
         text: 'Some text to summarize',
         style: 'bullet-points',
         maxLength: 100,
@@ -258,26 +202,11 @@ describe('generate function', () => {
       // TypeScript should infer AsyncIterable<StreamChunk>
       const result = chat({
         adapter,
-        model: 'model-a',
         messages,
       })
 
       // This ensures the type is AsyncIterable, not Promise
       expect(typeof result[Symbol.asyncIterator]).toBe('function')
-    })
-
-    it('should have proper return type inference for embedding adapter', () => {
-      const adapter = new MockEmbeddingAdapter()
-
-      // TypeScript should infer Promise<EmbeddingResult>
-      const result = embedding({
-        adapter,
-        model: 'model-a',
-        input: ['test'],
-      })
-
-      // This ensures the type is Promise
-      expect(result).toBeInstanceOf(Promise)
     })
 
     it('should have proper return type inference for summarize adapter', () => {
@@ -286,7 +215,6 @@ describe('generate function', () => {
       // TypeScript should infer Promise<SummarizationResult>
       const result = summarize({
         adapter,
-        model: 'model-a',
         text: 'test',
       })
 

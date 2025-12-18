@@ -149,8 +149,7 @@ export async function POST(request: Request) {
   const { messages } = await request.json();
 
   const stream = chat({
-    adapter: openaiText(),
-    model: "gpt-4o",
+    adapter: openaiText("gpt-4o"),
     messages,
     tools: [getUserData, searchProducts],
   });
@@ -208,8 +207,7 @@ import { openaiText } from "@tanstack/ai-openai";
 import { getUserData, searchProducts } from "@/tools/server";
 
 const stream = chat({
-  adapter: openaiText(),
-  model: "gpt-4o",
+  adapter: openaiText("gpt-4o"),
   messages,
   tools: [getUserData, searchProducts],
 });

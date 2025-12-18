@@ -16,12 +16,9 @@ The AI SDK provides **model-specific type safety** for `modelOptions`. Each mode
 import { chat } from "@tanstack/ai";
 import { openaiText } from "@tanstack/ai-openai";
 
-const adapter = openaiText();
-
 // ✅ gpt-5 supports structured outputs - `text` is allowed
 const validCall = chat({
-  adapter,
-  model: "gpt-5",
+  adapter: openaiText("gpt-5"),
   messages: [],
   modelOptions: {
     // OK - text is included for gpt-5
@@ -40,8 +37,7 @@ const validCall = chat({
 ```typescript
 // ❌ gpt-4-turbo does NOT support structured outputs - `text` is rejected
 const invalidCall = chat({
-  adapter: openaiText(),
-  model: "gpt-4-turbo",
+  adapter: openaiText("gpt-4-turbo"),
   messages: [],
   modelOptions: {
     text: {}, // ❌ TypeScript error: 'text' does not exist in type

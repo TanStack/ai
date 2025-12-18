@@ -45,8 +45,7 @@ export async function POST(request: Request) {
   try {
     // Create a streaming chat response
     const stream = chat({
-      adapter: openaiText(),
-      model: "gpt-4o",
+      adapter: openaiText("gpt-4o"),
       messages,
       conversationId
     });
@@ -194,8 +193,7 @@ const getProducts = getProductsDef.server(async ({ query }) => {
 })
 
 chat({
-  adapter: openaiText(),
-  model: 'gpt-4o',
+  adapter: openaiText('gpt-4o'),
   messages: [{ role: 'user', content: 'Find products' }],
   tools: [getProducts]
 })

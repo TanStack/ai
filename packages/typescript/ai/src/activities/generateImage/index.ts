@@ -19,12 +19,8 @@ export const kind = 'image' as const
 // Type Extraction Helpers
 // ===========================
 
-/** Extract model types from an ImageAdapter */
-export type ImageModels<TAdapter> =
-  TAdapter extends ImageAdapter<infer M, any, any, any> ? M[number] : string
-
 /**
- * Extract model-specific provider options from an ImageAdapter.
+ * Extract model-specific provider options from an ImageAdapter via ~types.
  * If the model has specific options defined in ModelProviderOptions (and not just via index signature),
  * use those; otherwise fall back to base provider options.
  */
@@ -40,7 +36,7 @@ export type ImageProviderOptionsForModel<TAdapter, TModel extends string> =
     : object
 
 /**
- * Extract model-specific size options from an ImageAdapter.
+ * Extract model-specific size options from an ImageAdapter via ~types.
  * If the model has specific sizes defined, use those; otherwise fall back to string.
  */
 export type ImageSizeForModel<TAdapter, TModel extends string> =
@@ -60,26 +56,23 @@ export type ImageSizeForModel<TAdapter, TModel extends string> =
 
 /**
  * Options for the image activity.
+ * The model is extracted from the adapter's model property.
  *
  * @template TAdapter - The image adapter type
- * @template TModel - The model name type (inferred from adapter)
  */
 export interface ImageActivityOptions<
-  TAdapter extends ImageAdapter<ReadonlyArray<string>, object, any, any>,
-  TModel extends ImageModels<TAdapter>,
+  TAdapter extends ImageAdapter<string, object, any, any>,
 > {
-  /** The image adapter to use */
+  /** The image adapter to use (must be created with a model) */
   adapter: TAdapter & { kind: typeof kind }
-  /** The model name (autocompletes based on adapter) */
-  model: TModel
   /** Text description of the desired image(s) */
   prompt: string
   /** Number of images to generate (default: 1) */
   numberOfImages?: number
   /** Image size in WIDTHxHEIGHT format (e.g., "1024x1024") */
-  size?: ImageSizeForModel<TAdapter, TModel>
+  size?: ImageSizeForModel<TAdapter, TAdapter['model']>
   /** Provider-specific options for image generation */
-  modelOptions?: ImageProviderOptionsForModel<TAdapter, TModel>
+  modelOptions?: ImageProviderOptionsForModel<TAdapter, TAdapter['model']>
 }
 
 // ===========================
@@ -104,8 +97,7 @@ export type ImageActivityResult = Promise<ImageGenerationResult>
  * import { openaiImage } from '@tanstack/ai-openai'
  *
  * const result = await generateImage({
- *   adapter: openaiImage(),
- *   model: 'dall-e-3',
+ *   adapter: openaiImage('dall-e-3'),
  *   prompt: 'A serene mountain landscape at sunset'
  * })
  *
@@ -115,8 +107,7 @@ export type ImageActivityResult = Promise<ImageGenerationResult>
  * @example Generate multiple images
  * ```ts
  * const result = await generateImage({
- *   adapter: openaiImage(),
- *   model: 'dall-e-2',
+ *   adapter: openaiImage('dall-e-2'),
  *   prompt: 'A cute robot mascot',
  *   numberOfImages: 4,
  *   size: '512x512'
@@ -130,8 +121,7 @@ export type ImageActivityResult = Promise<ImageGenerationResult>
  * @example With provider-specific options
  * ```ts
  * const result = await generateImage({
- *   adapter: openaiImage(),
- *   model: 'dall-e-3',
+ *   adapter: openaiImage('dall-e-3'),
  *   prompt: 'A professional headshot photo',
  *   size: '1024x1024',
  *   modelOptions: {
@@ -142,14 +132,31 @@ export type ImageActivityResult = Promise<ImageGenerationResult>
  * ```
  */
 export async function generateImage<
-  TAdapter extends ImageAdapter<ReadonlyArray<string>, object, any, any>,
-  TModel extends ImageModels<TAdapter>,
->(options: ImageActivityOptions<TAdapter, TModel>): ImageActivityResult {
+  TAdapter extends ImageAdapter<string, object, any, any>,
+>(options: ImageActivityOptions<TAdapter>): ImageActivityResult {
   const { adapter, ...rest } = options
+  const model = adapter.model
 
-  return adapter.generateImages(rest)
+  return adapter.generateImages({ ...rest, model })
+}
+
+// ===========================
+// Options Factory
+// ===========================
+
+/**
+ * Create typed options for the generateImage() function without executing.
+ */
+export function createImageOptions<
+  TAdapter extends ImageAdapter<string, object, any, any>,
+>(options: ImageActivityOptions<TAdapter>): ImageActivityOptions<TAdapter> {
+  return options
 }
 
 // Re-export adapter types
-export type { ImageAdapter, ImageAdapterConfig } from './adapter'
+export type {
+  ImageAdapter,
+  ImageAdapterConfig,
+  AnyImageAdapter,
+} from './adapter'
 export { BaseImageAdapter } from './adapter'

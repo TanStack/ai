@@ -181,8 +181,7 @@ export async function POST(request: Request) {
   const encoder = new TextEncoder();
 
   const stream = chat({
-    adapter: openaiText(),
-    model: 'gpt-4o',
+    adapter: openaiText('gpt-4o'),
     messages,
   });
 
@@ -237,8 +236,7 @@ app.post('/api/chat', async (req, res) => {
 
   try {
     const stream = chat({
-      adapter: openaiText(),
-      model: 'gpt-4o',
+      adapter: openaiText('gpt-4o'),
       messages,
     });
 

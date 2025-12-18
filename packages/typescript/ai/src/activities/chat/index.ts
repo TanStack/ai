@@ -16,17 +16,14 @@ import type {
   ToolResult,
 } from './tools/tool-calls'
 import type { z } from 'zod'
-import type { TextAdapter } from './adapter'
+import type { AnyTextAdapter } from './adapter'
 import type {
-  AIAdapter,
   AgentLoopStrategy,
-  DefaultMessageMetadataByModality,
+  ConstrainedModelMessage,
   DoneStreamChunk,
-  Modality,
   ModelMessage,
   StreamChunk,
   TextOptions,
-  TextStreamOptionsUnion,
   Tool,
   ToolCall,
 } from '../../types'
@@ -39,147 +36,39 @@ import type {
 export const kind = 'text' as const
 
 // ===========================
-// Common Options
-// ===========================
-
-/**
- * Common options shared across different AI provider implementations.
- * These options represent the standard parameters that work across OpenAI, Anthropic, and Gemini.
- */
-export interface CommonOptions {
-  /**
-   * Controls the randomness of the output.
-   * Higher values (e.g., 0.8) make output more random, lower values (e.g., 0.2) make it more focused and deterministic.
-   * Range: [0.0, 2.0]
-   *
-   * Note: Generally recommended to use either temperature or topP, but not both.
-   *
-   * Provider usage:
-   * - OpenAI: `temperature` (number) - in text.top_p field
-   * - Anthropic: `temperature` (number) - ranges from 0.0 to 1.0, default 1.0
-   * - Gemini: `generationConfig.temperature` (number) - ranges from 0.0 to 2.0
-   */
-  temperature?: number
-
-  /**
-   * Nucleus sampling parameter. An alternative to temperature sampling.
-   * The model considers the results of tokens with topP probability mass.
-   * For example, 0.1 means only tokens comprising the top 10% probability mass are considered.
-   *
-   * Note: Generally recommended to use either temperature or topP, but not both.
-   *
-   * Provider usage:
-   * - OpenAI: `text.top_p` (number)
-   * - Anthropic: `top_p` (number | null)
-   * - Gemini: `generationConfig.topP` (number)
-   */
-  topP?: number
-
-  /**
-   * The maximum number of tokens to generate in the response.
-   *
-   * Provider usage:
-   * - OpenAI: `max_output_tokens` (number) - includes visible output and reasoning tokens
-   * - Anthropic: `max_tokens` (number, required) - range x >= 1
-   * - Gemini: `generationConfig.maxOutputTokens` (number)
-   */
-  maxTokens?: number
-
-  /**
-   * Additional metadata to attach to the request.
-   * Can be used for tracking, debugging, or passing custom information.
-   * Structure and constraints vary by provider.
-   *
-   * Provider usage:
-   * - OpenAI: `metadata` (Record<string, string>) - max 16 key-value pairs, keys max 64 chars, values max 512 chars
-   * - Anthropic: `metadata` (Record<string, any>) - includes optional user_id (max 256 chars)
-   * - Gemini: Not directly available in TextProviderOptions
-   */
-  metadata?: Record<string, any>
-}
-
-// ===========================
-// Type Extraction Helpers
-// ===========================
-
-/** Extract model types from a TextAdapter */
-export type TextModels<TAdapter> =
-  TAdapter extends TextAdapter<infer M, any, any, any, any> ? M[number] : string
-
-/**
- * Extract model-specific provider options from a TextAdapter.
- * If the model has specific options defined in ModelOptions (and not just via index signature),
- * use those; otherwise fall back to base provider options.
- */
-export type TextProviderOptionsForModel<TAdapter, TModel extends string> =
-  TAdapter extends TextAdapter<
-    any,
-    infer BaseOptions,
-    infer ModelOptions,
-    any,
-    any
-  >
-    ? string extends keyof ModelOptions
-      ? // ModelOptions is Record<string, unknown> or has index signature - use BaseOptions
-        BaseOptions
-      : // ModelOptions has explicit keys - check if TModel is one of them
-        TModel extends keyof ModelOptions
-        ? ModelOptions[TModel]
-        : BaseOptions
-    : object
-
-/**
- * Extract input modalities for a specific model from a TextAdapter.
- * Returns the modalities array if the model is defined in the map, otherwise all modalities.
- */
-export type InputModalitiesForModel<TAdapter, TModel extends string> =
-  TAdapter extends TextAdapter<any, any, any, infer ModalitiesByName, any>
-    ? TModel extends keyof ModalitiesByName
-      ? ModalitiesByName[TModel]
-      : ReadonlyArray<Modality>
-    : ReadonlyArray<Modality>
-
-/**
- * Extract message metadata types by modality from a TextAdapter.
- * Returns the adapter's metadata map or defaults if not defined.
- */
-export type MessageMetadataForAdapter<TAdapter> =
-  TAdapter extends TextAdapter<any, any, any, any, infer MetadataByModality>
-    ? MetadataByModality
-    : DefaultMessageMetadataByModality
-
-// ===========================
 // Activity Options Type
 // ===========================
 
 /**
  * Options for the text activity.
+ * Types are extracted directly from the adapter (which has pre-resolved generics).
  *
- * @template TAdapter - The text adapter type
- * @template TModel - The model name type (inferred from adapter)
+ * @template TAdapter - The text adapter type (created by a provider function)
  * @template TSchema - Optional Zod schema for structured output
  * @template TStream - Whether to stream the output (default: true)
  */
 export interface TextActivityOptions<
-  TAdapter extends TextAdapter<ReadonlyArray<string>, object, any, any, any>,
-  TModel extends TextModels<TAdapter>,
-  TSchema extends z.ZodType | undefined = undefined,
-  TStream extends boolean = true,
+  TAdapter extends AnyTextAdapter,
+  TSchema extends z.ZodType | undefined,
+  TStream extends boolean,
 > {
-  /** The text adapter to use */
-  adapter: TAdapter & { kind: typeof kind }
-  /** The model name (autocompletes based on adapter) */
-  model: TModel
-  /** Conversation messages */
-  messages: Array<ModelMessage>
+  /** The text adapter to use (created by a provider function like openaiText('gpt-4o')) */
+  adapter: TAdapter
+  /** Conversation messages - content types are constrained by the adapter's input modalities and metadata */
+  messages?: Array<
+    ConstrainedModelMessage<{
+      inputModalities: TAdapter['~types']['inputModalities']
+      messageMetadataByModality: TAdapter['~types']['messageMetadataByModality']
+    }>
+  >
   /** System prompts to prepend to the conversation */
   systemPrompts?: TextOptions['systemPrompts']
   /** Tools for function calling (auto-executed when called) */
   tools?: TextOptions['tools']
   /** Additional options like temperature, maxTokens, etc. */
   options?: TextOptions['options']
-  /** Model-specific options */
-  modelOptions?: TextProviderOptionsForModel<TAdapter, TModel>
+  /** Model-specific provider options (type comes from adapter) */
+  modelOptions?: TAdapter['~types']['providerOptions']
   /** AbortController for cancellation */
   abortController?: TextOptions['abortController']
   /** Strategy for controlling the agent loop */
@@ -195,8 +84,7 @@ export interface TextActivityOptions<
    * @example
    * ```ts
    * const result = await chat({
-   *   adapter: openaiText(),
-   *   model: 'gpt-4o',
+   *   adapter: openaiText('gpt-4o'),
    *   messages: [{ role: 'user', content: 'Generate a person' }],
    *   outputSchema: z.object({ name: z.string(), age: z.number() })
    * })
@@ -217,8 +105,7 @@ export interface TextActivityOptions<
    * @example Non-streaming text
    * ```ts
    * const text = await chat({
-   *   adapter: openaiText(),
-   *   model: 'gpt-4o',
+   *   adapter: openaiText('gpt-4o'),
    *   messages: [{ role: 'user', content: 'Hello!' }],
    *   stream: false
    * })
@@ -226,6 +113,33 @@ export interface TextActivityOptions<
    * ```
    */
   stream?: TStream
+}
+
+// ===========================
+// Chat Options Helper
+// ===========================
+
+/**
+ * Create typed options for the chat() function without executing.
+ * This is useful for pre-defining configurations with full type inference.
+ *
+ * @example
+ * ```ts
+ * const chatOptions = createChatOptions({
+ *   adapter: anthropicText('claude-sonnet-4-5'),
+ * })
+ *
+ * const stream = chat({ ...chatOptions, messages })
+ * ```
+ */
+export function createChatOptions<
+  TAdapter extends AnyTextAdapter,
+  TSchema extends z.ZodType | undefined = undefined,
+  TStream extends boolean = true,
+>(
+  options: TextActivityOptions<TAdapter, TSchema, TStream>,
+): TextActivityOptions<TAdapter, TSchema, TStream> {
+  return options
 }
 
 // ===========================
@@ -252,7 +166,7 @@ export type TextActivityResult<
 // ===========================
 
 interface TextEngineConfig<
-  TAdapter extends TextAdapter<any, any, any, any, any>,
+  TAdapter extends AnyTextAdapter,
   TParams extends TextOptions<any, any> = TextOptions<any>,
 > {
   adapter: TAdapter
@@ -264,7 +178,7 @@ type ToolPhaseResult = 'continue' | 'stop' | 'wait'
 type CyclePhase = 'processText' | 'executeToolCalls'
 
 class TextEngine<
-  TAdapter extends TextAdapter<any, any, any, any, any>,
+  TAdapter extends AnyTextAdapter,
   TParams extends TextOptions<any, any> = TextOptions<any>,
 > {
   private readonly adapter: TAdapter
@@ -982,8 +896,7 @@ class TextEngine<
  * import { openaiText } from '@tanstack/ai-openai'
  *
  * for await (const chunk of chat({
- *   adapter: openaiText(),
- *   model: 'gpt-4o',
+ *   adapter: openaiText('gpt-4o'),
  *   messages: [{ role: 'user', content: 'What is the weather?' }],
  *   tools: [weatherTool]
  * })) {
@@ -996,8 +909,7 @@ class TextEngine<
  * @example One-shot text (streaming without tools)
  * ```ts
  * for await (const chunk of chat({
- *   adapter: openaiText(),
- *   model: 'gpt-4o',
+ *   adapter: openaiText('gpt-4o'),
  *   messages: [{ role: 'user', content: 'Hello!' }]
  * })) {
  *   console.log(chunk)
@@ -1007,8 +919,7 @@ class TextEngine<
  * @example Non-streaming text (stream: false)
  * ```ts
  * const text = await chat({
- *   adapter: openaiText(),
- *   model: 'gpt-4o',
+ *   adapter: openaiText('gpt-4o'),
  *   messages: [{ role: 'user', content: 'Hello!' }],
  *   stream: false
  * })
@@ -1020,8 +931,7 @@ class TextEngine<
  * import { z } from 'zod'
  *
  * const result = await chat({
- *   adapter: openaiText(),
- *   model: 'gpt-4o',
+ *   adapter: openaiText('gpt-4o'),
  *   messages: [{ role: 'user', content: 'Research and summarize the topic' }],
  *   tools: [researchTool, analyzeTool],
  *   outputSchema: z.object({
@@ -1033,12 +943,11 @@ class TextEngine<
  * ```
  */
 export function chat<
-  TAdapter extends TextAdapter<ReadonlyArray<string>, object, any, any, any>,
-  TModel extends TextModels<TAdapter>,
+  TAdapter extends AnyTextAdapter,
   TSchema extends z.ZodType | undefined = undefined,
   TStream extends boolean = true,
 >(
-  options: TextActivityOptions<TAdapter, TModel, TSchema, TStream>,
+  options: TextActivityOptions<TAdapter, TSchema, TStream>,
 ): TextActivityResult<TSchema, TStream> {
   const { outputSchema, stream } = options
 
@@ -1046,8 +955,7 @@ export function chat<
   if (outputSchema) {
     return runAgenticStructuredOutput(
       options as unknown as TextActivityOptions<
-        TextAdapter<ReadonlyArray<string>, object, any, any, any>,
-        string,
+        AnyTextAdapter,
         z.ZodType,
         boolean
       >,
@@ -1058,8 +966,7 @@ export function chat<
   if (stream === false) {
     return runNonStreamingText(
       options as unknown as TextActivityOptions<
-        TextAdapter<ReadonlyArray<string>, object, any, any, any>,
-        string,
+        AnyTextAdapter,
         undefined,
         false
       >,
@@ -1068,12 +975,7 @@ export function chat<
 
   // Otherwise, run streaming text (default)
   return runStreamingText(
-    options as unknown as TextActivityOptions<
-      TextAdapter<ReadonlyArray<string>, object, any, any, any>,
-      string,
-      undefined,
-      true
-    >,
+    options as unknown as TextActivityOptions<AnyTextAdapter, undefined, true>,
   ) as TextActivityResult<TSchema, TStream>
 }
 
@@ -1081,19 +983,14 @@ export function chat<
  * Run streaming text (agentic or one-shot depending on tools)
  */
 async function* runStreamingText(
-  options: TextActivityOptions<
-    TextAdapter<ReadonlyArray<string>, object, any, any, any>,
-    string,
-    undefined,
-    true
-  >,
+  options: TextActivityOptions<AnyTextAdapter, undefined, true>,
 ): AsyncIterable<StreamChunk> {
   const { adapter, ...textOptions } = options
+  const model = adapter.model
 
   const engine = new TextEngine({
     adapter,
-    params: textOptions as TextOptions<
-      string,
+    params: { ...textOptions, model } as TextOptions<
       Record<string, any>,
       undefined,
       Record<string, any>
@@ -1110,21 +1007,11 @@ async function* runStreamingText(
  * Runs the full agentic loop (if tools are provided) but returns collected text.
  */
 function runNonStreamingText(
-  options: TextActivityOptions<
-    TextAdapter<ReadonlyArray<string>, object, any, any, any>,
-    string,
-    undefined,
-    false
-  >,
+  options: TextActivityOptions<AnyTextAdapter, undefined, false>,
 ): Promise<string> {
   // Run the streaming text and collect all text using streamToText
   const stream = runStreamingText(
-    options as unknown as TextActivityOptions<
-      TextAdapter<ReadonlyArray<string>, object, any, any, any>,
-      string,
-      undefined,
-      true
-    >,
+    options as unknown as TextActivityOptions<AnyTextAdapter, undefined, true>,
   )
 
   return streamToText(stream)
@@ -1137,14 +1024,10 @@ function runNonStreamingText(
  * 3. Validate and return the structured result
  */
 async function runAgenticStructuredOutput<TSchema extends z.ZodType>(
-  options: TextActivityOptions<
-    TextAdapter<ReadonlyArray<string>, object, any, any, any>,
-    string,
-    TSchema,
-    boolean
-  >,
+  options: TextActivityOptions<AnyTextAdapter, TSchema, boolean>,
 ): Promise<z.infer<TSchema>> {
   const { adapter, outputSchema, ...textOptions } = options
+  const model = adapter.model
 
   if (!outputSchema) {
     throw new Error('outputSchema is required for structured output')
@@ -1153,8 +1036,7 @@ async function runAgenticStructuredOutput<TSchema extends z.ZodType>(
   // Create the engine and run the agentic loop
   const engine = new TextEngine({
     adapter,
-    params: textOptions as TextOptions<
-      string,
+    params: { ...textOptions, model } as TextOptions<
       Record<string, any>,
       undefined,
       Record<string, any>
@@ -1174,14 +1056,8 @@ async function runAgenticStructuredOutput<TSchema extends z.ZodType>(
   const {
     tools: _tools,
     agentLoopStrategy: _als,
-    model,
     ...structuredTextOptions
   } = textOptions
-
-  // Ensure model is present (should be resolved by chat() function)
-  if (!model) {
-    throw new Error('Model is required for structured output')
-  }
 
   // Convert the Zod schema to JSON Schema before passing to the adapter
   const jsonSchema = convertZodToJsonSchema(outputSchema)
@@ -1209,62 +1085,6 @@ async function runAgenticStructuredOutput<TSchema extends z.ZodType>(
   }
 
   return validationResult.data
-}
-
-// ===========================
-// Text Options Helper
-// ===========================
-
-/**
- * Type-safe helper to create text options with model-specific provider options.
- *
- * @deprecated Use `createOptions` from `@tanstack/ai` instead, which supports all adapter types
- * (text, embedding, summarize, image, video) with the same type-safe model inference.
- *
- * @example
- * ```ts
- * import { createChatOptions, chat } from '@tanstack/ai'
- * import { openaiText } from '@tanstack/ai-openai'
- *
- * const opts = createChatOptions({
- *   adapter: openaiText(),
- *   model: 'gpt-4o',
- *   messages: [],
- * })
- * ```
- */
-export function textOptions<
-  TAdapter extends AIAdapter<any, any, any, any, any>,
-  const TModel extends TAdapter extends AIAdapter<
-    infer Models,
-    any,
-    any,
-    any,
-    any
-  >
-    ? Models[number]
-    : string,
->(
-  options: Omit<
-    TextStreamOptionsUnion<TAdapter>,
-    'modelOptions' | 'model' | 'messages' | 'abortController'
-  > & {
-    adapter: TAdapter
-    model: TModel
-    modelOptions?: TAdapter extends AIAdapter<
-      any,
-      any,
-      any,
-      any,
-      infer ModelProviderOptions
-    >
-      ? TModel extends keyof ModelProviderOptions
-        ? ModelProviderOptions[TModel]
-        : never
-      : never
-  },
-): typeof options {
-  return options
 }
 
 // Re-export adapter types

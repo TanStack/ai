@@ -24,13 +24,11 @@ export const kind = 'summarize' as const
 // Type Extraction Helpers
 // ===========================
 
-/** Extract model types from a SummarizeAdapter */
-export type SummarizeModels<TAdapter> =
-  TAdapter extends SummarizeAdapter<infer M, any> ? M[number] : string
-
-/** Extract provider options from a SummarizeAdapter */
+/** Extract provider options from a SummarizeAdapter via ~types */
 export type SummarizeProviderOptions<TAdapter> =
-  TAdapter extends SummarizeAdapter<any, infer P> ? P : object
+  TAdapter extends SummarizeAdapter<any, any>
+    ? TAdapter['~types']['providerOptions']
+    : object
 
 // ===========================
 // Activity Options Type
@@ -38,20 +36,17 @@ export type SummarizeProviderOptions<TAdapter> =
 
 /**
  * Options for the summarize activity.
+ * The model is extracted from the adapter's model property.
  *
  * @template TAdapter - The summarize adapter type
- * @template TModel - The model name type (inferred from adapter)
  * @template TStream - Whether to stream the output
  */
 export interface SummarizeActivityOptions<
-  TAdapter extends SummarizeAdapter<ReadonlyArray<string>, object>,
-  TModel extends SummarizeModels<TAdapter>,
+  TAdapter extends SummarizeAdapter<string, object>,
   TStream extends boolean = false,
 > {
-  /** The summarize adapter to use */
+  /** The summarize adapter to use (must be created with a model) */
   adapter: TAdapter & { kind: typeof kind }
-  /** The model name (autocompletes based on adapter) */
-  model: TModel
   /** The text to summarize */
   text: string
   /** Maximum length of the summary (in words or characters, provider-dependent) */
@@ -109,8 +104,7 @@ function createId(prefix: string): string {
  * import { openaiSummarize } from '@tanstack/ai-openai'
  *
  * const result = await summarize({
- *   adapter: openaiSummarize(),
- *   model: 'gpt-4o-mini',
+ *   adapter: openaiSummarize('gpt-4o-mini'),
  *   text: 'Long article text here...'
  * })
  *
@@ -120,8 +114,7 @@ function createId(prefix: string): string {
  * @example Summarization with style
  * ```ts
  * const result = await summarize({
- *   adapter: openaiSummarize(),
- *   model: 'gpt-4o-mini',
+ *   adapter: openaiSummarize('gpt-4o-mini'),
  *   text: 'Long article text here...',
  *   style: 'bullet-points',
  *   maxLength: 100
@@ -131,8 +124,7 @@ function createId(prefix: string): string {
  * @example Focused summarization
  * ```ts
  * const result = await summarize({
- *   adapter: openaiSummarize(),
- *   model: 'gpt-4o-mini',
+ *   adapter: openaiSummarize('gpt-4o-mini'),
  *   text: 'Long technical document...',
  *   focus: ['key findings', 'methodology']
  * })
@@ -141,8 +133,7 @@ function createId(prefix: string): string {
  * @example Streaming summarization
  * ```ts
  * for await (const chunk of summarize({
- *   adapter: openaiSummarize(),
- *   model: 'gpt-4o-mini',
+ *   adapter: openaiSummarize('gpt-4o-mini'),
  *   text: 'Long article text here...',
  *   stream: true
  * })) {
@@ -153,19 +144,17 @@ function createId(prefix: string): string {
  * ```
  */
 export function summarize<
-  TAdapter extends SummarizeAdapter<ReadonlyArray<string>, object>,
-  TModel extends SummarizeModels<TAdapter>,
+  TAdapter extends SummarizeAdapter<string, object>,
   TStream extends boolean = false,
 >(
-  options: SummarizeActivityOptions<TAdapter, TModel, TStream>,
+  options: SummarizeActivityOptions<TAdapter, TStream>,
 ): SummarizeActivityResult<TStream> {
   const { stream } = options
 
   if (stream) {
     return runStreamingSummarize(
       options as unknown as SummarizeActivityOptions<
-        SummarizeAdapter<ReadonlyArray<string>, object>,
-        string,
+        SummarizeAdapter<string, object>,
         true
       >,
     ) as SummarizeActivityResult<TStream>
@@ -173,8 +162,7 @@ export function summarize<
 
   return runSummarize(
     options as unknown as SummarizeActivityOptions<
-      SummarizeAdapter<ReadonlyArray<string>, object>,
-      string,
+      SummarizeAdapter<string, object>,
       false
     >,
   ) as SummarizeActivityResult<TStream>
@@ -184,13 +172,10 @@ export function summarize<
  * Run non-streaming summarization
  */
 async function runSummarize(
-  options: SummarizeActivityOptions<
-    SummarizeAdapter<ReadonlyArray<string>, object>,
-    string,
-    false
-  >,
+  options: SummarizeActivityOptions<SummarizeAdapter<string, object>, false>,
 ): Promise<SummarizationResult> {
-  const { adapter, text, maxLength, style, focus, model } = options
+  const { adapter, text, maxLength, style, focus } = options
+  const model = adapter.model
   const requestId = createId('summarize')
   const inputLength = text.length
   const startTime = Date.now()
@@ -233,13 +218,10 @@ async function runSummarize(
  * to non-streaming and yields the result as a single chunk.
  */
 async function* runStreamingSummarize(
-  options: SummarizeActivityOptions<
-    SummarizeAdapter<ReadonlyArray<string>, object>,
-    string,
-    true
-  >,
+  options: SummarizeActivityOptions<SummarizeAdapter<string, object>, true>,
 ): AsyncIterable<StreamChunk> {
-  const { adapter, text, maxLength, style, focus, model } = options
+  const { adapter, text, maxLength, style, focus } = options
+  const model = adapter.model
 
   const summarizeOptions: SummarizationOptions = {
     model,
@@ -280,6 +262,26 @@ async function* runStreamingSummarize(
   }
 }
 
+// ===========================
+// Options Factory
+// ===========================
+
+/**
+ * Create typed options for the summarize() function without executing.
+ */
+export function createSummarizeOptions<
+  TAdapter extends SummarizeAdapter<string, object>,
+  TStream extends boolean = false,
+>(
+  options: SummarizeActivityOptions<TAdapter, TStream>,
+): SummarizeActivityOptions<TAdapter, TStream> {
+  return options
+}
+
 // Re-export adapter types
-export type { SummarizeAdapter, SummarizeAdapterConfig } from './adapter'
+export type {
+  SummarizeAdapter,
+  SummarizeAdapterConfig,
+  AnySummarizeAdapter,
+} from './adapter'
 export { BaseSummarizeAdapter } from './adapter'
