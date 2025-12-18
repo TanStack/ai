@@ -88,17 +88,17 @@ interface MockAudioMetadata {
 /**
  * Metadata for mock text content parts - no specific options
  */
-interface MockTextMetadata {}
+interface MockTextMetadata { }
 
 /**
  * Metadata for mock video content parts - no specific options
  */
-interface MockVideoMetadata {}
+interface MockVideoMetadata { }
 
 /**
  * Metadata for mock document content parts - no specific options
  */
-interface MockDocumentMetadata {}
+interface MockDocumentMetadata { }
 
 /**
  * Map of modality types to their mock-specific metadata types.
@@ -157,10 +157,10 @@ type MockChatModel = (typeof MOCK_CHAT_MODELS)[number]
  */
 type MockChatModelProviderOptionsByName = {
   'mock-gpt-5': MockBaseOptions &
-    MockReasoningOptions &
-    MockStructuredOutputOptions &
-    MockToolsOptions &
-    MockStreamingOptions
+  MockReasoningOptions &
+  MockStructuredOutputOptions &
+  MockToolsOptions &
+  MockStreamingOptions
   'mock-gpt-3.5-turbo': MockBaseOptions & MockStreamingOptions
 }
 
@@ -181,16 +181,16 @@ type MockModelInputModalitiesByName = {
  */
 type ResolveProviderOptions<TModel extends string> =
   TModel extends keyof MockChatModelProviderOptionsByName
-    ? MockChatModelProviderOptionsByName[TModel]
-    : MockBaseOptions
+  ? MockChatModelProviderOptionsByName[TModel]
+  : MockBaseOptions
 
 /**
  * Resolve input modalities for a specific mock model.
  */
 type ResolveInputModalities<TModel extends string> =
   TModel extends keyof MockModelInputModalitiesByName
-    ? MockModelInputModalitiesByName[TModel]
-    : readonly ['text', 'image', 'audio']
+  ? MockModelInputModalitiesByName[TModel]
+  : readonly ['text', 'image', 'audio']
 
 // ===========================
 // Mock Adapter Implementation
@@ -526,8 +526,8 @@ describe('Type Safety Tests for chat() function', () => {
             {
               role: 'user',
               content: [
-                // @ts-expect-error - mock-gpt-5 does not support audio input
                 {
+                  // @ts-expect-error - mock-gpt-5 does not support audio input
                   type: 'audio',
                   source: { type: 'data', value: 'base64data' },
                 },
@@ -544,8 +544,8 @@ describe('Type Safety Tests for chat() function', () => {
             {
               role: 'user',
               content: [
-                // @ts-expect-error - mock-gpt-5 does not support video input
                 {
+                  // @ts-expect-error - mock-gpt-5 does not support video input
                   type: 'video',
                   source: {
                     type: 'url',
@@ -565,13 +565,12 @@ describe('Type Safety Tests for chat() function', () => {
             {
               role: 'user',
               content: [
-                // @ts-expect-error - mock-gpt-5 does not support document input
                 {
+                  // @ts-expect-error - mock-gpt-5 does not support document input
                   type: 'document',
                   source: {
-                    type: 'base64',
-                    value: 'base64data',
-                    mediaType: 'application/pdf',
+                    type: 'url',
+                    value: 'https://example.com/doc.pdf',
                   },
                 },
               ],
@@ -610,8 +609,8 @@ describe('Type Safety Tests for chat() function', () => {
             {
               role: 'user',
               content: [
-                // @ts-expect-error - mock-gpt-3.5-turbo does not support image input
                 {
+                  // @ts-expect-error - mock-gpt-3.5-turbo does not support image input
                   type: 'image',
                   source: {
                     type: 'url',
@@ -631,8 +630,8 @@ describe('Type Safety Tests for chat() function', () => {
             {
               role: 'user',
               content: [
-                // @ts-expect-error - mock-gpt-3.5-turbo does not support audio input
                 {
+                  // @ts-expect-error - mock-gpt-3.5-turbo does not support audio input
                   type: 'audio',
                   source: {
                     type: 'base64',
@@ -653,8 +652,8 @@ describe('Type Safety Tests for chat() function', () => {
             {
               role: 'user',
               content: [
-                // @ts-expect-error - mock-gpt-3.5-turbo does not support video input
                 {
+                  // @ts-expect-error - mock-gpt-3.5-turbo does not support video input
                   type: 'video',
                   source: {
                     type: 'url',
@@ -674,13 +673,12 @@ describe('Type Safety Tests for chat() function', () => {
             {
               role: 'user',
               content: [
-                // @ts-expect-error - mock-gpt-3.5-turbo does not support document input
                 {
+                  // @ts-expect-error - mock-gpt-3.5-turbo does not support document input
                   type: 'document',
                   source: {
-                    type: 'base64',
-                    value: 'base64data',
-                    mediaType: 'application/pdf',
+                    type: "url",
+                    value: 'https://example.com/doc.pdf',
                   },
                 },
               ],
@@ -883,8 +881,8 @@ describe('Type Safety Tests for chat() function', () => {
           {
             role: 'user',
             content: [
-              // @ts-expect-error - mock-gpt-3.5-turbo doesn't support reasoning OR image input
               {
+                // @ts-expect-error - mock-gpt-3.5-turbo doesn't support reasoning OR image input
                 type: 'image',
                 source: { type: 'url', value: 'https://example.com/image.png' },
               },
