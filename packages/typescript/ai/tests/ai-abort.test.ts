@@ -1,7 +1,11 @@
 import { describe, it, expect } from 'vitest'
 import { z } from 'zod'
 import { chat } from '../src/activities/chat'
-import type { TextOptions, StreamChunk, DefaultMessageMetadataByModality } from '../src/types'
+import type {
+  TextOptions,
+  StreamChunk,
+  DefaultMessageMetadataByModality,
+} from '../src/types'
 import { BaseTextAdapter } from '../src/activities/chat/adapter'
 
 // Mock adapter that tracks abort signal usage

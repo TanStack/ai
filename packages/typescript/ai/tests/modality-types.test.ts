@@ -135,9 +135,7 @@ describe('Multimodal Type Constraints', () => {
   })
 
   describe('ConstrainedModelMessage for text+image models', () => {
-    type TextImageInput = CreateInputModalitiesTypes<
-      readonly ['text', 'image']
-    >
+    type TextImageInput = CreateInputModalitiesTypes<readonly ['text', 'image']>
     type TextImageMessage = ConstrainedModelMessage<TextImageInput>
 
     it('should allow TextPart', () => {
@@ -181,9 +179,7 @@ describe('Multimodal Type Constraints', () => {
   })
 
   describe('ConstrainedModelMessage for text+audio models', () => {
-    type TextAudioInput = CreateInputModalitiesTypes<
-      readonly ['text', 'audio']
-    >
+    type TextAudioInput = CreateInputModalitiesTypes<readonly ['text', 'audio']>
     type TextAudioMessage = ConstrainedModelMessage<TextAudioInput>
 
     it('should allow TextPart', () => {

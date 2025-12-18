@@ -65,7 +65,10 @@ class MockSummarizeAdapter<
 
   private mockResult: SummarizationResult
 
-  constructor(mockResult?: SummarizationResult, model: TModel = 'model-a' as TModel) {
+  constructor(
+    mockResult?: SummarizationResult,
+    model: TModel = 'model-a' as TModel,
+  ) {
     super({}, model)
     this.mockResult = mockResult ?? {
       id: 'test-id',

@@ -173,7 +173,9 @@ export class AnthropicSummarizeAdapter<
  * @param config - Optional additional configuration
  * @returns Configured Anthropic summarize adapter instance with resolved types
  */
-export function createAnthropicSummarize<TModel extends AnthropicSummarizeModel>(
+export function createAnthropicSummarize<
+  TModel extends AnthropicSummarizeModel,
+>(
   model: TModel,
   apiKey: string,
   config?: Omit<AnthropicSummarizeConfig, 'apiKey'>,

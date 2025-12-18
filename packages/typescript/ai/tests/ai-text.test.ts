@@ -5,7 +5,13 @@ import { chat } from '../src/activities/chat'
 import { BaseTextAdapter } from '../src/activities/chat/adapter'
 import { aiEventClient } from '../src/event-client.js'
 import { maxIterations } from '../src/activities/chat/agent-loop-strategies'
-import type { DefaultMessageMetadataByModality, ModelMessage, StreamChunk, TextOptions, Tool } from '../src/types'
+import type {
+  DefaultMessageMetadataByModality,
+  ModelMessage,
+  StreamChunk,
+  TextOptions,
+  Tool,
+} from '../src/types'
 
 // Mock event client to track events
 const eventListeners = new Map<string, Set<(...args: Array<any>) => void>>()
