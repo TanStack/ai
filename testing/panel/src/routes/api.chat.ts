@@ -53,27 +53,6 @@ const addToCartToolServer = addToCartToolDef.server((args) => ({
 
 type Provider = 'openai' | 'anthropic' | 'gemini' | 'ollama'
 
-// Pre-define typed adapter configurations with full type inference
-// This pattern gives you model autocomplete at definition time
-const adapterConfig = {
-  anthropic: () =>
-    createChatOptions({
-      adapter: anthropicText('claude-sonnet-4-5'),
-    }),
-  gemini: () =>
-    createChatOptions({
-      adapter: geminiText('gemini-2.0-flash'),
-    }),
-  ollama: () =>
-    createChatOptions({
-      adapter: ollamaText('mistral:7b'),
-    }),
-  openai: () =>
-    createChatOptions({
-      adapter: openaiText('gpt-4o'),
-    }),
-}
-
 /**
  * Wraps an adapter to intercept chatStream and record raw chunks from the adapter
  * before they're processed by the stream processor.
@@ -176,15 +155,36 @@ export const Route = createFileRoute('/api/chat')({
         const messages = body.messages
         const data = body.data || {}
 
-        // Extract provider and traceId from data
+        // Extract provider, model, and traceId from data
         const provider: Provider = data.provider || 'openai'
+        const model: string = data.model || 'gpt-4o'
         const traceId: string | undefined = data.traceId
 
         try {
+          // Pre-define typed adapter configurations with full type inference
+          // Model is passed to the adapter factory function for type-safe autocomplete
+          const adapterConfig = {
+            anthropic: () =>
+              createChatOptions({
+                adapter: anthropicText((model || 'claude-sonnet-4-5') as any),
+              }),
+            gemini: () =>
+              createChatOptions({
+                adapter: geminiText((model || 'gemini-2.0-flash') as any),
+              }),
+            ollama: () =>
+              createChatOptions({
+                adapter: ollamaText((model || 'mistral:7b') as any),
+              }),
+            openai: () =>
+              createChatOptions({
+                adapter: openaiText((model || 'gpt-4o') as any),
+              }),
+          }
+
           // Get typed adapter options using createChatOptions pattern
           const options = adapterConfig[provider]()
           let { adapter } = options
-          const model = adapter.model
 
           console.log(`>> model: ${model} on provider: ${provider}`)
 

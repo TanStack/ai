@@ -5,30 +5,35 @@ import { openaiImage } from '@tanstack/ai-openai'
 
 type Provider = 'openai' | 'gemini'
 
-// Pre-define typed adapter configurations with full type inference
-const adapterConfig = {
-  gemini: () =>
-    createImageOptions({
-      adapter: geminiImage('gemini-2.0-flash-preview-image-generation' as any),
-    }),
-  openai: () =>
-    createImageOptions({
-      adapter: openaiImage('gpt-image-1' as any),
-    }),
-}
-
 export const Route = createFileRoute('/api/image')({
   server: {
     handlers: {
       POST: async ({ request }) => {
         const body = await request.json()
         const { prompt, numberOfImages = 1, size = '1024x1024' } = body
-        const provider: Provider = body.provider || 'openai'
+        const data = body.data || {}
+        const provider: Provider = data.provider || body.provider || 'openai'
+        const model: string = data.model || body.model || 'gpt-image-1'
 
         try {
+          // Pre-define typed adapter configurations with full type inference
+          // Model is passed to the adapter factory function for type-safe autocomplete
+          const adapterConfig = {
+            gemini: () =>
+              createImageOptions({
+                adapter: geminiImage(
+                  (model ||
+                    'gemini-2.0-flash-preview-image-generation') as any,
+                ),
+              }),
+            openai: () =>
+              createImageOptions({
+                adapter: openaiImage((model || 'gpt-image-1') as any),
+              }),
+          }
+
           // Get typed adapter options using createImageOptions pattern
           const options = adapterConfig[provider]()
-          const model = options.adapter.model
 
           console.log(
             `>> image generation with model: ${model} on provider: ${provider}`,
