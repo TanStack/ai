@@ -68,12 +68,12 @@ describe('OpenAI adapter option mapping', () => {
     const responsesCreate = vi.fn().mockResolvedValueOnce(mockStream)
 
     const adapter = createAdapter('gpt-4o-mini')
-    // Replace the internal OpenAI SDK client with our mock
-    ;(adapter as any).client = {
-      responses: {
-        create: responsesCreate,
-      },
-    }
+      // Replace the internal OpenAI SDK client with our mock
+      ; (adapter as any).client = {
+        responses: {
+          create: responsesCreate,
+        },
+      }
 
     const modelOptions: OpenAITextProviderOptions = {
       tool_choice: 'required',
@@ -99,12 +99,10 @@ describe('OpenAI adapter option mapping', () => {
         { role: 'tool', toolCallId: 'call_weather', content: '{"temp":72}' },
       ],
       tools: [weatherTool],
-      options: {
-        temperature: 0.25,
-        topP: 0.6,
-        maxTokens: 1024,
-        metadata: { requestId: 'req-42' },
-      },
+      temperature: 0.25,
+      topP: 0.6,
+      maxTokens: 1024,
+      metadata: { requestId: 'req-42' },
       modelOptions,
     })) {
       chunks.push(chunk)

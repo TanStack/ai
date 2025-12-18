@@ -263,16 +263,12 @@ describe('Type Safety Tests for chat() function', () => {
       chat({
         adapter: mockText('mock-gpt-5'),
         messages: [{ role: 'user', content: 'Hello' }],
-        options: {
-          temperature: 0.7,
-        },
+        temperature: 0.7,
       })
       chat({
         adapter: mockText('mock-gpt-3.5-turbo'),
         messages: [{ role: 'user', content: 'Hello' }],
-        options: {
-          temperature: 0.7,
-        },
+        temperature: 0.7,
       })
     })
 
@@ -291,24 +287,20 @@ describe('Type Safety Tests for chat() function', () => {
       })
     })
 
-    it('common options only accept valid keys', () => {
+    it('common options only accept valid keys at root level', () => {
       chat({
         adapter: mockText('mock-gpt-5'),
         messages: [{ role: 'user', content: 'Hello' }],
-        options: {
-          temperature: 0.7,
-          // @ts-expect-error - invalid common option
-          random_option: true,
-        },
+        temperature: 0.7,
+        // @ts-expect-error - invalid option at root level
+        random_option: true,
       })
       chat({
         adapter: mockText('mock-gpt-3.5-turbo'),
         messages: [{ role: 'user', content: 'Hello' }],
-        options: {
-          temperature: 0.7,
-          // @ts-expect-error - invalid common option
-          random_option: true,
-        },
+        temperature: 0.7,
+        // @ts-expect-error - invalid option at root level
+        random_option: true,
       })
     })
     describe('mock-gpt-5 (full featured model)', () => {

@@ -154,7 +154,7 @@ describe('generate function', () => {
         adapter,
         messages,
         systemPrompts: ['Be helpful'],
-        options: { temperature: 0.7 },
+        temperature: 0.7,
       })
       for await (const _ of result) {
         // Consume

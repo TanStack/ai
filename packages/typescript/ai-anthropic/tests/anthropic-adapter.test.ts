@@ -29,7 +29,7 @@ vi.mock('@anthropic-ai/sdk', () => {
     beta = client.beta
     messages = client.messages
 
-    constructor(_: { apiKey: string }) {}
+    constructor(_: { apiKey: string }) { }
   }
 
   return { default: MockAnthropic }
@@ -125,10 +125,8 @@ describe('Anthropic adapter option mapping', () => {
         { role: 'tool', toolCallId: 'call_weather', content: '{"temp":72}' },
       ],
       tools: [weatherTool],
-      options: {
-        maxTokens: 3000,
-        temperature: 0.4,
-      },
+      maxTokens: 3000,
+      temperature: 0.4,
       modelOptions: providerOptions,
     })) {
       chunks.push(chunk)

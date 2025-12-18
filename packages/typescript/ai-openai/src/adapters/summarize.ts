@@ -12,7 +12,7 @@ import type { OpenAIClientConfig } from '../utils'
 /**
  * Configuration for OpenAI summarize adapter
  */
-export interface OpenAISummarizeConfig extends OpenAIClientConfig {}
+export interface OpenAISummarizeConfig extends OpenAIClientConfig { }
 
 /**
  * OpenAI-specific provider options for summarization
@@ -59,10 +59,8 @@ export class OpenAISummarizeAdapter<
       model: options.model,
       messages: [{ role: 'user', content: options.text }],
       systemPrompts: [systemPrompt],
-      options: {
-        maxTokens: options.maxLength,
-        temperature: 0.3,
-      },
+      maxTokens: options.maxLength,
+      temperature: 0.3,
     })) {
       if (chunk.type === 'content') {
         summary = chunk.content
@@ -87,10 +85,8 @@ export class OpenAISummarizeAdapter<
       model: options.model,
       messages: [{ role: 'user', content: options.text }],
       systemPrompts: [systemPrompt],
-      options: {
-        maxTokens: options.maxLength,
-        temperature: 0.3,
-      },
+      maxTokens: options.maxLength,
+      temperature: 0.3,
     })
   }
 

@@ -65,8 +65,14 @@ export interface TextActivityOptions<
   systemPrompts?: TextOptions['systemPrompts']
   /** Tools for function calling (auto-executed when called) */
   tools?: TextOptions['tools']
-  /** Additional options like temperature, maxTokens, etc. */
-  options?: TextOptions['options']
+  /** Controls the randomness of the output. Higher values make output more random. Range: [0.0, 2.0] */
+  temperature?: TextOptions['temperature']
+  /** Nucleus sampling parameter. The model considers tokens with topP probability mass. */
+  topP?: TextOptions['topP']
+  /** The maximum number of tokens to generate in the response. */
+  maxTokens?: TextOptions['maxTokens']
+  /** Additional metadata to attach to the request. */
+  metadata?: TextOptions['metadata']
   /** Model-specific provider options (type comes from adapter) */
   modelOptions?: TAdapter['~types']['providerOptions']
   /** AbortController for cancellation */
@@ -158,8 +164,8 @@ export type TextActivityResult<
 > = TSchema extends z.ZodType
   ? Promise<z.infer<TSchema>>
   : TStream extends false
-    ? Promise<string>
-    : AsyncIterable<StreamChunk>
+  ? Promise<string>
+  : AsyncIterable<StreamChunk>
 
 // ===========================
 // ChatEngine Implementation
@@ -265,7 +271,14 @@ class TextEngine<
 
   private beforeRun(): void {
     this.streamStartTime = Date.now()
-    const { model, tools, options, modelOptions, conversationId } = this.params
+    const { model, tools, temperature, topP, maxTokens, metadata, modelOptions, conversationId } = this.params
+
+    // Gather flattened options into an object for event emission
+    const options: Record<string, unknown> = {}
+    if (temperature !== undefined) options.temperature = temperature
+    if (topP !== undefined) options.topP = topP
+    if (maxTokens !== undefined) options.maxTokens = maxTokens
+    if (metadata !== undefined) options.metadata = metadata
 
     aiEventClient.emit('text:started', {
       requestId: this.requestId,
@@ -278,7 +291,7 @@ class TextEngine<
       timestamp: Date.now(),
       clientId: conversationId,
       toolNames: tools?.map((t) => t.name),
-      options: options as Record<string, unknown> | undefined,
+      options: Object.keys(options).length > 0 ? options : undefined,
       modelOptions: modelOptions as Record<string, unknown> | undefined,
     })
 
@@ -341,8 +354,7 @@ class TextEngine<
   }
 
   private async *streamModelResponse(): AsyncGenerator<StreamChunk> {
-    const adapterOptions = this.params.options || {}
-    const modelOptions = this.params.modelOptions
+    const { temperature, topP, maxTokens, metadata, modelOptions } = this.params
     const tools = this.params.tools
 
     // Convert tool schemas from Zod to JSON Schema before passing to adapter
@@ -360,7 +372,10 @@ class TextEngine<
       model: this.params.model,
       messages: this.messages,
       tools: toolsWithJsonSchemas,
-      options: adapterOptions,
+      temperature,
+      topP,
+      maxTokens,
+      metadata,
       request: this.effectiveRequest,
       modelOptions,
       systemPrompts: this.systemPrompts,

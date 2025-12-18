@@ -41,7 +41,7 @@ import type { GeminiClientConfig } from '../utils'
 /**
  * Configuration for Gemini text adapter
  */
-export interface GeminiTextConfig extends GeminiClientConfig {}
+export interface GeminiTextConfig extends GeminiClientConfig { }
 
 /**
  * Gemini-specific provider options for text/chat
@@ -58,8 +58,8 @@ export type GeminiTextProviderOptions = ExternalTextProviderOptions
  */
 type ResolveProviderOptions<TModel extends string> =
   TModel extends keyof GeminiChatModelProviderOptionsByName
-    ? GeminiChatModelProviderOptionsByName[TModel]
-    : GeminiTextProviderOptions
+  ? GeminiChatModelProviderOptionsByName[TModel]
+  : GeminiTextProviderOptions
 
 /**
  * Resolve input modalities for a specific model.
@@ -67,8 +67,8 @@ type ResolveProviderOptions<TModel extends string> =
  */
 type ResolveInputModalities<TModel extends string> =
   TModel extends keyof GeminiModelInputModalitiesByName
-    ? GeminiModelInputModalitiesByName[TModel]
-    : readonly ['text', 'image', 'audio', 'video', 'document']
+  ? GeminiModelInputModalitiesByName[TModel]
+  : readonly ['text', 'image', 'audio', 'video', 'document']
 
 // ===========================
 // Adapter Implementation
@@ -84,7 +84,7 @@ export class GeminiTextAdapter<
   TModel extends (typeof GEMINI_MODELS)[number],
   TProviderOptions extends object = ResolveProviderOptions<TModel>,
   TInputModalities extends ReadonlyArray<Modality> =
-    ResolveInputModalities<TModel>,
+  ResolveInputModalities<TModel>,
 > extends BaseTextAdapter<
   TModel,
   TProviderOptions,
@@ -352,10 +352,10 @@ export class GeminiTextAdapter<
           finishReason: toolCallMap.size > 0 ? 'tool_calls' : 'stop',
           usage: chunk.usageMetadata
             ? {
-                promptTokens: chunk.usageMetadata.promptTokenCount ?? 0,
-                completionTokens: chunk.usageMetadata.thoughtsTokenCount ?? 0,
-                totalTokens: chunk.usageMetadata.totalTokenCount ?? 0,
-              }
+              promptTokens: chunk.usageMetadata.promptTokenCount ?? 0,
+              completionTokens: chunk.usageMetadata.thoughtsTokenCount ?? 0,
+              totalTokens: chunk.usageMetadata.totalTokenCount ?? 0,
+            }
             : undefined,
         }
       }
@@ -422,9 +422,9 @@ export class GeminiTextAdapter<
           try {
             parsedArgs = toolCall.function.arguments
               ? (JSON.parse(toolCall.function.arguments) as Record<
-                  string,
-                  unknown
-                >)
+                string,
+                unknown
+              >)
               : {}
           } catch {
             parsedArgs = toolCall.function.arguments as unknown as Record<
@@ -467,9 +467,9 @@ export class GeminiTextAdapter<
       contents: this.formatMessages(options.messages),
       config: {
         ...providerOpts,
-        temperature: options.options?.temperature,
-        topP: options.options?.topP,
-        maxOutputTokens: options.options?.maxTokens,
+        temperature: options.temperature,
+        topP: options.topP,
+        maxOutputTokens: options.maxTokens,
         systemInstruction: options.systemPrompts?.join('\n'),
         ...((providerOpts as Record<string, unknown> | undefined)
           ?.generationConfig as Record<string, unknown> | undefined),

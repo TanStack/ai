@@ -103,11 +103,9 @@ describe('GeminiAdapter through AI', () => {
       modelOptions: {
         generationConfig: { topK: 9 },
       },
-      options: {
-        temperature: 0.4,
-        topP: 0.8,
-        maxTokens: 256,
-      },
+      temperature: 0.4,
+      topP: 0.8,
+      maxTokens: 256,
       tools: [weatherTool],
     })) {
       /* consume stream */
@@ -211,11 +209,9 @@ describe('GeminiAdapter through AI', () => {
     for await (const _ of chat({
       adapter,
       messages: [{ role: 'user', content: 'Provide structured response' }],
-      options: {
-        temperature: 0.61,
-        topP: 0.37,
-        maxTokens: 512,
-      },
+      temperature: 0.61,
+      topP: 0.37,
+      maxTokens: 512,
       systemPrompts: ['Stay concise', 'Return JSON'],
       modelOptions: providerOptions,
     })) {
@@ -314,7 +310,7 @@ describe('GeminiAdapter through AI', () => {
       modelOptions: {
         generationConfig: { topK: 3 },
       },
-      options: { temperature: 0.2 },
+      temperature: 0.2,
     })) {
       received.push(chunk)
     }
