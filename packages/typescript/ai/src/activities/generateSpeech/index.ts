@@ -19,16 +19,12 @@ export const kind = 'tts' as const
 // Type Extraction Helpers
 // ===========================
 
-/** Extract model types from a TTSAdapter */
-export type TTSModels<TAdapter> =
-  TAdapter extends TTSAdapter<infer M, any, any> ? M[number] : string
-
 /**
- * Extract provider options from a TTSAdapter.
+ * Extract provider options from a TTSAdapter via ~types.
  */
 export type TTSProviderOptions<TAdapter> =
-  TAdapter extends TTSAdapter<any, infer TProviderOptions, any>
-    ? TProviderOptions
+  TAdapter extends TTSAdapter<any, any>
+    ? TAdapter['~types']['providerOptions']
     : object
 
 // ===========================
@@ -37,12 +33,12 @@ export type TTSProviderOptions<TAdapter> =
 
 /**
  * Options for the TTS activity.
- * The model is extracted from the adapter's selectedModel property.
+ * The model is extracted from the adapter's model property.
  *
- * @template TAdapter - The TTS adapter type (must have a selectedModel)
+ * @template TAdapter - The TTS adapter type
  */
 export interface TTSActivityOptions<
-  TAdapter extends TTSAdapter<ReadonlyArray<string>, object, string>,
+  TAdapter extends TTSAdapter<string, object>,
 > {
   /** The TTS adapter to use (must be created with a model) */
   adapter: TAdapter & { kind: typeof kind }
@@ -100,10 +96,10 @@ export type TTSActivityResult = Promise<TTSResult>
  * ```
  */
 export async function generateSpeech<
-  TAdapter extends TTSAdapter<ReadonlyArray<string>, object, string>,
+  TAdapter extends TTSAdapter<string, object>,
 >(options: TTSActivityOptions<TAdapter>): TTSActivityResult {
   const { adapter, ...rest } = options
-  const model = adapter.selectedModel
+  const model = adapter.model
 
   return adapter.generateSpeech({ ...rest, model })
 }
@@ -116,11 +112,11 @@ export async function generateSpeech<
  * Create typed options for the generateSpeech() function without executing.
  */
 export function createSpeechOptions<
-  TAdapter extends TTSAdapter<ReadonlyArray<string>, object, string>,
+  TAdapter extends TTSAdapter<string, object>,
 >(options: TTSActivityOptions<TAdapter>): TTSActivityOptions<TAdapter> {
   return options
 }
 
 // Re-export adapter types
-export type { TTSAdapter, TTSAdapterConfig } from './adapter'
+export type { TTSAdapter, TTSAdapterConfig, AnyTTSAdapter } from './adapter'
 export { BaseTTSAdapter } from './adapter'

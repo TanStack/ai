@@ -2,10 +2,10 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { z } from 'zod'
 import { chat } from '../src/activities/chat'
-import { BaseAdapter } from '../src/base-adapter'
+import { BaseTextAdapter } from '../src/activities/chat/adapter'
 import { aiEventClient } from '../src/event-client.js'
 import { maxIterations } from '../src/activities/chat/agent-loop-strategies'
-import type { ModelMessage, StreamChunk, TextOptions, Tool } from '../src/types'
+import type { DefaultMessageMetadataByModality, ModelMessage, StreamChunk, TextOptions, Tool } from '../src/types'
 
 // Mock event client to track events
 const eventListeners = new Map<string, Set<(...args: Array<any>) => void>>()
@@ -31,12 +31,11 @@ afterEach(() => {
 })
 
 // Mock adapter base class with consistent tracking helper
-class MockAdapter extends BaseAdapter<
-  readonly ['test-model'],
-  readonly [],
+class MockAdapter extends BaseTextAdapter<
+  'test-model',
   Record<string, any>,
-  Record<string, any>,
-  Record<string, any>
+  readonly ['text'],
+  DefaultMessageMetadataByModality
 > {
   public chatStreamCallCount = 0
   public chatStreamCalls: Array<{
@@ -48,10 +47,11 @@ class MockAdapter extends BaseAdapter<
     modelOptions?: any
   }> = []
 
-  readonly kind = 'text' as const
-  readonly model = 'test-model' as const
-  name = 'mock'
-  models = ['test-model'] as const
+  readonly name = 'mock'
+
+  constructor() {
+    super({}, 'test-model')
+  }
 
   // Helper method for consistent tracking when subclasses override chatStream
   protected trackStreamCall(options: TextOptions): void {
@@ -89,10 +89,6 @@ class MockAdapter extends BaseAdapter<
 
   async structuredOutput(_options: any): Promise<any> {
     return { data: {}, rawText: '{}' }
-  }
-
-  async summarize(_options: any): Promise<any> {
-    return { summary: 'test' }
   }
 }
 

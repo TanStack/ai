@@ -57,25 +57,19 @@ class MockTextAdapter<
   }
 }
 
-class MockSummarizeAdapter extends BaseSummarizeAdapter<
-  typeof MOCK_MODELS,
-  Record<string, unknown>,
-  (typeof MOCK_MODELS)[number]
-> {
+class MockSummarizeAdapter<
+  TModel extends MockModel = 'model-a',
+> extends BaseSummarizeAdapter<TModel, Record<string, unknown>> {
   readonly kind = 'summarize' as const
   readonly name = 'mock' as const
-  readonly models = MOCK_MODELS
 
   private mockResult: SummarizationResult
 
-  constructor(
-    mockResult?: SummarizationResult,
-    selectedModel: (typeof MOCK_MODELS)[number] = 'model-a',
-  ) {
-    super({}, selectedModel)
+  constructor(mockResult?: SummarizationResult, model: TModel = 'model-a' as TModel) {
+    super({}, model)
     this.mockResult = mockResult ?? {
       id: 'test-id',
-      model: 'model-a',
+      model: model,
       summary: 'This is a summary.',
       usage: { promptTokens: 100, completionTokens: 20, totalTokens: 120 },
     }

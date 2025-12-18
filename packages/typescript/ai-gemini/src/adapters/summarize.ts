@@ -53,19 +53,14 @@ export interface GeminiSummarizeAdapterOptions {
  * A tree-shakeable summarization adapter for Google Gemini
  */
 export class GeminiSummarizeAdapter<
-  TSelectedModel extends GeminiSummarizeModel | undefined = undefined,
-> implements SummarizeAdapter<
-  typeof GeminiSummarizeModels,
-  GeminiSummarizeProviderOptions,
-  TSelectedModel
-> {
+  TModel extends GeminiSummarizeModel,
+> implements SummarizeAdapter<TModel, GeminiSummarizeProviderOptions> {
   readonly kind = 'summarize' as const
   readonly name = 'gemini' as const
-  readonly models = GeminiSummarizeModels
-  readonly selectedModel: TSelectedModel
+  readonly model: TModel
 
   // Type-only property - never assigned at runtime
-  declare ~types: {
+  declare '~types': {
     providerOptions: GeminiSummarizeProviderOptions
   }
 
@@ -73,14 +68,14 @@ export class GeminiSummarizeAdapter<
 
   constructor(
     apiKeyOrClient: string | GoogleGenAI,
-    selectedModel?: TSelectedModel,
+    model: TModel,
     _options: GeminiSummarizeAdapterOptions = {},
   ) {
     this.client =
       typeof apiKeyOrClient === 'string'
         ? createGeminiClient({ apiKey: apiKeyOrClient })
         : apiKeyOrClient
-    this.selectedModel = selectedModel as TSelectedModel
+    this.model = model
   }
 
   async summarize(options: SummarizationOptions): Promise<SummarizationResult> {

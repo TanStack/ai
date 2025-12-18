@@ -27,24 +27,25 @@ export interface AnthropicSummarizeProviderOptions {
   maxTokens?: number
 }
 
+/** Model type for Anthropic summarization */
+export type AnthropicSummarizeModel = (typeof ANTHROPIC_MODELS)[number]
+
 /**
  * Anthropic Summarize Adapter
  *
  * Tree-shakeable adapter for Anthropic summarization functionality.
  * Import only what you need for smaller bundle sizes.
  */
-export class AnthropicSummarizeAdapter extends BaseSummarizeAdapter<
-  typeof ANTHROPIC_MODELS,
-  AnthropicSummarizeProviderOptions
-> {
+export class AnthropicSummarizeAdapter<
+  TModel extends AnthropicSummarizeModel,
+> extends BaseSummarizeAdapter<TModel, AnthropicSummarizeProviderOptions> {
   readonly kind = 'summarize' as const
   readonly name = 'anthropic' as const
-  readonly models = ANTHROPIC_MODELS
 
   private client: ReturnType<typeof createAnthropicClient>
 
-  constructor(config: AnthropicSummarizeConfig) {
-    super({})
+  constructor(config: AnthropicSummarizeConfig, model: TModel) {
+    super({}, model)
     this.client = createAnthropicClient(config)
   }
 
@@ -164,21 +165,34 @@ export class AnthropicSummarizeAdapter extends BaseSummarizeAdapter<
 }
 
 /**
- * Creates an Anthropic summarize adapter with explicit API key
+ * Creates an Anthropic summarize adapter with explicit API key.
+ * Type resolution happens here at the call site.
+ *
+ * @param model - The model name (e.g., 'claude-sonnet-4-5', 'claude-3-5-haiku-latest')
+ * @param apiKey - Your Anthropic API key
+ * @param config - Optional additional configuration
+ * @returns Configured Anthropic summarize adapter instance with resolved types
  */
-export function createAnthropicSummarize(
+export function createAnthropicSummarize<TModel extends AnthropicSummarizeModel>(
+  model: TModel,
   apiKey: string,
   config?: Omit<AnthropicSummarizeConfig, 'apiKey'>,
-): AnthropicSummarizeAdapter {
-  return new AnthropicSummarizeAdapter({ apiKey, ...config })
+): AnthropicSummarizeAdapter<TModel> {
+  return new AnthropicSummarizeAdapter({ apiKey, ...config }, model)
 }
 
 /**
- * Creates an Anthropic summarize adapter with automatic API key detection
+ * Creates an Anthropic summarize adapter with automatic API key detection.
+ * Type resolution happens here at the call site.
+ *
+ * @param model - The model name (e.g., 'claude-sonnet-4-5', 'claude-3-5-haiku-latest')
+ * @param config - Optional configuration (excluding apiKey which is auto-detected)
+ * @returns Configured Anthropic summarize adapter instance with resolved types
  */
-export function anthropicSummarize(
+export function anthropicSummarize<TModel extends AnthropicSummarizeModel>(
+  model: TModel,
   config?: Omit<AnthropicSummarizeConfig, 'apiKey'>,
-): AnthropicSummarizeAdapter {
+): AnthropicSummarizeAdapter<TModel> {
   const apiKey = getAnthropicApiKeyFromEnv()
-  return createAnthropicSummarize(apiKey, config)
+  return createAnthropicSummarize(model, apiKey, config)
 }

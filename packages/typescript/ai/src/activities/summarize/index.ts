@@ -24,13 +24,11 @@ export const kind = 'summarize' as const
 // Type Extraction Helpers
 // ===========================
 
-/** Extract model types from a SummarizeAdapter */
-export type SummarizeModels<TAdapter> =
-  TAdapter extends SummarizeAdapter<infer M, any, any> ? M[number] : string
-
-/** Extract provider options from a SummarizeAdapter */
+/** Extract provider options from a SummarizeAdapter via ~types */
 export type SummarizeProviderOptions<TAdapter> =
-  TAdapter extends SummarizeAdapter<any, infer P, any> ? P : object
+  TAdapter extends SummarizeAdapter<any, any>
+    ? TAdapter['~types']['providerOptions']
+    : object
 
 // ===========================
 // Activity Options Type
@@ -38,13 +36,13 @@ export type SummarizeProviderOptions<TAdapter> =
 
 /**
  * Options for the summarize activity.
- * The model is extracted from the adapter's selectedModel property.
+ * The model is extracted from the adapter's model property.
  *
- * @template TAdapter - The summarize adapter type (must have a selectedModel)
+ * @template TAdapter - The summarize adapter type
  * @template TStream - Whether to stream the output
  */
 export interface SummarizeActivityOptions<
-  TAdapter extends SummarizeAdapter<ReadonlyArray<string>, object, string>,
+  TAdapter extends SummarizeAdapter<string, object>,
   TStream extends boolean = false,
 > {
   /** The summarize adapter to use (must be created with a model) */
@@ -146,7 +144,7 @@ function createId(prefix: string): string {
  * ```
  */
 export function summarize<
-  TAdapter extends SummarizeAdapter<ReadonlyArray<string>, object, string>,
+  TAdapter extends SummarizeAdapter<string, object>,
   TStream extends boolean = false,
 >(
   options: SummarizeActivityOptions<TAdapter, TStream>,
@@ -156,7 +154,7 @@ export function summarize<
   if (stream) {
     return runStreamingSummarize(
       options as unknown as SummarizeActivityOptions<
-        SummarizeAdapter<ReadonlyArray<string>, object, string>,
+        SummarizeAdapter<string, object>,
         true
       >,
     ) as SummarizeActivityResult<TStream>
@@ -164,7 +162,7 @@ export function summarize<
 
   return runSummarize(
     options as unknown as SummarizeActivityOptions<
-      SummarizeAdapter<ReadonlyArray<string>, object, string>,
+      SummarizeAdapter<string, object>,
       false
     >,
   ) as SummarizeActivityResult<TStream>
@@ -175,12 +173,12 @@ export function summarize<
  */
 async function runSummarize(
   options: SummarizeActivityOptions<
-    SummarizeAdapter<ReadonlyArray<string>, object, string>,
+    SummarizeAdapter<string, object>,
     false
   >,
 ): Promise<SummarizationResult> {
   const { adapter, text, maxLength, style, focus } = options
-  const model = adapter.selectedModel
+  const model = adapter.model
   const requestId = createId('summarize')
   const inputLength = text.length
   const startTime = Date.now()
@@ -224,12 +222,12 @@ async function runSummarize(
  */
 async function* runStreamingSummarize(
   options: SummarizeActivityOptions<
-    SummarizeAdapter<ReadonlyArray<string>, object, string>,
+    SummarizeAdapter<string, object>,
     true
   >,
 ): AsyncIterable<StreamChunk> {
   const { adapter, text, maxLength, style, focus } = options
-  const model = adapter.selectedModel
+  const model = adapter.model
 
   const summarizeOptions: SummarizationOptions = {
     model,
@@ -278,7 +276,7 @@ async function* runStreamingSummarize(
  * Create typed options for the summarize() function without executing.
  */
 export function createSummarizeOptions<
-  TAdapter extends SummarizeAdapter<ReadonlyArray<string>, object, string>,
+  TAdapter extends SummarizeAdapter<string, object>,
   TStream extends boolean = false,
 >(
   options: SummarizeActivityOptions<TAdapter, TStream>,
@@ -287,5 +285,9 @@ export function createSummarizeOptions<
 }
 
 // Re-export adapter types
-export type { SummarizeAdapter, SummarizeAdapterConfig } from './adapter'
+export type {
+  SummarizeAdapter,
+  SummarizeAdapterConfig,
+  AnySummarizeAdapter,
+} from './adapter'
 export { BaseSummarizeAdapter } from './adapter'

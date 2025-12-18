@@ -19,31 +19,13 @@ export const kind = 'image' as const
 // Type Extraction Helpers
 // ===========================
 
-/** Extract model types from an ImageAdapter */
-export type ImageModels<TAdapter> =
-  TAdapter extends ImageAdapter<infer M, any, any, any, any>
-    ? M[number]
-    : string
-
-/** Extract the selected model from an ImageAdapter */
-export type ImageSelectedModel<TAdapter> =
-  TAdapter extends ImageAdapter<any, any, any, any, infer TSelectedModel>
-    ? TSelectedModel
-    : undefined
-
 /**
- * Extract model-specific provider options from an ImageAdapter.
+ * Extract model-specific provider options from an ImageAdapter via ~types.
  * If the model has specific options defined in ModelProviderOptions (and not just via index signature),
  * use those; otherwise fall back to base provider options.
  */
 export type ImageProviderOptionsForModel<TAdapter, TModel extends string> =
-  TAdapter extends ImageAdapter<
-    any,
-    infer BaseOptions,
-    infer ModelOptions,
-    any,
-    any
-  >
+  TAdapter extends ImageAdapter<any, infer BaseOptions, infer ModelOptions, any>
     ? string extends keyof ModelOptions
       ? // ModelOptions is Record<string, unknown> or has index signature - use BaseOptions
         BaseOptions
@@ -54,11 +36,11 @@ export type ImageProviderOptionsForModel<TAdapter, TModel extends string> =
     : object
 
 /**
- * Extract model-specific size options from an ImageAdapter.
+ * Extract model-specific size options from an ImageAdapter via ~types.
  * If the model has specific sizes defined, use those; otherwise fall back to string.
  */
 export type ImageSizeForModel<TAdapter, TModel extends string> =
-  TAdapter extends ImageAdapter<any, any, any, infer SizeByName, any>
+  TAdapter extends ImageAdapter<any, any, any, infer SizeByName>
     ? string extends keyof SizeByName
       ? // SizeByName has index signature - fall back to string
         string
@@ -74,18 +56,12 @@ export type ImageSizeForModel<TAdapter, TModel extends string> =
 
 /**
  * Options for the image activity.
- * The model is extracted from the adapter's selectedModel property.
+ * The model is extracted from the adapter's model property.
  *
- * @template TAdapter - The image adapter type (must have a selectedModel)
+ * @template TAdapter - The image adapter type
  */
 export interface ImageActivityOptions<
-  TAdapter extends ImageAdapter<
-    ReadonlyArray<string>,
-    object,
-    any,
-    any,
-    string
-  >,
+  TAdapter extends ImageAdapter<string, object, any, any>,
 > {
   /** The image adapter to use (must be created with a model) */
   adapter: TAdapter & { kind: typeof kind }
@@ -94,12 +70,9 @@ export interface ImageActivityOptions<
   /** Number of images to generate (default: 1) */
   numberOfImages?: number
   /** Image size in WIDTHxHEIGHT format (e.g., "1024x1024") */
-  size?: ImageSizeForModel<TAdapter, ImageSelectedModel<TAdapter> & string>
+  size?: ImageSizeForModel<TAdapter, TAdapter['model']>
   /** Provider-specific options for image generation */
-  modelOptions?: ImageProviderOptionsForModel<
-    TAdapter,
-    ImageSelectedModel<TAdapter> & string
-  >
+  modelOptions?: ImageProviderOptionsForModel<TAdapter, TAdapter['model']>
 }
 
 // ===========================
@@ -159,16 +132,10 @@ export type ImageActivityResult = Promise<ImageGenerationResult>
  * ```
  */
 export async function generateImage<
-  TAdapter extends ImageAdapter<
-    ReadonlyArray<string>,
-    object,
-    any,
-    any,
-    string
-  >,
+  TAdapter extends ImageAdapter<string, object, any, any>,
 >(options: ImageActivityOptions<TAdapter>): ImageActivityResult {
   const { adapter, ...rest } = options
-  const model = adapter.selectedModel
+  const model = adapter.model
 
   return adapter.generateImages({ ...rest, model })
 }
@@ -181,17 +148,11 @@ export async function generateImage<
  * Create typed options for the generateImage() function without executing.
  */
 export function createImageOptions<
-  TAdapter extends ImageAdapter<
-    ReadonlyArray<string>,
-    object,
-    any,
-    any,
-    string
-  >,
+  TAdapter extends ImageAdapter<string, object, any, any>,
 >(options: ImageActivityOptions<TAdapter>): ImageActivityOptions<TAdapter> {
   return options
 }
 
 // Re-export adapter types
-export type { ImageAdapter, ImageAdapterConfig } from './adapter'
+export type { ImageAdapter, ImageAdapterConfig, AnyImageAdapter } from './adapter'
 export { BaseImageAdapter } from './adapter'

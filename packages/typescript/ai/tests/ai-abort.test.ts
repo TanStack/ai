@@ -1,24 +1,24 @@
 import { describe, it, expect } from 'vitest'
 import { z } from 'zod'
 import { chat } from '../src/activities/chat'
-import type { TextOptions, StreamChunk } from '../src/types'
-import { BaseAdapter } from '../src/base-adapter'
+import type { TextOptions, StreamChunk, DefaultMessageMetadataByModality } from '../src/types'
+import { BaseTextAdapter } from '../src/activities/chat/adapter'
 
 // Mock adapter that tracks abort signal usage
-class MockAdapter extends BaseAdapter<
-  readonly ['test-model'],
-  readonly [],
+class MockAdapter extends BaseTextAdapter<
+  'test-model',
   Record<string, any>,
-  Record<string, any>,
-  Record<string, any>
+  readonly ['text'],
+  DefaultMessageMetadataByModality
 > {
   public receivedAbortSignals: (AbortSignal | undefined)[] = []
   public chatStreamCallCount = 0
 
-  readonly kind = 'text' as const
-  readonly model = 'test-model' as const
-  name = 'mock'
-  models = ['test-model'] as const
+  readonly name = 'mock'
+
+  constructor() {
+    super({}, 'test-model')
+  }
 
   private getAbortSignal(options: TextOptions): AbortSignal | undefined {
     const signal = (options.request as RequestInit | undefined)?.signal
@@ -67,10 +67,6 @@ class MockAdapter extends BaseAdapter<
 
   async structuredOutput(_options: any): Promise<any> {
     return { data: {}, rawText: '{}' }
-  }
-
-  async summarize(_options: any): Promise<any> {
-    return { summary: 'test' }
   }
 }
 

@@ -15,11 +15,11 @@
 
 // Import adapter types for type definitions
 import type { AnyTextAdapter } from './chat/adapter'
-import type { SummarizeAdapter } from './summarize/adapter'
-import type { ImageAdapter } from './generateImage/adapter'
-import type { VideoAdapter } from './generateVideo/adapter'
-import type { TTSAdapter } from './generateSpeech/adapter'
-import type { TranscriptionAdapter } from './generateTranscription/adapter'
+import type { AnySummarizeAdapter } from './summarize/adapter'
+import type { AnyImageAdapter } from './generateImage/adapter'
+import type { AnyVideoAdapter } from './generateVideo/adapter'
+import type { AnyTTSAdapter } from './generateSpeech/adapter'
+import type { AnyTranscriptionAdapter } from './generateTranscription/adapter'
 
 // ===========================
 // Chat Activity
@@ -50,7 +50,6 @@ export {
   summarize,
   type SummarizeActivityOptions,
   type SummarizeActivityResult,
-  type SummarizeModels,
   type SummarizeProviderOptions,
 } from './summarize/index'
 
@@ -58,6 +57,7 @@ export {
   BaseSummarizeAdapter,
   type SummarizeAdapter,
   type SummarizeAdapterConfig,
+  type AnySummarizeAdapter,
 } from './summarize/adapter'
 
 // ===========================
@@ -69,7 +69,6 @@ export {
   generateImage,
   type ImageActivityOptions,
   type ImageActivityResult,
-  type ImageModels,
   type ImageProviderOptionsForModel,
   type ImageSizeForModel,
 } from './generateImage/index'
@@ -78,6 +77,7 @@ export {
   BaseImageAdapter,
   type ImageAdapter,
   type ImageAdapterConfig,
+  type AnyImageAdapter,
 } from './generateImage/adapter'
 
 // ===========================
@@ -90,7 +90,6 @@ export {
   getVideoJobStatus,
   type VideoActivityOptions,
   type VideoActivityResult,
-  type VideoModels,
   type VideoProviderOptions,
   type VideoCreateOptions,
   type VideoStatusOptions,
@@ -101,6 +100,7 @@ export {
   BaseVideoAdapter,
   type VideoAdapter,
   type VideoAdapterConfig,
+  type AnyVideoAdapter,
 } from './generateVideo/adapter'
 
 // ===========================
@@ -112,7 +112,6 @@ export {
   generateSpeech,
   type TTSActivityOptions,
   type TTSActivityResult,
-  type TTSModels,
   type TTSProviderOptions,
 } from './generateSpeech/index'
 
@@ -120,6 +119,7 @@ export {
   BaseTTSAdapter,
   type TTSAdapter,
   type TTSAdapterConfig,
+  type AnyTTSAdapter,
 } from './generateSpeech/adapter'
 
 // ===========================
@@ -131,7 +131,6 @@ export {
   generateTranscription,
   type TranscriptionActivityOptions,
   type TranscriptionActivityResult,
-  type TranscriptionModels,
   type TranscriptionProviderOptions,
 } from './generateTranscription/index'
 
@@ -139,6 +138,7 @@ export {
   BaseTranscriptionAdapter,
   type TranscriptionAdapter,
   type TranscriptionAdapterConfig,
+  type AnyTranscriptionAdapter,
 } from './generateTranscription/adapter'
 
 // ===========================
@@ -148,11 +148,11 @@ export {
 /** Union of all adapter types that can be passed to chat() */
 export type AIAdapter =
   | AnyTextAdapter
-  | SummarizeAdapter<ReadonlyArray<string>, object, any>
-  | ImageAdapter<ReadonlyArray<string>, object, any, any, any>
-  | VideoAdapter<ReadonlyArray<string>, object, any>
-  | TTSAdapter<ReadonlyArray<string>, object, any>
-  | TranscriptionAdapter<ReadonlyArray<string>, object, any>
+  | AnySummarizeAdapter
+  | AnyImageAdapter
+  | AnyVideoAdapter
+  | AnyTTSAdapter
+  | AnyTranscriptionAdapter
 
 /** Union type of all adapter kinds */
 export type AdapterKind =

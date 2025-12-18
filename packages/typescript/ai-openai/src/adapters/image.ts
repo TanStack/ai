@@ -28,6 +28,9 @@ import type { OpenAIClientConfig } from '../utils'
  */
 export interface OpenAIImageConfig extends OpenAIClientConfig {}
 
+/** Model type for OpenAI Image */
+export type OpenAIImageModel = (typeof OPENAI_IMAGE_MODELS)[number]
+
 /**
  * OpenAI Image Generation Adapter
  *
@@ -39,20 +42,21 @@ export interface OpenAIImageConfig extends OpenAIClientConfig {}
  * - Size validation per model
  * - Number of images validation
  */
-export class OpenAIImageAdapter extends BaseImageAdapter<
-  typeof OPENAI_IMAGE_MODELS,
+export class OpenAIImageAdapter<
+  TModel extends OpenAIImageModel,
+> extends BaseImageAdapter<
+  TModel,
   OpenAIImageProviderOptions,
   OpenAIImageModelProviderOptionsByName,
   OpenAIImageModelSizeByName
 > {
   readonly kind = 'image' as const
   readonly name = 'openai' as const
-  readonly models = OPENAI_IMAGE_MODELS
 
   private client: OpenAI_SDK
 
-  constructor(config: OpenAIImageConfig) {
-    super({})
+  constructor(config: OpenAIImageConfig, model: TModel) {
+    super({}, model)
     this.client = createOpenAIClient(config)
   }
 
@@ -117,12 +121,13 @@ export class OpenAIImageAdapter extends BaseImageAdapter<
 }
 
 /**
- * Creates an OpenAI image adapter with explicit API key
+ * Creates an OpenAI image adapter with explicit API key.
+ * Type resolution happens here at the call site.
  *
  * @param model - The model name (e.g., 'dall-e-3', 'gpt-image-1')
  * @param apiKey - Your OpenAI API key
  * @param config - Optional additional configuration
- * @returns Configured OpenAI image adapter instance
+ * @returns Configured OpenAI image adapter instance with resolved types
  *
  * @example
  * ```typescript
@@ -130,44 +135,46 @@ export class OpenAIImageAdapter extends BaseImageAdapter<
  *
  * const result = await generateImage({
  *   adapter,
- *   model: 'dall-e-3',
  *   prompt: 'A cute baby sea otter'
  * });
  * ```
  */
-export function createOpenaiImage(
+export function createOpenaiImage<TModel extends OpenAIImageModel>(
+  model: TModel,
   apiKey: string,
   config?: Omit<OpenAIImageConfig, 'apiKey'>,
-): OpenAIImageAdapter {
-  return new OpenAIImageAdapter({ apiKey, ...config })
+): OpenAIImageAdapter<TModel> {
+  return new OpenAIImageAdapter({ apiKey, ...config }, model)
 }
 
 /**
  * Creates an OpenAI image adapter with automatic API key detection from environment variables.
+ * Type resolution happens here at the call site.
  *
  * Looks for `OPENAI_API_KEY` in:
  * - `process.env` (Node.js)
  * - `window.env` (Browser with injected env)
  *
+ * @param model - The model name (e.g., 'dall-e-3', 'gpt-image-1')
  * @param config - Optional configuration (excluding apiKey which is auto-detected)
- * @returns Configured OpenAI image adapter instance
+ * @returns Configured OpenAI image adapter instance with resolved types
  * @throws Error if OPENAI_API_KEY is not found in environment
  *
  * @example
  * ```typescript
  * // Automatically uses OPENAI_API_KEY from environment
- * const adapter = openaiImage();
+ * const adapter = openaiImage('dall-e-3');
  *
  * const result = await generateImage({
  *   adapter,
- *   model: 'dall-e-3',
  *   prompt: 'A beautiful sunset over mountains'
  * });
  * ```
  */
-export function openaiImage(
+export function openaiImage<TModel extends OpenAIImageModel>(
+  model: TModel,
   config?: Omit<OpenAIImageConfig, 'apiKey'>,
-): OpenAIImageAdapter {
+): OpenAIImageAdapter<TModel> {
   const apiKey = getOpenAIApiKeyFromEnv()
-  return createOpenaiImage(apiKey, config)
+  return createOpenaiImage(model, apiKey, config)
 }

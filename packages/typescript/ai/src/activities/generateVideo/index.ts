@@ -25,16 +25,12 @@ export const kind = 'video' as const
 // Type Extraction Helpers
 // ===========================
 
-/** Extract model types from a VideoAdapter */
-export type VideoModels<TAdapter> =
-  TAdapter extends VideoAdapter<infer M, any, any> ? M[number] : string
-
 /**
- * Extract provider options from a VideoAdapter.
+ * Extract provider options from a VideoAdapter via ~types.
  */
 export type VideoProviderOptions<TAdapter> =
-  TAdapter extends VideoAdapter<any, infer TProviderOptions, any>
-    ? TProviderOptions
+  TAdapter extends VideoAdapter<any, any>
+    ? TAdapter['~types']['providerOptions']
     : object
 
 // ===========================
@@ -43,10 +39,10 @@ export type VideoProviderOptions<TAdapter> =
 
 /**
  * Base options shared by all video activity operations.
- * The model is extracted from the adapter's selectedModel property.
+ * The model is extracted from the adapter's model property.
  */
 interface VideoActivityBaseOptions<
-  TAdapter extends VideoAdapter<ReadonlyArray<string>, object, string>,
+  TAdapter extends VideoAdapter<string, object>,
 > {
   /** The video adapter to use (must be created with a model) */
   adapter: TAdapter & { kind: typeof kind }
@@ -54,12 +50,12 @@ interface VideoActivityBaseOptions<
 
 /**
  * Options for creating a new video generation job.
- * The model is extracted from the adapter's selectedModel property.
+ * The model is extracted from the adapter's model property.
  *
  * @experimental Video generation is an experimental feature and may change.
  */
 export interface VideoCreateOptions<
-  TAdapter extends VideoAdapter<ReadonlyArray<string>, object, string>,
+  TAdapter extends VideoAdapter<string, object>,
 > extends VideoActivityBaseOptions<TAdapter> {
   /** Request type - create a new job (default if not specified) */
   request?: 'create'
@@ -79,7 +75,7 @@ export interface VideoCreateOptions<
  * @experimental Video generation is an experimental feature and may change.
  */
 export interface VideoStatusOptions<
-  TAdapter extends VideoAdapter<ReadonlyArray<string>, object, string>,
+  TAdapter extends VideoAdapter<string, object>,
 > extends VideoActivityBaseOptions<TAdapter> {
   /** Request type - get job status */
   request: 'status'
@@ -93,7 +89,7 @@ export interface VideoStatusOptions<
  * @experimental Video generation is an experimental feature and may change.
  */
 export interface VideoUrlOptions<
-  TAdapter extends VideoAdapter<ReadonlyArray<string>, object, string>,
+  TAdapter extends VideoAdapter<string, object>,
 > extends VideoActivityBaseOptions<TAdapter> {
   /** Request type - get video URL */
   request: 'url'
@@ -108,7 +104,7 @@ export interface VideoUrlOptions<
  * @experimental Video generation is an experimental feature and may change.
  */
 export type VideoActivityOptions<
-  TAdapter extends VideoAdapter<ReadonlyArray<string>, object, string>,
+  TAdapter extends VideoAdapter<string, object>,
   TRequest extends 'create' | 'status' | 'url' = 'create',
 > = TRequest extends 'status'
   ? VideoStatusOptions<TAdapter>
@@ -160,10 +156,10 @@ export type VideoActivityResult<
  * ```
  */
 export async function generateVideo<
-  TAdapter extends VideoAdapter<ReadonlyArray<string>, object, string>,
+  TAdapter extends VideoAdapter<string, object>,
 >(options: VideoCreateOptions<TAdapter>): Promise<VideoJobResult> {
   const { adapter, prompt, size, duration, modelOptions } = options
-  const model = adapter.selectedModel
+  const model = adapter.model
 
   return adapter.createVideoJob({
     model,
@@ -200,7 +196,7 @@ export async function generateVideo<
  * ```
  */
 export async function getVideoJobStatus<
-  TAdapter extends VideoAdapter<ReadonlyArray<string>, object, string>,
+  TAdapter extends VideoAdapter<string, object>,
 >(options: {
   adapter: TAdapter & { kind: typeof kind }
   jobId: string
@@ -251,11 +247,11 @@ export async function getVideoJobStatus<
  * Create typed options for the generateVideo() function without executing.
  */
 export function createVideoOptions<
-  TAdapter extends VideoAdapter<ReadonlyArray<string>, object, string>,
+  TAdapter extends VideoAdapter<string, object>,
 >(options: VideoCreateOptions<TAdapter>): VideoCreateOptions<TAdapter> {
   return options
 }
 
 // Re-export adapter types
-export type { VideoAdapter, VideoAdapterConfig } from './adapter'
+export type { VideoAdapter, VideoAdapterConfig, AnyVideoAdapter } from './adapter'
 export { BaseVideoAdapter } from './adapter'

@@ -19,6 +19,10 @@ import type { OpenAIClientConfig } from '../utils'
  */
 export interface OpenAITranscriptionConfig extends OpenAIClientConfig {}
 
+/** Model type for OpenAI Transcription */
+export type OpenAITranscriptionModel =
+  (typeof OPENAI_TRANSCRIPTION_MODELS)[number]
+
 /**
  * OpenAI Transcription (Speech-to-Text) Adapter
  *
@@ -32,17 +36,15 @@ export interface OpenAITranscriptionConfig extends OpenAIClientConfig {}
  * - Word and segment-level timestamps (with verbose_json)
  * - Speaker diarization (with gpt-4o-transcribe-diarize)
  */
-export class OpenAITranscriptionAdapter extends BaseTranscriptionAdapter<
-  typeof OPENAI_TRANSCRIPTION_MODELS,
-  OpenAITranscriptionProviderOptions
-> {
+export class OpenAITranscriptionAdapter<
+  TModel extends OpenAITranscriptionModel,
+> extends BaseTranscriptionAdapter<TModel, OpenAITranscriptionProviderOptions> {
   readonly name = 'openai' as const
-  readonly models = OPENAI_TRANSCRIPTION_MODELS
 
   private client: OpenAI_SDK
 
-  constructor(config: OpenAITranscriptionConfig) {
-    super(config)
+  constructor(config: OpenAITranscriptionConfig, model: TModel) {
+    super(config, model)
     this.client = createOpenAIClient(config)
   }
 
@@ -181,72 +183,65 @@ export class OpenAITranscriptionAdapter extends BaseTranscriptionAdapter<
 }
 
 /**
- * Creates an OpenAI Transcription adapter with explicit API key
+ * Creates an OpenAI transcription adapter with explicit API key.
+ * Type resolution happens here at the call site.
  *
+ * @param model - The model name (e.g., 'whisper-1')
  * @param apiKey - Your OpenAI API key
  * @param config - Optional additional configuration
- * @returns Configured OpenAI Transcription adapter instance
+ * @returns Configured OpenAI transcription adapter instance with resolved types
  *
  * @example
  * ```typescript
- * const adapter = createOpenaiTranscription("sk-...");
+ * const adapter = createOpenaiTranscription('whisper-1', "sk-...");
  *
  * const result = await generateTranscription({
  *   adapter,
- *   model: 'whisper-1',
  *   audio: audioFile,
  *   language: 'en'
  * });
  * ```
  */
-/**
- * Creates an OpenAI transcription adapter with explicit API key
- *
- * @param model - The model name (e.g., 'whisper-1')
- * @param apiKey - Your OpenAI API key
- * @param config - Optional additional configuration
- * @returns Configured OpenAI transcription adapter instance
- *
- * @example
- * ```typescript
- * const adapter = createOpenaiTranscription('whisper-1', "sk-...");
- * ```
- */
-export function createOpenaiTranscription(
+export function createOpenaiTranscription<
+  TModel extends OpenAITranscriptionModel,
+>(
+  model: TModel,
   apiKey: string,
   config?: Omit<OpenAITranscriptionConfig, 'apiKey'>,
-): OpenAITranscriptionAdapter {
-  return new OpenAITranscriptionAdapter({ apiKey, ...config })
+): OpenAITranscriptionAdapter<TModel> {
+  return new OpenAITranscriptionAdapter({ apiKey, ...config }, model)
 }
 
 /**
  * Creates an OpenAI transcription adapter with automatic API key detection from environment variables.
+ * Type resolution happens here at the call site.
  *
  * Looks for `OPENAI_API_KEY` in:
  * - `process.env` (Node.js)
  * - `window.env` (Browser with injected env)
  *
+ * @param model - The model name (e.g., 'whisper-1')
  * @param config - Optional configuration (excluding apiKey which is auto-detected)
- * @returns Configured OpenAI transcription adapter instance
+ * @returns Configured OpenAI transcription adapter instance with resolved types
  * @throws Error if OPENAI_API_KEY is not found in environment
  *
  * @example
  * ```typescript
  * // Automatically uses OPENAI_API_KEY from environment
- * const adapter = openaiTranscription();
+ * const adapter = openaiTranscription('whisper-1');
  *
  * const result = await generateTranscription({
  *   adapter,
- *   model: 'whisper-1',
  *   audio: audioFile
  * });
  *
  * console.log(result.text)
  * ```
  */
-export function openaiTranscription(
+export function openaiTranscription<TModel extends OpenAITranscriptionModel>(
+  model: TModel,
   config?: Omit<OpenAITranscriptionConfig, 'apiKey'>,
-): OpenAITranscriptionAdapter {
+): OpenAITranscriptionAdapter<TModel> {
   const apiKey = getOpenAIApiKeyFromEnv()
-  return createOpenaiTranscription(apiKey, config)
+  return createOpenaiTranscription(model, apiKey, config)
 }

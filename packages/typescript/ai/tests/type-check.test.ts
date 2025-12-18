@@ -25,10 +25,10 @@ const mockAdapter = {
   kind: 'text' as const,
   name: 'mock',
   model: 'test-model' as const,
-  ~types: {
+  '~types': {
     providerOptions: {} as { validOption: string; anotherOption?: number },
     inputModalities: ['text', 'image'] as const,
-    messageMetadata: {
+    messageMetadataByModality: {
       text: undefined as unknown,
       image: undefined as unknown,
       audio: undefined as unknown,

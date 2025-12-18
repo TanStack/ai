@@ -259,7 +259,7 @@ export type ContentPartForInputModalitiesTypes<
     TInputModalitiesTypes['messageMetadataByModality']['video'],
     TInputModalitiesTypes['messageMetadataByModality']['document']
   >,
-  { type: TInputModalitiesTypes['inputModalities'] }
+  { type: TInputModalitiesTypes['inputModalities'][number] }
 >
 
 /**
