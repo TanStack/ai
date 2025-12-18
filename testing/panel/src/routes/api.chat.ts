@@ -5,7 +5,7 @@ import {
   chat,
   createChatOptions,
   maxIterations,
-  toStreamResponse,
+  toServerSentEventsStream,
 } from '@tanstack/ai'
 import { anthropicText } from '@tanstack/ai-anthropic'
 import { geminiText } from '@tanstack/ai-gemini'
@@ -231,7 +231,14 @@ export const Route = createFileRoute('/api/chat')({
             abortController,
           })
 
-          return toStreamResponse(stream, { abortController })
+          const readableStream = toServerSentEventsStream(stream, abortController)
+          return new Response(readableStream, {
+            headers: {
+              'Content-Type': 'text/event-stream',
+              'Cache-Control': 'no-cache',
+              Connection: 'keep-alive',
+            },
+          })
         } catch (error: any) {
           console.error('[API Route] Error in chat request:', {
             message: error?.message,

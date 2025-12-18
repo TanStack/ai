@@ -40,6 +40,7 @@ export {
   streamToText,
   toServerSentEventsStream,
   toStreamResponse,
+  toHttpStream,
 } from './stream-to-response'
 
 // Tool call management

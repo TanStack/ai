@@ -93,6 +93,10 @@
         {
           "label": "Tree-Shaking",
           "to": "guides/tree-shaking"
+        },
+        {
+          "label": "Migration Guide",
+          "to": "guides/migration"
         }
       ]
     },

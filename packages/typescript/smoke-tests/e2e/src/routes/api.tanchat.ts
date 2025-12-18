@@ -1,5 +1,5 @@
 import { createFileRoute } from '@tanstack/react-router'
-import { chat, maxIterations, toStreamResponse } from '@tanstack/ai'
+import { chat, maxIterations, toServerSentEventsStream } from '@tanstack/ai'
 import { openaiText } from '@tanstack/ai-openai'
 
 export const Route = createFileRoute('/api/tanchat')({
@@ -27,7 +27,14 @@ export const Route = createFileRoute('/api/tanchat')({
             abortController,
           })
 
-          return toStreamResponse(stream, { abortController })
+          const readableStream = toServerSentEventsStream(stream, abortController)
+          return new Response(readableStream, {
+            headers: {
+              'Content-Type': 'text/event-stream',
+              'Cache-Control': 'no-cache',
+              Connection: 'keep-alive',
+            },
+          })
         } catch (error: any) {
           console.error('[API Route] Error in chat request:', {
             message: error?.message,

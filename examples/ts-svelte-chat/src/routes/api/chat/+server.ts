@@ -2,7 +2,7 @@ import {
   chat,
   createChatOptions,
   maxIterations,
-  toStreamResponse,
+  toServerSentEventsStream,
 } from '@tanstack/ai'
 import { openaiText } from '@tanstack/ai-openai'
 import { ollamaText } from '@tanstack/ai-ollama'
@@ -116,7 +116,14 @@ export const POST: RequestHandler = async ({ request }) => {
       abortController,
     })
 
-    return toStreamResponse(stream, { abortController })
+    const readableStream = toServerSentEventsStream(stream, abortController)
+    return new Response(readableStream, {
+      headers: {
+        'Content-Type': 'text/event-stream',
+        'Cache-Control': 'no-cache',
+        Connection: 'keep-alive',
+      },
+    })
   } catch (error: any) {
     console.error('[API Route] Error in chat request:', {
       message: error?.message,
