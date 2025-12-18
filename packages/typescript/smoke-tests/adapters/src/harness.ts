@@ -1,7 +1,10 @@
 import { mkdir, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
-import { chat } from '@tanstack/ai'
-import type { Tool } from '@tanstack/ai'
+import {
+  experimental_agentLoop as agentLoop,
+  experimental_text as text,
+} from '@tanstack/ai'
+import type { Tool, AgentLoopStrategy } from '@tanstack/ai'
 
 const OUTPUT_DIR = join(process.cwd(), 'output')
 
@@ -155,7 +158,7 @@ export async function captureStream(opts: {
   model: string
   messages: Array<any>
   tools?: Array<Tool>
-  agentLoopStrategy?: any
+  agentLoopStrategy?: AgentLoopStrategy
 }): Promise<StreamCapture> {
   const {
     adapterName: _adapterName,
@@ -168,13 +171,27 @@ export async function captureStream(opts: {
     agentLoopStrategy,
   } = opts
 
-  const stream = chat({
-    adapter: textAdapter,
-    model,
-    messages,
-    tools,
-    agentLoopStrategy,
-  })
+  // Create the text creator function for agentLoop
+  const textFn = (textOpts: any) =>
+    text({
+      adapter: textAdapter,
+      model,
+      ...textOpts,
+    })
+
+  // Use agentLoop if tools are provided, otherwise use text directly
+  const stream =
+    tools && tools.length > 0
+      ? agentLoop(textFn, {
+          messages,
+          tools,
+          agentLoopStrategy,
+        })
+      : text({
+          adapter: textAdapter,
+          model,
+          messages,
+        })
 
   let chunkIndex = 0
   let fullResponse = ''

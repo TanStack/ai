@@ -14,6 +14,7 @@
 
 // Import the activity functions and kinds for the map
 import { chat, kind as textKindValue } from './chat/index'
+import { text, kind as simpleTextKindValue } from './text/index'
 import { embedding, kind as embeddingKindValue } from './embedding/index'
 import { summarize, kind as summarizeKindValue } from './summarize/index'
 import { generateImage, kind as imageKindValue } from './generateImage/index'
@@ -124,6 +125,20 @@ export {
   type StructuredOutputOptions,
   type StructuredOutputResult,
 } from './chat/adapter'
+
+// ===========================
+// Text Activity (Non-Agentic)
+// ===========================
+
+export {
+  kind as simpleTextKind,
+  text as experimental_text,
+  toText,
+  type TextActivityOptions as SimpleTextActivityOptions,
+  type TextActivityResult as SimpleTextActivityResult,
+  type TextModels as SimpleTextModels,
+  type TextProviderOptionsForModel as SimpleTextProviderOptionsForModel,
+} from './text/index'
 
 // ===========================
 // Embedding Activity
@@ -262,6 +277,7 @@ type ActivityHandler = (options: any) => any
  */
 export const activityMap = new Map<string, ActivityHandler>([
   [textKindValue, chat],
+  [simpleTextKindValue, text],
   [embeddingKindValue, embedding],
   [summarizeKindValue, summarize],
   [imageKindValue, generateImage],

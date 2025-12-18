@@ -1,6 +1,8 @@
 // Activity functions - individual exports for each activity
 export {
   chat,
+  experimental_text,
+  toText,
   embedding,
   summarize,
   generateImage,
@@ -9,6 +11,17 @@ export {
   generateSpeech,
   generateTranscription,
 } from './activities'
+
+// Agent loop (experimental)
+export {
+  agentLoop as experimental_agentLoop,
+  type AgentLoopOptions,
+  type AgentLoopBaseOptions,
+  type AgentLoopStreamOptions,
+  type AgentLoopStructuredOptions,
+  type TextCreator,
+  type TextCreatorOptions,
+} from './agent'
 
 // Create options functions - for pre-defining typed configurations
 export {
