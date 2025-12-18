@@ -1,14 +1,13 @@
 import { BaseTTSAdapter } from '@tanstack/ai/adapters'
-import { GEMINI_TTS_MODELS } from '../model-meta'
 import {
   createGeminiClient,
   generateId,
   getGeminiApiKeyFromEnv,
 } from '../utils'
+import type { GEMINI_TTS_MODELS, GeminiTTSVoice } from '../model-meta'
 import type { TTSOptions, TTSResult } from '@tanstack/ai'
 import type { GoogleGenAI } from '@google/genai'
 import type { GeminiClientConfig } from '../utils'
-import type { GeminiTTSVoice } from '../model-meta'
 
 /**
  * Provider-specific options for Gemini TTS

@@ -6,10 +6,10 @@ title: convertZodToJsonSchema
 # Function: convertZodToJsonSchema()
 
 ```ts
-function convertZodToJsonSchema(schema): Record<string, any> | undefined;
+function convertZodToJsonSchema(schema, options): Record<string, any> | undefined;
 ```
 
-Defined in: [tools/zod-converter.ts:57](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/tools/zod-converter.ts#L57)
+Defined in: [activities/chat/tools/zod-converter.ts:161](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/activities/chat/tools/zod-converter.ts#L161)
 
 Converts a schema (Zod or JSONSchema) to JSON Schema format compatible with LLM providers.
 If the input is already a JSONSchema object, it is returned as-is.
@@ -22,6 +22,12 @@ If the input is a Zod schema, it is converted to JSON Schema.
 Zod schema or JSONSchema object to convert
 
 [`SchemaInput`](../type-aliases/SchemaInput.md) | `undefined`
+
+### options
+
+`ConvertSchemaOptions` = `{}`
+
+Conversion options
 
 ## Returns
 
@@ -49,6 +55,19 @@ const jsonSchema = convertZodToJsonSchema(zodSchema);
 //     unit: { type: 'string', enum: ['celsius', 'fahrenheit'] }
 //   },
 //   required: ['location']
+// }
+
+// For OpenAI structured output (all fields required, optional fields nullable)
+const structuredSchema = convertZodToJsonSchema(zodSchema, { forStructuredOutput: true });
+// Returns:
+// {
+//   type: 'object',
+//   properties: {
+//     location: { type: 'string', description: 'City name' },
+//     unit: { type: ['string', 'null'], enum: ['celsius', 'fahrenheit'] }
+//   },
+//   required: ['location', 'unit'],
+//   additionalProperties: false
 // }
 
 // Using JSONSchema directly (passes through unchanged)

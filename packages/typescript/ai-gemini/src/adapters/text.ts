@@ -1,12 +1,16 @@
 import { FinishReason } from '@google/genai'
 import { BaseTextAdapter } from '@tanstack/ai/adapters'
-import { GEMINI_MODELS } from '../model-meta'
 import { convertToolsToProviderFormat } from '../tools/tool-converter'
 import {
   createGeminiClient,
   generateId,
   getGeminiApiKeyFromEnv,
 } from '../utils'
+import type {
+  GEMINI_MODELS,
+  GeminiChatModelProviderOptionsByName,
+  GeminiModelInputModalitiesByName,
+} from '../model-meta'
 import type {
   StructuredOutputOptions,
   StructuredOutputResult,
@@ -24,10 +28,6 @@ import type {
   StreamChunk,
   TextOptions,
 } from '@tanstack/ai'
-import type {
-  GeminiChatModelProviderOptionsByName,
-  GeminiModelInputModalitiesByName,
-} from '../model-meta'
 import type { ExternalTextProviderOptions } from '../text/text-provider-options'
 import type {
   GeminiAudioMetadata,

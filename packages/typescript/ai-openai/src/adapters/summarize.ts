@@ -1,7 +1,7 @@
 import { BaseSummarizeAdapter } from '@tanstack/ai/adapters'
-import { OPENAI_CHAT_MODELS } from '../model-meta'
 import { getOpenAIApiKeyFromEnv } from '../utils'
 import { OpenAITextAdapter } from './text'
+import type { OPENAI_CHAT_MODELS } from '../model-meta'
 import type {
   StreamChunk,
   SummarizationOptions,

@@ -1,10 +1,10 @@
 import { BaseTranscriptionAdapter } from '@tanstack/ai/adapters'
-import { OPENAI_TRANSCRIPTION_MODELS } from '../model-meta'
 import {
   createOpenAIClient,
   generateId,
   getOpenAIApiKeyFromEnv,
 } from '../utils'
+import type { OPENAI_TRANSCRIPTION_MODELS } from '../model-meta'
 import type { OpenAITranscriptionProviderOptions } from '../audio/transcription-provider-options'
 import type {
   TranscriptionOptions,

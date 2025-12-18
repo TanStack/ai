@@ -5,7 +5,7 @@ title: ChunkRecording
 
 # Interface: ChunkRecording
 
-Defined in: [stream/types.ts:83](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/stream/types.ts#L83)
+Defined in: [activities/chat/stream/types.ts:73](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/activities/chat/stream/types.ts#L73)
 
 Recording format for replay testing
 
@@ -17,7 +17,7 @@ Recording format for replay testing
 chunks: object[];
 ```
 
-Defined in: [stream/types.ts:88](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/stream/types.ts#L88)
+Defined in: [activities/chat/stream/types.ts:78](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/activities/chat/stream/types.ts#L78)
 
 #### chunk
 
@@ -45,7 +45,7 @@ timestamp: number;
 optional model: string;
 ```
 
-Defined in: [stream/types.ts:86](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/stream/types.ts#L86)
+Defined in: [activities/chat/stream/types.ts:76](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/activities/chat/stream/types.ts#L76)
 
 ***
 
@@ -55,7 +55,7 @@ Defined in: [stream/types.ts:86](https://github.com/TanStack/ai/blob/main/packag
 optional provider: string;
 ```
 
-Defined in: [stream/types.ts:87](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/stream/types.ts#L87)
+Defined in: [activities/chat/stream/types.ts:77](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/activities/chat/stream/types.ts#L77)
 
 ***
 
@@ -65,7 +65,7 @@ Defined in: [stream/types.ts:87](https://github.com/TanStack/ai/blob/main/packag
 optional result: ProcessorResult;
 ```
 
-Defined in: [stream/types.ts:93](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/stream/types.ts#L93)
+Defined in: [activities/chat/stream/types.ts:83](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/activities/chat/stream/types.ts#L83)
 
 ***
 
@@ -75,7 +75,7 @@ Defined in: [stream/types.ts:93](https://github.com/TanStack/ai/blob/main/packag
 timestamp: number;
 ```
 
-Defined in: [stream/types.ts:85](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/stream/types.ts#L85)
+Defined in: [activities/chat/stream/types.ts:75](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/activities/chat/stream/types.ts#L75)
 
 ***
 
@@ -85,4 +85,4 @@ Defined in: [stream/types.ts:85](https://github.com/TanStack/ai/blob/main/packag
 version: "1.0";
 ```
 
-Defined in: [stream/types.ts:84](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/stream/types.ts#L84)
+Defined in: [activities/chat/stream/types.ts:74](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/activities/chat/stream/types.ts#L74)

@@ -1,11 +1,11 @@
 import { BaseVideoAdapter } from '@tanstack/ai/adapters'
-import { OPENAI_VIDEO_MODELS } from '../model-meta'
 import { createOpenAIClient, getOpenAIApiKeyFromEnv } from '../utils'
 import {
   toApiSeconds,
   validateVideoSeconds,
   validateVideoSize,
 } from '../video/video-provider-options'
+import type { OPENAI_VIDEO_MODELS } from '../model-meta'
 import type {
   OpenAIVideoModelProviderOptionsByName,
   OpenAIVideoProviderOptions,

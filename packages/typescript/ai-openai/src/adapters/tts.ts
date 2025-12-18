@@ -1,5 +1,4 @@
 import { BaseTTSAdapter } from '@tanstack/ai/adapters'
-import { OPENAI_TTS_MODELS } from '../model-meta'
 import {
   createOpenAIClient,
   generateId,
@@ -10,6 +9,7 @@ import {
   validateInstructions,
   validateSpeed,
 } from '../audio/audio-provider-options'
+import type { OPENAI_TTS_MODELS } from '../model-meta'
 import type {
   OpenAITTSFormat,
   OpenAITTSProviderOptions,

@@ -14,6 +14,6 @@ type ToolCallState =
   | "approval-responded";
 ```
 
-Defined in: [stream/types.ts:13](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/stream/types.ts#L13)
+Defined in: [types.ts:6](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L6)
 
 Tool call states - track the lifecycle of a tool call

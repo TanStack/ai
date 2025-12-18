@@ -54,9 +54,12 @@ export interface TextActivityOptions<
 > {
   /** The text adapter to use (created by a provider function like openaiText('gpt-4o')) */
   adapter: TAdapter
-  /** Conversation messages - content types are constrained by the adapter's input modalities */
+  /** Conversation messages - content types are constrained by the adapter's input modalities and metadata */
   messages?: Array<
-    ConstrainedModelMessage<TAdapter['~types']['inputModalities']>
+    ConstrainedModelMessage<{
+      inputModalities: TAdapter['~types']['inputModalities']
+      messageMetadataByModality: TAdapter['~types']['messageMetadataByModality']
+    }>
   >
   /** System prompts to prepend to the conversation */
   systemPrompts?: TextOptions['systemPrompts']

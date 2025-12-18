@@ -1,5 +1,4 @@
 import { BaseImageAdapter } from '@tanstack/ai/adapters'
-import { OPENAI_IMAGE_MODELS } from '../model-meta'
 import {
   createOpenAIClient,
   generateId,
@@ -10,6 +9,7 @@ import {
   validateNumberOfImages,
   validatePrompt,
 } from '../image/image-provider-options'
+import type { OPENAI_IMAGE_MODELS } from '../model-meta'
 import type {
   OpenAIImageModelProviderOptionsByName,
   OpenAIImageModelSizeByName,

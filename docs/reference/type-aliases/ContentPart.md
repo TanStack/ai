@@ -3,7 +3,7 @@ id: ContentPart
 title: ContentPart
 ---
 
-# Type Alias: ContentPart\<TImageMeta, TAudioMeta, TVideoMeta, TDocumentMeta, TTextMeta\>
+# Type Alias: ContentPart\<TTextMeta, TImageMeta, TAudioMeta, TVideoMeta, TDocumentMeta\>
 
 ```ts
 type ContentPart<TTextMeta, TImageMeta, TAudioMeta, TVideoMeta, TDocumentMeta> = 
@@ -14,11 +14,15 @@ type ContentPart<TTextMeta, TImageMeta, TAudioMeta, TVideoMeta, TDocumentMeta> =
 | DocumentPart<TDocumentMeta>;
 ```
 
-Defined in: [types.ts:159](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L159)
+Defined in: [types.ts:235](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L235)
 
 Union type for all multimodal content parts.
 
 ## Type Parameters
+
+### TTextMeta
+
+`TTextMeta` = `unknown`
 
 ### TImageMeta
 
@@ -43,7 +47,3 @@ Provider-specific video metadata type
 `TDocumentMeta` = `unknown`
 
 Provider-specific document metadata type
-
-### TTextMeta
-
-`TTextMeta` = `unknown`

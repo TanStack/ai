@@ -1429,7 +1429,7 @@ describe('chat() - Comprehensive Logic Path Coverage', () => {
 
       const adapter = new PendingToolAdapter()
 
-      const messages: Array<ModelMessage> = [
+      const messages = [
         { role: 'user', content: 'Delete file' },
         {
           role: 'assistant',
@@ -2517,7 +2517,7 @@ describe('chat() - Comprehensive Logic Path Coverage', () => {
 
       // Second call - with approval response in message parts
       // The approval ID should match the format: approval_${toolCall.id}
-      const messagesWithApproval: Array<ModelMessage> = [
+      const messagesWithApproval = [
         { role: 'user', content: 'Delete file' },
         {
           role: 'assistant',
@@ -2637,7 +2637,7 @@ describe('chat() - Comprehensive Logic Path Coverage', () => {
       expect(inputChunk).toBeDefined()
 
       // Second call - with client tool output in message parts
-      const messagesWithOutput: Array<ModelMessage> = [
+      const messagesWithOutput = [
         { role: 'user', content: 'Use client tool' },
         {
           role: 'assistant',
@@ -2758,7 +2758,7 @@ describe('chat() - Comprehensive Logic Path Coverage', () => {
       const adapter = new MixedPartsAdapter()
 
       // Call with messages containing both approval response and client tool output in parts
-      const messagesWithBoth: Array<ModelMessage> = [
+      const messagesWithBoth = [
         { role: 'user', content: 'Use both tools' },
         {
           role: 'assistant',

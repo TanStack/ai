@@ -1,5 +1,4 @@
 import { BaseTextAdapter } from '@tanstack/ai/adapters'
-import { ANTHROPIC_MODELS } from '../model-meta'
 import { convertToolsToProviderFormat } from '../tools/tool-converter'
 import { validateTextProviderOptions } from '../text/text-provider-options'
 import {
@@ -7,6 +6,11 @@ import {
   generateId,
   getAnthropicApiKeyFromEnv,
 } from '../utils'
+import type {
+  ANTHROPIC_MODELS,
+  AnthropicChatModelProviderOptionsByName,
+  AnthropicModelInputModalitiesByName,
+} from '../model-meta'
 import type {
   StructuredOutputOptions,
   StructuredOutputResult,
@@ -29,10 +33,6 @@ import type {
   StreamChunk,
   TextOptions,
 } from '@tanstack/ai'
-import type {
-  AnthropicChatModelProviderOptionsByName,
-  AnthropicModelInputModalitiesByName,
-} from '../model-meta'
 import type {
   ExternalTextProviderOptions,
   InternalTextProviderOptions,

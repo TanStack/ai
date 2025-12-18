@@ -1,10 +1,10 @@
 import { BaseSummarizeAdapter } from '@tanstack/ai/adapters'
-import { ANTHROPIC_MODELS } from '../model-meta'
 import {
   createAnthropicClient,
   generateId,
   getAnthropicApiKeyFromEnv,
 } from '../utils'
+import type { ANTHROPIC_MODELS } from '../model-meta'
 import type {
   StreamChunk,
   SummarizationOptions,

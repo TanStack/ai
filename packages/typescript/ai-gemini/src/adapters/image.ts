@@ -1,5 +1,4 @@
 import { BaseImageAdapter } from '@tanstack/ai/adapters'
-import { GEMINI_IMAGE_MODELS } from '../model-meta'
 import {
   createGeminiClient,
   generateId,
@@ -11,6 +10,7 @@ import {
   validateNumberOfImages,
   validatePrompt,
 } from '../image/image-provider-options'
+import type { GEMINI_IMAGE_MODELS } from '../model-meta'
 import type {
   GeminiImageModelProviderOptionsByName,
   GeminiImageModelSizeByName,
