@@ -11,11 +11,11 @@
 import { describe, expectTypeOf, it } from 'vitest'
 import { BaseTextAdapter } from '../src/activities/chat/adapter'
 import { chat } from '../src/activities/chat'
+import type { StreamChunk, TextOptions } from '../src/types'
 import type {
-  StreamChunk,
-  TextOptions,
-} from '../src/types'
-import type { StructuredOutputOptions, StructuredOutputResult } from '../src/activities/chat/adapter'
+  StructuredOutputOptions,
+  StructuredOutputResult,
+} from '../src/activities/chat/adapter'
 
 // ===========================
 // Mock Provider Options Types
@@ -88,17 +88,17 @@ interface MockAudioMetadata {
 /**
  * Metadata for mock text content parts - no specific options
  */
-interface MockTextMetadata { }
+interface MockTextMetadata {}
 
 /**
  * Metadata for mock video content parts - no specific options
  */
-interface MockVideoMetadata { }
+interface MockVideoMetadata {}
 
 /**
  * Metadata for mock document content parts - no specific options
  */
-interface MockDocumentMetadata { }
+interface MockDocumentMetadata {}
 
 /**
  * Map of modality types to their mock-specific metadata types.
@@ -157,10 +157,10 @@ type MockChatModel = (typeof MOCK_CHAT_MODELS)[number]
  */
 type MockChatModelProviderOptionsByName = {
   'mock-gpt-5': MockBaseOptions &
-  MockReasoningOptions &
-  MockStructuredOutputOptions &
-  MockToolsOptions &
-  MockStreamingOptions
+    MockReasoningOptions &
+    MockStructuredOutputOptions &
+    MockToolsOptions &
+    MockStreamingOptions
   'mock-gpt-3.5-turbo': MockBaseOptions & MockStreamingOptions
 }
 
@@ -181,16 +181,16 @@ type MockModelInputModalitiesByName = {
  */
 type ResolveProviderOptions<TModel extends string> =
   TModel extends keyof MockChatModelProviderOptionsByName
-  ? MockChatModelProviderOptionsByName[TModel]
-  : MockBaseOptions
+    ? MockChatModelProviderOptionsByName[TModel]
+    : MockBaseOptions
 
 /**
  * Resolve input modalities for a specific mock model.
  */
 type ResolveInputModalities<TModel extends string> =
   TModel extends keyof MockModelInputModalitiesByName
-  ? MockModelInputModalitiesByName[TModel]
-  : readonly ['text', 'image', 'audio']
+    ? MockModelInputModalitiesByName[TModel]
+    : readonly ['text', 'image', 'audio']
 
 // ===========================
 // Mock Adapter Implementation
@@ -259,24 +259,24 @@ function mockText<TModel extends MockChatModel>(
 
 describe('Type Safety Tests for chat() function', () => {
   describe('Provider Options (modelOptions) Type Safety', () => {
-    it("should allow passing in common options", () => {
+    it('should allow passing in common options', () => {
       chat({
         adapter: mockText('mock-gpt-5'),
         messages: [{ role: 'user', content: 'Hello' }],
         options: {
           temperature: 0.7,
-        }
+        },
       })
       chat({
         adapter: mockText('mock-gpt-3.5-turbo'),
         messages: [{ role: 'user', content: 'Hello' }],
         options: {
           temperature: 0.7,
-        }
+        },
       })
     })
 
-    it("should not allow arbitrary keys in chat options", () => {
+    it('should not allow arbitrary keys in chat options', () => {
       chat({
         adapter: mockText('mock-gpt-5'),
         messages: [{ role: 'user', content: 'Hello' }],
@@ -291,7 +291,7 @@ describe('Type Safety Tests for chat() function', () => {
       })
     })
 
-    it("common options only accept valid keys", () => {
+    it('common options only accept valid keys', () => {
       chat({
         adapter: mockText('mock-gpt-5'),
         messages: [{ role: 'user', content: 'Hello' }],
@@ -299,7 +299,7 @@ describe('Type Safety Tests for chat() function', () => {
           temperature: 0.7,
           // @ts-expect-error - invalid common option
           random_option: true,
-        }
+        },
       })
       chat({
         adapter: mockText('mock-gpt-3.5-turbo'),
@@ -308,7 +308,7 @@ describe('Type Safety Tests for chat() function', () => {
           temperature: 0.7,
           // @ts-expect-error - invalid common option
           random_option: true,
-        }
+        },
       })
     })
     describe('mock-gpt-5 (full featured model)', () => {
@@ -318,7 +318,6 @@ describe('Type Safety Tests for chat() function', () => {
           adapter: mockText('mock-gpt-5'),
           messages: [{ role: 'user', content: 'Hello' }],
           modelOptions: {
-
             reasoning: {
               effort: 'high',
               summary: 'detailed',
@@ -353,7 +352,6 @@ describe('Type Safety Tests for chat() function', () => {
             },
           },
         })
-
       })
 
       it('should allow base options', () => {
@@ -365,7 +363,6 @@ describe('Type Safety Tests for chat() function', () => {
             availableOnAllModels: true,
           },
         })
-
       })
 
       it('should NOT allow unknown options', () => {
@@ -487,7 +484,13 @@ describe('Type Safety Tests for chat() function', () => {
               role: 'user',
               content: [
                 { type: 'text', content: 'Describe this image:' },
-                { type: 'image', source: { type: 'url', value: 'https://example.com/image.png' } },
+                {
+                  type: 'image',
+                  source: {
+                    type: 'url',
+                    value: 'https://example.com/image.png',
+                  },
+                },
               ],
             },
           ],
@@ -504,7 +507,10 @@ describe('Type Safety Tests for chat() function', () => {
               content: [
                 {
                   type: 'image',
-                  source: { type: 'url', value: 'https://example.com/image.png' },
+                  source: {
+                    type: 'url',
+                    value: 'https://example.com/image.png',
+                  },
                   metadata: { detail: 'high' },
                 },
               ],
@@ -521,7 +527,10 @@ describe('Type Safety Tests for chat() function', () => {
               role: 'user',
               content: [
                 // @ts-expect-error - mock-gpt-5 does not support audio input
-                { type: 'audio', source: { type: "data", value: 'base64data' } },
+                {
+                  type: 'audio',
+                  source: { type: 'data', value: 'base64data' },
+                },
               ],
             },
           ],
@@ -536,7 +545,13 @@ describe('Type Safety Tests for chat() function', () => {
               role: 'user',
               content: [
                 // @ts-expect-error - mock-gpt-5 does not support video input
-                { type: 'video', source: { type: 'url', value: 'https://example.com/video.mp4' } },
+                {
+                  type: 'video',
+                  source: {
+                    type: 'url',
+                    value: 'https://example.com/video.mp4',
+                  },
+                },
               ],
             },
           ],
@@ -551,7 +566,14 @@ describe('Type Safety Tests for chat() function', () => {
               role: 'user',
               content: [
                 // @ts-expect-error - mock-gpt-5 does not support document input
-                { type: 'document', source: { type: 'base64', value: 'base64data', mediaType: 'application/pdf' } },
+                {
+                  type: 'document',
+                  source: {
+                    type: 'base64',
+                    value: 'base64data',
+                    mediaType: 'application/pdf',
+                  },
+                },
               ],
             },
           ],
@@ -589,7 +611,13 @@ describe('Type Safety Tests for chat() function', () => {
               role: 'user',
               content: [
                 // @ts-expect-error - mock-gpt-3.5-turbo does not support image input
-                { type: 'image', source: { type: 'url', value: 'https://example.com/image.png' } },
+                {
+                  type: 'image',
+                  source: {
+                    type: 'url',
+                    value: 'https://example.com/image.png',
+                  },
+                },
               ],
             },
           ],
@@ -604,7 +632,14 @@ describe('Type Safety Tests for chat() function', () => {
               role: 'user',
               content: [
                 // @ts-expect-error - mock-gpt-3.5-turbo does not support audio input
-                { type: 'audio', source: { type: 'base64', value: 'base64data', mediaType: 'audio/mp3' } },
+                {
+                  type: 'audio',
+                  source: {
+                    type: 'base64',
+                    value: 'base64data',
+                    mediaType: 'audio/mp3',
+                  },
+                },
               ],
             },
           ],
@@ -619,7 +654,13 @@ describe('Type Safety Tests for chat() function', () => {
               role: 'user',
               content: [
                 // @ts-expect-error - mock-gpt-3.5-turbo does not support video input
-                { type: 'video', source: { type: 'url', value: 'https://example.com/video.mp4' } },
+                {
+                  type: 'video',
+                  source: {
+                    type: 'url',
+                    value: 'https://example.com/video.mp4',
+                  },
+                },
               ],
             },
           ],
@@ -634,7 +675,14 @@ describe('Type Safety Tests for chat() function', () => {
               role: 'user',
               content: [
                 // @ts-expect-error - mock-gpt-3.5-turbo does not support document input
-                { type: 'document', source: { type: 'base64', value: 'base64data', mediaType: 'application/pdf' } },
+                {
+                  type: 'document',
+                  source: {
+                    type: 'base64',
+                    value: 'base64data',
+                    mediaType: 'application/pdf',
+                  },
+                },
               ],
             },
           ],
@@ -655,7 +703,10 @@ describe('Type Safety Tests for chat() function', () => {
               content: [
                 {
                   type: 'image',
-                  source: { type: 'url', value: 'https://example.com/image.png' },
+                  source: {
+                    type: 'url',
+                    value: 'https://example.com/image.png',
+                  },
                   metadata: { detail: 'auto' },
                 },
               ],
@@ -671,7 +722,10 @@ describe('Type Safety Tests for chat() function', () => {
               content: [
                 {
                   type: 'image',
-                  source: { type: 'url', value: 'https://example.com/image.png' },
+                  source: {
+                    type: 'url',
+                    value: 'https://example.com/image.png',
+                  },
                   metadata: { detail: 'low' },
                 },
               ],
@@ -687,7 +741,10 @@ describe('Type Safety Tests for chat() function', () => {
               content: [
                 {
                   type: 'image',
-                  source: { type: 'url', value: 'https://example.com/image.png' },
+                  source: {
+                    type: 'url',
+                    value: 'https://example.com/image.png',
+                  },
                   metadata: { detail: 'high' },
                 },
               ],
@@ -710,7 +767,10 @@ describe('Type Safety Tests for chat() function', () => {
                 // @ts-expect-error - 'ultra' is not a valid detail value
                 {
                   type: 'image',
-                  source: { type: 'url', value: 'https://example.com/image.png' },
+                  source: {
+                    type: 'url',
+                    value: 'https://example.com/image.png',
+                  },
                   metadata: { detail: 'ultra' },
                 },
               ],
@@ -728,7 +788,10 @@ describe('Type Safety Tests for chat() function', () => {
               content: [
                 {
                   type: 'image',
-                  source: { type: 'url', value: 'https://example.com/image.png' },
+                  source: {
+                    type: 'url',
+                    value: 'https://example.com/image.png',
+                  },
                   // @ts-expect-error - 'quality' is not a valid metadata property for images
                   metadata: { quality: 'hd' },
                 },
@@ -811,7 +874,6 @@ describe('Type Safety Tests for chat() function', () => {
         },
         systemPrompts: ['You are a helpful assistant.'],
       })
-
     })
 
     it('mock-gpt-3.5-turbo: should error with advanced features', () => {
@@ -822,7 +884,10 @@ describe('Type Safety Tests for chat() function', () => {
             role: 'user',
             content: [
               // @ts-expect-error - mock-gpt-3.5-turbo doesn't support reasoning OR image input
-              { type: 'image', source: { type: 'url', value: 'https://example.com/image.png' } },
+              {
+                type: 'image',
+                source: { type: 'url', value: 'https://example.com/image.png' },
+              },
             ],
           },
         ],
@@ -837,15 +902,12 @@ describe('Type Safety Tests for chat() function', () => {
       // This should compile - using only features available to mock-gpt-3.5-turbo
       chat({
         adapter: mockText('mock-gpt-3.5-turbo'),
-        messages: [
-          { role: 'user', content: 'Hello!' },
-        ],
+        messages: [{ role: 'user', content: 'Hello!' }],
         modelOptions: {
           availableOnAllModels: true,
         },
         systemPrompts: ['You are a helpful assistant.'],
       })
-
     })
   })
 })

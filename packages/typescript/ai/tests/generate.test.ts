@@ -1,5 +1,10 @@
 import { describe, expect, it, vi } from 'vitest'
-import { BaseSummarizeAdapter, BaseTextAdapter, chat, summarize } from '../src/activities'
+import {
+  BaseSummarizeAdapter,
+  BaseTextAdapter,
+  chat,
+  summarize,
+} from '../src/activities'
 import type { StructuredOutputResult } from '../src/activities'
 import type {
   ModelMessage,
@@ -47,7 +52,6 @@ class MockTextAdapter<
       yield chunk
     }
   }
-
 
   structuredOutput(_options: any): Promise<StructuredOutputResult<unknown>> {
     return Promise.resolve({
