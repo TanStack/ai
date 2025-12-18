@@ -68,12 +68,12 @@ describe('OpenAI adapter option mapping', () => {
     const responsesCreate = vi.fn().mockResolvedValueOnce(mockStream)
 
     const adapter = createAdapter('gpt-4o-mini')
-      // Replace the internal OpenAI SDK client with our mock
-      ; (adapter as any).client = {
-        responses: {
-          create: responsesCreate,
-        },
-      }
+    // Replace the internal OpenAI SDK client with our mock
+    ;(adapter as any).client = {
+      responses: {
+        create: responsesCreate,
+      },
+    }
 
     const modelOptions: OpenAITextProviderOptions = {
       tool_choice: 'required',

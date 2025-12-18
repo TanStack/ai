@@ -12,7 +12,7 @@ import type { OpenAIClientConfig } from '../utils'
 /**
  * Configuration for OpenAI summarize adapter
  */
-export interface OpenAISummarizeConfig extends OpenAIClientConfig { }
+export interface OpenAISummarizeConfig extends OpenAIClientConfig {}
 
 /**
  * OpenAI-specific provider options for summarization

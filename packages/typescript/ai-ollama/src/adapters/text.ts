@@ -340,34 +340,34 @@ export class OllamaTextAdapter<TModel extends string> extends BaseTextAdapter<
           : textContent,
         ...(images.length > 0 ? { images } : {}),
         ...(msg.role === 'assistant' &&
-          msg.toolCalls &&
-          msg.toolCalls.length > 0
+        msg.toolCalls &&
+        msg.toolCalls.length > 0
           ? {
-            tool_calls: msg.toolCalls.map((toolCall) => {
-              let parsedArguments: Record<string, unknown> = {}
-              if (typeof toolCall.function.arguments === 'string') {
-                try {
-                  parsedArguments = JSON.parse(
-                    toolCall.function.arguments,
-                  ) as Record<string, unknown>
-                } catch {
-                  parsedArguments = {}
+              tool_calls: msg.toolCalls.map((toolCall) => {
+                let parsedArguments: Record<string, unknown> = {}
+                if (typeof toolCall.function.arguments === 'string') {
+                  try {
+                    parsedArguments = JSON.parse(
+                      toolCall.function.arguments,
+                    ) as Record<string, unknown>
+                  } catch {
+                    parsedArguments = {}
+                  }
+                } else {
+                  parsedArguments = toolCall.function
+                    .arguments as unknown as Record<string, unknown>
                 }
-              } else {
-                parsedArguments = toolCall.function
-                  .arguments as unknown as Record<string, unknown>
-              }
 
-              return {
-                id: toolCall.id,
-                type: toolCall.type,
-                function: {
-                  name: toolCall.function.name,
-                  arguments: parsedArguments,
-                },
-              }
-            }),
-          }
+                return {
+                  id: toolCall.id,
+                  type: toolCall.type,
+                  function: {
+                    name: toolCall.function.name,
+                    arguments: parsedArguments,
+                  },
+                }
+              }),
+            }
           : {}),
       }
     })

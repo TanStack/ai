@@ -164,8 +164,8 @@ export type TextActivityResult<
 > = TSchema extends z.ZodType
   ? Promise<z.infer<TSchema>>
   : TStream extends false
-  ? Promise<string>
-  : AsyncIterable<StreamChunk>
+    ? Promise<string>
+    : AsyncIterable<StreamChunk>
 
 // ===========================
 // ChatEngine Implementation
@@ -271,7 +271,16 @@ class TextEngine<
 
   private beforeRun(): void {
     this.streamStartTime = Date.now()
-    const { model, tools, temperature, topP, maxTokens, metadata, modelOptions, conversationId } = this.params
+    const {
+      model,
+      tools,
+      temperature,
+      topP,
+      maxTokens,
+      metadata,
+      modelOptions,
+      conversationId,
+    } = this.params
 
     // Gather flattened options into an object for event emission
     const options: Record<string, unknown> = {}
