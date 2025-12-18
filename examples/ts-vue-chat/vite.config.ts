@@ -246,7 +246,10 @@ export default defineConfig({
               abortController,
             })
 
-            const readableStream = toServerSentEventsStream(stream, abortController)
+            const readableStream = toServerSentEventsStream(
+              stream,
+              abortController,
+            )
 
             // Set headers
             res.setHeader('Content-Type', 'text/event-stream')

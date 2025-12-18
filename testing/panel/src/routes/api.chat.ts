@@ -231,7 +231,10 @@ export const Route = createFileRoute('/api/chat')({
             abortController,
           })
 
-          const readableStream = toServerSentEventsStream(stream, abortController)
+          const readableStream = toServerSentEventsStream(
+            stream,
+            abortController,
+          )
           return new Response(readableStream, {
             headers: {
               'Content-Type': 'text/event-stream',

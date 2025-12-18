@@ -22,8 +22,7 @@ export const Route = createFileRoute('/api/image')({
             gemini: () =>
               createImageOptions({
                 adapter: geminiImage(
-                  (model ||
-                    'gemini-2.0-flash-preview-image-generation') as any,
+                  (model || 'gemini-2.0-flash-preview-image-generation') as any,
                 ),
               }),
             openai: () =>
