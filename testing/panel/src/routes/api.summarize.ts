@@ -11,23 +11,19 @@ type Provider = 'openai' | 'anthropic' | 'gemini' | 'ollama'
 const adapterConfig = {
   anthropic: () =>
     createSummarizeOptions({
-      adapter: anthropicSummarize(),
-      model: 'claude-sonnet-4-5-20250929',
+      adapter: anthropicSummarize('claude-sonnet-4-5' as any),
     }),
   gemini: () =>
     createSummarizeOptions({
-      adapter: geminiSummarize(),
-      model: 'gemini-2.0-flash-exp',
+      adapter: geminiSummarize('gemini-2.0-flash' as any),
     }),
   ollama: () =>
     createSummarizeOptions({
-      adapter: ollamaSummarize(),
-      model: 'mistral:7b',
+      adapter: ollamaSummarize('mistral:7b'),
     }),
   openai: () =>
     createSummarizeOptions({
-      adapter: openaiSummarize(),
-      model: 'gpt-4o-mini',
+      adapter: openaiSummarize('gpt-4o-mini'),
     }),
 }
 
@@ -47,7 +43,7 @@ export const Route = createFileRoute('/api/summarize')({
         try {
           // Get typed adapter options using createSummarizeOptions pattern
           const options = adapterConfig[provider]()
-          const model = options.adapter.defaultModel || 'unknown'
+          const model = options.adapter.model
 
           console.log(
             `>> summarize with model: ${model} on provider: ${provider} (stream: ${stream})`,

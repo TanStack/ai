@@ -33,23 +33,19 @@ if (env.GEMINI_API_KEY) process.env.GEMINI_API_KEY = env.GEMINI_API_KEY
 const adapterConfig = {
   anthropic: () =>
     createChatOptions({
-      adapter: anthropicText(),
-      model: 'claude-sonnet-4-5',
+      adapter: anthropicText('claude-sonnet-4-5'),
     }),
   gemini: () =>
     createChatOptions({
-      adapter: geminiText(),
-      model: 'gemini-2.0-flash-exp',
+      adapter: geminiText('gemini-2.0-flash-exp'),
     }),
   ollama: () =>
     createChatOptions({
-      adapter: ollamaText(),
-      model: 'mistral:7b',
+      adapter: ollamaText('mistral:7b'),
     }),
   openai: () =>
     createChatOptions({
-      adapter: openaiText(),
-      model: 'gpt-4o',
+      adapter: openaiText('gpt-4o'),
     }),
 }
 

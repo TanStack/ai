@@ -202,27 +202,26 @@ export default defineConfig({
             const model: string | undefined = data?.model
 
             let adapter
-            let defaultModel
 
             let selectedModel: string
 
             switch (provider) {
               case 'anthropic':
                 selectedModel = model || 'claude-sonnet-4-5-20250929'
-                adapter = anthropicText()
+                adapter = anthropicText(selectedModel)
                 break
               case 'gemini':
                 selectedModel = model || 'gemini-2.0-flash-exp'
-                adapter = geminiText()
+                adapter = geminiText(selectedModel)
                 break
               case 'ollama':
                 selectedModel = model || 'mistral:7b'
-                adapter = ollamaText()
+                adapter = ollamaText(selectedModel)
                 break
               case 'openai':
               default:
                 selectedModel = model || 'gpt-4o'
-                adapter = openaiText()
+                adapter = openaiText(selectedModel)
                 break
             }
 
@@ -234,7 +233,6 @@ export default defineConfig({
 
             const stream = chat({
               adapter,
-              model: selectedModel,
               tools: [
                 getGuitars,
                 recommendGuitarToolDef,

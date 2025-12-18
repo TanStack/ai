@@ -9,13 +9,11 @@ type Provider = 'openai' | 'gemini'
 const adapterConfig = {
   gemini: () =>
     createImageOptions({
-      adapter: geminiImage(),
-      model: 'gemini-2.0-flash-preview-image-generation',
+      adapter: geminiImage('gemini-2.0-flash-preview-image-generation' as any),
     }),
   openai: () =>
     createImageOptions({
-      adapter: openaiImage(),
-      model: 'gpt-image-1',
+      adapter: openaiImage('gpt-image-1' as any),
     }),
 }
 
@@ -30,7 +28,7 @@ export const Route = createFileRoute('/api/image')({
         try {
           // Get typed adapter options using createImageOptions pattern
           const options = adapterConfig[provider]()
-          const model = options.adapter.defaultModel || 'unknown'
+          const model = options.adapter.model
 
           console.log(
             `>> image generation with model: ${model} on provider: ${provider}`,

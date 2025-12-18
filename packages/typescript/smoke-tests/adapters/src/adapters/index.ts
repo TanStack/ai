@@ -1,20 +1,17 @@
+import { anthropicSummarize, anthropicText } from '@tanstack/ai-anthropic'
 import {
-  createAnthropicSummarize,
-  createAnthropicText,
-} from '@tanstack/ai-anthropic'
-import {
-  createGeminiImage,
-  createGeminiSummarize,
-  createGeminiText,
-  createGeminiTTS,
+  geminiImage,
+  geminiSpeech,
+  geminiSummarize,
+  geminiText,
 } from '@tanstack/ai-gemini'
-import { createOllamaSummarize, createOllamaText } from '@tanstack/ai-ollama'
+import { ollamaSummarize, ollamaText } from '@tanstack/ai-ollama'
 import {
-  createOpenaiImage,
-  createOpenaiSummarize,
-  createOpenaiText,
-  createOpenaiTTS,
-  createOpenaiTranscription,
+  openaiImage,
+  openaiSpeech,
+  openaiSummarize,
+  openaiText,
+  openaiTranscription,
 } from '@tanstack/ai-openai'
 
 /**
@@ -88,8 +85,11 @@ function createAnthropicAdapters(): AdapterSet | null {
   if (!apiKey) return null
 
   return {
-    textAdapter: createAnthropicText(apiKey),
-    summarizeAdapter: createAnthropicSummarize(apiKey),
+    textAdapter: anthropicText(ANTHROPIC_MODEL as any, { apiKey } as any),
+    summarizeAdapter: anthropicSummarize(
+      ANTHROPIC_SUMMARY_MODEL as any,
+      { apiKey } as any,
+    ),
     // Anthropic does not support image generation natively
     imageAdapter: undefined,
     chatModel: ANTHROPIC_MODEL,
@@ -105,11 +105,17 @@ function createOpenAIAdapters(): AdapterSet | null {
   if (!apiKey) return null
 
   return {
-    textAdapter: createOpenaiText(apiKey),
-    summarizeAdapter: createOpenaiSummarize(apiKey),
-    imageAdapter: createOpenaiImage(apiKey),
-    ttsAdapter: createOpenaiTTS(apiKey),
-    transcriptionAdapter: createOpenaiTranscription(apiKey),
+    textAdapter: openaiText(OPENAI_MODEL as any, { apiKey } as any),
+    summarizeAdapter: openaiSummarize(
+      OPENAI_SUMMARY_MODEL as any,
+      { apiKey } as any,
+    ),
+    imageAdapter: openaiImage(OPENAI_IMAGE_MODEL as any, { apiKey } as any),
+    ttsAdapter: openaiSpeech(OPENAI_TTS_MODEL as any, { apiKey } as any),
+    transcriptionAdapter: openaiTranscription(
+      OPENAI_TRANSCRIPTION_MODEL as any,
+      { apiKey } as any,
+    ),
     chatModel: OPENAI_MODEL,
     summarizeModel: OPENAI_SUMMARY_MODEL,
     imageModel: OPENAI_IMAGE_MODEL,
@@ -126,10 +132,13 @@ function createGeminiAdapters(): AdapterSet | null {
   if (!apiKey) return null
 
   return {
-    textAdapter: createGeminiText(apiKey),
-    summarizeAdapter: createGeminiSummarize(apiKey),
-    imageAdapter: createGeminiImage(apiKey),
-    ttsAdapter: createGeminiTTS(apiKey),
+    textAdapter: geminiText(GEMINI_MODEL as any, { apiKey } as any),
+    summarizeAdapter: geminiSummarize(
+      GEMINI_SUMMARY_MODEL as any,
+      { apiKey } as any,
+    ),
+    imageAdapter: geminiImage(GEMINI_IMAGE_MODEL as any, { apiKey } as any),
+    ttsAdapter: geminiSpeech(GEMINI_TTS_MODEL as any, { apiKey } as any),
     chatModel: GEMINI_MODEL,
     summarizeModel: GEMINI_SUMMARY_MODEL,
     imageModel: GEMINI_IMAGE_MODEL,
@@ -142,8 +151,8 @@ function createGeminiAdapters(): AdapterSet | null {
  */
 function createOllamaAdapters(): AdapterSet | null {
   return {
-    textAdapter: createOllamaText(),
-    summarizeAdapter: createOllamaSummarize(),
+    textAdapter: ollamaText(OLLAMA_MODEL as any),
+    summarizeAdapter: ollamaSummarize(OLLAMA_SUMMARY_MODEL as any),
     // Ollama does not support image generation
     imageAdapter: undefined,
     chatModel: OLLAMA_MODEL,

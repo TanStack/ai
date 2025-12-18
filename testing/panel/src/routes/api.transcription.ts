@@ -26,7 +26,7 @@ export const Route = createFileRoute('/api/transcription')({
         }
 
         try {
-          const adapter = openaiTranscription()
+          const adapter = openaiTranscription(model)
 
           // Prepare audio data
           let audioData: string | File
@@ -40,7 +40,6 @@ export const Route = createFileRoute('/api/transcription')({
 
           const result = await generateTranscription({
             adapter,
-            model,
             audio: audioData,
             language: language || undefined,
             responseFormat: (responseFormat as any) || 'verbose_json',

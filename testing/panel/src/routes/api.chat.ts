@@ -11,7 +11,7 @@ import { anthropicText } from '@tanstack/ai-anthropic'
 import { geminiText } from '@tanstack/ai-gemini'
 import { openaiText } from '@tanstack/ai-openai'
 import { ollamaText } from '@tanstack/ai-ollama'
-import type { AIAdapter, ChatOptions, StreamChunk } from '@tanstack/ai'
+import type { AIAdapter, StreamChunk } from '@tanstack/ai'
 import type { ChunkRecording } from '@/lib/recording'
 import {
   addToCartToolDef,
@@ -58,23 +58,19 @@ type Provider = 'openai' | 'anthropic' | 'gemini' | 'ollama'
 const adapterConfig = {
   anthropic: () =>
     createChatOptions({
-      adapter: anthropicText(),
-      model: 'claude-sonnet-4-5-20250929',
+      adapter: anthropicText('claude-sonnet-4-5'),
     }),
   gemini: () =>
     createChatOptions({
-      adapter: geminiText(),
-      model: 'gemini-2.0-flash-exp',
+      adapter: geminiText('gemini-2.0-flash'),
     }),
   ollama: () =>
     createChatOptions({
-      adapter: ollamaText(),
-      model: 'mistral:7b',
+      adapter: ollamaText('mistral:7b'),
     }),
   openai: () =>
     createChatOptions({
-      adapter: openaiText(),
-      model: 'gpt-4o',
+      adapter: openaiText('gpt-4o'),
     }),
 }
 
@@ -88,6 +84,11 @@ function wrapAdapterForRecording<TAdapter extends AIAdapter>(
   model: string,
   provider: string,
 ): TAdapter {
+  // Type guard to check if adapter has chatStream
+  if (!('chatStream' in adapter) || typeof adapter.chatStream !== 'function') {
+    return adapter
+  }
+
   const originalChatStream = adapter.chatStream.bind(adapter)
 
   // Track chunks for recording
@@ -102,7 +103,7 @@ function wrapAdapterForRecording<TAdapter extends AIAdapter>(
   const wrappedAdapter = {
     ...adapter,
     chatStream: async function* (
-      options: ChatOptions<string, any>,
+      options: Parameters<typeof originalChatStream>[0],
     ): AsyncIterable<StreamChunk> {
       const startTime = Date.now()
 
@@ -183,7 +184,7 @@ export const Route = createFileRoute('/api/chat')({
           // Get typed adapter options using createChatOptions pattern
           const options = adapterConfig[provider]()
           let { adapter } = options
-          const model = adapter.defaultModel || 'unknown'
+          const model = adapter.model
 
           console.log(`>> model: ${model} on provider: ${provider}`)
 

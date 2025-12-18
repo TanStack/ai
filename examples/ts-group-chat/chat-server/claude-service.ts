@@ -92,7 +92,7 @@ export interface ClaudeQueueStatus {
 }
 
 export class ClaudeService {
-  private adapter = anthropicText() // Uses ANTHROPIC_API_KEY from env
+  private adapter = anthropicText('claude-sonnet-4-5') // Uses ANTHROPIC_API_KEY from env
   private queue: Array<ClaudeRequest> = []
   private currentRequest: ClaudeRequest | null = null
   private isProcessing = false
@@ -151,7 +151,6 @@ export class ClaudeService {
 
       for await (const chunk of chat({
         adapter: this.adapter,
-        model: 'claude-sonnet-4-5',
         systemPrompts: [systemMessage],
         messages: [...conversationHistory] as any,
         tools: [getWeatherTool],

@@ -12,23 +12,19 @@ type Provider = 'openai' | 'anthropic' | 'gemini' | 'ollama'
 const adapterConfig = {
   anthropic: () =>
     createChatOptions({
-      adapter: anthropicText(),
-      model: 'claude-sonnet-4-5-20250929',
+      adapter: anthropicText('claude-sonnet-4-5-20250929'),
     }),
   gemini: () =>
     createChatOptions({
-      adapter: geminiText(),
-      model: 'gemini-2.0-flash-exp',
+      adapter: geminiText('gemini-2.0-flash-exp'),
     }),
   ollama: () =>
     createChatOptions({
-      adapter: ollamaText(),
-      model: 'mistral:7b',
+      adapter: ollamaText('mistral:7b'),
     }),
   openai: () =>
     createChatOptions({
-      adapter: openaiText(),
-      model: 'gpt-4o',
+      adapter: openaiText('gpt-4o'),
     }),
 }
 

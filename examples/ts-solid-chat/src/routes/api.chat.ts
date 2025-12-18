@@ -57,8 +57,7 @@ export const Route = createFileRoute('/api/chat')({
         try {
           // Use the stream abort signal for proper cancellation handling
           const stream = chat({
-            adapter: anthropicText(),
-            model: 'claude-sonnet-4-5',
+            adapter: anthropicText('claude-sonnet-4-5'),
             tools: serverTools,
             systemPrompts: [SYSTEM_PROMPT],
             agentLoopStrategy: maxIterations(20),

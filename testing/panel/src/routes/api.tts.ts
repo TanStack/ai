@@ -28,11 +28,10 @@ export const Route = createFileRoute('/api/tts')({
         }
 
         try {
-          const adapter = openaiSpeech()
+          const adapter = openaiSpeech(model)
 
           const result = await generateSpeech({
             adapter,
-            model,
             text,
             voice,
             format,
