@@ -1,6 +1,6 @@
 # @tanstack/solid-ai-devtools
 
-## 0.0.4
+## 0.1.0
 
 ### Patch Changes
 
