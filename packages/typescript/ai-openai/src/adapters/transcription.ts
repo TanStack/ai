@@ -17,7 +17,7 @@ import type { OpenAIClientConfig } from '../utils'
 /**
  * Configuration for OpenAI Transcription adapter
  */
-export interface OpenAITranscriptionConfig extends OpenAIClientConfig {}
+export interface OpenAITranscriptionConfig extends OpenAIClientConfig { }
 
 /** Model type for OpenAI Transcription */
 export type OpenAITranscriptionModel =
@@ -128,12 +128,12 @@ export class OpenAITranscriptionAdapter<
 
   private prepareAudioFile(audio: string | File | Blob | ArrayBuffer): File {
     // If already a File, return it
-    if (audio instanceof File) {
+    if (typeof File !== 'undefined' && audio instanceof File) {
       return audio
     }
 
     // If Blob, convert to File
-    if (audio instanceof Blob) {
+    if (typeof Blob !== 'undefined' && audio instanceof Blob) {
       return new File([audio], 'audio.mp3', {
         type: audio.type || 'audio/mpeg',
       })

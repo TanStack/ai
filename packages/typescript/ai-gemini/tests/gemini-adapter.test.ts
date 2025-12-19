@@ -86,7 +86,7 @@ describe('GeminiAdapter through AI', () => {
         ],
         usageMetadata: {
           promptTokenCount: 3,
-          thoughtsTokenCount: 1,
+          candidatesTokenCount: 1,
           totalTokenCount: 4,
         },
       },
@@ -294,7 +294,7 @@ describe('GeminiAdapter through AI', () => {
         ],
         usageMetadata: {
           promptTokenCount: 4,
-          thoughtsTokenCount: 2,
+          candidatesTokenCount: 2,
           totalTokenCount: 6,
         },
       },
@@ -361,7 +361,7 @@ describe('GeminiAdapter through AI', () => {
     const [payload] = mocks.generateContentSpy.mock.calls[0]
     expect(payload.model).toBe('gemini-2.0-flash')
     expect(payload.config.systemInstruction).toContain('summarizes text')
-    expect(payload.config.systemInstruction).toContain('123 words')
+    expect(payload.config.systemInstruction).toContain('123 tokens')
     expect(result.summary).toBe(summaryText)
   })
 })

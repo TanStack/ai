@@ -84,7 +84,7 @@ export class GeminiSummarizeAdapter<
     // Build the system prompt based on format
     const formatInstructions = this.getFormatInstructions(options.style)
     const lengthInstructions = options.maxLength
-      ? ` Keep the summary under ${options.maxLength} words.`
+      ? ` Keep the summary under ${options.maxLength} tokens.`
       : ''
 
     const systemPrompt = `You are a helpful assistant that summarizes text. ${formatInstructions}${lengthInstructions}`

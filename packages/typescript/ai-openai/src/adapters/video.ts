@@ -5,6 +5,7 @@ import {
   validateVideoSeconds,
   validateVideoSize,
 } from '../video/video-provider-options'
+import type { VideoModel } from 'openai/resources'
 import type { OPENAI_VIDEO_MODELS } from '../model-meta'
 import type {
   OpenAIVideoModelProviderOptionsByName,
@@ -24,7 +25,7 @@ import type { OpenAIClientConfig } from '../utils'
  *
  * @experimental Video generation is an experimental feature and may change.
  */
-export interface OpenAIVideoConfig extends OpenAIClientConfig {}
+export interface OpenAIVideoConfig extends OpenAIClientConfig { }
 
 /** Model type for OpenAI Video */
 export type OpenAIVideoModel = (typeof OPENAI_VIDEO_MODELS)[number]
@@ -59,6 +60,7 @@ export class OpenAIVideoAdapter<
   constructor(config: OpenAIVideoConfig, model: TModel) {
     super(config, model)
     this.client = createOpenAIClient(config)
+
   }
 
   /**
@@ -96,7 +98,7 @@ export class OpenAIVideoAdapter<
     try {
       // POST /v1/videos
       // Cast to any because the videos API may not be in SDK types yet
-      const client = this.client as any
+      const client = this.client
       const response = await client.videos.create(request)
 
       return {
@@ -105,10 +107,10 @@ export class OpenAIVideoAdapter<
       }
     } catch (error: any) {
       // Fallback for when the videos API is not available
-      if (error.message?.includes('videos') || error.code === 'invalid_api') {
+      if (error?.message?.includes('videos') || error?.code === 'invalid_api') {
         throw new Error(
           `Video generation API is not available. The Sora API may require special access. ` +
-            `Original error: ${error.message}`,
+          `Original error: ${error.message}`,
         )
       }
       throw error
@@ -136,7 +138,7 @@ export class OpenAIVideoAdapter<
   async getVideoStatus(jobId: string): Promise<VideoStatusResult> {
     try {
       // GET /v1/videos/{video_id}
-      const client = this.client as any
+      const client = this.client
       const response = await client.videos.retrieve(jobId)
 
       return {
@@ -177,6 +179,7 @@ export class OpenAIVideoAdapter<
       // GET /v1/videos/{video_id}/content
       // The SDK may not have a .content() method, so we try multiple approaches
       const client = this.client as any
+
 
       let response: any
 
@@ -234,7 +237,7 @@ export class OpenAIVideoAdapter<
             const errorData = await contentResponse.json().catch(() => ({}))
             throw new Error(
               errorData.error?.message ||
-                `Failed to get video content: ${contentResponse.status}`,
+              `Failed to get video content: ${contentResponse.status}`,
             )
           }
           throw new Error(
@@ -278,18 +281,18 @@ export class OpenAIVideoAdapter<
 
   private buildRequest(
     options: VideoGenerationOptions<OpenAIVideoProviderOptions>,
-  ): Record<string, unknown> {
+  ): OpenAI_SDK.Videos.VideoCreateParams {
     const { model, prompt, size, duration, modelOptions } = options
 
-    const request: Record<string, unknown> = {
-      model,
+    const request: OpenAI_SDK.Videos.VideoCreateParams = {
+      model: model as VideoModel,
       prompt,
     }
 
     // Add size/resolution
     // Supported: '1280x720', '720x1280', '1792x1024', '1024x1792'
     if (size) {
-      request.size = size
+      request.size = size as OpenAI_SDK.Videos.VideoCreateParams['size']
     } else if (modelOptions?.size) {
       request.size = modelOptions.size
     }

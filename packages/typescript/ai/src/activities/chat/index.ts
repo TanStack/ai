@@ -164,8 +164,8 @@ export type TextActivityResult<
 > = TSchema extends z.ZodType
   ? Promise<z.infer<TSchema>>
   : TStream extends false
-    ? Promise<string>
-    : AsyncIterable<StreamChunk>
+  ? Promise<string>
+  : AsyncIterable<StreamChunk>
 
 // ===========================
 // ChatEngine Implementation
@@ -1016,7 +1016,6 @@ async function* runStreamingText(
     adapter,
     params: { ...textOptions, model } as TextOptions<
       Record<string, any>,
-      undefined,
       Record<string, any>
     >,
   })
@@ -1062,7 +1061,6 @@ async function runAgenticStructuredOutput<TSchema extends z.ZodType>(
     adapter,
     params: { ...textOptions, model } as TextOptions<
       Record<string, any>,
-      undefined,
       Record<string, any>
     >,
   })

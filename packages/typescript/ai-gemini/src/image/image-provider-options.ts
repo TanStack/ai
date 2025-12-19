@@ -163,12 +163,12 @@ export const GEMINI_SIZE_TO_ASPECT_RATIO: Record<string, GeminiAspectRatio> = {
   '512x512': '1:1',
   // Landscape
   '1024x768': '4:3',
-  '1536x1024': '3:4', // Actually this is portrait, but matching common dimensions
+  '1536x1024': '4:3',
   '1792x1024': '16:9',
   '1920x1080': '16:9',
   // Portrait
   '768x1024': '3:4',
-  '1024x1536': '4:3', // Inverted
+  '1024x1536': '3:4', // Inverted
   '1024x1792': '9:16',
   '1080x1920': '9:16',
 }
@@ -199,8 +199,8 @@ export function validateImageSize(
     const validSizes = Object.keys(GEMINI_SIZE_TO_ASPECT_RATIO)
     throw new Error(
       `Invalid size "${size}" for model "${model}". ` +
-        `Gemini Imagen uses aspect ratios. Valid sizes that map to aspect ratios: ${validSizes.join(', ')}. ` +
-        `Alternatively, use providerOptions.aspectRatio directly with values: 1:1, 3:4, 4:3, 9:16, 16:9, 9:21, 21:9`,
+      `Gemini Imagen uses aspect ratios. Valid sizes that map to aspect ratios: ${validSizes.join(', ')}. ` +
+      `Alternatively, use providerOptions.aspectRatio directly with values: 1:1, 3:4, 4:3, 9:16, 16:9, 9:21, 21:9`,
     )
   }
 }
@@ -220,7 +220,7 @@ export function validateNumberOfImages(
   if (numberOfImages < 1 || numberOfImages > maxImages) {
     throw new Error(
       `Invalid numberOfImages "${numberOfImages}" for model "${model}". ` +
-        `Must be between 1 and ${maxImages}.`,
+      `Must be between 1 and ${maxImages}.`,
     )
   }
 }

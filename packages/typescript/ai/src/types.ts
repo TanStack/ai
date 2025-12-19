@@ -222,9 +222,9 @@ export type ConstrainedContent<
 
 export interface ModelMessage<
   TContent extends string | null | Array<ContentPart> =
-    | string
-    | null
-    | Array<ContentPart>,
+  | string
+  | null
+  | Array<ContentPart>,
 > {
   role: 'user' | 'assistant' | 'tool'
   content: TContent
@@ -544,7 +544,6 @@ export type AgentLoopStrategy = (state: AgentLoopState) => boolean
  */
 export interface TextOptions<
   TProviderOptionsSuperset extends Record<string, any> = Record<string, any>,
-  TOutput extends ResponseFormat<any> | undefined = undefined,
   TProviderOptionsForModel = TProviderOptionsSuperset,
 > {
   model: string
@@ -600,7 +599,7 @@ export interface TextOptions<
   metadata?: Record<string, any>
   modelOptions?: TProviderOptionsForModel
   request?: Request | RequestInit
-  output?: TOutput
+
   /**
    * Zod schema for structured output.
    * When provided, the adapter should use the provider's native structured output API
