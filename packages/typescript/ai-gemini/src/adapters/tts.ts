@@ -58,7 +58,7 @@ export interface GeminiTTSProviderOptions {
  *
  * @experimental Gemini TTS is an experimental feature.
  */
-export interface GeminiTTSConfig extends GeminiClientConfig { }
+export interface GeminiTTSConfig extends GeminiClientConfig {}
 
 /** Model type for Gemini TTS */
 export type GeminiTTSModel = (typeof GEMINI_TTS_MODELS)[number]
