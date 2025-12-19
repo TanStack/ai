@@ -1,5 +1,16 @@
 # @tanstack/tests-adapters
 
+## 0.0.4
+
+### Patch Changes
+
+- Updated dependencies [[`8d77614`](https://github.com/TanStack/ai/commit/8d776146f94ffd1579e1ab01b26dcb94d1bb3092)]:
+  - @tanstack/ai-anthropic@1.0.0
+  - @tanstack/ai-gemini@1.0.0
+  - @tanstack/ai-ollama@1.0.0
+  - @tanstack/ai-openai@1.0.0
+  - @tanstack/ai@0.1.0
+
 ## 0.0.3
 
 ### Patch Changes
