@@ -17,7 +17,7 @@ Create typed options for the generateImage() function without executing.
 
 ### TAdapter
 
-`TAdapter` *extends* `ImageAdapter`\<`string`, `object`, `any`, `any`\>
+`TAdapter` *extends* [`ImageAdapter`](../interfaces/ImageAdapter.md)\<`string`, `object`, `any`, `any`\>
 
 ## Parameters
 

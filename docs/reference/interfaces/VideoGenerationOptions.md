@@ -5,7 +5,7 @@ title: VideoGenerationOptions
 
 # Interface: VideoGenerationOptions\<TProviderOptions\>
 
-Defined in: [types.ts:842](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L842)
+Defined in: [types.ts:826](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L826)
 
 **`Experimental`**
 
@@ -28,7 +28,7 @@ These are the common options supported across providers.
 optional duration: number;
 ```
 
-Defined in: [types.ts:852](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L852)
+Defined in: [types.ts:836](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L836)
 
 **`Experimental`**
 
@@ -42,7 +42,7 @@ Video duration in seconds
 model: string;
 ```
 
-Defined in: [types.ts:846](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L846)
+Defined in: [types.ts:830](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L830)
 
 **`Experimental`**
 
@@ -56,7 +56,7 @@ The model to use for video generation
 optional modelOptions: TProviderOptions;
 ```
 
-Defined in: [types.ts:854](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L854)
+Defined in: [types.ts:838](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L838)
 
 **`Experimental`**
 
@@ -70,7 +70,7 @@ Model-specific options for video generation
 prompt: string;
 ```
 
-Defined in: [types.ts:848](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L848)
+Defined in: [types.ts:832](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L832)
 
 **`Experimental`**
 
@@ -84,7 +84,7 @@ Text description of the desired video
 optional size: string;
 ```
 
-Defined in: [types.ts:850](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L850)
+Defined in: [types.ts:834](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L834)
 
 **`Experimental`**
 

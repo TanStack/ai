@@ -17,7 +17,7 @@ Create typed options for the generateVideo() function without executing.
 
 ### TAdapter
 
-`TAdapter` *extends* `VideoAdapter`\<`string`, `object`\>
+`TAdapter` *extends* [`VideoAdapter`](../interfaces/VideoAdapter.md)\<`string`, `object`\>
 
 ## Parameters
 

@@ -19,7 +19,7 @@ Uses AI speech-to-text models to transcribe audio content.
 
 ### TAdapter
 
-`TAdapter` *extends* `TranscriptionAdapter`\<`string`, `object`\>
+`TAdapter` *extends* [`TranscriptionAdapter`](../interfaces/TranscriptionAdapter.md)\<`string`, `object`\>
 
 ## Parameters
 

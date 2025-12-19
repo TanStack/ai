@@ -24,7 +24,7 @@ Unlike image generation, video generation is asynchronous and requires polling f
 
 ### TAdapter
 
-`TAdapter` *extends* `VideoAdapter`\<`string`, `object`\>
+`TAdapter` *extends* [`VideoAdapter`](../interfaces/VideoAdapter.md)\<`string`, `object`\>
 
 ## Parameters
 
