@@ -1,6 +1,6 @@
 # @tanstack/ai-vue-ui
 
-## 1.0.0
+## 0.1.0
 
 ### Minor Changes
 
@@ -10,7 +10,7 @@
 
 - Updated dependencies [[`8d77614`](https://github.com/TanStack/ai/commit/8d776146f94ffd1579e1ab01b26dcb94d1bb3092)]:
   - @tanstack/ai-client@0.1.0
-  - @tanstack/ai-vue@1.0.0
+  - @tanstack/ai-vue@0.1.0
 
 ## 0.0.1
 
