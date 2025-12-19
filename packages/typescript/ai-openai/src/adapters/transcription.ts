@@ -17,7 +17,7 @@ import type { OpenAIClientConfig } from '../utils'
 /**
  * Configuration for OpenAI Transcription adapter
  */
-export interface OpenAITranscriptionConfig extends OpenAIClientConfig { }
+export interface OpenAITranscriptionConfig extends OpenAIClientConfig {}
 
 /** Model type for OpenAI Transcription */
 export type OpenAITranscriptionModel =
@@ -73,12 +73,10 @@ export class OpenAITranscriptionAdapter<
       (!responseFormat && model !== 'whisper-1')
 
     if (useVerbose) {
-      const response = await this.client.audio.transcriptions.create(
-        {
-          ...request,
-          response_format: 'verbose_json'
-        },
-      )
+      const response = await this.client.audio.transcriptions.create({
+        ...request,
+        response_format: 'verbose_json',
+      })
 
       return {
         id: generateId(this.name),
