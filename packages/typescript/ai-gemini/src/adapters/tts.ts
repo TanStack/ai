@@ -58,7 +58,7 @@ export interface GeminiTTSProviderOptions {
  *
  * @experimental Gemini TTS is an experimental feature.
  */
-export interface GeminiTTSConfig extends GeminiClientConfig {}
+export interface GeminiTTSConfig extends GeminiClientConfig { }
 
 /** Model type for Gemini TTS */
 export type GeminiTTSModel = (typeof GEMINI_TTS_MODELS)[number]
@@ -102,7 +102,7 @@ export class GeminiTTSAdapter<
 
     const voiceConfig = modelOptions?.voiceConfig || {
       prebuiltVoiceConfig: {
-        voiceName: 'Kore' as const,
+        voiceName: 'Kore',
       },
     }
 
@@ -141,13 +141,12 @@ export class GeminiTTSAdapter<
       part.inlineData?.mimeType?.startsWith('audio/'),
     )
 
-    if (!audioPart || !('inlineData' in audioPart)) {
+    if (!audioPart || !audioPart.inlineData || !audioPart.inlineData.data) {
       throw new Error('No audio data in Gemini TTS response')
     }
 
-    const inlineData = (audioPart as any).inlineData
-    const audioBase64 = inlineData.data
-    const mimeType = inlineData.mimeType || 'audio/wav'
+    const audioBase64 = audioPart.inlineData.data
+    const mimeType = audioPart.inlineData.mimeType || 'audio/wav'
     const format = mimeType.split('/')[1] || 'wav'
 
     return {
