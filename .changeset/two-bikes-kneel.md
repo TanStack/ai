@@ -5,7 +5,7 @@
 '@tanstack/ai-openai': minor
 '@tanstack/ai': minor
 '@tanstack/ai-client': minor
-'@tanstack/ai-devtools': minor
+'@tanstack/ai-devtools-core': minor
 '@tanstack/ai-react': minor
 '@tanstack/ai-react-ui': minor
 '@tanstack/ai-solid': minor
