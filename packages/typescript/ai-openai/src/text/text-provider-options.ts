@@ -234,12 +234,57 @@ https://platform.openai.com/docs/api-reference/responses/create#responses_create
   metadata?: Record<string, string>
 }
 
+/**
+ * Audio output options for models that support audio generation (e.g., gpt-4o-audio-preview).
+ * When specified, the model will generate audio output in addition to or instead of text.
+ * Note: Audio output requires the Chat Completions API, not the Responses API.
+ * @see https://platform.openai.com/docs/guides/audio
+ */
+export interface OpenAIAudioOutputOptions {
+  /**
+   * Output modalities to generate. Include 'audio' to enable audio output.
+   * Example: ['text', 'audio'] for both text and audio output.
+   */
+  modalities?: Array<'text' | 'audio'>
+  /**
+   * Audio output configuration. Required when modalities includes 'audio'.
+   */
+  audio?: {
+    /**
+     * The voice to use for audio generation.
+     * Available voices: alloy, ash, ballad, coral, echo, fable, onyx, nova, sage, shimmer, verse
+     */
+    voice:
+      | 'alloy'
+      | 'ash'
+      | 'ballad'
+      | 'coral'
+      | 'echo'
+      | 'fable'
+      | 'onyx'
+      | 'nova'
+      | 'sage'
+      | 'shimmer'
+      | 'verse'
+    /**
+     * The audio format for output.
+     * - 'pcm16': Raw 16-bit PCM audio at 24kHz (best for real-time streaming)
+     * - 'wav': WAV format
+     * - 'mp3': MP3 format
+     * - 'opus': Opus format
+     * - 'flac': FLAC format
+     */
+    format: 'pcm16' | 'wav' | 'mp3' | 'opus' | 'flac'
+  }
+}
+
 export type ExternalTextProviderOptions = OpenAIBaseOptions &
   OpenAIReasoningOptions &
   OpenAIStructuredOutputOptions &
   OpenAIToolsOptions &
   OpenAIStreamingOptions &
-  OpenAIMetadataOptions
+  OpenAIMetadataOptions &
+  OpenAIAudioOutputOptions
 
 /**
  * Options your SDK forwards to OpenAI when doing chat/responses.
