@@ -583,6 +583,7 @@ export interface ChatOptions<
 
 export type StreamChunkType =
   | 'content'
+  | 'audio'
   | 'tool_call'
   | 'tool_result'
   | 'done'
@@ -667,10 +668,25 @@ export interface ThinkingStreamChunk extends BaseStreamChunk {
 }
 
 /**
+ * Audio output stream chunk for models that support audio output (e.g., gpt-4o-audio-preview).
+ * Contains base64-encoded audio data and optional transcript.
+ */
+export interface AudioStreamChunk extends BaseStreamChunk {
+  type: 'audio'
+  /** Base64-encoded audio data (e.g., PCM16, WAV) */
+  data: string
+  /** Optional transcript of the audio content */
+  transcript?: string
+  /** Audio format (e.g., 'pcm16', 'wav', 'mp3') */
+  format?: string
+}
+
+/**
  * Chunk returned by the sdk during streaming chat completions.
  */
 export type StreamChunk =
   | ContentStreamChunk
+  | AudioStreamChunk
   | ToolCallStreamChunk
   | ToolResultStreamChunk
   | DoneStreamChunk

@@ -1,4 +1,5 @@
 import type {
+  OpenAIAudioOutputOptions,
   OpenAIBaseOptions,
   OpenAIMetadataOptions,
   OpenAIReasoningOptions,
@@ -1072,6 +1073,32 @@ const GPT_4O_AUDIO = {
     OpenAIMetadataOptions
 >
 
+const GPT_4O_AUDIO_PREVIEW = {
+  name: 'gpt-4o-audio-preview',
+  context_window: 128_000,
+  max_output_tokens: 16_384,
+  knowledge_cutoff: '2023-10-01',
+  pricing: {
+    input: {
+      normal: 2.5,
+    },
+    output: {
+      normal: 10,
+    },
+  },
+  supports: {
+    input: ['text', 'audio'],
+    output: ['text', 'audio'],
+    endpoints: ['chat-completions'],
+    features: ['streaming', 'function_calling'],
+  },
+} as const satisfies ModelMeta<
+  OpenAIBaseOptions &
+    OpenAIToolsOptions &
+    OpenAIStreamingOptions &
+    OpenAIMetadataOptions
+>
+
 const GPT_4O_MINI = {
   name: 'gpt-4o-mini',
   context_window: 128_000,
@@ -1635,6 +1662,7 @@ export const OPENAI_CHAT_MODELS = [
   GPT_AUDIO.name,
   GPT_AUDIO_MINI.name,
   GPT_4O_AUDIO.name,
+  GPT_4O_AUDIO_PREVIEW.name,
   GPT_4O_MINI_AUDIO.name,
   // ChatGPT models
   GPT_5_1_CHAT.name,
@@ -1879,16 +1907,24 @@ export type OpenAIChatModelProviderOptionsByName = {
   // Audio models
   [GPT_AUDIO.name]: OpenAIBaseOptions &
     OpenAIStreamingOptions &
-    OpenAIMetadataOptions
+    OpenAIMetadataOptions &
+    OpenAIAudioOutputOptions
   [GPT_AUDIO_MINI.name]: OpenAIBaseOptions &
     OpenAIStreamingOptions &
-    OpenAIMetadataOptions
+    OpenAIMetadataOptions &
+    OpenAIAudioOutputOptions
   [GPT_4O_AUDIO.name]: OpenAIBaseOptions &
     OpenAIStreamingOptions &
-    OpenAIMetadataOptions
+    OpenAIMetadataOptions &
+    OpenAIAudioOutputOptions
+  [GPT_4O_AUDIO_PREVIEW.name]: OpenAIBaseOptions &
+    OpenAIStreamingOptions &
+    OpenAIMetadataOptions &
+    OpenAIAudioOutputOptions
   [GPT_4O_MINI_AUDIO.name]: OpenAIBaseOptions &
     OpenAIStreamingOptions &
-    OpenAIMetadataOptions
+    OpenAIMetadataOptions &
+    OpenAIAudioOutputOptions
 
   // Chat-only models
   [GPT_5_1_CHAT.name]: OpenAIBaseOptions &
@@ -1974,6 +2010,7 @@ export type OpenAIModelInputModalitiesByName = {
   [GPT_AUDIO.name]: typeof GPT_AUDIO.supports.input
   [GPT_AUDIO_MINI.name]: typeof GPT_AUDIO_MINI.supports.input
   [GPT_4O_AUDIO.name]: typeof GPT_4O_AUDIO.supports.input
+  [GPT_4O_AUDIO_PREVIEW.name]: typeof GPT_4O_AUDIO_PREVIEW.supports.input
   [GPT_4O_MINI_AUDIO.name]: typeof GPT_4O_MINI_AUDIO.supports.input
 
   // Text-only models

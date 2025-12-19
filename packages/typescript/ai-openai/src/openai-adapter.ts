@@ -90,6 +90,172 @@ export class OpenAI extends BaseAdapter<
   async *chatStream(
     options: ChatOptions<string, OpenAIProviderOptions>,
   ): AsyncIterable<StreamChunk> {
+    // Check if audio output is requested via providerOptions
+    const providerOptions = options.providerOptions as
+      | ExternalTextProviderOptions
+      | undefined
+    const hasAudioOutput = providerOptions?.modalities?.includes('audio')
+
+    if (hasAudioOutput) {
+      // Use Chat Completions API for audio output
+      yield* this.chatStreamWithAudio(options)
+    } else {
+      // Use Responses API for standard text/tool use cases
+      yield* this.chatStreamWithResponses(options)
+    }
+  }
+
+  /**
+   * Stream using Chat Completions API with audio output support.
+   * Required for models like gpt-4o-audio-preview that support audio modalities.
+   */
+  private async *chatStreamWithAudio(
+    options: ChatOptions<string, OpenAIProviderOptions>,
+  ): AsyncIterable<StreamChunk> {
+    const providerOptions = options.providerOptions as
+      | ExternalTextProviderOptions
+      | undefined
+    const timestamp = Date.now()
+
+    try {
+      // Build Chat Completions API request
+      const messages = this.convertMessagesToChatCompletions(options.messages)
+
+      // Add system prompt if provided
+      if (options.systemPrompts && options.systemPrompts.length > 0) {
+        messages.unshift({
+          role: 'system',
+          content: options.systemPrompts.join('\n'),
+        })
+      }
+
+      const response = await this.client.chat.completions.create({
+        model: options.model,
+        messages,
+        modalities: providerOptions?.modalities,
+        audio: providerOptions?.audio,
+        temperature: options.options?.temperature,
+        max_completion_tokens: options.options?.maxTokens,
+        top_p: options.options?.topP,
+        stream: true,
+      })
+
+      let accumulatedContent = ''
+      let responseId = this.generateId()
+
+      for await (const chunk of response) {
+        const choice = chunk.choices[0]
+        if (!choice) continue
+
+        const delta = choice.delta as {
+          content?: string | null
+          audio?: { transcript?: string; data?: string }
+        }
+
+        // Handle text content delta
+        if (delta.content) {
+          accumulatedContent += delta.content
+          yield {
+            type: 'content',
+            id: responseId,
+            model: options.model,
+            timestamp,
+            delta: delta.content,
+            content: accumulatedContent,
+            role: 'assistant',
+          }
+        }
+
+        // Handle audio transcript (also counts as content)
+        if (delta.audio?.transcript) {
+          accumulatedContent += delta.audio.transcript
+          yield {
+            type: 'content',
+            id: responseId,
+            model: options.model,
+            timestamp,
+            delta: delta.audio.transcript,
+            content: accumulatedContent,
+            role: 'assistant',
+          }
+        }
+
+        // Handle audio data
+        if (delta.audio?.data) {
+          yield {
+            type: 'audio',
+            id: responseId,
+            model: options.model,
+            timestamp,
+            data: delta.audio.data,
+            transcript: delta.audio.transcript,
+            format: providerOptions?.audio?.format,
+          }
+        }
+
+        // Handle finish
+        if (choice.finish_reason) {
+          yield {
+            type: 'done',
+            id: responseId,
+            model: options.model,
+            timestamp,
+            finishReason:
+              choice.finish_reason === 'stop'
+                ? 'stop'
+                : choice.finish_reason === 'length'
+                  ? 'length'
+                  : choice.finish_reason === 'content_filter'
+                    ? 'content_filter'
+                    : null,
+            usage: chunk.usage
+              ? {
+                  promptTokens: chunk.usage.prompt_tokens,
+                  completionTokens: chunk.usage.completion_tokens,
+                  totalTokens: chunk.usage.total_tokens,
+                }
+              : undefined,
+          }
+        }
+      }
+    } catch (error: any) {
+      console.error(
+        '>>> chatStreamWithAudio: Error during audio streaming <<<',
+      )
+      console.error('>>> Error message:', error?.message)
+      yield {
+        type: 'error',
+        id: this.generateId(),
+        model: options.model,
+        timestamp,
+        error: {
+          message: error.message || 'Unknown error occurred',
+          code: error.code,
+        },
+      }
+    }
+  }
+
+  /**
+   * Convert ModelMessage array to Chat Completions API format.
+   */
+  private convertMessagesToChatCompletions(
+    messages: Array<ModelMessage>,
+  ): Array<{ role: 'system' | 'user' | 'assistant'; content: string }> {
+    return messages
+      .filter((m) => m.role !== 'tool') // Filter out tool messages for now
+      .map((m) => ({
+        role: m.role as 'user' | 'assistant',
+        content: this.extractTextContent(m.content),
+      }))
+  }
+
+  /**
+   * Stream using Responses API (default for non-audio use cases).
+   */
+  private async *chatStreamWithResponses(
+    options: ChatOptions<string, OpenAIProviderOptions>,
+  ): AsyncIterable<StreamChunk> {
     // Track tool call metadata by unique ID
     // OpenAI streams tool calls with deltas - first chunk has ID/name, subsequent chunks only have args
     // We assign our own indices as we encounter unique tool call IDs
@@ -108,7 +274,7 @@ export class OpenAI extends BaseAdapter<
         },
       )
 
-      // Chat Completions API uses SSE format - iterate directly
+      // Responses API uses SSE format - iterate directly
       yield* this.processOpenAIStreamChunks(
         response,
         toolCallMetadata,
