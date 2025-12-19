@@ -1,4 +1,4 @@
-import type OpenAI from "openai"
+import type OpenAI from 'openai'
 
 /**
  * Provider-specific options for OpenAI Transcription
@@ -11,13 +11,13 @@ export interface OpenAITranscriptionProviderOptions {
    */
   temperature?: number
   /**
-   * Additional information to include in the transcription response. logprobs will return the log probabilities 
-   * of the tokens in the response to understand the model's confidence in the transcription. 
-   * logprobs only works with response_format set to json and only with the models gpt-4o-transcribe, 
-   * gpt-4o-mini-transcribe, and gpt-4o-mini-transcribe-2025-12-15. 
+   * Additional information to include in the transcription response. logprobs will return the log probabilities
+   * of the tokens in the response to understand the model's confidence in the transcription.
+   * logprobs only works with response_format set to json and only with the models gpt-4o-transcribe,
+   * gpt-4o-mini-transcribe, and gpt-4o-mini-transcribe-2025-12-15.
    * This field is not supported when using gpt-4o-transcribe-diarize.
    */
-  include?: OpenAI.Audio.TranscriptionCreateParams["include"]
+  include?: OpenAI.Audio.TranscriptionCreateParams['include']
   /**
    * The timestamp granularities to populate for this transcription.
    * response_format must be set to verbose_json to use timestamp granularities.

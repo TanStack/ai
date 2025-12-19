@@ -28,5 +28,4 @@ export interface OpenAITTSProviderOptions {
    * Does not work with tts-1 or tts-1-hd.
    */
   instructions?: string
-
 }
