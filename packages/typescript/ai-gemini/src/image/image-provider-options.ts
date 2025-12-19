@@ -199,8 +199,8 @@ export function validateImageSize(
     const validSizes = Object.keys(GEMINI_SIZE_TO_ASPECT_RATIO)
     throw new Error(
       `Invalid size "${size}" for model "${model}". ` +
-      `Gemini Imagen uses aspect ratios. Valid sizes that map to aspect ratios: ${validSizes.join(', ')}. ` +
-      `Alternatively, use providerOptions.aspectRatio directly with values: 1:1, 3:4, 4:3, 9:16, 16:9, 9:21, 21:9`,
+        `Gemini Imagen uses aspect ratios. Valid sizes that map to aspect ratios: ${validSizes.join(', ')}. ` +
+        `Alternatively, use providerOptions.aspectRatio directly with values: 1:1, 3:4, 4:3, 9:16, 16:9, 9:21, 21:9`,
     )
   }
 }
@@ -220,7 +220,7 @@ export function validateNumberOfImages(
   if (numberOfImages < 1 || numberOfImages > maxImages) {
     throw new Error(
       `Invalid numberOfImages "${numberOfImages}" for model "${model}". ` +
-      `Must be between 1 and ${maxImages}.`,
+        `Must be between 1 and ${maxImages}.`,
     )
   }
 }

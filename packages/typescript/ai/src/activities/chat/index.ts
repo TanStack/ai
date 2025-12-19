@@ -164,8 +164,8 @@ export type TextActivityResult<
 > = TSchema extends z.ZodType
   ? Promise<z.infer<TSchema>>
   : TStream extends false
-  ? Promise<string>
-  : AsyncIterable<StreamChunk>
+    ? Promise<string>
+    : AsyncIterable<StreamChunk>
 
 // ===========================
 // ChatEngine Implementation

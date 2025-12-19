@@ -39,7 +39,7 @@ import type { OpenAIClientConfig } from '../utils'
 /**
  * Configuration for OpenAI text adapter
  */
-export interface OpenAITextConfig extends OpenAIClientConfig { }
+export interface OpenAITextConfig extends OpenAIClientConfig {}
 
 /**
  * Alias for TextProviderOptions
@@ -56,8 +56,8 @@ export type OpenAITextProviderOptions = ExternalTextProviderOptions
  */
 type ResolveProviderOptions<TModel extends string> =
   TModel extends keyof OpenAIChatModelProviderOptionsByName
-  ? OpenAIChatModelProviderOptionsByName[TModel]
-  : OpenAITextProviderOptions
+    ? OpenAIChatModelProviderOptionsByName[TModel]
+    : OpenAITextProviderOptions
 
 /**
  * Resolve input modalities for a specific model.
@@ -65,8 +65,8 @@ type ResolveProviderOptions<TModel extends string> =
  */
 type ResolveInputModalities<TModel extends string> =
   TModel extends keyof OpenAIModelInputModalitiesByName
-  ? OpenAIModelInputModalitiesByName[TModel]
-  : readonly ['text', 'image', 'audio']
+    ? OpenAIModelInputModalitiesByName[TModel]
+    : readonly ['text', 'image', 'audio']
 
 // ===========================
 // Adapter Implementation
@@ -526,14 +526,14 @@ export class OpenAITextAdapter<
   private mapTextOptionsToOpenAI(options: TextOptions) {
     const modelOptions = options.modelOptions as
       | Omit<
-        InternalTextProviderOptions,
-        | 'max_output_tokens'
-        | 'tools'
-        | 'metadata'
-        | 'temperature'
-        | 'input'
-        | 'top_p'
-      >
+          InternalTextProviderOptions,
+          | 'max_output_tokens'
+          | 'tools'
+          | 'metadata'
+          | 'temperature'
+          | 'input'
+          | 'top_p'
+        >
       | undefined
     const input = this.convertMessagesToInput(options.messages)
     if (modelOptions) {

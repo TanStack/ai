@@ -17,7 +17,7 @@ import type { OpenAIClientConfig } from '../utils'
 /**
  * Configuration for OpenAI Transcription adapter
  */
-export interface OpenAITranscriptionConfig extends OpenAIClientConfig { }
+export interface OpenAITranscriptionConfig extends OpenAIClientConfig {}
 
 /** Model type for OpenAI Transcription */
 export type OpenAITranscriptionModel =

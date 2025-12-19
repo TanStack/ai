@@ -25,7 +25,7 @@ import type { OpenAIClientConfig } from '../utils'
  *
  * @experimental Video generation is an experimental feature and may change.
  */
-export interface OpenAIVideoConfig extends OpenAIClientConfig { }
+export interface OpenAIVideoConfig extends OpenAIClientConfig {}
 
 /** Model type for OpenAI Video */
 export type OpenAIVideoModel = (typeof OPENAI_VIDEO_MODELS)[number]
@@ -60,7 +60,6 @@ export class OpenAIVideoAdapter<
   constructor(config: OpenAIVideoConfig, model: TModel) {
     super(config, model)
     this.client = createOpenAIClient(config)
-
   }
 
   /**
@@ -110,7 +109,7 @@ export class OpenAIVideoAdapter<
       if (error?.message?.includes('videos') || error?.code === 'invalid_api') {
         throw new Error(
           `Video generation API is not available. The Sora API may require special access. ` +
-          `Original error: ${error.message}`,
+            `Original error: ${error.message}`,
         )
       }
       throw error
@@ -180,7 +179,6 @@ export class OpenAIVideoAdapter<
       // The SDK may not have a .content() method, so we try multiple approaches
       const client = this.client as any
 
-
       let response: any
 
       // Try different possible method names
@@ -237,7 +235,7 @@ export class OpenAIVideoAdapter<
             const errorData = await contentResponse.json().catch(() => ({}))
             throw new Error(
               errorData.error?.message ||
-              `Failed to get video content: ${contentResponse.status}`,
+                `Failed to get video content: ${contentResponse.status}`,
             )
           }
           throw new Error(
