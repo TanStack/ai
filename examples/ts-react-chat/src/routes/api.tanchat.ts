@@ -9,6 +9,7 @@ import { openaiText } from '@tanstack/ai-openai'
 import { ollamaText } from '@tanstack/ai-ollama'
 import { anthropicText } from '@tanstack/ai-anthropic'
 import { geminiText } from '@tanstack/ai-gemini'
+import type { AnyTextAdapter } from '@tanstack/ai'
 import {
   addToCartToolDef,
   addToWishListToolDef,
@@ -73,22 +74,29 @@ export const Route = createFileRoute('/api/tanchat')({
 
         // Pre-define typed adapter configurations with full type inference
         // Model is passed to the adapter factory function for type-safe autocomplete
-        const adapterConfig = {
+        const adapterConfig: Record<
+          Provider,
+          () => { adapter: AnyTextAdapter }
+        > = {
           anthropic: () =>
             createChatOptions({
-              adapter: anthropicText((model || 'claude-sonnet-4-5') as any),
+              adapter: anthropicText(
+                (model || 'claude-sonnet-4-5') as 'claude-sonnet-4-5',
+              ),
             }),
           gemini: () =>
             createChatOptions({
-              adapter: geminiText((model || 'gemini-2.5-flash') as any),
+              adapter: geminiText(
+                (model || 'gemini-2.5-flash') as 'gemini-2.5-flash',
+              ),
             }),
           ollama: () =>
             createChatOptions({
-              adapter: ollamaText((model || 'mistral:7b') as any),
+              adapter: ollamaText((model || 'mistral:7b') as 'mistral:7b'),
             }),
           openai: () =>
             createChatOptions({
-              adapter: openaiText((model || 'gpt-4o') as any),
+              adapter: openaiText((model || 'gpt-4o') as 'gpt-4o'),
             }),
         }
 
@@ -100,6 +108,7 @@ export const Route = createFileRoute('/api/tanchat')({
           // return streams, but TypeScript sees a union of all possible return types
           const stream = chat({
             ...options,
+
             tools: [
               getGuitars, // Server tool
               recommendGuitarToolDef, // No server execute - client will handle

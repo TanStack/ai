@@ -18,7 +18,21 @@ export { createSpeechOptions } from './activities/generateSpeech/index'
 export { createTranscriptionOptions } from './activities/generateTranscription/index'
 
 // Re-export types
-export type { AIAdapter } from './activities/index'
+export type {
+  AIAdapter,
+  ImageAdapter,
+  AnyImageAdapter,
+  TextAdapter,
+  AnyTextAdapter,
+  AnySummarizeAdapter,
+  SummarizeAdapter,
+  AnyTTSAdapter,
+  TTSAdapter,
+  AnyTranscriptionAdapter,
+  TranscriptionAdapter,
+  AnyVideoAdapter,
+  VideoAdapter,
+} from './activities/index'
 
 // Tool definition
 export {
