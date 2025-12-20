@@ -35,7 +35,7 @@
     "solid-markdown": "^2.1.0",
     "tailwindcss": "^4.1.18",
     "vite-tsconfig-paths": "^5.1.4",
-    "zod": "^4.1.13"
+    "zod": "^4.2.0"
   },
   "devDependencies": {
     "@solidjs/testing-library": "^0.8.10",

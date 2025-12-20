@@ -47,7 +47,11 @@ export {
   type InferToolInput,
   type InferToolOutput,
 } from './activities/chat/tools/tool-definition'
-export { convertZodToJsonSchema } from './activities/chat/tools/zod-converter'
+
+// Schema conversion (Standard JSON Schema compliant)
+export {
+  convertSchemaToJsonSchema,
+} from './activities/chat/tools/schema-converter'
 
 // Stream utilities
 export {

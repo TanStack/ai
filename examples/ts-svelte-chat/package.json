@@ -23,7 +23,7 @@
     "lucide-svelte": "^0.468.0",
     "marked": "^15.0.6",
     "marked-highlight": "^2.2.0",
-    "zod": "^4.1.13"
+    "zod": "^4.2.0"
   },
   "devDependencies": {
     "@sveltejs/adapter-auto": "^3.3.1",
