@@ -110,7 +110,7 @@ export interface AIDevtoolsEventMap {
     duration: number
     timestamp: number
   }
-  'tanstack-ai-devtools:chat:started': {
+  'tanstack-ai-devtools:text:started': {
     requestId: string
     streamId: string
     provider: string
@@ -122,9 +122,9 @@ export interface AIDevtoolsEventMap {
     clientId?: string
     toolNames?: Array<string>
     options?: Record<string, unknown>
-    providerOptions?: Record<string, unknown>
+    modelOptions?: Record<string, unknown>
   }
-  'tanstack-ai-devtools:chat:completed': {
+  'tanstack-ai-devtools:text:completed': {
     requestId: string
     streamId: string
     model: string
@@ -138,7 +138,7 @@ export interface AIDevtoolsEventMap {
     }
     timestamp: number
   }
-  'tanstack-ai-devtools:chat:iteration': {
+  'tanstack-ai-devtools:text:iteration': {
     requestId: string
     streamId: string
     iterationNumber: number
@@ -159,22 +159,6 @@ export interface AIDevtoolsEventMap {
     timestamp: number
   }
 
-  // Embedding events
-  'tanstack-ai-devtools:embedding:started': {
-    requestId: string
-    model: string
-    inputCount: number
-    timestamp: number
-    clientId?: string
-  }
-  'tanstack-ai-devtools:embedding:completed': {
-    requestId: string
-    model: string
-    inputCount: number
-    duration: number
-    timestamp: number
-  }
-
   // Summarize events
   'tanstack-ai-devtools:summarize:started': {
     requestId: string
@@ -192,7 +176,7 @@ export interface AIDevtoolsEventMap {
     timestamp: number
   }
 
-  // Chat Client events - from @tanstack/ai-client package
+  // Text Client events - from @tanstack/ai-client package
   'tanstack-ai-devtools:client:created': {
     clientId: string
     initialMessageCount: number

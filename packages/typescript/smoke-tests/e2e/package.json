@@ -1,6 +1,6 @@
 {
   "name": "@tanstack/smoke-tests-e2e",
-  "version": "0.0.3",
+  "version": "0.0.4",
   "description": "E2E tests for TanStack AI chat",
   "private": true,
   "type": "module",
@@ -13,18 +13,18 @@
     "postinstall": "npx playwright install --with-deps chromium"
   },
   "dependencies": {
-    "@tailwindcss/vite": "^4.1.17",
+    "@tailwindcss/vite": "^4.1.18",
     "@tanstack/ai": "workspace:*",
     "@tanstack/ai-client": "workspace:*",
     "@tanstack/ai-openai": "workspace:*",
     "@tanstack/ai-react": "workspace:*",
-    "@tanstack/nitro-v2-vite-plugin": "^1.139.0",
-    "@tanstack/react-router": "^1.139.7",
-    "@tanstack/react-start": "^1.139.8",
+    "@tanstack/nitro-v2-vite-plugin": "^1.141.0",
+    "@tanstack/react-router": "^1.141.1",
+    "@tanstack/react-start": "^1.141.1",
     "@tanstack/router-plugin": "^1.139.7",
-    "react": "^19.2.0",
-    "react-dom": "^19.2.0",
-    "tailwindcss": "^4.1.17",
+    "react": "^19.2.3",
+    "react-dom": "^19.2.3",
+    "tailwindcss": "^4.1.18",
     "vite-tsconfig-paths": "^5.1.4"
   },
   "devDependencies": {
@@ -32,8 +32,8 @@
     "@types/node": "^24.10.1",
     "@types/react": "^19.2.7",
     "@types/react-dom": "^19.2.3",
-    "@vitejs/plugin-react": "^5.1.1",
+    "@vitejs/plugin-react": "^5.1.2",
     "typescript": "5.9.3",
-    "vite": "^7.2.4"
+    "vite": "^7.2.7"
   }
 }

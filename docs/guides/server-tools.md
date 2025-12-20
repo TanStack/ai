@@ -1,6 +1,7 @@
 ---
 title: Server Tools
 id: server-tools
+order: 3
 ---
 
 Server tools execute automatically when called by the LLM. They have full access to server resources like databases, APIs, and environment variables.
@@ -137,20 +138,19 @@ const searchProducts = searchProductsDef.server(async ({ query, limit = 10 }) =>
 
 ## Using Server Tools
 
-Pass tools to the `chat` method:
+Pass tools to the `chat` function:
 
 ```typescript
 import { chat, toStreamResponse } from "@tanstack/ai";
-import { openai } from "@tanstack/ai-openai";
+import { openaiText } from "@tanstack/ai-openai";
 import { getUserData, searchProducts } from "./tools";
 
 export async function POST(request: Request) {
   const { messages } = await request.json();
 
   const stream = chat({
-    adapter: openai(),
+    adapter: openaiText("gpt-4o"),
     messages,
-    model: "gpt-4o",
     tools: [getUserData, searchProducts],
   });
 
@@ -203,13 +203,12 @@ export const searchProducts = searchProductsDef.server(async ({ query }) => {
 
 // api/chat/route.ts
 import { chat } from "@tanstack/ai";
-import { openai } from "@tanstack/ai-openai";
+import { openaiText } from "@tanstack/ai-openai";
 import { getUserData, searchProducts } from "@/tools/server";
 
 const stream = chat({
-  adapter: openai(),
+  adapter: openaiText("gpt-4o"),
   messages,
-  model: "gpt-4o",
   tools: [getUserData, searchProducts],
 });
 ```

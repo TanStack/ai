@@ -9,7 +9,7 @@ title: InferSchemaType
 type InferSchemaType<T> = T extends z.ZodType ? z.infer<T> : any;
 ```
 
-Defined in: [types.ts:60](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L60)
+Defined in: [types.ts:76](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L76)
 
 Infer the TypeScript type from a schema.
 For Zod schemas, uses z.infer to get the proper type.

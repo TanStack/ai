@@ -43,12 +43,12 @@
           "to": "guides/client-tools"
         },
         {
-          "label": "Agentic Cycle",
-          "to": "guides/agentic-cycle"
-        },
-        {
           "label": "Tool Approval Flow",
           "to": "guides/tool-approval"
+        },
+        {
+          "label": "Agentic Cycle",
+          "to": "guides/agentic-cycle"
         },
         {
           "label": "Streaming",
@@ -69,6 +69,34 @@
         {
           "label": "Per-Model Type Safety",
           "to": "guides/per-model-type-safety"
+        },
+        {
+          "label": "Runtime Adapter Switching",
+          "to": "guides/runtime-adapter-switching"
+        },
+        {
+          "label": "Text-to-Speech",
+          "to": "guides/text-to-speech"
+        },
+        {
+          "label": "Transcription",
+          "to": "guides/transcription"
+        },
+        {
+          "label": "Image Generation",
+          "to": "guides/image-generation"
+        },
+        {
+          "label": "Video Generation",
+          "to": "guides/video-generation"
+        },
+        {
+          "label": "Tree-Shaking",
+          "to": "guides/tree-shaking"
+        },
+        {
+          "label": "Migration Guide",
+          "to": "guides/migration"
         }
       ]
     },
@@ -163,12 +191,12 @@
       "defaultCollapsed": true,
       "children": [
         {
-          "label": "chat",
-          "to": "reference/functions/chat"
+          "label": "text",
+          "to": "reference/functions/text"
         },
         {
-          "label": "chatOptions",
-          "to": "reference/functions/chatOptions"
+          "label": "textOptions",
+          "to": "reference/functions/textOptions"
         },
         {
           "label": "combineStrategies",
@@ -274,12 +302,12 @@
           "to": "reference/interfaces/BaseStreamChunk"
         },
         {
-          "label": "ChatCompletionChunk",
-          "to": "reference/interfaces/ChatCompletionChunk"
+          "label": "TextCompletionChunk",
+          "to": "reference/interfaces/TextCompletionChunk"
         },
         {
-          "label": "ChatOptions",
-          "to": "reference/interfaces/ChatOptions"
+          "label": "TextOptions",
+          "to": "reference/interfaces/TextOptions"
         },
         {
           "label": "ChunkRecording",
@@ -457,12 +485,12 @@
           "to": "reference/type-aliases/AnyClientTool"
         },
         {
-          "label": "ChatStreamOptionsForModel",
-          "to": "reference/type-aliases/ChatStreamOptionsForModel"
+          "label": "TextStreamOptionsForModel",
+          "to": "reference/type-aliases/TextStreamOptionsForModel"
         },
         {
-          "label": "ChatStreamOptionsUnion",
-          "to": "reference/type-aliases/ChatStreamOptionsUnion"
+          "label": "TextStreamOptionsUnion",
+          "to": "reference/type-aliases/TextStreamOptionsUnion"
         },
         {
           "label": "ConstrainedContent",

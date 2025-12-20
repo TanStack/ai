@@ -68,6 +68,11 @@ export function createChat<TTools extends ReadonlyArray<AnyClientTool> = any>(
     },
   })
 
+  // Note: Cleanup is handled by calling stop() directly when needed.
+  // Unlike React/Vue/Solid, Svelte 5 runes like $effect can only be used
+  // during component initialization, so we don't add automatic cleanup here.
+  // Users should call chat.stop() in their component's cleanup if needed.
+
   // Define methods
   const sendMessage = async (content: string) => {
     await client.sendMessage(content)

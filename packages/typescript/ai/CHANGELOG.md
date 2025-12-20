@@ -1,5 +1,11 @@
 # @tanstack/ai
 
+## 0.1.0
+
+### Minor Changes
+
+- Split up adapters for better tree shaking into separate functionalities ([#137](https://github.com/TanStack/ai/pull/137))
+
 ## 0.0.3
 
 ### Patch Changes

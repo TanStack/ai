@@ -1,6 +1,6 @@
 {
   "name": "@tanstack/ai",
-  "version": "0.0.3",
+  "version": "0.1.0",
   "description": "Core TanStack AI library - Open source AI SDK",
   "author": "Tanner Linsley",
   "license": "MIT",
@@ -16,6 +16,10 @@
     ".": {
       "types": "./dist/esm/index.d.ts",
       "import": "./dist/esm/index.js"
+    },
+    "./adapters": {
+      "types": "./dist/esm/activities/index.d.ts",
+      "import": "./dist/esm/activities/index.js"
     },
     "./event-client": {
       "types": "./dist/esm/event-client.d.ts",

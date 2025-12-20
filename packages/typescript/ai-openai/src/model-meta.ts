@@ -25,7 +25,6 @@ interface ModelMeta<TProviderOptions = unknown> {
       | 'moderation'
       | 'translation'
       | 'realtime'
-      | 'embedding'
       | 'audio'
       | 'video'
       | 'transcription'
@@ -300,7 +299,11 @@ const GPT5_CODEX = {
     OpenAIMetadataOptions
 >
 
-/* const SORA2 = {
+/**
+ * Sora-2 video generation model.
+ * @experimental Video generation is an experimental feature and may change.
+ */
+const SORA2 = {
   name: 'sora-2',
   pricing: {
     input: {
@@ -321,6 +324,10 @@ const GPT5_CODEX = {
   OpenAIBaseOptions & OpenAIStreamingOptions & OpenAIMetadataOptions
 >
 
+/**
+ * Sora-2-Pro video generation model (higher quality).
+ * @experimental Video generation is an experimental feature and may change.
+ */
 const SORA2_PRO = {
   name: 'sora-2-pro',
   pricing: {
@@ -386,7 +393,7 @@ const GPT_IMAGE_1_MINI = {
   },
 } as const satisfies ModelMeta<
   OpenAIBaseOptions & OpenAIStreamingOptions & OpenAIMetadataOptions
-> */
+>
 
 const O3_DEEP_RESEARCH = {
   name: 'o3-deep-research',
@@ -1246,7 +1253,7 @@ const CODEX_MINI_LATEST = {
     OpenAIStreamingOptions &
     OpenAIMetadataOptions
 >
-/* 
+
 const DALL_E_2 = {
   name: 'dall-e-2',
   pricing: {
@@ -1287,7 +1294,7 @@ const DALL_E_3 = {
   },
 } as const satisfies ModelMeta<
   OpenAIBaseOptions & OpenAIStreamingOptions & OpenAIMetadataOptions
-> */
+>
 
 const GPT_3_5_TURBO = {
   name: 'gpt-3.5-turbo',
@@ -1499,69 +1506,6 @@ const GPT_5_CHAT = {
     OpenAIMetadataOptions
 >
 
-const TEXT_EMBEDDING_3_LARGE = {
-  name: 'text-embedding-3-large',
-  pricing: {
-    // todo embedding tokens
-    input: {
-      normal: 0.13,
-    },
-    output: {
-      normal: 0.13,
-    },
-  },
-  supports: {
-    input: ['text'],
-    output: ['text'],
-    endpoints: ['embedding', 'batch'],
-    features: [],
-  },
-} as const satisfies ModelMeta<
-  OpenAIBaseOptions & OpenAIStreamingOptions & OpenAIMetadataOptions
->
-
-const TEXT_EMBEDDING_3_SMALL = {
-  name: 'text-embedding-3-small',
-  pricing: {
-    // todo embedding tokens
-    input: {
-      normal: 0.02,
-    },
-    output: {
-      normal: 0.02,
-    },
-  },
-  supports: {
-    input: ['text'],
-    output: ['text'],
-    endpoints: ['embedding', 'batch'],
-    features: [],
-  },
-} as const satisfies ModelMeta<
-  OpenAIBaseOptions & OpenAIStreamingOptions & OpenAIMetadataOptions
->
-
-const TEXT_EMBEDDING_3_ADA_002 = {
-  name: 'text-embedding-3-ada-002',
-  pricing: {
-    // todo embedding tokens
-    input: {
-      normal: 0.1,
-    },
-    output: {
-      normal: 0.1,
-    },
-  },
-  supports: {
-    input: ['text'],
-    output: ['text'],
-    endpoints: ['embedding', 'batch'],
-    features: [],
-  },
-} as const satisfies ModelMeta<
-  OpenAIBaseOptions & OpenAIStreamingOptions & OpenAIMetadataOptions
->
-
 /* const TTS_1 = {
   name: 'tts-1',
   pricing: {
@@ -1653,18 +1597,11 @@ export const OPENAI_CHAT_MODELS = [
 ] as const
 
 // Image generation models (based on endpoints: "image-generation" or "image-edit")
-/* const OPENAI_IMAGE_MODELS = [
+export const OPENAI_IMAGE_MODELS = [
   GPT_IMAGE_1.name,
   GPT_IMAGE_1_MINI.name,
   DALL_E_3.name,
   DALL_E_2.name,
-] as const */
-
-// Embedding models (based on endpoints: "embedding")
-export const OPENAI_EMBEDDING_MODELS = [
-  TEXT_EMBEDDING_3_LARGE.name,
-  TEXT_EMBEDDING_3_SMALL.name,
-  TEXT_EMBEDDING_3_ADA_002.name,
 ] as const
 
 // Audio models (based on endpoints: "transcription", "speech_generation", or "realtime")
@@ -1691,77 +1628,30 @@ export const OPENAI_EMBEDDING_MODELS = [
   GPT_4O_MINI_TRANSCRIBE.name,
 ] as const
 
-// Video generation models (based on endpoints: "video")
-const OPENAI_VIDEO_MODELS = [SORA2.name, SORA2_PRO.name] as const
+/**
+ * Video generation models (based on endpoints: "video")
+ * @experimental Video generation is an experimental feature and may change.
  */
-//  const OPENAI_MODERATION_MODELS = [OMNI_MODERATION.name] as const
+export const OPENAI_VIDEO_MODELS = [SORA2.name, SORA2_PRO.name] as const
 
-// export type OpenAIChatModel = (typeof OPENAI_CHAT_MODELS)[number]
-// type OpenAIImageModel = (typeof OPENAI_IMAGE_MODELS)[number]
-// export type OpenAIEmbeddingModel = (typeof OPENAI_EMBEDDING_MODELS)[number]
-//  type OpenAIAudioModel = (typeof OPENAI_AUDIO_MODELS)[number]
-// type OpenAIVideoModel = (typeof OPENAI_VIDEO_MODELS)[number]
-// type OpenAITranscriptionModel =
-//  (typeof OPENAI_TRANSCRIPTION_MODELS)[number]
-
-/* const OPENAI_MODEL_META = {
-  [GPT5_1.name]: GPT5_1,
-  [GPT5_1_CODEX.name]: GPT5_1_CODEX,
-  [GPT5.name]: GPT5,
-  [GPT5_MINI.name]: GPT5_MINI,
-  [GPT5_NANO.name]: GPT5_NANO,
-  [GPT5_PRO.name]: GPT5_PRO,
-  [GPT5_CODEX.name]: GPT5_CODEX,
-  [SORA2.name]: SORA2,
-  [SORA2_PRO.name]: SORA2_PRO,
-  [GPT_IMAGE_1.name]: GPT_IMAGE_1,
-  [GPT_IMAGE_1_MINI.name]: GPT_IMAGE_1_MINI,
-  [O3_DEEP_RESEARCH.name]: O3_DEEP_RESEARCH,
-  [O4_MINI_DEEP_RESEARCH.name]: O4_MINI_DEEP_RESEARCH,
-  [O3_PRO.name]: O3_PRO,
-  [GPT_AUDIO.name]: GPT_AUDIO,
-  [GPT_REALTIME.name]: GPT_REALTIME,
-  [GPT_REALTIME_MINI.name]: GPT_REALTIME_MINI,
-  [GPT_AUDIO_MINI.name]: GPT_AUDIO_MINI,
-  [O3.name]: O3,
-  [O4_MINI.name]: O4_MINI,
-  [GPT4_1.name]: GPT4_1,
-  [GPT4_1_MINI.name]: GPT4_1_MINI,
-  [GPT4_1_NANO.name]: GPT4_1_NANO,
-  [O1_PRO.name]: O1_PRO,
-  [COMPUTER_USE_PREVIEW.name]: COMPUTER_USE_PREVIEW,
-  [GPT_4O_MINI_SEARCH_PREVIEW.name]: GPT_4O_MINI_SEARCH_PREVIEW,
-  [GPT_4O_SEARCH_PREVIEW.name]: GPT_4O_SEARCH_PREVIEW,
-  [O3_MINI.name]: O3_MINI,
-  [GPT_4O_MINI_AUDIO.name]: GPT_4O_MINI_AUDIO,
-  [GPT_4O_MINI_REALTIME.name]: GPT_4O_MINI_REALTIME,
-  [O1.name]: O1,
-  [OMNI_MODERATION.name]: OMNI_MODERATION,
-  [GPT_4O.name]: GPT_4O,
-  [GPT_4O_AUDIO.name]: GPT_4O_AUDIO,
-  [GPT_40_MINI.name]: GPT_40_MINI,
-  [GPT__4O_REALTIME.name]: GPT__4O_REALTIME,
-  [GPT_4_TURBO.name]: GPT_4_TURBO,
-  [CHATGPT_40.name]: CHATGPT_40,
-  [GPT_5_1_CODEX_MINI.name]: GPT_5_1_CODEX_MINI,
-  [CODEX_MINI_LATEST.name]: CODEX_MINI_LATEST,
-  [DALL_E_2.name]: DALL_E_2,
-  [DALL_E_3.name]: DALL_E_3,
-  [GPT_3_5_TURBO.name]: GPT_3_5_TURBO,
-  [GPT_4.name]: GPT_4,
-  [GPT_4O_MINI_TRANSCRIBE.name]: GPT_4O_MINI_TRANSCRIBE,
-  [GPT_4O_MINI_TTS.name]: GPT_4O_MINI_TTS,
-  [GPT_4O_TRANSCRIBE.name]: GPT_4O_TRANSCRIBE,
-  [GPT_4O_TRANSCRIBE_DIARIZE.name]: GPT_4O_TRANSCRIBE_DIARIZE,
-  [GPT_5_1_CHAT.name]: GPT_5_1_CHAT,
-  [GPT_5_CHAT.name]: GPT_5_CHAT,
-  [TEXT_EMBEDDING_3_LARGE.name]: TEXT_EMBEDDING_3_LARGE,
-  [TEXT_EMBEDDING_3_SMALL.name]: TEXT_EMBEDDING_3_SMALL,
-  [TEXT_EMBEDDING_3_ADA_002.name]: TEXT_EMBEDDING_3_ADA_002,
-  [TTS_1.name]: TTS_1,
-  [TTS_1_HD.name]: TTS_1_HD,
-} as const
+/**
+ * Text-to-speech models (based on endpoints: "speech_generation")
  */
+export const OPENAI_TTS_MODELS = [
+  'tts-1',
+  'tts-1-hd',
+  'gpt-4o-audio-preview',
+] as const
+
+/**
+ * Transcription models (based on endpoints: "transcription")
+ */
+export const OPENAI_TRANSCRIPTION_MODELS = [
+  'whisper-1',
+  'gpt-4o-transcribe',
+  'gpt-4o-mini-transcribe',
+  'gpt-4o-transcribe-diarize',
+] as const
 
 /**
  * Type-only map from chat model name to its provider options type.

@@ -1,9 +1,15 @@
 import { createFileRoute } from '@tanstack/react-router'
-import { chat, maxIterations, toStreamResponse } from '@tanstack/ai'
-import { openai } from '@tanstack/ai-openai'
-import { ollama } from '@tanstack/ai-ollama'
-import { anthropic } from '@tanstack/ai-anthropic'
-import { gemini } from '@tanstack/ai-gemini'
+import {
+  chat,
+  createChatOptions,
+  maxIterations,
+  toServerSentEventsStream,
+} from '@tanstack/ai'
+import { openaiText } from '@tanstack/ai-openai'
+import { ollamaText } from '@tanstack/ai-ollama'
+import { anthropicText } from '@tanstack/ai-anthropic'
+import { geminiText } from '@tanstack/ai-gemini'
+import type { AnyTextAdapter } from '@tanstack/ai'
 import {
   addToCartToolDef,
   addToWishListToolDef,
@@ -61,45 +67,48 @@ export const Route = createFileRoute('/api/tanchat')({
         const body = await request.json()
         const { messages, data } = body
 
-        // Extract provider, model, and conversationId from data
+        // Extract provider and model from data
         const provider: Provider = data?.provider || 'openai'
-        const model: string | undefined = data?.model
+        const model: string = data?.model || 'gpt-4o'
         const conversationId: string | undefined = data?.conversationId
 
+        // Pre-define typed adapter configurations with full type inference
+        // Model is passed to the adapter factory function for type-safe autocomplete
+        const adapterConfig: Record<
+          Provider,
+          () => { adapter: AnyTextAdapter }
+        > = {
+          anthropic: () =>
+            createChatOptions({
+              adapter: anthropicText(
+                (model || 'claude-sonnet-4-5') as 'claude-sonnet-4-5',
+              ),
+            }),
+          gemini: () =>
+            createChatOptions({
+              adapter: geminiText(
+                (model || 'gemini-2.5-flash') as 'gemini-2.5-flash',
+              ),
+            }),
+          ollama: () =>
+            createChatOptions({
+              adapter: ollamaText((model || 'mistral:7b') as 'mistral:7b'),
+            }),
+          openai: () =>
+            createChatOptions({
+              adapter: openaiText((model || 'gpt-4o') as 'gpt-4o'),
+            }),
+        }
+
         try {
-          // Select adapter based on provider
-          let adapter
-          let defaultModel
+          // Get typed adapter options using createChatOptions pattern
+          const options = adapterConfig[provider]()
 
-          switch (provider) {
-            case 'anthropic':
-              adapter = anthropic()
-              defaultModel = 'claude-sonnet-4-5-20250929'
-              break
-            case 'gemini':
-              adapter = gemini()
-              defaultModel = 'gemini-2.0-flash-exp'
-              break
-            case 'ollama':
-              adapter = ollama()
-              defaultModel = 'mistral:7b'
-              break
-            case 'openai':
-            default:
-              adapter = openai()
-              defaultModel = 'gpt-4o'
-              break
-          }
-
-          // Determine model - use provided model or default based on provider
-          const selectedModel = model || defaultModel
-          console.log(
-            `[API Route] Using provider: ${provider}, model: ${selectedModel}`,
-          )
-
+          // Note: We cast to AsyncIterable<StreamChunk> because all chat adapters
+          // return streams, but TypeScript sees a union of all possible return types
           const stream = chat({
-            adapter: adapter as any,
-            model: selectedModel as any,
+            ...options,
+
             tools: [
               getGuitars, // Server tool
               recommendGuitarToolDef, // No server execute - client will handle
@@ -113,7 +122,17 @@ export const Route = createFileRoute('/api/tanchat')({
             abortController,
             conversationId,
           })
-          return toStreamResponse(stream, { abortController })
+          const readableStream = toServerSentEventsStream(
+            stream,
+            abortController,
+          )
+          return new Response(readableStream, {
+            headers: {
+              'Content-Type': 'text/event-stream',
+              'Cache-Control': 'no-cache',
+              Connection: 'keep-alive',
+            },
+          })
         } catch (error: any) {
           console.error('[API Route] Error in chat request:', {
             message: error?.message,

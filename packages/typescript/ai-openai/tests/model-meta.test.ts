@@ -12,14 +12,25 @@ import type {
   OpenAIStreamingOptions,
   OpenAIMetadataOptions,
 } from '../src/text/text-provider-options'
+import type { OpenAIMessageMetadataByModality } from '../src/message-types'
 import type {
   AudioPart,
   ConstrainedModelMessage,
   DocumentPart,
   ImagePart,
+  Modality,
   TextPart,
   VideoPart,
 } from '@tanstack/ai'
+
+/**
+ * Helper type to construct InputModalitiesTypes from modalities array and metadata.
+ * This is used to properly type ConstrainedModelMessage in tests.
+ */
+type MakeInputModalitiesTypes<TModalities extends ReadonlyArray<Modality>> = {
+  inputModalities: TModalities
+  messageMetadataByModality: OpenAIMessageMetadataByModality
+}
 
 /**
  * Type assertion tests for OpenAI model provider options.
@@ -824,7 +835,7 @@ describe('OpenAI Model Input Modality Type Assertions', () => {
 
   describe('gpt-5.1 (text + image)', () => {
     type Modalities = OpenAIModelInputModalitiesByName['gpt-5.1']
-    type Message = ConstrainedModelMessage<Modalities>
+    type Message = ConstrainedModelMessage<MakeInputModalitiesTypes<Modalities>>
 
     it('should allow TextPart and ImagePart', () => {
       expectTypeOf<MessageWithContent<TextPart>>().toExtend<Message>()
@@ -840,7 +851,7 @@ describe('OpenAI Model Input Modality Type Assertions', () => {
 
   describe('gpt-5.1-codex (text + image)', () => {
     type Modalities = OpenAIModelInputModalitiesByName['gpt-5.1-codex']
-    type Message = ConstrainedModelMessage<Modalities>
+    type Message = ConstrainedModelMessage<MakeInputModalitiesTypes<Modalities>>
 
     it('should allow TextPart and ImagePart', () => {
       expectTypeOf<MessageWithContent<TextPart>>().toExtend<Message>()
@@ -856,7 +867,7 @@ describe('OpenAI Model Input Modality Type Assertions', () => {
 
   describe('gpt-5 (text + image)', () => {
     type Modalities = OpenAIModelInputModalitiesByName['gpt-5']
-    type Message = ConstrainedModelMessage<Modalities>
+    type Message = ConstrainedModelMessage<MakeInputModalitiesTypes<Modalities>>
 
     it('should allow TextPart and ImagePart', () => {
       expectTypeOf<MessageWithContent<TextPart>>().toExtend<Message>()
@@ -872,7 +883,7 @@ describe('OpenAI Model Input Modality Type Assertions', () => {
 
   describe('gpt-5-mini (text + image)', () => {
     type Modalities = OpenAIModelInputModalitiesByName['gpt-5-mini']
-    type Message = ConstrainedModelMessage<Modalities>
+    type Message = ConstrainedModelMessage<MakeInputModalitiesTypes<Modalities>>
 
     it('should allow TextPart and ImagePart', () => {
       expectTypeOf<MessageWithContent<TextPart>>().toExtend<Message>()
@@ -888,7 +899,7 @@ describe('OpenAI Model Input Modality Type Assertions', () => {
 
   describe('gpt-5-nano (text + image)', () => {
     type Modalities = OpenAIModelInputModalitiesByName['gpt-5-nano']
-    type Message = ConstrainedModelMessage<Modalities>
+    type Message = ConstrainedModelMessage<MakeInputModalitiesTypes<Modalities>>
 
     it('should allow TextPart and ImagePart', () => {
       expectTypeOf<MessageWithContent<TextPart>>().toExtend<Message>()
@@ -904,7 +915,7 @@ describe('OpenAI Model Input Modality Type Assertions', () => {
 
   describe('gpt-5-pro (text + image)', () => {
     type Modalities = OpenAIModelInputModalitiesByName['gpt-5-pro']
-    type Message = ConstrainedModelMessage<Modalities>
+    type Message = ConstrainedModelMessage<MakeInputModalitiesTypes<Modalities>>
 
     it('should allow TextPart and ImagePart', () => {
       expectTypeOf<MessageWithContent<TextPart>>().toExtend<Message>()
@@ -920,7 +931,7 @@ describe('OpenAI Model Input Modality Type Assertions', () => {
 
   describe('gpt-5-codex (text + image)', () => {
     type Modalities = OpenAIModelInputModalitiesByName['gpt-5-codex']
-    type Message = ConstrainedModelMessage<Modalities>
+    type Message = ConstrainedModelMessage<MakeInputModalitiesTypes<Modalities>>
 
     it('should allow TextPart and ImagePart', () => {
       expectTypeOf<MessageWithContent<TextPart>>().toExtend<Message>()
@@ -936,7 +947,7 @@ describe('OpenAI Model Input Modality Type Assertions', () => {
 
   describe('gpt-4.1 (text + image)', () => {
     type Modalities = OpenAIModelInputModalitiesByName['gpt-4.1']
-    type Message = ConstrainedModelMessage<Modalities>
+    type Message = ConstrainedModelMessage<MakeInputModalitiesTypes<Modalities>>
 
     it('should allow TextPart and ImagePart', () => {
       expectTypeOf<MessageWithContent<TextPart>>().toExtend<Message>()
@@ -952,7 +963,7 @@ describe('OpenAI Model Input Modality Type Assertions', () => {
 
   describe('gpt-4.1-mini (text + image)', () => {
     type Modalities = OpenAIModelInputModalitiesByName['gpt-4.1-mini']
-    type Message = ConstrainedModelMessage<Modalities>
+    type Message = ConstrainedModelMessage<MakeInputModalitiesTypes<Modalities>>
 
     it('should allow TextPart and ImagePart', () => {
       expectTypeOf<MessageWithContent<TextPart>>().toExtend<Message>()
@@ -968,7 +979,7 @@ describe('OpenAI Model Input Modality Type Assertions', () => {
 
   describe('gpt-4.1-nano (text + image)', () => {
     type Modalities = OpenAIModelInputModalitiesByName['gpt-4.1-nano']
-    type Message = ConstrainedModelMessage<Modalities>
+    type Message = ConstrainedModelMessage<MakeInputModalitiesTypes<Modalities>>
 
     it('should allow TextPart and ImagePart', () => {
       expectTypeOf<MessageWithContent<TextPart>>().toExtend<Message>()
@@ -984,7 +995,7 @@ describe('OpenAI Model Input Modality Type Assertions', () => {
 
   describe('codex-mini-latest (text + image)', () => {
     type Modalities = OpenAIModelInputModalitiesByName['codex-mini-latest']
-    type Message = ConstrainedModelMessage<Modalities>
+    type Message = ConstrainedModelMessage<MakeInputModalitiesTypes<Modalities>>
 
     it('should allow TextPart and ImagePart', () => {
       expectTypeOf<MessageWithContent<TextPart>>().toExtend<Message>()
@@ -1000,7 +1011,7 @@ describe('OpenAI Model Input Modality Type Assertions', () => {
 
   describe('computer-use-preview (text + image)', () => {
     type Modalities = OpenAIModelInputModalitiesByName['computer-use-preview']
-    type Message = ConstrainedModelMessage<Modalities>
+    type Message = ConstrainedModelMessage<MakeInputModalitiesTypes<Modalities>>
 
     it('should allow TextPart and ImagePart', () => {
       expectTypeOf<MessageWithContent<TextPart>>().toExtend<Message>()
@@ -1016,7 +1027,7 @@ describe('OpenAI Model Input Modality Type Assertions', () => {
 
   describe('o3 (text + image)', () => {
     type Modalities = OpenAIModelInputModalitiesByName['o3']
-    type Message = ConstrainedModelMessage<Modalities>
+    type Message = ConstrainedModelMessage<MakeInputModalitiesTypes<Modalities>>
 
     it('should allow TextPart and ImagePart', () => {
       expectTypeOf<MessageWithContent<TextPart>>().toExtend<Message>()
@@ -1032,7 +1043,7 @@ describe('OpenAI Model Input Modality Type Assertions', () => {
 
   describe('o3-pro (text + image)', () => {
     type Modalities = OpenAIModelInputModalitiesByName['o3-pro']
-    type Message = ConstrainedModelMessage<Modalities>
+    type Message = ConstrainedModelMessage<MakeInputModalitiesTypes<Modalities>>
 
     it('should allow TextPart and ImagePart', () => {
       expectTypeOf<MessageWithContent<TextPart>>().toExtend<Message>()
@@ -1048,7 +1059,7 @@ describe('OpenAI Model Input Modality Type Assertions', () => {
 
   describe('o3-deep-research (text + image)', () => {
     type Modalities = OpenAIModelInputModalitiesByName['o3-deep-research']
-    type Message = ConstrainedModelMessage<Modalities>
+    type Message = ConstrainedModelMessage<MakeInputModalitiesTypes<Modalities>>
 
     it('should allow TextPart and ImagePart', () => {
       expectTypeOf<MessageWithContent<TextPart>>().toExtend<Message>()
@@ -1064,7 +1075,7 @@ describe('OpenAI Model Input Modality Type Assertions', () => {
 
   describe('o4-mini-deep-research (text + image)', () => {
     type Modalities = OpenAIModelInputModalitiesByName['o4-mini-deep-research']
-    type Message = ConstrainedModelMessage<Modalities>
+    type Message = ConstrainedModelMessage<MakeInputModalitiesTypes<Modalities>>
 
     it('should allow TextPart and ImagePart', () => {
       expectTypeOf<MessageWithContent<TextPart>>().toExtend<Message>()
@@ -1080,7 +1091,7 @@ describe('OpenAI Model Input Modality Type Assertions', () => {
 
   describe('o4-mini (text + image)', () => {
     type Modalities = OpenAIModelInputModalitiesByName['o4-mini']
-    type Message = ConstrainedModelMessage<Modalities>
+    type Message = ConstrainedModelMessage<MakeInputModalitiesTypes<Modalities>>
 
     it('should allow TextPart and ImagePart', () => {
       expectTypeOf<MessageWithContent<TextPart>>().toExtend<Message>()
@@ -1096,7 +1107,7 @@ describe('OpenAI Model Input Modality Type Assertions', () => {
 
   describe('o1 (text + image)', () => {
     type Modalities = OpenAIModelInputModalitiesByName['o1']
-    type Message = ConstrainedModelMessage<Modalities>
+    type Message = ConstrainedModelMessage<MakeInputModalitiesTypes<Modalities>>
 
     it('should allow TextPart and ImagePart', () => {
       expectTypeOf<MessageWithContent<TextPart>>().toExtend<Message>()
@@ -1112,7 +1123,7 @@ describe('OpenAI Model Input Modality Type Assertions', () => {
 
   describe('o1-pro (text + image)', () => {
     type Modalities = OpenAIModelInputModalitiesByName['o1-pro']
-    type Message = ConstrainedModelMessage<Modalities>
+    type Message = ConstrainedModelMessage<MakeInputModalitiesTypes<Modalities>>
 
     it('should allow TextPart and ImagePart', () => {
       expectTypeOf<MessageWithContent<TextPart>>().toExtend<Message>()
@@ -1130,7 +1141,7 @@ describe('OpenAI Model Input Modality Type Assertions', () => {
 
   describe('gpt-audio (text + audio)', () => {
     type Modalities = OpenAIModelInputModalitiesByName['gpt-audio']
-    type Message = ConstrainedModelMessage<Modalities>
+    type Message = ConstrainedModelMessage<MakeInputModalitiesTypes<Modalities>>
 
     it('should allow TextPart and AudioPart', () => {
       expectTypeOf<MessageWithContent<TextPart>>().toExtend<Message>()
@@ -1146,7 +1157,7 @@ describe('OpenAI Model Input Modality Type Assertions', () => {
 
   describe('gpt-audio-mini (text + audio)', () => {
     type Modalities = OpenAIModelInputModalitiesByName['gpt-audio-mini']
-    type Message = ConstrainedModelMessage<Modalities>
+    type Message = ConstrainedModelMessage<MakeInputModalitiesTypes<Modalities>>
 
     it('should allow TextPart and AudioPart', () => {
       expectTypeOf<MessageWithContent<TextPart>>().toExtend<Message>()
@@ -1164,7 +1175,7 @@ describe('OpenAI Model Input Modality Type Assertions', () => {
 
   describe('o3-mini (text only)', () => {
     type Modalities = OpenAIModelInputModalitiesByName['o3-mini']
-    type Message = ConstrainedModelMessage<Modalities>
+    type Message = ConstrainedModelMessage<MakeInputModalitiesTypes<Modalities>>
 
     it('should allow TextPart', () => {
       expectTypeOf<MessageWithContent<TextPart>>().toExtend<Message>()

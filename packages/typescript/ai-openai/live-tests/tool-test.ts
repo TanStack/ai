@@ -1,4 +1,4 @@
-import { createOpenAI } from '../src/index'
+import { createOpenaiChat } from '../src/index'
 import { z } from 'zod'
 import { readFileSync } from 'fs'
 import { join, dirname } from 'path'
@@ -28,7 +28,7 @@ if (!apiKey) {
 async function testToolCallingWithArguments() {
   console.log('🚀 Testing OpenAI tool calling with arguments (Responses API)\n')
 
-  const adapter = createOpenAI(apiKey)
+  const adapter = createOpenaiChat(apiKey)
 
   // Create a simple tool that requires arguments
   const getTemperatureTool = {

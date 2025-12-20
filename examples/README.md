@@ -309,10 +309,10 @@ All examples use SSE for real-time streaming:
 
 ```typescript
 import { chat, toStreamResponse } from '@tanstack/ai'
-import { openai } from '@tanstack/ai-openai'
+import { openaiText } from '@tanstack/ai-openai'
 
 const stream = chat({
-  adapter: openai(),
+  adapter: openaiText(),
   model: 'gpt-4o',
   messages,
 })
@@ -383,7 +383,7 @@ const weatherTool = weatherToolDef.server(async ({ location }) => {
 })
 
 const stream = chat({
-  adapter: openai(),
+  adapter: openaiText(),
   model: 'gpt-4o',
   messages,
   tools: [weatherTool], // SDK executes these automatically
