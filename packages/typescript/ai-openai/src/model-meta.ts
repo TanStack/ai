@@ -157,6 +157,7 @@ const GPT5_2_CHAT = {
   OpenAIBaseOptions &
   OpenAIReasoningOptions &
   OpenAIStructuredOutputOptions &
+  OpenAIToolsOptions &
   OpenAIStreamingOptions &
   OpenAIMetadataOptions
 >
@@ -1769,6 +1770,7 @@ export type OpenAIChatModelProviderOptionsByName = {
   [GPT5_2_CHAT.name]: OpenAIBaseOptions &
   OpenAIReasoningOptions &
   OpenAIStructuredOutputOptions &
+  OpenAIToolsOptions &
   OpenAIStreamingOptions &
   OpenAIMetadataOptions
   [GPT5_2_PRO.name]: OpenAIBaseOptions &
