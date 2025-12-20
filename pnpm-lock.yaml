@@ -87,7 +87,7 @@ importers:
   examples/python-fastapi:
     devDependencies:
       concurrently:
-        specifier: ^9.1.2
+        specifier: ^9.2.1
         version: 9.2.1
 
   examples/ts-group-chat:
