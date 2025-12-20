@@ -596,9 +596,6 @@ importers:
 
   packages/typescript/ai:
     dependencies:
-      '@standard-schema/spec':
-        specifier: ^1.1.0
-        version: 1.1.0
       '@tanstack/devtools-event-client':
         specifier: ^0.4.0
         version: 0.4.0
@@ -606,6 +603,9 @@ importers:
         specifier: ^0.1.7
         version: 0.1.7
     devDependencies:
+      '@standard-schema/spec':
+        specifier: ^1.1.0
+        version: 1.1.0
       '@vitest/coverage-v8':
         specifier: 4.0.14
         version: 4.0.14(vitest@4.0.15(@types/node@25.0.1)(happy-dom@20.0.11)(jiti@2.6.1)(jsdom@27.3.0(postcss@8.5.6))(lightningcss@1.30.2)(terser@5.44.1)(tsx@4.21.0)(yaml@2.8.2))
