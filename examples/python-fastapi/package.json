@@ -10,6 +10,6 @@
     "start:openai": "concurrently -n \"python,ui\" -c \"cyan,magenta\" \"venv/bin/python openai-server.py\" \"pnpm --filter vanilla-chat start\""
   },
   "devDependencies": {
-    "concurrently": "^9.2.1"
+    "concurrently": "^9.1.2"
   }
 }
