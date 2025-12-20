@@ -1,6 +1,9 @@
 /* eslint-disable @typescript-eslint/no-unnecessary-condition */
 
-import type { StandardJSONSchemaV1, StandardSchemaV1 } from '@standard-schema/spec'
+import type {
+  StandardJSONSchemaV1,
+  StandardSchemaV1,
+} from '@standard-schema/spec'
 import type { JSONSchema, SchemaInput } from '../../../types'
 
 /**
@@ -16,12 +19,11 @@ export function isStandardJSONSchema(
     schema !== null &&
     '~standard' in schema &&
     typeof (schema as StandardJSONSchemaV1)['~standard'] === 'object' &&
-
     (schema as StandardJSONSchemaV1)['~standard'].version === 1 &&
     typeof (schema as StandardJSONSchemaV1)['~standard'].jsonSchema ===
-    'object' &&
+      'object' &&
     typeof (schema as StandardJSONSchemaV1)['~standard'].jsonSchema.input ===
-    'function'
+      'function'
   )
 }
 
@@ -29,22 +31,20 @@ export function isStandardJSONSchema(
  * Check if a value is a Standard Schema compliant schema (for validation).
  * Standard Schema compliant libraries implement the '~standard' property with a validate function.
  */
-export function isStandardSchema(
-  schema: unknown,
-): schema is StandardSchemaV1 {
+export function isStandardSchema(schema: unknown): schema is StandardSchemaV1 {
   return (
     typeof schema === 'object' &&
     schema !== null &&
     '~standard' in schema &&
-
-    typeof (schema)['~standard'] === 'object' &&
-    schema !== null && schema['~standard'] !== null && "version" in schema['~standard'] &&
+    typeof schema['~standard'] === 'object' &&
+    schema !== null &&
+    schema['~standard'] !== null &&
+    'version' in schema['~standard'] &&
     schema['~standard'].version === 1 &&
-    "validate" in schema['~standard'] &&
-    typeof (schema)['~standard'].validate === 'function'
+    'validate' in schema['~standard'] &&
+    typeof schema['~standard'].validate === 'function'
   )
 }
-
 
 /**
  * Transform a JSON schema to be compatible with OpenAI's structured output requirements.
@@ -288,12 +288,10 @@ export async function validateWithStandardSchema<T>(
 
   return {
     success: false,
-    issues: result.issues.map(
-      (issue) => ({
-        message: issue.message || 'Validation failed',
-        path: issue.path?.map(String),
-      }),
-    ),
+    issues: result.issues.map((issue) => ({
+      message: issue.message || 'Validation failed',
+      path: issue.path?.map(String),
+    })),
   }
 }
 
@@ -328,12 +326,7 @@ export function parseWithStandardSchema<T>(schema: unknown, data: unknown): T {
 
   // invalid validation, throw error with all issues
   const errorMessages = result.issues
-    .map(
-      (issue) =>
-        issue.message || 'Validation failed',
-    )
+    .map((issue) => issue.message || 'Validation failed')
     .join(', ')
   throw new Error(`Validation failed: ${errorMessages}`)
-
-
 }

@@ -1,7 +1,4 @@
-import {
-  isStandardSchema,
-  parseWithStandardSchema,
-} from './schema-converter'
+import { isStandardSchema, parseWithStandardSchema } from './schema-converter'
 import type {
   DoneStreamChunk,
   ModelMessage,

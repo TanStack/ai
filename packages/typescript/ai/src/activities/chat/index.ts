@@ -171,8 +171,8 @@ export type TextActivityResult<
 > = TSchema extends SchemaInput
   ? Promise<InferSchemaType<TSchema>>
   : TStream extends false
-  ? Promise<string>
-  : AsyncIterable<StreamChunk>
+    ? Promise<string>
+    : AsyncIterable<StreamChunk>
 
 // ===========================
 // ChatEngine Implementation

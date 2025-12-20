@@ -65,10 +65,10 @@ export type InferToolName<T> = T extends { name: infer N } ? N : never
  */
 export type InferToolInput<T> = T extends { inputSchema?: infer TInput }
   ? TInput extends StandardJSONSchemaV1<infer TInferred, unknown>
-  ? TInferred
-  : TInput extends JSONSchema
-  ? unknown
-  : unknown
+    ? TInferred
+    : TInput extends JSONSchema
+      ? unknown
+      : unknown
   : unknown
 
 /**
@@ -76,10 +76,10 @@ export type InferToolInput<T> = T extends { inputSchema?: infer TInput }
  */
 export type InferToolOutput<T> = T extends { outputSchema?: infer TOutput }
   ? TOutput extends StandardJSONSchemaV1<infer TInferred, unknown>
-  ? TInferred
-  : TOutput extends JSONSchema
-  ? unknown
-  : unknown
+    ? TInferred
+    : TOutput extends JSONSchema
+      ? unknown
+      : unknown
   : unknown
 
 /**
