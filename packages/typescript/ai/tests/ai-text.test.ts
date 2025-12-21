@@ -380,7 +380,7 @@ describe('chat() - Comprehensive Logic Path Coverage', () => {
         inputSchema: z.object({
           location: z.string().optional(),
         }),
-        execute: vi.fn(async (args: any) =>
+        execute: vi.fn(async (args: any, _options?: any) =>
           JSON.stringify({ temp: 72, location: args.location }),
         ),
       }
@@ -445,7 +445,7 @@ describe('chat() - Comprehensive Logic Path Coverage', () => {
         }),
       )
 
-      expect(tool.execute).toHaveBeenCalledWith({ location: 'Paris' })
+      expect(tool.execute).toHaveBeenCalledWith({ location: 'Paris' }, { context: undefined })
       expect(adapter.chatStreamCallCount).toBeGreaterThanOrEqual(2)
 
       const toolResultChunks = chunks.filter((c) => c.type === 'tool_result')
@@ -469,7 +469,7 @@ describe('chat() - Comprehensive Logic Path Coverage', () => {
           a: z.number(),
           b: z.number(),
         }),
-        execute: vi.fn(async (args: any) =>
+        execute: vi.fn(async (args: any, _options?: any) =>
           JSON.stringify({ result: args.a + args.b }),
         ),
       }
@@ -551,7 +551,7 @@ describe('chat() - Comprehensive Logic Path Coverage', () => {
       )
 
       // Tool should be executed with complete arguments
-      expect(tool.execute).toHaveBeenCalledWith({ a: 10, b: 20 })
+      expect(tool.execute).toHaveBeenCalledWith({ a: 10, b: 20 }, { context: undefined })
       const toolResultChunks = chunks.filter((c) => c.type === 'tool_result')
       expect(toolResultChunks.length).toBeGreaterThan(0)
     })
@@ -561,14 +561,14 @@ describe('chat() - Comprehensive Logic Path Coverage', () => {
         name: 'tool1',
         description: 'Tool 1',
         inputSchema: z.object({}),
-        execute: vi.fn(async () => JSON.stringify({ result: 1 })),
+        execute: vi.fn(async (_args: any, _options?: any) => JSON.stringify({ result: 1 })),
       }
 
       const tool2: Tool = {
         name: 'tool2',
         description: 'Tool 2',
         inputSchema: z.object({}),
-        execute: vi.fn(async () => JSON.stringify({ result: 2 })),
+        execute: vi.fn(async (_args: any, _options?: any) => JSON.stringify({ result: 2 })),
       }
 
       class MultipleToolsAdapter extends MockAdapter {
@@ -659,7 +659,7 @@ describe('chat() - Comprehensive Logic Path Coverage', () => {
         name: 'test_tool',
         description: 'Test',
         inputSchema: z.object({}),
-        execute: vi.fn(async () => JSON.stringify({ result: 'ok' })),
+        execute: vi.fn(async (_args: any, _options?: any) => JSON.stringify({ result: 'ok' })),
       }
 
       class ContentWithToolsAdapter extends MockAdapter {
@@ -1469,7 +1469,7 @@ describe('chat() - Comprehensive Logic Path Coverage', () => {
 
       const chunks = await collectChunks(stream)
       expect(chunks[0]?.type).toBe('tool_result')
-      expect(toolExecute).toHaveBeenCalledWith({ path: '/tmp/test.txt' })
+      expect(toolExecute).toHaveBeenCalledWith({ path: '/tmp/test.txt' }, { context: undefined })
       expect(adapter.chatStreamCallCount).toBe(1)
     })
   })
@@ -2558,7 +2558,7 @@ describe('chat() - Comprehensive Logic Path Coverage', () => {
       await collectChunks(stream2)
 
       // Tool should have been executed because approval was provided
-      expect(tool.execute).toHaveBeenCalledWith({ path: '/tmp/test.txt' })
+      expect(tool.execute).toHaveBeenCalledWith({ path: '/tmp/test.txt' }, { context: undefined })
     })
 
     it('should extract client tool outputs from messages with parts', async () => {
@@ -2822,7 +2822,7 @@ describe('chat() - Comprehensive Logic Path Coverage', () => {
         name: 'get_temperature',
         description: 'Get the current temperature in degrees',
         inputSchema: z.object({}),
-        execute: vi.fn(async (_args: any) => {
+        execute: vi.fn(async (_args: any, _options?: any) => {
           return '70'
         }),
       }

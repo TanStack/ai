@@ -133,12 +133,18 @@ export interface UIMessage<TTools extends ReadonlyArray<AnyClientTool> = any> {
 
 export interface ChatClientOptions<
   TTools extends ReadonlyArray<AnyClientTool> = any,
+  TContext = unknown,
 > {
   /**
    * Connection adapter for streaming
    * Use fetchServerSentEvents(), fetchHttpStream(), or stream() to create adapters
    */
   connection: ConnectionAdapter
+
+  /**
+   * Context object to pass to client tools during execution
+   */
+  context?: TContext
 
   /**
    * Initial messages to populate the chat
