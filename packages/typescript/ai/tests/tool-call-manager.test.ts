@@ -21,7 +21,7 @@ describe('ToolCallManager', () => {
     inputSchema: z.object({
       location: z.string().optional(),
     }),
-    execute: vi.fn((args: any) => {
+    execute: vi.fn((args: any, _options?: any) => {
       return JSON.stringify({ temp: 72, location: args.location })
     }),
   }
@@ -138,8 +138,37 @@ describe('ToolCallManager', () => {
     expect(finalResult[0]?.role).toBe('tool')
     expect(finalResult[0]?.toolCallId).toBe('call_123')
 
-    // Tool execute should have been called
-    expect(mockWeatherTool.execute).toHaveBeenCalledWith({ location: 'Paris' })
+    // Tool execute should have been called with context containing toolCallId
+    expect(mockWeatherTool.execute).toHaveBeenCalledWith(
+      { location: 'Paris' },
+      { toolCallId: 'call_123', userContext: undefined },
+    )
+  })
+
+  it('should pass userContext to tool execute via executeTools', async () => {
+    const userContext = { userId: 'user_abc', db: { name: 'test' } }
+    const manager = new ToolCallManager([mockWeatherTool])
+
+    manager.addToolCallStartEvent({
+      type: 'TOOL_CALL_START',
+      toolCallId: 'call_ctx',
+      toolName: 'get_weather',
+      timestamp: Date.now(),
+      index: 0,
+    })
+    manager.addToolCallArgsEvent({
+      type: 'TOOL_CALL_ARGS',
+      toolCallId: 'call_ctx',
+      timestamp: Date.now(),
+      delta: '{"location":"Tokyo"}',
+    })
+
+    await collectGeneratorOutput(manager.executeTools(mockFinishedEvent, userContext))
+
+    expect(mockWeatherTool.execute).toHaveBeenCalledWith(
+      { location: 'Tokyo' },
+      { toolCallId: 'call_ctx', userContext },
+    )
   })
 
   it('should handle tool execution errors gracefully', async () => {
@@ -240,15 +269,16 @@ describe('ToolCallManager', () => {
   })
 
   it('should handle multiple tool calls in same iteration', async () => {
-    const calculateTool: Tool = {
-      name: 'calculate',
-      description: 'Calculate',
-      inputSchema: z.object({
-        expression: z.string(),
-      }),
-      execute: vi.fn((args: any) => {
-        return JSON.stringify({ result: eval(args.expression) })
-      }),
+const calculateTool: Tool = {
+    name: 'calculate',
+    description: 'Calculate',
+    inputSchema: z.object({
+      expression: z.string(),
+    }),
+    execute: vi.fn((args: any, _options?: any) => {
+      const results: Record<string, number> = { '5+3': 8 }
+      return JSON.stringify({ result: results[args.expression] ?? 0 })
+    }),
     }
 
     const manager = new ToolCallManager([mockWeatherTool, calculateTool])

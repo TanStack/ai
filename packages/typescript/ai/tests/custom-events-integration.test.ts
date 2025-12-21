@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest'
+import { z } from 'zod'
 import { toolDefinition } from '../src/activities/chat/tools/tool-definition'
 import { StreamProcessor } from '../src/activities/chat/stream/processor'
-import { z } from 'zod'
 
 describe('Custom Events Integration', () => {
   it('should emit custom events from tool execution context', async () => {
@@ -16,7 +16,7 @@ describe('Custom Events Integration', () => {
       }),
     }).server(async (args, context) => {
       // Emit progress event
-      context?.emitCustomEvent('tool:progress', {
+      context?.emitCustomEvent?.('tool:progress', {
         tool: 'testTool',
         progress: 25,
         message: 'Starting processing...',
@@ -26,14 +26,14 @@ describe('Custom Events Integration', () => {
       await new Promise((resolve) => setTimeout(resolve, 10))
 
       // Emit another progress event
-      context?.emitCustomEvent('tool:progress', {
+      context?.emitCustomEvent?.('tool:progress', {
         tool: 'testTool',
         progress: 75,
         message: 'Almost done...',
       })
 
       // Emit completion event
-      context?.emitCustomEvent('tool:complete', {
+      context?.emitCustomEvent?.('tool:complete', {
         tool: 'testTool',
         result: 'success',
         duration: 20,
