@@ -5,7 +5,7 @@ title: ContentPartSource
 
 # Interface: ContentPartSource
 
-Defined in: [types.ts:105](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L105)
+Defined in: [types.ts:114](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L114)
 
 Source specification for multimodal content.
 Supports both inline data (base64) and URL-based content.
@@ -18,7 +18,7 @@ Supports both inline data (base64) and URL-based content.
 type: "data" | "url";
 ```
 
-Defined in: [types.ts:111](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L111)
+Defined in: [types.ts:120](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L120)
 
 The type of source:
 - 'data': Inline data (typically base64 encoded)
@@ -32,7 +32,7 @@ The type of source:
 value: string;
 ```
 
-Defined in: [types.ts:117](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L117)
+Defined in: [types.ts:126](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L126)
 
 The actual content value:
 - For 'data': base64-encoded string

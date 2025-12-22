@@ -8,12 +8,12 @@ title: JSONSchema
 Defined in: [types.ts:25](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L25)
 
 JSON Schema type for defining tool input/output schemas as raw JSON Schema objects.
-This allows tools to be defined without Zod when you have JSON Schema definitions available.
+This allows tools to be defined without schema libraries when you have JSON Schema definitions available.
 
 ## Indexable
 
 ```ts
-[key: string]: any
+[key: string]: unknown
 ```
 
 ## Properties
@@ -81,7 +81,7 @@ Defined in: [types.ts:38](https://github.com/TanStack/ai/blob/main/packages/type
 ### const?
 
 ```ts
-optional const: any;
+optional const: unknown;
 ```
 
 Defined in: [types.ts:31](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L31)
@@ -91,7 +91,7 @@ Defined in: [types.ts:31](https://github.com/TanStack/ai/blob/main/packages/type
 ### default?
 
 ```ts
-optional default: any;
+optional default: unknown;
 ```
 
 Defined in: [types.ts:33](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L33)
@@ -131,7 +131,7 @@ Defined in: [types.ts:43](https://github.com/TanStack/ai/blob/main/packages/type
 ### enum?
 
 ```ts
-optional enum: any[];
+optional enum: unknown[];
 ```
 
 Defined in: [types.ts:30](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L30)
@@ -141,7 +141,7 @@ Defined in: [types.ts:30](https://github.com/TanStack/ai/blob/main/packages/type
 ### examples?
 
 ```ts
-optional examples: any[];
+optional examples: unknown[];
 ```
 
 Defined in: [types.ts:62](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L62)
