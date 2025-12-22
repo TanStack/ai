@@ -1,5 +1,8 @@
-import type { ChatRequest } from 'ollama'
-import type { DefaultOllamaModelMeta } from './models-meta'
+import type {
+  OllamaChatRequest,
+  OllamaChatRequestMessages,
+  OllamaModelMeta,
+} from './models-meta'
 
 const AYA_LATEST = {
   name: 'aya:latest',
@@ -10,7 +13,9 @@ const AYA_LATEST = {
   },
   size: '4.8gb',
   context: 8_000,
-} as const satisfies DefaultOllamaModelMeta<any>
+} as const satisfies OllamaModelMeta<
+  OllamaChatRequest & OllamaChatRequestMessages
+>
 
 const AYA_8b = {
   name: 'aya:8b',
@@ -21,7 +26,9 @@ const AYA_8b = {
   },
   size: '4.8gb',
   context: 8_000,
-} as const satisfies DefaultOllamaModelMeta<any>
+} as const satisfies OllamaModelMeta<
+  OllamaChatRequest & OllamaChatRequestMessages
+>
 
 const AYA_35b = {
   name: 'aya:35b',
@@ -32,7 +39,9 @@ const AYA_35b = {
   },
   size: '20gb',
   context: 8_000,
-} as const satisfies DefaultOllamaModelMeta<any>
+} as const satisfies OllamaModelMeta<
+  OllamaChatRequest & OllamaChatRequestMessages
+>
 
 export const AYA_MODELS = [AYA_LATEST.name, AYA_8b.name, AYA_35b.name] as const
 
@@ -49,9 +58,11 @@ export const AYA_MODELS = [AYA_LATEST.name, AYA_8b.name, AYA_35b.name] as const
 // Manual type map for per-model provider options
 export type AyaChatModelProviderOptionsByName = {
   // Models with thinking and structured output support
-  [AYA_LATEST.name]: ChatRequest
-  [AYA_8b.name]: ChatRequest
-  [AYA_35b.name]: ChatRequest
+  [AYA_LATEST.name]: OllamaModelMeta<
+    OllamaChatRequest & OllamaChatRequestMessages
+  >
+  [AYA_8b.name]: OllamaModelMeta<OllamaChatRequest & OllamaChatRequestMessages>
+  [AYA_35b.name]: OllamaModelMeta<OllamaChatRequest & OllamaChatRequestMessages>
 }
 
 export type AyaModelInputModalitiesByName = {

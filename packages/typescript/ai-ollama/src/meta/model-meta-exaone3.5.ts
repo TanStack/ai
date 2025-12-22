@@ -1,5 +1,8 @@
-import type { ChatRequest } from 'ollama'
-import type { DefaultOllamaModelMeta } from './models-meta'
+import type {
+  OllamaChatRequest,
+  OllamaChatRequestMessages,
+  OllamaModelMeta,
+} from './models-meta'
 
 const EXAONE3_5_LATEST = {
   name: 'exaone3.5:latest',
@@ -10,7 +13,9 @@ const EXAONE3_5_LATEST = {
   },
   size: '4.8gb',
   context: 32_000,
-} as const satisfies DefaultOllamaModelMeta<any>
+} as const satisfies OllamaModelMeta<
+  OllamaChatRequest & OllamaChatRequestMessages
+>
 
 const EXAONE3_5_2_4b = {
   name: 'exaone3.5:2.4b',
@@ -21,7 +26,9 @@ const EXAONE3_5_2_4b = {
   },
   size: '1.6gb',
   context: 32_000,
-} as const satisfies DefaultOllamaModelMeta<any>
+} as const satisfies OllamaModelMeta<
+  OllamaChatRequest & OllamaChatRequestMessages
+>
 
 const EXAONE3_5_7_1b = {
   name: 'exaone3.5:7.8b',
@@ -32,7 +39,9 @@ const EXAONE3_5_7_1b = {
   },
   size: '4.8gb',
   context: 32_000,
-} as const satisfies DefaultOllamaModelMeta<any>
+} as const satisfies OllamaModelMeta<
+  OllamaChatRequest & OllamaChatRequestMessages
+>
 
 const EXAONE3_5_32b = {
   name: 'exaone3.5:32b',
@@ -43,7 +52,9 @@ const EXAONE3_5_32b = {
   },
   size: '19gb',
   context: 32_000,
-} as const satisfies DefaultOllamaModelMeta<any>
+} as const satisfies OllamaModelMeta<
+  OllamaChatRequest & OllamaChatRequestMessages
+>
 
 export const EXAONE3_5MODELS = [
   EXAONE3_5_LATEST.name,
@@ -65,10 +76,18 @@ export const EXAONE3_5MODELS = [
 // Manual type map for per-model provider options
 export type Exaone3_5ChatModelProviderOptionsByName = {
   // Models with thinking and structured output support
-  [EXAONE3_5_LATEST.name]: ChatRequest
-  [EXAONE3_5_2_4b.name]: ChatRequest
-  [EXAONE3_5_7_1b.name]: ChatRequest
-  [EXAONE3_5_32b.name]: ChatRequest
+  [EXAONE3_5_LATEST.name]: OllamaModelMeta<
+    OllamaChatRequest & OllamaChatRequestMessages
+  >
+  [EXAONE3_5_2_4b.name]: OllamaModelMeta<
+    OllamaChatRequest & OllamaChatRequestMessages
+  >
+  [EXAONE3_5_7_1b.name]: OllamaModelMeta<
+    OllamaChatRequest & OllamaChatRequestMessages
+  >
+  [EXAONE3_5_32b.name]: OllamaModelMeta<
+    OllamaChatRequest & OllamaChatRequestMessages
+  >
 }
 
 export type Exaone3_5ModelInputModalitiesByName = {

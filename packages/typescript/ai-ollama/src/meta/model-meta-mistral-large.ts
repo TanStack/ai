@@ -1,5 +1,10 @@
-import type { ChatRequest } from 'ollama'
-import type { DefaultOllamaModelMeta } from './models-meta'
+import type {
+  OllamaChatRequest,
+  OllamaChatRequestMessages,
+  OllamaChatRequestTools,
+  OllamaMessageTools,
+  OllamaModelMeta,
+} from './models-meta'
 
 const MISTRAL_LARGE_LATEST = {
   name: 'mistral-large:latest',
@@ -10,7 +15,11 @@ const MISTRAL_LARGE_LATEST = {
   },
   size: '73gb',
   context: 128_000,
-} as const satisfies DefaultOllamaModelMeta<any>
+} as const satisfies OllamaModelMeta<
+  OllamaChatRequest &
+    OllamaChatRequestMessages<OllamaMessageTools> &
+    OllamaChatRequestTools
+>
 
 const MISTRAL_LARGE_123b = {
   name: 'mistral-large:123b',
@@ -21,7 +30,11 @@ const MISTRAL_LARGE_123b = {
   },
   size: '73gb',
   context: 128_000,
-} as const satisfies DefaultOllamaModelMeta<any>
+} as const satisfies OllamaModelMeta<
+  OllamaChatRequest &
+    OllamaChatRequestMessages<OllamaMessageTools> &
+    OllamaChatRequestTools
+>
 
 export const MISTRAL_LARGE_MODELS = [
   MISTRAL_LARGE_LATEST.name,
@@ -41,8 +54,16 @@ export const MISTRAL_LARGE_MODELS = [
 // Manual type map for per-model provider options
 export type MistralLargeChatModelProviderOptionsByName = {
   // Models with thinking and structured output support
-  [MISTRAL_LARGE_LATEST.name]: ChatRequest
-  [MISTRAL_LARGE_123b.name]: ChatRequest
+  [MISTRAL_LARGE_LATEST.name]: OllamaModelMeta<
+    OllamaChatRequest &
+      OllamaChatRequestMessages<OllamaMessageTools> &
+      OllamaChatRequestTools
+  >
+  [MISTRAL_LARGE_123b.name]: OllamaModelMeta<
+    OllamaChatRequest &
+      OllamaChatRequestMessages<OllamaMessageTools> &
+      OllamaChatRequestTools
+  >
 }
 
 export type MistralLargeModelInputModalitiesByName = {

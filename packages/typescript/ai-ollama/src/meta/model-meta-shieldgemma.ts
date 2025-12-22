@@ -1,5 +1,8 @@
-import type { ChatRequest } from 'ollama'
-import type { DefaultOllamaModelMeta } from './models-meta'
+import type {
+  OllamaChatRequest,
+  OllamaChatRequestMessages,
+  OllamaModelMeta,
+} from './models-meta'
 
 const SHIELDGEMMA_LATEST = {
   name: 'shieldgemma:latest',
@@ -10,7 +13,9 @@ const SHIELDGEMMA_LATEST = {
   },
   size: '5.8gb',
   context: 8_000,
-} as const satisfies DefaultOllamaModelMeta<any>
+} as const satisfies OllamaModelMeta<
+  OllamaChatRequest & OllamaChatRequestMessages
+>
 
 const SHIELDGEMMA_2b = {
   name: 'shieldgemma:2b',
@@ -21,7 +26,9 @@ const SHIELDGEMMA_2b = {
   },
   size: '1.7gb',
   context: 8_000,
-} as const satisfies DefaultOllamaModelMeta<any>
+} as const satisfies OllamaModelMeta<
+  OllamaChatRequest & OllamaChatRequestMessages
+>
 
 const SHIELDGEMMA_9b = {
   name: 'shieldgemma:9b',
@@ -32,7 +39,9 @@ const SHIELDGEMMA_9b = {
   },
   size: '5.8gb',
   context: 8_000,
-} as const satisfies DefaultOllamaModelMeta<any>
+} as const satisfies OllamaModelMeta<
+  OllamaChatRequest & OllamaChatRequestMessages
+>
 
 const SHIELDGEMMA_27b = {
   name: 'shieldgemma:27b',
@@ -43,7 +52,9 @@ const SHIELDGEMMA_27b = {
   },
   size: '17gb',
   context: 8_000,
-} as const satisfies DefaultOllamaModelMeta<any>
+} as const satisfies OllamaModelMeta<
+  OllamaChatRequest & OllamaChatRequestMessages
+>
 
 export const SHIELDGEMMA_MODELS = [
   SHIELDGEMMA_LATEST.name,
@@ -65,10 +76,18 @@ export const SHIELDGEMMA_MODELS = [
 // Manual type map for per-model provider options
 export type ShieldgemmaChatModelProviderOptionsByName = {
   // Models with thinking and structured output support
-  [SHIELDGEMMA_LATEST.name]: ChatRequest
-  [SHIELDGEMMA_2b.name]: ChatRequest
-  [SHIELDGEMMA_9b.name]: ChatRequest
-  [SHIELDGEMMA_27b.name]: ChatRequest
+  [SHIELDGEMMA_LATEST.name]: OllamaModelMeta<
+    OllamaChatRequest & OllamaChatRequestMessages
+  >
+  [SHIELDGEMMA_2b.name]: OllamaModelMeta<
+    OllamaChatRequest & OllamaChatRequestMessages
+  >
+  [SHIELDGEMMA_9b.name]: OllamaModelMeta<
+    OllamaChatRequest & OllamaChatRequestMessages
+  >
+  [SHIELDGEMMA_27b.name]: OllamaModelMeta<
+    OllamaChatRequest & OllamaChatRequestMessages
+  >
 }
 
 export type ShieldgemmaModelInputModalitiesByName = {

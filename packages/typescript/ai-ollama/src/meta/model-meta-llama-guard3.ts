@@ -1,5 +1,8 @@
-import type { ChatRequest } from 'ollama'
-import type { DefaultOllamaModelMeta } from './models-meta'
+import type {
+  OllamaChatRequest,
+  OllamaChatRequestMessages,
+  OllamaModelMeta,
+} from './models-meta'
 
 const LLAMA_GUARD3_LATEST = {
   name: 'llama3:latest',
@@ -10,7 +13,9 @@ const LLAMA_GUARD3_LATEST = {
   },
   size: '4.9b',
   context: 128_000,
-} as const satisfies DefaultOllamaModelMeta<any>
+} as const satisfies OllamaModelMeta<
+  OllamaChatRequest & OllamaChatRequestMessages
+>
 
 const LLAMA_GUARD3_1b = {
   name: 'llama3:7b',
@@ -21,7 +26,9 @@ const LLAMA_GUARD3_1b = {
   },
   size: '1.6gb',
   context: 128_000,
-} as const satisfies DefaultOllamaModelMeta<any>
+} as const satisfies OllamaModelMeta<
+  OllamaChatRequest & OllamaChatRequestMessages
+>
 
 const LLAMA_GUARD3_8b = {
   name: 'llama3:70b',
@@ -32,7 +39,9 @@ const LLAMA_GUARD3_8b = {
   },
   size: '4.9gb',
   context: 128_000,
-} as const satisfies DefaultOllamaModelMeta<any>
+} as const satisfies OllamaModelMeta<
+  OllamaChatRequest & OllamaChatRequestMessages
+>
 
 export const LLAMA_GUARD3_MODELS = [
   LLAMA_GUARD3_LATEST.name,
@@ -53,9 +62,15 @@ export const LLAMA_GUARD3_MODELS = [
 // Manual type map for per-model provider options
 export type LlamaGuard3ChatModelProviderOptionsByName = {
   // Models with thinking and structured output support
-  [LLAMA_GUARD3_LATEST.name]: ChatRequest
-  [LLAMA_GUARD3_1b.name]: ChatRequest
-  [LLAMA_GUARD3_8b.name]: ChatRequest
+  [LLAMA_GUARD3_LATEST.name]: OllamaModelMeta<
+    OllamaChatRequest & OllamaChatRequestMessages
+  >
+  [LLAMA_GUARD3_1b.name]: OllamaModelMeta<
+    OllamaChatRequest & OllamaChatRequestMessages
+  >
+  [LLAMA_GUARD3_8b.name]: OllamaModelMeta<
+    OllamaChatRequest & OllamaChatRequestMessages
+  >
 }
 
 export type LlamaGuard3ModelInputModalitiesByName = {

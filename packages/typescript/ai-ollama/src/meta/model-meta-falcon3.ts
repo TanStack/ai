@@ -1,5 +1,8 @@
-import type { ChatRequest } from 'ollama'
-import type { DefaultOllamaModelMeta } from './models-meta'
+import type {
+  OllamaChatRequest,
+  OllamaChatRequestMessages,
+  OllamaModelMeta,
+} from './models-meta'
 
 const FALCON3_LATEST = {
   name: 'falcon3:latest',
@@ -10,7 +13,9 @@ const FALCON3_LATEST = {
   },
   size: '4.6gb',
   context: 32_000,
-} as const satisfies DefaultOllamaModelMeta<any>
+} as const satisfies OllamaModelMeta<
+  OllamaChatRequest & OllamaChatRequestMessages
+>
 
 const FALCON3_1b = {
   name: 'falcon3:1b',
@@ -21,7 +26,9 @@ const FALCON3_1b = {
   },
   size: '1.8gb',
   context: 8_000,
-} as const satisfies DefaultOllamaModelMeta<any>
+} as const satisfies OllamaModelMeta<
+  OllamaChatRequest & OllamaChatRequestMessages
+>
 
 const FALCON3_3b = {
   name: 'falcon3:3b',
@@ -32,7 +39,9 @@ const FALCON3_3b = {
   },
   size: '2gb',
   context: 32_000,
-} as const satisfies DefaultOllamaModelMeta<any>
+} as const satisfies OllamaModelMeta<
+  OllamaChatRequest & OllamaChatRequestMessages
+>
 
 const FALCON3_7b = {
   name: 'falcon3:7b',
@@ -43,7 +52,9 @@ const FALCON3_7b = {
   },
   size: '4.6gb',
   context: 32_000,
-} as const satisfies DefaultOllamaModelMeta<any>
+} as const satisfies OllamaModelMeta<
+  OllamaChatRequest & OllamaChatRequestMessages
+>
 
 const FALCON3_10b = {
   name: 'falcon3:10b',
@@ -54,7 +65,9 @@ const FALCON3_10b = {
   },
   size: '6.3gb',
   context: 32_000,
-} as const satisfies DefaultOllamaModelMeta<any>
+} as const satisfies OllamaModelMeta<
+  OllamaChatRequest & OllamaChatRequestMessages
+>
 
 export const FALCON3_MODELS = [
   FALCON3_LATEST.name,
@@ -77,11 +90,21 @@ export const FALCON3_MODELS = [
 // Manual type map for per-model provider options
 export type Falcon3ChatModelProviderOptionsByName = {
   // Models with thinking and structured output support
-  [FALCON3_LATEST.name]: ChatRequest
-  [FALCON3_1b.name]: ChatRequest
-  [FALCON3_3b.name]: ChatRequest
-  [FALCON3_7b.name]: ChatRequest
-  [FALCON3_10b.name]: ChatRequest
+  [FALCON3_LATEST.name]: OllamaModelMeta<
+    OllamaChatRequest & OllamaChatRequestMessages
+  >
+  [FALCON3_1b.name]: OllamaModelMeta<
+    OllamaChatRequest & OllamaChatRequestMessages
+  >
+  [FALCON3_3b.name]: OllamaModelMeta<
+    OllamaChatRequest & OllamaChatRequestMessages
+  >
+  [FALCON3_7b.name]: OllamaModelMeta<
+    OllamaChatRequest & OllamaChatRequestMessages
+  >
+  [FALCON3_10b.name]: OllamaModelMeta<
+    OllamaChatRequest & OllamaChatRequestMessages
+  >
 }
 
 export type Falcon3ModelInputModalitiesByName = {

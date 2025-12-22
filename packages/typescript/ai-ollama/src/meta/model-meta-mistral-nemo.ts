@@ -1,5 +1,10 @@
-import type { ChatRequest } from 'ollama'
-import type { DefaultOllamaModelMeta } from './models-meta'
+import type {
+  OllamaChatRequest,
+  OllamaChatRequestMessages,
+  OllamaChatRequestTools,
+  OllamaMessageTools,
+  OllamaModelMeta,
+} from './models-meta'
 
 const MISTRAL_NEMO_LATEST = {
   name: 'mistral-nemo:latest',
@@ -10,7 +15,11 @@ const MISTRAL_NEMO_LATEST = {
   },
   size: '7.1gb',
   context: 1_000,
-} as const satisfies DefaultOllamaModelMeta<any>
+} as const satisfies OllamaModelMeta<
+  OllamaChatRequest &
+    OllamaChatRequestMessages<OllamaMessageTools> &
+    OllamaChatRequestTools
+>
 
 const MISTRAL_NEMO_12b = {
   name: 'mistral-nemo:12b',
@@ -21,7 +30,11 @@ const MISTRAL_NEMO_12b = {
   },
   size: '7.1gb',
   context: 1_000,
-} as const satisfies DefaultOllamaModelMeta<any>
+} as const satisfies OllamaModelMeta<
+  OllamaChatRequest &
+    OllamaChatRequestMessages<OllamaMessageTools> &
+    OllamaChatRequestTools
+>
 
 export const MISTRAL_NEMO_MODELS = [
   MISTRAL_NEMO_LATEST.name,
@@ -41,8 +54,16 @@ export const MISTRAL_NEMO_MODELS = [
 // Manual type map for per-model provider options
 export type MistralNemoChatModelProviderOptionsByName = {
   // Models with thinking and structured output support
-  [MISTRAL_NEMO_LATEST.name]: ChatRequest
-  [MISTRAL_NEMO_12b.name]: ChatRequest
+  [MISTRAL_NEMO_LATEST.name]: OllamaModelMeta<
+    OllamaChatRequest &
+      OllamaChatRequestMessages<OllamaMessageTools> &
+      OllamaChatRequestTools
+  >
+  [MISTRAL_NEMO_12b.name]: OllamaModelMeta<
+    OllamaChatRequest &
+      OllamaChatRequestMessages<OllamaMessageTools> &
+      OllamaChatRequestTools
+  >
 }
 
 export type MistralNemoModelInputModalitiesByName = {

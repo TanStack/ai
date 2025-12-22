@@ -1,5 +1,8 @@
-import type { ChatRequest } from 'ollama'
-import type { DefaultOllamaModelMeta } from './models-meta'
+import type {
+  OllamaChatRequest,
+  OllamaChatRequestMessages,
+  OllamaModelMeta,
+} from './models-meta'
 
 const PHI4_LATEST = {
   name: 'phi4:latest',
@@ -10,7 +13,9 @@ const PHI4_LATEST = {
   },
   size: '9.1gb',
   context: 16_000,
-} as const satisfies DefaultOllamaModelMeta<any>
+} as const satisfies OllamaModelMeta<
+  OllamaChatRequest & OllamaChatRequestMessages
+>
 
 const PHI4_14b = {
   name: 'phi4:14b',
@@ -21,7 +26,9 @@ const PHI4_14b = {
   },
   size: '9.1gb',
   context: 16_000,
-} as const satisfies DefaultOllamaModelMeta<any>
+} as const satisfies OllamaModelMeta<
+  OllamaChatRequest & OllamaChatRequestMessages
+>
 
 export const PHI4_MODELS = [PHI4_LATEST.name, PHI4_14b.name] as const
 
@@ -38,8 +45,12 @@ export const PHI4_MODELS = [PHI4_LATEST.name, PHI4_14b.name] as const
 // Manual type map for per-model provider options
 export type Phi4ChatModelProviderOptionsByName = {
   // Models with thinking and structured output support
-  [PHI4_LATEST.name]: ChatRequest
-  [PHI4_14b.name]: ChatRequest
+  [PHI4_LATEST.name]: OllamaModelMeta<
+    OllamaChatRequest & OllamaChatRequestMessages
+  >
+  [PHI4_14b.name]: OllamaModelMeta<
+    OllamaChatRequest & OllamaChatRequestMessages
+  >
 }
 
 export type Phi4ModelInputModalitiesByName = {

@@ -1,5 +1,8 @@
-import type { ChatRequest } from 'ollama'
-import type { DefaultOllamaModelMeta } from './models-meta'
+import type {
+  OllamaChatRequest,
+  OllamaChatRequestMessages,
+  OllamaModelMeta,
+} from './models-meta'
 
 const DEEPSEEK_CODER_V2_LATEST = {
   name: 'deepseek-coder-v2:latest',
@@ -10,7 +13,9 @@ const DEEPSEEK_CODER_V2_LATEST = {
   },
   size: '4.8gb',
   context: 160_900,
-} as const satisfies DefaultOllamaModelMeta<any>
+} as const satisfies OllamaModelMeta<
+  OllamaChatRequest & OllamaChatRequestMessages
+>
 
 const DEEPSEEK_CODER_V2_16b = {
   name: 'deepseek-coder-v2:16b',
@@ -21,7 +26,9 @@ const DEEPSEEK_CODER_V2_16b = {
   },
   size: '8.9gb',
   context: 160_000,
-} as const satisfies DefaultOllamaModelMeta<any>
+} as const satisfies OllamaModelMeta<
+  OllamaChatRequest & OllamaChatRequestMessages
+>
 
 const DEEPSEEK_CODER_V2_236b = {
   name: 'deepseek-coder-v2:236b',
@@ -32,7 +39,9 @@ const DEEPSEEK_CODER_V2_236b = {
   },
   size: '133gb',
   context: 4_000,
-} as const satisfies DefaultOllamaModelMeta<any>
+} as const satisfies OllamaModelMeta<
+  OllamaChatRequest & OllamaChatRequestMessages
+>
 
 export const DEEPSEEK_CODER_V2_MODELS = [
   DEEPSEEK_CODER_V2_LATEST.name,
@@ -53,9 +62,15 @@ export const DEEPSEEK_CODER_V2_MODELS = [
 // Manual type map for per-model provider options
 export type DeepseekCoderV2ChatModelProviderOptionsByName = {
   // Models with thinking and structured output support
-  [DEEPSEEK_CODER_V2_LATEST.name]: ChatRequest
-  [DEEPSEEK_CODER_V2_16b.name]: ChatRequest
-  [DEEPSEEK_CODER_V2_236b.name]: ChatRequest
+  [DEEPSEEK_CODER_V2_LATEST.name]: OllamaModelMeta<
+    OllamaChatRequest & OllamaChatRequestMessages
+  >
+  [DEEPSEEK_CODER_V2_16b.name]: OllamaModelMeta<
+    OllamaChatRequest & OllamaChatRequestMessages
+  >
+  [DEEPSEEK_CODER_V2_236b.name]: OllamaModelMeta<
+    OllamaChatRequest & OllamaChatRequestMessages
+  >
 }
 
 export type DeepseekCoderV2ModelInputModalitiesByName = {

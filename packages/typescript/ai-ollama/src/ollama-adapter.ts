@@ -12,6 +12,7 @@ import type {
   Tool as OllamaTool,
   ToolCall,
 } from 'ollama'
+
 import type {
   ChatOptions,
   DefaultMessageMetadataByModality,

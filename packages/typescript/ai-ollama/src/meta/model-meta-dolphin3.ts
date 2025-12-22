@@ -1,5 +1,8 @@
-import type { ChatRequest } from 'ollama'
-import type { DefaultOllamaModelMeta } from './models-meta'
+import type {
+  OllamaChatRequest,
+  OllamaChatRequestMessages,
+  OllamaModelMeta,
+} from './models-meta'
 
 const DOLPHIN3_LATEST = {
   name: 'dolphin3:latest',
@@ -10,7 +13,9 @@ const DOLPHIN3_LATEST = {
   },
   size: '4.9gb',
   context: 128_000,
-} as const satisfies DefaultOllamaModelMeta<any>
+} as const satisfies OllamaModelMeta<
+  OllamaChatRequest & OllamaChatRequestMessages
+>
 
 const DOLPHIN3_8b = {
   name: 'dolphin3:8b',
@@ -21,7 +26,9 @@ const DOLPHIN3_8b = {
   },
   size: '4.9gb',
   context: 128_000,
-} as const satisfies DefaultOllamaModelMeta<any>
+} as const satisfies OllamaModelMeta<
+  OllamaChatRequest & OllamaChatRequestMessages
+>
 
 export const DOLPHIN3_MODELS = [DOLPHIN3_LATEST.name, DOLPHIN3_8b.name] as const
 
@@ -38,8 +45,12 @@ export const DOLPHIN3_MODELS = [DOLPHIN3_LATEST.name, DOLPHIN3_8b.name] as const
 // Manual type map for per-model provider options
 export type Dolphin3ChatModelProviderOptionsByName = {
   // Models with thinking and structured output support
-  [DOLPHIN3_LATEST.name]: ChatRequest
-  [DOLPHIN3_8b.name]: ChatRequest
+  [DOLPHIN3_LATEST.name]: OllamaModelMeta<
+    OllamaChatRequest & OllamaChatRequestMessages
+  >
+  [DOLPHIN3_8b.name]: OllamaModelMeta<
+    OllamaChatRequest & OllamaChatRequestMessages
+  >
 }
 
 export type Dolphin3ModelInputModalitiesByName = {

@@ -1,5 +1,10 @@
-import type { ChatRequest } from 'ollama'
-import type { DefaultOllamaModelMeta } from './models-meta'
+import type {
+  OllamaChatRequest,
+  OllamaChatRequestMessages,
+  OllamaChatRequestTools,
+  OllamaMessageTools,
+  OllamaModelMeta,
+} from './models-meta'
 
 const GRANITE3_1_DENSE_LATEST = {
   name: 'granite3.1-dense:latest',
@@ -10,7 +15,11 @@ const GRANITE3_1_DENSE_LATEST = {
   },
   size: '5gb',
   context: 128_000,
-} as const satisfies DefaultOllamaModelMeta<any>
+} as const satisfies OllamaModelMeta<
+  OllamaChatRequest &
+    OllamaChatRequestMessages<OllamaMessageTools> &
+    OllamaChatRequestTools
+>
 
 const GRANITE3_1_DENSE_2b = {
   name: 'granite3.1-dense:2b',
@@ -21,7 +30,11 @@ const GRANITE3_1_DENSE_2b = {
   },
   size: '1.6gb',
   context: 128_000,
-} as const satisfies DefaultOllamaModelMeta<any>
+} as const satisfies OllamaModelMeta<
+  OllamaChatRequest &
+    OllamaChatRequestMessages<OllamaMessageTools> &
+    OllamaChatRequestTools
+>
 
 const GRANITE3_1_DENSE_8b = {
   name: 'granite3.1-dense:8b',
@@ -32,7 +45,11 @@ const GRANITE3_1_DENSE_8b = {
   },
   size: '5gb',
   context: 128_000,
-} as const satisfies DefaultOllamaModelMeta<any>
+} as const satisfies OllamaModelMeta<
+  OllamaChatRequest &
+    OllamaChatRequestMessages<OllamaMessageTools> &
+    OllamaChatRequestTools
+>
 
 export const GRANITE3_1_DENSE_MODELS = [
   GRANITE3_1_DENSE_LATEST.name,
@@ -53,9 +70,21 @@ export const GRANITE3_1_DENSE_MODELS = [
 // Manual type map for per-model provider options
 export type Granite3_1DenseChatModelProviderOptionsByName = {
   // Models with thinking and structured output support
-  [GRANITE3_1_DENSE_LATEST.name]: ChatRequest
-  [GRANITE3_1_DENSE_2b.name]: ChatRequest
-  [GRANITE3_1_DENSE_8b.name]: ChatRequest
+  [GRANITE3_1_DENSE_LATEST.name]: OllamaModelMeta<
+    OllamaChatRequest &
+      OllamaChatRequestMessages<OllamaMessageTools> &
+      OllamaChatRequestTools
+  >
+  [GRANITE3_1_DENSE_2b.name]: OllamaModelMeta<
+    OllamaChatRequest &
+      OllamaChatRequestMessages<OllamaMessageTools> &
+      OllamaChatRequestTools
+  >
+  [GRANITE3_1_DENSE_8b.name]: OllamaModelMeta<
+    OllamaChatRequest &
+      OllamaChatRequestMessages<OllamaMessageTools> &
+      OllamaChatRequestTools
+  >
 }
 
 export type Granite3_1DenseModelInputModalitiesByName = {

@@ -1,5 +1,8 @@
-import type { ChatRequest } from 'ollama'
-import type { DefaultOllamaModelMeta } from './models-meta'
+import type {
+  OllamaChatRequest,
+  OllamaChatRequestMessages,
+  OllamaModelMeta,
+} from './models-meta'
 
 const SMOLLM_LATEST = {
   name: 'smollm:latest',
@@ -10,7 +13,9 @@ const SMOLLM_LATEST = {
   },
   size: '991mb',
   context: 2_000,
-} as const satisfies DefaultOllamaModelMeta<any>
+} as const satisfies OllamaModelMeta<
+  OllamaChatRequest & OllamaChatRequestMessages
+>
 
 const SMOLLM_135m = {
   name: 'smollm:135m',
@@ -21,7 +26,9 @@ const SMOLLM_135m = {
   },
   size: '92mb',
   context: 2_000,
-} as const satisfies DefaultOllamaModelMeta<any>
+} as const satisfies OllamaModelMeta<
+  OllamaChatRequest & OllamaChatRequestMessages
+>
 
 const SMOLLM_360m = {
   name: 'smollm:360m',
@@ -32,7 +39,9 @@ const SMOLLM_360m = {
   },
   size: '229mb',
   context: 2_000,
-} as const satisfies DefaultOllamaModelMeta<any>
+} as const satisfies OllamaModelMeta<
+  OllamaChatRequest & OllamaChatRequestMessages
+>
 
 const SMOLLM_1_7b = {
   name: 'smollm:1.7b',
@@ -43,7 +52,9 @@ const SMOLLM_1_7b = {
   },
   size: '991mb',
   context: 2_000,
-} as const satisfies DefaultOllamaModelMeta<any>
+} as const satisfies OllamaModelMeta<
+  OllamaChatRequest & OllamaChatRequestMessages
+>
 
 export const SMOLLM_MODELS = [
   SMOLLM_LATEST.name,
@@ -65,10 +76,18 @@ export const SMOLLM_MODELS = [
 // Manual type map for per-model provider options
 export type SmollmChatModelProviderOptionsByName = {
   // Models with thinking and structured output support
-  [SMOLLM_LATEST.name]: ChatRequest
-  [SMOLLM_135m.name]: ChatRequest
-  [SMOLLM_360m.name]: ChatRequest
-  [SMOLLM_1_7b.name]: ChatRequest
+  [SMOLLM_LATEST.name]: OllamaModelMeta<
+    OllamaChatRequest & OllamaChatRequestMessages
+  >
+  [SMOLLM_135m.name]: OllamaModelMeta<
+    OllamaChatRequest & OllamaChatRequestMessages
+  >
+  [SMOLLM_360m.name]: OllamaModelMeta<
+    OllamaChatRequest & OllamaChatRequestMessages
+  >
+  [SMOLLM_1_7b.name]: OllamaModelMeta<
+    OllamaChatRequest & OllamaChatRequestMessages
+  >
 }
 
 export type SmollmModelInputModalitiesByName = {

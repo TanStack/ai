@@ -1,5 +1,8 @@
-import type { ChatRequest } from 'ollama'
-import type { DefaultOllamaModelMeta } from './models-meta'
+import type {
+  OllamaChatRequest,
+  OllamaChatRequestMessages,
+  OllamaModelMeta,
+} from './models-meta'
 
 const GEMMA2_LATEST = {
   name: 'gemma2:latest',
@@ -10,7 +13,9 @@ const GEMMA2_LATEST = {
   },
   size: '5.4gb',
   context: 8_000,
-} as const satisfies DefaultOllamaModelMeta<any>
+} as const satisfies OllamaModelMeta<
+  OllamaChatRequest & OllamaChatRequestMessages
+>
 
 const GEMMA2_2b = {
   name: 'gemma2:2b',
@@ -21,7 +26,9 @@ const GEMMA2_2b = {
   },
   size: '1.6gb',
   context: 8_000,
-} as const satisfies DefaultOllamaModelMeta<any>
+} as const satisfies OllamaModelMeta<
+  OllamaChatRequest & OllamaChatRequestMessages
+>
 
 const GEMMA2_9b = {
   name: 'gemma2:9b',
@@ -32,7 +39,9 @@ const GEMMA2_9b = {
   },
   size: '5.4gb',
   context: 8_000,
-} as const satisfies DefaultOllamaModelMeta<any>
+} as const satisfies OllamaModelMeta<
+  OllamaChatRequest & OllamaChatRequestMessages
+>
 
 const GEMMA2_27b = {
   name: 'gemma2:27b',
@@ -43,7 +52,9 @@ const GEMMA2_27b = {
   },
   size: '16gb',
   context: 8_000,
-} as const satisfies DefaultOllamaModelMeta<any>
+} as const satisfies OllamaModelMeta<
+  OllamaChatRequest & OllamaChatRequestMessages
+>
 
 export const GEMMA2_MODELS = [
   GEMMA2_LATEST.name,
@@ -65,10 +76,18 @@ export const GEMMA2_MODELS = [
 // Manual type map for per-model provider options
 export type Gemma2ChatModelProviderOptionsByName = {
   // Models with thinking and structured output support
-  [GEMMA2_LATEST.name]: ChatRequest
-  [GEMMA2_2b.name]: ChatRequest
-  [GEMMA2_9b.name]: ChatRequest
-  [GEMMA2_27b.name]: ChatRequest
+  [GEMMA2_LATEST.name]: OllamaModelMeta<
+    OllamaChatRequest & OllamaChatRequestMessages
+  >
+  [GEMMA2_2b.name]: OllamaModelMeta<
+    OllamaChatRequest & OllamaChatRequestMessages
+  >
+  [GEMMA2_9b.name]: OllamaModelMeta<
+    OllamaChatRequest & OllamaChatRequestMessages
+  >
+  [GEMMA2_27b.name]: OllamaModelMeta<
+    OllamaChatRequest & OllamaChatRequestMessages
+  >
 }
 
 export type Gemma2ModelInputModalitiesByName = {

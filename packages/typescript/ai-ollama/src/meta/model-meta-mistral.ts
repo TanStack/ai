@@ -1,5 +1,9 @@
-import type { ChatRequest } from 'ollama'
-import type { DefaultOllamaModelMeta } from './models-meta'
+import type {
+  OllamaChatRequest,
+  OllamaChatRequestMessages,
+  OllamaMessageImages,
+  OllamaModelMeta,
+} from './models-meta'
 
 const MISTRAL_LATEST = {
   name: 'mistral:latest',
@@ -10,7 +14,9 @@ const MISTRAL_LATEST = {
   },
   size: '2.9gb',
   context: 4_000,
-} as const satisfies DefaultOllamaModelMeta<any>
+} as const satisfies OllamaModelMeta<
+  OllamaChatRequest & OllamaChatRequestMessages<OllamaMessageImages>
+>
 
 const MISTRAL_7b = {
   name: 'mistral:87',
@@ -21,7 +27,9 @@ const MISTRAL_7b = {
   },
   size: '2.9gb',
   context: 4_000,
-} as const satisfies DefaultOllamaModelMeta<any>
+} as const satisfies OllamaModelMeta<
+  OllamaChatRequest & OllamaChatRequestMessages<OllamaMessageImages>
+>
 
 export const MISTRAL_MODELS = [MISTRAL_LATEST.name, MISTRAL_7b.name] as const
 
@@ -38,8 +46,12 @@ export const MISTRAL_MODELS = [MISTRAL_LATEST.name, MISTRAL_7b.name] as const
 // Manual type map for per-model provider options
 export type MistralChatModelProviderOptionsByName = {
   // Models with thinking and structured output support
-  [MISTRAL_LATEST.name]: ChatRequest
-  [MISTRAL_7b.name]: ChatRequest
+  [MISTRAL_LATEST.name]: OllamaModelMeta<
+    OllamaChatRequest & OllamaChatRequestMessages<OllamaMessageImages>
+  >
+  [MISTRAL_7b.name]: OllamaModelMeta<
+    OllamaChatRequest & OllamaChatRequestMessages<OllamaMessageImages>
+  >
 }
 
 export type MistralModelInputModalitiesByName = {

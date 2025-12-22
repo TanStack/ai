@@ -1,5 +1,8 @@
-import type { ChatRequest } from 'ollama'
-import type { DefaultOllamaModelMeta } from './models-meta'
+import type {
+  OllamaChatRequest,
+  OllamaChatRequestMessages,
+  OllamaModelMeta,
+} from './models-meta'
 
 const FIREFUNCTION_V2_LATEST = {
   name: 'firefunction-v2:latest',
@@ -10,7 +13,9 @@ const FIREFUNCTION_V2_LATEST = {
   },
   size: '40gb',
   context: 8_000,
-} as const satisfies DefaultOllamaModelMeta<any>
+} as const satisfies OllamaModelMeta<
+  OllamaChatRequest & OllamaChatRequestMessages
+>
 
 const FIREFUNCTION_V2_70b = {
   name: 'firefunction-v2:70b',
@@ -21,7 +26,9 @@ const FIREFUNCTION_V2_70b = {
   },
   size: '40gb',
   context: 8_000,
-} as const satisfies DefaultOllamaModelMeta<any>
+} as const satisfies OllamaModelMeta<
+  OllamaChatRequest & OllamaChatRequestMessages
+>
 
 export const FIREFUNCTION_V2_MODELS = [
   FIREFUNCTION_V2_LATEST.name,
@@ -41,8 +48,12 @@ export const FIREFUNCTION_V2_MODELS = [
 // Manual type map for per-model provider options
 export type Firefunction_V2ChatModelProviderOptionsByName = {
   // Models with thinking and structured output support
-  [FIREFUNCTION_V2_LATEST.name]: ChatRequest
-  [FIREFUNCTION_V2_70b.name]: ChatRequest
+  [FIREFUNCTION_V2_LATEST.name]: OllamaModelMeta<
+    OllamaChatRequest & OllamaChatRequestMessages
+  >
+  [FIREFUNCTION_V2_70b.name]: OllamaModelMeta<
+    OllamaChatRequest & OllamaChatRequestMessages
+  >
 }
 
 export type Firefunction_V2ModelInputModalitiesByName = {

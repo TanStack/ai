@@ -1,5 +1,9 @@
-import type { ChatRequest } from 'ollama'
-import type { DefaultOllamaModelMeta } from './models-meta'
+import type {
+  OllamaChatRequest,
+  OllamaChatRequestMessages,
+  OllamaMessageImages,
+  OllamaModelMeta,
+} from './models-meta'
 
 const LLAMA3_2_VISION_LATEST = {
   name: 'llama3.2:latest',
@@ -10,7 +14,9 @@ const LLAMA3_2_VISION_LATEST = {
   },
   size: '7.8b',
   context: 128_000,
-} as const satisfies DefaultOllamaModelMeta<any>
+} as const satisfies OllamaModelMeta<
+  OllamaChatRequest & OllamaChatRequestMessages<OllamaMessageImages>
+>
 
 const LLAMA3_2_VISION_11b = {
   name: 'llama3.2:11b',
@@ -21,7 +27,9 @@ const LLAMA3_2_VISION_11b = {
   },
   size: '1gb',
   context: 128_000,
-} as const satisfies DefaultOllamaModelMeta<any>
+} as const satisfies OllamaModelMeta<
+  OllamaChatRequest & OllamaChatRequestMessages<OllamaMessageImages>
+>
 
 const LLAMA3_2_VISION_90b = {
   name: 'llama3.2:90b',
@@ -32,7 +40,9 @@ const LLAMA3_2_VISION_90b = {
   },
   size: '55gb',
   context: 128_000,
-} as const satisfies DefaultOllamaModelMeta<any>
+} as const satisfies OllamaModelMeta<
+  OllamaChatRequest & OllamaChatRequestMessages<OllamaMessageImages>
+>
 
 export const LLAMA3_2_VISION_MODELS = [
   LLAMA3_2_VISION_LATEST.name,
@@ -53,9 +63,15 @@ export const LLAMA3_2_VISION_MODELS = [
 // Manual type map for per-model provider options
 export type Llama3_2VisionChatModelProviderOptionsByName = {
   // Models with thinking and structured output support
-  [LLAMA3_2_VISION_LATEST.name]: ChatRequest
-  [LLAMA3_2_VISION_11b.name]: ChatRequest
-  [LLAMA3_2_VISION_90b.name]: ChatRequest
+  [LLAMA3_2_VISION_LATEST.name]: OllamaModelMeta<
+    OllamaChatRequest & OllamaChatRequestMessages<OllamaMessageImages>
+  >
+  [LLAMA3_2_VISION_11b.name]: OllamaModelMeta<
+    OllamaChatRequest & OllamaChatRequestMessages<OllamaMessageImages>
+  >
+  [LLAMA3_2_VISION_90b.name]: OllamaModelMeta<
+    OllamaChatRequest & OllamaChatRequestMessages<OllamaMessageImages>
+  >
 }
 
 export type Llama3_2VisionModelInputModalitiesByName = {

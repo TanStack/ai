@@ -1,5 +1,10 @@
-import type { ChatRequest } from 'ollama'
-import type { DefaultOllamaModelMeta } from './models-meta'
+import type {
+  OllamaChatRequest,
+  OllamaChatRequestMessages,
+  OllamaChatRequestTools,
+  OllamaMessageTools,
+  OllamaModelMeta,
+} from './models-meta'
 
 const QWQ_LATEST = {
   name: 'qwq:latest',
@@ -10,7 +15,11 @@ const QWQ_LATEST = {
   },
   size: '20gb',
   context: 40_000,
-} as const satisfies DefaultOllamaModelMeta<any>
+} as const satisfies OllamaModelMeta<
+  OllamaChatRequest &
+    OllamaChatRequestMessages<OllamaMessageTools> &
+    OllamaChatRequestTools
+>
 
 const QWQ_32b = {
   name: 'qwq:32b',
@@ -21,7 +30,11 @@ const QWQ_32b = {
   },
   size: '20gb',
   context: 40_000,
-} as const satisfies DefaultOllamaModelMeta<any>
+} as const satisfies OllamaModelMeta<
+  OllamaChatRequest &
+    OllamaChatRequestMessages<OllamaMessageTools> &
+    OllamaChatRequestTools
+>
 
 export const QWQ_MODELS = [QWQ_LATEST.name, QWQ_32b.name] as const
 
@@ -38,8 +51,16 @@ export const QWQ_MODELS = [QWQ_LATEST.name, QWQ_32b.name] as const
 // Manual type map for per-model provider options
 export type QwqChatModelProviderOptionsByName = {
   // Models with thinking and structured output support
-  [QWQ_LATEST.name]: ChatRequest
-  [QWQ_32b.name]: ChatRequest
+  [QWQ_LATEST.name]: OllamaModelMeta<
+    OllamaChatRequest &
+      OllamaChatRequestMessages<OllamaMessageTools> &
+      OllamaChatRequestTools
+  >
+  [QWQ_32b.name]: OllamaModelMeta<
+    OllamaChatRequest &
+      OllamaChatRequestMessages<OllamaMessageTools> &
+      OllamaChatRequestTools
+  >
 }
 
 export type QwqModelInputModalitiesByName = {

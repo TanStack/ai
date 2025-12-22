@@ -1,5 +1,9 @@
-import type { ChatRequest } from 'ollama'
-import type { DefaultOllamaModelMeta } from './models-meta'
+import type {
+  OllamaChatRequest,
+  OllamaChatRequestMessages,
+  OllamaMessageImages,
+  OllamaModelMeta,
+} from './models-meta'
 
 const GEMMA3_LATEST = {
   name: 'gemma3:latest',
@@ -10,7 +14,9 @@ const GEMMA3_LATEST = {
   },
   size: '3.3gb',
   context: 128_000,
-} as const satisfies DefaultOllamaModelMeta<any>
+} as const satisfies OllamaModelMeta<
+  OllamaChatRequest & OllamaChatRequestMessages<OllamaMessageImages>
+>
 
 const GEMMA3_270m = {
   name: 'gemma3:270m',
@@ -21,7 +27,9 @@ const GEMMA3_270m = {
   },
   size: '298mb',
   context: 32_000,
-} as const satisfies DefaultOllamaModelMeta<any>
+} as const satisfies OllamaModelMeta<
+  OllamaChatRequest & OllamaChatRequestMessages<OllamaMessageImages>
+>
 
 const GEMMA3_1b = {
   name: 'gemma3:1b',
@@ -32,7 +40,9 @@ const GEMMA3_1b = {
   },
   size: '815mb',
   context: 32_000,
-} as const satisfies DefaultOllamaModelMeta<any>
+} as const satisfies OllamaModelMeta<
+  OllamaChatRequest & OllamaChatRequestMessages<OllamaMessageImages>
+>
 
 const GEMMA3_4b = {
   name: 'gemma3:4b',
@@ -43,7 +53,9 @@ const GEMMA3_4b = {
   },
   size: '3.3gb',
   context: 128_000,
-} as const satisfies DefaultOllamaModelMeta<any>
+} as const satisfies OllamaModelMeta<
+  OllamaChatRequest & OllamaChatRequestMessages<OllamaMessageImages>
+>
 
 const GEMMA3_12b = {
   name: 'gemma3:12b',
@@ -54,7 +66,9 @@ const GEMMA3_12b = {
   },
   size: '8.1gb',
   context: 128_000,
-} as const satisfies DefaultOllamaModelMeta<any>
+} as const satisfies OllamaModelMeta<
+  OllamaChatRequest & OllamaChatRequestMessages<OllamaMessageImages>
+>
 
 const GEMMA3_27b = {
   name: 'gemma3:27b',
@@ -65,7 +79,9 @@ const GEMMA3_27b = {
   },
   size: '17gb',
   context: 128_000,
-} as const satisfies DefaultOllamaModelMeta<any>
+} as const satisfies OllamaModelMeta<
+  OllamaChatRequest & OllamaChatRequestMessages<OllamaMessageImages>
+>
 
 export const GEMMA3_MODELS = [
   GEMMA3_LATEST.name,
@@ -89,12 +105,24 @@ export const GEMMA3_MODELS = [
 // Manual type map for per-model provider options
 export type Gemma3ChatModelProviderOptionsByName = {
   // Models with thinking and structured output support
-  [GEMMA3_LATEST.name]: ChatRequest
-  [GEMMA3_270m.name]: ChatRequest
-  [GEMMA3_1b.name]: ChatRequest
-  [GEMMA3_4b.name]: ChatRequest
-  [GEMMA3_12b.name]: ChatRequest
-  [GEMMA3_27b.name]: ChatRequest
+  [GEMMA3_LATEST.name]: OllamaModelMeta<
+    OllamaChatRequest & OllamaChatRequestMessages<OllamaMessageImages>
+  >
+  [GEMMA3_270m.name]: OllamaModelMeta<
+    OllamaChatRequest & OllamaChatRequestMessages<OllamaMessageImages>
+  >
+  [GEMMA3_1b.name]: OllamaModelMeta<
+    OllamaChatRequest & OllamaChatRequestMessages<OllamaMessageImages>
+  >
+  [GEMMA3_4b.name]: OllamaModelMeta<
+    OllamaChatRequest & OllamaChatRequestMessages<OllamaMessageImages>
+  >
+  [GEMMA3_12b.name]: OllamaModelMeta<
+    OllamaChatRequest & OllamaChatRequestMessages<OllamaMessageImages>
+  >
+  [GEMMA3_27b.name]: OllamaModelMeta<
+    OllamaChatRequest & OllamaChatRequestMessages<OllamaMessageImages>
+  >
 }
 
 export type Gemma3ModelInputModalitiesByName = {

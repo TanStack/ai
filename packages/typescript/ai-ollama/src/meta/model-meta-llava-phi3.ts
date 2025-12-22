@@ -1,5 +1,9 @@
-import type { ChatRequest } from 'ollama'
-import type { DefaultOllamaModelMeta } from './models-meta'
+import type {
+  OllamaChatRequest,
+  OllamaChatRequestMessages,
+  OllamaMessageImages,
+  OllamaModelMeta,
+} from './models-meta'
 
 const LLAVA_PHI3_LATEST = {
   name: 'llava-phi3:latest',
@@ -10,7 +14,9 @@ const LLAVA_PHI3_LATEST = {
   },
   size: '2.9b',
   context: 4_000,
-} as const satisfies DefaultOllamaModelMeta<any>
+} as const satisfies OllamaModelMeta<
+  OllamaChatRequest & OllamaChatRequestMessages<OllamaMessageImages>
+>
 
 const LLAVA_PHI3_8b = {
   name: 'llava-phi3:8b',
@@ -21,7 +27,9 @@ const LLAVA_PHI3_8b = {
   },
   size: '2.9gb',
   context: 4_000,
-} as const satisfies DefaultOllamaModelMeta<any>
+} as const satisfies OllamaModelMeta<
+  OllamaChatRequest & OllamaChatRequestMessages<OllamaMessageImages>
+>
 
 export const LLAVA_PHI3_MODELS = [
   LLAVA_PHI3_LATEST.name,
@@ -41,8 +49,12 @@ export const LLAVA_PHI3_MODELS = [
 // Manual type map for per-model provider options
 export type LlavaPhi3ChatModelProviderOptionsByName = {
   // Models with thinking and structured output support
-  [LLAVA_PHI3_LATEST.name]: ChatRequest
-  [LLAVA_PHI3_8b.name]: ChatRequest
+  [LLAVA_PHI3_LATEST.name]: OllamaModelMeta<
+    OllamaChatRequest & OllamaChatRequestMessages<OllamaMessageImages>
+  >
+  [LLAVA_PHI3_8b.name]: OllamaModelMeta<
+    OllamaChatRequest & OllamaChatRequestMessages<OllamaMessageImages>
+  >
 }
 
 export type LlavaPhi3ModelInputModalitiesByName = {

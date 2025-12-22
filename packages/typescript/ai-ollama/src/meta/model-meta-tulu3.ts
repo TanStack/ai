@@ -1,5 +1,8 @@
-import type { ChatRequest } from 'ollama'
-import type { DefaultOllamaModelMeta } from './models-meta'
+import type {
+  OllamaChatRequest,
+  OllamaChatRequestMessages,
+  OllamaModelMeta,
+} from './models-meta'
 
 const TULU3_LATEST = {
   name: 'tulu3:latest',
@@ -10,7 +13,9 @@ const TULU3_LATEST = {
   },
   size: '4.9gb',
   context: 128_000,
-} as const satisfies DefaultOllamaModelMeta<any>
+} as const satisfies OllamaModelMeta<
+  OllamaChatRequest & OllamaChatRequestMessages
+>
 
 const TULU3_8b = {
   name: 'tulu3:8b',
@@ -21,7 +26,9 @@ const TULU3_8b = {
   },
   size: '4.9gb',
   context: 128_000,
-} as const satisfies DefaultOllamaModelMeta<any>
+} as const satisfies OllamaModelMeta<
+  OllamaChatRequest & OllamaChatRequestMessages
+>
 
 const TULU3_70b = {
   name: 'tulu3:70b',
@@ -32,7 +39,9 @@ const TULU3_70b = {
   },
   size: '43gb',
   context: 128_000,
-} as const satisfies DefaultOllamaModelMeta<any>
+} as const satisfies OllamaModelMeta<
+  OllamaChatRequest & OllamaChatRequestMessages
+>
 
 export const TULU3_MODELS = [
   TULU3_LATEST.name,
@@ -53,9 +62,15 @@ export const TULU3_MODELS = [
 // Manual type map for per-model provider options
 export type Tulu3ChatModelProviderOptionsByName = {
   // Models with thinking and structured output support
-  [TULU3_LATEST.name]: ChatRequest
-  [TULU3_8b.name]: ChatRequest
-  [TULU3_70b.name]: ChatRequest
+  [TULU3_LATEST.name]: OllamaModelMeta<
+    OllamaChatRequest & OllamaChatRequestMessages
+  >
+  [TULU3_8b.name]: OllamaModelMeta<
+    OllamaChatRequest & OllamaChatRequestMessages
+  >
+  [TULU3_70b.name]: OllamaModelMeta<
+    OllamaChatRequest & OllamaChatRequestMessages
+  >
 }
 
 export type Tulu3ModelInputModalitiesByName = {

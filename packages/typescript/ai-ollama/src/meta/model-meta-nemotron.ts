@@ -1,5 +1,10 @@
-import type { ChatRequest } from 'ollama'
-import type { DefaultOllamaModelMeta } from './models-meta'
+import type {
+  OllamaChatRequest,
+  OllamaChatRequestMessages,
+  OllamaChatRequestTools,
+  OllamaMessageTools,
+  OllamaModelMeta,
+} from './models-meta'
 
 const NEMOTRON_LATEST = {
   name: 'nemotron:latest',
@@ -10,7 +15,11 @@ const NEMOTRON_LATEST = {
   },
   size: '43gb',
   context: 128_000,
-} as const satisfies DefaultOllamaModelMeta<any>
+} as const satisfies OllamaModelMeta<
+  OllamaChatRequest &
+    OllamaChatRequestMessages<OllamaMessageTools> &
+    OllamaChatRequestTools
+>
 
 const NEMOTRON_70b = {
   name: 'nemotron:70b',
@@ -21,7 +30,11 @@ const NEMOTRON_70b = {
   },
   size: '43gb',
   context: 128_000,
-} as const satisfies DefaultOllamaModelMeta<any>
+} as const satisfies OllamaModelMeta<
+  OllamaChatRequest &
+    OllamaChatRequestMessages<OllamaMessageTools> &
+    OllamaChatRequestTools
+>
 
 export const NEMOTRON_MODELS = [
   NEMOTRON_LATEST.name,
@@ -41,8 +54,16 @@ export const NEMOTRON_MODELS = [
 // Manual type map for per-model provider options
 export type NemotronChatModelProviderOptionsByName = {
   // Models with thinking and structured output support
-  [NEMOTRON_LATEST.name]: ChatRequest
-  [NEMOTRON_70b.name]: ChatRequest
+  [NEMOTRON_LATEST.name]: OllamaModelMeta<
+    OllamaChatRequest &
+      OllamaChatRequestMessages<OllamaMessageTools> &
+      OllamaChatRequestTools
+  >
+  [NEMOTRON_70b.name]: OllamaModelMeta<
+    OllamaChatRequest &
+      OllamaChatRequestMessages<OllamaMessageTools> &
+      OllamaChatRequestTools
+  >
 }
 
 export type NemotronModelInputModalitiesByName = {

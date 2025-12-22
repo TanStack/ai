@@ -1,5 +1,10 @@
-import type { ChatRequest } from 'ollama'
-import type { DefaultOllamaModelMeta } from './models-meta'
+import type {
+  OllamaChatRequest,
+  OllamaChatRequestMessages,
+  OllamaChatRequestTools,
+  OllamaMessageTools,
+  OllamaModelMeta,
+} from './models-meta'
 
 const LLAMA3_2_LATEST = {
   name: 'llama3.2:latest',
@@ -10,7 +15,11 @@ const LLAMA3_2_LATEST = {
   },
   size: '2b',
   context: 128_000,
-} as const satisfies DefaultOllamaModelMeta<any>
+} as const satisfies OllamaModelMeta<
+  OllamaChatRequest &
+    OllamaChatRequestMessages<OllamaMessageTools> &
+    OllamaChatRequestTools
+>
 
 const LLAMA3_2_1b = {
   name: 'llama3.2:1b',
@@ -21,7 +30,11 @@ const LLAMA3_2_1b = {
   },
   size: '1.3gb',
   context: 128_000,
-} as const satisfies DefaultOllamaModelMeta<any>
+} as const satisfies OllamaModelMeta<
+  OllamaChatRequest &
+    OllamaChatRequestMessages<OllamaMessageTools> &
+    OllamaChatRequestTools
+>
 
 const LLAMA3_2_3b = {
   name: 'llama3.2:3b',
@@ -32,7 +45,11 @@ const LLAMA3_2_3b = {
   },
   size: '2gb',
   context: 128_000,
-} as const satisfies DefaultOllamaModelMeta<any>
+} as const satisfies OllamaModelMeta<
+  OllamaChatRequest &
+    OllamaChatRequestMessages<OllamaMessageTools> &
+    OllamaChatRequestTools
+>
 
 export const LLAMA3_2_MODELS = [
   LLAMA3_2_LATEST.name,
@@ -53,9 +70,21 @@ export const LLAMA3_2_MODELS = [
 // Manual type map for per-model provider options
 export type Llama3_2ChatModelProviderOptionsByName = {
   // Models with thinking and structured output support
-  [LLAMA3_2_LATEST.name]: ChatRequest
-  [LLAMA3_2_1b.name]: ChatRequest
-  [LLAMA3_2_3b.name]: ChatRequest
+  [LLAMA3_2_LATEST.name]: OllamaModelMeta<
+    OllamaChatRequest &
+      OllamaChatRequestMessages<OllamaMessageTools> &
+      OllamaChatRequestTools
+  >
+  [LLAMA3_2_1b.name]: OllamaModelMeta<
+    OllamaChatRequest &
+      OllamaChatRequestMessages<OllamaMessageTools> &
+      OllamaChatRequestTools
+  >
+  [LLAMA3_2_3b.name]: OllamaModelMeta<
+    OllamaChatRequest &
+      OllamaChatRequestMessages<OllamaMessageTools> &
+      OllamaChatRequestTools
+  >
 }
 
 export type Llama3_2ModelInputModalitiesByName = {

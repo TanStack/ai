@@ -1,5 +1,8 @@
-import type { ChatRequest } from 'ollama'
-import type { DefaultOllamaModelMeta } from './models-meta'
+import type {
+  OllamaChatRequest,
+  OllamaChatRequestMessages,
+  OllamaModelMeta,
+} from './models-meta'
 
 const MARCO_O1_LATEST = {
   name: 'marco-o1:latest',
@@ -10,7 +13,9 @@ const MARCO_O1_LATEST = {
   },
   size: '4.7gb',
   context: 32_000,
-} as const satisfies DefaultOllamaModelMeta<any>
+} as const satisfies OllamaModelMeta<
+  OllamaChatRequest & OllamaChatRequestMessages
+>
 
 const MARCO_O1_7b = {
   name: 'marco-o1:7b',
@@ -21,7 +26,9 @@ const MARCO_O1_7b = {
   },
   size: '4.7gb',
   context: 32_000,
-} as const satisfies DefaultOllamaModelMeta<any>
+} as const satisfies OllamaModelMeta<
+  OllamaChatRequest & OllamaChatRequestMessages
+>
 
 export const MARCO_O1_MODELS = [MARCO_O1_LATEST.name, MARCO_O1_7b.name] as const
 
@@ -38,8 +45,12 @@ export const MARCO_O1_MODELS = [MARCO_O1_LATEST.name, MARCO_O1_7b.name] as const
 // Manual type map for per-model provider options
 export type MarcoO1ChatModelProviderOptionsByName = {
   // Models with thinking and structured output support
-  [MARCO_O1_LATEST.name]: ChatRequest
-  [MARCO_O1_7b.name]: ChatRequest
+  [MARCO_O1_LATEST.name]: OllamaModelMeta<
+    OllamaChatRequest & OllamaChatRequestMessages
+  >
+  [MARCO_O1_7b.name]: OllamaModelMeta<
+    OllamaChatRequest & OllamaChatRequestMessages
+  >
 }
 
 export type MarcoO1ModelInputModalitiesByName = {

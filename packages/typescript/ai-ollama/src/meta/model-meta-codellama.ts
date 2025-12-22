@@ -1,5 +1,8 @@
-import type { ChatRequest } from 'ollama'
-import type { DefaultOllamaModelMeta } from './models-meta'
+import type {
+  OllamaChatRequest,
+  OllamaChatRequestMessages,
+  OllamaModelMeta,
+} from './models-meta'
 
 const CODELLAMA_LATEST = {
   name: 'codellama:latest',
@@ -10,7 +13,9 @@ const CODELLAMA_LATEST = {
   },
   size: '3.8gb',
   context: 16_000,
-} as const satisfies DefaultOllamaModelMeta<any>
+} as const satisfies OllamaModelMeta<
+  OllamaChatRequest & OllamaChatRequestMessages
+>
 
 const CODELLAMA_7b = {
   name: 'codellama:7b',
@@ -21,7 +26,9 @@ const CODELLAMA_7b = {
   },
   size: '3.8gb',
   context: 16_000,
-} as const satisfies DefaultOllamaModelMeta<any>
+} as const satisfies OllamaModelMeta<
+  OllamaChatRequest & OllamaChatRequestMessages
+>
 
 const CODELLAMA_13b = {
   name: 'codellama:13b',
@@ -32,7 +39,9 @@ const CODELLAMA_13b = {
   },
   size: '7.4gb',
   context: 16_000,
-} as const satisfies DefaultOllamaModelMeta<any>
+} as const satisfies OllamaModelMeta<
+  OllamaChatRequest & OllamaChatRequestMessages
+>
 
 const CODELLAMA_34b = {
   name: 'codellama:34b',
@@ -43,7 +52,9 @@ const CODELLAMA_34b = {
   },
   size: '19gb',
   context: 16_000,
-} as const satisfies DefaultOllamaModelMeta<any>
+} as const satisfies OllamaModelMeta<
+  OllamaChatRequest & OllamaChatRequestMessages
+>
 
 const CODELLAMA_70b = {
   name: 'codellama:70b',
@@ -54,7 +65,9 @@ const CODELLAMA_70b = {
   },
   size: '39gb',
   context: 2_000,
-} as const satisfies DefaultOllamaModelMeta<any>
+} as const satisfies OllamaModelMeta<
+  OllamaChatRequest & OllamaChatRequestMessages
+>
 
 export const CODELLAMA_MODELS = [
   CODELLAMA_LATEST.name,
@@ -77,11 +90,21 @@ export const CODELLAMA_MODELS = [
 // Manual type map for per-model provider options
 export type CodellamaChatModelProviderOptionsByName = {
   // Models with thinking and structured output support
-  [CODELLAMA_LATEST.name]: ChatRequest
-  [CODELLAMA_7b.name]: ChatRequest
-  [CODELLAMA_13b.name]: ChatRequest
-  [CODELLAMA_34b.name]: ChatRequest
-  [CODELLAMA_70b.name]: ChatRequest
+  [CODELLAMA_LATEST.name]: OllamaModelMeta<
+    OllamaChatRequest & OllamaChatRequestMessages
+  >
+  [CODELLAMA_7b.name]: OllamaModelMeta<
+    OllamaChatRequest & OllamaChatRequestMessages
+  >
+  [CODELLAMA_13b.name]: OllamaModelMeta<
+    OllamaChatRequest & OllamaChatRequestMessages
+  >
+  [CODELLAMA_34b.name]: OllamaModelMeta<
+    OllamaChatRequest & OllamaChatRequestMessages
+  >
+  [CODELLAMA_70b.name]: OllamaModelMeta<
+    OllamaChatRequest & OllamaChatRequestMessages
+  >
 }
 
 export type CodellamaModelInputModalitiesByName = {

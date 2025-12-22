@@ -1,5 +1,10 @@
-import type { ChatRequest } from 'ollama'
-import type { DefaultOllamaModelMeta } from './models-meta'
+import type {
+  OllamaChatRequest,
+  OllamaChatRequestMessages,
+  OllamaChatRequestTools,
+  OllamaMessageTools,
+  OllamaModelMeta,
+} from './models-meta'
 
 const ATHENE_V2_LATEST = {
   name: 'athene-v2:latest',
@@ -10,7 +15,11 @@ const ATHENE_V2_LATEST = {
   },
   size: '47gb',
   context: 32_000,
-} as const satisfies DefaultOllamaModelMeta<any>
+} as const satisfies OllamaModelMeta<
+  OllamaChatRequest &
+    OllamaChatRequestMessages<OllamaMessageTools> &
+    OllamaChatRequestTools
+>
 
 const ATHENE_V2_72b = {
   name: 'athene-v2:72b',
@@ -21,7 +30,11 @@ const ATHENE_V2_72b = {
   },
   size: '47gb',
   context: 32_000,
-} as const satisfies DefaultOllamaModelMeta<any>
+} as const satisfies OllamaModelMeta<
+  OllamaChatRequest &
+    OllamaChatRequestMessages<OllamaMessageTools> &
+    OllamaChatRequestTools
+>
 
 export const ATHENE_MODELS = [
   ATHENE_V2_LATEST.name,
@@ -41,8 +54,16 @@ export const ATHENE_MODELS = [
 // Manual type map for per-model provider options
 export type AtheneChatModelProviderOptionsByName = {
   // Models with thinking and structured output support
-  [ATHENE_V2_LATEST.name]: ChatRequest
-  [ATHENE_V2_72b.name]: ChatRequest
+  [ATHENE_V2_LATEST.name]: OllamaModelMeta<
+    OllamaChatRequest &
+      OllamaChatRequestMessages<OllamaMessageTools> &
+      OllamaChatRequestTools
+  >
+  [ATHENE_V2_72b.name]: OllamaModelMeta<
+    OllamaChatRequest &
+      OllamaChatRequestMessages<OllamaMessageTools> &
+      OllamaChatRequestTools
+  >
 }
 
 export type AtheneModelInputModalitiesByName = {

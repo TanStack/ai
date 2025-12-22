@@ -1,5 +1,10 @@
-import type { ChatRequest } from 'ollama'
-import type { DefaultOllamaModelMeta } from './models-meta'
+import type {
+  OllamaChatRequest,
+  OllamaChatRequestMessages,
+  OllamaChatRequestTools,
+  OllamaMessageTools,
+  OllamaModelMeta,
+} from './models-meta'
 
 const GRANITE3_1_MOE_LATEST = {
   name: 'granite3.1-moe:latest',
@@ -10,7 +15,11 @@ const GRANITE3_1_MOE_LATEST = {
   },
   size: '2gb',
   context: 128_000,
-} as const satisfies DefaultOllamaModelMeta<any>
+} as const satisfies OllamaModelMeta<
+  OllamaChatRequest &
+    OllamaChatRequestMessages<OllamaMessageTools> &
+    OllamaChatRequestTools
+>
 
 const GRANITE3_1_MOE_1b = {
   name: 'granite3.1-moe:2b',
@@ -21,7 +30,11 @@ const GRANITE3_1_MOE_1b = {
   },
   size: '1.4gb',
   context: 128_000,
-} as const satisfies DefaultOllamaModelMeta<any>
+} as const satisfies OllamaModelMeta<
+  OllamaChatRequest &
+    OllamaChatRequestMessages<OllamaMessageTools> &
+    OllamaChatRequestTools
+>
 
 const GRANITE3_1_MOE_3b = {
   name: 'granite3.1-moe:8b',
@@ -32,7 +45,11 @@ const GRANITE3_1_MOE_3b = {
   },
   size: '2gb',
   context: 128_000,
-} as const satisfies DefaultOllamaModelMeta<any>
+} as const satisfies OllamaModelMeta<
+  OllamaChatRequest &
+    OllamaChatRequestMessages<OllamaMessageTools> &
+    OllamaChatRequestTools
+>
 
 export const GRANITE3_1_MOE_MODELS = [
   GRANITE3_1_MOE_LATEST.name,
@@ -53,9 +70,21 @@ export const GRANITE3_1_MOE_MODELS = [
 // Manual type map for per-model provider options
 export type Granite3_1MoeChatModelProviderOptionsByName = {
   // Models with thinking and structured output support
-  [GRANITE3_1_MOE_LATEST.name]: ChatRequest
-  [GRANITE3_1_MOE_1b.name]: ChatRequest
-  [GRANITE3_1_MOE_3b.name]: ChatRequest
+  [GRANITE3_1_MOE_LATEST.name]: OllamaModelMeta<
+    OllamaChatRequest &
+      OllamaChatRequestMessages<OllamaMessageTools> &
+      OllamaChatRequestTools
+  >
+  [GRANITE3_1_MOE_1b.name]: OllamaModelMeta<
+    OllamaChatRequest &
+      OllamaChatRequestMessages<OllamaMessageTools> &
+      OllamaChatRequestTools
+  >
+  [GRANITE3_1_MOE_3b.name]: OllamaModelMeta<
+    OllamaChatRequest &
+      OllamaChatRequestMessages<OllamaMessageTools> &
+      OllamaChatRequestTools
+  >
 }
 
 export type Granite3_1MoeModelInputModalitiesByName = {

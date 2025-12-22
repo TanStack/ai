@@ -1,5 +1,8 @@
-import type { ChatRequest } from 'ollama'
-import type { DefaultOllamaModelMeta } from './models-meta'
+import type {
+  OllamaChatRequest,
+  OllamaChatRequestMessages,
+  OllamaModelMeta,
+} from './models-meta'
 
 const OLMO2_LATEST = {
   name: 'olmo2:latest',
@@ -10,7 +13,9 @@ const OLMO2_LATEST = {
   },
   size: '4.5gb',
   context: 4_000,
-} as const satisfies DefaultOllamaModelMeta<any>
+} as const satisfies OllamaModelMeta<
+  OllamaChatRequest & OllamaChatRequestMessages
+>
 
 const OLMO2_7b = {
   name: 'olmo2:7b',
@@ -21,7 +26,9 @@ const OLMO2_7b = {
   },
   size: '4.5gb',
   context: 4_000,
-} as const satisfies DefaultOllamaModelMeta<any>
+} as const satisfies OllamaModelMeta<
+  OllamaChatRequest & OllamaChatRequestMessages
+>
 
 const OLMO2_13b = {
   name: 'olmo2:13b',
@@ -32,7 +39,9 @@ const OLMO2_13b = {
   },
   size: '8.4gb',
   context: 4_000,
-} as const satisfies DefaultOllamaModelMeta<any>
+} as const satisfies OllamaModelMeta<
+  OllamaChatRequest & OllamaChatRequestMessages
+>
 
 export const OLMO2_MODELS = [
   OLMO2_LATEST.name,
@@ -53,9 +62,15 @@ export const OLMO2_MODELS = [
 // Manual type map for per-model provider options
 export type Olmo2ChatModelProviderOptionsByName = {
   // Models with thinking and structured output support
-  [OLMO2_LATEST.name]: ChatRequest
-  [OLMO2_7b.name]: ChatRequest
-  [OLMO2_13b.name]: ChatRequest
+  [OLMO2_LATEST.name]: OllamaModelMeta<
+    OllamaChatRequest & OllamaChatRequestMessages
+  >
+  [OLMO2_7b.name]: OllamaModelMeta<
+    OllamaChatRequest & OllamaChatRequestMessages
+  >
+  [OLMO2_13b.name]: OllamaModelMeta<
+    OllamaChatRequest & OllamaChatRequestMessages
+  >
 }
 
 export type Olmo2ModelInputModalitiesByName = {

@@ -1,5 +1,8 @@
-import type { ChatRequest } from 'ollama'
-import type { DefaultOllamaModelMeta } from './models-meta'
+import type {
+  OllamaChatRequest,
+  OllamaChatRequestMessages,
+  OllamaModelMeta,
+} from './models-meta'
 
 const SAILOR2_LATEST = {
   name: 'sailor2:latest',
@@ -10,7 +13,9 @@ const SAILOR2_LATEST = {
   },
   size: '5.2gb',
   context: 32_000,
-} as const satisfies DefaultOllamaModelMeta<any>
+} as const satisfies OllamaModelMeta<
+  OllamaChatRequest & OllamaChatRequestMessages
+>
 
 const SAILOR2_1b = {
   name: 'sailor2:1b',
@@ -21,7 +26,9 @@ const SAILOR2_1b = {
   },
   size: '1.1gb',
   context: 32_000,
-} as const satisfies DefaultOllamaModelMeta<any>
+} as const satisfies OllamaModelMeta<
+  OllamaChatRequest & OllamaChatRequestMessages
+>
 
 const SAILOR2_8b = {
   name: 'sailor2:8b',
@@ -32,8 +39,9 @@ const SAILOR2_8b = {
   },
   size: '5.2gb',
   context: 32_000,
-} as const satisfies DefaultOllamaModelMeta<any>
-
+} as const satisfies OllamaModelMeta<
+  OllamaChatRequest & OllamaChatRequestMessages
+>
 const SAILOR2_20b = {
   name: 'sailor2:20b',
   supports: {
@@ -43,7 +51,9 @@ const SAILOR2_20b = {
   },
   size: '12gb',
   context: 32_000,
-} as const satisfies DefaultOllamaModelMeta<any>
+} as const satisfies OllamaModelMeta<
+  OllamaChatRequest & OllamaChatRequestMessages
+>
 
 export const SAILOR2_MODELS = [
   SAILOR2_LATEST.name,
@@ -64,10 +74,18 @@ export const SAILOR2_MODELS = [
 // Manual type map for per-model provider options
 export type Sailor2ChatModelProviderOptionsByName = {
   // Models with thinking and structured output support
-  [SAILOR2_LATEST.name]: ChatRequest
-  [SAILOR2_1b.name]: ChatRequest
-  [SAILOR2_8b.name]: ChatRequest
-  [SAILOR2_20b.name]: ChatRequest
+  [SAILOR2_LATEST.name]: OllamaModelMeta<
+    OllamaChatRequest & OllamaChatRequestMessages
+  >
+  [SAILOR2_1b.name]: OllamaModelMeta<
+    OllamaChatRequest & OllamaChatRequestMessages
+  >
+  [SAILOR2_8b.name]: OllamaModelMeta<
+    OllamaChatRequest & OllamaChatRequestMessages
+  >
+  [SAILOR2_20b.name]: OllamaModelMeta<
+    OllamaChatRequest & OllamaChatRequestMessages
+  >
 }
 
 export type Sailor2ModelInputModalitiesByName = {

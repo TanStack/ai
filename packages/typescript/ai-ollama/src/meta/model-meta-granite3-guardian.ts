@@ -1,5 +1,8 @@
-import type { ChatRequest } from 'ollama'
-import type { DefaultOllamaModelMeta } from './models-meta'
+import type {
+  OllamaChatRequest,
+  OllamaChatRequestMessages,
+  OllamaModelMeta,
+} from './models-meta'
 
 const GRANITE3_GUARDIAN_LATEST = {
   name: 'granite3-guardian:latest',
@@ -10,7 +13,9 @@ const GRANITE3_GUARDIAN_LATEST = {
   },
   size: '2.7gb',
   context: 8_000,
-} as const satisfies DefaultOllamaModelMeta<any>
+} as const satisfies OllamaModelMeta<
+  OllamaChatRequest & OllamaChatRequestMessages
+>
 
 const GRANITE3_GUARDIAN_2b = {
   name: 'granite3-guardian:2b',
@@ -21,7 +26,9 @@ const GRANITE3_GUARDIAN_2b = {
   },
   size: '2.7gb',
   context: 8_000,
-} as const satisfies DefaultOllamaModelMeta<any>
+} as const satisfies OllamaModelMeta<
+  OllamaChatRequest & OllamaChatRequestMessages
+>
 
 const GRANITE3_GUARDIAN_8b = {
   name: 'granite3-guardian:8b',
@@ -32,7 +39,9 @@ const GRANITE3_GUARDIAN_8b = {
   },
   size: '5.8gb',
   context: 8_000,
-} as const satisfies DefaultOllamaModelMeta<any>
+} as const satisfies OllamaModelMeta<
+  OllamaChatRequest & OllamaChatRequestMessages
+>
 
 export const GRANITE3_GUARDIAN_MODELS = [
   GRANITE3_GUARDIAN_LATEST.name,
@@ -53,9 +62,15 @@ export const GRANITE3_GUARDIAN_MODELS = [
 // Manual type map for per-model provider options
 export type Granite3GuardianChatModelProviderOptionsByName = {
   // Models with thinking and structured output support
-  [GRANITE3_GUARDIAN_LATEST.name]: ChatRequest
-  [GRANITE3_GUARDIAN_2b.name]: ChatRequest
-  [GRANITE3_GUARDIAN_8b.name]: ChatRequest
+  [GRANITE3_GUARDIAN_LATEST.name]: OllamaModelMeta<
+    OllamaChatRequest & OllamaChatRequestMessages
+  >
+  [GRANITE3_GUARDIAN_2b.name]: OllamaModelMeta<
+    OllamaChatRequest & OllamaChatRequestMessages
+  >
+  [GRANITE3_GUARDIAN_8b.name]: OllamaModelMeta<
+    OllamaChatRequest & OllamaChatRequestMessages
+  >
 }
 
 export type Granite3GuardianModelInputModalitiesByName = {

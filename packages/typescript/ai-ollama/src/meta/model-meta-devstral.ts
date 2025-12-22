@@ -1,5 +1,10 @@
-import type { ChatRequest } from 'ollama'
-import type { DefaultOllamaModelMeta } from './models-meta'
+import type {
+  OllamaChatRequest,
+  OllamaChatRequestMessages,
+  OllamaChatRequestTools,
+  OllamaMessageTools,
+  OllamaModelMeta,
+} from './models-meta'
 
 const DEVSTRAL_LATEST = {
   name: 'devstral:latest',
@@ -10,7 +15,11 @@ const DEVSTRAL_LATEST = {
   },
   size: '14gb',
   context: 128_000,
-} as const satisfies DefaultOllamaModelMeta<any>
+} as const satisfies OllamaModelMeta<
+  OllamaChatRequest &
+    OllamaChatRequestMessages<OllamaMessageTools> &
+    OllamaChatRequestTools
+>
 
 const DEVSTRAL_24b = {
   name: 'devstral:24b',
@@ -21,7 +30,11 @@ const DEVSTRAL_24b = {
   },
   size: '14gb',
   context: 128_000,
-} as const satisfies DefaultOllamaModelMeta<any>
+} as const satisfies OllamaModelMeta<
+  OllamaChatRequest &
+    OllamaChatRequestMessages<OllamaMessageTools> &
+    OllamaChatRequestTools
+>
 
 export const DEVSTRAL_MODELS = [
   DEVSTRAL_LATEST.name,
@@ -41,8 +54,16 @@ export const DEVSTRAL_MODELS = [
 // Manual type map for per-model provider options
 export type DevstralChatModelProviderOptionsByName = {
   // Models with thinking and structured output support
-  [DEVSTRAL_LATEST.name]: ChatRequest
-  [DEVSTRAL_24b.name]: ChatRequest
+  [DEVSTRAL_LATEST.name]: OllamaModelMeta<
+    OllamaChatRequest &
+      OllamaChatRequestMessages<OllamaMessageTools> &
+      OllamaChatRequestTools
+  >
+  [DEVSTRAL_24b.name]: OllamaModelMeta<
+    OllamaChatRequest &
+      OllamaChatRequestMessages<OllamaMessageTools> &
+      OllamaChatRequestTools
+  >
 }
 
 export type DevstralModelInputModalitiesByName = {

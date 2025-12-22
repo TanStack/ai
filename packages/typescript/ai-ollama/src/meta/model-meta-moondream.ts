@@ -1,5 +1,9 @@
-import type { ChatRequest } from 'ollama'
-import type { DefaultOllamaModelMeta } from './models-meta'
+import type {
+  OllamaChatRequest,
+  OllamaChatRequestMessages,
+  OllamaMessageImages,
+  OllamaModelMeta,
+} from './models-meta'
 
 const MOONDREAM_LATEST = {
   name: 'moondream:latest',
@@ -10,7 +14,9 @@ const MOONDREAM_LATEST = {
   },
   size: '1.7gb',
   context: 2_000,
-} as const satisfies DefaultOllamaModelMeta<any>
+} as const satisfies OllamaModelMeta<
+  OllamaChatRequest & OllamaChatRequestMessages<OllamaMessageImages>
+>
 
 const MOONDREAM_1_8b = {
   name: 'moondream:1.8b',
@@ -21,7 +27,9 @@ const MOONDREAM_1_8b = {
   },
   size: '1.7gb',
   context: 2_000,
-} as const satisfies DefaultOllamaModelMeta<any>
+} as const satisfies OllamaModelMeta<
+  OllamaChatRequest & OllamaChatRequestMessages<OllamaMessageImages>
+>
 
 export const MOONDREAM_MODELS = [
   MOONDREAM_LATEST.name,
@@ -41,8 +49,12 @@ export const MOONDREAM_MODELS = [
 // Manual type map for per-model provider options
 export type MoondreamChatModelProviderOptionsByName = {
   // Models with thinking and structured output support
-  [MOONDREAM_LATEST.name]: ChatRequest
-  [MOONDREAM_1_8b.name]: ChatRequest
+  [MOONDREAM_LATEST.name]: OllamaModelMeta<
+    OllamaChatRequest & OllamaChatRequestMessages<OllamaMessageImages>
+  >
+  [MOONDREAM_1_8b.name]: OllamaModelMeta<
+    OllamaChatRequest & OllamaChatRequestMessages<OllamaMessageImages>
+  >
 }
 
 export type MoondreamModelInputModalitiesByName = {

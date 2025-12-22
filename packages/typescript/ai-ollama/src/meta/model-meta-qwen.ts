@@ -1,5 +1,8 @@
-import type { ChatRequest } from 'ollama'
-import type { DefaultOllamaModelMeta } from './models-meta'
+import type {
+  OllamaChatRequest,
+  OllamaChatRequestMessages,
+  OllamaModelMeta,
+} from './models-meta'
 
 const QWEN_LATEST = {
   name: 'qwen:latest',
@@ -10,7 +13,9 @@ const QWEN_LATEST = {
   },
   size: '2.3gb',
   context: 32_000,
-} as const satisfies DefaultOllamaModelMeta<any>
+} as const satisfies OllamaModelMeta<
+  OllamaChatRequest & OllamaChatRequestMessages
+>
 
 const QWEN_0_5b = {
   name: 'qwen:0.5b',
@@ -21,7 +26,9 @@ const QWEN_0_5b = {
   },
   size: '395mb',
   context: 32_000,
-} as const satisfies DefaultOllamaModelMeta<any>
+} as const satisfies OllamaModelMeta<
+  OllamaChatRequest & OllamaChatRequestMessages
+>
 
 const QWEN_1_8b = {
   name: 'qwen:1.8b',
@@ -32,7 +39,9 @@ const QWEN_1_8b = {
   },
   size: '1.1gb',
   context: 32_000,
-} as const satisfies DefaultOllamaModelMeta<any>
+} as const satisfies OllamaModelMeta<
+  OllamaChatRequest & OllamaChatRequestMessages
+>
 
 const QWEN_4b = {
   name: 'qwen:4b',
@@ -43,7 +52,9 @@ const QWEN_4b = {
   },
   size: '2.3gb',
   context: 32_000,
-} as const satisfies DefaultOllamaModelMeta<any>
+} as const satisfies OllamaModelMeta<
+  OllamaChatRequest & OllamaChatRequestMessages
+>
 
 const QWEN_7b = {
   name: 'qwen:7b',
@@ -54,7 +65,9 @@ const QWEN_7b = {
   },
   size: '4.5gb',
   context: 32_000,
-} as const satisfies DefaultOllamaModelMeta<any>
+} as const satisfies OllamaModelMeta<
+  OllamaChatRequest & OllamaChatRequestMessages
+>
 
 const QWEN_14b = {
   name: 'qwen:14b',
@@ -65,7 +78,9 @@ const QWEN_14b = {
   },
   size: '8.2gb',
   context: 32_000,
-} as const satisfies DefaultOllamaModelMeta<any>
+} as const satisfies OllamaModelMeta<
+  OllamaChatRequest & OllamaChatRequestMessages
+>
 
 const QWEN_32b = {
   name: 'qwen:32b',
@@ -76,7 +91,9 @@ const QWEN_32b = {
   },
   size: '18gb',
   context: 32_000,
-} as const satisfies DefaultOllamaModelMeta<any>
+} as const satisfies OllamaModelMeta<
+  OllamaChatRequest & OllamaChatRequestMessages
+>
 
 const QWEN_72b = {
   name: 'qwen:72b',
@@ -87,7 +104,9 @@ const QWEN_72b = {
   },
   size: '41gb',
   context: 32_000,
-} as const satisfies DefaultOllamaModelMeta<any>
+} as const satisfies OllamaModelMeta<
+  OllamaChatRequest & OllamaChatRequestMessages
+>
 
 const QWEN_110b = {
   name: 'qwen:110b',
@@ -98,7 +117,9 @@ const QWEN_110b = {
   },
   size: '63gb',
   context: 32_000,
-} as const satisfies DefaultOllamaModelMeta<any>
+} as const satisfies OllamaModelMeta<
+  OllamaChatRequest & OllamaChatRequestMessages
+>
 
 export const QWEN_MODELS = [
   QWEN_LATEST.name,
@@ -125,15 +146,29 @@ export const QWEN_MODELS = [
 // Manual type map for per-model provider options
 export type QwenChatModelProviderOptionsByName = {
   // Models with thinking and structured output support
-  [QWEN_LATEST.name]: ChatRequest
-  [QWEN_0_5b.name]: ChatRequest
-  [QWEN_1_8b.name]: ChatRequest
-  [QWEN_4b.name]: ChatRequest
-  [QWEN_7b.name]: ChatRequest
-  [QWEN_14b.name]: ChatRequest
-  [QWEN_32b.name]: ChatRequest
-  [QWEN_72b.name]: ChatRequest
-  [QWEN_110b.name]: ChatRequest
+  [QWEN_LATEST.name]: OllamaModelMeta<
+    OllamaChatRequest & OllamaChatRequestMessages
+  >
+  [QWEN_0_5b.name]: OllamaModelMeta<
+    OllamaChatRequest & OllamaChatRequestMessages
+  >
+  [QWEN_1_8b.name]: OllamaModelMeta<
+    OllamaChatRequest & OllamaChatRequestMessages
+  >
+  [QWEN_4b.name]: OllamaModelMeta<OllamaChatRequest & OllamaChatRequestMessages>
+  [QWEN_7b.name]: OllamaModelMeta<OllamaChatRequest & OllamaChatRequestMessages>
+  [QWEN_14b.name]: OllamaModelMeta<
+    OllamaChatRequest & OllamaChatRequestMessages
+  >
+  [QWEN_32b.name]: OllamaModelMeta<
+    OllamaChatRequest & OllamaChatRequestMessages
+  >
+  [QWEN_72b.name]: OllamaModelMeta<
+    OllamaChatRequest & OllamaChatRequestMessages
+  >
+  [QWEN_110b.name]: OllamaModelMeta<
+    OllamaChatRequest & OllamaChatRequestMessages
+  >
 }
 
 export type QwenModelInputModalitiesByName = {

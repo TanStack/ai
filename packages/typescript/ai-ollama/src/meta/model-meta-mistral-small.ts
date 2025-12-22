@@ -1,5 +1,10 @@
-import type { ChatRequest } from 'ollama'
-import type { DefaultOllamaModelMeta } from './models-meta'
+import type {
+  OllamaChatRequest,
+  OllamaChatRequestMessages,
+  OllamaChatRequestTools,
+  OllamaMessageTools,
+  OllamaModelMeta,
+} from './models-meta'
 
 const MISTRAL_SMALL_LATEST = {
   name: 'mistral-small:latest',
@@ -10,7 +15,11 @@ const MISTRAL_SMALL_LATEST = {
   },
   size: '14gb',
   context: 32_000,
-} as const satisfies DefaultOllamaModelMeta<any>
+} as const satisfies OllamaModelMeta<
+  OllamaChatRequest &
+    OllamaChatRequestMessages<OllamaMessageTools> &
+    OllamaChatRequestTools
+>
 
 const MISTRAL_SMALL_22b = {
   name: 'mistral-small:12b',
@@ -21,7 +30,11 @@ const MISTRAL_SMALL_22b = {
   },
   size: '13gb',
   context: 32_000,
-} as const satisfies DefaultOllamaModelMeta<any>
+} as const satisfies OllamaModelMeta<
+  OllamaChatRequest &
+    OllamaChatRequestMessages<OllamaMessageTools> &
+    OllamaChatRequestTools
+>
 
 const MISTRAL_SMALL_24b = {
   name: 'mistral-small:12b',
@@ -32,7 +45,11 @@ const MISTRAL_SMALL_24b = {
   },
   size: '13gb',
   context: 32_000,
-} as const satisfies DefaultOllamaModelMeta<any>
+} as const satisfies OllamaModelMeta<
+  OllamaChatRequest &
+    OllamaChatRequestMessages<OllamaMessageTools> &
+    OllamaChatRequestTools
+>
 
 export const MISTRAL_SMALL_MODELS = [
   MISTRAL_SMALL_LATEST.name,
@@ -53,9 +70,21 @@ export const MISTRAL_SMALL_MODELS = [
 // Manual type map for per-model provider options
 export type MistralSmallChatModelProviderOptionsByName = {
   // Models with thinking and structured output support
-  [MISTRAL_SMALL_LATEST.name]: ChatRequest
-  [MISTRAL_SMALL_22b.name]: ChatRequest
-  [MISTRAL_SMALL_24b.name]: ChatRequest
+  [MISTRAL_SMALL_LATEST.name]: OllamaModelMeta<
+    OllamaChatRequest &
+      OllamaChatRequestMessages<OllamaMessageTools> &
+      OllamaChatRequestTools
+  >
+  [MISTRAL_SMALL_22b.name]: OllamaModelMeta<
+    OllamaChatRequest &
+      OllamaChatRequestMessages<OllamaMessageTools> &
+      OllamaChatRequestTools
+  >
+  [MISTRAL_SMALL_24b.name]: OllamaModelMeta<
+    OllamaChatRequest &
+      OllamaChatRequestMessages<OllamaMessageTools> &
+      OllamaChatRequestTools
+  >
 }
 
 export type MistralSmallModelInputModalitiesByName = {

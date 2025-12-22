@@ -1,5 +1,8 @@
-import type { ChatRequest } from 'ollama'
-import type { DefaultOllamaModelMeta } from './models-meta'
+import type {
+  OllamaChatRequest,
+  OllamaChatRequestMessages,
+  OllamaModelMeta,
+} from './models-meta'
 
 const CODEGEMMA_LATEST = {
   name: 'codegemma:latest',
@@ -10,7 +13,9 @@ const CODEGEMMA_LATEST = {
   },
   size: '5gb',
   context: 8_000,
-} as const satisfies DefaultOllamaModelMeta<any>
+} as const satisfies OllamaModelMeta<
+  OllamaChatRequest & OllamaChatRequestMessages
+>
 
 const CODEGEMMA_8b = {
   name: 'codegemma:2b',
@@ -21,7 +26,9 @@ const CODEGEMMA_8b = {
   },
   size: '1.65gb',
   context: 8_000,
-} as const satisfies DefaultOllamaModelMeta<any>
+} as const satisfies OllamaModelMeta<
+  OllamaChatRequest & OllamaChatRequestMessages
+>
 
 const CODEGEMMA_35b = {
   name: 'codegemma:7b',
@@ -32,7 +39,9 @@ const CODEGEMMA_35b = {
   },
   size: '5gb',
   context: 8_000,
-} as const satisfies DefaultOllamaModelMeta<any>
+} as const satisfies OllamaModelMeta<
+  OllamaChatRequest & OllamaChatRequestMessages
+>
 
 export const CODEGEMMA_MODELS = [
   CODEGEMMA_LATEST.name,
@@ -53,9 +62,15 @@ export const CODEGEMMA_MODELS = [
 // Manual type map for per-model provider options
 export type CodegemmaChatModelProviderOptionsByName = {
   // Models with thinking and structured output support
-  [CODEGEMMA_LATEST.name]: ChatRequest
-  [CODEGEMMA_8b.name]: ChatRequest
-  [CODEGEMMA_35b.name]: ChatRequest
+  [CODEGEMMA_LATEST.name]: OllamaModelMeta<
+    OllamaChatRequest & OllamaChatRequestMessages
+  >
+  [CODEGEMMA_8b.name]: OllamaModelMeta<
+    OllamaChatRequest & OllamaChatRequestMessages
+  >
+  [CODEGEMMA_35b.name]: OllamaModelMeta<
+    OllamaChatRequest & OllamaChatRequestMessages
+  >
 }
 
 export type CodegemmaModelInputModalitiesByName = {

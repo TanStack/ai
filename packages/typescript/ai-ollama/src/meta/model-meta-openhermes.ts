@@ -1,5 +1,8 @@
-import type { ChatRequest } from 'ollama'
-import type { DefaultOllamaModelMeta } from './models-meta'
+import type {
+  OllamaChatRequest,
+  OllamaChatRequestMessages,
+  OllamaModelMeta,
+} from './models-meta'
 
 const OPENHERMES_LATEST = {
   name: 'openhermes:latest',
@@ -10,7 +13,9 @@ const OPENHERMES_LATEST = {
   },
   size: '4.1gb',
   context: 32_000,
-} as const satisfies DefaultOllamaModelMeta<any>
+} as const satisfies OllamaModelMeta<
+  OllamaChatRequest & OllamaChatRequestMessages
+>
 
 const OPENHERMES_V2 = {
   name: 'openhermes:v2',
@@ -21,7 +26,9 @@ const OPENHERMES_V2 = {
   },
   size: '4.1gb',
   context: 32_000,
-} as const satisfies DefaultOllamaModelMeta<any>
+} as const satisfies OllamaModelMeta<
+  OllamaChatRequest & OllamaChatRequestMessages
+>
 
 const OPENHERMES_V2_5 = {
   name: 'openhermes:v2.5',
@@ -32,7 +39,9 @@ const OPENHERMES_V2_5 = {
   },
   size: '4.1gb',
   context: 32_000,
-} as const satisfies DefaultOllamaModelMeta<any>
+} as const satisfies OllamaModelMeta<
+  OllamaChatRequest & OllamaChatRequestMessages
+>
 
 export const OPENHERMES_MODELS = [
   OPENHERMES_LATEST.name,
@@ -53,9 +62,15 @@ export const OPENHERMES_MODELS = [
 // Manual type map for per-model provider options
 export type OpenhermesChatModelProviderOptionsByName = {
   // Models with thinking and structured output support
-  [OPENHERMES_LATEST.name]: ChatRequest
-  [OPENHERMES_V2.name]: ChatRequest
-  [OPENHERMES_V2_5.name]: ChatRequest
+  [OPENHERMES_LATEST.name]: OllamaModelMeta<
+    OllamaChatRequest & OllamaChatRequestMessages
+  >
+  [OPENHERMES_V2.name]: OllamaModelMeta<
+    OllamaChatRequest & OllamaChatRequestMessages
+  >
+  [OPENHERMES_V2_5.name]: OllamaModelMeta<
+    OllamaChatRequest & OllamaChatRequestMessages
+  >
 }
 
 export type OpenhermesModelInputModalitiesByName = {

@@ -1,5 +1,10 @@
-import type { ChatRequest } from 'ollama'
-import type { DefaultOllamaModelMeta } from './models-meta'
+import type {
+  OllamaChatRequest,
+  OllamaChatRequestMessages,
+  OllamaChatRequestTools,
+  OllamaMessageTools,
+  OllamaModelMeta,
+} from './models-meta'
 
 const COMMAND_R_7b_LATEST = {
   name: 'command-r7b:latest',
@@ -10,7 +15,11 @@ const COMMAND_R_7b_LATEST = {
   },
   size: '5.1gb',
   context: 8_000,
-} as const satisfies DefaultOllamaModelMeta<any>
+} as const satisfies OllamaModelMeta<
+  OllamaChatRequest &
+    OllamaChatRequestMessages<OllamaMessageTools> &
+    OllamaChatRequestTools
+>
 
 const COMMAND_R_7b_7b = {
   name: 'command-r7b:7b',
@@ -21,7 +30,11 @@ const COMMAND_R_7b_7b = {
   },
   size: '5.1gb',
   context: 8_000,
-} as const satisfies DefaultOllamaModelMeta<any>
+} as const satisfies OllamaModelMeta<
+  OllamaChatRequest &
+    OllamaChatRequestMessages<OllamaMessageTools> &
+    OllamaChatRequestTools
+>
 
 export const COMMAND_R_7b_MODELS = [
   COMMAND_R_7b_LATEST.name,
@@ -41,8 +54,16 @@ export const COMMAND_R_7b_MODELS = [
 // Manual type map for per-model provider options
 export type CommandR7bChatModelProviderOptionsByName = {
   // Models with thinking and structured output support
-  [COMMAND_R_7b_LATEST.name]: ChatRequest
-  [COMMAND_R_7b_7b.name]: ChatRequest
+  [COMMAND_R_7b_LATEST.name]: OllamaModelMeta<
+    OllamaChatRequest &
+      OllamaChatRequestMessages<OllamaMessageTools> &
+      OllamaChatRequestTools
+  >
+  [COMMAND_R_7b_7b.name]: OllamaModelMeta<
+    OllamaChatRequest &
+      OllamaChatRequestMessages<OllamaMessageTools> &
+      OllamaChatRequestTools
+  >
 }
 
 export type CommandR7bModelInputModalitiesByName = {

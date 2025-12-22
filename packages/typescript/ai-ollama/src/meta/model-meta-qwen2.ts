@@ -1,5 +1,10 @@
-import type { ChatRequest } from 'ollama'
-import type { DefaultOllamaModelMeta } from './models-meta'
+import type {
+  OllamaChatRequest,
+  OllamaChatRequestMessages,
+  OllamaChatRequestTools,
+  OllamaMessageTools,
+  OllamaModelMeta,
+} from './models-meta'
 
 const QWEN2_LATEST = {
   name: 'qwen2:latest',
@@ -10,7 +15,11 @@ const QWEN2_LATEST = {
   },
   size: '4.4gb',
   context: 32_000,
-} as const satisfies DefaultOllamaModelMeta<any>
+} as const satisfies OllamaModelMeta<
+  OllamaChatRequest &
+    OllamaChatRequestMessages<OllamaMessageTools> &
+    OllamaChatRequestTools
+>
 
 const QWEN2_0_5b = {
   name: 'qwen2:0.5b',
@@ -21,7 +30,11 @@ const QWEN2_0_5b = {
   },
   size: '352mb',
   context: 32_000,
-} as const satisfies DefaultOllamaModelMeta<any>
+} as const satisfies OllamaModelMeta<
+  OllamaChatRequest &
+    OllamaChatRequestMessages<OllamaMessageTools> &
+    OllamaChatRequestTools
+>
 
 const QWEN2_1_5b = {
   name: 'qwen2:1.5b',
@@ -32,7 +45,11 @@ const QWEN2_1_5b = {
   },
   size: '935mb',
   context: 32_000,
-} as const satisfies DefaultOllamaModelMeta<any>
+} as const satisfies OllamaModelMeta<
+  OllamaChatRequest &
+    OllamaChatRequestMessages<OllamaMessageTools> &
+    OllamaChatRequestTools
+>
 
 const QWEN2_7b = {
   name: 'qwen2:7b',
@@ -43,7 +60,11 @@ const QWEN2_7b = {
   },
   size: '4.4gb',
   context: 32_000,
-} as const satisfies DefaultOllamaModelMeta<any>
+} as const satisfies OllamaModelMeta<
+  OllamaChatRequest &
+    OllamaChatRequestMessages<OllamaMessageTools> &
+    OllamaChatRequestTools
+>
 
 const QWEN2_72b = {
   name: 'qwen2:72b',
@@ -54,7 +75,11 @@ const QWEN2_72b = {
   },
   size: '41gb',
   context: 32_000,
-} as const satisfies DefaultOllamaModelMeta<any>
+} as const satisfies OllamaModelMeta<
+  OllamaChatRequest &
+    OllamaChatRequestMessages<OllamaMessageTools> &
+    OllamaChatRequestTools
+>
 
 export const QWEN2_MODELS = [
   QWEN2_LATEST.name,
@@ -77,11 +102,35 @@ export const QWEN2_MODELS = [
 // Manual type map for per-model provider options
 export type Qwen2ChatModelProviderOptionsByName = {
   // Models with thinking and structured output support
-  [QWEN2_LATEST.name]: ChatRequest
-  [QWEN2_0_5b.name]: ChatRequest
-  [QWEN2_1_5b.name]: ChatRequest
-  [QWEN2_7b.name]: ChatRequest
-  [QWEN2_72b.name]: ChatRequest
+  [QWEN2_LATEST.name]: OllamaModelMeta<
+    OllamaChatRequest &
+      OllamaChatRequestMessages<OllamaMessageTools> &
+      OllamaChatRequestTools
+  >
+
+  [QWEN2_0_5b.name]: OllamaModelMeta<
+    OllamaChatRequest &
+      OllamaChatRequestMessages<OllamaMessageTools> &
+      OllamaChatRequestTools
+  >
+
+  [QWEN2_1_5b.name]: OllamaModelMeta<
+    OllamaChatRequest &
+      OllamaChatRequestMessages<OllamaMessageTools> &
+      OllamaChatRequestTools
+  >
+
+  [QWEN2_7b.name]: OllamaModelMeta<
+    OllamaChatRequest &
+      OllamaChatRequestMessages<OllamaMessageTools> &
+      OllamaChatRequestTools
+  >
+
+  [QWEN2_72b.name]: OllamaModelMeta<
+    OllamaChatRequest &
+      OllamaChatRequestMessages<OllamaMessageTools> &
+      OllamaChatRequestTools
+  >
 }
 
 export type Qwen2ModelInputModalitiesByName = {

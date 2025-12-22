@@ -1,5 +1,12 @@
-import type { ChatRequest } from 'ollama'
-import type { DefaultOllamaModelMeta } from './models-meta'
+import type {
+  OllamaChatRequest,
+  OllamaChatRequestMessages,
+  OllamaChatRequestThinking,
+  OllamaChatRequestTools,
+  OllamaMessageThinking,
+  OllamaMessageTools,
+  OllamaModelMeta,
+} from './models-meta'
 
 const DEEPSEEK_R1_LATEST = {
   name: 'deepseek-r1:latest',
@@ -10,7 +17,12 @@ const DEEPSEEK_R1_LATEST = {
   },
   size: '5.2gb',
   context: 128_000,
-} as const satisfies DefaultOllamaModelMeta<any>
+} as const satisfies OllamaModelMeta<
+  OllamaChatRequest &
+    OllamaChatRequestMessages<OllamaMessageTools> &
+    OllamaChatRequestTools &
+    OllamaChatRequestThinking
+>
 
 const DEEPSEEK_R1_1_5b = {
   name: 'deepseek-r1:1.5b',
@@ -21,7 +33,12 @@ const DEEPSEEK_R1_1_5b = {
   },
   size: '1.1gb',
   context: 128_000,
-} as const satisfies DefaultOllamaModelMeta<any>
+} as const satisfies OllamaModelMeta<
+  OllamaChatRequest &
+    OllamaChatRequestMessages<OllamaMessageTools> &
+    OllamaChatRequestTools &
+    OllamaChatRequestThinking
+>
 
 const DEEPSEEK_R1_7b = {
   name: 'deepseek-r1:7b',
@@ -32,7 +49,12 @@ const DEEPSEEK_R1_7b = {
   },
   size: '4.7gb',
   context: 128_000,
-} as const satisfies DefaultOllamaModelMeta<any>
+} as const satisfies OllamaModelMeta<
+  OllamaChatRequest &
+    OllamaChatRequestMessages<OllamaMessageTools> &
+    OllamaChatRequestTools &
+    OllamaChatRequestThinking
+>
 
 const DEEPSEEK_R1_8b = {
   name: 'deepseek-r1:8b',
@@ -43,7 +65,12 @@ const DEEPSEEK_R1_8b = {
   },
   size: '5.2gb',
   context: 128_000,
-} as const satisfies DefaultOllamaModelMeta<any>
+} as const satisfies OllamaModelMeta<
+  OllamaChatRequest &
+    OllamaChatRequestMessages<OllamaMessageTools> &
+    OllamaChatRequestTools &
+    OllamaChatRequestThinking
+>
 
 const DEEPSEEK_R1_32b = {
   name: 'deepseek-r1:32b',
@@ -54,7 +81,12 @@ const DEEPSEEK_R1_32b = {
   },
   size: '20gb',
   context: 128_000,
-} as const satisfies DefaultOllamaModelMeta<any>
+} as const satisfies OllamaModelMeta<
+  OllamaChatRequest &
+    OllamaChatRequestMessages<OllamaMessageTools> &
+    OllamaChatRequestTools &
+    OllamaChatRequestThinking
+>
 
 const DEEPSEEK_R1_70b = {
   name: 'deepseek-r1:70b',
@@ -65,7 +97,12 @@ const DEEPSEEK_R1_70b = {
   },
   size: '43gb',
   context: 128_000,
-} as const satisfies DefaultOllamaModelMeta<any>
+} as const satisfies OllamaModelMeta<
+  OllamaChatRequest &
+    OllamaChatRequestMessages<OllamaMessageTools> &
+    OllamaChatRequestTools &
+    OllamaChatRequestThinking
+>
 
 const DEEPSEEK_R1_671b = {
   name: 'deepseek-r1:671b',
@@ -76,7 +113,12 @@ const DEEPSEEK_R1_671b = {
   },
   size: '404gb',
   context: 128_000,
-} as const satisfies DefaultOllamaModelMeta<any>
+} as const satisfies OllamaModelMeta<
+  OllamaChatRequest &
+    OllamaChatRequestMessages<OllamaMessageTools> &
+    OllamaChatRequestTools &
+    OllamaChatRequestThinking
+>
 
 export const DEEPSEEK_R1_MODELS = [
   DEEPSEEK_R1_LATEST.name,
@@ -101,13 +143,48 @@ export const DEEPSEEK_R1_MODELS = [
 // Manual type map for per-model provider options
 export type DeepseekR1ChatModelProviderOptionsByName = {
   // Models with thinking and structured output support
-  [DEEPSEEK_R1_LATEST.name]: ChatRequest
-  [DEEPSEEK_R1_1_5b.name]: ChatRequest
-  [DEEPSEEK_R1_7b.name]: ChatRequest
-  [DEEPSEEK_R1_8b.name]: ChatRequest
-  [DEEPSEEK_R1_32b.name]: ChatRequest
-  [DEEPSEEK_R1_70b.name]: ChatRequest
-  [DEEPSEEK_R1_671b.name]: ChatRequest
+  [DEEPSEEK_R1_LATEST.name]: OllamaModelMeta<
+    OllamaChatRequest &
+      OllamaChatRequestMessages<OllamaMessageTools> &
+      OllamaChatRequestTools &
+      OllamaChatRequestThinking
+  >
+  [DEEPSEEK_R1_1_5b.name]: OllamaModelMeta<
+    OllamaChatRequest &
+      OllamaChatRequestMessages<OllamaMessageTools> &
+      OllamaChatRequestTools &
+      OllamaChatRequestThinking
+  >
+  [DEEPSEEK_R1_7b.name]: OllamaModelMeta<
+    OllamaChatRequest &
+      OllamaChatRequestMessages<OllamaMessageTools> &
+      OllamaChatRequestTools &
+      OllamaChatRequestThinking
+  >
+  [DEEPSEEK_R1_8b.name]: OllamaModelMeta<
+    OllamaChatRequest &
+      OllamaChatRequestMessages<OllamaMessageTools> &
+      OllamaChatRequestTools &
+      OllamaChatRequestThinking
+  >
+  [DEEPSEEK_R1_32b.name]: OllamaModelMeta<
+    OllamaChatRequest &
+      OllamaChatRequestMessages<OllamaMessageTools> &
+      OllamaChatRequestTools &
+      OllamaChatRequestThinking
+  >
+  [DEEPSEEK_R1_70b.name]: OllamaModelMeta<
+    OllamaChatRequest &
+      OllamaChatRequestMessages<OllamaMessageTools> &
+      OllamaChatRequestTools &
+      OllamaChatRequestThinking
+  >
+  [DEEPSEEK_R1_671b.name]: OllamaModelMeta<
+    OllamaChatRequest &
+      OllamaChatRequestMessages<OllamaMessageTools> &
+      OllamaChatRequestTools &
+      OllamaChatRequestThinking
+  >
 }
 
 export type DeepseekR1ModelInputModalitiesByName = {

@@ -1,5 +1,8 @@
-import type { ChatRequest } from 'ollama'
-import type { DefaultOllamaModelMeta } from './models-meta'
+import type {
+  OllamaChatRequest,
+  OllamaChatRequestMessages,
+  OllamaModelMeta,
+} from './models-meta'
 
 const TINNYLLAMA_LATEST = {
   name: 'tinnyllama:latest',
@@ -10,7 +13,9 @@ const TINNYLLAMA_LATEST = {
   },
   size: '638mb',
   context: 2_000,
-} as const satisfies DefaultOllamaModelMeta<any>
+} as const satisfies OllamaModelMeta<
+  OllamaChatRequest & OllamaChatRequestMessages
+>
 
 const TINNYLLAMA_1_1b = {
   name: 'tinnyllama:1.1b',
@@ -21,7 +26,9 @@ const TINNYLLAMA_1_1b = {
   },
   size: '638mb',
   context: 2_000,
-} as const satisfies DefaultOllamaModelMeta<any>
+} as const satisfies OllamaModelMeta<
+  OllamaChatRequest & OllamaChatRequestMessages
+>
 
 export const TINNYLLAMA_MODELS = [
   TINNYLLAMA_LATEST.name,
@@ -41,8 +48,12 @@ export const TINNYLLAMA_MODELS = [
 // Manual type map for per-model provider options
 export type TinnyllamaChatModelProviderOptionsByName = {
   // Models with thinking and structured output support
-  [TINNYLLAMA_LATEST.name]: ChatRequest
-  [TINNYLLAMA_1_1b.name]: ChatRequest
+  [TINNYLLAMA_LATEST.name]: OllamaModelMeta<
+    OllamaChatRequest & OllamaChatRequestMessages
+  >
+  [TINNYLLAMA_1_1b.name]: OllamaModelMeta<
+    OllamaChatRequest & OllamaChatRequestMessages
+  >
 }
 
 export type TinnyllamaModelInputModalitiesByName = {

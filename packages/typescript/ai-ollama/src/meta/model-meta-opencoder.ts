@@ -1,5 +1,8 @@
-import type { ChatRequest } from 'ollama'
-import type { DefaultOllamaModelMeta } from './models-meta'
+import type {
+  OllamaChatRequest,
+  OllamaChatRequestMessages,
+  OllamaModelMeta,
+} from './models-meta'
 
 const OPENCODER_LATEST = {
   name: 'opencoder:latest',
@@ -10,7 +13,9 @@ const OPENCODER_LATEST = {
   },
   size: '4.7gb',
   context: 8_000,
-} as const satisfies DefaultOllamaModelMeta<any>
+} as const satisfies OllamaModelMeta<
+  OllamaChatRequest & OllamaChatRequestMessages
+>
 
 const OPENCODER_1_5b = {
   name: 'opencoder:1.5b',
@@ -21,7 +26,9 @@ const OPENCODER_1_5b = {
   },
   size: '1.4gb',
   context: 4_000,
-} as const satisfies DefaultOllamaModelMeta<any>
+} as const satisfies OllamaModelMeta<
+  OllamaChatRequest & OllamaChatRequestMessages
+>
 
 const OPENCODER_8b = {
   name: 'opencoder:8b',
@@ -32,7 +39,9 @@ const OPENCODER_8b = {
   },
   size: '4.7gb',
   context: 8_000,
-} as const satisfies DefaultOllamaModelMeta<any>
+} as const satisfies OllamaModelMeta<
+  OllamaChatRequest & OllamaChatRequestMessages
+>
 
 export const OPENCODER_MODELS = [
   OPENCODER_LATEST.name,
@@ -53,9 +62,15 @@ export const OPENCODER_MODELS = [
 // Manual type map for per-model provider options
 export type OpencoderChatModelProviderOptionsByName = {
   // Models with thinking and structured output support
-  [OPENCODER_LATEST.name]: ChatRequest
-  [OPENCODER_1_5b.name]: ChatRequest
-  [OPENCODER_8b.name]: ChatRequest
+  [OPENCODER_LATEST.name]: OllamaModelMeta<
+    OllamaChatRequest & OllamaChatRequestMessages
+  >
+  [OPENCODER_1_5b.name]: OllamaModelMeta<
+    OllamaChatRequest & OllamaChatRequestMessages
+  >
+  [OPENCODER_8b.name]: OllamaModelMeta<
+    OllamaChatRequest & OllamaChatRequestMessages
+  >
 }
 
 export type OpencoderModelInputModalitiesByName = {

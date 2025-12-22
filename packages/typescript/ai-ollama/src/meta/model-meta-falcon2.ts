@@ -1,5 +1,8 @@
-import type { ChatRequest } from 'ollama'
-import type { DefaultOllamaModelMeta } from './models-meta'
+import type {
+  OllamaChatRequest,
+  OllamaChatRequestMessages,
+  OllamaModelMeta,
+} from './models-meta'
 
 const FALCON2_LATEST = {
   name: 'falcon2:latest',
@@ -10,7 +13,9 @@ const FALCON2_LATEST = {
   },
   size: '6.4gb',
   context: 2_000,
-} as const satisfies DefaultOllamaModelMeta<any>
+} as const satisfies OllamaModelMeta<
+  OllamaChatRequest & OllamaChatRequestMessages
+>
 
 const FALCON2_11b = {
   name: 'falcon2:11b',
@@ -21,7 +26,9 @@ const FALCON2_11b = {
   },
   size: '6.4gb',
   context: 2_000,
-} as const satisfies DefaultOllamaModelMeta<any>
+} as const satisfies OllamaModelMeta<
+  OllamaChatRequest & OllamaChatRequestMessages
+>
 
 export const FALCON2_MODELS = [FALCON2_LATEST.name, FALCON2_11b.name] as const
 
@@ -38,8 +45,12 @@ export const FALCON2_MODELS = [FALCON2_LATEST.name, FALCON2_11b.name] as const
 // Manual type map for per-model provider options
 export type Falcon2ChatModelProviderOptionsByName = {
   // Models with thinking and structured output support
-  [FALCON2_LATEST.name]: ChatRequest
-  [FALCON2_11b.name]: ChatRequest
+  [FALCON2_LATEST.name]: OllamaModelMeta<
+    OllamaChatRequest & OllamaChatRequestMessages
+  >
+  [FALCON2_11b.name]: OllamaModelMeta<
+    OllamaChatRequest & OllamaChatRequestMessages
+  >
 }
 
 export type Falcon2ModelInputModalitiesByName = {

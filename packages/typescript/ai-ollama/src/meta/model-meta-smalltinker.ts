@@ -1,5 +1,8 @@
-import type { ChatRequest } from 'ollama'
-import type { DefaultOllamaModelMeta } from './models-meta'
+import type {
+  OllamaChatRequest,
+  OllamaChatRequestMessages,
+  OllamaModelMeta,
+} from './models-meta'
 
 const SMALLTINKER_LATEST = {
   name: 'smalltinker:latest',
@@ -10,7 +13,9 @@ const SMALLTINKER_LATEST = {
   },
   size: '3.6gb',
   context: 32_000,
-} as const satisfies DefaultOllamaModelMeta<any>
+} as const satisfies OllamaModelMeta<
+  OllamaChatRequest & OllamaChatRequestMessages
+>
 
 const SMALLTINKER_3b = {
   name: 'smalltinker:3b',
@@ -21,7 +26,9 @@ const SMALLTINKER_3b = {
   },
   size: '3.6gb',
   context: 32_000,
-} as const satisfies DefaultOllamaModelMeta<any>
+} as const satisfies OllamaModelMeta<
+  OllamaChatRequest & OllamaChatRequestMessages
+>
 
 export const SMALLTINKER_MODELS = [
   SMALLTINKER_LATEST.name,
@@ -41,8 +48,12 @@ export const SMALLTINKER_MODELS = [
 // Manual type map for per-model provider options
 export type SmalltinkerChatModelProviderOptionsByName = {
   // Models with thinking and structured output support
-  [SMALLTINKER_LATEST.name]: ChatRequest
-  [SMALLTINKER_3b.name]: ChatRequest
+  [SMALLTINKER_LATEST.name]: OllamaModelMeta<
+    OllamaChatRequest & OllamaChatRequestMessages
+  >
+  [SMALLTINKER_3b.name]: OllamaModelMeta<
+    OllamaChatRequest & OllamaChatRequestMessages
+  >
 }
 
 export type SmalltinkerModelInputModalitiesByName = {

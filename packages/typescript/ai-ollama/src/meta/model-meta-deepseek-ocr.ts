@@ -1,5 +1,9 @@
-import type { ChatRequest } from 'ollama'
-import type { DefaultOllamaModelMeta } from './models-meta'
+import type {
+  OllamaChatRequest,
+  OllamaChatRequestMessages,
+  OllamaMessageImages,
+  OllamaModelMeta,
+} from './models-meta'
 
 const DEEPSEEK_OCR_LATEST = {
   name: 'deepseek-ocr:latest',
@@ -10,7 +14,9 @@ const DEEPSEEK_OCR_LATEST = {
   },
   size: '6.7gb',
   context: 8_000,
-} as const satisfies DefaultOllamaModelMeta<any>
+} as const satisfies OllamaModelMeta<
+  OllamaChatRequest & OllamaChatRequestMessages<OllamaMessageImages>
+>
 
 const DEEPSEEK_OCR_3b = {
   name: 'deepseek-ocr:3b',
@@ -22,7 +28,9 @@ const DEEPSEEK_OCR_3b = {
 
   size: '6.7gb',
   context: 8_000,
-} as const satisfies DefaultOllamaModelMeta<any>
+} as const satisfies OllamaModelMeta<
+  OllamaChatRequest & OllamaChatRequestMessages<OllamaMessageImages>
+>
 
 export const DEEPSEEK_OCR_MODELS = [
   DEEPSEEK_OCR_LATEST.name,
@@ -42,8 +50,12 @@ export const DEEPSEEK_OCR_MODELS = [
 // Manual type map for per-model provider options
 export type DeepseekOcrChatModelProviderOptionsByName = {
   // Models with thinking and structured output support
-  [DEEPSEEK_OCR_LATEST.name]: ChatRequest
-  [DEEPSEEK_OCR_3b.name]: ChatRequest
+  [DEEPSEEK_OCR_LATEST.name]: OllamaModelMeta<
+    OllamaChatRequest & OllamaChatRequestMessages<OllamaMessageImages>
+  >
+  [DEEPSEEK_OCR_3b.name]: OllamaModelMeta<
+    OllamaChatRequest & OllamaChatRequestMessages<OllamaMessageImages>
+  >
 }
 
 export type DeepseekOcrModelInputModalitiesByName = {

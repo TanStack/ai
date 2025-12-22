@@ -1,5 +1,9 @@
-import type { ChatRequest } from 'ollama'
-import type { DefaultOllamaModelMeta } from './models-meta'
+import type {
+  OllamaChatRequest,
+  OllamaChatRequestMessages,
+  OllamaMessageImages,
+  OllamaModelMeta,
+} from './models-meta'
 
 const LLAVA_LATEST = {
   name: 'llava:latest',
@@ -10,7 +14,9 @@ const LLAVA_LATEST = {
   },
   size: '4.7b',
   context: 32_000,
-} as const satisfies DefaultOllamaModelMeta<any>
+} as const satisfies OllamaModelMeta<
+  OllamaChatRequest & OllamaChatRequestMessages<OllamaMessageImages>
+>
 
 const LLAVA_7b = {
   name: 'llava:7b',
@@ -21,7 +27,9 @@ const LLAVA_7b = {
   },
   size: '4.7gb',
   context: 32_000,
-} as const satisfies DefaultOllamaModelMeta<any>
+} as const satisfies OllamaModelMeta<
+  OllamaChatRequest & OllamaChatRequestMessages<OllamaMessageImages>
+>
 
 const LLAVA_13b = {
   name: 'llava:13b',
@@ -32,7 +40,9 @@ const LLAVA_13b = {
   },
   size: '8gb',
   context: 4_000,
-} as const satisfies DefaultOllamaModelMeta<any>
+} as const satisfies OllamaModelMeta<
+  OllamaChatRequest & OllamaChatRequestMessages<OllamaMessageImages>
+>
 
 const LLAVA_34b = {
   name: 'llava:34b',
@@ -43,7 +53,9 @@ const LLAVA_34b = {
   },
   size: '20gb',
   context: 4_000,
-} as const satisfies DefaultOllamaModelMeta<any>
+} as const satisfies OllamaModelMeta<
+  OllamaChatRequest & OllamaChatRequestMessages<OllamaMessageImages>
+>
 
 export const LLAVA_MODELS = [
   LLAVA_LATEST.name,
@@ -65,10 +77,18 @@ export const LLAVA_MODELS = [
 // Manual type map for per-model provider options
 export type llavaChatModelProviderOptionsByName = {
   // Models with thinking and structured output support
-  [LLAVA_LATEST.name]: ChatRequest
-  [LLAVA_7b.name]: ChatRequest
-  [LLAVA_13b.name]: ChatRequest
-  [LLAVA_34b.name]: ChatRequest
+  [LLAVA_LATEST.name]: OllamaModelMeta<
+    OllamaChatRequest & OllamaChatRequestMessages<OllamaMessageImages>
+  >
+  [LLAVA_7b.name]: OllamaModelMeta<
+    OllamaChatRequest & OllamaChatRequestMessages<OllamaMessageImages>
+  >
+  [LLAVA_13b.name]: OllamaModelMeta<
+    OllamaChatRequest & OllamaChatRequestMessages<OllamaMessageImages>
+  >
+  [LLAVA_34b.name]: OllamaModelMeta<
+    OllamaChatRequest & OllamaChatRequestMessages<OllamaMessageImages>
+  >
 }
 
 export type llavaModelInputModalitiesByName = {

@@ -1,5 +1,8 @@
-import type { ChatRequest } from 'ollama'
-import type { DefaultOllamaModelMeta } from './models-meta'
+import type {
+  OllamaChatRequest,
+  OllamaChatRequestMessages,
+  OllamaModelMeta,
+} from './models-meta'
 
 const GRANITE3_DENSE_LATEST = {
   name: 'granite3-dense:latest',
@@ -10,7 +13,9 @@ const GRANITE3_DENSE_LATEST = {
   },
   size: '1.6gb',
   context: 4_000,
-} as const satisfies DefaultOllamaModelMeta<any>
+} as const satisfies OllamaModelMeta<
+  OllamaChatRequest & OllamaChatRequestMessages
+>
 
 const GRANITE3_DENSE_2b = {
   name: 'granite3-dense:2b',
@@ -21,7 +26,9 @@ const GRANITE3_DENSE_2b = {
   },
   size: '1.6gb',
   context: 4_000,
-} as const satisfies DefaultOllamaModelMeta<any>
+} as const satisfies OllamaModelMeta<
+  OllamaChatRequest & OllamaChatRequestMessages
+>
 
 const GRANITE3_DENSE_8b = {
   name: 'granite3-dense:8b',
@@ -32,7 +39,9 @@ const GRANITE3_DENSE_8b = {
   },
   size: '4.9gb',
   context: 4_000,
-} as const satisfies DefaultOllamaModelMeta<any>
+} as const satisfies OllamaModelMeta<
+  OllamaChatRequest & OllamaChatRequestMessages
+>
 
 export const GRANITE3_DENSE_MODELS = [
   GRANITE3_DENSE_LATEST.name,
@@ -53,9 +62,15 @@ export const GRANITE3_DENSE_MODELS = [
 // Manual type map for per-model provider options
 export type Granite3DenseChatModelProviderOptionsByName = {
   // Models with thinking and structured output support
-  [GRANITE3_DENSE_LATEST.name]: ChatRequest
-  [GRANITE3_DENSE_2b.name]: ChatRequest
-  [GRANITE3_DENSE_8b.name]: ChatRequest
+  [GRANITE3_DENSE_LATEST.name]: OllamaModelMeta<
+    OllamaChatRequest & OllamaChatRequestMessages
+  >
+  [GRANITE3_DENSE_2b.name]: OllamaModelMeta<
+    OllamaChatRequest & OllamaChatRequestMessages
+  >
+  [GRANITE3_DENSE_8b.name]: OllamaModelMeta<
+    OllamaChatRequest & OllamaChatRequestMessages
+  >
 }
 
 export type Granite3DenseModelInputModalitiesByName = {
