@@ -1,5 +1,11 @@
 # @tanstack/ai
 
+## 0.2.0
+
+### Minor Changes
+
+- Standard schema / standard json schema support for TanStack AI ([#165](https://github.com/TanStack/ai/pull/165))
+
 ## 0.1.0
 
 ### Minor Changes
