@@ -1,0 +1,56 @@
+{
+  "name": "@tanstack/ai-nebius",
+  "version": "0.2.0",
+  "description": "Nebius Token Factory adapter for TanStack AI",
+  "author": "",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/TanStack/ai.git",
+    "directory": "packages/typescript/ai-nebius"
+  },
+  "type": "module",
+  "module": "./dist/esm/index.js",
+  "types": "./dist/esm/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/esm/index.d.ts",
+      "import": "./dist/esm/index.js"
+    }
+  },
+  "files": [
+    "dist",
+    "src"
+  ],
+  "scripts": {
+    "build": "vite build",
+    "clean": "premove ./build ./dist",
+    "lint:fix": "eslint ./src --fix",
+    "test:build": "publint --strict",
+    "test:eslint": "eslint ./src",
+    "test:lib": "vitest run",
+    "test:lib:dev": "pnpm test:lib --watch",
+    "test:types": "tsc"
+  },
+  "keywords": [
+    "ai",
+    "nebius",
+    "token-factory",
+    "deepseek",
+    "llama",
+    "qwen",
+    "tanstack",
+    "adapter"
+  ],
+  "dependencies": {
+    "openai": "^6.9.1"
+  },
+  "devDependencies": {
+    "@vitest/coverage-v8": "4.0.14",
+    "vite": "^7.2.7"
+  },
+  "peerDependencies": {
+    "@tanstack/ai": "workspace:^",
+    "zod": "^4.0.0"
+  }
+}

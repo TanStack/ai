@@ -139,6 +139,10 @@
         {
           "label": "Ollama",
           "to": "adapters/ollama"
+        },
+        {
+          "label": "Nebius Token Factory",
+          "to": "adapters/nebius"
         }
       ]
     },
