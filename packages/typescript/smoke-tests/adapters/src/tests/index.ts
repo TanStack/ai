@@ -7,6 +7,7 @@ import { runTLS } from './tls-tool-server'
 import { runAPR } from './apr-approval-flow'
 import { runSTR } from './str-structured-output'
 import { runAGS } from './ags-agentic-structured'
+import { runCSO } from './cso-complex-structured-output'
 import { runSUM } from './sum-summarize'
 import { runSMS } from './sms-summarize-stream'
 import { runIMG } from './img-image-generation'
@@ -85,6 +86,13 @@ export const TESTS: TestDefinition[] = [
     name: 'Agentic Structured',
     description: 'Structured output with tool calls in agentic flow',
     run: runAGS,
+    requires: ['text'],
+  },
+  {
+    id: 'CSO',
+    name: 'Complex Structured Output',
+    description: 'Complex nested structured output with content marketing schema',
+    run: runCSO,
     requires: ['text'],
   },
   {
