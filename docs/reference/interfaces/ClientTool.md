@@ -13,11 +13,11 @@ Marker type for client-side tools
 
 ### TInput
 
-`TInput` *extends* [`SchemaInput`](../type-aliases/SchemaInput.md) = `z.ZodType`
+`TInput` *extends* [`SchemaInput`](../type-aliases/SchemaInput.md) = [`SchemaInput`](../type-aliases/SchemaInput.md)
 
 ### TOutput
 
-`TOutput` *extends* [`SchemaInput`](../type-aliases/SchemaInput.md) = `z.ZodType`
+`TOutput` *extends* [`SchemaInput`](../type-aliases/SchemaInput.md) = [`SchemaInput`](../type-aliases/SchemaInput.md)
 
 ### TName
 
@@ -81,7 +81,7 @@ Defined in: [activities/chat/tools/tool-definition.ts:31](https://github.com/Tan
 ### metadata?
 
 ```ts
-optional metadata: Record<string, any>;
+optional metadata: Record<string, unknown>;
 ```
 
 Defined in: [activities/chat/tools/tool-definition.ts:34](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/activities/chat/tools/tool-definition.ts#L34)

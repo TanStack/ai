@@ -5,7 +5,7 @@ title: TextOptions
 
 # Interface: TextOptions\<TProviderOptionsSuperset, TProviderOptionsForModel\>
 
-Defined in: [types.ts:545](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L545)
+Defined in: [types.ts:565](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L565)
 
 Options passed into the SDK and further piped to the AI provider.
 
@@ -27,7 +27,7 @@ Options passed into the SDK and further piped to the AI provider.
 optional abortController: AbortController;
 ```
 
-Defined in: [types.ts:628](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L628)
+Defined in: [types.ts:649](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L649)
 
 AbortController for request cancellation.
 
@@ -54,7 +54,7 @@ https://developer.mozilla.org/en-US/docs/Web/API/AbortController
 optional agentLoopStrategy: AgentLoopStrategy;
 ```
 
-Defined in: [types.ts:553](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L553)
+Defined in: [types.ts:573](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L573)
 
 ***
 
@@ -64,7 +64,7 @@ Defined in: [types.ts:553](https://github.com/TanStack/ai/blob/main/packages/typ
 optional conversationId: string;
 ```
 
-Defined in: [types.ts:614](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L614)
+Defined in: [types.ts:635](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L635)
 
 Conversation ID for correlating client and server-side devtools events.
 When provided, server-side events will be linked to the client conversation in devtools.
@@ -77,7 +77,7 @@ When provided, server-side events will be linked to the client conversation in d
 optional maxTokens: number;
 ```
 
-Defined in: [types.ts:588](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L588)
+Defined in: [types.ts:608](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L608)
 
 The maximum number of tokens to generate in the response.
 
@@ -97,7 +97,7 @@ messages: ModelMessage<
   | null>[];
 ```
 
-Defined in: [types.ts:550](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L550)
+Defined in: [types.ts:570](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L570)
 
 ***
 
@@ -107,7 +107,7 @@ Defined in: [types.ts:550](https://github.com/TanStack/ai/blob/main/packages/typ
 optional metadata: Record<string, any>;
 ```
 
-Defined in: [types.ts:599](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L599)
+Defined in: [types.ts:619](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L619)
 
 Additional metadata to attach to the request.
 Can be used for tracking, debugging, or passing custom information.
@@ -126,7 +126,7 @@ Provider usage:
 model: string;
 ```
 
-Defined in: [types.ts:549](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L549)
+Defined in: [types.ts:569](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L569)
 
 ***
 
@@ -136,22 +136,23 @@ Defined in: [types.ts:549](https://github.com/TanStack/ai/blob/main/packages/typ
 optional modelOptions: TProviderOptionsForModel;
 ```
 
-Defined in: [types.ts:600](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L600)
+Defined in: [types.ts:620](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L620)
 
 ***
 
 ### outputSchema?
 
 ```ts
-optional outputSchema: ZodType<unknown, unknown, $ZodTypeInternals<unknown, unknown>>;
+optional outputSchema: SchemaInput;
 ```
 
-Defined in: [types.ts:609](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L609)
+Defined in: [types.ts:630](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L630)
 
-Zod schema for structured output.
+Schema for structured output.
 When provided, the adapter should use the provider's native structured output API
 to ensure the response conforms to this schema.
 The schema will be converted to JSON Schema format before being sent to the provider.
+Supports any Standard JSON Schema compliant library (Zod, ArkType, Valibot, etc.).
 
 ***
 
@@ -161,7 +162,7 @@ The schema will be converted to JSON Schema format before being sent to the prov
 optional request: Request | RequestInit;
 ```
 
-Defined in: [types.ts:601](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L601)
+Defined in: [types.ts:621](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L621)
 
 ***
 
@@ -171,7 +172,7 @@ Defined in: [types.ts:601](https://github.com/TanStack/ai/blob/main/packages/typ
 optional systemPrompts: string[];
 ```
 
-Defined in: [types.ts:552](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L552)
+Defined in: [types.ts:572](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L572)
 
 ***
 
@@ -181,7 +182,7 @@ Defined in: [types.ts:552](https://github.com/TanStack/ai/blob/main/packages/typ
 optional temperature: number;
 ```
 
-Defined in: [types.ts:566](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L566)
+Defined in: [types.ts:586](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L586)
 
 Controls the randomness of the output.
 Higher values (e.g., 0.8) make output more random, lower values (e.g., 0.2) make it more focused and deterministic.
@@ -202,7 +203,7 @@ Provider usage:
 optional tools: Tool<any, any, any>[];
 ```
 
-Defined in: [types.ts:551](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L551)
+Defined in: [types.ts:571](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L571)
 
 ***
 
@@ -212,7 +213,7 @@ Defined in: [types.ts:551](https://github.com/TanStack/ai/blob/main/packages/typ
 optional topP: number;
 ```
 
-Defined in: [types.ts:579](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L579)
+Defined in: [types.ts:599](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L599)
 
 Nucleus sampling parameter. An alternative to temperature sampling.
 The model considers the results of tokens with topP probability mass.

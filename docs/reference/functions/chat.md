@@ -9,7 +9,7 @@ title: chat
 function chat<TAdapter, TSchema, TStream>(options): TextActivityResult<TSchema, TStream>;
 ```
 
-Defined in: [activities/chat/index.ts:969](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/activities/chat/index.ts#L969)
+Defined in: [activities/chat/index.ts:976](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/activities/chat/index.ts#L976)
 
 Text activity - handles agentic text generation, one-shot text generation, and agentic structured output.
 
@@ -27,9 +27,7 @@ This activity supports four modes:
 
 ### TSchema
 
-`TSchema` *extends* 
-  \| `ZodType`\<`unknown`, `unknown`, `$ZodTypeInternals`\<`unknown`, `unknown`\>\>
-  \| `undefined` = `undefined`
+`TSchema` *extends* [`SchemaInput`](../type-aliases/SchemaInput.md) \| `undefined` = `undefined`
 
 ### TStream
 

@@ -1,6 +1,6 @@
 {
   "name": "@tanstack/smoke-tests-e2e",
-  "version": "0.0.5",
+  "version": "0.0.6",
   "description": "E2E tests for TanStack AI chat",
   "private": true,
   "type": "module",
