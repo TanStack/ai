@@ -40,8 +40,7 @@
     "test:types": "tsc"
   },
   "dependencies": {
-    "@anthropic-ai/sdk": "^0.71.0",
-    "@tanstack/ai": "workspace:*"
+    "@anthropic-ai/sdk": "^0.71.0"
   },
   "devDependencies": {
     "@vitest/coverage-v8": "4.0.14"

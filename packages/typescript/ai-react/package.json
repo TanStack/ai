@@ -41,7 +41,6 @@
     "streaming"
   ],
   "dependencies": {
-    "@tanstack/ai": "workspace:*",
     "@tanstack/ai-client": "workspace:*"
   },
   "devDependencies": {
@@ -53,7 +52,6 @@
   },
   "peerDependencies": {
     "@tanstack/ai": "workspace:*",
-    "@tanstack/ai-client": "workspace:*",
     "@types/react": ">=18.0.0",
     "react": ">=18.0.0"
   }

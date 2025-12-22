@@ -39,7 +39,6 @@
     "streaming"
   ],
   "dependencies": {
-    "@tanstack/ai": "workspace:*",
     "@tanstack/ai-client": "workspace:*"
   },
   "devDependencies": {
@@ -54,7 +53,6 @@
   },
   "peerDependencies": {
     "@tanstack/ai": "workspace:*",
-    "@tanstack/ai-client": "workspace:*",
     "solid-js": ">=1.9.10"
   }
 }

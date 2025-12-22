@@ -41,7 +41,6 @@
     "adapter"
   ],
   "dependencies": {
-    "@tanstack/ai": "workspace:*",
     "ollama": "^0.6.3"
   },
   "devDependencies": {

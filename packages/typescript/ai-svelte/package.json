@@ -43,7 +43,6 @@
     "streaming"
   ],
   "dependencies": {
-    "@tanstack/ai": "workspace:*",
     "@tanstack/ai-client": "workspace:*",
     "svelte": "^5.20.0"
   },
@@ -60,7 +59,6 @@
   },
   "peerDependencies": {
     "@tanstack/ai": "workspace:*",
-    "@tanstack/ai-client": "workspace:*",
     "svelte": "^5.0.0"
   }
 }

@@ -40,7 +40,6 @@
     "adapter"
   ],
   "dependencies": {
-    "@tanstack/ai": "workspace:*",
     "openai": "^6.9.1"
   },
   "devDependencies": {
