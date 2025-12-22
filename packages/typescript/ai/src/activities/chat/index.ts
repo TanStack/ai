@@ -8,20 +8,25 @@
 import { aiEventClient } from '../../event-client.js'
 import { streamToText } from '../../stream-to-response.js'
 import { ToolCallManager, executeToolCalls } from './tools/tool-calls'
-import { convertZodToJsonSchema } from './tools/zod-converter'
+import {
+  convertSchemaToJsonSchema,
+  isStandardSchema,
+  parseWithStandardSchema,
+} from './tools/schema-converter'
 import { maxIterations as maxIterationsStrategy } from './agent-loop-strategies'
 import type {
   ApprovalRequest,
   ClientToolRequest,
   ToolResult,
 } from './tools/tool-calls'
-import type { z } from 'zod'
 import type { AnyTextAdapter } from './adapter'
 import type {
   AgentLoopStrategy,
   ConstrainedModelMessage,
   DoneStreamChunk,
+  InferSchemaType,
   ModelMessage,
+  SchemaInput,
   StreamChunk,
   TextOptions,
   Tool,
@@ -44,12 +49,12 @@ export const kind = 'text' as const
  * Types are extracted directly from the adapter (which has pre-resolved generics).
  *
  * @template TAdapter - The text adapter type (created by a provider function)
- * @template TSchema - Optional Zod schema for structured output
+ * @template TSchema - Optional Standard Schema for structured output
  * @template TStream - Whether to stream the output (default: true)
  */
 export interface TextActivityOptions<
   TAdapter extends AnyTextAdapter,
-  TSchema extends z.ZodType | undefined,
+  TSchema extends SchemaInput | undefined,
   TStream extends boolean,
 > {
   /** The text adapter to use (created by a provider function like openaiText('gpt-4o')) */
@@ -82,10 +87,12 @@ export interface TextActivityOptions<
   /** Unique conversation identifier for tracking */
   conversationId?: TextOptions['conversationId']
   /**
-   * Optional Zod schema for structured output.
+   * Optional Standard Schema for structured output.
    * When provided, the activity will:
    * 1. Run the full agentic loop (executing tools as needed)
    * 2. Once complete, return a Promise with the parsed output matching the schema
+   *
+   * Supports any Standard Schema compliant library (Zod v4+, ArkType, Valibot, etc.)
    *
    * @example
    * ```ts
@@ -104,7 +111,7 @@ export interface TextActivityOptions<
    * When false, returns a Promise<string> with the collected text content.
    *
    * Note: If outputSchema is provided, this option is ignored and the result
-   * is always a Promise<z.infer<TSchema>>.
+   * is always a Promise<InferSchemaType<TSchema>>.
    *
    * @default true
    *
@@ -140,7 +147,7 @@ export interface TextActivityOptions<
  */
 export function createChatOptions<
   TAdapter extends AnyTextAdapter,
-  TSchema extends z.ZodType | undefined = undefined,
+  TSchema extends SchemaInput | undefined = undefined,
   TStream extends boolean = true,
 >(
   options: TextActivityOptions<TAdapter, TSchema, TStream>,
@@ -154,15 +161,15 @@ export function createChatOptions<
 
 /**
  * Result type for the text activity.
- * - If outputSchema is provided: Promise<z.infer<TSchema>>
+ * - If outputSchema is provided: Promise<InferSchemaType<TSchema>>
  * - If stream is false: Promise<string>
  * - Otherwise (stream is true, default): AsyncIterable<StreamChunk>
  */
 export type TextActivityResult<
-  TSchema extends z.ZodType | undefined,
+  TSchema extends SchemaInput | undefined,
   TStream extends boolean = true,
-> = TSchema extends z.ZodType
-  ? Promise<z.infer<TSchema>>
+> = TSchema extends SchemaInput
+  ? Promise<InferSchemaType<TSchema>>
   : TStream extends false
     ? Promise<string>
     : AsyncIterable<StreamChunk>
@@ -366,14 +373,14 @@ class TextEngine<
     const { temperature, topP, maxTokens, metadata, modelOptions } = this.params
     const tools = this.params.tools
 
-    // Convert tool schemas from Zod to JSON Schema before passing to adapter
+    // Convert tool schemas to JSON Schema before passing to adapter
     const toolsWithJsonSchemas = tools?.map((tool) => ({
       ...tool,
       inputSchema: tool.inputSchema
-        ? convertZodToJsonSchema(tool.inputSchema)
+        ? convertSchemaToJsonSchema(tool.inputSchema)
         : undefined,
       outputSchema: tool.outputSchema
-        ? convertZodToJsonSchema(tool.outputSchema)
+        ? convertSchemaToJsonSchema(tool.outputSchema)
         : undefined,
     }))
 
@@ -968,7 +975,7 @@ class TextEngine<
  */
 export function chat<
   TAdapter extends AnyTextAdapter,
-  TSchema extends z.ZodType | undefined = undefined,
+  TSchema extends SchemaInput | undefined = undefined,
   TStream extends boolean = true,
 >(
   options: TextActivityOptions<TAdapter, TSchema, TStream>,
@@ -980,7 +987,7 @@ export function chat<
     return runAgenticStructuredOutput(
       options as unknown as TextActivityOptions<
         AnyTextAdapter,
-        z.ZodType,
+        SchemaInput,
         boolean
       >,
     ) as TextActivityResult<TSchema, TStream>
@@ -1046,9 +1053,9 @@ function runNonStreamingText(
  * 2. Once complete, call adapter.structuredOutput with the conversation context
  * 3. Validate and return the structured result
  */
-async function runAgenticStructuredOutput<TSchema extends z.ZodType>(
+async function runAgenticStructuredOutput<TSchema extends SchemaInput>(
   options: TextActivityOptions<AnyTextAdapter, TSchema, boolean>,
-): Promise<z.infer<TSchema>> {
+): Promise<InferSchemaType<TSchema>> {
   const { adapter, outputSchema, ...textOptions } = options
   const model = adapter.model
 
@@ -1060,8 +1067,8 @@ async function runAgenticStructuredOutput<TSchema extends z.ZodType>(
   const engine = new TextEngine({
     adapter,
     params: { ...textOptions, model } as TextOptions<
-      Record<string, any>,
-      Record<string, any>
+      Record<string, unknown>,
+      Record<string, unknown>
     >,
   })
 
@@ -1081,8 +1088,8 @@ async function runAgenticStructuredOutput<TSchema extends z.ZodType>(
     ...structuredTextOptions
   } = textOptions
 
-  // Convert the Zod schema to JSON Schema before passing to the adapter
-  const jsonSchema = convertZodToJsonSchema(outputSchema)
+  // Convert the schema to JSON Schema before passing to the adapter
+  const jsonSchema = convertSchemaToJsonSchema(outputSchema)
   if (!jsonSchema) {
     throw new Error('Failed to convert output schema to JSON Schema')
   }
@@ -1098,15 +1105,16 @@ async function runAgenticStructuredOutput<TSchema extends z.ZodType>(
     outputSchema: jsonSchema,
   })
 
-  // Validate the result against the Zod schema
-  const validationResult = outputSchema.safeParse(result.data)
-  if (!validationResult.success) {
-    throw new Error(
-      `Structured output validation failed: ${validationResult.error.message}`,
+  // Validate the result against the schema if it's a Standard Schema
+  if (isStandardSchema(outputSchema)) {
+    return parseWithStandardSchema<InferSchemaType<TSchema>>(
+      outputSchema,
+      result.data,
     )
   }
 
-  return validationResult.data
+  // For plain JSON Schema, return the data as-is
+  return result.data as InferSchemaType<TSchema>
 }
 
 // Re-export adapter types

@@ -1,17 +1,23 @@
-import { describe, expect, it } from 'vitest'
+﻿import { describe, expect, it } from 'vitest'
 import { z } from 'zod'
-import { convertZodToJsonSchema } from '../src/activities/chat/tools/zod-converter'
+import {
+  convertSchemaToJsonSchema,
+  isStandardJSONSchema,
+  isStandardSchema,
+  parseWithStandardSchema,
+  validateWithStandardSchema,
+} from '../src/activities/chat/tools/schema-converter'
 import type { JSONSchema } from '../src/types'
 
-describe('convertZodToJsonSchema', () => {
+describe('convertSchemaToJsonSchema', () => {
   it('should return undefined for undefined schema', () => {
-    const result = convertZodToJsonSchema(undefined)
+    const result = convertSchemaToJsonSchema(undefined)
     expect(result).toBeUndefined()
   })
 
   it('should convert a simple string schema', () => {
     const schema = z.string()
-    const result = convertZodToJsonSchema(schema)
+    const result = convertSchemaToJsonSchema(schema)
 
     expect(result).toBeDefined()
     expect(result?.type).toBe('string')
@@ -19,7 +25,7 @@ describe('convertZodToJsonSchema', () => {
 
   it('should convert a simple number schema', () => {
     const schema = z.number()
-    const result = convertZodToJsonSchema(schema)
+    const result = convertSchemaToJsonSchema(schema)
 
     expect(result).toBeDefined()
     expect(result?.type).toBe('number')
@@ -27,7 +33,7 @@ describe('convertZodToJsonSchema', () => {
 
   it('should convert a simple boolean schema', () => {
     const schema = z.boolean()
-    const result = convertZodToJsonSchema(schema)
+    const result = convertSchemaToJsonSchema(schema)
 
     expect(result).toBeDefined()
     expect(result?.type).toBe('boolean')
@@ -38,7 +44,7 @@ describe('convertZodToJsonSchema', () => {
       name: z.string(),
       age: z.number(),
     })
-    const result = convertZodToJsonSchema(schema)
+    const result = convertSchemaToJsonSchema(schema)
 
     expect(result).toBeDefined()
     expect(result?.type).toBe('object')
@@ -54,7 +60,7 @@ describe('convertZodToJsonSchema', () => {
       name: z.string(),
       age: z.number().optional(),
     })
-    const result = convertZodToJsonSchema(schema)
+    const result = convertSchemaToJsonSchema(schema)
 
     expect(result).toBeDefined()
     expect(result?.type).toBe('object')
@@ -66,7 +72,7 @@ describe('convertZodToJsonSchema', () => {
     const schema = z.object({
       unit: z.enum(['celsius', 'fahrenheit']),
     })
-    const result = convertZodToJsonSchema(schema)
+    const result = convertSchemaToJsonSchema(schema)
 
     expect(result).toBeDefined()
     expect(result?.properties?.unit?.enum).toEqual(['celsius', 'fahrenheit'])
@@ -77,7 +83,7 @@ describe('convertZodToJsonSchema', () => {
     const schema = z.object({
       unit: z.enum(['celsius', 'fahrenheit']).optional(),
     })
-    const result = convertZodToJsonSchema(schema)
+    const result = convertSchemaToJsonSchema(schema)
 
     expect(result).toBeDefined()
     expect(result?.properties?.unit?.enum).toEqual(['celsius', 'fahrenheit'])
@@ -92,7 +98,7 @@ describe('convertZodToJsonSchema', () => {
         .optional()
         .describe('Temperature unit'),
     })
-    const result = convertZodToJsonSchema(schema)
+    const result = convertSchemaToJsonSchema(schema)
 
     expect(result).toBeDefined()
     expect(result?.properties?.location?.description).toBe('City name')
@@ -106,7 +112,7 @@ describe('convertZodToJsonSchema', () => {
         city: z.string(),
       }),
     })
-    const result = convertZodToJsonSchema(schema)
+    const result = convertSchemaToJsonSchema(schema)
 
     expect(result).toBeDefined()
     expect(result?.type).toBe('object')
@@ -117,7 +123,7 @@ describe('convertZodToJsonSchema', () => {
 
   it('should handle empty object schema', () => {
     const schema = z.object({})
-    const result = convertZodToJsonSchema(schema)
+    const result = convertSchemaToJsonSchema(schema)
 
     expect(result).toBeDefined()
     expect(result?.type).toBe('object')
@@ -130,7 +136,7 @@ describe('convertZodToJsonSchema', () => {
     const schema = z.object({
       name: z.string(),
     })
-    const result = convertZodToJsonSchema(schema)
+    const result = convertSchemaToJsonSchema(schema)
 
     expect(result?.type).toBe('object')
   })
@@ -139,7 +145,7 @@ describe('convertZodToJsonSchema', () => {
     const schema = z.object({
       name: z.string(),
     })
-    const result = convertZodToJsonSchema(schema)
+    const result = convertSchemaToJsonSchema(schema)
 
     expect(result?.properties).toBeDefined()
     expect(typeof result?.properties).toBe('object')
@@ -150,7 +156,7 @@ describe('convertZodToJsonSchema', () => {
       name: z.string(),
       age: z.number().optional(),
     })
-    const result = convertZodToJsonSchema(schema)
+    const result = convertSchemaToJsonSchema(schema)
 
     expect(Array.isArray(result?.required)).toBe(true)
     expect(result?.required).toContain('name')
@@ -161,7 +167,7 @@ describe('convertZodToJsonSchema', () => {
     const schema = z.object({
       name: z.string(),
     })
-    const result = convertZodToJsonSchema(schema)
+    const result = convertSchemaToJsonSchema(schema)
 
     expect(result).toBeDefined()
     expect('$schema' in (result || {})).toBe(false)
@@ -171,11 +177,12 @@ describe('convertZodToJsonSchema', () => {
     const schema = z.object({
       items: z.array(z.string()),
     })
-    const result = convertZodToJsonSchema(schema)
+    const result = convertSchemaToJsonSchema(schema)
 
     expect(result).toBeDefined()
     expect(result?.properties?.items?.type).toBe('array')
-    expect(result?.properties?.items?.items?.type).toBe('string')
+    const itemsSchema = result?.properties?.items?.items
+    expect(!Array.isArray(itemsSchema) && itemsSchema?.type).toBe('string')
   })
 
   it('should handle array of objects', () => {
@@ -187,24 +194,23 @@ describe('convertZodToJsonSchema', () => {
         }),
       ),
     })
-    const result = convertZodToJsonSchema(schema)
+    const result = convertSchemaToJsonSchema(schema)
 
     expect(result).toBeDefined()
     expect(result?.properties?.users?.type).toBe('array')
-    expect(result?.properties?.users?.items?.type).toBe('object')
-    expect(result?.properties?.users?.items?.properties?.name?.type).toBe(
-      'string',
-    )
-    expect(result?.properties?.users?.items?.properties?.age?.type).toBe(
-      'number',
-    )
+    const usersItems = result?.properties?.users?.items
+    if (!Array.isArray(usersItems)) {
+      expect(usersItems?.type).toBe('object')
+      expect(usersItems?.properties?.name?.type).toBe('string')
+      expect(usersItems?.properties?.age?.type).toBe('number')
+    }
   })
 
   it('should handle union types', () => {
     const schema = z.object({
       value: z.union([z.string(), z.number()]),
     })
-    const result = convertZodToJsonSchema(schema)
+    const result = convertSchemaToJsonSchema(schema)
 
     expect(result).toBeDefined()
     expect(result?.properties?.value).toBeDefined()
@@ -216,7 +222,7 @@ describe('convertZodToJsonSchema', () => {
     const schema = z.object({
       count: z.number().default(0),
     })
-    const result = convertZodToJsonSchema(schema)
+    const result = convertSchemaToJsonSchema(schema)
 
     expect(result).toBeDefined()
     // Default values may be included in the schema
@@ -235,7 +241,7 @@ describe('convertZodToJsonSchema', () => {
       }),
       tags: z.array(z.string()),
     })
-    const result = convertZodToJsonSchema(schema)
+    const result = convertSchemaToJsonSchema(schema)
 
     expect(result).toBeDefined()
     expect(result?.type).toBe('object')
@@ -254,7 +260,7 @@ describe('convertZodToJsonSchema', () => {
     const schema = z.object({
       value: z.string().nullable(),
     })
-    const result = convertZodToJsonSchema(schema)
+    const result = convertSchemaToJsonSchema(schema)
 
     expect(result).toBeDefined()
     expect(result?.properties?.value).toBeDefined()
@@ -266,7 +272,7 @@ describe('convertZodToJsonSchema', () => {
     const schema = z.object({
       createdAt: z.string().datetime(), // Use datetime string instead
     })
-    const result = convertZodToJsonSchema(schema)
+    const result = convertSchemaToJsonSchema(schema)
 
     expect(result).toBeDefined()
     expect(result?.properties?.createdAt).toBeDefined()
@@ -278,7 +284,7 @@ describe('convertZodToJsonSchema', () => {
       minLength: z.string().min(5),
       maxLength: z.string().max(10),
     })
-    const result = convertZodToJsonSchema(schema)
+    const result = convertSchemaToJsonSchema(schema)
 
     expect(result).toBeDefined()
     expect(result?.properties?.email?.type).toBe('string')
@@ -292,7 +298,7 @@ describe('convertZodToJsonSchema', () => {
       max: z.number().max(100),
       int: z.number().int(),
     })
-    const result = convertZodToJsonSchema(schema)
+    const result = convertSchemaToJsonSchema(schema)
 
     expect(result).toBeDefined()
     expect(result?.properties?.min?.type).toBe('number')
@@ -311,7 +317,7 @@ describe('convertZodToJsonSchema', () => {
         },
         required: ['name'],
       }
-      const result = convertZodToJsonSchema(jsonSchema)
+      const result = convertSchemaToJsonSchema(jsonSchema)
 
       expect(result).toBe(jsonSchema) // Same reference
       expect(result).toEqual(jsonSchema)
@@ -332,7 +338,7 @@ describe('convertZodToJsonSchema', () => {
         },
         required: ['user'],
       }
-      const result = convertZodToJsonSchema(jsonSchema)
+      const result = convertSchemaToJsonSchema(jsonSchema)
 
       expect(result).toBe(jsonSchema)
     })
@@ -357,7 +363,7 @@ describe('convertZodToJsonSchema', () => {
           },
         },
       }
-      const result = convertZodToJsonSchema(jsonSchema)
+      const result = convertSchemaToJsonSchema(jsonSchema)
 
       expect(result).toBe(jsonSchema)
     })
@@ -376,7 +382,7 @@ describe('convertZodToJsonSchema', () => {
           },
         },
       }
-      const result = convertZodToJsonSchema(jsonSchema)
+      const result = convertSchemaToJsonSchema(jsonSchema)
 
       expect(result).toBe(jsonSchema)
     })
@@ -398,7 +404,7 @@ describe('convertZodToJsonSchema', () => {
         },
         required: ['location'],
       }
-      const result = convertZodToJsonSchema(jsonSchema)
+      const result = convertSchemaToJsonSchema(jsonSchema)
 
       expect(result).toBe(jsonSchema)
       expect(result?.description).toBe('A weather request')
@@ -424,7 +430,7 @@ describe('convertZodToJsonSchema', () => {
           workAddress: { $ref: '#/$defs/Address' },
         },
       }
-      const result = convertZodToJsonSchema(jsonSchema)
+      const result = convertSchemaToJsonSchema(jsonSchema)
 
       expect(result).toBe(jsonSchema)
     })
@@ -444,7 +450,7 @@ describe('convertZodToJsonSchema', () => {
           },
         },
       }
-      const result = convertZodToJsonSchema(jsonSchema)
+      const result = convertSchemaToJsonSchema(jsonSchema)
 
       expect(result).toBe(jsonSchema)
     })
@@ -472,7 +478,7 @@ describe('convertZodToJsonSchema', () => {
           },
         },
       }
-      const result = convertZodToJsonSchema(jsonSchema)
+      const result = convertSchemaToJsonSchema(jsonSchema)
 
       expect(result).toBe(jsonSchema)
       expect(result?.properties?.age?.minimum).toBe(0)
@@ -483,14 +489,14 @@ describe('convertZodToJsonSchema', () => {
 
     it('should pass through empty JSONSchema object', () => {
       const jsonSchema: JSONSchema = {}
-      const result = convertZodToJsonSchema(jsonSchema)
+      const result = convertSchemaToJsonSchema(jsonSchema)
 
       expect(result).toBe(jsonSchema)
     })
 
     it('should pass through JSONSchema with only type', () => {
       const jsonSchema: JSONSchema = { type: 'string' }
-      const result = convertZodToJsonSchema(jsonSchema)
+      const result = convertSchemaToJsonSchema(jsonSchema)
 
       expect(result).toBe(jsonSchema)
     })
@@ -503,7 +509,7 @@ describe('convertZodToJsonSchema', () => {
         },
         additionalProperties: false,
       }
-      const result = convertZodToJsonSchema(jsonSchema)
+      const result = convertSchemaToJsonSchema(jsonSchema)
 
       expect(result).toBe(jsonSchema)
       expect(result?.additionalProperties).toBe(false)
@@ -519,7 +525,7 @@ describe('convertZodToJsonSchema', () => {
           },
         },
       }
-      const result = convertZodToJsonSchema(jsonSchema)
+      const result = convertSchemaToJsonSchema(jsonSchema)
 
       expect(result).toBe(jsonSchema)
       expect(result?.properties?.phone?.pattern).toBe('^\\+?[1-9]\\d{1,14}$')
@@ -528,14 +534,14 @@ describe('convertZodToJsonSchema', () => {
     it('should distinguish between Zod schemas and plain objects', () => {
       // Zod schema should be converted
       const zodSchema = z.object({ name: z.string() })
-      const zodResult = convertZodToJsonSchema(zodSchema)
+      const zodResult = convertSchemaToJsonSchema(zodSchema)
 
       // JSONSchema should pass through
       const jsonSchema: JSONSchema = {
         type: 'object',
         properties: { name: { type: 'string' } },
       }
-      const jsonResult = convertZodToJsonSchema(jsonSchema)
+      const jsonResult = convertSchemaToJsonSchema(jsonSchema)
 
       // Both should produce similar output structure
       expect(zodResult?.type).toBe('object')
@@ -548,5 +554,135 @@ describe('convertZodToJsonSchema', () => {
       // Zod result should be a new object
       expect(zodResult).not.toBe(zodSchema)
     })
+  })
+})
+
+describe('isStandardJSONSchema', () => {
+  it('should return true for Zod v4 schemas (which implement StandardJSONSchemaV1)', () => {
+    const schema = z.object({ name: z.string() })
+    expect(isStandardJSONSchema(schema)).toBe(true)
+  })
+
+  it('should return false for plain objects', () => {
+    const plainObject = { type: 'object', properties: {} }
+    expect(isStandardJSONSchema(plainObject)).toBe(false)
+  })
+
+  it('should return false for null', () => {
+    expect(isStandardJSONSchema(null)).toBe(false)
+  })
+
+  it('should return false for undefined', () => {
+    expect(isStandardJSONSchema(undefined)).toBe(false)
+  })
+
+  it('should return false for primitive values', () => {
+    expect(isStandardJSONSchema('string')).toBe(false)
+    expect(isStandardJSONSchema(123)).toBe(false)
+    expect(isStandardJSONSchema(true)).toBe(false)
+  })
+})
+
+describe('isStandardSchema', () => {
+  it('should return true for Zod v4 schemas (which implement StandardSchemaV1)', () => {
+    const schema = z.object({ name: z.string() })
+    expect(isStandardSchema(schema)).toBe(true)
+  })
+
+  it('should return false for plain objects', () => {
+    const plainObject = { type: 'object', properties: {} }
+    expect(isStandardSchema(plainObject)).toBe(false)
+  })
+
+  it('should return false for null', () => {
+    expect(isStandardSchema(null)).toBe(false)
+  })
+
+  it('should return false for undefined', () => {
+    expect(isStandardSchema(undefined)).toBe(false)
+  })
+})
+
+describe('parseWithStandardSchema', () => {
+  it('should parse valid data with Zod schema', () => {
+    const schema = z.object({
+      name: z.string(),
+      age: z.number(),
+    })
+
+    const result = parseWithStandardSchema<{ name: string; age: number }>(
+      schema,
+      { name: 'John', age: 30 },
+    )
+
+    expect(result).toEqual({ name: 'John', age: 30 })
+  })
+
+  it('should throw for invalid data with Zod schema', () => {
+    const schema = z.object({
+      name: z.string(),
+      age: z.number(),
+    })
+
+    expect(() =>
+      parseWithStandardSchema(schema, { name: 'John', age: 'not a number' }),
+    ).toThrow()
+  })
+
+  it('should pass through data unchanged for non-StandardSchema inputs', () => {
+    const plainObject = { type: 'object' }
+    const data = { name: 'John', age: 30 }
+
+    const result = parseWithStandardSchema(plainObject, data)
+    expect(result).toEqual(data)
+  })
+})
+
+describe('validateWithStandardSchema', () => {
+  it('should return success for valid data with Zod schema', async () => {
+    const schema = z.object({
+      name: z.string(),
+      age: z.number(),
+    })
+
+    const result = await validateWithStandardSchema<{
+      name: string
+      age: number
+    }>(schema, { name: 'John', age: 30 })
+
+    expect(result.success).toBe(true)
+    if (result.success) {
+      expect(result.data).toEqual({ name: 'John', age: 30 })
+    }
+  })
+
+  it('should return failure with issues for invalid data with Zod schema', async () => {
+    const schema = z.object({
+      name: z.string(),
+      age: z.number(),
+    })
+
+    const result = await validateWithStandardSchema(schema, {
+      name: 'John',
+      age: 'not a number',
+    })
+
+    expect(result.success).toBe(false)
+    if (!result.success) {
+      expect(result.issues).toBeDefined()
+      expect(result.issues.length).toBeGreaterThan(0)
+    }
+  })
+
+  it('should return success for non-StandardSchema inputs (pass through)', async () => {
+    const plainObject = { type: 'object' }
+    const data = { name: 'John', age: 30 }
+
+    const result = await validateWithStandardSchema(plainObject, data)
+
+    expect(result.success).toBe(true)
+    if (result.success) {
+      expect(result.data).toEqual(data)
+    }
   })
 })

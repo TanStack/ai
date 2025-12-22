@@ -3,13 +3,13 @@ id: toStreamResponse
 title: toStreamResponse
 ---
 
-# Function: toStreamResponse()
+# ~~Function: toStreamResponse()~~
 
 ```ts
 function toStreamResponse(stream, init?): Response;
 ```
 
-Defined in: [stream-to-response.ts:136](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/stream-to-response.ts#L136)
+Defined in: [stream-to-response.ts:213](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/stream-to-response.ts#L213)
 
 Create a streaming HTTP response from a StreamChunk async iterable
 Includes proper headers for Server-Sent Events
@@ -33,6 +33,10 @@ Optional Response initialization options
 `Response`
 
 Response object with SSE headers and streaming body
+
+## Deprecated
+
+Use `toServerSentEventsStream` instead. This function will be removed in a future version.
 
 ## Example
 

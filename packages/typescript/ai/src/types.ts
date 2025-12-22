@@ -1,4 +1,4 @@
-import type { z } from 'zod'
+import type { StandardJSONSchemaV1 } from '@standard-schema/spec'
 
 /**
  * Tool call states - track the lifecycle of a tool call
@@ -20,17 +20,17 @@ export type ToolResultState =
 
 /**
  * JSON Schema type for defining tool input/output schemas as raw JSON Schema objects.
- * This allows tools to be defined without Zod when you have JSON Schema definitions available.
+ * This allows tools to be defined without schema libraries when you have JSON Schema definitions available.
  */
 export interface JSONSchema {
   type?: string | Array<string>
   properties?: Record<string, JSONSchema>
   items?: JSONSchema | Array<JSONSchema>
   required?: Array<string>
-  enum?: Array<any>
-  const?: any
+  enum?: Array<unknown>
+  const?: unknown
   description?: string
-  default?: any
+  default?: unknown
   $ref?: string
   $defs?: Record<string, JSONSchema>
   definitions?: Record<string, JSONSchema>
@@ -59,21 +59,30 @@ export interface JSONSchema {
   minProperties?: number
   maxProperties?: number
   title?: string
-  examples?: Array<any>
-  [key: string]: any // Allow additional properties for extensibility
+  examples?: Array<unknown>
+  [key: string]: unknown // Allow additional properties for extensibility
 }
 
 /**
- * Union type for schema input - can be either a Zod schema or a JSONSchema object.
+ * Union type for schema input - can be any Standard JSON Schema compliant schema or a plain JSONSchema object.
+ *
+ * Standard JSON Schema compliant libraries include:
+ * - Zod v4.2+ (natively supports StandardJSONSchemaV1)
+ * - ArkType v2.1.28+ (natively supports StandardJSONSchemaV1)
+ * - Valibot v1.2+ (via `toStandardJsonSchema()` from `@valibot/to-json-schema`)
+ *
+ * @see https://standardschema.dev/json-schema
  */
-export type SchemaInput = z.ZodType | JSONSchema
+
+export type SchemaInput = StandardJSONSchemaV1<any, any> | JSONSchema
 
 /**
  * Infer the TypeScript type from a schema.
- * For Zod schemas, uses z.infer to get the proper type.
- * For JSONSchema, returns `any` since we can't infer types from JSON Schema at compile time.
+ * For Standard JSON Schema compliant schemas, extracts the input type.
+ * For plain JSONSchema, returns `any` since we can't infer types from JSON Schema at compile time.
  */
-export type InferSchemaType<T> = T extends z.ZodType ? z.infer<T> : any
+export type InferSchemaType<T> =
+  T extends StandardJSONSchemaV1<infer TInput, unknown> ? TInput : unknown
 
 export interface ToolCall {
   id: string
@@ -309,14 +318,16 @@ export type ConstrainedModelMessage<
  * Tools allow the model to interact with external systems, APIs, or perform computations.
  * The model will decide when to call tools based on the user's request and the tool descriptions.
  *
- * Tools can use either Zod schemas or JSON Schema objects for runtime validation and type safety.
+ * Tools can use any Standard JSON Schema compliant library (Zod, ArkType, Valibot, etc.)
+ * or plain JSON Schema objects for runtime validation and type safety.
  *
  * @see https://platform.openai.com/docs/guides/function-calling
  * @see https://docs.anthropic.com/claude/docs/tool-use
+ * @see https://standardschema.dev/json-schema
  */
 export interface Tool<
-  TInput extends SchemaInput = z.ZodType,
-  TOutput extends SchemaInput = z.ZodType,
+  TInput extends SchemaInput = SchemaInput,
+  TOutput extends SchemaInput = SchemaInput,
   TName extends string = string,
 > {
   /**
@@ -342,16 +353,16 @@ export interface Tool<
   /**
    * Schema describing the tool's input parameters.
    *
-   * Can be either a Zod schema or a JSON Schema object.
+   * Can be any Standard JSON Schema compliant schema (Zod, ArkType, Valibot, etc.) or a plain JSON Schema object.
    * Defines the structure and types of arguments the tool accepts.
    * The model will generate arguments matching this schema.
-   * Zod schemas are converted to JSON Schema for LLM providers.
+   * Standard JSON Schema compliant schemas are converted to JSON Schema for LLM providers.
    *
-   * @see https://zod.dev/
+   * @see https://standardschema.dev/json-schema
    * @see https://json-schema.org/
    *
    * @example
-   * // Using Zod schema
+   * // Using Zod v4+ schema (natively supports Standard JSON Schema)
    * import { z } from 'zod';
    * z.object({
    *   location: z.string().describe("City name or coordinates"),
@@ -359,7 +370,15 @@ export interface Tool<
    * })
    *
    * @example
-   * // Using JSON Schema
+   * // Using ArkType (natively supports Standard JSON Schema)
+   * import { type } from 'arktype';
+   * type({
+   *   location: 'string',
+   *   unit: "'celsius' | 'fahrenheit'"
+   * })
+   *
+   * @example
+   * // Using plain JSON Schema
    * {
    *   type: 'object',
    *   properties: {
@@ -374,15 +393,16 @@ export interface Tool<
   /**
    * Optional schema for validating tool output.
    *
-   * Can be either a Zod schema or a JSON Schema object.
-   * If provided with a Zod schema, tool results will be validated against this schema before
-   * being sent back to the model. This catches bugs in tool implementations
-   * and ensures consistent output formatting.
+   * Can be any Standard JSON Schema compliant schema or a plain JSON Schema object.
+   * If provided with a Standard Schema compliant schema, tool results will be validated
+   * against this schema before being sent back to the model. This catches bugs in tool
+   * implementations and ensures consistent output formatting.
    *
    * Note: This is client-side validation only - not sent to LLM providers.
-   * Note: JSON Schema output validation is not performed at runtime.
+   * Note: Plain JSON Schema output validation is not performed at runtime.
    *
    * @example
+   * // Using Zod
    * z.object({
    *   temperature: z.number(),
    *   conditions: z.string(),
@@ -601,12 +621,13 @@ export interface TextOptions<
   request?: Request | RequestInit
 
   /**
-   * Zod schema for structured output.
+   * Schema for structured output.
    * When provided, the adapter should use the provider's native structured output API
    * to ensure the response conforms to this schema.
    * The schema will be converted to JSON Schema format before being sent to the provider.
+   * Supports any Standard JSON Schema compliant library (Zod, ArkType, Valibot, etc.).
    */
-  outputSchema?: z.ZodType
+  outputSchema?: SchemaInput
   /**
    * Conversation ID for correlating client and server-side devtools events.
    * When provided, server-side events will be linked to the client conversation in devtools.

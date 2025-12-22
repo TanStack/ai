@@ -40,8 +40,7 @@
   ],
   "dependencies": {
     "@tanstack/ai": "workspace:*",
-    "@tanstack/ai-client": "workspace:*",
-    "zod": "^4.1.13"
+    "@tanstack/ai-client": "workspace:*"
   },
   "devDependencies": {
     "@types/node": "^24.10.1",

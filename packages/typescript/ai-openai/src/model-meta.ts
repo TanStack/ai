@@ -64,6 +64,103 @@ interface ModelMeta<TProviderOptions = unknown> {
   providerOptions?: TProviderOptions
 }
 
+const GPT5_2 = {
+  name: 'gpt-5.2',
+  context_window: 400_000,
+  max_output_tokens: 128_000,
+  knowledge_cutoff: '2025-08-31',
+  supports: {
+    input: ['text', 'image'],
+    output: ['text'],
+    endpoints: ['chat', 'chat-completions'],
+    features: [
+      'streaming',
+      'function_calling',
+      'structured_outputs',
+      'distillation',
+    ],
+    tools: [
+      'web_search',
+      'file_search',
+      'image_generation',
+      'code_interpreter',
+      'mcp',
+    ],
+  },
+  pricing: {
+    input: {
+      normal: 1.75,
+      cached: 0.175,
+    },
+    output: {
+      normal: 14,
+    },
+  },
+} as const satisfies ModelMeta<
+  OpenAIBaseOptions &
+    OpenAIReasoningOptions &
+    OpenAIStructuredOutputOptions &
+    OpenAIToolsOptions &
+    OpenAIStreamingOptions &
+    OpenAIMetadataOptions
+>
+const GPT5_2_PRO = {
+  name: 'gpt-5.2-pro',
+  context_window: 400_000,
+  max_output_tokens: 128_000,
+  knowledge_cutoff: '2025-08-31',
+  supports: {
+    input: ['text', 'image'],
+    output: ['text'],
+    endpoints: ['chat', 'chat-completions'],
+    features: ['streaming', 'function_calling'],
+    tools: ['web_search', 'file_search', 'image_generation', 'mcp'],
+  },
+  pricing: {
+    input: {
+      normal: 21,
+    },
+    output: {
+      normal: 168,
+    },
+  },
+} as const satisfies ModelMeta<
+  OpenAIBaseOptions &
+    OpenAIReasoningOptions &
+    OpenAIToolsOptions &
+    OpenAIStreamingOptions &
+    OpenAIMetadataOptions
+>
+
+const GPT5_2_CHAT = {
+  name: 'gpt-5.2-chat',
+  context_window: 128_000,
+  max_output_tokens: 16_384,
+  knowledge_cutoff: '2025-08-31',
+  supports: {
+    input: ['text', 'image'],
+    output: ['text'],
+    endpoints: ['chat', 'chat-completions'],
+    features: ['streaming', 'function_calling', 'structured_outputs'],
+    tools: [],
+  },
+  pricing: {
+    input: {
+      normal: 1.75,
+      cached: 0.175,
+    },
+    output: {
+      normal: 14,
+    },
+  },
+} as const satisfies ModelMeta<
+  OpenAIBaseOptions &
+    OpenAIReasoningOptions &
+    OpenAIStructuredOutputOptions &
+    OpenAIToolsOptions &
+    OpenAIStreamingOptions &
+    OpenAIMetadataOptions
+>
 const GPT5_1 = {
   name: 'gpt-5.1',
   context_window: 400_000,
@@ -1551,6 +1648,9 @@ const TTS_1_HD = {
 // Chat/text completion models (based on endpoints: "chat" or "chat-completions")
 export const OPENAI_CHAT_MODELS = [
   // Frontier models
+  GPT5_2.name,
+  GPT5_2_PRO.name,
+  GPT5_2_CHAT.name,
   GPT5_1.name,
   GPT5_1_CODEX.name,
   GPT5.name,
@@ -1661,7 +1761,23 @@ export const OPENAI_TRANSCRIPTION_MODELS = [
  * Manually defined to ensure accurate type narrowing per model.
  */
 export type OpenAIChatModelProviderOptionsByName = {
-  // Models WITH structured output support (have 'text' field)
+  [GPT5_2.name]: OpenAIBaseOptions &
+    OpenAIReasoningOptions &
+    OpenAIStructuredOutputOptions &
+    OpenAIToolsOptions &
+    OpenAIStreamingOptions &
+    OpenAIMetadataOptions
+  [GPT5_2_CHAT.name]: OpenAIBaseOptions &
+    OpenAIReasoningOptions &
+    OpenAIStructuredOutputOptions &
+    OpenAIToolsOptions &
+    OpenAIStreamingOptions &
+    OpenAIMetadataOptions
+  [GPT5_2_PRO.name]: OpenAIBaseOptions &
+    OpenAIReasoningOptions &
+    OpenAIToolsOptions &
+    OpenAIStreamingOptions &
+    OpenAIMetadataOptions
   [GPT5_1.name]: OpenAIBaseOptions &
     OpenAIReasoningOptions &
     OpenAIStructuredOutputOptions &
@@ -1831,6 +1947,9 @@ export type OpenAIChatModelProviderOptionsByName = {
  * when consumed by external packages.
  */
 export type OpenAIModelInputModalitiesByName = {
+  [GPT5_2.name]: typeof GPT5_2.supports.input
+  [GPT5_2_PRO.name]: typeof GPT5_2_PRO.supports.input
+  [GPT5_2_CHAT.name]: typeof GPT5_2_CHAT.supports.input
   // Models with text + image input
   [GPT5_1.name]: typeof GPT5_1.supports.input
   [GPT5_1_CODEX.name]: typeof GPT5_1_CODEX.supports.input

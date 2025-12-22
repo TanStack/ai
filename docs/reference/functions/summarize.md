@@ -19,7 +19,7 @@ Supports both streaming and non-streaming modes.
 
 ### TAdapter
 
-`TAdapter` *extends* `SummarizeAdapter`\<`string`, `object`\>
+`TAdapter` *extends* [`SummarizeAdapter`](../interfaces/SummarizeAdapter.md)\<`string`, `object`\>
 
 ### TStream
 

@@ -17,7 +17,7 @@ Create typed options for the generateSpeech() function without executing.
 
 ### TAdapter
 
-`TAdapter` *extends* `TTSAdapter`\<`string`, `object`\>
+`TAdapter` *extends* [`TTSAdapter`](../interfaces/TTSAdapter.md)\<`string`, `object`\>
 
 ## Parameters
 

@@ -17,7 +17,7 @@ Create typed options for the generateTranscription() function without executing.
 
 ### TAdapter
 
-`TAdapter` *extends* `TranscriptionAdapter`\<`string`, `object`\>
+`TAdapter` *extends* [`TranscriptionAdapter`](../interfaces/TranscriptionAdapter.md)\<`string`, `object`\>
 
 ## Parameters
 

@@ -5,7 +5,7 @@ title: ContentStreamChunk
 
 # Interface: ContentStreamChunk
 
-Defined in: [types.ts:664](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L664)
+Defined in: [types.ts:648](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L648)
 
 ## Extends
 
@@ -19,7 +19,7 @@ Defined in: [types.ts:664](https://github.com/TanStack/ai/blob/main/packages/typ
 content: string;
 ```
 
-Defined in: [types.ts:667](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L667)
+Defined in: [types.ts:651](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L651)
 
 ***
 
@@ -29,7 +29,7 @@ Defined in: [types.ts:667](https://github.com/TanStack/ai/blob/main/packages/typ
 delta: string;
 ```
 
-Defined in: [types.ts:666](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L666)
+Defined in: [types.ts:650](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L650)
 
 ***
 
@@ -39,7 +39,7 @@ Defined in: [types.ts:666](https://github.com/TanStack/ai/blob/main/packages/typ
 id: string;
 ```
 
-Defined in: [types.ts:659](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L659)
+Defined in: [types.ts:643](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L643)
 
 #### Inherited from
 
@@ -53,7 +53,7 @@ Defined in: [types.ts:659](https://github.com/TanStack/ai/blob/main/packages/typ
 model: string;
 ```
 
-Defined in: [types.ts:660](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L660)
+Defined in: [types.ts:644](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L644)
 
 #### Inherited from
 
@@ -67,7 +67,7 @@ Defined in: [types.ts:660](https://github.com/TanStack/ai/blob/main/packages/typ
 optional role: "assistant";
 ```
 
-Defined in: [types.ts:668](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L668)
+Defined in: [types.ts:652](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L652)
 
 ***
 
@@ -77,7 +77,7 @@ Defined in: [types.ts:668](https://github.com/TanStack/ai/blob/main/packages/typ
 timestamp: number;
 ```
 
-Defined in: [types.ts:661](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L661)
+Defined in: [types.ts:645](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L645)
 
 #### Inherited from
 
@@ -91,7 +91,7 @@ Defined in: [types.ts:661](https://github.com/TanStack/ai/blob/main/packages/typ
 type: "content";
 ```
 
-Defined in: [types.ts:665](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L665)
+Defined in: [types.ts:649](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L649)
 
 #### Overrides
 

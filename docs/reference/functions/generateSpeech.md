@@ -19,7 +19,7 @@ Uses AI text-to-speech models to create audio from natural language text.
 
 ### TAdapter
 
-`TAdapter` *extends* `TTSAdapter`\<`string`, `object`\>
+`TAdapter` *extends* [`TTSAdapter`](../interfaces/TTSAdapter.md)\<`string`, `object`\>
 
 ## Parameters
 

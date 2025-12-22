@@ -19,7 +19,7 @@ Uses AI image generation models to create images based on natural language descr
 
 ### TAdapter
 
-`TAdapter` *extends* `ImageAdapter`\<`string`, `object`, `any`, `any`\>
+`TAdapter` *extends* [`ImageAdapter`](../interfaces/ImageAdapter.md)\<`string`, `object`, `any`, `any`\>
 
 ## Parameters
 
