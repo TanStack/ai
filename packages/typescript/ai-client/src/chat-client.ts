@@ -360,7 +360,7 @@ export class ChatClient {
       // Continue conversation if the stream ended with a tool result (server tool completed)
       if (streamCompletedSuccessfully) {
         const messages = this.processor.getMessages()
-        const lastPart = messages.at(-1)?.parts?.at(-1)
+        const lastPart = messages.at(-1)?.parts.at(-1)
 
         if (lastPart?.type === 'tool-result' && this.shouldAutoSend()) {
           try {

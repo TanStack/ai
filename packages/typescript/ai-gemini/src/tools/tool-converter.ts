@@ -1,4 +1,3 @@
-import { convertZodToJsonSchema } from '@tanstack/ai'
 import { convertCodeExecutionToolToAdapterFormat } from './code-execution-tool'
 import { convertComputerUseToolToAdapterFormat } from './computer-use-tool'
 import { convertFileSearchToolToAdapterFormat } from './file-search-tool'
@@ -76,13 +75,15 @@ export function convertToolsToProviderFormat<TTool extends Tool>(
           )
         }
 
-        // Convert Zod schema to JSON Schema
-        const jsonSchema = convertZodToJsonSchema(tool.inputSchema)
-
+        // Tool schemas are already converted to JSON Schema in the ai layer
         functionDeclarations.push({
           name: tool.name,
           description: tool.description,
-          parameters: jsonSchema,
+          parameters: tool.inputSchema ?? {
+            type: 'object',
+            properties: {},
+            required: [],
+          },
         })
         break
     }

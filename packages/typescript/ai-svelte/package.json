@@ -1,6 +1,6 @@
 {
   "name": "@tanstack/ai-svelte",
-  "version": "0.1.1",
+  "version": "0.2.0",
   "description": "Svelte bindings for TanStack AI",
   "author": "",
   "license": "MIT",
@@ -43,7 +43,6 @@
     "streaming"
   ],
   "dependencies": {
-    "@tanstack/ai": "workspace:*",
     "@tanstack/ai-client": "workspace:*",
     "svelte": "^5.20.0"
   },
@@ -56,12 +55,10 @@
     "svelte": "^5.20.0",
     "svelte-check": "^4.2.0",
     "typescript": "5.9.3",
-    "vite": "^7.2.4",
-    "zod": "^4.1.13"
+    "vite": "^7.2.7"
   },
   "peerDependencies": {
-    "@tanstack/ai": "workspace:*",
-    "@tanstack/ai-client": "workspace:*",
+    "@tanstack/ai": "workspace:^",
     "svelte": "^5.0.0"
   }
 }

@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { createFileRoute } from '@tanstack/react-router'
-import { Send, Square } from 'lucide-react'
+import { Loader2, Mic, MicOff, Send, Square, Volume2 } from 'lucide-react'
 import ReactMarkdown from 'react-markdown'
 import rehypeRaw from 'rehype-raw'
 import rehypeSanitize from 'rehype-sanitize'
@@ -12,6 +12,8 @@ import { ThinkingPart } from '@tanstack/ai-react-ui'
 
 import type { UIMessage } from '@tanstack/ai-react'
 
+import type { ModelOption } from '@/lib/model-selection'
+
 import GuitarRecommendation from '@/components/example-GuitarRecommendation'
 import {
   addToCartToolDef,
@@ -19,13 +21,16 @@ import {
   getPersonalGuitarPreferenceToolDef,
   recommendGuitarToolDef,
 } from '@/lib/guitar-tools'
+
 import {
   MODEL_OPTIONS,
   getDefaultModelOption,
   setStoredModelPreference,
-  type ModelOption,
 } from '@/lib/model-selection'
+
 import './tanchat.css'
+
+import { useAudioRecorder, useTTS } from '@/hooks'
 
 const getPersonalGuitarPreferenceToolClient =
   getPersonalGuitarPreferenceToolDef.client(() => ({ preference: 'acoustic' }))
@@ -71,12 +76,18 @@ function ChatInputArea({ children }: { children: React.ReactNode }) {
 function Messages({
   messages,
   addToolApprovalResponse,
+  playingId,
+  onSpeak,
+  onStopSpeaking,
 }: {
   messages: Array<UIMessage>
   addToolApprovalResponse: (response: {
     id: string
     approved: boolean
   }) => Promise<void>
+  playingId: string | null
+  onSpeak: (text: string, id: string) => void
+  onStopSpeaking: () => void
 }) {
   const messagesContainerRef = useRef<HTMLDivElement>(null)
 
@@ -91,12 +102,23 @@ function Messages({
     return null
   }
 
+  // Extract text content from a message for TTS
+  const getMessageText = (parts: UIMessage['parts']): string => {
+    return parts
+      .filter((part) => part.type === 'text' && part.content)
+      .map((part) => (part as { type: 'text'; content: string }).content)
+      .join(' ')
+  }
+
   return (
     <div
       ref={messagesContainerRef}
       className="flex-1 overflow-y-auto px-4 py-4"
     >
       {messages.map(({ id, role, parts }) => {
+        const messageText = role === 'assistant' ? getMessageText(parts) : ''
+        const isPlaying = playingId === id
+
         return (
           <div
             key={id}
@@ -227,6 +249,30 @@ function Messages({
                   return null
                 })}
               </div>
+              {/* Speaker button for assistant messages */}
+              {role === 'assistant' && messageText && (
+                <button
+                  onClick={() => {
+                    if (isPlaying) {
+                      onStopSpeaking()
+                    } else {
+                      onSpeak(messageText, id)
+                    }
+                  }}
+                  className={`shrink-0 p-2 rounded-lg transition-colors ${
+                    isPlaying
+                      ? 'bg-orange-500 text-white'
+                      : 'text-gray-400 hover:text-orange-400 hover:bg-gray-800'
+                  }`}
+                  title={isPlaying ? 'Stop speaking' : 'Read aloud'}
+                >
+                  {isPlaying ? (
+                    <Loader2 className="w-5 h-5 animate-spin" />
+                  ) : (
+                    <Volume2 className="w-5 h-5" />
+                  )}
+                </button>
+              )}
             </div>
           </div>
         )
@@ -381,6 +427,11 @@ function ChatPage() {
     getDefaultModelOption(),
   )
 
+  // Audio hooks
+  const { isRecording, isTranscribing, startRecording, stopRecording } =
+    useAudioRecorder()
+  const { playingId, speak, stop: stopSpeaking } = useTTS()
+
   // Generate trace ID on mount: chat_YYMMDD_HHMMSS
   const [traceId] = useState(() => {
     const now = new Date()
@@ -414,6 +465,20 @@ function ChatPage() {
   const [input, setInput] = useState('')
 
   const clearChunks = () => setChunks([])
+
+  // Handle microphone toggle
+  const handleMicToggle = async () => {
+    if (isRecording) {
+      const transcribedText = await stopRecording()
+      if (transcribedText) {
+        setInput((prev) =>
+          prev ? `${prev} ${transcribedText}` : transcribedText,
+        )
+      }
+    } else {
+      await startRecording()
+    }
+  }
 
   return (
     <div className="flex h-[calc(100vh-72px)] bg-gray-900">
@@ -459,6 +524,9 @@ function ChatPage() {
         <Messages
           messages={messages}
           addToolApprovalResponse={addToolApprovalResponse}
+          playingId={playingId}
+          onSpeak={speak}
+          onStopSpeaking={stopSpeaking}
         />
 
         <ChatInputArea>
@@ -478,11 +546,17 @@ function ChatPage() {
               <textarea
                 value={input}
                 onChange={(e) => setInput(e.target.value)}
-                placeholder="Type something clever (or don't, we won't judge)..."
-                className="w-full rounded-lg border border-orange-500/20 bg-gray-800/50 pl-4 pr-12 py-3 text-sm text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-orange-500/50 focus:border-transparent resize-none overflow-hidden shadow-lg"
+                placeholder={
+                  isRecording
+                    ? 'Recording... Click mic to stop'
+                    : isTranscribing
+                      ? 'Transcribing...'
+                      : "Type something clever (or don't, we won't judge)..."
+                }
+                className="w-full rounded-lg border border-orange-500/20 bg-gray-800/50 pl-4 pr-24 py-3 text-sm text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-orange-500/50 focus:border-transparent resize-none overflow-hidden shadow-lg"
                 rows={1}
                 style={{ minHeight: '44px', maxHeight: '200px' }}
-                disabled={isLoading}
+                disabled={isLoading || isRecording || isTranscribing}
                 onInput={(e) => {
                   const target = e.target as HTMLTextAreaElement
                   target.style.height = 'auto'
@@ -497,18 +571,50 @@ function ChatPage() {
                   }
                 }}
               />
-              <button
-                onClick={() => {
-                  if (input.trim()) {
-                    sendMessage(input)
-                    setInput('')
+              <div className="absolute right-2 top-1/2 -translate-y-1/2 flex items-center gap-1">
+                {/* Microphone button */}
+                <button
+                  onClick={handleMicToggle}
+                  disabled={isLoading || isTranscribing}
+                  className={`p-2 transition-colors focus:outline-none rounded-lg ${
+                    isRecording
+                      ? 'text-red-500 bg-red-500/20 animate-pulse'
+                      : isTranscribing
+                        ? 'text-orange-400'
+                        : 'text-gray-400 hover:text-orange-400 hover:bg-gray-700'
+                  } disabled:opacity-50`}
+                  title={
+                    isRecording
+                      ? 'Stop recording'
+                      : isTranscribing
+                        ? 'Transcribing...'
+                        : 'Start voice input'
                   }
-                }}
-                disabled={!input.trim() || isLoading}
-                className="absolute right-2 top-1/2 -translate-y-1/2 p-2 text-orange-500 hover:text-orange-400 disabled:text-gray-500 transition-colors focus:outline-none"
-              >
-                <Send className="w-4 h-4" />
-              </button>
+                >
+                  {isTranscribing ? (
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                  ) : isRecording ? (
+                    <MicOff className="w-4 h-4" />
+                  ) : (
+                    <Mic className="w-4 h-4" />
+                  )}
+                </button>
+                {/* Send button */}
+                <button
+                  onClick={() => {
+                    if (input.trim()) {
+                      sendMessage(input)
+                      setInput('')
+                    }
+                  }}
+                  disabled={
+                    !input.trim() || isLoading || isRecording || isTranscribing
+                  }
+                  className="p-2 text-orange-500 hover:text-orange-400 disabled:text-gray-500 transition-colors focus:outline-none"
+                >
+                  <Send className="w-4 h-4" />
+                </button>
+              </div>
             </div>
           </div>
         </ChatInputArea>

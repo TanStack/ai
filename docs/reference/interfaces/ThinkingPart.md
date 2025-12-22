@@ -5,7 +5,7 @@ title: ThinkingPart
 
 # Interface: ThinkingPart
 
-Defined in: [types.ts:266](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L266)
+Defined in: [types.ts:278](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L278)
 
 ## Properties
 
@@ -15,7 +15,7 @@ Defined in: [types.ts:266](https://github.com/TanStack/ai/blob/main/packages/typ
 content: string;
 ```
 
-Defined in: [types.ts:268](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L268)
+Defined in: [types.ts:280](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L280)
 
 ***
 
@@ -25,4 +25,4 @@ Defined in: [types.ts:268](https://github.com/TanStack/ai/blob/main/packages/typ
 type: "thinking";
 ```
 
-Defined in: [types.ts:267](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L267)
+Defined in: [types.ts:279](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L279)

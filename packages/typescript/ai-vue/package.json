@@ -1,6 +1,6 @@
 {
   "name": "@tanstack/ai-vue",
-  "version": "0.0.2",
+  "version": "0.2.0",
   "description": "Vue hooks for TanStack AI",
   "author": "",
   "license": "MIT",
@@ -39,9 +39,7 @@
     "streaming"
   ],
   "dependencies": {
-    "@tanstack/ai": "workspace:*",
-    "@tanstack/ai-client": "workspace:*",
-    "zod": "^4.1.13"
+    "@tanstack/ai-client": "workspace:*"
   },
   "devDependencies": {
     "@types/node": "^24.10.1",
@@ -54,8 +52,7 @@
     "vue": "^3.5.25"
   },
   "peerDependencies": {
-    "@tanstack/ai": "workspace:*",
-    "@tanstack/ai-client": "workspace:*",
+    "@tanstack/ai": "workspace:^",
     "vue": ">=3.5.0"
   }
 }

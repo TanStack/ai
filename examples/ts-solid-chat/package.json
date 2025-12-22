@@ -9,7 +9,7 @@
     "test": "exit 0"
   },
   "dependencies": {
-    "@tailwindcss/vite": "^4.1.17",
+    "@tailwindcss/vite": "^4.1.18",
     "@tanstack/ai": "workspace:*",
     "@tanstack/ai-anthropic": "workspace:*",
     "@tanstack/ai-client": "workspace:*",
@@ -19,7 +19,7 @@
     "@tanstack/ai-openai": "workspace:*",
     "@tanstack/ai-solid": "workspace:*",
     "@tanstack/ai-solid-ui": "workspace:*",
-    "@tanstack/nitro-v2-vite-plugin": "^1.139.0",
+    "@tanstack/nitro-v2-vite-plugin": "^1.141.0",
     "@tanstack/router-plugin": "^1.139.7",
     "@tanstack/solid-ai-devtools": "workspace:*",
     "@tanstack/solid-devtools": "^0.7.15",
@@ -33,9 +33,9 @@
     "lucide-solid": "^0.554.0",
     "solid-js": "^1.9.10",
     "solid-markdown": "^2.1.0",
-    "tailwindcss": "^4.1.17",
+    "tailwindcss": "^4.1.18",
     "vite-tsconfig-paths": "^5.1.4",
-    "zod": "^4.1.13"
+    "zod": "^4.2.0"
   },
   "devDependencies": {
     "@solidjs/testing-library": "^0.8.10",
@@ -45,7 +45,7 @@
     "@types/node": "^24.10.1",
     "jsdom": "^27.2.0",
     "typescript": "5.9.3",
-    "vite": "^7.2.4",
+    "vite": "^7.2.7",
     "vite-plugin-solid": "^2.11.10",
     "vitest": "^4.0.14",
     "web-vitals": "^5.1.0"

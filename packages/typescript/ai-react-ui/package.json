@@ -1,6 +1,6 @@
 {
   "name": "@tanstack/ai-react-ui",
-  "version": "0.0.3",
+  "version": "0.2.0",
   "description": "Headless React components for building AI chat interfaces",
   "module": "./dist/esm/index.js",
   "types": "./dist/esm/index.d.ts",
@@ -42,15 +42,15 @@
     "remark-gfm": "^4.0.1"
   },
   "peerDependencies": {
-    "@tanstack/ai-client": "workspace:*",
     "@tanstack/ai-react": "workspace:*",
     "@types/react": ">=18.0.0",
     "react": "^18.0.0 || ^19.0.0",
     "react-dom": "^18.0.0 || ^19.0.0"
   },
   "devDependencies": {
+    "@tanstack/ai-client": "workspace:*",
     "@vitest/coverage-v8": "4.0.14",
-    "vite": "^7.2.4"
+    "vite": "^7.2.7"
   },
   "files": [
     "dist"

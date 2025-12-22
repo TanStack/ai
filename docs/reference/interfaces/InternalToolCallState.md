@@ -5,7 +5,7 @@ title: InternalToolCallState
 
 # Interface: InternalToolCallState
 
-Defined in: [stream/types.ts:31](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/stream/types.ts#L31)
+Defined in: [activities/chat/stream/types.ts:21](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/activities/chat/stream/types.ts#L21)
 
 Internal state for a tool call being tracked
 
@@ -17,7 +17,7 @@ Internal state for a tool call being tracked
 arguments: string;
 ```
 
-Defined in: [stream/types.ts:34](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/stream/types.ts#L34)
+Defined in: [activities/chat/stream/types.ts:24](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/activities/chat/stream/types.ts#L24)
 
 ***
 
@@ -27,7 +27,7 @@ Defined in: [stream/types.ts:34](https://github.com/TanStack/ai/blob/main/packag
 id: string;
 ```
 
-Defined in: [stream/types.ts:32](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/stream/types.ts#L32)
+Defined in: [activities/chat/stream/types.ts:22](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/activities/chat/stream/types.ts#L22)
 
 ***
 
@@ -37,7 +37,7 @@ Defined in: [stream/types.ts:32](https://github.com/TanStack/ai/blob/main/packag
 index: number;
 ```
 
-Defined in: [stream/types.ts:37](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/stream/types.ts#L37)
+Defined in: [activities/chat/stream/types.ts:27](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/activities/chat/stream/types.ts#L27)
 
 ***
 
@@ -47,7 +47,7 @@ Defined in: [stream/types.ts:37](https://github.com/TanStack/ai/blob/main/packag
 name: string;
 ```
 
-Defined in: [stream/types.ts:33](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/stream/types.ts#L33)
+Defined in: [activities/chat/stream/types.ts:23](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/activities/chat/stream/types.ts#L23)
 
 ***
 
@@ -57,7 +57,7 @@ Defined in: [stream/types.ts:33](https://github.com/TanStack/ai/blob/main/packag
 optional parsedArguments: any;
 ```
 
-Defined in: [stream/types.ts:36](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/stream/types.ts#L36)
+Defined in: [activities/chat/stream/types.ts:26](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/activities/chat/stream/types.ts#L26)
 
 ***
 
@@ -67,4 +67,4 @@ Defined in: [stream/types.ts:36](https://github.com/TanStack/ai/blob/main/packag
 state: ToolCallState;
 ```
 
-Defined in: [stream/types.ts:35](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/stream/types.ts#L35)
+Defined in: [activities/chat/stream/types.ts:25](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/activities/chat/stream/types.ts#L25)

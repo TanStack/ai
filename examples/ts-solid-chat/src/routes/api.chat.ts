@@ -1,6 +1,6 @@
 import { createFileRoute } from '@tanstack/solid-router'
-import { chat, maxIterations, toStreamResponse } from '@tanstack/ai'
-import { anthropic } from '@tanstack/ai-anthropic'
+import { chat, maxIterations, toServerSentEventsStream } from '@tanstack/ai'
+import { anthropicText } from '@tanstack/ai-anthropic'
 import { serverTools } from '@/lib/guitar-tools'
 
 const SYSTEM_PROMPT = `You are a helpful assistant for a guitar store.
@@ -57,13 +57,12 @@ export const Route = createFileRoute('/api/chat')({
         try {
           // Use the stream abort signal for proper cancellation handling
           const stream = chat({
-            adapter: anthropic(),
-            model: 'claude-sonnet-4-5-20250929',
+            adapter: anthropicText('claude-sonnet-4-5'),
             tools: serverTools,
             systemPrompts: [SYSTEM_PROMPT],
             agentLoopStrategy: maxIterations(20),
             messages,
-            providerOptions: {
+            modelOptions: {
               thinking: {
                 type: 'enabled',
                 budget_tokens: 10000,
@@ -72,7 +71,17 @@ export const Route = createFileRoute('/api/chat')({
             abortController,
           })
 
-          return toStreamResponse(stream, { abortController })
+          const readableStream = toServerSentEventsStream(
+            stream,
+            abortController,
+          )
+          return new Response(readableStream, {
+            headers: {
+              'Content-Type': 'text/event-stream',
+              'Cache-Control': 'no-cache',
+              Connection: 'keep-alive',
+            },
+          })
         } catch (error: any) {
           // If request was aborted, return early (don't send error response)
           if (error.name === 'AbortError' || abortController.signal.aborted) {
