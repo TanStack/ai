@@ -48,6 +48,7 @@
     "react-dom": "^18.0.0 || ^19.0.0"
   },
   "devDependencies": {
+    "@tanstack/ai-client": "workspace:*",
     "@vitest/coverage-v8": "4.0.14",
     "vite": "^7.2.7"
   },
