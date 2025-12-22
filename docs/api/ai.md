@@ -12,9 +12,176 @@ The core AI library for TanStack AI.
 npm install @tanstack/ai
 ```
 
-## `chat(options)`
+## Migration: `chat` → `text` + `agentLoop`
 
-Creates a streaming chat response.
+The `chat` function is being replaced by two focused functions:
+
+| Old API | New API | Use Case |
+|---------|---------|----------|
+| `chat({ tools: [...] })` | `agentLoop({ ... })` | Agentic workflows with tool execution |
+| `chat({ })` (no tools) | `text({ ... })` | Simple text generation |
+
+Both new functions are currently exported as `experimental_text` and `experimental_agentLoop`.
+
+### Why the change?
+
+- **Clearer intent**: `text` is for simple generation, `agentLoop` is for agentic workflows
+- **Simpler APIs**: Each function is focused on its use case
+- **Better defaults**: No need to configure agent loop strategies for simple text generation
+
+---
+
+## `text(options)` (Experimental)
+
+Simple text generation without tool support. Use this for straightforward chat completions and structured output.
+
+```typescript
+import { experimental_text as text } from "@tanstack/ai";
+import { openaiText } from "@tanstack/ai-openai";
+
+// Streaming (default)
+for await (const chunk of text({
+  adapter: openaiText("gpt-4o"),
+  messages: [{ role: "user", content: "Tell me a joke" }],
+})) {
+  if (chunk.type === "content") {
+    process.stdout.write(chunk.delta);
+  }
+}
+
+// Non-streaming
+const response = await text({
+  adapter: openaiText("gpt-4o"),
+  messages: [{ role: "user", content: "What is 2+2?" }],
+  stream: false,
+});
+
+// Structured output
+import { z } from "zod";
+const person = await text({
+  adapter: openaiText("gpt-4o"),
+  messages: [{ role: "user", content: "Generate a person" }],
+  outputSchema: z.object({
+    name: z.string(),
+    age: z.number(),
+  }),
+});
+```
+
+### Options
+
+| Option | Type | Description |
+|--------|------|-------------|
+| `adapter` | `AnyTextAdapter` | **Required.** The text adapter (e.g., `openaiText('gpt-4o')`) |
+| `messages` | `ModelMessage[]` | Conversation messages |
+| `systemPrompts` | `string[]` | System prompts to prepend |
+| `temperature` | `number` | Randomness (0.0-2.0) |
+| `topP` | `number` | Nucleus sampling parameter |
+| `maxTokens` | `number` | Maximum tokens to generate |
+| `metadata` | `Record<string, unknown>` | Request metadata |
+| `modelOptions` | Provider-specific | Model-specific options |
+| `abortController` | `AbortController` | For cancellation |
+| `conversationId` | `string` | Tracking identifier |
+| `outputSchema` | `StandardSchema` | For structured output |
+| `stream` | `boolean` | Stream output (default: `true`) |
+
+### Returns
+
+- Default: `AsyncIterable<StreamChunk>` (streaming)
+- With `stream: false`: `Promise<string>`
+- With `outputSchema`: `Promise<InferSchemaType<TSchema>>`
+
+---
+
+## `agentLoop(options)` (Experimental)
+
+Agentic text generation with automatic tool execution. Use this when you need the model to call tools and loop until completion.
+
+```typescript
+import { experimental_agentLoop as agentLoop, maxIterations } from "@tanstack/ai";
+import { openaiText } from "@tanstack/ai-openai";
+
+// Streaming with tools
+for await (const chunk of agentLoop({
+  adapter: openaiText("gpt-4o"),
+  messages: [{ role: "user", content: "What's the weather in Paris?" }],
+  tools: [weatherTool],
+})) {
+  if (chunk.type === "content") {
+    process.stdout.write(chunk.delta);
+  } else if (chunk.type === "tool_result") {
+    console.log("Tool result:", chunk.content);
+  }
+}
+
+// Structured output with tools
+import { z } from "zod";
+const result = await agentLoop({
+  adapter: openaiText("gpt-4o"),
+  messages: [{ role: "user", content: "Research the weather and summarize" }],
+  tools: [weatherTool, searchTool],
+  outputSchema: z.object({
+    summary: z.string(),
+    temperature: z.number(),
+  }),
+});
+
+// With agent loop strategy
+for await (const chunk of agentLoop({
+  adapter: openaiText("gpt-4o"),
+  messages: [{ role: "user", content: "Complete this task" }],
+  tools: [myTools],
+  agentLoopStrategy: maxIterations(10),
+})) {
+  // ...
+}
+```
+
+### Options
+
+| Option | Type | Description |
+|--------|------|-------------|
+| `adapter` | `AnyTextAdapter` | **Required.** The text adapter (e.g., `openaiText('gpt-4o')`) |
+| `messages` | `ModelMessage[]` | **Required.** Conversation messages |
+| `tools` | `Tool[]` | Tools for function calling |
+| `systemPrompts` | `string[]` | System prompts to prepend |
+| `temperature` | `number` | Randomness (0.0-2.0) |
+| `topP` | `number` | Nucleus sampling parameter |
+| `maxTokens` | `number` | Maximum tokens to generate |
+| `metadata` | `Record<string, unknown>` | Request metadata |
+| `modelOptions` | Provider-specific | Model-specific options |
+| `abortController` | `AbortController` | For cancellation |
+| `agentLoopStrategy` | `AgentLoopStrategy` | Controls loop behavior (default: `maxIterations(5)`) |
+| `conversationId` | `string` | Tracking identifier |
+| `outputSchema` | `z.ZodType` | For structured output after tool execution |
+
+### Returns
+
+- Default: `AsyncIterable<StreamChunk>` (streaming)
+- With `outputSchema`: `Promise<z.infer<TSchema>>`
+
+### Legacy API
+
+The `agentLoop` function also supports a callback-based API for advanced use cases:
+
+```typescript
+const textFn = (opts) => chat({ adapter: openaiText("gpt-4o"), ...opts });
+
+for await (const chunk of agentLoop(textFn, {
+  messages: [...],
+  tools: [...],
+})) {
+  // ...
+}
+```
+
+---
+
+## `chat(options)` (Deprecated)
+
+> **Note**: `chat` will be replaced by `text` (for simple generation) and `agentLoop` (for agentic workflows). See the migration guide above.
+
+Creates a streaming chat response with optional tool support.
 
 ```typescript
 import { chat } from "@tanstack/ai";
@@ -31,45 +198,19 @@ const stream = chat({
 
 ### Parameters
 
-- `adapter` - An AI adapter instance with model (e.g., `openaiText('gpt-4o')`, `anthropicText('claude-sonnet-4-5')`)
+- `adapter` - An AI adapter instance with model (e.g., `openaiText('gpt-4o')`)
 - `messages` - Array of chat messages
 - `tools?` - Array of tools for function calling
 - `systemPrompts?` - System prompts to prepend to messages
 - `agentLoopStrategy?` - Strategy for agent loops (default: `maxIterations(5)`)
 - `abortController?` - AbortController for cancellation
-- `modelOptions?` - Model-specific options (renamed from `providerOptions`)
+- `modelOptions?` - Model-specific options
 
 ### Returns
 
 An async iterable of `StreamChunk`.
 
-## `summarize(options)`
-
-Creates a text summarization.
-
-```typescript
-import { summarize } from "@tanstack/ai";
-import { openaiSummarize } from "@tanstack/ai-openai";
-
-const result = await summarize({
-  adapter: openaiSummarize("gpt-4o"),
-  text: "Long text to summarize...",
-  maxLength: 100,
-  style: "concise",
-});
-```
-
-### Parameters
-
-- `adapter` - An AI adapter instance with model
-- `text` - Text to summarize
-- `maxLength?` - Maximum length of summary
-- `style?` - Summary style ("concise" | "detailed")
-- `modelOptions?` - Model-specific options
-
-### Returns
-
-A `SummarizationResult` with the summary text.
+---
 
 ## `toolDefinition(config)`
 
@@ -88,33 +229,24 @@ const myToolDef = toolDefinition({
   outputSchema: z.object({
     result: z.string(),
   }),
-  needsApproval: false, // Optional
+  needsApproval: false,
 });
 
-// Or create client implementation
-const myClientTool = myToolDef.client(async ({ param }) => {
-  // Client-side implementation
-  return { result: "..." };
-});
-
-// Use directly in chat() (server-side, no execute)
-chat({
-  adapter: openaiText("gpt-4o"),
-  tools: [myToolDef],
-  messages: [{ role: "user", content: "..." }],
-});
-
-// Or create server implementation
+// Server implementation
 const myServerTool = myToolDef.server(async ({ param }) => {
-  // Server-side implementation
   return { result: "..." };
 });
 
-// Use directly in chat() (server-side, no execute)
-chat({
+// Client implementation
+const myClientTool = myToolDef.client(async ({ param }) => {
+  return { result: "..." };
+});
+
+// Use in agentLoop
+agentLoop({
   adapter: openaiText("gpt-4o"),
   tools: [myServerTool],
-  messages: [{ role: "user", content: "..." }],
+  messages: [...],
 });
 ```
 
@@ -129,81 +261,97 @@ chat({
 
 ### Returns
 
-A `ToolDefinition` object with `.server()` and `.client()` methods for creating concrete implementations.
+A `ToolDefinition` object with `.server()` and `.client()` methods.
 
-## `toServerSentEventsStream(stream, abortController?)`
+---
+
+## Agent Loop Strategies
+
+Control how the agent loop behaves with these strategy functions.
+
+### `maxIterations(count)`
+
+Limits the number of tool execution iterations.
+
+```typescript
+import { maxIterations } from "@tanstack/ai";
+
+agentLoop({
+  adapter: openaiText("gpt-4o"),
+  messages: [...],
+  tools: [...],
+  agentLoopStrategy: maxIterations(10),
+});
+```
+
+### `untilFinishReason(reason)`
+
+Continues until a specific finish reason is reached.
+
+```typescript
+import { untilFinishReason } from "@tanstack/ai";
+
+agentLoop({
+  // ...
+  agentLoopStrategy: untilFinishReason("stop"),
+});
+```
+
+### `combineStrategies(...strategies)`
+
+Combines multiple strategies (all must return true to continue).
+
+```typescript
+import { combineStrategies, maxIterations, untilFinishReason } from "@tanstack/ai";
+
+agentLoop({
+  // ...
+  agentLoopStrategy: combineStrategies(
+    maxIterations(20),
+    untilFinishReason("stop")
+  ),
+});
+```
+
+---
+
+## Stream Utilities
+
+### `toServerSentEventsStream(stream, abortController?)`
 
 Converts a stream to a ReadableStream in Server-Sent Events format.
 
 ```typescript
-import { chat, toServerSentEventsStream } from "@tanstack/ai";
-import { openaiText } from "@tanstack/ai-openai";
+import { toServerSentEventsStream, agentLoop } from "@tanstack/ai";
 
-const stream = chat({
-  adapter: openaiText("gpt-4o"),
-  messages: [...],
-});
+const stream = agentLoop({ adapter, messages, tools });
 const readableStream = toServerSentEventsStream(stream);
-```
 
-### Parameters
-
-- `stream` - Async iterable of `StreamChunk`
-- `abortController?` - Optional AbortController to abort when stream is cancelled
-
-### Returns
-
-A `ReadableStream<Uint8Array>` in Server-Sent Events format. Each chunk is:
-- Prefixed with `"data: "`
-- Followed by `"\n\n"`
-- Stream ends with `"data: [DONE]\n\n"`
-
-## `toStreamResponse(stream, init?)`
-
-Converts a stream to an HTTP Response with proper SSE headers.
-
-```typescript
-import { chat, toStreamResponse } from "@tanstack/ai";
-import { openaiText } from "@tanstack/ai-openai";
-
-const stream = chat({
-  adapter: openaiText("gpt-4o"),
-  messages: [...],
-});
-return toStreamResponse(stream);
-```
-
-### Parameters
-
-- `stream` - Async iterable of `StreamChunk`
-- `init?` - Optional ResponseInit options (including `abortController`)
-
-### Returns
-
-A `Response` object suitable for HTTP endpoints with SSE headers (`Content-Type: text/event-stream`, `Cache-Control: no-cache`, `Connection: keep-alive`).
-
-## `maxIterations(count)`
-
-Creates an agent loop strategy that limits iterations.
-
-```typescript
-import { chat, maxIterations } from "@tanstack/ai";
-import { openaiText } from "@tanstack/ai-openai";
-
-const stream = chat({
-  adapter: openaiText("gpt-4o"),
-  messages: [...],
-  agentLoopStrategy: maxIterations(20),
+return new Response(readableStream, {
+  headers: {
+    "Content-Type": "text/event-stream",
+    "Cache-Control": "no-cache",
+    Connection: "keep-alive",
+  },
 });
 ```
 
-### Parameters
+### `streamToText(stream)`
 
-- `count` - Maximum number of tool execution iterations
+Collects a stream into a single string.
 
-### Returns
+```typescript
+import { streamToText, experimental_text as text } from "@tanstack/ai";
 
-An `AgentLoopStrategy` object.
+const result = await streamToText(
+  text({
+    adapter: openaiText("gpt-4o"),
+    messages: [{ role: "user", content: "Hello" }],
+  })
+);
+```
+
+---
 
 ## Types
 
@@ -227,21 +375,12 @@ type StreamChunk =
   | ToolResultStreamChunk
   | DoneStreamChunk
   | ErrorStreamChunk;
-
-interface ThinkingStreamChunk {
-  type: "thinking";
-  id: string;
-  model: string;
-  timestamp: number;
-  delta?: string; // Incremental thinking token
-  content: string; // Accumulated thinking content
-}
 ```
 
-Stream chunks represent different types of data in the stream:
+Stream chunks represent different types of data:
 
 - **Content chunks** - Text content being generated
-- **Thinking chunks** - Model's reasoning process (when supported by the model)
+- **Thinking chunks** - Model's reasoning process (when supported)
 - **Tool call chunks** - When the model calls a tool
 - **Tool result chunks** - Results from tool execution
 - **Done chunks** - Stream completion
@@ -262,83 +401,111 @@ interface Tool {
 }
 ```
 
-## Usage Examples
+---
+
+## Complete Examples
+
+### Simple Text Generation
 
 ```typescript
-import { chat, summarize, generateImage } from "@tanstack/ai";
-import {
-  openaiText,
-  openaiSummarize,
-  openaiImage,
-} from "@tanstack/ai-openai";
+import { experimental_text as text } from "@tanstack/ai";
+import { openaiText } from "@tanstack/ai-openai";
 
-// --- Streaming chat
-const stream = chat({
+// Streaming
+for await (const chunk of text({
   adapter: openaiText("gpt-4o"),
-  messages: [{ role: "user", content: "Hello!" }],
-});
+  messages: [{ role: "user", content: "Write a haiku" }],
+})) {
+  if (chunk.type === "content") {
+    process.stdout.write(chunk.delta);
+  }
+}
 
-// --- One-shot chat response (stream: false)
-const response = await chat({
+// Non-streaming
+const response = await text({
   adapter: openaiText("gpt-4o"),
   messages: [{ role: "user", content: "What's the capital of France?" }],
-  stream: false, // Returns a Promise<string> instead of AsyncIterable
+  stream: false,
 });
+```
 
-// --- Structured response with outputSchema
+### Agentic Workflow with Tools
+
+```typescript
+import { experimental_agentLoop as agentLoop, toolDefinition } from "@tanstack/ai";
+import { openaiText } from "@tanstack/ai-openai";
 import { z } from "zod";
-const parsed = await chat({
-  adapter: openaiText("gpt-4o"),
-  messages: [{ role: "user", content: "Summarize this text in JSON with keys 'summary' and 'keywords': ... " }],
-  outputSchema: z.object({
-    summary: z.string(),
-    keywords: z.array(z.string()),
-  }),
-});
 
-// --- Structured response with tools
-import { toolDefinition } from "@tanstack/ai";
 const weatherTool = toolDefinition({
   name: "getWeather",
   description: "Get the current weather for a city",
   inputSchema: z.object({
-    city: z.string().describe("City name"),
+    city: z.string(),
   }),
 }).server(async ({ city }) => {
-  // Implementation that fetches weather info
   return JSON.stringify({ temperature: 72, condition: "Sunny" });
 });
 
-const toolResult = await chat({
+for await (const chunk of agentLoop({
   adapter: openaiText("gpt-4o"),
-  messages: [
-    { role: "user", content: "What's the weather in Paris?" }
-  ],
+  messages: [{ role: "user", content: "What's the weather in Paris?" }],
   tools: [weatherTool],
+})) {
+  if (chunk.type === "content") {
+    process.stdout.write(chunk.delta);
+  }
+}
+```
+
+### Structured Output
+
+```typescript
+import { experimental_text as text } from "@tanstack/ai";
+import { openaiText } from "@tanstack/ai-openai";
+import { z } from "zod";
+
+const person = await text({
+  adapter: openaiText("gpt-4o"),
+  messages: [{ role: "user", content: "Generate a fictional character" }],
   outputSchema: z.object({
-    answer: z.string(),
-    weather: z.object({
-      temperature: z.number(),
-      condition: z.string(),
-    }),
+    name: z.string(),
+    age: z.number(),
+    backstory: z.string(),
   }),
 });
 
-// --- Summarization
-const summary = await summarize({
-  adapter: openaiSummarize("gpt-4o"),
-  text: "Long text to summarize...",
-  maxLength: 100,
+console.log(person.name, person.age);
+```
+
+### Structured Output with Tool Execution
+
+```typescript
+import { experimental_agentLoop as agentLoop, toolDefinition } from "@tanstack/ai";
+import { openaiText } from "@tanstack/ai-openai";
+import { z } from "zod";
+
+const searchTool = toolDefinition({
+  name: "search",
+  description: "Search for information",
+  inputSchema: z.object({ query: z.string() }),
+}).server(async ({ query }) => {
+  return `Results for: ${query}`;
 });
 
-// --- Image generation
-const image = await generateImage({
-  adapter: openaiImage("dall-e-3"),
-  prompt: "A futuristic city skyline at sunset",
-  numberOfImages: 1,
-  size: "1024x1024",
+const result = await agentLoop({
+  adapter: openaiText("gpt-4o"),
+  messages: [{ role: "user", content: "Research AI trends and summarize" }],
+  tools: [searchTool],
+  outputSchema: z.object({
+    summary: z.string(),
+    keyPoints: z.array(z.string()),
+  }),
 });
+
+console.log(result.summary);
 ```
+
+---
 
 ## Next Steps
 

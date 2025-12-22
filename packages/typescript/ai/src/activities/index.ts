@@ -32,6 +32,17 @@ export {
   type TextActivityResult,
 } from './chat/index'
 
+// ===========================
+// Text Activity (Experimental)
+// ===========================
+
+export {
+  text,
+  createTextOptions,
+  type TextOptions_ as TextOptions,
+  type TextResult,
+} from './text/index'
+
 export {
   BaseTextAdapter,
   type AnyTextAdapter,
