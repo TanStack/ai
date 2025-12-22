@@ -1,10 +1,7 @@
 import { mkdir, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
-import {
-  experimental_agentLoop as agentLoop,
-  experimental_text as text,
-} from '@tanstack/ai'
-import type { Tool, AgentLoopStrategy } from '@tanstack/ai'
+import { chat } from '@tanstack/ai'
+import type { Tool } from '@tanstack/ai'
 
 const OUTPUT_DIR = join(process.cwd(), 'output')
 
@@ -54,8 +51,6 @@ export interface AdapterContext {
   textAdapter: any
   /** Summarize adapter for text summarization */
   summarizeAdapter?: any
-  /** Embedding adapter for vector embeddings */
-  embeddingAdapter?: any
   /** Image adapter for image generation */
   imageAdapter?: any
   /** TTS adapter for text-to-speech */
@@ -66,8 +61,6 @@ export interface AdapterContext {
   model: string
   /** Model for summarization */
   summarizeModel?: string
-  /** Model for embeddings */
-  embeddingModel?: string
   /** Model for image generation */
   imageModel?: string
   /** Model for TTS */
@@ -158,7 +151,7 @@ export async function captureStream(opts: {
   model: string
   messages: Array<any>
   tools?: Array<Tool>
-  agentLoopStrategy?: AgentLoopStrategy
+  agentLoopStrategy?: any
 }): Promise<StreamCapture> {
   const {
     adapterName: _adapterName,
@@ -171,27 +164,13 @@ export async function captureStream(opts: {
     agentLoopStrategy,
   } = opts
 
-  // Create the text creator function for agentLoop
-  const textFn = (textOpts: any) =>
-    text({
-      adapter: textAdapter,
-      model,
-      ...textOpts,
-    })
-
-  // Use agentLoop if tools are provided, otherwise use text directly
-  const stream =
-    tools && tools.length > 0
-      ? agentLoop(textFn, {
-          messages,
-          tools,
-          agentLoopStrategy,
-        })
-      : text({
-          adapter: textAdapter,
-          model,
-          messages,
-        })
+  const stream = chat({
+    adapter: textAdapter,
+    model,
+    messages,
+    tools,
+    agentLoopStrategy,
+  })
 
   let chunkIndex = 0
   let fullResponse = ''

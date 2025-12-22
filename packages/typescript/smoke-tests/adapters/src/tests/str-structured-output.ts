@@ -1,4 +1,4 @@
-import { experimental_text as text } from '@tanstack/ai'
+import { chat } from '@tanstack/ai'
 import { z } from 'zod'
 import { writeDebugFile } from '../harness'
 import type { AdapterContext, TestOutcome } from '../harness'
@@ -43,7 +43,7 @@ export async function runSTR(
   }
 
   try {
-    const result = (await text({
+    const result = (await chat({
       adapter: adapterContext.textAdapter,
       model: adapterContext.model,
       messages: [

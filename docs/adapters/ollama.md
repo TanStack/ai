@@ -1,6 +1,7 @@
 ---
-title: Ollama Adapter
+title: Ollama
 id: ollama-adapter
+order: 4
 ---
 
 The Ollama adapter provides access to local models running via Ollama, allowing you to run AI models on your own infrastructure with full privacy and no API costs.
@@ -17,11 +18,8 @@ npm install @tanstack/ai-ollama
 import { chat } from "@tanstack/ai";
 import { ollamaText } from "@tanstack/ai-ollama";
 
-const adapter = ollamaText();
-
 const stream = chat({
-  adapter,
-  model: "llama3",
+  adapter: ollamaText("llama3"),
   messages: [{ role: "user", content: "Hello!" }],
 });
 ```
@@ -35,8 +33,7 @@ import { createOllamaChat } from "@tanstack/ai-ollama";
 const adapter = createOllamaChat("http://your-server:11434");
 
 const stream = chat({
-  adapter,
-  model: "llama3",
+  adapter: adapter("llama3"),
   messages: [{ role: "user", content: "Hello!" }],
 });
 ```
@@ -78,14 +75,11 @@ ollama list
 import { chat, toStreamResponse } from "@tanstack/ai";
 import { ollamaText } from "@tanstack/ai-ollama";
 
-const adapter = ollamaText();
-
 export async function POST(request: Request) {
   const { messages } = await request.json();
 
   const stream = chat({
-    adapter,
-    model: "llama3",
+    adapter: ollamaText("llama3"),
     messages,
   });
 
@@ -99,8 +93,6 @@ export async function POST(request: Request) {
 import { chat, toolDefinition } from "@tanstack/ai";
 import { ollamaText } from "@tanstack/ai-ollama";
 import { z } from "zod";
-
-const adapter = ollamaText();
 
 const getLocalDataDef = toolDefinition({
   name: "get_local_data",
@@ -116,8 +108,7 @@ const getLocalData = getLocalDataDef.server(async ({ key }) => {
 });
 
 const stream = chat({
-  adapter,
-  model: "llama3",
+  adapter: ollamaText("llama3"),
   messages,
   tools: [getLocalData],
 });
@@ -125,14 +116,13 @@ const stream = chat({
 
 **Note:** Tool support varies by model. Models like `llama3`, `mistral`, and `qwen2` generally have good tool calling support.
 
-## Provider Options
+## Model Options
 
 Ollama supports various provider-specific options:
 
 ```typescript
 const stream = chat({
-  adapter: ollamaText(),
-  model: "llama3",
+  adapter: ollamaText("llama3"),
   messages,
   modelOptions: {
     temperature: 0.7,
@@ -180,49 +170,6 @@ modelOptions: {
 }
 ```
 
-## Embeddings
-
-Generate text embeddings locally:
-
-```typescript
-import { embedding } from "@tanstack/ai";
-import { ollamaEmbedding } from "@tanstack/ai-ollama";
-
-const adapter = ollamaEmbedding();
-
-const result = await embedding({
-  adapter,
-  model: "nomic-embed-text", // or "mxbai-embed-large"
-  input: "The quick brown fox jumps over the lazy dog",
-});
-
-console.log(result.embeddings);
-```
-
-### Embedding Models
-
-First, pull an embedding model:
-
-```bash
-ollama pull nomic-embed-text
-# or
-ollama pull mxbai-embed-large
-```
-
-### Batch Embeddings
-
-```typescript
-const result = await embedding({
-  adapter: ollamaEmbedding(),
-  model: "nomic-embed-text",
-  input: [
-    "First text to embed",
-    "Second text to embed",
-    "Third text to embed",
-  ],
-});
-```
-
 ## Summarization
 
 Summarize long text content locally:
@@ -231,11 +178,8 @@ Summarize long text content locally:
 import { summarize } from "@tanstack/ai";
 import { ollamaSummarize } from "@tanstack/ai-ollama";
 
-const adapter = ollamaSummarize();
-
 const result = await summarize({
-  adapter,
-  model: "llama3",
+  adapter: ollamaSummarize("llama3"),
   text: "Your long text to summarize...",
   maxLength: 100,
   style: "concise", // "concise" | "bullet-points" | "paragraph"
@@ -315,18 +259,6 @@ Creates an Ollama text/chat adapter with a custom host.
 - `options.model?` - Default model (optional)
 
 **Returns:** An Ollama text adapter instance.
-
-### `ollamaEmbed(options?)`
-
-Creates an Ollama embedding adapter.
-
-**Returns:** An Ollama embed adapter instance.
-
-### `createOllamaEmbed(host?, options?)`
-
-Creates an Ollama embedding adapter with a custom host.
-
-**Returns:** An Ollama embed adapter instance.
 
 ### `ollamaSummarize(options?)`
 

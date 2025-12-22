@@ -1,5 +1,4 @@
 import { BaseTTSAdapter } from '@tanstack/ai/adapters'
-import { OPENAI_TTS_MODELS } from '../model-meta'
 import {
   createOpenAIClient,
   generateId,
@@ -10,6 +9,7 @@ import {
   validateInstructions,
   validateSpeed,
 } from '../audio/audio-provider-options'
+import type { OPENAI_TTS_MODELS } from '../model-meta'
 import type {
   OpenAITTSFormat,
   OpenAITTSProviderOptions,
@@ -24,6 +24,9 @@ import type { OpenAIClientConfig } from '../utils'
  */
 export interface OpenAITTSConfig extends OpenAIClientConfig {}
 
+/** Model type for OpenAI TTS */
+export type OpenAITTSModel = (typeof OPENAI_TTS_MODELS)[number]
+
 /**
  * OpenAI Text-to-Speech Adapter
  *
@@ -35,17 +38,15 @@ export interface OpenAITTSConfig extends OpenAIClientConfig {}
  * - Multiple output formats: mp3, opus, aac, flac, wav, pcm
  * - Speed control (0.25 to 4.0)
  */
-export class OpenAITTSAdapter extends BaseTTSAdapter<
-  typeof OPENAI_TTS_MODELS,
-  OpenAITTSProviderOptions
-> {
+export class OpenAITTSAdapter<
+  TModel extends OpenAITTSModel,
+> extends BaseTTSAdapter<TModel, OpenAITTSProviderOptions> {
   readonly name = 'openai' as const
-  readonly models = OPENAI_TTS_MODELS
 
   private client: OpenAI_SDK
 
-  constructor(config: OpenAITTSConfig) {
-    super(config)
+  constructor(config: OpenAITTSConfig, model: TModel) {
+    super(config, model)
     this.client = createOpenAIClient(config)
   }
 
@@ -111,12 +112,13 @@ export class OpenAITTSAdapter extends BaseTTSAdapter<
 }
 
 /**
- * Creates an OpenAI speech adapter with explicit API key
+ * Creates an OpenAI speech adapter with explicit API key.
+ * Type resolution happens here at the call site.
  *
  * @param model - The model name (e.g., 'tts-1', 'tts-1-hd')
  * @param apiKey - Your OpenAI API key
  * @param config - Optional additional configuration
- * @returns Configured OpenAI speech adapter instance
+ * @returns Configured OpenAI speech adapter instance with resolved types
  *
  * @example
  * ```typescript
@@ -124,61 +126,49 @@ export class OpenAITTSAdapter extends BaseTTSAdapter<
  *
  * const result = await generateSpeech({
  *   adapter,
- *   model: 'tts-1-hd',
  *   text: 'Hello, world!',
  *   voice: 'nova'
  * });
  * ```
  */
-export function createOpenaiSpeech(
+export function createOpenaiSpeech<TModel extends OpenAITTSModel>(
+  model: TModel,
   apiKey: string,
   config?: Omit<OpenAITTSConfig, 'apiKey'>,
-): OpenAITTSAdapter {
-  return new OpenAITTSAdapter({ apiKey, ...config })
+): OpenAITTSAdapter<TModel> {
+  return new OpenAITTSAdapter({ apiKey, ...config }, model)
 }
 
 /**
  * Creates an OpenAI speech adapter with automatic API key detection from environment variables.
+ * Type resolution happens here at the call site.
  *
  * Looks for `OPENAI_API_KEY` in:
  * - `process.env` (Node.js)
  * - `window.env` (Browser with injected env)
  *
+ * @param model - The model name (e.g., 'tts-1', 'tts-1-hd')
  * @param config - Optional configuration (excluding apiKey which is auto-detected)
- * @returns Configured OpenAI speech adapter instance
+ * @returns Configured OpenAI speech adapter instance with resolved types
  * @throws Error if OPENAI_API_KEY is not found in environment
  *
  * @example
  * ```typescript
  * // Automatically uses OPENAI_API_KEY from environment
- * const adapter = openaiSpeech();
+ * const adapter = openaiSpeech('tts-1');
  *
  * const result = await generateSpeech({
  *   adapter,
- *   model: 'tts-1',
  *   text: 'Welcome to TanStack AI!',
  *   voice: 'alloy',
  *   format: 'mp3'
  * });
  * ```
  */
-export function openaiSpeech(
+export function openaiSpeech<TModel extends OpenAITTSModel>(
+  model: TModel,
   config?: Omit<OpenAITTSConfig, 'apiKey'>,
-): OpenAITTSAdapter {
+): OpenAITTSAdapter<TModel> {
   const apiKey = getOpenAIApiKeyFromEnv()
-  return createOpenaiSpeech(apiKey, config)
-}
-
-export function openaiTTS(
-  config?: Omit<OpenAITTSConfig, 'apiKey'>,
-): OpenAITTSAdapter {
-  const apiKey = getOpenAIApiKeyFromEnv()
-  return createOpenaiSpeech(apiKey, config)
-}
-
-export function createOpenaiTTS(
-  apiKey: string,
-  config?: Omit<OpenAITTSConfig, 'apiKey'>,
-): OpenAITTSAdapter {
-  return createOpenaiSpeech(apiKey, config)
+  return createOpenaiSpeech(model, apiKey, config)
 }

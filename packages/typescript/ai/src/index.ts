@@ -1,16 +1,13 @@
 // Activity functions - individual exports for each activity
 export {
   chat,
-  experimental_text,
-  toText,
-  embedding,
   summarize,
   generateImage,
   generateVideo,
   getVideoJobStatus,
   generateSpeech,
   generateTranscription,
-} from './activities'
+} from './activities/index'
 
 // Agent loop (experimental)
 export {
@@ -24,33 +21,29 @@ export {
 } from './agent'
 
 // Create options functions - for pre-defining typed configurations
-export {
-  createChatOptions,
-  createEmbeddingOptions,
-  createSummarizeOptions,
-  createImageOptions,
-  createVideoOptions,
-  createSpeechOptions,
-  createTranscriptionOptions,
-} from './activity-options'
+export { createChatOptions } from './activities/chat/index'
+export { createSummarizeOptions } from './activities/summarize/index'
+export { createImageOptions } from './activities/generateImage/index'
+export { createVideoOptions } from './activities/generateVideo/index'
+export { createSpeechOptions } from './activities/generateSpeech/index'
+export { createTranscriptionOptions } from './activities/generateTranscription/index'
 
 // Re-export types
 export type {
   AIAdapter,
-  AnyAdapter,
-  GenerateAdapter,
-  GenerateOptions,
-  TextGenerateOptions,
-  EmbeddingGenerateOptions,
-  SummarizeGenerateOptions,
-  ImageGenerateOptions,
-  GenerateTextOptions,
-  GenerateEmbeddingOptions,
-  GenerateSummarizeOptions,
-  GenerateImageOptions,
-  VideoGenerateOptions,
-  GenerateVideoOptions,
-} from './activities'
+  ImageAdapter,
+  AnyImageAdapter,
+  TextAdapter,
+  AnyTextAdapter,
+  AnySummarizeAdapter,
+  SummarizeAdapter,
+  AnyTTSAdapter,
+  TTSAdapter,
+  AnyTranscriptionAdapter,
+  TranscriptionAdapter,
+  AnyVideoAdapter,
+  VideoAdapter,
+} from './activities/index'
 
 // Tool definition
 export {
@@ -65,17 +58,17 @@ export {
   type InferToolInput,
   type InferToolOutput,
 } from './activities/chat/tools/tool-definition'
-export { convertZodToJsonSchema } from './activities/chat/tools/zod-converter'
+
+// Schema conversion (Standard JSON Schema compliant)
+export { convertSchemaToJsonSchema } from './activities/chat/tools/schema-converter'
 
 // Stream utilities
 export {
   streamToText,
   toServerSentEventsStream,
   toStreamResponse,
+  toHttpStream,
 } from './stream-to-response'
-
-// Base adapter
-export { BaseAdapter } from './base-adapter'
 
 // Tool call management
 export { ToolCallManager } from './activities/chat/tools/tool-calls'
@@ -89,10 +82,6 @@ export {
 
 // All types
 export * from './types'
-
-// Utility builders
-export { textOptions } from './activities/chat/index'
-export { messages } from './activities/chat/messages'
 
 // Event client
 export { aiEventClient } from './event-client'
@@ -119,7 +108,7 @@ export {
   PartialJSONParser,
   defaultJSONParser,
   parsePartialJSON,
-} from './activities/chat/stream'
+} from './activities/chat/stream/index'
 export type {
   ChunkStrategy,
   ChunkRecording,
@@ -132,4 +121,4 @@ export type {
   ToolCallState,
   ToolResultState,
   JSONParser,
-} from './activities/chat/stream'
+} from './activities/chat/stream/index'

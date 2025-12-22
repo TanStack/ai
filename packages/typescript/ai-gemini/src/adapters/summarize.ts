@@ -45,34 +45,37 @@ export interface GeminiSummarizeProviderOptions {
 }
 
 export interface GeminiSummarizeAdapterOptions {
-  model?: GeminiSummarizeModel
+  // Additional adapter options can be added here
 }
 
 /**
  * Gemini Summarize Adapter
  * A tree-shakeable summarization adapter for Google Gemini
  */
-export class GeminiSummarizeAdapter implements SummarizeAdapter<
-  typeof GeminiSummarizeModels,
-  GeminiSummarizeProviderOptions
-> {
+export class GeminiSummarizeAdapter<
+  TModel extends GeminiSummarizeModel,
+> implements SummarizeAdapter<TModel, GeminiSummarizeProviderOptions> {
   readonly kind = 'summarize' as const
   readonly name = 'gemini' as const
-  readonly models = GeminiSummarizeModels
+  readonly model: TModel
 
-  /** Type-only property for provider options inference */
-  declare _providerOptions?: GeminiSummarizeProviderOptions
+  // Type-only property - never assigned at runtime
+  declare '~types': {
+    providerOptions: GeminiSummarizeProviderOptions
+  }
 
   private client: GoogleGenAI
 
   constructor(
     apiKeyOrClient: string | GoogleGenAI,
+    model: TModel,
     _options: GeminiSummarizeAdapterOptions = {},
   ) {
     this.client =
       typeof apiKeyOrClient === 'string'
         ? createGeminiClient({ apiKey: apiKeyOrClient })
         : apiKeyOrClient
+    this.model = model
   }
 
   async summarize(options: SummarizationOptions): Promise<SummarizationResult> {
@@ -81,7 +84,7 @@ export class GeminiSummarizeAdapter implements SummarizeAdapter<
     // Build the system prompt based on format
     const formatInstructions = this.getFormatInstructions(options.style)
     const lengthInstructions = options.maxLength
-      ? ` Keep the summary under ${options.maxLength} words.`
+      ? ` Keep the summary under ${options.maxLength} tokens.`
       : ''
 
     const systemPrompt = `You are a helpful assistant that summarizes text. ${formatInstructions}${lengthInstructions}`
@@ -217,21 +220,23 @@ export class GeminiSummarizeAdapter implements SummarizeAdapter<
 }
 
 /**
- * Creates a Gemini summarize adapter with explicit API key
+ * Creates a Gemini summarize adapter with explicit API key and model
  */
-export function createGeminiSummarize(
+export function createGeminiSummarize<TModel extends GeminiSummarizeModel>(
   apiKey: string,
+  model: TModel,
   options?: GeminiSummarizeAdapterOptions,
-): GeminiSummarizeAdapter {
-  return new GeminiSummarizeAdapter(apiKey, options)
+): GeminiSummarizeAdapter<TModel> {
+  return new GeminiSummarizeAdapter(apiKey, model, options)
 }
 
 /**
- * Creates a Gemini summarize adapter with API key from environment
+ * Creates a Gemini summarize adapter with API key from environment and required model
  */
-export function geminiSummarize(
+export function geminiSummarize<TModel extends GeminiSummarizeModel>(
+  model: TModel,
   options?: GeminiSummarizeAdapterOptions,
-): GeminiSummarizeAdapter {
+): GeminiSummarizeAdapter<TModel> {
   const apiKey = getGeminiApiKeyFromEnv()
-  return new GeminiSummarizeAdapter(apiKey, options)
+  return new GeminiSummarizeAdapter(apiKey, model, options)
 }

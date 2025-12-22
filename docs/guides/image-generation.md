@@ -1,3 +1,9 @@
+---
+title: Image Generation
+id: image-generation
+order: 15
+---
+
 # Image Generation
 
 TanStack AI provides support for image generation through dedicated image adapters. This guide covers how to use the image generation functionality with OpenAI and Gemini providers.
@@ -22,8 +28,7 @@ const adapter = openaiImage()
 
 // Generate an image
 const result = await generateImage({
-  adapter,
-  model: 'dall-e-3',
+  adapter: openaiImage('dall-e-3'),
   prompt: 'A beautiful sunset over mountains',
 })
 
@@ -41,8 +46,7 @@ const adapter = geminiImage()
 
 // Generate an image
 const result = await generateImage({
-  adapter,
-  model: 'imagen-3.0-generate-002',
+  adapter: geminiImage('imagen-3.0-generate-002'),
   prompt: 'A futuristic cityscape at night',
 })
 
@@ -57,8 +61,7 @@ All image adapters support these common options:
 
 | Option | Type | Description |
 |--------|------|-------------|
-| `adapter` | `ImageAdapter` | Image adapter instance (required) |
-| `model` | `string` | Model identifier (type-safe based on adapter) (required) |
+| `adapter` | `ImageAdapter` | Image adapter instance with model (required) |
 | `prompt` | `string` | Text description of the image to generate (required) |
 | `numberOfImages` | `number` | Number of images to generate |
 | `size` | `string` | Size of the generated image in WIDTHxHEIGHT format |
@@ -85,12 +88,11 @@ Gemini uses aspect ratios internally, but TanStack AI accepts WIDTHxHEIGHT forma
 | `1920x1080` | 16:9 |
 | `1080x1920` | 9:16 |
 
-Alternatively, you can specify the aspect ratio directly in provider options:
+Alternatively, you can specify the aspect ratio directly in Model Options:
 
 ```typescript
 const result = await generateImage({
-  adapter,
-  model: 'imagen-4.0-generate-001',
+  adapter: geminiImage('imagen-4.0-generate-001'),
   prompt: 'A landscape photo',
   modelOptions: {
     aspectRatio: '16:9'
@@ -98,18 +100,17 @@ const result = await generateImage({
 })
 ```
 
-## Provider Options
+## Model Options
 
-### OpenAI Provider Options
+### OpenAI Model Options
 
-OpenAI models support model-specific provider options:
+OpenAI models support model-specific Model Options:
 
 #### GPT-Image-1 / GPT-Image-1-Mini
 
 ```typescript
 const result = await generateImage({
-  adapter,
-  model: 'gpt-image-1',
+  adapter: openaiImage('gpt-image-1'),
   prompt: 'A cat wearing a hat',
   modelOptions: {
     quality: 'high', // 'high' | 'medium' | 'low' | 'auto'
@@ -124,8 +125,7 @@ const result = await generateImage({
 
 ```typescript
 const result = await generateImage({
-  adapter,
-  model: 'dall-e-3',
+  adapter: openaiImage('dall-e-3'),
   prompt: 'A futuristic car',
   modelOptions: {
     quality: 'hd', // 'hd' | 'standard'
@@ -134,12 +134,11 @@ const result = await generateImage({
 })
 ```
 
-### Gemini Provider Options
+### Gemini Model Options
 
 ```typescript
 const result = await generateImage({
-  adapter,
-  model: 'imagen-4.0-generate-001',
+  adapter: geminiImage('imagen-4.0-generate-001'),
   prompt: 'A beautiful garden',
   modelOptions: {
     aspectRatio: '16:9',
@@ -201,8 +200,7 @@ Image generation can fail for various reasons. The adapters validate inputs befo
 ```typescript
 try {
   const result = await generateImage({
-    adapter,
-    model: 'dall-e-3',
+    adapter: openaiImage('dall-e-3'),
     prompt: 'A cat',
     size: '512x512', // Invalid size for DALL-E 3
   })

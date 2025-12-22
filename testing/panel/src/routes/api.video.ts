@@ -12,7 +12,7 @@ export const Route = createFileRoute('/api/video')({
         const action: Action = body.action || 'create'
 
         try {
-          const adapter = openaiVideo()
+          const adapter = openaiVideo('sora-2')
 
           switch (action) {
             case 'create': {
@@ -55,7 +55,6 @@ export const Route = createFileRoute('/api/video')({
 
               const result = await getVideoJobStatus({
                 adapter,
-                model: 'sora-2',
                 jobId,
               })
 

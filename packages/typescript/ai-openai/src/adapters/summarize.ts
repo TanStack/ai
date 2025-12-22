@@ -1,7 +1,7 @@
 import { BaseSummarizeAdapter } from '@tanstack/ai/adapters'
-import { OPENAI_CHAT_MODELS } from '../model-meta'
 import { getOpenAIApiKeyFromEnv } from '../utils'
 import { OpenAITextAdapter } from './text'
+import type { OPENAI_CHAT_MODELS } from '../model-meta'
 import type {
   StreamChunk,
   SummarizationOptions,
@@ -24,25 +24,26 @@ export interface OpenAISummarizeProviderOptions {
   maxTokens?: number
 }
 
+/** Model type for OpenAI summarization */
+export type OpenAISummarizeModel = (typeof OPENAI_CHAT_MODELS)[number]
+
 /**
  * OpenAI Summarize Adapter
  *
  * A thin wrapper around the text adapter that adds summarization-specific prompting.
  * Delegates all API calls to the OpenAITextAdapter.
  */
-export class OpenAISummarizeAdapter extends BaseSummarizeAdapter<
-  typeof OPENAI_CHAT_MODELS,
-  OpenAISummarizeProviderOptions
-> {
+export class OpenAISummarizeAdapter<
+  TModel extends OpenAISummarizeModel,
+> extends BaseSummarizeAdapter<TModel, OpenAISummarizeProviderOptions> {
   readonly kind = 'summarize' as const
   readonly name = 'openai' as const
-  readonly models = OPENAI_CHAT_MODELS
 
-  private textAdapter: OpenAITextAdapter
+  private textAdapter: OpenAITextAdapter<TModel>
 
-  constructor(config: OpenAISummarizeConfig) {
-    super({})
-    this.textAdapter = new OpenAITextAdapter(config)
+  constructor(config: OpenAISummarizeConfig, model: TModel) {
+    super({}, model)
+    this.textAdapter = new OpenAITextAdapter(config, model)
   }
 
   async summarize(options: SummarizationOptions): Promise<SummarizationResult> {
@@ -58,10 +59,8 @@ export class OpenAISummarizeAdapter extends BaseSummarizeAdapter<
       model: options.model,
       messages: [{ role: 'user', content: options.text }],
       systemPrompts: [systemPrompt],
-      options: {
-        maxTokens: options.maxLength,
-        temperature: 0.3,
-      },
+      maxTokens: options.maxLength,
+      temperature: 0.3,
     })) {
       if (chunk.type === 'content') {
         summary = chunk.content
@@ -86,10 +85,8 @@ export class OpenAISummarizeAdapter extends BaseSummarizeAdapter<
       model: options.model,
       messages: [{ role: 'user', content: options.text }],
       systemPrompts: [systemPrompt],
-      options: {
-        maxTokens: options.maxLength,
-        temperature: 0.3,
-      },
+      maxTokens: options.maxLength,
+      temperature: 0.3,
     })
   }
 
@@ -123,50 +120,55 @@ export class OpenAISummarizeAdapter extends BaseSummarizeAdapter<
 }
 
 /**
- * Creates an OpenAI summarize adapter with explicit API key
+ * Creates an OpenAI summarize adapter with explicit API key.
+ * Type resolution happens here at the call site.
  *
+ * @param model - The model name (e.g., 'gpt-4o-mini', 'gpt-4o')
  * @param apiKey - Your OpenAI API key
  * @param config - Optional additional configuration
- * @returns Configured OpenAI summarize adapter instance
+ * @returns Configured OpenAI summarize adapter instance with resolved types
  *
  * @example
  * ```typescript
- * const adapter = createOpenaiSummarize("sk-...");
+ * const adapter = createOpenaiSummarize('gpt-4o-mini', "sk-...");
  * ```
  */
-export function createOpenaiSummarize(
+export function createOpenaiSummarize<TModel extends OpenAISummarizeModel>(
+  model: TModel,
   apiKey: string,
   config?: Omit<OpenAISummarizeConfig, 'apiKey'>,
-): OpenAISummarizeAdapter {
-  return new OpenAISummarizeAdapter({ apiKey, ...config })
+): OpenAISummarizeAdapter<TModel> {
+  return new OpenAISummarizeAdapter({ apiKey, ...config }, model)
 }
 
 /**
  * Creates an OpenAI summarize adapter with automatic API key detection from environment variables.
+ * Type resolution happens here at the call site.
  *
  * Looks for `OPENAI_API_KEY` in:
  * - `process.env` (Node.js)
  * - `window.env` (Browser with injected env)
  *
+ * @param model - The model name (e.g., 'gpt-4o-mini', 'gpt-4o')
  * @param config - Optional configuration (excluding apiKey which is auto-detected)
- * @returns Configured OpenAI summarize adapter instance
+ * @returns Configured OpenAI summarize adapter instance with resolved types
  * @throws Error if OPENAI_API_KEY is not found in environment
  *
  * @example
  * ```typescript
  * // Automatically uses OPENAI_API_KEY from environment
- * const adapter = openaiSummarize();
+ * const adapter = openaiSummarize('gpt-4o-mini');
  *
  * await summarize({
  *   adapter,
- *   model: "gpt-4",
  *   text: "Long article text..."
  * });
  * ```
  */
-export function openaiSummarize(
+export function openaiSummarize<TModel extends OpenAISummarizeModel>(
+  model: TModel,
   config?: Omit<OpenAISummarizeConfig, 'apiKey'>,
-): OpenAISummarizeAdapter {
+): OpenAISummarizeAdapter<TModel> {
   const apiKey = getOpenAIApiKeyFromEnv()
-  return createOpenaiSummarize(apiKey, config)
+  return createOpenaiSummarize(model, apiKey, config)
 }

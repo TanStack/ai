@@ -1,6 +1,7 @@
 ---
 title: Multimodal Content
 id: multimodal-content
+order: 8
 ---
 
 TanStack AI supports multimodal content in messages, allowing you to send images, audio, video, and documents alongside text to AI models that support these modalities.
@@ -57,8 +58,7 @@ import { chat } from '@tanstack/ai'
 import { openaiText } from '@tanstack/ai-openai'
 
 const response = await chat({
-  adapter: openaiText(),
-  model: 'gpt-4o',
+  adapter: openaiText('gpt-4o'),
   messages: [
     {
       role: 'user',
@@ -282,15 +282,14 @@ import { openaiText } from '@tanstack/ai-openai'
 // In an API route handler
 const { messages: incomingMessages } = await request.json()
 
-const adapter = openaiText()
+const adapter = openaiText('gpt-4o')
 
 // Assert incoming messages are compatible with gpt-4o (text + image only)
-const typedMessages = assertMessages({ adapter, model: 'gpt-4o' }, incomingMessages)
+const typedMessages = assertMessages({ adapter }, incomingMessages)
 
 // Now TypeScript will properly check any additional messages you add
 const stream = chat({
   adapter,
-  model: 'gpt-4o',
   messages: [
     ...typedMessages,
     // This will error if you try to add unsupported content types

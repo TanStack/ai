@@ -9,7 +9,7 @@ title: InferToolOutput
 type InferToolOutput<T> = T extends object ? TOutput extends z.ZodType ? z.infer<TOutput> : TOutput extends JSONSchema ? any : any : any;
 ```
 
-Defined in: [tools/tool-definition.ts:72](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/tools/tool-definition.ts#L72)
+Defined in: [activities/chat/tools/tool-definition.ts:77](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/activities/chat/tools/tool-definition.ts#L77)
 
 Extract the output type from a tool (inferred from Zod schema, or `any` for JSONSchema)
 

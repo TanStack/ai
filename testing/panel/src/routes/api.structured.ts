@@ -8,30 +8,6 @@ import { z } from 'zod'
 
 type Provider = 'openai' | 'anthropic' | 'gemini' | 'ollama'
 
-// Pre-define typed adapter configurations with full type inference
-const adapterConfig = {
-  anthropic: () =>
-    createChatOptions({
-      adapter: anthropicText(),
-      model: 'claude-sonnet-4-5-20250929',
-    }),
-  gemini: () =>
-    createChatOptions({
-      adapter: geminiText(),
-      model: 'gemini-2.0-flash-exp',
-    }),
-  ollama: () =>
-    createChatOptions({
-      adapter: ollamaText(),
-      model: 'mistral:7b',
-    }),
-  openai: () =>
-    createChatOptions({
-      adapter: openaiText(),
-      model: 'gpt-4o',
-    }),
-}
-
 // Schema for structured recipe output
 const RecipeSchema = z.object({
   name: z.string().describe('The name of the recipe'),
@@ -72,12 +48,36 @@ export const Route = createFileRoute('/api/structured')({
       POST: async ({ request }) => {
         const body = await request.json()
         const { recipeName, mode = 'structured' } = body
-        const provider: Provider = body.provider || 'openai'
+        const data = body.data || {}
+        const provider: Provider = data.provider || body.provider || 'openai'
+        const model: string = data.model || body.model || 'gpt-4o'
 
         try {
+          // Pre-define typed adapter configurations with full type inference
+          // Model is passed to the adapter factory function for type-safe autocomplete
+          const adapterConfig = {
+            anthropic: () =>
+              createChatOptions({
+                adapter: anthropicText(
+                  (model || 'claude-sonnet-4-5-20250929') as any,
+                ),
+              }),
+            gemini: () =>
+              createChatOptions({
+                adapter: geminiText((model || 'gemini-2.0-flash-exp') as any),
+              }),
+            ollama: () =>
+              createChatOptions({
+                adapter: ollamaText((model || 'mistral:7b') as any),
+              }),
+            openai: () =>
+              createChatOptions({
+                adapter: openaiText((model || 'gpt-4o') as any),
+              }),
+          }
+
           // Get typed adapter options using createChatOptions pattern
           const options = adapterConfig[provider]()
-          const model = options.adapter.defaultModel || 'unknown'
 
           console.log(
             `>> ${mode} output with model: ${model} on provider: ${provider}`,

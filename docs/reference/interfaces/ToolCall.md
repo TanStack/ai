@@ -5,7 +5,7 @@ title: ToolCall
 
 # Interface: ToolCall
 
-Defined in: [types.ts:62](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L62)
+Defined in: [types.ts:78](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L78)
 
 ## Properties
 
@@ -15,7 +15,7 @@ Defined in: [types.ts:62](https://github.com/TanStack/ai/blob/main/packages/type
 function: object;
 ```
 
-Defined in: [types.ts:65](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L65)
+Defined in: [types.ts:81](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L81)
 
 #### arguments
 
@@ -37,7 +37,7 @@ name: string;
 id: string;
 ```
 
-Defined in: [types.ts:63](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L63)
+Defined in: [types.ts:79](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L79)
 
 ***
 
@@ -47,4 +47,4 @@ Defined in: [types.ts:63](https://github.com/TanStack/ai/blob/main/packages/type
 type: "function";
 ```
 
-Defined in: [types.ts:64](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L64)
+Defined in: [types.ts:80](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L80)

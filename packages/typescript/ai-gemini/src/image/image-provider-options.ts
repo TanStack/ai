@@ -163,12 +163,12 @@ export const GEMINI_SIZE_TO_ASPECT_RATIO: Record<string, GeminiAspectRatio> = {
   '512x512': '1:1',
   // Landscape
   '1024x768': '4:3',
-  '1536x1024': '3:4', // Actually this is portrait, but matching common dimensions
+  '1536x1024': '4:3',
   '1792x1024': '16:9',
   '1920x1080': '16:9',
   // Portrait
   '768x1024': '3:4',
-  '1024x1536': '4:3', // Inverted
+  '1024x1536': '3:4', // Inverted
   '1024x1792': '9:16',
   '1080x1920': '9:16',
 }

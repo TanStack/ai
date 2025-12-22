@@ -9,18 +9,15 @@ import {
 describe('OpenAI Image Adapter', () => {
   describe('createOpenaiImage', () => {
     it('creates an adapter with the provided API key', () => {
-      const adapter = createOpenaiImage('test-api-key')
+      const adapter = createOpenaiImage('gpt-image-1', 'test-api-key')
       expect(adapter).toBeInstanceOf(OpenAIImageAdapter)
       expect(adapter.kind).toBe('image')
       expect(adapter.name).toBe('openai')
     })
 
-    it('has the correct models', () => {
-      const adapter = createOpenaiImage('test-api-key')
-      expect(adapter.models).toContain('gpt-image-1')
-      expect(adapter.models).toContain('gpt-image-1-mini')
-      expect(adapter.models).toContain('dall-e-3')
-      expect(adapter.models).toContain('dall-e-2')
+    it('has the correct model', () => {
+      const adapter = createOpenaiImage('gpt-image-1', 'test-api-key')
+      expect(adapter.model).toBe('gpt-image-1')
     })
   })
 
@@ -150,7 +147,7 @@ describe('OpenAI Image Adapter', () => {
 
       const mockGenerate = vi.fn().mockResolvedValueOnce(mockResponse)
 
-      const adapter = createOpenaiImage('test-api-key')
+      const adapter = createOpenaiImage('gpt-image-1', 'test-api-key')
       // Replace the internal OpenAI SDK client with our mock
       ;(
         adapter as unknown as { client: { images: { generate: unknown } } }
@@ -193,7 +190,7 @@ describe('OpenAI Image Adapter', () => {
 
       const mockGenerate = vi.fn().mockResolvedValue(mockResponse)
 
-      const adapter = createOpenaiImage('test-api-key')
+      const adapter = createOpenaiImage('gpt-image-1', 'test-api-key')
       ;(
         adapter as unknown as { client: { images: { generate: unknown } } }
       ).client = {

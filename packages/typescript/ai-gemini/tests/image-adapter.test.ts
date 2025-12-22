@@ -10,18 +10,21 @@ import {
 describe('Gemini Image Adapter', () => {
   describe('createGeminiImage', () => {
     it('creates an adapter with the provided API key', () => {
-      const adapter = createGeminiImage('test-api-key')
+      const adapter = createGeminiImage(
+        'imagen-3.0-generate-002',
+        'test-api-key',
+      )
       expect(adapter).toBeInstanceOf(GeminiImageAdapter)
       expect(adapter.kind).toBe('image')
       expect(adapter.name).toBe('gemini')
     })
 
-    it('has the correct models', () => {
-      const adapter = createGeminiImage('test-api-key')
-      expect(adapter.models).toContain('imagen-3.0-generate-002')
-      expect(adapter.models).toContain('imagen-4.0-generate-001')
-      expect(adapter.models).toContain('imagen-4.0-fast-generate-001')
-      expect(adapter.models).toContain('imagen-4.0-ultra-generate-001')
+    it('has the correct model', () => {
+      const adapter = createGeminiImage(
+        'imagen-3.0-generate-002',
+        'test-api-key',
+      )
+      expect(adapter.model).toBe('imagen-3.0-generate-002')
     })
   })
 

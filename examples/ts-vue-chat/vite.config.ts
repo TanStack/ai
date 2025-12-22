@@ -2,7 +2,7 @@ import { fileURLToPath, URL } from 'node:url'
 import { defineConfig } from 'vite'
 import vue from '@vitejs/plugin-vue'
 import tailwindcss from '@tailwindcss/vite'
-import { chat, maxIterations, toStreamResponse } from '@tanstack/ai'
+import { chat, maxIterations, toServerSentEventsStream } from '@tanstack/ai'
 import { openaiText } from '@tanstack/ai-openai'
 import { anthropicText } from '@tanstack/ai-anthropic'
 import { geminiText } from '@tanstack/ai-gemini'
@@ -202,27 +202,26 @@ export default defineConfig({
             const model: string | undefined = data?.model
 
             let adapter
-            let defaultModel
 
             let selectedModel: string
 
             switch (provider) {
               case 'anthropic':
                 selectedModel = model || 'claude-sonnet-4-5-20250929'
-                adapter = anthropicText()
+                adapter = anthropicText(selectedModel)
                 break
               case 'gemini':
                 selectedModel = model || 'gemini-2.0-flash-exp'
-                adapter = geminiText()
+                adapter = geminiText(selectedModel)
                 break
               case 'ollama':
                 selectedModel = model || 'mistral:7b'
-                adapter = ollamaText()
+                adapter = ollamaText(selectedModel)
                 break
               case 'openai':
               default:
                 selectedModel = model || 'gpt-4o'
-                adapter = openaiText()
+                adapter = openaiText(selectedModel)
                 break
             }
 
@@ -234,7 +233,6 @@ export default defineConfig({
 
             const stream = chat({
               adapter,
-              model: selectedModel,
               tools: [
                 getGuitars,
                 recommendGuitarToolDef,
@@ -248,31 +246,30 @@ export default defineConfig({
               abortController,
             })
 
-            const response = toStreamResponse(stream, { abortController })
+            const readableStream = toServerSentEventsStream(
+              stream,
+              abortController,
+            )
 
-            // Forward headers
-            response.headers.forEach((value, key) => {
-              res.setHeader(key, value)
-            })
+            // Set headers
+            res.setHeader('Content-Type', 'text/event-stream')
+            res.setHeader('Cache-Control', 'no-cache')
+            res.setHeader('Connection', 'keep-alive')
 
             // Stream the body
-            if (response.body) {
-              const reader = response.body.getReader()
-              const pump = async () => {
-                while (true) {
-                  const { done, value } = await reader.read()
-                  if (done) break
-                  res.write(value)
-                }
-                res.end()
+            const reader = readableStream.getReader()
+            const pump = async () => {
+              while (true) {
+                const { done, value } = await reader.read()
+                if (done) break
+                res.write(value)
               }
-              pump().catch((err) => {
-                console.error('Stream error:', err)
-                res.end()
-              })
-            } else {
               res.end()
             }
+            pump().catch((err) => {
+              console.error('Stream error:', err)
+              res.end()
+            })
           } catch (error: any) {
             console.error('[API] Error:', error)
             res.statusCode = 500

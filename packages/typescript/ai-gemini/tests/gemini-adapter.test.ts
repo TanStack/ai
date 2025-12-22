@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest'
-import { chat, summarize, embedding } from '@tanstack/ai'
+import { chat, summarize } from '@tanstack/ai'
 import type { Tool, StreamChunk } from '@tanstack/ai'
 import {
   Type,
@@ -9,7 +9,6 @@ import {
 } from '@google/genai'
 import { GeminiTextAdapter } from '../src/adapters/text'
 import { GeminiSummarizeAdapter } from '../src/adapters/summarize'
-import { GeminiEmbedAdapter } from '../src/adapters/embed'
 import type { GeminiTextProviderOptions } from '../src/adapters/text'
 import type { Schema } from '@google/genai'
 
@@ -18,7 +17,6 @@ const mocks = vi.hoisted(() => {
     constructorSpy: vi.fn<(options: { apiKey: string }) => void>(),
     generateContentSpy: vi.fn(),
     generateContentStreamSpy: vi.fn(),
-    embedContentSpy: vi.fn(),
     getGenerativeModelSpy: vi.fn(),
   }
 })
@@ -28,7 +26,6 @@ vi.mock('@google/genai', async () => {
     constructorSpy,
     generateContentSpy,
     generateContentStreamSpy,
-    embedContentSpy,
     getGenerativeModelSpy,
   } = mocks
 
@@ -37,7 +34,6 @@ vi.mock('@google/genai', async () => {
     public models = {
       generateContent: generateContentSpy,
       generateContentStream: generateContentStreamSpy,
-      embedContent: embedContentSpy,
     }
 
     public getGenerativeModel = getGenerativeModelSpy
@@ -55,11 +51,9 @@ vi.mock('@google/genai', async () => {
 })
 
 const createTextAdapter = () =>
-  new GeminiTextAdapter('gemini-2.5-pro', { apiKey: 'test-key' })
+  new GeminiTextAdapter({ apiKey: 'test-key' }, 'gemini-2.5-pro')
 const createSummarizeAdapter = () =>
-  new GeminiSummarizeAdapter('gemini-2.0-flash', 'test-key')
-const createEmbedAdapter = () =>
-  new GeminiEmbedAdapter('text-embedding-004', 'test-key')
+  new GeminiSummarizeAdapter('test-key', 'gemini-2.0-flash')
 
 const weatherTool: Tool = {
   name: 'lookup_weather',
@@ -92,7 +86,7 @@ describe('GeminiAdapter through AI', () => {
         ],
         usageMetadata: {
           promptTokenCount: 3,
-          thoughtsTokenCount: 1,
+          candidatesTokenCount: 1,
           totalTokenCount: 4,
         },
       },
@@ -105,16 +99,13 @@ describe('GeminiAdapter through AI', () => {
     // Consume the stream to trigger the API call
     for await (const _ of chat({
       adapter,
-      model: 'gemini-2.5-pro',
       messages: [{ role: 'user', content: 'How is the weather in Madrid?' }],
       modelOptions: {
         generationConfig: { topK: 9 },
       },
-      options: {
-        temperature: 0.4,
-        topP: 0.8,
-        maxTokens: 256,
-      },
+      temperature: 0.4,
+      topP: 0.8,
+      maxTokens: 256,
       tools: [weatherTool],
     })) {
       /* consume stream */
@@ -218,11 +209,9 @@ describe('GeminiAdapter through AI', () => {
     for await (const _ of chat({
       adapter,
       messages: [{ role: 'user', content: 'Provide structured response' }],
-      options: {
-        temperature: 0.61,
-        topP: 0.37,
-        maxTokens: 512,
-      },
+      temperature: 0.61,
+      topP: 0.37,
+      maxTokens: 512,
       systemPrompts: ['Stay concise', 'Return JSON'],
       modelOptions: providerOptions,
     })) {
@@ -305,7 +294,7 @@ describe('GeminiAdapter through AI', () => {
         ],
         usageMetadata: {
           promptTokenCount: 4,
-          thoughtsTokenCount: 2,
+          candidatesTokenCount: 2,
           totalTokenCount: 6,
         },
       },
@@ -317,12 +306,11 @@ describe('GeminiAdapter through AI', () => {
     const received: StreamChunk[] = []
     for await (const chunk of chat({
       adapter,
-      model: 'gemini-2.0-flash',
       messages: [{ role: 'user', content: 'Tell me a joke' }],
       modelOptions: {
         generationConfig: { topK: 3 },
       },
-      options: { temperature: 0.2 },
+      temperature: 0.2,
     })) {
       received.push(chunk)
     }
@@ -364,7 +352,6 @@ describe('GeminiAdapter through AI', () => {
     const adapter = createSummarizeAdapter()
     const result = await summarize({
       adapter,
-      model: 'gemini-2.0-flash',
       text: 'A very long passage that needs to be shortened',
       maxLength: 123,
       style: 'paragraph',
@@ -374,31 +361,7 @@ describe('GeminiAdapter through AI', () => {
     const [payload] = mocks.generateContentSpy.mock.calls[0]
     expect(payload.model).toBe('gemini-2.0-flash')
     expect(payload.config.systemInstruction).toContain('summarizes text')
-    expect(payload.config.systemInstruction).toContain('123 words')
+    expect(payload.config.systemInstruction).toContain('123 tokens')
     expect(result.summary).toBe(summaryText)
-  })
-
-  it('creates embeddings via embedding function', async () => {
-    // The embed adapter calls embedContent once per input
-    mocks.embedContentSpy
-      .mockResolvedValueOnce({
-        embeddings: [{ values: [0.1, 0.2] }],
-      })
-      .mockResolvedValueOnce({
-        embeddings: [{ values: [0.3, 0.4] }],
-      })
-
-    const adapter = createEmbedAdapter()
-    const result = await embedding({
-      adapter,
-      model: 'text-embedding-004',
-      input: ['doc one', 'doc two'],
-    })
-
-    expect(mocks.embedContentSpy).toHaveBeenCalledTimes(2)
-    expect(result.embeddings).toEqual([
-      [0.1, 0.2],
-      [0.3, 0.4],
-    ])
   })
 })

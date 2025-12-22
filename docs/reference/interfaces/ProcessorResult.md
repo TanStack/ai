@@ -5,7 +5,7 @@ title: ProcessorResult
 
 # Interface: ProcessorResult
 
-Defined in: [stream/types.ts:61](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/stream/types.ts#L61)
+Defined in: [activities/chat/stream/types.ts:51](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/activities/chat/stream/types.ts#L51)
 
 Result from processing a stream
 
@@ -17,7 +17,7 @@ Result from processing a stream
 content: string;
 ```
 
-Defined in: [stream/types.ts:62](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/stream/types.ts#L62)
+Defined in: [activities/chat/stream/types.ts:52](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/activities/chat/stream/types.ts#L52)
 
 ***
 
@@ -27,7 +27,7 @@ Defined in: [stream/types.ts:62](https://github.com/TanStack/ai/blob/main/packag
 optional finishReason: string | null;
 ```
 
-Defined in: [stream/types.ts:65](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/stream/types.ts#L65)
+Defined in: [activities/chat/stream/types.ts:55](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/activities/chat/stream/types.ts#L55)
 
 ***
 
@@ -37,7 +37,7 @@ Defined in: [stream/types.ts:65](https://github.com/TanStack/ai/blob/main/packag
 optional thinking: string;
 ```
 
-Defined in: [stream/types.ts:63](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/stream/types.ts#L63)
+Defined in: [activities/chat/stream/types.ts:53](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/activities/chat/stream/types.ts#L53)
 
 ***
 
@@ -47,4 +47,4 @@ Defined in: [stream/types.ts:63](https://github.com/TanStack/ai/blob/main/packag
 optional toolCalls: ToolCall[];
 ```
 
-Defined in: [stream/types.ts:64](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/stream/types.ts#L64)
+Defined in: [activities/chat/stream/types.ts:54](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/activities/chat/stream/types.ts#L54)

@@ -57,7 +57,6 @@ export interface OllamaSummarizeProviderOptions {
 }
 
 export interface OllamaSummarizeAdapterOptions {
-  model?: OllamaSummarizeModel
   host?: string
 }
 
@@ -65,20 +64,22 @@ export interface OllamaSummarizeAdapterOptions {
  * Ollama Summarize Adapter
  * A tree-shakeable summarization adapter for Ollama
  */
-export class OllamaSummarizeAdapter implements SummarizeAdapter<
-  typeof OllamaSummarizeModels,
-  OllamaSummarizeProviderOptions
-> {
+export class OllamaSummarizeAdapter<
+  TModel extends OllamaSummarizeModel,
+> implements SummarizeAdapter<TModel, OllamaSummarizeProviderOptions> {
   readonly kind = 'summarize' as const
   readonly name = 'ollama' as const
-  readonly models = OllamaSummarizeModels
+  readonly model: TModel
 
-  /** Type-only property for provider options inference */
-  declare _providerOptions?: OllamaSummarizeProviderOptions
+  // Type-only property - never assigned at runtime
+  declare '~types': {
+    providerOptions: OllamaSummarizeProviderOptions
+  }
 
   private client: Ollama
   constructor(
-    hostOrClient?: string | Ollama,
+    hostOrClient: string | Ollama | undefined,
+    model: TModel,
     _options: OllamaSummarizeAdapterOptions = {},
   ) {
     if (typeof hostOrClient === 'string' || hostOrClient === undefined) {
@@ -86,6 +87,7 @@ export class OllamaSummarizeAdapter implements SummarizeAdapter<
     } else {
       this.client = hostOrClient
     }
+    this.model = model
   }
 
   async summarize(options: SummarizationOptions): Promise<SummarizationResult> {
@@ -199,21 +201,23 @@ export class OllamaSummarizeAdapter implements SummarizeAdapter<
 }
 
 /**
- * Creates an Ollama summarize adapter with explicit host
+ * Creates an Ollama summarize adapter with explicit host and model
  */
-export function createOllamaSummarize(
+export function createOllamaSummarize<TModel extends OllamaSummarizeModel>(
+  model: TModel,
   host?: string,
   options?: OllamaSummarizeAdapterOptions,
-): OllamaSummarizeAdapter {
-  return new OllamaSummarizeAdapter(host, options)
+): OllamaSummarizeAdapter<TModel> {
+  return new OllamaSummarizeAdapter(host, model, options)
 }
 
 /**
- * Creates an Ollama summarize adapter with host from environment
+ * Creates an Ollama summarize adapter with host from environment and required model
  */
-export function ollamaSummarize(
+export function ollamaSummarize<TModel extends OllamaSummarizeModel>(
+  model: TModel,
   options?: OllamaSummarizeAdapterOptions,
-): OllamaSummarizeAdapter {
+): OllamaSummarizeAdapter<TModel> {
   const host = getOllamaHostFromEnv()
-  return new OllamaSummarizeAdapter(host, options)
+  return new OllamaSummarizeAdapter(host, model, options)
 }

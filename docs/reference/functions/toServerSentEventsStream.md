@@ -9,7 +9,7 @@ title: toServerSentEventsStream
 function toServerSentEventsStream(stream, abortController?): ReadableStream<Uint8Array<ArrayBufferLike>>;
 ```
 
-Defined in: [utilities/stream-to-response.ts:22](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/utilities/stream-to-response.ts#L22)
+Defined in: [stream-to-response.ts:56](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/stream-to-response.ts#L56)
 
 Convert a StreamChunk async iterable to a ReadableStream in Server-Sent Events format
 

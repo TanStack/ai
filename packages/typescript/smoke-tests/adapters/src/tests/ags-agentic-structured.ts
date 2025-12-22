@@ -1,9 +1,4 @@
-import {
-  experimental_agentLoop as agentLoop,
-  experimental_text as text,
-  maxIterations,
-  toolDefinition,
-} from '@tanstack/ai'
+import { chat, maxIterations, toolDefinition } from '@tanstack/ai'
 import { z } from 'zod'
 import { writeDebugFile } from '../harness'
 import type { AdapterContext, TestOutcome } from '../harness'
@@ -57,15 +52,9 @@ export async function runAGS(
   }
 
   try {
-    // Create text function with adapter and model pre-configured
-    const textFn = (opts: any) =>
-      text({
-        adapter: adapterContext.textAdapter,
-        model: adapterContext.model,
-        ...opts,
-      })
-
-    const result = (await agentLoop(textFn, {
+    const result = (await chat({
+      adapter: adapterContext.textAdapter,
+      model: adapterContext.model,
       messages: [
         {
           role: 'user' as const,

@@ -9,6 +9,6 @@ title: defaultJSONParser
 const defaultJSONParser: PartialJSONParser;
 ```
 
-Defined in: [stream/json-parser.ts:49](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/stream/json-parser.ts#L49)
+Defined in: [activities/chat/stream/json-parser.ts:49](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/activities/chat/stream/json-parser.ts#L49)
 
 Default parser instance

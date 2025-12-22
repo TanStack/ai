@@ -1,12 +1,15 @@
 /**
- * Agent Loop
+ * Agent Loop (Experimental)
  *
  * Orchestrates agentic text generation by wrapping a text creator function
  * and handling automatic tool execution and looping.
  */
 
 import { aiEventClient } from '../event-client.js'
-import { ToolCallManager, executeToolCalls } from '../activities/chat/tools/tool-calls'
+import {
+  ToolCallManager,
+  executeToolCalls,
+} from '../activities/chat/tools/tool-calls'
 import { maxIterations as maxIterationsStrategy } from '../activities/chat/agent-loop-strategies'
 import type {
   ApprovalRequest,
@@ -91,8 +94,9 @@ export interface AgentLoopStreamOptions extends AgentLoopBaseOptions {
 /**
  * Options for structured output agent loop.
  */
-export interface AgentLoopStructuredOptions<TSchema extends z.ZodType>
-  extends AgentLoopBaseOptions {
+export interface AgentLoopStructuredOptions<
+  TSchema extends z.ZodType,
+> extends AgentLoopBaseOptions {
   /** Zod schema for structured output - determines return type */
   outputSchema: TSchema
 }
@@ -100,10 +104,11 @@ export interface AgentLoopStructuredOptions<TSchema extends z.ZodType>
 /**
  * Combined options type for the agent loop.
  */
-export type AgentLoopOptions<TSchema extends z.ZodType | undefined = undefined> =
-  TSchema extends z.ZodType
-    ? AgentLoopStructuredOptions<TSchema>
-    : AgentLoopStreamOptions
+export type AgentLoopOptions<
+  TSchema extends z.ZodType | undefined = undefined,
+> = TSchema extends z.ZodType
+  ? AgentLoopStructuredOptions<TSchema>
+  : AgentLoopStreamOptions
 
 // ===========================
 // Agent Loop Engine
@@ -274,7 +279,7 @@ class AgentLoopEngine {
       tools: this.tools,
       systemPrompts: this.options.systemPrompts,
       abortController: this.options.abortController,
-    }) as AsyncIterable<StreamChunk>
+    })
 
     for await (const chunk of stream) {
       if (this.isAborted()) {
@@ -865,10 +870,9 @@ export function agentLoop<TSchema extends z.ZodType | undefined = undefined>(
   // Check if structured output is requested
   const structuredOptions = options as AgentLoopStructuredOptions<z.ZodType>
   if (structuredOptions.outputSchema !== undefined) {
-    return runStructuredAgentLoop(
-      textFn,
-      structuredOptions,
-    ) as Promise<z.infer<TSchema>>
+    return runStructuredAgentLoop(textFn, structuredOptions) as Promise<
+      z.infer<TSchema>
+    >
   }
 
   // Otherwise return streaming

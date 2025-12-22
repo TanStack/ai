@@ -22,7 +22,7 @@ export interface TextAdapterConfig {
  */
 export interface StructuredOutputOptions<TProviderOptions extends object> {
   /** Text options for the request */
-  chatOptions: TextOptions<string, TProviderOptions>
+  chatOptions: TextOptions<TProviderOptions>
   /** JSON Schema for structured output - already converted from Zod in the ai layer */
   outputSchema: JSONSchema
 }
@@ -38,55 +38,44 @@ export interface StructuredOutputResult<T = unknown> {
 }
 
 /**
- * Base interface for text adapters.
- * Provides type-safe chat/text completion functionality.
+ * Text adapter interface with pre-resolved generics.
+ *
+ * An adapter is created by a provider function: `provider('model')` → `adapter`
+ * All type resolution happens at the provider call site, not in this interface.
  *
  * Generic parameters:
- * - TModels: Array of supported model names
- * - TProviderOptions: Provider-specific options for text endpoint
- * - TModelProviderOptionsByName: Map from model name to its specific provider options
- * - TModelInputModalitiesByName: Map from model name to its supported input modalities
- * - TMessageMetadataByModality: Map from modality type to adapter-specific metadata types
+ * - TModel: The specific model name (e.g., 'gpt-4o')
+ * - TProviderOptions: Provider-specific options for this model (already resolved)
+ * - TInputModalities: Supported input modalities for this model (already resolved)
+ * - TMessageMetadata: Metadata types for content parts (already resolved)
  */
 export interface TextAdapter<
-  TModels extends ReadonlyArray<string> = ReadonlyArray<string>,
-  TProviderOptions extends object = Record<string, unknown>,
-  TModelProviderOptionsByName extends Record<string, unknown> = Record<
-    string,
-    unknown
-  >,
-  TModelInputModalitiesByName extends Record<string, ReadonlyArray<Modality>> =
-    Record<string, ReadonlyArray<Modality>>,
-  TMessageMetadataByModality extends {
-    text: unknown
-    image: unknown
-    audio: unknown
-    video: unknown
-    document: unknown
-  } = DefaultMessageMetadataByModality,
+  TModel extends string,
+  TProviderOptions extends Record<string, any>,
+  TInputModalities extends ReadonlyArray<Modality>,
+  TMessageMetadataByModality extends DefaultMessageMetadataByModality,
 > {
-  /** Discriminator for adapter kind - used by generate() to determine API shape */
+  /** Discriminator for adapter kind */
   readonly kind: 'text'
-  /** Adapter name identifier */
+  /** Provider name identifier (e.g., 'openai', 'anthropic') */
   readonly name: string
-  /** Supported chat models */
-  readonly models: TModels
+  /** The model this adapter is configured for */
+  readonly model: TModel
 
-  // Type-only properties for type inference
-  /** @internal Type-only property for provider options inference */
-  _providerOptions?: TProviderOptions
-  /** @internal Type-only map from model name to its specific provider options */
-  _modelProviderOptionsByName?: TModelProviderOptionsByName
-  /** @internal Type-only map from model name to its supported input modalities */
-  _modelInputModalitiesByName?: TModelInputModalitiesByName
-  /** @internal Type-only map for message metadata types */
-  _messageMetadataByModality?: TMessageMetadataByModality
+  /**
+   * @internal Type-only properties for inference. Not assigned at runtime.
+   */
+  '~types': {
+    providerOptions: TProviderOptions
+    inputModalities: TInputModalities
+    messageMetadataByModality: TMessageMetadataByModality
+  }
 
   /**
    * Stream text completions from the model
    */
   chatStream: (
-    options: TextOptions<string, TProviderOptions>,
+    options: TextOptions<TProviderOptions>,
   ) => AsyncIterable<StreamChunk>
 
   /**
@@ -103,50 +92,48 @@ export interface TextAdapter<
 }
 
 /**
+ * A TextAdapter with any/unknown type parameters.
+ * Useful as a constraint in generic functions and interfaces.
+ */
+export type AnyTextAdapter = TextAdapter<any, any, any, any>
+
+/**
  * Abstract base class for text adapters.
  * Extend this class to implement a text adapter for a specific provider.
+ *
+ * Generic parameters match TextAdapter - all pre-resolved by the provider function.
  */
 export abstract class BaseTextAdapter<
-  TModels extends ReadonlyArray<string> = ReadonlyArray<string>,
-  TProviderOptions extends object = Record<string, unknown>,
-  TModelProviderOptionsByName extends Record<string, unknown> = Record<
-    string,
-    unknown
-  >,
-  TModelInputModalitiesByName extends Record<string, ReadonlyArray<Modality>> =
-    Record<string, ReadonlyArray<Modality>>,
-  TMessageMetadataByModality extends {
-    text: unknown
-    image: unknown
-    audio: unknown
-    video: unknown
-    document: unknown
-  } = DefaultMessageMetadataByModality,
+  TModel extends string,
+  TProviderOptions extends Record<string, any>,
+  TInputModalities extends ReadonlyArray<Modality>,
+  TMessageMetadataByModality extends DefaultMessageMetadataByModality,
 > implements TextAdapter<
-  TModels,
+  TModel,
   TProviderOptions,
-  TModelProviderOptionsByName,
-  TModelInputModalitiesByName,
+  TInputModalities,
   TMessageMetadataByModality
 > {
   readonly kind = 'text' as const
   abstract readonly name: string
-  abstract readonly models: TModels
+  readonly model: TModel
 
-  // Type-only properties - never assigned at runtime
-  declare _providerOptions?: TProviderOptions
-  declare _modelProviderOptionsByName?: TModelProviderOptionsByName
-  declare _modelInputModalitiesByName?: TModelInputModalitiesByName
-  declare _messageMetadataByModality?: TMessageMetadataByModality
+  // Type-only property - never assigned at runtime
+  declare '~types': {
+    providerOptions: TProviderOptions
+    inputModalities: TInputModalities
+    messageMetadataByModality: TMessageMetadataByModality
+  }
 
   protected config: TextAdapterConfig
 
-  constructor(config: TextAdapterConfig = {}) {
+  constructor(config: TextAdapterConfig = {}, model: TModel) {
     this.config = config
+    this.model = model
   }
 
   abstract chatStream(
-    options: TextOptions<string, TProviderOptions>,
+    options: TextOptions<TProviderOptions>,
   ): AsyncIterable<StreamChunk>
 
   /**

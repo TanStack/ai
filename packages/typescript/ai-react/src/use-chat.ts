@@ -22,14 +22,13 @@ export function useChat<TTools extends ReadonlyArray<AnyClientTool> = any>(
   )
   const isFirstMountRef = useRef(true)
 
-  // Track current options in a ref to avoid recreating client when options change
-  const optionsRef = useRef<UseChatOptions<TTools>>(options)
-
   // Update ref whenever messages change
   useEffect(() => {
     messagesRef.current = messages
   }, [messages])
 
+  // Track current options in a ref to avoid recreating client when options change
+  const optionsRef = useRef<UseChatOptions<TTools>>(options)
   optionsRef.current = options
 
   // Create ChatClient instance with callbacks to sync state

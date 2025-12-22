@@ -1,9 +1,10 @@
 ---
-title: Gemini Adapter
+title: Google Gemini
 id: gemini-adapter
+order: 3
 ---
 
-The Google Gemini adapter provides access to Google's Gemini models, including text generation, embeddings, image generation with Imagen, and experimental text-to-speech.
+The Google Gemini adapter provides access to Google's Gemini models, including text generation, image generation with Imagen, and experimental text-to-speech.
 
 ## Installation
 
@@ -17,11 +18,8 @@ npm install @tanstack/ai-gemini
 import { chat } from "@tanstack/ai";
 import { geminiText } from "@tanstack/ai-gemini";
 
-const adapter = geminiText();
-
 const stream = chat({
-  adapter,
-  model: "gemini-2.0-flash-exp",
+  adapter: geminiText("gemini-2.5-pro"),
   messages: [{ role: "user", content: "Hello!" }],
 });
 ```
@@ -37,8 +35,7 @@ const adapter = createGeminiChat(process.env.GEMINI_API_KEY!, {
 });
 
 const stream = chat({
-  adapter,
-  model: "gemini-2.0-flash-exp",
+  adapter: adapter("gemini-2.5-pro"),
   messages: [{ role: "user", content: "Hello!" }],
 });
 ```
@@ -54,30 +51,7 @@ const config: Omit<GeminiChatConfig, 'apiKey'> = {
 
 const adapter = createGeminiChat(process.env.GEMINI_API_KEY!, config);
 ```
-
-## Available Models
-
-### Chat Models
-
-- `gemini-2.0-flash-exp` - Gemini 2.0 Flash (fast, efficient)
-- `gemini-2.0-flash-lite` - Gemini 2.0 Flash Lite (fastest)
-- `gemini-2.5-pro` - Gemini 2.5 Pro (most capable)
-- `gemini-2.5-flash` - Gemini 2.5 Flash
-- `gemini-exp-1206` - Experimental Pro model
-
-### Embedding Models
-
-- `gemini-embedding-001` - Text embedding model
-- `text-embedding-004` - Latest embedding model
-
-### Image Generation Models
-
-- `imagen-3.0-generate-002` - Imagen 3.0
-- `gemini-2.0-flash-preview-image-generation` - Gemini with image generation
-
-### Text-to-Speech Models (Experimental)
-
-- `gemini-2.5-flash-preview-tts` - Gemini TTS
+  
 
 ## Example: Chat Completion
 
@@ -85,14 +59,11 @@ const adapter = createGeminiChat(process.env.GEMINI_API_KEY!, config);
 import { chat, toStreamResponse } from "@tanstack/ai";
 import { geminiText } from "@tanstack/ai-gemini";
 
-const adapter = geminiText();
-
 export async function POST(request: Request) {
   const { messages } = await request.json();
 
   const stream = chat({
-    adapter,
-    model: "gemini-2.0-flash-exp",
+    adapter: geminiText("gemini-2.5-pro"),
     messages,
   });
 
@@ -106,8 +77,6 @@ export async function POST(request: Request) {
 import { chat, toolDefinition } from "@tanstack/ai";
 import { geminiText } from "@tanstack/ai-gemini";
 import { z } from "zod";
-
-const adapter = geminiText();
 
 const getCalendarEventsDef = toolDefinition({
   name: "get_calendar_events",
@@ -123,21 +92,19 @@ const getCalendarEvents = getCalendarEventsDef.server(async ({ date }) => {
 });
 
 const stream = chat({
-  adapter,
-  model: "gemini-2.0-flash-exp",
+  adapter: geminiText("gemini-2.5-pro"),
   messages,
   tools: [getCalendarEvents],
 });
 ```
 
-## Provider Options
+## Model Options
 
-Gemini supports various provider-specific options:
+Gemini supports various model-specific options:
 
 ```typescript
 const stream = chat({
-  adapter: geminiText(),
-  model: "gemini-2.0-flash-exp",
+  adapter: geminiText("gemini-2.5-pro"),
   messages,
   modelOptions: {
     maxOutputTokens: 2048,
@@ -171,52 +138,6 @@ modelOptions: {
 }
 ```
 
-## Embeddings
-
-Generate text embeddings for semantic search and similarity:
-
-```typescript
-import { embedding } from "@tanstack/ai";
-import { geminiEmbedding } from "@tanstack/ai-gemini";
-
-const adapter = geminiEmbedding();
-
-const result = await embedding({
-  adapter,
-  model: "gemini-embedding-001",
-  input: "The quick brown fox jumps over the lazy dog",
-});
-
-console.log(result.embeddings);
-```
-
-### Batch Embeddings
-
-```typescript
-const result = await embedding({
-  adapter: geminiEmbedding(),
-  model: "gemini-embedding-001",
-  input: [
-    "First text to embed",
-    "Second text to embed",
-    "Third text to embed",
-  ],
-});
-```
-
-### Embedding Provider Options
-
-```typescript
-const result = await embedding({
-  adapter: geminiEmbedding(),
-  model: "gemini-embedding-001",
-  input: "...",
-  modelOptions: {
-    taskType: "RETRIEVAL_DOCUMENT", // or "RETRIEVAL_QUERY", "SEMANTIC_SIMILARITY", etc.
-  },
-});
-```
-
 ## Summarization
 
 Summarize long text content:
@@ -225,11 +146,8 @@ Summarize long text content:
 import { summarize } from "@tanstack/ai";
 import { geminiSummarize } from "@tanstack/ai-gemini";
 
-const adapter = geminiSummarize();
-
 const result = await summarize({
-  adapter,
-  model: "gemini-2.0-flash-exp",
+  adapter: geminiSummarize("gemini-2.5-pro"),
   text: "Your long text to summarize...",
   maxLength: 100,
   style: "concise", // "concise" | "bullet-points" | "paragraph"
@@ -246,11 +164,8 @@ Generate images with Imagen:
 import { generateImage } from "@tanstack/ai";
 import { geminiImage } from "@tanstack/ai-gemini";
 
-const adapter = geminiImage();
-
 const result = await generateImage({
-  adapter,
-  model: "imagen-3.0-generate-002",
+  adapter: geminiImage("imagen-3.0-generate-002"),
   prompt: "A futuristic cityscape at sunset",
   numberOfImages: 1,
 });
@@ -258,12 +173,11 @@ const result = await generateImage({
 console.log(result.images);
 ```
 
-### Image Provider Options
+### Image Model Options
 
 ```typescript
 const result = await generateImage({
-  adapter: geminiImage(),
-  model: "imagen-3.0-generate-002",
+  adapter: geminiImage("imagen-3.0-generate-002"),
   prompt: "...",
   modelOptions: {
     aspectRatio: "16:9", // "1:1" | "3:4" | "4:3" | "9:16" | "16:9"
@@ -283,11 +197,8 @@ Generate speech from text:
 import { generateSpeech } from "@tanstack/ai";
 import { geminiSpeech } from "@tanstack/ai-gemini";
 
-const adapter = geminiSpeech();
-
 const result = await generateSpeech({
-  adapter,
-  model: "gemini-2.5-flash-preview-tts",
+  adapter: geminiSpeech("gemini-2.5-flash-preview-tts"),
   text: "Hello from Gemini TTS!",
 });
 
@@ -328,18 +239,6 @@ Creates a Gemini text/chat adapter with an explicit API key.
 - `config.baseURL?` - Custom base URL (optional)
 
 **Returns:** A Gemini text adapter instance.
-
-### `geminiEmbed(config?)`
-
-Creates a Gemini embedding adapter using environment variables.
-
-**Returns:** A Gemini embed adapter instance.
-
-### `createGeminiEmbed(apiKey, config?)`
-
-Creates a Gemini embedding adapter with an explicit API key.
-
-**Returns:** A Gemini embed adapter instance.
 
 ### `geminiSummarize(config?)`
 

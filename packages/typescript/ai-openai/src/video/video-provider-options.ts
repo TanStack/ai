@@ -116,8 +116,3 @@ export function toApiSeconds(
   if (seconds === undefined) return undefined
   return String(seconds) as OpenAIVideoSeconds
 }
-
-/**
- * @deprecated Use OpenAIVideoSeconds instead
- */
-export type OpenAIVideoDuration = OpenAIVideoSeconds

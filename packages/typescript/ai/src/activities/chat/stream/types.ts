@@ -5,25 +5,15 @@
  * The canonical chunk format is StreamChunk from @tanstack/ai types.
  */
 
-import type { StreamChunk, ToolCall } from '../../../types'
+import type {
+  StreamChunk,
+  ToolCall,
+  ToolCallState,
+  ToolResultState,
+} from '../../../types'
 
-/**
- * Tool call states - track the lifecycle of a tool call
- */
-export type ToolCallState =
-  | 'awaiting-input' // Received start but no arguments yet
-  | 'input-streaming' // Partial arguments received
-  | 'input-complete' // All arguments received
-  | 'approval-requested' // Waiting for user approval
-  | 'approval-responded' // User has approved/denied
-
-/**
- * Tool result states - track the lifecycle of a tool result
- */
-export type ToolResultState =
-  | 'streaming' // Placeholder for future streamed output
-  | 'complete' // Result is complete
-  | 'error' // Error occurred
+// Re-export for backwards compatibility
+export type { ToolCallState, ToolResultState }
 
 /**
  * Internal state for a tool call being tracked

@@ -1,6 +1,7 @@
 ---
 title: Overview
 id: overview
+order: 1
 ---
 
 TanStack AI is a lightweight, type-safe SDK for building production-ready AI experiences. Its framework-agnostic core provides type-safe tool/function calling, streaming responses, and first-class React and Solid integrations, with adapters for multiple LLM providers — enabling predictable, composable, and testable AI features across any stack.
@@ -45,8 +46,7 @@ const getProducts = getProductsDef.server(async ({ query }) => {
 
 // Use in AI chat
 chat({
-  adapter: openaiText(),
-  model: 'gpt-4o',
+  adapter: openaiText('gpt-4o'),
   messages: [{ role: 'user', content: 'Find products' }],
   tools: [getProducts]
 })
@@ -63,7 +63,7 @@ The core AI library that provides:
 - Isomorphic tool/function calling system
 - Agent loop strategies
 - Type-safe tool definitions with `toolDefinition()`
-- Type-safe provider options based on adapter & model selection
+- Type-safe Model Options based on adapter & model selection
 - Type-safe content modalities (text, image, audio, video, document) based on model capabilities
 
 ### `@tanstack/ai-client`

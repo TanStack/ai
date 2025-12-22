@@ -1,5 +1,22 @@
 # @tanstack/ai-openai
 
+## 0.1.1
+
+### Patch Changes
+
+- add support for gpt 5.2 models ([#166](https://github.com/TanStack/ai/pull/166))
+
+## 0.1.0
+
+### Minor Changes
+
+- Split up adapters for better tree shaking into separate functionalities ([#137](https://github.com/TanStack/ai/pull/137))
+
+### Patch Changes
+
+- Updated dependencies [[`8d77614`](https://github.com/TanStack/ai/commit/8d776146f94ffd1579e1ab01b26dcb94d1bb3092)]:
+  - @tanstack/ai@0.1.0
+
 ## 0.0.3
 
 ### Patch Changes

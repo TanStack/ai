@@ -1,6 +1,7 @@
 ---
-title: TanStack AI Client API
+title: "@tanstack/ai-client"
 slug: /api/ai-client
+order: 2
 ---
 
 Framework-agnostic headless client for managing chat state and streaming.

@@ -1,6 +1,7 @@
 ---
 title: Tool Approval Flow
 id: tool-approval-flow
+order: 5
 ---
 
 The tool approval flow allows you to require user approval before executing sensitive tools, giving users control over actions like sending emails, making purchases, or deleting data. Tools go through these states during approval:
@@ -64,8 +65,7 @@ export async function POST(request: Request) {
   const { messages } = await request.json();
 
   const stream = chat({
-    adapter: openaiText(),
-    model: "gpt-4o",
+    adapter: openaiText("gpt-4o"),
     messages,
     tools: [sendEmail],
   });

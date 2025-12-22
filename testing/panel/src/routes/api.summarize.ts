@@ -7,30 +7,6 @@ import { ollamaSummarize } from '@tanstack/ai-ollama'
 
 type Provider = 'openai' | 'anthropic' | 'gemini' | 'ollama'
 
-// Pre-define typed adapter configurations with full type inference
-const adapterConfig = {
-  anthropic: () =>
-    createSummarizeOptions({
-      adapter: anthropicSummarize(),
-      model: 'claude-sonnet-4-5-20250929',
-    }),
-  gemini: () =>
-    createSummarizeOptions({
-      adapter: geminiSummarize(),
-      model: 'gemini-2.0-flash-exp',
-    }),
-  ollama: () =>
-    createSummarizeOptions({
-      adapter: ollamaSummarize(),
-      model: 'mistral:7b',
-    }),
-  openai: () =>
-    createSummarizeOptions({
-      adapter: openaiSummarize(),
-      model: 'gpt-4o-mini',
-    }),
-}
-
 export const Route = createFileRoute('/api/summarize')({
   server: {
     handlers: {
@@ -42,12 +18,36 @@ export const Route = createFileRoute('/api/summarize')({
           style = 'concise',
           stream = false,
         } = body
-        const provider: Provider = body.provider || 'openai'
+        const data = body.data || {}
+        const provider: Provider = data.provider || body.provider || 'openai'
+        const model: string = data.model || body.model || 'gpt-4o-mini'
 
         try {
+          // Pre-define typed adapter configurations with full type inference
+          // Model is passed to the adapter factory function for type-safe autocomplete
+          const adapterConfig = {
+            anthropic: () =>
+              createSummarizeOptions({
+                adapter: anthropicSummarize(
+                  (model || 'claude-sonnet-4-5') as any,
+                ),
+              }),
+            gemini: () =>
+              createSummarizeOptions({
+                adapter: geminiSummarize((model || 'gemini-2.0-flash') as any),
+              }),
+            ollama: () =>
+              createSummarizeOptions({
+                adapter: ollamaSummarize(model || 'mistral:7b'),
+              }),
+            openai: () =>
+              createSummarizeOptions({
+                adapter: openaiSummarize(model || 'gpt-4o-mini'),
+              }),
+          }
+
           // Get typed adapter options using createSummarizeOptions pattern
           const options = adapterConfig[provider]()
-          const model = options.adapter.defaultModel || 'unknown'
 
           console.log(
             `>> summarize with model: ${model} on provider: ${provider} (stream: ${stream})`,

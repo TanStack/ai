@@ -1,6 +1,7 @@
 ---
-title: TanStack AI Core API
+title: "@tanstack/ai"
 id: tanstack-ai-api
+order: 1
 ---
 
 The core AI library for TanStack AI.
@@ -20,8 +21,7 @@ import { chat } from "@tanstack/ai";
 import { openaiText } from "@tanstack/ai-openai";
 
 const stream = chat({
-  adapter: openaiText(),
-  model: "gpt-4o",
+  adapter: openaiText("gpt-4o"),
   messages: [{ role: "user", content: "Hello!" }],
   tools: [myTool],
   systemPrompts: ["You are a helpful assistant"],
@@ -31,8 +31,7 @@ const stream = chat({
 
 ### Parameters
 
-- `adapter` - An AI adapter instance (e.g., `openaiText()`, `anthropicText()`)
-- `model` - Model identifier (type-safe based on adapter) - **required**
+- `adapter` - An AI adapter instance with model (e.g., `openaiText('gpt-4o')`, `anthropicText('claude-sonnet-4-5')`)
 - `messages` - Array of chat messages
 - `tools?` - Array of tools for function calling
 - `systemPrompts?` - System prompts to prepend to messages
@@ -53,8 +52,7 @@ import { summarize } from "@tanstack/ai";
 import { openaiSummarize } from "@tanstack/ai-openai";
 
 const result = await summarize({
-  adapter: openaiSummarize(),
-  model: "gpt-4o",
+  adapter: openaiSummarize("gpt-4o"),
   text: "Long text to summarize...",
   maxLength: 100,
   style: "concise",
@@ -63,8 +61,7 @@ const result = await summarize({
 
 ### Parameters
 
-- `adapter` - An AI adapter instance
-- `model` - Model identifier (type-safe based on adapter) - **required**
+- `adapter` - An AI adapter instance with model
 - `text` - Text to summarize
 - `maxLength?` - Maximum length of summary
 - `style?` - Summary style ("concise" | "detailed")
@@ -73,32 +70,6 @@ const result = await summarize({
 ### Returns
 
 A `SummarizationResult` with the summary text.
-
-## `embedding(options)`
-
-Creates embeddings for text input.
-
-```typescript
-import { embedding } from "@tanstack/ai";
-import { openaiEmbedding } from "@tanstack/ai-openai";
-
-const result = await embedding({
-  adapter: openaiEmbedding(),
-  model: "text-embedding-3-small",
-  input: "Text to embed",
-});
-```
-
-### Parameters
-
-- `adapter` - An AI adapter instance
-- `model` - Embedding model identifier (type-safe based on adapter) - **required**
-- `input` - Text or array of texts to embed
-- `modelOptions?` - Model-specific options
-
-### Returns
-
-An `EmbeddingResult` with embeddings array.
 
 ## `toolDefinition(config)`
 
@@ -128,8 +99,7 @@ const myClientTool = myToolDef.client(async ({ param }) => {
 
 // Use directly in chat() (server-side, no execute)
 chat({
-  adapter: openaiText(),
-  model: "gpt-4o",
+  adapter: openaiText("gpt-4o"),
   tools: [myToolDef],
   messages: [{ role: "user", content: "..." }],
 });
@@ -142,8 +112,7 @@ const myServerTool = myToolDef.server(async ({ param }) => {
 
 // Use directly in chat() (server-side, no execute)
 chat({
-  adapter: openaiText(),
-  model: "gpt-4o",
+  adapter: openaiText("gpt-4o"),
   tools: [myServerTool],
   messages: [{ role: "user", content: "..." }],
 });
@@ -171,8 +140,7 @@ import { chat, toServerSentEventsStream } from "@tanstack/ai";
 import { openaiText } from "@tanstack/ai-openai";
 
 const stream = chat({
-  adapter: openaiText(),
-  model: "gpt-4o",
+  adapter: openaiText("gpt-4o"),
   messages: [...],
 });
 const readableStream = toServerSentEventsStream(stream);
@@ -199,8 +167,7 @@ import { chat, toStreamResponse } from "@tanstack/ai";
 import { openaiText } from "@tanstack/ai-openai";
 
 const stream = chat({
-  adapter: openaiText(),
-  model: "gpt-4o",
+  adapter: openaiText("gpt-4o"),
   messages: [...],
 });
 return toStreamResponse(stream);
@@ -224,8 +191,7 @@ import { chat, maxIterations } from "@tanstack/ai";
 import { openaiText } from "@tanstack/ai-openai";
 
 const stream = chat({
-  adapter: openaiText(),
-  model: "gpt-4o",
+  adapter: openaiText("gpt-4o"),
   messages: [...],
   agentLoopStrategy: maxIterations(20),
 });
@@ -299,25 +265,22 @@ interface Tool {
 ## Usage Examples
 
 ```typescript
-import { chat, summarize, embedding, generateImage } from "@tanstack/ai";
+import { chat, summarize, generateImage } from "@tanstack/ai";
 import {
   openaiText,
   openaiSummarize,
-  openaiEmbedding,
   openaiImage,
 } from "@tanstack/ai-openai";
 
 // --- Streaming chat
 const stream = chat({
-  adapter: openaiText(),
-  model: "gpt-4o",
+  adapter: openaiText("gpt-4o"),
   messages: [{ role: "user", content: "Hello!" }],
 });
 
 // --- One-shot chat response (stream: false)
 const response = await chat({
-  adapter: openaiText(),
-  model: "gpt-4o",
+  adapter: openaiText("gpt-4o"),
   messages: [{ role: "user", content: "What's the capital of France?" }],
   stream: false, // Returns a Promise<string> instead of AsyncIterable
 });
@@ -325,8 +288,7 @@ const response = await chat({
 // --- Structured response with outputSchema
 import { z } from "zod";
 const parsed = await chat({
-  adapter: openaiText(),
-  model: "gpt-4o",
+  adapter: openaiText("gpt-4o"),
   messages: [{ role: "user", content: "Summarize this text in JSON with keys 'summary' and 'keywords': ... " }],
   outputSchema: z.object({
     summary: z.string(),
@@ -348,8 +310,7 @@ const weatherTool = toolDefinition({
 });
 
 const toolResult = await chat({
-  adapter: openaiText(),
-  model: "gpt-4o",
+  adapter: openaiText("gpt-4o"),
   messages: [
     { role: "user", content: "What's the weather in Paris?" }
   ],
@@ -365,23 +326,14 @@ const toolResult = await chat({
 
 // --- Summarization
 const summary = await summarize({
-  adapter: openaiSummarize(),
-  model: "gpt-4o",
+  adapter: openaiSummarize("gpt-4o"),
   text: "Long text to summarize...",
   maxLength: 100,
 });
 
-// --- Embeddings
-const embeddings = await embedding({
-  adapter: openaiEmbedding(),
-  model: "text-embedding-3-small",
-  input: "Text to embed",
-});
-
 // --- Image generation
 const image = await generateImage({
-  adapter: openaiImage(),
-  model: "dall-e-3",
+  adapter: openaiImage("dall-e-3"),
   prompt: "A futuristic city skyline at sunset",
   numberOfImages: 1,
   size: "1024x1024",

@@ -1,3 +1,9 @@
+---
+title: Text-to-Speech
+id: text-to-speech
+order: 13
+---
+
 # Text-to-Speech (TTS)
 
 TanStack AI provides support for text-to-speech generation through dedicated TTS adapters. This guide covers how to convert text into spoken audio using OpenAI and Gemini providers.
@@ -22,8 +28,7 @@ const adapter = openaiSpeech()
 
 // Generate speech from text
 const result = await generateSpeech({
-  adapter,
-  model: 'tts-1',
+  adapter: openaiTTS('tts-1'),
   text: 'Hello, welcome to TanStack AI!',
   voice: 'alloy',
 })
@@ -44,8 +49,7 @@ const adapter = geminiSpeech()
 
 // Generate speech from text
 const result = await generateSpeech({
-  adapter,
-  model: 'gemini-2.5-flash-preview-tts',
+  adapter: geminiTTS('gemini-2.5-flash-preview-tts'),
   text: 'Hello from Gemini TTS!',
 })
 
@@ -93,14 +97,13 @@ OpenAI provides several distinct voices:
 | `wav` | WAV audio (uncompressed) |
 | `pcm` | Raw PCM audio |
 
-## Provider Options
+## Model Options
 
-### OpenAI Provider Options
+### OpenAI Model Options
 
 ```typescript
 const result = await generateSpeech({
-  adapter: openaiSpeech(),
-  model: 'tts-1-hd',
+  adapter: openaiTTS('tts-1-hd'),
   text: 'High quality speech synthesis',
   voice: 'nova',
   format: 'mp3',
@@ -167,8 +170,7 @@ async function saveAudio(result: TTSResult, filename: string) {
 
 // Usage
 const result = await generateSpeech({
-  adapter: openaiSpeech(),
-  model: 'tts-1',
+  adapter: openaiTTS('tts-1'),
   text: 'Hello world!',
 })
 
@@ -197,8 +199,7 @@ await saveAudio(result, 'output.mp3')
 ```typescript
 try {
   const result = await generateSpeech({
-    adapter: openaiSpeech(),
-    model: 'tts-1',
+    adapter: openaiTTS('tts-1'),
     text: 'Hello!',
   })
 } catch (error) {

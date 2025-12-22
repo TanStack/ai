@@ -2,7 +2,7 @@ import {
   chat,
   createChatOptions,
   maxIterations,
-  toStreamResponse,
+  toServerSentEventsStream,
 } from '@tanstack/ai'
 import { openaiText } from '@tanstack/ai-openai'
 import { ollamaText } from '@tanstack/ai-ollama'
@@ -33,23 +33,19 @@ if (env.GEMINI_API_KEY) process.env.GEMINI_API_KEY = env.GEMINI_API_KEY
 const adapterConfig = {
   anthropic: () =>
     createChatOptions({
-      adapter: anthropicText(),
-      model: 'claude-sonnet-4-5',
+      adapter: anthropicText('claude-sonnet-4-5'),
     }),
   gemini: () =>
     createChatOptions({
-      adapter: geminiText(),
-      model: 'gemini-2.0-flash-exp',
+      adapter: geminiText('gemini-2.0-flash-exp'),
     }),
   ollama: () =>
     createChatOptions({
-      adapter: ollamaText(),
-      model: 'mistral:7b',
+      adapter: ollamaText('mistral:7b'),
     }),
   openai: () =>
     createChatOptions({
-      adapter: openaiText(),
-      model: 'gpt-4o',
+      adapter: openaiText('gpt-4o'),
     }),
 }
 
@@ -120,7 +116,14 @@ export const POST: RequestHandler = async ({ request }) => {
       abortController,
     })
 
-    return toStreamResponse(stream, { abortController })
+    const readableStream = toServerSentEventsStream(stream, abortController)
+    return new Response(readableStream, {
+      headers: {
+        'Content-Type': 'text/event-stream',
+        'Cache-Control': 'no-cache',
+        Connection: 'keep-alive',
+      },
+    })
   } catch (error: any) {
     console.error('[API Route] Error in chat request:', {
       message: error?.message,

@@ -38,7 +38,7 @@
     "remark-gfm": "^4.0.1",
     "tailwindcss": "^4.1.18",
     "vite-tsconfig-paths": "^5.1.4",
-    "zod": "^4.1.13"
+    "zod": "^4.2.0"
   },
   "devDependencies": {
     "@tanstack/devtools-vite": "^0.3.11",

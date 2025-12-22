@@ -19,16 +19,12 @@ export const kind = 'transcription' as const
 // Type Extraction Helpers
 // ===========================
 
-/** Extract model types from a TranscriptionAdapter */
-export type TranscriptionModels<TAdapter> =
-  TAdapter extends TranscriptionAdapter<infer M, any> ? M[number] : string
-
 /**
- * Extract provider options from a TranscriptionAdapter.
+ * Extract provider options from a TranscriptionAdapter via ~types.
  */
 export type TranscriptionProviderOptions<TAdapter> =
-  TAdapter extends TranscriptionAdapter<any, infer TProviderOptions>
-    ? TProviderOptions
+  TAdapter extends TranscriptionAdapter<any, any>
+    ? TAdapter['~types']['providerOptions']
     : object
 
 // ===========================
@@ -37,18 +33,15 @@ export type TranscriptionProviderOptions<TAdapter> =
 
 /**
  * Options for the transcription activity.
+ * The model is extracted from the adapter's model property.
  *
  * @template TAdapter - The transcription adapter type
- * @template TModel - The model name type (inferred from adapter)
  */
 export interface TranscriptionActivityOptions<
-  TAdapter extends TranscriptionAdapter<ReadonlyArray<string>, object>,
-  TModel extends TranscriptionModels<TAdapter>,
+  TAdapter extends TranscriptionAdapter<string, object>,
 > {
-  /** The transcription adapter to use */
+  /** The transcription adapter to use (must be created with a model) */
   adapter: TAdapter & { kind: typeof kind }
-  /** The model name (autocompletes based on adapter) */
-  model: TModel
   /** The audio data to transcribe - can be base64 string, File, Blob, or Buffer */
   audio: string | File | Blob | ArrayBuffer
   /** The language of the audio in ISO-639-1 format (e.g., 'en') */
@@ -83,8 +76,7 @@ export type TranscriptionActivityResult = Promise<TranscriptionResult>
  * import { openaiTranscription } from '@tanstack/ai-openai'
  *
  * const result = await generateTranscription({
- *   adapter: openaiTranscription(),
- *   model: 'whisper-1',
+ *   adapter: openaiTranscription('whisper-1'),
  *   audio: audioFile, // File, Blob, or base64 string
  *   language: 'en'
  * })
@@ -95,8 +87,7 @@ export type TranscriptionActivityResult = Promise<TranscriptionResult>
  * @example With verbose output for timestamps
  * ```ts
  * const result = await generateTranscription({
- *   adapter: openaiTranscription(),
- *   model: 'whisper-1',
+ *   adapter: openaiTranscription('whisper-1'),
  *   audio: audioFile,
  *   responseFormat: 'verbose_json'
  * })
@@ -107,19 +98,35 @@ export type TranscriptionActivityResult = Promise<TranscriptionResult>
  * ```
  */
 export async function generateTranscription<
-  TAdapter extends TranscriptionAdapter<ReadonlyArray<string>, object>,
-  TModel extends TranscriptionModels<TAdapter>,
+  TAdapter extends TranscriptionAdapter<string, object>,
 >(
-  options: TranscriptionActivityOptions<TAdapter, TModel>,
+  options: TranscriptionActivityOptions<TAdapter>,
 ): TranscriptionActivityResult {
   const { adapter, ...rest } = options
+  const model = adapter.model
 
-  return adapter.transcribe(rest)
+  return adapter.transcribe({ ...rest, model })
+}
+
+// ===========================
+// Options Factory
+// ===========================
+
+/**
+ * Create typed options for the generateTranscription() function without executing.
+ */
+export function createTranscriptionOptions<
+  TAdapter extends TranscriptionAdapter<string, object>,
+>(
+  options: TranscriptionActivityOptions<TAdapter>,
+): TranscriptionActivityOptions<TAdapter> {
+  return options
 }
 
 // Re-export adapter types
 export type {
   TranscriptionAdapter,
   TranscriptionAdapterConfig,
+  AnyTranscriptionAdapter,
 } from './adapter'
 export { BaseTranscriptionAdapter } from './adapter'
