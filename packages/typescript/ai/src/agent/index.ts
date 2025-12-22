@@ -164,8 +164,9 @@ export interface AgentLoopDirectOptions<
 /**
  * Streaming options for direct agent loop (no outputSchema).
  */
-export interface AgentLoopDirectStreamOptions<TAdapter extends AnyTextAdapter>
-  extends AgentLoopDirectOptions<TAdapter, undefined> {
+export interface AgentLoopDirectStreamOptions<
+  TAdapter extends AnyTextAdapter,
+> extends AgentLoopDirectOptions<TAdapter, undefined> {
   outputSchema?: undefined
 }
 
@@ -883,10 +884,12 @@ function createTextFnFromDirectOptions(
   const { adapter, temperature, topP, maxTokens, metadata, modelOptions } =
     options
 
-  return ((creatorOptions: TextCreatorOptions & { outputSchema?: z.ZodType }) => {
+  return ((
+    creatorOptions: TextCreatorOptions & { outputSchema?: z.ZodType },
+  ) => {
     return chat({
       adapter,
-      messages: creatorOptions.messages as Array<ModelMessage>,
+      messages: creatorOptions.messages,
       tools: creatorOptions.tools as Array<Tool>,
       systemPrompts: creatorOptions.systemPrompts,
       abortController: creatorOptions.abortController,
@@ -1028,9 +1031,7 @@ export function agentLoop<
   TAdapter extends AnyTextAdapter,
   TSchema extends z.ZodType | undefined = undefined,
 >(
-  textFnOrOptions:
-    | TextCreator
-    | AgentLoopDirectOptions<TAdapter, TSchema>,
+  textFnOrOptions: TextCreator | AgentLoopDirectOptions<TAdapter, TSchema>,
   maybeOptions?: AgentLoopOptions<TSchema>,
 ): Promise<z.infer<TSchema>> | AsyncIterable<StreamChunk> {
   // Detect which API is being used
