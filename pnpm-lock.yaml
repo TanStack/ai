@@ -619,7 +619,7 @@ importers:
         specifier: ^0.71.0
         version: 0.71.2(zod@4.1.13)
       '@tanstack/ai':
-        specifier: workspace:*
+        specifier: workspace:^
         version: link:../ai
       zod:
         specifier: ^4.0.0
@@ -682,7 +682,7 @@ importers:
         specifier: ^1.30.0
         version: 1.33.0
       '@tanstack/ai':
-        specifier: workspace:*
+        specifier: workspace:^
         version: link:../ai
       zod:
         specifier: ^4.0.0
@@ -698,7 +698,7 @@ importers:
   packages/typescript/ai-ollama:
     dependencies:
       '@tanstack/ai':
-        specifier: workspace:*
+        specifier: workspace:^
         version: link:../ai
       ollama:
         specifier: ^0.6.3
@@ -717,7 +717,7 @@ importers:
   packages/typescript/ai-openai:
     dependencies:
       '@tanstack/ai':
-        specifier: workspace:*
+        specifier: workspace:^
         version: link:../ai
       openai:
         specifier: ^6.9.1
@@ -736,7 +736,7 @@ importers:
   packages/typescript/ai-react:
     dependencies:
       '@tanstack/ai':
-        specifier: workspace:*
+        specifier: workspace:^
         version: link:../ai
       '@tanstack/ai-client':
         specifier: workspace:*
@@ -804,7 +804,7 @@ importers:
   packages/typescript/ai-solid:
     dependencies:
       '@tanstack/ai':
-        specifier: workspace:*
+        specifier: workspace:^
         version: link:../ai
       '@tanstack/ai-client':
         specifier: workspace:*
@@ -872,7 +872,7 @@ importers:
   packages/typescript/ai-svelte:
     dependencies:
       '@tanstack/ai':
-        specifier: workspace:*
+        specifier: workspace:^
         version: link:../ai
       '@tanstack/ai-client':
         specifier: workspace:*
@@ -909,7 +909,7 @@ importers:
   packages/typescript/ai-vue:
     dependencies:
       '@tanstack/ai':
-        specifier: workspace:*
+        specifier: workspace:^
         version: link:../ai
       '@tanstack/ai-client':
         specifier: workspace:*
