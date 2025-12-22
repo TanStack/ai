@@ -153,11 +153,11 @@ Defined in: [types.ts:812](https://github.com/TanStack/ai/blob/main/packages/typ
 
 ##### options
 
-[`EmbeddingOptions`](EmbeddingOptions.md)
+`EmbeddingOptions`
 
 #### Returns
 
-`Promise`\<[`EmbeddingResult`](EmbeddingResult.md)\>
+`Promise`\<`EmbeddingResult`\>
 
 ***
 

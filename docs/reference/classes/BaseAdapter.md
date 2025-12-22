@@ -66,7 +66,7 @@ Defined in: [base-adapter.ts:70](https://github.com/TanStack/ai/blob/main/packag
 
 ##### config
 
-[`AIAdapterConfig`](../interfaces/AIAdapterConfig.md) = `{}`
+`AIAdapterConfig` = `{}`
 
 #### Returns
 
@@ -261,11 +261,11 @@ Defined in: [base-adapter.ts:79](https://github.com/TanStack/ai/blob/main/packag
 
 ##### options
 
-[`EmbeddingOptions`](../interfaces/EmbeddingOptions.md)
+`EmbeddingOptions`
 
 #### Returns
 
-`Promise`\<[`EmbeddingResult`](../interfaces/EmbeddingResult.md)\>
+`Promise`\<`EmbeddingResult`\>
 
 #### Implementation of
 

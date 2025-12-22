@@ -1057,11 +1057,8 @@ export function agentLoop<
   const options = maybeOptions!
 
   // Check if structured output is requested
-  const structuredOptions = options as AgentLoopStructuredOptions<z.ZodType>
-  if (structuredOptions.outputSchema !== undefined) {
-    return runStructuredAgentLoop(textFn, structuredOptions) as Promise<
-      z.infer<TSchema>
-    >
+  if ('outputSchema' in options && options.outputSchema !== undefined) {
+    return runStructuredAgentLoop(textFn, options) as Promise<z.infer<TSchema>>
   }
 
   // Otherwise return streaming

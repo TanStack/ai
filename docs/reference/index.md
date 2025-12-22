@@ -119,7 +119,6 @@ title: "@tanstack/ai"
 
 ## Functions
 
-- [chat](functions/chat.md)
 - [combineStrategies](functions/combineStrategies.md)
 - [convertMessagesToModelMessages](functions/convertMessagesToModelMessages.md)
 - [convertZodToJsonSchema](functions/convertZodToJsonSchema.md)
