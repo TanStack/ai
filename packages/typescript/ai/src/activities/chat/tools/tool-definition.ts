@@ -1,4 +1,4 @@
-import type { z } from 'zod'
+import type { StandardJSONSchemaV1 } from '@standard-schema/spec'
 import type {
   InferSchemaType,
   JSONSchema,
@@ -10,8 +10,8 @@ import type {
  * Marker type for server-side tools
  */
 export interface ServerTool<
-  TInput extends SchemaInput = z.ZodType,
-  TOutput extends SchemaInput = z.ZodType,
+  TInput extends SchemaInput = SchemaInput,
+  TOutput extends SchemaInput = SchemaInput,
   TName extends string = string,
 > extends Tool<TInput, TOutput, TName> {
   __toolSide: 'server'
@@ -21,8 +21,8 @@ export interface ServerTool<
  * Marker type for client-side tools
  */
 export interface ClientTool<
-  TInput extends SchemaInput = z.ZodType,
-  TOutput extends SchemaInput = z.ZodType,
+  TInput extends SchemaInput = SchemaInput,
+  TOutput extends SchemaInput = SchemaInput,
   TName extends string = string,
 > {
   __toolSide: 'client'
@@ -31,7 +31,7 @@ export interface ClientTool<
   inputSchema?: TInput
   outputSchema?: TOutput
   needsApproval?: boolean
-  metadata?: Record<string, any>
+  metadata?: Record<string, unknown>
   execute?: (
     args: InferSchemaType<TInput>,
   ) => Promise<InferSchemaType<TOutput>> | InferSchemaType<TOutput>
@@ -41,8 +41,8 @@ export interface ClientTool<
  * Tool definition that can be used directly or instantiated for server/client
  */
 export interface ToolDefinitionInstance<
-  TInput extends SchemaInput = z.ZodType,
-  TOutput extends SchemaInput = z.ZodType,
+  TInput extends SchemaInput = SchemaInput,
+  TOutput extends SchemaInput = SchemaInput,
   TName extends string = string,
 > extends Tool<TInput, TOutput, TName> {
   __toolSide: 'definition'
@@ -52,8 +52,8 @@ export interface ToolDefinitionInstance<
  * Union type for any kind of client-side tool (client tool or definition)
  */
 export type AnyClientTool =
-  | ClientTool<any, any>
-  | ToolDefinitionInstance<any, any>
+  | ClientTool<SchemaInput, SchemaInput>
+  | ToolDefinitionInstance<SchemaInput, SchemaInput>
 
 /**
  * Extract the tool name as a literal type
@@ -61,33 +61,33 @@ export type AnyClientTool =
 export type InferToolName<T> = T extends { name: infer N } ? N : never
 
 /**
- * Extract the input type from a tool (inferred from Zod schema, or `any` for JSONSchema)
+ * Extract the input type from a tool (inferred from Standard JSON Schema, or `unknown` for plain JSONSchema)
  */
 export type InferToolInput<T> = T extends { inputSchema?: infer TInput }
-  ? TInput extends z.ZodType
-    ? z.infer<TInput>
+  ? TInput extends StandardJSONSchemaV1<infer TInferred, unknown>
+    ? TInferred
     : TInput extends JSONSchema
-      ? any
-      : any
-  : any
+      ? unknown
+      : unknown
+  : unknown
 
 /**
- * Extract the output type from a tool (inferred from Zod schema, or `any` for JSONSchema)
+ * Extract the output type from a tool (inferred from Standard JSON Schema, or `unknown` for plain JSONSchema)
  */
 export type InferToolOutput<T> = T extends { outputSchema?: infer TOutput }
-  ? TOutput extends z.ZodType
-    ? z.infer<TOutput>
+  ? TOutput extends StandardJSONSchemaV1<infer TInferred, unknown>
+    ? TInferred
     : TOutput extends JSONSchema
-      ? any
-      : any
-  : any
+      ? unknown
+      : unknown
+  : unknown
 
 /**
  * Tool definition configuration
  */
 export interface ToolDefinitionConfig<
-  TInput extends SchemaInput = z.ZodType,
-  TOutput extends SchemaInput = z.ZodType,
+  TInput extends SchemaInput = SchemaInput,
+  TOutput extends SchemaInput = SchemaInput,
   TName extends string = string,
 > {
   name: TName
@@ -95,15 +95,15 @@ export interface ToolDefinitionConfig<
   inputSchema?: TInput
   outputSchema?: TOutput
   needsApproval?: boolean
-  metadata?: Record<string, any>
+  metadata?: Record<string, unknown>
 }
 
 /**
  * Tool definition builder that allows creating server or client tools from a shared definition
  */
 export interface ToolDefinition<
-  TInput extends SchemaInput = z.ZodType,
-  TOutput extends SchemaInput = z.ZodType,
+  TInput extends SchemaInput = SchemaInput,
+  TOutput extends SchemaInput = SchemaInput,
   TName extends string = string,
 > extends ToolDefinitionInstance<TInput, TOutput, TName> {
   /**
@@ -133,11 +133,15 @@ export interface ToolDefinition<
  * 2. Instantiated as a server tool with .server()
  * 3. Instantiated as a client tool with .client()
  *
+ * Supports any Standard JSON Schema compliant library (Zod v4+, ArkType, Valibot, etc.)
+ * or plain JSON Schema objects.
+ *
  * @example
  * ```typescript
  * import { toolDefinition } from '@tanstack/ai';
  * import { z } from 'zod';
  *
+ * // Using Zod (natively supports Standard JSON Schema)
  * const addToCartTool = toolDefinition({
  *   name: 'addToCart',
  *   description: 'Add a guitar to the shopping cart (requires approval)',
@@ -177,8 +181,8 @@ export interface ToolDefinition<
  * ```
  */
 export function toolDefinition<
-  TInput extends SchemaInput = z.ZodAny,
-  TOutput extends SchemaInput = z.ZodAny,
+  TInput extends SchemaInput = SchemaInput,
+  TOutput extends SchemaInput = SchemaInput,
   TName extends string = string,
 >(
   config: ToolDefinitionConfig<TInput, TOutput, TName>,

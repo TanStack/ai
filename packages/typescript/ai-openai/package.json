@@ -1,6 +1,6 @@
 {
   "name": "@tanstack/ai-openai",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "OpenAI adapter for TanStack AI",
   "author": "",
   "license": "MIT",
@@ -40,7 +40,6 @@
     "adapter"
   ],
   "dependencies": {
-    "@tanstack/ai": "workspace:*",
     "openai": "^6.9.1"
   },
   "devDependencies": {
@@ -48,7 +47,7 @@
     "vite": "^7.2.7"
   },
   "peerDependencies": {
-    "@tanstack/ai": "workspace:*",
+    "@tanstack/ai": "workspace:^",
     "zod": "^4.0.0"
   }
 }

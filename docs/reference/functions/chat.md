@@ -9,7 +9,7 @@ title: chat
 function chat<TAdapter, TSchema, TStream>(options): TextActivityResult<TSchema, TStream>;
 ```
 
-Defined in: [activities/chat/index.ts:945](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/activities/chat/index.ts#L945)
+Defined in: [activities/chat/index.ts:969](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/activities/chat/index.ts#L969)
 
 Text activity - handles agentic text generation, one-shot text generation, and agentic structured output.
 
@@ -23,7 +23,7 @@ This activity supports four modes:
 
 ### TAdapter
 
-`TAdapter` *extends* `AnyTextAdapter`
+`TAdapter` *extends* [`AnyTextAdapter`](../type-aliases/AnyTextAdapter.md)
 
 ### TSchema
 

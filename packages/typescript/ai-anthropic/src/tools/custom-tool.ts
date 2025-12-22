@@ -1,5 +1,4 @@
-import type { JSONSchema, Tool } from '@tanstack/ai'
-import type { z } from 'zod'
+import type { JSONSchema, SchemaInput, Tool } from '@tanstack/ai'
 import type { CacheControl } from '../text/text-provider-options'
 
 export interface CustomTool {
@@ -53,7 +52,7 @@ export function convertCustomToolToAdapterFormat(tool: Tool): CustomTool {
 export function customTool(
   name: string,
   description: string,
-  inputSchema: z.ZodType,
+  inputSchema: SchemaInput,
   cacheControl?: CacheControl | null,
 ): Tool {
   return {

@@ -9,7 +9,7 @@ title: createChatOptions
 function createChatOptions<TAdapter, TSchema, TStream>(options): TextActivityOptions<TAdapter, TSchema, TStream>;
 ```
 
-Defined in: [activities/chat/index.ts:135](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/activities/chat/index.ts#L135)
+Defined in: [activities/chat/index.ts:141](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/activities/chat/index.ts#L141)
 
 Create typed options for the chat() function without executing.
 This is useful for pre-defining configurations with full type inference.
@@ -18,7 +18,7 @@ This is useful for pre-defining configurations with full type inference.
 
 ### TAdapter
 
-`TAdapter` *extends* `AnyTextAdapter`
+`TAdapter` *extends* [`AnyTextAdapter`](../type-aliases/AnyTextAdapter.md)
 
 ### TSchema
 

@@ -1,5 +1,30 @@
 # ts-vue-chat
 
+## 0.1.0
+
+### Minor Changes
+
+- Standard schema / standard json schema support for TanStack AI ([#165](https://github.com/TanStack/ai/pull/165))
+
+### Patch Changes
+
+- Updated dependencies [[`c5df33c`](https://github.com/TanStack/ai/commit/c5df33c2d3e72c3332048ffe7c64a553e5ea86fb)]:
+  - @tanstack/ai-anthropic@1.0.0
+  - @tanstack/ai-client@0.2.0
+  - @tanstack/ai-ollama@1.0.0
+  - @tanstack/ai-vue@1.0.0
+  - @tanstack/ai@0.2.0
+  - @tanstack/ai-vue-ui@0.1.1
+  - @tanstack/ai-gemini@1.0.0
+  - @tanstack/ai-openai@1.0.0
+
+## 0.0.3
+
+### Patch Changes
+
+- Updated dependencies [[`2615fd7`](https://github.com/TanStack/ai/commit/2615fd7552c77888db970cb9dd1d64f73257e96c)]:
+  - @tanstack/ai-openai@0.1.1
+
 ## 0.0.2
 
 ### Patch Changes

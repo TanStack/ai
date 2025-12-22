@@ -1,6 +1,6 @@
 {
   "name": "@tanstack/ai-client",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Framework-agnostic headless client for TanStack AI",
   "author": "",
   "license": "MIT",
@@ -48,6 +48,6 @@
   "devDependencies": {
     "@vitest/coverage-v8": "4.0.14",
     "vite": "^7.2.7",
-    "zod": "^4.1.13"
+    "zod": "^4.2.0"
   }
 }

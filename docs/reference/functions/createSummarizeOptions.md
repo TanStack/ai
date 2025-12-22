@@ -17,7 +17,7 @@ Create typed options for the summarize() function without executing.
 
 ### TAdapter
 
-`TAdapter` *extends* `SummarizeAdapter`\<`string`, `object`\>
+`TAdapter` *extends* [`SummarizeAdapter`](../interfaces/SummarizeAdapter.md)\<`string`, `object`\>
 
 ### TStream
 
