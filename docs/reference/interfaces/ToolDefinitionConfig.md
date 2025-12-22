@@ -13,11 +13,11 @@ Tool definition configuration
 
 ### TInput
 
-`TInput` *extends* [`SchemaInput`](../type-aliases/SchemaInput.md) = `z.ZodType`
+`TInput` *extends* [`SchemaInput`](../type-aliases/SchemaInput.md) = [`SchemaInput`](../type-aliases/SchemaInput.md)
 
 ### TOutput
 
-`TOutput` *extends* [`SchemaInput`](../type-aliases/SchemaInput.md) = `z.ZodType`
+`TOutput` *extends* [`SchemaInput`](../type-aliases/SchemaInput.md) = [`SchemaInput`](../type-aliases/SchemaInput.md)
 
 ### TName
 
@@ -48,7 +48,7 @@ Defined in: [activities/chat/tools/tool-definition.ts:95](https://github.com/Tan
 ### metadata?
 
 ```ts
-optional metadata: Record<string, any>;
+optional metadata: Record<string, unknown>;
 ```
 
 Defined in: [activities/chat/tools/tool-definition.ts:98](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/activities/chat/tools/tool-definition.ts#L98)
