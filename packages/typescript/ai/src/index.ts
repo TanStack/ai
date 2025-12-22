@@ -1,12 +1,20 @@
 // Activity functions - individual exports for each activity
 export {
   chat,
+  text as experimental_text,
   summarize,
   generateImage,
   generateVideo,
   getVideoJobStatus,
   generateSpeech,
   generateTranscription,
+} from './activities/index'
+
+// Text activity types (experimental)
+export {
+  createTextOptions as experimental_createTextOptions,
+  type TextOptions as ExperimentalTextOptions,
+  type TextResult as ExperimentalTextResult,
 } from './activities/index'
 
 // Agent loop (experimental)
@@ -16,6 +24,9 @@ export {
   type AgentLoopBaseOptions,
   type AgentLoopStreamOptions,
   type AgentLoopStructuredOptions,
+  type AgentLoopDirectOptions,
+  type AgentLoopDirectStreamOptions,
+  type AgentLoopDirectStructuredOptions,
   type TextCreator,
   type TextCreatorOptions,
 } from './agent'

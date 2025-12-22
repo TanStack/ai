@@ -11,14 +11,17 @@ import {
   executeToolCalls,
 } from '../activities/chat/tools/tool-calls'
 import { maxIterations as maxIterationsStrategy } from '../activities/chat/agent-loop-strategies'
+import { chat } from '../activities/chat/index'
 import type {
   ApprovalRequest,
   ClientToolRequest,
   ToolResult,
 } from '../activities/chat/tools/tool-calls'
+import type { AnyTextAdapter } from '../activities/chat/adapter'
 import type { z } from 'zod'
 import type {
   AgentLoopStrategy,
+  ConstrainedModelMessage,
   DoneStreamChunk,
   ModelMessage,
   StreamChunk,
@@ -109,6 +112,72 @@ export type AgentLoopOptions<
 > = TSchema extends z.ZodType
   ? AgentLoopStructuredOptions<TSchema>
   : AgentLoopStreamOptions
+
+// ===========================
+// Direct Options Types (adapter-based API)
+// ===========================
+
+/**
+ * Direct chat options for agent loop (adapter-based API).
+ * Provides full chat() parity with adapter-aware typing.
+ *
+ * @template TAdapter - The text adapter type (created by a provider function)
+ * @template TSchema - Optional schema for structured output
+ */
+export interface AgentLoopDirectOptions<
+  TAdapter extends AnyTextAdapter,
+  TSchema extends z.ZodType | undefined = undefined,
+> {
+  /** The text adapter to use (created by a provider function like openaiText('gpt-4o')) */
+  adapter: TAdapter
+  /** Conversation messages - content types are constrained by the adapter's input modalities */
+  messages: Array<
+    ConstrainedModelMessage<{
+      inputModalities: TAdapter['~types']['inputModalities']
+      messageMetadataByModality: TAdapter['~types']['messageMetadataByModality']
+    }>
+  >
+  /** System prompts to prepend to the conversation */
+  systemPrompts?: Array<string>
+  /** Tools for function calling (auto-executed when called) */
+  tools?: ReadonlyArray<Tool>
+  /** Controls the randomness of the output. Range: [0.0, 2.0] */
+  temperature?: number
+  /** Nucleus sampling parameter. */
+  topP?: number
+  /** The maximum number of tokens to generate in the response. */
+  maxTokens?: number
+  /** Additional metadata to attach to the request. */
+  metadata?: Record<string, unknown>
+  /** Model-specific provider options (type comes from adapter) */
+  modelOptions?: TAdapter['~types']['providerOptions']
+  /** AbortController for cancellation */
+  abortController?: AbortController
+  /** Strategy for controlling the agent loop */
+  agentLoopStrategy?: AgentLoopStrategy
+  /** Unique conversation identifier for tracking */
+  conversationId?: string
+  /** Zod schema for structured output - determines return type */
+  outputSchema?: TSchema
+}
+
+/**
+ * Streaming options for direct agent loop (no outputSchema).
+ */
+export interface AgentLoopDirectStreamOptions<TAdapter extends AnyTextAdapter>
+  extends AgentLoopDirectOptions<TAdapter, undefined> {
+  outputSchema?: undefined
+}
+
+/**
+ * Structured output options for direct agent loop.
+ */
+export interface AgentLoopDirectStructuredOptions<
+  TAdapter extends AnyTextAdapter,
+  TSchema extends z.ZodType,
+> extends AgentLoopDirectOptions<TAdapter, TSchema> {
+  outputSchema: TSchema
+}
 
 // ===========================
 // Agent Loop Engine
@@ -792,6 +861,64 @@ class AgentLoopEngine {
 }
 
 // ===========================
+// Direct Options Helpers
+// ===========================
+
+/**
+ * Detect if the first argument is direct options (has adapter property)
+ */
+function isDirectOptions(
+  arg: unknown,
+): arg is AgentLoopDirectOptions<AnyTextAdapter, z.ZodType | undefined> {
+  return typeof arg === 'object' && arg !== null && 'adapter' in arg
+}
+
+/**
+ * Create a TextCreator function from direct options.
+ * This wraps the chat() function with the adapter and model-specific options.
+ */
+function createTextFnFromDirectOptions(
+  options: AgentLoopDirectOptions<AnyTextAdapter, z.ZodType | undefined>,
+): TextCreator {
+  const { adapter, temperature, topP, maxTokens, metadata, modelOptions } =
+    options
+
+  return ((creatorOptions: TextCreatorOptions & { outputSchema?: z.ZodType }) => {
+    return chat({
+      adapter,
+      messages: creatorOptions.messages as Array<ModelMessage>,
+      tools: creatorOptions.tools as Array<Tool>,
+      systemPrompts: creatorOptions.systemPrompts,
+      abortController: creatorOptions.abortController,
+      temperature,
+      topP,
+      maxTokens,
+      metadata,
+      modelOptions,
+      outputSchema: creatorOptions.outputSchema,
+      stream: creatorOptions.outputSchema === undefined,
+    })
+  }) as TextCreator
+}
+
+/**
+ * Extract loop-specific options from direct options.
+ */
+function extractLoopOptions(
+  options: AgentLoopDirectOptions<AnyTextAdapter, z.ZodType | undefined>,
+): AgentLoopBaseOptions & { outputSchema?: z.ZodType } {
+  return {
+    messages: options.messages as Array<ModelMessage>,
+    systemPrompts: options.systemPrompts,
+    tools: options.tools,
+    abortController: options.abortController,
+    agentLoopStrategy: options.agentLoopStrategy,
+    conversationId: options.conversationId,
+    outputSchema: options.outputSchema,
+  }
+}
+
+// ===========================
 // Public API
 // ===========================
 
@@ -807,23 +934,18 @@ class AgentLoopEngine {
  * - Without outputSchema: Returns `AsyncIterable<StreamChunk>`
  * - With outputSchema: Returns `Promise<z.infer<TSchema>>`
  *
- * @param textFn - A function that creates a text stream or structured output.
- *                 Should be a partial application of text() with adapter/model pre-configured.
- * @param options - Loop options including messages, tools, strategy, and optional outputSchema
+ * @param options - Direct options with adapter, messages, tools, etc. (preferred)
+ * @param textFn - Alternative: A function that creates a text stream (legacy API)
  *
- * @example Create the text function factory
+ * @example Streaming mode (recommended)
  * ```ts
- * import { experimental_agentLoop as agentLoop, experimental_text as text } from '@tanstack/ai'
+ * import { experimental_agentLoop as agentLoop } from '@tanstack/ai'
+ * import { openaiText } from '@tanstack/ai-openai'
  *
- * // Factory with adapter and model pre-configured
- * const textFn = (opts) => text({ adapter: openaiText(), model: 'gpt-4o', ...opts })
- * ```
- *
- * @example Streaming mode
- * ```ts
- * for await (const chunk of agentLoop(textFn, {
+ * for await (const chunk of agentLoop({
+ *   adapter: openaiText('gpt-4o'),
  *   messages: [{ role: 'user', content: 'What is the weather?' }],
- *   tools: [weatherTool]
+ *   tools: [weatherTool],
  * })) {
  *   if (chunk.type === 'content') {
  *     process.stdout.write(chunk.delta)
@@ -831,24 +953,62 @@ class AgentLoopEngine {
  * }
  * ```
  *
- * @example Collect text with toText helper
- * ```ts
- * const result = await toText(agentLoop(textFn, {
- *   messages: [{ role: 'user', content: 'Research this topic' }],
- *   tools: [searchTool]
- * }))
- * ```
- *
  * @example Structured output mode
  * ```ts
- * const result = await agentLoop(textFn, {
+ * const result = await agentLoop({
+ *   adapter: openaiText('gpt-4o'),
  *   messages: [{ role: 'user', content: 'Research and summarize' }],
  *   tools: [searchTool],
- *   outputSchema: z.object({ summary: z.string() })
+ *   outputSchema: z.object({ summary: z.string() }),
  * })
  * // result is { summary: string }
  * ```
+ *
+ * @example Collect text with streamToText helper
+ * ```ts
+ * const result = await streamToText(agentLoop({
+ *   adapter: openaiText('gpt-4o'),
+ *   messages: [{ role: 'user', content: 'Research this topic' }],
+ *   tools: [searchTool],
+ * }))
+ * ```
+ *
+ * @example With model options (temperature, etc.)
+ * ```ts
+ * for await (const chunk of agentLoop({
+ *   adapter: openaiText('gpt-4o'),
+ *   messages: [{ role: 'user', content: 'Be creative' }],
+ *   tools: [searchTool],
+ *   temperature: 0.9,
+ *   maxTokens: 2000,
+ * })) {
+ *   // ...
+ * }
+ * ```
+ *
+ * @example Legacy textFn API (still supported)
+ * ```ts
+ * const textFn = (opts) => chat({ adapter: openaiText('gpt-4o'), ...opts })
+ *
+ * for await (const chunk of agentLoop(textFn, {
+ *   messages: [{ role: 'user', content: 'What is the weather?' }],
+ *   tools: [weatherTool]
+ * })) {
+ *   // ...
+ * }
+ * ```
  */
+// Direct options overloads (adapter-based API)
+export function agentLoop<
+  TAdapter extends AnyTextAdapter,
+  TSchema extends z.ZodType,
+>(
+  options: AgentLoopDirectStructuredOptions<TAdapter, TSchema>,
+): Promise<z.infer<TSchema>>
+export function agentLoop<TAdapter extends AnyTextAdapter>(
+  options: AgentLoopDirectStreamOptions<TAdapter>,
+): AsyncIterable<StreamChunk>
+// TextFn overloads (callback-based API)
 export function agentLoop<TSchema extends z.ZodType>(
   textFn: TextCreator,
   options: AgentLoopStructuredOptions<TSchema>,
@@ -863,10 +1023,38 @@ export function agentLoop<TSchema extends z.ZodType | undefined = undefined>(
 ): TSchema extends z.ZodType
   ? Promise<z.infer<TSchema>>
   : AsyncIterable<StreamChunk>
-export function agentLoop<TSchema extends z.ZodType | undefined = undefined>(
-  textFn: TextCreator,
-  options: AgentLoopOptions<TSchema>,
+// Implementation
+export function agentLoop<
+  TAdapter extends AnyTextAdapter,
+  TSchema extends z.ZodType | undefined = undefined,
+>(
+  textFnOrOptions:
+    | TextCreator
+    | AgentLoopDirectOptions<TAdapter, TSchema>,
+  maybeOptions?: AgentLoopOptions<TSchema>,
 ): Promise<z.infer<TSchema>> | AsyncIterable<StreamChunk> {
+  // Detect which API is being used
+  if (isDirectOptions(textFnOrOptions)) {
+    // New direct options API
+    const directOptions = textFnOrOptions
+    const textFn = createTextFnFromDirectOptions(directOptions)
+    const loopOptions = extractLoopOptions(directOptions)
+
+    if (directOptions.outputSchema !== undefined) {
+      return runStructuredAgentLoop(
+        textFn,
+        loopOptions as AgentLoopStructuredOptions<z.ZodType>,
+      ) as Promise<z.infer<TSchema>>
+    }
+
+    const engine = new AgentLoopEngine({ textFn, options: loopOptions })
+    return engine.run()
+  }
+
+  // Existing textFn API
+  const textFn = textFnOrOptions as TextCreator
+  const options = maybeOptions!
+
   // Check if structured output is requested
   const structuredOptions = options as AgentLoopStructuredOptions<z.ZodType>
   if (structuredOptions.outputSchema !== undefined) {
