@@ -51,7 +51,7 @@
     "vite": "^7.2.7"
   },
   "peerDependencies": {
-    "@tanstack/ai": "workspace:*",
+    "@tanstack/ai": "workspace:^",
     "@types/react": ">=18.0.0",
     "react": ">=18.0.0"
   }

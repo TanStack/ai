@@ -58,7 +58,7 @@
     "vite": "^7.2.7"
   },
   "peerDependencies": {
-    "@tanstack/ai": "workspace:*",
+    "@tanstack/ai": "workspace:^",
     "svelte": "^5.0.0"
   }
 }

@@ -52,7 +52,7 @@
     "vue": "^3.5.25"
   },
   "peerDependencies": {
-    "@tanstack/ai": "workspace:*",
+    "@tanstack/ai": "workspace:^",
     "vue": ">=3.5.0"
   }
 }

@@ -52,7 +52,7 @@
     "vitest": "^4.0.14"
   },
   "peerDependencies": {
-    "@tanstack/ai": "workspace:*",
+    "@tanstack/ai": "workspace:^",
     "solid-js": ">=1.9.10"
   }
 }

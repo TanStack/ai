@@ -46,8 +46,8 @@
     "solid-markdown": "^2.1.0"
   },
   "peerDependencies": {
-    "@tanstack/ai-client": "workspace:*",
-    "@tanstack/ai-solid": "workspace:*",
+    "@tanstack/ai-client": "workspace:^",
+    "@tanstack/ai-solid": "workspace:^",
     "solid-js": ">=1.9.7"
   },
   "devDependencies": {
