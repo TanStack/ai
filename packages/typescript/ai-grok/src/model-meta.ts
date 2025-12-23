@@ -60,25 +60,3 @@ export interface GrokProviderOptions {
   /** A unique identifier representing your end-user */
   user?: string
 }
-
-// ===========================
-// Type Resolution Helpers
-// ===========================
-
-/**
- * Resolve provider options for a specific model.
- * If the model has explicit options in the map, use those; otherwise use base options.
- */
-export type ResolveProviderOptions<TModel extends string> =
-  TModel extends keyof GrokChatModelProviderOptionsByName
-    ? GrokChatModelProviderOptionsByName[TModel]
-    : GrokProviderOptions
-
-/**
- * Resolve input modalities for a specific model.
- * If the model has explicit modalities in the map, use those; otherwise use text only.
- */
-export type ResolveInputModalities<TModel extends string> =
-  TModel extends keyof GrokModelInputModalitiesByName
-    ? GrokModelInputModalitiesByName[TModel]
-    : readonly ['text']

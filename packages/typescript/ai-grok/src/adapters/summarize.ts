@@ -1,132 +1,36 @@
-import { BaseSummarizeAdapter } from '@tanstack/ai/adapters'
-import { getGrokApiKeyFromEnv } from '../utils'
-import { GrokTextAdapter } from './text'
-import type { GROK_CHAT_MODELS } from '../model-meta'
+import { createOpenaiSummarize } from '@tanstack/ai-openai'
 import type {
-  StreamChunk,
-  SummarizationOptions,
-  SummarizationResult,
-} from '@tanstack/ai'
-import type { GrokClientConfig } from '../utils'
+  OpenAISummarizeConfig,
+  OpenAISummarizeProviderOptions,
+} from '@tanstack/ai-openai'
+import type { GROK_CHAT_MODELS } from '../model-meta'
+
+const GROK_BASE_URL = 'https://api.x.ai/v1'
 
 /**
  * Configuration for Grok summarize adapter
  */
-export interface GrokSummarizeConfig extends GrokClientConfig {}
+export interface GrokSummarizeConfig extends Omit<OpenAISummarizeConfig, 'apiKey'> {
+  apiKey?: string
+  baseURL?: string
+}
 
 /**
  * Grok-specific provider options for summarization
  */
-export interface GrokSummarizeProviderOptions {
-  /** Temperature for response generation (0-2) */
-  temperature?: number
-  /** Maximum tokens in the response */
-  maxTokens?: number
-}
+export type GrokSummarizeProviderOptions = OpenAISummarizeProviderOptions
 
 /** Model type for Grok summarization */
 export type GrokSummarizeModel = (typeof GROK_CHAT_MODELS)[number]
 
 /**
- * Grok Summarize Adapter
- *
- * A thin wrapper around the text adapter that adds summarization-specific prompting.
- * Delegates all API calls to the GrokTextAdapter.
- */
-export class GrokSummarizeAdapter<
-  TModel extends GrokSummarizeModel,
-> extends BaseSummarizeAdapter<TModel, GrokSummarizeProviderOptions> {
-  readonly kind = 'summarize' as const
-  readonly name = 'grok' as const
-
-  private textAdapter: GrokTextAdapter<TModel>
-
-  constructor(config: GrokSummarizeConfig, model: TModel) {
-    super({}, model)
-    this.textAdapter = new GrokTextAdapter(config, model)
-  }
-
-  async summarize(options: SummarizationOptions): Promise<SummarizationResult> {
-    const systemPrompt = this.buildSummarizationPrompt(options)
-
-    // Use the text adapter's streaming and collect the result
-    let summary = ''
-    let id = ''
-    let model = options.model
-    let usage = { promptTokens: 0, completionTokens: 0, totalTokens: 0 }
-
-    for await (const chunk of this.textAdapter.chatStream({
-      model: options.model,
-      messages: [{ role: 'user', content: options.text }],
-      systemPrompts: [systemPrompt],
-      maxTokens: options.maxLength,
-      temperature: 0.3,
-    })) {
-      if (chunk.type === 'content') {
-        summary = chunk.content
-        id = chunk.id
-        model = chunk.model
-      }
-      if (chunk.type === 'done' && chunk.usage) {
-        usage = chunk.usage
-      }
-    }
-
-    return { id, model, summary, usage }
-  }
-
-  async *summarizeStream(
-    options: SummarizationOptions,
-  ): AsyncIterable<StreamChunk> {
-    const systemPrompt = this.buildSummarizationPrompt(options)
-
-    // Delegate directly to the text adapter's streaming
-    yield* this.textAdapter.chatStream({
-      model: options.model,
-      messages: [{ role: 'user', content: options.text }],
-      systemPrompts: [systemPrompt],
-      maxTokens: options.maxLength,
-      temperature: 0.3,
-    })
-  }
-
-  private buildSummarizationPrompt(options: SummarizationOptions): string {
-    let prompt = 'You are a professional summarizer. '
-
-    switch (options.style) {
-      case 'bullet-points':
-        prompt += 'Provide a summary in bullet point format. '
-        break
-      case 'paragraph':
-        prompt += 'Provide a summary in paragraph format. '
-        break
-      case 'concise':
-        prompt += 'Provide a very concise summary in 1-2 sentences. '
-        break
-      default:
-        prompt += 'Provide a clear and concise summary. '
-    }
-
-    if (options.focus && options.focus.length > 0) {
-      prompt += `Focus on the following aspects: ${options.focus.join(', ')}. `
-    }
-
-    if (options.maxLength) {
-      prompt += `Keep the summary under ${options.maxLength} tokens. `
-    }
-
-    return prompt
-  }
-}
-
-/**
  * Creates a Grok summarize adapter with explicit API key.
- * Type resolution happens here at the call site.
+ * This is a thin wrapper around OpenAI's adapter with Grok's base URL.
  *
  * @param model - The model name (e.g., 'grok-3', 'grok-4')
  * @param apiKey - Your xAI API key
  * @param config - Optional additional configuration
- * @returns Configured Grok summarize adapter instance with resolved types
+ * @returns Configured Grok summarize adapter instance
  *
  * @example
  * ```typescript
@@ -137,13 +41,17 @@ export function createGrokSummarize<TModel extends GrokSummarizeModel>(
   model: TModel,
   apiKey: string,
   config?: Omit<GrokSummarizeConfig, 'apiKey'>,
-): GrokSummarizeAdapter<TModel> {
-  return new GrokSummarizeAdapter({ apiKey, ...config }, model)
+) {
+  // Use 'as any' for model since Grok models aren't in OpenAI's type list
+  // but the OpenAI-compatible API accepts any model string
+  return createOpenaiSummarize(model as any, apiKey, {
+    ...config,
+    baseURL: config?.baseURL ?? GROK_BASE_URL,
+  })
 }
 
 /**
  * Creates a Grok summarize adapter with automatic API key detection from environment variables.
- * Type resolution happens here at the call site.
  *
  * Looks for `XAI_API_KEY` in:
  * - `process.env` (Node.js)
@@ -151,7 +59,7 @@ export function createGrokSummarize<TModel extends GrokSummarizeModel>(
  *
  * @param model - The model name (e.g., 'grok-3', 'grok-4')
  * @param config - Optional configuration (excluding apiKey which is auto-detected)
- * @returns Configured Grok summarize adapter instance with resolved types
+ * @returns Configured Grok summarize adapter instance
  * @throws Error if XAI_API_KEY is not found in environment
  *
  * @example
@@ -168,7 +76,29 @@ export function createGrokSummarize<TModel extends GrokSummarizeModel>(
 export function grokSummarize<TModel extends GrokSummarizeModel>(
   model: TModel,
   config?: Omit<GrokSummarizeConfig, 'apiKey'>,
-): GrokSummarizeAdapter<TModel> {
+) {
   const apiKey = getGrokApiKeyFromEnv()
   return createGrokSummarize(model, apiKey, config)
+}
+
+/**
+ * Gets Grok API key from environment variables
+ * @throws Error if XAI_API_KEY is not found
+ */
+function getGrokApiKeyFromEnv(): string {
+  const env =
+    typeof globalThis !== 'undefined' && (globalThis as any).window?.env
+      ? (globalThis as any).window.env
+      : typeof process !== 'undefined'
+        ? process.env
+        : undefined
+  const key = env?.XAI_API_KEY
+
+  if (!key) {
+    throw new Error(
+      'XAI_API_KEY is required. Please set it in your environment variables or use createGrokSummarize with an explicit API key.',
+    )
+  }
+
+  return key
 }

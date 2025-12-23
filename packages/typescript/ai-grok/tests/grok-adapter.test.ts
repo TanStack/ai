@@ -1,222 +1,97 @@
-import { describe, it, expect, beforeEach, vi } from 'vitest'
-import { chat, type Tool, type StreamChunk } from '@tanstack/ai'
-import { GrokTextAdapter } from '../src/adapters/text'
+import { describe, it, expect, vi, afterEach } from 'vitest'
+import { createGrokText, grokText } from '../src/adapters/text'
+import { createGrokImage, grokImage } from '../src/adapters/image'
+import { createGrokSummarize, grokSummarize } from '../src/adapters/summarize'
 
-const createAdapter = () =>
-  new GrokTextAdapter({ apiKey: 'test-key' }, 'grok-3')
-
-const toolArguments = JSON.stringify({ location: 'Berlin' })
-
-const weatherTool: Tool = {
-  name: 'lookup_weather',
-  description: 'Return the forecast for a location',
-}
-
-function createMockChatCompletionsStream(
-  chunks: Array<Record<string, unknown>>,
-): AsyncIterable<Record<string, unknown>> {
-  return {
-    async *[Symbol.asyncIterator]() {
-      for (const chunk of chunks) {
-        yield chunk
-      }
-    },
-  }
-}
-
-describe('Grok adapter option mapping', () => {
-  beforeEach(() => {
-    vi.clearAllMocks()
+describe('Grok adapters', () => {
+  afterEach(() => {
+    vi.unstubAllEnvs()
   })
 
-  it('maps options into the Chat Completions API payload', async () => {
-    // Mock the Chat Completions API stream format
-    const mockStream = createMockChatCompletionsStream([
-      {
-        id: 'chatcmpl-123',
-        model: 'grok-3',
-        choices: [
-          {
-            index: 0,
-            delta: {
-              role: 'assistant',
-              content: 'It is sunny',
-            },
-          },
-        ],
-      },
-      {
-        id: 'chatcmpl-123',
-        model: 'grok-3',
-        choices: [
-          {
-            index: 0,
-            delta: {},
-            finish_reason: 'stop',
-          },
-        ],
-        usage: {
-          prompt_tokens: 12,
-          completion_tokens: 4,
-          total_tokens: 16,
-        },
-      },
-    ])
+  describe('Text adapter', () => {
+    it('creates a text adapter with explicit API key', () => {
+      const adapter = createGrokText('grok-3', 'test-api-key')
 
-    const chatCompletionsCreate = vi.fn().mockResolvedValueOnce(mockStream)
-
-    const adapter = createAdapter()
-    // Replace the internal OpenAI SDK client with our mock
-    ;(adapter as any).client = {
-      chat: {
-        completions: {
-          create: chatCompletionsCreate,
-        },
-      },
-    }
-
-    const chunks: StreamChunk[] = []
-    for await (const chunk of chat({
-      adapter,
-      messages: [
-        { role: 'user', content: 'How is the weather?' },
-        {
-          role: 'assistant',
-          content: 'Let me check',
-          toolCalls: [
-            {
-              id: 'call_weather',
-              type: 'function',
-              function: { name: 'lookup_weather', arguments: toolArguments },
-            },
-          ],
-        },
-        { role: 'tool', toolCallId: 'call_weather', content: '{"temp":72}' },
-      ],
-      systemPrompts: ['Stay concise'],
-      tools: [weatherTool],
-      temperature: 0.25,
-      topP: 0.6,
-      maxTokens: 1024,
-    })) {
-      chunks.push(chunk)
-    }
-
-    expect(chatCompletionsCreate).toHaveBeenCalledTimes(1)
-    const [payload] = chatCompletionsCreate.mock.calls[0]
-
-    // Chat Completions API format
-    expect(payload).toMatchObject({
-      model: 'grok-3',
-      temperature: 0.25,
-      top_p: 0.6,
-      max_tokens: 1024,
-      stream: true,
+      expect(adapter).toBeDefined()
+      expect(adapter.kind).toBe('text')
+      expect(adapter.name).toBe('openai') // Underlying adapter is OpenAI
+      expect(adapter.model).toBe('grok-3')
     })
 
-    // Chat Completions API uses 'messages' array
-    expect(payload.messages).toBeDefined()
-    expect(Array.isArray(payload.messages)).toBe(true)
+    it('creates a text adapter from environment variable', () => {
+      vi.stubEnv('XAI_API_KEY', 'env-api-key')
 
-    // Verify tools are included
-    expect(payload.tools).toBeDefined()
-    expect(Array.isArray(payload.tools)).toBe(true)
-    expect(payload.tools.length).toBeGreaterThan(0)
+      const adapter = grokText('grok-4')
+
+      expect(adapter).toBeDefined()
+      expect(adapter.kind).toBe('text')
+      expect(adapter.model).toBe('grok-4')
+    })
+
+    it('throws if XAI_API_KEY is not set when using grokText', () => {
+      vi.stubEnv('XAI_API_KEY', '')
+
+      expect(() => grokText('grok-3')).toThrow('XAI_API_KEY is required')
+    })
+
+    it('allows custom baseURL override', () => {
+      const adapter = createGrokText('grok-3', 'test-api-key', {
+        baseURL: 'https://custom.api.example.com/v1',
+      })
+
+      expect(adapter).toBeDefined()
+    })
   })
 
-  it('handles tool calls in streaming response', async () => {
-    // Mock the Chat Completions API stream with tool calls
-    const mockStream = createMockChatCompletionsStream([
-      {
-        id: 'chatcmpl-123',
-        model: 'grok-3',
-        choices: [
-          {
-            index: 0,
-            delta: {
-              role: 'assistant',
-              content: null,
-              tool_calls: [
-                {
-                  index: 0,
-                  id: 'call_123',
-                  type: 'function',
-                  function: {
-                    name: 'lookup_weather',
-                    arguments: '',
-                  },
-                },
-              ],
-            },
-          },
-        ],
-      },
-      {
-        id: 'chatcmpl-123',
-        model: 'grok-3',
-        choices: [
-          {
-            index: 0,
-            delta: {
-              tool_calls: [
-                {
-                  index: 0,
-                  function: {
-                    arguments: '{"location": "Berlin"}',
-                  },
-                },
-              ],
-            },
-          },
-        ],
-      },
-      {
-        id: 'chatcmpl-123',
-        model: 'grok-3',
-        choices: [
-          {
-            index: 0,
-            delta: {},
-            finish_reason: 'tool_calls',
-          },
-        ],
-        usage: {
-          prompt_tokens: 12,
-          completion_tokens: 8,
-          total_tokens: 20,
-        },
-      },
-    ])
+  describe('Image adapter', () => {
+    it('creates an image adapter with explicit API key', () => {
+      const adapter = createGrokImage('grok-2-image-1212', 'test-api-key')
 
-    const chatCompletionsCreate = vi.fn().mockResolvedValueOnce(mockStream)
+      expect(adapter).toBeDefined()
+      expect(adapter.kind).toBe('image')
+      expect(adapter.name).toBe('openai') // Underlying adapter is OpenAI
+      expect(adapter.model).toBe('grok-2-image-1212')
+    })
 
-    const adapter = createAdapter()
-    ;(adapter as any).client = {
-      chat: {
-        completions: {
-          create: chatCompletionsCreate,
-        },
-      },
-    }
+    it('creates an image adapter from environment variable', () => {
+      vi.stubEnv('XAI_API_KEY', 'env-api-key')
 
-    const chunks: StreamChunk[] = []
-    for await (const chunk of chat({
-      adapter,
-      messages: [{ role: 'user', content: 'How is the weather in Berlin?' }],
-      tools: [weatherTool],
-    })) {
-      chunks.push(chunk)
-    }
+      const adapter = grokImage('grok-2-image-1212')
 
-    // Verify we got a tool_call chunk
-    const toolCallChunks = chunks.filter((c) => c.type === 'tool_call')
-    expect(toolCallChunks.length).toBeGreaterThan(0)
+      expect(adapter).toBeDefined()
+      expect(adapter.kind).toBe('image')
+    })
 
-    // Verify done chunk has tool_calls finish reason
-    const doneChunk = chunks.find((c) => c.type === 'done')
-    expect(doneChunk).toBeDefined()
-    if (doneChunk && doneChunk.type === 'done') {
-      expect(doneChunk.finishReason).toBe('tool_calls')
-    }
+    it('throws if XAI_API_KEY is not set when using grokImage', () => {
+      vi.stubEnv('XAI_API_KEY', '')
+
+      expect(() => grokImage('grok-2-image-1212')).toThrow('XAI_API_KEY is required')
+    })
+  })
+
+  describe('Summarize adapter', () => {
+    it('creates a summarize adapter with explicit API key', () => {
+      const adapter = createGrokSummarize('grok-3', 'test-api-key')
+
+      expect(adapter).toBeDefined()
+      expect(adapter.kind).toBe('summarize')
+      expect(adapter.name).toBe('openai') // Underlying adapter is OpenAI
+      expect(adapter.model).toBe('grok-3')
+    })
+
+    it('creates a summarize adapter from environment variable', () => {
+      vi.stubEnv('XAI_API_KEY', 'env-api-key')
+
+      const adapter = grokSummarize('grok-4')
+
+      expect(adapter).toBeDefined()
+      expect(adapter.kind).toBe('summarize')
+    })
+
+    it('throws if XAI_API_KEY is not set when using grokSummarize', () => {
+      vi.stubEnv('XAI_API_KEY', '')
+
+      expect(() => grokSummarize('grok-3')).toThrow('XAI_API_KEY is required')
+    })
   })
 })
