@@ -116,6 +116,10 @@
           "to": "api/ai-react"
         },
         {
+          "label": "@tanstack/ai-preact",
+          "to": "api/ai-preact"
+        },
+        {
           "label": "@tanstack/ai-solid",
           "to": "api/ai-solid"
         }
