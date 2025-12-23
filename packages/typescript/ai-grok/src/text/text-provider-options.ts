@@ -36,7 +36,7 @@ reasoning.encrypted_content
     | 'none'
     | 'auto'
     | 'required'
-    | { type: 'function'; function: { [key: string]: string } }
+    | { type: 'function'; function: { name: string } }
   /**
    * The ID of the previous response from the model.
    */
