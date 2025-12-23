@@ -72,37 +72,11 @@ for await (const chunk of result) {
 
 Available adapters: `openaiText`, `openaiEmbed`, `openaiSummarize`, `anthropicText`, `geminiText`, `ollamaText`, and more.
 
-## Bonus: TanStack Start Integration
-
-TanStack AI works with **any** framework (Next.js, Express, Remix, etc.).
-
-**With TanStack Start**, you get a bonus: share implementations between AI tools and server functions with `createServerFnTool`:
-
-```typescript
-import { createServerFnTool } from '@tanstack/ai-preact'
-
-// Define once, get AI tool AND server function (TanStack Start only)
-const getProducts = createServerFnTool({
-  name: 'getProducts',
-  inputSchema: z.object({ query: z.string() }),
-  execute: async ({ query }) => db.products.search(query),
-})
-
-// Use in AI chat
-chat({ tools: [getProducts.server] })
-
-// Call directly from components (no API endpoint needed!)
-const products = await getProducts.serverFn({ query: 'laptop' })
-```
-
-No duplicate logic, full type safety, automatic validation. The `serverFn` feature requires TanStack Start. See [docs](https://tanstack.com/ai) for details.
-
 ## Get Involved
 
 - We welcome issues and pull requests!
 - Participate in [GitHub discussions](https://github.com/TanStack/ai/discussions)
 - Chat with the community on [Discord](https://discord.com/invite/WrRKjPJ)
-- See [CONTRIBUTING.md](./CONTRIBUTING.md) for setup instructions
 
 ## Partners
 
