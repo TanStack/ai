@@ -22,21 +22,20 @@ export interface GrokBaseOptions {
  * Grok-specific provider options for text/chat
  * Based on OpenAI-compatible API options
  */
-export interface GrokTextProviderOptions extends GrokBaseOptions {
-  /**
-   * Frequency penalty (-2.0 to 2.0)
-   */
-  frequency_penalty?: number
-  /**
-   * Presence penalty (-2.0 to 2.0)
-   */
-  presence_penalty?: number
-  /**
-   * Stop sequences
-   */
-  stop?: string | Array<string>
-}
+export interface GrokTextProviderOptions extends GrokBaseOptions {}
+type ReasoningEffort = 'low' | 'high'
+type ReasoningSummary = 'auto' | 'detailed'
 
+/**
+ * Reasoning options for most models (excludes 'concise' summary).
+ */
+export interface ReasoningOptions {
+  reasoning?: {
+    effort?: ReasoningEffort
+
+    summary?: ReasoningSummary
+  }
+}
 /**
  * Internal options interface for validation
  * Used internally by the adapter

@@ -1,3 +1,4 @@
+import type { ReasoningOptions } from './text/text-provider-options'
 import type { GrokTextProviderOptions } from './adapters/text'
 import type { GrokImageProviderOptions } from './image/image-provider-options'
 
@@ -267,19 +268,7 @@ export type GrokChatModelProviderOptionsByName = {
   [GROK_3_MINI.name]: GrokTextProviderOptions & ReasoningOptions
   [GROK_2_VISION.name]: GrokTextProviderOptions
 }
-type ReasoningEffort = 'none' | 'minimal' | 'low' | 'medium' | 'high'
-type ReasoningSummary = 'auto' | 'detailed'
 
-/**
- * Reasoning options for most models (excludes 'concise' summary).
- */
-export interface ReasoningOptions {
-  reasoning?: {
-    effort?: ReasoningEffort
-
-    summary?: ReasoningSummary
-  }
-}
 /**
  * Grok-specific provider options
  * Based on OpenAI-compatible API options
@@ -306,7 +295,7 @@ export interface GrokProviderOptions {
 export type ResolveProviderOptions<TModel extends string> =
   TModel extends keyof GrokChatModelProviderOptionsByName
     ? GrokChatModelProviderOptionsByName[TModel]
-    : GrokProviderOptions
+    : GrokTextProviderOptions
 
 /**
  * Resolve input modalities for a specific model.
