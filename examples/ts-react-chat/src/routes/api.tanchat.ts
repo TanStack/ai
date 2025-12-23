@@ -9,6 +9,7 @@ import { openaiText } from '@tanstack/ai-openai'
 import { ollamaText } from '@tanstack/ai-ollama'
 import { anthropicText } from '@tanstack/ai-anthropic'
 import { geminiText } from '@tanstack/ai-gemini'
+import { grokText } from '@tanstack/ai-grok'
 import type { AnyTextAdapter } from '@tanstack/ai'
 import {
   addToCartToolDef,
@@ -18,7 +19,7 @@ import {
   recommendGuitarToolDef,
 } from '@/lib/guitar-tools'
 
-type Provider = 'openai' | 'anthropic' | 'gemini' | 'ollama'
+type Provider = 'openai' | 'anthropic' | 'gemini' | 'ollama' | 'grok'
 
 const SYSTEM_PROMPT = `You are a helpful assistant for a guitar store.
 
@@ -89,6 +90,10 @@ export const Route = createFileRoute('/api/tanchat')({
               adapter: geminiText(
                 (model || 'gemini-2.5-flash') as 'gemini-2.5-flash',
               ),
+            }),
+          grok: () =>
+            createChatOptions({
+              adapter: grokText((model || 'grok-3') as 'grok-3'),
             }),
           ollama: () =>
             createChatOptions({
