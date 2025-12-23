@@ -1,17 +1,19 @@
 // ============================================================================
-// Thin Wrappers Around OpenAI Adapters (configured for Grok)
+// New Tree-Shakeable Adapters (Recommended)
 // ============================================================================
 
-// Text (Chat) adapter - thin wrapper around OpenAI's adapter with Grok base URL
+// Text (Chat) adapter - for chat/text completion
 export {
+  GrokTextAdapter,
   createGrokText,
   grokText,
   type GrokTextConfig,
   type GrokTextProviderOptions,
 } from './adapters/text'
 
-// Summarize adapter - thin wrapper around OpenAI's adapter with Grok base URL
+// Summarize adapter - for text summarization
 export {
+  GrokSummarizeAdapter,
   createGrokSummarize,
   grokSummarize,
   type GrokSummarizeConfig,
@@ -19,35 +21,35 @@ export {
   type GrokSummarizeModel,
 } from './adapters/summarize'
 
-// Image adapter - thin wrapper around OpenAI's adapter with Grok base URL
+// Image adapter - for image generation
 export {
+  GrokImageAdapter,
   createGrokImage,
   grokImage,
   type GrokImageConfig,
   type GrokImageModel,
-  type GrokImageProviderOptions,
 } from './adapters/image'
+export type {
+  GrokImageProviderOptions,
+  GrokImageModelProviderOptionsByName,
+} from './image/image-provider-options'
 
 // ============================================================================
-// Grok-specific Model Metadata
+// Type Exports
 // ============================================================================
 
-export { GROK_CHAT_MODELS, GROK_IMAGE_MODELS } from './model-meta'
 export type {
   GrokChatModelProviderOptionsByName,
   GrokModelInputModalitiesByName,
-  GrokProviderOptions,
+  ResolveProviderOptions,
+  ResolveInputModalities,
 } from './model-meta'
-
-// ============================================================================
-// Re-exported Types from OpenAI (for convenience)
-// ============================================================================
-
+export { GROK_CHAT_MODELS, GROK_IMAGE_MODELS } from './model-meta'
 export type {
-  OpenAITextMetadata as GrokTextMetadata,
-  OpenAIImageMetadata as GrokImageMetadata,
-  OpenAIAudioMetadata as GrokAudioMetadata,
-  OpenAIVideoMetadata as GrokVideoMetadata,
-  OpenAIDocumentMetadata as GrokDocumentMetadata,
-  OpenAIMessageMetadataByModality as GrokMessageMetadataByModality,
-} from '@tanstack/ai-openai'
+  GrokTextMetadata,
+  GrokImageMetadata,
+  GrokAudioMetadata,
+  GrokVideoMetadata,
+  GrokDocumentMetadata,
+  GrokMessageMetadataByModality,
+} from './message-types'

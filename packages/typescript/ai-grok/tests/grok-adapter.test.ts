@@ -14,18 +14,18 @@ describe('Grok adapters', () => {
 
       expect(adapter).toBeDefined()
       expect(adapter.kind).toBe('text')
-      expect(adapter.name).toBe('openai') // Underlying adapter is OpenAI
+      expect(adapter.name).toBe('grok')
       expect(adapter.model).toBe('grok-3')
     })
 
     it('creates a text adapter from environment variable', () => {
       vi.stubEnv('XAI_API_KEY', 'env-api-key')
 
-      const adapter = grokText('grok-4')
+      const adapter = grokText('grok-4-0709')
 
       expect(adapter).toBeDefined()
       expect(adapter.kind).toBe('text')
-      expect(adapter.model).toBe('grok-4')
+      expect(adapter.model).toBe('grok-4-0709')
     })
 
     it('throws if XAI_API_KEY is not set when using grokText', () => {
@@ -49,7 +49,7 @@ describe('Grok adapters', () => {
 
       expect(adapter).toBeDefined()
       expect(adapter.kind).toBe('image')
-      expect(adapter.name).toBe('openai') // Underlying adapter is OpenAI
+      expect(adapter.name).toBe('grok')
       expect(adapter.model).toBe('grok-2-image-1212')
     })
 
@@ -75,14 +75,14 @@ describe('Grok adapters', () => {
 
       expect(adapter).toBeDefined()
       expect(adapter.kind).toBe('summarize')
-      expect(adapter.name).toBe('openai') // Underlying adapter is OpenAI
+      expect(adapter.name).toBe('grok')
       expect(adapter.model).toBe('grok-3')
     })
 
     it('creates a summarize adapter from environment variable', () => {
       vi.stubEnv('XAI_API_KEY', 'env-api-key')
 
-      const adapter = grokSummarize('grok-4')
+      const adapter = grokSummarize('grok-4-0709')
 
       expect(adapter).toBeDefined()
       expect(adapter.kind).toBe('summarize')
