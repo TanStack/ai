@@ -1,16 +1,15 @@
 import { BaseImageAdapter } from '@tanstack/ai/adapters'
 import { createGrokClient, generateId, getGrokApiKeyFromEnv } from '../utils'
 import {
-  validateImageSize,
   validateNumberOfImages,
   validatePrompt,
 } from '../image/image-provider-options'
-import type { GROK_IMAGE_MODELS } from '../model-meta'
 import type {
+  GROK_IMAGE_MODELS,
   GrokImageModelProviderOptionsByName,
   GrokImageModelSizeByName,
-  GrokImageProviderOptions,
-} from '../image/image-provider-options'
+} from '../model-meta'
+import type { GrokImageProviderOptions } from '../image/image-provider-options'
 import type {
   GeneratedImage,
   ImageGenerationOptions,
@@ -59,11 +58,11 @@ export class GrokImageAdapter<
   async generateImages(
     options: ImageGenerationOptions<GrokImageProviderOptions>,
   ): Promise<ImageGenerationResult> {
-    const { model, prompt, numberOfImages, size } = options
+    const { model, prompt, numberOfImages } = options
 
     // Validate inputs
     validatePrompt({ prompt, model })
-    validateImageSize(model, size)
+
     validateNumberOfImages(model, numberOfImages)
 
     // Build request based on model type
@@ -80,13 +79,13 @@ export class GrokImageAdapter<
   private buildRequest(
     options: ImageGenerationOptions<GrokImageProviderOptions>,
   ): OpenAI_SDK.Images.ImageGenerateParams {
-    const { model, prompt, numberOfImages, size, modelOptions } = options
+    const { model, prompt, numberOfImages, modelOptions } = options
 
     return {
       model,
       prompt,
       n: numberOfImages ?? 1,
-      size: size as OpenAI_SDK.Images.ImageGenerateParams['size'],
+
       ...modelOptions,
     }
   }

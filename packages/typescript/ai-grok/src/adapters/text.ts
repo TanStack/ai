@@ -1,5 +1,4 @@
 import { BaseTextAdapter } from '@tanstack/ai/adapters'
-import { validateTextProviderOptions } from '../text/text-provider-options'
 import { convertToolsToProviderFormat } from '../tools'
 import {
   createGrokClient,
@@ -301,13 +300,6 @@ export class GrokTextAdapter<
         >
       | undefined
 
-    if (modelOptions) {
-      validateTextProviderOptions({
-        ...modelOptions,
-        model: options.model,
-      })
-    }
-
     const tools = options.tools
       ? convertToolsToProviderFormat(options.tools)
       : undefined
@@ -336,8 +328,9 @@ export class GrokTextAdapter<
       max_tokens: options.maxTokens,
       top_p: options.topP,
       tools: tools as Array<OpenAI_SDK.Chat.Completions.ChatCompletionTool>,
-      stream: true,
       stream_options: { include_usage: true },
+      ...modelOptions,
+      stream: true,
     }
   }
 

@@ -24,20 +24,6 @@ export interface GrokBaseOptions {
  */
 export interface GrokTextProviderOptions extends GrokBaseOptions {
   /**
-   * Temperature for response generation (0-2)
-   * Higher values make output more random, lower values more focused
-   */
-  temperature?: number
-  /**
-   * Top-p sampling parameter (0-1)
-   * Alternative to temperature, nucleus sampling
-   */
-  top_p?: number
-  /**
-   * Maximum tokens in the response
-   */
-  max_tokens?: number
-  /**
    * Frequency penalty (-2.0 to 2.0)
    */
   frequency_penalty?: number
@@ -65,13 +51,3 @@ export interface InternalTextProviderOptions extends GrokTextProviderOptions {
  * External provider options (what users pass in)
  */
 export type ExternalTextProviderOptions = GrokTextProviderOptions
-
-/**
- * Validates text provider options
- */
-export function validateTextProviderOptions(
-  _options: InternalTextProviderOptions,
-): void {
-  // Basic validation can be added here if needed
-  // For now, Grok API will handle validation
-}
