@@ -11,7 +11,7 @@ export {
   type OllamaTextModel,
   type OllamaTextProviderOptions,
 } from './adapters/text'
-export { OllamaTextModels } from './model-meta'
+export { OLLAMA_TEXT_MODELS as OllamaTextModels } from './model-meta'
 
 // Summarize adapter
 export {
@@ -22,7 +22,7 @@ export {
   type OllamaSummarizeModel,
   type OllamaSummarizeProviderOptions,
 } from './adapters/summarize'
-export { OllamaTextModels as OllamaSummarizeModels } from './model-meta'
+export { OLLAMA_TEXT_MODELS as OllamaSummarizeModels } from './model-meta'
 
 // ===========================
 // Type Exports
@@ -35,3 +35,5 @@ export type {
   OllamaDocumentMetadata,
   OllamaMessageMetadataByModality,
 } from './message-types'
+
+export type { OllamaModelInputModalitiesByName } from './model-meta'

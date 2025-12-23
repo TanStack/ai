@@ -5,7 +5,7 @@ import {
   getOllamaHostFromEnv,
 } from '../utils'
 
-import type { OllamaTextModels as OllamaSummarizeModels } from '../model-meta'
+import type { OLLAMA_TEXT_MODELS as OllamaSummarizeModels } from '../model-meta'
 import type { Ollama } from 'ollama'
 import type { SummarizeAdapter } from '@tanstack/ai/adapters'
 import type {
