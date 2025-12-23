@@ -51,16 +51,12 @@ export const QWQ_MODELS = [QWQ_LATEST.name, QWQ_32b.name] as const
 // Manual type map for per-model provider options
 export type QwqChatModelProviderOptionsByName = {
   // Models with thinking and structured output support
-  [QWQ_LATEST.name]: OllamaModelMeta<
-    OllamaChatRequest &
-      OllamaChatRequestMessages<OllamaMessageTools> &
-      OllamaChatRequestTools
-  >
-  [QWQ_32b.name]: OllamaModelMeta<
-    OllamaChatRequest &
-      OllamaChatRequestMessages<OllamaMessageTools> &
-      OllamaChatRequestTools
-  >
+  [QWQ_LATEST.name]: OllamaChatRequest &
+    OllamaChatRequestMessages<OllamaMessageTools> &
+    OllamaChatRequestTools
+  [QWQ_32b.name]: OllamaChatRequest &
+    OllamaChatRequestMessages<OllamaMessageTools> &
+    OllamaChatRequestTools
 }
 
 export type QwqModelInputModalitiesByName = {

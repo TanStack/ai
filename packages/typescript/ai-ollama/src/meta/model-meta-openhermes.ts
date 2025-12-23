@@ -62,15 +62,9 @@ export const OPENHERMES_MODELS = [
 // Manual type map for per-model provider options
 export type OpenhermesChatModelProviderOptionsByName = {
   // Models with thinking and structured output support
-  [OPENHERMES_LATEST.name]: OllamaModelMeta<
-    OllamaChatRequest & OllamaChatRequestMessages
-  >
-  [OPENHERMES_V2.name]: OllamaModelMeta<
-    OllamaChatRequest & OllamaChatRequestMessages
-  >
-  [OPENHERMES_V2_5.name]: OllamaModelMeta<
-    OllamaChatRequest & OllamaChatRequestMessages
-  >
+  [OPENHERMES_LATEST.name]: OllamaChatRequest & OllamaChatRequestMessages
+  [OPENHERMES_V2.name]: OllamaChatRequest & OllamaChatRequestMessages
+  [OPENHERMES_V2_5.name]: OllamaChatRequest & OllamaChatRequestMessages
 }
 
 export type OpenhermesModelInputModalitiesByName = {

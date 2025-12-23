@@ -60,15 +60,9 @@ export const LLAMA3_GRADIENT_MODELS = [
 // Manual type map for per-model provider options
 export type Llama3GradientChatModelProviderOptionsByName = {
   // Models with thinking and structured output support
-  [LLAMA3_GRADIENT_LATEST.name]: OllamaModelMeta<
-    OllamaChatRequest & OllamaChatRequestMessages
-  >
-  [LLAMA3_GRADIENT_8b.name]: OllamaModelMeta<
-    OllamaChatRequest & OllamaChatRequestMessages
-  >
-  [LLAMA3_GRADIENT_70b.name]: OllamaModelMeta<
-    OllamaChatRequest & OllamaChatRequestMessages
-  >
+  [LLAMA3_GRADIENT_LATEST.name]: OllamaChatRequest & OllamaChatRequestMessages
+  [LLAMA3_GRADIENT_8b.name]: OllamaChatRequest & OllamaChatRequestMessages
+  [LLAMA3_GRADIENT_70b.name]: OllamaChatRequest & OllamaChatRequestMessages
 }
 
 export type Llama3GradientModelInputModalitiesByName = {

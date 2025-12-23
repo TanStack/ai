@@ -48,12 +48,8 @@ export const SMALLTINKER_MODELS = [
 // Manual type map for per-model provider options
 export type SmalltinkerChatModelProviderOptionsByName = {
   // Models with thinking and structured output support
-  [SMALLTINKER_LATEST.name]: OllamaModelMeta<
-    OllamaChatRequest & OllamaChatRequestMessages
-  >
-  [SMALLTINKER_3b.name]: OllamaModelMeta<
-    OllamaChatRequest & OllamaChatRequestMessages
-  >
+  [SMALLTINKER_LATEST.name]: OllamaChatRequest & OllamaChatRequestMessages
+  [SMALLTINKER_3b.name]: OllamaChatRequest & OllamaChatRequestMessages
 }
 
 export type SmalltinkerModelInputModalitiesByName = {

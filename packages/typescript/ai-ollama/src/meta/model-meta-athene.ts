@@ -54,16 +54,12 @@ export const ATHENE_MODELS = [
 // Manual type map for per-model provider options
 export type AtheneChatModelProviderOptionsByName = {
   // Models with thinking and structured output support
-  [ATHENE_V2_LATEST.name]: OllamaModelMeta<
-    OllamaChatRequest &
-      OllamaChatRequestMessages<OllamaMessageTools> &
-      OllamaChatRequestTools
-  >
-  [ATHENE_V2_72b.name]: OllamaModelMeta<
-    OllamaChatRequest &
-      OllamaChatRequestMessages<OllamaMessageTools> &
-      OllamaChatRequestTools
-  >
+  [ATHENE_V2_LATEST.name]: OllamaChatRequest &
+    OllamaChatRequestMessages<OllamaMessageTools> &
+    OllamaChatRequestTools
+  [ATHENE_V2_72b.name]: OllamaChatRequest &
+    OllamaChatRequestMessages<OllamaMessageTools> &
+    OllamaChatRequestTools
 }
 
 export type AtheneModelInputModalitiesByName = {

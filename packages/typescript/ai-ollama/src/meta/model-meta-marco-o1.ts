@@ -45,12 +45,8 @@ export const MARCO_O1_MODELS = [MARCO_O1_LATEST.name, MARCO_O1_7b.name] as const
 // Manual type map for per-model provider options
 export type MarcoO1ChatModelProviderOptionsByName = {
   // Models with thinking and structured output support
-  [MARCO_O1_LATEST.name]: OllamaModelMeta<
-    OllamaChatRequest & OllamaChatRequestMessages
-  >
-  [MARCO_O1_7b.name]: OllamaModelMeta<
-    OllamaChatRequest & OllamaChatRequestMessages
-  >
+  [MARCO_O1_LATEST.name]: OllamaChatRequest & OllamaChatRequestMessages
+  [MARCO_O1_7b.name]: OllamaChatRequest & OllamaChatRequestMessages
 }
 
 export type MarcoO1ModelInputModalitiesByName = {

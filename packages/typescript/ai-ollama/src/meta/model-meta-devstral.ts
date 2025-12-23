@@ -54,16 +54,12 @@ export const DEVSTRAL_MODELS = [
 // Manual type map for per-model provider options
 export type DevstralChatModelProviderOptionsByName = {
   // Models with thinking and structured output support
-  [DEVSTRAL_LATEST.name]: OllamaModelMeta<
-    OllamaChatRequest &
-      OllamaChatRequestMessages<OllamaMessageTools> &
-      OllamaChatRequestTools
-  >
-  [DEVSTRAL_24b.name]: OllamaModelMeta<
-    OllamaChatRequest &
-      OllamaChatRequestMessages<OllamaMessageTools> &
-      OllamaChatRequestTools
-  >
+  [DEVSTRAL_LATEST.name]: OllamaChatRequest &
+    OllamaChatRequestMessages<OllamaMessageTools> &
+    OllamaChatRequestTools
+  [DEVSTRAL_24b.name]: OllamaChatRequest &
+    OllamaChatRequestMessages<OllamaMessageTools> &
+    OllamaChatRequestTools
 }
 
 export type DevstralModelInputModalitiesByName = {

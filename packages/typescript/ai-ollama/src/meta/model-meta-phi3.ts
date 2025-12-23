@@ -62,15 +62,9 @@ export const PHI3_MODELS = [
 // Manual type map for per-model provider options
 export type Phi3ChatModelProviderOptionsByName = {
   // Models with thinking and structured output support
-  [PHI3_LATEST.name]: OllamaModelMeta<
-    OllamaChatRequest & OllamaChatRequestMessages
-  >
-  [PHI3_3_8b.name]: OllamaModelMeta<
-    OllamaChatRequest & OllamaChatRequestMessages
-  >
-  [PHI3_14b.name]: OllamaModelMeta<
-    OllamaChatRequest & OllamaChatRequestMessages
-  >
+  [PHI3_LATEST.name]: OllamaChatRequest & OllamaChatRequestMessages
+  [PHI3_3_8b.name]: OllamaChatRequest & OllamaChatRequestMessages
+  [PHI3_14b.name]: OllamaChatRequest & OllamaChatRequestMessages
 }
 
 export type Phi3ModelInputModalitiesByName = {

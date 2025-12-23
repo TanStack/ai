@@ -48,12 +48,8 @@ export const FIREFUNCTION_V2_MODELS = [
 // Manual type map for per-model provider options
 export type Firefunction_V2ChatModelProviderOptionsByName = {
   // Models with thinking and structured output support
-  [FIREFUNCTION_V2_LATEST.name]: OllamaModelMeta<
-    OllamaChatRequest & OllamaChatRequestMessages
-  >
-  [FIREFUNCTION_V2_70b.name]: OllamaModelMeta<
-    OllamaChatRequest & OllamaChatRequestMessages
-  >
+  [FIREFUNCTION_V2_LATEST.name]: OllamaChatRequest & OllamaChatRequestMessages
+  [FIREFUNCTION_V2_70b.name]: OllamaChatRequest & OllamaChatRequestMessages
 }
 
 export type Firefunction_V2ModelInputModalitiesByName = {

@@ -70,21 +70,15 @@ export const MIXTRAL_MODELS = [
 // Manual type map for per-model provider options
 export type MixtralChatModelProviderOptionsByName = {
   // Models with thinking and structured output support
-  [MIXTRAL_LATEST.name]: OllamaModelMeta<
-    OllamaChatRequest &
-      OllamaChatRequestMessages<OllamaMessageTools> &
-      OllamaChatRequestTools
-  >
-  [MIXTRAL_8X7b.name]: OllamaModelMeta<
-    OllamaChatRequest &
-      OllamaChatRequestMessages<OllamaMessageTools> &
-      OllamaChatRequestTools
-  >
-  [MIXTRAL_8X22b.name]: OllamaModelMeta<
-    OllamaChatRequest &
-      OllamaChatRequestMessages<OllamaMessageTools> &
-      OllamaChatRequestTools
-  >
+  [MIXTRAL_LATEST.name]: OllamaChatRequest &
+    OllamaChatRequestMessages<OllamaMessageTools> &
+    OllamaChatRequestTools
+  [MIXTRAL_8X7b.name]: OllamaChatRequest &
+    OllamaChatRequestMessages<OllamaMessageTools> &
+    OllamaChatRequestTools
+  [MIXTRAL_8X22b.name]: OllamaChatRequest &
+    OllamaChatRequestMessages<OllamaMessageTools> &
+    OllamaChatRequestTools
 }
 
 export type MixtralModelInputModalitiesByName = {

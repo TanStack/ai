@@ -70,21 +70,15 @@ export const GRANITE3_1_DENSE_MODELS = [
 // Manual type map for per-model provider options
 export type Granite3_1DenseChatModelProviderOptionsByName = {
   // Models with thinking and structured output support
-  [GRANITE3_1_DENSE_LATEST.name]: OllamaModelMeta<
-    OllamaChatRequest &
-      OllamaChatRequestMessages<OllamaMessageTools> &
-      OllamaChatRequestTools
-  >
-  [GRANITE3_1_DENSE_2b.name]: OllamaModelMeta<
-    OllamaChatRequest &
-      OllamaChatRequestMessages<OllamaMessageTools> &
-      OllamaChatRequestTools
-  >
-  [GRANITE3_1_DENSE_8b.name]: OllamaModelMeta<
-    OllamaChatRequest &
-      OllamaChatRequestMessages<OllamaMessageTools> &
-      OllamaChatRequestTools
-  >
+  [GRANITE3_1_DENSE_LATEST.name]: OllamaChatRequest &
+    OllamaChatRequestMessages<OllamaMessageTools> &
+    OllamaChatRequestTools
+  [GRANITE3_1_DENSE_2b.name]: OllamaChatRequest &
+    OllamaChatRequestMessages<OllamaMessageTools> &
+    OllamaChatRequestTools
+  [GRANITE3_1_DENSE_8b.name]: OllamaChatRequest &
+    OllamaChatRequestMessages<OllamaMessageTools> &
+    OllamaChatRequestTools
 }
 
 export type Granite3_1DenseModelInputModalitiesByName = {

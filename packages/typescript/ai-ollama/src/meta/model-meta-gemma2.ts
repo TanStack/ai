@@ -76,18 +76,10 @@ export const GEMMA2_MODELS = [
 // Manual type map for per-model provider options
 export type Gemma2ChatModelProviderOptionsByName = {
   // Models with thinking and structured output support
-  [GEMMA2_LATEST.name]: OllamaModelMeta<
-    OllamaChatRequest & OllamaChatRequestMessages
-  >
-  [GEMMA2_2b.name]: OllamaModelMeta<
-    OllamaChatRequest & OllamaChatRequestMessages
-  >
-  [GEMMA2_9b.name]: OllamaModelMeta<
-    OllamaChatRequest & OllamaChatRequestMessages
-  >
-  [GEMMA2_27b.name]: OllamaModelMeta<
-    OllamaChatRequest & OllamaChatRequestMessages
-  >
+  [GEMMA2_LATEST.name]: OllamaChatRequest & OllamaChatRequestMessages
+  [GEMMA2_2b.name]: OllamaChatRequest & OllamaChatRequestMessages
+  [GEMMA2_9b.name]: OllamaChatRequest & OllamaChatRequestMessages
+  [GEMMA2_27b.name]: OllamaChatRequest & OllamaChatRequestMessages
 }
 
 export type Gemma2ModelInputModalitiesByName = {

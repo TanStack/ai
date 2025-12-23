@@ -77,18 +77,17 @@ export const LLAVA_MODELS = [
 // Manual type map for per-model provider options
 export type llavaChatModelProviderOptionsByName = {
   // Models with thinking and structured output support
-  [LLAVA_LATEST.name]: OllamaModelMeta<
-    OllamaChatRequest & OllamaChatRequestMessages<OllamaMessageImages>
-  >
-  [LLAVA_7b.name]: OllamaModelMeta<
-    OllamaChatRequest & OllamaChatRequestMessages<OllamaMessageImages>
-  >
-  [LLAVA_13b.name]: OllamaModelMeta<
-    OllamaChatRequest & OllamaChatRequestMessages<OllamaMessageImages>
-  >
-  [LLAVA_34b.name]: OllamaModelMeta<
-    OllamaChatRequest & OllamaChatRequestMessages<OllamaMessageImages>
-  >
+  [LLAVA_LATEST.name]: OllamaChatRequest &
+    OllamaChatRequestMessages<OllamaMessageImages>
+
+  [LLAVA_7b.name]: OllamaChatRequest &
+    OllamaChatRequestMessages<OllamaMessageImages>
+
+  [LLAVA_13b.name]: OllamaChatRequest &
+    OllamaChatRequestMessages<OllamaMessageImages>
+
+  [LLAVA_34b.name]: OllamaChatRequest &
+    OllamaChatRequestMessages<OllamaMessageImages>
 }
 
 export type llavaModelInputModalitiesByName = {

@@ -54,16 +54,12 @@ export const MISTRAL_NEMO_MODELS = [
 // Manual type map for per-model provider options
 export type MistralNemoChatModelProviderOptionsByName = {
   // Models with thinking and structured output support
-  [MISTRAL_NEMO_LATEST.name]: OllamaModelMeta<
-    OllamaChatRequest &
-      OllamaChatRequestMessages<OllamaMessageTools> &
-      OllamaChatRequestTools
-  >
-  [MISTRAL_NEMO_12b.name]: OllamaModelMeta<
-    OllamaChatRequest &
-      OllamaChatRequestMessages<OllamaMessageTools> &
-      OllamaChatRequestTools
-  >
+  [MISTRAL_NEMO_LATEST.name]: OllamaChatRequest &
+    OllamaChatRequestMessages<OllamaMessageTools> &
+    OllamaChatRequestTools
+  [MISTRAL_NEMO_12b.name]: OllamaChatRequest &
+    OllamaChatRequestMessages<OllamaMessageTools> &
+    OllamaChatRequestTools
 }
 
 export type MistralNemoModelInputModalitiesByName = {

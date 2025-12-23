@@ -62,15 +62,9 @@ export const CODEGEMMA_MODELS = [
 // Manual type map for per-model provider options
 export type CodegemmaChatModelProviderOptionsByName = {
   // Models with thinking and structured output support
-  [CODEGEMMA_LATEST.name]: OllamaModelMeta<
-    OllamaChatRequest & OllamaChatRequestMessages
-  >
-  [CODEGEMMA_8b.name]: OllamaModelMeta<
-    OllamaChatRequest & OllamaChatRequestMessages
-  >
-  [CODEGEMMA_35b.name]: OllamaModelMeta<
-    OllamaChatRequest & OllamaChatRequestMessages
-  >
+  [CODEGEMMA_LATEST.name]: OllamaChatRequest & OllamaChatRequestMessages
+  [CODEGEMMA_8b.name]: OllamaChatRequest & OllamaChatRequestMessages
+  [CODEGEMMA_35b.name]: OllamaChatRequest & OllamaChatRequestMessages
 }
 
 export type CodegemmaModelInputModalitiesByName = {

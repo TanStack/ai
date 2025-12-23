@@ -70,21 +70,15 @@ export const GRANITE3_MOE_MODELS = [
 // Manual type map for per-model provider options
 export type Granite3MoeChatModelProviderOptionsByName = {
   // Models with thinking and structured output support
-  [GRANITE3_MOE_LATEST.name]: OllamaModelMeta<
-    OllamaChatRequest &
-      OllamaChatRequestMessages<OllamaMessageTools> &
-      OllamaChatRequestTools
-  >
-  [GRANITE3_MOE_1b.name]: OllamaModelMeta<
-    OllamaChatRequest &
-      OllamaChatRequestMessages<OllamaMessageTools> &
-      OllamaChatRequestTools
-  >
-  [GRANITE3_MOE_3b.name]: OllamaModelMeta<
-    OllamaChatRequest &
-      OllamaChatRequestMessages<OllamaMessageTools> &
-      OllamaChatRequestTools
-  >
+  [GRANITE3_MOE_LATEST.name]: OllamaChatRequest &
+    OllamaChatRequestMessages<OllamaMessageTools> &
+    OllamaChatRequestTools
+  [GRANITE3_MOE_1b.name]: OllamaChatRequest &
+    OllamaChatRequestMessages<OllamaMessageTools> &
+    OllamaChatRequestTools
+  [GRANITE3_MOE_3b.name]: OllamaChatRequest &
+    OllamaChatRequestMessages<OllamaMessageTools> &
+    OllamaChatRequestTools
 }
 
 export type Granite3MoeModelInputModalitiesByName = {

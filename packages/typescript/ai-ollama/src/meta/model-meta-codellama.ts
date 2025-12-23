@@ -90,21 +90,11 @@ export const CODELLAMA_MODELS = [
 // Manual type map for per-model provider options
 export type CodellamaChatModelProviderOptionsByName = {
   // Models with thinking and structured output support
-  [CODELLAMA_LATEST.name]: OllamaModelMeta<
-    OllamaChatRequest & OllamaChatRequestMessages
-  >
-  [CODELLAMA_7b.name]: OllamaModelMeta<
-    OllamaChatRequest & OllamaChatRequestMessages
-  >
-  [CODELLAMA_13b.name]: OllamaModelMeta<
-    OllamaChatRequest & OllamaChatRequestMessages
-  >
-  [CODELLAMA_34b.name]: OllamaModelMeta<
-    OllamaChatRequest & OllamaChatRequestMessages
-  >
-  [CODELLAMA_70b.name]: OllamaModelMeta<
-    OllamaChatRequest & OllamaChatRequestMessages
-  >
+  [CODELLAMA_LATEST.name]: OllamaChatRequest & OllamaChatRequestMessages
+  [CODELLAMA_7b.name]: OllamaChatRequest & OllamaChatRequestMessages
+  [CODELLAMA_13b.name]: OllamaChatRequest & OllamaChatRequestMessages
+  [CODELLAMA_34b.name]: OllamaChatRequest & OllamaChatRequestMessages
+  [CODELLAMA_70b.name]: OllamaChatRequest & OllamaChatRequestMessages
 }
 
 export type CodellamaModelInputModalitiesByName = {

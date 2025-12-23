@@ -45,12 +45,8 @@ export const DOLPHIN3_MODELS = [DOLPHIN3_LATEST.name, DOLPHIN3_8b.name] as const
 // Manual type map for per-model provider options
 export type Dolphin3ChatModelProviderOptionsByName = {
   // Models with thinking and structured output support
-  [DOLPHIN3_LATEST.name]: OllamaModelMeta<
-    OllamaChatRequest & OllamaChatRequestMessages
-  >
-  [DOLPHIN3_8b.name]: OllamaModelMeta<
-    OllamaChatRequest & OllamaChatRequestMessages
-  >
+  [DOLPHIN3_LATEST.name]: OllamaChatRequest & OllamaChatRequestMessages
+  [DOLPHIN3_8b.name]: OllamaChatRequest & OllamaChatRequestMessages
 }
 
 export type Dolphin3ModelInputModalitiesByName = {

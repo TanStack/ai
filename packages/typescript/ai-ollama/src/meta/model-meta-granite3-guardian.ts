@@ -62,15 +62,9 @@ export const GRANITE3_GUARDIAN_MODELS = [
 // Manual type map for per-model provider options
 export type Granite3GuardianChatModelProviderOptionsByName = {
   // Models with thinking and structured output support
-  [GRANITE3_GUARDIAN_LATEST.name]: OllamaModelMeta<
-    OllamaChatRequest & OllamaChatRequestMessages
-  >
-  [GRANITE3_GUARDIAN_2b.name]: OllamaModelMeta<
-    OllamaChatRequest & OllamaChatRequestMessages
-  >
-  [GRANITE3_GUARDIAN_8b.name]: OllamaModelMeta<
-    OllamaChatRequest & OllamaChatRequestMessages
-  >
+  [GRANITE3_GUARDIAN_LATEST.name]: OllamaChatRequest & OllamaChatRequestMessages
+  [GRANITE3_GUARDIAN_2b.name]: OllamaChatRequest & OllamaChatRequestMessages
+  [GRANITE3_GUARDIAN_8b.name]: OllamaChatRequest & OllamaChatRequestMessages
 }
 
 export type Granite3GuardianModelInputModalitiesByName = {

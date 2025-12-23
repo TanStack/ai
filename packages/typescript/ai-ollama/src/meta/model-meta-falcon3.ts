@@ -90,21 +90,11 @@ export const FALCON3_MODELS = [
 // Manual type map for per-model provider options
 export type Falcon3ChatModelProviderOptionsByName = {
   // Models with thinking and structured output support
-  [FALCON3_LATEST.name]: OllamaModelMeta<
-    OllamaChatRequest & OllamaChatRequestMessages
-  >
-  [FALCON3_1b.name]: OllamaModelMeta<
-    OllamaChatRequest & OllamaChatRequestMessages
-  >
-  [FALCON3_3b.name]: OllamaModelMeta<
-    OllamaChatRequest & OllamaChatRequestMessages
-  >
-  [FALCON3_7b.name]: OllamaModelMeta<
-    OllamaChatRequest & OllamaChatRequestMessages
-  >
-  [FALCON3_10b.name]: OllamaModelMeta<
-    OllamaChatRequest & OllamaChatRequestMessages
-  >
+  [FALCON3_LATEST.name]: OllamaChatRequest & OllamaChatRequestMessages
+  [FALCON3_1b.name]: OllamaChatRequest & OllamaChatRequestMessages
+  [FALCON3_3b.name]: OllamaChatRequest & OllamaChatRequestMessages
+  [FALCON3_7b.name]: OllamaChatRequest & OllamaChatRequestMessages
+  [FALCON3_10b.name]: OllamaChatRequest & OllamaChatRequestMessages
 }
 
 export type Falcon3ModelInputModalitiesByName = {

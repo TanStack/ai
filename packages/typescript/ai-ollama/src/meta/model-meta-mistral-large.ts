@@ -54,16 +54,12 @@ export const MISTRAL_LARGE_MODELS = [
 // Manual type map for per-model provider options
 export type MistralLargeChatModelProviderOptionsByName = {
   // Models with thinking and structured output support
-  [MISTRAL_LARGE_LATEST.name]: OllamaModelMeta<
-    OllamaChatRequest &
-      OllamaChatRequestMessages<OllamaMessageTools> &
-      OllamaChatRequestTools
-  >
-  [MISTRAL_LARGE_123b.name]: OllamaModelMeta<
-    OllamaChatRequest &
-      OllamaChatRequestMessages<OllamaMessageTools> &
-      OllamaChatRequestTools
-  >
+  [MISTRAL_LARGE_LATEST.name]: OllamaChatRequest &
+    OllamaChatRequestMessages<OllamaMessageTools> &
+    OllamaChatRequestTools
+  [MISTRAL_LARGE_123b.name]: OllamaChatRequest &
+    OllamaChatRequestMessages<OllamaMessageTools> &
+    OllamaChatRequestTools
 }
 
 export type MistralLargeModelInputModalitiesByName = {

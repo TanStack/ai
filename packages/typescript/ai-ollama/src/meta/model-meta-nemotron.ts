@@ -54,16 +54,12 @@ export const NEMOTRON_MODELS = [
 // Manual type map for per-model provider options
 export type NemotronChatModelProviderOptionsByName = {
   // Models with thinking and structured output support
-  [NEMOTRON_LATEST.name]: OllamaModelMeta<
-    OllamaChatRequest &
-      OllamaChatRequestMessages<OllamaMessageTools> &
-      OllamaChatRequestTools
-  >
-  [NEMOTRON_70b.name]: OllamaModelMeta<
-    OllamaChatRequest &
-      OllamaChatRequestMessages<OllamaMessageTools> &
-      OllamaChatRequestTools
-  >
+  [NEMOTRON_LATEST.name]: OllamaChatRequest &
+    OllamaChatRequestMessages<OllamaMessageTools> &
+    OllamaChatRequestTools
+  [NEMOTRON_70b.name]: OllamaChatRequest &
+    OllamaChatRequestMessages<OllamaMessageTools> &
+    OllamaChatRequestTools
 }
 
 export type NemotronModelInputModalitiesByName = {

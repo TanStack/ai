@@ -74,18 +74,10 @@ export const SAILOR2_MODELS = [
 // Manual type map for per-model provider options
 export type Sailor2ChatModelProviderOptionsByName = {
   // Models with thinking and structured output support
-  [SAILOR2_LATEST.name]: OllamaModelMeta<
-    OllamaChatRequest & OllamaChatRequestMessages
-  >
-  [SAILOR2_1b.name]: OllamaModelMeta<
-    OllamaChatRequest & OllamaChatRequestMessages
-  >
-  [SAILOR2_8b.name]: OllamaModelMeta<
-    OllamaChatRequest & OllamaChatRequestMessages
-  >
-  [SAILOR2_20b.name]: OllamaModelMeta<
-    OllamaChatRequest & OllamaChatRequestMessages
-  >
+  [SAILOR2_LATEST.name]: OllamaChatRequest & OllamaChatRequestMessages
+  [SAILOR2_1b.name]: OllamaChatRequest & OllamaChatRequestMessages
+  [SAILOR2_8b.name]: OllamaChatRequest & OllamaChatRequestMessages
+  [SAILOR2_20b.name]: OllamaChatRequest & OllamaChatRequestMessages
 }
 
 export type Sailor2ModelInputModalitiesByName = {

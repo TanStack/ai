@@ -58,11 +58,9 @@ export const AYA_MODELS = [AYA_LATEST.name, AYA_8b.name, AYA_35b.name] as const
 // Manual type map for per-model provider options
 export type AyaChatModelProviderOptionsByName = {
   // Models with thinking and structured output support
-  [AYA_LATEST.name]: OllamaModelMeta<
-    OllamaChatRequest & OllamaChatRequestMessages
-  >
-  [AYA_8b.name]: OllamaModelMeta<OllamaChatRequest & OllamaChatRequestMessages>
-  [AYA_35b.name]: OllamaModelMeta<OllamaChatRequest & OllamaChatRequestMessages>
+  [AYA_LATEST.name]: OllamaChatRequest & OllamaChatRequestMessages
+  [AYA_8b.name]: OllamaChatRequest & OllamaChatRequestMessages
+  [AYA_35b.name]: OllamaChatRequest & OllamaChatRequestMessages
 }
 
 export type AyaModelInputModalitiesByName = {

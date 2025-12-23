@@ -46,12 +46,11 @@ export const MISTRAL_MODELS = [MISTRAL_LATEST.name, MISTRAL_7b.name] as const
 // Manual type map for per-model provider options
 export type MistralChatModelProviderOptionsByName = {
   // Models with thinking and structured output support
-  [MISTRAL_LATEST.name]: OllamaModelMeta<
-    OllamaChatRequest & OllamaChatRequestMessages<OllamaMessageImages>
-  >
-  [MISTRAL_7b.name]: OllamaModelMeta<
-    OllamaChatRequest & OllamaChatRequestMessages<OllamaMessageImages>
-  >
+  [MISTRAL_LATEST.name]: OllamaChatRequest &
+    OllamaChatRequestMessages<OllamaMessageImages>
+
+  [MISTRAL_7b.name]: OllamaChatRequest &
+    OllamaChatRequestMessages<OllamaMessageImages>
 }
 
 export type MistralModelInputModalitiesByName = {

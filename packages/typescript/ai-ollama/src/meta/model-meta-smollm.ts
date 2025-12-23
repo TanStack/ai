@@ -76,18 +76,10 @@ export const SMOLLM_MODELS = [
 // Manual type map for per-model provider options
 export type SmollmChatModelProviderOptionsByName = {
   // Models with thinking and structured output support
-  [SMOLLM_LATEST.name]: OllamaModelMeta<
-    OllamaChatRequest & OllamaChatRequestMessages
-  >
-  [SMOLLM_135m.name]: OllamaModelMeta<
-    OllamaChatRequest & OllamaChatRequestMessages
-  >
-  [SMOLLM_360m.name]: OllamaModelMeta<
-    OllamaChatRequest & OllamaChatRequestMessages
-  >
-  [SMOLLM_1_7b.name]: OllamaModelMeta<
-    OllamaChatRequest & OllamaChatRequestMessages
-  >
+  [SMOLLM_LATEST.name]: OllamaChatRequest & OllamaChatRequestMessages
+  [SMOLLM_135m.name]: OllamaChatRequest & OllamaChatRequestMessages
+  [SMOLLM_360m.name]: OllamaChatRequest & OllamaChatRequestMessages
+  [SMOLLM_1_7b.name]: OllamaChatRequest & OllamaChatRequestMessages
 }
 
 export type SmollmModelInputModalitiesByName = {

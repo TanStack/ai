@@ -146,29 +146,15 @@ export const QWEN_MODELS = [
 // Manual type map for per-model provider options
 export type QwenChatModelProviderOptionsByName = {
   // Models with thinking and structured output support
-  [QWEN_LATEST.name]: OllamaModelMeta<
-    OllamaChatRequest & OllamaChatRequestMessages
-  >
-  [QWEN_0_5b.name]: OllamaModelMeta<
-    OllamaChatRequest & OllamaChatRequestMessages
-  >
-  [QWEN_1_8b.name]: OllamaModelMeta<
-    OllamaChatRequest & OllamaChatRequestMessages
-  >
-  [QWEN_4b.name]: OllamaModelMeta<OllamaChatRequest & OllamaChatRequestMessages>
-  [QWEN_7b.name]: OllamaModelMeta<OllamaChatRequest & OllamaChatRequestMessages>
-  [QWEN_14b.name]: OllamaModelMeta<
-    OllamaChatRequest & OllamaChatRequestMessages
-  >
-  [QWEN_32b.name]: OllamaModelMeta<
-    OllamaChatRequest & OllamaChatRequestMessages
-  >
-  [QWEN_72b.name]: OllamaModelMeta<
-    OllamaChatRequest & OllamaChatRequestMessages
-  >
-  [QWEN_110b.name]: OllamaModelMeta<
-    OllamaChatRequest & OllamaChatRequestMessages
-  >
+  [QWEN_LATEST.name]: OllamaChatRequest & OllamaChatRequestMessages
+  [QWEN_0_5b.name]: OllamaChatRequest & OllamaChatRequestMessages
+  [QWEN_1_8b.name]: OllamaChatRequest & OllamaChatRequestMessages
+  [QWEN_4b.name]: OllamaChatRequest & OllamaChatRequestMessages
+  [QWEN_7b.name]: OllamaChatRequest & OllamaChatRequestMessages
+  [QWEN_14b.name]: OllamaChatRequest & OllamaChatRequestMessages
+  [QWEN_32b.name]: OllamaChatRequest & OllamaChatRequestMessages
+  [QWEN_72b.name]: OllamaChatRequest & OllamaChatRequestMessages
+  [QWEN_110b.name]: OllamaChatRequest & OllamaChatRequestMessages
 }
 
 export type QwenModelInputModalitiesByName = {

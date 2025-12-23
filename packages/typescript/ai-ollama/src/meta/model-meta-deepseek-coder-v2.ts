@@ -62,15 +62,9 @@ export const DEEPSEEK_CODER_V2_MODELS = [
 // Manual type map for per-model provider options
 export type DeepseekCoderV2ChatModelProviderOptionsByName = {
   // Models with thinking and structured output support
-  [DEEPSEEK_CODER_V2_LATEST.name]: OllamaModelMeta<
-    OllamaChatRequest & OllamaChatRequestMessages
-  >
-  [DEEPSEEK_CODER_V2_16b.name]: OllamaModelMeta<
-    OllamaChatRequest & OllamaChatRequestMessages
-  >
-  [DEEPSEEK_CODER_V2_236b.name]: OllamaModelMeta<
-    OllamaChatRequest & OllamaChatRequestMessages
-  >
+  [DEEPSEEK_CODER_V2_LATEST.name]: OllamaChatRequest & OllamaChatRequestMessages
+  [DEEPSEEK_CODER_V2_16b.name]: OllamaChatRequest & OllamaChatRequestMessages
+  [DEEPSEEK_CODER_V2_236b.name]: OllamaChatRequest & OllamaChatRequestMessages
 }
 
 export type DeepseekCoderV2ModelInputModalitiesByName = {

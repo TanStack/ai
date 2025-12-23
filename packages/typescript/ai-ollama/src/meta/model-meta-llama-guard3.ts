@@ -62,15 +62,9 @@ export const LLAMA_GUARD3_MODELS = [
 // Manual type map for per-model provider options
 export type LlamaGuard3ChatModelProviderOptionsByName = {
   // Models with thinking and structured output support
-  [LLAMA_GUARD3_LATEST.name]: OllamaModelMeta<
-    OllamaChatRequest & OllamaChatRequestMessages
-  >
-  [LLAMA_GUARD3_1b.name]: OllamaModelMeta<
-    OllamaChatRequest & OllamaChatRequestMessages
-  >
-  [LLAMA_GUARD3_8b.name]: OllamaModelMeta<
-    OllamaChatRequest & OllamaChatRequestMessages
-  >
+  [LLAMA_GUARD3_LATEST.name]: OllamaChatRequest & OllamaChatRequestMessages
+  [LLAMA_GUARD3_1b.name]: OllamaChatRequest & OllamaChatRequestMessages
+  [LLAMA_GUARD3_8b.name]: OllamaChatRequest & OllamaChatRequestMessages
 }
 
 export type LlamaGuard3ModelInputModalitiesByName = {

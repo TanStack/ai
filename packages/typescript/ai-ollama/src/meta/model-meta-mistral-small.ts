@@ -70,21 +70,15 @@ export const MISTRAL_SMALL_MODELS = [
 // Manual type map for per-model provider options
 export type MistralSmallChatModelProviderOptionsByName = {
   // Models with thinking and structured output support
-  [MISTRAL_SMALL_LATEST.name]: OllamaModelMeta<
-    OllamaChatRequest &
-      OllamaChatRequestMessages<OllamaMessageTools> &
-      OllamaChatRequestTools
-  >
-  [MISTRAL_SMALL_22b.name]: OllamaModelMeta<
-    OllamaChatRequest &
-      OllamaChatRequestMessages<OllamaMessageTools> &
-      OllamaChatRequestTools
-  >
-  [MISTRAL_SMALL_24b.name]: OllamaModelMeta<
-    OllamaChatRequest &
-      OllamaChatRequestMessages<OllamaMessageTools> &
-      OllamaChatRequestTools
-  >
+  [MISTRAL_SMALL_LATEST.name]: OllamaChatRequest &
+    OllamaChatRequestMessages<OllamaMessageTools> &
+    OllamaChatRequestTools
+  [MISTRAL_SMALL_22b.name]: OllamaChatRequest &
+    OllamaChatRequestMessages<OllamaMessageTools> &
+    OllamaChatRequestTools
+  [MISTRAL_SMALL_24b.name]: OllamaChatRequest &
+    OllamaChatRequestMessages<OllamaMessageTools> &
+    OllamaChatRequestTools
 }
 
 export type MistralSmallModelInputModalitiesByName = {

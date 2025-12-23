@@ -50,12 +50,10 @@ export const DEEPSEEK_OCR_MODELS = [
 // Manual type map for per-model provider options
 export type DeepseekOcrChatModelProviderOptionsByName = {
   // Models with thinking and structured output support
-  [DEEPSEEK_OCR_LATEST.name]: OllamaModelMeta<
-    OllamaChatRequest & OllamaChatRequestMessages<OllamaMessageImages>
-  >
-  [DEEPSEEK_OCR_3b.name]: OllamaModelMeta<
-    OllamaChatRequest & OllamaChatRequestMessages<OllamaMessageImages>
-  >
+  [DEEPSEEK_OCR_LATEST.name]: OllamaChatRequest &
+    OllamaChatRequestMessages<OllamaMessageImages>
+  [DEEPSEEK_OCR_3b.name]: OllamaChatRequest &
+    OllamaChatRequestMessages<OllamaMessageImages>
 }
 
 export type DeepseekOcrModelInputModalitiesByName = {

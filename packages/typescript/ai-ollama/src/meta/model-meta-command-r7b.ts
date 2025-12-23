@@ -54,16 +54,12 @@ export const COMMAND_R_7b_MODELS = [
 // Manual type map for per-model provider options
 export type CommandR7bChatModelProviderOptionsByName = {
   // Models with thinking and structured output support
-  [COMMAND_R_7b_LATEST.name]: OllamaModelMeta<
-    OllamaChatRequest &
-      OllamaChatRequestMessages<OllamaMessageTools> &
-      OllamaChatRequestTools
-  >
-  [COMMAND_R_7b_7b.name]: OllamaModelMeta<
-    OllamaChatRequest &
-      OllamaChatRequestMessages<OllamaMessageTools> &
-      OllamaChatRequestTools
-  >
+  [COMMAND_R_7b_LATEST.name]: OllamaChatRequest &
+    OllamaChatRequestMessages<OllamaMessageTools> &
+    OllamaChatRequestTools
+  [COMMAND_R_7b_7b.name]: OllamaChatRequest &
+    OllamaChatRequestMessages<OllamaMessageTools> &
+    OllamaChatRequestTools
 }
 
 export type CommandR7bModelInputModalitiesByName = {

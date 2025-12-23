@@ -75,24 +75,18 @@ export const DEEPSEEK_V3_1_MODELS = [
 // Manual type map for per-model provider options
 export type Deepseekv3_1ChatModelProviderOptionsByName = {
   // Models with thinking and structured output support
-  [DEEPSEEK_V3_1_LATEST.name]: OllamaModelMeta<
-    OllamaChatRequest &
-      OllamaChatRequestMessages<OllamaMessageTools> &
-      OllamaChatRequestTools &
-      OllamaChatRequestThinking
-  >
-  [DEEPSEEK_V3_1_671b.name]: OllamaModelMeta<
-    OllamaChatRequest &
-      OllamaChatRequestMessages<OllamaMessageTools> &
-      OllamaChatRequestTools &
-      OllamaChatRequestThinking
-  >
-  [DEEPSEEK_V3_1_671b_cloud.name]: OllamaModelMeta<
-    OllamaChatRequest &
-      OllamaChatRequestMessages<OllamaMessageTools> &
-      OllamaChatRequestTools &
-      OllamaChatRequestThinking
-  >
+  [DEEPSEEK_V3_1_LATEST.name]: OllamaChatRequest &
+    OllamaChatRequestMessages<OllamaMessageTools> &
+    OllamaChatRequestTools &
+    OllamaChatRequestThinking
+  [DEEPSEEK_V3_1_671b.name]: OllamaChatRequest &
+    OllamaChatRequestMessages<OllamaMessageTools> &
+    OllamaChatRequestTools &
+    OllamaChatRequestThinking
+  [DEEPSEEK_V3_1_671b_cloud.name]: OllamaChatRequest &
+    OllamaChatRequestMessages<OllamaMessageTools> &
+    OllamaChatRequestTools &
+    OllamaChatRequestThinking
 }
 
 export type Deepseekv3_1ModelInputModalitiesByName = {

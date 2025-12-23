@@ -48,12 +48,8 @@ export const TINNYLLAMA_MODELS = [
 // Manual type map for per-model provider options
 export type TinnyllamaChatModelProviderOptionsByName = {
   // Models with thinking and structured output support
-  [TINNYLLAMA_LATEST.name]: OllamaModelMeta<
-    OllamaChatRequest & OllamaChatRequestMessages
-  >
-  [TINNYLLAMA_1_1b.name]: OllamaModelMeta<
-    OllamaChatRequest & OllamaChatRequestMessages
-  >
+  [TINNYLLAMA_LATEST.name]: OllamaChatRequest & OllamaChatRequestMessages
+  [TINNYLLAMA_1_1b.name]: OllamaChatRequest & OllamaChatRequestMessages
 }
 
 export type TinnyllamaModelInputModalitiesByName = {

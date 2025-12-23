@@ -45,12 +45,8 @@ export const FALCON2_MODELS = [FALCON2_LATEST.name, FALCON2_11b.name] as const
 // Manual type map for per-model provider options
 export type Falcon2ChatModelProviderOptionsByName = {
   // Models with thinking and structured output support
-  [FALCON2_LATEST.name]: OllamaModelMeta<
-    OllamaChatRequest & OllamaChatRequestMessages
-  >
-  [FALCON2_11b.name]: OllamaModelMeta<
-    OllamaChatRequest & OllamaChatRequestMessages
-  >
+  [FALCON2_LATEST.name]: OllamaChatRequest & OllamaChatRequestMessages
+  [FALCON2_11b.name]: OllamaChatRequest & OllamaChatRequestMessages
 }
 
 export type Falcon2ModelInputModalitiesByName = {

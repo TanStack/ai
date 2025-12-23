@@ -62,15 +62,9 @@ export const OLMO2_MODELS = [
 // Manual type map for per-model provider options
 export type Olmo2ChatModelProviderOptionsByName = {
   // Models with thinking and structured output support
-  [OLMO2_LATEST.name]: OllamaModelMeta<
-    OllamaChatRequest & OllamaChatRequestMessages
-  >
-  [OLMO2_7b.name]: OllamaModelMeta<
-    OllamaChatRequest & OllamaChatRequestMessages
-  >
-  [OLMO2_13b.name]: OllamaModelMeta<
-    OllamaChatRequest & OllamaChatRequestMessages
-  >
+  [OLMO2_LATEST.name]: OllamaChatRequest & OllamaChatRequestMessages
+  [OLMO2_7b.name]: OllamaChatRequest & OllamaChatRequestMessages
+  [OLMO2_13b.name]: OllamaChatRequest & OllamaChatRequestMessages
 }
 
 export type Olmo2ModelInputModalitiesByName = {

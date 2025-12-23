@@ -177,60 +177,42 @@ export const QWEN3_MODELS = [
 // Manual type map for per-model provider options
 export type Qwen3ChatModelProviderOptionsByName = {
   // Models with thinking and structured output support
-  [QWEN3_LATEST.name]: OllamaModelMeta<
-    OllamaChatRequest &
-      OllamaChatRequestMessages<OllamaMessageTools & OllamaMessageThinking> &
-      OllamaChatRequestTools &
-      OllamaChatRequestThinking
-  >
-  [QWEN3_0_6b.name]: OllamaModelMeta<
-    OllamaChatRequest &
-      OllamaChatRequestMessages<OllamaMessageTools & OllamaMessageThinking> &
-      OllamaChatRequestTools &
-      OllamaChatRequestThinking
-  >
-  [QWEN3_1_7b.name]: OllamaModelMeta<
-    OllamaChatRequest &
-      OllamaChatRequestMessages<OllamaMessageTools & OllamaMessageThinking> &
-      OllamaChatRequestTools &
-      OllamaChatRequestThinking
-  >
-  [QWEN3_4b.name]: OllamaModelMeta<
-    OllamaChatRequest &
-      OllamaChatRequestMessages<OllamaMessageTools & OllamaMessageThinking> &
-      OllamaChatRequestTools &
-      OllamaChatRequestThinking
-  >
-  [QWEN3_8b.name]: OllamaModelMeta<
-    OllamaChatRequest &
-      OllamaChatRequestMessages<OllamaMessageTools & OllamaMessageThinking> &
-      OllamaChatRequestTools &
-      OllamaChatRequestThinking
-  >
-  [QWEN3_14b.name]: OllamaModelMeta<
-    OllamaChatRequest &
-      OllamaChatRequestMessages<OllamaMessageTools & OllamaMessageThinking> &
-      OllamaChatRequestTools &
-      OllamaChatRequestThinking
-  >
-  [QWEN3_30b.name]: OllamaModelMeta<
-    OllamaChatRequest &
-      OllamaChatRequestMessages<OllamaMessageTools & OllamaMessageThinking> &
-      OllamaChatRequestTools &
-      OllamaChatRequestThinking
-  >
-  [QWEN3_32b.name]: OllamaModelMeta<
-    OllamaChatRequest &
-      OllamaChatRequestMessages<OllamaMessageTools & OllamaMessageThinking> &
-      OllamaChatRequestTools &
-      OllamaChatRequestThinking
-  >
-  [QWEN3_235b.name]: OllamaModelMeta<
-    OllamaChatRequest &
-      OllamaChatRequestMessages<OllamaMessageTools & OllamaMessageThinking> &
-      OllamaChatRequestTools &
-      OllamaChatRequestThinking
-  >
+  [QWEN3_LATEST.name]: OllamaChatRequest &
+    OllamaChatRequestMessages<OllamaMessageTools & OllamaMessageThinking> &
+    OllamaChatRequestTools &
+    OllamaChatRequestThinking
+  [QWEN3_0_6b.name]: OllamaChatRequest &
+    OllamaChatRequestMessages<OllamaMessageTools & OllamaMessageThinking> &
+    OllamaChatRequestTools &
+    OllamaChatRequestThinking
+  [QWEN3_1_7b.name]: OllamaChatRequest &
+    OllamaChatRequestMessages<OllamaMessageTools & OllamaMessageThinking> &
+    OllamaChatRequestTools &
+    OllamaChatRequestThinking
+  [QWEN3_4b.name]: OllamaChatRequest &
+    OllamaChatRequestMessages<OllamaMessageTools & OllamaMessageThinking> &
+    OllamaChatRequestTools &
+    OllamaChatRequestThinking
+  [QWEN3_8b.name]: OllamaChatRequest &
+    OllamaChatRequestMessages<OllamaMessageTools & OllamaMessageThinking> &
+    OllamaChatRequestTools &
+    OllamaChatRequestThinking
+  [QWEN3_14b.name]: OllamaChatRequest &
+    OllamaChatRequestMessages<OllamaMessageTools & OllamaMessageThinking> &
+    OllamaChatRequestTools &
+    OllamaChatRequestThinking
+  [QWEN3_30b.name]: OllamaChatRequest &
+    OllamaChatRequestMessages<OllamaMessageTools & OllamaMessageThinking> &
+    OllamaChatRequestTools &
+    OllamaChatRequestThinking
+  [QWEN3_32b.name]: OllamaChatRequest &
+    OllamaChatRequestMessages<OllamaMessageTools & OllamaMessageThinking> &
+    OllamaChatRequestTools &
+    OllamaChatRequestThinking
+  [QWEN3_235b.name]: OllamaChatRequest &
+    OllamaChatRequestMessages<OllamaMessageTools & OllamaMessageThinking> &
+    OllamaChatRequestTools &
+    OllamaChatRequestThinking
 }
 
 export type Qwen3ModelInputModalitiesByName = {

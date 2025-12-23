@@ -63,15 +63,12 @@ export const LLAMA3_2_VISION_MODELS = [
 // Manual type map for per-model provider options
 export type Llama3_2VisionChatModelProviderOptionsByName = {
   // Models with thinking and structured output support
-  [LLAMA3_2_VISION_LATEST.name]: OllamaModelMeta<
-    OllamaChatRequest & OllamaChatRequestMessages<OllamaMessageImages>
-  >
-  [LLAMA3_2_VISION_11b.name]: OllamaModelMeta<
-    OllamaChatRequest & OllamaChatRequestMessages<OllamaMessageImages>
-  >
-  [LLAMA3_2_VISION_90b.name]: OllamaModelMeta<
-    OllamaChatRequest & OllamaChatRequestMessages<OllamaMessageImages>
-  >
+  [LLAMA3_2_VISION_LATEST.name]: OllamaChatRequest &
+    OllamaChatRequestMessages<OllamaMessageImages>
+  [LLAMA3_2_VISION_11b.name]: OllamaChatRequest &
+    OllamaChatRequestMessages<OllamaMessageImages>
+  [LLAMA3_2_VISION_90b.name]: OllamaChatRequest &
+    OllamaChatRequestMessages<OllamaMessageImages>
 }
 
 export type Llama3_2VisionModelInputModalitiesByName = {

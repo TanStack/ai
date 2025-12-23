@@ -76,18 +76,10 @@ export const EXAONE3_5MODELS = [
 // Manual type map for per-model provider options
 export type Exaone3_5ChatModelProviderOptionsByName = {
   // Models with thinking and structured output support
-  [EXAONE3_5_LATEST.name]: OllamaModelMeta<
-    OllamaChatRequest & OllamaChatRequestMessages
-  >
-  [EXAONE3_5_2_4b.name]: OllamaModelMeta<
-    OllamaChatRequest & OllamaChatRequestMessages
-  >
-  [EXAONE3_5_7_1b.name]: OllamaModelMeta<
-    OllamaChatRequest & OllamaChatRequestMessages
-  >
-  [EXAONE3_5_32b.name]: OllamaModelMeta<
-    OllamaChatRequest & OllamaChatRequestMessages
-  >
+  [EXAONE3_5_LATEST.name]: OllamaChatRequest & OllamaChatRequestMessages
+  [EXAONE3_5_2_4b.name]: OllamaChatRequest & OllamaChatRequestMessages
+  [EXAONE3_5_7_1b.name]: OllamaChatRequest & OllamaChatRequestMessages
+  [EXAONE3_5_32b.name]: OllamaChatRequest & OllamaChatRequestMessages
 }
 
 export type Exaone3_5ModelInputModalitiesByName = {

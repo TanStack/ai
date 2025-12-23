@@ -45,12 +45,8 @@ export const PHI4_MODELS = [PHI4_LATEST.name, PHI4_14b.name] as const
 // Manual type map for per-model provider options
 export type Phi4ChatModelProviderOptionsByName = {
   // Models with thinking and structured output support
-  [PHI4_LATEST.name]: OllamaModelMeta<
-    OllamaChatRequest & OllamaChatRequestMessages
-  >
-  [PHI4_14b.name]: OllamaModelMeta<
-    OllamaChatRequest & OllamaChatRequestMessages
-  >
+  [PHI4_LATEST.name]: OllamaChatRequest & OllamaChatRequestMessages
+  [PHI4_14b.name]: OllamaChatRequest & OllamaChatRequestMessages
 }
 
 export type Phi4ModelInputModalitiesByName = {

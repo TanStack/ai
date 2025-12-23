@@ -62,15 +62,9 @@ export const OPENCODER_MODELS = [
 // Manual type map for per-model provider options
 export type OpencoderChatModelProviderOptionsByName = {
   // Models with thinking and structured output support
-  [OPENCODER_LATEST.name]: OllamaModelMeta<
-    OllamaChatRequest & OllamaChatRequestMessages
-  >
-  [OPENCODER_1_5b.name]: OllamaModelMeta<
-    OllamaChatRequest & OllamaChatRequestMessages
-  >
-  [OPENCODER_8b.name]: OllamaModelMeta<
-    OllamaChatRequest & OllamaChatRequestMessages
-  >
+  [OPENCODER_LATEST.name]: OllamaChatRequest & OllamaChatRequestMessages
+  [OPENCODER_1_5b.name]: OllamaChatRequest & OllamaChatRequestMessages
+  [OPENCODER_8b.name]: OllamaChatRequest & OllamaChatRequestMessages
 }
 
 export type OpencoderModelInputModalitiesByName = {

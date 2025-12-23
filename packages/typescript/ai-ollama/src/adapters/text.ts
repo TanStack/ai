@@ -2,6 +2,7 @@ import { BaseTextAdapter } from '@tanstack/ai/adapters'
 
 import { createOllamaClient, generateId, getOllamaHostFromEnv } from '../utils'
 
+import type { OllamaTextModels } from '../model-meta'
 import type {
   StructuredOutputOptions,
   StructuredOutputResult,
@@ -16,7 +17,6 @@ import type {
   ToolCall,
 } from 'ollama'
 import type { StreamChunk, TextOptions, Tool } from '@tanstack/ai'
-import type { OllamaTextModels } from '../model-meta'
 
 export type OllamaTextModel = (typeof OllamaTextModels)[number] | (string & {})
 

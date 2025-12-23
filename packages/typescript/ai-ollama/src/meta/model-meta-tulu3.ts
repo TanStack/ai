@@ -62,15 +62,9 @@ export const TULU3_MODELS = [
 // Manual type map for per-model provider options
 export type Tulu3ChatModelProviderOptionsByName = {
   // Models with thinking and structured output support
-  [TULU3_LATEST.name]: OllamaModelMeta<
-    OllamaChatRequest & OllamaChatRequestMessages
-  >
-  [TULU3_8b.name]: OllamaModelMeta<
-    OllamaChatRequest & OllamaChatRequestMessages
-  >
-  [TULU3_70b.name]: OllamaModelMeta<
-    OllamaChatRequest & OllamaChatRequestMessages
-  >
+  [TULU3_LATEST.name]: OllamaChatRequest & OllamaChatRequestMessages
+  [TULU3_8b.name]: OllamaChatRequest & OllamaChatRequestMessages
+  [TULU3_70b.name]: OllamaChatRequest & OllamaChatRequestMessages
 }
 
 export type Tulu3ModelInputModalitiesByName = {

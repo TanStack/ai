@@ -16,13 +16,13 @@ export { OllamaTextModels } from './model-meta'
 // Summarize adapter
 export {
   OllamaSummarizeAdapter,
-  OllamaSummarizeModels,
   createOllamaSummarize,
   ollamaSummarize,
   type OllamaSummarizeAdapterOptions,
   type OllamaSummarizeModel,
   type OllamaSummarizeProviderOptions,
 } from './adapters/summarize'
+export { OllamaTextModels as OllamaSummarizeModels } from './model-meta'
 
 // ===========================
 // Type Exports
