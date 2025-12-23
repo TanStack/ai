@@ -52,6 +52,6 @@
   },
   "peerDependencies": {
     "@tanstack/ai": "workspace:^",
-    "preact": ">=10.0.0"
+    "preact": ">=10.11.0"
   }
 }
