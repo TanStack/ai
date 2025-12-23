@@ -1,4 +1,3 @@
-import type { ChatRequest } from 'ollama'
 import type {
   OllamaChatRequest,
   OllamaChatRequestMessages,
