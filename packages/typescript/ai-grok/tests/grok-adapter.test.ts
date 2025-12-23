@@ -65,7 +65,9 @@ describe('Grok adapters', () => {
     it('throws if XAI_API_KEY is not set when using grokImage', () => {
       vi.stubEnv('XAI_API_KEY', '')
 
-      expect(() => grokImage('grok-2-image-1212')).toThrow('XAI_API_KEY is required')
+      expect(() => grokImage('grok-2-image-1212')).toThrow(
+        'XAI_API_KEY is required',
+      )
     })
   })
 
