@@ -13,7 +13,7 @@ Learn how to build interfaces where users can switch between LLM providers at ru
 With TanStack AI, the model is passed directly to the adapter factory function. This gives you full type safety and autocomplete at the point of definition:
 
 ```typescript
-import { chat, toStreamResponse } from '@tanstack/ai'
+import { chat, toServerSentEventsResponse } from '@tanstack/ai'
 import { anthropicText } from '@tanstack/ai-anthropic'
 import { openaiText } from '@tanstack/ai-openai'
 
@@ -59,7 +59,7 @@ Here's a complete example showing a multi-provider chat API:
 
 ```typescript
 import { createFileRoute } from '@tanstack/react-router'
-import { chat, maxIterations, toStreamResponse } from '@tanstack/ai'
+import { chat, maxIterations, toServerSentEventsResponse } from '@tanstack/ai'
 import { openaiText } from '@tanstack/ai-openai'
 import { anthropicText } from '@tanstack/ai-anthropic'
 import { geminiText } from '@tanstack/ai-gemini'
@@ -93,7 +93,7 @@ export const Route = createFileRoute('/api/chat')({
           abortController,
         })
 
-        return toStreamResponse(stream, { abortController })
+        return toServerSentEventsResponse(stream, { abortController })
       },
     },
   },

@@ -45,13 +45,6 @@ export async function streamToText(
  * @param stream - AsyncIterable of StreamChunks from chat()
  * @param abortController - Optional AbortController to abort when stream is cancelled
  * @returns ReadableStream in Server-Sent Events format
- *
- * @example
- * ```typescript
- * const stream = chat({ adapter: openaiText(), model: "gpt-4o", messages: [...] });
- * const readableStream = toServerSentEventsStream(stream);
- * // Use with Response, or any API that accepts ReadableStream
- * ```
  */
 export function toServerSentEventsStream(
   stream: AsyncIterable<StreamChunk>,
@@ -105,6 +98,40 @@ export function toServerSentEventsStream(
       if (abortController) {
         abortController.abort()
       }
+    },
+  })
+}
+
+/**
+ * Convert a StreamChunk async iterable to a Response in Server-Sent Events format
+ *
+ * This creates a Response that emits chunks in SSE format:
+ * - Each chunk is prefixed with "data: "
+ * - Each chunk is followed by "\n\n"
+ * - Stream ends with "data: [DONE]\n\n"
+ *
+ * @param stream - AsyncIterable of StreamChunks from chat()
+ * @param init - Optional Response initialization options (including `abortController`)
+ * @returns Response in Server-Sent Events format
+ *
+ * @example
+ * ```typescript
+ * const stream = chat({ adapter: openaiText(), model: "gpt-4o", messages: [...] });
+ * return toServerSentEventsResponse(stream, { abortController });
+ * ```
+ */
+export function toServerSentEventsResponse(
+  stream: AsyncIterable<StreamChunk>,
+  init?: ResponseInit & { abortController?: AbortController },
+): Response {
+  const { headers, abortController, ...responseInit } = init ?? {}
+  return new Response(toServerSentEventsStream(stream, abortController), {
+    ...responseInit,
+    headers: {
+      'Content-Type': 'text/event-stream',
+      'Cache-Control': 'no-cache',
+      Connection: 'keep-alive',
+      ...(headers || {}),
     },
   })
 }
@@ -185,53 +212,30 @@ export function toHttpStream(
 }
 
 /**
- * Create a streaming HTTP response from a StreamChunk async iterable
- * Includes proper headers for Server-Sent Events
+ * Convert a StreamChunk async iterable to a Response in HTTP stream format (newline-delimited JSON)
  *
- * @deprecated Use `toServerSentEventsStream` instead. This function will be removed in a future version.
+ * This creates a Response that emits chunks in HTTP stream format:
+ * - Each chunk is JSON.stringify'd and followed by "\n"
+ * - No SSE formatting (no "data: " prefix)
+ *
+ * This format is compatible with `fetchHttpStream` connection adapter.
  *
  * @param stream - AsyncIterable of StreamChunks from chat()
- * @param init - Optional Response initialization options
- * @param abortController - Optional AbortController to abort when client disconnects
- * @returns Response object with SSE headers and streaming body
+ * @param init - Optional Response initialization options (including `abortController`)
+ * @returns Response in HTTP stream format (newline-delimited JSON)
  *
  * @example
  * ```typescript
- * export async function POST(request: Request) {
- *   const { messages } = await request.json();
- *   const abortController = new AbortController();
- *   const stream = chat({
- *     adapter: openaiText(),
- *     model: "gpt-4o",
- *     messages,
- *     options: { abortSignal: abortController.signal }
- *   });
- *   return toStreamResponse(stream, undefined, abortController);
- * }
+ * const stream = chat({ adapter: openaiText(), model: "gpt-4o", messages: [...] });
+ * return toHttpResponse(stream, { abortController });
  * ```
  */
-export function toStreamResponse(
+export function toHttpResponse(
   stream: AsyncIterable<StreamChunk>,
   init?: ResponseInit & { abortController?: AbortController },
 ): Response {
-  if (typeof console !== 'undefined') {
-    console.warn(
-      '`toStreamResponse` is deprecated. Use `toServerSentEventsStream` instead. Example:\n' +
-        '  const readableStream = toServerSentEventsStream(stream, abortController);\n' +
-        '  return new Response(readableStream, {\n' +
-        "    headers: { 'Content-Type': 'text/event-stream', 'Cache-Control': 'no-cache', Connection: 'keep-alive' }\n" +
-        '  });',
-    )
-  }
-
-  const { headers, abortController, ...responseInit } = init ?? {}
-  return new Response(toServerSentEventsStream(stream, abortController), {
-    ...responseInit,
-    headers: {
-      'Content-Type': 'text/event-stream',
-      'Cache-Control': 'no-cache',
-      Connection: 'keep-alive',
-      ...(headers || {}),
-    },
+  return new Response(toHttpStream(stream, init?.abortController), {
+    ...init,
   })
 }
+
