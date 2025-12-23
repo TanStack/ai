@@ -1,9 +1,10 @@
 ---
 title: Per-Model Type Safety
 id: per-model-type-safety
+order: 11
 ---
 
-The AI SDK provides **model-specific type safety** for `providerOptions`. Each model's capabilities determine which provider options are allowed, and TypeScript will enforce this at compile time.
+The AI SDK provides **model-specific type safety** for `modelOptions`. Each model's capabilities determine which model options are allowed, and TypeScript will enforce this at compile time.
 
 ## How It Works
  
@@ -13,16 +14,13 @@ The AI SDK provides **model-specific type safety** for `providerOptions`. Each m
 
 ```typescript
 import { chat } from "@tanstack/ai";
-import { openai } from "@tanstack/ai-openai";
-
-const adapter = openai();
+import { openaiText } from "@tanstack/ai-openai";
 
 // ✅ gpt-5 supports structured outputs - `text` is allowed
 const validCall = chat({
-  adapter,
-  model: "gpt-5",
+  adapter: openaiText("gpt-5"),
   messages: [],
-  providerOptions: {
+  modelOptions: {
     // OK - text is included for gpt-5
     text: {
       type: "json_schema",
@@ -39,10 +37,9 @@ const validCall = chat({
 ```typescript
 // ❌ gpt-4-turbo does NOT support structured outputs - `text` is rejected
 const invalidCall = chat({
-  adapter: openai(),
-  model: "gpt-4-turbo",
+  adapter: openaiText("gpt-4-turbo"),
   messages: [],
-  providerOptions: {
+  modelOptions: {
     text: {}, // ❌ TypeScript error: 'text' does not exist in type
   },
 });
@@ -56,7 +53,7 @@ error TS2353: Object literal may only specify known properties, and 'text' does 
  
 ## Benefits
 
-- **Compile-time safety**: Catch incorrect provider options before deployment
+- **Compile-time safety**: Catch incorrect model options before deployment
 - **Better IDE experience**: Autocomplete shows only valid options for each model
 - **Self-documenting**: Model capabilities are explicit in the type system
 - **Zero runtime overhead**: All type checking happens at compile time

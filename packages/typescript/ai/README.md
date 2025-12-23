@@ -38,13 +38,39 @@
 A powerful, type-safe AI SDK for building AI-powered applications.
 
 - Provider-agnostic adapters (OpenAI, Anthropic, Gemini, Ollama, etc.)
+- **Tree-shakeable adapters** - Import only what you need for smaller bundles
 - **Multimodal content support** - Send images, audio, video, and documents
+- **Image generation** - Generate images with OpenAI DALL-E/GPT-Image and Gemini Imagen
 - Chat completion, streaming, and agent loop strategies
 - Headless chat state management with adapters (SSE, HTTP stream, custom)
 - Isomorphic type-safe tools with server/client execution
 - **Enhanced integration with TanStack Start** - Share implementations between AI tools and server functions
 
 ### <a href="https://tanstack.com/ai">Read the docs →</b></a>
+
+## Tree-Shakeable Adapters
+
+Import only the functionality you need for smaller bundle sizes:
+
+```typescript
+// Only chat functionality - no summarization code bundled
+import { openaiText } from '@tanstack/ai-openai/adapters'
+import { generate } from '@tanstack/ai'
+
+const textAdapter = openaiText()
+
+const result = generate({
+  adapter: textAdapter,
+  model: 'gpt-4o',
+  messages: [{ role: 'user', content: [{ type: 'text', content: 'Hello!' }] }],
+})
+
+for await (const chunk of result) {
+  console.log(chunk)
+}
+```
+
+Available adapters: `openaiText`, `openaiEmbed`, `openaiSummarize`, `anthropicText`, `geminiText`, `ollamaText`, and more.
 
 ## Bonus: TanStack Start Integration
 

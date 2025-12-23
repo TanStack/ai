@@ -5,7 +5,6 @@ import {
   ChunksTab,
   ConversationHeader,
   ConversationTabs,
-  EmbeddingsTab,
   MessagesTab,
   SummariesTab,
 } from './conversation'
@@ -31,11 +30,6 @@ export const ConversationDetails: Component = () => {
       if (conv.type === 'server') {
         if (conv.chunks.length > 0) {
           setActiveTab('chunks')
-        } else if (
-          conv.hasEmbedding ||
-          (conv.embeddings && conv.embeddings.length > 0)
-        ) {
-          setActiveTab('embeddings')
         } else if (
           conv.hasSummarize ||
           (conv.summaries && conv.summaries.length > 0)
@@ -74,9 +68,6 @@ export const ConversationDetails: Component = () => {
             </Show>
             <Show when={activeTab() === 'chunks'}>
               <ChunksTab chunks={conv().chunks} messages={conv().messages} />
-            </Show>
-            <Show when={activeTab() === 'embeddings'}>
-              <EmbeddingsTab embeddings={conv().embeddings ?? []} />
             </Show>
             <Show when={activeTab() === 'summaries'}>
               <SummariesTab summaries={conv().summaries ?? []} />

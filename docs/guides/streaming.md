@@ -1,6 +1,7 @@
 ---
-title: Streaming Responses
+title: Streaming
 id: streaming-responses
+order: 7
 ---
 
 TanStack AI supports streaming responses for real-time chat experiences. Streaming allows you to display responses as they're generated, rather than waiting for the complete response.
@@ -11,12 +12,11 @@ When you use `chat()`, it returns an async iterable stream of chunks:
 
 ```typescript
 import { chat } from "@tanstack/ai";
-import { openai } from "@tanstack/ai-openai";
+import { openaiText } from "@tanstack/ai-openai";
 
 const stream = chat({
-  adapter: openai(),
+  adapter: openaiText("gpt-4o"),
   messages,
-  model: "gpt-4o",
 });
 
 // Stream contains chunks as they arrive
@@ -31,15 +31,14 @@ Convert the stream to an HTTP response using `toStreamResponse`:
 
 ```typescript
 import { chat, toStreamResponse } from "@tanstack/ai";
-import { openai } from "@tanstack/ai-openai";
+import { openaiText } from "@tanstack/ai-openai";
 
 export async function POST(request: Request) {
   const { messages } = await request.json();
 
   const stream = chat({
-    adapter: openai(),
+    adapter: openaiText("gpt-4o"),
     messages,
-    model: "gpt-4o",
   });
 
   // Convert to HTTP response with proper headers

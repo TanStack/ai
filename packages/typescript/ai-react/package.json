@@ -1,6 +1,6 @@
 {
   "name": "@tanstack/ai-react",
-  "version": "0.0.3",
+  "version": "0.2.0",
   "description": "React hooks for TanStack AI",
   "author": "",
   "license": "MIT",
@@ -41,7 +41,6 @@
     "streaming"
   ],
   "dependencies": {
-    "@tanstack/ai": "workspace:*",
     "@tanstack/ai-client": "workspace:*"
   },
   "devDependencies": {
@@ -49,12 +48,10 @@
     "@types/react": "^19.2.7",
     "@vitest/coverage-v8": "4.0.14",
     "jsdom": "^27.2.0",
-    "vite": "^7.2.4",
-    "zod": "^4.1.13"
+    "vite": "^7.2.7"
   },
   "peerDependencies": {
-    "@tanstack/ai": "workspace:*",
-    "@tanstack/ai-client": "workspace:*",
+    "@tanstack/ai": "workspace:^",
     "@types/react": ">=18.0.0",
     "react": ">=18.0.0"
   }

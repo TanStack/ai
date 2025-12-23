@@ -6,25 +6,74 @@ title: summarize
 # Function: summarize()
 
 ```ts
-function summarize<TAdapter>(options): Promise<SummarizationResult>;
+function summarize<TAdapter, TStream>(options): SummarizeActivityResult<TStream>;
 ```
 
-Defined in: [core/summarize.ts:16](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/core/summarize.ts#L16)
+Defined in: [activities/summarize/index.ts:146](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/activities/summarize/index.ts#L146)
 
-Standalone summarize function with type inference from adapter
+Summarize activity - generates summaries from text.
+
+Supports both streaming and non-streaming modes.
 
 ## Type Parameters
 
 ### TAdapter
 
-`TAdapter` *extends* [`AIAdapter`](../interfaces/AIAdapter.md)\<`any`, `any`, `any`, `any`, `any`, `Record`\<`string`, readonly [`Modality`](../type-aliases/Modality.md)[]\>, [`DefaultMessageMetadataByModality`](../interfaces/DefaultMessageMetadataByModality.md)\>
+`TAdapter` *extends* [`SummarizeAdapter`](../interfaces/SummarizeAdapter.md)\<`string`, `object`\>
+
+### TStream
+
+`TStream` *extends* `boolean` = `false`
 
 ## Parameters
 
 ### options
 
-`Omit`\<[`SummarizationOptions`](../interfaces/SummarizationOptions.md), `"model"`\> & `object`
+`SummarizeActivityOptions`\<`TAdapter`, `TStream`\>
 
 ## Returns
 
-`Promise`\<[`SummarizationResult`](../interfaces/SummarizationResult.md)\>
+`SummarizeActivityResult`\<`TStream`\>
+
+## Examples
+
+```ts
+import { summarize } from '@tanstack/ai'
+import { openaiSummarize } from '@tanstack/ai-openai'
+
+const result = await summarize({
+  adapter: openaiSummarize('gpt-4o-mini'),
+  text: 'Long article text here...'
+})
+
+console.log(result.summary)
+```
+
+```ts
+const result = await summarize({
+  adapter: openaiSummarize('gpt-4o-mini'),
+  text: 'Long article text here...',
+  style: 'bullet-points',
+  maxLength: 100
+})
+```
+
+```ts
+const result = await summarize({
+  adapter: openaiSummarize('gpt-4o-mini'),
+  text: 'Long technical document...',
+  focus: ['key findings', 'methodology']
+})
+```
+
+```ts
+for await (const chunk of summarize({
+  adapter: openaiSummarize('gpt-4o-mini'),
+  text: 'Long article text here...',
+  stream: true
+})) {
+  if (chunk.type === 'content') {
+    process.stdout.write(chunk.delta)
+  }
+}
+```

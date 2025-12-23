@@ -5,7 +5,7 @@ title: JSONParser
 
 # Interface: JSONParser
 
-Defined in: [stream/json-parser.ts:12](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/stream/json-parser.ts#L12)
+Defined in: [activities/chat/stream/json-parser.ts:12](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/activities/chat/stream/json-parser.ts#L12)
 
 JSON Parser interface - allows for custom parser implementations
 
@@ -17,7 +17,7 @@ JSON Parser interface - allows for custom parser implementations
 parse: (jsonString) => any;
 ```
 
-Defined in: [stream/json-parser.ts:18](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/stream/json-parser.ts#L18)
+Defined in: [activities/chat/stream/json-parser.ts:18](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/activities/chat/stream/json-parser.ts#L18)
 
 Parse a JSON string (may be incomplete/partial)
 

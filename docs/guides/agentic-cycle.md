@@ -1,6 +1,7 @@
 ---
 title: Agentic Cycle
 id: agentic-cycle
+order: 6
 ---
 
 The agentic cycle is the pattern where the LLM repeatedly calls tools, receives results, and continues reasoning until it can provide a final answer. This enables complex multi-step operations.
@@ -122,9 +123,8 @@ export async function POST(request: Request) {
   const { messages } = await request.json();
 
   const stream = chat({
-    adapter: openai(),
+    adapter: openaiText("gpt-4o"),
     messages,
-    model: "gpt-4o",
     tools: [getWeather, getClothingAdvice],
   });
 

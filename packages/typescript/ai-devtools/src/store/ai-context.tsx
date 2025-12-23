@@ -86,15 +86,6 @@ export interface Chunk {
   chunkCount: number
 }
 
-export interface EmbeddingOperation {
-  id: string
-  model: string
-  inputCount: number
-  duration: number
-  timestamp: number
-  status: 'started' | 'completed'
-}
-
 export interface SummarizeOperation {
   id: string
   model: string
@@ -123,10 +114,7 @@ export interface Conversation {
   providerOptions?: Record<string, unknown>
   /** Flags for which operation types this conversation has */
   hasChat?: boolean
-  hasEmbedding?: boolean
   hasSummarize?: boolean
-  /** Embedding operations in this conversation */
-  embeddings?: Array<EmbeddingOperation>
   /** Summarize operations in this conversation */
   summaries?: Array<SummarizeOperation>
 }
@@ -1309,7 +1297,7 @@ export const AIProvider: ParentComponent = (props) => {
     // ============= Chat Events (for usage tracking) =============
 
     cleanupFns.push(
-      aiEventClient.on('chat:started', (e) => {
+      aiEventClient.on('text:started', (e) => {
         const streamId = e.payload.streamId
         const model = e.payload.model
         const provider = e.payload.provider
@@ -1350,7 +1338,7 @@ export const AIProvider: ParentComponent = (props) => {
     )
 
     cleanupFns.push(
-      aiEventClient.on('chat:completed', (e) => {
+      aiEventClient.on('text:completed', (e) => {
         const { requestId, usage } = e.payload
 
         const conversationId = requestToConversation.get(requestId)
@@ -1371,7 +1359,7 @@ export const AIProvider: ParentComponent = (props) => {
     )
 
     cleanupFns.push(
-      aiEventClient.on('chat:iteration', (e) => {
+      aiEventClient.on('text:iteration', (e) => {
         const { requestId, iterationNumber } = e.payload
 
         const conversationId = requestToConversation.get(requestId)
@@ -1462,85 +1450,6 @@ export const AIProvider: ParentComponent = (props) => {
             })
             return
           }
-        }
-      }),
-    )
-
-    // ============= Embedding Events =============
-
-    cleanupFns.push(
-      aiEventClient.on('embedding:started', (e) => {
-        const { requestId, model, inputCount, timestamp, clientId } = e.payload
-
-        // Try to find an active conversation to attach to, or create a new one
-        let conversationId = clientId
-        if (!conversationId || !state.conversations[conversationId]) {
-          // Find most recent active client conversation
-          const activeClients = Object.values(state.conversations)
-            .filter((c) => c.type === 'client' && c.status === 'active')
-            .sort((a, b) => b.startedAt - a.startedAt)
-
-          if (activeClients.length > 0 && activeClients[0]) {
-            conversationId = activeClients[0].id
-          } else {
-            // Create a new conversation for embeddings
-            conversationId = `embedding-${requestId}`
-            getOrCreateConversation(
-              conversationId,
-              'server',
-              `Embedding (${model})`,
-            )
-            updateConversation(conversationId, { model })
-          }
-        }
-
-        requestToConversation.set(requestId, conversationId)
-
-        const embeddingOp: EmbeddingOperation = {
-          id: requestId,
-          model,
-          inputCount,
-          duration: 0,
-          timestamp,
-          status: 'started',
-        }
-
-        const conv = state.conversations[conversationId]
-        if (conv) {
-          const embeddings = conv.embeddings || []
-          setState('conversations', conversationId, 'embeddings', [
-            ...embeddings,
-            embeddingOp,
-          ])
-          setState('conversations', conversationId, 'hasEmbedding', true)
-        }
-      }),
-    )
-
-    cleanupFns.push(
-      aiEventClient.on('embedding:completed', (e) => {
-        const { requestId, duration } = e.payload
-
-        const conversationId = requestToConversation.get(requestId)
-        if (!conversationId || !state.conversations[conversationId]) return
-
-        const conv = state.conversations[conversationId]
-        if (!conv.embeddings) return
-
-        const embeddingIndex = conv.embeddings.findIndex(
-          (op) => op.id === requestId,
-        )
-        if (embeddingIndex >= 0) {
-          setState(
-            'conversations',
-            conversationId,
-            'embeddings',
-            embeddingIndex,
-            produce((op: EmbeddingOperation) => {
-              op.duration = duration
-              op.status = 'completed'
-            }),
-          )
         }
       }),
     )

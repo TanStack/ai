@@ -1,6 +1,7 @@
 ---
 title: Multimodal Content
 id: multimodal-content
+order: 8
 ---
 
 TanStack AI supports multimodal content in messages, allowing you to send images, audio, video, and documents alongside text to AI models that support these modalities.
@@ -54,13 +55,10 @@ Messages can have `content` as either a string or an array of `ContentPart`:
 
 ```typescript
 import { chat } from '@tanstack/ai'
-import { OpenAI } from '@tanstack/ai-openai'
-
-const openai = new OpenAI({ apiKey: 'your-key' })
+import { openaiText } from '@tanstack/ai-openai'
 
 const response = await chat({
-  adapter: openai,
-  model: 'gpt-4o',
+  adapter: openaiText('gpt-4o'),
   messages: [
     {
       role: 'user',
@@ -86,9 +84,9 @@ const response = await chat({
 OpenAI supports images and audio in their vision and audio models:
 
 ```typescript
-import { OpenAI } from '@tanstack/ai-openai'
+import { openaiText } from '@tanstack/ai-openai'
 
-const openai = new OpenAI({ apiKey: 'your-key' })
+const adapter = openaiText()
 
 // Image with detail level metadata
 const message = {
@@ -113,9 +111,9 @@ const message = {
 Anthropic's Claude models support images and PDF documents:
 
 ```typescript
-import { Anthropic } from '@tanstack/ai-anthropic'
+import { anthropicText } from '@tanstack/ai-anthropic'
 
-const anthropic = new Anthropic({ apiKey: 'your-key' })
+const adapter = anthropicText()
 
 // Image with media type
 const imageMessage = {
@@ -152,9 +150,9 @@ const docMessage = {
 Google's Gemini models support a wide range of modalities:
 
 ```typescript
-import { GeminiAdapter } from '@tanstack/ai-gemini'
+import { geminiText } from '@tanstack/ai-gemini'
 
-const gemini = new GeminiAdapter({ apiKey: 'your-key' })
+const adapter = geminiText()
 
 // Image with mimeType
 const message = {
@@ -179,9 +177,9 @@ const message = {
 Ollama supports images in compatible models:
 
 ```typescript
-import { OllamaAdapter } from '@tanstack/ai-ollama'
+import { ollamaText } from '@tanstack/ai-ollama'
 
-const ollama = new OllamaAdapter({ host: 'http://localhost:11434' })
+const adapter = ollamaText('http://localhost:11434')
 
 // Image as base64
 const message = {
@@ -278,21 +276,20 @@ import type { GeminiMediaMetadata } from '@tanstack/ai-gemini'
 When receiving messages from external sources (like `request.json()`), the data is typed as `any`, which can bypass TypeScript's type checking. Use `assertMessages` to restore type safety:
 
 ```typescript
-import { assertMessages, chat } from '@tanstack/ai'
-import { openai } from '@tanstack/ai-openai'
+import { chat, assertMessages } from '@tanstack/ai'
+import { openaiText } from '@tanstack/ai-openai'
 
 // In an API route handler
 const { messages: incomingMessages } = await request.json()
 
-const adapter = openai()
+const adapter = openaiText('gpt-4o')
 
 // Assert incoming messages are compatible with gpt-4o (text + image only)
-const typedMessages = assertMessages({ adapter, model: 'gpt-4o' }, incomingMessages)
+const typedMessages = assertMessages({ adapter }, incomingMessages)
 
 // Now TypeScript will properly check any additional messages you add
 const stream = chat({
   adapter,
-  model: 'gpt-4o',
   messages: [
     ...typedMessages,
     // This will error if you try to add unsupported content types

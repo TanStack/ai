@@ -158,13 +158,13 @@ Your backend should use the `chat()` method which **automatically handles tool e
 
 ```typescript
 import { chat, toStreamResponse } from '@tanstack/ai'
-import { openai } from '@tanstack/ai-openai'
+import { openaiText } from '@tanstack/ai-openai'
 
 export async function POST(request: Request) {
   const { messages } = await request.json()
 
   const stream = chat({
-    adapter: openai(),
+    adapter: openaiText(),
     model: 'gpt-4o',
     messages,
     tools: [weatherTool], // Optional: auto-executed in loop
@@ -311,20 +311,19 @@ function App() {
 
 ```typescript
 import express from 'express'
-import { AI, toStreamResponse } from '@tanstack/ai'
-import { OpenAIAdapter } from '@tanstack/ai-openai'
+import { chat, toStreamResponse } from '@tanstack/ai'
+import { openaiText } from '@tanstack/ai-openai'
 
 const app = express()
 app.use(express.json())
-
-const ai = new AI(new OpenAIAdapter({ apiKey: process.env.OPENAI_API_KEY }))
 
 app.post('/api/chat', async (req, res) => {
   const { messages } = req.body
 
   // One line to create streaming response!
-  const stream = ai.streamChat({
-    model: 'gpt-3.5-turbo',
+  const stream = chat({
+    adapter: openaiText(),
+    model: 'gpt-4o',
     messages,
   })
 
@@ -353,20 +352,19 @@ app.listen(3000)
 
 ```typescript
 // app/api/chat/route.ts
-import { AI, toStreamResponse } from '@tanstack/ai'
-import { OpenAIAdapter } from '@tanstack/ai-openai'
+import { chat, toStreamResponse } from '@tanstack/ai'
+import { openaiText } from '@tanstack/ai-openai'
 
 export const runtime = 'edge'
-
-const ai = new AI(new OpenAIAdapter({ apiKey: process.env.OPENAI_API_KEY }))
 
 export async function POST(req: Request) {
   const { messages } = await req.json()
 
   // One line!
   return toStreamResponse(
-    ai.streamChat({
-      model: 'gpt-3.5-turbo',
+    chat({
+      adapter: openaiText(),
+      model: 'gpt-4o',
       messages,
     }),
   )
@@ -377,12 +375,8 @@ export async function POST(req: Request) {
 
 ```typescript
 import { createFileRoute } from '@tanstack/react-router'
-import { AI, toStreamResponse } from '@tanstack/ai'
-import { AnthropicAdapter } from '@tanstack/ai-anthropic'
-
-const ai = new AI(
-  new AnthropicAdapter({ apiKey: process.env.ANTHROPIC_API_KEY }),
-)
+import { chat, toStreamResponse } from '@tanstack/ai'
+import { anthropicText } from '@tanstack/ai-anthropic'
 
 export const Route = createFileRoute('/api/chat')({
   server: {
@@ -392,8 +386,9 @@ export const Route = createFileRoute('/api/chat')({
 
         // One line with automatic tool execution!
         return toStreamResponse(
-          ai.streamChat({
-            model: 'claude-3-5-sonnet-20241022',
+          chat({
+            adapter: anthropicText(),
+            model: 'claude-sonnet-4-20250514',
             messages,
             tools, // Tools with execute functions
           }),

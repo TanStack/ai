@@ -1,11 +1,16 @@
-import { env } from '$env/dynamic/private'
-import { chat, maxIterations, toStreamResponse } from '@tanstack/ai'
-import { openai } from '@tanstack/ai-openai'
-import { ollama } from '@tanstack/ai-ollama'
-import { anthropic } from '@tanstack/ai-anthropic'
-import { gemini } from '@tanstack/ai-gemini'
+import {
+  chat,
+  createChatOptions,
+  maxIterations,
+  toServerSentEventsStream,
+} from '@tanstack/ai'
+import { openaiText } from '@tanstack/ai-openai'
+import { ollamaText } from '@tanstack/ai-ollama'
+import { anthropicText } from '@tanstack/ai-anthropic'
+import { geminiText } from '@tanstack/ai-gemini'
 
 import type { RequestHandler } from './$types'
+import { env } from '$env/dynamic/private'
 
 import {
   addToCartToolDef,
@@ -22,6 +27,27 @@ type Provider = 'openai' | 'anthropic' | 'gemini' | 'ollama'
 if (env.OPENAI_API_KEY) process.env.OPENAI_API_KEY = env.OPENAI_API_KEY
 if (env.ANTHROPIC_API_KEY) process.env.ANTHROPIC_API_KEY = env.ANTHROPIC_API_KEY
 if (env.GEMINI_API_KEY) process.env.GEMINI_API_KEY = env.GEMINI_API_KEY
+
+// Pre-define typed adapter configurations with full type inference
+// This pattern gives you model autocomplete at definition time
+const adapterConfig = {
+  anthropic: () =>
+    createChatOptions({
+      adapter: anthropicText('claude-sonnet-4-5'),
+    }),
+  gemini: () =>
+    createChatOptions({
+      adapter: geminiText('gemini-2.0-flash-exp'),
+    }),
+  ollama: () =>
+    createChatOptions({
+      adapter: ollamaText('mistral:7b'),
+    }),
+  openai: () =>
+    createChatOptions({
+      adapter: openaiText('gpt-4o'),
+    }),
+}
 
 const SYSTEM_PROMPT = `You are a helpful assistant for a guitar store.
 
@@ -69,42 +95,14 @@ export const POST: RequestHandler = async ({ request }) => {
     const body = await request.json()
     const { messages, data } = body
 
-    // Extract provider and model from data
+    // Extract provider from data
     const provider: Provider = data?.provider || 'openai'
-    const model: string | undefined = data?.model
 
-    // Select adapter based on provider
-    // Note: Adapters automatically read API keys from environment variables
-    // Environment variables must be set in .env file and the dev server restarted
-    let adapter
-    let defaultModel
-
-    switch (provider) {
-      case 'anthropic':
-        adapter = anthropic()
-        defaultModel = 'claude-sonnet-4-5-20250929'
-        break
-      case 'gemini':
-        adapter = gemini()
-        defaultModel = 'gemini-2.0-flash-exp'
-        break
-      case 'ollama':
-        adapter = ollama()
-        defaultModel = 'mistral:7b'
-        break
-      case 'openai':
-      default:
-        adapter = openai()
-        defaultModel = 'gpt-4o'
-        break
-    }
-
-    // Determine model - use provided model or default based on provider
-    const selectedModel = model || defaultModel
+    // Get typed adapter options using createOptions pattern
+    const options = adapterConfig[provider]()
 
     const stream = chat({
-      adapter: adapter as any,
-      model: selectedModel as any,
+      ...options,
       tools: [
         getGuitars, // Server tool
         recommendGuitarToolDef, // No server execute - client will handle
@@ -118,7 +116,14 @@ export const POST: RequestHandler = async ({ request }) => {
       abortController,
     })
 
-    return toStreamResponse(stream, { abortController })
+    const readableStream = toServerSentEventsStream(stream, abortController)
+    return new Response(readableStream, {
+      headers: {
+        'Content-Type': 'text/event-stream',
+        'Cache-Control': 'no-cache',
+        Connection: 'keep-alive',
+      },
+    })
   } catch (error: any) {
     console.error('[API Route] Error in chat request:', {
       message: error?.message,

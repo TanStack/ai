@@ -1,8 +1,8 @@
-fastapi==0.115.0
-uvicorn[standard]==0.32.0
-anthropic==0.40.0
-openai>=2.6.0
-pydantic==2.9.2
-python-dotenv==1.0.1
+fastapi==0.125.0
+uvicorn[standard]==0.38.0
+anthropic==0.75.0
+openai==2.14.0
+pydantic==2.12.5
+python-dotenv==1.2.1
 -e ../../packages/python/tanstack-ai
 

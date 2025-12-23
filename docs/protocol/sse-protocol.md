@@ -168,15 +168,14 @@ TanStack AI provides `toServerSentEventsStream()` and `toStreamResponse()` utili
 
 ```typescript
 import { chat, toStreamResponse } from '@tanstack/ai';
-import { openai } from '@tanstack/ai-openai';
+import { openaiText } from '@tanstack/ai-openai';
 
 export async function POST(request: Request) {
   const { messages } = await request.json();
 
   const stream = chat({
-    adapter: openai(),
+    adapter: openaiText('gpt-4o'),
     messages,
-    model: 'gpt-4o',
   });
 
   // Automatically converts StreamChunks to SSE format
@@ -224,7 +223,7 @@ export async function POST(request: Request) {
   const stream = new ReadableStream({
     async start(controller) {
       try {
-        for await (const chunk of chat({ ... })) {
+        for await (const chunk of chat({ adapter: openaiText('gpt-4o'), messages })) {
           const sseData = `data: ${JSON.stringify(chunk)}\n\n`;
           controller.enqueue(encoder.encode(sseData));
         }
