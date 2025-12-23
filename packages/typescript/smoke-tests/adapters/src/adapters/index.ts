@@ -174,7 +174,10 @@ function createGrokAdapters(): AdapterSet | null {
 
   return {
     textAdapter: grokText(GROK_MODEL as any, { apiKey } as any),
-    summarizeAdapter: grokSummarize(GROK_SUMMARY_MODEL as any, { apiKey } as any),
+    summarizeAdapter: grokSummarize(
+      GROK_SUMMARY_MODEL as any,
+      { apiKey } as any,
+    ),
     imageAdapter: grokImage(GROK_IMAGE_MODEL as any, { apiKey } as any),
     chatModel: GROK_MODEL,
     summarizeModel: GROK_SUMMARY_MODEL,

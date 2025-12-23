@@ -2,7 +2,11 @@ import { BaseSummarizeAdapter } from '@tanstack/ai/adapters'
 import { getGrokApiKeyFromEnv } from '../utils'
 import { GrokTextAdapter } from './text'
 import type { GROK_CHAT_MODELS } from '../model-meta'
-import type { StreamChunk, SummarizationOptions, SummarizationResult } from '@tanstack/ai'
+import type {
+  StreamChunk,
+  SummarizationOptions,
+  SummarizationResult,
+} from '@tanstack/ai'
 import type { GrokClientConfig } from '../utils'
 
 /**

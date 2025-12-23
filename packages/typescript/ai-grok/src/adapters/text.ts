@@ -8,7 +8,11 @@ import {
   makeGrokStructuredOutputCompatible,
   transformNullsToUndefined,
 } from '../utils'
-import type { GROK_CHAT_MODELS, ResolveInputModalities, ResolveProviderOptions  } from '../model-meta'
+import type {
+  GROK_CHAT_MODELS,
+  ResolveInputModalities,
+  ResolveProviderOptions,
+} from '../model-meta'
 import type {
   StructuredOutputOptions,
   StructuredOutputResult,

@@ -2,7 +2,8 @@ import { describe, it, expect, beforeEach, vi } from 'vitest'
 import { chat, type Tool, type StreamChunk } from '@tanstack/ai'
 import { GrokTextAdapter } from '../src/adapters/text'
 
-const createAdapter = () => new GrokTextAdapter({ apiKey: 'test-key' }, 'grok-3')
+const createAdapter = () =>
+  new GrokTextAdapter({ apiKey: 'test-key' }, 'grok-3')
 
 const toolArguments = JSON.stringify({ location: 'Berlin' })
 
