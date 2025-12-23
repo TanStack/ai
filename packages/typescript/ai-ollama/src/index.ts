@@ -5,13 +5,13 @@
 // Text/Chat adapter
 export {
   OllamaTextAdapter,
-  OllamaTextModels,
   createOllamaChat,
   ollamaText,
   type OllamaTextAdapterOptions,
   type OllamaTextModel,
   type OllamaTextProviderOptions,
 } from './adapters/text'
+export { OllamaTextModels } from './model-meta'
 
 // Summarize adapter
 export {

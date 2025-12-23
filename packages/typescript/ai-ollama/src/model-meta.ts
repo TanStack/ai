@@ -130,7 +130,7 @@ import type { SmollmModelInputModalitiesByName } from './meta/model-meta-smollm'
 import type { TinnyllamaModelInputModalitiesByName } from './meta/model-meta-tinyllama'
 import type { Tulu3ModelInputModalitiesByName } from './meta/model-meta-tulu3'
 
-export const OLLAMA_MODELS = [
+export const OllamaTextModels = [
   ...ATHENE_MODELS,
   ...AYA_MODELS,
   ...CODEGEMMA_MODELS,
