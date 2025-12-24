@@ -115,7 +115,16 @@ export type OpenAIModelInputModalitiesByName = {
   //  ... repeat for each model
 }
 ```
-6. **Define your model options**: After you define the model metadata, you need to implement the model options the model supports. Generally you want to do something like this (you can see an example for OpenAI models [here](https://github.com/TanStack/ai/blob/main/packages/typescript/ai-openai/src/text/text-provider-options.ts)):
+
+### 6. Define model option fragments
+
+Model options should be composed from reusable fragments rather than duplicated per model.
+
+A common pattern is:
+- Base options shared by all models
+- Feature fragments that are stitched together per model
+
+Example (based on [OpenAI models](https://github.com/TanStack/ai/blob/main/packages/typescript/ai-openai/src/text/text-provider-options.ts)):
 ```typescript
 export interface OpenAIBaseOptions {
   // base options that every chat model supports
