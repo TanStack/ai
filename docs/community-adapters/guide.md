@@ -147,10 +147,9 @@ export interface OpenAIStructuredOutputOptions {
 }
 ```
 
-What you are going for is very specific to the adapter you are building so there is no one-size-fits-all example here.
-But the general rule of thumb is that you have the base options that every model supports and then you have feature fragments that can be stitched together per-model.
 
-Here's an example of one of the gpt models that supports every feature:
+Models can then opt into only the features they support:
+
 ```typescript
 export type OpenAIChatModelProviderOptionsByName = {
   [GPT5_2.name]: OpenAIBaseOptions &
