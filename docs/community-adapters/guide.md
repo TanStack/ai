@@ -137,6 +137,8 @@ export type OpenAIChatModelProviderOptionsByName = {
 }
 ```
 
+There is no single correct composition; this structure should reflect the capabilities of the provider you are integrating.
+
 7. **Implement the model logic**: Finally, you need to implement the actual logic for your adapter. This includes handling requests to the external service, processing responses, and integrating with TanStack AI's APIs. You can refer to the [OpenAI adapter implementation](https://github.com/TanStack/ai/blob/main/packages/typescript/ai-openai/src/adapters/text.ts) for a detailed example. What's important here is to make sure you properly type the inputs and outputs based on the model options you defined earlier. Every functionality is split per adapter, so make sure to implement the text adapter, chat adapter, image adapter, etc as needed.
 
 8. **Publish your package and open up a PR**: Once your adapter is complete and tested, you can publish it as an npm package and open up a PR to the [TanStack AI repository](https://github.com/TanStack/ai/pulls) to have it listed in the community adapters section of the documentation. Add it into [here](https://github.com/TanStack/ai/tree/main/docs/community-adapters).
