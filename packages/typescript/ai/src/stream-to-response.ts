@@ -125,14 +125,26 @@ export function toServerSentEventsResponse(
   init?: ResponseInit & { abortController?: AbortController },
 ): Response {
   const { headers, abortController, ...responseInit } = init ?? {}
+
+  // Start with default SSE headers
+  const mergedHeaders = new Headers({
+    'Content-Type': 'text/event-stream',
+    'Cache-Control': 'no-cache',
+    Connection: 'keep-alive',
+  })
+
+  // Override with user headers if provided, handling all HeadersInit forms:
+  // Headers instance, string[][], or plain object
+  if (headers) {
+    const userHeaders = new Headers(headers)
+    userHeaders.forEach((value, key) => {
+      mergedHeaders.set(key, value)
+    })
+  }
+
   return new Response(toServerSentEventsStream(stream, abortController), {
     ...responseInit,
-    headers: {
-      'Content-Type': 'text/event-stream',
-      'Cache-Control': 'no-cache',
-      Connection: 'keep-alive',
-      ...(headers || {}),
-    },
+    headers: mergedHeaders,
   })
 }
 
