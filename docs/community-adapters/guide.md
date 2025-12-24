@@ -31,8 +31,20 @@ Start by reviewing the [existing internal adapter implementations in the TanStac
 
 For a complete, detailed reference, use the [OpenAI adapter]((https://github.com/tanstack/ai/tree/main/packages/typescript/ai-openai), which is the most fully featured implementation.
 
-2. **Implement the model metadata**: Check out how we define the adapter metadata in the [OpenAI model metadata](https://github.com/TanStack/ai/blob/main/packages/typescript/ai-openai/src/model-meta.ts). This includes defining the models name,
-input and output modality support, what features are supported (like streaming, tools, etc), costs (if known), and any other relevant information.
+### Define model metadata
+
+Model metadata describes each model’s capabilities and constraints and is used by TanStack AI for compatibility checks and feature selection.
+
+Your metadata should define, at a minimum:
+
+- Model name and identifier
+- Supported input and output modalities
+- Supported features (e.g. streaming, tools, structured output)
+- Pricing or cost information (if available)
+- Any provider-specific notes or limitations
+
+Refer to the [OpenAI adapter’s model metadata](https://github.com/TanStack/ai/blob/main/packages/typescript/ai-openai/src/model-meta.ts) for a concrete example.
+
 3. **Define the model per functionality arrays**: After you define the model metadata, you need to implement arrays for different functionalities the model supports. Generally you want to do something like this:
 ```typescript
 export const OPENAI_CHAT_MODELS = [
