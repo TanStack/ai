@@ -32,7 +32,7 @@ Start by reviewing the [existing internal adapter implementations in the TanStac
 
 For a complete, detailed reference, use the [OpenAI adapter](https://github.com/tanstack/ai/tree/main/packages/typescript/ai-openai), which is the most fully featured implementation.
 
-### Define model metadata
+### 2. Define model metadata
 
 Model metadata describes each model’s capabilities and constraints and is used by TanStack AI for compatibility checks and feature selection.
 
