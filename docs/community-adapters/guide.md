@@ -171,4 +171,15 @@ Once your adapter is complete:
 
 After adding your adapter, run the  `pnpm run sync-docs-config` in the root of the TanStack AI monorepo. This ensures your adapter appears correctly in the documentation navigation. Open a PR with the generated changes.
 
-10. **Maintain your adapter**: As a community adapter, it's important to keep your adapter up-to-date with any changes in the external service or TanStack AI's APIs. Monitor issues and feedback from users to ensure your adapter remains functional and useful. If you add any changes or new features open up a new PR towards the docs to have them reflected there as well.
+### 10. Maintain your adapter
+
+As a community adapter author, you are responsible for ongoing maintenance.
+
+This includes:
+
+- Tracking upstream provider API changes
+- Keeping compatibility with TanStack AI releases
+- Addressing issues and feedback from users
+- Updating documentation when features change
+
+If you add new features or breaking changes, open a follow-up PR to keep the docs in sync.
