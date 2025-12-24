@@ -24,7 +24,8 @@ Community adapters are **not maintained by the core TanStack AI team**, but can 
 
 ## Creating a Community Adapter
 
-To create a community adapter, follow these steps:
+Follow the steps below to build a well-structured, type-safe adapter.
+
 ### 1. Set up your project
 
 Start by reviewing the [existing internal adapter implementations in the TanStack AI GitHub repository](https://github.com/tanstack/ai/tree/main/packages/typescript). These define the expected structure, conventions, and integration patterns.
