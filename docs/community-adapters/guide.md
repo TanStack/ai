@@ -6,7 +6,9 @@ order: 1
 
 # Community Adapters Guide
 
-In this guide, you'll learn how to create and contribute community adapters for the TanStack AI ecosystem. Community adapters allow you to extend the functionality of TanStack AI by integrating with various services, APIs, or custom logic.
+This guide explains how to create and contribute community adapters for the TanStack AI ecosystem.
+
+Community adapters extend TanStack AI by integrating external services, APIs, or custom model logic. They are authored and maintained by the community and can be reused across projects.
 
 ## What is a Community Adapter?
 
