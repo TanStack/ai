@@ -100,8 +100,13 @@ export type OpenAIChatModelProviderOptionsByName = {
 }
 
 ```
-5. **Define the model input modalities**: Every model usually supports different input modalities (like text, images, etc). After you define the model metadata, you need to implement the input modalities the model supports. Generally you want to
-do something like this:
+This ensures strict type safety and feature correctness at compile time.
+
+### 5. Define supported input modalities
+
+Models typically support different input modalities (e.g. text, images, audio). These must be defined per model to prevent invalid usage.
+
+Example:
 ```typescript
 export type OpenAIModelInputModalitiesByName = {
   [GPT5_2.name]: typeof GPT5_2.supports.input
