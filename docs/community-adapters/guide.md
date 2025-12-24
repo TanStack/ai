@@ -75,7 +75,13 @@ export const OPENAI_IMAGE_MODELS = [
 
 export const OPENAI_VIDEO_MODELS = [SORA2.name, SORA2_PRO.name] as const
 ```
-4. **Define the model provider options**: Every model has different configuration options that users can set when using the model. After you define the model metadata, you need to implement the provider options the model supports. Generally you want to do something like this:
+Each array should only include models that fully support the associated functionality.
+
+### 4. Define model provider options
+
+Each model exposes a different set of configurable options. These options must be typed per model name so that users only see valid configuration options.
+
+Example:
 ```typescript
 export type OpenAIChatModelProviderOptionsByName = {
   [GPT5_2.name]: OpenAIBaseOptions &
