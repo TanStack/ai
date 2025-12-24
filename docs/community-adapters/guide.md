@@ -20,7 +20,7 @@ Common use cases include:
 - Exposing provider-specific tools or capabilities
 - Connecting to non-LLM AI services (e.g. images, embeddings, video)
 
-Community adapters are **not maintained by the core TanStack AI team**, but can be and reused across different projects.
+Community adapters are **not maintained by the core TanStack AI team**, and can be reused across different projects.
 
 ## Creating a Community Adapter
 
