@@ -46,7 +46,11 @@ Your metadata should define, at a minimum:
 
 Refer to the [OpenAI adapter’s model metadata](https://github.com/TanStack/ai/blob/main/packages/typescript/ai-openai/src/model-meta.ts) for a concrete example.
 
-3. **Define the model per functionality arrays**: After you define the model metadata, you need to implement arrays for different functionalities the model supports. Generally you want to do something like this:
+### 3. Define model capability arrays 
+
+After defining metadata, group models by supported functionality using exported arrays. These arrays allow TanStack AI to automatically select compatible models for a given task.
+
+Example:
 ```typescript
 export const OPENAI_CHAT_MODELS = [
   // Frontier models
