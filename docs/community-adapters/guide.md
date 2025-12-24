@@ -12,9 +12,15 @@ Community adapters extend TanStack AI by integrating external services, APIs, or
 
 ## What is a Community Adapter?
 
-A community adapter is a reusable module that connects TanStack AI with external services or APIs. These adapters can handle tasks such as connecting to different AI models, managing data sources, or implementing custom tools.
+A community adapter is a reusable module that connects TanStack AI to an external provider or system.
 
-These are not maintained by the core TanStack AI team but are contributed by the community. They can be shared and reused across different projects.
+Common use cases include:
+- Integrating third-party AI model providers
+- Implementing custom inference or routing logic
+- Exposing provider-specific tools or capabilities
+- Connecting to non-LLM AI services (e.g. images, embeddings, video)
+
+Community adapters are **not maintained by the core TanStack AI team**, but can be and reused across different projects.
 
 ## Creating a Community Adapter
 
