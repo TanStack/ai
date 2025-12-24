@@ -143,6 +143,15 @@
       ]
     },
     {
+      "label": "Community Adapters",
+      "children": [
+        {
+          "label": "Community Adapters Guide",
+          "to": "community-adapters/guide"
+        }
+      ]
+    },
+    {
       "label": "Class References",
       "collapsible": true,
       "defaultCollapsed": true,
