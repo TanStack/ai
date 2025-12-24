@@ -19,7 +19,7 @@ import { chat } from "@tanstack/ai";
 import { grokText } from "@tanstack/ai-grok";
 
 const stream = chat({
-  adapter: grokText("grok-4-0709"),
+  adapter: grokText("grok-4"),
   messages: [{ role: "user", content: "Hello!" }],
 });
 ```
@@ -30,7 +30,7 @@ const stream = chat({
 import { chat } from "@tanstack/ai";
 import { createGrokText } from "@tanstack/ai-grok";
 
-const adapter = createGrokText("grok-4-0709", process.env.XAI_API_KEY!);
+const adapter = createGrokText("grok-4", process.env.XAI_API_KEY!);
 
 const stream = chat({
   adapter,
@@ -47,7 +47,7 @@ const config: Omit<GrokTextConfig, "apiKey"> = {
   baseURL: "https://api.x.ai/v1", // Optional, this is the default
 };
 
-const adapter = createGrokText("grok-4-0709", process.env.XAI_API_KEY!, config);
+const adapter = createGrokText("grok-4", process.env.XAI_API_KEY!, config);
 ```
 
 ## Example: Chat Completion
@@ -60,7 +60,7 @@ export async function POST(request: Request) {
   const { messages } = await request.json();
 
   const stream = chat({
-    adapter: grokText("grok-4-0709"),
+    adapter: grokText("grok-4"),
     messages,
   });
 
@@ -89,7 +89,7 @@ const getWeather = getWeatherDef.server(async ({ location }) => {
 });
 
 const stream = chat({
-  adapter: grokText("grok-4.1-fast-reasoning"),
+  adapter: grokText("grok-4-1-fast-reasoning"),
   messages,
   tools: [getWeather],
 });
@@ -101,40 +101,15 @@ Grok supports various provider-specific options:
 
 ```typescript
 const stream = chat({
-  adapter: grokText("grok-4-0709"),
+  adapter: grokText("grok-4"),
   messages,
   modelOptions: {
-    temperature: 0.7,
-    max_tokens: 4096,
-    top_p: 0.9,
     frequency_penalty: 0.5,
     presence_penalty: 0.5,
     stop: ["END"],
   },
 });
 ```
-
-## Available Models
-
-### Chat/Text Models
-
-| Model | Context Window | Capabilities |
-|-------|----------------|--------------|
-| `grok-4.1-fast-reasoning` | 2M tokens | Reasoning, Tool Calling, Structured Outputs |
-| `grok-4.1-fast-non-reasoning` | 2M tokens | Tool Calling, Structured Outputs |
-| `grok-code-fast-1` | 2M tokens | Code-optimized |
-| `grok-4-fast-reasoning` | 131K tokens | Reasoning, Tool Calling |
-| `grok-4-fast-non-reasoning` | 131K tokens | Tool Calling |
-| `grok-4-0709` | 131K tokens | Tool Calling, Structured Outputs |
-| `grok-3` | 131K tokens | Tool Calling, Structured Outputs |
-| `grok-3-mini` | 131K tokens | Tool Calling, Structured Outputs |
-| `grok-2-vision-1212` | 32K tokens | Vision, Tool Calling |
-
-### Image Models
-
-| Model | Description |
-|-------|-------------|
-| `grok-2-image-1212` | Image generation |
 
 ## Summarization
 
@@ -145,7 +120,7 @@ import { summarize } from "@tanstack/ai";
 import { grokSummarize } from "@tanstack/ai-grok";
 
 const result = await summarize({
-  adapter: grokSummarize("grok-4-0709"),
+  adapter: grokSummarize("grok-4"),
   text: "Your long text to summarize...",
   maxLength: 100,
   style: "concise", // "concise" | "bullet-points" | "paragraph"
@@ -203,7 +178,7 @@ Creates a Grok text adapter using environment variables.
 
 **Parameters:**
 
-- `model` - The model name (e.g., `'grok-4-0709'`, `'grok-4.1-fast-reasoning'`)
+- `model` - The model name (e.g., `'grok-4'`, `'grok-4-1-fast-reasoning'`)
 - `config.baseURL?` - Custom base URL (optional)
 
 **Returns:** A Grok text adapter instance.

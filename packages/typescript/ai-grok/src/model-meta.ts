@@ -24,7 +24,7 @@ interface ModelMeta {
 }
 
 const GROK_4_1_FAST_REASONING = {
-  name: 'grok-4.1-fast-reasoning',
+  name: 'grok-4-1-fast-reasoning',
   context_window: 2_000_000,
   supports: {
     input: ['text', 'image'],
@@ -43,7 +43,7 @@ const GROK_4_1_FAST_REASONING = {
 } as const satisfies ModelMeta
 
 const GROK_4_1_FAST_NON_REASONING = {
-  name: 'grok-4.1-fast-non-reasoning',
+  name: 'grok-4-1-fast-non-reasoning',
   context_window: 2_000_000,
   supports: {
     input: ['text', 'image'],
@@ -118,8 +118,8 @@ const GROK_4_FAST_NON_REASONING = {
   },
 } as const satisfies ModelMeta
 
-const GROK_4_0709 = {
-  name: 'grok-4-0709',
+const GROK_4 = {
+  name: 'grok-4',
   context_window: 256_000,
   supports: {
     input: ['text', 'image'],
@@ -219,7 +219,7 @@ export const GROK_CHAT_MODELS = [
   GROK_CODE_FAST_1.name,
   GROK_4_FAST_REASONING.name,
   GROK_4_FAST_NON_REASONING.name,
-  GROK_4_0709.name,
+  GROK_4.name,
   GROK_3.name,
   GROK_3_MINI.name,
   GROK_2_VISION.name,
@@ -240,7 +240,7 @@ export type GrokModelInputModalitiesByName = {
   [GROK_CODE_FAST_1.name]: typeof GROK_CODE_FAST_1.supports.input
   [GROK_4_FAST_REASONING.name]: typeof GROK_4_FAST_REASONING.supports.input
   [GROK_4_FAST_NON_REASONING.name]: typeof GROK_4_FAST_NON_REASONING.supports.input
-  [GROK_4_0709.name]: typeof GROK_4_0709.supports.input
+  [GROK_4.name]: typeof GROK_4.supports.input
   [GROK_3.name]: typeof GROK_3.supports.input
   [GROK_3_MINI.name]: typeof GROK_3_MINI.supports.input
   [GROK_2_VISION.name]: typeof GROK_2_VISION.supports.input
