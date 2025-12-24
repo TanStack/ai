@@ -167,7 +167,8 @@ Once your adapter is complete:
 2. Open a PR to the [TanStack AI repository](https://github.com/TanStack/ai/pulls)
 3. Add your adapter to the [Community Adapters list in the documentation](https://github.com/TanStack/ai/tree/main/docs/community-adapters)
 
-9. **Run the script to configure the docs**: After adding your adapter in make sure to run `pnpm run sync-docs-config` in the root of the TanStack AI monorepo to have your adapter show up in the docs, after that open up a PR to have it merged
-and that is it!
+### 9. Sync documentation configuration
+
+After adding your adapter, run the  `pnpm run sync-docs-config` in the root of the TanStack AI monorepo. This ensures your adapter appears correctly in the documentation navigation. Open a PR with the generated changes.
 
 10. **Maintain your adapter**: As a community adapter, it's important to keep your adapter up-to-date with any changes in the external service or TanStack AI's APIs. Monitor issues and feedback from users to ensure your adapter remains functional and useful. If you add any changes or new features open up a new PR towards the docs to have them reflected there as well.
