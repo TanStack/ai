@@ -30,7 +30,7 @@ Follow the steps below to build a well-structured, type-safe adapter.
 
 Start by reviewing the [existing internal adapter implementations in the TanStack AI GitHub repository](https://github.com/tanstack/ai/tree/main/packages/typescript). These define the expected structure, conventions, and integration patterns.
 
-For a complete, detailed reference, use the [OpenAI adapter]((https://github.com/tanstack/ai/tree/main/packages/typescript/ai-openai), which is the most fully featured implementation.
+For a complete, detailed reference, use the [OpenAI adapter](https://github.com/tanstack/ai/tree/main/packages/typescript/ai-openai), which is the most fully featured implementation.
 
 ### Define model metadata
 
