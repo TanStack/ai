@@ -264,8 +264,8 @@
           "to": "reference/functions/toServerSentEventsStream"
         },
         {
-          "label": "toStreamResponse",
-          "to": "reference/functions/toStreamResponse"
+          "label": "toServerSentEventsResponse",
+          "to": "reference/functions/toServerSentEventsResponse"
         },
         {
           "label": "toolDefinition",

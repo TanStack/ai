@@ -308,7 +308,7 @@ All examples use SSE for real-time streaming:
 **Backend (TypeScript):**
 
 ```typescript
-import { chat, toStreamResponse } from '@tanstack/ai'
+import { chat, toServerSentEventsResponse } from '@tanstack/ai'
 import { openaiText } from '@tanstack/ai-openai'
 
 const stream = chat({
@@ -317,7 +317,7 @@ const stream = chat({
   messages,
 })
 
-return toStreamResponse(stream)
+return toServerSentEventsResponse(stream)
 ```
 
 **Backend (Python):**
