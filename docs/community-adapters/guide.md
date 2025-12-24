@@ -159,7 +159,12 @@ Adapters are implemented per capability, so only implement what your provider su
 
 Refer to the [OpenAI adapter](https://github.com/TanStack/ai/blob/main/packages/typescript/ai-openai/src/adapters/text.ts) for a complete, end-to-end implementation example.
 
-8. **Publish your package and open up a PR**: Once your adapter is complete and tested, you can publish it as an npm package and open up a PR to the [TanStack AI repository](https://github.com/TanStack/ai/pulls) to have it listed in the community adapters section of the documentation. Add it into [here](https://github.com/TanStack/ai/tree/main/docs/community-adapters).
+### 8. Publish and submit a PR
+
+Once your adapter is complete:
+1. Publish it as an npm package
+2. Open a PR to the [TanStack AI repository](https://github.com/TanStack/ai/pulls)
+3. Add your adapter to the [Community Adapters list in the documentation](https://github.com/TanStack/ai/tree/main/docs/community-adapters)
 
 9. **Run the script to configure the docs**: After adding your adapter in make sure to run `pnpm run sync-docs-config` in the root of the TanStack AI monorepo to have your adapter show up in the docs, after that open up a PR to have it merged
 and that is it!
