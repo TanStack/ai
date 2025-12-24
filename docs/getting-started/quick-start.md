@@ -23,7 +23,7 @@ First, create an API route that handles chat requests. Here's a simplified examp
 ### TanStack Start
 
 ```typescript
-import { chat, toStreamResponse } from "@tanstack/ai";
+import { chat, toServerSentEventsResponse } from "@tanstack/ai";
 import { openai } from "@tanstack/ai-openai";
 import { createFileRoute } from "@tanstack/react-router";
 
@@ -56,7 +56,7 @@ export const Route = createFileRoute("/api/chat")({
           });
 
           // Convert stream to HTTP response
-          return toStreamResponse(stream);
+          return toServerSentEventsResponse(stream);
         } catch (error) {
           return new Response(
             JSON.stringify({
@@ -78,7 +78,7 @@ export const Route = createFileRoute("/api/chat")({
 ### Next.js
 
 ```typescript
-import { chat, toStreamResponse } from "@tanstack/ai";
+import { chat, toServerSentEventsResponse } from "@tanstack/ai";
 import { openaiText } from "@tanstack/ai-openai";
 
 export async function POST(request: Request) {
@@ -106,7 +106,7 @@ export async function POST(request: Request) {
     });
 
     // Convert stream to HTTP response
-    return toStreamResponse(stream);
+    return toServerSentEventsResponse(stream);
   } catch (error) {
     return new Response(
       JSON.stringify({

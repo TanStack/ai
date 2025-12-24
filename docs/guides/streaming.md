@@ -27,10 +27,10 @@ for await (const chunk of stream) {
 
 ## Server-Side Streaming
 
-Convert the stream to an HTTP response using `toStreamResponse`:
+Convert the stream to an HTTP response using `toServerSentEventsResponse`:
 
 ```typescript
-import { chat, toStreamResponse } from "@tanstack/ai";
+import { chat, toServerSentEventsResponse } from "@tanstack/ai";
 import { openaiText } from "@tanstack/ai-openai";
 
 export async function POST(request: Request) {
@@ -42,7 +42,7 @@ export async function POST(request: Request) {
   });
 
   // Convert to HTTP response with proper headers
-  return toStreamResponse(stream);
+  return toServerSentEventsResponse(stream);
 }
 ```
 
