@@ -27,6 +27,14 @@
     "packages/typescript/ai-openai": {
       "ignore": ["src/tools/**"]
     },
+    "packages/typescript/ai-solid": {
+      "tsdown": false,
+      "ignore": ["tsdown.config.ts"]
+    },
+    "packages/typescript/ai-vue": {
+      "tsdown": false,
+      "ignore": ["tsdown.config.ts"]
+    },
     "packages/typescript/ai-vue-ui": {
       "ignoreDependencies": [
         "@crazydos/vue-markdown",
