@@ -2,6 +2,7 @@ import { BaseTextAdapter } from '@tanstack/ai/adapters'
 
 import { createOllamaClient, generateId, getOllamaHostFromEnv } from '../utils'
 
+import type { OLLAMA_TEXT_MODELS } from '../model-meta'
 import type {
   StructuredOutputOptions,
   StructuredOutputResult,
@@ -17,34 +18,9 @@ import type {
 } from 'ollama'
 import type { StreamChunk, TextOptions, Tool } from '@tanstack/ai'
 
-/**
- * Ollama text models
- * Note: Ollama models are dynamically loaded, this is a common subset
- */
-export const OllamaTextModels = [
-  'llama2',
-  'llama3',
-  'llama3.1',
-  'llama3.2',
-  'codellama',
-  'mistral',
-  'mixtral',
-  'phi',
-  'phi3',
-  'neural-chat',
-  'starling-lm',
-  'orca-mini',
-  'vicuna',
-  'nous-hermes',
-  'qwen2',
-  'qwen2.5',
-  'gemma',
-  'gemma2',
-  'deepseek-coder',
-  'command-r',
-] as const
-
-export type OllamaTextModel = (typeof OllamaTextModels)[number] | (string & {})
+export type OllamaTextModel =
+  | (typeof OLLAMA_TEXT_MODELS)[number]
+  | (string & {})
 
 /**
  * Ollama-specific provider options
