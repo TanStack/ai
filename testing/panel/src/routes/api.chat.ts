@@ -9,6 +9,7 @@ import {
 } from '@tanstack/ai'
 import { anthropicText } from '@tanstack/ai-anthropic'
 import { geminiText } from '@tanstack/ai-gemini'
+import { grokText } from '@tanstack/ai-grok'
 import { openaiText } from '@tanstack/ai-openai'
 import { ollamaText } from '@tanstack/ai-ollama'
 import type { AIAdapter, StreamChunk } from '@tanstack/ai'
@@ -51,7 +52,7 @@ const addToCartToolServer = addToCartToolDef.server((args) => ({
   totalItems: args.quantity,
 }))
 
-type Provider = 'openai' | 'anthropic' | 'gemini' | 'ollama'
+type Provider = 'openai' | 'anthropic' | 'gemini' | 'ollama' | 'grok'
 
 /**
  * Wraps an adapter to intercept chatStream and record raw chunks from the adapter
@@ -171,6 +172,10 @@ export const Route = createFileRoute('/api/chat')({
             gemini: () =>
               createChatOptions({
                 adapter: geminiText((model || 'gemini-2.0-flash') as any),
+              }),
+            grok: () =>
+              createChatOptions({
+                adapter: grokText((model || 'grok-3') as any),
               }),
             ollama: () =>
               createChatOptions({

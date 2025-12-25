@@ -5,6 +5,7 @@ import {
   geminiSummarize,
   geminiText,
 } from '@tanstack/ai-gemini'
+import { grokImage, grokSummarize, grokText } from '@tanstack/ai-grok'
 import { ollamaSummarize, ollamaText } from '@tanstack/ai-ollama'
 import {
   openaiImage,
@@ -76,6 +77,10 @@ const GEMINI_TTS_MODEL =
 
 const OLLAMA_MODEL = process.env.OLLAMA_MODEL || 'mistral:7b'
 const OLLAMA_SUMMARY_MODEL = process.env.OLLAMA_SUMMARY_MODEL || OLLAMA_MODEL
+
+const GROK_MODEL = process.env.GROK_MODEL || 'grok-3'
+const GROK_SUMMARY_MODEL = process.env.GROK_SUMMARY_MODEL || GROK_MODEL
+const GROK_IMAGE_MODEL = process.env.GROK_IMAGE_MODEL || 'grok-2-image-1212'
 
 /**
  * Create Anthropic adapters
@@ -161,6 +166,26 @@ function createOllamaAdapters(): AdapterSet | null {
 }
 
 /**
+ * Create Grok adapters
+ */
+function createGrokAdapters(): AdapterSet | null {
+  const apiKey = process.env.XAI_API_KEY
+  if (!apiKey) return null
+
+  return {
+    textAdapter: grokText(GROK_MODEL as any, { apiKey } as any),
+    summarizeAdapter: grokSummarize(
+      GROK_SUMMARY_MODEL as any,
+      { apiKey } as any,
+    ),
+    imageAdapter: grokImage(GROK_IMAGE_MODEL as any, { apiKey } as any),
+    chatModel: GROK_MODEL,
+    summarizeModel: GROK_SUMMARY_MODEL,
+    imageModel: GROK_IMAGE_MODEL,
+  }
+}
+
+/**
  * Registry of all available adapters
  */
 export const ADAPTERS: Array<AdapterDefinition> = [
@@ -188,6 +213,12 @@ export const ADAPTERS: Array<AdapterDefinition> = [
     name: 'Ollama',
     envKey: null,
     create: createOllamaAdapters,
+  },
+  {
+    id: 'grok',
+    name: 'Grok',
+    envKey: 'XAI_API_KEY',
+    create: createGrokAdapters,
   },
 ]
 
