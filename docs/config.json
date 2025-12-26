@@ -133,6 +133,10 @@
           "to": "adapters/openai"
         },
         {
+          "label": "OpenRouter",
+          "to": "adapters/openrouter"
+        },
+        {
           "label": "Anthropic",
           "to": "adapters/anthropic"
         },
