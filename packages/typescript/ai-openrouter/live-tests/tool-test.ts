@@ -1,4 +1,5 @@
-import { createOpenRouter } from '../src/index'
+import { createOpenRouterText } from '../src/adapters/text'
+import { toolDefinition } from '@tanstack/ai'
 import { z } from 'zod'
 import { readFileSync } from 'fs'
 import { join, dirname } from 'path'
@@ -25,49 +26,46 @@ if (!apiKey) {
 async function testToolCallingWithArguments() {
   console.log('🚀 Testing OpenRouter tool calling with arguments\n')
 
-  const adapter = createOpenRouter(apiKey!)
+  const adapter = createOpenRouterText('openai/gpt-4o-mini', apiKey!)
 
-  const getTemperatureTool = {
+  const getTemperatureTool = toolDefinition({
     name: 'get_temperature',
     description: 'Get the current temperature for a specific location',
+
     inputSchema: z.object({
       location: z
         .string()
         .describe('The city or location to get the temperature for'),
       unit: z.enum(['celsius', 'fahrenheit']).describe('The temperature unit'),
     }),
-    execute: async (args: {
-      location: string
-      unit: 'celsius' | 'fahrenheit'
-    }) => {
-      console.log(
-        '✅ Tool executed with arguments:',
-        JSON.stringify(args, null, 2),
-      )
+  }).server(async (args) => {
+    console.log(
+      '✅ Tool executed with arguments:',
+      JSON.stringify(args, null, 2),
+    )
 
-      if (!args) {
-        console.error('❌ ERROR: Arguments are undefined!')
-        return 'Error: No arguments received'
-      }
+    if (!args) {
+      console.error('❌ ERROR: Arguments are undefined!')
+      return 'Error: No arguments received'
+    }
 
-      if (typeof args !== 'object') {
-        console.error('❌ ERROR: Arguments are not an object:', typeof args)
-        return 'Error: Invalid arguments type'
-      }
+    if (typeof args !== 'object') {
+      console.error('❌ ERROR: Arguments are not an object:', typeof args)
+      return 'Error: Invalid arguments type'
+    }
 
-      if (!args.location) {
-        console.error('❌ ERROR: Location argument is missing!')
-        return 'Error: Location is required'
-      }
+    if (!args.location) {
+      console.error('❌ ERROR: Location argument is missing!')
+      return 'Error: Location is required'
+    }
 
-      console.log(
-        `  - location: "${args.location}" (type: ${typeof args.location})`,
-      )
-      console.log(`  - unit: "${args.unit}" (type: ${typeof args.unit})`)
+    console.log(
+      `  - location: "${args.location}" (type: ${typeof args.location})`,
+    )
+    console.log(`  - unit: "${args.unit}" (type: ${typeof args.unit})`)
 
-      return `The temperature in ${args.location} is 72°${args.unit === 'celsius' ? 'C' : 'F'}`
-    },
-  }
+    return `The temperature in ${args.location} is 72°${args.unit === 'celsius' ? 'C' : 'F'}`
+  })
 
   const messages = [
     {
@@ -90,7 +88,6 @@ async function testToolCallingWithArguments() {
     let finalResponse = ''
 
     const stream = adapter.chatStream({
-      model: 'openai/gpt-4o-mini',
       messages,
       tools: [getTemperatureTool],
     })
@@ -119,10 +116,10 @@ async function testToolCallingWithArguments() {
           }
         }
 
-        if (getTemperatureTool.execute && toolCallArguments) {
+        if (toolCallArguments) {
           console.log('\n🔨 Executing tool...')
           try {
-            const result = await getTemperatureTool.execute(
+            const result = await getTemperatureTool.serverExecute(
               toolCallArguments as {
                 location: string
                 unit: 'celsius' | 'fahrenheit'

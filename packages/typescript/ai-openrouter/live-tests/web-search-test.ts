@@ -1,4 +1,4 @@
-import { createOpenRouter } from '../src/index'
+import { createOpenRouterText } from '../src/adapters/text'
 import { readFileSync } from 'fs'
 import { join, dirname } from 'path'
 import { fileURLToPath } from 'url'
@@ -24,7 +24,8 @@ if (!apiKey) {
 async function testWebSearch() {
   console.log('🚀 Testing OpenRouter web search via plugins\n')
 
-  const adapter = createOpenRouter(apiKey!)
+  const model = 'openai/gpt-4o-mini'
+  const adapter = createOpenRouterText(model, apiKey!)
 
   const messages = [
     {
@@ -35,7 +36,7 @@ async function testWebSearch() {
   ]
 
   console.log('📤 Sending request with web search plugin:')
-  console.log('  Model: openai/gpt-4o-mini')
+  console.log('  Model:', model)
   console.log('  Plugin: web (engine: exa, max_results: 5)')
   console.log('  User message:', messages[0].content)
   console.log()
@@ -47,9 +48,9 @@ async function testWebSearch() {
     let hasContent = false
 
     const stream = adapter.chatStream({
-      model: 'openai/gpt-4o-mini',
+      model,
       messages,
-      providerOptions: {
+      modelOptions: {
         plugins: [
           {
             id: 'web',

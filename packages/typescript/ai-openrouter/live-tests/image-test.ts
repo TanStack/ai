@@ -1,4 +1,4 @@
-import { createOpenRouter } from '../src/index'
+import { createOpenRouterText } from '../src/adapters/text'
 import { readFileSync } from 'fs'
 import { join, dirname } from 'path'
 import { fileURLToPath } from 'url'
@@ -36,9 +36,9 @@ async function testGeminiImageGeneration() {
     '🚀 Testing OpenRouter image generation with gemini-2.5-flash-image\n',
   )
 
-  const adapter = createOpenRouter(apiKey!)
-
   const model = 'google/gemini-2.5-flash-image'
+  const adapter = createOpenRouterText(model, apiKey!)
+
   const prompt =
     'Generate a beautiful image of a futuristic cityscape at night with neon lights and flying cars.'
 
@@ -62,7 +62,7 @@ async function testGeminiImageGeneration() {
     const stream = adapter.chatStream({
       model,
       messages,
-      providerOptions: {
+      modelOptions: {
         modalities: ['image', 'text'],
       },
     })
@@ -133,9 +133,9 @@ async function testGeminiImageGeneration() {
 async function testFluxImageGeneration() {
   console.log('\n🚀 Testing OpenRouter image generation with flux.2-pro\n')
 
-  const adapter = createOpenRouter(apiKey!)
-
   const model = 'black-forest-labs/flux.2-pro'
+  const adapter = createOpenRouterText(model, apiKey!)
+
   const prompt =
     'Generate a beautiful landscape image of a mountain range at sunset with vibrant colors.'
 
@@ -159,7 +159,7 @@ async function testFluxImageGeneration() {
     const stream = adapter.chatStream({
       model,
       messages,
-      providerOptions: {
+      modelOptions: {
         modalities: ['image', 'text'],
       },
     })

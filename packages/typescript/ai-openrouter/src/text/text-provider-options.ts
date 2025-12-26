@@ -270,8 +270,7 @@ export interface OpenRouterBaseOptions {
 
 export type ExternalTextProviderOptions = OpenRouterBaseOptions
 
-export interface InternalTextProviderOptions
-  extends ExternalTextProviderOptions {
+export interface InternalTextProviderOptions extends ExternalTextProviderOptions {
   /**
    * The model ID to use for the request.
    * https://openrouter.ai/models

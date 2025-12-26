@@ -1,28 +1,27 @@
-import { BaseAdapter } from '@tanstack/ai'
-import { convertToolsToProviderFormat } from './tools'
-import type {
-  ChatOptions,
-  ContentPart,
-  EmbeddingOptions,
-  EmbeddingResult,
-  ModelMessage,
-  StreamChunk,
-  SummarizationOptions,
-  SummarizationResult,
-} from '@tanstack/ai'
+import { BaseTextAdapter } from '@tanstack/ai/adapters'
+import { convertToolsToProviderFormat } from '../tools'
 import type {
   OpenRouterChatModelProviderOptionsByName,
   OpenRouterModelInputModalitiesByName,
-} from './model-meta'
+} from '../model-meta'
+import type {
+  StructuredOutputOptions,
+  StructuredOutputResult,
+} from '@tanstack/ai/adapters'
+import type {
+  ContentPart,
+  ModelMessage,
+  StreamChunk,
+  TextOptions,
+} from '@tanstack/ai'
 import type {
   ExternalTextProviderOptions,
   InternalTextProviderOptions,
-} from './text/text-provider-options'
+} from '../text/text-provider-options'
 import type {
   OpenRouterImageMetadata,
   OpenRouterMessageMetadataByModality,
-} from './message-types'
-import type { OpenRouterTool } from './tools'
+} from '../message-types'
 
 export interface OpenRouterConfig {
   apiKey: string
@@ -31,7 +30,17 @@ export interface OpenRouterConfig {
   xTitle?: string
 }
 
-export type OpenRouterProviderOptions = ExternalTextProviderOptions
+export type OpenRouterTextProviderOptions = ExternalTextProviderOptions
+
+type ResolveProviderOptions<TModel extends string> =
+  TModel extends keyof OpenRouterChatModelProviderOptionsByName
+    ? OpenRouterChatModelProviderOptionsByName[TModel]
+    : OpenRouterTextProviderOptions
+
+type ResolveInputModalities<TModel extends string> =
+  TModel extends keyof OpenRouterModelInputModalitiesByName
+    ? OpenRouterModelInputModalitiesByName[TModel]
+    : readonly ['text', 'image', 'audio', 'video', 'document']
 
 type ContentPartType =
   | 'text'
@@ -64,12 +73,20 @@ interface OpenRouterRequest {
   temperature?: number
   top_p?: number
   stop?: string | Array<string>
-  tools?: Array<OpenRouterTool>
+  tools?: Array<{
+    type: 'function'
+    function: {
+      name: string
+      description?: string
+      parameters: Record<string, unknown>
+    }
+  }>
   tool_choice?:
     | 'none'
     | 'auto'
     | 'required'
     | { type: 'function'; function: { name: string } }
+  response_format?: { type: 'json_object' }
   [key: string]: unknown
 }
 
@@ -147,36 +164,28 @@ interface OpenRouterSSEChunk {
   usage?: OpenRouterUsage
 }
 
-export class OpenRouter extends BaseAdapter<
-  ReadonlyArray<string>,
-  [],
-  OpenRouterProviderOptions,
-  Record<string, unknown>,
-  OpenRouterChatModelProviderOptionsByName,
-  OpenRouterModelInputModalitiesByName,
+export class OpenRouterTextAdapter<
+  TModel extends string,
+> extends BaseTextAdapter<
+  TModel,
+  ResolveProviderOptions<TModel>,
+  ResolveInputModalities<TModel>,
   OpenRouterMessageMetadataByModality
 > {
-  name = 'openrouter' as const
-  models: ReadonlyArray<string> = []
-
-  // @ts-ignore - We never assign this at runtime and it's only used for types
-  _modelProviderOptionsByName: OpenRouterChatModelProviderOptionsByName
-  // @ts-ignore - We never assign this at runtime and it's only used for types
-  _modelInputModalitiesByName?: OpenRouterModelInputModalitiesByName
-  // @ts-ignore - We never assign this at runtime and it's only used for types
-  _messageMetadataByModality?: OpenRouterMessageMetadataByModality
+  readonly kind = 'text' as const
+  readonly name = 'openrouter' as const
 
   private openRouterConfig: OpenRouterConfig
   private baseURL: string
 
-  constructor(config: OpenRouterConfig) {
-    super({})
+  constructor(config: OpenRouterConfig, model: TModel) {
+    super({}, model)
     this.openRouterConfig = config
     this.baseURL = config.baseURL || 'https://openrouter.ai/api/v1'
   }
 
   async *chatStream(
-    options: ChatOptions<string, OpenRouterProviderOptions>,
+    options: TextOptions<ResolveProviderOptions<TModel>>,
   ): AsyncIterable<StreamChunk> {
     const timestamp = Date.now()
     const toolCallBuffers = new Map<number, ToolCallBuffer>()
@@ -207,7 +216,7 @@ export class OpenRouter extends BaseAdapter<
           yield {
             type: 'done',
             id: responseId || this.generateId(),
-            model,
+            model: model || options.model,
             timestamp,
             finishReason: 'stop',
           }
@@ -253,49 +262,75 @@ export class OpenRouter extends BaseAdapter<
     }
   }
 
-  async summarize(options: SummarizationOptions): Promise<SummarizationResult> {
-    const response = await fetch(`${this.baseURL}/chat/completions`, {
-      method: 'POST',
-      headers: this.buildHeaders(),
-      body: JSON.stringify({
-        model: options.model || 'openai/gpt-4o-mini',
-        messages: [
-          { role: 'system', content: this.buildSummarizationPrompt(options) },
-          { role: 'user', content: options.text },
-        ],
-        max_tokens: options.maxLength,
-        temperature: 0.3,
-        stream: false,
-      }),
-    })
+  async structuredOutput(
+    options: StructuredOutputOptions<ResolveProviderOptions<TModel>>,
+  ): Promise<StructuredOutputResult<unknown>> {
+    const { chatOptions, outputSchema } = options
 
-    if (!response.ok) {
-      throw new Error(await this.parseErrorResponse(response))
-    }
+    const requestParams = this.mapTextOptionsToOpenRouter(chatOptions)
 
-    const data = await response.json()
-    return {
-      id: data.id,
-      model: data.model,
-      summary: data.choices[0]?.message?.content || '',
-      usage: {
-        promptTokens: data.usage?.prompt_tokens || 0,
-        completionTokens: data.usage?.completion_tokens || 0,
-        totalTokens: data.usage?.total_tokens || 0,
+    const structuredOutputTool = {
+      type: 'function' as const,
+      function: {
+        name: 'structured_output',
+        description:
+          'Use this tool to provide your response in the required structured format.',
+        parameters: outputSchema,
       },
     }
-  }
 
-  /**
-   * Creates embeddings from input text.
-   *
-   * @throws Error - OpenRouter does not support embeddings endpoint.
-   * Use a model-specific adapter (e.g., @tanstack/ai-openai) for embeddings.
-   */
-  createEmbeddings(_options: EmbeddingOptions): Promise<EmbeddingResult> {
-    throw new Error(
-      'OpenRouter does not support embeddings endpoint. Use a model-specific adapter (e.g., @tanstack/ai-openai) instead.',
-    )
+    try {
+      const response = await fetch(`${this.baseURL}/chat/completions`, {
+        method: 'POST',
+        headers: this.buildHeaders(),
+        body: JSON.stringify({
+          ...requestParams,
+          stream: false,
+          tools: [structuredOutputTool],
+          tool_choice: {
+            type: 'function',
+            function: { name: 'structured_output' },
+          },
+        }),
+        signal: chatOptions.request?.signal,
+      })
+
+      if (!response.ok) {
+        const errorMessage = await this.parseErrorResponse(response)
+        throw new Error(`Structured output generation failed: ${errorMessage}`)
+      }
+
+      const data = await response.json()
+      const toolCall = data.choices?.[0]?.message?.tool_calls?.[0]
+
+      if (toolCall && toolCall.function?.name === 'structured_output') {
+        const parsed = JSON.parse(toolCall.function.arguments || '{}')
+        return {
+          data: parsed,
+          rawText: toolCall.function.arguments || '',
+        }
+      }
+
+      const content = data.choices?.[0]?.message?.content || ''
+      let parsed: unknown
+      try {
+        parsed = JSON.parse(content)
+      } catch {
+        throw new Error(
+          `Failed to parse structured output as JSON. Content: ${content.slice(0, 200)}${content.length > 200 ? '...' : ''}`,
+        )
+      }
+
+      return {
+        data: parsed,
+        rawText: content,
+      }
+    } catch (error: unknown) {
+      const err = error as Error
+      throw new Error(
+        `Structured output generation failed: ${err.message || 'Unknown error occurred'}`,
+      )
+    }
   }
 
   private buildHeaders(): Record<string, string> {
@@ -311,10 +346,10 @@ export class OpenRouter extends BaseAdapter<
   }
 
   private async createRequest(
-    options: ChatOptions<string, OpenRouterProviderOptions>,
+    options: TextOptions<ResolveProviderOptions<TModel>>,
     stream: boolean,
   ): Promise<Response> {
-    const requestParams = this.mapOptions(options)
+    const requestParams = this.mapTextOptionsToOpenRouter(options)
     return fetch(`${this.baseURL}/chat/completions`, {
       method: 'POST',
       headers: this.buildHeaders(),
@@ -358,8 +393,7 @@ export class OpenRouter extends BaseAdapter<
     let buffer = ''
 
     try {
-      // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
-      while (true) {
+      for (;;) {
         const { done, value } = await reader.read()
         if (done) break
 
@@ -537,53 +571,31 @@ export class OpenRouter extends BaseAdapter<
     }
   }
 
-  private buildSummarizationPrompt(options: SummarizationOptions): string {
-    let prompt = 'You are a professional summarizer. '
-    switch (options.style) {
-      case 'bullet-points':
-        prompt += 'Provide a summary in bullet point format. '
-        break
-      case 'paragraph':
-        prompt += 'Provide a summary in paragraph format. '
-        break
-      case 'concise':
-        prompt += 'Provide a very concise summary in 1-2 sentences. '
-        break
-      default:
-        prompt += 'Provide a clear and concise summary. '
-    }
-    if (options.focus?.length) {
-      prompt += `Focus on the following aspects: ${options.focus.join(', ')}. `
-    }
-    if (options.maxLength) {
-      prompt += `Keep the summary under ${options.maxLength} tokens. `
-    }
-    return prompt
-  }
-
-  private mapOptions(options: ChatOptions): OpenRouterRequest {
-    const providerOptions = options.providerOptions as
+  private mapTextOptionsToOpenRouter(
+    options: TextOptions<ResolveProviderOptions<TModel>>,
+  ): OpenRouterRequest {
+    const modelOptions = options.modelOptions as
       | Omit<InternalTextProviderOptions, 'model' | 'messages' | 'tools'>
       | undefined
 
     const request: OpenRouterRequest = {
       model: options.model,
       messages: this.convertMessages(options.messages),
-      temperature: options.options?.temperature,
-      max_tokens: options.options?.maxTokens,
-      top_p: options.options?.topP,
-      ...providerOptions,
+      temperature: options.temperature,
+      max_tokens: options.maxTokens,
+      top_p: options.topP,
+      ...modelOptions,
       tools: options.tools
         ? convertToolsToProviderFormat(options.tools)
         : undefined,
     }
 
-    if (providerOptions?.stop !== undefined) {
-      request.stop = providerOptions.stop
+    if (modelOptions?.stop !== undefined) {
+      request.stop = modelOptions.stop
     }
 
-    if (options.tools?.length && providerOptions?.tool_choice !== undefined) {
-      request.tool_choice = providerOptions.tool_choice
+    if (options.tools?.length && modelOptions?.tool_choice !== undefined) {
+      request.tool_choice = modelOptions.tool_choice
     }
 
     if (options.systemPrompts?.length) {
@@ -591,6 +603,10 @@ export class OpenRouter extends BaseAdapter<
         role: 'system',
         content: options.systemPrompts.join('\n'),
       })
+    }
+
+    if (modelOptions?.response_format !== undefined) {
+      request.response_format = modelOptions.response_format
     }
 
     return request
@@ -602,7 +618,7 @@ export class OpenRouter extends BaseAdapter<
     return messages.map((msg) => {
       if (msg.role === 'tool') {
         return {
-          role: 'tool' as const,
+          role: 'tool',
           content:
             typeof msg.content === 'string'
               ? msg.content
@@ -613,8 +629,9 @@ export class OpenRouter extends BaseAdapter<
       }
 
       const parts = this.convertContentParts(msg.content)
+      const role = msg.role === 'user' ? 'user' : 'assistant'
       return {
-        role: msg.role as 'user' | 'assistant',
+        role,
         content:
           parts.length === 1 && parts[0]?.type === 'text'
             ? parts[0].text || ''
@@ -671,30 +688,6 @@ export class OpenRouter extends BaseAdapter<
   }
 }
 
-export function createOpenRouter(
-  apiKey: string,
-  config?: Omit<OpenRouterConfig, 'apiKey'>,
-): OpenRouter {
-  return new OpenRouter({ apiKey, ...config })
-}
-
-/**
- * Create an OpenRouter adapter with automatic API key detection from environment variables.
- *
- * Looks for `OPENROUTER_API_KEY` in:
- * - `process.env` (Node.js)
- * - `window.env` (Browser with injected env)
- *
- * @param config - Optional configuration (excluding apiKey which is auto-detected)
- * @returns Configured OpenRouter adapter instance
- * @throws Error if OPENROUTER_API_KEY is not found in environment
- *
- * @example
- * ```typescript
- * // Automatically uses OPENROUTER_API_KEY from environment
- * const adapter = openrouter();
- * ```
- */
 interface EnvObject {
   OPENROUTER_API_KEY?: string
 }
@@ -716,17 +709,26 @@ function getEnvironment(): EnvObject | undefined {
   return undefined
 }
 
-export function openrouter(
+export function createOpenRouterText<TModel extends string>(
+  model: TModel,
+  apiKey: string,
   config?: Omit<OpenRouterConfig, 'apiKey'>,
-): OpenRouter {
+): OpenRouterTextAdapter<TModel> {
+  return new OpenRouterTextAdapter({ apiKey, ...config }, model)
+}
+
+export function openrouterText<TModel extends string>(
+  model: TModel,
+  config?: Omit<OpenRouterConfig, 'apiKey'>,
+): OpenRouterTextAdapter<TModel> {
   const env = getEnvironment()
   const key = env?.OPENROUTER_API_KEY
 
   if (!key) {
     throw new Error(
-      'OPENROUTER_API_KEY is required. Please set it in your environment variables or use createOpenRouter(apiKey, config) instead.',
+      'OPENROUTER_API_KEY is required. Please set it in your environment variables or use createOpenRouterText(model, apiKey, config) instead.',
     )
   }
 
-  return createOpenRouter(key, config)
+  return createOpenRouterText(model, key, config)
 }

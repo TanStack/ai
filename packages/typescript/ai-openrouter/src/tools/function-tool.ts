@@ -1,5 +1,4 @@
-import { convertZodToJsonSchema } from '@tanstack/ai'
-import type { Tool } from '@tanstack/ai'
+import type { JSONSchema, Tool } from '@tanstack/ai'
 
 export interface FunctionTool {
   type: 'function'
@@ -10,17 +9,25 @@ export interface FunctionTool {
   }
 }
 
+/**
+ * Converts a standard Tool to OpenRouter FunctionTool format.
+ *
+ * Tool schemas are already converted to JSON Schema in the ai layer.
+ */
 export function convertFunctionToolToAdapterFormat(tool: Tool): FunctionTool {
-  const jsonSchema = tool.inputSchema
-    ? convertZodToJsonSchema(tool.inputSchema)
-    : {}
+  // Tool schemas are already converted to JSON Schema in the ai layer
+  const inputSchema = (tool.inputSchema ?? {
+    type: 'object',
+    properties: {},
+    required: [],
+  }) as JSONSchema
 
   return {
     type: 'function',
     function: {
       name: tool.name,
       description: tool.description,
-      parameters: jsonSchema || {},
+      parameters: inputSchema,
     },
   }
 }
