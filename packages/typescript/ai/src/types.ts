@@ -1028,3 +1028,32 @@ export interface DefaultMessageMetadataByModality {
   video: unknown
   document: unknown
 }
+
+// ============================================================================
+// Live API Types
+// ============================================================================
+export interface LiveAPIOptions<TProviderOptions extends object = object> {
+  /** The model to use for Live API generation */
+  model: string
+  /** The voice to use for generation */
+  voice?: string
+  /** The output audio format */
+  format?: 'mp3' | 'opus' | 'aac' | 'flac' | 'wav' | 'pcm'
+  /** Model-specific options for Live */
+  modelOptions?: TProviderOptions
+}
+
+export interface LiveAPIResult {
+  /** Unique identifier for the generation */
+  id: string
+  /** Model used for generation */
+  model: string
+  /** Base64-encoded audio data */
+  audio: string
+  /** Audio format of the generated audio */
+  format: string
+  /** Duration of the audio in seconds, if available */
+  duration?: number
+  /** Content type of the audio (e.g., 'audio/mp3') */
+  contentType?: string
+}

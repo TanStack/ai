@@ -142,6 +142,25 @@ export {
 } from './generateTranscription/adapter'
 
 // ===========================
+// Live API Activity
+// ===========================
+
+export {
+  kind as liveAPIKind,
+  connectLive,
+  type LiveAPIActivityOptions,
+  type LiveAPIActivityResult,
+  type LiveAPIProviderOptions,
+} from './connectLive/index'
+
+export {
+  BaseLiveAPIAdapter,
+  type LiveAPIAdapter,
+  type LiveAPIAdapterConfig,
+  type AnyLiveAPIAdapter,
+} from './connectLive'
+
+// ===========================
 // Adapter Union Types
 // ===========================
 
