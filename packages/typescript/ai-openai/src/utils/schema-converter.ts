@@ -76,10 +76,15 @@ export function makeOpenAIStructuredOutputCompatible(
           ),
         }
       } else if (prop.anyOf) {
-        // Handle anyOf/oneOf at property level (union types)
+        // Handle anyOf at property level (union types)
         properties[propName] = makeOpenAIStructuredOutputCompatible(
           prop,
           prop.required || [],
+        )
+      } else if (prop.oneOf) {
+        // oneOf is not supported by OpenAI - throw early
+        throw new Error(
+          'oneOf is not supported in OpenAI structured output schemas. Check the supported outputs here: https://platform.openai.com/docs/guides/structured-outputs#supported-types',
         )
       } else if (wasOptional) {
         // Make optional fields nullable by adding null to the type
@@ -116,6 +121,12 @@ export function makeOpenAIStructuredOutputCompatible(
   if (result.anyOf && Array.isArray(result.anyOf)) {
     result.anyOf = result.anyOf.map((variant) =>
       makeOpenAIStructuredOutputCompatible(variant, variant.required || []),
+    )
+  }
+
+  if (result.oneOf) {
+    throw new Error(
+      'oneOf is not supported in OpenAI structured output schemas. Check the supported outputs here: https://platform.openai.com/docs/guides/structured-outputs#supported-types',
     )
   }
 

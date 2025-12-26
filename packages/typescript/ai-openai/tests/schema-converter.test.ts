@@ -151,4 +151,31 @@ describe('makeOpenAIStructuredOutputCompatible', () => {
     const result = makeOpenAIStructuredOutputCompatible(schema, ['items'])
     expect(result.properties.items.items.additionalProperties).toBe(false)
   })
+
+  it('should throw an error for oneOf schemas (not supported by OpenAI)', () => {
+    const schema = {
+      type: 'object',
+      properties: {
+        u: {
+          oneOf: [
+            {
+              type: 'object',
+              properties: { type: { const: 'a' }, value: { type: 'string' } },
+              required: ['type', 'value'],
+            },
+            {
+              type: 'object',
+              properties: { type: { const: 'b' }, count: { type: 'number' } },
+              required: ['type', 'count'],
+            },
+          ],
+        },
+      },
+      required: ['u'],
+    }
+
+    expect(() => makeOpenAIStructuredOutputCompatible(schema, ['u'])).toThrow(
+      'oneOf is not supported in OpenAI structured output schemas',
+    )
+  })
 })
