@@ -1,7 +1,7 @@
 import { describe, it, expect, vi } from 'vitest'
 import {
   toServerSentEventsStream,
-  toStreamResponse,
+  toServerSentEventsResponse,
 } from '../src/stream-to-response'
 import type { StreamChunk } from '../src/types'
 
@@ -315,7 +315,7 @@ describe('toServerSentEventsStream', () => {
   })
 })
 
-describe('toStreamResponse', () => {
+describe('toServerSentEventsResponse', () => {
   it('should create Response with SSE headers', async () => {
     const chunks: Array<StreamChunk> = [
       {
@@ -330,7 +330,7 @@ describe('toStreamResponse', () => {
     ]
 
     const stream = createMockStream(chunks)
-    const response = toStreamResponse(stream)
+    const response = toServerSentEventsResponse(stream)
 
     expect(response).toBeInstanceOf(Response)
     expect(response.headers.get('Content-Type')).toBe('text/event-stream')
@@ -341,7 +341,7 @@ describe('toStreamResponse', () => {
   it('should allow custom headers', async () => {
     const chunks: Array<StreamChunk> = []
     const stream = createMockStream(chunks)
-    const response = toStreamResponse(stream, {
+    const response = toServerSentEventsResponse(stream, {
       headers: {
         'X-Custom-Header': 'custom-value',
       },
@@ -354,7 +354,7 @@ describe('toStreamResponse', () => {
   it('should merge custom headers with SSE headers', async () => {
     const chunks: Array<StreamChunk> = []
     const stream = createMockStream(chunks)
-    const response = toStreamResponse(stream, {
+    const response = toServerSentEventsResponse(stream, {
       headers: {
         'X-Custom-Header': 'custom-value',
         'Cache-Control': 'custom-cache',
@@ -381,7 +381,7 @@ describe('toStreamResponse', () => {
     ]
 
     const stream = createMockStream(chunks)
-    const response = toStreamResponse(stream, {
+    const response = toServerSentEventsResponse(stream, {
       abortController,
     })
 
@@ -399,7 +399,7 @@ describe('toStreamResponse', () => {
   it('should handle status and statusText', async () => {
     const chunks: Array<StreamChunk> = []
     const stream = createMockStream(chunks)
-    const response = toStreamResponse(stream, {
+    const response = toServerSentEventsResponse(stream, {
       status: 201,
       statusText: 'Created',
     })
@@ -431,7 +431,7 @@ describe('toStreamResponse', () => {
     ]
 
     const stream = createMockStream(chunks)
-    const response = toStreamResponse(stream)
+    const response = toServerSentEventsResponse(stream)
 
     if (!response.body) {
       throw new Error('Response body is null')
@@ -449,7 +449,7 @@ describe('toStreamResponse', () => {
   it('should handle undefined init parameter', async () => {
     const chunks: Array<StreamChunk> = []
     const stream = createMockStream(chunks)
-    const response = toStreamResponse(stream, undefined)
+    const response = toServerSentEventsResponse(stream, undefined)
 
     expect(response).toBeInstanceOf(Response)
     expect(response.headers.get('Content-Type')).toBe('text/event-stream')
@@ -458,7 +458,7 @@ describe('toStreamResponse', () => {
   it('should handle empty init object', async () => {
     const chunks: Array<StreamChunk> = []
     const stream = createMockStream(chunks)
-    const response = toStreamResponse(stream, {})
+    const response = toServerSentEventsResponse(stream, {})
 
     expect(response).toBeInstanceOf(Response)
     expect(response.headers.get('Content-Type')).toBe('text/event-stream')

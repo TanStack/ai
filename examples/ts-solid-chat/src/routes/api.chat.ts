@@ -1,5 +1,5 @@
 import { createFileRoute } from '@tanstack/solid-router'
-import { chat, maxIterations, toServerSentEventsStream } from '@tanstack/ai'
+import { chat, maxIterations, toServerSentEventsResponse } from '@tanstack/ai'
 import { anthropicText } from '@tanstack/ai-anthropic'
 import { serverTools } from '@/lib/guitar-tools'
 
@@ -71,17 +71,7 @@ export const Route = createFileRoute('/api/chat')({
             abortController,
           })
 
-          const readableStream = toServerSentEventsStream(
-            stream,
-            abortController,
-          )
-          return new Response(readableStream, {
-            headers: {
-              'Content-Type': 'text/event-stream',
-              'Cache-Control': 'no-cache',
-              Connection: 'keep-alive',
-            },
-          })
+          return toServerSentEventsResponse(stream, { abortController })
         } catch (error: any) {
           // If request was aborted, return early (don't send error response)
           if (error.name === 'AbortError' || abortController.signal.aborted) {

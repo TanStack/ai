@@ -56,7 +56,7 @@ const adapter = createOpenaiChat(process.env.OPENAI_API_KEY!, config);
 ## Example: Chat Completion
 
 ```typescript
-import { chat, toStreamResponse } from "@tanstack/ai";
+import { chat, toServerSentEventsResponse } from "@tanstack/ai";
 import { openaiText } from "@tanstack/ai-openai";
 
 export async function POST(request: Request) {
@@ -67,7 +67,7 @@ export async function POST(request: Request) {
     messages,
   });
 
-  return toStreamResponse(stream);
+  return toServerSentEventsResponse(stream);
 }
 ```
 

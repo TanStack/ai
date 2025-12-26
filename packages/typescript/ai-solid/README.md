@@ -157,7 +157,7 @@ Your backend should use the `chat()` method which **automatically handles tool e
 2. Use `chat()` to stream responses (with automatic tool execution):
 
 ```typescript
-import { chat, toStreamResponse } from '@tanstack/ai'
+import { chat, toServerSentEventsResponse } from '@tanstack/ai'
 import { openaiText } from '@tanstack/ai-openai'
 
 export async function POST(request: Request) {
@@ -172,7 +172,7 @@ export async function POST(request: Request) {
   })
 
   // Convert to HTTP streaming response with SSE headers
-  return toStreamResponse(stream)
+  return toServerSentEventsResponse(stream)
 }
 ```
 
@@ -311,7 +311,7 @@ function App() {
 
 ```typescript
 import express from 'express'
-import { chat, toStreamResponse } from '@tanstack/ai'
+import { chat, toServerSentEventsResponse } from '@tanstack/ai'
 import { openaiText } from '@tanstack/ai-openai'
 
 const app = express()
@@ -327,7 +327,7 @@ app.post('/api/chat', async (req, res) => {
     messages,
   })
 
-  const response = toStreamResponse(stream)
+  const response = toServerSentEventsResponse(stream)
 
   // Copy headers and stream to Express response
   response.headers.forEach((value, key) => {
@@ -352,7 +352,7 @@ app.listen(3000)
 
 ```typescript
 // app/api/chat/route.ts
-import { chat, toStreamResponse } from '@tanstack/ai'
+import { chat, toServerSentEventsResponse } from '@tanstack/ai'
 import { openaiText } from '@tanstack/ai-openai'
 
 export const runtime = 'edge'
@@ -361,7 +361,7 @@ export async function POST(req: Request) {
   const { messages } = await req.json()
 
   // One line!
-  return toStreamResponse(
+  return toServerSentEventsResponse(
     chat({
       adapter: openaiText(),
       model: 'gpt-4o',
@@ -375,7 +375,7 @@ export async function POST(req: Request) {
 
 ```typescript
 import { createFileRoute } from '@tanstack/react-router'
-import { chat, toStreamResponse } from '@tanstack/ai'
+import { chat, toServerSentEventsResponse } from '@tanstack/ai'
 import { anthropicText } from '@tanstack/ai-anthropic'
 
 export const Route = createFileRoute('/api/chat')({
@@ -385,7 +385,7 @@ export const Route = createFileRoute('/api/chat')({
         const { messages } = await request.json()
 
         // One line with automatic tool execution!
-        return toStreamResponse(
+        return toServerSentEventsResponse(
           chat({
             adapter: anthropicText(),
             model: 'claude-sonnet-4-20250514',

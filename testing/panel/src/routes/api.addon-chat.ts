@@ -1,5 +1,5 @@
 import { createFileRoute } from '@tanstack/react-router'
-import { chat, maxIterations, toServerSentEventsStream } from '@tanstack/ai'
+import { chat, maxIterations, toServerSentEventsResponse } from '@tanstack/ai'
 import { openaiText } from '@tanstack/ai-openai'
 import {
   getAvailableAddOnsToolDef,
@@ -67,17 +67,7 @@ export const Route = createFileRoute('/api/addon-chat')({
             abortController,
           })
 
-          const readableStream = toServerSentEventsStream(
-            stream,
-            abortController,
-          )
-          return new Response(readableStream, {
-            headers: {
-              'Content-Type': 'text/event-stream',
-              'Cache-Control': 'no-cache',
-              Connection: 'keep-alive',
-            },
-          })
+          return toServerSentEventsResponse(stream, { abortController })
         } catch (error: any) {
           console.error('[API Route] Error in addon-chat request:', error)
 

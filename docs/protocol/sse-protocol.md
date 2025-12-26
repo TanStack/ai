@@ -164,10 +164,10 @@ SSE provides automatic reconnection:
 
 ### Server-Side (Node.js/TypeScript)
 
-TanStack AI provides `toServerSentEventsStream()` and `toStreamResponse()` utilities:
+TanStack AI provides `toServerSentEventsStream()` and `toServerSentEventsResponse()` utilities:
 
 ```typescript
-import { chat, toStreamResponse } from '@tanstack/ai';
+import { chat, toServerSentEventsResponse } from '@tanstack/ai';
 import { openaiText } from '@tanstack/ai-openai';
 
 export async function POST(request: Request) {
@@ -179,11 +179,11 @@ export async function POST(request: Request) {
   });
 
   // Automatically converts StreamChunks to SSE format
-  return toStreamResponse(stream);
+  return toServerSentEventsResponse(stream);
 }
 ```
 
-**What `toStreamResponse()` does:**
+**What `toServerSentEventsResponse()` does:**
 1. Creates a `ReadableStream` from the async iterable
 2. Wraps each chunk as `data: {JSON}\n\n`
 3. Sends `data: [DONE]\n\n` at the end

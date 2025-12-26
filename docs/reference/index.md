@@ -146,6 +146,6 @@ title: "@tanstack/ai"
 - [toHttpStream](functions/toHttpStream.md)
 - [toolDefinition](functions/toolDefinition.md)
 - [toServerSentEventsStream](functions/toServerSentEventsStream.md)
-- [~~toStreamResponse~~](functions/toStreamResponse.md)
+- [toServerSentEventsResponse](functions/toServerSentEventsResponse.md)
 - [uiMessageToModelMessages](functions/uiMessageToModelMessages.md)
 - [untilFinishReason](functions/untilFinishReason.md)

@@ -174,7 +174,7 @@ const getWeatherServer = getWeatherDef.server(async (args) => {
 ### Server-Side
 
 ```typescript
-import { chat, toStreamResponse } from "@tanstack/ai";
+import { chat, toServerSentEventsResponse } from "@tanstack/ai";
 import { openaiText } from "@tanstack/ai-openai";
 import { getWeatherDef } from "./tools";
 
@@ -193,7 +193,7 @@ export async function POST(request: Request) {
     tools: [getWeather], // Pass server tools
   });
 
-  return toStreamResponse(stream);
+  return toServerSentEventsResponse(stream);
 }
 ```
 

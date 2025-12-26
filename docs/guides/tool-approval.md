@@ -57,7 +57,7 @@ const sendEmail = sendEmailDef.server(async ({ to, subject, body }) => {
 On the server, tools with `needsApproval: true` will pause execution and wait for approval:
 
 ```typescript
-import { chat, toStreamResponse } from "@tanstack/ai";
+import { chat, toServerSentEventsResponse } from "@tanstack/ai";
 import { openaiText } from "@tanstack/ai-openai";
 import { sendEmail } from "./tools";
 
@@ -70,7 +70,7 @@ export async function POST(request: Request) {
     tools: [sendEmail],
   });
 
-  return toStreamResponse(stream);
+  return toServerSentEventsResponse(stream);
 }
 ```
 
