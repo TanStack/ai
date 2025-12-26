@@ -284,12 +284,20 @@ export interface InternalTextProviderOptions extends ExternalTextProviderOptions
     content:
       | string
       | Array<{
-          type: 'text' | 'image_url'
+          type:
+            | 'text'
+            | 'image_url'
+            | 'audio_url'
+            | 'video_url'
+            | 'document_url'
           text?: string
           image_url?: {
             url: string
             detail?: 'auto' | 'low' | 'high'
           }
+          audio_url?: { url: string }
+          video_url?: { url: string }
+          document_url?: { url: string }
         }>
     tool_call_id?: string
     name?: string
