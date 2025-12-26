@@ -1,6 +1,6 @@
 import { createFileRoute } from '@tanstack/react-router'
-import { chat, toStreamResponse } from '@tanstack/ai'
-import { openai } from '@tanstack/ai-openai'
+import { chat, toServerSentEventsResponse } from '@tanstack/ai'
+import { openaiText } from '@tanstack/ai-openai'
 import type { ISO8601UTC } from '@/types'
 import {
   ORDER_STATUS_MAP,
@@ -102,14 +102,13 @@ export const Route = createFileRoute('/api/search')({
 
         try {
           const stream = chat({
-            adapter: openai(),
+            adapter: openaiText('gpt-5-nano'),
             messages,
-            model: 'gpt-5-nano',
             conversationId,
             systemPrompts: [SYSTEM_PROMPT],
           })
 
-          return toStreamResponse(stream)
+          return toServerSentEventsResponse(stream)
         } catch (error: any) {
           return new Response(
             JSON.stringify({
