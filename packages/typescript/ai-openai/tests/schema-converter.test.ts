@@ -98,6 +98,13 @@ describe('makeOpenAIStructuredOutputCompatible', () => {
     // Each variant in anyOf should have additionalProperties: false
     expect(result.properties.u.anyOf[0].additionalProperties).toBe(false)
     expect(result.properties.u.anyOf[1].additionalProperties).toBe(false)
+
+    // Verify complete structure
+    expect(result.additionalProperties).toBe(false)
+    expect(result.required).toEqual(['u'])
+    expect(result.properties.u.anyOf).toHaveLength(2)
+    expect(result.properties.u.anyOf[0].required).toEqual(['a'])
+    expect(result.properties.u.anyOf[1].required).toEqual(['b'])
   })
 
   it('should handle nested objects inside anyOf', () => {
