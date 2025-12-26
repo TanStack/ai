@@ -10,7 +10,12 @@ import type { OpenRouterConfig } from './text'
 /**
  * Configuration for OpenRouter summarize adapter
  */
-export interface OpenRouterSummarizeConfig extends OpenRouterConfig {}
+export interface OpenRouterSummarizeConfig extends OpenRouterConfig {
+  /** Default temperature for summarization (0-2). Defaults to 0.3. */
+  temperature?: number
+  /** Default maximum tokens in the response */
+  maxTokens?: number
+}
 
 /**
  * OpenRouter-specific provider options for summarization
@@ -35,16 +40,19 @@ export class OpenRouterSummarizeAdapter<
   readonly name = 'openrouter' as const
 
   private textAdapter: OpenRouterTextAdapter<TModel>
+  private temperature: number
+  private maxTokens: number | undefined
 
   constructor(config: OpenRouterSummarizeConfig, model: TModel) {
     super({}, model)
     this.textAdapter = new OpenRouterTextAdapter(config, model)
+    this.temperature = config.temperature ?? 0.3
+    this.maxTokens = config.maxTokens
   }
 
   async summarize(options: SummarizationOptions): Promise<SummarizationResult> {
     const systemPrompt = this.buildSummarizationPrompt(options)
 
-    // Use the text adapter's streaming and collect the result
     let summary = ''
     let id = ''
     let model = options.model
@@ -54,8 +62,8 @@ export class OpenRouterSummarizeAdapter<
       model: options.model,
       messages: [{ role: 'user', content: options.text }],
       systemPrompts: [systemPrompt],
-      maxTokens: options.maxLength,
-      temperature: 0.3,
+      maxTokens: this.maxTokens ?? options.maxLength,
+      temperature: this.temperature,
     })) {
       if (chunk.type === 'content') {
         summary = chunk.content
@@ -75,13 +83,12 @@ export class OpenRouterSummarizeAdapter<
   ): AsyncIterable<StreamChunk> {
     const systemPrompt = this.buildSummarizationPrompt(options)
 
-    // Delegate directly to the text adapter's streaming
     yield* this.textAdapter.chatStream({
       model: options.model,
       messages: [{ role: 'user', content: options.text }],
       systemPrompts: [systemPrompt],
-      maxTokens: options.maxLength,
-      temperature: 0.3,
+      maxTokens: this.maxTokens ?? options.maxLength,
+      temperature: this.temperature,
     })
   }
 
