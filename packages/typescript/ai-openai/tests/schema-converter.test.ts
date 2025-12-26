@@ -98,7 +98,7 @@ describe('makeOpenAIStructuredOutputCompatible', () => {
     // Each variant in anyOf should have additionalProperties: false
     expect(result.properties.u.anyOf[0].additionalProperties).toBe(false)
     expect(result.properties.u.anyOf[1].additionalProperties).toBe(false)
-    
+
     // Verify complete structure
     expect(result.additionalProperties).toBe(false)
     expect(result.required).toEqual(['u'])
