@@ -61,7 +61,7 @@ export function makeOpenAIStructuredOutputCompatible(
       const prop = properties[propName]
       const wasOptional = !originalRequired.includes(propName)
 
-      // Recursively transform nested objects/arrays
+      // Recursively transform nested objects/arrays/unions
       if (prop.type === 'object' && prop.properties) {
         properties[propName] = makeOpenAIStructuredOutputCompatible(
           prop,
@@ -75,6 +75,12 @@ export function makeOpenAIStructuredOutputCompatible(
             prop.items.required || [],
           ),
         }
+      } else if (prop.anyOf || prop.oneOf) {
+        // Handle anyOf/oneOf at property level (union types)
+        properties[propName] = makeOpenAIStructuredOutputCompatible(
+          prop,
+          prop.required || [],
+        )
       } else if (wasOptional) {
         // Make optional fields nullable by adding null to the type
         if (prop.type && !Array.isArray(prop.type)) {
@@ -103,6 +109,20 @@ export function makeOpenAIStructuredOutputCompatible(
     result.items = makeOpenAIStructuredOutputCompatible(
       result.items,
       result.items.required || [],
+    )
+  }
+
+  // Handle anyOf (union types) - each variant needs to be transformed
+  if (result.anyOf && Array.isArray(result.anyOf)) {
+    result.anyOf = result.anyOf.map((variant) =>
+      makeOpenAIStructuredOutputCompatible(variant, variant.required || []),
+    )
+  }
+
+  // Handle oneOf (discriminated unions) - each variant needs to be transformed
+  if (result.oneOf && Array.isArray(result.oneOf)) {
+    result.oneOf = result.oneOf.map((variant) =>
+      makeOpenAIStructuredOutputCompatible(variant, variant.required || []),
     )
   }
 
