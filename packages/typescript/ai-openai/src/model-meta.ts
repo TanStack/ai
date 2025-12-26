@@ -133,7 +133,7 @@ const GPT5_2_PRO = {
 >
 
 const GPT5_2_CHAT = {
-  name: 'gpt-5.2-chat',
+  name: 'gpt-5.2-chat-latest',
   context_window: 128_000,
   max_output_tokens: 16_384,
   knowledge_cutoff: '2025-08-31',
@@ -1271,7 +1271,7 @@ const GPT_4_TURBO = {
 >
 
 const CHATGPT_40 = {
-  name: 'chatgpt-4.0',
+  name: 'chatgpt-4o-latest',
   context_window: 128_000,
   max_output_tokens: 4_096,
   knowledge_cutoff: '2023-10-01',
@@ -1539,7 +1539,7 @@ const GPT_4O_TRANSCRIBE_DIARIZE = {
 > */
 
 const GPT_5_1_CHAT = {
-  name: 'gpt-5.1-chat',
+  name: 'gpt-5.1-chat-latest',
   context_window: 128_000,
   max_output_tokens: 16_384,
   knowledge_cutoff: '2024-09-30',
@@ -1568,7 +1568,7 @@ const GPT_5_1_CHAT = {
 >
 
 const GPT_5_CHAT = {
-  name: 'gpt-5-chat',
+  name: 'gpt-5-chat-latest',
   context_window: 128_000,
   max_output_tokens: 16_384,
   knowledge_cutoff: '2024-09-30',

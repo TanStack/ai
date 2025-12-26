@@ -60,7 +60,7 @@ export interface JSONSchema {
   maxProperties?: number
   title?: string
   examples?: Array<unknown>
-  [key: string]: unknown // Allow additional properties for extensibility
+  [key: string]: any // Allow additional properties for extensibility
 }
 
 /**
