@@ -1,10 +1,11 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { chat } from '@tanstack/ai'
-import { OpenRouter } from '../src/openrouter-adapter'
+import { createOpenRouterText } from '../src/adapters/text'
 import type { StreamChunk, Tool } from '@tanstack/ai'
-import type { OpenRouterProviderOptions } from '../src/openrouter-adapter'
+import type { OpenRouterTextProviderOptions } from '../src/adapters/text'
 
-const createAdapter = () => new OpenRouter({ apiKey: 'test-key' })
+const createAdapter = () =>
+  createOpenRouterText('openai/gpt-4o-mini', 'test-key')
 
 const toolArguments = JSON.stringify({ location: 'Berlin' })
 
@@ -74,7 +75,7 @@ describe('OpenRouter adapter option mapping', () => {
 
     const adapter = createAdapter()
 
-    const providerOptions: OpenRouterProviderOptions = {
+    const modelOptions: OpenRouterTextProviderOptions = {
       tool_choice: 'auto',
       plugins: [{ id: 'web', max_results: 5 }],
     }
@@ -82,7 +83,6 @@ describe('OpenRouter adapter option mapping', () => {
     const chunks: Array<StreamChunk> = []
     for await (const chunk of chat({
       adapter,
-      model: 'openai/gpt-4o-mini',
       systemPrompts: ['Stay concise'],
       messages: [
         { role: 'user', content: 'How is the weather?' },
@@ -100,12 +100,10 @@ describe('OpenRouter adapter option mapping', () => {
         { role: 'tool', toolCallId: 'call_weather', content: '{"temp":72}' },
       ],
       tools: [weatherTool],
-      options: {
-        temperature: 0.25,
-        topP: 0.6,
-        maxTokens: 1024,
-      },
-      providerOptions,
+      temperature: 0.25,
+      topP: 0.6,
+      maxTokens: 1024,
+      modelOptions,
     })) {
       chunks.push(chunk)
     }
@@ -188,7 +186,6 @@ describe('OpenRouter adapter option mapping', () => {
 
     for await (const chunk of chat({
       adapter,
-      model: 'openai/gpt-4o-mini',
       messages: [{ role: 'user', content: 'Say hello' }],
     })) {
       chunks.push(chunk)
@@ -291,7 +288,6 @@ describe('OpenRouter adapter option mapping', () => {
     const chunks: Array<StreamChunk> = []
     for await (const chunk of chat({
       adapter,
-      model: 'openai/gpt-4o-mini',
       messages: [{ role: 'user', content: 'What is the weather in Berlin?' }],
       tools: [weatherTool],
     })) {
@@ -333,7 +329,6 @@ describe('OpenRouter adapter option mapping', () => {
 
     for await (const _ of chat({
       adapter,
-      model: 'openai/gpt-4o-mini',
       messages: [
         {
           role: 'user',

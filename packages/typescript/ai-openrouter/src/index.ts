@@ -1,9 +1,29 @@
+// ============================================================================
+// New Tree-Shakeable Adapters (Recommended)
+// ============================================================================
+
+// Text (Chat) adapter - for chat/text completion
 export {
-  OpenRouter,
-  createOpenRouter,
-  openrouter,
+  OpenRouterTextAdapter,
+  createOpenRouterText,
+  openrouterText,
   type OpenRouterConfig,
-} from './openrouter-adapter'
+  type OpenRouterTextProviderOptions,
+} from './adapters/text'
+
+// Summarize adapter - for text summarization
+export {
+  OpenRouterSummarizeAdapter,
+  createOpenRouterSummarize,
+  openrouterSummarize,
+  type OpenRouterSummarizeConfig,
+  type OpenRouterSummarizeProviderOptions,
+} from './adapters/summarize'
+
+// ============================================================================
+// Type Exports
+// ============================================================================
+
 export type {
   OpenRouterChatModelProviderOptionsByName,
   OpenRouterModelInputModalitiesByName,
@@ -23,4 +43,9 @@ export type {
   StreamOptions,
   ImageConfig,
 } from './text/text-provider-options'
+
+// Export tool conversion utilities
+export { convertToolsToProviderFormat } from './tools/tool-converter'
+
+// Export tool types
 export type { OpenRouterTool, FunctionTool } from './tools'
