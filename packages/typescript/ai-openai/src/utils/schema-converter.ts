@@ -75,7 +75,7 @@ export function makeOpenAIStructuredOutputCompatible(
             prop.items.required || [],
           ),
         }
-      } else if (prop.anyOf || prop.oneOf) {
+      } else if (prop.anyOf) {
         // Handle anyOf/oneOf at property level (union types)
         properties[propName] = makeOpenAIStructuredOutputCompatible(
           prop,
@@ -115,13 +115,6 @@ export function makeOpenAIStructuredOutputCompatible(
   // Handle anyOf (union types) - each variant needs to be transformed
   if (result.anyOf && Array.isArray(result.anyOf)) {
     result.anyOf = result.anyOf.map((variant) =>
-      makeOpenAIStructuredOutputCompatible(variant, variant.required || []),
-    )
-  }
-
-  // Handle oneOf (discriminated unions) - each variant needs to be transformed
-  if (result.oneOf && Array.isArray(result.oneOf)) {
-    result.oneOf = result.oneOf.map((variant) =>
       makeOpenAIStructuredOutputCompatible(variant, variant.required || []),
     )
   }

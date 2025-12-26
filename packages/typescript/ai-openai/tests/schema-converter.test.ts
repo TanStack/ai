@@ -100,35 +100,6 @@ describe('makeOpenAIStructuredOutputCompatible', () => {
     expect(result.properties.u.anyOf[1].additionalProperties).toBe(false)
   })
 
-  it('should handle oneOf (discriminated unions) by transforming each variant', () => {
-    const schema = {
-      type: 'object',
-      properties: {
-        u: {
-          oneOf: [
-            {
-              type: 'object',
-              properties: { type: { const: 'a' }, value: { type: 'string' } },
-              required: ['type', 'value'],
-            },
-            {
-              type: 'object',
-              properties: { type: { const: 'b' }, count: { type: 'number' } },
-              required: ['type', 'count'],
-            },
-          ],
-        },
-      },
-      required: ['u'],
-    }
-
-    const result = makeOpenAIStructuredOutputCompatible(schema, ['u'])
-
-    // Each variant in oneOf should have additionalProperties: false
-    expect(result.properties.u.oneOf[0].additionalProperties).toBe(false)
-    expect(result.properties.u.oneOf[1].additionalProperties).toBe(false)
-  })
-
   it('should handle nested objects inside anyOf', () => {
     const schema = {
       type: 'object',
