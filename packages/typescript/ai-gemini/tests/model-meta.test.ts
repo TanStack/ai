@@ -60,6 +60,28 @@ describe('Gemini Model Provider Options Type Assertions', () => {
       expectTypeOf<Options>().toHaveProperty('responseSchema')
     })
 
+    it('gemini-3-flash-preview should support thinking options', () => {
+      type Model = 'gemini-3-flash-preview'
+      type Options = GeminiChatModelProviderOptionsByName[Model]
+
+      // Should have thinking options
+      expectTypeOf<Options>().toExtend<GeminiThinkingOptions>()
+
+      // Should have structured output options
+      expectTypeOf<Options>().toExtend<GeminiStructuredOutputOptions>()
+
+      // Should have base options
+      expectTypeOf<Options>().toExtend<BaseOptions>()
+
+      // Verify specific properties exist
+      expectTypeOf<Options>().toHaveProperty('generationConfig')
+      expectTypeOf<Options>().toHaveProperty('safetySettings')
+      expectTypeOf<Options>().toHaveProperty('toolConfig')
+      expectTypeOf<Options>().toHaveProperty('cachedContent')
+      expectTypeOf<Options>().toHaveProperty('responseMimeType')
+      expectTypeOf<Options>().toHaveProperty('responseSchema')
+    })
+
     it('gemini-2.5-pro should support thinking options', () => {
       type Model = 'gemini-2.5-pro'
       type Options = GeminiChatModelProviderOptionsByName[Model]
@@ -172,6 +194,7 @@ describe('Gemini Model Provider Options Type Assertions', () => {
       type Keys = keyof GeminiChatModelProviderOptionsByName
 
       expectTypeOf<'gemini-3-pro-preview'>().toExtend<Keys>()
+      expectTypeOf<'gemini-3-flash-preview'>().toExtend<Keys>()
       expectTypeOf<'gemini-2.5-pro'>().toExtend<Keys>()
       expectTypeOf<'gemini-2.5-flash'>().toExtend<Keys>()
       expectTypeOf<'gemini-2.5-flash-preview-09-2025'>().toExtend<Keys>()
@@ -204,6 +227,9 @@ describe('Gemini Model Provider Options Type Assertions', () => {
         GeminiChatModelProviderOptionsByName['gemini-3-pro-preview']
       >().toHaveProperty('safetySettings')
       expectTypeOf<
+        GeminiChatModelProviderOptionsByName['gemini-3-flash-preview']
+      >().toHaveProperty('safetySettings')
+      expectTypeOf<
         GeminiChatModelProviderOptionsByName['gemini-2.5-pro']
       >().toHaveProperty('safetySettings')
       expectTypeOf<
@@ -231,6 +257,9 @@ describe('Gemini Model Provider Options Type Assertions', () => {
         GeminiChatModelProviderOptionsByName['gemini-3-pro-preview']
       >().toHaveProperty('toolConfig')
       expectTypeOf<
+        GeminiChatModelProviderOptionsByName['gemini-3-flash-preview']
+      >().toHaveProperty('toolConfig')
+      expectTypeOf<
         GeminiChatModelProviderOptionsByName['gemini-2.5-pro']
       >().toHaveProperty('toolConfig')
       expectTypeOf<
@@ -256,6 +285,9 @@ describe('Gemini Model Provider Options Type Assertions', () => {
     it('all models should have cached content option', () => {
       expectTypeOf<
         GeminiChatModelProviderOptionsByName['gemini-3-pro-preview']
+      >().toHaveProperty('cachedContent')
+      expectTypeOf<
+        GeminiChatModelProviderOptionsByName['gemini-3-flash-preview']
       >().toHaveProperty('cachedContent')
       expectTypeOf<
         GeminiChatModelProviderOptionsByName['gemini-2.5-pro']
@@ -287,6 +319,9 @@ describe('Gemini Model Provider Options Type Assertions', () => {
         GeminiChatModelProviderOptionsByName['gemini-3-pro-preview']
       >().toExtend<GeminiThinkingOptions>()
       expectTypeOf<
+        GeminiChatModelProviderOptionsByName['gemini-3-flash-preview']
+      >().toExtend<GeminiThinkingOptions>()
+      expectTypeOf<
         GeminiChatModelProviderOptionsByName['gemini-2.5-pro']
       >().toExtend<GeminiThinkingOptions>()
       expectTypeOf<
@@ -315,6 +350,9 @@ describe('Gemini Model Provider Options Type Assertions', () => {
     it('all models should extend GeminiStructuredOutputOptions', () => {
       expectTypeOf<
         GeminiChatModelProviderOptionsByName['gemini-3-pro-preview']
+      >().toExtend<GeminiStructuredOutputOptions>()
+      expectTypeOf<
+        GeminiChatModelProviderOptionsByName['gemini-3-flash-preview']
       >().toExtend<GeminiStructuredOutputOptions>()
       expectTypeOf<
         GeminiChatModelProviderOptionsByName['gemini-2.5-pro']
@@ -364,6 +402,19 @@ describe('Gemini Model Input Modality Type Assertions', () => {
 
   describe('gemini-3-pro-preview (full multimodal)', () => {
     type Modalities = GeminiModelInputModalitiesByName['gemini-3-pro-preview']
+    type Message = ConstrainedModelMessage<Modalities>
+
+    it('should allow all content part types', () => {
+      expectTypeOf<MessageWithContent<TextPart>>().toExtend<Message>()
+      expectTypeOf<MessageWithContent<ImagePart>>().toExtend<Message>()
+      expectTypeOf<MessageWithContent<AudioPart>>().toExtend<Message>()
+      expectTypeOf<MessageWithContent<VideoPart>>().toExtend<Message>()
+      expectTypeOf<MessageWithContent<DocumentPart>>().toExtend<Message>()
+    })
+  })
+
+  describe('gemini-3-flash-preview (full multimodal)', () => {
+    type Modalities = GeminiModelInputModalitiesByName['gemini-3-flash-preview']
     type Message = ConstrainedModelMessage<Modalities>
 
     it('should allow all content part types', () => {
