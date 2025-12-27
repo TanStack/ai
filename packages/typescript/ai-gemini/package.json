@@ -43,13 +43,11 @@
     "@google/genai": "^1.30.0"
   },
   "peerDependencies": {
-    "@tanstack/ai": "workspace:^",
-    "zod": "^4.0.0"
+    "@tanstack/ai": "workspace:^"
   },
   "devDependencies": {
     "@tanstack/ai": "workspace:*",
     "@vitest/coverage-v8": "4.0.14",
-    "vite": "^7.2.7",
-    "zod": "^4.2.0"
+    "vite": "^7.2.7"
   }
 }
