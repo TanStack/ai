@@ -19,6 +19,7 @@ import { FIREFUNCTION_V2_MODELS } from './meta/model-meta-firefunction-v2'
 import { GEMMA_MODELS } from './meta/model-meta-gemma'
 import { GEMMA2_MODELS } from './meta/model-meta-gemma2'
 import { GEMMA3_MODELS } from './meta/model-meta-gemma3'
+import { GPT_OSS_MODELS } from './meta/model-meta-gpt-oss'
 import { GRANITE3_DENSE_MODELS } from './meta/model-meta-granite3-dense'
 import { GRANITE3_GUARDIAN_MODELS } from './meta/model-meta-granite3-guardian'
 import { GRANITE3_MOE_MODELS } from './meta/model-meta-granite3-moe'
@@ -145,6 +146,10 @@ import type {
   Gemma3ChatModelProviderOptionsByName,
   Gemma3ModelInputModalitiesByName,
 } from './meta/model-meta-gemma3'
+import type {
+  GptOssChatModelProviderOptionsByName,
+  GptOssModelInputModalitiesByName,
+} from './meta/model-meta-gpt-oss'
 import type {
   Granite3DenseChatModelProviderOptionsByName,
   Granite3DenseModelInputModalitiesByName,
@@ -343,6 +348,7 @@ export const OLLAMA_TEXT_MODELS = [
   ...GEMMA_MODELS,
   ...GEMMA2_MODELS,
   ...GEMMA3_MODELS,
+  ...GPT_OSS_MODELS,
   ...GRANITE3_DENSE_MODELS,
   ...GRANITE3_GUARDIAN_MODELS,
   ...GRANITE3_MOE_MODELS,
@@ -411,6 +417,7 @@ export type OllamaChatModelProviderOptionsByName =
     GemmaChatModelProviderOptionsByName &
     Gemma2ChatModelProviderOptionsByName &
     Gemma3ChatModelProviderOptionsByName &
+    GptOssChatModelProviderOptionsByName &
     Granite3DenseChatModelProviderOptionsByName &
     Granite3GuardianChatModelProviderOptionsByName &
     Granite3MoeChatModelProviderOptionsByName &
@@ -477,6 +484,7 @@ export type OllamaModelInputModalitiesByName =
     GemmaModelInputModalitiesByName &
     Gemma2ModelInputModalitiesByName &
     Gemma3ModelInputModalitiesByName &
+    GptOssModelInputModalitiesByName &
     Granite3DenseModelInputModalitiesByName &
     Granite3GuardianModelInputModalitiesByName &
     Granite3MoeModelInputModalitiesByName &
