@@ -1032,18 +1032,18 @@ export interface DefaultMessageMetadataByModality {
 // ============================================================================
 // Live API Types
 // ============================================================================
-export interface LiveAPIOptions<TProviderOptions extends object = object> {
-  /** The model to use for Live API generation */
+export interface RealtimeOptions<TProviderOptions extends object = object> {
+  /** The model to use for Realtime generation */
   model: string
   /** The voice to use for generation */
   voice?: string
   /** The output audio format */
   format?: 'mp3' | 'opus' | 'aac' | 'flac' | 'wav' | 'pcm'
-  /** Model-specific options for Live */
+  /** Model-specific options for Realtime generation */
   modelOptions?: TProviderOptions
 }
 
-export interface LiveAPIResult {
+export interface RealtimeResult {
   /** Unique identifier for the generation */
   id: string
   /** Model used for generation */

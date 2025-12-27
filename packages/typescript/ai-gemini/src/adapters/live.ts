@@ -1,10 +1,10 @@
-import { BaseLiveAPIAdapter } from '@tanstack/ai/adapters'
+import { BaseRealtimeAdapter } from '@tanstack/ai/adapters'
 import { Modality } from '@google/genai'
 import { createGeminiClient, getGeminiApiKeyFromEnv } from '../utils'
 import type { GeminiClientConfig} from '../utils';
 import type { GoogleGenAI} from '@google/genai';
 import type { GEMINI_LIVE_MODELS, GeminiLiveAPIVoice } from '../model-meta'
-import type { LiveAPIOptions, LiveAPIResult } from '@tanstack/ai/src'
+import type { RealtimeOptions, RealtimeResult } from '@tanstack/ai/src'
 
 /**
  * Provider-specific options for Gemini Live Api
@@ -34,7 +34,7 @@ export type GeminiLiveAPIModel = (typeof GEMINI_LIVE_MODELS)[number]
 
 export class GeminiLiveAPIAdapter<
   TModel extends GeminiLiveAPIModel
-> extends BaseLiveAPIAdapter<TModel, GeminiLiveAPIProviderOptions> {
+> extends BaseRealtimeAdapter<TModel, GeminiLiveAPIProviderOptions> {
   readonly name = 'gemini' as const
 
   private client: GoogleGenAI
@@ -51,9 +51,9 @@ export class GeminiLiveAPIAdapter<
    * @experimental This implementation is experimental and may change.
    * @see https://ai.google.dev/gemini-api/docs/live
    */
-  async connectLive(
-    options: LiveAPIOptions<GeminiLiveAPIProviderOptions>,
-  ): Promise<LiveAPIResult> {
+  async connectRealtime(
+    options: RealtimeOptions<GeminiLiveAPIProviderOptions>,
+  ): Promise<RealtimeResult> {
     const { model, modelOptions } = options;
 
     const voiceConfig = modelOptions?.voiceConfig || {
