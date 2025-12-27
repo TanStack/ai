@@ -26,7 +26,7 @@ export interface OllamaModelMeta<TModelOptions = unknown> {
 // }
 
 export interface OllamaChatRequest {
-  model: string
+  // model: string
   //   messages?: Message[]
   stream?: boolean
   format?: string | object
