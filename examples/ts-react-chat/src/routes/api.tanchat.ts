@@ -92,7 +92,8 @@ export const Route = createFileRoute('/api/tanchat')({
             }),
           ollama: () =>
             createChatOptions({
-              adapter: ollamaText((model || 'mistral:7b') as 'mistral:7b'),
+              adapter: ollamaText((model || 'gpt-oss:120b') as 'gpt-oss:120b'),
+              modelOptions: { think: 'low' },
             }),
           openai: () =>
             createChatOptions({
