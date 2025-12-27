@@ -8,9 +8,9 @@ import type {
 const LLAVA_LATEST = {
   name: 'llava:latest',
   supports: {
-    input: ['text'],
+    input: ['text', 'image'],
     output: ['text'],
-    capabilities: [],
+    capabilities: ['vision'],
   },
   size: '4.7b',
   context: 32_000,
@@ -72,10 +72,10 @@ export const LLAVA_MODELS = [
 
 // const LLAVA_VIDEO_MODELS = [] as const
 
-// export type llavaChatModels = (typeof LLAVA_MODELS)[number]
+// export type LlavaChatModels = (typeof LLAVA_MODELS)[number]
 
 // Manual type map for per-model provider options
-export type llavaChatModelProviderOptionsByName = {
+export type LlavaChatModelProviderOptionsByName = {
   // Models with thinking and structured output support
   [LLAVA_LATEST.name]: OllamaChatRequest &
     OllamaChatRequestMessages<OllamaMessageImages>
@@ -90,7 +90,7 @@ export type llavaChatModelProviderOptionsByName = {
     OllamaChatRequestMessages<OllamaMessageImages>
 }
 
-export type llavaModelInputModalitiesByName = {
+export type LlavaModelInputModalitiesByName = {
   // Models with text, image, audio, video (no document)
   [LLAVA_LATEST.name]: typeof LLAVA_LATEST.supports.input
   [LLAVA_7b.name]: typeof LLAVA_7b.supports.input

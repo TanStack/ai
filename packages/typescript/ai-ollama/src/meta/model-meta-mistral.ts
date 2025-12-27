@@ -1,34 +1,39 @@
 import type {
   OllamaChatRequest,
   OllamaChatRequestMessages,
-  OllamaMessageImages,
+  OllamaChatRequestTools,
+  OllamaMessageTools,
   OllamaModelMeta,
 } from './models-meta'
 
 const MISTRAL_LATEST = {
   name: 'mistral:latest',
   supports: {
-    input: ['text', 'image'],
+    input: ['text'],
     output: ['text'],
-    capabilities: ['vision'],
+    capabilities: ['tools'],
   },
-  size: '2.9gb',
-  context: 4_000,
+  size: '4.4gb',
+  context: 32_000,
 } as const satisfies OllamaModelMeta<
-  OllamaChatRequest & OllamaChatRequestMessages<OllamaMessageImages>
+  OllamaChatRequest &
+    OllamaChatRequestMessages<OllamaMessageTools> &
+    OllamaChatRequestTools
 >
 
 const MISTRAL_7b = {
-  name: 'mistral:87',
+  name: 'mistral:7b',
   supports: {
-    input: ['text', 'image'],
+    input: ['text'],
     output: ['text'],
-    capabilities: ['vision'],
+    capabilities: ['tools'],
   },
-  size: '2.9gb',
-  context: 4_000,
+  size: '4.4gb',
+  context: 32_000,
 } as const satisfies OllamaModelMeta<
-  OllamaChatRequest & OllamaChatRequestMessages<OllamaMessageImages>
+  OllamaChatRequest &
+    OllamaChatRequestMessages<OllamaMessageTools> &
+    OllamaChatRequestTools
 >
 
 export const MISTRAL_MODELS = [MISTRAL_LATEST.name, MISTRAL_7b.name] as const
@@ -47,10 +52,12 @@ export const MISTRAL_MODELS = [MISTRAL_LATEST.name, MISTRAL_7b.name] as const
 export type MistralChatModelProviderOptionsByName = {
   // Models with thinking and structured output support
   [MISTRAL_LATEST.name]: OllamaChatRequest &
-    OllamaChatRequestMessages<OllamaMessageImages>
+    OllamaChatRequestMessages<OllamaMessageTools> &
+    OllamaChatRequestTools
 
   [MISTRAL_7b.name]: OllamaChatRequest &
-    OllamaChatRequestMessages<OllamaMessageImages>
+    OllamaChatRequestMessages<OllamaMessageTools> &
+    OllamaChatRequestTools
 }
 
 export type MistralModelInputModalitiesByName = {

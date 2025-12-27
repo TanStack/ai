@@ -39,7 +39,9 @@ const LLAMA3_GRADIENT_70b = {
   },
   size: '40gb',
   context: 1_000_000,
-} as const satisfies OllamaModelMeta<any>
+} as const satisfies OllamaModelMeta<
+  OllamaChatRequest & OllamaChatRequestMessages
+>
 
 export const LLAMA3_GRADIENT_MODELS = [
   LLAMA3_GRADIENT_LATEST.name,

@@ -115,6 +115,7 @@ export const QWEN2_5_CODER_MODELS = [
   QWEN2_5_CODER_LATEST.name,
   QWEN2_5_CODER_0_5b.name,
   QWEN2_5_CODER_1_5b.name,
+  QWEN2_5_CODER_3b.name,
   QWEN2_5_CODER_7b.name,
   QWEN2_5_CODER_14b.name,
   QWEN2_5_CODER_32b.name,

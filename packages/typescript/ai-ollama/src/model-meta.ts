@@ -211,8 +211,8 @@ import type {
   Llama3_4ModelInputModalitiesByName,
 } from './meta/model-meta-llama4'
 import type {
-  llavaChatModelProviderOptionsByName,
-  llavaModelInputModalitiesByName,
+  LlavaChatModelProviderOptionsByName,
+  LlavaModelInputModalitiesByName,
 } from './meta/model-meta-llava'
 import type {
   LlavaLlamaChatModelProviderOptionsByName,
@@ -361,7 +361,6 @@ export const OLLAMA_TEXT_MODELS = [
   ...LLAMA3_1_MODELS,
   ...LLAMA3_2_MODELS,
   ...LLAMA3_2_VISION_MODELS,
-  ...LLAMA3_2_MODELS,
   ...LLAMA3_3_MODELS,
   ...LLAMA3_MODELS,
   ...LLAMA4_MODELS,
@@ -435,7 +434,7 @@ export type OllamaChatModelProviderOptionsByName =
     Llama3_4ChatModelProviderOptionsByName &
     LlavaLlamaChatModelProviderOptionsByName &
     LlavaPhi3ChatModelProviderOptionsByName &
-    llavaChatModelProviderOptionsByName &
+    LlavaChatModelProviderOptionsByName &
     MarcoO1ChatModelProviderOptionsByName &
     MistralLargeChatModelProviderOptionsByName &
     MistralNemoChatModelProviderOptionsByName &
@@ -502,7 +501,7 @@ export type OllamaModelInputModalitiesByName =
     Llama3_4ModelInputModalitiesByName &
     LlavaLlamaModelInputModalitiesByName &
     LlavaPhi3ModelInputModalitiesByName &
-    llavaModelInputModalitiesByName &
+    LlavaModelInputModalitiesByName &
     MarcoO1ModelInputModalitiesByName &
     MistralLargeModelInputModalitiesByName &
     MistralNemoModelInputModalitiesByName &

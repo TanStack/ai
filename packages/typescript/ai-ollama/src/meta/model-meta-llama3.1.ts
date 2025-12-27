@@ -13,7 +13,7 @@ const LLAMA3_1_LATEST = {
     output: ['text'],
     capabilities: ['tools'],
   },
-  size: '4.9b',
+  size: '4.9gb',
   context: 128_000,
 } as const satisfies OllamaModelMeta<
   OllamaChatRequest &
@@ -52,7 +52,7 @@ const LLAMA3_1_70b = {
 >
 
 const LLAMA3_1_405b = {
-  name: 'llama3.1:70b',
+  name: 'llama3.1:405b',
   supports: {
     input: ['text'],
     output: ['text'],

@@ -22,14 +22,14 @@ const MISTRAL_SMALL_LATEST = {
 >
 
 const MISTRAL_SMALL_22b = {
-  name: 'mistral-small:12b',
+  name: 'mistral-small:22b',
   supports: {
     input: ['text'],
     output: ['text'],
     capabilities: ['tools'],
   },
   size: '13gb',
-  context: 32_000,
+  context: 128_000,
 } as const satisfies OllamaModelMeta<
   OllamaChatRequest &
     OllamaChatRequestMessages<OllamaMessageTools> &
@@ -37,13 +37,13 @@ const MISTRAL_SMALL_22b = {
 >
 
 const MISTRAL_SMALL_24b = {
-  name: 'mistral-small:12b',
+  name: 'mistral-small:24b',
   supports: {
     input: ['text'],
     output: ['text'],
     capabilities: ['tools'],
   },
-  size: '13gb',
+  size: '14gb',
   context: 32_000,
 } as const satisfies OllamaModelMeta<
   OllamaChatRequest &
