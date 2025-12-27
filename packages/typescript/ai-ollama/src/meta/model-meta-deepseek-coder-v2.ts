@@ -11,8 +11,8 @@ const DEEPSEEK_CODER_V2_LATEST = {
     output: ['text'],
     capabilities: [],
   },
-  size: '4.8gb',
-  context: 160_900,
+  size: '8.9gb',
+  context: 160_000,
 } as const satisfies OllamaModelMeta<
   OllamaChatRequest & OllamaChatRequestMessages
 >

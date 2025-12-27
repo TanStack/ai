@@ -29,7 +29,7 @@ const OPT_OSS_20b = {
   supports: {
     input: ['text'],
     output: ['text'],
-    capabilities: ['tools'],
+    capabilities: ['tools', 'thinking'],
   },
   size: '14gb',
   context: 128_000,
@@ -45,7 +45,7 @@ const OPT_OSS_120b = {
   supports: {
     input: ['text'],
     output: ['text'],
-    capabilities: ['tools'],
+    capabilities: ['tools', 'thinking'],
   },
   size: '65gb',
   context: 128_000,

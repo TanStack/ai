@@ -5,20 +5,20 @@ import type {
 } from './models-meta'
 
 const LLAMA_GUARD3_LATEST = {
-  name: 'llama3:latest',
+  name: 'llama-guard3:latest',
   supports: {
     input: ['text'],
     output: ['text'],
     capabilities: [],
   },
-  size: '4.9b',
+  size: '4.9gb',
   context: 128_000,
 } as const satisfies OllamaModelMeta<
   OllamaChatRequest & OllamaChatRequestMessages
 >
 
 const LLAMA_GUARD3_1b = {
-  name: 'llama3:7b',
+  name: 'llama-guard3:1b',
   supports: {
     input: ['text'],
     output: ['text'],
@@ -31,7 +31,7 @@ const LLAMA_GUARD3_1b = {
 >
 
 const LLAMA_GUARD3_8b = {
-  name: 'llama3:70b',
+  name: 'llama-guard3:8b',
   supports: {
     input: ['text'],
     output: ['text'],
