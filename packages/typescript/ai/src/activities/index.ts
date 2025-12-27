@@ -20,6 +20,7 @@ import type { AnyImageAdapter } from './generateImage/adapter'
 import type { AnyVideoAdapter } from './generateVideo/adapter'
 import type { AnyTTSAdapter } from './generateSpeech/adapter'
 import type { AnyTranscriptionAdapter } from './generateTranscription/adapter'
+import type { AnyRealtimeAdapter } from './connectRealtime'
 
 // ===========================
 // Chat Activity
@@ -146,19 +147,19 @@ export {
 // ===========================
 
 export {
-  kind as liveAPIKind,
-  connectLive,
-  type LiveAPIActivityOptions,
-  type LiveAPIActivityResult,
-  type LiveAPIProviderOptions,
-} from './connectLive/index'
+  kind as realtime,
+  connectRealtime,
+  type RealtimeActivityOptions,
+  type RealtimeActivityResult,
+  type RealtimeProviderOptions,
+} from './connectRealtime/index'
 
 export {
-  BaseLiveAPIAdapter,
-  type LiveAPIAdapter,
-  type LiveAPIAdapterConfig,
-  type AnyLiveAPIAdapter,
-} from './connectLive'
+  BaseRealtimeAdapter,
+  type RealtimeAdapter,
+  type RealtimeAdapterConfig,
+  type AnyRealtimeAdapter,
+} from './connectRealtime/adapter'
 
 // ===========================
 // Adapter Union Types
@@ -172,6 +173,7 @@ export type AIAdapter =
   | AnyVideoAdapter
   | AnyTTSAdapter
   | AnyTranscriptionAdapter
+  | AnyRealtimeAdapter
 
 /** Union type of all adapter kinds */
 export type AdapterKind =
@@ -181,3 +183,4 @@ export type AdapterKind =
   | 'video'
   | 'tts'
   | 'transcription'
+  | 'realtime'
