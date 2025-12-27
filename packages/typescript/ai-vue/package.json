@@ -41,7 +41,12 @@
   "dependencies": {
     "@tanstack/ai-client": "workspace:*"
   },
+  "peerDependencies": {
+    "@tanstack/ai": "workspace:^",
+    "vue": ">=3.5.0"
+  },
   "devDependencies": {
+    "@tanstack/ai": "workspace:*",
     "@types/node": "^24.10.1",
     "@vitest/coverage-v8": "4.0.14",
     "@vue/test-utils": "^2.4.6",
@@ -50,9 +55,5 @@
     "typescript": "5.9.3",
     "vitest": "^4.0.14",
     "vue": "^3.5.25"
-  },
-  "peerDependencies": {
-    "@tanstack/ai": "workspace:^",
-    "vue": ">=3.5.0"
   }
 }

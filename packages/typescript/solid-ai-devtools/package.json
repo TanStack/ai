@@ -50,12 +50,13 @@
     "@tanstack/ai-devtools-core": "workspace:*",
     "@tanstack/devtools-utils": "^0.0.8"
   },
-  "devDependencies": {
-    "@vitest/coverage-v8": "4.0.14",
-    "vite": "^7.2.7",
-    "vite-plugin-solid": "^2.11.10"
-  },
   "peerDependencies": {
     "solid-js": ">=1.9.7"
+  },
+  "devDependencies": {
+    "@vitest/coverage-v8": "4.0.14",
+    "solid-js": "^1.9.10",
+    "vite": "^7.2.7",
+    "vite-plugin-solid": "^2.11.10"
   }
 }
