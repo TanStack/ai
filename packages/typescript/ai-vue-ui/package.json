@@ -16,6 +16,10 @@
       "import": "./dist/esm/index.js"
     }
   },
+  "files": [
+    "src",
+    "dist"
+  ],
   "scripts": {
     "build": "vite build",
     "clean": "premove ./build ./dist",
@@ -43,16 +47,13 @@
     "remark-gfm": "^4.0.1"
   },
   "peerDependencies": {
-    "@vitejs/plugin-vue": "^6.0.2",
     "vue": ">=3.5.0"
   },
   "devDependencies": {
+    "@vitejs/plugin-vue": "^6.0.2",
     "@vitest/coverage-v8": "4.0.14",
     "vite": "^7.2.7",
+    "vue": "^3.5.25",
     "vue-tsc": "^2.2.10"
-  },
-  "files": [
-    "src",
-    "dist"
-  ]
+  }
 }
