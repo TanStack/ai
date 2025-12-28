@@ -152,6 +152,10 @@
         {
           "label": "Community Adapters Guide",
           "to": "community-adapters/guide"
+        },
+        {
+          "label": "Decart",
+          "to": "community-adapters/decart"
         }
       ]
     },
