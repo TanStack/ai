@@ -227,7 +227,8 @@ export class GeminiTextAdapter<
           const functionCall = part.functionCall
           if (functionCall) {
             const toolCallId =
-              functionCall.name || `call_${Date.now()}_${nextToolIndex}`
+              functionCall.id ||
+              `${functionCall.name}_${Date.now()}_${nextToolIndex}`
             const functionArgs = functionCall.args || {}
 
             let toolCallData = toolCallMap.get(toolCallId)
@@ -297,7 +298,8 @@ export class GeminiTextAdapter<
               const functionCall = part.functionCall
               if (functionCall) {
                 const toolCallId =
-                  functionCall.name || `call_${Date.now()}_${nextToolIndex}`
+                  functionCall.id ||
+                  `${functionCall.name}_${Date.now()}_${nextToolIndex}`
                 const functionArgs = functionCall.args || {}
 
                 toolCallMap.set(toolCallId, {
