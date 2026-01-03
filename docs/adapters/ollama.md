@@ -72,7 +72,7 @@ ollama list
 ## Example: Chat Completion
 
 ```typescript
-import { chat, toStreamResponse } from "@tanstack/ai";
+import { chat, toServerSentEventsResponse } from "@tanstack/ai";
 import { ollamaText } from "@tanstack/ai-ollama";
 
 export async function POST(request: Request) {
@@ -83,7 +83,7 @@ export async function POST(request: Request) {
     messages,
   });
 
-  return toStreamResponse(stream);
+  return toServerSentEventsResponse(stream);
 }
 ```
 

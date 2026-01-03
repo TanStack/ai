@@ -128,7 +128,7 @@ export async function POST(request: Request) {
     tools: [getWeather, getClothingAdvice],
   });
 
-  return toStreamResponse(stream);
+  return toServerSentEventsResponse(stream);
 }
 ```
 

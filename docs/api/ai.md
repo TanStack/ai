@@ -158,19 +158,19 @@ A `ReadableStream<Uint8Array>` in Server-Sent Events format. Each chunk is:
 - Followed by `"\n\n"`
 - Stream ends with `"data: [DONE]\n\n"`
 
-## `toStreamResponse(stream, init?)`
+## `toServerSentEventsResponse(stream, init?)`
 
 Converts a stream to an HTTP Response with proper SSE headers.
 
 ```typescript
-import { chat, toStreamResponse } from "@tanstack/ai";
+import { chat, toServerSentEventsResponse } from "@tanstack/ai";
 import { openaiText } from "@tanstack/ai-openai";
 
 const stream = chat({
   adapter: openaiText("gpt-4o"),
   messages: [...],
 });
-return toStreamResponse(stream);
+return toServerSentEventsResponse(stream);
 ```
 
 ### Parameters

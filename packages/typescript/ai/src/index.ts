@@ -55,8 +55,9 @@ export { convertSchemaToJsonSchema } from './activities/chat/tools/schema-conver
 export {
   streamToText,
   toServerSentEventsStream,
-  toStreamResponse,
+  toServerSentEventsResponse,
   toHttpStream,
+  toHttpResponse,
 } from './stream-to-response'
 
 // Tool call management
