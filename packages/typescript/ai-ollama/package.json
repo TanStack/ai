@@ -1,6 +1,6 @@
 {
   "name": "@tanstack/ai-ollama",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "Ollama adapter for TanStack AI",
   "author": "",
   "license": "MIT",

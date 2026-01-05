@@ -1,5 +1,15 @@
 # @tanstack/ai-solid
 
+## 0.2.1
+
+### Patch Changes
+
+- Fix up model names for OpenAI and release the new response APIs ([#188](https://github.com/TanStack/ai/pull/188))
+
+- Updated dependencies [[`181e0ac`](https://github.com/TanStack/ai/commit/181e0acdfb44b27db6cf871b36593c0f867cadf9), [`181e0ac`](https://github.com/TanStack/ai/commit/181e0acdfb44b27db6cf871b36593c0f867cadf9)]:
+  - @tanstack/ai@0.2.1
+  - @tanstack/ai-client@0.2.1
+
 ## 0.2.0
 
 ### Minor Changes
