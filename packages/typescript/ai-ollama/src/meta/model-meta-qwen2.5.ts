@@ -81,6 +81,21 @@ const QWEN2_5_7b = {
     OllamaChatRequestTools
 >
 
+const QWEN2_5_14b = {
+  name: 'qwen2.5:14b',
+  supports: {
+    input: ['text'],
+    output: ['text'],
+    capabilities: ['tools'],
+  },
+  size: '9gb',
+  context: 32_000,
+} as const satisfies OllamaModelMeta<
+  OllamaChatRequest &
+    OllamaChatRequestMessages<OllamaMessageTools> &
+    OllamaChatRequestTools
+>
+
 const QWEN2_5_32b = {
   name: 'qwen2.5:32b',
   supports: {
@@ -149,6 +164,9 @@ export type Qwen2_5ChatModelProviderOptionsByName = {
   [QWEN2_5_7b.name]: OllamaChatRequest &
     OllamaChatRequestMessages<OllamaMessageTools> &
     OllamaChatRequestTools
+  [QWEN2_5_14b.name]: OllamaChatRequest &
+    OllamaChatRequestMessages<OllamaMessageTools> &
+    OllamaChatRequestTools
   [QWEN2_5_32b.name]: OllamaChatRequest &
     OllamaChatRequestMessages<OllamaMessageTools> &
     OllamaChatRequestTools
@@ -164,6 +182,7 @@ export type Qwen2_5ModelInputModalitiesByName = {
   [QWEN2_5_1_5b.name]: typeof QWEN2_5_1_5b.supports.input
   [QWEN2_5_3b.name]: typeof QWEN2_5_3b.supports.input
   [QWEN2_5_7b.name]: typeof QWEN2_5_7b.supports.input
+  [QWEN2_5_14b.name]: typeof QWEN2_5_7b.supports.input
   [QWEN2_5_32b.name]: typeof QWEN2_5_32b.supports.input
   [QWEN2_5_72b.name]: typeof QWEN2_5_72b.supports.input
 }

@@ -11,7 +11,7 @@ const LLAMA3_CHATQA_LATEST = {
     output: ['text'],
     capabilities: [],
   },
-  size: '4.7b',
+  size: '4.7gb',
   context: 8_000,
 } as const satisfies OllamaModelMeta<
   OllamaChatRequest & OllamaChatRequestMessages
@@ -39,7 +39,9 @@ const LLAMA3_CHATQA_70b = {
   },
   size: '40gb',
   context: 8_000,
-} as const satisfies OllamaModelMeta<any>
+} as const satisfies OllamaModelMeta<
+  OllamaChatRequest & OllamaChatRequestMessages
+>
 
 export const LLAMA3_CHATQA_MODELS = [
   LLAMA3_CHATQA_LATEST.name,

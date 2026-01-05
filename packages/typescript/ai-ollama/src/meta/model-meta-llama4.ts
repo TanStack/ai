@@ -14,7 +14,7 @@ const LLAMA4_LATEST = {
     output: ['text'],
     capabilities: ['tools', 'vision'],
   },
-  size: '67b',
+  size: '67gb',
   context: 10_000_000,
 } as const satisfies OllamaModelMeta<
   OllamaChatRequest &

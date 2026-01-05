@@ -11,7 +11,7 @@ const LLAMA3_GRADIENT_LATEST = {
     output: ['text'],
     capabilities: [],
   },
-  size: '4.7b',
+  size: '4.7gb',
   context: 1_000_000,
 } as const satisfies OllamaModelMeta<
   OllamaChatRequest & OllamaChatRequestMessages

@@ -14,7 +14,7 @@ const MISTRAL_NEMO_LATEST = {
     capabilities: ['tools'],
   },
   size: '7.1gb',
-  context: 1_000,
+  context: 128_000,
 } as const satisfies OllamaModelMeta<
   OllamaChatRequest &
     OllamaChatRequestMessages<OllamaMessageTools> &
@@ -29,7 +29,7 @@ const MISTRAL_NEMO_12b = {
     capabilities: ['tools'],
   },
   size: '7.1gb',
-  context: 1_000,
+  context: 128_000,
 } as const satisfies OllamaModelMeta<
   OllamaChatRequest &
     OllamaChatRequestMessages<OllamaMessageTools> &

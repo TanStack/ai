@@ -112,7 +112,7 @@ const DEEPSEEK_R1_671b = {
     capabilities: ['thinking', 'tools'],
   },
   size: '404gb',
-  context: 128_000,
+  context: 160_000,
 } as const satisfies OllamaModelMeta<
   OllamaChatRequest &
     OllamaChatRequestMessages<OllamaMessageTools & OllamaMessageThinking> &
