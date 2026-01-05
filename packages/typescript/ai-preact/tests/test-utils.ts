@@ -1,7 +1,7 @@
 // Re-export test utilities from ai-client
-import {  renderHook } from '@testing-library/preact'
+import { renderHook } from '@testing-library/preact'
 import { useChat } from '../src/use-chat'
-import type {RenderHookResult} from '@testing-library/preact';
+import type { RenderHookResult } from '@testing-library/preact'
 import type { UseChatOptions, UseChatReturn } from '../src/types'
 
 export {

@@ -36,7 +36,6 @@ export function useChat<TTools extends ReadonlyArray<AnyClientTool> = any>(
     messagesRef.current = messages
   }, [messages])
 
-
   const client = useMemo(() => {
     // On first mount, use initialMessages. On subsequent recreations, preserve existing messages.
     const messagesToUse = isFirstMountRef.current
@@ -72,7 +71,11 @@ export function useChat<TTools extends ReadonlyArray<AnyClientTool> = any>(
   // Note: initialMessages are passed to ChatClient constructor, but we also
   // set them here to ensure Preact state is in sync
   useEffect(() => {
-    if (options.initialMessages && options.initialMessages.length && !messages.length) {
+    if (
+      options.initialMessages &&
+      options.initialMessages.length &&
+      !messages.length
+    ) {
       client.setMessagesManually(options.initialMessages)
     }
   }, [])
