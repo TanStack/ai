@@ -1,0 +1,57 @@
+{
+  "name": "@tanstack/ai-preact",
+  "version": "0.0.0",
+  "description": "Preact hooks for TanStack AI",
+  "author": "",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/TanStack/ai.git",
+    "directory": "packages/typescript/ai-preact"
+  },
+  "type": "module",
+  "module": "./dist/esm/index.js",
+  "types": "./dist/esm/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/esm/index.d.ts",
+      "import": "./dist/esm/index.js"
+    }
+  },
+  "files": [
+    "dist",
+    "src"
+  ],
+  "scripts": {
+    "clean": "premove ./build ./dist",
+    "lint:fix": "eslint ./src --fix",
+    "test:eslint": "eslint ./src",
+    "test:lib": "vitest run",
+    "test:lib:dev": "pnpm test:lib --watch",
+    "test:types": "tsc",
+    "test:build": "publint --strict",
+    "build": "vite build"
+  },
+  "keywords": [
+    "ai",
+    "preact",
+    "hooks",
+    "tanstack",
+    "chat",
+    "streaming"
+  ],
+  "dependencies": {
+    "@tanstack/ai-client": "workspace:*"
+  },
+  "devDependencies": {
+    "@testing-library/preact": "^3.2.4",
+    "@vitest/coverage-v8": "4.0.14",
+    "jsdom": "^27.2.0",
+    "preact": "^10.26.9",
+    "vite": "^7.2.7"
+  },
+  "peerDependencies": {
+    "@tanstack/ai": "workspace:^",
+    "preact": ">=10.11.0"
+  }
+}
