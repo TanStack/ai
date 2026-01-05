@@ -20,6 +20,19 @@ export {
   type OpenRouterSummarizeProviderOptions,
 } from './adapters/summarize'
 
+// Image adapter - for image generation
+export {
+  OpenRouterImageAdapter,
+  createOpenRouterImage,
+  openrouterImage,
+  type OpenRouterImageConfig,
+} from './adapters/image'
+export type {
+  OpenRouterImageProviderOptions,
+  OpenRouterImageModelProviderOptionsByName,
+  OpenRouterImageModelSizeByName,
+} from './image/image-provider-options'
+
 // ============================================================================
 // Type Exports
 // ============================================================================
@@ -44,8 +57,22 @@ export type {
   ImageConfig,
 } from './text/text-provider-options'
 
-// Export tool conversion utilities
-export { convertToolsToProviderFormat } from './tools/tool-converter'
+// ============================================================================
+// Utils Exports
+// ============================================================================
 
-// Export tool types
-export type { OpenRouterTool, FunctionTool } from './tools'
+export {
+  getOpenRouterApiKeyFromEnv,
+  generateId,
+  buildHeaders,
+  type OpenRouterClientConfig,
+} from './utils'
+
+// ============================================================================
+// Tool Exports
+// ============================================================================
+
+export { convertToolsToProviderFormat } from './tools/tool-converter'
+export { createWebSearchTool } from './tools/web-search-tool'
+
+export type { OpenRouterTool, FunctionTool, WebSearchTool } from './tools'

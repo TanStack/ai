@@ -1,9 +1,10 @@
 import { BaseSummarizeAdapter } from '@tanstack/ai/adapters'
+import { getOpenRouterApiKeyFromEnv } from '../utils'
 import { OpenRouterTextAdapter } from './text'
 import type {
-  StreamChunk,
-  SummarizationOptions,
-  SummarizationResult,
+    StreamChunk,
+    SummarizationOptions,
+    SummarizationResult,
 } from '@tanstack/ai'
 import type { OpenRouterConfig } from './text'
 
@@ -121,27 +122,6 @@ export class OpenRouterSummarizeAdapter<
   }
 }
 
-interface EnvObject {
-  OPENROUTER_API_KEY?: string
-}
-
-interface WindowWithEnv {
-  env?: EnvObject
-}
-
-function getEnvironment(): EnvObject | undefined {
-  if (typeof globalThis !== 'undefined') {
-    const win = (globalThis as { window?: WindowWithEnv }).window
-    if (win?.env) {
-      return win.env
-    }
-  }
-  if (typeof process !== 'undefined') {
-    return process.env as EnvObject
-  }
-  return undefined
-}
-
 /**
  * Creates an OpenRouter summarize adapter with explicit API key.
  * Type resolution happens here at the call site.
@@ -192,14 +172,6 @@ export function openrouterSummarize<TModel extends string>(
   model: TModel,
   config?: Omit<OpenRouterSummarizeConfig, 'apiKey'>,
 ): OpenRouterSummarizeAdapter<TModel> {
-  const env = getEnvironment()
-  const key = env?.OPENROUTER_API_KEY
-
-  if (!key) {
-    throw new Error(
-      'OPENROUTER_API_KEY is required. Please set it in your environment variables or use createOpenRouterSummarize(model, apiKey, config) instead.',
-    )
-  }
-
-  return createOpenRouterSummarize(model, key, config)
+  const apiKey = getOpenRouterApiKeyFromEnv()
+  return createOpenRouterSummarize(model, apiKey, config)
 }

@@ -1,34 +1,35 @@
 import { BaseTextAdapter } from '@tanstack/ai/adapters'
 import { convertToolsToProviderFormat } from '../tools'
+import {
+    buildHeaders,
+    getOpenRouterApiKeyFromEnv,
+    generateId as utilGenerateId,
+} from '../utils'
+import type { OpenRouterClientConfig } from '../utils'
 import type {
-  OpenRouterChatModelProviderOptionsByName,
-  OpenRouterModelInputModalitiesByName,
+    OpenRouterChatModelProviderOptionsByName,
+    OpenRouterModelInputModalitiesByName,
 } from '../model-meta'
 import type {
-  StructuredOutputOptions,
-  StructuredOutputResult,
+    StructuredOutputOptions,
+    StructuredOutputResult,
 } from '@tanstack/ai/adapters'
 import type {
-  ContentPart,
-  ModelMessage,
-  StreamChunk,
-  TextOptions,
+    ContentPart,
+    ModelMessage,
+    StreamChunk,
+    TextOptions,
 } from '@tanstack/ai'
 import type {
-  ExternalTextProviderOptions,
-  InternalTextProviderOptions,
+    ExternalTextProviderOptions,
+    InternalTextProviderOptions,
 } from '../text/text-provider-options'
 import type {
-  OpenRouterImageMetadata,
-  OpenRouterMessageMetadataByModality,
+    OpenRouterImageMetadata,
+    OpenRouterMessageMetadataByModality,
 } from '../message-types'
 
-export interface OpenRouterConfig {
-  apiKey: string
-  baseURL?: string
-  httpReferer?: string
-  xTitle?: string
-}
+export interface OpenRouterConfig extends OpenRouterClientConfig {}
 
 export type OpenRouterTextProviderOptions = ExternalTextProviderOptions
 
@@ -334,15 +335,11 @@ export class OpenRouterTextAdapter<
   }
 
   private buildHeaders(): Record<string, string> {
-    const headers: Record<string, string> = {
-      Authorization: `Bearer ${this.openRouterConfig.apiKey}`,
-      'Content-Type': 'application/json',
-    }
-    if (this.openRouterConfig.httpReferer)
-      headers['HTTP-Referer'] = this.openRouterConfig.httpReferer
-    if (this.openRouterConfig.xTitle)
-      headers['X-Title'] = this.openRouterConfig.xTitle
-    return headers
+    return buildHeaders(this.openRouterConfig)
+  }
+
+  protected override generateId(): string {
+    return utilGenerateId(this.name)
   }
 
   private async createRequest(
@@ -688,27 +685,6 @@ export class OpenRouterTextAdapter<
   }
 }
 
-interface EnvObject {
-  OPENROUTER_API_KEY?: string
-}
-
-interface WindowWithEnv {
-  env?: EnvObject
-}
-
-function getEnvironment(): EnvObject | undefined {
-  if (typeof globalThis !== 'undefined') {
-    const win = (globalThis as { window?: WindowWithEnv }).window
-    if (win?.env) {
-      return win.env
-    }
-  }
-  if (typeof process !== 'undefined') {
-    return process.env as EnvObject
-  }
-  return undefined
-}
-
 export function createOpenRouterText<TModel extends string>(
   model: TModel,
   apiKey: string,
@@ -721,14 +697,6 @@ export function openrouterText<TModel extends string>(
   model: TModel,
   config?: Omit<OpenRouterConfig, 'apiKey'>,
 ): OpenRouterTextAdapter<TModel> {
-  const env = getEnvironment()
-  const key = env?.OPENROUTER_API_KEY
-
-  if (!key) {
-    throw new Error(
-      'OPENROUTER_API_KEY is required. Please set it in your environment variables or use createOpenRouterText(model, apiKey, config) instead.',
-    )
-  }
-
-  return createOpenRouterText(model, key, config)
+  const apiKey = getOpenRouterApiKeyFromEnv()
+  return createOpenRouterText(model, apiKey, config)
 }
