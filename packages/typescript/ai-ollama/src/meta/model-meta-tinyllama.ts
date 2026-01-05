@@ -4,8 +4,8 @@ import type {
   OllamaModelMeta,
 } from './models-meta'
 
-const TINNYLLAMA_LATEST = {
-  name: 'tinnyllama:latest',
+const TINYLLAMA_LATEST = {
+  name: 'tinyllama:latest',
   supports: {
     input: ['text'],
     output: ['text'],
@@ -17,8 +17,8 @@ const TINNYLLAMA_LATEST = {
   OllamaChatRequest & OllamaChatRequestMessages
 >
 
-const TINNYLLAMA_1_1b = {
-  name: 'tinnyllama:1.1b',
+const TINYLLAMA_1_1b = {
+  name: 'tinyllama:1.1b',
   supports: {
     input: ['text'],
     output: ['text'],
@@ -30,30 +30,30 @@ const TINNYLLAMA_1_1b = {
   OllamaChatRequest & OllamaChatRequestMessages
 >
 
-export const TINNYLLAMA_MODELS = [
-  TINNYLLAMA_LATEST.name,
-  TINNYLLAMA_1_1b.name,
+export const TINYLLAMA_MODELS = [
+  TINYLLAMA_LATEST.name,
+  TINYLLAMA_1_1b.name,
 ] as const
 
-// const TINNYLLAMA_IMAGE_MODELS = [] as const
+// const TINYLLAMA_IMAGE_MODELS = [] as const
 
-// export const TINNYLLAMA_EMBEDDING_MODELS = [] as const
+// export const TINYLLAMA_EMBEDDING_MODELS = [] as const
 
-// const TINNYLLAMA_AUDIO_MODELS = [] as const
+// const TINYLLAMA_AUDIO_MODELS = [] as const
 
-// const TINNYLLAMA_VIDEO_MODELS = [] as const
+// const TINYLLAMA_VIDEO_MODELS = [] as const
 
-// export type TinnyllamaChatModels = (typeof TINNYLLAMA_MODELS)[number]
+// export type TinyllamaChatModels = (typeof TINYLLAMA_MODELS)[number]
 
 // Manual type map for per-model provider options
-export type TinnyllamaChatModelProviderOptionsByName = {
+export type TinyllamaChatModelProviderOptionsByName = {
   // Models with thinking and structured output support
-  [TINNYLLAMA_LATEST.name]: OllamaChatRequest & OllamaChatRequestMessages
-  [TINNYLLAMA_1_1b.name]: OllamaChatRequest & OllamaChatRequestMessages
+  [TINYLLAMA_LATEST.name]: OllamaChatRequest & OllamaChatRequestMessages
+  [TINYLLAMA_1_1b.name]: OllamaChatRequest & OllamaChatRequestMessages
 }
 
-export type TinnyllamaModelInputModalitiesByName = {
+export type TinyllamaModelInputModalitiesByName = {
   // Models with text, image, audio, video (no document)
-  [TINNYLLAMA_LATEST.name]: typeof TINNYLLAMA_LATEST.supports.input
-  [TINNYLLAMA_1_1b.name]: typeof TINNYLLAMA_1_1b.supports.input
+  [TINYLLAMA_LATEST.name]: typeof TINYLLAMA_LATEST.supports.input
+  [TINYLLAMA_1_1b.name]: typeof TINYLLAMA_1_1b.supports.input
 }

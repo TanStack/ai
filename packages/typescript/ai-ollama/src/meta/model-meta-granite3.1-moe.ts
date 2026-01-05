@@ -22,7 +22,7 @@ const GRANITE3_1_MOE_LATEST = {
 >
 
 const GRANITE3_1_MOE_1b = {
-  name: 'granite3.1-moe:2b',
+  name: 'granite3.1-moe:1b',
   supports: {
     input: ['text'],
     output: ['text'],
@@ -37,7 +37,7 @@ const GRANITE3_1_MOE_1b = {
 >
 
 const GRANITE3_1_MOE_3b = {
-  name: 'granite3.1-moe:8b',
+  name: 'granite3.1-moe:3b',
   supports: {
     input: ['text'],
     output: ['text'],

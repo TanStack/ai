@@ -22,7 +22,7 @@ const LLAMA3_3_LATEST = {
 >
 
 const LLAMA3_3_70b = {
-  name: 'llama3.3:8b',
+  name: 'llama3.3:70b',
   supports: {
     input: ['text'],
     output: ['text'],

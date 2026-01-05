@@ -12,7 +12,7 @@ const LLAVA_LATEST = {
     output: ['text'],
     capabilities: ['vision'],
   },
-  size: '4.7b',
+  size: '4.7gb',
   context: 32_000,
 } as const satisfies OllamaModelMeta<
   OllamaChatRequest & OllamaChatRequestMessages<OllamaMessageImages>

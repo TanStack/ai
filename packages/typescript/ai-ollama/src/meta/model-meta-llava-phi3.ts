@@ -12,7 +12,7 @@ const LLAVA_PHI3_LATEST = {
     output: ['text'],
     capabilities: ['vision'],
   },
-  size: '2.9b',
+  size: '2.9gb',
   context: 4_000,
 } as const satisfies OllamaModelMeta<
   OllamaChatRequest & OllamaChatRequestMessages<OllamaMessageImages>

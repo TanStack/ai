@@ -62,7 +62,7 @@ import { SAILOR2_MODELS } from './meta/model-meta-sailor2'
 import { SHIELDGEMMA_MODELS } from './meta/model-meta-shieldgemma'
 import { SMALLTINKER_MODELS } from './meta/model-meta-smalltinker'
 import { SMOLLM_MODELS } from './meta/model-meta-smollm'
-import { TINNYLLAMA_MODELS } from './meta/model-meta-tinyllama'
+import { TINYLLAMA_MODELS } from './meta/model-meta-tinyllama'
 import { TULU3_MODELS } from './meta/model-meta-tulu3'
 
 // types
@@ -319,8 +319,8 @@ import type {
   SmollmModelInputModalitiesByName,
 } from './meta/model-meta-smollm'
 import type {
-  TinnyllamaChatModelProviderOptionsByName,
-  TinnyllamaModelInputModalitiesByName,
+  TinyllamaChatModelProviderOptionsByName,
+  TinyllamaModelInputModalitiesByName,
 } from './meta/model-meta-tinyllama'
 import type {
   Tulu3ChatModelProviderOptionsByName,
@@ -391,7 +391,7 @@ export const OLLAMA_TEXT_MODELS = [
   ...SHIELDGEMMA_MODELS,
   ...SMALLTINKER_MODELS,
   ...SMOLLM_MODELS,
-  ...TINNYLLAMA_MODELS,
+  ...TINYLLAMA_MODELS,
   ...TULU3_MODELS,
 ] as const
 
@@ -459,7 +459,7 @@ export type OllamaChatModelProviderOptionsByName =
     ShieldgemmaChatModelProviderOptionsByName &
     SmalltinkerChatModelProviderOptionsByName &
     SmollmChatModelProviderOptionsByName &
-    TinnyllamaChatModelProviderOptionsByName &
+    TinyllamaChatModelProviderOptionsByName &
     Tulu3ChatModelProviderOptionsByName
 
 export type OllamaModelInputModalitiesByName =
@@ -526,5 +526,5 @@ export type OllamaModelInputModalitiesByName =
     ShieldgemmaModelInputModalitiesByName &
     SmalltinkerModelInputModalitiesByName &
     SmollmModelInputModalitiesByName &
-    TinnyllamaModelInputModalitiesByName &
+    TinyllamaModelInputModalitiesByName &
     Tulu3ModelInputModalitiesByName

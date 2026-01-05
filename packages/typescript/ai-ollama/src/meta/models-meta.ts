@@ -60,7 +60,7 @@ export interface OllamaChatRequestTools {
 // }
 
 export interface OllamaChatRequestMessages<
-  TMessageExtension extends OllamaMessageExtension = undefined,
+  TMessageExtension extends OllamaMessageExtension = {},
 > {
   messages?: Array<
     {

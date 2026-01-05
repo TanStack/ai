@@ -17,7 +17,7 @@ const CODEGEMMA_LATEST = {
   OllamaChatRequest & OllamaChatRequestMessages
 >
 
-const CODEGEMMA_8b = {
+const CODEGEMMA_2b = {
   name: 'codegemma:2b',
   supports: {
     input: ['text'],
@@ -30,7 +30,7 @@ const CODEGEMMA_8b = {
   OllamaChatRequest & OllamaChatRequestMessages
 >
 
-const CODEGEMMA_35b = {
+const CODEGEMMA_7b = {
   name: 'codegemma:7b',
   supports: {
     input: ['text'],
@@ -45,8 +45,8 @@ const CODEGEMMA_35b = {
 
 export const CODEGEMMA_MODELS = [
   CODEGEMMA_LATEST.name,
-  CODEGEMMA_8b.name,
-  CODEGEMMA_35b.name,
+  CODEGEMMA_2b.name,
+  CODEGEMMA_7b.name,
 ] as const
 
 // const CODEGEMMA_IMAGE_MODELS = [] as const
@@ -63,13 +63,13 @@ export const CODEGEMMA_MODELS = [
 export type CodegemmaChatModelProviderOptionsByName = {
   // Models with thinking and structured output support
   [CODEGEMMA_LATEST.name]: OllamaChatRequest & OllamaChatRequestMessages
-  [CODEGEMMA_8b.name]: OllamaChatRequest & OllamaChatRequestMessages
-  [CODEGEMMA_35b.name]: OllamaChatRequest & OllamaChatRequestMessages
+  [CODEGEMMA_2b.name]: OllamaChatRequest & OllamaChatRequestMessages
+  [CODEGEMMA_7b.name]: OllamaChatRequest & OllamaChatRequestMessages
 }
 
 export type CodegemmaModelInputModalitiesByName = {
   // Models with text, image, audio, video (no document)
   [CODEGEMMA_LATEST.name]: typeof CODEGEMMA_LATEST.supports.input
-  [CODEGEMMA_8b.name]: typeof CODEGEMMA_8b.supports.input
-  [CODEGEMMA_35b.name]: typeof CODEGEMMA_35b.supports.input
+  [CODEGEMMA_2b.name]: typeof CODEGEMMA_2b.supports.input
+  [CODEGEMMA_7b.name]: typeof CODEGEMMA_7b.supports.input
 }

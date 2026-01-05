@@ -24,7 +24,7 @@ const DEEPSEEK_V3_1_LATEST = {
 >
 
 const DEEPSEEK_V3_1_671b = {
-  name: 'deepseek-v3.1:671',
+  name: 'deepseek-v3.1:671b',
   supports: {
     input: ['text'],
     output: ['text'],
@@ -41,7 +41,7 @@ const DEEPSEEK_V3_1_671b = {
 >
 
 const DEEPSEEK_V3_1_671b_cloud = {
-  name: 'deepseek-v3.1:671-cloud',
+  name: 'deepseek-v3.1:671b-cloud',
   supports: {
     input: ['text'],
     output: ['text'],
