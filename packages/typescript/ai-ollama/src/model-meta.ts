@@ -207,8 +207,8 @@ import type {
   Llama3_3ModelInputModalitiesByName,
 } from './meta/model-meta-llama3.3'
 import type {
-  Llama3_4ChatModelProviderOptionsByName,
-  Llama3_4ModelInputModalitiesByName,
+  Llama4ChatModelProviderOptionsByName,
+  Llama4ModelInputModalitiesByName,
 } from './meta/model-meta-llama4'
 import type {
   LlavaChatModelProviderOptionsByName,
@@ -431,7 +431,7 @@ export type OllamaChatModelProviderOptionsByName =
     Llama3_2ChatModelProviderOptionsByName &
     Llama3_3ChatModelProviderOptionsByName &
     Llama3ChatModelProviderOptionsByName &
-    Llama3_4ChatModelProviderOptionsByName &
+    Llama4ChatModelProviderOptionsByName &
     LlavaLlamaChatModelProviderOptionsByName &
     LlavaPhi3ChatModelProviderOptionsByName &
     LlavaChatModelProviderOptionsByName &
@@ -498,7 +498,7 @@ export type OllamaModelInputModalitiesByName =
     Llama3_2ModelInputModalitiesByName &
     Llama3_3ModelInputModalitiesByName &
     Llama3ModelInputModalitiesByName &
-    Llama3_4ModelInputModalitiesByName &
+    Llama4ModelInputModalitiesByName &
     LlavaLlamaModelInputModalitiesByName &
     LlavaPhi3ModelInputModalitiesByName &
     LlavaModelInputModalitiesByName &

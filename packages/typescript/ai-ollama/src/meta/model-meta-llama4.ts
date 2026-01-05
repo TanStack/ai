@@ -69,7 +69,7 @@ export const LLAMA4_MODELS = [
 // export type Llama3_4ChatModels = (typeof LLAMA4_MODELS)[number]
 
 // Manual type map for per-model provider options
-export type Llama3_4ChatModelProviderOptionsByName = {
+export type Llama4ChatModelProviderOptionsByName = {
   // Models with thinking and structured output support
   [LLAMA4_LATEST.name]: OllamaChatRequest &
     OllamaChatRequestMessages<OllamaMessageTools & OllamaMessageImages> &
@@ -82,7 +82,7 @@ export type Llama3_4ChatModelProviderOptionsByName = {
     OllamaChatRequestTools
 }
 
-export type Llama3_4ModelInputModalitiesByName = {
+export type Llama4ModelInputModalitiesByName = {
   // Models with text, image, audio, video (no document)
   [LLAMA4_LATEST.name]: typeof LLAMA4_LATEST.supports.input
   [LLAMA4_16X17b.name]: typeof LLAMA4_16X17b.supports.input
