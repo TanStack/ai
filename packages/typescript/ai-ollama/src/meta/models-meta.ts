@@ -1,4 +1,4 @@
-import type { Options, Tool, ToolCall } from 'ollama'
+import type { Tool, ToolCall } from 'ollama'
 
 export interface OllamaModelMeta<TModelOptions = unknown> {
   name: string
@@ -10,6 +10,37 @@ export interface OllamaModelMeta<TModelOptions = unknown> {
   }
   size?: string
   context?: number
+}
+
+interface OllamaOptions {
+  numa: boolean
+  num_ctx: number
+  num_batch: number
+  num_gpu: number
+  main_gpu: number
+  low_vram: boolean
+  f16_kv: boolean
+  logits_all: boolean
+  vocab_only: boolean
+  use_mmap: boolean
+  use_mlock: boolean
+  embedding_only: boolean
+  num_thread: number
+  num_keep: number
+  seed: number
+  num_predict: number
+  top_k: number
+  tfs_z: number
+  typical_p: number
+  repeat_last_n: number
+  repeat_penalty: number
+  presence_penalty: number
+  frequency_penalty: number
+  mirostat: number
+  mirostat_tau: number
+  mirostat_eta: number
+  penalize_newline: boolean
+  stop: Array<string>
 }
 
 // interface ChatRequest {
@@ -35,7 +66,7 @@ export interface OllamaChatRequest {
   //   think?: boolean | 'high' | 'medium' | 'low'
   logprobs?: boolean
   top_logprobs?: number
-  options?: Partial<Options>
+  options?: Partial<OllamaOptions>
 }
 
 export interface OllamaChatRequestThinking {

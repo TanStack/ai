@@ -37,6 +37,6 @@ export type {
 } from './message-types'
 
 export type {
-  OllamaChatModelProviderOptionsByName,
+  OllamaChatModelOptionsByName,
   OllamaModelInputModalitiesByName,
 } from './model-meta'

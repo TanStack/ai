@@ -395,7 +395,7 @@ export const OLLAMA_TEXT_MODELS = [
   ...TULU3_MODELS,
 ] as const
 
-export type OllamaChatModelProviderOptionsByName =
+export type OllamaChatModelOptionsByName =
   AtheneChatModelProviderOptionsByName &
     AyaChatModelProviderOptionsByName &
     CodegemmaChatModelProviderOptionsByName &

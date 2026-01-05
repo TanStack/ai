@@ -4,7 +4,7 @@ import { createOllamaClient, generateId, getOllamaHostFromEnv } from '../utils'
 
 import type {
   OLLAMA_TEXT_MODELS,
-  OllamaChatModelProviderOptionsByName,
+  OllamaChatModelOptionsByName,
 } from '../model-meta'
 import type {
   StructuredOutputOptions,
@@ -26,12 +26,12 @@ export type OllamaTextModel =
   | (string & {})
 
 /**
- * Resolve provider options for a specific model.
+ * Resolve model options for a specific model.
  * If the model has explicit options in the map, use those; otherwise use base options.
  */
-type ResolveProviderOptions<TModel extends string> =
-  TModel extends keyof OllamaChatModelProviderOptionsByName
-    ? OllamaChatModelProviderOptionsByName[TModel]
+type ResolveModelOptions<TModel extends string> =
+  TModel extends keyof OllamaChatModelOptionsByName
+    ? OllamaChatModelOptionsByName[TModel]
     : ChatRequest
 
 /**
@@ -110,7 +110,7 @@ type OllamaMessageMetadataByModality = {
  */
 export class OllamaTextAdapter<TModel extends string> extends BaseTextAdapter<
   TModel,
-  ResolveProviderOptions<TModel>,
+  ResolveModelOptions<TModel>,
   OllamaInputModalities,
   OllamaMessageMetadataByModality
 > {
@@ -143,7 +143,7 @@ export class OllamaTextAdapter<TModel extends string> extends BaseTextAdapter<
    * The outputSchema is already JSON Schema (converted in the ai layer).
    */
   async structuredOutput(
-    options: StructuredOutputOptions<ResolveProviderOptions<TModel>>,
+    options: StructuredOutputOptions<ResolveModelOptions<TModel>>,
   ): Promise<StructuredOutputResult<unknown>> {
     const { chatOptions, outputSchema } = options
 
