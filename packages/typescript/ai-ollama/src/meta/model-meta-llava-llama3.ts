@@ -1,9 +1,7 @@
 import type {
   OllamaChatRequest,
   OllamaChatRequestMessages,
-  OllamaChatRequestTools,
   OllamaMessageImages,
-  OllamaMessageTools,
   OllamaModelMeta,
 } from './models-meta'
 
@@ -52,11 +50,10 @@ export const LLAVA_LLAMA3_MODELS = [
 export type LlavaLlamaChatModelProviderOptionsByName = {
   // Models with thinking and structured output support
   [LLAVA_LLAMA3_LATEST.name]: OllamaChatRequest &
-    OllamaChatRequestMessages<OllamaMessageTools & OllamaMessageImages> &
-    OllamaChatRequestTools
+    OllamaChatRequestMessages<OllamaMessageImages>
+
   [LLAVA_LLAMA3_8b.name]: OllamaChatRequest &
-    OllamaChatRequestMessages<OllamaMessageTools & OllamaMessageImages> &
-    OllamaChatRequestTools
+    OllamaChatRequestMessages<OllamaMessageImages>
 }
 
 export type LlavaLlamaModelInputModalitiesByName = {
