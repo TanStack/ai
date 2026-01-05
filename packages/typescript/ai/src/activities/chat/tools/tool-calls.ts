@@ -1,20 +1,11 @@
+import { isStandardSchema, parseWithStandardSchema } from './schema-converter'
 import type {
   DoneStreamChunk,
   ModelMessage,
-  SchemaInput,
   Tool,
   ToolCall,
   ToolResultStreamChunk,
 } from '../../../types'
-import type { z } from 'zod'
-
-/**
- * Check if a value is a Zod schema by looking for Zod-specific internals.
- */
-function isZodSchema(schema: SchemaInput | undefined): schema is z.ZodType {
-  if (!schema) return false
-  return '_zod' in schema && typeof (schema as any)._zod === 'object'
-}
 
 /**
  * Manages tool call accumulation and execution for the chat() method's automatic tool execution loop.
@@ -131,7 +122,7 @@ export class ToolCallManager {
       if (tool?.execute) {
         try {
           // Parse arguments
-          let args: any
+          let args: unknown
           try {
             args = JSON.parse(toolCall.function.arguments)
           } catch (parseError) {
@@ -140,13 +131,17 @@ export class ToolCallManager {
             )
           }
 
-          // Validate input against inputSchema (only for Zod schemas)
-          if (tool.inputSchema && isZodSchema(tool.inputSchema)) {
+          // Validate input against inputSchema (for Standard Schema compliant schemas)
+          if (tool.inputSchema && isStandardSchema(tool.inputSchema)) {
             try {
-              args = tool.inputSchema.parse(args)
-            } catch (validationError: any) {
+              args = parseWithStandardSchema(tool.inputSchema, args)
+            } catch (validationError: unknown) {
+              const message =
+                validationError instanceof Error
+                  ? validationError.message
+                  : 'Validation failed'
               throw new Error(
-                `Input validation failed for tool ${tool.name}: ${validationError.message}`,
+                `Input validation failed for tool ${tool.name}: ${message}`,
               )
             }
           }
@@ -154,27 +149,33 @@ export class ToolCallManager {
           // Execute the tool
           let result = await tool.execute(args)
 
-          // Validate output against outputSchema if provided (only for Zod schemas)
+          // Validate output against outputSchema if provided (for Standard Schema compliant schemas)
           if (
             tool.outputSchema &&
-            isZodSchema(tool.outputSchema) &&
+            isStandardSchema(tool.outputSchema) &&
             result !== undefined &&
             result !== null
           ) {
             try {
-              result = tool.outputSchema.parse(result)
-            } catch (validationError: any) {
+              result = parseWithStandardSchema(tool.outputSchema, result)
+            } catch (validationError: unknown) {
+              const message =
+                validationError instanceof Error
+                  ? validationError.message
+                  : 'Validation failed'
               throw new Error(
-                `Output validation failed for tool ${tool.name}: ${validationError.message}`,
+                `Output validation failed for tool ${tool.name}: ${message}`,
               )
             }
           }
 
           toolResultContent =
             typeof result === 'string' ? result : JSON.stringify(result)
-        } catch (error: any) {
+        } catch (error: unknown) {
           // If tool execution fails, add error message
-          toolResultContent = `Error executing tool: ${error.message}`
+          const message =
+            error instanceof Error ? error.message : 'Unknown error'
+          toolResultContent = `Error executing tool: ${message}`
         }
       } else {
         // Tool doesn't have execute function, add placeholder
@@ -286,7 +287,7 @@ export async function executeToolCalls(
     }
 
     // Parse arguments, throwing error if invalid JSON
-    let input: any = {}
+    let input: unknown = {}
     const argsStr = toolCall.function.arguments.trim() || '{}'
     if (argsStr) {
       try {
@@ -297,16 +298,20 @@ export async function executeToolCalls(
       }
     }
 
-    // Validate input against inputSchema (only for Zod schemas)
-    if (tool.inputSchema && isZodSchema(tool.inputSchema)) {
+    // Validate input against inputSchema (for Standard Schema compliant schemas)
+    if (tool.inputSchema && isStandardSchema(tool.inputSchema)) {
       try {
-        input = tool.inputSchema.parse(input)
-      } catch (validationError: any) {
+        input = parseWithStandardSchema(tool.inputSchema, input)
+      } catch (validationError: unknown) {
+        const message =
+          validationError instanceof Error
+            ? validationError.message
+            : 'Validation failed'
         results.push({
           toolCallId: toolCall.id,
           toolName,
           result: {
-            error: `Input validation failed for tool ${tool.name}: ${validationError.message}`,
+            error: `Input validation failed for tool ${tool.name}: ${message}`,
           },
           state: 'output-error',
         })
@@ -393,21 +398,14 @@ export async function executeToolCalls(
             let result = await tool.execute(input)
             const duration = Date.now() - startTime
 
-            // Validate output against outputSchema if provided (only for Zod schemas)
+            // Validate output against outputSchema if provided (for Standard Schema compliant schemas)
             if (
               tool.outputSchema &&
-              isZodSchema(tool.outputSchema) &&
+              isStandardSchema(tool.outputSchema) &&
               result !== undefined &&
               result !== null
             ) {
-              const parsed = tool.outputSchema.safeParse(result)
-              if (parsed.success) {
-                result = parsed.data
-              } else {
-                throw new Error(
-                  `Output validation failed for tool ${tool.name}: ${parsed.error.message}`,
-                )
-              }
+              result = parseWithStandardSchema(tool.outputSchema, result)
             }
 
             results.push({
@@ -419,12 +417,14 @@ export async function executeToolCalls(
                   : result || null,
               duration,
             })
-          } catch (error: any) {
+          } catch (error: unknown) {
             const duration = Date.now() - startTime
+            const message =
+              error instanceof Error ? error.message : 'Unknown error'
             results.push({
               toolCallId: toolCall.id,
               toolName,
-              result: { error: error.message },
+              result: { error: message },
               state: 'output-error',
               duration,
             })
@@ -456,21 +456,14 @@ export async function executeToolCalls(
       let result = await tool.execute(input)
       const duration = Date.now() - startTime
 
-      // Validate output against outputSchema if provided (only for Zod schemas)
+      // Validate output against outputSchema if provided (for Standard Schema compliant schemas)
       if (
         tool.outputSchema &&
-        isZodSchema(tool.outputSchema) &&
+        isStandardSchema(tool.outputSchema) &&
         result !== undefined &&
         result !== null
       ) {
-        const parsed = tool.outputSchema.safeParse(result)
-        if (parsed.success) {
-          result = parsed.data
-        } else {
-          throw new Error(
-            `Output validation failed for tool ${tool.name}: ${parsed.error.message}`,
-          )
-        }
+        result = parseWithStandardSchema(tool.outputSchema, result)
       }
 
       results.push({
@@ -480,12 +473,13 @@ export async function executeToolCalls(
           typeof result === 'string' ? JSON.parse(result) : result || null,
         duration,
       })
-    } catch (error: any) {
+    } catch (error: unknown) {
       const duration = Date.now() - startTime
+      const message = error instanceof Error ? error.message : 'Unknown error'
       results.push({
         toolCallId: toolCall.id,
         toolName,
-        result: { error: error.message },
+        result: { error: message },
         state: 'output-error',
         duration,
       })

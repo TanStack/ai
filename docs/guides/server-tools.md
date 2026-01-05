@@ -141,7 +141,7 @@ const searchProducts = searchProductsDef.server(async ({ query, limit = 10 }) =>
 Pass tools to the `chat` function:
 
 ```typescript
-import { chat, toStreamResponse } from "@tanstack/ai";
+import { chat, toServerSentEventsResponse } from "@tanstack/ai";
 import { openaiText } from "@tanstack/ai-openai";
 import { getUserData, searchProducts } from "./tools";
 
@@ -154,7 +154,7 @@ export async function POST(request: Request) {
     tools: [getUserData, searchProducts],
   });
 
-  return toStreamResponse(stream);
+  return toServerSentEventsResponse(stream);
 }
 ```
 

@@ -1,6 +1,6 @@
 {
   "name": "@tanstack/tests-adapters",
-  "version": "0.0.5",
+  "version": "0.1.0",
   "private": true,
   "description": "Tests for TanStack AI adapters",
   "author": "",
@@ -24,6 +24,6 @@
     "dotenv": "^17.2.3",
     "tsx": "^4.20.6",
     "typescript": "5.9.3",
-    "zod": "^4.1.13"
+    "zod": "^4.2.0"
   }
 }

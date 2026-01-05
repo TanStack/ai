@@ -13,4 +13,4 @@ type MessagePart =
   | ThinkingPart;
 ```
 
-Defined in: [types.ts:274](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L274)
+Defined in: [types.ts:283](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L283)
