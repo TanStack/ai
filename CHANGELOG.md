@@ -369,10 +369,10 @@ The `chat()` method now includes an automatic tool execution loop:
 
 ```typescript
 import { chat, tool, maxIterations } from '@tanstack/ai'
-import { openai } from '@tanstack/ai-openai'
+import { openaiText } from '@tanstack/ai-openai'
 
 const stream = chat({
-  adapter: openai(),
+  adapter: openaiText(),
   model: 'gpt-4o',
   messages: [{ role: 'user', content: "What's the weather in Paris?" }],
   tools: [weatherTool],

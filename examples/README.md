@@ -308,16 +308,16 @@ All examples use SSE for real-time streaming:
 **Backend (TypeScript):**
 
 ```typescript
-import { chat, toStreamResponse } from '@tanstack/ai'
-import { openai } from '@tanstack/ai-openai'
+import { chat, toServerSentEventsResponse } from '@tanstack/ai'
+import { openaiText } from '@tanstack/ai-openai'
 
 const stream = chat({
-  adapter: openai(),
+  adapter: openaiText(),
   model: 'gpt-4o',
   messages,
 })
 
-return toStreamResponse(stream)
+return toServerSentEventsResponse(stream)
 ```
 
 **Backend (Python):**
@@ -383,7 +383,7 @@ const weatherTool = weatherToolDef.server(async ({ location }) => {
 })
 
 const stream = chat({
-  adapter: openai(),
+  adapter: openaiText(),
   model: 'gpt-4o',
   messages,
   tools: [weatherTool], // SDK executes these automatically

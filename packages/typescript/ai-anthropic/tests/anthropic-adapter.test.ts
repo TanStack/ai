@@ -1,9 +1,7 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest'
 import { chat, type Tool, type StreamChunk } from '@tanstack/ai'
-import {
-  Anthropic,
-  type AnthropicProviderOptions,
-} from '../src/anthropic-adapter'
+import { AnthropicTextAdapter } from '../src/adapters/text'
+import type { AnthropicTextProviderOptions } from '../src/adapters/text'
 import { z } from 'zod'
 
 const mocks = vi.hoisted(() => {
@@ -37,7 +35,9 @@ vi.mock('@anthropic-ai/sdk', () => {
   return { default: MockAnthropic }
 })
 
-const createAdapter = () => new Anthropic({ apiKey: 'test-key' })
+const createAdapter = <TModel extends 'claude-3-7-sonnet-20250219'>(
+  model: TModel,
+) => new AnthropicTextAdapter({ apiKey: 'test-key' }, model)
 
 const toolArguments = JSON.stringify({ location: 'Berlin' })
 
@@ -101,15 +101,14 @@ describe('Anthropic adapter option mapping', () => {
       thinking: { type: 'enabled', budget_tokens: 1500 },
       top_k: 5,
       system: 'Respond with JSON',
-    } satisfies AnthropicProviderOptions & { system: string }
+    } satisfies AnthropicTextProviderOptions & { system: string }
 
-    const adapter = createAdapter()
+    const adapter = createAdapter('claude-3-7-sonnet-20250219')
 
     // Consume the stream to trigger the API call
     const chunks: StreamChunk[] = []
     for await (const chunk of chat({
       adapter,
-      model: 'claude-3-7-sonnet-20250219',
       messages: [
         { role: 'user', content: 'What is the forecast?' },
         {
@@ -126,11 +125,9 @@ describe('Anthropic adapter option mapping', () => {
         { role: 'tool', toolCallId: 'call_weather', content: '{"temp":72}' },
       ],
       tools: [weatherTool],
-      options: {
-        maxTokens: 3000,
-        temperature: 0.4,
-      },
-      providerOptions,
+      maxTokens: 3000,
+      temperature: 0.4,
+      modelOptions: providerOptions,
     })) {
       chunks.push(chunk)
     }

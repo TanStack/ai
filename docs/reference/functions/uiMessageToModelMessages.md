@@ -12,7 +12,7 @@ function uiMessageToModelMessages(uiMessage): ModelMessage<
   | null>[];
 ```
 
-Defined in: [message-converters.ts:65](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/message-converters.ts#L65)
+Defined in: [activities/chat/messages.ts:62](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/activities/chat/messages.ts#L62)
 
 Convert a UIMessage to ModelMessage(s)
 

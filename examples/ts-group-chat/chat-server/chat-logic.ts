@@ -8,8 +8,8 @@ export interface ChatMessage {
 }
 
 export interface ChatState {
-  onlineUsers: string[]
-  messages: ChatMessage[]
+  onlineUsers: Array<string>
+  messages: Array<ChatMessage>
 }
 
 // Core chat business logic class
@@ -105,11 +105,11 @@ export class ChatLogic {
     }
   }
 
-  getMessages(): ChatMessage[] {
+  getMessages(): Array<ChatMessage> {
     return [...this.chatState.messages]
   }
 
-  getOnlineUsers(): string[] {
+  getOnlineUsers(): Array<string> {
     return [...this.chatState.onlineUsers]
   }
 }

@@ -1,8 +1,11 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest'
 import { chat, type Tool, type StreamChunk } from '@tanstack/ai'
-import { OpenAI, type OpenAIProviderOptions } from '../src/openai-adapter'
+import { OpenAITextAdapter } from '../src/adapters/text'
+import type { OpenAITextProviderOptions } from '../src/adapters/text'
 
-const createAdapter = () => new OpenAI({ apiKey: 'test-key' })
+const createAdapter = <TModel extends 'gpt-4o-mini' | 'gpt-4o'>(
+  model: TModel,
+) => new OpenAITextAdapter({ apiKey: 'test-key' }, model)
 
 const toolArguments = JSON.stringify({ location: 'Berlin' })
 
@@ -64,7 +67,7 @@ describe('OpenAI adapter option mapping', () => {
 
     const responsesCreate = vi.fn().mockResolvedValueOnce(mockStream)
 
-    const adapter = createAdapter()
+    const adapter = createAdapter('gpt-4o-mini')
     // Replace the internal OpenAI SDK client with our mock
     ;(adapter as any).client = {
       responses: {
@@ -72,14 +75,13 @@ describe('OpenAI adapter option mapping', () => {
       },
     }
 
-    const providerOptions: OpenAIProviderOptions = {
+    const modelOptions: OpenAITextProviderOptions = {
       tool_choice: 'required',
     }
 
     const chunks: StreamChunk[] = []
     for await (const chunk of chat({
       adapter,
-      model: 'gpt-4o-mini',
       messages: [
         { role: 'system', content: 'Stay concise' },
         { role: 'user', content: 'How is the weather?' },
@@ -97,13 +99,11 @@ describe('OpenAI adapter option mapping', () => {
         { role: 'tool', toolCallId: 'call_weather', content: '{"temp":72}' },
       ],
       tools: [weatherTool],
-      options: {
-        temperature: 0.25,
-        topP: 0.6,
-        maxTokens: 1024,
-        metadata: { requestId: 'req-42' },
-      },
-      providerOptions,
+      temperature: 0.25,
+      topP: 0.6,
+      maxTokens: 1024,
+      metadata: { requestId: 'req-42' },
+      modelOptions,
     })) {
       chunks.push(chunk)
     }
@@ -118,7 +118,7 @@ describe('OpenAI adapter option mapping', () => {
       top_p: 0.6,
       max_output_tokens: 1024, // Responses API uses max_output_tokens instead of max_tokens
       stream: true,
-      tool_choice: 'required', // From providerOptions
+      tool_choice: 'required', // From modelOptions
     })
 
     // Responses API uses 'input' instead of 'messages'

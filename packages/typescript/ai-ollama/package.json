@@ -1,6 +1,6 @@
 {
   "name": "@tanstack/ai-ollama",
-  "version": "0.0.2",
+  "version": "0.2.0",
   "description": "Ollama adapter for TanStack AI",
   "author": "",
   "license": "MIT",
@@ -41,15 +41,14 @@
     "adapter"
   ],
   "dependencies": {
-    "@tanstack/ai": "workspace:*",
-    "ollama": "^0.6.3",
-    "zod": "^4.1.13"
+    "ollama": "^0.6.3"
   },
   "devDependencies": {
     "@vitest/coverage-v8": "4.0.14",
-    "vite": "^7.2.4"
+    "vite": "^7.2.7"
   },
   "peerDependencies": {
-    "@tanstack/ai": "workspace:*"
+    "@tanstack/ai": "workspace:^",
+    "zod": "^4.0.0"
   }
 }

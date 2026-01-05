@@ -5,7 +5,7 @@ title: DefaultMessageMetadataByModality
 
 # Interface: DefaultMessageMetadataByModality
 
-Defined in: [types.ts:664](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L664)
+Defined in: [types.ts:1024](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L1024)
 
 Default metadata type for adapters that don't define custom metadata.
 Uses unknown for all modalities.
@@ -18,7 +18,7 @@ Uses unknown for all modalities.
 audio: unknown;
 ```
 
-Defined in: [types.ts:667](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L667)
+Defined in: [types.ts:1027](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L1027)
 
 ***
 
@@ -28,7 +28,7 @@ Defined in: [types.ts:667](https://github.com/TanStack/ai/blob/main/packages/typ
 document: unknown;
 ```
 
-Defined in: [types.ts:669](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L669)
+Defined in: [types.ts:1029](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L1029)
 
 ***
 
@@ -38,7 +38,7 @@ Defined in: [types.ts:669](https://github.com/TanStack/ai/blob/main/packages/typ
 image: unknown;
 ```
 
-Defined in: [types.ts:666](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L666)
+Defined in: [types.ts:1026](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L1026)
 
 ***
 
@@ -48,7 +48,7 @@ Defined in: [types.ts:666](https://github.com/TanStack/ai/blob/main/packages/typ
 text: unknown;
 ```
 
-Defined in: [types.ts:665](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L665)
+Defined in: [types.ts:1025](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L1025)
 
 ***
 
@@ -58,4 +58,4 @@ Defined in: [types.ts:665](https://github.com/TanStack/ai/blob/main/packages/typ
 video: unknown;
 ```
 
-Defined in: [types.ts:668](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L668)
+Defined in: [types.ts:1028](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L1028)

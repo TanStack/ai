@@ -1,0 +1,64 @@
+{
+  "name": "@tanstack/ai-svelte",
+  "version": "0.2.0",
+  "description": "Svelte bindings for TanStack AI",
+  "author": "",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/TanStack/ai.git",
+    "directory": "packages/typescript/ai-svelte"
+  },
+  "type": "module",
+  "svelte": "./dist/index.js",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "svelte": "./dist/index.js",
+      "import": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist",
+    "src"
+  ],
+  "scripts": {
+    "clean": "rm -rf ./dist",
+    "lint:fix": "eslint ./src --fix",
+    "test:eslint": "eslint ./src",
+    "test:lib": "vitest run",
+    "test:lib:dev": "pnpm test:lib --watch",
+    "test:types": "svelte-check",
+    "test:build": "publint --strict",
+    "build": "svelte-package -i src -o dist"
+  },
+  "keywords": [
+    "ai",
+    "svelte",
+    "hooks",
+    "tanstack",
+    "chat",
+    "streaming"
+  ],
+  "dependencies": {
+    "@tanstack/ai-client": "workspace:*",
+    "svelte": "^5.20.0"
+  },
+  "devDependencies": {
+    "@sveltejs/package": "^2.3.10",
+    "@sveltejs/vite-plugin-svelte": "^5.1.1",
+    "@types/node": "^24.10.1",
+    "@vitest/coverage-v8": "4.0.14",
+    "jsdom": "^27.2.0",
+    "svelte": "^5.20.0",
+    "svelte-check": "^4.2.0",
+    "typescript": "5.9.3",
+    "vite": "^7.2.7"
+  },
+  "peerDependencies": {
+    "@tanstack/ai": "workspace:^",
+    "svelte": "^5.0.0"
+  }
+}

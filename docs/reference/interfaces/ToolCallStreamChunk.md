@@ -5,7 +5,7 @@ title: ToolCallStreamChunk
 
 # Interface: ToolCallStreamChunk
 
-Defined in: [types.ts:536](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L536)
+Defined in: [types.ts:676](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L676)
 
 ## Extends
 
@@ -19,7 +19,7 @@ Defined in: [types.ts:536](https://github.com/TanStack/ai/blob/main/packages/typ
 id: string;
 ```
 
-Defined in: [types.ts:524](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L524)
+Defined in: [types.ts:664](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L664)
 
 #### Inherited from
 
@@ -33,7 +33,7 @@ Defined in: [types.ts:524](https://github.com/TanStack/ai/blob/main/packages/typ
 index: number;
 ```
 
-Defined in: [types.ts:546](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L546)
+Defined in: [types.ts:686](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L686)
 
 ***
 
@@ -43,7 +43,7 @@ Defined in: [types.ts:546](https://github.com/TanStack/ai/blob/main/packages/typ
 model: string;
 ```
 
-Defined in: [types.ts:525](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L525)
+Defined in: [types.ts:665](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L665)
 
 #### Inherited from
 
@@ -57,7 +57,7 @@ Defined in: [types.ts:525](https://github.com/TanStack/ai/blob/main/packages/typ
 timestamp: number;
 ```
 
-Defined in: [types.ts:526](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L526)
+Defined in: [types.ts:666](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L666)
 
 #### Inherited from
 
@@ -71,7 +71,7 @@ Defined in: [types.ts:526](https://github.com/TanStack/ai/blob/main/packages/typ
 toolCall: object;
 ```
 
-Defined in: [types.ts:538](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L538)
+Defined in: [types.ts:678](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L678)
 
 #### function
 
@@ -111,7 +111,7 @@ type: "function";
 type: "tool_call";
 ```
 
-Defined in: [types.ts:537](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L537)
+Defined in: [types.ts:677](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L677)
 
 #### Overrides
 

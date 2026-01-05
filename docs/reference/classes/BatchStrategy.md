@@ -5,7 +5,7 @@ title: BatchStrategy
 
 # Class: BatchStrategy
 
-Defined in: [stream/strategies.ts:34](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/stream/strategies.ts#L34)
+Defined in: [activities/chat/stream/strategies.ts:34](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/activities/chat/stream/strategies.ts#L34)
 
 Batch Strategy - emit every N chunks
 Useful for reducing UI update frequency
@@ -22,7 +22,7 @@ Useful for reducing UI update frequency
 new BatchStrategy(batchSize): BatchStrategy;
 ```
 
-Defined in: [stream/strategies.ts:37](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/stream/strategies.ts#L37)
+Defined in: [activities/chat/stream/strategies.ts:37](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/activities/chat/stream/strategies.ts#L37)
 
 #### Parameters
 
@@ -42,7 +42,7 @@ Defined in: [stream/strategies.ts:37](https://github.com/TanStack/ai/blob/main/p
 reset(): void;
 ```
 
-Defined in: [stream/strategies.ts:48](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/stream/strategies.ts#L48)
+Defined in: [activities/chat/stream/strategies.ts:48](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/activities/chat/stream/strategies.ts#L48)
 
 Optional: Reset strategy state (called when streaming starts)
 
@@ -62,7 +62,7 @@ Optional: Reset strategy state (called when streaming starts)
 shouldEmit(_chunk, _accumulated): boolean;
 ```
 
-Defined in: [stream/strategies.ts:39](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/stream/strategies.ts#L39)
+Defined in: [activities/chat/stream/strategies.ts:39](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/activities/chat/stream/strategies.ts#L39)
 
 Called for each text chunk received
 

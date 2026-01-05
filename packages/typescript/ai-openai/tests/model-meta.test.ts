@@ -6,19 +6,31 @@ import type {
 import type {
   OpenAIBaseOptions,
   OpenAIReasoningOptions,
+  OpenAIReasoningOptionsWithConcise,
   OpenAIStructuredOutputOptions,
   OpenAIToolsOptions,
   OpenAIStreamingOptions,
   OpenAIMetadataOptions,
 } from '../src/text/text-provider-options'
+import type { OpenAIMessageMetadataByModality } from '../src/message-types'
 import type {
   AudioPart,
   ConstrainedModelMessage,
   DocumentPart,
   ImagePart,
+  Modality,
   TextPart,
   VideoPart,
 } from '@tanstack/ai'
+
+/**
+ * Helper type to construct InputModalitiesTypes from modalities array and metadata.
+ * This is used to properly type ConstrainedModelMessage in tests.
+ */
+type MakeInputModalitiesTypes<TModalities extends ReadonlyArray<Modality>> = {
+  inputModalities: TModalities
+  messageMetadataByModality: OpenAIMessageMetadataByModality
+}
 
 /**
  * Type assertion tests for OpenAI model provider options.
@@ -111,12 +123,12 @@ describe('OpenAI Chat Model Provider Options Type Assertions', () => {
     })
   })
 
-  describe('Models WITH structured output AND tools but WITHOUT reasoning (Standard)', () => {
-    it('gpt-5-mini should have structured output and tools but NOT reasoning', () => {
+  describe('Models WITH reasoning AND structured output AND tools (gpt-5-mini/nano)', () => {
+    it('gpt-5-mini should have reasoning, structured output and tools', () => {
       type Options = OpenAIChatModelProviderOptionsByName['gpt-5-mini']
 
-      // Should NOT have reasoning options
-      expectTypeOf<Options>().not.toExtend<OpenAIReasoningOptions>()
+      // Should have reasoning options
+      expectTypeOf<Options>().toExtend<OpenAIReasoningOptions>()
 
       // Should have structured output options
       expectTypeOf<Options>().toExtend<OpenAIStructuredOutputOptions>()
@@ -131,16 +143,18 @@ describe('OpenAI Chat Model Provider Options Type Assertions', () => {
       expectTypeOf<Options>().toExtend<BaseOptions>()
     })
 
-    it('gpt-5-nano should have structured output and tools but NOT reasoning', () => {
+    it('gpt-5-nano should have reasoning, structured output and tools', () => {
       type Options = OpenAIChatModelProviderOptionsByName['gpt-5-nano']
 
-      expectTypeOf<Options>().not.toExtend<OpenAIReasoningOptions>()
+      expectTypeOf<Options>().toExtend<OpenAIReasoningOptions>()
       expectTypeOf<Options>().toExtend<OpenAIStructuredOutputOptions>()
       expectTypeOf<Options>().toExtend<OpenAIToolsOptions>()
       expectTypeOf<Options>().toExtend<OpenAIStreamingOptions>()
       expectTypeOf<Options>().toExtend<BaseOptions>()
     })
+  })
 
+  describe('Models WITH structured output AND tools but WITHOUT reasoning (Standard)', () => {
     it('gpt-5-codex should have structured output and tools but NOT reasoning', () => {
       type Options = OpenAIChatModelProviderOptionsByName['gpt-5-codex']
 
@@ -439,11 +453,12 @@ describe('OpenAI Chat Model Provider Options Type Assertions', () => {
       expectTypeOf<Options>().toExtend<BaseOptions>()
     })
 
-    it('computer-use-preview should have tools but NOT structured output', () => {
+    it('computer-use-preview should have tools and reasoning with concise but NOT structured output', () => {
       type Options =
         OpenAIChatModelProviderOptionsByName['computer-use-preview']
 
-      expectTypeOf<Options>().not.toExtend<OpenAIReasoningOptions>()
+      // Should have reasoning options with 'concise' summary support
+      expectTypeOf<Options>().toExtend<OpenAIReasoningOptionsWithConcise>()
       expectTypeOf<Options>().not.toExtend<OpenAIStructuredOutputOptions>()
       expectTypeOf<Options>().toExtend<OpenAIToolsOptions>()
       expectTypeOf<Options>().toExtend<OpenAIStreamingOptions>()
@@ -698,13 +713,16 @@ describe('OpenAI Chat Model Provider Options Type Assertions', () => {
       >().toExtend<FullFeaturedOptions>()
     })
 
-    it('standard models should NOT extend reasoning options but should extend structured output and tools', () => {
+    it('gpt-5-mini and gpt-5-nano should extend FullFeaturedOptions (reasoning + structured output + tools)', () => {
       expectTypeOf<
         OpenAIChatModelProviderOptionsByName['gpt-5-mini']
-      >().toExtend<StandardOptions>()
+      >().toExtend<FullFeaturedOptions>()
       expectTypeOf<
         OpenAIChatModelProviderOptionsByName['gpt-5-nano']
-      >().toExtend<StandardOptions>()
+      >().toExtend<FullFeaturedOptions>()
+    })
+
+    it('standard models should NOT extend reasoning options but should extend structured output and tools', () => {
       expectTypeOf<
         OpenAIChatModelProviderOptionsByName['gpt-4.1']
       >().toExtend<StandardOptions>()
@@ -719,9 +737,6 @@ describe('OpenAI Chat Model Provider Options Type Assertions', () => {
       >().toExtend<StandardOptions>()
 
       // Verify these do NOT extend reasoning options (discrimination already tested above)
-      expectTypeOf<
-        OpenAIChatModelProviderOptionsByName['gpt-5-mini']
-      >().not.toExtend<OpenAIReasoningOptions>()
       expectTypeOf<
         OpenAIChatModelProviderOptionsByName['gpt-4.1']
       >().not.toExtend<OpenAIReasoningOptions>()
@@ -820,7 +835,7 @@ describe('OpenAI Model Input Modality Type Assertions', () => {
 
   describe('gpt-5.1 (text + image)', () => {
     type Modalities = OpenAIModelInputModalitiesByName['gpt-5.1']
-    type Message = ConstrainedModelMessage<Modalities>
+    type Message = ConstrainedModelMessage<MakeInputModalitiesTypes<Modalities>>
 
     it('should allow TextPart and ImagePart', () => {
       expectTypeOf<MessageWithContent<TextPart>>().toExtend<Message>()
@@ -836,7 +851,7 @@ describe('OpenAI Model Input Modality Type Assertions', () => {
 
   describe('gpt-5.1-codex (text + image)', () => {
     type Modalities = OpenAIModelInputModalitiesByName['gpt-5.1-codex']
-    type Message = ConstrainedModelMessage<Modalities>
+    type Message = ConstrainedModelMessage<MakeInputModalitiesTypes<Modalities>>
 
     it('should allow TextPart and ImagePart', () => {
       expectTypeOf<MessageWithContent<TextPart>>().toExtend<Message>()
@@ -852,7 +867,7 @@ describe('OpenAI Model Input Modality Type Assertions', () => {
 
   describe('gpt-5 (text + image)', () => {
     type Modalities = OpenAIModelInputModalitiesByName['gpt-5']
-    type Message = ConstrainedModelMessage<Modalities>
+    type Message = ConstrainedModelMessage<MakeInputModalitiesTypes<Modalities>>
 
     it('should allow TextPart and ImagePart', () => {
       expectTypeOf<MessageWithContent<TextPart>>().toExtend<Message>()
@@ -868,7 +883,7 @@ describe('OpenAI Model Input Modality Type Assertions', () => {
 
   describe('gpt-5-mini (text + image)', () => {
     type Modalities = OpenAIModelInputModalitiesByName['gpt-5-mini']
-    type Message = ConstrainedModelMessage<Modalities>
+    type Message = ConstrainedModelMessage<MakeInputModalitiesTypes<Modalities>>
 
     it('should allow TextPart and ImagePart', () => {
       expectTypeOf<MessageWithContent<TextPart>>().toExtend<Message>()
@@ -884,7 +899,7 @@ describe('OpenAI Model Input Modality Type Assertions', () => {
 
   describe('gpt-5-nano (text + image)', () => {
     type Modalities = OpenAIModelInputModalitiesByName['gpt-5-nano']
-    type Message = ConstrainedModelMessage<Modalities>
+    type Message = ConstrainedModelMessage<MakeInputModalitiesTypes<Modalities>>
 
     it('should allow TextPart and ImagePart', () => {
       expectTypeOf<MessageWithContent<TextPart>>().toExtend<Message>()
@@ -900,7 +915,7 @@ describe('OpenAI Model Input Modality Type Assertions', () => {
 
   describe('gpt-5-pro (text + image)', () => {
     type Modalities = OpenAIModelInputModalitiesByName['gpt-5-pro']
-    type Message = ConstrainedModelMessage<Modalities>
+    type Message = ConstrainedModelMessage<MakeInputModalitiesTypes<Modalities>>
 
     it('should allow TextPart and ImagePart', () => {
       expectTypeOf<MessageWithContent<TextPart>>().toExtend<Message>()
@@ -916,7 +931,7 @@ describe('OpenAI Model Input Modality Type Assertions', () => {
 
   describe('gpt-5-codex (text + image)', () => {
     type Modalities = OpenAIModelInputModalitiesByName['gpt-5-codex']
-    type Message = ConstrainedModelMessage<Modalities>
+    type Message = ConstrainedModelMessage<MakeInputModalitiesTypes<Modalities>>
 
     it('should allow TextPart and ImagePart', () => {
       expectTypeOf<MessageWithContent<TextPart>>().toExtend<Message>()
@@ -932,7 +947,7 @@ describe('OpenAI Model Input Modality Type Assertions', () => {
 
   describe('gpt-4.1 (text + image)', () => {
     type Modalities = OpenAIModelInputModalitiesByName['gpt-4.1']
-    type Message = ConstrainedModelMessage<Modalities>
+    type Message = ConstrainedModelMessage<MakeInputModalitiesTypes<Modalities>>
 
     it('should allow TextPart and ImagePart', () => {
       expectTypeOf<MessageWithContent<TextPart>>().toExtend<Message>()
@@ -948,7 +963,7 @@ describe('OpenAI Model Input Modality Type Assertions', () => {
 
   describe('gpt-4.1-mini (text + image)', () => {
     type Modalities = OpenAIModelInputModalitiesByName['gpt-4.1-mini']
-    type Message = ConstrainedModelMessage<Modalities>
+    type Message = ConstrainedModelMessage<MakeInputModalitiesTypes<Modalities>>
 
     it('should allow TextPart and ImagePart', () => {
       expectTypeOf<MessageWithContent<TextPart>>().toExtend<Message>()
@@ -964,7 +979,7 @@ describe('OpenAI Model Input Modality Type Assertions', () => {
 
   describe('gpt-4.1-nano (text + image)', () => {
     type Modalities = OpenAIModelInputModalitiesByName['gpt-4.1-nano']
-    type Message = ConstrainedModelMessage<Modalities>
+    type Message = ConstrainedModelMessage<MakeInputModalitiesTypes<Modalities>>
 
     it('should allow TextPart and ImagePart', () => {
       expectTypeOf<MessageWithContent<TextPart>>().toExtend<Message>()
@@ -980,7 +995,7 @@ describe('OpenAI Model Input Modality Type Assertions', () => {
 
   describe('codex-mini-latest (text + image)', () => {
     type Modalities = OpenAIModelInputModalitiesByName['codex-mini-latest']
-    type Message = ConstrainedModelMessage<Modalities>
+    type Message = ConstrainedModelMessage<MakeInputModalitiesTypes<Modalities>>
 
     it('should allow TextPart and ImagePart', () => {
       expectTypeOf<MessageWithContent<TextPart>>().toExtend<Message>()
@@ -996,7 +1011,7 @@ describe('OpenAI Model Input Modality Type Assertions', () => {
 
   describe('computer-use-preview (text + image)', () => {
     type Modalities = OpenAIModelInputModalitiesByName['computer-use-preview']
-    type Message = ConstrainedModelMessage<Modalities>
+    type Message = ConstrainedModelMessage<MakeInputModalitiesTypes<Modalities>>
 
     it('should allow TextPart and ImagePart', () => {
       expectTypeOf<MessageWithContent<TextPart>>().toExtend<Message>()
@@ -1012,7 +1027,7 @@ describe('OpenAI Model Input Modality Type Assertions', () => {
 
   describe('o3 (text + image)', () => {
     type Modalities = OpenAIModelInputModalitiesByName['o3']
-    type Message = ConstrainedModelMessage<Modalities>
+    type Message = ConstrainedModelMessage<MakeInputModalitiesTypes<Modalities>>
 
     it('should allow TextPart and ImagePart', () => {
       expectTypeOf<MessageWithContent<TextPart>>().toExtend<Message>()
@@ -1028,7 +1043,7 @@ describe('OpenAI Model Input Modality Type Assertions', () => {
 
   describe('o3-pro (text + image)', () => {
     type Modalities = OpenAIModelInputModalitiesByName['o3-pro']
-    type Message = ConstrainedModelMessage<Modalities>
+    type Message = ConstrainedModelMessage<MakeInputModalitiesTypes<Modalities>>
 
     it('should allow TextPart and ImagePart', () => {
       expectTypeOf<MessageWithContent<TextPart>>().toExtend<Message>()
@@ -1044,7 +1059,7 @@ describe('OpenAI Model Input Modality Type Assertions', () => {
 
   describe('o3-deep-research (text + image)', () => {
     type Modalities = OpenAIModelInputModalitiesByName['o3-deep-research']
-    type Message = ConstrainedModelMessage<Modalities>
+    type Message = ConstrainedModelMessage<MakeInputModalitiesTypes<Modalities>>
 
     it('should allow TextPart and ImagePart', () => {
       expectTypeOf<MessageWithContent<TextPart>>().toExtend<Message>()
@@ -1060,7 +1075,7 @@ describe('OpenAI Model Input Modality Type Assertions', () => {
 
   describe('o4-mini-deep-research (text + image)', () => {
     type Modalities = OpenAIModelInputModalitiesByName['o4-mini-deep-research']
-    type Message = ConstrainedModelMessage<Modalities>
+    type Message = ConstrainedModelMessage<MakeInputModalitiesTypes<Modalities>>
 
     it('should allow TextPart and ImagePart', () => {
       expectTypeOf<MessageWithContent<TextPart>>().toExtend<Message>()
@@ -1076,7 +1091,7 @@ describe('OpenAI Model Input Modality Type Assertions', () => {
 
   describe('o4-mini (text + image)', () => {
     type Modalities = OpenAIModelInputModalitiesByName['o4-mini']
-    type Message = ConstrainedModelMessage<Modalities>
+    type Message = ConstrainedModelMessage<MakeInputModalitiesTypes<Modalities>>
 
     it('should allow TextPart and ImagePart', () => {
       expectTypeOf<MessageWithContent<TextPart>>().toExtend<Message>()
@@ -1092,7 +1107,7 @@ describe('OpenAI Model Input Modality Type Assertions', () => {
 
   describe('o1 (text + image)', () => {
     type Modalities = OpenAIModelInputModalitiesByName['o1']
-    type Message = ConstrainedModelMessage<Modalities>
+    type Message = ConstrainedModelMessage<MakeInputModalitiesTypes<Modalities>>
 
     it('should allow TextPart and ImagePart', () => {
       expectTypeOf<MessageWithContent<TextPart>>().toExtend<Message>()
@@ -1108,7 +1123,7 @@ describe('OpenAI Model Input Modality Type Assertions', () => {
 
   describe('o1-pro (text + image)', () => {
     type Modalities = OpenAIModelInputModalitiesByName['o1-pro']
-    type Message = ConstrainedModelMessage<Modalities>
+    type Message = ConstrainedModelMessage<MakeInputModalitiesTypes<Modalities>>
 
     it('should allow TextPart and ImagePart', () => {
       expectTypeOf<MessageWithContent<TextPart>>().toExtend<Message>()
@@ -1126,7 +1141,7 @@ describe('OpenAI Model Input Modality Type Assertions', () => {
 
   describe('gpt-audio (text + audio)', () => {
     type Modalities = OpenAIModelInputModalitiesByName['gpt-audio']
-    type Message = ConstrainedModelMessage<Modalities>
+    type Message = ConstrainedModelMessage<MakeInputModalitiesTypes<Modalities>>
 
     it('should allow TextPart and AudioPart', () => {
       expectTypeOf<MessageWithContent<TextPart>>().toExtend<Message>()
@@ -1142,7 +1157,7 @@ describe('OpenAI Model Input Modality Type Assertions', () => {
 
   describe('gpt-audio-mini (text + audio)', () => {
     type Modalities = OpenAIModelInputModalitiesByName['gpt-audio-mini']
-    type Message = ConstrainedModelMessage<Modalities>
+    type Message = ConstrainedModelMessage<MakeInputModalitiesTypes<Modalities>>
 
     it('should allow TextPart and AudioPart', () => {
       expectTypeOf<MessageWithContent<TextPart>>().toExtend<Message>()
@@ -1160,7 +1175,7 @@ describe('OpenAI Model Input Modality Type Assertions', () => {
 
   describe('o3-mini (text only)', () => {
     type Modalities = OpenAIModelInputModalitiesByName['o3-mini']
-    type Message = ConstrainedModelMessage<Modalities>
+    type Message = ConstrainedModelMessage<MakeInputModalitiesTypes<Modalities>>
 
     it('should allow TextPart', () => {
       expectTypeOf<MessageWithContent<TextPart>>().toExtend<Message>()

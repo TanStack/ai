@@ -6,12 +6,12 @@ title: InferToolInput
 # Type Alias: InferToolInput\<T\>
 
 ```ts
-type InferToolInput<T> = T extends object ? TInput extends z.ZodType ? z.infer<TInput> : any : any;
+type InferToolInput<T> = T extends object ? TInput extends StandardJSONSchemaV1<infer TInferred, unknown> ? TInferred : TInput extends JSONSchema ? unknown : unknown : unknown;
 ```
 
-Defined in: [tools/tool-definition.ts:61](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/tools/tool-definition.ts#L61)
+Defined in: [activities/chat/tools/tool-definition.ts:66](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/activities/chat/tools/tool-definition.ts#L66)
 
-Extract the input type from a tool (inferred from Zod schema)
+Extract the input type from a tool (inferred from Standard JSON Schema, or `unknown` for plain JSONSchema)
 
 ## Type Parameters
 
