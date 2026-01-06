@@ -23,7 +23,7 @@ The framework-agnostic core of TanStack AI provides the building blocks for crea
 - **Next.js** - API routes and App Router
 - **TanStack Start** - React Start or Solid Start (recommended!)
 - **Express** - Node.js server
-- **Remix Router v7** - Loaders and actions
+- **React Router v7** - Loaders and actions
 
 TanStack AI lets you define a tool once and provide environment-specific implementations. Using `toolDefinition()` to declare the tool's input/output types and the server behavior with `.server()` (or a client implementation with `.client()`). These isomorphic tools can be invoked from the AI runtime regardless of framework.
 
