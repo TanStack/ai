@@ -1,16 +1,16 @@
-import { describe, it, expectTypeOf } from 'vitest'
+import { describe, expectTypeOf, it } from 'vitest'
 import type {
   OpenAIChatModelProviderOptionsByName,
   OpenAIModelInputModalitiesByName,
 } from '../src/model-meta'
 import type {
   OpenAIBaseOptions,
+  OpenAIMetadataOptions,
   OpenAIReasoningOptions,
   OpenAIReasoningOptionsWithConcise,
+  OpenAIStreamingOptions,
   OpenAIStructuredOutputOptions,
   OpenAIToolsOptions,
-  OpenAIStreamingOptions,
-  OpenAIMetadataOptions,
 } from '../src/text/text-provider-options'
 import type { OpenAIMessageMetadataByModality } from '../src/message-types'
 import type {

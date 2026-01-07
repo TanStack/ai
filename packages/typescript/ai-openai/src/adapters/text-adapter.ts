@@ -1,19 +1,11 @@
 import { BaseTextAdapter } from '@tanstack/ai/adapters'
-import { validateTextProviderOptions } from '../text/text-provider-options'
 import { convertToolsToProviderFormat } from '../tools'
 import {
   createOpenAIClient,
   generateId,
-  getOpenAIApiKeyFromEnv,
   makeOpenAIStructuredOutputCompatible,
   transformNullsToUndefined,
 } from '../utils'
-import { createOpenAICompatibleProvider } from './text-adapter'
-import type {
-  OPENAI_CHAT_MODELS,
-  OpenAIChatModelProviderOptionsByName,
-  OpenAIModelInputModalitiesByName,
-} from '../model-meta'
 import type {
   StructuredOutputOptions,
   StructuredOutputResult,
@@ -21,89 +13,129 @@ import type {
 import type OpenAI_SDK from 'openai'
 import type { Responses } from 'openai/resources'
 import type {
+  ConstrainedModelMessage,
   ContentPart,
+  DefaultMessageMetadataByModality,
+  Modality,
   ModelMessage,
   StreamChunk,
   TextOptions,
 } from '@tanstack/ai'
-import type {
-  ExternalTextProviderOptions,
-  InternalTextProviderOptions,
-} from '../text/text-provider-options'
-import type {
-  OpenAIAudioMetadata,
-  OpenAIImageMetadata,
-  OpenAIMessageMetadataByModality,
-} from '../message-types'
 import type { OpenAIClientConfig } from '../utils'
-import type { OpenAICompatibleProvider } from './text-adapter'
-
-/**
- * Configuration for OpenAI text adapter
- */
-export interface OpenAITextConfig extends OpenAIClientConfig {}
-
-/**
- * Alias for TextProviderOptions
- */
-export type OpenAITextProviderOptions = ExternalTextProviderOptions
 
 // ===========================
-// Type Resolution Helpers
+// Generic Configuration Types
 // ===========================
 
 /**
- * Resolve provider options for a specific model.
- * If the model has explicit options in the map, use those; otherwise use base options.
+ * Configuration for OpenAI-compatible adapters.
+ * Includes all standard OpenAI config plus an optional custom name.
  */
-type ResolveProviderOptions<TModel extends string> =
-  TModel extends keyof OpenAIChatModelProviderOptionsByName
-    ? OpenAIChatModelProviderOptionsByName[TModel]
-    : OpenAITextProviderOptions
+export interface OpenAICompatibleConfig extends OpenAIClientConfig {
+  /**
+   * Custom name for this adapter (e.g., 'qwen', 'grok', 'together').
+   * Defaults to 'openai-compatible' if not specified.
+   */
+  name?: string
+}
 
 /**
- * Resolve input modalities for a specific model.
- * If the model has explicit modalities in the map, use those; otherwise use all modalities.
+ * Default metadata for modalities - can be overridden by custom providers.
  */
-type ResolveInputModalities<TModel extends string> =
-  TModel extends keyof OpenAIModelInputModalitiesByName
-    ? OpenAIModelInputModalitiesByName[TModel]
-    : readonly ['text', 'image', 'audio']
+export interface DefaultImageMetadata {
+  detail?: 'auto' | 'low' | 'high'
+}
+
+export interface DefaultAudioMetadata {
+  format?: 'mp3' | 'wav' | 'flac' | 'ogg' | 'webm' | 'aac'
+}
 
 // ===========================
-// Adapter Implementation
+// Generic Adapter Implementation
 // ===========================
 
 /**
- * OpenAI Text (Chat) Adapter
+ * OpenAI-Compatible Text Adapter
  *
- * Tree-shakeable adapter for OpenAI chat/text completion functionality.
- * Import only what you need for smaller bundle sizes.
+ * A generic adapter that uses the OpenAI SDK under the hood but accepts
+ * custom type parameters for models, provider options, modalities, and metadata.
+ *
+ * This is useful for providers that use OpenAI-compatible APIs but have their
+ * own model names, provider-specific options, and input modalities.
+ *
+ * @typeParam TModels - Union type or tuple of model names (e.g., 'qwen-turbo' | 'qwen-plus')
+ * @typeParam TModel - The specific model being used (constrained to TModels)
+ * @typeParam TProviderOptionsByModel - Map from model name to its provider options
+ * @typeParam TInputModalitiesByModel - Map from model name to its input modalities
+ * @typeParam TMessageMetadata - Metadata types for message content parts
+ *
+ * @example
+ * ```typescript
+ * // Define your models
+ * const QWEN_MODELS = ['qwen-turbo', 'qwen-plus', 'qwen-max'] as const
+ *
+ * // Define provider options per model
+ * type QwenProviderOptionsByModel = {
+ *   'qwen-turbo': { enable_search?: boolean }
+ *   'qwen-plus': { enable_search?: boolean; plugins?: string[] }
+ *   'qwen-max': { enable_search?: boolean; plugins?: string[] }
+ * }
+ *
+ * // Define input modalities per model
+ * type QwenInputModalitiesByModel = {
+ *   'qwen-turbo': readonly ['text']
+ *   'qwen-plus': readonly ['text', 'image']
+ *   'qwen-max': readonly ['text', 'image', 'audio']
+ * }
+ *
+ * // Create the adapter
+ * const adapter = new OpenAICompatibleTextAdapter<
+ *   typeof QWEN_MODELS,
+ *   'qwen-plus',
+ *   QwenProviderOptionsByModel,
+ *   QwenInputModalitiesByModel
+ * >({ apiKey: '...', baseURL: '...', name: 'qwen' }, 'qwen-plus')
+ * ```
  */
-export class OpenAITextAdapter<
-  TModel extends (typeof OPENAI_CHAT_MODELS)[number],
+export class OpenAICompatibleTextAdapter<
+  TModels extends ReadonlyArray<string>,
+  TModel extends TModels[number],
+  TProviderOptionsByModel extends Record<string, object> = Record<
+    string,
+    object
+  >,
+  TInputModalitiesByModel extends Record<string, ReadonlyArray<Modality>> =
+    Record<string, ReadonlyArray<Modality>>,
+  TMessageMetadata extends DefaultMessageMetadataByModality =
+    DefaultMessageMetadataByModality,
+  // Resolved types based on the specific model
+  TProviderOptions extends object = TModel extends keyof TProviderOptionsByModel
+    ? TProviderOptionsByModel[TModel]
+    : object,
+  TInputModalities extends ReadonlyArray<Modality> =
+    TModel extends keyof TInputModalitiesByModel
+      ? TInputModalitiesByModel[TModel]
+      : readonly ['text', 'image'],
 > extends BaseTextAdapter<
   TModel,
-  ResolveProviderOptions<TModel>,
-  ResolveInputModalities<TModel>,
-  OpenAIMessageMetadataByModality
+  TProviderOptions,
+  TInputModalities,
+  TMessageMetadata
 > {
   readonly kind = 'text' as const
-  readonly name = 'openai' as const
+  readonly name: string
 
-  private client: OpenAI_SDK
+  protected client: OpenAI_SDK
 
-  constructor(config: OpenAITextConfig, model: TModel) {
+  constructor(config: OpenAICompatibleConfig, model: TModel) {
     super({}, model)
     this.client = createOpenAIClient(config)
+    this.name = config.name || 'openai-compatible'
   }
 
   async *chatStream(
-    options: TextOptions<ResolveProviderOptions<TModel>>,
+    options: TextOptions<TProviderOptions>,
   ): AsyncIterable<StreamChunk> {
-    // Track tool call metadata by unique ID
-    // OpenAI streams tool calls with deltas - first chunk has ID/name, subsequent chunks only have args
-    // We assign our own indices as we encounter unique tool call IDs
     const toolCallMetadata = new Map<string, { index: number; name: string }>()
     const requestArguments = this.mapTextOptionsToOpenAI(options)
 
@@ -119,7 +151,6 @@ export class OpenAITextAdapter<
         },
       )
 
-      // Chat Completions API uses SSE format - iterate directly
       yield* this.processOpenAIStreamChunks(
         response,
         toolCallMetadata,
@@ -128,33 +159,21 @@ export class OpenAITextAdapter<
       )
     } catch (error: unknown) {
       const err = error as Error
-      console.error('>>> chatStream: Fatal error during response creation <<<')
+      console.error(
+        `>>> [${this.name}] chatStream: Fatal error during response creation <<<`,
+      )
       console.error('>>> Error message:', err.message)
       console.error('>>> Error stack:', err.stack)
-      console.error('>>> Full error:', err)
       throw error
     }
   }
 
-  /**
-   * Generate structured output using OpenAI's native JSON Schema response format.
-   * Uses stream: false to get the complete response in one call.
-   *
-   * OpenAI has strict requirements for structured output:
-   * - All properties must be in the `required` array
-   * - Optional fields should have null added to their type union
-   * - additionalProperties must be false for all objects
-   *
-   * The outputSchema is already JSON Schema (converted in the ai layer).
-   * We apply OpenAI-specific transformations for structured output compatibility.
-   */
   async structuredOutput(
-    options: StructuredOutputOptions<ResolveProviderOptions<TModel>>,
+    options: StructuredOutputOptions<TProviderOptions>,
   ): Promise<StructuredOutputResult<unknown>> {
     const { chatOptions, outputSchema } = options
     const requestArguments = this.mapTextOptionsToOpenAI(chatOptions)
 
-    // Apply OpenAI-specific transformations for structured output compatibility
     const jsonSchema = makeOpenAIStructuredOutputCompatible(
       outputSchema,
       outputSchema.required || [],
@@ -165,7 +184,6 @@ export class OpenAITextAdapter<
         {
           ...requestArguments,
           stream: false,
-          // Configure structured output via text.format
           text: {
             format: {
               type: 'json_schema',
@@ -181,10 +199,8 @@ export class OpenAITextAdapter<
         },
       )
 
-      // Extract text content from the response
       const rawText = this.extractTextFromResponse(response)
 
-      // Parse the JSON response
       let parsed: unknown
       try {
         parsed = JSON.parse(rawText)
@@ -194,8 +210,6 @@ export class OpenAITextAdapter<
         )
       }
 
-      // Transform null values to undefined to match original Zod schema expectations
-      // OpenAI returns null for optional fields we made nullable in the schema
       const transformed = transformNullsToUndefined(parsed)
 
       return {
@@ -204,15 +218,14 @@ export class OpenAITextAdapter<
       }
     } catch (error: unknown) {
       const err = error as Error
-      console.error('>>> structuredOutput: Error during response creation <<<')
+      console.error(
+        `>>> [${this.name}] structuredOutput: Error during response creation <<<`,
+      )
       console.error('>>> Error message:', err.message)
       throw error
     }
   }
 
-  /**
-   * Extract text content from a non-streaming response
-   */
   private extractTextFromResponse(
     response: OpenAI_SDK.Responses.Response,
   ): string {
@@ -242,11 +255,9 @@ export class OpenAITextAdapter<
     const timestamp = Date.now()
     let chunkCount = 0
 
-    // Track if we've been streaming deltas to avoid duplicating content from done events
     let hasStreamedContentDeltas = false
     let hasStreamedReasoningDeltas = false
 
-    // Preserve response metadata across events
     let responseId: string | null = null
     let model: string = options.model
 
@@ -293,7 +304,7 @@ export class OpenAITextAdapter<
             },
           }
         }
-        // handle general response events
+
         if (
           chunk.type === 'response.created' ||
           chunk.type === 'response.incomplete' ||
@@ -301,7 +312,6 @@ export class OpenAITextAdapter<
         ) {
           responseId = chunk.response.id
           model = chunk.response.model
-          // Reset streaming flags for new response
           hasStreamedContentDeltas = false
           hasStreamedReasoningDeltas = false
           accumulatedContent = ''
@@ -327,10 +337,8 @@ export class OpenAITextAdapter<
             }
           }
         }
-        // Handle output text deltas (token-by-token streaming)
-        // response.output_text.delta provides incremental text updates
+
         if (chunk.type === 'response.output_text.delta' && chunk.delta) {
-          // Delta can be an array of strings or a single string
           const textDelta = Array.isArray(chunk.delta)
             ? chunk.delta.join('')
             : typeof chunk.delta === 'string'
@@ -352,10 +360,7 @@ export class OpenAITextAdapter<
           }
         }
 
-        // Handle reasoning deltas (token-by-token thinking/reasoning streaming)
-        // response.reasoning_text.delta provides incremental reasoning updates
         if (chunk.type === 'response.reasoning_text.delta' && chunk.delta) {
-          // Delta can be an array of strings or a single string
           const reasoningDelta = Array.isArray(chunk.delta)
             ? chunk.delta.join('')
             : typeof chunk.delta === 'string'
@@ -376,8 +381,6 @@ export class OpenAITextAdapter<
           }
         }
 
-        // Handle reasoning summary deltas (when using reasoning.summary option)
-        // response.reasoning_summary_text.delta provides incremental summary updates
         if (
           chunk.type === 'response.reasoning_summary_text.delta' &&
           chunk.delta
@@ -399,7 +402,6 @@ export class OpenAITextAdapter<
           }
         }
 
-        // handle content_part added events for text, reasoning and refusals
         if (chunk.type === 'response.content_part.added') {
           const contentPart = chunk.part
           yield handleContentPart(contentPart)
@@ -408,29 +410,22 @@ export class OpenAITextAdapter<
         if (chunk.type === 'response.content_part.done') {
           const contentPart = chunk.part
 
-          // Skip emitting chunks for content parts that we've already streamed via deltas
-          // The done event is just a completion marker, not new content
           if (contentPart.type === 'output_text' && hasStreamedContentDeltas) {
-            // Content already accumulated from deltas, skip
             continue
           }
           if (
             contentPart.type === 'reasoning_text' &&
             hasStreamedReasoningDeltas
           ) {
-            // Reasoning already accumulated from deltas, skip
             continue
           }
 
-          // Only emit if we haven't been streaming deltas (e.g., for non-streaming responses)
           yield handleContentPart(contentPart)
         }
 
-        // handle output_item.added to capture function call metadata (name)
         if (chunk.type === 'response.output_item.added') {
           const item = chunk.item
           if (item.type === 'function_call' && item.id) {
-            // Store the function name for later use
             if (!toolCallMetadata.has(item.id)) {
               toolCallMetadata.set(item.id, {
                 index: chunk.output_index,
@@ -443,7 +438,6 @@ export class OpenAITextAdapter<
         if (chunk.type === 'response.function_call_arguments.done') {
           const { item_id, output_index } = chunk
 
-          // Get the function name from metadata (captured in output_item.added)
           const metadata = toolCallMetadata.get(item_id)
           const name = metadata?.name || ''
 
@@ -465,8 +459,6 @@ export class OpenAITextAdapter<
         }
 
         if (chunk.type === 'response.completed') {
-          // Determine finish reason based on output
-          // If there are function_call items in the output, it's a tool_calls finish
           const hasFunctionCalls = chunk.response.output.some(
             (item: unknown) =>
               (item as { type: string }).type === 'function_call',
@@ -502,7 +494,7 @@ export class OpenAITextAdapter<
     } catch (error: unknown) {
       const err = error as Error & { code?: string }
       console.log(
-        '[OpenAI Adapter] Stream ended with error. Event type summary:',
+        `[${this.name} Adapter] Stream ended with error. Event type summary:`,
         {
           totalChunks: chunkCount,
           error: err.message,
@@ -521,30 +513,9 @@ export class OpenAITextAdapter<
     }
   }
 
-  /**
-   * Maps common options to OpenAI-specific format
-   * Handles translation of normalized options to OpenAI's API format
-   */
   private mapTextOptionsToOpenAI(options: TextOptions) {
-    const modelOptions = options.modelOptions as
-      | Omit<
-          InternalTextProviderOptions,
-          | 'max_output_tokens'
-          | 'tools'
-          | 'metadata'
-          | 'temperature'
-          | 'input'
-          | 'top_p'
-        >
-      | undefined
+    const modelOptions = options.modelOptions as object | undefined
     const input = this.convertMessagesToInput(options.messages)
-    if (modelOptions) {
-      validateTextProviderOptions({
-        ...modelOptions,
-        input,
-        model: options.model,
-      })
-    }
 
     const tools = options.tools
       ? convertToolsToProviderFormat(options.tools)
@@ -574,7 +545,6 @@ export class OpenAITextAdapter<
     const result: Responses.ResponseInput = []
 
     for (const message of messages) {
-      // Handle tool messages - convert to FunctionToolCallOutput
       if (message.role === 'tool') {
         result.push({
           type: 'function_call_output',
@@ -587,14 +557,9 @@ export class OpenAITextAdapter<
         continue
       }
 
-      // Handle assistant messages
       if (message.role === 'assistant') {
-        // If the assistant message has tool calls, add them as FunctionToolCall objects
-        // OpenAI Responses API expects arguments as a string (JSON string)
         if (message.toolCalls && message.toolCalls.length > 0) {
           for (const toolCall of message.toolCalls) {
-            // Keep arguments as string for Responses API
-            // Our internal format stores arguments as a JSON string, which is what API expects
             const argumentsString =
               typeof toolCall.function.arguments === 'string'
                 ? toolCall.function.arguments
@@ -609,9 +574,7 @@ export class OpenAITextAdapter<
           }
         }
 
-        // Add the assistant's text message if there is content
         if (message.content) {
-          // Assistant messages are typically text-only
           const contentStr = this.extractTextContent(message.content)
           if (contentStr) {
             result.push({
@@ -625,25 +588,13 @@ export class OpenAITextAdapter<
         continue
       }
 
-      // Handle user messages (default case) - support multimodal content
       const contentParts = this.normalizeContent(message.content)
       const openAIContent: Array<Responses.ResponseInputContent> = []
 
       for (const part of contentParts) {
-        openAIContent.push(
-          this.convertContentPartToOpenAI(
-            part as ContentPart<
-              unknown,
-              OpenAIImageMetadata,
-              OpenAIAudioMetadata,
-              unknown,
-              unknown
-            >,
-          ),
-        )
+        openAIContent.push(this.convertContentPartToOpenAI(part))
       }
 
-      // If no content parts, add empty text
       if (openAIContent.length === 0) {
         openAIContent.push({ type: 'input_text', text: '' })
       }
@@ -658,18 +609,8 @@ export class OpenAITextAdapter<
     return result
   }
 
-  /**
-   * Converts a ContentPart to OpenAI input content item.
-   * Handles text, image, and audio content parts.
-   */
   private convertContentPartToOpenAI(
-    part: ContentPart<
-      unknown,
-      OpenAIImageMetadata,
-      OpenAIAudioMetadata,
-      unknown,
-      unknown
-    >,
+    part: ContentPart,
   ): Responses.ResponseInputContent {
     switch (part.type) {
       case 'text':
@@ -678,7 +619,7 @@ export class OpenAITextAdapter<
           text: part.content,
         }
       case 'image': {
-        const imageMetadata = part.metadata
+        const imageMetadata = part.metadata as DefaultImageMetadata | undefined
         if (part.source.type === 'url') {
           return {
             type: 'input_image',
@@ -686,7 +627,6 @@ export class OpenAITextAdapter<
             detail: imageMetadata?.detail || 'auto',
           }
         }
-        // For base64 data, construct a data URI
         return {
           type: 'input_image',
           image_url: part.source.value,
@@ -695,8 +635,6 @@ export class OpenAITextAdapter<
       }
       case 'audio': {
         if (part.source.type === 'url') {
-          // OpenAI may support audio URLs in the future
-          // For now, treat as data URI
           return {
             type: 'input_file',
             file_url: part.source.value,
@@ -713,10 +651,6 @@ export class OpenAITextAdapter<
     }
   }
 
-  /**
-   * Normalizes message content to an array of ContentPart.
-   * Handles backward compatibility with string content.
-   */
   private normalizeContent(
     content: string | null | Array<ContentPart>,
   ): Array<ContentPart> {
@@ -729,9 +663,6 @@ export class OpenAITextAdapter<
     return content
   }
 
-  /**
-   * Extracts text content from a content value that may be string, null, or ContentPart array.
-   */
   private extractTextContent(
     content: string | null | Array<ContentPart>,
   ): string {
@@ -741,7 +672,6 @@ export class OpenAITextAdapter<
     if (typeof content === 'string') {
       return content
     }
-    // It's an array of ContentPart
     return content
       .filter((p) => p.type === 'text')
       .map((p) => p.content)
@@ -749,161 +679,317 @@ export class OpenAITextAdapter<
   }
 }
 
+// ===========================
+// Factory Function Types
+// ===========================
+
 /**
- * Creates an OpenAI chat adapter with explicit API key.
- * Type resolution happens here at the call site.
- *
- * @param model - The model name (e.g., 'gpt-4o', 'gpt-4-turbo')
- * @param apiKey - Your OpenAI API key
- * @param config - Optional additional configuration
- * @returns Configured OpenAI chat adapter instance with resolved types
- *
- * @example
- * ```typescript
- * const adapter = createOpenaiChat('gpt-4o', "sk-...");
- * // adapter has type-safe modelOptions for gpt-4o
- * ```
+ * Configuration for creating an OpenAI-compatible provider wrapper.
  */
-export function createOpenaiChat<
-  TModel extends (typeof OPENAI_CHAT_MODELS)[number],
->(model: TModel, apiKey: string, config?: Omit<OpenAITextConfig, 'apiKey'>) {
-  return createOpenAICompatibleProvider<
-    typeof OPENAI_CHAT_MODELS,
-    TModel,
-    OpenAIChatModelProviderOptionsByName,
-    OpenAIModelInputModalitiesByName,
-    OpenAIMessageMetadataByModality
-  >(
-    {
-      apiKey,
-      name: 'openai' as const,
-      ...config,
-      baseURL: config?.baseURL || 'https://api.openai.com/v1',
-      organization: config?.organization,
-    },
-    model,
-  )
+export interface OpenAICompatibleProviderConfig {
+  /**
+   * Provider name for identification (e.g., 'qwen', 'grok').
+   */
+  name: string
+
+  /**
+   * Base URL for the OpenAI-compatible API endpoint.
+   */
+  baseURL: string
+
+  /**
+   * API key for authentication.
+   */
+  apiKey: string
+
+  /**
+   * Optional organization ID.
+   */
+  organization?: string
 }
 
 /**
- * Creates an OpenAI text adapter with automatic API key detection from environment variables.
- * Type resolution happens here at the call site.
- *
- * Looks for `OPENAI_API_KEY` in:
- * - `process.env` (Node.js)
- * - `window.env` (Browser with injected env)
- *
- * @param model - The model name (e.g., 'gpt-4o', 'gpt-4-turbo')
- * @param config - Optional configuration (excluding apiKey which is auto-detected)
- * @returns Configured OpenAI text adapter instance with resolved types
- * @throws Error if OPENAI_API_KEY is not found in environment
- *
- * @example
- * ```typescript
- * // Automatically uses OPENAI_API_KEY from environment
- * const adapter = openaiText('gpt-4o');
- *
- * const stream = chat({
- *   adapter,
- *   messages: [{ role: "user", content: "Hello!" }]
- * });
- * ```
+ * Helper to check if type is exactly empty object by checking Required<T>.
+ * An empty object {} has no keys even after Required.
+ * A type like { a?: string } has 'a' as a key after Required.
  */
-export function openaiText<TModel extends (typeof OPENAI_CHAT_MODELS)[number]>(
-  model: TModel,
-  config?: Omit<OpenAITextConfig, 'apiKey'>,
-) {
-  const apiKey = getOpenAIApiKeyFromEnv()
-  return createOpenaiChat(model, apiKey, config)
+type IsExactlyEmptyObject<T> = keyof T extends never
+  ? T extends Record<string, never>
+    ? true
+    : {} extends Required<T>
+      ? true
+      : false
+  : false
+
+/**
+ * Utility type to make empty object types strict (disallow extra properties).
+ * When T is an empty object {}, it becomes Record<string, never> which rejects any properties.
+ * Objects with defined keys (even optional ones) are left unchanged.
+ * This ensures that modelOptions for a model with no defined options cannot accept arbitrary properties.
+ */
+type StrictEmptyObject<T> =
+  IsExactlyEmptyObject<T> extends true ? Record<string, never> : T
+
+/**
+ * Utility type to make empty metadata objects strict across all modalities.
+ * Only converts empty {} to Record<string, never>, preserving non-empty types.
+ */
+type StrictMetadataByModality<T extends DefaultMessageMetadataByModality> = {
+  text: StrictEmptyObject<T['text']>
+  image: StrictEmptyObject<T['image']>
+  audio: StrictEmptyObject<T['audio']>
+  video: StrictEmptyObject<T['video']>
+  document: StrictEmptyObject<T['document']>
 }
 
 /**
- * Type alias for the OpenAI provider returned by createOpenai and openai functions.
+ * Resolves the provider options for a specific model, with strict empty object handling.
  */
-export type OpenAIProvider<TModel extends (typeof OPENAI_CHAT_MODELS)[number]> =
-  OpenAICompatibleProvider<
-    typeof OPENAI_CHAT_MODELS,
-    TModel,
-    OpenAIChatModelProviderOptionsByName,
-    OpenAIModelInputModalitiesByName,
-    OpenAIMessageMetadataByModality
+type ResolveProviderOptions<
+  TModel extends string,
+  TProviderOptionsByModel extends Record<string, object>,
+> = TModel extends keyof TProviderOptionsByModel
+  ? StrictEmptyObject<TProviderOptionsByModel[TModel]>
+  : Record<string, never>
+
+/**
+ * Resolves the input modalities for a specific model.
+ */
+type ResolveInputModalities<
+  TModel extends string,
+  TInputModalitiesByModel extends Record<string, ReadonlyArray<Modality>>,
+> = TModel extends keyof TInputModalitiesByModel
+  ? TInputModalitiesByModel[TModel]
+  : readonly ['text', 'image', 'audio']
+
+/**
+ * Creates an InputModalitiesTypes object for a specific model.
+ * This is used to constrain message content based on the model's capabilities.
+ */
+type CreateInputModalitiesTypes<
+  TModel extends string,
+  TInputModalitiesByModel extends Record<string, ReadonlyArray<Modality>>,
+  TMessageMetadata extends DefaultMessageMetadataByModality,
+> = {
+  inputModalities: ResolveInputModalities<TModel, TInputModalitiesByModel>
+  messageMetadataByModality: StrictMetadataByModality<TMessageMetadata>
+}
+
+/**
+ * Text options with model constraint for OpenAI-compatible providers.
+ * Properly constrains messages based on the model's input modalities and custom metadata.
+ */
+export type OpenAICompatibleTextOptions<
+  TModels extends ReadonlyArray<string>,
+  TModel extends TModels[number],
+  TProviderOptionsByModel extends Record<string, object>,
+  TInputModalitiesByModel extends Record<string, ReadonlyArray<Modality>> =
+    Record<string, ReadonlyArray<Modality>>,
+  TMessageMetadata extends DefaultMessageMetadataByModality =
+    DefaultMessageMetadataByModality,
+> = Omit<TextOptions, 'model' | 'modelOptions' | 'messages'> & {
+  model: TModel
+  modelOptions?: ResolveProviderOptions<TModel, TProviderOptionsByModel>
+  messages: Array<
+    ConstrainedModelMessage<
+      CreateInputModalitiesTypes<
+        TModel,
+        TInputModalitiesByModel,
+        TMessageMetadata
+      >
+    >
   >
-
-/**
- * Creates an OpenAI provider with explicit API key using the new provider API.
- * Returns a provider with chatStream and structuredOutput methods.
- *
- * @param model - The model name (e.g., 'gpt-4o', 'gpt-4-turbo')
- * @param apiKey - Your OpenAI API key
- * @param config - Optional additional configuration
- * @returns OpenAI provider with chatStream and structuredOutput methods
- *
- * @example
- * ```typescript
- * const openai = createOpenai('gpt-4o', "sk-...");
- *
- * // Stream chat completions
- * const stream = openai.chatStream({
- *   messages: [{ role: "user", content: "Hello!" }]
- * });
- *
- * // Get structured output
- * const result = await openai.structuredOutput({
- *   chatOptions: {
- *     messages: [{ role: "user", content: "Extract data" }]
- *   },
- *   outputSchema: mySchema
- * });
- * ```
- */
-export function createOpenai<
-  TModel extends (typeof OPENAI_CHAT_MODELS)[number],
->(model: TModel, apiKey: string, config?: Omit<OpenAITextConfig, 'apiKey'>) {
-  return createOpenAICompatibleProvider<
-    typeof OPENAI_CHAT_MODELS,
-    TModel,
-    OpenAIChatModelProviderOptionsByName,
-    OpenAIModelInputModalitiesByName,
-    OpenAIMessageMetadataByModality
-  >(
-    {
-      name: 'openai',
-      apiKey,
-      baseURL: config?.baseURL || 'https://api.openai.com/v1',
-      organization: config?.organization,
-    },
-    model,
-  )
 }
 
 /**
- * Creates an OpenAI provider with automatic API key detection from environment variables.
- * Returns a provider with chatStream and structuredOutput methods.
+ * Structured output options with model constraint for OpenAI-compatible providers.
+ */
+export type OpenAICompatibleStructuredOutputOptions<
+  TModels extends ReadonlyArray<string>,
+  TModel extends TModels[number],
+  TProviderOptionsByModel extends Record<string, object>,
+  TInputModalitiesByModel extends Record<string, ReadonlyArray<Modality>> =
+    Record<string, ReadonlyArray<Modality>>,
+  TMessageMetadata extends DefaultMessageMetadataByModality =
+    DefaultMessageMetadataByModality,
+> = {
+  chatOptions: OpenAICompatibleTextOptions<
+    TModels,
+    TModel,
+    TProviderOptionsByModel,
+    TInputModalitiesByModel,
+    TMessageMetadata
+  >
+  outputSchema: StructuredOutputOptions<object>['outputSchema']
+}
+
+/**
+ * Result from createOpenAICompatibleProvider - provides chatStream and structuredOutput methods.
+ */
+export interface OpenAICompatibleProvider<
+  TModels extends ReadonlyArray<string>,
+  TModel extends TModels[number],
+  TProviderOptionsByModel extends Record<string, object>,
+  TInputModalitiesByModel extends Record<string, ReadonlyArray<Modality>>,
+  TMessageMetadata extends DefaultMessageMetadataByModality,
+> {
+  /**
+   * Stream chat completions from the model.
+   */
+  chatStream: (
+    options: Omit<
+      OpenAICompatibleTextOptions<
+        TModels,
+        TModel,
+        TProviderOptionsByModel,
+        TInputModalitiesByModel,
+        TMessageMetadata
+      >,
+      'model'
+    >,
+  ) => AsyncIterable<StreamChunk>
+
+  /**
+   * Generate structured output using the provider's native JSON Schema response format.
+   */
+  structuredOutput: (options: {
+    chatOptions: Omit<
+      OpenAICompatibleTextOptions<
+        TModels,
+        TModel,
+        TProviderOptionsByModel,
+        TInputModalitiesByModel,
+        TMessageMetadata
+      >,
+      'model'
+    >
+    outputSchema: StructuredOutputOptions<object>['outputSchema']
+  }) => Promise<StructuredOutputResult<unknown>>
+
+  /**
+   * The model this provider is configured for.
+   */
+  model: TModel
+
+  /**
+   * The provider name.
+   */
+  name: string
+}
+
+/**
+ * Creates a typed OpenAI-compatible provider wrapper.
  *
- * Looks for `OPENAI_API_KEY` in:
- * - `process.env` (Node.js)
- * - `window.env` (Browser with injected env)
- *
- * @param model - The model name (e.g., 'gpt-4o', 'gpt-4-turbo')
- * @param config - Optional configuration (excluding apiKey which is auto-detected)
- * @returns OpenAI provider with chatStream and structuredOutput methods
- * @throws Error if OPENAI_API_KEY is not found in environment
+ * Use this function to create custom providers that use OpenAI-compatible APIs
+ * but have their own model definitions, provider options, and type safety.
  *
  * @example
  * ```typescript
- * // Automatically uses OPENAI_API_KEY from environment
- * const openai = openai('gpt-4o');
+ * // Define your models
+ * const QWEN_MODELS = ['qwen-turbo', 'qwen-plus', 'qwen-max'] as const
  *
- * // Stream chat completions
- * const stream = openai.chatStream({
- *   messages: [{ role: "user", content: "Hello!" }]
- * });
+ * // Define provider options per model (optional - defaults to empty object)
+ * type QwenProviderOptionsByModel = {
+ *   'qwen-turbo': { enable_search?: boolean }
+ *   'qwen-plus': { enable_search?: boolean; plugins?: string[] }
+ *   'qwen-max': { enable_search?: boolean; plugins?: string[] }
+ * }
+ *
+ * // Define input modalities per model (optional - defaults to text/image/audio)
+ * type QwenInputModalitiesByModel = {
+ *   'qwen-turbo': readonly ['text']
+ *   'qwen-plus': readonly ['text', 'image']
+ *   'qwen-max': readonly ['text', 'image', 'audio']
+ * }
+ *
+ * // Create the provider
+ * const qwen = createOpenAICompatibleProvider<
+ *   typeof QWEN_MODELS,
+ *   'qwen-plus',
+ *   QwenProviderOptionsByModel,
+ *   QwenInputModalitiesByModel
+ * >(
+ *   {
+ *     name: 'qwen',
+ *     apiKey: 'your-api-key',
+ *     baseURL: 'https://dashscope.aliyuncs.com/compatible-mode/v1',
+ *   },
+ *   'qwen-plus',
+ * )
+ *
+ * // Use the provider - model is already bound
+ * qwen.chatStream({
+ *   messages: [{ role: 'user', content: 'Hello!' }],
+ * })
  * ```
  */
-export function openai<TModel extends (typeof OPENAI_CHAT_MODELS)[number]>(
-  model: TModel,
-  config?: Omit<OpenAITextConfig, 'apiKey'>,
-) {
-  const apiKey = getOpenAIApiKeyFromEnv()
-  return createOpenai(model, apiKey, config)
+export function createOpenAICompatibleProvider<
+  TModels extends ReadonlyArray<string>,
+  TModel extends TModels[number],
+  TProviderOptionsByModel extends Record<string, object> = Record<
+    string,
+    object
+  >,
+  TInputModalitiesByModel extends Record<string, ReadonlyArray<Modality>> =
+    Record<string, ReadonlyArray<Modality>>,
+  TMessageMetadata extends DefaultMessageMetadataByModality =
+    DefaultMessageMetadataByModality,
+>(config: OpenAICompatibleProviderConfig, model: TModel) {
+  const adapter = new OpenAICompatibleTextAdapter<
+    TModels,
+    TModel,
+    TProviderOptionsByModel,
+    TInputModalitiesByModel,
+    TMessageMetadata
+  >(config, model)
+
+  // Create a wrapper that implements the OpenAICompatibleProvider interface
+  // by injecting the bound model into chatStream and structuredOutput calls
+  return adapter
+}
+
+// ===========================
+// Simplified Type Helpers
+// ===========================
+
+/**
+ * Helper type to define provider options for all models with a common base.
+ * Use this when all your models share the same provider options.
+ *
+ * @example
+ * ```typescript
+ * type MyProviderOptions = {
+ *   customOption?: boolean
+ *   anotherOption?: string
+ * }
+ *
+ * type MyProviderOptionsByModel = UniformProviderOptions<
+ *   typeof MY_MODELS,
+ *   MyProviderOptions
+ * >
+ * ```
+ */
+export type UniformProviderOptions<
+  TModels extends ReadonlyArray<string>,
+  TOptions extends object,
+> = {
+  [K in TModels[number]]: TOptions
+}
+
+/**
+ * Helper type to define uniform input modalities for all models.
+ *
+ * @example
+ * ```typescript
+ * type MyInputModalities = UniformInputModalities<
+ *   typeof MY_MODELS,
+ *   readonly ['text', 'image']
+ * >
+ * ```
+ */
+export type UniformInputModalities<
+  TModels extends ReadonlyArray<string>,
+  TModalities extends ReadonlyArray<Modality>,
+> = {
+  [K in TModels[number]]: TModalities
 }

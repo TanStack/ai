@@ -93,3 +93,17 @@ export type {
   OpenAIDocumentMetadata,
   OpenAIMessageMetadataByModality,
 } from './message-types'
+
+export {
+  OpenAICompatibleTextAdapter,
+  createOpenAICompatibleProvider,
+  type OpenAICompatibleConfig,
+  type OpenAICompatibleProviderConfig,
+  type OpenAICompatibleProvider,
+  type OpenAICompatibleTextOptions,
+  type OpenAICompatibleStructuredOutputOptions,
+  type UniformProviderOptions,
+  type UniformInputModalities,
+  type DefaultImageMetadata,
+  type DefaultAudioMetadata,
+} from './adapters/text-adapter'
