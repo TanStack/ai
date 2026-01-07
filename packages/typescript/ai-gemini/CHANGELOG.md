@@ -1,5 +1,11 @@
 # @tanstack/ai-gemini
 
+## 0.3.1
+
+### Patch Changes
+
+- fix: generate unique IDs for parallel function calls in Gemini adapter ([#199](https://github.com/TanStack/ai/pull/199))
+
 ## 0.3.0
 
 ### Minor Changes
