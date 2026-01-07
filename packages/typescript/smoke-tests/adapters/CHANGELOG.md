@@ -1,5 +1,13 @@
 # @tanstack/tests-adapters
 
+## 0.1.2
+
+### Patch Changes
+
+- Updated dependencies [[`7c40941`](https://github.com/TanStack/ai/commit/7c40941e93346b721c1cffe0eb13864101559b94), [`12696d9`](https://github.com/TanStack/ai/commit/12696d9f098017d5ace446e23170055a361f8d3d)]:
+  - @tanstack/ai-grok@0.1.0
+  - @tanstack/ai-gemini@0.3.1
+
 ## 0.1.1
 
 ### Patch Changes

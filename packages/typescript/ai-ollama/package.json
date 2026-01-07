@@ -43,12 +43,12 @@
   "dependencies": {
     "ollama": "^0.6.3"
   },
+  "peerDependencies": {
+    "@tanstack/ai": "workspace:^"
+  },
   "devDependencies": {
+    "@tanstack/ai": "workspace:*",
     "@vitest/coverage-v8": "4.0.14",
     "vite": "^7.2.7"
-  },
-  "peerDependencies": {
-    "@tanstack/ai": "workspace:^",
-    "zod": "^4.0.0"
   }
 }
