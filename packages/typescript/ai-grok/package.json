@@ -1,13 +1,13 @@
 {
-  "name": "@tanstack/ai-gemini",
-  "version": "0.3.1",
-  "description": "Google Gemini adapter for TanStack AI",
+  "name": "@tanstack/ai-grok",
+  "version": "0.1.0",
+  "description": "Grok (xAI) adapter for TanStack AI",
   "author": "",
   "license": "MIT",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/TanStack/ai.git",
-    "directory": "packages/typescript/ai-gemini"
+    "directory": "packages/typescript/ai-grok"
   },
   "type": "module",
   "module": "./dist/esm/index.js",
@@ -28,26 +28,26 @@
     "lint:fix": "eslint ./src --fix",
     "test:build": "publint --strict",
     "test:eslint": "eslint ./src",
-    "test:lib": "vitest",
+    "test:lib": "vitest run",
     "test:lib:dev": "pnpm test:lib --watch",
     "test:types": "tsc"
   },
   "keywords": [
     "ai",
-    "gemini",
-    "google",
+    "grok",
+    "xai",
     "tanstack",
     "adapter"
   ],
   "dependencies": {
-    "@google/genai": "^1.30.0"
-  },
-  "peerDependencies": {
-    "@tanstack/ai": "workspace:^"
+    "openai": "^6.9.1"
   },
   "devDependencies": {
-    "@tanstack/ai": "workspace:*",
     "@vitest/coverage-v8": "4.0.14",
     "vite": "^7.2.7"
+  },
+  "peerDependencies": {
+    "@tanstack/ai": "workspace:^",
+    "zod": "^4.0.0"
   }
 }
