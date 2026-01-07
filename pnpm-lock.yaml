@@ -654,8 +654,8 @@ importers:
         specifier: ^0.4.4
         version: 0.4.4(csstype@3.2.3)(solid-js@1.9.10)
       '@tanstack/devtools-utils':
-        specifier: ^0.0.8
-        version: 0.0.8(@types/react@19.2.7)(csstype@3.2.3)(react@19.2.3)(solid-js@1.9.10)(vue@3.5.25(typescript@5.9.3))
+        specifier: ^0.2.3
+        version: 0.2.3(@types/react@19.2.7)(csstype@3.2.3)(preact@10.28.1)(react@19.2.3)(solid-js@1.9.10)(vue@3.5.25(typescript@5.9.3))
       goober:
         specifier: ^2.1.18
         version: 2.1.18(csstype@3.2.3)
@@ -1002,8 +1002,8 @@ importers:
         specifier: workspace:*
         version: link:../ai-devtools
       '@tanstack/devtools-utils':
-        specifier: ^0.2.0
-        version: 0.2.0(@types/react@19.2.7)(preact@10.28.1)(react@19.2.3)(solid-js@1.9.10)(vue@3.5.25(typescript@5.9.3))
+        specifier: ^0.2.3
+        version: 0.2.3(@types/react@19.2.7)(csstype@3.2.3)(preact@10.28.1)(react@19.2.3)(solid-js@1.9.10)(vue@3.5.25(typescript@5.9.3))
       preact:
         specifier: ^10.0.0
         version: 10.28.1
@@ -1021,8 +1021,8 @@ importers:
         specifier: workspace:*
         version: link:../ai-devtools
       '@tanstack/devtools-utils':
-        specifier: ^0.0.8
-        version: 0.0.8(@types/react@19.2.7)(csstype@3.2.3)(react@19.2.3)(solid-js@1.9.10)(vue@3.5.25(typescript@5.9.3))
+        specifier: ^0.2.3
+        version: 0.2.3(@types/react@19.2.7)(csstype@3.2.3)(preact@10.28.1)(react@19.2.3)(solid-js@1.9.10)(vue@3.5.25(typescript@5.9.3))
     devDependencies:
       '@types/react':
         specifier: ^19.2.7
@@ -1149,8 +1149,8 @@ importers:
         specifier: workspace:*
         version: link:../ai-devtools
       '@tanstack/devtools-utils':
-        specifier: ^0.0.8
-        version: 0.0.8(@types/react@19.2.7)(csstype@3.2.3)(react@19.2.3)(solid-js@1.9.10)(vue@3.5.25(typescript@5.9.3))
+        specifier: ^0.2.3
+        version: 0.2.3(@types/react@19.2.7)(csstype@3.2.3)(preact@10.28.1)(react@19.2.3)(solid-js@1.9.10)(vue@3.5.25(typescript@5.9.3))
     devDependencies:
       '@vitest/coverage-v8':
         specifier: 4.0.14
@@ -3071,26 +3071,8 @@ packages:
     peerDependencies:
       solid-js: '>=1.9.7'
 
-  '@tanstack/devtools-utils@0.0.8':
-    resolution: {integrity: sha512-cWoohW9OswidFclwopYRsW0FR3jOoC5iMy0pUHm/31uAnlTb3ViFoZ1VqMf7vZESYdDeee8OjaICS1YbKksDxg==}
-    engines: {node: '>=18'}
-    peerDependencies:
-      '@types/react': '>=19.0.0'
-      react: '>=19.0.0'
-      solid-js: '>=1.9.7'
-      vue: '>=3.2.0'
-    peerDependenciesMeta:
-      '@types/react':
-        optional: true
-      react:
-        optional: true
-      solid-js:
-        optional: true
-      vue:
-        optional: true
-
-  '@tanstack/devtools-utils@0.2.0':
-    resolution: {integrity: sha512-8XcJ6baYPK1mpvj+m6BA9uknDMlhQSKzT+9VDQlkbs+Fyj98bbkxV9FGrm+eVZVGk07HcJr9EK8B3YBs+kAI6Q==}
+  '@tanstack/devtools-utils@0.2.3':
+    resolution: {integrity: sha512-Ob7wAGTNs7SfOJWZlV+3fi7JGT8ApgeNKoaKV4trRk3TDjThm0w4EwbNDsfZu5NCvefSOY0sequp2qG8g7zG/g==}
     engines: {node: '>=18'}
     peerDependencies:
       '@types/react': '>=17.0.0'
@@ -9665,18 +9647,7 @@ snapshots:
     transitivePeerDependencies:
       - csstype
 
-  '@tanstack/devtools-utils@0.0.8(@types/react@19.2.7)(csstype@3.2.3)(react@19.2.3)(solid-js@1.9.10)(vue@3.5.25(typescript@5.9.3))':
-    dependencies:
-      '@tanstack/devtools-ui': 0.4.4(csstype@3.2.3)(solid-js@1.9.10)
-    optionalDependencies:
-      '@types/react': 19.2.7
-      react: 19.2.3
-      solid-js: 1.9.10
-      vue: 3.5.25(typescript@5.9.3)
-    transitivePeerDependencies:
-      - csstype
-
-  '@tanstack/devtools-utils@0.2.0(@types/react@19.2.7)(preact@10.28.1)(react@19.2.3)(solid-js@1.9.10)(vue@3.5.25(typescript@5.9.3))':
+  '@tanstack/devtools-utils@0.2.3(@types/react@19.2.7)(csstype@3.2.3)(preact@10.28.1)(react@19.2.3)(solid-js@1.9.10)(vue@3.5.25(typescript@5.9.3))':
     dependencies:
       '@tanstack/devtools-ui': 0.4.4(csstype@3.2.3)(solid-js@1.9.10)
     optionalDependencies:
