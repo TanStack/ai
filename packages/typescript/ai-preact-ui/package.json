@@ -1,0 +1,57 @@
+{
+  "name": "@tanstack/ai-preact-ui",
+  "version": "0.0.0",
+  "description": "Headless Preact components for building AI chat interfaces",
+  "module": "./dist/esm/index.js",
+  "types": "./dist/esm/index.d.ts",
+  "type": "module",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/TanStack/ai.git",
+    "directory": "packages/typescript/ai-preact-ui"
+  },
+  "exports": {
+    ".": {
+      "types": "./dist/esm/index.d.ts",
+      "import": "./dist/esm/index.js"
+    }
+  },
+  "scripts": {
+    "build": "vite build",
+    "clean": "premove ./build ./dist",
+    "test:build": "publint --strict",
+    "test:eslint": "eslint ./src",
+    "test:lib": "vitest --passWithNoTests",
+    "test:lib:dev": "pnpm test:lib --watch",
+    "test:types": "tsc"
+  },
+  "keywords": [
+    "tanstack",
+    "ai",
+    "preact",
+    "chat",
+    "ui",
+    "headless",
+    "components"
+  ],
+  "dependencies": {
+    "@tanstack/ai-preact": "workspace:*",
+    "preact-markdown": "^2.1.0",
+    "rehype-highlight": "^7.0.2",
+    "rehype-raw": "^7.0.0",
+    "rehype-sanitize": "^6.0.0",
+    "remark-gfm": "^4.0.1"
+  },
+  "peerDependencies": {
+    "@tanstack/ai-preact": "workspace:*",
+    "preact": ">=10.11.0"
+  },
+  "devDependencies": {
+    "@tanstack/ai-client": "workspace:*",
+    "@vitest/coverage-v8": "4.0.14",
+    "vite": "^7.2.7"
+  },
+  "files": [
+    "dist"
+  ]
+}
