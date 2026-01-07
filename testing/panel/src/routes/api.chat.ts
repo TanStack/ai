@@ -1,12 +1,17 @@
 import * as path from 'node:path'
 import * as fs from 'node:fs'
 import { createFileRoute } from '@tanstack/react-router'
-import { chat, maxIterations, toStreamResponse } from '@tanstack/ai'
-import { anthropic } from '@tanstack/ai-anthropic'
-import { gemini } from '@tanstack/ai-gemini'
-import { openai } from '@tanstack/ai-openai'
-import { ollama } from '@tanstack/ai-ollama'
-import type { AIAdapter, ChatOptions, StreamChunk } from '@tanstack/ai'
+import {
+  chat,
+  createChatOptions,
+  maxIterations,
+  toServerSentEventsResponse,
+} from '@tanstack/ai'
+import { anthropicText } from '@tanstack/ai-anthropic'
+import { geminiText } from '@tanstack/ai-gemini'
+import { openaiText } from '@tanstack/ai-openai'
+import { ollamaText } from '@tanstack/ai-ollama'
+import type { AIAdapter, StreamChunk } from '@tanstack/ai'
 import type { ChunkRecording } from '@/lib/recording'
 import {
   addToCartToolDef,
@@ -58,6 +63,11 @@ function wrapAdapterForRecording<TAdapter extends AIAdapter>(
   model: string,
   provider: string,
 ): TAdapter {
+  // Type guard to check if adapter has chatStream
+  if (!('chatStream' in adapter) || typeof adapter.chatStream !== 'function') {
+    return adapter
+  }
+
   const originalChatStream = adapter.chatStream.bind(adapter)
 
   // Track chunks for recording
@@ -72,7 +82,7 @@ function wrapAdapterForRecording<TAdapter extends AIAdapter>(
   const wrappedAdapter = {
     ...adapter,
     chatStream: async function* (
-      options: ChatOptions<string, any>,
+      options: Parameters<typeof originalChatStream>[0],
     ): AsyncIterable<StreamChunk> {
       const startTime = Date.now()
 
@@ -147,38 +157,36 @@ export const Route = createFileRoute('/api/chat')({
 
         // Extract provider, model, and traceId from data
         const provider: Provider = data.provider || 'openai'
-        const model: string | undefined = data.model
+        const model: string = data.model || 'gpt-4o'
         const traceId: string | undefined = data.traceId
 
         try {
-          // Select adapter based on provider
-          let adapter
-          let defaultModel
-
-          switch (provider) {
-            case 'anthropic':
-              adapter = anthropic()
-              defaultModel = 'claude-sonnet-4-5-20250929'
-              break
-            case 'gemini':
-              adapter = gemini()
-              defaultModel = 'gemini-2.0-flash-exp'
-              break
-            case 'ollama':
-              adapter = ollama()
-              defaultModel = 'mistral:7b'
-              break
-            case 'openai':
-            default:
-              adapter = openai()
-              defaultModel = 'gpt-4o'
-              break
+          // Pre-define typed adapter configurations with full type inference
+          // Model is passed to the adapter factory function for type-safe autocomplete
+          const adapterConfig = {
+            anthropic: () =>
+              createChatOptions({
+                adapter: anthropicText((model || 'claude-sonnet-4-5') as any),
+              }),
+            gemini: () =>
+              createChatOptions({
+                adapter: geminiText((model || 'gemini-2.0-flash') as any),
+              }),
+            ollama: () =>
+              createChatOptions({
+                adapter: ollamaText((model || 'mistral:7b') as any),
+              }),
+            openai: () =>
+              createChatOptions({
+                adapter: openaiText((model || 'gpt-4o') as any),
+              }),
           }
 
-          // Determine model - use provided model or default based on provider
-          const selectedModel = model || defaultModel
+          // Get typed adapter options using createChatOptions pattern
+          const options = adapterConfig[provider]()
+          let { adapter } = options
 
-          console.log(`>> model: ${selectedModel} on provider: ${provider}`)
+          console.log(`>> model: ${model} on provider: ${provider}`)
 
           // If we have a traceId, wrap the adapter to record raw chunks from chatStream
           if (traceId) {
@@ -190,15 +198,15 @@ export const Route = createFileRoute('/api/chat')({
             adapter = wrapAdapterForRecording(
               adapter,
               traceFile,
-              selectedModel,
+              model,
               provider,
             )
           }
 
           // Use the stream abort signal for proper cancellation handling
           const stream = chat({
-            adapter: adapter as any,
-            model: selectedModel as any,
+            ...options,
+            adapter, // Use potentially wrapped adapter
             tools: [
               getGuitars, // Server tool
               recommendGuitarToolDef, // No server execute - client will handle
@@ -209,7 +217,7 @@ export const Route = createFileRoute('/api/chat')({
             systemPrompts: [SYSTEM_PROMPT],
             agentLoopStrategy: maxIterations(20),
             messages,
-            providerOptions: {
+            modelOptions: {
               // Enable reasoning for OpenAI (gpt-5, o3 models):
               // reasoning: {
               //   effort: "medium", // or "low", "high", "minimal", "none" (for gpt-5.1)
@@ -223,7 +231,7 @@ export const Route = createFileRoute('/api/chat')({
             abortController,
           })
 
-          return toStreamResponse(stream, { abortController })
+          return toServerSentEventsResponse(stream, { abortController })
         } catch (error: any) {
           console.error('[API Route] Error in chat request:', {
             message: error?.message,

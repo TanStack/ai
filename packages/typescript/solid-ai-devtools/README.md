@@ -38,7 +38,9 @@
 A powerful, type-safe AI SDK for building AI-powered applications.
 
 - Provider-agnostic adapters (OpenAI, Anthropic, Gemini, Ollama, etc.)
+- **Tree-shakeable adapters** - Import only what you need for smaller bundles
 - **Multimodal content support** - Send images, audio, video, and documents
+- **Image generation** - Generate images with OpenAI DALL-E/GPT-Image and Gemini Imagen
 - Chat completion, streaming, and agent loop strategies
 - Headless chat state management with adapters (SSE, HTTP stream, custom)
 - Isomorphic type-safe tools with server/client execution
@@ -46,30 +48,29 @@ A powerful, type-safe AI SDK for building AI-powered applications.
 
 ### <a href="https://tanstack.com/ai">Read the docs →</b></a>
 
-## Bonus: TanStack Start Integration
+## Tree-Shakeable Adapters
 
-TanStack AI works with **any** framework (Next.js, Express, Remix, etc.).
-
-**With TanStack Start**, you get a bonus: share implementations between AI tools and server functions with `createServerFnTool`:
+Import only the functionality you need for smaller bundle sizes:
 
 ```typescript
-import { createServerFnTool } from '@tanstack/ai-react'
+// Only chat functionality - no summarization code bundled
+import { openaiText } from '@tanstack/ai-openai/adapters'
+import { generate } from '@tanstack/ai'
 
-// Define once, get AI tool AND server function (TanStack Start only)
-const getProducts = createServerFnTool({
-  name: 'getProducts',
-  inputSchema: z.object({ query: z.string() }),
-  execute: async ({ query }) => db.products.search(query),
+const textAdapter = openaiText()
+
+const result = generate({
+  adapter: textAdapter,
+  model: 'gpt-4o',
+  messages: [{ role: 'user', content: [{ type: 'text', content: 'Hello!' }] }],
 })
 
-// Use in AI chat
-chat({ tools: [getProducts.server] })
-
-// Call directly from components (no API endpoint needed!)
-const products = await getProducts.serverFn({ query: 'laptop' })
+for await (const chunk of result) {
+  console.log(chunk)
+}
 ```
 
-No duplicate logic, full type safety, automatic validation. The `serverFn` feature requires TanStack Start. See [docs](https://tanstack.com/ai) for details.
+Available adapters: `openaiText`, `openaiEmbed`, `openaiSummarize`, `anthropicText`, `geminiText`, `ollamaText`, and more.
 
 ## Get Involved
 

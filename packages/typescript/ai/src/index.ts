@@ -1,6 +1,40 @@
-export { chat } from './core/chat'
-export { summarize } from './core/summarize'
-export { embedding } from './core/embedding'
+// Activity functions - individual exports for each activity
+export {
+  chat,
+  summarize,
+  generateImage,
+  generateVideo,
+  getVideoJobStatus,
+  generateSpeech,
+  generateTranscription,
+} from './activities/index'
+
+// Create options functions - for pre-defining typed configurations
+export { createChatOptions } from './activities/chat/index'
+export { createSummarizeOptions } from './activities/summarize/index'
+export { createImageOptions } from './activities/generateImage/index'
+export { createVideoOptions } from './activities/generateVideo/index'
+export { createSpeechOptions } from './activities/generateSpeech/index'
+export { createTranscriptionOptions } from './activities/generateTranscription/index'
+
+// Re-export types
+export type {
+  AIAdapter,
+  ImageAdapter,
+  AnyImageAdapter,
+  TextAdapter,
+  AnyTextAdapter,
+  AnySummarizeAdapter,
+  SummarizeAdapter,
+  AnyTTSAdapter,
+  TTSAdapter,
+  AnyTranscriptionAdapter,
+  TranscriptionAdapter,
+  AnyVideoAdapter,
+  VideoAdapter,
+} from './activities/index'
+
+// Tool definition
 export {
   toolDefinition,
   type ToolDefinition,
@@ -12,33 +46,45 @@ export {
   type InferToolName,
   type InferToolInput,
   type InferToolOutput,
-} from './tools/tool-definition'
-export { convertZodToJsonSchema } from './tools/zod-converter'
+} from './activities/chat/tools/tool-definition'
+
+// Schema conversion (Standard JSON Schema compliant)
+export { convertSchemaToJsonSchema } from './activities/chat/tools/schema-converter'
+
+// Stream utilities
 export {
+  streamToText,
   toServerSentEventsStream,
-  toStreamResponse,
-} from './utilities/stream-to-response'
-export { BaseAdapter } from './base-adapter'
-export { ToolCallManager } from './tools/tool-calls'
+  toServerSentEventsResponse,
+  toHttpStream,
+  toHttpResponse,
+} from './stream-to-response'
+
+// Tool call management
+export { ToolCallManager } from './activities/chat/tools/tool-calls'
+
+// Agent loop strategies
 export {
   maxIterations,
   untilFinishReason,
   combineStrategies,
-} from './utilities/agent-loop-strategies'
+} from './activities/chat/agent-loop-strategies'
+
+// All types
 export * from './types'
-export { chatOptions } from './utilities/chat-options'
-export { messages } from './utilities/messages'
+
+// Event client
 export { aiEventClient } from './event-client'
 
 // Message converters
 export {
   convertMessagesToModelMessages,
+  generateMessageId,
   uiMessageToModelMessages,
   modelMessageToUIMessage,
   modelMessagesToUIMessages,
   normalizeToUIMessage,
-  generateMessageId,
-} from './message-converters'
+} from './activities/chat/messages'
 
 // Stream processing (unified for server and client)
 export {
@@ -52,7 +98,7 @@ export {
   PartialJSONParser,
   defaultJSONParser,
   parsePartialJSON,
-} from './stream'
+} from './activities/chat/stream/index'
 export type {
   ChunkStrategy,
   ChunkRecording,
@@ -65,4 +111,4 @@ export type {
   ToolCallState,
   ToolResultState,
   JSONParser,
-} from './stream'
+} from './activities/chat/stream/index'

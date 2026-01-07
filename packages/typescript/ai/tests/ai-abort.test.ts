@@ -1,29 +1,35 @@
 import { describe, it, expect } from 'vitest'
 import { z } from 'zod'
-import { chat } from '../src/core/chat'
-import type { ChatOptions, StreamChunk } from '../src/types'
-import { BaseAdapter } from '../src/base-adapter'
+import { chat } from '../src/activities/chat'
+import type {
+  TextOptions,
+  StreamChunk,
+  DefaultMessageMetadataByModality,
+} from '../src/types'
+import { BaseTextAdapter } from '../src/activities/chat/adapter'
 
 // Mock adapter that tracks abort signal usage
-class MockAdapter extends BaseAdapter<
-  readonly ['test-model'],
-  readonly [],
+class MockAdapter extends BaseTextAdapter<
+  'test-model',
   Record<string, any>,
-  Record<string, any>,
-  Record<string, any>
+  readonly ['text'],
+  DefaultMessageMetadataByModality
 > {
   public receivedAbortSignals: (AbortSignal | undefined)[] = []
   public chatStreamCallCount = 0
 
-  name = 'mock'
-  models = ['test-model'] as const
+  readonly name = 'mock'
 
-  private getAbortSignal(options: ChatOptions): AbortSignal | undefined {
+  constructor() {
+    super({}, 'test-model')
+  }
+
+  private getAbortSignal(options: TextOptions): AbortSignal | undefined {
     const signal = (options.request as RequestInit | undefined)?.signal
     return signal ?? undefined
   }
 
-  async *chatStream(options: ChatOptions): AsyncIterable<StreamChunk> {
+  async *chatStream(options: TextOptions): AsyncIterable<StreamChunk> {
     this.chatStreamCallCount++
     const abortSignal = this.getAbortSignal(options)
     this.receivedAbortSignals.push(abortSignal)
@@ -63,12 +69,8 @@ class MockAdapter extends BaseAdapter<
     }
   }
 
-  async summarize(_options: any): Promise<any> {
-    return { summary: 'test' }
-  }
-
-  async createEmbeddings(_options: any): Promise<any> {
-    return { embeddings: [] }
+  async structuredOutput(_options: any): Promise<any> {
+    return { data: {}, rawText: '{}' }
   }
 }
 
@@ -81,7 +83,6 @@ describe('chat() - Abort Signal Handling', () => {
 
     const stream = chat({
       adapter: mockAdapter,
-      model: 'test-model',
       messages: [{ role: 'user', content: 'Hello' }],
       abortController,
     })
@@ -102,7 +103,6 @@ describe('chat() - Abort Signal Handling', () => {
 
     const stream = chat({
       adapter: mockAdapter,
-      model: 'test-model',
       messages: [{ role: 'user', content: 'Hello' }],
       abortController,
     })
@@ -134,7 +134,6 @@ describe('chat() - Abort Signal Handling', () => {
 
     const stream = chat({
       adapter: mockAdapter,
-      model: 'test-model',
       messages: [{ role: 'user', content: 'Hello' }],
       abortController,
     })
@@ -154,7 +153,7 @@ describe('chat() - Abort Signal Handling', () => {
 
     // Create adapter that yields tool_calls
     class ToolCallAdapter extends MockAdapter {
-      async *chatStream(_options: ChatOptions): AsyncIterable<StreamChunk> {
+      async *chatStream(_options: TextOptions): AsyncIterable<StreamChunk> {
         yield {
           type: 'tool_call',
           id: 'test-id',
@@ -184,7 +183,6 @@ describe('chat() - Abort Signal Handling', () => {
 
     const stream = chat({
       adapter: toolAdapter,
-      model: 'test-model',
       messages: [{ role: 'user', content: 'Hello' }],
       tools: [
         {
@@ -218,7 +216,6 @@ describe('chat() - Abort Signal Handling', () => {
 
     const stream = chat({
       adapter: mockAdapter,
-      model: 'test-model',
       messages: [{ role: 'user', content: 'Hello' }],
     })
 

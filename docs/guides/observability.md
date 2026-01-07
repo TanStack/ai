@@ -1,3 +1,9 @@
+---
+title: Observability
+id: observability
+order: 10
+---
+
 # Event client
 
 The `@tanstack/ai` package offers you an event client for observability and debugging purposes.

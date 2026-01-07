@@ -1,6 +1,7 @@
 ---
 title: Tools
 id: tools
+order: 1
 ---
 
 Tools (also called "function calling") allow AI models to interact with external systems, APIs, or perform computations. TanStack AI provides an isomorphic tool system that enables type-safe, framework-agnostic tool definitions that work on both server and client.
@@ -173,8 +174,8 @@ const getWeatherServer = getWeatherDef.server(async (args) => {
 ### Server-Side
 
 ```typescript
-import { chat, toStreamResponse } from "@tanstack/ai";
-import { openai } from "@tanstack/ai-openai";
+import { chat, toServerSentEventsResponse } from "@tanstack/ai";
+import { openaiText } from "@tanstack/ai-openai";
 import { getWeatherDef } from "./tools";
 
 export async function POST(request: Request) {
@@ -187,13 +188,12 @@ export async function POST(request: Request) {
   });
 
   const stream = chat({
-    adapter: openai(),
+    adapter: openaiText("gpt-4o"),
     messages,
-    model: "gpt-4o",
     tools: [getWeather], // Pass server tools
   });
 
-  return toStreamResponse(stream);
+  return toServerSentEventsResponse(stream);
 }
 ```
 
@@ -223,16 +223,16 @@ const saveToStorage = saveToStorageDef.client((input) => {
 // Create typed tools array (no 'as const' needed!)
 const tools = clientTools(updateUI, saveToStorage);
 
-const chatOptions = createChatClientOptions({
+const textOptions = createChatClientOptions({
   connection: fetchServerSentEvents("/api/chat"),
   tools,
 });
 
 // Infer message types for full type safety
-type ChatMessages = InferChatMessages<typeof chatOptions>;
+type ChatMessages = InferChatMessages<typeof textOptions>;
 
 function ChatComponent() {
-  const { messages, sendMessage } = useChat(chatOptions);
+  const { messages, sendMessage } = useChat(textOptions);
   
   // messages is now fully typed with tool names and outputs!
   return <Messages messages={messages} />;
@@ -280,7 +280,7 @@ On the server, pass the definition (for client execution) or server implementati
 
 ```typescript
 chat({
-  adapter: openai(),
+  adapter: openaiText("gpt-4o"),
   messages,
   tools: [addToCartDef], // Client will execute, or
   tools: [addToCartServer], // Server will execute

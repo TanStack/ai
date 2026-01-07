@@ -164,27 +164,26 @@ SSE provides automatic reconnection:
 
 ### Server-Side (Node.js/TypeScript)
 
-TanStack AI provides `toServerSentEventsStream()` and `toStreamResponse()` utilities:
+TanStack AI provides `toServerSentEventsStream()` and `toServerSentEventsResponse()` utilities:
 
 ```typescript
-import { chat, toStreamResponse } from '@tanstack/ai';
-import { openai } from '@tanstack/ai-openai';
+import { chat, toServerSentEventsResponse } from '@tanstack/ai';
+import { openaiText } from '@tanstack/ai-openai';
 
 export async function POST(request: Request) {
   const { messages } = await request.json();
 
   const stream = chat({
-    adapter: openai(),
+    adapter: openaiText('gpt-4o'),
     messages,
-    model: 'gpt-4o',
   });
 
   // Automatically converts StreamChunks to SSE format
-  return toStreamResponse(stream);
+  return toServerSentEventsResponse(stream);
 }
 ```
 
-**What `toStreamResponse()` does:**
+**What `toServerSentEventsResponse()` does:**
 1. Creates a `ReadableStream` from the async iterable
 2. Wraps each chunk as `data: {JSON}\n\n`
 3. Sends `data: [DONE]\n\n` at the end
@@ -224,7 +223,7 @@ export async function POST(request: Request) {
   const stream = new ReadableStream({
     async start(controller) {
       try {
-        for await (const chunk of chat({ ... })) {
+        for await (const chunk of chat({ adapter: openaiText('gpt-4o'), messages })) {
           const sseData = `data: ${JSON.stringify(chunk)}\n\n`;
           controller.enqueue(encoder.encode(sseData));
         }

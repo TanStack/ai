@@ -1,4 +1,4 @@
-import { createOpenAI } from '../src/index'
+import { createOpenaiChat } from '../src/index'
 import { z } from 'zod'
 import { readFileSync } from 'fs'
 import { join, dirname } from 'path'
@@ -28,7 +28,7 @@ if (!apiKey) {
 async function testToolWithEmptyObjectSchema() {
   console.log('🚀 Testing OpenAI tool calling with empty object schema\n')
 
-  const adapter = createOpenAI(apiKey)
+  const adapter = createOpenaiChat(apiKey)
 
   // Create a tool with empty object schema (like getGuitars)
   const getGuitarsTool = {

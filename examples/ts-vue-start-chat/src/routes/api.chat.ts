@@ -1,9 +1,15 @@
 import { createFileRoute } from '@tanstack/vue-router'
-import { chat, maxIterations, toStreamResponse } from '@tanstack/ai'
-import { openai } from '@tanstack/ai-openai'
-import { anthropic } from '@tanstack/ai-anthropic'
-import { gemini } from '@tanstack/ai-gemini'
-import { ollama } from '@tanstack/ai-ollama'
+import {
+  chat,
+  createChatOptions,
+  maxIterations,
+  toServerSentEventsResponse,
+} from '@tanstack/ai'
+import { openaiText } from '@tanstack/ai-openai'
+import { anthropicText } from '@tanstack/ai-anthropic'
+import { geminiText } from '@tanstack/ai-gemini'
+import { ollamaText } from '@tanstack/ai-ollama'
+import type { AnyTextAdapter } from '@tanstack/ai'
 import { guitars } from '@/data/guitars'
 import {
   addToCartToolDef,
@@ -60,38 +66,40 @@ export const Route = createFileRoute('/api/chat')({
         const model: string | undefined = data?.model
         const conversationId: string | undefined = data?.conversationId
 
+        // Pre-define typed adapter configurations with full type inference
+        // Model is passed to the adapter factory function for type-safe autocomplete
+        const adapterConfig: Record<
+          Provider,
+          () => { adapter: AnyTextAdapter }
+        > = {
+          anthropic: () =>
+            createChatOptions({
+              adapter: anthropicText(
+                (model || 'claude-sonnet-4-5') as 'claude-sonnet-4-5',
+              ),
+            }),
+          gemini: () =>
+            createChatOptions({
+              adapter: geminiText(
+                (model || 'gemini-2.5-flash') as 'gemini-2.5-flash',
+              ),
+            }),
+          ollama: () =>
+            createChatOptions({
+              adapter: ollamaText((model || 'mistral:7b') as 'mistral:7b'),
+            }),
+          openai: () =>
+            createChatOptions({
+              adapter: openaiText((model || 'gpt-4o') as 'gpt-4o'),
+            }),
+        }
+
         try {
-          let adapter
-          let defaultModel
-
-          switch (provider) {
-            case 'anthropic':
-              adapter = anthropic()
-              defaultModel = 'claude-sonnet-4-5-20250929'
-              break
-            case 'gemini':
-              adapter = gemini()
-              defaultModel = 'gemini-2.0-flash-exp'
-              break
-            case 'ollama':
-              adapter = ollama()
-              defaultModel = 'mistral:7b'
-              break
-            case 'openai':
-            default:
-              adapter = openai()
-              defaultModel = 'gpt-4o'
-              break
-          }
-
-          const selectedModel = model || defaultModel
-          console.log(
-            `[API Route] Using provider: ${provider}, model: ${selectedModel}`,
-          )
+          // Get typed adapter options using createChatOptions pattern
+          const options = adapterConfig[provider]()
 
           const stream = chat({
-            adapter: adapter as any,
-            model: selectedModel as any,
+            ...options,
             tools: [
               getGuitars,
               recommendGuitarToolDef,
@@ -106,7 +114,7 @@ export const Route = createFileRoute('/api/chat')({
             conversationId,
           })
 
-          return toStreamResponse(stream, { abortController })
+          return toServerSentEventsResponse(stream, { abortController })
         } catch (error: any) {
           console.error('[API Route] Error in chat request:', error)
 

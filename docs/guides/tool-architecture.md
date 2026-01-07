@@ -1,6 +1,7 @@
 ---
 title: Tool Architecture
 id: tool-architecture
+order: 2
 ---
 
 The TanStack AI tool system provides a powerful, flexible architecture for enabling AI agents to interact with external systems:
@@ -68,8 +69,8 @@ sequenceDiagram
 **Server (API Route):**
 
 ```typescript
-import { chat, toStreamResponse } from "@tanstack/ai";
-import { openai } from "@tanstack/ai-openai";
+import { chat, toServerSentEventsResponse } from "@tanstack/ai";
+import { openaiText } from "@tanstack/ai-openai";
 import { getWeather, sendEmail } from "./tools";
 
 export async function POST(request: Request) {
@@ -77,13 +78,12 @@ export async function POST(request: Request) {
 
   // Create streaming chat with tools
   const stream = chat({
-    adapter: openai(),
+    adapter: openaiText("gpt-4o"),
     messages,
-    model: "gpt-4o",
     tools: [getWeather, sendEmail], // Tool definitions passed here
   });
 
-  return toStreamResponse(stream);
+  return toServerSentEventsResponse(stream);
 }
 ```
 

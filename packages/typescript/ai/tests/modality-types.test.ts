@@ -9,20 +9,29 @@ import { describe, expectTypeOf, it } from 'vitest'
 import type {
   AudioPart,
   ConstrainedModelMessage,
-  ContentPartForModalities,
+  ContentPartForInputModalitiesTypes,
+  DefaultMessageMetadataByModality,
   DocumentPart,
   ImagePart,
+  Modality,
   TextPart,
   VideoPart,
 } from '../src/types'
+
+// Helper type to create InputModalitiesTypes from a modality array
+type CreateInputModalitiesTypes<T extends ReadonlyArray<Modality>> = {
+  inputModalities: T
+  messageMetadataByModality: DefaultMessageMetadataByModality
+}
 
 // Helper types for message with specific content
 type MessageWithContent<T> = { role: 'user'; content: Array<T> }
 
 describe('Multimodal Type Constraints', () => {
-  describe('ContentPartForModalities', () => {
+  describe('ContentPartForInputModalitiesTypes', () => {
     it('should only allow TextPart for text-only modality', () => {
-      type TextOnlyContent = ContentPartForModalities<'text'>
+      type TextOnlyInput = CreateInputModalitiesTypes<readonly ['text']>
+      type TextOnlyContent = ContentPartForInputModalitiesTypes<TextOnlyInput>
 
       expectTypeOf<TextPart>().toExtend<TextOnlyContent>()
 
@@ -34,7 +43,10 @@ describe('Multimodal Type Constraints', () => {
     })
 
     it('should allow TextPart and ImagePart for text|image modality', () => {
-      type TextImageContent = ContentPartForModalities<'text' | 'image'>
+      type TextImageInput = CreateInputModalitiesTypes<
+        readonly ['text', 'image']
+      >
+      type TextImageContent = ContentPartForInputModalitiesTypes<TextImageInput>
 
       expectTypeOf<TextPart>().toExtend<TextImageContent>()
       expectTypeOf<ImagePart>().toExtend<TextImageContent>()
@@ -46,9 +58,11 @@ describe('Multimodal Type Constraints', () => {
     })
 
     it('should allow TextPart, ImagePart, and AudioPart for text|image|audio modality', () => {
-      type TextImageAudioContent = ContentPartForModalities<
-        'text' | 'image' | 'audio'
+      type TextImageAudioInput = CreateInputModalitiesTypes<
+        readonly ['text', 'image', 'audio']
       >
+      type TextImageAudioContent =
+        ContentPartForInputModalitiesTypes<TextImageAudioInput>
 
       expectTypeOf<TextPart>().toExtend<TextImageAudioContent>()
       expectTypeOf<ImagePart>().toExtend<TextImageAudioContent>()
@@ -60,9 +74,10 @@ describe('Multimodal Type Constraints', () => {
     })
 
     it('should allow all content parts for full multimodal', () => {
-      type FullContent = ContentPartForModalities<
-        'text' | 'image' | 'audio' | 'video' | 'document'
+      type FullInput = CreateInputModalitiesTypes<
+        readonly ['text', 'image', 'audio', 'video', 'document']
       >
+      type FullContent = ContentPartForInputModalitiesTypes<FullInput>
 
       expectTypeOf<TextPart>().toExtend<FullContent>()
       expectTypeOf<ImagePart>().toExtend<FullContent>()
@@ -73,7 +88,8 @@ describe('Multimodal Type Constraints', () => {
   })
 
   describe('ConstrainedModelMessage for text-only models', () => {
-    type TextOnlyMessage = ConstrainedModelMessage<readonly ['text']>
+    type TextOnlyInput = CreateInputModalitiesTypes<readonly ['text']>
+    type TextOnlyMessage = ConstrainedModelMessage<TextOnlyInput>
 
     it('should allow string content', () => {
       expectTypeOf<{
@@ -119,7 +135,8 @@ describe('Multimodal Type Constraints', () => {
   })
 
   describe('ConstrainedModelMessage for text+image models', () => {
-    type TextImageMessage = ConstrainedModelMessage<readonly ['text', 'image']>
+    type TextImageInput = CreateInputModalitiesTypes<readonly ['text', 'image']>
+    type TextImageMessage = ConstrainedModelMessage<TextImageInput>
 
     it('should allow TextPart', () => {
       expectTypeOf<MessageWithContent<TextPart>>().toExtend<TextImageMessage>()
@@ -162,7 +179,8 @@ describe('Multimodal Type Constraints', () => {
   })
 
   describe('ConstrainedModelMessage for text+audio models', () => {
-    type TextAudioMessage = ConstrainedModelMessage<readonly ['text', 'audio']>
+    type TextAudioInput = CreateInputModalitiesTypes<readonly ['text', 'audio']>
+    type TextAudioMessage = ConstrainedModelMessage<TextAudioInput>
 
     it('should allow TextPart', () => {
       expectTypeOf<MessageWithContent<TextPart>>().toExtend<TextAudioMessage>()
@@ -186,9 +204,10 @@ describe('Multimodal Type Constraints', () => {
   })
 
   describe('ConstrainedModelMessage for text+image+audio models', () => {
-    type TextImageAudioMessage = ConstrainedModelMessage<
+    type TextImageAudioInput = CreateInputModalitiesTypes<
       readonly ['text', 'image', 'audio']
     >
+    type TextImageAudioMessage = ConstrainedModelMessage<TextImageAudioInput>
 
     it('should allow TextPart, ImagePart, and AudioPart', () => {
       expectTypeOf<
@@ -219,9 +238,11 @@ describe('Multimodal Type Constraints', () => {
   })
 
   describe('ConstrainedModelMessage for text+image+audio+video models', () => {
-    type TextImageAudioVideoMessage = ConstrainedModelMessage<
+    type TextImageAudioVideoInput = CreateInputModalitiesTypes<
       readonly ['text', 'image', 'audio', 'video']
     >
+    type TextImageAudioVideoMessage =
+      ConstrainedModelMessage<TextImageAudioVideoInput>
 
     it('should allow TextPart, ImagePart, AudioPart, and VideoPart', () => {
       expectTypeOf<
@@ -249,9 +270,10 @@ describe('Multimodal Type Constraints', () => {
   })
 
   describe('ConstrainedModelMessage for full multimodal models', () => {
-    type FullMultimodalMessage = ConstrainedModelMessage<
+    type FullInput = CreateInputModalitiesTypes<
       readonly ['text', 'image', 'audio', 'video', 'document']
     >
+    type FullMultimodalMessage = ConstrainedModelMessage<FullInput>
 
     it('should allow all content types', () => {
       expectTypeOf<
@@ -282,13 +304,17 @@ describe('Multimodal Type Constraints', () => {
 
   describe('String and null content', () => {
     it('should always allow string content regardless of modalities', () => {
-      type TextOnlyMessage = ConstrainedModelMessage<readonly ['text']>
-      type TextImageMessage = ConstrainedModelMessage<
+      type TextOnlyInput = CreateInputModalitiesTypes<readonly ['text']>
+      type TextImageInput = CreateInputModalitiesTypes<
         readonly ['text', 'image']
       >
-      type FullMessage = ConstrainedModelMessage<
+      type FullInput = CreateInputModalitiesTypes<
         readonly ['text', 'image', 'audio', 'video', 'document']
       >
+
+      type TextOnlyMessage = ConstrainedModelMessage<TextOnlyInput>
+      type TextImageMessage = ConstrainedModelMessage<TextImageInput>
+      type FullMessage = ConstrainedModelMessage<FullInput>
 
       expectTypeOf<{
         role: 'user'
@@ -302,10 +328,13 @@ describe('Multimodal Type Constraints', () => {
     })
 
     it('should always allow null content regardless of modalities', () => {
-      type TextOnlyMessage = ConstrainedModelMessage<readonly ['text']>
-      type TextImageMessage = ConstrainedModelMessage<
+      type TextOnlyInput = CreateInputModalitiesTypes<readonly ['text']>
+      type TextImageInput = CreateInputModalitiesTypes<
         readonly ['text', 'image']
       >
+
+      type TextOnlyMessage = ConstrainedModelMessage<TextOnlyInput>
+      type TextImageMessage = ConstrainedModelMessage<TextImageInput>
 
       expectTypeOf<{
         role: 'assistant'

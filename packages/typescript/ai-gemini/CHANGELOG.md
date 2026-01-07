@@ -1,5 +1,36 @@
 # @tanstack/ai-gemini
 
+## 0.3.0
+
+### Minor Changes
+
+- Add Gemini 3 Flash and Pro Image models for text and image generation ([#190](https://github.com/TanStack/ai/pull/190))
+
+### Patch Changes
+
+- fix up readmes ([#188](https://github.com/TanStack/ai/pull/188))
+
+- Updated dependencies [[`181e0ac`](https://github.com/TanStack/ai/commit/181e0acdfb44b27db6cf871b36593c0f867cadf9), [`181e0ac`](https://github.com/TanStack/ai/commit/181e0acdfb44b27db6cf871b36593c0f867cadf9)]:
+  - @tanstack/ai@0.2.1
+
+## 0.2.0
+
+### Patch Changes
+
+- Updated dependencies [[`c5df33c`](https://github.com/TanStack/ai/commit/c5df33c2d3e72c3332048ffe7c64a553e5ea86fb)]:
+  - @tanstack/ai@0.2.0
+
+## 0.1.0
+
+### Minor Changes
+
+- Split up adapters for better tree shaking into separate functionalities ([#137](https://github.com/TanStack/ai/pull/137))
+
+### Patch Changes
+
+- Updated dependencies [[`8d77614`](https://github.com/TanStack/ai/commit/8d776146f94ffd1579e1ab01b26dcb94d1bb3092)]:
+  - @tanstack/ai@0.1.0
+
 ## 0.0.3
 
 ### Patch Changes

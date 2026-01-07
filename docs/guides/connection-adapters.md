@@ -1,6 +1,7 @@
 ---
 title: Connection Adapters
 id: connection-adapters
+order: 9
 ---
 
 
@@ -10,7 +11,7 @@ Connection adapters handle the communication between your client and server for 
 
 ### Server-Sent Events (SSE)
 
-SSE is the recommended adapter for most use cases. It provides reliable streaming with automatic reconnection. On the server side, use [`toServerSentEventsStream()`](../api/ai#toserversenteventsstreamstream-abortcontroller) or [`toStreamResponse()`](../api/ai#tostreamresponsestream-init) to convert your chat stream to SSE format.
+SSE is the recommended adapter for most use cases. It provides reliable streaming with automatic reconnection. On the server side, use [`toServerSentEventsStream()`](../api/ai#toserversenteventsstreamstream-abortcontroller) or [`toServerSentEventsResponse()`](../api/ai#toserversenteventsresponsestream-init) to convert your chat stream to SSE format.
 
 ```typescript
 import { useChat, fetchServerSentEvents } from "@tanstack/ai-react";

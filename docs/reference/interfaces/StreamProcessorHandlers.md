@@ -5,7 +5,7 @@ title: StreamProcessorHandlers
 
 # Interface: StreamProcessorHandlers
 
-Defined in: [stream/processor.ts:88](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/stream/processor.ts#L88)
+Defined in: [activities/chat/stream/processor.ts:85](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/activities/chat/stream/processor.ts#L85)
 
 Legacy handlers for backward compatibility
 These are the old callback-style handlers
@@ -18,7 +18,7 @@ These are the old callback-style handlers
 optional onApprovalRequested: (toolCallId, toolName, input, approvalId) => void;
 ```
 
-Defined in: [stream/processor.ts:119](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/stream/processor.ts#L119)
+Defined in: [activities/chat/stream/processor.ts:116](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/activities/chat/stream/processor.ts#L116)
 
 #### Parameters
 
@@ -50,7 +50,7 @@ Defined in: [stream/processor.ts:119](https://github.com/TanStack/ai/blob/main/p
 optional onError: (error) => void;
 ```
 
-Defined in: [stream/processor.ts:133](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/stream/processor.ts#L133)
+Defined in: [activities/chat/stream/processor.ts:130](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/activities/chat/stream/processor.ts#L130)
 
 #### Parameters
 
@@ -76,7 +76,7 @@ Defined in: [stream/processor.ts:133](https://github.com/TanStack/ai/blob/main/p
 optional onStreamEnd: (content, toolCalls?) => void;
 ```
 
-Defined in: [stream/processor.ts:132](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/stream/processor.ts#L132)
+Defined in: [activities/chat/stream/processor.ts:129](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/activities/chat/stream/processor.ts#L129)
 
 #### Parameters
 
@@ -100,7 +100,7 @@ Defined in: [stream/processor.ts:132](https://github.com/TanStack/ai/blob/main/p
 optional onTextUpdate: (content) => void;
 ```
 
-Defined in: [stream/processor.ts:89](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/stream/processor.ts#L89)
+Defined in: [activities/chat/stream/processor.ts:86](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/activities/chat/stream/processor.ts#L86)
 
 #### Parameters
 
@@ -120,7 +120,7 @@ Defined in: [stream/processor.ts:89](https://github.com/TanStack/ai/blob/main/pa
 optional onThinkingUpdate: (content) => void;
 ```
 
-Defined in: [stream/processor.ts:90](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/stream/processor.ts#L90)
+Defined in: [activities/chat/stream/processor.ts:87](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/activities/chat/stream/processor.ts#L87)
 
 #### Parameters
 
@@ -140,7 +140,7 @@ Defined in: [stream/processor.ts:90](https://github.com/TanStack/ai/blob/main/pa
 optional onToolCallComplete: (index, id, name, args) => void;
 ```
 
-Defined in: [stream/processor.ts:95](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/stream/processor.ts#L95)
+Defined in: [activities/chat/stream/processor.ts:92](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/activities/chat/stream/processor.ts#L92)
 
 #### Parameters
 
@@ -172,7 +172,7 @@ Defined in: [stream/processor.ts:95](https://github.com/TanStack/ai/blob/main/pa
 optional onToolCallDelta: (index, args) => void;
 ```
 
-Defined in: [stream/processor.ts:94](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/stream/processor.ts#L94)
+Defined in: [activities/chat/stream/processor.ts:91](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/activities/chat/stream/processor.ts#L91)
 
 #### Parameters
 
@@ -196,7 +196,7 @@ Defined in: [stream/processor.ts:94](https://github.com/TanStack/ai/blob/main/pa
 optional onToolCallStart: (index, id, name) => void;
 ```
 
-Defined in: [stream/processor.ts:93](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/stream/processor.ts#L93)
+Defined in: [activities/chat/stream/processor.ts:90](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/activities/chat/stream/processor.ts#L90)
 
 #### Parameters
 
@@ -224,7 +224,7 @@ Defined in: [stream/processor.ts:93](https://github.com/TanStack/ai/blob/main/pa
 optional onToolCallStateChange: (index, id, name, state, args, parsedArgs?) => void;
 ```
 
-Defined in: [stream/processor.ts:101](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/stream/processor.ts#L101)
+Defined in: [activities/chat/stream/processor.ts:98](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/activities/chat/stream/processor.ts#L98)
 
 #### Parameters
 
@@ -264,7 +264,7 @@ Defined in: [stream/processor.ts:101](https://github.com/TanStack/ai/blob/main/p
 optional onToolInputAvailable: (toolCallId, toolName, input) => void;
 ```
 
-Defined in: [stream/processor.ts:125](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/stream/processor.ts#L125)
+Defined in: [activities/chat/stream/processor.ts:122](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/activities/chat/stream/processor.ts#L122)
 
 #### Parameters
 
@@ -292,7 +292,7 @@ Defined in: [stream/processor.ts:125](https://github.com/TanStack/ai/blob/main/p
 optional onToolResultStateChange: (toolCallId, content, state, error?) => void;
 ```
 
-Defined in: [stream/processor.ts:111](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/stream/processor.ts#L111)
+Defined in: [activities/chat/stream/processor.ts:108](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/activities/chat/stream/processor.ts#L108)
 
 #### Parameters
 

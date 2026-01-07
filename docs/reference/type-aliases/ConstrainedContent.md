@@ -3,42 +3,22 @@ id: ConstrainedContent
 title: ConstrainedContent
 ---
 
-# Type Alias: ConstrainedContent\<TModalities, TImageMeta, TAudioMeta, TVideoMeta, TDocumentMeta, TTextMeta\>
+# Type Alias: ConstrainedContent\<TInputModalitiesTypes\>
 
 ```ts
-type ConstrainedContent<TModalities, TImageMeta, TAudioMeta, TVideoMeta, TDocumentMeta, TTextMeta> = 
+type ConstrainedContent<TInputModalitiesTypes> = 
   | string
   | null
-  | ContentPartForModalities<ModalitiesArrayToUnion<TModalities>, TImageMeta, TAudioMeta, TVideoMeta, TDocumentMeta, TTextMeta>[];
+  | ContentPartForInputModalitiesTypes<TInputModalitiesTypes>[];
 ```
 
-Defined in: [types.ts:199](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L199)
+Defined in: [types.ts:225](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L225)
 
 Type for message content constrained by supported modalities.
 When modalities is ['text', 'image'], only TextPart and ImagePart are allowed in the array.
 
 ## Type Parameters
 
-### TModalities
+### TInputModalitiesTypes
 
-`TModalities` *extends* `ReadonlyArray`\<[`Modality`](Modality.md)\>
-
-### TImageMeta
-
-`TImageMeta` = `unknown`
-
-### TAudioMeta
-
-`TAudioMeta` = `unknown`
-
-### TVideoMeta
-
-`TVideoMeta` = `unknown`
-
-### TDocumentMeta
-
-`TDocumentMeta` = `unknown`
-
-### TTextMeta
-
-`TTextMeta` = `unknown`
+`TInputModalitiesTypes` *extends* [`InputModalitiesTypes`](InputModalitiesTypes.md)

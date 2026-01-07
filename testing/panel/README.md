@@ -18,7 +18,7 @@ cd testing/panel
 pnpm dev
 ```
 
-Then open http://localhost:3001
+Then open http://localhost:3010
 
 ## Creating Trace Files
 
