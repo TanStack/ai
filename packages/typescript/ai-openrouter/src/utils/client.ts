@@ -43,7 +43,9 @@ export function generateId(prefix: string): string {
   return `${prefix}-${Date.now()}-${Math.random().toString(36).substring(7)}`
 }
 
-export function buildHeaders(config: OpenRouterClientConfig): Record<string, string> {
+export function buildHeaders(
+  config: OpenRouterClientConfig,
+): Record<string, string> {
   const headers: Record<string, string> = {
     Authorization: `Bearer ${config.apiKey}`,
     'Content-Type': 'application/json',

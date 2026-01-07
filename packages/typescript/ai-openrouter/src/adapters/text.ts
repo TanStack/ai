@@ -1,32 +1,32 @@
 import { BaseTextAdapter } from '@tanstack/ai/adapters'
 import { convertToolsToProviderFormat } from '../tools'
 import {
-    buildHeaders,
-    getOpenRouterApiKeyFromEnv,
-    generateId as utilGenerateId,
+  buildHeaders,
+  getOpenRouterApiKeyFromEnv,
+  generateId as utilGenerateId,
 } from '../utils'
 import type { OpenRouterClientConfig } from '../utils'
 import type {
-    OpenRouterChatModelProviderOptionsByName,
-    OpenRouterModelInputModalitiesByName,
+  OpenRouterChatModelProviderOptionsByName,
+  OpenRouterModelInputModalitiesByName,
 } from '../model-meta'
 import type {
-    StructuredOutputOptions,
-    StructuredOutputResult,
+  StructuredOutputOptions,
+  StructuredOutputResult,
 } from '@tanstack/ai/adapters'
 import type {
-    ContentPart,
-    ModelMessage,
-    StreamChunk,
-    TextOptions,
+  ContentPart,
+  ModelMessage,
+  StreamChunk,
+  TextOptions,
 } from '@tanstack/ai'
 import type {
-    ExternalTextProviderOptions,
-    InternalTextProviderOptions,
+  ExternalTextProviderOptions,
+  InternalTextProviderOptions,
 } from '../text/text-provider-options'
 import type {
-    OpenRouterImageMetadata,
-    OpenRouterMessageMetadataByModality,
+  OpenRouterImageMetadata,
+  OpenRouterMessageMetadataByModality,
 } from '../message-types'
 
 export interface OpenRouterConfig extends OpenRouterClientConfig {}

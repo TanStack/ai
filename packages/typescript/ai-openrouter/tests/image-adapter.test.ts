@@ -101,7 +101,8 @@ describe('OpenRouter Image Adapter', () => {
   })
 
   it('handles base64 image responses', async () => {
-    const base64Data = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg=='
+    const base64Data =
+      'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg=='
     const mockResponse = createMockImageResponse([
       { url: `data:image/png;base64,${base64Data}` },
     ])

@@ -1,9 +1,5 @@
 import { BaseImageAdapter } from '@tanstack/ai/adapters'
-import {
-  buildHeaders,
-  generateId,
-  getOpenRouterApiKeyFromEnv,
-} from '../utils'
+import { buildHeaders, generateId, getOpenRouterApiKeyFromEnv } from '../utils'
 import type { OpenRouterClientConfig } from '../utils'
 import type {
   OpenRouterImageModelProviderOptionsByName,
@@ -64,7 +60,8 @@ export class OpenRouterImageAdapter<
   ): Promise<ImageGenerationResult> {
     const { model, prompt, numberOfImages = 1, size, modelOptions } = options
 
-    const aspectRatio = modelOptions?.aspect_ratio || this.sizeToAspectRatio(size)
+    const aspectRatio =
+      modelOptions?.aspect_ratio || this.sizeToAspectRatio(size)
 
     const requestBody = {
       model,
@@ -94,7 +91,9 @@ export class OpenRouterImageAdapter<
       let errorMessage: string
       try {
         const errorJson = JSON.parse(errorText)
-        errorMessage = errorJson.error?.message || `HTTP ${response.status}: ${response.statusText}`
+        errorMessage =
+          errorJson.error?.message ||
+          `HTTP ${response.status}: ${response.statusText}`
       } catch {
         errorMessage = `HTTP ${response.status}: ${response.statusText}`
       }

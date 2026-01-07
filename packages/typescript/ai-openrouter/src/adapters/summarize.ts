@@ -2,9 +2,9 @@ import { BaseSummarizeAdapter } from '@tanstack/ai/adapters'
 import { getOpenRouterApiKeyFromEnv } from '../utils'
 import { OpenRouterTextAdapter } from './text'
 import type {
-    StreamChunk,
-    SummarizationOptions,
-    SummarizationResult,
+  StreamChunk,
+  SummarizationOptions,
+  SummarizationResult,
 } from '@tanstack/ai'
 import type { OpenRouterConfig } from './text'
 
