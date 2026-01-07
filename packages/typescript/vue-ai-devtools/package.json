@@ -77,7 +77,7 @@
   "devDependencies": {
     "@vitejs/plugin-vue": "^6.0.3",
     "@vitest/coverage-v8": "4.0.14",
-    "vite": "^7.2.4"
+    "vite": "^7.2.7"
   },
   "peerDependencies": {
     "vue": ">=3.2.0"
