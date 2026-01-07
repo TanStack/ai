@@ -695,6 +695,25 @@ importers:
         specifier: ^7.2.7
         version: 7.2.7(@types/node@25.0.1)(jiti@2.6.1)(lightningcss@1.30.2)(terser@5.44.1)(tsx@4.21.0)(yaml@2.8.2)
 
+  packages/typescript/ai-nebius:
+    dependencies:
+      '@tanstack/ai':
+        specifier: workspace:^
+        version: link:../ai
+      openai:
+        specifier: ^6.9.1
+        version: 6.10.0(ws@8.18.3)(zod@4.2.1)
+      zod:
+        specifier: ^4.0.0
+        version: 4.2.1
+    devDependencies:
+      '@vitest/coverage-v8':
+        specifier: 4.0.14
+        version: 4.0.14(vitest@4.0.15(@types/node@25.0.1)(happy-dom@20.0.11)(jiti@2.6.1)(jsdom@27.3.0(postcss@8.5.6))(lightningcss@1.30.2)(terser@5.44.1)(tsx@4.21.0)(yaml@2.8.2))
+      vite:
+        specifier: ^7.2.7
+        version: 7.2.7(@types/node@25.0.1)(jiti@2.6.1)(lightningcss@1.30.2)(terser@5.44.1)(tsx@4.21.0)(yaml@2.8.2)
+
   packages/typescript/ai-ollama:
     dependencies:
       '@tanstack/ai':
@@ -14114,6 +14133,11 @@ snapshots:
     optionalDependencies:
       ws: 8.18.3
       zod: 4.1.13
+
+  openai@6.10.0(ws@8.18.3)(zod@4.2.1):
+    optionalDependencies:
+      ws: 8.18.3
+      zod: 4.2.1
 
   optionator@0.9.4:
     dependencies:
