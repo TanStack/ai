@@ -2,7 +2,7 @@
   "name": "vanilla-chat",
   "private": true,
   "type": "module",
-  "version": "0.0.5",
+  "version": "0.0.6",
   "scripts": {
     "start": "vite --port 3001",
     "dev": "vite --port 3001",

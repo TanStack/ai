@@ -1,5 +1,13 @@
 # @tanstack/ai
 
+## 0.2.1
+
+### Patch Changes
+
+- Fix up model names for OpenAI and release the new response APIs ([#188](https://github.com/TanStack/ai/pull/188))
+
+- fix up readmes ([#188](https://github.com/TanStack/ai/pull/188))
+
 ## 0.2.0
 
 ### Minor Changes

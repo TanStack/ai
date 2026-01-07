@@ -1,5 +1,14 @@
 # @tanstack/solid-ai-devtools
 
+## 0.1.2
+
+### Patch Changes
+
+- fix up readmes ([#188](https://github.com/TanStack/ai/pull/188))
+
+- Updated dependencies [[`181e0ac`](https://github.com/TanStack/ai/commit/181e0acdfb44b27db6cf871b36593c0f867cadf9)]:
+  - @tanstack/ai-devtools-core@0.1.2
+
 ## 0.1.1
 
 ### Patch Changes

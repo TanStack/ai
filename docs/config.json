@@ -120,6 +120,10 @@
           "to": "api/ai-react"
         },
         {
+          "label": "@tanstack/ai-preact",
+          "to": "api/ai-preact"
+        },
+        {
           "label": "@tanstack/ai-solid",
           "to": "api/ai-solid"
         }
@@ -152,6 +156,10 @@
         {
           "label": "Community Adapters Guide",
           "to": "community-adapters/guide"
+        },
+        {
+          "label": "Decart",
+          "to": "community-adapters/decart"
         }
       ]
     },

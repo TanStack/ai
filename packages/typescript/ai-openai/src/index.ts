@@ -84,6 +84,7 @@ export {
   OPENAI_TTS_MODELS,
   OPENAI_TRANSCRIPTION_MODELS,
   OPENAI_VIDEO_MODELS,
+  OPENAI_CHAT_MODELS,
 } from './model-meta'
 export type {
   OpenAITextMetadata,
