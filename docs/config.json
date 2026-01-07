@@ -126,6 +126,10 @@
         {
           "label": "@tanstack/ai-solid",
           "to": "api/ai-solid"
+        },
+        {
+          "label": "@tanstack/ai-vue",
+          "to": "api/ai-vue"
         }
       ]
     },
