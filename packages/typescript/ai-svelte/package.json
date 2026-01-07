@@ -43,12 +43,16 @@
     "streaming"
   ],
   "dependencies": {
-    "@tanstack/ai-client": "workspace:*",
-    "svelte": "^5.20.0"
+    "@tanstack/ai-client": "workspace:*"
+  },
+  "peerDependencies": {
+    "@tanstack/ai": "workspace:^",
+    "svelte": "^5.0.0"
   },
   "devDependencies": {
     "@sveltejs/package": "^2.3.10",
     "@sveltejs/vite-plugin-svelte": "^5.1.1",
+    "@tanstack/ai": "workspace:*",
     "@types/node": "^24.10.1",
     "@vitest/coverage-v8": "4.0.14",
     "jsdom": "^27.2.0",
@@ -56,9 +60,5 @@
     "svelte-check": "^4.2.0",
     "typescript": "5.9.3",
     "vite": "^7.2.7"
-  },
-  "peerDependencies": {
-    "@tanstack/ai": "workspace:^",
-    "svelte": "^5.0.0"
   }
 }

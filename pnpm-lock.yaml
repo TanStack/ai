@@ -557,8 +557,8 @@ importers:
         specifier: ^24.10.1
         version: 24.10.3
       '@vitejs/plugin-vue':
-        specifier: ^5.2.3
-        version: 5.2.4(vite@7.2.7(@types/node@24.10.3)(jiti@2.6.1)(lightningcss@1.30.2)(terser@5.44.1)(tsx@4.21.0)(yaml@2.8.2))(vue@3.5.25(typescript@5.9.3))
+        specifier: ^6.0.2
+        version: 6.0.3(vite@7.2.7(@types/node@24.10.3)(jiti@2.6.1)(lightningcss@1.30.2)(terser@5.44.1)(tsx@4.21.0)(yaml@2.8.2))(vue@3.5.25(typescript@5.9.3))
       autoprefixer:
         specifier: ^10.4.21
         version: 10.4.22(postcss@8.5.6)
@@ -620,17 +620,17 @@ importers:
     dependencies:
       '@anthropic-ai/sdk':
         specifier: ^0.71.0
-        version: 0.71.2(zod@4.1.13)
-      '@tanstack/ai':
-        specifier: workspace:^
-        version: link:../ai
-      zod:
-        specifier: ^4.0.0
-        version: 4.1.13
+        version: 0.71.2(zod@4.2.1)
     devDependencies:
+      '@tanstack/ai':
+        specifier: workspace:*
+        version: link:../ai
       '@vitest/coverage-v8':
         specifier: 4.0.14
         version: 4.0.14(vitest@4.0.15(@types/node@25.0.1)(happy-dom@20.0.11)(jiti@2.6.1)(jsdom@27.3.0(postcss@8.5.6))(lightningcss@1.30.2)(terser@5.44.1)(tsx@4.21.0)(yaml@2.8.2))
+      zod:
+        specifier: ^4.2.0
+        version: 4.2.1
 
   packages/typescript/ai-client:
     dependencies:
@@ -684,13 +684,10 @@ importers:
       '@google/genai':
         specifier: ^1.30.0
         version: 1.33.0
-      '@tanstack/ai':
-        specifier: workspace:^
-        version: link:../ai
-      zod:
-        specifier: ^4.0.0
-        version: 4.1.13
     devDependencies:
+      '@tanstack/ai':
+        specifier: workspace:*
+        version: link:../ai
       '@vitest/coverage-v8':
         specifier: 4.0.14
         version: 4.0.14(vitest@4.0.15(@types/node@25.0.1)(happy-dom@20.0.11)(jiti@2.6.1)(jsdom@27.3.0(postcss@8.5.6))(lightningcss@1.30.2)(terser@5.44.1)(tsx@4.21.0)(yaml@2.8.2))
@@ -719,16 +716,13 @@ importers:
 
   packages/typescript/ai-ollama:
     dependencies:
-      '@tanstack/ai':
-        specifier: workspace:^
-        version: link:../ai
       ollama:
         specifier: ^0.6.3
         version: 0.6.3
-      zod:
-        specifier: ^4.0.0
-        version: 4.1.13
     devDependencies:
+      '@tanstack/ai':
+        specifier: workspace:*
+        version: link:../ai
       '@vitest/coverage-v8':
         specifier: 4.0.14
         version: 4.0.14(vitest@4.0.15(@types/node@25.0.1)(happy-dom@20.0.11)(jiti@2.6.1)(jsdom@27.3.0(postcss@8.5.6))(lightningcss@1.30.2)(terser@5.44.1)(tsx@4.21.0)(yaml@2.8.2))
@@ -738,22 +732,22 @@ importers:
 
   packages/typescript/ai-openai:
     dependencies:
-      '@tanstack/ai':
-        specifier: workspace:^
-        version: link:../ai
       openai:
         specifier: ^6.9.1
-        version: 6.10.0(ws@8.18.3)(zod@4.1.13)
-      zod:
-        specifier: ^4.0.0
-        version: 4.1.13
+        version: 6.10.0(ws@8.18.3)(zod@4.2.1)
     devDependencies:
+      '@tanstack/ai':
+        specifier: workspace:*
+        version: link:../ai
       '@vitest/coverage-v8':
         specifier: 4.0.14
         version: 4.0.14(vitest@4.0.15(@types/node@25.0.1)(happy-dom@20.0.11)(jiti@2.6.1)(jsdom@27.3.0(postcss@8.5.6))(lightningcss@1.30.2)(terser@5.44.1)(tsx@4.21.0)(yaml@2.8.2))
       vite:
         specifier: ^7.2.7
         version: 7.2.7(@types/node@25.0.1)(jiti@2.6.1)(lightningcss@1.30.2)(terser@5.44.1)(tsx@4.21.0)(yaml@2.8.2)
+      zod:
+        specifier: ^4.2.0
+        version: 4.2.1
 
   packages/typescript/ai-preact:
     dependencies:
@@ -782,16 +776,13 @@ importers:
 
   packages/typescript/ai-react:
     dependencies:
-      '@tanstack/ai':
-        specifier: workspace:^
-        version: link:../ai
       '@tanstack/ai-client':
         specifier: workspace:*
         version: link:../ai-client
-      react:
-        specifier: '>=18.0.0'
-        version: 19.2.3
     devDependencies:
+      '@tanstack/ai':
+        specifier: workspace:*
+        version: link:../ai
       '@testing-library/react':
         specifier: ^16.3.0
         version: 16.3.0(@testing-library/dom@10.4.1)(@types/react-dom@19.2.3(@types/react@19.2.7))(@types/react@19.2.7)(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
@@ -804,24 +795,15 @@ importers:
       jsdom:
         specifier: ^27.2.0
         version: 27.3.0(postcss@8.5.6)
+      react:
+        specifier: ^19.2.3
+        version: 19.2.3
       vite:
         specifier: ^7.2.7
         version: 7.2.7(@types/node@25.0.1)(jiti@2.6.1)(lightningcss@1.30.2)(terser@5.44.1)(tsx@4.21.0)(yaml@2.8.2)
 
   packages/typescript/ai-react-ui:
     dependencies:
-      '@tanstack/ai-react':
-        specifier: workspace:*
-        version: link:../ai-react
-      '@types/react':
-        specifier: '>=18.0.0'
-        version: 19.2.7
-      react:
-        specifier: ^18.0.0 || ^19.0.0
-        version: 19.2.3
-      react-dom:
-        specifier: ^18.0.0 || ^19.0.0
-        version: 19.2.3(react@19.2.3)
       react-markdown:
         specifier: ^10.1.0
         version: 10.1.0(@types/react@19.2.7)(react@19.2.3)
@@ -841,18 +823,27 @@ importers:
       '@tanstack/ai-client':
         specifier: workspace:*
         version: link:../ai-client
+      '@tanstack/ai-react':
+        specifier: workspace:*
+        version: link:../ai-react
+      '@types/react':
+        specifier: ^19.2.7
+        version: 19.2.7
       '@vitest/coverage-v8':
         specifier: 4.0.14
         version: 4.0.14(vitest@4.0.15(@types/node@25.0.1)(happy-dom@20.0.11)(jiti@2.6.1)(jsdom@27.3.0(postcss@8.5.6))(lightningcss@1.30.2)(terser@5.44.1)(tsx@4.21.0)(yaml@2.8.2))
+      react:
+        specifier: ^19.2.3
+        version: 19.2.3
+      react-dom:
+        specifier: ^19.2.3
+        version: 19.2.3(react@19.2.3)
       vite:
         specifier: ^7.2.7
         version: 7.2.7(@types/node@25.0.1)(jiti@2.6.1)(lightningcss@1.30.2)(terser@5.44.1)(tsx@4.21.0)(yaml@2.8.2)
 
   packages/typescript/ai-solid:
     dependencies:
-      '@tanstack/ai':
-        specifier: workspace:^
-        version: link:../ai
       '@tanstack/ai-client':
         specifier: workspace:*
         version: link:../ai-client
@@ -860,6 +851,9 @@ importers:
       '@solidjs/testing-library':
         specifier: ^0.8.10
         version: 0.8.10(solid-js@1.9.10)
+      '@tanstack/ai':
+        specifier: workspace:*
+        version: link:../ai
       '@types/node':
         specifier: ^24.10.1
         version: 24.10.3
@@ -884,12 +878,6 @@ importers:
 
   packages/typescript/ai-solid-ui:
     dependencies:
-      '@tanstack/ai-client':
-        specifier: workspace:*
-        version: link:../ai-client
-      '@tanstack/ai-solid':
-        specifier: workspace:*
-        version: link:../ai-solid
       rehype-highlight:
         specifier: ^7.0.2
         version: 7.0.2
@@ -902,31 +890,31 @@ importers:
       remark-gfm:
         specifier: ^4.0.1
         version: 4.0.1
-      solid-js:
-        specifier: '>=1.9.7'
-        version: 1.9.10
       solid-markdown:
         specifier: ^2.1.0
         version: 2.1.1(solid-js@1.9.10)
     devDependencies:
+      '@tanstack/ai-client':
+        specifier: workspace:*
+        version: link:../ai-client
+      '@tanstack/ai-solid':
+        specifier: workspace:*
+        version: link:../ai-solid
       '@vitest/coverage-v8':
         specifier: 4.0.14
         version: 4.0.14(vitest@4.0.15(@types/node@25.0.1)(happy-dom@20.0.11)(jiti@2.6.1)(jsdom@27.3.0(postcss@8.5.6))(lightningcss@1.30.2)(terser@5.44.1)(tsx@4.21.0)(yaml@2.8.2))
+      solid-js:
+        specifier: ^1.9.10
+        version: 1.9.10
       vite:
         specifier: ^7.2.7
         version: 7.2.7(@types/node@25.0.1)(jiti@2.6.1)(lightningcss@1.30.2)(terser@5.44.1)(tsx@4.21.0)(yaml@2.8.2)
 
   packages/typescript/ai-svelte:
     dependencies:
-      '@tanstack/ai':
-        specifier: workspace:^
-        version: link:../ai
       '@tanstack/ai-client':
         specifier: workspace:*
         version: link:../ai-client
-      svelte:
-        specifier: ^5.20.0
-        version: 5.45.10
     devDependencies:
       '@sveltejs/package':
         specifier: ^2.3.10
@@ -934,6 +922,9 @@ importers:
       '@sveltejs/vite-plugin-svelte':
         specifier: ^5.1.1
         version: 5.1.1(svelte@5.45.10)(vite@7.2.7(@types/node@24.10.3)(jiti@2.6.1)(lightningcss@1.30.2)(terser@5.44.1)(tsx@4.21.0)(yaml@2.8.2))
+      '@tanstack/ai':
+        specifier: workspace:*
+        version: link:../ai
       '@types/node':
         specifier: ^24.10.1
         version: 24.10.3
@@ -943,6 +934,9 @@ importers:
       jsdom:
         specifier: ^27.2.0
         version: 27.3.0(postcss@8.5.6)
+      svelte:
+        specifier: ^5.20.0
+        version: 5.45.10
       svelte-check:
         specifier: ^4.2.0
         version: 4.3.4(picomatch@4.0.3)(svelte@5.45.10)(typescript@5.9.3)
@@ -955,13 +949,13 @@ importers:
 
   packages/typescript/ai-vue:
     dependencies:
-      '@tanstack/ai':
-        specifier: workspace:^
-        version: link:../ai
       '@tanstack/ai-client':
         specifier: workspace:*
         version: link:../ai-client
     devDependencies:
+      '@tanstack/ai':
+        specifier: workspace:*
+        version: link:../ai
       '@types/node':
         specifier: ^24.10.1
         version: 24.10.3
@@ -995,9 +989,6 @@ importers:
       '@tanstack/ai-vue':
         specifier: workspace:*
         version: link:../ai-vue
-      '@vitejs/plugin-vue':
-        specifier: ^6.0.2
-        version: 6.0.3(vite@7.2.7(@types/node@25.0.1)(jiti@2.6.1)(lightningcss@1.30.2)(terser@5.44.1)(tsx@4.21.0)(yaml@2.8.2))(vue@3.5.25(typescript@5.9.3))
       rehype-highlight:
         specifier: ^7.0.2
         version: 7.0.2
@@ -1010,16 +1001,19 @@ importers:
       remark-gfm:
         specifier: ^4.0.1
         version: 4.0.1
-      vue:
-        specifier: '>=3.5.0'
-        version: 3.5.25(typescript@5.9.3)
     devDependencies:
+      '@vitejs/plugin-vue':
+        specifier: ^6.0.2
+        version: 6.0.3(vite@7.2.7(@types/node@25.0.1)(jiti@2.6.1)(lightningcss@1.30.2)(terser@5.44.1)(tsx@4.21.0)(yaml@2.8.2))(vue@3.5.25(typescript@5.9.3))
       '@vitest/coverage-v8':
         specifier: 4.0.14
         version: 4.0.14(vitest@4.0.15(@types/node@25.0.1)(happy-dom@20.0.11)(jiti@2.6.1)(jsdom@27.3.0(postcss@8.5.6))(lightningcss@1.30.2)(terser@5.44.1)(tsx@4.21.0)(yaml@2.8.2))
       vite:
         specifier: ^7.2.7
         version: 7.2.7(@types/node@25.0.1)(jiti@2.6.1)(lightningcss@1.30.2)(terser@5.44.1)(tsx@4.21.0)(yaml@2.8.2)
+      vue:
+        specifier: ^3.5.25
+        version: 3.5.25(typescript@5.9.3)
       vue-tsc:
         specifier: ^2.2.10
         version: 2.2.12(typescript@5.9.3)
@@ -1032,16 +1026,16 @@ importers:
       '@tanstack/devtools-utils':
         specifier: ^0.0.8
         version: 0.0.8(@types/react@19.2.7)(csstype@3.2.3)(react@19.2.3)(solid-js@1.9.10)(vue@3.5.25(typescript@5.9.3))
-      '@types/react':
-        specifier: ^17.0.0 || ^18.0.0 || ^19.0.0
-        version: 19.2.7
-      react:
-        specifier: ^17.0.0 || ^18.0.0 || ^19.0.0
-        version: 19.2.3
     devDependencies:
+      '@types/react':
+        specifier: ^19.2.7
+        version: 19.2.7
       '@vitest/coverage-v8':
         specifier: 4.0.14
         version: 4.0.14(vitest@4.0.15(@types/node@25.0.1)(happy-dom@20.0.11)(jiti@2.6.1)(jsdom@27.3.0(postcss@8.5.6))(lightningcss@1.30.2)(terser@5.44.1)(tsx@4.21.0)(yaml@2.8.2))
+      react:
+        specifier: ^19.2.3
+        version: 19.2.3
       vite:
         specifier: ^7.2.7
         version: 7.2.7(@types/node@25.0.1)(jiti@2.6.1)(lightningcss@1.30.2)(terser@5.44.1)(tsx@4.21.0)(yaml@2.8.2)
@@ -1163,13 +1157,13 @@ importers:
       '@tanstack/devtools-utils':
         specifier: ^0.0.8
         version: 0.0.8(@types/react@19.2.7)(csstype@3.2.3)(react@19.2.3)(solid-js@1.9.10)(vue@3.5.25(typescript@5.9.3))
-      solid-js:
-        specifier: '>=1.9.7'
-        version: 1.9.10
     devDependencies:
       '@vitest/coverage-v8':
         specifier: 4.0.14
         version: 4.0.14(vitest@4.0.15(@types/node@25.0.1)(happy-dom@20.0.11)(jiti@2.6.1)(jsdom@27.3.0(postcss@8.5.6))(lightningcss@1.30.2)(terser@5.44.1)(tsx@4.21.0)(yaml@2.8.2))
+      solid-js:
+        specifier: ^1.9.10
+        version: 1.9.10
       vite:
         specifier: ^7.2.7
         version: 7.2.7(@types/node@25.0.1)(jiti@2.6.1)(lightningcss@1.30.2)(terser@5.44.1)(tsx@4.21.0)(yaml@2.8.2)
@@ -2920,9 +2914,6 @@ packages:
   '@speed-highlight/core@1.2.12':
     resolution: {integrity: sha512-uilwrK0Ygyri5dToHYdZSjcvpS2ZwX0w5aSt3GCEN9hrjxWCoeV4Z2DTXuxjwbntaLQIEEAlCeNQss5SoHvAEA==}
 
-  '@standard-schema/spec@1.0.0':
-    resolution: {integrity: sha512-m2bOd0f2RT9k8QJx1JN85cZYyH1RqFBdlwtkSlf4tBDYLCiiZnv1fIIwacK6cqwXavOydf0NPToMQgpKq+dVlA==}
-
   '@standard-schema/spec@1.1.0':
     resolution: {integrity: sha512-l2aFy5jALhniG5HgqrD6jXLi/rUWrKvqN/qJx6yoJsgKhblVd+iqqU4RCXavm/jPityDo5TCvKMnpjKnOriy0w==}
 
@@ -3785,13 +3776,6 @@ packages:
     engines: {node: ^20.19.0 || >=22.12.0}
     peerDependencies:
       vite: ^4.2.0 || ^5.0.0 || ^6.0.0 || ^7.0.0
-
-  '@vitejs/plugin-vue@5.2.4':
-    resolution: {integrity: sha512-7Yx/SXSOcQq5HiiV3orevHUFn+pmMB4cgbEkDYgnkUWb0WfeQ/wa2yFv6D5ICiCQOVpjA7vYDXrC7AGO8yjDHA==}
-    engines: {node: ^18.0.0 || >=20.0.0}
-    peerDependencies:
-      vite: ^5.0.0 || ^6.0.0
-      vue: ^3.2.25
 
   '@vitejs/plugin-vue@6.0.3':
     resolution: {integrity: sha512-TlGPkLFLVOY3T7fZrwdvKpjprR3s4fxRln0ORDo1VQ7HHyxJwTlrjKU3kpVWTlaAjIEuCTokmjkZnr8Tpc925w==}
@@ -8006,9 +7990,6 @@ packages:
   zod@3.25.76:
     resolution: {integrity: sha512-gzUt/qt81nXsFGKIFcC3YnfEAx5NkunCfnDlvuBSSFS02bcXu4Lmea0AFIUwbLWxWPx3d9p8S5QoaujKcNQxcQ==}
 
-  zod@4.1.13:
-    resolution: {integrity: sha512-AvvthqfqrAhNH9dnfmrfKzX5upOdjUVJYFqNSlkmGf64gRaTzlPwz99IHYnVs28qYAybvAlBV+H7pn0saFY4Ig==}
-
   zod@4.2.1:
     resolution: {integrity: sha512-0wZ1IRqGGhMP76gLqz8EyfBXKk0J2qo2+H3fi4mcUP/KtTocoX08nmIAHl1Z2kJIZbZee8KOpBCSNPRgauucjw==}
 
@@ -8023,11 +8004,11 @@ snapshots:
     dependencies:
       zod: 4.2.1
 
-  '@anthropic-ai/sdk@0.71.2(zod@4.1.13)':
+  '@anthropic-ai/sdk@0.71.2(zod@4.2.1)':
     dependencies:
       json-schema-to-ts: 3.1.1
     optionalDependencies:
-      zod: 4.1.13
+      zod: 4.2.1
 
   '@asamuzakjp/css-color@4.1.0':
     dependencies:
@@ -9500,8 +9481,6 @@ snapshots:
 
   '@speed-highlight/core@1.2.12': {}
 
-  '@standard-schema/spec@1.0.0': {}
-
   '@standard-schema/spec@1.1.0': {}
 
   '@stylistic/eslint-plugin@5.6.1(eslint@9.39.1(jiti@2.6.1))':
@@ -9525,7 +9504,7 @@ snapshots:
 
   '@sveltejs/kit@2.49.2(@sveltejs/vite-plugin-svelte@5.1.1(svelte@5.45.10)(vite@7.2.7(@types/node@24.10.3)(jiti@2.6.1)(lightningcss@1.30.2)(terser@5.44.1)(tsx@4.21.0)(yaml@2.8.2)))(svelte@5.45.10)(vite@7.2.7(@types/node@24.10.3)(jiti@2.6.1)(lightningcss@1.30.2)(terser@5.44.1)(tsx@4.21.0)(yaml@2.8.2))':
     dependencies:
-      '@standard-schema/spec': 1.0.0
+      '@standard-schema/spec': 1.1.0
       '@sveltejs/acorn-typescript': 1.0.8(acorn@8.15.0)
       '@sveltejs/vite-plugin-svelte': 5.1.1(svelte@5.45.10)(vite@7.2.7(@types/node@24.10.3)(jiti@2.6.1)(lightningcss@1.30.2)(terser@5.44.1)(tsx@4.21.0)(yaml@2.8.2))
       '@types/cookie': 0.6.0
@@ -10967,7 +10946,7 @@ snapshots:
       consola: 3.4.2
       defu: 6.1.4
       get-port-please: 3.2.0
-      h3: 1.13.0
+      h3: 1.15.4
       http-shutdown: 1.2.2
       jiti: 1.21.7
       mlly: 1.8.0
@@ -11002,8 +10981,9 @@ snapshots:
     transitivePeerDependencies:
       - supports-color
 
-  '@vitejs/plugin-vue@5.2.4(vite@7.2.7(@types/node@24.10.3)(jiti@2.6.1)(lightningcss@1.30.2)(terser@5.44.1)(tsx@4.21.0)(yaml@2.8.2))(vue@3.5.25(typescript@5.9.3))':
+  '@vitejs/plugin-vue@6.0.3(vite@7.2.7(@types/node@24.10.3)(jiti@2.6.1)(lightningcss@1.30.2)(terser@5.44.1)(tsx@4.21.0)(yaml@2.8.2))(vue@3.5.25(typescript@5.9.3))':
     dependencies:
+      '@rolldown/pluginutils': 1.0.0-beta.53
       vite: 7.2.7(@types/node@24.10.3)(jiti@2.6.1)(lightningcss@1.30.2)(terser@5.44.1)(tsx@4.21.0)(yaml@2.8.2)
       vue: 3.5.25(typescript@5.9.3)
 
@@ -11049,7 +11029,7 @@ snapshots:
 
   '@vitest/expect@4.0.15':
     dependencies:
-      '@standard-schema/spec': 1.0.0
+      '@standard-schema/spec': 1.1.0
       '@types/chai': 5.2.3
       '@vitest/spy': 4.0.15
       '@vitest/utils': 4.0.15
@@ -11918,7 +11898,7 @@ snapshots:
 
   dotenv-expand@11.0.7:
     dependencies:
-      dotenv: 16.4.7
+      dotenv: 16.6.1
 
   dotenv@16.4.7: {}
 
@@ -14138,10 +14118,10 @@ snapshots:
       is-docker: 2.2.1
       is-wsl: 2.2.0
 
-  openai@6.10.0(ws@8.18.3)(zod@4.1.13):
+  openai@6.10.0(ws@8.18.3)(zod@4.2.1):
     optionalDependencies:
       ws: 8.18.3
-      zod: 4.1.13
+      zod: 4.2.1
 
   openai@6.10.0(ws@8.18.3)(zod@4.2.1):
     optionalDependencies:
@@ -16010,8 +15990,6 @@ snapshots:
       readable-stream: 4.7.0
 
   zod@3.25.76: {}
-
-  zod@4.1.13: {}
 
   zod@4.2.1: {}
 
