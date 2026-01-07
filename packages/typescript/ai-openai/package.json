@@ -42,12 +42,14 @@
   "dependencies": {
     "openai": "^6.9.1"
   },
-  "devDependencies": {
-    "@vitest/coverage-v8": "4.0.14",
-    "vite": "^7.2.7"
-  },
   "peerDependencies": {
     "@tanstack/ai": "workspace:^",
     "zod": "^4.0.0"
+  },
+  "devDependencies": {
+    "@tanstack/ai": "workspace:*",
+    "@vitest/coverage-v8": "4.0.14",
+    "vite": "^7.2.7",
+    "zod": "^4.2.0"
   }
 }
