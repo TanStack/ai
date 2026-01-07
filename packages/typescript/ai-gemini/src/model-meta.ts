@@ -26,6 +26,7 @@ interface ModelMeta<TProviderOptions = unknown> {
       | 'structured_output'
       | 'thinking'
       | 'url_context'
+      | 'gemini_live_api'
     >
   }
   max_input_tokens?: number
@@ -76,11 +77,11 @@ const GEMINI_3_PRO = {
   },
 } as const satisfies ModelMeta<
   GeminiToolConfigOptions &
-    GeminiSafetyOptions &
-    GeminiGenerationConfigOptions &
-    GeminiCachedContentOptions &
-    GeminiStructuredOutputOptions &
-    GeminiThinkingOptions
+  GeminiSafetyOptions &
+  GeminiGenerationConfigOptions &
+  GeminiCachedContentOptions &
+  GeminiStructuredOutputOptions &
+  GeminiThinkingOptions
 >
 
 const GEMINI_3_FLASH = {
@@ -184,11 +185,11 @@ const GEMINI_2_5_PRO = {
   },
 } as const satisfies ModelMeta<
   GeminiToolConfigOptions &
-    GeminiSafetyOptions &
-    GeminiGenerationConfigOptions &
-    GeminiCachedContentOptions &
-    GeminiStructuredOutputOptions &
-    GeminiThinkingOptions
+  GeminiSafetyOptions &
+  GeminiGenerationConfigOptions &
+  GeminiCachedContentOptions &
+  GeminiStructuredOutputOptions &
+  GeminiThinkingOptions
 >
 
 const GEMINI_2_5_PRO_TTS = {
@@ -211,9 +212,9 @@ const GEMINI_2_5_PRO_TTS = {
   },
 } as const satisfies ModelMeta<
   GeminiToolConfigOptions &
-    GeminiSafetyOptions &
-    GeminiGenerationConfigOptions &
-    GeminiCachedContentOptions
+  GeminiSafetyOptions &
+  GeminiGenerationConfigOptions &
+  GeminiCachedContentOptions
 >
 
 const GEMINI_2_5_FLASH = {
@@ -247,11 +248,11 @@ const GEMINI_2_5_FLASH = {
   },
 } as const satisfies ModelMeta<
   GeminiToolConfigOptions &
-    GeminiSafetyOptions &
-    GeminiGenerationConfigOptions &
-    GeminiCachedContentOptions &
-    GeminiStructuredOutputOptions &
-    GeminiThinkingOptions
+  GeminiSafetyOptions &
+  GeminiGenerationConfigOptions &
+  GeminiCachedContentOptions &
+  GeminiStructuredOutputOptions &
+  GeminiThinkingOptions
 >
 
 const GEMINI_2_5_FLASH_PREVIEW = {
@@ -284,11 +285,11 @@ const GEMINI_2_5_FLASH_PREVIEW = {
   },
 } as const satisfies ModelMeta<
   GeminiToolConfigOptions &
-    GeminiSafetyOptions &
-    GeminiGenerationConfigOptions &
-    GeminiCachedContentOptions &
-    GeminiStructuredOutputOptions &
-    GeminiThinkingOptions
+  GeminiSafetyOptions &
+  GeminiGenerationConfigOptions &
+  GeminiCachedContentOptions &
+  GeminiStructuredOutputOptions &
+  GeminiThinkingOptions
 >
 
 const GEMINI_2_5_FLASH_IMAGE = {
@@ -317,45 +318,11 @@ const GEMINI_2_5_FLASH_IMAGE = {
   },
 } as const satisfies ModelMeta<
   GeminiToolConfigOptions &
-    GeminiSafetyOptions &
-    GeminiGenerationConfigOptions &
-    GeminiCachedContentOptions
->
-/**
-const GEMINI_2_5_FLASH_LIVE = {
-  name: 'gemini-2.5-flash-native-audio-preview-09-2025',
-  max_input_tokens: 141_072,
-  max_output_tokens: 8_192,
-  knowledge_cutoff: '2025-01-01',
-  supports: {
-    input: ['text', 'audio', 'video'],
-    output: ['text', 'audio'],
-    capabilities: [
-      'audio_generation',
-      'file_search',
-      'function_calling',
-      'live_api',
-      'search_grounding',
-      'thinking',
-    ],
-  },
-  pricing: {
-    // todo find this info
-    input: {
-      normal: 0,
-    },
-    output: {
-      normal: 0,
-    },
-  },
-} as const satisfies ModelMeta<
-  GeminiToolConfigOptions &
   GeminiSafetyOptions &
   GeminiGenerationConfigOptions &
-  GeminiCachedContentOptions &
-  GeminiThinkingOptions
+  GeminiCachedContentOptions
 >
-*/
+
 const GEMINI_2_5_FLASH_TTS = {
   name: 'gemini-2.5-flash-preview-tts',
   max_input_tokens: 8_192,
@@ -376,9 +343,9 @@ const GEMINI_2_5_FLASH_TTS = {
   },
 } as const satisfies ModelMeta<
   GeminiToolConfigOptions &
-    GeminiSafetyOptions &
-    GeminiGenerationConfigOptions &
-    GeminiCachedContentOptions
+  GeminiSafetyOptions &
+  GeminiGenerationConfigOptions &
+  GeminiCachedContentOptions
 >
 
 const GEMINI_2_5_FLASH_LITE = {
@@ -411,11 +378,11 @@ const GEMINI_2_5_FLASH_LITE = {
   },
 } as const satisfies ModelMeta<
   GeminiToolConfigOptions &
-    GeminiSafetyOptions &
-    GeminiGenerationConfigOptions &
-    GeminiCachedContentOptions &
-    GeminiStructuredOutputOptions &
-    GeminiThinkingOptions
+  GeminiSafetyOptions &
+  GeminiGenerationConfigOptions &
+  GeminiCachedContentOptions &
+  GeminiStructuredOutputOptions &
+  GeminiThinkingOptions
 >
 
 const GEMINI_2_5_FLASH_LITE_PREVIEW = {
@@ -447,12 +414,43 @@ const GEMINI_2_5_FLASH_LITE_PREVIEW = {
   },
 } as const satisfies ModelMeta<
   GeminiToolConfigOptions &
-    GeminiSafetyOptions &
-    GeminiGenerationConfigOptions &
-    GeminiCachedContentOptions &
-    GeminiStructuredOutputOptions &
-    GeminiThinkingOptions
+  GeminiSafetyOptions &
+  GeminiGenerationConfigOptions &
+  GeminiCachedContentOptions &
+  GeminiStructuredOutputOptions &
+  GeminiThinkingOptions
 >
+
+export const GEMINI_2_5_FLASH_NATIVE_AUDIO = {
+  name: 'gemini-2.5-flash-native-audio-preview-12-2025',
+  max_input_tokens: 131_072,
+  max_output_tokens: 8_192,
+  supports: {
+    input: ['text', 'image', 'audio', 'video'],
+    output: ['text', 'audio'],
+    capabilities: [
+      'function_calling',
+      'search_grounding',
+      'gemini_live_api'
+    ],
+  },
+  pricing: {
+    input: {
+      normal: 0.5
+    },
+    output: {
+      normal: 2
+    },
+  }
+} as const satisfies ModelMeta<
+  GeminiToolConfigOptions &
+  GeminiSafetyOptions &
+  GeminiGenerationConfigOptions &
+  GeminiCachedContentOptions &
+  GeminiStructuredOutputOptions &
+  GeminiThinkingOptions
+>
+
 
 const GEMINI_2_FLASH = {
   name: 'gemini-2.0-flash',
@@ -483,10 +481,10 @@ const GEMINI_2_FLASH = {
   },
 } as const satisfies ModelMeta<
   GeminiToolConfigOptions &
-    GeminiSafetyOptions &
-    GeminiGenerationConfigOptions &
-    GeminiCachedContentOptions &
-    GeminiStructuredOutputOptions
+  GeminiSafetyOptions &
+  GeminiGenerationConfigOptions &
+  GeminiCachedContentOptions &
+  GeminiStructuredOutputOptions
 >
 
 const GEMINI_2_FLASH_IMAGE = {
@@ -514,11 +512,11 @@ const GEMINI_2_FLASH_IMAGE = {
   },
 } as const satisfies ModelMeta<
   GeminiToolConfigOptions &
-    GeminiSafetyOptions &
-    GeminiGenerationConfigOptions &
-    GeminiCachedContentOptions
+  GeminiSafetyOptions &
+  GeminiGenerationConfigOptions &
+  GeminiCachedContentOptions
 >
-/* 
+/*
 const GEMINI_2_FLASH_LIVE = {
   name: 'gemini-2.0-flash-live-001',
   max_input_tokens: 1_048_576,
@@ -578,10 +576,10 @@ const GEMINI_2_FLASH_LITE = {
   },
 } as const satisfies ModelMeta<
   GeminiToolConfigOptions &
-    GeminiSafetyOptions &
-    GeminiGenerationConfigOptions &
-    GeminiCachedContentOptions &
-    GeminiStructuredOutputOptions
+  GeminiSafetyOptions &
+  GeminiGenerationConfigOptions &
+  GeminiCachedContentOptions &
+  GeminiStructuredOutputOptions
 >
 
 const IMAGEN_4_GENERATE = {
@@ -602,9 +600,9 @@ const IMAGEN_4_GENERATE = {
   },
 } as const satisfies ModelMeta<
   GeminiToolConfigOptions &
-    GeminiSafetyOptions &
-    GeminiGenerationConfigOptions &
-    GeminiCachedContentOptions
+  GeminiSafetyOptions &
+  GeminiGenerationConfigOptions &
+  GeminiCachedContentOptions
 >
 
 const IMAGEN_4_GENERATE_ULTRA = {
@@ -625,9 +623,9 @@ const IMAGEN_4_GENERATE_ULTRA = {
   },
 } as const satisfies ModelMeta<
   GeminiToolConfigOptions &
-    GeminiSafetyOptions &
-    GeminiGenerationConfigOptions &
-    GeminiCachedContentOptions
+  GeminiSafetyOptions &
+  GeminiGenerationConfigOptions &
+  GeminiCachedContentOptions
 >
 
 const IMAGEN_4_GENERATE_FAST = {
@@ -648,9 +646,9 @@ const IMAGEN_4_GENERATE_FAST = {
   },
 } as const satisfies ModelMeta<
   GeminiToolConfigOptions &
-    GeminiSafetyOptions &
-    GeminiGenerationConfigOptions &
-    GeminiCachedContentOptions
+  GeminiSafetyOptions &
+  GeminiGenerationConfigOptions &
+  GeminiCachedContentOptions
 >
 
 const IMAGEN_3 = {
@@ -670,124 +668,124 @@ const IMAGEN_3 = {
   },
 } as const satisfies ModelMeta<
   GeminiToolConfigOptions &
-    GeminiSafetyOptions &
-    GeminiGenerationConfigOptions &
-    GeminiCachedContentOptions
->
-/** 
-const VEO_3_1_PREVIEW = {
-  name: 'veo-3.1-generate-preview',
-  max_input_tokens: 1024,
-  max_output_tokens: 1,
-  supports: {
-    input: ['text', 'image'],
-    output: ['video', 'audio'],
-  },
-  pricing: {
-    input: {
-      normal: 0,
-    },
-    output: {
-      normal: 0.4,
-    },
-  },
-} as const satisfies ModelMeta<
-  GeminiToolConfigOptions &
   GeminiSafetyOptions &
   GeminiGenerationConfigOptions &
   GeminiCachedContentOptions
 >
+/**
+ const VEO_3_1_PREVIEW = {
+ name: 'veo-3.1-generate-preview',
+ max_input_tokens: 1024,
+ max_output_tokens: 1,
+ supports: {
+ input: ['text', 'image'],
+ output: ['video', 'audio'],
+ },
+ pricing: {
+ input: {
+ normal: 0,
+ },
+ output: {
+ normal: 0.4,
+ },
+ },
+ } as const satisfies ModelMeta<
+ GeminiToolConfigOptions &
+ GeminiSafetyOptions &
+ GeminiGenerationConfigOptions &
+ GeminiCachedContentOptions
+ >
 
-const VEO_3_1_FAST_PREVIEW = {
-  name: 'veo-3.1-fast-generate-preview',
-  max_input_tokens: 1024,
-  max_output_tokens: 1,
-  supports: {
-    input: ['text', 'image'],
-    output: ['video', 'audio'],
-  },
-  pricing: {
-    input: {
-      normal: 0,
-    },
-    output: {
-      normal: 0.15,
-    },
-  },
-} as const satisfies ModelMeta<
-  GeminiToolConfigOptions &
-  GeminiSafetyOptions &
-  GeminiGenerationConfigOptions &
-  GeminiCachedContentOptions
->
+ const VEO_3_1_FAST_PREVIEW = {
+ name: 'veo-3.1-fast-generate-preview',
+ max_input_tokens: 1024,
+ max_output_tokens: 1,
+ supports: {
+ input: ['text', 'image'],
+ output: ['video', 'audio'],
+ },
+ pricing: {
+ input: {
+ normal: 0,
+ },
+ output: {
+ normal: 0.15,
+ },
+ },
+ } as const satisfies ModelMeta<
+ GeminiToolConfigOptions &
+ GeminiSafetyOptions &
+ GeminiGenerationConfigOptions &
+ GeminiCachedContentOptions
+ >
 
-const VEO_3 = {
-  name: 'veo-3.0-generate-001',
-  max_input_tokens: 1024,
-  max_output_tokens: 1,
-  supports: {
-    input: ['text', 'image'],
-    output: ['video', 'audio'],
-  },
-  pricing: {
-    input: {
-      normal: 0,
-    },
-    output: {
-      normal: 0.4,
-    },
-  },
-} as const satisfies ModelMeta<
-  GeminiToolConfigOptions &
-  GeminiSafetyOptions &
-  GeminiGenerationConfigOptions &
-  GeminiCachedContentOptions
->
+ const VEO_3 = {
+ name: 'veo-3.0-generate-001',
+ max_input_tokens: 1024,
+ max_output_tokens: 1,
+ supports: {
+ input: ['text', 'image'],
+ output: ['video', 'audio'],
+ },
+ pricing: {
+ input: {
+ normal: 0,
+ },
+ output: {
+ normal: 0.4,
+ },
+ },
+ } as const satisfies ModelMeta<
+ GeminiToolConfigOptions &
+ GeminiSafetyOptions &
+ GeminiGenerationConfigOptions &
+ GeminiCachedContentOptions
+ >
 
-const VEO_3_FAST = {
-  name: 'veo-3.0-fast-generate-001',
-  max_input_tokens: 1024,
-  max_output_tokens: 1,
-  supports: {
-    input: ['text', 'image'],
-    output: ['video', 'audio'],
-  },
-  pricing: {
-    input: {
-      normal: 0,
-    },
-    output: {
-      normal: 0.15,
-    },
-  },
-} as const satisfies ModelMeta<
-  GeminiToolConfigOptions &
-  GeminiSafetyOptions &
-  GeminiGenerationConfigOptions &
-  GeminiCachedContentOptions
->
+ const VEO_3_FAST = {
+ name: 'veo-3.0-fast-generate-001',
+ max_input_tokens: 1024,
+ max_output_tokens: 1,
+ supports: {
+ input: ['text', 'image'],
+ output: ['video', 'audio'],
+ },
+ pricing: {
+ input: {
+ normal: 0,
+ },
+ output: {
+ normal: 0.15,
+ },
+ },
+ } as const satisfies ModelMeta<
+ GeminiToolConfigOptions &
+ GeminiSafetyOptions &
+ GeminiGenerationConfigOptions &
+ GeminiCachedContentOptions
+ >
 
-const VEO_2 = {
-  name: 'veo-2.0-generate-001',
-  max_output_tokens: 2,
-  supports: {
-    input: ['text', 'image'],
-    output: ['video'],
-  },
-  pricing: {
-    input: {
-      normal: 0,
-    },
-    output: {
-      normal: 0.35,
-    },
-  },
-} as const satisfies ModelMeta<
-  GeminiToolConfigOptions &
-  GeminiSafetyOptions &
-  GeminiGenerationConfigOptions &
-  GeminiCachedContentOptions
-> */
+ const VEO_2 = {
+ name: 'veo-2.0-generate-001',
+ max_output_tokens: 2,
+ supports: {
+ input: ['text', 'image'],
+ output: ['video'],
+ },
+ pricing: {
+ input: {
+ normal: 0,
+ },
+ output: {
+ normal: 0.35,
+ },
+ },
+ } as const satisfies ModelMeta<
+ GeminiToolConfigOptions &
+ GeminiSafetyOptions &
+ GeminiGenerationConfigOptions &
+ GeminiCachedContentOptions
+ > */
 
 /* const GEMINI_MODEL_META = {
   [GEMINI_3_PRO.name]: GEMINI_3_PRO,
@@ -840,6 +838,28 @@ export const GEMINI_IMAGE_MODELS = [
   IMAGEN_4_GENERATE_FAST.name,
   IMAGEN_4_GENERATE_ULTRA.name,
 ] as const
+
+/**
+ * Live model
+ * @experimental Gemini Live API is an experimental feature and may change.
+ */
+export const GEMINI_LIVE_MODELS = [
+  GEMINI_2_5_FLASH_NATIVE_AUDIO.name
+] as const;
+
+/**
+ * Available voice names for Gemini TTS
+ * @see https://ai.google.dev/gemini-api/docs/speech-generation
+ */
+export const GEMINI_LIVE_VOICES = [
+  'Zephyr',
+  'Puck',
+  'Charon',
+  'Kore',
+  'Fenrir'
+] as const;
+
+export type GeminiLiveAPIVoice = (typeof GEMINI_LIVE_VOICES)[number]
 
 /**
  * Text-to-speech models
@@ -949,6 +969,11 @@ export type GeminiChatModelProviderOptionsByName = {
     GeminiCachedContentOptions &
     GeminiStructuredOutputOptions &
     GeminiThinkingOptions
+  [GEMINI_2_5_FLASH_NATIVE_AUDIO.name]: GeminiToolConfigOptions &
+    GeminiSafetyOptions &
+    GeminiGenerationConfigOptions &
+    GeminiCachedContentOptions &
+    GeminiStructuredOutputOptions
   // Models with structured output but no thinking support
   [GEMINI_2_FLASH.name]: GeminiToolConfigOptions &
     GeminiSafetyOptions &
@@ -988,4 +1013,5 @@ export type GeminiModelInputModalitiesByName = {
   [GEMINI_2_5_FLASH_PREVIEW.name]: typeof GEMINI_2_5_FLASH_PREVIEW.supports.input
   [GEMINI_2_FLASH.name]: typeof GEMINI_2_FLASH.supports.input
   [GEMINI_2_FLASH_LITE.name]: typeof GEMINI_2_FLASH_LITE.supports.input
+  [GEMINI_2_5_FLASH_NATIVE_AUDIO.name]: typeof GEMINI_2_5_FLASH_NATIVE_AUDIO.supports.input
 }
