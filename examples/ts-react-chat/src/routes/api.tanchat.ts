@@ -90,10 +90,17 @@ export const Route = createFileRoute('/api/tanchat')({
               adapter: geminiText(
                 (model || 'gemini-2.5-flash') as 'gemini-2.5-flash',
               ),
+              modelOptions: {
+                thinkingConfig: {
+                  includeThoughts: true,
+                  thinkingBudget: 100,
+                },
+              },
             }),
           grok: () =>
             createChatOptions({
               adapter: grokText((model || 'grok-3') as 'grok-3'),
+              modelOptions: {},
             }),
           ollama: () =>
             createChatOptions({

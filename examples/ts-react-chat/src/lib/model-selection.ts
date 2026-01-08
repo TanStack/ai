@@ -37,8 +37,8 @@ export const MODEL_OPTIONS: Array<ModelOption> = [
   },
   {
     provider: 'gemini',
-    model: 'gemini-exp-1206',
-    label: 'Gemini - Exp 1206 (Pro)',
+    model: 'gemini-2.5-flash',
+    label: 'Gemini 2.5 - Flash',
   },
 
   // Ollama

@@ -20,6 +20,7 @@ import type {
   GenerateContentResponse,
   GoogleGenAI,
   Part,
+  ThinkingLevel,
 } from '@google/genai'
 import type {
   ContentPart,
@@ -216,6 +217,7 @@ export class GeminiTextAdapter<
               yield {
                 type: 'thinking',
                 content: part.text,
+                delta: part.text,
                 id: generateId(this.name),
                 model,
                 timestamp,
@@ -486,19 +488,29 @@ export class GeminiTextAdapter<
     })
   }
 
-  private mapCommonOptionsToGemini(options: TextOptions) {
-    const providerOpts = options.modelOptions
+  private mapCommonOptionsToGemini(
+    options: TextOptions<GeminiTextProviderOptions>,
+  ) {
+    const modelOpts = options.modelOptions
+    const thinkingConfig = modelOpts?.thinkingConfig
     const requestOptions: GenerateContentParameters = {
       model: options.model,
       contents: this.formatMessages(options.messages),
       config: {
-        ...providerOpts,
+        ...modelOpts,
         temperature: options.temperature,
         topP: options.topP,
         maxOutputTokens: options.maxTokens,
+        thinkingConfig: thinkingConfig
+          ? {
+              ...thinkingConfig,
+              thinkingLevel: thinkingConfig.thinkingLevel
+                ? // Enum is provided by the SDK, we use it for the type but cast it to string constants, here we just cast them back
+                  (thinkingConfig.thinkingLevel as ThinkingLevel)
+                : undefined,
+            }
+          : undefined,
         systemInstruction: options.systemPrompts?.join('\n'),
-        ...((providerOpts as Record<string, unknown> | undefined)
-          ?.generationConfig as Record<string, unknown> | undefined),
         tools: convertToolsToProviderFormat(options.tools),
       },
     }
