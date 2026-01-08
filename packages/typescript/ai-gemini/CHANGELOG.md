@@ -1,5 +1,16 @@
 # @tanstack/ai-gemini
 
+## 0.3.2
+
+### Patch Changes
+
+- Fix thinking output for Gemini Text adapter ([#210](https://github.com/TanStack/ai/pull/210))
+
+- fixed an issue with gemini and thought chunks processing ([#210](https://github.com/TanStack/ai/pull/210))
+
+- Updated dependencies [[`7573619`](https://github.com/TanStack/ai/commit/7573619a234d1a50bd2ac098d64524447ebc5869)]:
+  - @tanstack/ai@0.2.2
+
 ## 0.3.1
 
 ### Patch Changes

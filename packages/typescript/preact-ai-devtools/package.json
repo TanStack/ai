@@ -1,6 +1,6 @@
 {
   "name": "@tanstack/preact-ai-devtools",
-  "version": "0.0.0",
+  "version": "0.1.0",
   "description": "Preact Devtools for TanStack AI.",
   "author": "tannerlinsley",
   "license": "MIT",
