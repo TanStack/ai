@@ -101,7 +101,7 @@ describe('GeminiAdapter through AI', () => {
       adapter,
       messages: [{ role: 'user', content: 'How is the weather in Madrid?' }],
       modelOptions: {
-        generationConfig: { topK: 9 },
+        topK: 9,
       },
       temperature: 0.4,
       topP: 0.8,
@@ -227,49 +227,28 @@ describe('GeminiAdapter through AI', () => {
     expect(config.maxOutputTokens).toBe(512)
     expect(config.cachedContent).toBe(providerOptions.cachedContent)
     expect(config.safetySettings).toEqual(providerOptions.safetySettings)
-    expect(config.generationConfig).toEqual(providerOptions.generationConfig)
-    expect(config.stopSequences).toEqual(
-      providerOptions.generationConfig?.stopSequences,
-    )
-    expect(config.responseMimeType).toBe(
-      providerOptions.generationConfig?.responseMimeType,
-    )
-    expect(config.responseSchema).toEqual(
-      providerOptions.generationConfig?.responseSchema,
-    )
+    expect(config.stopSequences).toEqual(providerOptions?.stopSequences)
+    expect(config.responseMimeType).toBe(providerOptions?.responseMimeType)
+    expect(config.responseSchema).toEqual(providerOptions?.responseSchema)
     expect(config.responseJsonSchema).toEqual(
-      providerOptions.generationConfig?.responseJsonSchema,
+      providerOptions?.responseJsonSchema,
     )
     expect(config.responseModalities).toEqual(
-      providerOptions.generationConfig?.responseModalities,
+      providerOptions?.responseModalities,
     )
-    expect(config.candidateCount).toBe(
-      providerOptions.generationConfig?.candidateCount,
-    )
-    expect(config.topK).toBe(providerOptions.generationConfig?.topK)
-    expect(config.seed).toBe(providerOptions.generationConfig?.seed)
-    expect(config.presencePenalty).toBe(
-      providerOptions.generationConfig?.presencePenalty,
-    )
-    expect(config.frequencyPenalty).toBe(
-      providerOptions.generationConfig?.frequencyPenalty,
-    )
-    expect(config.responseLogprobs).toBe(
-      providerOptions.generationConfig?.responseLogprobs,
-    )
-    expect(config.logprobs).toBe(providerOptions.generationConfig?.logprobs)
+    expect(config.candidateCount).toBe(providerOptions?.candidateCount)
+    expect(config.topK).toBe(providerOptions?.topK)
+    expect(config.seed).toBe(providerOptions?.seed)
+    expect(config.presencePenalty).toBe(providerOptions?.presencePenalty)
+    expect(config.frequencyPenalty).toBe(providerOptions?.frequencyPenalty)
+    expect(config.responseLogprobs).toBe(providerOptions?.responseLogprobs)
+    expect(config.logprobs).toBe(providerOptions?.logprobs)
     expect(config.enableEnhancedCivicAnswers).toBe(
-      providerOptions.generationConfig?.enableEnhancedCivicAnswers,
+      providerOptions?.enableEnhancedCivicAnswers,
     )
-    expect(config.speechConfig).toEqual(
-      providerOptions.generationConfig?.speechConfig,
-    )
-    expect(config.thinkingConfig).toEqual(
-      providerOptions.generationConfig?.thinkingConfig,
-    )
-    expect(config.imageConfig).toEqual(
-      providerOptions.generationConfig?.imageConfig,
-    )
+    expect(config.speechConfig).toEqual(providerOptions?.speechConfig)
+    expect(config.thinkingConfig).toEqual(providerOptions?.thinkingConfig)
+    expect(config.imageConfig).toEqual(providerOptions?.imageConfig)
   })
 
   it('streams chat chunks using mapped provider config', async () => {
@@ -308,7 +287,7 @@ describe('GeminiAdapter through AI', () => {
       adapter,
       messages: [{ role: 'user', content: 'Tell me a joke' }],
       modelOptions: {
-        generationConfig: { topK: 3 },
+        topK: 3,
       },
       temperature: 0.2,
     })) {

@@ -1,6 +1,6 @@
 {
   "name": "@tanstack/solid-ai-devtools",
-  "version": "0.1.2",
+  "version": "0.2.0",
   "description": "Solid TanStack AI Devtools",
   "author": "",
   "license": "MIT",
@@ -48,7 +48,7 @@
   ],
   "dependencies": {
     "@tanstack/ai-devtools-core": "workspace:*",
-    "@tanstack/devtools-utils": "^0.0.8"
+    "@tanstack/devtools-utils": "^0.2.3"
   },
   "peerDependencies": {
     "solid-js": ">=1.9.7"

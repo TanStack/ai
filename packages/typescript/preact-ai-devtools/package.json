@@ -1,14 +1,14 @@
 {
-  "name": "@tanstack/react-ai-devtools",
-  "version": "0.2.0",
-  "description": "React Devtools for TanStack AI.",
+  "name": "@tanstack/preact-ai-devtools",
+  "version": "0.1.0",
+  "description": "Preact Devtools for TanStack AI.",
   "author": "tannerlinsley",
   "license": "MIT",
   "homepage": "https://tanstack.com/ai",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/TanStack/ai.git",
-    "directory": "packages/typescript/ai"
+    "directory": "packages/typescript/preact-ai-devtools"
   },
   "funding": {
     "type": "github",
@@ -51,14 +51,11 @@
     "@tanstack/ai-devtools-core": "workspace:*",
     "@tanstack/devtools-utils": "^0.2.3"
   },
-  "peerDependencies": {
-    "@types/react": "^17.0.0 || ^18.0.0 || ^19.0.0",
-    "react": "^17.0.0 || ^18.0.0 || ^19.0.0"
-  },
   "devDependencies": {
-    "@types/react": "^19.2.7",
     "@vitest/coverage-v8": "4.0.14",
-    "react": "^19.2.3",
     "vite": "^7.2.7"
+  },
+  "peerDependencies": {
+    "preact": "^10.0.0"
   }
 }

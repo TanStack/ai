@@ -732,7 +732,7 @@ export class StreamProcessor {
     let nextThinking = previous
 
     // Prefer delta over content
-    if (chunk.delta !== '') {
+    if (chunk.delta && chunk.delta !== '') {
       nextThinking = previous + chunk.delta
     } else if (chunk.content !== '') {
       if (chunk.content.startsWith(previous)) {

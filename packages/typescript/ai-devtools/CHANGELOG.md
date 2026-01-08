@@ -1,5 +1,16 @@
 # @tanstack/ai-devtools-core
 
+## 0.2.0
+
+### Minor Changes
+
+- Bump tanstack-devtools to 0.2.3 ([#204](https://github.com/TanStack/ai/pull/204))
+
+### Patch Changes
+
+- Updated dependencies [[`7573619`](https://github.com/TanStack/ai/commit/7573619a234d1a50bd2ac098d64524447ebc5869)]:
+  - @tanstack/ai@0.2.2
+
 ## 0.1.2
 
 ### Patch Changes

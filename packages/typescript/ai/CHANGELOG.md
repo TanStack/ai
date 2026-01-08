@@ -1,5 +1,11 @@
 # @tanstack/ai
 
+## 0.2.2
+
+### Patch Changes
+
+- fixed an issue with gemini and thought chunks processing ([#210](https://github.com/TanStack/ai/pull/210))
+
 ## 0.2.1
 
 ### Patch Changes
