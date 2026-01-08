@@ -120,12 +120,12 @@
           "to": "api/ai-react"
         },
         {
-          "label": "@tanstack/ai-preact",
-          "to": "api/ai-preact"
-        },
-        {
           "label": "@tanstack/ai-solid",
           "to": "api/ai-solid"
+        },
+        {
+          "label": "@tanstack/ai-preact",
+          "to": "api/ai-preact"
         }
       ]
     },
@@ -147,6 +147,10 @@
         {
           "label": "Ollama",
           "to": "adapters/ollama"
+        },
+        {
+          "label": "Grok (xAI)",
+          "to": "adapters/grok"
         }
       ]
     },
