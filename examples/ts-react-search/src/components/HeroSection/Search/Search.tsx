@@ -1,8 +1,8 @@
 'use client'
 
 import { useState } from 'react'
-import { fetchServerSentEvents, useChat } from '@tanstack/ai-react'
 import { useNavigate } from '@tanstack/react-router'
+import { useMutation } from '@tanstack/react-query'
 import QuickPrompts from './QuickPrompts'
 import SearchForm from './SearchForm'
 import type { FormEvent } from 'react'
@@ -11,16 +11,27 @@ function Search() {
   const navigate = useNavigate()
   const [value, setValue] = useState('')
 
-  const { sendMessage, error, isLoading } = useChat({
-    connection: fetchServerSentEvents('/api/search'),
-    onFinish(message) {
-      if (message.role === 'assistant' && message.parts[0].type === 'text') {
-        const result = message.parts[0].content
-        const { name, parameters } = JSON.parse(result) || {}
+  const { mutate, isPending, error } = useMutation({
+    mutationFn: async (content: string) => {
+      const response = await fetch('/api/search', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ content }),
+      })
 
-        if (name && parameters) {
-          navigate({ to: `/${name}`, search: parameters })
-        }
+      if (!response.ok) {
+        throw new Error('Search request failed')
+      }
+
+      return response.json()
+    },
+    onSuccess: async (json) => {
+      const { name, parameters } = json?.data ?? {}
+
+      if (name && parameters) {
+        await navigate({ to: `/${name}`, search: parameters })
       }
     },
   })
@@ -28,8 +39,8 @@ function Search() {
   function handleSubmit(event: FormEvent) {
     event.preventDefault()
 
-    if (value.trim() && !isLoading) {
-      sendMessage(value)
+    if (value.trim() && !isPending) {
+      mutate(value)
       setValue('')
     }
   }
@@ -40,7 +51,7 @@ function Search() {
         value={value}
         onChange={setValue}
         onSubmit={handleSubmit}
-        isLoading={isLoading}
+        isLoading={isPending}
       />
       {error && (
         <p className="text-red-500 text-center text-sm">
