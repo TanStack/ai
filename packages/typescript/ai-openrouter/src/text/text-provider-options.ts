@@ -107,6 +107,28 @@ export interface ImageConfig {
   aspect_ratio?: '1:1' | '16:9' | '9:16' | '4:3' | '3:4' | string
 }
 
+export interface PredictionOptions {
+  /**
+   * The type of prediction. Currently only 'content' is supported.
+   */
+  type: 'content'
+  /**
+   * The predicted content string to reduce latency.
+   * Providing a predicted output can help reduce response time.
+   */
+  content: string
+}
+
+export interface WebSearchOptions {
+  /**
+   * Controls the amount of search data retrieved.
+   * - 'low' - Minimal search context
+   * - 'medium' - Moderate search context (default)
+   * - 'high' - Maximum search context
+   */
+  search_context_size?: 'low' | 'medium' | 'high'
+}
+
 export interface OpenRouterBaseOptions {
   /**
    * Up to 4 sequences where the API will stop generating further tokens.
@@ -266,6 +288,18 @@ export interface OpenRouterBaseOptions {
      */
     echo_upstream_body?: boolean
   }
+  /**
+   * Prediction parameter to reduce latency by providing the model with a predicted output.
+   * This can help improve response times by giving the model a head start.
+   * https://openrouter.ai/docs/requests
+   */
+  prediction?: PredictionOptions
+  /**
+   * Web search options for controlling search behavior.
+   * This is separate from the plugins array and provides additional control over search context.
+   * https://openrouter.ai/docs/guides/features/plugins/web-search
+   */
+  web_search_options?: WebSearchOptions
 }
 
 export type ExternalTextProviderOptions = OpenRouterBaseOptions

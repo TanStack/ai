@@ -55,6 +55,8 @@ export type {
   ReasoningOptions,
   StreamOptions,
   ImageConfig,
+  PredictionOptions,
+  WebSearchOptions,
 } from './text/text-provider-options'
 
 // ============================================================================
