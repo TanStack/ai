@@ -1,0 +1,20 @@
+# Backend
+backend/vendor/
+backend/.env
+backend/.env.backup
+backend/.phpunit.result.cache
+
+# Frontend
+frontend/node_modules/
+frontend/dist/
+frontend/.vite/
+
+# IDE
+.idea/
+.vscode/
+.fleet/
+.nova/
+
+# OS
+.DS_Store
+Thumbs.db
