@@ -271,6 +271,12 @@ export class GeminiTextAdapter<
               }
             }
 
+            // Capture thought signature for Gemini 3.0 compatibility
+            const metadata =
+              'thoughtSignature' in part && part.thoughtSignature
+                ? { thoughtSignature: part.thoughtSignature }
+                : undefined
+
             yield {
               type: 'tool_call',
               id: generateId(this.name),
@@ -283,6 +289,7 @@ export class GeminiTextAdapter<
                   name: toolCallData.name,
                   arguments: toolCallData.args,
                 },
+                metadata,
               },
               index: toolCallData.index,
             }
@@ -323,6 +330,12 @@ export class GeminiTextAdapter<
                   index: nextToolIndex++,
                 })
 
+                // Capture thought signature for Gemini 3.0 compatibility
+                const metadata =
+                  'thoughtSignature' in part && part.thoughtSignature
+                    ? { thoughtSignature: part.thoughtSignature }
+                    : undefined
+
                 yield {
                   type: 'tool_call',
                   id: generateId(this.name),
@@ -338,6 +351,7 @@ export class GeminiTextAdapter<
                           ? functionArgs
                           : JSON.stringify(functionArgs),
                     },
+                    metadata,
                   },
                   index: nextToolIndex - 1,
                 }
@@ -461,12 +475,24 @@ export class GeminiTextAdapter<
             >
           }
 
-          parts.push({
+          const part: Part = {
             functionCall: {
               name: toolCall.function.name,
               args: parsedArgs,
             },
-          })
+          }
+
+          // Include thought signature if present for Gemini 3.0 compatibility
+          if (
+            toolCall.metadata &&
+            typeof toolCall.metadata === 'object' &&
+            'thoughtSignature' in toolCall.metadata &&
+            typeof toolCall.metadata.thoughtSignature === 'string'
+          ) {
+            ;(part as any).thoughtSignature = toolCall.metadata.thoughtSignature
+          }
+
+          parts.push(part)
         }
       }
 
