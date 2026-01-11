@@ -782,18 +782,15 @@ importers:
       preact:
         specifier: '>=10.11.0'
         version: 10.28.0
-      preact-markdown:
-        specifier: ^2.1.0
-        version: 2.1.0(preact@10.28.0)
+      preact-md:
+        specifier: ^0.2.0
+        version: 0.2.0(preact@10.28.0)
       rehype-highlight:
         specifier: ^7.0.2
         version: 7.0.2
       rehype-raw:
         specifier: ^7.0.0
         version: 7.0.0
-      rehype-sanitize:
-        specifier: ^6.0.0
-        version: 6.0.0
       remark-gfm:
         specifier: ^4.0.1
         version: 4.0.1
@@ -5994,11 +5991,6 @@ packages:
     engines: {node: '>= 20'}
     hasBin: true
 
-  marked@4.3.0:
-    resolution: {integrity: sha512-PRsaiG84bK+AMvxziE/lCFss8juXjNaWzVbN5tXAm4XjeaS9NAHhop+PjQxz2A9h8Q4M/xGmzP8vqNwy6JeK0A==}
-    engines: {node: '>= 12'}
-    hasBin: true
-
   math-intrinsics@1.1.0:
     resolution: {integrity: sha512-/IXtbwEk5HTPyEwyKX6hGkYXxM9nbj64B+ilVJnC/R6B0pH5G4V3b0pVbL7DBj4tkhBAppbQUlf6F6Xl9LHu1g==}
     engines: {node: '>= 0.4'}
@@ -6597,13 +6589,10 @@ packages:
     resolution: {integrity: sha512-3Ybi1tAuwAP9s0r1UQ2J4n5Y0G05bJkpUIO0/bI9MhwmD70S5aTWbXGBwxHrelT+XM1k6dM0pk+SwNkpTRN7Pg==}
     engines: {node: ^10 || ^12 || >=14}
 
-  preact-markdown@2.1.0:
-    resolution: {integrity: sha512-6c2hfarjLFkVDNa1hUKytXID6wl6yilZnGb2y83xKXnfk5SpXYAwhJc+JENgffAcNALWggqvX/ezlk8/8qJsuA==}
-
-  preact-markup@2.1.1:
-    resolution: {integrity: sha512-8JL2p36mzK8XkspOyhBxUSPjYwMxDM0L5BWBZWxsZMVW8WsGQrYQDgVuDKkRspt2hwrle+Cxr/053hpc9BJwfw==}
+  preact-md@0.2.0:
+    resolution: {integrity: sha512-82C8cD5Ss60u30z6DxsyLdrI2yQZ7KGUdJ/QnA2N5lU0rUv+s3ZX0U3wiDTeoxu/E0Ck5QIFuRYkMeHZgeG5hw==}
     peerDependencies:
-      preact: '>=10'
+      preact: ^10.0.0
 
   preact@10.28.0:
     resolution: {integrity: sha512-rytDAoiXr3+t6OIP3WGlDd0ouCUG1iCWzkcY3++Nreuoi17y6T5i/zRhe6uYfoVcxq6YU+sBtJouuRDsq8vvqA==}
@@ -13494,8 +13483,6 @@ snapshots:
 
   marked@17.0.1: {}
 
-  marked@4.3.0: {}
-
   math-intrinsics@1.1.0: {}
 
   mdast-util-find-and-replace@3.0.2:
@@ -14397,16 +14384,17 @@ snapshots:
       picocolors: 1.1.1
       source-map-js: 1.2.1
 
-  preact-markdown@2.1.0(preact@10.28.0):
+  preact-md@0.2.0(preact@10.28.0):
     dependencies:
-      marked: 4.3.0
-      preact-markup: 2.1.1(preact@10.28.0)
-    transitivePeerDependencies:
-      - preact
-
-  preact-markup@2.1.1(preact@10.28.0):
-    dependencies:
+      hast-util-sanitize: 5.0.2
+      marked: 17.0.1
       preact: 10.28.0
+      rehype-sanitize: 6.0.0
+      remark-parse: 11.0.0
+      remark-rehype: 11.1.2
+      unified: 11.0.5
+    transitivePeerDependencies:
+      - supports-color
 
   preact@10.28.0: {}
 

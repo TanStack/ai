@@ -1,5 +1,7 @@
-import { h } from 'preact'
-import Markdown from 'preact-markdown'
+import { Markdown } from 'preact-md'
+import rehypeRaw from 'rehype-raw'
+import rehypeHighlight from 'rehype-highlight'
+import remarkGfm from 'remark-gfm'
 
 export interface TextPartProps {
   /** The text content to render */
@@ -70,7 +72,13 @@ export function TextPart({
 
   return (
     <div className={combinedClassName || undefined}>
-      {h(Markdown, { markdown: content })}
+      <Markdown
+        // @ts-expect-error - Plugin type incompatibility between unified and preact-md
+        rehypePlugins={[rehypeRaw, rehypeHighlight]}
+        remarkPlugins={[remarkGfm]}
+      >
+        {content}
+      </Markdown>
     </div>
   )
 }

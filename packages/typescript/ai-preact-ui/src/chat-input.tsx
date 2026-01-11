@@ -105,7 +105,7 @@ export function ChatInput({
         ref={inputRef as RefObject<HTMLInputElement>}
         type="text"
         value={value}
-        onInput={(e) => setValue((e.currentTarget as HTMLInputElement).value)}
+        onInput={(e) => setValue(e.currentTarget.value)}
         onKeyDown={(e) => {
           if (submitOnEnter && e.key === 'Enter') {
             e.preventDefault()
@@ -127,15 +127,15 @@ export function ChatInput({
           transition: 'all 0.2s',
         }}
         onFocus={(e) => {
-          ;(e.currentTarget as HTMLInputElement).style.borderColor =
+          e.currentTarget.style.borderColor =
             'rgba(249, 115, 22, 0.4)'
-          ;(e.currentTarget as HTMLInputElement).style.boxShadow =
+          e.currentTarget.style.boxShadow =
             '0 0 0 2px rgba(249, 115, 22, 0.2)'
         }}
         onBlur={(e) => {
-          ;(e.currentTarget as HTMLInputElement).style.borderColor =
+          e.currentTarget.style.borderColor =
             'rgba(255, 255, 255, 0.1)'
-          ;(e.currentTarget as HTMLInputElement).style.boxShadow = 'none'
+          e.currentTarget.style.boxShadow = 'none'
         }}
       />
       <button
@@ -159,13 +159,13 @@ export function ChatInput({
         }}
         onMouseEnter={(e) => {
           if (!disabled && value.trim()) {
-            ;(e.currentTarget as HTMLButtonElement).style.backgroundColor =
+            e.currentTarget.style.backgroundColor =
               'rgb(234, 88, 12)'
           }
         }}
         onMouseLeave={(e) => {
           if (!disabled && value.trim()) {
-            ;(e.currentTarget as HTMLButtonElement).style.backgroundColor =
+            e.currentTarget.style.backgroundColor =
               'rgb(249, 115, 22)'
           }
         }}
