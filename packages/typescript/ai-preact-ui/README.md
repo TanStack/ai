@@ -61,7 +61,12 @@ yarn add @tanstack/ai-preact-ui @tanstack/ai-preact
 ## Quick Start
 
 ```tsx
-import { Chat, ChatMessages, ChatInput, ChatMessage } from '@tanstack/ai-preact-ui'
+import {
+  Chat,
+  ChatMessages,
+  ChatInput,
+  ChatMessage,
+} from '@tanstack/ai-preact-ui'
 import { fetchServerSentEvents } from '@tanstack/ai-client'
 
 function App() {
@@ -83,7 +88,7 @@ function App() {
 Root component that provides chat context to all child components.
 
 ```tsx
-<Chat 
+<Chat
   connection={fetchServerSentEvents('/api/chat')}
   initialMessages={[]}
   onFinish={(message) => console.log('Message complete:', message)}
@@ -125,14 +130,11 @@ Renders a single message with all its parts (text, thinking, tool calls, tool re
 <ChatMessage
   message={message}
   textPartRenderer={({ content }) => (
-    <TextPart 
-      content={content} 
-      className="prose dark:prose-invert"
-    />
+    <TextPart content={content} className="prose dark:prose-invert" />
   )}
   thinkingPartRenderer={({ content, isComplete }) => (
-    <ThinkingPart 
-      content={content} 
+    <ThinkingPart
+      content={content}
       isComplete={isComplete}
       className="bg-gray-100 dark:bg-gray-800"
     />
@@ -150,10 +152,7 @@ Renders a single message with all its parts (text, thinking, tool calls, tool re
 Input component for sending messages.
 
 ```tsx
-<ChatInput 
-  placeholder="Type a message..."
-  submitOnEnter={true}
-/>
+<ChatInput placeholder="Type a message..." submitOnEnter={true} />
 ```
 
 #### Custom Input UI
@@ -167,8 +166,8 @@ Input component for sending messages.
         onInput={(e) => onChange(e.target.value)}
         className="flex-1 px-4 py-2 border rounded"
       />
-      <button 
-        onClick={onSubmit} 
+      <button
+        onClick={onSubmit}
         disabled={isLoading}
         className="px-6 py-2 bg-blue-500 text-white rounded"
       >
@@ -183,13 +182,13 @@ Input component for sending messages.
 
 Renders text content with markdown support and syntax highlighting.
 
-```tsx
+````tsx
 <TextPart
   content="Hello **world**! Here's some code:\n```js\nconsole.log('hi')\n```"
   role="assistant"
   className="prose dark:prose-invert"
 />
-```
+````
 
 ### `<ThinkingPart>`
 
@@ -227,7 +226,7 @@ import { useChatContext } from '@tanstack/ai-preact-ui'
 
 function CustomComponent() {
   const { messages, isLoading, sendMessage } = useChatContext()
-  
+
   return (
     <div>
       <p>Messages: {messages.length}</p>
@@ -243,26 +242,26 @@ All components are headless and use data attributes for styling:
 
 ```css
 /* Message styling */
-[data-message-role="user"] {
+[data-message-role='user'] {
   background: #e3f2fd;
   text-align: right;
 }
 
-[data-message-role="assistant"] {
+[data-message-role='assistant'] {
   background: #f5f5f5;
 }
 
 /* Part type styling */
-[data-part-type="text"] {
+[data-part-type='text'] {
   padding: 1rem;
 }
 
-[data-part-type="thinking"] {
+[data-part-type='thinking'] {
   opacity: 0.8;
   font-style: italic;
 }
 
-[data-part-type="tool-call"] {
+[data-part-type='tool-call'] {
   border-left: 3px solid #2196f3;
   padding-left: 1rem;
 }

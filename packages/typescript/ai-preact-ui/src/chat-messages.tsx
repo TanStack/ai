@@ -14,7 +14,10 @@ export interface ChatMessagesProps {
   /** Element to show while loading the first message */
   loadingState?: ComponentChildren
   /** Custom error renderer */
-  errorState?: (props: { error: Error; reload: () => void }) => ComponentChildren
+  errorState?: (props: {
+    error: Error
+    reload: () => void
+  }) => ComponentChildren
   /** Auto-scroll to bottom on new messages */
   autoScroll?: boolean
 }

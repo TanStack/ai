@@ -28,7 +28,10 @@ export interface ChatMessageProps {
     isComplete?: boolean
   }) => ComponentChildren
   /** Named tool renderers - use the tool name as the key */
-  toolsRenderer?: Record<string, (props: ToolCallRenderProps) => ComponentChildren>
+  toolsRenderer?: Record<
+    string,
+    (props: ToolCallRenderProps) => ComponentChildren
+  >
   /** Default tool renderer when tool name not found in toolsRenderer */
   defaultToolRenderer?: (props: ToolCallRenderProps) => ComponentChildren
   /** Custom renderer for tool result parts */

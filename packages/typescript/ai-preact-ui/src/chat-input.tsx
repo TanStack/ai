@@ -127,14 +127,11 @@ export function ChatInput({
           transition: 'all 0.2s',
         }}
         onFocus={(e) => {
-          e.currentTarget.style.borderColor =
-            'rgba(249, 115, 22, 0.4)'
-          e.currentTarget.style.boxShadow =
-            '0 0 0 2px rgba(249, 115, 22, 0.2)'
+          e.currentTarget.style.borderColor = 'rgba(249, 115, 22, 0.4)'
+          e.currentTarget.style.boxShadow = '0 0 0 2px rgba(249, 115, 22, 0.2)'
         }}
         onBlur={(e) => {
-          e.currentTarget.style.borderColor =
-            'rgba(255, 255, 255, 0.1)'
+          e.currentTarget.style.borderColor = 'rgba(255, 255, 255, 0.1)'
           e.currentTarget.style.boxShadow = 'none'
         }}
       />
@@ -159,14 +156,12 @@ export function ChatInput({
         }}
         onMouseEnter={(e) => {
           if (!disabled && value.trim()) {
-            e.currentTarget.style.backgroundColor =
-              'rgb(234, 88, 12)'
+            e.currentTarget.style.backgroundColor = 'rgb(234, 88, 12)'
           }
         }}
         onMouseLeave={(e) => {
           if (!disabled && value.trim()) {
-            e.currentTarget.style.backgroundColor =
-              'rgb(249, 115, 22)'
+            e.currentTarget.style.backgroundColor = 'rgb(249, 115, 22)'
           }
         }}
       >
