@@ -50,7 +50,7 @@ export const BEDROCK_AMAZON_NOVA_MICRO_V1 = {
 
 export const BEDROCK_ANTHROPIC_CLAUDE_SONNET_4_5 = {
     name: 'claude-4-5-sonnet',
-    id: 'anthropic.claude-4-5-sonnet-20250929-v1:0',
+    id: 'anthropic.claude-sonnet-4-5-20250929-v1:0',
     context_window: 1_000_000,
     max_output_tokens: 64_000,
     supports: {
@@ -61,7 +61,7 @@ export const BEDROCK_ANTHROPIC_CLAUDE_SONNET_4_5 = {
 
 export const BEDROCK_ANTHROPIC_CLAUDE_HAIKU_4_5 = {
     name: 'claude-4-5-haiku',
-    id: 'anthropic.claude-4-5-haiku-20251001-v1:0',
+    id: 'anthropic.claude-haiku-4-5-20251001-v1:0',
     context_window: 200_000,
     max_output_tokens: 64_000,
     supports: {

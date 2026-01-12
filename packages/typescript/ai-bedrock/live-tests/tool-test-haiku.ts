@@ -11,7 +11,7 @@ async function main() {
     const accessKeyId = process.env.AWS_ACCESS_KEY_ID ?? throwMissingEnv('AWS_ACCESS_KEY_ID')
     const secretAccessKey = process.env.AWS_SECRET_ACCESS_KEY ?? throwMissingEnv('AWS_SECRET_ACCESS_KEY')
 
-    const modelId = 'anthropic.claude-4-5-haiku-20251001-v1:0'
+    const modelId = 'anthropic.claude-haiku-4-5-20251001-v1:0'
     console.log(`Running tool test for: ${modelId}`)
 
     const stream = await chat({
