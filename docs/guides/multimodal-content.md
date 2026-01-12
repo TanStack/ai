@@ -58,7 +58,7 @@ import { chat } from '@tanstack/ai'
 import { openaiText } from '@tanstack/ai-openai'
 
 const response = await chat({
-  adapter: openaiText('gpt-4o'),
+  adapter: openaiText('gpt-5.2'),
   messages: [
     {
       role: 'user',
@@ -103,8 +103,8 @@ const message = {
 ```
 
 **Supported modalities by model:**
-- `gpt-4o`, `gpt-4o-mini`: text, image
-- `gpt-4o-audio-preview`: text, image, audio
+- `gpt-5.2`, `gpt-5-mini`: text, image
+- `gpt-5.2-audio-preview`: text, image, audio
 
 ### Anthropic
 
@@ -282,9 +282,9 @@ import { openaiText } from '@tanstack/ai-openai'
 // In an API route handler
 const { messages: incomingMessages } = await request.json()
 
-const adapter = openaiText('gpt-4o')
+const adapter = openaiText('gpt-5.2')
 
-// Assert incoming messages are compatible with gpt-4o (text + image only)
+// Assert incoming messages are compatible with gpt-5.2 (text + image only)
 const typedMessages = assertMessages({ adapter }, incomingMessages)
 
 // Now TypeScript will properly check any additional messages you add
