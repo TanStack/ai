@@ -19,15 +19,22 @@ try {
     // .env.local not found
 }
 
+function throwMissingEnv(name: string): never {
+    throw new Error(`Missing required environment variable: ${name}`)
+}
+
 async function testBedrockNovaToolCalling() {
     console.log('Testing Bedrock tool calling (Amazon Nova Pro)\n')
 
+    const accessKeyId = process.env.AWS_ACCESS_KEY_ID ?? throwMissingEnv('AWS_ACCESS_KEY_ID')
+    const secretAccessKey = process.env.AWS_SECRET_ACCESS_KEY ?? throwMissingEnv('AWS_SECRET_ACCESS_KEY')
+
     const stream = await chat({
         adapter: bedrockText('us.amazon.nova-pro-v1:0', {
-            region: process.env.AWS_REGION || 'us-west-2',
+            region: process.env.AWS_REGION || 'us-east-1',
             credentials: {
-                accessKeyId: process.env.AWS_ACCESS_KEY_ID || '',
-                secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY || '',
+                accessKeyId,
+                secretAccessKey,
             }
         }),
         messages: [

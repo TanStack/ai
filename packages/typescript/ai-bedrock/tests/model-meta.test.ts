@@ -45,7 +45,7 @@ describe('Bedrock Model Input Modality Type Assertions', () => {
     })
 
     describe('Claude 4.5 Sonnet (text + image + document)', () => {
-        type Modalities = ResolveModalities<BedrockModelInputModalitiesByName['anthropic.claude-4-5-sonnet-20250929-v1:0']>
+        type Modalities = ResolveModalities<BedrockModelInputModalitiesByName['anthropic.claude-sonnet-4-5-20250929-v1:0']>
         type Message = ConstrainedModelMessage<Modalities>
 
         it('should allow TextPart, ImagePart, and DocumentPart', () => {

@@ -1,11 +1,3 @@
-export interface BedrockMCPOptions {
-    /**
-     * MCP servers to be utilized in this request
-     * Maximum of 20 servers
-     */
-    mcp_servers?: Array<MCPServer>
-}
-
 export interface BedrockStopSequencesOptions {
     /**
      * Custom text sequences that will cause the model to stop generating.
@@ -44,18 +36,7 @@ export interface BedrockInferenceConfig {
     stopSequences?: Array<string>
 }
 
-export interface MCPServer {
-    name: string
-    url: string
-    type: 'url'
-    authorization_token?: string | null
-    tool_configuration: {
-        allowed_tools?: Array<string> | null
-        enabled?: boolean | null
-    } | null
-}
-
-export type BedrockTextProviderOptions = BedrockMCPOptions &
+export type BedrockTextProviderOptions =
     BedrockStopSequencesOptions &
     BedrockThinkingOptions &
     BedrockSamplingOptions & {
