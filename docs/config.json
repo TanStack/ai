@@ -162,6 +162,10 @@
           "to": "community-adapters/guide"
         },
         {
+          "label": "Cencori",
+          "to": "community-adapters/cencori"
+        },
+        {
           "label": "Decart",
           "to": "community-adapters/decart"
         }
