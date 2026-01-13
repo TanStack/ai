@@ -78,7 +78,7 @@ export async function POST(request: Request) {
 
   // Create streaming chat with tools
   const stream = chat({
-    adapter: openaiText("gpt-4o"),
+    adapter: openaiText("gpt-5.2"),
     messages,
     tools: [getWeather, sendEmail], // Tool definitions passed here
   });
