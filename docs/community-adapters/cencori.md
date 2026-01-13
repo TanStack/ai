@@ -66,7 +66,6 @@ for await (const chunk of text({
 ## Tool Calling
 
 ```typescript
-import { text } from "@tanstack/ai";
 import { cencori } from "@cencori/ai-sdk/tanstack";
 
 const adapter = cencori("gpt-4o");
