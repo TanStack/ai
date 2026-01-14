@@ -188,7 +188,7 @@ export async function POST(request: Request) {
   });
 
   const stream = chat({
-    adapter: openaiText("gpt-4o"),
+    adapter: openaiText("gpt-5.2"),
     messages,
     tools: [getWeather], // Pass server tools
   });
@@ -280,7 +280,7 @@ On the server, pass the definition (for client execution) or server implementati
 
 ```typescript
 chat({
-  adapter: openaiText("gpt-4o"),
+  adapter: openaiText("gpt-5.2"),
   messages,
   tools: [addToCartDef], // Client will execute, or
   tools: [addToCartServer], // Server will execute

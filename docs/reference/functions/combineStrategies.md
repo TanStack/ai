@@ -33,7 +33,7 @@ AgentLoopStrategy that continues only if all strategies return true
 ```typescript
 const stream = chat({
   adapter: openaiText(),
-  model: "gpt-4o",
+  model: "gpt-5.2",
   messages: [...],
   tools: [weatherTool],
   agentLoopStrategy: combineStrategies([

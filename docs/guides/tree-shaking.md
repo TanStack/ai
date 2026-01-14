@@ -43,7 +43,7 @@ import { chat } from '@tanstack/ai'
 import { openaiText } from '@tanstack/ai-openai'
 
 const stream = chat({
-  adapter: openaiText('gpt-4o'),
+  adapter: openaiText('gpt-5.2'),
   messages: [{ role: 'user', content: 'Hello!' }],
 })
 ```
@@ -110,7 +110,7 @@ import { openaiText } from '@tanstack/ai-openai'
 
 // Chat generation - returns AsyncIterable<StreamChunk>
 const chatResult = chat({
-  adapter: openaiText('gpt-4o'),
+  adapter: openaiText('gpt-5.2'),
   messages: [{ role: 'user', content: 'Hello!' }],
 })
 
@@ -143,12 +143,12 @@ import {
 
 // Each activity is independent
 const chatResult = chat({
-  adapter: openaiText('gpt-4o'),
+  adapter: openaiText('gpt-5.2'),
   messages: [{ role: 'user', content: 'Hello!' }],
 })
 
 const summarizeResult = await summarize({
-  adapter: openaiSummarize('gpt-4o-mini'),
+  adapter: openaiSummarize('gpt-5-mini'),
   text: 'Long text to summarize...',
 })
 ```
@@ -165,7 +165,7 @@ import { openaiText, type OpenAIChatModel } from '@tanstack/ai-openai'
 const adapter = openaiText()
 
 // TypeScript knows the exact models supported
-const model: OpenAIChatModel = 'gpt-4o' // ✓ Valid
+const model: OpenAIChatModel = 'gpt-5.2' // ✓ Valid
 const model2: OpenAIChatModel = 'invalid' // ✗ Type error
 ```
 
@@ -181,7 +181,7 @@ import {
 
 // Only import what you need
 const chatOptions = createChatOptions({
-  adapter: openaiText('gpt-4o'),
+  adapter: openaiText('gpt-5.2'),
 })
 ```
 

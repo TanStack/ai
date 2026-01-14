@@ -46,7 +46,7 @@ const getProducts = getProductsDef.server(async ({ query }) => {
 
 // Use in AI chat
 chat({
-  adapter: openaiText('gpt-4o'),
+  adapter: openaiText('gpt-5.2'),
   messages: [{ role: 'user', content: 'Find products' }],
   tools: [getProducts]
 })

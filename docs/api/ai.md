@@ -21,7 +21,7 @@ import { chat } from "@tanstack/ai";
 import { openaiText } from "@tanstack/ai-openai";
 
 const stream = chat({
-  adapter: openaiText("gpt-4o"),
+  adapter: openaiText("gpt-5.2"),
   messages: [{ role: "user", content: "Hello!" }],
   tools: [myTool],
   systemPrompts: ["You are a helpful assistant"],
@@ -31,7 +31,7 @@ const stream = chat({
 
 ### Parameters
 
-- `adapter` - An AI adapter instance with model (e.g., `openaiText('gpt-4o')`, `anthropicText('claude-sonnet-4-5')`)
+- `adapter` - An AI adapter instance with model (e.g., `openaiText('gpt-5.2')`, `anthropicText('claude-sonnet-4-5')`)
 - `messages` - Array of chat messages
 - `tools?` - Array of tools for function calling
 - `systemPrompts?` - System prompts to prepend to messages
@@ -52,7 +52,7 @@ import { summarize } from "@tanstack/ai";
 import { openaiSummarize } from "@tanstack/ai-openai";
 
 const result = await summarize({
-  adapter: openaiSummarize("gpt-4o"),
+  adapter: openaiSummarize("gpt-5.2"),
   text: "Long text to summarize...",
   maxLength: 100,
   style: "concise",
@@ -99,7 +99,7 @@ const myClientTool = myToolDef.client(async ({ param }) => {
 
 // Use directly in chat() (server-side, no execute)
 chat({
-  adapter: openaiText("gpt-4o"),
+  adapter: openaiText("gpt-5.2"),
   tools: [myToolDef],
   messages: [{ role: "user", content: "..." }],
 });
@@ -112,7 +112,7 @@ const myServerTool = myToolDef.server(async ({ param }) => {
 
 // Use directly in chat() (server-side, no execute)
 chat({
-  adapter: openaiText("gpt-4o"),
+  adapter: openaiText("gpt-5.2"),
   tools: [myServerTool],
   messages: [{ role: "user", content: "..." }],
 });
@@ -140,7 +140,7 @@ import { chat, toServerSentEventsStream } from "@tanstack/ai";
 import { openaiText } from "@tanstack/ai-openai";
 
 const stream = chat({
-  adapter: openaiText("gpt-4o"),
+  adapter: openaiText("gpt-5.2"),
   messages: [...],
 });
 const readableStream = toServerSentEventsStream(stream);
@@ -167,7 +167,7 @@ import { chat, toServerSentEventsResponse } from "@tanstack/ai";
 import { openaiText } from "@tanstack/ai-openai";
 
 const stream = chat({
-  adapter: openaiText("gpt-4o"),
+  adapter: openaiText("gpt-5.2"),
   messages: [...],
 });
 return toServerSentEventsResponse(stream);
@@ -191,7 +191,7 @@ import { chat, maxIterations } from "@tanstack/ai";
 import { openaiText } from "@tanstack/ai-openai";
 
 const stream = chat({
-  adapter: openaiText("gpt-4o"),
+  adapter: openaiText("gpt-5.2"),
   messages: [...],
   agentLoopStrategy: maxIterations(20),
 });
@@ -274,13 +274,13 @@ import {
 
 // --- Streaming chat
 const stream = chat({
-  adapter: openaiText("gpt-4o"),
+  adapter: openaiText("gpt-5.2"),
   messages: [{ role: "user", content: "Hello!" }],
 });
 
 // --- One-shot chat response (stream: false)
 const response = await chat({
-  adapter: openaiText("gpt-4o"),
+  adapter: openaiText("gpt-5.2"),
   messages: [{ role: "user", content: "What's the capital of France?" }],
   stream: false, // Returns a Promise<string> instead of AsyncIterable
 });
@@ -288,7 +288,7 @@ const response = await chat({
 // --- Structured response with outputSchema
 import { z } from "zod";
 const parsed = await chat({
-  adapter: openaiText("gpt-4o"),
+  adapter: openaiText("gpt-5.2"),
   messages: [{ role: "user", content: "Summarize this text in JSON with keys 'summary' and 'keywords': ... " }],
   outputSchema: z.object({
     summary: z.string(),
@@ -310,7 +310,7 @@ const weatherTool = toolDefinition({
 });
 
 const toolResult = await chat({
-  adapter: openaiText("gpt-4o"),
+  adapter: openaiText("gpt-5.2"),
   messages: [
     { role: "user", content: "What's the weather in Paris?" }
   ],
@@ -326,7 +326,7 @@ const toolResult = await chat({
 
 // --- Summarization
 const summary = await summarize({
-  adapter: openaiSummarize("gpt-4o"),
+  adapter: openaiSummarize("gpt-5.2"),
   text: "Long text to summarize...",
   maxLength: 100,
 });

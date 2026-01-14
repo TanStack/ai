@@ -50,7 +50,7 @@ import { chat } from '@tanstack/ai'
 import { openaiText } from '@tanstack/ai-openai'
 
 for await (const chunk of chat({
-  adapter: openaiText('gpt-4o'),
+  adapter: openaiText('gpt-5.2'),
   messages: [{ role: 'user', content: 'What is the weather?' }],
   tools: [weatherTool]
 })) {
@@ -62,7 +62,7 @@ for await (const chunk of chat({
 
 ```ts
 for await (const chunk of chat({
-  adapter: openaiText('gpt-4o'),
+  adapter: openaiText('gpt-5.2'),
   messages: [{ role: 'user', content: 'Hello!' }]
 })) {
   console.log(chunk)
@@ -71,7 +71,7 @@ for await (const chunk of chat({
 
 ```ts
 const text = await chat({
-  adapter: openaiText('gpt-4o'),
+  adapter: openaiText('gpt-5.2'),
   messages: [{ role: 'user', content: 'Hello!' }],
   stream: false
 })
@@ -82,7 +82,7 @@ const text = await chat({
 import { z } from 'zod'
 
 const result = await chat({
-  adapter: openaiText('gpt-4o'),
+  adapter: openaiText('gpt-5.2'),
   messages: [{ role: 'user', content: 'Research and summarize the topic' }],
   tools: [researchTool, analyzeTool],
   outputSchema: z.object({

@@ -19,7 +19,7 @@ import { chat } from "@tanstack/ai";
 import { openaiText } from "@tanstack/ai-openai";
 
 const stream = chat({
-  adapter: openaiText("gpt-4o"),
+  adapter: openaiText("gpt-5.2"),
   messages: [{ role: "user", content: "Hello!" }],
 });
 ```
@@ -35,7 +35,7 @@ const adapter = createOpenaiChat(process.env.OPENAI_API_KEY!, {
 });
 
 const stream = chat({
-  adapter: adapter("gpt-4o"),
+  adapter: adapter("gpt-5.2"),
   messages: [{ role: "user", content: "Hello!" }],
 });
 ```
@@ -63,7 +63,7 @@ export async function POST(request: Request) {
   const { messages } = await request.json();
 
   const stream = chat({
-    adapter: openaiText("gpt-4o"),
+    adapter: openaiText("gpt-5.2"),
     messages,
   });
 
@@ -92,7 +92,7 @@ const getWeather = getWeatherDef.server(async ({ location }) => {
 });
 
 const stream = chat({
-  adapter: openaiText("gpt-4o"),
+  adapter: openaiText("gpt-5.2"),
   messages,
   tools: [getWeather],
 });
@@ -104,7 +104,7 @@ OpenAI supports various provider-specific options:
 
 ```typescript
 const stream = chat({
-  adapter: openaiText("gpt-4o"),
+  adapter: openaiText("gpt-5.2"),
   messages,
   modelOptions: {
     temperature: 0.7,
@@ -141,7 +141,7 @@ import { summarize } from "@tanstack/ai";
 import { openaiSummarize } from "@tanstack/ai-openai";
 
 const result = await summarize({
-  adapter: openaiSummarize("gpt-4o-mini"),
+  adapter: openaiSummarize("gpt-5-mini"),
   text: "Your long text to summarize...",
   maxLength: 100,
   style: "concise", // "concise" | "bullet-points" | "paragraph"

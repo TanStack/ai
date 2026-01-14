@@ -16,7 +16,7 @@ All chunks share a common base structure:
 interface BaseStreamChunk {
   type: StreamChunkType;
   id: string;          // Unique identifier for the message/response
-  model: string;       // Model identifier (e.g., "gpt-4o", "claude-3-5-sonnet")
+  model: string;       // Model identifier (e.g., "gpt-5.2", "claude-3-5-sonnet")
   timestamp: number;   // Unix timestamp in milliseconds
 }
 ```
@@ -55,7 +55,7 @@ interface ContentStreamChunk extends BaseStreamChunk {
 {
   "type": "content",
   "id": "chatcmpl-abc123",
-  "model": "gpt-4o",
+  "model": "gpt-5.2",
   "timestamp": 1701234567890,
   "delta": "Hello",
   "content": "Hello",
@@ -125,7 +125,7 @@ interface ToolCallStreamChunk extends BaseStreamChunk {
 {
   "type": "tool_call",
   "id": "chatcmpl-abc123",
-  "model": "gpt-4o",
+  "model": "gpt-5.2",
   "timestamp": 1701234567890,
   "toolCall": {
     "id": "call_abc123",
@@ -164,7 +164,7 @@ interface ToolInputAvailableStreamChunk extends BaseStreamChunk {
 {
   "type": "tool-input-available",
   "id": "chatcmpl-abc123",
-  "model": "gpt-4o",
+  "model": "gpt-5.2",
   "timestamp": 1701234567890,
   "toolCallId": "call_abc123",
   "toolName": "get_weather",
@@ -204,7 +204,7 @@ interface ApprovalRequestedStreamChunk extends BaseStreamChunk {
 {
   "type": "approval-requested",
   "id": "chatcmpl-abc123",
-  "model": "gpt-4o",
+  "model": "gpt-5.2",
   "timestamp": 1701234567890,
   "toolCallId": "call_abc123",
   "toolName": "send_email",
@@ -244,7 +244,7 @@ interface ToolResultStreamChunk extends BaseStreamChunk {
 {
   "type": "tool_result",
   "id": "chatcmpl-abc123",
-  "model": "gpt-4o",
+  "model": "gpt-5.2",
   "timestamp": 1701234567891,
   "toolCallId": "call_abc123",
   "content": "{\"temperature\":72,\"conditions\":\"sunny\"}"
@@ -279,7 +279,7 @@ interface DoneStreamChunk extends BaseStreamChunk {
 {
   "type": "done",
   "id": "chatcmpl-abc123",
-  "model": "gpt-4o",
+  "model": "gpt-5.2",
   "timestamp": 1701234567892,
   "finishReason": "stop",
   "usage": {
@@ -323,7 +323,7 @@ interface ErrorStreamChunk extends BaseStreamChunk {
 {
   "type": "error",
   "id": "chatcmpl-abc123",
-  "model": "gpt-4o",
+  "model": "gpt-5.2",
   "timestamp": 1701234567893,
   "error": {
     "message": "Rate limit exceeded",
