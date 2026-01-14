@@ -53,3 +53,5 @@ test-traces
 **/adapters/output
 .nitro
 .output
+
+*/backend/storage/framework/views

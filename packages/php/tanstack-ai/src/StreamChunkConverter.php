@@ -65,21 +65,46 @@ class StreamChunkConverter
     public function convertAnthropicEvent(mixed $event): array
     {
         $chunks = [];
+        
+        // CRITICAL: Normalize event to array first - Anthropic SDK returns objects
+        // that may have different property access patterns
+        if (is_object($event)) {
+            $event = json_decode(json_encode($event), true);
+        }
+        
         $eventType = $this->getEventType($event);
+        
+        // Log the event being processed
+        error_log('[StreamChunkConverter] convertAnthropicEvent: processing event type=' . $eventType . ', data=' . json_encode($event));
 
         if ($eventType === 'content_block_start') {
             // Tool call is starting
             $contentBlock = $this->getAttr($event, 'content_block');
-            if ($contentBlock && $this->getAttr($contentBlock, 'type') === 'tool_use') {
-                $this->currentToolIndex++;
-                $this->toolCallsMap[$this->currentToolIndex] = [
-                    'id' => $this->getAttr($contentBlock, 'id'),
-                    'name' => $this->getAttr($contentBlock, 'name'),
+            $index = $this->getAttr($event, 'index', -1);
+            
+            error_log('[StreamChunkConverter] content_block_start: contentBlock=' . json_encode($contentBlock) . ', index=' . $index);
+            
+            $blockType = $contentBlock ? $this->getAttr($contentBlock, 'type') : null;
+            error_log('[StreamChunkConverter] content_block_start: blockType=' . ($blockType ?? 'null'));
+            
+            if ($contentBlock && $blockType === 'tool_use') {
+                // Use the index from the event, not an incrementing counter
+                $toolId = $this->getAttr($contentBlock, 'id');
+                $toolName = $this->getAttr($contentBlock, 'name');
+                
+                $this->toolCallsMap[$index] = [
+                    'id' => $toolId,
+                    'name' => $toolName,
                     'input' => ''
                 ];
+                error_log('[StreamChunkConverter] content_block_start: initialized tool call at index=' . $index . ', id=' . $toolId . ', name=' . $toolName);
+                error_log('[StreamChunkConverter] content_block_start: toolCallsMap now has keys=' . json_encode(array_keys($this->toolCallsMap)));
+            } else {
+                error_log('[StreamChunkConverter] content_block_start: NOT a tool_use block, skipping');
             }
         } elseif ($eventType === 'content_block_delta') {
             $delta = $this->getAttr($event, 'delta');
+            $index = $this->getAttr($event, 'index', -1); // Get index from event
 
             if ($delta && $this->getAttr($delta, 'type') === 'text_delta') {
                 // Text content delta
@@ -98,11 +123,16 @@ class StreamChunkConverter
             } elseif ($delta && $this->getAttr($delta, 'type') === 'input_json_delta') {
                 // Tool input is being streamed
                 $partialJson = $this->getAttr($delta, 'partial_json', '');
-                $toolCall = $this->toolCallsMap[$this->currentToolIndex] ?? null;
+                error_log('[StreamChunkConverter] content_block_delta input_json_delta: index=' . $index . ', partial_json=' . $partialJson);
+                error_log('[StreamChunkConverter] content_block_delta: toolCallsMap keys=' . json_encode(array_keys($this->toolCallsMap)));
+                
+                $toolCall = $this->toolCallsMap[$index] ?? null;
 
                 if ($toolCall) {
                     $toolCall['input'] .= $partialJson;
-                    $this->toolCallsMap[$this->currentToolIndex] = $toolCall;
+                    $this->toolCallsMap[$index] = $toolCall;
+                    
+                    error_log('[StreamChunkConverter] content_block_delta: emitting tool_call chunk, accumulated input=' . $toolCall['input']);
 
                     $chunks[] = [
                         'type' => 'tool_call',
@@ -114,19 +144,49 @@ class StreamChunkConverter
                             'type' => 'function',
                             'function' => [
                                 'name' => $toolCall['name'],
-                                'arguments' => $partialJson // Incremental JSON
+                                'arguments' => $toolCall['input'] // Use accumulated input, not just partial
                             ]
                         ],
-                        'index' => $this->currentToolIndex
+                        'index' => $index
                     ];
+                } else {
+                    error_log('[StreamChunkConverter] content_block_delta: ERROR - no tool call found at index=' . $index);
                 }
+            }
+        } elseif ($eventType === 'content_block_stop') {
+            // Tool call block is complete - emit final tool_call chunk with complete input
+            $index = $this->getAttr($event, 'index', -1);
+            $toolCall = $this->toolCallsMap[$index] ?? null;
+            
+            if ($toolCall && !empty($toolCall['input'])) {
+                error_log('[StreamChunkConverter] content_block_stop: emitting final tool_call chunk for index=' . $index . ', complete input=' . $toolCall['input']);
+                
+                $chunks[] = [
+                    'type' => 'tool_call',
+                    'id' => $this->generateId(),
+                    'model' => $this->model,
+                    'timestamp' => $this->timestamp,
+                    'toolCall' => [
+                        'id' => $toolCall['id'],
+                        'type' => 'function',
+                        'function' => [
+                            'name' => $toolCall['name'],
+                            'arguments' => $toolCall['input'] // Complete accumulated input
+                        ]
+                    ],
+                    'index' => $index
+                ];
             }
         } elseif ($eventType === 'message_delta') {
             // Message metadata update (includes stop_reason and usage)
             $delta = $this->getAttr($event, 'delta');
             $usage = $this->getAttr($event, 'usage');
 
+            error_log('[StreamChunkConverter] message_delta: delta=' . json_encode($delta) . ', usage=' . json_encode($usage));
+
             $stopReason = $delta ? $this->getAttr($delta, 'stop_reason') : null;
+            error_log('[StreamChunkConverter] message_delta: stopReason=' . ($stopReason ?? 'null'));
+            
             if ($stopReason) {
                 // Map Anthropic stop_reason to TanStack format
                 $finishReason = match ($stopReason) {
@@ -134,6 +194,8 @@ class StreamChunkConverter
                     'end_turn' => 'stop',
                     default => $stopReason
                 };
+
+                error_log('[StreamChunkConverter] message_delta: mapped finishReason=' . $finishReason);
 
                 $usageDict = null;
                 if ($usage) {
@@ -153,6 +215,9 @@ class StreamChunkConverter
                     'finishReason' => $finishReason,
                     'usage' => $usageDict
                 ];
+                error_log('[StreamChunkConverter] message_delta: emitted done chunk with finishReason=' . $finishReason);
+            } else {
+                error_log('[StreamChunkConverter] message_delta: no stopReason, not emitting done chunk');
             }
         } elseif ($eventType === 'message_stop') {
             // Stream completed - this is a fallback if message_delta didn't emit done
