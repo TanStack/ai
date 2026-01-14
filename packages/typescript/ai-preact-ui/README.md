@@ -5,14 +5,14 @@
 <br />
 
 <div align="center">
-<a href="https://npmjs.com/package/@tanstack/ai" target="\_parent">
+<a href="https://npmjs.com/package/@tanstack/ai-preact-ui" target="\_parent">
   <img alt="" src="https://img.shields.io/npm/dm/@tanstack/ai.svg" />
 </a>
 <a href="https://github.com/TanStack/ai" target="\_parent">
 	  <img alt="" src="https://img.shields.io/github/stars/TanStack/ai.svg?style=social&label=Star" alt="GitHub stars" />
 </a>
-<a href="https://bundlephobia.com/result?p=@tanstack/ai@latest" target="\_parent">
-  <img alt="" src="https://badgen.net/bundlephobia/minzip/@tanstack/ai@latest" />
+<a href="https://bundlephobia.com/result?p=@tanstack/ai-preact-ui@latest" target="\_parent">
+  <img alt="" src="https://badgen.net/bundlephobia/minzip/@tanstack/ai-preact-ui@latest" />
 </a>
 </div>
 
