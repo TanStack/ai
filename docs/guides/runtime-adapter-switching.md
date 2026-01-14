@@ -22,7 +22,7 @@ type Provider = 'openai' | 'anthropic'
 // Define adapters with their models - autocomplete works here!
 const adapters = {
   anthropic: () => anthropicText('claude-sonnet-4-5'),  // ✅ Autocomplete!
-  openai: () => openaiText('gpt-4o'),  // ✅ Autocomplete!
+  openai: () => openaiText('gpt-5.2'),  // ✅ Autocomplete!
 }
 
 // In your request handler:
@@ -40,11 +40,11 @@ Each adapter factory function accepts a model name as its first argument and ret
 
 ```typescript
 // These are equivalent:
-const adapter1 = openaiText('gpt-4o')
-const adapter2 = new OpenAITextAdapter({ apiKey: process.env.OPENAI_API_KEY }, 'gpt-4o')
+const adapter1 = openaiText('gpt-5.2')
+const adapter2 = new OpenAITextAdapter({ apiKey: process.env.OPENAI_API_KEY }, 'gpt-5.2')
 
 // The model is stored on the adapter
-console.log(adapter1.selectedModel) // 'gpt-4o'
+console.log(adapter1.selectedModel) // 'gpt-5.2'
 ```
 
 When you pass an adapter to `chat()`, it uses the model from `adapter.selectedModel`. This means:
@@ -72,7 +72,7 @@ const adapters = {
   anthropic: () => anthropicText('claude-sonnet-4-5'),
   gemini: () => geminiText('gemini-2.0-flash-exp'),
   ollama: () => ollamaText('mistral:7b'),
-  openai: () => openaiText('gpt-4o'),
+  openai: () => openaiText('gpt-5.2'),
 }
 
 export const Route = createFileRoute('/api/chat')({
@@ -132,7 +132,7 @@ import { openaiSummarize } from '@tanstack/ai-openai'
 import { anthropicSummarize } from '@tanstack/ai-anthropic'
 
 const summarizeAdapters = {
-  openai: () => openaiSummarize('gpt-4o-mini'),
+  openai: () => openaiSummarize('gpt-5-mini'),
   anthropic: () => anthropicSummarize('claude-sonnet-4-5'),
 }
 
@@ -163,7 +163,7 @@ switch (provider) {
   case 'openai':
   default:
     adapter = openaiText()
-    model = 'gpt-4o'
+    model = 'gpt-5.2'
     break
 }
 
@@ -179,7 +179,7 @@ const stream = chat({
 ```typescript
 const adapters = {
   anthropic: () => anthropicText('claude-sonnet-4-5'),
-  openai: () => openaiText('gpt-4o'),
+  openai: () => openaiText('gpt-5.2'),
 }
 
 const stream = chat({

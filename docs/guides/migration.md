@@ -30,7 +30,7 @@ import { openai } from '@tanstack/ai-openai'
 
 const stream = chat({
   adapter: openai(),
-  model: 'gpt-4o',
+  model: 'gpt-5.2',
   messages: [{ role: 'user', content: 'Hello!' }],
 })
 ```
@@ -42,14 +42,14 @@ import { chat } from '@tanstack/ai'
 import { openaiText } from '@tanstack/ai-openai'
 
 const stream = chat({
-  adapter: openaiText('gpt-4o'),
+  adapter: openaiText('gpt-5.2'),
   messages: [{ role: 'user', content: 'Hello!' }],
 })
 ```
 
 ### Key Changes
 
-- **Model is passed to adapter factory** - The model name is now passed directly to the adapter function (e.g., `openaiText('gpt-4o')`)
+- **Model is passed to adapter factory** - The model name is now passed directly to the adapter function (e.g., `openaiText('gpt-5.2')`)
 - **No separate `model` parameter** - The model is stored on the adapter, so you don't need to pass it separately to `chat()`
 - **Activity-specific imports** - Import only what you need (e.g., `openaiText`, `openaiSummarize`, `openaiImage`)
 
@@ -123,7 +123,7 @@ function getAdapter(provider: Provider) {
 
 const stream = chat({
   adapter: getAdapter(provider),
-  model: provider === 'openai' ? 'gpt-4o' : 'claude-sonnet-4-5',
+  model: provider === 'openai' ? 'gpt-5.2' : 'claude-sonnet-4-5',
   messages,
 })
 ```
@@ -138,7 +138,7 @@ import { anthropicText } from '@tanstack/ai-anthropic'
 type Provider = 'openai' | 'anthropic'
 
 const adapters = {
-  openai: () => openaiText('gpt-4o'),
+  openai: () => openaiText('gpt-5.2'),
   anthropic: () => anthropicText('claude-sonnet-4-5'),
 }
 
@@ -157,7 +157,7 @@ Common options that were previously nested in an `options` object are now flatte
 ```typescript
 const stream = chat({
   adapter: openai(),
-  model: 'gpt-4o',
+  model: 'gpt-5.2',
   messages,
   options: {
     temperature: 0.7,
@@ -171,7 +171,7 @@ const stream = chat({
 
 ```typescript
 const stream = chat({
-  adapter: openaiText('gpt-4o'),
+  adapter: openaiText('gpt-5.2'),
   messages,
   temperature: 0.7,
   maxTokens: 1000,
@@ -197,7 +197,7 @@ The `providerOptions` parameter has been renamed to `modelOptions` for clarity. 
 ```typescript
 const stream = chat({
   adapter: openai(),
-  model: 'gpt-4o',
+  model: 'gpt-5.2',
   messages,
   providerOptions: {
     // OpenAI-specific options
@@ -211,7 +211,7 @@ const stream = chat({
 
 ```typescript
 const stream = chat({
-  adapter: openaiText('gpt-4o'),
+  adapter: openaiText('gpt-5.2'),
   messages,
   modelOptions: {
     // OpenAI-specific options
@@ -228,14 +228,14 @@ const stream = chat({
 ```typescript
 import { openaiText } from '@tanstack/ai-openai'
 
-const adapter = openaiText('gpt-4o')
+const adapter = openaiText('gpt-5.2')
 
-// TypeScript knows the exact modelOptions type for gpt-4o
+// TypeScript knows the exact modelOptions type for gpt-5.2
 const stream = chat({
   adapter,
   messages,
   modelOptions: {
-    // Autocomplete and type checking for gpt-4o options
+    // Autocomplete and type checking for gpt-5.2 options
     responseFormat: { type: 'json_object' },
   },
 })
@@ -257,7 +257,7 @@ export async function POST(request: Request) {
 
   const stream = chat({
     adapter: openai(),
-    model: 'gpt-4o',
+    model: 'gpt-5.2',
     messages,
     abortController,
   })
@@ -277,7 +277,7 @@ export async function POST(request: Request) {
   const abortController = new AbortController()
 
   const stream = chat({
-    adapter: openaiText('gpt-4o'),
+    adapter: openaiText('gpt-5.2'),
     messages,
     abortController,
   })
@@ -371,7 +371,7 @@ export async function POST(request: Request) {
 
   const stream = chat({
     adapter: openai(),
-    model: 'gpt-4o',
+    model: 'gpt-5.2',
     messages,
     options: {
       temperature: 0.7,
@@ -398,7 +398,7 @@ export async function POST(request: Request) {
   const abortController = new AbortController()
 
   const stream = chat({
-    adapter: openaiText('gpt-4o'),
+    adapter: openaiText('gpt-5.2'),
     messages,
     temperature: 0.7,
     maxTokens: 1000,
