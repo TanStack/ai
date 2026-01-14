@@ -83,22 +83,22 @@ Each StreamChunk is transmitted as a single line of JSON followed by a newline (
 #### Content Chunks
 
 ```json
-{"type":"content","id":"chatcmpl-abc123","model":"gpt-4o","timestamp":1701234567890,"delta":"Hello","content":"Hello","role":"assistant"}
-{"type":"content","id":"chatcmpl-abc123","model":"gpt-4o","timestamp":1701234567891,"delta":" world","content":"Hello world","role":"assistant"}
-{"type":"content","id":"chatcmpl-abc123","model":"gpt-4o","timestamp":1701234567892,"delta":"!","content":"Hello world!","role":"assistant"}
+{"type":"content","id":"chatcmpl-abc123","model":"gpt-5.2","timestamp":1701234567890,"delta":"Hello","content":"Hello","role":"assistant"}
+{"type":"content","id":"chatcmpl-abc123","model":"gpt-5.2","timestamp":1701234567891,"delta":" world","content":"Hello world","role":"assistant"}
+{"type":"content","id":"chatcmpl-abc123","model":"gpt-5.2","timestamp":1701234567892,"delta":"!","content":"Hello world!","role":"assistant"}
 ```
 
 #### Tool Call
 
 ```json
-{"type":"tool_call","id":"chatcmpl-abc123","model":"gpt-4o","timestamp":1701234567893,"toolCall":{"id":"call_xyz","type":"function","function":{"name":"get_weather","arguments":"{\"location\":\"SF\"}"}},"index":0}
-{"type":"tool_result","id":"chatcmpl-abc123","model":"gpt-4o","timestamp":1701234567894,"toolCallId":"call_xyz","content":"{\"temperature\":72,\"conditions\":\"sunny\"}"}
+{"type":"tool_call","id":"chatcmpl-abc123","model":"gpt-5.2","timestamp":1701234567893,"toolCall":{"id":"call_xyz","type":"function","function":{"name":"get_weather","arguments":"{\"location\":\"SF\"}"}},"index":0}
+{"type":"tool_result","id":"chatcmpl-abc123","model":"gpt-5.2","timestamp":1701234567894,"toolCallId":"call_xyz","content":"{\"temperature\":72,\"conditions\":\"sunny\"}"}
 ```
 
 #### Stream Completion
 
 ```json
-{"type":"done","id":"chatcmpl-abc123","model":"gpt-4o","timestamp":1701234567895,"finishReason":"stop","usage":{"promptTokens":10,"completionTokens":15,"totalTokens":25}}
+{"type":"done","id":"chatcmpl-abc123","model":"gpt-5.2","timestamp":1701234567895,"finishReason":"stop","usage":{"promptTokens":10,"completionTokens":15,"totalTokens":25}}
 ```
 
 ---
@@ -130,11 +130,11 @@ Transfer-Encoding: chunked
 The server sends newline-delimited JSON:
 
 ```json
-{"type":"content","id":"msg_1","model":"gpt-4o","timestamp":1701234567890,"delta":"The","content":"The"}
-{"type":"content","id":"msg_1","model":"gpt-4o","timestamp":1701234567891,"delta":" weather","content":"The weather"}
-{"type":"content","id":"msg_1","model":"gpt-4o","timestamp":1701234567892,"delta":" is","content":"The weather is"}
-{"type":"content","id":"msg_1","model":"gpt-4o","timestamp":1701234567893,"delta":" sunny","content":"The weather is sunny"}
-{"type":"done","id":"msg_1","model":"gpt-4o","timestamp":1701234567894,"finishReason":"stop"}
+{"type":"content","id":"msg_1","model":"gpt-5.2","timestamp":1701234567890,"delta":"The","content":"The"}
+{"type":"content","id":"msg_1","model":"gpt-5.2","timestamp":1701234567891,"delta":" weather","content":"The weather"}
+{"type":"content","id":"msg_1","model":"gpt-5.2","timestamp":1701234567892,"delta":" is","content":"The weather is"}
+{"type":"content","id":"msg_1","model":"gpt-5.2","timestamp":1701234567893,"delta":" sunny","content":"The weather is sunny"}
+{"type":"done","id":"msg_1","model":"gpt-5.2","timestamp":1701234567894,"finishReason":"stop"}
 ```
 
 ### 4. Stream Completion
@@ -150,7 +150,7 @@ Server closes the connection. No special marker needed (unlike SSE's `[DONE]`).
 If an error occurs during generation, send an error chunk:
 
 ```json
-{"type":"error","id":"msg_1","model":"gpt-4o","timestamp":1701234567895,"error":{"message":"Rate limit exceeded","code":"rate_limit_exceeded"}}
+{"type":"error","id":"msg_1","model":"gpt-5.2","timestamp":1701234567895,"error":{"message":"Rate limit exceeded","code":"rate_limit_exceeded"}}
 ```
 
 Then close the connection.
@@ -181,7 +181,7 @@ export async function POST(request: Request) {
   const encoder = new TextEncoder();
 
   const stream = chat({
-    adapter: openaiText('gpt-4o'),
+    adapter: openaiText('gpt-5.2'),
     messages,
   });
 
@@ -236,7 +236,7 @@ app.post('/api/chat', async (req, res) => {
 
   try {
     const stream = chat({
-      adapter: openaiText('gpt-4o'),
+      adapter: openaiText('gpt-5.2'),
       messages,
     });
 
@@ -360,9 +360,9 @@ The `-N` flag disables buffering to see real-time output.
 
 **Example Output:**
 ```json
-{"type":"content","id":"msg_1","model":"gpt-4o","timestamp":1701234567890,"delta":"Hello","content":"Hello"}
-{"type":"content","id":"msg_1","model":"gpt-4o","timestamp":1701234567891,"delta":" there","content":"Hello there"}
-{"type":"done","id":"msg_1","model":"gpt-4o","timestamp":1701234567892,"finishReason":"stop"}
+{"type":"content","id":"msg_1","model":"gpt-5.2","timestamp":1701234567890,"delta":"Hello","content":"Hello"}
+{"type":"content","id":"msg_1","model":"gpt-5.2","timestamp":1701234567891,"delta":" there","content":"Hello there"}
+{"type":"done","id":"msg_1","model":"gpt-5.2","timestamp":1701234567892,"finishReason":"stop"}
 ```
 
 ### Validating NDJSON

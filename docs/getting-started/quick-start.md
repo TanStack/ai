@@ -51,7 +51,7 @@ export const Route = createFileRoute("/api/chat")({
           const stream = chat({
             adapter: openai(),
             messages,
-            model: "gpt-4o",
+            model: "gpt-5.2",
             conversationId,
           });
 
@@ -100,7 +100,7 @@ export async function POST(request: Request) {
   try {
     // Create a streaming chat response
     const stream = chat({
-      adapter: openaiText("gpt-4o"),
+      adapter: openaiText("gpt-5.2"),
       messages,
       conversationId
     });
@@ -248,7 +248,7 @@ const getProducts = getProductsDef.server(async ({ query }) => {
 })
 
 chat({
-  adapter: openaiText('gpt-4o'),
+  adapter: openaiText('gpt-5.2'),
   messages: [{ role: 'user', content: 'Find products' }],
   tools: [getProducts]
 })
