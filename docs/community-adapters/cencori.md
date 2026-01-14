@@ -46,12 +46,12 @@ const adapter = cencori("gpt-4o");
 ## Streaming
 
 ```typescript
-import { text } from "@tanstack/ai";
+import { chat } from "@tanstack/ai";
 import { cencori } from "@cencori/ai-sdk/tanstack";
 
 const adapter = cencori("claude-3-5-sonnet");
 
-for await (const chunk of text({
+for await (const chunk of chat({
   adapter,
   messages: [{ role: "user", content: "Tell me a story" }],
 })) {
@@ -62,6 +62,7 @@ for await (const chunk of text({
   }
 }
 ```
+
 
 ## Tool Calling
 
