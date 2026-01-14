@@ -783,8 +783,8 @@ importers:
         specifier: '>=10.11.0'
         version: 10.28.0
       preact-md:
-        specifier: ^0.2.0
-        version: 0.2.0(preact@10.28.0)
+        specifier: ^0.2.1
+        version: 0.2.1(preact@10.28.0)
       rehype-highlight:
         specifier: ^7.0.2
         version: 7.0.2
@@ -6589,8 +6589,8 @@ packages:
     resolution: {integrity: sha512-3Ybi1tAuwAP9s0r1UQ2J4n5Y0G05bJkpUIO0/bI9MhwmD70S5aTWbXGBwxHrelT+XM1k6dM0pk+SwNkpTRN7Pg==}
     engines: {node: ^10 || ^12 || >=14}
 
-  preact-md@0.2.0:
-    resolution: {integrity: sha512-82C8cD5Ss60u30z6DxsyLdrI2yQZ7KGUdJ/QnA2N5lU0rUv+s3ZX0U3wiDTeoxu/E0Ck5QIFuRYkMeHZgeG5hw==}
+  preact-md@0.2.1:
+    resolution: {integrity: sha512-IvZDZGix3v22iSqY0Bypt879WAh2uui6lyBCl4q3kafG2N/DwRpWUasFfg+ohXIa9xp6E+cyWc1H+6k7fYge0A==}
     peerDependencies:
       preact: ^10.0.0
 
@@ -14384,7 +14384,7 @@ snapshots:
       picocolors: 1.1.1
       source-map-js: 1.2.1
 
-  preact-md@0.2.0(preact@10.28.0):
+  preact-md@0.2.1(preact@10.28.0):
     dependencies:
       hast-util-sanitize: 5.0.2
       marked: 17.0.1

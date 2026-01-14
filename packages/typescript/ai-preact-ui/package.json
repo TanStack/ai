@@ -36,7 +36,7 @@
   ],
   "dependencies": {
     "@tanstack/ai-preact": "workspace:*",
-    "preact-md": "^0.2.0",
+    "preact-md": "^0.2.1",
     "rehype-highlight": "^7.0.2",
     "rehype-raw": "^7.0.0",
     "remark-gfm": "^4.0.1"

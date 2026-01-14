@@ -73,7 +73,6 @@ export function TextPart({
   return (
     <div className={combinedClassName || undefined}>
       <Markdown
-        // @ts-expect-error - Plugin type incompatibility between unified and preact-md
         rehypePlugins={[rehypeRaw, rehypeHighlight]}
         remarkPlugins={[remarkGfm]}
       >
