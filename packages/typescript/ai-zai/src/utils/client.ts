@@ -10,6 +10,25 @@ export function getZAIHeaders(): Record<string, string> {
   }
 }
 
+export function getZAIApiKeyFromEnv(): string {
+  const env =
+    typeof globalThis !== 'undefined' && (globalThis as any).window?.env
+      ? (globalThis as any).window.env
+      : typeof process !== 'undefined'
+        ? process.env
+        : undefined
+
+  const key = env?.ZAI_API_KEY
+
+  if (!key) {
+    throw new Error(
+      'ZAI_API_KEY is required. Please set it in your environment variables or use the factory function with an explicit API key.',
+    )
+  }
+
+  return key
+}
+
 export function validateZAIApiKey(apiKey?: string): string {
   if (!apiKey || typeof apiKey !== 'string') {
     throw new Error('Z.AI API key is required')

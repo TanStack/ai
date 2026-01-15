@@ -99,6 +99,18 @@ export interface ZAIReasoningOptions {
      */
     summary?: ReasoningSummary
   }
+
+  /**
+   * Zhipu AI Thinking Mode (GLM-4.7/4.6/4.5)
+   */
+  thinking?: {
+    type: 'enabled' | 'disabled'
+    /**
+     * For GLM-4.7 preserved thinking. Set to false to retain reasoning context.
+     * @default true
+     */
+    clear_thinking?: boolean
+  }
 }
 
 export interface ZAIStructuredOutputOptions {
@@ -130,6 +142,12 @@ export interface ZAIToolsOptions {
    * A list of tools the model may call.
    */
   tools?: Array<OpenAI.Chat.ChatCompletionTool>
+
+  /**
+   * Whether to stream tool calls.
+   * Supported by GLM-4.7
+   */
+  tool_stream?: boolean
 }
 
 export interface ZAIStreamingOptions {

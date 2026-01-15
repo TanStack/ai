@@ -1,32 +1,13 @@
+import { convertToolsToProviderFormat } from '../tools/tool-converter'
 import type OpenAI from 'openai'
-import type { JSONSchema, StreamChunk, Tool } from '@tanstack/ai'
+import type { StreamChunk, Tool } from '@tanstack/ai'
 
 export function convertToolsToZAIFormat(
   tools: Array<Tool>,
 ): Array<OpenAI.Chat.Completions.ChatCompletionTool> {
-  return tools.map((tool) => {
-    const inputSchema: JSONSchema = tool.inputSchema ?? {
-      type: 'object',
-      properties: {},
-      required: [],
-    }
-
-    const parameters: JSONSchema = { ...inputSchema }
-    if (parameters.type === 'object') {
-      parameters.additionalProperties ??= false
-      parameters.required ??= []
-      parameters.properties ??= {}
-    }
-
-    return {
-      type: 'function',
-      function: {
-        name: tool.name,
-        description: tool.description,
-        parameters,
-      },
-    }
-  })
+  // We cast to unknown first because ZaiTool (which includes WebSearchTool) 
+  // might strictly not match OpenAI's definition if OpenAI types don't include 'web_search' type.
+  return convertToolsToProviderFormat(tools) as unknown as Array<OpenAI.Chat.Completions.ChatCompletionTool>
 }
 
 export function mapZAIErrorToStreamChunk(error: any): StreamChunk {
