@@ -117,7 +117,7 @@ export const Route = createFileRoute('/api/tanchat')({
             }),
           zai: () =>
             createChatOptions({
-              adapter: zaiText((model || 'glm-4.7') as any),
+              adapter: zaiText((model || 'glm-4.7') as 'glm-4.7'),
               modelOptions: {},
             }),
         }

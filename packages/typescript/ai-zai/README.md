@@ -7,6 +7,15 @@ Z.AI adapter for TanStack AI.
 
 - Z.AI docs: https://docs.z.ai/api-reference/introduction
 
+## OpenAI Compatibility
+
+Z.AI exposes an OpenAI-compatible API surface. This adapter:
+
+- Uses the OpenAI SDK internally, with Z.AI's base URL (`https://api.z.ai/api/paas/v4`)
+- Targets the Chat Completions streaming interface
+- Supports function/tool calling via OpenAI-style `tools`
+- Accepts `string` or `ContentPart[]` message content (only text parts are used today)
+
 ## Installation
 
 ```bash
@@ -38,7 +47,9 @@ const adapter = zaiText('glm-4.7')
 const result = await generate({
   adapter,
   model: 'glm-4.7',
-  messages: [{ role: 'user', content: 'Hello! Introduce yourself briefly.' }],
+  messages: [
+    { role: 'user', content: [{ type: 'text', content: 'Hello! Introduce yourself briefly.' }] },
+  ],
 })
 
 for await (const chunk of result) {
@@ -55,7 +66,9 @@ const adapter = zaiText('glm-4.7')
 
 for await (const chunk of adapter.chatStream({
   model: 'glm-4.7',
-  messages: [{ role: 'user', content: 'Stream a short poem about TypeScript.' }],
+  messages: [
+    { role: 'user', content: [{ type: 'text', content: 'Stream a short poem about TypeScript.' }] },
+  ],
 })) {
   if (chunk.type === 'content') process.stdout.write(chunk.delta)
   if (chunk.type === 'error') {
@@ -167,7 +180,7 @@ Uses `ZAI_API_KEY` from your environment.
 - ✅ Streaming chat completions
 - ✅ Function/tool calling
 - ❌ Structured output (not implemented in this adapter yet)
-- ❌ Multimodal input (this adapter currently extracts text only)
+- ❌ Multimodal input (this adapter currently extracts text only; non-text parts are ignored)
 
 ## Tree-Shakeable Adapters
 

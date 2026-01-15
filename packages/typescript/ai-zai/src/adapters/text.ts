@@ -1,14 +1,32 @@
 import { BaseTextAdapter } from '@tanstack/ai/adapters'
-import type OpenAI from 'openai'
-import type { ModelMessage, StreamChunk, TextOptions } from '@tanstack/ai'
-import type { ZAIMessageMetadataByModality } from '../message-types'
 import { createZAIClient } from '../utils/client'
 import { convertToolsToZAIFormat, mapZAIErrorToStreamChunk } from '../utils/conversion'
+import type {
+  StructuredOutputOptions,
+  StructuredOutputResult,
+} from '@tanstack/ai/adapters'
+import type { Modality, ModelMessage, StreamChunk, TextOptions } from '@tanstack/ai'
+import type { ZAIMessageMetadataByModality } from '../message-types'
+import type {
+  ZAIModelInputModalitiesByName,
+  ZAIModelMap,
+  ZAI_CHAT_MODELS,
+} from '../model-meta'
+import type { ZAITextOptions } from '../text/text-provider-options'
+import type OpenAI from 'openai'
 
 /**
  * Z.AI uses an OpenAI-compatible API surface.
  * This adapter targets the Chat Completions streaming interface.
  */
+
+type ResolveProviderOptions<TModel extends string> =
+  TModel extends keyof ZAIModelMap ? ZAIModelMap[TModel] : ZAITextOptions
+
+type ResolveInputModalities<TModel extends string> =
+  TModel extends keyof ZAIModelInputModalitiesByName
+    ? ZAIModelInputModalitiesByName[TModel]
+    : readonly ['text']
 
 export interface ZAITextAdapterConfig {
   /**
@@ -35,12 +53,17 @@ type ZAIChatCompletionParams =
  * - Ends with `StreamChunk { type: 'done' }` with `finishReason`
  * - On any failure, yields a single `StreamChunk { type: 'error' }` and stops
  */
-export class ZAITextAdapter<TModel extends string> extends BaseTextAdapter<
+export class ZAITextAdapter<
+  TModel extends (typeof ZAI_CHAT_MODELS)[number],
+> extends BaseTextAdapter<
   TModel,
-  Record<string, any>,
-  readonly ['text'],
+  ResolveProviderOptions<TModel>,
+  ResolveInputModalities<TModel> extends ReadonlyArray<Modality>
+    ? ResolveInputModalities<TModel>
+    : readonly ['text'],
   ZAIMessageMetadataByModality
 > {
+  readonly kind = 'text' as const
   readonly name = 'zai' as const
 
   private client: OpenAI
@@ -67,7 +90,9 @@ export class ZAITextAdapter<TModel extends string> extends BaseTextAdapter<
    * - Accumulates text deltas into the `content` field
    * - Accumulates tool call argument deltas and emits completed tool calls
    */
-  async *chatStream(options: TextOptions): AsyncIterable<StreamChunk> {
+  async *chatStream(
+    options: TextOptions<ResolveProviderOptions<TModel>>,
+  ): AsyncIterable<StreamChunk> {
     const requestParams = this.mapTextOptionsToZAI(options)
 
     const timestamp = Date.now()
@@ -97,7 +122,9 @@ export class ZAITextAdapter<TModel extends string> extends BaseTextAdapter<
    * The Z.AI API is OpenAI-compatible, so this can be added later using
    * `response_format: { type: 'json_schema', ... }` if supported.
    */
-  async structuredOutput(): Promise<{ data: unknown; rawText: string }> {
+  structuredOutput(
+    _options: StructuredOutputOptions<ResolveProviderOptions<TModel>>,
+  ): Promise<StructuredOutputResult<unknown>> {
     throw new Error('ZAITextAdapter.structuredOutput is not implemented')
   }
 
@@ -105,7 +132,9 @@ export class ZAITextAdapter<TModel extends string> extends BaseTextAdapter<
    * Convert universal TanStack `TextOptions` into OpenAI-compatible
    * Chat Completions request params for Z.AI.
    */
-  private mapTextOptionsToZAI(options: TextOptions): ZAIChatCompletionParams {
+  private mapTextOptionsToZAI(
+    options: TextOptions<ResolveProviderOptions<TModel>>,
+  ): ZAIChatCompletionParams {
     const messages = this.convertMessagesToInput(options.messages, options)
 
     const rawProviderOptions = (options.modelOptions ?? {}) as any
@@ -227,12 +256,15 @@ export class ZAITextAdapter<TModel extends string> extends BaseTextAdapter<
         responseId = chunk.id || responseId
         responseModel = chunk.model || responseModel
 
-        const choice = chunk.choices?.[0]
+        const chunkAny = chunk as any
+        const choice = Array.isArray(chunkAny.choices)
+          ? chunkAny.choices[0]
+          : undefined
         if (!choice) continue
 
         const delta = choice.delta
-        const deltaContent = delta?.content
-        const deltaToolCalls = delta?.tool_calls
+        const deltaContent = delta.content
+        const deltaToolCalls = delta.tool_calls
 
         if (typeof deltaContent === 'string' && deltaContent.length) {
           accumulatedContent += deltaContent
@@ -334,8 +366,8 @@ export class ZAITextAdapter<TModel extends string> extends BaseTextAdapter<
 
     if (Array.isArray(content)) {
       return content
-        .filter((p) => p && typeof p === 'object' && (p as any).type === 'text')
-        .map((p) => String((p as any).content ?? ''))
+        .filter((p) => p && typeof p === 'object' && p.type === 'text')
+        .map((p) => String(p.content ?? ''))
         .join('')
     }
 
@@ -347,9 +379,9 @@ export class ZAITextAdapter<TModel extends string> extends BaseTextAdapter<
   ): Record<string, string> | undefined {
     const request = options.request
     const userHeaders =
-      request && request instanceof Request
+      request instanceof Request
         ? Object.fromEntries(request.headers.entries())
-        : (request as RequestInit | undefined)?.headers
+        : request?.headers
 
     if (!userHeaders) return undefined
 
@@ -361,7 +393,7 @@ export class ZAITextAdapter<TModel extends string> extends BaseTextAdapter<
       return Object.fromEntries(userHeaders.entries())
     }
 
-    return userHeaders as Record<string, string>
+    return userHeaders
   }
 
   /**
@@ -375,7 +407,6 @@ export class ZAITextAdapter<TModel extends string> extends BaseTextAdapter<
     const request = options.request
     if (request && request instanceof Request) return request.signal
 
-    const init = request as RequestInit | undefined
-    return init?.signal ?? undefined
+    return request?.signal ?? undefined
   }
 }
