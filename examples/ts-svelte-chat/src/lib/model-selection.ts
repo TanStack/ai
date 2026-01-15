@@ -1,4 +1,4 @@
-export type Provider = 'openai' | 'anthropic' | 'gemini' | 'ollama'
+export type Provider = 'openai' | 'anthropic' | 'gemini' | 'ollama' | 'zai'
 
 export interface ModelOption {
   provider: Provider

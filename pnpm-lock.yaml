@@ -107,6 +107,9 @@ importers:
       '@tanstack/ai-react':
         specifier: workspace:*
         version: link:../../packages/typescript/ai-react
+      '@tanstack/ai-zai':
+        specifier: workspace:*
+        version: link:../../packages/typescript/ai-zai
       '@tanstack/react-devtools':
         specifier: ^0.8.2
         version: 0.8.4(@types/react-dom@19.2.3(@types/react@19.2.7))(@types/react@19.2.7)(csstype@3.2.3)(react-dom@19.2.3(react@19.2.3))(react@19.2.3)(solid-js@1.9.10)
@@ -355,6 +358,9 @@ importers:
       '@tanstack/ai-solid-ui':
         specifier: workspace:*
         version: link:../../packages/typescript/ai-solid-ui
+      '@tanstack/ai-zai':
+        specifier: workspace:*
+        version: link:../../packages/typescript/ai-zai
       '@tanstack/nitro-v2-vite-plugin':
         specifier: ^1.141.0
         version: 1.141.0(rolldown@1.0.0-beta.53)(vite@7.2.7(@types/node@24.10.3)(jiti@2.6.1)(lightningcss@1.30.2)(terser@5.44.1)(tsx@4.21.0)(yaml@2.8.2))
@@ -464,6 +470,9 @@ importers:
       '@tanstack/ai-svelte':
         specifier: workspace:*
         version: link:../../packages/typescript/ai-svelte
+      '@tanstack/ai-zai':
+        specifier: workspace:*
+        version: link:../../packages/typescript/ai-zai
       highlight.js:
         specifier: ^11.11.1
         version: 11.11.1
@@ -540,6 +549,9 @@ importers:
       '@tanstack/ai-vue-ui':
         specifier: workspace:*
         version: link:../../packages/typescript/ai-vue-ui
+      '@tanstack/ai-zai':
+        specifier: workspace:*
+        version: link:../../packages/typescript/ai-zai
       marked:
         specifier: ^15.0.6
         version: 15.0.12
@@ -1030,9 +1042,6 @@ importers:
       '@tanstack/ai':
         specifier: workspace:*
         version: link:../ai
-      '@vitest/coverage-v8':
-        specifier: 4.0.14
-        version: 4.0.14(vitest@4.0.15(@types/node@25.0.1)(happy-dom@20.0.11)(jiti@2.6.1)(jsdom@27.3.0(postcss@8.5.6))(lightningcss@1.30.2)(terser@5.44.1)(tsx@4.21.0)(yaml@2.8.2))
       vite:
         specifier: ^7.2.7
         version: 7.2.7(@types/node@25.0.1)(jiti@2.6.1)(lightningcss@1.30.2)(terser@5.44.1)(tsx@4.21.0)(yaml@2.8.2)

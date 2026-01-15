@@ -194,12 +194,3 @@ export interface ZAITextOptions
     ZAIToolsOptions,
     ZAIStreamingOptions,
     ZAIMetadataOptions {}
-
-/**
- * Minimal text provider options for Z.AI.
- * Includes only the most commonly used options.
- */
-export interface ZAITextOptionsMinimal
-  extends ZAIBaseOptions,
-    ZAIStreamingOptions,
-    ZAIMetadataOptions {}

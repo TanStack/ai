@@ -13,6 +13,7 @@
     "@tanstack/ai-anthropic": "workspace:*",
     "@tanstack/ai-client": "workspace:*",
     "@tanstack/ai-react": "workspace:*",
+    "@tanstack/ai-zai": "workspace:*",
     "@tanstack/react-devtools": "^0.8.2",
     "@tanstack/react-router": "^1.141.1",
     "@tanstack/react-router-devtools": "^1.139.7",

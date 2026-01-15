@@ -1,4 +1,4 @@
-export type Provider = 'openai' | 'anthropic' | 'gemini' | 'ollama'
+export type Provider = 'openai' | 'anthropic' | 'gemini' | 'ollama' | 'zai'
 
 export interface ModelOption {
   provider: Provider
@@ -66,6 +66,23 @@ export const MODEL_OPTIONS: Array<ModelOption> = [
     provider: 'ollama',
     model: 'smollm',
     label: 'Ollama - SmolLM',
+  },
+
+  // Z.AI (GLM)
+  {
+    provider: 'zai',
+    model: 'glm-4.7',
+    label: 'Z.AI - GLM-4.7',
+  },
+  {
+    provider: 'zai',
+    model: 'glm-4.6',
+    label: 'Z.AI - GLM-4.6',
+  },
+  {
+    provider: 'zai',
+    model: 'glm-4.6v',
+    label: 'Z.AI - GLM-4.6V',
   },
 ]
 

@@ -7,6 +7,7 @@ import { openaiText } from '@tanstack/ai-openai'
 import { anthropicText } from '@tanstack/ai-anthropic'
 import { geminiText } from '@tanstack/ai-gemini'
 import { ollamaText } from '@tanstack/ai-ollama'
+import { zaiText } from '@tanstack/ai-zai'
 import { toolDefinition } from '@tanstack/ai'
 import { z } from 'zod'
 import dotenv from 'dotenv'
@@ -175,7 +176,7 @@ IMPORTANT:
 - Do NOT describe the guitar yourself - let the recommendGuitar tool do it
 `
 
-type Provider = 'openai' | 'anthropic' | 'gemini' | 'ollama'
+type Provider = 'openai' | 'anthropic' | 'gemini' | 'ollama' | 'zai'
 
 export default defineConfig({
   plugins: [
@@ -217,6 +218,10 @@ export default defineConfig({
               case 'ollama':
                 selectedModel = model || 'mistral:7b'
                 adapter = ollamaText(selectedModel)
+                break
+              case 'zai':
+                selectedModel = model || 'glm-4.7'
+                adapter = zaiText(selectedModel)
                 break
               case 'openai':
               default:

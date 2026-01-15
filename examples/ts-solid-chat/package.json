@@ -19,6 +19,7 @@
     "@tanstack/ai-openai": "workspace:*",
     "@tanstack/ai-solid": "workspace:*",
     "@tanstack/ai-solid-ui": "workspace:*",
+    "@tanstack/ai-zai": "workspace:*",
     "@tanstack/nitro-v2-vite-plugin": "^1.141.0",
     "@tanstack/router-plugin": "^1.139.7",
     "@tanstack/solid-ai-devtools": "workspace:*",

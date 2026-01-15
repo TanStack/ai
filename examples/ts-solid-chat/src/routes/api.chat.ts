@@ -1,6 +1,7 @@
 import { createFileRoute } from '@tanstack/solid-router'
 import { chat, maxIterations, toServerSentEventsResponse } from '@tanstack/ai'
 import { anthropicText } from '@tanstack/ai-anthropic'
+import { zaiText } from '@tanstack/ai-zai'
 import { serverTools } from '@/lib/guitar-tools'
 
 const SYSTEM_PROMPT = `You are a helpful assistant for a guitar store.
@@ -30,19 +31,6 @@ export const Route = createFileRoute('/api/chat')({
   server: {
     handlers: {
       POST: async ({ request }) => {
-        if (!process.env.ANTHROPIC_API_KEY) {
-          return new Response(
-            JSON.stringify({
-              error:
-                'ANTHROPIC_API_KEY not configured. Please add it to .env or .env.local',
-            }),
-            {
-              status: 500,
-              headers: { 'Content-Type': 'application/json' },
-            },
-          )
-        }
-
         // Capture request signal before reading body (it may be aborted after body is consumed)
         const requestSignal = request.signal
 
@@ -53,21 +41,46 @@ export const Route = createFileRoute('/api/chat')({
 
         const abortController = new AbortController()
 
-        const { messages } = await request.json()
+        const { messages, data } = await request.json()
+        const provider = data?.provider || 'anthropic'
+        const model = data?.model || 'claude-sonnet-4-5'
+
         try {
-          // Use the stream abort signal for proper cancellation handling
-          const stream = chat({
-            adapter: anthropicText('claude-sonnet-4-5'),
-            tools: serverTools,
-            systemPrompts: [SYSTEM_PROMPT],
-            agentLoopStrategy: maxIterations(20),
-            messages,
-            modelOptions: {
+          let adapter
+          let modelOptions = {}
+
+          if (provider === 'zai') {
+            adapter = zaiText(model)
+          } else {
+             if (!process.env.ANTHROPIC_API_KEY) {
+              return new Response(
+                JSON.stringify({
+                  error:
+                    'ANTHROPIC_API_KEY not configured. Please add it to .env or .env.local',
+                }),
+                {
+                  status: 500,
+                  headers: { 'Content-Type': 'application/json' },
+                },
+              )
+            }
+            adapter = anthropicText(model)
+            modelOptions = {
               thinking: {
                 type: 'enabled',
                 budget_tokens: 10000,
               },
-            },
+            }
+          }
+
+          // Use the stream abort signal for proper cancellation handling
+          const stream = chat({
+            adapter,
+            tools: serverTools,
+            systemPrompts: [SYSTEM_PROMPT],
+            agentLoopStrategy: maxIterations(20),
+            messages,
+            modelOptions,
             abortController,
           })
 
