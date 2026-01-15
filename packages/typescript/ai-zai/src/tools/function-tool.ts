@@ -1,6 +1,9 @@
 import type { JSONSchema, Tool } from '@tanstack/ai'
 import type OpenAI from 'openai'
 
+/**
+ * Type alias for OpenAI Chat Completion Tool.
+ */
 export type FunctionTool = OpenAI.Chat.Completions.ChatCompletionTool
 
 /**

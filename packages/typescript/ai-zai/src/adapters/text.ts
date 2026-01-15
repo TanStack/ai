@@ -1,6 +1,7 @@
 import { BaseTextAdapter } from '@tanstack/ai/adapters'
 import { createZAIClient } from '../utils/client'
 import { convertToolsToZAIFormat, mapZAIErrorToStreamChunk } from '../utils/conversion'
+import { ZAI_CHAT_MODELS, ZAI_MODEL_META } from '../model-meta'
 import type {
   StructuredOutputOptions,
   StructuredOutputResult,
@@ -10,7 +11,6 @@ import type { ZAIMessageMetadataByModality } from '../message-types'
 import type {
   ZAIModelInputModalitiesByName,
   ZAIModelMap,
-  ZAI_CHAT_MODELS,
 } from '../model-meta'
 import type { ZAITextOptions } from '../text/text-provider-options'
 import type OpenAI from 'openai'
@@ -177,6 +177,14 @@ export class ZAITextAdapter<
   ): Array<OpenAI.Chat.Completions.ChatCompletionMessageParam> {
     const result: Array<OpenAI.Chat.Completions.ChatCompletionMessageParam> = []
 
+    // Check capabilities based on model name
+    const modelMeta = ZAI_MODEL_META[this.model]
+    const inputs = modelMeta.supports.input as ReadonlyArray<string>
+    const capabilities = {
+      image: inputs.includes('image'),
+      video: inputs.includes('video'),
+    }
+
     if (options.systemPrompts?.length) {
       result.push({
         role: 'system',
@@ -186,9 +194,12 @@ export class ZAITextAdapter<
 
     for (const message of messages) {
       if (message.role === 'tool') {
+        if (!message.toolCallId) {
+          throw new Error('Tool message missing required toolCallId')
+        }
         result.push({
           role: 'tool',
-          tool_call_id: message.toolCallId || '',
+          tool_call_id: message.toolCallId,
           content:
             typeof message.content === 'string'
               ? message.content
@@ -198,21 +209,26 @@ export class ZAITextAdapter<
       }
 
       if (message.role === 'assistant') {
-        const toolCalls = message.toolCalls?.map((tc: NonNullable<ModelMessage['toolCalls']>[number]) => ({
-          id: tc.id,
-          type: 'function' as const,
-          function: {
-            name: tc.function.name,
-            arguments:
-              typeof tc.function.arguments === 'string'
-                ? tc.function.arguments
-                : JSON.stringify(tc.function.arguments),
-          },
-        }))
+        const toolCalls = message.toolCalls?.map(
+          (tc: NonNullable<ModelMessage['toolCalls']>[number]) => ({
+            id: tc.id,
+            type: 'function' as const,
+            function: {
+              name: tc.function.name,
+              arguments:
+                typeof tc.function.arguments === 'string'
+                  ? tc.function.arguments
+                  : JSON.stringify(tc.function.arguments),
+            },
+          }),
+        )
 
         result.push({
           role: 'assistant',
-          content: this.extractTextContent(message.content),
+          content: this.convertContent(message.content, {
+            image: false,
+            video: false,
+          }) as string,
           ...(toolCalls && toolCalls.length ? { tool_calls: toolCalls } : {}),
         })
         continue
@@ -220,7 +236,7 @@ export class ZAITextAdapter<
 
       result.push({
         role: 'user',
-        content: this.extractTextContent(message.content),
+        content: this.convertContent(message.content, capabilities),
       })
     }
 
@@ -357,23 +373,57 @@ export class ZAITextAdapter<
   }
 
   /**
-   * Extract a plain string from TanStack message content.
-   * The core types allow either `string | null | ContentPart[]`.
+   * Convert TanStack message content to OpenAI format, preserving supported modalities.
    */
-  private extractTextContent(content: unknown): string {
+  private convertContent(
+    content: unknown,
+    capabilities: { image: boolean; video: boolean },
+  ): string | Array<OpenAI.Chat.Completions.ChatCompletionContentPart> {
     if (typeof content === 'string') return content
     if (!content) return ''
 
     if (Array.isArray(content)) {
-      return content
-        .filter((p) => p && typeof p === 'object' && p.type === 'text')
-        .map((p) => String(p.content ?? ''))
-        .join('')
+      // If model doesn't support multimodal, fall back to text-only extraction
+      if (!capabilities.image && !capabilities.video) {
+        return content
+          .filter((p) => p && typeof p === 'object' && p.type === 'text')
+          .map((p) => String(p.content ?? ''))
+          .join('')
+      }
+
+      const parts: Array<OpenAI.Chat.Completions.ChatCompletionContentPart> = []
+
+      for (const part of content) {
+        if (!part || typeof part !== 'object') continue
+
+        if (part.type === 'text') {
+          parts.push({ type: 'text', text: part.content ?? '' })
+        } else if (part.type === 'image' && capabilities.image) {
+          parts.push({
+            type: 'image_url',
+            image_url: { url: part.source.value },
+          })
+        } else if (part.type === 'video' && capabilities.video) {
+          // Assuming Z.AI accepts video_url with the same structure as image_url
+          // Using 'any' cast because OpenAI types don't include video_url yet
+          parts.push({
+            type: 'video_url',
+            video_url: { url: part.source.value },
+          } as any)
+        }
+      }
+
+      if (parts.length === 0) return ''
+      return parts
     }
 
     return ''
   }
 
+  /**
+   * Extract headers from the request options.
+   * Handles Request objects, Headers objects, and plain objects.
+   */
   private getRequestHeaders(
     options: TextOptions,
   ): Record<string, string> | undefined {

@@ -2,6 +2,10 @@ import { convertToolsToProviderFormat } from '../tools/tool-converter'
 import type OpenAI from 'openai'
 import type { StreamChunk, Tool } from '@tanstack/ai'
 
+/**
+ * Converts TanStack Tools to Z.AI compatible OpenAI format.
+ * Handles both function tools and web search tools.
+ */
 export function convertToolsToZAIFormat(
   tools: Array<Tool>,
 ): Array<OpenAI.Chat.Completions.ChatCompletionTool> {

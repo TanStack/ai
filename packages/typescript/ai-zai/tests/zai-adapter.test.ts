@@ -250,6 +250,37 @@ describe('ZAITextAdapter', () => {
 
       expect(out).toEqual([{ role: 'user', content: 'hello' }])
     })
+
+    it('preserves image parts for multimodal models (glm-4.6v)', () => {
+      const adapter = new ZAITextAdapter({ apiKey: 'test' }, 'glm-4.6v')
+      const convert = (adapter as any).convertMessagesToInput.bind(adapter) as (
+        messages: Array<ModelMessage>,
+        opts: Pick<TextOptions, 'systemPrompts'>,
+      ) => Array<any>
+
+      const out = convert(
+        [
+          {
+            role: 'user',
+            content: [
+              { type: 'image', source: { type: 'url', value: 'https://x/y.png' } },
+              { type: 'text', content: 'hello' },
+            ] as any,
+          },
+        ],
+        {},
+      )
+
+      expect(out).toEqual([
+        {
+          role: 'user',
+          content: [
+            { type: 'image_url', image_url: { url: 'https://x/y.png' } },
+            { type: 'text', text: 'hello' },
+          ],
+        },
+      ])
+    })
   })
 
   describe('Error Handling', () => {

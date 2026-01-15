@@ -1,5 +1,8 @@
 import type { Tool } from '@tanstack/ai'
 
+/**
+ * Definition of the Z.AI Web Search tool structure.
+ */
 export interface ZaiWebSearchTool {
   type: 'web_search'
   web_search?: {
@@ -9,6 +12,9 @@ export interface ZaiWebSearchTool {
   }
 }
 
+/**
+ * Alias for the Z.AI Web Search tool.
+ */
 export type WebSearchTool = ZaiWebSearchTool
 
 /**

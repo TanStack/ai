@@ -4,6 +4,10 @@ import type { Tool } from '@tanstack/ai'
 import type OpenAI from 'openai'
 import type { ZaiWebSearchTool } from './web-search-tool'
 
+/**
+ * Union type representing any valid Z.AI tool.
+ * Can be a standard function tool or a web search tool.
+ */
 export type ZaiTool = OpenAI.Chat.Completions.ChatCompletionTool | ZaiWebSearchTool
 
 /**

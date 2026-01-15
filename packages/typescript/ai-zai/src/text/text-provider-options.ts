@@ -77,7 +77,14 @@ export interface ZAIBaseOptions {
 
 // Feature fragments that can be stitched per-model
 
+/**
+ * Level of effort to expend on reasoning.
+ */
 type ReasoningEffort = 'none' | 'minimal' | 'low' | 'medium' | 'high'
+
+/**
+ * Detail level for the reasoning summary.
+ */
 type ReasoningSummary = 'auto' | 'detailed'
 
 /**
@@ -91,7 +98,7 @@ export interface ZAIReasoningOptions {
   reasoning?: {
     /**
      * Controls the amount of reasoning effort.
-     * Supported values: none, low, medium, high
+     * Supported values: none, minimal, low, medium, high
      */
     effort?: ReasoningEffort
     /**

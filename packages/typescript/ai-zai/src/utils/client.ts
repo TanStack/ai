@@ -29,6 +29,14 @@ export function getZAIApiKeyFromEnv(): string {
   return key
 }
 
+/**
+ * Validates the Z.AI API key format.
+ * Checks for empty strings, whitespace, and invalid prefixes.
+ *
+ * @param apiKey - The API key to validate
+ * @returns The validated and trimmed API key
+ * @throws Error if the key is invalid
+ */
 export function validateZAIApiKey(apiKey?: string): string {
   if (!apiKey || typeof apiKey !== 'string') {
     throw new Error('Z.AI API key is required')

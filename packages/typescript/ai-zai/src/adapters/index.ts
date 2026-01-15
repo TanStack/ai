@@ -11,9 +11,19 @@ export {
   type ZAISummarizeProviderOptions,
 } from './summarize'
 
+/**
+ * Union type of all supported Z.AI model names.
+ */
 export type ZAIModel = (typeof ZAI_CHAT_MODELS)[number]
 
+/**
+ * Configuration options for the Z.AI adapter.
+ */
 export interface ZAIAdapterConfig {
+  /**
+   * Optional override for the Z.AI base URL.
+   * Defaults to https://api.z.ai/api/paas/v4
+   */
   baseURL?: string
 }
 

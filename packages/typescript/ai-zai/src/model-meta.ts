@@ -217,12 +217,18 @@ export type ZAIModelMap = {
     ZAIMetadataOptions
 }
 
+/**
+ * Mapping of Z.AI model names to their supported input modalities.
+ */
 export type ZAIModelInputModalitiesByName = {
   [GLM_4_7.name]: typeof GLM_4_7.supports.input
   [GLM_4_6V.name]: typeof GLM_4_6V.supports.input
   [GLM_4_6.name]: typeof GLM_4_6.supports.input
 }
 
+/**
+ * Complete metadata registry for Z.AI models.
+ */
 export const ZAI_MODEL_META = {
   [GLM_4_7.name]: GLM_4_7,
   [GLM_4_6V.name]: GLM_4_6V,

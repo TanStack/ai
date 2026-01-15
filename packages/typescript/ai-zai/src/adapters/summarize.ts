@@ -89,6 +89,10 @@ export class ZAISummarizeAdapter<
     })
   }
 
+  /**
+   * Constructs a system prompt based on the summarization options.
+   * Handles style, focus points, and length constraints.
+   */
   private buildSummarizationPrompt(options: SummarizationOptions): string {
     let prompt = 'You are a professional summarizer. '
 
