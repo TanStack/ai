@@ -44,13 +44,16 @@ Step 1: Call getGuitars()
 Step 2: Call recommendGuitar(id: "6") 
 Step 3: Done - do NOT add any text after calling recommendGuitar
 `
-const addToCartToolServer = addToCartToolDef.server((args) => ({
-  success: true,
-  cartId: 'CART_' + Date.now(),
-  guitarId: args.guitarId,
-  quantity: args.quantity,
-  totalItems: args.quantity,
-}))
+const addToCartToolServer = addToCartToolDef.server((args) => {
+  console.log('Executing addToCartToolServer', args)
+  return {
+    success: true,
+    cartId: 'CART_' + Date.now(),
+    guitarId: args.guitarId,
+    quantity: args.quantity,
+    totalItems: args.quantity,
+  }
+})
 
 type Provider = 'openai' | 'anthropic' | 'gemini' | 'ollama' | 'grok'
 
