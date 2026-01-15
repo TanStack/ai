@@ -1,9 +1,9 @@
 import { createFileRoute } from '@tanstack/vue-router'
-import { chat, maxIterations, toStreamResponse } from '@tanstack/ai'
-import { openai } from '@tanstack/ai-openai'
-import { anthropic } from '@tanstack/ai-anthropic'
-import { gemini } from '@tanstack/ai-gemini'
-import { ollama } from '@tanstack/ai-ollama'
+import { chat, maxIterations, toServerSentEventsResponse } from '@tanstack/ai'
+import { openaiText } from '@tanstack/ai-openai'
+import { anthropicText } from '@tanstack/ai-anthropic'
+import { geminiText } from '@tanstack/ai-gemini'
+import { ollamaText } from '@tanstack/ai-ollama'
 import { guitars } from '@/data/guitars'
 import {
   addToCartToolDef,
@@ -36,7 +36,7 @@ const getGuitars = getGuitarsToolDef.server(() => guitars)
 
 const addToCartToolServer = addToCartToolDef.server((args) => ({
   success: true,
-  cartId: 'CART_' + Date.now(),
+  cartId: `CART_${Date.now()}`,
   guitarId: args.guitarId,
   quantity: args.quantity,
   totalItems: args.quantity,
@@ -61,37 +61,33 @@ export const Route = createFileRoute('/api/chat')({
         const conversationId: string | undefined = data?.conversationId
 
         try {
-          let adapter
-          let defaultModel
-
-          switch (provider) {
-            case 'anthropic':
-              adapter = anthropic()
-              defaultModel = 'claude-sonnet-4-5-20250929'
-              break
-            case 'gemini':
-              adapter = gemini()
-              defaultModel = 'gemini-2.0-flash-exp'
-              break
-            case 'ollama':
-              adapter = ollama()
-              defaultModel = 'mistral:7b'
-              break
-            case 'openai':
-            default:
-              adapter = openai()
-              defaultModel = 'gpt-4o'
-              break
+          const getAdapter = () => {
+            switch (provider) {
+              case 'anthropic':
+                return anthropicText(
+                  (model || 'claude-sonnet-4-5') as 'claude-sonnet-4-5',
+                )
+              case 'gemini':
+                return geminiText(
+                  (model || 'gemini-2.0-flash') as 'gemini-2.0-flash',
+                )
+              case 'ollama':
+                return ollamaText((model || 'mistral:7b') as 'mistral:7b')
+              case 'openai':
+                return openaiText((model || 'gpt-4o') as 'gpt-4o')
+              default:
+                return openaiText((model || 'gpt-4o') as 'gpt-4o')
+            }
           }
 
-          const selectedModel = model || defaultModel
+          const adapter = getAdapter()
+
           console.log(
-            `[API Route] Using provider: ${provider}, model: ${selectedModel}`,
+            `[API Route] Using provider: ${provider}, model: ${model}`,
           )
 
           const stream = chat({
-            adapter: adapter as any,
-            model: selectedModel as any,
+            adapter,
             tools: [
               getGuitars,
               recommendGuitarToolDef,
@@ -106,17 +102,20 @@ export const Route = createFileRoute('/api/chat')({
             conversationId,
           })
 
-          return toStreamResponse(stream, { abortController })
-        } catch (error: any) {
+          return toServerSentEventsResponse(stream, { abortController })
+        } catch (error) {
           console.error('[API Route] Error in chat request:', error)
 
-          if (error.name === 'AbortError' || abortController.signal.aborted) {
+          if (
+            (error as Error).name === 'AbortError' ||
+            abortController.signal.aborted
+          ) {
             return new Response(null, { status: 499 })
           }
 
           return new Response(
             JSON.stringify({
-              error: error.message || 'An error occurred',
+              error: (error as Error).message || 'An error occurred',
             }),
             {
               status: 500,

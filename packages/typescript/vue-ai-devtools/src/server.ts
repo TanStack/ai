@@ -1,4 +1,5 @@
 import { defineComponent } from 'vue'
+import { createVuePlugin } from '@tanstack/devtools-utils/vue'
 
 export interface AiDevtoolsVueInit {
   theme?: 'light' | 'dark'
@@ -11,17 +12,9 @@ const NullComponent = /* #__PURE__ */ defineComponent({
   },
 })
 
-// On the server/SSR, devtools are always a no-op.
 export const AiDevtoolsPanel = NullComponent
 export const AiDevtoolsPanelInProd = NullComponent
 
-export function aiDevtoolsPlugin(_props: AiDevtoolsVueInit = {}) {
-  return {
-    id: 'tanstack-ai',
-    name: 'TanStack AI',
-    component: NullComponent,
-    props: _props,
-  }
-}
-
-export const aiDevtoolsNoOpPlugin = aiDevtoolsPlugin
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export const [aiDevtoolsPlugin, aiDevtoolsNoOpPlugin] =
+  createVuePlugin<AiDevtoolsVueInit>('TanStack AI', NullComponent as any)

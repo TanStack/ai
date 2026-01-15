@@ -72,7 +72,8 @@
     "src"
   ],
   "dependencies": {
-    "@tanstack/ai-devtools-core": "workspace:*"
+    "@tanstack/ai-devtools-core": "workspace:*",
+    "@tanstack/devtools-utils": "^0.3.0"
   },
   "devDependencies": {
     "@vitejs/plugin-vue": "^6.0.3",
