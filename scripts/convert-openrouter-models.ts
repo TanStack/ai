@@ -49,6 +49,9 @@ const videoModels = new Set<string>([])
 
 function generateChatModelsArray(): string {
   const modelIds = Array.from(chatModels)
+  if (modelIds.length === 0) {
+    return ''
+  }
   return `export const OPENROUTER_CHAT_MODELS = [\n${modelIds
     .map((id) => `  ${id},`)
     .join('\n')}\n] as const`
@@ -56,6 +59,9 @@ function generateChatModelsArray(): string {
 
 function generateImageModelsArray(): string {
   const modelIds = Array.from(imageModels)
+  if (modelIds.length === 0) {
+    return ''
+  }
   return `export const OPENROUTER_IMAGE_MODELS = [\n${modelIds
     .map((id) => `  ${id},`)
     .join('\n')}\n] as const`
@@ -63,6 +69,9 @@ function generateImageModelsArray(): string {
 
 function generateVideoModelsArray(): string {
   const modelIds = Array.from(videoModels)
+  if (modelIds.length === 0) {
+    return ''
+  }
   return `export const OPENROUTER_VIDEO_MODELS = [\n${modelIds
     .map((id) => `  ${id},`)
     .join('\n')}\n] as const`
@@ -92,6 +101,9 @@ function generateModelMetaString(model: OpenRouterModel): string {
   const inputModalities = model.architecture.input_modalities
     .map(mapInputModality)
     .filter((m): m is InputModality => m !== null)
+  const outputModalities = model.architecture.output_modalities
+    .map(mapInputModality)
+    .filter((m): m is InputModality => m !== null)
   const constName = model.id
     .replaceAll('/', '-')
     .replaceAll('-', '_')
@@ -102,13 +114,13 @@ function generateModelMetaString(model: OpenRouterModel): string {
   if (!inputModalities.includes('text')) {
     inputModalities.unshift('text')
   }
-  if (inputModalities.includes('text')) {
+  if (outputModalities.includes('text')) {
     chatModels.add(`${constName}.id`)
   }
-  if (inputModalities.includes('image')) {
+  if (outputModalities.includes('image')) {
     imageModels.add(`${constName}.id`)
   }
-  if (inputModalities.includes('video')) {
+  if (outputModalities.includes('video')) {
     videoModels.add(`${constName}.id`)
   }
   const inputPrice = convertPricing(model.pricing.prompt)
@@ -131,7 +143,7 @@ function generateModelMetaString(model: OpenRouterModel): string {
     `      input: [${inputModalities.map((m) => `'${m}'`).join(', ')}],`,
   )
   lines.push(
-    `      output: [${inputModalities.map((m) => `'${m}'`).join(', ')}],`,
+    `      output: [${outputModalities.map((m) => `'${m}'`).join(', ')}],`,
   )
   lines.push(
     `      supports: [${model.supported_parameters?.map((p) => `'${p}'`).join(', ') || ''}],`,
@@ -162,19 +174,18 @@ function generateModelMetaString(model: OpenRouterModel): string {
   lines.push(`    },`)
   lines.push(`  } as const`)
 
+  const supportedParams =
+    model.supported_parameters
+      ?.map((p) =>
+        p === 'tools' || p === 'reasoning_effort' || p === 'structured_outputs'
+          ? ''
+          : `'${p === 'max_tokens' ? 'max_completion_tokens' : p}'`,
+      )
+      .filter(Boolean) ?? []
   perModelProviderOptions[`${constName}.id`] =
-    model.supported_parameters && model.supported_parameters.length > 0
+    supportedParams.length > 0
       ? `OpenRouterCommonOptions & Pick<OpenRouterBaseOptions,${
-          model.supported_parameters
-            .map((p) =>
-              p === 'tools' ||
-              p === 'reasoning_effort' ||
-              p === 'structured_outputs'
-                ? ''
-                : `'${p === 'max_tokens' ? 'max_completion_tokens' : p}'`,
-            )
-            .filter(Boolean)
-            .join(' | ') || ''
+          supportedParams.join(' | ') || ''
         }>`
       : 'OpenRouterCommonOptions & OpenRouterBaseOptions'
   perModelInputModalities[`${constName}.id`] = inputModalities
