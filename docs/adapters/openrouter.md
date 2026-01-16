@@ -124,37 +124,9 @@ const stream = chat({
   },
 });
 ```
-
-## API Reference
-
-### `openrouter(config?)`
-
-Creates an OpenRouter adapter with automatic API key detection from `OPENROUTER_API_KEY`.
-
-**Parameters:**
-
-- `config.baseURL?` - Custom base URL (optional)
-- `config.httpReferer?` - HTTP Referer header for rankings (optional)
-- `config.xTitle?` - X-Title header for rankings (optional)
-
-**Returns:** An OpenRouter adapter instance.
-
-### `createOpenRouter(apiKey, config?)`
-
-Creates an OpenRouter adapter with explicit API key.
-
-**Parameters:**
-
-- `apiKey` - OpenRouter API key (required)
-- `config.baseURL?` - Custom base URL (optional)
-- `config.httpReferer?` - HTTP Referer header (optional)
-- `config.xTitle?` - X-Title header (optional)
-
-**Returns:** An OpenRouter adapter instance.
-
+ 
 ## Next Steps
 
 - [Getting Started](../getting-started/quick-start) - Learn the basics
-- [Tools Guide](../guides/tools) - Learn about tools
-- [Other Adapters](./openai) - Explore other providers
+- [Tools Guide](../guides/tools) - Learn about tools 
 
