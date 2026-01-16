@@ -67,11 +67,13 @@ for await (const chunk of chat({
 ## Tool Calling
 
 ```typescript
+import { chat } from "@tanstack/ai";
 import { cencori } from "@cencori/ai-sdk/tanstack";
 
 const adapter = cencori("gpt-4o");
 
-for await (const chunk of adapter.chatStream({
+for await (const chunk of chat({
+  adapter,
   messages: [{ role: "user", content: "What's the weather in NYC?" }],
   tools: {
     getWeather: {
@@ -89,6 +91,7 @@ for await (const chunk of adapter.chatStream({
   }
 }
 ```
+
 
 ## Multi-Provider Support
 
