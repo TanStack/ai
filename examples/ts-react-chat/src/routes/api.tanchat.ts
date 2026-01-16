@@ -10,6 +10,7 @@ import { ollamaText } from '@tanstack/ai-ollama'
 import { anthropicText } from '@tanstack/ai-anthropic'
 import { geminiText } from '@tanstack/ai-gemini'
 import { grokText } from '@tanstack/ai-grok'
+import { zaiText } from '@tanstack/ai-zai'
 import type { AnyTextAdapter } from '@tanstack/ai'
 import {
   addToCartToolDef,
@@ -19,7 +20,7 @@ import {
   recommendGuitarToolDef,
 } from '@/lib/guitar-tools'
 
-type Provider = 'openai' | 'anthropic' | 'gemini' | 'ollama' | 'grok'
+type Provider = 'openai' | 'anthropic' | 'gemini' | 'ollama' | 'grok' | 'zai'
 
 const SYSTEM_PROMPT = `You are a helpful assistant for a guitar store.
 
@@ -112,6 +113,11 @@ export const Route = createFileRoute('/api/tanchat')({
             createChatOptions({
               adapter: openaiText((model || 'gpt-4o') as 'gpt-4o'),
               temperature: 2,
+              modelOptions: {},
+            }),
+          zai: () =>
+            createChatOptions({
+              adapter: zaiText((model || 'glm-4.7') as 'glm-4.7'),
               modelOptions: {},
             }),
         }

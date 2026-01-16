@@ -1,4 +1,4 @@
-export type Provider = 'openai' | 'anthropic' | 'gemini' | 'ollama' | 'grok'
+export type Provider = 'openai' | 'anthropic' | 'gemini' | 'ollama' | 'grok' | 'zai'
 
 export interface ModelOption {
   provider: Provider
@@ -83,6 +83,23 @@ export const MODEL_OPTIONS: Array<ModelOption> = [
     provider: 'grok',
     model: 'grok-2-vision-1212',
     label: 'Grok - Grok 2 Vision',
+  },
+
+  // Z.AI (GLM)
+  {
+    provider: 'zai',
+    model: 'glm-4.7',
+    label: 'Z.AI - GLM-4.7',
+  },
+  {
+    provider: 'zai',
+    model: 'glm-4.6',
+    label: 'Z.AI - GLM-4.6',
+  },
+  {
+    provider: 'zai',
+    model: 'glm-4.6v',
+    label: 'Z.AI - GLM-4.6V',
   },
 ]
 

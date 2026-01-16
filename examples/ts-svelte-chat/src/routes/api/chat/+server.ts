@@ -8,10 +8,10 @@ import { openaiText } from '@tanstack/ai-openai'
 import { ollamaText } from '@tanstack/ai-ollama'
 import { anthropicText } from '@tanstack/ai-anthropic'
 import { geminiText } from '@tanstack/ai-gemini'
+import { zaiText } from '@tanstack/ai-zai'
 
 import type { RequestHandler } from './$types'
 import { env } from '$env/dynamic/private'
-
 import {
   addToCartToolDef,
   addToWishListToolDef,
@@ -20,7 +20,7 @@ import {
   recommendGuitarToolDef,
 } from '$lib/guitar-tools'
 
-type Provider = 'openai' | 'anthropic' | 'gemini' | 'ollama'
+type Provider = 'openai' | 'anthropic' | 'gemini' | 'ollama' | 'zai'
 
 // Populate process.env with the SvelteKit environment variables
 // This is needed because the TanStack AI adapters read from process.env
@@ -37,7 +37,7 @@ const adapterConfig = {
     }),
   gemini: () =>
     createChatOptions({
-      adapter: geminiText('gemini-2.0-flash-exp'),
+      adapter: geminiText('gemini-2.0-flash'),
     }),
   ollama: () =>
     createChatOptions({
@@ -46,6 +46,10 @@ const adapterConfig = {
   openai: () =>
     createChatOptions({
       adapter: openaiText('gpt-4o'),
+    }),
+  zai: () =>
+    createChatOptions({
+      adapter: zaiText('glm-4.7'),
     }),
 }
 
@@ -99,7 +103,7 @@ export const POST: RequestHandler = async ({ request }) => {
     const provider: Provider = data?.provider || 'openai'
 
     // Get typed adapter options using createOptions pattern
-    const options = adapterConfig[provider]()
+    const options = adapterConfig[provider]() as any
 
     const stream = chat({
       ...options,

@@ -12,6 +12,7 @@ import { geminiText } from '@tanstack/ai-gemini'
 import { grokText } from '@tanstack/ai-grok'
 import { openaiText } from '@tanstack/ai-openai'
 import { ollamaText } from '@tanstack/ai-ollama'
+import { zaiText } from '@tanstack/ai-zai'
 import type { AIAdapter, StreamChunk } from '@tanstack/ai'
 import type { ChunkRecording } from '@/lib/recording'
 import {
@@ -52,7 +53,7 @@ const addToCartToolServer = addToCartToolDef.server((args) => ({
   totalItems: args.quantity,
 }))
 
-type Provider = 'openai' | 'anthropic' | 'gemini' | 'ollama' | 'grok'
+type Provider = 'openai' | 'anthropic' | 'gemini' | 'ollama' | 'grok' | 'zai'
 
 /**
  * Wraps an adapter to intercept chatStream and record raw chunks from the adapter
@@ -157,8 +158,8 @@ export const Route = createFileRoute('/api/chat')({
         const data = body.data || {}
 
         // Extract provider, model, and traceId from data
-        const provider: Provider = data.provider || 'openai'
-        const model: string = data.model || 'gpt-4o'
+        const provider: Provider = data.provider || 'zai'
+        const model: string = data.model || 'glm-4.7'
         const traceId: string | undefined = data.traceId
 
         try {
@@ -184,6 +185,10 @@ export const Route = createFileRoute('/api/chat')({
             openai: () =>
               createChatOptions({
                 adapter: openaiText((model || 'gpt-4o') as any),
+              }),
+            zai: () =>
+              createChatOptions({
+                adapter: zaiText((model || 'glm-4.7') as any),
               }),
           }
 
