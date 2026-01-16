@@ -15,6 +15,5 @@ const NullComponent = /* #__PURE__ */ defineComponent({
 export const AiDevtoolsPanel = NullComponent
 export const AiDevtoolsPanelInProd = NullComponent
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
 export const [aiDevtoolsPlugin, aiDevtoolsNoOpPlugin] =
-  createVuePlugin<AiDevtoolsVueInit>('TanStack AI', NullComponent as any)
+  createVuePlugin<AiDevtoolsVueInit>('TanStack AI', NullComponent)
