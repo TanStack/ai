@@ -17,6 +17,7 @@
     "@tanstack/ai-grok": "workspace:*",
     "@tanstack/ai-ollama": "workspace:*",
     "@tanstack/ai-openai": "workspace:*",
+    "@tanstack/ai-openrouter": "workspace:*",
     "@tanstack/ai-react": "workspace:*",
     "@tanstack/ai-react-ui": "workspace:*",
     "@tanstack/nitro-v2-vite-plugin": "^1.141.0",

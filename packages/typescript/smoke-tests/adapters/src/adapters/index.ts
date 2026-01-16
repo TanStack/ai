@@ -14,6 +14,11 @@ import {
   openaiText,
   openaiTranscription,
 } from '@tanstack/ai-openai'
+import {
+  openrouterImage,
+  openrouterSummarize,
+  openrouterText,
+} from '@tanstack/ai-openrouter'
 
 /**
  * Adapter set containing all adapters for a provider
@@ -81,6 +86,12 @@ const OLLAMA_SUMMARY_MODEL = process.env.OLLAMA_SUMMARY_MODEL || OLLAMA_MODEL
 const GROK_MODEL = process.env.GROK_MODEL || 'grok-3'
 const GROK_SUMMARY_MODEL = process.env.GROK_SUMMARY_MODEL || GROK_MODEL
 const GROK_IMAGE_MODEL = process.env.GROK_IMAGE_MODEL || 'grok-2-image-1212'
+
+const OPENROUTER_MODEL = process.env.OPENROUTER_MODEL || 'openai/gpt-4o-mini'
+const OPENROUTER_SUMMARY_MODEL =
+  process.env.OPENROUTER_SUMMARY_MODEL || OPENROUTER_MODEL
+const OPENROUTER_IMAGE_MODEL =
+  process.env.OPENROUTER_IMAGE_MODEL || 'openai/gpt-5-image-mini'
 
 /**
  * Create Anthropic adapters
@@ -186,6 +197,29 @@ function createGrokAdapters(): AdapterSet | null {
 }
 
 /**
+ * Create OpenRouter adapters
+ */
+function createOpenRouterAdapters(): AdapterSet | null {
+  const apiKey = process.env.OPENROUTER_API_KEY
+  if (!apiKey) return null
+
+  return {
+    textAdapter: openrouterText(OPENROUTER_MODEL as any, { apiKey } as any),
+    summarizeAdapter: openrouterSummarize(
+      OPENROUTER_SUMMARY_MODEL as any,
+      { apiKey } as any,
+    ),
+    imageAdapter: openrouterImage(
+      OPENROUTER_IMAGE_MODEL as any,
+      { apiKey } as any,
+    ),
+    chatModel: OPENROUTER_MODEL,
+    summarizeModel: OPENROUTER_SUMMARY_MODEL,
+    imageModel: OPENROUTER_IMAGE_MODEL,
+  }
+}
+
+/**
  * Registry of all available adapters
  */
 export const ADAPTERS: Array<AdapterDefinition> = [
@@ -219,6 +253,12 @@ export const ADAPTERS: Array<AdapterDefinition> = [
     name: 'Grok',
     envKey: 'XAI_API_KEY',
     create: createGrokAdapters,
+  },
+  {
+    id: 'openrouter',
+    name: 'OpenRouter',
+    envKey: 'OPENROUTER_API_KEY',
+    create: createOpenRouterAdapters,
   },
 ]
 

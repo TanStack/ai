@@ -1,4 +1,10 @@
-export type Provider = 'openai' | 'anthropic' | 'gemini' | 'ollama' | 'grok'
+export type Provider =
+  | 'openai'
+  | 'anthropic'
+  | 'gemini'
+  | 'ollama'
+  | 'grok'
+  | 'openrouter'
 
 export interface ModelOption {
   provider: Provider
@@ -39,6 +45,18 @@ export const MODEL_OPTIONS: Array<ModelOption> = [
     provider: 'gemini',
     model: 'gemini-2.5-flash',
     label: 'Gemini 2.5 - Flash',
+  },
+
+  // Openrouter
+  {
+    provider: 'openrouter',
+    model: 'openai/chatgpt-4o-latest',
+    label: 'Openrouter - ChatGPT 4o Latest',
+  },
+  {
+    provider: 'openrouter',
+    model: 'openai/chatgpt-4o-mini',
+    label: 'Openrouter - ChatGPT 4o Mini',
   },
 
   // Ollama
