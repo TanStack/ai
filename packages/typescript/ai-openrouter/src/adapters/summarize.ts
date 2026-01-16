@@ -78,6 +78,9 @@ export class OpenRouterSummarizeAdapter<
       if (chunk.type === 'done' && chunk.usage) {
         usage = chunk.usage
       }
+      if (chunk.type === 'error') {
+        throw new Error(`Error during summarization: ${chunk.error.message}`)
+      }
     }
 
     return { id, model, summary, usage }

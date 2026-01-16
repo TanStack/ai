@@ -123,7 +123,7 @@ export class OpenRouterImageAdapter<
     const images: Array<GeneratedImage> = []
 
     // The SDK types don't include images field, but it exists in the actual response
-    // Type assertion is safe here because we're calling with modalities: ['image', 'text']
+    // Type assertion is safe here because we're calling with modalities: ['image']
     const responseWithImages = response as ChatResponse & {
       choices: Array<{
         message?: {
