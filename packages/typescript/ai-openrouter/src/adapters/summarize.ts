@@ -167,7 +167,7 @@ export function createOpenRouterSummarize<TModel extends OpenRouterTextModels>(
  * @example
  * ```typescript
  * // Automatically uses OPENROUTER_API_KEY from environment
- * const adapter = openrouterSummarize('openai/gpt-4o-mini');
+ * const adapter = openRouterSummarize('openai/gpt-4o-mini');
  *
  * await summarize({
  *   adapter,
