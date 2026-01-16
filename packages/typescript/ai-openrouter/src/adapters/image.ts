@@ -1,5 +1,9 @@
+import { OpenRouter } from '@openrouter/sdk'
 import { BaseImageAdapter } from '@tanstack/ai/adapters'
-import { buildHeaders, generateId, getOpenRouterApiKeyFromEnv } from '../utils'
+import {
+  getOpenRouterApiKeyFromEnv,
+  generateId as utilGenerateId,
+} from '../utils'
 import type { OpenRouterClientConfig } from '../utils'
 import type {
   OpenRouterImageModelProviderOptionsByName,
@@ -11,28 +15,28 @@ import type {
   ImageGenerationOptions,
   ImageGenerationResult,
 } from '@tanstack/ai'
+import type { OPENROUTER_IMAGE_MODELS } from '../model-meta'
+import type { ChatResponse } from '@openrouter/sdk/models'
 
 export interface OpenRouterImageConfig extends OpenRouterClientConfig {}
 
-export type OpenRouterImageModel = string
+export type OpenRouterImageModel = (typeof OPENROUTER_IMAGE_MODELS)[number]
 
-interface OpenRouterImageResponse {
-  id?: string
-  model?: string
-  choices?: Array<{
-    message?: {
-      content?: string
-      images?: Array<{
-        image_url: {
-          url: string
-        }
-      }>
-    }
-  }>
-  error?: {
-    message: string
-    code?: string
-  }
+/**
+ * Mapping of standard image sizes to their aspect ratios
+ * Used for Gemini and other models that support aspect ratio configuration
+ */
+const SIZE_TO_ASPECT_RATIO: Record<string, string> = {
+  '1024x1024': '1:1', // default
+  '832x1248': '2:3',
+  '1248x832': '3:2',
+  '864x1184': '3:4',
+  '1184x864': '4:3',
+  '896x1152': '4:5',
+  '1152x896': '5:4',
+  '768x1344': '9:16',
+  '1344x768': '16:9',
+  '1536x672': '21:9',
 }
 
 export class OpenRouterImageAdapter<
@@ -46,94 +50,95 @@ export class OpenRouterImageAdapter<
   readonly kind = 'image' as const
   readonly name = 'openrouter' as const
 
-  private openRouterConfig: OpenRouterImageConfig
-  private baseURL: string
+  private client: OpenRouter
 
   constructor(config: OpenRouterImageConfig, model: TModel) {
     super({}, model)
-    this.openRouterConfig = config
-    this.baseURL = config.baseURL || 'https://openrouter.ai/api/v1'
+    this.client = new OpenRouter({
+      ...config,
+      apiKey: config.apiKey,
+      serverURL: config.baseURL,
+    })
   }
 
   async generateImages(
     options: ImageGenerationOptions<OpenRouterImageProviderOptions>,
   ): Promise<ImageGenerationResult> {
-    const { model, prompt, numberOfImages = 1, size, modelOptions } = options
+    const { model, prompt, numberOfImages, size, modelOptions } = options
+    // Use provided aspect_ratio or derive from size
+    const aspectRatio = size ? SIZE_TO_ASPECT_RATIO[size] : undefined
 
-    const aspectRatio =
-      modelOptions?.aspect_ratio || this.sizeToAspectRatio(size)
-
-    const requestBody = {
-      model,
-      messages: [
-        {
-          role: 'user',
-          content: prompt,
+    try {
+      const response = await this.client.chat.send({
+        model,
+        messages: [
+          {
+            role: 'user',
+            content: prompt,
+          },
+        ],
+        modalities: ['image'],
+        stream: false,
+        // OpenRouter filters out invalid config per provider specifications
+        imageConfig: {
+          ...(numberOfImages ? { n: numberOfImages, numberOfImages } : {}),
+          ...(aspectRatio
+            ? {
+                aspect_ratio: aspectRatio,
+              }
+            : {}),
+          ...(modelOptions?.image_size
+            ? {
+                image_size: modelOptions.image_size,
+              }
+            : {}),
         },
-      ],
-      modalities: ['image', 'text'],
-      n: numberOfImages,
-      ...(aspectRatio && {
-        image_config: {
-          aspect_ratio: aspectRatio,
-        },
-      }),
-    }
+      })
 
-    const response = await fetch(`${this.baseURL}/chat/completions`, {
-      method: 'POST',
-      headers: buildHeaders(this.openRouterConfig),
-      body: JSON.stringify(requestBody),
-    })
-
-    if (!response.ok) {
-      const errorText = await response.text()
-      let errorMessage: string
-      try {
-        const errorJson = JSON.parse(errorText)
-        errorMessage =
-          errorJson.error?.message ||
-          `HTTP ${response.status}: ${response.statusText}`
-      } catch {
-        errorMessage = `HTTP ${response.status}: ${response.statusText}`
+      // Check for error in response
+      if ('error' in response && response.error) {
+        const errorMsg =
+          typeof response.error === 'object' && 'message' in response.error
+            ? (response.error as { message: string }).message
+            : String(response.error)
+        throw new Error(`Image generation failed: ${errorMsg}`)
       }
-      throw new Error(`Image generation failed: ${errorMessage}`)
+
+      return this.transformResponse(model, response)
+    } catch (error) {
+      const message = (error as Error).message || 'Unknown error'
+      throw new Error(`Image generation failed: ${message}`)
     }
-
-    const data: OpenRouterImageResponse = await response.json()
-
-    if (data.error) {
-      throw new Error(`Image generation failed: ${data.error.message}`)
-    }
-
-    return this.transformResponse(model, data)
   }
 
-  private sizeToAspectRatio(size?: string): string | undefined {
-    if (!size) return undefined
-
-    const [width, height] = size.split('x').map(Number)
-    if (!width || !height) return undefined
-
-    const ratio = width / height
-    if (Math.abs(ratio - 1) < 0.01) return '1:1'
-    if (Math.abs(ratio - 16 / 9) < 0.01) return '16:9'
-    if (Math.abs(ratio - 9 / 16) < 0.01) return '9:16'
-    if (Math.abs(ratio - 4 / 3) < 0.01) return '4:3'
-    if (Math.abs(ratio - 3 / 4) < 0.01) return '3:4'
-
-    return `${width}:${height}`
+  protected override generateId(): string {
+    return utilGenerateId(this.name)
   }
 
   private transformResponse(
     model: string,
-    response: OpenRouterImageResponse,
+    response: ChatResponse,
   ): ImageGenerationResult {
     const images: Array<GeneratedImage> = []
 
-    for (const choice of response.choices || []) {
-      if (choice.message?.images) {
-        for (const img of choice.message.images) {
+    // The SDK types don't include images field, but it exists in the actual response
+    // Type assertion is safe here because we're calling with modalities: ['image', 'text']
+    const responseWithImages = response as ChatResponse & {
+      choices: Array<{
+        message?: {
+          images?: Array<{
+            image_url: {
+              url: string
+            }
+          }>
+        }
+      }>
+    }
+
+    for (const choice of responseWithImages.choices) {
+      const choiceImages = choice.message.images
+      if (choiceImages) {
+        for (const img of choiceImages) {
           const url = img.image_url.url
           if (url.startsWith('data:')) {
             const base64Match = url.match(/^data:image\/[^;]+;base64,(.+)$/)
@@ -153,7 +158,7 @@ export class OpenRouterImageAdapter<
     }
 
     return {
-      id: response.id || generateId(this.name),
+      id: response.id || this.generateId(),
       model: response.model || model,
       images,
     }

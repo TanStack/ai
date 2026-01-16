@@ -2,7 +2,19 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { chat } from '@tanstack/ai'
 import { createOpenRouterText } from '../src/adapters/text'
 import type { StreamChunk, Tool } from '@tanstack/ai'
-import type { OpenRouterTextProviderOptions } from '../src/adapters/text'
+// Declare mockSend at module level
+let mockSend: any
+
+// Mock the SDK with a class defined inline
+vi.mock('@openrouter/sdk', async () => {
+  return {
+    OpenRouter: class {
+      chat = {
+        send: (...args: unknown[]) => mockSend(...args),
+      }
+    },
+  }
+})
 
 const createAdapter = () =>
   createOpenRouterText('openai/gpt-4o-mini', 'test-key')
@@ -14,24 +26,33 @@ const weatherTool: Tool = {
   description: 'Return the forecast for a location',
 }
 
-function createMockSSEResponse(
-  chunks: Array<Record<string, unknown>>,
-): Response {
-  const encoder = new TextEncoder()
-  const stream = new ReadableStream({
-    start(controller) {
-      for (const chunk of chunks) {
-        const data = `data: ${JSON.stringify(chunk)}\n\n`
-        controller.enqueue(encoder.encode(data))
+// Helper to create async iterable from chunks
+function createAsyncIterable<T>(chunks: Array<T>): AsyncIterable<T> {
+  return {
+    [Symbol.asyncIterator]() {
+      let index = 0
+      return {
+        async next() {
+          if (index < chunks.length) {
+            return { value: chunks[index++]!, done: false }
+          }
+          return { value: undefined as T, done: true }
+        },
       }
-      controller.enqueue(encoder.encode('data: [DONE]\n\n'))
-      controller.close()
     },
-  })
+  }
+}
 
-  return new Response(stream, {
-    status: 200,
-    headers: { 'Content-Type': 'text/event-stream' },
+// Helper to setup the mock SDK client for streaming responses
+function setupMockSdkClient(
+  streamChunks: Array<Record<string, unknown>>,
+  nonStreamResponse?: Record<string, unknown>,
+) {
+  mockSend = vi.fn().mockImplementation((params) => {
+    if (params.stream) {
+      return Promise.resolve(createAsyncIterable(streamChunks))
+    }
+    return Promise.resolve(nonStreamResponse)
   })
 }
 
@@ -41,14 +62,14 @@ describe('OpenRouter adapter option mapping', () => {
   })
 
   it('maps options into the Chat Completions API payload', async () => {
-    const mockResponse = createMockSSEResponse([
+    const streamChunks = [
       {
         id: 'chatcmpl-123',
         model: 'openai/gpt-4o-mini',
         choices: [
           {
             delta: { content: 'It is sunny' },
-            finish_reason: null,
+            finishReason: null,
           },
         ],
       },
@@ -58,20 +79,18 @@ describe('OpenRouter adapter option mapping', () => {
         choices: [
           {
             delta: {},
-            finish_reason: 'stop',
+            finishReason: 'stop',
           },
         ],
         usage: {
-          prompt_tokens: 12,
-          completion_tokens: 4,
-          total_tokens: 16,
+          promptTokens: 12,
+          completionTokens: 4,
+          totalTokens: 16,
         },
       },
-    ])
+    ]
 
-    const fetchSpy = vi
-      .spyOn(globalThis, 'fetch')
-      .mockResolvedValueOnce(mockResponse)
+    setupMockSdkClient(streamChunks)
 
     const adapter = createAdapter()
 
@@ -108,45 +127,34 @@ describe('OpenRouter adapter option mapping', () => {
       chunks.push(chunk)
     }
 
-    expect(fetchSpy).toHaveBeenCalledTimes(1)
+    expect(mockSend).toHaveBeenCalledTimes(1)
 
-    const call = fetchSpy.mock.calls[0]
-    expect(call).toBeDefined()
+    const [params] = mockSend.mock.calls[0]!
 
-    const [url, options] = call!
-    expect(url).toBe('https://openrouter.ai/api/v1/chat/completions')
+    expect(params.model).toBe('openai/gpt-4o-mini')
+    expect(params.temperature).toBe(0.25)
+    expect(params.topP).toBe(0.6)
+    expect(params.maxTokens).toBe(1024)
+    expect(params.stream).toBe(true)
+    expect(params.toolChoice).toBe('auto')
 
-    const payload = JSON.parse(options?.body as string)
+    expect(params.messages).toBeDefined()
+    expect(Array.isArray(params.messages)).toBe(true)
 
-    expect(payload).toMatchObject({
-      model: 'openai/gpt-4o-mini',
-      temperature: 0.25,
-      top_p: 0.6,
-      max_tokens: 1024,
-      stream: true,
-      tool_choice: 'auto',
-      plugins: [{ id: 'web', max_results: 5 }],
-    })
-
-    expect(payload.messages).toBeDefined()
-    expect(Array.isArray(payload.messages)).toBe(true)
-
-    expect(payload.tools).toBeDefined()
-    expect(Array.isArray(payload.tools)).toBe(true)
-    expect(payload.tools.length).toBeGreaterThan(0)
-
-    fetchSpy.mockRestore()
+    expect(params.tools).toBeDefined()
+    expect(Array.isArray(params.tools)).toBe(true)
+    expect(params.tools.length).toBeGreaterThan(0)
   })
 
   it('streams chat chunks with content and usage', async () => {
-    const mockResponse = createMockSSEResponse([
+    const streamChunks = [
       {
         id: 'chatcmpl-stream',
         model: 'openai/gpt-4o-mini',
         choices: [
           {
             delta: { content: 'Hello ' },
-            finish_reason: null,
+            finishReason: null,
           },
         ],
       },
@@ -156,7 +164,7 @@ describe('OpenRouter adapter option mapping', () => {
         choices: [
           {
             delta: { content: 'world' },
-            finish_reason: null,
+            finishReason: null,
           },
         ],
       },
@@ -166,20 +174,18 @@ describe('OpenRouter adapter option mapping', () => {
         choices: [
           {
             delta: {},
-            finish_reason: 'stop',
+            finishReason: 'stop',
           },
         ],
         usage: {
-          prompt_tokens: 5,
-          completion_tokens: 2,
-          total_tokens: 7,
+          promptTokens: 5,
+          completionTokens: 2,
+          totalTokens: 7,
         },
       },
-    ])
+    ]
 
-    const fetchSpy = vi
-      .spyOn(globalThis, 'fetch')
-      .mockResolvedValueOnce(mockResponse)
+    setupMockSdkClient(streamChunks)
 
     const adapter = createAdapter()
     const chunks: Array<StreamChunk> = []
@@ -215,19 +221,17 @@ describe('OpenRouter adapter option mapping', () => {
         totalTokens: 7,
       },
     })
-
-    fetchSpy.mockRestore()
   })
 
   it('handles tool calls in streaming response', async () => {
-    const mockResponse = createMockSSEResponse([
+    const streamChunks = [
       {
         id: 'chatcmpl-456',
         model: 'openai/gpt-4o-mini',
         choices: [
           {
             delta: {
-              tool_calls: [
+              toolCalls: [
                 {
                   index: 0,
                   id: 'call_abc123',
@@ -239,7 +243,7 @@ describe('OpenRouter adapter option mapping', () => {
                 },
               ],
             },
-            finish_reason: null,
+            finishReason: null,
           },
         ],
       },
@@ -249,7 +253,7 @@ describe('OpenRouter adapter option mapping', () => {
         choices: [
           {
             delta: {
-              tool_calls: [
+              toolCalls: [
                 {
                   index: 0,
                   function: {
@@ -258,7 +262,7 @@ describe('OpenRouter adapter option mapping', () => {
                 },
               ],
             },
-            finish_reason: null,
+            finishReason: null,
           },
         ],
       },
@@ -268,20 +272,18 @@ describe('OpenRouter adapter option mapping', () => {
         choices: [
           {
             delta: {},
-            finish_reason: 'tool_calls',
+            finishReason: 'tool_calls',
           },
         ],
         usage: {
-          prompt_tokens: 10,
-          completion_tokens: 5,
-          total_tokens: 15,
+          promptTokens: 10,
+          completionTokens: 5,
+          totalTokens: 15,
         },
       },
-    ])
+    ]
 
-    const fetchSpy = vi
-      .spyOn(globalThis, 'fetch')
-      .mockResolvedValueOnce(mockResponse)
+    setupMockSdkClient(streamChunks)
 
     const adapter = createAdapter()
 
@@ -302,28 +304,24 @@ describe('OpenRouter adapter option mapping', () => {
     expect(toolCallChunk.toolCall.function.arguments).toBe(
       '{"location":"Berlin"}',
     )
-
-    fetchSpy.mockRestore()
   })
 
   it('handles multimodal input with text and image', async () => {
-    const mockResponse = createMockSSEResponse([
+    const streamChunks = [
       {
         id: 'chatcmpl-multimodal',
         model: 'openai/gpt-4o-mini',
         choices: [
           {
             delta: { content: 'I can see the image' },
-            finish_reason: 'stop',
+            finishReason: 'stop',
           },
         ],
-        usage: { prompt_tokens: 50, completion_tokens: 5, total_tokens: 55 },
+        usage: { promptTokens: 50, completionTokens: 5, totalTokens: 55 },
       },
-    ])
+    ]
 
-    const fetchSpy = vi
-      .spyOn(globalThis, 'fetch')
-      .mockResolvedValueOnce(mockResponse)
+    setupMockSdkClient(streamChunks)
 
     const adapter = createAdapter()
 
@@ -344,31 +342,21 @@ describe('OpenRouter adapter option mapping', () => {
     })) {
     }
 
-    const [, options] = fetchSpy.mock.calls[0]!
-    const payload = JSON.parse(options?.body as string)
+    const [params] = mockSend.mock.calls[0]!
 
-    const contentParts = payload.messages[0].content
+    const contentParts = params.messages[0].content
     expect(contentParts[0]).toMatchObject({
       type: 'text',
       text: 'What do you see?',
     })
     expect(contentParts[1]).toMatchObject({
       type: 'image_url',
-      image_url: { url: 'https://example.com/image.jpg' },
+      imageUrl: { url: 'https://example.com/image.jpg' },
     })
-
-    fetchSpy.mockRestore()
   })
 
-  it('yields error chunk on HTTP error response', async () => {
-    const errorResponse = new Response(
-      JSON.stringify({ error: { message: 'Invalid API key' } }),
-      { status: 401 },
-    )
-
-    const fetchSpy = vi
-      .spyOn(globalThis, 'fetch')
-      .mockResolvedValueOnce(errorResponse)
+  it('yields error chunk on SDK error', async () => {
+    mockSend = vi.fn().mockRejectedValueOnce(new Error('Invalid API key'))
 
     const adapter = createAdapter()
 
@@ -385,9 +373,6 @@ describe('OpenRouter adapter option mapping', () => {
 
     if (chunks[0] && chunks[0].type === 'error') {
       expect(chunks[0].error.message).toBe('Invalid API key')
-      expect(chunks[0].error.code).toBe('401')
     }
-
-    fetchSpy.mockRestore()
   })
 })

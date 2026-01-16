@@ -1,14 +1,16 @@
+import { OpenRouter } from '@openrouter/sdk'
+import { RequestAbortedError } from '@openrouter/sdk/models/errors'
 import { BaseTextAdapter } from '@tanstack/ai/adapters'
 import { convertToolsToProviderFormat } from '../tools'
 import {
-  buildHeaders,
   getOpenRouterApiKeyFromEnv,
   generateId as utilGenerateId,
 } from '../utils'
 import type { OpenRouterClientConfig } from '../utils'
 import type {
-  OpenRouterChatModelProviderOptionsByName,
+  OPENROUTER_CHAT_MODELS,
   OpenRouterModelInputModalitiesByName,
+  OpenRouterModelOptionsByName,
 } from '../model-meta'
 import type {
   StructuredOutputOptions,
@@ -28,145 +30,39 @@ import type {
   OpenRouterImageMetadata,
   OpenRouterMessageMetadataByModality,
 } from '../message-types'
+import type {
+  ChatCompletionFinishReason,
+  ChatGenerationParams,
+  ChatGenerationTokenUsage,
+  ChatMessageContentItem,
+  ChatStreamingChoice,
+  Message,
+} from '@openrouter/sdk/models'
 
 export interface OpenRouterConfig extends OpenRouterClientConfig {}
+export type OpenRouterTextModels = (typeof OPENROUTER_CHAT_MODELS)[number]
 
-export type OpenRouterTextProviderOptions = ExternalTextProviderOptions
+export type OpenRouterTextModelOptions = ExternalTextProviderOptions
 
 type ResolveProviderOptions<TModel extends string> =
-  TModel extends keyof OpenRouterChatModelProviderOptionsByName
-    ? OpenRouterChatModelProviderOptionsByName[TModel]
-    : OpenRouterTextProviderOptions
+  TModel extends keyof OpenRouterModelOptionsByName
+    ? OpenRouterModelOptionsByName[TModel]
+    : OpenRouterTextModelOptions
 
 type ResolveInputModalities<TModel extends string> =
   TModel extends keyof OpenRouterModelInputModalitiesByName
     ? OpenRouterModelInputModalitiesByName[TModel]
-    : readonly ['text', 'image', 'audio', 'video', 'document']
+    : readonly ['text', 'image']
 
-type ContentPartType =
-  | 'text'
-  | 'image_url'
-  | 'audio_url'
-  | 'video_url'
-  | 'document_url'
-
-interface OpenRouterContentPart {
-  type: ContentPartType
-  text?: string
-  image_url?: { url: string; detail?: 'auto' | 'low' | 'high' }
-  audio_url?: { url: string }
-  video_url?: { url: string }
-  document_url?: { url: string }
-}
-
-interface OpenRouterMessage {
-  role: 'user' | 'assistant' | 'system' | 'tool'
-  content: string | Array<OpenRouterContentPart>
-  tool_call_id?: string
-  name?: string
-}
-
-interface OpenRouterRequest {
-  model: string
-  messages: Array<OpenRouterMessage>
-  stream?: boolean
-  max_tokens?: number
-  temperature?: number
-  top_p?: number
-  stop?: string | Array<string>
-  tools?: Array<{
-    type: 'function'
-    function: {
-      name: string
-      description?: string
-      parameters: Record<string, unknown>
-    }
-  }>
-  tool_choice?:
-    | 'none'
-    | 'auto'
-    | 'required'
-    | { type: 'function'; function: { name: string } }
-  response_format?: { type: 'json_object' }
-  [key: string]: unknown
-}
-
+// Internal buffer for accumulating streamed tool calls
 interface ToolCallBuffer {
   id: string
   name: string
   arguments: string
 }
 
-interface OpenRouterError {
-  message: string
-  code?: string
-}
-
-interface OpenRouterToolCallDelta {
-  index: number
-  id?: string
-  type?: 'function'
-  function?: {
-    name?: string
-    arguments?: string
-  }
-}
-
-interface OpenRouterToolCall {
-  id: string
-  type: 'function'
-  function: {
-    name: string
-    arguments: string
-  }
-}
-
-interface OpenRouterReasoningDetail {
-  thinking?: string
-  text?: string
-}
-
-interface OpenRouterImage {
-  image_url: {
-    url: string
-  }
-}
-
-interface OpenRouterChoiceDelta {
-  content?: string
-  reasoning_details?: Array<OpenRouterReasoningDetail>
-  images?: Array<OpenRouterImage>
-  tool_calls?: Array<OpenRouterToolCallDelta>
-}
-
-interface OpenRouterChoiceMessage {
-  refusal?: string
-  images?: Array<OpenRouterImage>
-  tool_calls?: Array<OpenRouterToolCall>
-}
-
-interface OpenRouterChoice {
-  delta?: OpenRouterChoiceDelta
-  message?: OpenRouterChoiceMessage
-  finish_reason?: 'stop' | 'length' | 'tool_calls' | null
-}
-
-interface OpenRouterUsage {
-  prompt_tokens?: number
-  completion_tokens?: number
-  total_tokens?: number
-}
-
-interface OpenRouterSSEChunk {
-  id?: string
-  model?: string
-  error?: OpenRouterError
-  choices?: Array<OpenRouterChoice>
-  usage?: OpenRouterUsage
-}
-
 export class OpenRouterTextAdapter<
-  TModel extends string,
+  TModel extends OpenRouterTextModels,
 > extends BaseTextAdapter<
   TModel,
   ResolveProviderOptions<TModel>,
@@ -176,13 +72,15 @@ export class OpenRouterTextAdapter<
   readonly kind = 'text' as const
   readonly name = 'openrouter' as const
 
-  private openRouterConfig: OpenRouterConfig
-  private baseURL: string
+  private client: OpenRouter
 
   constructor(config: OpenRouterConfig, model: TModel) {
     super({}, model)
-    this.openRouterConfig = config
-    this.baseURL = config.baseURL || 'https://openrouter.ai/api/v1'
+    this.client = new OpenRouter({
+      ...config,
+      apiKey: config.apiKey,
+      serverURL: config.baseURL,
+    })
   }
 
   async *chatStream(
@@ -193,68 +91,61 @@ export class OpenRouterTextAdapter<
     let accumulatedReasoning = ''
     let accumulatedContent = ''
     let responseId: string | null = null
-    let model = options.model
-
+    let currentModel = options.model
+    let lastFinishReason: ChatCompletionFinishReason | undefined
     try {
-      const response = await this.createRequest(options, true)
+      const requestParams = this.mapTextOptionsToSDK(options)
+      const stream = await this.client.chat.send(
+        { ...requestParams, stream: true },
+        { signal: options.request?.signal },
+      )
 
-      if (!response.ok) {
-        yield this.createErrorChunk(
-          await this.parseErrorResponse(response),
-          options.model,
-          timestamp,
-          response.status.toString(),
-        )
-        return
-      }
-
-      if (!response.body) {
-        throw new Error('Response body is null')
-      }
-
-      for await (const event of this.parseSSE(response.body)) {
-        if (event.done) {
-          yield {
-            type: 'done',
-            id: responseId || this.generateId(),
-            model: model || options.model,
-            timestamp,
-            finishReason: 'stop',
-          }
-          continue
-        }
-
-        const chunk = event.data
+      for await (const chunk of stream) {
         if (chunk.id) responseId = chunk.id
-        if (chunk.model) model = chunk.model
+        if (chunk.model) currentModel = chunk.model
 
         if (chunk.error) {
           yield this.createErrorChunk(
             chunk.error.message || 'Unknown error',
-            model || options.model,
+            currentModel || options.model,
             timestamp,
-            chunk.error.code,
+            String(chunk.error.code),
           )
           continue
         }
 
-        if (!chunk.choices) continue
-
         for (const choice of chunk.choices) {
+          if (chunk.choices[0]?.finishReason) {
+            lastFinishReason = chunk.choices[0].finishReason
+          }
           yield* this.processChoice(
             choice,
             toolCallBuffers,
-            { id: responseId || this.generateId(), model, timestamp },
+            {
+              id: responseId || this.generateId(),
+              model: currentModel,
+              timestamp,
+            },
             { reasoning: accumulatedReasoning, content: accumulatedContent },
             (r, c) => {
               accumulatedReasoning = r
               accumulatedContent = c
             },
+            lastFinishReason,
             chunk.usage,
           )
         }
       }
     } catch (error) {
+      if (error instanceof RequestAbortedError) {
+        yield this.createErrorChunk(
+          'Request aborted',
+          options.model,
+          timestamp,
+          'aborted',
+        )
+        return
+      }
       yield this.createErrorChunk(
         (error as Error).message || 'Unknown error',
         options.model,
@@ -268,7 +159,7 @@ export class OpenRouterTextAdapter<
   ): Promise<StructuredOutputResult<unknown>> {
     const { chatOptions, outputSchema } = options
 
-    const requestParams = this.mapTextOptionsToOpenRouter(chatOptions)
+    const requestParams = this.mapTextOptionsToSDK(chatOptions)
 
     const structuredOutputTool = {
       type: 'function' as const,
@@ -281,30 +172,23 @@ export class OpenRouterTextAdapter<
     }
 
     try {
-      const response = await fetch(`${this.baseURL}/chat/completions`, {
-        method: 'POST',
-        headers: this.buildHeaders(),
-        body: JSON.stringify({
+      const result = await this.client.chat.send(
+        {
           ...requestParams,
           stream: false,
           tools: [structuredOutputTool],
-          tool_choice: {
+          toolChoice: {
             type: 'function',
             function: { name: 'structured_output' },
           },
-        }),
-        signal: chatOptions.request?.signal,
-      })
+        },
+        { signal: chatOptions.request?.signal },
+      )
 
-      if (!response.ok) {
-        const errorMessage = await this.parseErrorResponse(response)
-        throw new Error(`Structured output generation failed: ${errorMessage}`)
-      }
+      const message = result.choices[0]?.message
+      const toolCall = message?.toolCalls?.[0]
 
-      const data = await response.json()
-      const toolCall = data.choices?.[0]?.message?.tool_calls?.[0]
-
-      if (toolCall && toolCall.function?.name === 'structured_output') {
+      if (toolCall && toolCall.function.name === 'structured_output') {
         const parsed = JSON.parse(toolCall.function.arguments || '{}')
         return {
           data: parsed,
@@ -312,7 +196,7 @@ export class OpenRouterTextAdapter<
         }
       }
 
-      const content = data.choices?.[0]?.message?.content || ''
+      const content = (message?.content as any) || ''
       let parsed: unknown
       try {
         parsed = JSON.parse(content)
@@ -327,6 +211,9 @@ export class OpenRouterTextAdapter<
         rawText: content,
       }
     } catch (error: unknown) {
+      if (error instanceof RequestAbortedError) {
+        throw new Error('Structured output generation aborted')
+      }
       const err = error as Error
       throw new Error(
         `Structured output generation failed: ${err.message || 'Unknown error occurred'}`,
@@ -334,37 +221,8 @@ export class OpenRouterTextAdapter<
     }
   }
 
-  private buildHeaders(): Record<string, string> {
-    return buildHeaders(this.openRouterConfig)
-  }
-
   protected override generateId(): string {
     return utilGenerateId(this.name)
-  }
-
-  private async createRequest(
-    options: TextOptions<ResolveProviderOptions<TModel>>,
-    stream: boolean,
-  ): Promise<Response> {
-    const requestParams = this.mapTextOptionsToOpenRouter(options)
-    return fetch(`${this.baseURL}/chat/completions`, {
-      method: 'POST',
-      headers: this.buildHeaders(),
-      body: JSON.stringify({ ...requestParams, stream }),
-      signal: options.request?.signal,
-    })
-  }
-
-  private async parseErrorResponse(response: Response): Promise<string> {
-    try {
-      const error = await response.json()
-      return (
-        error.error?.message ||
-        `HTTP ${response.status}: ${response.statusText}`
-      )
-    } catch {
-      return `HTTP ${response.status}: ${response.statusText}`
-    }
   }
 
   private createErrorChunk(
@@ -382,52 +240,19 @@ export class OpenRouterTextAdapter<
     }
   }
 
-  private async *parseSSE(
-    body: ReadableStream<Uint8Array>,
-  ): AsyncIterable<{ done: true } | { done: false; data: OpenRouterSSEChunk }> {
-    const reader = body.getReader()
-    const decoder = new TextDecoder()
-    let buffer = ''
-
-    try {
-      for (;;) {
-        const { done, value } = await reader.read()
-        if (done) break
-
-        buffer += decoder.decode(value, { stream: true })
-        const lines = buffer.split('\n')
-        buffer = lines.pop() || ''
-
-        for (const line of lines) {
-          if (!line.trim() || !line.startsWith('data: ')) continue
-          const data = line.slice(6)
-          if (data === '[DONE]') {
-            yield { done: true }
-          } else {
-            try {
-              yield { done: false, data: JSON.parse(data) }
-            } catch {
-              continue
-            }
-          }
-        }
-      }
-    } finally {
-      reader.releaseLock()
-    }
-  }
-
   private *processChoice(
-    choice: OpenRouterChoice,
+    choice: ChatStreamingChoice,
     toolCallBuffers: Map<number, ToolCallBuffer>,
     meta: { id: string; model: string; timestamp: number },
     accumulated: { reasoning: string; content: string },
     updateAccumulated: (reasoning: string, content: string) => void,
-    usage?: OpenRouterUsage,
+    lastFinishReason: ChatCompletionFinishReason | undefined,
+    usage?: ChatGenerationTokenUsage,
   ): Iterable<StreamChunk> {
-    const { delta, message, finish_reason } = choice
+    const delta = choice.delta
+    const finishReason = choice.finishReason
 
-    if (delta?.content) {
+    if (delta.content) {
       accumulated.content += delta.content
       updateAccumulated(accumulated.reasoning, accumulated.content)
       yield {
@@ -439,10 +264,10 @@ export class OpenRouterTextAdapter<
       }
     }
 
-    if (delta?.reasoning_details) {
-      for (const detail of delta.reasoning_details) {
-        const text = detail.thinking || detail.text || ''
-        if (text) {
+    if (delta.reasoningDetails) {
+      for (const detail of delta.reasoningDetails) {
+        if (detail.type === 'reasoning.text') {
+          const text = detail.text || ''
           accumulated.reasoning += text
           updateAccumulated(accumulated.reasoning, accumulated.content)
           yield {
@@ -451,27 +276,25 @@ export class OpenRouterTextAdapter<
             delta: text,
             content: accumulated.reasoning,
           }
+          continue
+        }
+        if (detail.type === 'reasoning.summary') {
+          const text = detail.summary || ''
+          accumulated.reasoning += text
+          updateAccumulated(accumulated.reasoning, accumulated.content)
+          yield {
+            type: 'thinking',
+            ...meta,
+            delta: text,
+            content: accumulated.reasoning,
+          }
+          continue
         }
       }
     }
 
-    if (delta?.images) {
-      for (const img of delta.images) {
-        const imgContent = `![Generated Image](${img.image_url.url})`
-        accumulated.content += imgContent
-        updateAccumulated(accumulated.reasoning, accumulated.content)
-        yield {
-          type: 'content',
-          ...meta,
-          delta: imgContent,
-          content: accumulated.content,
-          role: 'assistant',
-        }
-      }
-    }
-
-    if (delta?.tool_calls) {
-      for (const tc of delta.tool_calls) {
+    if (delta.toolCalls) {
+      for (const tc of delta.toolCalls) {
         const existing = toolCallBuffers.get(tc.index)
         if (!existing) {
           if (!tc.id) {
@@ -490,49 +313,16 @@ export class OpenRouterTextAdapter<
       }
     }
 
-    if (message?.refusal) {
+    if (delta.refusal) {
       yield {
         type: 'error',
         ...meta,
-        error: { message: message.refusal, code: 'refusal' },
+        error: { message: delta.refusal, code: 'refusal' },
       }
     }
 
-    if (message?.images) {
-      for (const img of message.images) {
-        const imgContent = `![Generated Image](${img.image_url.url})`
-        accumulated.content += imgContent
-        updateAccumulated(accumulated.reasoning, accumulated.content)
-        yield {
-          type: 'content',
-          ...meta,
-          delta: imgContent,
-          content: accumulated.content,
-          role: 'assistant',
-        }
-      }
-    }
-
-    if (message?.tool_calls) {
-      for (const [index, tc] of message.tool_calls.entries()) {
-        yield {
-          type: 'tool_call',
-          ...meta,
-          index,
-          toolCall: {
-            id: tc.id,
-            type: 'function',
-            function: {
-              name: tc.function.name,
-              arguments: tc.function.arguments,
-            },
-          },
-        }
-      }
-    }
-
-    if (finish_reason) {
-      if (finish_reason === 'tool_calls') {
+    if (finishReason) {
+      if (finishReason === 'tool_calls') {
         for (const [index, tc] of toolCallBuffers.entries()) {
           yield {
             type: 'tool_call',
@@ -545,43 +335,51 @@ export class OpenRouterTextAdapter<
             },
           }
         }
+
         toolCallBuffers.clear()
       }
-
-      if (usage) {
-        yield {
-          type: 'done',
-          ...meta,
-          finishReason:
-            finish_reason === 'tool_calls'
-              ? 'tool_calls'
-              : finish_reason === 'length'
-                ? 'length'
-                : 'stop',
-          usage: {
-            promptTokens: usage.prompt_tokens || 0,
-            completionTokens: usage.completion_tokens || 0,
-            totalTokens: usage.total_tokens || 0,
-          },
-        }
+    }
+    if (usage) {
+      yield {
+        type: 'done',
+        ...meta,
+        finishReason:
+          lastFinishReason === 'tool_calls'
+            ? 'tool_calls'
+            : lastFinishReason === 'length'
+              ? 'length'
+              : 'stop',
+        usage: {
+          promptTokens: usage.promptTokens || 0,
+          completionTokens: usage.completionTokens || 0,
+          totalTokens: usage.totalTokens || 0,
+        },
       }
     }
   }
 
-  private mapTextOptionsToOpenRouter(
+  private mapTextOptionsToSDK(
     options: TextOptions<ResolveProviderOptions<TModel>>,
-  ): OpenRouterRequest {
+  ): ChatGenerationParams {
     const modelOptions = options.modelOptions as
       | Omit<InternalTextProviderOptions, 'model' | 'messages' | 'tools'>
       | undefined
 
-    const request: OpenRouterRequest = {
+    const messages = this.convertMessages(options.messages)
+
+    if (options.systemPrompts?.length) {
+      messages.unshift({
+        role: 'system',
+        content: options.systemPrompts.join('\n'),
+      })
+    }
+
+    const request: ChatGenerationParams = {
       model: options.model,
-      messages: this.convertMessages(options.messages),
+      messages,
       temperature: options.temperature,
-      max_tokens: options.maxTokens,
-      top_p: options.topP,
-      ...modelOptions,
+      maxTokens: options.maxTokens,
+      topP: options.topP,
       tools: options.tools
         ? convertToolsToProviderFormat(options.tools)
         : undefined,
@@ -592,59 +390,61 @@ export class OpenRouterTextAdapter<
     }
 
     if (options.tools?.length && modelOptions?.tool_choice !== undefined) {
-      request.tool_choice = modelOptions.tool_choice
-    }
-
-    if (options.systemPrompts?.length) {
-      request.messages.unshift({
-        role: 'system',
-        content: options.systemPrompts.join('\n'),
-      })
+      request.toolChoice = modelOptions.tool_choice
     }
 
     if (modelOptions?.response_format !== undefined) {
-      request.response_format = modelOptions.response_format
+      request.responseFormat = modelOptions.response_format
     }
 
     return request
   }
 
-  private convertMessages(
-    messages: Array<ModelMessage>,
-  ): Array<OpenRouterMessage> {
+  private convertMessages(messages: Array<ModelMessage>): Array<Message> {
     return messages.map((msg) => {
       if (msg.role === 'tool') {
         return {
-          role: 'tool',
+          role: 'tool' as const,
           content:
             typeof msg.content === 'string'
               ? msg.content
               : JSON.stringify(msg.content),
-          tool_call_id: msg.toolCallId,
-          name: msg.name,
+          toolCallId: msg.toolCallId || '',
         }
       }
 
-      const parts = this.convertContentParts(msg.content)
-      const role = msg.role === 'user' ? 'user' : 'assistant'
+      if (msg.role === 'user') {
+        const content = this.convertContentParts(msg.content)
+        return {
+          role: 'user' as const,
+          content:
+            content.length === 1 && content[0]?.type === 'text'
+              ? (content[0] as { type: 'text'; text: string }).text
+              : content,
+        }
+      }
+
+      // assistant role
       return {
-        role,
+        role: 'assistant' as const,
         content:
-          parts.length === 1 && parts[0]?.type === 'text'
-            ? parts[0].text || ''
-            : parts,
-        name: msg.name,
+          typeof msg.content === 'string'
+            ? msg.content
+            : msg.content
+              ? JSON.stringify(msg.content)
+              : undefined,
+        toolCalls: msg.toolCalls,
       }
     })
   }
 
   private convertContentParts(
     content: string | null | Array<ContentPart>,
-  ): Array<OpenRouterContentPart> {
+  ): Array<ChatMessageContentItem> {
     if (!content) return [{ type: 'text', text: '' }]
     if (typeof content === 'string') return [{ type: 'text', text: content }]
 
-    const parts: Array<OpenRouterContentPart> = []
+    const parts: Array<ChatMessageContentItem> = []
     for (const part of content) {
       switch (part.type) {
         case 'text':
@@ -654,7 +454,7 @@ export class OpenRouterTextAdapter<
           const meta = part.metadata as OpenRouterImageMetadata | undefined
           parts.push({
             type: 'image_url',
-            image_url: {
+            imageUrl: {
               url: part.source.value,
               detail: meta?.detail || 'auto',
             },
@@ -663,20 +463,24 @@ export class OpenRouterTextAdapter<
         }
         case 'audio':
           parts.push({
-            type: 'audio_url',
-            audio_url: { url: part.source.value },
+            type: 'input_audio',
+            inputAudio: {
+              data: part.source.value,
+              format: 'mp3',
+            },
           })
           break
         case 'video':
           parts.push({
             type: 'video_url',
-            video_url: { url: part.source.value },
+            videoUrl: { url: part.source.value },
           })
           break
         case 'document':
+          // SDK doesn't have document_url type, pass as custom
           parts.push({
-            type: 'document_url',
-            document_url: { url: part.source.value },
+            type: 'text',
+            text: `[Document: ${part.source.value}]`,
           })
           break
       }
@@ -685,7 +489,7 @@ export class OpenRouterTextAdapter<
   }
 }
 
-export function createOpenRouterText<TModel extends string>(
+export function createOpenRouterText<TModel extends OpenRouterTextModels>(
   model: TModel,
   apiKey: string,
   config?: Omit<OpenRouterConfig, 'apiKey'>,
@@ -693,7 +497,7 @@ export function createOpenRouterText<TModel extends string>(
   return new OpenRouterTextAdapter({ apiKey, ...config }, model)
 }
 
-export function openrouterText<TModel extends string>(
+export function openrouterText<TModel extends OpenRouterTextModels>(
   model: TModel,
   config?: Omit<OpenRouterConfig, 'apiKey'>,
 ): OpenRouterTextAdapter<TModel> {

@@ -7,6 +7,9 @@ import type {
   SummarizationResult,
 } from '@tanstack/ai'
 import type { OpenRouterConfig } from './text'
+import type { OPENROUTER_CHAT_MODELS } from '../model-meta'
+
+export type OpenRouterTextModels = (typeof OPENROUTER_CHAT_MODELS)[number]
 
 /**
  * Configuration for OpenRouter summarize adapter
@@ -35,7 +38,7 @@ export interface OpenRouterSummarizeProviderOptions {
  * Delegates all API calls to the OpenRouterTextAdapter.
  */
 export class OpenRouterSummarizeAdapter<
-  TModel extends string,
+  TModel extends OpenRouterTextModels,
 > extends BaseSummarizeAdapter<TModel, OpenRouterSummarizeProviderOptions> {
   readonly kind = 'summarize' as const
   readonly name = 'openrouter' as const
@@ -136,7 +139,7 @@ export class OpenRouterSummarizeAdapter<
  * const adapter = createOpenRouterSummarize('openai/gpt-4o-mini', "sk-or-...");
  * ```
  */
-export function createOpenRouterSummarize<TModel extends string>(
+export function createOpenRouterSummarize<TModel extends OpenRouterTextModels>(
   model: TModel,
   apiKey: string,
   config?: Omit<OpenRouterSummarizeConfig, 'apiKey'>,
@@ -168,7 +171,7 @@ export function createOpenRouterSummarize<TModel extends string>(
  * });
  * ```
  */
-export function openrouterSummarize<TModel extends string>(
+export function openrouterSummarize<TModel extends OpenRouterTextModels>(
   model: TModel,
   config?: Omit<OpenRouterSummarizeConfig, 'apiKey'>,
 ): OpenRouterSummarizeAdapter<TModel> {

@@ -8,7 +8,7 @@ export {
   createOpenRouterText,
   openrouterText,
   type OpenRouterConfig,
-  type OpenRouterTextProviderOptions,
+  type OpenRouterTextModelOptions,
 } from './adapters/text'
 
 // Summarize adapter - for text summarization
@@ -38,7 +38,7 @@ export type {
 // ============================================================================
 
 export type {
-  OpenRouterChatModelProviderOptionsByName,
+  OpenRouterModelOptionsByName,
   OpenRouterModelInputModalitiesByName,
 } from './model-meta'
 export type {

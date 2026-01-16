@@ -1,3 +1,6 @@
+import type { OPENROUTER_CHAT_MODELS } from '../model-meta'
+
+type OpenRouterChatModel = (typeof OPENROUTER_CHAT_MODELS)[number]
 export interface WebPlugin {
   /**
    * The plugin identifier. Currently only 'web' is supported.
@@ -129,21 +132,86 @@ export interface WebSearchOptions {
   search_context_size?: 'low' | 'medium' | 'high'
 }
 
+export type OpenRouterCommonOptions = {
+  /**
+   * A list of model IDs to use as fallbacks if the primary model is unavailable.
+   */
+  models?: Array<OpenRouterChatModel>
+  /**
+   * The routing strategy to use.
+   * 'fallback' - Try models in order until one succeeds
+   */
+  route?: 'fallback'
+  /**
+   * Provider routing preferences.
+   * https://openrouter.ai/docs/guides/routing/provider-selection
+   */
+  provider?: ProviderPreferences
+  /**
+   * A unique identifier representing your end-user for abuse monitoring.
+   */
+  user?: string
+  /**
+   * Metadata to attach to the request for tracking and analytics.
+   */
+  metadata?: Record<string, string>
+
+  /**
+   * Plugins to enable for the request (e.g., web search).
+   * https://openrouter.ai/docs/features/web-search
+   */
+  plugins?: Array<WebPlugin>
+  /**
+   * Debug options for troubleshooting.
+   */
+  debug?: {
+    /**
+     * Whether to echo the upstream request body in the response for debugging.
+     */
+    echo_upstream_body?: boolean
+  }
+  /**
+   * Prediction parameter to reduce latency by providing the model with a predicted output.
+   * This can help improve response times by giving the model a head start.
+   * https://openrouter.ai/docs/requests
+   */
+  prediction?: PredictionOptions
+
+  /**
+   * Message transforms to apply (e.g., 'middle-out' for context compression).
+   */
+  transforms?: Array<string>
+
+  /**
+   * Options for streaming responses.
+   */
+  stream_options?: StreamOptions
+  /**
+   * Whether to allow the model to call multiple tools in parallel.
+   * @default true
+   */
+  parallel_tool_calls?: boolean
+
+  /**
+   * The modalities to enable for the response.
+   */
+  modalities?: Array<'text' | 'image'>
+}
+
 export interface OpenRouterBaseOptions {
+  /**
+   * Constrains the verbosity of the model's response.
+   */
+  verbosity?: 'low' | 'medium' | 'high'
   /**
    * Up to 4 sequences where the API will stop generating further tokens.
    */
   stop?: string | Array<string>
   /**
-   * Whether to stream the response using server-sent events.
-   * @default false
+   * Legacy parameter to include reasoning steps in the response.
    */
-  stream?: boolean
-  /**
-   * The maximum number of tokens to generate in the completion.
-   * @deprecated Use max_completion_tokens instead.
-   */
-  max_tokens?: number
+  include_reasoning?: boolean
+
   /**
    * The maximum number of tokens to generate in the completion.
    */
@@ -206,53 +274,12 @@ export interface OpenRouterBaseOptions {
    * Force the model to respond in a specific format.
    */
   response_format?: { type: 'json_object' }
-  /**
-   * Message transforms to apply (e.g., 'middle-out' for context compression).
-   */
-  transforms?: Array<string>
-  /**
-   * A list of model IDs to use as fallbacks if the primary model is unavailable.
-   */
-  models?: Array<string>
-  /**
-   * The routing strategy to use.
-   * 'fallback' - Try models in order until one succeeds
-   */
-  route?: 'fallback'
-  /**
-   * Provider routing preferences.
-   * https://openrouter.ai/docs/guides/routing/provider-selection
-   */
-  provider?: ProviderPreferences
-  /**
-   * A unique identifier representing your end-user for abuse monitoring.
-   */
-  user?: string
-  /**
-   * Metadata to attach to the request for tracking and analytics.
-   */
-  metadata?: Record<string, string>
+
   /**
    * Reasoning configuration for models that support chain-of-thought reasoning.
    */
   reasoning?: ReasoningOptions
-  /**
-   * Options for streaming responses.
-   */
-  stream_options?: StreamOptions
-  /**
-   * Whether to allow the model to call multiple tools in parallel.
-   * @default true
-   */
-  parallel_tool_calls?: boolean
-  /**
-   * Constrains the verbosity of the model's response.
-   */
-  verbosity?: 'low' | 'medium' | 'high'
-  /**
-   * The modalities to enable for the response.
-   */
-  modalities?: Array<'text' | 'image'>
+
   /**
    * Configuration for image generation in the response.
    */
@@ -274,26 +301,7 @@ export interface OpenRouterBaseOptions {
           name: string
         }
       }
-  /**
-   * Plugins to enable for the request (e.g., web search).
-   * https://openrouter.ai/docs/features/web-search
-   */
-  plugins?: Array<WebPlugin>
-  /**
-   * Debug options for troubleshooting.
-   */
-  debug?: {
-    /**
-     * Whether to echo the upstream request body in the response for debugging.
-     */
-    echo_upstream_body?: boolean
-  }
-  /**
-   * Prediction parameter to reduce latency by providing the model with a predicted output.
-   * This can help improve response times by giving the model a head start.
-   * https://openrouter.ai/docs/requests
-   */
-  prediction?: PredictionOptions
+
   /**
    * Web search options for controlling search behavior.
    * This is separate from the plugins array and provides additional control over search context.

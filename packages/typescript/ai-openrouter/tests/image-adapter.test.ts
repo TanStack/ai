@@ -1,29 +1,44 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { createOpenRouterImage } from '../src/adapters/image'
 
+// Declare mockSend at module level
+let mockSend: any
+
+// Mock the OpenRouter SDK
+vi.mock('@openrouter/sdk', () => {
+  return {
+    OpenRouter: class {
+      chat = {
+        send: (...args: unknown[]) => mockSend(...args),
+      }
+    },
+  }
+})
+
 const createAdapter = () =>
   createOpenRouterImage('google/gemini-2.5-flash-image-preview', 'test-key')
 
-function createMockImageResponse(images: Array<{ url: string }>): Response {
-  const responseBody = {
+function createMockImageResponse(images: Array<{ url: string }>) {
+  return {
     id: 'gen-123',
     model: 'google/gemini-2.5-flash-image-preview',
     choices: [
       {
+        finishReason: 'stop',
+        index: 0,
         message: {
+          role: 'assistant',
           content: 'Here is the generated image.',
           images: images.map((img) => ({
+            type: 'image_url',
             image_url: { url: img.url },
           })),
         },
       },
     ],
+    created: Date.now(),
+    object: 'chat.completion' as const,
   }
-
-  return new Response(JSON.stringify(responseBody), {
-    status: 200,
-    headers: { 'Content-Type': 'application/json' },
-  })
 }
 
 describe('OpenRouter Image Adapter', () => {
@@ -36,9 +51,7 @@ describe('OpenRouter Image Adapter', () => {
       { url: 'https://example.com/image1.png' },
     ])
 
-    const fetchSpy = vi
-      .spyOn(globalThis, 'fetch')
-      .mockResolvedValueOnce(mockResponse)
+    mockSend = vi.fn().mockResolvedValueOnce(mockResponse)
 
     const adapter = createAdapter()
 
@@ -47,28 +60,24 @@ describe('OpenRouter Image Adapter', () => {
       prompt: 'A futuristic city at sunset',
     })
 
-    expect(fetchSpy).toHaveBeenCalledTimes(1)
+    expect(mockSend).toHaveBeenCalledTimes(1)
 
-    const [url, options] = fetchSpy.mock.calls[0]!
-    expect(url).toBe('https://openrouter.ai/api/v1/chat/completions')
-
-    const payload = JSON.parse(options?.body as string)
-    expect(payload).toMatchObject({
+    const callArgs = mockSend.mock.calls[0]![0]
+    expect(callArgs).toMatchObject({
       model: 'google/gemini-2.5-flash-image-preview',
-      modalities: ['image', 'text'],
+      modalities: ['image'],
       messages: [
         {
           role: 'user',
           content: 'A futuristic city at sunset',
         },
       ],
+      stream: false,
     })
 
     expect(result.images).toHaveLength(1)
     expect(result.images[0]!.url).toBe('https://example.com/image1.png')
     expect(result.model).toBe('google/gemini-2.5-flash-image-preview')
-
-    fetchSpy.mockRestore()
   })
 
   it('generates multiple images', async () => {
@@ -77,9 +86,7 @@ describe('OpenRouter Image Adapter', () => {
       { url: 'https://example.com/image2.png' },
     ])
 
-    const fetchSpy = vi
-      .spyOn(globalThis, 'fetch')
-      .mockResolvedValueOnce(mockResponse)
+    mockSend = vi.fn().mockResolvedValueOnce(mockResponse)
 
     const adapter = createAdapter()
 
@@ -89,15 +96,15 @@ describe('OpenRouter Image Adapter', () => {
       numberOfImages: 2,
     })
 
-    const [, options] = fetchSpy.mock.calls[0]!
-    const payload = JSON.parse(options?.body as string)
-    expect(payload.n).toBe(2)
+    const callArgs = mockSend.mock.calls[0]![0]
+    expect(callArgs.imageConfig).toMatchObject({
+      n: 2,
+      numberOfImages: 2,
+    })
 
     expect(result.images).toHaveLength(2)
     expect(result.images[0]!.url).toBe('https://example.com/image1.png')
     expect(result.images[1]!.url).toBe('https://example.com/image2.png')
-
-    fetchSpy.mockRestore()
   })
 
   it('handles base64 image responses', async () => {
@@ -107,9 +114,7 @@ describe('OpenRouter Image Adapter', () => {
       { url: `data:image/png;base64,${base64Data}` },
     ])
 
-    const fetchSpy = vi
-      .spyOn(globalThis, 'fetch')
-      .mockResolvedValueOnce(mockResponse)
+    mockSend = vi.fn().mockResolvedValueOnce(mockResponse)
 
     const adapter = createAdapter()
 
@@ -121,36 +126,27 @@ describe('OpenRouter Image Adapter', () => {
     expect(result.images).toHaveLength(1)
     expect(result.images[0]!.b64Json).toBe(base64Data)
     expect(result.images[0]!.url).toBe(`data:image/png;base64,${base64Data}`)
-
-    fetchSpy.mockRestore()
   })
 
-  it('passes aspect ratio from modelOptions', async () => {
+  it('passes aspect ratio from size', async () => {
     const mockResponse = createMockImageResponse([
       { url: 'https://example.com/image.png' },
     ])
 
-    const fetchSpy = vi
-      .spyOn(globalThis, 'fetch')
-      .mockResolvedValueOnce(mockResponse)
+    mockSend = vi.fn().mockResolvedValueOnce(mockResponse)
 
     const adapter = createAdapter()
 
     await adapter.generateImages({
       model: 'google/gemini-2.5-flash-image-preview',
       prompt: 'A wide landscape',
-      modelOptions: {
-        aspect_ratio: '16:9',
-      },
+      size: '1344x768', // 16:9
     })
 
-    const [, options] = fetchSpy.mock.calls[0]!
-    const payload = JSON.parse(options?.body as string)
-    expect(payload.image_config).toMatchObject({
+    const callArgs = mockSend.mock.calls[0]![0]
+    expect(callArgs.imageConfig).toMatchObject({
       aspect_ratio: '16:9',
     })
-
-    fetchSpy.mockRestore()
   })
 
   it('converts size to aspect ratio', async () => {
@@ -158,9 +154,7 @@ describe('OpenRouter Image Adapter', () => {
       { url: 'https://example.com/image.png' },
     ])
 
-    const fetchSpy = vi
-      .spyOn(globalThis, 'fetch')
-      .mockResolvedValueOnce(mockResponse)
+    mockSend = vi.fn().mockResolvedValueOnce(mockResponse)
 
     const adapter = createAdapter()
 
@@ -170,24 +164,14 @@ describe('OpenRouter Image Adapter', () => {
       size: '1024x1024',
     })
 
-    const [, options] = fetchSpy.mock.calls[0]!
-    const payload = JSON.parse(options?.body as string)
-    expect(payload.image_config).toMatchObject({
+    const callArgs = mockSend.mock.calls[0]![0]
+    expect(callArgs.imageConfig).toMatchObject({
       aspect_ratio: '1:1',
     })
-
-    fetchSpy.mockRestore()
   })
 
-  it('throws error on HTTP error response', async () => {
-    const errorResponse = new Response(
-      JSON.stringify({ error: { message: 'Model not found' } }),
-      { status: 404 },
-    )
-
-    const fetchSpy = vi
-      .spyOn(globalThis, 'fetch')
-      .mockResolvedValueOnce(errorResponse)
+  it('throws error on SDK error', async () => {
+    mockSend = vi.fn().mockRejectedValueOnce(new Error('Model not found'))
 
     const adapter = createAdapter()
 
@@ -197,21 +181,14 @@ describe('OpenRouter Image Adapter', () => {
         prompt: 'Test prompt',
       }),
     ).rejects.toThrow('Image generation failed: Model not found')
-
-    fetchSpy.mockRestore()
   })
 
   it('throws error on API error in response body', async () => {
-    const errorResponse = new Response(
-      JSON.stringify({
-        error: { message: 'Content policy violation' },
-      }),
-      { status: 200, headers: { 'Content-Type': 'application/json' } },
-    )
+    const errorResponse = {
+      error: { message: 'Content policy violation' },
+    }
 
-    const fetchSpy = vi
-      .spyOn(globalThis, 'fetch')
-      .mockResolvedValueOnce(errorResponse)
+    mockSend = vi.fn().mockResolvedValueOnce(errorResponse)
 
     const adapter = createAdapter()
 
@@ -221,31 +198,30 @@ describe('OpenRouter Image Adapter', () => {
         prompt: 'Inappropriate content',
       }),
     ).rejects.toThrow('Image generation failed: Content policy violation')
-
-    fetchSpy.mockRestore()
   })
 
-  it('includes authorization header', async () => {
+  it('passes imageConfig correctly', async () => {
     const mockResponse = createMockImageResponse([
       { url: 'https://example.com/image.png' },
     ])
 
-    const fetchSpy = vi
-      .spyOn(globalThis, 'fetch')
-      .mockResolvedValueOnce(mockResponse)
+    mockSend = vi.fn().mockResolvedValueOnce(mockResponse)
 
     const adapter = createAdapter()
 
     await adapter.generateImages({
       model: 'google/gemini-2.5-flash-image-preview',
       prompt: 'Test',
+      modelOptions: {
+        image_size: '4K',
+      },
     })
 
-    const [, options] = fetchSpy.mock.calls[0]!
-    const headers = options?.headers as Record<string, string>
-    expect(headers['Authorization']).toBe('Bearer test-key')
-    expect(headers['Content-Type']).toBe('application/json')
-
-    fetchSpy.mockRestore()
+    const callArgs = mockSend.mock.calls[0]![0]
+    expect(callArgs.imageConfig).toMatchObject({
+      image_size: '4K',
+    })
+    expect(callArgs.modalities).toEqual(['image'])
+    expect(callArgs.stream).toBe(false)
   })
 })

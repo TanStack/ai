@@ -3,9 +3,9 @@
 import { config } from 'dotenv'
 import { Command } from 'commander'
 import { ADAPTERS, getAdapter } from './adapters'
+import { TESTS, getDefaultTests, getTest } from './tests'
 import type { AdapterDefinition, AdapterSet } from './adapters'
-import { TESTS, getTest, getDefaultTests } from './tests'
-import type { TestDefinition, AdapterCapability } from './tests'
+import type { AdapterCapability, TestDefinition } from './tests'
 import type { AdapterContext, TestOutcome } from './harness'
 
 // Load .env.local first (higher priority), then .env
@@ -114,7 +114,10 @@ function hasCapability(
 /**
  * Format the results grid with proper emoji alignment
  */
-function formatGrid(results: AdapterResult[], testsRun: TestDefinition[]) {
+function formatGrid(
+  results: Array<AdapterResult>,
+  testsRun: Array<TestDefinition>,
+) {
   const headers = ['Adapter', ...testsRun.map((t) => t.id)]
 
   // Build rows with result indicators
@@ -138,7 +141,7 @@ function formatGrid(results: AdapterResult[], testsRun: TestDefinition[]) {
   })
 
   const separator = colWidths.map((w) => '-'.repeat(w)).join('-+-')
-  const formatRow = (row: string[]) =>
+  const formatRow = (row: Array<string>) =>
     row.map((cell, idx) => padEnd(cell, colWidths[idx]!)).join(' | ')
 
   console.log(formatRow(headers))
@@ -159,7 +162,7 @@ function clearLine() {
 function updateProgress(
   completed: number,
   total: number,
-  running: string[],
+  running: Array<string>,
   failed: number,
 ) {
   clearLine()
@@ -175,10 +178,10 @@ function updateProgress(
  * Run tests sequentially (original behavior)
  */
 async function runSequential(
-  adaptersToRun: AdapterDefinition[],
-  testsToRun: TestDefinition[],
-): Promise<AdapterResult[]> {
-  const results: AdapterResult[] = []
+  adaptersToRun: Array<AdapterDefinition>,
+  testsToRun: Array<TestDefinition>,
+): Promise<Array<AdapterResult>> {
+  const results: Array<AdapterResult> = []
 
   for (const adapterDef of adaptersToRun) {
     const adapterSet = adapterDef.create()
@@ -237,14 +240,14 @@ async function runSequential(
  * Run tests in parallel with progress display
  */
 async function runParallel(
-  adaptersToRun: AdapterDefinition[],
-  testsToRun: TestDefinition[],
+  adaptersToRun: Array<AdapterDefinition>,
+  testsToRun: Array<TestDefinition>,
   concurrency: number,
-): Promise<AdapterResult[]> {
+): Promise<Array<AdapterResult>> {
   // Build task queue
-  const tasks: TestTask[] = []
+  const tasks: Array<TestTask> = []
   const resultsMap = new Map<string, AdapterResult>()
-  const skippedAdapters: string[] = []
+  const skippedAdapters: Array<string> = []
 
   for (const adapterDef of adaptersToRun) {
     const adapterSet = adapterDef.create()
@@ -345,7 +348,7 @@ async function runParallel(
   }
 
   // Run with concurrency limit
-  const workers: Promise<void>[] = []
+  const workers: Array<Promise<void>> = []
 
   async function worker() {
     while (taskQueue.length > 0) {
@@ -426,7 +429,7 @@ async function runCommand(options: {
   }
 
   // Determine which tests to run
-  let testsToRun: TestDefinition[]
+  let testsToRun: Array<TestDefinition>
   if (testFilter) {
     testsToRun = []
     for (const id of testFilter) {
@@ -448,7 +451,7 @@ async function runCommand(options: {
   console.log(`   Parallel: ${parallel}`)
 
   // Run tests
-  let results: AdapterResult[]
+  let results: Array<AdapterResult>
   if (parallel > 1) {
     results = await runParallel(adaptersToRun, testsToRun, parallel)
   } else {
