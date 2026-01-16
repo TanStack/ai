@@ -15,14 +15,11 @@ npm install @tanstack/ai-openrouter
 
 ```typescript
 import { chat } from "@tanstack/ai";
-import { openrouter } from "@tanstack/ai-openrouter";
-
-const adapter = openrouter();
-
+import { openRouterText } from "@tanstack/ai-openrouter";
+ 
 const stream = chat({
-  adapter,
-  messages: [{ role: "user", content: "Hello!" }],
-  model: "openai/gpt-4o",
+  adapter: openRouterText("openai/gpt-5"),
+  messages: [{ role: "user", content: "Hello!" }], 
 });
 ```
 
@@ -58,21 +55,18 @@ See the full list at [openrouter.ai/models](https://openrouter.ai/models).
 ## Example: Chat Completion
 
 ```typescript
-import { chat, toStreamResponse } from "@tanstack/ai";
-import { openrouter } from "@tanstack/ai-openrouter";
-
-const adapter = openrouter();
-
+import { chat, toServerSentEventsResponse } from "@tanstack/ai";
+import { openRouterText } from "@tanstack/ai-openrouter";
+ 
 export async function POST(request: Request) {
   const { messages } = await request.json();
 
   const stream = chat({
-    adapter,
-    messages,
-    model: "openai/gpt-4o",
+    adapter: openRouterText("openai/gpt-5"),
+    messages, 
   });
 
-  return toStreamResponse(stream);
+  return toServerSentEventsResponse(stream);
 }
 ```
 
@@ -80,10 +74,8 @@ export async function POST(request: Request) {
 
 ```typescript
 import { chat, toolDefinition } from "@tanstack/ai";
-import { openrouter } from "@tanstack/ai-openrouter";
-import { z } from "zod";
-
-const adapter = openrouter();
+import { openRouterText } from "@tanstack/ai-openrouter";
+import { z } from "zod"; 
 
 const getWeatherDef = toolDefinition({
   name: "get_weather",
@@ -98,75 +90,13 @@ const getWeather = getWeatherDef.server(async ({ location }) => {
 });
 
 const stream = chat({
-  adapter,
-  messages,
-  model: "openai/gpt-4o",
+  adapter: openRouterText("openai/gpt-5"),
+  messages, 
   tools: [getWeather],
 });
 ```
-
-## Web Search
-
-OpenRouter supports web search through the `plugins` configuration. This enables real-time web search capabilities for any model:
-
-```typescript
-const stream = chat({
-  adapter,
-  messages: [{ role: "user", content: "What's the latest AI news?" }],
-  model: "openai/gpt-4o-mini",
-  providerOptions: {
-    plugins: [
-      {
-        id: "web",
-        engine: "exa", // "native" or "exa"
-        max_results: 5, // default: 5
-      },
-    ],
-  },
-});
-```
-
-Alternatively, use the `:online` model suffix:
-
-```typescript
-const stream = chat({
-  adapter,
-  messages,
-  model: "openai/gpt-4o-mini:online",
-});
-```
-
-## Provider Options
-
-OpenRouter supports extensive provider-specific options:
-
-```typescript
-const stream = chat({
-  adapter,
-  messages,
-  model: "openai/gpt-4o",
-  providerOptions: {
-    temperature: 0.7,
-    max_tokens: 1000,
-    top_p: 0.9,
-    top_k: 40,
-    frequency_penalty: 0.5,
-    presence_penalty: 0.5,
-    repetition_penalty: 1.1,
-    seed: 42,
-    tool_choice: "auto",
-    response_format: { type: "json_object" },
-    // Routing options
-    models: ["openai/gpt-4o", "anthropic/claude-3.5-sonnet"], // Fallback models
-    route: "fallback",
-    // Provider preferences
-    provider: {
-      order: ["OpenAI", "Anthropic"],
-      allow_fallbacks: true,
-    },
-  },
-});
-```
+ 
+ 
 
 ## Environment Variables
 
@@ -182,9 +112,8 @@ OpenRouter can automatically route requests to the best available provider:
 
 ```typescript
 const stream = chat({
-  adapter,
-  messages,
-  model: "openrouter/auto", // Automatic model selection
+  adapter: openRouterText("openrouter/auto"),
+  messages, 
   providerOptions: {
     models: [
       "openai/gpt-4o",

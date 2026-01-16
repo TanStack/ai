@@ -4,6 +4,7 @@ import {
   getOpenRouterApiKeyFromEnv,
   generateId as utilGenerateId,
 } from '../utils'
+import type { SDKOptions } from '@openrouter/sdk'
 import type { OpenRouterClientConfig } from '../utils'
 import type {
   OpenRouterImageModelProviderOptionsByName,
@@ -168,14 +169,14 @@ export class OpenRouterImageAdapter<
 export function createOpenRouterImage<TModel extends OpenRouterImageModel>(
   model: TModel,
   apiKey: string,
-  config?: Omit<OpenRouterImageConfig, 'apiKey'>,
+  config?: Omit<SDKOptions, 'apiKey'>,
 ): OpenRouterImageAdapter<TModel> {
   return new OpenRouterImageAdapter({ apiKey, ...config }, model)
 }
 
-export function openrouterImage<TModel extends OpenRouterImageModel>(
+export function openRouterImage<TModel extends OpenRouterImageModel>(
   model: TModel,
-  config?: Omit<OpenRouterImageConfig, 'apiKey'>,
+  config?: Omit<SDKOptions, 'apiKey'>,
 ): OpenRouterImageAdapter<TModel> {
   const apiKey = getOpenRouterApiKeyFromEnv()
   return createOpenRouterImage(model, apiKey, config)

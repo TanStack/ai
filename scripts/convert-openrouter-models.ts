@@ -52,6 +52,7 @@ function generateChatModelsArray(): string {
   if (modelIds.length === 0) {
     return ''
   }
+  modelIds.push(`"openrouter/auto"`)
   return `export const OPENROUTER_CHAT_MODELS = [\n${modelIds
     .map((id) => `  ${id},`)
     .join('\n')}\n] as const`
@@ -81,6 +82,9 @@ function createPerModelModelOptions(): string {
   const entries = Object.entries(perModelProviderOptions).map(
     ([modelId, typeStr]) => `  [${modelId}]: ${typeStr};`,
   )
+  entries.push(
+    `  "openrouter/auto": OpenRouterCommonOptions & OpenRouterBaseOptions;`,
+  )
 
   return `\nexport type OpenRouterModelOptionsByName  = {\n${entries.join(
     '\n',
@@ -91,6 +95,10 @@ function createPerModelInputModalities(): string {
   const entries = Object.entries(perModelInputModalities).map(
     ([modelId, modalitiesStr]) =>
       `  [${modelId}]: ReadonlyArray<${modalitiesStr}>;`,
+  )
+
+  entries.push(
+    `  "openrouter/auto": ReadonlyArray<'text' | 'image' | 'audio' | 'video' | 'document'>;`,
   )
   return `\nexport type OpenRouterModelInputModalitiesByName  = {\n${entries.join(
     '\n',
@@ -207,47 +215,9 @@ function convertModels(models: Array<OpenRouterModel>): string {
 // RUN CONVERSION
 // ============================================================
 
-if (models.length === 0) {
-  console.log(`
-================================================================================
-HOW TO USE THIS SCRIPT:
-================================================================================
-
-1. Open this file and paste your OpenRouter models array into the 'models' variable
-2. Run the script:
-   npx tsx scripts/convert-openrouter-models.ts
-
-3. Copy the output and paste it into your model-meta.ts file
-
-Example input format:
-const models = [
-  {
-    "id": "nousresearch/hermes-3-llama-3.1-405b:free",
-    "name": "Nous: Hermes 3 405B Instruct (free)",
-    "context_length": 131072,
-    "architecture": {
-      "modality": "text->text",
-      "input_modalities": ["text"],
-      "output_modalities": ["text"],
-    },
-    "pricing": {
-      "prompt": "0",
-      "completion": "0",
-      "image": "0"
-    },
-    "top_provider": {
-      "context_length": 131072,
-      "max_completion_tokens": null,
-      "is_moderated": false
-    }
-  }
-]
-================================================================================
-`)
-} else {
-  console.log('// Generated ModelMeta entries:')
-  console.log('')
-  const file = `
+console.log('// Generated ModelMeta entries:')
+console.log('')
+const file = `
 import type { OpenRouterBaseOptions, OpenRouterCommonOptions } from './text/text-provider-options'
   
 ${convertModels(models)}
@@ -260,12 +230,11 @@ ${generateChatModelsArray()}
 ${generateVideoModelsArray()}
 ${generateImageModelsArray()}
 `
-  console.log(file)
-  writeFile('packages/typescript/ai-openrouter/src/model-meta.ts', file).then(
-    () => {
-      console.log(
-        'Model meta file written to packages/typescript/ai-openrouter/src/model-meta.ts',
-      )
-    },
-  )
-}
+console.log(file)
+writeFile('packages/typescript/ai-openrouter/src/model-meta.ts', file).then(
+  () => {
+    console.log(
+      'Model meta file written to packages/typescript/ai-openrouter/src/model-meta.ts',
+    )
+  },
+)

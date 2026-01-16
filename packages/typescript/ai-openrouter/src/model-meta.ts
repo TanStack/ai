@@ -8237,6 +8237,7 @@ export type OpenRouterModelOptionsByName  = {
   [ALLENAI_OLMO_2_0325_32B_INSTRUCT.id]: OpenRouterCommonOptions & OpenRouterBaseOptions;
   [META_LLAMA_LLAMA_3_2_90B_VISION_INSTRUCT.id]: OpenRouterCommonOptions & Pick<OpenRouterBaseOptions,'frequency_penalty' | 'max_completion_tokens' | 'min_p' | 'presence_penalty' | 'repetition_penalty' | 'response_format' | 'seed' | 'stop' | 'temperature' | 'top_k' | 'top_p'>;
   [ANTHROPIC_CLAUDE_3_5_HAIKU_20241022.id]: OpenRouterCommonOptions & Pick<OpenRouterBaseOptions,'max_completion_tokens' | 'stop' | 'temperature' | 'tool_choice' | 'top_k' | 'top_p'>;
+  "openrouter/auto": OpenRouterCommonOptions & OpenRouterBaseOptions;
 }
 
 
@@ -8589,6 +8590,7 @@ export type OpenRouterModelInputModalitiesByName  = {
   [ALLENAI_OLMO_2_0325_32B_INSTRUCT.id]: ReadonlyArray<'text'>;
   [META_LLAMA_LLAMA_3_2_90B_VISION_INSTRUCT.id]: ReadonlyArray<'text' | 'image'>;
   [ANTHROPIC_CLAUDE_3_5_HAIKU_20241022.id]: ReadonlyArray<'text' | 'image' | 'document'>;
+  "openrouter/auto": ReadonlyArray<'text' | 'image' | 'audio' | 'video' | 'document'>;
 }
 
 export const OPENROUTER_CHAT_MODELS = [
@@ -8940,6 +8942,7 @@ export const OPENROUTER_CHAT_MODELS = [
   ALLENAI_OLMO_2_0325_32B_INSTRUCT.id,
   META_LLAMA_LLAMA_3_2_90B_VISION_INSTRUCT.id,
   ANTHROPIC_CLAUDE_3_5_HAIKU_20241022.id,
+  "openrouter/auto",
 ] as const
 
 export const OPENROUTER_IMAGE_MODELS = [

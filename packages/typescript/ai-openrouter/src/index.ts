@@ -6,7 +6,7 @@
 export {
   OpenRouterTextAdapter,
   createOpenRouterText,
-  openrouterText,
+  openRouterText,
   type OpenRouterConfig,
   type OpenRouterTextModelOptions,
 } from './adapters/text'
@@ -15,7 +15,7 @@ export {
 export {
   OpenRouterSummarizeAdapter,
   createOpenRouterSummarize,
-  openrouterSummarize,
+  openRouterSummarize,
   type OpenRouterSummarizeConfig,
   type OpenRouterSummarizeProviderOptions,
 } from './adapters/summarize'
@@ -24,7 +24,7 @@ export {
 export {
   OpenRouterImageAdapter,
   createOpenRouterImage,
-  openrouterImage,
+  openRouterImage,
   type OpenRouterImageConfig,
 } from './adapters/image'
 export type {

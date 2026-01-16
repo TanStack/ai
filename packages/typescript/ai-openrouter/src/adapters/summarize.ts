@@ -8,6 +8,7 @@ import type {
 } from '@tanstack/ai'
 import type { OpenRouterConfig } from './text'
 import type { OPENROUTER_CHAT_MODELS } from '../model-meta'
+import type { SDKOptions } from '@openrouter/sdk'
 
 export type OpenRouterTextModels = (typeof OPENROUTER_CHAT_MODELS)[number]
 
@@ -142,7 +143,7 @@ export class OpenRouterSummarizeAdapter<
 export function createOpenRouterSummarize<TModel extends OpenRouterTextModels>(
   model: TModel,
   apiKey: string,
-  config?: Omit<OpenRouterSummarizeConfig, 'apiKey'>,
+  config?: Omit<SDKOptions, 'apiKey'>,
 ): OpenRouterSummarizeAdapter<TModel> {
   return new OpenRouterSummarizeAdapter({ apiKey, ...config }, model)
 }
@@ -171,9 +172,9 @@ export function createOpenRouterSummarize<TModel extends OpenRouterTextModels>(
  * });
  * ```
  */
-export function openrouterSummarize<TModel extends OpenRouterTextModels>(
+export function openRouterSummarize<TModel extends OpenRouterTextModels>(
   model: TModel,
-  config?: Omit<OpenRouterSummarizeConfig, 'apiKey'>,
+  config?: Omit<SDKOptions, 'apiKey'>,
 ): OpenRouterSummarizeAdapter<TModel> {
   const apiKey = getOpenRouterApiKeyFromEnv()
   return createOpenRouterSummarize(model, apiKey, config)

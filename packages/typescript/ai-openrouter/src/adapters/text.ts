@@ -6,7 +6,7 @@ import {
   getOpenRouterApiKeyFromEnv,
   generateId as utilGenerateId,
 } from '../utils'
-import type { OpenRouterClientConfig } from '../utils'
+import type { SDKOptions } from '@openrouter/sdk'
 import type {
   OPENROUTER_CHAT_MODELS,
   OpenRouterModelInputModalitiesByName,
@@ -39,7 +39,7 @@ import type {
   Message,
 } from '@openrouter/sdk/models'
 
-export interface OpenRouterConfig extends OpenRouterClientConfig {}
+export interface OpenRouterConfig extends SDKOptions {}
 export type OpenRouterTextModels = (typeof OPENROUTER_CHAT_MODELS)[number]
 
 export type OpenRouterTextModelOptions = ExternalTextProviderOptions
@@ -76,11 +76,7 @@ export class OpenRouterTextAdapter<
 
   constructor(config: OpenRouterConfig, model: TModel) {
     super({}, model)
-    this.client = new OpenRouter({
-      ...config,
-      apiKey: config.apiKey,
-      serverURL: config.baseURL,
-    })
+    this.client = new OpenRouter(config)
   }
 
   async *chatStream(
@@ -380,21 +376,10 @@ export class OpenRouterTextAdapter<
       temperature: options.temperature,
       maxTokens: options.maxTokens,
       topP: options.topP,
+      ...modelOptions,
       tools: options.tools
         ? convertToolsToProviderFormat(options.tools)
         : undefined,
-    }
-
-    if (modelOptions?.stop !== undefined) {
-      request.stop = modelOptions.stop
-    }
-
-    if (options.tools?.length && modelOptions?.tool_choice !== undefined) {
-      request.toolChoice = modelOptions.tool_choice
-    }
-
-    if (modelOptions?.response_format !== undefined) {
-      request.responseFormat = modelOptions.response_format
     }
 
     return request
@@ -492,14 +477,14 @@ export class OpenRouterTextAdapter<
 export function createOpenRouterText<TModel extends OpenRouterTextModels>(
   model: TModel,
   apiKey: string,
-  config?: Omit<OpenRouterConfig, 'apiKey'>,
+  config?: Omit<SDKOptions, 'apiKey'>,
 ): OpenRouterTextAdapter<TModel> {
   return new OpenRouterTextAdapter({ apiKey, ...config }, model)
 }
 
-export function openrouterText<TModel extends OpenRouterTextModels>(
+export function openRouterText<TModel extends OpenRouterTextModels>(
   model: TModel,
-  config?: Omit<OpenRouterConfig, 'apiKey'>,
+  config?: Omit<SDKOptions, 'apiKey'>,
 ): OpenRouterTextAdapter<TModel> {
   const apiKey = getOpenRouterApiKeyFromEnv()
   return createOpenRouterText(model, apiKey, config)
