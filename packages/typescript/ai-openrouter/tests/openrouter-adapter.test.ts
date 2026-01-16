@@ -1,6 +1,9 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { chat } from '@tanstack/ai'
-import { createOpenRouterText } from '../src/adapters/text'
+import {
+  createOpenRouterText,
+  OpenRouterTextModelOptions,
+} from '../src/adapters/text'
 import type { StreamChunk, Tool } from '@tanstack/ai'
 // Declare mockSend at module level
 let mockSend: any
@@ -94,9 +97,8 @@ describe('OpenRouter adapter option mapping', () => {
 
     const adapter = createAdapter()
 
-    const modelOptions: OpenRouterTextProviderOptions = {
+    const modelOptions: OpenRouterTextModelOptions = {
       tool_choice: 'auto',
-      plugins: [{ id: 'web', max_results: 5 }],
     }
 
     const chunks: Array<StreamChunk> = []
@@ -136,7 +138,7 @@ describe('OpenRouter adapter option mapping', () => {
     expect(params.topP).toBe(0.6)
     expect(params.maxTokens).toBe(1024)
     expect(params.stream).toBe(true)
-    expect(params.toolChoice).toBe('auto')
+    expect(params.tool_choice).toBe('auto')
 
     expect(params.messages).toBeDefined()
     expect(Array.isArray(params.messages)).toBe(true)
