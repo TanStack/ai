@@ -318,6 +318,107 @@ describe('connection-adapters', () => {
       expect(body.data).toEqual({ key: 'value' })
     })
 
+    it('should send model messages by default', async () => {
+      const mockReader = {
+        read: vi.fn().mockResolvedValue({ done: true, value: undefined }),
+        releaseLock: vi.fn(),
+      }
+
+      const mockResponse = {
+        ok: true,
+        body: {
+          getReader: () => mockReader,
+        },
+      }
+
+      fetchMock.mockResolvedValue(mockResponse as any)
+
+      const adapter = fetchServerSentEvents('/api/chat')
+
+      for await (const _ of adapter.connect([
+        {
+          id: 'msg_1',
+          role: 'assistant',
+          parts: [
+            {
+              type: 'tool-call',
+              id: 'tool_1',
+              name: 'testTool',
+              arguments: '{}',
+              state: 'approval-responded',
+              approval: { id: 'approval_tool_1', needsApproval: true, approved: true },
+            },
+          ],
+          createdAt: new Date(),
+        },
+      ] as any)) {
+        // Consume
+      }
+
+      const call = fetchMock.mock.calls[0]
+      const body = JSON.parse(call?.[1]?.body as string)
+      expect(body.messages[0]).not.toHaveProperty('parts')
+      expect(body.messages[0]).toMatchObject({
+        role: 'assistant',
+      })
+    })
+
+    it('should send full UI messages when configured', async () => {
+      const mockReader = {
+        read: vi.fn().mockResolvedValue({ done: true, value: undefined }),
+        releaseLock: vi.fn(),
+      }
+
+      const mockResponse = {
+        ok: true,
+        body: {
+          getReader: () => mockReader,
+        },
+      }
+
+      fetchMock.mockResolvedValue(mockResponse as any)
+
+      const adapter = fetchServerSentEvents('/api/chat', {
+        sendFullMessages: true,
+      })
+
+      const uiMessages = [
+        {
+          id: 'msg_1',
+          role: 'assistant',
+          parts: [
+            {
+              type: 'tool-call',
+              id: 'tool_1',
+              name: 'testTool',
+              arguments: '{}',
+              state: 'approval-responded',
+              approval: { id: 'approval_tool_1', needsApproval: true, approved: true },
+            },
+          ],
+          createdAt: new Date(),
+        },
+      ]
+
+      for await (const _ of adapter.connect(uiMessages as any)) {
+        // Consume
+      }
+
+      const call = fetchMock.mock.calls[0]
+      const body = JSON.parse(call?.[1]?.body as string)
+      expect(body.messages[0]).toHaveProperty('parts')
+      expect(body.messages[0]).toMatchObject({
+        role: 'assistant',
+        parts: [
+          {
+            type: 'tool-call',
+            id: 'tool_1',
+            approval: { id: 'approval_tool_1', approved: true },
+          },
+        ],
+      })
+    })
+
     it('should use custom fetchClient when provided', async () => {
       const customFetch = vi.fn()
       const mockReader = {

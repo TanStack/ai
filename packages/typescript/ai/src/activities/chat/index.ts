@@ -8,6 +8,7 @@
 import { aiEventClient } from '../../event-client.js'
 import { streamToText } from '../../stream-to-response.js'
 import { ToolCallManager, executeToolCalls } from './tools/tool-calls'
+import { convertMessagesToModelMessages } from './messages'
 import {
   convertSchemaToJsonSchema,
   isStandardSchema,
@@ -31,6 +32,7 @@ import type {
   TextOptions,
   Tool,
   ToolCall,
+  UIMessage,
 } from '../../types'
 
 // ===========================
@@ -206,7 +208,7 @@ class TextEngine<
   private readonly effectiveRequest?: Request | RequestInit
   private readonly effectiveSignal?: AbortSignal
 
-  private messages: Array<ModelMessage>
+  private messages: Array<ModelMessage | UIMessage>
   private iterationCount = 0
   private lastFinishReason: string | null = null
   private streamStartTime = 0
@@ -244,7 +246,7 @@ class TextEngine<
 
   /** Get the final messages array after the chat loop completes */
   getMessages(): Array<ModelMessage> {
-    return this.messages
+    return convertMessagesToModelMessages(this.messages)
   }
 
   async *run(): AsyncGenerator<StreamChunk> {
@@ -386,7 +388,7 @@ class TextEngine<
 
     for await (const chunk of this.adapter.chatStream({
       model: this.params.model,
-      messages: this.messages,
+      messages: convertMessagesToModelMessages(this.messages),
       tools: toolsWithJsonSchemas,
       temperature,
       topP,
@@ -718,17 +720,13 @@ class TextEngine<
         for (const part of parts) {
           if (
             part.type === 'tool-call' &&
-            part.state === 'approval-responded' &&
-            part.approval
+            part.approval &&
+            part.approval.approved !== undefined
           ) {
             approvals.set(part.approval.id, part.approval.approved)
           }
 
-          if (
-            part.type === 'tool-call' &&
-            part.output !== undefined &&
-            !part.approval
-          ) {
+          if (part.type === 'tool-call' && part.output !== undefined) {
             clientToolResults.set(part.id, part.output)
           }
         }
@@ -847,15 +845,16 @@ class TextEngine<
   }
 
   private getPendingToolCallsFromMessages(): Array<ToolCall> {
+    const modelMessages = convertMessagesToModelMessages(this.messages)
     const completedToolIds = new Set(
-      this.messages
+      modelMessages
         .filter((message) => message.role === 'tool' && message.toolCallId)
         .map((message) => message.toolCallId!), // toolCallId exists due to filter
     )
 
     const pending: Array<ToolCall> = []
 
-    for (const message of this.messages) {
+    for (const message of modelMessages) {
       if (message.role === 'assistant' && message.toolCalls) {
         for (const toolCall of message.toolCalls) {
           if (!completedToolIds.has(toolCall.id)) {
@@ -886,7 +885,7 @@ class TextEngine<
     return (
       this.loopStrategy({
         iterationCount: this.iterationCount,
-        messages: this.messages,
+        messages: convertMessagesToModelMessages(this.messages),
         finishReason: this.lastFinishReason,
       }) && this.toolPhase === 'continue'
     )
@@ -985,46 +984,31 @@ export function chat<
   // If outputSchema is provided, run agentic structured output
   if (outputSchema) {
     return runAgenticStructuredOutput(
-      options as unknown as TextActivityOptions<
-        AnyTextAdapter,
-        SchemaInput,
-        boolean
-      >,
+      options as TextActivityOptions<TAdapter, SchemaInput, boolean>,
     ) as TextActivityResult<TSchema, TStream>
   }
 
   // If stream is explicitly false, run non-streaming text
   if (stream === false) {
-    return runNonStreamingText(
-      options as unknown as TextActivityOptions<
-        AnyTextAdapter,
-        undefined,
-        false
-      >,
-    ) as TextActivityResult<TSchema, TStream>
+    return runNonStreamingText(options) as TextActivityResult<TSchema, TStream>
   }
 
   // Otherwise, run streaming text (default)
-  return runStreamingText(
-    options as unknown as TextActivityOptions<AnyTextAdapter, undefined, true>,
-  ) as TextActivityResult<TSchema, TStream>
+  return runStreamingText(options) as TextActivityResult<TSchema, TStream>
 }
 
 /**
  * Run streaming text (agentic or one-shot depending on tools)
  */
-async function* runStreamingText(
-  options: TextActivityOptions<AnyTextAdapter, undefined, true>,
+async function* runStreamingText<TAdapter extends AnyTextAdapter>(
+  options: TextActivityOptions<TAdapter, any, any>,
 ): AsyncIterable<StreamChunk> {
   const { adapter, ...textOptions } = options
   const model = adapter.model
 
   const engine = new TextEngine({
     adapter,
-    params: { ...textOptions, model } as TextOptions<
-      Record<string, any>,
-      Record<string, any>
-    >,
+    params: { ...textOptions, model, messages: textOptions.messages ?? [] },
   })
 
   for await (const chunk of engine.run()) {
@@ -1036,13 +1020,11 @@ async function* runStreamingText(
  * Run non-streaming text - collects all content and returns as a string.
  * Runs the full agentic loop (if tools are provided) but returns collected text.
  */
-function runNonStreamingText(
-  options: TextActivityOptions<AnyTextAdapter, undefined, false>,
+function runNonStreamingText<TAdapter extends AnyTextAdapter>(
+  options: TextActivityOptions<TAdapter, any, any>,
 ): Promise<string> {
   // Run the streaming text and collect all text using streamToText
-  const stream = runStreamingText(
-    options as unknown as TextActivityOptions<AnyTextAdapter, undefined, true>,
-  )
+  const stream = runStreamingText(options)
 
   return streamToText(stream)
 }
@@ -1053,8 +1035,11 @@ function runNonStreamingText(
  * 2. Once complete, call adapter.structuredOutput with the conversation context
  * 3. Validate and return the structured result
  */
-async function runAgenticStructuredOutput<TSchema extends SchemaInput>(
-  options: TextActivityOptions<AnyTextAdapter, TSchema, boolean>,
+async function runAgenticStructuredOutput<
+  TAdapter extends AnyTextAdapter,
+  TSchema extends SchemaInput,
+>(
+  options: TextActivityOptions<TAdapter, TSchema, boolean>,
 ): Promise<InferSchemaType<TSchema>> {
   const { adapter, outputSchema, ...textOptions } = options
   const model = adapter.model
@@ -1066,10 +1051,7 @@ async function runAgenticStructuredOutput<TSchema extends SchemaInput>(
   // Create the engine and run the agentic loop
   const engine = new TextEngine({
     adapter,
-    params: { ...textOptions, model } as TextOptions<
-      Record<string, unknown>,
-      Record<string, unknown>
-    >,
+    params: { ...textOptions, model, messages: textOptions.messages ?? [] },
   })
 
   // Consume the stream to run the agentic loop
