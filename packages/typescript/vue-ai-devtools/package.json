@@ -1,7 +1,7 @@
 {
-  "name": "@tanstack/react-ai-devtools",
-  "version": "0.2.0",
-  "description": "React Devtools for TanStack AI.",
+  "name": "@tanstack/vue-ai-devtools",
+  "version": "0.0.3",
+  "description": "Vue Devtools for TanStack AI.",
   "author": "tannerlinsley",
   "license": "MIT",
   "homepage": "https://tanstack.com/ai",
@@ -29,12 +29,36 @@
   "module": "./dist/esm/index.js",
   "exports": {
     ".": {
+      "browser": {
+        "import": {
+          "types": "./dist/esm/index.d.ts",
+          "default": "./dist/esm/index.js"
+        }
+      },
+      "node": {
+        "import": {
+          "types": "./dist/esm/server.d.ts",
+          "default": "./dist/esm/server.js"
+        }
+      },
       "import": {
         "types": "./dist/esm/index.d.ts",
         "default": "./dist/esm/index.js"
       }
     },
     "./production": {
+      "browser": {
+        "import": {
+          "types": "./dist/esm/production.d.ts",
+          "default": "./dist/esm/production.js"
+        }
+      },
+      "node": {
+        "import": {
+          "types": "./dist/esm/server.d.ts",
+          "default": "./dist/esm/server.js"
+        }
+      },
       "import": {
         "types": "./dist/esm/production.d.ts",
         "default": "./dist/esm/production.js"
@@ -51,14 +75,12 @@
     "@tanstack/ai-devtools-core": "workspace:*",
     "@tanstack/devtools-utils": "^0.3.0"
   },
-  "peerDependencies": {
-    "@types/react": "^17.0.0 || ^18.0.0 || ^19.0.0",
-    "react": "^17.0.0 || ^18.0.0 || ^19.0.0"
-  },
   "devDependencies": {
-    "@types/react": "^19.2.7",
+    "@vitejs/plugin-vue": "^6.0.3",
     "@vitest/coverage-v8": "4.0.14",
-    "react": "^19.2.3",
     "vite": "^7.2.7"
+  },
+  "peerDependencies": {
+    "vue": ">=3.2.0"
   }
 }
