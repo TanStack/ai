@@ -16,7 +16,10 @@ describe('message converters', () => {
       const uiMessage = modelMessageToUIMessage(modelMessage)
 
       expect(uiMessage.parts).toHaveLength(1)
-      expect(uiMessage.parts[0]).toEqual({ type: 'text', content: 'Hello world' })
+      expect(uiMessage.parts[0]).toEqual({
+        type: 'text',
+        content: 'Hello world',
+      })
     })
 
     it('should preserve multimodal content', () => {
@@ -24,14 +27,20 @@ describe('message converters', () => {
         role: 'user',
         content: [
           { type: 'text', content: 'What is in this image?' },
-          { type: 'image', source: { type: 'url', value: 'https://example.com/image.jpg' } },
+          {
+            type: 'image',
+            source: { type: 'url', value: 'https://example.com/image.jpg' },
+          },
         ],
       }
 
       const uiMessage = modelMessageToUIMessage(modelMessage)
 
       expect(uiMessage.parts).toHaveLength(2)
-      expect(uiMessage.parts[0]).toEqual({ type: 'text', content: 'What is in this image?' })
+      expect(uiMessage.parts[0]).toEqual({
+        type: 'text',
+        content: 'What is in this image?',
+      })
       expect(uiMessage.parts[1]).toEqual({
         type: 'image',
         source: { type: 'url', value: 'https://example.com/image.jpg' },
@@ -44,8 +53,14 @@ describe('message converters', () => {
         content: [
           { type: 'text', content: 'Check these:' },
           { type: 'image', source: { type: 'data', value: 'base64img' } },
-          { type: 'audio', source: { type: 'url', value: 'https://example.com/audio.mp3' } },
-          { type: 'video', source: { type: 'url', value: 'https://example.com/video.mp4' } },
+          {
+            type: 'audio',
+            source: { type: 'url', value: 'https://example.com/audio.mp3' },
+          },
+          {
+            type: 'video',
+            source: { type: 'url', value: 'https://example.com/video.mp4' },
+          },
           { type: 'document', source: { type: 'data', value: 'base64pdf' } },
         ],
       }
@@ -64,7 +79,11 @@ describe('message converters', () => {
       const modelMessage: ModelMessage = {
         role: 'user',
         content: [
-          { type: 'image', source: { type: 'url', value: 'https://example.com/img.jpg' }, metadata: { detail: 'high' } },
+          {
+            type: 'image',
+            source: { type: 'url', value: 'https://example.com/img.jpg' },
+            metadata: { detail: 'high' },
+          },
         ],
       }
 
@@ -98,7 +117,10 @@ describe('message converters', () => {
         role: 'user',
         parts: [
           { type: 'text', content: 'What is this?' },
-          { type: 'image', source: { type: 'url', value: 'https://example.com/img.jpg' } },
+          {
+            type: 'image',
+            source: { type: 'url', value: 'https://example.com/img.jpg' },
+          },
         ],
       }
 
@@ -114,9 +136,15 @@ describe('message converters', () => {
         id: 'msg-1',
         role: 'user',
         parts: [
-          { type: 'image', source: { type: 'url', value: 'https://example.com/1.jpg' } },
+          {
+            type: 'image',
+            source: { type: 'url', value: 'https://example.com/1.jpg' },
+          },
           { type: 'text', content: 'Middle text' },
-          { type: 'image', source: { type: 'url', value: 'https://example.com/2.jpg' } },
+          {
+            type: 'image',
+            source: { type: 'url', value: 'https://example.com/2.jpg' },
+          },
         ],
       }
 
@@ -135,7 +163,10 @@ describe('message converters', () => {
         role: 'user',
         content: [
           { type: 'text', content: 'Describe this image' },
-          { type: 'image', source: { type: 'url', value: 'https://example.com/photo.jpg' } },
+          {
+            type: 'image',
+            source: { type: 'url', value: 'https://example.com/photo.jpg' },
+          },
         ],
       }
 
@@ -146,8 +177,14 @@ describe('message converters', () => {
       expect(Array.isArray(converted?.content)).toBe(true)
       const content = converted?.content as Array<any>
       expect(content).toHaveLength(2)
-      expect(content[0]).toEqual({ type: 'text', content: 'Describe this image' })
-      expect(content[1]).toEqual({ type: 'image', source: { type: 'url', value: 'https://example.com/photo.jpg' } })
+      expect(content[0]).toEqual({
+        type: 'text',
+        content: 'Describe this image',
+      })
+      expect(content[1]).toEqual({
+        type: 'image',
+        source: { type: 'url', value: 'https://example.com/photo.jpg' },
+      })
     })
   })
 })
