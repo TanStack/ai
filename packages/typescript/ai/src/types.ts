@@ -231,9 +231,9 @@ export type ConstrainedContent<
 
 export interface ModelMessage<
   TContent extends string | null | Array<ContentPart> =
-    | string
-    | null
-    | Array<ContentPart>,
+  | string
+  | null
+  | Array<ContentPart>,
 > {
   role: 'user' | 'assistant' | 'tool'
   content: TContent
@@ -280,11 +280,43 @@ export interface ThinkingPart {
   content: string
 }
 
+export interface ImageMessagePart<TMetadata = unknown> {
+  type: 'image'
+  source: ContentPartSource
+  /** Provider-specific metadata (e.g., OpenAI's detail: 'auto' | 'low' | 'high') */
+  metadata?: TMetadata
+}
+
+export interface AudioMessagePart<TMetadata = unknown> {
+  type: 'audio'
+  source: ContentPartSource
+  /** Provider-specific metadata (e.g., format, sample rate) */
+  metadata?: TMetadata
+}
+
+export interface VideoMessagePart<TMetadata = unknown> {
+  type: 'video'
+  source: ContentPartSource
+  /** Provider-specific metadata (e.g., duration, resolution) */
+  metadata?: TMetadata
+}
+
+export interface DocumentMessagePart<TMetadata = unknown> {
+  type: 'document'
+  source: ContentPartSource
+  /** Provider-specific metadata (e.g., media_type for PDFs) */
+  metadata?: TMetadata
+}
+
 export type MessagePart =
   | TextPart
   | ToolCallPart
   | ToolResultPart
   | ThinkingPart
+  | ImageMessagePart
+  | AudioMessagePart
+  | VideoMessagePart
+  | DocumentMessagePart
 
 /**
  * UIMessage - Domain-specific message format optimized for building chat UIs
