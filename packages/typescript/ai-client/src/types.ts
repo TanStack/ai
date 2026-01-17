@@ -1,6 +1,7 @@
 import type {
   AnyClientTool,
   ChunkStrategy,
+  ContentPartSource,
   InferToolInput,
   InferToolOutput,
   ModelMessage,
@@ -114,11 +115,63 @@ export interface ThinkingPart {
   content: string
 }
 
+/**
+ * Image content part for UIMessage.
+ * Preserves image data during ModelMessage <-> UIMessage conversions.
+ * @template TMetadata - Provider-specific metadata type (e.g., OpenAI's detail level)
+ */
+export interface ImageMessagePart<TMetadata = unknown> {
+  type: 'image'
+  source: ContentPartSource
+  /** Provider-specific metadata (e.g., OpenAI's detail: 'auto' | 'low' | 'high') */
+  metadata?: TMetadata
+}
+
+/**
+ * Audio content part for UIMessage.
+ * Preserves audio data during ModelMessage <-> UIMessage conversions.
+ * @template TMetadata - Provider-specific metadata type
+ */
+export interface AudioMessagePart<TMetadata = unknown> {
+  type: 'audio'
+  source: ContentPartSource
+  /** Provider-specific metadata (e.g., format, sample rate) */
+  metadata?: TMetadata
+}
+
+/**
+ * Video content part for UIMessage.
+ * Preserves video data during ModelMessage <-> UIMessage conversions.
+ * @template TMetadata - Provider-specific metadata type
+ */
+export interface VideoMessagePart<TMetadata = unknown> {
+  type: 'video'
+  source: ContentPartSource
+  /** Provider-specific metadata (e.g., duration, resolution) */
+  metadata?: TMetadata
+}
+
+/**
+ * Document content part for UIMessage (e.g., PDFs).
+ * Preserves document data during ModelMessage <-> UIMessage conversions.
+ * @template TMetadata - Provider-specific metadata type (e.g., Anthropic's media_type)
+ */
+export interface DocumentMessagePart<TMetadata = unknown> {
+  type: 'document'
+  source: ContentPartSource
+  /** Provider-specific metadata (e.g., media_type for PDFs) */
+  metadata?: TMetadata
+}
+
 export type MessagePart<TTools extends ReadonlyArray<AnyClientTool> = any> =
   | TextPart
   | ToolCallPart<TTools>
   | ToolResultPart
   | ThinkingPart
+  | ImageMessagePart
+  | AudioMessagePart
+  | VideoMessagePart
+  | DocumentMessagePart
 
 /**
  * UIMessage - Domain-specific message format optimized for building chat UIs
