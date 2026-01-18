@@ -332,8 +332,8 @@ export class GeminiTextAdapter<
 
                 // Capture thought signature for Gemini 3.0 compatibility
                 const metadata =
-                  'thoughtSignature' in part && part.thoughtSignature
-                    ? { thoughtSignature: part.thoughtSignature }
+                  'thoughtSignature' in part && (part as any).thoughtSignature
+                    ? { thoughtSignature: (part as any).thoughtSignature }
                     : undefined
 
                 yield {
