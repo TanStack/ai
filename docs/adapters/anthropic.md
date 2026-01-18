@@ -28,11 +28,12 @@ const stream = chat({
 
 ```typescript
 import { chat } from "@tanstack/ai";
-import { createAnthropicChat } from "@tanstack/ai-anthropic";
+import { createAnthropicChat, ANTHROPIC_MODELS } from "@tanstack/ai-anthropic";
 
-const adapter = createAnthropicChat(process.env.ANTHROPIC_API_KEY!, {
-  // ... your config options
-});
+const adapter = (model: ANTHROPIC_MODELS) =>
+  createAnthropicChat(model, process.env.ANTHROPIC_API_KEY!, {
+    // ... your config options
+  });
 
 const stream = chat({
   adapter: adapter("claude-sonnet-4-5"),
@@ -51,7 +52,7 @@ const config: Omit<AnthropicChatConfig, 'apiKey'> = {
 
 const adapter = createAnthropicChat(process.env.ANTHROPIC_API_KEY!, config);
 ```
- 
+
 
 ## Example: Chat Completion
 
