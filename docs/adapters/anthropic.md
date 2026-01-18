@@ -28,9 +28,9 @@ const stream = chat({
 
 ```typescript
 import { chat } from "@tanstack/ai";
-import { createAnthropicChat, ANTHROPIC_MODELS } from "@tanstack/ai-anthropic";
+import { createAnthropicChat, AnthropicModels } from "@tanstack/ai-anthropic";
 
-const adapter = (model: ANTHROPIC_MODELS) =>
+const adapter = (model: AnthropicModels) =>
   createAnthropicChat(model, process.env.ANTHROPIC_API_KEY!, {
     // ... your config options
   });

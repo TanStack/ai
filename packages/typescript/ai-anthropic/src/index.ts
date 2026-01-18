@@ -27,7 +27,7 @@ export {
 export type {
   AnthropicChatModelProviderOptionsByName,
   AnthropicModelInputModalitiesByName,
-  ANTHROPIC_MODELS
+  AnthropicModels,
 } from './model-meta'
 export type {
   AnthropicTextMetadata,

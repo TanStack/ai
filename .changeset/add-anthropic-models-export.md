@@ -1,43 +1,32 @@
 ---
-'@tanstack/ai-anthropic': minor
+'@tanstack/ai-anthropic': major
 ---
 
-## Add missing ANTHROPIC_MODELS type export
+## Add missing AnthropicModels type export
 
 ### WHAT
 
-Added missing `ANTHROPIC_MODELS` type export to the public API of `@tanstack/ai-anthropic` and updated the documentation to correctly reference it.
-
-The `ANTHROPIC_MODELS` is a const tuple that contains all supported Anthropic model identifiers:
+Added new `AnthropicModels` **type** export to the public API of `@tanstack/ai-anthropic`. This is a union type that represents all supported Anthropic model identifiers, derived from the internal `ANTHROPIC_MODELS` const tuple.
 
 ```typescript
-type ANTHROPIC_MODELS = readonly [
-  'claude-opus-4-5',
-  'claude-sonnet-4-5',
-  'claude-haiku-4-5',
-  'claude-opus-4-1',
-  'claude-sonnet-4',
-  'claude-sonnet-3-7',
-  'claude-opus-4',
-  'claude-haiku-3-5',
-  'claude-haiku-3',
-]
+export type AnthropicModels = (typeof ANTHROPIC_MODELS)[number]
+// Equivalent to: 'claude-opus-4-5' | 'claude-sonnet-4-5' | 'claude-haiku-4-5' | ... (and more)
 ```
+
+**Note:** The `ANTHROPIC_MODELS` const tuple itself remains internal and is not exported. Only the derived type is part of the public API.
 
 ### WHY
 
-The `ANTHROPIC_MODELS` type was already used internally and in the model metadata but was not exported from the main package entry point. This prevented consumers from using it for type-safe model selection when creating custom adapter instances, resulting in incomplete TypeScript support and requiring workarounds like manual type assertions.
-
-By exporting this type, consumers now have full type safety when working with Anthropic models and can write more maintainable code.
+Consumers previously had no easy way to get the type-safe union of model names for use in function signatures and variable declarations.
 
 ### HOW - Consumers Should Update
 
-Now you can import and use `ANTHROPIC_MODELS` for proper type safety when creating adapter instances:
+Now you can import and use `AnthropicModels` for proper type safety when creating adapter instances:
 
 ```typescript
-import { createAnthropicChat, ANTHROPIC_MODELS } from '@tanstack/ai-anthropic'
+import { createAnthropicChat, AnthropicModels } from '@tanstack/ai-anthropic'
 
-const adapter = (model: ANTHROPIC_MODELS) =>
+const adapter = (model: AnthropicModels) =>
   createAnthropicChat(model, process.env.ANTHROPIC_API_KEY!, {
     // ... your config options
   })
