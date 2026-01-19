@@ -23,7 +23,7 @@ import type { ContentPart, ImagePart, TextPart } from '@tanstack/ai'
 // Text content
 const textPart: TextPart = {
   type: 'text',
-  text: 'What do you see in this image?'
+  content: 'What do you see in this image?'
 }
 
 // Image from base64 data
@@ -63,7 +63,7 @@ const response = await chat({
     {
       role: 'user',
       content: [
-        { type: 'text', text: 'What is in this image?' },
+        { type: 'text', content: 'What is in this image?' },
         {
           type: 'image',
           source: {
@@ -92,7 +92,7 @@ const adapter = openaiText()
 const message = {
   role: 'user' ,
   content: [
-    { type: 'text' , text: 'Describe this image' },
+    { type: 'text' , content: 'Describe this image' },
     {
       type: 'image' ,
       source: { type: 'data' , value: imageBase64 },
@@ -119,7 +119,7 @@ const adapter = anthropicText()
 const imageMessage = {
   role: 'user' ,
   content: [
-    { type: 'text' , text: 'What do you see?' },
+    { type: 'text' , content: 'What do you see?' },
     {
       type: 'image' ,
       source: { type: 'data' , value: imageBase64 },
@@ -132,7 +132,7 @@ const imageMessage = {
 const docMessage = {
   role: 'user',
   content: [
-    { type: 'text', text: 'Summarize this document' },
+    { type: 'text', content: 'Summarize this document' },
     {
       type: 'document',
       source: { type: 'data', value: pdfBase64 }
@@ -158,7 +158,7 @@ const adapter = geminiText()
 const message = {
   role: 'user',
   content: [
-    { type: 'text', text: 'Analyze this image' },
+    { type: 'text', content: 'Analyze this image' },
     {
       type: 'image',
       source: { type: 'data', value: imageBase64 },
@@ -185,7 +185,7 @@ const adapter = ollamaText('http://localhost:11434')
 const message = {
   role: 'user',
   content: [
-    { type: 'text', text: 'What is in this image?' },
+    { type: 'text', content: 'What is in this image?' },
     {
       type: 'image',
       source: { type: 'data', value: imageBase64 }
@@ -245,7 +245,7 @@ const message = {
 const multimodalMessage = {
   role: 'user',
   content: [
-    { type: 'text', text: 'Hello, world!' },
+    { type: 'text', content: 'Hello, world!' },
     { type: 'image', source: { type: 'url', value: '...' } }
   ]
 }
@@ -296,7 +296,7 @@ const stream = chat({
     {
       role: 'user',
       content: [
-        { type: 'text', text: 'What do you see?' },
+        { type: 'text', content: 'What do you see?' },
         { type: 'image', source: { type: 'url', value: '...' } }
       ]
     }
