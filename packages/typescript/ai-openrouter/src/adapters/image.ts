@@ -122,25 +122,11 @@ export class OpenRouterImageAdapter<
   ): ImageGenerationResult {
     const images: Array<GeneratedImage> = []
 
-    // The SDK types don't include images field, but it exists in the actual response
-    // Type assertion is safe here because we're calling with modalities: ['image']
-    const responseWithImages = response as ChatResponse & {
-      choices: Array<{
-        message?: {
-          images?: Array<{
-            image_url: {
-              url: string
-            }
-          }>
-        }
-      }>
-    }
-
-    for (const choice of responseWithImages.choices) {
+    for (const choice of response.choices) {
       const choiceImages = choice.message.images
       if (choiceImages) {
         for (const img of choiceImages) {
-          const url = img.image_url.url
+          const url = img.imageUrl.url
           if (url.startsWith('data:')) {
             const base64Match = url.match(/^data:image\/[^;]+;base64,(.+)$/)
             if (base64Match) {

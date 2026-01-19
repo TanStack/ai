@@ -1,19 +1,18 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { chat } from '@tanstack/ai'
-import {
-  createOpenRouterText,
-  OpenRouterTextModelOptions,
-} from '../src/adapters/text'
+import { createOpenRouterText } from '../src/adapters/text'
+import type { OpenRouterTextModelOptions } from '../src/adapters/text'
 import type { StreamChunk, Tool } from '@tanstack/ai'
 // Declare mockSend at module level
 let mockSend: any
 
 // Mock the SDK with a class defined inline
+// eslint-disable-next-line @typescript-eslint/require-await
 vi.mock('@openrouter/sdk', async () => {
   return {
     OpenRouter: class {
       chat = {
-        send: (...args: unknown[]) => mockSend(...args),
+        send: (...args: Array<unknown>) => mockSend(...args),
       }
     },
   }
@@ -35,6 +34,7 @@ function createAsyncIterable<T>(chunks: Array<T>): AsyncIterable<T> {
     [Symbol.asyncIterator]() {
       let index = 0
       return {
+        // eslint-disable-next-line @typescript-eslint/require-await
         async next() {
           if (index < chunks.length) {
             return { value: chunks[index++]!, done: false }
@@ -302,8 +302,8 @@ describe('OpenRouter adapter option mapping', () => {
     expect(toolCallChunks.length).toBe(1)
 
     const toolCallChunk = toolCallChunks[0]
-    expect(toolCallChunk.toolCall.function.name).toBe('lookup_weather')
-    expect(toolCallChunk.toolCall.function.arguments).toBe(
+    expect(toolCallChunk?.toolCall.function.name).toBe('lookup_weather')
+    expect(toolCallChunk?.toolCall.function.arguments).toBe(
       '{"location":"Berlin"}',
     )
   })

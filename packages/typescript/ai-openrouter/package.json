@@ -39,7 +39,7 @@
     "adapter"
   ],
   "dependencies": {
-    "@openrouter/sdk": "0.3.14",
+    "@openrouter/sdk": "0.3.15",
     "@tanstack/ai": "workspace:*"
   },
   "devDependencies": {

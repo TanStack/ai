@@ -15,9 +15,9 @@ import {
   openaiTranscription,
 } from '@tanstack/ai-openai'
 import {
-  openrouterImage,
-  openrouterSummarize,
-  openrouterText,
+  openRouterImage,
+  openRouterSummarize,
+  openRouterText,
 } from '@tanstack/ai-openrouter'
 
 /**
@@ -204,12 +204,12 @@ function createOpenRouterAdapters(): AdapterSet | null {
   if (!apiKey) return null
 
   return {
-    textAdapter: openrouterText(OPENROUTER_MODEL as any, { apiKey } as any),
-    summarizeAdapter: openrouterSummarize(
+    textAdapter: openRouterText(OPENROUTER_MODEL as any, { apiKey } as any),
+    summarizeAdapter: openRouterSummarize(
       OPENROUTER_SUMMARY_MODEL as any,
       { apiKey } as any,
     ),
-    imageAdapter: openrouterImage(
+    imageAdapter: openRouterImage(
       OPENROUTER_IMAGE_MODEL as any,
       { apiKey } as any,
     ),

@@ -9,7 +9,7 @@ import { openaiText } from '@tanstack/ai-openai'
 import { ollamaText } from '@tanstack/ai-ollama'
 import { anthropicText } from '@tanstack/ai-anthropic'
 import { geminiText } from '@tanstack/ai-gemini'
-import { openrouterText } from '@tanstack/ai-openrouter'
+import { openRouterText } from '@tanstack/ai-openrouter'
 import { grokText } from '@tanstack/ai-grok'
 import type { AnyTextAdapter } from '@tanstack/ai'
 import {
@@ -94,7 +94,11 @@ export const Route = createFileRoute('/api/tanchat')({
             }),
           openrouter: () =>
             createChatOptions({
-              adapter: openrouterText('openai/gpt-5.2'),
+              adapter: openRouterText('openrouter/auto'),
+              modelOptions: {
+                models: ['openai/chatgpt-4o-latest'],
+                route: 'fallback',
+              },
             }),
           gemini: () =>
             createChatOptions({

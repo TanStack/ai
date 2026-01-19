@@ -9,7 +9,7 @@ vi.mock('@openrouter/sdk', () => {
   return {
     OpenRouter: class {
       chat = {
-        send: (...args: unknown[]) => mockSend(...args),
+        send: (...args: Array<unknown>) => mockSend(...args),
       }
     },
   }
@@ -31,7 +31,7 @@ function createMockImageResponse(images: Array<{ url: string }>) {
           content: 'Here is the generated image.',
           images: images.map((img) => ({
             type: 'image_url',
-            image_url: { url: img.url },
+            imageUrl: { url: img.url },
           })),
         },
       },
