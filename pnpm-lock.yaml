@@ -81,16 +81,22 @@ importers:
         specifier: ^4.0.14
         version: 4.0.15(@types/node@24.10.3)(happy-dom@20.0.11)(jiti@2.6.1)(jsdom@27.3.0(postcss@8.5.6))(lightningcss@1.30.2)(terser@5.44.1)(tsx@4.21.0)(yaml@2.8.2)
 
+  examples/php-laravel:
+    devDependencies:
+      concurrently:
+        specifier: ^9.2.1
+        version: 9.2.1
+
   examples/php-slim:
     devDependencies:
       concurrently:
-        specifier: ^9.1.2
+        specifier: ^9.2.1
         version: 9.2.1
 
   examples/python-fastapi:
     devDependencies:
       concurrently:
-        specifier: ^9.1.2
+        specifier: ^9.2.1
         version: 9.2.1
 
   examples/ts-group-chat:
@@ -569,7 +575,7 @@ importers:
         specifier: ^10.4.21
         version: 10.4.22(postcss@8.5.6)
       concurrently:
-        specifier: ^9.1.2
+        specifier: ^9.2.1
         version: 9.2.1
       dotenv:
         specifier: ^17.2.3

@@ -1,0 +1,20 @@
+/vendor/
+/node_modules/
+/.env
+/.env.backup
+/.phpunit.result.cache
+Homestead.json
+Homestead.yaml
+auth.json
+npm-debug.log
+yarn-error.log
+/.idea
+/.vscode
+/.fleet
+/.nova
+.DS_Store
+Thumbs.db
+
+# Database
+/database/*.sqlite
+/database/*.sqlite-journal
