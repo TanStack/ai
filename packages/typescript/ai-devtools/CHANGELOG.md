@@ -1,5 +1,11 @@
 # @tanstack/ai-devtools-core
 
+## 0.2.1
+
+### Patch Changes
+
+- Fix issue with double mounting of devtools ([#123](https://github.com/TanStack/ai/pull/123))
+
 ## 0.2.0
 
 ### Minor Changes
