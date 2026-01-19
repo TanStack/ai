@@ -138,6 +138,11 @@ export type OpenRouterCommonOptions = {
    */
   models?: Array<OpenRouterChatModel>
   /**
+   * The model variant to use, if supported by the model.
+   * Will be appended to the model ID.
+   */
+  variant?: 'free' | 'nitro' | 'online' | 'exacto' | 'extended' | 'thinking'
+  /**
    * The routing strategy to use.
    * 'fallback' - Try models in order until one succeeds
    */
@@ -318,6 +323,11 @@ export interface InternalTextProviderOptions extends ExternalTextProviderOptions
    * https://openrouter.ai/models
    */
   model: string
+  /**
+   * The model variant to use, if supported by the model.
+   * Will be appended to the model ID.
+   */
+  variant?: 'free' | 'nitro' | 'online' | 'exacto' | 'extended' | 'thinking'
   /**
    * The messages to send to the model.
    */
