@@ -372,9 +372,8 @@ export class OpenRouterTextAdapter<
 
     const request: ChatGenerationParams = {
       model:
-        options.model + modelOptions?.variant
-          ? `:${modelOptions?.variant}`
-          : '',
+        options.model +
+        (modelOptions?.variant ? `:${modelOptions.variant}` : ''),
       messages,
       temperature: options.temperature,
       maxTokens: options.maxTokens,
