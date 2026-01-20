@@ -73,8 +73,8 @@ export {
 // All types
 export * from './types'
 
-// Event client
-export { aiEventClient } from './event-client'
+// Event client + event types
+export * from './event-client'
 
 // Message converters
 export {

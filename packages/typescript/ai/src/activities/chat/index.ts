@@ -213,6 +213,8 @@ class TextEngine<
   private totalChunkCount = 0
   private currentMessageId: string | null = null
   private accumulatedContent = ''
+  private eventOptions?: Record<string, unknown>
+  private eventToolNames?: Array<string>
   private doneChunk: DoneStreamChunk | null = null
   private shouldEmitStreamEnd = true
   private earlyTermination = false
@@ -278,16 +280,7 @@ class TextEngine<
 
   private beforeRun(): void {
     this.streamStartTime = Date.now()
-    const {
-      model,
-      tools,
-      temperature,
-      topP,
-      maxTokens,
-      metadata,
-      modelOptions,
-      conversationId,
-    } = this.params
+    const { tools, temperature, topP, maxTokens, metadata } = this.params
 
     // Gather flattened options into an object for event emission
     const options: Record<string, unknown> = {}
@@ -296,26 +289,49 @@ class TextEngine<
     if (maxTokens !== undefined) options.maxTokens = maxTokens
     if (metadata !== undefined) options.metadata = metadata
 
-    aiEventClient.emit('text:started', {
-      requestId: this.requestId,
-      streamId: this.streamId,
-      model: model,
-      provider: this.adapter.name,
-      messageCount: this.initialMessageCount,
-      hasTools: !!tools && tools.length > 0,
-      streaming: true,
+    this.eventOptions = Object.keys(options).length > 0 ? options : undefined
+    this.eventToolNames = tools?.map((t) => t.name)
+
+    aiEventClient.emit('text:request:started', {
+      ...this.buildTextEventContext(),
       timestamp: Date.now(),
-      clientId: conversationId,
-      toolNames: tools?.map((t) => t.name),
-      options: Object.keys(options).length > 0 ? options : undefined,
-      modelOptions: modelOptions as Record<string, unknown> | undefined,
     })
 
-    aiEventClient.emit('stream:started', {
-      streamId: this.streamId,
-      model,
-      provider: this.adapter.name,
-      timestamp: Date.now(),
+    // Always emit messages for tracking:
+    // - For existing conversations (with conversationId): only emit the latest user message
+    // - For new conversations (without conversationId): emit all messages for reconstruction
+    const messagesToEmit = this.params.conversationId
+      ? this.messages.slice(-1).filter((m) => m.role === 'user')
+      : this.messages
+
+    messagesToEmit.forEach((message, index) => {
+      const messageIndex = this.params.conversationId
+        ? this.messages.length - 1
+        : index
+      const messageId = this.createId('msg')
+      const baseContext = this.buildTextEventContext()
+      const content = this.getContentString(message.content)
+
+      aiEventClient.emit('text:message:created', {
+        ...baseContext,
+        messageId,
+        role: message.role,
+        content,
+        toolCalls: message.toolCalls,
+        messageIndex,
+        timestamp: Date.now(),
+      })
+
+      if (message.role === 'user') {
+        aiEventClient.emit('text:message:user', {
+          ...baseContext,
+          messageId,
+          role: 'user',
+          content,
+          messageIndex,
+          timestamp: Date.now(),
+        })
+      }
     })
   }
 
@@ -325,23 +341,13 @@ class TextEngine<
     }
 
     const now = Date.now()
-
-    // Emit text:completed with final state
-    aiEventClient.emit('text:completed', {
-      requestId: this.requestId,
-      streamId: this.streamId,
-      model: this.params.model,
+    // Emit text:request:completed with final state
+    aiEventClient.emit('text:request:completed', {
+      ...this.buildTextEventContext(),
       content: this.accumulatedContent,
       messageId: this.currentMessageId || undefined,
       finishReason: this.lastFinishReason || undefined,
       usage: this.doneChunk?.usage,
-      timestamp: now,
-    })
-
-    aiEventClient.emit('stream:ended', {
-      requestId: this.requestId,
-      streamId: this.streamId,
-      totalChunks: this.totalChunkCount,
       duration: now - this.streamStartTime,
       timestamp: now,
     })
@@ -367,6 +373,15 @@ class TextEngine<
     this.currentMessageId = this.createId('msg')
     this.accumulatedContent = ''
     this.doneChunk = null
+
+    const baseContext = this.buildTextEventContext()
+    aiEventClient.emit('text:message:created', {
+      ...baseContext,
+      messageId: this.currentMessageId,
+      role: 'assistant',
+      content: '',
+      timestamp: Date.now(),
+    })
   }
 
   private async *streamModelResponse(): AsyncGenerator<StreamChunk> {
@@ -438,8 +453,8 @@ class TextEngine<
 
   private handleContentChunk(chunk: Extract<StreamChunk, { type: 'content' }>) {
     this.accumulatedContent = chunk.content
-    aiEventClient.emit('stream:chunk:content', {
-      streamId: this.streamId,
+    aiEventClient.emit('text:chunk:content', {
+      ...this.buildTextEventContext(),
       messageId: this.currentMessageId || undefined,
       content: chunk.content,
       delta: chunk.delta,
@@ -451,8 +466,8 @@ class TextEngine<
     chunk: Extract<StreamChunk, { type: 'tool_call' }>,
   ): void {
     this.toolCallManager.addToolCallChunk(chunk)
-    aiEventClient.emit('stream:chunk:tool-call', {
-      streamId: this.streamId,
+    aiEventClient.emit('text:chunk:tool-call', {
+      ...this.buildTextEventContext(),
       messageId: this.currentMessageId || undefined,
       toolCallId: chunk.toolCall.id,
       toolName: chunk.toolCall.function.name,
@@ -465,8 +480,8 @@ class TextEngine<
   private handleToolResultChunk(
     chunk: Extract<StreamChunk, { type: 'tool_result' }>,
   ): void {
-    aiEventClient.emit('stream:chunk:tool-result', {
-      streamId: this.streamId,
+    aiEventClient.emit('text:chunk:tool-result', {
+      ...this.buildTextEventContext(),
       messageId: this.currentMessageId || undefined,
       toolCallId: chunk.toolCallId,
       result: chunk.content,
@@ -477,37 +492,8 @@ class TextEngine<
   private handleDoneChunk(chunk: DoneStreamChunk): void {
     // Don't overwrite a tool_calls finishReason with a stop finishReason
     // This can happen when adapters send multiple done chunks
-    if (
-      this.doneChunk?.finishReason === 'tool_calls' &&
-      chunk.finishReason === 'stop'
-    ) {
-      // Still emit the event and update lastFinishReason, but don't overwrite doneChunk
-      this.lastFinishReason = chunk.finishReason
-      aiEventClient.emit('stream:chunk:done', {
-        streamId: this.streamId,
-        messageId: this.currentMessageId || undefined,
-        finishReason: chunk.finishReason,
-        usage: chunk.usage,
-        timestamp: Date.now(),
-      })
-
-      if (chunk.usage) {
-        aiEventClient.emit('usage:tokens', {
-          requestId: this.requestId,
-          streamId: this.streamId,
-          messageId: this.currentMessageId || undefined,
-          model: this.params.model,
-          usage: chunk.usage,
-          timestamp: Date.now(),
-        })
-      }
-      return
-    }
-
-    this.doneChunk = chunk
-    this.lastFinishReason = chunk.finishReason
-    aiEventClient.emit('stream:chunk:done', {
-      streamId: this.streamId,
+    aiEventClient.emit('text:chunk:done', {
+      ...this.buildTextEventContext(),
       messageId: this.currentMessageId || undefined,
       finishReason: chunk.finishReason,
       usage: chunk.usage,
@@ -515,22 +501,32 @@ class TextEngine<
     })
 
     if (chunk.usage) {
-      aiEventClient.emit('usage:tokens', {
-        requestId: this.requestId,
-        streamId: this.streamId,
+      aiEventClient.emit('text:usage', {
+        ...this.buildTextEventContext(),
         messageId: this.currentMessageId || undefined,
-        model: this.params.model,
         usage: chunk.usage,
         timestamp: Date.now(),
       })
     }
+    if (
+      this.doneChunk?.finishReason === 'tool_calls' &&
+      chunk.finishReason === 'stop'
+    ) {
+      // Still emit the event and update lastFinishReason, but don't overwrite doneChunk
+      this.lastFinishReason = chunk.finishReason
+
+      return
+    }
+
+    this.doneChunk = chunk
+    this.lastFinishReason = chunk.finishReason
   }
 
   private handleErrorChunk(
     chunk: Extract<StreamChunk, { type: 'error' }>,
   ): void {
-    aiEventClient.emit('stream:chunk:error', {
-      streamId: this.streamId,
+    aiEventClient.emit('text:chunk:error', {
+      ...this.buildTextEventContext(),
       messageId: this.currentMessageId || undefined,
       error: chunk.error.message,
       timestamp: Date.now(),
@@ -542,8 +538,8 @@ class TextEngine<
   private handleThinkingChunk(
     chunk: Extract<StreamChunk, { type: 'thinking' }>,
   ): void {
-    aiEventClient.emit('stream:chunk:thinking', {
-      streamId: this.streamId,
+    aiEventClient.emit('text:chunk:thinking', {
+      ...this.buildTextEventContext(),
       messageId: this.currentMessageId || undefined,
       content: chunk.content,
       delta: chunk.delta,
@@ -562,15 +558,6 @@ class TextEngine<
     }
 
     const doneChunk = this.createSyntheticDoneChunk()
-
-    aiEventClient.emit('text:iteration', {
-      requestId: this.requestId,
-      streamId: this.streamId,
-      iterationNumber: this.iterationCount + 1,
-      messageCount: this.messages.length,
-      toolCallCount: pendingToolCalls.length,
-      timestamp: Date.now(),
-    })
 
     const { approvals, clientToolResults } = this.collectClientState()
 
@@ -629,15 +616,6 @@ class TextEngine<
       return
     }
 
-    aiEventClient.emit('text:iteration', {
-      requestId: this.requestId,
-      streamId: this.streamId,
-      iterationNumber: this.iterationCount + 1,
-      messageCount: this.messages.length,
-      toolCallCount: toolCalls.length,
-      timestamp: Date.now(),
-    })
-
     this.addAssistantToolCallMessage(toolCalls)
 
     const { approvals, clientToolResults } = this.collectClientState()
@@ -694,6 +672,7 @@ class TextEngine<
   }
 
   private addAssistantToolCallMessage(toolCalls: Array<ToolCall>): void {
+    const messageId = this.currentMessageId ?? this.createId('msg')
     this.messages = [
       ...this.messages,
       {
@@ -702,6 +681,15 @@ class TextEngine<
         toolCalls,
       },
     ]
+
+    aiEventClient.emit('text:message:created', {
+      ...this.buildTextEventContext(),
+      messageId,
+      role: 'assistant',
+      content: this.accumulatedContent || '',
+      toolCalls,
+      timestamp: Date.now(),
+    })
   }
 
   private collectClientState(): {
@@ -745,8 +733,8 @@ class TextEngine<
     const chunks: Array<StreamChunk> = []
 
     for (const approval of approvals) {
-      aiEventClient.emit('stream:approval-requested', {
-        streamId: this.streamId,
+      aiEventClient.emit('tools:approval:requested', {
+        ...this.buildTextEventContext(),
         messageId: this.currentMessageId || undefined,
         toolCallId: approval.toolCallId,
         toolName: approval.toolName,
@@ -780,8 +768,8 @@ class TextEngine<
     const chunks: Array<StreamChunk> = []
 
     for (const clientTool of clientRequests) {
-      aiEventClient.emit('stream:tool-input-available', {
-        streamId: this.streamId,
+      aiEventClient.emit('tools:input:available', {
+        ...this.buildTextEventContext(),
         messageId: this.currentMessageId || undefined,
         toolCallId: clientTool.toolCallId,
         toolName: clientTool.toolName,
@@ -810,9 +798,8 @@ class TextEngine<
     const chunks: Array<StreamChunk> = []
 
     for (const result of results) {
-      aiEventClient.emit('tool:call-completed', {
-        requestId: this.requestId,
-        streamId: this.streamId,
+      aiEventClient.emit('tools:call:completed', {
+        ...this.buildTextEventContext(),
         messageId: this.currentMessageId || undefined,
         toolCallId: result.toolCallId,
         toolName: result.toolName,
@@ -841,6 +828,14 @@ class TextEngine<
           toolCallId: result.toolCallId,
         },
       ]
+
+      aiEventClient.emit('text:message:created', {
+        ...this.buildTextEventContext(),
+        messageId: this.createId('msg'),
+        role: 'tool',
+        content,
+        timestamp: Date.now(),
+      })
     }
 
     return chunks
@@ -894,6 +889,46 @@ class TextEngine<
 
   private isAborted(): boolean {
     return !!this.effectiveSignal?.aborted
+  }
+
+  private buildTextEventContext(): {
+    requestId: string
+    streamId: string
+    provider: string
+    model: string
+    clientId?: string
+    source?: 'client' | 'server'
+    systemPrompts?: Array<string>
+    toolNames?: Array<string>
+    options?: Record<string, unknown>
+    modelOptions?: Record<string, unknown>
+    messageCount: number
+    hasTools: boolean
+    streaming: boolean
+  } {
+    return {
+      requestId: this.requestId,
+      streamId: this.streamId,
+      provider: this.adapter.name,
+      model: this.params.model,
+      clientId: this.params.conversationId,
+      source: 'server',
+      systemPrompts:
+        this.systemPrompts.length > 0 ? this.systemPrompts : undefined,
+      toolNames: this.eventToolNames,
+      options: this.eventOptions,
+      modelOptions: this.params.modelOptions as
+        | Record<string, unknown>
+        | undefined,
+      messageCount: this.initialMessageCount,
+      hasTools: this.tools.length > 0,
+      streaming: true,
+    }
+  }
+
+  private getContentString(content: ModelMessage['content']): string {
+    if (typeof content === 'string') return content
+    return JSON.stringify(content)
   }
 
   private setToolPhase(phase: ToolPhaseResult): void {
