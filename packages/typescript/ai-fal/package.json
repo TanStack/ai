@@ -41,8 +41,7 @@
     "video-generation"
   ],
   "dependencies": {
-    "@fal-ai/client": "^1.8.3",
-    "@tanstack/ai": "workspace:*"
+    "@fal-ai/client": "^1.8.3"
   },
   "devDependencies": {
     "@vitest/coverage-v8": "4.0.14",
