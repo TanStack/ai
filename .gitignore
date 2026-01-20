@@ -53,3 +53,5 @@ test-traces
 **/adapters/output
 .nitro
 .output
+
+.claude/settings.local.json

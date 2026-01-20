@@ -7,7 +7,15 @@
       "Bash(pnpm test:lib:*)",
       "Bash(pnpm typecheck:*)",
       "Bash(pnpm build:*)",
-      "Bash(find:*)"
+      "Bash(find:*)",
+      "Bash(tree:*)",
+      "WebSearch",
+      "WebFetch(domain:fal.ai)",
+      "mcp__fal__SearchFal"
     ]
+  },
+  "sandbox": {
+    "enabled": true,
+    "autoAllowBashIfSandboxed": true
   }
 }
