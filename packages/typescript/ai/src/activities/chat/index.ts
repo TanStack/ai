@@ -928,7 +928,11 @@ class TextEngine<
 
   private getContentString(content: ModelMessage['content']): string {
     if (typeof content === 'string') return content
-    return JSON.stringify(content)
+    const text =
+      content
+        ?.map((part) => (part.type === 'text' ? part.content : ''))
+        .join('') || ''
+    return text
   }
 
   private setToolPhase(phase: ToolPhaseResult): void {
