@@ -1,0 +1,501 @@
+import { useEffect, useRef, useState } from 'react'
+import { createFileRoute } from '@tanstack/react-router'
+import { useRealtimeChat } from '@tanstack/ai-react'
+import { openaiRealtime } from '@tanstack/ai-openai'
+import { elevenlabsRealtime } from '@tanstack/ai-elevenlabs'
+import { Mic, MicOff, Phone, PhoneOff, Volume2 } from 'lucide-react'
+
+type Provider = 'openai' | 'elevenlabs'
+
+const PROVIDER_OPTIONS: Array<{ value: Provider; label: string }> = [
+  { value: 'openai', label: 'OpenAI Realtime' },
+  { value: 'elevenlabs', label: 'ElevenLabs' },
+]
+
+// Sparkline component to visualize audio waveform
+function AudioSparkline({ 
+  getData, 
+  color,
+  label,
+}: { 
+  getData: () => Uint8Array
+  color: string
+  label: string
+}) {
+  const canvasRef = useRef<HTMLCanvasElement>(null)
+  const animationRef = useRef<number | null>(null)
+
+  useEffect(() => {
+    const canvas = canvasRef.current
+    if (!canvas) return
+
+    const ctx = canvas.getContext('2d')
+    if (!ctx) return
+
+    function draw() {
+      const data = getData()
+      const width = canvas!.width
+      const height = canvas!.height
+
+      // Clear canvas
+      ctx!.fillStyle = '#1f2937' // gray-800
+      ctx!.fillRect(0, 0, width, height)
+
+      // Draw waveform
+      ctx!.strokeStyle = color
+      ctx!.lineWidth = 1
+      ctx!.beginPath()
+
+      // Sample the data to fit the canvas width
+      const step = Math.max(1, Math.floor(data.length / width))
+      
+      for (let i = 0; i < width; i++) {
+        const dataIndex = Math.min(i * step, data.length - 1)
+        const value = data[dataIndex] ?? 128
+        // Convert 0-255 to canvas height (128 is center/silence)
+        const y = height - ((value / 255) * height)
+        
+        if (i === 0) {
+          ctx!.moveTo(i, y)
+        } else {
+          ctx!.lineTo(i, y)
+        }
+      }
+      
+      ctx!.stroke()
+
+      // Draw center line (silence level)
+      ctx!.strokeStyle = '#4b5563' // gray-600
+      ctx!.setLineDash([2, 2])
+      ctx!.beginPath()
+      ctx!.moveTo(0, height / 2)
+      ctx!.lineTo(width, height / 2)
+      ctx!.stroke()
+      ctx!.setLineDash([])
+
+      animationRef.current = requestAnimationFrame(draw)
+    }
+
+    draw()
+
+    return () => {
+      if (animationRef.current) {
+        cancelAnimationFrame(animationRef.current)
+      }
+    }
+  }, [getData, color])
+
+  return (
+    <div className="flex items-center gap-2">
+      <span className="text-xs text-gray-500 w-12">{label}</span>
+      <canvas 
+        ref={canvasRef} 
+        width={200} 
+        height={40} 
+        className="rounded border border-gray-700"
+      />
+    </div>
+  )
+}
+
+// Debug component to show raw audio data stats
+function AudioDebug({ 
+  getData, 
+  label 
+}: { 
+  getData: () => Uint8Array
+  label: string 
+}) {
+  const [stats, setStats] = useState({ length: 0, min: 0, max: 0, allSame: true, sample: '[]' })
+  
+  useEffect(() => {
+    function update() {
+      const data = getData()
+      const min = Math.min(...data)
+      const max = Math.max(...data)
+      const allSame = data.every(v => v === data[0])
+      // Get a few samples from different parts of the array
+      const samples = data.length > 0 ? [
+        data[0], 
+        data[Math.floor(data.length / 4)],
+        data[Math.floor(data.length / 2)],
+        data[Math.floor(data.length * 3 / 4)],
+        data[data.length - 1]
+      ] : []
+      setStats({
+        length: data.length,
+        min,
+        max,
+        allSame,
+        sample: `[${samples.join(', ')}]`
+      })
+      requestAnimationFrame(update)
+    }
+    const id = requestAnimationFrame(update)
+    return () => cancelAnimationFrame(id)
+  }, [getData])
+
+  return (
+    <div className="text-xs text-gray-400 font-mono">
+      <span className="text-gray-500">{label}:</span> len={stats.length}, min={stats.min}, max={stats.max}, 
+      {stats.allSame ? <span className="text-red-400"> ALL SAME!</span> : <span className="text-green-400"> varying</span>}
+      <span className="text-gray-600"> {stats.sample}</span>
+    </div>
+  )
+}
+
+function RealtimePage() {
+  const [provider, setProvider] = useState<Provider>('openai')
+  const [agentId, setAgentId] = useState('')
+  const [showDebug, setShowDebug] = useState(true)
+  const messagesEndRef = useRef<HTMLDivElement>(null)
+
+  // Get the appropriate adapter based on provider
+  const adapter = provider === 'openai' ? openaiRealtime() : elevenlabsRealtime()
+
+  const {
+    status,
+    mode,
+    messages,
+    pendingUserTranscript,
+    pendingAssistantTranscript,
+    error,
+    connect,
+    disconnect,
+    interrupt,
+    inputLevel,
+    outputLevel,
+    sendText,
+    getInputTimeDomainData,
+    getOutputTimeDomainData,
+  } = useRealtimeChat({
+    getToken: async () => {
+      const body: Record<string, string> = { provider }
+      if (provider === 'elevenlabs' && agentId) {
+        body.agentId = agentId
+      }
+      const response = await fetch('/api/realtime-token', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      })
+      if (!response.ok) {
+        const error = await response.json()
+        throw new Error(error.error || 'Failed to get token')
+      }
+      return response.json()
+    },
+    adapter,
+    onError: (err) => {
+      console.error('Realtime error:', err)
+    },
+  })
+
+  // Auto-scroll to bottom when messages change
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
+  }, [messages, pendingUserTranscript, pendingAssistantTranscript])
+
+  // Get status color
+  const getStatusColor = () => {
+    switch (status) {
+      case 'connected':
+        return 'bg-green-500'
+      case 'connecting':
+      case 'reconnecting':
+        return 'bg-yellow-500'
+      case 'error':
+        return 'bg-red-500'
+      default:
+        return 'bg-gray-500'
+    }
+  }
+
+  // Get mode icon
+  const getModeIndicator = () => {
+    switch (mode) {
+      case 'listening':
+        return (
+          <div className="flex items-center gap-2 text-green-400">
+            <Mic className="w-5 h-5 animate-pulse" />
+            <span>Listening...</span>
+          </div>
+        )
+      case 'thinking':
+        return (
+          <div className="flex items-center gap-2 text-yellow-400">
+            <div className="w-5 h-5 border-2 border-yellow-400 border-t-transparent rounded-full animate-spin" />
+            <span>Thinking...</span>
+          </div>
+        )
+      case 'speaking':
+        return (
+          <div className="flex items-center gap-2 text-blue-400">
+            <Volume2 className="w-5 h-5 animate-pulse" />
+            <span>Speaking...</span>
+          </div>
+        )
+      default:
+        return (
+          <div className="flex items-center gap-2 text-gray-400">
+            <MicOff className="w-5 h-5" />
+            <span>Idle</span>
+          </div>
+        )
+    }
+  }
+
+  return (
+    <div className="flex h-[calc(100vh-72px)] bg-gray-900">
+      <div className="w-full flex flex-col">
+        {/* Header */}
+        <div className="border-b border-orange-500/20 bg-gray-800 px-4 py-3">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-4">
+              {/* Provider selector */}
+              <div>
+                <label className="text-sm text-gray-400 mb-1 block">
+                  Provider
+                </label>
+                <select
+                  value={provider}
+                  onChange={(e) => setProvider(e.target.value as Provider)}
+                  disabled={status !== 'idle'}
+                  className="rounded-lg border border-orange-500/20 bg-gray-900 px-3 py-2 text-sm text-white focus:outline-none focus:ring-2 focus:ring-orange-500/50 disabled:opacity-50"
+                >
+                  {PROVIDER_OPTIONS.map((opt) => (
+                    <option key={opt.value} value={opt.value}>
+                      {opt.label}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {/* ElevenLabs Agent ID (conditional) */}
+              {provider === 'elevenlabs' && (
+                <div>
+                  <label className="text-sm text-gray-400 mb-1 block">
+                    Agent ID
+                  </label>
+                  <input
+                    type="text"
+                    value={agentId}
+                    onChange={(e) => setAgentId(e.target.value)}
+                    placeholder="Your ElevenLabs Agent ID"
+                    disabled={status !== 'idle'}
+                    className="rounded-lg border border-orange-500/20 bg-gray-900 px-3 py-2 text-sm text-white focus:outline-none focus:ring-2 focus:ring-orange-500/50 disabled:opacity-50 w-64"
+                  />
+                </div>
+              )}
+            </div>
+
+            {/* Status */}
+            <div className="flex items-center gap-4">
+              <div className="flex items-center gap-2">
+                <div className={`w-3 h-3 rounded-full ${getStatusColor()}`} />
+                <span className="text-sm text-gray-300 capitalize">
+                  {status}
+                </span>
+              </div>
+              {getModeIndicator()}
+            </div>
+          </div>
+        </div>
+
+        {/* Messages area */}
+        <div className="flex-1 overflow-y-auto px-4 py-4">
+          {messages.length === 0 && status === 'idle' && (
+            <div className="flex flex-col items-center justify-center h-full text-gray-500">
+              <Mic className="w-16 h-16 mb-4" />
+              <p className="text-lg">Voice Chat</p>
+              <p className="text-sm">
+                Click "Start Conversation" to begin talking with the AI
+              </p>
+            </div>
+          )}
+
+          {messages.map((message) => (
+            <div
+              key={message.id}
+              className={`p-4 rounded-lg mb-2 ${
+                message.role === 'assistant'
+                  ? 'bg-linear-to-r from-orange-500/5 to-red-600/5'
+                  : 'bg-transparent'
+              }`}
+            >
+              <div className="flex items-start gap-4">
+                {message.role === 'assistant' ? (
+                  <div className="w-8 h-8 rounded-lg bg-linear-to-r from-orange-500 to-red-600 flex items-center justify-center text-sm font-medium text-white shrink-0">
+                    AI
+                  </div>
+                ) : (
+                  <div className="w-8 h-8 rounded-lg bg-gray-700 flex items-center justify-center text-sm font-medium text-white shrink-0">
+                    U
+                  </div>
+                )}
+                <div className="flex-1 min-w-0">
+                  {message.parts.map((part, idx) => {
+                    if (part.type === 'audio') {
+                      return (
+                        <p key={idx} className="text-white">
+                          {part.transcript}
+                        </p>
+                      )
+                    }
+                    if (part.type === 'text') {
+                      return (
+                        <p key={idx} className="text-white">
+                          {part.content}
+                        </p>
+                      )
+                    }
+                    return null
+                  })}
+                  {message.interrupted && (
+                    <span className="text-xs text-gray-500 ml-2">
+                      (interrupted)
+                    </span>
+                  )}
+                </div>
+              </div>
+            </div>
+          ))}
+
+          {/* Pending transcripts */}
+          {pendingUserTranscript && (
+            <div className="p-4 rounded-lg mb-2 bg-transparent opacity-60">
+              <div className="flex items-start gap-4">
+                <div className="w-8 h-8 rounded-lg bg-gray-700 flex items-center justify-center text-sm font-medium text-white shrink-0">
+                  U
+                </div>
+                <p className="text-white italic">{pendingUserTranscript}...</p>
+              </div>
+            </div>
+          )}
+
+          {pendingAssistantTranscript && (
+            <div className="p-4 rounded-lg mb-2 bg-linear-to-r from-orange-500/5 to-red-600/5 opacity-60">
+              <div className="flex items-start gap-4">
+                <div className="w-8 h-8 rounded-lg bg-linear-to-r from-orange-500 to-red-600 flex items-center justify-center text-sm font-medium text-white shrink-0">
+                  AI
+                </div>
+                <p className="text-white italic">
+                  {pendingAssistantTranscript}...
+                </p>
+              </div>
+            </div>
+          )}
+
+          <div ref={messagesEndRef} />
+        </div>
+
+        {/* Error display */}
+        {error && (
+          <div className="mx-4 mb-2 p-3 bg-red-500/20 border border-red-500/30 rounded-lg text-red-300 text-sm">
+            Error: {error.message}
+          </div>
+        )}
+
+        {/* Audio visualization & controls */}
+        <div className="border-t border-orange-500/10 bg-gray-900/80 backdrop-blur-sm p-4">
+          {/* Volume meters and waveforms */}
+          {status === 'connected' && (
+            <div className="mb-4 space-y-3">
+              {/* Input (Microphone) */}
+              <div className="flex items-center gap-3">
+                <Mic className="w-4 h-4 text-gray-400" />
+                <div className="flex-1 h-2 bg-gray-700 rounded-full overflow-hidden">
+                  <div
+                    className="h-full bg-green-500 transition-all duration-75"
+                    style={{ width: `${inputLevel * 100}%` }}
+                  />
+                </div>
+                <span className="text-xs text-gray-500 w-10 text-right">
+                  {Math.round(inputLevel * 100)}%
+                </span>
+                <AudioSparkline 
+                  getData={getInputTimeDomainData} 
+                  color="#22c55e" 
+                  label="Input"
+                />
+              </div>
+              {/* Output (Speaker) */}
+              <div className="flex items-center gap-3">
+                <Volume2 className="w-4 h-4 text-gray-400" />
+                <div className="flex-1 h-2 bg-gray-700 rounded-full overflow-hidden">
+                  <div
+                    className="h-full bg-blue-500 transition-all duration-75"
+                    style={{ width: `${outputLevel * 100}%` }}
+                  />
+                </div>
+                <span className="text-xs text-gray-500 w-10 text-right">
+                  {Math.round(outputLevel * 100)}%
+                </span>
+                <AudioSparkline 
+                  getData={getOutputTimeDomainData} 
+                  color="#3b82f6" 
+                  label="Output"
+                />
+              </div>
+              
+              {/* Debug info */}
+              {showDebug && (
+                <div className="mt-3 p-2 bg-gray-800 rounded border border-gray-700">
+                  <div className="flex justify-between items-center mb-2">
+                    <span className="text-xs text-gray-500 font-medium">Audio Debug</span>
+                    <button 
+                      onClick={() => setShowDebug(false)}
+                      className="text-xs text-gray-500 hover:text-gray-400"
+                    >
+                      Hide
+                    </button>
+                  </div>
+                  <AudioDebug getData={getInputTimeDomainData} label="Input" />
+                  <AudioDebug getData={getOutputTimeDomainData} label="Output" />
+                  <div className="text-xs text-gray-500 mt-1">
+                    inputLevel: {inputLevel.toFixed(4)}, outputLevel: {outputLevel.toFixed(4)}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Controls */}
+          <div className="flex justify-center gap-4">
+            {status === 'idle' ? (
+              <button
+                onClick={connect}
+                className="flex items-center gap-2 px-6 py-3 bg-green-600 hover:bg-green-700 text-white rounded-full text-sm font-medium transition-colors"
+              >
+                <Phone className="w-5 h-5" />
+                Start Conversation
+              </button>
+            ) : (
+              <>
+                {mode === 'speaking' && (
+                  <button
+                    onClick={interrupt}
+                    className="flex items-center gap-2 px-4 py-2 bg-yellow-600 hover:bg-yellow-700 text-white rounded-lg text-sm font-medium transition-colors"
+                  >
+                    Interrupt
+                  </button>
+                )}
+                <button
+                  onClick={disconnect}
+                  className="flex items-center gap-2 px-6 py-3 bg-red-600 hover:bg-red-700 text-white rounded-full text-sm font-medium transition-colors"
+                >
+                  <PhoneOff className="w-5 h-5" />
+                  End Conversation
+                </button>
+              </>
+            )}
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+export const Route = createFileRoute('/realtime')({
+  component: RealtimePage,
+})

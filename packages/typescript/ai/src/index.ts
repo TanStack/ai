@@ -79,6 +79,30 @@ export { detectImageMimeType } from './utils'
 // Event client + event types
 export * from './event-client'
 
+// Realtime
+export { realtimeToken } from './realtime/index'
+export type {
+  RealtimeToken,
+  RealtimeTokenAdapter,
+  RealtimeTokenOptions,
+  RealtimeSessionConfig,
+  VADConfig,
+  RealtimeMessage,
+  RealtimeMessagePart,
+  RealtimeTextPart,
+  RealtimeAudioPart,
+  RealtimeToolCallPart,
+  RealtimeToolResultPart,
+  RealtimeStatus,
+  RealtimeMode,
+  AudioVisualization,
+  RealtimeEvent,
+  RealtimeEventPayloads,
+  RealtimeEventHandler,
+  RealtimeErrorCode,
+  RealtimeError,
+} from './realtime/index'
+
 // Message converters
 export {
   convertMessagesToModelMessages,

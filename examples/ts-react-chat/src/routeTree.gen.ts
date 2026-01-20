@@ -9,11 +9,18 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
+import { Route as RealtimeRouteImport } from './routes/realtime'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as ApiTanchatRouteImport } from './routes/api.tanchat'
+import { Route as ApiRealtimeTokenRouteImport } from './routes/api.realtime-token'
 import { Route as ExampleGuitarsIndexRouteImport } from './routes/example.guitars/index'
 import { Route as ExampleGuitarsGuitarIdRouteImport } from './routes/example.guitars/$guitarId'
 
+const RealtimeRoute = RealtimeRouteImport.update({
+  id: '/realtime',
+  path: '/realtime',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
@@ -22,6 +29,11 @@ const IndexRoute = IndexRouteImport.update({
 const ApiTanchatRoute = ApiTanchatRouteImport.update({
   id: '/api/tanchat',
   path: '/api/tanchat',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiRealtimeTokenRoute = ApiRealtimeTokenRouteImport.update({
+  id: '/api/realtime-token',
+  path: '/api/realtime-token',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ExampleGuitarsIndexRoute = ExampleGuitarsIndexRouteImport.update({
@@ -37,12 +49,16 @@ const ExampleGuitarsGuitarIdRoute = ExampleGuitarsGuitarIdRouteImport.update({
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/realtime': typeof RealtimeRoute
+  '/api/realtime-token': typeof ApiRealtimeTokenRoute
   '/api/tanchat': typeof ApiTanchatRoute
   '/example/guitars/$guitarId': typeof ExampleGuitarsGuitarIdRoute
   '/example/guitars/': typeof ExampleGuitarsIndexRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/realtime': typeof RealtimeRoute
+  '/api/realtime-token': typeof ApiRealtimeTokenRoute
   '/api/tanchat': typeof ApiTanchatRoute
   '/example/guitars/$guitarId': typeof ExampleGuitarsGuitarIdRoute
   '/example/guitars': typeof ExampleGuitarsIndexRoute
@@ -50,6 +66,8 @@ export interface FileRoutesByTo {
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/realtime': typeof RealtimeRoute
+  '/api/realtime-token': typeof ApiRealtimeTokenRoute
   '/api/tanchat': typeof ApiTanchatRoute
   '/example/guitars/$guitarId': typeof ExampleGuitarsGuitarIdRoute
   '/example/guitars/': typeof ExampleGuitarsIndexRoute
@@ -58,14 +76,24 @@ export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
+    | '/realtime'
+    | '/api/realtime-token'
     | '/api/tanchat'
     | '/example/guitars/$guitarId'
     | '/example/guitars/'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/api/tanchat' | '/example/guitars/$guitarId' | '/example/guitars'
+  to:
+    | '/'
+    | '/realtime'
+    | '/api/realtime-token'
+    | '/api/tanchat'
+    | '/example/guitars/$guitarId'
+    | '/example/guitars'
   id:
     | '__root__'
     | '/'
+    | '/realtime'
+    | '/api/realtime-token'
     | '/api/tanchat'
     | '/example/guitars/$guitarId'
     | '/example/guitars/'
@@ -73,6 +101,8 @@ export interface FileRouteTypes {
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  RealtimeRoute: typeof RealtimeRoute
+  ApiRealtimeTokenRoute: typeof ApiRealtimeTokenRoute
   ApiTanchatRoute: typeof ApiTanchatRoute
   ExampleGuitarsGuitarIdRoute: typeof ExampleGuitarsGuitarIdRoute
   ExampleGuitarsIndexRoute: typeof ExampleGuitarsIndexRoute
@@ -80,6 +110,13 @@ export interface RootRouteChildren {
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
+    '/realtime': {
+      id: '/realtime'
+      path: '/realtime'
+      fullPath: '/realtime'
+      preLoaderRoute: typeof RealtimeRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/': {
       id: '/'
       path: '/'
@@ -92,6 +129,13 @@ declare module '@tanstack/react-router' {
       path: '/api/tanchat'
       fullPath: '/api/tanchat'
       preLoaderRoute: typeof ApiTanchatRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/realtime-token': {
+      id: '/api/realtime-token'
+      path: '/api/realtime-token'
+      fullPath: '/api/realtime-token'
+      preLoaderRoute: typeof ApiRealtimeTokenRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/example/guitars/': {
@@ -113,6 +157,8 @@ declare module '@tanstack/react-router' {
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  RealtimeRoute: RealtimeRoute,
+  ApiRealtimeTokenRoute: ApiRealtimeTokenRoute,
   ApiTanchatRoute: ApiTanchatRoute,
   ExampleGuitarsGuitarIdRoute: ExampleGuitarsGuitarIdRoute,
   ExampleGuitarsIndexRoute: ExampleGuitarsIndexRoute,

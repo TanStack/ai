@@ -1,4 +1,5 @@
 export { ChatClient } from './chat-client'
+export { RealtimeClient } from './realtime-client'
 export type {
   // Core message types (re-exported from @tanstack/ai via types.ts)
   UIMessage,
@@ -22,6 +23,13 @@ export type {
   ExtractToolOutput,
 } from './tool-types'
 export type { AnyClientTool } from '@tanstack/ai'
+export type {
+  RealtimeAdapter,
+  RealtimeConnection,
+  RealtimeClientOptions,
+  RealtimeClientState,
+  RealtimeStateChangeCallback,
+} from './realtime-types'
 export {
   fetchServerSentEvents,
   fetchHttpStream,

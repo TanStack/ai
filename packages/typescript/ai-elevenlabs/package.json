@@ -1,14 +1,22 @@
 {
-  "name": "@tanstack/ai-openai",
-  "version": "0.6.0",
-  "description": "OpenAI adapter for TanStack AI",
+  "name": "@tanstack/ai-elevenlabs",
+  "version": "0.0.1",
+  "description": "ElevenLabs adapter for TanStack AI realtime voice",
   "author": "",
   "license": "MIT",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/TanStack/ai.git",
-    "directory": "packages/typescript/ai-openai"
+    "directory": "packages/typescript/ai-elevenlabs"
   },
+  "keywords": [
+    "ai",
+    "elevenlabs",
+    "voice",
+    "realtime",
+    "tanstack",
+    "adapter"
+  ],
   "type": "module",
   "module": "./dist/esm/index.js",
   "types": "./dist/esm/index.d.ts",
@@ -28,30 +36,20 @@
     "lint:fix": "eslint ./src --fix",
     "test:build": "publint --strict",
     "test:eslint": "eslint ./src",
-    "test:lib": "vitest run",
+    "test:lib": "vitest",
     "test:lib:dev": "pnpm test:lib --watch",
     "test:types": "tsc"
   },
-  "keywords": [
-    "ai",
-    "openai",
-    "gpt",
-    "tanstack",
-    "adapter"
-  ],
   "dependencies": {
-    "openai": "^6.9.1"
+    "@11labs/client": "^0.2.0"
   },
   "peerDependencies": {
     "@tanstack/ai": "workspace:^",
-    "@tanstack/ai-client": "workspace:^",
-    "zod": "^4.0.0"
+    "@tanstack/ai-client": "workspace:^"
   },
   "devDependencies": {
     "@tanstack/ai": "workspace:*",
     "@tanstack/ai-client": "workspace:*",
-    "@vitest/coverage-v8": "4.0.14",
-    "vite": "^7.2.7",
-    "zod": "^4.2.0"
+    "@vitest/coverage-v8": "4.0.14"
   }
 }
