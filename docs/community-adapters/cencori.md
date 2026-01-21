@@ -15,12 +15,12 @@ npm install @cencori/ai-sdk
 ## Basic Usage
 
 ```typescript
-import { text } from "@tanstack/ai";
+import { chat } from "@tanstack/ai";
 import { cencori } from "@cencori/ai-sdk/tanstack";
 
 const adapter = cencori("gpt-4o");
 
-for await (const chunk of text({
+for await (const chunk of chat({
   adapter,
   messages: [{ role: "user", content: "Hello!" }],
 })) {
