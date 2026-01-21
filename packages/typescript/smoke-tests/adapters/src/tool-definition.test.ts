@@ -1,6 +1,7 @@
-import { describe, it, expect } from 'vitest'
-import { toolDefinition, type ClientTool, type ServerTool } from '@tanstack/ai'
+import { describe, expect, it } from 'vitest'
+import { toolDefinition } from '@tanstack/ai'
 import { z } from 'zod'
+import type { ClientTool, ServerTool } from '@tanstack/ai'
 
 describe('Tool Definition', () => {
   describe('Basic Definition Creation', () => {
