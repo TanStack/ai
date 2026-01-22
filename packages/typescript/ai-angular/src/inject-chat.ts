@@ -4,21 +4,44 @@ import type { AnyClientTool, ModelMessage } from '@tanstack/ai'
 
 import type { InjectChatOptions, InjectChatReturn, UIMessage } from './types'
 
+/**
+ * Creates a chat client bound to the current Angular injection context.
+ *
+ * This is a signals-first adapter around `ChatClient` from `@tanstack/ai-client`.
+ * It exposes chat state as Angular `Signal`s and automatically stops any in-flight
+ * streaming request when the current context is destroyed.
+ *
+ * @example
+ * ```ts
+ * import { injectChat, fetchServerSentEvents } from '@tanstack/ai-angular'
+ *
+ * const chat = injectChat({
+ *   connection: fetchServerSentEvents('/api/chat'),
+ * })
+ *
+ * chat.sendMessage('Hello')
+ * ```
+ */
 export function injectChat<TTools extends ReadonlyArray<AnyClientTool> = any>(
   options: InjectChatOptions<TTools> = {} as InjectChatOptions<TTools>,
 ): InjectChatReturn<TTools> {
+  // Ensure we bind lifecycle cleanup to the current injection context.
   const destroyRef = inject(DestroyRef)
 
+  // Use caller-provided id if present; otherwise generate a stable-ish id.
   const clientId =
     options.id ||
     `chat-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`
 
+  // Signals mirror ChatClient internal state.
   const messages = signal<Array<UIMessage<TTools>>>(
     options.initialMessages || [],
   )
   const isLoading = signal(false)
   const error = signal<Error | undefined>(undefined)
 
+  // Create ChatClient instance with callbacks that keep signals in sync.
+  // Note: options are captured at creation time (same behavior as other adapters).
   const client = new ChatClient({
     connection: options.connection,
     id: clientId,
@@ -41,6 +64,7 @@ export function injectChat<TTools extends ReadonlyArray<AnyClientTool> = any>(
     },
   })
 
+  // Cleanup on destroy: stop any in-flight requests.
   destroyRef.onDestroy(() => {
     client.stop()
   })
