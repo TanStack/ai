@@ -21,6 +21,7 @@ import type {
   ModelMessage,
   StreamChunk,
   TextOptions,
+  TokenUsage,
 } from '@tanstack/ai'
 import type {
   ExternalTextProviderOptions,
@@ -38,6 +39,42 @@ import type {
   ChatStreamingChoice,
   Message,
 } from '@openrouter/sdk/models'
+
+/**
+ * Build normalized TokenUsage from OpenRouter's ChatGenerationTokenUsage
+ * OpenRouter already has the detail fields structured correctly
+ */
+function buildOpenRouterUsage(
+  usage: ChatGenerationTokenUsage | undefined,
+): TokenUsage | undefined {
+  if (!usage) return undefined
+
+  const result: TokenUsage = {
+    promptTokens: usage.promptTokens || 0,
+    completionTokens: usage.completionTokens || 0,
+    totalTokens: usage.totalTokens || 0,
+    promptTokensDetails: usage.promptTokensDetails ?? undefined,
+  }
+
+  // Map completion tokens details (passthrough from SDK)
+  if (usage.completionTokensDetails) {
+    const details = usage.completionTokensDetails
+    result.completionTokensDetails = {
+      ...(details.reasoningTokens
+        ? { reasoningTokens: details.reasoningTokens }
+        : {}),
+      ...(details.audioTokens ? { audioTokens: details.audioTokens } : {}),
+      ...(details.acceptedPredictionTokens
+        ? { acceptedPredictionTokens: details.acceptedPredictionTokens }
+        : {}),
+      ...(details.rejectedPredictionTokens
+        ? { rejectedPredictionTokens: details.rejectedPredictionTokens }
+        : {}),
+    }
+  }
+
+  return result
+}
 
 export interface OpenRouterConfig extends SDKOptions {}
 export type OpenRouterTextModels = (typeof OPENROUTER_CHAT_MODELS)[number]
@@ -189,6 +226,7 @@ export class OpenRouterTextAdapter<
         return {
           data: parsed,
           rawText: toolCall.function.arguments || '',
+          usage: buildOpenRouterUsage(result.usage),
         }
       }
 
@@ -205,6 +243,7 @@ export class OpenRouterTextAdapter<
       return {
         data: parsed,
         rawText: content,
+        usage: buildOpenRouterUsage(result.usage),
       }
     } catch (error: unknown) {
       if (error instanceof RequestAbortedError) {
@@ -345,11 +384,7 @@ export class OpenRouterTextAdapter<
             : lastFinishReason === 'length'
               ? 'length'
               : 'stop',
-        usage: {
-          promptTokens: usage.promptTokens || 0,
-          completionTokens: usage.completionTokens || 0,
-          totalTokens: usage.totalTokens || 0,
-        },
+        usage: buildOpenRouterUsage(usage),
       }
     }
   }

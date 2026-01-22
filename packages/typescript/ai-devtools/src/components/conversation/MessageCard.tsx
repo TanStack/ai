@@ -116,6 +116,28 @@ export const MessageCard: Component<MessageCardProps> = (props) => {
               <span>{msg().usage?.promptTokens.toLocaleString()} in</span>
               <span>•</span>
               <span>{msg().usage?.completionTokens.toLocaleString()} out</span>
+              <Show when={msg().usage?.promptTokensDetails?.cachedTokens}>
+                <span>•</span>
+                <span title="Cached tokens">
+                  💾{' '}
+                  {msg().usage?.promptTokensDetails?.cachedTokens?.toLocaleString()}
+                </span>
+              </Show>
+              <Show
+                when={msg().usage?.completionTokensDetails?.reasoningTokens}
+              >
+                <span>•</span>
+                <span title="Reasoning tokens">
+                  🧠{' '}
+                  {msg().usage?.completionTokensDetails?.reasoningTokens?.toLocaleString()}
+                </span>
+              </Show>
+              <Show when={msg().usage?.durationSeconds}>
+                <span>•</span>
+                <span title="Duration (seconds)">
+                  ⏱️ {msg().usage?.durationSeconds?.toFixed(1)}s
+                </span>
+              </Show>
             </div>
           </Show>
           <Show when={toolDuration() > 0}>

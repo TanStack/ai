@@ -266,15 +266,47 @@ Emitted when the stream completes successfully.
 interface DoneStreamChunk extends BaseStreamChunk {
   type: 'done';
   finishReason: 'stop' | 'length' | 'content_filter' | 'tool_calls' | null;
-  usage?: {
-    promptTokens: number;
-    completionTokens: number;
-    totalTokens: number;
+  usage?: TokenUsage;
+}
+
+interface TokenUsage {
+  // Core token counts (always present when usage is available)
+  promptTokens: number;
+  completionTokens: number;
+  totalTokens: number;
+  
+  // Detailed prompt token breakdown
+  promptTokensDetails?: {
+    cachedTokens?: number;       // Tokens from prompt cache hits
+    cacheWriteTokens?: number;   // Tokens written to cache
+    cacheCreationTokens?: number; // Anthropic cache creation tokens
+    cacheReadTokens?: number;    // Anthropic cache read tokens
+    audioTokens?: number;        // Audio input tokens
+    videoTokens?: number;        // Video input tokens
+    imageTokens?: number;        // Image input tokens
+    textTokens?: number;         // Text input tokens
   };
+  
+  // Detailed completion token breakdown  
+  completionTokensDetails?: {
+    reasoningTokens?: number;    // Reasoning/thinking tokens (o1, Claude)
+    audioTokens?: number;        // Audio output tokens
+    videoTokens?: number;        // Video output tokens
+    imageTokens?: number;        // Image output tokens
+    textTokens?: number;         // Text output tokens
+    acceptedPredictionTokens?: number;  // Accepted prediction tokens
+    rejectedPredictionTokens?: number;  // Rejected prediction tokens
+  };
+  
+  // Provider-specific details
+  providerUsageDetails?: Record<string, unknown>;
+  
+  // Duration (for some billing models)
+  durationSeconds?: number;
 }
 ```
 
-**Example:**
+**Example (basic usage):**
 ```json
 {
   "type": "done",
@@ -290,6 +322,64 @@ interface DoneStreamChunk extends BaseStreamChunk {
 }
 ```
 
+**Example (with cached tokens - OpenAI):**
+```json
+{
+  "type": "done",
+  "id": "chatcmpl-abc123",
+  "model": "gpt-4o",
+  "timestamp": 1701234567892,
+  "finishReason": "stop",
+  "usage": {
+    "promptTokens": 150,
+    "completionTokens": 75,
+    "totalTokens": 225,
+    "promptTokensDetails": {
+      "cachedTokens": 100
+    }
+  }
+}
+```
+
+**Example (with reasoning tokens - o1):**
+```json
+{
+  "type": "done",
+  "id": "chatcmpl-abc123",
+  "model": "o1-preview",
+  "timestamp": 1701234567892,
+  "finishReason": "stop",
+  "usage": {
+    "promptTokens": 150,
+    "completionTokens": 500,
+    "totalTokens": 650,
+    "completionTokensDetails": {
+      "reasoningTokens": 425
+    }
+  }
+}
+```
+
+**Example (Anthropic with cache):**
+```json
+{
+  "type": "done",
+  "id": "msg_abc123",
+  "model": "claude-3-5-sonnet",
+  "timestamp": 1701234567892,
+  "finishReason": "stop",
+  "usage": {
+    "promptTokens": 150,
+    "completionTokens": 75,
+    "totalTokens": 225,
+    "promptTokensDetails": {
+      "cacheCreationTokens": 50,
+      "cacheReadTokens": 100
+    }
+  }
+}
+```
+
 **Finish Reasons:**
 - `stop` - Natural completion
 - `length` - Reached max tokens
@@ -301,6 +391,13 @@ interface DoneStreamChunk extends BaseStreamChunk {
 - Marks the end of a successful stream
 - Clean up streaming state
 - Display token usage (if available)
+
+**Token Usage Notes:**
+- `promptTokensDetails.cachedTokens` - OpenAI prompt caching
+- `promptTokensDetails.cacheCreationTokens` / `cacheReadTokens` - Anthropic caching
+- `completionTokensDetails.reasoningTokens` - Internal reasoning tokens (o1, Claude thinking)
+- `providerUsageDetails` - Provider-specific fields not in the standard schema
+- For Gemini, modality-specific token counts (audio, video, image, text) are extracted from the response
 
 ---
 

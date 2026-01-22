@@ -24,6 +24,7 @@ import type {
   ModelMessage,
   StreamChunk,
   TextOptions,
+  TokenUsage,
 } from '@tanstack/ai'
 import type {
   ExternalTextProviderOptions,
@@ -35,6 +36,43 @@ import type {
   OpenAIMessageMetadataByModality,
 } from '../message-types'
 import type { OpenAIClientConfig } from '../utils'
+
+/**
+ * Build normalized TokenUsage from OpenAI's ResponseUsage
+ */
+function buildOpenAIUsage(
+  usage: OpenAI_SDK.Responses.ResponseUsage | undefined,
+): TokenUsage | undefined {
+  if (!usage) return undefined
+
+  const result: TokenUsage = {
+    promptTokens: usage.input_tokens || 0,
+    completionTokens: usage.output_tokens || 0,
+    totalTokens: usage.total_tokens || 0,
+  }
+
+  // Add prompt token details if available
+
+  const details = usage.input_tokens_details
+  if (details.cached_tokens > 0) {
+    result.promptTokensDetails = {
+      ...result.promptTokensDetails,
+      cachedTokens: details.cached_tokens,
+    }
+  }
+
+  // Add completion token details if available
+
+  const outputDetails = usage.output_tokens_details
+  if (outputDetails.reasoning_tokens > 0) {
+    result.completionTokensDetails = {
+      ...result.completionTokensDetails,
+      reasoningTokens: outputDetails.reasoning_tokens,
+    }
+  }
+
+  return result
+}
 
 /**
  * Configuration for OpenAI text adapter
@@ -199,6 +237,7 @@ export class OpenAITextAdapter<
       return {
         data: transformed,
         rawText,
+        usage: buildOpenAIUsage(response.usage),
       }
     } catch (error: unknown) {
       const err = error as Error
@@ -475,11 +514,7 @@ export class OpenAITextAdapter<
             id: responseId || genId(),
             model: model || options.model,
             timestamp,
-            usage: {
-              promptTokens: chunk.response.usage?.input_tokens || 0,
-              completionTokens: chunk.response.usage?.output_tokens || 0,
-              totalTokens: chunk.response.usage?.total_tokens || 0,
-            },
+            usage: buildOpenAIUsage(chunk.response.usage),
             finishReason: hasFunctionCalls ? 'tool_calls' : 'stop',
           }
         }

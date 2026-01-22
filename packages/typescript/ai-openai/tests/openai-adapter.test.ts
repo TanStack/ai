@@ -1,6 +1,7 @@
-import { describe, it, expect, beforeEach, vi } from 'vitest'
-import { chat, type Tool, type StreamChunk } from '@tanstack/ai'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { chat } from '@tanstack/ai'
 import { OpenAITextAdapter } from '../src/adapters/text'
+import type { StreamChunk, Tool } from '@tanstack/ai'
 import type { OpenAITextProviderOptions } from '../src/adapters/text'
 
 const createAdapter = <TModel extends 'gpt-4o-mini' | 'gpt-4o'>(
@@ -18,6 +19,7 @@ function createMockChatCompletionsStream(
   chunks: Array<Record<string, unknown>>,
 ): AsyncIterable<Record<string, unknown>> {
   return {
+    // eslint-disable-next-line @typescript-eslint/require-await
     async *[Symbol.asyncIterator]() {
       for (const chunk of chunks) {
         yield chunk
@@ -79,11 +81,11 @@ describe('OpenAI adapter option mapping', () => {
       tool_choice: 'required',
     }
 
-    const chunks: StreamChunk[] = []
+    const chunks: Array<StreamChunk> = []
     for await (const chunk of chat({
       adapter,
       messages: [
-        { role: 'system', content: 'Stay concise' },
+        { role: 'user', content: 'Stay concise' },
         { role: 'user', content: 'How is the weather?' },
         {
           role: 'assistant',
@@ -109,7 +111,7 @@ describe('OpenAI adapter option mapping', () => {
     }
 
     expect(responsesCreate).toHaveBeenCalledTimes(1)
-    const [payload] = responsesCreate.mock.calls[0]
+    const [payload] = responsesCreate.mock.calls[0] as any
 
     // Responses API uses different field names and structure
     expect(payload).toMatchObject({

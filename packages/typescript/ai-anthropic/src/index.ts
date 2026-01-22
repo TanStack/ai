@@ -44,3 +44,6 @@ export { convertToolsToProviderFormat } from './tools/tool-converter'
 
 // Export tool types
 export type { AnthropicTool, CustomTool } from './tools'
+
+// Export provider usage types
+export type { AnthropicProviderUsageDetails } from './usage-types'

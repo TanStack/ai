@@ -3,8 +3,10 @@ import { BaseTextAdapter } from '@tanstack/ai/adapters'
 import { convertToolsToProviderFormat } from '../tools/tool-converter'
 import {
   createGeminiClient,
+  flattenModalityTokenCounts,
   generateId,
   getGeminiApiKeyFromEnv,
+  hasModalityTokens,
 } from '../utils'
 import type {
   GEMINI_MODELS,
@@ -18,6 +20,7 @@ import type {
 import type {
   GenerateContentParameters,
   GenerateContentResponse,
+  GenerateContentResponseUsageMetadata,
   GoogleGenAI,
   Part,
   ThinkingLevel,
@@ -28,6 +31,7 @@ import type {
   ModelMessage,
   StreamChunk,
   TextOptions,
+  TokenUsage,
 } from '@tanstack/ai'
 import type { ExternalTextProviderOptions } from '../text/text-provider-options'
 import type {
@@ -38,6 +42,92 @@ import type {
   GeminiVideoMetadata,
 } from '../message-types'
 import type { GeminiClientConfig } from '../utils'
+import type { GeminiProviderUsageDetails } from '../usage-types'
+
+/**
+ * Build normalized TokenUsage from Gemini's usageMetadata
+ */
+function buildGeminiUsage(
+  usageMetadata: GenerateContentResponseUsageMetadata | undefined,
+): TokenUsage | undefined {
+  if (!usageMetadata) return undefined
+
+  const result: TokenUsage = {
+    promptTokens: usageMetadata.promptTokenCount ?? 0,
+    completionTokens: usageMetadata.candidatesTokenCount ?? 0,
+    totalTokens: usageMetadata.totalTokenCount ?? 0,
+  }
+
+  // Add prompt token details
+  // Flatten modality breakdown for prompt
+  const promptModalities = flattenModalityTokenCounts(
+    usageMetadata.promptTokensDetails,
+  )
+  const cachedTokens = usageMetadata.cachedContentTokenCount
+
+  const promptTokensDetails = {
+    ...(hasModalityTokens(promptModalities) ? promptModalities : {}),
+    ...(cachedTokens !== undefined && cachedTokens > 0 ? { cachedTokens } : {}),
+  }
+
+  // Add completion token details
+  // Flatten modality breakdown for candidates (output)
+  const completionModalities = flattenModalityTokenCounts(
+    usageMetadata.candidatesTokensDetails,
+  )
+  const thoughtsTokens = usageMetadata.thoughtsTokenCount
+
+  const completionTokensDetails = {
+    ...(hasModalityTokens(completionModalities) ? completionModalities : {}),
+    // Map thoughtsTokenCount to reasoningTokens for consistency with OpenAI
+    ...(thoughtsTokens !== undefined && thoughtsTokens > 0
+      ? { reasoningTokens: thoughtsTokens }
+      : {}),
+  }
+  // Add provider-specific details
+  const providerDetails: GeminiProviderUsageDetails = {
+    ...(usageMetadata.trafficType
+      ? { trafficType: usageMetadata.trafficType }
+      : {}),
+    ...(usageMetadata.toolUsePromptTokenCount !== undefined &&
+    usageMetadata.toolUsePromptTokenCount > 0
+      ? { toolUsePromptTokenCount: usageMetadata.toolUsePromptTokenCount }
+      : {}),
+    ...(usageMetadata.toolUsePromptTokensDetails &&
+    usageMetadata.toolUsePromptTokensDetails.length > 0
+      ? {
+          toolUsePromptTokensDetails:
+            usageMetadata.toolUsePromptTokensDetails.map((item) => ({
+              modality: item.modality || 'UNKNOWN',
+              tokenCount: item.tokenCount ?? 0,
+            })),
+        }
+      : {}),
+    ...(usageMetadata.cacheTokensDetails &&
+    usageMetadata.cacheTokensDetails.length > 0
+      ? {
+          cacheTokensDetails: usageMetadata.cacheTokensDetails.map((item) => ({
+            modality: item.modality || 'UNKNOWN',
+            tokenCount: item.tokenCount ?? 0,
+          })),
+        }
+      : {}),
+  }
+  // Add prompt token details if available
+  if (Object.keys(promptTokensDetails).length > 0) {
+    result.promptTokensDetails = promptTokensDetails
+  }
+  // Add provider details if available
+  if (Object.keys(providerDetails).length > 0) {
+    result.providerUsageDetails = providerDetails
+  }
+  // Add completion token details if available
+  if (Object.keys(completionTokensDetails).length > 0) {
+    result.completionTokensDetails = completionTokensDetails
+  }
+
+  return result
+}
 
 /**
  * Configuration for Gemini text adapter
@@ -168,6 +258,7 @@ export class GeminiTextAdapter<
       return {
         data: parsed,
         rawText,
+        usage: buildGeminiUsage(result.usageMetadata),
       }
     } catch (error) {
       throw new Error(
@@ -364,13 +455,7 @@ export class GeminiTextAdapter<
           model,
           timestamp,
           finishReason: toolCallMap.size > 0 ? 'tool_calls' : 'stop',
-          usage: chunk.usageMetadata
-            ? {
-                promptTokens: chunk.usageMetadata.promptTokenCount ?? 0,
-                completionTokens: chunk.usageMetadata.candidatesTokenCount ?? 0,
-                totalTokens: chunk.usageMetadata.totalTokenCount ?? 0,
-              }
-            : undefined,
+          usage: buildGeminiUsage(chunk.usageMetadata),
         }
       }
     }

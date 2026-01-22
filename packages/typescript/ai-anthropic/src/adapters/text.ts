@@ -32,6 +32,7 @@ import type {
   ModelMessage,
   StreamChunk,
   TextOptions,
+  TokenUsage,
 } from '@tanstack/ai'
 import type {
   ExternalTextProviderOptions,
@@ -44,6 +45,66 @@ import type {
   AnthropicTextMetadata,
 } from '../message-types'
 import type { AnthropicClientConfig } from '../utils'
+import type { AnthropicProviderUsageDetails } from '../usage-types'
+
+/**
+ * Build normalized TokenUsage from Anthropic's usage object
+ */
+function buildAnthropicUsage(
+  usage:
+    | Anthropic_SDK.Beta.BetaUsage
+    | Anthropic_SDK.Beta.BetaMessageDeltaUsage
+    | undefined
+    | null,
+): TokenUsage | undefined {
+  if (!usage) return undefined
+
+  const inputTokens = usage.input_tokens ?? 0
+  const outputTokens = usage.output_tokens
+
+  const result: TokenUsage = {
+    promptTokens: inputTokens,
+    completionTokens: outputTokens,
+    totalTokens: inputTokens + outputTokens,
+  }
+
+  // Add prompt token details for cache tokens
+  const cacheCreation = usage.cache_creation_input_tokens
+  const cacheRead = usage.cache_read_input_tokens
+
+  if (
+    (cacheCreation != null && cacheCreation > 0) ||
+    (cacheRead != null && cacheRead > 0)
+  ) {
+    result.promptTokensDetails = {}
+    if (cacheCreation != null && cacheCreation > 0) {
+      result.promptTokensDetails.cacheCreationTokens = cacheCreation
+    }
+    if (cacheRead != null && cacheRead > 0) {
+      result.promptTokensDetails.cacheReadTokens = cacheRead
+    }
+  }
+
+  // Add provider-specific usage details for server tool use
+  if (usage.server_tool_use) {
+    const serverToolUse = usage.server_tool_use
+    if (
+      (serverToolUse.web_search_requests &&
+        serverToolUse.web_search_requests > 0) ||
+      (serverToolUse.web_fetch_requests && serverToolUse.web_fetch_requests > 0)
+    ) {
+      const providerDetails: AnthropicProviderUsageDetails = {
+        serverToolUse: {
+          webSearchRequests: serverToolUse.web_search_requests,
+          webFetchRequests: serverToolUse.web_fetch_requests,
+        },
+      }
+      result.providerUsageDetails = providerDetails
+    }
+  }
+
+  return result
+}
 
 /**
  * Configuration for Anthropic text adapter
@@ -175,7 +236,7 @@ export class AnthropicTextAdapter<
 
     try {
       // Make non-streaming request with tool_choice forced to our structured output tool
-      const response = await this.client.messages.create(
+      const response = await this.client.beta.messages.create(
         {
           ...requestParams,
           stream: false,
@@ -222,6 +283,7 @@ export class AnthropicTextAdapter<
       return {
         data: parsed,
         rawText,
+        usage: buildAnthropicUsage(response.usage),
       }
     } catch (error: unknown) {
       const err = error as Error
@@ -560,13 +622,7 @@ export class AnthropicTextAdapter<
                   model: model,
                   timestamp,
                   finishReason: 'tool_calls',
-                  usage: {
-                    promptTokens: event.usage.input_tokens || 0,
-                    completionTokens: event.usage.output_tokens || 0,
-                    totalTokens:
-                      (event.usage.input_tokens || 0) +
-                      (event.usage.output_tokens || 0),
-                  },
+                  usage: buildAnthropicUsage(event.usage),
                 }
                 break
               }
@@ -591,13 +647,7 @@ export class AnthropicTextAdapter<
                   model: model,
                   timestamp,
                   finishReason: 'stop',
-                  usage: {
-                    promptTokens: event.usage.input_tokens || 0,
-                    completionTokens: event.usage.output_tokens || 0,
-                    totalTokens:
-                      (event.usage.input_tokens || 0) +
-                      (event.usage.output_tokens || 0),
-                  },
+                  usage: buildAnthropicUsage(event.usage),
                 }
               }
             }
