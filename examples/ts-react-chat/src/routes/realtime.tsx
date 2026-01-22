@@ -3,7 +3,8 @@ import { createFileRoute } from '@tanstack/react-router'
 import { useRealtimeChat } from '@tanstack/ai-react'
 import { openaiRealtime } from '@tanstack/ai-openai'
 import { elevenlabsRealtime } from '@tanstack/ai-elevenlabs'
-import { Mic, MicOff, Phone, PhoneOff, Volume2 } from 'lucide-react'
+import { Mic, MicOff, Phone, PhoneOff, Volume2, Wrench } from 'lucide-react'
+import { realtimeClientTools } from '@/lib/realtime-tools'
 
 type Provider = 'openai' | 'elevenlabs'
 
@@ -98,56 +99,9 @@ function AudioSparkline({
   )
 }
 
-// Debug component to show raw audio data stats
-function AudioDebug({ 
-  getData, 
-  label 
-}: { 
-  getData: () => Uint8Array
-  label: string 
-}) {
-  const [stats, setStats] = useState({ length: 0, min: 0, max: 0, allSame: true, sample: '[]' })
-  
-  useEffect(() => {
-    function update() {
-      const data = getData()
-      const min = Math.min(...data)
-      const max = Math.max(...data)
-      const allSame = data.every(v => v === data[0])
-      // Get a few samples from different parts of the array
-      const samples = data.length > 0 ? [
-        data[0], 
-        data[Math.floor(data.length / 4)],
-        data[Math.floor(data.length / 2)],
-        data[Math.floor(data.length * 3 / 4)],
-        data[data.length - 1]
-      ] : []
-      setStats({
-        length: data.length,
-        min,
-        max,
-        allSame,
-        sample: `[${samples.join(', ')}]`
-      })
-      requestAnimationFrame(update)
-    }
-    const id = requestAnimationFrame(update)
-    return () => cancelAnimationFrame(id)
-  }, [getData])
-
-  return (
-    <div className="text-xs text-gray-400 font-mono">
-      <span className="text-gray-500">{label}:</span> len={stats.length}, min={stats.min}, max={stats.max}, 
-      {stats.allSame ? <span className="text-red-400"> ALL SAME!</span> : <span className="text-green-400"> varying</span>}
-      <span className="text-gray-600"> {stats.sample}</span>
-    </div>
-  )
-}
-
 function RealtimePage() {
   const [provider, setProvider] = useState<Provider>('openai')
   const [agentId, setAgentId] = useState('')
-  const [showDebug, setShowDebug] = useState(true)
   const messagesEndRef = useRef<HTMLDivElement>(null)
 
   // Get the appropriate adapter based on provider
@@ -165,7 +119,6 @@ function RealtimePage() {
     interrupt,
     inputLevel,
     outputLevel,
-    sendText,
     getInputTimeDomainData,
     getOutputTimeDomainData,
   } = useRealtimeChat({
@@ -186,6 +139,8 @@ function RealtimePage() {
       return response.json()
     },
     adapter,
+    // Pass the client tools - these execute locally when the AI calls them
+    tools: realtimeClientTools,
     onError: (err) => {
       console.error('Realtime error:', err)
     },
@@ -302,14 +257,34 @@ function RealtimePage() {
           </div>
         </div>
 
+        {/* Tools indicator */}
+        {provider === 'openai' && (
+          <div className="border-b border-orange-500/10 bg-gray-800/50 px-4 py-2">
+            <div className="flex items-center gap-2 text-xs text-gray-400">
+              <Wrench className="w-3 h-3" />
+              <span>Tools enabled:</span>
+              <span className="text-gray-300">getCurrentTime</span>
+              <span className="text-gray-500">•</span>
+              <span className="text-gray-300">getWeather</span>
+              <span className="text-gray-500">•</span>
+              <span className="text-gray-300">setReminder</span>
+              <span className="text-gray-500">•</span>
+              <span className="text-gray-300">searchKnowledge</span>
+            </div>
+          </div>
+        )}
+
         {/* Messages area */}
         <div className="flex-1 overflow-y-auto px-4 py-4">
           {messages.length === 0 && status === 'idle' && (
             <div className="flex flex-col items-center justify-center h-full text-gray-500">
               <Mic className="w-16 h-16 mb-4" />
-              <p className="text-lg">Voice Chat</p>
+              <p className="text-lg">Voice Chat with Tools</p>
               <p className="text-sm">
                 Click "Start Conversation" to begin talking with the AI
+              </p>
+              <p className="text-xs mt-2 text-gray-600">
+                Try asking: "What time is it?" or "What's the weather in San Francisco?"
               </p>
             </div>
           )}
@@ -437,26 +412,6 @@ function RealtimePage() {
                   label="Output"
                 />
               </div>
-              
-              {/* Debug info */}
-              {showDebug && (
-                <div className="mt-3 p-2 bg-gray-800 rounded border border-gray-700">
-                  <div className="flex justify-between items-center mb-2">
-                    <span className="text-xs text-gray-500 font-medium">Audio Debug</span>
-                    <button 
-                      onClick={() => setShowDebug(false)}
-                      className="text-xs text-gray-500 hover:text-gray-400"
-                    >
-                      Hide
-                    </button>
-                  </div>
-                  <AudioDebug getData={getInputTimeDomainData} label="Input" />
-                  <AudioDebug getData={getOutputTimeDomainData} label="Output" />
-                  <div className="text-xs text-gray-500 mt-1">
-                    inputLevel: {inputLevel.toFixed(4)}, outputLevel: {outputLevel.toFixed(4)}
-                  </div>
-                </div>
-              )}
             </div>
           )}
 

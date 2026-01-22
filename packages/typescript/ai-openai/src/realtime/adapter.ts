@@ -513,33 +513,38 @@ async function createWebRTCConnection(
       // Log analyser state for debugging
       console.log('[Realtime] getAudioVisualization called, inputAnalyser:', !!inputAnalyser, 'outputAnalyser:', !!outputAnalyser)
       
-      // Helper to calculate RMS (Root Mean Square) from time domain data
-      // This gives a better measure of perceived loudness than frequency data
-      function calculateRMS(analyser: AnalyserNode): number {
+      // Helper to calculate audio level from time domain data
+      // Uses peak amplitude which is more responsive for voice audio meters
+      function calculateLevel(analyser: AnalyserNode): number {
         const data = new Uint8Array(analyser.fftSize)
         analyser.getByteTimeDomainData(data)
         
-        // Calculate RMS - values are 0-255 with 128 being silence
-        let sumSquares = 0
+        // Find peak deviation from center (128 is silence)
+        // This is more responsive than RMS for voice level meters
+        let maxDeviation = 0
         for (const sample of data) {
-          const normalized = (sample - 128) / 128 // Convert to -1 to 1 range
-          sumSquares += normalized * normalized
+          const deviation = Math.abs(sample - 128)
+          if (deviation > maxDeviation) {
+            maxDeviation = deviation
+          }
         }
-        const rms = Math.sqrt(sumSquares / data.length)
         
-        // Scale and clamp to 0-1 range (RMS of full-scale sine is ~0.707)
-        return Math.min(1, rms * 1.5)
+        // Normalize to 0-1 range (max deviation is 128)
+        // Scale by 1.5x so that ~66% amplitude reads as full scale
+        // This provides good visual feedback without pegging too early
+        const normalized = maxDeviation / 128
+        return Math.min(1, normalized * 1.5)
       }
 
       return {
         get inputLevel() {
           if (!inputAnalyser) return 0
-          return calculateRMS(inputAnalyser)
+          return calculateLevel(inputAnalyser)
         },
 
         get outputLevel() {
           if (!outputAnalyser) return 0
-          return calculateRMS(outputAnalyser)
+          return calculateLevel(outputAnalyser)
         },
 
         getInputFrequencyData() {
