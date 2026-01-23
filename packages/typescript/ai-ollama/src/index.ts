@@ -42,4 +42,4 @@ export type {
 } from './model-meta'
 
 // Export provider usage types
-export type { OllamaProviderUsageDetails } from './usage-types'
+export type { OllamaProviderUsageDetails } from './usage'

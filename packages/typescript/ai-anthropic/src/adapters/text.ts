@@ -1,6 +1,7 @@
 import { BaseTextAdapter } from '@tanstack/ai/adapters'
 import { convertToolsToProviderFormat } from '../tools/tool-converter'
 import { validateTextProviderOptions } from '../text/text-provider-options'
+import { buildAnthropicUsage } from '../usage'
 import {
   createAnthropicClient,
   generateId,
@@ -32,7 +33,6 @@ import type {
   ModelMessage,
   StreamChunk,
   TextOptions,
-  TokenUsage,
 } from '@tanstack/ai'
 import type {
   ExternalTextProviderOptions,
@@ -45,66 +45,6 @@ import type {
   AnthropicTextMetadata,
 } from '../message-types'
 import type { AnthropicClientConfig } from '../utils'
-import type { AnthropicProviderUsageDetails } from '../usage-types'
-
-/**
- * Build normalized TokenUsage from Anthropic's usage object
- */
-function buildAnthropicUsage(
-  usage:
-    | Anthropic_SDK.Beta.BetaUsage
-    | Anthropic_SDK.Beta.BetaMessageDeltaUsage
-    | undefined
-    | null,
-): TokenUsage | undefined {
-  if (!usage) return undefined
-
-  const inputTokens = usage.input_tokens ?? 0
-  const outputTokens = usage.output_tokens
-
-  const result: TokenUsage = {
-    promptTokens: inputTokens,
-    completionTokens: outputTokens,
-    totalTokens: inputTokens + outputTokens,
-  }
-
-  // Add prompt token details for cache tokens
-  const cacheCreation = usage.cache_creation_input_tokens
-  const cacheRead = usage.cache_read_input_tokens
-
-  if (
-    (cacheCreation != null && cacheCreation > 0) ||
-    (cacheRead != null && cacheRead > 0)
-  ) {
-    result.promptTokensDetails = {}
-    if (cacheCreation != null && cacheCreation > 0) {
-      result.promptTokensDetails.cacheCreationTokens = cacheCreation
-    }
-    if (cacheRead != null && cacheRead > 0) {
-      result.promptTokensDetails.cacheReadTokens = cacheRead
-    }
-  }
-
-  // Add provider-specific usage details for server tool use
-  if (usage.server_tool_use) {
-    const serverToolUse = usage.server_tool_use
-    if (
-      (serverToolUse.web_search_requests &&
-        serverToolUse.web_search_requests > 0) ||
-      (serverToolUse.web_fetch_requests && serverToolUse.web_fetch_requests > 0)
-    ) {
-      const providerDetails: AnthropicProviderUsageDetails = {
-        serverToolUse: {
-          webSearchRequests: serverToolUse.web_search_requests,
-          webFetchRequests: serverToolUse.web_fetch_requests,
-        },
-      }
-      result.providerUsageDetails = providerDetails
-    }
-  }
-
-  return result
-}
 
 /**
  * Configuration for Anthropic text adapter

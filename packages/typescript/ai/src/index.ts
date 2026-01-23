@@ -73,6 +73,9 @@ export {
 // All types
 export * from './types'
 
+// Usage utilities
+export { buildBaseUsage, type BaseUsageInput } from './utilities/usage'
+
 // Event client + event types
 export * from './event-client'
 

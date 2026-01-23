@@ -1,5 +1,5 @@
 import { BaseTextAdapter } from '@tanstack/ai/adapters'
-
+import { buildOllamaUsage } from '../usage'
 import { createOllamaClient, generateId, getOllamaHostFromEnv } from '../utils'
 
 import type {
@@ -19,58 +19,7 @@ import type {
   Tool as OllamaTool,
   ToolCall,
 } from 'ollama'
-import type { StreamChunk, TextOptions, TokenUsage, Tool } from '@tanstack/ai'
-import type { OllamaProviderUsageDetails } from '../usage-types'
-
-/**
- * Build normalized TokenUsage from Ollama's ChatResponse
- */
-function buildOllamaUsage(response: ChatResponse): TokenUsage | undefined {
-  // Ollama provides prompt_eval_count and eval_count
-  const promptTokens = response.prompt_eval_count
-  const completionTokens = response.eval_count
-
-  // If no token counts are available, return undefined
-  if (promptTokens === 0 && completionTokens === 0) {
-    return undefined
-  }
-
-  const result: TokenUsage = {
-    promptTokens,
-    completionTokens,
-    totalTokens: promptTokens + completionTokens,
-  }
-
-  // Add provider-specific duration details
-  const providerDetails: OllamaProviderUsageDetails = {}
-  let hasProviderDetails = false
-
-  if (response.load_duration > 0) {
-    providerDetails.loadDuration = response.load_duration
-    hasProviderDetails = true
-  }
-
-  if (response.prompt_eval_duration > 0) {
-    providerDetails.promptEvalDuration = response.prompt_eval_duration
-    hasProviderDetails = true
-  }
-
-  if (response.eval_duration > 0) {
-    providerDetails.evalDuration = response.eval_duration
-    hasProviderDetails = true
-  }
-
-  if (response.total_duration > 0) {
-    providerDetails.totalDuration = response.total_duration
-    hasProviderDetails = true
-  }
-
-  if (hasProviderDetails) {
-    result.providerUsageDetails = providerDetails
-  }
-
-  return result
-}
+import type { StreamChunk, TextOptions, Tool } from '@tanstack/ai'
 
 export type OllamaTextModel =
   | (typeof OLLAMA_TEXT_MODELS)[number]

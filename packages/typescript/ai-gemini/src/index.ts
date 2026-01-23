@@ -87,4 +87,4 @@ export type {
 } from './message-types'
 
 // Export provider usage types
-export type { GeminiProviderUsageDetails } from './usage-types'
+export type { GeminiProviderUsageDetails } from './usage'

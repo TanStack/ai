@@ -1,6 +1,7 @@
 import { BaseTextAdapter } from '@tanstack/ai/adapters'
 import { validateTextProviderOptions } from '../text/text-provider-options'
 import { convertToolsToProviderFormat } from '../tools'
+import { buildGrokUsage } from '../usage'
 import {
   createGrokClient,
   generateId,
@@ -23,7 +24,6 @@ import type {
   ModelMessage,
   StreamChunk,
   TextOptions,
-  TokenUsage,
 } from '@tanstack/ai'
 import type { InternalTextProviderOptions } from '../text/text-provider-options'
 import type {
@@ -31,66 +31,6 @@ import type {
   GrokMessageMetadataByModality,
 } from '../message-types'
 import type { GrokClientConfig } from '../utils'
-
-/**
- * Build normalized TokenUsage from Grok's Chat Completions usage
- * Uses same format as OpenAI Chat Completions (not Responses API)
- */
-function buildGrokUsage(
-  usage: OpenAI_SDK.Chat.Completions.ChatCompletion['usage'] | undefined | null,
-): TokenUsage | undefined {
-  if (!usage) return undefined
-
-  const result: TokenUsage = {
-    promptTokens: usage.prompt_tokens || 0,
-    completionTokens: usage.completion_tokens || 0,
-    totalTokens: usage.total_tokens || 0,
-  }
-
-  // Check for completion tokens details (reasoning tokens, etc.)
-  // Grok (via OpenAI-compatible API) may provide these for reasoning models
-  const completionDetails = usage.completion_tokens_details
-
-  const completionTokensDetails = {
-    ...(completionDetails?.reasoning_tokens !== undefined &&
-    completionDetails.reasoning_tokens > 0
-      ? { reasoningTokens: completionDetails.reasoning_tokens }
-      : {}),
-    ...(completionDetails?.audio_tokens !== undefined &&
-    completionDetails.audio_tokens > 0
-      ? { audioTokens: completionDetails.audio_tokens }
-      : {}),
-  }
-
-  // Check for prompt tokens details (cached tokens, etc.)
-  const promptDetails = usage.prompt_tokens_details as
-    | {
-        cached_tokens?: number
-        audio_tokens?: number
-      }
-    | undefined
-
-  const promptTokensDetails = {
-    ...(promptDetails?.cached_tokens !== undefined &&
-    promptDetails.cached_tokens > 0
-      ? { cachedTokens: promptDetails.cached_tokens }
-      : {}),
-    ...(promptDetails?.audio_tokens !== undefined &&
-    promptDetails.audio_tokens > 0
-      ? { audioTokens: promptDetails.audio_tokens }
-      : {}),
-  }
-
-  // Add details only if non-empty
-  if (Object.keys(completionTokensDetails).length > 0) {
-    result.completionTokensDetails = completionTokensDetails
-  }
-  if (Object.keys(promptTokensDetails).length > 0) {
-    result.promptTokensDetails = promptTokensDetails
-  }
-
-  return result
-}
 
 /**
  * Configuration for Grok text adapter

@@ -1,4 +1,6 @@
+import { buildBaseUsage } from '@tanstack/ai'
 import { BaseSummarizeAdapter } from '@tanstack/ai/adapters'
+import { buildAnthropicUsage } from '../usage'
 import {
   createAnthropicClient,
   generateId,
@@ -52,7 +54,7 @@ export class AnthropicSummarizeAdapter<
   async summarize(options: SummarizationOptions): Promise<SummarizationResult> {
     const systemPrompt = this.buildSummarizationPrompt(options)
 
-    const response = await this.client.messages.create({
+    const response = await this.client.beta.messages.create({
       model: options.model,
       messages: [{ role: 'user', content: options.text }],
       system: systemPrompt,
@@ -69,11 +71,7 @@ export class AnthropicSummarizeAdapter<
       id: response.id,
       model: response.model,
       summary: content,
-      usage: {
-        promptTokens: response.usage.input_tokens,
-        completionTokens: response.usage.output_tokens,
-        totalTokens: response.usage.input_tokens + response.usage.output_tokens,
-      },
+      usage: buildAnthropicUsage(response.usage),
     }
   }
 
@@ -125,11 +123,11 @@ export class AnthropicSummarizeAdapter<
             | 'length'
             | 'content_filter'
             | null,
-          usage: {
+          usage: buildBaseUsage({
             promptTokens: inputTokens,
             completionTokens: outputTokens,
             totalTokens: inputTokens + outputTokens,
-          },
+          }),
         }
       }
     }

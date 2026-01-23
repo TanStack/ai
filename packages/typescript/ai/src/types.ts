@@ -697,21 +697,18 @@ export interface ToolResultStreamChunk extends BaseStreamChunk {
  * Fields are populated based on provider support.
  */
 export interface PromptTokensDetails {
-  /** Tokens read from cache (OpenAI, OpenRouter, Gemini) */
+  /** Tokens read from cache   */
   cachedTokens?: number
-  /** Tokens written to cache (OpenRouter) */
+  /** Tokens written to cache   */
   cacheWriteTokens?: number
-  /** Tokens for cache creation (Anthropic) */
-  cacheCreationTokens?: number
-  /** Tokens read from cache (Anthropic) */
-  cacheReadTokens?: number
-  /** Audio input tokens (OpenAI, OpenRouter, Gemini) */
+
+  /** Audio input tokens   */
   audioTokens?: number
-  /** Video input tokens (OpenRouter, Gemini) */
+  /** Video input tokens   */
   videoTokens?: number
-  /** Image input tokens (Gemini) */
+  /** Image input tokens   */
   imageTokens?: number
-  /** Text input tokens (OpenAI transcription, Gemini) */
+  /** Text input tokens   */
   textTokens?: number
 }
 
@@ -720,20 +717,16 @@ export interface PromptTokensDetails {
  * Fields are populated based on provider support.
  */
 export interface CompletionTokensDetails {
-  /** Reasoning/thinking tokens (OpenAI o1/o3, OpenRouter, Gemini thoughtsTokenCount) */
+  /** Reasoning/thinking tokens */
   reasoningTokens?: number
-  /** Audio output tokens (OpenAI, OpenRouter, Gemini) */
+  /** Audio output tokens   */
   audioTokens?: number
-  /** Video output tokens (Gemini) */
+  /** Video output tokens   */
   videoTokens?: number
-  /** Image output tokens (Gemini) */
+  /** Image output tokens   */
   imageTokens?: number
-  /** Text output tokens (Gemini) */
+  /** Text output tokens   */
   textTokens?: number
-  /** Accepted prediction tokens (OpenRouter) */
-  acceptedPredictionTokens?: number
-  /** Rejected prediction tokens (OpenRouter) */
-  rejectedPredictionTokens?: number
 }
 
 /**

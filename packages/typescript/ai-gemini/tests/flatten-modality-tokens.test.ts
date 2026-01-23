@@ -1,9 +1,6 @@
 import { MediaModality } from '@google/genai'
 import { describe, expect, it } from 'vitest'
-import {
-  flattenModalityTokenCounts,
-  hasModalityTokens,
-} from '../src/utils/flatten-modality-tokens'
+import { flattenModalityTokenCounts, hasModalityTokens } from '../src/usage'
 
 describe('flattenModalityTokenCounts', () => {
   it('returns empty object for undefined input', () => {
