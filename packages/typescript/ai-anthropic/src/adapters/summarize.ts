@@ -1,4 +1,3 @@
-import { buildBaseUsage } from '@tanstack/ai'
 import { BaseSummarizeAdapter } from '@tanstack/ai/adapters'
 import { buildAnthropicUsage } from '../usage'
 import {
@@ -82,10 +81,8 @@ export class AnthropicSummarizeAdapter<
     const id = generateId(this.name)
     const model = options.model
     let accumulatedContent = ''
-    let inputTokens = 0
-    let outputTokens = 0
 
-    const stream = await this.client.messages.create({
+    const stream = await this.client.beta.messages.create({
       model: options.model,
       messages: [{ role: 'user', content: options.text }],
       system: systemPrompt,
@@ -96,7 +93,6 @@ export class AnthropicSummarizeAdapter<
 
     for await (const event of stream) {
       if (event.type === 'message_start') {
-        inputTokens = event.message.usage.input_tokens
       } else if (event.type === 'content_block_delta') {
         if (event.delta.type === 'text_delta') {
           const delta = event.delta.text
@@ -112,7 +108,6 @@ export class AnthropicSummarizeAdapter<
           }
         }
       } else if (event.type === 'message_delta') {
-        outputTokens = event.usage.output_tokens
         yield {
           type: 'done',
           id,
@@ -123,11 +118,7 @@ export class AnthropicSummarizeAdapter<
             | 'length'
             | 'content_filter'
             | null,
-          usage: buildBaseUsage({
-            promptTokens: inputTokens,
-            completionTokens: outputTokens,
-            totalTokens: inputTokens + outputTokens,
-          }),
+          usage: buildAnthropicUsage(event.usage),
         }
       }
     }

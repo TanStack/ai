@@ -114,10 +114,14 @@ export interface GeminiProviderUsageDetails {
 export function buildGeminiUsage(
   usageMetadata: GenerateContentResponseUsageMetadata | undefined,
 ): TokenUsage {
+  const promptTokens = usageMetadata?.promptTokenCount ?? 0
+  const completionTokens = usageMetadata?.candidatesTokenCount ?? 0
+
   const result = buildBaseUsage({
-    promptTokens: usageMetadata?.promptTokenCount ?? 0,
-    completionTokens: usageMetadata?.candidatesTokenCount ?? 0,
-    totalTokens: usageMetadata?.totalTokenCount ?? 0,
+    promptTokens: promptTokens,
+    completionTokens: completionTokens,
+    totalTokens:
+      usageMetadata?.totalTokenCount ?? promptTokens + completionTokens,
   })
 
   // Add prompt token details
