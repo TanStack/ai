@@ -1,8 +1,8 @@
 import OpenAI_SDK from 'openai'
-import type { ClientOptions } from 'openai';
+import type { ClientOptions } from 'openai'
 
 export interface OpenAIClientConfig extends ClientOptions {
-  apiKey: string;
+  apiKey: string
 }
 
 /**
