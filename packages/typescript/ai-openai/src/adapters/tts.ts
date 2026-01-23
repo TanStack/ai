@@ -3,13 +3,13 @@ import {
   createOpenAIClient,
   generateId,
   getOpenAIApiKeyFromEnv,
-} from '../utils'
+} from '../utils/client'
 import {
   validateAudioInput,
   validateInstructions,
   validateSpeed,
 } from '../audio/audio-provider-options'
-import type { OPENAI_TTS_MODELS } from '../model-meta'
+import type { OpenAITTSModel } from '../model-meta'
 import type {
   OpenAITTSFormat,
   OpenAITTSProviderOptions,
@@ -17,15 +17,12 @@ import type {
 } from '../audio/tts-provider-options'
 import type { TTSOptions, TTSResult } from '@tanstack/ai'
 import type OpenAI_SDK from 'openai'
-import type { OpenAIClientConfig } from '../utils'
+import type { OpenAIClientConfig } from '../utils/client'
 
 /**
  * Configuration for OpenAI TTS adapter
  */
 export interface OpenAITTSConfig extends OpenAIClientConfig {}
-
-/** Model type for OpenAI TTS */
-export type OpenAITTSModel = (typeof OPENAI_TTS_MODELS)[number]
 
 /**
  * OpenAI Text-to-Speech Adapter

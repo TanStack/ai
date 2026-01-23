@@ -1,13 +1,13 @@
 import { BaseSummarizeAdapter } from '@tanstack/ai/adapters'
-import { getOpenAIApiKeyFromEnv } from '../utils'
+import { getOpenAIApiKeyFromEnv } from '../utils/client'
 import { OpenAITextAdapter } from './text'
-import type { OPENAI_CHAT_MODELS } from '../model-meta'
+import type { OpenAIChatModel } from '../model-meta'
 import type {
   StreamChunk,
   SummarizationOptions,
   SummarizationResult,
 } from '@tanstack/ai'
-import type { OpenAIClientConfig } from '../utils'
+import type { OpenAIClientConfig } from '../utils/client'
 
 /**
  * Configuration for OpenAI summarize adapter
@@ -24,9 +24,6 @@ export interface OpenAISummarizeProviderOptions {
   maxTokens?: number
 }
 
-/** Model type for OpenAI summarization */
-export type OpenAISummarizeModel = (typeof OPENAI_CHAT_MODELS)[number]
-
 /**
  * OpenAI Summarize Adapter
  *
@@ -34,7 +31,7 @@ export type OpenAISummarizeModel = (typeof OPENAI_CHAT_MODELS)[number]
  * Delegates all API calls to the OpenAITextAdapter.
  */
 export class OpenAISummarizeAdapter<
-  TModel extends OpenAISummarizeModel,
+  TModel extends OpenAIChatModel,
 > extends BaseSummarizeAdapter<TModel, OpenAISummarizeProviderOptions> {
   readonly kind = 'summarize' as const
   readonly name = 'openai' as const
@@ -133,7 +130,7 @@ export class OpenAISummarizeAdapter<
  * const adapter = createOpenaiSummarize('gpt-4o-mini', "sk-...");
  * ```
  */
-export function createOpenaiSummarize<TModel extends OpenAISummarizeModel>(
+export function createOpenaiSummarize<TModel extends OpenAIChatModel>(
   model: TModel,
   apiKey: string,
   config?: Omit<OpenAISummarizeConfig, 'apiKey'>,
@@ -165,7 +162,7 @@ export function createOpenaiSummarize<TModel extends OpenAISummarizeModel>(
  * });
  * ```
  */
-export function openaiSummarize<TModel extends OpenAISummarizeModel>(
+export function openaiSummarize<TModel extends OpenAIChatModel>(
   model: TModel,
   config?: Omit<OpenAISummarizeConfig, 'apiKey'>,
 ): OpenAISummarizeAdapter<TModel> {
