@@ -7,11 +7,6 @@ export type {
   ToolCallPart,
   ToolResultPart,
   ThinkingPart,
-  // Multimodal message parts
-  ImageMessagePart,
-  AudioMessagePart,
-  VideoMessagePart,
-  DocumentMessagePart,
   // Client configuration types
   ChatClientOptions,
   ChatRequestBody,

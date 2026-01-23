@@ -1,15 +1,15 @@
 import type {
-  AudioMessagePart,
+  AudioPart,
   ContentPart,
-  DocumentMessagePart,
-  ImageMessagePart,
+  DocumentPart,
+  ImagePart,
   MessagePart,
   ModelMessage,
   TextPart,
   ToolCallPart,
   ToolResultPart,
   UIMessage,
-  VideoMessagePart,
+  VideoPart,
 } from '../../types'
 // ===========================
 // Message Converters
@@ -31,58 +31,6 @@ function getTextContent(content: string | null | Array<ContentPart>): string {
     .filter((part) => part.type === 'text')
     .map((part) => part.content)
     .join('')
-}
-
-/**
- * Convert ContentPart array to MessagePart array
- * Preserves all multimodal content (text, image, audio, video, document)
- */
-function contentPartsToMessageParts(
-  contentParts: Array<ContentPart>,
-): Array<MessagePart> {
-  const messageParts: Array<MessagePart> = []
-
-  for (const part of contentParts) {
-    switch (part.type) {
-      case 'text':
-        messageParts.push({
-          type: 'text',
-          content: part.content,
-          ...(part.metadata !== undefined && { metadata: part.metadata }),
-        } as TextPart)
-        break
-      case 'image':
-        messageParts.push({
-          type: 'image',
-          source: part.source,
-          ...(part.metadata !== undefined && { metadata: part.metadata }),
-        } as ImageMessagePart)
-        break
-      case 'audio':
-        messageParts.push({
-          type: 'audio',
-          source: part.source,
-          ...(part.metadata !== undefined && { metadata: part.metadata }),
-        } as AudioMessagePart)
-        break
-      case 'video':
-        messageParts.push({
-          type: 'video',
-          source: part.source,
-          ...(part.metadata !== undefined && { metadata: part.metadata }),
-        } as VideoMessagePart)
-        break
-      case 'document':
-        messageParts.push({
-          type: 'document',
-          source: part.source,
-          ...(part.metadata !== undefined && { metadata: part.metadata }),
-        } as DocumentMessagePart)
-        break
-    }
-  }
-
-  return messageParts
 }
 
 /**
@@ -129,10 +77,10 @@ export function uiMessageToModelMessages(
   // Separate parts by type
   // Note: thinking parts are UI-only and not included in ModelMessages
   const textParts: Array<TextPart> = []
-  const imageParts: Array<ImageMessagePart> = []
-  const audioParts: Array<AudioMessagePart> = []
-  const videoParts: Array<VideoMessagePart> = []
-  const documentParts: Array<DocumentMessagePart> = []
+  const imageParts: Array<ImagePart> = []
+  const audioParts: Array<AudioPart> = []
+  const videoParts: Array<VideoPart> = []
+  const documentParts: Array<DocumentPart> = []
   const toolCallParts: Array<ToolCallPart> = []
   const toolResultParts: Array<ToolResultPart> = []
 
@@ -164,41 +112,15 @@ export function uiMessageToModelMessages(
   // Build the content field - use ContentPart[] if multimodal, string otherwise
   let content: string | null | Array<ContentPart>
   if (hasMultimodalContent) {
-    const contentParts: Array<ContentPart> = []
-    for (const part of uiMessage.parts) {
-      if (part.type === 'text') {
-        contentParts.push({
-          type: 'text',
-          content: part.content,
-          ...(part.metadata !== undefined && { metadata: part.metadata }),
-        })
-      } else if (part.type === 'image') {
-        contentParts.push({
-          type: 'image',
-          source: part.source,
-          ...(part.metadata !== undefined && { metadata: part.metadata }),
-        })
-      } else if (part.type === 'audio') {
-        contentParts.push({
-          type: 'audio',
-          source: part.source,
-          ...(part.metadata !== undefined && { metadata: part.metadata }),
-        })
-      } else if (part.type === 'video') {
-        contentParts.push({
-          type: 'video',
-          source: part.source,
-          ...(part.metadata !== undefined && { metadata: part.metadata }),
-        })
-      } else if (part.type === 'document') {
-        contentParts.push({
-          type: 'document',
-          source: part.source,
-          ...(part.metadata !== undefined && { metadata: part.metadata }),
-        })
-      }
-    }
-    content = contentParts.length > 0 ? contentParts : null
+    content =
+      uiMessage.parts.filter(
+        (part): part is ContentPart =>
+          part.type === 'text' ||
+          part.type === 'image' ||
+          part.type === 'audio' ||
+          part.type === 'video' ||
+          part.type === 'document',
+      ) || null
   } else {
     // Text-only: use simple string
     content = textParts.map((p) => p.content).join('') || null
@@ -284,7 +206,7 @@ export function modelMessageToUIMessage(
         })
       }
     } else if (Array.isArray(modelMessage.content)) {
-      parts.push(...contentPartsToMessageParts(modelMessage.content))
+      parts.push(...(modelMessage.content as Array<MessagePart>))
     }
   }
 
