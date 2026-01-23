@@ -375,9 +375,10 @@ export class GeminiTextAdapter<
                   `${functionCall.name}_${Date.now()}_${nextToolIndex}`
                 const functionArgs = functionCall.args || {}
 
-                const argsString = typeof functionArgs === 'string'
-                  ? functionArgs
-                  : JSON.stringify(functionArgs)
+                const argsString =
+                  typeof functionArgs === 'string'
+                    ? functionArgs
+                    : JSON.stringify(functionArgs)
 
                 toolCallMap.set(toolCallId, {
                   name: functionCall.name || '',
@@ -399,9 +400,10 @@ export class GeminiTextAdapter<
                 // Emit TOOL_CALL_END with parsed input
                 let parsedInput: unknown = {}
                 try {
-                  parsedInput = typeof functionArgs === 'string'
-                    ? JSON.parse(functionArgs)
-                    : functionArgs
+                  parsedInput =
+                    typeof functionArgs === 'string'
+                      ? JSON.parse(functionArgs)
+                      : functionArgs
                 } catch {
                   parsedInput = {}
                 }

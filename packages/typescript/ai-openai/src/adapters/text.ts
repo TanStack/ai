@@ -102,7 +102,10 @@ export class OpenAITextAdapter<
     // Track tool call metadata by unique ID
     // OpenAI streams tool calls with deltas - first chunk has ID/name, subsequent chunks only have args
     // We assign our own indices as we encounter unique tool call IDs
-    const toolCallMetadata = new Map<string, { index: number; name: string; started: boolean }>()
+    const toolCallMetadata = new Map<
+      string,
+      { index: number; name: string; started: boolean }
+    >()
     const requestArguments = this.mapTextOptionsToOpenAI(options)
 
     try {
@@ -231,7 +234,10 @@ export class OpenAITextAdapter<
 
   private async *processOpenAIStreamChunks(
     stream: AsyncIterable<OpenAI_SDK.Responses.ResponseStreamEvent>,
-    toolCallMetadata: Map<string, { index: number; name: string; started: boolean }>,
+    toolCallMetadata: Map<
+      string,
+      { index: number; name: string; started: boolean }
+    >,
     options: TextOptions,
     genId: () => string,
   ): AsyncIterable<StreamChunk> {
@@ -457,7 +463,10 @@ export class OpenAITextAdapter<
         if (chunk.type === 'response.content_part.added') {
           const contentPart = chunk.part
           // Emit TEXT_MESSAGE_START if this is text content
-          if (contentPart.type === 'output_text' && !hasEmittedTextMessageStart) {
+          if (
+            contentPart.type === 'output_text' &&
+            !hasEmittedTextMessageStart
+          ) {
             hasEmittedTextMessageStart = true
             yield {
               type: 'TEXT_MESSAGE_START',
@@ -529,7 +538,10 @@ export class OpenAITextAdapter<
         }
 
         // Handle function call arguments delta (streaming)
-        if (chunk.type === 'response.function_call_arguments.delta' && chunk.delta) {
+        if (
+          chunk.type === 'response.function_call_arguments.delta' &&
+          chunk.delta
+        ) {
           const metadata = toolCallMetadata.get(chunk.item_id)
           yield {
             type: 'TOOL_CALL_ARGS',

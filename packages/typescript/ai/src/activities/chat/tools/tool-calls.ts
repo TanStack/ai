@@ -160,7 +160,11 @@ export class ToolCallManager {
    */
   async *executeTools(
     finishEvent: DoneStreamChunk | RunFinishedEvent,
-  ): AsyncGenerator<ToolResultStreamChunk | ToolCallEndEvent, Array<ModelMessage>, void> {
+  ): AsyncGenerator<
+    ToolResultStreamChunk | ToolCallEndEvent,
+    Array<ModelMessage>,
+    void
+  > {
     const toolCallsArray = this.getToolCalls()
     const toolResults: Array<ModelMessage> = []
 

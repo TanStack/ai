@@ -586,9 +586,7 @@ export class AnthropicTextAdapter<
             // Emit TOOL_CALL_END
             let parsedInput: unknown = {}
             try {
-              parsedInput = existing.input
-                ? JSON.parse(existing.input)
-                : {}
+              parsedInput = existing.input ? JSON.parse(existing.input) : {}
             } catch {
               parsedInput = {}
             }

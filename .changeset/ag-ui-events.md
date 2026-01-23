@@ -1,9 +1,9 @@
 ---
-"@tanstack/ai": minor
-"@tanstack/ai-openai": minor
-"@tanstack/ai-anthropic": minor
-"@tanstack/ai-gemini": minor
-"@tanstack/ai-ollama": minor
+'@tanstack/ai': minor
+'@tanstack/ai-openai': minor
+'@tanstack/ai-anthropic': minor
+'@tanstack/ai-gemini': minor
+'@tanstack/ai-ollama': minor
 ---
 
 feat: Add AG-UI protocol events to streaming system

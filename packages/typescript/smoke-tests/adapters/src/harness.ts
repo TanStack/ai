@@ -183,10 +183,7 @@ export async function captureStream(opts: {
   let lastAssistantMessage: any | null = null
 
   // Track AG-UI tool calls in progress
-  const toolCallsInProgress = new Map<
-    string,
-    { name: string; args: string }
-  >()
+  const toolCallsInProgress = new Map<string, { name: string; args: string }>()
 
   for await (const chunk of stream) {
     chunkIndex++
@@ -288,7 +285,7 @@ export async function captureStream(opts: {
       const id = chunk.toolCallId
       const existing = toolCallsInProgress.get(id)
       if (existing) {
-        existing.args = chunk.args || (existing.args + (chunk.delta || ''))
+        existing.args = chunk.args || existing.args + (chunk.delta || '')
       }
 
       chunkData.toolCallId = chunk.toolCallId
@@ -300,7 +297,8 @@ export async function captureStream(opts: {
       const id = chunk.toolCallId
       const inProgress = toolCallsInProgress.get(id)
       const name = chunk.toolName || inProgress?.name || ''
-      const args = inProgress?.args || (chunk.input ? JSON.stringify(chunk.input) : '')
+      const args =
+        inProgress?.args || (chunk.input ? JSON.stringify(chunk.input) : '')
 
       // Add to legacy toolCallMap for compatibility
       toolCallMap.set(id, {

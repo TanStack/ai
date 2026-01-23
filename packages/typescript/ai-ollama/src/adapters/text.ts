@@ -214,7 +214,8 @@ export class OllamaTextAdapter<TModel extends string> extends BaseTextAdapter<
           id: string
           function: { index: number }
         }
-        const toolCallId = actualToolCall.id || `${actualToolCall.function.name}_${Date.now()}`
+        const toolCallId =
+          actualToolCall.id || `${actualToolCall.function.name}_${Date.now()}`
         const events: Array<StreamChunk> = []
 
         // Emit TOOL_CALL_START if not already emitted for this tool call
@@ -232,9 +233,10 @@ export class OllamaTextAdapter<TModel extends string> extends BaseTextAdapter<
 
         // Parse input
         let parsedInput: unknown = {}
-        const argsStr = typeof actualToolCall.function.arguments === 'string'
-          ? actualToolCall.function.arguments
-          : JSON.stringify(actualToolCall.function.arguments)
+        const argsStr =
+          typeof actualToolCall.function.arguments === 'string'
+            ? actualToolCall.function.arguments
+            : JSON.stringify(actualToolCall.function.arguments)
         try {
           parsedInput = JSON.parse(argsStr)
         } catch {
