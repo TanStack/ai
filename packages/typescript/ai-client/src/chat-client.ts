@@ -160,13 +160,16 @@ export class ChatClient {
           input: any
           approvalId: string
         }) => {
-          this.events.approvalRequested(
-            this.currentMessageId || '',
-            args.toolCallId,
-            args.toolName,
-            args.input,
-            args.approvalId,
-          )
+          if (this.currentStreamId) {
+            this.events.approvalRequested(
+              this.currentStreamId,
+              this.currentMessageId || '',
+              args.toolCallId,
+              args.toolName,
+              args.input,
+              args.approvalId,
+            )
+          }
         },
       },
     })
@@ -210,7 +213,10 @@ export class ChatClient {
       parts: [],
       createdAt: new Date(),
     }
-    this.events.messageAppended(assistantMessage)
+    this.events.messageAppended(
+      assistantMessage,
+      this.currentStreamId || undefined,
+    )
 
     // Process each chunk
     for await (const chunk of source) {

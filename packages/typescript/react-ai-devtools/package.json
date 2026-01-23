@@ -1,6 +1,6 @@
 {
   "name": "@tanstack/react-ai-devtools",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "React Devtools for TanStack AI.",
   "author": "tannerlinsley",
   "license": "MIT",
@@ -49,7 +49,7 @@
   ],
   "dependencies": {
     "@tanstack/ai-devtools-core": "workspace:*",
-    "@tanstack/devtools-utils": "^0.2.3"
+    "@tanstack/devtools-utils": "^0.3.0"
   },
   "peerDependencies": {
     "@types/react": "^17.0.0 || ^18.0.0 || ^19.0.0",

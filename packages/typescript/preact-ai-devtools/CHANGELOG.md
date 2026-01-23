@@ -1,5 +1,14 @@
 # @tanstack/preact-ai-devtools
 
+## 0.1.1
+
+### Patch Changes
+
+- Fix issue with double mounting of devtools ([#123](https://github.com/TanStack/ai/pull/123))
+
+- Updated dependencies [[`a19b247`](https://github.com/TanStack/ai/commit/a19b247d6e7fe44749ede2416e21c6d9e2045912)]:
+  - @tanstack/ai-devtools-core@0.2.1
+
 ## 0.1.0
 
 ### Minor Changes

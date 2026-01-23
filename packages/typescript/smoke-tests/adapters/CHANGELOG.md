@@ -1,5 +1,12 @@
 # @tanstack/tests-adapters
 
+## 0.1.4
+
+### Patch Changes
+
+- Updated dependencies [[`a19b247`](https://github.com/TanStack/ai/commit/a19b247d6e7fe44749ede2416e21c6d9e2045912)]:
+  - @tanstack/ai-openrouter@0.1.0
+
 ## 0.1.3
 
 ### Patch Changes

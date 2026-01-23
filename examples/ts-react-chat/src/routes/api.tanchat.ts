@@ -9,6 +9,7 @@ import { openaiText } from '@tanstack/ai-openai'
 import { ollamaText } from '@tanstack/ai-ollama'
 import { anthropicText } from '@tanstack/ai-anthropic'
 import { geminiText } from '@tanstack/ai-gemini'
+import { openRouterText } from '@tanstack/ai-openrouter'
 import { grokText } from '@tanstack/ai-grok'
 import type { AnyTextAdapter } from '@tanstack/ai'
 import {
@@ -19,7 +20,13 @@ import {
   recommendGuitarToolDef,
 } from '@/lib/guitar-tools'
 
-type Provider = 'openai' | 'anthropic' | 'gemini' | 'ollama' | 'grok'
+type Provider =
+  | 'openai'
+  | 'anthropic'
+  | 'gemini'
+  | 'ollama'
+  | 'grok'
+  | 'openrouter'
 
 const SYSTEM_PROMPT = `You are a helpful assistant for a guitar store.
 
@@ -84,6 +91,17 @@ export const Route = createFileRoute('/api/tanchat')({
               adapter: anthropicText(
                 (model || 'claude-sonnet-4-5') as 'claude-sonnet-4-5',
               ),
+            }),
+          openrouter: () =>
+            createChatOptions({
+              adapter: openRouterText('openai/gpt-5.1'),
+              modelOptions: {
+                models: ['openai/chatgpt-4o-latest'],
+                route: 'fallback',
+                reasoning: {
+                  effort: 'medium',
+                },
+              },
             }),
           gemini: () =>
             createChatOptions({

@@ -180,8 +180,9 @@ async function runSummarize(
   const inputLength = text.length
   const startTime = Date.now()
 
-  aiEventClient.emit('summarize:started', {
+  aiEventClient.emit('summarize:request:started', {
     requestId,
+    provider: adapter.name,
     model,
     inputLength,
     timestamp: startTime,
@@ -200,8 +201,9 @@ async function runSummarize(
   const duration = Date.now() - startTime
   const outputLength = result.summary.length
 
-  aiEventClient.emit('summarize:completed', {
+  aiEventClient.emit('summarize:request:completed', {
     requestId,
+    provider: adapter.name,
     model,
     inputLength,
     outputLength,

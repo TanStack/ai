@@ -496,7 +496,7 @@ describe('ChatClient', () => {
   })
 
   describe('devtools events', () => {
-    it('should emit messageAppended event when assistant message starts', async () => {
+    it('should emit text:message:created event when assistant message starts', async () => {
       const chunks = createTextChunks('Hello, world!')
       const adapter = createMockConnectionAdapter({ chunks })
 
@@ -507,20 +507,20 @@ describe('ChatClient', () => {
 
       await client.sendMessage('Hello')
 
-      // Find the messageAppended event for the assistant message
-      const messageAppendedCalls = emitSpy.mock.calls.filter(
-        ([eventName]) => eventName === 'client:message-appended',
+      // Find the message-created event for the assistant message
+      const messageCreatedCalls = emitSpy.mock.calls.filter(
+        ([eventName]) => eventName === 'text:message:created',
       )
 
       // Should have at least one call for the assistant message
-      const assistantAppendedCall = messageAppendedCalls.find(([, data]) => {
-        const payload = data as Record<string, unknown>
+      const assistantCreatedCall = messageCreatedCalls.find(([, data]) => {
+        const payload = data as any
         return payload && payload.role === 'assistant'
       })
-      expect(assistantAppendedCall).toBeDefined()
+      expect(assistantCreatedCall).toBeDefined()
     })
 
-    it('should emit textUpdated events during streaming', async () => {
+    it('should emit text:chunk:content events during streaming', async () => {
       const chunks = createTextChunks('Hello, world!')
       const adapter = createMockConnectionAdapter({ chunks })
 
@@ -533,14 +533,14 @@ describe('ChatClient', () => {
 
       // Find text-updated events
       const textUpdatedCalls = emitSpy.mock.calls.filter(
-        ([eventName]) => eventName === 'client:assistant-message-updated',
+        ([eventName]) => eventName === 'text:chunk:content',
       )
 
       // Should have text update events
       expect(textUpdatedCalls.length).toBeGreaterThan(0)
     })
 
-    it('should emit toolCallStateChanged events for tool calls', async () => {
+    it('should emit tools:call:updated events for tool calls', async () => {
       const chunks = createToolCallChunks([
         { id: 'tool-1', name: 'getWeather', arguments: '{"city": "NYC"}' },
       ])
@@ -555,14 +555,14 @@ describe('ChatClient', () => {
 
       // Find tool call events
       const toolCallUpdatedCalls = emitSpy.mock.calls.filter(
-        ([eventName]) => eventName === 'client:tool-call-updated',
+        ([eventName]) => eventName === 'tools:call:updated',
       )
 
       // Should have tool call events
       expect(toolCallUpdatedCalls.length).toBeGreaterThan(0)
     })
 
-    it('should emit thinkingUpdated events for thinking content', async () => {
+    it('should emit text:chunk:thinking events for thinking content', async () => {
       const chunks = createThinkingChunks(
         'Let me think...',
         'Here is my answer',
@@ -578,7 +578,7 @@ describe('ChatClient', () => {
 
       // Find thinking events
       const thinkingCalls = emitSpy.mock.calls.filter(
-        ([eventName]) => eventName === 'stream:chunk:thinking',
+        ([eventName]) => eventName === 'text:chunk:thinking',
       )
 
       // Should have thinking events
