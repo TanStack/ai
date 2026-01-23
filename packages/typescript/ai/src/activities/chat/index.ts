@@ -26,11 +26,16 @@ import type {
   DoneStreamChunk,
   InferSchemaType,
   ModelMessage,
+  RunFinishedEvent,
   SchemaInput,
   StreamChunk,
+  TextMessageContentEvent,
   TextOptions,
   Tool,
   ToolCall,
+  ToolCallArgsEvent,
+  ToolCallEndEvent,
+  ToolCallStartEvent,
 } from '../../types'
 
 // ===========================
@@ -428,6 +433,27 @@ class TextEngine<
 
   private handleStreamChunk(chunk: StreamChunk): void {
     switch (chunk.type) {
+      // AG-UI Events
+      case 'TEXT_MESSAGE_CONTENT':
+        this.handleTextMessageContentEvent(chunk)
+        break
+      case 'TOOL_CALL_START':
+        this.handleToolCallStartEvent(chunk)
+        break
+      case 'TOOL_CALL_ARGS':
+        this.handleToolCallArgsEvent(chunk)
+        break
+      case 'TOOL_CALL_END':
+        this.handleToolCallEndEvent(chunk)
+        break
+      case 'RUN_FINISHED':
+        this.handleRunFinishedEvent(chunk)
+        break
+      case 'RUN_ERROR':
+        this.handleRunErrorEvent(chunk)
+        break
+
+      // Legacy Events (backward compatibility)
       case 'content':
         this.handleContentChunk(chunk)
         break
@@ -446,7 +472,11 @@ class TextEngine<
       case 'thinking':
         this.handleThinkingChunk(chunk)
         break
+
       default:
+        // RUN_STARTED, TEXT_MESSAGE_START, TEXT_MESSAGE_END, STEP_STARTED, STEP_FINISHED,
+        // STATE_SNAPSHOT, STATE_DELTA, CUSTOM, approval-requested, tool-input-available
+        // - no special handling needed in chat activity
         break
     }
   }
@@ -545,6 +575,114 @@ class TextEngine<
       delta: chunk.delta,
       timestamp: Date.now(),
     })
+  }
+
+  // ===========================
+  // AG-UI Event Handlers
+  // ===========================
+
+  private handleTextMessageContentEvent(chunk: TextMessageContentEvent): void {
+    if (chunk.content) {
+      this.accumulatedContent = chunk.content
+    } else {
+      this.accumulatedContent += chunk.delta
+    }
+    aiEventClient.emit('text:chunk:content', {
+      ...this.buildTextEventContext(),
+      messageId: this.currentMessageId || undefined,
+      content: this.accumulatedContent,
+      delta: chunk.delta,
+      timestamp: Date.now(),
+    })
+  }
+
+  private handleToolCallStartEvent(chunk: ToolCallStartEvent): void {
+    this.toolCallManager.addToolCallStartEvent(chunk)
+    aiEventClient.emit('text:chunk:tool-call', {
+      ...this.buildTextEventContext(),
+      messageId: this.currentMessageId || undefined,
+      toolCallId: chunk.toolCallId,
+      toolName: chunk.toolName,
+      index: chunk.index ?? 0,
+      arguments: '',
+      timestamp: Date.now(),
+    })
+  }
+
+  private handleToolCallArgsEvent(chunk: ToolCallArgsEvent): void {
+    this.toolCallManager.addToolCallArgsEvent(chunk)
+    aiEventClient.emit('text:chunk:tool-call', {
+      ...this.buildTextEventContext(),
+      messageId: this.currentMessageId || undefined,
+      toolCallId: chunk.toolCallId,
+      toolName: '',
+      index: 0,
+      arguments: chunk.delta,
+      timestamp: Date.now(),
+    })
+  }
+
+  private handleToolCallEndEvent(chunk: ToolCallEndEvent): void {
+    this.toolCallManager.completeToolCall(chunk)
+    aiEventClient.emit('text:chunk:tool-result', {
+      ...this.buildTextEventContext(),
+      messageId: this.currentMessageId || undefined,
+      toolCallId: chunk.toolCallId,
+      result: chunk.result || '',
+      timestamp: Date.now(),
+    })
+  }
+
+  private handleRunFinishedEvent(chunk: RunFinishedEvent): void {
+    aiEventClient.emit('text:chunk:done', {
+      ...this.buildTextEventContext(),
+      messageId: this.currentMessageId || undefined,
+      finishReason: chunk.finishReason,
+      usage: chunk.usage,
+      timestamp: Date.now(),
+    })
+
+    if (chunk.usage) {
+      aiEventClient.emit('text:usage', {
+        ...this.buildTextEventContext(),
+        messageId: this.currentMessageId || undefined,
+        usage: chunk.usage,
+        timestamp: Date.now(),
+      })
+    }
+
+    // Don't overwrite a tool_calls finishReason with a stop finishReason
+    if (
+      this.doneChunk?.finishReason === 'tool_calls' &&
+      chunk.finishReason === 'stop'
+    ) {
+      this.lastFinishReason = chunk.finishReason
+      return
+    }
+
+    // Convert RUN_FINISHED to DoneStreamChunk for internal compatibility
+    this.doneChunk = {
+      type: 'done',
+      id: chunk.runId,
+      model: chunk.model || '',
+      timestamp: chunk.timestamp,
+      finishReason: chunk.finishReason,
+      usage: chunk.usage,
+    }
+    this.lastFinishReason = chunk.finishReason
+  }
+
+  private handleRunErrorEvent(
+    chunk: Extract<StreamChunk, { type: 'RUN_ERROR' }>,
+  ): void {
+    aiEventClient.emit('text:chunk:error', {
+      ...this.buildTextEventContext(),
+      messageId: this.currentMessageId || undefined,
+      error: chunk.error.message,
+      timestamp: Date.now(),
+    })
+    this.earlyTermination = true
+    this.shouldEmitStreamEnd = false
   }
 
   private async *checkForPendingToolCalls(): AsyncGenerator<

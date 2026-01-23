@@ -1,11 +1,13 @@
 """
 Server-Sent Events (SSE) formatting utilities for TanStack AI
 
-Provides utilities for formatting StreamChunk objects into SSE-compatible
+Provides utilities for formatting AG-UI StreamChunk objects into SSE-compatible
 event stream format for HTTP responses.
 """
 import json
-from typing import Dict, Any, AsyncIterator, Iterator, Union
+import secrets
+import time
+from typing import Dict, Any, AsyncIterator, Iterator, Optional, Union
 
 
 def format_sse_chunk(chunk: Dict[str, Any]) -> str:
@@ -31,21 +33,30 @@ def format_sse_done() -> str:
     return "data: [DONE]\n\n"
 
 
-def format_sse_error(error: Exception) -> str:
+def format_sse_error(
+    error: Exception,
+    run_id: Optional[str] = None,
+    model: Optional[str] = None
+) -> str:
     """
-    Format an error as an SSE error chunk.
+    Format an error as an SSE RUN_ERROR chunk (AG-UI Protocol).
     
     Args:
         error: Exception to format
+        run_id: Optional run ID for correlation
+        model: Optional model name
         
     Returns:
-        SSE-formatted error chunk
+        SSE-formatted RUN_ERROR chunk
     """
     error_chunk = {
-        "type": "error",
+        "type": "RUN_ERROR",
+        "runId": run_id or f"run-{secrets.token_hex(4)}",
+        "model": model,
+        "timestamp": int(time.time() * 1000),
         "error": {
-            "type": type(error).__name__,
-            "message": str(error)
+            "message": str(error),
+            "code": getattr(error, "code", None) or type(error).__name__,
         }
     }
     return format_sse_chunk(error_chunk)

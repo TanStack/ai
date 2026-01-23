@@ -182,6 +182,12 @@ export async function captureStream(opts: {
   let assistantDraft: any | null = null
   let lastAssistantMessage: any | null = null
 
+  // Track AG-UI tool calls in progress
+  const toolCallsInProgress = new Map<
+    string,
+    { name: string; args: string }
+  >()
+
   for await (const chunk of stream) {
     chunkIndex++
     const chunkData: any = {
@@ -189,10 +195,11 @@ export async function captureStream(opts: {
       index: chunkIndex,
       type: chunk.type,
       timestamp: chunk.timestamp,
-      id: chunk.id,
+      id: (chunk as any).id,
       model: chunk.model,
     }
 
+    // Legacy content event
     if (chunk.type === 'content') {
       chunkData.delta = chunk.delta
       chunkData.content = chunk.content
@@ -211,7 +218,27 @@ export async function captureStream(opts: {
           assistantDraft.content = (assistantDraft.content || '') + delta
         }
       }
-    } else if (chunk.type === 'tool_call') {
+    }
+    // AG-UI TEXT_MESSAGE_CONTENT event
+    else if (chunk.type === 'TEXT_MESSAGE_CONTENT') {
+      chunkData.delta = chunk.delta
+      chunkData.content = chunk.content
+      chunkData.role = 'assistant'
+      const delta = chunk.delta || ''
+      fullResponse += delta
+
+      if (!assistantDraft) {
+        assistantDraft = {
+          role: 'assistant',
+          content: chunk.content || '',
+          toolCalls: [],
+        }
+      } else {
+        assistantDraft.content = (assistantDraft.content || '') + delta
+      }
+    }
+    // Legacy tool_call event
+    else if (chunk.type === 'tool_call') {
       const id = chunk.toolCall.id
       const existing = toolCallMap.get(id) || {
         id,
@@ -240,7 +267,67 @@ export async function captureStream(opts: {
           },
         })
       }
-    } else if (chunk.type === 'tool_result') {
+    }
+    // AG-UI TOOL_CALL_START event
+    else if (chunk.type === 'TOOL_CALL_START') {
+      const id = chunk.toolCallId
+      toolCallsInProgress.set(id, {
+        name: chunk.toolName,
+        args: '',
+      })
+
+      if (!assistantDraft) {
+        assistantDraft = { role: 'assistant', content: null, toolCalls: [] }
+      }
+
+      chunkData.toolCallId = chunk.toolCallId
+      chunkData.toolName = chunk.toolName
+    }
+    // AG-UI TOOL_CALL_ARGS event
+    else if (chunk.type === 'TOOL_CALL_ARGS') {
+      const id = chunk.toolCallId
+      const existing = toolCallsInProgress.get(id)
+      if (existing) {
+        existing.args = chunk.args || (existing.args + (chunk.delta || ''))
+      }
+
+      chunkData.toolCallId = chunk.toolCallId
+      chunkData.delta = chunk.delta
+      chunkData.args = chunk.args
+    }
+    // AG-UI TOOL_CALL_END event
+    else if (chunk.type === 'TOOL_CALL_END') {
+      const id = chunk.toolCallId
+      const inProgress = toolCallsInProgress.get(id)
+      const name = chunk.toolName || inProgress?.name || ''
+      const args = inProgress?.args || (chunk.input ? JSON.stringify(chunk.input) : '')
+
+      // Add to legacy toolCallMap for compatibility
+      toolCallMap.set(id, {
+        id,
+        name,
+        arguments: args,
+      })
+
+      // Add to assistant draft
+      if (!assistantDraft) {
+        assistantDraft = { role: 'assistant', content: null, toolCalls: [] }
+      }
+      assistantDraft.toolCalls?.push({
+        id,
+        type: 'function',
+        function: {
+          name,
+          arguments: args,
+        },
+      })
+
+      chunkData.toolCallId = chunk.toolCallId
+      chunkData.toolName = chunk.toolName
+      chunkData.input = chunk.input
+    }
+    // Legacy tool_result event
+    else if (chunk.type === 'tool_result') {
       chunkData.toolCallId = chunk.toolCallId
       chunkData.content = chunk.content
       toolResults.push({
@@ -252,7 +339,9 @@ export async function captureStream(opts: {
         toolCallId: chunk.toolCallId,
         content: chunk.content,
       })
-    } else if (chunk.type === 'approval-requested') {
+    }
+    // Legacy approval-requested event
+    else if (chunk.type === 'approval-requested') {
       const approval: ApprovalCapture = {
         toolCallId: chunk.toolCallId,
         toolName: chunk.toolName,
@@ -264,7 +353,19 @@ export async function captureStream(opts: {
       chunkData.input = chunk.input
       chunkData.approval = chunk.approval
       approvalRequests.push(approval)
-    } else if (chunk.type === 'done') {
+    }
+    // Legacy done event
+    else if (chunk.type === 'done') {
+      chunkData.finishReason = chunk.finishReason
+      chunkData.usage = chunk.usage
+      if (chunk.finishReason === 'stop' && assistantDraft) {
+        reconstructedMessages.push(assistantDraft)
+        lastAssistantMessage = assistantDraft
+        assistantDraft = null
+      }
+    }
+    // AG-UI RUN_FINISHED event
+    else if (chunk.type === 'RUN_FINISHED') {
       chunkData.finishReason = chunk.finishReason
       chunkData.usage = chunk.usage
       if (chunk.finishReason === 'stop' && assistantDraft) {

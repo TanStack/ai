@@ -58,8 +58,17 @@ export async function runSMS(
         content: 'content' in chunk ? chunk.content : undefined,
       })
 
+      // Legacy content event
       if (chunk.type === 'content') {
         finalContent = chunk.content
+      }
+      // AG-UI TEXT_MESSAGE_CONTENT event
+      else if (chunk.type === 'TEXT_MESSAGE_CONTENT') {
+        if (chunk.content) {
+          finalContent = chunk.content
+        } else if (chunk.delta) {
+          finalContent += chunk.delta
+        }
       }
     }
 

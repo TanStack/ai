@@ -62,12 +62,27 @@ export class OpenAISummarizeAdapter<
       maxTokens: options.maxLength,
       temperature: 0.3,
     })) {
+      // Legacy content event
       if (chunk.type === 'content') {
         summary = chunk.content
         id = chunk.id
         model = chunk.model
       }
+      // AG-UI TEXT_MESSAGE_CONTENT event
+      else if (chunk.type === 'TEXT_MESSAGE_CONTENT') {
+        if (chunk.content) {
+          summary = chunk.content
+        } else {
+          summary += chunk.delta
+        }
+        model = chunk.model || model
+      }
+      // Legacy done event
       if (chunk.type === 'done' && chunk.usage) {
+        usage = chunk.usage
+      }
+      // AG-UI RUN_FINISHED event
+      else if (chunk.type === 'RUN_FINISHED' && chunk.usage) {
         usage = chunk.usage
       }
     }

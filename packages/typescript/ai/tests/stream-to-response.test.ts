@@ -227,7 +227,7 @@ describe('toServerSentEventsStream', () => {
     const sseStream = toServerSentEventsStream(errorStream())
     const output = await readStream(sseStream)
 
-    expect(output).toContain('"type":"error"')
+    expect(output).toContain('"type":"RUN_ERROR"')
     expect(output).toContain('"message":"Stream error"')
   })
 
@@ -243,7 +243,7 @@ describe('toServerSentEventsStream', () => {
     const output = await readStream(sseStream)
 
     // Should close without error chunk
-    expect(output).not.toContain('"type":"error"')
+    expect(output).not.toContain('"type":"RUN_ERROR"')
   })
 
   it('should handle cancel and abort underlying stream', async () => {

@@ -63,15 +63,27 @@ messages.forEach((message) => {
 });
 ```
 
-## Stream Chunks
+## Stream Events (AG-UI Protocol)
 
-Stream chunks contain different types of data:
+TanStack AI implements the [AG-UI Protocol](https://docs.ag-ui.com/introduction) for streaming. Stream events contain different types of data:
 
-- **Content chunks** - Text content being generated
-- **Thinking chunks** - Model's internal reasoning process (when supported)
-- **Tool call chunks** - When the model calls a tool
-- **Tool result chunks** - Results from tool execution
-- **Done chunks** - Stream completion
+### AG-UI Events
+
+- **RUN_STARTED** - Emitted when a run begins
+- **TEXT_MESSAGE_START/CONTENT/END** - Text content streaming lifecycle
+- **TOOL_CALL_START/ARGS/END** - Tool invocation lifecycle
+- **STEP_STARTED/STEP_FINISHED** - Thinking/reasoning steps
+- **RUN_FINISHED** - Run completion with finish reason and usage
+- **RUN_ERROR** - Error occurred during the run
+
+### Legacy Event Types (Backward Compatible)
+
+- **content** - Text content being generated (maps to TEXT_MESSAGE_CONTENT)
+- **thinking** - Model's reasoning process (maps to STEP_STARTED/STEP_FINISHED)
+- **tool_call** - Tool invocation (maps to TOOL_CALL_START/ARGS)
+- **tool_result** - Tool execution result (maps to TOOL_CALL_END)
+- **done** - Stream completion (maps to RUN_FINISHED)
+- **error** - Error occurred (maps to RUN_ERROR)
 
 ### Thinking Chunks
 

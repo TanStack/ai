@@ -26,7 +26,10 @@ export async function streamToText(
   let accumulatedContent = ''
 
   for await (const chunk of stream) {
-    if (chunk.type === 'content' && chunk.delta) {
+    // Handle both AG-UI TEXT_MESSAGE_CONTENT and legacy 'content' chunks
+    if (chunk.type === 'TEXT_MESSAGE_CONTENT' && chunk.delta) {
+      accumulatedContent += chunk.delta
+    } else if (chunk.type === 'content' && chunk.delta) {
       accumulatedContent += chunk.delta
     }
   }
@@ -77,11 +80,12 @@ export function toServerSentEventsStream(
           return
         }
 
-        // Send error chunk
+        // Send error event (AG-UI RUN_ERROR)
         controller.enqueue(
           encoder.encode(
             `data: ${JSON.stringify({
-              type: 'error',
+              type: 'RUN_ERROR',
+              timestamp: Date.now(),
               error: {
                 message: error.message || 'Unknown error occurred',
                 code: error.code,
@@ -198,11 +202,12 @@ export function toHttpStream(
           return
         }
 
-        // Send error chunk
+        // Send error event (AG-UI RUN_ERROR)
         controller.enqueue(
           encoder.encode(
             `${JSON.stringify({
-              type: 'error',
+              type: 'RUN_ERROR',
+              timestamp: Date.now(),
               error: {
                 message: error.message || 'Unknown error occurred',
                 code: error.code,

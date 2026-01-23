@@ -2,8 +2,12 @@ import { isStandardSchema, parseWithStandardSchema } from './schema-converter'
 import type {
   DoneStreamChunk,
   ModelMessage,
+  RunFinishedEvent,
   Tool,
   ToolCall,
+  ToolCallArgsEvent,
+  ToolCallEndEvent,
+  ToolCallStartEvent,
   ToolResultStreamChunk,
 } from '../../../types'
 
@@ -48,8 +52,52 @@ export class ToolCallManager {
   }
 
   /**
-   * Add a tool call chunk to the accumulator
+   * Add a TOOL_CALL_START event to begin tracking a tool call (AG-UI)
+   */
+  addToolCallStartEvent(event: ToolCallStartEvent): void {
+    const index = event.index ?? this.toolCallsMap.size
+    this.toolCallsMap.set(index, {
+      id: event.toolCallId,
+      type: 'function',
+      function: {
+        name: event.toolName,
+        arguments: '',
+      },
+    })
+  }
+
+  /**
+   * Add a TOOL_CALL_ARGS event to accumulate arguments (AG-UI)
+   */
+  addToolCallArgsEvent(event: ToolCallArgsEvent): void {
+    // Find the tool call by ID
+    for (const [, toolCall] of this.toolCallsMap.entries()) {
+      if (toolCall.id === event.toolCallId) {
+        toolCall.function.arguments += event.delta
+        break
+      }
+    }
+  }
+
+  /**
+   * Complete a tool call with its final input (AG-UI)
+   * Called when TOOL_CALL_END is received
+   */
+  completeToolCall(event: ToolCallEndEvent): void {
+    for (const [, toolCall] of this.toolCallsMap.entries()) {
+      if (toolCall.id === event.toolCallId) {
+        if (event.input !== undefined) {
+          toolCall.function.arguments = JSON.stringify(event.input)
+        }
+        break
+      }
+    }
+  }
+
+  /**
+   * Add a tool call chunk to the accumulator (legacy format)
    * Handles streaming tool calls by accumulating arguments
+   * @deprecated Use addToolCallStartEvent and addToolCallArgsEvent for AG-UI events
    */
   addToolCallChunk(chunk: {
     toolCall: {
@@ -107,11 +155,12 @@ export class ToolCallManager {
 
   /**
    * Execute all tool calls and return tool result messages
-   * Also yields tool_result chunks for streaming
+   * Also yields TOOL_CALL_END events (AG-UI) or tool_result chunks (legacy) for streaming
+   * @param finishEvent - Either a RUN_FINISHED event (AG-UI) or done chunk (legacy)
    */
   async *executeTools(
-    doneChunk: DoneStreamChunk,
-  ): AsyncGenerator<ToolResultStreamChunk, Array<ModelMessage>, void> {
+    finishEvent: DoneStreamChunk | RunFinishedEvent,
+  ): AsyncGenerator<ToolResultStreamChunk | ToolCallEndEvent, Array<ModelMessage>, void> {
     const toolCallsArray = this.getToolCalls()
     const toolResults: Array<ModelMessage> = []
 
@@ -182,14 +231,26 @@ export class ToolCallManager {
         toolResultContent = `Tool ${toolCall.function.name} does not have an execute function`
       }
 
-      // Emit tool_result chunk so callers can track tool execution
-      yield {
-        type: 'tool_result',
-        id: doneChunk.id,
-        model: doneChunk.model,
-        timestamp: Date.now(),
-        toolCallId: toolCall.id,
-        content: toolResultContent,
+      // Emit tool result event
+      // Use AG-UI TOOL_CALL_END for RUN_FINISHED events, legacy tool_result otherwise
+      if (finishEvent.type === 'RUN_FINISHED') {
+        yield {
+          type: 'TOOL_CALL_END',
+          toolCallId: toolCall.id,
+          toolName: toolCall.function.name,
+          model: finishEvent.model,
+          timestamp: Date.now(),
+          result: toolResultContent,
+        }
+      } else {
+        yield {
+          type: 'tool_result',
+          id: finishEvent.id,
+          model: finishEvent.model,
+          timestamp: Date.now(),
+          toolCallId: toolCall.id,
+          content: toolResultContent,
+        }
       }
 
       // Add tool result message
