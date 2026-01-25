@@ -202,7 +202,7 @@ export interface ChatClientOptions<
 
   /**
    * Callback when stream starts
-  */
+   */
   onStreamStart?: () => void
 
   /**
