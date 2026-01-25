@@ -55,3 +55,7 @@ test-traces
 .output
 
 .claude/settings.local.json
+
+# Script outputs
+scripts/fal.models.json
+fal-models-comparison.csv

@@ -1,8 +1,8 @@
 /**
- * Script to fetch all models from Fal API and save as TypeScript file
+ * Script to fetch all models from Fal API and save as JSON file
  *
  * This script downloads all models from the Fal API and saves them to a
- * generated TypeScript file for use by other scripts.
+ * generated JSON file for use by other scripts.
  *
  * Usage:
  *   pnpm exec tsx scripts/fetch-fal-models.ts
@@ -57,7 +57,7 @@ async function fetchPageWithRetry(
     try {
       const response = await fetch(url, {
         headers: {
-          'Authorization': `Key ${apiKey}`,
+          Authorization: `Key ${apiKey}`,
         },
       })
 
@@ -121,7 +121,7 @@ async function fetchAllFalModels(): Promise<Array<FalApiModel>> {
     cursor = data.has_more ? data.next_cursor : null
     pageNumber++
 
-    // Add delay to avoid rate limiting (5 seconds between requests)
+    // Add delay to avoid rate limiting (2 seconds between requests)
     if (cursor) {
       await sleep(2000)
     }
@@ -146,7 +146,7 @@ function generateJsonFile(models: Array<FalApiModel>): string {
 /**
  * Save models to JSON file
  */
-async function saveModelsToFile(models: Array<FalApiModel>): Promise<void> {
+function saveModelsToFile(models: Array<FalApiModel>): void {
   const outputPath = join(process.cwd(), 'scripts/fal.models.json')
 
   console.log('\nGenerating JSON file...')

@@ -240,7 +240,7 @@ function escapeCsvField(value: string): string {
  * Generate CSV content from comparison results
  */
 function generateCSV(results: ComparisonResults): string {
-  const lines: string[] = []
+  const lines: Array<string> = []
 
   // CSV Header
   lines.push(
