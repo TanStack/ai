@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { createChat } from '../src/create-chat.svelte'
 import { createMockConnectionAdapter } from './test-utils'
 
@@ -145,5 +145,17 @@ describe('createChat', () => {
     // Access error multiple times
     expect(chat.error).toBeUndefined()
     expect(chat.error).toBeUndefined()
+  })
+
+  it('should expose reactive status property', () => {
+    const mockConnection = createMockConnectionAdapter({ chunks: [] })
+
+    const chat = createChat({
+      connection: mockConnection,
+    })
+
+    // Access status multiple times
+    expect(chat.status).toBe('ready')
+    expect(chat.status).toBe('ready')
   })
 })

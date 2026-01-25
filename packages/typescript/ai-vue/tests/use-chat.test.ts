@@ -1,13 +1,13 @@
-import { describe, expect, it, vi } from 'vitest'
+import type { ModelMessage } from '@tanstack/ai'
 import { flushPromises } from '@vue/test-utils'
+import { describe, expect, it, vi } from 'vitest'
+import type { UIMessage } from '../src/types'
 import {
   createMockConnectionAdapter,
   createTextChunks,
   createToolCallChunks,
   renderUseChat,
 } from './test-utils'
-import type { UIMessage } from '../src/types'
-import type { ModelMessage } from '@tanstack/ai'
 
 describe('useChat', () => {
   describe('initialization', () => {
@@ -456,6 +456,51 @@ describe('useChat', () => {
       await flushPromises()
 
       expect(result.current.isLoading).toBe(false)
+    })
+  })
+
+  describe('status', () => {
+    it('should have initial status of ready', () => {
+      const adapter = createMockConnectionAdapter()
+      const { result } = renderUseChat({ connection: adapter })
+      expect(result.current.status).toBe('ready')
+    })
+
+    it('should transition through states during generation', async () => {
+      const chunks = createTextChunks('Response')
+      const adapter = createMockConnectionAdapter({
+        chunks,
+        chunkDelay: 50,
+      })
+      const { result } = renderUseChat({ connection: adapter })
+
+      const sendPromise = result.current.sendMessage('Test')
+
+      // Should leave ready state
+      await flushPromises()
+      expect(result.current.status).not.toBe('ready')
+
+      // Should be submitted or streaming
+      expect(['submitted', 'streaming']).toContain(result.current.status)
+
+      // Should return to ready eventually
+      await sendPromise
+      await flushPromises()
+      expect(result.current.status).toBe('ready')
+    })
+
+    it('should transition to error on error', async () => {
+      const error = new Error('Network error')
+      const adapter = createMockConnectionAdapter({
+        shouldError: true,
+        error,
+      })
+      const { result } = renderUseChat({ connection: adapter })
+
+      await result.current.sendMessage('Test')
+      await flushPromises()
+
+      expect(result.current.status).toBe('error')
     })
   })
 

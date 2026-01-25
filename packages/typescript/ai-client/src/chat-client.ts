@@ -36,6 +36,7 @@ export class ChatClient {
       onError: (error: Error) => void
       onMessagesChange: (messages: Array<UIMessage>) => void
       onLoadingChange: (isLoading: boolean) => void
+      onStreamStart: () => void
       onErrorChange: (error: Error | undefined) => void
     }
   }
@@ -62,6 +63,7 @@ export class ChatClient {
         onError: options.onError || (() => {}),
         onMessagesChange: options.onMessagesChange || (() => {}),
         onLoadingChange: options.onLoadingChange || (() => {}),
+        onStreamStart: options.onStreamStart || (() => {}),
         onErrorChange: options.onErrorChange || (() => {}),
       },
     }
@@ -75,7 +77,7 @@ export class ChatClient {
           this.callbacksRef.current.onMessagesChange(messages)
         },
         onStreamStart: () => {
-          // Stream started
+          this.callbacksRef.current.onStreamStart()
         },
         onStreamEnd: (message: UIMessage) => {
           this.callbacksRef.current.onFinish(message)

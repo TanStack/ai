@@ -1,13 +1,14 @@
-import type { Accessor } from 'solid-js'
 import type { AnyClientTool, ModelMessage } from '@tanstack/ai'
 import type {
   ChatClientOptions,
+  ChatClientState,
   ChatRequestBody,
-  UIMessage,
+  UIMessage
 } from '@tanstack/ai-client'
+import type { Accessor } from 'solid-js'
 
 // Re-export types from ai-client
-export type { UIMessage, ChatRequestBody }
+export type { ChatRequestBody, UIMessage }
 
 /**
  * Options for the useChat hook.
@@ -96,6 +97,11 @@ export interface UseChatReturn<
    * Clear all messages
    */
   clear: () => void
+
+  /**
+   * Current generation status
+   */
+  status: Accessor<ChatClientState>
 }
 
 // Note: createChatClientOptions and InferChatMessages are now in @tanstack/ai-client

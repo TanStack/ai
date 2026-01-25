@@ -1,12 +1,13 @@
 import type { AnyClientTool, ModelMessage } from '@tanstack/ai'
 import type {
   ChatClientOptions,
+  ChatClientState,
   ChatRequestBody,
   UIMessage,
 } from '@tanstack/ai-client'
 
 // Re-export types from ai-client
-export type { UIMessage, ChatRequestBody }
+export type { ChatRequestBody, UIMessage }
 
 /**
  * Options for the useChat hook.
@@ -95,4 +96,9 @@ export interface UseChatReturn<
    * Clear all messages
    */
   clear: () => void
+
+  /**
+   * Current generation status
+   */
+  status: ChatClientState
 }

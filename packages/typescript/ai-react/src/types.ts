@@ -1,6 +1,7 @@
 import type { AnyClientTool, ModelMessage } from '@tanstack/ai'
 import type {
   ChatClientOptions,
+  ChatClientState,
   ChatRequestBody,
   UIMessage,
 } from '@tanstack/ai-client'
@@ -26,7 +27,7 @@ export type { UIMessage, ChatRequestBody }
 export type UseChatOptions<TTools extends ReadonlyArray<AnyClientTool> = any> =
   Omit<
     ChatClientOptions<TTools>,
-    'onMessagesChange' | 'onLoadingChange' | 'onErrorChange'
+    'onMessagesChange' | 'onLoadingChange' | 'onErrorChange' | 'onStreamStart'
   >
 
 export interface UseChatReturn<
@@ -85,6 +86,11 @@ export interface UseChatReturn<
    * Current error, if any
    */
   error: Error | undefined
+
+  /**
+   * Current status of the chat client
+   */
+  status: ChatClientState
 
   /**
    * Set messages manually

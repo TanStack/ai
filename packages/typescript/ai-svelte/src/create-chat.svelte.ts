@@ -1,5 +1,5 @@
-import { ChatClient } from '@tanstack/ai-client'
 import type { AnyClientTool, ModelMessage } from '@tanstack/ai'
+import { ChatClient, ChatClientState } from '@tanstack/ai-client'
 import type { CreateChatOptions, CreateChatReturn, UIMessage } from './types'
 
 /**
@@ -44,6 +44,7 @@ export function createChat<TTools extends ReadonlyArray<AnyClientTool> = any>(
   let messages = $state<Array<UIMessage<TTools>>>(options.initialMessages || [])
   let isLoading = $state(false)
   let error = $state<Error | undefined>(undefined)
+  let status = $state<ChatClientState>('ready')
 
   // Create ChatClient instance
   const client = new ChatClient({
@@ -53,8 +54,14 @@ export function createChat<TTools extends ReadonlyArray<AnyClientTool> = any>(
     body: options.body,
     onResponse: options.onResponse,
     onChunk: options.onChunk,
-    onFinish: options.onFinish,
-    onError: options.onError,
+    onFinish: (message) => {
+      status = 'ready'
+      options.onFinish?.(message)
+    },
+    onError: (err) => {
+      status = 'error'
+      options.onError?.(err)
+    },
     tools: options.tools,
     streamProcessor: options.streamProcessor,
     onMessagesChange: (newMessages: Array<UIMessage<TTools>>) => {
@@ -62,6 +69,14 @@ export function createChat<TTools extends ReadonlyArray<AnyClientTool> = any>(
     },
     onLoadingChange: (newIsLoading: boolean) => {
       isLoading = newIsLoading
+      if (newIsLoading) {
+        status = 'submitted'
+      } else {
+        status = error ? 'error' : 'ready'
+      }
+    },
+    onStreamStart: () => {
+      status = 'streaming'
     },
     onErrorChange: (newError: Error | undefined) => {
       error = newError
@@ -126,6 +141,9 @@ export function createChat<TTools extends ReadonlyArray<AnyClientTool> = any>(
     },
     get error() {
       return error
+    },
+    get status() {
+      return status
     },
     sendMessage,
     append,

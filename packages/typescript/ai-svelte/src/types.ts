@@ -1,12 +1,13 @@
 import type { AnyClientTool, ModelMessage } from '@tanstack/ai'
 import type {
   ChatClientOptions,
+  ChatClientState,
   ChatRequestBody,
-  UIMessage,
+  UIMessage
 } from '@tanstack/ai-client'
 
 // Re-export types from ai-client
-export type { UIMessage, ChatRequestBody }
+export type { ChatRequestBody, UIMessage }
 
 /**
  * Options for the createChat function.
@@ -96,6 +97,11 @@ export interface CreateChatReturn<
    * Clear all messages
    */
   clear: () => void
+
+  /**
+   * Current generation status (reactive getter)
+   */
+  readonly status: ChatClientState
 }
 
 // Note: createChatClientOptions and InferChatMessages are now in @tanstack/ai-client

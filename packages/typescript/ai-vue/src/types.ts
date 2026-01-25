@@ -1,13 +1,14 @@
-import type { DeepReadonly, ShallowRef } from 'vue'
 import type { AnyClientTool, ModelMessage } from '@tanstack/ai'
 import type {
   ChatClientOptions,
+  ChatClientState,
   ChatRequestBody,
-  UIMessage,
+  UIMessage
 } from '@tanstack/ai-client'
+import type { DeepReadonly, ShallowRef } from 'vue'
 
 // Re-export types from ai-client
-export type { UIMessage, ChatRequestBody }
+export type { ChatRequestBody, UIMessage }
 
 /**
  * Options for the useChat composable.
@@ -96,6 +97,11 @@ export interface UseChatReturn<
    * Clear all messages
    */
   clear: () => void
+
+  /**
+   * Current generation status
+   */
+  status: DeepReadonly<ShallowRef<ChatClientState>>
 }
 
 // Note: createChatClientOptions and InferChatMessages are now in @tanstack/ai-client

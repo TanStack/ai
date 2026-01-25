@@ -1,13 +1,13 @@
-import { describe, it, expect, vi } from 'vitest'
 import { waitFor } from '@solidjs/testing-library'
+import type { ModelMessage } from '@tanstack/ai'
+import { describe, expect, it, vi } from 'vitest'
+import type { UIMessage } from '../src/types'
 import {
-  renderUseChat,
   createMockConnectionAdapter,
   createTextChunks,
   createToolCallChunks,
+  renderUseChat,
 } from './test-utils'
-import type { UIMessage } from '../src/types'
-import type { ModelMessage } from '@tanstack/ai'
 
 describe('useChat', () => {
   describe('initialization', () => {
@@ -378,9 +378,9 @@ describe('useChat', () => {
       )
       const firstContent =
         firstAssistantMessage?.parts.find((p) => p.type === 'text')?.type ===
-        'text'
+          'text'
           ? (firstAssistantMessage.parts.find((p) => p.type === 'text') as any)
-              .content
+            .content
           : ''
 
       // Reload with new adapter
@@ -514,6 +514,60 @@ describe('useChat', () => {
 
       await sendPromise.catch(() => {
         // Ignore errors from stopped request
+      })
+    })
+  })
+
+  describe('status', () => {
+    it('should have initial status of ready', () => {
+      const adapter = createMockConnectionAdapter()
+      const { result } = renderUseChat({ connection: adapter })
+      expect(result.current.status).toBe('ready')
+    })
+
+    it('should transition through states during generation', async () => {
+      const chunks = createTextChunks('Response')
+      const adapter = createMockConnectionAdapter({
+        chunks,
+        chunkDelay: 50,
+      })
+      const { result } = renderUseChat({ connection: adapter })
+
+      const sendPromise = result.current.sendMessage('Test')
+
+      // Should leave ready state
+      await waitFor(() => {
+        expect(result.current.status).not.toBe('ready')
+      })
+
+      // Should be submitted or streaming
+      expect(['submitted', 'streaming']).toContain(result.current.status)
+
+      // Should eventually match streaming
+      await waitFor(() => {
+        expect(result.current.status).toBe('streaming')
+      })
+
+      await sendPromise
+
+      // Should return to ready
+      await waitFor(() => {
+        expect(result.current.status).toBe('ready')
+      })
+    })
+
+    it('should transition to error on error', async () => {
+      const error = new Error('Network error')
+      const adapter = createMockConnectionAdapter({
+        shouldError: true,
+        error,
+      })
+      const { result } = renderUseChat({ connection: adapter })
+
+      await result.current.sendMessage('Test')
+
+      await waitFor(() => {
+        expect(result.current.status).toBe('error')
       })
     })
   })

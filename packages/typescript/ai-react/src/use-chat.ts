@@ -1,6 +1,6 @@
-import { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react'
-import { ChatClient } from '@tanstack/ai-client'
 import type { AnyClientTool, ModelMessage } from '@tanstack/ai'
+import { ChatClient, ChatClientState } from '@tanstack/ai-client'
+import { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react'
 
 import type { UIMessage, UseChatOptions, UseChatReturn } from './types'
 
@@ -15,6 +15,7 @@ export function useChat<TTools extends ReadonlyArray<AnyClientTool> = any>(
   )
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<Error | undefined>(undefined)
+  const [status, setStatus] = useState<ChatClientState>('ready')
 
   // Track current messages in a ref to preserve them when client is recreated
   const messagesRef = useRef<Array<UIMessage<TTools>>>(
@@ -50,8 +51,17 @@ export function useChat<TTools extends ReadonlyArray<AnyClientTool> = any>(
       body: optionsRef.current.body,
       onResponse: optionsRef.current.onResponse,
       onChunk: optionsRef.current.onChunk,
-      onFinish: optionsRef.current.onFinish,
-      onError: optionsRef.current.onError,
+      onStreamStart: () => {
+        setStatus("streaming")
+      },
+      onFinish: (message: UIMessage<TTools>) => {
+        setStatus('ready')
+        optionsRef.current.onFinish?.(message)
+      },
+      onError: (error: Error) => {
+        setStatus('error')
+        optionsRef.current.onError?.(error)
+      },
       tools: optionsRef.current.tools,
       streamProcessor: options.streamProcessor,
       onMessagesChange: (newMessages: Array<UIMessage<TTools>>) => {
@@ -59,12 +69,18 @@ export function useChat<TTools extends ReadonlyArray<AnyClientTool> = any>(
       },
       onLoadingChange: (newIsLoading: boolean) => {
         setIsLoading(newIsLoading)
+        if (newIsLoading) {
+          setStatus('submitted')
+        } else {
+          setStatus((prev) => (prev === 'error' ? 'error' : 'ready'))
+        }
       },
       onErrorChange: (newError: Error | undefined) => {
         setError(newError)
       },
     })
   }, [clientId])
+
 
   // Sync initial messages on mount only
   // Note: initialMessages are passed to ChatClient constructor, but we also
@@ -154,6 +170,7 @@ export function useChat<TTools extends ReadonlyArray<AnyClientTool> = any>(
     stop,
     isLoading,
     error,
+    status,
     setMessages: setMessagesManually,
     clear,
     addToolResult,
