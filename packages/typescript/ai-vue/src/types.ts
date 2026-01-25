@@ -28,7 +28,7 @@ export type { ChatRequestBody, UIMessage }
 export type UseChatOptions<TTools extends ReadonlyArray<AnyClientTool> = any> =
   Omit<
     ChatClientOptions<TTools>,
-    'onMessagesChange' | 'onLoadingChange' | 'onErrorChange'
+    'onMessagesChange' | 'onLoadingChange' | 'onErrorChange' | 'onStreamStart'
   >
 
 export interface UseChatReturn<

@@ -28,7 +28,7 @@ export type CreateChatOptions<
   TTools extends ReadonlyArray<AnyClientTool> = any,
 > = Omit<
   ChatClientOptions<TTools>,
-  'onMessagesChange' | 'onLoadingChange' | 'onErrorChange'
+  'onMessagesChange' | 'onLoadingChange' | 'onErrorChange' | 'onStreamStart'
 >
 
 export interface CreateChatReturn<
