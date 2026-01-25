@@ -1,5 +1,6 @@
 import type { AnyClientTool, ModelMessage } from '@tanstack/ai'
-import { ChatClient, type ChatClientState } from '@tanstack/ai-client'
+import { ChatClient } from '@tanstack/ai-client'
+import type { ChatClientState } from '@tanstack/ai-client'
 import { onScopeDispose, readonly, shallowRef, useId } from 'vue'
 import type { UIMessage, UseChatOptions, UseChatReturn } from './types'
 
