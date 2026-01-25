@@ -5,6 +5,7 @@
  * This is a self-contained module with implementation, types, and JSDoc.
  */
 
+import { aiEventClient } from '../../event-client.js'
 import type { ImageAdapter } from './adapter'
 import type { ImageGenerationResult } from '../../types'
 
@@ -82,6 +83,10 @@ export interface ImageActivityOptions<
 /** Result type for the image activity */
 export type ImageActivityResult = Promise<ImageGenerationResult>
 
+function createId(prefix: string): string {
+  return `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`
+}
+
 // ===========================
 // Activity Implementation
 // ===========================
@@ -136,8 +141,48 @@ export async function generateImage<
 >(options: ImageActivityOptions<TAdapter>): ImageActivityResult {
   const { adapter, ...rest } = options
   const model = adapter.model
+  const requestId = createId('image')
+  const startTime = Date.now()
 
-  return adapter.generateImages({ ...rest, model })
+  aiEventClient.emit('image:request:started', {
+    requestId,
+    provider: adapter.name,
+    model,
+    prompt: rest.prompt,
+    numberOfImages: rest.numberOfImages,
+    size: rest.size as string | undefined,
+    modelOptions: rest.modelOptions as Record<string, unknown> | undefined,
+    timestamp: startTime,
+  })
+
+  return adapter.generateImages({ ...rest, model }).then((result) => {
+    const duration = Date.now() - startTime
+
+    aiEventClient.emit('image:request:completed', {
+      requestId,
+      provider: adapter.name,
+      model,
+      images: result.images.map((image) => ({
+        url: image.url,
+        b64Json: image.b64Json,
+      })),
+      duration,
+      modelOptions: rest.modelOptions as Record<string, unknown> | undefined,
+      timestamp: Date.now(),
+    })
+
+    if (result.usage) {
+      aiEventClient.emit('image:usage', {
+        requestId,
+        model,
+        usage: result.usage,
+        modelOptions: rest.modelOptions as Record<string, unknown> | undefined,
+        timestamp: Date.now(),
+      })
+    }
+
+    return result
+  })
 }
 
 // ===========================

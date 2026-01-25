@@ -1,0 +1,52 @@
+{
+  "name": "@tanstack/ai-openrouter",
+  "version": "0.1.0",
+  "description": "OpenRouter adapter for TanStack AI",
+  "author": "",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/TanStack/ai.git",
+    "directory": "packages/typescript/ai-openrouter"
+  },
+  "type": "module",
+  "module": "./dist/esm/index.js",
+  "types": "./dist/esm/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/esm/index.d.ts",
+      "import": "./dist/esm/index.js"
+    }
+  },
+  "files": [
+    "dist",
+    "src"
+  ],
+  "scripts": {
+    "build": "vite build",
+    "clean": "premove ./build ./dist",
+    "lint:fix": "eslint ./src --fix",
+    "test:build": "publint --strict",
+    "test:eslint": "eslint ./src",
+    "test:lib": "vitest run",
+    "test:lib:dev": "pnpm test:lib --watch",
+    "test:types": "tsc"
+  },
+  "keywords": [
+    "ai",
+    "openrouter",
+    "tanstack",
+    "adapter"
+  ],
+  "dependencies": {
+    "@openrouter/sdk": "0.3.15",
+    "@tanstack/ai": "workspace:*"
+  },
+  "devDependencies": {
+    "@vitest/coverage-v8": "4.0.14",
+    "vite": "^7.2.7"
+  },
+  "peerDependencies": {
+    "@tanstack/ai": "workspace:*"
+  }
+}

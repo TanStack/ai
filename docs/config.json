@@ -137,6 +137,10 @@
           "to": "adapters/openai"
         },
         {
+          "label": "OpenRouter",
+          "to": "adapters/openrouter"
+        },
+        {
           "label": "Anthropic",
           "to": "adapters/anthropic"
         },
@@ -160,6 +164,10 @@
         {
           "label": "Community Adapters Guide",
           "to": "community-adapters/guide"
+        },
+        {
+          "label": "Cencori",
+          "to": "community-adapters/cencori"
         },
         {
           "label": "Decart",

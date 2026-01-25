@@ -1,12 +1,12 @@
 import { BaseVideoAdapter } from '@tanstack/ai/adapters'
-import { createOpenAIClient, getOpenAIApiKeyFromEnv } from '../utils'
+import { createOpenAIClient, getOpenAIApiKeyFromEnv } from '../utils/client'
 import {
   toApiSeconds,
   validateVideoSeconds,
   validateVideoSize,
 } from '../video/video-provider-options'
 import type { VideoModel } from 'openai/resources'
-import type { OPENAI_VIDEO_MODELS } from '../model-meta'
+import type { OpenAIVideoModel } from '../model-meta'
 import type {
   OpenAIVideoModelProviderOptionsByName,
   OpenAIVideoProviderOptions,
@@ -18,7 +18,7 @@ import type {
   VideoUrlResult,
 } from '@tanstack/ai'
 import type OpenAI_SDK from 'openai'
-import type { OpenAIClientConfig } from '../utils'
+import type { OpenAIClientConfig } from '../utils/client'
 
 /**
  * Configuration for OpenAI video adapter.
@@ -26,9 +26,6 @@ import type { OpenAIClientConfig } from '../utils'
  * @experimental Video generation is an experimental feature and may change.
  */
 export interface OpenAIVideoConfig extends OpenAIClientConfig {}
-
-/** Model type for OpenAI Video */
-export type OpenAIVideoModel = (typeof OPENAI_VIDEO_MODELS)[number]
 
 /**
  * OpenAI Video Generation Adapter

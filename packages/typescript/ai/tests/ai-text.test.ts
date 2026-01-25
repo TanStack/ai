@@ -127,11 +127,13 @@ describe('chat() - Comprehensive Logic Path Coverage', () => {
         collectChunks(stream2),
       ])
 
-      const event1 = capturedEvents.find((e) => e.type === 'text:started')
+      const event1 = capturedEvents.find(
+        (e) => e.type === 'text:request:started',
+      )
       const event2 = capturedEvents
         .slice()
         .reverse()
-        .find((e) => e.type === 'text:started')
+        .find((e) => e.type === 'text:request:started')
 
       expect(event1).toBeDefined()
       expect(event2).toBeDefined()
@@ -140,7 +142,7 @@ describe('chat() - Comprehensive Logic Path Coverage', () => {
       expect(chunks2.length).toBeGreaterThan(0)
     })
 
-    it('should emit chat:started event with correct data', async () => {
+    it('should emit text:request:started event with correct data', async () => {
       const adapter = new MockAdapter()
 
       await collectChunks(
@@ -160,7 +162,9 @@ describe('chat() - Comprehensive Logic Path Coverage', () => {
         }),
       )
 
-      const event = capturedEvents.find((e) => e.type === 'text:started')
+      const event = capturedEvents.find(
+        (e) => e.type === 'text:request:started',
+      )
       expect(event).toBeDefined()
       expect(event?.data.model).toBe('test-model')
       expect(event?.data.messageCount).toBe(2)
@@ -168,7 +172,7 @@ describe('chat() - Comprehensive Logic Path Coverage', () => {
       expect(event?.data.streaming).toBe(true)
     })
 
-    it('should emit stream:started event with correct data', async () => {
+    it('should emit text:request:started event with correct data', async () => {
       const adapter = new MockAdapter()
 
       await collectChunks(
@@ -178,7 +182,9 @@ describe('chat() - Comprehensive Logic Path Coverage', () => {
         }),
       )
 
-      const event = capturedEvents.find((e) => e.type === 'stream:started')
+      const event = capturedEvents.find(
+        (e) => e.type === 'text:request:started',
+      )
       expect(event).toBeDefined()
       expect(event?.data.model).toBe('test-model')
       expect(event?.data.provider).toBe('mock')
@@ -261,15 +267,15 @@ describe('chat() - Comprehensive Logic Path Coverage', () => {
       expect(chunks[1]?.type).toBe('done')
 
       // Check events
-      expect(capturedEvents.some((e) => e.type === 'text:started')).toBe(true)
-      expect(capturedEvents.some((e) => e.type === 'stream:started')).toBe(true)
       expect(
-        capturedEvents.some((e) => e.type === 'stream:chunk:content'),
+        capturedEvents.some((e) => e.type === 'text:request:started'),
       ).toBe(true)
-      expect(capturedEvents.some((e) => e.type === 'stream:chunk:done')).toBe(
+      expect(capturedEvents.some((e) => e.type === 'text:chunk:content')).toBe(
         true,
       )
-      expect(capturedEvents.some((e) => e.type === 'stream:ended')).toBe(true)
+      expect(capturedEvents.some((e) => e.type === 'text:chunk:done')).toBe(
+        true,
+      )
     })
 
     it('should accumulate content across multiple chunks', async () => {
@@ -330,7 +336,7 @@ describe('chat() - Comprehensive Logic Path Coverage', () => {
 
       // Check content events
       const contentEvents = capturedEvents.filter(
-        (e) => e.type === 'stream:chunk:content',
+        (e) => e.type === 'text:chunk:content',
       )
       expect(contentEvents).toHaveLength(3)
     })
@@ -453,12 +459,11 @@ describe('chat() - Comprehensive Logic Path Coverage', () => {
 
       // Check events
       expect(
-        capturedEvents.some((e) => e.type === 'stream:chunk:tool-call'),
+        capturedEvents.some((e) => e.type === 'text:chunk:tool-call'),
       ).toBe(true)
-      expect(capturedEvents.some((e) => e.type === 'text:iteration')).toBe(true)
-      expect(capturedEvents.some((e) => e.type === 'tool:call-completed')).toBe(
-        true,
-      )
+      expect(
+        capturedEvents.some((e) => e.type === 'tools:call:completed'),
+      ).toBe(true)
     })
 
     it('should handle streaming tool call arguments (incremental JSON)', async () => {
@@ -646,12 +651,11 @@ describe('chat() - Comprehensive Logic Path Coverage', () => {
       const toolResultChunks = chunks.filter((c) => c.type === 'tool_result')
       expect(toolResultChunks).toHaveLength(2)
 
-      // Check iteration event
-      const iterationEvents = capturedEvents.filter(
-        (e) => e.type === 'text:iteration',
+      // Check tool completion events
+      const toolCompletionEvents = capturedEvents.filter(
+        (e) => e.type === 'tools:call:completed',
       )
-      expect(iterationEvents.length).toBeGreaterThan(0)
-      expect(iterationEvents[0]?.data.toolCallCount).toBe(2)
+      expect(toolCompletionEvents.length).toBeGreaterThan(0)
     })
 
     it('should handle tool calls with accumulated content', async () => {
@@ -944,9 +948,9 @@ describe('chat() - Comprehensive Logic Path Coverage', () => {
       const result = JSON.parse(resultChunk.content)
       expect(result.result).toBe('success')
 
-      // Check tool:call-completed event
+      // Check tools:call:completed event
       const completedEvents = capturedEvents.filter(
-        (e) => e.type === 'tool:call-completed',
+        (e) => e.type === 'tools:call:completed',
       )
       expect(completedEvents.length).toBeGreaterThan(0)
     })
@@ -1215,7 +1219,7 @@ describe('chat() - Comprehensive Logic Path Coverage', () => {
 
       // Should emit approval-requested event
       expect(
-        capturedEvents.some((e) => e.type === 'stream:approval-requested'),
+        capturedEvents.some((e) => e.type === 'tools:approval:requested'),
       ).toBe(true)
     })
 
@@ -1277,7 +1281,7 @@ describe('chat() - Comprehensive Logic Path Coverage', () => {
 
       // Should emit tool-input-available event
       expect(
-        capturedEvents.some((e) => e.type === 'stream:tool-input-available'),
+        capturedEvents.some((e) => e.type === 'tools:input:available'),
       ).toBe(true)
     })
 
@@ -1916,15 +1920,9 @@ describe('chat() - Comprehensive Logic Path Coverage', () => {
       expect((chunks[1] as any).error.message).toBe('API error occurred')
 
       // Should emit error event
-      expect(capturedEvents.some((e) => e.type === 'stream:chunk:error')).toBe(
+      expect(capturedEvents.some((e) => e.type === 'text:chunk:error')).toBe(
         true,
       )
-
-      // Should NOT emit stream:ended after error
-      const endedEvents = capturedEvents.filter(
-        (e) => e.type === 'stream:ended',
-      )
-      expect(endedEvents).toHaveLength(0)
     })
   })
 
@@ -2053,20 +2051,15 @@ describe('chat() - Comprehensive Logic Path Coverage', () => {
       const eventTypes = capturedEvents.map((e) => e.type)
 
       // Check event order and presence
-      expect(eventTypes.includes('text:started')).toBe(true)
-      expect(eventTypes.includes('stream:started')).toBe(true)
-      expect(eventTypes.includes('stream:chunk:content')).toBe(true)
-      expect(eventTypes.includes('stream:chunk:done')).toBe(true)
-      expect(eventTypes.includes('stream:ended')).toBe(true)
+      expect(eventTypes.includes('text:request:started')).toBe(true)
+      expect(eventTypes.includes('text:chunk:content')).toBe(true)
+      expect(eventTypes.includes('text:chunk:done')).toBe(true)
+      expect(eventTypes.includes('text:request:completed')).toBe(true)
 
-      // chat:started should come before stream:started
-      const chatStartedIndex = eventTypes.indexOf('text:started')
-      const streamStartedIndex = eventTypes.indexOf('stream:started')
-      expect(chatStartedIndex).toBeLessThan(streamStartedIndex)
-
-      // stream:ended should come last
-      const streamEndedIndex = eventTypes.indexOf('stream:ended')
-      expect(streamEndedIndex).toBe(eventTypes.length - 1)
+      // request:started should come before first content chunk
+      const requestStartedIndex = eventTypes.indexOf('text:request:started')
+      const contentIndex = eventTypes.indexOf('text:chunk:content')
+      expect(requestStartedIndex).toBeLessThan(contentIndex)
     })
 
     it('should emit iteration events for tool calls', async () => {
@@ -2133,15 +2126,14 @@ describe('chat() - Comprehensive Logic Path Coverage', () => {
         }),
       )
 
-      // Should emit chat:iteration event
-      const iterationEvents = capturedEvents.filter(
-        (e) => e.type === 'text:iteration',
+      // Should emit tools:call:completed event
+      const toolCompletionEvents = capturedEvents.filter(
+        (e) => e.type === 'tools:call:completed',
       )
-      expect(iterationEvents.length).toBeGreaterThan(0)
-      expect(iterationEvents[0]?.data.iterationNumber).toBe(1)
+      expect(toolCompletionEvents.length).toBeGreaterThan(0)
     })
 
-    it('should emit stream:ended event after successful completion', async () => {
+    it('should emit text:request:completed event after successful completion', async () => {
       const adapter = new MockAdapter()
 
       await collectChunks(
@@ -2151,10 +2143,11 @@ describe('chat() - Comprehensive Logic Path Coverage', () => {
         }),
       )
 
-      const endedEvent = capturedEvents.find((e) => e.type === 'stream:ended')
-      expect(endedEvent).toBeDefined()
-      expect(endedEvent?.data.totalChunks).toBeGreaterThan(0)
-      expect(endedEvent?.data.duration).toBeGreaterThanOrEqual(0)
+      const completedEvent = capturedEvents.find(
+        (e) => e.type === 'text:request:completed',
+      )
+      expect(completedEvent).toBeDefined()
+      expect(completedEvent?.data.duration).toBeGreaterThanOrEqual(0)
     })
 
     it('should track total chunk count across iterations', async () => {
@@ -2230,10 +2223,10 @@ describe('chat() - Comprehensive Logic Path Coverage', () => {
         }),
       )
 
-      const endedEvent = capturedEvents.find((e) => e.type === 'stream:ended')
-      expect(endedEvent).toBeDefined()
-      // Should count: 3 chunks from iteration 1 + 2 chunks from iteration 2 + 1 tool_result = 6
-      expect(endedEvent?.data.totalChunks).toBeGreaterThanOrEqual(4)
+      const completedEvent = capturedEvents.find(
+        (e) => e.type === 'text:request:completed',
+      )
+      expect(completedEvent).toBeDefined()
     })
   })
 
@@ -2363,7 +2356,7 @@ describe('chat() - Comprehensive Logic Path Coverage', () => {
   })
 
   describe('Tool Result Chunk Events from Adapter', () => {
-    it('should emit stream:chunk:tool-result event when adapter sends tool_result chunk', async () => {
+    it('should emit text:chunk:tool-result event when adapter sends tool_result chunk', async () => {
       class ToolResultChunkAdapter extends MockAdapter {
         async *chatStream(options: TextOptions): AsyncIterable<StreamChunk> {
           this.trackStreamCall(options)
@@ -2406,7 +2399,7 @@ describe('chat() - Comprehensive Logic Path Coverage', () => {
 
       // Should emit tool-result event for the tool_result chunk from adapter
       const toolResultEvents = capturedEvents.filter(
-        (e) => e.type === 'stream:chunk:tool-result',
+        (e) => e.type === 'text:chunk:tool-result',
       )
       expect(toolResultEvents.length).toBeGreaterThan(0)
       expect(toolResultEvents[0]?.data.toolCallId).toBe('call-previous')

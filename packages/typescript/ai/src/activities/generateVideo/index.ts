@@ -7,6 +7,7 @@
  * @experimental Video generation is an experimental feature and may change.
  */
 
+import { aiEventClient } from '../../event-client.js'
 import type { VideoAdapter } from './adapter'
 import type {
   VideoJobResult,
@@ -35,6 +36,10 @@ export type VideoProviderOptions<TAdapter> =
 
 // ===========================
 // Activity Options Types
+
+function createId(prefix: string): string {
+  return `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`
+}
 // ===========================
 
 /**
@@ -207,6 +212,17 @@ export async function getVideoJobStatus<
   error?: string
 }> {
   const { adapter, jobId } = options
+  const requestId = createId('video-status')
+  const startTime = Date.now()
+
+  aiEventClient.emit('video:request:started', {
+    requestId,
+    provider: adapter.name,
+    model: adapter.model,
+    requestType: 'status',
+    jobId,
+    timestamp: startTime,
+  })
 
   // Get status first
   const statusResult = await adapter.getVideoStatus(jobId)
@@ -215,12 +231,37 @@ export async function getVideoJobStatus<
   if (statusResult.status === 'completed') {
     try {
       const urlResult = await adapter.getVideoUrl(jobId)
+      aiEventClient.emit('video:request:completed', {
+        requestId,
+        provider: adapter.name,
+        model: adapter.model,
+        requestType: 'status',
+        jobId,
+        status: statusResult.status,
+        progress: statusResult.progress,
+        url: urlResult.url,
+        duration: Date.now() - startTime,
+        timestamp: Date.now(),
+      })
       return {
         status: statusResult.status,
         progress: statusResult.progress,
         url: urlResult.url,
       }
     } catch (error) {
+      aiEventClient.emit('video:request:completed', {
+        requestId,
+        provider: adapter.name,
+        model: adapter.model,
+        requestType: 'status',
+        jobId,
+        status: statusResult.status,
+        progress: statusResult.progress,
+        error:
+          error instanceof Error ? error.message : 'Failed to get video URL',
+        duration: Date.now() - startTime,
+        timestamp: Date.now(),
+      })
       // If URL fetch fails, still return status
       return {
         status: statusResult.status,
@@ -230,6 +271,19 @@ export async function getVideoJobStatus<
       }
     }
   }
+
+  aiEventClient.emit('video:request:completed', {
+    requestId,
+    provider: adapter.name,
+    model: adapter.model,
+    requestType: 'status',
+    jobId,
+    status: statusResult.status,
+    progress: statusResult.progress,
+    error: statusResult.error,
+    duration: Date.now() - startTime,
+    timestamp: Date.now(),
+  })
 
   // Return status for non-completed jobs
   return {

@@ -5,11 +5,14 @@ import {
   createOpenAIClient,
   generateId,
   getOpenAIApiKeyFromEnv,
+} from '../utils/client'
+import {
   makeOpenAIStructuredOutputCompatible,
   transformNullsToUndefined,
-} from '../utils'
+} from '../utils/schema-converter'
 import type {
   OPENAI_CHAT_MODELS,
+  OpenAIChatModel,
   OpenAIChatModelProviderOptionsByName,
   OpenAIModelInputModalitiesByName,
 } from '../model-meta'
@@ -34,7 +37,7 @@ import type {
   OpenAIImageMetadata,
   OpenAIMessageMetadataByModality,
 } from '../message-types'
-import type { OpenAIClientConfig } from '../utils'
+import type { OpenAIClientConfig } from '../utils/client'
 
 /**
  * Configuration for OpenAI text adapter
@@ -79,7 +82,7 @@ type ResolveInputModalities<TModel extends string> =
  * Import only what you need for smaller bundle sizes.
  */
 export class OpenAITextAdapter<
-  TModel extends (typeof OPENAI_CHAT_MODELS)[number],
+  TModel extends OpenAIChatModel,
 > extends BaseTextAdapter<
   TModel,
   ResolveProviderOptions<TModel>,
