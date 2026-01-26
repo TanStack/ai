@@ -1,5 +1,11 @@
 # @tanstack/ai-openai
 
+## 0.3.0
+
+### Minor Changes
+
+- allows additional configuration options when creating an openAI client ([#245](https://github.com/TanStack/ai/pull/245))
+
 ## 0.2.1
 
 ### Patch Changes

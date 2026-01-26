@@ -1,5 +1,12 @@
 # @tanstack/smoke-tests-e2e
 
+## 0.0.9
+
+### Patch Changes
+
+- Updated dependencies [[`356df1a`](https://github.com/TanStack/ai/commit/356df1a6d1f19b00eff3399068eb4086bd6616b9)]:
+  - @tanstack/ai-openai@0.3.0
+
 ## 0.0.8
 
 ### Patch Changes
