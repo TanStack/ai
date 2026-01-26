@@ -42,6 +42,6 @@ Response in HTTP stream format (newline-delimited JSON)
 ## Example
 
 ```typescript
-const stream = chat({ adapter: openaiText(), model: "gpt-5.2", messages: [...] });
+const stream = chat({ adapter: openaiText(), model: "gpt-4o", messages: [...] });
 return toHttpResponse(stream, { abortController });
 ```
