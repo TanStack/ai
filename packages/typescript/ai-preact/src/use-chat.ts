@@ -53,11 +53,9 @@ export function useChat<TTools extends ReadonlyArray<AnyClientTool> = any>(
       onResponse: optionsRef.current.onResponse,
       onChunk: optionsRef.current.onChunk,
       onFinish: (message) => {
-        setStatus('ready')
         optionsRef.current.onFinish?.(message)
       },
       onError: (err) => {
-        setStatus('error')
         optionsRef.current.onError?.(err)
       },
       tools: optionsRef.current.tools,
@@ -67,14 +65,9 @@ export function useChat<TTools extends ReadonlyArray<AnyClientTool> = any>(
       },
       onLoadingChange: (newIsLoading: boolean) => {
         setIsLoading(newIsLoading)
-        if (newIsLoading) {
-          setStatus('submitted')
-        } else {
-          setStatus((prev) => (prev === 'error' ? 'error' : 'ready'))
-        }
       },
-      onStreamStart: () => {
-        setStatus('streaming')
+      onStatusChange: (newStatus: ChatClientState) => {
+        setStatus(newStatus)
       },
       onErrorChange: (newError: Error | undefined) => {
         setError(newError)

@@ -52,15 +52,10 @@ export function useChat<TTools extends ReadonlyArray<AnyClientTool> = any>(
       body: optionsRef.current.body,
       onResponse: optionsRef.current.onResponse,
       onChunk: optionsRef.current.onChunk,
-      onStreamStart: () => {
-        setStatus('streaming')
-      },
       onFinish: (message: UIMessage<TTools>) => {
-        setStatus('ready')
         optionsRef.current.onFinish?.(message)
       },
       onError: (error: Error) => {
-        setStatus('error')
         optionsRef.current.onError?.(error)
       },
       tools: optionsRef.current.tools,
@@ -70,15 +65,13 @@ export function useChat<TTools extends ReadonlyArray<AnyClientTool> = any>(
       },
       onLoadingChange: (newIsLoading: boolean) => {
         setIsLoading(newIsLoading)
-        if (newIsLoading) {
-          setStatus('submitted')
-        } else {
-          setStatus((prev) => (prev === 'error' ? 'error' : 'ready'))
-        }
       },
       onErrorChange: (newError: Error | undefined) => {
         setError(newError)
       },
+      onStatusChange: (status: ChatClientState) => {
+        setStatus(status)
+      }
     })
   }, [clientId])
 
@@ -108,6 +101,7 @@ export function useChat<TTools extends ReadonlyArray<AnyClientTool> = any>(
   // Note: Callback options (onResponse, onChunk, onFinish, onError, onToolCall)
   // are captured at client creation time. Changes to these callbacks require
   // remounting the component or changing the connection to recreate the client.
+
 
   const sendMessage = useCallback(
     async (content: string) => {

@@ -17,6 +17,7 @@ export type { ChatRequestBody, UIMessage }
  * - `onMessagesChange` - Managed by Svelte state (exposed as `messages`)
  * - `onLoadingChange` - Managed by Svelte state (exposed as `isLoading`)
  * - `onErrorChange` - Managed by Svelte state (exposed as `error`)
+ * - `onStatusChange` - Managed by Svelte state (exposed as `status`)
  *
  * All other callbacks (onResponse, onChunk, onFinish, onError) are
  * passed through to the underlying ChatClient and can be used for side effects.
@@ -28,7 +29,10 @@ export type CreateChatOptions<
   TTools extends ReadonlyArray<AnyClientTool> = any,
 > = Omit<
   ChatClientOptions<TTools>,
-  'onMessagesChange' | 'onLoadingChange' | 'onErrorChange' | 'onStreamStart'
+  | 'onMessagesChange'
+  | 'onLoadingChange'
+  | 'onErrorChange'
+  | 'onStatusChange'
 >
 
 export interface CreateChatReturn<

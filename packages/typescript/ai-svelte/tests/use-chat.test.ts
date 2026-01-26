@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { createChat } from '../src/create-chat.svelte'
-import { createMockConnectionAdapter } from './test-utils'
+import { createMockConnectionAdapter, createTextChunks } from './test-utils'
 
 describe('createChat', () => {
   beforeEach(() => {
@@ -157,5 +157,63 @@ describe('createChat', () => {
     // Access status multiple times
     expect(chat.status).toBe('ready')
     expect(chat.status).toBe('ready')
+  })
+
+  describe('status transitions', () => {
+    it('should transition through states during generation', async () => {
+      const chunks = createTextChunks('Response')
+      const mockConnection = createMockConnectionAdapter({
+        chunks,
+        chunkDelay: 20,
+      })
+
+      const chat = createChat({
+        connection: mockConnection,
+      })
+
+      const promise = chat.sendMessage('Test')
+      expect(chat.status).not.toBe('ready')
+      expect(['submitted', 'streaming']).toContain(chat.status)
+
+      await promise
+      expect(chat.status).toBe('ready')
+    })
+
+    it('should transition to error on error', async () => {
+      const mockConnection = createMockConnectionAdapter({
+        shouldError: true,
+        error: new Error('AI Error'),
+      })
+
+      const chat = createChat({
+        connection: mockConnection,
+      })
+
+      await chat.sendMessage('Test')
+      expect(chat.status).toBe('error')
+    })
+
+    it('should transition to ready after stop', async () => {
+      const chunks = createTextChunks('Response')
+      const mockConnection = createMockConnectionAdapter({
+        chunks,
+        chunkDelay: 50,
+      })
+
+      const chat = createChat({
+        connection: mockConnection,
+      })
+
+      const promise = chat.sendMessage('Test')
+
+      // Wait a bit for it to start
+      await new Promise((resolve) => setTimeout(resolve, 10))
+      expect(chat.status).not.toBe('ready')
+
+      chat.stop()
+      expect(chat.status).toBe('ready')
+
+      await promise.catch(() => { })
+    })
   })
 })

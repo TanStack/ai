@@ -1,6 +1,6 @@
 import type { AnyClientTool, ModelMessage } from '@tanstack/ai'
-import { ChatClient } from '@tanstack/ai-client'
 import type { ChatClientState } from '@tanstack/ai-client'
+import { ChatClient } from '@tanstack/ai-client'
 import { onScopeDispose, readonly, shallowRef, useId } from 'vue'
 import type { UIMessage, UseChatOptions, UseChatReturn } from './types'
 
@@ -26,11 +26,9 @@ export function useChat<TTools extends ReadonlyArray<AnyClientTool> = any>(
     onResponse: options.onResponse,
     onChunk: options.onChunk,
     onFinish: (message) => {
-      status.value = 'ready'
       options.onFinish?.(message)
     },
     onError: (err) => {
-      status.value = 'error'
       options.onError?.(err)
     },
     tools: options.tools,
@@ -40,14 +38,9 @@ export function useChat<TTools extends ReadonlyArray<AnyClientTool> = any>(
     },
     onLoadingChange: (newIsLoading: boolean) => {
       isLoading.value = newIsLoading
-      if (newIsLoading) {
-        status.value = 'submitted'
-      } else {
-        status.value = error.value ? 'error' : 'ready'
-      }
     },
-    onStreamStart: () => {
-      status.value = 'streaming'
+    onStatusChange: (newStatus: ChatClientState) => {
+      status.value = newStatus
     },
     onErrorChange: (newError: Error | undefined) => {
       error.value = newError

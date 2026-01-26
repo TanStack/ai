@@ -1,18 +1,19 @@
+import type { AnyClientTool, ModelMessage, StreamChunk } from '@tanstack/ai'
 import {
   StreamProcessor,
   generateMessageId,
   normalizeToUIMessage,
 } from '@tanstack/ai'
+import type { ConnectionAdapter } from './connection-adapters'
+import type { ChatClientEventEmitter } from './events'
 import { DefaultChatClientEventEmitter } from './events'
 import type {
   ChatClientOptions,
+  ChatClientState,
   MessagePart,
   ToolCallPart,
   UIMessage,
 } from './types'
-import type { AnyClientTool, ModelMessage, StreamChunk } from '@tanstack/ai'
-import type { ConnectionAdapter } from './connection-adapters'
-import type { ChatClientEventEmitter } from './events'
 
 export class ChatClient {
   private processor: StreamProcessor
@@ -21,6 +22,7 @@ export class ChatClient {
   private body: Record<string, any> = {}
   private isLoading = false
   private error: Error | undefined = undefined
+  private status: ChatClientState = 'ready'
   private abortController: AbortController | null = null
   private events: ChatClientEventEmitter
   private clientToolsRef: { current: Map<string, AnyClientTool> }
@@ -36,8 +38,8 @@ export class ChatClient {
       onError: (error: Error) => void
       onMessagesChange: (messages: Array<UIMessage>) => void
       onLoadingChange: (isLoading: boolean) => void
-      onStreamStart: () => void
       onErrorChange: (error: Error | undefined) => void
+      onStatusChange: (status: ChatClientState) => void
     }
   }
 
@@ -57,14 +59,14 @@ export class ChatClient {
 
     this.callbacksRef = {
       current: {
-        onResponse: options.onResponse || (() => {}),
-        onChunk: options.onChunk || (() => {}),
-        onFinish: options.onFinish || (() => {}),
-        onError: options.onError || (() => {}),
-        onMessagesChange: options.onMessagesChange || (() => {}),
-        onLoadingChange: options.onLoadingChange || (() => {}),
-        onStreamStart: options.onStreamStart || (() => {}),
-        onErrorChange: options.onErrorChange || (() => {}),
+        onResponse: options.onResponse || (() => { }),
+        onChunk: options.onChunk || (() => { }),
+        onFinish: options.onFinish || (() => { }),
+        onError: options.onError || (() => { }),
+        onMessagesChange: options.onMessagesChange || (() => { }),
+        onLoadingChange: options.onLoadingChange || (() => { }),
+        onErrorChange: options.onErrorChange || (() => { }),
+        onStatusChange: options.onStatusChange || (() => { }),
       },
     }
 
@@ -77,13 +79,15 @@ export class ChatClient {
           this.callbacksRef.current.onMessagesChange(messages)
         },
         onStreamStart: () => {
-          this.callbacksRef.current.onStreamStart()
+          this.setStatus('streaming')
         },
         onStreamEnd: (message: UIMessage) => {
           this.callbacksRef.current.onFinish(message)
+          this.setStatus('ready')
         },
         onError: (error: Error) => {
           this.setError(error)
+          this.setStatus('error')
           this.callbacksRef.current.onError(error)
         },
         onTextUpdate: (messageId: string, content: string) => {
@@ -189,10 +193,18 @@ export class ChatClient {
     this.events.loadingChanged(isLoading)
   }
 
+  private setStatus(status: ChatClientState): void {
+    this.status = status
+    this.callbacksRef.current.onStatusChange(status)
+  }
+
   private setError(error: Error | undefined): void {
     this.error = error
     this.callbacksRef.current.onErrorChange(error)
     this.events.errorChanged(error?.message || null)
+    if (error) {
+      this.setStatus('error')
+    }
   }
 
   /**
@@ -297,6 +309,7 @@ export class ChatClient {
    */
   private async streamResponse(): Promise<void> {
     this.setIsLoading(true)
+    this.setStatus('submitted')
     this.setError(undefined)
     this.abortController = new AbortController()
 
@@ -370,6 +383,7 @@ export class ChatClient {
       this.abortController = null
     }
     this.setIsLoading(false)
+    this.setStatus('ready')
     this.events.stopped()
   }
 
@@ -502,6 +516,13 @@ export class ChatClient {
    */
   getIsLoading(): boolean {
     return this.isLoading
+  }
+
+  /**
+   * Get current status
+   */
+  getStatus(): ChatClientState {
+    return this.status
   }
 
   /**

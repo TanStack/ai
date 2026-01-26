@@ -197,9 +197,9 @@ export interface ChatClientOptions<
   onErrorChange?: (error: Error | undefined) => void
 
   /**
-   * Callback when stream starts
+   * Callback when chat status changes
    */
-  onStreamStart?: () => void
+  onStatusChange?: (status: ChatClientState) => void
 
   /**
    * Client-side tools with execution logic

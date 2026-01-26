@@ -378,9 +378,9 @@ describe('useChat', () => {
       )
       const firstContent =
         firstAssistantMessage?.parts.find((p) => p.type === 'text')?.type ===
-        'text'
+          'text'
           ? (firstAssistantMessage.parts.find((p) => p.type === 'text') as any)
-              .content
+            .content
           : ''
 
       // Reload with new adapter
@@ -569,6 +569,29 @@ describe('useChat', () => {
       await waitFor(() => {
         expect(result.current.status).toBe('error')
       })
+    })
+
+    it('should transition to ready after stop', async () => {
+      const chunks = createTextChunks('Response')
+      const adapter = createMockConnectionAdapter({
+        chunks,
+        chunkDelay: 50,
+      })
+      const { result } = renderUseChat({ connection: adapter })
+
+      const sendPromise = result.current.sendMessage('Test')
+
+      await waitFor(() => {
+        expect(result.current.status).not.toBe('ready')
+      })
+
+      result.current.stop()
+
+      await waitFor(() => {
+        expect(result.current.status).toBe('ready')
+      })
+
+      await sendPromise.catch(() => { })
     })
   })
 

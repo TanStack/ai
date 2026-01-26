@@ -1,12 +1,12 @@
 import { describe, expect, it, vi } from 'vitest'
 import { ChatClient } from '../src/chat-client'
+import type { UIMessage } from '../src/types'
 import {
   createMockConnectionAdapter,
   createTextChunks,
   createThinkingChunks,
   createToolCallChunks,
 } from './test-utils'
-import type { UIMessage } from '../src/types'
 
 describe('ChatClient', () => {
   describe('constructor', () => {
@@ -388,6 +388,73 @@ describe('ChatClient', () => {
 
       expect(onError).toHaveBeenCalledWith(error)
       expect(client.getError()).toBe(error)
+    })
+  })
+
+  describe('status', () => {
+    it('should have initial status of ready', () => {
+      const adapter = createMockConnectionAdapter()
+      const client = new ChatClient({ connection: adapter })
+      expect(client.getStatus()).toBe('ready')
+    })
+
+    it('should transition through states during generation', async () => {
+      const chunks = createTextChunks('Response')
+      const adapter = createMockConnectionAdapter({
+        chunks,
+        chunkDelay: 20,
+      })
+      const statuses: Array<string> = []
+      const client = new ChatClient({
+        connection: adapter,
+        onStatusChange: (s) => statuses.push(s),
+      })
+
+      const promise = client.sendMessage('Test')
+
+      // Should leave ready state
+      expect(client.getStatus()).not.toBe('ready')
+
+      // Should be submitted or streaming
+      expect(['submitted', 'streaming']).toContain(client.getStatus())
+
+      await promise
+
+      expect(statuses).toContain('submitted')
+      expect(statuses).toContain('streaming')
+      expect(statuses[statuses.length - 1]).toBe('ready')
+    })
+
+    it('should transition to error on error', async () => {
+      const adapter = createMockConnectionAdapter({
+        shouldError: true,
+        error: new Error('AI Error'),
+      })
+      const client = new ChatClient({ connection: adapter })
+
+      await client.sendMessage('Test')
+
+      expect(client.getStatus()).toBe('error')
+    })
+
+    it('should transition to ready after stop', async () => {
+      const chunks = createTextChunks('Response')
+      const adapter = createMockConnectionAdapter({
+        chunks,
+        chunkDelay: 50,
+      })
+      const client = new ChatClient({ connection: adapter })
+
+      const promise = client.sendMessage('Test')
+
+      // Wait for it to start
+      await new Promise((resolve) => setTimeout(resolve, 10))
+
+      client.stop()
+
+      expect(client.getStatus()).toBe('ready')
+
+      await promise
     })
   })
 
