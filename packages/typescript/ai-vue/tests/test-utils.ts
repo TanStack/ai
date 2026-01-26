@@ -8,7 +8,7 @@ import { useChat } from '../src/use-chat'
 export {
   createMockConnectionAdapter,
   createTextChunks,
-  createToolCallChunks
+  createToolCallChunks,
 } from '../../ai-client/tests/test-utils'
 
 /**

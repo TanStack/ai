@@ -29,11 +29,7 @@ export type ToolResultState =
 /**
  * ChatClient state - track the lifecycle of a chat
  */
-export type ChatClientState =
-  | 'ready'
-  | 'submitted'
-  | 'streaming'
-  | 'error'
+export type ChatClientState = 'ready' | 'submitted' | 'streaming' | 'error'
 
 /**
  * Message parts - building blocks of UIMessage

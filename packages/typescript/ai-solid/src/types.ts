@@ -3,7 +3,7 @@ import type {
   ChatClientOptions,
   ChatClientState,
   ChatRequestBody,
-  UIMessage
+  UIMessage,
 } from '@tanstack/ai-client'
 import type { Accessor } from 'solid-js'
 

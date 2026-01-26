@@ -53,7 +53,7 @@ export function useChat<TTools extends ReadonlyArray<AnyClientTool> = any>(
       onResponse: optionsRef.current.onResponse,
       onChunk: optionsRef.current.onChunk,
       onStreamStart: () => {
-        setStatus("streaming")
+        setStatus('streaming')
       },
       onFinish: (message: UIMessage<TTools>) => {
         setStatus('ready')
@@ -81,7 +81,6 @@ export function useChat<TTools extends ReadonlyArray<AnyClientTool> = any>(
       },
     })
   }, [clientId])
-
 
   // Sync initial messages on mount only
   // Note: initialMessages are passed to ChatClient constructor, but we also

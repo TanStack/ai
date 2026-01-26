@@ -3,7 +3,7 @@ export {
   createMockConnectionAdapter,
   createTextChunks,
   createToolCallChunks,
-  type MockConnectionAdapterOptions
+  type MockConnectionAdapterOptions,
 } from '../../ai-client/tests/test-utils'
 
 import { renderHook } from '@solidjs/testing-library'

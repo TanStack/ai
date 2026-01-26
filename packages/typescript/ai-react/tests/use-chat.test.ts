@@ -378,9 +378,9 @@ describe('useChat', () => {
       )
       const firstContent =
         firstAssistantMessage?.parts.find((p) => p.type === 'text')?.type ===
-          'text'
+        'text'
           ? (firstAssistantMessage.parts.find((p) => p.type === 'text') as any)
-            .content
+              .content
           : ''
 
       // Reload with new adapter
