@@ -564,12 +564,6 @@ describe('useChat', () => {
   })
 
   describe('status', () => {
-    // it('should have initial status of ready', () => {
-    //   const adapter = createMockConnectionAdapter()
-    //   const { result } = renderUseChat({ connection: adapter })
-    //   expect(result.current.status).toBe('ready')
-    // })
-
     it('should transition through states during generation', async () => {
       const chunks = createTextChunks('Response')
       const adapter = createMockConnectionAdapter({
@@ -600,53 +594,6 @@ describe('useChat', () => {
         expect(result.current.status).toBe('ready')
       })
     })
-
-    // it('should transition to error on error', async () => {
-    //   const error = new Error('Network error')
-    //   const adapter = createMockConnectionAdapter({
-    //     shouldError: true,
-    //     error,
-    //   })
-    //   const { result } = renderUseChat({ connection: adapter })
-
-    //   await act(async () => {
-    //     await result.current.sendMessage('Test')
-    //   })
-
-    //   await waitFor(() => {
-    //     expect(result.current.status).toBe('error')
-    //   })
-    // })
-
-    // it('should transition to ready after stop', async () => {
-    //   const chunks = createTextChunks('Response')
-    //   const adapter = createMockConnectionAdapter({
-    //     chunks,
-    //     chunkDelay: 50,
-    //   })
-    //   const { result } = renderUseChat({ connection: adapter })
-
-    //   let sendPromise: Promise<void>
-    //   act(() => {
-    //     sendPromise = result.current.sendMessage('Test')
-    //   })
-
-    //   await waitFor(() => {
-    //     expect(result.current.status).not.toBe('ready')
-    //   })
-
-    //   act(() => {
-    //     result.current.stop()
-    //   })
-
-    //   await waitFor(() => {
-    //     expect(result.current.status).toBe('ready')
-    //   })
-
-    //   await act(async () => {
-    //     await sendPromise!.catch(() => {})
-    //   })
-    // })
   })
 
   describe('clear', () => {
