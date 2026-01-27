@@ -372,6 +372,8 @@ export const ANTHROPIC_MODELS = [
   CLAUDE_HAIKU_3.id,
 ] as const
 
+export type AnthropicModels = (typeof ANTHROPIC_MODELS)[number]
+
 // const ANTHROPIC_IMAGE_MODELS = [] as const
 // const ANTHROPIC_EMBEDDING_MODELS = [] as const
 // const ANTHROPIC_AUDIO_MODELS = [] as const
