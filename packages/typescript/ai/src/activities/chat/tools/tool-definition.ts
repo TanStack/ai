@@ -4,6 +4,7 @@ import type {
   JSONSchema,
   SchemaInput,
   Tool,
+  ToolOptions,
 } from '../../../types'
 
 /**
@@ -24,16 +25,12 @@ export interface ClientTool<
   TInput extends SchemaInput = SchemaInput,
   TOutput extends SchemaInput = SchemaInput,
   TName extends string = string,
-> {
+  TContext extends unknown = unknown,
+> extends Tool<TInput, TOutput, TName> {
   __toolSide: 'client'
-  name: TName
-  description: string
-  inputSchema?: TInput
-  outputSchema?: TOutput
-  needsApproval?: boolean
-  metadata?: Record<string, unknown>
   execute?: (
     args: InferSchemaType<TInput>,
+    options: ToolOptions<TContext>,
   ) => Promise<InferSchemaType<TOutput>> | InferSchemaType<TOutput>
 }
 
@@ -109,18 +106,20 @@ export interface ToolDefinition<
   /**
    * Create a server-side tool with execute function
    */
-  server: (
+  server: <TContext extends unknown>(
     execute: (
       args: InferSchemaType<TInput>,
+      options: ToolOptions<TContext>,
     ) => Promise<InferSchemaType<TOutput>> | InferSchemaType<TOutput>,
   ) => ServerTool<TInput, TOutput, TName>
 
   /**
    * Create a client-side tool with optional execute function
    */
-  client: (
+  client: <TContext extends unknown>(
     execute?: (
       args: InferSchemaType<TInput>,
+      options: ToolOptions<TContext>,
     ) => Promise<InferSchemaType<TOutput>> | InferSchemaType<TOutput>,
   ) => ClientTool<TInput, TOutput, TName>
 }
@@ -190,27 +189,31 @@ export function toolDefinition<
   const definition: ToolDefinition<TInput, TOutput, TName> = {
     __toolSide: 'definition',
     ...config,
-    server(
+    server <TContext extends unknown>(
       execute: (
         args: InferSchemaType<TInput>,
+        options: ToolOptions<TContext>,
       ) => Promise<InferSchemaType<TOutput>> | InferSchemaType<TOutput>,
     ): ServerTool<TInput, TOutput, TName> {
       return {
         __toolSide: 'server',
         ...config,
-        execute,
+        execute: (args, options) => execute(args, options as ToolOptions<TContext>),
       }
     },
 
-    client(
+    client<TContext extends unknown>(
       execute?: (
         args: InferSchemaType<TInput>,
+        options: ToolOptions<TContext>,
       ) => Promise<InferSchemaType<TOutput>> | InferSchemaType<TOutput>,
     ): ClientTool<TInput, TOutput, TName> {
       return {
         __toolSide: 'client',
         ...config,
-        execute,
+        execute: execute
+          ? (args: any, options: any) => execute(args, options as ToolOptions<TContext>)
+          : undefined
       }
     },
   }

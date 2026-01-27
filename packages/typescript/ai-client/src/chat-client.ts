@@ -19,6 +19,7 @@ export class ChatClient {
   private connection: ConnectionAdapter
   private uniqueId: string
   private body: Record<string, any> = {}
+  private context: unknown = undefined
   private isLoading = false
   private error: Error | undefined = undefined
   private abortController: AbortController | null = null
@@ -43,6 +44,7 @@ export class ChatClient {
   constructor(options: ChatClientOptions) {
     this.uniqueId = options.id || this.generateUniqueId('chat')
     this.body = options.body || {}
+    this.context = options.context
     this.connection = options.connection
     this.events = new DefaultChatClientEventEmitter(this.uniqueId)
 
@@ -136,7 +138,7 @@ export class ChatClient {
           const clientTool = this.clientToolsRef.current.get(args.toolName)
           if (clientTool?.execute) {
             try {
-              const output = await clientTool.execute(args.input)
+              const output = await clientTool.execute(args.input, { context: this.context })
               await this.addToolResult({
                 toolCallId: args.toolCallId,
                 tool: args.toolName,
