@@ -640,7 +640,7 @@ describe('useChat', () => {
       })
 
       await act(async () => {
-        await sendPromise!.catch(() => { })
+        await sendPromise!.catch(() => {})
       })
     })
   })

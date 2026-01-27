@@ -213,7 +213,7 @@ describe('createChat', () => {
       chat.stop()
       expect(chat.status).toBe('ready')
 
-      await promise.catch(() => { })
+      await promise.catch(() => {})
     })
   })
 })

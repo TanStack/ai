@@ -522,7 +522,7 @@ describe('useChat', () => {
 
       expect(result.current.status).toBe('ready')
 
-      await sendPromise.catch(() => { })
+      await sendPromise.catch(() => {})
     })
   })
 

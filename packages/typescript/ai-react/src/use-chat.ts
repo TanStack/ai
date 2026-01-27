@@ -71,7 +71,7 @@ export function useChat<TTools extends ReadonlyArray<AnyClientTool> = any>(
       },
       onStatusChange: (status: ChatClientState) => {
         setStatus(status)
-      }
+      },
     })
   }, [clientId])
 
@@ -101,7 +101,6 @@ export function useChat<TTools extends ReadonlyArray<AnyClientTool> = any>(
   // Note: Callback options (onResponse, onChunk, onFinish, onError, onToolCall)
   // are captured at client creation time. Changes to these callbacks require
   // remounting the component or changing the connection to recreate the client.
-
 
   const sendMessage = useCallback(
     async (content: string) => {

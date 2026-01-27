@@ -59,14 +59,14 @@ export class ChatClient {
 
     this.callbacksRef = {
       current: {
-        onResponse: options.onResponse || (() => { }),
-        onChunk: options.onChunk || (() => { }),
-        onFinish: options.onFinish || (() => { }),
-        onError: options.onError || (() => { }),
-        onMessagesChange: options.onMessagesChange || (() => { }),
-        onLoadingChange: options.onLoadingChange || (() => { }),
-        onErrorChange: options.onErrorChange || (() => { }),
-        onStatusChange: options.onStatusChange || (() => { }),
+        onResponse: options.onResponse || (() => {}),
+        onChunk: options.onChunk || (() => {}),
+        onFinish: options.onFinish || (() => {}),
+        onError: options.onError || (() => {}),
+        onMessagesChange: options.onMessagesChange || (() => {}),
+        onLoadingChange: options.onLoadingChange || (() => {}),
+        onErrorChange: options.onErrorChange || (() => {}),
+        onStatusChange: options.onStatusChange || (() => {}),
       },
     }
 
