@@ -89,6 +89,12 @@ export interface FetchConnectionOptions {
   signal?: AbortSignal
   body?: Record<string, any>
   fetchClient?: typeof globalThis.fetch
+  /**
+   * Send full UIMessage objects (including `parts`) instead of ModelMessages.
+   * Required for advanced server features that depend on UIMessage metadata
+   * (e.g. tool approvals and client tool results tracked in parts).
+   */
+  sendFullMessages?: boolean
 }
 
 /**
@@ -138,7 +144,9 @@ export function fetchServerSentEvents(
       const resolvedOptions =
         typeof options === 'function' ? await options() : options
 
-      const modelMessages = convertMessagesToModelMessages(messages)
+      const requestMessages = resolvedOptions.sendFullMessages
+        ? messages
+        : convertMessagesToModelMessages(messages)
 
       const requestHeaders: Record<string, string> = {
         'Content-Type': 'application/json',
@@ -147,7 +155,7 @@ export function fetchServerSentEvents(
 
       // Merge body from options with messages and data
       const requestBody = {
-        messages: modelMessages,
+        messages: requestMessages,
         data,
         ...resolvedOptions.body,
       }
@@ -238,8 +246,9 @@ export function fetchHttpStream(
       const resolvedOptions =
         typeof options === 'function' ? await options() : options
 
-      // Convert UIMessages to ModelMessages if needed
-      const modelMessages = convertMessagesToModelMessages(messages)
+      const requestMessages = resolvedOptions.sendFullMessages
+        ? messages
+        : convertMessagesToModelMessages(messages)
 
       const requestHeaders: Record<string, string> = {
         'Content-Type': 'application/json',
@@ -248,7 +257,7 @@ export function fetchHttpStream(
 
       // Merge body from options with messages and data
       const requestBody = {
-        messages: modelMessages,
+        messages: requestMessages,
         data,
         ...resolvedOptions.body,
       }

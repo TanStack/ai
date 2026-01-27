@@ -299,8 +299,7 @@ export class ChatClient {
     this.abortController = new AbortController()
 
     try {
-      // Get model messages for the LLM
-      const modelMessages = this.processor.toModelMessages()
+      const messages = this.processor.getMessages()
 
       // Call onResponse callback
       await this.callbacksRef.current.onResponse()
@@ -313,7 +312,7 @@ export class ChatClient {
 
       // Connect and stream
       const stream = this.connection.connect(
-        modelMessages,
+        messages,
         bodyWithConversationId,
         this.abortController.signal,
       )
@@ -423,6 +422,8 @@ export class ChatClient {
     // Find the tool call ID from the approval ID
     const messages = this.processor.getMessages()
     let foundToolCallId: string | undefined
+    let foundToolName: string | undefined
+    let foundToolInput: any | undefined
 
     for (const msg of messages) {
       const toolCallPart = msg.parts.find(
@@ -431,6 +432,12 @@ export class ChatClient {
       )
       if (toolCallPart) {
         foundToolCallId = toolCallPart.id
+        foundToolName = toolCallPart.name
+        try {
+          foundToolInput = JSON.parse(toolCallPart.arguments)
+        } catch {
+          // Ignore parse errors
+        }
         break
       }
     }
@@ -445,6 +452,32 @@ export class ChatClient {
 
     // Add response via processor
     this.processor.addToolApprovalResponse(response.id, response.approved)
+
+    // Execute client-side tool if approved
+    if (response.approved && foundToolCallId && foundToolName) {
+      const clientTool = this.clientToolsRef.current.get(foundToolName)
+      if (clientTool?.execute) {
+        try {
+          const output = await clientTool.execute(foundToolInput)
+          await this.addToolResult({
+            toolCallId: foundToolCallId,
+            tool: foundToolName,
+            output,
+            state: 'output-available',
+          })
+          return
+        } catch (error: any) {
+          await this.addToolResult({
+            toolCallId: foundToolCallId,
+            tool: foundToolName,
+            output: null,
+            state: 'output-error',
+            errorText: error.message,
+          })
+          return
+        }
+      }
+    }
 
     // If stream is in progress, queue continuation check for after it ends
     if (this.isLoading) {

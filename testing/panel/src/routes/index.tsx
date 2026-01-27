@@ -16,7 +16,6 @@ import type { ModelOption } from '@/lib/model-selection'
 
 import GuitarRecommendation from '@/components/example-GuitarRecommendation'
 import {
-  addToCartToolDef,
   addToWishListToolDef,
   getPersonalGuitarPreferenceToolDef,
   recommendGuitarToolDef,
@@ -46,14 +45,6 @@ const addToWishListToolClient = addToWishListToolDef.client((args) => {
   }
 })
 
-const addToCartToolClient = addToCartToolDef.client((args) => ({
-  success: true,
-  cartId: 'CART_CLIENT_' + Date.now(),
-  guitarId: args.guitarId,
-  quantity: args.quantity,
-  totalItems: args.quantity,
-}))
-
 const recommendGuitarToolClient = recommendGuitarToolDef.client(({ id }) => ({
   id: +id,
 }))
@@ -61,7 +52,6 @@ const recommendGuitarToolClient = recommendGuitarToolDef.client(({ id }) => ({
 const tools = clientTools(
   getPersonalGuitarPreferenceToolClient,
   addToWishListToolClient,
-  addToCartToolClient,
   recommendGuitarToolClient,
 )
 
@@ -455,7 +445,9 @@ function ChatPage() {
 
   const { messages, sendMessage, isLoading, addToolApprovalResponse, stop } =
     useChat({
-      connection: fetchServerSentEvents('/api/chat'),
+      connection: fetchServerSentEvents('/api/chat', {
+        sendFullMessages: true,
+      }),
       tools,
       onChunk: (chunk: any) => {
         setChunks((prev) => [...prev, chunk])
