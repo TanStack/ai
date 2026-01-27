@@ -1,0 +1,55 @@
+{
+  "name": "@tanstack/ai-angular",
+  "version": "0.2.2",
+  "description": "Angular bindings for TanStack AI",
+  "author": "",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/TanStack/ai.git",
+    "directory": "packages/typescript/ai-angular"
+  },
+  "type": "module",
+  "module": "./dist/esm/index.js",
+  "types": "./dist/esm/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/esm/index.d.ts",
+      "import": "./dist/esm/index.js"
+    }
+  },
+  "files": [
+    "dist",
+    "src"
+  ],
+  "scripts": {
+    "clean": "premove ./build ./dist",
+    "lint:fix": "eslint ./src --fix",
+    "test:eslint": "eslint ./src",
+    "test:lib": "vitest run",
+    "test:lib:dev": "pnpm test:lib --watch",
+    "test:types": "tsc",
+    "test:build": "publint --strict",
+    "build": "vite build"
+  },
+  "keywords": [
+    "ai",
+    "anguilar",
+    "tanstack",
+    "chat",
+    "streaming"
+  ],
+  "dependencies": {
+    "@tanstack/ai-client": "workspace:*"
+  },
+  "peerDependencies": {
+    "@angular/core": ">=16.0.0",
+    "@tanstack/ai": "workspace:^"
+  },
+  "devDependencies": {
+    "@angular/common": "^21.1.1",
+    "@angular/core": "^21.1.1",
+    "@tanstack/ai": "workspace:*",
+    "vite": "^7.2.7"
+  }
+}
