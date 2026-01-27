@@ -280,6 +280,7 @@ describe('ChatClient', () => {
       await appendPromise
 
       expect(client.getIsLoading()).toBe(false)
+      expect(client.getStatus()).toBe('ready')
     })
   })
 
@@ -392,11 +393,6 @@ describe('ChatClient', () => {
   })
 
   describe('status', () => {
-    it('should have initial status of ready', () => {
-      const adapter = createMockConnectionAdapter()
-      const client = new ChatClient({ connection: adapter })
-      expect(client.getStatus()).toBe('ready')
-    })
 
     it('should transition through states during generation', async () => {
       const chunks = createTextChunks('Response')
@@ -423,38 +419,6 @@ describe('ChatClient', () => {
       expect(statuses).toContain('submitted')
       expect(statuses).toContain('streaming')
       expect(statuses[statuses.length - 1]).toBe('ready')
-    })
-
-    it('should transition to error on error', async () => {
-      const adapter = createMockConnectionAdapter({
-        shouldError: true,
-        error: new Error('AI Error'),
-      })
-      const client = new ChatClient({ connection: adapter })
-
-      await client.sendMessage('Test')
-
-      expect(client.getStatus()).toBe('error')
-    })
-
-    it('should transition to ready after stop', async () => {
-      const chunks = createTextChunks('Response')
-      const adapter = createMockConnectionAdapter({
-        chunks,
-        chunkDelay: 50,
-      })
-      const client = new ChatClient({ connection: adapter })
-
-      const promise = client.sendMessage('Test')
-
-      // Wait for it to start
-      await new Promise((resolve) => setTimeout(resolve, 10))
-
-      client.stop()
-
-      expect(client.getStatus()).toBe('ready')
-
-      await promise
     })
   })
 
@@ -538,6 +502,7 @@ describe('ChatClient', () => {
       await client.sendMessage('Hello')
 
       expect(client.getError()).toBe(error)
+      expect(client.getStatus()).toBe('error')
     })
 
     it('should clear error on successful request', async () => {
@@ -553,12 +518,14 @@ describe('ChatClient', () => {
 
       await client.sendMessage('Fail')
       expect(client.getError()).toBeDefined()
+      expect(client.getStatus()).toBe('error')
 
       // Update connection via updateOptions
       client.updateOptions({ connection: successAdapter })
 
       await client.sendMessage('Success')
       expect(client.getError()).toBeUndefined()
+      expect(client.getStatus()).not.toBe('error')
     })
   })
 

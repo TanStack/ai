@@ -18,6 +18,7 @@ describe('useChat', () => {
       expect(result.current.messages).toEqual([])
       expect(result.current.isLoading).toBe(false)
       expect(result.current.error).toBeUndefined()
+      expect(result.current.status).toBe('ready')
     })
 
     it('should initialize with provided messages', () => {
@@ -506,6 +507,7 @@ describe('useChat', () => {
       await waitFor(
         () => {
           expect(result.current.isLoading).toBe(false)
+          expect(result.current.status).toBe('ready')
         },
         { timeout: 1000 },
       )
@@ -521,6 +523,7 @@ describe('useChat', () => {
       result.current.stop()
 
       expect(result.current.isLoading).toBe(false)
+      expect(result.current.status).toBe('ready')
     })
 
     it('should clear loading state when stopped', async () => {
@@ -547,6 +550,7 @@ describe('useChat', () => {
       await waitFor(
         () => {
           expect(result.current.isLoading).toBe(false)
+          expect(result.current.status).toBe('ready')
         },
         { timeout: 1000 },
       )
@@ -560,11 +564,11 @@ describe('useChat', () => {
   })
 
   describe('status', () => {
-    it('should have initial status of ready', () => {
-      const adapter = createMockConnectionAdapter()
-      const { result } = renderUseChat({ connection: adapter })
-      expect(result.current.status).toBe('ready')
-    })
+    // it('should have initial status of ready', () => {
+    //   const adapter = createMockConnectionAdapter()
+    //   const { result } = renderUseChat({ connection: adapter })
+    //   expect(result.current.status).toBe('ready')
+    // })
 
     it('should transition through states during generation', async () => {
       const chunks = createTextChunks('Response')
@@ -597,52 +601,52 @@ describe('useChat', () => {
       })
     })
 
-    it('should transition to error on error', async () => {
-      const error = new Error('Network error')
-      const adapter = createMockConnectionAdapter({
-        shouldError: true,
-        error,
-      })
-      const { result } = renderUseChat({ connection: adapter })
+    // it('should transition to error on error', async () => {
+    //   const error = new Error('Network error')
+    //   const adapter = createMockConnectionAdapter({
+    //     shouldError: true,
+    //     error,
+    //   })
+    //   const { result } = renderUseChat({ connection: adapter })
 
-      await act(async () => {
-        await result.current.sendMessage('Test')
-      })
+    //   await act(async () => {
+    //     await result.current.sendMessage('Test')
+    //   })
 
-      await waitFor(() => {
-        expect(result.current.status).toBe('error')
-      })
-    })
+    //   await waitFor(() => {
+    //     expect(result.current.status).toBe('error')
+    //   })
+    // })
 
-    it('should transition to ready after stop', async () => {
-      const chunks = createTextChunks('Response')
-      const adapter = createMockConnectionAdapter({
-        chunks,
-        chunkDelay: 50,
-      })
-      const { result } = renderUseChat({ connection: adapter })
+    // it('should transition to ready after stop', async () => {
+    //   const chunks = createTextChunks('Response')
+    //   const adapter = createMockConnectionAdapter({
+    //     chunks,
+    //     chunkDelay: 50,
+    //   })
+    //   const { result } = renderUseChat({ connection: adapter })
 
-      let sendPromise: Promise<void>
-      act(() => {
-        sendPromise = result.current.sendMessage('Test')
-      })
+    //   let sendPromise: Promise<void>
+    //   act(() => {
+    //     sendPromise = result.current.sendMessage('Test')
+    //   })
 
-      await waitFor(() => {
-        expect(result.current.status).not.toBe('ready')
-      })
+    //   await waitFor(() => {
+    //     expect(result.current.status).not.toBe('ready')
+    //   })
 
-      act(() => {
-        result.current.stop()
-      })
+    //   act(() => {
+    //     result.current.stop()
+    //   })
 
-      await waitFor(() => {
-        expect(result.current.status).toBe('ready')
-      })
+    //   await waitFor(() => {
+    //     expect(result.current.status).toBe('ready')
+    //   })
 
-      await act(async () => {
-        await sendPromise!.catch(() => {})
-      })
-    })
+    //   await act(async () => {
+    //     await sendPromise!.catch(() => {})
+    //   })
+    // })
   })
 
   describe('clear', () => {
@@ -1115,6 +1119,7 @@ describe('useChat', () => {
 
         expect(result.current.error?.message).toBe('Network request failed')
         expect(result.current.isLoading).toBe(false)
+        expect(result.current.status).toBe('error')
       })
 
       it('should handle stream errors', async () => {
@@ -1134,6 +1139,7 @@ describe('useChat', () => {
         })
 
         expect(result.current.error?.message).toBe('Stream error')
+        expect(result.current.status).toBe('error')
       })
 
       it('should clear error on successful operation', async () => {
@@ -1151,6 +1157,7 @@ describe('useChat', () => {
 
         await waitFor(() => {
           expect(result.current.error).toBeDefined()
+          expect(result.current.status).toBe('error')
         })
 
         // Switch to working adapter

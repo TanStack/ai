@@ -202,9 +202,6 @@ export class ChatClient {
     this.error = error
     this.callbacksRef.current.onErrorChange(error)
     this.events.errorChanged(error?.message || null)
-    if (error) {
-      this.setStatus('error')
-    }
   }
 
   /**
@@ -340,6 +337,7 @@ export class ChatClient {
           return
         }
         this.setError(err)
+        this.setStatus('error')
         this.callbacksRef.current.onError(err)
       }
     } finally {

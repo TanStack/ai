@@ -17,6 +17,7 @@ describe('createChat', () => {
     expect(chat.messages).toEqual([])
     expect(chat.isLoading).toBe(false)
     expect(chat.error).toBeUndefined()
+    expect(chat.status).toBe('ready')
   })
 
   it('should initialize with initial messages', () => {
