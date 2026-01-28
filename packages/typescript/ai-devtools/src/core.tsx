@@ -1,10 +1,11 @@
 import { lazy } from 'solid-js'
 import { constructCoreClass } from '@tanstack/devtools-utils/solid'
 
-const Component = lazy(() => import('./components/Shell'))
-
 export interface AiDevtoolsInit {}
 
-const [AiDevtoolsCore, AiDevtoolsCoreNoOp] = constructCoreClass(Component)
+const path = './components/Shell'
+const [AiDevtoolsCore, AiDevtoolsCoreNoOp] = constructCoreClass(
+  lazy(() => import(/* @vite-ignore */ path)),
+)
 
 export { AiDevtoolsCore, AiDevtoolsCoreNoOp }

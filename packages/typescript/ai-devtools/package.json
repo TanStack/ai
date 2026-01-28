@@ -14,8 +14,31 @@
   "module": "./dist/esm/index.js",
   "exports": {
     ".": {
-      "types": "./dist/esm/index.d.ts",
-      "import": "./dist/esm/index.js"
+      "workerd": {
+        "types": "./dist/esm/server.d.ts",
+        "import": "./dist/esm/server.js"
+      },
+      "edge-light": {
+        "types": "./dist/esm/server.d.ts",
+        "import": "./dist/esm/server.js"
+      },
+      "netlify": {
+        "types": "./dist/esm/server.d.ts",
+        "import": "./dist/esm/server.js"
+      },
+      "deno": {
+        "types": "./dist/esm/server.d.ts",
+        "import": "./dist/esm/server.js"
+      },
+      "node": {
+        "types": "./dist/esm/server.d.ts",
+        "import": "./dist/esm/server.js"
+      },
+      "browser": {
+        "types": "./dist/esm/index.d.ts",
+        "import": "./dist/esm/index.js"
+      },
+      "types": "./dist/esm/index.d.ts"
     },
     "./production": {
       "types": "./dist/esm/production.d.ts",
@@ -48,7 +71,7 @@
   "dependencies": {
     "@tanstack/ai": "workspace:*",
     "@tanstack/devtools-ui": "^0.4.4",
-    "@tanstack/devtools-utils": "^0.3.0",
+    "@tanstack/devtools-utils": "https://pkg.pr.new/TanStack/devtools/@tanstack/devtools-utils@332",
     "goober": "^2.1.18",
     "solid-js": "^1.9.10"
   },
