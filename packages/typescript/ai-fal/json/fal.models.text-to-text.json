@@ -1,0 +1,309 @@
+{
+  "generated_at": "2026-01-28T02:51:51.876Z",
+  "total_models": 1,
+  "category": "text-to-text",
+  "models": [
+    {
+      "endpoint_id": "half-moon-ai/ai-detector/detect-text",
+      "metadata": {
+        "display_name": "Ai Detector",
+        "category": "text-to-text",
+        "description": "AI Detector (Text) is an advanced AI service that analyzes a passage and returns a verdict on whether it was likely written by AI.",
+        "status": "active",
+        "tags": [
+          "utility",
+          ""
+        ],
+        "updated_at": "2026-01-26T21:41:54.089Z",
+        "is_favorited": false,
+        "thumbnail_url": "https://v3b.fal.media/files/b/0a868787/qHXAof1Mz69GGG3KoMze4_8fe2d05ca5d2442680a9ecb5e11fe129.jpg",
+        "model_url": "https://fal.run/half-moon-ai/ai-detector/detect-text",
+        "license_type": "commercial",
+        "date": "2025-12-16T12:11:26.765Z",
+        "group": {
+          "key": "Half-Moon-Detection",
+          "label": "Text Detection"
+        },
+        "highlighted": false,
+        "kind": "inference",
+        "pinned": false
+      },
+      "openapi": {
+        "openapi": "3.0.4",
+        "info": {
+          "title": "Queue OpenAPI for half-moon-ai/ai-detector/detect-text",
+          "version": "1.0.0",
+          "description": "The OpenAPI schema for the half-moon-ai/ai-detector/detect-text queue.",
+          "x-fal-metadata": {
+            "endpointId": "half-moon-ai/ai-detector/detect-text",
+            "category": "text-to-text",
+            "thumbnailUrl": "https://v3b.fal.media/files/b/0a868787/qHXAof1Mz69GGG3KoMze4_8fe2d05ca5d2442680a9ecb5e11fe129.jpg",
+            "playgroundUrl": "https://fal.ai/models/half-moon-ai/ai-detector/detect-text",
+            "documentationUrl": "https://fal.ai/models/half-moon-ai/ai-detector/detect-text/api"
+          }
+        },
+        "components": {
+          "securitySchemes": {
+            "apiKeyAuth": {
+              "type": "apiKey",
+              "in": "header",
+              "name": "Authorization",
+              "description": "Fal Key"
+            }
+          },
+          "schemas": {
+            "QueueStatus": {
+              "type": "object",
+              "properties": {
+                "status": {
+                  "type": "string",
+                  "enum": [
+                    "IN_QUEUE",
+                    "IN_PROGRESS",
+                    "COMPLETED"
+                  ]
+                },
+                "request_id": {
+                  "type": "string",
+                  "description": "The request id."
+                },
+                "response_url": {
+                  "type": "string",
+                  "description": "The response url."
+                },
+                "status_url": {
+                  "type": "string",
+                  "description": "The status url."
+                },
+                "cancel_url": {
+                  "type": "string",
+                  "description": "The cancel url."
+                },
+                "logs": {
+                  "type": "object",
+                  "description": "The logs.",
+                  "additionalProperties": true
+                },
+                "metrics": {
+                  "type": "object",
+                  "description": "The metrics.",
+                  "additionalProperties": true
+                },
+                "queue_position": {
+                  "type": "integer",
+                  "description": "The queue position."
+                }
+              },
+              "required": [
+                "status",
+                "request_id"
+              ]
+            },
+            "AiDetectorDetectTextInput": {
+              "x-fal-order-properties": [
+                "text"
+              ],
+              "type": "object",
+              "properties": {
+                "text": {
+                  "description": "Text content to analyze for AI generation.",
+                  "type": "string",
+                  "examples": [
+                    "yo guys so i just tried this new coffee place downtown and honestly?? not worth the hype. waited like 30 mins for a latte that tasted burnt lol. maybe i caught them on a bad day idk but wont be going back anytime soon"
+                  ],
+                  "maxLength": 20000,
+                  "minLength": 1,
+                  "title": "Text"
+                }
+              },
+              "title": "TextDetectionInput",
+              "required": [
+                "text"
+              ]
+            },
+            "AiDetectorDetectTextOutput": {
+              "x-fal-order-properties": [
+                "verdict",
+                "confidence",
+                "is_ai_generated",
+                "latency"
+              ],
+              "type": "object",
+              "properties": {
+                "latency": {
+                  "examples": [
+                    13.617770671844482
+                  ],
+                  "title": "Latency",
+                  "type": "number"
+                },
+                "verdict": {
+                  "examples": [
+                    "human"
+                  ],
+                  "title": "Verdict",
+                  "type": "string"
+                },
+                "is_ai_generated": {
+                  "examples": [
+                    false
+                  ],
+                  "title": "Is Ai Generated",
+                  "type": "boolean"
+                },
+                "confidence": {
+                  "examples": [
+                    0.85
+                  ],
+                  "title": "Confidence",
+                  "type": "number"
+                }
+              },
+              "title": "AITextDetectionOutput",
+              "required": [
+                "verdict",
+                "confidence",
+                "is_ai_generated",
+                "latency"
+              ]
+            }
+          }
+        },
+        "paths": {
+          "/half-moon-ai/ai-detector/detect-text/requests/{request_id}/status": {
+            "get": {
+              "parameters": [
+                {
+                  "name": "request_id",
+                  "in": "path",
+                  "required": true,
+                  "schema": {
+                    "type": "string",
+                    "description": "Request ID"
+                  }
+                },
+                {
+                  "name": "logs",
+                  "in": "query",
+                  "required": false,
+                  "schema": {
+                    "type": "number",
+                    "description": "Whether to include logs (`1`) in the response or not (`0`)."
+                  }
+                }
+              ],
+              "responses": {
+                "200": {
+                  "description": "The request status.",
+                  "content": {
+                    "application/json": {
+                      "schema": {
+                        "$ref": "#/components/schemas/QueueStatus"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "/half-moon-ai/ai-detector/detect-text/requests/{request_id}/cancel": {
+            "put": {
+              "parameters": [
+                {
+                  "name": "request_id",
+                  "in": "path",
+                  "required": true,
+                  "schema": {
+                    "type": "string",
+                    "description": "Request ID"
+                  }
+                }
+              ],
+              "responses": {
+                "200": {
+                  "description": "The request was cancelled.",
+                  "content": {
+                    "application/json": {
+                      "schema": {
+                        "type": "object",
+                        "properties": {
+                          "success": {
+                            "type": "boolean",
+                            "description": "Whether the request was cancelled successfully."
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "/half-moon-ai/ai-detector/detect-text": {
+            "post": {
+              "requestBody": {
+                "required": true,
+                "content": {
+                  "application/json": {
+                    "schema": {
+                      "$ref": "#/components/schemas/AiDetectorDetectTextInput"
+                    }
+                  }
+                }
+              },
+              "responses": {
+                "200": {
+                  "description": "The request status.",
+                  "content": {
+                    "application/json": {
+                      "schema": {
+                        "$ref": "#/components/schemas/QueueStatus"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "/half-moon-ai/ai-detector/detect-text/requests/{request_id}": {
+            "get": {
+              "parameters": [
+                {
+                  "name": "request_id",
+                  "in": "path",
+                  "required": true,
+                  "schema": {
+                    "type": "string",
+                    "description": "Request ID"
+                  }
+                }
+              ],
+              "responses": {
+                "200": {
+                  "description": "Result of the request.",
+                  "content": {
+                    "application/json": {
+                      "schema": {
+                        "$ref": "#/components/schemas/AiDetectorDetectTextOutput"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "servers": [
+          {
+            "url": "https://queue.fal.run"
+          }
+        ],
+        "security": [
+          {
+            "apiKeyAuth": []
+          }
+        ]
+      }
+    }
+  ]
+}

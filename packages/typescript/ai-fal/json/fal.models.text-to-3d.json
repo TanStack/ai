@@ -1,0 +1,1955 @@
+{
+  "generated_at": "2026-01-28T02:51:51.872Z",
+  "total_models": 4,
+  "category": "text-to-3d",
+  "models": [
+    {
+      "endpoint_id": "fal-ai/hunyuan-motion/fast",
+      "metadata": {
+        "display_name": "Hunyuan Motion [0.46B]",
+        "category": "text-to-3d",
+        "description": "Generate 3D human motions via text-to-generation interface of Hunyuan Motion!",
+        "status": "active",
+        "tags": [
+          "text-to-3d",
+          "motion",
+          ""
+        ],
+        "updated_at": "2026-01-26T21:41:45.634Z",
+        "is_favorited": false,
+        "thumbnail_url": "https://v3b.fal.media/files/b/0a886139/Y0oMLck1xMhSZq_SZO0kq_b33b912e9eb2401dbb38c48ec97b2cd3.jpg",
+        "model_url": "https://fal.run/fal-ai/hunyuan-motion/fast",
+        "license_type": "commercial",
+        "date": "2025-12-30T12:58:39.853Z",
+        "group": {
+          "key": "hunyuan-motion",
+          "label": "0.46B"
+        },
+        "highlighted": false,
+        "kind": "inference",
+        "pinned": false
+      },
+      "openapi": {
+        "openapi": "3.0.4",
+        "info": {
+          "title": "Queue OpenAPI for fal-ai/hunyuan-motion/fast",
+          "version": "1.0.0",
+          "description": "The OpenAPI schema for the fal-ai/hunyuan-motion/fast queue.",
+          "x-fal-metadata": {
+            "endpointId": "fal-ai/hunyuan-motion/fast",
+            "category": "text-to-3d",
+            "thumbnailUrl": "https://v3b.fal.media/files/b/0a886139/Y0oMLck1xMhSZq_SZO0kq_b33b912e9eb2401dbb38c48ec97b2cd3.jpg",
+            "playgroundUrl": "https://fal.ai/models/fal-ai/hunyuan-motion/fast",
+            "documentationUrl": "https://fal.ai/models/fal-ai/hunyuan-motion/fast/api"
+          }
+        },
+        "components": {
+          "securitySchemes": {
+            "apiKeyAuth": {
+              "type": "apiKey",
+              "in": "header",
+              "name": "Authorization",
+              "description": "Fal Key"
+            }
+          },
+          "schemas": {
+            "QueueStatus": {
+              "type": "object",
+              "properties": {
+                "status": {
+                  "type": "string",
+                  "enum": [
+                    "IN_QUEUE",
+                    "IN_PROGRESS",
+                    "COMPLETED"
+                  ]
+                },
+                "request_id": {
+                  "type": "string",
+                  "description": "The request id."
+                },
+                "response_url": {
+                  "type": "string",
+                  "description": "The response url."
+                },
+                "status_url": {
+                  "type": "string",
+                  "description": "The status url."
+                },
+                "cancel_url": {
+                  "type": "string",
+                  "description": "The cancel url."
+                },
+                "logs": {
+                  "type": "object",
+                  "description": "The logs.",
+                  "additionalProperties": true
+                },
+                "metrics": {
+                  "type": "object",
+                  "description": "The metrics.",
+                  "additionalProperties": true
+                },
+                "queue_position": {
+                  "type": "integer",
+                  "description": "The queue position."
+                }
+              },
+              "required": [
+                "status",
+                "request_id"
+              ]
+            },
+            "HunyuanMotionFastInput": {
+              "title": "HYMotionInput",
+              "type": "object",
+              "properties": {
+                "prompt": {
+                  "examples": [
+                    "A person is running then takes a big leap.",
+                    "Someone waves hello with their right hand.",
+                    "A dancer performs a spinning pirouette."
+                  ],
+                  "title": "Prompt",
+                  "type": "string",
+                  "description": "Text prompt describing the motion to generate."
+                },
+                "duration": {
+                  "description": "Motion duration in seconds (0.5-12.0).",
+                  "type": "number",
+                  "minimum": 0.5,
+                  "title": "Duration",
+                  "examples": [
+                    3,
+                    5,
+                    10
+                  ],
+                  "maximum": 12,
+                  "default": 5
+                },
+                "guidance_scale": {
+                  "description": "Classifier-free guidance scale. Higher = more faithful to prompt.",
+                  "type": "number",
+                  "minimum": 1,
+                  "title": "Guidance Scale",
+                  "examples": [
+                    3,
+                    5,
+                    7.5
+                  ],
+                  "maximum": 10,
+                  "default": 5
+                },
+                "seed": {
+                  "examples": [
+                    42,
+                    12345
+                  ],
+                  "title": "Seed",
+                  "type": "integer",
+                  "description": "Random seed for reproducible generation."
+                },
+                "output_format": {
+                  "enum": [
+                    "fbx",
+                    "dict"
+                  ],
+                  "title": "Output Format",
+                  "type": "string",
+                  "description": "Output format: 'fbx' for animation files, 'dict' for raw JSON.",
+                  "default": "fbx"
+                }
+              },
+              "x-fal-order-properties": [
+                "prompt",
+                "seed",
+                "duration",
+                "guidance_scale",
+                "output_format"
+              ],
+              "required": [
+                "prompt"
+              ]
+            },
+            "HunyuanMotionFastOutput": {
+              "title": "HYMotionOutput",
+              "type": "object",
+              "properties": {
+                "fbx_file": {
+                  "examples": [
+                    {
+                      "url": "https://v3b.fal.media/files/b/0a885f1e/JytCv1tbq28iJmvXLrpbQ_20251230_112744828_2a84e993_000.fbx"
+                    }
+                  ],
+                  "title": "Fbx File",
+                  "description": "Generated FBX animation file.",
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/File"
+                    }
+                  ]
+                },
+                "motion_json": {
+                  "title": "Motion Json",
+                  "description": "Generated motion data as JSON.",
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/File"
+                    }
+                  ]
+                },
+                "seed": {
+                  "examples": [
+                    42
+                  ],
+                  "title": "Seed",
+                  "type": "integer",
+                  "description": "Seed used for generation."
+                }
+              },
+              "x-fal-order-properties": [
+                "fbx_file",
+                "motion_json",
+                "seed"
+              ],
+              "required": [
+                "seed"
+              ]
+            },
+            "File": {
+              "title": "File",
+              "type": "object",
+              "properties": {
+                "file_size": {
+                  "examples": [
+                    4404019
+                  ],
+                  "title": "File Size",
+                  "type": "integer",
+                  "description": "The size of the file in bytes."
+                },
+                "file_name": {
+                  "examples": [
+                    "z9RV14K95DvU.png"
+                  ],
+                  "title": "File Name",
+                  "type": "string",
+                  "description": "The name of the file. It will be auto-generated if not provided."
+                },
+                "content_type": {
+                  "examples": [
+                    "image/png"
+                  ],
+                  "title": "Content Type",
+                  "type": "string",
+                  "description": "The mime type of the file."
+                },
+                "url": {
+                  "title": "Url",
+                  "type": "string",
+                  "description": "The URL where the file can be downloaded from."
+                },
+                "file_data": {
+                  "format": "binary",
+                  "title": "File Data",
+                  "type": "string",
+                  "description": "File data"
+                }
+              },
+              "x-fal-order-properties": [
+                "url",
+                "content_type",
+                "file_name",
+                "file_size",
+                "file_data"
+              ],
+              "required": [
+                "url"
+              ]
+            }
+          }
+        },
+        "paths": {
+          "/fal-ai/hunyuan-motion/fast/requests/{request_id}/status": {
+            "get": {
+              "parameters": [
+                {
+                  "name": "request_id",
+                  "in": "path",
+                  "required": true,
+                  "schema": {
+                    "type": "string",
+                    "description": "Request ID"
+                  }
+                },
+                {
+                  "name": "logs",
+                  "in": "query",
+                  "required": false,
+                  "schema": {
+                    "type": "number",
+                    "description": "Whether to include logs (`1`) in the response or not (`0`)."
+                  }
+                }
+              ],
+              "responses": {
+                "200": {
+                  "description": "The request status.",
+                  "content": {
+                    "application/json": {
+                      "schema": {
+                        "$ref": "#/components/schemas/QueueStatus"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "/fal-ai/hunyuan-motion/fast/requests/{request_id}/cancel": {
+            "put": {
+              "parameters": [
+                {
+                  "name": "request_id",
+                  "in": "path",
+                  "required": true,
+                  "schema": {
+                    "type": "string",
+                    "description": "Request ID"
+                  }
+                }
+              ],
+              "responses": {
+                "200": {
+                  "description": "The request was cancelled.",
+                  "content": {
+                    "application/json": {
+                      "schema": {
+                        "type": "object",
+                        "properties": {
+                          "success": {
+                            "type": "boolean",
+                            "description": "Whether the request was cancelled successfully."
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "/fal-ai/hunyuan-motion/fast": {
+            "post": {
+              "requestBody": {
+                "required": true,
+                "content": {
+                  "application/json": {
+                    "schema": {
+                      "$ref": "#/components/schemas/HunyuanMotionFastInput"
+                    }
+                  }
+                }
+              },
+              "responses": {
+                "200": {
+                  "description": "The request status.",
+                  "content": {
+                    "application/json": {
+                      "schema": {
+                        "$ref": "#/components/schemas/QueueStatus"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "/fal-ai/hunyuan-motion/fast/requests/{request_id}": {
+            "get": {
+              "parameters": [
+                {
+                  "name": "request_id",
+                  "in": "path",
+                  "required": true,
+                  "schema": {
+                    "type": "string",
+                    "description": "Request ID"
+                  }
+                }
+              ],
+              "responses": {
+                "200": {
+                  "description": "Result of the request.",
+                  "content": {
+                    "application/json": {
+                      "schema": {
+                        "$ref": "#/components/schemas/HunyuanMotionFastOutput"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "servers": [
+          {
+            "url": "https://queue.fal.run"
+          }
+        ],
+        "security": [
+          {
+            "apiKeyAuth": []
+          }
+        ]
+      }
+    },
+    {
+      "endpoint_id": "fal-ai/hunyuan-motion",
+      "metadata": {
+        "display_name": "Hunyuan Motion [1B]",
+        "category": "text-to-3d",
+        "description": "Generate 3D human motions via text-to-generation interface of Hunyuan Motion!",
+        "status": "active",
+        "tags": [
+          "text-to-3d",
+          "motion",
+          ""
+        ],
+        "updated_at": "2026-01-26T21:41:45.766Z",
+        "is_favorited": false,
+        "thumbnail_url": "https://v3b.fal.media/files/b/0a886121/DkVwzQN-tnXsEY9yW6wzM_473ed8506f41423181f1736357bde8f8.jpg",
+        "model_url": "https://fal.run/fal-ai/hunyuan-motion",
+        "license_type": "commercial",
+        "date": "2025-12-30T12:54:39.431Z",
+        "group": {
+          "key": "hunyuan-motion",
+          "label": "1B"
+        },
+        "highlighted": false,
+        "kind": "inference",
+        "pinned": false
+      },
+      "openapi": {
+        "openapi": "3.0.4",
+        "info": {
+          "title": "Queue OpenAPI for fal-ai/hunyuan-motion",
+          "version": "1.0.0",
+          "description": "The OpenAPI schema for the fal-ai/hunyuan-motion queue.",
+          "x-fal-metadata": {
+            "endpointId": "fal-ai/hunyuan-motion",
+            "category": "text-to-3d",
+            "thumbnailUrl": "https://v3b.fal.media/files/b/0a886121/DkVwzQN-tnXsEY9yW6wzM_473ed8506f41423181f1736357bde8f8.jpg",
+            "playgroundUrl": "https://fal.ai/models/fal-ai/hunyuan-motion",
+            "documentationUrl": "https://fal.ai/models/fal-ai/hunyuan-motion/api"
+          }
+        },
+        "components": {
+          "securitySchemes": {
+            "apiKeyAuth": {
+              "type": "apiKey",
+              "in": "header",
+              "name": "Authorization",
+              "description": "Fal Key"
+            }
+          },
+          "schemas": {
+            "QueueStatus": {
+              "type": "object",
+              "properties": {
+                "status": {
+                  "type": "string",
+                  "enum": [
+                    "IN_QUEUE",
+                    "IN_PROGRESS",
+                    "COMPLETED"
+                  ]
+                },
+                "request_id": {
+                  "type": "string",
+                  "description": "The request id."
+                },
+                "response_url": {
+                  "type": "string",
+                  "description": "The response url."
+                },
+                "status_url": {
+                  "type": "string",
+                  "description": "The status url."
+                },
+                "cancel_url": {
+                  "type": "string",
+                  "description": "The cancel url."
+                },
+                "logs": {
+                  "type": "object",
+                  "description": "The logs.",
+                  "additionalProperties": true
+                },
+                "metrics": {
+                  "type": "object",
+                  "description": "The metrics.",
+                  "additionalProperties": true
+                },
+                "queue_position": {
+                  "type": "integer",
+                  "description": "The queue position."
+                }
+              },
+              "required": [
+                "status",
+                "request_id"
+              ]
+            },
+            "HunyuanMotionInput": {
+              "title": "HYMotionInput",
+              "type": "object",
+              "properties": {
+                "prompt": {
+                  "examples": [
+                    "A person is running then takes a big leap.",
+                    "Someone waves hello with their right hand.",
+                    "A dancer performs a spinning pirouette."
+                  ],
+                  "title": "Prompt",
+                  "type": "string",
+                  "description": "Text prompt describing the motion to generate."
+                },
+                "duration": {
+                  "description": "Motion duration in seconds (0.5-12.0).",
+                  "type": "number",
+                  "minimum": 0.5,
+                  "title": "Duration",
+                  "examples": [
+                    3,
+                    5,
+                    10
+                  ],
+                  "maximum": 12,
+                  "default": 5
+                },
+                "guidance_scale": {
+                  "description": "Classifier-free guidance scale. Higher = more faithful to prompt.",
+                  "type": "number",
+                  "minimum": 1,
+                  "title": "Guidance Scale",
+                  "examples": [
+                    3,
+                    5,
+                    7.5
+                  ],
+                  "maximum": 10,
+                  "default": 5
+                },
+                "seed": {
+                  "examples": [
+                    42,
+                    12345
+                  ],
+                  "title": "Seed",
+                  "type": "integer",
+                  "description": "Random seed for reproducible generation."
+                },
+                "output_format": {
+                  "enum": [
+                    "fbx",
+                    "dict"
+                  ],
+                  "title": "Output Format",
+                  "type": "string",
+                  "description": "Output format: 'fbx' for animation files, 'dict' for raw JSON.",
+                  "default": "fbx"
+                }
+              },
+              "x-fal-order-properties": [
+                "prompt",
+                "seed",
+                "duration",
+                "guidance_scale",
+                "output_format"
+              ],
+              "required": [
+                "prompt"
+              ]
+            },
+            "HunyuanMotionOutput": {
+              "title": "HYMotionOutput",
+              "type": "object",
+              "properties": {
+                "fbx_file": {
+                  "examples": [
+                    {
+                      "url": "https://v3b.fal.media/files/b/0a885f1e/JytCv1tbq28iJmvXLrpbQ_20251230_112744828_2a84e993_000.fbx"
+                    }
+                  ],
+                  "title": "Fbx File",
+                  "description": "Generated FBX animation file.",
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/File"
+                    }
+                  ]
+                },
+                "motion_json": {
+                  "title": "Motion Json",
+                  "description": "Generated motion data as JSON.",
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/File"
+                    }
+                  ]
+                },
+                "seed": {
+                  "examples": [
+                    42
+                  ],
+                  "title": "Seed",
+                  "type": "integer",
+                  "description": "Seed used for generation."
+                }
+              },
+              "x-fal-order-properties": [
+                "fbx_file",
+                "motion_json",
+                "seed"
+              ],
+              "required": [
+                "seed"
+              ]
+            },
+            "File": {
+              "title": "File",
+              "type": "object",
+              "properties": {
+                "file_size": {
+                  "examples": [
+                    4404019
+                  ],
+                  "title": "File Size",
+                  "type": "integer",
+                  "description": "The size of the file in bytes."
+                },
+                "file_name": {
+                  "examples": [
+                    "z9RV14K95DvU.png"
+                  ],
+                  "title": "File Name",
+                  "type": "string",
+                  "description": "The name of the file. It will be auto-generated if not provided."
+                },
+                "content_type": {
+                  "examples": [
+                    "image/png"
+                  ],
+                  "title": "Content Type",
+                  "type": "string",
+                  "description": "The mime type of the file."
+                },
+                "url": {
+                  "title": "Url",
+                  "type": "string",
+                  "description": "The URL where the file can be downloaded from."
+                },
+                "file_data": {
+                  "format": "binary",
+                  "title": "File Data",
+                  "type": "string",
+                  "description": "File data"
+                }
+              },
+              "x-fal-order-properties": [
+                "url",
+                "content_type",
+                "file_name",
+                "file_size",
+                "file_data"
+              ],
+              "required": [
+                "url"
+              ]
+            }
+          }
+        },
+        "paths": {
+          "/fal-ai/hunyuan-motion/requests/{request_id}/status": {
+            "get": {
+              "parameters": [
+                {
+                  "name": "request_id",
+                  "in": "path",
+                  "required": true,
+                  "schema": {
+                    "type": "string",
+                    "description": "Request ID"
+                  }
+                },
+                {
+                  "name": "logs",
+                  "in": "query",
+                  "required": false,
+                  "schema": {
+                    "type": "number",
+                    "description": "Whether to include logs (`1`) in the response or not (`0`)."
+                  }
+                }
+              ],
+              "responses": {
+                "200": {
+                  "description": "The request status.",
+                  "content": {
+                    "application/json": {
+                      "schema": {
+                        "$ref": "#/components/schemas/QueueStatus"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "/fal-ai/hunyuan-motion/requests/{request_id}/cancel": {
+            "put": {
+              "parameters": [
+                {
+                  "name": "request_id",
+                  "in": "path",
+                  "required": true,
+                  "schema": {
+                    "type": "string",
+                    "description": "Request ID"
+                  }
+                }
+              ],
+              "responses": {
+                "200": {
+                  "description": "The request was cancelled.",
+                  "content": {
+                    "application/json": {
+                      "schema": {
+                        "type": "object",
+                        "properties": {
+                          "success": {
+                            "type": "boolean",
+                            "description": "Whether the request was cancelled successfully."
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "/fal-ai/hunyuan-motion": {
+            "post": {
+              "requestBody": {
+                "required": true,
+                "content": {
+                  "application/json": {
+                    "schema": {
+                      "$ref": "#/components/schemas/HunyuanMotionInput"
+                    }
+                  }
+                }
+              },
+              "responses": {
+                "200": {
+                  "description": "The request status.",
+                  "content": {
+                    "application/json": {
+                      "schema": {
+                        "$ref": "#/components/schemas/QueueStatus"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "/fal-ai/hunyuan-motion/requests/{request_id}": {
+            "get": {
+              "parameters": [
+                {
+                  "name": "request_id",
+                  "in": "path",
+                  "required": true,
+                  "schema": {
+                    "type": "string",
+                    "description": "Request ID"
+                  }
+                }
+              ],
+              "responses": {
+                "200": {
+                  "description": "Result of the request.",
+                  "content": {
+                    "application/json": {
+                      "schema": {
+                        "$ref": "#/components/schemas/HunyuanMotionOutput"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "servers": [
+          {
+            "url": "https://queue.fal.run"
+          }
+        ],
+        "security": [
+          {
+            "apiKeyAuth": []
+          }
+        ]
+      }
+    },
+    {
+      "endpoint_id": "fal-ai/hunyuan3d-v3/text-to-3d",
+      "metadata": {
+        "display_name": "Hunyuan3d V3",
+        "category": "text-to-3d",
+        "description": "Turn simple sketches into detailed, fully-textured 3D models. Instantly convert your concept designs into formats ready for Unity, Unreal, and Blender.",
+        "status": "active",
+        "tags": [],
+        "updated_at": "2026-01-26T21:41:51.970Z",
+        "is_favorited": false,
+        "thumbnail_url": "https://v3b.fal.media/files/b/0a8696b5/YaGZtFEBFL6CEXjiVxdB__dbec569fa5d4418bbbc9d77354f7c86f.jpg",
+        "model_url": "https://fal.run/fal-ai/hunyuan3d-v3/text-to-3d",
+        "license_type": "commercial",
+        "date": "2025-12-16T22:13:53.731Z",
+        "group": {
+          "key": "hunyuan3d-v3",
+          "label": "Text to 3D"
+        },
+        "highlighted": false,
+        "kind": "inference",
+        "pinned": false
+      },
+      "openapi": {
+        "openapi": "3.0.4",
+        "info": {
+          "title": "Queue OpenAPI for fal-ai/hunyuan3d-v3/text-to-3d",
+          "version": "1.0.0",
+          "description": "The OpenAPI schema for the fal-ai/hunyuan3d-v3/text-to-3d queue.",
+          "x-fal-metadata": {
+            "endpointId": "fal-ai/hunyuan3d-v3/text-to-3d",
+            "category": "text-to-3d",
+            "thumbnailUrl": "https://v3b.fal.media/files/b/0a8696b5/YaGZtFEBFL6CEXjiVxdB__dbec569fa5d4418bbbc9d77354f7c86f.jpg",
+            "playgroundUrl": "https://fal.ai/models/fal-ai/hunyuan3d-v3/text-to-3d",
+            "documentationUrl": "https://fal.ai/models/fal-ai/hunyuan3d-v3/text-to-3d/api"
+          }
+        },
+        "components": {
+          "securitySchemes": {
+            "apiKeyAuth": {
+              "type": "apiKey",
+              "in": "header",
+              "name": "Authorization",
+              "description": "Fal Key"
+            }
+          },
+          "schemas": {
+            "QueueStatus": {
+              "type": "object",
+              "properties": {
+                "status": {
+                  "type": "string",
+                  "enum": [
+                    "IN_QUEUE",
+                    "IN_PROGRESS",
+                    "COMPLETED"
+                  ]
+                },
+                "request_id": {
+                  "type": "string",
+                  "description": "The request id."
+                },
+                "response_url": {
+                  "type": "string",
+                  "description": "The response url."
+                },
+                "status_url": {
+                  "type": "string",
+                  "description": "The status url."
+                },
+                "cancel_url": {
+                  "type": "string",
+                  "description": "The cancel url."
+                },
+                "logs": {
+                  "type": "object",
+                  "description": "The logs.",
+                  "additionalProperties": true
+                },
+                "metrics": {
+                  "type": "object",
+                  "description": "The metrics.",
+                  "additionalProperties": true
+                },
+                "queue_position": {
+                  "type": "integer",
+                  "description": "The queue position."
+                }
+              },
+              "required": [
+                "status",
+                "request_id"
+              ]
+            },
+            "Hunyuan3dV3TextTo3dInput": {
+              "title": "TextTo3DInput",
+              "type": "object",
+              "properties": {
+                "enable_pbr": {
+                  "title": "Enable Pbr",
+                  "type": "boolean",
+                  "description": "Whether to enable PBR material generation",
+                  "default": false
+                },
+                "polygon_type": {
+                  "enum": [
+                    "triangle",
+                    "quadrilateral"
+                  ],
+                  "title": "Polygon Type",
+                  "type": "string",
+                  "description": "Polygon type. Only takes effect when GenerateType is LowPoly.",
+                  "default": "triangle"
+                },
+                "face_count": {
+                  "minimum": 40000,
+                  "title": "Face Count",
+                  "type": "integer",
+                  "description": "Target face count. Range: 40000-1500000",
+                  "maximum": 1500000,
+                  "default": 500000
+                },
+                "prompt": {
+                  "examples": [
+                    "A rustic wooden treasure chest with metal bands and ornate lock"
+                  ],
+                  "title": "Prompt",
+                  "type": "string",
+                  "description": "Text description of the 3D content to generate. Supports up to 1024 UTF-8 characters.",
+                  "maxLength": 1024
+                },
+                "generate_type": {
+                  "enum": [
+                    "Normal",
+                    "LowPoly",
+                    "Geometry"
+                  ],
+                  "title": "Generate Type",
+                  "type": "string",
+                  "description": "Generation type. Normal: textured model. LowPoly: polygon reduction. Geometry: white model without texture.",
+                  "default": "Normal"
+                }
+              },
+              "x-fal-order-properties": [
+                "prompt",
+                "enable_pbr",
+                "face_count",
+                "generate_type",
+                "polygon_type"
+              ],
+              "required": [
+                "prompt"
+              ]
+            },
+            "Hunyuan3dV3TextTo3dOutput": {
+              "title": "TextTo3DOutput",
+              "type": "object",
+              "properties": {
+                "model_urls": {
+                  "examples": [
+                    {
+                      "glb": {
+                        "file_size": 64724836,
+                        "file_name": "model.glb",
+                        "content_type": "model/gltf-binary",
+                        "url": "https://v3b.fal.media/files/b/0a8686a8/1hPquv3AqqkfnqSM9fpmB_model.glb"
+                      },
+                      "obj": {
+                        "file_size": 44084728,
+                        "file_name": "model.obj",
+                        "content_type": "text/plain",
+                        "url": "https://v3b.fal.media/files/b/0a8686a8/AVgdsVFrGAKGAFr4e2g56_model.obj"
+                      }
+                    }
+                  ],
+                  "title": "Model Urls",
+                  "description": "URLs for different 3D model formats",
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/ModelUrls"
+                    }
+                  ]
+                },
+                "thumbnail": {
+                  "examples": [
+                    {
+                      "file_size": 172757,
+                      "file_name": "preview.png",
+                      "content_type": "image/png",
+                      "url": "https://v3b.fal.media/files/b/0a8686a8/khgYO1d6xqWOJPi6_IR_j_preview.png"
+                    }
+                  ],
+                  "title": "Thumbnail",
+                  "description": "Preview thumbnail of the generated model",
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/File"
+                    }
+                  ]
+                },
+                "seed": {
+                  "title": "Seed",
+                  "type": "integer",
+                  "description": "The seed used for generation"
+                },
+                "model_glb": {
+                  "examples": [
+                    {
+                      "file_size": 64724836,
+                      "file_name": "model.glb",
+                      "content_type": "model/gltf-binary",
+                      "url": "https://v3b.fal.media/files/b/0a8686a8/1hPquv3AqqkfnqSM9fpmB_model.glb"
+                    }
+                  ],
+                  "title": "Model Glb",
+                  "description": "Generated 3D object in GLB format.",
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/File"
+                    }
+                  ]
+                }
+              },
+              "x-fal-order-properties": [
+                "model_glb",
+                "thumbnail",
+                "model_urls",
+                "seed"
+              ],
+              "required": [
+                "model_glb",
+                "model_urls"
+              ]
+            },
+            "ModelUrls": {
+              "title": "ModelUrls",
+              "type": "object",
+              "properties": {
+                "fbx": {
+                  "title": "Fbx",
+                  "description": "FBX format 3D model",
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/File"
+                    }
+                  ]
+                },
+                "usdz": {
+                  "title": "Usdz",
+                  "description": "USDZ format 3D model",
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/File"
+                    }
+                  ]
+                },
+                "glb": {
+                  "title": "Glb",
+                  "description": "GLB format 3D model",
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/File"
+                    }
+                  ]
+                },
+                "obj": {
+                  "title": "Obj",
+                  "description": "OBJ format 3D model",
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/File"
+                    }
+                  ]
+                }
+              },
+              "x-fal-order-properties": [
+                "glb",
+                "fbx",
+                "obj",
+                "usdz"
+              ]
+            },
+            "File": {
+              "title": "File",
+              "type": "object",
+              "properties": {
+                "file_size": {
+                  "examples": [
+                    4404019
+                  ],
+                  "title": "File Size",
+                  "type": "integer",
+                  "description": "The size of the file in bytes."
+                },
+                "file_name": {
+                  "examples": [
+                    "z9RV14K95DvU.png"
+                  ],
+                  "title": "File Name",
+                  "type": "string",
+                  "description": "The name of the file. It will be auto-generated if not provided."
+                },
+                "content_type": {
+                  "examples": [
+                    "image/png"
+                  ],
+                  "title": "Content Type",
+                  "type": "string",
+                  "description": "The mime type of the file."
+                },
+                "url": {
+                  "title": "Url",
+                  "type": "string",
+                  "description": "The URL where the file can be downloaded from."
+                },
+                "file_data": {
+                  "format": "binary",
+                  "description": "File data",
+                  "type": "string",
+                  "title": "File Data"
+                }
+              },
+              "x-fal-order-properties": [
+                "url",
+                "content_type",
+                "file_name",
+                "file_size",
+                "file_data"
+              ],
+              "required": [
+                "url"
+              ]
+            }
+          }
+        },
+        "paths": {
+          "/fal-ai/hunyuan3d-v3/text-to-3d/requests/{request_id}/status": {
+            "get": {
+              "parameters": [
+                {
+                  "name": "request_id",
+                  "in": "path",
+                  "required": true,
+                  "schema": {
+                    "type": "string",
+                    "description": "Request ID"
+                  }
+                },
+                {
+                  "name": "logs",
+                  "in": "query",
+                  "required": false,
+                  "schema": {
+                    "type": "number",
+                    "description": "Whether to include logs (`1`) in the response or not (`0`)."
+                  }
+                }
+              ],
+              "responses": {
+                "200": {
+                  "description": "The request status.",
+                  "content": {
+                    "application/json": {
+                      "schema": {
+                        "$ref": "#/components/schemas/QueueStatus"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "/fal-ai/hunyuan3d-v3/text-to-3d/requests/{request_id}/cancel": {
+            "put": {
+              "parameters": [
+                {
+                  "name": "request_id",
+                  "in": "path",
+                  "required": true,
+                  "schema": {
+                    "type": "string",
+                    "description": "Request ID"
+                  }
+                }
+              ],
+              "responses": {
+                "200": {
+                  "description": "The request was cancelled.",
+                  "content": {
+                    "application/json": {
+                      "schema": {
+                        "type": "object",
+                        "properties": {
+                          "success": {
+                            "type": "boolean",
+                            "description": "Whether the request was cancelled successfully."
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "/fal-ai/hunyuan3d-v3/text-to-3d": {
+            "post": {
+              "requestBody": {
+                "required": true,
+                "content": {
+                  "application/json": {
+                    "schema": {
+                      "$ref": "#/components/schemas/Hunyuan3dV3TextTo3dInput"
+                    }
+                  }
+                }
+              },
+              "responses": {
+                "200": {
+                  "description": "The request status.",
+                  "content": {
+                    "application/json": {
+                      "schema": {
+                        "$ref": "#/components/schemas/QueueStatus"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "/fal-ai/hunyuan3d-v3/text-to-3d/requests/{request_id}": {
+            "get": {
+              "parameters": [
+                {
+                  "name": "request_id",
+                  "in": "path",
+                  "required": true,
+                  "schema": {
+                    "type": "string",
+                    "description": "Request ID"
+                  }
+                }
+              ],
+              "responses": {
+                "200": {
+                  "description": "Result of the request.",
+                  "content": {
+                    "application/json": {
+                      "schema": {
+                        "$ref": "#/components/schemas/Hunyuan3dV3TextTo3dOutput"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "servers": [
+          {
+            "url": "https://queue.fal.run"
+          }
+        ],
+        "security": [
+          {
+            "apiKeyAuth": []
+          }
+        ]
+      }
+    },
+    {
+      "endpoint_id": "fal-ai/meshy/v6-preview/text-to-3d",
+      "metadata": {
+        "display_name": "Meshy 6 Preview",
+        "category": "text-to-3d",
+        "description": "Meshy-6-Preview is the latest model from Meshy. It generates realistic and production ready 3D models.",
+        "status": "active",
+        "tags": [
+          "text-to-3d"
+        ],
+        "updated_at": "2026-01-26T21:42:44.607Z",
+        "is_favorited": false,
+        "thumbnail_url": "https://v3b.fal.media/files/b/rabbit/R9WXOPkhbiHFjL8iXBLDG_79f59228974346e59950364b95325d80.jpg",
+        "model_url": "https://fal.run/fal-ai/meshy/v6-preview/text-to-3d",
+        "license_type": "commercial",
+        "date": "2025-10-06T23:26:16.872Z",
+        "group": {
+          "key": "Meshy",
+          "label": "v6 Preview Text to 3D"
+        },
+        "highlighted": false,
+        "kind": "inference",
+        "pinned": false
+      },
+      "openapi": {
+        "openapi": "3.0.4",
+        "info": {
+          "title": "Queue OpenAPI for fal-ai/meshy/v6-preview/text-to-3d",
+          "version": "1.0.0",
+          "description": "The OpenAPI schema for the fal-ai/meshy/v6-preview/text-to-3d queue.",
+          "x-fal-metadata": {
+            "endpointId": "fal-ai/meshy/v6-preview/text-to-3d",
+            "category": "text-to-3d",
+            "thumbnailUrl": "https://v3b.fal.media/files/b/rabbit/R9WXOPkhbiHFjL8iXBLDG_79f59228974346e59950364b95325d80.jpg",
+            "playgroundUrl": "https://fal.ai/models/fal-ai/meshy/v6-preview/text-to-3d",
+            "documentationUrl": "https://fal.ai/models/fal-ai/meshy/v6-preview/text-to-3d/api"
+          }
+        },
+        "components": {
+          "securitySchemes": {
+            "apiKeyAuth": {
+              "type": "apiKey",
+              "in": "header",
+              "name": "Authorization",
+              "description": "Fal Key"
+            }
+          },
+          "schemas": {
+            "QueueStatus": {
+              "type": "object",
+              "properties": {
+                "status": {
+                  "type": "string",
+                  "enum": [
+                    "IN_QUEUE",
+                    "IN_PROGRESS",
+                    "COMPLETED"
+                  ]
+                },
+                "request_id": {
+                  "type": "string",
+                  "description": "The request id."
+                },
+                "response_url": {
+                  "type": "string",
+                  "description": "The response url."
+                },
+                "status_url": {
+                  "type": "string",
+                  "description": "The status url."
+                },
+                "cancel_url": {
+                  "type": "string",
+                  "description": "The cancel url."
+                },
+                "logs": {
+                  "type": "object",
+                  "description": "The logs.",
+                  "additionalProperties": true
+                },
+                "metrics": {
+                  "type": "object",
+                  "description": "The metrics.",
+                  "additionalProperties": true
+                },
+                "queue_position": {
+                  "type": "integer",
+                  "description": "The queue position."
+                }
+              },
+              "required": [
+                "status",
+                "request_id"
+              ]
+            },
+            "MeshyV6PreviewTextTo3dInput": {
+              "x-fal-order-properties": [
+                "prompt",
+                "mode",
+                "art_style",
+                "seed",
+                "topology",
+                "target_polycount",
+                "should_remesh",
+                "symmetry_mode",
+                "is_a_t_pose",
+                "enable_pbr",
+                "enable_prompt_expansion",
+                "texture_prompt",
+                "texture_image_url",
+                "enable_safety_checker"
+              ],
+              "type": "object",
+              "properties": {
+                "prompt": {
+                  "examples": [
+                    "A rustic, antique wooden treasure chest with a curved, domed lid, constructed from weathered, dark brown planks exhibiting prominent wood grain and subtle distress. It's heavily reinforced with broad, dark grey, oxidized metal bands secured by numerous circular rivets. Ornate, dark iron decorative elements featuring swirling foliate patterns and dragon motifs adorn the corners and lid. A prominent, circular, intricately carved metal lock plate with a central keyhole dominates the front, flanked by two large, dark metallic pull rings."
+                  ],
+                  "title": "Prompt",
+                  "type": "string",
+                  "description": "Describe what kind of object the 3D model is. Maximum 600 characters.",
+                  "maxLength": 600
+                },
+                "enable_pbr": {
+                  "description": "Generate PBR Maps (metallic, roughness, normal) in addition to base color. Should be false for sculpture style.",
+                  "type": "boolean",
+                  "title": "Enable Pbr",
+                  "default": false
+                },
+                "target_polycount": {
+                  "minimum": 100,
+                  "maximum": 300000,
+                  "type": "integer",
+                  "title": "Target Polycount",
+                  "description": "Target number of polygons in the generated model",
+                  "default": 30000
+                },
+                "art_style": {
+                  "enum": [
+                    "realistic",
+                    "sculpture"
+                  ],
+                  "description": "Desired art style of the object. Note: enable_pbr should be false for sculpture style.",
+                  "type": "string",
+                  "title": "Art Style",
+                  "default": "realistic"
+                },
+                "enable_safety_checker": {
+                  "description": "If set to true, input data will be checked for safety before processing.",
+                  "type": "boolean",
+                  "title": "Enable Safety Checker",
+                  "default": true
+                },
+                "mode": {
+                  "enum": [
+                    "preview",
+                    "full"
+                  ],
+                  "description": "Generation mode. 'preview' returns untextured geometry only, 'full' returns textured model (preview + refine).",
+                  "type": "string",
+                  "title": "Mode",
+                  "default": "full"
+                },
+                "symmetry_mode": {
+                  "enum": [
+                    "off",
+                    "auto",
+                    "on"
+                  ],
+                  "description": "Controls symmetry behavior during model generation.",
+                  "type": "string",
+                  "title": "Symmetry Mode",
+                  "default": "auto"
+                },
+                "should_remesh": {
+                  "description": "Whether to enable the remesh phase. When false, returns unprocessed triangular mesh.",
+                  "type": "boolean",
+                  "title": "Should Remesh",
+                  "default": true
+                },
+                "texture_image_url": {
+                  "description": "2D image to guide the texturing process (only used in 'full' mode)",
+                  "max_pixels": 178956970,
+                  "type": "string",
+                  "x-fal": {
+                    "timeout": 20,
+                    "max_file_size": 20971520
+                  },
+                  "title": "Texture Image Url",
+                  "limit_description": "Max file size: 20.0MB, Timeout: 20.0s"
+                },
+                "topology": {
+                  "enum": [
+                    "quad",
+                    "triangle"
+                  ],
+                  "description": "Specify the topology of the generated model. Quad for smooth surfaces, Triangle for detailed geometry.",
+                  "type": "string",
+                  "title": "Topology",
+                  "default": "triangle"
+                },
+                "enable_prompt_expansion": {
+                  "description": "Whether to enable prompt expansion. This will use a large language model to expand the prompt with additional details while maintaining the original meaning.",
+                  "type": "boolean",
+                  "title": "Enable Prompt Expansion",
+                  "default": false
+                },
+                "seed": {
+                  "description": "Seed for reproducible results. Same prompt and seed usually generate the same result.",
+                  "type": "integer",
+                  "title": "Seed"
+                },
+                "is_a_t_pose": {
+                  "description": "Whether to generate the model in an A/T pose",
+                  "type": "boolean",
+                  "title": "Is A T Pose",
+                  "default": false
+                },
+                "texture_prompt": {
+                  "description": "Additional text prompt to guide the texturing process (only used in 'full' mode)",
+                  "type": "string",
+                  "title": "Texture Prompt",
+                  "maxLength": 600
+                }
+              },
+              "title": "TextTo3DInput",
+              "description": "Input for Text to 3D conversion",
+              "required": [
+                "prompt"
+              ]
+            },
+            "MeshyV6PreviewTextTo3dOutput": {
+              "x-fal-order-properties": [
+                "model_glb",
+                "thumbnail",
+                "model_urls",
+                "texture_urls",
+                "seed",
+                "prompt",
+                "actual_prompt"
+              ],
+              "type": "object",
+              "properties": {
+                "prompt": {
+                  "examples": [
+                    "A rustic, antique wooden treasure chest with a curved, domed lid, constructed from weathered, dark brown planks exhibiting prominent wood grain and subtle distress. It's heavily reinforced with broad, dark grey, oxidized metal bands secured by numerous circular rivets. Ornate, dark iron decorative elements featuring swirling foliate patterns and dragon motifs adorn the corners and lid. A prominent, circular, intricately carved metal lock plate with a central keyhole dominates the front, flanked by two large, dark metallic pull rings."
+                  ],
+                  "title": "Prompt",
+                  "type": "string",
+                  "description": "The text prompt used for generation"
+                },
+                "thumbnail": {
+                  "examples": [
+                    {
+                      "file_size": 173792,
+                      "file_name": "preview.png",
+                      "content_type": "image/png",
+                      "url": "https://v3b.fal.media/files/b/koala/6LJISu4ilkZXcdOETwl_d_preview.png"
+                    }
+                  ],
+                  "title": "Thumbnail",
+                  "description": "Preview thumbnail of the generated model",
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/File"
+                    }
+                  ]
+                },
+                "actual_prompt": {
+                  "description": "The actual prompt used if prompt expansion was enabled",
+                  "type": "string",
+                  "title": "Actual Prompt"
+                },
+                "texture_urls": {
+                  "examples": [
+                    [
+                      {
+                        "base_color": {
+                          "file_size": 4254502,
+                          "file_name": "texture_0.png",
+                          "content_type": "image/png",
+                          "url": "https://v3b.fal.media/files/b/panda/DoPKAuZY0tTjnr6C9ee-Q_texture_0.png"
+                        }
+                      }
+                    ]
+                  ],
+                  "title": "Texture Urls",
+                  "type": "array",
+                  "description": "Array of texture file objects",
+                  "items": {
+                    "$ref": "#/components/schemas/TextureFiles"
+                  }
+                },
+                "model_glb": {
+                  "examples": [
+                    {
+                      "file_size": 9314028,
+                      "file_name": "model.glb",
+                      "content_type": "model/gltf-binary",
+                      "url": "https://v3b.fal.media/files/b/penguin/DId89qXLu6BXu09RFAwAV_model.glb"
+                    }
+                  ],
+                  "title": "Model Glb",
+                  "description": "Generated 3D object in GLB format.",
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/File"
+                    }
+                  ]
+                },
+                "seed": {
+                  "examples": [
+                    4002110719
+                  ],
+                  "title": "Seed",
+                  "type": "integer",
+                  "description": "The seed used for generation"
+                },
+                "model_urls": {
+                  "examples": [
+                    {
+                      "fbx": {
+                        "file_size": 5444380,
+                        "file_name": "model.fbx",
+                        "content_type": "application/octet-stream",
+                        "url": "https://v3b.fal.media/files/b/kangaroo/7nUUw5dHN9a0DKlOpAKbP_model.fbx"
+                      },
+                      "usdz": {
+                        "file_size": 9834246,
+                        "file_name": "model.usdz",
+                        "content_type": "model/vnd.usdz+zip",
+                        "url": "https://v3b.fal.media/files/b/panda/XcC-mIJywUvH7coyrzENU_model.usdz"
+                      },
+                      "glb": {
+                        "file_size": 9314028,
+                        "file_name": "model.glb",
+                        "content_type": "model/gltf-binary",
+                        "url": "https://v3b.fal.media/files/b/penguin/DId89qXLu6BXu09RFAwAV_model.glb"
+                      },
+                      "obj": {
+                        "file_size": 2755145,
+                        "file_name": "model.obj",
+                        "content_type": "text/plain",
+                        "url": "https://v3b.fal.media/files/b/monkey/cCNMHqUbKSNtDN1iGmiYm_model.obj"
+                      }
+                    }
+                  ],
+                  "title": "Model Urls",
+                  "description": "URLs for different 3D model formats",
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/ModelUrls"
+                    }
+                  ]
+                }
+              },
+              "title": "TextTo3DOutput",
+              "description": "Output for Text to 3D generation",
+              "required": [
+                "model_glb",
+                "model_urls",
+                "prompt"
+              ]
+            },
+            "File": {
+              "x-fal-order-properties": [
+                "url",
+                "content_type",
+                "file_name",
+                "file_size",
+                "file_data"
+              ],
+              "type": "object",
+              "properties": {
+                "file_size": {
+                  "examples": [
+                    4404019
+                  ],
+                  "title": "File Size",
+                  "type": "integer",
+                  "description": "The size of the file in bytes."
+                },
+                "file_name": {
+                  "examples": [
+                    "z9RV14K95DvU.png"
+                  ],
+                  "title": "File Name",
+                  "type": "string",
+                  "description": "The name of the file. It will be auto-generated if not provided."
+                },
+                "content_type": {
+                  "examples": [
+                    "image/png"
+                  ],
+                  "title": "Content Type",
+                  "type": "string",
+                  "description": "The mime type of the file."
+                },
+                "url": {
+                  "description": "The URL where the file can be downloaded from.",
+                  "type": "string",
+                  "title": "Url"
+                },
+                "file_data": {
+                  "format": "binary",
+                  "description": "File data",
+                  "type": "string",
+                  "title": "File Data"
+                }
+              },
+              "title": "File",
+              "required": [
+                "url"
+              ]
+            },
+            "TextureFiles": {
+              "x-fal-order-properties": [
+                "base_color",
+                "metallic",
+                "normal",
+                "roughness"
+              ],
+              "type": "object",
+              "properties": {
+                "base_color": {
+                  "description": "Base color texture",
+                  "title": "Base Color",
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/File"
+                    }
+                  ]
+                },
+                "normal": {
+                  "description": "Normal texture (PBR)",
+                  "title": "Normal",
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/File"
+                    }
+                  ]
+                },
+                "roughness": {
+                  "description": "Roughness texture (PBR)",
+                  "title": "Roughness",
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/File"
+                    }
+                  ]
+                },
+                "metallic": {
+                  "description": "Metallic texture (PBR)",
+                  "title": "Metallic",
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/File"
+                    }
+                  ]
+                }
+              },
+              "title": "TextureFiles",
+              "description": "Texture files downloaded and uploaded to CDN",
+              "required": [
+                "base_color"
+              ]
+            },
+            "ModelUrls": {
+              "x-fal-order-properties": [
+                "glb",
+                "fbx",
+                "obj",
+                "usdz",
+                "blend",
+                "stl"
+              ],
+              "type": "object",
+              "properties": {
+                "usdz": {
+                  "description": "USDZ format 3D model",
+                  "title": "Usdz",
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/File"
+                    }
+                  ]
+                },
+                "fbx": {
+                  "description": "FBX format 3D model",
+                  "title": "Fbx",
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/File"
+                    }
+                  ]
+                },
+                "blend": {
+                  "description": "Blender format 3D model",
+                  "title": "Blend",
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/File"
+                    }
+                  ]
+                },
+                "stl": {
+                  "description": "STL format 3D model",
+                  "title": "Stl",
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/File"
+                    }
+                  ]
+                },
+                "glb": {
+                  "description": "GLB format 3D model",
+                  "title": "Glb",
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/File"
+                    }
+                  ]
+                },
+                "obj": {
+                  "description": "OBJ format 3D model",
+                  "title": "Obj",
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/File"
+                    }
+                  ]
+                }
+              },
+              "title": "ModelUrls",
+              "description": "3D model files in various formats"
+            }
+          }
+        },
+        "paths": {
+          "/fal-ai/meshy/v6-preview/text-to-3d/requests/{request_id}/status": {
+            "get": {
+              "parameters": [
+                {
+                  "name": "request_id",
+                  "in": "path",
+                  "required": true,
+                  "schema": {
+                    "type": "string",
+                    "description": "Request ID"
+                  }
+                },
+                {
+                  "name": "logs",
+                  "in": "query",
+                  "required": false,
+                  "schema": {
+                    "type": "number",
+                    "description": "Whether to include logs (`1`) in the response or not (`0`)."
+                  }
+                }
+              ],
+              "responses": {
+                "200": {
+                  "description": "The request status.",
+                  "content": {
+                    "application/json": {
+                      "schema": {
+                        "$ref": "#/components/schemas/QueueStatus"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "/fal-ai/meshy/v6-preview/text-to-3d/requests/{request_id}/cancel": {
+            "put": {
+              "parameters": [
+                {
+                  "name": "request_id",
+                  "in": "path",
+                  "required": true,
+                  "schema": {
+                    "type": "string",
+                    "description": "Request ID"
+                  }
+                }
+              ],
+              "responses": {
+                "200": {
+                  "description": "The request was cancelled.",
+                  "content": {
+                    "application/json": {
+                      "schema": {
+                        "type": "object",
+                        "properties": {
+                          "success": {
+                            "type": "boolean",
+                            "description": "Whether the request was cancelled successfully."
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "/fal-ai/meshy/v6-preview/text-to-3d": {
+            "post": {
+              "requestBody": {
+                "required": true,
+                "content": {
+                  "application/json": {
+                    "schema": {
+                      "$ref": "#/components/schemas/MeshyV6PreviewTextTo3dInput"
+                    }
+                  }
+                }
+              },
+              "responses": {
+                "200": {
+                  "description": "The request status.",
+                  "content": {
+                    "application/json": {
+                      "schema": {
+                        "$ref": "#/components/schemas/QueueStatus"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "/fal-ai/meshy/v6-preview/text-to-3d/requests/{request_id}": {
+            "get": {
+              "parameters": [
+                {
+                  "name": "request_id",
+                  "in": "path",
+                  "required": true,
+                  "schema": {
+                    "type": "string",
+                    "description": "Request ID"
+                  }
+                }
+              ],
+              "responses": {
+                "200": {
+                  "description": "Result of the request.",
+                  "content": {
+                    "application/json": {
+                      "schema": {
+                        "$ref": "#/components/schemas/MeshyV6PreviewTextTo3dOutput"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "servers": [
+          {
+            "url": "https://queue.fal.run"
+          }
+        ],
+        "security": [
+          {
+            "apiKeyAuth": []
+          }
+        ]
+      }
+    }
+  ]
+}

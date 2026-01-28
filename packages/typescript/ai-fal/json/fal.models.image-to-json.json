@@ -1,0 +1,315 @@
+{
+  "generated_at": "2026-01-28T02:51:51.878Z",
+  "total_models": 1,
+  "category": "image-to-json",
+  "models": [
+    {
+      "endpoint_id": "fal-ai/bagel/understand",
+      "metadata": {
+        "display_name": "Bagel",
+        "category": "image-to-json",
+        "description": "Bagel is a 7B parameter multimodal model from Bytedance-Seed that can generate both text and images.",
+        "status": "active",
+        "tags": [
+          "image-to-text",
+          "vlm"
+        ],
+        "updated_at": "2026-01-26T21:43:39.207Z",
+        "is_favorited": false,
+        "thumbnail_url": "https://storage.googleapis.com/falserverless/gallery/bagel.webp",
+        "model_url": "https://fal.run/fal-ai/bagel/understand",
+        "license_type": "commercial",
+        "date": "2025-05-21T18:37:27.397Z",
+        "group": {
+          "key": "bagel",
+          "label": "Image Understanding"
+        },
+        "highlighted": false,
+        "kind": "inference",
+        "pinned": false
+      },
+      "openapi": {
+        "openapi": "3.0.4",
+        "info": {
+          "title": "Queue OpenAPI for fal-ai/bagel/understand",
+          "version": "1.0.0",
+          "description": "The OpenAPI schema for the fal-ai/bagel/understand queue.",
+          "x-fal-metadata": {
+            "endpointId": "fal-ai/bagel/understand",
+            "category": "image-to-json",
+            "thumbnailUrl": "https://storage.googleapis.com/falserverless/gallery/bagel.webp",
+            "playgroundUrl": "https://fal.ai/models/fal-ai/bagel/understand",
+            "documentationUrl": "https://fal.ai/models/fal-ai/bagel/understand/api"
+          }
+        },
+        "components": {
+          "securitySchemes": {
+            "apiKeyAuth": {
+              "type": "apiKey",
+              "in": "header",
+              "name": "Authorization",
+              "description": "Fal Key"
+            }
+          },
+          "schemas": {
+            "QueueStatus": {
+              "type": "object",
+              "properties": {
+                "status": {
+                  "type": "string",
+                  "enum": [
+                    "IN_QUEUE",
+                    "IN_PROGRESS",
+                    "COMPLETED"
+                  ]
+                },
+                "request_id": {
+                  "type": "string",
+                  "description": "The request id."
+                },
+                "response_url": {
+                  "type": "string",
+                  "description": "The response url."
+                },
+                "status_url": {
+                  "type": "string",
+                  "description": "The status url."
+                },
+                "cancel_url": {
+                  "type": "string",
+                  "description": "The cancel url."
+                },
+                "logs": {
+                  "type": "object",
+                  "description": "The logs.",
+                  "additionalProperties": true
+                },
+                "metrics": {
+                  "type": "object",
+                  "description": "The metrics.",
+                  "additionalProperties": true
+                },
+                "queue_position": {
+                  "type": "integer",
+                  "description": "The queue position."
+                }
+              },
+              "required": [
+                "status",
+                "request_id"
+              ]
+            },
+            "BagelUnderstandInput": {
+              "title": "ImageUnderstandingInput",
+              "type": "object",
+              "properties": {
+                "prompt": {
+                  "examples": [
+                    "What is shown in the image? "
+                  ],
+                  "title": "Prompt",
+                  "type": "string",
+                  "description": "The prompt to query the image with."
+                },
+                "seed": {
+                  "title": "Seed",
+                  "type": "integer",
+                  "description": "The seed to use for the generation."
+                },
+                "image_url": {
+                  "examples": [
+                    "https://storage.googleapis.com/falserverless/bagel/wRhCPSyiKTiLnnWvUpGIl.jpeg"
+                  ],
+                  "title": "Image Url",
+                  "type": "string",
+                  "description": "The image for the query."
+                }
+              },
+              "x-fal-order-properties": [
+                "image_url",
+                "prompt",
+                "seed"
+              ],
+              "required": [
+                "image_url",
+                "prompt"
+              ]
+            },
+            "BagelUnderstandOutput": {
+              "title": "TextOutput",
+              "type": "object",
+              "properties": {
+                "text": {
+                  "title": "Text",
+                  "type": "string",
+                  "description": "The answer to the query."
+                },
+                "prompt": {
+                  "title": "Prompt",
+                  "type": "string",
+                  "description": "The query used for the generation."
+                },
+                "seed": {
+                  "title": "Seed",
+                  "type": "integer",
+                  "description": "The seed used for the generation."
+                },
+                "timings": {
+                  "title": "Timings",
+                  "type": "object",
+                  "description": "The timings of the generation."
+                }
+              },
+              "x-fal-order-properties": [
+                "text",
+                "seed",
+                "prompt",
+                "timings"
+              ],
+              "required": [
+                "text",
+                "seed",
+                "prompt",
+                "timings"
+              ]
+            }
+          }
+        },
+        "paths": {
+          "/fal-ai/bagel/understand/requests/{request_id}/status": {
+            "get": {
+              "parameters": [
+                {
+                  "name": "request_id",
+                  "in": "path",
+                  "required": true,
+                  "schema": {
+                    "type": "string",
+                    "description": "Request ID"
+                  }
+                },
+                {
+                  "name": "logs",
+                  "in": "query",
+                  "required": false,
+                  "schema": {
+                    "type": "number",
+                    "description": "Whether to include logs (`1`) in the response or not (`0`)."
+                  }
+                }
+              ],
+              "responses": {
+                "200": {
+                  "description": "The request status.",
+                  "content": {
+                    "application/json": {
+                      "schema": {
+                        "$ref": "#/components/schemas/QueueStatus"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "/fal-ai/bagel/understand/requests/{request_id}/cancel": {
+            "put": {
+              "parameters": [
+                {
+                  "name": "request_id",
+                  "in": "path",
+                  "required": true,
+                  "schema": {
+                    "type": "string",
+                    "description": "Request ID"
+                  }
+                }
+              ],
+              "responses": {
+                "200": {
+                  "description": "The request was cancelled.",
+                  "content": {
+                    "application/json": {
+                      "schema": {
+                        "type": "object",
+                        "properties": {
+                          "success": {
+                            "type": "boolean",
+                            "description": "Whether the request was cancelled successfully."
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "/fal-ai/bagel/understand": {
+            "post": {
+              "requestBody": {
+                "required": true,
+                "content": {
+                  "application/json": {
+                    "schema": {
+                      "$ref": "#/components/schemas/BagelUnderstandInput"
+                    }
+                  }
+                }
+              },
+              "responses": {
+                "200": {
+                  "description": "The request status.",
+                  "content": {
+                    "application/json": {
+                      "schema": {
+                        "$ref": "#/components/schemas/QueueStatus"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "/fal-ai/bagel/understand/requests/{request_id}": {
+            "get": {
+              "parameters": [
+                {
+                  "name": "request_id",
+                  "in": "path",
+                  "required": true,
+                  "schema": {
+                    "type": "string",
+                    "description": "Request ID"
+                  }
+                }
+              ],
+              "responses": {
+                "200": {
+                  "description": "Result of the request.",
+                  "content": {
+                    "application/json": {
+                      "schema": {
+                        "$ref": "#/components/schemas/BagelUnderstandOutput"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "servers": [
+          {
+            "url": "https://queue.fal.run"
+          }
+        ],
+        "security": [
+          {
+            "apiKeyAuth": []
+          }
+        ]
+      }
+    }
+  ]
+}

@@ -1,0 +1,708 @@
+{
+  "generated_at": "2026-01-28T02:51:51.877Z",
+  "total_models": 2,
+  "category": "speech-to-speech",
+  "models": [
+    {
+      "endpoint_id": "resemble-ai/chatterboxhd/speech-to-speech",
+      "metadata": {
+        "display_name": "Chatterboxhd",
+        "category": "speech-to-speech",
+        "description": "Transform voices using Resemble AI's Chatterbox. Convert audio to new voices or your own samples, with expressive results and built-in perceptual watermarking.",
+        "status": "active",
+        "tags": [],
+        "updated_at": "2026-01-26T21:43:31.831Z",
+        "is_favorited": false,
+        "thumbnail_url": "https://storage.googleapis.com/falserverless/gallery/chatterbox.webp",
+        "model_url": "https://fal.run/resemble-ai/chatterboxhd/speech-to-speech",
+        "license_type": "commercial",
+        "date": "2025-06-02T19:21:41.438Z",
+        "group": {
+          "key": "chatterboxhd",
+          "label": "Speech To Speech"
+        },
+        "highlighted": false,
+        "kind": "inference",
+        "pinned": false
+      },
+      "openapi": {
+        "openapi": "3.0.4",
+        "info": {
+          "title": "Queue OpenAPI for resemble-ai/chatterboxhd/speech-to-speech",
+          "version": "1.0.0",
+          "description": "The OpenAPI schema for the resemble-ai/chatterboxhd/speech-to-speech queue.",
+          "x-fal-metadata": {
+            "endpointId": "resemble-ai/chatterboxhd/speech-to-speech",
+            "category": "speech-to-speech",
+            "thumbnailUrl": "https://storage.googleapis.com/falserverless/gallery/chatterbox.webp",
+            "playgroundUrl": "https://fal.ai/models/resemble-ai/chatterboxhd/speech-to-speech",
+            "documentationUrl": "https://fal.ai/models/resemble-ai/chatterboxhd/speech-to-speech/api"
+          }
+        },
+        "components": {
+          "securitySchemes": {
+            "apiKeyAuth": {
+              "type": "apiKey",
+              "in": "header",
+              "name": "Authorization",
+              "description": "Fal Key"
+            }
+          },
+          "schemas": {
+            "QueueStatus": {
+              "type": "object",
+              "properties": {
+                "status": {
+                  "type": "string",
+                  "enum": [
+                    "IN_QUEUE",
+                    "IN_PROGRESS",
+                    "COMPLETED"
+                  ]
+                },
+                "request_id": {
+                  "type": "string",
+                  "description": "The request id."
+                },
+                "response_url": {
+                  "type": "string",
+                  "description": "The response url."
+                },
+                "status_url": {
+                  "type": "string",
+                  "description": "The status url."
+                },
+                "cancel_url": {
+                  "type": "string",
+                  "description": "The cancel url."
+                },
+                "logs": {
+                  "type": "object",
+                  "description": "The logs.",
+                  "additionalProperties": true
+                },
+                "metrics": {
+                  "type": "object",
+                  "description": "The metrics.",
+                  "additionalProperties": true
+                },
+                "queue_position": {
+                  "type": "integer",
+                  "description": "The queue position."
+                }
+              },
+              "required": [
+                "status",
+                "request_id"
+              ]
+            },
+            "ChatterboxhdSpeechToSpeechInput": {
+              "description": "Input parameters for the speech-to-speech request.",
+              "type": "object",
+              "properties": {
+                "high_quality_audio": {
+                  "description": "If True, the generated audio will be upscaled to 48kHz. The generation of the audio will take longer, but the quality will be higher. If False, the generated audio will be 24kHz. ",
+                  "type": "boolean",
+                  "title": "High Quality Audio",
+                  "default": false
+                },
+                "target_voice_audio_url": {
+                  "examples": [
+                    "https://v3.fal.media/files/tiger/0XODRhebRLiBdu8MqgZc5_tmpljqsylwu.wav"
+                  ],
+                  "description": "URL to the audio file which represents the voice of the output audio. If provided, this will override the target_voice setting. If neither target_voice nor target_voice_audio_url are provided, the default target voice will be used.",
+                  "type": "string",
+                  "title": "Target Voice Audio Url"
+                },
+                "source_audio_url": {
+                  "examples": [
+                    "https://storage.googleapis.com/chatterbox-demo-samples/samples/duff_stewie.wav"
+                  ],
+                  "description": "URL to the source audio file to be voice-converted.",
+                  "type": "string",
+                  "title": "Source Audio Url"
+                },
+                "target_voice": {
+                  "enum": [
+                    "Aurora",
+                    "Blade",
+                    "Britney",
+                    "Carl",
+                    "Cliff",
+                    "Richard",
+                    "Rico",
+                    "Siobhan",
+                    "Vicky"
+                  ],
+                  "description": "The voice to use for the speech-to-speech request. If neither target_voice nor target_voice_audio_url are provided, a random target voice will be used.",
+                  "type": "string",
+                  "title": "Target Voice"
+                }
+              },
+              "x-fal-order-properties": [
+                "source_audio_url",
+                "target_voice",
+                "target_voice_audio_url",
+                "high_quality_audio"
+              ],
+              "title": "STSInput",
+              "required": [
+                "source_audio_url"
+              ]
+            },
+            "ChatterboxhdSpeechToSpeechOutput": {
+              "description": "Output parameters for the speech-to-speech request.",
+              "type": "object",
+              "properties": {
+                "audio": {
+                  "examples": [
+                    {
+                      "url": "https://v3.fal.media/files/elephant/Kym3zK7hFHjDuyz3tB3W9_tmptvowq60i.wav"
+                    }
+                  ],
+                  "description": "The generated voice-converted audio file.",
+                  "title": "Audio",
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/Audio"
+                    }
+                  ]
+                }
+              },
+              "x-fal-order-properties": [
+                "audio"
+              ],
+              "title": "STSOutput",
+              "required": [
+                "audio"
+              ]
+            },
+            "Audio": {
+              "x-fal-order-properties": [
+                "url",
+                "content_type",
+                "file_name",
+                "file_size",
+                "file_data"
+              ],
+              "type": "object",
+              "properties": {
+                "file_size": {
+                  "examples": [
+                    4404019
+                  ],
+                  "description": "The size of the file in bytes.",
+                  "type": "integer",
+                  "title": "File Size"
+                },
+                "file_name": {
+                  "examples": [
+                    "z9RV14K95DvU.png"
+                  ],
+                  "description": "The name of the file. It will be auto-generated if not provided.",
+                  "type": "string",
+                  "title": "File Name"
+                },
+                "content_type": {
+                  "examples": [
+                    "image/png"
+                  ],
+                  "description": "The mime type of the file.",
+                  "type": "string",
+                  "title": "Content Type"
+                },
+                "url": {
+                  "description": "The URL where the file can be downloaded from.",
+                  "type": "string",
+                  "title": "Url"
+                },
+                "file_data": {
+                  "format": "binary",
+                  "description": "File data",
+                  "type": "string",
+                  "title": "File Data"
+                }
+              },
+              "title": "Audio",
+              "required": [
+                "url"
+              ]
+            }
+          }
+        },
+        "paths": {
+          "/resemble-ai/chatterboxhd/speech-to-speech/requests/{request_id}/status": {
+            "get": {
+              "parameters": [
+                {
+                  "name": "request_id",
+                  "in": "path",
+                  "required": true,
+                  "schema": {
+                    "type": "string",
+                    "description": "Request ID"
+                  }
+                },
+                {
+                  "name": "logs",
+                  "in": "query",
+                  "required": false,
+                  "schema": {
+                    "type": "number",
+                    "description": "Whether to include logs (`1`) in the response or not (`0`)."
+                  }
+                }
+              ],
+              "responses": {
+                "200": {
+                  "description": "The request status.",
+                  "content": {
+                    "application/json": {
+                      "schema": {
+                        "$ref": "#/components/schemas/QueueStatus"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "/resemble-ai/chatterboxhd/speech-to-speech/requests/{request_id}/cancel": {
+            "put": {
+              "parameters": [
+                {
+                  "name": "request_id",
+                  "in": "path",
+                  "required": true,
+                  "schema": {
+                    "type": "string",
+                    "description": "Request ID"
+                  }
+                }
+              ],
+              "responses": {
+                "200": {
+                  "description": "The request was cancelled.",
+                  "content": {
+                    "application/json": {
+                      "schema": {
+                        "type": "object",
+                        "properties": {
+                          "success": {
+                            "type": "boolean",
+                            "description": "Whether the request was cancelled successfully."
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "/resemble-ai/chatterboxhd/speech-to-speech": {
+            "post": {
+              "requestBody": {
+                "required": true,
+                "content": {
+                  "application/json": {
+                    "schema": {
+                      "$ref": "#/components/schemas/ChatterboxhdSpeechToSpeechInput"
+                    }
+                  }
+                }
+              },
+              "responses": {
+                "200": {
+                  "description": "The request status.",
+                  "content": {
+                    "application/json": {
+                      "schema": {
+                        "$ref": "#/components/schemas/QueueStatus"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "/resemble-ai/chatterboxhd/speech-to-speech/requests/{request_id}": {
+            "get": {
+              "parameters": [
+                {
+                  "name": "request_id",
+                  "in": "path",
+                  "required": true,
+                  "schema": {
+                    "type": "string",
+                    "description": "Request ID"
+                  }
+                }
+              ],
+              "responses": {
+                "200": {
+                  "description": "Result of the request.",
+                  "content": {
+                    "application/json": {
+                      "schema": {
+                        "$ref": "#/components/schemas/ChatterboxhdSpeechToSpeechOutput"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "servers": [
+          {
+            "url": "https://queue.fal.run"
+          }
+        ],
+        "security": [
+          {
+            "apiKeyAuth": []
+          }
+        ]
+      }
+    },
+    {
+      "endpoint_id": "fal-ai/chatterbox/speech-to-speech",
+      "metadata": {
+        "display_name": "Chatterbox",
+        "category": "speech-to-speech",
+        "description": "Whether you're working on memes, videos, games, or AI agents, Chatterbox brings your content to life. Use the first tts from resemble ai.",
+        "status": "active",
+        "tags": [
+          "speech-to-speech"
+        ],
+        "updated_at": "2026-01-26T21:43:33.399Z",
+        "is_favorited": false,
+        "thumbnail_url": "https://storage.googleapis.com/falserverless/gallery/chatterbox.webp",
+        "model_url": "https://fal.run/fal-ai/chatterbox/speech-to-speech",
+        "license_type": "commercial",
+        "date": "2025-06-01T19:56:11.760Z",
+        "group": {
+          "key": "chatterbox",
+          "label": "Speech To Speech"
+        },
+        "highlighted": false,
+        "kind": "inference",
+        "pinned": false
+      },
+      "openapi": {
+        "openapi": "3.0.4",
+        "info": {
+          "title": "Queue OpenAPI for fal-ai/chatterbox/speech-to-speech",
+          "version": "1.0.0",
+          "description": "The OpenAPI schema for the fal-ai/chatterbox/speech-to-speech queue.",
+          "x-fal-metadata": {
+            "endpointId": "fal-ai/chatterbox/speech-to-speech",
+            "category": "speech-to-speech",
+            "thumbnailUrl": "https://storage.googleapis.com/falserverless/gallery/chatterbox.webp",
+            "playgroundUrl": "https://fal.ai/models/fal-ai/chatterbox/speech-to-speech",
+            "documentationUrl": "https://fal.ai/models/fal-ai/chatterbox/speech-to-speech/api"
+          }
+        },
+        "components": {
+          "securitySchemes": {
+            "apiKeyAuth": {
+              "type": "apiKey",
+              "in": "header",
+              "name": "Authorization",
+              "description": "Fal Key"
+            }
+          },
+          "schemas": {
+            "QueueStatus": {
+              "type": "object",
+              "properties": {
+                "status": {
+                  "type": "string",
+                  "enum": [
+                    "IN_QUEUE",
+                    "IN_PROGRESS",
+                    "COMPLETED"
+                  ]
+                },
+                "request_id": {
+                  "type": "string",
+                  "description": "The request id."
+                },
+                "response_url": {
+                  "type": "string",
+                  "description": "The response url."
+                },
+                "status_url": {
+                  "type": "string",
+                  "description": "The status url."
+                },
+                "cancel_url": {
+                  "type": "string",
+                  "description": "The cancel url."
+                },
+                "logs": {
+                  "type": "object",
+                  "description": "The logs.",
+                  "additionalProperties": true
+                },
+                "metrics": {
+                  "type": "object",
+                  "description": "The metrics.",
+                  "additionalProperties": true
+                },
+                "queue_position": {
+                  "type": "integer",
+                  "description": "The queue position."
+                }
+              },
+              "required": [
+                "status",
+                "request_id"
+              ]
+            },
+            "ChatterboxSpeechToSpeechInput": {
+              "title": "ChatterboxVCRequest",
+              "type": "object",
+              "properties": {
+                "source_audio_url": {
+                  "examples": [
+                    "https://storage.googleapis.com/chatterbox-demo-samples/samples/duff_stewie.wav"
+                  ],
+                  "title": "Source Audio Url",
+                  "type": "string"
+                },
+                "target_voice_audio_url": {
+                  "examples": [
+                    "https://v3.fal.media/files/tiger/0XODRhebRLiBdu8MqgZc5_tmpljqsylwu.wav"
+                  ],
+                  "description": "Optional URL to an audio file to use as a reference for the generated speech. If provided, the model will try to match the style and tone of the reference audio.",
+                  "type": "string",
+                  "title": "Target Voice Audio Url"
+                }
+              },
+              "x-fal-order-properties": [
+                "source_audio_url",
+                "target_voice_audio_url"
+              ],
+              "required": [
+                "source_audio_url"
+              ]
+            },
+            "ChatterboxSpeechToSpeechOutput": {
+              "title": "ChatterboxOutput",
+              "type": "object",
+              "properties": {
+                "audio": {
+                  "examples": [
+                    {
+                      "url": "https://v3.fal.media/files/kangaroo/RQ_pxc7oPdueYqWUqEbPE_tmpjnzvvzx_.wav"
+                    }
+                  ],
+                  "description": "The generated speech audio",
+                  "title": "Audio",
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/File"
+                    }
+                  ]
+                }
+              },
+              "x-fal-order-properties": [
+                "audio"
+              ],
+              "required": [
+                "audio"
+              ]
+            },
+            "File": {
+              "title": "File",
+              "type": "object",
+              "properties": {
+                "file_size": {
+                  "examples": [
+                    4404019
+                  ],
+                  "description": "The size of the file in bytes.",
+                  "type": "integer",
+                  "title": "File Size"
+                },
+                "file_name": {
+                  "examples": [
+                    "z9RV14K95DvU.png"
+                  ],
+                  "description": "The name of the file. It will be auto-generated if not provided.",
+                  "type": "string",
+                  "title": "File Name"
+                },
+                "content_type": {
+                  "examples": [
+                    "image/png"
+                  ],
+                  "description": "The mime type of the file.",
+                  "type": "string",
+                  "title": "Content Type"
+                },
+                "url": {
+                  "description": "The URL where the file can be downloaded from.",
+                  "type": "string",
+                  "title": "Url"
+                },
+                "file_data": {
+                  "format": "binary",
+                  "description": "File data",
+                  "type": "string",
+                  "title": "File Data"
+                }
+              },
+              "x-fal-order-properties": [
+                "url",
+                "content_type",
+                "file_name",
+                "file_size",
+                "file_data"
+              ],
+              "required": [
+                "url"
+              ]
+            }
+          }
+        },
+        "paths": {
+          "/fal-ai/chatterbox/speech-to-speech/requests/{request_id}/status": {
+            "get": {
+              "parameters": [
+                {
+                  "name": "request_id",
+                  "in": "path",
+                  "required": true,
+                  "schema": {
+                    "type": "string",
+                    "description": "Request ID"
+                  }
+                },
+                {
+                  "name": "logs",
+                  "in": "query",
+                  "required": false,
+                  "schema": {
+                    "type": "number",
+                    "description": "Whether to include logs (`1`) in the response or not (`0`)."
+                  }
+                }
+              ],
+              "responses": {
+                "200": {
+                  "description": "The request status.",
+                  "content": {
+                    "application/json": {
+                      "schema": {
+                        "$ref": "#/components/schemas/QueueStatus"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "/fal-ai/chatterbox/speech-to-speech/requests/{request_id}/cancel": {
+            "put": {
+              "parameters": [
+                {
+                  "name": "request_id",
+                  "in": "path",
+                  "required": true,
+                  "schema": {
+                    "type": "string",
+                    "description": "Request ID"
+                  }
+                }
+              ],
+              "responses": {
+                "200": {
+                  "description": "The request was cancelled.",
+                  "content": {
+                    "application/json": {
+                      "schema": {
+                        "type": "object",
+                        "properties": {
+                          "success": {
+                            "type": "boolean",
+                            "description": "Whether the request was cancelled successfully."
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "/fal-ai/chatterbox/speech-to-speech": {
+            "post": {
+              "requestBody": {
+                "required": true,
+                "content": {
+                  "application/json": {
+                    "schema": {
+                      "$ref": "#/components/schemas/ChatterboxSpeechToSpeechInput"
+                    }
+                  }
+                }
+              },
+              "responses": {
+                "200": {
+                  "description": "The request status.",
+                  "content": {
+                    "application/json": {
+                      "schema": {
+                        "$ref": "#/components/schemas/QueueStatus"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "/fal-ai/chatterbox/speech-to-speech/requests/{request_id}": {
+            "get": {
+              "parameters": [
+                {
+                  "name": "request_id",
+                  "in": "path",
+                  "required": true,
+                  "schema": {
+                    "type": "string",
+                    "description": "Request ID"
+                  }
+                }
+              ],
+              "responses": {
+                "200": {
+                  "description": "Result of the request.",
+                  "content": {
+                    "application/json": {
+                      "schema": {
+                        "$ref": "#/components/schemas/ChatterboxSpeechToSpeechOutput"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "servers": [
+          {
+            "url": "https://queue.fal.run"
+          }
+        ],
+        "security": [
+          {
+            "apiKeyAuth": []
+          }
+        ]
+      }
+    }
+  ]
+}
