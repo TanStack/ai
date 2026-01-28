@@ -49,7 +49,7 @@
   ],
   "dependencies": {
     "@tanstack/ai-devtools-core": "workspace:*",
-    "@tanstack/devtools-utils": "^0.3.0"
+    "@tanstack/devtools-utils": "https://pkg.pr.new/TanStack/devtools/@tanstack/devtools-utils@332"
   },
   "devDependencies": {
     "@vitest/coverage-v8": "4.0.14",
