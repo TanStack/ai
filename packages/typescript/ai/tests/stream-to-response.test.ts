@@ -619,7 +619,9 @@ describe('SSE Round-Trip (Encode → Decode)', () => {
 
     expect(parsedChunks.length).toBe(1)
     expect(parsedChunks[0]?.type).toBe('RUN_ERROR')
-    expect((parsedChunks[0] as any)?.error?.message).toBe('Something went wrong')
+    expect((parsedChunks[0] as any)?.error?.message).toBe(
+      'Something went wrong',
+    )
     expect((parsedChunks[0] as any)?.error?.code).toBe('TEST_ERROR')
   })
 
@@ -785,7 +787,11 @@ describe('SSE Round-Trip (Encode → Decode)', () => {
         model: 'test',
         timestamp: Date.now(),
         name: 'tool-input-available',
-        data: { toolCallId: 'tc-1', toolName: 'search', input: { query: 'test' } },
+        data: {
+          toolCallId: 'tc-1',
+          toolName: 'search',
+          input: { query: 'test' },
+        },
       },
       {
         type: 'RUN_FINISHED',

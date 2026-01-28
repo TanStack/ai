@@ -129,7 +129,6 @@ test.describe('Chat E2E Tests - UI Presence', () => {
     await expect(page.locator('#chat-input')).toBeVisible()
     await expect(page.locator('#submit-button')).toBeVisible()
   })
-
 })
 
 /**
@@ -161,9 +160,7 @@ test.describe('Chat E2E Tests - Text Flow (Mock API)', () => {
     const assistantMessage = messages[1]
     expect(assistantMessage.role).toBe('assistant')
 
-    const textPart = assistantMessage.parts.find(
-      (p: any) => p.type === 'text',
-    )
+    const textPart = assistantMessage.parts.find((p: any) => p.type === 'text')
     expect(textPart).toBeDefined()
     expect(textPart.content).toContain('Hello!')
     expect(textPart.content).toContain('mock response')

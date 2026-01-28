@@ -610,9 +610,7 @@ export class StreamProcessor {
     chunk: Extract<StreamChunk, { type: 'RUN_ERROR' }>,
   ): void {
     // Emit error event
-    this.events.onError?.(
-      new Error(chunk.error.message || 'An error occurred'),
-    )
+    this.events.onError?.(new Error(chunk.error.message || 'An error occurred'))
   }
 
   /**
