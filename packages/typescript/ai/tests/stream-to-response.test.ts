@@ -704,6 +704,7 @@ describe('SSE Round-Trip (Encode → Decode)', () => {
         messageId: 'msg-1',
         model: 'test',
         timestamp: Date.now(),
+        role: 'assistant',
       },
       {
         type: 'TEXT_MESSAGE_CONTENT',
@@ -742,6 +743,7 @@ describe('SSE Round-Trip (Encode → Decode)', () => {
         messageId: 'msg-1',
         model: 'test',
         timestamp: Date.now(),
+        role: 'assistant',
       },
       {
         type: 'TEXT_MESSAGE_CONTENT',
@@ -774,6 +776,7 @@ describe('SSE Round-Trip (Encode → Decode)', () => {
       {
         type: 'TOOL_CALL_END',
         toolCallId: 'tc-1',
+        toolName: 'search',
         model: 'test',
         timestamp: Date.now(),
       },

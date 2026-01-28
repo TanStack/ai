@@ -51,7 +51,7 @@ export class OpenAISummarizeAdapter<
 
     // Use the text adapter's streaming and collect the result
     let summary = ''
-    let id = ''
+    const id = ''
     let model = options.model
     let usage = { promptTokens: 0, completionTokens: 0, totalTokens: 0 }
 

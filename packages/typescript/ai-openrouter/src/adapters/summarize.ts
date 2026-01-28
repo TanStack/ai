@@ -59,7 +59,7 @@ export class OpenRouterSummarizeAdapter<
     const systemPrompt = this.buildSummarizationPrompt(options)
 
     let summary = ''
-    let id = ''
+    const id = ''
     let model = options.model
     let usage = { promptTokens: 0, completionTokens: 0, totalTokens: 0 }
 

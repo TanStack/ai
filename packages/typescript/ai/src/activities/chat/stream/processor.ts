@@ -458,7 +458,7 @@ export class StreamProcessor {
     this.totalTextContent += textDelta
 
     // Use delta for chunk strategy if available
-    const chunkPortion = chunk.delta ?? chunk.content ?? ''
+    const chunkPortion = chunk.delta || chunk.content || ''
     const shouldEmit = this.chunkStrategy.shouldEmit(
       chunkPortion,
       this.currentSegmentText,
@@ -611,7 +611,7 @@ export class StreamProcessor {
   ): void {
     // Emit error event
     this.events.onError?.(
-      new Error(chunk.error?.message || 'An error occurred'),
+      new Error(chunk.error.message || 'An error occurred'),
     )
   }
 
@@ -717,7 +717,8 @@ export class StreamProcessor {
     chunk: Extract<StreamChunk, { type: 'TEXT_MESSAGE_CONTENT' }>,
     previous: string,
   ): boolean {
-    if (chunk.delta !== undefined && chunk.content !== undefined) {
+    // Check if content is present (delta is always defined but may be empty string)
+    if (chunk.content !== undefined) {
       if (chunk.content.length < previous.length) {
         return true
       }

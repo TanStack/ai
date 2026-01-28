@@ -156,13 +156,13 @@ export function createToolCallChunks(
   const runId = `run-${messageId}`
 
   for (let i = 0; i < toolCalls.length; i++) {
-    const toolCall = toolCalls[i]
+    const toolCall = toolCalls[i]!
 
     // TOOL_CALL_START event
     chunks.push({
       type: 'TOOL_CALL_START',
-      toolCallId: toolCall?.id,
-      toolName: toolCall?.name,
+      toolCallId: toolCall.id,
+      toolName: toolCall.name,
       model,
       timestamp: Date.now(),
       index: i,
@@ -171,19 +171,19 @@ export function createToolCallChunks(
     // TOOL_CALL_ARGS event
     chunks.push({
       type: 'TOOL_CALL_ARGS',
-      toolCallId: toolCall?.id,
+      toolCallId: toolCall.id,
       model,
       timestamp: Date.now(),
-      delta: toolCall?.arguments,
+      delta: toolCall.arguments,
     })
 
     // Add tool-input-available CUSTOM chunk if requested
     if (includeToolInputAvailable) {
       let parsedInput: any
       try {
-        parsedInput = JSON.parse(toolCall?.arguments ?? '')
+        parsedInput = JSON.parse(toolCall.arguments)
       } catch {
-        parsedInput = toolCall?.arguments
+        parsedInput = toolCall.arguments
       }
 
       chunks.push({
@@ -192,8 +192,8 @@ export function createToolCallChunks(
         timestamp: Date.now(),
         name: 'tool-input-available',
         data: {
-          toolCallId: toolCall?.id,
-          toolName: toolCall?.name,
+          toolCallId: toolCall.id,
+          toolName: toolCall.name,
           input: parsedInput,
         },
       })

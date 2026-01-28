@@ -15,28 +15,26 @@ describe('ChatClient - Abort Signal Handling', () => {
       async *connect(_messages, _data, abortSignal) {
         receivedAbortSignal = abortSignal
 
-        // Simulate streaming chunks
+        // Simulate streaming chunks (AG-UI format)
         yield {
-          type: 'content',
-          id: '1',
+          type: 'TEXT_MESSAGE_CONTENT',
+          messageId: '1',
           model: 'test',
           timestamp: Date.now(),
           delta: 'Hello',
           content: 'Hello',
-          role: 'assistant',
         }
         yield {
-          type: 'content',
-          id: '1',
+          type: 'TEXT_MESSAGE_CONTENT',
+          messageId: '1',
           model: 'test',
           timestamp: Date.now(),
           delta: ' World',
           content: 'Hello World',
-          role: 'assistant',
         }
         yield {
-          type: 'done',
-          id: '1',
+          type: 'RUN_FINISHED',
+          runId: 'run-1',
           model: 'test',
           timestamp: Date.now(),
           finishReason: 'stop',
@@ -81,24 +79,22 @@ describe('ChatClient - Abort Signal Handling', () => {
 
         try {
           yield {
-            type: 'content',
-            id: '1',
+            type: 'TEXT_MESSAGE_CONTENT',
+            messageId: '1',
             model: 'test',
             timestamp: Date.now(),
             delta: 'Hello',
             content: 'Hello',
-            role: 'assistant',
           }
           // Simulate long-running stream
           await new Promise((resolve) => setTimeout(resolve, 100))
           yield {
-            type: 'content',
-            id: '1',
+            type: 'TEXT_MESSAGE_CONTENT',
+            messageId: '1',
             model: 'test',
             timestamp: Date.now(),
             delta: ' World',
             content: 'Hello World',
-            role: 'assistant',
           }
         } catch (err) {
           // Abort errors are expected
@@ -138,13 +134,12 @@ describe('ChatClient - Abort Signal Handling', () => {
       // eslint-disable-next-line @typescript-eslint/require-await
       async *connect(_messages, _data, abortSignal) {
         yield {
-          type: 'content',
-          id: '1',
+          type: 'TEXT_MESSAGE_CONTENT',
+          messageId: '1',
           model: 'test',
           timestamp: Date.now(),
           delta: 'Hello',
           content: 'Hello',
-          role: 'assistant',
         }
         yieldedChunks++
 
@@ -153,13 +148,12 @@ describe('ChatClient - Abort Signal Handling', () => {
         }
 
         yield {
-          type: 'content',
-          id: '1',
+          type: 'TEXT_MESSAGE_CONTENT',
+          messageId: '1',
           model: 'test',
           timestamp: Date.now(),
           delta: ' World',
           content: 'Hello World',
-          role: 'assistant',
         }
         yieldedChunks++
       },
@@ -197,13 +191,12 @@ describe('ChatClient - Abort Signal Handling', () => {
       // eslint-disable-next-line @typescript-eslint/require-await
       async *connect(_messages, _data, abortSignal) {
         yield {
-          type: 'content',
-          id: '1',
+          type: 'TEXT_MESSAGE_CONTENT',
+          messageId: '1',
           model: 'test',
           timestamp: Date.now(),
           delta: 'Hello',
           content: 'Hello',
-          role: 'assistant',
         }
 
         if (abortSignal?.aborted) {
@@ -238,13 +231,12 @@ describe('ChatClient - Abort Signal Handling', () => {
     const adapterWithAbort: ConnectionAdapter = {
       async *connect(_messages, _data, _abortSignal) {
         yield {
-          type: 'content',
-          id: '1',
+          type: 'TEXT_MESSAGE_CONTENT',
+          messageId: '1',
           model: 'test',
           timestamp: Date.now(),
           delta: 'Hello',
           content: 'Hello',
-          role: 'assistant',
         }
         await new Promise((resolve) => setTimeout(resolve, 50))
       },
@@ -281,8 +273,8 @@ describe('ChatClient - Abort Signal Handling', () => {
           abortSignals.push(abortSignal)
         }
         yield {
-          type: 'done',
-          id: '1',
+          type: 'RUN_FINISHED',
+          runId: 'run-1',
           model: 'test',
           timestamp: Date.now(),
           finishReason: 'stop',
