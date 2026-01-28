@@ -9,7 +9,7 @@ title: chat
 function chat<TAdapter, TSchema, TStream>(options): TextActivityResult<TSchema, TStream>;
 ```
 
-Defined in: [activities/chat/index.ts:976](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/activities/chat/index.ts#L976)
+Defined in: [activities/chat/index.ts:1015](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/activities/chat/index.ts#L1015)
 
 Text activity - handles agentic text generation, one-shot text generation, and agentic structured output.
 
@@ -50,7 +50,7 @@ import { chat } from '@tanstack/ai'
 import { openaiText } from '@tanstack/ai-openai'
 
 for await (const chunk of chat({
-  adapter: openaiText('gpt-5.2'),
+  adapter: openaiText('gpt-4o'),
   messages: [{ role: 'user', content: 'What is the weather?' }],
   tools: [weatherTool]
 })) {
@@ -62,7 +62,7 @@ for await (const chunk of chat({
 
 ```ts
 for await (const chunk of chat({
-  adapter: openaiText('gpt-5.2'),
+  adapter: openaiText('gpt-4o'),
   messages: [{ role: 'user', content: 'Hello!' }]
 })) {
   console.log(chunk)
@@ -71,7 +71,7 @@ for await (const chunk of chat({
 
 ```ts
 const text = await chat({
-  adapter: openaiText('gpt-5.2'),
+  adapter: openaiText('gpt-4o'),
   messages: [{ role: 'user', content: 'Hello!' }],
   stream: false
 })
@@ -82,7 +82,7 @@ const text = await chat({
 import { z } from 'zod'
 
 const result = await chat({
-  adapter: openaiText('gpt-5.2'),
+  adapter: openaiText('gpt-4o'),
   messages: [{ role: 'user', content: 'Research and summarize the topic' }],
   tools: [researchTool, analyzeTool],
   outputSchema: z.object({
