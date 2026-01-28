@@ -5,6 +5,7 @@
  */
 
 // Re-export all category-specific types
+export type { EndpointTypeMap } from '@fal-ai/client/endpoints'
 export * from './generated'
 
 // Import the unified type for convenience
@@ -22,7 +23,9 @@ export type { FalModel } from './generated'
  * @example
  * type FluxInput = FalModelInput<'fal-ai/flux/dev'>
  */
-export type FalModelInput<TModel extends string> = TModel extends string ? any : never
+export type FalModelInput<TModel extends string> = TModel extends string
+  ? any
+  : never
 
 /**
  * Utility type to get the output type for any fal.ai model.
@@ -36,7 +39,9 @@ export type FalModelInput<TModel extends string> = TModel extends string ? any :
  * @example
  * type FluxOutput = FalModelOutput<'fal-ai/flux/dev'>
  */
-export type FalModelOutput<TModel extends string> = TModel extends string ? any : never
+export type FalModelOutput<TModel extends string> = TModel extends string
+  ? any
+  : never
 
 /**
  * Provider options for image generation, excluding fields TanStack AI handles.

@@ -25,10 +25,9 @@
   "scripts": {
     "build": "vite build",
     "clean": "premove ./build ./dist",
-    "generate:openapi": "tsx scripts/generate-fal-openapi.ts",
     "generate:types": "pnpx @hey-api/openapi-ts",
     "generate:maps": "tsx scripts/generate-fal-endpoint-maps.ts",
-    "generate:fal": "pnpm generate:openapi && pnpm generate:types && pnpm generate:maps",
+    "generate:fal": "pnpm fetch:fal-all && pnpm generate:types && pnpm generate:maps",
     "fetch:fal-all": "tsx scripts/fetch-fal-models.ts",
     "fetch:fal-image": "tsx scripts/fetch-fal-models.ts --categories=image-to-image,text-to-image",
     "fetch:fal-video": "tsx scripts/fetch-fal-models.ts --categories=video-to-video,text-to-video,image-to-video",
