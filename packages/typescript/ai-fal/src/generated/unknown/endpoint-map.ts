@@ -8,6 +8,8 @@ import {
   zSchemaQwen3TtsCloneVoice17bOutput,
   zSchemaRouterAudioInput,
   zSchemaRouterAudioOutput,
+  zSchemaWorkflowUtilitiesInterleaveVideoInput,
+  zSchemaWorkflowUtilitiesInterleaveVideoOutput,
 } from './zod.gen'
 
 import type {
@@ -17,9 +19,15 @@ import type {
   SchemaQwen3TtsCloneVoice17bOutput,
   SchemaRouterAudioInput,
   SchemaRouterAudioOutput,
+  SchemaWorkflowUtilitiesInterleaveVideoInput,
+  SchemaWorkflowUtilitiesInterleaveVideoOutput,
 } from './types.gen'
 
 export type UnknownEndpointMap = {
+  'fal-ai/workflow-utilities/interleave-video': {
+    input: SchemaWorkflowUtilitiesInterleaveVideoInput
+    output: SchemaWorkflowUtilitiesInterleaveVideoOutput
+  }
   'fal-ai/qwen-3-tts/clone-voice/1.7b': {
     input: SchemaQwen3TtsCloneVoice17bInput
     output: SchemaQwen3TtsCloneVoice17bOutput
@@ -35,6 +43,10 @@ export type UnknownEndpointMap = {
 }
 
 export const UnknownSchemaMap = {
+  ['fal-ai/workflow-utilities/interleave-video']: {
+    input: zSchemaWorkflowUtilitiesInterleaveVideoInput,
+    output: zSchemaWorkflowUtilitiesInterleaveVideoOutput,
+  },
   ['fal-ai/qwen-3-tts/clone-voice/1.7b']: {
     input: zSchemaQwen3TtsCloneVoice17bInput,
     output: zSchemaQwen3TtsCloneVoice17bOutput,

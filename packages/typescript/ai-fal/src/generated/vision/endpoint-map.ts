@@ -12,13 +12,23 @@ import {
   zSchemaArbiterImageTextOutput,
   zSchemaFlorence2LargeCaptionInput,
   zSchemaFlorence2LargeCaptionOutput,
+  zSchemaFlorence2LargeDetailedCaptionInput,
+  zSchemaFlorence2LargeDetailedCaptionOutput,
+  zSchemaFlorence2LargeMoreDetailedCaptionInput,
+  zSchemaFlorence2LargeMoreDetailedCaptionOutput,
   zSchemaFlorence2LargeOcrInput,
   zSchemaFlorence2LargeOcrOutput,
+  zSchemaFlorence2LargeRegionToCategoryInput,
+  zSchemaFlorence2LargeRegionToCategoryOutput,
+  zSchemaFlorence2LargeRegionToDescriptionInput,
+  zSchemaFlorence2LargeRegionToDescriptionOutput,
   zSchemaGotOcrV2Input,
   zSchemaGotOcrV2Output,
   zSchemaImageutilsNsfwInput,
   zSchemaImageutilsNsfwOutput,
   zSchemaIsaac01Input,
+  zSchemaIsaac01OpenaiV1ChatCompletionsInput,
+  zSchemaIsaac01OpenaiV1ChatCompletionsOutput,
   zSchemaIsaac01Output,
   zSchemaLlavaNextInput,
   zSchemaLlavaNextOutput,
@@ -26,6 +36,8 @@ import {
   zSchemaMoondream2ObjectDetectionInput,
   zSchemaMoondream2ObjectDetectionOutput,
   zSchemaMoondream2Output,
+  zSchemaMoondream2PointObjectDetectionInput,
+  zSchemaMoondream2PointObjectDetectionOutput,
   zSchemaMoondream2VisualQueryInput,
   zSchemaMoondream2VisualQueryOutput,
   zSchemaMoondream3PreviewCaptionInput,
@@ -71,13 +83,23 @@ import type {
   SchemaArbiterImageTextOutput,
   SchemaFlorence2LargeCaptionInput,
   SchemaFlorence2LargeCaptionOutput,
+  SchemaFlorence2LargeDetailedCaptionInput,
+  SchemaFlorence2LargeDetailedCaptionOutput,
+  SchemaFlorence2LargeMoreDetailedCaptionInput,
+  SchemaFlorence2LargeMoreDetailedCaptionOutput,
   SchemaFlorence2LargeOcrInput,
   SchemaFlorence2LargeOcrOutput,
+  SchemaFlorence2LargeRegionToCategoryInput,
+  SchemaFlorence2LargeRegionToCategoryOutput,
+  SchemaFlorence2LargeRegionToDescriptionInput,
+  SchemaFlorence2LargeRegionToDescriptionOutput,
   SchemaGotOcrV2Input,
   SchemaGotOcrV2Output,
   SchemaImageutilsNsfwInput,
   SchemaImageutilsNsfwOutput,
   SchemaIsaac01Input,
+  SchemaIsaac01OpenaiV1ChatCompletionsInput,
+  SchemaIsaac01OpenaiV1ChatCompletionsOutput,
   SchemaIsaac01Output,
   SchemaLlavaNextInput,
   SchemaLlavaNextOutput,
@@ -85,6 +107,8 @@ import type {
   SchemaMoondream2ObjectDetectionInput,
   SchemaMoondream2ObjectDetectionOutput,
   SchemaMoondream2Output,
+  SchemaMoondream2PointObjectDetectionInput,
+  SchemaMoondream2PointObjectDetectionOutput,
   SchemaMoondream2VisualQueryInput,
   SchemaMoondream2VisualQueryOutput,
   SchemaMoondream3PreviewCaptionInput,
@@ -160,6 +184,10 @@ export type VisionEndpointMap = {
     input: SchemaMoondream3PreviewCaptionInput
     output: SchemaMoondream3PreviewCaptionOutput
   }
+  'perceptron/isaac-01/openai/v1/chat/completions': {
+    input: SchemaIsaac01OpenaiV1ChatCompletionsInput
+    output: SchemaIsaac01OpenaiV1ChatCompletionsOutput
+  }
   'perceptron/isaac-01': {
     input: SchemaIsaac01Input
     output: SchemaIsaac01Output
@@ -179,6 +207,10 @@ export type VisionEndpointMap = {
   'fal-ai/moondream2': {
     input: SchemaMoondream2Input
     output: SchemaMoondream2Output
+  }
+  'fal-ai/moondream2/point-object-detection': {
+    input: SchemaMoondream2PointObjectDetectionInput
+    output: SchemaMoondream2PointObjectDetectionOutput
   }
   'fal-ai/moondream2/object-detection': {
     input: SchemaMoondream2ObjectDetectionInput
@@ -212,13 +244,29 @@ export type VisionEndpointMap = {
     input: SchemaMoondreamNextInput
     output: SchemaMoondreamNextOutput
   }
+  'fal-ai/florence-2-large/region-to-description': {
+    input: SchemaFlorence2LargeRegionToDescriptionInput
+    output: SchemaFlorence2LargeRegionToDescriptionOutput
+  }
   'fal-ai/florence-2-large/ocr': {
     input: SchemaFlorence2LargeOcrInput
     output: SchemaFlorence2LargeOcrOutput
   }
+  'fal-ai/florence-2-large/more-detailed-caption': {
+    input: SchemaFlorence2LargeMoreDetailedCaptionInput
+    output: SchemaFlorence2LargeMoreDetailedCaptionOutput
+  }
+  'fal-ai/florence-2-large/region-to-category': {
+    input: SchemaFlorence2LargeRegionToCategoryInput
+    output: SchemaFlorence2LargeRegionToCategoryOutput
+  }
   'fal-ai/florence-2-large/caption': {
     input: SchemaFlorence2LargeCaptionInput
     output: SchemaFlorence2LargeCaptionOutput
+  }
+  'fal-ai/florence-2-large/detailed-caption': {
+    input: SchemaFlorence2LargeDetailedCaptionInput
+    output: SchemaFlorence2LargeDetailedCaptionOutput
   }
   'fal-ai/imageutils/nsfw': {
     input: SchemaImageutilsNsfwInput
@@ -275,6 +323,10 @@ export const VisionSchemaMap = {
     input: zSchemaMoondream3PreviewCaptionInput,
     output: zSchemaMoondream3PreviewCaptionOutput,
   },
+  ['perceptron/isaac-01/openai/v1/chat/completions']: {
+    input: zSchemaIsaac01OpenaiV1ChatCompletionsInput,
+    output: zSchemaIsaac01OpenaiV1ChatCompletionsOutput,
+  },
   ['perceptron/isaac-01']: {
     input: zSchemaIsaac01Input,
     output: zSchemaIsaac01Output,
@@ -294,6 +346,10 @@ export const VisionSchemaMap = {
   ['fal-ai/moondream2']: {
     input: zSchemaMoondream2Input,
     output: zSchemaMoondream2Output,
+  },
+  ['fal-ai/moondream2/point-object-detection']: {
+    input: zSchemaMoondream2PointObjectDetectionInput,
+    output: zSchemaMoondream2PointObjectDetectionOutput,
   },
   ['fal-ai/moondream2/object-detection']: {
     input: zSchemaMoondream2ObjectDetectionInput,
@@ -327,13 +383,29 @@ export const VisionSchemaMap = {
     input: zSchemaMoondreamNextInput,
     output: zSchemaMoondreamNextOutput,
   },
+  ['fal-ai/florence-2-large/region-to-description']: {
+    input: zSchemaFlorence2LargeRegionToDescriptionInput,
+    output: zSchemaFlorence2LargeRegionToDescriptionOutput,
+  },
   ['fal-ai/florence-2-large/ocr']: {
     input: zSchemaFlorence2LargeOcrInput,
     output: zSchemaFlorence2LargeOcrOutput,
   },
+  ['fal-ai/florence-2-large/more-detailed-caption']: {
+    input: zSchemaFlorence2LargeMoreDetailedCaptionInput,
+    output: zSchemaFlorence2LargeMoreDetailedCaptionOutput,
+  },
+  ['fal-ai/florence-2-large/region-to-category']: {
+    input: zSchemaFlorence2LargeRegionToCategoryInput,
+    output: zSchemaFlorence2LargeRegionToCategoryOutput,
+  },
   ['fal-ai/florence-2-large/caption']: {
     input: zSchemaFlorence2LargeCaptionInput,
     output: zSchemaFlorence2LargeCaptionOutput,
+  },
+  ['fal-ai/florence-2-large/detailed-caption']: {
+    input: zSchemaFlorence2LargeDetailedCaptionInput,
+    output: zSchemaFlorence2LargeDetailedCaptionOutput,
   },
   ['fal-ai/imageutils/nsfw']: {
     input: zSchemaImageutilsNsfwInput,

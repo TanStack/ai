@@ -10,10 +10,22 @@ import {
   zSchemaAiAvatarOutput,
   zSchemaAiAvatarSingleTextInput,
   zSchemaAiAvatarSingleTextOutput,
+  zSchemaAmtInterpolationFrameInterpolationInput,
+  zSchemaAmtInterpolationFrameInterpolationOutput,
   zSchemaBytedanceOmnihumanInput,
   zSchemaBytedanceOmnihumanOutput,
   zSchemaBytedanceOmnihumanV15Input,
   zSchemaBytedanceOmnihumanV15Output,
+  zSchemaBytedanceSeedanceV15ProImageToVideoInput,
+  zSchemaBytedanceSeedanceV15ProImageToVideoOutput,
+  zSchemaBytedanceSeedanceV1LiteImageToVideoInput,
+  zSchemaBytedanceSeedanceV1LiteImageToVideoOutput,
+  zSchemaBytedanceSeedanceV1LiteReferenceToVideoInput,
+  zSchemaBytedanceSeedanceV1LiteReferenceToVideoOutput,
+  zSchemaBytedanceSeedanceV1ProFastImageToVideoInput,
+  zSchemaBytedanceSeedanceV1ProFastImageToVideoOutput,
+  zSchemaBytedanceSeedanceV1ProImageToVideoInput,
+  zSchemaBytedanceSeedanceV1ProImageToVideoOutput,
   zSchemaBytedanceVideoStylizeInput,
   zSchemaBytedanceVideoStylizeOutput,
   zSchemaCogvideox5bImageToVideoInput,
@@ -56,29 +68,55 @@ import {
   zSchemaKlingVideoO1ImageToVideoOutput,
   zSchemaKlingVideoO1ReferenceToVideoInput,
   zSchemaKlingVideoO1ReferenceToVideoOutput,
+  zSchemaKlingVideoO1StandardImageToVideoInput,
+  zSchemaKlingVideoO1StandardImageToVideoOutput,
+  zSchemaKlingVideoO1StandardReferenceToVideoInput,
+  zSchemaKlingVideoO1StandardReferenceToVideoOutput,
   zSchemaKlingVideoV15ProImageToVideoInput,
   zSchemaKlingVideoV15ProImageToVideoOutput,
   zSchemaKlingVideoV16ProElementsInput,
   zSchemaKlingVideoV16ProElementsOutput,
   zSchemaKlingVideoV16ProImageToVideoInput,
   zSchemaKlingVideoV16ProImageToVideoOutput,
+  zSchemaKlingVideoV16StandardElementsInput,
+  zSchemaKlingVideoV16StandardElementsOutput,
+  zSchemaKlingVideoV16StandardImageToVideoInput,
+  zSchemaKlingVideoV16StandardImageToVideoOutput,
   zSchemaKlingVideoV1ProAiAvatarInput,
   zSchemaKlingVideoV1ProAiAvatarOutput,
   zSchemaKlingVideoV1StandardAiAvatarInput,
   zSchemaKlingVideoV1StandardAiAvatarOutput,
+  zSchemaKlingVideoV1StandardImageToVideoInput,
+  zSchemaKlingVideoV1StandardImageToVideoOutput,
+  zSchemaKlingVideoV21MasterImageToVideoInput,
+  zSchemaKlingVideoV21MasterImageToVideoOutput,
   zSchemaKlingVideoV21ProImageToVideoInput,
   zSchemaKlingVideoV21ProImageToVideoOutput,
+  zSchemaKlingVideoV21StandardImageToVideoInput,
+  zSchemaKlingVideoV21StandardImageToVideoOutput,
+  zSchemaKlingVideoV25TurboProImageToVideoInput,
+  zSchemaKlingVideoV25TurboProImageToVideoOutput,
+  zSchemaKlingVideoV25TurboStandardImageToVideoInput,
+  zSchemaKlingVideoV25TurboStandardImageToVideoOutput,
   zSchemaKlingVideoV26ProImageToVideoInput,
   zSchemaKlingVideoV26ProImageToVideoOutput,
+  zSchemaKlingVideoV2MasterImageToVideoInput,
+  zSchemaKlingVideoV2MasterImageToVideoOutput,
   zSchemaLiveAvatarInput,
   zSchemaLiveAvatarOutput,
   zSchemaLivePortraitInput,
   zSchemaLivePortraitOutput,
+  zSchemaLongcatVideoDistilledImageToVideo480pInput,
+  zSchemaLongcatVideoDistilledImageToVideo480pOutput,
+  zSchemaLongcatVideoDistilledImageToVideo720pInput,
+  zSchemaLongcatVideoDistilledImageToVideo720pOutput,
   zSchemaLongcatVideoImageToVideo480pInput,
   zSchemaLongcatVideoImageToVideo480pOutput,
   zSchemaLongcatVideoImageToVideo720pInput,
   zSchemaLongcatVideoImageToVideo720pOutput,
   zSchemaLtx219bDistilledImageToVideoInput,
+  zSchemaLtx219bDistilledImageToVideoLoraInput,
+  zSchemaLtx219bDistilledImageToVideoLoraOutput,
   zSchemaLtx219bDistilledImageToVideoOutput,
   zSchemaLtx219bImageToVideoInput,
   zSchemaLtx219bImageToVideoLoraInput,
@@ -90,12 +128,20 @@ import {
   zSchemaLtx2ImageToVideoOutput,
   zSchemaLtxVideo13bDevImageToVideoInput,
   zSchemaLtxVideo13bDevImageToVideoOutput,
+  zSchemaLtxVideo13bDistilledImageToVideoInput,
+  zSchemaLtxVideo13bDistilledImageToVideoOutput,
   zSchemaLtxVideoImageToVideoInput,
   zSchemaLtxVideoImageToVideoOutput,
   zSchemaLtxVideoLoraImageToVideoInput,
   zSchemaLtxVideoLoraImageToVideoOutput,
+  zSchemaLtxv13B098DistilledImageToVideoInput,
+  zSchemaLtxv13B098DistilledImageToVideoOutput,
   zSchemaLucy14bImageToVideoInput,
   zSchemaLucy14bImageToVideoOutput,
+  zSchemaLumaDreamMachineRay2FlashImageToVideoInput,
+  zSchemaLumaDreamMachineRay2FlashImageToVideoOutput,
+  zSchemaLumaDreamMachineRay2ImageToVideoInput,
+  zSchemaLumaDreamMachineRay2ImageToVideoOutput,
   zSchemaLynxInput,
   zSchemaLynxOutput,
   zSchemaMagiDistilledImageToVideoInput,
@@ -104,8 +150,28 @@ import {
   zSchemaMagiImageToVideoOutput,
   zSchemaMareyI2vInput,
   zSchemaMareyI2vOutput,
+  zSchemaMinimaxHailuo02FastImageToVideoInput,
+  zSchemaMinimaxHailuo02FastImageToVideoOutput,
+  zSchemaMinimaxHailuo02ProImageToVideoInput,
+  zSchemaMinimaxHailuo02ProImageToVideoOutput,
+  zSchemaMinimaxHailuo02StandardImageToVideoInput,
+  zSchemaMinimaxHailuo02StandardImageToVideoOutput,
+  zSchemaMinimaxHailuo23FastProImageToVideoInput,
+  zSchemaMinimaxHailuo23FastProImageToVideoOutput,
+  zSchemaMinimaxHailuo23FastStandardImageToVideoInput,
+  zSchemaMinimaxHailuo23FastStandardImageToVideoOutput,
+  zSchemaMinimaxHailuo23ProImageToVideoInput,
+  zSchemaMinimaxHailuo23ProImageToVideoOutput,
+  zSchemaMinimaxHailuo23StandardImageToVideoInput,
+  zSchemaMinimaxHailuo23StandardImageToVideoOutput,
+  zSchemaMinimaxVideo01DirectorImageToVideoInput,
+  zSchemaMinimaxVideo01DirectorImageToVideoOutput,
   zSchemaMinimaxVideo01ImageToVideoInput,
   zSchemaMinimaxVideo01ImageToVideoOutput,
+  zSchemaMinimaxVideo01LiveImageToVideoInput,
+  zSchemaMinimaxVideo01LiveImageToVideoOutput,
+  zSchemaMinimaxVideo01SubjectReferenceInput,
+  zSchemaMinimaxVideo01SubjectReferenceOutput,
   zSchemaMusetalkInput,
   zSchemaMusetalkOutput,
   zSchemaOviImageToVideoInput,
@@ -180,6 +246,8 @@ import {
   zSchemaV26ImageToVideoOutput,
   zSchemaVeo2ImageToVideoInput,
   zSchemaVeo2ImageToVideoOutput,
+  zSchemaVeo31FastFirstLastFrameToVideoInput,
+  zSchemaVeo31FastFirstLastFrameToVideoOutput,
   zSchemaVeo31FastImageToVideoInput,
   zSchemaVeo31FastImageToVideoOutput,
   zSchemaVeo31FirstLastFrameToVideoInput,
@@ -247,10 +315,22 @@ import type {
   SchemaAiAvatarOutput,
   SchemaAiAvatarSingleTextInput,
   SchemaAiAvatarSingleTextOutput,
+  SchemaAmtInterpolationFrameInterpolationInput,
+  SchemaAmtInterpolationFrameInterpolationOutput,
   SchemaBytedanceOmnihumanInput,
   SchemaBytedanceOmnihumanOutput,
   SchemaBytedanceOmnihumanV15Input,
   SchemaBytedanceOmnihumanV15Output,
+  SchemaBytedanceSeedanceV15ProImageToVideoInput,
+  SchemaBytedanceSeedanceV15ProImageToVideoOutput,
+  SchemaBytedanceSeedanceV1LiteImageToVideoInput,
+  SchemaBytedanceSeedanceV1LiteImageToVideoOutput,
+  SchemaBytedanceSeedanceV1LiteReferenceToVideoInput,
+  SchemaBytedanceSeedanceV1LiteReferenceToVideoOutput,
+  SchemaBytedanceSeedanceV1ProFastImageToVideoInput,
+  SchemaBytedanceSeedanceV1ProFastImageToVideoOutput,
+  SchemaBytedanceSeedanceV1ProImageToVideoInput,
+  SchemaBytedanceSeedanceV1ProImageToVideoOutput,
   SchemaBytedanceVideoStylizeInput,
   SchemaBytedanceVideoStylizeOutput,
   SchemaCogvideox5bImageToVideoInput,
@@ -293,29 +373,55 @@ import type {
   SchemaKlingVideoO1ImageToVideoOutput,
   SchemaKlingVideoO1ReferenceToVideoInput,
   SchemaKlingVideoO1ReferenceToVideoOutput,
+  SchemaKlingVideoO1StandardImageToVideoInput,
+  SchemaKlingVideoO1StandardImageToVideoOutput,
+  SchemaKlingVideoO1StandardReferenceToVideoInput,
+  SchemaKlingVideoO1StandardReferenceToVideoOutput,
   SchemaKlingVideoV15ProImageToVideoInput,
   SchemaKlingVideoV15ProImageToVideoOutput,
   SchemaKlingVideoV16ProElementsInput,
   SchemaKlingVideoV16ProElementsOutput,
   SchemaKlingVideoV16ProImageToVideoInput,
   SchemaKlingVideoV16ProImageToVideoOutput,
+  SchemaKlingVideoV16StandardElementsInput,
+  SchemaKlingVideoV16StandardElementsOutput,
+  SchemaKlingVideoV16StandardImageToVideoInput,
+  SchemaKlingVideoV16StandardImageToVideoOutput,
   SchemaKlingVideoV1ProAiAvatarInput,
   SchemaKlingVideoV1ProAiAvatarOutput,
   SchemaKlingVideoV1StandardAiAvatarInput,
   SchemaKlingVideoV1StandardAiAvatarOutput,
+  SchemaKlingVideoV1StandardImageToVideoInput,
+  SchemaKlingVideoV1StandardImageToVideoOutput,
+  SchemaKlingVideoV21MasterImageToVideoInput,
+  SchemaKlingVideoV21MasterImageToVideoOutput,
   SchemaKlingVideoV21ProImageToVideoInput,
   SchemaKlingVideoV21ProImageToVideoOutput,
+  SchemaKlingVideoV21StandardImageToVideoInput,
+  SchemaKlingVideoV21StandardImageToVideoOutput,
+  SchemaKlingVideoV25TurboProImageToVideoInput,
+  SchemaKlingVideoV25TurboProImageToVideoOutput,
+  SchemaKlingVideoV25TurboStandardImageToVideoInput,
+  SchemaKlingVideoV25TurboStandardImageToVideoOutput,
   SchemaKlingVideoV26ProImageToVideoInput,
   SchemaKlingVideoV26ProImageToVideoOutput,
+  SchemaKlingVideoV2MasterImageToVideoInput,
+  SchemaKlingVideoV2MasterImageToVideoOutput,
   SchemaLiveAvatarInput,
   SchemaLiveAvatarOutput,
   SchemaLivePortraitInput,
   SchemaLivePortraitOutput,
+  SchemaLongcatVideoDistilledImageToVideo480pInput,
+  SchemaLongcatVideoDistilledImageToVideo480pOutput,
+  SchemaLongcatVideoDistilledImageToVideo720pInput,
+  SchemaLongcatVideoDistilledImageToVideo720pOutput,
   SchemaLongcatVideoImageToVideo480pInput,
   SchemaLongcatVideoImageToVideo480pOutput,
   SchemaLongcatVideoImageToVideo720pInput,
   SchemaLongcatVideoImageToVideo720pOutput,
   SchemaLtx219bDistilledImageToVideoInput,
+  SchemaLtx219bDistilledImageToVideoLoraInput,
+  SchemaLtx219bDistilledImageToVideoLoraOutput,
   SchemaLtx219bDistilledImageToVideoOutput,
   SchemaLtx219bImageToVideoInput,
   SchemaLtx219bImageToVideoLoraInput,
@@ -327,12 +433,20 @@ import type {
   SchemaLtx2ImageToVideoOutput,
   SchemaLtxVideo13bDevImageToVideoInput,
   SchemaLtxVideo13bDevImageToVideoOutput,
+  SchemaLtxVideo13bDistilledImageToVideoInput,
+  SchemaLtxVideo13bDistilledImageToVideoOutput,
   SchemaLtxVideoImageToVideoInput,
   SchemaLtxVideoImageToVideoOutput,
   SchemaLtxVideoLoraImageToVideoInput,
   SchemaLtxVideoLoraImageToVideoOutput,
+  SchemaLtxv13B098DistilledImageToVideoInput,
+  SchemaLtxv13B098DistilledImageToVideoOutput,
   SchemaLucy14bImageToVideoInput,
   SchemaLucy14bImageToVideoOutput,
+  SchemaLumaDreamMachineRay2FlashImageToVideoInput,
+  SchemaLumaDreamMachineRay2FlashImageToVideoOutput,
+  SchemaLumaDreamMachineRay2ImageToVideoInput,
+  SchemaLumaDreamMachineRay2ImageToVideoOutput,
   SchemaLynxInput,
   SchemaLynxOutput,
   SchemaMagiDistilledImageToVideoInput,
@@ -341,8 +455,28 @@ import type {
   SchemaMagiImageToVideoOutput,
   SchemaMareyI2vInput,
   SchemaMareyI2vOutput,
+  SchemaMinimaxHailuo02FastImageToVideoInput,
+  SchemaMinimaxHailuo02FastImageToVideoOutput,
+  SchemaMinimaxHailuo02ProImageToVideoInput,
+  SchemaMinimaxHailuo02ProImageToVideoOutput,
+  SchemaMinimaxHailuo02StandardImageToVideoInput,
+  SchemaMinimaxHailuo02StandardImageToVideoOutput,
+  SchemaMinimaxHailuo23FastProImageToVideoInput,
+  SchemaMinimaxHailuo23FastProImageToVideoOutput,
+  SchemaMinimaxHailuo23FastStandardImageToVideoInput,
+  SchemaMinimaxHailuo23FastStandardImageToVideoOutput,
+  SchemaMinimaxHailuo23ProImageToVideoInput,
+  SchemaMinimaxHailuo23ProImageToVideoOutput,
+  SchemaMinimaxHailuo23StandardImageToVideoInput,
+  SchemaMinimaxHailuo23StandardImageToVideoOutput,
+  SchemaMinimaxVideo01DirectorImageToVideoInput,
+  SchemaMinimaxVideo01DirectorImageToVideoOutput,
   SchemaMinimaxVideo01ImageToVideoInput,
   SchemaMinimaxVideo01ImageToVideoOutput,
+  SchemaMinimaxVideo01LiveImageToVideoInput,
+  SchemaMinimaxVideo01LiveImageToVideoOutput,
+  SchemaMinimaxVideo01SubjectReferenceInput,
+  SchemaMinimaxVideo01SubjectReferenceOutput,
   SchemaMusetalkInput,
   SchemaMusetalkOutput,
   SchemaOviImageToVideoInput,
@@ -417,6 +551,8 @@ import type {
   SchemaV26ImageToVideoOutput,
   SchemaVeo2ImageToVideoInput,
   SchemaVeo2ImageToVideoOutput,
+  SchemaVeo31FastFirstLastFrameToVideoInput,
+  SchemaVeo31FastFirstLastFrameToVideoOutput,
   SchemaVeo31FastImageToVideoInput,
   SchemaVeo31FastImageToVideoOutput,
   SchemaVeo31FirstLastFrameToVideoInput,
@@ -496,13 +632,41 @@ export type ImageToVideoEndpointMap = {
     input: SchemaMinimaxVideo01ImageToVideoInput
     output: SchemaMinimaxVideo01ImageToVideoOutput
   }
+  'fal-ai/minimax/hailuo-2.3/pro/image-to-video': {
+    input: SchemaMinimaxHailuo23ProImageToVideoInput
+    output: SchemaMinimaxHailuo23ProImageToVideoOutput
+  }
   'fal-ai/wan-25-preview/image-to-video': {
     input: SchemaWan25PreviewImageToVideoInput
     output: SchemaWan25PreviewImageToVideoOutput
   }
+  'fal-ai/kling-video/v2.5-turbo/pro/image-to-video': {
+    input: SchemaKlingVideoV25TurboProImageToVideoInput
+    output: SchemaKlingVideoV25TurboProImageToVideoOutput
+  }
+  'fal-ai/minimax/hailuo-02/standard/image-to-video': {
+    input: SchemaMinimaxHailuo02StandardImageToVideoInput
+    output: SchemaMinimaxHailuo02StandardImageToVideoOutput
+  }
+  'fal-ai/bytedance/seedance/v1/pro/image-to-video': {
+    input: SchemaBytedanceSeedanceV1ProImageToVideoInput
+    output: SchemaBytedanceSeedanceV1ProImageToVideoOutput
+  }
+  'fal-ai/kling-video/v2.1/master/image-to-video': {
+    input: SchemaKlingVideoV21MasterImageToVideoInput
+    output: SchemaKlingVideoV21MasterImageToVideoOutput
+  }
+  'fal-ai/kling-video/v2.1/standard/image-to-video': {
+    input: SchemaKlingVideoV21StandardImageToVideoInput
+    output: SchemaKlingVideoV21StandardImageToVideoOutput
+  }
   'fal-ai/pixverse/v4.5/image-to-video': {
     input: SchemaPixverseV45ImageToVideoInput
     output: SchemaPixverseV45ImageToVideoOutput
+  }
+  'fal-ai/kling-video/v2/master/image-to-video': {
+    input: SchemaKlingVideoV2MasterImageToVideoInput
+    output: SchemaKlingVideoV2MasterImageToVideoOutput
   }
   'fal-ai/wan-i2v': {
     input: SchemaWanI2vInput
@@ -524,6 +688,10 @@ export type ImageToVideoEndpointMap = {
     input: SchemaV26ImageToVideoFlashInput
     output: SchemaV26ImageToVideoFlashOutput
   }
+  'fal-ai/ltx-2-19b/distilled/image-to-video/lora': {
+    input: SchemaLtx219bDistilledImageToVideoLoraInput
+    output: SchemaLtx219bDistilledImageToVideoLoraOutput
+  }
   'fal-ai/ltx-2-19b/distilled/image-to-video': {
     input: SchemaLtx219bDistilledImageToVideoInput
     output: SchemaLtx219bDistilledImageToVideoOutput
@@ -544,6 +712,10 @@ export type ImageToVideoEndpointMap = {
     input: SchemaKandinsky5ProImageToVideoInput
     output: SchemaKandinsky5ProImageToVideoOutput
   }
+  'fal-ai/bytedance/seedance/v1.5/pro/image-to-video': {
+    input: SchemaBytedanceSeedanceV15ProImageToVideoInput
+    output: SchemaBytedanceSeedanceV15ProImageToVideoOutput
+  }
   'fal-ai/live-avatar': {
     input: SchemaLiveAvatarInput
     output: SchemaLiveAvatarOutput
@@ -555,6 +727,14 @@ export type ImageToVideoEndpointMap = {
   'wan/v2.6/image-to-video': {
     input: SchemaV26ImageToVideoInput
     output: SchemaV26ImageToVideoOutput
+  }
+  'fal-ai/kling-video/o1/standard/reference-to-video': {
+    input: SchemaKlingVideoO1StandardReferenceToVideoInput
+    output: SchemaKlingVideoO1StandardReferenceToVideoOutput
+  }
+  'fal-ai/kling-video/o1/standard/image-to-video': {
+    input: SchemaKlingVideoO1StandardImageToVideoInput
+    output: SchemaKlingVideoO1StandardImageToVideoOutput
   }
   'fal-ai/creatify/aurora': {
     input: SchemaCreatifyAuroraInput
@@ -620,6 +800,30 @@ export type ImageToVideoEndpointMap = {
     input: SchemaLongcatVideoImageToVideo480pInput
     output: SchemaLongcatVideoImageToVideo480pOutput
   }
+  'fal-ai/longcat-video/distilled/image-to-video/720p': {
+    input: SchemaLongcatVideoDistilledImageToVideo720pInput
+    output: SchemaLongcatVideoDistilledImageToVideo720pOutput
+  }
+  'fal-ai/longcat-video/distilled/image-to-video/480p': {
+    input: SchemaLongcatVideoDistilledImageToVideo480pInput
+    output: SchemaLongcatVideoDistilledImageToVideo480pOutput
+  }
+  'fal-ai/minimax/hailuo-2.3-fast/standard/image-to-video': {
+    input: SchemaMinimaxHailuo23FastStandardImageToVideoInput
+    output: SchemaMinimaxHailuo23FastStandardImageToVideoOutput
+  }
+  'fal-ai/minimax/hailuo-2.3/standard/image-to-video': {
+    input: SchemaMinimaxHailuo23StandardImageToVideoInput
+    output: SchemaMinimaxHailuo23StandardImageToVideoOutput
+  }
+  'fal-ai/minimax/hailuo-2.3-fast/pro/image-to-video': {
+    input: SchemaMinimaxHailuo23FastProImageToVideoInput
+    output: SchemaMinimaxHailuo23FastProImageToVideoOutput
+  }
+  'fal-ai/bytedance/seedance/v1/pro/fast/image-to-video': {
+    input: SchemaBytedanceSeedanceV1ProFastImageToVideoInput
+    output: SchemaBytedanceSeedanceV1ProFastImageToVideoOutput
+  }
   'fal-ai/vidu/q2/image-to-video/turbo': {
     input: SchemaViduQ2ImageToVideoTurboInput
     output: SchemaViduQ2ImageToVideoTurboOutput
@@ -627,6 +831,14 @@ export type ImageToVideoEndpointMap = {
   'fal-ai/vidu/q2/image-to-video/pro': {
     input: SchemaViduQ2ImageToVideoProInput
     output: SchemaViduQ2ImageToVideoProOutput
+  }
+  'fal-ai/kling-video/v2.5-turbo/standard/image-to-video': {
+    input: SchemaKlingVideoV25TurboStandardImageToVideoInput
+    output: SchemaKlingVideoV25TurboStandardImageToVideoOutput
+  }
+  'fal-ai/veo3.1/fast/first-last-frame-to-video': {
+    input: SchemaVeo31FastFirstLastFrameToVideoInput
+    output: SchemaVeo31FastFirstLastFrameToVideoOutput
   }
   'fal-ai/veo3.1/first-last-frame-to-video': {
     input: SchemaVeo31FirstLastFrameToVideoInput
@@ -680,6 +892,10 @@ export type ImageToVideoEndpointMap = {
     input: SchemaLucy14bImageToVideoInput
     output: SchemaLucy14bImageToVideoOutput
   }
+  'fal-ai/bytedance/seedance/v1/lite/reference-to-video': {
+    input: SchemaBytedanceSeedanceV1LiteReferenceToVideoInput
+    output: SchemaBytedanceSeedanceV1LiteReferenceToVideoOutput
+  }
   'fal-ai/wan-ati': {
     input: SchemaWanAtiInput
     output: SchemaWanAtiOutput
@@ -712,6 +928,10 @@ export type ImageToVideoEndpointMap = {
     input: SchemaWanV22A14bImageToVideoLoraInput
     output: SchemaWanV22A14bImageToVideoLoraOutput
   }
+  'fal-ai/minimax/hailuo-02-fast/image-to-video': {
+    input: SchemaMinimaxHailuo02FastImageToVideoInput
+    output: SchemaMinimaxHailuo02FastImageToVideoOutput
+  }
   'fal-ai/veo3/image-to-video': {
     input: SchemaVeo3ImageToVideoInput
     output: SchemaVeo3ImageToVideoOutput
@@ -731,6 +951,10 @@ export type ImageToVideoEndpointMap = {
   'fal-ai/bytedance/omnihuman': {
     input: SchemaBytedanceOmnihumanInput
     output: SchemaBytedanceOmnihumanOutput
+  }
+  'fal-ai/ltxv-13b-098-distilled/image-to-video': {
+    input: SchemaLtxv13B098DistilledImageToVideoInput
+    output: SchemaLtxv13B098DistilledImageToVideoOutput
   }
   'fal-ai/veo3/fast/image-to-video': {
     input: SchemaVeo3FastImageToVideoInput
@@ -756,6 +980,14 @@ export type ImageToVideoEndpointMap = {
     input: SchemaAiAvatarMultiInput
     output: SchemaAiAvatarMultiOutput
   }
+  'fal-ai/minimax/hailuo-02/pro/image-to-video': {
+    input: SchemaMinimaxHailuo02ProImageToVideoInput
+    output: SchemaMinimaxHailuo02ProImageToVideoOutput
+  }
+  'fal-ai/bytedance/seedance/v1/lite/image-to-video': {
+    input: SchemaBytedanceSeedanceV1LiteImageToVideoInput
+    output: SchemaBytedanceSeedanceV1LiteImageToVideoOutput
+  }
   'fal-ai/hunyuan-avatar': {
     input: SchemaHunyuanAvatarInput
     output: SchemaHunyuanAvatarOutput
@@ -768,9 +1000,17 @@ export type ImageToVideoEndpointMap = {
     input: SchemaHunyuanPortraitInput
     output: SchemaHunyuanPortraitOutput
   }
+  'fal-ai/kling-video/v1.6/standard/elements': {
+    input: SchemaKlingVideoV16StandardElementsInput
+    output: SchemaKlingVideoV16StandardElementsOutput
+  }
   'fal-ai/kling-video/v1.6/pro/elements': {
     input: SchemaKlingVideoV16ProElementsInput
     output: SchemaKlingVideoV16ProElementsOutput
+  }
+  'fal-ai/ltx-video-13b-distilled/image-to-video': {
+    input: SchemaLtxVideo13bDistilledImageToVideoInput
+    output: SchemaLtxVideo13bDistilledImageToVideoOutput
   }
   'fal-ai/ltx-video-13b-dev/image-to-video': {
     input: SchemaLtxVideo13bDevImageToVideoInput
@@ -848,6 +1088,10 @@ export type ImageToVideoEndpointMap = {
     input: SchemaPixverseV35TransitionInput
     output: SchemaPixverseV35TransitionOutput
   }
+  'fal-ai/luma-dream-machine/ray-2-flash/image-to-video': {
+    input: SchemaLumaDreamMachineRay2FlashImageToVideoInput
+    output: SchemaLumaDreamMachineRay2FlashImageToVideoOutput
+  }
   'fal-ai/pika/v1.5/pikaffects': {
     input: SchemaPikaV15PikaffectsInput
     output: SchemaPikaV15PikaffectsOutput
@@ -892,9 +1136,17 @@ export type ImageToVideoEndpointMap = {
     input: SchemaHunyuanVideoImageToVideoInput
     output: SchemaHunyuanVideoImageToVideoOutput
   }
+  'fal-ai/minimax/video-01-director/image-to-video': {
+    input: SchemaMinimaxVideo01DirectorImageToVideoInput
+    output: SchemaMinimaxVideo01DirectorImageToVideoOutput
+  }
   'fal-ai/skyreels-i2v': {
     input: SchemaSkyreelsI2vInput
     output: SchemaSkyreelsI2vOutput
+  }
+  'fal-ai/luma-dream-machine/ray-2/image-to-video': {
+    input: SchemaLumaDreamMachineRay2ImageToVideoInput
+    output: SchemaLumaDreamMachineRay2ImageToVideoOutput
   }
   'fal-ai/hunyuan-video-img2vid-lora': {
     input: SchemaHunyuanVideoImg2VidLoraInput
@@ -908,9 +1160,21 @@ export type ImageToVideoEndpointMap = {
     input: SchemaPixverseV35ImageToVideoInput
     output: SchemaPixverseV35ImageToVideoOutput
   }
+  'fal-ai/minimax/video-01-subject-reference': {
+    input: SchemaMinimaxVideo01SubjectReferenceInput
+    output: SchemaMinimaxVideo01SubjectReferenceOutput
+  }
+  'fal-ai/kling-video/v1.6/standard/image-to-video': {
+    input: SchemaKlingVideoV16StandardImageToVideoInput
+    output: SchemaKlingVideoV16StandardImageToVideoOutput
+  }
   'fal-ai/sadtalker/reference': {
     input: SchemaSadtalkerReferenceInput
     output: SchemaSadtalkerReferenceOutput
+  }
+  'fal-ai/minimax/video-01-live/image-to-video': {
+    input: SchemaMinimaxVideo01LiveImageToVideoInput
+    output: SchemaMinimaxVideo01LiveImageToVideoOutput
   }
   'fal-ai/ltx-video/image-to-video': {
     input: SchemaLtxVideoImageToVideoInput
@@ -924,9 +1188,17 @@ export type ImageToVideoEndpointMap = {
     input: SchemaKlingVideoV15ProImageToVideoInput
     output: SchemaKlingVideoV15ProImageToVideoOutput
   }
+  'fal-ai/kling-video/v1/standard/image-to-video': {
+    input: SchemaKlingVideoV1StandardImageToVideoInput
+    output: SchemaKlingVideoV1StandardImageToVideoOutput
+  }
   'fal-ai/stable-video': {
     input: SchemaStableVideoInput
     output: SchemaStableVideoOutput
+  }
+  'fal-ai/amt-interpolation/frame-interpolation': {
+    input: SchemaAmtInterpolationFrameInterpolationInput
+    output: SchemaAmtInterpolationFrameInterpolationOutput
   }
   'fal-ai/live-portrait': {
     input: SchemaLivePortraitInput
@@ -967,13 +1239,41 @@ export const ImageToVideoSchemaMap = {
     input: zSchemaMinimaxVideo01ImageToVideoInput,
     output: zSchemaMinimaxVideo01ImageToVideoOutput,
   },
+  ['fal-ai/minimax/hailuo-2.3/pro/image-to-video']: {
+    input: zSchemaMinimaxHailuo23ProImageToVideoInput,
+    output: zSchemaMinimaxHailuo23ProImageToVideoOutput,
+  },
   ['fal-ai/wan-25-preview/image-to-video']: {
     input: zSchemaWan25PreviewImageToVideoInput,
     output: zSchemaWan25PreviewImageToVideoOutput,
   },
+  ['fal-ai/kling-video/v2.5-turbo/pro/image-to-video']: {
+    input: zSchemaKlingVideoV25TurboProImageToVideoInput,
+    output: zSchemaKlingVideoV25TurboProImageToVideoOutput,
+  },
+  ['fal-ai/minimax/hailuo-02/standard/image-to-video']: {
+    input: zSchemaMinimaxHailuo02StandardImageToVideoInput,
+    output: zSchemaMinimaxHailuo02StandardImageToVideoOutput,
+  },
+  ['fal-ai/bytedance/seedance/v1/pro/image-to-video']: {
+    input: zSchemaBytedanceSeedanceV1ProImageToVideoInput,
+    output: zSchemaBytedanceSeedanceV1ProImageToVideoOutput,
+  },
+  ['fal-ai/kling-video/v2.1/master/image-to-video']: {
+    input: zSchemaKlingVideoV21MasterImageToVideoInput,
+    output: zSchemaKlingVideoV21MasterImageToVideoOutput,
+  },
+  ['fal-ai/kling-video/v2.1/standard/image-to-video']: {
+    input: zSchemaKlingVideoV21StandardImageToVideoInput,
+    output: zSchemaKlingVideoV21StandardImageToVideoOutput,
+  },
   ['fal-ai/pixverse/v4.5/image-to-video']: {
     input: zSchemaPixverseV45ImageToVideoInput,
     output: zSchemaPixverseV45ImageToVideoOutput,
+  },
+  ['fal-ai/kling-video/v2/master/image-to-video']: {
+    input: zSchemaKlingVideoV2MasterImageToVideoInput,
+    output: zSchemaKlingVideoV2MasterImageToVideoOutput,
   },
   ['fal-ai/wan-i2v']: {
     input: zSchemaWanI2vInput,
@@ -995,6 +1295,10 @@ export const ImageToVideoSchemaMap = {
     input: zSchemaV26ImageToVideoFlashInput,
     output: zSchemaV26ImageToVideoFlashOutput,
   },
+  ['fal-ai/ltx-2-19b/distilled/image-to-video/lora']: {
+    input: zSchemaLtx219bDistilledImageToVideoLoraInput,
+    output: zSchemaLtx219bDistilledImageToVideoLoraOutput,
+  },
   ['fal-ai/ltx-2-19b/distilled/image-to-video']: {
     input: zSchemaLtx219bDistilledImageToVideoInput,
     output: zSchemaLtx219bDistilledImageToVideoOutput,
@@ -1015,6 +1319,10 @@ export const ImageToVideoSchemaMap = {
     input: zSchemaKandinsky5ProImageToVideoInput,
     output: zSchemaKandinsky5ProImageToVideoOutput,
   },
+  ['fal-ai/bytedance/seedance/v1.5/pro/image-to-video']: {
+    input: zSchemaBytedanceSeedanceV15ProImageToVideoInput,
+    output: zSchemaBytedanceSeedanceV15ProImageToVideoOutput,
+  },
   ['fal-ai/live-avatar']: {
     input: zSchemaLiveAvatarInput,
     output: zSchemaLiveAvatarOutput,
@@ -1026,6 +1334,14 @@ export const ImageToVideoSchemaMap = {
   ['wan/v2.6/image-to-video']: {
     input: zSchemaV26ImageToVideoInput,
     output: zSchemaV26ImageToVideoOutput,
+  },
+  ['fal-ai/kling-video/o1/standard/reference-to-video']: {
+    input: zSchemaKlingVideoO1StandardReferenceToVideoInput,
+    output: zSchemaKlingVideoO1StandardReferenceToVideoOutput,
+  },
+  ['fal-ai/kling-video/o1/standard/image-to-video']: {
+    input: zSchemaKlingVideoO1StandardImageToVideoInput,
+    output: zSchemaKlingVideoO1StandardImageToVideoOutput,
   },
   ['fal-ai/creatify/aurora']: {
     input: zSchemaCreatifyAuroraInput,
@@ -1091,6 +1407,30 @@ export const ImageToVideoSchemaMap = {
     input: zSchemaLongcatVideoImageToVideo480pInput,
     output: zSchemaLongcatVideoImageToVideo480pOutput,
   },
+  ['fal-ai/longcat-video/distilled/image-to-video/720p']: {
+    input: zSchemaLongcatVideoDistilledImageToVideo720pInput,
+    output: zSchemaLongcatVideoDistilledImageToVideo720pOutput,
+  },
+  ['fal-ai/longcat-video/distilled/image-to-video/480p']: {
+    input: zSchemaLongcatVideoDistilledImageToVideo480pInput,
+    output: zSchemaLongcatVideoDistilledImageToVideo480pOutput,
+  },
+  ['fal-ai/minimax/hailuo-2.3-fast/standard/image-to-video']: {
+    input: zSchemaMinimaxHailuo23FastStandardImageToVideoInput,
+    output: zSchemaMinimaxHailuo23FastStandardImageToVideoOutput,
+  },
+  ['fal-ai/minimax/hailuo-2.3/standard/image-to-video']: {
+    input: zSchemaMinimaxHailuo23StandardImageToVideoInput,
+    output: zSchemaMinimaxHailuo23StandardImageToVideoOutput,
+  },
+  ['fal-ai/minimax/hailuo-2.3-fast/pro/image-to-video']: {
+    input: zSchemaMinimaxHailuo23FastProImageToVideoInput,
+    output: zSchemaMinimaxHailuo23FastProImageToVideoOutput,
+  },
+  ['fal-ai/bytedance/seedance/v1/pro/fast/image-to-video']: {
+    input: zSchemaBytedanceSeedanceV1ProFastImageToVideoInput,
+    output: zSchemaBytedanceSeedanceV1ProFastImageToVideoOutput,
+  },
   ['fal-ai/vidu/q2/image-to-video/turbo']: {
     input: zSchemaViduQ2ImageToVideoTurboInput,
     output: zSchemaViduQ2ImageToVideoTurboOutput,
@@ -1098,6 +1438,14 @@ export const ImageToVideoSchemaMap = {
   ['fal-ai/vidu/q2/image-to-video/pro']: {
     input: zSchemaViduQ2ImageToVideoProInput,
     output: zSchemaViduQ2ImageToVideoProOutput,
+  },
+  ['fal-ai/kling-video/v2.5-turbo/standard/image-to-video']: {
+    input: zSchemaKlingVideoV25TurboStandardImageToVideoInput,
+    output: zSchemaKlingVideoV25TurboStandardImageToVideoOutput,
+  },
+  ['fal-ai/veo3.1/fast/first-last-frame-to-video']: {
+    input: zSchemaVeo31FastFirstLastFrameToVideoInput,
+    output: zSchemaVeo31FastFirstLastFrameToVideoOutput,
   },
   ['fal-ai/veo3.1/first-last-frame-to-video']: {
     input: zSchemaVeo31FirstLastFrameToVideoInput,
@@ -1151,6 +1499,10 @@ export const ImageToVideoSchemaMap = {
     input: zSchemaLucy14bImageToVideoInput,
     output: zSchemaLucy14bImageToVideoOutput,
   },
+  ['fal-ai/bytedance/seedance/v1/lite/reference-to-video']: {
+    input: zSchemaBytedanceSeedanceV1LiteReferenceToVideoInput,
+    output: zSchemaBytedanceSeedanceV1LiteReferenceToVideoOutput,
+  },
   ['fal-ai/wan-ati']: {
     input: zSchemaWanAtiInput,
     output: zSchemaWanAtiOutput,
@@ -1183,6 +1535,10 @@ export const ImageToVideoSchemaMap = {
     input: zSchemaWanV22A14bImageToVideoLoraInput,
     output: zSchemaWanV22A14bImageToVideoLoraOutput,
   },
+  ['fal-ai/minimax/hailuo-02-fast/image-to-video']: {
+    input: zSchemaMinimaxHailuo02FastImageToVideoInput,
+    output: zSchemaMinimaxHailuo02FastImageToVideoOutput,
+  },
   ['fal-ai/veo3/image-to-video']: {
     input: zSchemaVeo3ImageToVideoInput,
     output: zSchemaVeo3ImageToVideoOutput,
@@ -1202,6 +1558,10 @@ export const ImageToVideoSchemaMap = {
   ['fal-ai/bytedance/omnihuman']: {
     input: zSchemaBytedanceOmnihumanInput,
     output: zSchemaBytedanceOmnihumanOutput,
+  },
+  ['fal-ai/ltxv-13b-098-distilled/image-to-video']: {
+    input: zSchemaLtxv13B098DistilledImageToVideoInput,
+    output: zSchemaLtxv13B098DistilledImageToVideoOutput,
   },
   ['fal-ai/veo3/fast/image-to-video']: {
     input: zSchemaVeo3FastImageToVideoInput,
@@ -1227,6 +1587,14 @@ export const ImageToVideoSchemaMap = {
     input: zSchemaAiAvatarMultiInput,
     output: zSchemaAiAvatarMultiOutput,
   },
+  ['fal-ai/minimax/hailuo-02/pro/image-to-video']: {
+    input: zSchemaMinimaxHailuo02ProImageToVideoInput,
+    output: zSchemaMinimaxHailuo02ProImageToVideoOutput,
+  },
+  ['fal-ai/bytedance/seedance/v1/lite/image-to-video']: {
+    input: zSchemaBytedanceSeedanceV1LiteImageToVideoInput,
+    output: zSchemaBytedanceSeedanceV1LiteImageToVideoOutput,
+  },
   ['fal-ai/hunyuan-avatar']: {
     input: zSchemaHunyuanAvatarInput,
     output: zSchemaHunyuanAvatarOutput,
@@ -1239,9 +1607,17 @@ export const ImageToVideoSchemaMap = {
     input: zSchemaHunyuanPortraitInput,
     output: zSchemaHunyuanPortraitOutput,
   },
+  ['fal-ai/kling-video/v1.6/standard/elements']: {
+    input: zSchemaKlingVideoV16StandardElementsInput,
+    output: zSchemaKlingVideoV16StandardElementsOutput,
+  },
   ['fal-ai/kling-video/v1.6/pro/elements']: {
     input: zSchemaKlingVideoV16ProElementsInput,
     output: zSchemaKlingVideoV16ProElementsOutput,
+  },
+  ['fal-ai/ltx-video-13b-distilled/image-to-video']: {
+    input: zSchemaLtxVideo13bDistilledImageToVideoInput,
+    output: zSchemaLtxVideo13bDistilledImageToVideoOutput,
   },
   ['fal-ai/ltx-video-13b-dev/image-to-video']: {
     input: zSchemaLtxVideo13bDevImageToVideoInput,
@@ -1319,6 +1695,10 @@ export const ImageToVideoSchemaMap = {
     input: zSchemaPixverseV35TransitionInput,
     output: zSchemaPixverseV35TransitionOutput,
   },
+  ['fal-ai/luma-dream-machine/ray-2-flash/image-to-video']: {
+    input: zSchemaLumaDreamMachineRay2FlashImageToVideoInput,
+    output: zSchemaLumaDreamMachineRay2FlashImageToVideoOutput,
+  },
   ['fal-ai/pika/v1.5/pikaffects']: {
     input: zSchemaPikaV15PikaffectsInput,
     output: zSchemaPikaV15PikaffectsOutput,
@@ -1363,9 +1743,17 @@ export const ImageToVideoSchemaMap = {
     input: zSchemaHunyuanVideoImageToVideoInput,
     output: zSchemaHunyuanVideoImageToVideoOutput,
   },
+  ['fal-ai/minimax/video-01-director/image-to-video']: {
+    input: zSchemaMinimaxVideo01DirectorImageToVideoInput,
+    output: zSchemaMinimaxVideo01DirectorImageToVideoOutput,
+  },
   ['fal-ai/skyreels-i2v']: {
     input: zSchemaSkyreelsI2vInput,
     output: zSchemaSkyreelsI2vOutput,
+  },
+  ['fal-ai/luma-dream-machine/ray-2/image-to-video']: {
+    input: zSchemaLumaDreamMachineRay2ImageToVideoInput,
+    output: zSchemaLumaDreamMachineRay2ImageToVideoOutput,
   },
   ['fal-ai/hunyuan-video-img2vid-lora']: {
     input: zSchemaHunyuanVideoImg2VidLoraInput,
@@ -1379,9 +1767,21 @@ export const ImageToVideoSchemaMap = {
     input: zSchemaPixverseV35ImageToVideoInput,
     output: zSchemaPixverseV35ImageToVideoOutput,
   },
+  ['fal-ai/minimax/video-01-subject-reference']: {
+    input: zSchemaMinimaxVideo01SubjectReferenceInput,
+    output: zSchemaMinimaxVideo01SubjectReferenceOutput,
+  },
+  ['fal-ai/kling-video/v1.6/standard/image-to-video']: {
+    input: zSchemaKlingVideoV16StandardImageToVideoInput,
+    output: zSchemaKlingVideoV16StandardImageToVideoOutput,
+  },
   ['fal-ai/sadtalker/reference']: {
     input: zSchemaSadtalkerReferenceInput,
     output: zSchemaSadtalkerReferenceOutput,
+  },
+  ['fal-ai/minimax/video-01-live/image-to-video']: {
+    input: zSchemaMinimaxVideo01LiveImageToVideoInput,
+    output: zSchemaMinimaxVideo01LiveImageToVideoOutput,
   },
   ['fal-ai/ltx-video/image-to-video']: {
     input: zSchemaLtxVideoImageToVideoInput,
@@ -1395,9 +1795,17 @@ export const ImageToVideoSchemaMap = {
     input: zSchemaKlingVideoV15ProImageToVideoInput,
     output: zSchemaKlingVideoV15ProImageToVideoOutput,
   },
+  ['fal-ai/kling-video/v1/standard/image-to-video']: {
+    input: zSchemaKlingVideoV1StandardImageToVideoInput,
+    output: zSchemaKlingVideoV1StandardImageToVideoOutput,
+  },
   ['fal-ai/stable-video']: {
     input: zSchemaStableVideoInput,
     output: zSchemaStableVideoOutput,
+  },
+  ['fal-ai/amt-interpolation/frame-interpolation']: {
+    input: zSchemaAmtInterpolationFrameInterpolationInput,
+    output: zSchemaAmtInterpolationFrameInterpolationOutput,
   },
   ['fal-ai/live-portrait']: {
     input: zSchemaLivePortraitInput,

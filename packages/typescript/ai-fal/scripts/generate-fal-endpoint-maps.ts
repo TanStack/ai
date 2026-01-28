@@ -57,26 +57,16 @@ function extractEndpointsFromTypes(categoryPath: string): Array<EndpointInfo> {
     // Remove leading slash from URL to get endpoint ID
     const endpointId = urlPath.replace(/^\//, '')
 
-    // Extract prefix from PostXxxData -> Xxx
-    const prefix = postTypeName.replace(/^Post/, '').replace(/Data$/, '')
+    // Derive output type from input type by replacing "Input" with "Output"
+    const outputType = inputType.replace(/Input$/, 'Output')
 
-    // Generate corresponding GET type name
-    const getTypeName = `Get${prefix}RequestsByRequestIdResponses`
-
-    // Find the GET type and extract output type from '200' field
-    const getTypeRegex = new RegExp(
-      `export type ${getTypeName} = \\{[\\s\\S]*?200: (\\w+)`,
-    )
-    const getMatch = content.match(getTypeRegex)
-
-    if (!getMatch) {
+    // Verify the output type exists in the content
+    if (!content.includes(`export type ${outputType}`)) {
       console.warn(
-        `  Warning: Could not find GET response type ${getTypeName} for ${endpointId}`,
+        `  Warning: Could not find output type ${outputType} for ${endpointId}`,
       )
       continue
     }
-
-    const outputType = getMatch[1]!
 
     endpoints.push({
       endpointId,
@@ -113,6 +103,112 @@ function toPascalCase(str: string): string {
   }
 
   return pascalCase
+}
+
+/**
+ * Mapping of output types to their source categories
+ */
+const outputTypeMapping: Record<string, Array<string>> = {
+  image: ['text-to-image', 'image-to-image'],
+  video: [
+    'text-to-video',
+    'image-to-video',
+    'video-to-video',
+    'audio-to-video',
+  ],
+  audio: [
+    'text-to-audio',
+    'audio-to-audio',
+    'speech-to-speech',
+    'text-to-speech',
+  ],
+  text: [
+    'text-to-text',
+    'audio-to-text',
+    'video-to-text',
+    'vision',
+    'speech-to-text',
+  ],
+  '3d': ['text-to-3d', 'image-to-3d', '3d-to-3d'],
+  json: ['text-to-json', 'image-to-json', 'json'],
+}
+
+/**
+ * Generate output-type-based unions (FalImageModel, FalVideoModel, etc.)
+ */
+function generateOutputTypeUnions(
+  processedCategories: Array<string>,
+): Array<string> {
+  const lines: Array<string> = []
+
+  for (const [outputType, categories] of Object.entries(outputTypeMapping)) {
+    // Filter to only categories that were actually processed
+    const availableCategories = categories.filter((cat) =>
+      processedCategories.includes(cat),
+    )
+
+    if (availableCategories.length === 0) {
+      continue
+    }
+
+    // Convert output type to PascalCase (e.g., 'image' -> 'Image', '3d' -> '3d')
+    const outputTypePascal =
+      outputType.charAt(0).toUpperCase() + outputType.slice(1)
+
+    // Generate Model union type
+    lines.push(`/** Union of all ${outputType} generation models */`)
+    lines.push(`export type Fal${outputTypePascal}Model =`)
+    for (let i = 0; i < availableCategories.length; i++) {
+      const category = availableCategories[i]!
+      const isLast = i === availableCategories.length - 1
+      lines.push(`  | ${toPascalCase(category)}Model${isLast ? '' : ''}`)
+    }
+    lines.push(``)
+
+    // Generate Input type
+    lines.push(`/** Get the input type for a specific ${outputType} model */`)
+    lines.push(
+      `export type Fal${outputTypePascal}Input<T extends Fal${outputTypePascal}Model> =`,
+    )
+    for (let i = 0; i < availableCategories.length; i++) {
+      const category = availableCategories[i]!
+      const typeName = toPascalCase(category)
+      const isLast = i === availableCategories.length - 1
+      lines.push(`  T extends ${typeName}Model ? ${typeName}ModelInput<T> :`)
+      if (isLast) {
+        lines.push(`  never`)
+      }
+    }
+    lines.push(``)
+
+    // Generate Output type
+    lines.push(`/** Get the output type for a specific ${outputType} model */`)
+    lines.push(
+      `export type Fal${outputTypePascal}Output<T extends Fal${outputTypePascal}Model> =`,
+    )
+    for (let i = 0; i < availableCategories.length; i++) {
+      const category = availableCategories[i]!
+      const typeName = toPascalCase(category)
+      const isLast = i === availableCategories.length - 1
+      lines.push(`  T extends ${typeName}Model ? ${typeName}ModelOutput<T> :`)
+      if (isLast) {
+        lines.push(`  never`)
+      }
+    }
+    lines.push(``)
+
+    // Generate combined SchemaMap
+    lines.push(`/** Combined schema map for all ${outputType} models */`)
+    lines.push(`export const Fal${outputTypePascal}SchemaMap = {`)
+    for (const category of availableCategories) {
+      const typeName = toPascalCase(category)
+      lines.push(`  ...${typeName}SchemaMap,`)
+    }
+    lines.push(`} as const`)
+    lines.push(``)
+  }
+
+  return lines
 }
 
 /**
@@ -263,18 +359,43 @@ function main() {
     `// AUTO-GENERATED - Do not edit manually`,
     `// Generated from types.gen.ts via scripts/generate-fal-endpoint-maps.ts`,
     ``,
-    `// Re-export all category endpoint maps`,
   ]
+  indexLines.push(`  // Re-export all category endpoint maps`)
 
   for (const category of processedCategories) {
     indexLines.push(`export * from './${category}/endpoint-map'`)
   }
 
+  // Collect categories that are used in output-type unions
+  const usedCategories = new Set<string>()
+  for (const categories of Object.values(outputTypeMapping)) {
+    for (const cat of categories) {
+      if (processedCategories.includes(cat)) {
+        usedCategories.add(cat)
+      }
+    }
+  }
+  const usedCategoriesList = Array.from(usedCategories).sort()
+
   indexLines.push(``)
-  indexLines.push(`// Create a union type of all models across categories`)
+  indexLines.push(`// Import all category model types for FalModel union`)
   indexLines.push(`import type {`)
   for (const category of processedCategories) {
     indexLines.push(`  ${toPascalCase(category)}Model,`)
+  }
+  indexLines.push(`} from './index'`)
+  indexLines.push(``)
+  indexLines.push(`// Import types and schemas for output-type unions`)
+  indexLines.push(`import type {`)
+  for (const category of usedCategoriesList) {
+    indexLines.push(`  ${toPascalCase(category)}ModelInput,`)
+    indexLines.push(`  ${toPascalCase(category)}ModelOutput,`)
+  }
+  indexLines.push(`} from './index'`)
+  indexLines.push(``)
+  indexLines.push(`import {`)
+  for (const category of usedCategoriesList) {
+    indexLines.push(`  ${toPascalCase(category)}SchemaMap,`)
   }
   indexLines.push(`} from './index'`)
   indexLines.push(``)
@@ -297,6 +418,10 @@ function main() {
     indexLines.push(`  | ${toPascalCase(category!)}Model${isLast ? '' : ''}`)
   }
   indexLines.push(``)
+
+  // Generate output-type-based unions
+  const outputTypeLines = generateOutputTypeUnions(processedCategories)
+  indexLines.push(...outputTypeLines)
 
   const indexPath = join(generatedDir, 'index.ts')
   writeFileSync(indexPath, indexLines.join('\n'))

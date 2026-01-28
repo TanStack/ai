@@ -14,6 +14,8 @@ import {
   zSchemaElevenlabsMusicOutput,
   zSchemaElevenlabsSoundEffectsV2Input,
   zSchemaElevenlabsSoundEffectsV2Output,
+  zSchemaElevenlabsTextToDialogueElevenV3Input,
+  zSchemaElevenlabsTextToDialogueElevenV3Output,
   zSchemaElevenlabsTtsElevenV3Input,
   zSchemaElevenlabsTtsElevenV3Output,
   zSchemaElevenlabsTtsMultilingualV2Input,
@@ -83,6 +85,8 @@ import type {
   SchemaElevenlabsMusicOutput,
   SchemaElevenlabsSoundEffectsV2Input,
   SchemaElevenlabsSoundEffectsV2Output,
+  SchemaElevenlabsTextToDialogueElevenV3Input,
+  SchemaElevenlabsTextToDialogueElevenV3Output,
   SchemaElevenlabsTtsElevenV3Input,
   SchemaElevenlabsTtsElevenV3Output,
   SchemaElevenlabsTtsMultilingualV2Input,
@@ -163,6 +167,10 @@ export type TextToAudioEndpointMap = {
   'fal-ai/stable-audio-25/text-to-audio': {
     input: SchemaStableAudio25TextToAudioInput
     output: SchemaStableAudio25TextToAudioOutput
+  }
+  'fal-ai/elevenlabs/text-to-dialogue/eleven-v3': {
+    input: SchemaElevenlabsTextToDialogueElevenV3Input
+    output: SchemaElevenlabsTextToDialogueElevenV3Output
   }
   'fal-ai/elevenlabs/sound-effects/v2': {
     input: SchemaElevenlabsSoundEffectsV2Input
@@ -298,6 +306,10 @@ export const TextToAudioSchemaMap = {
   ['fal-ai/stable-audio-25/text-to-audio']: {
     input: zSchemaStableAudio25TextToAudioInput,
     output: zSchemaStableAudio25TextToAudioOutput,
+  },
+  ['fal-ai/elevenlabs/text-to-dialogue/eleven-v3']: {
+    input: zSchemaElevenlabsTextToDialogueElevenV3Input,
+    output: zSchemaElevenlabsTextToDialogueElevenV3Output,
   },
   ['fal-ai/elevenlabs/sound-effects/v2']: {
     input: zSchemaElevenlabsSoundEffectsV2Input,

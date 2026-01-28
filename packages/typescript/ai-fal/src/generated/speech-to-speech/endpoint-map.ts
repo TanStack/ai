@@ -4,14 +4,22 @@
 import {
   zSchemaChatterboxSpeechToSpeechInput,
   zSchemaChatterboxSpeechToSpeechOutput,
+  zSchemaChatterboxhdSpeechToSpeechInput,
+  zSchemaChatterboxhdSpeechToSpeechOutput,
 } from './zod.gen'
 
 import type {
   SchemaChatterboxSpeechToSpeechInput,
   SchemaChatterboxSpeechToSpeechOutput,
+  SchemaChatterboxhdSpeechToSpeechInput,
+  SchemaChatterboxhdSpeechToSpeechOutput,
 } from './types.gen'
 
 export type SpeechToSpeechEndpointMap = {
+  'resemble-ai/chatterboxhd/speech-to-speech': {
+    input: SchemaChatterboxhdSpeechToSpeechInput
+    output: SchemaChatterboxhdSpeechToSpeechOutput
+  }
   'fal-ai/chatterbox/speech-to-speech': {
     input: SchemaChatterboxSpeechToSpeechInput
     output: SchemaChatterboxSpeechToSpeechOutput
@@ -19,6 +27,10 @@ export type SpeechToSpeechEndpointMap = {
 }
 
 export const SpeechToSpeechSchemaMap = {
+  ['resemble-ai/chatterboxhd/speech-to-speech']: {
+    input: zSchemaChatterboxhdSpeechToSpeechInput,
+    output: zSchemaChatterboxhdSpeechToSpeechOutput,
+  },
   ['fal-ai/chatterbox/speech-to-speech']: {
     input: zSchemaChatterboxSpeechToSpeechInput,
     output: zSchemaChatterboxSpeechToSpeechOutput,

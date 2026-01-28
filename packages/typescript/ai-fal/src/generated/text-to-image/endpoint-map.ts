@@ -12,6 +12,14 @@ import {
   zSchemaBriaTextToImageFastOutput,
   zSchemaBriaTextToImageHdInput,
   zSchemaBriaTextToImageHdOutput,
+  zSchemaBytedanceDreaminaV31TextToImageInput,
+  zSchemaBytedanceDreaminaV31TextToImageOutput,
+  zSchemaBytedanceSeedreamV3TextToImageInput,
+  zSchemaBytedanceSeedreamV3TextToImageOutput,
+  zSchemaBytedanceSeedreamV45TextToImageInput,
+  zSchemaBytedanceSeedreamV45TextToImageOutput,
+  zSchemaBytedanceSeedreamV4TextToImageInput,
+  zSchemaBytedanceSeedreamV4TextToImageOutput,
   zSchemaCogview4Input,
   zSchemaCogview4Output,
   zSchemaDiffusionEdgeInput,
@@ -67,10 +75,16 @@ import {
   zSchemaFlux2Klein9bBaseOutput,
   zSchemaFlux2Klein9bInput,
   zSchemaFlux2Klein9bOutput,
+  zSchemaFlux2LoraGalleryBallpointPenSketchInput,
+  zSchemaFlux2LoraGalleryBallpointPenSketchOutput,
+  zSchemaFlux2LoraGalleryDigitalComicArtInput,
+  zSchemaFlux2LoraGalleryDigitalComicArtOutput,
   zSchemaFlux2LoraGalleryHdrStyleInput,
   zSchemaFlux2LoraGalleryHdrStyleOutput,
   zSchemaFlux2LoraGalleryRealismInput,
   zSchemaFlux2LoraGalleryRealismOutput,
+  zSchemaFlux2LoraGallerySatelliteViewStyleInput,
+  zSchemaFlux2LoraGallerySatelliteViewStyleOutput,
   zSchemaFlux2LoraGallerySepiaVintageInput,
   zSchemaFlux2LoraGallerySepiaVintageOutput,
   zSchemaFlux2LoraInput,
@@ -172,10 +186,16 @@ import {
   zSchemaImagen4PreviewOutput,
   zSchemaImagen4PreviewUltraInput,
   zSchemaImagen4PreviewUltraOutput,
+  zSchemaImagineart15PreviewTextToImageInput,
+  zSchemaImagineart15PreviewTextToImageOutput,
+  zSchemaImagineart15ProPreviewTextToImageInput,
+  zSchemaImagineart15ProPreviewTextToImageOutput,
   zSchemaJanusInput,
   zSchemaJanusOutput,
   zSchemaJuggernautFluxBaseInput,
   zSchemaJuggernautFluxBaseOutput,
+  zSchemaJuggernautFluxLightningInput,
+  zSchemaJuggernautFluxLightningOutput,
   zSchemaJuggernautFluxLoraInput,
   zSchemaJuggernautFluxLoraOutput,
   zSchemaJuggernautFluxProInput,
@@ -232,6 +252,8 @@ import {
   zSchemaRecraftV3TextToImageOutput,
   zSchemaReveTextToImageInput,
   zSchemaReveTextToImageOutput,
+  zSchemaRundiffusionPhotoFluxInput,
+  zSchemaRundiffusionPhotoFluxOutput,
   zSchemaSanaInput,
   zSchemaSanaOutput,
   zSchemaSanaSprintInput,
@@ -295,6 +317,14 @@ import type {
   SchemaBriaTextToImageFastOutput,
   SchemaBriaTextToImageHdInput,
   SchemaBriaTextToImageHdOutput,
+  SchemaBytedanceDreaminaV31TextToImageInput,
+  SchemaBytedanceDreaminaV31TextToImageOutput,
+  SchemaBytedanceSeedreamV3TextToImageInput,
+  SchemaBytedanceSeedreamV3TextToImageOutput,
+  SchemaBytedanceSeedreamV45TextToImageInput,
+  SchemaBytedanceSeedreamV45TextToImageOutput,
+  SchemaBytedanceSeedreamV4TextToImageInput,
+  SchemaBytedanceSeedreamV4TextToImageOutput,
   SchemaCogview4Input,
   SchemaCogview4Output,
   SchemaDiffusionEdgeInput,
@@ -350,10 +380,16 @@ import type {
   SchemaFlux2Klein9bBaseOutput,
   SchemaFlux2Klein9bInput,
   SchemaFlux2Klein9bOutput,
+  SchemaFlux2LoraGalleryBallpointPenSketchInput,
+  SchemaFlux2LoraGalleryBallpointPenSketchOutput,
+  SchemaFlux2LoraGalleryDigitalComicArtInput,
+  SchemaFlux2LoraGalleryDigitalComicArtOutput,
   SchemaFlux2LoraGalleryHdrStyleInput,
   SchemaFlux2LoraGalleryHdrStyleOutput,
   SchemaFlux2LoraGalleryRealismInput,
   SchemaFlux2LoraGalleryRealismOutput,
+  SchemaFlux2LoraGallerySatelliteViewStyleInput,
+  SchemaFlux2LoraGallerySatelliteViewStyleOutput,
   SchemaFlux2LoraGallerySepiaVintageInput,
   SchemaFlux2LoraGallerySepiaVintageOutput,
   SchemaFlux2LoraInput,
@@ -455,10 +491,16 @@ import type {
   SchemaImagen4PreviewOutput,
   SchemaImagen4PreviewUltraInput,
   SchemaImagen4PreviewUltraOutput,
+  SchemaImagineart15PreviewTextToImageInput,
+  SchemaImagineart15PreviewTextToImageOutput,
+  SchemaImagineart15ProPreviewTextToImageInput,
+  SchemaImagineart15ProPreviewTextToImageOutput,
   SchemaJanusInput,
   SchemaJanusOutput,
   SchemaJuggernautFluxBaseInput,
   SchemaJuggernautFluxBaseOutput,
+  SchemaJuggernautFluxLightningInput,
+  SchemaJuggernautFluxLightningOutput,
   SchemaJuggernautFluxLoraInput,
   SchemaJuggernautFluxLoraOutput,
   SchemaJuggernautFluxProInput,
@@ -515,6 +557,8 @@ import type {
   SchemaRecraftV3TextToImageOutput,
   SchemaReveTextToImageInput,
   SchemaReveTextToImageOutput,
+  SchemaRundiffusionPhotoFluxInput,
+  SchemaRundiffusionPhotoFluxOutput,
   SchemaSanaInput,
   SchemaSanaOutput,
   SchemaSanaSprintInput,
@@ -664,6 +708,10 @@ export type TextToImageEndpointMap = {
     input: SchemaFlux2Klein4bInput
     output: SchemaFlux2Klein4bOutput
   }
+  'imagineart/imagineart-1.5-pro-preview/text-to-image': {
+    input: SchemaImagineart15ProPreviewTextToImageInput
+    output: SchemaImagineart15ProPreviewTextToImageOutput
+  }
   'fal-ai/glm-image': {
     input: SchemaGlmImageInput
     output: SchemaGlmImageOutput
@@ -704,6 +752,10 @@ export type TextToImageEndpointMap = {
     input: SchemaLongcatImageInput
     output: SchemaLongcatImageOutput
   }
+  'fal-ai/bytedance/seedream/v4.5/text-to-image': {
+    input: SchemaBytedanceSeedreamV45TextToImageInput
+    output: SchemaBytedanceSeedreamV45TextToImageOutput
+  }
   'fal-ai/vidu/q2/text-to-image': {
     input: SchemaViduQ2TextToImageInput
     output: SchemaViduQ2TextToImageOutput
@@ -724,6 +776,10 @@ export type TextToImageEndpointMap = {
     input: SchemaFlux2LoraGallerySepiaVintageInput
     output: SchemaFlux2LoraGallerySepiaVintageOutput
   }
+  'fal-ai/flux-2-lora-gallery/satellite-view-style': {
+    input: SchemaFlux2LoraGallerySatelliteViewStyleInput
+    output: SchemaFlux2LoraGallerySatelliteViewStyleOutput
+  }
   'fal-ai/flux-2-lora-gallery/realism': {
     input: SchemaFlux2LoraGalleryRealismInput
     output: SchemaFlux2LoraGalleryRealismOutput
@@ -731,6 +787,14 @@ export type TextToImageEndpointMap = {
   'fal-ai/flux-2-lora-gallery/hdr-style': {
     input: SchemaFlux2LoraGalleryHdrStyleInput
     output: SchemaFlux2LoraGalleryHdrStyleOutput
+  }
+  'fal-ai/flux-2-lora-gallery/digital-comic-art': {
+    input: SchemaFlux2LoraGalleryDigitalComicArtInput
+    output: SchemaFlux2LoraGalleryDigitalComicArtOutput
+  }
+  'fal-ai/flux-2-lora-gallery/ballpoint-pen-sketch': {
+    input: SchemaFlux2LoraGalleryBallpointPenSketchInput
+    output: SchemaFlux2LoraGalleryBallpointPenSketchOutput
   }
   'fal-ai/flux-2-flex': {
     input: SchemaFlux2FlexInput
@@ -743,6 +807,10 @@ export type TextToImageEndpointMap = {
   'fal-ai/nano-banana-pro': {
     input: SchemaNanoBananaProInput
     output: SchemaNanoBananaProOutput
+  }
+  'imagineart/imagineart-1.5-preview/text-to-image': {
+    input: SchemaImagineart15PreviewTextToImageInput
+    output: SchemaImagineart15PreviewTextToImageOutput
   }
   'fal-ai/emu-3.5-image/text-to-image': {
     input: SchemaEmu35ImageTextToImageInput
@@ -784,6 +852,10 @@ export type TextToImageEndpointMap = {
     input: SchemaHunyuanImageV21TextToImageInput
     output: SchemaHunyuanImageV21TextToImageOutput
   }
+  'fal-ai/bytedance/seedream/v4/text-to-image': {
+    input: SchemaBytedanceSeedreamV4TextToImageInput
+    output: SchemaBytedanceSeedreamV4TextToImageOutput
+  }
   'fal-ai/gemini-25-flash-image': {
     input: SchemaGemini25FlashImageInput
     output: SchemaGemini25FlashImageOutput
@@ -791,6 +863,10 @@ export type TextToImageEndpointMap = {
   'fal-ai/nano-banana': {
     input: SchemaNanoBananaInput
     output: SchemaNanoBananaOutput
+  }
+  'fal-ai/bytedance/dreamina/v3.1/text-to-image': {
+    input: SchemaBytedanceDreaminaV31TextToImageInput
+    output: SchemaBytedanceDreaminaV31TextToImageOutput
   }
   'fal-ai/wan/v2.2-a14b/text-to-image/lora': {
     input: SchemaWanV22A14bTextToImageLoraInput
@@ -835,6 +911,10 @@ export type TextToImageEndpointMap = {
   'fal-ai/omnigen-v2': {
     input: SchemaOmnigenV2Input
     output: SchemaOmnigenV2Output
+  }
+  'fal-ai/bytedance/seedream/v3/text-to-image': {
+    input: SchemaBytedanceSeedreamV3TextToImageInput
+    output: SchemaBytedanceSeedreamV3TextToImageOutput
   }
   'fal-ai/flux-1/schnell': {
     input: SchemaFlux1SchnellInput
@@ -904,6 +984,10 @@ export type TextToImageEndpointMap = {
     input: SchemaSanaSprintInput
     output: SchemaSanaSprintOutput
   }
+  'rundiffusion-fal/juggernaut-flux/lightning': {
+    input: SchemaJuggernautFluxLightningInput
+    output: SchemaJuggernautFluxLightningOutput
+  }
   'rundiffusion-fal/juggernaut-flux/pro': {
     input: SchemaJuggernautFluxProInput
     output: SchemaJuggernautFluxProOutput
@@ -911,6 +995,10 @@ export type TextToImageEndpointMap = {
   'rundiffusion-fal/juggernaut-flux-lora': {
     input: SchemaJuggernautFluxLoraInput
     output: SchemaJuggernautFluxLoraOutput
+  }
+  'rundiffusion-fal/rundiffusion-photo-flux': {
+    input: SchemaRundiffusionPhotoFluxInput
+    output: SchemaRundiffusionPhotoFluxOutput
   }
   'rundiffusion-fal/juggernaut-flux/base': {
     input: SchemaJuggernautFluxBaseInput
@@ -1227,6 +1315,10 @@ export const TextToImageSchemaMap = {
     input: zSchemaFlux2Klein4bInput,
     output: zSchemaFlux2Klein4bOutput,
   },
+  ['imagineart/imagineart-1.5-pro-preview/text-to-image']: {
+    input: zSchemaImagineart15ProPreviewTextToImageInput,
+    output: zSchemaImagineart15ProPreviewTextToImageOutput,
+  },
   ['fal-ai/glm-image']: {
     input: zSchemaGlmImageInput,
     output: zSchemaGlmImageOutput,
@@ -1267,6 +1359,10 @@ export const TextToImageSchemaMap = {
     input: zSchemaLongcatImageInput,
     output: zSchemaLongcatImageOutput,
   },
+  ['fal-ai/bytedance/seedream/v4.5/text-to-image']: {
+    input: zSchemaBytedanceSeedreamV45TextToImageInput,
+    output: zSchemaBytedanceSeedreamV45TextToImageOutput,
+  },
   ['fal-ai/vidu/q2/text-to-image']: {
     input: zSchemaViduQ2TextToImageInput,
     output: zSchemaViduQ2TextToImageOutput,
@@ -1287,6 +1383,10 @@ export const TextToImageSchemaMap = {
     input: zSchemaFlux2LoraGallerySepiaVintageInput,
     output: zSchemaFlux2LoraGallerySepiaVintageOutput,
   },
+  ['fal-ai/flux-2-lora-gallery/satellite-view-style']: {
+    input: zSchemaFlux2LoraGallerySatelliteViewStyleInput,
+    output: zSchemaFlux2LoraGallerySatelliteViewStyleOutput,
+  },
   ['fal-ai/flux-2-lora-gallery/realism']: {
     input: zSchemaFlux2LoraGalleryRealismInput,
     output: zSchemaFlux2LoraGalleryRealismOutput,
@@ -1294,6 +1394,14 @@ export const TextToImageSchemaMap = {
   ['fal-ai/flux-2-lora-gallery/hdr-style']: {
     input: zSchemaFlux2LoraGalleryHdrStyleInput,
     output: zSchemaFlux2LoraGalleryHdrStyleOutput,
+  },
+  ['fal-ai/flux-2-lora-gallery/digital-comic-art']: {
+    input: zSchemaFlux2LoraGalleryDigitalComicArtInput,
+    output: zSchemaFlux2LoraGalleryDigitalComicArtOutput,
+  },
+  ['fal-ai/flux-2-lora-gallery/ballpoint-pen-sketch']: {
+    input: zSchemaFlux2LoraGalleryBallpointPenSketchInput,
+    output: zSchemaFlux2LoraGalleryBallpointPenSketchOutput,
   },
   ['fal-ai/flux-2-flex']: {
     input: zSchemaFlux2FlexInput,
@@ -1306,6 +1414,10 @@ export const TextToImageSchemaMap = {
   ['fal-ai/nano-banana-pro']: {
     input: zSchemaNanoBananaProInput,
     output: zSchemaNanoBananaProOutput,
+  },
+  ['imagineart/imagineart-1.5-preview/text-to-image']: {
+    input: zSchemaImagineart15PreviewTextToImageInput,
+    output: zSchemaImagineart15PreviewTextToImageOutput,
   },
   ['fal-ai/emu-3.5-image/text-to-image']: {
     input: zSchemaEmu35ImageTextToImageInput,
@@ -1347,6 +1459,10 @@ export const TextToImageSchemaMap = {
     input: zSchemaHunyuanImageV21TextToImageInput,
     output: zSchemaHunyuanImageV21TextToImageOutput,
   },
+  ['fal-ai/bytedance/seedream/v4/text-to-image']: {
+    input: zSchemaBytedanceSeedreamV4TextToImageInput,
+    output: zSchemaBytedanceSeedreamV4TextToImageOutput,
+  },
   ['fal-ai/gemini-25-flash-image']: {
     input: zSchemaGemini25FlashImageInput,
     output: zSchemaGemini25FlashImageOutput,
@@ -1354,6 +1470,10 @@ export const TextToImageSchemaMap = {
   ['fal-ai/nano-banana']: {
     input: zSchemaNanoBananaInput,
     output: zSchemaNanoBananaOutput,
+  },
+  ['fal-ai/bytedance/dreamina/v3.1/text-to-image']: {
+    input: zSchemaBytedanceDreaminaV31TextToImageInput,
+    output: zSchemaBytedanceDreaminaV31TextToImageOutput,
   },
   ['fal-ai/wan/v2.2-a14b/text-to-image/lora']: {
     input: zSchemaWanV22A14bTextToImageLoraInput,
@@ -1398,6 +1518,10 @@ export const TextToImageSchemaMap = {
   ['fal-ai/omnigen-v2']: {
     input: zSchemaOmnigenV2Input,
     output: zSchemaOmnigenV2Output,
+  },
+  ['fal-ai/bytedance/seedream/v3/text-to-image']: {
+    input: zSchemaBytedanceSeedreamV3TextToImageInput,
+    output: zSchemaBytedanceSeedreamV3TextToImageOutput,
   },
   ['fal-ai/flux-1/schnell']: {
     input: zSchemaFlux1SchnellInput,
@@ -1467,6 +1591,10 @@ export const TextToImageSchemaMap = {
     input: zSchemaSanaSprintInput,
     output: zSchemaSanaSprintOutput,
   },
+  ['rundiffusion-fal/juggernaut-flux/lightning']: {
+    input: zSchemaJuggernautFluxLightningInput,
+    output: zSchemaJuggernautFluxLightningOutput,
+  },
   ['rundiffusion-fal/juggernaut-flux/pro']: {
     input: zSchemaJuggernautFluxProInput,
     output: zSchemaJuggernautFluxProOutput,
@@ -1474,6 +1602,10 @@ export const TextToImageSchemaMap = {
   ['rundiffusion-fal/juggernaut-flux-lora']: {
     input: zSchemaJuggernautFluxLoraInput,
     output: zSchemaJuggernautFluxLoraOutput,
+  },
+  ['rundiffusion-fal/rundiffusion-photo-flux']: {
+    input: zSchemaRundiffusionPhotoFluxInput,
+    output: zSchemaRundiffusionPhotoFluxOutput,
   },
   ['rundiffusion-fal/juggernaut-flux/base']: {
     input: zSchemaJuggernautFluxBaseInput,

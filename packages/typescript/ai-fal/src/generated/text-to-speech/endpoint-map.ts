@@ -3,7 +3,11 @@
 
 import {
   zSchemaChatterboxTextToSpeechInput,
+  zSchemaChatterboxTextToSpeechMultilingualInput,
+  zSchemaChatterboxTextToSpeechMultilingualOutput,
   zSchemaChatterboxTextToSpeechOutput,
+  zSchemaChatterboxhdTextToSpeechInput,
+  zSchemaChatterboxhdTextToSpeechOutput,
   zSchemaDiaTtsInput,
   zSchemaDiaTtsOutput,
   zSchemaElevenlabsTtsTurboV25Input,
@@ -52,7 +56,11 @@ import {
 
 import type {
   SchemaChatterboxTextToSpeechInput,
+  SchemaChatterboxTextToSpeechMultilingualInput,
+  SchemaChatterboxTextToSpeechMultilingualOutput,
   SchemaChatterboxTextToSpeechOutput,
+  SchemaChatterboxhdTextToSpeechInput,
+  SchemaChatterboxhdTextToSpeechOutput,
   SchemaDiaTtsInput,
   SchemaDiaTtsOutput,
   SchemaElevenlabsTtsTurboV25Input,
@@ -144,6 +152,10 @@ export type TextToSpeechEndpointMap = {
     input: SchemaKlingVideoV1TtsInput
     output: SchemaKlingVideoV1TtsOutput
   }
+  'fal-ai/chatterbox/text-to-speech/multilingual': {
+    input: SchemaChatterboxTextToSpeechMultilingualInput
+    output: SchemaChatterboxTextToSpeechMultilingualOutput
+  }
   'fal-ai/vibevoice/7b': {
     input: SchemaVibevoice7bInput
     output: SchemaVibevoice7bOutput
@@ -163,6 +175,10 @@ export type TextToSpeechEndpointMap = {
   'fal-ai/minimax/voice-design': {
     input: SchemaMinimaxVoiceDesignInput
     output: SchemaMinimaxVoiceDesignOutput
+  }
+  'resemble-ai/chatterboxhd/text-to-speech': {
+    input: SchemaChatterboxhdTextToSpeechInput
+    output: SchemaChatterboxhdTextToSpeechOutput
   }
   'fal-ai/chatterbox/text-to-speech': {
     input: SchemaChatterboxTextToSpeechInput
@@ -239,6 +255,10 @@ export const TextToSpeechSchemaMap = {
     input: zSchemaKlingVideoV1TtsInput,
     output: zSchemaKlingVideoV1TtsOutput,
   },
+  ['fal-ai/chatterbox/text-to-speech/multilingual']: {
+    input: zSchemaChatterboxTextToSpeechMultilingualInput,
+    output: zSchemaChatterboxTextToSpeechMultilingualOutput,
+  },
   ['fal-ai/vibevoice/7b']: {
     input: zSchemaVibevoice7bInput,
     output: zSchemaVibevoice7bOutput,
@@ -258,6 +278,10 @@ export const TextToSpeechSchemaMap = {
   ['fal-ai/minimax/voice-design']: {
     input: zSchemaMinimaxVoiceDesignInput,
     output: zSchemaMinimaxVoiceDesignOutput,
+  },
+  ['resemble-ai/chatterboxhd/text-to-speech']: {
+    input: zSchemaChatterboxhdTextToSpeechInput,
+    output: zSchemaChatterboxhdTextToSpeechOutput,
   },
   ['fal-ai/chatterbox/text-to-speech']: {
     input: zSchemaChatterboxTextToSpeechInput,

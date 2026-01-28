@@ -2,6 +2,10 @@
 // Generated from types.gen.ts via scripts/generate-fal-endpoint-maps.ts
 
 import {
+  zSchemaAiBabyAndAgingGeneratorMultiInput,
+  zSchemaAiBabyAndAgingGeneratorMultiOutput,
+  zSchemaAiBabyAndAgingGeneratorSingleInput,
+  zSchemaAiBabyAndAgingGeneratorSingleOutput,
   zSchemaAiFaceSwapFaceswapimageInput,
   zSchemaAiFaceSwapFaceswapimageOutput,
   zSchemaAiHomeEditInput,
@@ -47,6 +51,10 @@ import {
   zSchemaChainOfZoomInput,
   zSchemaChainOfZoomOutput,
   zSchemaChronoEditInput,
+  zSchemaChronoEditLoraGalleryPaintbrushInput,
+  zSchemaChronoEditLoraGalleryPaintbrushOutput,
+  zSchemaChronoEditLoraGalleryUpscalerInput,
+  zSchemaChronoEditLoraGalleryUpscalerOutput,
   zSchemaChronoEditLoraInput,
   zSchemaChronoEditLoraOutput,
   zSchemaChronoEditOutput,
@@ -88,8 +96,14 @@ import {
   zSchemaFastLcmDiffusionImageToImageOutput,
   zSchemaFastLcmDiffusionInpaintingInput,
   zSchemaFastLcmDiffusionInpaintingOutput,
+  zSchemaFastLightningSdxlImageToImageInput,
+  zSchemaFastLightningSdxlImageToImageOutput,
   zSchemaFastLightningSdxlInpaintingInput,
   zSchemaFastLightningSdxlInpaintingOutput,
+  zSchemaFastSdxlControlnetCannyImageToImageInput,
+  zSchemaFastSdxlControlnetCannyImageToImageOutput,
+  zSchemaFastSdxlControlnetCannyInpaintingInput,
+  zSchemaFastSdxlControlnetCannyInpaintingOutput,
   zSchemaFastSdxlImageToImageInput,
   zSchemaFastSdxlImageToImageOutput,
   zSchemaFastSdxlInpaintingInput,
@@ -128,10 +142,22 @@ import {
   zSchemaFinegrainEraserMaskInput,
   zSchemaFinegrainEraserMaskOutput,
   zSchemaFinegrainEraserOutput,
+  zSchemaFlorence2LargeCaptionToPhraseGroundingInput,
+  zSchemaFlorence2LargeCaptionToPhraseGroundingOutput,
+  zSchemaFlorence2LargeDenseRegionCaptionInput,
+  zSchemaFlorence2LargeDenseRegionCaptionOutput,
+  zSchemaFlorence2LargeObjectDetectionInput,
+  zSchemaFlorence2LargeObjectDetectionOutput,
   zSchemaFlorence2LargeOcrWithRegionInput,
   zSchemaFlorence2LargeOcrWithRegionOutput,
+  zSchemaFlorence2LargeOpenVocabularyDetectionInput,
+  zSchemaFlorence2LargeOpenVocabularyDetectionOutput,
+  zSchemaFlorence2LargeReferringExpressionSegmentationInput,
+  zSchemaFlorence2LargeReferringExpressionSegmentationOutput,
   zSchemaFlorence2LargeRegionProposalInput,
   zSchemaFlorence2LargeRegionProposalOutput,
+  zSchemaFlorence2LargeRegionToSegmentationInput,
+  zSchemaFlorence2LargeRegionToSegmentationOutput,
   zSchemaFloweditInput,
   zSchemaFloweditOutput,
   zSchemaFlux1DevImageToImageInput,
@@ -166,6 +192,14 @@ import {
   zSchemaFlux2Klein9bEditOutput,
   zSchemaFlux2LoraEditInput,
   zSchemaFlux2LoraEditOutput,
+  zSchemaFlux2LoraGalleryAddBackgroundInput,
+  zSchemaFlux2LoraGalleryAddBackgroundOutput,
+  zSchemaFlux2LoraGalleryApartmentStagingInput,
+  zSchemaFlux2LoraGalleryApartmentStagingOutput,
+  zSchemaFlux2LoraGalleryFaceToFullPortraitInput,
+  zSchemaFlux2LoraGalleryFaceToFullPortraitOutput,
+  zSchemaFlux2LoraGalleryMultipleAnglesInput,
+  zSchemaFlux2LoraGalleryMultipleAnglesOutput,
   zSchemaFlux2LoraGalleryVirtualTryonInput,
   zSchemaFlux2LoraGalleryVirtualTryonOutput,
   zSchemaFlux2MaxEditInput,
@@ -174,12 +208,18 @@ import {
   zSchemaFlux2ProEditOutput,
   zSchemaFlux2TurboEditInput,
   zSchemaFlux2TurboEditOutput,
+  zSchemaFluxControlLoraCannyImageToImageInput,
+  zSchemaFluxControlLoraCannyImageToImageOutput,
+  zSchemaFluxControlLoraDepthImageToImageInput,
+  zSchemaFluxControlLoraDepthImageToImageOutput,
   zSchemaFluxDevImageToImageInput,
   zSchemaFluxDevImageToImageOutput,
   zSchemaFluxDevReduxInput,
   zSchemaFluxDevReduxOutput,
   zSchemaFluxDifferentialDiffusionInput,
   zSchemaFluxDifferentialDiffusionOutput,
+  zSchemaFluxGeneralDifferentialDiffusionInput,
+  zSchemaFluxGeneralDifferentialDiffusionOutput,
   zSchemaFluxGeneralImageToImageInput,
   zSchemaFluxGeneralImageToImageOutput,
   zSchemaFluxGeneralInpaintingInput,
@@ -310,10 +350,14 @@ import {
   zSchemaImageAppsV2PerspectiveOutput,
   zSchemaImageAppsV2PhotoRestorationInput,
   zSchemaImageAppsV2PhotoRestorationOutput,
+  zSchemaImageAppsV2PhotographyEffectsInput,
+  zSchemaImageAppsV2PhotographyEffectsOutput,
   zSchemaImageAppsV2PortraitEnhanceInput,
   zSchemaImageAppsV2PortraitEnhanceOutput,
   zSchemaImageAppsV2ProductHoldingInput,
   zSchemaImageAppsV2ProductHoldingOutput,
+  zSchemaImageAppsV2ProductPhotographyInput,
+  zSchemaImageAppsV2ProductPhotographyOutput,
   zSchemaImageAppsV2RelightingInput,
   zSchemaImageAppsV2RelightingOutput,
   zSchemaImageAppsV2StyleTransferInput,
@@ -346,6 +390,8 @@ import {
   zSchemaImageEditingPhotoRestorationOutput,
   zSchemaImageEditingPlushieStyleInput,
   zSchemaImageEditingPlushieStyleOutput,
+  zSchemaImageEditingProfessionalPhotoInput,
+  zSchemaImageEditingProfessionalPhotoOutput,
   zSchemaImageEditingRealismInput,
   zSchemaImageEditingRealismOutput,
   zSchemaImageEditingReframeInput,
@@ -364,6 +410,10 @@ import {
   zSchemaImageEditingWeatherEffectOutput,
   zSchemaImageEditingWojakStyleInput,
   zSchemaImageEditingWojakStyleOutput,
+  zSchemaImageEditingYoutubeThumbnailsInput,
+  zSchemaImageEditingYoutubeThumbnailsOutput,
+  zSchemaImagePreprocessorsDepthAnythingV2Input,
+  zSchemaImagePreprocessorsDepthAnythingV2Output,
   zSchemaImagePreprocessorsHedInput,
   zSchemaImagePreprocessorsHedOutput,
   zSchemaImagePreprocessorsLineartInput,
@@ -396,6 +446,12 @@ import {
   zSchemaInvisibleWatermarkOutput,
   zSchemaIpAdapterFaceIdInput,
   zSchemaIpAdapterFaceIdOutput,
+  zSchemaJuggernautFluxBaseImageToImageInput,
+  zSchemaJuggernautFluxBaseImageToImageOutput,
+  zSchemaJuggernautFluxLoraInpaintingInput,
+  zSchemaJuggernautFluxLoraInpaintingOutput,
+  zSchemaJuggernautFluxProImageToImageInput,
+  zSchemaJuggernautFluxProImageToImageOutput,
   zSchemaKlingImageO1Input,
   zSchemaKlingImageO1Output,
   zSchemaKlingV15KolorsVirtualTryOnInput,
@@ -426,6 +482,8 @@ import {
   zSchemaLumaPhotonModifyOutput,
   zSchemaLumaPhotonReframeInput,
   zSchemaLumaPhotonReframeOutput,
+  zSchemaMinimaxImage01SubjectReferenceInput,
+  zSchemaMinimaxImage01SubjectReferenceOutput,
   zSchemaMixDehazeNetInput,
   zSchemaMixDehazeNetOutput,
   zSchemaMoondream3PreviewSegmentInput,
@@ -462,6 +520,10 @@ import {
   zSchemaPlushifyOutput,
   zSchemaPostProcessingBlurInput,
   zSchemaPostProcessingBlurOutput,
+  zSchemaPostProcessingChromaticAberrationInput,
+  zSchemaPostProcessingChromaticAberrationOutput,
+  zSchemaPostProcessingColorCorrectionInput,
+  zSchemaPostProcessingColorCorrectionOutput,
   zSchemaPostProcessingColorTintInput,
   zSchemaPostProcessingColorTintOutput,
   zSchemaPostProcessingDesaturateInput,
@@ -485,12 +547,34 @@ import {
   zSchemaPulidInput,
   zSchemaPulidOutput,
   zSchemaQwenImageEdit2509Input,
+  zSchemaQwenImageEdit2509LoraGalleryAddBackgroundInput,
+  zSchemaQwenImageEdit2509LoraGalleryAddBackgroundOutput,
+  zSchemaQwenImageEdit2509LoraGalleryFaceToFullPortraitInput,
+  zSchemaQwenImageEdit2509LoraGalleryFaceToFullPortraitOutput,
+  zSchemaQwenImageEdit2509LoraGalleryGroupPhotoInput,
+  zSchemaQwenImageEdit2509LoraGalleryGroupPhotoOutput,
+  zSchemaQwenImageEdit2509LoraGalleryIntegrateProductInput,
+  zSchemaQwenImageEdit2509LoraGalleryIntegrateProductOutput,
+  zSchemaQwenImageEdit2509LoraGalleryLightingRestorationInput,
+  zSchemaQwenImageEdit2509LoraGalleryLightingRestorationOutput,
+  zSchemaQwenImageEdit2509LoraGalleryMultipleAnglesInput,
+  zSchemaQwenImageEdit2509LoraGalleryMultipleAnglesOutput,
+  zSchemaQwenImageEdit2509LoraGalleryNextSceneInput,
+  zSchemaQwenImageEdit2509LoraGalleryNextSceneOutput,
+  zSchemaQwenImageEdit2509LoraGalleryRemoveElementInput,
+  zSchemaQwenImageEdit2509LoraGalleryRemoveElementOutput,
+  zSchemaQwenImageEdit2509LoraGalleryRemoveLightingInput,
+  zSchemaQwenImageEdit2509LoraGalleryRemoveLightingOutput,
+  zSchemaQwenImageEdit2509LoraGalleryShirtDesignInput,
+  zSchemaQwenImageEdit2509LoraGalleryShirtDesignOutput,
   zSchemaQwenImageEdit2509LoraInput,
   zSchemaQwenImageEdit2509LoraOutput,
   zSchemaQwenImageEdit2509Output,
   zSchemaQwenImageEdit2511Input,
   zSchemaQwenImageEdit2511LoraInput,
   zSchemaQwenImageEdit2511LoraOutput,
+  zSchemaQwenImageEdit2511MultipleAnglesInput,
+  zSchemaQwenImageEdit2511MultipleAnglesOutput,
   zSchemaQwenImageEdit2511Output,
   zSchemaQwenImageEditImageToImageInput,
   zSchemaQwenImageEditImageToImageOutput,
@@ -501,6 +585,26 @@ import {
   zSchemaQwenImageEditLoraOutput,
   zSchemaQwenImageEditOutput,
   zSchemaQwenImageEditPlusInput,
+  zSchemaQwenImageEditPlusLoraGalleryAddBackgroundInput,
+  zSchemaQwenImageEditPlusLoraGalleryAddBackgroundOutput,
+  zSchemaQwenImageEditPlusLoraGalleryFaceToFullPortraitInput,
+  zSchemaQwenImageEditPlusLoraGalleryFaceToFullPortraitOutput,
+  zSchemaQwenImageEditPlusLoraGalleryGroupPhotoInput,
+  zSchemaQwenImageEditPlusLoraGalleryGroupPhotoOutput,
+  zSchemaQwenImageEditPlusLoraGalleryIntegrateProductInput,
+  zSchemaQwenImageEditPlusLoraGalleryIntegrateProductOutput,
+  zSchemaQwenImageEditPlusLoraGalleryLightingRestorationInput,
+  zSchemaQwenImageEditPlusLoraGalleryLightingRestorationOutput,
+  zSchemaQwenImageEditPlusLoraGalleryMultipleAnglesInput,
+  zSchemaQwenImageEditPlusLoraGalleryMultipleAnglesOutput,
+  zSchemaQwenImageEditPlusLoraGalleryNextSceneInput,
+  zSchemaQwenImageEditPlusLoraGalleryNextSceneOutput,
+  zSchemaQwenImageEditPlusLoraGalleryRemoveElementInput,
+  zSchemaQwenImageEditPlusLoraGalleryRemoveElementOutput,
+  zSchemaQwenImageEditPlusLoraGalleryRemoveLightingInput,
+  zSchemaQwenImageEditPlusLoraGalleryRemoveLightingOutput,
+  zSchemaQwenImageEditPlusLoraGalleryShirtDesignInput,
+  zSchemaQwenImageEditPlusLoraGalleryShirtDesignOutput,
   zSchemaQwenImageEditPlusLoraInput,
   zSchemaQwenImageEditPlusLoraOutput,
   zSchemaQwenImageEditPlusOutput,
@@ -546,8 +650,14 @@ import {
   zSchemaSam3ImageRleOutput,
   zSchemaSd15DepthControlnetInput,
   zSchemaSd15DepthControlnetOutput,
+  zSchemaSdxlControlnetUnionImageToImageInput,
+  zSchemaSdxlControlnetUnionImageToImageOutput,
+  zSchemaSdxlControlnetUnionInpaintingInput,
+  zSchemaSdxlControlnetUnionInpaintingOutput,
   zSchemaSeedvrUpscaleImageInput,
   zSchemaSeedvrUpscaleImageOutput,
+  zSchemaStableDiffusionV3MediumImageToImageInput,
+  zSchemaStableDiffusionV3MediumImageToImageOutput,
   zSchemaStarVectorInput,
   zSchemaStarVectorOutput,
   zSchemaStep1xEditInput,
@@ -589,6 +699,10 @@ import {
 } from './zod.gen'
 
 import type {
+  SchemaAiBabyAndAgingGeneratorMultiInput,
+  SchemaAiBabyAndAgingGeneratorMultiOutput,
+  SchemaAiBabyAndAgingGeneratorSingleInput,
+  SchemaAiBabyAndAgingGeneratorSingleOutput,
   SchemaAiFaceSwapFaceswapimageInput,
   SchemaAiFaceSwapFaceswapimageOutput,
   SchemaAiHomeEditInput,
@@ -634,6 +748,10 @@ import type {
   SchemaChainOfZoomInput,
   SchemaChainOfZoomOutput,
   SchemaChronoEditInput,
+  SchemaChronoEditLoraGalleryPaintbrushInput,
+  SchemaChronoEditLoraGalleryPaintbrushOutput,
+  SchemaChronoEditLoraGalleryUpscalerInput,
+  SchemaChronoEditLoraGalleryUpscalerOutput,
   SchemaChronoEditLoraInput,
   SchemaChronoEditLoraOutput,
   SchemaChronoEditOutput,
@@ -675,8 +793,14 @@ import type {
   SchemaFastLcmDiffusionImageToImageOutput,
   SchemaFastLcmDiffusionInpaintingInput,
   SchemaFastLcmDiffusionInpaintingOutput,
+  SchemaFastLightningSdxlImageToImageInput,
+  SchemaFastLightningSdxlImageToImageOutput,
   SchemaFastLightningSdxlInpaintingInput,
   SchemaFastLightningSdxlInpaintingOutput,
+  SchemaFastSdxlControlnetCannyImageToImageInput,
+  SchemaFastSdxlControlnetCannyImageToImageOutput,
+  SchemaFastSdxlControlnetCannyInpaintingInput,
+  SchemaFastSdxlControlnetCannyInpaintingOutput,
   SchemaFastSdxlImageToImageInput,
   SchemaFastSdxlImageToImageOutput,
   SchemaFastSdxlInpaintingInput,
@@ -715,10 +839,22 @@ import type {
   SchemaFinegrainEraserMaskInput,
   SchemaFinegrainEraserMaskOutput,
   SchemaFinegrainEraserOutput,
+  SchemaFlorence2LargeCaptionToPhraseGroundingInput,
+  SchemaFlorence2LargeCaptionToPhraseGroundingOutput,
+  SchemaFlorence2LargeDenseRegionCaptionInput,
+  SchemaFlorence2LargeDenseRegionCaptionOutput,
+  SchemaFlorence2LargeObjectDetectionInput,
+  SchemaFlorence2LargeObjectDetectionOutput,
   SchemaFlorence2LargeOcrWithRegionInput,
   SchemaFlorence2LargeOcrWithRegionOutput,
+  SchemaFlorence2LargeOpenVocabularyDetectionInput,
+  SchemaFlorence2LargeOpenVocabularyDetectionOutput,
+  SchemaFlorence2LargeReferringExpressionSegmentationInput,
+  SchemaFlorence2LargeReferringExpressionSegmentationOutput,
   SchemaFlorence2LargeRegionProposalInput,
   SchemaFlorence2LargeRegionProposalOutput,
+  SchemaFlorence2LargeRegionToSegmentationInput,
+  SchemaFlorence2LargeRegionToSegmentationOutput,
   SchemaFloweditInput,
   SchemaFloweditOutput,
   SchemaFlux1DevImageToImageInput,
@@ -753,6 +889,14 @@ import type {
   SchemaFlux2Klein9bEditOutput,
   SchemaFlux2LoraEditInput,
   SchemaFlux2LoraEditOutput,
+  SchemaFlux2LoraGalleryAddBackgroundInput,
+  SchemaFlux2LoraGalleryAddBackgroundOutput,
+  SchemaFlux2LoraGalleryApartmentStagingInput,
+  SchemaFlux2LoraGalleryApartmentStagingOutput,
+  SchemaFlux2LoraGalleryFaceToFullPortraitInput,
+  SchemaFlux2LoraGalleryFaceToFullPortraitOutput,
+  SchemaFlux2LoraGalleryMultipleAnglesInput,
+  SchemaFlux2LoraGalleryMultipleAnglesOutput,
   SchemaFlux2LoraGalleryVirtualTryonInput,
   SchemaFlux2LoraGalleryVirtualTryonOutput,
   SchemaFlux2MaxEditInput,
@@ -761,12 +905,18 @@ import type {
   SchemaFlux2ProEditOutput,
   SchemaFlux2TurboEditInput,
   SchemaFlux2TurboEditOutput,
+  SchemaFluxControlLoraCannyImageToImageInput,
+  SchemaFluxControlLoraCannyImageToImageOutput,
+  SchemaFluxControlLoraDepthImageToImageInput,
+  SchemaFluxControlLoraDepthImageToImageOutput,
   SchemaFluxDevImageToImageInput,
   SchemaFluxDevImageToImageOutput,
   SchemaFluxDevReduxInput,
   SchemaFluxDevReduxOutput,
   SchemaFluxDifferentialDiffusionInput,
   SchemaFluxDifferentialDiffusionOutput,
+  SchemaFluxGeneralDifferentialDiffusionInput,
+  SchemaFluxGeneralDifferentialDiffusionOutput,
   SchemaFluxGeneralImageToImageInput,
   SchemaFluxGeneralImageToImageOutput,
   SchemaFluxGeneralInpaintingInput,
@@ -897,10 +1047,14 @@ import type {
   SchemaImageAppsV2PerspectiveOutput,
   SchemaImageAppsV2PhotoRestorationInput,
   SchemaImageAppsV2PhotoRestorationOutput,
+  SchemaImageAppsV2PhotographyEffectsInput,
+  SchemaImageAppsV2PhotographyEffectsOutput,
   SchemaImageAppsV2PortraitEnhanceInput,
   SchemaImageAppsV2PortraitEnhanceOutput,
   SchemaImageAppsV2ProductHoldingInput,
   SchemaImageAppsV2ProductHoldingOutput,
+  SchemaImageAppsV2ProductPhotographyInput,
+  SchemaImageAppsV2ProductPhotographyOutput,
   SchemaImageAppsV2RelightingInput,
   SchemaImageAppsV2RelightingOutput,
   SchemaImageAppsV2StyleTransferInput,
@@ -933,6 +1087,8 @@ import type {
   SchemaImageEditingPhotoRestorationOutput,
   SchemaImageEditingPlushieStyleInput,
   SchemaImageEditingPlushieStyleOutput,
+  SchemaImageEditingProfessionalPhotoInput,
+  SchemaImageEditingProfessionalPhotoOutput,
   SchemaImageEditingRealismInput,
   SchemaImageEditingRealismOutput,
   SchemaImageEditingReframeInput,
@@ -951,6 +1107,10 @@ import type {
   SchemaImageEditingWeatherEffectOutput,
   SchemaImageEditingWojakStyleInput,
   SchemaImageEditingWojakStyleOutput,
+  SchemaImageEditingYoutubeThumbnailsInput,
+  SchemaImageEditingYoutubeThumbnailsOutput,
+  SchemaImagePreprocessorsDepthAnythingV2Input,
+  SchemaImagePreprocessorsDepthAnythingV2Output,
   SchemaImagePreprocessorsHedInput,
   SchemaImagePreprocessorsHedOutput,
   SchemaImagePreprocessorsLineartInput,
@@ -983,6 +1143,12 @@ import type {
   SchemaInvisibleWatermarkOutput,
   SchemaIpAdapterFaceIdInput,
   SchemaIpAdapterFaceIdOutput,
+  SchemaJuggernautFluxBaseImageToImageInput,
+  SchemaJuggernautFluxBaseImageToImageOutput,
+  SchemaJuggernautFluxLoraInpaintingInput,
+  SchemaJuggernautFluxLoraInpaintingOutput,
+  SchemaJuggernautFluxProImageToImageInput,
+  SchemaJuggernautFluxProImageToImageOutput,
   SchemaKlingImageO1Input,
   SchemaKlingImageO1Output,
   SchemaKlingV15KolorsVirtualTryOnInput,
@@ -1013,6 +1179,8 @@ import type {
   SchemaLumaPhotonModifyOutput,
   SchemaLumaPhotonReframeInput,
   SchemaLumaPhotonReframeOutput,
+  SchemaMinimaxImage01SubjectReferenceInput,
+  SchemaMinimaxImage01SubjectReferenceOutput,
   SchemaMixDehazeNetInput,
   SchemaMixDehazeNetOutput,
   SchemaMoondream3PreviewSegmentInput,
@@ -1049,6 +1217,10 @@ import type {
   SchemaPlushifyOutput,
   SchemaPostProcessingBlurInput,
   SchemaPostProcessingBlurOutput,
+  SchemaPostProcessingChromaticAberrationInput,
+  SchemaPostProcessingChromaticAberrationOutput,
+  SchemaPostProcessingColorCorrectionInput,
+  SchemaPostProcessingColorCorrectionOutput,
   SchemaPostProcessingColorTintInput,
   SchemaPostProcessingColorTintOutput,
   SchemaPostProcessingDesaturateInput,
@@ -1072,12 +1244,34 @@ import type {
   SchemaPulidInput,
   SchemaPulidOutput,
   SchemaQwenImageEdit2509Input,
+  SchemaQwenImageEdit2509LoraGalleryAddBackgroundInput,
+  SchemaQwenImageEdit2509LoraGalleryAddBackgroundOutput,
+  SchemaQwenImageEdit2509LoraGalleryFaceToFullPortraitInput,
+  SchemaQwenImageEdit2509LoraGalleryFaceToFullPortraitOutput,
+  SchemaQwenImageEdit2509LoraGalleryGroupPhotoInput,
+  SchemaQwenImageEdit2509LoraGalleryGroupPhotoOutput,
+  SchemaQwenImageEdit2509LoraGalleryIntegrateProductInput,
+  SchemaQwenImageEdit2509LoraGalleryIntegrateProductOutput,
+  SchemaQwenImageEdit2509LoraGalleryLightingRestorationInput,
+  SchemaQwenImageEdit2509LoraGalleryLightingRestorationOutput,
+  SchemaQwenImageEdit2509LoraGalleryMultipleAnglesInput,
+  SchemaQwenImageEdit2509LoraGalleryMultipleAnglesOutput,
+  SchemaQwenImageEdit2509LoraGalleryNextSceneInput,
+  SchemaQwenImageEdit2509LoraGalleryNextSceneOutput,
+  SchemaQwenImageEdit2509LoraGalleryRemoveElementInput,
+  SchemaQwenImageEdit2509LoraGalleryRemoveElementOutput,
+  SchemaQwenImageEdit2509LoraGalleryRemoveLightingInput,
+  SchemaQwenImageEdit2509LoraGalleryRemoveLightingOutput,
+  SchemaQwenImageEdit2509LoraGalleryShirtDesignInput,
+  SchemaQwenImageEdit2509LoraGalleryShirtDesignOutput,
   SchemaQwenImageEdit2509LoraInput,
   SchemaQwenImageEdit2509LoraOutput,
   SchemaQwenImageEdit2509Output,
   SchemaQwenImageEdit2511Input,
   SchemaQwenImageEdit2511LoraInput,
   SchemaQwenImageEdit2511LoraOutput,
+  SchemaQwenImageEdit2511MultipleAnglesInput,
+  SchemaQwenImageEdit2511MultipleAnglesOutput,
   SchemaQwenImageEdit2511Output,
   SchemaQwenImageEditImageToImageInput,
   SchemaQwenImageEditImageToImageOutput,
@@ -1088,6 +1282,26 @@ import type {
   SchemaQwenImageEditLoraOutput,
   SchemaQwenImageEditOutput,
   SchemaQwenImageEditPlusInput,
+  SchemaQwenImageEditPlusLoraGalleryAddBackgroundInput,
+  SchemaQwenImageEditPlusLoraGalleryAddBackgroundOutput,
+  SchemaQwenImageEditPlusLoraGalleryFaceToFullPortraitInput,
+  SchemaQwenImageEditPlusLoraGalleryFaceToFullPortraitOutput,
+  SchemaQwenImageEditPlusLoraGalleryGroupPhotoInput,
+  SchemaQwenImageEditPlusLoraGalleryGroupPhotoOutput,
+  SchemaQwenImageEditPlusLoraGalleryIntegrateProductInput,
+  SchemaQwenImageEditPlusLoraGalleryIntegrateProductOutput,
+  SchemaQwenImageEditPlusLoraGalleryLightingRestorationInput,
+  SchemaQwenImageEditPlusLoraGalleryLightingRestorationOutput,
+  SchemaQwenImageEditPlusLoraGalleryMultipleAnglesInput,
+  SchemaQwenImageEditPlusLoraGalleryMultipleAnglesOutput,
+  SchemaQwenImageEditPlusLoraGalleryNextSceneInput,
+  SchemaQwenImageEditPlusLoraGalleryNextSceneOutput,
+  SchemaQwenImageEditPlusLoraGalleryRemoveElementInput,
+  SchemaQwenImageEditPlusLoraGalleryRemoveElementOutput,
+  SchemaQwenImageEditPlusLoraGalleryRemoveLightingInput,
+  SchemaQwenImageEditPlusLoraGalleryRemoveLightingOutput,
+  SchemaQwenImageEditPlusLoraGalleryShirtDesignInput,
+  SchemaQwenImageEditPlusLoraGalleryShirtDesignOutput,
   SchemaQwenImageEditPlusLoraInput,
   SchemaQwenImageEditPlusLoraOutput,
   SchemaQwenImageEditPlusOutput,
@@ -1133,8 +1347,14 @@ import type {
   SchemaSam3ImageRleOutput,
   SchemaSd15DepthControlnetInput,
   SchemaSd15DepthControlnetOutput,
+  SchemaSdxlControlnetUnionImageToImageInput,
+  SchemaSdxlControlnetUnionImageToImageOutput,
+  SchemaSdxlControlnetUnionInpaintingInput,
+  SchemaSdxlControlnetUnionInpaintingOutput,
   SchemaSeedvrUpscaleImageInput,
   SchemaSeedvrUpscaleImageOutput,
+  SchemaStableDiffusionV3MediumImageToImageInput,
+  SchemaStableDiffusionV3MediumImageToImageOutput,
   SchemaStarVectorInput,
   SchemaStarVectorOutput,
   SchemaStep1xEditInput,
@@ -1288,6 +1508,10 @@ export type ImageToImageEndpointMap = {
     input: SchemaGlmImageImageToImageInput
     output: SchemaGlmImageImageToImageOutput
   }
+  'fal-ai/qwen-image-edit-2511-multiple-angles': {
+    input: SchemaQwenImageEdit2511MultipleAnglesInput
+    output: SchemaQwenImageEdit2511MultipleAnglesOutput
+  }
   'fal-ai/qwen-image-edit-2511/lora': {
     input: SchemaQwenImageEdit2511LoraInput
     output: SchemaQwenImageEdit2511LoraOutput
@@ -1340,6 +1564,54 @@ export type ImageToImageEndpointMap = {
     input: SchemaFlux2MaxEditInput
     output: SchemaFlux2MaxEditOutput
   }
+  'half-moon-ai/ai-baby-and-aging-generator/multi': {
+    input: SchemaAiBabyAndAgingGeneratorMultiInput
+    output: SchemaAiBabyAndAgingGeneratorMultiOutput
+  }
+  'half-moon-ai/ai-baby-and-aging-generator/single': {
+    input: SchemaAiBabyAndAgingGeneratorSingleInput
+    output: SchemaAiBabyAndAgingGeneratorSingleOutput
+  }
+  'fal-ai/qwen-image-edit-2509-lora-gallery/shirt-design': {
+    input: SchemaQwenImageEdit2509LoraGalleryShirtDesignInput
+    output: SchemaQwenImageEdit2509LoraGalleryShirtDesignOutput
+  }
+  'fal-ai/qwen-image-edit-2509-lora-gallery/remove-lighting': {
+    input: SchemaQwenImageEdit2509LoraGalleryRemoveLightingInput
+    output: SchemaQwenImageEdit2509LoraGalleryRemoveLightingOutput
+  }
+  'fal-ai/qwen-image-edit-2509-lora-gallery/remove-element': {
+    input: SchemaQwenImageEdit2509LoraGalleryRemoveElementInput
+    output: SchemaQwenImageEdit2509LoraGalleryRemoveElementOutput
+  }
+  'fal-ai/qwen-image-edit-2509-lora-gallery/lighting-restoration': {
+    input: SchemaQwenImageEdit2509LoraGalleryLightingRestorationInput
+    output: SchemaQwenImageEdit2509LoraGalleryLightingRestorationOutput
+  }
+  'fal-ai/qwen-image-edit-2509-lora-gallery/integrate-product': {
+    input: SchemaQwenImageEdit2509LoraGalleryIntegrateProductInput
+    output: SchemaQwenImageEdit2509LoraGalleryIntegrateProductOutput
+  }
+  'fal-ai/qwen-image-edit-2509-lora-gallery/group-photo': {
+    input: SchemaQwenImageEdit2509LoraGalleryGroupPhotoInput
+    output: SchemaQwenImageEdit2509LoraGalleryGroupPhotoOutput
+  }
+  'fal-ai/qwen-image-edit-2509-lora-gallery/face-to-full-portrait': {
+    input: SchemaQwenImageEdit2509LoraGalleryFaceToFullPortraitInput
+    output: SchemaQwenImageEdit2509LoraGalleryFaceToFullPortraitOutput
+  }
+  'fal-ai/qwen-image-edit-2509-lora-gallery/add-background': {
+    input: SchemaQwenImageEdit2509LoraGalleryAddBackgroundInput
+    output: SchemaQwenImageEdit2509LoraGalleryAddBackgroundOutput
+  }
+  'fal-ai/qwen-image-edit-2509-lora-gallery/next-scene': {
+    input: SchemaQwenImageEdit2509LoraGalleryNextSceneInput
+    output: SchemaQwenImageEdit2509LoraGalleryNextSceneOutput
+  }
+  'fal-ai/qwen-image-edit-2509-lora-gallery/multiple-angles': {
+    input: SchemaQwenImageEdit2509LoraGalleryMultipleAnglesInput
+    output: SchemaQwenImageEdit2509LoraGalleryMultipleAnglesOutput
+  }
   'fal-ai/qwen-image-edit-2509-lora': {
     input: SchemaQwenImageEdit2509LoraInput
     output: SchemaQwenImageEdit2509LoraOutput
@@ -1347,6 +1619,10 @@ export type ImageToImageEndpointMap = {
   'fal-ai/qwen-image-edit-2509': {
     input: SchemaQwenImageEdit2509Input
     output: SchemaQwenImageEdit2509Output
+  }
+  'fal-ai/qwen-image-edit-plus-lora-gallery/lighting-restoration': {
+    input: SchemaQwenImageEditPlusLoraGalleryLightingRestorationInput
+    output: SchemaQwenImageEditPlusLoraGalleryLightingRestorationOutput
   }
   'fal-ai/moondream3-preview/segment': {
     input: SchemaMoondream3PreviewSegmentInput
@@ -1392,6 +1668,22 @@ export type ImageToImageEndpointMap = {
     input: SchemaFlux2LoraGalleryVirtualTryonInput
     output: SchemaFlux2LoraGalleryVirtualTryonOutput
   }
+  'fal-ai/flux-2-lora-gallery/multiple-angles': {
+    input: SchemaFlux2LoraGalleryMultipleAnglesInput
+    output: SchemaFlux2LoraGalleryMultipleAnglesOutput
+  }
+  'fal-ai/flux-2-lora-gallery/face-to-full-portrait': {
+    input: SchemaFlux2LoraGalleryFaceToFullPortraitInput
+    output: SchemaFlux2LoraGalleryFaceToFullPortraitOutput
+  }
+  'fal-ai/flux-2-lora-gallery/apartment-staging': {
+    input: SchemaFlux2LoraGalleryApartmentStagingInput
+    output: SchemaFlux2LoraGalleryApartmentStagingOutput
+  }
+  'fal-ai/flux-2-lora-gallery/add-background': {
+    input: SchemaFlux2LoraGalleryAddBackgroundInput
+    output: SchemaFlux2LoraGalleryAddBackgroundOutput
+  }
   'clarityai/crystal-upscaler': {
     input: SchemaCrystalUpscalerInput
     output: SchemaCrystalUpscalerOutput
@@ -1403,6 +1695,14 @@ export type ImageToImageEndpointMap = {
   'fal-ai/chrono-edit-lora': {
     input: SchemaChronoEditLoraInput
     output: SchemaChronoEditLoraOutput
+  }
+  'fal-ai/chrono-edit-lora-gallery/paintbrush': {
+    input: SchemaChronoEditLoraGalleryPaintbrushInput
+    output: SchemaChronoEditLoraGalleryPaintbrushOutput
+  }
+  'fal-ai/chrono-edit-lora-gallery/upscaler': {
+    input: SchemaChronoEditLoraGalleryUpscalerInput
+    output: SchemaChronoEditLoraGalleryUpscalerOutput
   }
   'fal-ai/sam-3/image-rle': {
     input: SchemaSam3ImageRleInput
@@ -1419,6 +1719,42 @@ export type ImageToImageEndpointMap = {
   'fal-ai/nano-banana-pro/edit': {
     input: SchemaNanoBananaProEditInput
     output: SchemaNanoBananaProEditOutput
+  }
+  'fal-ai/qwen-image-edit-plus-lora-gallery/multiple-angles': {
+    input: SchemaQwenImageEditPlusLoraGalleryMultipleAnglesInput
+    output: SchemaQwenImageEditPlusLoraGalleryMultipleAnglesOutput
+  }
+  'fal-ai/qwen-image-edit-plus-lora-gallery/shirt-design': {
+    input: SchemaQwenImageEditPlusLoraGalleryShirtDesignInput
+    output: SchemaQwenImageEditPlusLoraGalleryShirtDesignOutput
+  }
+  'fal-ai/qwen-image-edit-plus-lora-gallery/remove-lighting': {
+    input: SchemaQwenImageEditPlusLoraGalleryRemoveLightingInput
+    output: SchemaQwenImageEditPlusLoraGalleryRemoveLightingOutput
+  }
+  'fal-ai/qwen-image-edit-plus-lora-gallery/remove-element': {
+    input: SchemaQwenImageEditPlusLoraGalleryRemoveElementInput
+    output: SchemaQwenImageEditPlusLoraGalleryRemoveElementOutput
+  }
+  'fal-ai/qwen-image-edit-plus-lora-gallery/next-scene': {
+    input: SchemaQwenImageEditPlusLoraGalleryNextSceneInput
+    output: SchemaQwenImageEditPlusLoraGalleryNextSceneOutput
+  }
+  'fal-ai/qwen-image-edit-plus-lora-gallery/integrate-product': {
+    input: SchemaQwenImageEditPlusLoraGalleryIntegrateProductInput
+    output: SchemaQwenImageEditPlusLoraGalleryIntegrateProductOutput
+  }
+  'fal-ai/qwen-image-edit-plus-lora-gallery/group-photo': {
+    input: SchemaQwenImageEditPlusLoraGalleryGroupPhotoInput
+    output: SchemaQwenImageEditPlusLoraGalleryGroupPhotoOutput
+  }
+  'fal-ai/qwen-image-edit-plus-lora-gallery/face-to-full-portrait': {
+    input: SchemaQwenImageEditPlusLoraGalleryFaceToFullPortraitInput
+    output: SchemaQwenImageEditPlusLoraGalleryFaceToFullPortraitOutput
+  }
+  'fal-ai/qwen-image-edit-plus-lora-gallery/add-background': {
+    input: SchemaQwenImageEditPlusLoraGalleryAddBackgroundInput
+    output: SchemaQwenImageEditPlusLoraGalleryAddBackgroundOutput
   }
   'fal-ai/reve/fast/remix': {
     input: SchemaReveFastRemixInput
@@ -1492,6 +1828,10 @@ export type ImageToImageEndpointMap = {
     input: SchemaImageAppsV2ProductHoldingInput
     output: SchemaImageAppsV2ProductHoldingOutput
   }
+  'fal-ai/image-apps-v2/product-photography': {
+    input: SchemaImageAppsV2ProductPhotographyInput
+    output: SchemaImageAppsV2ProductPhotographyOutput
+  }
   'fal-ai/image-apps-v2/virtual-try-on': {
     input: SchemaImageAppsV2VirtualTryOnInput
     output: SchemaImageAppsV2VirtualTryOnOutput
@@ -1515,6 +1855,10 @@ export type ImageToImageEndpointMap = {
   'fal-ai/image-apps-v2/portrait-enhance': {
     input: SchemaImageAppsV2PortraitEnhanceInput
     output: SchemaImageAppsV2PortraitEnhanceOutput
+  }
+  'fal-ai/image-apps-v2/photography-effects': {
+    input: SchemaImageAppsV2PhotographyEffectsInput
+    output: SchemaImageAppsV2PhotographyEffectsOutput
   }
   'fal-ai/image-apps-v2/perspective': {
     input: SchemaImageAppsV2PerspectiveInput
@@ -1712,9 +2056,21 @@ export type ImageToImageEndpointMap = {
     input: SchemaPostProcessingColorTintInput
     output: SchemaPostProcessingColorTintOutput
   }
+  'fal-ai/post-processing/color-correction': {
+    input: SchemaPostProcessingColorCorrectionInput
+    output: SchemaPostProcessingColorCorrectionOutput
+  }
+  'fal-ai/post-processing/chromatic-aberration': {
+    input: SchemaPostProcessingChromaticAberrationInput
+    output: SchemaPostProcessingChromaticAberrationOutput
+  }
   'fal-ai/post-processing/blur': {
     input: SchemaPostProcessingBlurInput
     output: SchemaPostProcessingBlurOutput
+  }
+  'fal-ai/image-editing/youtube-thumbnails': {
+    input: SchemaImageEditingYoutubeThumbnailsInput
+    output: SchemaImageEditingYoutubeThumbnailsOutput
   }
   'fal-ai/topaz/upscale/image': {
     input: SchemaTopazUpscaleImageInput
@@ -1828,6 +2184,10 @@ export type ImageToImageEndpointMap = {
     input: SchemaImageEditingSceneCompositionInput
     output: SchemaImageEditingSceneCompositionOutput
   }
+  'fal-ai/image-editing/professional-photo': {
+    input: SchemaImageEditingProfessionalPhotoInput
+    output: SchemaImageEditingProfessionalPhotoOutput
+  }
   'fal-ai/image-editing/object-removal': {
     input: SchemaImageEditingObjectRemovalInput
     output: SchemaImageEditingObjectRemovalOutput
@@ -1896,6 +2256,10 @@ export type ImageToImageEndpointMap = {
     input: SchemaRecraftV3ImageToImageInput
     output: SchemaRecraftV3ImageToImageOutput
   }
+  'fal-ai/minimax/image-01/subject-reference': {
+    input: SchemaMinimaxImage01SubjectReferenceInput
+    output: SchemaMinimaxImage01SubjectReferenceOutput
+  }
   'fal-ai/hidream-i1-full/image-to-image': {
     input: SchemaHidreamI1FullImageToImageInput
     output: SchemaHidreamI1FullImageToImageOutput
@@ -1931,6 +2295,10 @@ export type ImageToImageEndpointMap = {
   'fal-ai/gpt-image-1/edit-image': {
     input: SchemaGptImage1EditImageInput
     output: SchemaGptImage1EditImageOutput
+  }
+  'rundiffusion-fal/juggernaut-flux-lora/inpainting': {
+    input: SchemaJuggernautFluxLoraInpaintingInput
+    output: SchemaJuggernautFluxLoraInpaintingOutput
   }
   'fal-ai/fashn/tryon/v1.5': {
     input: SchemaFashnTryonV15Input
@@ -1988,6 +2356,14 @@ export type ImageToImageEndpointMap = {
     input: SchemaInvisibleWatermarkInput
     output: SchemaInvisibleWatermarkOutput
   }
+  'rundiffusion-fal/juggernaut-flux/pro/image-to-image': {
+    input: SchemaJuggernautFluxProImageToImageInput
+    output: SchemaJuggernautFluxProImageToImageOutput
+  }
+  'rundiffusion-fal/juggernaut-flux/base/image-to-image': {
+    input: SchemaJuggernautFluxBaseImageToImageInput
+    output: SchemaJuggernautFluxBaseImageToImageOutput
+  }
   'fal-ai/docres/dewarp': {
     input: SchemaDocresDewarpInput
     output: SchemaDocresDewarpOutput
@@ -2040,9 +2416,17 @@ export type ImageToImageEndpointMap = {
     input: SchemaFloweditInput
     output: SchemaFloweditOutput
   }
+  'fal-ai/flux-control-lora-depth/image-to-image': {
+    input: SchemaFluxControlLoraDepthImageToImageInput
+    output: SchemaFluxControlLoraDepthImageToImageOutput
+  }
   'fal-ai/ben/v2/image': {
     input: SchemaBenV2ImageInput
     output: SchemaBenV2ImageOutput
+  }
+  'fal-ai/flux-control-lora-canny/image-to-image': {
+    input: SchemaFluxControlLoraCannyImageToImageInput
+    output: SchemaFluxControlLoraCannyImageToImageOutput
   }
   'fal-ai/ideogram/upscale': {
     input: SchemaIdeogramUpscaleInput
@@ -2180,6 +2564,10 @@ export type ImageToImageEndpointMap = {
     input: SchemaImagePreprocessorsHedInput
     output: SchemaImagePreprocessorsHedOutput
   }
+  'fal-ai/image-preprocessors/depth-anything/v2': {
+    input: SchemaImagePreprocessorsDepthAnythingV2Input
+    output: SchemaImagePreprocessorsDepthAnythingV2Output
+  }
   'fal-ai/image-preprocessors/scribble': {
     input: SchemaImagePreprocessorsScribbleInput
     output: SchemaImagePreprocessorsScribbleOutput
@@ -2224,13 +2612,45 @@ export type ImageToImageEndpointMap = {
     input: SchemaFluxGeneralInpaintingInput
     output: SchemaFluxGeneralInpaintingOutput
   }
+  'fal-ai/flux-general/differential-diffusion': {
+    input: SchemaFluxGeneralDifferentialDiffusionInput
+    output: SchemaFluxGeneralDifferentialDiffusionOutput
+  }
   'fal-ai/flux-lora/image-to-image': {
     input: SchemaFluxLoraImageToImageInput
     output: SchemaFluxLoraImageToImageOutput
   }
+  'fal-ai/sdxl-controlnet-union/inpainting': {
+    input: SchemaSdxlControlnetUnionInpaintingInput
+    output: SchemaSdxlControlnetUnionInpaintingOutput
+  }
+  'fal-ai/sdxl-controlnet-union/image-to-image': {
+    input: SchemaSdxlControlnetUnionImageToImageInput
+    output: SchemaSdxlControlnetUnionImageToImageOutput
+  }
   'fal-ai/era-3d': {
     input: SchemaEra3dInput
     output: SchemaEra3dOutput
+  }
+  'fal-ai/florence-2-large/dense-region-caption': {
+    input: SchemaFlorence2LargeDenseRegionCaptionInput
+    output: SchemaFlorence2LargeDenseRegionCaptionOutput
+  }
+  'fal-ai/florence-2-large/referring-expression-segmentation': {
+    input: SchemaFlorence2LargeReferringExpressionSegmentationInput
+    output: SchemaFlorence2LargeReferringExpressionSegmentationOutput
+  }
+  'fal-ai/florence-2-large/object-detection': {
+    input: SchemaFlorence2LargeObjectDetectionInput
+    output: SchemaFlorence2LargeObjectDetectionOutput
+  }
+  'fal-ai/florence-2-large/open-vocabulary-detection': {
+    input: SchemaFlorence2LargeOpenVocabularyDetectionInput
+    output: SchemaFlorence2LargeOpenVocabularyDetectionOutput
+  }
+  'fal-ai/florence-2-large/caption-to-phrase-grounding': {
+    input: SchemaFlorence2LargeCaptionToPhraseGroundingInput
+    output: SchemaFlorence2LargeCaptionToPhraseGroundingOutput
   }
   'fal-ai/florence-2-large/region-proposal': {
     input: SchemaFlorence2LargeRegionProposalInput
@@ -2239,6 +2659,14 @@ export type ImageToImageEndpointMap = {
   'fal-ai/florence-2-large/ocr-with-region': {
     input: SchemaFlorence2LargeOcrWithRegionInput
     output: SchemaFlorence2LargeOcrWithRegionOutput
+  }
+  'fal-ai/florence-2-large/region-to-segmentation': {
+    input: SchemaFlorence2LargeRegionToSegmentationInput
+    output: SchemaFlorence2LargeRegionToSegmentationOutput
+  }
+  'fal-ai/stable-diffusion-v3-medium/image-to-image': {
+    input: SchemaStableDiffusionV3MediumImageToImageInput
+    output: SchemaStableDiffusionV3MediumImageToImageOutput
   }
   'fal-ai/dwpose': {
     input: SchemaDwposeInput
@@ -2296,6 +2724,10 @@ export type ImageToImageEndpointMap = {
     input: SchemaPlaygroundV25ImageToImageInput
     output: SchemaPlaygroundV25ImageToImageOutput
   }
+  'fal-ai/fast-lightning-sdxl/image-to-image': {
+    input: SchemaFastLightningSdxlImageToImageInput
+    output: SchemaFastLightningSdxlImageToImageOutput
+  }
   'fal-ai/fast-lightning-sdxl/inpainting': {
     input: SchemaFastLightningSdxlInpaintingInput
     output: SchemaFastLightningSdxlInpaintingOutput
@@ -2327,6 +2759,14 @@ export type ImageToImageEndpointMap = {
   'fal-ai/pulid': {
     input: SchemaPulidInput
     output: SchemaPulidOutput
+  }
+  'fal-ai/fast-sdxl-controlnet-canny/image-to-image': {
+    input: SchemaFastSdxlControlnetCannyImageToImageInput
+    output: SchemaFastSdxlControlnetCannyImageToImageOutput
+  }
+  'fal-ai/fast-sdxl-controlnet-canny/inpainting': {
+    input: SchemaFastSdxlControlnetCannyInpaintingInput
+    output: SchemaFastSdxlControlnetCannyInpaintingOutput
   }
   'fal-ai/lcm-sd15-i2i': {
     input: SchemaLcmSd15I2iInput
@@ -2459,6 +2899,10 @@ export const ImageToImageSchemaMap = {
     input: zSchemaGlmImageImageToImageInput,
     output: zSchemaGlmImageImageToImageOutput,
   },
+  ['fal-ai/qwen-image-edit-2511-multiple-angles']: {
+    input: zSchemaQwenImageEdit2511MultipleAnglesInput,
+    output: zSchemaQwenImageEdit2511MultipleAnglesOutput,
+  },
   ['fal-ai/qwen-image-edit-2511/lora']: {
     input: zSchemaQwenImageEdit2511LoraInput,
     output: zSchemaQwenImageEdit2511LoraOutput,
@@ -2511,6 +2955,54 @@ export const ImageToImageSchemaMap = {
     input: zSchemaFlux2MaxEditInput,
     output: zSchemaFlux2MaxEditOutput,
   },
+  ['half-moon-ai/ai-baby-and-aging-generator/multi']: {
+    input: zSchemaAiBabyAndAgingGeneratorMultiInput,
+    output: zSchemaAiBabyAndAgingGeneratorMultiOutput,
+  },
+  ['half-moon-ai/ai-baby-and-aging-generator/single']: {
+    input: zSchemaAiBabyAndAgingGeneratorSingleInput,
+    output: zSchemaAiBabyAndAgingGeneratorSingleOutput,
+  },
+  ['fal-ai/qwen-image-edit-2509-lora-gallery/shirt-design']: {
+    input: zSchemaQwenImageEdit2509LoraGalleryShirtDesignInput,
+    output: zSchemaQwenImageEdit2509LoraGalleryShirtDesignOutput,
+  },
+  ['fal-ai/qwen-image-edit-2509-lora-gallery/remove-lighting']: {
+    input: zSchemaQwenImageEdit2509LoraGalleryRemoveLightingInput,
+    output: zSchemaQwenImageEdit2509LoraGalleryRemoveLightingOutput,
+  },
+  ['fal-ai/qwen-image-edit-2509-lora-gallery/remove-element']: {
+    input: zSchemaQwenImageEdit2509LoraGalleryRemoveElementInput,
+    output: zSchemaQwenImageEdit2509LoraGalleryRemoveElementOutput,
+  },
+  ['fal-ai/qwen-image-edit-2509-lora-gallery/lighting-restoration']: {
+    input: zSchemaQwenImageEdit2509LoraGalleryLightingRestorationInput,
+    output: zSchemaQwenImageEdit2509LoraGalleryLightingRestorationOutput,
+  },
+  ['fal-ai/qwen-image-edit-2509-lora-gallery/integrate-product']: {
+    input: zSchemaQwenImageEdit2509LoraGalleryIntegrateProductInput,
+    output: zSchemaQwenImageEdit2509LoraGalleryIntegrateProductOutput,
+  },
+  ['fal-ai/qwen-image-edit-2509-lora-gallery/group-photo']: {
+    input: zSchemaQwenImageEdit2509LoraGalleryGroupPhotoInput,
+    output: zSchemaQwenImageEdit2509LoraGalleryGroupPhotoOutput,
+  },
+  ['fal-ai/qwen-image-edit-2509-lora-gallery/face-to-full-portrait']: {
+    input: zSchemaQwenImageEdit2509LoraGalleryFaceToFullPortraitInput,
+    output: zSchemaQwenImageEdit2509LoraGalleryFaceToFullPortraitOutput,
+  },
+  ['fal-ai/qwen-image-edit-2509-lora-gallery/add-background']: {
+    input: zSchemaQwenImageEdit2509LoraGalleryAddBackgroundInput,
+    output: zSchemaQwenImageEdit2509LoraGalleryAddBackgroundOutput,
+  },
+  ['fal-ai/qwen-image-edit-2509-lora-gallery/next-scene']: {
+    input: zSchemaQwenImageEdit2509LoraGalleryNextSceneInput,
+    output: zSchemaQwenImageEdit2509LoraGalleryNextSceneOutput,
+  },
+  ['fal-ai/qwen-image-edit-2509-lora-gallery/multiple-angles']: {
+    input: zSchemaQwenImageEdit2509LoraGalleryMultipleAnglesInput,
+    output: zSchemaQwenImageEdit2509LoraGalleryMultipleAnglesOutput,
+  },
   ['fal-ai/qwen-image-edit-2509-lora']: {
     input: zSchemaQwenImageEdit2509LoraInput,
     output: zSchemaQwenImageEdit2509LoraOutput,
@@ -2518,6 +3010,10 @@ export const ImageToImageSchemaMap = {
   ['fal-ai/qwen-image-edit-2509']: {
     input: zSchemaQwenImageEdit2509Input,
     output: zSchemaQwenImageEdit2509Output,
+  },
+  ['fal-ai/qwen-image-edit-plus-lora-gallery/lighting-restoration']: {
+    input: zSchemaQwenImageEditPlusLoraGalleryLightingRestorationInput,
+    output: zSchemaQwenImageEditPlusLoraGalleryLightingRestorationOutput,
   },
   ['fal-ai/moondream3-preview/segment']: {
     input: zSchemaMoondream3PreviewSegmentInput,
@@ -2563,6 +3059,22 @@ export const ImageToImageSchemaMap = {
     input: zSchemaFlux2LoraGalleryVirtualTryonInput,
     output: zSchemaFlux2LoraGalleryVirtualTryonOutput,
   },
+  ['fal-ai/flux-2-lora-gallery/multiple-angles']: {
+    input: zSchemaFlux2LoraGalleryMultipleAnglesInput,
+    output: zSchemaFlux2LoraGalleryMultipleAnglesOutput,
+  },
+  ['fal-ai/flux-2-lora-gallery/face-to-full-portrait']: {
+    input: zSchemaFlux2LoraGalleryFaceToFullPortraitInput,
+    output: zSchemaFlux2LoraGalleryFaceToFullPortraitOutput,
+  },
+  ['fal-ai/flux-2-lora-gallery/apartment-staging']: {
+    input: zSchemaFlux2LoraGalleryApartmentStagingInput,
+    output: zSchemaFlux2LoraGalleryApartmentStagingOutput,
+  },
+  ['fal-ai/flux-2-lora-gallery/add-background']: {
+    input: zSchemaFlux2LoraGalleryAddBackgroundInput,
+    output: zSchemaFlux2LoraGalleryAddBackgroundOutput,
+  },
   ['clarityai/crystal-upscaler']: {
     input: zSchemaCrystalUpscalerInput,
     output: zSchemaCrystalUpscalerOutput,
@@ -2574,6 +3086,14 @@ export const ImageToImageSchemaMap = {
   ['fal-ai/chrono-edit-lora']: {
     input: zSchemaChronoEditLoraInput,
     output: zSchemaChronoEditLoraOutput,
+  },
+  ['fal-ai/chrono-edit-lora-gallery/paintbrush']: {
+    input: zSchemaChronoEditLoraGalleryPaintbrushInput,
+    output: zSchemaChronoEditLoraGalleryPaintbrushOutput,
+  },
+  ['fal-ai/chrono-edit-lora-gallery/upscaler']: {
+    input: zSchemaChronoEditLoraGalleryUpscalerInput,
+    output: zSchemaChronoEditLoraGalleryUpscalerOutput,
   },
   ['fal-ai/sam-3/image-rle']: {
     input: zSchemaSam3ImageRleInput,
@@ -2590,6 +3110,42 @@ export const ImageToImageSchemaMap = {
   ['fal-ai/nano-banana-pro/edit']: {
     input: zSchemaNanoBananaProEditInput,
     output: zSchemaNanoBananaProEditOutput,
+  },
+  ['fal-ai/qwen-image-edit-plus-lora-gallery/multiple-angles']: {
+    input: zSchemaQwenImageEditPlusLoraGalleryMultipleAnglesInput,
+    output: zSchemaQwenImageEditPlusLoraGalleryMultipleAnglesOutput,
+  },
+  ['fal-ai/qwen-image-edit-plus-lora-gallery/shirt-design']: {
+    input: zSchemaQwenImageEditPlusLoraGalleryShirtDesignInput,
+    output: zSchemaQwenImageEditPlusLoraGalleryShirtDesignOutput,
+  },
+  ['fal-ai/qwen-image-edit-plus-lora-gallery/remove-lighting']: {
+    input: zSchemaQwenImageEditPlusLoraGalleryRemoveLightingInput,
+    output: zSchemaQwenImageEditPlusLoraGalleryRemoveLightingOutput,
+  },
+  ['fal-ai/qwen-image-edit-plus-lora-gallery/remove-element']: {
+    input: zSchemaQwenImageEditPlusLoraGalleryRemoveElementInput,
+    output: zSchemaQwenImageEditPlusLoraGalleryRemoveElementOutput,
+  },
+  ['fal-ai/qwen-image-edit-plus-lora-gallery/next-scene']: {
+    input: zSchemaQwenImageEditPlusLoraGalleryNextSceneInput,
+    output: zSchemaQwenImageEditPlusLoraGalleryNextSceneOutput,
+  },
+  ['fal-ai/qwen-image-edit-plus-lora-gallery/integrate-product']: {
+    input: zSchemaQwenImageEditPlusLoraGalleryIntegrateProductInput,
+    output: zSchemaQwenImageEditPlusLoraGalleryIntegrateProductOutput,
+  },
+  ['fal-ai/qwen-image-edit-plus-lora-gallery/group-photo']: {
+    input: zSchemaQwenImageEditPlusLoraGalleryGroupPhotoInput,
+    output: zSchemaQwenImageEditPlusLoraGalleryGroupPhotoOutput,
+  },
+  ['fal-ai/qwen-image-edit-plus-lora-gallery/face-to-full-portrait']: {
+    input: zSchemaQwenImageEditPlusLoraGalleryFaceToFullPortraitInput,
+    output: zSchemaQwenImageEditPlusLoraGalleryFaceToFullPortraitOutput,
+  },
+  ['fal-ai/qwen-image-edit-plus-lora-gallery/add-background']: {
+    input: zSchemaQwenImageEditPlusLoraGalleryAddBackgroundInput,
+    output: zSchemaQwenImageEditPlusLoraGalleryAddBackgroundOutput,
   },
   ['fal-ai/reve/fast/remix']: {
     input: zSchemaReveFastRemixInput,
@@ -2663,6 +3219,10 @@ export const ImageToImageSchemaMap = {
     input: zSchemaImageAppsV2ProductHoldingInput,
     output: zSchemaImageAppsV2ProductHoldingOutput,
   },
+  ['fal-ai/image-apps-v2/product-photography']: {
+    input: zSchemaImageAppsV2ProductPhotographyInput,
+    output: zSchemaImageAppsV2ProductPhotographyOutput,
+  },
   ['fal-ai/image-apps-v2/virtual-try-on']: {
     input: zSchemaImageAppsV2VirtualTryOnInput,
     output: zSchemaImageAppsV2VirtualTryOnOutput,
@@ -2686,6 +3246,10 @@ export const ImageToImageSchemaMap = {
   ['fal-ai/image-apps-v2/portrait-enhance']: {
     input: zSchemaImageAppsV2PortraitEnhanceInput,
     output: zSchemaImageAppsV2PortraitEnhanceOutput,
+  },
+  ['fal-ai/image-apps-v2/photography-effects']: {
+    input: zSchemaImageAppsV2PhotographyEffectsInput,
+    output: zSchemaImageAppsV2PhotographyEffectsOutput,
   },
   ['fal-ai/image-apps-v2/perspective']: {
     input: zSchemaImageAppsV2PerspectiveInput,
@@ -2883,9 +3447,21 @@ export const ImageToImageSchemaMap = {
     input: zSchemaPostProcessingColorTintInput,
     output: zSchemaPostProcessingColorTintOutput,
   },
+  ['fal-ai/post-processing/color-correction']: {
+    input: zSchemaPostProcessingColorCorrectionInput,
+    output: zSchemaPostProcessingColorCorrectionOutput,
+  },
+  ['fal-ai/post-processing/chromatic-aberration']: {
+    input: zSchemaPostProcessingChromaticAberrationInput,
+    output: zSchemaPostProcessingChromaticAberrationOutput,
+  },
   ['fal-ai/post-processing/blur']: {
     input: zSchemaPostProcessingBlurInput,
     output: zSchemaPostProcessingBlurOutput,
+  },
+  ['fal-ai/image-editing/youtube-thumbnails']: {
+    input: zSchemaImageEditingYoutubeThumbnailsInput,
+    output: zSchemaImageEditingYoutubeThumbnailsOutput,
   },
   ['fal-ai/topaz/upscale/image']: {
     input: zSchemaTopazUpscaleImageInput,
@@ -2999,6 +3575,10 @@ export const ImageToImageSchemaMap = {
     input: zSchemaImageEditingSceneCompositionInput,
     output: zSchemaImageEditingSceneCompositionOutput,
   },
+  ['fal-ai/image-editing/professional-photo']: {
+    input: zSchemaImageEditingProfessionalPhotoInput,
+    output: zSchemaImageEditingProfessionalPhotoOutput,
+  },
   ['fal-ai/image-editing/object-removal']: {
     input: zSchemaImageEditingObjectRemovalInput,
     output: zSchemaImageEditingObjectRemovalOutput,
@@ -3067,6 +3647,10 @@ export const ImageToImageSchemaMap = {
     input: zSchemaRecraftV3ImageToImageInput,
     output: zSchemaRecraftV3ImageToImageOutput,
   },
+  ['fal-ai/minimax/image-01/subject-reference']: {
+    input: zSchemaMinimaxImage01SubjectReferenceInput,
+    output: zSchemaMinimaxImage01SubjectReferenceOutput,
+  },
   ['fal-ai/hidream-i1-full/image-to-image']: {
     input: zSchemaHidreamI1FullImageToImageInput,
     output: zSchemaHidreamI1FullImageToImageOutput,
@@ -3102,6 +3686,10 @@ export const ImageToImageSchemaMap = {
   ['fal-ai/gpt-image-1/edit-image']: {
     input: zSchemaGptImage1EditImageInput,
     output: zSchemaGptImage1EditImageOutput,
+  },
+  ['rundiffusion-fal/juggernaut-flux-lora/inpainting']: {
+    input: zSchemaJuggernautFluxLoraInpaintingInput,
+    output: zSchemaJuggernautFluxLoraInpaintingOutput,
   },
   ['fal-ai/fashn/tryon/v1.5']: {
     input: zSchemaFashnTryonV15Input,
@@ -3159,6 +3747,14 @@ export const ImageToImageSchemaMap = {
     input: zSchemaInvisibleWatermarkInput,
     output: zSchemaInvisibleWatermarkOutput,
   },
+  ['rundiffusion-fal/juggernaut-flux/pro/image-to-image']: {
+    input: zSchemaJuggernautFluxProImageToImageInput,
+    output: zSchemaJuggernautFluxProImageToImageOutput,
+  },
+  ['rundiffusion-fal/juggernaut-flux/base/image-to-image']: {
+    input: zSchemaJuggernautFluxBaseImageToImageInput,
+    output: zSchemaJuggernautFluxBaseImageToImageOutput,
+  },
   ['fal-ai/docres/dewarp']: {
     input: zSchemaDocresDewarpInput,
     output: zSchemaDocresDewarpOutput,
@@ -3211,9 +3807,17 @@ export const ImageToImageSchemaMap = {
     input: zSchemaFloweditInput,
     output: zSchemaFloweditOutput,
   },
+  ['fal-ai/flux-control-lora-depth/image-to-image']: {
+    input: zSchemaFluxControlLoraDepthImageToImageInput,
+    output: zSchemaFluxControlLoraDepthImageToImageOutput,
+  },
   ['fal-ai/ben/v2/image']: {
     input: zSchemaBenV2ImageInput,
     output: zSchemaBenV2ImageOutput,
+  },
+  ['fal-ai/flux-control-lora-canny/image-to-image']: {
+    input: zSchemaFluxControlLoraCannyImageToImageInput,
+    output: zSchemaFluxControlLoraCannyImageToImageOutput,
   },
   ['fal-ai/ideogram/upscale']: {
     input: zSchemaIdeogramUpscaleInput,
@@ -3351,6 +3955,10 @@ export const ImageToImageSchemaMap = {
     input: zSchemaImagePreprocessorsHedInput,
     output: zSchemaImagePreprocessorsHedOutput,
   },
+  ['fal-ai/image-preprocessors/depth-anything/v2']: {
+    input: zSchemaImagePreprocessorsDepthAnythingV2Input,
+    output: zSchemaImagePreprocessorsDepthAnythingV2Output,
+  },
   ['fal-ai/image-preprocessors/scribble']: {
     input: zSchemaImagePreprocessorsScribbleInput,
     output: zSchemaImagePreprocessorsScribbleOutput,
@@ -3395,13 +4003,45 @@ export const ImageToImageSchemaMap = {
     input: zSchemaFluxGeneralInpaintingInput,
     output: zSchemaFluxGeneralInpaintingOutput,
   },
+  ['fal-ai/flux-general/differential-diffusion']: {
+    input: zSchemaFluxGeneralDifferentialDiffusionInput,
+    output: zSchemaFluxGeneralDifferentialDiffusionOutput,
+  },
   ['fal-ai/flux-lora/image-to-image']: {
     input: zSchemaFluxLoraImageToImageInput,
     output: zSchemaFluxLoraImageToImageOutput,
   },
+  ['fal-ai/sdxl-controlnet-union/inpainting']: {
+    input: zSchemaSdxlControlnetUnionInpaintingInput,
+    output: zSchemaSdxlControlnetUnionInpaintingOutput,
+  },
+  ['fal-ai/sdxl-controlnet-union/image-to-image']: {
+    input: zSchemaSdxlControlnetUnionImageToImageInput,
+    output: zSchemaSdxlControlnetUnionImageToImageOutput,
+  },
   ['fal-ai/era-3d']: {
     input: zSchemaEra3dInput,
     output: zSchemaEra3dOutput,
+  },
+  ['fal-ai/florence-2-large/dense-region-caption']: {
+    input: zSchemaFlorence2LargeDenseRegionCaptionInput,
+    output: zSchemaFlorence2LargeDenseRegionCaptionOutput,
+  },
+  ['fal-ai/florence-2-large/referring-expression-segmentation']: {
+    input: zSchemaFlorence2LargeReferringExpressionSegmentationInput,
+    output: zSchemaFlorence2LargeReferringExpressionSegmentationOutput,
+  },
+  ['fal-ai/florence-2-large/object-detection']: {
+    input: zSchemaFlorence2LargeObjectDetectionInput,
+    output: zSchemaFlorence2LargeObjectDetectionOutput,
+  },
+  ['fal-ai/florence-2-large/open-vocabulary-detection']: {
+    input: zSchemaFlorence2LargeOpenVocabularyDetectionInput,
+    output: zSchemaFlorence2LargeOpenVocabularyDetectionOutput,
+  },
+  ['fal-ai/florence-2-large/caption-to-phrase-grounding']: {
+    input: zSchemaFlorence2LargeCaptionToPhraseGroundingInput,
+    output: zSchemaFlorence2LargeCaptionToPhraseGroundingOutput,
   },
   ['fal-ai/florence-2-large/region-proposal']: {
     input: zSchemaFlorence2LargeRegionProposalInput,
@@ -3410,6 +4050,14 @@ export const ImageToImageSchemaMap = {
   ['fal-ai/florence-2-large/ocr-with-region']: {
     input: zSchemaFlorence2LargeOcrWithRegionInput,
     output: zSchemaFlorence2LargeOcrWithRegionOutput,
+  },
+  ['fal-ai/florence-2-large/region-to-segmentation']: {
+    input: zSchemaFlorence2LargeRegionToSegmentationInput,
+    output: zSchemaFlorence2LargeRegionToSegmentationOutput,
+  },
+  ['fal-ai/stable-diffusion-v3-medium/image-to-image']: {
+    input: zSchemaStableDiffusionV3MediumImageToImageInput,
+    output: zSchemaStableDiffusionV3MediumImageToImageOutput,
   },
   ['fal-ai/dwpose']: {
     input: zSchemaDwposeInput,
@@ -3467,6 +4115,10 @@ export const ImageToImageSchemaMap = {
     input: zSchemaPlaygroundV25ImageToImageInput,
     output: zSchemaPlaygroundV25ImageToImageOutput,
   },
+  ['fal-ai/fast-lightning-sdxl/image-to-image']: {
+    input: zSchemaFastLightningSdxlImageToImageInput,
+    output: zSchemaFastLightningSdxlImageToImageOutput,
+  },
   ['fal-ai/fast-lightning-sdxl/inpainting']: {
     input: zSchemaFastLightningSdxlInpaintingInput,
     output: zSchemaFastLightningSdxlInpaintingOutput,
@@ -3498,6 +4150,14 @@ export const ImageToImageSchemaMap = {
   ['fal-ai/pulid']: {
     input: zSchemaPulidInput,
     output: zSchemaPulidOutput,
+  },
+  ['fal-ai/fast-sdxl-controlnet-canny/image-to-image']: {
+    input: zSchemaFastSdxlControlnetCannyImageToImageInput,
+    output: zSchemaFastSdxlControlnetCannyImageToImageOutput,
+  },
+  ['fal-ai/fast-sdxl-controlnet-canny/inpainting']: {
+    input: zSchemaFastSdxlControlnetCannyInpaintingInput,
+    output: zSchemaFastSdxlControlnetCannyInpaintingOutput,
   },
   ['fal-ai/lcm-sd15-i2i']: {
     input: zSchemaLcmSd15I2iInput,

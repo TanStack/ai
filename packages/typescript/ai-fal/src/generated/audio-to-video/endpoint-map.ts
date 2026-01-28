@@ -8,11 +8,19 @@ import {
   zSchemaEchomimicV3Output,
   zSchemaElevenlabsDubbingInput,
   zSchemaElevenlabsDubbingOutput,
+  zSchemaLongcatMultiAvatarImageAudioToVideoInput,
+  zSchemaLongcatMultiAvatarImageAudioToVideoOutput,
+  zSchemaLongcatSingleAvatarAudioToVideoInput,
+  zSchemaLongcatSingleAvatarAudioToVideoOutput,
+  zSchemaLongcatSingleAvatarImageAudioToVideoInput,
+  zSchemaLongcatSingleAvatarImageAudioToVideoOutput,
   zSchemaLtx219bAudioToVideoInput,
   zSchemaLtx219bAudioToVideoLoraInput,
   zSchemaLtx219bAudioToVideoLoraOutput,
   zSchemaLtx219bAudioToVideoOutput,
   zSchemaLtx219bDistilledAudioToVideoInput,
+  zSchemaLtx219bDistilledAudioToVideoLoraInput,
+  zSchemaLtx219bDistilledAudioToVideoLoraOutput,
   zSchemaLtx219bDistilledAudioToVideoOutput,
   zSchemaStableAvatarInput,
   zSchemaStableAvatarOutput,
@@ -27,11 +35,19 @@ import type {
   SchemaEchomimicV3Output,
   SchemaElevenlabsDubbingInput,
   SchemaElevenlabsDubbingOutput,
+  SchemaLongcatMultiAvatarImageAudioToVideoInput,
+  SchemaLongcatMultiAvatarImageAudioToVideoOutput,
+  SchemaLongcatSingleAvatarAudioToVideoInput,
+  SchemaLongcatSingleAvatarAudioToVideoOutput,
+  SchemaLongcatSingleAvatarImageAudioToVideoInput,
+  SchemaLongcatSingleAvatarImageAudioToVideoOutput,
   SchemaLtx219bAudioToVideoInput,
   SchemaLtx219bAudioToVideoLoraInput,
   SchemaLtx219bAudioToVideoLoraOutput,
   SchemaLtx219bAudioToVideoOutput,
   SchemaLtx219bDistilledAudioToVideoInput,
+  SchemaLtx219bDistilledAudioToVideoLoraInput,
+  SchemaLtx219bDistilledAudioToVideoLoraOutput,
   SchemaLtx219bDistilledAudioToVideoOutput,
   SchemaStableAvatarInput,
   SchemaStableAvatarOutput,
@@ -40,6 +56,10 @@ import type {
 } from './types.gen'
 
 export type AudioToVideoEndpointMap = {
+  'fal-ai/ltx-2-19b/distilled/audio-to-video/lora': {
+    input: SchemaLtx219bDistilledAudioToVideoLoraInput
+    output: SchemaLtx219bDistilledAudioToVideoLoraOutput
+  }
   'fal-ai/ltx-2-19b/audio-to-video/lora': {
     input: SchemaLtx219bAudioToVideoLoraInput
     output: SchemaLtx219bAudioToVideoLoraOutput
@@ -55,6 +75,18 @@ export type AudioToVideoEndpointMap = {
   'fal-ai/elevenlabs/dubbing': {
     input: SchemaElevenlabsDubbingInput
     output: SchemaElevenlabsDubbingOutput
+  }
+  'fal-ai/longcat-multi-avatar/image-audio-to-video': {
+    input: SchemaLongcatMultiAvatarImageAudioToVideoInput
+    output: SchemaLongcatMultiAvatarImageAudioToVideoOutput
+  }
+  'fal-ai/longcat-single-avatar/image-audio-to-video': {
+    input: SchemaLongcatSingleAvatarImageAudioToVideoInput
+    output: SchemaLongcatSingleAvatarImageAudioToVideoOutput
+  }
+  'fal-ai/longcat-single-avatar/audio-to-video': {
+    input: SchemaLongcatSingleAvatarAudioToVideoInput
+    output: SchemaLongcatSingleAvatarAudioToVideoOutput
   }
   'argil/avatars/audio-to-video': {
     input: SchemaAvatarsAudioToVideoInput
@@ -79,6 +111,10 @@ export type AudioToVideoEndpointMap = {
 }
 
 export const AudioToVideoSchemaMap = {
+  ['fal-ai/ltx-2-19b/distilled/audio-to-video/lora']: {
+    input: zSchemaLtx219bDistilledAudioToVideoLoraInput,
+    output: zSchemaLtx219bDistilledAudioToVideoLoraOutput,
+  },
   ['fal-ai/ltx-2-19b/audio-to-video/lora']: {
     input: zSchemaLtx219bAudioToVideoLoraInput,
     output: zSchemaLtx219bAudioToVideoLoraOutput,
@@ -94,6 +130,18 @@ export const AudioToVideoSchemaMap = {
   ['fal-ai/elevenlabs/dubbing']: {
     input: zSchemaElevenlabsDubbingInput,
     output: zSchemaElevenlabsDubbingOutput,
+  },
+  ['fal-ai/longcat-multi-avatar/image-audio-to-video']: {
+    input: zSchemaLongcatMultiAvatarImageAudioToVideoInput,
+    output: zSchemaLongcatMultiAvatarImageAudioToVideoOutput,
+  },
+  ['fal-ai/longcat-single-avatar/image-audio-to-video']: {
+    input: zSchemaLongcatSingleAvatarImageAudioToVideoInput,
+    output: zSchemaLongcatSingleAvatarImageAudioToVideoOutput,
+  },
+  ['fal-ai/longcat-single-avatar/audio-to-video']: {
+    input: zSchemaLongcatSingleAvatarAudioToVideoInput,
+    output: zSchemaLongcatSingleAvatarAudioToVideoOutput,
   },
   ['argil/avatars/audio-to-video']: {
     input: zSchemaAvatarsAudioToVideoInput,

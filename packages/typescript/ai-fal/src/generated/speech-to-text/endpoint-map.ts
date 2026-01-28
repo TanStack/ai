@@ -4,6 +4,8 @@
 import {
   zSchemaElevenlabsSpeechToTextInput,
   zSchemaElevenlabsSpeechToTextOutput,
+  zSchemaElevenlabsSpeechToTextScribeV2Input,
+  zSchemaElevenlabsSpeechToTextScribeV2Output,
   zSchemaSmartTurnInput,
   zSchemaSmartTurnOutput,
   zSchemaSpeechToTextInput,
@@ -23,6 +25,8 @@ import {
 import type {
   SchemaElevenlabsSpeechToTextInput,
   SchemaElevenlabsSpeechToTextOutput,
+  SchemaElevenlabsSpeechToTextScribeV2Input,
+  SchemaElevenlabsSpeechToTextScribeV2Output,
   SchemaSmartTurnInput,
   SchemaSmartTurnOutput,
   SchemaSpeechToTextInput,
@@ -40,6 +44,10 @@ import type {
 } from './types.gen'
 
 export type SpeechToTextEndpointMap = {
+  'fal-ai/elevenlabs/speech-to-text/scribe-v2': {
+    input: SchemaElevenlabsSpeechToTextScribeV2Input
+    output: SchemaElevenlabsSpeechToTextScribeV2Output
+  }
   'fal-ai/smart-turn': {
     input: SchemaSmartTurnInput
     output: SchemaSmartTurnOutput
@@ -75,6 +83,10 @@ export type SpeechToTextEndpointMap = {
 }
 
 export const SpeechToTextSchemaMap = {
+  ['fal-ai/elevenlabs/speech-to-text/scribe-v2']: {
+    input: zSchemaElevenlabsSpeechToTextScribeV2Input,
+    output: zSchemaElevenlabsSpeechToTextScribeV2Output,
+  },
   ['fal-ai/smart-turn']: {
     input: zSchemaSmartTurnInput,
     output: zSchemaSmartTurnOutput,

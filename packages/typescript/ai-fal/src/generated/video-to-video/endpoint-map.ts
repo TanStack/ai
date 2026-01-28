@@ -18,6 +18,8 @@ import {
   zSchemaBriaVideoEraserEraseMaskOutput,
   zSchemaBriaVideoEraserErasePromptInput,
   zSchemaBriaVideoEraserErasePromptOutput,
+  zSchemaBytedanceUpscalerUpscaleVideoInput,
+  zSchemaBytedanceUpscalerUpscaleVideoOutput,
   zSchemaCogvideox5bVideoToVideoInput,
   zSchemaCogvideox5bVideoToVideoOutput,
   zSchemaControlnextInput,
@@ -30,6 +32,8 @@ import {
   zSchemaDwposeVideoOutput,
   zSchemaEdittoInput,
   zSchemaEdittoOutput,
+  zSchemaFastAnimatediffTurboVideoToVideoInput,
+  zSchemaFastAnimatediffTurboVideoToVideoOutput,
   zSchemaFastAnimatediffVideoToVideoInput,
   zSchemaFastAnimatediffVideoToVideoOutput,
   zSchemaFfmpegApiComposeInput,
@@ -52,8 +56,18 @@ import {
   zSchemaInfinitalkOutput,
   zSchemaInfinitalkVideoToVideoInput,
   zSchemaInfinitalkVideoToVideoOutput,
+  zSchemaKlingVideoO1StandardVideoToVideoEditInput,
+  zSchemaKlingVideoO1StandardVideoToVideoEditOutput,
+  zSchemaKlingVideoO1StandardVideoToVideoReferenceInput,
+  zSchemaKlingVideoO1StandardVideoToVideoReferenceOutput,
   zSchemaKlingVideoO1VideoToVideoEditInput,
   zSchemaKlingVideoO1VideoToVideoEditOutput,
+  zSchemaKlingVideoO1VideoToVideoReferenceInput,
+  zSchemaKlingVideoO1VideoToVideoReferenceOutput,
+  zSchemaKlingVideoV26ProMotionControlInput,
+  zSchemaKlingVideoV26ProMotionControlOutput,
+  zSchemaKlingVideoV26StandardMotionControlInput,
+  zSchemaKlingVideoV26StandardMotionControlOutput,
   zSchemaKreaWan14bVideoToVideoInput,
   zSchemaKreaWan14bVideoToVideoOutput,
   zSchemaLatentsyncInput,
@@ -65,8 +79,12 @@ import {
   zSchemaLipsyncInput,
   zSchemaLipsyncOutput,
   zSchemaLtx219bDistilledExtendVideoInput,
+  zSchemaLtx219bDistilledExtendVideoLoraInput,
+  zSchemaLtx219bDistilledExtendVideoLoraOutput,
   zSchemaLtx219bDistilledExtendVideoOutput,
   zSchemaLtx219bDistilledVideoToVideoInput,
+  zSchemaLtx219bDistilledVideoToVideoLoraInput,
+  zSchemaLtx219bDistilledVideoToVideoLoraOutput,
   zSchemaLtx219bDistilledVideoToVideoOutput,
   zSchemaLtx219bExtendVideoInput,
   zSchemaLtx219bExtendVideoLoraInput,
@@ -80,12 +98,22 @@ import {
   zSchemaLtx2RetakeVideoOutput,
   zSchemaLtxVideo13bDevExtendInput,
   zSchemaLtxVideo13bDevExtendOutput,
+  zSchemaLtxVideo13bDevMulticonditioningInput,
+  zSchemaLtxVideo13bDevMulticonditioningOutput,
   zSchemaLtxVideo13bDistilledExtendInput,
   zSchemaLtxVideo13bDistilledExtendOutput,
+  zSchemaLtxVideo13bDistilledMulticonditioningInput,
+  zSchemaLtxVideo13bDistilledMulticonditioningOutput,
+  zSchemaLtxVideoLoraMulticonditioningInput,
+  zSchemaLtxVideoLoraMulticonditioningOutput,
   zSchemaLtxVideoV095ExtendInput,
   zSchemaLtxVideoV095ExtendOutput,
+  zSchemaLtxVideoV095MulticonditioningInput,
+  zSchemaLtxVideoV095MulticonditioningOutput,
   zSchemaLtxv13B098DistilledExtendInput,
   zSchemaLtxv13B098DistilledExtendOutput,
+  zSchemaLtxv13B098DistilledMulticonditioningInput,
+  zSchemaLtxv13B098DistilledMulticonditioningOutput,
   zSchemaLucyEditDevInput,
   zSchemaLucyEditDevOutput,
   zSchemaLucyEditFastInput,
@@ -94,6 +122,10 @@ import {
   zSchemaLucyEditProOutput,
   zSchemaLucyRestyleInput,
   zSchemaLucyRestyleOutput,
+  zSchemaLumaDreamMachineRay2FlashModifyInput,
+  zSchemaLumaDreamMachineRay2FlashModifyOutput,
+  zSchemaLumaDreamMachineRay2FlashReframeInput,
+  zSchemaLumaDreamMachineRay2FlashReframeOutput,
   zSchemaLumaDreamMachineRay2ModifyInput,
   zSchemaLumaDreamMachineRay2ModifyOutput,
   zSchemaLumaDreamMachineRay2ReframeInput,
@@ -166,6 +198,8 @@ import {
   zSchemaVideoAsPromptOutput,
   zSchemaVideoBackgroundRemovalFastInput,
   zSchemaVideoBackgroundRemovalFastOutput,
+  zSchemaVideoBackgroundRemovalGreenScreenInput,
+  zSchemaVideoBackgroundRemovalGreenScreenOutput,
   zSchemaVideoBackgroundRemovalInput,
   zSchemaVideoBackgroundRemovalOutput,
   zSchemaVideoEraseKeypointsInput,
@@ -176,6 +210,8 @@ import {
   zSchemaVideoErasePromptOutput,
   zSchemaVideoIncreaseResolutionInput,
   zSchemaVideoIncreaseResolutionOutput,
+  zSchemaVideoSoundEffectsGeneratorInput,
+  zSchemaVideoSoundEffectsGeneratorOutput,
   zSchemaVideoUpscalerInput,
   zSchemaVideoUpscalerOutput,
   zSchemaViduQ2VideoExtensionProInput,
@@ -220,6 +256,8 @@ import {
   zSchemaWanVaceOutput,
   zSchemaWanVisionEnhancerInput,
   zSchemaWanVisionEnhancerOutput,
+  zSchemaWorkflowUtilitiesAutoSubtitleInput,
+  zSchemaWorkflowUtilitiesAutoSubtitleOutput,
 } from './zod.gen'
 
 import type {
@@ -239,6 +277,8 @@ import type {
   SchemaBriaVideoEraserEraseMaskOutput,
   SchemaBriaVideoEraserErasePromptInput,
   SchemaBriaVideoEraserErasePromptOutput,
+  SchemaBytedanceUpscalerUpscaleVideoInput,
+  SchemaBytedanceUpscalerUpscaleVideoOutput,
   SchemaCogvideox5bVideoToVideoInput,
   SchemaCogvideox5bVideoToVideoOutput,
   SchemaControlnextInput,
@@ -251,6 +291,8 @@ import type {
   SchemaDwposeVideoOutput,
   SchemaEdittoInput,
   SchemaEdittoOutput,
+  SchemaFastAnimatediffTurboVideoToVideoInput,
+  SchemaFastAnimatediffTurboVideoToVideoOutput,
   SchemaFastAnimatediffVideoToVideoInput,
   SchemaFastAnimatediffVideoToVideoOutput,
   SchemaFfmpegApiComposeInput,
@@ -273,8 +315,18 @@ import type {
   SchemaInfinitalkOutput,
   SchemaInfinitalkVideoToVideoInput,
   SchemaInfinitalkVideoToVideoOutput,
+  SchemaKlingVideoO1StandardVideoToVideoEditInput,
+  SchemaKlingVideoO1StandardVideoToVideoEditOutput,
+  SchemaKlingVideoO1StandardVideoToVideoReferenceInput,
+  SchemaKlingVideoO1StandardVideoToVideoReferenceOutput,
   SchemaKlingVideoO1VideoToVideoEditInput,
   SchemaKlingVideoO1VideoToVideoEditOutput,
+  SchemaKlingVideoO1VideoToVideoReferenceInput,
+  SchemaKlingVideoO1VideoToVideoReferenceOutput,
+  SchemaKlingVideoV26ProMotionControlInput,
+  SchemaKlingVideoV26ProMotionControlOutput,
+  SchemaKlingVideoV26StandardMotionControlInput,
+  SchemaKlingVideoV26StandardMotionControlOutput,
   SchemaKreaWan14bVideoToVideoInput,
   SchemaKreaWan14bVideoToVideoOutput,
   SchemaLatentsyncInput,
@@ -286,8 +338,12 @@ import type {
   SchemaLipsyncInput,
   SchemaLipsyncOutput,
   SchemaLtx219bDistilledExtendVideoInput,
+  SchemaLtx219bDistilledExtendVideoLoraInput,
+  SchemaLtx219bDistilledExtendVideoLoraOutput,
   SchemaLtx219bDistilledExtendVideoOutput,
   SchemaLtx219bDistilledVideoToVideoInput,
+  SchemaLtx219bDistilledVideoToVideoLoraInput,
+  SchemaLtx219bDistilledVideoToVideoLoraOutput,
   SchemaLtx219bDistilledVideoToVideoOutput,
   SchemaLtx219bExtendVideoInput,
   SchemaLtx219bExtendVideoLoraInput,
@@ -301,12 +357,22 @@ import type {
   SchemaLtx2RetakeVideoOutput,
   SchemaLtxVideo13bDevExtendInput,
   SchemaLtxVideo13bDevExtendOutput,
+  SchemaLtxVideo13bDevMulticonditioningInput,
+  SchemaLtxVideo13bDevMulticonditioningOutput,
   SchemaLtxVideo13bDistilledExtendInput,
   SchemaLtxVideo13bDistilledExtendOutput,
+  SchemaLtxVideo13bDistilledMulticonditioningInput,
+  SchemaLtxVideo13bDistilledMulticonditioningOutput,
+  SchemaLtxVideoLoraMulticonditioningInput,
+  SchemaLtxVideoLoraMulticonditioningOutput,
   SchemaLtxVideoV095ExtendInput,
   SchemaLtxVideoV095ExtendOutput,
+  SchemaLtxVideoV095MulticonditioningInput,
+  SchemaLtxVideoV095MulticonditioningOutput,
   SchemaLtxv13B098DistilledExtendInput,
   SchemaLtxv13B098DistilledExtendOutput,
+  SchemaLtxv13B098DistilledMulticonditioningInput,
+  SchemaLtxv13B098DistilledMulticonditioningOutput,
   SchemaLucyEditDevInput,
   SchemaLucyEditDevOutput,
   SchemaLucyEditFastInput,
@@ -315,6 +381,10 @@ import type {
   SchemaLucyEditProOutput,
   SchemaLucyRestyleInput,
   SchemaLucyRestyleOutput,
+  SchemaLumaDreamMachineRay2FlashModifyInput,
+  SchemaLumaDreamMachineRay2FlashModifyOutput,
+  SchemaLumaDreamMachineRay2FlashReframeInput,
+  SchemaLumaDreamMachineRay2FlashReframeOutput,
   SchemaLumaDreamMachineRay2ModifyInput,
   SchemaLumaDreamMachineRay2ModifyOutput,
   SchemaLumaDreamMachineRay2ReframeInput,
@@ -387,6 +457,8 @@ import type {
   SchemaVideoAsPromptOutput,
   SchemaVideoBackgroundRemovalFastInput,
   SchemaVideoBackgroundRemovalFastOutput,
+  SchemaVideoBackgroundRemovalGreenScreenInput,
+  SchemaVideoBackgroundRemovalGreenScreenOutput,
   SchemaVideoBackgroundRemovalInput,
   SchemaVideoBackgroundRemovalOutput,
   SchemaVideoEraseKeypointsInput,
@@ -397,6 +469,8 @@ import type {
   SchemaVideoErasePromptOutput,
   SchemaVideoIncreaseResolutionInput,
   SchemaVideoIncreaseResolutionOutput,
+  SchemaVideoSoundEffectsGeneratorInput,
+  SchemaVideoSoundEffectsGeneratorOutput,
   SchemaVideoUpscalerInput,
   SchemaVideoUpscalerOutput,
   SchemaViduQ2VideoExtensionProInput,
@@ -441,6 +515,8 @@ import type {
   SchemaWanVaceOutput,
   SchemaWanVisionEnhancerInput,
   SchemaWanVisionEnhancerOutput,
+  SchemaWorkflowUtilitiesAutoSubtitleInput,
+  SchemaWorkflowUtilitiesAutoSubtitleOutput,
 } from './types.gen'
 
 export type VideoToVideoEndpointMap = {
@@ -456,6 +532,10 @@ export type VideoToVideoEndpointMap = {
     input: SchemaAiFaceSwapFaceswapvideoInput
     output: SchemaAiFaceSwapFaceswapvideoOutput
   }
+  'fal-ai/ltx-2-19b/distilled/video-to-video/lora': {
+    input: SchemaLtx219bDistilledVideoToVideoLoraInput
+    output: SchemaLtx219bDistilledVideoToVideoLoraOutput
+  }
   'fal-ai/ltx-2-19b/distilled/video-to-video': {
     input: SchemaLtx219bDistilledVideoToVideoInput
     output: SchemaLtx219bDistilledVideoToVideoOutput
@@ -467,6 +547,10 @@ export type VideoToVideoEndpointMap = {
   'fal-ai/ltx-2-19b/video-to-video': {
     input: SchemaLtx219bVideoToVideoInput
     output: SchemaLtx219bVideoToVideoOutput
+  }
+  'fal-ai/ltx-2-19b/distilled/extend-video/lora': {
+    input: SchemaLtx219bDistilledExtendVideoLoraInput
+    output: SchemaLtx219bDistilledExtendVideoLoraOutput
   }
   'fal-ai/ltx-2-19b/distilled/extend-video': {
     input: SchemaLtx219bDistilledExtendVideoInput
@@ -499,6 +583,14 @@ export type VideoToVideoEndpointMap = {
   'fal-ai/lightx/recamera': {
     input: SchemaLightxRecameraInput
     output: SchemaLightxRecameraOutput
+  }
+  'fal-ai/kling-video/v2.6/standard/motion-control': {
+    input: SchemaKlingVideoV26StandardMotionControlInput
+    output: SchemaKlingVideoV26StandardMotionControlOutput
+  }
+  'fal-ai/kling-video/v2.6/pro/motion-control': {
+    input: SchemaKlingVideoV26ProMotionControlInput
+    output: SchemaKlingVideoV26ProMotionControlOutput
   }
   'decart/lucy-restyle': {
     input: SchemaLucyRestyleInput
@@ -536,6 +628,14 @@ export type VideoToVideoEndpointMap = {
     input: SchemaVeo31ExtendVideoInput
     output: SchemaVeo31ExtendVideoOutput
   }
+  'fal-ai/kling-video/o1/standard/video-to-video/reference': {
+    input: SchemaKlingVideoO1StandardVideoToVideoReferenceInput
+    output: SchemaKlingVideoO1StandardVideoToVideoReferenceOutput
+  }
+  'fal-ai/kling-video/o1/standard/video-to-video/edit': {
+    input: SchemaKlingVideoO1StandardVideoToVideoEditInput
+    output: SchemaKlingVideoO1StandardVideoToVideoEditOutput
+  }
   'fal-ai/steady-dancer': {
     input: SchemaSteadyDancerInput
     output: SchemaSteadyDancerOutput
@@ -564,9 +664,17 @@ export type VideoToVideoEndpointMap = {
     input: SchemaKlingVideoO1VideoToVideoEditInput
     output: SchemaKlingVideoO1VideoToVideoEditOutput
   }
+  'fal-ai/kling-video/o1/video-to-video/reference': {
+    input: SchemaKlingVideoO1VideoToVideoReferenceInput
+    output: SchemaKlingVideoO1VideoToVideoReferenceOutput
+  }
   'veed/video-background-removal': {
     input: SchemaVideoBackgroundRemovalInput
     output: SchemaVideoBackgroundRemovalOutput
+  }
+  'veed/video-background-removal/green-screen': {
+    input: SchemaVideoBackgroundRemovalGreenScreenInput
+    output: SchemaVideoBackgroundRemovalGreenScreenOutput
   }
   'fal-ai/ltx-2/retake-video': {
     input: SchemaLtx2RetakeVideoInput
@@ -591,6 +699,14 @@ export type VideoToVideoEndpointMap = {
   'fal-ai/flashvsr/upscale/video': {
     input: SchemaFlashvsrUpscaleVideoInput
     output: SchemaFlashvsrUpscaleVideoOutput
+  }
+  'fal-ai/workflow-utilities/auto-subtitle': {
+    input: SchemaWorkflowUtilitiesAutoSubtitleInput
+    output: SchemaWorkflowUtilitiesAutoSubtitleOutput
+  }
+  'fal-ai/bytedance-upscaler/upscale/video': {
+    input: SchemaBytedanceUpscalerUpscaleVideoInput
+    output: SchemaBytedanceUpscalerUpscaleVideoOutput
   }
   'fal-ai/video-as-prompt': {
     input: SchemaVideoAsPromptInput
@@ -720,6 +836,14 @@ export type VideoToVideoEndpointMap = {
     input: SchemaFilmVideoInput
     output: SchemaFilmVideoOutput
   }
+  'fal-ai/luma-dream-machine/ray-2-flash/modify': {
+    input: SchemaLumaDreamMachineRay2FlashModifyInput
+    output: SchemaLumaDreamMachineRay2FlashModifyOutput
+  }
+  'fal-ai/ltxv-13b-098-distilled/multiconditioning': {
+    input: SchemaLtxv13B098DistilledMulticonditioningInput
+    output: SchemaLtxv13B098DistilledMulticonditioningOutput
+  }
   'fal-ai/pixverse/sound-effects': {
     input: SchemaPixverseSoundEffectsInput
     output: SchemaPixverseSoundEffectsOutput
@@ -780,6 +904,10 @@ export type VideoToVideoEndpointMap = {
     input: SchemaWanVace13bInput
     output: SchemaWanVace13bOutput
   }
+  'fal-ai/luma-dream-machine/ray-2-flash/reframe': {
+    input: SchemaLumaDreamMachineRay2FlashReframeInput
+    output: SchemaLumaDreamMachineRay2FlashReframeOutput
+  }
   'fal-ai/luma-dream-machine/ray-2/reframe': {
     input: SchemaLumaDreamMachineRay2ReframeInput
     output: SchemaLumaDreamMachineRay2ReframeOutput
@@ -796,9 +924,21 @@ export type VideoToVideoEndpointMap = {
     input: SchemaLtxVideo13bDistilledExtendInput
     output: SchemaLtxVideo13bDistilledExtendOutput
   }
+  'fal-ai/ltx-video-13b-distilled/multiconditioning': {
+    input: SchemaLtxVideo13bDistilledMulticonditioningInput
+    output: SchemaLtxVideo13bDistilledMulticonditioningOutput
+  }
+  'fal-ai/ltx-video-13b-dev/multiconditioning': {
+    input: SchemaLtxVideo13bDevMulticonditioningInput
+    output: SchemaLtxVideo13bDevMulticonditioningOutput
+  }
   'fal-ai/ltx-video-13b-dev/extend': {
     input: SchemaLtxVideo13bDevExtendInput
     output: SchemaLtxVideo13bDevExtendOutput
+  }
+  'fal-ai/ltx-video-lora/multiconditioning': {
+    input: SchemaLtxVideoLoraMulticonditioningInput
+    output: SchemaLtxVideoLoraMulticonditioningOutput
   }
   'fal-ai/magi/extend-video': {
     input: SchemaMagiExtendVideoInput
@@ -812,6 +952,10 @@ export type VideoToVideoEndpointMap = {
     input: SchemaWanVaceInput
     output: SchemaWanVaceOutput
   }
+  'cassetteai/video-sound-effects-generator': {
+    input: SchemaVideoSoundEffectsGeneratorInput
+    output: SchemaVideoSoundEffectsGeneratorOutput
+  }
   'fal-ai/sync-lipsync/v2': {
     input: SchemaSyncLipsyncV2Input
     output: SchemaSyncLipsyncV2Output
@@ -823,6 +967,10 @@ export type VideoToVideoEndpointMap = {
   'fal-ai/pika/v2/pikadditions': {
     input: SchemaPikaV2PikadditionsInput
     output: SchemaPikaV2PikadditionsOutput
+  }
+  'fal-ai/ltx-video-v095/multiconditioning': {
+    input: SchemaLtxVideoV095MulticonditioningInput
+    output: SchemaLtxVideoV095MulticonditioningOutput
   }
   'fal-ai/ltx-video-v095/extend': {
     input: SchemaLtxVideoV095ExtendInput
@@ -880,6 +1028,10 @@ export type VideoToVideoEndpointMap = {
     input: SchemaAmtInterpolationInput
     output: SchemaAmtInterpolationOutput
   }
+  'fal-ai/fast-animatediff/turbo/video-to-video': {
+    input: SchemaFastAnimatediffTurboVideoToVideoInput
+    output: SchemaFastAnimatediffTurboVideoToVideoOutput
+  }
   'fal-ai/fast-animatediff/video-to-video': {
     input: SchemaFastAnimatediffVideoToVideoInput
     output: SchemaFastAnimatediffVideoToVideoOutput
@@ -899,6 +1051,10 @@ export const VideoToVideoSchemaMap = {
     input: zSchemaAiFaceSwapFaceswapvideoInput,
     output: zSchemaAiFaceSwapFaceswapvideoOutput,
   },
+  ['fal-ai/ltx-2-19b/distilled/video-to-video/lora']: {
+    input: zSchemaLtx219bDistilledVideoToVideoLoraInput,
+    output: zSchemaLtx219bDistilledVideoToVideoLoraOutput,
+  },
   ['fal-ai/ltx-2-19b/distilled/video-to-video']: {
     input: zSchemaLtx219bDistilledVideoToVideoInput,
     output: zSchemaLtx219bDistilledVideoToVideoOutput,
@@ -910,6 +1066,10 @@ export const VideoToVideoSchemaMap = {
   ['fal-ai/ltx-2-19b/video-to-video']: {
     input: zSchemaLtx219bVideoToVideoInput,
     output: zSchemaLtx219bVideoToVideoOutput,
+  },
+  ['fal-ai/ltx-2-19b/distilled/extend-video/lora']: {
+    input: zSchemaLtx219bDistilledExtendVideoLoraInput,
+    output: zSchemaLtx219bDistilledExtendVideoLoraOutput,
   },
   ['fal-ai/ltx-2-19b/distilled/extend-video']: {
     input: zSchemaLtx219bDistilledExtendVideoInput,
@@ -942,6 +1102,14 @@ export const VideoToVideoSchemaMap = {
   ['fal-ai/lightx/recamera']: {
     input: zSchemaLightxRecameraInput,
     output: zSchemaLightxRecameraOutput,
+  },
+  ['fal-ai/kling-video/v2.6/standard/motion-control']: {
+    input: zSchemaKlingVideoV26StandardMotionControlInput,
+    output: zSchemaKlingVideoV26StandardMotionControlOutput,
+  },
+  ['fal-ai/kling-video/v2.6/pro/motion-control']: {
+    input: zSchemaKlingVideoV26ProMotionControlInput,
+    output: zSchemaKlingVideoV26ProMotionControlOutput,
   },
   ['decart/lucy-restyle']: {
     input: zSchemaLucyRestyleInput,
@@ -979,6 +1147,14 @@ export const VideoToVideoSchemaMap = {
     input: zSchemaVeo31ExtendVideoInput,
     output: zSchemaVeo31ExtendVideoOutput,
   },
+  ['fal-ai/kling-video/o1/standard/video-to-video/reference']: {
+    input: zSchemaKlingVideoO1StandardVideoToVideoReferenceInput,
+    output: zSchemaKlingVideoO1StandardVideoToVideoReferenceOutput,
+  },
+  ['fal-ai/kling-video/o1/standard/video-to-video/edit']: {
+    input: zSchemaKlingVideoO1StandardVideoToVideoEditInput,
+    output: zSchemaKlingVideoO1StandardVideoToVideoEditOutput,
+  },
   ['fal-ai/steady-dancer']: {
     input: zSchemaSteadyDancerInput,
     output: zSchemaSteadyDancerOutput,
@@ -1007,9 +1183,17 @@ export const VideoToVideoSchemaMap = {
     input: zSchemaKlingVideoO1VideoToVideoEditInput,
     output: zSchemaKlingVideoO1VideoToVideoEditOutput,
   },
+  ['fal-ai/kling-video/o1/video-to-video/reference']: {
+    input: zSchemaKlingVideoO1VideoToVideoReferenceInput,
+    output: zSchemaKlingVideoO1VideoToVideoReferenceOutput,
+  },
   ['veed/video-background-removal']: {
     input: zSchemaVideoBackgroundRemovalInput,
     output: zSchemaVideoBackgroundRemovalOutput,
+  },
+  ['veed/video-background-removal/green-screen']: {
+    input: zSchemaVideoBackgroundRemovalGreenScreenInput,
+    output: zSchemaVideoBackgroundRemovalGreenScreenOutput,
   },
   ['fal-ai/ltx-2/retake-video']: {
     input: zSchemaLtx2RetakeVideoInput,
@@ -1034,6 +1218,14 @@ export const VideoToVideoSchemaMap = {
   ['fal-ai/flashvsr/upscale/video']: {
     input: zSchemaFlashvsrUpscaleVideoInput,
     output: zSchemaFlashvsrUpscaleVideoOutput,
+  },
+  ['fal-ai/workflow-utilities/auto-subtitle']: {
+    input: zSchemaWorkflowUtilitiesAutoSubtitleInput,
+    output: zSchemaWorkflowUtilitiesAutoSubtitleOutput,
+  },
+  ['fal-ai/bytedance-upscaler/upscale/video']: {
+    input: zSchemaBytedanceUpscalerUpscaleVideoInput,
+    output: zSchemaBytedanceUpscalerUpscaleVideoOutput,
   },
   ['fal-ai/video-as-prompt']: {
     input: zSchemaVideoAsPromptInput,
@@ -1163,6 +1355,14 @@ export const VideoToVideoSchemaMap = {
     input: zSchemaFilmVideoInput,
     output: zSchemaFilmVideoOutput,
   },
+  ['fal-ai/luma-dream-machine/ray-2-flash/modify']: {
+    input: zSchemaLumaDreamMachineRay2FlashModifyInput,
+    output: zSchemaLumaDreamMachineRay2FlashModifyOutput,
+  },
+  ['fal-ai/ltxv-13b-098-distilled/multiconditioning']: {
+    input: zSchemaLtxv13B098DistilledMulticonditioningInput,
+    output: zSchemaLtxv13B098DistilledMulticonditioningOutput,
+  },
   ['fal-ai/pixverse/sound-effects']: {
     input: zSchemaPixverseSoundEffectsInput,
     output: zSchemaPixverseSoundEffectsOutput,
@@ -1223,6 +1423,10 @@ export const VideoToVideoSchemaMap = {
     input: zSchemaWanVace13bInput,
     output: zSchemaWanVace13bOutput,
   },
+  ['fal-ai/luma-dream-machine/ray-2-flash/reframe']: {
+    input: zSchemaLumaDreamMachineRay2FlashReframeInput,
+    output: zSchemaLumaDreamMachineRay2FlashReframeOutput,
+  },
   ['fal-ai/luma-dream-machine/ray-2/reframe']: {
     input: zSchemaLumaDreamMachineRay2ReframeInput,
     output: zSchemaLumaDreamMachineRay2ReframeOutput,
@@ -1239,9 +1443,21 @@ export const VideoToVideoSchemaMap = {
     input: zSchemaLtxVideo13bDistilledExtendInput,
     output: zSchemaLtxVideo13bDistilledExtendOutput,
   },
+  ['fal-ai/ltx-video-13b-distilled/multiconditioning']: {
+    input: zSchemaLtxVideo13bDistilledMulticonditioningInput,
+    output: zSchemaLtxVideo13bDistilledMulticonditioningOutput,
+  },
+  ['fal-ai/ltx-video-13b-dev/multiconditioning']: {
+    input: zSchemaLtxVideo13bDevMulticonditioningInput,
+    output: zSchemaLtxVideo13bDevMulticonditioningOutput,
+  },
   ['fal-ai/ltx-video-13b-dev/extend']: {
     input: zSchemaLtxVideo13bDevExtendInput,
     output: zSchemaLtxVideo13bDevExtendOutput,
+  },
+  ['fal-ai/ltx-video-lora/multiconditioning']: {
+    input: zSchemaLtxVideoLoraMulticonditioningInput,
+    output: zSchemaLtxVideoLoraMulticonditioningOutput,
   },
   ['fal-ai/magi/extend-video']: {
     input: zSchemaMagiExtendVideoInput,
@@ -1255,6 +1471,10 @@ export const VideoToVideoSchemaMap = {
     input: zSchemaWanVaceInput,
     output: zSchemaWanVaceOutput,
   },
+  ['cassetteai/video-sound-effects-generator']: {
+    input: zSchemaVideoSoundEffectsGeneratorInput,
+    output: zSchemaVideoSoundEffectsGeneratorOutput,
+  },
   ['fal-ai/sync-lipsync/v2']: {
     input: zSchemaSyncLipsyncV2Input,
     output: zSchemaSyncLipsyncV2Output,
@@ -1266,6 +1486,10 @@ export const VideoToVideoSchemaMap = {
   ['fal-ai/pika/v2/pikadditions']: {
     input: zSchemaPikaV2PikadditionsInput,
     output: zSchemaPikaV2PikadditionsOutput,
+  },
+  ['fal-ai/ltx-video-v095/multiconditioning']: {
+    input: zSchemaLtxVideoV095MulticonditioningInput,
+    output: zSchemaLtxVideoV095MulticonditioningOutput,
   },
   ['fal-ai/ltx-video-v095/extend']: {
     input: zSchemaLtxVideoV095ExtendInput,
@@ -1322,6 +1546,10 @@ export const VideoToVideoSchemaMap = {
   ['fal-ai/amt-interpolation']: {
     input: zSchemaAmtInterpolationInput,
     output: zSchemaAmtInterpolationOutput,
+  },
+  ['fal-ai/fast-animatediff/turbo/video-to-video']: {
+    input: zSchemaFastAnimatediffTurboVideoToVideoInput,
+    output: zSchemaFastAnimatediffTurboVideoToVideoOutput,
   },
   ['fal-ai/fast-animatediff/video-to-video']: {
     input: zSchemaFastAnimatediffVideoToVideoInput,

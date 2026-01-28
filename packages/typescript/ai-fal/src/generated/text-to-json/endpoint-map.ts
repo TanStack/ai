@@ -2,16 +2,40 @@
 // Generated from types.gen.ts via scripts/generate-fal-endpoint-maps.ts
 
 import {
+  zSchemaFiboEditEditStructuredInstructionInput,
+  zSchemaFiboEditEditStructuredInstructionOutput,
   zSchemaFiboGenerateStructuredPromptInput,
   zSchemaFiboGenerateStructuredPromptOutput,
+  zSchemaFiboLiteGenerateStructuredPromptInput,
+  zSchemaFiboLiteGenerateStructuredPromptLiteInput,
+  zSchemaFiboLiteGenerateStructuredPromptLiteOutput,
+  zSchemaFiboLiteGenerateStructuredPromptOutput,
 } from './zod.gen'
 
 import type {
+  SchemaFiboEditEditStructuredInstructionInput,
+  SchemaFiboEditEditStructuredInstructionOutput,
   SchemaFiboGenerateStructuredPromptInput,
   SchemaFiboGenerateStructuredPromptOutput,
+  SchemaFiboLiteGenerateStructuredPromptInput,
+  SchemaFiboLiteGenerateStructuredPromptLiteInput,
+  SchemaFiboLiteGenerateStructuredPromptLiteOutput,
+  SchemaFiboLiteGenerateStructuredPromptOutput,
 } from './types.gen'
 
 export type TextToJsonEndpointMap = {
+  'bria/fibo-edit/edit/structured_instruction': {
+    input: SchemaFiboEditEditStructuredInstructionInput
+    output: SchemaFiboEditEditStructuredInstructionOutput
+  }
+  'bria/fibo-lite/generate/structured_prompt': {
+    input: SchemaFiboLiteGenerateStructuredPromptInput
+    output: SchemaFiboLiteGenerateStructuredPromptOutput
+  }
+  'bria/fibo-lite/generate/structured_prompt/lite': {
+    input: SchemaFiboLiteGenerateStructuredPromptLiteInput
+    output: SchemaFiboLiteGenerateStructuredPromptLiteOutput
+  }
   'bria/fibo/generate/structured_prompt': {
     input: SchemaFiboGenerateStructuredPromptInput
     output: SchemaFiboGenerateStructuredPromptOutput
@@ -19,6 +43,18 @@ export type TextToJsonEndpointMap = {
 }
 
 export const TextToJsonSchemaMap = {
+  ['bria/fibo-edit/edit/structured_instruction']: {
+    input: zSchemaFiboEditEditStructuredInstructionInput,
+    output: zSchemaFiboEditEditStructuredInstructionOutput,
+  },
+  ['bria/fibo-lite/generate/structured_prompt']: {
+    input: zSchemaFiboLiteGenerateStructuredPromptInput,
+    output: zSchemaFiboLiteGenerateStructuredPromptOutput,
+  },
+  ['bria/fibo-lite/generate/structured_prompt/lite']: {
+    input: zSchemaFiboLiteGenerateStructuredPromptLiteInput,
+    output: zSchemaFiboLiteGenerateStructuredPromptLiteOutput,
+  },
   ['bria/fibo/generate/structured_prompt']: {
     input: zSchemaFiboGenerateStructuredPromptInput,
     output: zSchemaFiboGenerateStructuredPromptOutput,
