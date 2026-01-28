@@ -26,7 +26,7 @@
     "test:types": "nx affected --targets=test:types --exclude=examples/**",
     "test:knip": "knip",
     "test:docs": "node scripts/verify-links.ts",
-    "build": "nx affected --skip-nx-cache --targets=build --exclude=examples/**",
+    "build": "nx affected --skip-nx-cache --targets=build --exclude=examples/**,stream-processor-panel/**,packages/typescript/smoke-tests/**",
     "build:all": "nx run-many --targets=build --exclude=examples/**",
     "watch": "pnpm run build:all && nx watch --all -- pnpm run build:all",
     "dev": "pnpm run watch",
