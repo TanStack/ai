@@ -1,12 +1,12 @@
-import type { AnyClientTool, ModelMessage, StreamChunk } from '@tanstack/ai'
 import {
   StreamProcessor,
   generateMessageId,
   normalizeToUIMessage,
 } from '@tanstack/ai'
+import { DefaultChatClientEventEmitter } from './events'
+import type { AnyClientTool, ModelMessage, StreamChunk } from '@tanstack/ai'
 import type { ConnectionAdapter } from './connection-adapters'
 import type { ChatClientEventEmitter } from './events'
-import { DefaultChatClientEventEmitter } from './events'
 import type {
   ChatClientOptions,
   ChatClientState,

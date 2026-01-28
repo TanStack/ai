@@ -5,8 +5,9 @@ import {
   createUniqueId,
 } from 'solid-js'
 
+import { ChatClient  } from '@tanstack/ai-client'
+import type {ChatClientState} from '@tanstack/ai-client';
 import type { AnyClientTool, ModelMessage } from '@tanstack/ai'
-import { ChatClient, type ChatClientState } from '@tanstack/ai-client'
 import type { UIMessage, UseChatOptions, UseChatReturn } from './types'
 
 export function useChat<TTools extends ReadonlyArray<AnyClientTool> = any>(
