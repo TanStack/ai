@@ -9,4 +9,4 @@ title: aiEventClient
 const aiEventClient: AiEventClient;
 ```
 
-Defined in: [event-client.ts:291](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/event-client.ts#L291)
+Defined in: [event-client.ts:495](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/event-client.ts#L495)
