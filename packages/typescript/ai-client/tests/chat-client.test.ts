@@ -393,7 +393,6 @@ describe('ChatClient', () => {
   })
 
   describe('status', () => {
-
     it('should transition through states during generation', async () => {
       const chunks = createTextChunks('Response')
       const adapter = createMockConnectionAdapter({
