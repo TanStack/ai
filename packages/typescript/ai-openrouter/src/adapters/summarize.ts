@@ -1,5 +1,6 @@
 import { BaseSummarizeAdapter } from '@tanstack/ai/adapters'
 import { getOpenRouterApiKeyFromEnv } from '../utils'
+import { buildOpenRouterUsage } from '../usage'
 import { OpenRouterTextAdapter } from './text'
 import type {
   StreamChunk,
@@ -76,7 +77,7 @@ export class OpenRouterSummarizeAdapter<
         model = chunk.model
       }
       if (chunk.type === 'done' && chunk.usage) {
-        usage = chunk.usage
+        usage = buildOpenRouterUsage(chunk.usage)!
       }
       if (chunk.type === 'error') {
         throw new Error(`Error during summarization: ${chunk.error.message}`)

@@ -1,4 +1,4 @@
-import { describe, it, expect, vi } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { GeminiImageAdapter, createGeminiImage } from '../src/adapters/image'
 import {
   sizeToAspectRatio,
@@ -129,7 +129,10 @@ describe('Gemini Image Adapter', () => {
 
       const mockGenerateImages = vi.fn().mockResolvedValueOnce(mockResponse)
 
-      const adapter = createGeminiImage('test-api-key')
+      const adapter = createGeminiImage(
+        'gemini-2.5-flash-image',
+        'test-api-key',
+      )
       // Replace the internal Gemini SDK client with our mock
       ;(
         adapter as unknown as {
@@ -159,7 +162,7 @@ describe('Gemini Image Adapter', () => {
 
       expect(result.model).toBe('imagen-3.0-generate-002')
       expect(result.images).toHaveLength(1)
-      expect(result.images[0].b64Json).toBe('base64encodedimage')
+      expect(result.images[0]?.b64Json).toBe('base64encodedimage')
     })
 
     it('generates a unique ID for each response', async () => {
@@ -169,7 +172,10 @@ describe('Gemini Image Adapter', () => {
 
       const mockGenerateImages = vi.fn().mockResolvedValue(mockResponse)
 
-      const adapter = createGeminiImage('test-api-key')
+      const adapter = createGeminiImage(
+        'gemini-2.5-flash-image',
+        'test-api-key',
+      )
       ;(
         adapter as unknown as {
           client: { models: { generateImages: unknown } }

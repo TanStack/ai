@@ -1,4 +1,6 @@
 import { FinishReason } from '@google/genai'
+import { buildBaseUsage } from '@tanstack/ai'
+import { buildGeminiUsage } from '../usage'
 import {
   createGeminiClient,
   generateId,
@@ -105,18 +107,12 @@ export class GeminiSummarizeAdapter<
     })
 
     const summary = response.text ?? ''
-    const inputTokens = response.usageMetadata?.promptTokenCount ?? 0
-    const outputTokens = response.usageMetadata?.candidatesTokenCount ?? 0
 
     return {
       id: generateId('sum'),
       model,
       summary,
-      usage: {
-        promptTokens: inputTokens,
-        completionTokens: outputTokens,
-        totalTokens: inputTokens + outputTokens,
-      },
+      usage: buildGeminiUsage(response.usageMetadata),
     }
   }
 
@@ -194,11 +190,11 @@ export class GeminiSummarizeAdapter<
               : finishReason === FinishReason.MAX_TOKENS
                 ? 'length'
                 : 'content_filter',
-          usage: {
+          usage: buildBaseUsage({
             promptTokens: inputTokens,
             completionTokens: outputTokens,
             totalTokens: inputTokens + outputTokens,
-          },
+          }),
         }
       }
     }

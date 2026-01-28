@@ -1,5 +1,5 @@
 import { EventClient } from '@tanstack/devtools-event-client'
-import type { MessagePart, ToolCall } from './types'
+import type { MessagePart, TokenUsage, ToolCall } from './types'
 
 /**
  * Tool call states - track the lifecycle of a tool call
@@ -20,12 +20,6 @@ export type ToolResultState =
   | 'streaming' // Placeholder for future streamed output
   | 'complete' // Result is complete
   | 'error' // Error occurred
-
-export interface TokenUsage {
-  promptTokens: number
-  completionTokens: number
-  totalTokens: number
-}
 
 export interface ImageUsage {
   inputTokens?: number

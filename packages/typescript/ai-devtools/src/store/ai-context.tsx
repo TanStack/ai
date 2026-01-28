@@ -1,6 +1,7 @@
 import { batch, createContext, onCleanup, onMount, useContext } from 'solid-js'
 import { createStore, produce } from 'solid-js/store'
 import { aiEventClient } from '@tanstack/ai/event-client'
+import type { TokenUsage } from '@tanstack/ai'
 import type { ParentComponent } from 'solid-js'
 
 interface MessagePart {
@@ -26,11 +27,8 @@ export interface ToolCall {
   duration?: number
 }
 
-interface TokenUsage {
-  promptTokens: number
-  completionTokens: number
-  totalTokens: number
-}
+// Re-export TokenUsage from @tanstack/ai for external consumers
+export type { TokenUsage }
 
 export interface Message {
   id: string

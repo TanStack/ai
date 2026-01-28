@@ -1,16 +1,16 @@
-import { describe, it, expect, beforeEach, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { chat, summarize } from '@tanstack/ai'
-import type { Tool, StreamChunk } from '@tanstack/ai'
-import {
-  Type,
-  type HarmBlockThreshold,
-  type HarmCategory,
-  type SafetySetting,
-} from '@google/genai'
+import { Type } from '@google/genai'
 import { GeminiTextAdapter } from '../src/adapters/text'
 import { GeminiSummarizeAdapter } from '../src/adapters/summarize'
+import type {
+  HarmBlockThreshold,
+  HarmCategory,
+  SafetySetting,
+  Schema,
+} from '@google/genai'
+import type { StreamChunk, Tool } from '@tanstack/ai'
 import type { GeminiTextProviderOptions } from '../src/adapters/text'
-import type { Schema } from '@google/genai'
 
 const mocks = vi.hoisted(() => {
   return {
@@ -61,6 +61,7 @@ const weatherTool: Tool = {
 }
 
 const createStream = (chunks: Array<Record<string, unknown>>) => {
+  // eslint-disable-next-line @typescript-eslint/require-await
   return (async function* () {
     for (const chunk of chunks) {
       yield chunk
@@ -112,7 +113,7 @@ describe('GeminiAdapter through AI', () => {
     }
 
     expect(mocks.generateContentStreamSpy).toHaveBeenCalledTimes(1)
-    const [payload] = mocks.generateContentStreamSpy.mock.calls[0]
+    const [payload] = mocks.generateContentStreamSpy.mock.calls[0] as any
     expect(payload.model).toBe('gemini-2.5-pro')
     expect(payload.config).toMatchObject({
       temperature: 0.4,
@@ -148,7 +149,7 @@ describe('GeminiAdapter through AI', () => {
 
     mocks.generateContentStreamSpy.mockResolvedValue(createStream(streamChunks))
 
-    const safetySettings: SafetySetting[] = [
+    const safetySettings: Array<SafetySetting> = [
       {
         category: 'HARM_CATEGORY_HATE_SPEECH' as HarmCategory,
         threshold: 'BLOCK_LOW_AND_ABOVE' as HarmBlockThreshold,
@@ -171,35 +172,35 @@ describe('GeminiAdapter through AI', () => {
 
     const providerOptions: GeminiTextProviderOptions = {
       safetySettings,
-      generationConfig: {
-        stopSequences: ['<done>', '###'],
-        responseMimeType: 'application/json',
-        responseSchema,
-        responseJsonSchema,
-        responseModalities: ['TEXT'],
-        candidateCount: 2,
-        topK: 6,
-        seed: 7,
-        presencePenalty: 0.2,
-        frequencyPenalty: 0.4,
-        responseLogprobs: true,
-        logprobs: 3,
-        enableEnhancedCivicAnswers: true,
-        speechConfig: {
-          voiceConfig: {
-            prebuiltVoiceConfig: {
-              voiceName: 'Studio',
-            },
+
+      stopSequences: ['<done>', '###'],
+      responseMimeType: 'application/json',
+      responseSchema,
+      responseJsonSchema,
+      responseModalities: ['TEXT'],
+      candidateCount: 2,
+      topK: 6,
+      seed: 7,
+      presencePenalty: 0.2,
+      frequencyPenalty: 0.4,
+      responseLogprobs: true,
+      logprobs: 3,
+      enableEnhancedCivicAnswers: true,
+      speechConfig: {
+        voiceConfig: {
+          prebuiltVoiceConfig: {
+            voiceName: 'Studio',
           },
         },
-        thinkingConfig: {
-          includeThoughts: true,
-          thinkingBudget: 128,
-        },
-        imageConfig: {
-          aspectRatio: '1:1',
-        },
       },
+      thinkingConfig: {
+        includeThoughts: true,
+        thinkingBudget: 128,
+      },
+      imageConfig: {
+        aspectRatio: '1:1',
+      },
+
       cachedContent: 'cachedContents/weather-context',
     } as const
 
@@ -219,7 +220,7 @@ describe('GeminiAdapter through AI', () => {
     }
 
     expect(mocks.generateContentStreamSpy).toHaveBeenCalledTimes(1)
-    const [payload] = mocks.generateContentStreamSpy.mock.calls[0]
+    const [payload] = mocks.generateContentStreamSpy.mock.calls[0] as any
     const config = payload.config
 
     expect(config.temperature).toBe(0.61)
@@ -227,28 +228,28 @@ describe('GeminiAdapter through AI', () => {
     expect(config.maxOutputTokens).toBe(512)
     expect(config.cachedContent).toBe(providerOptions.cachedContent)
     expect(config.safetySettings).toEqual(providerOptions.safetySettings)
-    expect(config.stopSequences).toEqual(providerOptions?.stopSequences)
-    expect(config.responseMimeType).toBe(providerOptions?.responseMimeType)
-    expect(config.responseSchema).toEqual(providerOptions?.responseSchema)
+    expect(config.stopSequences).toEqual(providerOptions.stopSequences)
+    expect(config.responseMimeType).toBe(providerOptions.responseMimeType)
+    expect(config.responseSchema).toEqual(providerOptions.responseSchema)
     expect(config.responseJsonSchema).toEqual(
-      providerOptions?.responseJsonSchema,
+      providerOptions.responseJsonSchema,
     )
     expect(config.responseModalities).toEqual(
-      providerOptions?.responseModalities,
+      providerOptions.responseModalities,
     )
-    expect(config.candidateCount).toBe(providerOptions?.candidateCount)
-    expect(config.topK).toBe(providerOptions?.topK)
-    expect(config.seed).toBe(providerOptions?.seed)
-    expect(config.presencePenalty).toBe(providerOptions?.presencePenalty)
-    expect(config.frequencyPenalty).toBe(providerOptions?.frequencyPenalty)
-    expect(config.responseLogprobs).toBe(providerOptions?.responseLogprobs)
-    expect(config.logprobs).toBe(providerOptions?.logprobs)
+    expect(config.candidateCount).toBe(providerOptions.candidateCount)
+    expect(config.topK).toBe(providerOptions.topK)
+    expect(config.seed).toBe(providerOptions.seed)
+    expect(config.presencePenalty).toBe(providerOptions.presencePenalty)
+    expect(config.frequencyPenalty).toBe(providerOptions.frequencyPenalty)
+    expect(config.responseLogprobs).toBe(providerOptions.responseLogprobs)
+    expect(config.logprobs).toBe(providerOptions.logprobs)
     expect(config.enableEnhancedCivicAnswers).toBe(
-      providerOptions?.enableEnhancedCivicAnswers,
+      providerOptions.enableEnhancedCivicAnswers,
     )
-    expect(config.speechConfig).toEqual(providerOptions?.speechConfig)
-    expect(config.thinkingConfig).toEqual(providerOptions?.thinkingConfig)
-    expect(config.imageConfig).toEqual(providerOptions?.imageConfig)
+    expect(config.speechConfig).toEqual(providerOptions.speechConfig)
+    expect(config.thinkingConfig).toEqual(providerOptions.thinkingConfig)
+    expect(config.imageConfig).toEqual(providerOptions.imageConfig)
   })
 
   it('streams chat chunks using mapped provider config', async () => {
@@ -282,7 +283,7 @@ describe('GeminiAdapter through AI', () => {
     mocks.generateContentStreamSpy.mockResolvedValue(createStream(streamChunks))
 
     const adapter = createTextAdapter()
-    const received: StreamChunk[] = []
+    const received: Array<StreamChunk> = []
     for await (const chunk of chat({
       adapter,
       messages: [{ role: 'user', content: 'Tell me a joke' }],
@@ -295,7 +296,7 @@ describe('GeminiAdapter through AI', () => {
     }
 
     expect(mocks.generateContentStreamSpy).toHaveBeenCalledTimes(1)
-    const [streamPayload] = mocks.generateContentStreamSpy.mock.calls[0]
+    const [streamPayload] = mocks.generateContentStreamSpy.mock.calls[0] as any
     expect(streamPayload.config?.topK).toBe(3)
     expect(received[0]).toMatchObject({
       type: 'content',
@@ -337,7 +338,7 @@ describe('GeminiAdapter through AI', () => {
     })
 
     expect(mocks.generateContentSpy).toHaveBeenCalledTimes(1)
-    const [payload] = mocks.generateContentSpy.mock.calls[0]
+    const [payload] = mocks.generateContentSpy.mock.calls[0] as any
     expect(payload.model).toBe('gemini-2.0-flash')
     expect(payload.config.systemInstruction).toContain('summarizes text')
     expect(payload.config.systemInstruction).toContain('123 tokens')

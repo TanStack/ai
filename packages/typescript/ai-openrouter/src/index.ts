@@ -78,3 +78,6 @@ export { convertToolsToProviderFormat } from './tools/tool-converter'
 export { createWebSearchTool } from './tools/web-search-tool'
 
 export type { OpenRouterTool, FunctionTool, WebSearchTool } from './tools'
+
+// Export provider usage types
+export type { OpenRouterProviderUsageDetails } from './usage'

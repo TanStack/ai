@@ -2,6 +2,7 @@ import { OpenRouter } from '@openrouter/sdk'
 import { RequestAbortedError } from '@openrouter/sdk/models/errors'
 import { BaseTextAdapter } from '@tanstack/ai/adapters'
 import { convertToolsToProviderFormat } from '../tools'
+import { buildOpenRouterUsage } from '../usage'
 import {
   getOpenRouterApiKeyFromEnv,
   generateId as utilGenerateId,
@@ -189,6 +190,7 @@ export class OpenRouterTextAdapter<
         return {
           data: parsed,
           rawText: toolCall.function.arguments || '',
+          usage: buildOpenRouterUsage(result.usage),
         }
       }
 
@@ -205,6 +207,7 @@ export class OpenRouterTextAdapter<
       return {
         data: parsed,
         rawText: content,
+        usage: buildOpenRouterUsage(result.usage),
       }
     } catch (error: unknown) {
       if (error instanceof RequestAbortedError) {
@@ -345,11 +348,7 @@ export class OpenRouterTextAdapter<
             : lastFinishReason === 'length'
               ? 'length'
               : 'stop',
-        usage: {
-          promptTokens: usage.promptTokens || 0,
-          completionTokens: usage.completionTokens || 0,
-          totalTokens: usage.totalTokens || 0,
-        },
+        usage: buildOpenRouterUsage(usage),
       }
     }
   }
