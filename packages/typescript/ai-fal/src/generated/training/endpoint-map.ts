@@ -147,6 +147,8 @@ import type {
   SchemaZImageTurboTrainerV2Output,
 } from './types.gen'
 
+import type { z } from 'zod'
+
 export type TrainingEndpointMap = {
   'fal-ai/flux-krea-trainer': {
     input: SchemaFluxKreaTrainerInput
@@ -290,7 +292,13 @@ export type TrainingEndpointMap = {
   }
 }
 
-export const TrainingSchemaMap = {
+/** Union type of all training model endpoint IDs */
+export type TrainingModel = keyof TrainingEndpointMap
+
+export const TrainingSchemaMap: Record<
+  TrainingModel,
+  { input: z.ZodSchema; output: z.ZodSchema }
+> = {
   ['fal-ai/flux-krea-trainer']: {
     input: zSchemaFluxKreaTrainerInput,
     output: zSchemaFluxKreaTrainerOutput,
@@ -433,11 +441,10 @@ export const TrainingSchemaMap = {
   },
 } as const
 
-/** Union type of all training model endpoint IDs */
-export type TrainingModel = keyof TrainingEndpointMap
-
 /** Get the input type for a specific training model */
-export type TrainingModelInput<T extends TrainingModel> = TrainingEndpointMap[T]['input']
+export type TrainingModelInput<T extends TrainingModel> =
+  TrainingEndpointMap[T]['input']
 
 /** Get the output type for a specific training model */
-export type TrainingModelOutput<T extends TrainingModel> = TrainingEndpointMap[T]['output']
+export type TrainingModelOutput<T extends TrainingModel> =
+  TrainingEndpointMap[T]['output']

@@ -15,6 +15,8 @@ import type {
   SchemaRouterVideoOutput,
 } from './types.gen'
 
+import type { z } from 'zod'
+
 export type VideoToTextEndpointMap = {
   'openrouter/router/video/enterprise': {
     input: SchemaRouterVideoEnterpriseInput
@@ -26,7 +28,13 @@ export type VideoToTextEndpointMap = {
   }
 }
 
-export const VideoToTextSchemaMap = {
+/** Union type of all video-to-text model endpoint IDs */
+export type VideoToTextModel = keyof VideoToTextEndpointMap
+
+export const VideoToTextSchemaMap: Record<
+  VideoToTextModel,
+  { input: z.ZodSchema; output: z.ZodSchema }
+> = {
   ['openrouter/router/video/enterprise']: {
     input: zSchemaRouterVideoEnterpriseInput,
     output: zSchemaRouterVideoEnterpriseOutput,
@@ -37,11 +45,10 @@ export const VideoToTextSchemaMap = {
   },
 } as const
 
-/** Union type of all video-to-text model endpoint IDs */
-export type VideoToTextModel = keyof VideoToTextEndpointMap
-
 /** Get the input type for a specific video-to-text model */
-export type VideoToTextModelInput<T extends VideoToTextModel> = VideoToTextEndpointMap[T]['input']
+export type VideoToTextModelInput<T extends VideoToTextModel> =
+  VideoToTextEndpointMap[T]['input']
 
 /** Get the output type for a specific video-to-text model */
-export type VideoToTextModelOutput<T extends VideoToTextModel> = VideoToTextEndpointMap[T]['output']
+export type VideoToTextModelOutput<T extends VideoToTextModel> =
+  VideoToTextEndpointMap[T]['output']

@@ -15,6 +15,8 @@ import type {
   SchemaChatterboxhdSpeechToSpeechOutput,
 } from './types.gen'
 
+import type { z } from 'zod'
+
 export type SpeechToSpeechEndpointMap = {
   'resemble-ai/chatterboxhd/speech-to-speech': {
     input: SchemaChatterboxhdSpeechToSpeechInput
@@ -26,7 +28,13 @@ export type SpeechToSpeechEndpointMap = {
   }
 }
 
-export const SpeechToSpeechSchemaMap = {
+/** Union type of all speech-to-speech model endpoint IDs */
+export type SpeechToSpeechModel = keyof SpeechToSpeechEndpointMap
+
+export const SpeechToSpeechSchemaMap: Record<
+  SpeechToSpeechModel,
+  { input: z.ZodSchema; output: z.ZodSchema }
+> = {
   ['resemble-ai/chatterboxhd/speech-to-speech']: {
     input: zSchemaChatterboxhdSpeechToSpeechInput,
     output: zSchemaChatterboxhdSpeechToSpeechOutput,
@@ -37,11 +45,10 @@ export const SpeechToSpeechSchemaMap = {
   },
 } as const
 
-/** Union type of all speech-to-speech model endpoint IDs */
-export type SpeechToSpeechModel = keyof SpeechToSpeechEndpointMap
-
 /** Get the input type for a specific speech-to-speech model */
-export type SpeechToSpeechModelInput<T extends SpeechToSpeechModel> = SpeechToSpeechEndpointMap[T]['input']
+export type SpeechToSpeechModelInput<T extends SpeechToSpeechModel> =
+  SpeechToSpeechEndpointMap[T]['input']
 
 /** Get the output type for a specific speech-to-speech model */
-export type SpeechToSpeechModelOutput<T extends SpeechToSpeechModel> = SpeechToSpeechEndpointMap[T]['output']
+export type SpeechToSpeechModelOutput<T extends SpeechToSpeechModel> =
+  SpeechToSpeechEndpointMap[T]['output']

@@ -31,6 +31,8 @@ import type {
   SchemaVideoPromptGeneratorOutput,
 } from './types.gen'
 
+import type { z } from 'zod'
+
 export type LlmEndpointMap = {
   'openrouter/router/openai/v1/responses': {
     input: SchemaRouterOpenaiV1ResponsesInput
@@ -58,7 +60,13 @@ export type LlmEndpointMap = {
   }
 }
 
-export const LlmSchemaMap = {
+/** Union type of all llm model endpoint IDs */
+export type LlmModel = keyof LlmEndpointMap
+
+export const LlmSchemaMap: Record<
+  LlmModel,
+  { input: z.ZodSchema; output: z.ZodSchema }
+> = {
   ['openrouter/router/openai/v1/responses']: {
     input: zSchemaRouterOpenaiV1ResponsesInput,
     output: zSchemaRouterOpenaiV1ResponsesOutput,
@@ -84,9 +92,6 @@ export const LlmSchemaMap = {
     output: zSchemaVideoPromptGeneratorOutput,
   },
 } as const
-
-/** Union type of all llm model endpoint IDs */
-export type LlmModel = keyof LlmEndpointMap
 
 /** Get the input type for a specific llm model */
 export type LlmModelInput<T extends LlmModel> = LlmEndpointMap[T]['input']

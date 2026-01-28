@@ -519,6 +519,8 @@ import type {
   SchemaWorkflowUtilitiesAutoSubtitleOutput,
 } from './types.gen'
 
+import type { z } from 'zod'
+
 export type VideoToVideoEndpointMap = {
   'bria/video/background-removal': {
     input: SchemaVideoBackgroundRemovalInput
@@ -1038,7 +1040,13 @@ export type VideoToVideoEndpointMap = {
   }
 }
 
-export const VideoToVideoSchemaMap = {
+/** Union type of all video-to-video model endpoint IDs */
+export type VideoToVideoModel = keyof VideoToVideoEndpointMap
+
+export const VideoToVideoSchemaMap: Record<
+  VideoToVideoModel,
+  { input: z.ZodSchema; output: z.ZodSchema }
+> = {
   ['bria/video/background-removal']: {
     input: zSchemaVideoBackgroundRemovalInput,
     output: zSchemaVideoBackgroundRemovalOutput,
@@ -1557,11 +1565,10 @@ export const VideoToVideoSchemaMap = {
   },
 } as const
 
-/** Union type of all video-to-video model endpoint IDs */
-export type VideoToVideoModel = keyof VideoToVideoEndpointMap
-
 /** Get the input type for a specific video-to-video model */
-export type VideoToVideoModelInput<T extends VideoToVideoModel> = VideoToVideoEndpointMap[T]['input']
+export type VideoToVideoModelInput<T extends VideoToVideoModel> =
+  VideoToVideoEndpointMap[T]['input']
 
 /** Get the output type for a specific video-to-video model */
-export type VideoToVideoModelOutput<T extends VideoToVideoModel> = VideoToVideoEndpointMap[T]['output']
+export type VideoToVideoModelOutput<T extends VideoToVideoModel> =
+  VideoToVideoEndpointMap[T]['output']

@@ -23,6 +23,8 @@ import type {
   SchemaSfxV1VideoToAudioOutput,
 } from './types.gen'
 
+import type { z } from 'zod'
+
 export type VideoToAudioEndpointMap = {
   'fal-ai/sam-audio/visual-separate': {
     input: SchemaSamAudioVisualSeparateInput
@@ -42,7 +44,13 @@ export type VideoToAudioEndpointMap = {
   }
 }
 
-export const VideoToAudioSchemaMap = {
+/** Union type of all video-to-audio model endpoint IDs */
+export type VideoToAudioModel = keyof VideoToAudioEndpointMap
+
+export const VideoToAudioSchemaMap: Record<
+  VideoToAudioModel,
+  { input: z.ZodSchema; output: z.ZodSchema }
+> = {
   ['fal-ai/sam-audio/visual-separate']: {
     input: zSchemaSamAudioVisualSeparateInput,
     output: zSchemaSamAudioVisualSeparateOutput,
@@ -61,11 +69,10 @@ export const VideoToAudioSchemaMap = {
   },
 } as const
 
-/** Union type of all video-to-audio model endpoint IDs */
-export type VideoToAudioModel = keyof VideoToAudioEndpointMap
-
 /** Get the input type for a specific video-to-audio model */
-export type VideoToAudioModelInput<T extends VideoToAudioModel> = VideoToAudioEndpointMap[T]['input']
+export type VideoToAudioModelInput<T extends VideoToAudioModel> =
+  VideoToAudioEndpointMap[T]['input']
 
 /** Get the output type for a specific video-to-audio model */
-export type VideoToAudioModelOutput<T extends VideoToAudioModel> = VideoToAudioEndpointMap[T]['output']
+export type VideoToAudioModelOutput<T extends VideoToAudioModel> =
+  VideoToAudioEndpointMap[T]['output']

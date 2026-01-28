@@ -107,6 +107,8 @@ import type {
   SchemaVibevoiceOutput,
 } from './types.gen'
 
+import type { z } from 'zod'
+
 export type TextToSpeechEndpointMap = {
   'fal-ai/qwen-3-tts/voice-design/1.7b': {
     input: SchemaQwen3TtsVoiceDesign17bInput
@@ -210,7 +212,13 @@ export type TextToSpeechEndpointMap = {
   }
 }
 
-export const TextToSpeechSchemaMap = {
+/** Union type of all text-to-speech model endpoint IDs */
+export type TextToSpeechModel = keyof TextToSpeechEndpointMap
+
+export const TextToSpeechSchemaMap: Record<
+  TextToSpeechModel,
+  { input: z.ZodSchema; output: z.ZodSchema }
+> = {
   ['fal-ai/qwen-3-tts/voice-design/1.7b']: {
     input: zSchemaQwen3TtsVoiceDesign17bInput,
     output: zSchemaQwen3TtsVoiceDesign17bOutput,
@@ -313,11 +321,10 @@ export const TextToSpeechSchemaMap = {
   },
 } as const
 
-/** Union type of all text-to-speech model endpoint IDs */
-export type TextToSpeechModel = keyof TextToSpeechEndpointMap
-
 /** Get the input type for a specific text-to-speech model */
-export type TextToSpeechModelInput<T extends TextToSpeechModel> = TextToSpeechEndpointMap[T]['input']
+export type TextToSpeechModelInput<T extends TextToSpeechModel> =
+  TextToSpeechEndpointMap[T]['input']
 
 /** Get the output type for a specific text-to-speech model */
-export type TextToSpeechModelOutput<T extends TextToSpeechModel> = TextToSpeechEndpointMap[T]['output']
+export type TextToSpeechModelOutput<T extends TextToSpeechModel> =
+  TextToSpeechEndpointMap[T]['output']

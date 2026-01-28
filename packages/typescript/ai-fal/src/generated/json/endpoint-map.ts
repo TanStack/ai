@@ -19,6 +19,8 @@ import type {
   SchemaFfmpegApiWaveformOutput,
 } from './types.gen'
 
+import type { z } from 'zod'
+
 export type JsonEndpointMap = {
   'fal-ai/ffmpeg-api/loudnorm': {
     input: SchemaFfmpegApiLoudnormInput
@@ -34,7 +36,13 @@ export type JsonEndpointMap = {
   }
 }
 
-export const JsonSchemaMap = {
+/** Union type of all json model endpoint IDs */
+export type JsonModel = keyof JsonEndpointMap
+
+export const JsonSchemaMap: Record<
+  JsonModel,
+  { input: z.ZodSchema; output: z.ZodSchema }
+> = {
   ['fal-ai/ffmpeg-api/loudnorm']: {
     input: zSchemaFfmpegApiLoudnormInput,
     output: zSchemaFfmpegApiLoudnormOutput,
@@ -48,9 +56,6 @@ export const JsonSchemaMap = {
     output: zSchemaFfmpegApiMetadataOutput,
   },
 } as const
-
-/** Union type of all json model endpoint IDs */
-export type JsonModel = keyof JsonEndpointMap
 
 /** Get the input type for a specific json model */
 export type JsonModelInput<T extends JsonModel> = JsonEndpointMap[T]['input']

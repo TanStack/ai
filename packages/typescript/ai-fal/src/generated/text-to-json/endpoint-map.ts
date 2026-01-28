@@ -23,6 +23,8 @@ import type {
   SchemaFiboLiteGenerateStructuredPromptOutput,
 } from './types.gen'
 
+import type { z } from 'zod'
+
 export type TextToJsonEndpointMap = {
   'bria/fibo-edit/edit/structured_instruction': {
     input: SchemaFiboEditEditStructuredInstructionInput
@@ -42,7 +44,13 @@ export type TextToJsonEndpointMap = {
   }
 }
 
-export const TextToJsonSchemaMap = {
+/** Union type of all text-to-json model endpoint IDs */
+export type TextToJsonModel = keyof TextToJsonEndpointMap
+
+export const TextToJsonSchemaMap: Record<
+  TextToJsonModel,
+  { input: z.ZodSchema; output: z.ZodSchema }
+> = {
   ['bria/fibo-edit/edit/structured_instruction']: {
     input: zSchemaFiboEditEditStructuredInstructionInput,
     output: zSchemaFiboEditEditStructuredInstructionOutput,
@@ -61,11 +69,10 @@ export const TextToJsonSchemaMap = {
   },
 } as const
 
-/** Union type of all text-to-json model endpoint IDs */
-export type TextToJsonModel = keyof TextToJsonEndpointMap
-
 /** Get the input type for a specific text-to-json model */
-export type TextToJsonModelInput<T extends TextToJsonModel> = TextToJsonEndpointMap[T]['input']
+export type TextToJsonModelInput<T extends TextToJsonModel> =
+  TextToJsonEndpointMap[T]['input']
 
 /** Get the output type for a specific text-to-json model */
-export type TextToJsonModelOutput<T extends TextToJsonModel> = TextToJsonEndpointMap[T]['output']
+export type TextToJsonModelOutput<T extends TextToJsonModel> =
+  TextToJsonEndpointMap[T]['output']

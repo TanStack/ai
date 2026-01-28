@@ -75,6 +75,8 @@ import type {
   SchemaV2ExtendOutput,
 } from './types.gen'
 
+import type { z } from 'zod'
+
 export type AudioToAudioEndpointMap = {
   'fal-ai/elevenlabs/voice-changer': {
     input: SchemaElevenlabsVoiceChangerInput
@@ -146,7 +148,13 @@ export type AudioToAudioEndpointMap = {
   }
 }
 
-export const AudioToAudioSchemaMap = {
+/** Union type of all audio-to-audio model endpoint IDs */
+export type AudioToAudioModel = keyof AudioToAudioEndpointMap
+
+export const AudioToAudioSchemaMap: Record<
+  AudioToAudioModel,
+  { input: z.ZodSchema; output: z.ZodSchema }
+> = {
   ['fal-ai/elevenlabs/voice-changer']: {
     input: zSchemaElevenlabsVoiceChangerInput,
     output: zSchemaElevenlabsVoiceChangerOutput,
@@ -217,11 +225,10 @@ export const AudioToAudioSchemaMap = {
   },
 } as const
 
-/** Union type of all audio-to-audio model endpoint IDs */
-export type AudioToAudioModel = keyof AudioToAudioEndpointMap
-
 /** Get the input type for a specific audio-to-audio model */
-export type AudioToAudioModelInput<T extends AudioToAudioModel> = AudioToAudioEndpointMap[T]['input']
+export type AudioToAudioModelInput<T extends AudioToAudioModel> =
+  AudioToAudioEndpointMap[T]['input']
 
 /** Get the output type for a specific audio-to-audio model */
-export type AudioToAudioModelOutput<T extends AudioToAudioModel> = AudioToAudioEndpointMap[T]['output']
+export type AudioToAudioModelOutput<T extends AudioToAudioModel> =
+  AudioToAudioEndpointMap[T]['output']

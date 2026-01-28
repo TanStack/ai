@@ -143,6 +143,8 @@ import type {
   SchemaXAilabNsfwOutput,
 } from './types.gen'
 
+import type { z } from 'zod'
+
 export type VisionEndpointMap = {
   'fal-ai/arbiter/image/text': {
     input: SchemaArbiterImageTextInput
@@ -282,7 +284,13 @@ export type VisionEndpointMap = {
   }
 }
 
-export const VisionSchemaMap = {
+/** Union type of all vision model endpoint IDs */
+export type VisionModel = keyof VisionEndpointMap
+
+export const VisionSchemaMap: Record<
+  VisionModel,
+  { input: z.ZodSchema; output: z.ZodSchema }
+> = {
   ['fal-ai/arbiter/image/text']: {
     input: zSchemaArbiterImageTextInput,
     output: zSchemaArbiterImageTextOutput,
@@ -421,11 +429,10 @@ export const VisionSchemaMap = {
   },
 } as const
 
-/** Union type of all vision model endpoint IDs */
-export type VisionModel = keyof VisionEndpointMap
-
 /** Get the input type for a specific vision model */
-export type VisionModelInput<T extends VisionModel> = VisionEndpointMap[T]['input']
+export type VisionModelInput<T extends VisionModel> =
+  VisionEndpointMap[T]['input']
 
 /** Get the output type for a specific vision model */
-export type VisionModelOutput<T extends VisionModel> = VisionEndpointMap[T]['output']
+export type VisionModelOutput<T extends VisionModel> =
+  VisionEndpointMap[T]['output']

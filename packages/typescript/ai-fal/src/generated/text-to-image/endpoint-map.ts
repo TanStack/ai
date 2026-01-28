@@ -611,6 +611,8 @@ import type {
   SchemaZImageTurboOutput,
 } from './types.gen'
 
+import type { z } from 'zod'
+
 export type TextToImageEndpointMap = {
   'fal-ai/imagen4/preview': {
     input: SchemaImagen4PreviewInput
@@ -1218,7 +1220,13 @@ export type TextToImageEndpointMap = {
   }
 }
 
-export const TextToImageSchemaMap = {
+/** Union type of all text-to-image model endpoint IDs */
+export type TextToImageModel = keyof TextToImageEndpointMap
+
+export const TextToImageSchemaMap: Record<
+  TextToImageModel,
+  { input: z.ZodSchema; output: z.ZodSchema }
+> = {
   ['fal-ai/imagen4/preview']: {
     input: zSchemaImagen4PreviewInput,
     output: zSchemaImagen4PreviewOutput,
@@ -1825,11 +1833,10 @@ export const TextToImageSchemaMap = {
   },
 } as const
 
-/** Union type of all text-to-image model endpoint IDs */
-export type TextToImageModel = keyof TextToImageEndpointMap
-
 /** Get the input type for a specific text-to-image model */
-export type TextToImageModelInput<T extends TextToImageModel> = TextToImageEndpointMap[T]['input']
+export type TextToImageModelInput<T extends TextToImageModel> =
+  TextToImageEndpointMap[T]['input']
 
 /** Get the output type for a specific text-to-image model */
-export type TextToImageModelOutput<T extends TextToImageModel> = TextToImageEndpointMap[T]['output']
+export type TextToImageModelOutput<T extends TextToImageModel> =
+  TextToImageEndpointMap[T]['output']

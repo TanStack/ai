@@ -611,6 +611,8 @@ import type {
   SchemaWanV22A14bImageToVideoTurboOutput,
 } from './types.gen'
 
+import type { z } from 'zod'
+
 export type ImageToVideoEndpointMap = {
   'fal-ai/wan-effects': {
     input: SchemaWanEffectsInput
@@ -1218,7 +1220,13 @@ export type ImageToVideoEndpointMap = {
   }
 }
 
-export const ImageToVideoSchemaMap = {
+/** Union type of all image-to-video model endpoint IDs */
+export type ImageToVideoModel = keyof ImageToVideoEndpointMap
+
+export const ImageToVideoSchemaMap: Record<
+  ImageToVideoModel,
+  { input: z.ZodSchema; output: z.ZodSchema }
+> = {
   ['fal-ai/wan-effects']: {
     input: zSchemaWanEffectsInput,
     output: zSchemaWanEffectsOutput,
@@ -1825,11 +1833,10 @@ export const ImageToVideoSchemaMap = {
   },
 } as const
 
-/** Union type of all image-to-video model endpoint IDs */
-export type ImageToVideoModel = keyof ImageToVideoEndpointMap
-
 /** Get the input type for a specific image-to-video model */
-export type ImageToVideoModelInput<T extends ImageToVideoModel> = ImageToVideoEndpointMap[T]['input']
+export type ImageToVideoModelInput<T extends ImageToVideoModel> =
+  ImageToVideoEndpointMap[T]['input']
 
 /** Get the output type for a specific image-to-video model */
-export type ImageToVideoModelOutput<T extends ImageToVideoModel> = ImageToVideoEndpointMap[T]['output']
+export type ImageToVideoModelOutput<T extends ImageToVideoModel> =
+  ImageToVideoEndpointMap[T]['output']

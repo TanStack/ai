@@ -55,6 +55,8 @@ import type {
   SchemaWanV2214bSpeechToVideoOutput,
 } from './types.gen'
 
+import type { z } from 'zod'
+
 export type AudioToVideoEndpointMap = {
   'fal-ai/ltx-2-19b/distilled/audio-to-video/lora': {
     input: SchemaLtx219bDistilledAudioToVideoLoraInput
@@ -110,7 +112,13 @@ export type AudioToVideoEndpointMap = {
   }
 }
 
-export const AudioToVideoSchemaMap = {
+/** Union type of all audio-to-video model endpoint IDs */
+export type AudioToVideoModel = keyof AudioToVideoEndpointMap
+
+export const AudioToVideoSchemaMap: Record<
+  AudioToVideoModel,
+  { input: z.ZodSchema; output: z.ZodSchema }
+> = {
   ['fal-ai/ltx-2-19b/distilled/audio-to-video/lora']: {
     input: zSchemaLtx219bDistilledAudioToVideoLoraInput,
     output: zSchemaLtx219bDistilledAudioToVideoLoraOutput,
@@ -165,11 +173,10 @@ export const AudioToVideoSchemaMap = {
   },
 } as const
 
-/** Union type of all audio-to-video model endpoint IDs */
-export type AudioToVideoModel = keyof AudioToVideoEndpointMap
-
 /** Get the input type for a specific audio-to-video model */
-export type AudioToVideoModelInput<T extends AudioToVideoModel> = AudioToVideoEndpointMap[T]['input']
+export type AudioToVideoModelInput<T extends AudioToVideoModel> =
+  AudioToVideoEndpointMap[T]['input']
 
 /** Get the output type for a specific audio-to-video model */
-export type AudioToVideoModelOutput<T extends AudioToVideoModel> = AudioToVideoEndpointMap[T]['output']
+export type AudioToVideoModelOutput<T extends AudioToVideoModel> =
+  AudioToVideoEndpointMap[T]['output']

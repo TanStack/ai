@@ -19,6 +19,7 @@
 import { existsSync, readFileSync, readdirSync, writeFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
+import * as prettier from 'prettier'
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
 
@@ -50,7 +51,6 @@ function extractEndpointsFromTypes(categoryPath: string): Array<EndpointInfo> {
 
   let match
   while ((match = postTypeRegex.exec(content)) !== null) {
-    const postTypeName = match[1]!
     const inputType = match[2]!
     const urlPath = match[3]!
 
@@ -199,7 +199,9 @@ function generateOutputTypeUnions(
 
     // Generate combined SchemaMap
     lines.push(`/** Combined schema map for all ${outputType} models */`)
-    lines.push(`export const Fal${outputTypePascal}SchemaMap = {`)
+    lines.push(
+      `export const Fal${outputTypePascal}SchemaMap: Record<Fal${outputTypePascal}Model, { input: z.ZodSchema; output: z.ZodSchema }> = {`,
+    )
     for (const category of availableCategories) {
       const typeName = toPascalCase(category)
       lines.push(`  ...${typeName}SchemaMap,`)
@@ -212,13 +214,25 @@ function generateOutputTypeUnions(
 }
 
 /**
+ * Format TypeScript code using prettier
+ */
+async function formatTypeScript(content: string): Promise<string> {
+  return prettier.format(content, {
+    parser: 'typescript',
+    semi: false,
+    singleQuote: true,
+    trailingComma: 'all',
+  })
+}
+
+/**
  * Generate endpoint-map.ts for a category
  */
-function generateEndpointMap(
+async function generateEndpointMap(
   category: string,
   categoryPath: string,
   endpoints: Array<EndpointInfo>,
-): void {
+): Promise<void> {
   const typeName = toPascalCase(category)
 
   // Collect unique type and schema names
@@ -254,6 +268,8 @@ function generateEndpointMap(
     ...typeImports.map((t) => `  ${t},`),
     `} from './types.gen'`,
     ``,
+    `import type { z } from 'zod'`,
+    ``,
   ]
 
   // Generate TypeScript EndpointMap type
@@ -269,7 +285,13 @@ function generateEndpointMap(
   typeMapLines.push(`}`)
 
   // Generate Zod SchemaMap constant
-  const schemaMapLines = [``, `export const ${typeName}SchemaMap = {`]
+  const schemaMapLines = [
+    ``,
+    `export const ${typeName}SchemaMap: Record<`,
+    `  ${typeName}Model,`,
+    `  { input: z.ZodSchema; output: z.ZodSchema }`,
+    `> = {`,
+  ]
 
   for (const { endpointId, inputType, outputType } of endpoints) {
     const inputSchema = getZodSchemaName(inputType)
@@ -282,11 +304,15 @@ function generateEndpointMap(
 
   schemaMapLines.push(`} as const`)
 
-  // Generate utility types
-  const utilityTypes = [
+  // Generate Model type (must come before SchemaMap which references it)
+  const modelType = [
     ``,
     `/** Union type of all ${category} model endpoint IDs */`,
     `export type ${typeName}Model = keyof ${typeName}EndpointMap`,
+  ]
+
+  // Generate utility types
+  const utilityTypes = [
     ``,
     `/** Get the input type for a specific ${category} model */`,
     `export type ${typeName}ModelInput<T extends ${typeName}Model> = ${typeName}EndpointMap[T]['input']`,
@@ -300,19 +326,21 @@ function generateEndpointMap(
   const content = [
     ...imports,
     ...typeMapLines,
+    ...modelType,
     ...schemaMapLines,
     ...utilityTypes,
   ].join('\n')
 
-  // Write to file
+  // Format and write to file
   const outputPath = join(categoryPath, 'endpoint-map.ts')
-  writeFileSync(outputPath, content)
+  const formattedContent = await formatTypeScript(content)
+  writeFileSync(outputPath, formattedContent)
   console.log(
     `  ✓ Generated ${category}/endpoint-map.ts (${endpoints.length} endpoints)`,
   )
 }
 
-function main() {
+async function main() {
   const generatedDir = join(__dirname, '..', 'src', 'generated')
 
   if (!existsSync(generatedDir)) {
@@ -349,7 +377,7 @@ function main() {
     }
 
     // Generate endpoint-map.ts
-    generateEndpointMap(category, categoryPath, endpoints)
+    await generateEndpointMap(category, categoryPath, endpoints)
     processedCategories.push(category)
   }
 
@@ -360,11 +388,6 @@ function main() {
     `// Generated from types.gen.ts via scripts/generate-fal-endpoint-maps.ts`,
     ``,
   ]
-  indexLines.push(`  // Re-export all category endpoint maps`)
-
-  for (const category of processedCategories) {
-    indexLines.push(`export * from './${category}/endpoint-map'`)
-  }
 
   // Collect categories that are used in output-type unions
   const usedCategories = new Set<string>()
@@ -377,27 +400,53 @@ function main() {
   }
   const usedCategoriesList = Array.from(usedCategories).sort()
 
-  indexLines.push(``)
-  indexLines.push(`// Import all category model types for FalModel union`)
-  indexLines.push(`import type {`)
-  for (const category of processedCategories) {
-    indexLines.push(`  ${toPascalCase(category)}Model,`)
-  }
-  indexLines.push(`} from './index'`)
-  indexLines.push(``)
-  indexLines.push(`// Import types and schemas for output-type unions`)
-  indexLines.push(`import type {`)
-  for (const category of usedCategoriesList) {
-    indexLines.push(`  ${toPascalCase(category)}ModelInput,`)
-    indexLines.push(`  ${toPascalCase(category)}ModelOutput,`)
-  }
-  indexLines.push(`} from './index'`)
-  indexLines.push(``)
+  const pascalCaseCategories = processedCategories
+    .map((category) => toPascalCase(category))
+    .sort()
+
+  const pascalCaseUsedCategories = usedCategoriesList
+    .map((category) => toPascalCase(category))
+    .sort()
+
+  // Generate imports first (before exports) to satisfy import/first rule
+  indexLines.push(`// Import value exports (SchemaMap constants) from re-exported category maps`)
   indexLines.push(`import {`)
-  for (const category of usedCategoriesList) {
-    indexLines.push(`  ${toPascalCase(category)}SchemaMap,`)
+  for (const pascalCaseCategory of pascalCaseUsedCategories) {
+    indexLines.push(`  ${pascalCaseCategory}SchemaMap,`)
   }
   indexLines.push(`} from './index'`)
+  indexLines.push(``)
+
+  // Generate type imports
+  indexLines.push(`// Import type exports from re-exported category maps`)
+  indexLines.push(`import type {`)
+
+  // Collect all type imports and sort them alphabetically
+  const allTypeImports: Array<string> = []
+  for (const pascalCaseCategory of pascalCaseCategories) {
+    allTypeImports.push(`${pascalCaseCategory}Model`)
+  }
+  for (const pascalCaseCategory of pascalCaseUsedCategories) {
+    allTypeImports.push(`${pascalCaseCategory}ModelInput`)
+    allTypeImports.push(`${pascalCaseCategory}ModelOutput`)
+  }
+  allTypeImports.sort()
+
+  for (const typeImport of allTypeImports) {
+    indexLines.push(`  ${typeImport},`)
+  }
+  indexLines.push(`} from './index'`)
+  indexLines.push(``)
+
+  // Import external zod type after local imports
+  indexLines.push(`import type { z } from 'zod'`)
+  indexLines.push(``)
+
+  // Now add the re-exports
+  indexLines.push(`// Re-export all category endpoint maps`)
+  for (const category of processedCategories) {
+    indexLines.push(`export * from './${category}/endpoint-map'`)
+  }
   indexLines.push(``)
   indexLines.push(`/**`)
   indexLines.push(
@@ -412,10 +461,10 @@ function main() {
   )
   indexLines.push(` */`)
   indexLines.push(`export type FalModel =`)
-  for (let i = 0; i < processedCategories.length; i++) {
-    const category = processedCategories[i]
+  for (let i = 0; i < pascalCaseCategories.length; i++) {
+    const pascalCaseCategory = pascalCaseCategories[i]!
     const isLast = i === processedCategories.length - 1
-    indexLines.push(`  | ${toPascalCase(category!)}Model${isLast ? '' : ''}`)
+    indexLines.push(`  | ${pascalCaseCategory}Model${isLast ? '' : ''}`)
   }
   indexLines.push(``)
 
@@ -424,7 +473,8 @@ function main() {
   indexLines.push(...outputTypeLines)
 
   const indexPath = join(generatedDir, 'index.ts')
-  writeFileSync(indexPath, indexLines.join('\n'))
+  const formattedIndex = await formatTypeScript(indexLines.join('\n'))
+  writeFileSync(indexPath, formattedIndex)
   console.log(`  ✓ Generated index.ts`)
 
   console.log(`\n✓ Done! Generated endpoint maps in src/generated/`)
@@ -434,4 +484,7 @@ function main() {
   }
 }
 
-main()
+main().catch((error) => {
+  console.error('Error:', error)
+  process.exit(1)
+})

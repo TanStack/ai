@@ -407,6 +407,8 @@ import type {
   SchemaWanV22A14bTextToVideoTurboOutput,
 } from './types.gen'
 
+import type { z } from 'zod'
+
 export type TextToVideoEndpointMap = {
   'fal-ai/kling-video/v2.5-turbo/pro/text-to-video': {
     input: SchemaKlingVideoV25TurboProTextToVideoInput
@@ -814,7 +816,13 @@ export type TextToVideoEndpointMap = {
   }
 }
 
-export const TextToVideoSchemaMap = {
+/** Union type of all text-to-video model endpoint IDs */
+export type TextToVideoModel = keyof TextToVideoEndpointMap
+
+export const TextToVideoSchemaMap: Record<
+  TextToVideoModel,
+  { input: z.ZodSchema; output: z.ZodSchema }
+> = {
   ['fal-ai/kling-video/v2.5-turbo/pro/text-to-video']: {
     input: zSchemaKlingVideoV25TurboProTextToVideoInput,
     output: zSchemaKlingVideoV25TurboProTextToVideoOutput,
@@ -1221,11 +1229,10 @@ export const TextToVideoSchemaMap = {
   },
 } as const
 
-/** Union type of all text-to-video model endpoint IDs */
-export type TextToVideoModel = keyof TextToVideoEndpointMap
-
 /** Get the input type for a specific text-to-video model */
-export type TextToVideoModelInput<T extends TextToVideoModel> = TextToVideoEndpointMap[T]['input']
+export type TextToVideoModelInput<T extends TextToVideoModel> =
+  TextToVideoEndpointMap[T]['input']
 
 /** Get the output type for a specific text-to-video model */
-export type TextToVideoModelOutput<T extends TextToVideoModel> = TextToVideoEndpointMap[T]['output']
+export type TextToVideoModelOutput<T extends TextToVideoModel> =
+  TextToVideoEndpointMap[T]['output']

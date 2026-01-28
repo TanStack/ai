@@ -43,6 +43,8 @@ import type {
   SchemaWizperOutput,
 } from './types.gen'
 
+import type { z } from 'zod'
+
 export type SpeechToTextEndpointMap = {
   'fal-ai/elevenlabs/speech-to-text/scribe-v2': {
     input: SchemaElevenlabsSpeechToTextScribeV2Input
@@ -82,7 +84,13 @@ export type SpeechToTextEndpointMap = {
   }
 }
 
-export const SpeechToTextSchemaMap = {
+/** Union type of all speech-to-text model endpoint IDs */
+export type SpeechToTextModel = keyof SpeechToTextEndpointMap
+
+export const SpeechToTextSchemaMap: Record<
+  SpeechToTextModel,
+  { input: z.ZodSchema; output: z.ZodSchema }
+> = {
   ['fal-ai/elevenlabs/speech-to-text/scribe-v2']: {
     input: zSchemaElevenlabsSpeechToTextScribeV2Input,
     output: zSchemaElevenlabsSpeechToTextScribeV2Output,
@@ -121,11 +129,10 @@ export const SpeechToTextSchemaMap = {
   },
 } as const
 
-/** Union type of all speech-to-text model endpoint IDs */
-export type SpeechToTextModel = keyof SpeechToTextEndpointMap
-
 /** Get the input type for a specific speech-to-text model */
-export type SpeechToTextModelInput<T extends SpeechToTextModel> = SpeechToTextEndpointMap[T]['input']
+export type SpeechToTextModelInput<T extends SpeechToTextModel> =
+  SpeechToTextEndpointMap[T]['input']
 
 /** Get the output type for a specific speech-to-text model */
-export type SpeechToTextModelOutput<T extends SpeechToTextModel> = SpeechToTextEndpointMap[T]['output']
+export type SpeechToTextModelOutput<T extends SpeechToTextModel> =
+  SpeechToTextEndpointMap[T]['output']

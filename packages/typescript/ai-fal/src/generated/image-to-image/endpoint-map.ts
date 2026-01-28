@@ -1395,6 +1395,8 @@ import type {
   SchemaZImageTurboInpaintOutput,
 } from './types.gen'
 
+import type { z } from 'zod'
+
 export type ImageToImageEndpointMap = {
   'fal-ai/flux-pro/kontext': {
     input: SchemaFluxProKontextInput
@@ -2786,7 +2788,13 @@ export type ImageToImageEndpointMap = {
   }
 }
 
-export const ImageToImageSchemaMap = {
+/** Union type of all image-to-image model endpoint IDs */
+export type ImageToImageModel = keyof ImageToImageEndpointMap
+
+export const ImageToImageSchemaMap: Record<
+  ImageToImageModel,
+  { input: z.ZodSchema; output: z.ZodSchema }
+> = {
   ['fal-ai/flux-pro/kontext']: {
     input: zSchemaFluxProKontextInput,
     output: zSchemaFluxProKontextOutput,
@@ -4177,11 +4185,10 @@ export const ImageToImageSchemaMap = {
   },
 } as const
 
-/** Union type of all image-to-image model endpoint IDs */
-export type ImageToImageModel = keyof ImageToImageEndpointMap
-
 /** Get the input type for a specific image-to-image model */
-export type ImageToImageModelInput<T extends ImageToImageModel> = ImageToImageEndpointMap[T]['input']
+export type ImageToImageModelInput<T extends ImageToImageModel> =
+  ImageToImageEndpointMap[T]['input']
 
 /** Get the output type for a specific image-to-image model */
-export type ImageToImageModelOutput<T extends ImageToImageModel> = ImageToImageEndpointMap[T]['output']
+export type ImageToImageModelOutput<T extends ImageToImageModel> =
+  ImageToImageEndpointMap[T]['output']

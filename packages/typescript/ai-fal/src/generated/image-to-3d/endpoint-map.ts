@@ -107,6 +107,8 @@ import type {
   SchemaTriposrOutput,
 } from './types.gen'
 
+import type { z } from 'zod'
+
 export type ImageTo3dEndpointMap = {
   'fal-ai/trellis-2': {
     input: SchemaTrellis2Input
@@ -210,7 +212,13 @@ export type ImageTo3dEndpointMap = {
   }
 }
 
-export const ImageTo3dSchemaMap = {
+/** Union type of all image-to-3d model endpoint IDs */
+export type ImageTo3dModel = keyof ImageTo3dEndpointMap
+
+export const ImageTo3dSchemaMap: Record<
+  ImageTo3dModel,
+  { input: z.ZodSchema; output: z.ZodSchema }
+> = {
   ['fal-ai/trellis-2']: {
     input: zSchemaTrellis2Input,
     output: zSchemaTrellis2Output,
@@ -313,11 +321,10 @@ export const ImageTo3dSchemaMap = {
   },
 } as const
 
-/** Union type of all image-to-3d model endpoint IDs */
-export type ImageTo3dModel = keyof ImageTo3dEndpointMap
-
 /** Get the input type for a specific image-to-3d model */
-export type ImageTo3dModelInput<T extends ImageTo3dModel> = ImageTo3dEndpointMap[T]['input']
+export type ImageTo3dModelInput<T extends ImageTo3dModel> =
+  ImageTo3dEndpointMap[T]['input']
 
 /** Get the output type for a specific image-to-3d model */
-export type ImageTo3dModelOutput<T extends ImageTo3dModel> = ImageTo3dEndpointMap[T]['output']
+export type ImageTo3dModelOutput<T extends ImageTo3dModel> =
+  ImageTo3dEndpointMap[T]['output']

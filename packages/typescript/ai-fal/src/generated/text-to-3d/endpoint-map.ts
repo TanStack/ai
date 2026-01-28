@@ -23,6 +23,8 @@ import type {
   SchemaMeshyV6PreviewTextTo3dOutput,
 } from './types.gen'
 
+import type { z } from 'zod'
+
 export type TextTo3dEndpointMap = {
   'fal-ai/hunyuan-motion/fast': {
     input: SchemaHunyuanMotionFastInput
@@ -42,7 +44,13 @@ export type TextTo3dEndpointMap = {
   }
 }
 
-export const TextTo3dSchemaMap = {
+/** Union type of all text-to-3d model endpoint IDs */
+export type TextTo3dModel = keyof TextTo3dEndpointMap
+
+export const TextTo3dSchemaMap: Record<
+  TextTo3dModel,
+  { input: z.ZodSchema; output: z.ZodSchema }
+> = {
   ['fal-ai/hunyuan-motion/fast']: {
     input: zSchemaHunyuanMotionFastInput,
     output: zSchemaHunyuanMotionFastOutput,
@@ -61,11 +69,10 @@ export const TextTo3dSchemaMap = {
   },
 } as const
 
-/** Union type of all text-to-3d model endpoint IDs */
-export type TextTo3dModel = keyof TextTo3dEndpointMap
-
 /** Get the input type for a specific text-to-3d model */
-export type TextTo3dModelInput<T extends TextTo3dModel> = TextTo3dEndpointMap[T]['input']
+export type TextTo3dModelInput<T extends TextTo3dModel> =
+  TextTo3dEndpointMap[T]['input']
 
 /** Get the output type for a specific text-to-3d model */
-export type TextTo3dModelOutput<T extends TextTo3dModel> = TextTo3dEndpointMap[T]['output']
+export type TextTo3dModelOutput<T extends TextTo3dModel> =
+  TextTo3dEndpointMap[T]['output']

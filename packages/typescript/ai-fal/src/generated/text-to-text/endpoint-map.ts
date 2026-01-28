@@ -11,6 +11,8 @@ import type {
   AiDetectorDetectTextOutput,
 } from './types.gen'
 
+import type { z } from 'zod'
+
 export type TextToTextEndpointMap = {
   'half-moon-ai/ai-detector/detect-text': {
     input: AiDetectorDetectTextInput
@@ -18,18 +20,23 @@ export type TextToTextEndpointMap = {
   }
 }
 
-export const TextToTextSchemaMap = {
+/** Union type of all text-to-text model endpoint IDs */
+export type TextToTextModel = keyof TextToTextEndpointMap
+
+export const TextToTextSchemaMap: Record<
+  TextToTextModel,
+  { input: z.ZodSchema; output: z.ZodSchema }
+> = {
   ['half-moon-ai/ai-detector/detect-text']: {
     input: zAiDetectorDetectTextInput,
     output: zAiDetectorDetectTextOutput,
   },
 } as const
 
-/** Union type of all text-to-text model endpoint IDs */
-export type TextToTextModel = keyof TextToTextEndpointMap
-
 /** Get the input type for a specific text-to-text model */
-export type TextToTextModelInput<T extends TextToTextModel> = TextToTextEndpointMap[T]['input']
+export type TextToTextModelInput<T extends TextToTextModel> =
+  TextToTextEndpointMap[T]['input']
 
 /** Get the output type for a specific text-to-text model */
-export type TextToTextModelOutput<T extends TextToTextModel> = TextToTextEndpointMap[T]['output']
+export type TextToTextModelOutput<T extends TextToTextModel> =
+  TextToTextEndpointMap[T]['output']

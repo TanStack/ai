@@ -143,6 +143,8 @@ import type {
   SchemaZonosOutput,
 } from './types.gen'
 
+import type { z } from 'zod'
+
 export type TextToAudioEndpointMap = {
   'fal-ai/elevenlabs/music': {
     input: SchemaElevenlabsMusicInput
@@ -282,7 +284,13 @@ export type TextToAudioEndpointMap = {
   }
 }
 
-export const TextToAudioSchemaMap = {
+/** Union type of all text-to-audio model endpoint IDs */
+export type TextToAudioModel = keyof TextToAudioEndpointMap
+
+export const TextToAudioSchemaMap: Record<
+  TextToAudioModel,
+  { input: z.ZodSchema; output: z.ZodSchema }
+> = {
   ['fal-ai/elevenlabs/music']: {
     input: zSchemaElevenlabsMusicInput,
     output: zSchemaElevenlabsMusicOutput,
@@ -421,11 +429,10 @@ export const TextToAudioSchemaMap = {
   },
 } as const
 
-/** Union type of all text-to-audio model endpoint IDs */
-export type TextToAudioModel = keyof TextToAudioEndpointMap
-
 /** Get the input type for a specific text-to-audio model */
-export type TextToAudioModelInput<T extends TextToAudioModel> = TextToAudioEndpointMap[T]['input']
+export type TextToAudioModelInput<T extends TextToAudioModel> =
+  TextToAudioEndpointMap[T]['input']
 
 /** Get the output type for a specific text-to-audio model */
-export type TextToAudioModelOutput<T extends TextToAudioModel> = TextToAudioEndpointMap[T]['output']
+export type TextToAudioModelOutput<T extends TextToAudioModel> =
+  TextToAudioEndpointMap[T]['output']

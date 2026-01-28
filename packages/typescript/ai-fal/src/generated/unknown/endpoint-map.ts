@@ -23,6 +23,8 @@ import type {
   SchemaWorkflowUtilitiesInterleaveVideoOutput,
 } from './types.gen'
 
+import type { z } from 'zod'
+
 export type UnknownEndpointMap = {
   'fal-ai/workflow-utilities/interleave-video': {
     input: SchemaWorkflowUtilitiesInterleaveVideoInput
@@ -42,7 +44,13 @@ export type UnknownEndpointMap = {
   }
 }
 
-export const UnknownSchemaMap = {
+/** Union type of all unknown model endpoint IDs */
+export type UnknownModel = keyof UnknownEndpointMap
+
+export const UnknownSchemaMap: Record<
+  UnknownModel,
+  { input: z.ZodSchema; output: z.ZodSchema }
+> = {
   ['fal-ai/workflow-utilities/interleave-video']: {
     input: zSchemaWorkflowUtilitiesInterleaveVideoInput,
     output: zSchemaWorkflowUtilitiesInterleaveVideoOutput,
@@ -61,11 +69,10 @@ export const UnknownSchemaMap = {
   },
 } as const
 
-/** Union type of all unknown model endpoint IDs */
-export type UnknownModel = keyof UnknownEndpointMap
-
 /** Get the input type for a specific unknown model */
-export type UnknownModelInput<T extends UnknownModel> = UnknownEndpointMap[T]['input']
+export type UnknownModelInput<T extends UnknownModel> =
+  UnknownEndpointMap[T]['input']
 
 /** Get the output type for a specific unknown model */
-export type UnknownModelOutput<T extends UnknownModel> = UnknownEndpointMap[T]['output']
+export type UnknownModelOutput<T extends UnknownModel> =
+  UnknownEndpointMap[T]['output']

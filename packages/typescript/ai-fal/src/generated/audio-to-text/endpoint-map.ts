@@ -19,6 +19,8 @@ import type {
   SchemaSileroVadOutput,
 } from './types.gen'
 
+import type { z } from 'zod'
+
 export type AudioToTextEndpointMap = {
   'fal-ai/nemotron/asr/stream': {
     input: SchemaNemotronAsrStreamInput
@@ -34,7 +36,13 @@ export type AudioToTextEndpointMap = {
   }
 }
 
-export const AudioToTextSchemaMap = {
+/** Union type of all audio-to-text model endpoint IDs */
+export type AudioToTextModel = keyof AudioToTextEndpointMap
+
+export const AudioToTextSchemaMap: Record<
+  AudioToTextModel,
+  { input: z.ZodSchema; output: z.ZodSchema }
+> = {
   ['fal-ai/nemotron/asr/stream']: {
     input: zSchemaNemotronAsrStreamInput,
     output: zSchemaNemotronAsrStreamOutput,
@@ -49,11 +57,10 @@ export const AudioToTextSchemaMap = {
   },
 } as const
 
-/** Union type of all audio-to-text model endpoint IDs */
-export type AudioToTextModel = keyof AudioToTextEndpointMap
-
 /** Get the input type for a specific audio-to-text model */
-export type AudioToTextModelInput<T extends AudioToTextModel> = AudioToTextEndpointMap[T]['input']
+export type AudioToTextModelInput<T extends AudioToTextModel> =
+  AudioToTextEndpointMap[T]['input']
 
 /** Get the output type for a specific audio-to-text model */
-export type AudioToTextModelOutput<T extends AudioToTextModel> = AudioToTextEndpointMap[T]['output']
+export type AudioToTextModelOutput<T extends AudioToTextModel> =
+  AudioToTextEndpointMap[T]['output']

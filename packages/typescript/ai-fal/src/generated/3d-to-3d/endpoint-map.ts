@@ -27,6 +27,8 @@ import type {
   SchemaUltrashapeOutput,
 } from './types.gen'
 
+import type { z } from 'zod'
+
 export type Gen3dTo3dEndpointMap = {
   'fal-ai/ultrashape': {
     input: SchemaUltrashapeInput
@@ -50,7 +52,13 @@ export type Gen3dTo3dEndpointMap = {
   }
 }
 
-export const Gen3dTo3dSchemaMap = {
+/** Union type of all 3d-to-3d model endpoint IDs */
+export type Gen3dTo3dModel = keyof Gen3dTo3dEndpointMap
+
+export const Gen3dTo3dSchemaMap: Record<
+  Gen3dTo3dModel,
+  { input: z.ZodSchema; output: z.ZodSchema }
+> = {
   ['fal-ai/ultrashape']: {
     input: zSchemaUltrashapeInput,
     output: zSchemaUltrashapeOutput,
@@ -73,11 +81,10 @@ export const Gen3dTo3dSchemaMap = {
   },
 } as const
 
-/** Union type of all 3d-to-3d model endpoint IDs */
-export type Gen3dTo3dModel = keyof Gen3dTo3dEndpointMap
-
 /** Get the input type for a specific 3d-to-3d model */
-export type Gen3dTo3dModelInput<T extends Gen3dTo3dModel> = Gen3dTo3dEndpointMap[T]['input']
+export type Gen3dTo3dModelInput<T extends Gen3dTo3dModel> =
+  Gen3dTo3dEndpointMap[T]['input']
 
 /** Get the output type for a specific 3d-to-3d model */
-export type Gen3dTo3dModelOutput<T extends Gen3dTo3dModel> = Gen3dTo3dEndpointMap[T]['output']
+export type Gen3dTo3dModelOutput<T extends Gen3dTo3dModel> =
+  Gen3dTo3dEndpointMap[T]['output']
