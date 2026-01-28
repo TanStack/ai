@@ -26,9 +26,9 @@ export const AiDevtools: Component<AiDevtoolsSolidInit> = () => null
 /**
  * No-op aiDevtoolsPlugin for server-side rendering.
  */
-export const aiDevtoolsPlugin = {
+export const aiDevtoolsPlugin = () => ({
   name: 'TanStack AI',
   id: 'tanstack-ai',
   defaultOpen: true,
   component: () => null,
-}
+})
