@@ -104,40 +104,4 @@ export const MODEL_OPTIONS: Array<ModelOption> = [
   },
 ]
 
-const STORAGE_KEY = 'tanstack-ai-model-preference'
-
-export function getStoredModelPreference(): ModelOption | null {
-  if (typeof window === 'undefined') return null
-
-  try {
-    const stored = localStorage.getItem(STORAGE_KEY)
-    if (!stored) return null
-
-    const parsed = JSON.parse(stored) as { provider: Provider; model: string }
-    const option = MODEL_OPTIONS.find(
-      (opt) => opt.provider === parsed.provider && opt.model === parsed.model,
-    )
-
-    return option || null
-  } catch {
-    return null
-  }
-}
-
-export function setStoredModelPreference(option: ModelOption): void {
-  if (typeof window === 'undefined') return
-
-  try {
-    localStorage.setItem(
-      STORAGE_KEY,
-      JSON.stringify({ provider: option.provider, model: option.model }),
-    )
-  } catch {
-    // Ignore storage errors
-  }
-}
-
-export function getDefaultModelOption(): ModelOption {
-  const stored = getStoredModelPreference()
-  return stored || MODEL_OPTIONS[0]
-}
+export const DEFAULT_MODEL_OPTION = MODEL_OPTIONS[0]

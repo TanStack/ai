@@ -675,24 +675,9 @@ export type AGUIEventType =
   | 'CUSTOM'
 
 /**
- * Legacy stream chunk types for backward compatibility.
- * @deprecated Use AG-UI event types instead (RUN_STARTED, TEXT_MESSAGE_CONTENT, etc.)
+ * Stream chunk/event types (AG-UI protocol).
  */
-export type LegacyStreamChunkType =
-  | 'content'
-  | 'tool_call'
-  | 'tool_result'
-  | 'done'
-  | 'error'
-  | 'approval-requested'
-  | 'tool-input-available'
-  | 'thinking'
-
-/**
- * Union of all stream chunk/event types.
- * Includes both AG-UI protocol events and legacy types for backward compatibility.
- */
-export type StreamChunkType = AGUIEventType | LegacyStreamChunkType
+export type StreamChunkType = AGUIEventType
 
 /**
  * Base structure for AG-UI events.
@@ -705,17 +690,6 @@ export interface BaseAGUIEvent {
   model?: string
   /** Original provider event for debugging/advanced use cases */
   rawEvent?: unknown
-}
-
-/**
- * Base structure for legacy stream chunks.
- * @deprecated Use AG-UI events instead
- */
-export interface BaseStreamChunk {
-  type: StreamChunkType
-  id: string
-  model: string
-  timestamp: number
 }
 
 // ============================================================================
@@ -911,97 +885,11 @@ export type AGUIEvent =
   | StateDeltaEvent
   | CustomEvent
 
-// ============================================================================
-// Legacy Stream Chunk Interfaces (Backward Compatibility)
-// ============================================================================
-
-export interface ContentStreamChunk extends BaseStreamChunk {
-  type: 'content'
-  delta: string // The incremental content token
-  content: string // Full accumulated content so far
-  role?: 'assistant'
-}
-
-export interface ToolCallStreamChunk extends BaseStreamChunk {
-  type: 'tool_call'
-  toolCall: {
-    id: string
-    type: 'function'
-    function: {
-      name: string
-      arguments: string // Incremental JSON arguments
-    }
-  }
-  index: number
-}
-
-export interface ToolResultStreamChunk extends BaseStreamChunk {
-  type: 'tool_result'
-  toolCallId: string
-  content: string
-}
-
-export interface DoneStreamChunk extends BaseStreamChunk {
-  type: 'done'
-  finishReason: 'stop' | 'length' | 'content_filter' | 'tool_calls' | null
-  usage?: {
-    promptTokens: number
-    completionTokens: number
-    totalTokens: number
-  }
-}
-
-export interface ErrorStreamChunk extends BaseStreamChunk {
-  type: 'error'
-  error: {
-    message: string
-    code?: string
-  }
-}
-
-export interface ApprovalRequestedStreamChunk extends BaseStreamChunk {
-  type: 'approval-requested'
-  toolCallId: string
-  toolName: string
-  input: any
-  approval: {
-    id: string
-    needsApproval: true
-  }
-}
-
-export interface ToolInputAvailableStreamChunk extends BaseStreamChunk {
-  type: 'tool-input-available'
-  toolCallId: string
-  toolName: string
-  input: any
-}
-
-export interface ThinkingStreamChunk extends BaseStreamChunk {
-  type: 'thinking'
-  delta?: string // The incremental thinking token
-  content: string // Full accumulated thinking content so far
-}
-
-/**
- * Legacy stream chunk types.
- * @deprecated Use AGUIEvent types instead
- */
-export type LegacyStreamChunk =
-  | ContentStreamChunk
-  | ToolCallStreamChunk
-  | ToolResultStreamChunk
-  | DoneStreamChunk
-  | ErrorStreamChunk
-  | ApprovalRequestedStreamChunk
-  | ToolInputAvailableStreamChunk
-  | ThinkingStreamChunk
-
 /**
  * Chunk returned by the SDK during streaming chat completions.
- * Includes both AG-UI events and legacy stream chunks for backward compatibility.
+ * Uses the AG-UI protocol event format.
  */
-export type StreamChunk = AGUIEvent | LegacyStreamChunk
+export type StreamChunk = AGUIEvent
 
 // Simple streaming format for basic text completions
 // Converted to StreamChunk format by convertTextCompletionStream()

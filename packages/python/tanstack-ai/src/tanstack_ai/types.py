@@ -110,20 +110,8 @@ AGUIEventType = Literal[
     "CUSTOM",
 ]
 
-# Legacy stream chunk types for backward compatibility
-LegacyStreamChunkType = Literal[
-    "content",
-    "thinking",
-    "tool_call",
-    "tool-input-available",
-    "approval-requested",
-    "tool_result",
-    "done",
-    "error",
-]
-
-# Union of all stream chunk/event types
-StreamChunkType = Union[AGUIEventType, LegacyStreamChunkType]
+# Stream chunk/event types (AG-UI protocol)
+StreamChunkType = AGUIEventType
 
 
 class UsageInfo(TypedDict, total=False):
@@ -318,93 +306,8 @@ AGUIEvent = Union[
 ]
 
 
-# ============================================================================
-# Legacy Stream Chunk Interfaces (Backward Compatibility)
-# ============================================================================
-
-
-class BaseStreamChunk(TypedDict):
-    """Base structure for legacy stream chunks."""
-
-    type: StreamChunkType
-    id: str
-    model: str
-    timestamp: int  # Unix timestamp in milliseconds
-
-
-class ContentStreamChunk(BaseStreamChunk):
-    """Emitted when the model generates text content (legacy)."""
-
-    delta: str  # The incremental content token
-    content: str  # Full accumulated content so far
-    role: Optional[Literal["assistant"]]
-
-
-class ThinkingStreamChunk(BaseStreamChunk):
-    """Emitted when the model exposes its reasoning process (legacy)."""
-
-    delta: Optional[str]  # The incremental thinking token
-    content: str  # Full accumulated thinking content so far
-
-
-class ToolCallStreamChunk(BaseStreamChunk):
-    """Emitted when the model decides to call a tool/function (legacy)."""
-
-    toolCall: ToolCall
-    index: int  # Index of this tool call (for parallel calls)
-
-
-class ToolInputAvailableStreamChunk(BaseStreamChunk):
-    """Emitted when tool inputs are complete and ready for client-side execution (legacy)."""
-
-    toolCallId: str
-    toolName: str
-    input: Any  # Parsed tool arguments
-
-
-class ApprovalRequestedStreamChunk(BaseStreamChunk):
-    """Emitted when a tool requires user approval before execution (legacy)."""
-
-    toolCallId: str
-    toolName: str
-    input: Any
-    approval: Dict[str, Any]  # Contains 'id' and 'needsApproval'
-
-
-class ToolResultStreamChunk(BaseStreamChunk):
-    """Emitted when a tool execution completes (legacy)."""
-
-    toolCallId: str
-    content: str  # Result of the tool execution (JSON stringified)
-
-
-class DoneStreamChunk(BaseStreamChunk):
-    """Emitted when the stream completes successfully (legacy)."""
-
-    finishReason: Optional[Literal["stop", "length", "content_filter", "tool_calls"]]
-    usage: Optional[UsageInfo]
-
-
-class ErrorStreamChunk(BaseStreamChunk):
-    """Emitted when an error occurs during streaming (legacy)."""
-
-    error: ErrorInfo
-
-
-# Union type for legacy stream chunks
-LegacyStreamChunk = Union[
-    ContentStreamChunk,
-    ThinkingStreamChunk,
-    ToolCallStreamChunk,
-    ToolInputAvailableStreamChunk,
-    ApprovalRequestedStreamChunk,
-    ToolResultStreamChunk,
-    DoneStreamChunk,
-    ErrorStreamChunk,
-]
-
-# Union type for all stream chunks (AG-UI + legacy)
-StreamChunk = Union[AGUIEvent, LegacyStreamChunk]
+# Stream chunks use AG-UI event format
+StreamChunk = AGUIEvent
 
 
 # ============================================================================

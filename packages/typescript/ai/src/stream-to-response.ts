@@ -3,7 +3,7 @@ import type { StreamChunk } from './types'
 /**
  * Collect all text content from a StreamChunk async iterable and return as a string.
  *
- * This function consumes the entire stream, accumulating content from 'content' type chunks,
+ * This function consumes the entire stream, accumulating content from TEXT_MESSAGE_CONTENT events,
  * and returns the final concatenated text.
  *
  * @param stream - AsyncIterable of StreamChunks from chat()
@@ -26,10 +26,7 @@ export async function streamToText(
   let accumulatedContent = ''
 
   for await (const chunk of stream) {
-    // Handle both AG-UI TEXT_MESSAGE_CONTENT and legacy 'content' chunks
     if (chunk.type === 'TEXT_MESSAGE_CONTENT' && chunk.delta) {
-      accumulatedContent += chunk.delta
-    } else if (chunk.type === 'content' && chunk.delta) {
       accumulatedContent += chunk.delta
     }
   }

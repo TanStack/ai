@@ -10,11 +10,11 @@ import time
 from typing import Any, Dict, List, Optional, Tuple
 
 from .types import (
-    DoneStreamChunk,
-    ModelMessage,
     Tool,
     ToolCall,
-    ToolResultStreamChunk,
+    ToolCallArgsEvent,
+    ToolCallEndEvent,
+    ToolCallStartEvent,
 )
 
 
@@ -23,21 +23,23 @@ class ToolCallManager:
     Manages tool call accumulation and execution for automatic tool execution loops.
 
     Responsibilities:
-    - Accumulates streaming tool call chunks (ID, name, arguments)
+    - Accumulates streaming tool call events (ID, name, arguments)
     - Validates tool calls (filters out incomplete ones)
     - Executes tool `execute` functions with parsed arguments
-    - Emits `tool_result` chunks for client visibility
+    - Emits `TOOL_CALL_END` events for client visibility
     - Returns tool result messages for conversation history
 
     Example:
         >>> manager = ToolCallManager(tools)
         >>> # During streaming, accumulate tool calls
         >>> for chunk in stream:
-        ...     if chunk["type"] == "tool_call":
-        ...         manager.add_tool_call_chunk(chunk)
+        ...     if chunk["type"] == "TOOL_CALL_START":
+        ...         manager.add_tool_call_start_event(chunk)
+        ...     elif chunk["type"] == "TOOL_CALL_ARGS":
+        ...         manager.add_tool_call_args_event(chunk)
         >>> # After stream completes, execute tools
         >>> if manager.has_tool_calls():
-        ...     for chunk in manager.execute_tools(done_chunk):
+        ...     for chunk in manager.execute_tools(finish_event):
         ...         yield chunk
         ...     manager.clear()
     """
@@ -52,38 +54,49 @@ class ToolCallManager:
         self.tools = tools
         self._tool_calls_map: Dict[int, ToolCall] = {}
 
-    def add_tool_call_chunk(self, chunk: Dict[str, Any]) -> None:
+    def add_tool_call_start_event(self, event: ToolCallStartEvent) -> None:
         """
-        Add a tool call chunk to the accumulator.
-        Handles streaming tool calls by accumulating arguments.
+        Add a TOOL_CALL_START event to begin tracking a tool call.
 
         Args:
-            chunk: Tool call chunk with toolCall and index
+            event: TOOL_CALL_START event
         """
-        index = chunk["index"]
-        tool_call = chunk["toolCall"]
-        existing = self._tool_calls_map.get(index)
+        index = event.get("index", len(self._tool_calls_map))
+        self._tool_calls_map[index] = {
+            "id": event["toolCallId"],
+            "type": "function",
+            "function": {
+                "name": event["toolName"],
+                "arguments": "",
+            },
+        }
 
-        if not existing:
-            # Only create entry if we have a tool call ID and name
-            if tool_call.get("id") and tool_call.get("function", {}).get("name"):
-                self._tool_calls_map[index] = {
-                    "id": tool_call["id"],
-                    "type": "function",
-                    "function": {
-                        "name": tool_call["function"]["name"],
-                        "arguments": tool_call["function"].get("arguments", ""),
-                    },
-                }
-        else:
-            # Update name if it wasn't set before
-            if tool_call.get("function", {}).get("name") and not existing["function"][
-                "name"
-            ]:
-                existing["function"]["name"] = tool_call["function"]["name"]
-            # Accumulate arguments for streaming tool calls
-            if tool_call.get("function", {}).get("arguments"):
-                existing["function"]["arguments"] += tool_call["function"]["arguments"]
+    def add_tool_call_args_event(self, event: ToolCallArgsEvent) -> None:
+        """
+        Add a TOOL_CALL_ARGS event to accumulate arguments.
+
+        Args:
+            event: TOOL_CALL_ARGS event
+        """
+        # Find the tool call by ID
+        for tool_call in self._tool_calls_map.values():
+            if tool_call["id"] == event["toolCallId"]:
+                tool_call["function"]["arguments"] += event.get("delta", "")
+                break
+
+    def complete_tool_call(self, event: ToolCallEndEvent) -> None:
+        """
+        Complete a tool call with its final input.
+        Called when TOOL_CALL_END is received.
+
+        Args:
+            event: TOOL_CALL_END event
+        """
+        for tool_call in self._tool_calls_map.values():
+            if tool_call["id"] == event["toolCallId"]:
+                if event.get("input") is not None:
+                    tool_call["function"]["arguments"] = json.dumps(event["input"])
+                break
 
     def has_tool_calls(self) -> bool:
         """Check if there are any complete tool calls to execute."""
@@ -115,10 +128,12 @@ class ToolResult:
     def __init__(
         self,
         tool_call_id: str,
+        tool_name: str,
         result: Any,
         state: Optional[str] = None,
     ):
         self.tool_call_id = tool_call_id
+        self.tool_name = tool_name
         self.result = result
         self.state = state  # 'output-available' | 'output-error'
 
@@ -211,6 +226,7 @@ async def execute_tool_calls(
             results.append(
                 ToolResult(
                     tool_call["id"],
+                    tool_name,
                     {"error": f"Unknown tool: {tool_name}"},
                     "output-error",
                 )
@@ -242,6 +258,7 @@ async def execute_tool_calls(
                             results.append(
                                 ToolResult(
                                     tool_call["id"],
+                                    tool_name,
                                     client_results[tool_call["id"]],
                                 )
                             )
@@ -259,6 +276,7 @@ async def execute_tool_calls(
                         results.append(
                             ToolResult(
                                 tool_call["id"],
+                                tool_name,
                                 {"error": "User declined tool execution"},
                                 "output-error",
                             )
@@ -279,6 +297,7 @@ async def execute_tool_calls(
                     results.append(
                         ToolResult(
                             tool_call["id"],
+                            tool_name,
                             client_results[tool_call["id"]],
                         )
                     )
@@ -305,11 +324,12 @@ async def execute_tool_calls(
                     # Execute after approval
                     try:
                         result = await _execute_tool(tool, input_data)
-                        results.append(ToolResult(tool_call["id"], result))
+                        results.append(ToolResult(tool_call["id"], tool_name, result))
                     except Exception as e:
                         results.append(
                             ToolResult(
                                 tool_call["id"],
+                                tool_name,
                                 {"error": str(e)},
                                 "output-error",
                             )
@@ -319,6 +339,7 @@ async def execute_tool_calls(
                     results.append(
                         ToolResult(
                             tool_call["id"],
+                            tool_name,
                             {"error": "User declined tool execution"},
                             "output-error",
                         )
@@ -338,11 +359,12 @@ async def execute_tool_calls(
         # CASE 3: Normal server tool - execute immediately
         try:
             result = await _execute_tool(tool, input_data)
-            results.append(ToolResult(tool_call["id"], result))
+            results.append(ToolResult(tool_call["id"], tool_name, result))
         except Exception as e:
             results.append(
                 ToolResult(
                     tool_call["id"],
+                    tool_name,
                     {"error": str(e)},
                     "output-error",
                 )
