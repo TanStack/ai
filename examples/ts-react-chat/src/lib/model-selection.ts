@@ -38,13 +38,18 @@ export const MODEL_OPTIONS: Array<ModelOption> = [
   // Gemini
   {
     provider: 'gemini',
-    model: 'gemini-2.0-flash-exp',
+    model: 'gemini-2.0-flash',
     label: 'Gemini - 2.0 Flash',
   },
   {
     provider: 'gemini',
     model: 'gemini-2.5-flash',
-    label: 'Gemini 2.5 - Flash',
+    label: 'Gemini - 2.5 Flash',
+  },
+  {
+    provider: 'gemini',
+    model: 'gemini-2.5-pro',
+    label: 'Gemini - 2.5 Pro',
   },
 
   // Openrouter
@@ -89,6 +94,16 @@ export const MODEL_OPTIONS: Array<ModelOption> = [
   // Grok
   {
     provider: 'grok',
+    model: 'grok-4',
+    label: 'Grok - Grok 4',
+  },
+  {
+    provider: 'grok',
+    model: 'grok-4-fast-non-reasoning',
+    label: 'Grok - Grok 4 Fast',
+  },
+  {
+    provider: 'grok',
     model: 'grok-3',
     label: 'Grok - Grok 3',
   },
@@ -96,11 +111,6 @@ export const MODEL_OPTIONS: Array<ModelOption> = [
     provider: 'grok',
     model: 'grok-3-mini',
     label: 'Grok - Grok 3 Mini',
-  },
-  {
-    provider: 'grok',
-    model: 'grok-2-vision-1212',
-    label: 'Grok - Grok 2 Vision',
   },
 ]
 
