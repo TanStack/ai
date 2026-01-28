@@ -1,12 +1,12 @@
 import { describe, expect, it, vi } from 'vitest'
 import { ChatClient } from '../src/chat-client'
+import type { UIMessage } from '../src/types'
 import {
   createMockConnectionAdapter,
   createTextChunks,
   createThinkingChunks,
   createToolCallChunks,
 } from './test-utils'
-import type { UIMessage } from '../src/types'
 
 describe('ChatClient', () => {
   describe('constructor', () => {
@@ -280,6 +280,7 @@ describe('ChatClient', () => {
       await appendPromise
 
       expect(client.getIsLoading()).toBe(false)
+      expect(client.getStatus()).toBe('ready')
     })
   })
 
@@ -391,6 +392,35 @@ describe('ChatClient', () => {
     })
   })
 
+  describe('status', () => {
+    it('should transition through states during generation', async () => {
+      const chunks = createTextChunks('Response')
+      const adapter = createMockConnectionAdapter({
+        chunks,
+        chunkDelay: 20,
+      })
+      const statuses: Array<string> = []
+      const client = new ChatClient({
+        connection: adapter,
+        onStatusChange: (s) => statuses.push(s),
+      })
+
+      const promise = client.sendMessage('Test')
+
+      // Should leave ready state
+      expect(client.getStatus()).not.toBe('ready')
+
+      // Should be submitted or streaming
+      expect(['submitted', 'streaming']).toContain(client.getStatus())
+
+      await promise
+
+      expect(statuses).toContain('submitted')
+      expect(statuses).toContain('streaming')
+      expect(statuses[statuses.length - 1]).toBe('ready')
+    })
+  })
+
   describe('tool calls', () => {
     it('should handle tool calls from stream', async () => {
       const chunks = createToolCallChunks([
@@ -471,6 +501,7 @@ describe('ChatClient', () => {
       await client.sendMessage('Hello')
 
       expect(client.getError()).toBe(error)
+      expect(client.getStatus()).toBe('error')
     })
 
     it('should clear error on successful request', async () => {
@@ -486,12 +517,14 @@ describe('ChatClient', () => {
 
       await client.sendMessage('Fail')
       expect(client.getError()).toBeDefined()
+      expect(client.getStatus()).toBe('error')
 
       // Update connection via updateOptions
       client.updateOptions({ connection: successAdapter })
 
       await client.sendMessage('Success')
       expect(client.getError()).toBeUndefined()
+      expect(client.getStatus()).not.toBe('error')
     })
   })
 

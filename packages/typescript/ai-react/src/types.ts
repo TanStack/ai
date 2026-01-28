@@ -1,12 +1,13 @@
 import type { AnyClientTool, ModelMessage } from '@tanstack/ai'
 import type {
   ChatClientOptions,
+  ChatClientState,
   ChatRequestBody,
   UIMessage,
 } from '@tanstack/ai-client'
 
 // Re-export types from ai-client
-export type { UIMessage, ChatRequestBody }
+export type { ChatRequestBody, UIMessage }
 
 /**
  * Options for the useChat hook.
@@ -16,6 +17,7 @@ export type { UIMessage, ChatRequestBody }
  * - `onMessagesChange` - Managed by React state (exposed as `messages`)
  * - `onLoadingChange` - Managed by React state (exposed as `isLoading`)
  * - `onErrorChange` - Managed by React state (exposed as `error`)
+ * - `onStatusChange` - Managed by React state (exposed as `status`)
  *
  * All other callbacks (onResponse, onChunk, onFinish, onError) are
  * passed through to the underlying ChatClient and can be used for side effects.
@@ -26,7 +28,7 @@ export type { UIMessage, ChatRequestBody }
 export type UseChatOptions<TTools extends ReadonlyArray<AnyClientTool> = any> =
   Omit<
     ChatClientOptions<TTools>,
-    'onMessagesChange' | 'onLoadingChange' | 'onErrorChange'
+    'onMessagesChange' | 'onLoadingChange' | 'onErrorChange' | 'onStatusChange'
   >
 
 export interface UseChatReturn<
@@ -85,6 +87,11 @@ export interface UseChatReturn<
    * Current error, if any
    */
   error: Error | undefined
+
+  /**
+   * Current status of the chat client
+   */
+  status: ChatClientState
 
   /**
    * Set messages manually
