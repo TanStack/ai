@@ -56,18 +56,7 @@ from .types import (
     StateSnapshotEvent,
     StateDeltaEvent,
     CustomEvent,
-    # Legacy stream chunk types (backward compatibility)
-    LegacyStreamChunkType,
-    LegacyStreamChunk,
     StreamChunk,
-    ContentStreamChunk,
-    ThinkingStreamChunk,
-    ToolCallStreamChunk,
-    ToolInputAvailableStreamChunk,
-    ApprovalRequestedStreamChunk,
-    ToolResultStreamChunk,
-    DoneStreamChunk,
-    ErrorStreamChunk,
     # Agent loop types
     AgentLoopState,
     AgentLoopStrategy,
@@ -80,7 +69,7 @@ from .types import (
     EmbeddingResult,
 )
 
-# Legacy utilities (for backward compatibility)
+# Utilities
 from .converter import StreamChunkConverter
 from .message_formatters import format_messages_for_anthropic, format_messages_for_openai
 from .sse import format_sse_chunk, format_sse_done, format_sse_error, stream_chunks_to_sse
@@ -121,6 +110,7 @@ __all__ = [
     "StateSnapshotEvent",
     "StateDeltaEvent",
     "CustomEvent",
+    "StreamChunk",
     # Core Types
     "Tool",
     "ToolCall",
@@ -129,18 +119,6 @@ __all__ = [
     "AIAdapterConfig",
     "UsageInfo",
     "ErrorInfo",
-    # Legacy Stream Chunk Types (backward compatibility)
-    "LegacyStreamChunkType",
-    "LegacyStreamChunk",
-    "StreamChunk",
-    "ContentStreamChunk",
-    "ThinkingStreamChunk",
-    "ToolCallStreamChunk",
-    "ToolInputAvailableStreamChunk",
-    "ApprovalRequestedStreamChunk",
-    "ToolResultStreamChunk",
-    "DoneStreamChunk",
-    "ErrorStreamChunk",
     # Agent Loop Types
     "AgentLoopState",
     "AgentLoopStrategy",
@@ -149,7 +127,7 @@ __all__ = [
     "SummarizationResult",
     "EmbeddingOptions",
     "EmbeddingResult",
-    # Legacy utilities
+    # Utilities
     "StreamChunkConverter",
     "format_messages_for_anthropic",
     "format_messages_for_openai",

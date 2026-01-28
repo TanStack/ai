@@ -196,28 +196,8 @@ export async function captureStream(opts: {
       model: chunk.model,
     }
 
-    // Legacy content event
-    if (chunk.type === 'content') {
-      chunkData.delta = chunk.delta
-      chunkData.content = chunk.content
-      chunkData.role = chunk.role
-      const delta = chunk.delta || chunk.content || ''
-      fullResponse += delta
-
-      if (chunk.role === 'assistant') {
-        if (!assistantDraft) {
-          assistantDraft = {
-            role: 'assistant',
-            content: chunk.content || '',
-            toolCalls: [],
-          }
-        } else {
-          assistantDraft.content = (assistantDraft.content || '') + delta
-        }
-      }
-    }
     // AG-UI TEXT_MESSAGE_CONTENT event
-    else if (chunk.type === 'TEXT_MESSAGE_CONTENT') {
+    if (chunk.type === 'TEXT_MESSAGE_CONTENT') {
       chunkData.delta = chunk.delta
       chunkData.content = chunk.content
       chunkData.role = 'assistant'
@@ -232,37 +212,6 @@ export async function captureStream(opts: {
         }
       } else {
         assistantDraft.content = (assistantDraft.content || '') + delta
-      }
-    }
-    // Legacy tool_call event
-    else if (chunk.type === 'tool_call') {
-      const id = chunk.toolCall.id
-      const existing = toolCallMap.get(id) || {
-        id,
-        name: chunk.toolCall.function.name,
-        arguments: '',
-      }
-      existing.arguments += chunk.toolCall.function.arguments || ''
-      toolCallMap.set(id, existing)
-
-      chunkData.toolCall = chunk.toolCall
-
-      if (!assistantDraft) {
-        assistantDraft = { role: 'assistant', content: null, toolCalls: [] }
-      }
-      const existingToolCall = assistantDraft.toolCalls?.find(
-        (tc: any) => tc.id === id,
-      )
-      if (existingToolCall) {
-        existingToolCall.function.arguments = existing.arguments
-      } else {
-        assistantDraft.toolCalls?.push({
-          ...chunk.toolCall,
-          function: {
-            ...chunk.toolCall.function,
-            arguments: existing.arguments,
-          },
-        })
       }
     }
     // AG-UI TOOL_CALL_START event
@@ -300,7 +249,6 @@ export async function captureStream(opts: {
       const args =
         inProgress?.args || (chunk.input ? JSON.stringify(chunk.input) : '')
 
-      // Add to legacy toolCallMap for compatibility
       toolCallMap.set(id, {
         id,
         name,
@@ -338,34 +286,6 @@ export async function captureStream(opts: {
         })
       }
     }
-    // Legacy tool_result event
-    else if (chunk.type === 'tool_result') {
-      chunkData.toolCallId = chunk.toolCallId
-      chunkData.content = chunk.content
-      toolResults.push({
-        toolCallId: chunk.toolCallId,
-        content: chunk.content,
-      })
-      reconstructedMessages.push({
-        role: 'tool',
-        toolCallId: chunk.toolCallId,
-        content: chunk.content,
-      })
-    }
-    // Legacy approval-requested event
-    else if (chunk.type === 'approval-requested') {
-      const approval: ApprovalCapture = {
-        toolCallId: chunk.toolCallId,
-        toolName: chunk.toolName,
-        input: chunk.input,
-        approval: chunk.approval,
-      }
-      chunkData.toolCallId = chunk.toolCallId
-      chunkData.toolName = chunk.toolName
-      chunkData.input = chunk.input
-      chunkData.approval = chunk.approval
-      approvalRequests.push(approval)
-    }
     // AG-UI CUSTOM events (approval requests, tool inputs, etc.)
     else if (chunk.type === 'CUSTOM') {
       chunkData.name = chunk.name
@@ -386,16 +306,6 @@ export async function captureStream(opts: {
           approval: data.approval,
         }
         approvalRequests.push(approval)
-      }
-    }
-    // Legacy done event
-    else if (chunk.type === 'done') {
-      chunkData.finishReason = chunk.finishReason
-      chunkData.usage = chunk.usage
-      if (chunk.finishReason === 'stop' && assistantDraft) {
-        reconstructedMessages.push(assistantDraft)
-        lastAssistantMessage = assistantDraft
-        assistantDraft = null
       }
     }
     // AG-UI RUN_FINISHED event

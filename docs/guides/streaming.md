@@ -76,29 +76,20 @@ TanStack AI implements the [AG-UI Protocol](https://docs.ag-ui.com/introduction)
 - **RUN_FINISHED** - Run completion with finish reason and usage
 - **RUN_ERROR** - Error occurred during the run
 
-### Legacy Event Types (Backward Compatible)
-
-- **content** - Text content being generated (maps to TEXT_MESSAGE_CONTENT)
-- **thinking** - Model's reasoning process (maps to STEP_STARTED/STEP_FINISHED)
-- **tool_call** - Tool invocation (maps to TOOL_CALL_START/ARGS)
-- **tool_result** - Tool execution result (maps to TOOL_CALL_END)
-- **done** - Stream completion (maps to RUN_FINISHED)
-- **error** - Error occurred (maps to RUN_ERROR)
-
 ### Thinking Chunks
 
-Thinking chunks represent the model's reasoning process. They stream separately from the final response text:
+Thinking/reasoning is represented by AG-UI events `STEP_STARTED` and `STEP_FINISHED`. They stream separately from the final response text:
 
 ```typescript
 for await (const chunk of stream) {
-  if (chunk.type === "thinking") {
+  if (chunk.type === "STEP_FINISHED") {
     console.log("Thinking:", chunk.content); // Accumulated thinking content
     console.log("Delta:", chunk.delta); // Incremental thinking token
   }
 }
 ```
 
-Thinking chunks are automatically converted to `ThinkingPart` in `UIMessage` objects. They are UI-only and excluded from messages sent back to the model.
+Thinking content is automatically converted to `ThinkingPart` in `UIMessage` objects. It is UI-only and excluded from messages sent back to the model.
 
 ## Connection Adapters
 
