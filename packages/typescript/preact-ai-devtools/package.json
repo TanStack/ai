@@ -29,16 +29,36 @@
   "module": "./dist/esm/index.js",
   "exports": {
     ".": {
-      "import": {
+      "workerd": {
+        "types": "./dist/esm/server.d.ts",
+        "import": "./dist/esm/server.js"
+      },
+      "edge-light": {
+        "types": "./dist/esm/server.d.ts",
+        "import": "./dist/esm/server.js"
+      },
+      "netlify": {
+        "types": "./dist/esm/server.d.ts",
+        "import": "./dist/esm/server.js"
+      },
+      "deno": {
+        "types": "./dist/esm/server.d.ts",
+        "import": "./dist/esm/server.js"
+      },
+      "node": {
+        "types": "./dist/esm/server.d.ts",
+        "import": "./dist/esm/server.js"
+      },
+      "browser": {
         "types": "./dist/esm/index.d.ts",
-        "default": "./dist/esm/index.js"
-      }
+        "import": "./dist/esm/index.js"
+      },
+      "types": "./dist/esm/index.d.ts",
+      "import": "./dist/esm/index.js"
     },
     "./production": {
-      "import": {
-        "types": "./dist/esm/production.d.ts",
-        "default": "./dist/esm/production.js"
-      }
+      "types": "./dist/esm/production.d.ts",
+      "import": "./dist/esm/production.js"
     },
     "./package.json": "./package.json"
   },
