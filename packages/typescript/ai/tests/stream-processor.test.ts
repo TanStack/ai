@@ -781,4 +781,658 @@ describe('StreamProcessor (Unified)', () => {
       expect(processor.getMessages()[1]?.role).toBe('assistant')
     })
   })
+
+  /**
+   * AG-UI Format Tests
+   *
+   * These tests verify that the StreamProcessor correctly handles AG-UI protocol events,
+   * which is the format actually received from the server via SSE.
+   */
+  describe('AG-UI Format Events', () => {
+    describe('TEXT_MESSAGE_* events', () => {
+      it('should handle TEXT_MESSAGE_CONTENT events and accumulate text', async () => {
+        const textUpdates: Array<{ messageId: string; content: string }> = []
+
+        const processor = new StreamProcessor({
+          chunkStrategy: new ImmediateStrategy(),
+          events: {
+            onTextUpdate: (messageId, content) =>
+              textUpdates.push({ messageId, content }),
+          },
+        })
+
+        // Start assistant message to enable UIMessage updates
+        processor.startAssistantMessage()
+
+        const chunks: Array<StreamChunk> = [
+          {
+            type: 'TEXT_MESSAGE_START',
+            messageId: 'msg-1',
+            model: 'test',
+            timestamp: Date.now(),
+          },
+          {
+            type: 'TEXT_MESSAGE_CONTENT',
+            messageId: 'msg-1',
+            model: 'test',
+            timestamp: Date.now(),
+            delta: 'Hello',
+            content: 'Hello',
+          },
+          {
+            type: 'TEXT_MESSAGE_CONTENT',
+            messageId: 'msg-1',
+            model: 'test',
+            timestamp: Date.now(),
+            delta: ' world',
+            content: 'Hello world',
+          },
+          {
+            type: 'TEXT_MESSAGE_CONTENT',
+            messageId: 'msg-1',
+            model: 'test',
+            timestamp: Date.now(),
+            delta: '!',
+            content: 'Hello world!',
+          },
+          {
+            type: 'TEXT_MESSAGE_END',
+            messageId: 'msg-1',
+            model: 'test',
+            timestamp: Date.now(),
+          },
+          {
+            type: 'RUN_FINISHED',
+            runId: 'run-1',
+            model: 'test',
+            timestamp: Date.now(),
+            finishReason: 'stop',
+          },
+        ]
+
+        for (const chunk of chunks) {
+          processor.processChunk(chunk)
+        }
+        processor.finalizeStream()
+
+        const result = processor.getState()
+
+        expect(result.content).toBe('Hello world!')
+        expect(result.finishReason).toBe('stop')
+
+        // Verify text updates were emitted with messageId
+        expect(textUpdates.length).toBe(3)
+        expect(textUpdates[0]?.content).toBe('Hello')
+        expect(textUpdates[1]?.content).toBe('Hello world')
+        expect(textUpdates[2]?.content).toBe('Hello world!')
+      })
+
+      it('should handle TEXT_MESSAGE_CONTENT with delta only via process()', async () => {
+        const processor = new StreamProcessor({})
+
+        const stream = createMockStream([
+          {
+            type: 'TEXT_MESSAGE_CONTENT',
+            messageId: 'msg-1',
+            model: 'test',
+            timestamp: Date.now(),
+            delta: 'Hello',
+          },
+          {
+            type: 'TEXT_MESSAGE_CONTENT',
+            messageId: 'msg-1',
+            model: 'test',
+            timestamp: Date.now(),
+            delta: ' world',
+          },
+          {
+            type: 'RUN_FINISHED',
+            runId: 'run-1',
+            model: 'test',
+            timestamp: Date.now(),
+            finishReason: 'stop',
+          },
+        ])
+
+        const result = await processor.process(stream)
+
+        expect(result.content).toBe('Hello world')
+      })
+    })
+
+    describe('TOOL_CALL_* events', () => {
+      it('should handle TOOL_CALL_START/ARGS/END sequence', async () => {
+        const toolCallStateChanges: Array<{
+          messageId: string
+          toolCallId: string
+          state: string
+        }> = []
+
+        const processor = new StreamProcessor({
+          events: {
+            onToolCallStateChange: (messageId, toolCallId, state) =>
+              toolCallStateChanges.push({ messageId, toolCallId, state }),
+          },
+        })
+
+        processor.startAssistantMessage()
+
+        const chunks: Array<StreamChunk> = [
+          {
+            type: 'TOOL_CALL_START',
+            toolCallId: 'call_1',
+            toolName: 'get_weather',
+            model: 'test',
+            timestamp: Date.now(),
+            index: 0,
+          },
+          {
+            type: 'TOOL_CALL_ARGS',
+            toolCallId: 'call_1',
+            model: 'test',
+            timestamp: Date.now(),
+            delta: '{"city":',
+          },
+          {
+            type: 'TOOL_CALL_ARGS',
+            toolCallId: 'call_1',
+            model: 'test',
+            timestamp: Date.now(),
+            delta: '"NYC"}',
+          },
+          {
+            type: 'TOOL_CALL_END',
+            toolCallId: 'call_1',
+            toolName: 'get_weather',
+            model: 'test',
+            timestamp: Date.now(),
+          },
+          {
+            type: 'RUN_FINISHED',
+            runId: 'run-1',
+            model: 'test',
+            timestamp: Date.now(),
+            finishReason: 'tool_calls',
+          },
+        ]
+
+        for (const chunk of chunks) {
+          processor.processChunk(chunk)
+        }
+        processor.finalizeStream()
+
+        const result = processor.getState()
+
+        // Verify tool call was tracked
+        expect(result.toolCalls.size).toBe(1)
+        const toolCall = result.toolCalls.get('call_1')
+        expect(toolCall?.name).toBe('get_weather')
+        expect(toolCall?.arguments).toBe('{"city":"NYC"}')
+
+        // Verify state change events were emitted
+        expect(toolCallStateChanges.length).toBeGreaterThan(0)
+        expect(toolCallStateChanges[0]?.toolCallId).toBe('call_1')
+      })
+
+      it('should handle multiple parallel tool calls via process()', async () => {
+        const processor = new StreamProcessor({})
+
+        const stream = createMockStream([
+          {
+            type: 'TOOL_CALL_START',
+            toolCallId: 'call_1',
+            toolName: 'get_weather',
+            model: 'test',
+            timestamp: Date.now(),
+            index: 0,
+          },
+          {
+            type: 'TOOL_CALL_START',
+            toolCallId: 'call_2',
+            toolName: 'get_time',
+            model: 'test',
+            timestamp: Date.now(),
+            index: 1,
+          },
+          {
+            type: 'TOOL_CALL_ARGS',
+            toolCallId: 'call_1',
+            model: 'test',
+            timestamp: Date.now(),
+            delta: '{"city":"NYC"}',
+          },
+          {
+            type: 'TOOL_CALL_ARGS',
+            toolCallId: 'call_2',
+            model: 'test',
+            timestamp: Date.now(),
+            delta: '{"timezone":"EST"}',
+          },
+          {
+            type: 'TOOL_CALL_END',
+            toolCallId: 'call_1',
+            toolName: 'get_weather',
+            model: 'test',
+            timestamp: Date.now(),
+          },
+          {
+            type: 'TOOL_CALL_END',
+            toolCallId: 'call_2',
+            toolName: 'get_time',
+            model: 'test',
+            timestamp: Date.now(),
+          },
+          {
+            type: 'RUN_FINISHED',
+            runId: 'run-1',
+            model: 'test',
+            timestamp: Date.now(),
+            finishReason: 'tool_calls',
+          },
+        ])
+
+        const result = await processor.process(stream)
+
+        expect(result.toolCalls).toHaveLength(2)
+        expect(result.toolCalls![0]?.function.name).toBe('get_weather')
+        expect(result.toolCalls![1]?.function.name).toBe('get_time')
+      })
+
+      it('should handle TOOL_CALL_END with input field via process()', async () => {
+        const processor = new StreamProcessor({})
+
+        const stream = createMockStream([
+          {
+            type: 'TOOL_CALL_START',
+            toolCallId: 'call_1',
+            toolName: 'search',
+            model: 'test',
+            timestamp: Date.now(),
+            index: 0,
+          },
+          {
+            type: 'TOOL_CALL_ARGS',
+            toolCallId: 'call_1',
+            model: 'test',
+            timestamp: Date.now(),
+            delta: '{"query":"test"}',
+          },
+          {
+            type: 'TOOL_CALL_END',
+            toolCallId: 'call_1',
+            toolName: 'search',
+            model: 'test',
+            timestamp: Date.now(),
+          },
+          {
+            type: 'RUN_FINISHED',
+            runId: 'run-1',
+            model: 'test',
+            timestamp: Date.now(),
+            finishReason: 'tool_calls',
+          },
+        ])
+
+        const result = await processor.process(stream)
+
+        expect(result.toolCalls).toHaveLength(1)
+        expect(result.toolCalls![0]?.function.arguments).toBe('{"query":"test"}')
+      })
+    })
+
+    describe('RUN_* events', () => {
+      it('should handle RUN_STARTED event', async () => {
+        const processor = new StreamProcessor({})
+
+        const stream = createMockStream([
+          {
+            type: 'RUN_STARTED',
+            runId: 'run-1',
+            model: 'test',
+            timestamp: Date.now(),
+          },
+          {
+            type: 'TEXT_MESSAGE_CONTENT',
+            messageId: 'msg-1',
+            model: 'test',
+            timestamp: Date.now(),
+            delta: 'Hello',
+          },
+          {
+            type: 'RUN_FINISHED',
+            runId: 'run-1',
+            model: 'test',
+            timestamp: Date.now(),
+            finishReason: 'stop',
+          },
+        ])
+
+        const result = await processor.process(stream)
+
+        expect(result.content).toBe('Hello')
+        expect(result.finishReason).toBe('stop')
+      })
+
+      it('should handle RUN_ERROR event', async () => {
+        const errorHandler = vi.fn()
+
+        const processor = new StreamProcessor({
+          events: {
+            onError: errorHandler,
+          },
+        })
+
+        const chunks: Array<StreamChunk> = [
+          {
+            type: 'RUN_STARTED',
+            runId: 'run-1',
+            model: 'test',
+            timestamp: Date.now(),
+          },
+          {
+            type: 'RUN_ERROR',
+            runId: 'run-1',
+            model: 'test',
+            timestamp: Date.now(),
+            error: { message: 'Something went wrong' },
+          },
+        ]
+
+        for (const chunk of chunks) {
+          processor.processChunk(chunk)
+        }
+
+        expect(errorHandler).toHaveBeenCalledWith(
+          expect.objectContaining({
+            message: 'Something went wrong',
+          }),
+        )
+      })
+
+      it('should handle RUN_FINISHED with finishReason', async () => {
+        const processor = new StreamProcessor({})
+
+        const stream = createMockStream([
+          {
+            type: 'TEXT_MESSAGE_CONTENT',
+            messageId: 'msg-1',
+            model: 'test',
+            timestamp: Date.now(),
+            delta: 'Response',
+          },
+          {
+            type: 'RUN_FINISHED',
+            runId: 'run-1',
+            model: 'test',
+            timestamp: Date.now(),
+            finishReason: 'stop',
+          },
+        ])
+
+        const result = await processor.process(stream)
+
+        expect(result.finishReason).toBe('stop')
+      })
+    })
+
+    describe('STEP_FINISHED events (thinking)', () => {
+      it('should handle STEP_FINISHED for thinking content', async () => {
+        const thinkingUpdates: Array<{ messageId: string; content: string }> =
+          []
+
+        const processor = new StreamProcessor({
+          events: {
+            onThinkingUpdate: (messageId, content) =>
+              thinkingUpdates.push({ messageId, content }),
+          },
+        })
+
+        processor.startAssistantMessage()
+
+        const chunks: Array<StreamChunk> = [
+          {
+            type: 'STEP_STARTED',
+            stepId: 'step-1',
+            model: 'test',
+            timestamp: Date.now(),
+          },
+          {
+            type: 'STEP_FINISHED',
+            stepId: 'step-1',
+            model: 'test',
+            timestamp: Date.now(),
+            delta: 'Let me think',
+            content: 'Let me think',
+          },
+          {
+            type: 'STEP_FINISHED',
+            stepId: 'step-1',
+            model: 'test',
+            timestamp: Date.now(),
+            delta: ' about this...',
+            content: 'Let me think about this...',
+          },
+          {
+            type: 'TEXT_MESSAGE_CONTENT',
+            messageId: 'msg-1',
+            model: 'test',
+            timestamp: Date.now(),
+            delta: 'Here is my answer',
+          },
+          {
+            type: 'RUN_FINISHED',
+            runId: 'run-1',
+            model: 'test',
+            timestamp: Date.now(),
+            finishReason: 'stop',
+          },
+        ]
+
+        for (const chunk of chunks) {
+          processor.processChunk(chunk)
+        }
+        processor.finalizeStream()
+
+        const state = processor.getState()
+        expect(state.thinking).toBe('Let me think about this...')
+        expect(state.content).toBe('Here is my answer')
+
+        // Verify thinking updates were emitted
+        expect(thinkingUpdates.length).toBe(2)
+      })
+    })
+
+    describe('Mixed AG-UI flows', () => {
+      it('should handle text before and after tool calls via process()', async () => {
+        const processor = new StreamProcessor({})
+
+        const stream = createMockStream([
+          // First text segment
+          {
+            type: 'TEXT_MESSAGE_CONTENT',
+            messageId: 'msg-1',
+            model: 'test',
+            timestamp: Date.now(),
+            delta: 'Let me check',
+            content: 'Let me check',
+          },
+          // Tool call
+          {
+            type: 'TOOL_CALL_START',
+            toolCallId: 'call_1',
+            toolName: 'search',
+            model: 'test',
+            timestamp: Date.now(),
+            index: 0,
+          },
+          {
+            type: 'TOOL_CALL_ARGS',
+            toolCallId: 'call_1',
+            model: 'test',
+            timestamp: Date.now(),
+            delta: '{"q":"test"}',
+          },
+          {
+            type: 'TOOL_CALL_END',
+            toolCallId: 'call_1',
+            model: 'test',
+            timestamp: Date.now(),
+          },
+          // Second text segment - content field restarts
+          {
+            type: 'TEXT_MESSAGE_CONTENT',
+            messageId: 'msg-1',
+            model: 'test',
+            timestamp: Date.now(),
+            delta: 'Based on results',
+            content: 'Based on results',
+          },
+          {
+            type: 'RUN_FINISHED',
+            runId: 'run-1',
+            model: 'test',
+            timestamp: Date.now(),
+            finishReason: 'stop',
+          },
+        ])
+
+        const result = await processor.process(stream)
+
+        // Total content should combine both segments
+        expect(result.content).toBe('Let me checkBased on results')
+        expect(result.toolCalls).toHaveLength(1)
+      })
+
+      it('should handle CUSTOM tool-input-available event', async () => {
+        const toolCallHandler = vi.fn()
+        const processor = new StreamProcessor({
+          events: {
+            onToolCall: toolCallHandler,
+          },
+        })
+
+        // Start assistant message for message management
+        processor.startAssistantMessage()
+
+        const chunks: Array<StreamChunk> = [
+          {
+            type: 'TOOL_CALL_START',
+            toolCallId: 'call_1',
+            toolName: 'get_weather',
+            model: 'test',
+            timestamp: Date.now(),
+            index: 0,
+          },
+          {
+            type: 'TOOL_CALL_ARGS',
+            toolCallId: 'call_1',
+            model: 'test',
+            timestamp: Date.now(),
+            delta: '{"city":"NYC"}',
+          },
+          {
+            type: 'TOOL_CALL_END',
+            toolCallId: 'call_1',
+            model: 'test',
+            timestamp: Date.now(),
+          },
+          {
+            type: 'CUSTOM',
+            model: 'test',
+            timestamp: Date.now(),
+            name: 'tool-input-available',
+            data: {
+              toolCallId: 'call_1',
+              toolName: 'get_weather',
+              input: { city: 'NYC' },
+            },
+          },
+          {
+            type: 'RUN_FINISHED',
+            runId: 'run-1',
+            model: 'test',
+            timestamp: Date.now(),
+            finishReason: 'tool_calls',
+          },
+        ]
+
+        for (const chunk of chunks) {
+          processor.processChunk(chunk)
+        }
+        processor.finalizeStream()
+
+        expect(toolCallHandler).toHaveBeenCalledWith({
+          toolCallId: 'call_1',
+          toolName: 'get_weather',
+          input: { city: 'NYC' },
+        })
+      })
+
+      it('should handle approval-requested CUSTOM event', async () => {
+        const approvalHandler = vi.fn()
+        const processor = new StreamProcessor({
+          events: {
+            onApprovalRequest: approvalHandler,
+          },
+        })
+
+        processor.startAssistantMessage()
+
+        const chunks: Array<StreamChunk> = [
+          {
+            type: 'TOOL_CALL_START',
+            toolCallId: 'call_1',
+            toolName: 'delete_file',
+            model: 'test',
+            timestamp: Date.now(),
+            index: 0,
+          },
+          {
+            type: 'TOOL_CALL_ARGS',
+            toolCallId: 'call_1',
+            model: 'test',
+            timestamp: Date.now(),
+            delta: '{"path":"/tmp/file.txt"}',
+          },
+          {
+            type: 'TOOL_CALL_END',
+            toolCallId: 'call_1',
+            model: 'test',
+            timestamp: Date.now(),
+          },
+          {
+            type: 'CUSTOM',
+            model: 'test',
+            timestamp: Date.now(),
+            name: 'approval-requested',
+            data: {
+              toolCallId: 'call_1',
+              toolName: 'delete_file',
+              input: { path: '/tmp/file.txt' },
+              approval: { id: 'approval-1' },
+            },
+          },
+          {
+            type: 'RUN_FINISHED',
+            runId: 'run-1',
+            model: 'test',
+            timestamp: Date.now(),
+            finishReason: 'tool_calls',
+          },
+        ]
+
+        for (const chunk of chunks) {
+          processor.processChunk(chunk)
+        }
+        processor.finalizeStream()
+
+        expect(approvalHandler).toHaveBeenCalledWith({
+          toolCallId: 'call_1',
+          toolName: 'delete_file',
+          input: { path: '/tmp/file.txt' },
+          approvalId: 'approval-1',
+        })
+      })
+    })
+  })
 })

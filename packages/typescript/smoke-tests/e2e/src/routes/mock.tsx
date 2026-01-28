@@ -1,9 +1,8 @@
-import { useState, useMemo } from 'react'
-import { createFileRoute } from '@tanstack/react-router'
+import { useMemo, useState } from 'react'
+import { createFileRoute, useSearch } from '@tanstack/react-router'
 import { useChat, fetchServerSentEvents } from '@tanstack/ai-react'
 import type { UIMessage } from '@tanstack/ai-client'
 
-type ApiMode = 'real' | 'mock'
 type MockScenario =
   | 'simple-text'
   | 'tool-call'
@@ -11,56 +10,13 @@ type MockScenario =
   | 'text-tool-text'
   | 'error'
 
-/**
- * Create a connection adapter that sends the mock scenario in the body
- */
-function createMockConnection(scenario: MockScenario) {
-  return {
-    async *connect(
-      messages: Array<any>,
-      body: Record<string, any>,
-      abortSignal?: AbortSignal,
-    ) {
-      const response = await fetch('/api/mock-chat', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ...body, messages, scenario }),
-        signal: abortSignal,
-      })
-
-      if (!response.ok) {
-        throw new Error(`Mock API error: ${response.status}`)
-      }
-
-      const reader = response.body?.getReader()
-      if (!reader) return
-
-      const decoder = new TextDecoder()
-      let buffer = ''
-
-      while (true) {
-        const { done, value } = await reader.read()
-        if (done) break
-
-        buffer += decoder.decode(value, { stream: true })
-        const lines = buffer.split('\n')
-        buffer = lines.pop() || ''
-
-        for (const line of lines) {
-          if (line.startsWith('data: ')) {
-            const data = line.slice(6)
-            if (data === '[DONE]') continue
-            try {
-              yield JSON.parse(data)
-            } catch {
-              // Skip invalid JSON
-            }
-          }
-        }
-      }
-    },
-  }
-}
+const VALID_SCENARIOS: MockScenario[] = [
+  'simple-text',
+  'tool-call',
+  'multi-tool',
+  'text-tool-text',
+  'error',
+]
 
 /**
  * Extract statistics from messages for testing
@@ -96,19 +52,24 @@ function getMessageStats(messages: Array<UIMessage>) {
   }
 }
 
-function ChatPage() {
-  const [apiMode, setApiMode] = useState<ApiMode>('real')
-  const [mockScenario, setMockScenario] = useState<MockScenario>('simple-text')
+function MockChatPage() {
+  const { scenario: searchScenario } = useSearch({ from: '/mock' })
 
+  // Use scenario from URL, validated
+  const scenario: MockScenario = VALID_SCENARIOS.includes(
+    searchScenario as MockScenario,
+  )
+    ? (searchScenario as MockScenario)
+    : 'simple-text'
+
+  // Use fetchServerSentEvents for the mock endpoint
   const connection = useMemo(() => {
-    if (apiMode === 'mock') {
-      return createMockConnection(mockScenario)
-    }
-    return fetchServerSentEvents('/api/tanchat')
-  }, [apiMode, mockScenario])
+    return fetchServerSentEvents('/api/mock-chat')
+  }, [])
 
   const { messages, sendMessage, isLoading, stop, error } = useChat({
     connection,
+    body: { scenario },
   })
 
   const [input, setInput] = useState('')
@@ -123,8 +84,7 @@ function ChatPage() {
         padding: '20px',
       }}
       data-testid="chat-page"
-      data-api-mode={apiMode}
-      data-mock-scenario={mockScenario}
+      data-mock-scenario={scenario}
       data-is-loading={isLoading.toString()}
       data-has-error={!!error}
       data-message-count={stats.totalMessages}
@@ -134,54 +94,16 @@ function ChatPage() {
       data-has-tool-calls={stats.hasToolCalls.toString()}
       data-tool-names={stats.toolNames}
     >
-      {/* API Mode Selector */}
+      {/* Scenario indicator - scenario is controlled via URL param */}
       <div
-        id="api-mode-selector"
         style={{
-          display: 'flex',
-          gap: '10px',
           marginBottom: '10px',
-          alignItems: 'center',
+          padding: '8px',
+          backgroundColor: '#e3f2fd',
+          borderRadius: '4px',
         }}
       >
-        <label>
-          <input
-            type="radio"
-            name="apiMode"
-            value="real"
-            checked={apiMode === 'real'}
-            onChange={() => setApiMode('real')}
-            data-testid="api-mode-real"
-          />
-          Real API
-        </label>
-        <label>
-          <input
-            type="radio"
-            name="apiMode"
-            value="mock"
-            checked={apiMode === 'mock'}
-            onChange={() => setApiMode('mock')}
-            data-testid="api-mode-mock"
-          />
-          Mock API
-        </label>
-
-        {apiMode === 'mock' && (
-          <select
-            id="mock-scenario-select"
-            value={mockScenario}
-            onChange={(e) => setMockScenario(e.target.value as MockScenario)}
-            data-testid="mock-scenario-select"
-            style={{ marginLeft: '10px', padding: '5px' }}
-          >
-            <option value="simple-text">Simple Text</option>
-            <option value="tool-call">Tool Call</option>
-            <option value="multi-tool">Multiple Tools</option>
-            <option value="text-tool-text">Text + Tool + Text</option>
-            <option value="error">Error</option>
-          </select>
-        )}
+        <strong>Mock Scenario:</strong> {scenario}
       </div>
 
       {/* Input area */}
@@ -216,7 +138,6 @@ function ChatPage() {
             }
           }}
           data-testid="submit-button"
-          data-input-value={input}
           data-is-loading={isLoading.toString()}
           style={{
             padding: '10px 20px',
@@ -296,6 +217,11 @@ function ChatPage() {
   )
 }
 
-export const Route = createFileRoute('/')({
-  component: ChatPage,
+export const Route = createFileRoute('/mock')({
+  validateSearch: (search: Record<string, unknown>) => {
+    return {
+      scenario: search.scenario as string | undefined,
+    }
+  },
+  component: MockChatPage,
 })

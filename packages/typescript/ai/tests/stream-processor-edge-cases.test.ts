@@ -1170,4 +1170,490 @@ describe('StreamProcessor Edge Cases and Real-World Scenarios', () => {
       expect(handlers.onToolResultStateChange).toHaveBeenCalledTimes(2)
     })
   })
+
+  /**
+   * AG-UI Format Edge Cases
+   *
+   * These tests verify the StreamProcessor handles edge cases correctly
+   * when using AG-UI protocol events.
+   */
+  describe('AG-UI Format Edge Cases', () => {
+    describe('Out-of-order events', () => {
+      it('should handle TOOL_CALL_ARGS before TOOL_CALL_START (gracefully ignore)', () => {
+        const processor = new StreamProcessor({})
+        processor.startAssistantMessage()
+
+        // Args arriving before start - should be ignored
+        processor.processChunk({
+          type: 'TOOL_CALL_ARGS',
+          toolCallId: 'call_1',
+          model: 'test',
+          timestamp: Date.now(),
+          delta: '{"city":"NYC"}',
+        })
+
+        // Now the start arrives
+        processor.processChunk({
+          type: 'TOOL_CALL_START',
+          toolCallId: 'call_1',
+          toolName: 'get_weather',
+          model: 'test',
+          timestamp: Date.now(),
+          index: 0,
+        })
+
+        // More args after start
+        processor.processChunk({
+          type: 'TOOL_CALL_ARGS',
+          toolCallId: 'call_1',
+          model: 'test',
+          timestamp: Date.now(),
+          delta: '{"location":"NYC"}',
+        })
+
+        processor.processChunk({
+          type: 'RUN_FINISHED',
+          runId: 'run-1',
+          model: 'test',
+          timestamp: Date.now(),
+          finishReason: 'tool_calls',
+        })
+
+        const state = processor.getState()
+        // Tool call should only contain args after START
+        expect(state.toolCalls.size).toBe(1)
+        const toolCall = state.toolCalls.get('call_1')
+        expect(toolCall?.arguments).toBe('{"location":"NYC"}')
+      })
+
+      it('should handle interleaved tool call events for multiple tools', () => {
+        const processor = new StreamProcessor({})
+        processor.startAssistantMessage()
+
+        // Start both tool calls
+        processor.processChunk({
+          type: 'TOOL_CALL_START',
+          toolCallId: 'call_1',
+          toolName: 'get_weather',
+          model: 'test',
+          timestamp: Date.now(),
+          index: 0,
+        })
+        processor.processChunk({
+          type: 'TOOL_CALL_START',
+          toolCallId: 'call_2',
+          toolName: 'get_time',
+          model: 'test',
+          timestamp: Date.now(),
+          index: 1,
+        })
+
+        // Interleaved args
+        processor.processChunk({
+          type: 'TOOL_CALL_ARGS',
+          toolCallId: 'call_1',
+          model: 'test',
+          timestamp: Date.now(),
+          delta: '{"city":',
+        })
+        processor.processChunk({
+          type: 'TOOL_CALL_ARGS',
+          toolCallId: 'call_2',
+          model: 'test',
+          timestamp: Date.now(),
+          delta: '{"zone":',
+        })
+        processor.processChunk({
+          type: 'TOOL_CALL_ARGS',
+          toolCallId: 'call_1',
+          model: 'test',
+          timestamp: Date.now(),
+          delta: '"NYC"}',
+        })
+        processor.processChunk({
+          type: 'TOOL_CALL_ARGS',
+          toolCallId: 'call_2',
+          model: 'test',
+          timestamp: Date.now(),
+          delta: '"EST"}',
+        })
+
+        processor.processChunk({
+          type: 'RUN_FINISHED',
+          runId: 'run-1',
+          model: 'test',
+          timestamp: Date.now(),
+          finishReason: 'tool_calls',
+        })
+
+        const state = processor.getState()
+        expect(state.toolCalls.size).toBe(2)
+
+        const call1 = state.toolCalls.get('call_1')
+        const call2 = state.toolCalls.get('call_2')
+
+        expect(call1?.arguments).toBe('{"city":"NYC"}')
+        expect(call2?.arguments).toBe('{"zone":"EST"}')
+      })
+    })
+
+    describe('Missing TOOL_CALL_END', () => {
+      it('should handle missing TOOL_CALL_END when RUN_FINISHED arrives', () => {
+        const processor = new StreamProcessor({})
+        processor.startAssistantMessage()
+
+        processor.processChunk({
+          type: 'TOOL_CALL_START',
+          toolCallId: 'call_1',
+          toolName: 'get_weather',
+          model: 'test',
+          timestamp: Date.now(),
+          index: 0,
+        })
+
+        processor.processChunk({
+          type: 'TOOL_CALL_ARGS',
+          toolCallId: 'call_1',
+          model: 'test',
+          timestamp: Date.now(),
+          delta: '{"city":"NYC"}',
+        })
+
+        // No TOOL_CALL_END, directly to RUN_FINISHED
+        processor.processChunk({
+          type: 'RUN_FINISHED',
+          runId: 'run-1',
+          model: 'test',
+          timestamp: Date.now(),
+          finishReason: 'tool_calls',
+        })
+
+        const state = processor.getState()
+        expect(state.toolCalls.size).toBe(1)
+        const toolCall = state.toolCalls.get('call_1')
+        expect(toolCall?.name).toBe('get_weather')
+        expect(toolCall?.arguments).toBe('{"city":"NYC"}')
+      })
+
+      it('should handle missing TOOL_CALL_END when text content arrives', () => {
+        const processor = new StreamProcessor({})
+        processor.startAssistantMessage()
+
+        processor.processChunk({
+          type: 'TOOL_CALL_START',
+          toolCallId: 'call_1',
+          toolName: 'search',
+          model: 'test',
+          timestamp: Date.now(),
+          index: 0,
+        })
+
+        processor.processChunk({
+          type: 'TOOL_CALL_ARGS',
+          toolCallId: 'call_1',
+          model: 'test',
+          timestamp: Date.now(),
+          delta: '{"q":"test"}',
+        })
+
+        // Text arrives without TOOL_CALL_END - should complete tool call
+        processor.processChunk({
+          type: 'TEXT_MESSAGE_CONTENT',
+          messageId: 'msg-1',
+          model: 'test',
+          timestamp: Date.now(),
+          delta: 'Here are the results',
+        })
+
+        processor.processChunk({
+          type: 'RUN_FINISHED',
+          runId: 'run-1',
+          model: 'test',
+          timestamp: Date.now(),
+          finishReason: 'stop',
+        })
+
+        const state = processor.getState()
+        expect(state.toolCalls.size).toBe(1)
+        expect(state.content).toBe('Here are the results')
+      })
+    })
+
+    describe('Interrupted/incomplete streams', () => {
+      it('should handle stream ending without RUN_FINISHED', () => {
+        const processor = new StreamProcessor({})
+        processor.startAssistantMessage()
+
+        processor.processChunk({
+          type: 'TEXT_MESSAGE_CONTENT',
+          messageId: 'msg-1',
+          model: 'test',
+          timestamp: Date.now(),
+          delta: 'Hello',
+        })
+
+        processor.processChunk({
+          type: 'TEXT_MESSAGE_CONTENT',
+          messageId: 'msg-1',
+          model: 'test',
+          timestamp: Date.now(),
+          delta: ' world',
+        })
+
+        // Stream ends abruptly - call finalizeStream without RUN_FINISHED
+        processor.finalizeStream()
+
+        const state = processor.getState()
+        expect(state.content).toBe('Hello world')
+        // finishReason should be null since RUN_FINISHED never arrived
+        expect(state.finishReason).toBeNull()
+      })
+
+      it('should handle partial tool call (only START, no ARGS)', () => {
+        const processor = new StreamProcessor({})
+        processor.startAssistantMessage()
+
+        processor.processChunk({
+          type: 'TOOL_CALL_START',
+          toolCallId: 'call_1',
+          toolName: 'get_weather',
+          model: 'test',
+          timestamp: Date.now(),
+          index: 0,
+        })
+
+        // Stream ends with only START
+        processor.finalizeStream()
+
+        const state = processor.getState()
+        expect(state.toolCalls.size).toBe(1)
+        const toolCall = state.toolCalls.get('call_1')
+        expect(toolCall?.name).toBe('get_weather')
+        expect(toolCall?.arguments).toBe('')
+      })
+    })
+
+    describe('Duplicate events', () => {
+      it('should ignore duplicate TOOL_CALL_START for same toolCallId', () => {
+        const toolCallStateChanges: Array<string> = []
+        const processor = new StreamProcessor({
+          events: {
+            onToolCallStateChange: (_, toolCallId) =>
+              toolCallStateChanges.push(toolCallId),
+          },
+        })
+        processor.startAssistantMessage()
+
+        // First START
+        processor.processChunk({
+          type: 'TOOL_CALL_START',
+          toolCallId: 'call_1',
+          toolName: 'get_weather',
+          model: 'test',
+          timestamp: Date.now(),
+          index: 0,
+        })
+
+        // Duplicate START with same ID
+        processor.processChunk({
+          type: 'TOOL_CALL_START',
+          toolCallId: 'call_1',
+          toolName: 'get_weather',
+          model: 'test',
+          timestamp: Date.now(),
+          index: 0,
+        })
+
+        processor.processChunk({
+          type: 'TOOL_CALL_ARGS',
+          toolCallId: 'call_1',
+          model: 'test',
+          timestamp: Date.now(),
+          delta: '{"city":"NYC"}',
+        })
+
+        processor.processChunk({
+          type: 'RUN_FINISHED',
+          runId: 'run-1',
+          model: 'test',
+          timestamp: Date.now(),
+          finishReason: 'tool_calls',
+        })
+
+        const state = processor.getState()
+        // Should only have one tool call
+        expect(state.toolCalls.size).toBe(1)
+        // State change should only be emitted once for START
+        expect(
+          toolCallStateChanges.filter((id) => id === 'call_1').length,
+        ).toBeGreaterThanOrEqual(1)
+      })
+
+      it('should handle duplicate TEXT_MESSAGE_CONTENT (same content)', () => {
+        const processor = new StreamProcessor({})
+        processor.startAssistantMessage()
+
+        processor.processChunk({
+          type: 'TEXT_MESSAGE_CONTENT',
+          messageId: 'msg-1',
+          model: 'test',
+          timestamp: Date.now(),
+          delta: 'Hello',
+          content: 'Hello',
+        })
+
+        // Same content again (shouldn't change anything)
+        processor.processChunk({
+          type: 'TEXT_MESSAGE_CONTENT',
+          messageId: 'msg-1',
+          model: 'test',
+          timestamp: Date.now(),
+          delta: '',
+          content: 'Hello',
+        })
+
+        processor.processChunk({
+          type: 'RUN_FINISHED',
+          runId: 'run-1',
+          model: 'test',
+          timestamp: Date.now(),
+          finishReason: 'stop',
+        })
+
+        const state = processor.getState()
+        expect(state.content).toBe('Hello')
+      })
+    })
+
+    describe('Empty/null values', () => {
+      it('should handle empty delta in TEXT_MESSAGE_CONTENT', () => {
+        const processor = new StreamProcessor({})
+        processor.startAssistantMessage()
+
+        processor.processChunk({
+          type: 'TEXT_MESSAGE_CONTENT',
+          messageId: 'msg-1',
+          model: 'test',
+          timestamp: Date.now(),
+          delta: '',
+          content: 'Hello',
+        })
+
+        processor.processChunk({
+          type: 'RUN_FINISHED',
+          runId: 'run-1',
+          model: 'test',
+          timestamp: Date.now(),
+          finishReason: 'stop',
+        })
+
+        const state = processor.getState()
+        expect(state.content).toBe('Hello')
+      })
+
+      it('should handle empty args in TOOL_CALL_ARGS', () => {
+        const processor = new StreamProcessor({})
+        processor.startAssistantMessage()
+
+        processor.processChunk({
+          type: 'TOOL_CALL_START',
+          toolCallId: 'call_1',
+          toolName: 'no_args_tool',
+          model: 'test',
+          timestamp: Date.now(),
+          index: 0,
+        })
+
+        processor.processChunk({
+          type: 'TOOL_CALL_ARGS',
+          toolCallId: 'call_1',
+          model: 'test',
+          timestamp: Date.now(),
+          delta: '',
+        })
+
+        processor.processChunk({
+          type: 'TOOL_CALL_END',
+          toolCallId: 'call_1',
+          model: 'test',
+          timestamp: Date.now(),
+        })
+
+        processor.processChunk({
+          type: 'RUN_FINISHED',
+          runId: 'run-1',
+          model: 'test',
+          timestamp: Date.now(),
+          finishReason: 'tool_calls',
+        })
+
+        const state = processor.getState()
+        const toolCall = state.toolCalls.get('call_1')
+        expect(toolCall?.arguments).toBe('')
+      })
+    })
+
+    describe('Events without assistant message', () => {
+      it('should handle TEXT_MESSAGE_CONTENT without startAssistantMessage', () => {
+        const processor = new StreamProcessor({})
+        // Note: NOT calling startAssistantMessage()
+
+        processor.processChunk({
+          type: 'TEXT_MESSAGE_CONTENT',
+          messageId: 'msg-1',
+          model: 'test',
+          timestamp: Date.now(),
+          delta: 'Hello',
+        })
+
+        processor.processChunk({
+          type: 'RUN_FINISHED',
+          runId: 'run-1',
+          model: 'test',
+          timestamp: Date.now(),
+          finishReason: 'stop',
+        })
+
+        const state = processor.getState()
+        // Content should still accumulate
+        expect(state.content).toBe('Hello')
+        // But messages array may not have the content since no assistant message was started
+        expect(processor.getMessages().length).toBe(0)
+      })
+
+      it('should handle TOOL_CALL events without startAssistantMessage', () => {
+        const processor = new StreamProcessor({})
+        // Note: NOT calling startAssistantMessage()
+
+        processor.processChunk({
+          type: 'TOOL_CALL_START',
+          toolCallId: 'call_1',
+          toolName: 'test_tool',
+          model: 'test',
+          timestamp: Date.now(),
+          index: 0,
+        })
+
+        processor.processChunk({
+          type: 'TOOL_CALL_ARGS',
+          toolCallId: 'call_1',
+          model: 'test',
+          timestamp: Date.now(),
+          delta: '{}',
+        })
+
+        processor.processChunk({
+          type: 'RUN_FINISHED',
+          runId: 'run-1',
+          model: 'test',
+          timestamp: Date.now(),
+          finishReason: 'tool_calls',
+        })
+
+        const state = processor.getState()
+        // Tool call state should still be tracked
+        expect(state.toolCalls.size).toBe(1)
+      })
+    })
+  })
 })

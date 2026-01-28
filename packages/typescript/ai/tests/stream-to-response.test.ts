@@ -444,3 +444,396 @@ describe('toServerSentEventsResponse', () => {
     expect(response.headers.get('Content-Type')).toBe('text/event-stream')
   })
 })
+
+/**
+ * SSE Round-Trip Tests
+ *
+ * These tests verify that all AG-UI event types survive the SSE encoding/decoding cycle.
+ * This simulates the full server → client flow.
+ */
+describe('SSE Round-Trip (Encode → Decode)', () => {
+  /**
+   * Helper to parse SSE stream back into chunks
+   */
+  async function parseSSEStream(
+    sseStream: ReadableStream<Uint8Array>,
+  ): Promise<Array<StreamChunk>> {
+    const reader = sseStream.getReader()
+    const decoder = new TextDecoder()
+    const chunks: Array<StreamChunk> = []
+    let buffer = ''
+
+    try {
+      while (true) {
+        const { done, value } = await reader.read()
+        if (done) break
+
+        buffer += decoder.decode(value, { stream: true })
+        const lines = buffer.split('\n\n')
+        buffer = lines.pop() || ''
+
+        for (const line of lines) {
+          if (line.startsWith('data: ')) {
+            const data = line.slice(6)
+            if (data === '[DONE]') continue
+            try {
+              chunks.push(JSON.parse(data))
+            } catch {
+              // Skip invalid JSON
+            }
+          }
+        }
+      }
+    } finally {
+      reader.releaseLock()
+    }
+
+    return chunks
+  }
+
+  it('should preserve TEXT_MESSAGE_CONTENT events', async () => {
+    const originalChunks: Array<StreamChunk> = [
+      {
+        type: 'TEXT_MESSAGE_CONTENT',
+        messageId: 'msg-1',
+        model: 'test-model',
+        timestamp: 1234567890,
+        delta: 'Hello',
+        content: 'Hello',
+      },
+      {
+        type: 'TEXT_MESSAGE_CONTENT',
+        messageId: 'msg-1',
+        model: 'test-model',
+        timestamp: 1234567891,
+        delta: ' world',
+        content: 'Hello world',
+      },
+    ]
+
+    const sseStream = toServerSentEventsStream(createMockStream(originalChunks))
+    const parsedChunks = await parseSSEStream(sseStream)
+
+    expect(parsedChunks.length).toBe(2)
+
+    for (let i = 0; i < originalChunks.length; i++) {
+      const original = originalChunks[i]
+      const parsed = parsedChunks[i]
+
+      expect(parsed?.type).toBe(original?.type)
+      expect((parsed as any)?.messageId).toBe((original as any)?.messageId)
+      expect((parsed as any)?.delta).toBe((original as any)?.delta)
+      expect((parsed as any)?.content).toBe((original as any)?.content)
+    }
+  })
+
+  it('should preserve TOOL_CALL_* events', async () => {
+    const originalChunks: Array<StreamChunk> = [
+      {
+        type: 'TOOL_CALL_START',
+        toolCallId: 'tc-1',
+        toolName: 'get_weather',
+        model: 'test',
+        timestamp: Date.now(),
+        index: 0,
+      },
+      {
+        type: 'TOOL_CALL_ARGS',
+        toolCallId: 'tc-1',
+        model: 'test',
+        timestamp: Date.now(),
+        delta: '{"city":"NYC"}',
+      },
+      {
+        type: 'TOOL_CALL_END',
+        toolCallId: 'tc-1',
+        toolName: 'get_weather',
+        model: 'test',
+        timestamp: Date.now(),
+      },
+    ]
+
+    const sseStream = toServerSentEventsStream(createMockStream(originalChunks))
+    const parsedChunks = await parseSSEStream(sseStream)
+
+    expect(parsedChunks.length).toBe(3)
+
+    // Verify TOOL_CALL_START
+    expect(parsedChunks[0]?.type).toBe('TOOL_CALL_START')
+    expect((parsedChunks[0] as any)?.toolCallId).toBe('tc-1')
+    expect((parsedChunks[0] as any)?.toolName).toBe('get_weather')
+    expect((parsedChunks[0] as any)?.index).toBe(0)
+
+    // Verify TOOL_CALL_ARGS
+    expect(parsedChunks[1]?.type).toBe('TOOL_CALL_ARGS')
+    expect((parsedChunks[1] as any)?.toolCallId).toBe('tc-1')
+    expect((parsedChunks[1] as any)?.delta).toBe('{"city":"NYC"}')
+
+    // Verify TOOL_CALL_END
+    expect(parsedChunks[2]?.type).toBe('TOOL_CALL_END')
+    expect((parsedChunks[2] as any)?.toolCallId).toBe('tc-1')
+  })
+
+  it('should preserve RUN_* events', async () => {
+    const originalChunks: Array<StreamChunk> = [
+      {
+        type: 'RUN_STARTED',
+        runId: 'run-1',
+        model: 'test',
+        timestamp: Date.now(),
+      },
+      {
+        type: 'RUN_FINISHED',
+        runId: 'run-1',
+        model: 'test',
+        timestamp: Date.now(),
+        finishReason: 'stop',
+      },
+    ]
+
+    const sseStream = toServerSentEventsStream(createMockStream(originalChunks))
+    const parsedChunks = await parseSSEStream(sseStream)
+
+    expect(parsedChunks.length).toBe(2)
+
+    expect(parsedChunks[0]?.type).toBe('RUN_STARTED')
+    expect((parsedChunks[0] as any)?.runId).toBe('run-1')
+
+    expect(parsedChunks[1]?.type).toBe('RUN_FINISHED')
+    expect((parsedChunks[1] as any)?.finishReason).toBe('stop')
+  })
+
+  it('should preserve RUN_ERROR events', async () => {
+    const originalChunks: Array<StreamChunk> = [
+      {
+        type: 'RUN_ERROR',
+        runId: 'run-1',
+        model: 'test',
+        timestamp: Date.now(),
+        error: { message: 'Something went wrong', code: 'TEST_ERROR' },
+      },
+    ]
+
+    const sseStream = toServerSentEventsStream(createMockStream(originalChunks))
+    const parsedChunks = await parseSSEStream(sseStream)
+
+    expect(parsedChunks.length).toBe(1)
+    expect(parsedChunks[0]?.type).toBe('RUN_ERROR')
+    expect((parsedChunks[0] as any)?.error?.message).toBe('Something went wrong')
+    expect((parsedChunks[0] as any)?.error?.code).toBe('TEST_ERROR')
+  })
+
+  it('should preserve STEP_FINISHED events (thinking)', async () => {
+    const originalChunks: Array<StreamChunk> = [
+      {
+        type: 'STEP_STARTED',
+        stepId: 'step-1',
+        model: 'test',
+        timestamp: Date.now(),
+      },
+      {
+        type: 'STEP_FINISHED',
+        stepId: 'step-1',
+        model: 'test',
+        timestamp: Date.now(),
+        delta: 'Let me think...',
+        content: 'Let me think...',
+      },
+    ]
+
+    const sseStream = toServerSentEventsStream(createMockStream(originalChunks))
+    const parsedChunks = await parseSSEStream(sseStream)
+
+    expect(parsedChunks.length).toBe(2)
+
+    expect(parsedChunks[0]?.type).toBe('STEP_STARTED')
+    expect((parsedChunks[0] as any)?.stepId).toBe('step-1')
+
+    expect(parsedChunks[1]?.type).toBe('STEP_FINISHED')
+    expect((parsedChunks[1] as any)?.delta).toBe('Let me think...')
+  })
+
+  it('should preserve CUSTOM events', async () => {
+    const originalChunks: Array<StreamChunk> = [
+      {
+        type: 'CUSTOM',
+        model: 'test',
+        timestamp: Date.now(),
+        name: 'tool-input-available',
+        data: {
+          toolCallId: 'tc-1',
+          toolName: 'get_weather',
+          input: { city: 'NYC', units: 'fahrenheit' },
+        },
+      },
+      {
+        type: 'CUSTOM',
+        model: 'test',
+        timestamp: Date.now(),
+        name: 'approval-requested',
+        data: {
+          toolCallId: 'tc-2',
+          toolName: 'delete_file',
+          input: { path: '/tmp/file.txt' },
+          approval: { id: 'approval-1' },
+        },
+      },
+    ]
+
+    const sseStream = toServerSentEventsStream(createMockStream(originalChunks))
+    const parsedChunks = await parseSSEStream(sseStream)
+
+    expect(parsedChunks.length).toBe(2)
+
+    // Verify tool-input-available
+    expect(parsedChunks[0]?.type).toBe('CUSTOM')
+    expect((parsedChunks[0] as any)?.name).toBe('tool-input-available')
+    expect((parsedChunks[0] as any)?.data?.toolCallId).toBe('tc-1')
+    expect((parsedChunks[0] as any)?.data?.input?.city).toBe('NYC')
+
+    // Verify approval-requested
+    expect(parsedChunks[1]?.type).toBe('CUSTOM')
+    expect((parsedChunks[1] as any)?.name).toBe('approval-requested')
+    expect((parsedChunks[1] as any)?.data?.approval?.id).toBe('approval-1')
+  })
+
+  it('should preserve TEXT_MESSAGE_START/END events', async () => {
+    const originalChunks: Array<StreamChunk> = [
+      {
+        type: 'TEXT_MESSAGE_START',
+        messageId: 'msg-1',
+        model: 'test',
+        timestamp: Date.now(),
+      },
+      {
+        type: 'TEXT_MESSAGE_CONTENT',
+        messageId: 'msg-1',
+        model: 'test',
+        timestamp: Date.now(),
+        delta: 'Hello',
+      },
+      {
+        type: 'TEXT_MESSAGE_END',
+        messageId: 'msg-1',
+        model: 'test',
+        timestamp: Date.now(),
+      },
+    ]
+
+    const sseStream = toServerSentEventsStream(createMockStream(originalChunks))
+    const parsedChunks = await parseSSEStream(sseStream)
+
+    expect(parsedChunks.length).toBe(3)
+    expect(parsedChunks[0]?.type).toBe('TEXT_MESSAGE_START')
+    expect(parsedChunks[1]?.type).toBe('TEXT_MESSAGE_CONTENT')
+    expect(parsedChunks[2]?.type).toBe('TEXT_MESSAGE_END')
+  })
+
+  it('should preserve complex mixed event sequence', async () => {
+    const originalChunks: Array<StreamChunk> = [
+      {
+        type: 'RUN_STARTED',
+        runId: 'run-1',
+        model: 'test',
+        timestamp: Date.now(),
+      },
+      {
+        type: 'TEXT_MESSAGE_START',
+        messageId: 'msg-1',
+        model: 'test',
+        timestamp: Date.now(),
+      },
+      {
+        type: 'TEXT_MESSAGE_CONTENT',
+        messageId: 'msg-1',
+        model: 'test',
+        timestamp: Date.now(),
+        delta: 'Let me help you.',
+      },
+      {
+        type: 'TEXT_MESSAGE_END',
+        messageId: 'msg-1',
+        model: 'test',
+        timestamp: Date.now(),
+      },
+      {
+        type: 'TOOL_CALL_START',
+        toolCallId: 'tc-1',
+        toolName: 'search',
+        model: 'test',
+        timestamp: Date.now(),
+        index: 0,
+      },
+      {
+        type: 'TOOL_CALL_ARGS',
+        toolCallId: 'tc-1',
+        model: 'test',
+        timestamp: Date.now(),
+        delta: '{"query":"test"}',
+      },
+      {
+        type: 'TOOL_CALL_END',
+        toolCallId: 'tc-1',
+        model: 'test',
+        timestamp: Date.now(),
+      },
+      {
+        type: 'CUSTOM',
+        model: 'test',
+        timestamp: Date.now(),
+        name: 'tool-input-available',
+        data: { toolCallId: 'tc-1', toolName: 'search', input: { query: 'test' } },
+      },
+      {
+        type: 'RUN_FINISHED',
+        runId: 'run-1',
+        model: 'test',
+        timestamp: Date.now(),
+        finishReason: 'tool_calls',
+      },
+    ]
+
+    const sseStream = toServerSentEventsStream(createMockStream(originalChunks))
+    const parsedChunks = await parseSSEStream(sseStream)
+
+    expect(parsedChunks.length).toBe(9)
+
+    // Verify event types in order
+    const expectedTypes = [
+      'RUN_STARTED',
+      'TEXT_MESSAGE_START',
+      'TEXT_MESSAGE_CONTENT',
+      'TEXT_MESSAGE_END',
+      'TOOL_CALL_START',
+      'TOOL_CALL_ARGS',
+      'TOOL_CALL_END',
+      'CUSTOM',
+      'RUN_FINISHED',
+    ]
+
+    for (let i = 0; i < expectedTypes.length; i++) {
+      expect(parsedChunks[i]?.type).toBe(expectedTypes[i])
+    }
+  })
+
+  it('should preserve unicode and special characters', async () => {
+    const originalChunks: Array<StreamChunk> = [
+      {
+        type: 'TEXT_MESSAGE_CONTENT',
+        messageId: 'msg-1',
+        model: 'test',
+        timestamp: Date.now(),
+        delta: 'Hello 世界! 🌍 Special chars: <>&"\'\n\t',
+        content: 'Hello 世界! 🌍 Special chars: <>&"\'\n\t',
+      },
+    ]
+
+    const sseStream = toServerSentEventsStream(createMockStream(originalChunks))
+    const parsedChunks = await parseSSEStream(sseStream)
+
+    expect(parsedChunks.length).toBe(1)
+    expect((parsedChunks[0] as any)?.delta).toBe(
+      'Hello 世界! 🌍 Special chars: <>&"\'\n\t',
+    )
+  })
+})
