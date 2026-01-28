@@ -323,6 +323,20 @@ export async function captureStream(opts: {
       chunkData.toolCallId = chunk.toolCallId
       chunkData.toolName = chunk.toolName
       chunkData.input = chunk.input
+
+      // AG-UI tool results are included in TOOL_CALL_END events
+      if (chunk.result !== undefined) {
+        chunkData.result = chunk.result
+        toolResults.push({
+          toolCallId: id,
+          content: chunk.result,
+        })
+        reconstructedMessages.push({
+          role: 'tool',
+          toolCallId: id,
+          content: chunk.result,
+        })
+      }
     }
     // Legacy tool_result event
     else if (chunk.type === 'tool_result') {
@@ -351,6 +365,28 @@ export async function captureStream(opts: {
       chunkData.input = chunk.input
       chunkData.approval = chunk.approval
       approvalRequests.push(approval)
+    }
+    // AG-UI CUSTOM events (approval requests, tool inputs, etc.)
+    else if (chunk.type === 'CUSTOM') {
+      chunkData.name = chunk.name
+      chunkData.data = chunk.data
+
+      // Handle approval-requested CUSTOM events
+      if (chunk.name === 'approval-requested' && chunk.data) {
+        const data = chunk.data as {
+          toolCallId: string
+          toolName: string
+          input: any
+          approval: any
+        }
+        const approval: ApprovalCapture = {
+          toolCallId: data.toolCallId,
+          toolName: data.toolName,
+          input: data.input,
+          approval: data.approval,
+        }
+        approvalRequests.push(approval)
+      }
     }
     // Legacy done event
     else if (chunk.type === 'done') {
