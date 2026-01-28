@@ -70,15 +70,35 @@ export class OpenRouterSummarizeAdapter<
       maxTokens: this.maxTokens ?? options.maxLength,
       temperature: this.temperature,
     })) {
+      // Legacy content event
       if (chunk.type === 'content') {
         summary = chunk.content
         id = chunk.id
         model = chunk.model
       }
+      // AG-UI TEXT_MESSAGE_CONTENT event
+      else if (chunk.type === 'TEXT_MESSAGE_CONTENT') {
+        if (chunk.content) {
+          summary = chunk.content
+        } else {
+          summary += chunk.delta
+        }
+        model = chunk.model || model
+      }
+      // Legacy done event
       if (chunk.type === 'done' && chunk.usage) {
         usage = chunk.usage
       }
+      // AG-UI RUN_FINISHED event
+      else if (chunk.type === 'RUN_FINISHED' && chunk.usage) {
+        usage = chunk.usage
+      }
+      // Legacy error event
       if (chunk.type === 'error') {
+        throw new Error(`Error during summarization: ${chunk.error.message}`)
+      }
+      // AG-UI RUN_ERROR event
+      else if (chunk.type === 'RUN_ERROR') {
         throw new Error(`Error during summarization: ${chunk.error.message}`)
       }
     }
