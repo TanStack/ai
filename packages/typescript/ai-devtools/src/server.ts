@@ -9,7 +9,10 @@ export interface AiDevtoolsInit {}
 export class AiDevtoolsCore {
   constructor(_init?: AiDevtoolsInit) {}
 
-  async mount<T extends HTMLElement>(_el: T, _theme: 'light' | 'dark'): Promise<void> {
+  async mount<T extends HTMLElement>(
+    _el: T,
+    _theme: 'light' | 'dark',
+  ): Promise<void> {
     // No-op in server environment
   }
 
@@ -23,7 +26,10 @@ export class AiDevtoolsCoreNoOp extends AiDevtoolsCore {
     super(_init)
   }
 
-  async mount<T extends HTMLElement>(_el: T, _theme: 'light' | 'dark'): Promise<void> {
+  async mount<T extends HTMLElement>(
+    _el: T,
+    _theme: 'light' | 'dark',
+  ): Promise<void> {
     // No-op in server environment
   }
 
