@@ -41,6 +41,6 @@ Response in Server-Sent Events format
 ## Example
 
 ```typescript
-const stream = chat({ adapter: openaiText(), model: "gpt-5.2", messages: [...] });
+const stream = chat({ adapter: openaiText(), model: "gpt-4o", messages: [...] });
 return toServerSentEventsResponse(stream, { abortController });
 ```

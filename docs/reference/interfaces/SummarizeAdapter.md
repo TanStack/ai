@@ -13,7 +13,7 @@ An adapter is created by a provider function: `provider('model')` → `adapter`
 All type resolution happens at the provider call site, not in this interface.
 
 Generic parameters:
-- TModel: The specific model name (e.g., 'gpt-5.2')
+- TModel: The specific model name (e.g., 'gpt-4o')
 - TProviderOptions: Provider-specific options (already resolved)
 
 ## Type Parameters

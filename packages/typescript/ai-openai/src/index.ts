@@ -78,6 +78,11 @@ export type { OpenAITranscriptionProviderOptions } from './audio/transcription-p
 export type {
   OpenAIChatModelProviderOptionsByName,
   OpenAIModelInputModalitiesByName,
+  OpenAIChatModel,
+  OpenAIImageModel,
+  OpenAIVideoModel,
+  OpenAITTSModel,
+  OpenAITranscriptionModel,
 } from './model-meta'
 export {
   OPENAI_IMAGE_MODELS,
@@ -94,3 +99,4 @@ export type {
   OpenAIDocumentMetadata,
   OpenAIMessageMetadataByModality,
 } from './message-types'
+export type { OpenAIClientConfig } from './utils/client'
