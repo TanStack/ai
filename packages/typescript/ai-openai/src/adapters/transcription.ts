@@ -7,12 +7,61 @@ import {
 import type { OpenAITranscriptionModel } from '../model-meta'
 import type { OpenAITranscriptionProviderOptions } from '../audio/transcription-provider-options'
 import type {
+  TokenUsage,
   TranscriptionOptions,
   TranscriptionResult,
   TranscriptionSegment,
 } from '@tanstack/ai'
 import type OpenAI_SDK from 'openai'
 import type { OpenAIClientConfig } from '../utils/client'
+
+/**
+ * Build TokenUsage from transcription response.
+ * Whisper-1 uses duration-based billing, GPT-4o models use token-based billing.
+ */
+function buildTranscriptionUsage(
+  model: string,
+  duration?: number,
+  response?: OpenAI_SDK.Audio.TranscriptionCreateResponse,
+): TokenUsage | undefined {
+  // GPT-4o transcription models return usage with tokens
+  if (model.startsWith('gpt-4o')) {
+    // Check if response has usage field (GPT-4o models may include this)
+    const usage = response?.usage as
+      | {
+          prompt_tokens?: number
+          completion_tokens?: number
+          total_tokens?: number
+        }
+      | undefined
+
+    if (usage) {
+      return {
+        promptTokens: usage.prompt_tokens ?? 0,
+        completionTokens: usage.completion_tokens ?? 0,
+        totalTokens: usage.total_tokens ?? 0,
+        promptTokensDetails: {
+          audioTokens: usage.prompt_tokens,
+        },
+        completionTokensDetails: {
+          textTokens: usage.completion_tokens,
+        },
+      }
+    }
+  }
+
+  // Whisper-1 uses duration-based billing
+  if (duration !== undefined && duration > 0) {
+    return {
+      promptTokens: 0,
+      completionTokens: 0,
+      totalTokens: 0,
+      durationSeconds: duration,
+    }
+  }
+
+  return undefined
+}
 
 /**
  * Configuration for OpenAI Transcription adapter
@@ -94,6 +143,7 @@ export class OpenAITranscriptionAdapter<
           start: w.start,
           end: w.end,
         })),
+        usage: buildTranscriptionUsage(model, response.duration, response),
       }
     } else {
       const response = await this.client.audio.transcriptions.create(request)
@@ -103,6 +153,7 @@ export class OpenAITranscriptionAdapter<
         model,
         text: typeof response === 'string' ? response : response.text,
         language,
+        usage: buildTranscriptionUsage(model, undefined, response),
       }
     }
   }

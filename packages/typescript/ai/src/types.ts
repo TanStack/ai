@@ -692,14 +692,68 @@ export interface ToolResultStreamChunk extends BaseStreamChunk {
   content: string
 }
 
+/**
+ * Detailed breakdown of prompt/input token usage.
+ * Fields are populated based on provider support.
+ */
+export interface PromptTokensDetails {
+  /** Tokens read from cache   */
+  cachedTokens?: number
+  /** Tokens written to cache   */
+  cacheWriteTokens?: number
+
+  /** Audio input tokens   */
+  audioTokens?: number
+  /** Video input tokens   */
+  videoTokens?: number
+  /** Image input tokens   */
+  imageTokens?: number
+  /** Text input tokens   */
+  textTokens?: number
+}
+
+/**
+ * Detailed breakdown of completion/output token usage.
+ * Fields are populated based on provider support.
+ */
+export interface CompletionTokensDetails {
+  /** Reasoning/thinking tokens */
+  reasoningTokens?: number
+  /** Audio output tokens   */
+  audioTokens?: number
+  /** Video output tokens   */
+  videoTokens?: number
+  /** Image output tokens   */
+  imageTokens?: number
+  /** Text output tokens   */
+  textTokens?: number
+}
+
+/**
+ * Token usage information with optional detailed breakdowns.
+ * Core fields are always present, detail fields are provider-dependent.
+ */
+export interface TokenUsage {
+  /** Total input/prompt tokens */
+  promptTokens: number
+  /** Total output/completion tokens */
+  completionTokens: number
+  /** Total tokens (prompt + completion) */
+  totalTokens: number
+  /** Detailed breakdown of prompt tokens by category */
+  promptTokensDetails?: PromptTokensDetails
+  /** Detailed breakdown of completion tokens by category */
+  completionTokensDetails?: CompletionTokensDetails
+  /** Duration in seconds for duration-based billing (e.g., Whisper-1 transcription) */
+  durationSeconds?: number
+  /** Provider-specific usage details not covered by standard fields */
+  providerUsageDetails?: Record<string, unknown>
+}
+
 export interface DoneStreamChunk extends BaseStreamChunk {
   type: 'done'
   finishReason: 'stop' | 'length' | 'content_filter' | 'tool_calls' | null
-  usage?: {
-    promptTokens: number
-    completionTokens: number
-    totalTokens: number
-  }
+  usage?: TokenUsage
 }
 
 export interface ErrorStreamChunk extends BaseStreamChunk {
@@ -755,11 +809,7 @@ export interface TextCompletionChunk {
   content: string
   role?: 'assistant'
   finishReason?: 'stop' | 'length' | 'content_filter' | null
-  usage?: {
-    promptTokens: number
-    completionTokens: number
-    totalTokens: number
-  }
+  usage?: TokenUsage
 }
 
 export interface SummarizationOptions {
@@ -774,11 +824,7 @@ export interface SummarizationResult {
   id: string
   model: string
   summary: string
-  usage: {
-    promptTokens: number
-    completionTokens: number
-    totalTokens: number
-  }
+  usage: TokenUsage
 }
 
 // ============================================================================
@@ -1015,6 +1061,8 @@ export interface TranscriptionResult {
   segments?: Array<TranscriptionSegment>
   /** Word-level timestamps, if available */
   words?: Array<TranscriptionWord>
+  /** Token usage information (if provided by the adapter) */
+  usage?: TokenUsage
 }
 
 /**

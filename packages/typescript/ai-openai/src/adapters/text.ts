@@ -1,6 +1,7 @@
 import { BaseTextAdapter } from '@tanstack/ai/adapters'
 import { validateTextProviderOptions } from '../text/text-provider-options'
 import { convertToolsToProviderFormat } from '../tools'
+import { buildOpenAIUsage } from '../usage'
 import {
   createOpenAIClient,
   generateId,
@@ -202,6 +203,7 @@ export class OpenAITextAdapter<
       return {
         data: transformed,
         rawText,
+        usage: buildOpenAIUsage(response.usage),
       }
     } catch (error: unknown) {
       const err = error as Error
@@ -478,11 +480,7 @@ export class OpenAITextAdapter<
             id: responseId || genId(),
             model: model || options.model,
             timestamp,
-            usage: {
-              promptTokens: chunk.response.usage?.input_tokens || 0,
-              completionTokens: chunk.response.usage?.output_tokens || 0,
-              totalTokens: chunk.response.usage?.total_tokens || 0,
-            },
+            usage: buildOpenAIUsage(chunk.response.usage),
             finishReason: hasFunctionCalls ? 'tool_calls' : 'stop',
           }
         }

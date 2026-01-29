@@ -3,13 +3,7 @@ import { useStyles } from '../../styles/use-styles'
 import { ChunkItem } from './ChunkItem'
 import { ChunkBadges } from './ChunkBadges'
 import type { Component } from 'solid-js'
-import type { Chunk } from '../../store/ai-store'
-
-interface TokenUsage {
-  promptTokens: number
-  completionTokens: number
-  totalTokens: number
-}
+import type { Chunk, TokenUsage } from '../../store/ai-store'
 
 interface MessageGroupProps {
   messageId: string
@@ -62,6 +56,28 @@ export const MessageGroup: Component<MessageGroupProps> = (props) => {
                 <span>
                   {props.usage?.completionTokens.toLocaleString()} out
                 </span>
+                <Show when={props.usage?.promptTokensDetails?.cachedTokens}>
+                  <span>•</span>
+                  <span title="Cached tokens">
+                    💾{' '}
+                    {props.usage?.promptTokensDetails?.cachedTokens?.toLocaleString()}
+                  </span>
+                </Show>
+                <Show
+                  when={props.usage?.completionTokensDetails?.reasoningTokens}
+                >
+                  <span>•</span>
+                  <span title="Reasoning tokens">
+                    🧠{' '}
+                    {props.usage?.completionTokensDetails?.reasoningTokens?.toLocaleString()}
+                  </span>
+                </Show>
+                <Show when={props.usage?.durationSeconds}>
+                  <span>•</span>
+                  <span title="Duration (seconds)">
+                    ⏱️ {props.usage?.durationSeconds?.toFixed(1)}s
+                  </span>
+                </Show>
               </div>
             </Show>
           </div>
