@@ -1,0 +1,66 @@
+<div class="min-h-screen bg-slate-950 text-slate-100">
+  <div class="mx-auto flex min-h-screen max-w-3xl flex-col px-4 py-10">
+    <header class="mb-6">
+      <h1 class="text-xl font-semibold tracking-tight">TanStack AI + Angular</h1>
+      <p class="mt-1 text-sm text-slate-400">Simple demo using @tanstack/ai-angular</p>
+    </header>
+
+    <main class="flex-1 space-y-4">
+      @if (chat.messages().length === 0) {
+      <div class="rounded-xl border border-slate-800 bg-slate-900/40 p-4 text-sm text-slate-300">
+        Type a message to start.
+      </div>
+      } @for (m of chat.messages(); track m.id) {
+      <div class="space-y-2">
+        <div class="text-xs uppercase tracking-wide text-slate-500">{{ m.role }}</div>
+
+        <div
+          class="max-w-2xl rounded-xl border border-slate-800 bg-slate-900/40 p-3"
+          [class.ml-auto]="m.role === 'user'"
+        >
+          @for (p of textParts(m); track $index) {
+          <div class="whitespace-pre-wrap text-sm">{{ p.content }}</div>
+          }
+        </div>
+      </div>
+      }
+    </main>
+
+    <footer class="mt-6">
+      <form
+        class="flex items-center gap-2 rounded-2xl border border-slate-800 bg-slate-900/60 p-2"
+        (submit)="$event.preventDefault(); send()"
+      >
+        <input
+          class="h-11 w-full rounded-xl bg-slate-950/40 px-3 text-sm text-slate-100 outline-none placeholder:text-slate-500"
+          placeholder="Ask something..."
+          [value]="prompt()"
+          (input)="prompt.set($event.target.value)"
+          [disabled]="chat.isLoading()"
+        />
+        <button
+          type="submit"
+          class="h-11 shrink-0 rounded-xl bg-emerald-500 px-4 text-sm font-medium text-slate-950 disabled:opacity-50"
+          [disabled]="chat.isLoading()"
+        >
+          Send
+        </button>
+      </form>
+
+      <div class="mt-3 flex items-center justify-between text-xs text-slate-400">
+        <div>
+          @if (chat.isLoading()) {
+          <span>Streaming...</span>
+          } @if (chat.error()) {
+          <span>Error: {{ chat.error()?.message }}</span>
+          }
+        </div>
+
+        <div class="flex items-center gap-3">
+          <button type="button" class="hover:text-slate-200" (click)="chat.stop()">Stop</button>
+          <button type="button" class="hover:text-slate-200" (click)="chat.clear()">Clear</button>
+        </div>
+      </div>
+    </footer>
+  </div>
+</div>
