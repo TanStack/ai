@@ -2,7 +2,7 @@ import { ChatClient, fetchServerSentEvents } from '@tanstack/ai-client'
 
 // Initialize ChatClient
 const client = new ChatClient({
-  connection: fetchServerSentEvents('http://localhost:3001/chat'),
+  connection: fetchServerSentEvents('http://localhost:8000/chat'),
   onMessagesChange: (messages) => {
     renderMessages(messages)
   },
