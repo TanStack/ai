@@ -1476,6 +1476,86 @@ describe('chat() - Comprehensive Logic Path Coverage', () => {
       expect(toolExecute).toHaveBeenCalledWith({ path: '/tmp/test.txt' })
       expect(adapter.chatStreamCallCount).toBe(1)
     })
+
+    it('should execute pending tool calls from UI message parts', async () => {
+      const toolExecute = vi
+        .fn()
+        .mockResolvedValue(JSON.stringify({ success: true }))
+
+      const approvalTool: Tool = {
+        name: 'approval_tool',
+        description: 'Needs approval',
+        inputSchema: z.object({
+          path: z.string(),
+        }),
+        needsApproval: true,
+        execute: toolExecute,
+      }
+
+      class PendingToolAdapter extends MockAdapter {
+        async *chatStream(options: TextOptions): AsyncIterable<StreamChunk> {
+          this.trackStreamCall(options)
+
+          const toolMessage = options.messages.find((msg) => msg.role === 'tool')
+          expect(toolMessage).toBeDefined()
+          expect(toolMessage?.toolCallId).toBe('call-1')
+          expect(toolMessage?.content).toBe(JSON.stringify({ success: true }))
+
+          yield {
+            type: 'content',
+            model: 'test-model',
+            id: 'done-id',
+            timestamp: Date.now(),
+            delta: 'Finished',
+            content: 'Finished',
+            role: 'assistant',
+          }
+          yield {
+            type: 'done',
+            model: 'test-model',
+            id: 'done-id',
+            timestamp: Date.now(),
+            finishReason: 'stop',
+          }
+        }
+      }
+
+      const adapter = new PendingToolAdapter()
+
+      const messages = [
+        { role: 'user', content: 'Delete file' },
+        {
+          id: 'msg-1',
+          role: 'assistant',
+          parts: [
+            {
+              type: 'tool-call',
+              id: 'call-1',
+              name: 'approval_tool',
+              arguments: '{"path":"/tmp/test.txt"}',
+              state: 'approval-responded',
+              approval: {
+                id: 'approval_call-1',
+                needsApproval: true,
+                approved: true,
+              },
+            },
+          ],
+          createdAt: new Date(),
+        } as any,
+      ]
+
+      const stream = chat({
+        adapter,
+        messages: messages as any,
+        tools: [approvalTool],
+      })
+
+      const chunks = await collectChunks(stream)
+      expect(chunks[0]?.type).toBe('tool_result')
+      expect(toolExecute).toHaveBeenCalledWith({ path: '/tmp/test.txt' })
+      expect(adapter.chatStreamCallCount).toBe(1)
+    })
   })
 
   describe('Agent Loop Strategy Paths', () => {

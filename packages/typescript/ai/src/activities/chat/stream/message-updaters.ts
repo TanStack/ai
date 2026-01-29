@@ -68,19 +68,25 @@ export function updateToolCallPart(
       (p): p is ToolCallPart => p.type === 'tool-call' && p.id === toolCall.id,
     )
 
-    const toolCallPart: ToolCallPart = {
-      type: 'tool-call',
-      id: toolCall.id,
-      name: toolCall.name,
-      arguments: toolCall.arguments,
-      state: toolCall.state,
-    }
-
     if (existingPartIndex >= 0) {
       // Update existing tool call
-      parts[existingPartIndex] = toolCallPart
+      const existing = parts[existingPartIndex] as ToolCallPart
+      parts[existingPartIndex] = {
+        ...existing,
+        id: toolCall.id,
+        name: toolCall.name,
+        arguments: toolCall.arguments,
+        state: toolCall.state,
+      }
     } else {
       // Add new tool call at the end (preserve natural streaming order)
+      const toolCallPart: ToolCallPart = {
+        type: 'tool-call',
+        id: toolCall.id,
+        name: toolCall.name,
+        arguments: toolCall.arguments,
+        state: toolCall.state,
+      }
       parts.push(toolCallPart)
     }
 
