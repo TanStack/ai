@@ -105,7 +105,10 @@ export class OpenAITextAdapter<
     // Track tool call metadata by unique ID
     // OpenAI streams tool calls with deltas - first chunk has ID/name, subsequent chunks only have args
     // We assign our own indices as we encounter unique tool call IDs
-    const toolCallMetadata = new Map<string, { index: number; name: string }>()
+    const toolCallMetadata = new Map<
+      string,
+      { index: number; name: string; started: boolean }
+    >()
     const requestArguments = this.mapTextOptionsToOpenAI(options)
 
     try {
@@ -234,7 +237,10 @@ export class OpenAITextAdapter<
 
   private async *processOpenAIStreamChunks(
     stream: AsyncIterable<OpenAI_SDK.Responses.ResponseStreamEvent>,
-    toolCallMetadata: Map<string, { index: number; name: string }>,
+    toolCallMetadata: Map<
+      string,
+      { index: number; name: string; started: boolean }
+    >,
     options: TextOptions,
     genId: () => string,
   ): AsyncIterable<StreamChunk> {
@@ -248,12 +254,31 @@ export class OpenAITextAdapter<
     let hasStreamedReasoningDeltas = false
 
     // Preserve response metadata across events
-    let responseId: string | null = null
     let model: string = options.model
+
+    // AG-UI lifecycle tracking
+    const runId = genId()
+    const messageId = genId()
+    let stepId: string | null = null
+    let hasEmittedRunStarted = false
+    let hasEmittedTextMessageStart = false
+    let hasEmittedStepStarted = false
 
     try {
       for await (const chunk of stream) {
         chunkCount++
+
+        // Emit RUN_STARTED on first chunk
+        if (!hasEmittedRunStarted) {
+          hasEmittedRunStarted = true
+          yield {
+            type: 'RUN_STARTED',
+            runId,
+            model: model || options.model,
+            timestamp,
+          }
+        }
+
         const handleContentPart = (
           contentPart:
             | OpenAI_SDK.Responses.ResponseOutputText
@@ -263,21 +288,20 @@ export class OpenAITextAdapter<
           if (contentPart.type === 'output_text') {
             accumulatedContent += contentPart.text
             return {
-              type: 'content',
-              id: responseId || genId(),
+              type: 'TEXT_MESSAGE_CONTENT',
+              messageId,
               model: model || options.model,
               timestamp,
               delta: contentPart.text,
               content: accumulatedContent,
-              role: 'assistant',
             }
           }
 
           if (contentPart.type === 'reasoning_text') {
             accumulatedReasoning += contentPart.text
             return {
-              type: 'thinking',
-              id: responseId || genId(),
+              type: 'STEP_FINISHED',
+              stepId: stepId || genId(),
               model: model || options.model,
               timestamp,
               delta: contentPart.text,
@@ -285,8 +309,8 @@ export class OpenAITextAdapter<
             }
           }
           return {
-            type: 'error',
-            id: responseId || genId(),
+            type: 'RUN_ERROR',
+            runId,
             model: model || options.model,
             timestamp,
             error: {
@@ -300,17 +324,18 @@ export class OpenAITextAdapter<
           chunk.type === 'response.incomplete' ||
           chunk.type === 'response.failed'
         ) {
-          responseId = chunk.response.id
           model = chunk.response.model
           // Reset streaming flags for new response
           hasStreamedContentDeltas = false
           hasStreamedReasoningDeltas = false
+          hasEmittedTextMessageStart = false
+          hasEmittedStepStarted = false
           accumulatedContent = ''
           accumulatedReasoning = ''
           if (chunk.response.error) {
             yield {
-              type: 'error',
-              id: chunk.response.id,
+              type: 'RUN_ERROR',
+              runId,
               model: chunk.response.model,
               timestamp,
               error: chunk.response.error,
@@ -318,8 +343,8 @@ export class OpenAITextAdapter<
           }
           if (chunk.response.incomplete_details) {
             yield {
-              type: 'error',
-              id: chunk.response.id,
+              type: 'RUN_ERROR',
+              runId,
               model: chunk.response.model,
               timestamp,
               error: {
@@ -339,16 +364,27 @@ export class OpenAITextAdapter<
               : ''
 
           if (textDelta) {
+            // Emit TEXT_MESSAGE_START on first text content
+            if (!hasEmittedTextMessageStart) {
+              hasEmittedTextMessageStart = true
+              yield {
+                type: 'TEXT_MESSAGE_START',
+                messageId,
+                model: model || options.model,
+                timestamp,
+                role: 'assistant',
+              }
+            }
+
             accumulatedContent += textDelta
             hasStreamedContentDeltas = true
             yield {
-              type: 'content',
-              id: responseId || genId(),
+              type: 'TEXT_MESSAGE_CONTENT',
+              messageId,
               model: model || options.model,
               timestamp,
               delta: textDelta,
               content: accumulatedContent,
-              role: 'assistant',
             }
           }
         }
@@ -364,11 +400,24 @@ export class OpenAITextAdapter<
               : ''
 
           if (reasoningDelta) {
+            // Emit STEP_STARTED on first reasoning content
+            if (!hasEmittedStepStarted) {
+              hasEmittedStepStarted = true
+              stepId = genId()
+              yield {
+                type: 'STEP_STARTED',
+                stepId,
+                model: model || options.model,
+                timestamp,
+                stepType: 'thinking',
+              }
+            }
+
             accumulatedReasoning += reasoningDelta
             hasStreamedReasoningDeltas = true
             yield {
-              type: 'thinking',
-              id: responseId || genId(),
+              type: 'STEP_FINISHED',
+              stepId: stepId || genId(),
               model: model || options.model,
               timestamp,
               delta: reasoningDelta,
@@ -387,11 +436,24 @@ export class OpenAITextAdapter<
             typeof chunk.delta === 'string' ? chunk.delta : ''
 
           if (summaryDelta) {
+            // Emit STEP_STARTED on first reasoning content
+            if (!hasEmittedStepStarted) {
+              hasEmittedStepStarted = true
+              stepId = genId()
+              yield {
+                type: 'STEP_STARTED',
+                stepId,
+                model: model || options.model,
+                timestamp,
+                stepType: 'thinking',
+              }
+            }
+
             accumulatedReasoning += summaryDelta
             hasStreamedReasoningDeltas = true
             yield {
-              type: 'thinking',
-              id: responseId || genId(),
+              type: 'STEP_FINISHED',
+              stepId: stepId || genId(),
               model: model || options.model,
               timestamp,
               delta: summaryDelta,
@@ -403,6 +465,32 @@ export class OpenAITextAdapter<
         // handle content_part added events for text, reasoning and refusals
         if (chunk.type === 'response.content_part.added') {
           const contentPart = chunk.part
+          // Emit TEXT_MESSAGE_START if this is text content
+          if (
+            contentPart.type === 'output_text' &&
+            !hasEmittedTextMessageStart
+          ) {
+            hasEmittedTextMessageStart = true
+            yield {
+              type: 'TEXT_MESSAGE_START',
+              messageId,
+              model: model || options.model,
+              timestamp,
+              role: 'assistant',
+            }
+          }
+          // Emit STEP_STARTED if this is reasoning content
+          if (contentPart.type === 'reasoning_text' && !hasEmittedStepStarted) {
+            hasEmittedStepStarted = true
+            stepId = genId()
+            yield {
+              type: 'STEP_STARTED',
+              stepId,
+              model: model || options.model,
+              timestamp,
+              stepType: 'thinking',
+            }
+          }
           yield handleContentPart(contentPart)
         }
 
@@ -436,36 +524,74 @@ export class OpenAITextAdapter<
               toolCallMetadata.set(item.id, {
                 index: chunk.output_index,
                 name: item.name || '',
+                started: false,
               })
             }
+            // Emit TOOL_CALL_START
+            yield {
+              type: 'TOOL_CALL_START',
+              toolCallId: item.id,
+              toolName: item.name || '',
+              model: model || options.model,
+              timestamp,
+              index: chunk.output_index,
+            }
+            toolCallMetadata.get(item.id)!.started = true
+          }
+        }
+
+        // Handle function call arguments delta (streaming)
+        if (
+          chunk.type === 'response.function_call_arguments.delta' &&
+          chunk.delta
+        ) {
+          const metadata = toolCallMetadata.get(chunk.item_id)
+          yield {
+            type: 'TOOL_CALL_ARGS',
+            toolCallId: chunk.item_id,
+            model: model || options.model,
+            timestamp,
+            delta: chunk.delta,
+            args: metadata ? undefined : chunk.delta, // We don't accumulate here, let caller handle it
           }
         }
 
         if (chunk.type === 'response.function_call_arguments.done') {
-          const { item_id, output_index } = chunk
+          const { item_id } = chunk
 
           // Get the function name from metadata (captured in output_item.added)
           const metadata = toolCallMetadata.get(item_id)
           const name = metadata?.name || ''
 
+          // Parse arguments
+          let parsedInput: unknown = {}
+          try {
+            parsedInput = chunk.arguments ? JSON.parse(chunk.arguments) : {}
+          } catch {
+            parsedInput = {}
+          }
+
           yield {
-            type: 'tool_call',
-            id: responseId || genId(),
+            type: 'TOOL_CALL_END',
+            toolCallId: item_id,
+            toolName: name,
             model: model || options.model,
             timestamp,
-            index: output_index,
-            toolCall: {
-              id: item_id,
-              type: 'function',
-              function: {
-                name,
-                arguments: chunk.arguments,
-              },
-            },
+            input: parsedInput,
           }
         }
 
         if (chunk.type === 'response.completed') {
+          // Emit TEXT_MESSAGE_END if we had text content
+          if (hasEmittedTextMessageStart) {
+            yield {
+              type: 'TEXT_MESSAGE_END',
+              messageId,
+              model: model || options.model,
+              timestamp,
+            }
+          }
+
           // Determine finish reason based on output
           // If there are function_call items in the output, it's a tool_calls finish
           const hasFunctionCalls = chunk.response.output.some(
@@ -474,8 +600,8 @@ export class OpenAITextAdapter<
           )
 
           yield {
-            type: 'done',
-            id: responseId || genId(),
+            type: 'RUN_FINISHED',
+            runId,
             model: model || options.model,
             timestamp,
             usage: {
@@ -489,8 +615,8 @@ export class OpenAITextAdapter<
 
         if (chunk.type === 'error') {
           yield {
-            type: 'error',
-            id: responseId || genId(),
+            type: 'RUN_ERROR',
+            runId,
             model: model || options.model,
             timestamp,
             error: {
@@ -510,8 +636,8 @@ export class OpenAITextAdapter<
         },
       )
       yield {
-        type: 'error',
-        id: genId(),
+        type: 'RUN_ERROR',
+        runId,
         model: options.model,
         timestamp,
         error: {

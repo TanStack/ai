@@ -242,21 +242,20 @@ async function* runStreamingSummarize(
   // Fall back to non-streaming and yield as a single chunk
   const result = await adapter.summarize(summarizeOptions)
 
-  // Yield content chunk with the summary
+  // Yield TEXT_MESSAGE_CONTENT event with the summary
   yield {
-    type: 'content',
-    id: result.id,
+    type: 'TEXT_MESSAGE_CONTENT',
+    messageId: result.id,
     model: result.model,
     timestamp: Date.now(),
     delta: result.summary,
     content: result.summary,
-    role: 'assistant',
   }
 
-  // Yield done chunk
+  // Yield RUN_FINISHED event
   yield {
-    type: 'done',
-    id: result.id,
+    type: 'RUN_FINISHED',
+    runId: result.id,
     model: result.model,
     timestamp: Date.now(),
     finishReason: 'stop',

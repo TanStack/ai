@@ -649,52 +649,75 @@ export interface TextOptions<
   abortController?: AbortController
 }
 
-export type StreamChunkType =
-  | 'content'
-  | 'tool_call'
-  | 'tool_result'
-  | 'done'
-  | 'error'
-  | 'approval-requested'
-  | 'tool-input-available'
-  | 'thinking'
+// ============================================================================
+// AG-UI Protocol Event Types
+// ============================================================================
 
-export interface BaseStreamChunk {
-  type: StreamChunkType
-  id: string
-  model: string
+/**
+ * AG-UI Protocol event types.
+ * Based on the AG-UI specification for agent-user interaction.
+ * @see https://docs.ag-ui.com/concepts/events
+ */
+export type AGUIEventType =
+  | 'RUN_STARTED'
+  | 'RUN_FINISHED'
+  | 'RUN_ERROR'
+  | 'TEXT_MESSAGE_START'
+  | 'TEXT_MESSAGE_CONTENT'
+  | 'TEXT_MESSAGE_END'
+  | 'TOOL_CALL_START'
+  | 'TOOL_CALL_ARGS'
+  | 'TOOL_CALL_END'
+  | 'STEP_STARTED'
+  | 'STEP_FINISHED'
+  | 'STATE_SNAPSHOT'
+  | 'STATE_DELTA'
+  | 'CUSTOM'
+
+/**
+ * Stream chunk/event types (AG-UI protocol).
+ */
+export type StreamChunkType = AGUIEventType
+
+/**
+ * Base structure for AG-UI events.
+ * Extends AG-UI spec with TanStack AI additions (model field).
+ */
+export interface BaseAGUIEvent {
+  type: AGUIEventType
   timestamp: number
+  /** Model identifier for multi-model support */
+  model?: string
+  /** Original provider event for debugging/advanced use cases */
+  rawEvent?: unknown
 }
 
-export interface ContentStreamChunk extends BaseStreamChunk {
-  type: 'content'
-  delta: string // The incremental content token
-  content: string // Full accumulated content so far
-  role?: 'assistant'
+// ============================================================================
+// AG-UI Event Interfaces
+// ============================================================================
+
+/**
+ * Emitted when a run starts.
+ * This is the first event in any streaming response.
+ */
+export interface RunStartedEvent extends BaseAGUIEvent {
+  type: 'RUN_STARTED'
+  /** Unique identifier for this run */
+  runId: string
+  /** Optional thread/conversation ID */
+  threadId?: string
 }
 
-export interface ToolCallStreamChunk extends BaseStreamChunk {
-  type: 'tool_call'
-  toolCall: {
-    id: string
-    type: 'function'
-    function: {
-      name: string
-      arguments: string // Incremental JSON arguments
-    }
-  }
-  index: number
-}
-
-export interface ToolResultStreamChunk extends BaseStreamChunk {
-  type: 'tool_result'
-  toolCallId: string
-  content: string
-}
-
-export interface DoneStreamChunk extends BaseStreamChunk {
-  type: 'done'
+/**
+ * Emitted when a run completes successfully.
+ */
+export interface RunFinishedEvent extends BaseAGUIEvent {
+  type: 'RUN_FINISHED'
+  /** Run identifier */
+  runId: string
+  /** Why the generation stopped */
   finishReason: 'stop' | 'length' | 'content_filter' | 'tool_calls' | null
+  /** Token usage statistics */
   usage?: {
     promptTokens: number
     completionTokens: number
@@ -702,50 +725,171 @@ export interface DoneStreamChunk extends BaseStreamChunk {
   }
 }
 
-export interface ErrorStreamChunk extends BaseStreamChunk {
-  type: 'error'
+/**
+ * Emitted when an error occurs during a run.
+ */
+export interface RunErrorEvent extends BaseAGUIEvent {
+  type: 'RUN_ERROR'
+  /** Run identifier (if available) */
+  runId?: string
+  /** Error details */
   error: {
     message: string
     code?: string
   }
 }
 
-export interface ApprovalRequestedStreamChunk extends BaseStreamChunk {
-  type: 'approval-requested'
-  toolCallId: string
-  toolName: string
-  input: any
-  approval: {
-    id: string
-    needsApproval: true
-  }
-}
-
-export interface ToolInputAvailableStreamChunk extends BaseStreamChunk {
-  type: 'tool-input-available'
-  toolCallId: string
-  toolName: string
-  input: any
-}
-
-export interface ThinkingStreamChunk extends BaseStreamChunk {
-  type: 'thinking'
-  delta?: string // The incremental thinking token
-  content: string // Full accumulated thinking content so far
+/**
+ * Emitted when a text message starts.
+ */
+export interface TextMessageStartEvent extends BaseAGUIEvent {
+  type: 'TEXT_MESSAGE_START'
+  /** Unique identifier for this message */
+  messageId: string
+  /** Role is always assistant for generated messages */
+  role: 'assistant'
 }
 
 /**
- * Chunk returned by the sdk during streaming chat completions.
+ * Emitted when text content is generated (streaming tokens).
  */
-export type StreamChunk =
-  | ContentStreamChunk
-  | ToolCallStreamChunk
-  | ToolResultStreamChunk
-  | DoneStreamChunk
-  | ErrorStreamChunk
-  | ApprovalRequestedStreamChunk
-  | ToolInputAvailableStreamChunk
-  | ThinkingStreamChunk
+export interface TextMessageContentEvent extends BaseAGUIEvent {
+  type: 'TEXT_MESSAGE_CONTENT'
+  /** Message identifier */
+  messageId: string
+  /** The incremental content token */
+  delta: string
+  /** Full accumulated content so far */
+  content?: string
+}
+
+/**
+ * Emitted when a text message completes.
+ */
+export interface TextMessageEndEvent extends BaseAGUIEvent {
+  type: 'TEXT_MESSAGE_END'
+  /** Message identifier */
+  messageId: string
+}
+
+/**
+ * Emitted when a tool call starts.
+ */
+export interface ToolCallStartEvent extends BaseAGUIEvent {
+  type: 'TOOL_CALL_START'
+  /** Unique identifier for this tool call */
+  toolCallId: string
+  /** Name of the tool being called */
+  toolName: string
+  /** Index for parallel tool calls */
+  index?: number
+}
+
+/**
+ * Emitted when tool call arguments are streaming.
+ */
+export interface ToolCallArgsEvent extends BaseAGUIEvent {
+  type: 'TOOL_CALL_ARGS'
+  /** Tool call identifier */
+  toolCallId: string
+  /** Incremental JSON arguments delta */
+  delta: string
+  /** Full accumulated arguments so far */
+  args?: string
+}
+
+/**
+ * Emitted when a tool call completes.
+ */
+export interface ToolCallEndEvent extends BaseAGUIEvent {
+  type: 'TOOL_CALL_END'
+  /** Tool call identifier */
+  toolCallId: string
+  /** Name of the tool */
+  toolName: string
+  /** Final parsed input arguments */
+  input?: unknown
+  /** Tool execution result (if executed) */
+  result?: string
+}
+
+/**
+ * Emitted when a thinking/reasoning step starts.
+ */
+export interface StepStartedEvent extends BaseAGUIEvent {
+  type: 'STEP_STARTED'
+  /** Unique identifier for this step */
+  stepId: string
+  /** Type of step (e.g., 'thinking', 'planning') */
+  stepType?: string
+}
+
+/**
+ * Emitted when a thinking/reasoning step finishes.
+ */
+export interface StepFinishedEvent extends BaseAGUIEvent {
+  type: 'STEP_FINISHED'
+  /** Step identifier */
+  stepId: string
+  /** Incremental thinking content */
+  delta?: string
+  /** Full accumulated thinking content */
+  content?: string
+}
+
+/**
+ * Emitted to provide a full state snapshot.
+ */
+export interface StateSnapshotEvent extends BaseAGUIEvent {
+  type: 'STATE_SNAPSHOT'
+  /** The complete state object */
+  state: Record<string, unknown>
+}
+
+/**
+ * Emitted to provide an incremental state update.
+ */
+export interface StateDeltaEvent extends BaseAGUIEvent {
+  type: 'STATE_DELTA'
+  /** The state changes to apply */
+  delta: Record<string, unknown>
+}
+
+/**
+ * Custom event for extensibility.
+ */
+export interface CustomEvent extends BaseAGUIEvent {
+  type: 'CUSTOM'
+  /** Custom event name */
+  name: string
+  /** Custom event data */
+  data?: unknown
+}
+
+/**
+ * Union of all AG-UI events.
+ */
+export type AGUIEvent =
+  | RunStartedEvent
+  | RunFinishedEvent
+  | RunErrorEvent
+  | TextMessageStartEvent
+  | TextMessageContentEvent
+  | TextMessageEndEvent
+  | ToolCallStartEvent
+  | ToolCallArgsEvent
+  | ToolCallEndEvent
+  | StepStartedEvent
+  | StepFinishedEvent
+  | StateSnapshotEvent
+  | StateDeltaEvent
+  | CustomEvent
+
+/**
+ * Chunk returned by the SDK during streaming chat completions.
+ * Uses the AG-UI protocol event format.
+ */
+export type StreamChunk = AGUIEvent
 
 // Simple streaming format for basic text completions
 // Converted to StreamChunk format by convertTextCompletionStream()

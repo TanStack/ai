@@ -59,6 +59,17 @@ interface ToolCallBuffer {
   id: string
   name: string
   arguments: string
+  started: boolean // Track if TOOL_CALL_START has been emitted
+}
+
+// AG-UI lifecycle state tracking
+interface AGUIState {
+  runId: string
+  messageId: string
+  stepId: string | null
+  hasEmittedRunStarted: boolean
+  hasEmittedTextMessageStart: boolean
+  hasEmittedStepStarted: boolean
 }
 
 export class OpenRouterTextAdapter<
@@ -89,6 +100,17 @@ export class OpenRouterTextAdapter<
     let responseId: string | null = null
     let currentModel = options.model
     let lastFinishReason: ChatCompletionFinishReason | undefined
+
+    // AG-UI lifecycle tracking
+    const aguiState: AGUIState = {
+      runId: this.generateId(),
+      messageId: this.generateId(),
+      stepId: null,
+      hasEmittedRunStarted: false,
+      hasEmittedTextMessageStart: false,
+      hasEmittedStepStarted: false,
+    }
+
     try {
       const requestParams = this.mapTextOptionsToSDK(options)
       const stream = await this.client.chat.send(
@@ -100,13 +122,29 @@ export class OpenRouterTextAdapter<
         if (chunk.id) responseId = chunk.id
         if (chunk.model) currentModel = chunk.model
 
-        if (chunk.error) {
-          yield this.createErrorChunk(
-            chunk.error.message || 'Unknown error',
-            currentModel || options.model,
+        // Emit RUN_STARTED on first chunk
+        if (!aguiState.hasEmittedRunStarted) {
+          aguiState.hasEmittedRunStarted = true
+          yield {
+            type: 'RUN_STARTED',
+            runId: aguiState.runId,
+            model: currentModel || options.model,
             timestamp,
-            String(chunk.error.code),
-          )
+          }
+        }
+
+        if (chunk.error) {
+          // Emit AG-UI RUN_ERROR
+          yield {
+            type: 'RUN_ERROR',
+            runId: aguiState.runId,
+            model: currentModel || options.model,
+            timestamp,
+            error: {
+              message: chunk.error.message || 'Unknown error',
+              code: String(chunk.error.code),
+            },
+          }
           continue
         }
 
@@ -129,24 +167,47 @@ export class OpenRouterTextAdapter<
             },
             lastFinishReason,
             chunk.usage,
+            aguiState,
           )
         }
       }
     } catch (error) {
-      if (error instanceof RequestAbortedError) {
-        yield this.createErrorChunk(
-          'Request aborted',
-          options.model,
+      // Emit RUN_STARTED if not yet emitted (error on first call)
+      if (!aguiState.hasEmittedRunStarted) {
+        aguiState.hasEmittedRunStarted = true
+        yield {
+          type: 'RUN_STARTED',
+          runId: aguiState.runId,
+          model: options.model,
           timestamp,
-          'aborted',
-        )
+        }
+      }
+
+      if (error instanceof RequestAbortedError) {
+        // Emit AG-UI RUN_ERROR
+        yield {
+          type: 'RUN_ERROR',
+          runId: aguiState.runId,
+          model: options.model,
+          timestamp,
+          error: {
+            message: 'Request aborted',
+            code: 'aborted',
+          },
+        }
         return
       }
-      yield this.createErrorChunk(
-        (error as Error).message || 'Unknown error',
-        options.model,
+
+      // Emit AG-UI RUN_ERROR
+      yield {
+        type: 'RUN_ERROR',
+        runId: aguiState.runId,
+        model: options.model,
         timestamp,
-      )
+        error: {
+          message: (error as Error).message || 'Unknown error',
+        },
+      }
     }
   }
 
@@ -221,21 +282,6 @@ export class OpenRouterTextAdapter<
     return utilGenerateId(this.name)
   }
 
-  private createErrorChunk(
-    message: string,
-    model: string,
-    timestamp: number,
-    code?: string,
-  ): StreamChunk {
-    return {
-      type: 'error',
-      id: this.generateId(),
-      model,
-      timestamp,
-      error: { message, code },
-    }
-  }
-
   private *processChoice(
     choice: ChatStreamingChoice,
     toolCallBuffers: Map<number, ToolCallBuffer>,
@@ -243,20 +289,36 @@ export class OpenRouterTextAdapter<
     accumulated: { reasoning: string; content: string },
     updateAccumulated: (reasoning: string, content: string) => void,
     lastFinishReason: ChatCompletionFinishReason | undefined,
-    usage?: ChatGenerationTokenUsage,
+    usage: ChatGenerationTokenUsage | undefined,
+    aguiState: AGUIState,
   ): Iterable<StreamChunk> {
     const delta = choice.delta
     const finishReason = choice.finishReason
 
     if (delta.content) {
+      // Emit TEXT_MESSAGE_START on first text content
+      if (!aguiState.hasEmittedTextMessageStart) {
+        aguiState.hasEmittedTextMessageStart = true
+        yield {
+          type: 'TEXT_MESSAGE_START',
+          messageId: aguiState.messageId,
+          model: meta.model,
+          timestamp: meta.timestamp,
+          role: 'assistant',
+        }
+      }
+
       accumulated.content += delta.content
       updateAccumulated(accumulated.reasoning, accumulated.content)
+
+      // Emit AG-UI TEXT_MESSAGE_CONTENT
       yield {
-        type: 'content',
-        ...meta,
+        type: 'TEXT_MESSAGE_CONTENT',
+        messageId: aguiState.messageId,
+        model: meta.model,
+        timestamp: meta.timestamp,
         delta: delta.content,
         content: accumulated.content,
-        role: 'assistant',
       }
     }
 
@@ -264,11 +326,29 @@ export class OpenRouterTextAdapter<
       for (const detail of delta.reasoningDetails) {
         if (detail.type === 'reasoning.text') {
           const text = detail.text || ''
+
+          // Emit STEP_STARTED on first reasoning content
+          if (!aguiState.hasEmittedStepStarted) {
+            aguiState.hasEmittedStepStarted = true
+            aguiState.stepId = this.generateId()
+            yield {
+              type: 'STEP_STARTED',
+              stepId: aguiState.stepId,
+              model: meta.model,
+              timestamp: meta.timestamp,
+              stepType: 'thinking',
+            }
+          }
+
           accumulated.reasoning += text
           updateAccumulated(accumulated.reasoning, accumulated.content)
+
+          // Emit AG-UI STEP_FINISHED for reasoning delta
           yield {
-            type: 'thinking',
-            ...meta,
+            type: 'STEP_FINISHED',
+            stepId: aguiState.stepId!,
+            model: meta.model,
+            timestamp: meta.timestamp,
             delta: text,
             content: accumulated.reasoning,
           }
@@ -276,11 +356,29 @@ export class OpenRouterTextAdapter<
         }
         if (detail.type === 'reasoning.summary') {
           const text = detail.summary || ''
+
+          // Emit STEP_STARTED on first reasoning content
+          if (!aguiState.hasEmittedStepStarted) {
+            aguiState.hasEmittedStepStarted = true
+            aguiState.stepId = this.generateId()
+            yield {
+              type: 'STEP_STARTED',
+              stepId: aguiState.stepId,
+              model: meta.model,
+              timestamp: meta.timestamp,
+              stepType: 'thinking',
+            }
+          }
+
           accumulated.reasoning += text
           updateAccumulated(accumulated.reasoning, accumulated.content)
+
+          // Emit AG-UI STEP_FINISHED for reasoning delta
           yield {
-            type: 'thinking',
-            ...meta,
+            type: 'STEP_FINISHED',
+            stepId: aguiState.stepId!,
+            model: meta.model,
+            timestamp: meta.timestamp,
             delta: text,
             content: accumulated.reasoning,
           }
@@ -300,35 +398,73 @@ export class OpenRouterTextAdapter<
             id: tc.id,
             name: tc.function?.name ?? '',
             arguments: tc.function?.arguments ?? '',
+            started: false,
           })
         } else {
           if (tc.function?.name) existing.name = tc.function.name
           if (tc.function?.arguments)
             existing.arguments += tc.function.arguments
         }
+
+        // Get the current buffer (existing or newly created)
+        const buffer = toolCallBuffers.get(tc.index)!
+
+        // Emit TOOL_CALL_START when we have id and name
+        if (buffer.id && buffer.name && !buffer.started) {
+          buffer.started = true
+          yield {
+            type: 'TOOL_CALL_START',
+            toolCallId: buffer.id,
+            toolName: buffer.name,
+            model: meta.model,
+            timestamp: meta.timestamp,
+            index: tc.index,
+          }
+        }
+
+        // Emit TOOL_CALL_ARGS for argument deltas
+        if (tc.function?.arguments && buffer.started) {
+          yield {
+            type: 'TOOL_CALL_ARGS',
+            toolCallId: buffer.id,
+            model: meta.model,
+            timestamp: meta.timestamp,
+            delta: tc.function.arguments,
+          }
+        }
       }
     }
 
     if (delta.refusal) {
+      // Emit AG-UI RUN_ERROR for refusal
       yield {
-        type: 'error',
-        ...meta,
+        type: 'RUN_ERROR',
+        runId: aguiState.runId,
+        model: meta.model,
+        timestamp: meta.timestamp,
         error: { message: delta.refusal, code: 'refusal' },
       }
     }
 
     if (finishReason) {
       if (finishReason === 'tool_calls') {
-        for (const [index, tc] of toolCallBuffers.entries()) {
+        for (const [, tc] of toolCallBuffers.entries()) {
+          // Parse arguments for TOOL_CALL_END
+          let parsedInput: unknown = {}
+          try {
+            parsedInput = tc.arguments ? JSON.parse(tc.arguments) : {}
+          } catch {
+            parsedInput = {}
+          }
+
+          // Emit AG-UI TOOL_CALL_END
           yield {
-            type: 'tool_call',
-            ...meta,
-            index,
-            toolCall: {
-              id: tc.id,
-              type: 'function',
-              function: { name: tc.name, arguments: tc.arguments },
-            },
+            type: 'TOOL_CALL_END',
+            toolCallId: tc.id,
+            toolName: tc.name,
+            model: meta.model,
+            timestamp: meta.timestamp,
+            input: parsedInput,
           }
         }
 
@@ -336,20 +472,35 @@ export class OpenRouterTextAdapter<
       }
     }
     if (usage) {
+      const computedFinishReason =
+        lastFinishReason === 'tool_calls'
+          ? 'tool_calls'
+          : lastFinishReason === 'length'
+            ? 'length'
+            : 'stop'
+
+      // Emit TEXT_MESSAGE_END if we had text content
+      if (aguiState.hasEmittedTextMessageStart) {
+        yield {
+          type: 'TEXT_MESSAGE_END',
+          messageId: aguiState.messageId,
+          model: meta.model,
+          timestamp: meta.timestamp,
+        }
+      }
+
+      // Emit AG-UI RUN_FINISHED
       yield {
-        type: 'done',
-        ...meta,
-        finishReason:
-          lastFinishReason === 'tool_calls'
-            ? 'tool_calls'
-            : lastFinishReason === 'length'
-              ? 'length'
-              : 'stop',
+        type: 'RUN_FINISHED',
+        runId: aguiState.runId,
+        model: meta.model,
+        timestamp: meta.timestamp,
         usage: {
           promptTokens: usage.promptTokens || 0,
           completionTokens: usage.completionTokens || 0,
           totalTokens: usage.totalTokens || 0,
         },
+        finishReason: computedFinishReason,
       }
     }
   }

@@ -23,14 +23,18 @@ import type { AnyTextAdapter } from './adapter'
 import type {
   AgentLoopStrategy,
   ConstrainedModelMessage,
-  DoneStreamChunk,
   InferSchemaType,
   ModelMessage,
+  RunFinishedEvent,
   SchemaInput,
   StreamChunk,
+  TextMessageContentEvent,
   TextOptions,
   Tool,
   ToolCall,
+  ToolCallArgsEvent,
+  ToolCallEndEvent,
+  ToolCallStartEvent,
 } from '../../types'
 
 // ===========================
@@ -215,7 +219,7 @@ class TextEngine<
   private accumulatedContent = ''
   private eventOptions?: Record<string, unknown>
   private eventToolNames?: Array<string>
-  private doneChunk: DoneStreamChunk | null = null
+  private finishedEvent: RunFinishedEvent | null = null
   private shouldEmitStreamEnd = true
   private earlyTermination = false
   private toolPhase: ToolPhaseResult = 'continue'
@@ -347,7 +351,7 @@ class TextEngine<
       content: this.accumulatedContent,
       messageId: this.currentMessageId || undefined,
       finishReason: this.lastFinishReason || undefined,
-      usage: this.doneChunk?.usage,
+      usage: this.finishedEvent?.usage,
       duration: now - this.streamStartTime,
       timestamp: now,
     })
@@ -372,7 +376,7 @@ class TextEngine<
   private beginIteration(): void {
     this.currentMessageId = this.createId('msg')
     this.accumulatedContent = ''
-    this.doneChunk = null
+    this.finishedEvent = null
 
     const baseContext = this.buildTextEventContext()
     aiEventClient.emit('text:message:created', {
@@ -428,70 +432,94 @@ class TextEngine<
 
   private handleStreamChunk(chunk: StreamChunk): void {
     switch (chunk.type) {
-      case 'content':
-        this.handleContentChunk(chunk)
+      // AG-UI Events
+      case 'TEXT_MESSAGE_CONTENT':
+        this.handleTextMessageContentEvent(chunk)
         break
-      case 'tool_call':
-        this.handleToolCallChunk(chunk)
+      case 'TOOL_CALL_START':
+        this.handleToolCallStartEvent(chunk)
         break
-      case 'tool_result':
-        this.handleToolResultChunk(chunk)
+      case 'TOOL_CALL_ARGS':
+        this.handleToolCallArgsEvent(chunk)
         break
-      case 'done':
-        this.handleDoneChunk(chunk)
+      case 'TOOL_CALL_END':
+        this.handleToolCallEndEvent(chunk)
         break
-      case 'error':
-        this.handleErrorChunk(chunk)
+      case 'RUN_FINISHED':
+        this.handleRunFinishedEvent(chunk)
         break
-      case 'thinking':
-        this.handleThinkingChunk(chunk)
+      case 'RUN_ERROR':
+        this.handleRunErrorEvent(chunk)
         break
+      case 'STEP_FINISHED':
+        this.handleStepFinishedEvent(chunk)
+        break
+
       default:
+        // RUN_STARTED, TEXT_MESSAGE_START, TEXT_MESSAGE_END, STEP_STARTED,
+        // STATE_SNAPSHOT, STATE_DELTA, CUSTOM
+        // - no special handling needed in chat activity
         break
     }
   }
 
-  private handleContentChunk(chunk: Extract<StreamChunk, { type: 'content' }>) {
-    this.accumulatedContent = chunk.content
+  // ===========================
+  // AG-UI Event Handlers
+  // ===========================
+
+  private handleTextMessageContentEvent(chunk: TextMessageContentEvent): void {
+    if (chunk.content) {
+      this.accumulatedContent = chunk.content
+    } else {
+      this.accumulatedContent += chunk.delta
+    }
     aiEventClient.emit('text:chunk:content', {
       ...this.buildTextEventContext(),
       messageId: this.currentMessageId || undefined,
-      content: chunk.content,
+      content: this.accumulatedContent,
       delta: chunk.delta,
       timestamp: Date.now(),
     })
   }
 
-  private handleToolCallChunk(
-    chunk: Extract<StreamChunk, { type: 'tool_call' }>,
-  ): void {
-    this.toolCallManager.addToolCallChunk(chunk)
+  private handleToolCallStartEvent(chunk: ToolCallStartEvent): void {
+    this.toolCallManager.addToolCallStartEvent(chunk)
     aiEventClient.emit('text:chunk:tool-call', {
       ...this.buildTextEventContext(),
       messageId: this.currentMessageId || undefined,
-      toolCallId: chunk.toolCall.id,
-      toolName: chunk.toolCall.function.name,
-      index: chunk.index,
-      arguments: chunk.toolCall.function.arguments,
+      toolCallId: chunk.toolCallId,
+      toolName: chunk.toolName,
+      index: chunk.index ?? 0,
+      arguments: '',
       timestamp: Date.now(),
     })
   }
 
-  private handleToolResultChunk(
-    chunk: Extract<StreamChunk, { type: 'tool_result' }>,
-  ): void {
+  private handleToolCallArgsEvent(chunk: ToolCallArgsEvent): void {
+    this.toolCallManager.addToolCallArgsEvent(chunk)
+    aiEventClient.emit('text:chunk:tool-call', {
+      ...this.buildTextEventContext(),
+      messageId: this.currentMessageId || undefined,
+      toolCallId: chunk.toolCallId,
+      toolName: '',
+      index: 0,
+      arguments: chunk.delta,
+      timestamp: Date.now(),
+    })
+  }
+
+  private handleToolCallEndEvent(chunk: ToolCallEndEvent): void {
+    this.toolCallManager.completeToolCall(chunk)
     aiEventClient.emit('text:chunk:tool-result', {
       ...this.buildTextEventContext(),
       messageId: this.currentMessageId || undefined,
       toolCallId: chunk.toolCallId,
-      result: chunk.content,
+      result: chunk.result || '',
       timestamp: Date.now(),
     })
   }
 
-  private handleDoneChunk(chunk: DoneStreamChunk): void {
-    // Don't overwrite a tool_calls finishReason with a stop finishReason
-    // This can happen when adapters send multiple done chunks
+  private handleRunFinishedEvent(chunk: RunFinishedEvent): void {
     aiEventClient.emit('text:chunk:done', {
       ...this.buildTextEventContext(),
       messageId: this.currentMessageId || undefined,
@@ -508,22 +536,22 @@ class TextEngine<
         timestamp: Date.now(),
       })
     }
+
+    // Don't overwrite a tool_calls finishReason with a stop finishReason
     if (
-      this.doneChunk?.finishReason === 'tool_calls' &&
+      this.finishedEvent?.finishReason === 'tool_calls' &&
       chunk.finishReason === 'stop'
     ) {
-      // Still emit the event and update lastFinishReason, but don't overwrite doneChunk
       this.lastFinishReason = chunk.finishReason
-
       return
     }
 
-    this.doneChunk = chunk
+    this.finishedEvent = chunk
     this.lastFinishReason = chunk.finishReason
   }
 
-  private handleErrorChunk(
-    chunk: Extract<StreamChunk, { type: 'error' }>,
+  private handleRunErrorEvent(
+    chunk: Extract<StreamChunk, { type: 'RUN_ERROR' }>,
   ): void {
     aiEventClient.emit('text:chunk:error', {
       ...this.buildTextEventContext(),
@@ -535,16 +563,19 @@ class TextEngine<
     this.shouldEmitStreamEnd = false
   }
 
-  private handleThinkingChunk(
-    chunk: Extract<StreamChunk, { type: 'thinking' }>,
+  private handleStepFinishedEvent(
+    chunk: Extract<StreamChunk, { type: 'STEP_FINISHED' }>,
   ): void {
-    aiEventClient.emit('text:chunk:thinking', {
-      ...this.buildTextEventContext(),
-      messageId: this.currentMessageId || undefined,
-      content: chunk.content,
-      delta: chunk.delta,
-      timestamp: Date.now(),
-    })
+    // Handle thinking/reasoning content from STEP_FINISHED events
+    if (chunk.content || chunk.delta) {
+      aiEventClient.emit('text:chunk:thinking', {
+        ...this.buildTextEventContext(),
+        messageId: this.currentMessageId || undefined,
+        content: chunk.content || '',
+        delta: chunk.delta,
+        timestamp: Date.now(),
+      })
+    }
   }
 
   private async *checkForPendingToolCalls(): AsyncGenerator<
@@ -557,7 +588,7 @@ class TextEngine<
       return 'continue'
     }
 
-    const doneChunk = this.createSyntheticDoneChunk()
+    const finishEvent = this.createSyntheticFinishedEvent()
 
     const { approvals, clientToolResults } = this.collectClientState()
 
@@ -574,14 +605,14 @@ class TextEngine<
     ) {
       for (const chunk of this.emitApprovalRequests(
         executionResult.needsApproval,
-        doneChunk,
+        finishEvent,
       )) {
         yield chunk
       }
 
       for (const chunk of this.emitClientToolInputs(
         executionResult.needsClientExecution,
-        doneChunk,
+        finishEvent,
       )) {
         yield chunk
       }
@@ -592,7 +623,7 @@ class TextEngine<
 
     const toolResultChunks = this.emitToolResults(
       executionResult.results,
-      doneChunk,
+      finishEvent,
     )
 
     for (const chunk of toolResultChunks) {
@@ -609,9 +640,9 @@ class TextEngine<
     }
 
     const toolCalls = this.toolCallManager.getToolCalls()
-    const doneChunk = this.doneChunk
+    const finishEvent = this.finishedEvent
 
-    if (!doneChunk || toolCalls.length === 0) {
+    if (!finishEvent || toolCalls.length === 0) {
       this.setToolPhase('stop')
       return
     }
@@ -633,14 +664,14 @@ class TextEngine<
     ) {
       for (const chunk of this.emitApprovalRequests(
         executionResult.needsApproval,
-        doneChunk,
+        finishEvent,
       )) {
         yield chunk
       }
 
       for (const chunk of this.emitClientToolInputs(
         executionResult.needsClientExecution,
-        doneChunk,
+        finishEvent,
       )) {
         yield chunk
       }
@@ -651,7 +682,7 @@ class TextEngine<
 
     const toolResultChunks = this.emitToolResults(
       executionResult.results,
-      doneChunk,
+      finishEvent,
     )
 
     for (const chunk of toolResultChunks) {
@@ -665,7 +696,7 @@ class TextEngine<
 
   private shouldExecuteToolPhase(): boolean {
     return (
-      this.doneChunk?.finishReason === 'tool_calls' &&
+      this.finishedEvent?.finishReason === 'tool_calls' &&
       this.tools.length > 0 &&
       this.toolCallManager.hasToolCalls()
     )
@@ -728,7 +759,7 @@ class TextEngine<
 
   private emitApprovalRequests(
     approvals: Array<ApprovalRequest>,
-    doneChunk: DoneStreamChunk,
+    finishEvent: RunFinishedEvent,
   ): Array<StreamChunk> {
     const chunks: Array<StreamChunk> = []
 
@@ -743,17 +774,20 @@ class TextEngine<
         timestamp: Date.now(),
       })
 
+      // Emit a CUSTOM event for approval requests
       chunks.push({
-        type: 'approval-requested',
-        id: doneChunk.id,
-        model: doneChunk.model,
+        type: 'CUSTOM',
         timestamp: Date.now(),
-        toolCallId: approval.toolCallId,
-        toolName: approval.toolName,
-        input: approval.input,
-        approval: {
-          id: approval.approvalId,
-          needsApproval: true,
+        model: finishEvent.model,
+        name: 'approval-requested',
+        data: {
+          toolCallId: approval.toolCallId,
+          toolName: approval.toolName,
+          input: approval.input,
+          approval: {
+            id: approval.approvalId,
+            needsApproval: true,
+          },
         },
       })
     }
@@ -763,7 +797,7 @@ class TextEngine<
 
   private emitClientToolInputs(
     clientRequests: Array<ClientToolRequest>,
-    doneChunk: DoneStreamChunk,
+    finishEvent: RunFinishedEvent,
   ): Array<StreamChunk> {
     const chunks: Array<StreamChunk> = []
 
@@ -777,14 +811,17 @@ class TextEngine<
         timestamp: Date.now(),
       })
 
+      // Emit a CUSTOM event for client tool inputs
       chunks.push({
-        type: 'tool-input-available',
-        id: doneChunk.id,
-        model: doneChunk.model,
+        type: 'CUSTOM',
         timestamp: Date.now(),
-        toolCallId: clientTool.toolCallId,
-        toolName: clientTool.toolName,
-        input: clientTool.input,
+        model: finishEvent.model,
+        name: 'tool-input-available',
+        data: {
+          toolCallId: clientTool.toolCallId,
+          toolName: clientTool.toolName,
+          input: clientTool.input,
+        },
       })
     }
 
@@ -793,7 +830,7 @@ class TextEngine<
 
   private emitToolResults(
     results: Array<ToolResult>,
-    doneChunk: DoneStreamChunk,
+    finishEvent: RunFinishedEvent,
   ): Array<StreamChunk> {
     const chunks: Array<StreamChunk> = []
 
@@ -809,16 +846,16 @@ class TextEngine<
       })
 
       const content = JSON.stringify(result.result)
-      const chunk: Extract<StreamChunk, { type: 'tool_result' }> = {
-        type: 'tool_result',
-        id: doneChunk.id,
-        model: doneChunk.model,
-        timestamp: Date.now(),
-        toolCallId: result.toolCallId,
-        content,
-      }
 
-      chunks.push(chunk)
+      // Emit TOOL_CALL_END event
+      chunks.push({
+        type: 'TOOL_CALL_END',
+        timestamp: Date.now(),
+        model: finishEvent.model,
+        toolCallId: result.toolCallId,
+        toolName: result.toolName,
+        result: content,
+      })
 
       this.messages = [
         ...this.messages,
@@ -863,10 +900,10 @@ class TextEngine<
     return pending
   }
 
-  private createSyntheticDoneChunk(): DoneStreamChunk {
+  private createSyntheticFinishedEvent(): RunFinishedEvent {
     return {
-      type: 'done',
-      id: this.createId('pending'),
+      type: 'RUN_FINISHED',
+      runId: this.createId('pending'),
       model: this.params.model,
       timestamp: Date.now(),
       finishReason: 'tool_calls',

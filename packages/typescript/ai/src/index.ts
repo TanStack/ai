@@ -106,7 +106,6 @@ export type {
   ProcessorResult,
   ProcessorState,
   StreamProcessorEvents,
-  StreamProcessorHandlers,
   StreamProcessorOptions,
   ToolCallState,
   ToolResultState,

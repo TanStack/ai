@@ -115,8 +115,7 @@ export class GeminiTextAdapter<
     } catch (error) {
       const timestamp = Date.now()
       yield {
-        type: 'error',
-        id: generateId(this.name),
+        type: 'RUN_ERROR',
         model: options.model,
         timestamp,
         error: {
@@ -203,35 +202,78 @@ export class GeminiTextAdapter<
     let accumulatedContent = ''
     const toolCallMap = new Map<
       string,
-      { name: string; args: string; index: number }
+      { name: string; args: string; index: number; started: boolean }
     >()
     let nextToolIndex = 0
 
+    // AG-UI lifecycle tracking
+    const runId = generateId(this.name)
+    const messageId = generateId(this.name)
+    let stepId: string | null = null
+    let hasEmittedRunStarted = false
+    let hasEmittedTextMessageStart = false
+    let hasEmittedStepStarted = false
+
     for await (const chunk of result) {
+      // Emit RUN_STARTED on first chunk
+      if (!hasEmittedRunStarted) {
+        hasEmittedRunStarted = true
+        yield {
+          type: 'RUN_STARTED',
+          runId,
+          model,
+          timestamp,
+        }
+      }
+
       if (chunk.candidates?.[0]?.content?.parts) {
         const parts = chunk.candidates[0].content.parts
 
         for (const part of parts) {
           if (part.text) {
             if (part.thought) {
+              // Emit STEP_STARTED on first thinking content
+              if (!hasEmittedStepStarted) {
+                hasEmittedStepStarted = true
+                stepId = generateId(this.name)
+                yield {
+                  type: 'STEP_STARTED',
+                  stepId,
+                  model,
+                  timestamp,
+                  stepType: 'thinking',
+                }
+              }
+
               yield {
-                type: 'thinking',
-                content: part.text,
-                delta: part.text,
-                id: generateId(this.name),
+                type: 'STEP_FINISHED',
+                stepId: stepId || generateId(this.name),
                 model,
                 timestamp,
+                delta: part.text,
+                content: part.text,
               }
             } else {
+              // Emit TEXT_MESSAGE_START on first text content
+              if (!hasEmittedTextMessageStart) {
+                hasEmittedTextMessageStart = true
+                yield {
+                  type: 'TEXT_MESSAGE_START',
+                  messageId,
+                  model,
+                  timestamp,
+                  role: 'assistant',
+                }
+              }
+
               accumulatedContent += part.text
               yield {
-                type: 'content',
-                id: generateId(this.name),
+                type: 'TEXT_MESSAGE_CONTENT',
+                messageId,
                 model,
                 timestamp,
                 delta: part.text,
                 content: accumulatedContent,
-                role: 'assistant',
               }
             }
           }
@@ -252,6 +294,7 @@ export class GeminiTextAdapter<
                     ? functionArgs
                     : JSON.stringify(functionArgs),
                 index: nextToolIndex++,
+                started: false,
               }
               toolCallMap.set(toolCallId, toolCallData)
             } else {
@@ -271,33 +314,51 @@ export class GeminiTextAdapter<
               }
             }
 
+            // Emit TOOL_CALL_START if not already started
+            if (!toolCallData.started) {
+              toolCallData.started = true
+              yield {
+                type: 'TOOL_CALL_START',
+                toolCallId,
+                toolName: toolCallData.name,
+                model,
+                timestamp,
+                index: toolCallData.index,
+              }
+            }
+
+            // Emit TOOL_CALL_ARGS
             yield {
-              type: 'tool_call',
-              id: generateId(this.name),
+              type: 'TOOL_CALL_ARGS',
+              toolCallId,
               model,
               timestamp,
-              toolCall: {
-                id: toolCallId,
-                type: 'function',
-                function: {
-                  name: toolCallData.name,
-                  arguments: toolCallData.args,
-                },
-              },
-              index: toolCallData.index,
+              delta: toolCallData.args,
+              args: toolCallData.args,
             }
           }
         }
       } else if (chunk.data) {
+        // Emit TEXT_MESSAGE_START on first text content
+        if (!hasEmittedTextMessageStart) {
+          hasEmittedTextMessageStart = true
+          yield {
+            type: 'TEXT_MESSAGE_START',
+            messageId,
+            model,
+            timestamp,
+            role: 'assistant',
+          }
+        }
+
         accumulatedContent += chunk.data
         yield {
-          type: 'content',
-          id: generateId(this.name),
+          type: 'TEXT_MESSAGE_CONTENT',
+          messageId,
           model,
           timestamp,
           delta: chunk.data,
           content: accumulatedContent,
-          role: 'assistant',
         }
       }
 
@@ -314,53 +375,98 @@ export class GeminiTextAdapter<
                   `${functionCall.name}_${Date.now()}_${nextToolIndex}`
                 const functionArgs = functionCall.args || {}
 
+                const argsString =
+                  typeof functionArgs === 'string'
+                    ? functionArgs
+                    : JSON.stringify(functionArgs)
+
                 toolCallMap.set(toolCallId, {
                   name: functionCall.name || '',
-                  args:
-                    typeof functionArgs === 'string'
-                      ? functionArgs
-                      : JSON.stringify(functionArgs),
+                  args: argsString,
                   index: nextToolIndex++,
+                  started: true,
                 })
 
+                // Emit TOOL_CALL_START
                 yield {
-                  type: 'tool_call',
-                  id: generateId(this.name),
+                  type: 'TOOL_CALL_START',
+                  toolCallId,
+                  toolName: functionCall.name || '',
                   model,
                   timestamp,
-                  toolCall: {
-                    id: toolCallId,
-                    type: 'function',
-                    function: {
-                      name: functionCall.name || '',
-                      arguments:
-                        typeof functionArgs === 'string'
-                          ? functionArgs
-                          : JSON.stringify(functionArgs),
-                    },
-                  },
                   index: nextToolIndex - 1,
+                }
+
+                // Emit TOOL_CALL_END with parsed input
+                let parsedInput: unknown = {}
+                try {
+                  parsedInput =
+                    typeof functionArgs === 'string'
+                      ? JSON.parse(functionArgs)
+                      : functionArgs
+                } catch {
+                  parsedInput = {}
+                }
+
+                yield {
+                  type: 'TOOL_CALL_END',
+                  toolCallId,
+                  toolName: functionCall.name || '',
+                  model,
+                  timestamp,
+                  input: parsedInput,
                 }
               }
             }
           }
         }
+
+        // Emit TOOL_CALL_END for all tracked tool calls
+        for (const [toolCallId, toolCallData] of toolCallMap.entries()) {
+          let parsedInput: unknown = {}
+          try {
+            parsedInput = JSON.parse(toolCallData.args)
+          } catch {
+            parsedInput = {}
+          }
+
+          yield {
+            type: 'TOOL_CALL_END',
+            toolCallId,
+            toolName: toolCallData.name,
+            model,
+            timestamp,
+            input: parsedInput,
+          }
+        }
+
         if (finishReason === FinishReason.MAX_TOKENS) {
           yield {
-            type: 'error',
-            id: generateId(this.name),
+            type: 'RUN_ERROR',
+            runId,
             model,
             timestamp,
             error: {
               message:
                 'The response was cut off because the maximum token limit was reached.',
+              code: 'max_tokens',
             },
           }
         }
 
+        // Emit TEXT_MESSAGE_END if we had text content
+        if (hasEmittedTextMessageStart) {
+          yield {
+            type: 'TEXT_MESSAGE_END',
+            messageId,
+            model,
+            timestamp,
+          }
+        }
+
         yield {
-          type: 'done',
-          id: generateId(this.name),
+          type: 'RUN_FINISHED',
+          runId,
           model,
           timestamp,
           finishReason: toolCallMap.size > 0 ? 'tool_calls' : 'stop',

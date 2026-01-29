@@ -182,6 +182,9 @@ export async function captureStream(opts: {
   let assistantDraft: any | null = null
   let lastAssistantMessage: any | null = null
 
+  // Track AG-UI tool calls in progress
+  const toolCallsInProgress = new Map<string, { name: string; args: string }>()
+
   for await (const chunk of stream) {
     chunkIndex++
     const chunkData: any = {
@@ -189,82 +192,124 @@ export async function captureStream(opts: {
       index: chunkIndex,
       type: chunk.type,
       timestamp: chunk.timestamp,
-      id: chunk.id,
+      id: (chunk as any).id,
       model: chunk.model,
     }
 
-    if (chunk.type === 'content') {
+    // AG-UI TEXT_MESSAGE_CONTENT event
+    if (chunk.type === 'TEXT_MESSAGE_CONTENT') {
       chunkData.delta = chunk.delta
       chunkData.content = chunk.content
-      chunkData.role = chunk.role
-      const delta = chunk.delta || chunk.content || ''
+      chunkData.role = 'assistant'
+      const delta = chunk.delta || ''
       fullResponse += delta
 
-      if (chunk.role === 'assistant') {
-        if (!assistantDraft) {
-          assistantDraft = {
-            role: 'assistant',
-            content: chunk.content || '',
-            toolCalls: [],
-          }
-        } else {
-          assistantDraft.content = (assistantDraft.content || '') + delta
+      if (!assistantDraft) {
+        assistantDraft = {
+          role: 'assistant',
+          content: chunk.content || '',
+          toolCalls: [],
         }
+      } else {
+        assistantDraft.content = (assistantDraft.content || '') + delta
       }
-    } else if (chunk.type === 'tool_call') {
-      const id = chunk.toolCall.id
-      const existing = toolCallMap.get(id) || {
-        id,
-        name: chunk.toolCall.function.name,
-        arguments: '',
-      }
-      existing.arguments += chunk.toolCall.function.arguments || ''
-      toolCallMap.set(id, existing)
-
-      chunkData.toolCall = chunk.toolCall
+    }
+    // AG-UI TOOL_CALL_START event
+    else if (chunk.type === 'TOOL_CALL_START') {
+      const id = chunk.toolCallId
+      toolCallsInProgress.set(id, {
+        name: chunk.toolName,
+        args: '',
+      })
 
       if (!assistantDraft) {
         assistantDraft = { role: 'assistant', content: null, toolCalls: [] }
       }
-      const existingToolCall = assistantDraft.toolCalls?.find(
-        (tc: any) => tc.id === id,
-      )
-      if (existingToolCall) {
-        existingToolCall.function.arguments = existing.arguments
-      } else {
-        assistantDraft.toolCalls?.push({
-          ...chunk.toolCall,
-          function: {
-            ...chunk.toolCall.function,
-            arguments: existing.arguments,
-          },
-        })
-      }
-    } else if (chunk.type === 'tool_result') {
+
       chunkData.toolCallId = chunk.toolCallId
-      chunkData.content = chunk.content
-      toolResults.push({
-        toolCallId: chunk.toolCallId,
-        content: chunk.content,
-      })
-      reconstructedMessages.push({
-        role: 'tool',
-        toolCallId: chunk.toolCallId,
-        content: chunk.content,
-      })
-    } else if (chunk.type === 'approval-requested') {
-      const approval: ApprovalCapture = {
-        toolCallId: chunk.toolCallId,
-        toolName: chunk.toolName,
-        input: chunk.input,
-        approval: chunk.approval,
+      chunkData.toolName = chunk.toolName
+    }
+    // AG-UI TOOL_CALL_ARGS event
+    else if (chunk.type === 'TOOL_CALL_ARGS') {
+      const id = chunk.toolCallId
+      const existing = toolCallsInProgress.get(id)
+      if (existing) {
+        existing.args = chunk.args || existing.args + (chunk.delta || '')
       }
+
+      chunkData.toolCallId = chunk.toolCallId
+      chunkData.delta = chunk.delta
+      chunkData.args = chunk.args
+    }
+    // AG-UI TOOL_CALL_END event
+    else if (chunk.type === 'TOOL_CALL_END') {
+      const id = chunk.toolCallId
+      const inProgress = toolCallsInProgress.get(id)
+      const name = chunk.toolName || inProgress?.name || ''
+      const args =
+        inProgress?.args || (chunk.input ? JSON.stringify(chunk.input) : '')
+
+      toolCallMap.set(id, {
+        id,
+        name,
+        arguments: args,
+      })
+
+      // Add to assistant draft
+      if (!assistantDraft) {
+        assistantDraft = { role: 'assistant', content: null, toolCalls: [] }
+      }
+      assistantDraft.toolCalls?.push({
+        id,
+        type: 'function',
+        function: {
+          name,
+          arguments: args,
+        },
+      })
+
       chunkData.toolCallId = chunk.toolCallId
       chunkData.toolName = chunk.toolName
       chunkData.input = chunk.input
-      chunkData.approval = chunk.approval
-      approvalRequests.push(approval)
-    } else if (chunk.type === 'done') {
+
+      // AG-UI tool results are included in TOOL_CALL_END events
+      if (chunk.result !== undefined) {
+        chunkData.result = chunk.result
+        toolResults.push({
+          toolCallId: id,
+          content: chunk.result,
+        })
+        reconstructedMessages.push({
+          role: 'tool',
+          toolCallId: id,
+          content: chunk.result,
+        })
+      }
+    }
+    // AG-UI CUSTOM events (approval requests, tool inputs, etc.)
+    else if (chunk.type === 'CUSTOM') {
+      chunkData.name = chunk.name
+      chunkData.data = chunk.data
+
+      // Handle approval-requested CUSTOM events
+      if (chunk.name === 'approval-requested' && chunk.data) {
+        const data = chunk.data as {
+          toolCallId: string
+          toolName: string
+          input: any
+          approval: any
+        }
+        const approval: ApprovalCapture = {
+          toolCallId: data.toolCallId,
+          toolName: data.toolName,
+          input: data.input,
+          approval: data.approval,
+        }
+        approvalRequests.push(approval)
+      }
+    }
+    // AG-UI RUN_FINISHED event
+    else if (chunk.type === 'RUN_FINISHED') {
       chunkData.finishReason = chunk.finishReason
       chunkData.usage = chunk.usage
       if (chunk.finishReason === 'stop' && assistantDraft) {
