@@ -1,5 +1,5 @@
 import { ChatClient } from '@tanstack/ai-client'
-import { onScopeDispose, readonly, shallowRef, useId } from 'vue'
+import { onScopeDispose, readonly, shallowRef, useId, watch } from 'vue'
 import type { AnyClientTool, ModelMessage } from '@tanstack/ai'
 import type { UIMessage, UseChatOptions, UseChatReturn } from './types'
 
@@ -37,6 +37,15 @@ export function useChat<TTools extends ReadonlyArray<AnyClientTool> = any>(
       error.value = newError
     },
   })
+
+  // Sync body changes to the client
+  // This allows dynamic body values (like model selection) to be updated without recreating the client
+  watch(
+    () => options.body,
+    (newBody) => {
+      client.updateOptions({ body: newBody })
+    },
+  )
 
   // Cleanup on unmount: stop any in-flight requests
   // Note: client.stop() is safe to call even if nothing is in progress

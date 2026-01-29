@@ -96,6 +96,11 @@ export interface CreateChatReturn<
    * Clear all messages
    */
   clear: () => void
+
+  /**
+   * Update the body sent with requests (e.g., for changing model selection)
+   */
+  updateBody: (body: Record<string, any>) => void
 }
 
 // Note: createChatClientOptions and InferChatMessages are now in @tanstack/ai-client

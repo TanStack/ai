@@ -67,6 +67,12 @@ export function useChat<TTools extends ReadonlyArray<AnyClientTool> = any>(
     })
   }, [clientId])
 
+  // Sync body changes to the client
+  // This allows dynamic body values (like model selection) to be updated without recreating the client
+  useEffect(() => {
+    client.updateOptions({ body: options.body })
+  }, [client, options.body])
+
   // Sync initial messages on mount only
   // Note: initialMessages are passed to ChatClient constructor, but we also
   // set them here to ensure Preact state is in sync
