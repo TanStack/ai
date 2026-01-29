@@ -84,6 +84,15 @@ export type SchemaInput = StandardJSONSchemaV1<any, any> | JSONSchema
 export type InferSchemaType<T> =
   T extends StandardJSONSchemaV1<infer TInput, unknown> ? TInput : unknown
 
+/**
+ * Options object passed to tool execute functions
+ * @template TContext - The type of context object
+ */
+export interface ToolOptions<TContext = unknown> {
+  /** Context object that can be accessed by tools during execution */
+  context?: TContext
+}
+
 export interface ToolCall {
   id: string
   type: 'function'
@@ -420,15 +429,17 @@ export interface Tool<
    * Can return any value - will be automatically stringified if needed.
    *
    * @param args - The arguments parsed from the model's tool call (validated against inputSchema)
+   * @param options - Options object containing context to pass to tool execute functions
    * @returns Result to send back to the model (validated against outputSchema if provided)
    *
    * @example
-   * execute: async (args) => {
+   * execute: async (args, options) => {
+   *   const user = await options.context?.db.users.find({ id: options.context.userId }); // Can access context
    *   const weather = await fetchWeather(args.location);
    *   return weather; // Can return object or string
    * }
    */
-  execute?: (args: any) => Promise<any> | any
+  execute?: (args: any, options: any) => Promise<any> | any
 
   /** If true, tool execution requires user approval before running. Works with both server and client tools. */
   needsApproval?: boolean
@@ -565,6 +576,7 @@ export type AgentLoopStrategy = (state: AgentLoopState) => boolean
 export interface TextOptions<
   TProviderOptionsSuperset extends Record<string, any> = Record<string, any>,
   TProviderOptionsForModel = TProviderOptionsSuperset,
+  TContext = unknown,
 > {
   model: string
   messages: Array<ModelMessage>
@@ -619,6 +631,29 @@ export interface TextOptions<
   metadata?: Record<string, any>
   modelOptions?: TProviderOptionsForModel
   request?: Request | RequestInit
+  /**
+   * Context object that is automatically passed to all tool execute functions.
+   *
+   * This allows tools to access shared context (like user ID, database connections,
+   * request metadata, etc.) without needing to capture them via closures.
+   * Works for both server and client tools.
+   *
+   * @example
+   * const stream = chat({
+   *   adapter: openai(),
+   *   model: 'gpt-4o',
+   *   messages,
+   *   context: { userId: '123', db },
+   *   tools: [getUserData],
+   * });
+   *
+   * // In tool definition:
+   * const getUserData = getUserDataDef.server(async (args, options) => {
+   *   // options.context.userId and options.context.db are available
+   *   return await options.context.db.users.find({ userId: options.context.userId });
+   * });
+   */
+  context?: TContext
 
   /**
    * Schema for structured output.

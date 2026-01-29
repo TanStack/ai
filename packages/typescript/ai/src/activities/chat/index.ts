@@ -31,6 +31,7 @@ import type {
   TextOptions,
   Tool,
   ToolCall,
+  ToolOptions,
 } from '../../types'
 
 // ===========================
@@ -220,6 +221,7 @@ class TextEngine<
   private earlyTermination = false
   private toolPhase: ToolPhaseResult = 'continue'
   private cyclePhase: CyclePhase = 'processText'
+  private readonly options: Partial<ToolOptions<TParams['context']>>
 
   constructor(config: TextEngineConfig<TAdapter, TParams>) {
     this.adapter = config.adapter
@@ -237,6 +239,7 @@ class TextEngine<
       ? { signal: config.params.abortController.signal }
       : undefined
     this.effectiveSignal = config.params.abortController?.signal
+    this.options = { context: config.params.context }
   }
 
   /** Get the accumulated content after the chat loop completes */
@@ -566,6 +569,7 @@ class TextEngine<
       this.tools,
       approvals,
       clientToolResults,
+      this.options,
     )
 
     if (
