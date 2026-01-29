@@ -3,9 +3,10 @@ import { constructCoreClass } from '@tanstack/devtools-utils/solid'
 
 export interface AiDevtoolsInit {}
 
-const path = './components/Shell'
+const shellUrl = new URL('./Shell.js', import.meta.url).href
+
 const [AiDevtoolsCore, AiDevtoolsCoreNoOp] = constructCoreClass(
-  lazy(() => import(/* @vite-ignore */ path)),
+  lazy(() => import(/* @vite-ignore */ shellUrl)),
 )
 
 export { AiDevtoolsCore, AiDevtoolsCoreNoOp }
