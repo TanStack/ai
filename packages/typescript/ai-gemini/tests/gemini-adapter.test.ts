@@ -343,4 +343,116 @@ describe('GeminiAdapter through AI', () => {
     expect(payload.config.systemInstruction).toContain('123 tokens')
     expect(result.summary).toBe(summaryText)
   })
+
+  it('captures and preserves thought signatures for Gemini 3.0 compatibility', async () => {
+    const testThoughtSignature = 'thought_signature_abc123'
+    const streamChunks = [
+      {
+        candidates: [
+          {
+            content: {
+              parts: [
+                {
+                  functionCall: {
+                    id: 'tool_call_1',
+                    name: 'lookup_weather',
+                    args: { location: 'Paris' },
+                  },
+                  thoughtSignature: testThoughtSignature,
+                },
+              ],
+            },
+            finishReason: 'UNEXPECTED_TOOL_CALL',
+          },
+        ],
+      },
+    ]
+
+    mocks.generateContentStreamSpy.mockResolvedValue(createStream(streamChunks))
+
+    const adapter = createTextAdapter()
+    const received: StreamChunk[] = []
+
+    // First request - capture thought signature
+    for await (const chunk of chat({
+      adapter,
+      messages: [{ role: 'user', content: 'What is the weather in Paris?' }],
+      tools: [weatherTool],
+    })) {
+      received.push(chunk)
+    }
+
+    // Verify thought signature was captured in metadata
+    const toolCallChunk = received.find((c) => c.type === 'tool_call')
+    expect(toolCallChunk).toBeDefined()
+    if (toolCallChunk && toolCallChunk.type === 'tool_call') {
+      expect(toolCallChunk.toolCall.metadata).toEqual({
+        thoughtSignature: testThoughtSignature,
+      })
+    }
+
+    // Clear mocks for second request
+    vi.clearAllMocks()
+
+    const secondResponseChunks = [
+      {
+        candidates: [
+          {
+            content: {
+              parts: [{ text: 'The weather is sunny.' }],
+            },
+            finishReason: 'STOP',
+          },
+        ],
+      },
+    ]
+
+    mocks.generateContentStreamSpy.mockResolvedValue(
+      createStream(secondResponseChunks),
+    )
+
+    // Second request - verify thought signature is sent back
+    // Use ModelMessage format with toolCalls array
+    for await (const _ of chat({
+      adapter,
+      messages: [
+        { role: 'user', content: 'What is the weather in Paris?' },
+        {
+          role: 'assistant',
+          content: null,
+          toolCalls: [
+            {
+              id: 'tool_call_1',
+              type: 'function',
+              function: {
+                name: 'lookup_weather',
+                arguments: '{"location":"Paris"}',
+              },
+              metadata: { thoughtSignature: testThoughtSignature },
+            },
+          ],
+        },
+        {
+          role: 'tool',
+          content: 'Sunny, 22°C',
+          toolCallId: 'tool_call_1',
+        },
+      ],
+    })) {
+      /* consume stream */
+    }
+
+    // Verify thought signature was included in the request
+    expect(mocks.generateContentStreamSpy).toHaveBeenCalledTimes(1)
+    const [payload] = mocks.generateContentStreamSpy.mock.calls[0]
+    const assistantMessage = payload.contents.find(
+      (msg: any) => msg.role === 'model',
+    )
+    expect(assistantMessage).toBeDefined()
+    const functionCallPart = assistantMessage?.parts?.find(
+      (part: any) => part.functionCall,
+    )
+    expect(functionCallPart).toBeDefined()
+    expect(functionCallPart.thoughtSignature).toBe(testThoughtSignature)
+  })
 })

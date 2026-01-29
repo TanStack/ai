@@ -91,6 +91,12 @@ export interface ToolCall {
     name: string
     arguments: string // JSON string
   }
+  /**
+   * Provider-specific metadata associated with this tool call.
+   * Used by adapters to store additional information needed for API compatibility.
+   * For example, Gemini stores thought signatures here for Gemini 3.0 models.
+   */
+  metadata?: unknown
 }
 
 // ============================================================================
@@ -675,14 +681,7 @@ export interface ContentStreamChunk extends BaseStreamChunk {
 
 export interface ToolCallStreamChunk extends BaseStreamChunk {
   type: 'tool_call'
-  toolCall: {
-    id: string
-    type: 'function'
-    function: {
-      name: string
-      arguments: string // Incremental JSON arguments
-    }
-  }
+  toolCall: ToolCall
   index: number
 }
 
