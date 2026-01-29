@@ -44,6 +44,10 @@
       "types": "./dist/esm/production.d.ts",
       "import": "./dist/esm/production.js"
     },
+    "./shell": {
+      "types": "./dist/esm/shell.d.ts",
+      "import": "./dist/esm/shell.js"
+    },
     "./package.json": "./package.json"
   },
   "files": [
