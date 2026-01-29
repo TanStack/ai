@@ -1,4 +1,4 @@
-import { ChatClient  } from '@tanstack/ai-client'
+import { ChatClient } from '@tanstack/ai-client'
 import {
   useCallback,
   useEffect,
@@ -7,7 +7,7 @@ import {
   useRef,
   useState,
 } from 'preact/hooks'
-import type {ChatClientState} from '@tanstack/ai-client';
+import type { ChatClientState } from '@tanstack/ai-client'
 import type { AnyClientTool, ModelMessage } from '@tanstack/ai'
 
 import type { UIMessage, UseChatOptions, UseChatReturn } from './types'
