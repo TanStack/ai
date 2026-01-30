@@ -1,5 +1,12 @@
 # @tanstack/react-ai-devtools
 
+## 0.2.2
+
+### Patch Changes
+
+- Updated dependencies []:
+  - @tanstack/ai-devtools-core@0.2.2
+
 ## 0.2.1
 
 ### Patch Changes

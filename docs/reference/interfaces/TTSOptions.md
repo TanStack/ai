@@ -5,7 +5,7 @@ title: TTSOptions
 
 # Interface: TTSOptions\<TProviderOptions\>
 
-Defined in: [types.ts:912](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L912)
+Defined in: [types.ts:1056](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L1056)
 
 Options for text-to-speech generation.
 These are the common options supported across providers.
@@ -24,7 +24,7 @@ These are the common options supported across providers.
 optional format: "mp3" | "opus" | "aac" | "flac" | "wav" | "pcm";
 ```
 
-Defined in: [types.ts:920](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L920)
+Defined in: [types.ts:1064](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L1064)
 
 The output audio format
 
@@ -36,7 +36,7 @@ The output audio format
 model: string;
 ```
 
-Defined in: [types.ts:914](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L914)
+Defined in: [types.ts:1058](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L1058)
 
 The model to use for TTS generation
 
@@ -48,7 +48,7 @@ The model to use for TTS generation
 optional modelOptions: TProviderOptions;
 ```
 
-Defined in: [types.ts:924](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L924)
+Defined in: [types.ts:1068](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L1068)
 
 Model-specific options for TTS generation
 
@@ -60,7 +60,7 @@ Model-specific options for TTS generation
 optional speed: number;
 ```
 
-Defined in: [types.ts:922](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L922)
+Defined in: [types.ts:1066](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L1066)
 
 The speed of the generated audio (0.25 to 4.0)
 
@@ -72,7 +72,7 @@ The speed of the generated audio (0.25 to 4.0)
 text: string;
 ```
 
-Defined in: [types.ts:916](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L916)
+Defined in: [types.ts:1060](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L1060)
 
 The text to convert to speech
 
@@ -84,6 +84,6 @@ The text to convert to speech
 optional voice: string;
 ```
 
-Defined in: [types.ts:918](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L918)
+Defined in: [types.ts:1062](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L1062)
 
 The voice to use for generation
