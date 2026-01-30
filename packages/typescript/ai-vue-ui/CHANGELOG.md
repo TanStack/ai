@@ -5,7 +5,7 @@
 ### Patch Changes
 
 - Updated dependencies []:
-  - @tanstack/ai-vue@1.0.0
+  - @tanstack/ai-vue@0.3.0
 
 ## 0.1.3
 
