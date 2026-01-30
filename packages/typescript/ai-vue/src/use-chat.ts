@@ -1,6 +1,7 @@
 import { ChatClient } from '@tanstack/ai-client'
 import { onScopeDispose, readonly, shallowRef, useId, watch } from 'vue'
 import type { AnyClientTool, ModelMessage } from '@tanstack/ai'
+import type { ChatClientState } from '@tanstack/ai-client'
 import type { UIMessage, UseChatOptions, UseChatReturn } from './types'
 
 export function useChat<TTools extends ReadonlyArray<AnyClientTool> = any>(
@@ -14,6 +15,7 @@ export function useChat<TTools extends ReadonlyArray<AnyClientTool> = any>(
   )
   const isLoading = shallowRef(false)
   const error = shallowRef<Error | undefined>(undefined)
+  const status = shallowRef<ChatClientState>('ready')
 
   // Create ChatClient instance with callbacks to sync state
   const client = new ChatClient({
@@ -23,8 +25,12 @@ export function useChat<TTools extends ReadonlyArray<AnyClientTool> = any>(
     body: options.body,
     onResponse: options.onResponse,
     onChunk: options.onChunk,
-    onFinish: options.onFinish,
-    onError: options.onError,
+    onFinish: (message) => {
+      options.onFinish?.(message)
+    },
+    onError: (err) => {
+      options.onError?.(err)
+    },
     tools: options.tools,
     streamProcessor: options.streamProcessor,
     onMessagesChange: (newMessages: Array<UIMessage<TTools>>) => {
@@ -32,6 +38,9 @@ export function useChat<TTools extends ReadonlyArray<AnyClientTool> = any>(
     },
     onLoadingChange: (newIsLoading: boolean) => {
       isLoading.value = newIsLoading
+    },
+    onStatusChange: (newStatus: ChatClientState) => {
+      status.value = newStatus
     },
     onErrorChange: (newError: Error | undefined) => {
       error.value = newError
@@ -106,6 +115,7 @@ export function useChat<TTools extends ReadonlyArray<AnyClientTool> = any>(
     stop,
     isLoading: readonly(isLoading),
     error: readonly(error),
+    status: readonly(status),
     setMessages: setMessagesManually,
     clear,
     addToolResult,
