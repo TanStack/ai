@@ -253,7 +253,9 @@ describe('Approval Flow Tests', () => {
       expect(executeFn).not.toHaveBeenCalled()
 
       // Should have content response
-      const contentChunks = chunks.filter((c) => c.type === 'TEXT_MESSAGE_CONTENT')
+      const contentChunks = chunks.filter(
+        (c) => c.type === 'TEXT_MESSAGE_CONTENT',
+      )
       expect(contentChunks.length).toBeGreaterThan(0)
     })
   })

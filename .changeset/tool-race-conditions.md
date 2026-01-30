@@ -1,6 +1,6 @@
 ---
-"@tanstack/ai": patch
-"@tanstack/ai-client": patch
+'@tanstack/ai': patch
+'@tanstack/ai-client': patch
 ---
 
 fix: improve tool execution reliability and prevent race conditions
@@ -13,6 +13,7 @@ fix: improve tool execution reliability and prevent race conditions
 - Check ModelMessage format for approval info extraction in chat activity
 
 This change improves the reliability of tool execution, especially for:
+
 - Client tools with async execute functions
 - Approval-based tool workflows
 - Sequential tool execution scenarios

@@ -331,7 +331,9 @@ describe('Server Tool Tests', () => {
 
       const chunks = await collectChunks(stream)
 
-      const contentChunks = chunks.filter((c) => c.type === 'TEXT_MESSAGE_CONTENT')
+      const contentChunks = chunks.filter(
+        (c) => c.type === 'TEXT_MESSAGE_CONTENT',
+      )
       const toolCallChunks = chunks.filter((c) => c.type === 'TOOL_CALL_START')
 
       // Should have content chunks from both iterations

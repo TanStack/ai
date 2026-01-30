@@ -57,7 +57,10 @@ describe('Client Tool Tests', () => {
 
       const inputChunk = inputAvailableChunks[0] as any
       expect(inputChunk.data.toolName).toBe('show_notification')
-      expect(inputChunk.data.input).toEqual({ message: 'Hello World', type: 'info' })
+      expect(inputChunk.data.input).toEqual({
+        message: 'Hello World',
+        type: 'info',
+      })
     })
 
     it('should stop iteration when client tool needs input', async () => {
@@ -214,7 +217,9 @@ describe('Client Tool Tests', () => {
       const chunks = await collectChunks(stream)
 
       // Should get the response content
-      const contentChunks = chunks.filter((c) => c.type === 'TEXT_MESSAGE_CONTENT')
+      const contentChunks = chunks.filter(
+        (c) => c.type === 'TEXT_MESSAGE_CONTENT',
+      )
       expect(contentChunks.length).toBeGreaterThan(0)
 
       const fullContent = contentChunks.map((c) => (c as any).content).join('')

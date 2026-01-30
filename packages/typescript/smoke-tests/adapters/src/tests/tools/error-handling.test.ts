@@ -211,7 +211,9 @@ describe('Error Handling Tests', () => {
       const chunks = await collectChunks(stream)
 
       // Should have content but no tool calls or results
-      const contentChunks = chunks.filter((c) => c.type === 'TEXT_MESSAGE_CONTENT')
+      const contentChunks = chunks.filter(
+        (c) => c.type === 'TEXT_MESSAGE_CONTENT',
+      )
       const toolCallChunks = chunks.filter((c) => c.type === 'TOOL_CALL_START')
       const toolResultChunks = chunks.filter((c) => c.type === 'TOOL_CALL_END')
 
