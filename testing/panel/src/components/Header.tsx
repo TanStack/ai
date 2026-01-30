@@ -2,6 +2,7 @@ import { Link } from '@tanstack/react-router'
 
 import { useState } from 'react'
 import {
+  Beaker,
   ChefHat,
   FileText,
   FlaskConical,
@@ -96,6 +97,24 @@ export default function Header() {
               <span className="font-medium">Add-on Manager</span>
               <span className="text-xs px-1.5 py-0.5 bg-green-500/20 text-green-400 rounded">
                 Multi-Tool
+              </span>
+            </div>
+          </Link>
+
+          <Link
+            to="/simulator"
+            onClick={() => setIsOpen(false)}
+            className="flex items-center gap-3 p-3 rounded-lg hover:bg-gray-800 transition-colors mb-2"
+            activeProps={{
+              className:
+                'flex items-center gap-3 p-3 rounded-lg bg-purple-600 hover:bg-purple-700 transition-colors mb-2',
+            }}
+          >
+            <Beaker size={20} />
+            <div className="flex items-center gap-2">
+              <span className="font-medium">Tool Simulator</span>
+              <span className="text-xs px-1.5 py-0.5 bg-purple-500/20 text-purple-400 rounded">
+                Mock
               </span>
             </div>
           </Link>

@@ -731,7 +731,7 @@ class TextEngine<
     const clientToolResults = new Map<string, any>()
 
     for (const message of this.messages) {
-      // todo remove any and fix this
+      // Check for UIMessage format (parts array)
       if (message.role === 'assistant' && (message as any).parts) {
         const parts = (message as any).parts
         for (const part of parts) {
@@ -749,6 +749,15 @@ class TextEngine<
             !part.approval
           ) {
             clientToolResults.set(part.id, part.output)
+          }
+        }
+      }
+
+      // Check for ModelMessage format (toolCalls array with approval info)
+      if (message.role === 'assistant' && message.toolCalls) {
+        for (const toolCall of message.toolCalls) {
+          if (toolCall.approval) {
+            approvals.set(toolCall.approval.id, toolCall.approval.approved)
           }
         }
       }

@@ -6,8 +6,16 @@
   "author": "",
   "license": "MIT",
   "type": "module",
+  "exports": {
+    ".": {
+      "import": "./src/llm-simulator.ts",
+      "types": "./src/llm-simulator.ts"
+    }
+  },
   "scripts": {
     "start": "tsx src/cli.ts",
+    "test": "vitest run",
+    "test:watch": "vitest",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
@@ -26,6 +34,7 @@
     "dotenv": "^17.2.3",
     "tsx": "^4.21.0",
     "typescript": "5.9.3",
+    "vitest": "^4.0.14",
     "zod": "^4.2.0"
   }
 }
