@@ -22,11 +22,7 @@ import {
   recommendGuitarToolDef,
 } from '@/lib/guitar-tools'
 
-import {
-  MODEL_OPTIONS,
-  getDefaultModelOption,
-  setStoredModelPreference,
-} from '@/lib/model-selection'
+import { MODEL_OPTIONS, getDefaultModelOption } from '@/lib/model-selection'
 
 import './tanchat.css'
 
@@ -500,7 +496,6 @@ function ChatPage() {
                 onChange={(e) => {
                   const option = MODEL_OPTIONS[parseInt(e.target.value)]
                   setSelectedModel(option)
-                  setStoredModelPreference(option)
                 }}
                 disabled={isLoading}
                 className="w-full rounded-lg border border-orange-500/20 bg-gray-900 px-3 py-2 text-sm text-white focus:outline-none focus:ring-2 focus:ring-orange-500/50 disabled:opacity-50"

@@ -6,10 +6,10 @@ title: createReplayStream
 # Function: createReplayStream()
 
 ```ts
-function createReplayStream(recording): AsyncIterable<StreamChunk>;
+function createReplayStream(recording): AsyncIterable<AGUIEvent>;
 ```
 
-Defined in: [activities/chat/stream/processor.ts:1078](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/activities/chat/stream/processor.ts#L1078)
+Defined in: [activities/chat/stream/processor.ts:937](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/activities/chat/stream/processor.ts#L937)
 
 Create an async iterable from a recording
 
@@ -21,4 +21,4 @@ Create an async iterable from a recording
 
 ## Returns
 
-`AsyncIterable`\<[`StreamChunk`](../type-aliases/StreamChunk.md)\>
+`AsyncIterable`\<[`AGUIEvent`](../type-aliases/AGUIEvent.md)\>

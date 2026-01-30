@@ -2,10 +2,18 @@ import { createFileRoute } from '@tanstack/react-router'
 import { summarize, createSummarizeOptions } from '@tanstack/ai'
 import { anthropicSummarize } from '@tanstack/ai-anthropic'
 import { geminiSummarize } from '@tanstack/ai-gemini'
+import { grokSummarize } from '@tanstack/ai-grok'
 import { openaiSummarize } from '@tanstack/ai-openai'
 import { ollamaSummarize } from '@tanstack/ai-ollama'
+import { openRouterSummarize } from '@tanstack/ai-openrouter'
 
-type Provider = 'openai' | 'anthropic' | 'gemini' | 'ollama'
+type Provider =
+  | 'openai'
+  | 'anthropic'
+  | 'gemini'
+  | 'ollama'
+  | 'grok'
+  | 'openrouter'
 
 export const Route = createFileRoute('/api/summarize')({
   server: {
@@ -20,29 +28,49 @@ export const Route = createFileRoute('/api/summarize')({
         } = body
         const data = body.data || {}
         const provider: Provider = data.provider || body.provider || 'openai'
-        const model: string = data.model || body.model || 'gpt-4o-mini'
+        // Don't set a global default - let each adapter use its own default model
+        const model: string | undefined = data.model || body.model
 
         try {
+          // Default models per provider
+          const defaultModels: Record<Provider, string> = {
+            anthropic: 'claude-sonnet-4-5',
+            gemini: 'gemini-2.0-flash',
+            grok: 'grok-3-mini',
+            ollama: 'mistral:7b',
+            openai: 'gpt-4o-mini',
+            openrouter: 'openai/gpt-4o-mini',
+          }
+
+          // Determine the actual model being used
+          const actualModel = model || defaultModels[provider]
+
           // Pre-define typed adapter configurations with full type inference
           // Model is passed to the adapter factory function for type-safe autocomplete
           const adapterConfig = {
             anthropic: () =>
               createSummarizeOptions({
-                adapter: anthropicSummarize(
-                  (model || 'claude-sonnet-4-5') as any,
-                ),
+                adapter: anthropicSummarize(actualModel as any),
               }),
             gemini: () =>
               createSummarizeOptions({
-                adapter: geminiSummarize((model || 'gemini-2.0-flash') as any),
+                adapter: geminiSummarize(actualModel as any),
+              }),
+            grok: () =>
+              createSummarizeOptions({
+                adapter: grokSummarize(actualModel as any),
               }),
             ollama: () =>
               createSummarizeOptions({
-                adapter: ollamaSummarize(model || 'mistral:7b'),
+                adapter: ollamaSummarize(actualModel),
               }),
             openai: () =>
               createSummarizeOptions({
-                adapter: openaiSummarize(model || 'gpt-4o-mini'),
+                adapter: openaiSummarize(actualModel as any),
+              }),
+            openrouter: () =>
+              createSummarizeOptions({
+                adapter: openRouterSummarize(actualModel as any),
               }),
           }
 
@@ -50,7 +78,7 @@ export const Route = createFileRoute('/api/summarize')({
           const options = adapterConfig[provider]()
 
           console.log(
-            `>> summarize with model: ${model} on provider: ${provider} (stream: ${stream})`,
+            `>> summarize with model: ${actualModel} on provider: ${provider} (stream: ${stream})`,
           )
 
           if (stream) {
@@ -73,7 +101,7 @@ export const Route = createFileRoute('/api/summarize')({
                       delta: 'delta' in chunk ? chunk.delta : undefined,
                       content: 'content' in chunk ? chunk.content : undefined,
                       provider,
-                      model,
+                      model: ('model' in chunk && chunk.model) || actualModel,
                     })
                     controller.enqueue(encoder.encode(`data: ${data}\n\n`))
                   }
@@ -113,7 +141,7 @@ export const Route = createFileRoute('/api/summarize')({
             JSON.stringify({
               summary: result.summary,
               provider,
-              model,
+              model: result.model || actualModel,
             }),
             {
               status: 200,

@@ -124,6 +124,10 @@ export function createChat<TTools extends ReadonlyArray<AnyClientTool> = any>(
     await client.addToolApprovalResponse(response)
   }
 
+  const updateBody = (newBody: Record<string, any>) => {
+    client.updateOptions({ body: newBody })
+  }
+
   // Return the chat interface with reactive getters
   // Using getters allows Svelte to track reactivity without needing $ prefix
   return {
@@ -147,5 +151,6 @@ export function createChat<TTools extends ReadonlyArray<AnyClientTool> = any>(
     clear,
     addToolResult,
     addToolApprovalResponse,
+    updateBody,
   }
 }

@@ -1,20 +1,22 @@
 import { isStandardSchema, parseWithStandardSchema } from './schema-converter'
 import type {
-  DoneStreamChunk,
   ModelMessage,
+  RunFinishedEvent,
   Tool,
   ToolCall,
-  ToolResultStreamChunk,
+  ToolCallArgsEvent,
+  ToolCallEndEvent,
+  ToolCallStartEvent,
 } from '../../../types'
 
 /**
  * Manages tool call accumulation and execution for the chat() method's automatic tool execution loop.
  *
  * Responsibilities:
- * - Accumulates streaming tool call chunks (ID, name, arguments)
+ * - Accumulates streaming tool call events (ID, name, arguments)
  * - Validates tool calls (filters out incomplete ones)
  * - Executes tool `execute` functions with parsed arguments
- * - Emits `tool_result` chunks for client visibility
+ * - Emits `TOOL_CALL_END` events for client visibility
  * - Returns tool result messages for conversation history
  *
  * This class is used internally by the AI.chat() method to handle the automatic
@@ -26,14 +28,16 @@ import type {
  *
  * // During streaming, accumulate tool calls
  * for await (const chunk of stream) {
- *   if (chunk.type === "tool_call") {
- *     manager.addToolCallChunk(chunk);
+ *   if (chunk.type === 'TOOL_CALL_START') {
+ *     manager.addToolCallStartEvent(chunk);
+ *   } else if (chunk.type === 'TOOL_CALL_ARGS') {
+ *     manager.addToolCallArgsEvent(chunk);
  *   }
  * }
  *
  * // After stream completes, execute tools
  * if (manager.hasToolCalls()) {
- *   const toolResults = yield* manager.executeTools(doneChunk);
+ *   const toolResults = yield* manager.executeTools(finishEvent);
  *   messages = [...messages, ...toolResults];
  *   manager.clear();
  * }
@@ -48,43 +52,44 @@ export class ToolCallManager {
   }
 
   /**
-   * Add a tool call chunk to the accumulator
-   * Handles streaming tool calls by accumulating arguments
+   * Add a TOOL_CALL_START event to begin tracking a tool call (AG-UI)
    */
-  addToolCallChunk(chunk: {
-    toolCall: {
-      id: string
-      type: 'function'
+  addToolCallStartEvent(event: ToolCallStartEvent): void {
+    const index = event.index ?? this.toolCallsMap.size
+    this.toolCallsMap.set(index, {
+      id: event.toolCallId,
+      type: 'function',
       function: {
-        name: string
-        arguments: string
+        name: event.toolName,
+        arguments: '',
+      },
+    })
+  }
+
+  /**
+   * Add a TOOL_CALL_ARGS event to accumulate arguments (AG-UI)
+   */
+  addToolCallArgsEvent(event: ToolCallArgsEvent): void {
+    // Find the tool call by ID
+    for (const [, toolCall] of this.toolCallsMap.entries()) {
+      if (toolCall.id === event.toolCallId) {
+        toolCall.function.arguments += event.delta
+        break
       }
     }
-    index: number
-  }): void {
-    const index = chunk.index
-    const existing = this.toolCallsMap.get(index)
+  }
 
-    if (!existing) {
-      // Only create entry if we have a tool call ID and name
-      if (chunk.toolCall.id && chunk.toolCall.function.name) {
-        this.toolCallsMap.set(index, {
-          id: chunk.toolCall.id,
-          type: 'function',
-          function: {
-            name: chunk.toolCall.function.name,
-            arguments: chunk.toolCall.function.arguments || '',
-          },
-        })
-      }
-    } else {
-      // Update name if it wasn't set before
-      if (chunk.toolCall.function.name && !existing.function.name) {
-        existing.function.name = chunk.toolCall.function.name
-      }
-      // Accumulate arguments for streaming tool calls
-      if (chunk.toolCall.function.arguments) {
-        existing.function.arguments += chunk.toolCall.function.arguments
+  /**
+   * Complete a tool call with its final input
+   * Called when TOOL_CALL_END is received
+   */
+  completeToolCall(event: ToolCallEndEvent): void {
+    for (const [, toolCall] of this.toolCallsMap.entries()) {
+      if (toolCall.id === event.toolCallId) {
+        if (event.input !== undefined) {
+          toolCall.function.arguments = JSON.stringify(event.input)
+        }
+        break
       }
     }
   }
@@ -107,11 +112,12 @@ export class ToolCallManager {
 
   /**
    * Execute all tool calls and return tool result messages
-   * Also yields tool_result chunks for streaming
+   * Yields TOOL_CALL_END events for streaming
+   * @param finishEvent - RUN_FINISHED event from the stream
    */
   async *executeTools(
-    doneChunk: DoneStreamChunk,
-  ): AsyncGenerator<ToolResultStreamChunk, Array<ModelMessage>, void> {
+    finishEvent: RunFinishedEvent,
+  ): AsyncGenerator<ToolCallEndEvent, Array<ModelMessage>, void> {
     const toolCallsArray = this.getToolCalls()
     const toolResults: Array<ModelMessage> = []
 
@@ -182,14 +188,14 @@ export class ToolCallManager {
         toolResultContent = `Tool ${toolCall.function.name} does not have an execute function`
       }
 
-      // Emit tool_result chunk so callers can track tool execution
+      // Emit TOOL_CALL_END event
       yield {
-        type: 'tool_result',
-        id: doneChunk.id,
-        model: doneChunk.model,
-        timestamp: Date.now(),
+        type: 'TOOL_CALL_END',
         toolCallId: toolCall.id,
-        content: toolResultContent,
+        toolName: toolCall.function.name,
+        model: finishEvent.model,
+        timestamp: Date.now(),
+        result: toolResultContent,
       }
 
       // Add tool result message

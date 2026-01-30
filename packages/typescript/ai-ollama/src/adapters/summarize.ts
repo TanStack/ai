@@ -126,13 +126,12 @@ export class OllamaSummarizeAdapter<
       if (chunk.response) {
         accumulatedContent += chunk.response
         yield {
-          type: 'content',
-          id,
+          type: 'TEXT_MESSAGE_CONTENT',
+          messageId: id,
           model: chunk.model,
           timestamp: Date.now(),
           delta: chunk.response,
           content: accumulatedContent,
-          role: 'assistant',
         }
       }
 
@@ -140,8 +139,8 @@ export class OllamaSummarizeAdapter<
         const promptTokens = estimateTokens(prompt)
         const completionTokens = estimateTokens(accumulatedContent)
         yield {
-          type: 'done',
-          id,
+          type: 'RUN_FINISHED',
+          runId: id,
           model: chunk.model,
           timestamp: Date.now(),
           finishReason: 'stop',

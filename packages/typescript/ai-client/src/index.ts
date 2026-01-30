@@ -52,7 +52,6 @@ export {
   defaultJSONParser,
   type ChunkStrategy,
   type StreamProcessorOptions,
-  type StreamProcessorHandlers,
   type StreamProcessorEvents,
   type InternalToolCallState,
   type ToolCallState,

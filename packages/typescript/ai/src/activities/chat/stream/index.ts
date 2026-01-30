@@ -6,11 +6,7 @@
 
 // Core processor
 export { StreamProcessor, createReplayStream } from './processor'
-export type {
-  StreamProcessorEvents,
-  StreamProcessorHandlers,
-  StreamProcessorOptions,
-} from './processor'
+export type { StreamProcessorEvents, StreamProcessorOptions } from './processor'
 
 // Strategies
 export {

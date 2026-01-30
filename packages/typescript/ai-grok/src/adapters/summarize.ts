@@ -51,7 +51,7 @@ export class GrokSummarizeAdapter<
 
     // Use the text adapter's streaming and collect the result
     let summary = ''
-    let id = ''
+    const id = ''
     let model = options.model
     let usage = { promptTokens: 0, completionTokens: 0, totalTokens: 0 }
 
@@ -62,13 +62,20 @@ export class GrokSummarizeAdapter<
       maxTokens: options.maxLength,
       temperature: 0.3,
     })) {
-      if (chunk.type === 'content') {
-        summary = chunk.content
-        id = chunk.id
-        model = chunk.model
+      // AG-UI TEXT_MESSAGE_CONTENT event
+      if (chunk.type === 'TEXT_MESSAGE_CONTENT') {
+        if (chunk.content) {
+          summary = chunk.content
+        } else {
+          summary += chunk.delta
+        }
+        model = chunk.model || model
       }
-      if (chunk.type === 'done' && chunk.usage) {
-        usage = chunk.usage
+      // AG-UI RUN_FINISHED event
+      if (chunk.type === 'RUN_FINISHED') {
+        if (chunk.usage) {
+          usage = chunk.usage
+        }
       }
     }
 
