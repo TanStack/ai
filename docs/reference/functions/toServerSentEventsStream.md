@@ -22,7 +22,7 @@ This creates a ReadableStream that emits chunks in SSE format:
 
 ### stream
 
-`AsyncIterable`\<[`StreamChunk`](../type-aliases/StreamChunk.md)\>
+`AsyncIterable`\<[`AGUIEvent`](../type-aliases/AGUIEvent.md)\>
 
 AsyncIterable of StreamChunks from chat()
 

@@ -73,7 +73,7 @@ providerOptions: TProviderOptions;
 ### chatStream()
 
 ```ts
-chatStream: (options) => AsyncIterable<StreamChunk>;
+chatStream: (options) => AsyncIterable<AGUIEvent>;
 ```
 
 Defined in: [activities/chat/adapter.ts:77](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/activities/chat/adapter.ts#L77)
@@ -88,7 +88,7 @@ Stream text completions from the model
 
 #### Returns
 
-`AsyncIterable`\<[`StreamChunk`](../type-aliases/StreamChunk.md)\>
+`AsyncIterable`\<[`AGUIEvent`](../type-aliases/AGUIEvent.md)\>
 
 ***
 
