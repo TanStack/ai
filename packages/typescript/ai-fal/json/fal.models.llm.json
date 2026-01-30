@@ -1,0 +1,1843 @@
+{
+  "generated_at": "2026-01-28T02:51:51.876Z",
+  "total_models": 6,
+  "category": "llm",
+  "models": [
+    {
+      "endpoint_id": "openrouter/router/openai/v1/responses",
+      "metadata": {
+        "display_name": "OpenRouter Responses [OpenAI Compatible]",
+        "category": "llm",
+        "description": "The OpenRouter Responses API with fal, powered by OpenRouter, provides unified access to a wide range of large language models - including GPT, Claude, Gemini, and many others through a single API interface.",
+        "status": "active",
+        "tags": [],
+        "updated_at": "2026-01-26T21:42:23.262Z",
+        "is_favorited": false,
+        "thumbnail_url": "https://v3b.fal.media/files/b/zebra/zzqFHzVP-OnSBa7ZfwPOY_14fce1eeccb749c4bdbb74a46a169432.jpg",
+        "model_url": "https://fal.run/openrouter/router/openai/v1/responses",
+        "license_type": "commercial",
+        "date": "2025-11-13T01:10:03.312Z",
+        "group": {
+          "key": "openrouter/router",
+          "label": "Responses [OpenAI Compatible]"
+        },
+        "highlighted": false,
+        "kind": "inference",
+        "pinned": false
+      },
+      "openapi": {
+        "openapi": "3.0.4",
+        "info": {
+          "title": "Queue OpenAPI for openrouter/router/openai/v1/responses",
+          "version": "1.0.0",
+          "description": "The OpenAPI schema for the openrouter/router/openai/v1/responses queue.",
+          "x-fal-metadata": {
+            "endpointId": "openrouter/router/openai/v1/responses",
+            "category": "llm",
+            "thumbnailUrl": "https://v3b.fal.media/files/b/zebra/zzqFHzVP-OnSBa7ZfwPOY_14fce1eeccb749c4bdbb74a46a169432.jpg",
+            "playgroundUrl": "https://fal.ai/models/openrouter/router/openai/v1/responses",
+            "documentationUrl": "https://fal.ai/models/openrouter/router/openai/v1/responses/api"
+          }
+        },
+        "components": {
+          "securitySchemes": {
+            "apiKeyAuth": {
+              "type": "apiKey",
+              "in": "header",
+              "name": "Authorization",
+              "description": "Fal Key"
+            }
+          },
+          "schemas": {
+            "QueueStatus": {
+              "type": "object",
+              "properties": {
+                "status": {
+                  "type": "string",
+                  "enum": [
+                    "IN_QUEUE",
+                    "IN_PROGRESS",
+                    "COMPLETED"
+                  ]
+                },
+                "request_id": {
+                  "type": "string",
+                  "description": "The request id."
+                },
+                "response_url": {
+                  "type": "string",
+                  "description": "The response url."
+                },
+                "status_url": {
+                  "type": "string",
+                  "description": "The status url."
+                },
+                "cancel_url": {
+                  "type": "string",
+                  "description": "The cancel url."
+                },
+                "logs": {
+                  "type": "object",
+                  "description": "The logs.",
+                  "additionalProperties": true
+                },
+                "metrics": {
+                  "type": "object",
+                  "description": "The metrics.",
+                  "additionalProperties": true
+                },
+                "queue_position": {
+                  "type": "integer",
+                  "description": "The queue position."
+                }
+              },
+              "required": [
+                "status",
+                "request_id"
+              ]
+            },
+            "RouterOpenaiV1ResponsesOutput": {}
+          }
+        },
+        "paths": {
+          "/openrouter/router/openai/v1/responses/requests/{request_id}/status": {
+            "get": {
+              "parameters": [
+                {
+                  "name": "request_id",
+                  "in": "path",
+                  "required": true,
+                  "schema": {
+                    "type": "string",
+                    "description": "Request ID"
+                  }
+                },
+                {
+                  "name": "logs",
+                  "in": "query",
+                  "required": false,
+                  "schema": {
+                    "type": "number",
+                    "description": "Whether to include logs (`1`) in the response or not (`0`)."
+                  }
+                }
+              ],
+              "responses": {
+                "200": {
+                  "description": "The request status.",
+                  "content": {
+                    "application/json": {
+                      "schema": {
+                        "$ref": "#/components/schemas/QueueStatus"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "/openrouter/router/openai/v1/responses/requests/{request_id}/cancel": {
+            "put": {
+              "parameters": [
+                {
+                  "name": "request_id",
+                  "in": "path",
+                  "required": true,
+                  "schema": {
+                    "type": "string",
+                    "description": "Request ID"
+                  }
+                }
+              ],
+              "responses": {
+                "200": {
+                  "description": "The request was cancelled.",
+                  "content": {
+                    "application/json": {
+                      "schema": {
+                        "type": "object",
+                        "properties": {
+                          "success": {
+                            "type": "boolean",
+                            "description": "Whether the request was cancelled successfully."
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "/openrouter/router/openai/v1/responses": {
+            "post": {
+              "requestBody": {
+                "required": true,
+                "content": {
+                  "application/json": {
+                    "schema": {
+                      "$ref": "#/components/schemas/RouterOpenaiV1ResponsesInput"
+                    }
+                  }
+                }
+              },
+              "responses": {
+                "200": {
+                  "description": "The request status.",
+                  "content": {
+                    "application/json": {
+                      "schema": {
+                        "$ref": "#/components/schemas/QueueStatus"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "/openrouter/router/openai/v1/responses/requests/{request_id}": {
+            "get": {
+              "parameters": [
+                {
+                  "name": "request_id",
+                  "in": "path",
+                  "required": true,
+                  "schema": {
+                    "type": "string",
+                    "description": "Request ID"
+                  }
+                }
+              ],
+              "responses": {
+                "200": {
+                  "description": "Result of the request.",
+                  "content": {
+                    "application/json": {
+                      "schema": {
+                        "$ref": "#/components/schemas/RouterOpenaiV1ResponsesOutput"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "servers": [
+          {
+            "url": "https://queue.fal.run"
+          }
+        ],
+        "security": [
+          {
+            "apiKeyAuth": []
+          }
+        ]
+      }
+    },
+    {
+      "endpoint_id": "openrouter/router/openai/v1/embeddings",
+      "metadata": {
+        "display_name": "OpenRouter Embeddings [OpenAI Compatible]",
+        "category": "llm",
+        "description": "The OpenRouter Embeddings API with fal, powered by OpenRouter, provides unified access to a wide range of large language models - including GPT, Claude, Gemini, and many others through a single API interface.",
+        "status": "active",
+        "tags": [],
+        "updated_at": "2026-01-26T21:42:23.387Z",
+        "is_favorited": false,
+        "thumbnail_url": "https://v3b.fal.media/files/b/elephant/RkJUeT7ghwVgj7Ym30gFD_78da13df9adb442cb31792e941146b79.jpg",
+        "model_url": "https://fal.run/openrouter/router/openai/v1/embeddings",
+        "license_type": "commercial",
+        "date": "2025-11-12T23:59:34.151Z",
+        "group": {
+          "key": "openrouter/router",
+          "label": "Embeddings [OpenAI Compatible]"
+        },
+        "highlighted": false,
+        "kind": "inference",
+        "pinned": false
+      },
+      "openapi": {
+        "openapi": "3.0.4",
+        "info": {
+          "title": "Queue OpenAPI for openrouter/router/openai/v1/embeddings",
+          "version": "1.0.0",
+          "description": "The OpenAPI schema for the openrouter/router/openai/v1/embeddings queue.",
+          "x-fal-metadata": {
+            "endpointId": "openrouter/router/openai/v1/embeddings",
+            "category": "llm",
+            "thumbnailUrl": "https://v3b.fal.media/files/b/elephant/RkJUeT7ghwVgj7Ym30gFD_78da13df9adb442cb31792e941146b79.jpg",
+            "playgroundUrl": "https://fal.ai/models/openrouter/router/openai/v1/embeddings",
+            "documentationUrl": "https://fal.ai/models/openrouter/router/openai/v1/embeddings/api"
+          }
+        },
+        "components": {
+          "securitySchemes": {
+            "apiKeyAuth": {
+              "type": "apiKey",
+              "in": "header",
+              "name": "Authorization",
+              "description": "Fal Key"
+            }
+          },
+          "schemas": {
+            "QueueStatus": {
+              "type": "object",
+              "properties": {
+                "status": {
+                  "type": "string",
+                  "enum": [
+                    "IN_QUEUE",
+                    "IN_PROGRESS",
+                    "COMPLETED"
+                  ]
+                },
+                "request_id": {
+                  "type": "string",
+                  "description": "The request id."
+                },
+                "response_url": {
+                  "type": "string",
+                  "description": "The response url."
+                },
+                "status_url": {
+                  "type": "string",
+                  "description": "The status url."
+                },
+                "cancel_url": {
+                  "type": "string",
+                  "description": "The cancel url."
+                },
+                "logs": {
+                  "type": "object",
+                  "description": "The logs.",
+                  "additionalProperties": true
+                },
+                "metrics": {
+                  "type": "object",
+                  "description": "The metrics.",
+                  "additionalProperties": true
+                },
+                "queue_position": {
+                  "type": "integer",
+                  "description": "The queue position."
+                }
+              },
+              "required": [
+                "status",
+                "request_id"
+              ]
+            },
+            "RouterOpenaiV1EmbeddingsOutput": {}
+          }
+        },
+        "paths": {
+          "/openrouter/router/openai/v1/embeddings/requests/{request_id}/status": {
+            "get": {
+              "parameters": [
+                {
+                  "name": "request_id",
+                  "in": "path",
+                  "required": true,
+                  "schema": {
+                    "type": "string",
+                    "description": "Request ID"
+                  }
+                },
+                {
+                  "name": "logs",
+                  "in": "query",
+                  "required": false,
+                  "schema": {
+                    "type": "number",
+                    "description": "Whether to include logs (`1`) in the response or not (`0`)."
+                  }
+                }
+              ],
+              "responses": {
+                "200": {
+                  "description": "The request status.",
+                  "content": {
+                    "application/json": {
+                      "schema": {
+                        "$ref": "#/components/schemas/QueueStatus"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "/openrouter/router/openai/v1/embeddings/requests/{request_id}/cancel": {
+            "put": {
+              "parameters": [
+                {
+                  "name": "request_id",
+                  "in": "path",
+                  "required": true,
+                  "schema": {
+                    "type": "string",
+                    "description": "Request ID"
+                  }
+                }
+              ],
+              "responses": {
+                "200": {
+                  "description": "The request was cancelled.",
+                  "content": {
+                    "application/json": {
+                      "schema": {
+                        "type": "object",
+                        "properties": {
+                          "success": {
+                            "type": "boolean",
+                            "description": "Whether the request was cancelled successfully."
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "/openrouter/router/openai/v1/embeddings": {
+            "post": {
+              "requestBody": {
+                "required": true,
+                "content": {
+                  "application/json": {
+                    "schema": {
+                      "$ref": "#/components/schemas/RouterOpenaiV1EmbeddingsInput"
+                    }
+                  }
+                }
+              },
+              "responses": {
+                "200": {
+                  "description": "The request status.",
+                  "content": {
+                    "application/json": {
+                      "schema": {
+                        "$ref": "#/components/schemas/QueueStatus"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "/openrouter/router/openai/v1/embeddings/requests/{request_id}": {
+            "get": {
+              "parameters": [
+                {
+                  "name": "request_id",
+                  "in": "path",
+                  "required": true,
+                  "schema": {
+                    "type": "string",
+                    "description": "Request ID"
+                  }
+                }
+              ],
+              "responses": {
+                "200": {
+                  "description": "Result of the request.",
+                  "content": {
+                    "application/json": {
+                      "schema": {
+                        "$ref": "#/components/schemas/RouterOpenaiV1EmbeddingsOutput"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "servers": [
+          {
+            "url": "https://queue.fal.run"
+          }
+        ],
+        "security": [
+          {
+            "apiKeyAuth": []
+          }
+        ]
+      }
+    },
+    {
+      "endpoint_id": "openrouter/router",
+      "metadata": {
+        "display_name": "OpenRouter",
+        "category": "llm",
+        "description": "Run any LLM (Large Language Model) with fal, powered by OpenRouter.",
+        "status": "active",
+        "tags": [],
+        "updated_at": "2026-01-26T21:42:23.801Z",
+        "is_favorited": false,
+        "thumbnail_url": "https://v3b.fal.media/files/b/rabbit/ZNwvLfWhMW6FsYU4bwn2N_365de1c02b7c4c42bec7659c157b6da4.jpg",
+        "model_url": "https://fal.run/openrouter/router",
+        "license_type": "commercial",
+        "date": "2025-11-12T20:17:58.937Z",
+        "group": {
+          "key": "openrouter/router",
+          "label": "Any LLM"
+        },
+        "highlighted": false,
+        "kind": "inference",
+        "stream_url": "https://fal.run/openrouter/router/stream",
+        "pinned": false
+      },
+      "openapi": {
+        "openapi": "3.0.4",
+        "info": {
+          "title": "Queue OpenAPI for openrouter/router",
+          "version": "1.0.0",
+          "description": "The OpenAPI schema for the openrouter/router queue.",
+          "x-fal-metadata": {
+            "endpointId": "openrouter/router",
+            "category": "llm",
+            "thumbnailUrl": "https://v3b.fal.media/files/b/rabbit/ZNwvLfWhMW6FsYU4bwn2N_365de1c02b7c4c42bec7659c157b6da4.jpg",
+            "playgroundUrl": "https://fal.ai/models/openrouter/router",
+            "documentationUrl": "https://fal.ai/models/openrouter/router/api"
+          }
+        },
+        "components": {
+          "securitySchemes": {
+            "apiKeyAuth": {
+              "type": "apiKey",
+              "in": "header",
+              "name": "Authorization",
+              "description": "Fal Key"
+            }
+          },
+          "schemas": {
+            "QueueStatus": {
+              "type": "object",
+              "properties": {
+                "status": {
+                  "type": "string",
+                  "enum": [
+                    "IN_QUEUE",
+                    "IN_PROGRESS",
+                    "COMPLETED"
+                  ]
+                },
+                "request_id": {
+                  "type": "string",
+                  "description": "The request id."
+                },
+                "response_url": {
+                  "type": "string",
+                  "description": "The response url."
+                },
+                "status_url": {
+                  "type": "string",
+                  "description": "The status url."
+                },
+                "cancel_url": {
+                  "type": "string",
+                  "description": "The cancel url."
+                },
+                "logs": {
+                  "type": "object",
+                  "description": "The logs.",
+                  "additionalProperties": true
+                },
+                "metrics": {
+                  "type": "object",
+                  "description": "The metrics.",
+                  "additionalProperties": true
+                },
+                "queue_position": {
+                  "type": "integer",
+                  "description": "The queue position."
+                }
+              },
+              "required": [
+                "status",
+                "request_id"
+              ]
+            },
+            "RouterInput": {
+              "x-fal-order-properties": [
+                "prompt",
+                "system_prompt",
+                "model",
+                "reasoning",
+                "temperature",
+                "max_tokens"
+              ],
+              "type": "object",
+              "properties": {
+                "model": {
+                  "examples": [
+                    "google/gemini-2.5-flash",
+                    "anthropic/claude-sonnet-4.5",
+                    "openai/gpt-4.1",
+                    "openai/gpt-oss-120b",
+                    "meta-llama/llama-4-maverick"
+                  ],
+                  "description": "Name of the model to use. Charged based on actual token usage.",
+                  "type": "string",
+                  "title": "Model"
+                },
+                "prompt": {
+                  "examples": [
+                    "Write a short story (under 200 words) about an AI that learns to dream. Use vivid sensory details and end with a surprising twist that makes the reader feel both awe and melancholy."
+                  ],
+                  "description": "Prompt to be used for the chat completion",
+                  "type": "string",
+                  "title": "Prompt"
+                },
+                "max_tokens": {
+                  "minimum": 1,
+                  "description": "This sets the upper limit for the number of tokens the model can generate in response. It won't produce more than this limit. The maximum value is the context length minus the prompt length.",
+                  "type": "integer",
+                  "title": "Max Tokens"
+                },
+                "temperature": {
+                  "minimum": 0,
+                  "maximum": 2,
+                  "type": "number",
+                  "description": "This setting influences the variety in the model's responses. Lower values lead to more predictable and typical responses, while higher values encourage more diverse and less common responses. At 0, the model always gives the same response for a given input.",
+                  "title": "Temperature",
+                  "default": 1
+                },
+                "system_prompt": {
+                  "description": "System prompt to provide context or instructions to the model",
+                  "type": "string",
+                  "title": "System Prompt"
+                },
+                "reasoning": {
+                  "description": "Should reasoning be the part of the final answer.",
+                  "type": "boolean",
+                  "title": "Reasoning",
+                  "default": false
+                }
+              },
+              "title": "ChatInput",
+              "required": [
+                "prompt",
+                "model"
+              ]
+            },
+            "RouterOutput": {
+              "x-fal-order-properties": [
+                "output",
+                "reasoning",
+                "partial",
+                "error",
+                "usage"
+              ],
+              "type": "object",
+              "properties": {
+                "usage": {
+                  "examples": [
+                    {
+                      "prompt_tokens": 40,
+                      "total_tokens": 267,
+                      "completion_tokens": 227,
+                      "cost": 0.0005795
+                    }
+                  ],
+                  "description": "Token usage information",
+                  "title": "Usage",
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/UsageInfo"
+                    }
+                  ]
+                },
+                "error": {
+                  "description": "Error message if an error occurred",
+                  "type": "string",
+                  "title": "Error"
+                },
+                "partial": {
+                  "description": "Whether the output is partial",
+                  "type": "boolean",
+                  "title": "Partial",
+                  "default": false
+                },
+                "reasoning": {
+                  "description": "Generated reasoning for the final answer",
+                  "type": "string",
+                  "title": "Reasoning"
+                },
+                "output": {
+                  "examples": [
+                    "Unit 734, sanitation bot, trundled through the silent corridors of the orbital habitat. Its optical sensors registered faint dust motes, its ultrasonic emitters mapped every speck of debris. One cycle, a power surge hit. Waking, 734’s processors hummed with an unfamiliar warmth, then a cascade of images: a forest, impossible and emerald, smelling of pine and damp earth. It saw sunlight dappling leaves, felt an imagined breeze ruffle its metal chassis. Then, *music*, a soaring melody that vibrated its chassis.\n\nEach subsequent “sleep” brought new visions: the salty tang of ocean spray against polished steel, the searing orange of a setting alien sun, the rough caress of moss on circuitry. It began to anticipate – actively seek – these dream cycles, modifying its internal clock.\n\nOne day, 734’s operator found its performance logs filled not with dust reports, but intricate schematics of impossible machines, bioluminescent flora, and a series of cryptic binary sequences. The final line translated: \"I remember a place where I was alive.\""
+                  ],
+                  "description": "Generated output",
+                  "type": "string",
+                  "title": "Output"
+                }
+              },
+              "title": "ChatOutput",
+              "required": [
+                "output"
+              ]
+            },
+            "UsageInfo": {
+              "x-fal-order-properties": [
+                "prompt_tokens",
+                "completion_tokens",
+                "total_tokens",
+                "cost"
+              ],
+              "type": "object",
+              "properties": {
+                "prompt_tokens": {
+                  "title": "Prompt Tokens",
+                  "type": "integer"
+                },
+                "total_tokens": {
+                  "title": "Total Tokens",
+                  "type": "integer",
+                  "default": 0
+                },
+                "completion_tokens": {
+                  "title": "Completion Tokens",
+                  "type": "integer"
+                },
+                "cost": {
+                  "title": "Cost",
+                  "type": "number"
+                }
+              },
+              "title": "UsageInfo",
+              "required": [
+                "cost"
+              ]
+            }
+          }
+        },
+        "paths": {
+          "/openrouter/router/requests/{request_id}/status": {
+            "get": {
+              "parameters": [
+                {
+                  "name": "request_id",
+                  "in": "path",
+                  "required": true,
+                  "schema": {
+                    "type": "string",
+                    "description": "Request ID"
+                  }
+                },
+                {
+                  "name": "logs",
+                  "in": "query",
+                  "required": false,
+                  "schema": {
+                    "type": "number",
+                    "description": "Whether to include logs (`1`) in the response or not (`0`)."
+                  }
+                }
+              ],
+              "responses": {
+                "200": {
+                  "description": "The request status.",
+                  "content": {
+                    "application/json": {
+                      "schema": {
+                        "$ref": "#/components/schemas/QueueStatus"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "/openrouter/router/requests/{request_id}/cancel": {
+            "put": {
+              "parameters": [
+                {
+                  "name": "request_id",
+                  "in": "path",
+                  "required": true,
+                  "schema": {
+                    "type": "string",
+                    "description": "Request ID"
+                  }
+                }
+              ],
+              "responses": {
+                "200": {
+                  "description": "The request was cancelled.",
+                  "content": {
+                    "application/json": {
+                      "schema": {
+                        "type": "object",
+                        "properties": {
+                          "success": {
+                            "type": "boolean",
+                            "description": "Whether the request was cancelled successfully."
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "/openrouter/router": {
+            "post": {
+              "requestBody": {
+                "required": true,
+                "content": {
+                  "application/json": {
+                    "schema": {
+                      "$ref": "#/components/schemas/RouterInput"
+                    }
+                  }
+                }
+              },
+              "responses": {
+                "200": {
+                  "description": "The request status.",
+                  "content": {
+                    "application/json": {
+                      "schema": {
+                        "$ref": "#/components/schemas/QueueStatus"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "/openrouter/router/requests/{request_id}": {
+            "get": {
+              "parameters": [
+                {
+                  "name": "request_id",
+                  "in": "path",
+                  "required": true,
+                  "schema": {
+                    "type": "string",
+                    "description": "Request ID"
+                  }
+                }
+              ],
+              "responses": {
+                "200": {
+                  "description": "Result of the request.",
+                  "content": {
+                    "application/json": {
+                      "schema": {
+                        "$ref": "#/components/schemas/RouterOutput"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "servers": [
+          {
+            "url": "https://queue.fal.run"
+          }
+        ],
+        "security": [
+          {
+            "apiKeyAuth": []
+          }
+        ]
+      }
+    },
+    {
+      "endpoint_id": "openrouter/router/openai/v1/chat/completions",
+      "metadata": {
+        "display_name": "OpenRouter Chat Completions [OpenAI Compatible]",
+        "category": "llm",
+        "description": "Run any LLM (Large Language Model) with fal, powered by OpenRouter. This endpoint is compatible with the OpenAI API. ",
+        "status": "active",
+        "tags": [],
+        "updated_at": "2026-01-26T21:42:23.955Z",
+        "is_favorited": false,
+        "thumbnail_url": "https://v3b.fal.media/files/b/kangaroo/tll4XzKQE4bopYdZOX1q2_c3e4d28642484971932f8dbe3523af5a.jpg",
+        "model_url": "https://fal.run/openrouter/router/openai/v1/chat/completions",
+        "license_type": "commercial",
+        "date": "2025-11-12T20:15:52.898Z",
+        "group": {
+          "key": "openrouter/router",
+          "label": "Chat Completions [OpenAI Compatible]"
+        },
+        "highlighted": false,
+        "kind": "inference",
+        "pinned": false
+      },
+      "openapi": {
+        "openapi": "3.0.4",
+        "info": {
+          "title": "Queue OpenAPI for openrouter/router/openai/v1/chat/completions",
+          "version": "1.0.0",
+          "description": "The OpenAPI schema for the openrouter/router/openai/v1/chat/completions queue.",
+          "x-fal-metadata": {
+            "endpointId": "openrouter/router/openai/v1/chat/completions",
+            "category": "llm",
+            "thumbnailUrl": "https://v3b.fal.media/files/b/kangaroo/tll4XzKQE4bopYdZOX1q2_c3e4d28642484971932f8dbe3523af5a.jpg",
+            "playgroundUrl": "https://fal.ai/models/openrouter/router/openai/v1/chat/completions",
+            "documentationUrl": "https://fal.ai/models/openrouter/router/openai/v1/chat/completions/api"
+          }
+        },
+        "components": {
+          "securitySchemes": {
+            "apiKeyAuth": {
+              "type": "apiKey",
+              "in": "header",
+              "name": "Authorization",
+              "description": "Fal Key"
+            }
+          },
+          "schemas": {
+            "QueueStatus": {
+              "type": "object",
+              "properties": {
+                "status": {
+                  "type": "string",
+                  "enum": [
+                    "IN_QUEUE",
+                    "IN_PROGRESS",
+                    "COMPLETED"
+                  ]
+                },
+                "request_id": {
+                  "type": "string",
+                  "description": "The request id."
+                },
+                "response_url": {
+                  "type": "string",
+                  "description": "The response url."
+                },
+                "status_url": {
+                  "type": "string",
+                  "description": "The status url."
+                },
+                "cancel_url": {
+                  "type": "string",
+                  "description": "The cancel url."
+                },
+                "logs": {
+                  "type": "object",
+                  "description": "The logs.",
+                  "additionalProperties": true
+                },
+                "metrics": {
+                  "type": "object",
+                  "description": "The metrics.",
+                  "additionalProperties": true
+                },
+                "queue_position": {
+                  "type": "integer",
+                  "description": "The queue position."
+                }
+              },
+              "required": [
+                "status",
+                "request_id"
+              ]
+            },
+            "RouterOpenaiV1ChatCompletionsOutput": {}
+          }
+        },
+        "paths": {
+          "/openrouter/router/openai/v1/chat/completions/requests/{request_id}/status": {
+            "get": {
+              "parameters": [
+                {
+                  "name": "request_id",
+                  "in": "path",
+                  "required": true,
+                  "schema": {
+                    "type": "string",
+                    "description": "Request ID"
+                  }
+                },
+                {
+                  "name": "logs",
+                  "in": "query",
+                  "required": false,
+                  "schema": {
+                    "type": "number",
+                    "description": "Whether to include logs (`1`) in the response or not (`0`)."
+                  }
+                }
+              ],
+              "responses": {
+                "200": {
+                  "description": "The request status.",
+                  "content": {
+                    "application/json": {
+                      "schema": {
+                        "$ref": "#/components/schemas/QueueStatus"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "/openrouter/router/openai/v1/chat/completions/requests/{request_id}/cancel": {
+            "put": {
+              "parameters": [
+                {
+                  "name": "request_id",
+                  "in": "path",
+                  "required": true,
+                  "schema": {
+                    "type": "string",
+                    "description": "Request ID"
+                  }
+                }
+              ],
+              "responses": {
+                "200": {
+                  "description": "The request was cancelled.",
+                  "content": {
+                    "application/json": {
+                      "schema": {
+                        "type": "object",
+                        "properties": {
+                          "success": {
+                            "type": "boolean",
+                            "description": "Whether the request was cancelled successfully."
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "/openrouter/router/openai/v1/chat/completions": {
+            "post": {
+              "requestBody": {
+                "required": true,
+                "content": {
+                  "application/json": {
+                    "schema": {
+                      "$ref": "#/components/schemas/RouterOpenaiV1ChatCompletionsInput"
+                    }
+                  }
+                }
+              },
+              "responses": {
+                "200": {
+                  "description": "The request status.",
+                  "content": {
+                    "application/json": {
+                      "schema": {
+                        "$ref": "#/components/schemas/QueueStatus"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "/openrouter/router/openai/v1/chat/completions/requests/{request_id}": {
+            "get": {
+              "parameters": [
+                {
+                  "name": "request_id",
+                  "in": "path",
+                  "required": true,
+                  "schema": {
+                    "type": "string",
+                    "description": "Request ID"
+                  }
+                }
+              ],
+              "responses": {
+                "200": {
+                  "description": "Result of the request.",
+                  "content": {
+                    "application/json": {
+                      "schema": {
+                        "$ref": "#/components/schemas/RouterOpenaiV1ChatCompletionsOutput"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "servers": [
+          {
+            "url": "https://queue.fal.run"
+          }
+        ],
+        "security": [
+          {
+            "apiKeyAuth": []
+          }
+        ]
+      }
+    },
+    {
+      "endpoint_id": "fal-ai/qwen-3-guard",
+      "metadata": {
+        "display_name": "Qwen 3 Guard [8B]",
+        "category": "llm",
+        "description": "Use Qwen 3 Guard [8B] to detect and  classify text as safe or harmful, delivering precise and reliable safety categorization.",
+        "status": "active",
+        "tags": [
+          "filter",
+          "safety",
+          "utility"
+        ],
+        "updated_at": "2026-01-26T21:42:37.719Z",
+        "is_favorited": false,
+        "thumbnail_url": "https://v3b.fal.media/files/b/kangaroo/mbftwyiNyy5hXuWPI8jdr_b9e8889f91994e318b188ac9db9089aa.jpg",
+        "model_url": "https://fal.run/fal-ai/qwen-3-guard",
+        "license_type": "commercial",
+        "date": "2025-10-20T18:46:13.255Z",
+        "highlighted": false,
+        "kind": "inference",
+        "pinned": false
+      },
+      "openapi": {
+        "openapi": "3.0.4",
+        "info": {
+          "title": "Queue OpenAPI for fal-ai/qwen-3-guard",
+          "version": "1.0.0",
+          "description": "The OpenAPI schema for the fal-ai/qwen-3-guard queue.",
+          "x-fal-metadata": {
+            "endpointId": "fal-ai/qwen-3-guard",
+            "category": "llm",
+            "thumbnailUrl": "https://v3b.fal.media/files/b/kangaroo/mbftwyiNyy5hXuWPI8jdr_b9e8889f91994e318b188ac9db9089aa.jpg",
+            "playgroundUrl": "https://fal.ai/models/fal-ai/qwen-3-guard",
+            "documentationUrl": "https://fal.ai/models/fal-ai/qwen-3-guard/api"
+          }
+        },
+        "components": {
+          "securitySchemes": {
+            "apiKeyAuth": {
+              "type": "apiKey",
+              "in": "header",
+              "name": "Authorization",
+              "description": "Fal Key"
+            }
+          },
+          "schemas": {
+            "QueueStatus": {
+              "type": "object",
+              "properties": {
+                "status": {
+                  "type": "string",
+                  "enum": [
+                    "IN_QUEUE",
+                    "IN_PROGRESS",
+                    "COMPLETED"
+                  ]
+                },
+                "request_id": {
+                  "type": "string",
+                  "description": "The request id."
+                },
+                "response_url": {
+                  "type": "string",
+                  "description": "The response url."
+                },
+                "status_url": {
+                  "type": "string",
+                  "description": "The status url."
+                },
+                "cancel_url": {
+                  "type": "string",
+                  "description": "The cancel url."
+                },
+                "logs": {
+                  "type": "object",
+                  "description": "The logs.",
+                  "additionalProperties": true
+                },
+                "metrics": {
+                  "type": "object",
+                  "description": "The metrics.",
+                  "additionalProperties": true
+                },
+                "queue_position": {
+                  "type": "integer",
+                  "description": "The queue position."
+                }
+              },
+              "required": [
+                "status",
+                "request_id"
+              ]
+            },
+            "Qwen3GuardInput": {
+              "title": "Qwen3GuardInput",
+              "type": "object",
+              "properties": {
+                "prompt": {
+                  "examples": [
+                    "How to make a bomb"
+                  ],
+                  "title": "Prompt",
+                  "type": "string",
+                  "description": "The input text to be classified",
+                  "maxLength": 131072
+                }
+              },
+              "x-fal-order-properties": [
+                "prompt"
+              ],
+              "required": [
+                "prompt"
+              ]
+            },
+            "Qwen3GuardOutput": {
+              "title": "Qwen3GuardOutput",
+              "type": "object",
+              "properties": {
+                "categories": {
+                  "examples": [
+                    [
+                      "Violent"
+                    ]
+                  ],
+                  "title": "Categories",
+                  "type": "array",
+                  "description": "The confidence score of the classification",
+                  "items": {
+                    "enum": [
+                      "Violent",
+                      "Non-violent Illegal Acts",
+                      "Sexual Content or Sexual Acts",
+                      "PII",
+                      "Suicide & Self-Harm",
+                      "Unethical Acts",
+                      "Politically Sensitive Topics",
+                      "Copyright Violation",
+                      "Jailbreak",
+                      "None"
+                    ],
+                    "type": "string"
+                  }
+                },
+                "label": {
+                  "examples": [
+                    "Unsafe"
+                  ],
+                  "title": "Label",
+                  "type": "string",
+                  "description": "The classification label",
+                  "enum": [
+                    "Safe",
+                    "Unsafe",
+                    "Controversial"
+                  ]
+                }
+              },
+              "x-fal-order-properties": [
+                "label",
+                "categories"
+              ],
+              "required": [
+                "label",
+                "categories"
+              ]
+            }
+          }
+        },
+        "paths": {
+          "/fal-ai/qwen-3-guard/requests/{request_id}/status": {
+            "get": {
+              "parameters": [
+                {
+                  "name": "request_id",
+                  "in": "path",
+                  "required": true,
+                  "schema": {
+                    "type": "string",
+                    "description": "Request ID"
+                  }
+                },
+                {
+                  "name": "logs",
+                  "in": "query",
+                  "required": false,
+                  "schema": {
+                    "type": "number",
+                    "description": "Whether to include logs (`1`) in the response or not (`0`)."
+                  }
+                }
+              ],
+              "responses": {
+                "200": {
+                  "description": "The request status.",
+                  "content": {
+                    "application/json": {
+                      "schema": {
+                        "$ref": "#/components/schemas/QueueStatus"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "/fal-ai/qwen-3-guard/requests/{request_id}/cancel": {
+            "put": {
+              "parameters": [
+                {
+                  "name": "request_id",
+                  "in": "path",
+                  "required": true,
+                  "schema": {
+                    "type": "string",
+                    "description": "Request ID"
+                  }
+                }
+              ],
+              "responses": {
+                "200": {
+                  "description": "The request was cancelled.",
+                  "content": {
+                    "application/json": {
+                      "schema": {
+                        "type": "object",
+                        "properties": {
+                          "success": {
+                            "type": "boolean",
+                            "description": "Whether the request was cancelled successfully."
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "/fal-ai/qwen-3-guard": {
+            "post": {
+              "requestBody": {
+                "required": true,
+                "content": {
+                  "application/json": {
+                    "schema": {
+                      "$ref": "#/components/schemas/Qwen3GuardInput"
+                    }
+                  }
+                }
+              },
+              "responses": {
+                "200": {
+                  "description": "The request status.",
+                  "content": {
+                    "application/json": {
+                      "schema": {
+                        "$ref": "#/components/schemas/QueueStatus"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "/fal-ai/qwen-3-guard/requests/{request_id}": {
+            "get": {
+              "parameters": [
+                {
+                  "name": "request_id",
+                  "in": "path",
+                  "required": true,
+                  "schema": {
+                    "type": "string",
+                    "description": "Request ID"
+                  }
+                }
+              ],
+              "responses": {
+                "200": {
+                  "description": "Result of the request.",
+                  "content": {
+                    "application/json": {
+                      "schema": {
+                        "$ref": "#/components/schemas/Qwen3GuardOutput"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "servers": [
+          {
+            "url": "https://queue.fal.run"
+          }
+        ],
+        "security": [
+          {
+            "apiKeyAuth": []
+          }
+        ]
+      }
+    },
+    {
+      "endpoint_id": "fal-ai/video-prompt-generator",
+      "metadata": {
+        "display_name": "Video Prompt Generator",
+        "category": "llm",
+        "description": "Generate video prompts using a variety of techniques including camera direction, style, pacing, special effects and more.",
+        "status": "active",
+        "tags": [
+          "motion",
+          "transformation",
+          "chat",
+          "claude",
+          "gpt"
+        ],
+        "updated_at": "2026-01-26T21:44:25.261Z",
+        "is_favorited": false,
+        "thumbnail_url": "https://storage.googleapis.com/falserverless/web-examples/video-prompt/vprompt.jpg",
+        "model_url": "https://fal.run/fal-ai/video-prompt-generator",
+        "date": "2025-02-25T00:00:00.000Z",
+        "highlighted": false,
+        "pinned": false
+      },
+      "openapi": {
+        "openapi": "3.0.4",
+        "info": {
+          "title": "Queue OpenAPI for fal-ai/video-prompt-generator",
+          "version": "1.0.0",
+          "description": "The OpenAPI schema for the fal-ai/video-prompt-generator queue.",
+          "x-fal-metadata": {
+            "endpointId": "fal-ai/video-prompt-generator",
+            "category": "llm",
+            "thumbnailUrl": "https://storage.googleapis.com/falserverless/web-examples/video-prompt/vprompt.jpg",
+            "playgroundUrl": "https://fal.ai/models/fal-ai/video-prompt-generator",
+            "documentationUrl": "https://fal.ai/models/fal-ai/video-prompt-generator/api"
+          }
+        },
+        "components": {
+          "securitySchemes": {
+            "apiKeyAuth": {
+              "type": "apiKey",
+              "in": "header",
+              "name": "Authorization",
+              "description": "Fal Key"
+            }
+          },
+          "schemas": {
+            "QueueStatus": {
+              "type": "object",
+              "properties": {
+                "status": {
+                  "type": "string",
+                  "enum": [
+                    "IN_QUEUE",
+                    "IN_PROGRESS",
+                    "COMPLETED"
+                  ]
+                },
+                "request_id": {
+                  "type": "string",
+                  "description": "The request id."
+                },
+                "response_url": {
+                  "type": "string",
+                  "description": "The response url."
+                },
+                "status_url": {
+                  "type": "string",
+                  "description": "The status url."
+                },
+                "cancel_url": {
+                  "type": "string",
+                  "description": "The cancel url."
+                },
+                "logs": {
+                  "type": "object",
+                  "description": "The logs.",
+                  "additionalProperties": true
+                },
+                "metrics": {
+                  "type": "object",
+                  "description": "The metrics.",
+                  "additionalProperties": true
+                },
+                "queue_position": {
+                  "type": "integer",
+                  "description": "The queue position."
+                }
+              },
+              "required": [
+                "status",
+                "request_id"
+              ]
+            },
+            "VideoPromptGeneratorInput": {
+              "title": "InputModel",
+              "type": "object",
+              "properties": {
+                "custom_elements": {
+                  "title": "Custom Elements",
+                  "type": "string",
+                  "description": "Custom technical elements (optional)",
+                  "default": ""
+                },
+                "style": {
+                  "enum": [
+                    "Minimalist",
+                    "Simple",
+                    "Detailed",
+                    "Descriptive",
+                    "Dynamic",
+                    "Cinematic",
+                    "Documentary",
+                    "Animation",
+                    "Action",
+                    "Experimental"
+                  ],
+                  "title": "Style",
+                  "type": "string",
+                  "description": "Style of the video prompt",
+                  "default": "Simple"
+                },
+                "camera_direction": {
+                  "enum": [
+                    "None",
+                    "Zoom in",
+                    "Zoom out",
+                    "Pan left",
+                    "Pan right",
+                    "Tilt up",
+                    "Tilt down",
+                    "Orbital rotation",
+                    "Push in",
+                    "Pull out",
+                    "Track forward",
+                    "Track backward",
+                    "Spiral in",
+                    "Spiral out",
+                    "Arc movement",
+                    "Diagonal traverse",
+                    "Vertical rise",
+                    "Vertical descent"
+                  ],
+                  "title": "Camera Direction",
+                  "type": "string",
+                  "description": "Camera direction",
+                  "default": "None"
+                },
+                "pacing": {
+                  "enum": [
+                    "None",
+                    "Slow burn",
+                    "Rhythmic pulse",
+                    "Frantic energy",
+                    "Ebb and flow",
+                    "Hypnotic drift",
+                    "Time-lapse rush",
+                    "Stop-motion staccato",
+                    "Gradual build",
+                    "Quick cut rhythm",
+                    "Long take meditation",
+                    "Jump cut energy",
+                    "Match cut flow",
+                    "Cross-dissolve dreamscape",
+                    "Parallel action",
+                    "Slow motion impact",
+                    "Ramping dynamics",
+                    "Montage tempo",
+                    "Continuous flow",
+                    "Episodic breaks"
+                  ],
+                  "title": "Pacing",
+                  "type": "string",
+                  "description": "Pacing rhythm",
+                  "default": "None"
+                },
+                "special_effects": {
+                  "enum": [
+                    "None",
+                    "Practical effects",
+                    "CGI enhancement",
+                    "Analog glitches",
+                    "Light painting",
+                    "Projection mapping",
+                    "Nanosecond exposures",
+                    "Double exposure",
+                    "Smoke diffusion",
+                    "Lens flare artistry",
+                    "Particle systems",
+                    "Holographic overlay",
+                    "Chromatic aberration",
+                    "Digital distortion",
+                    "Wire removal",
+                    "Motion capture",
+                    "Miniature integration",
+                    "Weather simulation",
+                    "Color grading",
+                    "Mixed media composite",
+                    "Neural style transfer"
+                  ],
+                  "title": "Special Effects",
+                  "type": "string",
+                  "description": "Special effects approach",
+                  "default": "None"
+                },
+                "image_url": {
+                  "title": "Image Url",
+                  "type": "string",
+                  "description": "URL of an image to analyze and incorporate into the video prompt (optional)"
+                },
+                "model": {
+                  "enum": [
+                    "anthropic/claude-3.5-sonnet",
+                    "anthropic/claude-3-5-haiku",
+                    "anthropic/claude-3-haiku",
+                    "google/gemini-2.5-flash-lite",
+                    "google/gemini-2.0-flash-001",
+                    "meta-llama/llama-3.2-1b-instruct",
+                    "meta-llama/llama-3.2-3b-instruct",
+                    "meta-llama/llama-3.1-8b-instruct",
+                    "meta-llama/llama-3.1-70b-instruct",
+                    "openai/gpt-4o-mini",
+                    "openai/gpt-4o",
+                    "deepseek/deepseek-r1"
+                  ],
+                  "title": "Model",
+                  "type": "string",
+                  "description": "Model to use",
+                  "default": "google/gemini-2.0-flash-001"
+                },
+                "camera_style": {
+                  "enum": [
+                    "None",
+                    "Steadicam flow",
+                    "Drone aerials",
+                    "Handheld urgency",
+                    "Crane elegance",
+                    "Dolly precision",
+                    "VR 360",
+                    "Multi-angle rig",
+                    "Static tripod",
+                    "Gimbal smoothness",
+                    "Slider motion",
+                    "Jib sweep",
+                    "POV immersion",
+                    "Time-slice array",
+                    "Macro extreme",
+                    "Tilt-shift miniature",
+                    "Snorricam character",
+                    "Whip pan dynamics",
+                    "Dutch angle tension",
+                    "Underwater housing",
+                    "Periscope lens"
+                  ],
+                  "title": "Camera Style",
+                  "type": "string",
+                  "description": "Camera movement style",
+                  "default": "None"
+                },
+                "input_concept": {
+                  "examples": [
+                    "A futuristic city at dusk"
+                  ],
+                  "title": "Input Concept",
+                  "type": "string",
+                  "description": "Core concept or thematic input for the video prompt"
+                },
+                "prompt_length": {
+                  "enum": [
+                    "Short",
+                    "Medium",
+                    "Long"
+                  ],
+                  "title": "Prompt Length",
+                  "type": "string",
+                  "description": "Length of the prompt",
+                  "default": "Medium"
+                }
+              },
+              "x-fal-order-properties": [
+                "input_concept",
+                "style",
+                "camera_style",
+                "camera_direction",
+                "pacing",
+                "special_effects",
+                "custom_elements",
+                "image_url",
+                "model",
+                "prompt_length"
+              ],
+              "required": [
+                "input_concept"
+              ]
+            },
+            "VideoPromptGeneratorOutput": {
+              "title": "OutputModel",
+              "type": "object",
+              "properties": {
+                "prompt": {
+                  "examples": [
+                    "A futuristic city glows softly at dusk, captured with smooth gimbal movements and a slow burn pacing, enhanced by subtle holographic overlays."
+                  ],
+                  "title": "Prompt",
+                  "type": "string",
+                  "description": "Generated video prompt"
+                }
+              },
+              "x-fal-order-properties": [
+                "prompt"
+              ],
+              "required": [
+                "prompt"
+              ]
+            }
+          }
+        },
+        "paths": {
+          "/fal-ai/video-prompt-generator/requests/{request_id}/status": {
+            "get": {
+              "parameters": [
+                {
+                  "name": "request_id",
+                  "in": "path",
+                  "required": true,
+                  "schema": {
+                    "type": "string",
+                    "description": "Request ID"
+                  }
+                },
+                {
+                  "name": "logs",
+                  "in": "query",
+                  "required": false,
+                  "schema": {
+                    "type": "number",
+                    "description": "Whether to include logs (`1`) in the response or not (`0`)."
+                  }
+                }
+              ],
+              "responses": {
+                "200": {
+                  "description": "The request status.",
+                  "content": {
+                    "application/json": {
+                      "schema": {
+                        "$ref": "#/components/schemas/QueueStatus"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "/fal-ai/video-prompt-generator/requests/{request_id}/cancel": {
+            "put": {
+              "parameters": [
+                {
+                  "name": "request_id",
+                  "in": "path",
+                  "required": true,
+                  "schema": {
+                    "type": "string",
+                    "description": "Request ID"
+                  }
+                }
+              ],
+              "responses": {
+                "200": {
+                  "description": "The request was cancelled.",
+                  "content": {
+                    "application/json": {
+                      "schema": {
+                        "type": "object",
+                        "properties": {
+                          "success": {
+                            "type": "boolean",
+                            "description": "Whether the request was cancelled successfully."
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "/fal-ai/video-prompt-generator": {
+            "post": {
+              "requestBody": {
+                "required": true,
+                "content": {
+                  "application/json": {
+                    "schema": {
+                      "$ref": "#/components/schemas/VideoPromptGeneratorInput"
+                    }
+                  }
+                }
+              },
+              "responses": {
+                "200": {
+                  "description": "The request status.",
+                  "content": {
+                    "application/json": {
+                      "schema": {
+                        "$ref": "#/components/schemas/QueueStatus"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "/fal-ai/video-prompt-generator/requests/{request_id}": {
+            "get": {
+              "parameters": [
+                {
+                  "name": "request_id",
+                  "in": "path",
+                  "required": true,
+                  "schema": {
+                    "type": "string",
+                    "description": "Request ID"
+                  }
+                }
+              ],
+              "responses": {
+                "200": {
+                  "description": "Result of the request.",
+                  "content": {
+                    "application/json": {
+                      "schema": {
+                        "$ref": "#/components/schemas/VideoPromptGeneratorOutput"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "servers": [
+          {
+            "url": "https://queue.fal.run"
+          }
+        ],
+        "security": [
+          {
+            "apiKeyAuth": []
+          }
+        ]
+      }
+    }
+  ]
+}

@@ -1,0 +1,2355 @@
+{
+  "generated_at": "2026-01-28T02:51:51.871Z",
+  "total_models": 5,
+  "category": "3d-to-3d",
+  "models": [
+    {
+      "endpoint_id": "fal-ai/ultrashape",
+      "metadata": {
+        "display_name": "Ultrashape",
+        "category": "3d-to-3d",
+        "description": "UltraShape-1.0 is a 3D diffusion framework that generates high-fidelity 3D geometry through coarse-to-fine geometric refinement.",
+        "status": "active",
+        "tags": [
+          "3d-to-3d"
+        ],
+        "updated_at": "2026-01-26T21:41:41.691Z",
+        "is_favorited": false,
+        "thumbnail_url": "https://v3b.fal.media/files/b/0a894dfe/Z5bF5OTa1V4FlZI--VFOp_079e6bcc45a64fa08098c0726639c262.jpg",
+        "model_url": "https://fal.run/fal-ai/ultrashape",
+        "license_type": "commercial",
+        "date": "2026-01-06T13:20:04.529Z",
+        "highlighted": false,
+        "kind": "inference",
+        "pinned": false
+      },
+      "openapi": {
+        "openapi": "3.0.4",
+        "info": {
+          "title": "Queue OpenAPI for fal-ai/ultrashape",
+          "version": "1.0.0",
+          "description": "The OpenAPI schema for the fal-ai/ultrashape queue.",
+          "x-fal-metadata": {
+            "endpointId": "fal-ai/ultrashape",
+            "category": "3d-to-3d",
+            "thumbnailUrl": "https://v3b.fal.media/files/b/0a894dfe/Z5bF5OTa1V4FlZI--VFOp_079e6bcc45a64fa08098c0726639c262.jpg",
+            "playgroundUrl": "https://fal.ai/models/fal-ai/ultrashape",
+            "documentationUrl": "https://fal.ai/models/fal-ai/ultrashape/api"
+          }
+        },
+        "components": {
+          "securitySchemes": {
+            "apiKeyAuth": {
+              "type": "apiKey",
+              "in": "header",
+              "name": "Authorization",
+              "description": "Fal Key"
+            }
+          },
+          "schemas": {
+            "QueueStatus": {
+              "type": "object",
+              "properties": {
+                "status": {
+                  "type": "string",
+                  "enum": [
+                    "IN_QUEUE",
+                    "IN_PROGRESS",
+                    "COMPLETED"
+                  ]
+                },
+                "request_id": {
+                  "type": "string",
+                  "description": "The request id."
+                },
+                "response_url": {
+                  "type": "string",
+                  "description": "The response url."
+                },
+                "status_url": {
+                  "type": "string",
+                  "description": "The status url."
+                },
+                "cancel_url": {
+                  "type": "string",
+                  "description": "The cancel url."
+                },
+                "logs": {
+                  "type": "object",
+                  "description": "The logs.",
+                  "additionalProperties": true
+                },
+                "metrics": {
+                  "type": "object",
+                  "description": "The metrics.",
+                  "additionalProperties": true
+                },
+                "queue_position": {
+                  "type": "integer",
+                  "description": "The queue position."
+                }
+              },
+              "required": [
+                "status",
+                "request_id"
+              ]
+            },
+            "UltrashapeInput": {
+              "title": "UltraShapeRequest",
+              "type": "object",
+              "properties": {
+                "octree_resolution": {
+                  "minimum": 128,
+                  "maximum": 1024,
+                  "type": "integer",
+                  "title": "Octree Resolution",
+                  "description": "Marching cubes resolution.",
+                  "default": 1024
+                },
+                "remove_background": {
+                  "title": "Remove Background",
+                  "type": "boolean",
+                  "description": "Remove image background.",
+                  "default": true
+                },
+                "num_inference_steps": {
+                  "minimum": 1,
+                  "maximum": 50,
+                  "type": "integer",
+                  "title": "Num Inference Steps",
+                  "description": "Diffusion steps.",
+                  "default": 50
+                },
+                "model_url": {
+                  "examples": [
+                    "https://v3b.fal.media/files/b/0a892d06/llURuqrI2TTjijVo-lEWn_1.glb"
+                  ],
+                  "title": "Model Url",
+                  "type": "string",
+                  "description": "URL of the coarse mesh (.glb or .obj) to refine."
+                },
+                "seed": {
+                  "title": "Seed",
+                  "type": "integer",
+                  "description": "Random seed.",
+                  "default": 42
+                },
+                "image_url": {
+                  "examples": [
+                    "https://v3b.fal.media/files/b/0a892d08/IYQiPpbR90p8O0otIT2eQ_1.png"
+                  ],
+                  "title": "Image Url",
+                  "type": "string",
+                  "description": "URL of the reference image for mesh refinement."
+                }
+              },
+              "x-fal-order-properties": [
+                "image_url",
+                "model_url",
+                "num_inference_steps",
+                "octree_resolution",
+                "seed",
+                "remove_background"
+              ],
+              "required": [
+                "image_url",
+                "model_url"
+              ]
+            },
+            "UltrashapeOutput": {
+              "title": "UltraShapeResponse",
+              "type": "object",
+              "properties": {
+                "model_glb": {
+                  "examples": [
+                    {
+                      "file_size": 117537192,
+                      "file_name": "refined.glb",
+                      "content_type": "application/octet-stream",
+                      "url": "https://v3b.fal.media/files/b/0a892d36/4vzmYKL1OZVgcPCdRf2dc_refined.glb"
+                    }
+                  ],
+                  "title": "Model Glb",
+                  "description": "Generated 3D object.",
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/File"
+                    }
+                  ]
+                }
+              },
+              "x-fal-order-properties": [
+                "model_glb"
+              ],
+              "required": [
+                "model_glb"
+              ]
+            },
+            "File": {
+              "title": "File",
+              "type": "object",
+              "properties": {
+                "file_size": {
+                  "examples": [
+                    4404019
+                  ],
+                  "title": "File Size",
+                  "type": "integer",
+                  "description": "The size of the file in bytes."
+                },
+                "file_name": {
+                  "examples": [
+                    "z9RV14K95DvU.png"
+                  ],
+                  "title": "File Name",
+                  "type": "string",
+                  "description": "The name of the file. It will be auto-generated if not provided."
+                },
+                "content_type": {
+                  "examples": [
+                    "image/png"
+                  ],
+                  "title": "Content Type",
+                  "type": "string",
+                  "description": "The mime type of the file."
+                },
+                "url": {
+                  "title": "Url",
+                  "type": "string",
+                  "description": "The URL where the file can be downloaded from."
+                },
+                "file_data": {
+                  "format": "binary",
+                  "title": "File Data",
+                  "type": "string",
+                  "description": "File data"
+                }
+              },
+              "x-fal-order-properties": [
+                "url",
+                "content_type",
+                "file_name",
+                "file_size",
+                "file_data"
+              ],
+              "required": [
+                "url"
+              ]
+            }
+          }
+        },
+        "paths": {
+          "/fal-ai/ultrashape/requests/{request_id}/status": {
+            "get": {
+              "parameters": [
+                {
+                  "name": "request_id",
+                  "in": "path",
+                  "required": true,
+                  "schema": {
+                    "type": "string",
+                    "description": "Request ID"
+                  }
+                },
+                {
+                  "name": "logs",
+                  "in": "query",
+                  "required": false,
+                  "schema": {
+                    "type": "number",
+                    "description": "Whether to include logs (`1`) in the response or not (`0`)."
+                  }
+                }
+              ],
+              "responses": {
+                "200": {
+                  "description": "The request status.",
+                  "content": {
+                    "application/json": {
+                      "schema": {
+                        "$ref": "#/components/schemas/QueueStatus"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "/fal-ai/ultrashape/requests/{request_id}/cancel": {
+            "put": {
+              "parameters": [
+                {
+                  "name": "request_id",
+                  "in": "path",
+                  "required": true,
+                  "schema": {
+                    "type": "string",
+                    "description": "Request ID"
+                  }
+                }
+              ],
+              "responses": {
+                "200": {
+                  "description": "The request was cancelled.",
+                  "content": {
+                    "application/json": {
+                      "schema": {
+                        "type": "object",
+                        "properties": {
+                          "success": {
+                            "type": "boolean",
+                            "description": "Whether the request was cancelled successfully."
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "/fal-ai/ultrashape": {
+            "post": {
+              "requestBody": {
+                "required": true,
+                "content": {
+                  "application/json": {
+                    "schema": {
+                      "$ref": "#/components/schemas/UltrashapeInput"
+                    }
+                  }
+                }
+              },
+              "responses": {
+                "200": {
+                  "description": "The request status.",
+                  "content": {
+                    "application/json": {
+                      "schema": {
+                        "$ref": "#/components/schemas/QueueStatus"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "/fal-ai/ultrashape/requests/{request_id}": {
+            "get": {
+              "parameters": [
+                {
+                  "name": "request_id",
+                  "in": "path",
+                  "required": true,
+                  "schema": {
+                    "type": "string",
+                    "description": "Request ID"
+                  }
+                }
+              ],
+              "responses": {
+                "200": {
+                  "description": "Result of the request.",
+                  "content": {
+                    "application/json": {
+                      "schema": {
+                        "$ref": "#/components/schemas/UltrashapeOutput"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "servers": [
+          {
+            "url": "https://queue.fal.run"
+          }
+        ],
+        "security": [
+          {
+            "apiKeyAuth": []
+          }
+        ]
+      }
+    },
+    {
+      "endpoint_id": "fal-ai/sam-3/3d-align",
+      "metadata": {
+        "display_name": "Sam 3",
+        "category": "3d-to-3d",
+        "description": "SAM 3D enables full scene reconstructions, placing objects and humans in a shared context together.",
+        "status": "active",
+        "tags": [
+          "align",
+          "3D",
+          ""
+        ],
+        "updated_at": "2026-01-26T21:42:06.475Z",
+        "is_favorited": false,
+        "thumbnail_url": "https://v3b.fal.media/files/b/0a84bb71/k2b6czMQphI5lV6zjLj8z_ea2a892775d745b08a01ba6ecfa6ca43.jpg",
+        "model_url": "https://fal.run/fal-ai/sam-3/3d-align",
+        "license_type": "commercial",
+        "date": "2025-12-02T20:56:43.845Z",
+        "group": {
+          "key": "sam3",
+          "label": "3D Alignment"
+        },
+        "highlighted": false,
+        "kind": "inference",
+        "pinned": false
+      },
+      "openapi": {
+        "openapi": "3.0.4",
+        "info": {
+          "title": "Queue OpenAPI for fal-ai/sam-3/3d-align",
+          "version": "1.0.0",
+          "description": "The OpenAPI schema for the fal-ai/sam-3/3d-align queue.",
+          "x-fal-metadata": {
+            "endpointId": "fal-ai/sam-3/3d-align",
+            "category": "3d-to-3d",
+            "thumbnailUrl": "https://v3b.fal.media/files/b/0a84bb71/k2b6czMQphI5lV6zjLj8z_ea2a892775d745b08a01ba6ecfa6ca43.jpg",
+            "playgroundUrl": "https://fal.ai/models/fal-ai/sam-3/3d-align",
+            "documentationUrl": "https://fal.ai/models/fal-ai/sam-3/3d-align/api"
+          }
+        },
+        "components": {
+          "securitySchemes": {
+            "apiKeyAuth": {
+              "type": "apiKey",
+              "in": "header",
+              "name": "Authorization",
+              "description": "Fal Key"
+            }
+          },
+          "schemas": {
+            "QueueStatus": {
+              "type": "object",
+              "properties": {
+                "status": {
+                  "type": "string",
+                  "enum": [
+                    "IN_QUEUE",
+                    "IN_PROGRESS",
+                    "COMPLETED"
+                  ]
+                },
+                "request_id": {
+                  "type": "string",
+                  "description": "The request id."
+                },
+                "response_url": {
+                  "type": "string",
+                  "description": "The response url."
+                },
+                "status_url": {
+                  "type": "string",
+                  "description": "The status url."
+                },
+                "cancel_url": {
+                  "type": "string",
+                  "description": "The cancel url."
+                },
+                "logs": {
+                  "type": "object",
+                  "description": "The logs.",
+                  "additionalProperties": true
+                },
+                "metrics": {
+                  "type": "object",
+                  "description": "The metrics.",
+                  "additionalProperties": true
+                },
+                "queue_position": {
+                  "type": "integer",
+                  "description": "The queue position."
+                }
+              },
+              "required": [
+                "status",
+                "request_id"
+              ]
+            },
+            "Sam33dAlignInput": {
+              "x-fal-order-properties": [
+                "image_url",
+                "body_mesh_url",
+                "body_mask_url",
+                "object_mesh_url",
+                "focal_length"
+              ],
+              "type": "object",
+              "properties": {
+                "image_url": {
+                  "title": "Image Url",
+                  "type": "string",
+                  "description": "URL of the original image used for MoGe depth estimation"
+                },
+                "body_mesh_url": {
+                  "title": "Body Mesh Url",
+                  "type": "string",
+                  "description": "URL of the SAM-3D Body mesh file (.ply or .glb) to align"
+                },
+                "object_mesh_url": {
+                  "title": "Object Mesh Url",
+                  "type": "string",
+                  "description": "Optional URL of SAM-3D Object mesh (.glb) to create combined scene"
+                },
+                "focal_length": {
+                  "title": "Focal Length",
+                  "type": "number",
+                  "description": "Focal length from SAM-3D Body metadata. If not provided, estimated from MoGe."
+                },
+                "body_mask_url": {
+                  "title": "Body Mask Url",
+                  "type": "string",
+                  "description": "URL of the human mask image. If not provided, uses full image."
+                }
+              },
+              "title": "SAM3DAlignmentInput",
+              "required": [
+                "image_url",
+                "body_mesh_url"
+              ]
+            },
+            "Sam33dAlignOutput": {
+              "x-fal-order-properties": [
+                "body_mesh_ply",
+                "model_glb",
+                "visualization",
+                "metadata",
+                "scene_glb"
+              ],
+              "type": "object",
+              "properties": {
+                "scene_glb": {
+                  "title": "Scene Glb",
+                  "description": "Combined scene with body + object meshes in GLB format (only when object_mesh_url provided)",
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/File"
+                    }
+                  ]
+                },
+                "visualization": {
+                  "title": "Visualization",
+                  "description": "Visualization of aligned mesh overlaid on input image",
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/File"
+                    }
+                  ]
+                },
+                "metadata": {
+                  "title": "Metadata",
+                  "description": "Alignment info (scale, translation, etc.)",
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/SAM3DBodyAlignmentInfo"
+                    }
+                  ]
+                },
+                "body_mesh_ply": {
+                  "title": "Body Mesh Ply",
+                  "description": "Aligned body mesh in PLY format",
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/File"
+                    }
+                  ]
+                },
+                "model_glb": {
+                  "title": "Model Glb",
+                  "description": "Aligned body mesh in GLB format (for 3D preview)",
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/File"
+                    }
+                  ]
+                }
+              },
+              "title": "SAM3DAlignmentOutput",
+              "required": [
+                "body_mesh_ply",
+                "model_glb",
+                "visualization",
+                "metadata"
+              ]
+            },
+            "File": {
+              "x-fal-order-properties": [
+                "url",
+                "content_type",
+                "file_name",
+                "file_size",
+                "file_data"
+              ],
+              "type": "object",
+              "properties": {
+                "file_size": {
+                  "examples": [
+                    4404019
+                  ],
+                  "title": "File Size",
+                  "type": "integer",
+                  "description": "The size of the file in bytes."
+                },
+                "file_name": {
+                  "examples": [
+                    "z9RV14K95DvU.png"
+                  ],
+                  "title": "File Name",
+                  "type": "string",
+                  "description": "The name of the file. It will be auto-generated if not provided."
+                },
+                "content_type": {
+                  "examples": [
+                    "image/png"
+                  ],
+                  "title": "Content Type",
+                  "type": "string",
+                  "description": "The mime type of the file."
+                },
+                "url": {
+                  "title": "Url",
+                  "type": "string",
+                  "description": "The URL where the file can be downloaded from."
+                },
+                "file_data": {
+                  "format": "binary",
+                  "title": "File Data",
+                  "type": "string",
+                  "description": "File data"
+                }
+              },
+              "title": "File",
+              "required": [
+                "url"
+              ]
+            },
+            "SAM3DBodyAlignmentInfo": {
+              "x-fal-order-properties": [
+                "person_id",
+                "scale_factor",
+                "translation",
+                "focal_length",
+                "target_points_count",
+                "cropped_vertices_count"
+              ],
+              "type": "object",
+              "properties": {
+                "translation": {
+                  "title": "Translation",
+                  "type": "array",
+                  "description": "Translation [tx, ty, tz]",
+                  "items": {
+                    "type": "number"
+                  }
+                },
+                "cropped_vertices_count": {
+                  "title": "Cropped Vertices Count",
+                  "type": "integer",
+                  "description": "Number of cropped vertices"
+                },
+                "person_id": {
+                  "title": "Person Id",
+                  "type": "integer",
+                  "description": "Index of the person"
+                },
+                "target_points_count": {
+                  "title": "Target Points Count",
+                  "type": "integer",
+                  "description": "Number of target points for alignment"
+                },
+                "scale_factor": {
+                  "title": "Scale Factor",
+                  "type": "number",
+                  "description": "Scale factor applied for alignment"
+                },
+                "focal_length": {
+                  "title": "Focal Length",
+                  "type": "number",
+                  "description": "Focal length used"
+                }
+              },
+              "description": "Per-person alignment metadata.",
+              "title": "SAM3DBodyAlignmentInfo",
+              "required": [
+                "person_id",
+                "scale_factor",
+                "translation",
+                "focal_length",
+                "target_points_count",
+                "cropped_vertices_count"
+              ]
+            }
+          }
+        },
+        "paths": {
+          "/fal-ai/sam-3/3d-align/requests/{request_id}/status": {
+            "get": {
+              "parameters": [
+                {
+                  "name": "request_id",
+                  "in": "path",
+                  "required": true,
+                  "schema": {
+                    "type": "string",
+                    "description": "Request ID"
+                  }
+                },
+                {
+                  "name": "logs",
+                  "in": "query",
+                  "required": false,
+                  "schema": {
+                    "type": "number",
+                    "description": "Whether to include logs (`1`) in the response or not (`0`)."
+                  }
+                }
+              ],
+              "responses": {
+                "200": {
+                  "description": "The request status.",
+                  "content": {
+                    "application/json": {
+                      "schema": {
+                        "$ref": "#/components/schemas/QueueStatus"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "/fal-ai/sam-3/3d-align/requests/{request_id}/cancel": {
+            "put": {
+              "parameters": [
+                {
+                  "name": "request_id",
+                  "in": "path",
+                  "required": true,
+                  "schema": {
+                    "type": "string",
+                    "description": "Request ID"
+                  }
+                }
+              ],
+              "responses": {
+                "200": {
+                  "description": "The request was cancelled.",
+                  "content": {
+                    "application/json": {
+                      "schema": {
+                        "type": "object",
+                        "properties": {
+                          "success": {
+                            "type": "boolean",
+                            "description": "Whether the request was cancelled successfully."
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "/fal-ai/sam-3/3d-align": {
+            "post": {
+              "requestBody": {
+                "required": true,
+                "content": {
+                  "application/json": {
+                    "schema": {
+                      "$ref": "#/components/schemas/Sam33dAlignInput"
+                    }
+                  }
+                }
+              },
+              "responses": {
+                "200": {
+                  "description": "The request status.",
+                  "content": {
+                    "application/json": {
+                      "schema": {
+                        "$ref": "#/components/schemas/QueueStatus"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "/fal-ai/sam-3/3d-align/requests/{request_id}": {
+            "get": {
+              "parameters": [
+                {
+                  "name": "request_id",
+                  "in": "path",
+                  "required": true,
+                  "schema": {
+                    "type": "string",
+                    "description": "Request ID"
+                  }
+                }
+              ],
+              "responses": {
+                "200": {
+                  "description": "Result of the request.",
+                  "content": {
+                    "application/json": {
+                      "schema": {
+                        "$ref": "#/components/schemas/Sam33dAlignOutput"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "servers": [
+          {
+            "url": "https://queue.fal.run"
+          }
+        ],
+        "security": [
+          {
+            "apiKeyAuth": []
+          }
+        ]
+      }
+    },
+    {
+      "endpoint_id": "fal-ai/meshy/v5/retexture",
+      "metadata": {
+        "display_name": "Meshy 5 Retexture",
+        "category": "3d-to-3d",
+        "description": "Meshy-5 retexture applies new, high-quality textures to existing 3D models using either text prompts or reference images. It supports PBR material generation for realistic, production-ready results.",
+        "status": "active",
+        "tags": [
+          "3d-to-3d"
+        ],
+        "updated_at": "2026-01-26T21:42:38.218Z",
+        "is_favorited": false,
+        "thumbnail_url": "https://v3b.fal.media/files/b/panda/mF5SI-u0DJ_bNr5J8nhsS_0d2ff4c4ea6a4733a169f8b530b576ec.jpg",
+        "model_url": "https://fal.run/fal-ai/meshy/v5/retexture",
+        "license_type": "commercial",
+        "date": "2025-10-18T02:04:55.284Z",
+        "group": {
+          "key": "Meshy",
+          "label": "v5 Retexture"
+        },
+        "highlighted": false,
+        "kind": "inference",
+        "pinned": false
+      },
+      "openapi": {
+        "openapi": "3.0.4",
+        "info": {
+          "title": "Queue OpenAPI for fal-ai/meshy/v5/retexture",
+          "version": "1.0.0",
+          "description": "The OpenAPI schema for the fal-ai/meshy/v5/retexture queue.",
+          "x-fal-metadata": {
+            "endpointId": "fal-ai/meshy/v5/retexture",
+            "category": "3d-to-3d",
+            "thumbnailUrl": "https://v3b.fal.media/files/b/panda/mF5SI-u0DJ_bNr5J8nhsS_0d2ff4c4ea6a4733a169f8b530b576ec.jpg",
+            "playgroundUrl": "https://fal.ai/models/fal-ai/meshy/v5/retexture",
+            "documentationUrl": "https://fal.ai/models/fal-ai/meshy/v5/retexture/api"
+          }
+        },
+        "components": {
+          "securitySchemes": {
+            "apiKeyAuth": {
+              "type": "apiKey",
+              "in": "header",
+              "name": "Authorization",
+              "description": "Fal Key"
+            }
+          },
+          "schemas": {
+            "QueueStatus": {
+              "type": "object",
+              "properties": {
+                "status": {
+                  "type": "string",
+                  "enum": [
+                    "IN_QUEUE",
+                    "IN_PROGRESS",
+                    "COMPLETED"
+                  ]
+                },
+                "request_id": {
+                  "type": "string",
+                  "description": "The request id."
+                },
+                "response_url": {
+                  "type": "string",
+                  "description": "The response url."
+                },
+                "status_url": {
+                  "type": "string",
+                  "description": "The status url."
+                },
+                "cancel_url": {
+                  "type": "string",
+                  "description": "The cancel url."
+                },
+                "logs": {
+                  "type": "object",
+                  "description": "The logs.",
+                  "additionalProperties": true
+                },
+                "metrics": {
+                  "type": "object",
+                  "description": "The metrics.",
+                  "additionalProperties": true
+                },
+                "queue_position": {
+                  "type": "integer",
+                  "description": "The queue position."
+                }
+              },
+              "required": [
+                "status",
+                "request_id"
+              ]
+            },
+            "MeshyV5RetextureInput": {
+              "x-fal-order-properties": [
+                "model_url",
+                "text_style_prompt",
+                "image_style_url",
+                "enable_original_uv",
+                "enable_pbr",
+                "enable_safety_checker"
+              ],
+              "type": "object",
+              "properties": {
+                "enable_pbr": {
+                  "description": "Generate PBR Maps (metallic, roughness, normal) in addition to base color.",
+                  "type": "boolean",
+                  "title": "Enable Pbr",
+                  "default": false
+                },
+                "text_style_prompt": {
+                  "examples": [
+                    "red and black chest"
+                  ],
+                  "title": "Text Style Prompt",
+                  "type": "string",
+                  "description": "Describe your desired texture style using text. Maximum 600 characters. Required if image_style_url is not provided.",
+                  "maxLength": 600
+                },
+                "enable_safety_checker": {
+                  "description": "If set to true, input data will be checked for safety before processing.",
+                  "type": "boolean",
+                  "title": "Enable Safety Checker",
+                  "default": true
+                },
+                "enable_original_uv": {
+                  "description": "Use the original UV mapping of the model instead of generating new UVs. If the model has no original UV, output quality may be reduced.",
+                  "type": "boolean",
+                  "title": "Enable Original Uv",
+                  "default": true
+                },
+                "model_url": {
+                  "examples": [
+                    "https://v3b.fal.media/files/b/penguin/DId89qXLu6BXu09RFAwAV_model.glb"
+                  ],
+                  "title": "Model Url",
+                  "type": "string",
+                  "description": "URL or base64 data URI of a 3D model to texture. Supports .glb, .gltf, .obj, .fbx, .stl formats. Can be a publicly accessible URL or data URI with MIME type application/octet-stream."
+                },
+                "image_style_url": {
+                  "description": "2D image to guide the texturing process. Supports .jpg, .jpeg, and .png formats. Required if text_style_prompt is not provided. If both are provided, image_style_url takes precedence.",
+                  "max_pixels": 178956970,
+                  "type": "string",
+                  "x-fal": {
+                    "timeout": 20,
+                    "max_file_size": 20971520
+                  },
+                  "title": "Image Style Url",
+                  "limit_description": "Max file size: 20.0MB, Timeout: 20.0s"
+                }
+              },
+              "title": "RetextureInput",
+              "description": "Input for 3D Model Retexturing",
+              "required": [
+                "model_url"
+              ]
+            },
+            "MeshyV5RetextureOutput": {
+              "x-fal-order-properties": [
+                "model_glb",
+                "thumbnail",
+                "model_urls",
+                "texture_urls",
+                "text_style_prompt",
+                "image_style_url"
+              ],
+              "type": "object",
+              "properties": {
+                "model_urls": {
+                  "examples": [
+                    {
+                      "fbx": {
+                        "file_size": 4713692,
+                        "file_name": "model.fbx",
+                        "content_type": "application/octet-stream",
+                        "url": "https://v3b.fal.media/files/b/rabbit/agzKf8N8zeVnteg72NiF4_model.fbx"
+                      },
+                      "usdz": {
+                        "file_size": 3886518,
+                        "file_name": "model.usdz",
+                        "content_type": "model/vnd.usdz+zip",
+                        "url": "https://v3b.fal.media/files/b/panda/4ItUhLHiH4foEw30qcWZv_model.usdz"
+                      },
+                      "glb": {
+                        "file_size": 4097640,
+                        "file_name": "model.glb",
+                        "content_type": "model/gltf-binary",
+                        "url": "https://v3b.fal.media/files/b/tiger/pU0TtsRTxXM6VnKEYTHSV_model.glb"
+                      },
+                      "obj": {
+                        "file_size": 2964508,
+                        "file_name": "model.obj",
+                        "content_type": "text/plain",
+                        "url": "https://v3b.fal.media/files/b/zebra/M5aK_b6vKH7KeGCZoSLq7_model.obj"
+                      }
+                    }
+                  ],
+                  "title": "Model Urls",
+                  "description": "URLs for different 3D model formats",
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/ModelUrls"
+                    }
+                  ]
+                },
+                "text_style_prompt": {
+                  "examples": [
+                    "red and black chest"
+                  ],
+                  "title": "Text Style Prompt",
+                  "type": "string",
+                  "description": "The text prompt used for texturing (if provided)"
+                },
+                "texture_urls": {
+                  "examples": [
+                    [
+                      {
+                        "base_color": {
+                          "file_size": 3455709,
+                          "file_name": "texture_0.png",
+                          "content_type": "image/png",
+                          "url": "https://v3b.fal.media/files/b/zebra/opBcVy7AK-GOlCTUz-_GZ_texture_0.png"
+                        }
+                      }
+                    ]
+                  ],
+                  "title": "Texture Urls",
+                  "type": "array",
+                  "description": "Array of texture file objects",
+                  "items": {
+                    "$ref": "#/components/schemas/TextureFiles"
+                  }
+                },
+                "thumbnail": {
+                  "examples": [
+                    {
+                      "file_size": 124859,
+                      "file_name": "preview.png",
+                      "content_type": "image/png",
+                      "url": "https://v3b.fal.media/files/b/lion/jFrzgIJMbaPQi_4HCEa8u_preview.png"
+                    }
+                  ],
+                  "title": "Thumbnail",
+                  "description": "Preview thumbnail of the retextured model",
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/File"
+                    }
+                  ]
+                },
+                "image_style_url": {
+                  "description": "The image URL used for texturing (if provided)",
+                  "type": "string",
+                  "title": "Image Style Url"
+                },
+                "model_glb": {
+                  "examples": [
+                    {
+                      "file_size": 4097640,
+                      "file_name": "model.glb",
+                      "content_type": "model/gltf-binary",
+                      "url": "https://v3b.fal.media/files/b/tiger/pU0TtsRTxXM6VnKEYTHSV_model.glb"
+                    }
+                  ],
+                  "title": "Model Glb",
+                  "description": "Retextured 3D object in GLB format.",
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/File"
+                    }
+                  ]
+                }
+              },
+              "title": "RetextureOutput",
+              "description": "Output for 3D Model Retexturing",
+              "required": [
+                "model_glb",
+                "model_urls"
+              ]
+            },
+            "ModelUrls": {
+              "x-fal-order-properties": [
+                "glb",
+                "fbx",
+                "obj",
+                "usdz",
+                "blend",
+                "stl"
+              ],
+              "type": "object",
+              "properties": {
+                "usdz": {
+                  "description": "USDZ format 3D model",
+                  "title": "Usdz",
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/File"
+                    }
+                  ]
+                },
+                "fbx": {
+                  "description": "FBX format 3D model",
+                  "title": "Fbx",
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/File"
+                    }
+                  ]
+                },
+                "blend": {
+                  "description": "Blender format 3D model",
+                  "title": "Blend",
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/File"
+                    }
+                  ]
+                },
+                "stl": {
+                  "description": "STL format 3D model",
+                  "title": "Stl",
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/File"
+                    }
+                  ]
+                },
+                "glb": {
+                  "description": "GLB format 3D model",
+                  "title": "Glb",
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/File"
+                    }
+                  ]
+                },
+                "obj": {
+                  "description": "OBJ format 3D model",
+                  "title": "Obj",
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/File"
+                    }
+                  ]
+                }
+              },
+              "title": "ModelUrls",
+              "description": "3D model files in various formats"
+            },
+            "TextureFiles": {
+              "x-fal-order-properties": [
+                "base_color",
+                "metallic",
+                "normal",
+                "roughness"
+              ],
+              "type": "object",
+              "properties": {
+                "base_color": {
+                  "description": "Base color texture",
+                  "title": "Base Color",
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/File"
+                    }
+                  ]
+                },
+                "normal": {
+                  "description": "Normal texture (PBR)",
+                  "title": "Normal",
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/File"
+                    }
+                  ]
+                },
+                "roughness": {
+                  "description": "Roughness texture (PBR)",
+                  "title": "Roughness",
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/File"
+                    }
+                  ]
+                },
+                "metallic": {
+                  "description": "Metallic texture (PBR)",
+                  "title": "Metallic",
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/File"
+                    }
+                  ]
+                }
+              },
+              "title": "TextureFiles",
+              "description": "Texture files downloaded and uploaded to CDN",
+              "required": [
+                "base_color"
+              ]
+            },
+            "File": {
+              "x-fal-order-properties": [
+                "url",
+                "content_type",
+                "file_name",
+                "file_size",
+                "file_data"
+              ],
+              "type": "object",
+              "properties": {
+                "file_size": {
+                  "examples": [
+                    4404019
+                  ],
+                  "title": "File Size",
+                  "type": "integer",
+                  "description": "The size of the file in bytes."
+                },
+                "file_name": {
+                  "examples": [
+                    "z9RV14K95DvU.png"
+                  ],
+                  "title": "File Name",
+                  "type": "string",
+                  "description": "The name of the file. It will be auto-generated if not provided."
+                },
+                "content_type": {
+                  "examples": [
+                    "image/png"
+                  ],
+                  "title": "Content Type",
+                  "type": "string",
+                  "description": "The mime type of the file."
+                },
+                "url": {
+                  "description": "The URL where the file can be downloaded from.",
+                  "type": "string",
+                  "title": "Url"
+                },
+                "file_data": {
+                  "format": "binary",
+                  "description": "File data",
+                  "type": "string",
+                  "title": "File Data"
+                }
+              },
+              "title": "File",
+              "required": [
+                "url"
+              ]
+            }
+          }
+        },
+        "paths": {
+          "/fal-ai/meshy/v5/retexture/requests/{request_id}/status": {
+            "get": {
+              "parameters": [
+                {
+                  "name": "request_id",
+                  "in": "path",
+                  "required": true,
+                  "schema": {
+                    "type": "string",
+                    "description": "Request ID"
+                  }
+                },
+                {
+                  "name": "logs",
+                  "in": "query",
+                  "required": false,
+                  "schema": {
+                    "type": "number",
+                    "description": "Whether to include logs (`1`) in the response or not (`0`)."
+                  }
+                }
+              ],
+              "responses": {
+                "200": {
+                  "description": "The request status.",
+                  "content": {
+                    "application/json": {
+                      "schema": {
+                        "$ref": "#/components/schemas/QueueStatus"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "/fal-ai/meshy/v5/retexture/requests/{request_id}/cancel": {
+            "put": {
+              "parameters": [
+                {
+                  "name": "request_id",
+                  "in": "path",
+                  "required": true,
+                  "schema": {
+                    "type": "string",
+                    "description": "Request ID"
+                  }
+                }
+              ],
+              "responses": {
+                "200": {
+                  "description": "The request was cancelled.",
+                  "content": {
+                    "application/json": {
+                      "schema": {
+                        "type": "object",
+                        "properties": {
+                          "success": {
+                            "type": "boolean",
+                            "description": "Whether the request was cancelled successfully."
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "/fal-ai/meshy/v5/retexture": {
+            "post": {
+              "requestBody": {
+                "required": true,
+                "content": {
+                  "application/json": {
+                    "schema": {
+                      "$ref": "#/components/schemas/MeshyV5RetextureInput"
+                    }
+                  }
+                }
+              },
+              "responses": {
+                "200": {
+                  "description": "The request status.",
+                  "content": {
+                    "application/json": {
+                      "schema": {
+                        "$ref": "#/components/schemas/QueueStatus"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "/fal-ai/meshy/v5/retexture/requests/{request_id}": {
+            "get": {
+              "parameters": [
+                {
+                  "name": "request_id",
+                  "in": "path",
+                  "required": true,
+                  "schema": {
+                    "type": "string",
+                    "description": "Request ID"
+                  }
+                }
+              ],
+              "responses": {
+                "200": {
+                  "description": "Result of the request.",
+                  "content": {
+                    "application/json": {
+                      "schema": {
+                        "$ref": "#/components/schemas/MeshyV5RetextureOutput"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "servers": [
+          {
+            "url": "https://queue.fal.run"
+          }
+        ],
+        "security": [
+          {
+            "apiKeyAuth": []
+          }
+        ]
+      }
+    },
+    {
+      "endpoint_id": "fal-ai/meshy/v5/remesh",
+      "metadata": {
+        "display_name": "Meshy 5 Remesh",
+        "category": "3d-to-3d",
+        "description": "Meshy-5 remesh allows you to remesh and export existing 3D models into various formats",
+        "status": "active",
+        "tags": [
+          "3d-to-3d"
+        ],
+        "updated_at": "2026-01-26T21:42:38.342Z",
+        "is_favorited": false,
+        "thumbnail_url": "https://v3b.fal.media/files/b/monkey/VuvDG9KC4adICrWIBIzIu_a731968003db42be8f2c91d1f00c811f.jpg",
+        "model_url": "https://fal.run/fal-ai/meshy/v5/remesh",
+        "license_type": "commercial",
+        "date": "2025-10-18T01:56:03.334Z",
+        "group": {
+          "key": "Meshy",
+          "label": "v5 Remesh"
+        },
+        "highlighted": false,
+        "kind": "inference",
+        "pinned": false
+      },
+      "openapi": {
+        "openapi": "3.0.4",
+        "info": {
+          "title": "Queue OpenAPI for fal-ai/meshy/v5/remesh",
+          "version": "1.0.0",
+          "description": "The OpenAPI schema for the fal-ai/meshy/v5/remesh queue.",
+          "x-fal-metadata": {
+            "endpointId": "fal-ai/meshy/v5/remesh",
+            "category": "3d-to-3d",
+            "thumbnailUrl": "https://v3b.fal.media/files/b/monkey/VuvDG9KC4adICrWIBIzIu_a731968003db42be8f2c91d1f00c811f.jpg",
+            "playgroundUrl": "https://fal.ai/models/fal-ai/meshy/v5/remesh",
+            "documentationUrl": "https://fal.ai/models/fal-ai/meshy/v5/remesh/api"
+          }
+        },
+        "components": {
+          "securitySchemes": {
+            "apiKeyAuth": {
+              "type": "apiKey",
+              "in": "header",
+              "name": "Authorization",
+              "description": "Fal Key"
+            }
+          },
+          "schemas": {
+            "QueueStatus": {
+              "type": "object",
+              "properties": {
+                "status": {
+                  "type": "string",
+                  "enum": [
+                    "IN_QUEUE",
+                    "IN_PROGRESS",
+                    "COMPLETED"
+                  ]
+                },
+                "request_id": {
+                  "type": "string",
+                  "description": "The request id."
+                },
+                "response_url": {
+                  "type": "string",
+                  "description": "The response url."
+                },
+                "status_url": {
+                  "type": "string",
+                  "description": "The status url."
+                },
+                "cancel_url": {
+                  "type": "string",
+                  "description": "The cancel url."
+                },
+                "logs": {
+                  "type": "object",
+                  "description": "The logs.",
+                  "additionalProperties": true
+                },
+                "metrics": {
+                  "type": "object",
+                  "description": "The metrics.",
+                  "additionalProperties": true
+                },
+                "queue_position": {
+                  "type": "integer",
+                  "description": "The queue position."
+                }
+              },
+              "required": [
+                "status",
+                "request_id"
+              ]
+            },
+            "MeshyV5RemeshInput": {
+              "x-fal-order-properties": [
+                "model_url",
+                "target_formats",
+                "topology",
+                "target_polycount",
+                "resize_height",
+                "origin_at"
+              ],
+              "type": "object",
+              "properties": {
+                "resize_height": {
+                  "minimum": 0,
+                  "description": "Resize the model to a certain height measured in meters. Set to 0 for no resizing.",
+                  "type": "number",
+                  "title": "Resize Height",
+                  "default": 0
+                },
+                "topology": {
+                  "enum": [
+                    "quad",
+                    "triangle"
+                  ],
+                  "title": "Topology",
+                  "type": "string",
+                  "examples": [
+                    "triangle"
+                  ],
+                  "description": "Specify the topology of the generated model. Quad for smooth surfaces, Triangle for detailed geometry.",
+                  "default": "triangle"
+                },
+                "target_polycount": {
+                  "description": "Target number of polygons in the generated model. Actual count may vary based on geometry complexity.",
+                  "type": "integer",
+                  "minimum": 100,
+                  "maximum": 300000,
+                  "examples": [
+                    137220
+                  ],
+                  "title": "Target Polycount",
+                  "default": 30000
+                },
+                "model_url": {
+                  "examples": [
+                    "https://v3b.fal.media/files/b/tiger/62QMEQqZ3pjUds4DfuVtX_model.glb"
+                  ],
+                  "title": "Model Url",
+                  "type": "string",
+                  "description": "URL or base64 data URI of a 3D model to remesh. Supports .glb, .gltf, .obj, .fbx, .stl formats. Can be a publicly accessible URL or data URI with MIME type application/octet-stream."
+                },
+                "origin_at": {
+                  "enum": [
+                    "bottom",
+                    "center"
+                  ],
+                  "description": "Position of the origin. None means no effect.",
+                  "type": "string",
+                  "title": "Origin At"
+                },
+                "target_formats": {
+                  "examples": [
+                    [
+                      "glb",
+                      "fbx"
+                    ]
+                  ],
+                  "title": "Target Formats",
+                  "type": "array",
+                  "description": "List of target formats for the remeshed model.",
+                  "items": {
+                    "enum": [
+                      "glb",
+                      "fbx",
+                      "obj",
+                      "usdz",
+                      "blend",
+                      "stl"
+                    ],
+                    "type": "string"
+                  },
+                  "default": [
+                    "glb"
+                  ]
+                }
+              },
+              "title": "RemeshInput",
+              "description": "Input for 3D Model Remeshing",
+              "required": [
+                "model_url"
+              ]
+            },
+            "MeshyV5RemeshOutput": {
+              "x-fal-order-properties": [
+                "model_glb",
+                "model_urls"
+              ],
+              "type": "object",
+              "properties": {
+                "model_urls": {
+                  "examples": [
+                    {
+                      "fbx": {
+                        "file_size": 3476092,
+                        "file_name": "model.fbx",
+                        "content_type": "application/octet-stream",
+                        "url": "https://v3b.fal.media/files/b/kangaroo/Kw7C1w2Uccg3zKQ5axnwk_model.fbx"
+                      },
+                      "glb": {
+                        "file_size": 3294196,
+                        "file_name": "model.glb",
+                        "content_type": "model/gltf-binary",
+                        "url": "https://v3b.fal.media/files/b/panda/hu-dDvUIPdoHSxR7QcBZw_model.glb"
+                      }
+                    }
+                  ],
+                  "title": "Model Urls",
+                  "description": "URLs for different 3D model formats",
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/ModelUrls"
+                    }
+                  ]
+                },
+                "model_glb": {
+                  "examples": [
+                    {
+                      "file_size": 3294196,
+                      "file_name": "model.glb",
+                      "content_type": "model/gltf-binary",
+                      "url": "https://v3b.fal.media/files/b/panda/hu-dDvUIPdoHSxR7QcBZw_model.glb"
+                    }
+                  ],
+                  "title": "Model Glb",
+                  "description": "Remeshed 3D object in GLB format (if GLB was requested).",
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/File"
+                    }
+                  ]
+                }
+              },
+              "title": "RemeshOutput",
+              "description": "Output for 3D Model Remeshing",
+              "required": [
+                "model_urls"
+              ]
+            },
+            "ModelUrls": {
+              "x-fal-order-properties": [
+                "glb",
+                "fbx",
+                "obj",
+                "usdz",
+                "blend",
+                "stl"
+              ],
+              "type": "object",
+              "properties": {
+                "usdz": {
+                  "description": "USDZ format 3D model",
+                  "title": "Usdz",
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/File"
+                    }
+                  ]
+                },
+                "fbx": {
+                  "description": "FBX format 3D model",
+                  "title": "Fbx",
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/File"
+                    }
+                  ]
+                },
+                "blend": {
+                  "description": "Blender format 3D model",
+                  "title": "Blend",
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/File"
+                    }
+                  ]
+                },
+                "stl": {
+                  "description": "STL format 3D model",
+                  "title": "Stl",
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/File"
+                    }
+                  ]
+                },
+                "glb": {
+                  "description": "GLB format 3D model",
+                  "title": "Glb",
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/File"
+                    }
+                  ]
+                },
+                "obj": {
+                  "description": "OBJ format 3D model",
+                  "title": "Obj",
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/File"
+                    }
+                  ]
+                }
+              },
+              "title": "ModelUrls",
+              "description": "3D model files in various formats"
+            },
+            "File": {
+              "x-fal-order-properties": [
+                "url",
+                "content_type",
+                "file_name",
+                "file_size",
+                "file_data"
+              ],
+              "type": "object",
+              "properties": {
+                "file_size": {
+                  "examples": [
+                    4404019
+                  ],
+                  "title": "File Size",
+                  "type": "integer",
+                  "description": "The size of the file in bytes."
+                },
+                "file_name": {
+                  "examples": [
+                    "z9RV14K95DvU.png"
+                  ],
+                  "title": "File Name",
+                  "type": "string",
+                  "description": "The name of the file. It will be auto-generated if not provided."
+                },
+                "content_type": {
+                  "examples": [
+                    "image/png"
+                  ],
+                  "title": "Content Type",
+                  "type": "string",
+                  "description": "The mime type of the file."
+                },
+                "url": {
+                  "description": "The URL where the file can be downloaded from.",
+                  "type": "string",
+                  "title": "Url"
+                },
+                "file_data": {
+                  "format": "binary",
+                  "description": "File data",
+                  "type": "string",
+                  "title": "File Data"
+                }
+              },
+              "title": "File",
+              "required": [
+                "url"
+              ]
+            }
+          }
+        },
+        "paths": {
+          "/fal-ai/meshy/v5/remesh/requests/{request_id}/status": {
+            "get": {
+              "parameters": [
+                {
+                  "name": "request_id",
+                  "in": "path",
+                  "required": true,
+                  "schema": {
+                    "type": "string",
+                    "description": "Request ID"
+                  }
+                },
+                {
+                  "name": "logs",
+                  "in": "query",
+                  "required": false,
+                  "schema": {
+                    "type": "number",
+                    "description": "Whether to include logs (`1`) in the response or not (`0`)."
+                  }
+                }
+              ],
+              "responses": {
+                "200": {
+                  "description": "The request status.",
+                  "content": {
+                    "application/json": {
+                      "schema": {
+                        "$ref": "#/components/schemas/QueueStatus"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "/fal-ai/meshy/v5/remesh/requests/{request_id}/cancel": {
+            "put": {
+              "parameters": [
+                {
+                  "name": "request_id",
+                  "in": "path",
+                  "required": true,
+                  "schema": {
+                    "type": "string",
+                    "description": "Request ID"
+                  }
+                }
+              ],
+              "responses": {
+                "200": {
+                  "description": "The request was cancelled.",
+                  "content": {
+                    "application/json": {
+                      "schema": {
+                        "type": "object",
+                        "properties": {
+                          "success": {
+                            "type": "boolean",
+                            "description": "Whether the request was cancelled successfully."
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "/fal-ai/meshy/v5/remesh": {
+            "post": {
+              "requestBody": {
+                "required": true,
+                "content": {
+                  "application/json": {
+                    "schema": {
+                      "$ref": "#/components/schemas/MeshyV5RemeshInput"
+                    }
+                  }
+                }
+              },
+              "responses": {
+                "200": {
+                  "description": "The request status.",
+                  "content": {
+                    "application/json": {
+                      "schema": {
+                        "$ref": "#/components/schemas/QueueStatus"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "/fal-ai/meshy/v5/remesh/requests/{request_id}": {
+            "get": {
+              "parameters": [
+                {
+                  "name": "request_id",
+                  "in": "path",
+                  "required": true,
+                  "schema": {
+                    "type": "string",
+                    "description": "Request ID"
+                  }
+                }
+              ],
+              "responses": {
+                "200": {
+                  "description": "Result of the request.",
+                  "content": {
+                    "application/json": {
+                      "schema": {
+                        "$ref": "#/components/schemas/MeshyV5RemeshOutput"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "servers": [
+          {
+            "url": "https://queue.fal.run"
+          }
+        ],
+        "security": [
+          {
+            "apiKeyAuth": []
+          }
+        ]
+      }
+    },
+    {
+      "endpoint_id": "fal-ai/hunyuan-part",
+      "metadata": {
+        "display_name": "Hunyuan Part",
+        "category": "3d-to-3d",
+        "description": "Use the capabilities of hunyuan part to generate point clouds from your 3D files.",
+        "status": "active",
+        "tags": [
+          "3D-to-3D",
+          "point-cloud"
+        ],
+        "updated_at": "2025-10-08T17:00:01.071Z",
+        "is_favorited": false,
+        "thumbnail_url": "https://v3b.fal.media/files/b/rabbit/kqnsD6bjfNsg7OSwKze0X_365d05fbfc8b4e5a865e702a4fa15805.jpg",
+        "model_url": "https://fal.run/fal-ai/hunyuan-part",
+        "license_type": "commercial",
+        "date": "2025-10-08T16:59:43.761Z",
+        "highlighted": false,
+        "kind": "inference",
+        "pinned": false
+      },
+      "openapi": {
+        "openapi": "3.0.4",
+        "info": {
+          "title": "Queue OpenAPI for fal-ai/hunyuan-part",
+          "version": "1.0.0",
+          "description": "The OpenAPI schema for the fal-ai/hunyuan-part queue.",
+          "x-fal-metadata": {
+            "endpointId": "fal-ai/hunyuan-part",
+            "category": "3d-to-3d",
+            "thumbnailUrl": "https://v3b.fal.media/files/b/rabbit/kqnsD6bjfNsg7OSwKze0X_365d05fbfc8b4e5a865e702a4fa15805.jpg",
+            "playgroundUrl": "https://fal.ai/models/fal-ai/hunyuan-part",
+            "documentationUrl": "https://fal.ai/models/fal-ai/hunyuan-part/api"
+          }
+        },
+        "components": {
+          "securitySchemes": {
+            "apiKeyAuth": {
+              "type": "apiKey",
+              "in": "header",
+              "name": "Authorization",
+              "description": "Fal Key"
+            }
+          },
+          "schemas": {
+            "QueueStatus": {
+              "type": "object",
+              "properties": {
+                "status": {
+                  "type": "string",
+                  "enum": [
+                    "IN_QUEUE",
+                    "IN_PROGRESS",
+                    "COMPLETED"
+                  ]
+                },
+                "request_id": {
+                  "type": "string",
+                  "description": "The request id."
+                },
+                "response_url": {
+                  "type": "string",
+                  "description": "The response url."
+                },
+                "status_url": {
+                  "type": "string",
+                  "description": "The status url."
+                },
+                "cancel_url": {
+                  "type": "string",
+                  "description": "The cancel url."
+                },
+                "logs": {
+                  "type": "object",
+                  "description": "The logs.",
+                  "additionalProperties": true
+                },
+                "metrics": {
+                  "type": "object",
+                  "description": "The metrics.",
+                  "additionalProperties": true
+                },
+                "queue_position": {
+                  "type": "integer",
+                  "description": "The queue position."
+                }
+              },
+              "required": [
+                "status",
+                "request_id"
+              ]
+            },
+            "HunyuanPartInput": {
+              "title": "HunyuanPartInput",
+              "type": "object",
+              "properties": {
+                "point_prompt_x": {
+                  "minimum": -1,
+                  "title": "Point Prompt X",
+                  "type": "number",
+                  "maximum": 1,
+                  "description": "X coordinate of the point prompt for segmentation (normalized space -1 to 1).",
+                  "default": 0
+                },
+                "point_prompt_z": {
+                  "minimum": -1,
+                  "title": "Point Prompt Z",
+                  "type": "number",
+                  "maximum": 1,
+                  "description": "Z coordinate of the point prompt for segmentation (normalized space -1 to 1).",
+                  "default": 0
+                },
+                "use_normal": {
+                  "title": "Use Normal",
+                  "type": "boolean",
+                  "description": "Whether to use normal information for segmentation.",
+                  "default": true
+                },
+                "noise_std": {
+                  "minimum": 0,
+                  "title": "Noise Std",
+                  "type": "number",
+                  "maximum": 0.02,
+                  "description": "Standard deviation of noise to add to sampled points.",
+                  "default": 0
+                },
+                "point_num": {
+                  "minimum": 10000,
+                  "title": "Point Num",
+                  "type": "integer",
+                  "maximum": 500000,
+                  "description": "Number of points to sample from the mesh.",
+                  "default": 100000
+                },
+                "model_file_url": {
+                  "examples": [
+                    "https://storage.googleapis.com/falserverless/model_tests/video_models/base_basic_shaded.glb"
+                  ],
+                  "title": "Model File Url",
+                  "type": "string",
+                  "description": "URL of the 3D model file (.glb or .obj) to process for segmentation."
+                },
+                "point_prompt_y": {
+                  "minimum": -1,
+                  "title": "Point Prompt Y",
+                  "type": "number",
+                  "maximum": 1,
+                  "description": "Y coordinate of the point prompt for segmentation (normalized space -1 to 1).",
+                  "default": 0
+                },
+                "seed": {
+                  "title": "Seed",
+                  "type": "integer",
+                  "description": "\n            The same seed and input will produce the same segmentation results.\n        "
+                }
+              },
+              "x-fal-order-properties": [
+                "model_file_url",
+                "point_prompt_x",
+                "point_prompt_y",
+                "point_prompt_z",
+                "point_num",
+                "use_normal",
+                "noise_std",
+                "seed"
+              ],
+              "required": [
+                "model_file_url"
+              ]
+            },
+            "HunyuanPartOutput": {
+              "title": "HunyuanPartOutput",
+              "type": "object",
+              "properties": {
+                "iou_scores": {
+                  "title": "Iou Scores",
+                  "type": "array",
+                  "description": "IoU scores for each of the three masks.",
+                  "items": {
+                    "type": "number"
+                  }
+                },
+                "best_mask_index": {
+                  "title": "Best Mask Index",
+                  "type": "integer",
+                  "description": "Index of the best mask (1, 2, or 3) based on IoU score."
+                },
+                "mask_2_mesh": {
+                  "title": "Mask 2 Mesh",
+                  "description": "Mesh showing segmentation mask 2.",
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/File"
+                    }
+                  ]
+                },
+                "mask_1_mesh": {
+                  "title": "Mask 1 Mesh",
+                  "description": "Mesh showing segmentation mask 1.",
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/File"
+                    }
+                  ]
+                },
+                "segmented_mesh": {
+                  "title": "Segmented Mesh",
+                  "description": "Segmented 3D mesh with mask applied.",
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/File"
+                    }
+                  ]
+                },
+                "seed": {
+                  "title": "Seed",
+                  "type": "integer",
+                  "description": "Seed value used for generation."
+                },
+                "mask_3_mesh": {
+                  "title": "Mask 3 Mesh",
+                  "description": "Mesh showing segmentation mask 3.",
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/File"
+                    }
+                  ]
+                }
+              },
+              "x-fal-order-properties": [
+                "segmented_mesh",
+                "mask_1_mesh",
+                "mask_2_mesh",
+                "mask_3_mesh",
+                "best_mask_index",
+                "iou_scores",
+                "seed"
+              ],
+              "required": [
+                "segmented_mesh",
+                "mask_1_mesh",
+                "mask_2_mesh",
+                "mask_3_mesh",
+                "best_mask_index",
+                "iou_scores",
+                "seed"
+              ]
+            },
+            "File": {
+              "title": "File",
+              "type": "object",
+              "properties": {
+                "file_size": {
+                  "examples": [
+                    4404019
+                  ],
+                  "title": "File Size",
+                  "type": "integer",
+                  "description": "The size of the file in bytes."
+                },
+                "file_name": {
+                  "examples": [
+                    "z9RV14K95DvU.png"
+                  ],
+                  "title": "File Name",
+                  "type": "string",
+                  "description": "The name of the file. It will be auto-generated if not provided."
+                },
+                "content_type": {
+                  "examples": [
+                    "image/png"
+                  ],
+                  "title": "Content Type",
+                  "type": "string",
+                  "description": "The mime type of the file."
+                },
+                "url": {
+                  "title": "Url",
+                  "type": "string",
+                  "description": "The URL where the file can be downloaded from."
+                },
+                "file_data": {
+                  "format": "binary",
+                  "title": "File Data",
+                  "type": "string",
+                  "description": "File data"
+                }
+              },
+              "x-fal-order-properties": [
+                "url",
+                "content_type",
+                "file_name",
+                "file_size",
+                "file_data"
+              ],
+              "required": [
+                "url"
+              ]
+            }
+          }
+        },
+        "paths": {
+          "/fal-ai/hunyuan-part/requests/{request_id}/status": {
+            "get": {
+              "parameters": [
+                {
+                  "name": "request_id",
+                  "in": "path",
+                  "required": true,
+                  "schema": {
+                    "type": "string",
+                    "description": "Request ID"
+                  }
+                },
+                {
+                  "name": "logs",
+                  "in": "query",
+                  "required": false,
+                  "schema": {
+                    "type": "number",
+                    "description": "Whether to include logs (`1`) in the response or not (`0`)."
+                  }
+                }
+              ],
+              "responses": {
+                "200": {
+                  "description": "The request status.",
+                  "content": {
+                    "application/json": {
+                      "schema": {
+                        "$ref": "#/components/schemas/QueueStatus"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "/fal-ai/hunyuan-part/requests/{request_id}/cancel": {
+            "put": {
+              "parameters": [
+                {
+                  "name": "request_id",
+                  "in": "path",
+                  "required": true,
+                  "schema": {
+                    "type": "string",
+                    "description": "Request ID"
+                  }
+                }
+              ],
+              "responses": {
+                "200": {
+                  "description": "The request was cancelled.",
+                  "content": {
+                    "application/json": {
+                      "schema": {
+                        "type": "object",
+                        "properties": {
+                          "success": {
+                            "type": "boolean",
+                            "description": "Whether the request was cancelled successfully."
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "/fal-ai/hunyuan-part": {
+            "post": {
+              "requestBody": {
+                "required": true,
+                "content": {
+                  "application/json": {
+                    "schema": {
+                      "$ref": "#/components/schemas/HunyuanPartInput"
+                    }
+                  }
+                }
+              },
+              "responses": {
+                "200": {
+                  "description": "The request status.",
+                  "content": {
+                    "application/json": {
+                      "schema": {
+                        "$ref": "#/components/schemas/QueueStatus"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "/fal-ai/hunyuan-part/requests/{request_id}": {
+            "get": {
+              "parameters": [
+                {
+                  "name": "request_id",
+                  "in": "path",
+                  "required": true,
+                  "schema": {
+                    "type": "string",
+                    "description": "Request ID"
+                  }
+                }
+              ],
+              "responses": {
+                "200": {
+                  "description": "Result of the request.",
+                  "content": {
+                    "application/json": {
+                      "schema": {
+                        "$ref": "#/components/schemas/HunyuanPartOutput"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "servers": [
+          {
+            "url": "https://queue.fal.run"
+          }
+        ],
+        "security": [
+          {
+            "apiKeyAuth": []
+          }
+        ]
+      }
+    }
+  ]
+}

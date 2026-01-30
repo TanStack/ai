@@ -1,0 +1,3635 @@
+{
+  "generated_at": "2026-01-28T02:51:51.870Z",
+  "total_models": 9,
+  "category": "speech-to-text",
+  "models": [
+    {
+      "endpoint_id": "fal-ai/elevenlabs/speech-to-text/scribe-v2",
+      "metadata": {
+        "display_name": "ElevenLabs Speech to Text - Scribe V2",
+        "category": "speech-to-text",
+        "description": "Use Scribe-V2 from ElevenLabs to do blazingly fast speech to text inferences!",
+        "status": "active",
+        "tags": [
+          "speech-to-text"
+        ],
+        "updated_at": "2026-01-26T21:41:36.848Z",
+        "is_favorited": false,
+        "thumbnail_url": "https://v3b.fal.media/files/b/0a8a5d77/3XtHpcC46Sg0ItPRjB6Uk_82a3a831177745b38f925d35a7b5ed66.jpg",
+        "model_url": "https://fal.run/fal-ai/elevenlabs/speech-to-text/scribe-v2",
+        "license_type": "commercial",
+        "date": "2026-01-14T14:30:10.342Z",
+        "group": {
+          "key": "e11-speech-to-text",
+          "label": "Scribe V2"
+        },
+        "highlighted": false,
+        "kind": "inference",
+        "pinned": false
+      },
+      "openapi": {
+        "openapi": "3.0.4",
+        "info": {
+          "title": "Queue OpenAPI for fal-ai/elevenlabs/speech-to-text/scribe-v2",
+          "version": "1.0.0",
+          "description": "The OpenAPI schema for the fal-ai/elevenlabs/speech-to-text/scribe-v2 queue.",
+          "x-fal-metadata": {
+            "endpointId": "fal-ai/elevenlabs/speech-to-text/scribe-v2",
+            "category": "speech-to-text",
+            "thumbnailUrl": "https://v3b.fal.media/files/b/0a8a5d77/3XtHpcC46Sg0ItPRjB6Uk_82a3a831177745b38f925d35a7b5ed66.jpg",
+            "playgroundUrl": "https://fal.ai/models/fal-ai/elevenlabs/speech-to-text/scribe-v2",
+            "documentationUrl": "https://fal.ai/models/fal-ai/elevenlabs/speech-to-text/scribe-v2/api"
+          }
+        },
+        "components": {
+          "securitySchemes": {
+            "apiKeyAuth": {
+              "type": "apiKey",
+              "in": "header",
+              "name": "Authorization",
+              "description": "Fal Key"
+            }
+          },
+          "schemas": {
+            "QueueStatus": {
+              "type": "object",
+              "properties": {
+                "status": {
+                  "type": "string",
+                  "enum": [
+                    "IN_QUEUE",
+                    "IN_PROGRESS",
+                    "COMPLETED"
+                  ]
+                },
+                "request_id": {
+                  "type": "string",
+                  "description": "The request id."
+                },
+                "response_url": {
+                  "type": "string",
+                  "description": "The response url."
+                },
+                "status_url": {
+                  "type": "string",
+                  "description": "The status url."
+                },
+                "cancel_url": {
+                  "type": "string",
+                  "description": "The cancel url."
+                },
+                "logs": {
+                  "type": "object",
+                  "description": "The logs.",
+                  "additionalProperties": true
+                },
+                "metrics": {
+                  "type": "object",
+                  "description": "The metrics.",
+                  "additionalProperties": true
+                },
+                "queue_position": {
+                  "type": "integer",
+                  "description": "The queue position."
+                }
+              },
+              "required": [
+                "status",
+                "request_id"
+              ]
+            },
+            "ElevenlabsSpeechToTextScribeV2Input": {
+              "title": "SpeechToTextRequestScribeV2",
+              "type": "object",
+              "properties": {
+                "keyterms": {
+                  "description": "Words or sentences to bias the model towards transcribing. Up to 100 keyterms, max 50 characters each. Adds 30% premium over base transcription price.",
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  },
+                  "examples": [
+                    [
+                      "fal.ai"
+                    ]
+                  ],
+                  "maxItems": 100,
+                  "title": "Keyterms",
+                  "default": []
+                },
+                "audio_url": {
+                  "examples": [
+                    "https://storage.googleapis.com/falserverless/example_inputs/elevenlabs/scribe_v2_in.mp3"
+                  ],
+                  "description": "URL of the audio file to transcribe",
+                  "type": "string",
+                  "title": "Audio Url"
+                },
+                "diarize": {
+                  "description": "Whether to annotate who is speaking",
+                  "type": "boolean",
+                  "title": "Diarize",
+                  "default": true
+                },
+                "language_code": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "description": "Language code of the audio",
+                  "title": "Language Code",
+                  "examples": [
+                    "eng",
+                    "spa",
+                    "fra",
+                    "deu",
+                    "jpn"
+                  ]
+                },
+                "tag_audio_events": {
+                  "description": "Tag audio events like laughter, applause, etc.",
+                  "type": "boolean",
+                  "title": "Tag Audio Events",
+                  "default": true
+                }
+              },
+              "x-fal-order-properties": [
+                "audio_url",
+                "language_code",
+                "tag_audio_events",
+                "diarize",
+                "keyterms"
+              ],
+              "required": [
+                "audio_url"
+              ]
+            },
+            "ElevenlabsSpeechToTextScribeV2Output": {
+              "title": "TranscriptionOutputV2",
+              "type": "object",
+              "properties": {
+                "text": {
+                  "examples": [
+                    "Hey, this is a test recording for Scribe version two, which is now available on fal.ai."
+                  ],
+                  "description": "The full transcribed text",
+                  "type": "string",
+                  "title": "Text"
+                },
+                "language_probability": {
+                  "examples": [
+                    1
+                  ],
+                  "description": "Confidence in language detection",
+                  "type": "number",
+                  "title": "Language Probability"
+                },
+                "language_code": {
+                  "examples": [
+                    "eng"
+                  ],
+                  "description": "Detected or specified language code",
+                  "type": "string",
+                  "title": "Language Code"
+                },
+                "words": {
+                  "examples": [
+                    {
+                      "text": "Hey,",
+                      "start": 0.079,
+                      "type": "word",
+                      "end": 0.539,
+                      "speaker_id": "speaker_0"
+                    },
+                    {
+                      "text": " ",
+                      "start": 0.539,
+                      "type": "spacing",
+                      "end": 0.599,
+                      "speaker_id": "speaker_0"
+                    },
+                    {
+                      "text": "this",
+                      "start": 0.599,
+                      "type": "word",
+                      "end": 0.679,
+                      "speaker_id": "speaker_0"
+                    },
+                    {
+                      "text": " ",
+                      "start": 0.679,
+                      "type": "spacing",
+                      "end": 0.739,
+                      "speaker_id": "speaker_0"
+                    },
+                    {
+                      "text": "is",
+                      "start": 0.739,
+                      "type": "word",
+                      "end": 0.799,
+                      "speaker_id": "speaker_0"
+                    },
+                    {
+                      "text": " ",
+                      "start": 0.799,
+                      "type": "spacing",
+                      "end": 0.939,
+                      "speaker_id": "speaker_0"
+                    },
+                    {
+                      "text": "a",
+                      "start": 0.939,
+                      "type": "word",
+                      "end": 0.939,
+                      "speaker_id": "speaker_0"
+                    },
+                    {
+                      "text": " ",
+                      "start": 0.939,
+                      "type": "spacing",
+                      "end": 0.959,
+                      "speaker_id": "speaker_0"
+                    },
+                    {
+                      "text": "test",
+                      "start": 0.959,
+                      "type": "word",
+                      "end": 1.179,
+                      "speaker_id": "speaker_0"
+                    },
+                    {
+                      "text": " ",
+                      "start": 1.179,
+                      "type": "spacing",
+                      "end": 1.219,
+                      "speaker_id": "speaker_0"
+                    },
+                    {
+                      "text": "recording",
+                      "start": 1.22,
+                      "type": "word",
+                      "end": 1.719,
+                      "speaker_id": "speaker_0"
+                    },
+                    {
+                      "text": " ",
+                      "start": 1.719,
+                      "type": "spacing",
+                      "end": 1.719,
+                      "speaker_id": "speaker_0"
+                    },
+                    {
+                      "text": "for",
+                      "start": 1.719,
+                      "type": "word",
+                      "end": 1.86,
+                      "speaker_id": "speaker_0"
+                    },
+                    {
+                      "text": " ",
+                      "start": 1.86,
+                      "type": "spacing",
+                      "end": 1.879,
+                      "speaker_id": "speaker_0"
+                    },
+                    {
+                      "text": "Scribe",
+                      "start": 1.879,
+                      "type": "word",
+                      "end": 2.24,
+                      "speaker_id": "speaker_0"
+                    },
+                    {
+                      "text": " ",
+                      "start": 2.24,
+                      "type": "spacing",
+                      "end": 2.319,
+                      "speaker_id": "speaker_0"
+                    },
+                    {
+                      "text": "version",
+                      "start": 2.319,
+                      "type": "word",
+                      "end": 2.759,
+                      "speaker_id": "speaker_0"
+                    },
+                    {
+                      "text": " ",
+                      "start": 2.759,
+                      "type": "spacing",
+                      "end": 2.779,
+                      "speaker_id": "speaker_0"
+                    },
+                    {
+                      "text": "two,",
+                      "start": 2.779,
+                      "type": "word",
+                      "end": 3.379,
+                      "speaker_id": "speaker_0"
+                    },
+                    {
+                      "text": " ",
+                      "start": 3.379,
+                      "type": "spacing",
+                      "end": 3.399,
+                      "speaker_id": "speaker_0"
+                    },
+                    {
+                      "text": "which",
+                      "start": 3.399,
+                      "type": "word",
+                      "end": 3.519,
+                      "speaker_id": "speaker_0"
+                    },
+                    {
+                      "text": " ",
+                      "start": 3.519,
+                      "type": "spacing",
+                      "end": 3.539,
+                      "speaker_id": "speaker_0"
+                    },
+                    {
+                      "text": "is",
+                      "start": 3.539,
+                      "type": "word",
+                      "end": 3.659,
+                      "speaker_id": "speaker_0"
+                    },
+                    {
+                      "text": " ",
+                      "start": 3.659,
+                      "type": "spacing",
+                      "end": 3.699,
+                      "speaker_id": "speaker_0"
+                    },
+                    {
+                      "text": "now",
+                      "start": 3.699,
+                      "type": "word",
+                      "end": 3.839,
+                      "speaker_id": "speaker_0"
+                    },
+                    {
+                      "text": " ",
+                      "start": 3.839,
+                      "type": "spacing",
+                      "end": 3.839,
+                      "speaker_id": "speaker_0"
+                    },
+                    {
+                      "text": "available",
+                      "start": 3.839,
+                      "type": "word",
+                      "end": 4.319,
+                      "speaker_id": "speaker_0"
+                    },
+                    {
+                      "text": " ",
+                      "start": 4.319,
+                      "type": "spacing",
+                      "end": 4.339,
+                      "speaker_id": "speaker_0"
+                    },
+                    {
+                      "text": "on",
+                      "start": 4.339,
+                      "type": "word",
+                      "end": 4.579,
+                      "speaker_id": "speaker_0"
+                    },
+                    {
+                      "text": " ",
+                      "start": 4.579,
+                      "type": "spacing",
+                      "end": 4.599,
+                      "speaker_id": "speaker_0"
+                    },
+                    {
+                      "text": "fal.ai.",
+                      "start": 4.599,
+                      "type": "word",
+                      "end": 5.699,
+                      "speaker_id": "speaker_0"
+                    }
+                  ],
+                  "description": "Word-level transcription details",
+                  "type": "array",
+                  "title": "Words",
+                  "items": {
+                    "$ref": "#/components/schemas/TranscriptionWord"
+                  }
+                }
+              },
+              "x-fal-order-properties": [
+                "text",
+                "language_code",
+                "language_probability",
+                "words"
+              ],
+              "required": [
+                "text",
+                "language_code",
+                "language_probability",
+                "words"
+              ]
+            },
+            "TranscriptionWord": {
+              "title": "TranscriptionWord",
+              "type": "object",
+              "properties": {
+                "text": {
+                  "description": "The transcribed word or audio event",
+                  "type": "string",
+                  "title": "Text"
+                },
+                "start": {
+                  "anyOf": [
+                    {
+                      "type": "number"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "description": "Start time in seconds",
+                  "title": "Start"
+                },
+                "type": {
+                  "description": "Type of element (word, spacing, or audio_event)",
+                  "type": "string",
+                  "title": "Type"
+                },
+                "end": {
+                  "anyOf": [
+                    {
+                      "type": "number"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "description": "End time in seconds",
+                  "title": "End"
+                },
+                "speaker_id": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "description": "Speaker identifier if diarization was enabled",
+                  "title": "Speaker Id"
+                }
+              },
+              "x-fal-order-properties": [
+                "text",
+                "start",
+                "end",
+                "type",
+                "speaker_id"
+              ],
+              "required": [
+                "text",
+                "start",
+                "end",
+                "type"
+              ]
+            }
+          }
+        },
+        "paths": {
+          "/fal-ai/elevenlabs/speech-to-text/scribe-v2/requests/{request_id}/status": {
+            "get": {
+              "parameters": [
+                {
+                  "name": "request_id",
+                  "in": "path",
+                  "required": true,
+                  "schema": {
+                    "type": "string",
+                    "description": "Request ID"
+                  }
+                },
+                {
+                  "name": "logs",
+                  "in": "query",
+                  "required": false,
+                  "schema": {
+                    "type": "number",
+                    "description": "Whether to include logs (`1`) in the response or not (`0`)."
+                  }
+                }
+              ],
+              "responses": {
+                "200": {
+                  "description": "The request status.",
+                  "content": {
+                    "application/json": {
+                      "schema": {
+                        "$ref": "#/components/schemas/QueueStatus"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "/fal-ai/elevenlabs/speech-to-text/scribe-v2/requests/{request_id}/cancel": {
+            "put": {
+              "parameters": [
+                {
+                  "name": "request_id",
+                  "in": "path",
+                  "required": true,
+                  "schema": {
+                    "type": "string",
+                    "description": "Request ID"
+                  }
+                }
+              ],
+              "responses": {
+                "200": {
+                  "description": "The request was cancelled.",
+                  "content": {
+                    "application/json": {
+                      "schema": {
+                        "type": "object",
+                        "properties": {
+                          "success": {
+                            "type": "boolean",
+                            "description": "Whether the request was cancelled successfully."
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "/fal-ai/elevenlabs/speech-to-text/scribe-v2": {
+            "post": {
+              "requestBody": {
+                "required": true,
+                "content": {
+                  "application/json": {
+                    "schema": {
+                      "$ref": "#/components/schemas/ElevenlabsSpeechToTextScribeV2Input"
+                    }
+                  }
+                }
+              },
+              "responses": {
+                "200": {
+                  "description": "The request status.",
+                  "content": {
+                    "application/json": {
+                      "schema": {
+                        "$ref": "#/components/schemas/QueueStatus"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "/fal-ai/elevenlabs/speech-to-text/scribe-v2/requests/{request_id}": {
+            "get": {
+              "parameters": [
+                {
+                  "name": "request_id",
+                  "in": "path",
+                  "required": true,
+                  "schema": {
+                    "type": "string",
+                    "description": "Request ID"
+                  }
+                }
+              ],
+              "responses": {
+                "200": {
+                  "description": "Result of the request.",
+                  "content": {
+                    "application/json": {
+                      "schema": {
+                        "$ref": "#/components/schemas/ElevenlabsSpeechToTextScribeV2Output"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "servers": [
+          {
+            "url": "https://queue.fal.run"
+          }
+        ],
+        "security": [
+          {
+            "apiKeyAuth": []
+          }
+        ]
+      }
+    },
+    {
+      "endpoint_id": "fal-ai/smart-turn",
+      "metadata": {
+        "display_name": "Pipecat's Smart Turn model",
+        "category": "speech-to-text",
+        "description": "An open source, community-driven and native audio turn detection model by Pipecat AI.\n\n",
+        "status": "active",
+        "tags": [],
+        "updated_at": "2026-01-26T21:43:54.403Z",
+        "is_favorited": false,
+        "thumbnail_url": "https://storage.googleapis.com/fal_cdn/fal/Sound-2.jpg",
+        "model_url": "https://fal.run/fal-ai/smart-turn",
+        "license_type": "commercial",
+        "date": "2025-04-21T23:54:12.905Z",
+        "highlighted": false,
+        "kind": "inference",
+        "pinned": false
+      },
+      "openapi": {
+        "openapi": "3.0.4",
+        "info": {
+          "title": "Queue OpenAPI for fal-ai/smart-turn",
+          "version": "1.0.0",
+          "description": "The OpenAPI schema for the fal-ai/smart-turn queue.",
+          "x-fal-metadata": {
+            "endpointId": "fal-ai/smart-turn",
+            "category": "speech-to-text",
+            "thumbnailUrl": "https://storage.googleapis.com/fal_cdn/fal/Sound-2.jpg",
+            "playgroundUrl": "https://fal.ai/models/fal-ai/smart-turn",
+            "documentationUrl": "https://fal.ai/models/fal-ai/smart-turn/api"
+          }
+        },
+        "components": {
+          "securitySchemes": {
+            "apiKeyAuth": {
+              "type": "apiKey",
+              "in": "header",
+              "name": "Authorization",
+              "description": "Fal Key"
+            }
+          },
+          "schemas": {
+            "QueueStatus": {
+              "type": "object",
+              "properties": {
+                "status": {
+                  "type": "string",
+                  "enum": [
+                    "IN_QUEUE",
+                    "IN_PROGRESS",
+                    "COMPLETED"
+                  ]
+                },
+                "request_id": {
+                  "type": "string",
+                  "description": "The request id."
+                },
+                "response_url": {
+                  "type": "string",
+                  "description": "The response url."
+                },
+                "status_url": {
+                  "type": "string",
+                  "description": "The status url."
+                },
+                "cancel_url": {
+                  "type": "string",
+                  "description": "The cancel url."
+                },
+                "logs": {
+                  "type": "object",
+                  "description": "The logs.",
+                  "additionalProperties": true
+                },
+                "metrics": {
+                  "type": "object",
+                  "description": "The metrics.",
+                  "additionalProperties": true
+                },
+                "queue_position": {
+                  "type": "integer",
+                  "description": "The queue position."
+                }
+              },
+              "required": [
+                "status",
+                "request_id"
+              ]
+            },
+            "SmartTurnInput": {
+              "title": "SmartTurnInput",
+              "type": "object",
+              "properties": {
+                "audio_url": {
+                  "examples": [
+                    "https://fal.media/files/panda/5-QaAOC32rB_hqWaVdqEH.mpga"
+                  ],
+                  "title": "Audio Url",
+                  "type": "string",
+                  "description": "The URL of the audio file to be processed."
+                }
+              },
+              "x-fal-order-properties": [
+                "audio_url"
+              ],
+              "required": [
+                "audio_url"
+              ]
+            },
+            "SmartTurnOutput": {
+              "title": "Output",
+              "type": "object",
+              "properties": {
+                "prediction": {
+                  "title": "Prediction",
+                  "type": "integer",
+                  "description": "The predicted turn type. 1 for Complete, 0 for Incomplete."
+                },
+                "probability": {
+                  "title": "Probability",
+                  "type": "number",
+                  "description": "The probability of the predicted turn type."
+                },
+                "metrics": {
+                  "title": "Metrics",
+                  "type": "object",
+                  "description": "The metrics of the inference."
+                }
+              },
+              "x-fal-order-properties": [
+                "prediction",
+                "probability",
+                "metrics"
+              ],
+              "required": [
+                "prediction",
+                "probability",
+                "metrics"
+              ]
+            }
+          }
+        },
+        "paths": {
+          "/fal-ai/smart-turn/requests/{request_id}/status": {
+            "get": {
+              "parameters": [
+                {
+                  "name": "request_id",
+                  "in": "path",
+                  "required": true,
+                  "schema": {
+                    "type": "string",
+                    "description": "Request ID"
+                  }
+                },
+                {
+                  "name": "logs",
+                  "in": "query",
+                  "required": false,
+                  "schema": {
+                    "type": "number",
+                    "description": "Whether to include logs (`1`) in the response or not (`0`)."
+                  }
+                }
+              ],
+              "responses": {
+                "200": {
+                  "description": "The request status.",
+                  "content": {
+                    "application/json": {
+                      "schema": {
+                        "$ref": "#/components/schemas/QueueStatus"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "/fal-ai/smart-turn/requests/{request_id}/cancel": {
+            "put": {
+              "parameters": [
+                {
+                  "name": "request_id",
+                  "in": "path",
+                  "required": true,
+                  "schema": {
+                    "type": "string",
+                    "description": "Request ID"
+                  }
+                }
+              ],
+              "responses": {
+                "200": {
+                  "description": "The request was cancelled.",
+                  "content": {
+                    "application/json": {
+                      "schema": {
+                        "type": "object",
+                        "properties": {
+                          "success": {
+                            "type": "boolean",
+                            "description": "Whether the request was cancelled successfully."
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "/fal-ai/smart-turn": {
+            "post": {
+              "requestBody": {
+                "required": true,
+                "content": {
+                  "application/json": {
+                    "schema": {
+                      "$ref": "#/components/schemas/SmartTurnInput"
+                    }
+                  }
+                }
+              },
+              "responses": {
+                "200": {
+                  "description": "The request status.",
+                  "content": {
+                    "application/json": {
+                      "schema": {
+                        "$ref": "#/components/schemas/QueueStatus"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "/fal-ai/smart-turn/requests/{request_id}": {
+            "get": {
+              "parameters": [
+                {
+                  "name": "request_id",
+                  "in": "path",
+                  "required": true,
+                  "schema": {
+                    "type": "string",
+                    "description": "Request ID"
+                  }
+                }
+              ],
+              "responses": {
+                "200": {
+                  "description": "Result of the request.",
+                  "content": {
+                    "application/json": {
+                      "schema": {
+                        "$ref": "#/components/schemas/SmartTurnOutput"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "servers": [
+          {
+            "url": "https://queue.fal.run"
+          }
+        ],
+        "security": [
+          {
+            "apiKeyAuth": []
+          }
+        ]
+      }
+    },
+    {
+      "endpoint_id": "fal-ai/speech-to-text/turbo",
+      "metadata": {
+        "display_name": "Speech-to-Text",
+        "category": "speech-to-text",
+        "description": "Leverage the rapid processing capabilities of AI models to enable accurate and efficient real-time speech-to-text transcription.",
+        "status": "active",
+        "tags": [],
+        "updated_at": "2026-01-26T21:43:57.680Z",
+        "is_favorited": false,
+        "thumbnail_url": "https://storage.googleapis.com/falserverless/gallery/canary.webp",
+        "model_url": "https://fal.run/fal-ai/speech-to-text/turbo",
+        "license_type": "commercial",
+        "date": "2025-04-04T19:35:54.848Z",
+        "highlighted": false,
+        "kind": "inference",
+        "pinned": false
+      },
+      "openapi": {
+        "openapi": "3.0.4",
+        "info": {
+          "title": "Queue OpenAPI for fal-ai/speech-to-text/turbo",
+          "version": "1.0.0",
+          "description": "The OpenAPI schema for the fal-ai/speech-to-text/turbo queue.",
+          "x-fal-metadata": {
+            "endpointId": "fal-ai/speech-to-text/turbo",
+            "category": "speech-to-text",
+            "thumbnailUrl": "https://storage.googleapis.com/falserverless/gallery/canary.webp",
+            "playgroundUrl": "https://fal.ai/models/fal-ai/speech-to-text/turbo",
+            "documentationUrl": "https://fal.ai/models/fal-ai/speech-to-text/turbo/api"
+          }
+        },
+        "components": {
+          "securitySchemes": {
+            "apiKeyAuth": {
+              "type": "apiKey",
+              "in": "header",
+              "name": "Authorization",
+              "description": "Fal Key"
+            }
+          },
+          "schemas": {
+            "QueueStatus": {
+              "type": "object",
+              "properties": {
+                "status": {
+                  "type": "string",
+                  "enum": [
+                    "IN_QUEUE",
+                    "IN_PROGRESS",
+                    "COMPLETED"
+                  ]
+                },
+                "request_id": {
+                  "type": "string",
+                  "description": "The request id."
+                },
+                "response_url": {
+                  "type": "string",
+                  "description": "The response url."
+                },
+                "status_url": {
+                  "type": "string",
+                  "description": "The status url."
+                },
+                "cancel_url": {
+                  "type": "string",
+                  "description": "The cancel url."
+                },
+                "logs": {
+                  "type": "object",
+                  "description": "The logs.",
+                  "additionalProperties": true
+                },
+                "metrics": {
+                  "type": "object",
+                  "description": "The metrics.",
+                  "additionalProperties": true
+                },
+                "queue_position": {
+                  "type": "integer",
+                  "description": "The queue position."
+                }
+              },
+              "required": [
+                "status",
+                "request_id"
+              ]
+            },
+            "SpeechToTextTurboInput": {
+              "title": "SpeechInput",
+              "type": "object",
+              "properties": {
+                "audio_url": {
+                  "examples": [
+                    "https://storage.googleapis.com/falserverless/canary/18e15559-ab3e-4f96-9583-be5ddde91e43.mp3"
+                  ],
+                  "title": "Audio Path",
+                  "type": "string",
+                  "description": "Local filesystem path (or remote URL) to a long audio file"
+                },
+                "use_pnc": {
+                  "title": "Use Punctuation/Capitalization (PnC)",
+                  "type": "boolean",
+                  "description": "Whether to use Canary's built-in punctuation & capitalization",
+                  "default": true
+                }
+              },
+              "x-fal-order-properties": [
+                "audio_url",
+                "use_pnc"
+              ],
+              "required": [
+                "audio_url"
+              ]
+            },
+            "SpeechToTextTurboOutput": {
+              "title": "SpeechOutput",
+              "type": "object",
+              "properties": {
+                "partial": {
+                  "title": "Partial",
+                  "type": "boolean",
+                  "description": "Indicates if this is a partial (in-progress) transcript",
+                  "default": false
+                },
+                "output": {
+                  "title": "Transcribed Text",
+                  "type": "string",
+                  "description": "The partial or final transcription output from Canary"
+                }
+              },
+              "x-fal-order-properties": [
+                "output",
+                "partial"
+              ],
+              "required": [
+                "output"
+              ]
+            }
+          }
+        },
+        "paths": {
+          "/fal-ai/speech-to-text/turbo/requests/{request_id}/status": {
+            "get": {
+              "parameters": [
+                {
+                  "name": "request_id",
+                  "in": "path",
+                  "required": true,
+                  "schema": {
+                    "type": "string",
+                    "description": "Request ID"
+                  }
+                },
+                {
+                  "name": "logs",
+                  "in": "query",
+                  "required": false,
+                  "schema": {
+                    "type": "number",
+                    "description": "Whether to include logs (`1`) in the response or not (`0`)."
+                  }
+                }
+              ],
+              "responses": {
+                "200": {
+                  "description": "The request status.",
+                  "content": {
+                    "application/json": {
+                      "schema": {
+                        "$ref": "#/components/schemas/QueueStatus"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "/fal-ai/speech-to-text/turbo/requests/{request_id}/cancel": {
+            "put": {
+              "parameters": [
+                {
+                  "name": "request_id",
+                  "in": "path",
+                  "required": true,
+                  "schema": {
+                    "type": "string",
+                    "description": "Request ID"
+                  }
+                }
+              ],
+              "responses": {
+                "200": {
+                  "description": "The request was cancelled.",
+                  "content": {
+                    "application/json": {
+                      "schema": {
+                        "type": "object",
+                        "properties": {
+                          "success": {
+                            "type": "boolean",
+                            "description": "Whether the request was cancelled successfully."
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "/fal-ai/speech-to-text/turbo": {
+            "post": {
+              "requestBody": {
+                "required": true,
+                "content": {
+                  "application/json": {
+                    "schema": {
+                      "$ref": "#/components/schemas/SpeechToTextTurboInput"
+                    }
+                  }
+                }
+              },
+              "responses": {
+                "200": {
+                  "description": "The request status.",
+                  "content": {
+                    "application/json": {
+                      "schema": {
+                        "$ref": "#/components/schemas/QueueStatus"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "/fal-ai/speech-to-text/turbo/requests/{request_id}": {
+            "get": {
+              "parameters": [
+                {
+                  "name": "request_id",
+                  "in": "path",
+                  "required": true,
+                  "schema": {
+                    "type": "string",
+                    "description": "Request ID"
+                  }
+                }
+              ],
+              "responses": {
+                "200": {
+                  "description": "Result of the request.",
+                  "content": {
+                    "application/json": {
+                      "schema": {
+                        "$ref": "#/components/schemas/SpeechToTextTurboOutput"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "servers": [
+          {
+            "url": "https://queue.fal.run"
+          }
+        ],
+        "security": [
+          {
+            "apiKeyAuth": []
+          }
+        ]
+      }
+    },
+    {
+      "endpoint_id": "fal-ai/speech-to-text/turbo/stream",
+      "metadata": {
+        "display_name": "Speech-to-Text",
+        "category": "speech-to-text",
+        "description": "Leverage the rapid processing capabilities of AI models to enable accurate and efficient real-time speech-to-text transcription.",
+        "status": "active",
+        "tags": [
+          "streaming"
+        ],
+        "updated_at": "2026-01-26T21:43:57.811Z",
+        "is_favorited": false,
+        "thumbnail_url": "https://storage.googleapis.com/falserverless/gallery/canary.webp",
+        "model_url": "https://fal.run/fal-ai/speech-to-text/turbo/stream",
+        "license_type": "commercial",
+        "date": "2025-04-04T19:13:10.736Z",
+        "highlighted": false,
+        "kind": "inference",
+        "pinned": false
+      },
+      "openapi": {
+        "openapi": "3.0.4",
+        "info": {
+          "title": "Queue OpenAPI for fal-ai/speech-to-text/turbo/stream",
+          "version": "1.0.0",
+          "description": "The OpenAPI schema for the fal-ai/speech-to-text/turbo/stream queue.",
+          "x-fal-metadata": {
+            "endpointId": "fal-ai/speech-to-text/turbo/stream",
+            "category": "speech-to-text",
+            "thumbnailUrl": "https://storage.googleapis.com/falserverless/gallery/canary.webp",
+            "playgroundUrl": "https://fal.ai/models/fal-ai/speech-to-text/turbo/stream",
+            "documentationUrl": "https://fal.ai/models/fal-ai/speech-to-text/turbo/stream/api"
+          }
+        },
+        "components": {
+          "securitySchemes": {
+            "apiKeyAuth": {
+              "type": "apiKey",
+              "in": "header",
+              "name": "Authorization",
+              "description": "Fal Key"
+            }
+          },
+          "schemas": {
+            "QueueStatus": {
+              "type": "object",
+              "properties": {
+                "status": {
+                  "type": "string",
+                  "enum": [
+                    "IN_QUEUE",
+                    "IN_PROGRESS",
+                    "COMPLETED"
+                  ]
+                },
+                "request_id": {
+                  "type": "string",
+                  "description": "The request id."
+                },
+                "response_url": {
+                  "type": "string",
+                  "description": "The response url."
+                },
+                "status_url": {
+                  "type": "string",
+                  "description": "The status url."
+                },
+                "cancel_url": {
+                  "type": "string",
+                  "description": "The cancel url."
+                },
+                "logs": {
+                  "type": "object",
+                  "description": "The logs.",
+                  "additionalProperties": true
+                },
+                "metrics": {
+                  "type": "object",
+                  "description": "The metrics.",
+                  "additionalProperties": true
+                },
+                "queue_position": {
+                  "type": "integer",
+                  "description": "The queue position."
+                }
+              },
+              "required": [
+                "status",
+                "request_id"
+              ]
+            },
+            "SpeechToTextTurboStreamInput": {
+              "title": "SpeechInput",
+              "type": "object",
+              "properties": {
+                "audio_url": {
+                  "examples": [
+                    "https://storage.googleapis.com/falserverless/canary/18e15559-ab3e-4f96-9583-be5ddde91e43.mp3"
+                  ],
+                  "title": "Audio Path",
+                  "type": "string",
+                  "description": "Local filesystem path (or remote URL) to a long audio file"
+                },
+                "use_pnc": {
+                  "title": "Use Punctuation/Capitalization (PnC)",
+                  "type": "boolean",
+                  "description": "Whether to use Canary's built-in punctuation & capitalization",
+                  "default": true
+                }
+              },
+              "x-fal-order-properties": [
+                "audio_url",
+                "use_pnc"
+              ],
+              "required": [
+                "audio_url"
+              ]
+            },
+            "SpeechToTextTurboStreamOutput": {}
+          }
+        },
+        "paths": {
+          "/fal-ai/speech-to-text/turbo/stream/requests/{request_id}/status": {
+            "get": {
+              "parameters": [
+                {
+                  "name": "request_id",
+                  "in": "path",
+                  "required": true,
+                  "schema": {
+                    "type": "string",
+                    "description": "Request ID"
+                  }
+                },
+                {
+                  "name": "logs",
+                  "in": "query",
+                  "required": false,
+                  "schema": {
+                    "type": "number",
+                    "description": "Whether to include logs (`1`) in the response or not (`0`)."
+                  }
+                }
+              ],
+              "responses": {
+                "200": {
+                  "description": "The request status.",
+                  "content": {
+                    "application/json": {
+                      "schema": {
+                        "$ref": "#/components/schemas/QueueStatus"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "/fal-ai/speech-to-text/turbo/stream/requests/{request_id}/cancel": {
+            "put": {
+              "parameters": [
+                {
+                  "name": "request_id",
+                  "in": "path",
+                  "required": true,
+                  "schema": {
+                    "type": "string",
+                    "description": "Request ID"
+                  }
+                }
+              ],
+              "responses": {
+                "200": {
+                  "description": "The request was cancelled.",
+                  "content": {
+                    "application/json": {
+                      "schema": {
+                        "type": "object",
+                        "properties": {
+                          "success": {
+                            "type": "boolean",
+                            "description": "Whether the request was cancelled successfully."
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "/fal-ai/speech-to-text/turbo/stream": {
+            "post": {
+              "requestBody": {
+                "required": true,
+                "content": {
+                  "application/json": {
+                    "schema": {
+                      "$ref": "#/components/schemas/SpeechToTextTurboStreamInput"
+                    }
+                  }
+                }
+              },
+              "responses": {
+                "200": {
+                  "description": "The request status.",
+                  "content": {
+                    "application/json": {
+                      "schema": {
+                        "$ref": "#/components/schemas/QueueStatus"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "/fal-ai/speech-to-text/turbo/stream/requests/{request_id}": {
+            "get": {
+              "parameters": [
+                {
+                  "name": "request_id",
+                  "in": "path",
+                  "required": true,
+                  "schema": {
+                    "type": "string",
+                    "description": "Request ID"
+                  }
+                }
+              ],
+              "responses": {
+                "200": {
+                  "description": "Result of the request.",
+                  "content": {
+                    "application/json": {
+                      "schema": {
+                        "$ref": "#/components/schemas/SpeechToTextTurboStreamOutput"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "servers": [
+          {
+            "url": "https://queue.fal.run"
+          }
+        ],
+        "security": [
+          {
+            "apiKeyAuth": []
+          }
+        ]
+      }
+    },
+    {
+      "endpoint_id": "fal-ai/speech-to-text/stream",
+      "metadata": {
+        "display_name": "Speech-To-text",
+        "category": "speech-to-text",
+        "description": "Leverage the rapid processing capabilities of AI models to enable accurate and efficient real-time speech-to-text transcription.",
+        "status": "active",
+        "tags": [
+          "streaming"
+        ],
+        "updated_at": "2026-01-26T21:43:57.942Z",
+        "is_favorited": false,
+        "thumbnail_url": "https://storage.googleapis.com/falserverless/gallery/canary.webp",
+        "model_url": "https://fal.run/fal-ai/speech-to-text/stream",
+        "license_type": "commercial",
+        "date": "2025-04-04T16:01:08.836Z",
+        "highlighted": false,
+        "kind": "inference",
+        "pinned": false
+      },
+      "openapi": {
+        "openapi": "3.0.4",
+        "info": {
+          "title": "Queue OpenAPI for fal-ai/speech-to-text/stream",
+          "version": "1.0.0",
+          "description": "The OpenAPI schema for the fal-ai/speech-to-text/stream queue.",
+          "x-fal-metadata": {
+            "endpointId": "fal-ai/speech-to-text/stream",
+            "category": "speech-to-text",
+            "thumbnailUrl": "https://storage.googleapis.com/falserverless/gallery/canary.webp",
+            "playgroundUrl": "https://fal.ai/models/fal-ai/speech-to-text/stream",
+            "documentationUrl": "https://fal.ai/models/fal-ai/speech-to-text/stream/api"
+          }
+        },
+        "components": {
+          "securitySchemes": {
+            "apiKeyAuth": {
+              "type": "apiKey",
+              "in": "header",
+              "name": "Authorization",
+              "description": "Fal Key"
+            }
+          },
+          "schemas": {
+            "QueueStatus": {
+              "type": "object",
+              "properties": {
+                "status": {
+                  "type": "string",
+                  "enum": [
+                    "IN_QUEUE",
+                    "IN_PROGRESS",
+                    "COMPLETED"
+                  ]
+                },
+                "request_id": {
+                  "type": "string",
+                  "description": "The request id."
+                },
+                "response_url": {
+                  "type": "string",
+                  "description": "The response url."
+                },
+                "status_url": {
+                  "type": "string",
+                  "description": "The status url."
+                },
+                "cancel_url": {
+                  "type": "string",
+                  "description": "The cancel url."
+                },
+                "logs": {
+                  "type": "object",
+                  "description": "The logs.",
+                  "additionalProperties": true
+                },
+                "metrics": {
+                  "type": "object",
+                  "description": "The metrics.",
+                  "additionalProperties": true
+                },
+                "queue_position": {
+                  "type": "integer",
+                  "description": "The queue position."
+                }
+              },
+              "required": [
+                "status",
+                "request_id"
+              ]
+            },
+            "SpeechToTextStreamInput": {
+              "title": "SpeechInput",
+              "type": "object",
+              "properties": {
+                "audio_url": {
+                  "examples": [
+                    "https://storage.googleapis.com/falserverless/canary/18e15559-ab3e-4f96-9583-be5ddde91e43.mp3"
+                  ],
+                  "title": "Audio Path",
+                  "type": "string",
+                  "description": "Local filesystem path (or remote URL) to a long audio file"
+                },
+                "use_pnc": {
+                  "title": "Use Punctuation/Capitalization (PnC)",
+                  "type": "boolean",
+                  "description": "Whether to use Canary's built-in punctuation & capitalization",
+                  "default": true
+                }
+              },
+              "x-fal-order-properties": [
+                "audio_url",
+                "use_pnc"
+              ],
+              "required": [
+                "audio_url"
+              ]
+            },
+            "SpeechToTextStreamOutput": {}
+          }
+        },
+        "paths": {
+          "/fal-ai/speech-to-text/stream/requests/{request_id}/status": {
+            "get": {
+              "parameters": [
+                {
+                  "name": "request_id",
+                  "in": "path",
+                  "required": true,
+                  "schema": {
+                    "type": "string",
+                    "description": "Request ID"
+                  }
+                },
+                {
+                  "name": "logs",
+                  "in": "query",
+                  "required": false,
+                  "schema": {
+                    "type": "number",
+                    "description": "Whether to include logs (`1`) in the response or not (`0`)."
+                  }
+                }
+              ],
+              "responses": {
+                "200": {
+                  "description": "The request status.",
+                  "content": {
+                    "application/json": {
+                      "schema": {
+                        "$ref": "#/components/schemas/QueueStatus"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "/fal-ai/speech-to-text/stream/requests/{request_id}/cancel": {
+            "put": {
+              "parameters": [
+                {
+                  "name": "request_id",
+                  "in": "path",
+                  "required": true,
+                  "schema": {
+                    "type": "string",
+                    "description": "Request ID"
+                  }
+                }
+              ],
+              "responses": {
+                "200": {
+                  "description": "The request was cancelled.",
+                  "content": {
+                    "application/json": {
+                      "schema": {
+                        "type": "object",
+                        "properties": {
+                          "success": {
+                            "type": "boolean",
+                            "description": "Whether the request was cancelled successfully."
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "/fal-ai/speech-to-text/stream": {
+            "post": {
+              "requestBody": {
+                "required": true,
+                "content": {
+                  "application/json": {
+                    "schema": {
+                      "$ref": "#/components/schemas/SpeechToTextStreamInput"
+                    }
+                  }
+                }
+              },
+              "responses": {
+                "200": {
+                  "description": "The request status.",
+                  "content": {
+                    "application/json": {
+                      "schema": {
+                        "$ref": "#/components/schemas/QueueStatus"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "/fal-ai/speech-to-text/stream/requests/{request_id}": {
+            "get": {
+              "parameters": [
+                {
+                  "name": "request_id",
+                  "in": "path",
+                  "required": true,
+                  "schema": {
+                    "type": "string",
+                    "description": "Request ID"
+                  }
+                }
+              ],
+              "responses": {
+                "200": {
+                  "description": "Result of the request.",
+                  "content": {
+                    "application/json": {
+                      "schema": {
+                        "$ref": "#/components/schemas/SpeechToTextStreamOutput"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "servers": [
+          {
+            "url": "https://queue.fal.run"
+          }
+        ],
+        "security": [
+          {
+            "apiKeyAuth": []
+          }
+        ]
+      }
+    },
+    {
+      "endpoint_id": "fal-ai/speech-to-text",
+      "metadata": {
+        "display_name": "Speech-to-Text",
+        "category": "speech-to-text",
+        "description": "Leverage the rapid processing capabilities of AI models to enable accurate and efficient real-time speech-to-text transcription.",
+        "status": "active",
+        "tags": [
+          ""
+        ],
+        "updated_at": "2026-01-26T21:43:58.071Z",
+        "is_favorited": false,
+        "thumbnail_url": "https://storage.googleapis.com/falserverless/gallery/canary.webp",
+        "model_url": "https://fal.run/fal-ai/speech-to-text",
+        "license_type": "commercial",
+        "date": "2025-04-04T15:08:54.913Z",
+        "highlighted": false,
+        "kind": "inference",
+        "stream_url": "https://fal.run/fal-ai/speech-to-text/stream",
+        "pinned": false
+      },
+      "openapi": {
+        "openapi": "3.0.4",
+        "info": {
+          "title": "Queue OpenAPI for fal-ai/speech-to-text",
+          "version": "1.0.0",
+          "description": "The OpenAPI schema for the fal-ai/speech-to-text queue.",
+          "x-fal-metadata": {
+            "endpointId": "fal-ai/speech-to-text",
+            "category": "speech-to-text",
+            "thumbnailUrl": "https://storage.googleapis.com/falserverless/gallery/canary.webp",
+            "playgroundUrl": "https://fal.ai/models/fal-ai/speech-to-text",
+            "documentationUrl": "https://fal.ai/models/fal-ai/speech-to-text/api"
+          }
+        },
+        "components": {
+          "securitySchemes": {
+            "apiKeyAuth": {
+              "type": "apiKey",
+              "in": "header",
+              "name": "Authorization",
+              "description": "Fal Key"
+            }
+          },
+          "schemas": {
+            "QueueStatus": {
+              "type": "object",
+              "properties": {
+                "status": {
+                  "type": "string",
+                  "enum": [
+                    "IN_QUEUE",
+                    "IN_PROGRESS",
+                    "COMPLETED"
+                  ]
+                },
+                "request_id": {
+                  "type": "string",
+                  "description": "The request id."
+                },
+                "response_url": {
+                  "type": "string",
+                  "description": "The response url."
+                },
+                "status_url": {
+                  "type": "string",
+                  "description": "The status url."
+                },
+                "cancel_url": {
+                  "type": "string",
+                  "description": "The cancel url."
+                },
+                "logs": {
+                  "type": "object",
+                  "description": "The logs.",
+                  "additionalProperties": true
+                },
+                "metrics": {
+                  "type": "object",
+                  "description": "The metrics.",
+                  "additionalProperties": true
+                },
+                "queue_position": {
+                  "type": "integer",
+                  "description": "The queue position."
+                }
+              },
+              "required": [
+                "status",
+                "request_id"
+              ]
+            },
+            "SpeechToTextInput": {
+              "title": "SpeechInput",
+              "type": "object",
+              "properties": {
+                "audio_url": {
+                  "examples": [
+                    "https://storage.googleapis.com/falserverless/canary/18e15559-ab3e-4f96-9583-be5ddde91e43.mp3"
+                  ],
+                  "title": "Audio Path",
+                  "type": "string",
+                  "description": "Local filesystem path (or remote URL) to a long audio file"
+                },
+                "use_pnc": {
+                  "title": "Use Punctuation/Capitalization (PnC)",
+                  "type": "boolean",
+                  "description": "Whether to use Canary's built-in punctuation & capitalization",
+                  "default": true
+                }
+              },
+              "x-fal-order-properties": [
+                "audio_url",
+                "use_pnc"
+              ],
+              "required": [
+                "audio_url"
+              ]
+            },
+            "SpeechToTextOutput": {
+              "title": "SpeechOutput",
+              "type": "object",
+              "properties": {
+                "partial": {
+                  "title": "Partial",
+                  "type": "boolean",
+                  "description": "Indicates if this is a partial (in-progress) transcript",
+                  "default": false
+                },
+                "output": {
+                  "title": "Transcribed Text",
+                  "type": "string",
+                  "description": "The partial or final transcription output from Canary"
+                }
+              },
+              "x-fal-order-properties": [
+                "output",
+                "partial"
+              ],
+              "required": [
+                "output"
+              ]
+            }
+          }
+        },
+        "paths": {
+          "/fal-ai/speech-to-text/requests/{request_id}/status": {
+            "get": {
+              "parameters": [
+                {
+                  "name": "request_id",
+                  "in": "path",
+                  "required": true,
+                  "schema": {
+                    "type": "string",
+                    "description": "Request ID"
+                  }
+                },
+                {
+                  "name": "logs",
+                  "in": "query",
+                  "required": false,
+                  "schema": {
+                    "type": "number",
+                    "description": "Whether to include logs (`1`) in the response or not (`0`)."
+                  }
+                }
+              ],
+              "responses": {
+                "200": {
+                  "description": "The request status.",
+                  "content": {
+                    "application/json": {
+                      "schema": {
+                        "$ref": "#/components/schemas/QueueStatus"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "/fal-ai/speech-to-text/requests/{request_id}/cancel": {
+            "put": {
+              "parameters": [
+                {
+                  "name": "request_id",
+                  "in": "path",
+                  "required": true,
+                  "schema": {
+                    "type": "string",
+                    "description": "Request ID"
+                  }
+                }
+              ],
+              "responses": {
+                "200": {
+                  "description": "The request was cancelled.",
+                  "content": {
+                    "application/json": {
+                      "schema": {
+                        "type": "object",
+                        "properties": {
+                          "success": {
+                            "type": "boolean",
+                            "description": "Whether the request was cancelled successfully."
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "/fal-ai/speech-to-text": {
+            "post": {
+              "requestBody": {
+                "required": true,
+                "content": {
+                  "application/json": {
+                    "schema": {
+                      "$ref": "#/components/schemas/SpeechToTextInput"
+                    }
+                  }
+                }
+              },
+              "responses": {
+                "200": {
+                  "description": "The request status.",
+                  "content": {
+                    "application/json": {
+                      "schema": {
+                        "$ref": "#/components/schemas/QueueStatus"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "/fal-ai/speech-to-text/requests/{request_id}": {
+            "get": {
+              "parameters": [
+                {
+                  "name": "request_id",
+                  "in": "path",
+                  "required": true,
+                  "schema": {
+                    "type": "string",
+                    "description": "Request ID"
+                  }
+                }
+              ],
+              "responses": {
+                "200": {
+                  "description": "Result of the request.",
+                  "content": {
+                    "application/json": {
+                      "schema": {
+                        "$ref": "#/components/schemas/SpeechToTextOutput"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "servers": [
+          {
+            "url": "https://queue.fal.run"
+          }
+        ],
+        "security": [
+          {
+            "apiKeyAuth": []
+          }
+        ]
+      }
+    },
+    {
+      "endpoint_id": "fal-ai/elevenlabs/speech-to-text",
+      "metadata": {
+        "display_name": "ElevenLabs Speech to Text",
+        "category": "speech-to-text",
+        "description": "Generate text from speech using ElevenLabs advanced speech-to-text model.",
+        "status": "active",
+        "tags": [
+          "speech"
+        ],
+        "updated_at": "2026-01-26T21:44:04.914Z",
+        "is_favorited": false,
+        "thumbnail_url": "https://storage.googleapis.com/falserverless/web-examples/elevenlabs/elevenlabs_thumbnail.webp",
+        "model_url": "https://fal.run/fal-ai/elevenlabs/speech-to-text",
+        "license_type": "commercial",
+        "date": "2025-02-27T00:00:00.000Z",
+        "group": {
+          "key": "e11-speech-to-text",
+          "label": "Scribe V1"
+        },
+        "highlighted": false,
+        "kind": "inference",
+        "pinned": false
+      },
+      "openapi": {
+        "openapi": "3.0.4",
+        "info": {
+          "title": "Queue OpenAPI for fal-ai/elevenlabs/speech-to-text",
+          "version": "1.0.0",
+          "description": "The OpenAPI schema for the fal-ai/elevenlabs/speech-to-text queue.",
+          "x-fal-metadata": {
+            "endpointId": "fal-ai/elevenlabs/speech-to-text",
+            "category": "speech-to-text",
+            "thumbnailUrl": "https://storage.googleapis.com/falserverless/web-examples/elevenlabs/elevenlabs_thumbnail.webp",
+            "playgroundUrl": "https://fal.ai/models/fal-ai/elevenlabs/speech-to-text",
+            "documentationUrl": "https://fal.ai/models/fal-ai/elevenlabs/speech-to-text/api"
+          }
+        },
+        "components": {
+          "securitySchemes": {
+            "apiKeyAuth": {
+              "type": "apiKey",
+              "in": "header",
+              "name": "Authorization",
+              "description": "Fal Key"
+            }
+          },
+          "schemas": {
+            "QueueStatus": {
+              "type": "object",
+              "properties": {
+                "status": {
+                  "type": "string",
+                  "enum": [
+                    "IN_QUEUE",
+                    "IN_PROGRESS",
+                    "COMPLETED"
+                  ]
+                },
+                "request_id": {
+                  "type": "string",
+                  "description": "The request id."
+                },
+                "response_url": {
+                  "type": "string",
+                  "description": "The response url."
+                },
+                "status_url": {
+                  "type": "string",
+                  "description": "The status url."
+                },
+                "cancel_url": {
+                  "type": "string",
+                  "description": "The cancel url."
+                },
+                "logs": {
+                  "type": "object",
+                  "description": "The logs.",
+                  "additionalProperties": true
+                },
+                "metrics": {
+                  "type": "object",
+                  "description": "The metrics.",
+                  "additionalProperties": true
+                },
+                "queue_position": {
+                  "type": "integer",
+                  "description": "The queue position."
+                }
+              },
+              "required": [
+                "status",
+                "request_id"
+              ]
+            },
+            "ElevenlabsSpeechToTextInput": {
+              "title": "SpeechToTextRequest",
+              "type": "object",
+              "properties": {
+                "language_code": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "description": "Language code of the audio",
+                  "title": "Language Code",
+                  "examples": [
+                    "eng",
+                    "spa",
+                    "fra",
+                    "deu",
+                    "jpn"
+                  ]
+                },
+                "audio_url": {
+                  "examples": [
+                    "https://v3.fal.media/files/zebra/zJL_oRY8h5RWwjoK1w7tx_output.mp3"
+                  ],
+                  "description": "URL of the audio file to transcribe",
+                  "type": "string",
+                  "title": "Audio Url"
+                },
+                "diarize": {
+                  "description": "Whether to annotate who is speaking",
+                  "type": "boolean",
+                  "title": "Diarize",
+                  "default": true
+                },
+                "tag_audio_events": {
+                  "description": "Tag audio events like laughter, applause, etc.",
+                  "type": "boolean",
+                  "title": "Tag Audio Events",
+                  "default": true
+                }
+              },
+              "x-fal-order-properties": [
+                "audio_url",
+                "language_code",
+                "tag_audio_events",
+                "diarize"
+              ],
+              "required": [
+                "audio_url"
+              ]
+            },
+            "ElevenlabsSpeechToTextOutput": {
+              "title": "TranscriptionOutput",
+              "type": "object",
+              "properties": {
+                "text": {
+                  "description": "The full transcribed text",
+                  "type": "string",
+                  "title": "Text"
+                },
+                "language_probability": {
+                  "description": "Confidence in language detection",
+                  "type": "number",
+                  "title": "Language Probability"
+                },
+                "language_code": {
+                  "description": "Detected or specified language code",
+                  "type": "string",
+                  "title": "Language Code"
+                },
+                "words": {
+                  "description": "Word-level transcription details",
+                  "type": "array",
+                  "title": "Words",
+                  "items": {
+                    "$ref": "#/components/schemas/TranscriptionWord"
+                  }
+                }
+              },
+              "x-fal-order-properties": [
+                "text",
+                "language_code",
+                "language_probability",
+                "words"
+              ],
+              "required": [
+                "text",
+                "language_code",
+                "language_probability",
+                "words"
+              ]
+            },
+            "TranscriptionWord": {
+              "title": "TranscriptionWord",
+              "type": "object",
+              "properties": {
+                "text": {
+                  "description": "The transcribed word or audio event",
+                  "type": "string",
+                  "title": "Text"
+                },
+                "start": {
+                  "anyOf": [
+                    {
+                      "type": "number"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "description": "Start time in seconds",
+                  "title": "Start"
+                },
+                "type": {
+                  "description": "Type of element (word, spacing, or audio_event)",
+                  "type": "string",
+                  "title": "Type"
+                },
+                "end": {
+                  "anyOf": [
+                    {
+                      "type": "number"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "description": "End time in seconds",
+                  "title": "End"
+                },
+                "speaker_id": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "description": "Speaker identifier if diarization was enabled",
+                  "title": "Speaker Id"
+                }
+              },
+              "x-fal-order-properties": [
+                "text",
+                "start",
+                "end",
+                "type",
+                "speaker_id"
+              ],
+              "required": [
+                "text",
+                "start",
+                "end",
+                "type"
+              ]
+            }
+          }
+        },
+        "paths": {
+          "/fal-ai/elevenlabs/speech-to-text/requests/{request_id}/status": {
+            "get": {
+              "parameters": [
+                {
+                  "name": "request_id",
+                  "in": "path",
+                  "required": true,
+                  "schema": {
+                    "type": "string",
+                    "description": "Request ID"
+                  }
+                },
+                {
+                  "name": "logs",
+                  "in": "query",
+                  "required": false,
+                  "schema": {
+                    "type": "number",
+                    "description": "Whether to include logs (`1`) in the response or not (`0`)."
+                  }
+                }
+              ],
+              "responses": {
+                "200": {
+                  "description": "The request status.",
+                  "content": {
+                    "application/json": {
+                      "schema": {
+                        "$ref": "#/components/schemas/QueueStatus"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "/fal-ai/elevenlabs/speech-to-text/requests/{request_id}/cancel": {
+            "put": {
+              "parameters": [
+                {
+                  "name": "request_id",
+                  "in": "path",
+                  "required": true,
+                  "schema": {
+                    "type": "string",
+                    "description": "Request ID"
+                  }
+                }
+              ],
+              "responses": {
+                "200": {
+                  "description": "The request was cancelled.",
+                  "content": {
+                    "application/json": {
+                      "schema": {
+                        "type": "object",
+                        "properties": {
+                          "success": {
+                            "type": "boolean",
+                            "description": "Whether the request was cancelled successfully."
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "/fal-ai/elevenlabs/speech-to-text": {
+            "post": {
+              "requestBody": {
+                "required": true,
+                "content": {
+                  "application/json": {
+                    "schema": {
+                      "$ref": "#/components/schemas/ElevenlabsSpeechToTextInput"
+                    }
+                  }
+                }
+              },
+              "responses": {
+                "200": {
+                  "description": "The request status.",
+                  "content": {
+                    "application/json": {
+                      "schema": {
+                        "$ref": "#/components/schemas/QueueStatus"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "/fal-ai/elevenlabs/speech-to-text/requests/{request_id}": {
+            "get": {
+              "parameters": [
+                {
+                  "name": "request_id",
+                  "in": "path",
+                  "required": true,
+                  "schema": {
+                    "type": "string",
+                    "description": "Request ID"
+                  }
+                }
+              ],
+              "responses": {
+                "200": {
+                  "description": "Result of the request.",
+                  "content": {
+                    "application/json": {
+                      "schema": {
+                        "$ref": "#/components/schemas/ElevenlabsSpeechToTextOutput"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "servers": [
+          {
+            "url": "https://queue.fal.run"
+          }
+        ],
+        "security": [
+          {
+            "apiKeyAuth": []
+          }
+        ]
+      }
+    },
+    {
+      "endpoint_id": "fal-ai/wizper",
+      "metadata": {
+        "display_name": "Wizper (Whisper v3 -- fal.ai edition)",
+        "category": "speech-to-text",
+        "description": "[Experimental] Whisper v3 Large -- but optimized by our inference wizards. Same WER, double the performance!",
+        "status": "active",
+        "tags": [
+          "transcription",
+          "speech"
+        ],
+        "updated_at": "2026-01-26T21:44:52.470Z",
+        "is_favorited": false,
+        "thumbnail_url": "https://storage.googleapis.com/falserverless/gallery/wizper.webp",
+        "thumbnail_animated_url": "https://storage.googleapis.com/falserverless/gallery/wizper-animated.webp",
+        "model_url": "https://fal.run/fal-ai/wizper",
+        "github_url": "https://github.com/openai/whisper/blob/main/LICENSE",
+        "date": "2024-04-08T00:00:00.000Z",
+        "highlighted": false,
+        "pinned": false
+      },
+      "openapi": {
+        "openapi": "3.0.4",
+        "info": {
+          "title": "Queue OpenAPI for fal-ai/wizper",
+          "version": "1.0.0",
+          "description": "The OpenAPI schema for the fal-ai/wizper queue.",
+          "x-fal-metadata": {
+            "endpointId": "fal-ai/wizper",
+            "category": "speech-to-text",
+            "thumbnailUrl": "https://storage.googleapis.com/falserverless/gallery/wizper.webp",
+            "playgroundUrl": "https://fal.ai/models/fal-ai/wizper",
+            "documentationUrl": "https://fal.ai/models/fal-ai/wizper/api"
+          }
+        },
+        "components": {
+          "securitySchemes": {
+            "apiKeyAuth": {
+              "type": "apiKey",
+              "in": "header",
+              "name": "Authorization",
+              "description": "Fal Key"
+            }
+          },
+          "schemas": {
+            "QueueStatus": {
+              "type": "object",
+              "properties": {
+                "status": {
+                  "type": "string",
+                  "enum": [
+                    "IN_QUEUE",
+                    "IN_PROGRESS",
+                    "COMPLETED"
+                  ]
+                },
+                "request_id": {
+                  "type": "string",
+                  "description": "The request id."
+                },
+                "response_url": {
+                  "type": "string",
+                  "description": "The response url."
+                },
+                "status_url": {
+                  "type": "string",
+                  "description": "The status url."
+                },
+                "cancel_url": {
+                  "type": "string",
+                  "description": "The cancel url."
+                },
+                "logs": {
+                  "type": "object",
+                  "description": "The logs.",
+                  "additionalProperties": true
+                },
+                "metrics": {
+                  "type": "object",
+                  "description": "The metrics.",
+                  "additionalProperties": true
+                },
+                "queue_position": {
+                  "type": "integer",
+                  "description": "The queue position."
+                }
+              },
+              "required": [
+                "status",
+                "request_id"
+              ]
+            },
+            "WizperInput": {
+              "title": "WhisperInput",
+              "type": "object",
+              "properties": {
+                "language": {
+                  "anyOf": [
+                    {
+                      "enum": [
+                        "af",
+                        "am",
+                        "ar",
+                        "as",
+                        "az",
+                        "ba",
+                        "be",
+                        "bg",
+                        "bn",
+                        "bo",
+                        "br",
+                        "bs",
+                        "ca",
+                        "cs",
+                        "cy",
+                        "da",
+                        "de",
+                        "el",
+                        "en",
+                        "es",
+                        "et",
+                        "eu",
+                        "fa",
+                        "fi",
+                        "fo",
+                        "fr",
+                        "gl",
+                        "gu",
+                        "ha",
+                        "haw",
+                        "he",
+                        "hi",
+                        "hr",
+                        "ht",
+                        "hu",
+                        "hy",
+                        "id",
+                        "is",
+                        "it",
+                        "ja",
+                        "jw",
+                        "ka",
+                        "kk",
+                        "km",
+                        "kn",
+                        "ko",
+                        "la",
+                        "lb",
+                        "ln",
+                        "lo",
+                        "lt",
+                        "lv",
+                        "mg",
+                        "mi",
+                        "mk",
+                        "ml",
+                        "mn",
+                        "mr",
+                        "ms",
+                        "mt",
+                        "my",
+                        "ne",
+                        "nl",
+                        "nn",
+                        "no",
+                        "oc",
+                        "pa",
+                        "pl",
+                        "ps",
+                        "pt",
+                        "ro",
+                        "ru",
+                        "sa",
+                        "sd",
+                        "si",
+                        "sk",
+                        "sl",
+                        "sn",
+                        "so",
+                        "sq",
+                        "sr",
+                        "su",
+                        "sv",
+                        "sw",
+                        "ta",
+                        "te",
+                        "tg",
+                        "th",
+                        "tk",
+                        "tl",
+                        "tr",
+                        "tt",
+                        "uk",
+                        "ur",
+                        "uz",
+                        "vi",
+                        "yi",
+                        "yo",
+                        "zh"
+                      ],
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "title": "Language",
+                  "examples": [
+                    null
+                  ],
+                  "description": "\n        Language of the audio file.\n        If translate is selected as the task, the audio will be translated to\n        English, regardless of the language selected. If `None` is passed,\n        the language will be automatically detected. This will also increase\n        the inference time.\n        ",
+                  "default": "en"
+                },
+                "version": {
+                  "title": "Version",
+                  "type": "string",
+                  "description": "Version of the model to use. All of the models are the Whisper large variant.",
+                  "const": "3",
+                  "default": "3"
+                },
+                "max_segment_len": {
+                  "minimum": 10,
+                  "maximum": 29,
+                  "type": "integer",
+                  "title": "Max Segment Len",
+                  "description": "Maximum speech segment duration in seconds before splitting.",
+                  "default": 29
+                },
+                "task": {
+                  "enum": [
+                    "transcribe",
+                    "translate"
+                  ],
+                  "title": "Task",
+                  "type": "string",
+                  "description": "Task to perform on the audio file. Either transcribe or translate.",
+                  "default": "transcribe"
+                },
+                "chunk_level": {
+                  "title": "Chunk Level",
+                  "type": "string",
+                  "description": "Level of the chunks to return.",
+                  "const": "segment",
+                  "default": "segment"
+                },
+                "audio_url": {
+                  "examples": [
+                    "https://ihlhivqvotguuqycfcvj.supabase.co/storage/v1/object/public/public-text-to-speech/scratch-testing/earth-history-19mins.mp3"
+                  ],
+                  "title": "Audio Url",
+                  "type": "string",
+                  "description": "URL of the audio file to transcribe. Supported formats: mp3, mp4, mpeg, mpga, m4a, wav or webm."
+                },
+                "merge_chunks": {
+                  "title": "Merge Chunks",
+                  "type": "boolean",
+                  "description": "Whether to merge consecutive chunks. When enabled, chunks are merged if their combined duration does not exceed max_segment_len.",
+                  "default": true
+                }
+              },
+              "x-fal-order-properties": [
+                "audio_url",
+                "task",
+                "language",
+                "chunk_level",
+                "max_segment_len",
+                "merge_chunks",
+                "version"
+              ],
+              "required": [
+                "audio_url"
+              ]
+            },
+            "WizperOutput": {
+              "title": "WhisperOutput",
+              "type": "object",
+              "properties": {
+                "text": {
+                  "title": "Text",
+                  "type": "string",
+                  "description": "Transcription of the audio file"
+                },
+                "languages": {
+                  "title": "Languages",
+                  "type": "array",
+                  "description": "List of languages that the audio file is inferred to be. Defaults to null.",
+                  "items": {
+                    "enum": [
+                      "af",
+                      "am",
+                      "ar",
+                      "as",
+                      "az",
+                      "ba",
+                      "be",
+                      "bg",
+                      "bn",
+                      "bo",
+                      "br",
+                      "bs",
+                      "ca",
+                      "cs",
+                      "cy",
+                      "da",
+                      "de",
+                      "el",
+                      "en",
+                      "es",
+                      "et",
+                      "eu",
+                      "fa",
+                      "fi",
+                      "fo",
+                      "fr",
+                      "gl",
+                      "gu",
+                      "ha",
+                      "haw",
+                      "he",
+                      "hi",
+                      "hr",
+                      "ht",
+                      "hu",
+                      "hy",
+                      "id",
+                      "is",
+                      "it",
+                      "ja",
+                      "jw",
+                      "ka",
+                      "kk",
+                      "km",
+                      "kn",
+                      "ko",
+                      "la",
+                      "lb",
+                      "ln",
+                      "lo",
+                      "lt",
+                      "lv",
+                      "mg",
+                      "mi",
+                      "mk",
+                      "ml",
+                      "mn",
+                      "mr",
+                      "ms",
+                      "mt",
+                      "my",
+                      "ne",
+                      "nl",
+                      "nn",
+                      "no",
+                      "oc",
+                      "pa",
+                      "pl",
+                      "ps",
+                      "pt",
+                      "ro",
+                      "ru",
+                      "sa",
+                      "sd",
+                      "si",
+                      "sk",
+                      "sl",
+                      "sn",
+                      "so",
+                      "sq",
+                      "sr",
+                      "su",
+                      "sv",
+                      "sw",
+                      "ta",
+                      "te",
+                      "tg",
+                      "th",
+                      "tk",
+                      "tl",
+                      "tr",
+                      "tt",
+                      "uk",
+                      "ur",
+                      "uz",
+                      "vi",
+                      "yi",
+                      "yo",
+                      "zh"
+                    ],
+                    "type": "string"
+                  }
+                },
+                "chunks": {
+                  "title": "Chunks",
+                  "type": "array",
+                  "description": "Timestamp chunks of the audio file",
+                  "items": {
+                    "$ref": "#/components/schemas/WhisperChunk"
+                  }
+                }
+              },
+              "x-fal-order-properties": [
+                "text",
+                "chunks",
+                "languages"
+              ],
+              "required": [
+                "text",
+                "chunks",
+                "languages"
+              ]
+            },
+            "WhisperChunk": {
+              "title": "WhisperChunk",
+              "type": "object",
+              "properties": {
+                "text": {
+                  "title": "Text",
+                  "type": "string",
+                  "description": "Transcription of the chunk"
+                },
+                "timestamp": {
+                  "maxItems": 2,
+                  "type": "array",
+                  "minItems": 2,
+                  "title": "Timestamp",
+                  "prefixItems": [
+                    {
+                      "anyOf": [
+                        {
+                          "type": "number"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    {
+                      "anyOf": [
+                        {
+                          "type": "number"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    }
+                  ],
+                  "description": "Start and end timestamp of the chunk"
+                }
+              },
+              "x-fal-order-properties": [
+                "timestamp",
+                "text"
+              ],
+              "required": [
+                "timestamp",
+                "text"
+              ]
+            }
+          }
+        },
+        "paths": {
+          "/fal-ai/wizper/requests/{request_id}/status": {
+            "get": {
+              "parameters": [
+                {
+                  "name": "request_id",
+                  "in": "path",
+                  "required": true,
+                  "schema": {
+                    "type": "string",
+                    "description": "Request ID"
+                  }
+                },
+                {
+                  "name": "logs",
+                  "in": "query",
+                  "required": false,
+                  "schema": {
+                    "type": "number",
+                    "description": "Whether to include logs (`1`) in the response or not (`0`)."
+                  }
+                }
+              ],
+              "responses": {
+                "200": {
+                  "description": "The request status.",
+                  "content": {
+                    "application/json": {
+                      "schema": {
+                        "$ref": "#/components/schemas/QueueStatus"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "/fal-ai/wizper/requests/{request_id}/cancel": {
+            "put": {
+              "parameters": [
+                {
+                  "name": "request_id",
+                  "in": "path",
+                  "required": true,
+                  "schema": {
+                    "type": "string",
+                    "description": "Request ID"
+                  }
+                }
+              ],
+              "responses": {
+                "200": {
+                  "description": "The request was cancelled.",
+                  "content": {
+                    "application/json": {
+                      "schema": {
+                        "type": "object",
+                        "properties": {
+                          "success": {
+                            "type": "boolean",
+                            "description": "Whether the request was cancelled successfully."
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "/fal-ai/wizper": {
+            "post": {
+              "requestBody": {
+                "required": true,
+                "content": {
+                  "application/json": {
+                    "schema": {
+                      "$ref": "#/components/schemas/WizperInput"
+                    }
+                  }
+                }
+              },
+              "responses": {
+                "200": {
+                  "description": "The request status.",
+                  "content": {
+                    "application/json": {
+                      "schema": {
+                        "$ref": "#/components/schemas/QueueStatus"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "/fal-ai/wizper/requests/{request_id}": {
+            "get": {
+              "parameters": [
+                {
+                  "name": "request_id",
+                  "in": "path",
+                  "required": true,
+                  "schema": {
+                    "type": "string",
+                    "description": "Request ID"
+                  }
+                }
+              ],
+              "responses": {
+                "200": {
+                  "description": "Result of the request.",
+                  "content": {
+                    "application/json": {
+                      "schema": {
+                        "$ref": "#/components/schemas/WizperOutput"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "servers": [
+          {
+            "url": "https://queue.fal.run"
+          }
+        ],
+        "security": [
+          {
+            "apiKeyAuth": []
+          }
+        ]
+      }
+    },
+    {
+      "endpoint_id": "fal-ai/whisper",
+      "metadata": {
+        "display_name": "Whisper",
+        "category": "speech-to-text",
+        "description": "Whisper is a model for speech transcription and translation.",
+        "status": "active",
+        "tags": [
+          "transcription",
+          "translation",
+          "speech"
+        ],
+        "updated_at": "2026-01-26T21:44:16.104Z",
+        "is_favorited": false,
+        "thumbnail_url": "https://storage.googleapis.com/falserverless/gallery/whisper.jpg",
+        "model_url": "https://fal.run/fal-ai/whisper",
+        "github_url": "https://github.com/openai/whisper/blob/main/LICENSE",
+        "license_type": "commercial",
+        "date": "2024-02-19T00:00:00.000Z",
+        "highlighted": false,
+        "kind": "inference",
+        "pinned": false
+      },
+      "openapi": {
+        "openapi": "3.0.4",
+        "info": {
+          "title": "Queue OpenAPI for fal-ai/whisper",
+          "version": "1.0.0",
+          "description": "The OpenAPI schema for the fal-ai/whisper queue.",
+          "x-fal-metadata": {
+            "endpointId": "fal-ai/whisper",
+            "category": "speech-to-text",
+            "thumbnailUrl": "https://storage.googleapis.com/falserverless/gallery/whisper.jpg",
+            "playgroundUrl": "https://fal.ai/models/fal-ai/whisper",
+            "documentationUrl": "https://fal.ai/models/fal-ai/whisper/api"
+          }
+        },
+        "components": {
+          "securitySchemes": {
+            "apiKeyAuth": {
+              "type": "apiKey",
+              "in": "header",
+              "name": "Authorization",
+              "description": "Fal Key"
+            }
+          },
+          "schemas": {
+            "QueueStatus": {
+              "type": "object",
+              "properties": {
+                "status": {
+                  "type": "string",
+                  "enum": [
+                    "IN_QUEUE",
+                    "IN_PROGRESS",
+                    "COMPLETED"
+                  ]
+                },
+                "request_id": {
+                  "type": "string",
+                  "description": "The request id."
+                },
+                "response_url": {
+                  "type": "string",
+                  "description": "The response url."
+                },
+                "status_url": {
+                  "type": "string",
+                  "description": "The status url."
+                },
+                "cancel_url": {
+                  "type": "string",
+                  "description": "The cancel url."
+                },
+                "logs": {
+                  "type": "object",
+                  "description": "The logs.",
+                  "additionalProperties": true
+                },
+                "metrics": {
+                  "type": "object",
+                  "description": "The metrics.",
+                  "additionalProperties": true
+                },
+                "queue_position": {
+                  "type": "integer",
+                  "description": "The queue position."
+                }
+              },
+              "required": [
+                "status",
+                "request_id"
+              ]
+            },
+            "WhisperInput": {
+              "x-fal-order-properties": [
+                "audio_url",
+                "task",
+                "language",
+                "diarize",
+                "chunk_level",
+                "version",
+                "batch_size",
+                "prompt",
+                "num_speakers"
+              ],
+              "type": "object",
+              "properties": {
+                "version": {
+                  "enum": [
+                    "3"
+                  ],
+                  "title": "Version",
+                  "type": "string",
+                  "description": "Version of the model to use. All of the models are the Whisper large variant.",
+                  "default": "3"
+                },
+                "batch_size": {
+                  "examples": [
+                    64
+                  ],
+                  "maximum": 64,
+                  "type": "integer",
+                  "minimum": 1,
+                  "title": "Batch Size",
+                  "default": 64
+                },
+                "language": {
+                  "enum": [
+                    "af",
+                    "am",
+                    "ar",
+                    "as",
+                    "az",
+                    "ba",
+                    "be",
+                    "bg",
+                    "bn",
+                    "bo",
+                    "br",
+                    "bs",
+                    "ca",
+                    "cs",
+                    "cy",
+                    "da",
+                    "de",
+                    "el",
+                    "en",
+                    "es",
+                    "et",
+                    "eu",
+                    "fa",
+                    "fi",
+                    "fo",
+                    "fr",
+                    "gl",
+                    "gu",
+                    "ha",
+                    "haw",
+                    "he",
+                    "hi",
+                    "hr",
+                    "ht",
+                    "hu",
+                    "hy",
+                    "id",
+                    "is",
+                    "it",
+                    "ja",
+                    "jw",
+                    "ka",
+                    "kk",
+                    "km",
+                    "kn",
+                    "ko",
+                    "la",
+                    "lb",
+                    "ln",
+                    "lo",
+                    "lt",
+                    "lv",
+                    "mg",
+                    "mi",
+                    "mk",
+                    "ml",
+                    "mn",
+                    "mr",
+                    "ms",
+                    "mt",
+                    "my",
+                    "ne",
+                    "nl",
+                    "nn",
+                    "no",
+                    "oc",
+                    "pa",
+                    "pl",
+                    "ps",
+                    "pt",
+                    "ro",
+                    "ru",
+                    "sa",
+                    "sd",
+                    "si",
+                    "sk",
+                    "sl",
+                    "sn",
+                    "so",
+                    "sq",
+                    "sr",
+                    "su",
+                    "sv",
+                    "sw",
+                    "ta",
+                    "te",
+                    "tg",
+                    "th",
+                    "tk",
+                    "tl",
+                    "tr",
+                    "tt",
+                    "uk",
+                    "ur",
+                    "uz",
+                    "vi",
+                    "yi",
+                    "yo",
+                    "zh"
+                  ],
+                  "title": "Language",
+                  "type": "string",
+                  "description": "\n        Language of the audio file. If set to null, the language will be\n        automatically detected. Defaults to null.\n\n        If translate is selected as the task, the audio will be translated to\n        English, regardless of the language selected.\n        ",
+                  "nullable": true
+                },
+                "prompt": {
+                  "title": "Prompt",
+                  "type": "string",
+                  "description": "Prompt to use for generation. Defaults to an empty string.",
+                  "default": ""
+                },
+                "num_speakers": {
+                  "examples": [
+                    null
+                  ],
+                  "title": "Num Speakers",
+                  "type": "integer",
+                  "minimum": 1,
+                  "description": "\n            Number of speakers in the audio file. Defaults to null.\n            If not provided, the number of speakers will be automatically\n            detected.\n        ",
+                  "nullable": true
+                },
+                "task": {
+                  "enum": [
+                    "transcribe",
+                    "translate"
+                  ],
+                  "title": "Task",
+                  "type": "string",
+                  "description": "Task to perform on the audio file. Either transcribe or translate.",
+                  "default": "transcribe"
+                },
+                "chunk_level": {
+                  "enum": [
+                    "none",
+                    "segment",
+                    "word"
+                  ],
+                  "title": "Chunk Level",
+                  "type": "string",
+                  "description": "Level of the chunks to return. Either none, segment or word. `none` would imply that all of the audio will be transcribed without the timestamp tokens, we suggest to switch to `none` if you are not satisfied with the transcription quality, since it will usually improve the quality of the results. Switching to `none` will also provide minor speed ups in the transcription due to less amount of generated tokens. Notice that setting to none will produce **a single chunk with the whole transcription**.",
+                  "default": "segment"
+                },
+                "audio_url": {
+                  "examples": [
+                    "https://storage.googleapis.com/falserverless/model_tests/whisper/dinner_conversation.mp3"
+                  ],
+                  "title": "Audio Url",
+                  "type": "string",
+                  "description": "URL of the audio file to transcribe. Supported formats: mp3, mp4, mpeg, mpga, m4a, wav or webm."
+                },
+                "diarize": {
+                  "title": "Diarize",
+                  "type": "boolean",
+                  "description": "Whether to diarize the audio file. Defaults to false. Setting to true will add costs proportional to diarization inference time.",
+                  "default": false
+                }
+              },
+              "title": "WhisperInput",
+              "required": [
+                "audio_url"
+              ]
+            },
+            "WhisperOutput": {
+              "x-fal-order-properties": [
+                "text",
+                "chunks",
+                "inferred_languages",
+                "diarization_segments"
+              ],
+              "type": "object",
+              "properties": {
+                "text": {
+                  "title": "Text",
+                  "type": "string",
+                  "description": "Transcription of the audio file"
+                },
+                "inferred_languages": {
+                  "title": "Inferred Languages",
+                  "type": "array",
+                  "description": "List of languages that the audio file is inferred to be. Defaults to null.",
+                  "items": {
+                    "enum": [
+                      "af",
+                      "am",
+                      "ar",
+                      "as",
+                      "az",
+                      "ba",
+                      "be",
+                      "bg",
+                      "bn",
+                      "bo",
+                      "br",
+                      "bs",
+                      "ca",
+                      "cs",
+                      "cy",
+                      "da",
+                      "de",
+                      "el",
+                      "en",
+                      "es",
+                      "et",
+                      "eu",
+                      "fa",
+                      "fi",
+                      "fo",
+                      "fr",
+                      "gl",
+                      "gu",
+                      "ha",
+                      "haw",
+                      "he",
+                      "hi",
+                      "hr",
+                      "ht",
+                      "hu",
+                      "hy",
+                      "id",
+                      "is",
+                      "it",
+                      "ja",
+                      "jw",
+                      "ka",
+                      "kk",
+                      "km",
+                      "kn",
+                      "ko",
+                      "la",
+                      "lb",
+                      "ln",
+                      "lo",
+                      "lt",
+                      "lv",
+                      "mg",
+                      "mi",
+                      "mk",
+                      "ml",
+                      "mn",
+                      "mr",
+                      "ms",
+                      "mt",
+                      "my",
+                      "ne",
+                      "nl",
+                      "nn",
+                      "no",
+                      "oc",
+                      "pa",
+                      "pl",
+                      "ps",
+                      "pt",
+                      "ro",
+                      "ru",
+                      "sa",
+                      "sd",
+                      "si",
+                      "sk",
+                      "sl",
+                      "sn",
+                      "so",
+                      "sq",
+                      "sr",
+                      "su",
+                      "sv",
+                      "sw",
+                      "ta",
+                      "te",
+                      "tg",
+                      "th",
+                      "tk",
+                      "tl",
+                      "tr",
+                      "tt",
+                      "uk",
+                      "ur",
+                      "uz",
+                      "vi",
+                      "yi",
+                      "yo",
+                      "zh"
+                    ],
+                    "type": "string"
+                  }
+                },
+                "chunks": {
+                  "title": "Chunks",
+                  "type": "array",
+                  "description": "Timestamp chunks of the audio file",
+                  "items": {
+                    "$ref": "#/components/schemas/WhisperChunk"
+                  }
+                },
+                "diarization_segments": {
+                  "title": "Diarization Segments",
+                  "type": "array",
+                  "description": "Speaker diarization segments of the audio file. Only present if diarization is enabled.",
+                  "items": {
+                    "$ref": "#/components/schemas/DiarizationSegment"
+                  }
+                }
+              },
+              "title": "WhisperOutput",
+              "required": [
+                "text",
+                "inferred_languages",
+                "diarization_segments"
+              ]
+            },
+            "WhisperChunk": {
+              "x-fal-order-properties": [
+                "timestamp",
+                "text",
+                "speaker"
+              ],
+              "type": "object",
+              "properties": {
+                "text": {
+                  "title": "Text",
+                  "type": "string",
+                  "description": "Transcription of the chunk"
+                },
+                "timestamp": {
+                  "maxItems": 2,
+                  "type": "array",
+                  "minItems": 2,
+                  "title": "Timestamp",
+                  "description": "Start and end timestamp of the chunk",
+                  "items": {
+                    "0": {
+                      "type": "number"
+                    },
+                    "1": {
+                      "type": "number"
+                    }
+                  }
+                },
+                "speaker": {
+                  "title": "Speaker",
+                  "type": "string",
+                  "description": "Speaker ID of the chunk. Only present if diarization is enabled."
+                }
+              },
+              "title": "WhisperChunk",
+              "required": [
+                "timestamp",
+                "text"
+              ]
+            },
+            "DiarizationSegment": {
+              "x-fal-order-properties": [
+                "timestamp",
+                "speaker"
+              ],
+              "type": "object",
+              "properties": {
+                "timestamp": {
+                  "maxItems": 2,
+                  "type": "array",
+                  "minItems": 2,
+                  "title": "Timestamp",
+                  "description": "Start and end timestamp of the segment",
+                  "items": {
+                    "0": {
+                      "type": "number"
+                    },
+                    "1": {
+                      "type": "number"
+                    }
+                  }
+                },
+                "speaker": {
+                  "title": "Speaker",
+                  "type": "string",
+                  "description": "Speaker ID of the segment"
+                }
+              },
+              "title": "DiarizationSegment",
+              "required": [
+                "timestamp",
+                "speaker"
+              ]
+            }
+          }
+        },
+        "paths": {
+          "/fal-ai/whisper/requests/{request_id}/status": {
+            "get": {
+              "parameters": [
+                {
+                  "name": "request_id",
+                  "in": "path",
+                  "required": true,
+                  "schema": {
+                    "type": "string",
+                    "description": "Request ID"
+                  }
+                },
+                {
+                  "name": "logs",
+                  "in": "query",
+                  "required": false,
+                  "schema": {
+                    "type": "number",
+                    "description": "Whether to include logs (`1`) in the response or not (`0`)."
+                  }
+                }
+              ],
+              "responses": {
+                "200": {
+                  "description": "The request status.",
+                  "content": {
+                    "application/json": {
+                      "schema": {
+                        "$ref": "#/components/schemas/QueueStatus"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "/fal-ai/whisper/requests/{request_id}/cancel": {
+            "put": {
+              "parameters": [
+                {
+                  "name": "request_id",
+                  "in": "path",
+                  "required": true,
+                  "schema": {
+                    "type": "string",
+                    "description": "Request ID"
+                  }
+                }
+              ],
+              "responses": {
+                "200": {
+                  "description": "The request was cancelled.",
+                  "content": {
+                    "application/json": {
+                      "schema": {
+                        "type": "object",
+                        "properties": {
+                          "success": {
+                            "type": "boolean",
+                            "description": "Whether the request was cancelled successfully."
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "/fal-ai/whisper": {
+            "post": {
+              "requestBody": {
+                "required": true,
+                "content": {
+                  "application/json": {
+                    "schema": {
+                      "$ref": "#/components/schemas/WhisperInput"
+                    }
+                  }
+                }
+              },
+              "responses": {
+                "200": {
+                  "description": "The request status.",
+                  "content": {
+                    "application/json": {
+                      "schema": {
+                        "$ref": "#/components/schemas/QueueStatus"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "/fal-ai/whisper/requests/{request_id}": {
+            "get": {
+              "parameters": [
+                {
+                  "name": "request_id",
+                  "in": "path",
+                  "required": true,
+                  "schema": {
+                    "type": "string",
+                    "description": "Request ID"
+                  }
+                }
+              ],
+              "responses": {
+                "200": {
+                  "description": "Result of the request.",
+                  "content": {
+                    "application/json": {
+                      "schema": {
+                        "$ref": "#/components/schemas/WhisperOutput"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "servers": [
+          {
+            "url": "https://queue.fal.run"
+          }
+        ],
+        "security": [
+          {
+            "apiKeyAuth": []
+          }
+        ]
+      }
+    }
+  ]
+}

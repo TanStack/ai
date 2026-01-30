@@ -1,0 +1,869 @@
+{
+  "generated_at": "2026-01-28T02:51:51.868Z",
+  "total_models": 3,
+  "category": "audio-to-text",
+  "models": [
+    {
+      "endpoint_id": "fal-ai/nemotron/asr/stream",
+      "metadata": {
+        "display_name": "Nemotron",
+        "category": "audio-to-text",
+        "description": "Use the fast speed and pin point accuracy of nemotron to transcribe your texts.",
+        "status": "active",
+        "tags": [],
+        "updated_at": "2026-01-26T21:41:31.435Z",
+        "is_favorited": false,
+        "thumbnail_url": "https://v3b.fal.media/files/b/0a8b0769/B2cbMOqt6_wePeNTF4uXD_9e9093acce30405a8068e24985c8901c.jpg",
+        "model_url": "https://fal.run/fal-ai/nemotron/asr/stream",
+        "license_type": "commercial",
+        "date": "2026-01-19T15:14:32.294Z",
+        "highlighted": false,
+        "kind": "inference",
+        "pinned": false
+      },
+      "openapi": {
+        "openapi": "3.0.4",
+        "info": {
+          "title": "Queue OpenAPI for fal-ai/nemotron/asr/stream",
+          "version": "1.0.0",
+          "description": "The OpenAPI schema for the fal-ai/nemotron/asr/stream queue.",
+          "x-fal-metadata": {
+            "endpointId": "fal-ai/nemotron/asr/stream",
+            "category": "audio-to-text",
+            "thumbnailUrl": "https://v3b.fal.media/files/b/0a8b0769/B2cbMOqt6_wePeNTF4uXD_9e9093acce30405a8068e24985c8901c.jpg",
+            "playgroundUrl": "https://fal.ai/models/fal-ai/nemotron/asr/stream",
+            "documentationUrl": "https://fal.ai/models/fal-ai/nemotron/asr/stream/api"
+          }
+        },
+        "components": {
+          "securitySchemes": {
+            "apiKeyAuth": {
+              "type": "apiKey",
+              "in": "header",
+              "name": "Authorization",
+              "description": "Fal Key"
+            }
+          },
+          "schemas": {
+            "QueueStatus": {
+              "type": "object",
+              "properties": {
+                "status": {
+                  "type": "string",
+                  "enum": [
+                    "IN_QUEUE",
+                    "IN_PROGRESS",
+                    "COMPLETED"
+                  ]
+                },
+                "request_id": {
+                  "type": "string",
+                  "description": "The request id."
+                },
+                "response_url": {
+                  "type": "string",
+                  "description": "The response url."
+                },
+                "status_url": {
+                  "type": "string",
+                  "description": "The status url."
+                },
+                "cancel_url": {
+                  "type": "string",
+                  "description": "The cancel url."
+                },
+                "logs": {
+                  "type": "object",
+                  "description": "The logs.",
+                  "additionalProperties": true
+                },
+                "metrics": {
+                  "type": "object",
+                  "description": "The metrics.",
+                  "additionalProperties": true
+                },
+                "queue_position": {
+                  "type": "integer",
+                  "description": "The queue position."
+                }
+              },
+              "required": [
+                "status",
+                "request_id"
+              ]
+            },
+            "NemotronAsrStreamInput": {
+              "title": "SpeechInput",
+              "type": "object",
+              "properties": {
+                "acceleration": {
+                  "enum": [
+                    "none",
+                    "low",
+                    "medium",
+                    "high"
+                  ],
+                  "title": "Acceleration",
+                  "type": "string",
+                  "description": "Controls the speed/accuracy trade-off. 'none' = best accuracy (1.12s chunks, ~7.16% WER), 'low' = balanced (0.56s chunks, ~7.22% WER), 'medium' = faster (0.16s chunks, ~7.84% WER), 'high' = fastest (0.08s chunks, ~8.53% WER).",
+                  "default": "none"
+                },
+                "audio_url": {
+                  "examples": [
+                    "https://storage.googleapis.com/falserverless/canary/18e15559-ab3e-4f96-9583-be5ddde91e43.mp3"
+                  ],
+                  "title": "Audio URL",
+                  "type": "string",
+                  "description": "URL of the audio file."
+                }
+              },
+              "x-fal-order-properties": [
+                "audio_url",
+                "acceleration"
+              ],
+              "required": [
+                "audio_url"
+              ]
+            },
+            "NemotronAsrStreamOutput": {}
+          }
+        },
+        "paths": {
+          "/fal-ai/nemotron/asr/stream/requests/{request_id}/status": {
+            "get": {
+              "parameters": [
+                {
+                  "name": "request_id",
+                  "in": "path",
+                  "required": true,
+                  "schema": {
+                    "type": "string",
+                    "description": "Request ID"
+                  }
+                },
+                {
+                  "name": "logs",
+                  "in": "query",
+                  "required": false,
+                  "schema": {
+                    "type": "number",
+                    "description": "Whether to include logs (`1`) in the response or not (`0`)."
+                  }
+                }
+              ],
+              "responses": {
+                "200": {
+                  "description": "The request status.",
+                  "content": {
+                    "application/json": {
+                      "schema": {
+                        "$ref": "#/components/schemas/QueueStatus"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "/fal-ai/nemotron/asr/stream/requests/{request_id}/cancel": {
+            "put": {
+              "parameters": [
+                {
+                  "name": "request_id",
+                  "in": "path",
+                  "required": true,
+                  "schema": {
+                    "type": "string",
+                    "description": "Request ID"
+                  }
+                }
+              ],
+              "responses": {
+                "200": {
+                  "description": "The request was cancelled.",
+                  "content": {
+                    "application/json": {
+                      "schema": {
+                        "type": "object",
+                        "properties": {
+                          "success": {
+                            "type": "boolean",
+                            "description": "Whether the request was cancelled successfully."
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "/fal-ai/nemotron/asr/stream": {
+            "post": {
+              "requestBody": {
+                "required": true,
+                "content": {
+                  "application/json": {
+                    "schema": {
+                      "$ref": "#/components/schemas/NemotronAsrStreamInput"
+                    }
+                  }
+                }
+              },
+              "responses": {
+                "200": {
+                  "description": "The request status.",
+                  "content": {
+                    "application/json": {
+                      "schema": {
+                        "$ref": "#/components/schemas/QueueStatus"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "/fal-ai/nemotron/asr/stream/requests/{request_id}": {
+            "get": {
+              "parameters": [
+                {
+                  "name": "request_id",
+                  "in": "path",
+                  "required": true,
+                  "schema": {
+                    "type": "string",
+                    "description": "Request ID"
+                  }
+                }
+              ],
+              "responses": {
+                "200": {
+                  "description": "Result of the request.",
+                  "content": {
+                    "application/json": {
+                      "schema": {
+                        "$ref": "#/components/schemas/NemotronAsrStreamOutput"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "servers": [
+          {
+            "url": "https://queue.fal.run"
+          }
+        ],
+        "security": [
+          {
+            "apiKeyAuth": []
+          }
+        ]
+      }
+    },
+    {
+      "endpoint_id": "fal-ai/nemotron/asr",
+      "metadata": {
+        "display_name": "Nemotron",
+        "category": "audio-to-text",
+        "description": "Use the fast speed and pin point accuracy of nemotron to transcribe your texts.",
+        "status": "active",
+        "tags": [],
+        "updated_at": "2026-01-26T21:41:31.559Z",
+        "is_favorited": false,
+        "thumbnail_url": "https://v3b.fal.media/files/b/0a8b0753/AlLcMsPv2Xg8024K7eyDU_fc517558047f419087b14e2f1db6dfff.jpg",
+        "model_url": "https://fal.run/fal-ai/nemotron/asr",
+        "license_type": "commercial",
+        "date": "2026-01-19T15:11:38.754Z",
+        "highlighted": false,
+        "kind": "inference",
+        "pinned": false
+      },
+      "openapi": {
+        "openapi": "3.0.4",
+        "info": {
+          "title": "Queue OpenAPI for fal-ai/nemotron/asr",
+          "version": "1.0.0",
+          "description": "The OpenAPI schema for the fal-ai/nemotron/asr queue.",
+          "x-fal-metadata": {
+            "endpointId": "fal-ai/nemotron/asr",
+            "category": "audio-to-text",
+            "thumbnailUrl": "https://v3b.fal.media/files/b/0a8b0753/AlLcMsPv2Xg8024K7eyDU_fc517558047f419087b14e2f1db6dfff.jpg",
+            "playgroundUrl": "https://fal.ai/models/fal-ai/nemotron/asr",
+            "documentationUrl": "https://fal.ai/models/fal-ai/nemotron/asr/api"
+          }
+        },
+        "components": {
+          "securitySchemes": {
+            "apiKeyAuth": {
+              "type": "apiKey",
+              "in": "header",
+              "name": "Authorization",
+              "description": "Fal Key"
+            }
+          },
+          "schemas": {
+            "QueueStatus": {
+              "type": "object",
+              "properties": {
+                "status": {
+                  "type": "string",
+                  "enum": [
+                    "IN_QUEUE",
+                    "IN_PROGRESS",
+                    "COMPLETED"
+                  ]
+                },
+                "request_id": {
+                  "type": "string",
+                  "description": "The request id."
+                },
+                "response_url": {
+                  "type": "string",
+                  "description": "The response url."
+                },
+                "status_url": {
+                  "type": "string",
+                  "description": "The status url."
+                },
+                "cancel_url": {
+                  "type": "string",
+                  "description": "The cancel url."
+                },
+                "logs": {
+                  "type": "object",
+                  "description": "The logs.",
+                  "additionalProperties": true
+                },
+                "metrics": {
+                  "type": "object",
+                  "description": "The metrics.",
+                  "additionalProperties": true
+                },
+                "queue_position": {
+                  "type": "integer",
+                  "description": "The queue position."
+                }
+              },
+              "required": [
+                "status",
+                "request_id"
+              ]
+            },
+            "NemotronAsrInput": {
+              "title": "SpeechInput",
+              "type": "object",
+              "properties": {
+                "acceleration": {
+                  "enum": [
+                    "none",
+                    "low",
+                    "medium",
+                    "high"
+                  ],
+                  "title": "Acceleration",
+                  "type": "string",
+                  "description": "Controls the speed/accuracy trade-off. 'none' = best accuracy (1.12s chunks, ~7.16% WER), 'low' = balanced (0.56s chunks, ~7.22% WER), 'medium' = faster (0.16s chunks, ~7.84% WER), 'high' = fastest (0.08s chunks, ~8.53% WER).",
+                  "default": "none"
+                },
+                "audio_url": {
+                  "examples": [
+                    "https://storage.googleapis.com/falserverless/canary/18e15559-ab3e-4f96-9583-be5ddde91e43.mp3"
+                  ],
+                  "title": "Audio URL",
+                  "type": "string",
+                  "description": "URL of the audio file."
+                }
+              },
+              "x-fal-order-properties": [
+                "audio_url",
+                "acceleration"
+              ],
+              "required": [
+                "audio_url"
+              ]
+            },
+            "NemotronAsrOutput": {
+              "title": "SpeechOutput",
+              "type": "object",
+              "properties": {
+                "partial": {
+                  "title": "Partial Result",
+                  "type": "boolean",
+                  "description": "True if this is an intermediate result during streaming.",
+                  "default": false
+                },
+                "output": {
+                  "title": "Transcribed Text",
+                  "type": "string",
+                  "description": "The transcribed text from the audio."
+                }
+              },
+              "x-fal-order-properties": [
+                "output",
+                "partial"
+              ],
+              "required": [
+                "output"
+              ]
+            }
+          }
+        },
+        "paths": {
+          "/fal-ai/nemotron/asr/requests/{request_id}/status": {
+            "get": {
+              "parameters": [
+                {
+                  "name": "request_id",
+                  "in": "path",
+                  "required": true,
+                  "schema": {
+                    "type": "string",
+                    "description": "Request ID"
+                  }
+                },
+                {
+                  "name": "logs",
+                  "in": "query",
+                  "required": false,
+                  "schema": {
+                    "type": "number",
+                    "description": "Whether to include logs (`1`) in the response or not (`0`)."
+                  }
+                }
+              ],
+              "responses": {
+                "200": {
+                  "description": "The request status.",
+                  "content": {
+                    "application/json": {
+                      "schema": {
+                        "$ref": "#/components/schemas/QueueStatus"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "/fal-ai/nemotron/asr/requests/{request_id}/cancel": {
+            "put": {
+              "parameters": [
+                {
+                  "name": "request_id",
+                  "in": "path",
+                  "required": true,
+                  "schema": {
+                    "type": "string",
+                    "description": "Request ID"
+                  }
+                }
+              ],
+              "responses": {
+                "200": {
+                  "description": "The request was cancelled.",
+                  "content": {
+                    "application/json": {
+                      "schema": {
+                        "type": "object",
+                        "properties": {
+                          "success": {
+                            "type": "boolean",
+                            "description": "Whether the request was cancelled successfully."
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "/fal-ai/nemotron/asr": {
+            "post": {
+              "requestBody": {
+                "required": true,
+                "content": {
+                  "application/json": {
+                    "schema": {
+                      "$ref": "#/components/schemas/NemotronAsrInput"
+                    }
+                  }
+                }
+              },
+              "responses": {
+                "200": {
+                  "description": "The request status.",
+                  "content": {
+                    "application/json": {
+                      "schema": {
+                        "$ref": "#/components/schemas/QueueStatus"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "/fal-ai/nemotron/asr/requests/{request_id}": {
+            "get": {
+              "parameters": [
+                {
+                  "name": "request_id",
+                  "in": "path",
+                  "required": true,
+                  "schema": {
+                    "type": "string",
+                    "description": "Request ID"
+                  }
+                }
+              ],
+              "responses": {
+                "200": {
+                  "description": "Result of the request.",
+                  "content": {
+                    "application/json": {
+                      "schema": {
+                        "$ref": "#/components/schemas/NemotronAsrOutput"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "servers": [
+          {
+            "url": "https://queue.fal.run"
+          }
+        ],
+        "security": [
+          {
+            "apiKeyAuth": []
+          }
+        ]
+      }
+    },
+    {
+      "endpoint_id": "fal-ai/silero-vad",
+      "metadata": {
+        "display_name": "Silero VAD",
+        "category": "audio-to-text",
+        "description": "Detect speech presence and timestamps with accuracy and speed using the ultra-lightweight Silero VAD model",
+        "status": "active",
+        "tags": [
+          "vad",
+          "silero",
+          "voice-activity-detection"
+        ],
+        "updated_at": "2026-01-26T21:41:40.502Z",
+        "is_favorited": false,
+        "thumbnail_url": "https://v3b.fal.media/files/b/0a8999ea/LpSxj3lpoR_1RIxsAw4Z0_bfe5fc31ca6442679cefa0d11a486833.jpg",
+        "model_url": "https://fal.run/fal-ai/silero-vad",
+        "license_type": "commercial",
+        "date": "2026-01-08T19:19:45.098Z",
+        "highlighted": false,
+        "kind": "inference",
+        "pinned": false
+      },
+      "openapi": {
+        "openapi": "3.0.4",
+        "info": {
+          "title": "Queue OpenAPI for fal-ai/silero-vad",
+          "version": "1.0.0",
+          "description": "The OpenAPI schema for the fal-ai/silero-vad queue.",
+          "x-fal-metadata": {
+            "endpointId": "fal-ai/silero-vad",
+            "category": "audio-to-text",
+            "thumbnailUrl": "https://v3b.fal.media/files/b/0a8999ea/LpSxj3lpoR_1RIxsAw4Z0_bfe5fc31ca6442679cefa0d11a486833.jpg",
+            "playgroundUrl": "https://fal.ai/models/fal-ai/silero-vad",
+            "documentationUrl": "https://fal.ai/models/fal-ai/silero-vad/api"
+          }
+        },
+        "components": {
+          "securitySchemes": {
+            "apiKeyAuth": {
+              "type": "apiKey",
+              "in": "header",
+              "name": "Authorization",
+              "description": "Fal Key"
+            }
+          },
+          "schemas": {
+            "QueueStatus": {
+              "type": "object",
+              "properties": {
+                "status": {
+                  "type": "string",
+                  "enum": [
+                    "IN_QUEUE",
+                    "IN_PROGRESS",
+                    "COMPLETED"
+                  ]
+                },
+                "request_id": {
+                  "type": "string",
+                  "description": "The request id."
+                },
+                "response_url": {
+                  "type": "string",
+                  "description": "The response url."
+                },
+                "status_url": {
+                  "type": "string",
+                  "description": "The status url."
+                },
+                "cancel_url": {
+                  "type": "string",
+                  "description": "The cancel url."
+                },
+                "logs": {
+                  "type": "object",
+                  "description": "The logs.",
+                  "additionalProperties": true
+                },
+                "metrics": {
+                  "type": "object",
+                  "description": "The metrics.",
+                  "additionalProperties": true
+                },
+                "queue_position": {
+                  "type": "integer",
+                  "description": "The queue position."
+                }
+              },
+              "required": [
+                "status",
+                "request_id"
+              ]
+            },
+            "SileroVadInput": {
+              "x-fal-order-properties": [
+                "audio_url"
+              ],
+              "type": "object",
+              "properties": {
+                "audio_url": {
+                  "examples": [
+                    "https://v3b.fal.media/files/b/0a89994c/X3-06RFibRfBu-FS1AI8y_speech.mp3"
+                  ],
+                  "title": "Audio URL",
+                  "type": "string",
+                  "description": "The URL of the audio to get speech timestamps from."
+                }
+              },
+              "title": "SileroVADInput",
+              "required": [
+                "audio_url"
+              ]
+            },
+            "SileroVadOutput": {
+              "x-fal-order-properties": [
+                "has_speech",
+                "timestamps"
+              ],
+              "type": "object",
+              "properties": {
+                "has_speech": {
+                  "examples": [
+                    true
+                  ],
+                  "title": "Has Speech",
+                  "type": "boolean",
+                  "description": "Whether the audio has speech."
+                },
+                "timestamps": {
+                  "examples": [
+                    [
+                      {
+                        "end": 1.982,
+                        "start": 0.13
+                      },
+                      {
+                        "end": 3.998,
+                        "start": 2.434
+                      }
+                    ]
+                  ],
+                  "title": "Speech Timestamps",
+                  "type": "array",
+                  "description": "The speech timestamps.",
+                  "items": {
+                    "$ref": "#/components/schemas/SpeechTimestamp"
+                  }
+                }
+              },
+              "title": "SileroVADOutput",
+              "required": [
+                "has_speech",
+                "timestamps"
+              ]
+            },
+            "SpeechTimestamp": {
+              "x-fal-order-properties": [
+                "start",
+                "end"
+              ],
+              "type": "object",
+              "properties": {
+                "end": {
+                  "title": "End Time",
+                  "type": "number",
+                  "description": "The end time of the speech in seconds."
+                },
+                "start": {
+                  "title": "Start Time",
+                  "type": "number",
+                  "description": "The start time of the speech in seconds."
+                }
+              },
+              "title": "SpeechTimestamp",
+              "required": [
+                "start",
+                "end"
+              ]
+            }
+          }
+        },
+        "paths": {
+          "/fal-ai/silero-vad/requests/{request_id}/status": {
+            "get": {
+              "parameters": [
+                {
+                  "name": "request_id",
+                  "in": "path",
+                  "required": true,
+                  "schema": {
+                    "type": "string",
+                    "description": "Request ID"
+                  }
+                },
+                {
+                  "name": "logs",
+                  "in": "query",
+                  "required": false,
+                  "schema": {
+                    "type": "number",
+                    "description": "Whether to include logs (`1`) in the response or not (`0`)."
+                  }
+                }
+              ],
+              "responses": {
+                "200": {
+                  "description": "The request status.",
+                  "content": {
+                    "application/json": {
+                      "schema": {
+                        "$ref": "#/components/schemas/QueueStatus"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "/fal-ai/silero-vad/requests/{request_id}/cancel": {
+            "put": {
+              "parameters": [
+                {
+                  "name": "request_id",
+                  "in": "path",
+                  "required": true,
+                  "schema": {
+                    "type": "string",
+                    "description": "Request ID"
+                  }
+                }
+              ],
+              "responses": {
+                "200": {
+                  "description": "The request was cancelled.",
+                  "content": {
+                    "application/json": {
+                      "schema": {
+                        "type": "object",
+                        "properties": {
+                          "success": {
+                            "type": "boolean",
+                            "description": "Whether the request was cancelled successfully."
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "/fal-ai/silero-vad": {
+            "post": {
+              "requestBody": {
+                "required": true,
+                "content": {
+                  "application/json": {
+                    "schema": {
+                      "$ref": "#/components/schemas/SileroVadInput"
+                    }
+                  }
+                }
+              },
+              "responses": {
+                "200": {
+                  "description": "The request status.",
+                  "content": {
+                    "application/json": {
+                      "schema": {
+                        "$ref": "#/components/schemas/QueueStatus"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "/fal-ai/silero-vad/requests/{request_id}": {
+            "get": {
+              "parameters": [
+                {
+                  "name": "request_id",
+                  "in": "path",
+                  "required": true,
+                  "schema": {
+                    "type": "string",
+                    "description": "Request ID"
+                  }
+                }
+              ],
+              "responses": {
+                "200": {
+                  "description": "Result of the request.",
+                  "content": {
+                    "application/json": {
+                      "schema": {
+                        "$ref": "#/components/schemas/SileroVadOutput"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "servers": [
+          {
+            "url": "https://queue.fal.run"
+          }
+        ],
+        "security": [
+          {
+            "apiKeyAuth": []
+          }
+        ]
+      }
+    }
+  ]
+}

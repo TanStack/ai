@@ -1,0 +1,778 @@
+{
+  "generated_at": "2026-01-28T02:51:51.871Z",
+  "total_models": 2,
+  "category": "video-to-text",
+  "models": [
+    {
+      "endpoint_id": "openrouter/router/video/enterprise",
+      "metadata": {
+        "display_name": "OpenRouter [Video][Enterprise]",
+        "category": "video-to-text",
+        "description": "Run any VLM (Video Language Model) with fal, powered by OpenRouter.",
+        "status": "active",
+        "tags": [],
+        "updated_at": "2026-01-26T21:41:37.283Z",
+        "is_favorited": false,
+        "thumbnail_url": "https://v3b.fal.media/files/b/0a8a491c/S5EO4nTWCnQl8LBj3j-pb_d972f9018895443e8d8f7a4bb0f08050.jpg",
+        "model_url": "https://fal.run/openrouter/router/video/enterprise",
+        "license_type": "commercial",
+        "date": "2026-01-13T23:57:11.907Z",
+        "group": {
+          "key": "openrouter/router",
+          "label": "openrouter/router"
+        },
+        "highlighted": false,
+        "kind": "inference",
+        "stream_url": "https://fal.run/openrouter/router/video/enterprise/stream",
+        "pinned": false
+      },
+      "openapi": {
+        "openapi": "3.0.4",
+        "info": {
+          "title": "Queue OpenAPI for openrouter/router/video/enterprise",
+          "version": "1.0.0",
+          "description": "The OpenAPI schema for the openrouter/router/video/enterprise queue.",
+          "x-fal-metadata": {
+            "endpointId": "openrouter/router/video/enterprise",
+            "category": "video-to-text",
+            "thumbnailUrl": "https://v3b.fal.media/files/b/0a8a491c/S5EO4nTWCnQl8LBj3j-pb_d972f9018895443e8d8f7a4bb0f08050.jpg",
+            "playgroundUrl": "https://fal.ai/models/openrouter/router/video/enterprise",
+            "documentationUrl": "https://fal.ai/models/openrouter/router/video/enterprise/api"
+          }
+        },
+        "components": {
+          "securitySchemes": {
+            "apiKeyAuth": {
+              "type": "apiKey",
+              "in": "header",
+              "name": "Authorization",
+              "description": "Fal Key"
+            }
+          },
+          "schemas": {
+            "QueueStatus": {
+              "type": "object",
+              "properties": {
+                "status": {
+                  "type": "string",
+                  "enum": [
+                    "IN_QUEUE",
+                    "IN_PROGRESS",
+                    "COMPLETED"
+                  ]
+                },
+                "request_id": {
+                  "type": "string",
+                  "description": "The request id."
+                },
+                "response_url": {
+                  "type": "string",
+                  "description": "The response url."
+                },
+                "status_url": {
+                  "type": "string",
+                  "description": "The status url."
+                },
+                "cancel_url": {
+                  "type": "string",
+                  "description": "The cancel url."
+                },
+                "logs": {
+                  "type": "object",
+                  "description": "The logs.",
+                  "additionalProperties": true
+                },
+                "metrics": {
+                  "type": "object",
+                  "description": "The metrics.",
+                  "additionalProperties": true
+                },
+                "queue_position": {
+                  "type": "integer",
+                  "description": "The queue position."
+                }
+              },
+              "required": [
+                "status",
+                "request_id"
+              ]
+            },
+            "RouterVideoEnterpriseInput": {
+              "x-fal-order-properties": [
+                "video_urls",
+                "prompt",
+                "system_prompt",
+                "model",
+                "reasoning",
+                "temperature",
+                "max_tokens"
+              ],
+              "type": "object",
+              "properties": {
+                "prompt": {
+                  "examples": [
+                    "Please transcribe the videos respectively."
+                  ],
+                  "description": "Prompt to be used for the video processing",
+                  "type": "string",
+                  "title": "Prompt"
+                },
+                "video_urls": {
+                  "examples": [
+                    [
+                      "https://v3b.fal.media/files/b/0a8b3081/t4Jsy53x-Q8iQqg78_Vj__vid01.mp4",
+                      "https://v3b.fal.media/files/b/0a8b3085/xWtbpb6pf4i-BSvR2oWbi_vid06.mp4"
+                    ]
+                  ],
+                  "description": "List of URLs or data URIs of video files to process. Supported formats: mp4, mpeg, mov, webm. For Google Gemini on AI Studio, YouTube links are also supported. Mutually exclusive with video_url.",
+                  "type": "array",
+                  "title": "Video Urls",
+                  "items": {
+                    "type": "string"
+                  }
+                },
+                "system_prompt": {
+                  "examples": [
+                    "Please look at the videos in order and answer the question."
+                  ],
+                  "description": "System prompt to provide context or instructions to the model",
+                  "type": "string",
+                  "title": "System Prompt"
+                },
+                "reasoning": {
+                  "description": "Should reasoning be the part of the final answer.",
+                  "type": "boolean",
+                  "title": "Reasoning",
+                  "default": false
+                },
+                "model": {
+                  "examples": [
+                    "google/gemini-2.5-flash",
+                    "google/gemini-2.5-flash-lite",
+                    "google/gemini-2.5-flash-preview-09-2025",
+                    "google/gemini-2.5-flash-lite-preview-09-2025",
+                    "google/gemini-2.5-pro",
+                    "google/gemini-2.5-pro-preview",
+                    "google/gemini-2.5-pro-preview-05-06",
+                    "google/gemini-2.0-flash-001",
+                    "google/gemini-2.0-flash-lite-001",
+                    "google/gemini-3-flash-preview",
+                    "google/gemini-3-pro-preview"
+                  ],
+                  "description": "Name of the model to use. Charged based on actual token usage.",
+                  "type": "string",
+                  "title": "Model"
+                },
+                "max_tokens": {
+                  "minimum": 1,
+                  "description": "This sets the upper limit for the number of tokens the model can generate in response. It won't produce more than this limit. The maximum value is the context length minus the prompt length.",
+                  "type": "integer",
+                  "title": "Max Tokens"
+                },
+                "temperature": {
+                  "minimum": 0,
+                  "maximum": 2,
+                  "type": "number",
+                  "description": "This setting influences the variety in the model's responses. Lower values lead to more predictable and typical responses, while higher values encourage more diverse and less common responses. At 0, the model always gives the same response for a given input.",
+                  "title": "Temperature",
+                  "default": 1
+                }
+              },
+              "title": "VideoEnterpriseInput",
+              "required": [
+                "prompt",
+                "model"
+              ]
+            },
+            "RouterVideoEnterpriseOutput": {
+              "x-fal-order-properties": [
+                "output",
+                "usage"
+              ],
+              "type": "object",
+              "properties": {
+                "usage": {
+                  "examples": [
+                    {
+                      "prompt_tokens": 1000,
+                      "total_tokens": 1100,
+                      "completion_tokens": 100,
+                      "cost": 0.0005
+                    }
+                  ],
+                  "description": "Token usage information",
+                  "title": "Usage",
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/UsageInfo"
+                    }
+                  ]
+                },
+                "output": {
+                  "examples": [
+                    "that's the way I look at it and I don't know what you would say. Sooner or later the child gets run over.\nThey seem to be too local, too provincial."
+                  ],
+                  "description": "Generated output from video processing",
+                  "type": "string",
+                  "title": "Output"
+                }
+              },
+              "title": "VideoOutput",
+              "required": [
+                "output"
+              ]
+            },
+            "UsageInfo": {
+              "x-fal-order-properties": [
+                "prompt_tokens",
+                "completion_tokens",
+                "total_tokens",
+                "cost"
+              ],
+              "type": "object",
+              "properties": {
+                "prompt_tokens": {
+                  "title": "Prompt Tokens",
+                  "type": "integer"
+                },
+                "total_tokens": {
+                  "title": "Total Tokens",
+                  "type": "integer",
+                  "default": 0
+                },
+                "completion_tokens": {
+                  "title": "Completion Tokens",
+                  "type": "integer"
+                },
+                "cost": {
+                  "title": "Cost",
+                  "type": "number"
+                }
+              },
+              "title": "UsageInfo",
+              "required": [
+                "cost"
+              ]
+            }
+          }
+        },
+        "paths": {
+          "/openrouter/router/video/enterprise/requests/{request_id}/status": {
+            "get": {
+              "parameters": [
+                {
+                  "name": "request_id",
+                  "in": "path",
+                  "required": true,
+                  "schema": {
+                    "type": "string",
+                    "description": "Request ID"
+                  }
+                },
+                {
+                  "name": "logs",
+                  "in": "query",
+                  "required": false,
+                  "schema": {
+                    "type": "number",
+                    "description": "Whether to include logs (`1`) in the response or not (`0`)."
+                  }
+                }
+              ],
+              "responses": {
+                "200": {
+                  "description": "The request status.",
+                  "content": {
+                    "application/json": {
+                      "schema": {
+                        "$ref": "#/components/schemas/QueueStatus"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "/openrouter/router/video/enterprise/requests/{request_id}/cancel": {
+            "put": {
+              "parameters": [
+                {
+                  "name": "request_id",
+                  "in": "path",
+                  "required": true,
+                  "schema": {
+                    "type": "string",
+                    "description": "Request ID"
+                  }
+                }
+              ],
+              "responses": {
+                "200": {
+                  "description": "The request was cancelled.",
+                  "content": {
+                    "application/json": {
+                      "schema": {
+                        "type": "object",
+                        "properties": {
+                          "success": {
+                            "type": "boolean",
+                            "description": "Whether the request was cancelled successfully."
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "/openrouter/router/video/enterprise": {
+            "post": {
+              "requestBody": {
+                "required": true,
+                "content": {
+                  "application/json": {
+                    "schema": {
+                      "$ref": "#/components/schemas/RouterVideoEnterpriseInput"
+                    }
+                  }
+                }
+              },
+              "responses": {
+                "200": {
+                  "description": "The request status.",
+                  "content": {
+                    "application/json": {
+                      "schema": {
+                        "$ref": "#/components/schemas/QueueStatus"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "/openrouter/router/video/enterprise/requests/{request_id}": {
+            "get": {
+              "parameters": [
+                {
+                  "name": "request_id",
+                  "in": "path",
+                  "required": true,
+                  "schema": {
+                    "type": "string",
+                    "description": "Request ID"
+                  }
+                }
+              ],
+              "responses": {
+                "200": {
+                  "description": "Result of the request.",
+                  "content": {
+                    "application/json": {
+                      "schema": {
+                        "$ref": "#/components/schemas/RouterVideoEnterpriseOutput"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "servers": [
+          {
+            "url": "https://queue.fal.run"
+          }
+        ],
+        "security": [
+          {
+            "apiKeyAuth": []
+          }
+        ]
+      }
+    },
+    {
+      "endpoint_id": "openrouter/router/video",
+      "metadata": {
+        "display_name": "OpenRouter [Video]",
+        "category": "video-to-text",
+        "description": "Run any VLM (Video Language Model) with fal, powered by OpenRouter.",
+        "status": "active",
+        "tags": [],
+        "updated_at": "2026-01-26T21:41:37.408Z",
+        "is_favorited": false,
+        "thumbnail_url": "https://v3b.fal.media/files/b/0a8a4887/4urYAt4UGIT4KfbwEdL6R_f0b95609b9e241468dbaf34bf3229f91.jpg",
+        "model_url": "https://fal.run/openrouter/router/video",
+        "license_type": "commercial",
+        "date": "2026-01-13T23:31:16.485Z",
+        "group": {
+          "key": "openrouter/router",
+          "label": "Any Video LM"
+        },
+        "highlighted": false,
+        "kind": "inference",
+        "stream_url": "https://fal.run/openrouter/router/video/stream",
+        "pinned": false
+      },
+      "openapi": {
+        "openapi": "3.0.4",
+        "info": {
+          "title": "Queue OpenAPI for openrouter/router/video",
+          "version": "1.0.0",
+          "description": "The OpenAPI schema for the openrouter/router/video queue.",
+          "x-fal-metadata": {
+            "endpointId": "openrouter/router/video",
+            "category": "video-to-text",
+            "thumbnailUrl": "https://v3b.fal.media/files/b/0a8a4887/4urYAt4UGIT4KfbwEdL6R_f0b95609b9e241468dbaf34bf3229f91.jpg",
+            "playgroundUrl": "https://fal.ai/models/openrouter/router/video",
+            "documentationUrl": "https://fal.ai/models/openrouter/router/video/api"
+          }
+        },
+        "components": {
+          "securitySchemes": {
+            "apiKeyAuth": {
+              "type": "apiKey",
+              "in": "header",
+              "name": "Authorization",
+              "description": "Fal Key"
+            }
+          },
+          "schemas": {
+            "QueueStatus": {
+              "type": "object",
+              "properties": {
+                "status": {
+                  "type": "string",
+                  "enum": [
+                    "IN_QUEUE",
+                    "IN_PROGRESS",
+                    "COMPLETED"
+                  ]
+                },
+                "request_id": {
+                  "type": "string",
+                  "description": "The request id."
+                },
+                "response_url": {
+                  "type": "string",
+                  "description": "The response url."
+                },
+                "status_url": {
+                  "type": "string",
+                  "description": "The status url."
+                },
+                "cancel_url": {
+                  "type": "string",
+                  "description": "The cancel url."
+                },
+                "logs": {
+                  "type": "object",
+                  "description": "The logs.",
+                  "additionalProperties": true
+                },
+                "metrics": {
+                  "type": "object",
+                  "description": "The metrics.",
+                  "additionalProperties": true
+                },
+                "queue_position": {
+                  "type": "integer",
+                  "description": "The queue position."
+                }
+              },
+              "required": [
+                "status",
+                "request_id"
+              ]
+            },
+            "RouterVideoInput": {
+              "x-fal-order-properties": [
+                "video_urls",
+                "prompt",
+                "system_prompt",
+                "model",
+                "reasoning",
+                "temperature",
+                "max_tokens"
+              ],
+              "type": "object",
+              "properties": {
+                "prompt": {
+                  "examples": [
+                    "Please transcribe the videos respectively."
+                  ],
+                  "description": "Prompt to be used for the video processing",
+                  "type": "string",
+                  "title": "Prompt"
+                },
+                "video_urls": {
+                  "examples": [
+                    [
+                      "https://v3b.fal.media/files/b/0a8b3081/t4Jsy53x-Q8iQqg78_Vj__vid01.mp4",
+                      "https://v3b.fal.media/files/b/0a8b3085/xWtbpb6pf4i-BSvR2oWbi_vid06.mp4"
+                    ]
+                  ],
+                  "description": "List of URLs or data URIs of video files to process. Supported formats: mp4, mpeg, mov, webm. For Google Gemini on AI Studio, YouTube links are also supported. Mutually exclusive with video_url.",
+                  "type": "array",
+                  "title": "Video Urls",
+                  "items": {
+                    "type": "string"
+                  }
+                },
+                "system_prompt": {
+                  "examples": [
+                    "Please look at the videos in order and answer the question."
+                  ],
+                  "description": "System prompt to provide context or instructions to the model",
+                  "type": "string",
+                  "title": "System Prompt"
+                },
+                "reasoning": {
+                  "description": "Should reasoning be the part of the final answer.",
+                  "type": "boolean",
+                  "title": "Reasoning",
+                  "default": false
+                },
+                "model": {
+                  "examples": [
+                    "google/gemini-2.5-flash",
+                    "google/gemini-2.5-pro",
+                    "google/gemini-3-flash-preview",
+                    "google/gemini-3-pro-preview"
+                  ],
+                  "description": "Name of the model to use. Charged based on actual token usage.",
+                  "type": "string",
+                  "title": "Model"
+                },
+                "max_tokens": {
+                  "minimum": 1,
+                  "description": "This sets the upper limit for the number of tokens the model can generate in response. It won't produce more than this limit. The maximum value is the context length minus the prompt length.",
+                  "type": "integer",
+                  "title": "Max Tokens"
+                },
+                "temperature": {
+                  "minimum": 0,
+                  "maximum": 2,
+                  "type": "number",
+                  "description": "This setting influences the variety in the model's responses. Lower values lead to more predictable and typical responses, while higher values encourage more diverse and less common responses. At 0, the model always gives the same response for a given input.",
+                  "title": "Temperature",
+                  "default": 1
+                }
+              },
+              "title": "VideoInput",
+              "required": [
+                "prompt",
+                "model"
+              ]
+            },
+            "RouterVideoOutput": {
+              "x-fal-order-properties": [
+                "output",
+                "usage"
+              ],
+              "type": "object",
+              "properties": {
+                "usage": {
+                  "examples": [
+                    {
+                      "prompt_tokens": 1000,
+                      "total_tokens": 1100,
+                      "completion_tokens": 100,
+                      "cost": 0.0005
+                    }
+                  ],
+                  "description": "Token usage information",
+                  "title": "Usage",
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/UsageInfo"
+                    }
+                  ]
+                },
+                "output": {
+                  "examples": [
+                    "that's the way I look at it and I don't know what you would say. Sooner or later the child gets run over.\nThey seem to be too local, too provincial."
+                  ],
+                  "description": "Generated output from video processing",
+                  "type": "string",
+                  "title": "Output"
+                }
+              },
+              "title": "VideoOutput",
+              "required": [
+                "output"
+              ]
+            },
+            "UsageInfo": {
+              "x-fal-order-properties": [
+                "prompt_tokens",
+                "completion_tokens",
+                "total_tokens",
+                "cost"
+              ],
+              "type": "object",
+              "properties": {
+                "prompt_tokens": {
+                  "title": "Prompt Tokens",
+                  "type": "integer"
+                },
+                "total_tokens": {
+                  "title": "Total Tokens",
+                  "type": "integer",
+                  "default": 0
+                },
+                "completion_tokens": {
+                  "title": "Completion Tokens",
+                  "type": "integer"
+                },
+                "cost": {
+                  "title": "Cost",
+                  "type": "number"
+                }
+              },
+              "title": "UsageInfo",
+              "required": [
+                "cost"
+              ]
+            }
+          }
+        },
+        "paths": {
+          "/openrouter/router/video/requests/{request_id}/status": {
+            "get": {
+              "parameters": [
+                {
+                  "name": "request_id",
+                  "in": "path",
+                  "required": true,
+                  "schema": {
+                    "type": "string",
+                    "description": "Request ID"
+                  }
+                },
+                {
+                  "name": "logs",
+                  "in": "query",
+                  "required": false,
+                  "schema": {
+                    "type": "number",
+                    "description": "Whether to include logs (`1`) in the response or not (`0`)."
+                  }
+                }
+              ],
+              "responses": {
+                "200": {
+                  "description": "The request status.",
+                  "content": {
+                    "application/json": {
+                      "schema": {
+                        "$ref": "#/components/schemas/QueueStatus"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "/openrouter/router/video/requests/{request_id}/cancel": {
+            "put": {
+              "parameters": [
+                {
+                  "name": "request_id",
+                  "in": "path",
+                  "required": true,
+                  "schema": {
+                    "type": "string",
+                    "description": "Request ID"
+                  }
+                }
+              ],
+              "responses": {
+                "200": {
+                  "description": "The request was cancelled.",
+                  "content": {
+                    "application/json": {
+                      "schema": {
+                        "type": "object",
+                        "properties": {
+                          "success": {
+                            "type": "boolean",
+                            "description": "Whether the request was cancelled successfully."
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "/openrouter/router/video": {
+            "post": {
+              "requestBody": {
+                "required": true,
+                "content": {
+                  "application/json": {
+                    "schema": {
+                      "$ref": "#/components/schemas/RouterVideoInput"
+                    }
+                  }
+                }
+              },
+              "responses": {
+                "200": {
+                  "description": "The request status.",
+                  "content": {
+                    "application/json": {
+                      "schema": {
+                        "$ref": "#/components/schemas/QueueStatus"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "/openrouter/router/video/requests/{request_id}": {
+            "get": {
+              "parameters": [
+                {
+                  "name": "request_id",
+                  "in": "path",
+                  "required": true,
+                  "schema": {
+                    "type": "string",
+                    "description": "Request ID"
+                  }
+                }
+              ],
+              "responses": {
+                "200": {
+                  "description": "Result of the request.",
+                  "content": {
+                    "application/json": {
+                      "schema": {
+                        "$ref": "#/components/schemas/RouterVideoOutput"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "servers": [
+          {
+            "url": "https://queue.fal.run"
+          }
+        ],
+        "security": [
+          {
+            "apiKeyAuth": []
+          }
+        ]
+      }
+    }
+  ]
+}

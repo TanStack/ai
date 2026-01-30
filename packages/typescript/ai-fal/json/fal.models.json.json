@@ -1,0 +1,1545 @@
+{
+  "generated_at": "2026-01-28T02:51:51.876Z",
+  "total_models": 3,
+  "category": "json",
+  "models": [
+    {
+      "endpoint_id": "fal-ai/ffmpeg-api/loudnorm",
+      "metadata": {
+        "display_name": "Ffmpeg Api",
+        "category": "json",
+        "description": "Get EBU R128 loudness normalization from audio files using FFmpeg API.",
+        "status": "active",
+        "tags": [
+          "ffmpeg"
+        ],
+        "updated_at": "2026-01-26T21:43:17.209Z",
+        "is_favorited": false,
+        "thumbnail_url": "https://storage.googleapis.com/falserverless/gallery/ffmpeg-api-waveform.webp",
+        "model_url": "https://fal.run/fal-ai/ffmpeg-api/loudnorm",
+        "license_type": "commercial",
+        "date": "2025-07-08T19:13:13.775Z",
+        "highlighted": false,
+        "kind": "inference",
+        "pinned": false
+      },
+      "openapi": {
+        "openapi": "3.0.4",
+        "info": {
+          "title": "Queue OpenAPI for fal-ai/ffmpeg-api/loudnorm",
+          "version": "1.0.0",
+          "description": "The OpenAPI schema for the fal-ai/ffmpeg-api/loudnorm queue.",
+          "x-fal-metadata": {
+            "endpointId": "fal-ai/ffmpeg-api/loudnorm",
+            "category": "json",
+            "thumbnailUrl": "https://storage.googleapis.com/falserverless/gallery/ffmpeg-api-waveform.webp",
+            "playgroundUrl": "https://fal.ai/models/fal-ai/ffmpeg-api/loudnorm",
+            "documentationUrl": "https://fal.ai/models/fal-ai/ffmpeg-api/loudnorm/api"
+          }
+        },
+        "components": {
+          "securitySchemes": {
+            "apiKeyAuth": {
+              "type": "apiKey",
+              "in": "header",
+              "name": "Authorization",
+              "description": "Fal Key"
+            }
+          },
+          "schemas": {
+            "QueueStatus": {
+              "type": "object",
+              "properties": {
+                "status": {
+                  "type": "string",
+                  "enum": [
+                    "IN_QUEUE",
+                    "IN_PROGRESS",
+                    "COMPLETED"
+                  ]
+                },
+                "request_id": {
+                  "type": "string",
+                  "description": "The request id."
+                },
+                "response_url": {
+                  "type": "string",
+                  "description": "The response url."
+                },
+                "status_url": {
+                  "type": "string",
+                  "description": "The status url."
+                },
+                "cancel_url": {
+                  "type": "string",
+                  "description": "The cancel url."
+                },
+                "logs": {
+                  "type": "object",
+                  "description": "The logs.",
+                  "additionalProperties": true
+                },
+                "metrics": {
+                  "type": "object",
+                  "description": "The metrics.",
+                  "additionalProperties": true
+                },
+                "queue_position": {
+                  "type": "integer",
+                  "description": "The queue position."
+                }
+              },
+              "required": [
+                "status",
+                "request_id"
+              ]
+            },
+            "FfmpegApiLoudnormInput": {
+              "title": "LoudnormInput",
+              "type": "object",
+              "properties": {
+                "measured_tp": {
+                  "anyOf": [
+                    {
+                      "minimum": -99,
+                      "maximum": 99,
+                      "type": "number"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "description": "Measured true peak of input file in dBTP. Required for linear mode.",
+                  "title": "Measured Tp"
+                },
+                "linear": {
+                  "description": "Use linear normalization mode (single-pass). If false, uses dynamic mode (two-pass for better quality).",
+                  "type": "boolean",
+                  "title": "Linear",
+                  "default": false
+                },
+                "offset": {
+                  "minimum": -99,
+                  "maximum": 99,
+                  "type": "number",
+                  "description": "Offset gain in dB applied before the true-peak limiter",
+                  "title": "Offset",
+                  "default": 0
+                },
+                "measured_i": {
+                  "anyOf": [
+                    {
+                      "minimum": -99,
+                      "maximum": 0,
+                      "type": "number"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "description": "Measured integrated loudness of input file in LUFS. Required for linear mode.",
+                  "title": "Measured I"
+                },
+                "print_summary": {
+                  "description": "Return loudness measurement summary with the normalized audio",
+                  "type": "boolean",
+                  "title": "Print Summary",
+                  "default": false
+                },
+                "measured_lra": {
+                  "anyOf": [
+                    {
+                      "minimum": 0,
+                      "maximum": 99,
+                      "type": "number"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "description": "Measured loudness range of input file in LU. Required for linear mode.",
+                  "title": "Measured Lra"
+                },
+                "measured_thresh": {
+                  "anyOf": [
+                    {
+                      "minimum": -99,
+                      "maximum": 0,
+                      "type": "number"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "description": "Measured threshold of input file in LUFS. Required for linear mode.",
+                  "title": "Measured Thresh"
+                },
+                "dual_mono": {
+                  "description": "Treat mono input files as dual-mono for correct EBU R128 measurement on stereo systems",
+                  "type": "boolean",
+                  "title": "Dual Mono",
+                  "default": false
+                },
+                "true_peak": {
+                  "minimum": -9,
+                  "maximum": 0,
+                  "type": "number",
+                  "description": "Maximum true peak in dBTP.",
+                  "title": "True Peak",
+                  "default": -0.1
+                },
+                "audio_url": {
+                  "examples": [
+                    "https://storage.googleapis.com/falserverless/example_inputs/ffmpeg-audio.wav"
+                  ],
+                  "description": "URL of the audio file to normalize",
+                  "type": "string",
+                  "title": "Audio Url"
+                },
+                "integrated_loudness": {
+                  "minimum": -70,
+                  "maximum": -5,
+                  "type": "number",
+                  "description": "Integrated loudness target in LUFS.",
+                  "title": "Integrated Loudness",
+                  "default": -18
+                },
+                "loudness_range": {
+                  "minimum": 1,
+                  "maximum": 20,
+                  "type": "number",
+                  "description": "Loudness range target in LU",
+                  "title": "Loudness Range",
+                  "default": 7
+                }
+              },
+              "x-fal-order-properties": [
+                "audio_url",
+                "integrated_loudness",
+                "true_peak",
+                "loudness_range",
+                "offset",
+                "linear",
+                "dual_mono",
+                "print_summary",
+                "measured_i",
+                "measured_lra",
+                "measured_tp",
+                "measured_thresh"
+              ],
+              "required": [
+                "audio_url"
+              ]
+            },
+            "FfmpegApiLoudnormOutput": {
+              "title": "LoudnormOutput",
+              "type": "object",
+              "properties": {
+                "summary": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/LoudnormSummary"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "description": "Structured loudness measurement summary (if requested)"
+                },
+                "audio": {
+                  "description": "Normalized audio file",
+                  "$ref": "#/components/schemas/File"
+                }
+              },
+              "x-fal-order-properties": [
+                "audio",
+                "summary"
+              ],
+              "required": [
+                "audio"
+              ]
+            },
+            "LoudnormSummary": {
+              "title": "LoudnormSummary",
+              "type": "object",
+              "properties": {
+                "output_integrated": {
+                  "anyOf": [
+                    {
+                      "type": "number"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "description": "Output integrated loudness in LUFS",
+                  "title": "Output Integrated"
+                },
+                "output_true_peak": {
+                  "anyOf": [
+                    {
+                      "type": "number"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "description": "Output true peak in dBTP",
+                  "title": "Output True Peak"
+                },
+                "input_lra": {
+                  "anyOf": [
+                    {
+                      "type": "number"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "description": "Input loudness range in LU",
+                  "title": "Input Lra"
+                },
+                "normalization_type": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "description": "Type of normalization applied (Dynamic/Linear)",
+                  "title": "Normalization Type"
+                },
+                "output_lra": {
+                  "anyOf": [
+                    {
+                      "type": "number"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "description": "Output loudness range in LU",
+                  "title": "Output Lra"
+                },
+                "output_threshold": {
+                  "anyOf": [
+                    {
+                      "type": "number"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "description": "Output threshold in LUFS",
+                  "title": "Output Threshold"
+                },
+                "input_integrated": {
+                  "anyOf": [
+                    {
+                      "type": "number"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "description": "Input integrated loudness in LUFS",
+                  "title": "Input Integrated"
+                },
+                "input_true_peak": {
+                  "anyOf": [
+                    {
+                      "type": "number"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "description": "Input true peak in dBTP",
+                  "title": "Input True Peak"
+                },
+                "target_offset": {
+                  "anyOf": [
+                    {
+                      "type": "number"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "description": "Target offset in LU",
+                  "title": "Target Offset"
+                },
+                "input_threshold": {
+                  "anyOf": [
+                    {
+                      "type": "number"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "description": "Input threshold in LUFS",
+                  "title": "Input Threshold"
+                }
+              },
+              "x-fal-order-properties": [
+                "input_integrated",
+                "input_true_peak",
+                "input_lra",
+                "input_threshold",
+                "output_integrated",
+                "output_true_peak",
+                "output_lra",
+                "output_threshold",
+                "normalization_type",
+                "target_offset"
+              ]
+            },
+            "File": {
+              "title": "File",
+              "type": "object",
+              "properties": {
+                "file_size": {
+                  "examples": [
+                    4404019
+                  ],
+                  "description": "The size of the file in bytes.",
+                  "anyOf": [
+                    {
+                      "type": "integer"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "title": "File Size"
+                },
+                "file_name": {
+                  "examples": [
+                    "z9RV14K95DvU.png"
+                  ],
+                  "description": "The name of the file. It will be auto-generated if not provided.",
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "title": "File Name"
+                },
+                "content_type": {
+                  "examples": [
+                    "image/png"
+                  ],
+                  "description": "The mime type of the file.",
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "title": "Content Type"
+                },
+                "url": {
+                  "description": "The URL where the file can be downloaded from.",
+                  "type": "string",
+                  "title": "Url"
+                }
+              },
+              "x-fal-order-properties": [
+                "url",
+                "content_type",
+                "file_name",
+                "file_size"
+              ],
+              "required": [
+                "url"
+              ]
+            }
+          }
+        },
+        "paths": {
+          "/fal-ai/ffmpeg-api/loudnorm/requests/{request_id}/status": {
+            "get": {
+              "parameters": [
+                {
+                  "name": "request_id",
+                  "in": "path",
+                  "required": true,
+                  "schema": {
+                    "type": "string",
+                    "description": "Request ID"
+                  }
+                },
+                {
+                  "name": "logs",
+                  "in": "query",
+                  "required": false,
+                  "schema": {
+                    "type": "number",
+                    "description": "Whether to include logs (`1`) in the response or not (`0`)."
+                  }
+                }
+              ],
+              "responses": {
+                "200": {
+                  "description": "The request status.",
+                  "content": {
+                    "application/json": {
+                      "schema": {
+                        "$ref": "#/components/schemas/QueueStatus"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "/fal-ai/ffmpeg-api/loudnorm/requests/{request_id}/cancel": {
+            "put": {
+              "parameters": [
+                {
+                  "name": "request_id",
+                  "in": "path",
+                  "required": true,
+                  "schema": {
+                    "type": "string",
+                    "description": "Request ID"
+                  }
+                }
+              ],
+              "responses": {
+                "200": {
+                  "description": "The request was cancelled.",
+                  "content": {
+                    "application/json": {
+                      "schema": {
+                        "type": "object",
+                        "properties": {
+                          "success": {
+                            "type": "boolean",
+                            "description": "Whether the request was cancelled successfully."
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "/fal-ai/ffmpeg-api/loudnorm": {
+            "post": {
+              "requestBody": {
+                "required": true,
+                "content": {
+                  "application/json": {
+                    "schema": {
+                      "$ref": "#/components/schemas/FfmpegApiLoudnormInput"
+                    }
+                  }
+                }
+              },
+              "responses": {
+                "200": {
+                  "description": "The request status.",
+                  "content": {
+                    "application/json": {
+                      "schema": {
+                        "$ref": "#/components/schemas/QueueStatus"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "/fal-ai/ffmpeg-api/loudnorm/requests/{request_id}": {
+            "get": {
+              "parameters": [
+                {
+                  "name": "request_id",
+                  "in": "path",
+                  "required": true,
+                  "schema": {
+                    "type": "string",
+                    "description": "Request ID"
+                  }
+                }
+              ],
+              "responses": {
+                "200": {
+                  "description": "Result of the request.",
+                  "content": {
+                    "application/json": {
+                      "schema": {
+                        "$ref": "#/components/schemas/FfmpegApiLoudnormOutput"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "servers": [
+          {
+            "url": "https://queue.fal.run"
+          }
+        ],
+        "security": [
+          {
+            "apiKeyAuth": []
+          }
+        ]
+      }
+    },
+    {
+      "endpoint_id": "fal-ai/ffmpeg-api/waveform",
+      "metadata": {
+        "display_name": "FFmpeg API Waveform",
+        "category": "json",
+        "description": "Get waveform data from audio files using FFmpeg API.",
+        "status": "active",
+        "tags": [
+          "ffmpeg"
+        ],
+        "updated_at": "2026-01-26T21:44:29.901Z",
+        "is_favorited": false,
+        "thumbnail_url": "https://storage.googleapis.com/falserverless/gallery/ffmpeg-api-waveform.webp",
+        "model_url": "https://fal.run/fal-ai/ffmpeg-api/waveform",
+        "date": "2025-01-22T00:00:00.000Z",
+        "highlighted": false,
+        "pinned": false
+      },
+      "openapi": {
+        "openapi": "3.0.4",
+        "info": {
+          "title": "Queue OpenAPI for fal-ai/ffmpeg-api/waveform",
+          "version": "1.0.0",
+          "description": "The OpenAPI schema for the fal-ai/ffmpeg-api/waveform queue.",
+          "x-fal-metadata": {
+            "endpointId": "fal-ai/ffmpeg-api/waveform",
+            "category": "json",
+            "thumbnailUrl": "https://storage.googleapis.com/falserverless/gallery/ffmpeg-api-waveform.webp",
+            "playgroundUrl": "https://fal.ai/models/fal-ai/ffmpeg-api/waveform",
+            "documentationUrl": "https://fal.ai/models/fal-ai/ffmpeg-api/waveform/api"
+          }
+        },
+        "components": {
+          "securitySchemes": {
+            "apiKeyAuth": {
+              "type": "apiKey",
+              "in": "header",
+              "name": "Authorization",
+              "description": "Fal Key"
+            }
+          },
+          "schemas": {
+            "QueueStatus": {
+              "type": "object",
+              "properties": {
+                "status": {
+                  "type": "string",
+                  "enum": [
+                    "IN_QUEUE",
+                    "IN_PROGRESS",
+                    "COMPLETED"
+                  ]
+                },
+                "request_id": {
+                  "type": "string",
+                  "description": "The request id."
+                },
+                "response_url": {
+                  "type": "string",
+                  "description": "The response url."
+                },
+                "status_url": {
+                  "type": "string",
+                  "description": "The status url."
+                },
+                "cancel_url": {
+                  "type": "string",
+                  "description": "The cancel url."
+                },
+                "logs": {
+                  "type": "object",
+                  "description": "The logs.",
+                  "additionalProperties": true
+                },
+                "metrics": {
+                  "type": "object",
+                  "description": "The metrics.",
+                  "additionalProperties": true
+                },
+                "queue_position": {
+                  "type": "integer",
+                  "description": "The queue position."
+                }
+              },
+              "required": [
+                "status",
+                "request_id"
+              ]
+            },
+            "FfmpegApiWaveformInput": {
+              "title": "WaveformInput",
+              "type": "object",
+              "properties": {
+                "precision": {
+                  "minimum": 1,
+                  "maximum": 6,
+                  "type": "integer",
+                  "description": "Number of decimal places for the waveform values. Higher values provide more precision but increase payload size.",
+                  "title": "Precision",
+                  "default": 2
+                },
+                "smoothing_window": {
+                  "minimum": 1,
+                  "maximum": 21,
+                  "type": "integer",
+                  "description": "Size of the smoothing window. Higher values create a smoother waveform. Must be an odd number.",
+                  "title": "Smoothing Window",
+                  "default": 3
+                },
+                "media_url": {
+                  "description": "URL of the audio file to analyze",
+                  "type": "string",
+                  "title": "Media Url"
+                },
+                "points_per_second": {
+                  "minimum": 1,
+                  "maximum": 10,
+                  "type": "number",
+                  "description": "Controls how many points are sampled per second of audio. Lower values (e.g. 1-2) create a coarser waveform, higher values (e.g. 4-10) create a more detailed one.",
+                  "title": "Points Per Second",
+                  "default": 4
+                }
+              },
+              "x-fal-order-properties": [
+                "media_url",
+                "points_per_second",
+                "precision",
+                "smoothing_window"
+              ],
+              "required": [
+                "media_url"
+              ]
+            },
+            "FfmpegApiWaveformOutput": {
+              "title": "WaveformOutput",
+              "type": "object",
+              "properties": {
+                "precision": {
+                  "description": "Number of decimal places used in the waveform values",
+                  "type": "integer",
+                  "title": "Precision"
+                },
+                "duration": {
+                  "description": "Duration of the audio in seconds",
+                  "type": "number",
+                  "title": "Duration"
+                },
+                "points": {
+                  "description": "Number of points in the waveform data",
+                  "type": "integer",
+                  "title": "Points"
+                },
+                "waveform": {
+                  "description": "Normalized waveform data as an array of values between -1 and 1. The number of points is determined by audio duration × points_per_second.",
+                  "type": "array",
+                  "title": "Waveform",
+                  "items": {
+                    "type": "number"
+                  }
+                }
+              },
+              "x-fal-order-properties": [
+                "waveform",
+                "duration",
+                "points",
+                "precision"
+              ],
+              "required": [
+                "waveform",
+                "duration",
+                "points",
+                "precision"
+              ]
+            }
+          }
+        },
+        "paths": {
+          "/fal-ai/ffmpeg-api/waveform/requests/{request_id}/status": {
+            "get": {
+              "parameters": [
+                {
+                  "name": "request_id",
+                  "in": "path",
+                  "required": true,
+                  "schema": {
+                    "type": "string",
+                    "description": "Request ID"
+                  }
+                },
+                {
+                  "name": "logs",
+                  "in": "query",
+                  "required": false,
+                  "schema": {
+                    "type": "number",
+                    "description": "Whether to include logs (`1`) in the response or not (`0`)."
+                  }
+                }
+              ],
+              "responses": {
+                "200": {
+                  "description": "The request status.",
+                  "content": {
+                    "application/json": {
+                      "schema": {
+                        "$ref": "#/components/schemas/QueueStatus"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "/fal-ai/ffmpeg-api/waveform/requests/{request_id}/cancel": {
+            "put": {
+              "parameters": [
+                {
+                  "name": "request_id",
+                  "in": "path",
+                  "required": true,
+                  "schema": {
+                    "type": "string",
+                    "description": "Request ID"
+                  }
+                }
+              ],
+              "responses": {
+                "200": {
+                  "description": "The request was cancelled.",
+                  "content": {
+                    "application/json": {
+                      "schema": {
+                        "type": "object",
+                        "properties": {
+                          "success": {
+                            "type": "boolean",
+                            "description": "Whether the request was cancelled successfully."
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "/fal-ai/ffmpeg-api/waveform": {
+            "post": {
+              "requestBody": {
+                "required": true,
+                "content": {
+                  "application/json": {
+                    "schema": {
+                      "$ref": "#/components/schemas/FfmpegApiWaveformInput"
+                    }
+                  }
+                }
+              },
+              "responses": {
+                "200": {
+                  "description": "The request status.",
+                  "content": {
+                    "application/json": {
+                      "schema": {
+                        "$ref": "#/components/schemas/QueueStatus"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "/fal-ai/ffmpeg-api/waveform/requests/{request_id}": {
+            "get": {
+              "parameters": [
+                {
+                  "name": "request_id",
+                  "in": "path",
+                  "required": true,
+                  "schema": {
+                    "type": "string",
+                    "description": "Request ID"
+                  }
+                }
+              ],
+              "responses": {
+                "200": {
+                  "description": "Result of the request.",
+                  "content": {
+                    "application/json": {
+                      "schema": {
+                        "$ref": "#/components/schemas/FfmpegApiWaveformOutput"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "servers": [
+          {
+            "url": "https://queue.fal.run"
+          }
+        ],
+        "security": [
+          {
+            "apiKeyAuth": []
+          }
+        ]
+      }
+    },
+    {
+      "endpoint_id": "fal-ai/ffmpeg-api/metadata",
+      "metadata": {
+        "display_name": "FFmpeg API Metadata",
+        "category": "json",
+        "description": "Get encoding metadata from video and audio files using FFmpeg API.",
+        "status": "active",
+        "tags": [
+          "ffmpeg"
+        ],
+        "updated_at": "2026-01-26T21:44:30.029Z",
+        "is_favorited": false,
+        "thumbnail_url": "https://storage.googleapis.com/falserverless/gallery/ffmpeg-api-metadata.webp",
+        "model_url": "https://fal.run/fal-ai/ffmpeg-api/metadata",
+        "date": "2025-01-22T00:00:00.000Z",
+        "highlighted": false,
+        "pinned": false
+      },
+      "openapi": {
+        "openapi": "3.0.4",
+        "info": {
+          "title": "Queue OpenAPI for fal-ai/ffmpeg-api/metadata",
+          "version": "1.0.0",
+          "description": "The OpenAPI schema for the fal-ai/ffmpeg-api/metadata queue.",
+          "x-fal-metadata": {
+            "endpointId": "fal-ai/ffmpeg-api/metadata",
+            "category": "json",
+            "thumbnailUrl": "https://storage.googleapis.com/falserverless/gallery/ffmpeg-api-metadata.webp",
+            "playgroundUrl": "https://fal.ai/models/fal-ai/ffmpeg-api/metadata",
+            "documentationUrl": "https://fal.ai/models/fal-ai/ffmpeg-api/metadata/api"
+          }
+        },
+        "components": {
+          "securitySchemes": {
+            "apiKeyAuth": {
+              "type": "apiKey",
+              "in": "header",
+              "name": "Authorization",
+              "description": "Fal Key"
+            }
+          },
+          "schemas": {
+            "QueueStatus": {
+              "type": "object",
+              "properties": {
+                "status": {
+                  "type": "string",
+                  "enum": [
+                    "IN_QUEUE",
+                    "IN_PROGRESS",
+                    "COMPLETED"
+                  ]
+                },
+                "request_id": {
+                  "type": "string",
+                  "description": "The request id."
+                },
+                "response_url": {
+                  "type": "string",
+                  "description": "The response url."
+                },
+                "status_url": {
+                  "type": "string",
+                  "description": "The status url."
+                },
+                "cancel_url": {
+                  "type": "string",
+                  "description": "The cancel url."
+                },
+                "logs": {
+                  "type": "object",
+                  "description": "The logs.",
+                  "additionalProperties": true
+                },
+                "metrics": {
+                  "type": "object",
+                  "description": "The metrics.",
+                  "additionalProperties": true
+                },
+                "queue_position": {
+                  "type": "integer",
+                  "description": "The queue position."
+                }
+              },
+              "required": [
+                "status",
+                "request_id"
+              ]
+            },
+            "FfmpegApiMetadataInput": {
+              "title": "MetadataInput",
+              "type": "object",
+              "properties": {
+                "extract_frames": {
+                  "description": "Whether to extract the start and end frames for videos. Note that when true the request will be slower.",
+                  "type": "boolean",
+                  "title": "Extract Frames",
+                  "default": false
+                },
+                "media_url": {
+                  "description": "URL of the media file (video or audio) to analyze",
+                  "type": "string",
+                  "title": "Media Url"
+                }
+              },
+              "x-fal-order-properties": [
+                "media_url",
+                "extract_frames"
+              ],
+              "required": [
+                "media_url"
+              ]
+            },
+            "FfmpegApiMetadataOutput": {
+              "title": "MetadataOutput",
+              "type": "object",
+              "properties": {
+                "media": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/Video"
+                    },
+                    {
+                      "$ref": "#/components/schemas/Audio"
+                    }
+                  ],
+                  "description": "Metadata for the analyzed media file (either Video or Audio)",
+                  "title": "Media"
+                }
+              },
+              "x-fal-order-properties": [
+                "media"
+              ],
+              "required": [
+                "media"
+              ]
+            },
+            "Video": {
+              "title": "Video",
+              "type": "object",
+              "properties": {
+                "file_size": {
+                  "description": "Size of the file in bytes",
+                  "type": "integer",
+                  "title": "File Size"
+                },
+                "timebase": {
+                  "description": "Time base used for frame timestamps",
+                  "type": "string",
+                  "title": "Timebase"
+                },
+                "start_frame_url": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "description": "URL of the extracted first frame",
+                  "title": "Start Frame Url"
+                },
+                "duration": {
+                  "description": "Duration of the media in seconds",
+                  "type": "number",
+                  "title": "Duration"
+                },
+                "url": {
+                  "description": "URL where the media file can be accessed",
+                  "type": "string",
+                  "title": "Url"
+                },
+                "fps": {
+                  "description": "Frames per second",
+                  "type": "integer",
+                  "title": "Fps"
+                },
+                "codec": {
+                  "description": "Codec used to encode the media",
+                  "type": "string",
+                  "title": "Codec"
+                },
+                "media_type": {
+                  "description": "Type of media (always 'video')",
+                  "type": "string",
+                  "title": "Media Type",
+                  "const": "video",
+                  "default": "video"
+                },
+                "end_frame_url": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "description": "URL of the extracted last frame",
+                  "title": "End Frame Url"
+                },
+                "content_type": {
+                  "description": "MIME type of the media file",
+                  "type": "string",
+                  "title": "Content Type"
+                },
+                "container": {
+                  "description": "Container format of the media file (e.g., 'mp4', 'mov')",
+                  "type": "string",
+                  "title": "Container"
+                },
+                "bitrate": {
+                  "description": "Overall bitrate of the media in bits per second",
+                  "type": "integer",
+                  "title": "Bitrate"
+                },
+                "format": {
+                  "description": "Detailed video format information",
+                  "$ref": "#/components/schemas/VideoFormat"
+                },
+                "resolution": {
+                  "description": "Video resolution information",
+                  "$ref": "#/components/schemas/Resolution"
+                },
+                "frame_count": {
+                  "description": "Total number of frames in the video",
+                  "type": "integer",
+                  "title": "Frame Count"
+                },
+                "file_name": {
+                  "description": "Original filename of the media",
+                  "type": "string",
+                  "title": "File Name"
+                },
+                "audio": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/AudioTrack"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "description": "Audio track information if video has audio"
+                }
+              },
+              "x-fal-order-properties": [
+                "media_type",
+                "url",
+                "content_type",
+                "file_name",
+                "file_size",
+                "duration",
+                "bitrate",
+                "codec",
+                "container",
+                "fps",
+                "frame_count",
+                "timebase",
+                "resolution",
+                "format",
+                "audio",
+                "start_frame_url",
+                "end_frame_url"
+              ],
+              "required": [
+                "url",
+                "content_type",
+                "file_name",
+                "file_size",
+                "duration",
+                "bitrate",
+                "codec",
+                "container",
+                "fps",
+                "frame_count",
+                "timebase",
+                "resolution",
+                "format"
+              ]
+            },
+            "Audio": {
+              "title": "Audio",
+              "type": "object",
+              "properties": {
+                "file_size": {
+                  "description": "Size of the file in bytes",
+                  "type": "integer",
+                  "title": "File Size"
+                },
+                "duration": {
+                  "description": "Duration of the media in seconds",
+                  "type": "number",
+                  "title": "Duration"
+                },
+                "bitrate": {
+                  "description": "Overall bitrate of the media in bits per second",
+                  "type": "integer",
+                  "title": "Bitrate"
+                },
+                "url": {
+                  "description": "URL where the media file can be accessed",
+                  "type": "string",
+                  "title": "Url"
+                },
+                "media_type": {
+                  "description": "Type of media (always 'audio')",
+                  "type": "string",
+                  "title": "Media Type",
+                  "const": "audio",
+                  "default": "audio"
+                },
+                "codec": {
+                  "description": "Codec used to encode the media",
+                  "type": "string",
+                  "title": "Codec"
+                },
+                "file_name": {
+                  "description": "Original filename of the media",
+                  "type": "string",
+                  "title": "File Name"
+                },
+                "sample_rate": {
+                  "description": "Audio sample rate in Hz",
+                  "type": "integer",
+                  "title": "Sample Rate"
+                },
+                "content_type": {
+                  "description": "MIME type of the media file",
+                  "type": "string",
+                  "title": "Content Type"
+                },
+                "container": {
+                  "description": "Container format of the media file (e.g., 'mp4', 'mov')",
+                  "type": "string",
+                  "title": "Container"
+                },
+                "channels": {
+                  "description": "Number of audio channels",
+                  "type": "integer",
+                  "title": "Channels"
+                }
+              },
+              "x-fal-order-properties": [
+                "media_type",
+                "url",
+                "content_type",
+                "file_name",
+                "file_size",
+                "duration",
+                "bitrate",
+                "codec",
+                "container",
+                "channels",
+                "sample_rate"
+              ],
+              "required": [
+                "url",
+                "content_type",
+                "file_name",
+                "file_size",
+                "duration",
+                "bitrate",
+                "codec",
+                "container",
+                "channels",
+                "sample_rate"
+              ]
+            },
+            "VideoFormat": {
+              "title": "VideoFormat",
+              "type": "object",
+              "properties": {
+                "container": {
+                  "description": "Container format of the video",
+                  "type": "string",
+                  "title": "Container"
+                },
+                "level": {
+                  "description": "Codec level (e.g., 4.1)",
+                  "type": "number",
+                  "title": "Level"
+                },
+                "pixel_format": {
+                  "description": "Pixel format used (e.g., 'yuv420p')",
+                  "type": "string",
+                  "title": "Pixel Format"
+                },
+                "video_codec": {
+                  "description": "Video codec used (e.g., 'h264')",
+                  "type": "string",
+                  "title": "Video Codec"
+                },
+                "profile": {
+                  "description": "Codec profile (e.g., 'main', 'high')",
+                  "type": "string",
+                  "title": "Profile"
+                },
+                "bitrate": {
+                  "description": "Video bitrate in bits per second",
+                  "type": "integer",
+                  "title": "Bitrate"
+                }
+              },
+              "x-fal-order-properties": [
+                "container",
+                "video_codec",
+                "profile",
+                "level",
+                "pixel_format",
+                "bitrate"
+              ],
+              "required": [
+                "container",
+                "video_codec",
+                "profile",
+                "level",
+                "pixel_format",
+                "bitrate"
+              ]
+            },
+            "Resolution": {
+              "title": "Resolution",
+              "type": "object",
+              "properties": {
+                "height": {
+                  "description": "Height of the video in pixels",
+                  "type": "integer",
+                  "title": "Height"
+                },
+                "aspect_ratio": {
+                  "description": "Display aspect ratio (e.g., '16:9')",
+                  "type": "string",
+                  "title": "Aspect Ratio"
+                },
+                "width": {
+                  "description": "Width of the video in pixels",
+                  "type": "integer",
+                  "title": "Width"
+                }
+              },
+              "x-fal-order-properties": [
+                "aspect_ratio",
+                "width",
+                "height"
+              ],
+              "required": [
+                "aspect_ratio",
+                "width",
+                "height"
+              ]
+            },
+            "AudioTrack": {
+              "title": "AudioTrack",
+              "type": "object",
+              "properties": {
+                "codec": {
+                  "description": "Audio codec used (e.g., 'aac', 'mp3')",
+                  "type": "string",
+                  "title": "Codec"
+                },
+                "channels": {
+                  "description": "Number of audio channels",
+                  "type": "integer",
+                  "title": "Channels"
+                },
+                "sample_rate": {
+                  "description": "Audio sample rate in Hz",
+                  "type": "integer",
+                  "title": "Sample Rate"
+                },
+                "bitrate": {
+                  "description": "Audio bitrate in bits per second",
+                  "type": "integer",
+                  "title": "Bitrate"
+                }
+              },
+              "x-fal-order-properties": [
+                "codec",
+                "channels",
+                "sample_rate",
+                "bitrate"
+              ],
+              "required": [
+                "codec",
+                "channels",
+                "sample_rate",
+                "bitrate"
+              ]
+            }
+          }
+        },
+        "paths": {
+          "/fal-ai/ffmpeg-api/metadata/requests/{request_id}/status": {
+            "get": {
+              "parameters": [
+                {
+                  "name": "request_id",
+                  "in": "path",
+                  "required": true,
+                  "schema": {
+                    "type": "string",
+                    "description": "Request ID"
+                  }
+                },
+                {
+                  "name": "logs",
+                  "in": "query",
+                  "required": false,
+                  "schema": {
+                    "type": "number",
+                    "description": "Whether to include logs (`1`) in the response or not (`0`)."
+                  }
+                }
+              ],
+              "responses": {
+                "200": {
+                  "description": "The request status.",
+                  "content": {
+                    "application/json": {
+                      "schema": {
+                        "$ref": "#/components/schemas/QueueStatus"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "/fal-ai/ffmpeg-api/metadata/requests/{request_id}/cancel": {
+            "put": {
+              "parameters": [
+                {
+                  "name": "request_id",
+                  "in": "path",
+                  "required": true,
+                  "schema": {
+                    "type": "string",
+                    "description": "Request ID"
+                  }
+                }
+              ],
+              "responses": {
+                "200": {
+                  "description": "The request was cancelled.",
+                  "content": {
+                    "application/json": {
+                      "schema": {
+                        "type": "object",
+                        "properties": {
+                          "success": {
+                            "type": "boolean",
+                            "description": "Whether the request was cancelled successfully."
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "/fal-ai/ffmpeg-api/metadata": {
+            "post": {
+              "requestBody": {
+                "required": true,
+                "content": {
+                  "application/json": {
+                    "schema": {
+                      "$ref": "#/components/schemas/FfmpegApiMetadataInput"
+                    }
+                  }
+                }
+              },
+              "responses": {
+                "200": {
+                  "description": "The request status.",
+                  "content": {
+                    "application/json": {
+                      "schema": {
+                        "$ref": "#/components/schemas/QueueStatus"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "/fal-ai/ffmpeg-api/metadata/requests/{request_id}": {
+            "get": {
+              "parameters": [
+                {
+                  "name": "request_id",
+                  "in": "path",
+                  "required": true,
+                  "schema": {
+                    "type": "string",
+                    "description": "Request ID"
+                  }
+                }
+              ],
+              "responses": {
+                "200": {
+                  "description": "Result of the request.",
+                  "content": {
+                    "application/json": {
+                      "schema": {
+                        "$ref": "#/components/schemas/FfmpegApiMetadataOutput"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "servers": [
+          {
+            "url": "https://queue.fal.run"
+          }
+        ],
+        "security": [
+          {
+            "apiKeyAuth": []
+          }
+        ]
+      }
+    }
+  ]
+}

@@ -1,0 +1,1409 @@
+{
+  "generated_at": "2026-01-28T02:51:51.866Z",
+  "total_models": 4,
+  "category": "unknown",
+  "models": [
+    {
+      "endpoint_id": "fal-ai/workflow-utilities/interleave-video",
+      "metadata": {
+        "display_name": "Workflow Utilities",
+        "category": "unknown",
+        "description": "ffmpeg utility to interleave videos",
+        "status": "active",
+        "tags": [],
+        "updated_at": "2026-01-27T17:40:26.521Z",
+        "is_favorited": false,
+        "thumbnail_url": "https://v3b.fal.media/files/b/0a87987b/4FBs4s-6F9ng4C6B3e-4i_d97b1dd479a045cfa4b0e8d3a1ed39e1.jpg",
+        "model_url": "https://fal.run/fal-ai/workflow-utilities/interleave-video",
+        "license_type": "private",
+        "date": "2026-01-27T17:40:26.521Z",
+        "highlighted": false,
+        "kind": "inference",
+        "pinned": false
+      },
+      "openapi": {
+        "openapi": "3.0.4",
+        "info": {
+          "title": "Queue OpenAPI for fal-ai/workflow-utilities/interleave-video",
+          "version": "1.0.0",
+          "description": "The OpenAPI schema for the fal-ai/workflow-utilities/interleave-video queue.",
+          "x-fal-metadata": {
+            "endpointId": "fal-ai/workflow-utilities/interleave-video",
+            "category": "unknown",
+            "thumbnailUrl": "https://v3b.fal.media/files/b/0a87987b/4FBs4s-6F9ng4C6B3e-4i_d97b1dd479a045cfa4b0e8d3a1ed39e1.jpg",
+            "playgroundUrl": "https://fal.ai/models/fal-ai/workflow-utilities/interleave-video",
+            "documentationUrl": "https://fal.ai/models/fal-ai/workflow-utilities/interleave-video/api"
+          }
+        },
+        "components": {
+          "securitySchemes": {
+            "apiKeyAuth": {
+              "type": "apiKey",
+              "in": "header",
+              "name": "Authorization",
+              "description": "Fal Key"
+            }
+          },
+          "schemas": {
+            "QueueStatus": {
+              "type": "object",
+              "properties": {
+                "status": {
+                  "type": "string",
+                  "enum": [
+                    "IN_QUEUE",
+                    "IN_PROGRESS",
+                    "COMPLETED"
+                  ]
+                },
+                "request_id": {
+                  "type": "string",
+                  "description": "The request id."
+                },
+                "response_url": {
+                  "type": "string",
+                  "description": "The response url."
+                },
+                "status_url": {
+                  "type": "string",
+                  "description": "The status url."
+                },
+                "cancel_url": {
+                  "type": "string",
+                  "description": "The cancel url."
+                },
+                "logs": {
+                  "type": "object",
+                  "description": "The logs.",
+                  "additionalProperties": true
+                },
+                "metrics": {
+                  "type": "object",
+                  "description": "The metrics.",
+                  "additionalProperties": true
+                },
+                "queue_position": {
+                  "type": "integer",
+                  "description": "The queue position."
+                }
+              },
+              "required": [
+                "status",
+                "request_id"
+              ]
+            },
+            "WorkflowUtilitiesInterleaveVideoInput": {
+              "title": "InterleaveVideoInput",
+              "type": "object",
+              "properties": {
+                "video_urls": {
+                  "examples": [
+                    [
+                      "https://storage.googleapis.com/falserverless/example_outputs/wan-25-i2v-output.mp4",
+                      "https://storage.googleapis.com/falserverless/model_tests/kling/kling-v2.5-turbo-pro-image-to-video-output.mp4",
+                      "https://storage.googleapis.com/falserverless/example_inputs/seedance_pro_i2v.mp4",
+                      "https://storage.googleapis.com/falserverless/example_outputs/wan-25-i2v-output.mp4",
+                      "https://storage.googleapis.com/falserverless/model_tests/kling/kling-v2.5-turbo-pro-image-to-video-output.mp4",
+                      "https://storage.googleapis.com/falserverless/example_inputs/seedance_pro_i2v.mp4"
+                    ]
+                  ],
+                  "title": "Video Urls",
+                  "type": "array",
+                  "description": "List of video URLs to interleave in order",
+                  "items": {
+                    "type": "string"
+                  },
+                  "max_file_size": 100000000
+                }
+              },
+              "description": "Input model for interleaving multiple videos",
+              "x-fal-order-properties": [
+                "video_urls"
+              ],
+              "required": [
+                "video_urls"
+              ]
+            },
+            "WorkflowUtilitiesInterleaveVideoOutput": {
+              "title": "InterleaveVideoOutput",
+              "type": "object",
+              "properties": {
+                "video": {
+                  "examples": [
+                    {
+                      "file_size": 3886177,
+                      "file_name": "output.mp4",
+                      "content_type": "application/octet-stream",
+                      "url": "https://v3b.fal.media/files/b/monkey/xVp56BqDLgb39NONPs1Gb_output.mp4"
+                    }
+                  ],
+                  "title": "Video",
+                  "description": "The interleaved video output",
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/File"
+                    }
+                  ]
+                }
+              },
+              "description": "Output model for interleaved video",
+              "x-fal-order-properties": [
+                "video"
+              ],
+              "required": [
+                "video"
+              ]
+            },
+            "File": {
+              "title": "File",
+              "type": "object",
+              "properties": {
+                "file_size": {
+                  "examples": [
+                    4404019
+                  ],
+                  "title": "File Size",
+                  "type": "integer",
+                  "description": "The size of the file in bytes."
+                },
+                "file_name": {
+                  "examples": [
+                    "z9RV14K95DvU.png"
+                  ],
+                  "title": "File Name",
+                  "type": "string",
+                  "description": "The name of the file. It will be auto-generated if not provided."
+                },
+                "content_type": {
+                  "examples": [
+                    "image/png"
+                  ],
+                  "title": "Content Type",
+                  "type": "string",
+                  "description": "The mime type of the file."
+                },
+                "url": {
+                  "title": "Url",
+                  "type": "string",
+                  "description": "The URL where the file can be downloaded from."
+                },
+                "file_data": {
+                  "format": "binary",
+                  "title": "File Data",
+                  "type": "string",
+                  "description": "File data"
+                }
+              },
+              "x-fal-order-properties": [
+                "url",
+                "content_type",
+                "file_name",
+                "file_size",
+                "file_data"
+              ],
+              "required": [
+                "url"
+              ]
+            }
+          }
+        },
+        "paths": {
+          "/fal-ai/workflow-utilities/interleave-video/requests/{request_id}/status": {
+            "get": {
+              "parameters": [
+                {
+                  "name": "request_id",
+                  "in": "path",
+                  "required": true,
+                  "schema": {
+                    "type": "string",
+                    "description": "Request ID"
+                  }
+                },
+                {
+                  "name": "logs",
+                  "in": "query",
+                  "required": false,
+                  "schema": {
+                    "type": "number",
+                    "description": "Whether to include logs (`1`) in the response or not (`0`)."
+                  }
+                }
+              ],
+              "responses": {
+                "200": {
+                  "description": "The request status.",
+                  "content": {
+                    "application/json": {
+                      "schema": {
+                        "$ref": "#/components/schemas/QueueStatus"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "/fal-ai/workflow-utilities/interleave-video/requests/{request_id}/cancel": {
+            "put": {
+              "parameters": [
+                {
+                  "name": "request_id",
+                  "in": "path",
+                  "required": true,
+                  "schema": {
+                    "type": "string",
+                    "description": "Request ID"
+                  }
+                }
+              ],
+              "responses": {
+                "200": {
+                  "description": "The request was cancelled.",
+                  "content": {
+                    "application/json": {
+                      "schema": {
+                        "type": "object",
+                        "properties": {
+                          "success": {
+                            "type": "boolean",
+                            "description": "Whether the request was cancelled successfully."
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "/fal-ai/workflow-utilities/interleave-video": {
+            "post": {
+              "requestBody": {
+                "required": true,
+                "content": {
+                  "application/json": {
+                    "schema": {
+                      "$ref": "#/components/schemas/WorkflowUtilitiesInterleaveVideoInput"
+                    }
+                  }
+                }
+              },
+              "responses": {
+                "200": {
+                  "description": "The request status.",
+                  "content": {
+                    "application/json": {
+                      "schema": {
+                        "$ref": "#/components/schemas/QueueStatus"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "/fal-ai/workflow-utilities/interleave-video/requests/{request_id}": {
+            "get": {
+              "parameters": [
+                {
+                  "name": "request_id",
+                  "in": "path",
+                  "required": true,
+                  "schema": {
+                    "type": "string",
+                    "description": "Request ID"
+                  }
+                }
+              ],
+              "responses": {
+                "200": {
+                  "description": "Result of the request.",
+                  "content": {
+                    "application/json": {
+                      "schema": {
+                        "$ref": "#/components/schemas/WorkflowUtilitiesInterleaveVideoOutput"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "servers": [
+          {
+            "url": "https://queue.fal.run"
+          }
+        ],
+        "security": [
+          {
+            "apiKeyAuth": []
+          }
+        ]
+      }
+    },
+    {
+      "endpoint_id": "fal-ai/qwen-3-tts/clone-voice/1.7b",
+      "metadata": {
+        "display_name": "Qwen 3 TTS - Clone Voice [1.7B]",
+        "category": "unknown",
+        "description": "Clone your voices using Qwen3-TTS Clone-Voice model with zero shot cloning capabilities and use it on text-to-speech models to create speeches of yours!",
+        "status": "active",
+        "tags": [
+          "clone-voice",
+          "voice-clone"
+        ],
+        "updated_at": "2026-01-26T21:41:26.670Z",
+        "is_favorited": false,
+        "thumbnail_url": "https://v3b.fal.media/files/b/0a8bf538/p0L3C6l3FW2tyXCmwR0Fs_f6585c02243149fcadb77b0d4c6122b9.jpg",
+        "model_url": "https://fal.run/fal-ai/qwen-3-tts/clone-voice/1.7b",
+        "license_type": "commercial",
+        "date": "2026-01-26T16:20:48.076Z",
+        "group": {
+          "key": "qwen-3-tts",
+          "label": "Clone-Voice [1.7B]"
+        },
+        "highlighted": false,
+        "kind": "inference",
+        "pinned": false
+      },
+      "openapi": {
+        "openapi": "3.0.4",
+        "info": {
+          "title": "Queue OpenAPI for fal-ai/qwen-3-tts/clone-voice/1.7b",
+          "version": "1.0.0",
+          "description": "The OpenAPI schema for the fal-ai/qwen-3-tts/clone-voice/1.7b queue.",
+          "x-fal-metadata": {
+            "endpointId": "fal-ai/qwen-3-tts/clone-voice/1.7b",
+            "category": "unknown",
+            "thumbnailUrl": "https://v3b.fal.media/files/b/0a8bf538/p0L3C6l3FW2tyXCmwR0Fs_f6585c02243149fcadb77b0d4c6122b9.jpg",
+            "playgroundUrl": "https://fal.ai/models/fal-ai/qwen-3-tts/clone-voice/1.7b",
+            "documentationUrl": "https://fal.ai/models/fal-ai/qwen-3-tts/clone-voice/1.7b/api"
+          }
+        },
+        "components": {
+          "securitySchemes": {
+            "apiKeyAuth": {
+              "type": "apiKey",
+              "in": "header",
+              "name": "Authorization",
+              "description": "Fal Key"
+            }
+          },
+          "schemas": {
+            "QueueStatus": {
+              "type": "object",
+              "properties": {
+                "status": {
+                  "type": "string",
+                  "enum": [
+                    "IN_QUEUE",
+                    "IN_PROGRESS",
+                    "COMPLETED"
+                  ]
+                },
+                "request_id": {
+                  "type": "string",
+                  "description": "The request id."
+                },
+                "response_url": {
+                  "type": "string",
+                  "description": "The response url."
+                },
+                "status_url": {
+                  "type": "string",
+                  "description": "The status url."
+                },
+                "cancel_url": {
+                  "type": "string",
+                  "description": "The cancel url."
+                },
+                "logs": {
+                  "type": "object",
+                  "description": "The logs.",
+                  "additionalProperties": true
+                },
+                "metrics": {
+                  "type": "object",
+                  "description": "The metrics.",
+                  "additionalProperties": true
+                },
+                "queue_position": {
+                  "type": "integer",
+                  "description": "The queue position."
+                }
+              },
+              "required": [
+                "status",
+                "request_id"
+              ]
+            },
+            "Qwen3TtsCloneVoice17bInput": {
+              "title": "Qwen3CloneVoiceInput",
+              "type": "object",
+              "properties": {
+                "audio_url": {
+                  "examples": [
+                    "https://storage.googleapis.com/falserverless/example_inputs/qwen3-tts/clone_in.mp3"
+                  ],
+                  "description": "URL to the reference audio file used for voice cloning.",
+                  "type": "string",
+                  "title": "Audio Url"
+                },
+                "reference_text": {
+                  "examples": [
+                    "Okay. Yeah. I resent you. I love you. I respect you. But you know what? You blew it! And it is all thanks to you."
+                  ],
+                  "description": "Optional reference text that was used when creating the speaker embedding. Providing this can improve synthesis quality when using a cloned voice.",
+                  "type": "string",
+                  "title": "Reference Text"
+                }
+              },
+              "x-fal-order-properties": [
+                "audio_url",
+                "reference_text"
+              ],
+              "required": [
+                "audio_url"
+              ]
+            },
+            "Qwen3TtsCloneVoice17bOutput": {
+              "title": "Qwen3CloneVoiceOutput",
+              "type": "object",
+              "properties": {
+                "speaker_embedding": {
+                  "examples": [
+                    {
+                      "file_size": 16288,
+                      "file_name": "tmpe71u7t4j.safetensors",
+                      "content_type": "application/octet-stream",
+                      "url": "https://storage.googleapis.com/falserverless/example_outputs/qwen3-tts/clone_out.safetensors"
+                    }
+                  ],
+                  "description": "The generated speaker embedding file in safetensors format.",
+                  "title": "Speaker Embedding",
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/File"
+                    }
+                  ]
+                }
+              },
+              "x-fal-order-properties": [
+                "speaker_embedding"
+              ],
+              "required": [
+                "speaker_embedding"
+              ]
+            },
+            "File": {
+              "title": "File",
+              "type": "object",
+              "properties": {
+                "file_size": {
+                  "examples": [
+                    4404019
+                  ],
+                  "description": "The size of the file in bytes.",
+                  "type": "integer",
+                  "title": "File Size"
+                },
+                "file_name": {
+                  "examples": [
+                    "z9RV14K95DvU.png"
+                  ],
+                  "description": "The name of the file. It will be auto-generated if not provided.",
+                  "type": "string",
+                  "title": "File Name"
+                },
+                "content_type": {
+                  "examples": [
+                    "image/png"
+                  ],
+                  "description": "The mime type of the file.",
+                  "type": "string",
+                  "title": "Content Type"
+                },
+                "url": {
+                  "description": "The URL where the file can be downloaded from.",
+                  "type": "string",
+                  "title": "Url"
+                },
+                "file_data": {
+                  "format": "binary",
+                  "description": "File data",
+                  "type": "string",
+                  "title": "File Data"
+                }
+              },
+              "x-fal-order-properties": [
+                "url",
+                "content_type",
+                "file_name",
+                "file_size",
+                "file_data"
+              ],
+              "required": [
+                "url"
+              ]
+            }
+          }
+        },
+        "paths": {
+          "/fal-ai/qwen-3-tts/clone-voice/1.7b/requests/{request_id}/status": {
+            "get": {
+              "parameters": [
+                {
+                  "name": "request_id",
+                  "in": "path",
+                  "required": true,
+                  "schema": {
+                    "type": "string",
+                    "description": "Request ID"
+                  }
+                },
+                {
+                  "name": "logs",
+                  "in": "query",
+                  "required": false,
+                  "schema": {
+                    "type": "number",
+                    "description": "Whether to include logs (`1`) in the response or not (`0`)."
+                  }
+                }
+              ],
+              "responses": {
+                "200": {
+                  "description": "The request status.",
+                  "content": {
+                    "application/json": {
+                      "schema": {
+                        "$ref": "#/components/schemas/QueueStatus"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "/fal-ai/qwen-3-tts/clone-voice/1.7b/requests/{request_id}/cancel": {
+            "put": {
+              "parameters": [
+                {
+                  "name": "request_id",
+                  "in": "path",
+                  "required": true,
+                  "schema": {
+                    "type": "string",
+                    "description": "Request ID"
+                  }
+                }
+              ],
+              "responses": {
+                "200": {
+                  "description": "The request was cancelled.",
+                  "content": {
+                    "application/json": {
+                      "schema": {
+                        "type": "object",
+                        "properties": {
+                          "success": {
+                            "type": "boolean",
+                            "description": "Whether the request was cancelled successfully."
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "/fal-ai/qwen-3-tts/clone-voice/1.7b": {
+            "post": {
+              "requestBody": {
+                "required": true,
+                "content": {
+                  "application/json": {
+                    "schema": {
+                      "$ref": "#/components/schemas/Qwen3TtsCloneVoice17bInput"
+                    }
+                  }
+                }
+              },
+              "responses": {
+                "200": {
+                  "description": "The request status.",
+                  "content": {
+                    "application/json": {
+                      "schema": {
+                        "$ref": "#/components/schemas/QueueStatus"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "/fal-ai/qwen-3-tts/clone-voice/1.7b/requests/{request_id}": {
+            "get": {
+              "parameters": [
+                {
+                  "name": "request_id",
+                  "in": "path",
+                  "required": true,
+                  "schema": {
+                    "type": "string",
+                    "description": "Request ID"
+                  }
+                }
+              ],
+              "responses": {
+                "200": {
+                  "description": "Result of the request.",
+                  "content": {
+                    "application/json": {
+                      "schema": {
+                        "$ref": "#/components/schemas/Qwen3TtsCloneVoice17bOutput"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "servers": [
+          {
+            "url": "https://queue.fal.run"
+          }
+        ],
+        "security": [
+          {
+            "apiKeyAuth": []
+          }
+        ]
+      }
+    },
+    {
+      "endpoint_id": "fal-ai/qwen-3-tts/clone-voice/0.6b",
+      "metadata": {
+        "display_name": "Qwen 3 TTS - Clone Voice [0.6B]",
+        "category": "unknown",
+        "description": "Clone your voices using Qwen3-TTS Clone-Voice model with zero shot cloning capabilities and use it on text-to-speech models to create speeches of yours!",
+        "status": "active",
+        "tags": [
+          "clone-voice",
+          "voice-clone"
+        ],
+        "updated_at": "2026-01-26T21:41:26.808Z",
+        "is_favorited": false,
+        "thumbnail_url": "https://v3b.fal.media/files/b/0a8bf531/Rd0WefO2k5vCoxNgTSyzn_97cc41f0cf54490d8780612f0691f62f.jpg",
+        "model_url": "https://fal.run/fal-ai/qwen-3-tts/clone-voice/0.6b",
+        "license_type": "commercial",
+        "date": "2026-01-26T16:19:27.641Z",
+        "group": {
+          "key": "qwen-3-tts",
+          "label": "Clone-Voice [0.6B]"
+        },
+        "highlighted": false,
+        "kind": "inference",
+        "pinned": false
+      },
+      "openapi": {
+        "openapi": "3.0.4",
+        "info": {
+          "title": "Queue OpenAPI for fal-ai/qwen-3-tts/clone-voice/0.6b",
+          "version": "1.0.0",
+          "description": "The OpenAPI schema for the fal-ai/qwen-3-tts/clone-voice/0.6b queue.",
+          "x-fal-metadata": {
+            "endpointId": "fal-ai/qwen-3-tts/clone-voice/0.6b",
+            "category": "unknown",
+            "thumbnailUrl": "https://v3b.fal.media/files/b/0a8bf531/Rd0WefO2k5vCoxNgTSyzn_97cc41f0cf54490d8780612f0691f62f.jpg",
+            "playgroundUrl": "https://fal.ai/models/fal-ai/qwen-3-tts/clone-voice/0.6b",
+            "documentationUrl": "https://fal.ai/models/fal-ai/qwen-3-tts/clone-voice/0.6b/api"
+          }
+        },
+        "components": {
+          "securitySchemes": {
+            "apiKeyAuth": {
+              "type": "apiKey",
+              "in": "header",
+              "name": "Authorization",
+              "description": "Fal Key"
+            }
+          },
+          "schemas": {
+            "QueueStatus": {
+              "type": "object",
+              "properties": {
+                "status": {
+                  "type": "string",
+                  "enum": [
+                    "IN_QUEUE",
+                    "IN_PROGRESS",
+                    "COMPLETED"
+                  ]
+                },
+                "request_id": {
+                  "type": "string",
+                  "description": "The request id."
+                },
+                "response_url": {
+                  "type": "string",
+                  "description": "The response url."
+                },
+                "status_url": {
+                  "type": "string",
+                  "description": "The status url."
+                },
+                "cancel_url": {
+                  "type": "string",
+                  "description": "The cancel url."
+                },
+                "logs": {
+                  "type": "object",
+                  "description": "The logs.",
+                  "additionalProperties": true
+                },
+                "metrics": {
+                  "type": "object",
+                  "description": "The metrics.",
+                  "additionalProperties": true
+                },
+                "queue_position": {
+                  "type": "integer",
+                  "description": "The queue position."
+                }
+              },
+              "required": [
+                "status",
+                "request_id"
+              ]
+            },
+            "Qwen3TtsCloneVoice06bInput": {
+              "title": "Qwen3CloneVoiceInput",
+              "type": "object",
+              "properties": {
+                "audio_url": {
+                  "examples": [
+                    "https://storage.googleapis.com/falserverless/example_inputs/qwen3-tts/clone_in.mp3"
+                  ],
+                  "description": "URL to the reference audio file used for voice cloning.",
+                  "type": "string",
+                  "title": "Audio Url"
+                },
+                "reference_text": {
+                  "examples": [
+                    "Okay. Yeah. I resent you. I love you. I respect you. But you know what? You blew it! And it is all thanks to you."
+                  ],
+                  "description": "Optional reference text that was used when creating the speaker embedding. Providing this can improve synthesis quality when using a cloned voice.",
+                  "type": "string",
+                  "title": "Reference Text"
+                }
+              },
+              "x-fal-order-properties": [
+                "audio_url",
+                "reference_text"
+              ],
+              "required": [
+                "audio_url"
+              ]
+            },
+            "Qwen3TtsCloneVoice06bOutput": {
+              "title": "Qwen3CloneVoiceOutput",
+              "type": "object",
+              "properties": {
+                "speaker_embedding": {
+                  "examples": [
+                    {
+                      "file_size": 16288,
+                      "file_name": "tmpe71u7t4j.safetensors",
+                      "content_type": "application/octet-stream",
+                      "url": "https://storage.googleapis.com/falserverless/example_outputs/qwen3-tts/clone_out.safetensors"
+                    }
+                  ],
+                  "description": "The generated speaker embedding file in safetensors format.",
+                  "title": "Speaker Embedding",
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/File"
+                    }
+                  ]
+                }
+              },
+              "x-fal-order-properties": [
+                "speaker_embedding"
+              ],
+              "required": [
+                "speaker_embedding"
+              ]
+            },
+            "File": {
+              "title": "File",
+              "type": "object",
+              "properties": {
+                "file_size": {
+                  "examples": [
+                    4404019
+                  ],
+                  "description": "The size of the file in bytes.",
+                  "type": "integer",
+                  "title": "File Size"
+                },
+                "file_name": {
+                  "examples": [
+                    "z9RV14K95DvU.png"
+                  ],
+                  "description": "The name of the file. It will be auto-generated if not provided.",
+                  "type": "string",
+                  "title": "File Name"
+                },
+                "content_type": {
+                  "examples": [
+                    "image/png"
+                  ],
+                  "description": "The mime type of the file.",
+                  "type": "string",
+                  "title": "Content Type"
+                },
+                "url": {
+                  "description": "The URL where the file can be downloaded from.",
+                  "type": "string",
+                  "title": "Url"
+                },
+                "file_data": {
+                  "format": "binary",
+                  "description": "File data",
+                  "type": "string",
+                  "title": "File Data"
+                }
+              },
+              "x-fal-order-properties": [
+                "url",
+                "content_type",
+                "file_name",
+                "file_size",
+                "file_data"
+              ],
+              "required": [
+                "url"
+              ]
+            }
+          }
+        },
+        "paths": {
+          "/fal-ai/qwen-3-tts/clone-voice/0.6b/requests/{request_id}/status": {
+            "get": {
+              "parameters": [
+                {
+                  "name": "request_id",
+                  "in": "path",
+                  "required": true,
+                  "schema": {
+                    "type": "string",
+                    "description": "Request ID"
+                  }
+                },
+                {
+                  "name": "logs",
+                  "in": "query",
+                  "required": false,
+                  "schema": {
+                    "type": "number",
+                    "description": "Whether to include logs (`1`) in the response or not (`0`)."
+                  }
+                }
+              ],
+              "responses": {
+                "200": {
+                  "description": "The request status.",
+                  "content": {
+                    "application/json": {
+                      "schema": {
+                        "$ref": "#/components/schemas/QueueStatus"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "/fal-ai/qwen-3-tts/clone-voice/0.6b/requests/{request_id}/cancel": {
+            "put": {
+              "parameters": [
+                {
+                  "name": "request_id",
+                  "in": "path",
+                  "required": true,
+                  "schema": {
+                    "type": "string",
+                    "description": "Request ID"
+                  }
+                }
+              ],
+              "responses": {
+                "200": {
+                  "description": "The request was cancelled.",
+                  "content": {
+                    "application/json": {
+                      "schema": {
+                        "type": "object",
+                        "properties": {
+                          "success": {
+                            "type": "boolean",
+                            "description": "Whether the request was cancelled successfully."
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "/fal-ai/qwen-3-tts/clone-voice/0.6b": {
+            "post": {
+              "requestBody": {
+                "required": true,
+                "content": {
+                  "application/json": {
+                    "schema": {
+                      "$ref": "#/components/schemas/Qwen3TtsCloneVoice06bInput"
+                    }
+                  }
+                }
+              },
+              "responses": {
+                "200": {
+                  "description": "The request status.",
+                  "content": {
+                    "application/json": {
+                      "schema": {
+                        "$ref": "#/components/schemas/QueueStatus"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "/fal-ai/qwen-3-tts/clone-voice/0.6b/requests/{request_id}": {
+            "get": {
+              "parameters": [
+                {
+                  "name": "request_id",
+                  "in": "path",
+                  "required": true,
+                  "schema": {
+                    "type": "string",
+                    "description": "Request ID"
+                  }
+                }
+              ],
+              "responses": {
+                "200": {
+                  "description": "Result of the request.",
+                  "content": {
+                    "application/json": {
+                      "schema": {
+                        "$ref": "#/components/schemas/Qwen3TtsCloneVoice06bOutput"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "servers": [
+          {
+            "url": "https://queue.fal.run"
+          }
+        ],
+        "security": [
+          {
+            "apiKeyAuth": []
+          }
+        ]
+      }
+    },
+    {
+      "endpoint_id": "openrouter/router/audio",
+      "metadata": {
+        "display_name": "OpenRouter [Audio]",
+        "category": "unknown",
+        "description": "Run any ALM (Audio Language Model) with fal, powered by OpenRouter.",
+        "status": "active",
+        "tags": [],
+        "updated_at": "2026-01-26T21:41:49.406Z",
+        "is_favorited": false,
+        "thumbnail_url": "https://v3b.fal.media/files/b/0a87593d/pDGPXXb694Rjgst08FkUa_60fe8689185944889b162dc64de6cffc.jpg",
+        "model_url": "https://fal.run/openrouter/router/audio",
+        "license_type": "commercial",
+        "date": "2025-12-22T17:15:42.947Z",
+        "group": {
+          "key": "openrouter/router",
+          "label": "Any ALM"
+        },
+        "highlighted": false,
+        "kind": "inference",
+        "pinned": false
+      },
+      "openapi": {
+        "openapi": "3.0.4",
+        "info": {
+          "title": "Queue OpenAPI for openrouter/router/audio",
+          "version": "1.0.0",
+          "description": "The OpenAPI schema for the openrouter/router/audio queue.",
+          "x-fal-metadata": {
+            "endpointId": "openrouter/router/audio",
+            "category": "unknown",
+            "thumbnailUrl": "https://v3b.fal.media/files/b/0a87593d/pDGPXXb694Rjgst08FkUa_60fe8689185944889b162dc64de6cffc.jpg",
+            "playgroundUrl": "https://fal.ai/models/openrouter/router/audio",
+            "documentationUrl": "https://fal.ai/models/openrouter/router/audio/api"
+          }
+        },
+        "components": {
+          "securitySchemes": {
+            "apiKeyAuth": {
+              "type": "apiKey",
+              "in": "header",
+              "name": "Authorization",
+              "description": "Fal Key"
+            }
+          },
+          "schemas": {
+            "QueueStatus": {
+              "type": "object",
+              "properties": {
+                "status": {
+                  "type": "string",
+                  "enum": [
+                    "IN_QUEUE",
+                    "IN_PROGRESS",
+                    "COMPLETED"
+                  ]
+                },
+                "request_id": {
+                  "type": "string",
+                  "description": "The request id."
+                },
+                "response_url": {
+                  "type": "string",
+                  "description": "The response url."
+                },
+                "status_url": {
+                  "type": "string",
+                  "description": "The status url."
+                },
+                "cancel_url": {
+                  "type": "string",
+                  "description": "The cancel url."
+                },
+                "logs": {
+                  "type": "object",
+                  "description": "The logs.",
+                  "additionalProperties": true
+                },
+                "metrics": {
+                  "type": "object",
+                  "description": "The metrics.",
+                  "additionalProperties": true
+                },
+                "queue_position": {
+                  "type": "integer",
+                  "description": "The queue position."
+                }
+              },
+              "required": [
+                "status",
+                "request_id"
+              ]
+            },
+            "RouterAudioInput": {
+              "x-fal-order-properties": [
+                "audio_url",
+                "prompt",
+                "system_prompt",
+                "model",
+                "reasoning",
+                "temperature",
+                "max_tokens"
+              ],
+              "type": "object",
+              "properties": {
+                "prompt": {
+                  "examples": [
+                    "Please transcribe this audio file.",
+                    "What is being said in this audio?"
+                  ],
+                  "description": "Prompt to be used for the audio processing",
+                  "type": "string",
+                  "title": "Prompt"
+                },
+                "system_prompt": {
+                  "examples": [
+                    "Transcribe the audio accurately, including speaker identification if multiple speakers are present."
+                  ],
+                  "description": "System prompt to provide context or instructions to the model",
+                  "type": "string",
+                  "title": "System Prompt"
+                },
+                "reasoning": {
+                  "description": "Should reasoning be the part of the final answer.",
+                  "type": "boolean",
+                  "title": "Reasoning",
+                  "default": false
+                },
+                "model": {
+                  "examples": [
+                    "google/gemini-3-flash-preview",
+                    "google/gemini-2.5-flash",
+                    "google/gemini-3-pro-preview"
+                  ],
+                  "description": "Name of the model to use. Charged based on actual token usage.",
+                  "type": "string",
+                  "title": "Model"
+                },
+                "max_tokens": {
+                  "minimum": 1,
+                  "description": "This sets the upper limit for the number of tokens the model can generate in response. It won't produce more than this limit. The maximum value is the context length minus the prompt length.",
+                  "type": "integer",
+                  "title": "Max Tokens"
+                },
+                "temperature": {
+                  "minimum": 0,
+                  "maximum": 2,
+                  "type": "number",
+                  "description": "This setting influences the variety in the model's responses. Lower values lead to more predictable and typical responses, while higher values encourage more diverse and less common responses. At 0, the model always gives the same response for a given input.",
+                  "title": "Temperature",
+                  "default": 1
+                },
+                "audio_url": {
+                  "examples": [
+                    "https://storage.googleapis.com/falserverless/model_tests/audio-understanding/Title_%20Running%20on%20Fal.mp3"
+                  ],
+                  "description": "URL or data URI of the audio file to process. Supported formats: wav, mp3, aiff, aac, ogg, flac, m4a.",
+                  "type": "string",
+                  "title": "Audio Url"
+                }
+              },
+              "title": "AudioInput",
+              "required": [
+                "prompt",
+                "audio_url",
+                "model"
+              ]
+            },
+            "RouterAudioOutput": {
+              "x-fal-order-properties": [
+                "output",
+                "usage"
+              ],
+              "type": "object",
+              "properties": {
+                "usage": {
+                  "examples": [
+                    {
+                      "prompt_tokens": 500,
+                      "total_tokens": 550,
+                      "completion_tokens": 50,
+                      "cost": 0.0003
+                    }
+                  ],
+                  "description": "Token usage information",
+                  "title": "Usage",
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/UsageInfo"
+                    }
+                  ]
+                },
+                "output": {
+                  "examples": [
+                    "The audio contains a conversation between two people discussing the weather forecast for the upcoming week."
+                  ],
+                  "description": "Generated output from audio processing",
+                  "type": "string",
+                  "title": "Output"
+                }
+              },
+              "title": "AudioOutput",
+              "required": [
+                "output"
+              ]
+            },
+            "UsageInfo": {
+              "x-fal-order-properties": [
+                "prompt_tokens",
+                "completion_tokens",
+                "total_tokens",
+                "cost"
+              ],
+              "type": "object",
+              "properties": {
+                "prompt_tokens": {
+                  "title": "Prompt Tokens",
+                  "type": "integer"
+                },
+                "total_tokens": {
+                  "title": "Total Tokens",
+                  "type": "integer",
+                  "default": 0
+                },
+                "completion_tokens": {
+                  "title": "Completion Tokens",
+                  "type": "integer"
+                },
+                "cost": {
+                  "title": "Cost",
+                  "type": "number"
+                }
+              },
+              "title": "UsageInfo",
+              "required": [
+                "cost"
+              ]
+            }
+          }
+        },
+        "paths": {
+          "/openrouter/router/audio/requests/{request_id}/status": {
+            "get": {
+              "parameters": [
+                {
+                  "name": "request_id",
+                  "in": "path",
+                  "required": true,
+                  "schema": {
+                    "type": "string",
+                    "description": "Request ID"
+                  }
+                },
+                {
+                  "name": "logs",
+                  "in": "query",
+                  "required": false,
+                  "schema": {
+                    "type": "number",
+                    "description": "Whether to include logs (`1`) in the response or not (`0`)."
+                  }
+                }
+              ],
+              "responses": {
+                "200": {
+                  "description": "The request status.",
+                  "content": {
+                    "application/json": {
+                      "schema": {
+                        "$ref": "#/components/schemas/QueueStatus"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "/openrouter/router/audio/requests/{request_id}/cancel": {
+            "put": {
+              "parameters": [
+                {
+                  "name": "request_id",
+                  "in": "path",
+                  "required": true,
+                  "schema": {
+                    "type": "string",
+                    "description": "Request ID"
+                  }
+                }
+              ],
+              "responses": {
+                "200": {
+                  "description": "The request was cancelled.",
+                  "content": {
+                    "application/json": {
+                      "schema": {
+                        "type": "object",
+                        "properties": {
+                          "success": {
+                            "type": "boolean",
+                            "description": "Whether the request was cancelled successfully."
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "/openrouter/router/audio": {
+            "post": {
+              "requestBody": {
+                "required": true,
+                "content": {
+                  "application/json": {
+                    "schema": {
+                      "$ref": "#/components/schemas/RouterAudioInput"
+                    }
+                  }
+                }
+              },
+              "responses": {
+                "200": {
+                  "description": "The request status.",
+                  "content": {
+                    "application/json": {
+                      "schema": {
+                        "$ref": "#/components/schemas/QueueStatus"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "/openrouter/router/audio/requests/{request_id}": {
+            "get": {
+              "parameters": [
+                {
+                  "name": "request_id",
+                  "in": "path",
+                  "required": true,
+                  "schema": {
+                    "type": "string",
+                    "description": "Request ID"
+                  }
+                }
+              ],
+              "responses": {
+                "200": {
+                  "description": "Result of the request.",
+                  "content": {
+                    "application/json": {
+                      "schema": {
+                        "$ref": "#/components/schemas/RouterAudioOutput"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "servers": [
+          {
+            "url": "https://queue.fal.run"
+          }
+        ],
+        "security": [
+          {
+            "apiKeyAuth": []
+          }
+        ]
+      }
+    }
+  ]
+}
