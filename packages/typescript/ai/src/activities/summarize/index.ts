@@ -6,12 +6,12 @@
  */
 
 import { aiEventClient } from '../../event-client.js'
-import type { SummarizeAdapter } from './adapter'
 import type {
   StreamChunk,
   SummarizationOptions,
-  SummarizationResult,
+  SummarizationResult
 } from '../../types'
+import type { SummarizeAdapter } from './adapter'
 
 // ===========================
 // Activity Kind
@@ -27,8 +27,8 @@ export const kind = 'summarize' as const
 /** Extract provider options from a SummarizeAdapter via ~types */
 export type SummarizeProviderOptions<TAdapter> =
   TAdapter extends SummarizeAdapter<any, any>
-    ? TAdapter['~types']['providerOptions']
-    : object
+  ? TAdapter['~types']['providerOptions']
+  : object
 
 // ===========================
 // Activity Options Type
@@ -65,6 +65,10 @@ export interface SummarizeActivityOptions<
    * @default false
    */
   stream?: TStream
+  /**
+   * Telemetry data for tracking and monitoring.
+   */
+  telemetry?: SummarizationOptions['telemetry']
 }
 
 // ===========================
@@ -78,8 +82,8 @@ export interface SummarizeActivityOptions<
  */
 export type SummarizeActivityResult<TStream extends boolean> =
   TStream extends true
-    ? AsyncIterable<StreamChunk>
-    : Promise<SummarizationResult>
+  ? AsyncIterable<StreamChunk>
+  : Promise<SummarizationResult>
 
 // ===========================
 // Helper Functions
@@ -174,7 +178,7 @@ export function summarize<
 async function runSummarize(
   options: SummarizeActivityOptions<SummarizeAdapter<string, object>, false>,
 ): Promise<SummarizationResult> {
-  const { adapter, text, maxLength, style, focus } = options
+  const { adapter, text, maxLength, style, focus, telemetry } = options
   const model = adapter.model
   const requestId = createId('summarize')
   const inputLength = text.length
@@ -185,6 +189,7 @@ async function runSummarize(
     provider: adapter.name,
     model,
     inputLength,
+    telemetry,
     timestamp: startTime,
   })
 
@@ -194,6 +199,7 @@ async function runSummarize(
     maxLength,
     style,
     focus,
+    telemetry,
   }
 
   const result = await adapter.summarize(summarizeOptions)
@@ -208,6 +214,7 @@ async function runSummarize(
     inputLength,
     outputLength,
     duration,
+    telemetry,
     timestamp: Date.now(),
   })
 
@@ -231,6 +238,7 @@ async function* runStreamingSummarize(
     maxLength,
     style,
     focus,
+    telemetry: options.telemetry,
   }
 
   // Use real streaming if the adapter supports it
@@ -280,9 +288,9 @@ export function createSummarizeOptions<
 }
 
 // Re-export adapter types
-export type {
-  SummarizeAdapter,
-  SummarizeAdapterConfig,
-  AnySummarizeAdapter,
-} from './adapter'
 export { BaseSummarizeAdapter } from './adapter'
+export type {
+  AnySummarizeAdapter, SummarizeAdapter,
+  SummarizeAdapterConfig
+} from './adapter'
+

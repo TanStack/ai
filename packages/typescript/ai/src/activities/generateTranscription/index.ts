@@ -6,8 +6,8 @@
  */
 
 import { aiEventClient } from '../../event-client.js'
+import type { TranscriptionOptions, TranscriptionResult } from '../../types'
 import type { TranscriptionAdapter } from './adapter'
-import type { TranscriptionResult } from '../../types'
 
 // ===========================
 // Activity Kind
@@ -25,8 +25,8 @@ export const kind = 'transcription' as const
  */
 export type TranscriptionProviderOptions<TAdapter> =
   TAdapter extends TranscriptionAdapter<any, any>
-    ? TAdapter['~types']['providerOptions']
-    : object
+  ? TAdapter['~types']['providerOptions']
+  : object
 
 // ===========================
 // Activity Options Type
@@ -53,6 +53,10 @@ export interface TranscriptionActivityOptions<
   responseFormat?: 'json' | 'text' | 'srt' | 'verbose_json' | 'vtt'
   /** Provider-specific options for transcription */
   modelOptions?: TranscriptionProviderOptions<TAdapter>
+  /**
+   * Telemetry data for tracking and monitoring.
+   */
+  telemetry?: TranscriptionOptions['telemetry']
 }
 
 // ===========================
@@ -120,6 +124,7 @@ export async function generateTranscription<
     prompt: rest.prompt,
     responseFormat: rest.responseFormat,
     modelOptions: rest.modelOptions as Record<string, unknown> | undefined,
+    telemetry: rest.telemetry,
     timestamp: startTime,
   })
 
@@ -134,6 +139,7 @@ export async function generateTranscription<
     language: result.language,
     duration,
     modelOptions: rest.modelOptions as Record<string, unknown> | undefined,
+    telemetry: rest.telemetry,
     timestamp: Date.now(),
   })
 
@@ -156,9 +162,9 @@ export function createTranscriptionOptions<
 }
 
 // Re-export adapter types
-export type {
-  TranscriptionAdapter,
-  TranscriptionAdapterConfig,
-  AnyTranscriptionAdapter,
-} from './adapter'
 export { BaseTranscriptionAdapter } from './adapter'
+export type {
+  AnyTranscriptionAdapter, TranscriptionAdapter,
+  TranscriptionAdapterConfig
+} from './adapter'
+

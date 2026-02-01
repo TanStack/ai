@@ -1,6 +1,13 @@
 import type { StandardJSONSchemaV1 } from '@standard-schema/spec'
 
 /**
+ * Telemetry data for tracking and debugging.
+ */
+export interface Telemetry {
+  metadata: Record<string, any>
+}
+
+/**
  * Tool call states - track the lifecycle of a tool call
  */
 export type ToolCallState =
@@ -617,6 +624,10 @@ export interface TextOptions<
    * - Gemini: Not directly available in TextProviderOptions
    */
   metadata?: Record<string, any>
+  /**
+   * Telemetry data for tracking and monitoring.
+   */
+  telemetry?: Telemetry
   modelOptions?: TProviderOptionsForModel
   request?: Request | RequestInit
 
@@ -912,6 +923,10 @@ export interface SummarizationOptions {
   maxLength?: number
   style?: 'bullet-points' | 'paragraph' | 'concise'
   focus?: Array<string>
+  /**
+   * Telemetry data for tracking and monitoring.
+   */
+  telemetry?: Telemetry
 }
 
 export interface SummarizationResult {
@@ -946,6 +961,10 @@ export interface ImageGenerationOptions<
   size?: string
   /** Model-specific options for image generation */
   modelOptions?: TProviderOptions
+  /**
+   * Telemetry data for tracking and monitoring.
+   */
+  telemetry?: Telemetry
 }
 
 /**
@@ -1001,6 +1020,10 @@ export interface VideoGenerationOptions<
   duration?: number
   /** Model-specific options for video generation */
   modelOptions?: TProviderOptions
+  /**
+   * Telemetry data for tracking and monitoring.
+   */
+  telemetry?: Telemetry
 }
 
 /**
@@ -1066,6 +1089,10 @@ export interface TTSOptions<TProviderOptions extends object = object> {
   speed?: number
   /** Model-specific options for TTS generation */
   modelOptions?: TProviderOptions
+  /**
+   * Telemetry data for tracking and monitoring.
+   */
+  telemetry?: Telemetry
 }
 
 /**
@@ -1109,6 +1136,10 @@ export interface TranscriptionOptions<
   responseFormat?: 'json' | 'text' | 'srt' | 'verbose_json' | 'vtt'
   /** Model-specific options for transcription */
   modelOptions?: TProviderOptions
+  /**
+   * Telemetry data for tracking and monitoring.
+   */
+  telemetry?: Telemetry
 }
 
 /**

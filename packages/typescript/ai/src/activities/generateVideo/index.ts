@@ -8,12 +8,13 @@
  */
 
 import { aiEventClient } from '../../event-client.js'
-import type { VideoAdapter } from './adapter'
 import type {
+  VideoGenerationOptions,
   VideoJobResult,
   VideoStatusResult,
   VideoUrlResult,
 } from '../../types'
+import type { VideoAdapter } from './adapter'
 
 // ===========================
 // Activity Kind
@@ -31,8 +32,8 @@ export const kind = 'video' as const
  */
 export type VideoProviderOptions<TAdapter> =
   TAdapter extends VideoAdapter<any, any>
-    ? TAdapter['~types']['providerOptions']
-    : object
+  ? TAdapter['~types']['providerOptions']
+  : object
 
 // ===========================
 // Activity Options Types
@@ -51,6 +52,10 @@ interface VideoActivityBaseOptions<
 > {
   /** The video adapter to use (must be created with a model) */
   adapter: TAdapter & { kind: typeof kind }
+  /**
+   * Telemetry data for tracking and monitoring.
+   */
+  telemetry?: VideoGenerationOptions['telemetry']
 }
 
 /**
@@ -114,8 +119,8 @@ export type VideoActivityOptions<
 > = TRequest extends 'status'
   ? VideoStatusOptions<TAdapter>
   : TRequest extends 'url'
-    ? VideoUrlOptions<TAdapter>
-    : VideoCreateOptions<TAdapter>
+  ? VideoUrlOptions<TAdapter>
+  : VideoCreateOptions<TAdapter>
 
 // ===========================
 // Activity Result Types
@@ -131,8 +136,8 @@ export type VideoActivityResult<
 > = TRequest extends 'status'
   ? Promise<VideoStatusResult>
   : TRequest extends 'url'
-    ? Promise<VideoUrlResult>
-    : Promise<VideoJobResult>
+  ? Promise<VideoUrlResult>
+  : Promise<VideoJobResult>
 
 // ===========================
 // Activity Implementation
@@ -202,16 +207,13 @@ export async function generateVideo<
  */
 export async function getVideoJobStatus<
   TAdapter extends VideoAdapter<string, object>,
->(options: {
-  adapter: TAdapter & { kind: typeof kind }
-  jobId: string
-}): Promise<{
+>(options: VideoStatusOptions<TAdapter>): Promise<{
   status: 'pending' | 'processing' | 'completed' | 'failed'
   progress?: number
   url?: string
   error?: string
 }> {
-  const { adapter, jobId } = options
+  const { adapter, jobId, ...rest } = options
   const requestId = createId('video-status')
   const startTime = Date.now()
 
@@ -221,6 +223,7 @@ export async function getVideoJobStatus<
     model: adapter.model,
     requestType: 'status',
     jobId,
+    telemetry: rest.telemetry,
     timestamp: startTime,
   })
 
@@ -241,6 +244,7 @@ export async function getVideoJobStatus<
         progress: statusResult.progress,
         url: urlResult.url,
         duration: Date.now() - startTime,
+        telemetry: rest.telemetry,
         timestamp: Date.now(),
       })
       return {
@@ -260,6 +264,7 @@ export async function getVideoJobStatus<
         error:
           error instanceof Error ? error.message : 'Failed to get video URL',
         duration: Date.now() - startTime,
+        telemetry: rest.telemetry,
         timestamp: Date.now(),
       })
       // If URL fetch fails, still return status
@@ -282,6 +287,7 @@ export async function getVideoJobStatus<
     progress: statusResult.progress,
     error: statusResult.error,
     duration: Date.now() - startTime,
+    telemetry: rest.telemetry,
     timestamp: Date.now(),
   })
 
@@ -307,9 +313,9 @@ export function createVideoOptions<
 }
 
 // Re-export adapter types
-export type {
-  VideoAdapter,
-  VideoAdapterConfig,
-  AnyVideoAdapter,
-} from './adapter'
 export { BaseVideoAdapter } from './adapter'
+export type {
+  AnyVideoAdapter, VideoAdapter,
+  VideoAdapterConfig
+} from './adapter'
+

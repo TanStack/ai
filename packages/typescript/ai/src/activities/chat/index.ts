@@ -28,6 +28,7 @@ import type {
   RunFinishedEvent,
   SchemaInput,
   StreamChunk,
+  Telemetry,
   TextMessageContentEvent,
   TextOptions,
   Tool,
@@ -130,6 +131,10 @@ export interface TextActivityOptions<
    * ```
    */
   stream?: TStream
+  /**
+   * Telemetry data for tracking and monitoring.
+   */
+  telemetry?: TextOptions['telemetry']
 }
 
 // ===========================
@@ -175,8 +180,8 @@ export type TextActivityResult<
 > = TSchema extends SchemaInput
   ? Promise<InferSchemaType<TSchema>>
   : TStream extends false
-    ? Promise<string>
-    : AsyncIterable<StreamChunk>
+  ? Promise<string>
+  : AsyncIterable<StreamChunk>
 
 // ===========================
 // ChatEngine Implementation
@@ -209,6 +214,7 @@ class TextEngine<
   private readonly streamId: string
   private readonly effectiveRequest?: Request | RequestInit
   private readonly effectiveSignal?: AbortSignal
+  private readonly telemetry?: Telemetry
 
   private messages: Array<ModelMessage>
   private iterationCount = 0
@@ -241,6 +247,7 @@ class TextEngine<
       ? { signal: config.params.abortController.signal }
       : undefined
     this.effectiveSignal = config.params.abortController?.signal
+    this.telemetry = config.params.telemetry
   }
 
   /** Get the accumulated content after the chat loop completes */
@@ -942,6 +949,7 @@ class TextEngine<
     messageCount: number
     hasTools: boolean
     streaming: boolean
+    telemetry?: Telemetry
   } {
     return {
       requestId: this.requestId,
@@ -960,6 +968,7 @@ class TextEngine<
       messageCount: this.initialMessageCount,
       hasTools: this.tools.length > 0,
       streaming: true,
+      telemetry: this.telemetry,
     }
   }
 
@@ -1194,10 +1203,10 @@ async function runAgenticStructuredOutput<TSchema extends SchemaInput>(
 }
 
 // Re-export adapter types
-export type {
-  TextAdapter,
-  TextAdapterConfig,
-  StructuredOutputOptions,
-  StructuredOutputResult,
-} from './adapter'
 export { BaseTextAdapter } from './adapter'
+export type {
+  StructuredOutputOptions,
+  StructuredOutputResult, TextAdapter,
+  TextAdapterConfig
+} from './adapter'
+
