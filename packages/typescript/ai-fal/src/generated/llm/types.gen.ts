@@ -124,7 +124,7 @@ export type SchemaVideoPromptGeneratorInput = {
    *
    * URL of an image to analyze and incorporate into the video prompt (optional)
    */
-  image_url?: string
+  image_url?: string | Blob | File
   /**
    * Model
    *

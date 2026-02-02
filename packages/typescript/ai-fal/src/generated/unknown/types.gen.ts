@@ -89,7 +89,7 @@ export type SchemaRouterAudioInput = {
    *
    * URL or data URI of the audio file to process. Supported formats: wav, mp3, aiff, aac, ogg, flac, m4a.
    */
-  audio_url: string
+  audio_url: string | Blob | File
 }
 
 /**
@@ -149,7 +149,7 @@ export type SchemaQwen3TtsCloneVoice06bInput = {
    *
    * URL to the reference audio file used for voice cloning.
    */
-  audio_url: string
+  audio_url: string | Blob | File
   /**
    * Reference Text
    *
@@ -179,7 +179,7 @@ export type SchemaQwen3TtsCloneVoice17bInput = {
    *
    * URL to the reference audio file used for voice cloning.
    */
-  audio_url: string
+  audio_url: string | Blob | File
   /**
    * Reference Text
    *
@@ -213,7 +213,7 @@ export type SchemaWorkflowUtilitiesInterleaveVideoInput = {
    *
    * List of video URLs to interleave in order
    */
-  video_urls: Array<string>
+  video_urls: Array<string | Blob | File>
 }
 
 export type SchemaQueueStatus = {

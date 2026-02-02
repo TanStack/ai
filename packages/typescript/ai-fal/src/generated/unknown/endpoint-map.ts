@@ -11,6 +11,7 @@ import {
   zSchemaWorkflowUtilitiesInterleaveVideoInput,
   zSchemaWorkflowUtilitiesInterleaveVideoOutput,
 } from './zod.gen'
+import type { z } from 'zod'
 
 import type {
   SchemaQwen3TtsCloneVoice06bInput,
@@ -22,8 +23,6 @@ import type {
   SchemaWorkflowUtilitiesInterleaveVideoInput,
   SchemaWorkflowUtilitiesInterleaveVideoOutput,
 } from './types.gen'
-
-import type { z } from 'zod'
 
 export type UnknownEndpointMap = {
   'fal-ai/workflow-utilities/interleave-video': {
@@ -49,7 +48,10 @@ export type UnknownModel = keyof UnknownEndpointMap
 
 export const UnknownSchemaMap: Record<
   UnknownModel,
-  { input: z.ZodSchema; output: z.ZodSchema }
+  {
+    input: z.ZodSchema<UnknownModelInput<UnknownModel>>
+    output: z.ZodSchema<UnknownModelOutput<UnknownModel>>
+  }
 > = {
   ['fal-ai/workflow-utilities/interleave-video']: {
     input: zSchemaWorkflowUtilitiesInterleaveVideoInput,
@@ -67,7 +69,7 @@ export const UnknownSchemaMap: Record<
     input: zSchemaRouterAudioInput,
     output: zSchemaRouterAudioOutput,
   },
-} as const
+}
 
 /** Get the input type for a specific unknown model */
 export type UnknownModelInput<T extends UnknownModel> =

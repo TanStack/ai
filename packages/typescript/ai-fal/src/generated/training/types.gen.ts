@@ -61,7 +61,7 @@ export type SchemaHunyuanVideoLoraTrainingInput = {
    * In addition to images the archive can contain text files with captions. Each text file should have the same name as the image file it corresponds to.
    *
    */
-  images_data_url: string
+  images_data_url: string | Blob | File
   /**
    * Steps
    *
@@ -123,7 +123,7 @@ export type SchemaWanTrainerInput = {
    *
    * In addition to images the archive can contain text files with captions. Each text file should have the same name as the image/video file it corresponds to.
    */
-  training_data_url: string
+  training_data_url: string | Blob | File
   /**
    * Trigger Phrase
    *
@@ -173,7 +173,7 @@ export type SchemaTurboFluxTrainerInput = {
    * URL to zip archive with images of a consistent style. Try to use at least 10 images, although more is better.
    *
    */
-  images_data_url: string
+  images_data_url: string | Blob | File
   /**
    * Trigger Phrase
    *
@@ -229,7 +229,7 @@ export type SchemaRecraftV3CreateStyleInput = {
    *
    * URL to zip archive with images, use PNG format. Maximum 5 images are allowed.
    */
-  images_data_url: string
+  images_data_url: string | Blob | File
   /**
    * Base Style
    *
@@ -387,7 +387,7 @@ export type SchemaLtxVideoTrainerInput = {
    *
    * The archive can also contain text files with captions. Each text file should have the same name as the media file it corresponds to.
    */
-  training_data_url: string
+  training_data_url: string | Blob | File
   /**
    * Split Input Duration Threshold
    *
@@ -509,7 +509,7 @@ export type SchemaWanTrainerFlf2V720pInput = {
    *
    * In addition to images the archive can contain text files with captions. Each text file should have the same name as the image/video file it corresponds to.
    */
-  training_data_url: string
+  training_data_url: string | Blob | File
   /**
    * Trigger Phrase
    *
@@ -565,7 +565,7 @@ export type SchemaWanTrainerI2V720pInput = {
    *
    * In addition to images the archive can contain text files with captions. Each text file should have the same name as the image/video file it corresponds to.
    */
-  training_data_url: string
+  training_data_url: string | Blob | File
   /**
    * Trigger Phrase
    *
@@ -621,7 +621,7 @@ export type SchemaWanTrainerT2V14bInput = {
    *
    * In addition to images the archive can contain text files with captions. Each text file should have the same name as the image/video file it corresponds to.
    */
-  training_data_url: string
+  training_data_url: string | Blob | File
   /**
    * Trigger Phrase
    *
@@ -677,7 +677,7 @@ export type SchemaWanTrainerT2vInput = {
    *
    * In addition to images the archive can contain text files with captions. Each text file should have the same name as the image/video file it corresponds to.
    */
-  training_data_url: string
+  training_data_url: string | Blob | File
   /**
    * Trigger Phrase
    *
@@ -755,7 +755,7 @@ export type SchemaWan22ImageTrainerInput = {
    *
    * URL to the training data.
    */
-  training_data_url: string
+  training_data_url: string | Blob | File
   /**
    * Number of Steps
    *
@@ -821,7 +821,7 @@ export type SchemaQwenImageTrainerInput = {
    * Try to use at least 10 images, although more is better.
    *
    */
-  image_data_url: string
+  image_data_url: string | Blob | File
   /**
    * Learning Rate
    *
@@ -878,7 +878,7 @@ export type SchemaQwenImageEditTrainerInput = {
    * If no default_caption is provided, the training will fail.
    *
    */
-  image_data_url: string
+  image_data_url: string | Blob | File
   /**
    * Learning Rate
    *
@@ -942,7 +942,7 @@ export type SchemaQwenImageEditPlusTrainerInput = {
    * If no default_caption is provided, the training will fail.
    *
    */
-  image_data_url: string
+  image_data_url: string | Blob | File
   /**
    * Learning Rate
    *
@@ -993,7 +993,7 @@ export type SchemaFlux2TrainerInput = {
    * If no default_caption is provided, the training will fail.
    *
    */
-  image_data_url: string
+  image_data_url: string | Blob | File
   /**
    * Learning Rate
    *
@@ -1061,7 +1061,7 @@ export type SchemaFlux2TrainerEditInput = {
    * If no default_caption is provided, the training will fail.
    *
    */
-  image_data_url: string
+  image_data_url: string | Blob | File
   /**
    * Learning Rate
    *
@@ -1118,7 +1118,7 @@ export type SchemaZImageTrainerInput = {
    * If no default_caption is provided, the training will fail.
    *
    */
-  image_data_url: string
+  image_data_url: string | Blob | File
   /**
    * Training Type
    *
@@ -1188,7 +1188,7 @@ export type SchemaQwenImageEdit2509TrainerInput = {
    * If no default_caption is provided, the training will fail.
    *
    */
-  image_data_url: string
+  image_data_url: string | Blob | File
   /**
    * Learning Rate
    *
@@ -1252,7 +1252,7 @@ export type SchemaQwenImageLayeredTrainerInput = {
    * If no default_caption is provided, the training will fail.
    *
    */
-  image_data_url: string
+  image_data_url: string | Blob | File
   /**
    * Learning Rate
    *
@@ -1316,7 +1316,7 @@ export type SchemaQwenImageEdit2511TrainerInput = {
    * If no default_caption is provided, the training will fail.
    *
    */
-  image_data_url: string
+  image_data_url: string | Blob | File
   /**
    * Learning Rate
    *
@@ -1368,7 +1368,7 @@ export type SchemaQwenImage2512TrainerInput = {
    * If no default_caption is provided and a text file is missing, the training will fail.
    *
    */
-  image_data_url: string
+  image_data_url: string | Blob | File
   /**
    * Learning Rate
    *
@@ -1461,7 +1461,7 @@ export type SchemaLtx2VideoTrainerInput = {
    *
    * The archive can also contain text files with captions. Each text file should have the same name as the media file it corresponds to.
    */
-  training_data_url: string
+  training_data_url: string | Blob | File
   /**
    * Split Input Duration Threshold
    *
@@ -1646,7 +1646,7 @@ export type SchemaLtx2V2vTrainerInput = {
    *
    * The archive can also contain text files with captions. Each text file should have the same name as the media file it corresponds to.
    */
-  training_data_url: string
+  training_data_url: string | Blob | File
   /**
    * Split Input Duration Threshold
    *
@@ -1771,7 +1771,7 @@ export type SchemaFlux2TrainerV2Input = {
    * If no default_caption is provided, the training will fail.
    *
    */
-  image_data_url: string
+  image_data_url: string | Blob | File
   /**
    * Learning Rate
    *
@@ -1839,7 +1839,7 @@ export type SchemaFlux2TrainerV2EditInput = {
    * If no default_caption is provided, the training will fail.
    *
    */
-  image_data_url: string
+  image_data_url: string | Blob | File
   /**
    * Learning Rate
    *
@@ -1893,7 +1893,7 @@ export type SchemaQwenImage2512TrainerV2Input = {
    * If no text file is provided for an image, the default_caption will be used.
    *
    */
-  image_data_url: string
+  image_data_url: string | Blob | File
   /**
    * Learning Rate
    *
@@ -1955,7 +1955,7 @@ export type SchemaFlux2Klein4bBaseTrainerEditInput = {
    * If no default_caption is provided, the training will fail.
    *
    */
-  image_data_url: string
+  image_data_url: string | Blob | File
   /**
    * Learning Rate
    *
@@ -2014,7 +2014,7 @@ export type SchemaFlux2Klein4bBaseTrainerInput = {
    * If no default_caption is provided, the training will fail.
    *
    */
-  image_data_url: string
+  image_data_url: string | Blob | File
   /**
    * Learning Rate
    *
@@ -2073,7 +2073,7 @@ export type SchemaFlux2Klein9bBaseTrainerInput = {
    * If no default_caption is provided, the training will fail.
    *
    */
-  image_data_url: string
+  image_data_url: string | Blob | File
   /**
    * Learning Rate
    *
@@ -2141,7 +2141,7 @@ export type SchemaFlux2Klein9bBaseTrainerEditInput = {
    * If no default_caption is provided, the training will fail.
    *
    */
-  image_data_url: string
+  image_data_url: string | Blob | File
   /**
    * Learning Rate
    *
@@ -2195,7 +2195,7 @@ export type SchemaZImageTurboTrainerV2Input = {
    * If no text file is provided for an image, the default_caption will be used.
    *
    */
-  image_data_url: string
+  image_data_url: string | Blob | File
   /**
    * Learning Rate
    *
@@ -2243,7 +2243,7 @@ export type SchemaZImageBaseTrainerInput = {
    * If no text file is provided for an image, the default_caption will be used.
    *
    */
-  image_data_url: string
+  image_data_url: string | Blob | File
   /**
    * Learning Rate
    *
@@ -2291,7 +2291,7 @@ export type SchemaFluxLoraPortraitTrainerInput = {
    * The captions can include a special string `[trigger]`. If a trigger_word is specified, it will replace `[trigger]` in the captions.
    *
    */
-  images_data_url: string
+  images_data_url: string | Blob | File
   /**
    * Trigger Phrase
    *
@@ -2381,7 +2381,7 @@ export type SchemaFluxLoraFastTrainingInput = {
    * In addition to images the archive can contain text files with captions. Each text file should have the same name as the image file it corresponds to.
    *
    */
-  images_data_url: string
+  images_data_url: string | Blob | File
   /**
    * Is Input Format Already Preprocessed
    *
@@ -2474,7 +2474,7 @@ export type SchemaFluxKontextTrainerInput = {
    * If no default_caption is provided, the training will fail.
    *
    */
-  image_data_url: string
+  image_data_url: string | Blob | File
   /**
    * Learning Rate
    */
@@ -2530,7 +2530,7 @@ export type SchemaFluxKreaTrainerInput = {
    * In addition to images the archive can contain text files with captions. Each text file should have the same name as the image file it corresponds to.
    *
    */
-  images_data_url: string
+  images_data_url: string | Blob | File
   /**
    * Is Input Format Already Preprocessed
    *

@@ -4,6 +4,464 @@ export type ClientOptions = {
   baseUrl: 'https://queue.fal.run' | (string & {})
 }
 
+export type SchemaFiboGenerateStructuredPromptOutput = unknown
+
+/**
+ * StructuredPromptModel
+ */
+export type SchemaFiboGenerateStructuredPromptInput = {
+  /**
+   * Prompt
+   *
+   * Prompt for image generation.
+   */
+  prompt?: string | unknown
+  /**
+   * Seed
+   *
+   * Random seed for reproducibility.
+   */
+  seed?: number
+  /**
+   * The structured prompt to generate an image from.
+   */
+  structured_prompt?: SchemaStructuredPrompt | unknown
+  /**
+   * Image Url
+   *
+   * Reference image (file or URL).
+   */
+  image_url?: string | unknown
+}
+
+/**
+ * Lighting
+ */
+export type SchemaLighting = {
+  /**
+   * Shadows
+   *
+   * The shadows in the image to be generated.
+   */
+  shadows?: string | unknown
+  /**
+   * Conditions
+   *
+   * The conditions of the lighting in the image to be generated.
+   */
+  conditions?: string | unknown
+  /**
+   * Direction
+   *
+   * The direction of the lighting in the image to be generated.
+   */
+  direction?: string | unknown
+}
+
+/**
+ * PhotographicCharacteristics
+ */
+export type SchemaPhotographicCharacteristics = {
+  /**
+   * Focus
+   *
+   * The focus in the image to be generated.
+   */
+  focus?: string | unknown
+  /**
+   * Lens Focal Length
+   *
+   * The focal length of the lens in the image to be generated.
+   */
+  lens_focal_length?: string | unknown
+  /**
+   * Camera Angle
+   *
+   * The angle of the camera in the image to be generated.
+   */
+  camera_angle?: string | unknown
+  /**
+   * Depth Of Field
+   *
+   * The depth of field in the image to be generated.
+   */
+  depth_of_field?: string | unknown
+}
+
+/**
+ * PromptObject
+ */
+export type SchemaPromptObject = {
+  /**
+   * Clothing
+   *
+   * The clothing of the object in the image.
+   */
+  clothing?: string | unknown
+  /**
+   * Description
+   *
+   * A description of the object to be generated.
+   */
+  description?: string | unknown
+  /**
+   * Skin Tone And Texture
+   *
+   * The skin tone and texture of the object in the image.
+   */
+  skin_tone_and_texture?: string | unknown
+  /**
+   * Appearance Details
+   *
+   * The appearance details of the object.
+   */
+  appearance_details?: string | unknown
+  /**
+   * Number Of Objects
+   *
+   * The number of objects in the image.
+   */
+  number_of_objects?: number | unknown
+  /**
+   * Expression
+   *
+   * The expression of the object in the image.
+   */
+  expression?: string | unknown
+  /**
+   * Pose
+   *
+   * The pose of the object in the image.
+   */
+  pose?: string | unknown
+  /**
+   * Shape And Color
+   *
+   * The shape and color of the object.
+   */
+  shape_and_color?: string | unknown
+  /**
+   * Relationship
+   *
+   * The relationship of the object to other objects in the image.
+   */
+  relationship: string
+  /**
+   * Texture
+   *
+   * The texture of the object.
+   */
+  texture?: string | unknown
+  /**
+   * Gender
+   *
+   * The gender of the object in the image.
+   */
+  gender?: string | unknown
+  /**
+   * Relative Size
+   *
+   * The relative size of the object in the image.
+   */
+  relative_size?: string | unknown
+  /**
+   * Location
+   *
+   * The location of the object in the image.
+   */
+  location?: string | unknown
+  /**
+   * Orientation
+   *
+   * The orientation of the object in the image.
+   */
+  orientation?: string | unknown
+  /**
+   * Action
+   *
+   * The action of the object in the image.
+   */
+  action?: string | unknown
+}
+
+/**
+ * Aesthetics
+ */
+export type SchemaAesthetics = {
+  /**
+   * Composition
+   *
+   * The composition of the image to be generated.
+   */
+  composition?: string | unknown
+  /**
+   * Mood Atmosphere
+   *
+   * The mood and atmosphere of the image to be generated.
+   */
+  mood_atmosphere?: string | unknown
+  /**
+   * Color Scheme
+   *
+   * The color scheme of the image to be generated.
+   */
+  color_scheme?: string | unknown
+}
+
+/**
+ * StructuredPrompt
+ */
+export type SchemaStructuredPrompt = {
+  /**
+   * Background Setting
+   *
+   * The background setting of the image to be generated.
+   */
+  background_setting?: string | unknown
+  /**
+   * Artistic Style
+   *
+   * The artistic style of the image to be generated.
+   */
+  artistic_style?: string | unknown
+  /**
+   * The aesthetics of the image to be generated.
+   */
+  aesthetics?: SchemaAesthetics | unknown
+  /**
+   * Text Render
+   *
+   * A list of text to be rendered in the image.
+   */
+  text_render?: Array<unknown> | unknown
+  /**
+   * Objects
+   *
+   * A list of objects in the image to be generated, along with their attributes and relationships to other objects in the image.
+   */
+  objects?: Array<SchemaPromptObject> | unknown
+  /**
+   * Style Medium
+   *
+   * The style medium of the image to be generated.
+   */
+  style_medium?: string | unknown
+  /**
+   * The photographic characteristics of the image to be generated.
+   */
+  photographic_characteristics?: SchemaPhotographicCharacteristics | unknown
+  /**
+   * Context
+   *
+   * The context of the image to be generated.
+   */
+  context?: string | unknown
+  /**
+   * The lighting of the image to be generated.
+   */
+  lighting?: SchemaLighting | unknown
+  /**
+   * Short Description
+   *
+   * A short description of the image to be generated.
+   */
+  short_description?: string | unknown
+}
+
+/**
+ * Aesthetics
+ */
+export type SchemaBriaFiboVlmAesthetics = {
+  /**
+   * Preference Score
+   *
+   * The preference score of the image.
+   */
+  preference_score: string
+  /**
+   * Composition
+   *
+   * The composition of the image to be generated.
+   */
+  composition?: string | unknown
+  /**
+   * Mood Atmosphere
+   *
+   * The mood and atmosphere of the image to be generated.
+   */
+  mood_atmosphere?: string | unknown
+  /**
+   * Aesthetic Score
+   *
+   * The aesthetic score of the image.
+   */
+  aesthetic_score: string
+  /**
+   * Color Scheme
+   *
+   * The color scheme of the image to be generated.
+   */
+  color_scheme?: string | unknown
+}
+
+/**
+ * StructuredPrompt
+ */
+export type SchemaBriaFiboVlmStructuredPrompt = {
+  /**
+   * Background Setting
+   *
+   * The background setting of the image to be generated.
+   */
+  background_setting?: string | unknown
+  /**
+   * Artistic Style
+   *
+   * The artistic style of the image to be generated.
+   */
+  artistic_style?: string | unknown
+  /**
+   * Style Medium
+   *
+   * The style medium of the image to be generated.
+   */
+  style_medium?: string | unknown
+  /**
+   * Text Render
+   *
+   * A list of text to be rendered in the image.
+   */
+  text_render?: Array<unknown> | unknown
+  /**
+   * Objects
+   *
+   * A list of objects in the image to be generated, along with their attributes and relationships to other objects in the image.
+   */
+  objects?: Array<SchemaPromptObject> | unknown
+  /**
+   * Context
+   *
+   * The context of the image to be generated.
+   */
+  context?: string | unknown
+  /**
+   * The photographic characteristics of the image to be generated.
+   */
+  photographic_characteristics?: SchemaPhotographicCharacteristics | unknown
+  /**
+   * The aesthetics of the image to be generated.
+   */
+  aesthetics?: SchemaBriaFiboVlmAesthetics | unknown
+  /**
+   * The lighting of the image to be generated.
+   */
+  lighting?: SchemaLighting | unknown
+  /**
+   * Short Description
+   *
+   * A short description of the image to be generated.
+   */
+  short_description?: string | unknown
+}
+
+export type SchemaFiboLiteGenerateStructuredPromptLiteOutput = unknown
+
+/**
+ * StructuredPromptModel
+ */
+export type SchemaFiboLiteGenerateStructuredPromptLiteInput = {
+  /**
+   * Prompt
+   *
+   * Prompt for image generation.
+   */
+  prompt?: string | unknown
+  /**
+   * Seed
+   *
+   * Random seed for reproducibility.
+   */
+  seed?: number
+  /**
+   * The structured prompt to generate an image from.
+   */
+  structured_prompt?: SchemaBriaFiboVlmStructuredPrompt | unknown
+  /**
+   * Image Url
+   *
+   * Reference image (file or URL).
+   */
+  image_url?: string | unknown
+}
+
+export type SchemaFiboLiteGenerateStructuredPromptOutput = unknown
+
+/**
+ * StructuredPromptModel
+ */
+export type SchemaFiboLiteGenerateStructuredPromptInput = {
+  /**
+   * Prompt
+   *
+   * Prompt for image generation.
+   */
+  prompt?: string | unknown
+  /**
+   * Seed
+   *
+   * Random seed for reproducibility.
+   */
+  seed?: number
+  /**
+   * The structured prompt to generate an image from.
+   */
+  structured_prompt?: SchemaStructuredPrompt | unknown
+  /**
+   * Image Url
+   *
+   * Reference image (file or URL).
+   */
+  image_url?: string | unknown
+}
+
+export type SchemaFiboEditEditStructuredInstructionOutput = unknown
+
+/**
+ * StructuredInstructionInputModel
+ */
+export type SchemaFiboEditEditStructuredInstructionInput = {
+  /**
+   * Sync Mode
+   *
+   * If true, returns the image directly in the response (increases latency).
+   */
+  sync_mode?: boolean
+  /**
+   * Seed
+   *
+   * Random seed for reproducibility.
+   */
+  seed?: number
+  /**
+   * Mask Url
+   *
+   * Reference image mask (file or URL). Optional.
+   */
+  mask_url?: string | unknown
+  /**
+   * Instruction
+   *
+   * Instruction for image editing.
+   */
+  instruction?: string | unknown
+  /**
+   * Image Url
+   *
+   * Reference image (file or URL).
+   */
+  image_url?: string | unknown
+}
+
 /**
  * AudioTrack
  */
@@ -295,7 +753,7 @@ export type SchemaFfmpegApiMetadataInput = {
    *
    * URL of the media file (video or audio) to analyze
    */
-  media_url: string
+  media_url: string | Blob | File
 }
 
 /**
@@ -349,7 +807,7 @@ export type SchemaFfmpegApiWaveformInput = {
    *
    * URL of the audio file to analyze
    */
-  media_url: string
+  media_url: string | Blob | File
   /**
    * Points Per Second
    *
@@ -528,7 +986,7 @@ export type SchemaFfmpegApiLoudnormInput = {
    *
    * URL of the audio file to normalize
    */
-  audio_url: string
+  audio_url: string | Blob | File
   /**
    * Integrated Loudness
    *
@@ -541,6 +999,62 @@ export type SchemaFfmpegApiLoudnormInput = {
    * Loudness range target in LU
    */
   loudness_range?: number
+}
+
+/**
+ * TextOutput
+ */
+export type SchemaBagelUnderstandOutput = {
+  /**
+   * Text
+   *
+   * The answer to the query.
+   */
+  text: string
+  /**
+   * Prompt
+   *
+   * The query used for the generation.
+   */
+  prompt: string
+  /**
+   * Seed
+   *
+   * The seed used for the generation.
+   */
+  seed: number
+  /**
+   * Timings
+   *
+   * The timings of the generation.
+   */
+  timings: {
+    [key: string]: unknown
+  }
+}
+
+/**
+ * ImageUnderstandingInput
+ */
+export type SchemaBagelUnderstandInput = {
+  /**
+   * Prompt
+   *
+   * The prompt to query the image with.
+   */
+  prompt: string
+  /**
+   * Seed
+   *
+   * The seed to use for the generation.
+   */
+  seed?: number
+  /**
+   * Image Url
+   *
+   * The image for the query.
+   */
+  image_url: string | Blob | File
 }
 
 export type SchemaQueueStatus = {
@@ -578,6 +1092,99 @@ export type SchemaQueueStatus = {
    */
   queue_position?: number
 }
+
+export type GetFalAiBagelUnderstandRequestsByRequestIdStatusData = {
+  body?: never
+  path: {
+    /**
+     * Request ID
+     */
+    request_id: string
+  }
+  query?: {
+    /**
+     * Whether to include logs (`1`) in the response or not (`0`).
+     */
+    logs?: number
+  }
+  url: '/fal-ai/bagel/understand/requests/{request_id}/status'
+}
+
+export type GetFalAiBagelUnderstandRequestsByRequestIdStatusResponses = {
+  /**
+   * The request status.
+   */
+  200: SchemaQueueStatus
+}
+
+export type GetFalAiBagelUnderstandRequestsByRequestIdStatusResponse =
+  GetFalAiBagelUnderstandRequestsByRequestIdStatusResponses[keyof GetFalAiBagelUnderstandRequestsByRequestIdStatusResponses]
+
+export type PutFalAiBagelUnderstandRequestsByRequestIdCancelData = {
+  body?: never
+  path: {
+    /**
+     * Request ID
+     */
+    request_id: string
+  }
+  query?: never
+  url: '/fal-ai/bagel/understand/requests/{request_id}/cancel'
+}
+
+export type PutFalAiBagelUnderstandRequestsByRequestIdCancelResponses = {
+  /**
+   * The request was cancelled.
+   */
+  200: {
+    /**
+     * Whether the request was cancelled successfully.
+     */
+    success?: boolean
+  }
+}
+
+export type PutFalAiBagelUnderstandRequestsByRequestIdCancelResponse =
+  PutFalAiBagelUnderstandRequestsByRequestIdCancelResponses[keyof PutFalAiBagelUnderstandRequestsByRequestIdCancelResponses]
+
+export type PostFalAiBagelUnderstandData = {
+  body: SchemaBagelUnderstandInput
+  path?: never
+  query?: never
+  url: '/fal-ai/bagel/understand'
+}
+
+export type PostFalAiBagelUnderstandResponses = {
+  /**
+   * The request status.
+   */
+  200: SchemaQueueStatus
+}
+
+export type PostFalAiBagelUnderstandResponse =
+  PostFalAiBagelUnderstandResponses[keyof PostFalAiBagelUnderstandResponses]
+
+export type GetFalAiBagelUnderstandRequestsByRequestIdData = {
+  body?: never
+  path: {
+    /**
+     * Request ID
+     */
+    request_id: string
+  }
+  query?: never
+  url: '/fal-ai/bagel/understand/requests/{request_id}'
+}
+
+export type GetFalAiBagelUnderstandRequestsByRequestIdResponses = {
+  /**
+   * Result of the request.
+   */
+  200: SchemaBagelUnderstandOutput
+}
+
+export type GetFalAiBagelUnderstandRequestsByRequestIdResponse =
+  GetFalAiBagelUnderstandRequestsByRequestIdResponses[keyof GetFalAiBagelUnderstandRequestsByRequestIdResponses]
 
 export type GetFalAiFfmpegApiLoudnormRequestsByRequestIdStatusData = {
   body?: never
@@ -857,3 +1464,393 @@ export type GetFalAiFfmpegApiMetadataRequestsByRequestIdResponses = {
 
 export type GetFalAiFfmpegApiMetadataRequestsByRequestIdResponse =
   GetFalAiFfmpegApiMetadataRequestsByRequestIdResponses[keyof GetFalAiFfmpegApiMetadataRequestsByRequestIdResponses]
+
+export type GetBriaFiboEditEditStructuredInstructionRequestsByRequestIdStatusData =
+  {
+    body?: never
+    path: {
+      /**
+       * Request ID
+       */
+      request_id: string
+    }
+    query?: {
+      /**
+       * Whether to include logs (`1`) in the response or not (`0`).
+       */
+      logs?: number
+    }
+    url: '/bria/fibo-edit/edit/structured_instruction/requests/{request_id}/status'
+  }
+
+export type GetBriaFiboEditEditStructuredInstructionRequestsByRequestIdStatusResponses =
+  {
+    /**
+     * The request status.
+     */
+    200: SchemaQueueStatus
+  }
+
+export type GetBriaFiboEditEditStructuredInstructionRequestsByRequestIdStatusResponse =
+  GetBriaFiboEditEditStructuredInstructionRequestsByRequestIdStatusResponses[keyof GetBriaFiboEditEditStructuredInstructionRequestsByRequestIdStatusResponses]
+
+export type PutBriaFiboEditEditStructuredInstructionRequestsByRequestIdCancelData =
+  {
+    body?: never
+    path: {
+      /**
+       * Request ID
+       */
+      request_id: string
+    }
+    query?: never
+    url: '/bria/fibo-edit/edit/structured_instruction/requests/{request_id}/cancel'
+  }
+
+export type PutBriaFiboEditEditStructuredInstructionRequestsByRequestIdCancelResponses =
+  {
+    /**
+     * The request was cancelled.
+     */
+    200: {
+      /**
+       * Whether the request was cancelled successfully.
+       */
+      success?: boolean
+    }
+  }
+
+export type PutBriaFiboEditEditStructuredInstructionRequestsByRequestIdCancelResponse =
+  PutBriaFiboEditEditStructuredInstructionRequestsByRequestIdCancelResponses[keyof PutBriaFiboEditEditStructuredInstructionRequestsByRequestIdCancelResponses]
+
+export type PostBriaFiboEditEditStructuredInstructionData = {
+  body: SchemaFiboEditEditStructuredInstructionInput
+  path?: never
+  query?: never
+  url: '/bria/fibo-edit/edit/structured_instruction'
+}
+
+export type PostBriaFiboEditEditStructuredInstructionResponses = {
+  /**
+   * The request status.
+   */
+  200: SchemaQueueStatus
+}
+
+export type PostBriaFiboEditEditStructuredInstructionResponse =
+  PostBriaFiboEditEditStructuredInstructionResponses[keyof PostBriaFiboEditEditStructuredInstructionResponses]
+
+export type GetBriaFiboEditEditStructuredInstructionRequestsByRequestIdData = {
+  body?: never
+  path: {
+    /**
+     * Request ID
+     */
+    request_id: string
+  }
+  query?: never
+  url: '/bria/fibo-edit/edit/structured_instruction/requests/{request_id}'
+}
+
+export type GetBriaFiboEditEditStructuredInstructionRequestsByRequestIdResponses =
+  {
+    /**
+     * Result of the request.
+     */
+    200: SchemaFiboEditEditStructuredInstructionOutput
+  }
+
+export type GetBriaFiboEditEditStructuredInstructionRequestsByRequestIdResponse =
+  GetBriaFiboEditEditStructuredInstructionRequestsByRequestIdResponses[keyof GetBriaFiboEditEditStructuredInstructionRequestsByRequestIdResponses]
+
+export type GetBriaFiboLiteGenerateStructuredPromptRequestsByRequestIdStatusData =
+  {
+    body?: never
+    path: {
+      /**
+       * Request ID
+       */
+      request_id: string
+    }
+    query?: {
+      /**
+       * Whether to include logs (`1`) in the response or not (`0`).
+       */
+      logs?: number
+    }
+    url: '/bria/fibo-lite/generate/structured_prompt/requests/{request_id}/status'
+  }
+
+export type GetBriaFiboLiteGenerateStructuredPromptRequestsByRequestIdStatusResponses =
+  {
+    /**
+     * The request status.
+     */
+    200: SchemaQueueStatus
+  }
+
+export type GetBriaFiboLiteGenerateStructuredPromptRequestsByRequestIdStatusResponse =
+  GetBriaFiboLiteGenerateStructuredPromptRequestsByRequestIdStatusResponses[keyof GetBriaFiboLiteGenerateStructuredPromptRequestsByRequestIdStatusResponses]
+
+export type PutBriaFiboLiteGenerateStructuredPromptRequestsByRequestIdCancelData =
+  {
+    body?: never
+    path: {
+      /**
+       * Request ID
+       */
+      request_id: string
+    }
+    query?: never
+    url: '/bria/fibo-lite/generate/structured_prompt/requests/{request_id}/cancel'
+  }
+
+export type PutBriaFiboLiteGenerateStructuredPromptRequestsByRequestIdCancelResponses =
+  {
+    /**
+     * The request was cancelled.
+     */
+    200: {
+      /**
+       * Whether the request was cancelled successfully.
+       */
+      success?: boolean
+    }
+  }
+
+export type PutBriaFiboLiteGenerateStructuredPromptRequestsByRequestIdCancelResponse =
+  PutBriaFiboLiteGenerateStructuredPromptRequestsByRequestIdCancelResponses[keyof PutBriaFiboLiteGenerateStructuredPromptRequestsByRequestIdCancelResponses]
+
+export type PostBriaFiboLiteGenerateStructuredPromptData = {
+  body: SchemaFiboLiteGenerateStructuredPromptInput
+  path?: never
+  query?: never
+  url: '/bria/fibo-lite/generate/structured_prompt'
+}
+
+export type PostBriaFiboLiteGenerateStructuredPromptResponses = {
+  /**
+   * The request status.
+   */
+  200: SchemaQueueStatus
+}
+
+export type PostBriaFiboLiteGenerateStructuredPromptResponse =
+  PostBriaFiboLiteGenerateStructuredPromptResponses[keyof PostBriaFiboLiteGenerateStructuredPromptResponses]
+
+export type GetBriaFiboLiteGenerateStructuredPromptRequestsByRequestIdData = {
+  body?: never
+  path: {
+    /**
+     * Request ID
+     */
+    request_id: string
+  }
+  query?: never
+  url: '/bria/fibo-lite/generate/structured_prompt/requests/{request_id}'
+}
+
+export type GetBriaFiboLiteGenerateStructuredPromptRequestsByRequestIdResponses =
+  {
+    /**
+     * Result of the request.
+     */
+    200: SchemaFiboLiteGenerateStructuredPromptOutput
+  }
+
+export type GetBriaFiboLiteGenerateStructuredPromptRequestsByRequestIdResponse =
+  GetBriaFiboLiteGenerateStructuredPromptRequestsByRequestIdResponses[keyof GetBriaFiboLiteGenerateStructuredPromptRequestsByRequestIdResponses]
+
+export type GetBriaFiboLiteGenerateStructuredPromptLiteRequestsByRequestIdStatusData =
+  {
+    body?: never
+    path: {
+      /**
+       * Request ID
+       */
+      request_id: string
+    }
+    query?: {
+      /**
+       * Whether to include logs (`1`) in the response or not (`0`).
+       */
+      logs?: number
+    }
+    url: '/bria/fibo-lite/generate/structured_prompt/lite/requests/{request_id}/status'
+  }
+
+export type GetBriaFiboLiteGenerateStructuredPromptLiteRequestsByRequestIdStatusResponses =
+  {
+    /**
+     * The request status.
+     */
+    200: SchemaQueueStatus
+  }
+
+export type GetBriaFiboLiteGenerateStructuredPromptLiteRequestsByRequestIdStatusResponse =
+  GetBriaFiboLiteGenerateStructuredPromptLiteRequestsByRequestIdStatusResponses[keyof GetBriaFiboLiteGenerateStructuredPromptLiteRequestsByRequestIdStatusResponses]
+
+export type PutBriaFiboLiteGenerateStructuredPromptLiteRequestsByRequestIdCancelData =
+  {
+    body?: never
+    path: {
+      /**
+       * Request ID
+       */
+      request_id: string
+    }
+    query?: never
+    url: '/bria/fibo-lite/generate/structured_prompt/lite/requests/{request_id}/cancel'
+  }
+
+export type PutBriaFiboLiteGenerateStructuredPromptLiteRequestsByRequestIdCancelResponses =
+  {
+    /**
+     * The request was cancelled.
+     */
+    200: {
+      /**
+       * Whether the request was cancelled successfully.
+       */
+      success?: boolean
+    }
+  }
+
+export type PutBriaFiboLiteGenerateStructuredPromptLiteRequestsByRequestIdCancelResponse =
+  PutBriaFiboLiteGenerateStructuredPromptLiteRequestsByRequestIdCancelResponses[keyof PutBriaFiboLiteGenerateStructuredPromptLiteRequestsByRequestIdCancelResponses]
+
+export type PostBriaFiboLiteGenerateStructuredPromptLiteData = {
+  body: SchemaFiboLiteGenerateStructuredPromptLiteInput
+  path?: never
+  query?: never
+  url: '/bria/fibo-lite/generate/structured_prompt/lite'
+}
+
+export type PostBriaFiboLiteGenerateStructuredPromptLiteResponses = {
+  /**
+   * The request status.
+   */
+  200: SchemaQueueStatus
+}
+
+export type PostBriaFiboLiteGenerateStructuredPromptLiteResponse =
+  PostBriaFiboLiteGenerateStructuredPromptLiteResponses[keyof PostBriaFiboLiteGenerateStructuredPromptLiteResponses]
+
+export type GetBriaFiboLiteGenerateStructuredPromptLiteRequestsByRequestIdData =
+  {
+    body?: never
+    path: {
+      /**
+       * Request ID
+       */
+      request_id: string
+    }
+    query?: never
+    url: '/bria/fibo-lite/generate/structured_prompt/lite/requests/{request_id}'
+  }
+
+export type GetBriaFiboLiteGenerateStructuredPromptLiteRequestsByRequestIdResponses =
+  {
+    /**
+     * Result of the request.
+     */
+    200: SchemaFiboLiteGenerateStructuredPromptLiteOutput
+  }
+
+export type GetBriaFiboLiteGenerateStructuredPromptLiteRequestsByRequestIdResponse =
+  GetBriaFiboLiteGenerateStructuredPromptLiteRequestsByRequestIdResponses[keyof GetBriaFiboLiteGenerateStructuredPromptLiteRequestsByRequestIdResponses]
+
+export type GetBriaFiboGenerateStructuredPromptRequestsByRequestIdStatusData = {
+  body?: never
+  path: {
+    /**
+     * Request ID
+     */
+    request_id: string
+  }
+  query?: {
+    /**
+     * Whether to include logs (`1`) in the response or not (`0`).
+     */
+    logs?: number
+  }
+  url: '/bria/fibo/generate/structured_prompt/requests/{request_id}/status'
+}
+
+export type GetBriaFiboGenerateStructuredPromptRequestsByRequestIdStatusResponses =
+  {
+    /**
+     * The request status.
+     */
+    200: SchemaQueueStatus
+  }
+
+export type GetBriaFiboGenerateStructuredPromptRequestsByRequestIdStatusResponse =
+  GetBriaFiboGenerateStructuredPromptRequestsByRequestIdStatusResponses[keyof GetBriaFiboGenerateStructuredPromptRequestsByRequestIdStatusResponses]
+
+export type PutBriaFiboGenerateStructuredPromptRequestsByRequestIdCancelData = {
+  body?: never
+  path: {
+    /**
+     * Request ID
+     */
+    request_id: string
+  }
+  query?: never
+  url: '/bria/fibo/generate/structured_prompt/requests/{request_id}/cancel'
+}
+
+export type PutBriaFiboGenerateStructuredPromptRequestsByRequestIdCancelResponses =
+  {
+    /**
+     * The request was cancelled.
+     */
+    200: {
+      /**
+       * Whether the request was cancelled successfully.
+       */
+      success?: boolean
+    }
+  }
+
+export type PutBriaFiboGenerateStructuredPromptRequestsByRequestIdCancelResponse =
+  PutBriaFiboGenerateStructuredPromptRequestsByRequestIdCancelResponses[keyof PutBriaFiboGenerateStructuredPromptRequestsByRequestIdCancelResponses]
+
+export type PostBriaFiboGenerateStructuredPromptData = {
+  body: SchemaFiboGenerateStructuredPromptInput
+  path?: never
+  query?: never
+  url: '/bria/fibo/generate/structured_prompt'
+}
+
+export type PostBriaFiboGenerateStructuredPromptResponses = {
+  /**
+   * The request status.
+   */
+  200: SchemaQueueStatus
+}
+
+export type PostBriaFiboGenerateStructuredPromptResponse =
+  PostBriaFiboGenerateStructuredPromptResponses[keyof PostBriaFiboGenerateStructuredPromptResponses]
+
+export type GetBriaFiboGenerateStructuredPromptRequestsByRequestIdData = {
+  body?: never
+  path: {
+    /**
+     * Request ID
+     */
+    request_id: string
+  }
+  query?: never
+  url: '/bria/fibo/generate/structured_prompt/requests/{request_id}'
+}
+
+export type GetBriaFiboGenerateStructuredPromptRequestsByRequestIdResponses = {
+  /**
+   * Result of the request.
+   */
+  200: SchemaFiboGenerateStructuredPromptOutput
+}
+
+export type GetBriaFiboGenerateStructuredPromptRequestsByRequestIdResponse =
+  GetBriaFiboGenerateStructuredPromptRequestsByRequestIdResponses[keyof GetBriaFiboGenerateStructuredPromptRequestsByRequestIdResponses]

@@ -1,7 +1,7 @@
 import { fal } from '@fal-ai/client'
 import { BaseImageAdapter } from '@tanstack/ai/adapters'
 
-import { FalImageSchemaMap } from '../generated'
+import { getFalImageSchema } from '../generated'
 import { configureFalClient, generateId as utilGenerateId } from '../utils'
 
 import type { OutputType, Result } from '@fal-ai/client'
@@ -11,7 +11,7 @@ import type {
   ImageGenerationResult,
 } from '@tanstack/ai'
 import type { FalImageProviderOptions } from '../model-meta'
-import type { FalImageInput, FalImageModel, FalImageOutput } from '../generated'
+import type { FalImageModel, ImageModelInput, ImageModelOutput } from '../generated'
 
 import type { FalClientConfig } from '../utils'
 import type { z } from 'zod'
@@ -67,21 +67,16 @@ export class FalImageAdapter<
   readonly kind = 'image' as const
   readonly name = 'fal' as const
   readonly model: TModel
-  readonly inputSchema: z.ZodSchema<FalImageInput<TModel>>
-  readonly outputSchema: z.ZodSchema<FalImageOutput<TModel>>
+  readonly inputSchema: z.ZodSchema<ImageModelInput<TModel>>
+  readonly outputSchema: z.ZodSchema<ImageModelOutput<TModel>>
 
   constructor(model: TModel, config?: FalClientConfig) {
     super({}, model)
     this.model = model
-    // The only reason we need to cast here, is because the number of image models is so large,
-    // that typescript has a hard time inferring the type of the input and output schemas.
-    // I had to type it as generic zod schemas.
-    this.inputSchema = FalImageSchemaMap[model].input as z.ZodSchema<
-      FalImageInput<TModel>
-    >
-    this.outputSchema = FalImageSchemaMap[model].output as z.ZodSchema<
-      FalImageOutput<TModel>
-    >
+    // Use accessor function to avoid merged type slowdown
+    const schemas = getFalImageSchema(model)
+    this.inputSchema = schemas.input
+    this.outputSchema = schemas.output
 
     configureFalClient(config)
   }

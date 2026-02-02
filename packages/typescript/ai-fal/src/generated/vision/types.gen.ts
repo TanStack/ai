@@ -55,7 +55,7 @@ export type SchemaLlavaNextInput = {
    *
    * URL of the image to be processed
    */
-  image_url: string
+  image_url: string | Blob | File
 }
 
 /**
@@ -171,7 +171,7 @@ export type SchemaImageutilsNsfwInput = {
    *
    * Input image url.
    */
-  image_url: string
+  image_url: string | Blob | File
 }
 
 /**
@@ -195,7 +195,7 @@ export type SchemaFlorence2LargeDetailedCaptionInput = {
    *
    * The URL of the image to be processed.
    */
-  image_url: string
+  image_url: string | Blob | File
 }
 
 /**
@@ -219,7 +219,7 @@ export type SchemaFlorence2LargeCaptionInput = {
    *
    * The URL of the image to be processed.
    */
-  image_url: string
+  image_url: string | Blob | File
 }
 
 /**
@@ -249,7 +249,7 @@ export type SchemaFlorence2LargeRegionToCategoryInput = {
    *
    * The URL of the image to be processed.
    */
-  image_url: string
+  image_url: string | Blob | File
 }
 
 /**
@@ -303,7 +303,7 @@ export type SchemaFlorence2LargeMoreDetailedCaptionInput = {
    *
    * The URL of the image to be processed.
    */
-  image_url: string
+  image_url: string | Blob | File
 }
 
 /**
@@ -327,7 +327,7 @@ export type SchemaFlorence2LargeOcrInput = {
    *
    * The URL of the image to be processed.
    */
-  image_url: string
+  image_url: string | Blob | File
 }
 
 /**
@@ -357,7 +357,7 @@ export type SchemaFlorence2LargeRegionToDescriptionInput = {
    *
    * The URL of the image to be processed.
    */
-  image_url: string
+  image_url: string | Blob | File
 }
 
 /**
@@ -399,7 +399,7 @@ export type SchemaMoondreamNextInput = {
    *
    * Image URL to be processed
    */
-  image_url: string
+  image_url: string | Blob | File
 }
 
 /**
@@ -485,7 +485,7 @@ export type SchemaSa2Va8bImageInput = {
    *
    * Url for the Input image.
    */
-  image_url: string
+  image_url: string | Blob | File
 }
 
 /**
@@ -521,7 +521,7 @@ export type SchemaSa2Va4bImageInput = {
    *
    * Url for the Input image.
    */
-  image_url: string
+  image_url: string | Blob | File
 }
 
 /**
@@ -593,7 +593,7 @@ export type SchemaSa2Va8bVideoInput = {
    *
    * The URL of the input video.
    */
-  video_url: string
+  video_url: string | Blob | File
   /**
    * Num Frames To Sample
    *
@@ -635,7 +635,7 @@ export type SchemaSa2Va4bVideoInput = {
    *
    * The URL of the input video.
    */
-  video_url: string
+  video_url: string | Blob | File
   /**
    * Num Frames To Sample
    *
@@ -677,7 +677,7 @@ export type SchemaMoondreamNextBatchInput = {
    *
    * List of image URLs to be processed (maximum 32 images)
    */
-  images_data_url: string
+  images_data_url: string | Blob | File
   /**
    * Max Tokens
    *
@@ -719,7 +719,7 @@ export type SchemaGotOcrV2Input = {
    *
    * URL of images.
    */
-  input_image_urls?: Array<string>
+  input_image_urls?: Array<string | Blob | File>
 }
 
 /**
@@ -752,7 +752,7 @@ export type SchemaMoondream2ObjectDetectionInput = {
    *
    * URL of the image to be processed
    */
-  image_url: string
+  image_url: string | Blob | File
 }
 
 /**
@@ -785,7 +785,7 @@ export type SchemaMoondream2PointObjectDetectionInput = {
    *
    * URL of the image to be processed
    */
-  image_url: string
+  image_url: string | Blob | File
 }
 
 /**
@@ -809,7 +809,7 @@ export type SchemaMoondream2Input = {
    *
    * URL of the image to be processed
    */
-  image_url: string
+  image_url: string | Blob | File
 }
 
 /**
@@ -839,7 +839,7 @@ export type SchemaMoondream2VisualQueryInput = {
    *
    * URL of the image to be processed
    */
-  image_url: string
+  image_url: string | Blob | File
 }
 
 /**
@@ -869,7 +869,7 @@ export type SchemaVideoUnderstandingInput = {
    *
    * URL of the video to analyze
    */
-  video_url: string
+  video_url: string | Blob | File
   /**
    * Prompt
    *
@@ -899,7 +899,7 @@ export type SchemaXAilabNsfwInput = {
    *
    * List of image URLs to check. If more than 10 images are provided, only the first 10 will be checked.
    */
-  image_urls: Array<string>
+  image_urls: Array<string | Blob | File>
 }
 
 /**
@@ -985,7 +985,7 @@ export type SchemaIsaac01Input = {
    *
    * Image URL to be processed
    */
-  image_url: string
+  image_url: string | Blob | File
 }
 
 /**
@@ -1086,7 +1086,7 @@ export type SchemaMoondream3PreviewCaptionInput = {
    *
    * Max width: 7000px, Max height: 7000px, Timeout: 20.0s
    */
-  image_url: string
+  image_url: string | Blob | File
 }
 
 /**
@@ -1154,7 +1154,7 @@ export type SchemaMoondream3PreviewQueryInput = {
    *
    * Max width: 7000px, Max height: 7000px, Timeout: 20.0s
    */
-  image_url: string
+  image_url: string | Blob | File
 }
 
 /**
@@ -1276,7 +1276,7 @@ export type SchemaMoondream3PreviewPointInput = {
    *
    * Max width: 7000px, Max height: 7000px, Timeout: 20.0s
    */
-  image_url: string
+  image_url: string | Blob | File
 }
 
 /**
@@ -1362,7 +1362,7 @@ export type SchemaMoondream3PreviewDetectInput = {
    *
    * Max width: 7000px, Max height: 7000px, Timeout: 20.0s
    */
-  image_url: string
+  image_url: string | Blob | File
 }
 
 /**
@@ -1428,7 +1428,7 @@ export type SchemaRouterVisionInput = {
    *
    * List of image URLs to be processed
    */
-  image_urls: Array<string>
+  image_urls: Array<string | Blob | File>
 }
 
 /**
@@ -1452,7 +1452,7 @@ export type SchemaSam3ImageEmbedInput = {
    *
    * URL of the image to embed.
    */
-  image_url: string
+  image_url: string | Blob | File
 }
 
 /**
@@ -1486,7 +1486,7 @@ export type SchemaAiDetectorDetectImageInput = {
    *
    * URL pointing to an image to analyze for AI generation.(Max: 3000 characters)
    */
-  image_url: string
+  image_url: string | Blob | File
 }
 
 /**

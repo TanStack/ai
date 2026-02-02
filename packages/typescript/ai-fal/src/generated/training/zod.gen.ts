@@ -33,10 +33,10 @@ export const zSchemaHunyuanVideoLoraTrainingInput = z.object({
       }),
     )
     .default(''),
-  images_data_url: z.string().register(z.globalRegistry, {
-    description:
-      '\n        URL to zip archive with images. Try to use at least 4 images in general the more the better.\n\n        In addition to images the archive can contain text files with captions. Each text file should have the same name as the image file it corresponds to.\n    ',
-  }),
+  images_data_url: z.union([
+    z.string(),
+    z.union([z.instanceof(Blob), z.instanceof(File)]),
+  ]),
   steps: z.int().gte(1).lte(5000).register(z.globalRegistry, {
     description: 'Number of steps to train the LoRA on.',
   }),
@@ -76,10 +76,10 @@ export const zSchemaWanTrainerInput = z.object({
       }),
     )
     .default(400),
-  training_data_url: z.string().register(z.globalRegistry, {
-    description:
-      'URL to zip archive with images of a consistent style. Try to use at least 10 images and/or videos, although more is better.\n\n        In addition to images the archive can contain text files with captions. Each text file should have the same name as the image/video file it corresponds to.',
-  }),
+  training_data_url: z.union([
+    z.string(),
+    z.union([z.instanceof(Blob), z.instanceof(File)]),
+  ]),
   trigger_phrase: z
     .optional(
       z.string().register(z.globalRegistry, {
@@ -118,10 +118,10 @@ export const zSchemaTurboFluxTrainerOutput = z.object({
  * Input
  */
 export const zSchemaTurboFluxTrainerInput = z.object({
-  images_data_url: z.string().register(z.globalRegistry, {
-    description:
-      '\n        URL to zip archive with images of a consistent style. Try to use at least 10 images, although more is better.\n        ',
-  }),
+  images_data_url: z.union([
+    z.string(),
+    z.union([z.instanceof(Blob), z.instanceof(File)]),
+  ]),
   trigger_phrase: z
     .optional(
       z.string().register(z.globalRegistry, {
@@ -173,10 +173,10 @@ export const zSchemaRecraftV3CreateStyleOutput = z.object({
  * StyleReferenceInput
  */
 export const zSchemaRecraftV3CreateStyleInput = z.object({
-  images_data_url: z.string().register(z.globalRegistry, {
-    description:
-      'URL to zip archive with images, use PNG format. Maximum 5 images are allowed.',
-  }),
+  images_data_url: z.union([
+    z.string(),
+    z.union([z.instanceof(Blob), z.instanceof(File)]),
+  ]),
   base_style: z.optional(
     z
       .enum([
@@ -342,10 +342,10 @@ export const zSchemaLtxVideoTrainerInput = z.object({
       }),
     )
     .default(false),
-  training_data_url: z.string().register(z.globalRegistry, {
-    description:
-      'URL to zip archive with videos or images. Try to use at least 10 files, although more is better.\n\n        **Supported video formats:** .mp4, .mov, .avi, .mkv\n        **Supported image formats:** .png, .jpg, .jpeg\n\n        Note: The dataset must contain ONLY videos OR ONLY images - mixed datasets are not supported.\n\n        The archive can also contain text files with captions. Each text file should have the same name as the media file it corresponds to.',
-  }),
+  training_data_url: z.union([
+    z.string(),
+    z.union([z.instanceof(Blob), z.instanceof(File)]),
+  ]),
   split_input_duration_threshold: z
     .optional(
       z.number().gte(1).lte(60).register(z.globalRegistry, {
@@ -448,10 +448,10 @@ export const zSchemaWanTrainerFlf2V720pInput = z.object({
       }),
     )
     .default(400),
-  training_data_url: z.string().register(z.globalRegistry, {
-    description:
-      'URL to zip archive with images of a consistent style. Try to use at least 10 images and/or videos, although more is better.\n\n        In addition to images the archive can contain text files with captions. Each text file should have the same name as the image/video file it corresponds to.',
-  }),
+  training_data_url: z.union([
+    z.string(),
+    z.union([z.instanceof(Blob), z.instanceof(File)]),
+  ]),
   trigger_phrase: z
     .optional(
       z.string().register(z.globalRegistry, {
@@ -497,10 +497,10 @@ export const zSchemaWanTrainerI2V720pInput = z.object({
       }),
     )
     .default(400),
-  training_data_url: z.string().register(z.globalRegistry, {
-    description:
-      'URL to zip archive with images of a consistent style. Try to use at least 10 images and/or videos, although more is better.\n\n        In addition to images the archive can contain text files with captions. Each text file should have the same name as the image/video file it corresponds to.',
-  }),
+  training_data_url: z.union([
+    z.string(),
+    z.union([z.instanceof(Blob), z.instanceof(File)]),
+  ]),
   trigger_phrase: z
     .optional(
       z.string().register(z.globalRegistry, {
@@ -546,10 +546,10 @@ export const zSchemaWanTrainerT2V14bInput = z.object({
       }),
     )
     .default(400),
-  training_data_url: z.string().register(z.globalRegistry, {
-    description:
-      'URL to zip archive with images of a consistent style. Try to use at least 10 images and/or videos, although more is better.\n\n        In addition to images the archive can contain text files with captions. Each text file should have the same name as the image/video file it corresponds to.',
-  }),
+  training_data_url: z.union([
+    z.string(),
+    z.union([z.instanceof(Blob), z.instanceof(File)]),
+  ]),
   trigger_phrase: z
     .optional(
       z.string().register(z.globalRegistry, {
@@ -595,10 +595,10 @@ export const zSchemaWanTrainerT2vInput = z.object({
       }),
     )
     .default(400),
-  training_data_url: z.string().register(z.globalRegistry, {
-    description:
-      'URL to zip archive with images of a consistent style. Try to use at least 10 images and/or videos, although more is better.\n\n        In addition to images the archive can contain text files with captions. Each text file should have the same name as the image/video file it corresponds to.',
-  }),
+  training_data_url: z.union([
+    z.string(),
+    z.union([z.instanceof(Blob), z.instanceof(File)]),
+  ]),
   trigger_phrase: z
     .optional(
       z.string().register(z.globalRegistry, {
@@ -663,9 +663,10 @@ export const zSchemaWan22ImageTrainerInput = z.object({
       }),
     )
     .default(false),
-  training_data_url: z.string().register(z.globalRegistry, {
-    description: 'URL to the training data.',
-  }),
+  training_data_url: z.union([
+    z.string(),
+    z.union([z.instanceof(Blob), z.instanceof(File)]),
+  ]),
   steps: z
     .optional(
       z.int().gte(10).lte(6000).register(z.globalRegistry, {
@@ -718,10 +719,10 @@ export const zSchemaQwenImageTrainerInput = z.object({
       }),
     )
     .default(1000),
-  image_data_url: z.string().register(z.globalRegistry, {
-    description:
-      '\n        URL to zip archive with images for training. The archive should contain images and corresponding text files with captions.\n        Each text file should have the same name as the image file it corresponds to (e.g., image1.jpg and image1.txt).\n        If text files are missing for some images, you can provide a trigger_phrase to automatically create them.\n        Supported image formats: PNG, JPG, JPEG, WEBP.\n        Try to use at least 10 images, although more is better.\n    ',
-  }),
+  image_data_url: z.union([
+    z.string(),
+    z.union([z.instanceof(Blob), z.instanceof(File)]),
+  ]),
   learning_rate: z
     .optional(
       z.number().gte(0.000001).lte(0.01).register(z.globalRegistry, {
@@ -758,10 +759,10 @@ export const zSchemaQwenImageEditTrainerInput = z.object({
       }),
     )
     .default(1000),
-  image_data_url: z.string().register(z.globalRegistry, {
-    description:
-      '\n    URL to the input data zip archive.\n\n    The zip should contain pairs of images. The images should be named:\n\n    ROOT_start.EXT and ROOT_end.EXT\n    For example:\n    photo_start.jpg and photo_end.jpg\n\n    The zip can also contain a text file for each image pair. The text file should be named:\n    ROOT.txt\n    For example:\n    photo.txt\n\n    This text file can be used to specify the edit instructions for the image pair.\n\n    If no text file is provided, the default_caption will be used.\n\n    If no default_caption is provided, the training will fail.\n    ',
-  }),
+  image_data_url: z.union([
+    z.string(),
+    z.union([z.instanceof(Blob), z.instanceof(File)]),
+  ]),
   learning_rate: z
     .optional(
       z.number().register(z.globalRegistry, {
@@ -791,10 +792,10 @@ export const zSchemaQwenImageEditPlusTrainerInput = z.object({
       }),
     )
     .default(1000),
-  image_data_url: z.string().register(z.globalRegistry, {
-    description:
-      '\n    URL to the input data zip archive.\n\n    The zip should contain pairs of images. The images should be named:\n\n    ROOT_start.EXT and ROOT_end.EXT\n    For example:\n    photo_start.jpg and photo_end.jpg\n\n    The zip can also contain more than one reference image for each image pair. The reference images should be named:\n    ROOT_start.EXT, ROOT_start2.EXT, ROOT_start3.EXT, ..., ROOT_end.EXT\n    For example:\n    photo_start.jpg, photo_start2.jpg, photo_end.jpg\n\n    The Reference Image Count field should be set to the number of reference images.\n\n    The zip can also contain a text file for each image pair. The text file should be named:\n    ROOT.txt\n    For example:\n    photo.txt\n\n    This text file can be used to specify the edit instructions for the image pair.\n\n    If no text file is provided, the default_caption will be used.\n\n    If no default_caption is provided, the training will fail.\n    ',
-  }),
+  image_data_url: z.union([
+    z.string(),
+    z.union([z.instanceof(Blob), z.instanceof(File)]),
+  ]),
   learning_rate: z
     .optional(
       z.number().register(z.globalRegistry, {
@@ -824,10 +825,10 @@ export const zSchemaFlux2TrainerInput = z.object({
       }),
     )
     .default(1000),
-  image_data_url: z.string().register(z.globalRegistry, {
-    description:
-      '\n    URL to zip archive with images of a consistent style. Try to use at least 10 images, although more is better.\n\n    The zip can also contain a text file for each image. The text file should be named:\n    ROOT.txt\n    For example:\n    photo.txt\n\n    This text file can be used to specify the edit instructions for the image pair.\n\n    If no text file is provided, the default_caption will be used.\n\n    If no default_caption is provided, the training will fail.\n    ',
-  }),
+  image_data_url: z.union([
+    z.string(),
+    z.union([z.instanceof(Blob), z.instanceof(File)]),
+  ]),
   learning_rate: z
     .optional(
       z.number().register(z.globalRegistry, {
@@ -862,10 +863,10 @@ export const zSchemaFlux2TrainerEditInput = z.object({
       }),
     )
     .default(1000),
-  image_data_url: z.string().register(z.globalRegistry, {
-    description:
-      '\n    URL to the input data zip archive.\n\n    The zip should contain pairs of images. The images should be named:\n\n    ROOT_start.EXT and ROOT_end.EXT\n    For example:\n    photo_start.jpg and photo_end.jpg\n\n    The zip can also contain up to four reference image for each image pair. The reference images should be named:\n    ROOT_start.EXT, ROOT_start2.EXT, ROOT_start3.EXT, ROOT_start4.EXT, ROOT_end.EXT\n    For example:\n    photo_start.jpg, photo_start2.jpg, photo_end.jpg\n\n    The zip can also contain a text file for each image pair. The text file should be named:\n    ROOT.txt\n    For example:\n    photo.txt\n\n    This text file can be used to specify the edit instructions for the image pair.\n\n    If no text file is provided, the default_caption will be used.\n\n    If no default_caption is provided, the training will fail.\n    ',
-  }),
+  image_data_url: z.union([
+    z.string(),
+    z.union([z.instanceof(Blob), z.instanceof(File)]),
+  ]),
   learning_rate: z
     .optional(
       z.number().register(z.globalRegistry, {
@@ -900,10 +901,10 @@ export const zSchemaZImageTrainerInput = z.object({
       }),
     )
     .default(1000),
-  image_data_url: z.string().register(z.globalRegistry, {
-    description:
-      '\n    URL to zip archive with images of a consistent style. Try to use at least 10 images, although more is better.\n\n    The zip can also contain a text file for each image. The text file should be named:\n    ROOT.txt\n    For example:\n    photo.txt\n\n    This text file can be used to specify the edit instructions for the image pair.\n\n    If no text file is provided, the default_caption will be used.\n\n    If no default_caption is provided, the training will fail.\n    ',
-  }),
+  image_data_url: z.union([
+    z.string(),
+    z.union([z.instanceof(Blob), z.instanceof(File)]),
+  ]),
   training_type: z.optional(
     z.enum(['content', 'style', 'balanced']).register(z.globalRegistry, {
       description:
@@ -939,10 +940,10 @@ export const zSchemaQwenImageEdit2509TrainerInput = z.object({
       }),
     )
     .default(1000),
-  image_data_url: z.string().register(z.globalRegistry, {
-    description:
-      '\n    URL to the input data zip archive.\n\n    The zip should contain pairs of images. The images should be named:\n\n    ROOT_start.EXT and ROOT_end.EXT\n    For example:\n    photo_start.jpg and photo_end.jpg\n\n    The zip can also contain more than one reference image for each image pair. The reference images should be named:\n    ROOT_start.EXT, ROOT_start2.EXT, ROOT_start3.EXT, ..., ROOT_end.EXT\n    For example:\n    photo_start.jpg, photo_start2.jpg, photo_end.jpg\n\n    The Reference Image Count field should be set to the number of reference images.\n\n    The zip can also contain a text file for each image pair. The text file should be named:\n    ROOT.txt\n    For example:\n    photo.txt\n\n    This text file can be used to specify the edit instructions for the image pair.\n\n    If no text file is provided, the default_caption will be used.\n\n    If no default_caption is provided, the training will fail.\n    ',
-  }),
+  image_data_url: z.union([
+    z.string(),
+    z.union([z.instanceof(Blob), z.instanceof(File)]),
+  ]),
   learning_rate: z
     .optional(
       z.number().register(z.globalRegistry, {
@@ -972,10 +973,10 @@ export const zSchemaQwenImageLayeredTrainerInput = z.object({
       }),
     )
     .default(1000),
-  image_data_url: z.string().register(z.globalRegistry, {
-    description:
-      '\n    URL to the input data zip archive.\n\n    The zip should contain groups of images. The images should be named:\n\n    ROOT_start.EXT, ROOT_end.EXT, ROOT_end2.EXT, ..., ROOT_endN.EXT\n    For example:\n    photo_start.png, photo_end.png, photo_end2.png, ..., photo_endN.png\n\n    The start image is the base image that will be decomposed into layers.\n    The end images are the layers that will be added to the base image.  ROOT_end.EXT is the first layer, ROOT_end2.EXT is the second layer, and so on.\n    You can have up to 8 layers.\n    All image groups must have the same number of output layers.\n\n    The end images can contain transparent regions. Only PNG and WebP images are supported since these are the only formats that support transparency.\n\n    The zip can also contain a text file for each image group. The text file should be named:\n    ROOT.txt\n    For example:\n    photo.txt\n\n    This text file can be used to specify a description of the base image.\n\n    If no text file is provided, the default_caption will be used.\n\n    If no default_caption is provided, the training will fail.\n    ',
-  }),
+  image_data_url: z.union([
+    z.string(),
+    z.union([z.instanceof(Blob), z.instanceof(File)]),
+  ]),
   learning_rate: z
     .optional(
       z.number().register(z.globalRegistry, {
@@ -1005,10 +1006,10 @@ export const zSchemaQwenImageEdit2511TrainerInput = z.object({
       }),
     )
     .default(1000),
-  image_data_url: z.string().register(z.globalRegistry, {
-    description:
-      '\n    URL to the input data zip archive.\n\n    The zip should contain pairs of images. The images should be named:\n\n    ROOT_start.EXT and ROOT_end.EXT\n    For example:\n    photo_start.jpg and photo_end.jpg\n\n    The zip can also contain more than one reference image for each image pair. The reference images should be named:\n    ROOT_start.EXT, ROOT_start2.EXT, ROOT_start3.EXT, ..., ROOT_end.EXT\n    For example:\n    photo_start.jpg, photo_start2.jpg, photo_end.jpg\n\n    The Reference Image Count field should be set to the number of reference images.\n\n    The zip can also contain a text file for each image pair. The text file should be named:\n    ROOT.txt\n    For example:\n    photo.txt\n\n    This text file can be used to specify the edit instructions for the image pair.\n\n    If no text file is provided, the default_caption will be used.\n\n    If no default_caption is provided, the training will fail.\n    ',
-  }),
+  image_data_url: z.union([
+    z.string(),
+    z.union([z.instanceof(Blob), z.instanceof(File)]),
+  ]),
   learning_rate: z
     .optional(
       z.number().register(z.globalRegistry, {
@@ -1038,10 +1039,10 @@ export const zSchemaQwenImage2512TrainerInput = z.object({
       }),
     )
     .default(1000),
-  image_data_url: z.string().register(z.globalRegistry, {
-    description:
-      '\n    URL to the input data zip archive for text-to-image training.\n\n    The zip should contain images with their corresponding text captions:\n\n    image.EXT and image.txt\n    For example:\n    photo.jpg and photo.txt\n\n    The text file contains the caption/prompt describing the target image.\n\n    If no text file is provided for an image, the default_caption will be used.\n\n    If no default_caption is provided and a text file is missing, the training will fail.\n    ',
-  }),
+  image_data_url: z.union([
+    z.string(),
+    z.union([z.instanceof(Blob), z.instanceof(File)]),
+  ]),
   learning_rate: z
     .optional(
       z.number().register(z.globalRegistry, {
@@ -1129,10 +1130,10 @@ export const zSchemaLtx2VideoTrainerInput = z
         }),
       )
       .default(89),
-    training_data_url: z.string().register(z.globalRegistry, {
-      description:
-        'URL to zip archive with videos or images. Try to use at least 10 files, although more is better.\n\n        **Supported video formats:** .mp4, .mov, .avi, .mkv\n        **Supported image formats:** .png, .jpg, .jpeg\n\n        Note: The dataset must contain ONLY videos OR ONLY images - mixed datasets are not supported.\n\n        The archive can also contain text files with captions. Each text file should have the same name as the media file it corresponds to.',
-    }),
+    training_data_url: z.union([
+      z.string(),
+      z.union([z.instanceof(Blob), z.instanceof(File)]),
+    ]),
     split_input_duration_threshold: z
       .optional(
         z.number().gte(1).lte(60).register(z.globalRegistry, {
@@ -1332,10 +1333,10 @@ export const zSchemaLtx2V2vTrainerInput = z
         }),
       )
       .default(89),
-    training_data_url: z.string().register(z.globalRegistry, {
-      description:
-        'URL to zip archive with videos or images. Try to use at least 10 files, although more is better.\n\n        **Supported video formats:** .mp4, .mov, .avi, .mkv\n        **Supported image formats:** .png, .jpg, .jpeg\n\n        Note: The dataset must contain ONLY videos OR ONLY images - mixed datasets are not supported.\n\n        The archive can also contain text files with captions. Each text file should have the same name as the media file it corresponds to.',
-    }),
+    training_data_url: z.union([
+      z.string(),
+      z.union([z.instanceof(Blob), z.instanceof(File)]),
+    ]),
     split_input_duration_threshold: z
       .optional(
         z.number().gte(1).lte(60).register(z.globalRegistry, {
@@ -1470,10 +1471,10 @@ export const zSchemaFlux2TrainerV2Input = z
         }),
       )
       .default(1000),
-    image_data_url: z.string().register(z.globalRegistry, {
-      description:
-        '\n    URL to zip archive with images of a consistent style. Try to use at least 10 images, although more is better.\n\n    The zip can also contain a text file for each image. The text file should be named:\n    ROOT.txt\n    For example:\n    photo.txt\n\n    This text file can be used to specify the edit instructions for the image pair.\n\n    If no text file is provided, the default_caption will be used.\n\n    If no default_caption is provided, the training will fail.\n    ',
-    }),
+    image_data_url: z.union([
+      z.string(),
+      z.union([z.instanceof(Blob), z.instanceof(File)]),
+    ]),
     learning_rate: z
       .optional(
         z.number().register(z.globalRegistry, {
@@ -1511,10 +1512,10 @@ export const zSchemaFlux2TrainerV2EditInput = z.object({
       }),
     )
     .default(1000),
-  image_data_url: z.string().register(z.globalRegistry, {
-    description:
-      '\n    URL to the input data zip archive.\n\n    The zip should contain pairs of images. The images should be named:\n\n    ROOT_start.EXT and ROOT_end.EXT\n    For example:\n    photo_start.jpg and photo_end.jpg\n\n    The zip can also contain up to four reference image for each image pair. The reference images should be named:\n    ROOT_start.EXT, ROOT_start2.EXT, ROOT_start3.EXT, ROOT_start4.EXT, ROOT_end.EXT\n    For example:\n    photo_start.jpg, photo_start2.jpg, photo_end.jpg\n\n    The zip can also contain a text file for each image pair. The text file should be named:\n    ROOT.txt\n    For example:\n    photo.txt\n\n    This text file can be used to specify the edit instructions for the image pair.\n\n    If no text file is provided, the default_caption will be used.\n\n    If no default_caption is provided, the training will fail.\n    ',
-  }),
+  image_data_url: z.union([
+    z.string(),
+    z.union([z.instanceof(Blob), z.instanceof(File)]),
+  ]),
   learning_rate: z
     .optional(
       z.number().register(z.globalRegistry, {
@@ -1549,10 +1550,10 @@ export const zSchemaQwenImage2512TrainerV2Input = z.object({
       }),
     )
     .default(2000),
-  image_data_url: z.string().register(z.globalRegistry, {
-    description:
-      '\n        URL to the input data zip archive.\n\n        The zip should contain pairs of images and corresponding captions.\n\n        The images should be named: ROOT.EXT. For example: 001.jpg\n\n        The corresponding captions should be named: ROOT.txt. For example: 001.txt\n\n        If no text file is provided for an image, the default_caption will be used.\n        ',
-  }),
+  image_data_url: z.union([
+    z.string(),
+    z.union([z.instanceof(Blob), z.instanceof(File)]),
+  ]),
   learning_rate: z
     .optional(
       z.number().register(z.globalRegistry, {
@@ -1582,10 +1583,10 @@ export const zSchemaFlux2Klein4bBaseTrainerEditInput = z.object({
       }),
     )
     .default(1000),
-  image_data_url: z.string().register(z.globalRegistry, {
-    description:
-      '\n    URL to the input data zip archive.\n\n    The zip should contain pairs of images. The images should be named:\n\n    ROOT_start.EXT and ROOT_end.EXT\n    For example:\n    photo_start.jpg and photo_end.jpg\n\n    The zip can also contain up to four reference image for each image pair. The reference images should be named:\n    ROOT_start.EXT, ROOT_start2.EXT, ROOT_start3.EXT, ROOT_start4.EXT, ROOT_end.EXT\n    For example:\n    photo_start.jpg, photo_start2.jpg, photo_end.jpg\n\n    The zip can also contain a text file for each image pair. The text file should be named:\n    ROOT.txt\n    For example:\n    photo.txt\n\n    This text file can be used to specify the edit instructions for the image pair.\n\n    If no text file is provided, the default_caption will be used.\n\n    If no default_caption is provided, the training will fail.\n    ',
-  }),
+  image_data_url: z.union([
+    z.string(),
+    z.union([z.instanceof(Blob), z.instanceof(File)]),
+  ]),
   learning_rate: z
     .optional(
       z.number().register(z.globalRegistry, {
@@ -1623,10 +1624,10 @@ export const zSchemaFlux2Klein4bBaseTrainerInput = z
         }),
       )
       .default(1000),
-    image_data_url: z.string().register(z.globalRegistry, {
-      description:
-        '\n    URL to zip archive with images of a consistent style. Try to use at least 10 images, although more is better.\n\n    The zip can also contain a text file for each image. The text file should be named:\n    ROOT.txt\n    For example:\n    photo.txt\n\n    This text file can be used to specify the edit instructions for the image pair.\n\n    If no text file is provided, the default_caption will be used.\n\n    If no default_caption is provided, the training will fail.\n    ',
-    }),
+    image_data_url: z.union([
+      z.string(),
+      z.union([z.instanceof(Blob), z.instanceof(File)]),
+    ]),
     learning_rate: z
       .optional(
         z.number().register(z.globalRegistry, {
@@ -1667,10 +1668,10 @@ export const zSchemaFlux2Klein9bBaseTrainerInput = z
         }),
       )
       .default(1000),
-    image_data_url: z.string().register(z.globalRegistry, {
-      description:
-        '\n    URL to zip archive with images of a consistent style. Try to use at least 10 images, although more is better.\n\n    The zip can also contain a text file for each image. The text file should be named:\n    ROOT.txt\n    For example:\n    photo.txt\n\n    This text file can be used to specify the edit instructions for the image pair.\n\n    If no text file is provided, the default_caption will be used.\n\n    If no default_caption is provided, the training will fail.\n    ',
-    }),
+    image_data_url: z.union([
+      z.string(),
+      z.union([z.instanceof(Blob), z.instanceof(File)]),
+    ]),
     learning_rate: z
       .optional(
         z.number().register(z.globalRegistry, {
@@ -1708,10 +1709,10 @@ export const zSchemaFlux2Klein9bBaseTrainerEditInput = z.object({
       }),
     )
     .default(1000),
-  image_data_url: z.string().register(z.globalRegistry, {
-    description:
-      '\n    URL to the input data zip archive.\n\n    The zip should contain pairs of images. The images should be named:\n\n    ROOT_start.EXT and ROOT_end.EXT\n    For example:\n    photo_start.jpg and photo_end.jpg\n\n    The zip can also contain up to four reference image for each image pair. The reference images should be named:\n    ROOT_start.EXT, ROOT_start2.EXT, ROOT_start3.EXT, ROOT_start4.EXT, ROOT_end.EXT\n    For example:\n    photo_start.jpg, photo_start2.jpg, photo_end.jpg\n\n    The zip can also contain a text file for each image pair. The text file should be named:\n    ROOT.txt\n    For example:\n    photo.txt\n\n    This text file can be used to specify the edit instructions for the image pair.\n\n    If no text file is provided, the default_caption will be used.\n\n    If no default_caption is provided, the training will fail.\n    ',
-  }),
+  image_data_url: z.union([
+    z.string(),
+    z.union([z.instanceof(Blob), z.instanceof(File)]),
+  ]),
   learning_rate: z
     .optional(
       z.number().register(z.globalRegistry, {
@@ -1746,10 +1747,10 @@ export const zSchemaZImageTurboTrainerV2Input = z.object({
       }),
     )
     .default(2000),
-  image_data_url: z.string().register(z.globalRegistry, {
-    description:
-      '\n        URL to the input data zip archive.\n\n        The zip should contain pairs of images and corresponding captions.\n\n        The images should be named: ROOT.EXT. For example: 001.jpg\n\n        The corresponding captions should be named: ROOT.txt. For example: 001.txt\n\n        If no text file is provided for an image, the default_caption will be used.\n        ',
-  }),
+  image_data_url: z.union([
+    z.string(),
+    z.union([z.instanceof(Blob), z.instanceof(File)]),
+  ]),
   learning_rate: z
     .optional(
       z.number().register(z.globalRegistry, {
@@ -1779,10 +1780,10 @@ export const zSchemaZImageBaseTrainerInput = z.object({
       }),
     )
     .default(2000),
-  image_data_url: z.string().register(z.globalRegistry, {
-    description:
-      '\n        URL to the input data zip archive.\n\n        The zip should contain pairs of images and corresponding captions.\n\n        The images should be named: ROOT.EXT. For example: 001.jpg\n\n        The corresponding captions should be named: ROOT.txt. For example: 001.txt\n\n        If no text file is provided for an image, the default_caption will be used.\n        ',
-  }),
+  image_data_url: z.union([
+    z.string(),
+    z.union([z.instanceof(Blob), z.instanceof(File)]),
+  ]),
   learning_rate: z
     .optional(
       z.number().register(z.globalRegistry, {
@@ -1805,10 +1806,10 @@ export const zSchemaFluxLoraPortraitTrainerOutput = z.object({
  * PublicInput
  */
 export const zSchemaFluxLoraPortraitTrainerInput = z.object({
-  images_data_url: z.string().register(z.globalRegistry, {
-    description:
-      '\n        URL to zip archive with images of a consistent style. Try to use at least 10 images, although more is better.\n\n        In addition to images the archive can contain text files with captions. Each text file should have the same name as the image file it corresponds to.\n\n        The captions can include a special string `[trigger]`. If a trigger_word is specified, it will replace `[trigger]` in the captions.\n    ',
-  }),
+  images_data_url: z.union([
+    z.string(),
+    z.union([z.instanceof(Blob), z.instanceof(File)]),
+  ]),
   trigger_phrase: z.optional(z.union([z.string(), z.null()])),
   resume_from_checkpoint: z
     .optional(
@@ -1868,10 +1869,10 @@ export const zSchemaFluxLoraFastTrainingOutput = z.object({
  * PublicInput
  */
 export const zSchemaFluxLoraFastTrainingInput = z.object({
-  images_data_url: z.string().register(z.globalRegistry, {
-    description:
-      '\n        URL to zip archive with images. Try to use at least 4 images in general the more the better.\n\n        In addition to images the archive can contain text files with captions. Each text file should have the same name as the image file it corresponds to.\n    ',
-  }),
+  images_data_url: z.union([
+    z.string(),
+    z.union([z.instanceof(Blob), z.instanceof(File)]),
+  ]),
   is_input_format_already_preprocessed: z
     .optional(
       z.boolean().register(z.globalRegistry, {
@@ -1924,10 +1925,10 @@ export const zSchemaFluxKontextTrainerInput = z.object({
       }),
     )
     .default(1000),
-  image_data_url: z.string().register(z.globalRegistry, {
-    description:
-      '\n        URL to the input data zip archive.\n\n        The zip should contain pairs of images. The images should be named:\n\n        ROOT_start.EXT and ROOT_end.EXT\n        For example:\n        photo_start.jpg and photo_end.jpg\n\n        The zip can also contain a text file for each image pair. The text file should be named:\n        ROOT.txt\n        For example:\n        photo.txt\n\n        This text file can be used to specify the edit instructions for the image pair.\n\n        If no text file is provided, the default_caption will be used.\n\n        If no default_caption is provided, the training will fail.\n        ',
-  }),
+  image_data_url: z.union([
+    z.string(),
+    z.union([z.instanceof(Blob), z.instanceof(File)]),
+  ]),
   learning_rate: z.optional(z.number()).default(0.0001),
   default_caption: z.optional(
     z.string().register(z.globalRegistry, {
@@ -1955,10 +1956,10 @@ export const zSchemaFluxKreaTrainerOutput = z.object({
  * PublicInput
  */
 export const zSchemaFluxKreaTrainerInput = z.object({
-  images_data_url: z.string().register(z.globalRegistry, {
-    description:
-      '\n        URL to zip archive with images. Try to use at least 4 images in general the more the better.\n\n        In addition to images the archive can contain text files with captions. Each text file should have the same name as the image file it corresponds to.\n    ',
-  }),
+  images_data_url: z.union([
+    z.string(),
+    z.union([z.instanceof(Blob), z.instanceof(File)]),
+  ]),
   is_input_format_already_preprocessed: z
     .optional(
       z.boolean().register(z.globalRegistry, {

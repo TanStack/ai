@@ -60,10 +60,10 @@ export const zSchemaRouterAudioInput = z.object({
       }),
     )
     .default(1),
-  audio_url: z.string().register(z.globalRegistry, {
-    description:
-      'URL or data URI of the audio file to process. Supported formats: wav, mp3, aiff, aac, ogg, flac, m4a.',
-  }),
+  audio_url: z.union([
+    z.string(),
+    z.union([z.instanceof(Blob), z.instanceof(File)]),
+  ]),
 })
 
 /**
@@ -90,9 +90,11 @@ export const zSchemaFile = z.object({
     description: 'The URL where the file can be downloaded from.',
   }),
   file_data: z.optional(
-    z.string().register(z.globalRegistry, {
-      description: 'File data',
-    }),
+    z
+      .union([z.instanceof(Blob), z.instanceof(File)])
+      .register(z.globalRegistry, {
+        description: 'File data',
+      }),
   ),
 })
 
@@ -107,9 +109,10 @@ export const zSchemaQwen3TtsCloneVoice06bOutput = z.object({
  * Qwen3CloneVoiceInput
  */
 export const zSchemaQwen3TtsCloneVoice06bInput = z.object({
-  audio_url: z.string().register(z.globalRegistry, {
-    description: 'URL to the reference audio file used for voice cloning.',
-  }),
+  audio_url: z.union([
+    z.string(),
+    z.union([z.instanceof(Blob), z.instanceof(File)]),
+  ]),
   reference_text: z.optional(
     z.string().register(z.globalRegistry, {
       description:
@@ -129,9 +132,10 @@ export const zSchemaQwen3TtsCloneVoice17bOutput = z.object({
  * Qwen3CloneVoiceInput
  */
 export const zSchemaQwen3TtsCloneVoice17bInput = z.object({
-  audio_url: z.string().register(z.globalRegistry, {
-    description: 'URL to the reference audio file used for voice cloning.',
-  }),
+  audio_url: z.union([
+    z.string(),
+    z.union([z.instanceof(Blob), z.instanceof(File)]),
+  ]),
   reference_text: z.optional(
     z.string().register(z.globalRegistry, {
       description:
@@ -160,9 +164,11 @@ export const zSchemaWorkflowUtilitiesInterleaveVideoOutput = z
  */
 export const zSchemaWorkflowUtilitiesInterleaveVideoInput = z
   .object({
-    video_urls: z.array(z.string()).register(z.globalRegistry, {
-      description: 'List of video URLs to interleave in order',
-    }),
+    video_urls: z
+      .array(z.union([z.string(), z.instanceof(Blob), z.instanceof(File)]))
+      .register(z.globalRegistry, {
+        description: 'List of video URLs to interleave in order',
+      }),
   })
   .register(z.globalRegistry, {
     description: 'Input model for interleaving multiple videos',

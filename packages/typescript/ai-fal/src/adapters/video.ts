@@ -1,7 +1,7 @@
 import { fal } from '@fal-ai/client'
 import { BaseVideoAdapter } from '@tanstack/ai/adapters'
 import { configureFalClient, generateId as utilGenerateId } from '../utils'
-import { FalVideoSchemaMap } from '../generated'
+import { getFalVideoSchema } from '../generated'
 import type { FalVideoInput, FalVideoModel, FalVideoOutput } from '../generated'
 import type {
   VideoGenerationOptions,
@@ -65,15 +65,10 @@ export class FalVideoAdapter<
   constructor(model: TModel, config?: FalClientConfig) {
     super({}, model)
     this.model = model
-    // The only reason we need to cast here, is because the number of video models is so large,
-    // that typescript has a hard time inferring the type of the input and output schemas.
-    // I had to type it as generic zod schemas.
-    this.inputSchema = FalVideoSchemaMap[model].input as z.ZodSchema<
-      FalVideoInput<TModel>
-    >
-    this.outputSchema = FalVideoSchemaMap[model].output as z.ZodSchema<
-      FalVideoOutput<TModel>
-    >
+    // Use accessor function to avoid merged type slowdown
+    const schemas = getFalVideoSchema(model)
+    this.inputSchema = schemas.input as z.ZodSchema<FalVideoInput<TModel>>
+    this.outputSchema = schemas.output as z.ZodSchema<FalVideoOutput<TModel>>
     configureFalClient(config)
   }
 

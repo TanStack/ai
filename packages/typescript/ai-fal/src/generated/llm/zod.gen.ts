@@ -124,10 +124,7 @@ export const zSchemaVideoPromptGeneratorInput = z.object({
       }),
   ),
   image_url: z.optional(
-    z.string().register(z.globalRegistry, {
-      description:
-        'URL of an image to analyze and incorporate into the video prompt (optional)',
-    }),
+    z.union([z.string(), z.union([z.instanceof(Blob), z.instanceof(File)])]),
   ),
   model: z.optional(
     z

@@ -73,6 +73,7 @@ import {
   zSchemaZImageTurboTrainerV2Input,
   zSchemaZImageTurboTrainerV2Output,
 } from './zod.gen'
+import type { z } from 'zod'
 
 import type {
   SchemaFlux2Klein4bBaseTrainerEditInput,
@@ -146,8 +147,6 @@ import type {
   SchemaZImageTurboTrainerV2Input,
   SchemaZImageTurboTrainerV2Output,
 } from './types.gen'
-
-import type { z } from 'zod'
 
 export type TrainingEndpointMap = {
   'fal-ai/flux-krea-trainer': {
@@ -297,7 +296,10 @@ export type TrainingModel = keyof TrainingEndpointMap
 
 export const TrainingSchemaMap: Record<
   TrainingModel,
-  { input: z.ZodSchema; output: z.ZodSchema }
+  {
+    input: z.ZodSchema<TrainingModelInput<TrainingModel>>
+    output: z.ZodSchema<TrainingModelOutput<TrainingModel>>
+  }
 > = {
   ['fal-ai/flux-krea-trainer']: {
     input: zSchemaFluxKreaTrainerInput,
@@ -439,7 +441,7 @@ export const TrainingSchemaMap: Record<
     input: zSchemaHunyuanVideoLoraTrainingInput,
     output: zSchemaHunyuanVideoLoraTrainingOutput,
   },
-} as const
+}
 
 /** Get the input type for a specific training model */
 export type TrainingModelInput<T extends TrainingModel> =

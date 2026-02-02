@@ -106,31 +106,17 @@ function toPascalCase(str: string): string {
 }
 
 /**
- * Mapping of output types to their source categories
+ * Mapping of output types to their source categories.
+ * Categories have been combined (e.g., text-to-image + image-to-image → image).
  */
 const outputTypeMapping: Record<string, Array<string>> = {
-  image: ['text-to-image', 'image-to-image'],
-  video: [
-    'text-to-video',
-    'image-to-video',
-    'video-to-video',
-    'audio-to-video',
-  ],
-  audio: [
-    'text-to-audio',
-    'audio-to-audio',
-    'speech-to-speech',
-    'text-to-speech',
-  ],
-  text: [
-    'text-to-text',
-    'audio-to-text',
-    'video-to-text',
-    'vision',
-    'speech-to-text',
-  ],
-  '3d': ['text-to-3d', 'image-to-3d', '3d-to-3d'],
-  json: ['text-to-json', 'image-to-json', 'json'],
+  image: ['image'],
+  video: ['video'],
+  audio: ['audio'],
+  speech: ['speech'],
+  text: ['text', 'vision'], // vision models produce text output
+  '3d': ['3d'],
+  json: ['json'],
 }
 
 /**
@@ -213,16 +199,50 @@ function generateOutputTypeUnions(
     }
     lines.push(``)
 
-    // Generate combined SchemaMap
-    lines.push(`/** Combined schema map for all ${outputType} models */`)
-    lines.push(
-      `export const Fal${outputTypePascal}SchemaMap: Record<Fal${outputTypePascal}Model, { input: z.ZodSchema; output: z.ZodSchema }> = {`,
-    )
+    // Generate type guards for runtime narrowing
     for (const category of availableCategories) {
       const typeName = toPascalCase(category)
-      lines.push(`  ...${typeName}SchemaMap,`)
+      lines.push(
+        `function is${typeName}Model(model: string): model is ${typeName}Model {`,
+      )
+      lines.push(`  return model in ${typeName}SchemaMap`)
+      lines.push(`}`)
+      lines.push(``)
     }
-    lines.push(`} as const`)
+
+    // Generate overloaded accessor function
+    lines.push(
+      `/** Get schema for a ${outputType} model. Overloads dispatch to category-specific maps. */`,
+    )
+
+    // Generate overload signatures for specific model types
+    for (const category of availableCategories) {
+      const typeName = toPascalCase(category)
+      lines.push(
+        `export function getFal${outputTypePascal}Schema<T extends ${typeName}Model>(model: T): (typeof ${typeName}SchemaMap)[T]`,
+      )
+    }
+
+    // Generate generic overload for the union type (catches TModel extends Fal${outputTypePascal}Model)
+    lines.push(
+      `export function getFal${outputTypePascal}Schema(model: Fal${outputTypePascal}Model): { input: z.ZodSchema; output: z.ZodSchema }`,
+    )
+
+    // Generate implementation signature
+    lines.push(
+      `export function getFal${outputTypePascal}Schema(model: Fal${outputTypePascal}Model): { input: z.ZodSchema; output: z.ZodSchema } {`,
+    )
+
+    // Generate runtime dispatch
+    for (const category of availableCategories) {
+      const typeName = toPascalCase(category)
+      lines.push(`  if (is${typeName}Model(model)) {`)
+      lines.push(`    return ${typeName}SchemaMap[model]`)
+      lines.push(`  }`)
+    }
+
+    lines.push(`  throw new Error(\`Unknown ${outputType} model: \${model}\`)`)
+    lines.push(`}`)
     lines.push(``)
   }
 
@@ -279,12 +299,11 @@ async function generateEndpointMap(
     `import {`,
     ...schemaImports.map((t) => `  ${t},`),
     `} from './zod.gen'`,
+    `import type { z } from 'zod'`,
     ``,
     `import type {`,
     ...typeImports.map((t) => `  ${t},`),
     `} from './types.gen'`,
-    ``,
-    `import type { z } from 'zod'`,
     ``,
   ]
 
@@ -300,12 +319,15 @@ async function generateEndpointMap(
 
   typeMapLines.push(`}`)
 
-  // Generate Zod SchemaMap constant
+  // Generate Zod SchemaMap constant with explicit typing
   const schemaMapLines = [
     ``,
     `export const ${typeName}SchemaMap: Record<`,
     `  ${typeName}Model,`,
-    `  { input: z.ZodSchema; output: z.ZodSchema }`,
+    `  {`,
+    `    input: z.ZodSchema<${typeName}ModelInput<${typeName}Model>>`,
+    `    output: z.ZodSchema<${typeName}ModelOutput<${typeName}Model>>`,
+    `  }`,
     `> = {`,
   ]
 
@@ -318,7 +340,7 @@ async function generateEndpointMap(
     schemaMapLines.push(`  },`)
   }
 
-  schemaMapLines.push(`} as const`)
+  schemaMapLines.push(`}`)
 
   // Generate Model type (must come before SchemaMap which references it)
   const modelType = [

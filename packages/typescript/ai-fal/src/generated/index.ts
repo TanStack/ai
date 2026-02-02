@@ -2,69 +2,31 @@
 // Generated from types.gen.ts via scripts/generate-fal-endpoint-maps.ts
 
 // Import value exports (SchemaMap constants) from category endpoint maps
-import { Gen3dTo3dSchemaMap } from './3d-to-3d/endpoint-map'
-import { AudioToAudioSchemaMap } from './audio-to-audio/endpoint-map'
-import { AudioToTextSchemaMap } from './audio-to-text/endpoint-map'
-import { AudioToVideoSchemaMap } from './audio-to-video/endpoint-map'
-import { ImageTo3dSchemaMap } from './image-to-3d/endpoint-map'
-import { ImageToImageSchemaMap } from './image-to-image/endpoint-map'
-import { ImageToJsonSchemaMap } from './image-to-json/endpoint-map'
-import { ImageToVideoSchemaMap } from './image-to-video/endpoint-map'
+import { Gen3dSchemaMap } from './3d/endpoint-map'
+import { AudioSchemaMap } from './audio/endpoint-map'
+import { ImageSchemaMap } from './image/endpoint-map'
 import { JsonSchemaMap } from './json/endpoint-map'
-import { SpeechToSpeechSchemaMap } from './speech-to-speech/endpoint-map'
-import { SpeechToTextSchemaMap } from './speech-to-text/endpoint-map'
-import { TextTo3dSchemaMap } from './text-to-3d/endpoint-map'
-import { TextToAudioSchemaMap } from './text-to-audio/endpoint-map'
-import { TextToImageSchemaMap } from './text-to-image/endpoint-map'
-import { TextToJsonSchemaMap } from './text-to-json/endpoint-map'
-import { TextToSpeechSchemaMap } from './text-to-speech/endpoint-map'
-import { TextToTextSchemaMap } from './text-to-text/endpoint-map'
-import { TextToVideoSchemaMap } from './text-to-video/endpoint-map'
-import { VideoToTextSchemaMap } from './video-to-text/endpoint-map'
-import { VideoToVideoSchemaMap } from './video-to-video/endpoint-map'
+import { SpeechSchemaMap } from './speech/endpoint-map'
+import { TextSchemaMap } from './text/endpoint-map'
+import { VideoSchemaMap } from './video/endpoint-map'
 import { VisionSchemaMap } from './vision/endpoint-map'
 
 // Import type exports from category endpoint maps
 import type {
-  Gen3dTo3dModel,
-  Gen3dTo3dModelInput,
-  Gen3dTo3dModelOutput,
-} from './3d-to-3d/endpoint-map'
+  Gen3dModel,
+  Gen3dModelInput,
+  Gen3dModelOutput,
+} from './3d/endpoint-map'
 import type {
-  AudioToAudioModel,
-  AudioToAudioModelInput,
-  AudioToAudioModelOutput,
-} from './audio-to-audio/endpoint-map'
+  AudioModel,
+  AudioModelInput,
+  AudioModelOutput,
+} from './audio/endpoint-map'
 import type {
-  AudioToTextModel,
-  AudioToTextModelInput,
-  AudioToTextModelOutput,
-} from './audio-to-text/endpoint-map'
-import type {
-  AudioToVideoModel,
-  AudioToVideoModelInput,
-  AudioToVideoModelOutput,
-} from './audio-to-video/endpoint-map'
-import type {
-  ImageTo3dModel,
-  ImageTo3dModelInput,
-  ImageTo3dModelOutput,
-} from './image-to-3d/endpoint-map'
-import type {
-  ImageToImageModel,
-  ImageToImageModelInput,
-  ImageToImageModelOutput,
-} from './image-to-image/endpoint-map'
-import type {
-  ImageToJsonModel,
-  ImageToJsonModelInput,
-  ImageToJsonModelOutput,
-} from './image-to-json/endpoint-map'
-import type {
-  ImageToVideoModel,
-  ImageToVideoModelInput,
-  ImageToVideoModelOutput,
-} from './image-to-video/endpoint-map'
+  ImageModel,
+  ImageModelInput,
+  ImageModelOutput,
+} from './image/endpoint-map'
 import type {
   JsonModel,
   JsonModelInput,
@@ -72,63 +34,22 @@ import type {
 } from './json/endpoint-map'
 import type { LlmModel } from './llm/endpoint-map'
 import type {
-  SpeechToSpeechModel,
-  SpeechToSpeechModelInput,
-  SpeechToSpeechModelOutput,
-} from './speech-to-speech/endpoint-map'
+  SpeechModel,
+  SpeechModelInput,
+  SpeechModelOutput,
+} from './speech/endpoint-map'
 import type {
-  SpeechToTextModel,
-  SpeechToTextModelInput,
-  SpeechToTextModelOutput,
-} from './speech-to-text/endpoint-map'
-import type {
-  TextTo3dModel,
-  TextTo3dModelInput,
-  TextTo3dModelOutput,
-} from './text-to-3d/endpoint-map'
-import type {
-  TextToAudioModel,
-  TextToAudioModelInput,
-  TextToAudioModelOutput,
-} from './text-to-audio/endpoint-map'
-import type {
-  TextToImageModel,
-  TextToImageModelInput,
-  TextToImageModelOutput,
-} from './text-to-image/endpoint-map'
-import type {
-  TextToJsonModel,
-  TextToJsonModelInput,
-  TextToJsonModelOutput,
-} from './text-to-json/endpoint-map'
-import type {
-  TextToSpeechModel,
-  TextToSpeechModelInput,
-  TextToSpeechModelOutput,
-} from './text-to-speech/endpoint-map'
-import type {
-  TextToTextModel,
-  TextToTextModelInput,
-  TextToTextModelOutput,
-} from './text-to-text/endpoint-map'
-import type {
-  TextToVideoModel,
-  TextToVideoModelInput,
-  TextToVideoModelOutput,
-} from './text-to-video/endpoint-map'
+  TextModel,
+  TextModelInput,
+  TextModelOutput,
+} from './text/endpoint-map'
 import type { TrainingModel } from './training/endpoint-map'
 import type { UnknownModel } from './unknown/endpoint-map'
-import type { VideoToAudioModel } from './video-to-audio/endpoint-map'
 import type {
-  VideoToTextModel,
-  VideoToTextModelInput,
-  VideoToTextModelOutput,
-} from './video-to-text/endpoint-map'
-import type {
-  VideoToVideoModel,
-  VideoToVideoModelInput,
-  VideoToVideoModelOutput,
-} from './video-to-video/endpoint-map'
+  VideoModel,
+  VideoModelInput,
+  VideoModelOutput,
+} from './video/endpoint-map'
 import type {
   VisionModel,
   VisionModelInput,
@@ -141,30 +62,16 @@ import type { z } from 'zod'
 import type { EndpointTypeMap } from '@fal-ai/client/endpoints'
 
 // Re-export all category endpoint maps
-export * from './3d-to-3d/endpoint-map'
-export * from './audio-to-audio/endpoint-map'
-export * from './audio-to-text/endpoint-map'
-export * from './audio-to-video/endpoint-map'
-export * from './image-to-3d/endpoint-map'
-export * from './image-to-image/endpoint-map'
-export * from './image-to-json/endpoint-map'
-export * from './image-to-video/endpoint-map'
+export * from './3d/endpoint-map'
+export * from './audio/endpoint-map'
+export * from './image/endpoint-map'
 export * from './json/endpoint-map'
 export * from './llm/endpoint-map'
-export * from './speech-to-speech/endpoint-map'
-export * from './speech-to-text/endpoint-map'
-export * from './text-to-3d/endpoint-map'
-export * from './text-to-audio/endpoint-map'
-export * from './text-to-image/endpoint-map'
-export * from './text-to-json/endpoint-map'
-export * from './text-to-speech/endpoint-map'
-export * from './text-to-text/endpoint-map'
-export * from './text-to-video/endpoint-map'
+export * from './speech/endpoint-map'
+export * from './text/endpoint-map'
 export * from './training/endpoint-map'
 export * from './unknown/endpoint-map'
-export * from './video-to-audio/endpoint-map'
-export * from './video-to-text/endpoint-map'
-export * from './video-to-video/endpoint-map'
+export * from './video/endpoint-map'
 export * from './vision/endpoint-map'
 
 /**
@@ -174,34 +81,20 @@ export * from './vision/endpoint-map'
  * import category-specific types like ImageToImageModel, TextToImageModel, etc.
  */
 export type FalModel =
-  | AudioToAudioModel
-  | AudioToTextModel
-  | AudioToVideoModel
-  | Gen3dTo3dModel
-  | ImageTo3dModel
-  | ImageToImageModel
-  | ImageToJsonModel
-  | ImageToVideoModel
+  | AudioModel
+  | Gen3dModel
+  | ImageModel
   | JsonModel
   | LlmModel
-  | SpeechToSpeechModel
-  | SpeechToTextModel
-  | TextTo3dModel
-  | TextToAudioModel
-  | TextToImageModel
-  | TextToJsonModel
-  | TextToSpeechModel
-  | TextToTextModel
-  | TextToVideoModel
+  | SpeechModel
+  | TextModel
   | TrainingModel
   | UnknownModel
-  | VideoToAudioModel
-  | VideoToTextModel
-  | VideoToVideoModel
+  | VideoModel
   | VisionModel
 
 /** Union of all image generation models */
-export type FalImageModel = TextToImageModel | ImageToImageModel
+export type FalImageModel = ImageModel
 
 /**
  * Get the input type for a specific image model.
@@ -210,11 +103,9 @@ export type FalImageModel = TextToImageModel | ImageToImageModel
 export type FalImageInput<T extends FalImageModel> =
   T extends keyof EndpointTypeMap
     ? EndpointTypeMap[T]['input']
-    : T extends TextToImageModel
-      ? TextToImageModelInput<T>
-      : T extends ImageToImageModel
-        ? ImageToImageModelInput<T>
-        : never
+    : T extends ImageModel
+      ? ImageModelInput<T>
+      : never
 
 /**
  * Get the output type for a specific image model.
@@ -223,27 +114,34 @@ export type FalImageInput<T extends FalImageModel> =
 export type FalImageOutput<T extends FalImageModel> =
   T extends keyof EndpointTypeMap
     ? EndpointTypeMap[T]['output']
-    : T extends TextToImageModel
-      ? TextToImageModelOutput<T>
-      : T extends ImageToImageModel
-        ? ImageToImageModelOutput<T>
-        : never
+    : T extends ImageModel
+      ? ImageModelOutput<T>
+      : never
 
-/** Combined schema map for all image models */
-export const FalImageSchemaMap: Record<
-  FalImageModel,
-  { input: z.ZodSchema; output: z.ZodSchema }
-> = {
-  ...TextToImageSchemaMap,
-  ...ImageToImageSchemaMap,
-} as const
+function isImageModel(model: string): model is ImageModel {
+  return model in ImageSchemaMap
+}
+
+/** Get schema for a image model. Overloads dispatch to category-specific maps. */
+export function getFalImageSchema<T extends ImageModel>(
+  model: T,
+): (typeof ImageSchemaMap)[T]
+export function getFalImageSchema(model: FalImageModel): {
+  input: z.ZodSchema
+  output: z.ZodSchema
+}
+export function getFalImageSchema(model: FalImageModel): {
+  input: z.ZodSchema
+  output: z.ZodSchema
+} {
+  if (isImageModel(model)) {
+    return ImageSchemaMap[model]
+  }
+  throw new Error(`Unknown image model: ${model}`)
+}
 
 /** Union of all video generation models */
-export type FalVideoModel =
-  | TextToVideoModel
-  | ImageToVideoModel
-  | VideoToVideoModel
-  | AudioToVideoModel
+export type FalVideoModel = VideoModel
 
 /**
  * Get the input type for a specific video model.
@@ -252,15 +150,9 @@ export type FalVideoModel =
 export type FalVideoInput<T extends FalVideoModel> =
   T extends keyof EndpointTypeMap
     ? EndpointTypeMap[T]['input']
-    : T extends TextToVideoModel
-      ? TextToVideoModelInput<T>
-      : T extends ImageToVideoModel
-        ? ImageToVideoModelInput<T>
-        : T extends VideoToVideoModel
-          ? VideoToVideoModelInput<T>
-          : T extends AudioToVideoModel
-            ? AudioToVideoModelInput<T>
-            : never
+    : T extends VideoModel
+      ? VideoModelInput<T>
+      : never
 
 /**
  * Get the output type for a specific video model.
@@ -269,33 +161,34 @@ export type FalVideoInput<T extends FalVideoModel> =
 export type FalVideoOutput<T extends FalVideoModel> =
   T extends keyof EndpointTypeMap
     ? EndpointTypeMap[T]['output']
-    : T extends TextToVideoModel
-      ? TextToVideoModelOutput<T>
-      : T extends ImageToVideoModel
-        ? ImageToVideoModelOutput<T>
-        : T extends VideoToVideoModel
-          ? VideoToVideoModelOutput<T>
-          : T extends AudioToVideoModel
-            ? AudioToVideoModelOutput<T>
-            : never
+    : T extends VideoModel
+      ? VideoModelOutput<T>
+      : never
 
-/** Combined schema map for all video models */
-export const FalVideoSchemaMap: Record<
-  FalVideoModel,
-  { input: z.ZodSchema; output: z.ZodSchema }
-> = {
-  ...TextToVideoSchemaMap,
-  ...ImageToVideoSchemaMap,
-  ...VideoToVideoSchemaMap,
-  ...AudioToVideoSchemaMap,
-} as const
+function isVideoModel(model: string): model is VideoModel {
+  return model in VideoSchemaMap
+}
+
+/** Get schema for a video model. Overloads dispatch to category-specific maps. */
+export function getFalVideoSchema<T extends VideoModel>(
+  model: T,
+): (typeof VideoSchemaMap)[T]
+export function getFalVideoSchema(model: FalVideoModel): {
+  input: z.ZodSchema
+  output: z.ZodSchema
+}
+export function getFalVideoSchema(model: FalVideoModel): {
+  input: z.ZodSchema
+  output: z.ZodSchema
+} {
+  if (isVideoModel(model)) {
+    return VideoSchemaMap[model]
+  }
+  throw new Error(`Unknown video model: ${model}`)
+}
 
 /** Union of all audio generation models */
-export type FalAudioModel =
-  | TextToAudioModel
-  | AudioToAudioModel
-  | SpeechToSpeechModel
-  | TextToSpeechModel
+export type FalAudioModel = AudioModel
 
 /**
  * Get the input type for a specific audio model.
@@ -304,15 +197,9 @@ export type FalAudioModel =
 export type FalAudioInput<T extends FalAudioModel> =
   T extends keyof EndpointTypeMap
     ? EndpointTypeMap[T]['input']
-    : T extends TextToAudioModel
-      ? TextToAudioModelInput<T>
-      : T extends AudioToAudioModel
-        ? AudioToAudioModelInput<T>
-        : T extends SpeechToSpeechModel
-          ? SpeechToSpeechModelInput<T>
-          : T extends TextToSpeechModel
-            ? TextToSpeechModelInput<T>
-            : never
+    : T extends AudioModel
+      ? AudioModelInput<T>
+      : never
 
 /**
  * Get the output type for a specific audio model.
@@ -321,34 +208,81 @@ export type FalAudioInput<T extends FalAudioModel> =
 export type FalAudioOutput<T extends FalAudioModel> =
   T extends keyof EndpointTypeMap
     ? EndpointTypeMap[T]['output']
-    : T extends TextToAudioModel
-      ? TextToAudioModelOutput<T>
-      : T extends AudioToAudioModel
-        ? AudioToAudioModelOutput<T>
-        : T extends SpeechToSpeechModel
-          ? SpeechToSpeechModelOutput<T>
-          : T extends TextToSpeechModel
-            ? TextToSpeechModelOutput<T>
-            : never
+    : T extends AudioModel
+      ? AudioModelOutput<T>
+      : never
 
-/** Combined schema map for all audio models */
-export const FalAudioSchemaMap: Record<
-  FalAudioModel,
-  { input: z.ZodSchema; output: z.ZodSchema }
-> = {
-  ...TextToAudioSchemaMap,
-  ...AudioToAudioSchemaMap,
-  ...SpeechToSpeechSchemaMap,
-  ...TextToSpeechSchemaMap,
-} as const
+function isAudioModel(model: string): model is AudioModel {
+  return model in AudioSchemaMap
+}
+
+/** Get schema for a audio model. Overloads dispatch to category-specific maps. */
+export function getFalAudioSchema<T extends AudioModel>(
+  model: T,
+): (typeof AudioSchemaMap)[T]
+export function getFalAudioSchema(model: FalAudioModel): {
+  input: z.ZodSchema
+  output: z.ZodSchema
+}
+export function getFalAudioSchema(model: FalAudioModel): {
+  input: z.ZodSchema
+  output: z.ZodSchema
+} {
+  if (isAudioModel(model)) {
+    return AudioSchemaMap[model]
+  }
+  throw new Error(`Unknown audio model: ${model}`)
+}
+
+/** Union of all speech generation models */
+export type FalSpeechModel = SpeechModel
+
+/**
+ * Get the input type for a specific speech model.
+ * Checks official fal.ai EndpointTypeMap first, then falls back to category-specific types.
+ */
+export type FalSpeechInput<T extends FalSpeechModel> =
+  T extends keyof EndpointTypeMap
+    ? EndpointTypeMap[T]['input']
+    : T extends SpeechModel
+      ? SpeechModelInput<T>
+      : never
+
+/**
+ * Get the output type for a specific speech model.
+ * Checks official fal.ai EndpointTypeMap first, then falls back to category-specific types.
+ */
+export type FalSpeechOutput<T extends FalSpeechModel> =
+  T extends keyof EndpointTypeMap
+    ? EndpointTypeMap[T]['output']
+    : T extends SpeechModel
+      ? SpeechModelOutput<T>
+      : never
+
+function isSpeechModel(model: string): model is SpeechModel {
+  return model in SpeechSchemaMap
+}
+
+/** Get schema for a speech model. Overloads dispatch to category-specific maps. */
+export function getFalSpeechSchema<T extends SpeechModel>(
+  model: T,
+): (typeof SpeechSchemaMap)[T]
+export function getFalSpeechSchema(model: FalSpeechModel): {
+  input: z.ZodSchema
+  output: z.ZodSchema
+}
+export function getFalSpeechSchema(model: FalSpeechModel): {
+  input: z.ZodSchema
+  output: z.ZodSchema
+} {
+  if (isSpeechModel(model)) {
+    return SpeechSchemaMap[model]
+  }
+  throw new Error(`Unknown speech model: ${model}`)
+}
 
 /** Union of all text generation models */
-export type FalTextModel =
-  | TextToTextModel
-  | AudioToTextModel
-  | VideoToTextModel
-  | VisionModel
-  | SpeechToTextModel
+export type FalTextModel = TextModel | VisionModel
 
 /**
  * Get the input type for a specific text model.
@@ -357,17 +291,11 @@ export type FalTextModel =
 export type FalTextInput<T extends FalTextModel> =
   T extends keyof EndpointTypeMap
     ? EndpointTypeMap[T]['input']
-    : T extends TextToTextModel
-      ? TextToTextModelInput<T>
-      : T extends AudioToTextModel
-        ? AudioToTextModelInput<T>
-        : T extends VideoToTextModel
-          ? VideoToTextModelInput<T>
-          : T extends VisionModel
-            ? VisionModelInput<T>
-            : T extends SpeechToTextModel
-              ? SpeechToTextModelInput<T>
-              : never
+    : T extends TextModel
+      ? TextModelInput<T>
+      : T extends VisionModel
+        ? VisionModelInput<T>
+        : never
 
 /**
  * Get the output type for a specific text model.
@@ -376,32 +304,46 @@ export type FalTextInput<T extends FalTextModel> =
 export type FalTextOutput<T extends FalTextModel> =
   T extends keyof EndpointTypeMap
     ? EndpointTypeMap[T]['output']
-    : T extends TextToTextModel
-      ? TextToTextModelOutput<T>
-      : T extends AudioToTextModel
-        ? AudioToTextModelOutput<T>
-        : T extends VideoToTextModel
-          ? VideoToTextModelOutput<T>
-          : T extends VisionModel
-            ? VisionModelOutput<T>
-            : T extends SpeechToTextModel
-              ? SpeechToTextModelOutput<T>
-              : never
+    : T extends TextModel
+      ? TextModelOutput<T>
+      : T extends VisionModel
+        ? VisionModelOutput<T>
+        : never
 
-/** Combined schema map for all text models */
-export const FalTextSchemaMap: Record<
-  FalTextModel,
-  { input: z.ZodSchema; output: z.ZodSchema }
-> = {
-  ...TextToTextSchemaMap,
-  ...AudioToTextSchemaMap,
-  ...VideoToTextSchemaMap,
-  ...VisionSchemaMap,
-  ...SpeechToTextSchemaMap,
-} as const
+function isTextModel(model: string): model is TextModel {
+  return model in TextSchemaMap
+}
+
+function isVisionModel(model: string): model is VisionModel {
+  return model in VisionSchemaMap
+}
+
+/** Get schema for a text model. Overloads dispatch to category-specific maps. */
+export function getFalTextSchema<T extends TextModel>(
+  model: T,
+): (typeof TextSchemaMap)[T]
+export function getFalTextSchema<T extends VisionModel>(
+  model: T,
+): (typeof VisionSchemaMap)[T]
+export function getFalTextSchema(model: FalTextModel): {
+  input: z.ZodSchema
+  output: z.ZodSchema
+}
+export function getFalTextSchema(model: FalTextModel): {
+  input: z.ZodSchema
+  output: z.ZodSchema
+} {
+  if (isTextModel(model)) {
+    return TextSchemaMap[model]
+  }
+  if (isVisionModel(model)) {
+    return VisionSchemaMap[model]
+  }
+  throw new Error(`Unknown text model: ${model}`)
+}
 
 /** Union of all 3d generation models */
-export type Fal3dModel = TextTo3dModel | ImageTo3dModel | Gen3dTo3dModel
+export type Fal3dModel = Gen3dModel
 
 /**
  * Get the input type for a specific 3d model.
@@ -409,13 +351,9 @@ export type Fal3dModel = TextTo3dModel | ImageTo3dModel | Gen3dTo3dModel
  */
 export type Fal3dInput<T extends Fal3dModel> = T extends keyof EndpointTypeMap
   ? EndpointTypeMap[T]['input']
-  : T extends TextTo3dModel
-    ? TextTo3dModelInput<T>
-    : T extends ImageTo3dModel
-      ? ImageTo3dModelInput<T>
-      : T extends Gen3dTo3dModel
-        ? Gen3dTo3dModelInput<T>
-        : never
+  : T extends Gen3dModel
+    ? Gen3dModelInput<T>
+    : never
 
 /**
  * Get the output type for a specific 3d model.
@@ -423,26 +361,34 @@ export type Fal3dInput<T extends Fal3dModel> = T extends keyof EndpointTypeMap
  */
 export type Fal3dOutput<T extends Fal3dModel> = T extends keyof EndpointTypeMap
   ? EndpointTypeMap[T]['output']
-  : T extends TextTo3dModel
-    ? TextTo3dModelOutput<T>
-    : T extends ImageTo3dModel
-      ? ImageTo3dModelOutput<T>
-      : T extends Gen3dTo3dModel
-        ? Gen3dTo3dModelOutput<T>
-        : never
+  : T extends Gen3dModel
+    ? Gen3dModelOutput<T>
+    : never
 
-/** Combined schema map for all 3d models */
-export const Fal3dSchemaMap: Record<
-  Fal3dModel,
-  { input: z.ZodSchema; output: z.ZodSchema }
-> = {
-  ...TextTo3dSchemaMap,
-  ...ImageTo3dSchemaMap,
-  ...Gen3dTo3dSchemaMap,
-} as const
+function isGen3dModel(model: string): model is Gen3dModel {
+  return model in Gen3dSchemaMap
+}
+
+/** Get schema for a 3d model. Overloads dispatch to category-specific maps. */
+export function getFal3dSchema<T extends Gen3dModel>(
+  model: T,
+): (typeof Gen3dSchemaMap)[T]
+export function getFal3dSchema(model: Fal3dModel): {
+  input: z.ZodSchema
+  output: z.ZodSchema
+}
+export function getFal3dSchema(model: Fal3dModel): {
+  input: z.ZodSchema
+  output: z.ZodSchema
+} {
+  if (isGen3dModel(model)) {
+    return Gen3dSchemaMap[model]
+  }
+  throw new Error(`Unknown 3d model: ${model}`)
+}
 
 /** Union of all json generation models */
-export type FalJsonModel = TextToJsonModel | ImageToJsonModel | JsonModel
+export type FalJsonModel = JsonModel
 
 /**
  * Get the input type for a specific json model.
@@ -451,13 +397,9 @@ export type FalJsonModel = TextToJsonModel | ImageToJsonModel | JsonModel
 export type FalJsonInput<T extends FalJsonModel> =
   T extends keyof EndpointTypeMap
     ? EndpointTypeMap[T]['input']
-    : T extends TextToJsonModel
-      ? TextToJsonModelInput<T>
-      : T extends ImageToJsonModel
-        ? ImageToJsonModelInput<T>
-        : T extends JsonModel
-          ? JsonModelInput<T>
-          : never
+    : T extends JsonModel
+      ? JsonModelInput<T>
+      : never
 
 /**
  * Get the output type for a specific json model.
@@ -466,20 +408,28 @@ export type FalJsonInput<T extends FalJsonModel> =
 export type FalJsonOutput<T extends FalJsonModel> =
   T extends keyof EndpointTypeMap
     ? EndpointTypeMap[T]['output']
-    : T extends TextToJsonModel
-      ? TextToJsonModelOutput<T>
-      : T extends ImageToJsonModel
-        ? ImageToJsonModelOutput<T>
-        : T extends JsonModel
-          ? JsonModelOutput<T>
-          : never
+    : T extends JsonModel
+      ? JsonModelOutput<T>
+      : never
 
-/** Combined schema map for all json models */
-export const FalJsonSchemaMap: Record<
-  FalJsonModel,
-  { input: z.ZodSchema; output: z.ZodSchema }
-> = {
-  ...TextToJsonSchemaMap,
-  ...ImageToJsonSchemaMap,
-  ...JsonSchemaMap,
-} as const
+function isJsonModel(model: string): model is JsonModel {
+  return model in JsonSchemaMap
+}
+
+/** Get schema for a json model. Overloads dispatch to category-specific maps. */
+export function getFalJsonSchema<T extends JsonModel>(
+  model: T,
+): (typeof JsonSchemaMap)[T]
+export function getFalJsonSchema(model: FalJsonModel): {
+  input: z.ZodSchema
+  output: z.ZodSchema
+}
+export function getFalJsonSchema(model: FalJsonModel): {
+  input: z.ZodSchema
+  output: z.ZodSchema
+} {
+  if (isJsonModel(model)) {
+    return JsonSchemaMap[model]
+  }
+  throw new Error(`Unknown json model: ${model}`)
+}
