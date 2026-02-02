@@ -9,7 +9,7 @@ title: toHttpStream
 function toHttpStream(stream, abortController?): ReadableStream<Uint8Array<ArrayBufferLike>>;
 ```
 
-Defined in: [stream-to-response.ts:174](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/stream-to-response.ts#L174)
+Defined in: [stream-to-response.ts:175](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/stream-to-response.ts#L175)
 
 Convert a StreamChunk async iterable to a ReadableStream in HTTP stream format (newline-delimited JSON)
 
@@ -23,7 +23,7 @@ This format is compatible with `fetchHttpStream` connection adapter.
 
 ### stream
 
-`AsyncIterable`\<[`StreamChunk`](../type-aliases/StreamChunk.md)\>
+`AsyncIterable`\<[`AGUIEvent`](../type-aliases/AGUIEvent.md)\>
 
 AsyncIterable of StreamChunks from chat()
 

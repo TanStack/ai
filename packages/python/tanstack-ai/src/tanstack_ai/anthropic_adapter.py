@@ -28,16 +28,22 @@ from .message_formatters import format_messages_for_anthropic
 from .types import (
     AIAdapterConfig,
     ChatOptions,
-    ContentStreamChunk,
-    DoneStreamChunk,
     EmbeddingOptions,
     EmbeddingResult,
-    ErrorStreamChunk,
+    RunErrorEvent,
+    RunFinishedEvent,
+    RunStartedEvent,
+    StepFinishedEvent,
+    StepStartedEvent,
     StreamChunk,
     SummarizationOptions,
     SummarizationResult,
-    ThinkingStreamChunk,
-    ToolCallStreamChunk,
+    TextMessageContentEvent,
+    TextMessageEndEvent,
+    TextMessageStartEvent,
+    ToolCallArgsEvent,
+    ToolCallEndEvent,
+    ToolCallStartEvent,
 )
 
 
@@ -96,14 +102,21 @@ class AnthropicAdapter(BaseAdapter):
 
     async def chat_stream(self, options: ChatOptions) -> AsyncIterator[StreamChunk]:
         """
-        Stream chat completions from Anthropic.
+        Stream chat completions from Anthropic using AG-UI Protocol events.
 
         Args:
             options: Chat options
 
         Yields:
-            StreamChunk objects
+            AG-UI StreamChunk events (RUN_STARTED, TEXT_MESSAGE_CONTENT, etc.)
         """
+        # AG-UI lifecycle tracking
+        run_id = self._generate_id()
+        message_id = self._generate_id()
+        step_id: Optional[str] = None
+        has_emitted_run_started = False
+        has_emitted_text_message_start = False
+        
         try:
             # Format messages for Anthropic (function returns tuple of (system, messages))
             system_prompt, formatted_messages = format_messages_for_anthropic(
@@ -144,18 +157,29 @@ class AnthropicAdapter(BaseAdapter):
                 request_params.update(options.provider_options)
 
             # Make the streaming request
-            message_id = self._generate_id()
             accumulated_content = ""
             accumulated_thinking = ""
             tool_calls: Dict[int, Dict[str, Any]] = {}
+            current_tool_index = -1
 
             async with self.client.messages.stream(**request_params) as stream:
                 async for event in stream:
                     timestamp = int(time.time() * 1000)
 
+                    # Emit RUN_STARTED on first event
+                    if not has_emitted_run_started:
+                        has_emitted_run_started = True
+                        yield RunStartedEvent(
+                            type="RUN_STARTED",
+                            runId=run_id,
+                            model=options.model,
+                            timestamp=timestamp,
+                            threadId=None,
+                        )
+
                     # Handle different event types
                     if event.type == "message_start":
-                        # Message started - we could emit metadata here
+                        # Message started - metadata handled above
                         pass
 
                     elif event.type == "content_block_start":
@@ -163,61 +187,178 @@ class AnthropicAdapter(BaseAdapter):
                         block = event.content_block
                         if hasattr(block, "type"):
                             if block.type == "text":
-                                # Text content block
+                                # Text content block - will emit TEXT_MESSAGE_START on first delta
                                 pass
                             elif block.type == "tool_use":
-                                # Tool use block
-                                tool_calls[event.index] = {
+                                # Tool use block starting
+                                current_tool_index += 1
+                                tool_calls[current_tool_index] = {
                                     "id": block.id,
-                                    "type": "function",
-                                    "function": {
-                                        "name": block.name,
-                                        "arguments": "",
-                                    },
+                                    "name": block.name,
+                                    "input": "",
+                                    "started": False,
                                 }
+                            elif block.type == "thinking":
+                                # Thinking block starting
+                                accumulated_thinking = ""
+                                step_id = self._generate_id()
+                                yield StepStartedEvent(
+                                    type="STEP_STARTED",
+                                    stepId=step_id,
+                                    model=options.model,
+                                    timestamp=timestamp,
+                                    stepType="thinking",
+                                )
 
                     elif event.type == "content_block_delta":
                         delta = event.delta
                         if hasattr(delta, "type"):
                             if delta.type == "text_delta":
+                                # Emit TEXT_MESSAGE_START on first text content
+                                if not has_emitted_text_message_start:
+                                    has_emitted_text_message_start = True
+                                    yield TextMessageStartEvent(
+                                        type="TEXT_MESSAGE_START",
+                                        messageId=message_id,
+                                        model=options.model,
+                                        timestamp=timestamp,
+                                        role="assistant",
+                                    )
+
                                 # Text content delta
                                 accumulated_content += delta.text
-                                yield ContentStreamChunk(
-                                    type="content",
-                                    id=message_id,
+                                yield TextMessageContentEvent(
+                                    type="TEXT_MESSAGE_CONTENT",
+                                    messageId=message_id,
                                     model=options.model,
                                     timestamp=timestamp,
                                     delta=delta.text,
                                     content=accumulated_content,
-                                    role="assistant",
+                                )
+                            elif delta.type == "thinking_delta":
+                                # Thinking content delta
+                                thinking_text = getattr(delta, "thinking", "")
+                                accumulated_thinking += thinking_text
+                                yield StepFinishedEvent(
+                                    type="STEP_FINISHED",
+                                    stepId=step_id or self._generate_id(),
+                                    model=options.model,
+                                    timestamp=timestamp,
+                                    delta=thinking_text,
+                                    content=accumulated_thinking,
                                 )
                             elif delta.type == "input_json_delta":
                                 # Tool input delta
-                                if event.index in tool_calls:
-                                    tool_calls[event.index]["function"][
-                                        "arguments"
-                                    ] += delta.partial_json
+                                if current_tool_index in tool_calls:
+                                    tool_call = tool_calls[current_tool_index]
+                                    
+                                    # Emit TOOL_CALL_START on first args delta
+                                    if not tool_call["started"]:
+                                        tool_call["started"] = True
+                                        yield ToolCallStartEvent(
+                                            type="TOOL_CALL_START",
+                                            toolCallId=tool_call["id"],
+                                            toolName=tool_call["name"],
+                                            model=options.model,
+                                            timestamp=timestamp,
+                                            index=current_tool_index,
+                                        )
+
+                                    tool_call["input"] += delta.partial_json
+                                    yield ToolCallArgsEvent(
+                                        type="TOOL_CALL_ARGS",
+                                        toolCallId=tool_call["id"],
+                                        model=options.model,
+                                        timestamp=timestamp,
+                                        delta=delta.partial_json,
+                                        args=tool_call["input"],
+                                    )
 
                     elif event.type == "content_block_stop":
                         # Content block completed
-                        if event.index in tool_calls:
-                            # Emit tool call chunk
-                            tool_call = tool_calls[event.index]
-                            yield ToolCallStreamChunk(
-                                type="tool_call",
-                                id=message_id,
+                        if current_tool_index in tool_calls:
+                            tool_call = tool_calls[current_tool_index]
+                            
+                            # If tool call wasn't started yet (no args), start it now
+                            if not tool_call["started"]:
+                                tool_call["started"] = True
+                                yield ToolCallStartEvent(
+                                    type="TOOL_CALL_START",
+                                    toolCallId=tool_call["id"],
+                                    toolName=tool_call["name"],
+                                    model=options.model,
+                                    timestamp=timestamp,
+                                    index=current_tool_index,
+                                )
+
+                            # Parse input and emit TOOL_CALL_END
+                            parsed_input = {}
+                            if tool_call["input"]:
+                                try:
+                                    parsed_input = json.loads(tool_call["input"])
+                                except json.JSONDecodeError:
+                                    parsed_input = {}
+
+                            yield ToolCallEndEvent(
+                                type="TOOL_CALL_END",
+                                toolCallId=tool_call["id"],
+                                toolName=tool_call["name"],
                                 model=options.model,
                                 timestamp=timestamp,
-                                toolCall=tool_call,
-                                index=event.index,
+                                input=parsed_input,
+                            )
+
+                        # Emit TEXT_MESSAGE_END if we had text content
+                        if has_emitted_text_message_start and accumulated_content:
+                            yield TextMessageEndEvent(
+                                type="TEXT_MESSAGE_END",
+                                messageId=message_id,
+                                model=options.model,
+                                timestamp=timestamp,
                             )
 
                     elif event.type == "message_delta":
                         # Message metadata delta (finish reason, usage)
-                        pass
+                        delta = event.delta
+                        if hasattr(delta, "stop_reason") and delta.stop_reason:
+                            usage = None
+                            if hasattr(event, "usage") and event.usage:
+                                usage = {
+                                    "promptTokens": event.usage.input_tokens,
+                                    "completionTokens": event.usage.output_tokens,
+                                    "totalTokens": event.usage.input_tokens
+                                    + event.usage.output_tokens,
+                                }
+
+                            # Map Anthropic stop_reason to TanStack format
+                            if delta.stop_reason == "max_tokens":
+                                yield RunErrorEvent(
+                                    type="RUN_ERROR",
+                                    runId=run_id,
+                                    model=options.model,
+                                    timestamp=timestamp,
+                                    error={
+                                        "message": "The response was cut off because the maximum token limit was reached.",
+                                        "code": "max_tokens",
+                                    },
+                                )
+                            else:
+                                finish_reason = {
+                                    "end_turn": "stop",
+                                    "tool_use": "tool_calls",
+                                }.get(delta.stop_reason, "stop")
+
+                                yield RunFinishedEvent(
+                                    type="RUN_FINISHED",
+                                    runId=run_id,
+                                    model=options.model,
+                                    timestamp=timestamp,
+                                    finishReason=finish_reason,
+                                    usage=usage,
+                                )
 
                     elif event.type == "message_stop":
-                        # Message completed - emit done chunk
+                        # Message completed - emit RUN_FINISHED if not already done
                         final_message = await stream.get_final_message()
                         usage = None
                         if hasattr(final_message, "usage"):
@@ -229,29 +370,28 @@ class AnthropicAdapter(BaseAdapter):
                             }
 
                         # Determine finish reason
-                        finish_reason = None
+                        finish_reason = "stop"
                         if hasattr(final_message, "stop_reason"):
-                            if final_message.stop_reason == "end_turn":
-                                finish_reason = "stop"
-                            elif final_message.stop_reason == "max_tokens":
-                                finish_reason = "length"
-                            elif final_message.stop_reason == "tool_use":
-                                finish_reason = "tool_calls"
+                            finish_reason = {
+                                "end_turn": "stop",
+                                "max_tokens": "length",
+                                "tool_use": "tool_calls",
+                            }.get(final_message.stop_reason, "stop")
 
-                        yield DoneStreamChunk(
-                            type="done",
-                            id=message_id,
+                        yield RunFinishedEvent(
+                            type="RUN_FINISHED",
+                            runId=run_id,
                             model=options.model,
-                            timestamp=timestamp,
+                            timestamp=int(time.time() * 1000),
                             finishReason=finish_reason,
                             usage=usage,
                         )
 
         except Exception as e:
-            # Emit error chunk
-            yield ErrorStreamChunk(
-                type="error",
-                id=self._generate_id(),
+            # Emit RUN_ERROR
+            yield RunErrorEvent(
+                type="RUN_ERROR",
+                runId=run_id,
                 model=options.model,
                 timestamp=int(time.time() * 1000),
                 error={

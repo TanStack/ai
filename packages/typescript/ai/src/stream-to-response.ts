@@ -3,7 +3,7 @@ import type { StreamChunk } from './types'
 /**
  * Collect all text content from a StreamChunk async iterable and return as a string.
  *
- * This function consumes the entire stream, accumulating content from 'content' type chunks,
+ * This function consumes the entire stream, accumulating content from TEXT_MESSAGE_CONTENT events,
  * and returns the final concatenated text.
  *
  * @param stream - AsyncIterable of StreamChunks from chat()
@@ -26,7 +26,7 @@ export async function streamToText(
   let accumulatedContent = ''
 
   for await (const chunk of stream) {
-    if (chunk.type === 'content' && chunk.delta) {
+    if (chunk.type === 'TEXT_MESSAGE_CONTENT' && chunk.delta) {
       accumulatedContent += chunk.delta
     }
   }
@@ -77,11 +77,12 @@ export function toServerSentEventsStream(
           return
         }
 
-        // Send error chunk
+        // Send error event (AG-UI RUN_ERROR)
         controller.enqueue(
           encoder.encode(
             `data: ${JSON.stringify({
-              type: 'error',
+              type: 'RUN_ERROR',
+              timestamp: Date.now(),
               error: {
                 message: error.message || 'Unknown error occurred',
                 code: error.code,
@@ -198,11 +199,12 @@ export function toHttpStream(
           return
         }
 
-        // Send error chunk
+        // Send error event (AG-UI RUN_ERROR)
         controller.enqueue(
           encoder.encode(
             `${JSON.stringify({
-              type: 'error',
+              type: 'RUN_ERROR',
+              timestamp: Date.now(),
               error: {
                 message: error.message || 'Unknown error occurred',
                 code: error.code,

@@ -69,6 +69,15 @@ export class GrokTextAdapter<
     options: TextOptions<ResolveProviderOptions<TModel>>,
   ): AsyncIterable<StreamChunk> {
     const requestParams = this.mapTextOptionsToGrok(options)
+    const timestamp = Date.now()
+
+    // AG-UI lifecycle tracking (mutable state object for ESLint compatibility)
+    const aguiState = {
+      runId: generateId(this.name),
+      messageId: generateId(this.name),
+      timestamp,
+      hasEmittedRunStarted: false,
+    }
 
     try {
       const stream = await this.client.chat.completions.create({
@@ -76,14 +85,37 @@ export class GrokTextAdapter<
         stream: true,
       })
 
-      yield* this.processGrokStreamChunks(stream, options)
+      yield* this.processGrokStreamChunks(stream, options, aguiState)
     } catch (error: unknown) {
-      const err = error as Error
+      const err = error as Error & { code?: string }
+
+      // Emit RUN_STARTED if not yet emitted
+      if (!aguiState.hasEmittedRunStarted) {
+        aguiState.hasEmittedRunStarted = true
+        yield {
+          type: 'RUN_STARTED',
+          runId: aguiState.runId,
+          model: options.model,
+          timestamp,
+        }
+      }
+
+      // Emit AG-UI RUN_ERROR
+      yield {
+        type: 'RUN_ERROR',
+        runId: aguiState.runId,
+        model: options.model,
+        timestamp,
+        error: {
+          message: err.message || 'Unknown error',
+          code: err.code,
+        },
+      }
+
       console.error('>>> chatStream: Fatal error during response creation <<<')
       console.error('>>> Error message:', err.message)
       console.error('>>> Error stack:', err.stack)
       console.error('>>> Full error:', err)
-      throw error
     }
   }
 
@@ -157,10 +189,16 @@ export class GrokTextAdapter<
   private async *processGrokStreamChunks(
     stream: AsyncIterable<OpenAI_SDK.Chat.Completions.ChatCompletionChunk>,
     options: TextOptions,
+    aguiState: {
+      runId: string
+      messageId: string
+      timestamp: number
+      hasEmittedRunStarted: boolean
+    },
   ): AsyncIterable<StreamChunk> {
     let accumulatedContent = ''
-    const timestamp = Date.now()
-    let responseId = generateId(this.name)
+    const timestamp = aguiState.timestamp
+    let hasEmittedTextMessageStart = false
 
     // Track tool calls being streamed (arguments come in chunks)
     const toolCallsInProgress = new Map<
@@ -169,15 +207,26 @@ export class GrokTextAdapter<
         id: string
         name: string
         arguments: string
+        started: boolean // Track if TOOL_CALL_START has been emitted
       }
     >()
 
     try {
       for await (const chunk of stream) {
-        responseId = chunk.id || responseId
         const choice = chunk.choices[0]
 
         if (!choice) continue
+
+        // Emit RUN_STARTED on first chunk
+        if (!aguiState.hasEmittedRunStarted) {
+          aguiState.hasEmittedRunStarted = true
+          yield {
+            type: 'RUN_STARTED',
+            runId: aguiState.runId,
+            model: chunk.model || options.model,
+            timestamp,
+          }
+        }
 
         const delta = choice.delta
         const deltaContent = delta.content
@@ -185,15 +234,28 @@ export class GrokTextAdapter<
 
         // Handle content delta
         if (deltaContent) {
+          // Emit TEXT_MESSAGE_START on first text content
+          if (!hasEmittedTextMessageStart) {
+            hasEmittedTextMessageStart = true
+            yield {
+              type: 'TEXT_MESSAGE_START',
+              messageId: aguiState.messageId,
+              model: chunk.model || options.model,
+              timestamp,
+              role: 'assistant',
+            }
+          }
+
           accumulatedContent += deltaContent
+
+          // Emit AG-UI TEXT_MESSAGE_CONTENT
           yield {
-            type: 'content',
-            id: responseId,
+            type: 'TEXT_MESSAGE_CONTENT',
+            messageId: aguiState.messageId,
             model: chunk.model || options.model,
             timestamp,
             delta: deltaContent,
             content: accumulatedContent,
-            role: 'assistant',
           }
         }
 
@@ -208,6 +270,7 @@ export class GrokTextAdapter<
                 id: toolCallDelta.id || '',
                 name: toolCallDelta.function?.name || '',
                 arguments: '',
+                started: false,
               })
             }
 
@@ -223,6 +286,30 @@ export class GrokTextAdapter<
             if (toolCallDelta.function?.arguments) {
               toolCall.arguments += toolCallDelta.function.arguments
             }
+
+            // Emit TOOL_CALL_START when we have id and name
+            if (toolCall.id && toolCall.name && !toolCall.started) {
+              toolCall.started = true
+              yield {
+                type: 'TOOL_CALL_START',
+                toolCallId: toolCall.id,
+                toolName: toolCall.name,
+                model: chunk.model || options.model,
+                timestamp,
+                index,
+              }
+            }
+
+            // Emit TOOL_CALL_ARGS for argument deltas
+            if (toolCallDelta.function?.arguments && toolCall.started) {
+              yield {
+                type: 'TOOL_CALL_ARGS',
+                toolCallId: toolCall.id,
+                model: chunk.model || options.model,
+                timestamp,
+                delta: toolCallDelta.function.arguments,
+              }
+            }
           }
         }
 
@@ -233,28 +320,49 @@ export class GrokTextAdapter<
             choice.finish_reason === 'tool_calls' ||
             toolCallsInProgress.size > 0
           ) {
-            for (const [index, toolCall] of toolCallsInProgress) {
+            for (const [, toolCall] of toolCallsInProgress) {
+              // Parse arguments for TOOL_CALL_END
+              let parsedInput: unknown = {}
+              try {
+                parsedInput = toolCall.arguments
+                  ? JSON.parse(toolCall.arguments)
+                  : {}
+              } catch {
+                parsedInput = {}
+              }
+
+              // Emit AG-UI TOOL_CALL_END
               yield {
-                type: 'tool_call',
-                id: responseId,
+                type: 'TOOL_CALL_END',
+                toolCallId: toolCall.id,
+                toolName: toolCall.name,
                 model: chunk.model || options.model,
                 timestamp,
-                index,
-                toolCall: {
-                  id: toolCall.id,
-                  type: 'function',
-                  function: {
-                    name: toolCall.name,
-                    arguments: toolCall.arguments,
-                  },
-                },
+                input: parsedInput,
               }
             }
           }
 
+          const computedFinishReason =
+            choice.finish_reason === 'tool_calls' ||
+            toolCallsInProgress.size > 0
+              ? 'tool_calls'
+              : 'stop'
+
+          // Emit TEXT_MESSAGE_END if we had text content
+          if (hasEmittedTextMessageStart) {
+            yield {
+              type: 'TEXT_MESSAGE_END',
+              messageId: aguiState.messageId,
+              model: chunk.model || options.model,
+              timestamp,
+            }
+          }
+
+          // Emit AG-UI RUN_FINISHED
           yield {
-            type: 'done',
-            id: responseId,
+            type: 'RUN_FINISHED',
+            runId: aguiState.runId,
             model: chunk.model || options.model,
             timestamp,
             usage: chunk.usage
@@ -264,20 +372,18 @@ export class GrokTextAdapter<
                   totalTokens: chunk.usage.total_tokens || 0,
                 }
               : undefined,
-            finishReason:
-              choice.finish_reason === 'tool_calls' ||
-              toolCallsInProgress.size > 0
-                ? 'tool_calls'
-                : 'stop',
+            finishReason: computedFinishReason,
           }
         }
       }
     } catch (error: unknown) {
       const err = error as Error & { code?: string }
       console.log('[Grok Adapter] Stream ended with error:', err.message)
+
+      // Emit AG-UI RUN_ERROR
       yield {
-        type: 'error',
-        id: responseId,
+        type: 'RUN_ERROR',
+        runId: aguiState.runId,
         model: options.model,
         timestamp,
         error: {

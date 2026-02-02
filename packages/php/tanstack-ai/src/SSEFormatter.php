@@ -32,18 +32,23 @@ class SSEFormatter
     }
 
     /**
-     * Format an error as an SSE error chunk.
+     * Format an error as an SSE RUN_ERROR chunk (AG-UI Protocol).
      * 
      * @param \Throwable $error Exception to format
-     * @return string SSE-formatted error chunk
+     * @param string|null $runId Optional run ID for correlation
+     * @param string|null $model Optional model name
+     * @return string SSE-formatted RUN_ERROR chunk
      */
-    public static function formatError(\Throwable $error): string
+    public static function formatError(\Throwable $error, ?string $runId = null, ?string $model = null): string
     {
         $errorChunk = [
-            'type' => 'error',
+            'type' => 'RUN_ERROR',
+            'runId' => $runId ?? ('run-' . bin2hex(random_bytes(4))),
+            'model' => $model,
+            'timestamp' => (int)(microtime(true) * 1000),
             'error' => [
-                'type' => get_class($error),
-                'message' => $error->getMessage()
+                'message' => $error->getMessage(),
+                'code' => (string)$error->getCode()
             ]
         ];
         return self::formatChunk($errorChunk);

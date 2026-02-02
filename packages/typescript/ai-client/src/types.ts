@@ -31,6 +31,11 @@ export type ToolResultState =
   | 'error' // Error occurred
 
 /**
+ * ChatClient state - track the lifecycle of a chat
+ */
+export type ChatClientState = 'ready' | 'submitted' | 'streaming' | 'error'
+
+/**
  * Message parts - building blocks of UIMessage
  */
 export interface TextPart {
@@ -198,6 +203,11 @@ export interface ChatClientOptions<
    * Callback when error state changes
    */
   onErrorChange?: (error: Error | undefined) => void
+
+  /**
+   * Callback when chat status changes
+   */
+  onStatusChange?: (status: ChatClientState) => void
 
   /**
    * Client-side tools with execution logic

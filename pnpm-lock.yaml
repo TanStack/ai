@@ -1241,6 +1241,9 @@ importers:
       '@tanstack/ai-openai':
         specifier: workspace:*
         version: link:../../packages/typescript/ai-openai
+      '@tanstack/ai-openrouter':
+        specifier: workspace:*
+        version: link:../../packages/typescript/ai-openrouter
       '@tanstack/ai-react':
         specifier: workspace:*
         version: link:../../packages/typescript/ai-react
@@ -1296,6 +1299,9 @@ importers:
         specifier: ^4.2.0
         version: 4.2.1
     devDependencies:
+      '@playwright/test':
+        specifier: ^1.57.0
+        version: 1.57.0
       '@types/node':
         specifier: ^24.10.1
         version: 24.10.3
@@ -1308,6 +1314,9 @@ importers:
       '@vitejs/plugin-react':
         specifier: ^5.1.2
         version: 5.1.2(vite@7.2.7(@types/node@24.10.3)(jiti@2.6.1)(lightningcss@1.30.2)(terser@5.44.1)(tsx@4.21.0)(yaml@2.8.2))
+      dotenv:
+        specifier: ^17.2.3
+        version: 17.2.3
       typescript:
         specifier: 5.9.3
         version: 5.9.3
@@ -12646,7 +12655,7 @@ snapshots:
 
   dotenv-expand@11.0.7:
     dependencies:
-      dotenv: 16.4.7
+      dotenv: 16.6.1
 
   dotenv@16.4.7: {}
 
