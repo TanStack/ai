@@ -28,7 +28,7 @@ import type {
   RunFinishedEvent,
   SchemaInput,
   StreamChunk,
-  Telemetry,
+  TelemetrySettings,
   TextMessageContentEvent,
   TextOptions,
   Tool,
@@ -214,7 +214,7 @@ class TextEngine<
   private readonly streamId: string
   private readonly effectiveRequest?: Request | RequestInit
   private readonly effectiveSignal?: AbortSignal
-  private readonly telemetry?: Telemetry
+  private readonly telemetry?: TelemetrySettings
 
   private messages: Array<ModelMessage>
   private iterationCount = 0
@@ -949,7 +949,7 @@ class TextEngine<
     messageCount: number
     hasTools: boolean
     streaming: boolean
-    telemetry?: Telemetry
+    telemetry?: TelemetrySettings
   } {
     return {
       requestId: this.requestId,

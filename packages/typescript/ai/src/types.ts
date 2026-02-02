@@ -1,10 +1,32 @@
 import type { StandardJSONSchemaV1 } from '@standard-schema/spec'
 
 /**
+ * Type for telemetry metadata values.
+ *
+ * This type is intended to be replaced by OpenTelemetry AttributeType in the future.
+ */
+export type TelemetryMetadataValue =
+  | string
+  | number
+  | boolean
+  | Array<null | undefined | string>
+  | Array<null | undefined | number>
+  | Array<null | undefined | boolean>;
+
+/**
  * Telemetry data for tracking and debugging.
  */
-export interface Telemetry {
-  metadata: Record<string, any>
+export type TelemetrySettings = {
+  /**
+   * Identifier for the specific function or operation being tracked.
+   */
+  functionId?: string
+
+  /**
+   * Arbitrary key-value pairs for tracking context.
+   * Common keys: userId, sessionId, billingAccount, environment, etc.
+   */
+  metadata?: Record<string, TelemetryMetadataValue>
 }
 
 /**
@@ -627,7 +649,7 @@ export interface TextOptions<
   /**
    * Telemetry data for tracking and monitoring.
    */
-  telemetry?: Telemetry
+  telemetry?: TelemetrySettings
   modelOptions?: TProviderOptionsForModel
   request?: Request | RequestInit
 
@@ -926,7 +948,7 @@ export interface SummarizationOptions {
   /**
    * Telemetry data for tracking and monitoring.
    */
-  telemetry?: Telemetry
+  telemetry?: TelemetrySettings
 }
 
 export interface SummarizationResult {
@@ -964,7 +986,7 @@ export interface ImageGenerationOptions<
   /**
    * Telemetry data for tracking and monitoring.
    */
-  telemetry?: Telemetry
+  telemetry?: TelemetrySettings
 }
 
 /**
@@ -1023,7 +1045,7 @@ export interface VideoGenerationOptions<
   /**
    * Telemetry data for tracking and monitoring.
    */
-  telemetry?: Telemetry
+  telemetry?: TelemetrySettings
 }
 
 /**
@@ -1092,7 +1114,7 @@ export interface TTSOptions<TProviderOptions extends object = object> {
   /**
    * Telemetry data for tracking and monitoring.
    */
-  telemetry?: Telemetry
+  telemetry?: TelemetrySettings
 }
 
 /**
@@ -1139,7 +1161,7 @@ export interface TranscriptionOptions<
   /**
    * Telemetry data for tracking and monitoring.
    */
-  telemetry?: Telemetry
+  telemetry?: TelemetrySettings
 }
 
 /**
