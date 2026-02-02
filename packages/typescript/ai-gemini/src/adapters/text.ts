@@ -1,5 +1,6 @@
 import { FinishReason } from '@google/genai'
 import { BaseTextAdapter } from '@tanstack/ai/adapters'
+import { detectImageMimeType } from '@tanstack/ai'
 import { convertToolsToProviderFormat } from '../tools/tool-converter'
 import {
   createGeminiClient,
@@ -484,10 +485,16 @@ export class GeminiTextAdapter<
 
   private convertContentPartToGemini(part: ContentPart): Part {
     const getDefaultFileType = (
-      part: 'image' | 'audio' | 'video' | 'document',
+      partType: 'image' | 'audio' | 'video' | 'document',
+      data?: string,
     ) => {
-      switch (part) {
+      switch (partType) {
         case 'image':
+          // Try to detect from base64 magic bytes
+          if (data) {
+            const detected = detectImageMimeType(data)
+            if (detected) return detected
+          }
           return 'image/jpeg'
         case 'audio':
           return 'audio/mp3'
@@ -514,7 +521,9 @@ export class GeminiTextAdapter<
           return {
             inlineData: {
               data: part.source.value,
-              mimeType: metadata?.mimeType ?? getDefaultFileType(part.type),
+              mimeType:
+                metadata?.mimeType ??
+                getDefaultFileType(part.type, part.source.value),
             },
           }
         } else {

@@ -282,6 +282,10 @@ export interface ThinkingPart {
 
 export type MessagePart =
   | TextPart
+  | ImagePart
+  | AudioPart
+  | VideoPart
+  | DocumentPart
   | ToolCallPart
   | ToolResultPart
   | ThinkingPart

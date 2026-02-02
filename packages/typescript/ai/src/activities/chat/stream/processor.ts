@@ -35,6 +35,8 @@ import type {
   ToolResultState,
 } from './types'
 import type {
+  ContentPart,
+  MessagePart,
   ModelMessage,
   StreamChunk,
   ToolCall,
@@ -164,13 +166,42 @@ export class StreamProcessor {
   }
 
   /**
-   * Add a user message to the conversation
+   * Add a user message to the conversation.
+   * Supports both simple string content and multimodal content arrays.
+   *
+   * @param content - The message content (string or array of content parts)
+   * @param id - Optional custom message ID (generated if not provided)
+   * @returns The created UIMessage
+   *
+   * @example
+   * ```ts
+   * // Simple text message
+   * processor.addUserMessage('Hello!')
+   *
+   * // Multimodal message with image
+   * processor.addUserMessage([
+   *   { type: 'text', content: 'What is in this image?' },
+   *   { type: 'image', source: { type: 'url', value: 'https://example.com/photo.jpg' } }
+   * ])
+   *
+   * // With custom ID
+   * processor.addUserMessage('Hello!', 'custom-id-123')
+   * ```
    */
-  addUserMessage(content: string): UIMessage {
+  addUserMessage(content: string | Array<ContentPart>, id?: string): UIMessage {
+    // Convert content to message parts
+    const parts: Array<MessagePart> =
+      typeof content === 'string'
+        ? [{ type: 'text', content }]
+        : content.map((part) => {
+            // ContentPart types (text, image, audio, video, document) are compatible with MessagePart
+            return part as MessagePart
+          })
+
     const userMessage: UIMessage = {
-      id: generateMessageId(),
+      id: id ?? generateMessageId(),
       role: 'user',
-      parts: [{ type: 'text', content }],
+      parts,
       createdAt: new Date(),
     }
 

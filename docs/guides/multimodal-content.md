@@ -315,3 +315,163 @@ const stream = chat({
 3. **Check model support**: Not all models support all modalities. Verify the model you're using supports the content types you want to send.
 
 4. **Handle errors gracefully**: When a model doesn't support a particular modality, it may throw an error. Handle these cases in your application.
+
+## Client-Side Multimodal Messages
+
+When using the `ChatClient` from `@tanstack/ai-client`, you can send multimodal messages directly from your UI using the `sendMessage` method.
+
+### Basic Usage
+
+The `sendMessage` method accepts either a simple string or a `MultimodalContent` object:
+
+```typescript
+import { ChatClient, fetchServerSentEvents } from '@tanstack/ai-client'
+
+const client = new ChatClient({
+  connection: fetchServerSentEvents('/api/chat'),
+})
+
+// Simple text message
+await client.sendMessage('Hello!')
+
+// Multimodal message with image
+await client.sendMessage({
+  content: [
+    { type: 'text', content: 'What is in this image?' },
+    {
+      type: 'image',
+      source: { type: 'url', value: 'https://example.com/photo.jpg' }
+    }
+  ]
+})
+```
+
+### Custom Message ID
+
+You can provide a custom ID for the message:
+
+```typescript
+await client.sendMessage({
+  content: 'Hello!',
+  id: 'custom-message-id-123'
+})
+```
+
+### Per-Message Body Parameters
+
+The second parameter allows you to pass additional body parameters for that specific request. These are shallow-merged with the client's base body configuration, with per-message parameters taking priority:
+
+```typescript
+const client = new ChatClient({
+  connection: fetchServerSentEvents('/api/chat'),
+  body: { model: 'gpt-5' }, // Base body params
+})
+
+// Override model for this specific message
+await client.sendMessage('Analyze this complex problem', {
+  model: 'gpt-5',
+  temperature: 0.2,
+})
+
+ 
+```
+
+### React Example
+
+Here's how to use multimodal messages in a React component:
+
+```tsx
+import { useChat } from '@tanstack/ai-react'
+import { fetchServerSentEvents } from '@tanstack/ai-client'
+import { useState } from 'react'
+
+function ChatWithImages() {
+  const [imageUrl, setImageUrl] = useState('')
+  const { sendMessage, messages } = useChat({
+    connection: fetchServerSentEvents('/api/chat'),
+  })
+
+  const handleSendWithImage = () => {
+    if (imageUrl) {
+      sendMessage({
+        content: [
+          { type: 'text', content: 'What do you see in this image?' },
+          { type: 'image', source: { type: 'url', value: imageUrl } }
+        ]
+      })
+    }
+  }
+
+  return (
+    <div>
+      <input
+        type="url"
+        placeholder="Image URL"
+        value={imageUrl}
+        onChange={(e) => setImageUrl(e.target.value)}
+      />
+      <button onClick={handleSendWithImage}>Send with Image</button>
+    </div>
+  )
+}
+```
+
+### File Upload Example
+
+Here's how to handle file uploads and send them as multimodal content:
+
+```tsx
+import { useChat } from '@tanstack/ai-react'
+import { fetchServerSentEvents } from '@tanstack/ai-client'
+
+function ChatWithFileUpload() {
+  const { sendMessage } = useChat({
+    connection: fetchServerSentEvents('/api/chat'),
+  })
+
+  const handleFileUpload = async (file: File) => {
+    // Convert file to base64
+    const base64 = await new Promise<string>((resolve) => {
+      const reader = new FileReader()
+      reader.onload = () => {
+        const result = reader.result as string
+        // Remove data URL prefix (e.g., "data:image/png;base64,")
+        resolve(result.split(',')[1])
+      }
+      reader.readAsDataURL(file)
+    })
+
+    // Determine content type based on file type
+    const type = file.type.startsWith('image/')
+      ? 'image'
+      : file.type.startsWith('audio/')
+        ? 'audio'
+        : file.type.startsWith('video/')
+          ? 'video'
+          : 'document'
+
+    await sendMessage({
+      content: [
+        { type: 'text', content: `Please analyze this ${type}` },
+        {
+          type,
+          source: { type: 'data', value: base64 },
+          metadata: { mimeType: file.type }
+        }
+      ]
+    })
+  }
+
+  return (
+    <input
+      type="file"
+      accept="image/*,audio/*,video/*,.pdf"
+      onChange={(e) => {
+        const file = e.target.files?.[0]
+        if (file) handleFileUpload(file)
+      }}
+    />
+  )
+}
+```
+

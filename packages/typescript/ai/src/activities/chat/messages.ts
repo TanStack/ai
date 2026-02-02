@@ -1,15 +1,33 @@
 import type {
+  AudioPart,
   ContentPart,
+  DocumentPart,
+  ImagePart,
   MessagePart,
   ModelMessage,
   TextPart,
   ToolCallPart,
   ToolResultPart,
   UIMessage,
+  VideoPart,
 } from '../../types'
 // ===========================
 // Message Converters
 // ===========================
+
+/**
+ * Helper to check if a part is a multimodal content part (image, audio, video, document)
+ */
+function isMultimodalPart(
+  part: MessagePart,
+): part is ImagePart | AudioPart | VideoPart | DocumentPart {
+  return (
+    part.type === 'image' ||
+    part.type === 'audio' ||
+    part.type === 'video' ||
+    part.type === 'document'
+  )
+}
 
 /**
  * Helper to extract text content from string or ContentPart array
@@ -52,7 +70,8 @@ export function convertMessagesToModelMessages(
  * Convert a UIMessage to ModelMessage(s)
  *
  * This conversion handles the parts-based structure:
- * - Text parts → content field
+ * - Text parts → content field (string or as part of ContentPart array)
+ * - Multimodal parts (image, audio, video, document) → ContentPart array
  * - ToolCall parts → toolCalls array
  * - ToolResult parts → separate role="tool" messages
  *
@@ -72,12 +91,17 @@ export function uiMessageToModelMessages(
   // Separate parts by type
   // Note: thinking parts are UI-only and not included in ModelMessages
   const textParts: Array<TextPart> = []
+  const multimodalParts: Array<
+    ImagePart | AudioPart | VideoPart | DocumentPart
+  > = []
   const toolCallParts: Array<ToolCallPart> = []
   const toolResultParts: Array<ToolResultPart> = []
 
   for (const part of uiMessage.parts) {
     if (part.type === 'text') {
       textParts.push(part)
+    } else if (isMultimodalPart(part)) {
+      multimodalParts.push(part)
     } else if (part.type === 'tool-call') {
       toolCallParts.push(part)
     } else if (part.type === 'tool-result') {
@@ -86,8 +110,26 @@ export function uiMessageToModelMessages(
     // thinking parts are skipped - they're UI-only
   }
 
-  // Build the main message (user or assistant)
-  const content = textParts.map((p) => p.content).join('') || null
+  // Build the content field
+  // If we have multimodal parts, use ContentPart array format
+  // Otherwise, use simple string format for backward compatibility
+  let content: string | null | Array<ContentPart>
+  if (multimodalParts.length > 0) {
+    // Build ContentPart array preserving the order of text and multimodal parts
+    const contentParts: Array<ContentPart> = []
+    for (const part of uiMessage.parts) {
+      if (part.type === 'text') {
+        contentParts.push(part)
+      } else if (isMultimodalPart(part)) {
+        contentParts.push(part)
+      }
+    }
+    content = contentParts
+  } else {
+    // Simple string content for text-only messages
+    content = textParts.map((p) => p.content).join('') || null
+  }
+
   const toolCalls =
     toolCallParts.length > 0
       ? toolCallParts
@@ -108,7 +150,9 @@ export function uiMessageToModelMessages(
       : undefined
 
   // Create the main message
-  if (uiMessage.role !== 'assistant' || content || !toolCalls) {
+  // For multimodal content, we always create a message even if content is an empty array
+  const hasContent = Array.isArray(content) ? true : content !== null
+  if (uiMessage.role !== 'assistant' || hasContent || !toolCalls) {
     messageList.push({
       role: uiMessage.role,
       content,
