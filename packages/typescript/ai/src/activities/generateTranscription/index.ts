@@ -25,8 +25,8 @@ export const kind = 'transcription' as const
  */
 export type TranscriptionProviderOptions<TAdapter> =
   TAdapter extends TranscriptionAdapter<any, any>
-  ? TAdapter['~types']['providerOptions']
-  : object
+    ? TAdapter['~types']['providerOptions']
+    : object
 
 // ===========================
 // Activity Options Type
@@ -164,7 +164,7 @@ export function createTranscriptionOptions<
 // Re-export adapter types
 export { BaseTranscriptionAdapter } from './adapter'
 export type {
-  AnyTranscriptionAdapter, TranscriptionAdapter,
-  TranscriptionAdapterConfig
+  AnyTranscriptionAdapter,
+  TranscriptionAdapter,
+  TranscriptionAdapterConfig,
 } from './adapter'
-

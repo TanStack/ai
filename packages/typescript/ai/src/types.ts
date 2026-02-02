@@ -11,7 +11,7 @@ export type TelemetryMetadataValue =
   | boolean
   | Array<null | undefined | string>
   | Array<null | undefined | number>
-  | Array<null | undefined | boolean>;
+  | Array<null | undefined | boolean>
 
 /**
  * Telemetry data for tracking and debugging.

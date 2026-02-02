@@ -27,14 +27,14 @@ export const kind = 'image' as const
  */
 export type ImageProviderOptionsForModel<TAdapter, TModel extends string> =
   TAdapter extends ImageAdapter<any, infer BaseOptions, infer ModelOptions, any>
-  ? string extends keyof ModelOptions
-  ? // ModelOptions is Record<string, unknown> or has index signature - use BaseOptions
-  BaseOptions
-  : // ModelOptions has explicit keys - check if TModel is one of them
-  TModel extends keyof ModelOptions
-  ? ModelOptions[TModel]
-  : BaseOptions
-  : object
+    ? string extends keyof ModelOptions
+      ? // ModelOptions is Record<string, unknown> or has index signature - use BaseOptions
+        BaseOptions
+      : // ModelOptions has explicit keys - check if TModel is one of them
+        TModel extends keyof ModelOptions
+        ? ModelOptions[TModel]
+        : BaseOptions
+    : object
 
 /**
  * Extract model-specific size options from an ImageAdapter via ~types.
@@ -42,14 +42,14 @@ export type ImageProviderOptionsForModel<TAdapter, TModel extends string> =
  */
 export type ImageSizeForModel<TAdapter, TModel extends string> =
   TAdapter extends ImageAdapter<any, any, any, infer SizeByName>
-  ? string extends keyof SizeByName
-  ? // SizeByName has index signature - fall back to string
-  string
-  : // SizeByName has explicit keys - check if TModel is one of them
-  TModel extends keyof SizeByName
-  ? SizeByName[TModel]
-  : string
-  : string
+    ? string extends keyof SizeByName
+      ? // SizeByName has index signature - fall back to string
+        string
+      : // SizeByName has explicit keys - check if TModel is one of them
+        TModel extends keyof SizeByName
+        ? SizeByName[TModel]
+        : string
+    : string
 
 // ===========================
 // Activity Options Type
@@ -208,7 +208,7 @@ export function createImageOptions<
 // Re-export adapter types
 export { BaseImageAdapter } from './adapter'
 export type {
-  AnyImageAdapter, ImageAdapter,
-  ImageAdapterConfig
+  AnyImageAdapter,
+  ImageAdapter,
+  ImageAdapterConfig,
 } from './adapter'
-
