@@ -1,20 +1,18 @@
 import { fal } from '@fal-ai/client'
 import { BaseImageAdapter } from '@tanstack/ai/adapters'
 
-import { getFalImageSchema } from '../generated'
 import { configureFalClient, generateId as utilGenerateId } from '../utils'
 
 import type { OutputType, Result } from '@fal-ai/client'
+
 import type {
   GeneratedImage,
   ImageGenerationOptions,
   ImageGenerationResult,
 } from '@tanstack/ai'
-import type { FalImageProviderOptions } from '../model-meta'
-import type { FalImageModel, ImageModelInput, ImageModelOutput } from '../generated'
+import type { FalImageProviderOptions, FalModel } from '../model-meta'
 
 import type { FalClientConfig } from '../utils'
-import type { z } from 'zod'
 
 /** Map common size strings to fal.ai image_size presets */
 const SIZE_TO_PRESET: Record<string, string> = {
@@ -56,27 +54,19 @@ const SIZE_TO_PRESET: Record<string, string> = {
  * })
  * ```
  */
-export class FalImageAdapter<
-  TModel extends FalImageModel,
-> extends BaseImageAdapter<
+export class FalImageAdapter<TModel extends FalModel> extends BaseImageAdapter<
   TModel,
   FalImageProviderOptions<TModel>,
-  Record<FalImageModel, FalImageProviderOptions<TModel>>,
-  Record<FalImageModel, string>
+  Record<FalModel, FalImageProviderOptions<TModel>>,
+  Record<FalModel, string>
 > {
   readonly kind = 'image' as const
   readonly name = 'fal' as const
   readonly model: TModel
-  readonly inputSchema: z.ZodSchema<ImageModelInput<TModel>>
-  readonly outputSchema: z.ZodSchema<ImageModelOutput<TModel>>
 
   constructor(model: TModel, config?: FalClientConfig) {
     super({}, model)
     this.model = model
-    // Use accessor function to avoid merged type slowdown
-    const schemas = getFalImageSchema(model)
-    this.inputSchema = schemas.input
-    this.outputSchema = schemas.output
 
     configureFalClient(config)
   }
@@ -85,19 +75,19 @@ export class FalImageAdapter<
     options: ImageGenerationOptions<FalImageProviderOptions<TModel>>,
   ): Promise<ImageGenerationResult> {
     const { prompt, numberOfImages, size, modelOptions } = options
-    const { width, height } = this.parseSize(size ?? '0x0')
 
     // Build the input object - spread modelOptions first, then override with standard options
-    const input = this.inputSchema.parse({
-      ...modelOptions,
-      prompt,
-      image_size: this.mapSizeToImageSize(size ?? '0x0', width, height),
-      aspect_ratio: this.calculateAspectRatio(width, height),
-      resolution: this.determineResolution(width, height),
-      num_images: numberOfImages,
-    })
+    if (!modelOptions) {
+      throw new Error('modelOptions are required')
+    }
 
-    const result = await fal.subscribe(this.model, { input: input })
+    const result = await fal.subscribe(this.model, {
+      input: {
+        ...modelOptions,
+        prompt,
+        num_images: numberOfImages ?? 1,
+      },
+    })
 
     return this.transformResponse(this.model, result)
   }
