@@ -7,12 +7,9 @@ import {
 } from '../utils'
 import type { OutputType, Result } from '@fal-ai/client'
 import type { FalClientConfig } from '../utils'
+import type { GeneratedImage, ImageGenerationResult } from '@tanstack/ai'
 import type {
-  GeneratedImage,
-  ImageGenerationOptions,
-  ImageGenerationResult,
-} from '@tanstack/ai'
-import type {
+  FalImageGenerationOptions,
   FalImageProviderOptions,
   FalModel,
   FalModelImageSize,
@@ -59,7 +56,7 @@ export class FalImageAdapter<TModel extends FalModel> extends BaseImageAdapter<
   }
 
   async generateImages(
-    options: ImageGenerationOptions<FalImageProviderOptions<TModel>>,
+    options: FalImageGenerationOptions<TModel>,
   ): Promise<ImageGenerationResult> {
     const input = this.buildInput(options)
     const result = await fal.subscribe(this.model, { input })
@@ -67,7 +64,7 @@ export class FalImageAdapter<TModel extends FalModel> extends BaseImageAdapter<
   }
 
   private buildInput(
-    options: ImageGenerationOptions<FalImageProviderOptions<TModel>>,
+    options: FalImageGenerationOptions<TModel>,
   ): FalModelInput<TModel> {
     // TB Jan 20206 I can think of no way to use satisfies here because of the union type of FalModelInput with record any
     // I have validated that satisfies works when the type is known
