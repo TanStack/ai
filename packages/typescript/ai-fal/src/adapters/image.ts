@@ -48,7 +48,7 @@ export class FalImageAdapter<TModel extends FalModel> extends BaseImageAdapter<
   constructor(model: TModel, config?: FalClientConfig) {
     super({}, model)
 
-    const apiKey = getFalApiKeyFromEnv()
+    const apiKey = config?.apiKey ?? getFalApiKeyFromEnv()
     if (!apiKey) {
       throw new Error('API key is required')
     }
@@ -66,8 +66,7 @@ export class FalImageAdapter<TModel extends FalModel> extends BaseImageAdapter<
   private buildInput(
     options: FalImageGenerationOptions<TModel>,
   ): FalModelInput<TModel> {
-    // TB Jan 20206 I can think of no way to use satisfies here because of the union type of FalModelInput with record any
-    // I have validated that satisfies works when the type is known
+    // TB Jan 2026 validated that satisfies works when the type is known but not sure if it works with the union type of FalModelInput with record any
     return {
       ...options.modelOptions,
       prompt: options.prompt,

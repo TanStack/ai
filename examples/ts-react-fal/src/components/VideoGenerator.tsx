@@ -1,11 +1,12 @@
 import { useEffect, useRef, useState } from 'react'
 import { Film, Loader2, Shuffle, Upload, X } from 'lucide-react'
+import type { VideoMode } from '@/lib/models'
+
 import {
   createVideoJob,
   getVideoStatus,
   getVideoUrl,
 } from '@/lib/server-functions'
-import type { VideoMode } from '@/lib/models'
 import { VIDEO_MODELS } from '@/lib/models'
 import { getRandomVideoPrompt } from '@/lib/prompts'
 
@@ -21,11 +22,15 @@ interface VideoGeneratorProps {
   initialImageUrl?: string | null
 }
 
-export default function VideoGenerator({ initialImageUrl }: VideoGeneratorProps) {
+export default function VideoGenerator({
+  initialImageUrl,
+}: VideoGeneratorProps) {
   const [mode, setMode] = useState<VideoMode>('text-to-video')
   const [prompt, setPrompt] = useState('')
   const [selectedModel, setSelectedModel] = useState<string>('all')
-  const [imagePreview, setImagePreview] = useState<string | null>(initialImageUrl ?? null)
+  const [imagePreview, setImagePreview] = useState<string | null>(
+    initialImageUrl ?? null,
+  )
   const [jobStates, setJobStates] = useState<Record<string, JobState>>({})
   const fileInputRef = useRef<HTMLInputElement>(null)
   const pollingRefs = useRef<Map<string, NodeJS.Timeout>>(new Map())
@@ -46,7 +51,7 @@ export default function VideoGenerator({ initialImageUrl }: VideoGeneratorProps)
   useEffect(() => {
     return () => {
       // Clear all polling intervals on unmount
-      pollingRefs.current.forEach((interval) => clearInterval(interval))
+      pollingRefs.current.forEach((interval) => void clearInterval(interval))
       pollingRefs.current.clear()
     }
   }, [])
@@ -85,7 +90,12 @@ export default function VideoGenerator({ initialImageUrl }: VideoGeneratorProps)
       } else if (status.status === 'processing') {
         setJobStates((prev) => ({
           ...prev,
-          [model]: { status: 'processing', jobId, model, progress: status.progress },
+          [model]: {
+            status: 'processing',
+            jobId,
+            model,
+            progress: status.progress,
+          },
         }))
       } else {
         setJobStates((prev) => ({
@@ -120,13 +130,18 @@ export default function VideoGenerator({ initialImageUrl }: VideoGeneratorProps)
         data: {
           prompt,
           model: modelId,
-          imageUrl: mode === 'image-to-video' ? imagePreview ?? undefined : undefined,
+          imageUrl:
+            mode === 'image-to-video' ? (imagePreview ?? undefined) : undefined,
         },
       })
 
       setJobStates((prev) => ({
         ...prev,
-        [modelId]: { status: 'pending', jobId: result.jobId, model: result.model },
+        [modelId]: {
+          status: 'pending',
+          jobId: result.jobId,
+          model: result.model,
+        },
       }))
 
       const interval = setInterval(() => {
@@ -138,7 +153,8 @@ export default function VideoGenerator({ initialImageUrl }: VideoGeneratorProps)
         ...prev,
         [modelId]: {
           status: 'error',
-          message: err instanceof Error ? err.message : 'Failed to create video job',
+          message:
+            err instanceof Error ? err.message : 'Failed to create video job',
         },
       }))
     }
@@ -155,7 +171,9 @@ export default function VideoGenerator({ initialImageUrl }: VideoGeneratorProps)
 
     if (selectedModel === 'all') {
       // Fire all requests in parallel
-      await Promise.all(filteredModels.map((model) => startJobForModel(model.id)))
+      await Promise.all(
+        filteredModels.map((model) => startJobForModel(model.id)),
+      )
     } else {
       await startJobForModel(selectedModel)
     }
@@ -171,7 +189,7 @@ export default function VideoGenerator({ initialImageUrl }: VideoGeneratorProps)
     (state) =>
       state.status === 'submitting' ||
       state.status === 'pending' ||
-      state.status === 'processing'
+      state.status === 'processing',
   )
 
   return (
@@ -347,7 +365,8 @@ export default function VideoGenerator({ initialImageUrl }: VideoGeneratorProps)
                   <div className="flex items-center gap-2 p-4 bg-gray-800 rounded-lg border border-gray-700">
                     <Loader2 className="w-5 h-5 animate-spin text-blue-400" />
                     <span className="text-gray-400">
-                      Processing{state.progress != null ? ` (${state.progress}%)` : '...'}
+                      Processing
+                      {state.progress != null ? ` (${state.progress}%)` : '...'}
                     </span>
                   </div>
                 )}

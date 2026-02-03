@@ -67,7 +67,7 @@ export type VideoPrompt =
   | (typeof VIDEO_PROMPTS.imageToVideo)[number]
 
 export function getRandomImagePrompt(): string {
-  return IMAGE_PROMPTS[Math.floor(Math.random() * IMAGE_PROMPTS.length)]
+  return IMAGE_PROMPTS[Math.floor(Math.random() * IMAGE_PROMPTS.length)] ?? ''
 }
 
 export function getRandomVideoPrompt(
@@ -77,5 +77,5 @@ export function getRandomVideoPrompt(
     mode === 'text-to-video'
       ? VIDEO_PROMPTS.textToVideo
       : VIDEO_PROMPTS.imageToVideo
-  return prompts[Math.floor(Math.random() * prompts.length)]
+  return prompts[Math.floor(Math.random() * prompts.length)] ?? ''
 }

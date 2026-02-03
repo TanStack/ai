@@ -15,7 +15,7 @@ export type { EndpointTypeMap } from '@fal-ai/client/endpoints'
  * All known fal.ai model IDs with autocomplete support.
  * Also accepts any string for custom/new models.
  */
-export type FalModel = keyof EndpointTypeMap | string
+export type FalModel = keyof EndpointTypeMap | (string & {})
 
 /**
  * Utility type to extract the input type for a specific fal model.

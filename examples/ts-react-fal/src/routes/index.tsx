@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { createFileRoute } from '@tanstack/react-router'
-import { ImageIcon, Film } from 'lucide-react'
+import { Film, ImageIcon } from 'lucide-react'
 import ImageGenerator from '@/components/ImageGenerator'
 import VideoGenerator from '@/components/VideoGenerator'
 
@@ -8,7 +8,9 @@ type Tab = 'image' | 'video'
 
 function VisualPage() {
   const [activeTab, setActiveTab] = useState<Tab>('image')
-  const [lastGeneratedImage, setLastGeneratedImage] = useState<string | null>(null)
+  const [lastGeneratedImage, setLastGeneratedImage] = useState<string | null>(
+    null,
+  )
 
   return (
     <div className="min-h-[calc(100vh-72px)] bg-gray-900 p-6">
