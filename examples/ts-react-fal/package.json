@@ -1,0 +1,33 @@
+{
+  "name": "ts-react-fal",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite dev --port 3001",
+    "build": "vite build",
+    "serve": "vite preview",
+    "test": "exit 0"
+  },
+  "dependencies": {
+    "@tailwindcss/vite": "^4.1.18",
+    "@tanstack/ai": "workspace:*",
+    "@tanstack/ai-fal": "workspace:*",
+    "@tanstack/react-router": "^1.141.1",
+    "@tanstack/react-start": "^1.141.1",
+    "@tanstack/router-plugin": "^1.141.1",
+    "lucide-react": "^0.561.0",
+    "nitro": "3.0.1-alpha.2",
+    "react": "^19.2.3",
+    "react-dom": "^19.2.3",
+    "tailwindcss": "^4.1.18",
+    "vite-tsconfig-paths": "^5.1.4"
+  },
+  "devDependencies": {
+    "@types/node": "^24.10.3",
+    "@types/react": "^19.2.7",
+    "@types/react-dom": "^19.2.3",
+    "@vitejs/plugin-react": "^5.1.2",
+    "typescript": "5.9.3",
+    "vite": "^7.3.1"
+  }
+}
