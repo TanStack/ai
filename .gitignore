@@ -54,8 +54,5 @@ test-traces
 .nitro
 .output
 
+# Only .claude.settings.json should be committed
 .claude/settings.local.json
-
-# Script outputs
-scripts/fal.models.json
-fal-models-comparison.csv
