@@ -11,6 +11,7 @@ export type {
   ChatClientOptions,
   ChatRequestBody,
   InferChatMessages,
+  ChatClientState,
 } from './types'
 export { clientTools, createChatClientOptions } from './types'
 export type {
@@ -51,7 +52,6 @@ export {
   defaultJSONParser,
   type ChunkStrategy,
   type StreamProcessorOptions,
-  type StreamProcessorHandlers,
   type StreamProcessorEvents,
   type InternalToolCallState,
   type ToolCallState,

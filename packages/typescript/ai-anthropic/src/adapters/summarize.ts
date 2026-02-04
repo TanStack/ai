@@ -104,20 +104,19 @@ export class AnthropicSummarizeAdapter<
           const delta = event.delta.text
           accumulatedContent += delta
           yield {
-            type: 'content',
-            id,
+            type: 'TEXT_MESSAGE_CONTENT',
+            messageId: id,
             model,
             timestamp: Date.now(),
             delta,
             content: accumulatedContent,
-            role: 'assistant',
           }
         }
       } else if (event.type === 'message_delta') {
         outputTokens = event.usage.output_tokens
         yield {
-          type: 'done',
-          id,
+          type: 'RUN_FINISHED',
+          runId: id,
           model,
           timestamp: Date.now(),
           finishReason: event.delta.stop_reason as

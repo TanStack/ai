@@ -164,13 +164,12 @@ export class GeminiSummarizeAdapter<
           if (part.text) {
             accumulatedContent += part.text
             yield {
-              type: 'content',
-              id,
+              type: 'TEXT_MESSAGE_CONTENT',
+              messageId: id,
               model,
               timestamp: Date.now(),
               delta: part.text,
               content: accumulatedContent,
-              role: 'assistant',
             }
           }
         }
@@ -184,8 +183,8 @@ export class GeminiSummarizeAdapter<
         finishReason === FinishReason.SAFETY
       ) {
         yield {
-          type: 'done',
-          id,
+          type: 'RUN_FINISHED',
+          runId: id,
           model,
           timestamp: Date.now(),
           finishReason:

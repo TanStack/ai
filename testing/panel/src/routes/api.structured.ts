@@ -2,11 +2,19 @@ import { createFileRoute } from '@tanstack/react-router'
 import { chat, createChatOptions } from '@tanstack/ai'
 import { anthropicText } from '@tanstack/ai-anthropic'
 import { geminiText } from '@tanstack/ai-gemini'
+import { grokText } from '@tanstack/ai-grok'
 import { openaiText } from '@tanstack/ai-openai'
 import { ollamaText } from '@tanstack/ai-ollama'
+import { openRouterText } from '@tanstack/ai-openrouter'
 import { z } from 'zod'
 
-type Provider = 'openai' | 'anthropic' | 'gemini' | 'ollama'
+type Provider =
+  | 'openai'
+  | 'anthropic'
+  | 'gemini'
+  | 'ollama'
+  | 'grok'
+  | 'openrouter'
 
 // Schema for structured recipe output
 const RecipeSchema = z.object({
@@ -50,29 +58,49 @@ export const Route = createFileRoute('/api/structured')({
         const { recipeName, mode = 'structured' } = body
         const data = body.data || {}
         const provider: Provider = data.provider || body.provider || 'openai'
-        const model: string = data.model || body.model || 'gpt-4o'
+        // Don't set a global default - let each adapter use its own default model
+        const model: string | undefined = data.model || body.model
 
         try {
+          // Default models per provider
+          const defaultModels: Record<Provider, string> = {
+            anthropic: 'claude-sonnet-4-5',
+            gemini: 'gemini-2.0-flash',
+            grok: 'grok-3-mini',
+            ollama: 'mistral:7b',
+            openai: 'gpt-4o',
+            openrouter: 'openai/gpt-4o',
+          }
+
+          // Determine the actual model being used
+          const actualModel = model || defaultModels[provider]
+
           // Pre-define typed adapter configurations with full type inference
           // Model is passed to the adapter factory function for type-safe autocomplete
           const adapterConfig = {
             anthropic: () =>
               createChatOptions({
-                adapter: anthropicText(
-                  (model || 'claude-sonnet-4-5-20250929') as any,
-                ),
+                adapter: anthropicText(actualModel as any),
               }),
             gemini: () =>
               createChatOptions({
-                adapter: geminiText((model || 'gemini-2.0-flash-exp') as any),
+                adapter: geminiText(actualModel as any),
+              }),
+            grok: () =>
+              createChatOptions({
+                adapter: grokText(actualModel as any),
               }),
             ollama: () =>
               createChatOptions({
-                adapter: ollamaText((model || 'mistral:7b') as any),
+                adapter: ollamaText(actualModel as any),
               }),
             openai: () =>
               createChatOptions({
-                adapter: openaiText((model || 'gpt-4o') as any),
+                adapter: openaiText(actualModel as any),
+              }),
+            openrouter: () =>
+              createChatOptions({
+                adapter: openRouterText(actualModel as any),
               }),
           }
 
@@ -80,7 +108,7 @@ export const Route = createFileRoute('/api/structured')({
           const options = adapterConfig[provider]()
 
           console.log(
-            `>> ${mode} output with model: ${model} on provider: ${provider}`,
+            `>> ${mode} output with model: ${actualModel} on provider: ${provider}`,
           )
 
           if (mode === 'structured') {
@@ -101,7 +129,7 @@ export const Route = createFileRoute('/api/structured')({
                 mode: 'structured',
                 recipe: result,
                 provider,
-                model,
+                model: actualModel,
               }),
               {
                 status: 200,
@@ -139,7 +167,7 @@ Make it detailed and easy to follow.`,
                 mode: 'oneshot',
                 markdown,
                 provider,
-                model,
+                model: actualModel,
               }),
               {
                 status: 200,

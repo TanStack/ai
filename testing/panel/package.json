@@ -5,7 +5,9 @@
   "scripts": {
     "dev": "vite dev --port 3010",
     "build": "vite build",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "test:e2e": "playwright test",
+    "test:e2e:ui": "playwright test --ui"
   },
   "dependencies": {
     "@tailwindcss/vite": "^4.1.18",
@@ -16,6 +18,7 @@
     "@tanstack/ai-grok": "workspace:*",
     "@tanstack/ai-ollama": "workspace:*",
     "@tanstack/ai-openai": "workspace:*",
+    "@tanstack/ai-openrouter": "workspace:*",
     "@tanstack/ai-react": "workspace:*",
     "@tanstack/ai-react-ui": "workspace:*",
     "@tanstack/nitro-v2-vite-plugin": "^1.141.0",
@@ -36,10 +39,12 @@
     "zod": "^4.2.0"
   },
   "devDependencies": {
+    "@playwright/test": "^1.57.0",
     "@types/node": "^24.10.1",
     "@types/react": "^19.2.7",
     "@types/react-dom": "^19.2.3",
     "@vitejs/plugin-react": "^5.1.2",
+    "dotenv": "^17.2.3",
     "typescript": "5.9.3",
     "vite": "^7.2.7"
   }

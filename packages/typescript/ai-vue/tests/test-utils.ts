@@ -1,8 +1,8 @@
-import { defineComponent } from 'vue'
-import { mount } from '@vue/test-utils'
-import { useChat } from '../src/use-chat'
-import type { UseChatOptions } from '../src/types'
 import type { UIMessage } from '@tanstack/ai-client'
+import { mount } from '@vue/test-utils'
+import { defineComponent } from 'vue'
+import type { UseChatOptions } from '../src/types'
+import { useChat } from '../src/use-chat'
 
 // Re-export test utilities from ai-client
 export {
@@ -42,6 +42,7 @@ export function renderUseChat(options?: UseChatOptions) {
       messages: hook.messages as Array<UIMessage>,
       isLoading: hook.isLoading,
       error: hook.error,
+      status: hook.status,
       sendMessage: hook.sendMessage,
       append: hook.append,
       reload: hook.reload,

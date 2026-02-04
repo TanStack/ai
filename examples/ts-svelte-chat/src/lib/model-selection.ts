@@ -32,13 +32,18 @@ export const MODEL_OPTIONS: Array<ModelOption> = [
   // Gemini
   {
     provider: 'gemini',
-    model: 'gemini-2.0-flash-exp',
+    model: 'gemini-2.0-flash',
     label: 'Gemini - 2.0 Flash',
   },
   {
     provider: 'gemini',
-    model: 'gemini-exp-1206',
-    label: 'Gemini - Exp 1206 (Pro)',
+    model: 'gemini-2.5-flash',
+    label: 'Gemini - 2.5 Flash',
+  },
+  {
+    provider: 'gemini',
+    model: 'gemini-2.5-pro',
+    label: 'Gemini - 2.5 Pro',
   },
 
   // Ollama

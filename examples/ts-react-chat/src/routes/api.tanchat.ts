@@ -124,12 +124,10 @@ export const Route = createFileRoute('/api/tanchat')({
             createChatOptions({
               adapter: ollamaText((model || 'gpt-oss:120b') as 'gpt-oss:120b'),
               modelOptions: { think: 'low', options: { top_k: 1 } },
-              temperature: 12,
             }),
           openai: () =>
             createChatOptions({
               adapter: openaiText((model || 'gpt-4o') as 'gpt-4o'),
-              temperature: 2,
               modelOptions: {},
             }),
         }
