@@ -1,3 +1,4 @@
+import { ChatClient } from '@tanstack/ai-client'
 import {
   useCallback,
   useEffect,
@@ -6,7 +7,7 @@ import {
   useRef,
   useState,
 } from 'preact/hooks'
-import { ChatClient } from '@tanstack/ai-client'
+import type { ChatClientState } from '@tanstack/ai-client'
 import type { AnyClientTool, ModelMessage } from '@tanstack/ai'
 
 import type { UIMessage, UseChatOptions, UseChatReturn } from './types'
@@ -22,6 +23,7 @@ export function useChat<TTools extends ReadonlyArray<AnyClientTool> = any>(
   )
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<Error | undefined>(undefined)
+  const [status, setStatus] = useState<ChatClientState>('ready')
 
   // Track current messages in a ref to preserve them when client is recreated
   const messagesRef = useRef<Array<UIMessage<TTools>>>(
@@ -51,8 +53,12 @@ export function useChat<TTools extends ReadonlyArray<AnyClientTool> = any>(
       body: optionsRef.current.body,
       onResponse: optionsRef.current.onResponse,
       onChunk: optionsRef.current.onChunk,
-      onFinish: optionsRef.current.onFinish,
-      onError: optionsRef.current.onError,
+      onFinish: (message) => {
+        optionsRef.current.onFinish?.(message)
+      },
+      onError: (err) => {
+        optionsRef.current.onError?.(err)
+      },
       tools: optionsRef.current.tools,
       streamProcessor: options.streamProcessor,
       onMessagesChange: (newMessages: Array<UIMessage<TTools>>) => {
@@ -60,6 +66,9 @@ export function useChat<TTools extends ReadonlyArray<AnyClientTool> = any>(
       },
       onLoadingChange: (newIsLoading: boolean) => {
         setIsLoading(newIsLoading)
+      },
+      onStatusChange: (newStatus: ChatClientState) => {
+        setStatus(newStatus)
       },
       onErrorChange: (newError: Error | undefined) => {
         setError(newError)
@@ -160,6 +169,7 @@ export function useChat<TTools extends ReadonlyArray<AnyClientTool> = any>(
     stop,
     isLoading,
     error,
+    status,
     setMessages: setMessagesManually,
     clear,
     addToolResult,

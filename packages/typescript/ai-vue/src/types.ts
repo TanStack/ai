@@ -1,13 +1,14 @@
-import type { DeepReadonly, ShallowRef } from 'vue'
 import type { AnyClientTool, ModelMessage } from '@tanstack/ai'
 import type {
   ChatClientOptions,
+  ChatClientState,
   ChatRequestBody,
   UIMessage,
 } from '@tanstack/ai-client'
+import type { DeepReadonly, ShallowRef } from 'vue'
 
 // Re-export types from ai-client
-export type { UIMessage, ChatRequestBody }
+export type { ChatRequestBody, UIMessage }
 
 /**
  * Options for the useChat composable.
@@ -17,6 +18,7 @@ export type { UIMessage, ChatRequestBody }
  * - `onMessagesChange` - Managed by Vue ref (exposed as `messages`)
  * - `onLoadingChange` - Managed by Vue ref (exposed as `isLoading`)
  * - `onErrorChange` - Managed by Vue ref (exposed as `error`)
+ * - `onStatusChange` - Managed by Vue ref (exposed as `status`)
  *
  * All other callbacks (onResponse, onChunk, onFinish, onError) are
  * passed through to the underlying ChatClient and can be used for side effects.
@@ -27,7 +29,7 @@ export type { UIMessage, ChatRequestBody }
 export type UseChatOptions<TTools extends ReadonlyArray<AnyClientTool> = any> =
   Omit<
     ChatClientOptions<TTools>,
-    'onMessagesChange' | 'onLoadingChange' | 'onErrorChange'
+    'onMessagesChange' | 'onLoadingChange' | 'onErrorChange' | 'onStatusChange'
   >
 
 export interface UseChatReturn<
@@ -96,6 +98,11 @@ export interface UseChatReturn<
    * Clear all messages
    */
   clear: () => void
+
+  /**
+   * Current generation status
+   */
+  status: DeepReadonly<ShallowRef<ChatClientState>>
 }
 
 // Note: createChatClientOptions and InferChatMessages are now in @tanstack/ai-client
