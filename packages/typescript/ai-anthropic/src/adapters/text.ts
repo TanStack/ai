@@ -1,5 +1,4 @@
 import { BaseTextAdapter } from '@tanstack/ai/adapters'
-import { detectImageMimeType } from '@tanstack/ai'
 import { convertToolsToProviderFormat } from '../tools/tool-converter'
 import { validateTextProviderOptions } from '../text/text-provider-options'
 import {
@@ -309,30 +308,25 @@ export class AnthropicTextAdapter<
 
       case 'image': {
         const metadata = part.metadata as AnthropicImageMetadata | undefined
-        // Detect mime type from base64 magic bytes if not provided
-        const detectedMimeType = detectImageMimeType(part.source.value)
         const imageSource: Base64ImageSource | URLImageSource =
           part.source.type === 'data'
             ? {
                 type: 'base64',
                 data: part.source.value,
-                media_type:
-                  metadata?.mediaType ?? detectedMimeType ?? 'image/jpeg',
+                media_type: part.source.mimeType as
+                  | 'image/jpeg'
+                  | 'image/png'
+                  | 'image/gif'
+                  | 'image/webp',
               }
             : {
                 type: 'url',
                 url: part.source.value,
               }
-        // Remove mediaType and mimeType from metadata before spreading - they're handled via source.media_type
-        const {
-          mediaType: _mediaType,
-          mimeType: _mimeType,
-          ...meta
-        } = (metadata || {}) as AnthropicImageMetadata & { mimeType?: string }
         return {
           type: 'image',
           source: imageSource,
-          ...meta,
+          ...metadata,
         }
       }
       case 'document': {
@@ -342,7 +336,7 @@ export class AnthropicTextAdapter<
             ? {
                 type: 'base64',
                 data: part.source.value,
-                media_type: 'application/pdf',
+                media_type: part.source.mimeType as 'application/pdf',
               }
             : {
                 type: 'url',

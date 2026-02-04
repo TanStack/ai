@@ -83,7 +83,11 @@ describe('Message Converters', () => {
           { type: 'text', content: 'Transcribe this' },
           {
             type: 'audio',
-            source: { type: 'data', value: 'base64audio' },
+            source: {
+              type: 'data',
+              value: 'base64audio',
+              mimeType: 'audio/mp3',
+            },
           },
         ],
       }
@@ -93,7 +97,7 @@ describe('Message Converters', () => {
       const contentParts = result[0]?.content as Array<ContentPart>
       expect(contentParts[1]).toEqual({
         type: 'audio',
-        source: { type: 'data', value: 'base64audio' },
+        source: { type: 'data', value: 'base64audio', mimeType: 'audio/mp3' },
       })
     })
 
@@ -127,8 +131,11 @@ describe('Message Converters', () => {
           { type: 'text', content: 'Summarize this document' },
           {
             type: 'document',
-            source: { type: 'data', value: 'base64pdf' },
-            metadata: { mimeType: 'application/pdf' },
+            source: {
+              type: 'data',
+              value: 'base64pdf',
+              mimeType: 'application/pdf',
+            },
           },
         ],
       }
@@ -138,8 +145,11 @@ describe('Message Converters', () => {
       const contentParts = result[0]?.content as Array<ContentPart>
       expect(contentParts[1]).toEqual({
         type: 'document',
-        source: { type: 'data', value: 'base64pdf' },
-        metadata: { mimeType: 'application/pdf' },
+        source: {
+          type: 'data',
+          value: 'base64pdf',
+          mimeType: 'application/pdf',
+        },
       })
     })
 

@@ -348,8 +348,7 @@ function ChatPage() {
       for (const img of attachedImages) {
         contentParts.push({
           type: 'image',
-          source: { type: 'data', value: img.base64 },
-          metadata: { mediaType: img.mimeType, mimeType: img.mimeType },
+          source: { type: 'data', value: img.base64, mimeType: img.mimeType },
         })
       }
 

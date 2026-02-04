@@ -3,7 +3,7 @@ import { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react'
 import type { AnyClientTool, ModelMessage } from '@tanstack/ai'
 import type { ChatClientState } from '@tanstack/ai-client'
 
-import type { UIMessage, UseChatOptions, UseChatReturn } from './types'
+import type { MultimodalContent, UIMessage, UseChatOptions, UseChatReturn } from './types'
 
 export function useChat<TTools extends ReadonlyArray<AnyClientTool> = any>(
   options: UseChatOptions<TTools>,
@@ -109,7 +109,7 @@ export function useChat<TTools extends ReadonlyArray<AnyClientTool> = any>(
   // remounting the component or changing the connection to recreate the client.
 
   const sendMessage = useCallback(
-    async (content: string) => {
+    async (content: string | MultimodalContent) => {
       await client.sendMessage(content)
     },
     [client],

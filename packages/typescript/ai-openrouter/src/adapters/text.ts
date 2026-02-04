@@ -590,11 +590,11 @@ export class OpenRouterTextAdapter<
           break
         case 'image': {
           const meta = part.metadata as OpenRouterImageMetadata | undefined
-          // For base64 data, construct a data URI if not already one
+          // For base64 data, construct a data URI using the mimeType from source
           const imageValue = part.source.value
           const imageUrl =
             part.source.type === 'data' && !imageValue.startsWith('data:')
-              ? `data:image/jpeg;base64,${imageValue}`
+              ? `data:${part.source.mimeType};base64,${imageValue}`
               : imageValue
           parts.push({
             type: 'image_url',

@@ -26,12 +26,13 @@ const textPart: TextPart = {
   content: 'What do you see in this image?'
 }
 
-// Image from base64 data
+// Image from base64 data (mimeType is required for data sources)
 const imagePart: ImagePart = {
   type: 'image',
   source: {
     type: 'data',
-    value: 'base64EncodedImageData...'
+    value: 'base64EncodedImageData...',
+    mimeType: 'image/jpeg' // Required for data sources
   },
   metadata: {
     // Provider-specific metadata
@@ -39,12 +40,13 @@ const imagePart: ImagePart = {
   }
 }
 
-// Image from URL
+// Image from URL (mimeType is optional for URL sources)
 const imageUrlPart: ImagePart = {
   type: 'image',
   source: {
     type: 'url',
-    value: 'https://example.com/image.jpg'
+    value: 'https://example.com/image.jpg',
+    mimeType: 'image/jpeg' // Optional hint for URL sources
   }
 }
 ```
@@ -95,7 +97,7 @@ const message = {
     { type: 'text' , content: 'Describe this image' },
     {
       type: 'image' ,
-      source: { type: 'data' , value: imageBase64 },
+      source: { type: 'data' , value: imageBase64, mimeType: 'image/jpeg' },
       metadata: { detail: 'high' } // 'auto' | 'low' | 'high'
     }
   ]
@@ -115,15 +117,14 @@ import { anthropicText } from '@tanstack/ai-anthropic'
 
 const adapter = anthropicText()
 
-// Image with media type
+// Image with mimeType in source
 const imageMessage = {
   role: 'user' ,
   content: [
     { type: 'text' , content: 'What do you see?' },
     {
       type: 'image' ,
-      source: { type: 'data' , value: imageBase64 },
-      metadata: { media_type: 'image/jpeg' }
+      source: { type: 'data' , value: imageBase64, mimeType: 'image/jpeg' }
     }
   ]
 }
@@ -135,7 +136,7 @@ const docMessage = {
     { type: 'text', content: 'Summarize this document' },
     {
       type: 'document',
-      source: { type: 'data', value: pdfBase64 }
+      source: { type: 'data', value: pdfBase64, mimeType: 'application/pdf' }
     }
   ]
 }
@@ -154,15 +155,14 @@ import { geminiText } from '@tanstack/ai-gemini'
 
 const adapter = geminiText()
 
-// Image with mimeType
+// Image with mimeType in source
 const message = {
   role: 'user',
   content: [
     { type: 'text', content: 'Analyze this image' },
     {
       type: 'image',
-      source: { type: 'data', value: imageBase64 },
-      metadata: { mimeType: 'image/png' }
+      source: { type: 'data', value: imageBase64, mimeType: 'image/png' }
     }
   ]
 }
@@ -188,7 +188,7 @@ const message = {
     { type: 'text', content: 'What is in this image?' },
     {
       type: 'image',
-      source: { type: 'data', value: imageBase64 }
+      source: { type: 'data', value: imageBase64, mimeType: 'image/jpeg' }
     }
   ]
 }
@@ -202,28 +202,39 @@ Content can be provided as either inline data or a URL:
 
 ### Data (Base64)
 
-Use `type: 'data'` for inline base64-encoded content:
+Use `type: 'data'` for inline base64-encoded content. **The `mimeType` field is required** to ensure providers receive proper content type information:
 
 ```typescript
 const imagePart = {
   type: 'image',
   source: {
     type: 'data',
-    value: 'iVBORw0KGgoAAAANSUhEUgAAAAUA...' // Base64 string
+    value: 'iVBORw0KGgoAAAANSUhEUgAAAAUA...', // Base64 string
+    mimeType: 'image/png' // Required for data sources
+  }
+}
+
+const audioPart = {
+  type: 'audio',
+  source: {
+    type: 'data',
+    value: 'base64AudioData...',
+    mimeType: 'audio/mp3' // Required for data sources
   }
 }
 ```
 
 ### URL
 
-Use `type: 'url'` for content hosted at a URL:
+Use `type: 'url'` for content hosted at a URL. The `mimeType` field is **optional** as providers can often infer it from the URL or response headers:
 
 ```typescript
 const imagePart = {
   type: 'image' ,
   source: {
     type: 'url' ,
-    value: 'https://example.com/image.jpg'
+    value: 'https://example.com/image.jpg',
+    mimeType: 'image/jpeg' // Optional hint
   }
 }
 ```

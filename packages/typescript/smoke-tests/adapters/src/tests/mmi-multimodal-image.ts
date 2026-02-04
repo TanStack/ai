@@ -59,8 +59,7 @@ export async function runMMJ(
     { type: 'text', content: 'Describe this image' },
     {
       type: 'image',
-      source: { type: 'data', value: imageBase64 },
-      metadata: { mediaType: mimeType, mimeType: mimeType },
+      source: { type: 'data', value: imageBase64, mimeType },
     },
   ]
 
@@ -155,8 +154,7 @@ export async function runMMP(
     { type: 'text', content: 'Describe this image' },
     {
       type: 'image',
-      source: { type: 'data', value: imageBase64 },
-      metadata: { mediaType: mimeType, mimeType: mimeType },
+      source: { type: 'data', value: imageBase64, mimeType },
     },
   ]
 

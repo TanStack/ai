@@ -813,11 +813,11 @@ export class OpenAITextAdapter<
             detail: imageMetadata?.detail || 'auto',
           }
         }
-        // For base64 data, construct a data URI if not already one
+        // For base64 data, construct a data URI using the mimeType from source
         const imageValue = part.source.value
         const imageUrl = imageValue.startsWith('data:')
           ? imageValue
-          : `data:image/jpeg;base64,${imageValue}`
+          : `data:${part.source.mimeType};base64,${imageValue}`
         return {
           type: 'input_image',
           image_url: imageUrl,

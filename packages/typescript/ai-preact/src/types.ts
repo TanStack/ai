@@ -3,11 +3,12 @@ import type {
   ChatClientOptions,
   ChatClientState,
   ChatRequestBody,
+  MultimodalContent,
   UIMessage,
 } from '@tanstack/ai-client'
 
 // Re-export types from ai-client
-export type { ChatRequestBody, UIMessage }
+export type { ChatRequestBody, MultimodalContent, UIMessage }
 
 /**
  * Options for the useChat hook.
@@ -40,9 +41,10 @@ export interface UseChatReturn<
   messages: Array<UIMessage<TTools>>
 
   /**
-   * Send a message and get a response
+   * Send a message and get a response.
+   * Can be a simple string or multimodal content with images, audio, etc.
    */
-  sendMessage: (content: string) => Promise<void>
+  sendMessage: (content: string | MultimodalContent) => Promise<void>
 
   /**
    * Append a message to the conversation

@@ -1,6 +1,5 @@
 import { FinishReason } from '@google/genai'
 import { BaseTextAdapter } from '@tanstack/ai/adapters'
-import { detectImageMimeType } from '@tanstack/ai'
 import { convertToolsToProviderFormat } from '../tools/tool-converter'
 import {
   createGeminiClient,
@@ -31,13 +30,7 @@ import type {
   TextOptions,
 } from '@tanstack/ai'
 import type { ExternalTextProviderOptions } from '../text/text-provider-options'
-import type {
-  GeminiAudioMetadata,
-  GeminiDocumentMetadata,
-  GeminiImageMetadata,
-  GeminiMessageMetadataByModality,
-  GeminiVideoMetadata,
-} from '../message-types'
+import type { GeminiMessageMetadataByModality } from '../message-types'
 import type { GeminiClientConfig } from '../utils'
 
 /**
@@ -484,26 +477,6 @@ export class GeminiTextAdapter<
   }
 
   private convertContentPartToGemini(part: ContentPart): Part {
-    const getDefaultFileType = (
-      partType: 'image' | 'audio' | 'video' | 'document',
-      data?: string,
-    ) => {
-      switch (partType) {
-        case 'image':
-          // Try to detect from base64 magic bytes
-          if (data) {
-            const detected = detectImageMimeType(data)
-            if (detected) return detected
-          }
-          return 'image/jpeg'
-        case 'audio':
-          return 'audio/mp3'
-        case 'video':
-          return 'video/mp4'
-        case 'document':
-          return 'application/pdf'
-      }
-    }
     switch (part.type) {
       case 'text':
         return { text: part.content }
@@ -511,26 +484,26 @@ export class GeminiTextAdapter<
       case 'audio':
       case 'video':
       case 'document': {
-        const metadata = part.metadata as
-          | GeminiDocumentMetadata
-          | GeminiImageMetadata
-          | GeminiVideoMetadata
-          | GeminiAudioMetadata
-          | undefined
         if (part.source.type === 'data') {
           return {
             inlineData: {
               data: part.source.value,
-              mimeType:
-                metadata?.mimeType ??
-                getDefaultFileType(part.type, part.source.value),
+              mimeType: part.source.mimeType,
             },
           }
         } else {
+          // For URL sources, use provided mimeType or fall back to reasonable defaults
+          const defaultMimeType = {
+            image: 'image/jpeg',
+            audio: 'audio/mp3',
+            video: 'video/mp4',
+            document: 'application/pdf',
+          }[part.type]
+
           return {
             fileData: {
               fileUri: part.source.value,
-              mimeType: metadata?.mimeType ?? getDefaultFileType(part.type),
+              mimeType: part.source.mimeType ?? defaultMimeType,
             },
           }
         }

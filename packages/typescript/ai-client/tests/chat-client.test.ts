@@ -661,7 +661,11 @@ describe('ChatClient', () => {
           { type: 'text', content: 'Transcribe this audio' },
           {
             type: 'audio',
-            source: { type: 'data', value: 'base64AudioData' },
+            source: {
+              type: 'data',
+              value: 'base64AudioData',
+              mimeType: 'audio/mp3',
+            },
           },
         ],
       })
@@ -669,7 +673,11 @@ describe('ChatClient', () => {
       const messages = client.getMessages()
       expect(messages[0]?.parts[1]).toEqual({
         type: 'audio',
-        source: { type: 'data', value: 'base64AudioData' },
+        source: {
+          type: 'data',
+          value: 'base64AudioData',
+          mimeType: 'audio/mp3',
+        },
       })
     })
 
@@ -707,8 +715,11 @@ describe('ChatClient', () => {
           { type: 'text', content: 'Summarize this PDF' },
           {
             type: 'document',
-            source: { type: 'data', value: 'base64PdfData' },
-            metadata: { mimeType: 'application/pdf' },
+            source: {
+              type: 'data',
+              value: 'base64PdfData',
+              mimeType: 'application/pdf',
+            },
           },
         ],
       })
@@ -716,8 +727,11 @@ describe('ChatClient', () => {
       const messages = client.getMessages()
       expect(messages[0]?.parts[1]).toEqual({
         type: 'document',
-        source: { type: 'data', value: 'base64PdfData' },
-        metadata: { mimeType: 'application/pdf' },
+        source: {
+          type: 'data',
+          value: 'base64PdfData',
+          mimeType: 'application/pdf',
+        },
       })
     })
 
