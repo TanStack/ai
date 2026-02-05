@@ -53,3 +53,6 @@ test-traces
 **/adapters/output
 .nitro
 .output
+
+# Only .claude.settings.json should be committed
+.claude/settings.local.json
