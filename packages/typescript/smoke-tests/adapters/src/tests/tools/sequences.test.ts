@@ -298,7 +298,7 @@ describe('Tool Sequence Tests', () => {
       }
       const adapter = createLLMSimulator(script)
 
-      const callOrder: string[] = []
+      const callOrder: Array<string> = []
 
       const toolA = toolDefinition({
         name: 'tool_a',
@@ -368,7 +368,7 @@ describe('Tool Sequence Tests', () => {
       }
       const adapter = createLLMSimulator(script)
 
-      const callOrder: string[] = []
+      const callOrder: Array<string> = []
 
       const sourceA = toolDefinition({
         name: 'source_a',

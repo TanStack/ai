@@ -318,6 +318,12 @@ export class ChatClient {
     const messages = this.processor.getMessages()
     this.processor.setMessages([...messages, uiMessage])
 
+    // If stream is in progress, queue the response for after it ends
+    if (this.isLoading) {
+      this.queuePostStreamAction(() => this.streamResponse())
+      return
+    }
+
     await this.streamResponse()
   }
 
@@ -339,8 +345,8 @@ export class ChatClient {
     let streamCompletedSuccessfully = false
 
     try {
-      // Get model messages for the LLM
-      const modelMessages = this.processor.toModelMessages()
+      // Get UIMessages with parts (preserves approval state and client tool results)
+      const messages = this.processor.getMessages()
 
       // Call onResponse callback
       await this.callbacksRef.current.onResponse()
@@ -353,7 +359,7 @@ export class ChatClient {
 
       // Connect and stream
       const stream = this.connection.connect(
-        modelMessages,
+        messages,
         bodyWithConversationId,
         this.abortController.signal,
       )

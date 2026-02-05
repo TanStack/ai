@@ -39,6 +39,7 @@ import type {
   StreamChunk,
   ToolCall,
   ToolCallPart,
+  ToolResultPart,
   UIMessage,
 } from '../../../types'
 
@@ -296,11 +297,23 @@ export class StreamProcessor {
 
     if (toolParts.length === 0) return true
 
+    // Get tool result parts to check for server tool completion
+    const toolResultIds = new Set(
+      lastAssistant.parts
+        .filter((p): p is ToolResultPart => p.type === 'tool-result')
+        .map((p) => p.toolCallId),
+    )
+
     // All tool calls must be in a terminal state
+    // A tool call is complete if:
+    // 1. It was approved/denied (approval-responded state)
+    // 2. It has an output field set (client tool completed via addToolResult)
+    // 3. It has a corresponding tool-result part (server tool completed)
     return toolParts.every(
       (part) =>
         part.state === 'approval-responded' ||
-        (part.output !== undefined && !part.approval),
+        (part.output !== undefined && !part.approval) ||
+        toolResultIds.has(part.id),
     )
   }
 

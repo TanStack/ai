@@ -7,6 +7,10 @@
  * The guitar store system prompt instructs the AI to:
  * 1. Call getGuitars() to fetch inventory
  * 2. Call recommendGuitar(id) to display a recommendation
+ *
+ * NOTE: These tests are marked as flaky because they depend on real LLM behavior.
+ * LLMs may not always decide to call tools even when prompted, and API latency
+ * can cause timeouts. The retries help account for this non-determinism.
  */
 
 import { test, expect } from '@playwright/test'
@@ -30,6 +34,9 @@ const toolProviders = PROVIDERS.filter((p) => p.supportsTools)
 
 for (const provider of toolProviders) {
   test.describe(`${provider.name} - Tool Flow`, () => {
+    // These tests are flaky due to LLM non-determinism - models may not always call tools
+    test.describe.configure({ retries: 2 })
+
     // Skip if provider is not available
     test.skip(
       () => !isProviderAvailable(provider),

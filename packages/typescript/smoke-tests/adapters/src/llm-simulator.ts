@@ -108,6 +108,7 @@ export class LLMSimulatorAdapter {
       const iterationFromMessages = this.determineIterationFromMessages(
         options.messages,
       )
+
       if (iterationFromMessages !== null && iterationFromMessages > 0) {
         // Check if this script is a "full script" by seeing if iteration 0
         // has a tool call that matches one in the messages
@@ -333,9 +334,8 @@ export class LLMSimulatorAdapter {
 
     // Get all completed tool call IDs from:
     // 1. Separate tool result messages (role: 'tool')
-    // 2. Parts array with output set (client tool results) - UIMessage format
-    // 3. Parts array with approval.approved set (approval responses) - UIMessage format
-    // 4. toolCalls array with approval.approved set (approval responses) - ModelMessage format
+    // 2. Parts array with output set (client tool results)
+    // 3. Parts array with approval.approved set (approval responses)
     const completedToolIds = new Set<string>()
 
     for (const msg of messages) {
@@ -356,16 +356,6 @@ export class LLMSimulatorAdapter {
             if (part.approval?.approved !== undefined) {
               completedToolIds.add(part.id)
             }
-          }
-        }
-      }
-
-      // Check for ModelMessage format: toolCalls with approval info
-      if (msg.role === 'assistant' && msg.toolCalls) {
-        for (const tc of msg.toolCalls) {
-          // Approval tools are complete when approval.approved is set
-          if (tc.approval?.approved !== undefined) {
-            completedToolIds.add(tc.id)
           }
         }
       }

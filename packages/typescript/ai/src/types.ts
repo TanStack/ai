@@ -91,11 +91,6 @@ export interface ToolCall {
     name: string
     arguments: string // JSON string
   }
-  /** Approval info for tools requiring user approval (included in messages sent back to server) */
-  approval?: {
-    id: string
-    approved: boolean
-  }
 }
 
 // ============================================================================

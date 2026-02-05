@@ -104,14 +104,6 @@ export function uiMessageToModelMessages(
               name: p.name,
               arguments: p.arguments,
             },
-            // Include approval info if tool was approved/denied (for server to know the decision)
-            ...(p.state === 'approval-responded' &&
-              p.approval?.approved !== undefined && {
-                approval: {
-                  id: p.approval.id,
-                  approved: p.approval.approved,
-                },
-              }),
           }))
       : undefined
 
@@ -131,7 +123,11 @@ export function uiMessageToModelMessages(
     })
   }
 
-  // Add tool result messages (only completed ones)
+  // Add tool result messages for completed tool calls
+  // This includes:
+  // 1. Explicit tool-result parts (from server tools)
+  // 2. Client tool calls with output set
+  // 3. Approval-responded tool calls (approval result)
   for (const toolResultPart of toolResultParts) {
     if (
       toolResultPart.state === 'complete' ||
@@ -141,6 +137,41 @@ export function uiMessageToModelMessages(
         role: 'tool',
         content: toolResultPart.content,
         toolCallId: toolResultPart.toolCallId,
+      })
+    }
+  }
+
+  // Add tool result messages for client tool results (tools with output)
+  // and approval responses (so iteration tracking works correctly)
+  for (const toolCallPart of toolCallParts) {
+    // Client tool with output - add as tool result
+    if (toolCallPart.output !== undefined && !toolCallPart.approval) {
+      messageList.push({
+        role: 'tool',
+        content: JSON.stringify(toolCallPart.output),
+        toolCallId: toolCallPart.id,
+      })
+    }
+
+    // Approval response - add as tool result for iteration tracking
+    // For APPROVED: includes pendingExecution marker so the tool still executes
+    // For DENIED: just marks the tool as complete (no execution needed)
+    if (
+      toolCallPart.state === 'approval-responded' &&
+      toolCallPart.approval?.approved !== undefined
+    ) {
+      const approved = toolCallPart.approval.approved
+      messageList.push({
+        role: 'tool',
+        content: JSON.stringify({
+          approved,
+          // Mark approved tools as pending execution - they still need to run
+          ...(approved && { pendingExecution: true }),
+          message: approved
+            ? 'User approved this action'
+            : 'User denied this action',
+        }),
+        toolCallId: toolCallPart.id,
       })
     }
   }

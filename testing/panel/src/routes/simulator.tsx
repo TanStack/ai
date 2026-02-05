@@ -1,13 +1,13 @@
 import { useEffect, useRef, useState } from 'react'
 import { createFileRoute } from '@tanstack/react-router'
 import {
+  FlaskConical,
+  Monitor,
   Send,
+  Server,
+  ShieldCheck,
   Square,
   Zap,
-  FlaskConical,
-  Server,
-  Monitor,
-  ShieldCheck,
 } from 'lucide-react'
 import ReactMarkdown from 'react-markdown'
 import rehypeRaw from 'rehype-raw'
@@ -20,10 +20,10 @@ import { clientTools } from '@tanstack/ai-client'
 import type { UIMessage } from '@tanstack/ai-react'
 
 import {
-  clientToolDef,
-  clientToolWithApprovalDef,
   clientServerToolDef,
   clientServerToolWithApprovalDef,
+  clientToolDef,
+  clientToolWithApprovalDef,
   createClientResult,
 } from '@/lib/simulator-tools'
 
@@ -51,6 +51,17 @@ const tools = clientTools(
   clientServerToolClient,
   clientServerToolWithApprovalClient,
 )
+
+// Static Tailwind class mappings for JIT compatibility
+const categoryColors: Record<
+  string,
+  { text: string; hoverBorder: string }
+> = {
+  cyan: { text: 'text-cyan-400', hoverBorder: 'hover:border-cyan-500/30' },
+  purple: { text: 'text-purple-400', hoverBorder: 'hover:border-purple-500/30' },
+  yellow: { text: 'text-yellow-400', hoverBorder: 'hover:border-yellow-500/30' },
+  green: { text: 'text-green-400', hoverBorder: 'hover:border-green-500/30' },
+}
 
 // Tool injection templates
 const TOOL_TEMPLATES = [
@@ -200,11 +211,11 @@ function Messages({
                         className="text-white prose dark:prose-invert max-w-none"
                       >
                         <ReactMarkdown
+                          remarkPlugins={[remarkGfm]}
                           rehypePlugins={[
                             rehypeRaw,
                             rehypeSanitize,
                             rehypeHighlight,
-                            remarkGfm,
                           ]}
                         >
                           {part.content}
@@ -231,7 +242,13 @@ function Messages({
                           <div className="text-gray-300 text-sm mb-3">
                             <pre className="bg-gray-800 p-2 rounded text-xs overflow-x-auto">
                               {JSON.stringify(
-                                JSON.parse(part.arguments),
+                                (() => {
+                                  try {
+                                    return JSON.parse(part.arguments)
+                                  } catch {
+                                    return part.arguments
+                                  }
+                                })(),
                                 null,
                                 2,
                               )}
@@ -485,7 +502,9 @@ function ToolInjectionPanel({
         {TOOL_TEMPLATES.map((category) => (
           <div key={category.category}>
             <div className="flex items-center gap-2 mb-2">
-              <category.icon className={`w-3 h-3 text-${category.color}-400`} />
+              <category.icon
+                className={`w-3 h-3 ${categoryColors[category.color].text}`}
+              />
               <span className="text-xs font-medium text-gray-400 uppercase">
                 {category.category}
               </span>
@@ -495,7 +514,7 @@ function ToolInjectionPanel({
                 <button
                   key={tool.name}
                   onClick={() => onInject(tool.template)}
-                  className={`w-full text-left px-3 py-2 rounded-lg text-sm transition-colors bg-gray-800/50 hover:bg-gray-700/50 border border-gray-700/50 hover:border-${category.color}-500/30`}
+                  className={`w-full text-left px-3 py-2 rounded-lg text-sm transition-colors bg-gray-800/50 hover:bg-gray-700/50 border border-gray-700/50 ${categoryColors[category.color].hoverBorder}`}
                   title={tool.description}
                 >
                   <span className="text-white font-medium">{tool.name}</span>

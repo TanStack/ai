@@ -3,12 +3,12 @@ import { chat, maxIterations, toServerSentEventsResponse } from '@tanstack/ai'
 import type { AIAdapter, ChatOptions, StreamChunk } from '@tanstack/ai'
 
 import {
-  serverTool,
-  serverToolWithApproval,
   clientServerTool,
   clientServerToolWithApproval,
   clientToolDef,
   clientToolWithApprovalDef,
+  serverTool,
+  serverToolWithApproval,
 } from '@/lib/simulator-tools'
 
 /**
@@ -27,8 +27,9 @@ interface ParsedToolCall {
   arguments: Record<string, any>
 }
 
-function parseToolCalls(message: string): ParsedToolCall[] {
-  const toolCalls: ParsedToolCall[] = []
+function parseToolCalls(message: string): Array<ParsedToolCall> {
+  TOOL_CALL_REGEX.lastIndex = 0
+  const toolCalls: Array<ParsedToolCall> = []
   let match
 
   while ((match = TOOL_CALL_REGEX.exec(message)) !== null) {
