@@ -241,9 +241,10 @@ class TextEngine<
 
     // Extract client state (approvals, client tool results) from original messages BEFORE conversion
     // This preserves UIMessage parts data that would be lost during conversion to ModelMessage
-    const { approvals, clientToolResults } = this.extractClientStateFromOriginalMessages(
-      config.params.messages as Array<any>,
-    )
+    const { approvals, clientToolResults } =
+      this.extractClientStateFromOriginalMessages(
+        config.params.messages as Array<any>,
+      )
     this.initialApprovals = approvals
     this.initialClientToolResults = clientToolResults
 

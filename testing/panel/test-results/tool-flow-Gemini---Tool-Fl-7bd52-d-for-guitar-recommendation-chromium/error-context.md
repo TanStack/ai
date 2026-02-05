@@ -2,134 +2,134 @@
 
 ```yaml
 - generic [active] [ref=e1]:
-  - banner [ref=e2]:
-    - button "Open menu" [ref=e3]:
-      - img [ref=e4]
-    - heading "TanStack Logo" [level=1] [ref=e5]:
-      - link "TanStack Logo" [ref=e6] [cursor=pointer]:
-        - /url: /
-        - img "TanStack Logo" [ref=e7]
-  - complementary [ref=e8]:
-    - generic [ref=e9]:
-      - heading "Navigation" [level=2] [ref=e10]
-      - button "Close menu" [ref=e11]:
-        - img [ref=e12]
-    - navigation [ref=e15]:
-      - link "Chat" [ref=e16] [cursor=pointer]:
-        - /url: /
-        - img [ref=e17]
-        - generic [ref=e20]: Chat
-      - link "Stream Debugger" [ref=e21] [cursor=pointer]:
-        - /url: /stream-debugger
-        - img [ref=e22]
-        - generic [ref=e24]: Stream Debugger
-      - link "Add-on Manager Multi-Tool" [ref=e25] [cursor=pointer]:
-        - /url: /addon-manager
-        - img [ref=e26]
-        - generic [ref=e30]:
-          - generic [ref=e31]: Add-on Manager
-          - generic [ref=e32]: Multi-Tool
-      - link "Tool Simulator Mock" [ref=e33] [cursor=pointer]:
-        - /url: /simulator
-        - img [ref=e34]
-        - generic [ref=e36]:
-          - generic [ref=e37]: Tool Simulator
-          - generic [ref=e38]: Mock
-      - paragraph [ref=e40]: Activities
-      - link "Summarize" [ref=e41] [cursor=pointer]:
-        - /url: /summarize
-        - img [ref=e42]
-        - generic [ref=e45]: Summarize
-      - link "Image Generation" [ref=e46] [cursor=pointer]:
-        - /url: /image
-        - img [ref=e47]
-        - generic [ref=e51]: Image Generation
-      - link "Video Generation Exp" [ref=e52] [cursor=pointer]:
-        - /url: /video
-        - img [ref=e53]
-        - generic [ref=e56]:
-          - generic [ref=e57]: Video Generation
-          - generic [ref=e58]: Exp
-      - link "Text-to-Speech" [ref=e59] [cursor=pointer]:
-        - /url: /tts
-        - img [ref=e60]
-        - generic [ref=e64]: Text-to-Speech
-      - link "Transcription" [ref=e65] [cursor=pointer]:
-        - /url: /transcription
-        - img [ref=e66]
-        - generic [ref=e69]: Transcription
-      - link "Structured Output" [ref=e70] [cursor=pointer]:
-        - /url: /structured
-        - img [ref=e71]
-        - generic [ref=e73]: Structured Output
-  - generic [ref=e75]:
-    - generic [ref=e76]:
-      - generic [ref=e78]:
-        - generic [ref=e79]:
-          - generic [ref=e80]: "Select Model:"
-          - combobox [ref=e81]:
-            - option "OpenAI - GPT-4o"
-            - option "OpenAI - GPT-4o Mini"
-            - option "OpenAI - GPT-5"
-            - option "Anthropic - Claude Sonnet 4.5"
-            - option "Anthropic - Claude Opus 4.5"
-            - option "Anthropic - Claude Haiku 4.0"
-            - option "Gemini - 2.0 Flash" [selected]
-            - option "Gemini - 2.5 Flash"
-            - option "Gemini - 2.5 Pro"
-            - option "Ollama - Mistral 7B"
-            - option "Ollama - Mistral"
-            - option "Ollama - GPT-OSS 20B"
-            - option "Ollama - Granite4 3B"
-            - option "Ollama - SmolLM"
-            - option "Grok - Grok 4"
-            - option "Grok - Grok 4 Fast"
-            - option "Grok - Grok 3"
-            - option "Grok - Grok 3 Mini"
-            - option "OpenRouter - GPT-4o"
-            - option "OpenRouter - Claude Sonnet 4"
-            - option "OpenRouter - Gemini 2.0 Flash"
-            - option "OpenRouter - Llama 3.3 70B"
-        - link "Debug Trace" [ref=e82] [cursor=pointer]:
-          - /url: /stream-debugger?trace=chat_260204_194345
-      - generic [ref=e83]:
-        - generic [ref=e85]:
-          - generic [ref=e86]: U
-          - paragraph [ref=e89]: Use the getGuitars tool to show me what guitars you have in inventory.
-        - generic [ref=e91]:
-          - generic [ref=e92]: AI
-          - generic [ref=e93]:
-            - paragraph [ref=e95]: "Here's a guitar recommendation for you:"
-            - generic [ref=e97]:
-              - img "Travelin' Man Guitar" [ref=e99]
-              - generic [ref=e100]:
-                - heading "Travelin' Man Guitar" [level=3] [ref=e101]
-                - paragraph [ref=e102]: An acoustic guitar with vintage postcards, rich tones, and comfortable playability.
-                - generic [ref=e104]: $499
-          - button "Read aloud" [ref=e105]:
-            - img [ref=e106]
-        - generic [ref=e111]:
-          - generic [ref=e112]: AI
-          - generic [ref=e115]:
-            - img "Travelin' Man Guitar" [ref=e117]
-            - generic [ref=e118]:
-              - heading "Travelin' Man Guitar" [level=3] [ref=e119]
-              - paragraph [ref=e120]: An acoustic guitar with vintage postcards, rich tones, and comfortable playability.
-              - generic [ref=e122]: $499
-        - generic [ref=e125]: AI
-      - generic [ref=e129]:
-        - textbox "Type something clever (or don't, we won't judge)..." [ref=e130]
-        - generic [ref=e131]:
-          - button "Start voice input" [ref=e132]:
-            - img [ref=e133]
-          - button [disabled] [ref=e136]:
-            - img [ref=e137]
-    - generic [ref=e141]:
-      - generic [ref=e142]:
-        - heading "Debug Panel" [level=2] [ref=e143]
-        - paragraph [ref=e144]: View messages and raw stream chunks
-        - generic [ref=e145]:
-          - button "Messages" [ref=e146]
-          - button "Raw Chunks (24)" [ref=e147]
-      - generic [ref=e150]: "[ { \"id\": \"msg-1770263026773-8em2ue\", \"role\": \"user\", \"parts\": [ { \"type\": \"text\", \"content\": \"Use the getGuitars tool to show me what guitars you have in inventory.\" } ], \"createdAt\": \"2026-02-05T03:43:46.773Z\" }, { \"id\": \"msg-1770263026788-z33u59\", \"role\": \"assistant\", \"parts\": [ { \"type\": \"tool-call\", \"id\": \"getGuitars_1770263027351_0\", \"name\": \"getGuitars\", \"arguments\": \"{}\", \"state\": \"input-complete\" }, { \"type\": \"tool-result\", \"toolCallId\": \"getGuitars_1770263027351_0\", \"content\": \"[{\\\"id\\\":1,\\\"name\\\":\\\"TanStack Ukelele\\\",\\\"image\\\":\\\"/example-ukelele-tanstack.jpg\\\",\\\"description\\\":\\\"Introducing the TanStack Signature Ukulele—a beautifully handcrafted concert ukulele that combines exceptional sound quality with distinctive style. Featuring a warm, resonant koa-wood body with natural grain patterns, this instrument delivers the rich, mellow tones Hawaii is famous for. The exclusive TanStack palm tree inlay on the soundhole adds a unique touch of island flair, while the matching branded headstock makes this a true collector's piece for developers and musicians alike. Whether you're a beginner looking for a quality starter instrument or an experienced player wanting something special, the TanStack Ukulele brings together craftsmanship, character, and that unmistakable tropical spirit.\\\",\\\"shortDescription\\\":\\\"Premium koa-wood ukulele featuring exclusive TanStack branding, perfect for beach vibes and island-inspired melodies.\\\",\\\"price\\\":299},{\\\"id\\\":2,\\\"name\\\":\\\"Video Game Guitar\\\",\\\"image\\\":\\\"/example-guitar-video-games.jpg\\\",\\\"description\\\":\\\"The Video Game Guitar is a unique acoustic guitar that features a design inspired by video games. It has a sleek, high-gloss finish and a comfortable playability. The guitar's ergonomic body and fast neck profile ensure comfortable playability for hours on end.\\\",\\\"shortDescription\\\":\\\"A unique electric guitar with a video game design, high-gloss finish, and comfortable playability.\\\",\\\"price\\\":699},{\\\"id\\\":3,\\\"name\\\":\\\"Superhero Guitar\\\",\\\"image\\\":\\\"/example-guitar-superhero.jpg\\\",\\\"description\\\":\\\"The Superhero Guitar is a bold black electric guitar that stands out with its unique superhero logo design. Its sleek, high-gloss finish and powerful pickups make it perfect for high-energy performances. The guitar's ergonomic body and fast neck profile ensure comfortable playability for hours on end.\\\",\\\"shortDescription\\\":\\\"A bold black electric guitar with a unique superhero logo, high-gloss finish, and powerful pickups.\\\",\\\"price\\\":699},{\\\"id\\\":4,\\\"name\\\":\\\"Motherboard Guitar\\\",\\\"image\\\":\\\"/example-guitar-motherboard.jpg\\\",\\\"description\\\":\\\"This guitar is a tribute to the motherboard of a computer. It's a unique and stylish instrument that will make you feel like a hacker. The intricate circuit-inspired design features actual LED lights that pulse with your playing intensity, while the neck is inlaid with binary code patterns that glow under stage lights. Each pickup has been custom-wound to produce tones ranging from clean digital precision to glitched-out distortion, perfect for electronic music fusion. The Motherboard Guitar seamlessly bridges the gap between traditional craftsmanship and cutting-edge technology, making it the ultimate instrument for the digital age musician.\\\",\\\"shortDescription\\\":\\\"A tech-inspired electric guitar featuring LED lights and binary code inlays that glow under stage lights.\\\",\\\"price\\\":649},{\\\"id\\\":5,\\\"name\\\":\\\"Racing Guitar\\\",\\\"image\\\":\\\"/example-guitar-racing.jpg\\\",\\\"description\\\":\\\"Engineered for speed and precision, the Racing Guitar embodies the spirit of motorsport in every curve and contour. Its aerodynamic body, painted in classic racing stripes and high-gloss finish, is crafted from lightweight materials that allow for effortless play during extended performances. The custom low-action setup and streamlined neck profile enable lightning-fast fretwork, while specially designed pickups deliver a high-octane tone that cuts through any mix. Built with performance-grade hardware including racing-inspired control knobs and checkered flag inlays, this guitar isn't just played—it's driven to the limits of musical possibility.\\\",\\\"shortDescription\\\":\\\"A lightweight, aerodynamic guitar with racing stripes and a low-action setup designed for speed and precision.\\\",\\\"price\\\":679},{\\\"id\\\":6,\\\"name\\\":\\\"Steamer Trunk Guitar\\\",\\\"image\\\":\\\"/example-guitar-steamer-trunk.jpg\\\",\\\"description\\\":\\\"The Steamer Trunk Guitar is a semi-hollow body instrument that exudes vintage charm and character. Crafted from reclaimed antique luggage wood, it features brass hardware that adds a touch of elegance and durability. The fretboard is adorned with a world map inlay, making it a unique piece that tells a story of travel and adventure.\\\",\\\"shortDescription\\\":\\\"A semi-hollow body guitar with brass hardware and a world map inlay, crafted from reclaimed antique luggage wood.\\\",\\\"price\\\":629},{\\\"id\\\":7,\\\"name\\\":\\\"Travelin' Man Guitar\\\",\\\"image\\\":\\\"/example-guitar-traveling.jpg\\\",\\\"description\\\":\\\"The Travelin' Man Guitar is an acoustic masterpiece adorned with vintage postcards from around the world. Each postcard tells a story of adventure and wanderlust, making this guitar a unique piece of art. Its rich, resonant tones and comfortable playability make it perfect for musicians who love to travel and perform.\\\",\\\"shortDescription\\\":\\\"An acoustic guitar with vintage postcards, rich tones, and comfortable playability.\\\",\\\"price\\\":499},{\\\"id\\\":8,\\\"name\\\":\\\"Flowerly Love Guitar\\\",\\\"image\\\":\\\"/example-guitar-flowers.jpg\\\",\\\"description\\\":\\\"The Flowerly Love Guitar is an acoustic masterpiece adorned with intricate floral designs on its body. Each flower is hand-painted, adding a touch of nature's beauty to the instrument. Its warm, resonant tones make it perfect for both intimate performances and larger gatherings.\\\",\\\"shortDescription\\\":\\\"An acoustic guitar with hand-painted floral designs and warm, resonant tones.\\\",\\\"price\\\":599}]\", \"state\": \"complete\" }, { \"type\": \"text\", \"content\": \"Here's a guitar recommendation for you:\\n\" }, { \"type\": \"tool-call\", \"id\": \"recommendGuitar_1770263028140_0\", \"name\": \"recommendGuitar\", \"arguments\": \"{\\\"id\\\":\\\"7\\\"}\", \"state\": \"input-complete\", \"output\": { \"id\": 7 } }, { \"type\": \"tool-result\", \"toolCallId\": \"recommendGuitar_1770263028140_0\", \"content\": \"{\\\"id\\\":7}\", \"state\": \"complete\" } ], \"createdAt\": \"2026-02-05T03:43:46.788Z\" }, { \"id\": \"msg-1770263028169-doybx\", \"role\": \"assistant\", \"parts\": [ { \"type\": \"tool-call\", \"id\": \"recommendGuitar_1770263028756_0\", \"name\": \"recommendGuitar\", \"arguments\": \"{\\\"id\\\":\\\"7\\\"}\", \"state\": \"input-complete\", \"output\": { \"id\": 7 } }, { \"type\": \"tool-result\", \"toolCallId\": \"recommendGuitar_1770263028756_0\", \"content\": \"{\\\"id\\\":7}\", \"state\": \"complete\" } ], \"createdAt\": \"2026-02-05T03:43:48.169Z\" }, { \"id\": \"msg-1770263028782-c6pxeuu\", \"role\": \"assistant\", \"parts\": [], \"createdAt\": \"2026-02-05T03:43:48.782Z\" } ]"
+    - banner [ref=e2]:
+        - button "Open menu" [ref=e3]:
+            - img [ref=e4]
+        - heading "TanStack Logo" [level=1] [ref=e5]:
+            - link "TanStack Logo" [ref=e6] [cursor=pointer]:
+                - /url: /
+                - img "TanStack Logo" [ref=e7]
+    - complementary [ref=e8]:
+        - generic [ref=e9]:
+            - heading "Navigation" [level=2] [ref=e10]
+            - button "Close menu" [ref=e11]:
+                - img [ref=e12]
+        - navigation [ref=e15]:
+            - link "Chat" [ref=e16] [cursor=pointer]:
+                - /url: /
+                - img [ref=e17]
+                - generic [ref=e20]: Chat
+            - link "Stream Debugger" [ref=e21] [cursor=pointer]:
+                - /url: /stream-debugger
+                - img [ref=e22]
+                - generic [ref=e24]: Stream Debugger
+            - link "Add-on Manager Multi-Tool" [ref=e25] [cursor=pointer]:
+                - /url: /addon-manager
+                - img [ref=e26]
+                - generic [ref=e30]:
+                    - generic [ref=e31]: Add-on Manager
+                    - generic [ref=e32]: Multi-Tool
+            - link "Tool Simulator Mock" [ref=e33] [cursor=pointer]:
+                - /url: /simulator
+                - img [ref=e34]
+                - generic [ref=e36]:
+                    - generic [ref=e37]: Tool Simulator
+                    - generic [ref=e38]: Mock
+            - paragraph [ref=e40]: Activities
+            - link "Summarize" [ref=e41] [cursor=pointer]:
+                - /url: /summarize
+                - img [ref=e42]
+                - generic [ref=e45]: Summarize
+            - link "Image Generation" [ref=e46] [cursor=pointer]:
+                - /url: /image
+                - img [ref=e47]
+                - generic [ref=e51]: Image Generation
+            - link "Video Generation Exp" [ref=e52] [cursor=pointer]:
+                - /url: /video
+                - img [ref=e53]
+                - generic [ref=e56]:
+                    - generic [ref=e57]: Video Generation
+                    - generic [ref=e58]: Exp
+            - link "Text-to-Speech" [ref=e59] [cursor=pointer]:
+                - /url: /tts
+                - img [ref=e60]
+                - generic [ref=e64]: Text-to-Speech
+            - link "Transcription" [ref=e65] [cursor=pointer]:
+                - /url: /transcription
+                - img [ref=e66]
+                - generic [ref=e69]: Transcription
+            - link "Structured Output" [ref=e70] [cursor=pointer]:
+                - /url: /structured
+                - img [ref=e71]
+                - generic [ref=e73]: Structured Output
+    - generic [ref=e75]:
+        - generic [ref=e76]:
+            - generic [ref=e78]:
+                - generic [ref=e79]:
+                    - generic [ref=e80]: 'Select Model:'
+                    - combobox [ref=e81]:
+                        - option "OpenAI - GPT-4o"
+                        - option "OpenAI - GPT-4o Mini"
+                        - option "OpenAI - GPT-5"
+                        - option "Anthropic - Claude Sonnet 4.5"
+                        - option "Anthropic - Claude Opus 4.5"
+                        - option "Anthropic - Claude Haiku 4.0"
+                        - option "Gemini - 2.0 Flash" [selected]
+                        - option "Gemini - 2.5 Flash"
+                        - option "Gemini - 2.5 Pro"
+                        - option "Ollama - Mistral 7B"
+                        - option "Ollama - Mistral"
+                        - option "Ollama - GPT-OSS 20B"
+                        - option "Ollama - Granite4 3B"
+                        - option "Ollama - SmolLM"
+                        - option "Grok - Grok 4"
+                        - option "Grok - Grok 4 Fast"
+                        - option "Grok - Grok 3"
+                        - option "Grok - Grok 3 Mini"
+                        - option "OpenRouter - GPT-4o"
+                        - option "OpenRouter - Claude Sonnet 4"
+                        - option "OpenRouter - Gemini 2.0 Flash"
+                        - option "OpenRouter - Llama 3.3 70B"
+                - link "Debug Trace" [ref=e82] [cursor=pointer]:
+                    - /url: /stream-debugger?trace=chat_260204_194345
+            - generic [ref=e83]:
+                - generic [ref=e85]:
+                    - generic [ref=e86]: U
+                    - paragraph [ref=e89]: Use the getGuitars tool to show me what guitars you have in inventory.
+                - generic [ref=e91]:
+                    - generic [ref=e92]: AI
+                    - generic [ref=e93]:
+                        - paragraph [ref=e95]: "Here's a guitar recommendation for you:"
+                        - generic [ref=e97]:
+                            - img "Travelin' Man Guitar" [ref=e99]
+                            - generic [ref=e100]:
+                                - heading "Travelin' Man Guitar" [level=3] [ref=e101]
+                                - paragraph [ref=e102]: An acoustic guitar with vintage postcards, rich tones, and comfortable playability.
+                                - generic [ref=e104]: $499
+                    - button "Read aloud" [ref=e105]:
+                        - img [ref=e106]
+                - generic [ref=e111]:
+                    - generic [ref=e112]: AI
+                    - generic [ref=e115]:
+                        - img "Travelin' Man Guitar" [ref=e117]
+                        - generic [ref=e118]:
+                            - heading "Travelin' Man Guitar" [level=3] [ref=e119]
+                            - paragraph [ref=e120]: An acoustic guitar with vintage postcards, rich tones, and comfortable playability.
+                            - generic [ref=e122]: $499
+                - generic [ref=e125]: AI
+            - generic [ref=e129]:
+                - textbox "Type something clever (or don't, we won't judge)..." [ref=e130]
+                - generic [ref=e131]:
+                    - button "Start voice input" [ref=e132]:
+                        - img [ref=e133]
+                    - button [disabled] [ref=e136]:
+                        - img [ref=e137]
+        - generic [ref=e141]:
+            - generic [ref=e142]:
+                - heading "Debug Panel" [level=2] [ref=e143]
+                - paragraph [ref=e144]: View messages and raw stream chunks
+                - generic [ref=e145]:
+                    - button "Messages" [ref=e146]
+                    - button "Raw Chunks (24)" [ref=e147]
+            - generic [ref=e150]: "[ { \"id\": \"msg-1770263026773-8em2ue\", \"role\": \"user\", \"parts\": [ { \"type\": \"text\", \"content\": \"Use the getGuitars tool to show me what guitars you have in inventory.\" } ], \"createdAt\": \"2026-02-05T03:43:46.773Z\" }, { \"id\": \"msg-1770263026788-z33u59\", \"role\": \"assistant\", \"parts\": [ { \"type\": \"tool-call\", \"id\": \"getGuitars_1770263027351_0\", \"name\": \"getGuitars\", \"arguments\": \"{}\", \"state\": \"input-complete\" }, { \"type\": \"tool-result\", \"toolCallId\": \"getGuitars_1770263027351_0\", \"content\": \"[{\\\"id\\\":1,\\\"name\\\":\\\"TanStack Ukelele\\\",\\\"image\\\":\\\"/example-ukelele-tanstack.jpg\\\",\\\"description\\\":\\\"Introducing the TanStack Signature Ukulele—a beautifully handcrafted concert ukulele that combines exceptional sound quality with distinctive style. Featuring a warm, resonant koa-wood body with natural grain patterns, this instrument delivers the rich, mellow tones Hawaii is famous for. The exclusive TanStack palm tree inlay on the soundhole adds a unique touch of island flair, while the matching branded headstock makes this a true collector's piece for developers and musicians alike. Whether you're a beginner looking for a quality starter instrument or an experienced player wanting something special, the TanStack Ukulele brings together craftsmanship, character, and that unmistakable tropical spirit.\\\",\\\"shortDescription\\\":\\\"Premium koa-wood ukulele featuring exclusive TanStack branding, perfect for beach vibes and island-inspired melodies.\\\",\\\"price\\\":299},{\\\"id\\\":2,\\\"name\\\":\\\"Video Game Guitar\\\",\\\"image\\\":\\\"/example-guitar-video-games.jpg\\\",\\\"description\\\":\\\"The Video Game Guitar is a unique acoustic guitar that features a design inspired by video games. It has a sleek, high-gloss finish and a comfortable playability. The guitar's ergonomic body and fast neck profile ensure comfortable playability for hours on end.\\\",\\\"shortDescription\\\":\\\"A unique electric guitar with a video game design, high-gloss finish, and comfortable playability.\\\",\\\"price\\\":699},{\\\"id\\\":3,\\\"name\\\":\\\"Superhero Guitar\\\",\\\"image\\\":\\\"/example-guitar-superhero.jpg\\\",\\\"description\\\":\\\"The Superhero Guitar is a bold black electric guitar that stands out with its unique superhero logo design. Its sleek, high-gloss finish and powerful pickups make it perfect for high-energy performances. The guitar's ergonomic body and fast neck profile ensure comfortable playability for hours on end.\\\",\\\"shortDescription\\\":\\\"A bold black electric guitar with a unique superhero logo, high-gloss finish, and powerful pickups.\\\",\\\"price\\\":699},{\\\"id\\\":4,\\\"name\\\":\\\"Motherboard Guitar\\\",\\\"image\\\":\\\"/example-guitar-motherboard.jpg\\\",\\\"description\\\":\\\"This guitar is a tribute to the motherboard of a computer. It's a unique and stylish instrument that will make you feel like a hacker. The intricate circuit-inspired design features actual LED lights that pulse with your playing intensity, while the neck is inlaid with binary code patterns that glow under stage lights. Each pickup has been custom-wound to produce tones ranging from clean digital precision to glitched-out distortion, perfect for electronic music fusion. The Motherboard Guitar seamlessly bridges the gap between traditional craftsmanship and cutting-edge technology, making it the ultimate instrument for the digital age musician.\\\",\\\"shortDescription\\\":\\\"A tech-inspired electric guitar featuring LED lights and binary code inlays that glow under stage lights.\\\",\\\"price\\\":649},{\\\"id\\\":5,\\\"name\\\":\\\"Racing Guitar\\\",\\\"image\\\":\\\"/example-guitar-racing.jpg\\\",\\\"description\\\":\\\"Engineered for speed and precision, the Racing Guitar embodies the spirit of motorsport in every curve and contour. Its aerodynamic body, painted in classic racing stripes and high-gloss finish, is crafted from lightweight materials that allow for effortless play during extended performances. The custom low-action setup and streamlined neck profile enable lightning-fast fretwork, while specially designed pickups deliver a high-octane tone that cuts through any mix. Built with performance-grade hardware including racing-inspired control knobs and checkered flag inlays, this guitar isn't just played—it's driven to the limits of musical possibility.\\\",\\\"shortDescription\\\":\\\"A lightweight, aerodynamic guitar with racing stripes and a low-action setup designed for speed and precision.\\\",\\\"price\\\":679},{\\\"id\\\":6,\\\"name\\\":\\\"Steamer Trunk Guitar\\\",\\\"image\\\":\\\"/example-guitar-steamer-trunk.jpg\\\",\\\"description\\\":\\\"The Steamer Trunk Guitar is a semi-hollow body instrument that exudes vintage charm and character. Crafted from reclaimed antique luggage wood, it features brass hardware that adds a touch of elegance and durability. The fretboard is adorned with a world map inlay, making it a unique piece that tells a story of travel and adventure.\\\",\\\"shortDescription\\\":\\\"A semi-hollow body guitar with brass hardware and a world map inlay, crafted from reclaimed antique luggage wood.\\\",\\\"price\\\":629},{\\\"id\\\":7,\\\"name\\\":\\\"Travelin' Man Guitar\\\",\\\"image\\\":\\\"/example-guitar-traveling.jpg\\\",\\\"description\\\":\\\"The Travelin' Man Guitar is an acoustic masterpiece adorned with vintage postcards from around the world. Each postcard tells a story of adventure and wanderlust, making this guitar a unique piece of art. Its rich, resonant tones and comfortable playability make it perfect for musicians who love to travel and perform.\\\",\\\"shortDescription\\\":\\\"An acoustic guitar with vintage postcards, rich tones, and comfortable playability.\\\",\\\"price\\\":499},{\\\"id\\\":8,\\\"name\\\":\\\"Flowerly Love Guitar\\\",\\\"image\\\":\\\"/example-guitar-flowers.jpg\\\",\\\"description\\\":\\\"The Flowerly Love Guitar is an acoustic masterpiece adorned with intricate floral designs on its body. Each flower is hand-painted, adding a touch of nature's beauty to the instrument. Its warm, resonant tones make it perfect for both intimate performances and larger gatherings.\\\",\\\"shortDescription\\\":\\\"An acoustic guitar with hand-painted floral designs and warm, resonant tones.\\\",\\\"price\\\":599}]\", \"state\": \"complete\" }, { \"type\": \"text\", \"content\": \"Here's a guitar recommendation for you:\\n\" }, { \"type\": \"tool-call\", \"id\": \"recommendGuitar_1770263028140_0\", \"name\": \"recommendGuitar\", \"arguments\": \"{\\\"id\\\":\\\"7\\\"}\", \"state\": \"input-complete\", \"output\": { \"id\": 7 } }, { \"type\": \"tool-result\", \"toolCallId\": \"recommendGuitar_1770263028140_0\", \"content\": \"{\\\"id\\\":7}\", \"state\": \"complete\" } ], \"createdAt\": \"2026-02-05T03:43:46.788Z\" }, { \"id\": \"msg-1770263028169-doybx\", \"role\": \"assistant\", \"parts\": [ { \"type\": \"tool-call\", \"id\": \"recommendGuitar_1770263028756_0\", \"name\": \"recommendGuitar\", \"arguments\": \"{\\\"id\\\":\\\"7\\\"}\", \"state\": \"input-complete\", \"output\": { \"id\": 7 } }, { \"type\": \"tool-result\", \"toolCallId\": \"recommendGuitar_1770263028756_0\", \"content\": \"{\\\"id\\\":7}\", \"state\": \"complete\" } ], \"createdAt\": \"2026-02-05T03:43:48.169Z\" }, { \"id\": \"msg-1770263028782-c6pxeuu\", \"role\": \"assistant\", \"parts\": [], \"createdAt\": \"2026-02-05T03:43:48.782Z\" } ]"
 ```

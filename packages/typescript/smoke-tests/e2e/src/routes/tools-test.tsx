@@ -357,7 +357,10 @@ function ToolsTestPage() {
                 className="approve-button"
                 onClick={() => {
                   const approvalId = tc.approval?.id
-                  if (approvalId && !respondedApprovals.current.has(approvalId)) {
+                  if (
+                    approvalId &&
+                    !respondedApprovals.current.has(approvalId)
+                  ) {
                     respondedApprovals.current.add(approvalId)
                     addEvent({
                       type: 'approval-granted',
@@ -386,7 +389,10 @@ function ToolsTestPage() {
                 className="deny-button"
                 onClick={() => {
                   const approvalId = tc.approval?.id
-                  if (approvalId && !respondedApprovals.current.has(approvalId)) {
+                  if (
+                    approvalId &&
+                    !respondedApprovals.current.has(approvalId)
+                  ) {
                     respondedApprovals.current.add(approvalId)
                     addEvent({
                       type: 'approval-denied',

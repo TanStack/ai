@@ -53,13 +53,16 @@ const tools = clientTools(
 )
 
 // Static Tailwind class mappings for JIT compatibility
-const categoryColors: Record<
-  string,
-  { text: string; hoverBorder: string }
-> = {
+const categoryColors: Record<string, { text: string; hoverBorder: string }> = {
   cyan: { text: 'text-cyan-400', hoverBorder: 'hover:border-cyan-500/30' },
-  purple: { text: 'text-purple-400', hoverBorder: 'hover:border-purple-500/30' },
-  yellow: { text: 'text-yellow-400', hoverBorder: 'hover:border-yellow-500/30' },
+  purple: {
+    text: 'text-purple-400',
+    hoverBorder: 'hover:border-purple-500/30',
+  },
+  yellow: {
+    text: 'text-yellow-400',
+    hoverBorder: 'hover:border-yellow-500/30',
+  },
   green: { text: 'text-green-400', hoverBorder: 'hover:border-green-500/30' },
 }
 
