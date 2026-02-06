@@ -36,6 +36,10 @@ export class ChatClient {
   private currentStreamId: string | null = null
   private currentMessageId: string | null = null
   private postStreamActions: Array<() => Promise<void>> = []
+  // Track pending client tool executions to await them before stream finalization
+  private pendingToolExecutions: Map<string, Promise<void>> = new Map()
+  // Flag to deduplicate continuation checks during action draining
+  private continuationPending = false
 
   private callbacksRef: {
     current: {
@@ -140,31 +144,41 @@ export class ChatClient {
             )
           }
         },
-        onToolCall: async (args: {
+        onToolCall: (args: {
           toolCallId: string
           toolName: string
           input: any
         }) => {
           // Handle client-side tool execution automatically
           const clientTool = this.clientToolsRef.current.get(args.toolName)
-          if (clientTool?.execute) {
-            try {
-              const output = await clientTool.execute(args.input)
-              await this.addToolResult({
-                toolCallId: args.toolCallId,
-                tool: args.toolName,
-                output,
-                state: 'output-available',
-              })
-            } catch (error: any) {
-              await this.addToolResult({
-                toolCallId: args.toolCallId,
-                tool: args.toolName,
-                output: null,
-                state: 'output-error',
-                errorText: error.message,
-              })
-            }
+          const executeFunc = clientTool?.execute
+          if (executeFunc) {
+            // Create and track the execution promise
+            const executionPromise = (async () => {
+              try {
+                const output = await executeFunc(args.input)
+                await this.addToolResult({
+                  toolCallId: args.toolCallId,
+                  tool: args.toolName,
+                  output,
+                  state: 'output-available',
+                })
+              } catch (error: any) {
+                await this.addToolResult({
+                  toolCallId: args.toolCallId,
+                  tool: args.toolName,
+                  output: null,
+                  state: 'output-error',
+                  errorText: error.message,
+                })
+              } finally {
+                // Remove from pending when complete
+                this.pendingToolExecutions.delete(args.toolCallId)
+              }
+            })()
+
+            // Track the pending execution
+            this.pendingToolExecutions.set(args.toolCallId, executionPromise)
           }
         },
         onApprovalRequest: (args: {
@@ -243,6 +257,12 @@ export class ChatClient {
 
       // Yield control back to event loop to allow UI updates
       await new Promise((resolve) => setTimeout(resolve, 0))
+    }
+
+    // Wait for all pending tool executions to complete before finalizing
+    // This ensures client tools finish before we check for continuation
+    if (this.pendingToolExecutions.size > 0) {
+      await Promise.all(this.pendingToolExecutions.values())
     }
 
     // Finalize the stream
@@ -367,6 +387,12 @@ export class ChatClient {
     const messages = this.processor.getMessages()
     this.processor.setMessages([...messages, uiMessage])
 
+    // If stream is in progress, queue the response for after it ends
+    if (this.isLoading) {
+      this.queuePostStreamAction(() => this.streamResponse())
+      return
+    }
+
     await this.streamResponse()
   }
 
@@ -374,14 +400,22 @@ export class ChatClient {
    * Stream a response from the LLM
    */
   private async streamResponse(): Promise<void> {
+    // Guard against concurrent streams - if already loading, skip
+    if (this.isLoading) {
+      return
+    }
+
     this.setIsLoading(true)
     this.setStatus('submitted')
     this.setError(undefined)
     this.abortController = new AbortController()
+    // Reset pending tool executions for the new stream
+    this.pendingToolExecutions.clear()
+    let streamCompletedSuccessfully = false
 
     try {
-      // Get model messages for the LLM
-      const modelMessages = this.processor.toModelMessages()
+      // Get UIMessages with parts (preserves approval state and client tool results)
+      const messages = this.processor.getMessages()
 
       // Call onResponse callback
       await this.callbacksRef.current.onResponse()
@@ -399,12 +433,13 @@ export class ChatClient {
 
       // Connect and stream
       const stream = this.connection.connect(
-        modelMessages,
+        messages,
         mergedBody,
         this.abortController.signal,
       )
 
       await this.processStream(stream)
+      streamCompletedSuccessfully = true
     } catch (err) {
       if (err instanceof Error) {
         if (err.name === 'AbortError') {
@@ -421,6 +456,20 @@ export class ChatClient {
 
       // Drain any actions that were queued while the stream was in progress
       await this.drainPostStreamActions()
+
+      // Continue conversation if the stream ended with a tool result (server tool completed)
+      if (streamCompletedSuccessfully) {
+        const messages = this.processor.getMessages()
+        const lastPart = messages.at(-1)?.parts.at(-1)
+
+        if (lastPart?.type === 'tool-result' && this.shouldAutoSend()) {
+          try {
+            await this.checkForContinuation()
+          } catch (error) {
+            console.error('Failed to continue flow after tool result:', error)
+          }
+        }
+      }
     }
   }
 
@@ -565,8 +614,18 @@ export class ChatClient {
    * Check if we should continue the flow and do so if needed
    */
   private async checkForContinuation(): Promise<void> {
+    // Prevent duplicate continuation attempts
+    if (this.continuationPending || this.isLoading) {
+      return
+    }
+
     if (this.shouldAutoSend()) {
-      await this.streamResponse()
+      this.continuationPending = true
+      try {
+        await this.streamResponse()
+      } finally {
+        this.continuationPending = false
+      }
     }
   }
 

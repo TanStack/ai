@@ -15,6 +15,7 @@ import { Route as TranscriptionRouteImport } from './routes/transcription'
 import { Route as SummarizeRouteImport } from './routes/summarize'
 import { Route as StructuredRouteImport } from './routes/structured'
 import { Route as StreamDebuggerRouteImport } from './routes/stream-debugger'
+import { Route as SimulatorRouteImport } from './routes/simulator'
 import { Route as ImageRouteImport } from './routes/image'
 import { Route as AddonManagerRouteImport } from './routes/addon-manager'
 import { Route as IndexRouteImport } from './routes/index'
@@ -23,6 +24,7 @@ import { Route as ApiTtsRouteImport } from './routes/api.tts'
 import { Route as ApiTranscriptionRouteImport } from './routes/api.transcription'
 import { Route as ApiSummarizeRouteImport } from './routes/api.summarize'
 import { Route as ApiStructuredRouteImport } from './routes/api.structured'
+import { Route as ApiSimulatorChatRouteImport } from './routes/api.simulator-chat'
 import { Route as ApiLoadTraceRouteImport } from './routes/api.load-trace'
 import { Route as ApiListTracesRouteImport } from './routes/api.list-traces'
 import { Route as ApiImageRouteImport } from './routes/api.image'
@@ -57,6 +59,11 @@ const StructuredRoute = StructuredRouteImport.update({
 const StreamDebuggerRoute = StreamDebuggerRouteImport.update({
   id: '/stream-debugger',
   path: '/stream-debugger',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const SimulatorRoute = SimulatorRouteImport.update({
+  id: '/simulator',
+  path: '/simulator',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ImageRoute = ImageRouteImport.update({
@@ -99,6 +106,11 @@ const ApiStructuredRoute = ApiStructuredRouteImport.update({
   path: '/api/structured',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiSimulatorChatRoute = ApiSimulatorChatRouteImport.update({
+  id: '/api/simulator-chat',
+  path: '/api/simulator-chat',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiLoadTraceRoute = ApiLoadTraceRouteImport.update({
   id: '/api/load-trace',
   path: '/api/load-trace',
@@ -129,6 +141,7 @@ export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/addon-manager': typeof AddonManagerRoute
   '/image': typeof ImageRoute
+  '/simulator': typeof SimulatorRoute
   '/stream-debugger': typeof StreamDebuggerRoute
   '/structured': typeof StructuredRoute
   '/summarize': typeof SummarizeRoute
@@ -140,6 +153,7 @@ export interface FileRoutesByFullPath {
   '/api/image': typeof ApiImageRoute
   '/api/list-traces': typeof ApiListTracesRoute
   '/api/load-trace': typeof ApiLoadTraceRoute
+  '/api/simulator-chat': typeof ApiSimulatorChatRoute
   '/api/structured': typeof ApiStructuredRoute
   '/api/summarize': typeof ApiSummarizeRoute
   '/api/transcription': typeof ApiTranscriptionRoute
@@ -150,6 +164,7 @@ export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/addon-manager': typeof AddonManagerRoute
   '/image': typeof ImageRoute
+  '/simulator': typeof SimulatorRoute
   '/stream-debugger': typeof StreamDebuggerRoute
   '/structured': typeof StructuredRoute
   '/summarize': typeof SummarizeRoute
@@ -161,6 +176,7 @@ export interface FileRoutesByTo {
   '/api/image': typeof ApiImageRoute
   '/api/list-traces': typeof ApiListTracesRoute
   '/api/load-trace': typeof ApiLoadTraceRoute
+  '/api/simulator-chat': typeof ApiSimulatorChatRoute
   '/api/structured': typeof ApiStructuredRoute
   '/api/summarize': typeof ApiSummarizeRoute
   '/api/transcription': typeof ApiTranscriptionRoute
@@ -172,6 +188,7 @@ export interface FileRoutesById {
   '/': typeof IndexRoute
   '/addon-manager': typeof AddonManagerRoute
   '/image': typeof ImageRoute
+  '/simulator': typeof SimulatorRoute
   '/stream-debugger': typeof StreamDebuggerRoute
   '/structured': typeof StructuredRoute
   '/summarize': typeof SummarizeRoute
@@ -183,6 +200,7 @@ export interface FileRoutesById {
   '/api/image': typeof ApiImageRoute
   '/api/list-traces': typeof ApiListTracesRoute
   '/api/load-trace': typeof ApiLoadTraceRoute
+  '/api/simulator-chat': typeof ApiSimulatorChatRoute
   '/api/structured': typeof ApiStructuredRoute
   '/api/summarize': typeof ApiSummarizeRoute
   '/api/transcription': typeof ApiTranscriptionRoute
@@ -195,6 +213,7 @@ export interface FileRouteTypes {
     | '/'
     | '/addon-manager'
     | '/image'
+    | '/simulator'
     | '/stream-debugger'
     | '/structured'
     | '/summarize'
@@ -206,6 +225,7 @@ export interface FileRouteTypes {
     | '/api/image'
     | '/api/list-traces'
     | '/api/load-trace'
+    | '/api/simulator-chat'
     | '/api/structured'
     | '/api/summarize'
     | '/api/transcription'
@@ -216,6 +236,7 @@ export interface FileRouteTypes {
     | '/'
     | '/addon-manager'
     | '/image'
+    | '/simulator'
     | '/stream-debugger'
     | '/structured'
     | '/summarize'
@@ -227,6 +248,7 @@ export interface FileRouteTypes {
     | '/api/image'
     | '/api/list-traces'
     | '/api/load-trace'
+    | '/api/simulator-chat'
     | '/api/structured'
     | '/api/summarize'
     | '/api/transcription'
@@ -237,6 +259,7 @@ export interface FileRouteTypes {
     | '/'
     | '/addon-manager'
     | '/image'
+    | '/simulator'
     | '/stream-debugger'
     | '/structured'
     | '/summarize'
@@ -248,6 +271,7 @@ export interface FileRouteTypes {
     | '/api/image'
     | '/api/list-traces'
     | '/api/load-trace'
+    | '/api/simulator-chat'
     | '/api/structured'
     | '/api/summarize'
     | '/api/transcription'
@@ -259,6 +283,7 @@ export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AddonManagerRoute: typeof AddonManagerRoute
   ImageRoute: typeof ImageRoute
+  SimulatorRoute: typeof SimulatorRoute
   StreamDebuggerRoute: typeof StreamDebuggerRoute
   StructuredRoute: typeof StructuredRoute
   SummarizeRoute: typeof SummarizeRoute
@@ -270,6 +295,7 @@ export interface RootRouteChildren {
   ApiImageRoute: typeof ApiImageRoute
   ApiListTracesRoute: typeof ApiListTracesRoute
   ApiLoadTraceRoute: typeof ApiLoadTraceRoute
+  ApiSimulatorChatRoute: typeof ApiSimulatorChatRoute
   ApiStructuredRoute: typeof ApiStructuredRoute
   ApiSummarizeRoute: typeof ApiSummarizeRoute
   ApiTranscriptionRoute: typeof ApiTranscriptionRoute
@@ -319,6 +345,13 @@ declare module '@tanstack/react-router' {
       path: '/stream-debugger'
       fullPath: '/stream-debugger'
       preLoaderRoute: typeof StreamDebuggerRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/simulator': {
+      id: '/simulator'
+      path: '/simulator'
+      fullPath: '/simulator'
+      preLoaderRoute: typeof SimulatorRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/image': {
@@ -377,6 +410,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiStructuredRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/simulator-chat': {
+      id: '/api/simulator-chat'
+      path: '/api/simulator-chat'
+      fullPath: '/api/simulator-chat'
+      preLoaderRoute: typeof ApiSimulatorChatRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/load-trace': {
       id: '/api/load-trace'
       path: '/api/load-trace'
@@ -419,6 +459,7 @@ const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AddonManagerRoute: AddonManagerRoute,
   ImageRoute: ImageRoute,
+  SimulatorRoute: SimulatorRoute,
   StreamDebuggerRoute: StreamDebuggerRoute,
   StructuredRoute: StructuredRoute,
   SummarizeRoute: SummarizeRoute,
@@ -430,6 +471,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiImageRoute: ApiImageRoute,
   ApiListTracesRoute: ApiListTracesRoute,
   ApiLoadTraceRoute: ApiLoadTraceRoute,
+  ApiSimulatorChatRoute: ApiSimulatorChatRoute,
   ApiStructuredRoute: ApiStructuredRoute,
   ApiSummarizeRoute: ApiSummarizeRoute,
   ApiTranscriptionRoute: ApiTranscriptionRoute,
