@@ -401,8 +401,7 @@ export class AnthropicTextAdapter<
             const parsed = toolCall.function.arguments
               ? JSON.parse(toolCall.function.arguments)
               : {}
-            parsedInput =
-              parsed && typeof parsed === 'object' ? parsed : {}
+            parsedInput = parsed && typeof parsed === 'object' ? parsed : {}
           } catch {
             parsedInput = toolCall.function.arguments
           }
@@ -589,8 +588,7 @@ export class AnthropicTextAdapter<
             let parsedInput: unknown = {}
             try {
               const parsed = existing.input ? JSON.parse(existing.input) : {}
-              parsedInput =
-                parsed && typeof parsed === 'object' ? parsed : {}
+              parsedInput = parsed && typeof parsed === 'object' ? parsed : {}
             } catch {
               parsedInput = {}
             }
