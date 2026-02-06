@@ -285,6 +285,10 @@ export type MessagePart =
   | ToolCallPart
   | ToolResultPart
   | ThinkingPart
+  | ImagePart
+  | AudioPart
+  | VideoPart
+  | DocumentPart
 
 /**
  * UIMessage - Domain-specific message format optimized for building chat UIs

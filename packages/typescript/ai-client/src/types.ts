@@ -1,10 +1,14 @@
 import type {
   AnyClientTool,
+  AudioPart,
   ChunkStrategy,
+  DocumentPart,
+  ImagePart,
   InferToolInput,
   InferToolOutput,
   ModelMessage,
   StreamChunk,
+  VideoPart,
 } from '@tanstack/ai'
 import type { ConnectionAdapter } from './connection-adapters'
 
@@ -124,6 +128,10 @@ export type MessagePart<TTools extends ReadonlyArray<AnyClientTool> = any> =
   | ToolCallPart<TTools>
   | ToolResultPart
   | ThinkingPart
+  | ImagePart
+  | AudioPart
+  | VideoPart
+  | DocumentPart
 
 /**
  * UIMessage - Domain-specific message format optimized for building chat UIs
