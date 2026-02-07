@@ -6,6 +6,7 @@
  */
 
 import { aiEventClient } from '../../event-client.js'
+import { toTelemetryEvent } from '../../telemetry/types.js'
 import type {
   StreamChunk,
   SummarizationOptions,
@@ -27,8 +28,8 @@ export const kind = 'summarize' as const
 /** Extract provider options from a SummarizeAdapter via ~types */
 export type SummarizeProviderOptions<TAdapter> =
   TAdapter extends SummarizeAdapter<any, any>
-    ? TAdapter['~types']['providerOptions']
-    : object
+  ? TAdapter['~types']['providerOptions']
+  : object
 
 // ===========================
 // Activity Options Type
@@ -82,8 +83,8 @@ export interface SummarizeActivityOptions<
  */
 export type SummarizeActivityResult<TStream extends boolean> =
   TStream extends true
-    ? AsyncIterable<StreamChunk>
-    : Promise<SummarizationResult>
+  ? AsyncIterable<StreamChunk>
+  : Promise<SummarizationResult>
 
 // ===========================
 // Helper Functions
@@ -189,7 +190,7 @@ async function runSummarize(
     provider: adapter.name,
     model,
     inputLength,
-    telemetry,
+    telemetry: toTelemetryEvent(telemetry),
     timestamp: startTime,
   })
 
@@ -214,7 +215,7 @@ async function runSummarize(
     inputLength,
     outputLength,
     duration,
-    telemetry,
+    telemetry: toTelemetryEvent(telemetry),
     timestamp: Date.now(),
   })
 
@@ -292,5 +293,5 @@ export { BaseSummarizeAdapter } from './adapter'
 export type {
   AnySummarizeAdapter,
   SummarizeAdapter,
-  SummarizeAdapterConfig,
+  SummarizeAdapterConfig
 } from './adapter'

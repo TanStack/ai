@@ -6,6 +6,10 @@
  */
 
 import { aiEventClient } from '../../event-client.js'
+import { buildSpanAttributes } from '../../telemetry/attributes.js'
+import { getTracer } from '../../telemetry/get-tracer.js'
+import { recordSpan } from '../../telemetry/record-span.js'
+import { toTelemetryEvent } from '../../telemetry/types.js'
 import type { ImageGenerationOptions, ImageGenerationResult } from '../../types'
 import type { ImageAdapter } from './adapter'
 
@@ -27,14 +31,14 @@ export const kind = 'image' as const
  */
 export type ImageProviderOptionsForModel<TAdapter, TModel extends string> =
   TAdapter extends ImageAdapter<any, infer BaseOptions, infer ModelOptions, any>
-    ? string extends keyof ModelOptions
-      ? // ModelOptions is Record<string, unknown> or has index signature - use BaseOptions
-        BaseOptions
-      : // ModelOptions has explicit keys - check if TModel is one of them
-        TModel extends keyof ModelOptions
-        ? ModelOptions[TModel]
-        : BaseOptions
-    : object
+  ? string extends keyof ModelOptions
+  ? // ModelOptions is Record<string, unknown> or has index signature - use BaseOptions
+  BaseOptions
+  : // ModelOptions has explicit keys - check if TModel is one of them
+  TModel extends keyof ModelOptions
+  ? ModelOptions[TModel]
+  : BaseOptions
+  : object
 
 /**
  * Extract model-specific size options from an ImageAdapter via ~types.
@@ -42,14 +46,14 @@ export type ImageProviderOptionsForModel<TAdapter, TModel extends string> =
  */
 export type ImageSizeForModel<TAdapter, TModel extends string> =
   TAdapter extends ImageAdapter<any, any, any, infer SizeByName>
-    ? string extends keyof SizeByName
-      ? // SizeByName has index signature - fall back to string
-        string
-      : // SizeByName has explicit keys - check if TModel is one of them
-        TModel extends keyof SizeByName
-        ? SizeByName[TModel]
-        : string
-    : string
+  ? string extends keyof SizeByName
+  ? // SizeByName has index signature - fall back to string
+  string
+  : // SizeByName has explicit keys - check if TModel is one of them
+  TModel extends keyof SizeByName
+  ? SizeByName[TModel]
+  : string
+  : string
 
 // ===========================
 // Activity Options Type
@@ -156,40 +160,62 @@ export async function generateImage<
     numberOfImages: rest.numberOfImages,
     size: rest.size as string | undefined,
     modelOptions: rest.modelOptions as Record<string, unknown> | undefined,
-    telemetry: rest.telemetry,
+    telemetry: toTelemetryEvent(rest.telemetry),
     timestamp: startTime,
   })
 
-  return adapter.generateImages({ ...rest, model }).then((result) => {
-    const duration = Date.now() - startTime
+  const tracer = getTracer(rest.telemetry?.tracer)
 
-    aiEventClient.emit('image:request:completed', {
-      requestId,
-      provider: adapter.name,
-      model,
-      images: result.images.map((image) => ({
-        url: image.url,
-        b64Json: image.b64Json,
-      })),
-      duration,
-      modelOptions: rest.modelOptions as Record<string, unknown> | undefined,
-      telemetry: rest.telemetry,
-      timestamp: Date.now(),
-    })
+  return recordSpan({
+    name: `generate_image ${adapter.model}`,
+    attributes: buildSpanAttributes({
+      model: { name: adapter.model, provider: adapter.name },
+      outputType: "image",
+      operationName: "generate_image",
+    }),
+    tracer,
+    fn: async span => adapter.generateImages({ ...rest, model }).then((result) => {
+      const duration = Date.now() - startTime
 
-    if (result.usage) {
-      aiEventClient.emit('image:usage', {
+      aiEventClient.emit('image:request:completed', {
         requestId,
+        provider: adapter.name,
         model,
-        usage: result.usage,
+        images: result.images.map((image) => ({
+          url: image.url,
+          b64Json: image.b64Json,
+        })),
+        duration,
         modelOptions: rest.modelOptions as Record<string, unknown> | undefined,
-        telemetry: rest.telemetry,
+        telemetry: toTelemetryEvent(rest.telemetry),
         timestamp: Date.now(),
       })
-    }
 
-    return result
+      if (result.usage) {
+        aiEventClient.emit('image:usage', {
+          requestId,
+          model,
+          usage: result.usage,
+          modelOptions: rest.modelOptions as Record<string, unknown> | undefined,
+          telemetry: toTelemetryEvent(rest.telemetry),
+          timestamp: Date.now(),
+        })
+
+        span.setAttributes({
+          'gen_ai.usage.input_tokens': result.usage.inputTokens,
+          'gen_ai.usage.output_tokens': result.usage.outputTokens,
+        })
+      }
+
+      span.setAttributes({
+        'gen_ai.response.id': result.id,
+      })
+
+      return result
+    })
   })
+
+
 }
 
 // ===========================
@@ -210,5 +236,5 @@ export { BaseImageAdapter } from './adapter'
 export type {
   AnyImageAdapter,
   ImageAdapter,
-  ImageAdapterConfig,
+  ImageAdapterConfig
 } from './adapter'

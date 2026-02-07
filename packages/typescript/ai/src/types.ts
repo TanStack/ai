@@ -1,33 +1,5 @@
 import type { StandardJSONSchemaV1 } from '@standard-schema/spec'
-
-/**
- * Type for telemetry metadata values.
- *
- * This type is intended to be replaced by OpenTelemetry AttributeType in the future.
- */
-export type TelemetryMetadataValue =
-  | string
-  | number
-  | boolean
-  | Array<null | undefined | string>
-  | Array<null | undefined | number>
-  | Array<null | undefined | boolean>
-
-/**
- * Telemetry data for tracking and debugging.
- */
-export type TelemetrySettings = {
-  /**
-   * Identifier for the specific function or operation being tracked.
-   */
-  functionId?: string
-
-  /**
-   * Arbitrary key-value pairs for tracking context.
-   * Common keys: userId, sessionId, billingAccount, environment, etc.
-   */
-  metadata?: Record<string, TelemetryMetadataValue>
-}
+import type { TelemetrySettings } from './telemetry/types'
 
 /**
  * Tool call states - track the lifecycle of a tool call
@@ -260,9 +232,9 @@ export type ConstrainedContent<
 
 export interface ModelMessage<
   TContent extends string | null | Array<ContentPart> =
-    | string
-    | null
-    | Array<ContentPart>,
+  | string
+  | null
+  | Array<ContentPart>,
 > {
   role: 'user' | 'assistant' | 'tool'
   content: TContent

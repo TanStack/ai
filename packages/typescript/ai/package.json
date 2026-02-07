@@ -55,6 +55,9 @@
     "embeddings"
   ],
   "dependencies": {
+    "@opentelemetry/api": "^1.9.0",
+    "@opentelemetry/resources": "^2.5.0",
+    "@opentelemetry/semantic-conventions": "^1.39.0",
     "@tanstack/devtools-event-client": "^0.4.0",
     "partial-json": "^0.1.7"
   },

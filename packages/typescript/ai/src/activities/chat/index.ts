@@ -7,19 +7,15 @@
 
 import { aiEventClient } from '../../event-client.js'
 import { streamToText } from '../../stream-to-response.js'
+import { toTelemetryEvent } from '../../telemetry/types.js'
 import { ToolCallManager, executeToolCalls } from './tools/tool-calls'
+import { maxIterations as maxIterationsStrategy } from './agent-loop-strategies'
 import {
   convertSchemaToJsonSchema,
   isStandardSchema,
   parseWithStandardSchema,
 } from './tools/schema-converter'
-import { maxIterations as maxIterationsStrategy } from './agent-loop-strategies'
-import type {
-  ApprovalRequest,
-  ClientToolRequest,
-  ToolResult,
-} from './tools/tool-calls'
-import type { AnyTextAdapter } from './adapter'
+import type { TelemetryEvent, TelemetrySettings  } from '../../telemetry/types.js'
 import type {
   AgentLoopStrategy,
   ConstrainedModelMessage,
@@ -28,7 +24,6 @@ import type {
   RunFinishedEvent,
   SchemaInput,
   StreamChunk,
-  TelemetrySettings,
   TextMessageContentEvent,
   TextOptions,
   Tool,
@@ -37,6 +32,12 @@ import type {
   ToolCallEndEvent,
   ToolCallStartEvent,
 } from '../../types'
+import type { AnyTextAdapter } from './adapter'
+import type {
+  ApprovalRequest,
+  ClientToolRequest,
+  ToolResult,
+} from './tools/tool-calls'
 
 // ===========================
 // Activity Kind
@@ -180,8 +181,8 @@ export type TextActivityResult<
 > = TSchema extends SchemaInput
   ? Promise<InferSchemaType<TSchema>>
   : TStream extends false
-    ? Promise<string>
-    : AsyncIterable<StreamChunk>
+  ? Promise<string>
+  : AsyncIterable<StreamChunk>
 
 // ===========================
 // ChatEngine Implementation
@@ -949,7 +950,7 @@ class TextEngine<
     messageCount: number
     hasTools: boolean
     streaming: boolean
-    telemetry?: TelemetrySettings
+    telemetry?: TelemetryEvent
   } {
     return {
       requestId: this.requestId,
@@ -968,7 +969,7 @@ class TextEngine<
       messageCount: this.initialMessageCount,
       hasTools: this.tools.length > 0,
       streaming: true,
-      telemetry: this.telemetry,
+      telemetry: toTelemetryEvent(this.telemetry),
     }
   }
 
@@ -1208,5 +1209,6 @@ export type {
   StructuredOutputOptions,
   StructuredOutputResult,
   TextAdapter,
-  TextAdapterConfig,
+  TextAdapterConfig
 } from './adapter'
+
