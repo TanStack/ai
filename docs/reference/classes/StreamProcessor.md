@@ -192,7 +192,7 @@ Clear all messages
 finalizeStream(): void;
 ```
 
-Defined in: [activities/chat/stream/processor.ts:858](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/activities/chat/stream/processor.ts#L858)
+Defined in: [activities/chat/stream/processor.ts:859](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/activities/chat/stream/processor.ts#L859)
 
 Finalize the stream - complete all pending operations
 
@@ -224,7 +224,7 @@ Get current messages
 getRecording(): ChunkRecording | null;
 ```
 
-Defined in: [activities/chat/stream/processor.ts:937](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/activities/chat/stream/processor.ts#L937)
+Defined in: [activities/chat/stream/processor.ts:938](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/activities/chat/stream/processor.ts#L938)
 
 Get the current recording
 
@@ -240,7 +240,7 @@ Get the current recording
 getState(): ProcessorState;
 ```
 
-Defined in: [activities/chat/stream/processor.ts:910](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/activities/chat/stream/processor.ts#L910)
+Defined in: [activities/chat/stream/processor.ts:911](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/activities/chat/stream/processor.ts#L911)
 
 Get current processor state
 
@@ -322,7 +322,7 @@ Remove messages after a certain index (for reload/retry)
 reset(): void;
 ```
 
-Defined in: [activities/chat/stream/processor.ts:960](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/activities/chat/stream/processor.ts#L960)
+Defined in: [activities/chat/stream/processor.ts:961](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/activities/chat/stream/processor.ts#L961)
 
 Full reset (including messages)
 
@@ -377,7 +377,7 @@ Returns the message ID
 startRecording(): void;
 ```
 
-Defined in: [activities/chat/stream/processor.ts:924](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/activities/chat/stream/processor.ts#L924)
+Defined in: [activities/chat/stream/processor.ts:925](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/activities/chat/stream/processor.ts#L925)
 
 Start recording chunks
 
@@ -415,7 +415,7 @@ Get the conversation as ModelMessages (for sending to LLM)
 static replay(recording, options?): Promise<ProcessorResult>;
 ```
 
-Defined in: [activities/chat/stream/processor.ts:969](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/activities/chat/stream/processor.ts#L969)
+Defined in: [activities/chat/stream/processor.ts:970](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/activities/chat/stream/processor.ts#L970)
 
 Replay a recording through the processor
 

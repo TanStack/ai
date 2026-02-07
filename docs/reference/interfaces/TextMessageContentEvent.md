@@ -27,15 +27,15 @@ Full accumulated content so far
 
 ***
 
-### delta
+### delta?
 
 ```ts
-delta: string;
+optional delta: string;
 ```
 
 Defined in: [types.ts:793](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L793)
 
-The incremental content token
+The incremental content token (may be undefined if only content is provided)
 
 ***
 
