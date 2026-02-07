@@ -1,5 +1,11 @@
 # @tanstack/ai
 
+## 0.4.2
+
+### Patch Changes
+
+- fix issue with delta ([#272](https://github.com/TanStack/ai/pull/272))
+
 ## 0.4.1
 
 ### Patch Changes
