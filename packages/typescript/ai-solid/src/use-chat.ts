@@ -8,7 +8,12 @@ import {
 import { ChatClient } from '@tanstack/ai-client'
 import type { ChatClientState } from '@tanstack/ai-client'
 import type { AnyClientTool, ModelMessage } from '@tanstack/ai'
-import type { UIMessage, UseChatOptions, UseChatReturn } from './types'
+import type {
+  MultimodalContent,
+  UIMessage,
+  UseChatOptions,
+  UseChatReturn,
+} from './types'
 
 export function useChat<TTools extends ReadonlyArray<AnyClientTool> = any>(
   options: UseChatOptions<TTools> = {} as UseChatOptions<TTools>,
@@ -93,7 +98,7 @@ export function useChat<TTools extends ReadonlyArray<AnyClientTool> = any>(
   // are captured at client creation time. Changes to these callbacks require
   // remounting the component or changing the connection to recreate the client.
 
-  const sendMessage = async (content: string) => {
+  const sendMessage = async (content: string | MultimodalContent) => {
     await client().sendMessage(content)
   }
 

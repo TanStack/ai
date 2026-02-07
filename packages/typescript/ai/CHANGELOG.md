@@ -1,5 +1,11 @@
 # @tanstack/ai
 
+## 0.4.0
+
+### Minor Changes
+
+- add multiple modalities support to the client ([#263](https://github.com/TanStack/ai/pull/263))
+
 ## 0.3.1
 
 ### Patch Changes

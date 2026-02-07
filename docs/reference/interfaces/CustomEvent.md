@@ -5,7 +5,7 @@ title: CustomEvent
 
 # Interface: CustomEvent
 
-Defined in: [types.ts:861](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L861)
+Defined in: [types.ts:893](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L893)
 
 Custom event for extensibility.
 
@@ -21,7 +21,7 @@ Custom event for extensibility.
 optional data: unknown;
 ```
 
-Defined in: [types.ts:866](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L866)
+Defined in: [types.ts:898](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L898)
 
 Custom event data
 
@@ -33,7 +33,7 @@ Custom event data
 optional model: string;
 ```
 
-Defined in: [types.ts:690](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L690)
+Defined in: [types.ts:722](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L722)
 
 Model identifier for multi-model support
 
@@ -49,7 +49,7 @@ Model identifier for multi-model support
 name: string;
 ```
 
-Defined in: [types.ts:864](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L864)
+Defined in: [types.ts:896](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L896)
 
 Custom event name
 
@@ -61,7 +61,7 @@ Custom event name
 optional rawEvent: unknown;
 ```
 
-Defined in: [types.ts:692](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L692)
+Defined in: [types.ts:724](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L724)
 
 Original provider event for debugging/advanced use cases
 
@@ -77,7 +77,7 @@ Original provider event for debugging/advanced use cases
 timestamp: number;
 ```
 
-Defined in: [types.ts:688](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L688)
+Defined in: [types.ts:720](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L720)
 
 #### Inherited from
 
@@ -91,7 +91,7 @@ Defined in: [types.ts:688](https://github.com/TanStack/ai/blob/main/packages/typ
 type: "CUSTOM";
 ```
 
-Defined in: [types.ts:862](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L862)
+Defined in: [types.ts:894](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L894)
 
 #### Overrides
 

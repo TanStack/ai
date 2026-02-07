@@ -1,10 +1,15 @@
 import type {
   AnyClientTool,
+  AudioPart,
   ChunkStrategy,
+  ContentPart,
+  DocumentPart,
+  ImagePart,
   InferToolInput,
   InferToolOutput,
   ModelMessage,
   StreamChunk,
+  VideoPart,
 } from '@tanstack/ai'
 import type { ConnectionAdapter } from './connection-adapters'
 
@@ -30,6 +35,35 @@ export type ToolResultState =
  * ChatClient state - track the lifecycle of a chat
  */
 export type ChatClientState = 'ready' | 'submitted' | 'streaming' | 'error'
+
+/**
+ * Multimodal content input for sending messages with rich media.
+ * Allows sending text, images, audio, video, and documents to the LLM.
+ *
+ * @example
+ * ```ts
+ * // Send an image with a question
+ * client.sendMessage({
+ *   content: [
+ *     { type: 'text', content: 'What is in this image?' },
+ *     { type: 'image', source: { type: 'url', value: 'https://example.com/photo.jpg' } }
+ *   ],
+ *   id: 'custom-message-id' // optional
+ * })
+ * ```
+ */
+export interface MultimodalContent {
+  /**
+   * The content of the message.
+   * Can be a simple string or an array of content parts for multimodal messages.
+   */
+  content: string | Array<ContentPart>
+  /**
+   * Optional custom ID for the message.
+   * If not provided, a unique ID will be generated.
+   */
+  id?: string
+}
 
 /**
  * Message parts - building blocks of UIMessage
@@ -121,6 +155,10 @@ export interface ThinkingPart {
 
 export type MessagePart<TTools extends ReadonlyArray<AnyClientTool> = any> =
   | TextPart
+  | ImagePart
+  | AudioPart
+  | VideoPart
+  | DocumentPart
   | ToolCallPart<TTools>
   | ToolResultPart
   | ThinkingPart

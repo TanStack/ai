@@ -4,13 +4,19 @@ import {
   normalizeToUIMessage,
 } from '@tanstack/ai'
 import { DefaultChatClientEventEmitter } from './events'
-import type { AnyClientTool, ModelMessage, StreamChunk } from '@tanstack/ai'
+import type {
+  AnyClientTool,
+  ContentPart,
+  ModelMessage,
+  StreamChunk,
+} from '@tanstack/ai'
 import type { ConnectionAdapter } from './connection-adapters'
 import type { ChatClientEventEmitter } from './events'
 import type {
   ChatClientOptions,
   ChatClientState,
   MessagePart,
+  MultimodalContent,
   ToolCallPart,
   UIMessage,
 } from './types'
@@ -20,6 +26,7 @@ export class ChatClient {
   private connection: ConnectionAdapter
   private uniqueId: string
   private body: Record<string, any> = {}
+  private pendingMessageBody: Record<string, any> | undefined = undefined
   private isLoading = false
   private error: Error | undefined = undefined
   private status: ChatClientState = 'ready'
@@ -282,18 +289,80 @@ export class ChatClient {
   }
 
   /**
-   * Send a message and stream the response
+   * Send a message and stream the response.
+   * Supports both simple string content and multimodal content (images, audio, video, documents).
+   *
+   * @param content - The message content. Can be:
+   *   - A simple string for text-only messages
+   *   - A MultimodalContent object with content array and optional custom ID
+   * @param body - Optional body parameters to merge with the client's base body for this request.
+   *               Uses shallow merge with per-message body taking priority.
+   *
+   * @example
+   * ```ts
+   * // Simple text message
+   * await client.sendMessage('Hello!')
+   *
+   * // Text message with custom body params
+   * await client.sendMessage('Hello!', { temperature: 0.7 })
+   *
+   * // Multimodal message with image
+   * await client.sendMessage({
+   *   content: [
+   *     { type: 'text', content: 'What is in this image?' },
+   *     { type: 'image', source: { type: 'url', value: 'https://example.com/photo.jpg' } }
+   *   ]
+   * })
+   *
+   * // Multimodal message with custom ID and body params
+   * await client.sendMessage(
+   *   {
+   *     content: [
+   *       { type: 'text', content: 'Describe this audio' },
+   *       { type: 'audio', source: { type: 'data', value: 'base64...' } }
+   *     ],
+   *     id: 'custom-message-id'
+   *   },
+   *   { model: 'gpt-4-audio' }
+   * )
+   * ```
    */
-  async sendMessage(content: string): Promise<void> {
-    if (!content.trim() || this.isLoading) {
+  async sendMessage(
+    content: string | MultimodalContent,
+    body?: Record<string, any>,
+  ): Promise<void> {
+    const emptyMessage = typeof content === 'string' && !content.trim()
+    if (emptyMessage || this.isLoading) {
       return
     }
+    // Normalize input to extract content, id, and validate
+    const normalizedContent = this.normalizeMessageInput(content)
+
+    // Store the per-message body for use in streamResponse
+    this.pendingMessageBody = body
 
     // Add user message via processor
-    const userMessage = this.processor.addUserMessage(content.trim())
-    this.events.messageSent(userMessage.id, content.trim())
+    const userMessage = this.processor.addUserMessage(
+      normalizedContent.content,
+      normalizedContent.id,
+    )
+    this.events.messageSent(userMessage.id, normalizedContent.content)
 
     await this.streamResponse()
+  }
+
+  /**
+   * Normalize the message input to extract content and optional id.
+   * Trims string content automatically.
+   */
+  private normalizeMessageInput(input: string | MultimodalContent): {
+    content: string | Array<ContentPart>
+    id?: string
+  } {
+    if (typeof input === 'string') {
+      return { content: input.trim() }
+    }
+    return { content: input.content, id: input.id }
   }
 
   /**
@@ -351,16 +420,21 @@ export class ChatClient {
       // Call onResponse callback
       await this.callbacksRef.current.onResponse()
 
-      // Include conversationId in the body for server-side event correlation
-      const bodyWithConversationId = {
+      // Merge body: base body + per-message body (per-message takes priority)
+      // Include conversationId for server-side event correlation
+      const mergedBody = {
         ...this.body,
+        ...this.pendingMessageBody,
         conversationId: this.uniqueId,
       }
+
+      // Clear the pending message body after use
+      this.pendingMessageBody = undefined
 
       // Connect and stream
       const stream = this.connection.connect(
         messages,
-        bodyWithConversationId,
+        mergedBody,
         this.abortController.signal,
       )
 
@@ -378,6 +452,7 @@ export class ChatClient {
     } finally {
       this.abortController = null
       this.setIsLoading(false)
+      this.pendingMessageBody = undefined // Ensure it's cleared even on error
 
       // Drain any actions that were queued while the stream was in progress
       await this.drainPostStreamActions()

@@ -1,7 +1,12 @@
 import { ChatClient } from '@tanstack/ai-client'
 import type { ChatClientState } from '@tanstack/ai-client'
 import type { AnyClientTool, ModelMessage } from '@tanstack/ai'
-import type { CreateChatOptions, CreateChatReturn, UIMessage } from './types'
+import type {
+  CreateChatOptions,
+  CreateChatReturn,
+  MultimodalContent,
+  UIMessage,
+} from './types'
 
 /**
  * Creates a reactive chat instance for Svelte 5.
@@ -83,7 +88,7 @@ export function createChat<TTools extends ReadonlyArray<AnyClientTool> = any>(
   // Users should call chat.stop() in their component's cleanup if needed.
 
   // Define methods
-  const sendMessage = async (content: string) => {
+  const sendMessage = async (content: string | MultimodalContent) => {
     await client.sendMessage(content)
   }
 

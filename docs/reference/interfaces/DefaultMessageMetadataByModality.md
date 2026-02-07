@@ -5,7 +5,7 @@ title: DefaultMessageMetadataByModality
 
 # Interface: DefaultMessageMetadataByModality
 
-Defined in: [types.ts:1168](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L1168)
+Defined in: [types.ts:1200](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L1200)
 
 Default metadata type for adapters that don't define custom metadata.
 Uses unknown for all modalities.
@@ -18,7 +18,7 @@ Uses unknown for all modalities.
 audio: unknown;
 ```
 
-Defined in: [types.ts:1171](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L1171)
+Defined in: [types.ts:1203](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L1203)
 
 ***
 
@@ -28,7 +28,7 @@ Defined in: [types.ts:1171](https://github.com/TanStack/ai/blob/main/packages/ty
 document: unknown;
 ```
 
-Defined in: [types.ts:1173](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L1173)
+Defined in: [types.ts:1205](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L1205)
 
 ***
 
@@ -38,7 +38,7 @@ Defined in: [types.ts:1173](https://github.com/TanStack/ai/blob/main/packages/ty
 image: unknown;
 ```
 
-Defined in: [types.ts:1170](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L1170)
+Defined in: [types.ts:1202](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L1202)
 
 ***
 
@@ -48,7 +48,7 @@ Defined in: [types.ts:1170](https://github.com/TanStack/ai/blob/main/packages/ty
 text: unknown;
 ```
 
-Defined in: [types.ts:1169](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L1169)
+Defined in: [types.ts:1201](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L1201)
 
 ***
 
@@ -58,4 +58,4 @@ Defined in: [types.ts:1169](https://github.com/TanStack/ai/blob/main/packages/ty
 video: unknown;
 ```
 
-Defined in: [types.ts:1172](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L1172)
+Defined in: [types.ts:1204](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L1204)

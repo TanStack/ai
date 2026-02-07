@@ -30,13 +30,7 @@ import type {
   TextOptions,
 } from '@tanstack/ai'
 import type { ExternalTextProviderOptions } from '../text/text-provider-options'
-import type {
-  GeminiAudioMetadata,
-  GeminiDocumentMetadata,
-  GeminiImageMetadata,
-  GeminiMessageMetadataByModality,
-  GeminiVideoMetadata,
-} from '../message-types'
+import type { GeminiMessageMetadataByModality } from '../message-types'
 import type { GeminiClientConfig } from '../utils'
 
 /**
@@ -483,20 +477,6 @@ export class GeminiTextAdapter<
   }
 
   private convertContentPartToGemini(part: ContentPart): Part {
-    const getDefaultFileType = (
-      part: 'image' | 'audio' | 'video' | 'document',
-    ) => {
-      switch (part) {
-        case 'image':
-          return 'image/jpeg'
-        case 'audio':
-          return 'audio/mp3'
-        case 'video':
-          return 'video/mp4'
-        case 'document':
-          return 'application/pdf'
-      }
-    }
     switch (part.type) {
       case 'text':
         return { text: part.content }
@@ -504,24 +484,26 @@ export class GeminiTextAdapter<
       case 'audio':
       case 'video':
       case 'document': {
-        const metadata = part.metadata as
-          | GeminiDocumentMetadata
-          | GeminiImageMetadata
-          | GeminiVideoMetadata
-          | GeminiAudioMetadata
-          | undefined
         if (part.source.type === 'data') {
           return {
             inlineData: {
               data: part.source.value,
-              mimeType: metadata?.mimeType ?? getDefaultFileType(part.type),
+              mimeType: part.source.mimeType,
             },
           }
         } else {
+          // For URL sources, use provided mimeType or fall back to reasonable defaults
+          const defaultMimeType = {
+            image: 'image/jpeg',
+            audio: 'audio/mp3',
+            video: 'video/mp4',
+            document: 'application/pdf',
+          }[part.type]
+
           return {
             fileData: {
               fileUri: part.source.value,
-              mimeType: metadata?.mimeType ?? getDefaultFileType(part.type),
+              mimeType: part.source.mimeType ?? defaultMimeType,
             },
           }
         }

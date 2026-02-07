@@ -23,6 +23,6 @@ type AGUIEvent =
   | CustomEvent;
 ```
 
-Defined in: [types.ts:872](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L872)
+Defined in: [types.ts:904](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L904)
 
 Union of all AG-UI events.

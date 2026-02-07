@@ -313,17 +313,20 @@ export class AnthropicTextAdapter<
             ? {
                 type: 'base64',
                 data: part.source.value,
-                media_type: metadata?.mediaType ?? 'image/jpeg',
+                media_type: part.source.mimeType as
+                  | 'image/jpeg'
+                  | 'image/png'
+                  | 'image/gif'
+                  | 'image/webp',
               }
             : {
                 type: 'url',
                 url: part.source.value,
               }
-        const { mediaType: _mediaType, ...meta } = metadata || {}
         return {
           type: 'image',
           source: imageSource,
-          ...meta,
+          ...metadata,
         }
       }
       case 'document': {
@@ -333,7 +336,7 @@ export class AnthropicTextAdapter<
             ? {
                 type: 'base64',
                 data: part.source.value,
-                media_type: 'application/pdf',
+                media_type: part.source.mimeType as 'application/pdf',
               }
             : {
                 type: 'url',
