@@ -1,6 +1,8 @@
 import type {
+  AnthropicAdaptiveThinkingOptions,
   AnthropicContainerOptions,
   AnthropicContextManagementOptions,
+  AnthropicEffortOptions,
   AnthropicMCPOptions,
   AnthropicSamplingOptions,
   AnthropicServiceTierOptions,
@@ -19,6 +21,7 @@ interface ModelMeta<
   supports: {
     input: Array<'text' | 'image' | 'audio' | 'video' | 'document'>
     extended_thinking?: boolean
+    adaptive_thinking?: boolean
     priority_tier?: boolean
   }
   context_window?: number
@@ -132,6 +135,38 @@ const CLAUDE_OPUS_4_1 = {
     AnthropicServiceTierOptions &
     AnthropicStopSequencesOptions &
     AnthropicThinkingOptions &
+    AnthropicToolChoiceOptions &
+    AnthropicSamplingOptions
+>
+
+const CLAUDE_OPUS_4_6 = {
+  name: 'claude-opus-4-6',
+  id: 'claude-opus-4-6',
+  context_window: 200_000,
+  max_output_tokens: 128_000,
+  knowledge_cutoff: '2025-05-01',
+  pricing: {
+    input: {
+      normal: 5,
+    },
+    output: {
+      normal: 25,
+    },
+  },
+  supports: {
+    input: ['text', 'image', 'document'],
+    extended_thinking: true,
+    adaptive_thinking: true,
+    priority_tier: true,
+  },
+} as const satisfies ModelMeta<
+  AnthropicContainerOptions &
+    AnthropicContextManagementOptions &
+    AnthropicMCPOptions &
+    AnthropicServiceTierOptions &
+    AnthropicStopSequencesOptions &
+    AnthropicAdaptiveThinkingOptions &
+    AnthropicEffortOptions &
     AnthropicToolChoiceOptions &
     AnthropicSamplingOptions
 >
@@ -361,6 +396,7 @@ const CLAUDE_HAIKU_3 = {
   : unknown */
 
 export const ANTHROPIC_MODELS = [
+  CLAUDE_OPUS_4_6.id,
   CLAUDE_OPUS_4_5.id,
   CLAUDE_SONNET_4_5.id,
   CLAUDE_HAIKU_4_5.id,
@@ -382,6 +418,17 @@ export const ANTHROPIC_MODELS = [
 // Manual type map for per-model provider options
 // Models are differentiated by extended_thinking and priority_tier support
 export type AnthropicChatModelProviderOptionsByName = {
+  // Opus 4.6: adaptive thinking, effort parameter, 128K output
+  [CLAUDE_OPUS_4_6.id]: AnthropicContainerOptions &
+    AnthropicContextManagementOptions &
+    AnthropicMCPOptions &
+    AnthropicServiceTierOptions &
+    AnthropicStopSequencesOptions &
+    AnthropicAdaptiveThinkingOptions &
+    AnthropicEffortOptions &
+    AnthropicToolChoiceOptions &
+    AnthropicSamplingOptions
+
   // Models with both extended_thinking and priority_tier
   [CLAUDE_OPUS_4_5.id]: AnthropicContainerOptions &
     AnthropicContextManagementOptions &
@@ -470,6 +517,7 @@ export type AnthropicChatModelProviderOptionsByName = {
  * @see https://docs.anthropic.com/claude/docs/pdf-support
  */
 export type AnthropicModelInputModalitiesByName = {
+  [CLAUDE_OPUS_4_6.id]: typeof CLAUDE_OPUS_4_6.supports.input
   [CLAUDE_OPUS_4_5.id]: typeof CLAUDE_OPUS_4_5.supports.input
   [CLAUDE_SONNET_4_5.id]: typeof CLAUDE_SONNET_4_5.supports.input
   [CLAUDE_HAIKU_4_5.id]: typeof CLAUDE_HAIKU_4_5.supports.input

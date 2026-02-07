@@ -154,6 +154,85 @@ for (const provider of toolProviders) {
   })
 }
 
+// ===========================
+// Multi-turn follow-up tests
+// ===========================
+// These test that providers can handle follow-up messages AFTER tool calls.
+// This specifically catches the Anthropic bug where consecutive user-role messages
+// (tool_result + new user message) violate the alternating role constraint.
+
+for (const provider of toolProviders) {
+  test.describe(`${provider.name} - Multi-turn Tool Follow-up`, () => {
+    // Extended timeout for multi-turn conversations (two full LLM round-trips)
+    test.describe.configure({ retries: 2, timeout: 180_000 })
+
+    // Skip if provider is not available
+    test.skip(
+      () => !isProviderAvailable(provider),
+      `${provider.name} API key not configured (requires ${provider.envKey || 'no key'})`,
+    )
+
+    test('should handle follow-up message after tool call completes', async ({
+      page,
+    }) => {
+      // Navigate to the chat page
+      await goToChatPage(page)
+
+      // Select the provider and model
+      await selectProvider(page, provider.id, provider.defaultModel)
+
+      // First message: trigger a tool call
+      await sendMessage(
+        page,
+        'Use the getGuitars tool to show me what acoustic guitars you have.',
+      )
+
+      // Wait for the first response to complete (tool call + model response)
+      await waitForResponse(page, 120_000)
+
+      // Verify the first turn worked - should have tool calls
+      const firstMessages = await getMessages(page)
+      const firstAssistant = firstMessages.filter(
+        (m: any) => m.role === 'assistant',
+      )
+      expect(firstAssistant.length).toBeGreaterThan(0)
+
+      // Send a follow-up message - this is where the bug manifested
+      // With the Anthropic bug, this would fail with consecutive user-role messages
+      await sendMessage(page, 'Now tell me about electric guitars instead.')
+
+      // Wait for the follow-up response
+      await waitForResponse(page, 120_000)
+
+      // Get all messages after the follow-up
+      const allMessages = await getMessages(page)
+
+      // Should have at least 2 user messages and 2 assistant messages
+      const userMessages = allMessages.filter((m: any) => m.role === 'user')
+      const assistantMessages = allMessages.filter(
+        (m: any) => m.role === 'assistant',
+      )
+
+      expect(userMessages.length).toBeGreaterThanOrEqual(2)
+      expect(assistantMessages.length).toBeGreaterThanOrEqual(2)
+
+      // The LAST assistant message should have non-empty text content
+      // (not just tool calls, and not an error)
+      const lastAssistant = assistantMessages[assistantMessages.length - 1]
+      const textParts = lastAssistant.parts?.filter(
+        (p: any) => p.type === 'text' && p.content && p.content.length > 0,
+      )
+
+      // The follow-up should have produced some text OR tool calls
+      // (both are valid responses - the key is it didn't error out)
+      const hasText = textParts?.length > 0
+      const hasTools =
+        lastAssistant.parts?.some((p: any) => p.type === 'tool-call') || false
+      expect(hasText || hasTools).toBe(true)
+    })
+  })
+}
+
 // Verify we have tool-capable providers to test
 test('at least one tool-capable provider should be available', async () => {
   const available = getToolCapableProviders()
