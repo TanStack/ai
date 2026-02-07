@@ -1,6 +1,6 @@
 {
   "name": "@tanstack/ai-solid-ui",
-  "version": "1.0.0",
+  "version": "0.5.0",
   "description": "Headless Solid components for building AI chat interfaces",
   "module": "./src/index.ts",
   "types": "./src/index.ts",

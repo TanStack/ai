@@ -5,8 +5,8 @@
 ### Patch Changes
 
 - Updated dependencies [[`0158d14`](https://github.com/TanStack/ai/commit/0158d14df00639ff5325680ae91b7791c189e60f), [`0158d14`](https://github.com/TanStack/ai/commit/0158d14df00639ff5325680ae91b7791c189e60f)]:
-  - @tanstack/ai-openai@1.0.0
-  - @tanstack/ai-react@1.0.0
+  - @tanstack/ai-openai@0.4.0
+  - @tanstack/ai-react@0.5.0
   - @tanstack/ai@0.4.0
   - @tanstack/tests-adapters@0.1.8
   - @tanstack/ai-client@0.4.1

@@ -5,7 +5,7 @@
 ### Patch Changes
 
 - Updated dependencies [[`0158d14`](https://github.com/TanStack/ai/commit/0158d14df00639ff5325680ae91b7791c189e60f)]:
-  - @tanstack/ai-vue@1.0.0
+  - @tanstack/ai-vue@0.5.0
 
 ## 0.1.5
 

@@ -5,13 +5,13 @@
 ### Patch Changes
 
 - Updated dependencies [[`0158d14`](https://github.com/TanStack/ai/commit/0158d14df00639ff5325680ae91b7791c189e60f), [`0158d14`](https://github.com/TanStack/ai/commit/0158d14df00639ff5325680ae91b7791c189e60f)]:
-  - @tanstack/ai-anthropic@1.0.0
-  - @tanstack/ai-gemini@1.0.0
-  - @tanstack/ai-openai@1.0.0
-  - @tanstack/ai-svelte@1.0.0
+  - @tanstack/ai-anthropic@0.4.0
+  - @tanstack/ai-gemini@0.4.0
+  - @tanstack/ai-openai@0.4.0
+  - @tanstack/ai-svelte@0.4.0
   - @tanstack/ai@0.4.0
   - @tanstack/ai-client@0.4.1
-  - @tanstack/ai-ollama@1.0.0
+  - @tanstack/ai-ollama@0.4.0
 
 ## 0.1.6
 
