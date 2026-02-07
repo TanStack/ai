@@ -12,12 +12,13 @@ function uiMessageToModelMessages(uiMessage): ModelMessage<
   | null>[];
 ```
 
-Defined in: [activities/chat/messages.ts:62](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/activities/chat/messages.ts#L62)
+Defined in: [activities/chat/messages.ts:81](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/activities/chat/messages.ts#L81)
 
 Convert a UIMessage to ModelMessage(s)
 
 This conversion handles the parts-based structure:
-- Text parts → content field
+- Text parts → content field (string or as part of ContentPart array)
+- Multimodal parts (image, audio, video, document) → ContentPart array
 - ToolCall parts → toolCalls array
 - ToolResult parts → separate role="tool" messages
 

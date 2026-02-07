@@ -9,6 +9,6 @@ title: StreamChunkType
 type StreamChunkType = AGUIEventType;
 ```
 
-Defined in: [types.ts:680](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L680)
+Defined in: [types.ts:712](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L712)
 
 Stream chunk/event types (AG-UI protocol).
