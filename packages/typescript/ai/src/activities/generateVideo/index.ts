@@ -33,8 +33,8 @@ export const kind = 'video' as const
  */
 export type VideoProviderOptions<TAdapter> =
   TAdapter extends VideoAdapter<any, any>
-  ? TAdapter['~types']['providerOptions']
-  : object
+    ? TAdapter['~types']['providerOptions']
+    : object
 
 // ===========================
 // Activity Options Types
@@ -120,8 +120,8 @@ export type VideoActivityOptions<
 > = TRequest extends 'status'
   ? VideoStatusOptions<TAdapter>
   : TRequest extends 'url'
-  ? VideoUrlOptions<TAdapter>
-  : VideoCreateOptions<TAdapter>
+    ? VideoUrlOptions<TAdapter>
+    : VideoCreateOptions<TAdapter>
 
 // ===========================
 // Activity Result Types
@@ -137,8 +137,8 @@ export type VideoActivityResult<
 > = TRequest extends 'status'
   ? Promise<VideoStatusResult>
   : TRequest extends 'url'
-  ? Promise<VideoUrlResult>
-  : Promise<VideoJobResult>
+    ? Promise<VideoUrlResult>
+    : Promise<VideoJobResult>
 
 // ===========================
 // Activity Implementation
@@ -320,5 +320,5 @@ export { BaseVideoAdapter } from './adapter'
 export type {
   AnyVideoAdapter,
   VideoAdapter,
-  VideoAdapterConfig
+  VideoAdapterConfig,
 } from './adapter'

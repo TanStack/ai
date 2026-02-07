@@ -1,5 +1,5 @@
 import { EventClient } from '@tanstack/devtools-event-client'
-import type { TelemetryEvent } from "./telemetry/types"
+import type { TelemetryEvent } from './telemetry/types'
 import type { MessagePart, ToolCall } from './types'
 /**
  * Tool call states - track the lifecycle of a tool call

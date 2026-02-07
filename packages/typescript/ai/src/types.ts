@@ -260,9 +260,9 @@ export type ConstrainedContent<
 
 export interface ModelMessage<
   TContent extends string | null | Array<ContentPart> =
-  | string
-  | null
-  | Array<ContentPart>,
+    | string
+    | null
+    | Array<ContentPart>,
 > {
   role: 'user' | 'assistant' | 'tool'
   content: TContent

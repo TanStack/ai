@@ -16,7 +16,10 @@ import {
   parseWithStandardSchema,
 } from './tools/schema-converter'
 import { convertMessagesToModelMessages } from './messages.js'
-import type { TelemetryEvent, TelemetrySettings  } from '../../telemetry/types.js'
+import type {
+  TelemetryEvent,
+  TelemetrySettings,
+} from '../../telemetry/types.js'
 import type {
   AgentLoopStrategy,
   ConstrainedModelMessage,
@@ -182,8 +185,8 @@ export type TextActivityResult<
 > = TSchema extends SchemaInput
   ? Promise<InferSchemaType<TSchema>>
   : TStream extends false
-  ? Promise<string>
-  : AsyncIterable<StreamChunk>
+    ? Promise<string>
+    : AsyncIterable<StreamChunk>
 
 // ===========================
 // ChatEngine Implementation
@@ -1279,6 +1282,5 @@ export type {
   StructuredOutputOptions,
   StructuredOutputResult,
   TextAdapter,
-  TextAdapterConfig
+  TextAdapterConfig,
 } from './adapter'
-

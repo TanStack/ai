@@ -28,8 +28,8 @@ export const kind = 'summarize' as const
 /** Extract provider options from a SummarizeAdapter via ~types */
 export type SummarizeProviderOptions<TAdapter> =
   TAdapter extends SummarizeAdapter<any, any>
-  ? TAdapter['~types']['providerOptions']
-  : object
+    ? TAdapter['~types']['providerOptions']
+    : object
 
 // ===========================
 // Activity Options Type
@@ -83,8 +83,8 @@ export interface SummarizeActivityOptions<
  */
 export type SummarizeActivityResult<TStream extends boolean> =
   TStream extends true
-  ? AsyncIterable<StreamChunk>
-  : Promise<SummarizationResult>
+    ? AsyncIterable<StreamChunk>
+    : Promise<SummarizationResult>
 
 // ===========================
 // Helper Functions
@@ -293,5 +293,5 @@ export { BaseSummarizeAdapter } from './adapter'
 export type {
   AnySummarizeAdapter,
   SummarizeAdapter,
-  SummarizeAdapterConfig
+  SummarizeAdapterConfig,
 } from './adapter'

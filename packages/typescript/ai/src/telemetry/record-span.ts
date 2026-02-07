@@ -1,11 +1,11 @@
-import { SpanStatusCode, context } from "@opentelemetry/api"
-import type { Attributes, Span, Tracer } from "@opentelemetry/api"
+import { SpanStatusCode, context } from '@opentelemetry/api'
+import type { Attributes, Span, Tracer } from '@opentelemetry/api'
 
 export async function recordSpan<T>({
   tracer,
   name,
   attributes,
-  fn
+  fn,
 }: {
   tracer: Tracer
   name: string
@@ -15,7 +15,7 @@ export async function recordSpan<T>({
   return tracer.startActiveSpan(
     name,
     { attributes: await attributes },
-    async span => {
+    async (span) => {
       const ctx = context.active()
 
       try {
@@ -31,7 +31,8 @@ export async function recordSpan<T>({
 
         throw error
       }
-    })
+    },
+  )
 }
 
 export function recordSpanError(span: Span, error: unknown) {
@@ -43,7 +44,7 @@ export function recordSpanError(span: Span, error: unknown) {
     })
     span.setStatus({
       code: SpanStatusCode.ERROR,
-      message: error.message
+      message: error.message,
     })
   } else {
     span.setStatus({ code: SpanStatusCode.ERROR })

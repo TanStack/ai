@@ -12,7 +12,7 @@ export function buildSpanAttributes({
   model,
   conversationId,
   operationName,
-  outputType
+  outputType,
 }: BaseSpanAttributes) {
   return {
     'gen_ai.operation.name': operationName,
@@ -31,7 +31,11 @@ export function buildToolCallSpanAttributes({
   tool: { name: string; id: string }
 }) {
   return {
-    ...buildSpanAttributes({ model, conversationId, operationName: 'execute_tool' }),
+    ...buildSpanAttributes({
+      model,
+      conversationId,
+      operationName: 'execute_tool',
+    }),
     'gen_ai.tool.name': tool.name,
     'gen_ai.tool.call.id': tool.id,
   }
