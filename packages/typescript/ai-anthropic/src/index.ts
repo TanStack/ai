@@ -34,8 +34,6 @@ export type {
   AnthropicDocumentMetadata,
   AnthropicAudioMetadata,
   AnthropicVideoMetadata,
-  AnthropicImageMediaType,
-  AnthropicDocumentMediaType,
   AnthropicMessageMetadataByModality,
 } from './message-types'
 

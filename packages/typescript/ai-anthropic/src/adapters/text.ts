@@ -313,17 +313,20 @@ export class AnthropicTextAdapter<
             ? {
                 type: 'base64',
                 data: part.source.value,
-                media_type: metadata?.mediaType ?? 'image/jpeg',
+                media_type: part.source.mimeType as
+                  | 'image/jpeg'
+                  | 'image/png'
+                  | 'image/gif'
+                  | 'image/webp',
               }
             : {
                 type: 'url',
                 url: part.source.value,
               }
-        const { mediaType: _mediaType, ...meta } = metadata || {}
         return {
           type: 'image',
           source: imageSource,
-          ...meta,
+          ...metadata,
         }
       }
       case 'document': {
@@ -333,7 +336,7 @@ export class AnthropicTextAdapter<
             ? {
                 type: 'base64',
                 data: part.source.value,
-                media_type: 'application/pdf',
+                media_type: part.source.mimeType as 'application/pdf',
               }
             : {
                 type: 'url',
@@ -398,9 +401,10 @@ export class AnthropicTextAdapter<
         for (const toolCall of message.toolCalls) {
           let parsedInput: unknown = {}
           try {
-            parsedInput = toolCall.function.arguments
+            const parsed = toolCall.function.arguments
               ? JSON.parse(toolCall.function.arguments)
               : {}
+            parsedInput = parsed && typeof parsed === 'object' ? parsed : {}
           } catch {
             parsedInput = toolCall.function.arguments
           }
@@ -586,7 +590,8 @@ export class AnthropicTextAdapter<
             // Emit TOOL_CALL_END
             let parsedInput: unknown = {}
             try {
-              parsedInput = existing.input ? JSON.parse(existing.input) : {}
+              const parsed = existing.input ? JSON.parse(existing.input) : {}
+              parsedInput = parsed && typeof parsed === 'object' ? parsed : {}
             } catch {
               parsedInput = {}
             }

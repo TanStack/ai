@@ -35,10 +35,13 @@ import type {
   ToolResultState,
 } from './types'
 import type {
+  ContentPart,
+  MessagePart,
   ModelMessage,
   StreamChunk,
   ToolCall,
   ToolCallPart,
+  ToolResultPart,
   UIMessage,
 } from '../../../types'
 
@@ -164,13 +167,42 @@ export class StreamProcessor {
   }
 
   /**
-   * Add a user message to the conversation
+   * Add a user message to the conversation.
+   * Supports both simple string content and multimodal content arrays.
+   *
+   * @param content - The message content (string or array of content parts)
+   * @param id - Optional custom message ID (generated if not provided)
+   * @returns The created UIMessage
+   *
+   * @example
+   * ```ts
+   * // Simple text message
+   * processor.addUserMessage('Hello!')
+   *
+   * // Multimodal message with image
+   * processor.addUserMessage([
+   *   { type: 'text', content: 'What is in this image?' },
+   *   { type: 'image', source: { type: 'url', value: 'https://example.com/photo.jpg' } }
+   * ])
+   *
+   * // With custom ID
+   * processor.addUserMessage('Hello!', 'custom-id-123')
+   * ```
    */
-  addUserMessage(content: string): UIMessage {
+  addUserMessage(content: string | Array<ContentPart>, id?: string): UIMessage {
+    // Convert content to message parts
+    const parts: Array<MessagePart> =
+      typeof content === 'string'
+        ? [{ type: 'text', content }]
+        : content.map((part) => {
+            // ContentPart types (text, image, audio, video, document) are compatible with MessagePart
+            return part as MessagePart
+          })
+
     const userMessage: UIMessage = {
-      id: generateMessageId(),
+      id: id ?? generateMessageId(),
       role: 'user',
-      parts: [{ type: 'text', content }],
+      parts,
       createdAt: new Date(),
     }
 
@@ -296,11 +328,23 @@ export class StreamProcessor {
 
     if (toolParts.length === 0) return true
 
+    // Get tool result parts to check for server tool completion
+    const toolResultIds = new Set(
+      lastAssistant.parts
+        .filter((p): p is ToolResultPart => p.type === 'tool-result')
+        .map((p) => p.toolCallId),
+    )
+
     // All tool calls must be in a terminal state
+    // A tool call is complete if:
+    // 1. It was approved/denied (approval-responded state)
+    // 2. It has an output field set (client tool completed via addToolResult)
+    // 3. It has a corresponding tool-result part (server tool completed)
     return toolParts.every(
       (part) =>
         part.state === 'approval-responded' ||
-        (part.output !== undefined && !part.approval),
+        (part.output !== undefined && !part.approval) ||
+        toolResultIds.has(part.id),
     )
   }
 
@@ -439,9 +483,10 @@ export class StreamProcessor {
     let nextText = currentText
 
     // Prefer delta over content - delta is the incremental change
-    if (chunk.delta !== '') {
+    // Check for both undefined and empty string to avoid "undefined" string concatenation
+    if (chunk.delta !== undefined && chunk.delta !== '') {
       nextText = currentText + chunk.delta
-    } else if (chunk.content && chunk.content !== '') {
+    } else if (chunk.content !== undefined && chunk.content !== '') {
       // Fallback: use content if delta is not provided
       if (chunk.content.startsWith(currentText)) {
         nextText = chunk.content

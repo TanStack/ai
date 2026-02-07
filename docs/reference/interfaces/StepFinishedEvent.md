@@ -5,7 +5,7 @@ title: StepFinishedEvent
 
 # Interface: StepFinishedEvent
 
-Defined in: [types.ts:830](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L830)
+Defined in: [types.ts:862](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L862)
 
 Emitted when a thinking/reasoning step finishes.
 
@@ -21,7 +21,7 @@ Emitted when a thinking/reasoning step finishes.
 optional content: string;
 ```
 
-Defined in: [types.ts:837](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L837)
+Defined in: [types.ts:869](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L869)
 
 Full accumulated thinking content
 
@@ -33,7 +33,7 @@ Full accumulated thinking content
 optional delta: string;
 ```
 
-Defined in: [types.ts:835](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L835)
+Defined in: [types.ts:867](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L867)
 
 Incremental thinking content
 
@@ -45,7 +45,7 @@ Incremental thinking content
 optional model: string;
 ```
 
-Defined in: [types.ts:690](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L690)
+Defined in: [types.ts:722](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L722)
 
 Model identifier for multi-model support
 
@@ -61,7 +61,7 @@ Model identifier for multi-model support
 optional rawEvent: unknown;
 ```
 
-Defined in: [types.ts:692](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L692)
+Defined in: [types.ts:724](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L724)
 
 Original provider event for debugging/advanced use cases
 
@@ -77,7 +77,7 @@ Original provider event for debugging/advanced use cases
 stepId: string;
 ```
 
-Defined in: [types.ts:833](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L833)
+Defined in: [types.ts:865](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L865)
 
 Step identifier
 
@@ -89,7 +89,7 @@ Step identifier
 timestamp: number;
 ```
 
-Defined in: [types.ts:688](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L688)
+Defined in: [types.ts:720](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L720)
 
 #### Inherited from
 
@@ -103,7 +103,7 @@ Defined in: [types.ts:688](https://github.com/TanStack/ai/blob/main/packages/typ
 type: "STEP_FINISHED";
 ```
 
-Defined in: [types.ts:831](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L831)
+Defined in: [types.ts:863](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L863)
 
 #### Overrides
 

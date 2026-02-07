@@ -53,3 +53,7 @@ test-traces
 **/adapters/output
 .nitro
 .output
+
+# Playwright
+playwright-report
+test-results

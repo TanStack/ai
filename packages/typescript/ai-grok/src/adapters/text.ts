@@ -502,10 +502,16 @@ export class GrokTextAdapter<
         parts.push({ type: 'text', text: part.content })
       } else if (part.type === 'image') {
         const imageMetadata = part.metadata as GrokImageMetadata | undefined
+        // For base64 data, construct a data URI using the mimeType from source
+        const imageValue = part.source.value
+        const imageUrl =
+          part.source.type === 'data' && !imageValue.startsWith('data:')
+            ? `data:${part.source.mimeType};base64,${imageValue}`
+            : imageValue
         parts.push({
           type: 'image_url',
           image_url: {
-            url: part.source.value,
+            url: imageUrl,
             detail: imageMetadata?.detail || 'auto',
           },
         })

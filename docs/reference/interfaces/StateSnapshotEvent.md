@@ -5,7 +5,7 @@ title: StateSnapshotEvent
 
 # Interface: StateSnapshotEvent
 
-Defined in: [types.ts:843](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L843)
+Defined in: [types.ts:875](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L875)
 
 Emitted to provide a full state snapshot.
 
@@ -21,7 +21,7 @@ Emitted to provide a full state snapshot.
 optional model: string;
 ```
 
-Defined in: [types.ts:690](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L690)
+Defined in: [types.ts:722](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L722)
 
 Model identifier for multi-model support
 
@@ -37,7 +37,7 @@ Model identifier for multi-model support
 optional rawEvent: unknown;
 ```
 
-Defined in: [types.ts:692](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L692)
+Defined in: [types.ts:724](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L724)
 
 Original provider event for debugging/advanced use cases
 
@@ -53,7 +53,7 @@ Original provider event for debugging/advanced use cases
 state: Record<string, unknown>;
 ```
 
-Defined in: [types.ts:846](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L846)
+Defined in: [types.ts:878](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L878)
 
 The complete state object
 
@@ -65,7 +65,7 @@ The complete state object
 timestamp: number;
 ```
 
-Defined in: [types.ts:688](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L688)
+Defined in: [types.ts:720](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L720)
 
 #### Inherited from
 
@@ -79,7 +79,7 @@ Defined in: [types.ts:688](https://github.com/TanStack/ai/blob/main/packages/typ
 type: "STATE_SNAPSHOT";
 ```
 
-Defined in: [types.ts:844](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L844)
+Defined in: [types.ts:876](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L876)
 
 #### Overrides
 

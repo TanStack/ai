@@ -1,5 +1,3 @@
-import type { AdapterContext, TestOutcome } from '../harness'
-
 // Import all test runners
 import { runCST } from './cst-chat-stream'
 import { runOST } from './ost-one-shot-text'
@@ -12,6 +10,9 @@ import { runSMS } from './sms-summarize-stream'
 import { runIMG } from './img-image-generation'
 import { runTTS } from './tts-text-to-speech'
 import { runTRN } from './trn-transcription'
+import { runMMJ, runMMP } from './mmi-multimodal-image'
+import { runMMS, runMMT } from './mms-multimodal-structured'
+import type { AdapterContext, TestOutcome } from '../harness'
 
 /**
  * Adapter capability types
@@ -36,7 +37,7 @@ export interface TestDefinition {
   /** Function to run the test */
   run: (ctx: AdapterContext) => Promise<TestOutcome>
   /** Required adapter capabilities (defaults to ['text']) */
-  requires: AdapterCapability[]
+  requires: Array<AdapterCapability>
   /** If true, test is skipped unless explicitly requested */
   skipByDefault?: boolean
 }
@@ -44,7 +45,7 @@ export interface TestDefinition {
 /**
  * Registry of all available tests
  */
-export const TESTS: TestDefinition[] = [
+export const TESTS: Array<TestDefinition> = [
   {
     id: 'CST',
     name: 'Chat Stream',
@@ -125,6 +126,35 @@ export const TESTS: TestDefinition[] = [
     requires: ['transcription'],
     skipByDefault: true, // Skip unless explicitly requested
   },
+  {
+    id: 'MMJ',
+    name: 'Multimodal JPEG',
+    description:
+      'Describe a JPEG image (meme with man, React icon, code/email text)',
+    run: runMMJ,
+    requires: ['text'],
+  },
+  {
+    id: 'MMP',
+    name: 'Multimodal PNG',
+    description: 'Describe a PNG image (beach scene with AG UI text)',
+    run: runMMP,
+    requires: ['text'],
+  },
+  {
+    id: 'MMS',
+    name: 'Multimodal Structured JPEG',
+    description: 'Describe a JPEG image with structured JSON output',
+    run: runMMS,
+    requires: ['text'],
+  },
+  {
+    id: 'MMT',
+    name: 'Multimodal Structured PNG',
+    description: 'Describe a PNG image with structured JSON output',
+    run: runMMT,
+    requires: ['text'],
+  },
 ]
 
 /**
@@ -137,13 +167,13 @@ export function getTest(id: string): TestDefinition | undefined {
 /**
  * Get all test IDs
  */
-export function getTestIds(): string[] {
+export function getTestIds(): Array<string> {
   return TESTS.map((t) => t.id)
 }
 
 /**
  * Get tests that run by default (excluding skipByDefault tests)
  */
-export function getDefaultTests(): TestDefinition[] {
+export function getDefaultTests(): Array<TestDefinition> {
   return TESTS.filter((t) => !t.skipByDefault)
 }

@@ -113,7 +113,7 @@ Add a TOOL_CALL_START event to begin tracking a tool call (AG-UI)
 clear(): void;
 ```
 
-Defined in: [activities/chat/tools/tool-calls.ts:215](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/activities/chat/tools/tool-calls.ts#L215)
+Defined in: [activities/chat/tools/tool-calls.ts:216](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/activities/chat/tools/tool-calls.ts#L216)
 
 Clear the tool calls map for the next iteration
 

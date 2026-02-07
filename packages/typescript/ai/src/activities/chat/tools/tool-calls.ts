@@ -127,10 +127,11 @@ export class ToolCallManager {
       let toolResultContent: string
       if (tool?.execute) {
         try {
-          // Parse arguments
+          // Parse arguments (normalize "null" to "{}" for empty tool_use blocks)
           let args: unknown
           try {
-            args = JSON.parse(toolCall.function.arguments)
+            const argsString = toolCall.function.arguments.trim() || '{}'
+            args = JSON.parse(argsString === 'null' ? '{}' : argsString)
           } catch (parseError) {
             throw new Error(
               `Failed to parse tool arguments as JSON: ${toolCall.function.arguments}`,
@@ -294,7 +295,10 @@ export async function executeToolCalls(
 
     // Parse arguments, throwing error if invalid JSON
     let input: unknown = {}
-    const argsStr = toolCall.function.arguments.trim() || '{}'
+    let argsStr = toolCall.function.arguments.trim() || '{}'
+    // Normalize "null" to "{}" — can occur when the model streams a tool_use
+    // block with no input_json_delta events (Anthropic adapter edge case)
+    if (argsStr === 'null') argsStr = '{}'
     if (argsStr) {
       try {
         input = JSON.parse(argsStr)

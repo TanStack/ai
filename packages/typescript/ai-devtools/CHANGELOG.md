@@ -1,5 +1,37 @@
 # @tanstack/ai-devtools-core
 
+## 0.3.2
+
+### Patch Changes
+
+- Updated dependencies [[`6f886e9`](https://github.com/TanStack/ai/commit/6f886e96f2478374520998395357fdf3aa9149ab)]:
+  - @tanstack/ai@0.4.2
+
+## 0.3.1
+
+### Patch Changes
+
+- Updated dependencies [[`6e1bb50`](https://github.com/TanStack/ai/commit/6e1bb5097178a6ad795273ca715f1e09d3f5a006)]:
+  - @tanstack/ai@0.4.1
+
+## 0.3.0
+
+### Minor Changes
+
+- add multiple modalities support to the client ([#263](https://github.com/TanStack/ai/pull/263))
+
+### Patch Changes
+
+- Updated dependencies [[`0158d14`](https://github.com/TanStack/ai/commit/0158d14df00639ff5325680ae91b7791c189e60f)]:
+  - @tanstack/ai@0.4.0
+
+## 0.2.3
+
+### Patch Changes
+
+- Updated dependencies [[`230bab6`](https://github.com/TanStack/ai/commit/230bab6417c8ff2c25586a12126c85e27dd7bc15)]:
+  - @tanstack/ai@0.3.1
+
 ## 0.2.2
 
 ### Patch Changes

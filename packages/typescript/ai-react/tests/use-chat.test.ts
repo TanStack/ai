@@ -1,14 +1,13 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest'
+import type { ModelMessage } from '@tanstack/ai'
 import { waitFor } from '@testing-library/react'
-import { useChat } from '../src/use-chat'
+import { describe, expect, it, vi } from 'vitest'
+import type { UIMessage } from '../src/types'
 import {
-  renderUseChat,
   createMockConnectionAdapter,
   createTextChunks,
   createToolCallChunks,
+  renderUseChat,
 } from './test-utils'
-import type { UIMessage } from '../src/types'
-import type { ModelMessage } from '@tanstack/ai'
 
 describe('useChat', () => {
   describe('initialization', () => {
@@ -19,6 +18,7 @@ describe('useChat', () => {
       expect(result.current.messages).toEqual([])
       expect(result.current.isLoading).toBe(false)
       expect(result.current.error).toBeUndefined()
+      expect(result.current.status).toBe('ready')
     })
 
     it('should initialize with provided messages', () => {
@@ -473,6 +473,7 @@ describe('useChat', () => {
       await waitFor(
         () => {
           expect(result.current.isLoading).toBe(false)
+          expect(result.current.status).toBe('ready')
         },
         { timeout: 1000 },
       )
@@ -488,6 +489,7 @@ describe('useChat', () => {
       result.current.stop()
 
       expect(result.current.isLoading).toBe(false)
+      expect(result.current.status).toBe('ready')
     })
 
     it('should clear loading state when stopped', async () => {
@@ -509,12 +511,46 @@ describe('useChat', () => {
       await waitFor(
         () => {
           expect(result.current.isLoading).toBe(false)
+          expect(result.current.status).toBe('ready')
         },
         { timeout: 1000 },
       )
 
       await sendPromise.catch(() => {
         // Ignore errors from stopped request
+      })
+    })
+  })
+
+  describe('status', () => {
+    it('should transition through states during generation', async () => {
+      const chunks = createTextChunks('Response')
+      const adapter = createMockConnectionAdapter({
+        chunks,
+        chunkDelay: 50,
+      })
+      const { result } = renderUseChat({ connection: adapter })
+
+      const sendPromise = result.current.sendMessage('Test')
+
+      // Should leave ready state
+      await waitFor(() => {
+        expect(result.current.status).not.toBe('ready')
+      })
+
+      // Should be submitted or streaming
+      expect(['submitted', 'streaming']).toContain(result.current.status)
+
+      // Should eventually match streaming
+      await waitFor(() => {
+        expect(result.current.status).toBe('streaming')
+      })
+
+      await sendPromise
+
+      // Should return to ready
+      await waitFor(() => {
+        expect(result.current.status).toBe('ready')
       })
     })
   })
@@ -1204,6 +1240,328 @@ describe('useChat', () => {
           })
         }
       })
+    })
+  })
+
+  describe('multimodal sendMessage', () => {
+    it('should send a multimodal message with image URL', async () => {
+      const chunks = createTextChunks('I see a cat in the image')
+      const adapter = createMockConnectionAdapter({ chunks })
+      const { result } = renderUseChat({ connection: adapter })
+
+      await result.current.sendMessage({
+        content: [
+          { type: 'text', content: 'What is in this image?' },
+          {
+            type: 'image',
+            source: { type: 'url', value: 'https://example.com/cat.jpg' },
+          },
+        ],
+      })
+
+      await waitFor(() => {
+        expect(result.current.messages.length).toBeGreaterThan(0)
+      })
+
+      const userMessage = result.current.messages.find((m) => m.role === 'user')
+      expect(userMessage).toBeDefined()
+      expect(userMessage?.parts.length).toBe(2)
+      expect(userMessage?.parts[0]).toEqual({
+        type: 'text',
+        content: 'What is in this image?',
+      })
+      expect(userMessage?.parts[1]).toEqual({
+        type: 'image',
+        source: { type: 'url', value: 'https://example.com/cat.jpg' },
+      })
+    })
+
+    it('should send a multimodal message with image data and required mimeType', async () => {
+      const chunks = createTextChunks('I see a cat in the image')
+      const adapter = createMockConnectionAdapter({ chunks })
+      const { result } = renderUseChat({ connection: adapter })
+
+      await result.current.sendMessage({
+        content: [
+          { type: 'text', content: 'What is in this image?' },
+          {
+            type: 'image',
+            source: {
+              type: 'data',
+              value: 'base64ImageData',
+              mimeType: 'image/png',
+            },
+          },
+        ],
+      })
+
+      await waitFor(() => {
+        expect(result.current.messages.length).toBeGreaterThan(0)
+      })
+
+      const userMessage = result.current.messages.find((m) => m.role === 'user')
+      expect(userMessage?.parts[1]).toEqual({
+        type: 'image',
+        source: {
+          type: 'data',
+          value: 'base64ImageData',
+          mimeType: 'image/png',
+        },
+      })
+    })
+
+    it('should send a multimodal message with audio data and required mimeType', async () => {
+      const chunks = createTextChunks('The audio says hello')
+      const adapter = createMockConnectionAdapter({ chunks })
+      const { result } = renderUseChat({ connection: adapter })
+
+      await result.current.sendMessage({
+        content: [
+          { type: 'text', content: 'Transcribe this audio' },
+          {
+            type: 'audio',
+            source: {
+              type: 'data',
+              value: 'base64AudioData',
+              mimeType: 'audio/mp3',
+            },
+          },
+        ],
+      })
+
+      await waitFor(() => {
+        expect(result.current.messages.length).toBeGreaterThan(0)
+      })
+
+      const userMessage = result.current.messages.find((m) => m.role === 'user')
+      expect(userMessage?.parts[1]).toEqual({
+        type: 'audio',
+        source: {
+          type: 'data',
+          value: 'base64AudioData',
+          mimeType: 'audio/mp3',
+        },
+      })
+    })
+
+    it('should send a multimodal message with video URL', async () => {
+      const chunks = createTextChunks('The video shows a sunset')
+      const adapter = createMockConnectionAdapter({ chunks })
+      const { result } = renderUseChat({ connection: adapter })
+
+      await result.current.sendMessage({
+        content: [
+          { type: 'text', content: 'Describe this video' },
+          {
+            type: 'video',
+            source: { type: 'url', value: 'https://example.com/video.mp4' },
+          },
+        ],
+      })
+
+      await waitFor(() => {
+        expect(result.current.messages.length).toBeGreaterThan(0)
+      })
+
+      const userMessage = result.current.messages.find((m) => m.role === 'user')
+      expect(userMessage?.parts[1]).toEqual({
+        type: 'video',
+        source: { type: 'url', value: 'https://example.com/video.mp4' },
+      })
+    })
+
+    it('should send a multimodal message with video data and required mimeType', async () => {
+      const chunks = createTextChunks('The video shows a sunset')
+      const adapter = createMockConnectionAdapter({ chunks })
+      const { result } = renderUseChat({ connection: adapter })
+
+      await result.current.sendMessage({
+        content: [
+          { type: 'text', content: 'Describe this video' },
+          {
+            type: 'video',
+            source: {
+              type: 'data',
+              value: 'base64VideoData',
+              mimeType: 'video/mp4',
+            },
+          },
+        ],
+      })
+
+      await waitFor(() => {
+        expect(result.current.messages.length).toBeGreaterThan(0)
+      })
+
+      const userMessage = result.current.messages.find((m) => m.role === 'user')
+      expect(userMessage?.parts[1]).toEqual({
+        type: 'video',
+        source: {
+          type: 'data',
+          value: 'base64VideoData',
+          mimeType: 'video/mp4',
+        },
+      })
+    })
+
+    it('should send a multimodal message with document data and required mimeType', async () => {
+      const chunks = createTextChunks('The document discusses AI')
+      const adapter = createMockConnectionAdapter({ chunks })
+      const { result } = renderUseChat({ connection: adapter })
+
+      await result.current.sendMessage({
+        content: [
+          { type: 'text', content: 'Summarize this PDF' },
+          {
+            type: 'document',
+            source: {
+              type: 'data',
+              value: 'base64PdfData',
+              mimeType: 'application/pdf',
+            },
+          },
+        ],
+      })
+
+      await waitFor(() => {
+        expect(result.current.messages.length).toBeGreaterThan(0)
+      })
+
+      const userMessage = result.current.messages.find((m) => m.role === 'user')
+      expect(userMessage?.parts[1]).toEqual({
+        type: 'document',
+        source: {
+          type: 'data',
+          value: 'base64PdfData',
+          mimeType: 'application/pdf',
+        },
+      })
+    })
+
+    it('should send a multimodal message with document URL', async () => {
+      const chunks = createTextChunks('The document discusses AI')
+      const adapter = createMockConnectionAdapter({ chunks })
+      const { result } = renderUseChat({ connection: adapter })
+
+      await result.current.sendMessage({
+        content: [
+          { type: 'text', content: 'Summarize this document' },
+          {
+            type: 'document',
+            source: {
+              type: 'url',
+              value: 'https://example.com/doc.pdf',
+            },
+          },
+        ],
+      })
+
+      await waitFor(() => {
+        expect(result.current.messages.length).toBeGreaterThan(0)
+      })
+
+      const userMessage = result.current.messages.find((m) => m.role === 'user')
+      expect(userMessage?.parts[1]).toEqual({
+        type: 'document',
+        source: {
+          type: 'url',
+          value: 'https://example.com/doc.pdf',
+        },
+      })
+    })
+
+    it('should send complex multimodal message with multiple content parts', async () => {
+      const chunks = createTextChunks('I see multiple items')
+      const adapter = createMockConnectionAdapter({ chunks })
+      const { result } = renderUseChat({ connection: adapter })
+
+      await result.current.sendMessage({
+        content: [
+          { type: 'text', content: 'Compare these items' },
+          {
+            type: 'image',
+            source: {
+              type: 'data',
+              value: 'base64Image1',
+              mimeType: 'image/jpeg',
+            },
+          },
+          {
+            type: 'image',
+            source: {
+              type: 'url',
+              value: 'https://example.com/image2.png',
+            },
+          },
+          { type: 'text', content: 'Which one is better?' },
+        ],
+      })
+
+      await waitFor(() => {
+        expect(result.current.messages.length).toBeGreaterThan(0)
+      })
+
+      const userMessage = result.current.messages.find((m) => m.role === 'user')
+      expect(userMessage?.parts.length).toBe(4)
+      expect(userMessage?.parts[0]).toEqual({
+        type: 'text',
+        content: 'Compare these items',
+      })
+      expect(userMessage?.parts[1]).toEqual({
+        type: 'image',
+        source: {
+          type: 'data',
+          value: 'base64Image1',
+          mimeType: 'image/jpeg',
+        },
+      })
+      expect(userMessage?.parts[2]).toEqual({
+        type: 'image',
+        source: {
+          type: 'url',
+          value: 'https://example.com/image2.png',
+        },
+      })
+      expect(userMessage?.parts[3]).toEqual({
+        type: 'text',
+        content: 'Which one is better?',
+      })
+    })
+
+    it('should use custom message id when provided in multimodal message', async () => {
+      const chunks = createTextChunks('Response')
+      const adapter = createMockConnectionAdapter({ chunks })
+      const { result } = renderUseChat({ connection: adapter })
+
+      await result.current.sendMessage({
+        content: [{ type: 'text', content: 'Hello' }],
+        id: 'custom-multimodal-id-123',
+      })
+
+      await waitFor(() => {
+        expect(result.current.messages.length).toBeGreaterThan(0)
+      })
+
+      expect(result.current.messages[0]?.id).toBe('custom-multimodal-id-123')
+    })
+
+    it('should send string content as simple text message via multimodal interface', async () => {
+      const chunks = createTextChunks('Response')
+      const adapter = createMockConnectionAdapter({ chunks })
+      const { result } = renderUseChat({ connection: adapter })
+
+      await result.current.sendMessage({
+        content: 'Hello world',
+      })
+
+      await waitFor(() => {
+        expect(result.current.messages.length).toBeGreaterThan(0)
+      })
+
+      const userMessage = result.current.messages.find((m) => m.role === 'user')
+      expect(userMessage?.parts).toEqual([
+        { type: 'text', content: 'Hello world' },
+      ])
     })
   })
 })

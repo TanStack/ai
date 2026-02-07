@@ -7,7 +7,7 @@ export {
 } from '../../ai-client/tests/test-utils'
 
 import { renderHook } from '@solidjs/testing-library'
-import type { UseChatOptions, UseChatReturn } from '../src/types'
+import type { UseChatOptions } from '../src/types'
 import { useChat } from '../src/use-chat'
 
 /**
@@ -34,6 +34,7 @@ export function renderUseChat(options?: UseChatOptions) {
           messages: hook.messages(),
           isLoading: hook.isLoading(),
           error: hook.error(),
+          status: hook.status(),
           sendMessage: hook.sendMessage,
           append: hook.append,
           reload: hook.reload,

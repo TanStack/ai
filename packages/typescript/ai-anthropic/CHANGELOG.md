@@ -1,5 +1,25 @@
 # @tanstack/ai-anthropic
 
+## 0.4.1
+
+### Patch Changes
+
+- fix for tool calls ([#266](https://github.com/TanStack/ai/pull/266))
+
+- Updated dependencies [[`6e1bb50`](https://github.com/TanStack/ai/commit/6e1bb5097178a6ad795273ca715f1e09d3f5a006)]:
+  - @tanstack/ai@0.4.1
+
+## 0.4.0
+
+### Patch Changes
+
+- re-release adapter packages ([#263](https://github.com/TanStack/ai/pull/263))
+
+- add multiple modalities support to the client ([#263](https://github.com/TanStack/ai/pull/263))
+
+- Updated dependencies [[`0158d14`](https://github.com/TanStack/ai/commit/0158d14df00639ff5325680ae91b7791c189e60f)]:
+  - @tanstack/ai@0.4.0
+
 ## 0.3.0
 
 ### Minor Changes
