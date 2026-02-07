@@ -115,7 +115,26 @@ export class OpenRouterTextAdapter<
     try {
       const requestParams = this.mapTextOptionsToSDK(options)
       // #region agent log
-      fetch('http://127.0.0.1:7244/ingest/830522ab-8098-40b9-a021-890f9c041588',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'openrouter/text.ts:chatStream',message:'chatStream entry - request params',data:{model:requestParams.model,messageCount:requestParams.messages?.length,hasTools:!!requestParams.tools,toolCount:requestParams.tools?.length,keys:Object.keys(requestParams)},timestamp:Date.now(),hypothesisId:'C'})}).catch(()=>{});
+      fetch(
+        'http://127.0.0.1:7244/ingest/830522ab-8098-40b9-a021-890f9c041588',
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            location: 'openrouter/text.ts:chatStream',
+            message: 'chatStream entry - request params',
+            data: {
+              model: requestParams.model,
+              messageCount: requestParams.messages?.length,
+              hasTools: !!requestParams.tools,
+              toolCount: requestParams.tools?.length,
+              keys: Object.keys(requestParams),
+            },
+            timestamp: Date.now(),
+            hypothesisId: 'C',
+          }),
+        },
+      ).catch(() => {})
       // #endregion
       let stream: AsyncIterable<any>
       try {
@@ -125,7 +144,25 @@ export class OpenRouterTextAdapter<
         )
       } catch (sendError: any) {
         // #region agent log
-        fetch('http://127.0.0.1:7244/ingest/830522ab-8098-40b9-a021-890f9c041588',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'openrouter/text.ts:chatStream',message:'chat.send threw error',data:{errorMessage:sendError?.message,errorName:sendError?.name,errorCode:sendError?.code,errorStatus:sendError?.status},timestamp:Date.now(),hypothesisId:'E'})}).catch(()=>{});
+        fetch(
+          'http://127.0.0.1:7244/ingest/830522ab-8098-40b9-a021-890f9c041588',
+          {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              location: 'openrouter/text.ts:chatStream',
+              message: 'chat.send threw error',
+              data: {
+                errorMessage: sendError?.message,
+                errorName: sendError?.name,
+                errorCode: sendError?.code,
+                errorStatus: sendError?.status,
+              },
+              timestamp: Date.now(),
+              hypothesisId: 'E',
+            }),
+          },
+        ).catch(() => {})
         // #endregion
         throw sendError
       }
@@ -135,7 +172,34 @@ export class OpenRouterTextAdapter<
         chunkCount++
         chunkCountOuter = chunkCount
         // #region agent log
-        if (chunkCount <= 3) { fetch('http://127.0.0.1:7244/ingest/830522ab-8098-40b9-a021-890f9c041588',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'openrouter/text.ts:chatStream',message:'stream chunk received',data:{chunkCount,chunkKeys:Object.keys(chunk||{}),hasData:!!chunk?.data,hasId:!!chunk?.id,hasChoices:!!chunk?.choices,choicesLen:chunk?.choices?.length,hasModel:!!chunk?.model,hasError:!!chunk?.error,hasUsage:!!chunk?.usage,dataKeys:chunk?.data?Object.keys(chunk.data):undefined,rawType:typeof chunk},timestamp:Date.now(),hypothesisId:'A'})}).catch(()=>{}); }
+        if (chunkCount <= 3) {
+          fetch(
+            'http://127.0.0.1:7244/ingest/830522ab-8098-40b9-a021-890f9c041588',
+            {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                location: 'openrouter/text.ts:chatStream',
+                message: 'stream chunk received',
+                data: {
+                  chunkCount,
+                  chunkKeys: Object.keys(chunk || {}),
+                  hasData: !!chunk?.data,
+                  hasId: !!chunk?.id,
+                  hasChoices: !!chunk?.choices,
+                  choicesLen: chunk?.choices?.length,
+                  hasModel: !!chunk?.model,
+                  hasError: !!chunk?.error,
+                  hasUsage: !!chunk?.usage,
+                  dataKeys: chunk?.data ? Object.keys(chunk.data) : undefined,
+                  rawType: typeof chunk,
+                },
+                timestamp: Date.now(),
+                hypothesisId: 'A',
+              }),
+            },
+          ).catch(() => {})
+        }
         // #endregion
         if (chunk.id) responseId = chunk.id
         if (chunk.model) currentModel = chunk.model
@@ -167,7 +231,35 @@ export class OpenRouterTextAdapter<
         }
 
         // #region agent log
-        if (chunkCount <= 3 && chunk.choices) { fetch('http://127.0.0.1:7244/ingest/830522ab-8098-40b9-a021-890f9c041588',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'openrouter/text.ts:chatStream',message:'choices detail',data:{chunkCount,choicesLen:chunk.choices?.length,firstChoiceDelta:chunk.choices?.[0]?.delta?{content:!!chunk.choices[0].delta.content,contentLen:chunk.choices[0].delta.content?.length,toolCalls:!!chunk.choices[0].delta.toolCalls,role:chunk.choices[0].delta.role}:null,finishReason:chunk.choices?.[0]?.finishReason,hasUsage:!!chunk.usage},timestamp:Date.now(),hypothesisId:'B'})}).catch(()=>{}); }
+        if (chunkCount <= 3 && chunk.choices) {
+          fetch(
+            'http://127.0.0.1:7244/ingest/830522ab-8098-40b9-a021-890f9c041588',
+            {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                location: 'openrouter/text.ts:chatStream',
+                message: 'choices detail',
+                data: {
+                  chunkCount,
+                  choicesLen: chunk.choices?.length,
+                  firstChoiceDelta: chunk.choices?.[0]?.delta
+                    ? {
+                        content: !!chunk.choices[0].delta.content,
+                        contentLen: chunk.choices[0].delta.content?.length,
+                        toolCalls: !!chunk.choices[0].delta.toolCalls,
+                        role: chunk.choices[0].delta.role,
+                      }
+                    : null,
+                  finishReason: chunk.choices?.[0]?.finishReason,
+                  hasUsage: !!chunk.usage,
+                },
+                timestamp: Date.now(),
+                hypothesisId: 'B',
+              }),
+            },
+          ).catch(() => {})
+        }
         // #endregion
         for (const choice of chunk.choices) {
           if (chunk.choices[0]?.finishReason) {
@@ -193,11 +285,48 @@ export class OpenRouterTextAdapter<
         }
       }
       // #region agent log
-      fetch('http://127.0.0.1:7244/ingest/830522ab-8098-40b9-a021-890f9c041588',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'openrouter/text.ts:chatStream',message:'stream loop completed',data:{totalChunks:chunkCount,hasEmittedRunStarted:aguiState.hasEmittedRunStarted,hasEmittedTextMessageStart:aguiState.hasEmittedTextMessageStart,accumulatedContentLen:accumulatedContent.length,lastFinishReason},timestamp:Date.now(),hypothesisId:'D'})}).catch(()=>{});
+      fetch(
+        'http://127.0.0.1:7244/ingest/830522ab-8098-40b9-a021-890f9c041588',
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            location: 'openrouter/text.ts:chatStream',
+            message: 'stream loop completed',
+            data: {
+              totalChunks: chunkCount,
+              hasEmittedRunStarted: aguiState.hasEmittedRunStarted,
+              hasEmittedTextMessageStart: aguiState.hasEmittedTextMessageStart,
+              accumulatedContentLen: accumulatedContent.length,
+              lastFinishReason,
+            },
+            timestamp: Date.now(),
+            hypothesisId: 'D',
+          }),
+        },
+      ).catch(() => {})
       // #endregion
     } catch (error: any) {
       // #region agent log
-      fetch('http://127.0.0.1:7244/ingest/830522ab-8098-40b9-a021-890f9c041588',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'openrouter/text.ts:chatStream',message:'caught error in chatStream',data:{errorMessage:error?.message,errorName:error?.name,errorStack:error?.stack?.slice(0,300),totalChunks:chunkCountOuter},timestamp:Date.now(),hypothesisId:'E'})}).catch(()=>{});
+      fetch(
+        'http://127.0.0.1:7244/ingest/830522ab-8098-40b9-a021-890f9c041588',
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            location: 'openrouter/text.ts:chatStream',
+            message: 'caught error in chatStream',
+            data: {
+              errorMessage: error?.message,
+              errorName: error?.name,
+              errorStack: error?.stack?.slice(0, 300),
+              totalChunks: chunkCountOuter,
+            },
+            timestamp: Date.now(),
+            hypothesisId: 'E',
+          }),
+        },
+      ).catch(() => {})
       // #endregion
       // Emit RUN_STARTED if not yet emitted (error on first call)
       if (!aguiState.hasEmittedRunStarted) {

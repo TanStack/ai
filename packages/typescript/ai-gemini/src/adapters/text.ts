@@ -522,8 +522,7 @@ export class GeminiTextAdapter<
     messages: Array<ModelMessage>,
   ): GenerateContentParameters['contents'] {
     const formatted = messages.map((msg) => {
-      const role: 'user' | 'model' =
-        msg.role === 'assistant' ? 'model' : 'user'
+      const role: 'user' | 'model' = msg.role === 'assistant' ? 'model' : 'user'
       const parts: Array<Part> = []
 
       if (Array.isArray(msg.content)) {
