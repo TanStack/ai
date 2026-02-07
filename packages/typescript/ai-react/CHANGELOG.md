@@ -1,5 +1,17 @@
 # @tanstack/ai-react
 
+## 1.0.0
+
+### Minor Changes
+
+- add multiple modalities support to the client ([#263](https://github.com/TanStack/ai/pull/263))
+
+### Patch Changes
+
+- Updated dependencies [[`0158d14`](https://github.com/TanStack/ai/commit/0158d14df00639ff5325680ae91b7791c189e60f)]:
+  - @tanstack/ai@0.4.0
+  - @tanstack/ai-client@0.4.1
+
 ## 0.4.0
 
 ### Minor Changes

@@ -1,5 +1,20 @@
 # @tanstack/tests-adapters
 
+## 0.1.8
+
+### Patch Changes
+
+- add multiple modalities support to the client ([#263](https://github.com/TanStack/ai/pull/263))
+
+- Updated dependencies [[`0158d14`](https://github.com/TanStack/ai/commit/0158d14df00639ff5325680ae91b7791c189e60f), [`0158d14`](https://github.com/TanStack/ai/commit/0158d14df00639ff5325680ae91b7791c189e60f)]:
+  - @tanstack/ai-openrouter@1.0.0
+  - @tanstack/ai-anthropic@1.0.0
+  - @tanstack/ai-gemini@1.0.0
+  - @tanstack/ai-openai@1.0.0
+  - @tanstack/ai-grok@1.0.0
+  - @tanstack/ai@0.4.0
+  - @tanstack/ai-ollama@1.0.0
+
 ## 0.1.7
 
 ### Patch Changes
