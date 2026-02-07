@@ -1,5 +1,11 @@
 # @tanstack/ai
 
+## 0.4.1
+
+### Patch Changes
+
+- fix for tool calls ([#266](https://github.com/TanStack/ai/pull/266))
+
 ## 0.4.0
 
 ### Minor Changes
