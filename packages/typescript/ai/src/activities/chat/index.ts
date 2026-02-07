@@ -15,6 +15,7 @@ import {
   isStandardSchema,
   parseWithStandardSchema,
 } from './tools/schema-converter'
+import { convertMessagesToModelMessages } from './messages.js'
 import type { TelemetryEvent, TelemetrySettings  } from '../../telemetry/types.js'
 import type {
   AgentLoopStrategy,
