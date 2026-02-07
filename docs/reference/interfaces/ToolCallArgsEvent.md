@@ -5,7 +5,7 @@ title: ToolCallArgsEvent
 
 # Interface: ToolCallArgsEvent
 
-Defined in: [types.ts:791](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L791)
+Defined in: [types.ts:823](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L823)
 
 Emitted when tool call arguments are streaming.
 
@@ -21,7 +21,7 @@ Emitted when tool call arguments are streaming.
 optional args: string;
 ```
 
-Defined in: [types.ts:798](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L798)
+Defined in: [types.ts:830](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L830)
 
 Full accumulated arguments so far
 
@@ -33,7 +33,7 @@ Full accumulated arguments so far
 delta: string;
 ```
 
-Defined in: [types.ts:796](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L796)
+Defined in: [types.ts:828](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L828)
 
 Incremental JSON arguments delta
 
@@ -45,7 +45,7 @@ Incremental JSON arguments delta
 optional model: string;
 ```
 
-Defined in: [types.ts:690](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L690)
+Defined in: [types.ts:722](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L722)
 
 Model identifier for multi-model support
 
@@ -61,7 +61,7 @@ Model identifier for multi-model support
 optional rawEvent: unknown;
 ```
 
-Defined in: [types.ts:692](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L692)
+Defined in: [types.ts:724](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L724)
 
 Original provider event for debugging/advanced use cases
 
@@ -77,7 +77,7 @@ Original provider event for debugging/advanced use cases
 timestamp: number;
 ```
 
-Defined in: [types.ts:688](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L688)
+Defined in: [types.ts:720](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L720)
 
 #### Inherited from
 
@@ -91,7 +91,7 @@ Defined in: [types.ts:688](https://github.com/TanStack/ai/blob/main/packages/typ
 toolCallId: string;
 ```
 
-Defined in: [types.ts:794](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L794)
+Defined in: [types.ts:826](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L826)
 
 Tool call identifier
 
@@ -103,7 +103,7 @@ Tool call identifier
 type: "TOOL_CALL_ARGS";
 ```
 
-Defined in: [types.ts:792](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L792)
+Defined in: [types.ts:824](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L824)
 
 #### Overrides
 

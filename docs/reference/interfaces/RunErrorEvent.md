@@ -5,7 +5,7 @@ title: RunErrorEvent
 
 # Interface: RunErrorEvent
 
-Defined in: [types.ts:731](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L731)
+Defined in: [types.ts:763](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L763)
 
 Emitted when an error occurs during a run.
 
@@ -21,7 +21,7 @@ Emitted when an error occurs during a run.
 error: object;
 ```
 
-Defined in: [types.ts:736](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L736)
+Defined in: [types.ts:768](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L768)
 
 Error details
 
@@ -45,7 +45,7 @@ message: string;
 optional model: string;
 ```
 
-Defined in: [types.ts:690](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L690)
+Defined in: [types.ts:722](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L722)
 
 Model identifier for multi-model support
 
@@ -61,7 +61,7 @@ Model identifier for multi-model support
 optional rawEvent: unknown;
 ```
 
-Defined in: [types.ts:692](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L692)
+Defined in: [types.ts:724](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L724)
 
 Original provider event for debugging/advanced use cases
 
@@ -77,7 +77,7 @@ Original provider event for debugging/advanced use cases
 optional runId: string;
 ```
 
-Defined in: [types.ts:734](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L734)
+Defined in: [types.ts:766](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L766)
 
 Run identifier (if available)
 
@@ -89,7 +89,7 @@ Run identifier (if available)
 timestamp: number;
 ```
 
-Defined in: [types.ts:688](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L688)
+Defined in: [types.ts:720](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L720)
 
 #### Inherited from
 
@@ -103,7 +103,7 @@ Defined in: [types.ts:688](https://github.com/TanStack/ai/blob/main/packages/typ
 type: "RUN_ERROR";
 ```
 
-Defined in: [types.ts:732](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L732)
+Defined in: [types.ts:764](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L764)
 
 #### Overrides
 

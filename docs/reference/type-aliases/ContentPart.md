@@ -14,7 +14,7 @@ type ContentPart<TTextMeta, TImageMeta, TAudioMeta, TVideoMeta, TDocumentMeta> =
 | DocumentPart<TDocumentMeta>;
 ```
 
-Defined in: [types.ts:184](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L184)
+Defined in: [types.ts:212](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L212)
 
 Union type for all multimodal content parts.
 
