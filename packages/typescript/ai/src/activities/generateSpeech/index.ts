@@ -6,8 +6,9 @@
  */
 
 import { aiEventClient } from '../../event-client.js'
+import { toTelemetryEvent } from '../../telemetry/types.js'
+import type { TTSOptions, TTSResult } from '../../types'
 import type { TTSAdapter } from './adapter'
-import type { TTSResult } from '../../types'
 
 // ===========================
 // Activity Kind
@@ -25,8 +26,8 @@ export const kind = 'tts' as const
  */
 export type TTSProviderOptions<TAdapter> =
   TAdapter extends TTSAdapter<any, any>
-    ? TAdapter['~types']['providerOptions']
-    : object
+  ? TAdapter['~types']['providerOptions']
+  : object
 
 // ===========================
 // Activity Options Type
@@ -53,6 +54,10 @@ export interface TTSActivityOptions<
   speed?: number
   /** Provider-specific options for TTS generation */
   modelOptions?: TTSProviderOptions<TAdapter>
+  /**
+   * Telemetry data for tracking and monitoring.
+   */
+  telemetry?: TTSOptions['telemetry']
 }
 
 // ===========================
@@ -117,6 +122,7 @@ export async function generateSpeech<
     format: rest.format,
     speed: rest.speed,
     modelOptions: rest.modelOptions as Record<string, unknown> | undefined,
+    telemetry: toTelemetryEvent(rest.telemetry),
     timestamp: startTime,
   })
 
@@ -133,6 +139,7 @@ export async function generateSpeech<
       contentType: result.contentType,
       duration,
       modelOptions: rest.modelOptions as Record<string, unknown> | undefined,
+      telemetry: toTelemetryEvent(rest.telemetry),
       timestamp: Date.now(),
     })
 
@@ -154,5 +161,5 @@ export function createSpeechOptions<
 }
 
 // Re-export adapter types
-export type { TTSAdapter, TTSAdapterConfig, AnyTTSAdapter } from './adapter'
 export { BaseTTSAdapter } from './adapter'
+export type { AnyTTSAdapter, TTSAdapter, TTSAdapterConfig } from './adapter'
