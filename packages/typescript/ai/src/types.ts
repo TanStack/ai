@@ -789,8 +789,8 @@ export interface TextMessageContentEvent extends BaseAGUIEvent {
   type: 'TEXT_MESSAGE_CONTENT'
   /** Message identifier */
   messageId: string
-  /** The incremental content token */
-  delta: string
+  /** The incremental content token (may be undefined if only content is provided) */
+  delta?: string
   /** Full accumulated content so far */
   content?: string
 }
