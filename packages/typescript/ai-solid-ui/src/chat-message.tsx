@@ -1,8 +1,8 @@
 import { For, Show } from 'solid-js'
 import { ThinkingPart } from './thinking-part'
 import type { MessagePart, ToolCallState } from '@tanstack/ai-client'
-import type { JSX } from 'solid-js'
 import type { UIMessage } from '@tanstack/ai-solid'
+import type { JSX } from 'solid-js'
 import type { ToolApprovalProps } from './tool-approval'
 
 export interface ToolCallRenderProps {
@@ -232,25 +232,30 @@ function MessagePart(props: {
   }
 
   // Tool result part
-  if (props.toolResultRenderer) {
+  // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
+  if (props.part.type === 'tool-result') {
+    if (props.toolResultRenderer) {
+      return (
+        <>
+          {props.toolResultRenderer({
+            toolCallId: props.part.toolCallId,
+            content: props.part.content,
+            state: props.part.state,
+          })}
+        </>
+      )
+    }
+
     return (
-      <>
-        {props.toolResultRenderer({
-          toolCallId: props.part.toolCallId,
-          content: props.part.content,
-          state: props.part.state,
-        })}
-      </>
+      <div
+        data-part-type="tool-result"
+        data-tool-call-id={props.part.toolCallId}
+        data-tool-result-state={props.part.state}
+      >
+        <div data-tool-result-content>{props.part.content}</div>
+      </div>
     )
   }
 
-  return (
-    <div
-      data-part-type="tool-result"
-      data-tool-call-id={props.part.toolCallId}
-      data-tool-result-state={props.part.state}
-    >
-      <div data-tool-result-content>{props.part.content}</div>
-    </div>
-  )
+  return null
 }

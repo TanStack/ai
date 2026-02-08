@@ -240,25 +240,30 @@ function MessagePart({
   }
 
   // Tool result part
-  if (toolResultRenderer) {
+  // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
+  if (part.type === 'tool-result') {
+    if (toolResultRenderer) {
+      return (
+        <>
+          {toolResultRenderer({
+            toolCallId: part.toolCallId,
+            content: part.content,
+            state: part.state,
+          })}
+        </>
+      )
+    }
+
     return (
-      <>
-        {toolResultRenderer({
-          toolCallId: part.toolCallId,
-          content: part.content,
-          state: part.state,
-        })}
-      </>
+      <div
+        data-part-type="tool-result"
+        data-tool-call-id={part.toolCallId}
+        data-tool-result-state={part.state}
+      >
+        <div data-tool-result-content>{part.content}</div>
+      </div>
     )
   }
 
-  return (
-    <div
-      data-part-type="tool-result"
-      data-tool-call-id={part.toolCallId}
-      data-tool-result-state={part.state}
-    >
-      <div data-tool-result-content>{part.content}</div>
-    </div>
-  )
+  return null
 }
