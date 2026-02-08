@@ -18,6 +18,7 @@ fix(ai, ai-client, ai-anthropic, ai-gemini): fix multi-turn conversations failin
 - Update `ChatClient.processStream()` to use lazy assistant message creation, preventing UI flicker from empty messages being created then removed
 
 **Anthropic:**
+
 - Fix consecutive user-role messages violating Anthropic's alternating role requirement by merging them in `formatMessages`
 - Deduplicate `tool_result` blocks with the same `tool_use_id`
 - Filter out empty assistant messages from conversation history
@@ -26,6 +27,7 @@ fix(ai, ai-client, ai-anthropic, ai-gemini): fix multi-turn conversations failin
 - Add Claude Opus 4.6 model support with adaptive thinking and effort parameter
 
 **Gemini:**
+
 - Fix consecutive user-role messages violating Gemini's alternating role requirement by merging them in `formatMessages`
 - Deduplicate `functionResponse` parts with the same name (tool call ID)
 - Filter out empty model messages from conversation history

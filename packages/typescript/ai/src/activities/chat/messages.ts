@@ -1,26 +1,22 @@
 import type {
-  AudioPart,
   ContentPart,
-  DocumentPart,
-  ImagePart,
   MessagePart,
   ModelMessage,
   TextPart,
   ToolCallPart,
   UIMessage,
-  VideoPart,
 } from '../../types'
 // ===========================
 // Message Converters
 // ===========================
 
 /**
- * Helper to check if a part is a multimodal content part (image, audio, video, document)
+ * Check if a MessagePart is a content part (text, image, audio, video, document)
+ * that maps directly to a ModelMessage ContentPart.
  */
-function isMultimodalPart(
-  part: MessagePart,
-): part is ImagePart | AudioPart | VideoPart | DocumentPart {
+function isContentPart(part: MessagePart): part is ContentPart {
   return (
+    part.type === 'text' ||
     part.type === 'image' ||
     part.type === 'audio' ||
     part.type === 'video' ||
@@ -29,19 +25,34 @@ function isMultimodalPart(
 }
 
 /**
- * Helper to extract text content from string or ContentPart array
- * For multimodal content, this extracts only the text parts
+ * Collapse an array of ContentParts into the most compact ModelMessage content:
+ * - Empty array → null
+ * - All text parts → joined string (or null if empty)
+ * - Mixed content → ContentPart array as-is
+ */
+function collapseContentParts(
+  parts: Array<ContentPart>,
+): string | null | Array<ContentPart> {
+  if (parts.length === 0) return null
+
+  const allText = parts.every((p) => p.type === 'text')
+  if (allText) {
+    const joined = parts.map((p) => p.content).join('')
+    return joined || null
+  }
+
+  return parts
+}
+
+/**
+ * Extract text content from ModelMessage content (string, null, or ContentPart array).
+ * Used when only the text portion is needed (e.g., tool result content).
  */
 function getTextContent(content: string | null | Array<ContentPart>): string {
-  if (content === null) {
-    return ''
-  }
-  if (typeof content === 'string') {
-    return content
-  }
-  // Extract text from ContentPart array
+  if (content === null) return ''
+  if (typeof content === 'string') return content
   return content
-    .filter((part) => part.type === 'text')
+    .filter((part): part is TextPart => part.type === 'text')
     .map((part) => part.content)
     .join('')
 }
@@ -107,68 +118,31 @@ export function uiMessageToModelMessages(
  * Preserves ordering of text and multimodal content parts.
  */
 function buildUserOrToolMessage(uiMessage: UIMessage): ModelMessage {
-  const hasMultimodal = uiMessage.parts.some((p) => isMultimodalPart(p))
-
-  let content: string | null | Array<ContentPart>
-  if (hasMultimodal) {
-    // Build ContentPart array preserving order of text and multimodal parts
-    const contentParts: Array<ContentPart> = []
-    for (const part of uiMessage.parts) {
-      if (part.type === 'text') {
-        contentParts.push(part)
-      } else if (isMultimodalPart(part)) {
-        contentParts.push(part)
-      }
+  const contentParts: Array<ContentPart> = []
+  for (const part of uiMessage.parts) {
+    if (isContentPart(part)) {
+      contentParts.push(part)
     }
-    content = contentParts
-  } else {
-    // Simple string content for text-only messages
-    const texts = uiMessage.parts
-      .filter((p): p is TextPart => p.type === 'text')
-      .map((p) => p.content)
-    content = texts.join('') || null
   }
 
   return {
     role: uiMessage.role as 'user' | 'assistant' | 'tool',
-    content,
+    content: collapseContentParts(contentParts),
   }
 }
 
-// Accumulator for building an assistant segment (text + tool calls)
+// Accumulator for building an assistant segment (content + tool calls)
 interface AssistantSegment {
-  textParts: Array<string>
-  multimodalParts: Array<ContentPart>
+  contentParts: Array<ContentPart>
   toolCalls: Array<{
     id: string
     type: 'function'
     function: { name: string; arguments: string }
   }>
-  hasContent: boolean
 }
 
 function createSegment(): AssistantSegment {
-  return { textParts: [], multimodalParts: [], toolCalls: [], hasContent: false }
-}
-
-function segmentToContent(
-  seg: AssistantSegment,
-): string | null | Array<ContentPart> {
-  if (seg.multimodalParts.length > 0) {
-    // Interleave text and multimodal in the order they were added
-    // (they're accumulated from the sequential walk, so already ordered)
-    const parts: Array<ContentPart> = []
-    // We stored them separately, but they were accumulated in walk order.
-    // For simplicity, emit all text first then multimodal. In practice,
-    // multimodal parts in assistant messages are rare.
-    for (const text of seg.textParts) {
-      parts.push({ type: 'text', content: text } as ContentPart)
-    }
-    parts.push(...seg.multimodalParts)
-    return parts
-  }
-  const joined = seg.textParts.join('')
-  return joined || null
+  return { contentParts: [], toolCalls: [] }
 }
 
 function isToolCallIncluded(part: ToolCallPart): boolean {
@@ -198,8 +172,8 @@ function buildAssistantMessages(uiMessage: UIMessage): Array<ModelMessage> {
   const emittedToolResultIds = new Set<string>()
 
   function flushSegment(): void {
-    const content = segmentToContent(current)
-    const hasContent = Array.isArray(content) ? true : content !== null
+    const content = collapseContentParts(current.contentParts)
+    const hasContent = content !== null
     const hasToolCalls = current.toolCalls.length > 0
 
     if (hasContent || hasToolCalls) {
@@ -215,16 +189,11 @@ function buildAssistantMessages(uiMessage: UIMessage): Array<ModelMessage> {
   for (const part of uiMessage.parts) {
     switch (part.type) {
       case 'text':
-        current.textParts.push(part.content)
-        current.hasContent = true
-        break
-
       case 'image':
       case 'audio':
       case 'video':
       case 'document':
-        current.multimodalParts.push(part)
-        current.hasContent = true
+        current.contentParts.push(part)
         break
 
       case 'tool-call':
@@ -237,7 +206,6 @@ function buildAssistantMessages(uiMessage: UIMessage): Array<ModelMessage> {
               arguments: part.arguments,
             },
           })
-          current.hasContent = true
         }
         break
 
@@ -340,13 +308,29 @@ export function modelMessageToUIMessage(
 ): UIMessage {
   const parts: Array<MessagePart> = []
 
-  // Handle content (convert multimodal content to text for UI)
-  const textContent = getTextContent(modelMessage.content)
-  if (textContent) {
+  // Handle tool results (when role is "tool") - only produce tool-result part,
+  // not a text part (the content IS the tool result, not display text)
+  if (modelMessage.role === 'tool' && modelMessage.toolCallId) {
     parts.push({
-      type: 'text',
-      content: textContent,
+      type: 'tool-result',
+      toolCallId: modelMessage.toolCallId,
+      content: getTextContent(modelMessage.content),
+      state: 'complete',
     })
+  } else if (Array.isArray(modelMessage.content)) {
+    // Multimodal content - preserve all content parts as MessageParts
+    for (const part of modelMessage.content) {
+      parts.push(part)
+    }
+  } else {
+    // String or null content
+    const textContent = getTextContent(modelMessage.content)
+    if (textContent) {
+      parts.push({
+        type: 'text',
+        content: textContent,
+      })
+    }
   }
 
   // Handle tool calls
@@ -360,16 +344,6 @@ export function modelMessageToUIMessage(
         state: 'input-complete', // Model messages have complete arguments
       })
     }
-  }
-
-  // Handle tool results (when role is "tool")
-  if (modelMessage.role === 'tool' && modelMessage.toolCallId) {
-    parts.push({
-      type: 'tool-result',
-      toolCallId: modelMessage.toolCallId,
-      content: getTextContent(modelMessage.content),
-      state: 'complete',
-    })
   }
 
   return {

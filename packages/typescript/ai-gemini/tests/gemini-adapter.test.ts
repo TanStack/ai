@@ -349,9 +349,7 @@ describe('GeminiAdapter through AI', () => {
       },
     ]
 
-    mocks.generateContentStreamSpy.mockResolvedValue(
-      createStream(streamChunks),
-    )
+    mocks.generateContentStreamSpy.mockResolvedValue(createStream(streamChunks))
 
     const adapter = createTextAdapter()
 
@@ -398,9 +396,7 @@ describe('GeminiAdapter through AI', () => {
 
     // Last user message should contain both functionResponse and text
     const lastParts = payload.contents[2].parts
-    const hasFunctionResponse = lastParts.some(
-      (p: any) => p.functionResponse,
-    )
+    const hasFunctionResponse = lastParts.some((p: any) => p.functionResponse)
     const hasText = lastParts.some((p: any) => p.text === 'What about Paris?')
     expect(hasFunctionResponse).toBe(true)
     expect(hasText).toBe(true)
@@ -425,9 +421,7 @@ describe('GeminiAdapter through AI', () => {
       },
     ]
 
-    mocks.generateContentStreamSpy.mockResolvedValue(
-      createStream(streamChunks),
-    )
+    mocks.generateContentStreamSpy.mockResolvedValue(createStream(streamChunks))
 
     const adapter = createTextAdapter()
 
@@ -494,9 +488,7 @@ describe('GeminiAdapter through AI', () => {
 
     // Last user should have deduplicated functionResponses + follow-up text
     const lastParts = payload.contents[2].parts
-    const functionResponses = lastParts.filter(
-      (p: any) => p.functionResponse,
-    )
+    const functionResponses = lastParts.filter((p: any) => p.functionResponse)
     // 2 unique tool call IDs, not 3 (duplicate removed)
     expect(functionResponses).toHaveLength(2)
 
