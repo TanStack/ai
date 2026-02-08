@@ -800,6 +800,18 @@ class TextEngine<
         } catch {
           output = message.content
         }
+        // Skip approval response messages (they have pendingExecution marker)
+        // These are NOT real client tool results — they are synthetic tool messages
+        // created by uiMessageToModelMessages for approved-but-not-yet-executed tools.
+        // Treating them as results would prevent the server from requesting actual
+        // client-side execution after approval (see GitHub issue #225).
+        if (
+          output &&
+          typeof output === 'object' &&
+          (output as any).pendingExecution === true
+        ) {
+          continue
+        }
         clientToolResults.set(message.toolCallId, output)
       }
     }

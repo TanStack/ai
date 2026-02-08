@@ -666,6 +666,21 @@ export class StreamProcessor {
 
     // Update UIMessage if we have a current assistant message
     if (this.currentAssistantMessageId && chunk.result) {
+      // Step 1: Update the tool-call part's output field (for UI consistency
+      // with client tools — see GitHub issue #176)
+      let output: unknown
+      try {
+        output = JSON.parse(chunk.result)
+      } catch {
+        output = chunk.result
+      }
+      this.messages = updateToolCallWithOutput(
+        this.messages,
+        chunk.toolCallId,
+        output,
+      )
+
+      // Step 2: Create/update the tool-result part (for LLM conversation history)
       this.messages = updateToolResultPart(
         this.messages,
         this.currentAssistantMessageId,

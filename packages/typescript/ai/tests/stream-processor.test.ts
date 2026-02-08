@@ -351,4 +351,128 @@ describe('StreamProcessor', () => {
       expect(processor.getMessages()[0]?.id).toBe(messageId)
     })
   })
+
+  describe('TOOL_CALL_END updates tool-call output (issue #176)', () => {
+    it('should update tool-call part output field when TOOL_CALL_END has a result', () => {
+      const processor = new StreamProcessor()
+      processor.prepareAssistantMessage()
+
+      // Start a tool call
+      processor.processChunk({
+        type: 'TOOL_CALL_START',
+        toolCallId: 'tc-1',
+        toolName: 'getWeather',
+        model: 'test',
+        timestamp: Date.now(),
+      } as StreamChunk)
+
+      // Provide args
+      processor.processChunk({
+        type: 'TOOL_CALL_ARGS',
+        toolCallId: 'tc-1',
+        model: 'test',
+        timestamp: Date.now(),
+        delta: '{"city":"NYC"}',
+      } as StreamChunk)
+
+      // End with a result (server tool execution)
+      processor.processChunk({
+        type: 'TOOL_CALL_END',
+        toolCallId: 'tc-1',
+        toolName: 'getWeather',
+        model: 'test',
+        timestamp: Date.now(),
+        input: { city: 'NYC' },
+        result: '{"temp":72}',
+      } as StreamChunk)
+
+      const messages = processor.getMessages()
+      expect(messages).toHaveLength(1)
+
+      const toolCallPart = messages[0]?.parts.find(
+        (p) => p.type === 'tool-call',
+      )
+      expect(toolCallPart).toBeDefined()
+      expect(toolCallPart!.type).toBe('tool-call')
+      // The output field should be populated (issue #176 fix)
+      expect((toolCallPart as any).output).toEqual({ temp: 72 })
+
+      // A tool-result part should also exist
+      const toolResultPart = messages[0]?.parts.find(
+        (p) => p.type === 'tool-result',
+      )
+      expect(toolResultPart).toBeDefined()
+      expect(toolResultPart!.type).toBe('tool-result')
+    })
+
+    it('should not update tool-call output when TOOL_CALL_END has no result', () => {
+      const processor = new StreamProcessor()
+      processor.prepareAssistantMessage()
+
+      processor.processChunk({
+        type: 'TOOL_CALL_START',
+        toolCallId: 'tc-1',
+        toolName: 'getWeather',
+        model: 'test',
+        timestamp: Date.now(),
+      } as StreamChunk)
+
+      // End WITHOUT a result (client tool — server doesn't execute it)
+      processor.processChunk({
+        type: 'TOOL_CALL_END',
+        toolCallId: 'tc-1',
+        toolName: 'getWeather',
+        model: 'test',
+        timestamp: Date.now(),
+        input: { city: 'NYC' },
+      } as StreamChunk)
+
+      const messages = processor.getMessages()
+      expect(messages).toHaveLength(1)
+
+      const toolCallPart = messages[0]?.parts.find(
+        (p) => p.type === 'tool-call',
+      )
+      expect(toolCallPart).toBeDefined()
+      // No output should be set since there was no result
+      expect((toolCallPart as any).output).toBeUndefined()
+
+      // No tool-result part should be created either
+      const toolResultPart = messages[0]?.parts.find(
+        (p) => p.type === 'tool-result',
+      )
+      expect(toolResultPart).toBeUndefined()
+    })
+
+    it('should handle non-JSON result string gracefully', () => {
+      const processor = new StreamProcessor()
+      processor.prepareAssistantMessage()
+
+      processor.processChunk({
+        type: 'TOOL_CALL_START',
+        toolCallId: 'tc-1',
+        toolName: 'getText',
+        model: 'test',
+        timestamp: Date.now(),
+      } as StreamChunk)
+
+      // End with a plain string result (not valid JSON)
+      processor.processChunk({
+        type: 'TOOL_CALL_END',
+        toolCallId: 'tc-1',
+        toolName: 'getText',
+        model: 'test',
+        timestamp: Date.now(),
+        input: {},
+        result: 'plain text result',
+      } as StreamChunk)
+
+      const messages = processor.getMessages()
+      const toolCallPart = messages[0]?.parts.find(
+        (p) => p.type === 'tool-call',
+      )
+      // Non-JSON result should be stored as-is
+      expect((toolCallPart as any).output).toBe('plain text result')
+    })
+  })
 })

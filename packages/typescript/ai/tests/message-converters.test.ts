@@ -1430,4 +1430,74 @@ describe('Message Converters', () => {
       expect(modelMessages).toEqual(original)
     })
   })
+
+  describe('uiMessageToModelMessages - approval response handling', () => {
+    it('should emit pendingExecution marker for approved client tool', () => {
+      const uiMessage: UIMessage = {
+        id: 'msg-1',
+        role: 'assistant',
+        parts: [
+          { type: 'text', content: 'Let me delete that for you.' },
+          {
+            type: 'tool-call',
+            id: 'call_123',
+            name: 'delete_local_data',
+            arguments: '{"key":"myKey"}',
+            state: 'approval-responded',
+            approval: { id: 'approval_call_123', approved: true },
+          },
+        ],
+      }
+
+      const result = uiMessageToModelMessages(uiMessage)
+
+      // Should produce: assistant message with text + toolCall, then a tool result
+      expect(result.length).toBeGreaterThanOrEqual(2)
+
+      // The assistant message should include the tool call
+      const assistantMsg = result.find(
+        (m) => m.role === 'assistant' && m.toolCalls,
+      )
+      expect(assistantMsg).toBeDefined()
+      expect(assistantMsg!.toolCalls).toHaveLength(1)
+      expect(assistantMsg!.toolCalls![0]!.id).toBe('call_123')
+
+      // The tool result message should have pendingExecution marker
+      const toolMsg = result.find(
+        (m) => m.role === 'tool' && m.toolCallId === 'call_123',
+      )
+      expect(toolMsg).toBeDefined()
+      const content = JSON.parse(toolMsg!.content as string)
+      expect(content.approved).toBe(true)
+      expect(content.pendingExecution).toBe(true)
+    })
+
+    it('should emit declined message for denied client tool without pendingExecution', () => {
+      const uiMessage: UIMessage = {
+        id: 'msg-1',
+        role: 'assistant',
+        parts: [
+          {
+            type: 'tool-call',
+            id: 'call_456',
+            name: 'delete_local_data',
+            arguments: '{"key":"myKey"}',
+            state: 'approval-responded',
+            approval: { id: 'approval_call_456', approved: false },
+          },
+        ],
+      }
+
+      const result = uiMessageToModelMessages(uiMessage)
+
+      const toolMsg = result.find(
+        (m) => m.role === 'tool' && m.toolCallId === 'call_456',
+      )
+      expect(toolMsg).toBeDefined()
+      const content = JSON.parse(toolMsg!.content as string)
+      expect(content.approved).toBe(false)
+      expect(content.pendingExecution).toBeUndefined()
+      expect(content.message).toBe('User denied this action')
+    })
+  })
 })
