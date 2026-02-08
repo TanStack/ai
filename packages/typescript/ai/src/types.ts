@@ -108,23 +108,51 @@ export interface ToolCall {
 export type Modality = 'text' | 'image' | 'audio' | 'video' | 'document'
 
 /**
- * Source specification for multimodal content.
- * Supports both inline data (base64) and URL-based content.
+ * Source specification for inline data content (base64).
+ * Requires a mimeType to ensure providers receive proper content type information.
  */
-export interface ContentPartSource {
+export interface ContentPartDataSource {
   /**
-   * The type of source:
-   * - 'data': Inline data (typically base64 encoded)
-   * - 'url': URL reference to the content
+   * Indicates this is inline data content.
    */
-  type: 'data' | 'url'
+  type: 'data'
   /**
-   * The actual content value:
-   * - For 'data': base64-encoded string
-   * - For 'url': HTTP(S) URL or data URI
+   * The base64-encoded content value.
    */
   value: string
+  /**
+   * The MIME type of the content (e.g., 'image/png', 'audio/wav').
+   * Required for data sources to ensure proper handling by providers.
+   */
+  mimeType: string
 }
+
+/**
+ * Source specification for URL-based content.
+ * mimeType is optional as it can often be inferred from the URL or response headers.
+ */
+export interface ContentPartUrlSource {
+  /**
+   * Indicates this is URL-referenced content.
+   */
+  type: 'url'
+  /**
+   * HTTP(S) URL or data URI pointing to the content.
+   */
+  value: string
+  /**
+   * Optional MIME type hint for cases where providers can't infer it from the URL.
+   */
+  mimeType?: string
+}
+
+/**
+ * Source specification for multimodal content.
+ * Discriminated union supporting both inline data (base64) and URL-based content.
+ * - For 'data' sources: mimeType is required
+ * - For 'url' sources: mimeType is optional
+ */
+export type ContentPartSource = ContentPartDataSource | ContentPartUrlSource
 
 /**
  * Image content part for multimodal messages.
@@ -282,6 +310,10 @@ export interface ThinkingPart {
 
 export type MessagePart =
   | TextPart
+  | ImagePart
+  | AudioPart
+  | VideoPart
+  | DocumentPart
   | ToolCallPart
   | ToolResultPart
   | ThinkingPart
@@ -757,8 +789,8 @@ export interface TextMessageContentEvent extends BaseAGUIEvent {
   type: 'TEXT_MESSAGE_CONTENT'
   /** Message identifier */
   messageId: string
-  /** The incremental content token */
-  delta: string
+  /** The incremental content token (may be undefined if only content is provided) */
+  delta?: string
   /** Full accumulated content so far */
   content?: string
 }

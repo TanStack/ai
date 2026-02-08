@@ -5,7 +5,7 @@ title: TextPart
 
 # Interface: TextPart\<TMetadata\>
 
-Defined in: [types.ts:248](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L248)
+Defined in: [types.ts:276](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L276)
 
 Message parts - building blocks of UIMessage
 
@@ -23,7 +23,7 @@ Message parts - building blocks of UIMessage
 content: string;
 ```
 
-Defined in: [types.ts:250](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L250)
+Defined in: [types.ts:278](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L278)
 
 ***
 
@@ -33,7 +33,7 @@ Defined in: [types.ts:250](https://github.com/TanStack/ai/blob/main/packages/typ
 optional metadata: TMetadata;
 ```
 
-Defined in: [types.ts:251](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L251)
+Defined in: [types.ts:279](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L279)
 
 ***
 
@@ -43,4 +43,4 @@ Defined in: [types.ts:251](https://github.com/TanStack/ai/blob/main/packages/typ
 type: "text";
 ```
 
-Defined in: [types.ts:249](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L249)
+Defined in: [types.ts:277](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L277)

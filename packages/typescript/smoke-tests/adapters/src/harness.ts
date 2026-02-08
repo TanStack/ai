@@ -426,23 +426,11 @@ export function buildApprovalMessages(
     firstRun.lastAssistantMessage ||
     firstRun.reconstructedMessages.find((m) => m.role === 'assistant')
 
-  const toolCallsWithArgs =
-    assistantMessage?.toolCalls?.map((tc: any) => {
-      const aggregated = firstRun.toolCalls.find((call) => call.id === tc.id)
-      return aggregated
-        ? {
-            ...tc,
-            function: { ...tc.function, arguments: aggregated.arguments },
-          }
-        : tc
-    }) || []
-
   return [
     ...originalMessages,
     {
       role: 'assistant',
       content: assistantMessage?.content ?? null,
-      toolCalls: toolCallsWithArgs,
       parts: [
         {
           type: 'tool-call',

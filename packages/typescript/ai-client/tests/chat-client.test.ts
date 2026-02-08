@@ -1,12 +1,12 @@
 import { describe, expect, it, vi } from 'vitest'
 import { ChatClient } from '../src/chat-client'
-import type { UIMessage } from '../src/types'
 import {
   createMockConnectionAdapter,
   createTextChunks,
   createThinkingChunks,
   createToolCallChunks,
 } from './test-utils'
+import type { UIMessage } from '../src/types'
 
 describe('ChatClient', () => {
   describe('constructor', () => {
@@ -616,6 +616,289 @@ describe('ChatClient', () => {
 
       // Should have thinking events
       expect(thinkingCalls.length).toBeGreaterThan(0)
+    })
+  })
+
+  describe('multimodal sendMessage', () => {
+    it('should send a multimodal message with image content', async () => {
+      const chunks = createTextChunks('I see a cat in the image')
+      const adapter = createMockConnectionAdapter({ chunks })
+
+      const client = new ChatClient({ connection: adapter })
+
+      await client.sendMessage({
+        content: [
+          { type: 'text', content: 'What is in this image?' },
+          {
+            type: 'image',
+            source: { type: 'url', value: 'https://example.com/cat.jpg' },
+          },
+        ],
+      })
+
+      const messages = client.getMessages()
+      expect(messages.length).toBeGreaterThan(0)
+      expect(messages[0]?.role).toBe('user')
+      expect(messages[0]?.parts.length).toBe(2)
+      expect(messages[0]?.parts[0]).toEqual({
+        type: 'text',
+        content: 'What is in this image?',
+      })
+      expect(messages[0]?.parts[1]).toEqual({
+        type: 'image',
+        source: { type: 'url', value: 'https://example.com/cat.jpg' },
+      })
+    })
+
+    it('should send a multimodal message with audio content', async () => {
+      const chunks = createTextChunks('The audio says hello')
+      const adapter = createMockConnectionAdapter({ chunks })
+
+      const client = new ChatClient({ connection: adapter })
+
+      await client.sendMessage({
+        content: [
+          { type: 'text', content: 'Transcribe this audio' },
+          {
+            type: 'audio',
+            source: {
+              type: 'data',
+              value: 'base64AudioData',
+              mimeType: 'audio/mp3',
+            },
+          },
+        ],
+      })
+
+      const messages = client.getMessages()
+      expect(messages[0]?.parts[1]).toEqual({
+        type: 'audio',
+        source: {
+          type: 'data',
+          value: 'base64AudioData',
+          mimeType: 'audio/mp3',
+        },
+      })
+    })
+
+    it('should send a multimodal message with video content', async () => {
+      const chunks = createTextChunks('The video shows a sunset')
+      const adapter = createMockConnectionAdapter({ chunks })
+
+      const client = new ChatClient({ connection: adapter })
+
+      await client.sendMessage({
+        content: [
+          { type: 'text', content: 'Describe this video' },
+          {
+            type: 'video',
+            source: { type: 'url', value: 'https://example.com/video.mp4' },
+          },
+        ],
+      })
+
+      const messages = client.getMessages()
+      expect(messages[0]?.parts[1]).toEqual({
+        type: 'video',
+        source: { type: 'url', value: 'https://example.com/video.mp4' },
+      })
+    })
+
+    it('should send a multimodal message with document content', async () => {
+      const chunks = createTextChunks('The document discusses AI')
+      const adapter = createMockConnectionAdapter({ chunks })
+
+      const client = new ChatClient({ connection: adapter })
+
+      await client.sendMessage({
+        content: [
+          { type: 'text', content: 'Summarize this PDF' },
+          {
+            type: 'document',
+            source: {
+              type: 'data',
+              value: 'base64PdfData',
+              mimeType: 'application/pdf',
+            },
+          },
+        ],
+      })
+
+      const messages = client.getMessages()
+      expect(messages[0]?.parts[1]).toEqual({
+        type: 'document',
+        source: {
+          type: 'data',
+          value: 'base64PdfData',
+          mimeType: 'application/pdf',
+        },
+      })
+    })
+
+    it('should use custom message id when provided', async () => {
+      const chunks = createTextChunks('Response')
+      const adapter = createMockConnectionAdapter({ chunks })
+
+      const client = new ChatClient({ connection: adapter })
+
+      await client.sendMessage({
+        content: 'Hello',
+        id: 'custom-message-id-123',
+      })
+
+      const messages = client.getMessages()
+      expect(messages[0]?.id).toBe('custom-message-id-123')
+    })
+
+    it('should generate message id when not provided', async () => {
+      const chunks = createTextChunks('Response')
+      const adapter = createMockConnectionAdapter({ chunks })
+
+      const client = new ChatClient({ connection: adapter })
+
+      await client.sendMessage({
+        content: 'Hello',
+      })
+
+      const messages = client.getMessages()
+      expect(messages[0]?.id).toMatch(/^msg-/)
+    })
+
+    it('should allow empty content array', async () => {
+      const chunks = createTextChunks('Response')
+      const adapter = createMockConnectionAdapter({ chunks })
+
+      const client = new ChatClient({ connection: adapter })
+
+      await client.sendMessage({
+        content: [],
+      })
+
+      const messages = client.getMessages()
+      expect(messages.length).toBeGreaterThan(0)
+      expect(messages[0]?.parts).toEqual([])
+    })
+
+    it('should send string content as simple text message', async () => {
+      const chunks = createTextChunks('Response')
+      const adapter = createMockConnectionAdapter({ chunks })
+
+      const client = new ChatClient({ connection: adapter })
+
+      await client.sendMessage({
+        content: 'Hello world',
+      })
+
+      const messages = client.getMessages()
+      expect(messages[0]?.parts).toEqual([
+        { type: 'text', content: 'Hello world' },
+      ])
+    })
+
+    it('should merge per-message body with base body', async () => {
+      const chunks = createTextChunks('Response')
+      let capturedData: Record<string, any> | undefined
+      const adapter = createMockConnectionAdapter({
+        chunks,
+        onConnect: (_messages, data) => {
+          capturedData = data
+        },
+      })
+
+      const client = new ChatClient({
+        connection: adapter,
+        body: { model: 'gpt-4', temperature: 0.7 },
+      })
+
+      await client.sendMessage('Hello', {
+        model: 'gpt-4-turbo',
+        maxTokens: 100,
+      })
+
+      // Per-message body should override base body
+      expect(capturedData?.model).toBe('gpt-4-turbo')
+      expect(capturedData?.temperature).toBe(0.7) // From base body
+      expect(capturedData?.maxTokens).toBe(100) // From per-message body
+    })
+
+    it('should include conversationId in merged body', async () => {
+      const chunks = createTextChunks('Response')
+      let capturedData: Record<string, any> | undefined
+      const adapter = createMockConnectionAdapter({
+        chunks,
+        onConnect: (_messages, data) => {
+          capturedData = data
+        },
+      })
+
+      const client = new ChatClient({
+        connection: adapter,
+        id: 'my-conversation',
+      })
+
+      await client.sendMessage('Hello')
+
+      expect(capturedData?.conversationId).toBe('my-conversation')
+    })
+
+    it('should clear per-message body after request', async () => {
+      const chunks = createTextChunks('Response')
+      let capturedData: Record<string, any> | undefined
+      const adapter = createMockConnectionAdapter({
+        chunks,
+        onConnect: (_messages, data) => {
+          capturedData = data
+        },
+      })
+
+      const client = new ChatClient({
+        connection: adapter,
+        body: { model: 'gpt-4' },
+      })
+
+      // First message with per-message body
+      await client.sendMessage('First', { temperature: 0.9 })
+      expect(capturedData?.temperature).toBe(0.9)
+
+      // Second message without per-message body should not have temperature
+      await client.sendMessage('Second')
+      expect(capturedData?.temperature).toBeUndefined()
+      expect(capturedData?.model).toBe('gpt-4')
+    })
+
+    it('should emit events with multimodal content', async () => {
+      const chunks = createTextChunks('Response')
+      const adapter = createMockConnectionAdapter({ chunks })
+
+      const { aiEventClient } = await import('@tanstack/ai/event-client')
+      const emitSpy = vi.spyOn(aiEventClient, 'emit')
+      emitSpy.mockClear() // Clear any previous calls
+
+      const client = new ChatClient({ connection: adapter })
+
+      await client.sendMessage({
+        content: [
+          { type: 'text', content: 'What is this?' },
+          {
+            type: 'image',
+            source: { type: 'url', value: 'https://example.com/img.jpg' },
+          },
+        ],
+      })
+
+      // Find message created events for user role
+      const userMessageCreatedCalls = emitSpy.mock.calls.filter(
+        ([eventName, data]) =>
+          eventName === 'text:message:created' &&
+          (data as any)?.role === 'user',
+      )
+
+      // Should have at least one user message created event
+      expect(userMessageCreatedCalls.length).toBeGreaterThan(0)
+
+      // The event should include the text content extracted from multimodal content
+      const userMessageEvent = userMessageCreatedCalls[0]
+      expect((userMessageEvent?.[1] as any)?.content).toBe('What is this?')
     })
   })
 })

@@ -14,6 +14,7 @@ import {
   parseWithStandardSchema,
 } from './tools/schema-converter'
 import { maxIterations as maxIterationsStrategy } from './agent-loop-strategies'
+import { convertMessagesToModelMessages } from './messages'
 import type {
   ApprovalRequest,
   ClientToolRequest,
@@ -224,6 +225,9 @@ class TextEngine<
   private earlyTermination = false
   private toolPhase: ToolPhaseResult = 'continue'
   private cyclePhase: CyclePhase = 'processText'
+  // Client state extracted from initial messages (before conversion to ModelMessage)
+  private readonly initialApprovals: Map<string, boolean>
+  private readonly initialClientToolResults: Map<string, any>
 
   constructor(config: TextEngineConfig<TAdapter, TParams>) {
     this.adapter = config.adapter
@@ -234,7 +238,21 @@ class TextEngine<
       config.params.agentLoopStrategy || maxIterationsStrategy(5)
     this.toolCallManager = new ToolCallManager(this.tools)
     this.initialMessageCount = config.params.messages.length
-    this.messages = config.params.messages
+
+    // Extract client state (approvals, client tool results) from original messages BEFORE conversion
+    // This preserves UIMessage parts data that would be lost during conversion to ModelMessage
+    const { approvals, clientToolResults } =
+      this.extractClientStateFromOriginalMessages(
+        config.params.messages as Array<any>,
+      )
+    this.initialApprovals = approvals
+    this.initialClientToolResults = clientToolResults
+
+    // Convert messages to ModelMessage format (handles both UIMessage and ModelMessage input)
+    // This ensures consistent internal format regardless of what the client sends
+    this.messages = convertMessagesToModelMessages(
+      config.params.messages as Array<any>,
+    )
     this.requestId = this.createId('chat')
     this.streamId = this.createId('stream')
     this.effectiveRequest = config.params.abortController
@@ -723,34 +741,66 @@ class TextEngine<
     })
   }
 
-  private collectClientState(): {
+  /**
+   * Extract client state (approvals and client tool results) from original messages.
+   * This is called in the constructor BEFORE converting to ModelMessage format,
+   * because the parts array (which contains approval state) is lost during conversion.
+   */
+  private extractClientStateFromOriginalMessages(
+    originalMessages: Array<any>,
+  ): {
     approvals: Map<string, boolean>
     clientToolResults: Map<string, any>
   } {
     const approvals = new Map<string, boolean>()
     const clientToolResults = new Map<string, any>()
 
-    for (const message of this.messages) {
-      // todo remove any and fix this
-      if (message.role === 'assistant' && (message as any).parts) {
-        const parts = (message as any).parts
-        for (const part of parts) {
-          if (
-            part.type === 'tool-call' &&
-            part.state === 'approval-responded' &&
-            part.approval
-          ) {
-            approvals.set(part.approval.id, part.approval.approved)
-          }
-
-          if (
-            part.type === 'tool-call' &&
-            part.output !== undefined &&
-            !part.approval
-          ) {
-            clientToolResults.set(part.id, part.output)
+    for (const message of originalMessages) {
+      // Check for UIMessage format (parts array) - extract client tool results and approvals
+      if (message.role === 'assistant' && message.parts) {
+        for (const part of message.parts) {
+          if (part.type === 'tool-call') {
+            // Extract client tool results (tools without approval that have output)
+            if (part.output !== undefined && !part.approval) {
+              clientToolResults.set(part.id, part.output)
+            }
+            // Extract approval responses from UIMessage format parts
+            if (
+              part.approval?.id &&
+              part.approval?.approved !== undefined &&
+              part.state === 'approval-responded'
+            ) {
+              approvals.set(part.approval.id, part.approval.approved)
+            }
           }
         }
+      }
+    }
+
+    return { approvals, clientToolResults }
+  }
+
+  private collectClientState(): {
+    approvals: Map<string, boolean>
+    clientToolResults: Map<string, any>
+  } {
+    // Start with the initial client state extracted from original messages
+    const approvals = new Map(this.initialApprovals)
+    const clientToolResults = new Map(this.initialClientToolResults)
+
+    // Also check current messages for any additional tool results (from server tools)
+    for (const message of this.messages) {
+      // Check for ModelMessage format (role: 'tool' messages contain tool results)
+      // This handles results sent back from the client after executing client-side tools
+      if (message.role === 'tool' && message.toolCallId) {
+        // Parse content back to original output (was stringified by uiMessageToModelMessages)
+        let output: unknown
+        try {
+          output = JSON.parse(message.content as string)
+        } catch {
+          output = message.content
+        }
+        clientToolResults.set(message.toolCallId, output)
       }
     }
 
@@ -879,11 +929,31 @@ class TextEngine<
   }
 
   private getPendingToolCallsFromMessages(): Array<ToolCall> {
-    const completedToolIds = new Set(
-      this.messages
-        .filter((message) => message.role === 'tool' && message.toolCallId)
-        .map((message) => message.toolCallId!), // toolCallId exists due to filter
-    )
+    // Build a set of completed tool IDs, but exclude tools with pendingExecution marker
+    // (these are approved tools that still need to execute)
+    const completedToolIds = new Set<string>()
+
+    for (const message of this.messages) {
+      if (message.role === 'tool' && message.toolCallId) {
+        // Check if this is an approval response with pendingExecution marker
+        let hasPendingExecution = false
+        if (typeof message.content === 'string') {
+          try {
+            const parsed = JSON.parse(message.content)
+            if (parsed.pendingExecution === true) {
+              hasPendingExecution = true
+            }
+          } catch {
+            // Not JSON, treat as regular tool result
+          }
+        }
+
+        // Only mark as complete if NOT pending execution
+        if (!hasPendingExecution) {
+          completedToolIds.add(message.toolCallId)
+        }
+      }
+    }
 
     const pending: Array<ToolCall> = []
 

@@ -5,7 +5,7 @@ title: TTSResult
 
 # Interface: TTSResult
 
-Defined in: [types.ts:1074](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L1074)
+Defined in: [types.ts:1106](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L1106)
 
 Result of text-to-speech generation.
 
@@ -17,7 +17,7 @@ Result of text-to-speech generation.
 audio: string;
 ```
 
-Defined in: [types.ts:1080](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L1080)
+Defined in: [types.ts:1112](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L1112)
 
 Base64-encoded audio data
 
@@ -29,7 +29,7 @@ Base64-encoded audio data
 optional contentType: string;
 ```
 
-Defined in: [types.ts:1086](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L1086)
+Defined in: [types.ts:1118](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L1118)
 
 Content type of the audio (e.g., 'audio/mp3')
 
@@ -41,7 +41,7 @@ Content type of the audio (e.g., 'audio/mp3')
 optional duration: number;
 ```
 
-Defined in: [types.ts:1084](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L1084)
+Defined in: [types.ts:1116](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L1116)
 
 Duration of the audio in seconds, if available
 
@@ -53,7 +53,7 @@ Duration of the audio in seconds, if available
 format: string;
 ```
 
-Defined in: [types.ts:1082](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L1082)
+Defined in: [types.ts:1114](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L1114)
 
 Audio format of the generated audio
 
@@ -65,7 +65,7 @@ Audio format of the generated audio
 id: string;
 ```
 
-Defined in: [types.ts:1076](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L1076)
+Defined in: [types.ts:1108](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L1108)
 
 Unique identifier for the generation
 
@@ -77,6 +77,6 @@ Unique identifier for the generation
 model: string;
 ```
 
-Defined in: [types.ts:1078](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L1078)
+Defined in: [types.ts:1110](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L1110)
 
 Model used for generation

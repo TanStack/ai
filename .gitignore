@@ -54,5 +54,9 @@ test-traces
 .nitro
 .output
 
+# Playwright
+playwright-report
+test-results
+
 # Only .claude.settings.json should be committed
 .claude/settings.local.json
