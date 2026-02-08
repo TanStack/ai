@@ -135,6 +135,7 @@ export class StreamProcessor {
   private toolCallOrder: Array<string> = []
   private finishReason: string | null = null
   private isDone = false
+  private hasError = false
   // Track if we've had tool calls since the last text segment started
   private hasToolCallsSinceTextStart = false
 
@@ -213,12 +214,47 @@ export class StreamProcessor {
   }
 
   /**
-   * Start streaming a new assistant message
-   * Returns the message ID
+   * Prepare for a new assistant message stream.
+   * Does NOT create the message immediately -- the message is created lazily
+   * when the first content-bearing chunk arrives via ensureAssistantMessage().
+   * This prevents empty assistant messages from flickering in the UI when
+   * auto-continuation produces no content.
    */
-  startAssistantMessage(): string {
+  prepareAssistantMessage(): void {
     // Reset stream state for new message
     this.resetStreamState()
+    // Clear the current assistant message ID so ensureAssistantMessage()
+    // will create a fresh message on the first content chunk
+    this.currentAssistantMessageId = null
+  }
+
+  /**
+   * @deprecated Use prepareAssistantMessage() instead. This eagerly creates
+   * an assistant message which can cause empty message flicker.
+   */
+  startAssistantMessage(): string {
+    this.prepareAssistantMessage()
+    return this.ensureAssistantMessage()
+  }
+
+  /**
+   * Get the current assistant message ID (if one has been created).
+   * Returns null if prepareAssistantMessage() was called but no content
+   * has arrived yet.
+   */
+  getCurrentAssistantMessageId(): string | null {
+    return this.currentAssistantMessageId
+  }
+
+  /**
+   * Lazily create the assistant message if it hasn't been created yet.
+   * Called by content handlers on the first content-bearing chunk.
+   * Returns the message ID.
+   */
+  private ensureAssistantMessage(): string {
+    if (this.currentAssistantMessageId) {
+      return this.currentAssistantMessageId
+    }
 
     const assistantMessage: UIMessage = {
       id: generateMessageId(),
@@ -457,6 +493,8 @@ export class StreamProcessor {
   private handleTextMessageContentEvent(
     chunk: Extract<StreamChunk, { type: 'TEXT_MESSAGE_CONTENT' }>,
   ): void {
+    this.ensureAssistantMessage()
+
     // Content arriving means all current tool calls are complete
     this.completeAllToolCalls()
 
@@ -519,6 +557,8 @@ export class StreamProcessor {
   private handleToolCallStartEvent(
     chunk: Extract<StreamChunk, { type: 'TOOL_CALL_START' }>,
   ): void {
+    this.ensureAssistantMessage()
+
     // Mark that we've seen tool calls since the last text segment
     this.hasToolCallsSinceTextStart = true
 
@@ -654,6 +694,8 @@ export class StreamProcessor {
   private handleRunErrorEvent(
     chunk: Extract<StreamChunk, { type: 'RUN_ERROR' }>,
   ): void {
+    this.ensureAssistantMessage()
+    this.hasError = true
     // Emit error event
     this.events.onError?.(new Error(chunk.error.message || 'An error occurred'))
   }
@@ -664,6 +706,8 @@ export class StreamProcessor {
   private handleStepFinishedEvent(
     chunk: Extract<StreamChunk, { type: 'STEP_FINISHED' }>,
   ): void {
+    this.ensureAssistantMessage()
+
     const previous = this.thinkingContent
     let nextThinking = previous
 
@@ -865,7 +909,28 @@ export class StreamProcessor {
       this.emitTextUpdate()
     }
 
-    // Emit stream end event
+    // Remove the assistant message if it only contains whitespace text
+    // (no tool calls, no meaningful content). This handles models like Gemini
+    // that sometimes return just "\n" during auto-continuation.
+    // Preserve the message on errors so the UI can show error state.
+    if (this.currentAssistantMessageId && !this.hasError) {
+      const assistantMessage = this.messages.find(
+        (m) => m.id === this.currentAssistantMessageId,
+      )
+      if (
+        assistantMessage &&
+        this.isWhitespaceOnlyMessage(assistantMessage)
+      ) {
+        this.messages = this.messages.filter(
+          (m) => m.id !== this.currentAssistantMessageId,
+        )
+        this.emitMessagesChange()
+        this.currentAssistantMessageId = null
+        return
+      }
+    }
+
+    // Emit stream end event (only if a message was actually created)
     if (this.currentAssistantMessageId) {
       const assistantMessage = this.messages.find(
         (m) => m.id === this.currentAssistantMessageId,
@@ -874,6 +939,19 @@ export class StreamProcessor {
         this.events.onStreamEnd?.(assistantMessage)
       }
     }
+  }
+
+  /**
+   * Check if a message contains only whitespace text and nothing else.
+   * Returns false if the message has tool calls, tool results, or
+   * any non-whitespace text content.
+   */
+  private isWhitespaceOnlyMessage(message: UIMessage): boolean {
+    if (message.parts.length === 0) return true
+
+    return message.parts.every(
+      (part) => part.type === 'text' && !part.content.trim(),
+    )
   }
 
   /**
@@ -951,6 +1029,7 @@ export class StreamProcessor {
     this.toolCallOrder = []
     this.finishReason = null
     this.isDone = false
+    this.hasError = false
     this.hasToolCallsSinceTextStart = false
     this.chunkStrategy.reset?.()
   }

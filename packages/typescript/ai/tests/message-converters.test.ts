@@ -315,6 +315,13 @@ describe('Message Converters', () => {
         role: 'assistant',
         parts: [
           {
+            type: 'tool-call',
+            id: 'tool-1',
+            name: 'getWeather',
+            arguments: '{"city": "NYC"}',
+            state: 'input-complete',
+          },
+          {
             type: 'tool-result',
             toolCallId: 'tool-1',
             content: '{"temp": 72}',
@@ -325,11 +332,150 @@ describe('Message Converters', () => {
 
       const result = uiMessageToModelMessages(uiMessage)
 
-      // Should have assistant message + tool message
+      // Should have assistant message (with tool call) + tool result message
       expect(result.length).toBe(2)
+      expect(result[0]?.role).toBe('assistant')
+      expect(result[0]?.toolCalls?.[0]?.id).toBe('tool-1')
       expect(result[1]?.role).toBe('tool')
       expect(result[1]?.toolCallId).toBe('tool-1')
       expect(result[1]?.content).toBe('{"temp": 72}')
+    })
+
+    it('should preserve interleaving of text, tool calls, and tool results', () => {
+      const uiMessage: UIMessage = {
+        id: 'msg-1',
+        role: 'assistant',
+        parts: [
+          { type: 'text', content: 'Let me check the weather.' },
+          {
+            type: 'tool-call',
+            id: 'tc-1',
+            name: 'getWeather',
+            arguments: '{"city": "NYC"}',
+            state: 'input-complete',
+          },
+          {
+            type: 'tool-result',
+            toolCallId: 'tc-1',
+            content: '{"temp": 72}',
+            state: 'complete',
+          },
+          { type: 'text', content: 'The temperature is 72F.' },
+        ],
+      }
+
+      const result = uiMessageToModelMessages(uiMessage)
+
+      // Should produce: assistant(text1 + toolCall) → tool(result) → assistant(text2)
+      expect(result.length).toBe(3)
+
+      expect(result[0]?.role).toBe('assistant')
+      expect(result[0]?.content).toBe('Let me check the weather.')
+      expect(result[0]?.toolCalls).toHaveLength(1)
+      expect(result[0]?.toolCalls?.[0]?.id).toBe('tc-1')
+
+      expect(result[1]?.role).toBe('tool')
+      expect(result[1]?.toolCallId).toBe('tc-1')
+      expect(result[1]?.content).toBe('{"temp": 72}')
+
+      expect(result[2]?.role).toBe('assistant')
+      expect(result[2]?.content).toBe('The temperature is 72F.')
+      expect(result[2]?.toolCalls).toBeUndefined()
+    })
+
+    it('should handle multi-round tool flow (text1 -> tool1 -> result1 -> text2 -> tool2 -> result2)', () => {
+      const uiMessage: UIMessage = {
+        id: 'msg-1',
+        role: 'assistant',
+        parts: [
+          { type: 'text', content: 'Let me check our inventory.' },
+          {
+            type: 'tool-call',
+            id: 'tc-get',
+            name: 'getGuitars',
+            arguments: '',
+            state: 'input-complete',
+          },
+          {
+            type: 'tool-result',
+            toolCallId: 'tc-get',
+            content: '[{"id":7,"name":"Travelin Man"}]',
+            state: 'complete',
+          },
+          { type: 'text', content: 'I found a great guitar! Let me recommend it.' },
+          {
+            type: 'tool-call',
+            id: 'tc-rec',
+            name: 'recommendGuitar',
+            arguments: '{"id": 7}',
+            state: 'input-complete',
+            output: { id: 7 },
+          },
+          {
+            type: 'tool-result',
+            toolCallId: 'tc-rec',
+            content: '{"id":7}',
+            state: 'complete',
+          },
+        ],
+      }
+
+      const result = uiMessageToModelMessages(uiMessage)
+
+      // Should produce:
+      // 1. assistant(text1 + getGuitars)
+      // 2. tool(getGuitars result)
+      // 3. assistant(text2 + recommendGuitar)
+      // 4. tool(recommendGuitar result) -- only once, no duplicate
+      expect(result.length).toBe(4)
+
+      expect(result[0]?.role).toBe('assistant')
+      expect(result[0]?.content).toBe('Let me check our inventory.')
+      expect(result[0]?.toolCalls?.[0]?.function.name).toBe('getGuitars')
+
+      expect(result[1]?.role).toBe('tool')
+      expect(result[1]?.toolCallId).toBe('tc-get')
+
+      expect(result[2]?.role).toBe('assistant')
+      expect(result[2]?.content).toBe('I found a great guitar! Let me recommend it.')
+      expect(result[2]?.toolCalls?.[0]?.function.name).toBe('recommendGuitar')
+
+      expect(result[3]?.role).toBe('tool')
+      expect(result[3]?.toolCallId).toBe('tc-rec')
+
+      // No duplicate tool result for recommendGuitar (has both output and tool-result)
+      const toolMessages = result.filter((m) => m.role === 'tool')
+      expect(toolMessages).toHaveLength(2)
+    })
+
+    it('should handle tool-call-only segment (no text before tool call)', () => {
+      const uiMessage: UIMessage = {
+        id: 'msg-1',
+        role: 'assistant',
+        parts: [
+          {
+            type: 'tool-call',
+            id: 'tc-1',
+            name: 'getGuitars',
+            arguments: '{}',
+            state: 'input-complete',
+          },
+          {
+            type: 'tool-result',
+            toolCallId: 'tc-1',
+            content: '[]',
+            state: 'complete',
+          },
+        ],
+      }
+
+      const result = uiMessageToModelMessages(uiMessage)
+
+      expect(result.length).toBe(2)
+      expect(result[0]?.role).toBe('assistant')
+      expect(result[0]?.content).toBeNull()
+      expect(result[0]?.toolCalls).toHaveLength(1)
+      expect(result[1]?.role).toBe('tool')
     })
   })
 
@@ -392,6 +538,92 @@ describe('Message Converters', () => {
         content: '{"result": "success"}',
         state: 'complete',
       })
+    })
+  })
+
+  describe('uiMessageToModelMessages - duplicate tool result prevention', () => {
+    it('should not create duplicate tool results when tool-call has output AND tool-result exists', () => {
+      // This scenario happens when a client tool executes: the UIMessage has both
+      // a tool-call part with output AND a tool-result part for the same toolCallId
+      const uiMessage: UIMessage = {
+        id: 'msg-1',
+        role: 'assistant',
+        parts: [
+          {
+            type: 'text',
+            content: 'Let me recommend a guitar.',
+          },
+          {
+            type: 'tool-call',
+            id: 'tc-1',
+            name: 'recommendGuitar',
+            arguments: '{"id": 7}',
+            state: 'input-complete',
+            output: { id: 7 },
+          },
+          {
+            type: 'tool-result',
+            toolCallId: 'tc-1',
+            content: '{"id":7}',
+            state: 'complete',
+          },
+        ],
+      }
+
+      const result = uiMessageToModelMessages(uiMessage)
+
+      // Should have: 1 assistant message + 1 tool result (NOT 2)
+      const toolMessages = result.filter((m) => m.role === 'tool')
+      expect(toolMessages).toHaveLength(1)
+      expect(toolMessages[0]?.toolCallId).toBe('tc-1')
+    })
+
+    it('should handle multi-round tool calls without duplicating results', () => {
+      // This scenario simulates the full multi-round message:
+      // text1 + getGuitars tool call + getGuitars result + text2 + recommendGuitar tool call + recommendGuitar result
+      const uiMessage: UIMessage = {
+        id: 'msg-1',
+        role: 'assistant',
+        parts: [
+          { type: 'text', content: 'Let me check our inventory.' },
+          {
+            type: 'tool-call',
+            id: 'tc-get',
+            name: 'getGuitars',
+            arguments: '',
+            state: 'input-complete',
+          },
+          {
+            type: 'tool-result',
+            toolCallId: 'tc-get',
+            content: '[{"id":7,"name":"Travelin Man Guitar"}]',
+            state: 'complete',
+          },
+          { type: 'text', content: 'I found a great guitar!' },
+          {
+            type: 'tool-call',
+            id: 'tc-rec',
+            name: 'recommendGuitar',
+            arguments: '{"id": 7}',
+            state: 'input-complete',
+            output: { id: 7 },
+          },
+          {
+            type: 'tool-result',
+            toolCallId: 'tc-rec',
+            content: '{"id":7}',
+            state: 'complete',
+          },
+        ],
+      }
+
+      const result = uiMessageToModelMessages(uiMessage)
+
+      // Should have exactly 2 tool result messages (one per tool call, no duplicates)
+      const toolMessages = result.filter((m) => m.role === 'tool')
+      expect(toolMessages).toHaveLength(2)
+      expect(toolMessages[0]?.toolCallId).toBe('tc-get')
+      expect(toolMessages[1]?.toolCallId).toBe('tc-rec')
     })
   })
 })

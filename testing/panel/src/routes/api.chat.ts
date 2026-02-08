@@ -149,10 +149,6 @@ export const Route = createFileRoute('/api/chat')({
   server: {
     handlers: {
       POST: async ({ request }) => {
-        // #region agent log
-        console.log('[DEBUG] POST /api/chat handler entered at', new Date().toISOString())
-        fetch('http://127.0.0.1:7244/ingest/830522ab-8098-40b9-a021-890f9c041588',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'api.chat.ts:POST:ENTRY',message:'POST handler entered',data:{url:request.url,method:request.method},timestamp:Date.now(),hypothesisId:'ENTRY0'})}).catch(()=>{});
-        // #endregion
         // Capture request signal before reading body (it may be aborted after body is consumed)
         const requestSignal = request.signal
 
@@ -207,9 +203,6 @@ export const Route = createFileRoute('/api/chat')({
           let { adapter } = options
 
           console.log(`>> model: ${model} on provider: ${provider}`)
-          // #region agent log
-          if (provider === 'openrouter') { fetch('http://127.0.0.1:7244/ingest/830522ab-8098-40b9-a021-890f9c041588',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'api.chat.ts:POST',message:'openrouter request start',data:{provider,model,messageCount:messages?.length,adapterKind:(adapter as any)?.kind,adapterName:(adapter as any)?.name},timestamp:Date.now(),hypothesisId:'ENTRY'})}).catch(()=>{}); }
-          // #endregion
 
           // If we have a traceId, wrap the adapter to record raw chunks from chatStream
           if (traceId) {
@@ -227,44 +220,32 @@ export const Route = createFileRoute('/api/chat')({
           }
 
           // Use the stream abort signal for proper cancellation handling
-          let stream: AsyncIterable<any>
-          try {
-            stream = chat({
-              ...options,
-              adapter, // Use potentially wrapped adapter
-              tools: [
-                getGuitars, // Server tool
-                recommendGuitarToolDef, // No server execute - client will handle
-                addToCartToolServer,
-                addToWishListToolDef,
-                getPersonalGuitarPreferenceToolDef,
-              ],
-              systemPrompts: [SYSTEM_PROMPT],
-              agentLoopStrategy: maxIterations(20),
-              messages,
-              modelOptions: {
-                // Enable reasoning for OpenAI (gpt-5, o3 models):
-                // reasoning: {
-                //   effort: "medium", // or "low", "high", "minimal", "none" (for gpt-5.1)
-                // },
-                // Enable thinking for Anthropic:
-                /*   thinking: {
-                    type: "enabled",
-                    budget_tokens: 2048,
-                  }, */
-              },
-              abortController,
-            })
-          } catch (chatError: any) {
-            // #region agent log
-            if (provider === 'openrouter') { fetch('http://127.0.0.1:7244/ingest/830522ab-8098-40b9-a021-890f9c041588',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'api.chat.ts:POST',message:'chat() threw error',data:{errorMessage:chatError?.message,errorName:chatError?.name,errorStack:chatError?.stack?.slice(0,500)},timestamp:Date.now(),hypothesisId:'E'})}).catch(()=>{}); }
-            // #endregion
-            throw chatError
-          }
-
-          // #region agent log
-          if (provider === 'openrouter') { fetch('http://127.0.0.1:7244/ingest/830522ab-8098-40b9-a021-890f9c041588',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'api.chat.ts:POST',message:'chat() returned stream, calling toServerSentEventsResponse',data:{streamType:typeof stream,isAsyncIterable:!!stream[Symbol.asyncIterator]},timestamp:Date.now(),hypothesisId:'FLOW'})}).catch(()=>{}); }
-          // #endregion
+          const stream = chat({
+            ...options,
+            adapter, // Use potentially wrapped adapter
+            tools: [
+              getGuitars, // Server tool
+              recommendGuitarToolDef, // No server execute - client will handle
+              addToCartToolServer,
+              addToWishListToolDef,
+              getPersonalGuitarPreferenceToolDef,
+            ],
+            systemPrompts: [SYSTEM_PROMPT],
+            agentLoopStrategy: maxIterations(20),
+            messages,
+            modelOptions: {
+              // Enable reasoning for OpenAI (gpt-5, o3 models):
+              // reasoning: {
+              //   effort: "medium", // or "low", "high", "minimal", "none" (for gpt-5.1)
+              // },
+              // Enable thinking for Anthropic:
+              /*   thinking: {
+                  type: "enabled",
+                  budget_tokens: 2048,
+                }, */
+            },
+            abortController,
+          })
 
           return toServerSentEventsResponse(stream, { abortController })
         } catch (error: any) {
