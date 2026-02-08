@@ -428,7 +428,9 @@ export interface Tool<
    *   return weather; // Can return object or string
    * }
    */
-  execute?: (args: any) => Promise<any> | any
+  execute?: (
+    args: InferSchemaType<TInput>,
+  ) => Promise<InferSchemaType<TOutput>> | InferSchemaType<TOutput>
 
   /** If true, tool execution requires user approval before running. Works with both server and client tools. */
   needsApproval?: boolean

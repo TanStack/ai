@@ -1,13 +1,15 @@
 import { ThinkingPart } from './thinking-part'
-import type { ReactNode } from 'react'
+import type { MessagePart, ToolCallState } from '@tanstack/ai-client'
 import type { UIMessage } from '@tanstack/ai-react'
+import type { ReactNode } from 'react'
+import type { ToolApprovalProps } from './tool-approval'
 
 export interface ToolCallRenderProps {
   id: string
   name: string
-  arguments: string
-  state: string
-  approval?: any
+  arguments: any
+  state: ToolCallState
+  approval?: ToolApprovalProps['approval']
   output?: any
 }
 
@@ -144,8 +146,7 @@ function MessagePart({
   defaultToolRenderer,
   toolResultRenderer,
 }: {
-  // TODO Fix me
-  part: any
+  part: MessagePart
   isThinkingComplete?: boolean
   textPartRenderer?: ChatMessageProps['textPartRenderer']
   thinkingPartRenderer?: ChatMessageProps['thinkingPartRenderer']
@@ -239,29 +240,25 @@ function MessagePart({
   }
 
   // Tool result part
-  if (part.type === 'tool-result') {
-    if (toolResultRenderer) {
-      return (
-        <>
-          {toolResultRenderer({
-            toolCallId: part.toolCallId,
-            content: part.content,
-            state: part.state,
-          })}
-        </>
-      )
-    }
-
+  if (toolResultRenderer) {
     return (
-      <div
-        data-part-type="tool-result"
-        data-tool-call-id={part.toolCallId}
-        data-tool-result-state={part.state}
-      >
-        <div data-tool-result-content>{part.content}</div>
-      </div>
+      <>
+        {toolResultRenderer({
+          toolCallId: part.toolCallId,
+          content: part.content,
+          state: part.state,
+        })}
+      </>
     )
   }
 
-  return null
+  return (
+    <div
+      data-part-type="tool-result"
+      data-tool-call-id={part.toolCallId}
+      data-tool-result-state={part.state}
+    >
+      <div data-tool-result-content>{part.content}</div>
+    </div>
+  )
 }

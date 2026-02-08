@@ -1,14 +1,16 @@
 import { For, Show } from 'solid-js'
 import { ThinkingPart } from './thinking-part'
+import type { MessagePart, ToolCallState } from '@tanstack/ai-client'
 import type { JSX } from 'solid-js'
 import type { UIMessage } from '@tanstack/ai-solid'
+import type { ToolApprovalProps } from './tool-approval'
 
 export interface ToolCallRenderProps {
   id: string
   name: string
   arguments: string
-  state: string
-  approval?: any
+  state: ToolCallState
+  approval?: ToolApprovalProps['approval']
   output?: any
 }
 
@@ -133,7 +135,7 @@ export function ChatMessage(props: ChatMessageProps) {
 }
 
 function MessagePart(props: {
-  part: any
+  part: MessagePart
   isThinkingComplete?: boolean
   textPartRenderer?: ChatMessageProps['textPartRenderer']
   thinkingPartRenderer?: ChatMessageProps['thinkingPartRenderer']
@@ -213,7 +215,7 @@ function MessagePart(props: {
         </Show>
         <Show when={props.part.approval}>
           <div data-tool-approval>
-            {props.part.approval.approved !== undefined
+            {props.part.approval?.approved !== undefined
               ? props.part.approval.approved
                 ? '✓ Approved'
                 : '✗ Denied'
@@ -230,29 +232,25 @@ function MessagePart(props: {
   }
 
   // Tool result part
-  if (props.part.type === 'tool-result') {
-    if (props.toolResultRenderer) {
-      return (
-        <>
-          {props.toolResultRenderer({
-            toolCallId: props.part.toolCallId,
-            content: props.part.content,
-            state: props.part.state,
-          })}
-        </>
-      )
-    }
-
+  if (props.toolResultRenderer) {
     return (
-      <div
-        data-part-type="tool-result"
-        data-tool-call-id={props.part.toolCallId}
-        data-tool-result-state={props.part.state}
-      >
-        <div data-tool-result-content>{props.part.content}</div>
-      </div>
+      <>
+        {props.toolResultRenderer({
+          toolCallId: props.part.toolCallId,
+          content: props.part.content,
+          state: props.part.state,
+        })}
+      </>
     )
   }
 
-  return null
+  return (
+    <div
+      data-part-type="tool-result"
+      data-tool-call-id={props.part.toolCallId}
+      data-tool-result-state={props.part.state}
+    >
+      <div data-tool-result-content>{props.part.content}</div>
+    </div>
+  )
 }

@@ -239,6 +239,58 @@ function ChatComponent() {
 }
 ```
 
+## Tool UI Rendering
+
+When using TanStack AI's UI components (like `@tanstack/ai-react-ui`), you can provide custom renderers for tool calls and results. This allows you to replace the default JSON preview with rich, interactive UI components.
+
+### Custom Tool Renderers
+
+Use the `toolsRenderer` prop to map tool names to specific React components. Each renderer receives the tool call details, including current state and execution output.
+
+```tsx
+import { ChatMessage } from "@tanstack/ai-react-ui";
+
+<ChatMessage
+  message={message}
+  toolsRenderer={{
+    get_weather: ({ arguments: args, output, state }) => {
+      const { location } = JSON.parse(args);
+      
+      if (state === 'executing' || !output) {
+        return <div>Loading weather for {location}...</div>;
+      }
+      
+      return (
+        <WeatherCard 
+          location={location}
+          temperature={output.temperature}
+          conditions={output.conditions}
+        />
+      );
+    },
+  }}
+  defaultToolRenderer={({ name }) => (
+    <div className="italic text-gray-500">Calling {name}...</div>
+  )}
+/>
+```
+
+### Result Rendering
+
+While `toolsRenderer` handles the tool-call part (usually inside the assistant's message), you can also customize how the independent `tool-result` parts are rendered using `toolResultRenderer`.
+
+```tsx
+<ChatMessage
+  message={message}
+  toolResultRenderer={({ toolCallId, content, state }) => (
+    <div className="border-t pt-2 mt-2">
+      <strong>Result ({state}):</strong>
+      <pre>{content}</pre>
+    </div>
+  )}
+/>
+```
+
 ## Hybrid Tools
 
 Tools can be implemented for both server and client, enabling flexible execution patterns:

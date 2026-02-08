@@ -24,17 +24,8 @@ export interface ClientTool<
   TInput extends SchemaInput = SchemaInput,
   TOutput extends SchemaInput = SchemaInput,
   TName extends string = string,
-> {
+> extends Tool<TInput, TOutput, TName> {
   __toolSide: 'client'
-  name: TName
-  description: string
-  inputSchema?: TInput
-  outputSchema?: TOutput
-  needsApproval?: boolean
-  metadata?: Record<string, unknown>
-  execute?: (
-    args: InferSchemaType<TInput>,
-  ) => Promise<InferSchemaType<TOutput>> | InferSchemaType<TOutput>
 }
 
 /**
