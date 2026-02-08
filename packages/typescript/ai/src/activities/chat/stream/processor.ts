@@ -917,10 +917,7 @@ export class StreamProcessor {
       const assistantMessage = this.messages.find(
         (m) => m.id === this.currentAssistantMessageId,
       )
-      if (
-        assistantMessage &&
-        this.isWhitespaceOnlyMessage(assistantMessage)
-      ) {
+      if (assistantMessage && this.isWhitespaceOnlyMessage(assistantMessage)) {
         this.messages = this.messages.filter(
           (m) => m.id !== this.currentAssistantMessageId,
         )

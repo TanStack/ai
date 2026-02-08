@@ -405,7 +405,10 @@ describe('Message Converters', () => {
             content: '[{"id":7,"name":"Travelin Man"}]',
             state: 'complete',
           },
-          { type: 'text', content: 'I found a great guitar! Let me recommend it.' },
+          {
+            type: 'text',
+            content: 'I found a great guitar! Let me recommend it.',
+          },
           {
             type: 'tool-call',
             id: 'tc-rec',
@@ -440,7 +443,9 @@ describe('Message Converters', () => {
       expect(result[1]?.toolCallId).toBe('tc-get')
 
       expect(result[2]?.role).toBe('assistant')
-      expect(result[2]?.content).toBe('I found a great guitar! Let me recommend it.')
+      expect(result[2]?.content).toBe(
+        'I found a great guitar! Let me recommend it.',
+      )
       expect(result[2]?.toolCalls?.[0]?.function.name).toBe('recommendGuitar')
 
       expect(result[3]?.role).toBe('tool')
@@ -847,9 +852,7 @@ describe('Message Converters', () => {
       expect(result[0]?.role).toBe('user')
       expect(result[0]?.parts).toEqual([{ type: 'text', content: 'Hello' }])
       expect(result[1]?.role).toBe('assistant')
-      expect(result[1]?.parts).toEqual([
-        { type: 'text', content: 'Hi there!' },
-      ])
+      expect(result[1]?.parts).toEqual([{ type: 'text', content: 'Hi there!' }])
     })
 
     it('should merge tool result into preceding assistant message', () => {

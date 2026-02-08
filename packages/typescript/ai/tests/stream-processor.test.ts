@@ -209,7 +209,9 @@ describe('StreamProcessor', () => {
 
       // Now the message exists with a tool call part
       expect(processor.getMessages()).toHaveLength(1)
-      expect(processor.getMessages()[0]?.parts.some((p) => p.type === 'tool-call')).toBe(true)
+      expect(
+        processor.getMessages()[0]?.parts.some((p) => p.type === 'tool-call'),
+      ).toBe(true)
     })
 
     it('should create assistant message lazily on error', () => {
@@ -254,7 +256,9 @@ describe('StreamProcessor', () => {
 
       // Now the message exists with thinking content
       expect(processor.getMessages()).toHaveLength(1)
-      expect(processor.getMessages()[0]?.parts.some((p) => p.type === 'thinking')).toBe(true)
+      expect(
+        processor.getMessages()[0]?.parts.some((p) => p.type === 'thinking'),
+      ).toBe(true)
     })
 
     it('should not create assistant message during empty multi-turn continuation', () => {
