@@ -1,6 +1,6 @@
 {
   "name": "@tanstack/ai-grok",
-  "version": "0.4.0",
+  "version": "0.4.1",
   "description": "Grok (xAI) adapter for TanStack AI",
   "author": "",
   "license": "MIT",
