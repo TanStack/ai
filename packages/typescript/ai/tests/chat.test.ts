@@ -12,7 +12,7 @@ function chunk<T extends StreamChunk['type']>(
   type: T,
   fields: Omit<Extract<StreamChunk, { type: T }>, 'type' | 'timestamp'>,
 ): StreamChunk {
-  return { type, timestamp: Date.now(), ...fields } as StreamChunk
+  return { type, timestamp: Date.now(), ...fields } as unknown as StreamChunk
 }
 
 /** Shorthand chunk factories for common AG-UI events. */

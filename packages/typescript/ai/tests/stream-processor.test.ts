@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from 'vitest'
+import { type Mock, describe, expect, it, vi } from 'vitest'
 import {
   StreamProcessor,
   createReplayStream,
@@ -16,7 +16,7 @@ function chunk<T extends StreamChunk['type']>(
   type: T,
   fields: Omit<Extract<StreamChunk, { type: T }>, 'type' | 'timestamp'>,
 ): StreamChunk {
-  return { type, timestamp: Date.now(), ...fields } as StreamChunk
+  return { type, timestamp: Date.now(), ...fields } as unknown as StreamChunk
 }
 
 /** Create an async iterable from a list of chunks. */
@@ -52,8 +52,13 @@ const ev = {
     chunk('CUSTOM', { name, data }),
 }
 
+/** Events object with vi.fn() mocks for assertions. */
+type MockedEvents = {
+  [K in keyof Required<StreamProcessorEvents>]: Required<StreamProcessorEvents>[K] & Mock
+}
+
 /** Create a spy-laden events object for assertions. */
-function spyEvents(): Required<StreamProcessorEvents> {
+function spyEvents(): MockedEvents {
   return {
     onMessagesChange: vi.fn(),
     onStreamStart: vi.fn(),
@@ -64,7 +69,7 @@ function spyEvents(): Required<StreamProcessorEvents> {
     onTextUpdate: vi.fn(),
     onToolCallStateChange: vi.fn(),
     onThinkingUpdate: vi.fn(),
-  }
+  } as MockedEvents
 }
 
 // ============================================================================
@@ -1391,7 +1396,7 @@ describe('StreamProcessor', () => {
       const processor = new StreamProcessor({ recording: true })
       processor.prepareAssistantMessage()
 
-      const result = await processor.process(
+      await processor.process(
         streamOf(
           ev.runStarted(),
           ev.textStart(),
