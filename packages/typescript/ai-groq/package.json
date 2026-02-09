@@ -1,0 +1,50 @@
+{
+  "name": "@tanstack/ai-groq",
+  "version": "0.0.1",
+  "type": "module",
+  "description": "Groq adapter for TanStack AI",
+  "author": "",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/TanStack/ai.git",
+    "directory": "packages/typescript/ai-groq"
+  },
+  "module": "./dist/esm/index.js",
+  "types": "./dist/esm/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/esm/index.d.ts",
+      "import": "./dist/esm/index.js"
+    }
+  },
+  "files": [
+    "dist",
+    "src"
+  ],
+  "scripts": {
+    "build": "vite build",
+    "clean": "premove ./build ./dist",
+    "lint:fix": "eslint ./src --fix",
+    "test:build": "publint --strict",
+    "test:eslint": "eslint ./src",
+    "test:lib": "vitest run",
+    "test:lib:dev": "pnpm test:lib --watch",
+    "test:types": "tsc"
+  },
+  "keywords": [
+    "ai",
+    "groq",
+    "tanstack",
+    "adapter"
+  ],
+  "devDependencies": {
+    "@vitest/coverage-v8": "4.0.14",
+    "vite": "^7.2.7"
+  },
+  "peerDependencies": {
+    "@tanstack/ai": "workspace:^",
+    "zod": "^4.0.0"
+  },
+  "packageManager": "pnpm@10.17.0"
+}
