@@ -1,11 +1,11 @@
-import { FinishReason, GoogleGenAI } from '@google/genai'
+import { FinishReason } from '@google/genai'
 import {
   createGeminiClient,
   generateId,
   getGeminiApiKeyFromEnv,
 } from '../utils'
+import type { GoogleGenAI } from '@google/genai'
 import type { GeminiClientConfig } from '../utils'
-
 import type { SummarizeAdapter } from '@tanstack/ai/adapters'
 import type {
   StreamChunk,
@@ -70,13 +70,8 @@ export class GeminiSummarizeAdapter<
 
   private client: GoogleGenAI
 
-  constructor(
-    config: GeminiSummarizeConfig | GoogleGenAI,
-    model: TModel,
-    _options: GeminiSummarizeAdapterOptions = {},
-  ) {
-    this.client =
-      config instanceof GoogleGenAI ? config : createGeminiClient(config)
+  constructor(config: GeminiSummarizeConfig, model: TModel) {
+    this.client = createGeminiClient(config)
     this.model = model
   }
 
@@ -226,9 +221,9 @@ export class GeminiSummarizeAdapter<
 export function createGeminiSummarize<TModel extends GeminiSummarizeModel>(
   apiKey: string,
   model: TModel,
-  options?: Omit<GeminiSummarizeConfig, 'apiKey'>,
+  config?: Omit<GeminiSummarizeConfig, 'apiKey'>,
 ): GeminiSummarizeAdapter<TModel> {
-  return new GeminiSummarizeAdapter({ ...options, apiKey }, model, options)
+  return new GeminiSummarizeAdapter({ ...config, apiKey }, model)
 }
 
 /**
@@ -236,8 +231,8 @@ export function createGeminiSummarize<TModel extends GeminiSummarizeModel>(
  */
 export function geminiSummarize<TModel extends GeminiSummarizeModel>(
   model: TModel,
-  options?: Omit<GeminiSummarizeConfig, 'apiKey'>,
+  config?: Omit<GeminiSummarizeConfig, 'apiKey'>,
 ): GeminiSummarizeAdapter<TModel> {
   const apiKey = getGeminiApiKeyFromEnv()
-  return new GeminiSummarizeAdapter({ ...options, apiKey }, model, options)
+  return new GeminiSummarizeAdapter({ ...config, apiKey }, model)
 }
