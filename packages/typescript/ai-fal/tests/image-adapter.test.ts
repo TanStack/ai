@@ -44,7 +44,6 @@ describe('Fal Image Adapter', () => {
     const adapter = createAdapter()
 
     const result = await adapter.generateImages({
-      model: 'fal-ai/flux/dev',
       prompt: 'A futuristic city at sunset',
     })
 
@@ -74,7 +73,6 @@ describe('Fal Image Adapter', () => {
     const adapter = createAdapter()
 
     const result = await adapter.generateImages({
-      model: 'fal-ai/flux/dev',
       prompt: 'A cute robot mascot',
       numberOfImages: 2,
     })
@@ -101,7 +99,6 @@ describe('Fal Image Adapter', () => {
     const adapter = createAdapter()
 
     const result = await adapter.generateImages({
-      model: 'fal-ai/flux/dev',
       prompt: 'A simple test image',
     })
 
@@ -110,7 +107,7 @@ describe('Fal Image Adapter', () => {
     expect(result.images[0]!.url).toBe(`data:image/png;base64,${base64Data}`)
   })
 
-  it('converts size to fal format preset', async () => {
+  it('passes image_size preset through model options', async () => {
     const mockResponse = createMockImageResponse([
       { url: 'https://fal.media/files/image.png' },
     ])
@@ -120,9 +117,8 @@ describe('Fal Image Adapter', () => {
     const adapter = createAdapter()
 
     await adapter.generateImages({
-      model: 'fal-ai/flux/dev',
       prompt: 'A wide landscape',
-      size: '1024x768', // Should map to landscape_4_3
+      modelOptions: { image_size: 'landscape_4_3' },
     })
 
     const [, options] = mockSubscribe.mock.calls[0]!
@@ -131,7 +127,7 @@ describe('Fal Image Adapter', () => {
     })
   })
 
-  it('converts custom size to width/height object', async () => {
+  it('passes custom image_size through model options', async () => {
     const mockResponse = createMockImageResponse([
       { url: 'https://fal.media/files/image.png' },
     ])
@@ -141,9 +137,8 @@ describe('Fal Image Adapter', () => {
     const adapter = createAdapter()
 
     await adapter.generateImages({
-      model: 'fal-ai/flux/dev',
       prompt: 'A custom size image',
-      size: '800x600',
+      modelOptions: { image_size: { width: 800, height: 600 } },
     })
 
     const [, options] = mockSubscribe.mock.calls[0]!
@@ -162,7 +157,6 @@ describe('Fal Image Adapter', () => {
     const adapter = createAdapter()
 
     await adapter.generateImages({
-      model: 'fal-ai/flux/dev',
       prompt: 'Test',
       modelOptions: {
         num_inference_steps: 28,
@@ -192,7 +186,6 @@ describe('Fal Image Adapter', () => {
     const adapter = createAdapter()
 
     const result = await adapter.generateImages({
-      model: 'fal-ai/flux/dev',
       prompt: 'Single image test',
     })
 
@@ -207,7 +200,6 @@ describe('Fal Image Adapter', () => {
 
     await expect(
       adapter.generateImages({
-        model: 'invalid/model',
         prompt: 'Test prompt',
       }),
     ).rejects.toThrow('Model not found')

@@ -42,7 +42,6 @@ describe('Fal Video Adapter', () => {
       const adapter = createAdapter()
 
       const result = await adapter.createVideoJob({
-        model: 'fal-ai/veo3/image-to-video',
         prompt: 'A cat walking in the garden',
       })
 
@@ -68,7 +67,7 @@ describe('Fal Video Adapter', () => {
       const adapter = createAdapter()
 
       await adapter.createVideoJob({
-        model: 'fal-ai/veo3/image-to-video',
+
         prompt: 'A stylish woman walks down a Tokyo street',
         modelOptions: {
           image_url: 'https://example.com/image.jpg',
@@ -89,7 +88,7 @@ describe('Fal Video Adapter', () => {
       const adapter = createAdapter()
 
       await adapter.createVideoJob({
-        model: 'fal-ai/veo3/image-to-video',
+
         prompt: 'A time lapse of a sunset',
         duration: 10,
       })
@@ -108,7 +107,7 @@ describe('Fal Video Adapter', () => {
       const adapter = createAdapter()
 
       await adapter.createVideoJob({
-        model: 'fal-ai/veo3/image-to-video',
+
         prompt: 'A wide landscape video',
         size: '1920x1080', // 1080p, 16:9
       })
@@ -128,7 +127,7 @@ describe('Fal Video Adapter', () => {
       const adapter = createAdapter()
 
       await adapter.createVideoJob({
-        model: 'fal-ai/veo3/image-to-video',
+
         prompt: 'Test video',
         modelOptions: {
           image_url: 'https://example.com/image.jpg',

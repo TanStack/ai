@@ -25,13 +25,6 @@
   "scripts": {
     "build": "vite build",
     "clean": "premove ./build ./dist",
-    "generate:types": "pnpx @hey-api/openapi-ts",
-    "generate:maps": "tsx scripts/generate-fal-endpoint-maps.ts",
-    "generate:fal": "pnpm fetch:fal-all && pnpm generate:types && pnpm generate:maps",
-    "fetch:fal-all": "tsx scripts/fetch-fal-models.ts",
-    "fetch:fal-image": "tsx scripts/fetch-fal-models.ts --categories=image-to-image,text-to-image",
-    "fetch:fal-video": "tsx scripts/fetch-fal-models.ts --categories=video-to-video,text-to-video,image-to-video",
-    "fetch:fal-audio": "tsx scripts/fetch-fal-models.ts --categories=text-to-audio,audio-to-audio,text-to-speech",
     "lint:fix": "eslint ./src --fix",
     "test:build": "publint --strict",
     "test:eslint": "eslint ./src",
@@ -51,11 +44,11 @@
     "@fal-ai/client": "^1.9.0"
   },
   "devDependencies": {
+    "@tanstack/ai": "workspace:*",
     "@vitest/coverage-v8": "4.0.14",
-    "vite": "^7.3.1"
+    "vite": "^7.2.7"
   },
   "peerDependencies": {
-    "@tanstack/ai": "workspace:*",
-    "zod": "^4"
+    "@tanstack/ai": "workspace:*"
   }
 }
