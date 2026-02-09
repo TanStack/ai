@@ -101,18 +101,15 @@ export interface StreamProcessorOptions {
  * StreamProcessor - State machine for processing AI response streams
  *
  * Manages the full UIMessage[] conversation and emits events on changes.
+ * Trusts the adapter contract: adapters emit clean AG-UI events in the
+ * correct order.
  *
  * State tracking:
  * - Full message array
  * - Current assistant message being streamed
- * - Text content accumulation
+ * - Text content accumulation (reset on TEXT_MESSAGE_START)
  * - Multiple parallel tool calls
- * - Tool call completion detection
- *
- * Tool call completion is detected when:
- * 1. A new tool call starts at a different index
- * 2. Text content arrives
- * 3. Stream ends
+ * - Tool call completion via TOOL_CALL_END events
  */
 export class StreamProcessor {
   private chunkStrategy: ChunkStrategy
@@ -135,9 +132,6 @@ export class StreamProcessor {
   private toolCallOrder: Array<string> = []
   private finishReason: string | null = null
   private isDone = false
-  private hasError = false
-  // Track if we've had tool calls since the last text segment started
-  private hasToolCallsSinceTextStart = false
 
   // Recording
   private recording: ChunkRecording | null = null
@@ -448,6 +442,10 @@ export class StreamProcessor {
 
     switch (chunk.type) {
       // AG-UI Events
+      case 'TEXT_MESSAGE_START':
+        this.handleTextMessageStartEvent()
+        break
+
       case 'TEXT_MESSAGE_CONTENT':
         this.handleTextMessageContentEvent(chunk)
         break
@@ -481,10 +479,23 @@ export class StreamProcessor {
         break
 
       default:
-        // RUN_STARTED, TEXT_MESSAGE_START, TEXT_MESSAGE_END, STEP_STARTED,
+        // RUN_STARTED, TEXT_MESSAGE_END, STEP_STARTED,
         // STATE_SNAPSHOT, STATE_DELTA - no special handling needed
         break
     }
+  }
+
+  /**
+   * Handle TEXT_MESSAGE_START event — marks the beginning of a new text segment.
+   * Resets segment accumulation so text after tool calls starts fresh.
+   */
+  private handleTextMessageStartEvent(): void {
+    // Emit any pending text from a previous segment before resetting
+    if (this.currentSegmentText !== this.lastEmittedText) {
+      this.emitTextUpdate()
+    }
+    this.currentSegmentText = ''
+    this.lastEmittedText = ''
   }
 
   /**
@@ -495,55 +506,11 @@ export class StreamProcessor {
   ): void {
     this.ensureAssistantMessage()
 
-    // Content arriving means all current tool calls are complete
-    this.completeAllToolCalls()
+    this.currentSegmentText += chunk.delta
+    this.totalTextContent += chunk.delta
 
-    const previousSegment = this.currentSegmentText
-
-    // Detect if this is a NEW text segment (after tool calls) vs continuation
-    const isNewSegment =
-      this.hasToolCallsSinceTextStart &&
-      previousSegment.length > 0 &&
-      this.isNewTextSegment(chunk, previousSegment)
-
-    if (isNewSegment) {
-      // Emit any accumulated text before starting new segment
-      if (previousSegment !== this.lastEmittedText) {
-        this.emitTextUpdate()
-      }
-      // Reset SEGMENT text accumulation for the new text segment after tool calls
-      this.currentSegmentText = ''
-      this.lastEmittedText = ''
-      this.hasToolCallsSinceTextStart = false
-    }
-
-    const currentText = this.currentSegmentText
-    let nextText = currentText
-
-    // Prefer delta over content - delta is the incremental change
-    // Check for both undefined and empty string to avoid "undefined" string concatenation
-    if (chunk.delta !== undefined && chunk.delta !== '') {
-      nextText = currentText + chunk.delta
-    } else if (chunk.content !== undefined && chunk.content !== '') {
-      // Fallback: use content if delta is not provided
-      if (chunk.content.startsWith(currentText)) {
-        nextText = chunk.content
-      } else if (currentText.startsWith(chunk.content)) {
-        nextText = currentText
-      } else {
-        nextText = currentText + chunk.content
-      }
-    }
-
-    // Calculate the delta for totalTextContent
-    const textDelta = nextText.slice(currentText.length)
-    this.currentSegmentText = nextText
-    this.totalTextContent += textDelta
-
-    // Use delta for chunk strategy if available
-    const chunkPortion = chunk.delta || chunk.content || ''
     const shouldEmit = this.chunkStrategy.shouldEmit(
-      chunkPortion,
+      chunk.delta,
       this.currentSegmentText,
     )
     if (shouldEmit && this.currentSegmentText !== this.lastEmittedText) {
@@ -558,9 +525,6 @@ export class StreamProcessor {
     chunk: Extract<StreamChunk, { type: 'TOOL_CALL_START' }>,
   ): void {
     this.ensureAssistantMessage()
-
-    // Mark that we've seen tool calls since the last text segment
-    this.hasToolCallsSinceTextStart = true
 
     const toolCallId = chunk.toolCallId
     const existingToolCall = this.toolCalls.get(toolCallId)
@@ -657,15 +621,27 @@ export class StreamProcessor {
   }
 
   /**
-   * Handle TOOL_CALL_END event
+   * Handle TOOL_CALL_END event — authoritative signal that a tool call's input is finalized.
    */
   private handleToolCallEndEvent(
     chunk: Extract<StreamChunk, { type: 'TOOL_CALL_END' }>,
   ): void {
-    const state: ToolResultState = 'complete'
+    // Transition the tool call to input-complete (the authoritative completion signal)
+    const existingToolCall = this.toolCalls.get(chunk.toolCallId)
+    if (existingToolCall && existingToolCall.state !== 'input-complete') {
+      const index = this.toolCallOrder.indexOf(chunk.toolCallId)
+      this.completeToolCall(index, existingToolCall)
+      // If TOOL_CALL_END provides parsed input, use it as the canonical parsed
+      // arguments (overrides the accumulated string parse from completeToolCall)
+      if (chunk.input !== undefined) {
+        existingToolCall.parsedArguments = chunk.input
+      }
+    }
 
-    // Update UIMessage if we have a current assistant message
+    // Update UIMessage if we have a current assistant message and a result
     if (this.currentAssistantMessageId && chunk.result) {
+      const state: ToolResultState = 'complete'
+
       // Step 1: Update the tool-call part's output field (for UI consistency
       // with client tools — see GitHub issue #176)
       let output: unknown
@@ -710,7 +686,6 @@ export class StreamProcessor {
     chunk: Extract<StreamChunk, { type: 'RUN_ERROR' }>,
   ): void {
     this.ensureAssistantMessage()
-    this.hasError = true
     // Emit error event
     this.events.onError?.(new Error(chunk.error.message || 'An error occurred'))
   }
@@ -723,23 +698,7 @@ export class StreamProcessor {
   ): void {
     this.ensureAssistantMessage()
 
-    const previous = this.thinkingContent
-    let nextThinking = previous
-
-    // Prefer delta over content
-    if (chunk.delta && chunk.delta !== '') {
-      nextThinking = previous + chunk.delta
-    } else if (chunk.content && chunk.content !== '') {
-      if (chunk.content.startsWith(previous)) {
-        nextThinking = chunk.content
-      } else if (previous.startsWith(chunk.content)) {
-        nextThinking = previous
-      } else {
-        nextThinking = previous + chunk.content
-      }
-    }
-
-    this.thinkingContent = nextThinking
+    this.thinkingContent += chunk.delta
 
     // Update UIMessage
     if (this.currentAssistantMessageId) {
@@ -810,28 +769,6 @@ export class StreamProcessor {
         approvalId: approval.id,
       })
     }
-  }
-
-  /**
-   * Detect if an incoming content chunk represents a NEW text segment
-   */
-  private isNewTextSegment(
-    chunk: Extract<StreamChunk, { type: 'TEXT_MESSAGE_CONTENT' }>,
-    previous: string,
-  ): boolean {
-    // Check if content is present (delta is always defined but may be empty string)
-    if (chunk.content !== undefined) {
-      if (chunk.content.length < previous.length) {
-        return true
-      }
-      if (
-        !chunk.content.startsWith(previous) &&
-        !previous.startsWith(chunk.content)
-      ) {
-        return true
-      }
-    }
-    return false
   }
 
   /**
@@ -916,33 +853,12 @@ export class StreamProcessor {
    * Finalize the stream - complete all pending operations
    */
   finalizeStream(): void {
-    // Complete any remaining tool calls
+    // Safety net: complete any remaining tool calls (e.g. on network errors / aborted streams)
     this.completeAllToolCalls()
 
     // Emit any pending text if not already emitted
     if (this.currentSegmentText !== this.lastEmittedText) {
       this.emitTextUpdate()
-    }
-
-    // Remove the assistant message if it only contains whitespace text
-    // (no tool calls, no meaningful content). This handles models like Gemini
-    // that sometimes return just "\n" during auto-continuation.
-    // Preserve the message on errors so the UI can show error state.
-    if (this.currentAssistantMessageId && !this.hasError) {
-      const assistantMessage = this.messages.find(
-        (m) => m.id === this.currentAssistantMessageId,
-      )
-      if (
-        assistantMessage &&
-        this.isWhitespaceOnlyMessage(assistantMessage)
-      ) {
-        this.messages = this.messages.filter(
-          (m) => m.id !== this.currentAssistantMessageId,
-        )
-        this.emitMessagesChange()
-        this.currentAssistantMessageId = null
-        return
-      }
     }
 
     // Emit stream end event (only if a message was actually created)
@@ -954,19 +870,6 @@ export class StreamProcessor {
         this.events.onStreamEnd?.(assistantMessage)
       }
     }
-  }
-
-  /**
-   * Check if a message contains only whitespace text and nothing else.
-   * Returns false if the message has tool calls, tool results, or
-   * any non-whitespace text content.
-   */
-  private isWhitespaceOnlyMessage(message: UIMessage): boolean {
-    if (message.parts.length === 0) return true
-
-    return message.parts.every(
-      (part) => part.type === 'text' && !part.content.trim(),
-    )
   }
 
   /**
@@ -1044,8 +947,6 @@ export class StreamProcessor {
     this.toolCallOrder = []
     this.finishReason = null
     this.isDone = false
-    this.hasError = false
-    this.hasToolCallsSinceTextStart = false
     this.chunkStrategy.reset?.()
   }
 

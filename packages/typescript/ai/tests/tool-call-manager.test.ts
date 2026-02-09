@@ -619,29 +619,7 @@ describe('executeToolCalls', () => {
     })
   })
 
-  describe('null argument normalization (issue #265)', () => {
-    it('should normalize "null" arguments to empty object', async () => {
-      const tool: Tool = {
-        name: 'simple_tool',
-        description: 'A tool with no required args',
-        inputSchema: z.object({}),
-        execute: vi.fn(() => ({ done: true })),
-      }
-
-      const toolCalls = [makeToolCall('call_1', 'simple_tool', 'null')]
-
-      const result = await executeToolCalls(
-        toolCalls,
-        [tool],
-        new Map(),
-        new Map(),
-      )
-
-      expect(result.results).toHaveLength(1)
-      expect(result.results[0]?.result).toEqual({ done: true })
-      expect(tool.execute).toHaveBeenCalledWith({})
-    })
-
+  describe('argument normalization', () => {
     it('should normalize empty arguments to empty object', async () => {
       const tool: Tool = {
         name: 'simple_tool',

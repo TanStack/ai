@@ -39,29 +39,64 @@ describe('StreamProcessor', () => {
         content: 'Hello world',
       })
     })
+  })
 
-    it('should handle TEXT_MESSAGE_CONTENT with undefined delta (issue #257)', () => {
+  describe('TEXT_MESSAGE_START resets segment state', () => {
+    it('should reset segment text accumulation on TEXT_MESSAGE_START', () => {
       const processor = new StreamProcessor()
       processor.prepareAssistantMessage()
 
-      // Simulate a chunk where delta is undefined (which can happen in practice)
+      // First text segment
       processor.processChunk({
-        type: 'TEXT_MESSAGE_CONTENT',
+        type: 'TEXT_MESSAGE_START',
         messageId: 'msg-1',
-        delta: undefined,
-        content: 'Hello',
         model: 'test',
         timestamp: Date.now(),
-      } as unknown as StreamChunk)
+        role: 'assistant',
+      } as StreamChunk)
 
       processor.processChunk({
         type: 'TEXT_MESSAGE_CONTENT',
         messageId: 'msg-1',
-        delta: undefined,
-        content: 'Hello world',
+        delta: 'First segment',
         model: 'test',
         timestamp: Date.now(),
-      } as unknown as StreamChunk)
+      } as StreamChunk)
+
+      // Tool call interrupts
+      processor.processChunk({
+        type: 'TOOL_CALL_START',
+        toolCallId: 'tc-1',
+        toolName: 'search',
+        model: 'test',
+        timestamp: Date.now(),
+      } as StreamChunk)
+
+      processor.processChunk({
+        type: 'TOOL_CALL_END',
+        toolCallId: 'tc-1',
+        toolName: 'search',
+        model: 'test',
+        timestamp: Date.now(),
+        input: {},
+      } as StreamChunk)
+
+      // New TEXT_MESSAGE_START for second text segment
+      processor.processChunk({
+        type: 'TEXT_MESSAGE_START',
+        messageId: 'msg-2',
+        model: 'test',
+        timestamp: Date.now(),
+        role: 'assistant',
+      } as StreamChunk)
+
+      processor.processChunk({
+        type: 'TEXT_MESSAGE_CONTENT',
+        messageId: 'msg-2',
+        delta: 'Second segment',
+        model: 'test',
+        timestamp: Date.now(),
+      } as StreamChunk)
 
       processor.processChunk({
         type: 'RUN_FINISHED',
@@ -70,81 +105,13 @@ describe('StreamProcessor', () => {
         finishReason: 'stop',
       } as StreamChunk)
 
-      const messages = processor.getMessages()
-      expect(messages).toHaveLength(1)
-      expect(messages[0]?.parts).toHaveLength(1)
-      // Should NOT contain "undefined" string
-      expect(messages[0]?.parts[0]).toEqual({
-        type: 'text',
-        content: 'Hello world',
-      })
-    })
-
-    it('should handle TEXT_MESSAGE_CONTENT with empty delta', () => {
-      const processor = new StreamProcessor()
-      processor.prepareAssistantMessage()
-
-      // Empty delta should fall back to content
-      processor.processChunk({
-        type: 'TEXT_MESSAGE_CONTENT',
-        messageId: 'msg-1',
-        delta: '',
-        content: 'Hello',
-        model: 'test',
-        timestamp: Date.now(),
-      } as StreamChunk)
-
-      processor.processChunk({
-        type: 'RUN_FINISHED',
-        model: 'test',
-        timestamp: Date.now(),
-        finishReason: 'stop',
-      } as StreamChunk)
+      processor.finalizeStream()
 
       const messages = processor.getMessages()
       expect(messages).toHaveLength(1)
-      expect(messages[0]?.parts).toHaveLength(1)
-      expect(messages[0]?.parts[0]).toEqual({
-        type: 'text',
-        content: 'Hello',
-      })
-    })
-
-    it('should handle TEXT_MESSAGE_CONTENT with only content (no delta)', () => {
-      const processor = new StreamProcessor()
-      processor.prepareAssistantMessage()
-
-      // Some servers may only send content without delta
-      processor.processChunk({
-        type: 'TEXT_MESSAGE_CONTENT',
-        messageId: 'msg-1',
-        content: 'Hello',
-        model: 'test',
-        timestamp: Date.now(),
-      } as unknown as StreamChunk)
-
-      processor.processChunk({
-        type: 'TEXT_MESSAGE_CONTENT',
-        messageId: 'msg-1',
-        content: 'Hello world',
-        model: 'test',
-        timestamp: Date.now(),
-      } as unknown as StreamChunk)
-
-      processor.processChunk({
-        type: 'RUN_FINISHED',
-        model: 'test',
-        timestamp: Date.now(),
-        finishReason: 'stop',
-      } as StreamChunk)
-
-      const messages = processor.getMessages()
-      expect(messages).toHaveLength(1)
-      expect(messages[0]?.parts).toHaveLength(1)
-      expect(messages[0]?.parts[0]).toEqual({
-        type: 'text',
-        content: 'Hello world',
-      })
+      // Both segments should be accumulated in totalTextContent
+      const state = processor.getState()
+      expect(state.content).toBe('First segmentSecond segment')
     })
   })
 
@@ -349,6 +316,74 @@ describe('StreamProcessor', () => {
       expect(messageId).toBeTruthy()
       expect(processor.getMessages()).toHaveLength(1)
       expect(processor.getMessages()[0]?.id).toBe(messageId)
+    })
+  })
+
+  describe('TOOL_CALL_END transitions tool call to input-complete', () => {
+    it('should mark tool call as input-complete when TOOL_CALL_END arrives', () => {
+      const processor = new StreamProcessor()
+      processor.prepareAssistantMessage()
+
+      processor.processChunk({
+        type: 'TOOL_CALL_START',
+        toolCallId: 'tc-1',
+        toolName: 'getWeather',
+        model: 'test',
+        timestamp: Date.now(),
+      } as StreamChunk)
+
+      processor.processChunk({
+        type: 'TOOL_CALL_ARGS',
+        toolCallId: 'tc-1',
+        model: 'test',
+        timestamp: Date.now(),
+        delta: '{"city":"NYC"}',
+      } as StreamChunk)
+
+      // Before TOOL_CALL_END, state should be input-streaming
+      const stateBefore = processor.getState()
+      expect(stateBefore.toolCalls.get('tc-1')?.state).toBe('input-streaming')
+
+      processor.processChunk({
+        type: 'TOOL_CALL_END',
+        toolCallId: 'tc-1',
+        toolName: 'getWeather',
+        model: 'test',
+        timestamp: Date.now(),
+        input: { city: 'NYC' },
+      } as StreamChunk)
+
+      // After TOOL_CALL_END, state should be input-complete
+      const stateAfter = processor.getState()
+      expect(stateAfter.toolCalls.get('tc-1')?.state).toBe('input-complete')
+    })
+
+    it('should use chunk.input as canonical parsed arguments', () => {
+      const processor = new StreamProcessor()
+      processor.prepareAssistantMessage()
+
+      processor.processChunk({
+        type: 'TOOL_CALL_START',
+        toolCallId: 'tc-1',
+        toolName: 'getWeather',
+        model: 'test',
+        timestamp: Date.now(),
+      } as StreamChunk)
+
+      // Adapter provides parsed input directly in TOOL_CALL_END
+      processor.processChunk({
+        type: 'TOOL_CALL_END',
+        toolCallId: 'tc-1',
+        toolName: 'getWeather',
+        model: 'test',
+        timestamp: Date.now(),
+        input: { city: 'NYC', unit: 'celsius' },
+      } as StreamChunk)
+
+      const state = processor.getState()
+      const toolCall = state.toolCalls.get('tc-1')
+      expect(toolCall?.state).toBe('input-complete')
+      expect(toolCall?.parsedArguments).toEqual({ city: 'NYC', unit: 'celsius' })
     })
   })
 

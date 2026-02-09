@@ -555,15 +555,6 @@ class TextEngine<
       })
     }
 
-    // Don't overwrite a tool_calls finishReason with a stop finishReason
-    if (
-      this.finishedEvent?.finishReason === 'tool_calls' &&
-      chunk.finishReason === 'stop'
-    ) {
-      this.lastFinishReason = chunk.finishReason
-      return
-    }
-
     this.finishedEvent = chunk
     this.lastFinishReason = chunk.finishReason
   }

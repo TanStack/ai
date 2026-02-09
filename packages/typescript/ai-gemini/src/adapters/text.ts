@@ -195,6 +195,7 @@ export class GeminiTextAdapter<
   ): AsyncIterable<StreamChunk> {
     const timestamp = Date.now()
     let accumulatedContent = ''
+    let accumulatedThinking = ''
     const toolCallMap = new Map<
       string,
       { name: string; args: string; index: number; started: boolean }
@@ -240,15 +241,17 @@ export class GeminiTextAdapter<
                 }
               }
 
+              accumulatedThinking += part.text
               yield {
                 type: 'STEP_FINISHED',
                 stepId: stepId || generateId(this.name),
                 model,
                 timestamp,
                 delta: part.text,
-                content: part.text,
+                content: accumulatedThinking,
               }
-            } else {
+            } else if (part.text.trim()) {
+              // Skip whitespace-only text parts (e.g. "\n" during auto-continuation)
               // Emit TEXT_MESSAGE_START on first text content
               if (!hasEmittedTextMessageStart) {
                 hasEmittedTextMessageStart = true
@@ -333,7 +336,8 @@ export class GeminiTextAdapter<
             }
           }
         }
-      } else if (chunk.data) {
+      } else if (chunk.data && chunk.data.trim()) {
+        // Skip whitespace-only data (e.g. "\n" during auto-continuation)
         // Emit TEXT_MESSAGE_START on first text content
         if (!hasEmittedTextMessageStart) {
           hasEmittedTextMessageStart = true
@@ -433,6 +437,11 @@ export class GeminiTextAdapter<
             timestamp,
             input: parsedInput,
           }
+        }
+
+        // Reset so a new TEXT_MESSAGE_START is emitted if text follows tool calls
+        if (toolCallMap.size > 0) {
+          hasEmittedTextMessageStart = false
         }
 
         if (finishReason === FinishReason.MAX_TOKENS) {

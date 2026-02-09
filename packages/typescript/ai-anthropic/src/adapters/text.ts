@@ -677,6 +677,9 @@ export class AnthropicTextAdapter<
                 timestamp,
                 input: parsedInput,
               }
+
+              // Reset so a new TEXT_MESSAGE_START is emitted if text follows tool calls
+              hasEmittedTextMessageStart = false
             }
           } else {
             // Emit TEXT_MESSAGE_END only for text blocks (not tool_use blocks)
