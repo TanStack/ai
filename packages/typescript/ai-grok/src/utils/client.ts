@@ -1,8 +1,8 @@
 import OpenAI_SDK from 'openai'
+import type { ClientOptions } from 'openai'
 
-export interface GrokClientConfig {
+export interface GrokClientConfig extends ClientOptions {
   apiKey: string
-  baseURL?: string
 }
 
 /**
@@ -10,6 +10,7 @@ export interface GrokClientConfig {
  */
 export function createGrokClient(config: GrokClientConfig): OpenAI_SDK {
   return new OpenAI_SDK({
+    ...config,
     apiKey: config.apiKey,
     baseURL: config.baseURL || 'https://api.x.ai/v1',
   })
