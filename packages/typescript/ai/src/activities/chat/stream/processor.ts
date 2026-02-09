@@ -12,6 +12,9 @@
  * - Thinking/reasoning content
  * - Recording/replay for testing
  * - Event-driven architecture for UI updates
+ *
+ * @see docs/chat-architecture.md — Canonical reference for AG-UI chunk ordering,
+ *   adapter contract, single-shot flows, and expected UIMessage output.
  */
 import { generateMessageId, uiMessageToModelMessages } from '../messages.js'
 import { defaultJSONParser } from './json-parser'
@@ -110,6 +113,9 @@ export interface StreamProcessorOptions {
  * - Text content accumulation (reset on TEXT_MESSAGE_START)
  * - Multiple parallel tool calls
  * - Tool call completion via TOOL_CALL_END events
+ *
+ * @see docs/chat-architecture.md#streamprocessor-internal-state — State field reference
+ * @see docs/chat-architecture.md#adapter-contract — What this class expects from adapters
  */
 export class StreamProcessor {
   private chunkStrategy: ChunkStrategy
@@ -244,6 +250,11 @@ export class StreamProcessor {
    * Lazily create the assistant message if it hasn't been created yet.
    * Called by content handlers on the first content-bearing chunk.
    * Returns the message ID.
+   *
+   * Content-bearing chunks that trigger this:
+   * TEXT_MESSAGE_CONTENT, TOOL_CALL_START, STEP_FINISHED, RUN_ERROR.
+   *
+   * @see docs/chat-architecture.md#streamprocessor-internal-state — Lazy creation pattern
    */
   private ensureAssistantMessage(): string {
     if (this.currentAssistantMessageId) {
@@ -428,7 +439,13 @@ export class StreamProcessor {
   }
 
   /**
-   * Process a single chunk from the stream
+   * Process a single chunk from the stream.
+   *
+   * Central dispatch for all AG-UI events. Each event type maps to a specific
+   * handler. Events not listed in the switch are intentionally ignored
+   * (RUN_STARTED, TEXT_MESSAGE_END, STEP_STARTED, STATE_SNAPSHOT, STATE_DELTA).
+   *
+   * @see docs/chat-architecture.md#adapter-contract — Expected event types and ordering
    */
   processChunk(chunk: StreamChunk): void {
     // Record chunk if enabled
@@ -488,6 +505,13 @@ export class StreamProcessor {
   /**
    * Handle TEXT_MESSAGE_START event — marks the beginning of a new text segment.
    * Resets segment accumulation so text after tool calls starts fresh.
+   *
+   * This is the key mechanism for multi-segment text (text before and after tool
+   * calls becoming separate TextParts). Without this reset, all text would merge
+   * into a single TextPart and tool-call interleaving would be lost.
+   *
+   * @see docs/chat-architecture.md#single-shot-text-response — Step-by-step text processing
+   * @see docs/chat-architecture.md#text-then-tool-interleaving-single-shot — Multi-segment text
    */
   private handleTextMessageStartEvent(): void {
     // Emit any pending text from a previous segment before resetting
@@ -499,7 +523,15 @@ export class StreamProcessor {
   }
 
   /**
-   * Handle TEXT_MESSAGE_CONTENT event
+   * Handle TEXT_MESSAGE_CONTENT event.
+   *
+   * Accumulates delta into both currentSegmentText (for UI emission) and
+   * totalTextContent (for ProcessorResult). Lazily creates the assistant
+   * UIMessage on first content. Uses updateTextPart() which replaces the
+   * last TextPart or creates a new one depending on part ordering.
+   *
+   * @see docs/chat-architecture.md#single-shot-text-response — Text accumulation step-by-step
+   * @see docs/chat-architecture.md#uimessage-part-ordering-invariants — Replace vs. push logic
    */
   private handleTextMessageContentEvent(
     chunk: Extract<StreamChunk, { type: 'TEXT_MESSAGE_CONTENT' }>,
@@ -519,7 +551,17 @@ export class StreamProcessor {
   }
 
   /**
-   * Handle TOOL_CALL_START event
+   * Handle TOOL_CALL_START event.
+   *
+   * Creates a new InternalToolCallState entry in the toolCalls Map and appends
+   * a ToolCallPart to the UIMessage. Duplicate toolCallId is a no-op.
+   *
+   * CRITICAL: This MUST be received before any TOOL_CALL_ARGS for the same
+   * toolCallId. Args for unknown IDs are silently dropped.
+   *
+   * @see docs/chat-architecture.md#single-shot-tool-call-response — Tool call state transitions
+   * @see docs/chat-architecture.md#parallel-tool-calls-single-shot — Parallel tracking by ID
+   * @see docs/chat-architecture.md#adapter-contract — Ordering requirements
    */
   private handleToolCallStartEvent(
     chunk: Extract<StreamChunk, { type: 'TOOL_CALL_START' }>,
@@ -571,7 +613,16 @@ export class StreamProcessor {
   }
 
   /**
-   * Handle TOOL_CALL_ARGS event
+   * Handle TOOL_CALL_ARGS event.
+   *
+   * Appends the delta to the tool call's accumulated arguments string.
+   * Transitions state from awaiting-input → input-streaming on first non-empty delta.
+   * Attempts partial JSON parse on each update for UI preview.
+   *
+   * If toolCallId is not found in the Map (no preceding TOOL_CALL_START),
+   * this event is silently dropped.
+   *
+   * @see docs/chat-architecture.md#single-shot-tool-call-response — Step-by-step tool call processing
    */
   private handleToolCallArgsEvent(
     chunk: Extract<StreamChunk, { type: 'TOOL_CALL_ARGS' }>,
@@ -622,6 +673,17 @@ export class StreamProcessor {
 
   /**
    * Handle TOOL_CALL_END event — authoritative signal that a tool call's input is finalized.
+   *
+   * This event has a DUAL ROLE:
+   * - Without `result`: Signals arguments are done (from adapter). Transitions to input-complete.
+   * - With `result`: Signals tool was executed and result is available (from TextEngine).
+   *   Creates both output on the tool-call part AND a tool-result part.
+   *
+   * If `input` is provided, it overrides the accumulated string parse as the
+   * canonical parsed arguments.
+   *
+   * @see docs/chat-architecture.md#tool-results-and-the-tool_call_end-dual-role — Full explanation
+   * @see docs/chat-architecture.md#single-shot-tool-call-response — End-to-end flow
    */
   private handleToolCallEndEvent(
     chunk: Extract<StreamChunk, { type: 'TOOL_CALL_END' }>,
@@ -669,7 +731,14 @@ export class StreamProcessor {
   }
 
   /**
-   * Handle RUN_FINISHED event
+   * Handle RUN_FINISHED event.
+   *
+   * Records the finishReason and calls completeAllToolCalls() as a safety net
+   * to force-complete any tool calls that didn't receive an explicit TOOL_CALL_END.
+   * This handles cases like aborted streams or adapter bugs.
+   *
+   * @see docs/chat-architecture.md#single-shot-tool-call-response — finishReason semantics
+   * @see docs/chat-architecture.md#adapter-contract — Why RUN_FINISHED is mandatory
    */
   private handleRunFinishedEvent(
     chunk: Extract<StreamChunk, { type: 'RUN_FINISHED' }>,
@@ -691,7 +760,12 @@ export class StreamProcessor {
   }
 
   /**
-   * Handle STEP_FINISHED event (for thinking/reasoning content)
+   * Handle STEP_FINISHED event (for thinking/reasoning content).
+   *
+   * Accumulates delta into thinkingContent and updates a single ThinkingPart
+   * in the UIMessage (replaced in-place, not appended).
+   *
+   * @see docs/chat-architecture.md#thinkingreasoning-content — Thinking flow
    */
   private handleStepFinishedEvent(
     chunk: Extract<StreamChunk, { type: 'STEP_FINISHED' }>,
@@ -718,9 +792,14 @@ export class StreamProcessor {
   }
 
   /**
-   * Handle CUSTOM event
-   * Handles special custom events like 'tool-input-available' for client-side tool execution
-   * and 'approval-requested' for tool approval flows
+   * Handle CUSTOM event.
+   *
+   * Handles special custom events emitted by the TextEngine (not adapters):
+   * - 'tool-input-available': Client tool needs execution. Fires onToolCall.
+   * - 'approval-requested': Tool needs user approval. Updates tool-call part
+   *   state and fires onApprovalRequest.
+   *
+   * @see docs/chat-architecture.md#client-tools-and-approval-flows — Full flow details
    */
   private handleCustomEvent(
     chunk: Extract<StreamChunk, { type: 'CUSTOM' }>,
@@ -772,7 +851,13 @@ export class StreamProcessor {
   }
 
   /**
-   * Complete all tool calls
+   * Complete all tool calls — safety net for stream termination.
+   *
+   * Called by RUN_FINISHED and finalizeStream(). Force-transitions any tool call
+   * not yet in input-complete state. Handles cases where TOOL_CALL_END was
+   * missed (adapter bug, network error, aborted stream).
+   *
+   * @see docs/chat-architecture.md#single-shot-tool-call-response — Safety net behavior
    */
   private completeAllToolCalls(): void {
     this.toolCalls.forEach((toolCall, id) => {
@@ -820,7 +905,13 @@ export class StreamProcessor {
   }
 
   /**
-   * Emit pending text update
+   * Emit pending text update.
+   *
+   * Calls updateTextPart() which has critical append-vs-replace logic:
+   * - If last UIMessage part is TextPart → replaces its content (same segment).
+   * - If last part is anything else → pushes new TextPart (new segment after tools).
+   *
+   * @see docs/chat-architecture.md#uimessage-part-ordering-invariants — Replace vs. push logic
    */
   private emitTextUpdate(): void {
     this.lastEmittedText = this.currentSegmentText
@@ -850,7 +941,13 @@ export class StreamProcessor {
   }
 
   /**
-   * Finalize the stream - complete all pending operations
+   * Finalize the stream — complete all pending operations.
+   *
+   * Called when the async iterable ends (stream closed). Acts as the final
+   * safety net: completes any remaining tool calls, flushes un-emitted text,
+   * and fires onStreamEnd.
+   *
+   * @see docs/chat-architecture.md#single-shot-text-response — Finalization step
    */
   finalizeStream(): void {
     // Safety net: complete any remaining tool calls (e.g. on network errors / aborted streams)
