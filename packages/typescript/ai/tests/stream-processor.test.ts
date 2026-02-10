@@ -2009,59 +2009,62 @@ describe('StreamProcessor', () => {
         content: 'Hello from B',
       })
     })
-  })
 
-  describe('STATE_SNAPSHOT', () => {
-    it('should hydrate messages from a state snapshot', () => {
-      const onMessagesChange = vi.fn()
+    it('should emit onStreamEnd on finalizeStream (not on TEXT_MESSAGE_END)', () => {
+      const onStreamEnd = vi.fn()
       const processor = new StreamProcessor({
-        events: { onMessagesChange },
-      })
-
-      const snapshotMessages: Array<UIMessage> = [
-        {
-          id: 'snap-1',
-          role: 'user',
-          parts: [{ type: 'text', content: 'Hello' }],
-          createdAt: new Date(),
-        },
-        {
-          id: 'snap-2',
-          role: 'assistant',
-          parts: [{ type: 'text', content: 'Hi there!' }],
-          createdAt: new Date(),
-        },
-      ]
-
-      processor.processChunk({
-        type: 'STATE_SNAPSHOT',
-        state: { messages: snapshotMessages },
-        timestamp: Date.now(),
-      } as StreamChunk)
-
-      const messages = processor.getMessages()
-      expect(messages).toHaveLength(2)
-      expect(messages[0]?.id).toBe('snap-1')
-      expect(messages[0]?.role).toBe('user')
-      expect(messages[1]?.id).toBe('snap-2')
-      expect(messages[1]?.role).toBe('assistant')
-      expect(onMessagesChange).toHaveBeenCalled()
-    })
-
-    it('should ignore STATE_SNAPSHOT without messages', () => {
-      const onMessagesChange = vi.fn()
-      const processor = new StreamProcessor({
-        events: { onMessagesChange },
+        events: { onStreamEnd },
       })
 
       processor.processChunk({
-        type: 'STATE_SNAPSHOT',
-        state: { someOtherData: 'value' },
+        type: 'TEXT_MESSAGE_START',
+        messageId: 'msg-a',
+        role: 'assistant',
         timestamp: Date.now(),
       } as StreamChunk)
 
-      expect(processor.getMessages()).toHaveLength(0)
-      expect(onMessagesChange).not.toHaveBeenCalled()
+      processor.processChunk({
+        type: 'TEXT_MESSAGE_START',
+        messageId: 'msg-b',
+        role: 'assistant',
+        timestamp: Date.now(),
+      } as StreamChunk)
+
+      processor.processChunk({
+        type: 'TEXT_MESSAGE_CONTENT',
+        messageId: 'msg-a',
+        delta: 'A',
+        timestamp: Date.now(),
+      } as StreamChunk)
+
+      processor.processChunk({
+        type: 'TEXT_MESSAGE_END',
+        messageId: 'msg-a',
+        timestamp: Date.now(),
+      } as StreamChunk)
+
+      // TEXT_MESSAGE_END does not fire onStreamEnd
+      expect(onStreamEnd).not.toHaveBeenCalled()
+
+      processor.processChunk({
+        type: 'TEXT_MESSAGE_CONTENT',
+        messageId: 'msg-b',
+        delta: 'B',
+        timestamp: Date.now(),
+      } as StreamChunk)
+
+      processor.processChunk({
+        type: 'TEXT_MESSAGE_END',
+        messageId: 'msg-b',
+        timestamp: Date.now(),
+      } as StreamChunk)
+
+      // Still not fired
+      expect(onStreamEnd).not.toHaveBeenCalled()
+
+      // finalizeStream fires onStreamEnd for the last assistant message
+      processor.finalizeStream()
+      expect(onStreamEnd).toHaveBeenCalledTimes(1)
     })
   })
 
@@ -2158,6 +2161,27 @@ describe('StreamProcessor', () => {
     })
   })
 
+  describe('backward compat: ensureAssistantMessage auto-creation', () => {
+    it('should emit onStreamStart when auto-creating a message from content event', () => {
+      const onStreamStart = vi.fn()
+      const processor = new StreamProcessor({
+        events: { onStreamStart },
+      })
+
+      // No TEXT_MESSAGE_START or startAssistantMessage — content arrives directly
+      processor.processChunk({
+        type: 'TEXT_MESSAGE_CONTENT',
+        messageId: 'auto-msg',
+        delta: 'Hello',
+        timestamp: Date.now(),
+      } as StreamChunk)
+
+      expect(onStreamStart).toHaveBeenCalledTimes(1)
+      expect(processor.getMessages()).toHaveLength(1)
+      expect(processor.getMessages()[0]?.role).toBe('assistant')
+    })
+  })
+
   describe('backward compat: startAssistantMessage without TEXT_MESSAGE_START', () => {
     it('should still work when only startAssistantMessage is used', () => {
       const processor = new StreamProcessor()
@@ -2186,6 +2210,71 @@ describe('StreamProcessor', () => {
         type: 'text',
         content: 'Hello world',
       })
+    })
+  })
+
+  describe('MESSAGES_SNAPSHOT', () => {
+    it('should hydrate messages and emit onMessagesChange', () => {
+      const onMessagesChange = vi.fn()
+      const processor = new StreamProcessor({
+        events: { onMessagesChange },
+      })
+
+      const snapshotMessages: Array<UIMessage> = [
+        {
+          id: 'snap-1',
+          role: 'user',
+          parts: [{ type: 'text', content: 'Hello' }],
+          createdAt: new Date(),
+        },
+        {
+          id: 'snap-2',
+          role: 'assistant',
+          parts: [{ type: 'text', content: 'Hi there!' }],
+          createdAt: new Date(),
+        },
+      ]
+
+      processor.processChunk({
+        type: 'MESSAGES_SNAPSHOT',
+        messages: snapshotMessages,
+        timestamp: Date.now(),
+      } as StreamChunk)
+
+      const messages = processor.getMessages()
+      expect(messages).toHaveLength(2)
+      expect(messages[0]?.id).toBe('snap-1')
+      expect(messages[0]?.role).toBe('user')
+      expect(messages[1]?.id).toBe('snap-2')
+      expect(messages[1]?.role).toBe('assistant')
+      expect(onMessagesChange).toHaveBeenCalled()
+    })
+
+    it('should replace existing messages (not append)', () => {
+      const processor = new StreamProcessor()
+
+      // Add an initial message
+      processor.addUserMessage('First message')
+      expect(processor.getMessages()).toHaveLength(1)
+
+      // Snapshot replaces all messages
+      processor.processChunk({
+        type: 'MESSAGES_SNAPSHOT',
+        messages: [
+          {
+            id: 'snap-1',
+            role: 'assistant',
+            parts: [{ type: 'text', content: 'Snapshot content' }],
+            createdAt: new Date(),
+          },
+        ],
+        timestamp: Date.now(),
+      } as StreamChunk)
+
+      const messages = processor.getMessages()
+      expect(messages).toHaveLength(1)
+      expect(messages[0]?.id).toBe('snap-1')
+      expect(messages[0]?.role).toBe('assistant')
     })
   })
 

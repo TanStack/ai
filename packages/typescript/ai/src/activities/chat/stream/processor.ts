@@ -19,7 +19,6 @@
  */
 import {
   generateMessageId,
-  normalizeToUIMessage,
   uiMessageToModelMessages,
 } from '../messages.js'
 import { defaultJSONParser } from './json-parser'
@@ -477,16 +476,16 @@ export class StreamProcessor {
         this.handleStepFinishedEvent(chunk)
         break
 
+      case 'MESSAGES_SNAPSHOT':
+        this.handleMessagesSnapshotEvent(chunk)
+        break
+
       case 'CUSTOM':
         this.handleCustomEvent(chunk)
         break
 
-      case 'STATE_SNAPSHOT':
-        this.handleStateSnapshotEvent(chunk)
-        break
-
       default:
-        // RUN_STARTED, STEP_STARTED, STATE_DELTA - no special handling needed
+        // RUN_STARTED, STEP_STARTED, STATE_SNAPSHOT, STATE_DELTA - no special handling needed
         break
     }
   }
@@ -532,15 +531,16 @@ export class StreamProcessor {
    * Used as fallback for events that don't include a messageId.
    */
   private getActiveAssistantMessageId(): string | null {
-    // Iterate in reverse order of insertion (most recent first)
-    let lastId: string | null = null
-    for (const id of this.activeMessageIds) {
+    // Set iteration is insertion-order; convert to array and search from the end
+    const ids = Array.from(this.activeMessageIds)
+    for (let i = ids.length - 1; i >= 0; i--) {
+      const id = ids[i]!
       const state = this.messageStates.get(id)
-      if (state && (state.role === 'assistant')) {
-        lastId = id
+      if (state && state.role === 'assistant') {
+        return id
       }
     }
-    return lastId
+    return null
   }
 
   /**
@@ -577,6 +577,7 @@ export class StreamProcessor {
     this.activeMessageIds.add(id)
     this.pendingManualMessageId = id
     this.events.onStreamStart?.()
+    this.emitMessagesChange()
     return { messageId: id, state }
   }
 
@@ -688,23 +689,13 @@ export class StreamProcessor {
   }
 
   /**
-   * Handle STATE_SNAPSHOT event
+   * Handle MESSAGES_SNAPSHOT event
    */
-  private handleStateSnapshotEvent(
-    chunk: Extract<StreamChunk, { type: 'STATE_SNAPSHOT' }>,
+  private handleMessagesSnapshotEvent(
+    chunk: Extract<StreamChunk, { type: 'MESSAGES_SNAPSHOT' }>,
   ): void {
-    const stateMessages = (
-      chunk.state as { messages?: Array<unknown> }
-    )?.messages
-    if (Array.isArray(stateMessages)) {
-      this.messages = stateMessages.map((msg) =>
-        normalizeToUIMessage(
-          msg as UIMessage,
-          generateMessageId,
-        ),
-      )
-      this.emitMessagesChange()
-    }
+    this.messages = [...chunk.messages]
+    this.emitMessagesChange()
   }
 
   /**

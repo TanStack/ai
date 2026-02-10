@@ -702,6 +702,7 @@ export type AGUIEventType =
   | 'TOOL_CALL_END'
   | 'STEP_STARTED'
   | 'STEP_FINISHED'
+  | 'MESSAGES_SNAPSHOT'
   | 'STATE_SNAPSHOT'
   | 'STATE_DELTA'
   | 'CUSTOM'
@@ -872,6 +873,19 @@ export interface StepFinishedEvent extends BaseAGUIEvent {
 }
 
 /**
+ * Emitted to provide a snapshot of all messages in a conversation.
+ *
+ * Unlike StateSnapshot (which carries arbitrary application state),
+ * MessagesSnapshot specifically delivers the conversation transcript.
+ * This is a first-class AG-UI event type.
+ */
+export interface MessagesSnapshotEvent extends BaseAGUIEvent {
+  type: 'MESSAGES_SNAPSHOT'
+  /** Complete array of messages in the conversation */
+  messages: Array<UIMessage>
+}
+
+/**
  * Emitted to provide a full state snapshot.
  */
 export interface StateSnapshotEvent extends BaseAGUIEvent {
@@ -915,6 +929,7 @@ export type AGUIEvent =
   | ToolCallEndEvent
   | StepStartedEvent
   | StepFinishedEvent
+  | MessagesSnapshotEvent
   | StateSnapshotEvent
   | StateDeltaEvent
   | CustomEvent
