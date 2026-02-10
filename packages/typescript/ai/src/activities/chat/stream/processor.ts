@@ -12,6 +12,9 @@
  * - Thinking/reasoning content
  * - Recording/replay for testing
  * - Event-driven architecture for UI updates
+ *
+ * @see docs/chat-architecture.md — Canonical reference for AG-UI chunk ordering,
+ *   adapter contract, single-shot flows, and expected UIMessage output.
  */
 import { generateMessageId, uiMessageToModelMessages } from '../messages.js'
 import { defaultJSONParser } from './json-parser'
@@ -101,18 +104,18 @@ export interface StreamProcessorOptions {
  * StreamProcessor - State machine for processing AI response streams
  *
  * Manages the full UIMessage[] conversation and emits events on changes.
+ * Trusts the adapter contract: adapters emit clean AG-UI events in the
+ * correct order.
  *
  * State tracking:
  * - Full message array
  * - Current assistant message being streamed
- * - Text content accumulation
+ * - Text content accumulation (reset on TEXT_MESSAGE_START)
  * - Multiple parallel tool calls
- * - Tool call completion detection
+ * - Tool call completion via TOOL_CALL_END events
  *
- * Tool call completion is detected when:
- * 1. A new tool call starts at a different index
- * 2. Text content arrives
- * 3. Stream ends
+ * @see docs/chat-architecture.md#streamprocessor-internal-state — State field reference
+ * @see docs/chat-architecture.md#adapter-contract — What this class expects from adapters
  */
 export class StreamProcessor {
   private chunkStrategy: ChunkStrategy
@@ -134,9 +137,8 @@ export class StreamProcessor {
   private toolCalls: Map<string, InternalToolCallState> = new Map()
   private toolCallOrder: Array<string> = []
   private finishReason: string | null = null
+  private hasError = false
   private isDone = false
-  // Track if we've had tool calls since the last text segment started
-  private hasToolCallsSinceTextStart = false
 
   // Recording
   private recording: ChunkRecording | null = null
@@ -213,12 +215,52 @@ export class StreamProcessor {
   }
 
   /**
-   * Start streaming a new assistant message
-   * Returns the message ID
+   * Prepare for a new assistant message stream.
+   * Does NOT create the message immediately -- the message is created lazily
+   * when the first content-bearing chunk arrives via ensureAssistantMessage().
+   * This prevents empty assistant messages from flickering in the UI when
+   * auto-continuation produces no content.
    */
-  startAssistantMessage(): string {
+  prepareAssistantMessage(): void {
     // Reset stream state for new message
     this.resetStreamState()
+    // Clear the current assistant message ID so ensureAssistantMessage()
+    // will create a fresh message on the first content chunk
+    this.currentAssistantMessageId = null
+  }
+
+  /**
+   * @deprecated Use prepareAssistantMessage() instead. This eagerly creates
+   * an assistant message which can cause empty message flicker.
+   */
+  startAssistantMessage(): string {
+    this.prepareAssistantMessage()
+    return this.ensureAssistantMessage()
+  }
+
+  /**
+   * Get the current assistant message ID (if one has been created).
+   * Returns null if prepareAssistantMessage() was called but no content
+   * has arrived yet.
+   */
+  getCurrentAssistantMessageId(): string | null {
+    return this.currentAssistantMessageId
+  }
+
+  /**
+   * Lazily create the assistant message if it hasn't been created yet.
+   * Called by content handlers on the first content-bearing chunk.
+   * Returns the message ID.
+   *
+   * Content-bearing chunks that trigger this:
+   * TEXT_MESSAGE_CONTENT, TOOL_CALL_START, STEP_FINISHED, RUN_ERROR.
+   *
+   * @see docs/chat-architecture.md#streamprocessor-internal-state — Lazy creation pattern
+   */
+  private ensureAssistantMessage(): string {
+    if (this.currentAssistantMessageId) {
+      return this.currentAssistantMessageId
+    }
 
     const assistantMessage: UIMessage = {
       id: generateMessageId(),
@@ -398,7 +440,13 @@ export class StreamProcessor {
   }
 
   /**
-   * Process a single chunk from the stream
+   * Process a single chunk from the stream.
+   *
+   * Central dispatch for all AG-UI events. Each event type maps to a specific
+   * handler. Events not listed in the switch are intentionally ignored
+   * (RUN_STARTED, TEXT_MESSAGE_END, STEP_STARTED, STATE_SNAPSHOT, STATE_DELTA).
+   *
+   * @see docs/chat-architecture.md#adapter-contract — Expected event types and ordering
    */
   processChunk(chunk: StreamChunk): void {
     // Record chunk if enabled
@@ -412,6 +460,10 @@ export class StreamProcessor {
 
     switch (chunk.type) {
       // AG-UI Events
+      case 'TEXT_MESSAGE_START':
+        this.handleTextMessageStartEvent()
+        break
+
       case 'TEXT_MESSAGE_CONTENT':
         this.handleTextMessageContentEvent(chunk)
         break
@@ -445,67 +497,53 @@ export class StreamProcessor {
         break
 
       default:
-        // RUN_STARTED, TEXT_MESSAGE_START, TEXT_MESSAGE_END, STEP_STARTED,
+        // RUN_STARTED, TEXT_MESSAGE_END, STEP_STARTED,
         // STATE_SNAPSHOT, STATE_DELTA - no special handling needed
         break
     }
   }
 
   /**
-   * Handle TEXT_MESSAGE_CONTENT event
+   * Handle TEXT_MESSAGE_START event — marks the beginning of a new text segment.
+   * Resets segment accumulation so text after tool calls starts fresh.
+   *
+   * This is the key mechanism for multi-segment text (text before and after tool
+   * calls becoming separate TextParts). Without this reset, all text would merge
+   * into a single TextPart and tool-call interleaving would be lost.
+   *
+   * @see docs/chat-architecture.md#single-shot-text-response — Step-by-step text processing
+   * @see docs/chat-architecture.md#text-then-tool-interleaving-single-shot — Multi-segment text
+   */
+  private handleTextMessageStartEvent(): void {
+    // Emit any pending text from a previous segment before resetting
+    if (this.currentSegmentText !== this.lastEmittedText) {
+      this.emitTextUpdate()
+    }
+    this.currentSegmentText = ''
+    this.lastEmittedText = ''
+  }
+
+  /**
+   * Handle TEXT_MESSAGE_CONTENT event.
+   *
+   * Accumulates delta into both currentSegmentText (for UI emission) and
+   * totalTextContent (for ProcessorResult). Lazily creates the assistant
+   * UIMessage on first content. Uses updateTextPart() which replaces the
+   * last TextPart or creates a new one depending on part ordering.
+   *
+   * @see docs/chat-architecture.md#single-shot-text-response — Text accumulation step-by-step
+   * @see docs/chat-architecture.md#uimessage-part-ordering-invariants — Replace vs. push logic
    */
   private handleTextMessageContentEvent(
     chunk: Extract<StreamChunk, { type: 'TEXT_MESSAGE_CONTENT' }>,
   ): void {
-    // Content arriving means all current tool calls are complete
-    this.completeAllToolCalls()
+    this.ensureAssistantMessage()
 
-    const previousSegment = this.currentSegmentText
+    this.currentSegmentText += chunk.delta
+    this.totalTextContent += chunk.delta
 
-    // Detect if this is a NEW text segment (after tool calls) vs continuation
-    const isNewSegment =
-      this.hasToolCallsSinceTextStart &&
-      previousSegment.length > 0 &&
-      this.isNewTextSegment(chunk, previousSegment)
-
-    if (isNewSegment) {
-      // Emit any accumulated text before starting new segment
-      if (previousSegment !== this.lastEmittedText) {
-        this.emitTextUpdate()
-      }
-      // Reset SEGMENT text accumulation for the new text segment after tool calls
-      this.currentSegmentText = ''
-      this.lastEmittedText = ''
-      this.hasToolCallsSinceTextStart = false
-    }
-
-    const currentText = this.currentSegmentText
-    let nextText = currentText
-
-    // Prefer delta over content - delta is the incremental change
-    // Check for both undefined and empty string to avoid "undefined" string concatenation
-    if (chunk.delta !== undefined && chunk.delta !== '') {
-      nextText = currentText + chunk.delta
-    } else if (chunk.content !== undefined && chunk.content !== '') {
-      // Fallback: use content if delta is not provided
-      if (chunk.content.startsWith(currentText)) {
-        nextText = chunk.content
-      } else if (currentText.startsWith(chunk.content)) {
-        nextText = currentText
-      } else {
-        nextText = currentText + chunk.content
-      }
-    }
-
-    // Calculate the delta for totalTextContent
-    const textDelta = nextText.slice(currentText.length)
-    this.currentSegmentText = nextText
-    this.totalTextContent += textDelta
-
-    // Use delta for chunk strategy if available
-    const chunkPortion = chunk.delta || chunk.content || ''
     const shouldEmit = this.chunkStrategy.shouldEmit(
-      chunkPortion,
+      chunk.delta,
       this.currentSegmentText,
     )
     if (shouldEmit && this.currentSegmentText !== this.lastEmittedText) {
@@ -514,13 +552,22 @@ export class StreamProcessor {
   }
 
   /**
-   * Handle TOOL_CALL_START event
+   * Handle TOOL_CALL_START event.
+   *
+   * Creates a new InternalToolCallState entry in the toolCalls Map and appends
+   * a ToolCallPart to the UIMessage. Duplicate toolCallId is a no-op.
+   *
+   * CRITICAL: This MUST be received before any TOOL_CALL_ARGS for the same
+   * toolCallId. Args for unknown IDs are silently dropped.
+   *
+   * @see docs/chat-architecture.md#single-shot-tool-call-response — Tool call state transitions
+   * @see docs/chat-architecture.md#parallel-tool-calls-single-shot — Parallel tracking by ID
+   * @see docs/chat-architecture.md#adapter-contract — Ordering requirements
    */
   private handleToolCallStartEvent(
     chunk: Extract<StreamChunk, { type: 'TOOL_CALL_START' }>,
   ): void {
-    // Mark that we've seen tool calls since the last text segment
-    this.hasToolCallsSinceTextStart = true
+    this.ensureAssistantMessage()
 
     const toolCallId = chunk.toolCallId
     const existingToolCall = this.toolCalls.get(toolCallId)
@@ -567,7 +614,16 @@ export class StreamProcessor {
   }
 
   /**
-   * Handle TOOL_CALL_ARGS event
+   * Handle TOOL_CALL_ARGS event.
+   *
+   * Appends the delta to the tool call's accumulated arguments string.
+   * Transitions state from awaiting-input → input-streaming on first non-empty delta.
+   * Attempts partial JSON parse on each update for UI preview.
+   *
+   * If toolCallId is not found in the Map (no preceding TOOL_CALL_START),
+   * this event is silently dropped.
+   *
+   * @see docs/chat-architecture.md#single-shot-tool-call-response — Step-by-step tool call processing
    */
   private handleToolCallArgsEvent(
     chunk: Extract<StreamChunk, { type: 'TOOL_CALL_ARGS' }>,
@@ -617,15 +673,53 @@ export class StreamProcessor {
   }
 
   /**
-   * Handle TOOL_CALL_END event
+   * Handle TOOL_CALL_END event — authoritative signal that a tool call's input is finalized.
+   *
+   * This event has a DUAL ROLE:
+   * - Without `result`: Signals arguments are done (from adapter). Transitions to input-complete.
+   * - With `result`: Signals tool was executed and result is available (from TextEngine).
+   *   Creates both output on the tool-call part AND a tool-result part.
+   *
+   * If `input` is provided, it overrides the accumulated string parse as the
+   * canonical parsed arguments.
+   *
+   * @see docs/chat-architecture.md#tool-results-and-the-tool_call_end-dual-role — Full explanation
+   * @see docs/chat-architecture.md#single-shot-tool-call-response — End-to-end flow
    */
   private handleToolCallEndEvent(
     chunk: Extract<StreamChunk, { type: 'TOOL_CALL_END' }>,
   ): void {
-    const state: ToolResultState = 'complete'
+    // Transition the tool call to input-complete (the authoritative completion signal)
+    const existingToolCall = this.toolCalls.get(chunk.toolCallId)
+    if (existingToolCall && existingToolCall.state !== 'input-complete') {
+      const index = this.toolCallOrder.indexOf(chunk.toolCallId)
+      this.completeToolCall(index, existingToolCall)
+      // If TOOL_CALL_END provides parsed input, use it as the canonical parsed
+      // arguments (overrides the accumulated string parse from completeToolCall)
+      if (chunk.input !== undefined) {
+        existingToolCall.parsedArguments = chunk.input
+      }
+    }
 
-    // Update UIMessage if we have a current assistant message
+    // Update UIMessage if we have a current assistant message and a result
     if (this.currentAssistantMessageId && chunk.result) {
+      const state: ToolResultState = 'complete'
+
+      // Step 1: Update the tool-call part's output field (for UI consistency
+      // with client tools — see GitHub issue #176)
+      let output: unknown
+      try {
+        output = JSON.parse(chunk.result)
+      } catch {
+        output = chunk.result
+      }
+      this.messages = updateToolCallWithOutput(
+        this.messages,
+        chunk.toolCallId,
+        output,
+      )
+
+      // Step 2: Create/update the tool-result part (for LLM conversation history)
       this.messages = updateToolResultPart(
         this.messages,
         this.currentAssistantMessageId,
@@ -638,7 +732,14 @@ export class StreamProcessor {
   }
 
   /**
-   * Handle RUN_FINISHED event
+   * Handle RUN_FINISHED event.
+   *
+   * Records the finishReason and calls completeAllToolCalls() as a safety net
+   * to force-complete any tool calls that didn't receive an explicit TOOL_CALL_END.
+   * This handles cases like aborted streams or adapter bugs.
+   *
+   * @see docs/chat-architecture.md#single-shot-tool-call-response — finishReason semantics
+   * @see docs/chat-architecture.md#adapter-contract — Why RUN_FINISHED is mandatory
    */
   private handleRunFinishedEvent(
     chunk: Extract<StreamChunk, { type: 'RUN_FINISHED' }>,
@@ -654,33 +755,26 @@ export class StreamProcessor {
   private handleRunErrorEvent(
     chunk: Extract<StreamChunk, { type: 'RUN_ERROR' }>,
   ): void {
+    this.hasError = true
+    this.ensureAssistantMessage()
     // Emit error event
     this.events.onError?.(new Error(chunk.error.message || 'An error occurred'))
   }
 
   /**
-   * Handle STEP_FINISHED event (for thinking/reasoning content)
+   * Handle STEP_FINISHED event (for thinking/reasoning content).
+   *
+   * Accumulates delta into thinkingContent and updates a single ThinkingPart
+   * in the UIMessage (replaced in-place, not appended).
+   *
+   * @see docs/chat-architecture.md#thinkingreasoning-content — Thinking flow
    */
   private handleStepFinishedEvent(
     chunk: Extract<StreamChunk, { type: 'STEP_FINISHED' }>,
   ): void {
-    const previous = this.thinkingContent
-    let nextThinking = previous
+    this.ensureAssistantMessage()
 
-    // Prefer delta over content
-    if (chunk.delta && chunk.delta !== '') {
-      nextThinking = previous + chunk.delta
-    } else if (chunk.content && chunk.content !== '') {
-      if (chunk.content.startsWith(previous)) {
-        nextThinking = chunk.content
-      } else if (previous.startsWith(chunk.content)) {
-        nextThinking = previous
-      } else {
-        nextThinking = previous + chunk.content
-      }
-    }
-
-    this.thinkingContent = nextThinking
+    this.thinkingContent += chunk.delta
 
     // Update UIMessage
     if (this.currentAssistantMessageId) {
@@ -700,9 +794,14 @@ export class StreamProcessor {
   }
 
   /**
-   * Handle CUSTOM event
-   * Handles special custom events like 'tool-input-available' for client-side tool execution
-   * and 'approval-requested' for tool approval flows
+   * Handle CUSTOM event.
+   *
+   * Handles special custom events emitted by the TextEngine (not adapters):
+   * - 'tool-input-available': Client tool needs execution. Fires onToolCall.
+   * - 'approval-requested': Tool needs user approval. Updates tool-call part
+   *   state and fires onApprovalRequest.
+   *
+   * @see docs/chat-architecture.md#client-tools-and-approval-flows — Full flow details
    */
   private handleCustomEvent(
     chunk: Extract<StreamChunk, { type: 'CUSTOM' }>,
@@ -754,29 +853,13 @@ export class StreamProcessor {
   }
 
   /**
-   * Detect if an incoming content chunk represents a NEW text segment
-   */
-  private isNewTextSegment(
-    chunk: Extract<StreamChunk, { type: 'TEXT_MESSAGE_CONTENT' }>,
-    previous: string,
-  ): boolean {
-    // Check if content is present (delta is always defined but may be empty string)
-    if (chunk.content !== undefined) {
-      if (chunk.content.length < previous.length) {
-        return true
-      }
-      if (
-        !chunk.content.startsWith(previous) &&
-        !previous.startsWith(chunk.content)
-      ) {
-        return true
-      }
-    }
-    return false
-  }
-
-  /**
-   * Complete all tool calls
+   * Complete all tool calls — safety net for stream termination.
+   *
+   * Called by RUN_FINISHED and finalizeStream(). Force-transitions any tool call
+   * not yet in input-complete state. Handles cases where TOOL_CALL_END was
+   * missed (adapter bug, network error, aborted stream).
+   *
+   * @see docs/chat-architecture.md#single-shot-tool-call-response — Safety net behavior
    */
   private completeAllToolCalls(): void {
     this.toolCalls.forEach((toolCall, id) => {
@@ -824,7 +907,13 @@ export class StreamProcessor {
   }
 
   /**
-   * Emit pending text update
+   * Emit pending text update.
+   *
+   * Calls updateTextPart() which has critical append-vs-replace logic:
+   * - If last UIMessage part is TextPart → replaces its content (same segment).
+   * - If last part is anything else → pushes new TextPart (new segment after tools).
+   *
+   * @see docs/chat-architecture.md#uimessage-part-ordering-invariants — Replace vs. push logic
    */
   private emitTextUpdate(): void {
     this.lastEmittedText = this.currentSegmentText
@@ -854,10 +943,16 @@ export class StreamProcessor {
   }
 
   /**
-   * Finalize the stream - complete all pending operations
+   * Finalize the stream — complete all pending operations.
+   *
+   * Called when the async iterable ends (stream closed). Acts as the final
+   * safety net: completes any remaining tool calls, flushes un-emitted text,
+   * and fires onStreamEnd.
+   *
+   * @see docs/chat-architecture.md#single-shot-text-response — Finalization step
    */
   finalizeStream(): void {
-    // Complete any remaining tool calls
+    // Safety net: complete any remaining tool calls (e.g. on network errors / aborted streams)
     this.completeAllToolCalls()
 
     // Emit any pending text if not already emitted
@@ -865,7 +960,25 @@ export class StreamProcessor {
       this.emitTextUpdate()
     }
 
-    // Emit stream end event
+    // Remove the assistant message if it only contains whitespace text
+    // (no tool calls, no meaningful content). This handles models like Gemini
+    // that sometimes return just "\n" during auto-continuation.
+    // Preserve the message on errors so the UI can show error state.
+    if (this.currentAssistantMessageId && !this.hasError) {
+      const assistantMessage = this.messages.find(
+        (m) => m.id === this.currentAssistantMessageId,
+      )
+      if (assistantMessage && this.isWhitespaceOnlyMessage(assistantMessage)) {
+        this.messages = this.messages.filter(
+          (m) => m.id !== this.currentAssistantMessageId,
+        )
+        this.emitMessagesChange()
+        this.currentAssistantMessageId = null
+        return
+      }
+    }
+
+    // Emit stream end event (only if a message was actually created)
     if (this.currentAssistantMessageId) {
       const assistantMessage = this.messages.find(
         (m) => m.id === this.currentAssistantMessageId,
@@ -950,8 +1063,8 @@ export class StreamProcessor {
     this.toolCalls.clear()
     this.toolCallOrder = []
     this.finishReason = null
+    this.hasError = false
     this.isDone = false
-    this.hasToolCallsSinceTextStart = false
     this.chunkStrategy.reset?.()
   }
 
@@ -962,6 +1075,17 @@ export class StreamProcessor {
     this.resetStreamState()
     this.messages = []
     this.currentAssistantMessageId = null
+  }
+
+  /**
+   * Check if a message contains only whitespace text and no other meaningful parts
+   * (no tool calls, tool results, thinking, etc.)
+   */
+  private isWhitespaceOnlyMessage(message: UIMessage): boolean {
+    if (message.parts.length === 0) return false
+    return message.parts.every(
+      (part) => part.type === 'text' && part.content.trim() === '',
+    )
   }
 
   /**

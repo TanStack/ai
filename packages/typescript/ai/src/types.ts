@@ -789,9 +789,9 @@ export interface TextMessageContentEvent extends BaseAGUIEvent {
   type: 'TEXT_MESSAGE_CONTENT'
   /** Message identifier */
   messageId: string
-  /** The incremental content token (may be undefined if only content is provided) */
-  delta?: string
-  /** Full accumulated content so far */
+  /** The incremental content token */
+  delta: string
+  /** Full accumulated content so far (optional, for debugging) */
   content?: string
 }
 
@@ -864,8 +864,8 @@ export interface StepFinishedEvent extends BaseAGUIEvent {
   /** Step identifier */
   stepId: string
   /** Incremental thinking content */
-  delta?: string
-  /** Full accumulated thinking content */
+  delta: string
+  /** Full accumulated thinking content (optional, for debugging) */
   content?: string
 }
 

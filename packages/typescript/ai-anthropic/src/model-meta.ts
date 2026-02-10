@@ -19,6 +19,7 @@ interface ModelMeta<
   supports: {
     input: Array<'text' | 'image' | 'audio' | 'video' | 'document'>
     extended_thinking?: boolean
+    adaptive_thinking?: boolean
     priority_tier?: boolean
   }
   context_window?: number

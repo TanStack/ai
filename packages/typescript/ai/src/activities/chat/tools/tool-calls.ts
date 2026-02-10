@@ -295,10 +295,7 @@ export async function executeToolCalls(
 
     // Parse arguments, throwing error if invalid JSON
     let input: unknown = {}
-    let argsStr = toolCall.function.arguments.trim() || '{}'
-    // Normalize "null" to "{}" — can occur when the model streams a tool_use
-    // block with no input_json_delta events (Anthropic adapter edge case)
-    if (argsStr === 'null') argsStr = '{}'
+    const argsStr = toolCall.function.arguments.trim() || '{}'
     if (argsStr) {
       try {
         input = JSON.parse(argsStr)

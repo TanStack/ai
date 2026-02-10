@@ -555,15 +555,6 @@ class TextEngine<
       })
     }
 
-    // Don't overwrite a tool_calls finishReason with a stop finishReason
-    if (
-      this.finishedEvent?.finishReason === 'tool_calls' &&
-      chunk.finishReason === 'stop'
-    ) {
-      this.lastFinishReason = chunk.finishReason
-      return
-    }
-
     this.finishedEvent = chunk
     this.lastFinishReason = chunk.finishReason
   }
@@ -799,6 +790,18 @@ class TextEngine<
           output = JSON.parse(message.content as string)
         } catch {
           output = message.content
+        }
+        // Skip approval response messages (they have pendingExecution marker)
+        // These are NOT real client tool results — they are synthetic tool messages
+        // created by uiMessageToModelMessages for approved-but-not-yet-executed tools.
+        // Treating them as results would prevent the server from requesting actual
+        // client-side execution after approval (see GitHub issue #225).
+        if (
+          output &&
+          typeof output === 'object' &&
+          (output as any).pendingExecution === true
+        ) {
+          continue
         }
         clientToolResults.set(message.toolCallId, output)
       }

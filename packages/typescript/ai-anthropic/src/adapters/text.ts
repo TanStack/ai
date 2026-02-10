@@ -247,6 +247,7 @@ export class AnthropicTextAdapter<
       const validKeys: Array<keyof InternalTextProviderOptions> = [
         'container',
         'context_management',
+        'effort',
         'mcp_servers',
         'service_tier',
         'stop_sequences',
@@ -450,7 +451,74 @@ export class AnthropicTextAdapter<
       })
     }
 
-    return formattedMessages
+    // Post-process: Anthropic requires strictly alternating user/assistant roles.
+    // Tool results are sent as role:'user' messages, which can create consecutive
+    // user messages when followed by a new user message. Merge them.
+    return this.mergeConsecutiveSameRoleMessages(formattedMessages)
+  }
+
+  /**
+   * Merge consecutive messages of the same role into a single message.
+   * Anthropic's API requires strictly alternating user/assistant roles.
+   * Tool results are wrapped as role:'user' messages, which can collide
+   * with actual user messages in multi-turn conversations.
+   *
+   * Also filters out empty assistant messages (e.g., from a previous failed request).
+   */
+  private mergeConsecutiveSameRoleMessages(
+    messages: InternalTextProviderOptions['messages'],
+  ): InternalTextProviderOptions['messages'] {
+    const merged: InternalTextProviderOptions['messages'] = []
+
+    for (const msg of messages) {
+      // Skip empty assistant messages (no content or empty string)
+      if (msg.role === 'assistant') {
+        const hasContent = Array.isArray(msg.content)
+          ? msg.content.length > 0
+          : typeof msg.content === 'string' && msg.content.length > 0
+        if (!hasContent) {
+          continue
+        }
+      }
+
+      const prev = merged[merged.length - 1]
+      if (prev && prev.role === msg.role) {
+        // Normalize both contents to arrays and concatenate
+        const prevBlocks = Array.isArray(prev.content)
+          ? prev.content
+          : typeof prev.content === 'string' && prev.content
+            ? [{ type: 'text' as const, text: prev.content }]
+            : []
+        const msgBlocks = Array.isArray(msg.content)
+          ? msg.content
+          : typeof msg.content === 'string' && msg.content
+            ? [{ type: 'text' as const, text: msg.content }]
+            : []
+        prev.content = [...prevBlocks, ...msgBlocks]
+      } else {
+        merged.push({ ...msg })
+      }
+    }
+
+    // De-duplicate tool_result blocks with the same tool_use_id.
+    // This can happen when the core layer generates tool results from both
+    // the tool-result part and the tool-call part's output field.
+    for (const msg of merged) {
+      if (Array.isArray(msg.content)) {
+        const seenToolResultIds = new Set<string>()
+        msg.content = msg.content.filter((block: any) => {
+          if (block.type === 'tool_result' && block.tool_use_id) {
+            if (seenToolResultIds.has(block.tool_use_id)) {
+              return false // Remove duplicate
+            }
+            seenToolResultIds.add(block.tool_use_id)
+          }
+          return true
+        })
+      }
+    }
+
+    return merged
   }
 
   private async *processAnthropicStream(
@@ -473,6 +541,9 @@ export class AnthropicTextAdapter<
     let stepId: string | null = null
     let hasEmittedRunStarted = false
     let hasEmittedTextMessageStart = false
+    let hasEmittedRunFinished = false
+    // Track current content block type for proper content_block_stop handling
+    let currentBlockType: string | null = null
 
     try {
       for await (const event of stream) {
@@ -488,6 +559,7 @@ export class AnthropicTextAdapter<
         }
 
         if (event.type === 'content_block_start') {
+          currentBlockType = event.content_block.type
           if (event.content_block.type === 'tool_use') {
             currentToolIndex++
             toolCallsMap.set(currentToolIndex, {
@@ -572,59 +644,71 @@ export class AnthropicTextAdapter<
             }
           }
         } else if (event.type === 'content_block_stop') {
-          const existing = toolCallsMap.get(currentToolIndex)
-          if (existing) {
-            // If tool call wasn't started yet (no args), start it now
-            if (!existing.started) {
-              existing.started = true
+          if (currentBlockType === 'tool_use') {
+            const existing = toolCallsMap.get(currentToolIndex)
+            if (existing) {
+              // If tool call wasn't started yet (no args), start it now
+              if (!existing.started) {
+                existing.started = true
+                yield {
+                  type: 'TOOL_CALL_START',
+                  toolCallId: existing.id,
+                  toolName: existing.name,
+                  model,
+                  timestamp,
+                  index: currentToolIndex,
+                }
+              }
+
+              // Emit TOOL_CALL_END
+              let parsedInput: unknown = {}
+              try {
+                const parsed = existing.input ? JSON.parse(existing.input) : {}
+                parsedInput = parsed && typeof parsed === 'object' ? parsed : {}
+              } catch {
+                parsedInput = {}
+              }
+
               yield {
-                type: 'TOOL_CALL_START',
+                type: 'TOOL_CALL_END',
                 toolCallId: existing.id,
                 toolName: existing.name,
                 model,
                 timestamp,
-                index: currentToolIndex,
+                input: parsedInput,
+              }
+
+              // Reset so a new TEXT_MESSAGE_START is emitted if text follows tool calls
+              hasEmittedTextMessageStart = false
+            }
+          } else {
+            // Emit TEXT_MESSAGE_END only for text blocks (not tool_use blocks)
+            if (hasEmittedTextMessageStart && accumulatedContent) {
+              yield {
+                type: 'TEXT_MESSAGE_END',
+                messageId,
+                model,
+                timestamp,
               }
             }
-
-            // Emit TOOL_CALL_END
-            let parsedInput: unknown = {}
-            try {
-              const parsed = existing.input ? JSON.parse(existing.input) : {}
-              parsedInput = parsed && typeof parsed === 'object' ? parsed : {}
-            } catch {
-              parsedInput = {}
-            }
-
-            yield {
-              type: 'TOOL_CALL_END',
-              toolCallId: existing.id,
-              toolName: existing.name,
-              model,
-              timestamp,
-              input: parsedInput,
-            }
           }
-
-          // Emit TEXT_MESSAGE_END if we had text content
-          if (hasEmittedTextMessageStart && accumulatedContent) {
-            yield {
-              type: 'TEXT_MESSAGE_END',
-              messageId,
-              model,
-              timestamp,
-            }
-          }
+          currentBlockType = null
         } else if (event.type === 'message_stop') {
-          yield {
-            type: 'RUN_FINISHED',
-            runId,
-            model,
-            timestamp,
-            finishReason: 'stop',
+          // Only emit RUN_FINISHED from message_stop if message_delta didn't already emit one.
+          // message_delta carries the real stop_reason (tool_use, end_turn, etc.),
+          // while message_stop is just a completion signal.
+          if (!hasEmittedRunFinished) {
+            yield {
+              type: 'RUN_FINISHED',
+              runId,
+              model,
+              timestamp,
+              finishReason: 'stop',
+            }
           }
         } else if (event.type === 'message_delta') {
           if (event.delta.stop_reason) {
+            hasEmittedRunFinished = true
             switch (event.delta.stop_reason) {
               case 'tool_use': {
                 yield {

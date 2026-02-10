@@ -230,30 +230,36 @@ export class ChatClient {
    */
   private async processStream(
     source: AsyncIterable<StreamChunk>,
-  ): Promise<UIMessage> {
+  ): Promise<UIMessage | null> {
     // Generate a stream ID for this streaming operation
     this.currentStreamId = this.generateUniqueId('stream')
 
-    // Start a new assistant message
-    const messageId = this.processor.startAssistantMessage()
-    this.currentMessageId = messageId
-
-    // Emit message appended event for the new assistant message
-    const assistantMessage: UIMessage = {
-      id: messageId,
-      role: 'assistant',
-      parts: [],
-      createdAt: new Date(),
-    }
-    this.events.messageAppended(
-      assistantMessage,
-      this.currentStreamId || undefined,
-    )
+    // Prepare for a new assistant message (created lazily on first content)
+    this.processor.prepareAssistantMessage()
 
     // Process each chunk
     for await (const chunk of source) {
       this.callbacksRef.current.onChunk(chunk)
       this.processor.processChunk(chunk)
+
+      // Track the message ID once the processor lazily creates it
+      if (!this.currentMessageId) {
+        const newMessageId =
+          this.processor.getCurrentAssistantMessageId() ?? null
+        if (newMessageId) {
+          this.currentMessageId = newMessageId
+          // Emit message appended event now that the assistant message exists
+          const assistantMessage = this.processor
+            .getMessages()
+            .find((m: UIMessage) => m.id === newMessageId)
+          if (assistantMessage) {
+            this.events.messageAppended(
+              assistantMessage,
+              this.currentStreamId || undefined,
+            )
+          }
+        }
+      }
 
       // Yield control back to event loop to allow UI updates
       await new Promise((resolve) => setTimeout(resolve, 0))
@@ -268,24 +274,20 @@ export class ChatClient {
     // Finalize the stream
     this.processor.finalizeStream()
 
+    // Get the message ID (may be null if no content arrived)
+    const messageId = this.processor.getCurrentAssistantMessageId()
+
     // Clear the current stream and message IDs
     this.currentStreamId = null
     this.currentMessageId = null
 
-    // Return the assistant message
-    const messages = this.processor.getMessages()
-    const finalAssistantMessage = messages.find(
-      (m: UIMessage) => m.id === messageId,
-    )
+    // Return the assistant message if one was created
+    if (messageId) {
+      const messages = this.processor.getMessages()
+      return messages.find((m: UIMessage) => m.id === messageId) || null
+    }
 
-    return (
-      finalAssistantMessage || {
-        id: messageId,
-        role: 'assistant',
-        parts: [],
-        createdAt: new Date(),
-      }
-    )
+    return null
   }
 
   /**

@@ -16,6 +16,7 @@ import type {
   StructuredOutputResult,
 } from '@tanstack/ai/adapters'
 import type {
+  Content,
   GenerateContentParameters,
   GenerateContentResponse,
   GoogleGenAI,
@@ -194,6 +195,7 @@ export class GeminiTextAdapter<
   ): AsyncIterable<StreamChunk> {
     const timestamp = Date.now()
     let accumulatedContent = ''
+    let accumulatedThinking = ''
     const toolCallMap = new Map<
       string,
       { name: string; args: string; index: number; started: boolean }
@@ -239,15 +241,17 @@ export class GeminiTextAdapter<
                 }
               }
 
+              accumulatedThinking += part.text
               yield {
                 type: 'STEP_FINISHED',
                 stepId: stepId || generateId(this.name),
                 model,
                 timestamp,
                 delta: part.text,
-                content: part.text,
+                content: accumulatedThinking,
               }
-            } else {
+            } else if (part.text.trim()) {
+              // Skip whitespace-only text parts (e.g. "\n" during auto-continuation)
               // Emit TEXT_MESSAGE_START on first text content
               if (!hasEmittedTextMessageStart) {
                 hasEmittedTextMessageStart = true
@@ -332,7 +336,8 @@ export class GeminiTextAdapter<
             }
           }
         }
-      } else if (chunk.data) {
+      } else if (chunk.data && chunk.data.trim()) {
+        // Skip whitespace-only data (e.g. "\n" during auto-continuation)
         // Emit TEXT_MESSAGE_START on first text content
         if (!hasEmittedTextMessageStart) {
           hasEmittedTextMessageStart = true
@@ -434,6 +439,11 @@ export class GeminiTextAdapter<
           }
         }
 
+        // Reset so a new TEXT_MESSAGE_START is emitted if text follows tool calls
+        if (toolCallMap.size > 0) {
+          hasEmittedTextMessageStart = false
+        }
+
         if (finishReason === FinishReason.MAX_TOKENS) {
           yield {
             type: 'RUN_ERROR',
@@ -520,7 +530,7 @@ export class GeminiTextAdapter<
   private formatMessages(
     messages: Array<ModelMessage>,
   ): GenerateContentParameters['contents'] {
-    return messages.map((msg) => {
+    const formatted = messages.map((msg) => {
       const role: 'user' | 'model' = msg.role === 'assistant' ? 'model' : 'user'
       const parts: Array<Part> = []
 
@@ -574,6 +584,67 @@ export class GeminiTextAdapter<
         parts: parts.length > 0 ? parts : [{ text: '' }],
       }
     })
+
+    // Post-process: Gemini requires strictly alternating user/model roles.
+    // Tool results are mapped to role:'user', which can create consecutive
+    // user messages when followed by a new user message. Merge them.
+    return this.mergeConsecutiveSameRoleMessages(formatted)
+  }
+
+  /**
+   * Merge consecutive messages of the same role into a single message.
+   * Gemini's API requires strictly alternating user/model roles.
+   * Tool results are mapped to role:'user', which can collide with actual
+   * user messages in multi-turn conversations.
+   *
+   * Also filters out empty model messages (e.g., from a previous failed request)
+   * and deduplicates functionResponse parts with the same name (tool call ID).
+   */
+  private mergeConsecutiveSameRoleMessages(
+    messages: Array<Content>,
+  ): Array<Content> {
+    const merged: Array<Content> = []
+
+    for (const msg of messages) {
+      const parts = msg.parts || []
+
+      // Skip empty model messages (no parts or only empty text)
+      if (msg.role === 'model') {
+        const hasContent =
+          parts.length > 0 &&
+          !parts.every(
+            (p) => 'text' in p && (p as { text: string }).text === '',
+          )
+        if (!hasContent) {
+          continue
+        }
+      }
+
+      const prev = merged[merged.length - 1]
+      if (prev && prev.role === msg.role) {
+        // Merge parts arrays
+        prev.parts = [...(prev.parts || []), ...parts]
+      } else {
+        merged.push({ ...msg, parts: [...parts] })
+      }
+    }
+
+    // Deduplicate functionResponse parts with the same name (tool call ID)
+    for (const msg of merged) {
+      if (!msg.parts) continue
+      const seenFunctionResponseNames = new Set<string>()
+      msg.parts = msg.parts.filter((part) => {
+        if ('functionResponse' in part && part.functionResponse?.name) {
+          if (seenFunctionResponseNames.has(part.functionResponse.name)) {
+            return false
+          }
+          seenFunctionResponseNames.add(part.functionResponse.name)
+        }
+        return true
+      })
+    }
+
+    return merged
   }
 
   private mapCommonOptionsToGemini(

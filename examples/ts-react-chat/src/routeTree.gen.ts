@@ -39,7 +39,7 @@ export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/api/tanchat': typeof ApiTanchatRoute
   '/example/guitars/$guitarId': typeof ExampleGuitarsGuitarIdRoute
-  '/example/guitars': typeof ExampleGuitarsIndexRoute
+  '/example/guitars/': typeof ExampleGuitarsIndexRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -60,7 +60,7 @@ export interface FileRouteTypes {
     | '/'
     | '/api/tanchat'
     | '/example/guitars/$guitarId'
-    | '/example/guitars'
+    | '/example/guitars/'
   fileRoutesByTo: FileRoutesByTo
   to: '/' | '/api/tanchat' | '/example/guitars/$guitarId' | '/example/guitars'
   id:
@@ -97,7 +97,7 @@ declare module '@tanstack/react-router' {
     '/example/guitars/': {
       id: '/example/guitars/'
       path: '/example/guitars'
-      fullPath: '/example/guitars'
+      fullPath: '/example/guitars/'
       preLoaderRoute: typeof ExampleGuitarsIndexRouteImport
       parentRoute: typeof rootRouteImport
     }
