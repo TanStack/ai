@@ -1,6 +1,6 @@
 # @tanstack/ai-solid-ui
 
-## 1.0.0
+## 0.4.4
 
 ### Patch Changes
 
