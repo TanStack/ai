@@ -1,5 +1,53 @@
 # @tanstack/ai
 
+## 0.5.0
+
+### Minor Changes
+
+- Tighten the AG-UI adapter contract and simplify the core stream processor. ([#275](https://github.com/TanStack/ai/pull/275))
+
+  **Breaking type changes:**
+  - `TextMessageContentEvent.delta` is now required (was optional)
+  - `StepFinishedEvent.delta` is now required (was optional)
+
+  All first-party adapters already sent `delta` on every event, so this is a type-level enforcement of existing behavior. Community adapters that follow the reference implementations will not need code changes.
+
+  **Core processor simplifications:**
+  - `TEXT_MESSAGE_START` now resets text segment state, replacing heuristic overlap detection
+  - `TOOL_CALL_END` is now the authoritative signal for tool call input completion
+  - Removed delta/content fallback logic, whitespace-only message cleanup, and finish-reason conflict arbitration from the processor
+
+  **Adapter fixes:**
+  - Gemini: filter whitespace-only text parts, fix STEP_FINISHED content accumulation, emit fresh TEXT_MESSAGE_START after tool calls
+  - Anthropic: emit fresh TEXT_MESSAGE_START after tool_use blocks for proper text segmentation
+
+### Patch Changes
+
+- fix(ai, ai-client, ai-anthropic, ai-gemini): fix multi-turn conversations failing after tool calls ([#275](https://github.com/TanStack/ai/pull/275))
+
+  **Core (@tanstack/ai):**
+  - Lazy assistant message creation: `StreamProcessor` now defers creating the assistant message until the first content-bearing chunk arrives (text, tool call, thinking, or error), eliminating empty `parts: []` messages from appearing during auto-continuation when the model returns no content
+  - Add `prepareAssistantMessage()` (lazy) alongside deprecated `startAssistantMessage()` (eager, backwards-compatible)
+  - Add `getCurrentAssistantMessageId()` to check if a message was created
+  - **Rewrite `uiMessageToModelMessages()` to preserve part ordering**: the function now walks parts sequentially instead of separating by type, producing correctly interleaved assistant/tool messages (text1 + toolCall1 → toolResult1 → text2 + toolCall2 → toolResult2) instead of concatenating all text and batching all tool calls. This fixes multi-round tool flows where the model would see garbled conversation history and re-call tools unnecessarily.
+  - Deduplicate tool result messages: when a client tool has both a `tool-result` part and a `tool-call` part with `output`, only one `role: 'tool'` message is emitted per tool call ID
+
+  **Client (@tanstack/ai-client):**
+  - Update `ChatClient.processStream()` to use lazy assistant message creation, preventing UI flicker from empty messages being created then removed
+
+  **Anthropic:**
+  - Fix consecutive user-role messages violating Anthropic's alternating role requirement by merging them in `formatMessages`
+  - Deduplicate `tool_result` blocks with the same `tool_use_id`
+  - Filter out empty assistant messages from conversation history
+  - Suppress duplicate `RUN_FINISHED` event from `message_stop` when `message_delta` already emitted one
+  - Fix `TEXT_MESSAGE_END` incorrectly emitting for `tool_use` content blocks
+  - Add Claude Opus 4.6 model support with adaptive thinking and effort parameter
+
+  **Gemini:**
+  - Fix consecutive user-role messages violating Gemini's alternating role requirement by merging them in `formatMessages`
+  - Deduplicate `functionResponse` parts with the same name (tool call ID)
+  - Filter out empty model messages from conversation history
+
 ## 0.4.2
 
 ### Patch Changes
