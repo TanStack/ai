@@ -975,6 +975,7 @@ export class StreamProcessor {
     this.finishReason = chunk.finishReason
     this.isDone = true
     this.completeAllToolCalls()
+    this.finalizeStream()
   }
 
   /**
