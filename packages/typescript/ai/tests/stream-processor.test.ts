@@ -1098,7 +1098,9 @@ describe('StreamProcessor', () => {
       processor.processChunk(ev.toolStart('tc-1', 'getGuitars'))
 
       expect(processor.getMessages()).toHaveLength(1)
-      expect(processor.getMessages()[0]?.parts.some((p) => p.type === 'tool-call')).toBe(true)
+      expect(
+        processor.getMessages()[0]?.parts.some((p) => p.type === 'tool-call'),
+      ).toBe(true)
     })
 
     it('should create assistant message lazily on error', () => {
@@ -1114,6 +1116,29 @@ describe('StreamProcessor', () => {
       expect(messages).toHaveLength(1)
       expect(messages[0]?.role).toBe('assistant')
       expect(messages[0]?.parts).toHaveLength(0)
+    })
+
+    it('should create assistant message lazily on thinking content', () => {
+      const processor = new StreamProcessor()
+      processor.prepareAssistantMessage()
+
+      // No message yet
+      expect(processor.getMessages()).toHaveLength(0)
+
+      processor.processChunk({
+        type: 'STEP_FINISHED',
+        stepId: 'step-1',
+        model: 'test',
+        timestamp: Date.now(),
+        delta: 'thinking...',
+        content: 'thinking...',
+      } as StreamChunk)
+
+      // Now the message exists with thinking content
+      expect(processor.getMessages()).toHaveLength(1)
+      expect(
+        processor.getMessages()[0]?.parts.some((p) => p.type === 'thinking'),
+      ).toBe(true)
     })
 
     it('should not create assistant message during empty multi-turn continuation', () => {

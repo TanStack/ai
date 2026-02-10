@@ -137,6 +137,7 @@ export class StreamProcessor {
   private toolCalls: Map<string, InternalToolCallState> = new Map()
   private toolCallOrder: Array<string> = []
   private finishReason: string | null = null
+  private hasError = false
   private isDone = false
 
   // Recording
@@ -754,6 +755,7 @@ export class StreamProcessor {
   private handleRunErrorEvent(
     chunk: Extract<StreamChunk, { type: 'RUN_ERROR' }>,
   ): void {
+    this.hasError = true
     this.ensureAssistantMessage()
     // Emit error event
     this.events.onError?.(new Error(chunk.error.message || 'An error occurred'))
@@ -958,6 +960,24 @@ export class StreamProcessor {
       this.emitTextUpdate()
     }
 
+    // Remove the assistant message if it only contains whitespace text
+    // (no tool calls, no meaningful content). This handles models like Gemini
+    // that sometimes return just "\n" during auto-continuation.
+    // Preserve the message on errors so the UI can show error state.
+    if (this.currentAssistantMessageId && !this.hasError) {
+      const assistantMessage = this.messages.find(
+        (m) => m.id === this.currentAssistantMessageId,
+      )
+      if (assistantMessage && this.isWhitespaceOnlyMessage(assistantMessage)) {
+        this.messages = this.messages.filter(
+          (m) => m.id !== this.currentAssistantMessageId,
+        )
+        this.emitMessagesChange()
+        this.currentAssistantMessageId = null
+        return
+      }
+    }
+
     // Emit stream end event (only if a message was actually created)
     if (this.currentAssistantMessageId) {
       const assistantMessage = this.messages.find(
@@ -1043,6 +1063,7 @@ export class StreamProcessor {
     this.toolCalls.clear()
     this.toolCallOrder = []
     this.finishReason = null
+    this.hasError = false
     this.isDone = false
     this.chunkStrategy.reset?.()
   }
@@ -1054,6 +1075,17 @@ export class StreamProcessor {
     this.resetStreamState()
     this.messages = []
     this.currentAssistantMessageId = null
+  }
+
+  /**
+   * Check if a message contains only whitespace text and no other meaningful parts
+   * (no tool calls, tool results, thinking, etc.)
+   */
+  private isWhitespaceOnlyMessage(message: UIMessage): boolean {
+    if (message.parts.length === 0) return false
+    return message.parts.every(
+      (part) => part.type === 'text' && part.content.trim() === '',
+    )
   }
 
   /**

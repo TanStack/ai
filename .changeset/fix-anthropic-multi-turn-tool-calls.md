@@ -1,13 +1,14 @@
 ---
-"@tanstack/ai": patch
-"@tanstack/ai-client": patch
-"@tanstack/ai-anthropic": patch
-"@tanstack/ai-gemini": patch
+'@tanstack/ai': patch
+'@tanstack/ai-client': patch
+'@tanstack/ai-anthropic': patch
+'@tanstack/ai-gemini': patch
 ---
 
 fix(ai, ai-client, ai-anthropic, ai-gemini): fix multi-turn conversations failing after tool calls
 
 **Core (@tanstack/ai):**
+
 - Lazy assistant message creation: `StreamProcessor` now defers creating the assistant message until the first content-bearing chunk arrives (text, tool call, thinking, or error), eliminating empty `parts: []` messages from appearing during auto-continuation when the model returns no content
 - Add `prepareAssistantMessage()` (lazy) alongside deprecated `startAssistantMessage()` (eager, backwards-compatible)
 - Add `getCurrentAssistantMessageId()` to check if a message was created
@@ -15,6 +16,7 @@ fix(ai, ai-client, ai-anthropic, ai-gemini): fix multi-turn conversations failin
 - Deduplicate tool result messages: when a client tool has both a `tool-result` part and a `tool-call` part with `output`, only one `role: 'tool'` message is emitted per tool call ID
 
 **Client (@tanstack/ai-client):**
+
 - Update `ChatClient.processStream()` to use lazy assistant message creation, preventing UI flicker from empty messages being created then removed
 
 **Anthropic:**
