@@ -17,22 +17,34 @@ function chunk<T extends StreamChunk['type']>(
 
 /** Shorthand chunk factories for common AG-UI events. */
 const ev = {
-  runStarted: (runId = 'run-1') =>
-    chunk('RUN_STARTED', { runId }),
+  runStarted: (runId = 'run-1') => chunk('RUN_STARTED', { runId }),
   textStart: (messageId = 'msg-1') =>
     chunk('TEXT_MESSAGE_START', { messageId, role: 'assistant' as const }),
   textContent: (delta: string, messageId = 'msg-1') =>
     chunk('TEXT_MESSAGE_CONTENT', { messageId, delta }),
-  textEnd: (messageId = 'msg-1') =>
-    chunk('TEXT_MESSAGE_END', { messageId }),
+  textEnd: (messageId = 'msg-1') => chunk('TEXT_MESSAGE_END', { messageId }),
   toolStart: (toolCallId: string, toolName: string, index?: number) =>
-    chunk('TOOL_CALL_START', { toolCallId, toolName, ...(index !== undefined ? { index } : {}) }),
+    chunk('TOOL_CALL_START', {
+      toolCallId,
+      toolName,
+      ...(index !== undefined ? { index } : {}),
+    }),
   toolArgs: (toolCallId: string, delta: string) =>
     chunk('TOOL_CALL_ARGS', { toolCallId, delta }),
-  toolEnd: (toolCallId: string, toolName: string, opts?: { input?: unknown; result?: string }) =>
-    chunk('TOOL_CALL_END', { toolCallId, toolName, ...opts }),
-  runFinished: (finishReason: 'stop' | 'length' | 'content_filter' | 'tool_calls' | null = 'stop', runId = 'run-1') =>
-    chunk('RUN_FINISHED', { runId, finishReason }),
+  toolEnd: (
+    toolCallId: string,
+    toolName: string,
+    opts?: { input?: unknown; result?: string },
+  ) => chunk('TOOL_CALL_END', { toolCallId, toolName, ...opts }),
+  runFinished: (
+    finishReason:
+      | 'stop'
+      | 'length'
+      | 'content_filter'
+      | 'tool_calls'
+      | null = 'stop',
+    runId = 'run-1',
+  ) => chunk('RUN_FINISHED', { runId, finishReason }),
   runError: (message: string, runId = 'run-1') =>
     chunk('RUN_ERROR', { runId, error: { message } }),
   stepFinished: (delta: string, stepId = 'step-1') =>
@@ -85,14 +97,17 @@ function createMockAdapter(options: {
 
       return (async function* () {})()
     },
-    structuredOutput: options.structuredOutput ?? (async () => ({ data: {}, rawText: '{}' })),
+    structuredOutput:
+      options.structuredOutput ?? (async () => ({ data: {}, rawText: '{}' })),
   }
 
   return { adapter, calls }
 }
 
 /** Collect all chunks from an async iterable. */
-async function collectChunks(stream: AsyncIterable<StreamChunk>): Promise<Array<StreamChunk>> {
+async function collectChunks(
+  stream: AsyncIterable<StreamChunk>,
+): Promise<Array<StreamChunk>> {
   const chunks: Array<StreamChunk> = []
   for await (const c of stream) {
     chunks.push(c)
@@ -178,9 +193,7 @@ describe('chat()', () => {
 
     it('should pass systemPrompts to the adapter', async () => {
       const { adapter, calls } = createMockAdapter({
-        iterations: [
-          [ev.runStarted(), ev.runFinished('stop')],
-        ],
+        iterations: [[ev.runStarted(), ev.runFinished('stop')]],
       })
 
       const stream = chat({
@@ -196,9 +209,7 @@ describe('chat()', () => {
 
     it('should pass temperature, topP, maxTokens to the adapter', async () => {
       const { adapter, calls } = createMockAdapter({
-        iterations: [
-          [ev.runStarted(), ev.runFinished('stop')],
-        ],
+        iterations: [[ev.runStarted(), ev.runFinished('stop')]],
       })
 
       const stream = chat({
@@ -457,7 +468,8 @@ describe('chat()', () => {
 
       // Should yield a CUSTOM event for tool-input-available
       const customChunks = chunks.filter(
-        (c) => c.type === 'CUSTOM' && (c as any).name === 'tool-input-available',
+        (c) =>
+          c.type === 'CUSTOM' && (c as any).name === 'tool-input-available',
       )
       expect(customChunks).toHaveLength(1)
 
@@ -487,9 +499,10 @@ describe('chat()', () => {
       const stream = chat({
         adapter,
         messages: [{ role: 'user', content: 'Delete something' }],
-        tools: [
-          serverTool('dangerousTool', () => ({ ok: true })),
-        ].map((t) => ({ ...t, needsApproval: true })),
+        tools: [serverTool('dangerousTool', () => ({ ok: true }))].map((t) => ({
+          ...t,
+          needsApproval: true,
+        })),
       })
 
       const chunks = await collectChunks(stream as AsyncIterable<StreamChunk>)
@@ -782,10 +795,7 @@ describe('chat()', () => {
     it('should not continue the agent loop after RUN_ERROR', async () => {
       const { adapter, calls } = createMockAdapter({
         iterations: [
-          [
-            ev.runStarted(),
-            ev.runError('Fatal error'),
-          ],
+          [ev.runStarted(), ev.runError('Fatal error')],
           // This should never be called
           [
             ev.runStarted(),
@@ -864,11 +874,7 @@ describe('chat()', () => {
             ev.runFinished('tool_calls'),
           ],
           // Second: final text
-          [
-            ev.runStarted(),
-            ev.textContent('Done.'),
-            ev.runFinished('stop'),
-          ],
+          [ev.runStarted(), ev.textContent('Done.'), ev.runFinished('stop')],
         ],
         structuredOutput: structuredOutputSpy,
       })
@@ -981,10 +987,7 @@ describe('chat()', () => {
       const stream = chat({
         adapter,
         messages: [{ role: 'user', content: 'Do two things' }],
-        tools: [
-          serverTool('tool1', tool1Spy),
-          serverTool('tool2', tool2Spy),
-        ],
+        tools: [serverTool('tool1', tool1Spy), serverTool('tool2', tool2Spy)],
       })
 
       await collectChunks(stream as AsyncIterable<StreamChunk>)
@@ -1032,9 +1035,7 @@ describe('chat()', () => {
 
     it('should pass modelOptions through to adapter', async () => {
       const { adapter, calls } = createMockAdapter({
-        iterations: [
-          [ev.runStarted(), ev.runFinished('stop')],
-        ],
+        iterations: [[ev.runStarted(), ev.runFinished('stop')]],
       })
 
       const stream = chat({

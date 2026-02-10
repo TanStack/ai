@@ -5,7 +5,12 @@ import {
 } from '../src/activities/chat/stream/processor'
 import type { StreamProcessorEvents } from '../src/activities/chat/stream/processor'
 import type { ChunkStrategy } from '../src/activities/chat/stream/types'
-import type { StreamChunk, ToolCallPart, ToolResultPart, UIMessage } from '../src/types'
+import type {
+  StreamChunk,
+  ToolCallPart,
+  ToolResultPart,
+  UIMessage,
+} from '../src/types'
 
 // ============================================================================
 // Helpers
@@ -20,7 +25,9 @@ function chunk<T extends StreamChunk['type']>(
 }
 
 /** Create an async iterable from a list of chunks. */
-async function* streamOf(...chunks: Array<StreamChunk>): AsyncIterable<StreamChunk> {
+async function* streamOf(
+  ...chunks: Array<StreamChunk>
+): AsyncIterable<StreamChunk> {
   for (const c of chunks) {
     yield c
   }
@@ -28,33 +35,45 @@ async function* streamOf(...chunks: Array<StreamChunk>): AsyncIterable<StreamChu
 
 /** Shorthand for common event sequences. */
 const ev = {
-  runStarted: (runId = 'run-1') =>
-    chunk('RUN_STARTED', { runId }),
+  runStarted: (runId = 'run-1') => chunk('RUN_STARTED', { runId }),
   textStart: (messageId = 'msg-1') =>
     chunk('TEXT_MESSAGE_START', { messageId, role: 'assistant' as const }),
   textContent: (delta: string, messageId = 'msg-1') =>
     chunk('TEXT_MESSAGE_CONTENT', { messageId, delta }),
-  textEnd: (messageId = 'msg-1') =>
-    chunk('TEXT_MESSAGE_END', { messageId }),
+  textEnd: (messageId = 'msg-1') => chunk('TEXT_MESSAGE_END', { messageId }),
   toolStart: (toolCallId: string, toolName: string, index?: number) =>
-    chunk('TOOL_CALL_START', { toolCallId, toolName, ...(index !== undefined ? { index } : {}) }),
+    chunk('TOOL_CALL_START', {
+      toolCallId,
+      toolName,
+      ...(index !== undefined ? { index } : {}),
+    }),
   toolArgs: (toolCallId: string, delta: string) =>
     chunk('TOOL_CALL_ARGS', { toolCallId, delta }),
-  toolEnd: (toolCallId: string, toolName: string, opts?: { input?: unknown; result?: string }) =>
-    chunk('TOOL_CALL_END', { toolCallId, toolName, ...opts }),
-  runFinished: (finishReason: 'stop' | 'length' | 'content_filter' | 'tool_calls' | null = 'stop', runId = 'run-1') =>
-    chunk('RUN_FINISHED', { runId, finishReason }),
+  toolEnd: (
+    toolCallId: string,
+    toolName: string,
+    opts?: { input?: unknown; result?: string },
+  ) => chunk('TOOL_CALL_END', { toolCallId, toolName, ...opts }),
+  runFinished: (
+    finishReason:
+      | 'stop'
+      | 'length'
+      | 'content_filter'
+      | 'tool_calls'
+      | null = 'stop',
+    runId = 'run-1',
+  ) => chunk('RUN_FINISHED', { runId, finishReason }),
   runError: (message: string, runId = 'run-1') =>
     chunk('RUN_ERROR', { runId, error: { message } }),
   stepFinished: (delta: string, stepId = 'step-1') =>
     chunk('STEP_FINISHED', { stepId, delta }),
-  custom: (name: string, data?: unknown) =>
-    chunk('CUSTOM', { name, data }),
+  custom: (name: string, data?: unknown) => chunk('CUSTOM', { name, data }),
 }
 
 /** Events object with vi.fn() mocks for assertions. */
 type MockedEvents = {
-  [K in keyof Required<StreamProcessorEvents>]: Required<StreamProcessorEvents>[K] & Mock
+  [K in keyof Required<StreamProcessorEvents>]: Required<StreamProcessorEvents>[K] &
+    Mock
 }
 
 /** Create a spy-laden events object for assertions. */
@@ -134,7 +153,9 @@ describe('StreamProcessor', () => {
       processor.processChunk(ev.toolArgs('tc-1', '{"key":"val"}'))
 
       expect(parse).toHaveBeenCalledWith('{"key":"val"}')
-      expect(processor.getState().toolCalls.get('tc-1')?.parsedArguments).toEqual({ custom: true })
+      expect(
+        processor.getState().toolCalls.get('tc-1')?.parsedArguments,
+      ).toEqual({ custom: true })
     })
   })
 
@@ -146,7 +167,11 @@ describe('StreamProcessor', () => {
       const events = spyEvents()
       const processor = new StreamProcessor({ events })
       const msgs: Array<UIMessage> = [
-        { id: 'a1', role: 'assistant', parts: [{ type: 'text', content: 'hello' }] },
+        {
+          id: 'a1',
+          role: 'assistant',
+          parts: [{ type: 'text', content: 'hello' }],
+        },
       ]
       processor.setMessages(msgs)
 
@@ -182,7 +207,10 @@ describe('StreamProcessor', () => {
       const processor = new StreamProcessor()
       const msg = processor.addUserMessage([
         { type: 'text', content: 'What is this?' },
-        { type: 'image', source: { type: 'url', value: 'https://example.com/img.png' } } as any,
+        {
+          type: 'image',
+          source: { type: 'url', value: 'https://example.com/img.png' },
+        } as any,
       ])
 
       expect(msg.parts).toHaveLength(2)
@@ -219,7 +247,10 @@ describe('StreamProcessor', () => {
 
       processor.removeMessagesAfter(0)
       expect(processor.getMessages()).toHaveLength(1)
-      expect(processor.getMessages()[0]!.parts[0]).toEqual({ type: 'text', content: 'zero' })
+      expect(processor.getMessages()[0]!.parts[0]).toEqual({
+        type: 'text',
+        content: 'zero',
+      })
       expect(events.onMessagesChange).toHaveBeenCalledTimes(1)
     })
 
@@ -348,7 +379,10 @@ describe('StreamProcessor', () => {
       expect(messages).toHaveLength(1)
       expect(messages[0]!.role).toBe('assistant')
       expect(messages[0]!.parts).toHaveLength(1)
-      expect(messages[0]!.parts[0]).toEqual({ type: 'text', content: 'Hello world!' })
+      expect(messages[0]!.parts[0]).toEqual({
+        type: 'text',
+        content: 'Hello world!',
+      })
 
       const state = processor.getState()
       expect(state.content).toBe('Hello world!')
@@ -367,7 +401,10 @@ describe('StreamProcessor', () => {
       const messages = processor.getMessages()
       expect(messages).toHaveLength(1)
       expect(messages[0]?.parts).toHaveLength(1)
-      expect(messages[0]?.parts[0]).toEqual({ type: 'text', content: 'Hello world' })
+      expect(messages[0]?.parts[0]).toEqual({
+        type: 'text',
+        content: 'Hello world',
+      })
     })
   })
 
@@ -414,7 +451,9 @@ describe('StreamProcessor', () => {
       processor.processChunk(ev.textEnd())
       processor.processChunk(ev.toolStart('call_1', 'getWeather'))
       processor.processChunk(ev.toolArgs('call_1', '{"city":"NYC"}'))
-      processor.processChunk(ev.toolEnd('call_1', 'getWeather', { input: { city: 'NYC' } }))
+      processor.processChunk(
+        ev.toolEnd('call_1', 'getWeather', { input: { city: 'NYC' } }),
+      )
       processor.processChunk(ev.runFinished('tool_calls'))
 
       processor.finalizeStream()
@@ -422,7 +461,10 @@ describe('StreamProcessor', () => {
       const messages = processor.getMessages()
       expect(messages).toHaveLength(1)
       expect(messages[0]!.parts).toHaveLength(2)
-      expect(messages[0]!.parts[0]).toEqual({ type: 'text', content: 'Let me check.' })
+      expect(messages[0]!.parts[0]).toEqual({
+        type: 'text',
+        content: 'Let me check.',
+      })
 
       const tcPart = messages[0]!.parts[1] as ToolCallPart
       expect(tcPart.type).toBe('tool-call')
@@ -434,16 +476,24 @@ describe('StreamProcessor', () => {
       processor.prepareAssistantMessage()
 
       processor.processChunk(ev.toolStart('tc-1', 'getWeather'))
-      expect(processor.getState().toolCalls.get('tc-1')?.state).toBe('awaiting-input')
+      expect(processor.getState().toolCalls.get('tc-1')?.state).toBe(
+        'awaiting-input',
+      )
 
       processor.processChunk(ev.toolArgs('tc-1', '{"city":'))
-      expect(processor.getState().toolCalls.get('tc-1')?.state).toBe('input-streaming')
+      expect(processor.getState().toolCalls.get('tc-1')?.state).toBe(
+        'input-streaming',
+      )
 
       processor.processChunk(ev.toolArgs('tc-1', '"NYC"}'))
-      expect(processor.getState().toolCalls.get('tc-1')?.state).toBe('input-streaming')
+      expect(processor.getState().toolCalls.get('tc-1')?.state).toBe(
+        'input-streaming',
+      )
 
       processor.processChunk(ev.toolEnd('tc-1', 'getWeather'))
-      expect(processor.getState().toolCalls.get('tc-1')?.state).toBe('input-complete')
+      expect(processor.getState().toolCalls.get('tc-1')?.state).toBe(
+        'input-complete',
+      )
     })
 
     it('should use chunk.input as canonical parsed arguments (existing test preserved)', () => {
@@ -451,12 +501,19 @@ describe('StreamProcessor', () => {
       processor.prepareAssistantMessage()
 
       processor.processChunk(ev.toolStart('tc-1', 'getWeather'))
-      processor.processChunk(ev.toolEnd('tc-1', 'getWeather', { input: { city: 'NYC', unit: 'celsius' } }))
+      processor.processChunk(
+        ev.toolEnd('tc-1', 'getWeather', {
+          input: { city: 'NYC', unit: 'celsius' },
+        }),
+      )
 
       const state = processor.getState()
       const toolCall = state.toolCalls.get('tc-1')
       expect(toolCall?.state).toBe('input-complete')
-      expect(toolCall?.parsedArguments).toEqual({ city: 'NYC', unit: 'celsius' })
+      expect(toolCall?.parsedArguments).toEqual({
+        city: 'NYC',
+        unit: 'celsius',
+      })
     })
 
     it('should default tool call index to toolCalls.size when index is not provided', () => {
@@ -588,7 +645,9 @@ describe('StreamProcessor', () => {
       processor.processChunk(ev.runFinished('tool_calls'))
 
       // TextEngine executes tool, yields result
-      processor.processChunk(ev.toolEnd('call_1', 'getWeather', { result: '{"temp":"72F"}' }))
+      processor.processChunk(
+        ev.toolEnd('call_1', 'getWeather', { result: '{"temp":"72F"}' }),
+      )
 
       // Second adapter stream: more text
       processor.processChunk(ev.textStart('msg-2'))
@@ -693,7 +752,9 @@ describe('StreamProcessor', () => {
       processor.processChunk(ev.stepFinished('thinking...'))
 
       expect(processor.getMessages()).toHaveLength(1)
-      expect(processor.getMessages()[0]?.parts.some((p) => p.type === 'thinking')).toBe(true)
+      expect(
+        processor.getMessages()[0]?.parts.some((p) => p.type === 'thinking'),
+      ).toBe(true)
     })
 
     it('should update a single ThinkingPart in-place', () => {
@@ -722,13 +783,22 @@ describe('StreamProcessor', () => {
 
       processor.processChunk(ev.toolStart('tc-1', 'getWeather'))
       processor.processChunk(ev.toolArgs('tc-1', '{"city":"NYC"}'))
-      processor.processChunk(ev.toolEnd('tc-1', 'getWeather', { input: { city: 'NYC' }, result: '{"temp":72}' }))
+      processor.processChunk(
+        ev.toolEnd('tc-1', 'getWeather', {
+          input: { city: 'NYC' },
+          result: '{"temp":72}',
+        }),
+      )
 
       const messages = processor.getMessages()
-      const toolCallPart = messages[0]?.parts.find((p) => p.type === 'tool-call') as ToolCallPart
+      const toolCallPart = messages[0]?.parts.find(
+        (p) => p.type === 'tool-call',
+      ) as ToolCallPart
       expect((toolCallPart as any).output).toEqual({ temp: 72 })
 
-      const toolResultPart = messages[0]?.parts.find((p) => p.type === 'tool-result') as ToolResultPart
+      const toolResultPart = messages[0]?.parts.find(
+        (p) => p.type === 'tool-result',
+      ) as ToolResultPart
       expect(toolResultPart).toBeDefined()
       expect(toolResultPart.content).toBe('{"temp":72}')
       expect(toolResultPart.state).toBe('complete')
@@ -739,12 +809,18 @@ describe('StreamProcessor', () => {
       processor.prepareAssistantMessage()
 
       processor.processChunk(ev.toolStart('tc-1', 'getWeather'))
-      processor.processChunk(ev.toolEnd('tc-1', 'getWeather', { input: { city: 'NYC' } }))
+      processor.processChunk(
+        ev.toolEnd('tc-1', 'getWeather', { input: { city: 'NYC' } }),
+      )
 
       const messages = processor.getMessages()
-      const toolCallPart = messages[0]?.parts.find((p) => p.type === 'tool-call')
+      const toolCallPart = messages[0]?.parts.find(
+        (p) => p.type === 'tool-call',
+      )
       expect((toolCallPart as any).output).toBeUndefined()
-      expect(messages[0]?.parts.find((p) => p.type === 'tool-result')).toBeUndefined()
+      expect(
+        messages[0]?.parts.find((p) => p.type === 'tool-result'),
+      ).toBeUndefined()
     })
 
     it('should handle non-JSON result string gracefully (existing test)', () => {
@@ -752,9 +828,16 @@ describe('StreamProcessor', () => {
       processor.prepareAssistantMessage()
 
       processor.processChunk(ev.toolStart('tc-1', 'getText'))
-      processor.processChunk(ev.toolEnd('tc-1', 'getText', { input: {}, result: 'plain text result' }))
+      processor.processChunk(
+        ev.toolEnd('tc-1', 'getText', {
+          input: {},
+          result: 'plain text result',
+        }),
+      )
 
-      const toolCallPart = processor.getMessages()[0]?.parts.find((p) => p.type === 'tool-call')
+      const toolCallPart = processor
+        .getMessages()[0]
+        ?.parts.find((p) => p.type === 'tool-call')
       expect((toolCallPart as any).output).toBe('plain text result')
     })
 
@@ -764,16 +847,22 @@ describe('StreamProcessor', () => {
       processor.prepareAssistantMessage()
 
       processor.processChunk(ev.toolStart('tc-1', 'getWeather'))
-      processor.processChunk(ev.toolEnd('tc-1', 'getWeather', { input: { city: 'NYC' } }))
+      processor.processChunk(
+        ev.toolEnd('tc-1', 'getWeather', { input: { city: 'NYC' } }),
+      )
       events.onMessagesChange.mockClear()
 
       processor.addToolResult('tc-1', { temp: 72 })
 
       const messages = processor.getMessages()
-      const toolCallPart = messages[0]!.parts.find((p) => p.type === 'tool-call') as ToolCallPart
+      const toolCallPart = messages[0]!.parts.find(
+        (p) => p.type === 'tool-call',
+      ) as ToolCallPart
       expect((toolCallPart as any).output).toEqual({ temp: 72 })
 
-      const toolResultPart = messages[0]!.parts.find((p) => p.type === 'tool-result') as ToolResultPart
+      const toolResultPart = messages[0]!.parts.find(
+        (p) => p.type === 'tool-result',
+      ) as ToolResultPart
       expect(toolResultPart).toBeDefined()
       expect(toolResultPart.content).toBe('{"temp":72}')
       expect(toolResultPart.state).toBe('complete')
@@ -790,9 +879,9 @@ describe('StreamProcessor', () => {
 
       processor.addToolResult('tc-1', 'plain string output')
 
-      const toolResultPart = processor.getMessages()[0]!.parts.find(
-        (p) => p.type === 'tool-result',
-      ) as ToolResultPart
+      const toolResultPart = processor
+        .getMessages()[0]!
+        .parts.find((p) => p.type === 'tool-result') as ToolResultPart
       expect(toolResultPart.content).toBe('plain string output')
     })
 
@@ -805,14 +894,14 @@ describe('StreamProcessor', () => {
 
       processor.addToolResult('tc-1', null, 'Network error')
 
-      const toolCallPart = processor.getMessages()[0]!.parts.find(
-        (p) => p.type === 'tool-call',
-      ) as ToolCallPart
+      const toolCallPart = processor
+        .getMessages()[0]!
+        .parts.find((p) => p.type === 'tool-call') as ToolCallPart
       expect((toolCallPart as any).output).toEqual({ error: 'Network error' })
 
-      const toolResultPart = processor.getMessages()[0]!.parts.find(
-        (p) => p.type === 'tool-result',
-      ) as ToolResultPart
+      const toolResultPart = processor
+        .getMessages()[0]!
+        .parts.find((p) => p.type === 'tool-result') as ToolResultPart
       expect(toolResultPart.state).toBe('error')
       expect(toolResultPart.error).toBe('Network error')
     })
@@ -842,7 +931,9 @@ describe('StreamProcessor', () => {
 
       // Create a tool call first
       processor.processChunk(ev.toolStart('tc-1', 'clientTool'))
-      processor.processChunk(ev.toolEnd('tc-1', 'clientTool', { input: { query: 'test' } }))
+      processor.processChunk(
+        ev.toolEnd('tc-1', 'clientTool', { input: { query: 'test' } }),
+      )
 
       processor.processChunk(
         ev.custom('tool-input-available', {
@@ -892,7 +983,9 @@ describe('StreamProcessor', () => {
 
       // Create a tool call
       processor.processChunk(ev.toolStart('tc-1', 'dangerousTool'))
-      processor.processChunk(ev.toolEnd('tc-1', 'dangerousTool', { input: { action: 'delete' } }))
+      processor.processChunk(
+        ev.toolEnd('tc-1', 'dangerousTool', { input: { action: 'delete' } }),
+      )
 
       // Fire approval request
       processor.processChunk(
@@ -905,11 +998,14 @@ describe('StreamProcessor', () => {
       )
 
       // Check that tool-call part has approval state
-      const toolCallPart = processor.getMessages()[0]!.parts.find(
-        (p) => p.type === 'tool-call',
-      ) as ToolCallPart
+      const toolCallPart = processor
+        .getMessages()[0]!
+        .parts.find((p) => p.type === 'tool-call') as ToolCallPart
       expect(toolCallPart.state).toBe('approval-requested')
-      expect(toolCallPart.approval).toEqual({ id: 'approval-1', needsApproval: true })
+      expect(toolCallPart.approval).toEqual({
+        id: 'approval-1',
+        needsApproval: true,
+      })
 
       // Check callback was fired
       expect(events.onApprovalRequest).toHaveBeenCalledWith({
@@ -939,9 +1035,9 @@ describe('StreamProcessor', () => {
       events.onMessagesChange.mockClear()
       processor.addToolApprovalResponse('approval-1', true)
 
-      const toolCallPart = processor.getMessages()[0]!.parts.find(
-        (p) => p.type === 'tool-call',
-      ) as ToolCallPart
+      const toolCallPart = processor
+        .getMessages()[0]!
+        .parts.find((p) => p.type === 'tool-call') as ToolCallPart
       expect(toolCallPart.state).toBe('approval-responded')
       expect(toolCallPart.approval?.approved).toBe(true)
       expect(events.onMessagesChange).toHaveBeenCalled()
@@ -964,9 +1060,9 @@ describe('StreamProcessor', () => {
 
       processor.addToolApprovalResponse('approval-1', false)
 
-      const toolCallPart = processor.getMessages()[0]!.parts.find(
-        (p) => p.type === 'tool-call',
-      ) as ToolCallPart
+      const toolCallPart = processor
+        .getMessages()[0]!
+        .parts.find((p) => p.type === 'tool-call') as ToolCallPart
       expect(toolCallPart.state).toBe('approval-responded')
       expect(toolCallPart.approval?.approved).toBe(false)
     })
@@ -1013,7 +1109,9 @@ describe('StreamProcessor', () => {
       const processor = new StreamProcessor()
       processor.prepareAssistantMessage()
       processor.processChunk(ev.toolStart('tc-1', 'getWeather'))
-      processor.processChunk(ev.toolEnd('tc-1', 'getWeather', { input: {}, result: '{"temp":72}' }))
+      processor.processChunk(
+        ev.toolEnd('tc-1', 'getWeather', { input: {}, result: '{"temp":72}' }),
+      )
 
       expect(processor.areAllToolsComplete()).toBe(true)
     })
@@ -1051,7 +1149,9 @@ describe('StreamProcessor', () => {
       const processor = new StreamProcessor()
       processor.prepareAssistantMessage()
       processor.processChunk(ev.toolStart('tc-1', 'getWeather'))
-      processor.processChunk(ev.toolEnd('tc-1', 'getWeather', { input: {}, result: '{"temp":72}' }))
+      processor.processChunk(
+        ev.toolEnd('tc-1', 'getWeather', { input: {}, result: '{"temp":72}' }),
+      )
       processor.processChunk(ev.toolStart('tc-2', 'getTime'))
       processor.processChunk(ev.toolEnd('tc-2', 'getTime', { input: {} }))
 
@@ -1189,7 +1289,9 @@ describe('StreamProcessor', () => {
       expect(state.toolCallOrder).toEqual(['tc-1'])
 
       // Only one tool-call part in UIMessage
-      const toolParts = processor.getMessages()[0]!.parts.filter((p) => p.type === 'tool-call')
+      const toolParts = processor
+        .getMessages()[0]!
+        .parts.filter((p) => p.type === 'tool-call')
       expect(toolParts).toHaveLength(1)
     })
 
@@ -1211,15 +1313,21 @@ describe('StreamProcessor', () => {
       processor.prepareAssistantMessage()
 
       processor.processChunk(ev.toolStart('tc-1', 'myTool'))
-      expect(processor.getState().toolCalls.get('tc-1')?.state).toBe('awaiting-input')
+      expect(processor.getState().toolCalls.get('tc-1')?.state).toBe(
+        'awaiting-input',
+      )
 
       // Empty delta
       processor.processChunk(ev.toolArgs('tc-1', ''))
-      expect(processor.getState().toolCalls.get('tc-1')?.state).toBe('awaiting-input')
+      expect(processor.getState().toolCalls.get('tc-1')?.state).toBe(
+        'awaiting-input',
+      )
 
       // Non-empty delta transitions
       processor.processChunk(ev.toolArgs('tc-1', '{"key":'))
-      expect(processor.getState().toolCalls.get('tc-1')?.state).toBe('input-streaming')
+      expect(processor.getState().toolCalls.get('tc-1')?.state).toBe(
+        'input-streaming',
+      )
     })
 
     it('missing TOOL_CALL_END should be caught by RUN_FINISHED safety net', () => {
@@ -1229,11 +1337,15 @@ describe('StreamProcessor', () => {
       processor.processChunk(ev.toolStart('tc-1', 'getWeather'))
       processor.processChunk(ev.toolArgs('tc-1', '{"city":"NYC"}'))
       // No TOOL_CALL_END!
-      expect(processor.getState().toolCalls.get('tc-1')?.state).toBe('input-streaming')
+      expect(processor.getState().toolCalls.get('tc-1')?.state).toBe(
+        'input-streaming',
+      )
 
       processor.processChunk(ev.runFinished('tool_calls'))
       // Safety net should force-complete
-      expect(processor.getState().toolCalls.get('tc-1')?.state).toBe('input-complete')
+      expect(processor.getState().toolCalls.get('tc-1')?.state).toBe(
+        'input-complete',
+      )
     })
 
     it('TOOL_CALL_END for already input-complete tool call should be a no-op for state', () => {
@@ -1242,13 +1354,19 @@ describe('StreamProcessor', () => {
 
       processor.processChunk(ev.toolStart('tc-1', 'getWeather'))
       processor.processChunk(ev.toolEnd('tc-1', 'getWeather', { input: {} }))
-      expect(processor.getState().toolCalls.get('tc-1')?.state).toBe('input-complete')
+      expect(processor.getState().toolCalls.get('tc-1')?.state).toBe(
+        'input-complete',
+      )
 
       // Second TOOL_CALL_END with result still processes the result
-      processor.processChunk(ev.toolEnd('tc-1', 'getWeather', { result: '{"temp":72}' }))
+      processor.processChunk(
+        ev.toolEnd('tc-1', 'getWeather', { result: '{"temp":72}' }),
+      )
 
       // Should have added tool-result part
-      const resultPart = processor.getMessages()[0]!.parts.find((p) => p.type === 'tool-result')
+      const resultPart = processor
+        .getMessages()[0]!
+        .parts.find((p) => p.type === 'tool-result')
       expect(resultPart).toBeDefined()
     })
 
@@ -1297,7 +1415,9 @@ describe('StreamProcessor', () => {
       // ensureAssistantMessage (creates msg) + textContent emission + textContent emission
       // + runFinished (no tool calls, no change) + finalizeStream (no pending text, onStreamEnd no messages change)
       // The exact count depends on internal emission logic; let's verify it was called
-      expect(events.onMessagesChange.mock.calls.length).toBeGreaterThanOrEqual(2)
+      expect(events.onMessagesChange.mock.calls.length).toBeGreaterThanOrEqual(
+        2,
+      )
     })
 
     it('onStreamStart should fire on first content-bearing chunk', () => {
@@ -1386,15 +1506,24 @@ describe('StreamProcessor', () => {
 
       // START -> awaiting-input
       expect(events.onToolCallStateChange).toHaveBeenCalledWith(
-        msgId, 'tc-1', 'awaiting-input', '',
+        msgId,
+        'tc-1',
+        'awaiting-input',
+        '',
       )
       // ARGS -> input-streaming
       expect(events.onToolCallStateChange).toHaveBeenCalledWith(
-        msgId, 'tc-1', 'input-streaming', '{"city":"NYC"}',
+        msgId,
+        'tc-1',
+        'input-streaming',
+        '{"city":"NYC"}',
       )
       // END -> input-complete
       expect(events.onToolCallStateChange).toHaveBeenCalledWith(
-        msgId, 'tc-1', 'input-complete', '{"city":"NYC"}',
+        msgId,
+        'tc-1',
+        'input-complete',
+        '{"city":"NYC"}',
       )
     })
 
@@ -1409,7 +1538,10 @@ describe('StreamProcessor', () => {
       const msgId = processor.getCurrentAssistantMessageId()!
       expect(events.onThinkingUpdate).toHaveBeenCalledTimes(2)
       expect(events.onThinkingUpdate).toHaveBeenCalledWith(msgId, 'Thinking')
-      expect(events.onThinkingUpdate).toHaveBeenCalledWith(msgId, 'Thinking more')
+      expect(events.onThinkingUpdate).toHaveBeenCalledWith(
+        msgId,
+        'Thinking more',
+      )
     })
   })
 
@@ -1563,10 +1695,14 @@ describe('StreamProcessor', () => {
       processor.processChunk(ev.toolStart('tc-1', 'getWeather'))
       processor.processChunk(ev.toolArgs('tc-1', '{"city":"NYC"}'))
       // No TOOL_CALL_END, no RUN_FINISHED
-      expect(processor.getState().toolCalls.get('tc-1')?.state).toBe('input-streaming')
+      expect(processor.getState().toolCalls.get('tc-1')?.state).toBe(
+        'input-streaming',
+      )
 
       processor.finalizeStream()
-      expect(processor.getState().toolCalls.get('tc-1')?.state).toBe('input-complete')
+      expect(processor.getState().toolCalls.get('tc-1')?.state).toBe(
+        'input-complete',
+      )
     })
 
     it('reset should clear all messages and stream state', () => {

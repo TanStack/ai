@@ -1447,7 +1447,11 @@ describe('Message Converters', () => {
             name: 'delete_local_data',
             arguments: '{"key":"myKey"}',
             state: 'approval-responded',
-            approval: { id: 'approval_call_123', needsApproval: true, approved: true },
+            approval: {
+              id: 'approval_call_123',
+              needsApproval: true,
+              approved: true,
+            },
           },
         ],
       }
@@ -1486,7 +1490,11 @@ describe('Message Converters', () => {
             name: 'delete_local_data',
             arguments: '{"key":"myKey"}',
             state: 'approval-responded',
-            approval: { id: 'approval_call_456', needsApproval: true, approved: false },
+            approval: {
+              id: 'approval_call_456',
+              needsApproval: true,
+              approved: false,
+            },
           },
         ],
       }

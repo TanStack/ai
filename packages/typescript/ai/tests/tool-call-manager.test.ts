@@ -452,9 +452,7 @@ describe('executeToolCalls', () => {
       // Should request client execution, NOT produce a result
       expect(result.needsClientExecution).toHaveLength(1)
       expect(result.needsClientExecution[0]?.toolCallId).toBe('call_1')
-      expect(result.needsClientExecution[0]?.toolName).toBe(
-        'delete_local_data',
-      )
+      expect(result.needsClientExecution[0]?.toolName).toBe('delete_local_data')
       expect(result.results).toHaveLength(0)
       expect(result.needsApproval).toHaveLength(0)
     })
