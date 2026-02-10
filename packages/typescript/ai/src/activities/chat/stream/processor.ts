@@ -12,11 +12,16 @@
  * - Thinking/reasoning content
  * - Recording/replay for testing
  * - Event-driven architecture for UI updates
+ * - Per-message stream state tracking for multi-message sessions
  *
  * @see docs/chat-architecture.md — Canonical reference for AG-UI chunk ordering,
  *   adapter contract, single-shot flows, and expected UIMessage output.
  */
-import { generateMessageId, uiMessageToModelMessages } from '../messages.js'
+import {
+  generateMessageId,
+  normalizeToUIMessage,
+  uiMessageToModelMessages,
+} from '../messages.js'
 import { defaultJSONParser } from './json-parser'
 import {
   updateTextPart,
@@ -32,6 +37,7 @@ import type {
   ChunkRecording,
   ChunkStrategy,
   InternalToolCallState,
+  MessageStreamState,
   ProcessorResult,
   ProcessorState,
   ToolCallState,
@@ -109,9 +115,8 @@ export interface StreamProcessorOptions {
  *
  * State tracking:
  * - Full message array
- * - Current assistant message being streamed
- * - Text content accumulation (reset on TEXT_MESSAGE_START)
- * - Multiple parallel tool calls
+ * - Per-message stream state (text, tool calls, thinking)
+ * - Multiple concurrent message streams
  * - Tool call completion via TOOL_CALL_END events
  *
  * @see docs/chat-architecture.md#streamprocessor-internal-state — State field reference
@@ -125,17 +130,14 @@ export class StreamProcessor {
 
   // Message state
   private messages: Array<UIMessage> = []
-  private currentAssistantMessageId: string | null = null
 
-  // Stream state for current assistant message
-  // Total accumulated text across all segments (for the final result)
-  private totalTextContent = ''
-  // Current segment's text content (for onTextUpdate callbacks)
-  private currentSegmentText = ''
-  private lastEmittedText = ''
-  private thinkingContent = ''
-  private toolCalls: Map<string, InternalToolCallState> = new Map()
-  private toolCallOrder: Array<string> = []
+  // Per-message stream state
+  private messageStates: Map<string, MessageStreamState> = new Map()
+  private activeMessageIds: Set<string> = new Set()
+  private toolCallToMessage: Map<string, string> = new Map()
+  private pendingManualMessageId: string | null = null
+
+  // Shared stream state
   private finishReason: string | null = null
   private hasError = false
   private isDone = false
@@ -224,18 +226,17 @@ export class StreamProcessor {
   prepareAssistantMessage(): void {
     // Reset stream state for new message
     this.resetStreamState()
-    // Clear the current assistant message ID so ensureAssistantMessage()
-    // will create a fresh message on the first content chunk
-    this.currentAssistantMessageId = null
   }
 
   /**
    * @deprecated Use prepareAssistantMessage() instead. This eagerly creates
    * an assistant message which can cause empty message flicker.
    */
-  startAssistantMessage(): string {
+  startAssistantMessage(messageId?: string): string {
     this.prepareAssistantMessage()
-    return this.ensureAssistantMessage()
+    const { messageId: id } = this.ensureAssistantMessage(messageId)
+    this.pendingManualMessageId = id
+    return id
   }
 
   /**
@@ -244,39 +245,16 @@ export class StreamProcessor {
    * has arrived yet.
    */
   getCurrentAssistantMessageId(): string | null {
-    return this.currentAssistantMessageId
-  }
-
-  /**
-   * Lazily create the assistant message if it hasn't been created yet.
-   * Called by content handlers on the first content-bearing chunk.
-   * Returns the message ID.
-   *
-   * Content-bearing chunks that trigger this:
-   * TEXT_MESSAGE_CONTENT, TOOL_CALL_START, STEP_FINISHED, RUN_ERROR.
-   *
-   * @see docs/chat-architecture.md#streamprocessor-internal-state — Lazy creation pattern
-   */
-  private ensureAssistantMessage(): string {
-    if (this.currentAssistantMessageId) {
-      return this.currentAssistantMessageId
+    // Scan all message states (not just active) for the last assistant.
+    // After finalizeStream() clears activeMessageIds, messageStates retains entries.
+    // After reset() / resetStreamState(), messageStates is cleared → returns null.
+    let lastId: string | null = null
+    for (const [id, state] of this.messageStates) {
+      if (state.role === 'assistant') {
+        lastId = id
+      }
     }
-
-    const assistantMessage: UIMessage = {
-      id: generateMessageId(),
-      role: 'assistant',
-      parts: [],
-      createdAt: new Date(),
-    }
-
-    this.currentAssistantMessageId = assistantMessage.id
-    this.messages = [...this.messages, assistantMessage]
-
-    // Emit events
-    this.events.onStreamStart?.()
-    this.emitMessagesChange()
-
-    return assistantMessage.id
+    return lastId
   }
 
   /**
@@ -403,7 +381,10 @@ export class StreamProcessor {
    */
   clearMessages(): void {
     this.messages = []
-    this.currentAssistantMessageId = null
+    this.messageStates.clear()
+    this.activeMessageIds.clear()
+    this.toolCallToMessage.clear()
+    this.pendingManualMessageId = null
     this.emitMessagesChange()
   }
 
@@ -444,7 +425,7 @@ export class StreamProcessor {
    *
    * Central dispatch for all AG-UI events. Each event type maps to a specific
    * handler. Events not listed in the switch are intentionally ignored
-   * (RUN_STARTED, TEXT_MESSAGE_END, STEP_STARTED, STATE_SNAPSHOT, STATE_DELTA).
+   * (RUN_STARTED, STEP_STARTED, STATE_DELTA).
    *
    * @see docs/chat-architecture.md#adapter-contract — Expected event types and ordering
    */
@@ -461,11 +442,15 @@ export class StreamProcessor {
     switch (chunk.type) {
       // AG-UI Events
       case 'TEXT_MESSAGE_START':
-        this.handleTextMessageStartEvent()
+        this.handleTextMessageStartEvent(chunk)
         break
 
       case 'TEXT_MESSAGE_CONTENT':
         this.handleTextMessageContentEvent(chunk)
+        break
+
+      case 'TEXT_MESSAGE_END':
+        this.handleTextMessageEndEvent(chunk)
         break
 
       case 'TOOL_CALL_START':
@@ -496,31 +481,230 @@ export class StreamProcessor {
         this.handleCustomEvent(chunk)
         break
 
+      case 'STATE_SNAPSHOT':
+        this.handleStateSnapshotEvent(chunk)
+        break
+
       default:
-        // RUN_STARTED, TEXT_MESSAGE_END, STEP_STARTED,
-        // STATE_SNAPSHOT, STATE_DELTA - no special handling needed
+        // RUN_STARTED, STEP_STARTED, STATE_DELTA - no special handling needed
         break
     }
   }
 
+  // ============================================
+  // Per-Message State Helpers
+  // ============================================
+
   /**
-   * Handle TEXT_MESSAGE_START event — marks the beginning of a new text segment.
-   * Resets segment accumulation so text after tool calls starts fresh.
-   *
-   * This is the key mechanism for multi-segment text (text before and after tool
-   * calls becoming separate TextParts). Without this reset, all text would merge
-   * into a single TextPart and tool-call interleaving would be lost.
-   *
-   * @see docs/chat-architecture.md#single-shot-text-response — Step-by-step text processing
-   * @see docs/chat-architecture.md#text-then-tool-interleaving-single-shot — Multi-segment text
+   * Create a new MessageStreamState for a message
    */
-  private handleTextMessageStartEvent(): void {
-    // Emit any pending text from a previous segment before resetting
-    if (this.currentSegmentText !== this.lastEmittedText) {
-      this.emitTextUpdate()
+  private createMessageState(
+    messageId: string,
+    role: 'user' | 'assistant' | 'system' | 'tool',
+  ): MessageStreamState {
+    const state: MessageStreamState = {
+      id: messageId,
+      role,
+      totalTextContent: '',
+      currentSegmentText: '',
+      lastEmittedText: '',
+      thinkingContent: '',
+      toolCalls: new Map(),
+      toolCallOrder: [],
+      hasToolCallsSinceTextStart: false,
+      isComplete: false,
     }
-    this.currentSegmentText = ''
-    this.lastEmittedText = ''
+    this.messageStates.set(messageId, state)
+    return state
+  }
+
+  /**
+   * Get the MessageStreamState for a message
+   */
+  private getMessageState(
+    messageId: string,
+  ): MessageStreamState | undefined {
+    return this.messageStates.get(messageId)
+  }
+
+  /**
+   * Get the most recent active assistant message ID.
+   * Used as fallback for events that don't include a messageId.
+   */
+  private getActiveAssistantMessageId(): string | null {
+    // Iterate in reverse order of insertion (most recent first)
+    let lastId: string | null = null
+    for (const id of this.activeMessageIds) {
+      const state = this.messageStates.get(id)
+      if (state && (state.role === 'assistant')) {
+        lastId = id
+      }
+    }
+    return lastId
+  }
+
+  /**
+   * Ensure an active assistant message exists, creating one if needed.
+   * Used for backward compat when events arrive without prior TEXT_MESSAGE_START.
+   */
+  private ensureAssistantMessage(preferredId?: string): {
+    messageId: string
+    state: MessageStreamState
+  } {
+    // Try to find state by preferred ID
+    if (preferredId) {
+      const state = this.getMessageState(preferredId)
+      if (state) return { messageId: preferredId, state }
+    }
+
+    // Try active assistant message
+    const activeId = this.getActiveAssistantMessageId()
+    if (activeId) {
+      const state = this.getMessageState(activeId)!
+      return { messageId: activeId, state }
+    }
+
+    // Auto-create an assistant message (backward compat for process() without TEXT_MESSAGE_START)
+    const id = preferredId || generateMessageId()
+    const assistantMessage: UIMessage = {
+      id,
+      role: 'assistant',
+      parts: [],
+      createdAt: new Date(),
+    }
+    this.messages = [...this.messages, assistantMessage]
+    const state = this.createMessageState(id, 'assistant')
+    this.activeMessageIds.add(id)
+    this.pendingManualMessageId = id
+    this.events.onStreamStart?.()
+    return { messageId: id, state }
+  }
+
+  // ============================================
+  // Event Handlers
+  // ============================================
+
+  /**
+   * Handle TEXT_MESSAGE_START event
+   */
+  private handleTextMessageStartEvent(
+    chunk: Extract<StreamChunk, { type: 'TEXT_MESSAGE_START' }>,
+  ): void {
+    const { messageId, role } = chunk
+
+    // Case 1: A manual message was created via startAssistantMessage()
+    if (this.pendingManualMessageId) {
+      const pendingId = this.pendingManualMessageId
+      this.pendingManualMessageId = null
+
+      if (pendingId !== messageId) {
+        // Update the message's ID in the messages array
+        this.messages = this.messages.map((msg) =>
+          msg.id === pendingId ? { ...msg, id: messageId } : msg,
+        )
+
+        // Move state to the new key
+        const existingState = this.messageStates.get(pendingId)
+        if (existingState) {
+          existingState.id = messageId
+          this.messageStates.delete(pendingId)
+          this.messageStates.set(messageId, existingState)
+        }
+
+        // Update activeMessageIds
+        this.activeMessageIds.delete(pendingId)
+        this.activeMessageIds.add(messageId)
+      }
+
+      // Ensure state exists
+      if (!this.messageStates.has(messageId)) {
+        this.createMessageState(messageId, role)
+        this.activeMessageIds.add(messageId)
+      }
+
+      this.emitMessagesChange()
+      return
+    }
+
+    // Case 2: Message already exists (dedup)
+    const existingMsg = this.messages.find((m) => m.id === messageId)
+    if (existingMsg) {
+      this.activeMessageIds.add(messageId)
+      if (!this.messageStates.has(messageId)) {
+        this.createMessageState(messageId, role)
+      } else {
+        const existingState = this.messageStates.get(messageId)!
+        // If tool calls happened since last text, this TEXT_MESSAGE_START
+        // signals a new text segment — reset segment accumulation
+        if (existingState.hasToolCallsSinceTextStart) {
+          if (existingState.currentSegmentText !== existingState.lastEmittedText) {
+            this.emitTextUpdateForMessage(messageId)
+          }
+          existingState.currentSegmentText = ''
+          existingState.lastEmittedText = ''
+          existingState.hasToolCallsSinceTextStart = false
+        }
+      }
+      return
+    }
+
+    // Case 3: New message from the stream
+    // Map 'tool' role to 'assistant' for UIMessage (UIMessage doesn't support 'tool' role)
+    const uiRole: 'system' | 'user' | 'assistant' =
+      role === 'tool' ? 'assistant' : role
+
+    const newMessage: UIMessage = {
+      id: messageId,
+      role: uiRole,
+      parts: [],
+      createdAt: new Date(),
+    }
+
+    this.messages = [...this.messages, newMessage]
+    this.createMessageState(messageId, role)
+    this.activeMessageIds.add(messageId)
+
+    this.events.onStreamStart?.()
+    this.emitMessagesChange()
+  }
+
+  /**
+   * Handle TEXT_MESSAGE_END event
+   */
+  private handleTextMessageEndEvent(
+    chunk: Extract<StreamChunk, { type: 'TEXT_MESSAGE_END' }>,
+  ): void {
+    const { messageId } = chunk
+    const state = this.getMessageState(messageId)
+    if (!state) return
+
+    // Emit any pending text for this message
+    if (state.currentSegmentText !== state.lastEmittedText) {
+      this.emitTextUpdateForMessage(messageId)
+    }
+
+    // Complete all tool calls for this message
+    this.completeAllToolCallsForMessage(messageId)
+  }
+
+  /**
+   * Handle STATE_SNAPSHOT event
+   */
+  private handleStateSnapshotEvent(
+    chunk: Extract<StreamChunk, { type: 'STATE_SNAPSHOT' }>,
+  ): void {
+    const stateMessages = (
+      chunk.state as { messages?: Array<unknown> }
+    )?.messages
+    if (Array.isArray(stateMessages)) {
+      this.messages = stateMessages.map((msg) =>
+        normalizeToUIMessage(
+          msg as UIMessage,
+          generateMessageId,
+        ),
+      )
+      this.emitMessagesChange()
+    }
   }
 
   /**
@@ -537,17 +721,61 @@ export class StreamProcessor {
   private handleTextMessageContentEvent(
     chunk: Extract<StreamChunk, { type: 'TEXT_MESSAGE_CONTENT' }>,
   ): void {
-    this.ensureAssistantMessage()
+    const { messageId, state } = this.ensureAssistantMessage(chunk.messageId)
 
-    this.currentSegmentText += chunk.delta
-    this.totalTextContent += chunk.delta
+    // Content arriving means all current tool calls for this message are complete
+    this.completeAllToolCallsForMessage(messageId)
 
+    const previousSegment = state.currentSegmentText
+
+    // Detect if this is a NEW text segment (after tool calls) vs continuation
+    const isNewSegment =
+      state.hasToolCallsSinceTextStart &&
+      previousSegment.length > 0 &&
+      this.isNewTextSegment(chunk, previousSegment)
+
+    if (isNewSegment) {
+      // Emit any accumulated text before starting new segment
+      if (previousSegment !== state.lastEmittedText) {
+        this.emitTextUpdateForMessage(messageId)
+      }
+      // Reset SEGMENT text accumulation for the new text segment after tool calls
+      state.currentSegmentText = ''
+      state.lastEmittedText = ''
+      state.hasToolCallsSinceTextStart = false
+    }
+
+    const currentText = state.currentSegmentText
+    let nextText = currentText
+
+    // Prefer delta over content - delta is the incremental change
+    // Check for both undefined and empty string to avoid "undefined" string concatenation
+    if (chunk.delta !== undefined && chunk.delta !== '') {
+      nextText = currentText + chunk.delta
+    } else if (chunk.content !== undefined && chunk.content !== '') {
+      // Fallback: use content if delta is not provided
+      if (chunk.content.startsWith(currentText)) {
+        nextText = chunk.content
+      } else if (currentText.startsWith(chunk.content)) {
+        nextText = currentText
+      } else {
+        nextText = currentText + chunk.content
+      }
+    }
+
+    // Calculate the delta for totalTextContent
+    const textDelta = nextText.slice(currentText.length)
+    state.currentSegmentText = nextText
+    state.totalTextContent += textDelta
+
+    // Use delta for chunk strategy if available
+    const chunkPortion = chunk.delta || chunk.content || ''
     const shouldEmit = this.chunkStrategy.shouldEmit(
-      chunk.delta,
-      this.currentSegmentText,
+      chunkPortion,
+      state.currentSegmentText,
     )
-    if (shouldEmit && this.currentSegmentText !== this.lastEmittedText) {
-      this.emitTextUpdate()
+    if (shouldEmit && state.currentSegmentText !== state.lastEmittedText) {
+      this.emitTextUpdateForMessage(messageId)
     }
   }
 
@@ -567,10 +795,18 @@ export class StreamProcessor {
   private handleToolCallStartEvent(
     chunk: Extract<StreamChunk, { type: 'TOOL_CALL_START' }>,
   ): void {
-    this.ensureAssistantMessage()
+    // Determine the message this tool call belongs to
+    const targetMessageId =
+      chunk.parentMessageId ?? this.getActiveAssistantMessageId()
+    const { messageId, state } = this.ensureAssistantMessage(
+      targetMessageId ?? undefined,
+    )
+
+    // Mark that we've seen tool calls since the last text segment
+    state.hasToolCallsSinceTextStart = true
 
     const toolCallId = chunk.toolCallId
-    const existingToolCall = this.toolCalls.get(toolCallId)
+    const existingToolCall = state.toolCalls.get(toolCallId)
 
     if (!existingToolCall) {
       // New tool call starting
@@ -582,34 +818,31 @@ export class StreamProcessor {
         arguments: '',
         state: initialState,
         parsedArguments: undefined,
-        index: chunk.index ?? this.toolCalls.size,
+        index: chunk.index ?? state.toolCalls.size,
       }
 
-      this.toolCalls.set(toolCallId, newToolCall)
-      this.toolCallOrder.push(toolCallId)
+      state.toolCalls.set(toolCallId, newToolCall)
+      state.toolCallOrder.push(toolCallId)
+
+      // Store mapping for TOOL_CALL_ARGS/END routing
+      this.toolCallToMessage.set(toolCallId, messageId)
 
       // Update UIMessage
-      if (this.currentAssistantMessageId) {
-        this.messages = updateToolCallPart(
-          this.messages,
-          this.currentAssistantMessageId,
-          {
-            id: chunk.toolCallId,
-            name: chunk.toolName,
-            arguments: '',
-            state: initialState,
-          },
-        )
-        this.emitMessagesChange()
+      this.messages = updateToolCallPart(this.messages, messageId, {
+        id: chunk.toolCallId,
+        name: chunk.toolName,
+        arguments: '',
+        state: initialState,
+      })
+      this.emitMessagesChange()
 
-        // Emit granular event
-        this.events.onToolCallStateChange?.(
-          this.currentAssistantMessageId,
-          chunk.toolCallId,
-          initialState,
-          '',
-        )
-      }
+      // Emit granular event
+      this.events.onToolCallStateChange?.(
+        messageId,
+        chunk.toolCallId,
+        initialState,
+        '',
+      )
     }
   }
 
@@ -629,47 +862,46 @@ export class StreamProcessor {
     chunk: Extract<StreamChunk, { type: 'TOOL_CALL_ARGS' }>,
   ): void {
     const toolCallId = chunk.toolCallId
-    const existingToolCall = this.toolCalls.get(toolCallId)
+    const messageId = this.toolCallToMessage.get(toolCallId)
+    if (!messageId) return
 
-    if (existingToolCall) {
-      const wasAwaitingInput = existingToolCall.state === 'awaiting-input'
+    const state = this.getMessageState(messageId)
+    if (!state) return
 
-      // Accumulate arguments from delta
-      existingToolCall.arguments += chunk.delta || ''
+    const existingToolCall = state.toolCalls.get(toolCallId)
+    if (!existingToolCall) return
 
-      // Update state
-      if (wasAwaitingInput && chunk.delta) {
-        existingToolCall.state = 'input-streaming'
-      }
+    const wasAwaitingInput = existingToolCall.state === 'awaiting-input'
 
-      // Try to parse the updated arguments
-      existingToolCall.parsedArguments = this.jsonParser.parse(
-        existingToolCall.arguments,
-      )
+    // Accumulate arguments from delta
+    existingToolCall.arguments += chunk.delta || ''
 
-      // Update UIMessage
-      if (this.currentAssistantMessageId) {
-        this.messages = updateToolCallPart(
-          this.messages,
-          this.currentAssistantMessageId,
-          {
-            id: existingToolCall.id,
-            name: existingToolCall.name,
-            arguments: existingToolCall.arguments,
-            state: existingToolCall.state,
-          },
-        )
-        this.emitMessagesChange()
-
-        // Emit granular event
-        this.events.onToolCallStateChange?.(
-          this.currentAssistantMessageId,
-          existingToolCall.id,
-          existingToolCall.state,
-          existingToolCall.arguments,
-        )
-      }
+    // Update state
+    if (wasAwaitingInput && chunk.delta) {
+      existingToolCall.state = 'input-streaming'
     }
+
+    // Try to parse the updated arguments
+    existingToolCall.parsedArguments = this.jsonParser.parse(
+      existingToolCall.arguments,
+    )
+
+    // Update UIMessage
+    this.messages = updateToolCallPart(this.messages, messageId, {
+      id: existingToolCall.id,
+      name: existingToolCall.name,
+      arguments: existingToolCall.arguments,
+      state: existingToolCall.state,
+    })
+    this.emitMessagesChange()
+
+    // Emit granular event
+    this.events.onToolCallStateChange?.(
+      messageId,
+      existingToolCall.id,
+      existingToolCall.state,
+      existingToolCall.arguments,
+    )
   }
 
   /**
@@ -689,11 +921,17 @@ export class StreamProcessor {
   private handleToolCallEndEvent(
     chunk: Extract<StreamChunk, { type: 'TOOL_CALL_END' }>,
   ): void {
+    const messageId = this.toolCallToMessage.get(chunk.toolCallId)
+    if (!messageId) return
+
+    const msgState = this.getMessageState(messageId)
+    if (!msgState) return
+
     // Transition the tool call to input-complete (the authoritative completion signal)
-    const existingToolCall = this.toolCalls.get(chunk.toolCallId)
+    const existingToolCall = msgState.toolCalls.get(chunk.toolCallId)
     if (existingToolCall && existingToolCall.state !== 'input-complete') {
-      const index = this.toolCallOrder.indexOf(chunk.toolCallId)
-      this.completeToolCall(index, existingToolCall)
+      const index = msgState.toolCallOrder.indexOf(chunk.toolCallId)
+      this.completeToolCall(messageId, index, existingToolCall)
       // If TOOL_CALL_END provides parsed input, use it as the canonical parsed
       // arguments (overrides the accumulated string parse from completeToolCall)
       if (chunk.input !== undefined) {
@@ -701,10 +939,8 @@ export class StreamProcessor {
       }
     }
 
-    // Update UIMessage if we have a current assistant message and a result
-    if (this.currentAssistantMessageId && chunk.result) {
-      const state: ToolResultState = 'complete'
-
+    // Update UIMessage if there's a result
+    if (chunk.result) {
       // Step 1: Update the tool-call part's output field (for UI consistency
       // with client tools — see GitHub issue #176)
       let output: unknown
@@ -720,12 +956,13 @@ export class StreamProcessor {
       )
 
       // Step 2: Create/update the tool-result part (for LLM conversation history)
+      const resultState: ToolResultState = 'complete'
       this.messages = updateToolResultPart(
         this.messages,
-        this.currentAssistantMessageId,
+        messageId,
         chunk.toolCallId,
         chunk.result,
-        state,
+        resultState,
       )
       this.emitMessagesChange()
     }
@@ -772,25 +1009,36 @@ export class StreamProcessor {
   private handleStepFinishedEvent(
     chunk: Extract<StreamChunk, { type: 'STEP_FINISHED' }>,
   ): void {
-    this.ensureAssistantMessage()
+    const { messageId, state } = this.ensureAssistantMessage()
 
-    this.thinkingContent += chunk.delta
+    const previous = state.thinkingContent
+    let nextThinking = previous
+
+    // Prefer delta over content
+    if (chunk.delta && chunk.delta !== '') {
+      nextThinking = previous + chunk.delta
+    } else if (chunk.content && chunk.content !== '') {
+      if (chunk.content.startsWith(previous)) {
+        nextThinking = chunk.content
+      } else if (previous.startsWith(chunk.content)) {
+        nextThinking = previous
+      } else {
+        nextThinking = previous + chunk.content
+      }
+    }
+
+    state.thinkingContent = nextThinking
 
     // Update UIMessage
-    if (this.currentAssistantMessageId) {
-      this.messages = updateThinkingPart(
-        this.messages,
-        this.currentAssistantMessageId,
-        this.thinkingContent,
-      )
-      this.emitMessagesChange()
+    this.messages = updateThinkingPart(
+      this.messages,
+      messageId,
+      state.thinkingContent,
+    )
+    this.emitMessagesChange()
 
-      // Emit granular event
-      this.events.onThinkingUpdate?.(
-        this.currentAssistantMessageId,
-        this.thinkingContent,
-      )
-    }
+    // Emit granular event
+    this.events.onThinkingUpdate?.(messageId, state.thinkingContent)
   }
 
   /**
@@ -806,6 +1054,8 @@ export class StreamProcessor {
   private handleCustomEvent(
     chunk: Extract<StreamChunk, { type: 'CUSTOM' }>,
   ): void {
+    const messageId = this.getActiveAssistantMessageId()
+
     // Handle client tool input availability - trigger client-side execution
     if (chunk.name === 'tool-input-available' && chunk.data) {
       const { toolCallId, toolName, input } = chunk.data as {
@@ -832,10 +1082,10 @@ export class StreamProcessor {
       }
 
       // Update the tool call part with approval state
-      if (this.currentAssistantMessageId) {
+      if (messageId) {
         this.messages = updateToolCallApproval(
           this.messages,
-          this.currentAssistantMessageId,
+          messageId,
           toolCallId,
           approval.id,
         )
@@ -852,8 +1102,34 @@ export class StreamProcessor {
     }
   }
 
+  // ============================================
+  // Internal Helpers
+  // ============================================
+
   /**
-   * Complete all tool calls — safety net for stream termination.
+   * Detect if an incoming content chunk represents a NEW text segment
+   */
+  private isNewTextSegment(
+    chunk: Extract<StreamChunk, { type: 'TEXT_MESSAGE_CONTENT' }>,
+    previous: string,
+  ): boolean {
+    // Check if content is present (delta is always defined but may be empty string)
+    if (chunk.content !== undefined) {
+      if (chunk.content.length < previous.length) {
+        return true
+      }
+      if (
+        !chunk.content.startsWith(previous) &&
+        !previous.startsWith(chunk.content)
+      ) {
+        return true
+      }
+    }
+    return false
+  }
+
+  /**
+   * Complete all tool calls across all active messages — safety net for stream termination.
    *
    * Called by RUN_FINISHED and finalizeStream(). Force-transitions any tool call
    * not yet in input-complete state. Handles cases where TOOL_CALL_END was
@@ -862,10 +1138,22 @@ export class StreamProcessor {
    * @see docs/chat-architecture.md#single-shot-tool-call-response — Safety net behavior
    */
   private completeAllToolCalls(): void {
-    this.toolCalls.forEach((toolCall, id) => {
+    for (const messageId of this.activeMessageIds) {
+      this.completeAllToolCallsForMessage(messageId)
+    }
+  }
+
+  /**
+   * Complete all tool calls for a specific message
+   */
+  private completeAllToolCallsForMessage(messageId: string): void {
+    const state = this.getMessageState(messageId)
+    if (!state) return
+
+    state.toolCalls.forEach((toolCall, id) => {
       if (toolCall.state !== 'input-complete') {
-        const index = this.toolCallOrder.indexOf(id)
-        this.completeToolCall(index, toolCall)
+        const index = state.toolCallOrder.indexOf(id)
+        this.completeToolCall(messageId, index, toolCall)
       }
     })
   }
@@ -874,6 +1162,7 @@ export class StreamProcessor {
    * Mark a tool call as complete and emit event
    */
   private completeToolCall(
+    messageId: string,
     _index: number,
     toolCall: InternalToolCallState,
   ): void {
@@ -883,31 +1172,25 @@ export class StreamProcessor {
     toolCall.parsedArguments = this.jsonParser.parse(toolCall.arguments)
 
     // Update UIMessage
-    if (this.currentAssistantMessageId) {
-      this.messages = updateToolCallPart(
-        this.messages,
-        this.currentAssistantMessageId,
-        {
-          id: toolCall.id,
-          name: toolCall.name,
-          arguments: toolCall.arguments,
-          state: 'input-complete',
-        },
-      )
-      this.emitMessagesChange()
+    this.messages = updateToolCallPart(this.messages, messageId, {
+      id: toolCall.id,
+      name: toolCall.name,
+      arguments: toolCall.arguments,
+      state: 'input-complete',
+    })
+    this.emitMessagesChange()
 
-      // Emit granular event
-      this.events.onToolCallStateChange?.(
-        this.currentAssistantMessageId,
-        toolCall.id,
-        'input-complete',
-        toolCall.arguments,
-      )
-    }
+    // Emit granular event
+    this.events.onToolCallStateChange?.(
+      messageId,
+      toolCall.id,
+      'input-complete',
+      toolCall.arguments,
+    )
   }
 
   /**
-   * Emit pending text update.
+   * Emit pending text update for a specific message.
    *
    * Calls updateTextPart() which has critical append-vs-replace logic:
    * - If last UIMessage part is TextPart → replaces its content (same segment).
@@ -915,24 +1198,22 @@ export class StreamProcessor {
    *
    * @see docs/chat-architecture.md#uimessage-part-ordering-invariants — Replace vs. push logic
    */
-  private emitTextUpdate(): void {
-    this.lastEmittedText = this.currentSegmentText
+  private emitTextUpdateForMessage(messageId: string): void {
+    const state = this.getMessageState(messageId)
+    if (!state) return
+
+    state.lastEmittedText = state.currentSegmentText
 
     // Update UIMessage
-    if (this.currentAssistantMessageId) {
-      this.messages = updateTextPart(
-        this.messages,
-        this.currentAssistantMessageId,
-        this.currentSegmentText,
-      )
-      this.emitMessagesChange()
+    this.messages = updateTextPart(
+      this.messages,
+      messageId,
+      state.currentSegmentText,
+    )
+    this.emitMessagesChange()
 
-      // Emit granular event
-      this.events.onTextUpdate?.(
-        this.currentAssistantMessageId,
-        this.currentSegmentText,
-      )
-    }
+    // Emit granular event
+    this.events.onTextUpdate?.(messageId, state.currentSegmentText)
   }
 
   /**
@@ -952,81 +1233,116 @@ export class StreamProcessor {
    * @see docs/chat-architecture.md#single-shot-text-response — Finalization step
    */
   finalizeStream(): void {
-    // Safety net: complete any remaining tool calls (e.g. on network errors / aborted streams)
-    this.completeAllToolCalls()
+    let lastAssistantMessage: UIMessage | undefined
 
-    // Emit any pending text if not already emitted
-    if (this.currentSegmentText !== this.lastEmittedText) {
-      this.emitTextUpdate()
+    // Finalize ALL active messages
+    for (const messageId of this.activeMessageIds) {
+      const state = this.getMessageState(messageId)
+      if (!state) continue
+
+      // Complete any remaining tool calls
+      this.completeAllToolCallsForMessage(messageId)
+
+      // Emit any pending text if not already emitted
+      if (state.currentSegmentText !== state.lastEmittedText) {
+        this.emitTextUpdateForMessage(messageId)
+      }
+
+      state.isComplete = true
+
+      const msg = this.messages.find((m) => m.id === messageId)
+      if (msg && msg.role === 'assistant') {
+        lastAssistantMessage = msg
+      }
     }
 
-    // Remove the assistant message if it only contains whitespace text
-    // (no tool calls, no meaningful content). This handles models like Gemini
-    // that sometimes return just "\n" during auto-continuation.
+    this.activeMessageIds.clear()
+
+    // Remove whitespace-only assistant messages (handles models like Gemini
+    // that sometimes return just "\n" during auto-continuation).
     // Preserve the message on errors so the UI can show error state.
-    if (this.currentAssistantMessageId && !this.hasError) {
-      const assistantMessage = this.messages.find(
-        (m) => m.id === this.currentAssistantMessageId,
-      )
-      if (assistantMessage && this.isWhitespaceOnlyMessage(assistantMessage)) {
+    if (lastAssistantMessage && !this.hasError) {
+      if (this.isWhitespaceOnlyMessage(lastAssistantMessage)) {
         this.messages = this.messages.filter(
-          (m) => m.id !== this.currentAssistantMessageId,
+          (m) => m.id !== lastAssistantMessage!.id,
         )
         this.emitMessagesChange()
-        this.currentAssistantMessageId = null
         return
       }
     }
 
-    // Emit stream end event (only if a message was actually created)
-    if (this.currentAssistantMessageId) {
-      const assistantMessage = this.messages.find(
-        (m) => m.id === this.currentAssistantMessageId,
-      )
-      if (assistantMessage) {
-        this.events.onStreamEnd?.(assistantMessage)
-      }
+    // Emit stream end for the last assistant message
+    if (lastAssistantMessage) {
+      this.events.onStreamEnd?.(lastAssistantMessage)
     }
   }
 
   /**
-   * Get completed tool calls in API format
+   * Get completed tool calls in API format (aggregated across all messages)
    */
   private getCompletedToolCalls(): Array<ToolCall> {
-    return Array.from(this.toolCalls.values())
-      .filter((tc) => tc.state === 'input-complete')
-      .map((tc) => ({
-        id: tc.id,
-        type: 'function' as const,
-        function: {
-          name: tc.name,
-          arguments: tc.arguments,
-        },
-      }))
+    const result: Array<ToolCall> = []
+    for (const state of this.messageStates.values()) {
+      for (const tc of state.toolCalls.values()) {
+        if (tc.state === 'input-complete') {
+          result.push({
+            id: tc.id,
+            type: 'function' as const,
+            function: {
+              name: tc.name,
+              arguments: tc.arguments,
+            },
+          })
+        }
+      }
+    }
+    return result
   }
 
   /**
-   * Get current result
+   * Get current result (aggregated across all messages)
    */
   private getResult(): ProcessorResult {
     const toolCalls = this.getCompletedToolCalls()
+    let content = ''
+    let thinking = ''
+
+    for (const state of this.messageStates.values()) {
+      content += state.totalTextContent
+      thinking += state.thinkingContent
+    }
+
     return {
-      content: this.totalTextContent,
-      thinking: this.thinkingContent || undefined,
+      content,
+      thinking: thinking || undefined,
       toolCalls: toolCalls.length > 0 ? toolCalls : undefined,
       finishReason: this.finishReason,
     }
   }
 
   /**
-   * Get current processor state
+   * Get current processor state (aggregated across all messages)
    */
   getState(): ProcessorState {
+    let content = ''
+    let thinking = ''
+    const toolCalls = new Map<string, InternalToolCallState>()
+    const toolCallOrder: Array<string> = []
+
+    for (const state of this.messageStates.values()) {
+      content += state.totalTextContent
+      thinking += state.thinkingContent
+      for (const [id, tc] of state.toolCalls) {
+        toolCalls.set(id, tc)
+      }
+      toolCallOrder.push(...state.toolCallOrder)
+    }
+
     return {
-      content: this.totalTextContent,
-      thinking: this.thinkingContent,
-      toolCalls: new Map(this.toolCalls),
-      toolCallOrder: [...this.toolCallOrder],
+      content,
+      thinking,
+      toolCalls,
+      toolCallOrder,
       finishReason: this.finishReason,
       done: this.isDone,
     }
@@ -1056,12 +1372,10 @@ export class StreamProcessor {
    * Reset stream state (but keep messages)
    */
   private resetStreamState(): void {
-    this.totalTextContent = ''
-    this.currentSegmentText = ''
-    this.lastEmittedText = ''
-    this.thinkingContent = ''
-    this.toolCalls.clear()
-    this.toolCallOrder = []
+    this.messageStates.clear()
+    this.activeMessageIds.clear()
+    this.toolCallToMessage.clear()
+    this.pendingManualMessageId = null
     this.finishReason = null
     this.hasError = false
     this.isDone = false
@@ -1074,7 +1388,6 @@ export class StreamProcessor {
   reset(): void {
     this.resetStreamState()
     this.messages = []
-    this.currentAssistantMessageId = null
   }
 
   /**

@@ -621,8 +621,8 @@ describe('StreamProcessor', () => {
       processor.processChunk(ev.textContent('First segment'))
       processor.processChunk(ev.toolStart('tc-1', 'search'))
       processor.processChunk(ev.toolEnd('tc-1', 'search', { input: {} }))
-      processor.processChunk(ev.textStart('msg-2'))
-      processor.processChunk(ev.textContent('Second segment', 'msg-2'))
+      processor.processChunk(ev.textStart())
+      processor.processChunk(ev.textContent('Second segment'))
       processor.processChunk(ev.runFinished('stop'))
       processor.finalizeStream()
 
@@ -649,10 +649,10 @@ describe('StreamProcessor', () => {
         ev.toolEnd('call_1', 'getWeather', { result: '{"temp":"72F"}' }),
       )
 
-      // Second adapter stream: more text
-      processor.processChunk(ev.textStart('msg-2'))
-      processor.processChunk(ev.textContent("It's 72F in NYC.", 'msg-2'))
-      processor.processChunk(ev.textEnd('msg-2'))
+      // Second adapter stream: more text (same message)
+      processor.processChunk(ev.textStart())
+      processor.processChunk(ev.textContent("It's 72F in NYC."))
+      processor.processChunk(ev.textEnd())
       processor.processChunk(ev.runFinished('stop'))
 
       processor.finalizeStream()
@@ -685,9 +685,9 @@ describe('StreamProcessor', () => {
       processor.processChunk(ev.textEnd())
       processor.processChunk(ev.toolStart('tc-1', 'tool'))
       processor.processChunk(ev.toolEnd('tc-1', 'tool'))
-      processor.processChunk(ev.textStart('msg-2'))
-      processor.processChunk(ev.textContent('After', 'msg-2'))
-      processor.processChunk(ev.textEnd('msg-2'))
+      processor.processChunk(ev.textStart())
+      processor.processChunk(ev.textContent('After'))
+      processor.processChunk(ev.textEnd())
       processor.processChunk(ev.runFinished('stop'))
       processor.finalizeStream()
 
@@ -1796,6 +1796,447 @@ describe('StreamProcessor', () => {
       const state2 = processor.getState()
       expect(state2.toolCalls.size).toBe(1)
       expect(state2.toolCallOrder).toEqual(['tc-1'])
+    })
+  })
+
+  describe('TEXT_MESSAGE_START', () => {
+    it('should create a message with correct role and messageId', () => {
+      const processor = new StreamProcessor()
+
+      processor.processChunk({
+        type: 'TEXT_MESSAGE_START',
+        messageId: 'msg-1',
+        role: 'assistant',
+        timestamp: Date.now(),
+      } as StreamChunk)
+
+      processor.processChunk({
+        type: 'TEXT_MESSAGE_CONTENT',
+        messageId: 'msg-1',
+        delta: 'Hello',
+        timestamp: Date.now(),
+      } as StreamChunk)
+
+      processor.finalizeStream()
+
+      const messages = processor.getMessages()
+      expect(messages).toHaveLength(1)
+      expect(messages[0]?.id).toBe('msg-1')
+      expect(messages[0]?.role).toBe('assistant')
+      expect(messages[0]?.parts[0]).toEqual({
+        type: 'text',
+        content: 'Hello',
+      })
+    })
+
+    it('should create a user message via TEXT_MESSAGE_START', () => {
+      const processor = new StreamProcessor()
+
+      processor.processChunk({
+        type: 'TEXT_MESSAGE_START',
+        messageId: 'user-msg-1',
+        role: 'user',
+        timestamp: Date.now(),
+      } as StreamChunk)
+
+      processor.processChunk({
+        type: 'TEXT_MESSAGE_END',
+        messageId: 'user-msg-1',
+        timestamp: Date.now(),
+      } as StreamChunk)
+
+      const messages = processor.getMessages()
+      expect(messages).toHaveLength(1)
+      expect(messages[0]?.id).toBe('user-msg-1')
+      expect(messages[0]?.role).toBe('user')
+    })
+
+    it('should emit onStreamStart when a new message arrives', () => {
+      const onStreamStart = vi.fn()
+      const processor = new StreamProcessor({ events: { onStreamStart } })
+
+      processor.processChunk({
+        type: 'TEXT_MESSAGE_START',
+        messageId: 'msg-1',
+        role: 'assistant',
+        timestamp: Date.now(),
+      } as StreamChunk)
+
+      expect(onStreamStart).toHaveBeenCalledTimes(1)
+    })
+  })
+
+  describe('TEXT_MESSAGE_END', () => {
+    it('should not emit onStreamEnd (that happens in finalizeStream)', () => {
+      const onStreamEnd = vi.fn()
+      const processor = new StreamProcessor({ events: { onStreamEnd } })
+
+      processor.processChunk({
+        type: 'TEXT_MESSAGE_START',
+        messageId: 'msg-1',
+        role: 'assistant',
+        timestamp: Date.now(),
+      } as StreamChunk)
+
+      processor.processChunk({
+        type: 'TEXT_MESSAGE_CONTENT',
+        messageId: 'msg-1',
+        delta: 'Hello world',
+        timestamp: Date.now(),
+      } as StreamChunk)
+
+      processor.processChunk({
+        type: 'TEXT_MESSAGE_END',
+        messageId: 'msg-1',
+        timestamp: Date.now(),
+      } as StreamChunk)
+
+      // TEXT_MESSAGE_END means "text segment done", not "message done"
+      // onStreamEnd fires from finalizeStream(), not TEXT_MESSAGE_END
+      expect(onStreamEnd).not.toHaveBeenCalled()
+
+      processor.finalizeStream()
+
+      expect(onStreamEnd).toHaveBeenCalledTimes(1)
+      const endMessage = onStreamEnd.mock.calls[0]![0] as UIMessage
+      expect(endMessage.id).toBe('msg-1')
+      expect(endMessage.parts[0]).toEqual({
+        type: 'text',
+        content: 'Hello world',
+      })
+    })
+
+    it('should emit pending text on TEXT_MESSAGE_END', () => {
+      const onTextUpdate = vi.fn()
+      // Use a strategy that never emits during streaming
+      const processor = new StreamProcessor({
+        events: { onTextUpdate },
+        chunkStrategy: {
+          shouldEmit: () => false,
+        },
+      })
+
+      processor.processChunk({
+        type: 'TEXT_MESSAGE_START',
+        messageId: 'msg-1',
+        role: 'assistant',
+        timestamp: Date.now(),
+      } as StreamChunk)
+
+      processor.processChunk({
+        type: 'TEXT_MESSAGE_CONTENT',
+        messageId: 'msg-1',
+        delta: 'Hello',
+        timestamp: Date.now(),
+      } as StreamChunk)
+
+      // Text not emitted yet due to strategy
+      expect(onTextUpdate).not.toHaveBeenCalled()
+
+      processor.processChunk({
+        type: 'TEXT_MESSAGE_END',
+        messageId: 'msg-1',
+        timestamp: Date.now(),
+      } as StreamChunk)
+
+      // TEXT_MESSAGE_END should flush pending text
+      expect(onTextUpdate).toHaveBeenCalledWith('msg-1', 'Hello')
+    })
+  })
+
+  describe('interleaved messages', () => {
+    it('should handle two interleaved assistant messages', () => {
+      const onMessagesChange = vi.fn()
+      const processor = new StreamProcessor({
+        events: { onMessagesChange },
+      })
+
+      // Start two messages
+      processor.processChunk({
+        type: 'TEXT_MESSAGE_START',
+        messageId: 'msg-a',
+        role: 'assistant',
+        timestamp: Date.now(),
+      } as StreamChunk)
+
+      processor.processChunk({
+        type: 'TEXT_MESSAGE_START',
+        messageId: 'msg-b',
+        role: 'assistant',
+        timestamp: Date.now(),
+      } as StreamChunk)
+
+      // Interleave content
+      processor.processChunk({
+        type: 'TEXT_MESSAGE_CONTENT',
+        messageId: 'msg-a',
+        delta: 'Hello from A',
+        timestamp: Date.now(),
+      } as StreamChunk)
+
+      processor.processChunk({
+        type: 'TEXT_MESSAGE_CONTENT',
+        messageId: 'msg-b',
+        delta: 'Hello from B',
+        timestamp: Date.now(),
+      } as StreamChunk)
+
+      // End both
+      processor.processChunk({
+        type: 'TEXT_MESSAGE_END',
+        messageId: 'msg-a',
+        timestamp: Date.now(),
+      } as StreamChunk)
+
+      processor.processChunk({
+        type: 'TEXT_MESSAGE_END',
+        messageId: 'msg-b',
+        timestamp: Date.now(),
+      } as StreamChunk)
+
+      const messages = processor.getMessages()
+      expect(messages).toHaveLength(2)
+
+      expect(messages[0]?.id).toBe('msg-a')
+      expect(messages[0]?.parts[0]).toEqual({
+        type: 'text',
+        content: 'Hello from A',
+      })
+
+      expect(messages[1]?.id).toBe('msg-b')
+      expect(messages[1]?.parts[0]).toEqual({
+        type: 'text',
+        content: 'Hello from B',
+      })
+    })
+  })
+
+  describe('STATE_SNAPSHOT', () => {
+    it('should hydrate messages from a state snapshot', () => {
+      const onMessagesChange = vi.fn()
+      const processor = new StreamProcessor({
+        events: { onMessagesChange },
+      })
+
+      const snapshotMessages: Array<UIMessage> = [
+        {
+          id: 'snap-1',
+          role: 'user',
+          parts: [{ type: 'text', content: 'Hello' }],
+          createdAt: new Date(),
+        },
+        {
+          id: 'snap-2',
+          role: 'assistant',
+          parts: [{ type: 'text', content: 'Hi there!' }],
+          createdAt: new Date(),
+        },
+      ]
+
+      processor.processChunk({
+        type: 'STATE_SNAPSHOT',
+        state: { messages: snapshotMessages },
+        timestamp: Date.now(),
+      } as StreamChunk)
+
+      const messages = processor.getMessages()
+      expect(messages).toHaveLength(2)
+      expect(messages[0]?.id).toBe('snap-1')
+      expect(messages[0]?.role).toBe('user')
+      expect(messages[1]?.id).toBe('snap-2')
+      expect(messages[1]?.role).toBe('assistant')
+      expect(onMessagesChange).toHaveBeenCalled()
+    })
+
+    it('should ignore STATE_SNAPSHOT without messages', () => {
+      const onMessagesChange = vi.fn()
+      const processor = new StreamProcessor({
+        events: { onMessagesChange },
+      })
+
+      processor.processChunk({
+        type: 'STATE_SNAPSHOT',
+        state: { someOtherData: 'value' },
+        timestamp: Date.now(),
+      } as StreamChunk)
+
+      expect(processor.getMessages()).toHaveLength(0)
+      expect(onMessagesChange).not.toHaveBeenCalled()
+    })
+  })
+
+  describe('startAssistantMessage + TEXT_MESSAGE_START dedup', () => {
+    it('should associate TEXT_MESSAGE_START with pending manual message (different ID)', () => {
+      const processor = new StreamProcessor()
+      processor.startAssistantMessage()
+
+      // Server sends TEXT_MESSAGE_START with a different ID
+      processor.processChunk({
+        type: 'TEXT_MESSAGE_START',
+        messageId: 'server-msg-1',
+        role: 'assistant',
+        timestamp: Date.now(),
+      } as StreamChunk)
+
+      // Should have only one message (not two)
+      const messages = processor.getMessages()
+      expect(messages).toHaveLength(1)
+
+      // The message should have been updated to the server's ID
+      expect(messages[0]?.id).toBe('server-msg-1')
+      expect(messages[0]?.role).toBe('assistant')
+
+      // Content should route to the correct message
+      processor.processChunk({
+        type: 'TEXT_MESSAGE_CONTENT',
+        messageId: 'server-msg-1',
+        delta: 'Hello',
+        timestamp: Date.now(),
+      } as StreamChunk)
+
+      processor.finalizeStream()
+
+      expect(processor.getMessages()[0]?.parts[0]).toEqual({
+        type: 'text',
+        content: 'Hello',
+      })
+    })
+
+    it('should associate TEXT_MESSAGE_START with pending manual message (same ID)', () => {
+      const processor = new StreamProcessor()
+      processor.startAssistantMessage('my-msg-id')
+
+      // Server sends TEXT_MESSAGE_START with the same ID
+      processor.processChunk({
+        type: 'TEXT_MESSAGE_START',
+        messageId: 'my-msg-id',
+        role: 'assistant',
+        timestamp: Date.now(),
+      } as StreamChunk)
+
+      // Should still have only one message
+      const messages = processor.getMessages()
+      expect(messages).toHaveLength(1)
+      expect(messages[0]?.id).toBe('my-msg-id')
+    })
+
+    it('should work when TEXT_MESSAGE_START arrives without startAssistantMessage', () => {
+      const onStreamStart = vi.fn()
+      const processor = new StreamProcessor({
+        events: { onStreamStart },
+      })
+
+      processor.processChunk({
+        type: 'TEXT_MESSAGE_START',
+        messageId: 'msg-1',
+        role: 'assistant',
+        timestamp: Date.now(),
+      } as StreamChunk)
+
+      processor.processChunk({
+        type: 'TEXT_MESSAGE_CONTENT',
+        messageId: 'msg-1',
+        delta: 'Hello',
+        timestamp: Date.now(),
+      } as StreamChunk)
+
+      processor.processChunk({
+        type: 'TEXT_MESSAGE_END',
+        messageId: 'msg-1',
+        timestamp: Date.now(),
+      } as StreamChunk)
+
+      expect(onStreamStart).toHaveBeenCalledTimes(1)
+
+      const messages = processor.getMessages()
+      expect(messages).toHaveLength(1)
+      expect(messages[0]?.id).toBe('msg-1')
+      expect(messages[0]?.parts[0]).toEqual({
+        type: 'text',
+        content: 'Hello',
+      })
+    })
+  })
+
+  describe('backward compat: startAssistantMessage without TEXT_MESSAGE_START', () => {
+    it('should still work when only startAssistantMessage is used', () => {
+      const processor = new StreamProcessor()
+      const msgId = processor.startAssistantMessage()
+
+      processor.processChunk({
+        type: 'TEXT_MESSAGE_CONTENT',
+        messageId: 'some-other-id',
+        delta: 'Hello',
+        timestamp: Date.now(),
+      } as StreamChunk)
+
+      processor.processChunk({
+        type: 'TEXT_MESSAGE_CONTENT',
+        messageId: 'some-other-id',
+        delta: ' world',
+        timestamp: Date.now(),
+      } as StreamChunk)
+
+      processor.finalizeStream()
+
+      const messages = processor.getMessages()
+      expect(messages).toHaveLength(1)
+      expect(messages[0]?.id).toBe(msgId)
+      expect(messages[0]?.parts[0]).toEqual({
+        type: 'text',
+        content: 'Hello world',
+      })
+    })
+  })
+
+  describe('per-message tool calls', () => {
+    it('should route tool calls to the correct message via parentMessageId', () => {
+      const processor = new StreamProcessor()
+
+      // Create two messages
+      processor.processChunk({
+        type: 'TEXT_MESSAGE_START',
+        messageId: 'msg-a',
+        role: 'assistant',
+        timestamp: Date.now(),
+      } as StreamChunk)
+
+      // Tool call on msg-a
+      processor.processChunk({
+        type: 'TOOL_CALL_START',
+        toolCallId: 'tc-1',
+        toolName: 'myTool',
+        parentMessageId: 'msg-a',
+        timestamp: Date.now(),
+      } as StreamChunk)
+
+      processor.processChunk({
+        type: 'TOOL_CALL_ARGS',
+        toolCallId: 'tc-1',
+        delta: '{"arg": "val"}',
+        timestamp: Date.now(),
+      } as StreamChunk)
+
+      processor.processChunk({
+        type: 'TOOL_CALL_END',
+        toolCallId: 'tc-1',
+        timestamp: Date.now(),
+      } as StreamChunk)
+
+      processor.finalizeStream()
+
+      const messages = processor.getMessages()
+      expect(messages).toHaveLength(1)
+
+      const toolCallPart = messages[0]?.parts.find(
+        (p) => p.type === 'tool-call',
+      )
+      expect(toolCallPart).toBeDefined()
+      expect(toolCallPart?.type).toBe('tool-call')
+      if (toolCallPart?.type === 'tool-call') {
+        expect(toolCallPart.name).toBe('myTool')
+        expect(toolCallPart.state).toBe('input-complete')
+      }
     })
   })
 })
