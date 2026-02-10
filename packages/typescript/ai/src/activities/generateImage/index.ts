@@ -78,9 +78,7 @@ export interface ImageActivityOptions<
   size?: ImageSizeForModel<TAdapter, TAdapter['model']>
   /** Provider-specific options for image generation */
   modelOptions?: ImageProviderOptionsForModel<TAdapter, TAdapter['model']>
-  /**
-   * Telemetry data for tracking and monitoring.
-   */
+  /** Telemetry data for tracking and monitoring */
   telemetry?: ImageGenerationOptions['telemetry']
 }
 
@@ -167,13 +165,13 @@ export async function generateImage<
   const tracer = getTracer(rest.telemetry?.tracer)
 
   return recordSpan({
+    tracer,
     name: `generate_image ${adapter.model}`,
     attributes: buildSpanAttributes({
       model: { name: adapter.model, provider: adapter.name },
       outputType: 'image',
       operationName: 'generate_image',
     }),
-    tracer,
     fn: async (span) =>
       adapter.generateImages({ ...rest, model }).then((result) => {
         const duration = Date.now() - startTime
@@ -204,6 +202,7 @@ export async function generateImage<
               | undefined,
             telemetry: toTelemetryEvent(rest.telemetry),
             timestamp: Date.now(),
+            
           })
 
           span.setAttributes({

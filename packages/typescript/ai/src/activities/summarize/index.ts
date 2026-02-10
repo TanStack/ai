@@ -6,6 +6,9 @@
  */
 
 import { aiEventClient } from '../../event-client.js'
+import { buildSpanAttributes } from '../../telemetry/attributes.js'
+import { getTracer } from '../../telemetry/get-tracer.js'
+import { recordSpan } from '../../telemetry/record-span.js'
 import { toTelemetryEvent } from '../../telemetry/types.js'
 import type {
   StreamChunk,
@@ -194,32 +197,57 @@ async function runSummarize(
     timestamp: startTime,
   })
 
-  const summarizeOptions: SummarizationOptions = {
-    model,
-    text,
-    maxLength,
-    style,
-    focus,
-    telemetry,
-  }
+  const tracer = getTracer(telemetry?.tracer)
 
-  const result = await adapter.summarize(summarizeOptions)
+  return recordSpan({
+    tracer,
+    name: `summarize ${adapter.model}`,
+    attributes: buildSpanAttributes({
+      model: { name: adapter.model, provider: adapter.name },
+      outputType: 'text',
+      operationName: 'summarize',
+    }),
+    fn: async (span) => {
+      const result = await adapter.summarize({
+        model,
+        text,
+        maxLength,
+        style,
+        focus,
+        telemetry,
+      })
+      const duration = Date.now() - startTime
+      const outputLength = result.summary.length
 
-  const duration = Date.now() - startTime
-  const outputLength = result.summary.length
+      aiEventClient.emit('summarize:request:completed', {
+        requestId,
+        provider: adapter.name,
+        model,
+        inputLength,
+        outputLength,
+        duration,
+        telemetry: toTelemetryEvent(telemetry),
+        timestamp: Date.now(),
+      })
 
-  aiEventClient.emit('summarize:request:completed', {
-    requestId,
-    provider: adapter.name,
-    model,
-    inputLength,
-    outputLength,
-    duration,
-    telemetry: toTelemetryEvent(telemetry),
-    timestamp: Date.now(),
+      aiEventClient.emit("summarize:usage", {
+        requestId,
+        provider: adapter.name,
+        model,
+        usage: result.usage,
+        telemetry: toTelemetryEvent(telemetry),
+        timestamp: Date.now(),
+      })
+
+      span.setAttributes({
+        'gen_ai.usage.input_tokens': result.usage.promptTokens,
+        'gen_ai.usage.output_tokens': result.usage.completionTokens,
+        'gen_ai.request.id': requestId,
+      })
+
+      return result
+    }
   })
-
-  return result
 }
 
 /**

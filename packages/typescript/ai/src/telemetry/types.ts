@@ -22,8 +22,7 @@ export type TelemetrySettings = {
 }
 
 /**
- * Telemetry data for tracking and debugging.
- * This type is used for events that are emitted by the aiEventClient.
+ * TelemetryEvent is used for events that are emitted by the aiEventClient.
  */
 export type TelemetryEvent = {
   /**
@@ -39,7 +38,7 @@ export type TelemetryEvent = {
 }
 
 /**
- * Converts TelemetrySettings to TelemetryEvent by stripping the tracer.
+ * Converts TelemetrySettings to TelemetryEvent that can be emitted by the aiEventClient.
  */
 export function toTelemetryEvent(
   telemetry?: TelemetrySettings,

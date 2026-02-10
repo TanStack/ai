@@ -6,6 +6,9 @@
  */
 
 import { aiEventClient } from '../../event-client.js'
+import { buildSpanAttributes } from '../../telemetry/attributes.js'
+import { getTracer } from '../../telemetry/get-tracer.js'
+import { recordSpan } from '../../telemetry/record-span.js'
 import { toTelemetryEvent } from '../../telemetry/types.js'
 import type { TTSOptions, TTSResult } from '../../types'
 import type { TTSAdapter } from './adapter'
@@ -126,24 +129,40 @@ export async function generateSpeech<
     timestamp: startTime,
   })
 
-  return adapter.generateSpeech({ ...rest, model }).then((result) => {
-    const duration = Date.now() - startTime
+  const tracer = getTracer(rest.telemetry?.tracer)
 
-    aiEventClient.emit('speech:request:completed', {
-      requestId,
-      provider: adapter.name,
-      model,
-      audio: result.audio,
-      format: result.format,
-      audioDuration: result.duration,
-      contentType: result.contentType,
-      duration,
-      modelOptions: rest.modelOptions as Record<string, unknown> | undefined,
-      telemetry: toTelemetryEvent(rest.telemetry),
-      timestamp: Date.now(),
-    })
+  return recordSpan({
+    tracer,
+    name: `generate_speech ${adapter.model}`,
+    attributes: buildSpanAttributes({
+      model: { name: adapter.model, provider: adapter.name },
+      outputType: 'audio',
+      operationName: 'generate_speech',
+    }),
+    fn: async (span) => {
+      const result = await adapter.generateSpeech({ ...rest, model })
+      const duration = Date.now() - startTime
 
-    return result
+      aiEventClient.emit('speech:request:completed', {
+        requestId,
+        provider: adapter.name,
+        model,
+        audio: result.audio,
+        format: result.format,
+        audioDuration: result.duration,
+        contentType: result.contentType,
+        duration,
+        modelOptions: rest.modelOptions as Record<string, unknown> | undefined,
+        telemetry: toTelemetryEvent(rest.telemetry),
+        timestamp: Date.now(),
+      })
+
+      span.setAttributes({
+        'gen_ai.response.id': requestId,
+      })
+
+      return result
+    }
   })
 }
 
