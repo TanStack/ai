@@ -7,20 +7,19 @@
 
 import { aiEventClient } from '../../event-client.js'
 import { streamToText } from '../../stream-to-response.js'
+import { toTelemetryEvent } from '../../telemetry/types.js'
 import { ToolCallManager, executeToolCalls } from './tools/tool-calls'
+import { maxIterations as maxIterationsStrategy } from './agent-loop-strategies'
 import {
   convertSchemaToJsonSchema,
   isStandardSchema,
   parseWithStandardSchema,
 } from './tools/schema-converter'
-import { maxIterations as maxIterationsStrategy } from './agent-loop-strategies'
-import { convertMessagesToModelMessages } from './messages'
+import { convertMessagesToModelMessages } from './messages.js'
 import type {
-  ApprovalRequest,
-  ClientToolRequest,
-  ToolResult,
-} from './tools/tool-calls'
-import type { AnyTextAdapter } from './adapter'
+  TelemetryEvent,
+  TelemetrySettings,
+} from '../../telemetry/types.js'
 import type {
   AgentLoopStrategy,
   ConstrainedModelMessage,
@@ -37,6 +36,12 @@ import type {
   ToolCallEndEvent,
   ToolCallStartEvent,
 } from '../../types'
+import type { AnyTextAdapter } from './adapter'
+import type {
+  ApprovalRequest,
+  ClientToolRequest,
+  ToolResult,
+} from './tools/tool-calls'
 
 // ===========================
 // Activity Kind
@@ -131,6 +136,10 @@ export interface TextActivityOptions<
    * ```
    */
   stream?: TStream
+  /**
+   * Telemetry data for tracking and monitoring.
+   */
+  telemetry?: TextOptions['telemetry']
 }
 
 // ===========================
@@ -210,6 +219,7 @@ class TextEngine<
   private readonly streamId: string
   private readonly effectiveRequest?: Request | RequestInit
   private readonly effectiveSignal?: AbortSignal
+  private readonly telemetry?: TelemetrySettings
 
   private messages: Array<ModelMessage>
   private iterationCount = 0
@@ -259,6 +269,7 @@ class TextEngine<
       ? { signal: config.params.abortController.signal }
       : undefined
     this.effectiveSignal = config.params.abortController?.signal
+    this.telemetry = config.params.telemetry
   }
 
   /** Get the accumulated content after the chat loop completes */
@@ -1015,6 +1026,7 @@ class TextEngine<
     messageCount: number
     hasTools: boolean
     streaming: boolean
+    telemetry?: TelemetryEvent
   } {
     return {
       requestId: this.requestId,
@@ -1033,6 +1045,7 @@ class TextEngine<
       messageCount: this.initialMessageCount,
       hasTools: this.tools.length > 0,
       streaming: true,
+      telemetry: toTelemetryEvent(this.telemetry),
     }
   }
 
@@ -1267,10 +1280,10 @@ async function runAgenticStructuredOutput<TSchema extends SchemaInput>(
 }
 
 // Re-export adapter types
+export { BaseTextAdapter } from './adapter'
 export type {
-  TextAdapter,
-  TextAdapterConfig,
   StructuredOutputOptions,
   StructuredOutputResult,
+  TextAdapter,
+  TextAdapterConfig,
 } from './adapter'
-export { BaseTextAdapter } from './adapter'

@@ -6,8 +6,12 @@
  */
 
 import { aiEventClient } from '../../event-client.js'
+import { buildSpanAttributes } from '../../telemetry/attributes.js'
+import { getTracer } from '../../telemetry/get-tracer.js'
+import { recordSpan } from '../../telemetry/record-span.js'
+import { toTelemetryEvent } from '../../telemetry/types.js'
+import type { TranscriptionOptions, TranscriptionResult } from '../../types'
 import type { TranscriptionAdapter } from './adapter'
-import type { TranscriptionResult } from '../../types'
 
 // ===========================
 // Activity Kind
@@ -53,6 +57,10 @@ export interface TranscriptionActivityOptions<
   responseFormat?: 'json' | 'text' | 'srt' | 'verbose_json' | 'vtt'
   /** Provider-specific options for transcription */
   modelOptions?: TranscriptionProviderOptions<TAdapter>
+  /**
+   * Telemetry data for tracking and monitoring.
+   */
+  telemetry?: TranscriptionOptions['telemetry']
 }
 
 // ===========================
@@ -120,24 +128,43 @@ export async function generateTranscription<
     prompt: rest.prompt,
     responseFormat: rest.responseFormat,
     modelOptions: rest.modelOptions as Record<string, unknown> | undefined,
+    telemetry: toTelemetryEvent(rest.telemetry),
     timestamp: startTime,
   })
 
-  const result = await adapter.transcribe({ ...rest, model })
-  const duration = Date.now() - startTime
+  const tracer = getTracer(rest.telemetry?.tracer)
 
-  aiEventClient.emit('transcription:request:completed', {
-    requestId,
-    provider: adapter.name,
-    model,
-    text: result.text,
-    language: result.language,
-    duration,
-    modelOptions: rest.modelOptions as Record<string, unknown> | undefined,
-    timestamp: Date.now(),
+  return recordSpan({
+    tracer,
+    name: `transcription ${adapter.model}`,
+    attributes: buildSpanAttributes({
+      model: { name: adapter.model, provider: adapter.name },
+      outputType: 'text',
+      operationName: 'transcription',
+    }),
+    fn: async (span) => {
+      const result = await adapter.transcribe({ ...rest, model })
+      const duration = Date.now() - startTime
+
+      aiEventClient.emit('transcription:request:completed', {
+        requestId,
+        provider: adapter.name,
+        model,
+        text: result.text,
+        language: result.language,
+        duration,
+        modelOptions: rest.modelOptions as Record<string, unknown> | undefined,
+        telemetry: toTelemetryEvent(rest.telemetry),
+        timestamp: Date.now(),
+      })
+
+      span.setAttributes({
+        'gen_ai.request.id': requestId,
+      })
+
+      return result
+    },
   })
-
-  return result
 }
 
 // ===========================
@@ -156,9 +183,9 @@ export function createTranscriptionOptions<
 }
 
 // Re-export adapter types
+export { BaseTranscriptionAdapter } from './adapter'
 export type {
+  AnyTranscriptionAdapter,
   TranscriptionAdapter,
   TranscriptionAdapterConfig,
-  AnyTranscriptionAdapter,
 } from './adapter'
-export { BaseTranscriptionAdapter } from './adapter'

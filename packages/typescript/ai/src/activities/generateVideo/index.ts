@@ -8,12 +8,14 @@
  */
 
 import { aiEventClient } from '../../event-client.js'
-import type { VideoAdapter } from './adapter'
+import { toTelemetryEvent } from '../../telemetry/types.js'
 import type {
+  VideoGenerationOptions,
   VideoJobResult,
   VideoStatusResult,
   VideoUrlResult,
 } from '../../types'
+import type { VideoAdapter } from './adapter'
 
 // ===========================
 // Activity Kind
@@ -51,6 +53,10 @@ interface VideoActivityBaseOptions<
 > {
   /** The video adapter to use (must be created with a model) */
   adapter: TAdapter & { kind: typeof kind }
+  /**
+   * Telemetry data for tracking and monitoring.
+   */
+  telemetry?: VideoGenerationOptions['telemetry']
 }
 
 /**
@@ -202,16 +208,15 @@ export async function generateVideo<
  */
 export async function getVideoJobStatus<
   TAdapter extends VideoAdapter<string, object>,
->(options: {
-  adapter: TAdapter & { kind: typeof kind }
-  jobId: string
-}): Promise<{
+>(
+  options: VideoStatusOptions<TAdapter>,
+): Promise<{
   status: 'pending' | 'processing' | 'completed' | 'failed'
   progress?: number
   url?: string
   error?: string
 }> {
-  const { adapter, jobId } = options
+  const { adapter, jobId, ...rest } = options
   const requestId = createId('video-status')
   const startTime = Date.now()
 
@@ -221,6 +226,7 @@ export async function getVideoJobStatus<
     model: adapter.model,
     requestType: 'status',
     jobId,
+    telemetry: toTelemetryEvent(rest.telemetry),
     timestamp: startTime,
   })
 
@@ -241,6 +247,7 @@ export async function getVideoJobStatus<
         progress: statusResult.progress,
         url: urlResult.url,
         duration: Date.now() - startTime,
+        telemetry: toTelemetryEvent(rest.telemetry),
         timestamp: Date.now(),
       })
       return {
@@ -260,6 +267,7 @@ export async function getVideoJobStatus<
         error:
           error instanceof Error ? error.message : 'Failed to get video URL',
         duration: Date.now() - startTime,
+        telemetry: toTelemetryEvent(rest.telemetry),
         timestamp: Date.now(),
       })
       // If URL fetch fails, still return status
@@ -282,6 +290,7 @@ export async function getVideoJobStatus<
     progress: statusResult.progress,
     error: statusResult.error,
     duration: Date.now() - startTime,
+    telemetry: toTelemetryEvent(rest.telemetry),
     timestamp: Date.now(),
   })
 
@@ -307,9 +316,9 @@ export function createVideoOptions<
 }
 
 // Re-export adapter types
+export { BaseVideoAdapter } from './adapter'
 export type {
+  AnyVideoAdapter,
   VideoAdapter,
   VideoAdapterConfig,
-  AnyVideoAdapter,
 } from './adapter'
-export { BaseVideoAdapter } from './adapter'

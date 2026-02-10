@@ -6,12 +6,16 @@
  */
 
 import { aiEventClient } from '../../event-client.js'
-import type { SummarizeAdapter } from './adapter'
+import { buildSpanAttributes } from '../../telemetry/attributes.js'
+import { getTracer } from '../../telemetry/get-tracer.js'
+import { recordSpan } from '../../telemetry/record-span.js'
+import { toTelemetryEvent } from '../../telemetry/types.js'
 import type {
   StreamChunk,
   SummarizationOptions,
   SummarizationResult,
 } from '../../types'
+import type { SummarizeAdapter } from './adapter'
 
 // ===========================
 // Activity Kind
@@ -65,6 +69,10 @@ export interface SummarizeActivityOptions<
    * @default false
    */
   stream?: TStream
+  /**
+   * Telemetry data for tracking and monitoring.
+   */
+  telemetry?: SummarizationOptions['telemetry']
 }
 
 // ===========================
@@ -174,7 +182,7 @@ export function summarize<
 async function runSummarize(
   options: SummarizeActivityOptions<SummarizeAdapter<string, object>, false>,
 ): Promise<SummarizationResult> {
-  const { adapter, text, maxLength, style, focus } = options
+  const { adapter, text, maxLength, style, focus, telemetry } = options
   const model = adapter.model
   const requestId = createId('summarize')
   const inputLength = text.length
@@ -185,33 +193,61 @@ async function runSummarize(
     provider: adapter.name,
     model,
     inputLength,
+    telemetry: toTelemetryEvent(telemetry),
     timestamp: startTime,
   })
 
-  const summarizeOptions: SummarizationOptions = {
-    model,
-    text,
-    maxLength,
-    style,
-    focus,
-  }
+  const tracer = getTracer(telemetry?.tracer)
 
-  const result = await adapter.summarize(summarizeOptions)
+  return recordSpan({
+    tracer,
+    name: `summarize ${adapter.model}`,
+    attributes: buildSpanAttributes({
+      model: { name: adapter.model, provider: adapter.name },
+      outputType: 'text',
+      operationName: 'summarize',
+    }),
+    fn: async (span) => {
+      const result = await adapter.summarize({
+        model,
+        text,
+        maxLength,
+        style,
+        focus,
+        telemetry,
+      })
+      const duration = Date.now() - startTime
+      const outputLength = result.summary.length
 
-  const duration = Date.now() - startTime
-  const outputLength = result.summary.length
+      aiEventClient.emit('summarize:request:completed', {
+        requestId,
+        provider: adapter.name,
+        model,
+        inputLength,
+        outputLength,
+        duration,
+        telemetry: toTelemetryEvent(telemetry),
+        timestamp: Date.now(),
+      })
 
-  aiEventClient.emit('summarize:request:completed', {
-    requestId,
-    provider: adapter.name,
-    model,
-    inputLength,
-    outputLength,
-    duration,
-    timestamp: Date.now(),
+      aiEventClient.emit('summarize:usage', {
+        requestId,
+        provider: adapter.name,
+        model,
+        usage: result.usage,
+        telemetry: toTelemetryEvent(telemetry),
+        timestamp: Date.now(),
+      })
+
+      span.setAttributes({
+        'gen_ai.usage.input_tokens': result.usage.promptTokens,
+        'gen_ai.usage.output_tokens': result.usage.completionTokens,
+        'gen_ai.request.id': requestId,
+      })
+
+      return result
+    },
   })
-
-  return result
 }
 
 /**
@@ -231,6 +267,7 @@ async function* runStreamingSummarize(
     maxLength,
     style,
     focus,
+    telemetry: options.telemetry,
   }
 
   // Use real streaming if the adapter supports it
@@ -280,9 +317,9 @@ export function createSummarizeOptions<
 }
 
 // Re-export adapter types
+export { BaseSummarizeAdapter } from './adapter'
 export type {
+  AnySummarizeAdapter,
   SummarizeAdapter,
   SummarizeAdapterConfig,
-  AnySummarizeAdapter,
 } from './adapter'
-export { BaseSummarizeAdapter } from './adapter'

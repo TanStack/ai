@@ -1,6 +1,6 @@
 import { EventClient } from '@tanstack/devtools-event-client'
+import type { TelemetryEvent } from './telemetry/types'
 import type { MessagePart, ToolCall } from './types'
-
 /**
  * Tool call states - track the lifecycle of a tool call
  * Must match @tanstack/ai-client ToolCallState
@@ -44,6 +44,7 @@ interface BaseEventContext {
   model?: string
   systemPrompts?: Array<string>
   options?: Record<string, unknown>
+  telemetry?: TelemetryEvent
   modelOptions?: Record<string, unknown>
   toolNames?: Array<string>
   messageCount?: number

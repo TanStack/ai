@@ -6,8 +6,12 @@
  */
 
 import { aiEventClient } from '../../event-client.js'
+import { buildSpanAttributes } from '../../telemetry/attributes.js'
+import { getTracer } from '../../telemetry/get-tracer.js'
+import { recordSpan } from '../../telemetry/record-span.js'
+import { toTelemetryEvent } from '../../telemetry/types.js'
+import type { ImageGenerationOptions, ImageGenerationResult } from '../../types'
 import type { ImageAdapter } from './adapter'
-import type { ImageGenerationResult } from '../../types'
 
 // ===========================
 // Activity Kind
@@ -74,6 +78,8 @@ export interface ImageActivityOptions<
   size?: ImageSizeForModel<TAdapter, TAdapter['model']>
   /** Provider-specific options for image generation */
   modelOptions?: ImageProviderOptionsForModel<TAdapter, TAdapter['model']>
+  /** Telemetry data for tracking and monitoring */
+  telemetry?: ImageGenerationOptions['telemetry']
 }
 
 // ===========================
@@ -152,36 +158,64 @@ export async function generateImage<
     numberOfImages: rest.numberOfImages,
     size: rest.size as string | undefined,
     modelOptions: rest.modelOptions as Record<string, unknown> | undefined,
+    telemetry: toTelemetryEvent(rest.telemetry),
     timestamp: startTime,
   })
 
-  return adapter.generateImages({ ...rest, model }).then((result) => {
-    const duration = Date.now() - startTime
+  const tracer = getTracer(rest.telemetry?.tracer)
 
-    aiEventClient.emit('image:request:completed', {
-      requestId,
-      provider: adapter.name,
-      model,
-      images: result.images.map((image) => ({
-        url: image.url,
-        b64Json: image.b64Json,
-      })),
-      duration,
-      modelOptions: rest.modelOptions as Record<string, unknown> | undefined,
-      timestamp: Date.now(),
-    })
+  return recordSpan({
+    tracer,
+    name: `generate_image ${adapter.model}`,
+    attributes: buildSpanAttributes({
+      model: { name: adapter.model, provider: adapter.name },
+      outputType: 'image',
+      operationName: 'generate_image',
+    }),
+    fn: async (span) =>
+      adapter.generateImages({ ...rest, model }).then((result) => {
+        const duration = Date.now() - startTime
 
-    if (result.usage) {
-      aiEventClient.emit('image:usage', {
-        requestId,
-        model,
-        usage: result.usage,
-        modelOptions: rest.modelOptions as Record<string, unknown> | undefined,
-        timestamp: Date.now(),
-      })
-    }
+        aiEventClient.emit('image:request:completed', {
+          requestId,
+          provider: adapter.name,
+          model,
+          images: result.images.map((image) => ({
+            url: image.url,
+            b64Json: image.b64Json,
+          })),
+          duration,
+          modelOptions: rest.modelOptions as
+            | Record<string, unknown>
+            | undefined,
+          telemetry: toTelemetryEvent(rest.telemetry),
+          timestamp: Date.now(),
+        })
 
-    return result
+        if (result.usage) {
+          aiEventClient.emit('image:usage', {
+            requestId,
+            model,
+            usage: result.usage,
+            modelOptions: rest.modelOptions as
+              | Record<string, unknown>
+              | undefined,
+            telemetry: toTelemetryEvent(rest.telemetry),
+            timestamp: Date.now(),
+          })
+
+          span.setAttributes({
+            'gen_ai.usage.input_tokens': result.usage.inputTokens,
+            'gen_ai.usage.output_tokens': result.usage.outputTokens,
+          })
+        }
+
+        span.setAttributes({
+          'gen_ai.response.id': result.id,
+        })
+
+        return result
+      }),
   })
 }
 
@@ -199,9 +233,9 @@ export function createImageOptions<
 }
 
 // Re-export adapter types
+export { BaseImageAdapter } from './adapter'
 export type {
+  AnyImageAdapter,
   ImageAdapter,
   ImageAdapterConfig,
-  AnyImageAdapter,
 } from './adapter'
-export { BaseImageAdapter } from './adapter'
