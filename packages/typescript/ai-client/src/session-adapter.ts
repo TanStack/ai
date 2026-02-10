@@ -63,10 +63,12 @@ export function createDefaultSession(
           chunk = buffer.shift()!
         } else {
           chunk = await new Promise<StreamChunk | null>((resolve) => {
-            waiters.push(resolve)
-            signal?.addEventListener('abort', () => resolve(null), {
-              once: true,
+            const onAbort = () => resolve(null)
+            waiters.push((c) => {
+              signal?.removeEventListener('abort', onAbort)
+              resolve(c)
             })
+            signal?.addEventListener('abort', onAbort, { once: true })
           })
         }
         if (chunk !== null) yield chunk
@@ -74,6 +76,7 @@ export function createDefaultSession(
       // Discard any chunks buffered after abort to prevent stale data
       // leaking into the next subscription
       buffer.length = 0
+      waiters.length = 0
     },
 
     async send(messages, data, signal) {

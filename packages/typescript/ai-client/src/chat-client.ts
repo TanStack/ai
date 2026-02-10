@@ -104,6 +104,17 @@ export class ChatClient {
         },
         onStreamStart: () => {
           this.setStatus('streaming')
+          const messages = this.processor.getMessages()
+          const lastAssistant = messages.findLast(
+            (m: UIMessage) => m.role === 'assistant',
+          )
+          if (lastAssistant) {
+            this.currentMessageId = lastAssistant.id
+            this.events.messageAppended(
+              lastAssistant,
+              this.currentStreamId || undefined,
+            )
+          }
         },
         onStreamEnd: (message: UIMessage) => {
           this.callbacksRef.current.onFinish(message)
@@ -269,6 +280,12 @@ export class ChatClient {
       if (signal.aborted) break
       this.callbacksRef.current.onChunk(chunk)
       this.processor.processChunk(chunk)
+      // RUN_FINISHED signals run completion — resolve processing
+      // (redundant if onStreamEnd already resolved it, harmless)
+      if (chunk.type === 'RUN_FINISHED') {
+        this.processingResolve?.()
+        this.processingResolve = null
+      }
       // Yield control back to event loop for UI updates
       await new Promise((resolve) => setTimeout(resolve, 0))
     }
@@ -444,21 +461,9 @@ export class ChatClient {
       // Clear the pending message body after use
       this.pendingMessageBody = undefined
 
-      // Generate stream ID and start assistant message
+      // Generate stream ID — assistant message will be created by stream events
       this.currentStreamId = this.generateUniqueId('stream')
-      const messageId = this.processor.startAssistantMessage()
-      this.currentMessageId = messageId
-
-      const assistantMessage: UIMessage = {
-        id: messageId,
-        role: 'assistant',
-        parts: [],
-        createdAt: new Date(),
-      }
-      this.events.messageAppended(
-        assistantMessage,
-        this.currentStreamId || undefined,
-      )
+      this.currentMessageId = null
 
       // Ensure subscription loop is running
       this.ensureSubscription()

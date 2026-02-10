@@ -678,6 +678,7 @@ export class StreamProcessor {
     const { messageId } = chunk
     const state = this.getMessageState(messageId)
     if (!state) return
+    if (state.isComplete) return
 
     // Emit any pending text for this message
     if (state.currentSegmentText !== state.lastEmittedText) {
@@ -695,6 +696,10 @@ export class StreamProcessor {
     chunk: Extract<StreamChunk, { type: 'MESSAGES_SNAPSHOT' }>,
   ): void {
     this.messages = [...chunk.messages]
+    this.messageStates.clear()
+    this.activeMessageIds.clear()
+    this.toolCallToMessage.clear()
+    this.pendingManualMessageId = null
     this.emitMessagesChange()
   }
 
@@ -1001,7 +1006,9 @@ export class StreamProcessor {
   private handleStepFinishedEvent(
     chunk: Extract<StreamChunk, { type: 'STEP_FINISHED' }>,
   ): void {
-    const { messageId, state } = this.ensureAssistantMessage()
+    const { messageId, state } = this.ensureAssistantMessage(
+      this.getActiveAssistantMessageId() ?? undefined,
+    )
 
     const previous = state.thinkingContent
     let nextThinking = previous

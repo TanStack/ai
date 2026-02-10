@@ -211,4 +211,62 @@ describe('createDefaultSession', () => {
 
     expect(onConnect).toHaveBeenCalledWith([], undefined, abortController.signal)
   })
+
+  it('should not lose chunks after stop-then-resume subscription cycle', async () => {
+    const connection = createMockConnectionAdapter({ chunks: [] })
+    const session = createDefaultSession(connection)
+
+    // First subscription — abort while waiting (simulates stop)
+    const ac1 = new AbortController()
+    const iter1 = session.subscribe(ac1.signal)
+
+    // Start consuming — will block waiting for chunks
+    const result1Promise = (async () => {
+      const received: Array<StreamChunk> = []
+      for await (const chunk of iter1) {
+        received.push(chunk)
+      }
+      return received
+    })()
+
+    // Let the subscriber enter the wait path
+    await new Promise((resolve) => setTimeout(resolve, 10))
+
+    // Abort — this resolves the dead waiter with null
+    ac1.abort()
+    const received1 = await result1Promise
+    expect(received1).toEqual([])
+
+    // Second subscription — should work correctly
+    const ac2 = new AbortController()
+    const iter2 = session.subscribe(ac2.signal)
+
+    // Send a chunk — it should be delivered to the new subscriber
+    const testChunk: StreamChunk = {
+      type: 'TEXT_MESSAGE_CONTENT',
+      messageId: 'msg-1',
+      model: 'test',
+      timestamp: Date.now(),
+      delta: 'Hello',
+      content: 'Hello',
+    }
+
+    // Override connect to yield the test chunk
+    connection.connect = function* () {
+      yield testChunk
+    } as any
+
+    await session.send([], undefined)
+
+    const received2: Array<StreamChunk> = []
+    for await (const chunk of iter2) {
+      received2.push(chunk)
+      if (received2.length === 1) {
+        ac2.abort()
+      }
+    }
+
+    // The chunk should NOT be lost
+    expect(received2).toEqual([testChunk])
+  })
 })

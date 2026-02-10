@@ -2328,4 +2328,128 @@ describe('StreamProcessor', () => {
       }
     })
   })
+
+  describe('double onStreamEnd guard', () => {
+    it('should fire onStreamEnd exactly once when RUN_FINISHED arrives before TEXT_MESSAGE_END', () => {
+      const onStreamEnd = vi.fn()
+      const processor = new StreamProcessor({ events: { onStreamEnd } })
+
+      processor.processChunk({
+        type: 'TEXT_MESSAGE_START',
+        messageId: 'msg-1',
+        role: 'assistant',
+        timestamp: Date.now(),
+      } as StreamChunk)
+
+      processor.processChunk({
+        type: 'TEXT_MESSAGE_CONTENT',
+        messageId: 'msg-1',
+        delta: 'Hello',
+        timestamp: Date.now(),
+      } as StreamChunk)
+
+      // RUN_FINISHED fires first — calls finalizeStream which sets isComplete and fires onStreamEnd
+      processor.processChunk({
+        type: 'RUN_FINISHED',
+        model: 'test',
+        timestamp: Date.now(),
+        finishReason: 'stop',
+      } as StreamChunk)
+
+      expect(onStreamEnd).toHaveBeenCalledTimes(1)
+
+      // TEXT_MESSAGE_END arrives after — should NOT fire onStreamEnd again
+      processor.processChunk({
+        type: 'TEXT_MESSAGE_END',
+        messageId: 'msg-1',
+        timestamp: Date.now(),
+      } as StreamChunk)
+
+      expect(onStreamEnd).toHaveBeenCalledTimes(1)
+    })
+  })
+
+  describe('MESSAGES_SNAPSHOT resets transient state', () => {
+    it('should reset stale state and process subsequent stream events correctly', () => {
+      const onStreamEnd = vi.fn()
+      const processor = new StreamProcessor({ events: { onStreamEnd } })
+
+      // Simulate an active streaming session
+      processor.processChunk({
+        type: 'TEXT_MESSAGE_START',
+        messageId: 'msg-old',
+        role: 'assistant',
+        timestamp: Date.now(),
+      } as StreamChunk)
+
+      processor.processChunk({
+        type: 'TEXT_MESSAGE_CONTENT',
+        messageId: 'msg-old',
+        delta: 'Old content',
+        timestamp: Date.now(),
+      } as StreamChunk)
+
+      processor.processChunk({
+        type: 'TOOL_CALL_START',
+        toolCallId: 'tc-old',
+        toolName: 'oldTool',
+        parentMessageId: 'msg-old',
+        timestamp: Date.now(),
+      } as StreamChunk)
+
+      // MESSAGES_SNAPSHOT replaces everything (e.g., on reconnection)
+      processor.processChunk({
+        type: 'MESSAGES_SNAPSHOT',
+        messages: [
+          {
+            id: 'snap-user',
+            role: 'user',
+            parts: [{ type: 'text', content: 'Hello' }],
+            createdAt: new Date(),
+          },
+        ],
+        timestamp: Date.now(),
+      } as StreamChunk)
+
+      // Verify old messages are replaced
+      const messagesAfterSnapshot = processor.getMessages()
+      expect(messagesAfterSnapshot).toHaveLength(1)
+      expect(messagesAfterSnapshot[0]?.id).toBe('snap-user')
+
+      // New stream events should be processed correctly without stale state
+      processor.processChunk({
+        type: 'TEXT_MESSAGE_START',
+        messageId: 'msg-new',
+        role: 'assistant',
+        timestamp: Date.now(),
+      } as StreamChunk)
+
+      processor.processChunk({
+        type: 'TEXT_MESSAGE_CONTENT',
+        messageId: 'msg-new',
+        delta: 'New content',
+        timestamp: Date.now(),
+      } as StreamChunk)
+
+      processor.processChunk({
+        type: 'TEXT_MESSAGE_END',
+        messageId: 'msg-new',
+        timestamp: Date.now(),
+      } as StreamChunk)
+
+      const finalMessages = processor.getMessages()
+      expect(finalMessages).toHaveLength(2)
+      expect(finalMessages[1]?.id).toBe('msg-new')
+      expect(finalMessages[1]?.parts[0]).toEqual({
+        type: 'text',
+        content: 'New content',
+      })
+
+      // onStreamEnd fires from finalizeStream, not TEXT_MESSAGE_END
+      expect(onStreamEnd).not.toHaveBeenCalled()
+      processor.finalizeStream()
+      expect(onStreamEnd).toHaveBeenCalledTimes(1)
+      expect(onStreamEnd.mock.calls[0]![0].id).toBe('msg-new')
+    })
+  })
 })
