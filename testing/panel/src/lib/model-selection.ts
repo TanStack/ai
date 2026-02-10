@@ -83,7 +83,7 @@ export const MODEL_OPTIONS: Array<ModelOption> = [
   {
     provider: 'grok',
     model: 'grok-4',
-    label: 'Grok - Grok 4',
+    label: 'Grok - Grok 4 - slow thinking',
   },
   {
     provider: 'grok',

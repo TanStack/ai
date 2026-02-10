@@ -57,3 +57,5 @@ test-traces
 # Playwright
 playwright-report
 test-results
+
+STATUS_*.md
