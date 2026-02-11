@@ -10,8 +10,6 @@
   },
   "dependencies": {
     "@ag-ui/client": "^0.0.45",
-    "@copilotkit/react-core": "^1.51.3",
-    "@copilotkit/react-ui": "^1.51.3",
     "@tailwindcss/vite": "^4.1.18",
     "@tanstack/ai": "workspace:*",
     "@tanstack/ai-client": "workspace:*",

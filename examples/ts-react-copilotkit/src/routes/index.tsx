@@ -1,13 +1,7 @@
-import { useState, useRef, useEffect, useMemo } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import { createFileRoute } from '@tanstack/react-router'
 import { fetchServerSentEvents, useChat } from '@tanstack/ai-react'
 import type { UIMessage } from '@tanstack/ai-react'
-import { CopilotKit } from '@copilotkit/react-core'
-import { CopilotChat } from '@copilotkit/react-ui'
-import { HttpAgent } from '@ag-ui/client'
-import '@copilotkit/react-ui/styles.css'
-
-type Tab = 'tanstack' | 'copilotkit'
 
 /**
  * TanStack AI Chat Panel — uses the useChat hook from @tanstack/ai-react
@@ -114,91 +108,20 @@ function TanStackAIChat() {
 }
 
 /**
- * CopilotKit Chat Panel — uses CopilotKit's React components connected
- * to the TanStack AI server endpoint via the AG-UI protocol.
- *
- * The HttpAgent from @ag-ui/client sends RunAgentInput to the TanStack AI
- * server and receives AG-UI SSE events back — this is the core of the
- * interoperability between the two frameworks.
- */
-function CopilotKitChat() {
-  // Cast needed due to minor type differences between @ag-ui/client and
-  // CopilotKit's internal @ag-ui/core versions — both implement the same protocol
-  const agents = useMemo(
-    () =>
-      ({
-        'tanstack-ai': new HttpAgent({
-          url: '/api/chat',
-          agentId: 'tanstack-ai',
-          description: 'TanStack AI agent connected via AG-UI protocol',
-        }),
-      }) as Record<string, any>,
-    [],
-  )
-
-  return (
-    <CopilotKit
-      runtimeUrl="/api/chat"
-      agents__unsafe_dev_only={agents}
-      agent="tanstack-ai"
-      showDevConsole={false}
-    >
-      <div className="flex flex-col h-full copilotkit-chat-container">
-        <CopilotChat
-          className="h-full"
-          labels={{
-            placeholder: 'Type a message...',
-            initial:
-              'Hello! I am powered by TanStack AI on the server and CopilotKit on the client, connected through the AG-UI protocol.',
-          }}
-        />
-      </div>
-    </CopilotKit>
-  )
-}
-
-/**
- * Main page with tabbed interface showing both TanStack AI and CopilotKit
- * consuming the same AG-UI compliant TanStack AI server.
+ * Main page showing TanStack AI chat connected to AG-UI compliant server.
  */
 function HomePage() {
-  const [activeTab, setActiveTab] = useState<Tab>('tanstack')
-
   return (
     <div className="flex flex-col h-screen bg-gray-900 text-white">
       {/* Header */}
       <header className="border-b border-gray-700 bg-gray-800">
         <div className="px-6 py-4">
           <h1 className="text-xl font-bold bg-gradient-to-r from-orange-400 to-red-500 bg-clip-text text-transparent">
-            TanStack AI + CopilotKit
+            TanStack AI Chat Demo
           </h1>
           <p className="text-sm text-gray-400 mt-1">
-            AG-UI Protocol Integration Demo
+            AG-UI Protocol Integration
           </p>
-        </div>
-
-        {/* Tabs */}
-        <div className="flex px-6 gap-1">
-          <button
-            onClick={() => setActiveTab('tanstack')}
-            className={`px-4 py-2.5 text-sm font-medium rounded-t-lg transition-colors ${
-              activeTab === 'tanstack'
-                ? 'bg-gray-900 text-orange-400 border-t-2 border-orange-500'
-                : 'text-gray-400 hover:text-gray-200 hover:bg-gray-700/50'
-            }`}
-          >
-            🔥 TanStack AI Client
-          </button>
-          <button
-            onClick={() => setActiveTab('copilotkit')}
-            className={`px-4 py-2.5 text-sm font-medium rounded-t-lg transition-colors ${
-              activeTab === 'copilotkit'
-                ? 'bg-gray-900 text-orange-400 border-t-2 border-orange-500'
-                : 'text-gray-400 hover:text-gray-200 hover:bg-gray-700/50'
-            }`}
-          >
-            🪁 CopilotKit Client
-          </button>
         </div>
       </header>
 
@@ -208,15 +131,14 @@ function HomePage() {
           <span className="text-orange-400 font-medium">AG-UI Protocol</span>
           <span className="text-gray-400">•</span>
           <span className="text-gray-300">
-            Both clients communicate with the same TanStack AI server using the
-            open AG-UI standard for agent-user interaction
+            TanStack AI client communicating with server using the open AG-UI standard for agent-user interaction
           </span>
         </div>
       </div>
 
       {/* Chat Area */}
       <div className="flex-1 overflow-hidden">
-        {activeTab === 'tanstack' ? <TanStackAIChat /> : <CopilotKitChat />}
+        <TanStackAIChat />
       </div>
     </div>
   )

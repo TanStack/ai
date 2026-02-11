@@ -9,8 +9,7 @@
     "build": "vite build",
     "serve": "vite preview",
     "test:e2e": "npx playwright test",
-    "test:e2e:ui": "npx playwright test --ui",
-    "postinstall": "npx playwright install --with-deps chromium"
+    "test:e2e:ui": "npx playwright test --ui"
   },
   "dependencies": {
     "@tailwindcss/vite": "^4.1.18",

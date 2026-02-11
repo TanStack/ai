@@ -1,10 +1,10 @@
-# TanStack AI + CopilotKit — AG-UI Integration Example
+# TanStack AI — AG-UI Protocol Example
 
-This example demonstrates how **TanStack AI** and **CopilotKit** work together through the open [AG-UI protocol](https://docs.ag-ui.com) standard for agent-user interaction.
+This example demonstrates how **TanStack AI** implements the open [AG-UI protocol](https://docs.ag-ui.com) standard for agent-user interaction.
 
 ## What is AG-UI?
 
-AG-UI (Agent-User Interaction) is an open protocol that standardizes how AI agents communicate with user interfaces. Both TanStack AI and CopilotKit are AG-UI compliant, meaning they can interoperate seamlessly.
+AG-UI (Agent-User Interaction) is an open protocol that standardizes how AI agents communicate with user interfaces. TanStack AI is AG-UI compliant, enabling interoperability with other AG-UI compatible clients.
 
 ## Architecture
 
@@ -12,17 +12,17 @@ AG-UI (Agent-User Interaction) is an open protocol that standardizes how AI agen
 ┌─────────────────────────────────────────────────┐
 │                    Client                        │
 │                                                  │
-│  ┌──────────────────┐  ┌──────────────────────┐  │
-│  │  TanStack AI     │  │  CopilotKit          │  │
-│  │  useChat() hook  │  │  <CopilotChat />     │  │
-│  └────────┬─────────┘  └──────────┬───────────┘  │
-│           │                       │              │
-│           │    AG-UI Protocol     │              │
-│           │   (SSE / Events)      │              │
-│           └───────────┬───────────┘              │
-└───────────────────────┼──────────────────────────┘
-                        │
-                        ▼
+│  ┌──────────────────┐                            │
+│  │  TanStack AI     │                            │
+│  │  useChat() hook  │                            │
+│  └────────┬─────────┘                            │
+│           │                                      │
+│           │    AG-UI Protocol                    │
+│           │   (SSE / Events)                     │
+│           │                                      │
+└───────────┼──────────────────────────────────────┘
+            │
+            ▼
 ┌───────────────────────────────────────────────────┐
 │                    Server                         │
 │                                                   │
@@ -42,9 +42,7 @@ AG-UI (Agent-User Interaction) is an open protocol that standardizes how AI agen
 
 2. **TanStack AI Client**: Uses `useChat` hook from `@tanstack/ai-react` with `fetchServerSentEvents` to consume the AG-UI stream.
 
-3. **CopilotKit Client**: Uses `<CopilotKit>` provider and `<CopilotChat>` component connected to the same AG-UI endpoint.
-
-4. **AG-UI Protocol**: The shared communication protocol that enables both clients to work with the same server, demonstrating true interoperability.
+3. **AG-UI Protocol**: The communication protocol that enables standardized agent-server interaction, supporting interoperability with other AG-UI compliant systems.
 
 ## AG-UI Events
 

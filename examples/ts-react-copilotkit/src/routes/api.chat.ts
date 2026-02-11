@@ -13,12 +13,17 @@ import type { ModelMessage } from '@tanstack/ai'
  *
  * The AG-UI protocol defines messages with roles: user, assistant, system, developer, tool.
  * TanStack AI uses: user, assistant, tool (system prompts are handled separately).
+ *
+ * This function supports multiple message formats:
+ * 1. Direct content: { role: 'user', content: 'Hello' }
+ * 2. Parts array: { role: 'user', parts: [{ type: 'text', content: 'Hello' }] }
  */
 function convertAGUIMessages(
   agUIMessages: Array<{
     id?: string
     role: string
     content?: string
+    parts?: Array<{ type: string; content?: string }>
     toolCalls?: Array<{
       id: string
       type?: string
@@ -30,16 +35,23 @@ function convertAGUIMessages(
 ): Array<ModelMessage> {
   return agUIMessages
     .map((msg): ModelMessage | null => {
+      // Extract content from either direct content field or parts array
+      let content = msg.content || ''
+      if (!content && msg.parts) {
+        const textParts = msg.parts.filter((p) => p.type === 'text')
+        content = textParts.map((p) => p.content || '').join('')
+      }
+
       switch (msg.role) {
         case 'user':
           return {
             role: 'user',
-            content: msg.content || '',
+            content,
           }
         case 'assistant':
           return {
             role: 'assistant',
-            content: msg.content || '',
+            content,
             toolCalls: msg.toolCalls?.map((tc) => ({
               id: tc.id,
               type: 'function' as const,
@@ -49,7 +61,7 @@ function convertAGUIMessages(
         case 'tool':
           return {
             role: 'tool',
-            content: msg.content || '',
+            content,
             toolCallId: msg.toolCallId,
             name: msg.name,
           }
@@ -74,6 +86,28 @@ Be concise and helpful in your responses.`
 export const Route = createFileRoute('/api/chat')({
   server: {
     handlers: {
+      GET: async () => {
+        // Support GET requests for runtime info discovery
+        return new Response(
+          JSON.stringify({
+            agents: [
+              {
+                id: 'tanstack-ai',
+                name: 'tanstack-ai',
+                description: 'TanStack AI agent connected via AG-UI protocol',
+                capabilities: ['chat', 'sse', 'ag-ui-protocol'],
+              },
+            ],
+            provider: 'tanstack-ai',
+            version: '1.0.0',
+          }),
+          {
+            status: 200,
+            headers: { 'Content-Type': 'application/json' },
+          },
+        )
+      },
+
       POST: async ({ request }) => {
         const requestSignal = request.signal
 
@@ -83,11 +117,46 @@ export const Route = createFileRoute('/api/chat')({
 
         const abortController = new AbortController()
 
-        const body = await request.json()
+        let body: any
+        try {
+          body = await request.json()
+        } catch (e) {
+          console.error('[API] Failed to parse request body:', e)
+          return new Response(
+            JSON.stringify({
+              error: 'Failed to parse request body as JSON',
+            }),
+            {
+              status: 400,
+              headers: { 'Content-Type': 'application/json' },
+            },
+          )
+        }
 
         // Support both TanStack AI format and AG-UI RunAgentInput format
-        const rawMessages = body.messages || []
+        let rawMessages = body.messages || body.history || []
+        console.log(
+          '[API] Raw messages received:',
+          JSON.stringify(rawMessages, null, 2),
+        )
         const messages = convertAGUIMessages(rawMessages)
+        console.log(
+          '[API] Converted messages:',
+          JSON.stringify(messages, null, 2),
+        )
+
+        // Validate that we have messages
+        if (messages.length === 0) {
+          return new Response(
+            JSON.stringify({
+              error: 'No valid messages provided. Expected at least one user or assistant message.',
+            }),
+            {
+              status: 400,
+              headers: { 'Content-Type': 'application/json' },
+            },
+          )
+        }
 
         // Extract system messages from AG-UI input to use as system prompts
         const systemMessages = rawMessages
