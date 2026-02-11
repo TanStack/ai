@@ -39,44 +39,59 @@ export interface SessionAdapter {
  * Wraps a ConnectionAdapter into a SessionAdapter using an async queue pattern.
  * send() calls connection.connect() and pushes chunks to the queue.
  * subscribe() yields chunks from the queue.
+ *
+ * Each subscribe() call synchronously replaces the active buffer/waiters
+ * so that concurrent send() calls write to the current subscription's queue.
+ * This prevents a race condition where an old subscription's async cleanup
+ * (clearing the shared buffer after abort) could destroy chunks intended
+ * for a new subscription.
  */
 export function createDefaultSession(
   connection: ConnectionAdapter,
 ): SessionAdapter {
-  const buffer: Array<StreamChunk> = []
-  const waiters: Array<(chunk: StreamChunk | null) => void> = []
+  // Active buffer and waiters — replaced synchronously on each subscribe() call
+  let activeBuffer: Array<StreamChunk> = []
+  let activeWaiters: Array<(chunk: StreamChunk | null) => void> = []
 
   function push(chunk: StreamChunk): void {
-    const waiter = waiters.shift()
+    const waiter = activeWaiters.shift()
     if (waiter) {
       waiter(chunk)
     } else {
-      buffer.push(chunk)
+      activeBuffer.push(chunk)
     }
   }
 
   return {
-    async *subscribe(signal?: AbortSignal) {
-      while (!signal?.aborted) {
-        let chunk: StreamChunk | null
-        if (buffer.length > 0) {
-          chunk = buffer.shift()!
-        } else {
-          chunk = await new Promise<StreamChunk | null>((resolve) => {
-            const onAbort = () => resolve(null)
-            waiters.push((c) => {
-              signal?.removeEventListener('abort', onAbort)
-              resolve(c)
+    subscribe(signal?: AbortSignal): AsyncIterable<StreamChunk> {
+      // Drain any buffered chunks (e.g. from send() before subscribe()) into
+      // a fresh per-subscription buffer. splice(0) atomically empties the old
+      // array, so a previous subscription's local reference becomes empty.
+      const myBuffer: Array<StreamChunk> = activeBuffer.splice(0)
+      const myWaiters: Array<(chunk: StreamChunk | null) => void> = []
+      activeBuffer = myBuffer
+      activeWaiters = myWaiters
+
+      return (async function* () {
+        while (!signal?.aborted) {
+          let chunk: StreamChunk | null
+          if (myBuffer.length > 0) {
+            chunk = myBuffer.shift()!
+          } else {
+            chunk = await new Promise<StreamChunk | null>((resolve) => {
+              const onAbort = () => resolve(null)
+              myWaiters.push((c) => {
+                signal?.removeEventListener('abort', onAbort)
+                resolve(c)
+              })
+              signal?.addEventListener('abort', onAbort, { once: true })
             })
-            signal?.addEventListener('abort', onAbort, { once: true })
-          })
+          }
+          if (chunk !== null) yield chunk
         }
-        if (chunk !== null) yield chunk
-      }
-      // Discard any chunks buffered after abort to prevent stale data
-      // leaking into the next subscription
-      buffer.length = 0
-      waiters.length = 0
+        // No shared-state cleanup needed — myBuffer/myWaiters are local
+        // and will be garbage collected when this generator is released.
+      })()
     },
 
     async send(messages, data, signal) {

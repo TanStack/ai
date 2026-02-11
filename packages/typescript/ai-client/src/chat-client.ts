@@ -465,6 +465,11 @@ export class ChatClient {
       this.currentStreamId = this.generateUniqueId('stream')
       this.currentMessageId = null
 
+      // Reset processor stream state for new response — prevents stale
+      // messageStates entries (from a previous stream) from blocking
+      // creation of a new assistant message (e.g. after reload).
+      this.processor.prepareAssistantMessage()
+
       // Ensure subscription loop is running
       this.ensureSubscription()
 
