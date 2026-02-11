@@ -743,7 +743,7 @@ export class StreamProcessor {
 
     // Prefer delta over content - delta is the incremental change
     // Check for both undefined and empty string to avoid "undefined" string concatenation
-    if (chunk.delta !== undefined && chunk.delta !== '') {
+    if (chunk.delta !== '') {
       nextText = currentText + chunk.delta
     } else if (chunk.content !== undefined && chunk.content !== '') {
       // Fallback: use content if delta is not provided
@@ -1260,7 +1260,7 @@ export class StreamProcessor {
     if (lastAssistantMessage && !this.hasError) {
       if (this.isWhitespaceOnlyMessage(lastAssistantMessage)) {
         this.messages = this.messages.filter(
-          (m) => m.id !== lastAssistantMessage!.id,
+          (m) => m.id !== lastAssistantMessage.id,
         )
         this.emitMessagesChange()
         return
