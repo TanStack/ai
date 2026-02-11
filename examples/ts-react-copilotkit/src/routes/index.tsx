@@ -1,9 +1,10 @@
-import { useState, useRef, useEffect } from 'react'
+import { useState, useRef, useEffect, useMemo } from 'react'
 import { createFileRoute } from '@tanstack/react-router'
 import { fetchServerSentEvents, useChat } from '@tanstack/ai-react'
 import type { UIMessage } from '@tanstack/ai-react'
 import { CopilotKit } from '@copilotkit/react-core'
 import { CopilotChat } from '@copilotkit/react-ui'
+import { HttpAgent } from '@ag-ui/client'
 import '@copilotkit/react-ui/styles.css'
 
 type Tab = 'tanstack' | 'copilotkit'
@@ -114,11 +115,34 @@ function TanStackAIChat() {
 
 /**
  * CopilotKit Chat Panel — uses CopilotKit's React components connected
- * to the same TanStack AI server endpoint via AG-UI protocol.
+ * to the TanStack AI server endpoint via the AG-UI protocol.
+ *
+ * The HttpAgent from @ag-ui/client sends RunAgentInput to the TanStack AI
+ * server and receives AG-UI SSE events back — this is the core of the
+ * interoperability between the two frameworks.
  */
 function CopilotKitChat() {
+  // Cast needed due to minor type differences between @ag-ui/client and
+  // CopilotKit's internal @ag-ui/core versions — both implement the same protocol
+  const agents = useMemo(
+    () =>
+      ({
+        'tanstack-ai': new HttpAgent({
+          url: '/api/chat',
+          agentId: 'tanstack-ai',
+          description: 'TanStack AI agent connected via AG-UI protocol',
+        }),
+      }) as Record<string, any>,
+    [],
+  )
+
   return (
-    <CopilotKit runtimeUrl="/api/chat">
+    <CopilotKit
+      runtimeUrl="/api/chat"
+      agents__unsafe_dev_only={agents}
+      agent="tanstack-ai"
+      showDevConsole={false}
+    >
       <div className="flex flex-col h-full copilotkit-chat-container">
         <CopilotChat
           className="h-full"
