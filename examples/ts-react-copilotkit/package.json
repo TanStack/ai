@@ -1,17 +1,15 @@
 {
-  "name": "@tanstack/smoke-tests-e2e",
-  "version": "0.0.15",
-  "description": "E2E tests for TanStack AI chat",
+  "name": "ts-react-copilotkit",
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "vite dev --port 3100",
+    "dev": "vite dev --port 3001",
     "build": "vite build",
     "serve": "vite preview",
-    "test:e2e": "npx playwright test",
-    "test:e2e:ui": "npx playwright test --ui"
+    "test": "exit 0"
   },
   "dependencies": {
+    "@ag-ui/client": "^0.0.45",
     "@tailwindcss/vite": "^4.1.18",
     "@tanstack/ai": "workspace:*",
     "@tanstack/ai-client": "workspace:*",
@@ -20,16 +18,12 @@
     "@tanstack/nitro-v2-vite-plugin": "^1.154.7",
     "@tanstack/react-router": "^1.158.4",
     "@tanstack/react-start": "^1.159.0",
-    "@tanstack/router-plugin": "^1.158.4",
-    "@tanstack/tests-adapters": "workspace:*",
     "react": "^19.2.3",
     "react-dom": "^19.2.3",
     "tailwindcss": "^4.1.18",
     "zod": "^4.2.0"
   },
   "devDependencies": {
-    "@playwright/test": "^1.57.0",
-    "@types/node": "^24.10.1",
     "@types/react": "^19.2.7",
     "@types/react-dom": "^19.2.3",
     "@vitejs/plugin-react": "^5.1.2",
