@@ -21,18 +21,18 @@ export interface SessionAdapter {
    * to hydrate the conversation, then subscribe to the live stream
    * from the appropriate offset.
    */
-  subscribe(signal?: AbortSignal): AsyncIterable<StreamChunk>
+  subscribe: (signal?: AbortSignal) => AsyncIterable<StreamChunk>
 
   /**
    * Send messages to the session.
    * For durable sessions, the proxy writes to the stream and forwards to the API.
    * The response arrives through subscribe(), not as a return value.
    */
-  send(
+  send: (
     messages: Array<UIMessage>,
     data?: Record<string, any>,
     signal?: AbortSignal,
-  ): Promise<void>
+  ) => Promise<void>
 }
 
 /**

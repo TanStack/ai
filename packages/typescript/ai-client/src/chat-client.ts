@@ -4,6 +4,7 @@ import {
   normalizeToUIMessage,
 } from '@tanstack/ai'
 import { DefaultChatClientEventEmitter } from './events'
+import { createDefaultSession } from './session-adapter'
 import type {
   AnyClientTool,
   ContentPart,
@@ -11,9 +12,8 @@ import type {
   StreamChunk,
 } from '@tanstack/ai'
 import type { ConnectionAdapter } from './connection-adapters'
-import type { SessionAdapter } from './session-adapter'
-import { createDefaultSession } from './session-adapter'
 import type { ChatClientEventEmitter } from './events'
+import type { SessionAdapter } from './session-adapter'
 import type {
   ChatClientOptions,
   ChatClientState,
