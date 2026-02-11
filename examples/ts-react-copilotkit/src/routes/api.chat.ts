@@ -109,7 +109,10 @@ export const Route = createFileRoute('/api/chat')({
             ...options,
             systemPrompts,
             agentLoopStrategy: maxIterations(10),
-            messages: messages as any,
+            // Type assertion needed: AG-UI messages are converted to ModelMessage
+            // with string content, which is compatible at runtime with all adapter
+            // modalities, but TypeScript's constrained generic types require a cast.
+            messages: messages as any, // eslint-disable-line @typescript-eslint/no-explicit-any
             abortController,
           })
 
