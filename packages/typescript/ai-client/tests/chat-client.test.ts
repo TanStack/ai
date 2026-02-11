@@ -393,8 +393,11 @@ describe('ChatClient', () => {
 
       await client.sendMessage('Hello')
 
-      expect(onError).toHaveBeenCalledWith(error)
-      expect(client.getError()).toBe(error)
+      expect(onError).toHaveBeenCalled()
+      expect(onError.mock.calls[0]![0]).toBeInstanceOf(Error)
+      expect(onError.mock.calls[0]![0].message).toBe('Connection failed')
+      expect(client.getError()).toBeInstanceOf(Error)
+      expect(client.getError()?.message).toBe('Connection failed')
     })
   })
 
@@ -506,7 +509,8 @@ describe('ChatClient', () => {
 
       await client.sendMessage('Hello')
 
-      expect(client.getError()).toBe(error)
+      expect(client.getError()).toBeInstanceOf(Error)
+      expect(client.getError()?.message).toBe('Network error')
       expect(client.getStatus()).toBe('error')
     })
 

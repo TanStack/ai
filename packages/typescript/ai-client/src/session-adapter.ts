@@ -95,9 +95,24 @@ export function createDefaultSession(
     },
 
     async send(messages, data, signal) {
-      const stream = connection.connect(messages, data, signal)
-      for await (const chunk of stream) {
-        push(chunk)
+      try {
+        const stream = connection.connect(messages, data, signal)
+        for await (const chunk of stream) {
+          push(chunk)
+        }
+      } catch (err) {
+        // Push a RUN_ERROR event so subscribe() consumers learn about the
+        // failure through the standard AG-UI protocol, then re-throw so
+        // send() callers (e.g. streamResponse) can also handle it.
+        push({
+          type: 'RUN_ERROR',
+          timestamp: Date.now(),
+          error: {
+            message:
+              err instanceof Error ? err.message : 'Unknown error in send()',
+          },
+        })
+        throw err
       }
     },
   }

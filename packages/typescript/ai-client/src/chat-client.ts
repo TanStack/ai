@@ -280,9 +280,9 @@ export class ChatClient {
       if (signal.aborted) break
       this.callbacksRef.current.onChunk(chunk)
       this.processor.processChunk(chunk)
-      // RUN_FINISHED signals run completion — resolve processing
+      // RUN_FINISHED / RUN_ERROR signal run completion — resolve processing
       // (redundant if onStreamEnd already resolved it, harmless)
-      if (chunk.type === 'RUN_FINISHED') {
+      if (chunk.type === 'RUN_FINISHED' || chunk.type === 'RUN_ERROR') {
         this.processingResolve?.()
         this.processingResolve = null
       }
