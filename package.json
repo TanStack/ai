@@ -70,9 +70,5 @@
     "typescript": "5.9.3",
     "vite": "^7.2.7",
     "vitest": "^4.0.14"
-  },
-  "dependencies": {
-    "ai-groq": "link:../../.local/share/pnpm/global/5/node_modules/@tanstack/ai-groq",
-    "groq-sdk": "^0.37.0"
   }
 }
