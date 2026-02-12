@@ -23,14 +23,14 @@ optional content: string;
 
 Defined in: [types.ts:869](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L869)
 
-Full accumulated thinking content
+Full accumulated thinking content (optional, for debugging)
 
 ***
 
-### delta?
+### delta
 
 ```ts
-optional delta: string;
+delta: string;
 ```
 
 Defined in: [types.ts:867](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L867)
