@@ -1,6 +1,6 @@
 # @tanstack/ai-solid
 
-## 0.5.0
+## 0.5.3
 
 ### Patch Changes
 

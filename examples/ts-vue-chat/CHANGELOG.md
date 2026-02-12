@@ -7,11 +7,11 @@
 - Updated dependencies [[`5d98472`](https://github.com/TanStack/ai/commit/5d984722e1f84725e3cfda834fbda3d0341ecedd), [`5d98472`](https://github.com/TanStack/ai/commit/5d984722e1f84725e3cfda834fbda3d0341ecedd)]:
   - @tanstack/ai@0.5.0
   - @tanstack/ai-client@0.4.4
-  - @tanstack/ai-anthropic@1.0.0
-  - @tanstack/ai-gemini@1.0.0
-  - @tanstack/ai-ollama@1.0.0
-  - @tanstack/ai-openai@1.0.0
-  - @tanstack/ai-vue@1.0.0
+  - @tanstack/ai-anthropic@0.5.0
+  - @tanstack/ai-gemini@0.5.0
+  - @tanstack/ai-ollama@0.5.0
+  - @tanstack/ai-openai@0.5.0
+  - @tanstack/ai-vue@0.5.0
   - @tanstack/ai-vue-ui@0.1.9
 
 ## 0.1.10
