@@ -1,0 +1,134 @@
+/**
+ * Recursively transform null values to undefined in an object.
+ *
+ * This is needed because DeepSeek's structured output (via OpenAI-compatible API) requires all fields to be
+ * in the `required` array, with optional fields made nullable (type: ["string", "null"]).
+ * When DeepSeek returns null for optional fields, we need to convert them back to
+ * undefined to match the original Zod schema expectations.
+ *
+ * @param obj - Object to transform
+ * @returns Object with nulls converted to undefined
+ */
+export function transformNullsToUndefined<T>(obj: T): T {
+  if (obj === null) {
+    return undefined as unknown as T
+  }
+
+  if (Array.isArray(obj)) {
+    return obj.map((item) => transformNullsToUndefined(item)) as unknown as T
+  }
+
+  if (typeof obj === 'object') {
+    const result: Record<string, unknown> = {}
+    for (const [key, value] of Object.entries(obj as Record<string, unknown>)) {
+      const transformed = transformNullsToUndefined(value)
+      // Only include the key if the value is not undefined
+      // This makes { notes: null } become {} (field absent) instead of { notes: undefined }
+      if (transformed !== undefined) {
+        result[key] = transformed
+      }
+    }
+    return result as T
+  }
+
+  return obj
+}
+
+/**
+ * Transform a JSON schema to be compatible with DeepSeek's structured output requirements (OpenAI-compatible).
+ * DeepSeek requires:
+ * - All properties must be in the `required` array
+ * - Optional fields should have null added to their type union
+ * - additionalProperties must be false for objects
+ *
+ * @param schema - JSON schema to transform
+ * @param originalRequired - Original required array (to know which fields were optional)
+ * @returns Transformed schema compatible with DeepSeek structured output
+ */
+export function makeDeepSeekStructuredOutputCompatible(
+  schema: Record<string, any>,
+  originalRequired: Array<string> = [],
+): Record<string, any> {
+  const result = { ...schema }
+
+  // Handle object types
+  if (result.type === 'object' && result.properties) {
+    const properties = { ...result.properties }
+    const allPropertyNames = Object.keys(properties)
+
+    // Transform each property
+    for (const propName of allPropertyNames) {
+      const prop = properties[propName]
+      const wasOptional = !originalRequired.includes(propName)
+
+      // Recursively transform nested objects/arrays/unions
+      if (prop.type === 'object' && prop.properties) {
+        properties[propName] = makeDeepSeekStructuredOutputCompatible(
+          prop,
+          prop.required || [],
+        )
+      } else if (prop.type === 'array' && prop.items) {
+        properties[propName] = {
+          ...prop,
+          items: makeDeepSeekStructuredOutputCompatible(
+            prop.items,
+            prop.items.required || [],
+          ),
+        }
+      } else if (prop.anyOf) {
+        // Handle anyOf at property level (union types)
+        properties[propName] = makeDeepSeekStructuredOutputCompatible(
+          prop,
+          prop.required || [],
+        )
+      } else if (prop.oneOf) {
+        // oneOf is not supported by DeepSeek - throw early
+        throw new Error(
+          'oneOf is not supported in DeepSeek structured output schemas. Check the supported outputs here: https://platform.openai.com/docs/guides/structured-outputs#supported-types',
+        )
+      } else if (wasOptional) {
+        // Make optional fields nullable by adding null to the type
+        if (prop.type && !Array.isArray(prop.type)) {
+          properties[propName] = {
+            ...prop,
+            type: [prop.type, 'null'],
+          }
+        } else if (Array.isArray(prop.type) && !prop.type.includes('null')) {
+          properties[propName] = {
+            ...prop,
+            type: [...prop.type, 'null'],
+          }
+        }
+      }
+    }
+
+    result.properties = properties
+    // ALL properties must be required for DeepSeek structured output
+    result.required = allPropertyNames
+    // additionalProperties must be false
+    result.additionalProperties = false
+  }
+
+  // Handle array types with object items
+  if (result.type === 'array' && result.items) {
+    result.items = makeDeepSeekStructuredOutputCompatible(
+      result.items,
+      result.items.required || [],
+    )
+  }
+
+  // Handle anyOf (union types) - each variant needs to be transformed
+  if (result.anyOf && Array.isArray(result.anyOf)) {
+    result.anyOf = result.anyOf.map((variant) =>
+      makeDeepSeekStructuredOutputCompatible(variant, variant.required || []),
+    )
+  }
+
+  if (result.oneOf) {
+    throw new Error(
+      'oneOf is not supported in DeepSeek structured output schemas. Check the supported outputs here: https://platform.openai.com/docs/guides/structured-outputs#supported-types',
+    )
+  }
+
+  return result
+}
