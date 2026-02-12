@@ -74,6 +74,12 @@ describe('ChatClient', () => {
       // Message IDs should be unique between clients
       expect(client1MessageId).not.toBe(client2MessageId)
     })
+
+    it('should throw if neither connection nor session is provided', () => {
+      expect(() => new ChatClient({} as any)).toThrow(
+        'Either connection or session must be provided',
+      )
+    })
   })
 
   describe('sendMessage', () => {
@@ -387,8 +393,11 @@ describe('ChatClient', () => {
 
       await client.sendMessage('Hello')
 
-      expect(onError).toHaveBeenCalledWith(error)
-      expect(client.getError()).toBe(error)
+      expect(onError).toHaveBeenCalled()
+      expect(onError.mock.calls[0]![0]).toBeInstanceOf(Error)
+      expect(onError.mock.calls[0]![0].message).toBe('Connection failed')
+      expect(client.getError()).toBeInstanceOf(Error)
+      expect(client.getError()?.message).toBe('Connection failed')
     })
   })
 
@@ -500,7 +509,8 @@ describe('ChatClient', () => {
 
       await client.sendMessage('Hello')
 
-      expect(client.getError()).toBe(error)
+      expect(client.getError()).toBeInstanceOf(Error)
+      expect(client.getError()?.message).toBe('Network error')
       expect(client.getStatus()).toBe('error')
     })
 

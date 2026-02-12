@@ -12,6 +12,7 @@ import type {
   VideoPart,
 } from '@tanstack/ai'
 import type { ConnectionAdapter } from './connection-adapters'
+import type { SessionAdapter } from './session-adapter'
 
 /**
  * Tool call states - track the lifecycle of a tool call
@@ -178,10 +179,18 @@ export interface ChatClientOptions<
   TTools extends ReadonlyArray<AnyClientTool> = any,
 > {
   /**
-   * Connection adapter for streaming
-   * Use fetchServerSentEvents(), fetchHttpStream(), or stream() to create adapters
+   * Connection adapter for streaming (request-response mode).
+   * Wrapped in a DefaultSessionAdapter internally.
+   * Provide either `connection` or `session`, not both.
    */
-  connection: ConnectionAdapter
+  connection?: ConnectionAdapter
+
+  /**
+   * Session adapter for persistent stream-based sessions.
+   * When provided, takes over from connection.
+   * Provide either `connection` or `session`, not both.
+   */
+  session?: SessionAdapter
 
   /**
    * Initial messages to populate the chat

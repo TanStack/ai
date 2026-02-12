@@ -55,6 +55,7 @@ export function createChat<TTools extends ReadonlyArray<AnyClientTool> = any>(
   // Create ChatClient instance
   const client = new ChatClient({
     connection: options.connection,
+    session: options.session,
     id: clientId,
     initialMessages: options.initialMessages,
     body: options.body,

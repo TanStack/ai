@@ -25,6 +25,7 @@ export function useChat<TTools extends ReadonlyArray<AnyClientTool> = any>(
   // Create ChatClient instance with callbacks to sync state
   const client = new ChatClient({
     connection: options.connection,
+    session: options.session,
     id: clientId,
     initialMessages: options.initialMessages,
     body: options.body,
