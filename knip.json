@@ -12,8 +12,10 @@
     "packages/typescript/smoke-tests/adapters/src/**",
     "packages/typescript/smoke-tests/e2e/playwright.config.ts",
     "packages/typescript/smoke-tests/e2e/src/**",
-    "packages/typescript/smoke-tests/e2e/vite.config.ts"
+    "packages/typescript/smoke-tests/e2e/vite.config.ts",
+    "packages/typescript/ai-devtools/src/production.ts"
   ],
+  "tsup": true,
   "ignoreExportsUsedInFile": true,
   "workspaces": {
     "packages/react-ai": {
