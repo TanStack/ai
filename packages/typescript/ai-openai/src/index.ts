@@ -85,6 +85,7 @@ export type {
   OpenAITranscriptionModel,
 } from './model-meta'
 export {
+  OPENAI_CHAT_MODELS,
   OPENAI_IMAGE_MODELS,
   OPENAI_TTS_MODELS,
   OPENAI_TRANSCRIPTION_MODELS,
