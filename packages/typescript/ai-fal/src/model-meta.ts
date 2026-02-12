@@ -50,9 +50,15 @@ export type FalModelOutput<TModel extends string> =
  * // "square_hd" | "square" | "portrait_4_3" | "portrait_16_9" | ...
  */
 export type FalModelImageSize<TModel extends string> =
-  'image_size' extends keyof FalModelInput<TModel>
-    ? Exclude<FalModelInput<TModel>['image_size'], object>
-    : never
+  TModel extends keyof EndpointTypeMap
+    ? 'image_size' extends keyof EndpointTypeMap[TModel]['input']
+      ? NonNullable<Exclude<FalModelInput<TModel>['image_size'], object>>
+      : 'aspect_ratio' extends keyof EndpointTypeMap[TModel]['input']
+        ? 'resolution' extends keyof EndpointTypeMap[TModel]['input']
+          ? `${NonNullable<FalModelInput<TModel>['aspect_ratio']>}_${NonNullable<FalModelInput<TModel>['resolution']>}`
+          : never
+        : never
+    : undefined
 
 /**
  * Provider options for image generation, excluding fields TanStack AI handles.

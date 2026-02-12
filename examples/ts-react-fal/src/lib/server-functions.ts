@@ -1,5 +1,12 @@
 import { createServerFn } from '@tanstack/react-start'
-import { createFalImage, createFalVideo } from '@tanstack/ai-fal'
+import {
+  createFalImage,
+  createFalVideo,
+  FalModelImageSize,
+} from '@tanstack/ai-fal'
+
+// Example of the size
+type NanoSize = FalModelImageSize<'fal-ai/nano-banana-pro'>
 
 export const generateImage = createServerFn({ method: 'POST' })
   .inputValidator((data: { prompt: string; model: string }) => {
