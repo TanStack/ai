@@ -1,31 +1,24 @@
 import { BaseTextAdapter } from '@tanstack/ai/adapters'
-import { convertToolsToProviderFormat } from '../tools/tool-converter'
+import { ANTHROPIC_STRUCTURED_OUTPUT_MODELS } from '../model-meta'
 import { validateTextProviderOptions } from '../text/text-provider-options'
+import { convertToolsToProviderFormat } from '../tools/tool-converter'
 import {
   createAnthropicClient,
   generateId,
   getAnthropicApiKeyFromEnv,
 } from '../utils'
-import type {
-  ANTHROPIC_MODELS,
-  AnthropicChatModelProviderOptionsByName,
-  AnthropicModelInputModalitiesByName,
-} from '../model-meta'
-import type {
-  StructuredOutputOptions,
-  StructuredOutputResult,
-} from '@tanstack/ai/adapters'
+import type Anthropic_SDK from '@anthropic-ai/sdk'
 import type {
   Base64ImageSource,
   Base64PDFSource,
   DocumentBlockParam,
   ImageBlockParam,
   MessageParam,
+  RawMessageStreamEvent,
   TextBlockParam,
   URLImageSource,
   URLPDFSource,
 } from '@anthropic-ai/sdk/resources/messages'
-import type Anthropic_SDK from '@anthropic-ai/sdk'
 import type {
   ContentPart,
   Modality,
@@ -34,15 +27,24 @@ import type {
   TextOptions,
 } from '@tanstack/ai'
 import type {
-  ExternalTextProviderOptions,
-  InternalTextProviderOptions,
-} from '../text/text-provider-options'
+  StructuredOutputOptions,
+  StructuredOutputResult,
+} from '@tanstack/ai/adapters'
 import type {
   AnthropicDocumentMetadata,
   AnthropicImageMetadata,
   AnthropicMessageMetadataByModality,
   AnthropicTextMetadata,
 } from '../message-types'
+import type {
+  ANTHROPIC_MODELS,
+  AnthropicChatModelProviderOptionsByName,
+  AnthropicModelInputModalitiesByName,
+} from '../model-meta'
+import type {
+  ExternalTextProviderOptions,
+  InternalTextProviderOptions,
+} from '../text/text-provider-options'
 import type { AnthropicClientConfig } from '../utils'
 
 /**
@@ -115,13 +117,16 @@ export class AnthropicTextAdapter<
     this.client = createAnthropicClient(config)
   }
 
+  /**
+   * Stream chat completions from Anthropic, yielding AG-UI lifecycle chunks.
+   */
   async *chatStream(
     options: TextOptions<AnthropicTextProviderOptions>,
   ): AsyncIterable<StreamChunk> {
     try {
       const requestParams = this.mapCommonOptionsToAnthropic(options)
 
-      const stream = await this.client.beta.messages.create(
+      const stream = await this.client.messages.create(
         { ...requestParams, stream: true },
         {
           signal: options.request?.signal,
@@ -147,34 +152,110 @@ export class AnthropicTextAdapter<
   }
 
   /**
-   * Generate structured output using Anthropic's tool-based approach.
-   * Anthropic doesn't have native structured output, so we use a tool with the schema
-   * and force the model to call it.
-   * The outputSchema is already JSON Schema (converted in the ai layer).
+   * Generate structured output.
+   * Uses Anthropic's native `output_config` with `json_schema` for Claude 4+ models.
+   * Falls back to a tool-use workaround for older models that lack native support.
    */
   async structuredOutput(
     options: StructuredOutputOptions<AnthropicTextProviderOptions>,
   ): Promise<StructuredOutputResult<unknown>> {
     const { chatOptions, outputSchema } = options
-
     const requestParams = this.mapCommonOptionsToAnthropic(chatOptions)
 
-    // Create a tool that will capture the structured output
-    // Anthropic's SDK requires input_schema with type: 'object' literal
+    if (ANTHROPIC_STRUCTURED_OUTPUT_MODELS.has(chatOptions.model)) {
+      return this.nativeStructuredOutput(
+        requestParams,
+        chatOptions,
+        outputSchema,
+      )
+    }
+
+    return this.toolBasedStructuredOutput(
+      requestParams,
+      chatOptions,
+      outputSchema,
+    )
+  }
+
+  /**
+   * Native structured output using `output_config.format` with `json_schema`.
+   * Supported by Claude 4+ models.
+   */
+  private async nativeStructuredOutput(
+    requestParams: InternalTextProviderOptions,
+    chatOptions: StructuredOutputOptions<AnthropicTextProviderOptions>['chatOptions'],
+    outputSchema: StructuredOutputOptions<AnthropicTextProviderOptions>['outputSchema'],
+  ): Promise<StructuredOutputResult<unknown>> {
+    const createParams = {
+      ...requestParams,
+      stream: false as const,
+      output_config: {
+        format: {
+          type: 'json_schema' as const,
+          name: 'structured_output',
+          schema: outputSchema,
+        },
+      },
+    }
+
+    let response: Awaited<ReturnType<typeof this.client.messages.create>>
+    try {
+      response = await this.client.messages.create(createParams, {
+        signal: chatOptions.request?.signal,
+        headers: chatOptions.request?.headers,
+      })
+    } catch (error: unknown) {
+      const err = error as Error
+      throw new Error(
+        `Structured output generation failed: ${err.message || 'Unknown error occurred'}`,
+      )
+    }
+
+    const rawText = response.content
+      .map((b) => {
+        if (b.type === 'text') {
+          return b.text
+        }
+        return ''
+      })
+      .join('')
+
+    let parsed: unknown
+    try {
+      parsed = JSON.parse(rawText)
+    } catch {
+      throw new Error(
+        `Failed to parse structured output JSON. Content: ${rawText.slice(0, 200)}${rawText.length > 200 ? '...' : ''}`,
+      )
+    }
+
+    return { data: parsed, rawText }
+  }
+
+  /**
+   * Tool-based structured output fallback for older models (Claude 3.x).
+   * Creates a tool with the output schema and forces the model to call it.
+   */
+  private async toolBasedStructuredOutput(
+    requestParams: InternalTextProviderOptions,
+    chatOptions: StructuredOutputOptions<AnthropicTextProviderOptions>['chatOptions'],
+    outputSchema: StructuredOutputOptions<AnthropicTextProviderOptions>['outputSchema'],
+  ): Promise<StructuredOutputResult<unknown>> {
     const structuredOutputTool = {
       name: 'structured_output',
       description:
         'Use this tool to provide your response in the required structured format.',
       input_schema: {
+        ...outputSchema,
         type: 'object' as const,
         properties: outputSchema.properties ?? {},
         required: outputSchema.required ?? [],
       },
     }
 
+    let response: Awaited<ReturnType<typeof this.client.messages.create>>
     try {
-      // Make non-streaming request with tool_choice forced to our structured output tool
-      const response = await this.client.messages.create(
+      response = await this.client.messages.create(
         {
           ...requestParams,
           stream: false,
@@ -186,50 +267,48 @@ export class AnthropicTextAdapter<
           headers: chatOptions.request?.headers,
         },
       )
-
-      // Extract the tool use content from the response
-      let parsed: unknown = null
-      let rawText = ''
-
-      for (const block of response.content) {
-        if (block.type === 'tool_use' && block.name === 'structured_output') {
-          parsed = block.input
-          rawText = JSON.stringify(block.input)
-          break
-        }
-      }
-
-      if (parsed === null) {
-        // Fallback: try to extract text content and parse as JSON
-        rawText = response.content
-          .map((b) => {
-            if (b.type === 'text') {
-              return b.text
-            }
-            return ''
-          })
-          .join('')
-        try {
-          parsed = JSON.parse(rawText)
-        } catch {
-          throw new Error(
-            `Failed to extract structured output from response. Content: ${rawText.slice(0, 200)}${rawText.length > 200 ? '...' : ''}`,
-          )
-        }
-      }
-
-      return {
-        data: parsed,
-        rawText,
-      }
     } catch (error: unknown) {
       const err = error as Error
       throw new Error(
         `Structured output generation failed: ${err.message || 'Unknown error occurred'}`,
       )
     }
+
+    let parsed: unknown = null
+    let rawText = ''
+
+    for (const block of response.content) {
+      if (block.type === 'tool_use' && block.name === 'structured_output') {
+        parsed = block.input
+        rawText = JSON.stringify(block.input)
+        break
+      }
+    }
+
+    if (parsed === null) {
+      rawText = response.content
+        .map((b) => {
+          if (b.type === 'text') {
+            return b.text
+          }
+          return ''
+        })
+        .join('')
+      try {
+        parsed = JSON.parse(rawText)
+      } catch {
+        throw new Error(
+          `Failed to extract structured output from response. Content: ${rawText.slice(0, 200)}${rawText.length > 200 ? '...' : ''}`,
+        )
+      }
+    }
+
+    return { data: parsed, rawText }
   }
 
+  /**
+   * Map framework-agnostic text options to the Anthropic request format.
+   */
   private mapCommonOptionsToAnthropic(
     options: TextOptions<AnthropicTextProviderOptions>,
   ) {
@@ -294,6 +373,9 @@ export class AnthropicTextAdapter<
     return requestParams
   }
 
+  /**
+   * Convert a framework-agnostic content part to an Anthropic content block.
+   */
   private convertContentPartToAnthropic(
     part: ContentPart,
   ): TextBlockParam | ImageBlockParam | DocumentBlockParam {
@@ -363,6 +445,9 @@ export class AnthropicTextAdapter<
     }
   }
 
+  /**
+   * Convert framework-agnostic messages to Anthropic's message format.
+   */
   private formatMessages(
     messages: Array<ModelMessage>,
   ): InternalTextProviderOptions['messages'] {
@@ -521,8 +606,11 @@ export class AnthropicTextAdapter<
     return merged
   }
 
+  /**
+   * Process a raw Anthropic SSE stream into AG-UI lifecycle chunks.
+   */
   private async *processAnthropicStream(
-    stream: AsyncIterable<Anthropic_SDK.Beta.BetaRawMessageStreamEvent>,
+    stream: AsyncIterable<RawMessageStreamEvent>,
     model: string,
     genId: () => string,
   ): AsyncIterable<StreamChunk> {
