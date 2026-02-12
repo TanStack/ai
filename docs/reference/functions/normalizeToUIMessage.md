@@ -9,7 +9,7 @@ title: normalizeToUIMessage
 function normalizeToUIMessage(message, generateId): UIMessage;
 ```
 
-Defined in: [activities/chat/messages.ts:340](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/activities/chat/messages.ts#L340)
+Defined in: [activities/chat/messages.ts:413](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/activities/chat/messages.ts#L413)
 
 Normalize a message (UIMessage or ModelMessage) to a UIMessage
 Ensures the message has an ID and createdAt timestamp
