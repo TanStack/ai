@@ -1,4 +1,5 @@
 import type { StandardJSONSchemaV1 } from '@standard-schema/spec'
+import type { EmbeddingsUsage } from './event-client'
 
 /**
  * Tool call states - track the lifecycle of a tool call
@@ -231,9 +232,9 @@ export type ConstrainedContent<
 
 export interface ModelMessage<
   TContent extends string | null | Array<ContentPart> =
-    | string
-    | null
-    | Array<ContentPart>,
+  | string
+  | null
+  | Array<ContentPart>,
 > {
   role: 'user' | 'assistant' | 'tool'
   content: TContent
@@ -1171,4 +1172,52 @@ export interface DefaultMessageMetadataByModality {
   audio: unknown
   video: unknown
   document: unknown
+}
+
+// ============================================================================
+// Embed Types
+// ============================================================================
+
+export interface EmbedOptions<
+  TProviderOptions extends object = object
+> {
+  /** The model to use for transcription */
+  model: string
+  /** The audio data to transcribe - can be base64 string, File, Blob, or Buffer */
+  value: string
+  /** Model-specific options for embedding */
+  modelOptions?: TProviderOptions
+}
+
+export interface EmbedManyOptions<
+  TProviderOptions extends object = object
+> {
+  /** The model to use for transcription */
+  model: string
+  /** The audio data to transcribe - can be base64 string, File, Blob, or Buffer */
+  values: Array<string>
+  /** Model-specific options for embedding */
+  modelOptions?: TProviderOptions
+}
+
+export interface EmbedResult {
+  /** Unique identifier for the embedding */
+  id: string
+  /** Model used for embedding */
+  model: string
+  /** The embedding vector */
+  embedding: Array<number>
+  /** Usage metadata */
+  usage?: EmbeddingsUsage
+}
+
+export interface EmbedManyResult {
+  /** Unique identifier for the embedding */
+  id: string
+  /** Model used for embedding */
+  model: string
+  /** The embedding vectors */
+  embeddings: Array<Array<number>>
+  /** Usage metadata */
+  usage?: EmbeddingsUsage
 }
