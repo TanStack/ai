@@ -746,7 +746,7 @@ importers:
   packages/typescript/ai-fal:
     dependencies:
       '@fal-ai/client':
-        specifier: latest
+        specifier: ^1.9.1
         version: 1.9.1
     devDependencies:
       '@tanstack/ai':
