@@ -86,7 +86,7 @@ export default function VideoGenerator({
         if (!urlResult.url) {
           throw new Error('No URL found')
         }
-        const url = urlResult.url;
+        const url = urlResult.url
 
         setJobStates((prev) => ({
           ...prev,

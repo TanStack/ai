@@ -80,11 +80,13 @@ export type VideoCreateOptions<
   size?: VideoSizeForAdapter<TAdapter>
   /** Video duration in seconds */
   duration?: number
-} & (
-  {} extends VideoProviderOptions<TAdapter>
-    ? { /** Provider-specific options for video generation */ modelOptions?: VideoProviderOptions<TAdapter> }
-    : { /** Provider-specific options for video generation */ modelOptions: VideoProviderOptions<TAdapter> }
-)
+} & ({} extends VideoProviderOptions<TAdapter>
+    ? {
+        /** Provider-specific options for video generation */ modelOptions?: VideoProviderOptions<TAdapter>
+      }
+    : {
+        /** Provider-specific options for video generation */ modelOptions: VideoProviderOptions<TAdapter>
+      })
 
 /**
  * Options for polling the status of a video generation job.

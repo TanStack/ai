@@ -46,7 +46,7 @@ export default function ImageGenerator({
           const response = await generateImageFn({
             data: { prompt, model: model.id },
           })
-          setResults((prev) => ({ 
+          setResults((prev) => ({
             ...prev,
             [model.id]: { status: 'success', result: response },
           }))

@@ -72,11 +72,19 @@ export type ImageActivityOptions<
   numberOfImages?: number
   /** Image size in WIDTHxHEIGHT format (e.g., "1024x1024") */
   size?: ImageSizeForModel<TAdapter, TAdapter['model']>
-} & (
-  {} extends ImageProviderOptionsForModel<TAdapter, TAdapter['model']>
-    ? { /** Provider-specific options for image generation */ modelOptions?: ImageProviderOptionsForModel<TAdapter, TAdapter['model']> }
-    : { /** Provider-specific options for image generation */ modelOptions: ImageProviderOptionsForModel<TAdapter, TAdapter['model']> }
-)
+} & ({} extends ImageProviderOptionsForModel<TAdapter, TAdapter['model']>
+  ? {
+      /** Provider-specific options for image generation */ modelOptions?: ImageProviderOptionsForModel<
+        TAdapter,
+        TAdapter['model']
+      >
+    }
+  : {
+      /** Provider-specific options for image generation */ modelOptions: ImageProviderOptionsForModel<
+        TAdapter,
+        TAdapter['model']
+      >
+    })
 
 // ===========================
 // Activity Result Type
