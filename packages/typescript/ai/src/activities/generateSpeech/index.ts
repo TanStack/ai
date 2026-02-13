@@ -162,7 +162,7 @@ export async function generateSpeech<
       })
 
       return result
-    }
+    },
   })
 }
 

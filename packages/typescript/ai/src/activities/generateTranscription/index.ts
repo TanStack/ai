@@ -145,7 +145,7 @@ export async function generateTranscription<
     fn: async (span) => {
       const result = await adapter.transcribe({ ...rest, model })
       const duration = Date.now() - startTime
-      
+
       aiEventClient.emit('transcription:request:completed', {
         requestId,
         provider: adapter.name,
@@ -163,7 +163,7 @@ export async function generateTranscription<
       })
 
       return result
-    }
+    },
   })
 }
 

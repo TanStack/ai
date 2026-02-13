@@ -1,4 +1,9 @@
-import type { EmbedManyOptions, EmbedManyResult, EmbedOptions, EmbedResult } from "../../types"
+import type {
+  EmbedManyOptions,
+  EmbedManyResult,
+  EmbedOptions,
+  EmbedResult,
+} from '../../types'
 
 // ===========================
 // Activity Kind
@@ -17,7 +22,7 @@ export interface EmbeddingAdapterConfig {
 
 export interface EmbeddingAdapter<
   TModel extends string = string,
-  TProviderOptions extends object = Record<string, unknown>
+  TProviderOptions extends object = Record<string, unknown>,
 > {
   /** Discriminator for adapter kind - used to determine API shape */
   readonly kind: 'embedding'
@@ -25,7 +30,6 @@ export interface EmbeddingAdapter<
   readonly name: string
   /** The model this adapter is configured for */
   readonly model: TModel
-
 
   /**
    * @internal Type-only properties for inference. Not assigned at runtime.
@@ -42,7 +46,9 @@ export interface EmbeddingAdapter<
   /**
    * Generate embeddings for multiple texts
    */
-  embedMany: (options: EmbedManyOptions<TProviderOptions>) => Promise<EmbedManyResult>
+  embedMany: (
+    options: EmbedManyOptions<TProviderOptions>,
+  ) => Promise<EmbedManyResult>
 }
 
 /**
@@ -77,9 +83,7 @@ export abstract class BaseEmbeddingAdapter<
     this.model = model
   }
 
-  abstract embed(
-    options: EmbedOptions<TProviderOptions>,
-  ): Promise<EmbedResult>
+  abstract embed(options: EmbedOptions<TProviderOptions>): Promise<EmbedResult>
 
   abstract embedMany(
     options: EmbedManyOptions<TProviderOptions>,

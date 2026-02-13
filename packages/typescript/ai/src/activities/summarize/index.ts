@@ -230,7 +230,7 @@ async function runSummarize(
         timestamp: Date.now(),
       })
 
-      aiEventClient.emit("summarize:usage", {
+      aiEventClient.emit('summarize:usage', {
         requestId,
         provider: adapter.name,
         model,
@@ -246,7 +246,7 @@ async function runSummarize(
       })
 
       return result
-    }
+    },
   })
 }
 

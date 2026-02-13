@@ -202,7 +202,6 @@ export async function generateImage<
               | undefined,
             telemetry: toTelemetryEvent(rest.telemetry),
             timestamp: Date.now(),
-            
           })
 
           span.setAttributes({

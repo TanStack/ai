@@ -1,16 +1,27 @@
-import { BaseEmbeddingAdapter } from "@tanstack/ai/adapters";
-import { createGeminiClient, generateId } from "../utils";
-import { validateTaskType, validateValue } from "../embedding/embedding-provider-options";
-import type { GoogleGenAI } from "@google/genai";
-import type { EmbedManyOptions, EmbedManyResult, EmbedOptions, EmbedResult } from "@tanstack/ai";
-import type { GEMINI_EMBEDDING_MODELS } from "../model-meta";
-import type { GeminiClientConfig } from "../utils";
-import type { GeminiEmbeddingModelProviderOptionsByName, GeminiEmbeddingProviderOptions } from "../embedding/embedding-provider-options";
+import { BaseEmbeddingAdapter } from '@tanstack/ai/adapters'
+import { createGeminiClient, generateId } from '../utils'
+import {
+  validateTaskType,
+  validateValue,
+} from '../embedding/embedding-provider-options'
+import type { GoogleGenAI } from '@google/genai'
+import type {
+  EmbedManyOptions,
+  EmbedManyResult,
+  EmbedOptions,
+  EmbedResult,
+} from '@tanstack/ai'
+import type { GEMINI_EMBEDDING_MODELS } from '../model-meta'
+import type { GeminiClientConfig } from '../utils'
+import type {
+  GeminiEmbeddingModelProviderOptionsByName,
+  GeminiEmbeddingProviderOptions,
+} from '../embedding/embedding-provider-options'
 
 /**
  * Configuration for Gemini embedding adapter
  */
-export interface GeminiEmbeddingConfig extends GeminiClientConfig { }
+export interface GeminiEmbeddingConfig extends GeminiClientConfig {}
 
 export type GeminiEmbeddingModel = (typeof GEMINI_EMBEDDING_MODELS)[number]
 
@@ -34,7 +45,7 @@ export class GeminiEmbeddingAdapter<
   }
 
   async embed(
-    options: EmbedOptions<GeminiEmbeddingProviderOptions>
+    options: EmbedOptions<GeminiEmbeddingProviderOptions>,
   ): Promise<EmbedResult> {
     const { model, value, modelOptions } = options
 
@@ -46,7 +57,7 @@ export class GeminiEmbeddingAdapter<
       contents: value,
       config: {
         ...modelOptions,
-      }
+      },
     })
 
     return {
@@ -58,7 +69,7 @@ export class GeminiEmbeddingAdapter<
   }
 
   async embedMany(
-    options: EmbedManyOptions<GeminiEmbeddingProviderOptions>
+    options: EmbedManyOptions<GeminiEmbeddingProviderOptions>,
   ): Promise<EmbedManyResult> {
     const { model, values, modelOptions } = options
 
@@ -69,8 +80,8 @@ export class GeminiEmbeddingAdapter<
       model,
       contents: values,
       config: {
-        ...modelOptions
-      }
+        ...modelOptions,
+      },
     })
 
     return {
@@ -81,4 +92,3 @@ export class GeminiEmbeddingAdapter<
     }
   }
 }
-
