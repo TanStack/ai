@@ -12,7 +12,7 @@ interface ModelMeta<TProviderOptions = unknown> {
   name: string
   supports: {
     input: Array<'text' | 'image' | 'audio' | 'video' | 'document'>
-    output: Array<'text' | 'image' | 'audio' | 'video'>
+    output: Array<'text' | 'image' | 'audio' | 'video' | 'embedding'>
     capabilities?: Array<
       | 'audio_generation'
       | 'batch_api'
@@ -678,6 +678,28 @@ const IMAGEN_3 = {
     GeminiCommonConfigOptions &
     GeminiCachedContentOptions
 >
+
+const GEMINI_EMBEDDING_001 = {
+  name: 'embedding-001',
+  max_input_tokens: 2048,
+  supports: {
+    input: ['text'],
+    output: ['embedding'],
+  },
+  pricing: {
+    input: {
+      normal: 0,
+    },
+    output: {
+      normal: 0.15,
+    },
+  },
+} as const satisfies ModelMeta<
+  GeminiToolConfigOptions &
+    GeminiSafetyOptions &
+    GeminiCommonConfigOptions &
+    GeminiCachedContentOptions
+>
 /** 
 const VEO_3_1_PREVIEW = {
   name: 'veo-3.1-generate-preview',
@@ -832,6 +854,12 @@ export const GEMINI_MODELS = [
 ] as const
 
 export type GeminiModels = (typeof GEMINI_MODELS)[number]
+
+export const GEMINI_EMBEDDING_MODELS = [
+  GEMINI_EMBEDDING_001.name,
+] as const
+
+export type GeminiEmbeddingModels = (typeof GEMINI_EMBEDDING_MODELS)[number]
 
 export type GeminiImageModels = (typeof GEMINI_IMAGE_MODELS)[number]
 
