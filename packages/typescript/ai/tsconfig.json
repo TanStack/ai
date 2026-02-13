@@ -10,5 +10,6 @@
     "**/*.config.ts",
     "eslint.config.js",
     "tests/**/*.test-d.ts"
-  ]
+  ],
+  "declarationMap": true
 }

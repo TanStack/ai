@@ -61,9 +61,9 @@ export type ImageSizeForModel<TAdapter, TModel extends string> =
  *
  * @template TAdapter - The image adapter type
  */
-export interface ImageActivityOptions<
-  TAdapter extends ImageAdapter<string, object, any, any>,
-> {
+export type ImageActivityOptions<
+  TAdapter extends ImageAdapter<string, any, any, any>,
+> = {
   /** The image adapter to use (must be created with a model) */
   adapter: TAdapter & { kind: typeof kind }
   /** Text description of the desired image(s) */
@@ -72,9 +72,19 @@ export interface ImageActivityOptions<
   numberOfImages?: number
   /** Image size in WIDTHxHEIGHT format (e.g., "1024x1024") */
   size?: ImageSizeForModel<TAdapter, TAdapter['model']>
-  /** Provider-specific options for image generation */
-  modelOptions?: ImageProviderOptionsForModel<TAdapter, TAdapter['model']>
-}
+} & ({} extends ImageProviderOptionsForModel<TAdapter, TAdapter['model']>
+  ? {
+      /** Provider-specific options for image generation */ modelOptions?: ImageProviderOptionsForModel<
+        TAdapter,
+        TAdapter['model']
+      >
+    }
+  : {
+      /** Provider-specific options for image generation */ modelOptions: ImageProviderOptionsForModel<
+        TAdapter,
+        TAdapter['model']
+      >
+    })
 
 // ===========================
 // Activity Result Type
@@ -137,7 +147,7 @@ function createId(prefix: string): string {
  * ```
  */
 export async function generateImage<
-  TAdapter extends ImageAdapter<string, object, any, any>,
+  TAdapter extends ImageAdapter<string, any, any, any>,
 >(options: ImageActivityOptions<TAdapter>): ImageActivityResult {
   const { adapter, ...rest } = options
   const model = adapter.model
@@ -150,7 +160,7 @@ export async function generateImage<
     model,
     prompt: rest.prompt,
     numberOfImages: rest.numberOfImages,
-    size: rest.size as string | undefined,
+    size: rest.size,
     modelOptions: rest.modelOptions as Record<string, unknown> | undefined,
     timestamp: startTime,
   })
@@ -193,7 +203,7 @@ export async function generateImage<
  * Create typed options for the generateImage() function without executing.
  */
 export function createImageOptions<
-  TAdapter extends ImageAdapter<string, object, any, any>,
+  TAdapter extends ImageAdapter<string, any, any, any>,
 >(options: ImageActivityOptions<TAdapter>): ImageActivityOptions<TAdapter> {
   return options
 }

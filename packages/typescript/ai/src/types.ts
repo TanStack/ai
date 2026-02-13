@@ -967,6 +967,7 @@ export interface SummarizationResult {
  */
 export interface ImageGenerationOptions<
   TProviderOptions extends object = object,
+  TSize extends string = string,
 > {
   /** The model to use for image generation */
   model: string
@@ -975,7 +976,7 @@ export interface ImageGenerationOptions<
   /** Number of images to generate (default: 1) */
   numberOfImages?: number
   /** Image size in WIDTHxHEIGHT format (e.g., "1024x1024") */
-  size?: string
+  size?: TSize
   /** Model-specific options for image generation */
   modelOptions?: TProviderOptions
 }
@@ -1022,13 +1023,14 @@ export interface ImageGenerationResult {
  */
 export interface VideoGenerationOptions<
   TProviderOptions extends object = object,
+  TSize extends string = string,
 > {
   /** The model to use for video generation */
   model: string
   /** Text description of the desired video */
   prompt: string
-  /** Video size in WIDTHxHEIGHT format (e.g., "1280x720") */
-  size?: string
+  /** Video size — format depends on the provider (e.g., "16:9", "1280x720") */
+  size?: TSize
   /** Video duration in seconds */
   duration?: number
   /** Model-specific options for video generation */
