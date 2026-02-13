@@ -15,6 +15,7 @@ import type {
   FalModelImageSize,
   FalModelInput,
 } from '../model-meta'
+import { mapSizeToFalFormat } from '../image/image-provider-options'
 
 /**
  * fal.ai image generation adapter with full type inference.
@@ -58,6 +59,7 @@ export class FalImageAdapter<TModel extends FalModel> extends BaseImageAdapter<
   async generateImages(
     options: FalImageGenerationOptions<TModel>,
   ): Promise<ImageGenerationResult> {
+    const size = options.size
     const input = this.buildInput(options)
     const result = await fal.subscribe(this.model, { input })
     return this.transformResponse(result)

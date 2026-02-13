@@ -1,6 +1,21 @@
 import type { ImageGenerationOptions, ImageGenerationResult } from '../../types'
 
 /**
+ * Resolve the size type for a model from the model-size map.
+ * If the map has an index signature (i.e. no explicit keys), falls back to string.
+ * If the model is an explicit key, uses its mapped size type.
+ * Otherwise falls back to string.
+ */
+type SizeForModel<
+  TModel extends string,
+  TModelSizeByName extends Record<string, string>,
+> = string extends keyof TModelSizeByName
+  ? string
+  : TModel extends keyof TModelSizeByName
+    ? TModelSizeByName[TModel]
+    : string
+
+/**
  * Configuration for image adapter instances
  */
 export interface ImageAdapterConfig {
@@ -48,9 +63,12 @@ export interface ImageAdapter<
   /**
    * Generate images from a prompt
    */
-  generateImages: (
-    options: ImageGenerationOptions<TProviderOptions>,
-  ) => Promise<ImageGenerationResult>
+  generateImages(
+    options: ImageGenerationOptions<
+      TProviderOptions,
+      SizeForModel<TModel, TModelSizeByName>
+    >,
+  ): Promise<ImageGenerationResult>
 }
 
 /**
@@ -95,7 +113,10 @@ export abstract class BaseImageAdapter<
   }
 
   abstract generateImages(
-    options: ImageGenerationOptions<TProviderOptions>,
+    options: ImageGenerationOptions<
+      TProviderOptions,
+      SizeForModel<TModel, TModelSizeByName>
+    >,
   ): Promise<ImageGenerationResult>
 
   protected generateId(): string {

@@ -967,6 +967,7 @@ export interface SummarizationResult {
  */
 export interface ImageGenerationOptions<
   TProviderOptions extends object = object,
+  TSize extends string = string,
 > {
   /** The model to use for image generation */
   model: string
@@ -975,7 +976,7 @@ export interface ImageGenerationOptions<
   /** Number of images to generate (default: 1) */
   numberOfImages?: number
   /** Image size in WIDTHxHEIGHT format (e.g., "1024x1024") */
-  size?: string
+  size?: TSize
   /** Model-specific options for image generation */
   modelOptions?: TProviderOptions
 }
