@@ -1,9 +1,9 @@
-import { aiEventClient } from "../../event-client"
-import type { EmbeddingAdapter, kind } from "./adapter"
-import type { EmbedManyResult } from "../../types"
+import { aiEventClient } from '../../event-client'
+import type { EmbeddingAdapter, kind } from './adapter'
+import type { EmbedManyResult } from '../../types'
 
 export interface EmbedManyActivityOptions<
-  TAdapter extends EmbeddingAdapter<string, object>
+  TAdapter extends EmbeddingAdapter<string, object>,
 > {
   /** The embedding adapter to use (must be created with a model) */
   adapter: TAdapter & { kind: typeof kind }
@@ -21,10 +21,8 @@ function createId(prefix: string): string {
 }
 
 export async function embedMany<
-  TAdapter extends EmbeddingAdapter<string, object>
->(
-  options: EmbedManyActivityOptions<TAdapter>
-): EmbedManyActivityResult {
+  TAdapter extends EmbeddingAdapter<string, object>,
+>(options: EmbedManyActivityOptions<TAdapter>): EmbedManyActivityResult {
   const { adapter, ...rest } = options
   const model = adapter.model
   const requestId = createId('embed-many')

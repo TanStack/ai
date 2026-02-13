@@ -1,17 +1,17 @@
-import type { HttpOptions } from "@google/genai";
-import type { GeminiEmbeddingModels } from "../model-meta";
+import type { HttpOptions } from '@google/genai'
+import type { GeminiEmbeddingModels } from '../model-meta'
 
 export interface GeminiEmbeddingProviderOptions {
   /** Used to override HTTP request options. */
-  httpOptions?: HttpOptions;
+  httpOptions?: HttpOptions
   /**
    * Type of task for which the embedding will be used.
    */
-  taskType?: string;
+  taskType?: string
   /**
    * Title for the text. Only applicable when TaskType is `RETRIEVAL_DOCUMENT`.
    */
-  title?: string;
+  title?: string
   /**
    * Reduced dimension for the output embedding. If set,
    * excessive values in the output embedding are truncated from the end.
@@ -33,7 +33,7 @@ export function validateTaskType(options: {
   model: string
 }) {
   const { taskType, model } = options
-  if (!taskType) return;
+  if (!taskType) return
 
   if (
     taskType !== 'SEMANTIC_SIMILARITY' &&
@@ -63,7 +63,9 @@ export function validateValue(options: {
     }
     for (const v of value) {
       if (!v || v.trim().length === 0) {
-        throw new Error(`Value array cannot contain empty values for model "${model}".`)
+        throw new Error(
+          `Value array cannot contain empty values for model "${model}".`,
+        )
       }
     }
   } else {

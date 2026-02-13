@@ -145,11 +145,7 @@ export {
 // Embedding Activity
 // ===========================
 
-export {
-  kind as embeddingKind,
-  embed,
-  embedMany,
-} from './embed/index'
+export { kind as embeddingKind, embed, embedMany } from './embed/index'
 
 export {
   BaseEmbeddingAdapter,

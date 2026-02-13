@@ -232,9 +232,9 @@ export type ConstrainedContent<
 
 export interface ModelMessage<
   TContent extends string | null | Array<ContentPart> =
-  | string
-  | null
-  | Array<ContentPart>,
+    | string
+    | null
+    | Array<ContentPart>,
 > {
   role: 'user' | 'assistant' | 'tool'
   content: TContent
@@ -1178,9 +1178,7 @@ export interface DefaultMessageMetadataByModality {
 // Embed Types
 // ============================================================================
 
-export interface EmbedOptions<
-  TProviderOptions extends object = object
-> {
+export interface EmbedOptions<TProviderOptions extends object = object> {
   /** The model to use for transcription */
   model: string
   /** The audio data to transcribe - can be base64 string, File, Blob, or Buffer */
@@ -1189,9 +1187,7 @@ export interface EmbedOptions<
   modelOptions?: TProviderOptions
 }
 
-export interface EmbedManyOptions<
-  TProviderOptions extends object = object
-> {
+export interface EmbedManyOptions<TProviderOptions extends object = object> {
   /** The model to use for transcription */
   model: string
   /** The audio data to transcribe - can be base64 string, File, Blob, or Buffer */

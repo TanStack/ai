@@ -1,9 +1,9 @@
-import { aiEventClient } from "../../event-client"
-import type { EmbeddingAdapter, kind } from "./adapter"
-import type { EmbedResult } from "../../types"
+import { aiEventClient } from '../../event-client'
+import type { EmbeddingAdapter, kind } from './adapter'
+import type { EmbedResult } from '../../types'
 
 export interface EmbedActivityOptions<
-  TAdapter extends EmbeddingAdapter<string, object>
+  TAdapter extends EmbeddingAdapter<string, object>,
 > {
   /** The embedding adapter to use (must be created with a model) */
   adapter: TAdapter & { kind: typeof kind }
@@ -20,10 +20,8 @@ function createId(prefix: string): string {
   return `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`
 }
 
-export async function embed<
-  TAdapter extends EmbeddingAdapter<string, object>
->(
-  options: EmbedActivityOptions<TAdapter>
+export async function embed<TAdapter extends EmbeddingAdapter<string, object>>(
+  options: EmbedActivityOptions<TAdapter>,
 ): EmbedActivityResult {
   const { adapter, ...rest } = options
   const model = adapter.model
