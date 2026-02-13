@@ -1,5 +1,5 @@
 import type { HttpOptions } from "@google/genai";
-import type { GeminiEmbeddingModel } from "../adapters/embedding";
+import type { GeminiEmbeddingModels } from "../model-meta";
 
 export interface GeminiEmbeddingProviderOptions {
   /** Used to override HTTP request options. */
@@ -22,7 +22,7 @@ export interface GeminiEmbeddingProviderOptions {
 }
 
 export type GeminiEmbeddingModelProviderOptionsByName = {
-  [K in GeminiEmbeddingModel]: GeminiEmbeddingProviderOptions
+  [K in GeminiEmbeddingModels]: GeminiEmbeddingProviderOptions
 }
 
 /**
@@ -45,7 +45,7 @@ export function validateTaskType(options: {
     taskType !== 'QUESTION_ANSWERING' &&
     taskType !== 'FACT_VERIFICATION'
   ) {
-    throw new Error(`Invalid task type "${taskType}" for model "${model}".`) 
+    throw new Error(`Invalid task type "${taskType}" for model "${model}".`)
   }
 }
 
