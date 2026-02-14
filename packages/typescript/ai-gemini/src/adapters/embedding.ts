@@ -52,6 +52,11 @@ export class GeminiEmbeddingAdapter<
     validateValue({ value, model })
     validateTaskType({ taskType: modelOptions?.taskType, model })
 
+    const { totalTokens } = await this.client.models.countTokens({
+      model,
+      contents: value,
+    })
+
     const { embeddings } = await this.client.models.embedContent({
       model,
       contents: value,
@@ -64,7 +69,7 @@ export class GeminiEmbeddingAdapter<
       embedding: embeddings?.[0]?.values || [],
       id: generateId(this.name),
       model,
-      usage: undefined,
+      usage: totalTokens ? { totalTokens } : undefined,
     }
   }
 
@@ -75,6 +80,11 @@ export class GeminiEmbeddingAdapter<
 
     validateValue({ value: values, model })
     validateTaskType({ taskType: modelOptions?.taskType, model })
+
+    const { totalTokens } = await this.client.models.countTokens({
+      model,
+      contents: values,
+    })
 
     const { embeddings } = await this.client.models.embedContent({
       model,
@@ -88,7 +98,7 @@ export class GeminiEmbeddingAdapter<
       embeddings: embeddings?.map((embedding) => embedding.values || []) || [],
       id: generateId(this.name),
       model,
-      usage: undefined,
+      usage: totalTokens ? { totalTokens } : undefined,
     }
   }
 }

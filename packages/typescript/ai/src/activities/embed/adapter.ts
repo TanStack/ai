@@ -52,7 +52,7 @@ export interface EmbeddingAdapter<
 }
 
 /**
- * A EmbeddingAdapter with any/unknown type parameters.
+ * An EmbeddingAdapter with any/unknown type parameters.
  * Useful as a constraint in generic functions and interfaces.
  */
 export type AnyEmbeddingAdapter = EmbeddingAdapter<any, any>

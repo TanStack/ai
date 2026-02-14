@@ -34,7 +34,7 @@ export interface ImageUsage {
 }
 
 export interface EmbeddingsUsage {
-  totalTokens: number
+  totalTokens?: number
 }
 
 interface BaseEventContext {
