@@ -88,8 +88,4 @@ export abstract class BaseEmbeddingAdapter<
   abstract embedMany(
     options: EmbedManyOptions<TProviderOptions>,
   ): Promise<EmbedManyResult>
-
-  protected generateId(): string {
-    return `${this.name}-${Date.now()}-${Math.random().toString(36).substring(7)}`
-  }
 }

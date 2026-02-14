@@ -6,8 +6,9 @@
  */
 
 import { aiEventClient } from '../../event-client.js'
-import type { TTSAdapter } from './adapter'
+import { createId } from '../utils/id'
 import type { TTSResult } from '../../types'
+import type { TTSAdapter } from './adapter'
 
 // ===========================
 // Activity Kind
@@ -61,10 +62,6 @@ export interface TTSActivityOptions<
 
 /** Result type for the TTS activity */
 export type TTSActivityResult = Promise<TTSResult>
-
-function createId(prefix: string): string {
-  return `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`
-}
 
 // ===========================
 // Activity Implementation

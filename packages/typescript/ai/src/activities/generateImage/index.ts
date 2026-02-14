@@ -6,8 +6,9 @@
  */
 
 import { aiEventClient } from '../../event-client.js'
-import type { ImageAdapter } from './adapter'
+import { createId } from '../utils/id'
 import type { ImageGenerationResult } from '../../types'
+import type { ImageAdapter } from './adapter'
 
 // ===========================
 // Activity Kind
@@ -82,10 +83,6 @@ export interface ImageActivityOptions<
 
 /** Result type for the image activity */
 export type ImageActivityResult = Promise<ImageGenerationResult>
-
-function createId(prefix: string): string {
-  return `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`
-}
 
 // ===========================
 // Activity Implementation

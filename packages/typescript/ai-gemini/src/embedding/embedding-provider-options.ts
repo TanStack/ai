@@ -1,5 +1,18 @@
-import type { HttpOptions } from '@google/genai'
-import type { GeminiEmbeddingModels } from '../model-meta'
+import type { HttpOptions } from "@google/genai";
+import type { GeminiEmbeddingModels } from "../model-meta";
+
+const VALID_TASK_TYPES = new Set([
+  'SEMANTIC_SIMILARITY',
+  'CLASSIFICATION',
+  'CLUSTERING',
+  'RETRIEVAL_DOCUMENT',
+  'RETRIEVAL_QUERY',
+  'CODE_RETRIEVAL_QUERY',
+  'QUESTION_ANSWERING',
+  'FACT_VERIFICATION'
+])
+
+type TaskType = 'SEMANTIC_SIMILARITY' | 'CLASSIFICATION' | 'CLUSTERING' | 'RETRIEVAL_DOCUMENT' | 'RETRIEVAL_QUERY' | 'CODE_RETRIEVAL_QUERY' | 'QUESTION_ANSWERING' | 'FACT_VERIFICATION'
 
 export interface GeminiEmbeddingProviderOptions {
   /** Used to override HTTP request options. */
@@ -7,7 +20,7 @@ export interface GeminiEmbeddingProviderOptions {
   /**
    * Type of task for which the embedding will be used.
    */
-  taskType?: string
+  taskType?: TaskType;
   /**
    * Title for the text. Only applicable when TaskType is `RETRIEVAL_DOCUMENT`.
    */
@@ -29,22 +42,13 @@ export type GeminiEmbeddingModelProviderOptionsByName = {
  * Validates the task type
  */
 export function validateTaskType(options: {
-  taskType: string | undefined
+  taskType: TaskType | undefined
   model: string
 }) {
   const { taskType, model } = options
   if (!taskType) return
 
-  if (
-    taskType !== 'SEMANTIC_SIMILARITY' &&
-    taskType !== 'CLASSIFICATION' &&
-    taskType !== 'CLUSTERING' &&
-    taskType !== 'RETRIEVAL_DOCUMENT' &&
-    taskType !== 'RETRIEVAL_QUERY' &&
-    taskType !== 'CODE_RETRIEVAL_QUERY' &&
-    taskType !== 'QUESTION_ANSWERING' &&
-    taskType !== 'FACT_VERIFICATION'
-  ) {
+  if (!VALID_TASK_TYPES.has(taskType)) {
     throw new Error(`Invalid task type "${taskType}" for model "${model}".`)
   }
 }

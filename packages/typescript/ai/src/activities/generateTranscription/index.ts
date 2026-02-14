@@ -6,8 +6,9 @@
  */
 
 import { aiEventClient } from '../../event-client.js'
-import type { TranscriptionAdapter } from './adapter'
+import { createId } from '../utils/id'
 import type { TranscriptionResult } from '../../types'
+import type { TranscriptionAdapter } from './adapter'
 
 // ===========================
 // Activity Kind
@@ -61,10 +62,6 @@ export interface TranscriptionActivityOptions<
 
 /** Result type for the transcription activity */
 export type TranscriptionActivityResult = Promise<TranscriptionResult>
-
-function createId(prefix: string): string {
-  return `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`
-}
 
 // ===========================
 // Activity Implementation
