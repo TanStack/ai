@@ -8,12 +8,13 @@
  */
 
 import { aiEventClient } from '../../event-client.js'
-import type { VideoAdapter } from './adapter'
+import { createId } from '../utils/id'
 import type {
   VideoJobResult,
   VideoStatusResult,
   VideoUrlResult,
 } from '../../types'
+import type { VideoAdapter } from './adapter'
 
 // ===========================
 // Activity Kind
@@ -33,14 +34,6 @@ export type VideoProviderOptions<TAdapter> =
   TAdapter extends VideoAdapter<any, any>
     ? TAdapter['~types']['providerOptions']
     : object
-
-// ===========================
-// Activity Options Types
-
-function createId(prefix: string): string {
-  return `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`
-}
-// ===========================
 
 /**
  * Base options shared by all video activity operations.
