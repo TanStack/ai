@@ -1179,18 +1179,18 @@ export interface DefaultMessageMetadataByModality {
 // ============================================================================
 
 export interface EmbedOptions<TProviderOptions extends object = object> {
-  /** The model to use for transcription */
+  /** The model to use for embedding */
   model: string
-  /** The audio data to transcribe - can be base64 string, File, Blob, or Buffer */
+  /** The text value to embed */
   value: string
   /** Model-specific options for embedding */
   modelOptions?: TProviderOptions
 }
 
 export interface EmbedManyOptions<TProviderOptions extends object = object> {
-  /** The model to use for transcription */
+  /** The model to use for embedding */
   model: string
-  /** The audio data to transcribe - can be base64 string, File, Blob, or Buffer */
+  /** The text values to embed */
   values: Array<string>
   /** Model-specific options for embedding */
   modelOptions?: TProviderOptions
