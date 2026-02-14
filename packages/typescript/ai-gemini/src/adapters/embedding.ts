@@ -1,5 +1,9 @@
 import { BaseEmbeddingAdapter } from '@tanstack/ai/adapters'
-import { createGeminiClient, generateId, getGeminiApiKeyFromEnv } from '../utils'
+import {
+  createGeminiClient,
+  generateId,
+  getGeminiApiKeyFromEnv,
+} from '../utils'
 import {
   validateTaskType,
   validateValue,
