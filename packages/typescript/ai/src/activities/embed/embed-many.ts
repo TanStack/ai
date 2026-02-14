@@ -7,7 +7,7 @@ export interface EmbedManyActivityOptions<
 > {
   /** The embedding adapter to use (must be created with a model) */
   adapter: TAdapter & { kind: typeof kind }
-  /** The value to convert to embedding */
+  /** The values to convert to embeddings */
   values: Array<string>
   /** Model-specific options for embedding */
   modelOptions?: TAdapter['~types']['providerOptions']
