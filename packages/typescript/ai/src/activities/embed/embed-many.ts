@@ -48,7 +48,7 @@ export async function embedMany<
   })
 
   if (result.usage) {
-    aiEventClient.emit('embed:usage', {
+    aiEventClient.emit('embed-many:usage', {
       requestId,
       provider: adapter.name,
       model,
