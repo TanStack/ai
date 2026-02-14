@@ -1,7 +1,7 @@
-import { aiEventClient } from "../../event-client"
+import { aiEventClient } from '../../event-client'
 import { createId } from '../utils/id'
-import type { EmbedResult } from "../../types"
-import type { EmbeddingAdapter, kind } from "./adapter"
+import type { EmbedResult } from '../../types'
+import type { EmbeddingAdapter, kind } from './adapter'
 
 export interface EmbedActivityOptions<
   TAdapter extends EmbeddingAdapter<string, object>,
@@ -17,10 +17,8 @@ export interface EmbedActivityOptions<
 /** Result type for the embed activity */
 export type EmbedActivityResult = Promise<EmbedResult>
 
-export async function embed<
-  TAdapter extends EmbeddingAdapter<string, object>
->(
-  options: EmbedActivityOptions<TAdapter>
+export async function embed<TAdapter extends EmbeddingAdapter<string, object>>(
+  options: EmbedActivityOptions<TAdapter>,
 ): EmbedActivityResult {
   const { adapter, ...rest } = options
   const model = adapter.model

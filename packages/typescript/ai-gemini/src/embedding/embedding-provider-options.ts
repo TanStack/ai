@@ -1,5 +1,5 @@
-import type { HttpOptions } from "@google/genai";
-import type { GeminiEmbeddingModels } from "../model-meta";
+import type { HttpOptions } from '@google/genai'
+import type { GeminiEmbeddingModels } from '../model-meta'
 
 const VALID_TASK_TYPES = new Set([
   'SEMANTIC_SIMILARITY',
@@ -9,10 +9,18 @@ const VALID_TASK_TYPES = new Set([
   'RETRIEVAL_QUERY',
   'CODE_RETRIEVAL_QUERY',
   'QUESTION_ANSWERING',
-  'FACT_VERIFICATION'
+  'FACT_VERIFICATION',
 ])
 
-type TaskType = 'SEMANTIC_SIMILARITY' | 'CLASSIFICATION' | 'CLUSTERING' | 'RETRIEVAL_DOCUMENT' | 'RETRIEVAL_QUERY' | 'CODE_RETRIEVAL_QUERY' | 'QUESTION_ANSWERING' | 'FACT_VERIFICATION'
+type TaskType =
+  | 'SEMANTIC_SIMILARITY'
+  | 'CLASSIFICATION'
+  | 'CLUSTERING'
+  | 'RETRIEVAL_DOCUMENT'
+  | 'RETRIEVAL_QUERY'
+  | 'CODE_RETRIEVAL_QUERY'
+  | 'QUESTION_ANSWERING'
+  | 'FACT_VERIFICATION'
 
 export interface GeminiEmbeddingProviderOptions {
   /** Used to override HTTP request options. */
@@ -20,7 +28,7 @@ export interface GeminiEmbeddingProviderOptions {
   /**
    * Type of task for which the embedding will be used.
    */
-  taskType?: TaskType;
+  taskType?: TaskType
   /**
    * Title for the text. Only applicable when TaskType is `RETRIEVAL_DOCUMENT`.
    */

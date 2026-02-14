@@ -1,7 +1,7 @@
-import { aiEventClient } from "../../event-client"
+import { aiEventClient } from '../../event-client'
 import { createId } from '../utils/id'
-import type { EmbedManyResult } from "../../types"
-import type { EmbeddingAdapter, kind } from "./adapter"
+import type { EmbedManyResult } from '../../types'
+import type { EmbeddingAdapter, kind } from './adapter'
 
 export interface EmbedManyActivityOptions<
   TAdapter extends EmbeddingAdapter<string, object>,
@@ -16,7 +16,6 @@ export interface EmbedManyActivityOptions<
 
 /** Result type for the embed-many activity */
 export type EmbedManyActivityResult = Promise<EmbedManyResult>
-
 
 export async function embedMany<
   TAdapter extends EmbeddingAdapter<string, object>,
