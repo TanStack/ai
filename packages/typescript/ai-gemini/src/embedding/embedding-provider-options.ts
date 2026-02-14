@@ -1,7 +1,7 @@
 import type { HttpOptions } from '@google/genai'
 import type { GeminiEmbeddingModels } from '../model-meta'
 
-const VALID_TASK_TYPES = new Set([
+const VALID_TASK_TYPES = [
   'SEMANTIC_SIMILARITY',
   'CLASSIFICATION',
   'CLUSTERING',
@@ -10,17 +10,9 @@ const VALID_TASK_TYPES = new Set([
   'CODE_RETRIEVAL_QUERY',
   'QUESTION_ANSWERING',
   'FACT_VERIFICATION',
-])
+] as const
 
-type TaskType =
-  | 'SEMANTIC_SIMILARITY'
-  | 'CLASSIFICATION'
-  | 'CLUSTERING'
-  | 'RETRIEVAL_DOCUMENT'
-  | 'RETRIEVAL_QUERY'
-  | 'CODE_RETRIEVAL_QUERY'
-  | 'QUESTION_ANSWERING'
-  | 'FACT_VERIFICATION'
+type TaskType = (typeof VALID_TASK_TYPES)[number]
 
 export interface GeminiEmbeddingProviderOptions {
   /** Used to override HTTP request options. */
@@ -56,7 +48,7 @@ export function validateTaskType(options: {
   const { taskType, model } = options
   if (!taskType) return
 
-  if (!VALID_TASK_TYPES.has(taskType)) {
+  if (!VALID_TASK_TYPES.includes(taskType)) {
     throw new Error(`Invalid task type "${taskType}" for model "${model}".`)
   }
 }
