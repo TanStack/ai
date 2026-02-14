@@ -855,7 +855,9 @@ export const GEMINI_MODELS = [
 
 export type GeminiModels = (typeof GEMINI_MODELS)[number]
 
-export const GEMINI_EMBEDDING_MODELS = [GEMINI_EMBEDDING_001.name] as const
+export const GEMINI_EMBEDDING_MODELS = [
+  GEMINI_EMBEDDING_001.name,
+] as const
 
 export type GeminiEmbeddingModels = (typeof GEMINI_EMBEDDING_MODELS)[number]
 

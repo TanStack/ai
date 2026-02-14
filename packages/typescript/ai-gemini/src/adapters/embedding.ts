@@ -1,5 +1,5 @@
 import { BaseEmbeddingAdapter } from '@tanstack/ai/adapters'
-import { createGeminiClient, generateId } from '../utils'
+import { createGeminiClient, generateId, getGeminiApiKeyFromEnv } from '../utils'
 import {
   validateTaskType,
   validateValue,
@@ -11,7 +11,7 @@ import type {
   EmbedOptions,
   EmbedResult,
 } from '@tanstack/ai'
-import type { GEMINI_EMBEDDING_MODELS } from '../model-meta'
+import type { GeminiEmbeddingModels } from '../model-meta'
 import type { GeminiClientConfig } from '../utils'
 import type {
   GeminiEmbeddingModelProviderOptionsByName,
@@ -23,10 +23,8 @@ import type {
  */
 export interface GeminiEmbeddingConfig extends GeminiClientConfig {}
 
-export type GeminiEmbeddingModel = (typeof GEMINI_EMBEDDING_MODELS)[number]
-
 export class GeminiEmbeddingAdapter<
-  TModel extends GeminiEmbeddingModel,
+  TModel extends GeminiEmbeddingModels,
 > extends BaseEmbeddingAdapter<TModel, GeminiEmbeddingProviderOptions> {
   readonly kind = 'embedding' as const
   readonly name = 'gemini' as const
@@ -101,4 +99,63 @@ export class GeminiEmbeddingAdapter<
       usage: totalTokens ? { totalTokens } : undefined,
     }
   }
+}
+
+/**
+ * Creates a Gemini embedding adapter with explicit API key.
+ * Type resolution happens here at the call site.
+ *
+ * @param model - The model name (e.g., 'embedding-001')
+ * @param apiKey - Your Google API key
+ * @param config - Optional additional configuration
+ * @returns Configured Gemini embedding adapter instance with resolved types
+ *
+ * @example
+ * ```typescript
+ * const adapter = createGeminiEmbedding('embedding-001', "your-api-key");
+ *
+ * const result = await embed({
+ *   adapter,
+ *   value: 'Hello, world!'
+ * });
+ * ```
+ */
+export function createGeminiEmbedding<TModel extends GeminiEmbeddingModels>(
+  model: TModel,
+  apiKey: string,
+  config?: Omit<GeminiEmbeddingConfig, 'apiKey'>,
+): GeminiEmbeddingAdapter<TModel> {
+  return new GeminiEmbeddingAdapter({ apiKey, ...config }, model)
+}
+
+/**
+ * Creates a Gemini embedding adapter with automatic API key detection from environment variables.
+ * Type resolution happens here at the call site.
+ *
+ * Looks for `GOOGLE_API_KEY` or `GEMINI_API_KEY` in:
+ * - `process.env` (Node.js)
+ * - `window.env` (Browser with injected env)
+ *
+ * @param model - The model name (e.g., 'embedding-001')
+ * @param config - Optional configuration (excluding apiKey which is auto-detected)
+ * @returns Configured Gemini embedding adapter instance with resolved types
+ * @throws Error if GOOGLE_API_KEY or GEMINI_API_KEY is not found in environment
+ *
+ * @example
+ * ```typescript
+ * // Automatically uses GOOGLE_API_KEY from environment
+ * const adapter = geminiEmbedding('embedding-001');
+ *
+ * const result = await embed({
+ *   adapter,
+ *   value: 'Hello, world!'
+ * });
+ * ```
+ */
+export function geminiEmbedding<TModel extends GeminiEmbeddingModels>(
+  model: TModel,
+  config?: Omit<GeminiEmbeddingConfig, 'apiKey'>,
+): GeminiEmbeddingAdapter<TModel> {
+  const apiKey = getGeminiApiKeyFromEnv()
+  return createGeminiEmbedding(model, apiKey, config)
 }
