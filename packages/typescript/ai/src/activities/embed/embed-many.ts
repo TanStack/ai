@@ -13,7 +13,7 @@ export interface EmbedManyActivityOptions<
   modelOptions?: TAdapter['~types']['providerOptions']
 }
 
-/** Result type for the TTS activity */
+/** Result type for the embed-many activity */
 export type EmbedManyActivityResult = Promise<EmbedManyResult>
 
 function createId(prefix: string): string {
