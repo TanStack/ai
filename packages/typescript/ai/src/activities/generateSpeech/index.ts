@@ -6,7 +6,7 @@
  */
 
 import { aiEventClient } from '../../event-client.js'
-import { createId } from '../utils/id'
+import { createId } from '../utils/id.js'
 import type { TTSResult } from '../../types'
 import type { TTSAdapter } from './adapter'
 
