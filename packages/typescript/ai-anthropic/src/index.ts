@@ -18,7 +18,7 @@ export {
   createAnthropicSummarize,
   type AnthropicSummarizeConfig,
   type AnthropicSummarizeProviderOptions,
-} from './adapters/summarize' 
+} from './adapters/summarize'
 // ============================================================================
 // Type Exports
 // ============================================================================
