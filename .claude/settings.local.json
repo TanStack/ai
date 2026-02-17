@@ -7,7 +7,14 @@
       "Bash(pnpm test:lib:*)",
       "Bash(pnpm typecheck:*)",
       "Bash(pnpm build:*)",
-      "Bash(find:*)"
+      "Bash(find:*)",
+      "Bash(ls:*)",
+      "Bash(grep:*)",
+      "Bash(pnpm --filter @tanstack/ai test:lib:*)",
+      "Bash(pnpm test:types:*)",
+      "Bash(pnpm test:eslint:*)",
+      "Bash(pnpm --filter @tanstack/ai test:eslint:*)",
+      "Bash(git -C /Users/jherr/projects/tanstack/ai checkout:*)"
     ]
   }
 }

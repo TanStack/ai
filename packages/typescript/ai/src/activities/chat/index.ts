@@ -24,6 +24,7 @@ import type { AnyTextAdapter } from './adapter'
 import type {
   AgentLoopStrategy,
   ConstrainedModelMessage,
+  CustomEvent,
   InferSchemaType,
   ModelMessage,
   RunFinishedEvent,
@@ -601,12 +602,16 @@ class TextEngine<
 
     const { approvals, clientToolResults } = this.collectClientState()
 
-    const executionResult = await executeToolCalls(
+    const generator = executeToolCalls(
       pendingToolCalls,
       this.tools,
       approvals,
       clientToolResults,
+      (eventName, data) => this.createCustomEventChunk(eventName, data),
     )
+
+    // Consume the async generator, yielding custom events and collecting the return value
+    const executionResult = yield* this.drainToolCallGenerator(generator)
 
     if (
       executionResult.needsApproval.length > 0 ||
@@ -660,12 +665,16 @@ class TextEngine<
 
     const { approvals, clientToolResults } = this.collectClientState()
 
-    const executionResult = await executeToolCalls(
+    const generator = executeToolCalls(
       toolCalls,
       this.tools,
       approvals,
       clientToolResults,
+      (eventName, data) => this.createCustomEventChunk(eventName, data),
     )
+
+    // Consume the async generator, yielding custom events and collecting the return value
+    const executionResult = yield* this.drainToolCallGenerator(generator)
 
     if (
       executionResult.needsApproval.length > 0 ||
@@ -1049,6 +1058,50 @@ class TextEngine<
     this.toolPhase = phase
     if (phase === 'wait') {
       this.shouldEmitStreamEnd = false
+    }
+  }
+
+  /**
+   * Drain an executeToolCalls async generator, yielding any CustomEvent chunks
+   * and returning the final ExecuteToolCallsResult.
+   */
+  private async *drainToolCallGenerator(
+    generator: AsyncGenerator<
+      CustomEvent,
+      {
+        results: Array<ToolResult>
+        needsApproval: Array<ApprovalRequest>
+        needsClientExecution: Array<ClientToolRequest>
+      },
+      void
+    >,
+  ): AsyncGenerator<
+    StreamChunk,
+    {
+      results: Array<ToolResult>
+      needsApproval: Array<ApprovalRequest>
+      needsClientExecution: Array<ClientToolRequest>
+    },
+    void
+  > {
+    let next = await generator.next()
+    while (!next.done) {
+      yield next.value
+      next = await generator.next()
+    }
+    return next.value
+  }
+
+  private createCustomEventChunk(
+    eventName: string,
+    data: Record<string, any>,
+  ): CustomEvent {
+    return {
+      type: 'CUSTOM',
+      timestamp: Date.now(),
+      model: this.params.model,
+      name: eventName,
+      data,
     }
   }
 
