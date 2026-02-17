@@ -23,19 +23,19 @@ optional content: string;
 
 Defined in: [types.ts:795](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L795)
 
-Full accumulated content so far
+Full accumulated content so far (optional, for debugging)
 
 ***
 
-### delta?
+### delta
 
 ```ts
-optional delta: string;
+delta: string;
 ```
 
 Defined in: [types.ts:793](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L793)
 
-The incremental content token (may be undefined if only content is provided)
+The incremental content token
 
 ***
 

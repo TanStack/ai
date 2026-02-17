@@ -1,6 +1,6 @@
 {
   "name": "@tanstack/tests-adapters",
-  "version": "0.1.11",
+  "version": "0.1.12",
   "private": true,
   "description": "Tests for TanStack AI adapters",
   "author": "",

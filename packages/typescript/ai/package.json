@@ -1,6 +1,6 @@
 {
   "name": "@tanstack/ai",
-  "version": "0.4.2",
+  "version": "0.5.0",
   "description": "Core TanStack AI library - Open source AI SDK",
   "author": "Tanner Linsley",
   "license": "MIT",
