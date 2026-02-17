@@ -6,12 +6,13 @@
  */
 
 import { aiEventClient } from '../../event-client.js'
-import type { SummarizeAdapter } from './adapter'
+import { createId } from '../utils/id'
 import type {
   StreamChunk,
   SummarizationOptions,
   SummarizationResult,
 } from '../../types'
+import type { SummarizeAdapter } from './adapter'
 
 // ===========================
 // Activity Kind
@@ -80,14 +81,6 @@ export type SummarizeActivityResult<TStream extends boolean> =
   TStream extends true
     ? AsyncIterable<StreamChunk>
     : Promise<SummarizationResult>
-
-// ===========================
-// Helper Functions
-// ===========================
-
-function createId(prefix: string): string {
-  return `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`
-}
 
 // ===========================
 // Activity Implementation

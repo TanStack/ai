@@ -142,6 +142,19 @@ export {
 } from './generateTranscription/adapter'
 
 // ===========================
+// Embedding Activity
+// ===========================
+
+export { kind as embeddingKind, embed, embedMany } from './embed/index'
+
+export {
+  BaseEmbeddingAdapter,
+  type EmbeddingAdapter,
+  type EmbeddingAdapterConfig,
+  type AnyEmbeddingAdapter,
+} from './embed/adapter'
+
+// ===========================
 // Adapter Union Types
 // ===========================
 

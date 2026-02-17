@@ -33,6 +33,10 @@ export interface ImageUsage {
   totalTokens?: number
 }
 
+export interface EmbeddingsUsage {
+  totalTokens?: number
+}
+
 interface BaseEventContext {
   timestamp: number
   requestId?: string
@@ -385,6 +389,62 @@ export interface VideoUsageEvent extends BaseEventContext {
 }
 
 // ===========================
+// Embed Events
+// ===========================
+
+/** Emitted when an embed request starts. */
+export interface EmbedRequestStartedEvent extends BaseEventContext {
+  requestId: string
+  provider: string
+  model: string
+  value: string
+}
+
+/** Emitted when an embed request completes. */
+export interface EmbedRequestCompletedEvent extends BaseEventContext {
+  requestId: string
+  provider: string
+  model: string
+  embedding: Array<number>
+  duration: number
+}
+
+/** Emitted when embed usage metrics are available. */
+export interface EmbedUsageEvent extends BaseEventContext {
+  requestId: string
+  model: string
+  usage: EmbeddingsUsage
+}
+
+// ===========================
+// EmbedMany Events
+// ===========================
+
+/** Emitted when an embed many request starts. */
+export interface EmbedManyRequestStartedEvent extends BaseEventContext {
+  requestId: string
+  provider: string
+  model: string
+  values: Array<string>
+}
+
+/** Emitted when an embed many request completes. */
+export interface EmbedManyRequestCompletedEvent extends BaseEventContext {
+  requestId: string
+  provider: string
+  model: string
+  embeddings: Array<Array<number>>
+  duration: number
+}
+
+/** Emitted when embed many usage metrics are available. */
+export interface EmbedManyUsageEvent extends BaseEventContext {
+  requestId: string
+  model: string
+  usage: EmbeddingsUsage
+}
+
+// ===========================
 // Client Events
 // ===========================
 
@@ -474,6 +534,14 @@ export interface AIDevtoolsEventMap {
   'tanstack-ai-devtools:video:request:started': VideoRequestStartedEvent
   'tanstack-ai-devtools:video:request:completed': VideoRequestCompletedEvent
   'tanstack-ai-devtools:video:usage': VideoUsageEvent
+
+  // Embed events
+  'tanstack-ai-devtools:embed:request:started': EmbedRequestStartedEvent
+  'tanstack-ai-devtools:embed:request:completed': EmbedRequestCompletedEvent
+  'tanstack-ai-devtools:embed:usage': EmbedUsageEvent
+  'tanstack-ai-devtools:embed-many:request:started': EmbedManyRequestStartedEvent
+  'tanstack-ai-devtools:embed-many:request:completed': EmbedManyRequestCompletedEvent
+  'tanstack-ai-devtools:embed-many:usage': EmbedManyUsageEvent
 
   // Client events
   'tanstack-ai-devtools:client:created': ClientCreatedEvent

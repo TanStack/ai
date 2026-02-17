@@ -51,12 +51,22 @@ export {
   type GeminiTTSProviderOptions,
 } from './adapters/tts'
 
+// Embedding adapter
+export {
+  GeminiEmbeddingAdapter,
+  createGeminiEmbedding,
+  geminiEmbedding,
+  type GeminiEmbeddingConfig,
+} from './adapters/embedding'
+
 // Re-export models from model-meta for convenience
 export { GEMINI_MODELS as GeminiTextModels } from './model-meta'
+export { GEMINI_EMBEDDING_MODELS as GeminiEmbeddingModels } from './model-meta'
 export { GEMINI_IMAGE_MODELS as GeminiImageModels } from './model-meta'
 export { GEMINI_TTS_MODELS as GeminiTTSModels } from './model-meta'
 export { GEMINI_TTS_VOICES as GeminiTTSVoices } from './model-meta'
 export type { GeminiModels as GeminiTextModel } from './model-meta'
+export type { GeminiEmbeddingModels as GeminiEmbeddingModel } from './model-meta'
 export type { GeminiImageModels as GeminiImageModel } from './model-meta'
 export type { GeminiTTSVoice } from './model-meta'
 
