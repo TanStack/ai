@@ -251,7 +251,7 @@ export class GroqTextAdapter<
             messageId: aguiState.messageId,
             model: chunk.model || options.model,
             timestamp,
-            delta: deltaContent || '',
+            delta: deltaContent,
             content: accumulatedContent,
           }
         }
