@@ -57,6 +57,16 @@ export type OpenAIVideoModelProviderOptionsByName = {
 }
 
 /**
+ * Model-specific provider options mapping.
+ *
+ * @experimental Video generation is an experimental feature and may change.
+ */
+export type OpenAIVideoModelSizeByName = {
+  'sora-2': OpenAIVideoSize
+  'sora-2-pro': OpenAIVideoSize
+}
+
+/**
  * Validate video size for a given model.
  *
  * @experimental Video generation is an experimental feature and may change.
