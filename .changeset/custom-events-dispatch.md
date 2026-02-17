@@ -1,10 +1,10 @@
 ---
-"@tanstack/ai": minor
-"@tanstack/ai-client": minor
-"@tanstack/ai-react": patch
-"@tanstack/ai-solid": patch
-"@tanstack/ai-svelte": patch
-"@tanstack/ai-vue": patch
+'@tanstack/ai': minor
+'@tanstack/ai-client': minor
+'@tanstack/ai-react': patch
+'@tanstack/ai-solid': patch
+'@tanstack/ai-svelte': patch
+'@tanstack/ai-vue': patch
 ---
 
 feat: add custom event dispatch support for tools
