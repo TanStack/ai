@@ -9,7 +9,7 @@ title: generateSpeech
 function generateSpeech<TAdapter>(options): TTSActivityResult;
 ```
 
-Defined in: [activities/generateSpeech/index.ts:98](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/activities/generateSpeech/index.ts#L98)
+Defined in: [activities/generateSpeech/index.ts:103](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/activities/generateSpeech/index.ts#L103)
 
 TTS activity - generates speech from text.
 

@@ -5,7 +5,7 @@ import {
   validateNumberOfImages,
   validatePrompt,
 } from '../image/image-provider-options'
-import type { GROK_IMAGE_MODELS } from '../model-meta'
+import type { GrokImageModel } from '../model-meta'
 import type {
   GrokImageModelProviderOptionsByName,
   GrokImageModelSizeByName,
@@ -23,9 +23,6 @@ import type { GrokClientConfig } from '../utils'
  * Configuration for Grok image adapter
  */
 export interface GrokImageConfig extends GrokClientConfig {}
-
-/** Model type for Grok Image */
-export type GrokImageModel = (typeof GROK_IMAGE_MODELS)[number]
 
 /**
  * Grok Image Generation Adapter

@@ -1,10 +1,19 @@
 import { batch, createContext, onCleanup, onMount, useContext } from 'solid-js'
 import { createStore, produce } from 'solid-js/store'
 import { aiEventClient } from '@tanstack/ai/event-client'
+import type { ContentPartSource } from '@tanstack/ai'
 import type { ParentComponent } from 'solid-js'
 
 interface MessagePart {
-  type: 'text' | 'tool-call' | 'tool-result' | 'thinking'
+  type:
+    | 'text'
+    | 'tool-call'
+    | 'tool-result'
+    | 'thinking'
+    | 'image'
+    | 'audio'
+    | 'video'
+    | 'document'
   content?: string
   toolCallId?: string
   toolName?: string
@@ -12,6 +21,9 @@ interface MessagePart {
   state?: string
   output?: unknown
   error?: string
+  // Multimodal content fields
+  source?: ContentPartSource
+  metadata?: unknown
 }
 
 export interface ToolCall {
@@ -685,37 +697,58 @@ export const AIProvider: ParentComponent = (props) => {
           (message) => message.id === messageId,
         )
 
-        const parts = e.payload.parts?.map((part) => {
-          if (part.type === 'text') {
-            return { type: 'text', content: part.content } satisfies MessagePart
-          }
-          if (part.type === 'tool-call') {
-            return {
-              type: 'tool-call',
-              toolCallId: part.id,
-              toolName: part.name,
-              arguments: part.arguments,
-              state: part.state,
-              output: part.output,
-              content: part.approval
-                ? JSON.stringify(part.approval)
-                : undefined,
-            } satisfies MessagePart
-          }
-          if (part.type === 'tool-result') {
-            return {
-              type: 'tool-result',
-              toolCallId: part.toolCallId,
-              content: part.content,
-              state: part.state,
-              error: part.error,
-            } satisfies MessagePart
-          }
-          return {
-            type: 'thinking',
-            content: part.content,
-          } satisfies MessagePart
-        })
+        const parts = e.payload.parts
+          ?.map((part): MessagePart | null => {
+            if (part.type === 'text') {
+              return { type: 'text', content: part.content }
+            }
+            if (part.type === 'tool-call') {
+              return {
+                type: 'tool-call',
+                toolCallId: part.id,
+                toolName: part.name,
+                arguments: part.arguments,
+                state: part.state,
+                output: part.output,
+                content: part.approval
+                  ? JSON.stringify(part.approval)
+                  : undefined,
+              }
+            }
+            if (part.type === 'tool-result') {
+              return {
+                type: 'tool-result',
+                toolCallId: part.toolCallId,
+                content: part.content,
+                state: part.state,
+                error: part.error,
+              }
+            }
+            if (part.type === 'thinking') {
+              return {
+                type: 'thinking',
+                content: part.content,
+              }
+            }
+            // Handle multimodal parts (image, audio, video, document)
+            // These have a source property instead of content
+            if (
+              part.type === 'image' ||
+              part.type === 'audio' ||
+              part.type === 'video' ||
+              // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
+              part.type === 'document'
+            ) {
+              return {
+                type: part.type,
+                source: part.source,
+                metadata: part.metadata,
+              }
+            }
+            // Fallback for any unknown part types - skip them
+            return null
+          })
+          .filter((part): part is MessagePart => part !== null)
 
         const toolCalls = e.payload.toolCalls?.map((toolCall) => ({
           id: toolCall.id,

@@ -30,7 +30,7 @@ describe('connection-adapters', () => {
           .mockResolvedValueOnce({
             done: false,
             value: new TextEncoder().encode(
-              'data: {"type":"content","id":"1","model":"test","timestamp":123,"delta":"Hello","content":"Hello","role":"assistant"}\n\n',
+              'data: {"type":"TEXT_MESSAGE_CONTENT","messageId":"msg-1","model":"test","timestamp":123,"delta":"Hello","content":"Hello"}\n\n',
             ),
           })
           .mockResolvedValueOnce({ done: true, value: undefined }),
@@ -57,7 +57,8 @@ describe('connection-adapters', () => {
 
       expect(chunks).toHaveLength(1)
       expect(chunks[0]).toMatchObject({
-        type: 'content',
+        type: 'TEXT_MESSAGE_CONTENT',
+        messageId: 'msg-1',
         delta: 'Hello',
       })
     })
@@ -69,7 +70,7 @@ describe('connection-adapters', () => {
           .mockResolvedValueOnce({
             done: false,
             value: new TextEncoder().encode(
-              '{"type":"content","id":"1","model":"test","timestamp":123,"delta":"Hello","content":"Hello","role":"assistant"}\n',
+              '{"type":"TEXT_MESSAGE_CONTENT","messageId":"msg-1","model":"test","timestamp":123,"delta":"Hello","content":"Hello"}\n',
             ),
           })
           .mockResolvedValueOnce({ done: true, value: undefined }),
@@ -353,7 +354,7 @@ describe('connection-adapters', () => {
           .mockResolvedValueOnce({
             done: false,
             value: new TextEncoder().encode(
-              '{"type":"content","id":"1","model":"test","timestamp":123,"delta":"Hello","content":"Hello","role":"assistant"}\n',
+              '{"type":"TEXT_MESSAGE_CONTENT","messageId":"msg-1","model":"test","timestamp":123,"delta":"Hello","content":"Hello"}\n',
             ),
           })
           .mockResolvedValueOnce({ done: true, value: undefined }),
@@ -473,13 +474,12 @@ describe('connection-adapters', () => {
     it('should delegate to stream factory', async () => {
       const streamFactory = vi.fn().mockImplementation(function* () {
         yield {
-          type: 'content',
-          id: '1',
+          type: 'TEXT_MESSAGE_CONTENT',
+          messageId: 'msg-1',
           model: 'test',
           timestamp: Date.now(),
           delta: 'Hello',
           content: 'Hello',
-          role: 'assistant',
         }
       })
 
@@ -499,8 +499,8 @@ describe('connection-adapters', () => {
     it('should pass data to stream factory', async () => {
       const streamFactory = vi.fn().mockImplementation(function* () {
         yield {
-          type: 'done',
-          id: '1',
+          type: 'RUN_FINISHED',
+          runId: 'run-1',
           model: 'test',
           timestamp: Date.now(),
           finishReason: 'stop',

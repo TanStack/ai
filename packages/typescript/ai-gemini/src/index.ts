@@ -79,9 +79,5 @@ export type {
   GeminiAudioMetadata,
   GeminiVideoMetadata,
   GeminiDocumentMetadata,
-  GeminiImageMimeType,
-  GeminiAudioMimeType,
-  GeminiVideoMimeType,
-  GeminiDocumentMimeType,
   GeminiMessageMetadataByModality,
 } from './message-types'

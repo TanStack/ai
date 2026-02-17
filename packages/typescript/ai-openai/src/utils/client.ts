@@ -1,20 +1,15 @@
 import OpenAI_SDK from 'openai'
+import type { ClientOptions } from 'openai'
 
-export interface OpenAIClientConfig {
+export interface OpenAIClientConfig extends ClientOptions {
   apiKey: string
-  organization?: string
-  baseURL?: string
 }
 
 /**
  * Creates an OpenAI SDK client instance
  */
 export function createOpenAIClient(config: OpenAIClientConfig): OpenAI_SDK {
-  return new OpenAI_SDK({
-    apiKey: config.apiKey,
-    organization: config.organization,
-    baseURL: config.baseURL,
-  })
+  return new OpenAI_SDK(config)
 }
 
 /**

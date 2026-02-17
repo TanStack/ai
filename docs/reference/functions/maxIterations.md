@@ -32,7 +32,7 @@ AgentLoopStrategy that stops after max iterations
 ```typescript
 const stream = chat({
   adapter: openaiText(),
-  model: "gpt-5.2",
+  model: "gpt-4o",
   messages: [...],
   tools: [weatherTool],
   agentLoopStrategy: maxIterations(3), // Max 3 iterations

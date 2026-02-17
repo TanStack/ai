@@ -1,13 +1,13 @@
 import { BaseSummarizeAdapter } from '@tanstack/ai/adapters'
-import { getOpenAIApiKeyFromEnv } from '../utils'
+import { getOpenAIApiKeyFromEnv } from '../utils/client'
 import { OpenAITextAdapter } from './text'
-import type { OPENAI_CHAT_MODELS } from '../model-meta'
+import type { OpenAIChatModel } from '../model-meta'
 import type {
   StreamChunk,
   SummarizationOptions,
   SummarizationResult,
 } from '@tanstack/ai'
-import type { OpenAIClientConfig } from '../utils'
+import type { OpenAIClientConfig } from '../utils/client'
 
 /**
  * Configuration for OpenAI summarize adapter
@@ -24,9 +24,6 @@ export interface OpenAISummarizeProviderOptions {
   maxTokens?: number
 }
 
-/** Model type for OpenAI summarization */
-export type OpenAISummarizeModel = (typeof OPENAI_CHAT_MODELS)[number]
-
 /**
  * OpenAI Summarize Adapter
  *
@@ -34,7 +31,7 @@ export type OpenAISummarizeModel = (typeof OPENAI_CHAT_MODELS)[number]
  * Delegates all API calls to the OpenAITextAdapter.
  */
 export class OpenAISummarizeAdapter<
-  TModel extends OpenAISummarizeModel,
+  TModel extends OpenAIChatModel,
 > extends BaseSummarizeAdapter<TModel, OpenAISummarizeProviderOptions> {
   readonly kind = 'summarize' as const
   readonly name = 'openai' as const
@@ -51,7 +48,7 @@ export class OpenAISummarizeAdapter<
 
     // Use the text adapter's streaming and collect the result
     let summary = ''
-    let id = ''
+    const id = ''
     let model = options.model
     let usage = { promptTokens: 0, completionTokens: 0, totalTokens: 0 }
 
@@ -62,13 +59,20 @@ export class OpenAISummarizeAdapter<
       maxTokens: options.maxLength,
       temperature: 0.3,
     })) {
-      if (chunk.type === 'content') {
-        summary = chunk.content
-        id = chunk.id
-        model = chunk.model
+      // AG-UI TEXT_MESSAGE_CONTENT event
+      if (chunk.type === 'TEXT_MESSAGE_CONTENT') {
+        if (chunk.content) {
+          summary = chunk.content
+        } else {
+          summary += chunk.delta
+        }
+        model = chunk.model || model
       }
-      if (chunk.type === 'done' && chunk.usage) {
-        usage = chunk.usage
+      // AG-UI RUN_FINISHED event
+      if (chunk.type === 'RUN_FINISHED') {
+        if (chunk.usage) {
+          usage = chunk.usage
+        }
       }
     }
 
@@ -133,7 +137,7 @@ export class OpenAISummarizeAdapter<
  * const adapter = createOpenaiSummarize('gpt-4o-mini', "sk-...");
  * ```
  */
-export function createOpenaiSummarize<TModel extends OpenAISummarizeModel>(
+export function createOpenaiSummarize<TModel extends OpenAIChatModel>(
   model: TModel,
   apiKey: string,
   config?: Omit<OpenAISummarizeConfig, 'apiKey'>,
@@ -165,7 +169,7 @@ export function createOpenaiSummarize<TModel extends OpenAISummarizeModel>(
  * });
  * ```
  */
-export function openaiSummarize<TModel extends OpenAISummarizeModel>(
+export function openaiSummarize<TModel extends OpenAIChatModel>(
   model: TModel,
   config?: Omit<OpenAISummarizeConfig, 'apiKey'>,
 ): OpenAISummarizeAdapter<TModel> {

@@ -5,7 +5,7 @@ title: VideoGenerationOptions
 
 # Interface: VideoGenerationOptions\<TProviderOptions\>
 
-Defined in: [types.ts:847](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L847)
+Defined in: [types.ts:1023](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L1023)
 
 **`Experimental`**
 
@@ -28,7 +28,7 @@ These are the common options supported across providers.
 optional duration: number;
 ```
 
-Defined in: [types.ts:857](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L857)
+Defined in: [types.ts:1033](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L1033)
 
 **`Experimental`**
 
@@ -42,7 +42,7 @@ Video duration in seconds
 model: string;
 ```
 
-Defined in: [types.ts:851](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L851)
+Defined in: [types.ts:1027](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L1027)
 
 **`Experimental`**
 
@@ -56,7 +56,7 @@ The model to use for video generation
 optional modelOptions: TProviderOptions;
 ```
 
-Defined in: [types.ts:859](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L859)
+Defined in: [types.ts:1035](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L1035)
 
 **`Experimental`**
 
@@ -70,7 +70,7 @@ Model-specific options for video generation
 prompt: string;
 ```
 
-Defined in: [types.ts:853](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L853)
+Defined in: [types.ts:1029](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L1029)
 
 **`Experimental`**
 
@@ -84,7 +84,7 @@ Text description of the desired video
 optional size: string;
 ```
 
-Defined in: [types.ts:855](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L855)
+Defined in: [types.ts:1031](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L1031)
 
 **`Experimental`**
 

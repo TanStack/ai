@@ -63,30 +63,33 @@ messages.forEach((message) => {
 });
 ```
 
-## Stream Chunks
+## Stream Events (AG-UI Protocol)
 
-Stream chunks contain different types of data:
+TanStack AI implements the [AG-UI Protocol](https://docs.ag-ui.com/introduction) for streaming. Stream events contain different types of data:
 
-- **Content chunks** - Text content being generated
-- **Thinking chunks** - Model's internal reasoning process (when supported)
-- **Tool call chunks** - When the model calls a tool
-- **Tool result chunks** - Results from tool execution
-- **Done chunks** - Stream completion
+### AG-UI Events
+
+- **RUN_STARTED** - Emitted when a run begins
+- **TEXT_MESSAGE_START/CONTENT/END** - Text content streaming lifecycle
+- **TOOL_CALL_START/ARGS/END** - Tool invocation lifecycle
+- **STEP_STARTED/STEP_FINISHED** - Thinking/reasoning steps
+- **RUN_FINISHED** - Run completion with finish reason and usage
+- **RUN_ERROR** - Error occurred during the run
 
 ### Thinking Chunks
 
-Thinking chunks represent the model's reasoning process. They stream separately from the final response text:
+Thinking/reasoning is represented by AG-UI events `STEP_STARTED` and `STEP_FINISHED`. They stream separately from the final response text:
 
 ```typescript
 for await (const chunk of stream) {
-  if (chunk.type === "thinking") {
+  if (chunk.type === "STEP_FINISHED") {
     console.log("Thinking:", chunk.content); // Accumulated thinking content
     console.log("Delta:", chunk.delta); // Incremental thinking token
   }
 }
 ```
 
-Thinking chunks are automatically converted to `ThinkingPart` in `UIMessage` objects. They are UI-only and excluded from messages sent back to the model.
+Thinking content is automatically converted to `ThinkingPart` in `UIMessage` objects. It is UI-only and excluded from messages sent back to the model.
 
 ## Connection Adapters
 

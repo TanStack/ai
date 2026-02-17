@@ -1,4 +1,5 @@
 import { aiEventClient } from '@tanstack/ai/event-client'
+import type { ContentPart } from '@tanstack/ai'
 import type { UIMessage } from './types'
 
 /**
@@ -137,19 +138,36 @@ export abstract class ChatClientEventEmitter {
   }
 
   /**
-   * Emit message sent event
+   * Emit message sent event.
+   * Supports both simple string content and multimodal content arrays.
+   *
+   * @param messageId - The ID of the sent message
+   * @param content - The message content (string or array of ContentPart for multimodal)
    */
-  messageSent(messageId: string, content: string): void {
+  messageSent(messageId: string, content: string | Array<ContentPart>): void {
+    // For text content, extract it; for multimodal, provide the array
+    const textContent =
+      typeof content === 'string'
+        ? content
+        : content
+            .filter((part) => part.type === 'text')
+            .map((part) => (part as { type: 'text'; content: string }).content)
+            .join('')
+
     this.emitEvent('text:message:created', {
       messageId,
       role: 'user',
-      content,
+      content: textContent,
+      // Include full content for multimodal messages
+      ...(Array.isArray(content) && { parts: content }),
     })
 
     this.emitEvent('text:message:user', {
       messageId,
       role: 'user',
-      content,
+      content: textContent,
+      // Include full content for multimodal messages
+      ...(Array.isArray(content) && { parts: content }),
     })
   }
 
@@ -161,7 +179,6 @@ export abstract class ChatClientEventEmitter {
       fromMessageIndex,
     })
   }
-
   /**
    * Emit stopped event
    */

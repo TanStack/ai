@@ -83,7 +83,7 @@ const GEMINI_TTS_MODEL =
 const OLLAMA_MODEL = process.env.OLLAMA_MODEL || 'mistral:7b'
 const OLLAMA_SUMMARY_MODEL = process.env.OLLAMA_SUMMARY_MODEL || OLLAMA_MODEL
 
-const GROK_MODEL = process.env.GROK_MODEL || 'grok-3'
+const GROK_MODEL = process.env.GROK_MODEL || 'grok-4'
 const GROK_SUMMARY_MODEL = process.env.GROK_SUMMARY_MODEL || GROK_MODEL
 const GROK_IMAGE_MODEL = process.env.GROK_IMAGE_MODEL || 'grok-2-image-1212'
 

@@ -9,7 +9,7 @@ title: generateVideo
 function generateVideo<TAdapter>(options): Promise<VideoJobResult>;
 ```
 
-Defined in: [activities/generateVideo/index.ts:158](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/activities/generateVideo/index.ts#L158)
+Defined in: [activities/generateVideo/index.ts:163](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/activities/generateVideo/index.ts#L163)
 
 **`Experimental`**
 

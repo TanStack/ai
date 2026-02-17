@@ -1,6 +1,7 @@
 import Anthropic_SDK from '@anthropic-ai/sdk'
+import type { ClientOptions } from '@anthropic-ai/sdk'
 
-export interface AnthropicClientConfig {
+export interface AnthropicClientConfig extends ClientOptions {
   apiKey: string
 }
 
@@ -11,6 +12,7 @@ export function createAnthropicClient(
   config: AnthropicClientConfig,
 ): Anthropic_SDK {
   return new Anthropic_SDK({
+    ...config,
     apiKey: config.apiKey,
   })
 }

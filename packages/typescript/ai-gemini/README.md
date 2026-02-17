@@ -45,6 +45,7 @@ A powerful, type-safe AI SDK for building AI-powered applications.
 - Headless chat state management with adapters (SSE, HTTP stream, custom)
 - Isomorphic type-safe tools with server/client execution
 - **Enhanced integration with TanStack Start** - Share implementations between AI tools and server functions
+- **Observability events** - Structured, typed events for text, tools, image, speech, transcription, and video ([docs](./docs/guides/observability.md))
 
 ### <a href="https://tanstack.com/ai">Read the docs →</b></a>
 

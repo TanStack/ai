@@ -1,13 +1,13 @@
-import { describe, it, expect, vi } from 'vitest'
 import { waitFor } from '@solidjs/testing-library'
+import type { ModelMessage } from '@tanstack/ai'
+import { describe, expect, it, vi } from 'vitest'
+import type { UIMessage } from '../src/types'
 import {
-  renderUseChat,
   createMockConnectionAdapter,
   createTextChunks,
   createToolCallChunks,
+  renderUseChat,
 } from './test-utils'
-import type { UIMessage } from '../src/types'
-import type { ModelMessage } from '@tanstack/ai'
 
 describe('useChat', () => {
   describe('initialization', () => {
@@ -18,6 +18,7 @@ describe('useChat', () => {
       expect(result.current.messages).toEqual([])
       expect(result.current.isLoading).toBe(false)
       expect(result.current.error).toBeUndefined()
+      expect(result.current.status).toBe('ready')
     })
 
     it('should initialize with provided messages', () => {
@@ -472,6 +473,7 @@ describe('useChat', () => {
       await waitFor(
         () => {
           expect(result.current.isLoading).toBe(false)
+          expect(result.current.status).toBe('ready')
         },
         { timeout: 1000 },
       )
@@ -487,6 +489,7 @@ describe('useChat', () => {
       result.current.stop()
 
       expect(result.current.isLoading).toBe(false)
+      expect(result.current.status).toBe('ready')
     })
 
     it('should clear loading state when stopped', async () => {
@@ -508,12 +511,46 @@ describe('useChat', () => {
       await waitFor(
         () => {
           expect(result.current.isLoading).toBe(false)
+          expect(result.current.status).toBe('ready')
         },
         { timeout: 1000 },
       )
 
       await sendPromise.catch(() => {
         // Ignore errors from stopped request
+      })
+    })
+  })
+
+  describe('status', () => {
+    it('should transition through states during generation', async () => {
+      const chunks = createTextChunks('Response')
+      const adapter = createMockConnectionAdapter({
+        chunks,
+        chunkDelay: 50,
+      })
+      const { result } = renderUseChat({ connection: adapter })
+
+      const sendPromise = result.current.sendMessage('Test')
+
+      // Should leave ready state
+      await waitFor(() => {
+        expect(result.current.status).not.toBe('ready')
+      })
+
+      // Should be submitted or streaming
+      expect(['submitted', 'streaming']).toContain(result.current.status)
+
+      // Should eventually match streaming
+      await waitFor(() => {
+        expect(result.current.status).toBe('streaming')
+      })
+
+      await sendPromise
+
+      // Should return to ready
+      await waitFor(() => {
+        expect(result.current.status).toBe('ready')
       })
     })
   })
@@ -924,6 +961,7 @@ describe('useChat', () => {
 
         expect(result.current.error?.message).toBe('Network request failed')
         expect(result.current.isLoading).toBe(false)
+        expect(result.current.status).toBe('error')
       })
 
       it('should handle stream errors', async () => {
@@ -938,6 +976,7 @@ describe('useChat', () => {
 
         await waitFor(() => {
           expect(result.current.error).toBeDefined()
+          expect(result.current.status).toBe('error')
         })
 
         expect(result.current.error?.message).toBe('Stream error')
@@ -956,6 +995,7 @@ describe('useChat', () => {
 
         await waitFor(() => {
           expect(result.current.error).toBeDefined()
+          expect(result.current.status).toBe('error')
         })
 
         // Switch to working adapter

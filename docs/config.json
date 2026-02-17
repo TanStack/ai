@@ -172,6 +172,10 @@
         {
           "label": "Decart",
           "to": "community-adapters/decart"
+        },
+        {
+          "label": "Soniox",
+          "to": "community-adapters/soniox"
         }
       ]
     },

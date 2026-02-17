@@ -47,8 +47,8 @@ interface MockConnectionAdapterOptions {
  * ```typescript
  * const adapter = createMockConnectionAdapter({
  *   chunks: [
- *     { type: "content", id: "1", model: "test", timestamp: Date.now(), delta: "Hello", content: "Hello", role: "assistant" },
- *     { type: "done", id: "1", model: "test", timestamp: Date.now(), finishReason: "stop" }
+ *     { type: "TEXT_MESSAGE_CONTENT", messageId: "1", model: "test", timestamp: Date.now(), delta: "Hello", content: "Hello" },
+ *     { type: "RUN_FINISHED", runId: "run-1", model: "test", timestamp: Date.now(), finishReason: "stop" }
  *   ]
  * });
  * ```
@@ -108,7 +108,7 @@ export function createMockConnectionAdapter(
 }
 
 /**
- * Helper to create simple text content chunks
+ * Helper to create simple text content chunks (AG-UI format)
  */
 export function createTextChunks(
   text: string,
@@ -117,34 +117,34 @@ export function createTextChunks(
 ): Array<StreamChunk> {
   const chunks: Array<StreamChunk> = []
   let accumulated = ''
+  const runId = `run-${messageId}`
 
   for (const chunk of text) {
     accumulated += chunk
     chunks.push({
-      type: 'content',
-      id: messageId,
+      type: 'TEXT_MESSAGE_CONTENT',
+      messageId,
       model,
       timestamp: Date.now(),
       delta: chunk,
       content: accumulated,
-      role: 'assistant',
-    } as StreamChunk)
+    })
   }
 
   chunks.push({
-    type: 'done',
-    id: messageId,
+    type: 'RUN_FINISHED',
+    runId,
     model,
     timestamp: Date.now(),
     finishReason: 'stop',
-  } as StreamChunk)
+  })
 
   return chunks
 }
 
 /**
- * Helper to create tool call chunks (in adapter format)
- * Optionally includes tool-input-available chunks to trigger onToolInputAvailable
+ * Helper to create tool call chunks (AG-UI format)
+ * Optionally includes tool-input-available chunks to trigger onToolCall
  */
 export function createToolCallChunks(
   toolCalls: Array<{ id: string; name: string; arguments: string }>,
@@ -153,59 +153,66 @@ export function createToolCallChunks(
   includeToolInputAvailable: boolean = true,
 ): Array<StreamChunk> {
   const chunks: Array<StreamChunk> = []
+  const runId = `run-${messageId}`
 
   for (let i = 0; i < toolCalls.length; i++) {
-    const toolCall = toolCalls[i]
+    const toolCall = toolCalls[i]!
+
+    // TOOL_CALL_START event
     chunks.push({
-      type: 'tool_call',
-      id: messageId,
+      type: 'TOOL_CALL_START',
+      toolCallId: toolCall.id,
+      toolName: toolCall.name,
       model,
       timestamp: Date.now(),
       index: i,
-      toolCall: {
-        id: toolCall?.id,
-        type: 'function',
-        function: {
-          name: toolCall?.name,
-          arguments: toolCall?.arguments,
-        },
-      },
-    } as StreamChunk)
+    })
 
-    // Add tool-input-available chunk if requested
+    // TOOL_CALL_ARGS event
+    chunks.push({
+      type: 'TOOL_CALL_ARGS',
+      toolCallId: toolCall.id,
+      model,
+      timestamp: Date.now(),
+      delta: toolCall.arguments,
+    })
+
+    // Add tool-input-available CUSTOM chunk if requested
     if (includeToolInputAvailable) {
       let parsedInput: any
       try {
-        parsedInput = JSON.parse(toolCall?.arguments ?? '')
+        parsedInput = JSON.parse(toolCall.arguments)
       } catch {
-        parsedInput = toolCall?.arguments
+        parsedInput = toolCall.arguments
       }
 
       chunks.push({
-        type: 'tool-input-available',
-        id: messageId,
+        type: 'CUSTOM',
         model,
         timestamp: Date.now(),
-        toolCallId: toolCall?.id,
-        toolName: toolCall?.name,
-        input: parsedInput,
-      } as StreamChunk)
+        name: 'tool-input-available',
+        data: {
+          toolCallId: toolCall.id,
+          toolName: toolCall.name,
+          input: parsedInput,
+        },
+      })
     }
   }
 
   chunks.push({
-    type: 'done',
-    id: messageId,
+    type: 'RUN_FINISHED',
+    runId,
     model,
     timestamp: Date.now(),
-    finishReason: 'stop',
-  } as StreamChunk)
+    finishReason: 'tool_calls',
+  })
 
   return chunks
 }
 
 /**
- * Helper to create thinking chunks
+ * Helper to create thinking chunks (AG-UI format using STEP_FINISHED for thinking)
  */
 export function createThinkingChunks(
   thinkingContent: string,
@@ -215,18 +222,20 @@ export function createThinkingChunks(
 ): Array<StreamChunk> {
   const chunks: Array<StreamChunk> = []
   let accumulatedThinking = ''
+  const runId = `run-${messageId}`
+  const stepId = `step-${messageId}`
 
-  // Add thinking chunks
+  // Add thinking chunks via STEP_FINISHED events
   for (const chunk of thinkingContent) {
     accumulatedThinking += chunk
     chunks.push({
-      type: 'thinking',
-      id: messageId,
+      type: 'STEP_FINISHED',
+      stepId,
       model,
       timestamp: Date.now(),
       delta: chunk,
       content: accumulatedThinking,
-    } as StreamChunk)
+    })
   }
 
   // Optionally add text content after thinking
@@ -235,24 +244,23 @@ export function createThinkingChunks(
     for (const chunk of textContent) {
       accumulatedText += chunk
       chunks.push({
-        type: 'content',
-        id: messageId,
+        type: 'TEXT_MESSAGE_CONTENT',
+        messageId,
         model,
         timestamp: Date.now(),
         delta: chunk,
         content: accumulatedText,
-        role: 'assistant',
-      } as StreamChunk)
+      })
     }
   }
 
   chunks.push({
-    type: 'done',
-    id: messageId,
+    type: 'RUN_FINISHED',
+    runId,
     model,
     timestamp: Date.now(),
     finishReason: 'stop',
-  } as StreamChunk)
+  })
 
   return chunks
 }

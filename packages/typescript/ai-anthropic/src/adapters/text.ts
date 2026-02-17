@@ -135,8 +135,7 @@ export class AnthropicTextAdapter<
     } catch (error: unknown) {
       const err = error as Error & { status?: number; code?: string }
       yield {
-        type: 'error',
-        id: generateId(this.name),
+        type: 'RUN_ERROR',
         model: options.model,
         timestamp: Date.now(),
         error: {
@@ -248,6 +247,7 @@ export class AnthropicTextAdapter<
       const validKeys: Array<keyof InternalTextProviderOptions> = [
         'container',
         'context_management',
+        'effort',
         'mcp_servers',
         'service_tier',
         'stop_sequences',
@@ -314,17 +314,20 @@ export class AnthropicTextAdapter<
             ? {
                 type: 'base64',
                 data: part.source.value,
-                media_type: metadata?.mediaType ?? 'image/jpeg',
+                media_type: part.source.mimeType as
+                  | 'image/jpeg'
+                  | 'image/png'
+                  | 'image/gif'
+                  | 'image/webp',
               }
             : {
                 type: 'url',
                 url: part.source.value,
               }
-        const { mediaType: _mediaType, ...meta } = metadata || {}
         return {
           type: 'image',
           source: imageSource,
-          ...meta,
+          ...metadata,
         }
       }
       case 'document': {
@@ -334,7 +337,7 @@ export class AnthropicTextAdapter<
             ? {
                 type: 'base64',
                 data: part.source.value,
-                media_type: 'application/pdf',
+                media_type: part.source.mimeType as 'application/pdf',
               }
             : {
                 type: 'url',
@@ -399,9 +402,10 @@ export class AnthropicTextAdapter<
         for (const toolCall of message.toolCalls) {
           let parsedInput: unknown = {}
           try {
-            parsedInput = toolCall.function.arguments
+            const parsed = toolCall.function.arguments
               ? JSON.parse(toolCall.function.arguments)
               : {}
+            parsedInput = parsed && typeof parsed === 'object' ? parsed : {}
           } catch {
             parsedInput = toolCall.function.arguments
           }
@@ -447,7 +451,74 @@ export class AnthropicTextAdapter<
       })
     }
 
-    return formattedMessages
+    // Post-process: Anthropic requires strictly alternating user/assistant roles.
+    // Tool results are sent as role:'user' messages, which can create consecutive
+    // user messages when followed by a new user message. Merge them.
+    return this.mergeConsecutiveSameRoleMessages(formattedMessages)
+  }
+
+  /**
+   * Merge consecutive messages of the same role into a single message.
+   * Anthropic's API requires strictly alternating user/assistant roles.
+   * Tool results are wrapped as role:'user' messages, which can collide
+   * with actual user messages in multi-turn conversations.
+   *
+   * Also filters out empty assistant messages (e.g., from a previous failed request).
+   */
+  private mergeConsecutiveSameRoleMessages(
+    messages: InternalTextProviderOptions['messages'],
+  ): InternalTextProviderOptions['messages'] {
+    const merged: InternalTextProviderOptions['messages'] = []
+
+    for (const msg of messages) {
+      // Skip empty assistant messages (no content or empty string)
+      if (msg.role === 'assistant') {
+        const hasContent = Array.isArray(msg.content)
+          ? msg.content.length > 0
+          : typeof msg.content === 'string' && msg.content.length > 0
+        if (!hasContent) {
+          continue
+        }
+      }
+
+      const prev = merged[merged.length - 1]
+      if (prev && prev.role === msg.role) {
+        // Normalize both contents to arrays and concatenate
+        const prevBlocks = Array.isArray(prev.content)
+          ? prev.content
+          : typeof prev.content === 'string' && prev.content
+            ? [{ type: 'text' as const, text: prev.content }]
+            : []
+        const msgBlocks = Array.isArray(msg.content)
+          ? msg.content
+          : typeof msg.content === 'string' && msg.content
+            ? [{ type: 'text' as const, text: msg.content }]
+            : []
+        prev.content = [...prevBlocks, ...msgBlocks]
+      } else {
+        merged.push({ ...msg })
+      }
+    }
+
+    // De-duplicate tool_result blocks with the same tool_use_id.
+    // This can happen when the core layer generates tool results from both
+    // the tool-result part and the tool-call part's output field.
+    for (const msg of merged) {
+      if (Array.isArray(msg.content)) {
+        const seenToolResultIds = new Set<string>()
+        msg.content = msg.content.filter((block: any) => {
+          if (block.type === 'tool_result' && block.tool_use_id) {
+            if (seenToolResultIds.has(block.tool_use_id)) {
+              return false // Remove duplicate
+            }
+            seenToolResultIds.add(block.tool_use_id)
+          }
+          return true
+        })
+      }
+    }
+
+    return merged
   }
 
   private async *processAnthropicStream(
@@ -460,43 +531,86 @@ export class AnthropicTextAdapter<
     const timestamp = Date.now()
     const toolCallsMap = new Map<
       number,
-      { id: string; name: string; input: string }
+      { id: string; name: string; input: string; started: boolean }
     >()
     let currentToolIndex = -1
 
+    // AG-UI lifecycle tracking
+    const runId = genId()
+    const messageId = genId()
+    let stepId: string | null = null
+    let hasEmittedRunStarted = false
+    let hasEmittedTextMessageStart = false
+    let hasEmittedRunFinished = false
+    // Track current content block type for proper content_block_stop handling
+    let currentBlockType: string | null = null
+
     try {
       for await (const event of stream) {
+        // Emit RUN_STARTED on first event
+        if (!hasEmittedRunStarted) {
+          hasEmittedRunStarted = true
+          yield {
+            type: 'RUN_STARTED',
+            runId,
+            model,
+            timestamp,
+          }
+        }
+
         if (event.type === 'content_block_start') {
+          currentBlockType = event.content_block.type
           if (event.content_block.type === 'tool_use') {
             currentToolIndex++
             toolCallsMap.set(currentToolIndex, {
               id: event.content_block.id,
               name: event.content_block.name,
               input: '',
+              started: false,
             })
           } else if (event.content_block.type === 'thinking') {
             accumulatedThinking = ''
+            // Emit STEP_STARTED for thinking
+            stepId = genId()
+            yield {
+              type: 'STEP_STARTED',
+              stepId,
+              model,
+              timestamp,
+              stepType: 'thinking',
+            }
           }
         } else if (event.type === 'content_block_delta') {
           if (event.delta.type === 'text_delta') {
+            // Emit TEXT_MESSAGE_START on first text content
+            if (!hasEmittedTextMessageStart) {
+              hasEmittedTextMessageStart = true
+              yield {
+                type: 'TEXT_MESSAGE_START',
+                messageId,
+                model,
+                timestamp,
+                role: 'assistant',
+              }
+            }
+
             const delta = event.delta.text
             accumulatedContent += delta
             yield {
-              type: 'content',
-              id: genId(),
-              model: model,
+              type: 'TEXT_MESSAGE_CONTENT',
+              messageId,
+              model,
               timestamp,
               delta,
               content: accumulatedContent,
-              role: 'assistant',
             }
           } else if (event.delta.type === 'thinking_delta') {
             const delta = event.delta.thinking
             accumulatedThinking += delta
             yield {
-              type: 'thinking',
-              id: genId(),
-              model: model,
+              type: 'STEP_FINISHED',
+              stepId: stepId || genId(),
+              model,
               timestamp,
               delta,
               content: accumulatedThinking,
@@ -504,60 +618,103 @@ export class AnthropicTextAdapter<
           } else if (event.delta.type === 'input_json_delta') {
             const existing = toolCallsMap.get(currentToolIndex)
             if (existing) {
+              // Emit TOOL_CALL_START on first args delta
+              if (!existing.started) {
+                existing.started = true
+                yield {
+                  type: 'TOOL_CALL_START',
+                  toolCallId: existing.id,
+                  toolName: existing.name,
+                  model,
+                  timestamp,
+                  index: currentToolIndex,
+                }
+              }
+
               existing.input += event.delta.partial_json
 
               yield {
-                type: 'tool_call',
-                id: genId(),
-                model: model,
+                type: 'TOOL_CALL_ARGS',
+                toolCallId: existing.id,
+                model,
                 timestamp,
-                toolCall: {
-                  id: existing.id,
-                  type: 'function',
-                  function: {
-                    name: existing.name,
-                    arguments: event.delta.partial_json,
-                  },
-                },
-                index: currentToolIndex,
+                delta: event.delta.partial_json,
+                args: existing.input,
               }
             }
           }
         } else if (event.type === 'content_block_stop') {
-          const existing = toolCallsMap.get(currentToolIndex)
-          if (existing && existing.input === '') {
-            yield {
-              type: 'tool_call',
-              id: genId(),
-              model: model,
-              timestamp,
-              toolCall: {
-                id: existing.id,
-                type: 'function',
-                function: {
-                  name: existing.name,
-                  arguments: '{}',
-                },
-              },
-              index: currentToolIndex,
+          if (currentBlockType === 'tool_use') {
+            const existing = toolCallsMap.get(currentToolIndex)
+            if (existing) {
+              // If tool call wasn't started yet (no args), start it now
+              if (!existing.started) {
+                existing.started = true
+                yield {
+                  type: 'TOOL_CALL_START',
+                  toolCallId: existing.id,
+                  toolName: existing.name,
+                  model,
+                  timestamp,
+                  index: currentToolIndex,
+                }
+              }
+
+              // Emit TOOL_CALL_END
+              let parsedInput: unknown = {}
+              try {
+                const parsed = existing.input ? JSON.parse(existing.input) : {}
+                parsedInput = parsed && typeof parsed === 'object' ? parsed : {}
+              } catch {
+                parsedInput = {}
+              }
+
+              yield {
+                type: 'TOOL_CALL_END',
+                toolCallId: existing.id,
+                toolName: existing.name,
+                model,
+                timestamp,
+                input: parsedInput,
+              }
+
+              // Reset so a new TEXT_MESSAGE_START is emitted if text follows tool calls
+              hasEmittedTextMessageStart = false
+            }
+          } else {
+            // Emit TEXT_MESSAGE_END only for text blocks (not tool_use blocks)
+            if (hasEmittedTextMessageStart && accumulatedContent) {
+              yield {
+                type: 'TEXT_MESSAGE_END',
+                messageId,
+                model,
+                timestamp,
+              }
             }
           }
+          currentBlockType = null
         } else if (event.type === 'message_stop') {
-          yield {
-            type: 'done',
-            id: genId(),
-            model: model,
-            timestamp,
-            finishReason: 'stop',
+          // Only emit RUN_FINISHED from message_stop if message_delta didn't already emit one.
+          // message_delta carries the real stop_reason (tool_use, end_turn, etc.),
+          // while message_stop is just a completion signal.
+          if (!hasEmittedRunFinished) {
+            yield {
+              type: 'RUN_FINISHED',
+              runId,
+              model,
+              timestamp,
+              finishReason: 'stop',
+            }
           }
         } else if (event.type === 'message_delta') {
           if (event.delta.stop_reason) {
+            hasEmittedRunFinished = true
             switch (event.delta.stop_reason) {
               case 'tool_use': {
                 yield {
-                  type: 'done',
-                  id: genId(),
-                  model: model,
+                  type: 'RUN_FINISHED',
+                  runId,
+                  model,
                   timestamp,
                   finishReason: 'tool_calls',
                   usage: {
@@ -572,9 +729,9 @@ export class AnthropicTextAdapter<
               }
               case 'max_tokens': {
                 yield {
-                  type: 'error',
-                  id: genId(),
-                  model: model,
+                  type: 'RUN_ERROR',
+                  runId,
+                  model,
                   timestamp,
                   error: {
                     message:
@@ -586,9 +743,9 @@ export class AnthropicTextAdapter<
               }
               default: {
                 yield {
-                  type: 'done',
-                  id: genId(),
-                  model: model,
+                  type: 'RUN_FINISHED',
+                  runId,
+                  model,
                   timestamp,
                   finishReason: 'stop',
                   usage: {
@@ -608,9 +765,9 @@ export class AnthropicTextAdapter<
       const err = error as Error & { status?: number; code?: string }
 
       yield {
-        type: 'error',
-        id: genId(),
-        model: model,
+        type: 'RUN_ERROR',
+        runId,
+        model,
         timestamp,
         error: {
           message: err.message || 'Unknown error occurred',
