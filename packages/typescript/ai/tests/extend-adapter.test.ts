@@ -91,20 +91,19 @@ class MockTextAdapter<TModel extends MockModel> extends BaseTextAdapter<
     _options: TextOptions<ResolveProviderOptions<TModel>>,
   ): AsyncIterable<StreamChunk> {
     yield {
-      type: 'content',
-      model: this.model,
-      id: 'mock-id',
+      type: 'TEXT_MESSAGE_CONTENT',
+      messageId: 'mock-id',
       timestamp: Date.now(),
       delta: 'Hello',
       content: 'Hello',
-      role: 'assistant',
+      model: this.model,
     }
     yield {
-      type: 'done',
-      model: this.model,
-      id: 'mock-id',
+      type: 'RUN_FINISHED',
+      runId: 'mock-id',
       timestamp: Date.now(),
       finishReason: 'stop',
+      model: this.model,
     }
   }
   /* eslint-enable @typescript-eslint/require-await */

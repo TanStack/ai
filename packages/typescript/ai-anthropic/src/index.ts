@@ -18,8 +18,7 @@ export {
   createAnthropicSummarize,
   type AnthropicSummarizeConfig,
   type AnthropicSummarizeProviderOptions,
-} from './adapters/summarize'
-export { ANTHROPIC_MODELS } from './model-meta'
+} from './adapters/summarize' 
 // ============================================================================
 // Type Exports
 // ============================================================================
