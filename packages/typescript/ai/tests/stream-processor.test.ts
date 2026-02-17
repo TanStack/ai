@@ -1189,7 +1189,9 @@ describe('StreamProcessor', () => {
 
       processor.processChunk(ev.custom('event-1', { step: 1 }))
       processor.processChunk(ev.custom('event-2', { step: 2 }))
-      processor.processChunk(ev.custom('event-3', { step: 3, toolCallId: 'tc-1' }))
+      processor.processChunk(
+        ev.custom('event-3', { step: 3, toolCallId: 'tc-1' }),
+      )
 
       expect(events.onCustomEvent).toHaveBeenCalledTimes(3)
       expect(events.onCustomEvent).toHaveBeenNthCalledWith(

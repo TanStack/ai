@@ -907,7 +907,10 @@ describe('ChatClient', () => {
     it('should call onCustomEvent callback for arbitrary custom events', async () => {
       const chunks = createCustomEventChunks([
         { name: 'progress-update', data: { progress: 50, step: 'processing' } },
-        { name: 'tool-status', data: { toolCallId: 'tc-1', status: 'running' } },
+        {
+          name: 'tool-status',
+          data: { toolCallId: 'tc-1', status: 'running' },
+        },
       ])
       const adapter = createMockConnectionAdapter({ chunks })
 
@@ -935,7 +938,11 @@ describe('ChatClient', () => {
       const chunks = createCustomEventChunks([
         {
           name: 'external-api-call',
-          data: { toolCallId: 'tc-123', url: 'https://api.example.com', method: 'POST' },
+          data: {
+            toolCallId: 'tc-123',
+            url: 'https://api.example.com',
+            method: 'POST',
+          },
         },
       ])
       const adapter = createMockConnectionAdapter({ chunks })
@@ -947,15 +954,17 @@ describe('ChatClient', () => {
 
       expect(onCustomEvent).toHaveBeenCalledWith(
         'external-api-call',
-        { toolCallId: 'tc-123', url: 'https://api.example.com', method: 'POST' },
+        {
+          toolCallId: 'tc-123',
+          url: 'https://api.example.com',
+          method: 'POST',
+        },
         { toolCallId: 'tc-123' },
       )
     })
 
     it('should handle custom events with no data', async () => {
-      const chunks = createCustomEventChunks([
-        { name: 'simple-notification' },
-      ])
+      const chunks = createCustomEventChunks([{ name: 'simple-notification' }])
       const adapter = createMockConnectionAdapter({ chunks })
 
       const onCustomEvent = vi.fn()

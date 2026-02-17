@@ -6,7 +6,7 @@ import { z } from 'zod'
 describe('Custom Events Integration', () => {
   it('should emit custom events from tool execution context', async () => {
     const onCustomEvent = vi.fn()
-    
+
     // Create a test tool that emits custom events
     const testTool = toolDefinition({
       name: 'testTool',
@@ -21,24 +21,24 @@ describe('Custom Events Integration', () => {
         progress: 25,
         message: 'Starting processing...',
       })
-      
+
       // Simulate some work
-      await new Promise(resolve => setTimeout(resolve, 10))
-      
+      await new Promise((resolve) => setTimeout(resolve, 10))
+
       // Emit another progress event
       context?.emitCustomEvent('tool:progress', {
-        tool: 'testTool', 
+        tool: 'testTool',
         progress: 75,
         message: 'Almost done...',
       })
-      
+
       // Emit completion event
       context?.emitCustomEvent('tool:complete', {
         tool: 'testTool',
         result: 'success',
         duration: 20,
       })
-      
+
       return { processed: args.message }
     })
 
@@ -54,7 +54,7 @@ describe('Custom Events Integration', () => {
         onTextUpdate: vi.fn(),
         onToolCallStateChange: vi.fn(),
         onThinkingUpdate: vi.fn(),
-      }
+      },
     })
 
     // Prepare assistant message
@@ -97,39 +97,55 @@ describe('Custom Events Integration', () => {
             data: { ...data, toolCallId: 'tc-1' },
             timestamp: Date.now(),
           })
-        }
+        },
       }
-      
+
       await toolExecuteFunc({ message: 'Hello World' }, mockContext)
     }
 
     // Verify custom events were emitted
     expect(onCustomEvent).toHaveBeenCalledTimes(3)
-    
-    expect(onCustomEvent).toHaveBeenNthCalledWith(1, 'tool:progress', 
-      { tool: 'testTool', progress: 25, message: 'Starting processing...', toolCallId: 'tc-1' },
-      { toolCallId: 'tc-1' }
+
+    expect(onCustomEvent).toHaveBeenNthCalledWith(
+      1,
+      'tool:progress',
+      {
+        tool: 'testTool',
+        progress: 25,
+        message: 'Starting processing...',
+        toolCallId: 'tc-1',
+      },
+      { toolCallId: 'tc-1' },
     )
-    
-    expect(onCustomEvent).toHaveBeenNthCalledWith(2, 'tool:progress',
-      { tool: 'testTool', progress: 75, message: 'Almost done...', toolCallId: 'tc-1' },
-      { toolCallId: 'tc-1' }
+
+    expect(onCustomEvent).toHaveBeenNthCalledWith(
+      2,
+      'tool:progress',
+      {
+        tool: 'testTool',
+        progress: 75,
+        message: 'Almost done...',
+        toolCallId: 'tc-1',
+      },
+      { toolCallId: 'tc-1' },
     )
-    
-    expect(onCustomEvent).toHaveBeenNthCalledWith(3, 'tool:complete',
+
+    expect(onCustomEvent).toHaveBeenNthCalledWith(
+      3,
+      'tool:complete',
       { tool: 'testTool', result: 'success', duration: 20, toolCallId: 'tc-1' },
-      { toolCallId: 'tc-1' }
+      { toolCallId: 'tc-1' },
     )
   })
 
   it('should handle custom events without toolCallId in context', async () => {
     const onCustomEvent = vi.fn()
-    
+
     const processor = new StreamProcessor({
       events: {
         onCustomEvent,
         onMessagesChange: vi.fn(),
-        onStreamStart: vi.fn(), 
+        onStreamStart: vi.fn(),
         onStreamEnd: vi.fn(),
         onError: vi.fn(),
         onToolCall: vi.fn(),
@@ -137,7 +153,7 @@ describe('Custom Events Integration', () => {
         onTextUpdate: vi.fn(),
         onToolCallStateChange: vi.fn(),
         onThinkingUpdate: vi.fn(),
-      }
+      },
     })
 
     // Emit custom event without toolCallId
@@ -151,7 +167,7 @@ describe('Custom Events Integration', () => {
     expect(onCustomEvent).toHaveBeenCalledWith(
       'system:status',
       { status: 'ready', version: '1.0.0' },
-      { toolCallId: undefined }
+      { toolCallId: undefined },
     )
   })
 
@@ -159,7 +175,7 @@ describe('Custom Events Integration', () => {
     const onCustomEvent = vi.fn()
     const onToolCall = vi.fn()
     const onApprovalRequest = vi.fn()
-    
+
     const processor = new StreamProcessor({
       events: {
         onCustomEvent,
@@ -172,7 +188,7 @@ describe('Custom Events Integration', () => {
         onTextUpdate: vi.fn(),
         onToolCallStateChange: vi.fn(),
         onThinkingUpdate: vi.fn(),
-      }
+      },
     })
 
     processor.prepareAssistantMessage()
@@ -189,7 +205,7 @@ describe('Custom Events Integration', () => {
       timestamp: Date.now(),
     })
 
-    // System event: approval-requested  
+    // System event: approval-requested
     processor.processChunk({
       type: 'CUSTOM',
       name: 'approval-requested',
@@ -213,13 +229,13 @@ describe('Custom Events Integration', () => {
     // System events should trigger their specific handlers, not onCustomEvent
     expect(onToolCall).toHaveBeenCalledTimes(1)
     expect(onApprovalRequest).toHaveBeenCalledTimes(1)
-    
+
     // Only the user custom event should be forwarded
     expect(onCustomEvent).toHaveBeenCalledTimes(1)
     expect(onCustomEvent).toHaveBeenCalledWith(
       'user:custom-event',
       { message: 'This should be forwarded' },
-      { toolCallId: undefined }
+      { toolCallId: undefined },
     )
   })
 })
