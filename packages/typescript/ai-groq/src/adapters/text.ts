@@ -312,6 +312,10 @@ export class GroqTextAdapter<
             toolCallsInProgress.size > 0
           ) {
             for (const [, toolCall] of toolCallsInProgress) {
+              if (!toolCall.started || !toolCall.id || !toolCall.name) {
+                continue
+              }
+
               let parsedInput: unknown = {}
               try {
                 parsedInput = toolCall.arguments
