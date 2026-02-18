@@ -87,7 +87,7 @@ const LLAMA_4_SCOUT_17B_16E_INSTRUCT = {
     },
   },
   supports: {
-    input: ['text'],
+    input: ['text', 'image'],
     output: ['text'],
     endpoints: ['chat'],
     features: ['streaming', 'tools', 'json_object'],
