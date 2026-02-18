@@ -236,7 +236,7 @@ const GPT_OSS_SAFEGUARD_20B = {
 const GPT_OSS_20B = {
   name: 'openai/gpt-oss-20b',
   context_window: 131_072,
-  max_completion_tokens: 65536,
+  max_completion_tokens: 65_536,
   pricing: {
     input: {
       normal: 0.075,
@@ -257,6 +257,7 @@ const GPT_OSS_20B = {
       'json_object',
       'json_schema',
       'reasoning',
+      'tools'
     ],
   },
 } as const satisfies ModelMeta<GroqTextProviderOptions>
