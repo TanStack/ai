@@ -278,7 +278,7 @@ const KIMI_K2_INSTRUCT_0905 = {
     input: ['text'],
     output: ['text'],
     endpoints: ['chat'],
-    features: ['streaming', 'json_object', 'json_schema'],
+    features: ['streaming', 'tools', 'json_object', 'json_schema'],
   },
 } as const satisfies ModelMeta<GroqTextProviderOptions>
 
