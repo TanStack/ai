@@ -170,6 +170,10 @@
           "to": "community-adapters/cencori"
         },
         {
+          "label": "Cloudflare",
+          "to": "community-adapters/cloudflare"
+        },
+        {
           "label": "Decart",
           "to": "community-adapters/decart"
         },

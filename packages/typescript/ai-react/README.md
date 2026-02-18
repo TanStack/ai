@@ -47,7 +47,7 @@ A powerful, type-safe AI SDK for building AI-powered applications.
 - **Enhanced integration with TanStack Start** - Share implementations between AI tools and server functions
 - **Observability events** - Structured, typed events for text, tools, image, speech, transcription, and video ([docs](./docs/guides/observability.md))
 
-### <a href="https://tanstack.com/ai">Read the docs →</b></a>
+### <a href="https://tanstack.com/ai">Read the docs →</a>
 
 ## Tree-Shakeable Adapters
 
