@@ -336,7 +336,9 @@ export class GroqTextAdapter<
             choice.finish_reason === 'tool_calls' ||
               toolCallsInProgress.size > 0
               ? 'tool_calls'
-              : 'stop'
+              : choice.finish_reason === 'length'
+                ? 'length'
+                : 'stop'
 
           if (hasEmittedTextMessageStart) {
             yield {
