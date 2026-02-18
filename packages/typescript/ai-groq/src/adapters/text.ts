@@ -18,7 +18,7 @@ import type {
   StructuredOutputResult,
 } from '@tanstack/ai/adapters'
 import type GROQ_SDK from 'groq-sdk'
-import type { ChatCompletionCreateParamsStreaming, ChatCompletionTool } from 'groq-sdk/resources/chat/completions'
+import type { ChatCompletionCreateParamsStreaming } from 'groq-sdk/resources/chat/completions'
 import type {
   ContentPart,
   ModelMessage,
@@ -27,6 +27,7 @@ import type {
 } from '@tanstack/ai'
 import type { InternalTextProviderOptions } from '../text/text-provider-options'
 import type {
+  ChatCompletionContentPart,
   ChatCompletionMessageParam,
   GroqImageMetadata,
   GroqMessageMetadataByModality,
@@ -84,10 +85,10 @@ export class GroqTextAdapter<
       const stream = await this.client.chat.completions.create({
         ...requestParams,
         stream: true,
-      } as ChatCompletionCreateParamsStreaming)
+      })
 
       yield* this.processGroqStreamChunks(
-        stream as AsyncIterable<GROQ_SDK.Chat.ChatCompletionChunk>,
+        stream,
         options,
         aguiState,
       )
@@ -424,7 +425,7 @@ export class GroqTextAdapter<
       temperature: options.temperature,
       max_tokens: options.maxTokens,
       top_p: options.topP,
-      tools: tools as Array<ChatCompletionTool>,
+      tools,
       stream: true,
     }
   }
@@ -476,10 +477,7 @@ export class GroqTextAdapter<
       }
     }
 
-    const parts: Array<
-      | { type: 'text'; text: string }
-      | { type: 'image_url'; image_url: { url: string; detail?: string } }
-    > = []
+    const parts: Array<ChatCompletionContentPart> = []
     for (const part of contentParts) {
       if (part.type === 'text') {
         parts.push({ type: 'text', text: part.content })
@@ -502,7 +500,7 @@ export class GroqTextAdapter<
 
     return {
       role: 'user',
-      content: parts.length > 0 ? (parts as any) : '',
+      content: parts.length > 0 ? parts : '',
     }
   }
 
