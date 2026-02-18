@@ -299,7 +299,7 @@ const QWEN3_32B = {
     input: ['text'],
     output: ['text'],
     endpoints: ['chat'],
-    features: ['streaming', 'tools', 'reasoning'],
+    features: ['streaming', 'json_object', 'tools', 'reasoning'],
   },
 } as const satisfies ModelMeta<GroqTextProviderOptions>
 
