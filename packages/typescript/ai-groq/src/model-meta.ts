@@ -318,7 +318,7 @@ export const GROQ_CHAT_MODELS = [
   GPT_OSS_SAFEGUARD_20B.name,
   KIMI_K2_INSTRUCT_0905.name,
   QWEN3_32B.name,
-]
+] as const
 
 /**
  * Union type of all supported Groq chat model names.
