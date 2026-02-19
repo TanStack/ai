@@ -1,11 +1,11 @@
 import type {
+  AnyClientTool,
   AudioVisualization,
   RealtimeMessage,
   RealtimeMode,
   RealtimeStatus,
   RealtimeToken,
 } from '@tanstack/ai'
-import type { AnyClientTool } from '@tanstack/ai'
 import type {
   RealtimeClientOptions,
   RealtimeClientState,

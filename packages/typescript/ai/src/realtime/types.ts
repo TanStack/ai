@@ -57,7 +57,7 @@ export interface RealtimeTokenAdapter {
   /** Provider identifier */
   provider: string
   /** Generate an ephemeral token for client use */
-  generateToken(): Promise<RealtimeToken>
+  generateToken: () => Promise<RealtimeToken>
 }
 
 /**
@@ -176,14 +176,14 @@ export interface AudioVisualization {
   readonly outputLevel: number
 
   /** Get frequency data for input audio visualization */
-  getInputFrequencyData(): Uint8Array
+  getInputFrequencyData: () => Uint8Array
   /** Get frequency data for output audio visualization */
-  getOutputFrequencyData(): Uint8Array
+  getOutputFrequencyData: () => Uint8Array
 
   /** Get time domain data for input waveform */
-  getInputTimeDomainData(): Uint8Array
+  getInputTimeDomainData: () => Uint8Array
   /** Get time domain data for output waveform */
-  getOutputTimeDomainData(): Uint8Array
+  getOutputTimeDomainData: () => Uint8Array
 
   /** Input sample rate */
   readonly inputSampleRate: number
@@ -191,13 +191,13 @@ export interface AudioVisualization {
   readonly outputSampleRate: number
 
   /** Subscribe to raw input audio samples */
-  onInputAudio?(
+  onInputAudio?: (
     callback: (samples: Float32Array, sampleRate: number) => void,
-  ): () => void
+  ) => () => void
   /** Subscribe to raw output audio samples */
-  onOutputAudio?(
+  onOutputAudio?: (
     callback: (samples: Float32Array, sampleRate: number) => void,
-  ): () => void
+  ) => () => void
 }
 
 // ============================================================================
@@ -238,8 +238,8 @@ export interface RealtimeEventPayloads {
 /**
  * Handler type for realtime events
  */
-export type RealtimeEventHandler<E extends RealtimeEvent> = (
-  payload: RealtimeEventPayloads[E],
+export type RealtimeEventHandler<TEvent extends RealtimeEvent> = (
+  payload: RealtimeEventPayloads[TEvent],
 ) => void
 
 // ============================================================================

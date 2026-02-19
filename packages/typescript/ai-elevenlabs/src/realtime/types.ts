@@ -53,10 +53,3 @@ export interface ElevenLabsClientTool<TParams = unknown, TResult = unknown> {
   /** Tool handler function */
   handler: (params: TParams) => Promise<TResult> | TResult
 }
-
-/**
- * ElevenLabs signed URL response
- */
-export interface ElevenLabsSignedUrlResponse {
-  signed_url: string
-}

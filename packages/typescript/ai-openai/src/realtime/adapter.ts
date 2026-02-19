@@ -88,9 +88,9 @@ async function createWebRTCConnection(
   const emptyTimeDomainData = new Uint8Array(2048).fill(128) // 128 is silence
 
   // Helper to emit events (defined early so it can be used during setup)
-  function emit<E extends RealtimeEvent>(
-    event: E,
-    payload: Parameters<RealtimeEventHandler<E>>[0],
+  function emit<TEvent extends RealtimeEvent>(
+    event: TEvent,
+    payload: Parameters<RealtimeEventHandler<TEvent>>[0],
   ) {
     const handlers = eventHandlers.get(event)
     if (handlers) {
@@ -264,7 +264,7 @@ async function createWebRTCConnection(
         // Emit message complete if we have a current message
         if (currentMessageId) {
           const response = event.response as Record<string, unknown>
-          const output = response.output as Array<Record<string, unknown>>
+          const output = response.output as Array<Record<string, unknown>> | undefined
           
           const message: RealtimeMessage = {
             id: currentMessageId,
@@ -495,9 +495,9 @@ async function createWebRTCConnection(
       emit('interrupted', { messageId: currentMessageId ?? undefined })
     },
 
-    on<E extends RealtimeEvent>(
-      event: E,
-      handler: RealtimeEventHandler<E>,
+    on<TEvent extends RealtimeEvent>(
+      event: TEvent,
+      handler: RealtimeEventHandler<TEvent>,
     ): () => void {
       if (!eventHandlers.has(event)) {
         eventHandlers.set(event, new Set())

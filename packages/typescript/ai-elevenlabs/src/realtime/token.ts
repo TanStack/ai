@@ -8,7 +8,7 @@ const ELEVENLABS_API_URL = 'https://api.elevenlabs.io/v1'
  */
 function getElevenLabsApiKey(): string {
   // Check process.env (Node.js)
-  if (typeof process !== 'undefined' && process.env?.ELEVENLABS_API_KEY) {
+  if (typeof process !== 'undefined' && process.env.ELEVENLABS_API_KEY) {
     return process.env.ELEVENLABS_API_KEY
   }
 

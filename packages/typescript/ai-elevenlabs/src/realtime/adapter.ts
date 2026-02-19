@@ -59,9 +59,9 @@ async function createElevenLabsConnection(
   const emptyTimeDomainData = new Uint8Array(128).fill(128)
 
   // Helper to emit events
-  function emit<E extends RealtimeEvent>(
-    event: E,
-    payload: Parameters<RealtimeEventHandler<E>>[0],
+  function emit<TEvent extends RealtimeEvent>(
+    event: TEvent,
+    payload: Parameters<RealtimeEventHandler<TEvent>>[0],
   ) {
     const handlers = eventHandlers.get(event)
     if (handlers) {
@@ -145,7 +145,7 @@ async function createElevenLabsConnection(
       emit('mode_change', { mode: 'idle' })
     },
 
-    sendText(text: string) {
+    sendText(_text: string) {
       // ElevenLabs doesn't support direct text input in the same way
       // The SDK is voice-first. Log a warning.
       console.warn(
@@ -153,7 +153,7 @@ async function createElevenLabsConnection(
       )
     },
 
-    sendToolResult(callId: string, result: string) {
+    sendToolResult(_callId: string, _result: string) {
       // ElevenLabs handles client tools differently - they're registered at session start
       console.warn(
         'ElevenLabs tool results are handled via clientTools option during session creation.',
@@ -174,9 +174,9 @@ async function createElevenLabsConnection(
       emit('interrupted', {})
     },
 
-    on<E extends RealtimeEvent>(
-      event: E,
-      handler: RealtimeEventHandler<E>,
+    on<TEvent extends RealtimeEvent>(
+      event: TEvent,
+      handler: RealtimeEventHandler<TEvent>,
     ): () => void {
       if (!eventHandlers.has(event)) {
         eventHandlers.set(event, new Set())

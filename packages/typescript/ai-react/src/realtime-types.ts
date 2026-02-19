@@ -1,11 +1,11 @@
 import type {
+  AnyClientTool,
   RealtimeMessage,
   RealtimeMode,
   RealtimeStatus,
   RealtimeToken,
 } from '@tanstack/ai'
 import type { RealtimeAdapter } from '@tanstack/ai-client'
-import type { AnyClientTool } from '@tanstack/ai'
 
 /**
  * Options for the useRealtimeChat hook.

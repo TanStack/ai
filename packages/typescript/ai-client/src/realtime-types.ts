@@ -1,4 +1,5 @@
 import type {
+  AnyClientTool,
   AudioVisualization,
   RealtimeEvent,
   RealtimeEventHandler,
@@ -8,7 +9,6 @@ import type {
   RealtimeStatus,
   RealtimeToken,
 } from '@tanstack/ai'
-import type { AnyClientTool } from '@tanstack/ai'
 
 // ============================================================================
 // Adapter Interface
@@ -27,7 +27,7 @@ export interface RealtimeAdapter {
    * @param token - The ephemeral token from the server
    * @returns A connection instance
    */
-  connect(token: RealtimeToken): Promise<RealtimeConnection>
+  connect: (token: RealtimeToken) => Promise<RealtimeConnection>
 }
 
 /**
@@ -37,38 +37,38 @@ export interface RealtimeAdapter {
 export interface RealtimeConnection {
   // Lifecycle
   /** Disconnect from the realtime session */
-  disconnect(): Promise<void>
+  disconnect: () => Promise<void>
 
   // Audio I/O
   /** Start capturing audio from the microphone */
-  startAudioCapture(): Promise<void>
+  startAudioCapture: () => Promise<void>
   /** Stop capturing audio */
-  stopAudioCapture(): void
+  stopAudioCapture: () => void
 
   // Text input
   /** Send a text message (fallback for when voice isn't available) */
-  sendText(text: string): void
+  sendText: (text: string) => void
 
   // Tool results
   /** Send a tool execution result back to the provider */
-  sendToolResult(callId: string, result: string): void
+  sendToolResult: (callId: string, result: string) => void
 
   // Session management
   /** Update session configuration */
-  updateSession(config: Partial<RealtimeSessionConfig>): void
+  updateSession: (config: Partial<RealtimeSessionConfig>) => void
   /** Interrupt the current response */
-  interrupt(): void
+  interrupt: () => void
 
   // Events
   /** Subscribe to connection events */
-  on<E extends RealtimeEvent>(
-    event: E,
-    handler: RealtimeEventHandler<E>,
-  ): () => void
+  on: <TEvent extends RealtimeEvent>(
+    event: TEvent,
+    handler: RealtimeEventHandler<TEvent>,
+  ) => () => void
 
   // Audio visualization
   /** Get audio visualization data */
-  getAudioVisualization(): AudioVisualization
+  getAudioVisualization: () => AudioVisualization
 }
 
 // ============================================================================

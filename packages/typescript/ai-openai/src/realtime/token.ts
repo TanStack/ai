@@ -1,5 +1,5 @@
+import { getOpenAIApiKeyFromEnv } from '../utils/client'
 import type { RealtimeToken, RealtimeTokenAdapter, Tool } from '@tanstack/ai'
-import { getOpenAIApiKeyFromEnv } from '../utils'
 import type {
   OpenAIRealtimeModel,
   OpenAIRealtimeSessionResponse,
@@ -111,7 +111,7 @@ export function openaiRealtimeToken(
       const sessionData: OpenAIRealtimeSessionResponse = await response.json()
 
       // Convert tools to our format
-      const tools: Array<Tool> = (sessionData.tools || []).map((t) => ({
+      const tools: Array<Tool> = sessionData.tools.map((t) => ({
         name: t.name,
         description: t.description,
         inputSchema: t.parameters,
