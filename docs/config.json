@@ -166,8 +166,20 @@
           "to": "community-adapters/guide"
         },
         {
+          "label": "Cencori",
+          "to": "community-adapters/cencori"
+        },
+        {
+          "label": "Cloudflare",
+          "to": "community-adapters/cloudflare"
+        },
+        {
           "label": "Decart",
           "to": "community-adapters/decart"
+        },
+        {
+          "label": "Soniox",
+          "to": "community-adapters/soniox"
         }
       ]
     },

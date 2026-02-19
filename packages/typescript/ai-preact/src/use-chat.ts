@@ -1,3 +1,4 @@
+import { ChatClient } from '@tanstack/ai-client'
 import {
   useCallback,
   useEffect,
@@ -6,10 +7,15 @@ import {
   useRef,
   useState,
 } from 'preact/hooks'
-import { ChatClient } from '@tanstack/ai-client'
+import type { ChatClientState } from '@tanstack/ai-client'
 import type { AnyClientTool, ModelMessage } from '@tanstack/ai'
 
-import type { UIMessage, UseChatOptions, UseChatReturn } from './types'
+import type {
+  MultimodalContent,
+  UIMessage,
+  UseChatOptions,
+  UseChatReturn,
+} from './types'
 
 export function useChat<TTools extends ReadonlyArray<AnyClientTool> = any>(
   options: UseChatOptions<TTools>,
@@ -22,6 +28,7 @@ export function useChat<TTools extends ReadonlyArray<AnyClientTool> = any>(
   )
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<Error | undefined>(undefined)
+  const [status, setStatus] = useState<ChatClientState>('ready')
 
   // Track current messages in a ref to preserve them when client is recreated
   const messagesRef = useRef<Array<UIMessage<TTools>>>(
@@ -51,8 +58,12 @@ export function useChat<TTools extends ReadonlyArray<AnyClientTool> = any>(
       body: optionsRef.current.body,
       onResponse: optionsRef.current.onResponse,
       onChunk: optionsRef.current.onChunk,
-      onFinish: optionsRef.current.onFinish,
-      onError: optionsRef.current.onError,
+      onFinish: (message) => {
+        optionsRef.current.onFinish?.(message)
+      },
+      onError: (err) => {
+        optionsRef.current.onError?.(err)
+      },
       tools: optionsRef.current.tools,
       streamProcessor: options.streamProcessor,
       onMessagesChange: (newMessages: Array<UIMessage<TTools>>) => {
@@ -61,11 +72,20 @@ export function useChat<TTools extends ReadonlyArray<AnyClientTool> = any>(
       onLoadingChange: (newIsLoading: boolean) => {
         setIsLoading(newIsLoading)
       },
+      onStatusChange: (newStatus: ChatClientState) => {
+        setStatus(newStatus)
+      },
       onErrorChange: (newError: Error | undefined) => {
         setError(newError)
       },
     })
   }, [clientId])
+
+  // Sync body changes to the client
+  // This allows dynamic body values (like model selection) to be updated without recreating the client
+  useEffect(() => {
+    client.updateOptions({ body: options.body })
+  }, [client, options.body])
 
   // Sync initial messages on mount only
   // Note: initialMessages are passed to ChatClient constructor, but we also
@@ -94,7 +114,7 @@ export function useChat<TTools extends ReadonlyArray<AnyClientTool> = any>(
   // are captured at client creation time. Changes to these callbacks require
   // remounting the component or changing the connection to recreate the client.
   const sendMessage = useCallback(
-    async (content: string) => {
+    async (content: string | MultimodalContent) => {
       await client.sendMessage(content)
     },
     [client],
@@ -154,6 +174,7 @@ export function useChat<TTools extends ReadonlyArray<AnyClientTool> = any>(
     stop,
     isLoading,
     error,
+    status,
     setMessages: setMessagesManually,
     clear,
     addToolResult,

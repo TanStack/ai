@@ -12,6 +12,9 @@ export type {
   ChatClientOptions,
   ChatRequestBody,
   InferChatMessages,
+  ChatClientState,
+  // Multimodal content input type
+  MultimodalContent,
 } from './types'
 export { clientTools, createChatClientOptions } from './types'
 export type {
@@ -59,7 +62,6 @@ export {
   defaultJSONParser,
   type ChunkStrategy,
   type StreamProcessorOptions,
-  type StreamProcessorHandlers,
   type StreamProcessorEvents,
   type InternalToolCallState,
   type ToolCallState,

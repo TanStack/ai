@@ -5,6 +5,7 @@
  * This is a self-contained module with implementation, types, and JSDoc.
  */
 
+import { aiEventClient } from '../../event-client.js'
 import type { TranscriptionAdapter } from './adapter'
 import type { TranscriptionResult } from '../../types'
 
@@ -61,6 +62,10 @@ export interface TranscriptionActivityOptions<
 /** Result type for the transcription activity */
 export type TranscriptionActivityResult = Promise<TranscriptionResult>
 
+function createId(prefix: string): string {
+  return `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`
+}
+
 // ===========================
 // Activity Implementation
 // ===========================
@@ -104,8 +109,35 @@ export async function generateTranscription<
 ): TranscriptionActivityResult {
   const { adapter, ...rest } = options
   const model = adapter.model
+  const requestId = createId('transcription')
+  const startTime = Date.now()
 
-  return adapter.transcribe({ ...rest, model })
+  aiEventClient.emit('transcription:request:started', {
+    requestId,
+    provider: adapter.name,
+    model,
+    language: rest.language,
+    prompt: rest.prompt,
+    responseFormat: rest.responseFormat,
+    modelOptions: rest.modelOptions as Record<string, unknown> | undefined,
+    timestamp: startTime,
+  })
+
+  const result = await adapter.transcribe({ ...rest, model })
+  const duration = Date.now() - startTime
+
+  aiEventClient.emit('transcription:request:completed', {
+    requestId,
+    provider: adapter.name,
+    model,
+    text: result.text,
+    language: result.language,
+    duration,
+    modelOptions: rest.modelOptions as Record<string, unknown> | undefined,
+    timestamp: Date.now(),
+  })
+
+  return result
 }
 
 // ===========================

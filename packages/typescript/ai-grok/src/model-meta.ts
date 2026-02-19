@@ -230,6 +230,9 @@ export const GROK_CHAT_MODELS = [
  */
 export const GROK_IMAGE_MODELS = [GROK_2_IMAGE.name] as const
 
+export type GrokChatModel = (typeof GROK_CHAT_MODELS)[number]
+export type GrokImageModel = (typeof GROK_IMAGE_MODELS)[number]
+
 /**
  * Type-only map from Grok chat model name to its supported input modalities.
  * Used for type inference when constructing multimodal messages.

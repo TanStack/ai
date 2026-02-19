@@ -28,69 +28,61 @@ describe('events', () => {
       expect(aiEventClient.emit).toHaveBeenCalledWith('client:created', {
         initialMessageCount: 5,
         clientId: 'test-client-id',
+        source: 'client',
         timestamp: expect.any(Number),
       })
     })
 
-    it('should emit client:loading-changed event', () => {
+    it('should emit client:loading:changed event', () => {
       emitter.loadingChanged(true)
 
       expect(aiEventClient.emit).toHaveBeenCalledWith(
-        'client:loading-changed',
+        'client:loading:changed',
         {
           isLoading: true,
           clientId: 'test-client-id',
+          source: 'client',
           timestamp: expect.any(Number),
         },
       )
     })
 
-    it('should emit client:error-changed event with null', () => {
+    it('should emit client:error:changed event with null', () => {
       emitter.errorChanged(null)
 
-      expect(aiEventClient.emit).toHaveBeenCalledWith('client:error-changed', {
+      expect(aiEventClient.emit).toHaveBeenCalledWith('client:error:changed', {
         error: null,
         clientId: 'test-client-id',
+        source: 'client',
         timestamp: expect.any(Number),
       })
     })
 
-    it('should emit client:error-changed event with error string', () => {
+    it('should emit client:error:changed event with error string', () => {
       emitter.errorChanged('Something went wrong')
 
-      expect(aiEventClient.emit).toHaveBeenCalledWith('client:error-changed', {
+      expect(aiEventClient.emit).toHaveBeenCalledWith('client:error:changed', {
         error: 'Something went wrong',
         clientId: 'test-client-id',
+        source: 'client',
         timestamp: expect.any(Number),
       })
     })
 
-    it('should emit processor:text-updated and client:assistant-message-updated', () => {
+    it('should emit text:chunk:content event for text updates', () => {
       emitter.textUpdated('stream-1', 'msg-1', 'Hello world')
 
-      expect(aiEventClient.emit).toHaveBeenCalledTimes(2)
-      expect(aiEventClient.emit).toHaveBeenNthCalledWith(
-        1,
-        'processor:text-updated',
-        {
-          streamId: 'stream-1',
-          content: 'Hello world',
-          timestamp: expect.any(Number),
-        },
-      )
-      expect(aiEventClient.emit).toHaveBeenNthCalledWith(
-        2,
-        'client:assistant-message-updated',
-        {
-          messageId: 'msg-1',
-          content: 'Hello world',
-          clientId: 'test-client-id',
-          timestamp: expect.any(Number),
-        },
-      )
+      expect(aiEventClient.emit).toHaveBeenCalledWith('text:chunk:content', {
+        streamId: 'stream-1',
+        messageId: 'msg-1',
+        content: 'Hello world',
+        clientId: 'test-client-id',
+        source: 'client',
+        timestamp: expect.any(Number),
+      })
     })
 
-    it('should emit processor:tool-call-state-changed and client:tool-call-updated', () => {
+    it('should emit tools:call:updated event', () => {
       emitter.toolCallStateChanged(
         'stream-1',
         'msg-1',
@@ -100,78 +92,22 @@ describe('events', () => {
         '{"city": "NYC"}',
       )
 
-      expect(aiEventClient.emit).toHaveBeenCalledTimes(2)
-      expect(aiEventClient.emit).toHaveBeenNthCalledWith(
-        1,
-        'processor:tool-call-state-changed',
-        {
-          streamId: 'stream-1',
-          toolCallId: 'call-1',
-          toolName: 'get_weather',
-          state: 'input-complete',
-          arguments: '{"city": "NYC"}',
-          timestamp: expect.any(Number),
-        },
-      )
-      expect(aiEventClient.emit).toHaveBeenNthCalledWith(
-        2,
-        'client:tool-call-updated',
-        {
-          messageId: 'msg-1',
-          toolCallId: 'call-1',
-          toolName: 'get_weather',
-          state: 'input-complete',
-          arguments: '{"city": "NYC"}',
-          clientId: 'test-client-id',
-          timestamp: expect.any(Number),
-        },
-      )
+      expect(aiEventClient.emit).toHaveBeenCalledWith('tools:call:updated', {
+        streamId: 'stream-1',
+        messageId: 'msg-1',
+        toolCallId: 'call-1',
+        toolName: 'get_weather',
+        state: 'input-complete',
+        arguments: '{"city": "NYC"}',
+        clientId: 'test-client-id',
+        source: 'client',
+        timestamp: expect.any(Number),
+      })
     })
 
-    it('should emit processor:tool-result-state-changed event', () => {
-      emitter.toolResultStateChanged(
-        'stream-1',
-        'call-1',
-        'Result content',
-        'complete',
-      )
-
-      expect(aiEventClient.emit).toHaveBeenCalledWith(
-        'processor:tool-result-state-changed',
-        {
-          streamId: 'stream-1',
-          toolCallId: 'call-1',
-          content: 'Result content',
-          state: 'complete',
-          timestamp: expect.any(Number),
-        },
-      )
-    })
-
-    it('should emit processor:tool-result-state-changed with error', () => {
-      emitter.toolResultStateChanged(
-        'stream-1',
-        'call-1',
-        'Error occurred',
-        'error',
-        'Something failed',
-      )
-
-      expect(aiEventClient.emit).toHaveBeenCalledWith(
-        'processor:tool-result-state-changed',
-        {
-          streamId: 'stream-1',
-          toolCallId: 'call-1',
-          content: 'Error occurred',
-          state: 'error',
-          error: 'Something failed',
-          timestamp: expect.any(Number),
-        },
-      )
-    })
-
-    it('should emit client:approval-requested event', () => {
+    it('should emit tools:approval:requested event', () => {
       emitter.approvalRequested(
+        'stream-1',
         'msg-1',
         'call-1',
         'get_weather',
@@ -180,20 +116,22 @@ describe('events', () => {
       )
 
       expect(aiEventClient.emit).toHaveBeenCalledWith(
-        'client:approval-requested',
+        'tools:approval:requested',
         {
+          streamId: 'stream-1',
           messageId: 'msg-1',
           toolCallId: 'call-1',
           toolName: 'get_weather',
           input: { city: 'NYC' },
           approvalId: 'approval-1',
           clientId: 'test-client-id',
+          source: 'client',
           timestamp: expect.any(Number),
         },
       )
     })
 
-    it('should emit client:message-appended with content preview', () => {
+    it('should emit text:message:created with full content', () => {
       const uiMessage: UIMessage = {
         id: 'msg-1',
         role: 'user',
@@ -206,31 +144,16 @@ describe('events', () => {
 
       emitter.messageAppended(uiMessage)
 
-      expect(aiEventClient.emit).toHaveBeenCalledWith(
-        'client:message-appended',
-        {
-          messageId: 'msg-1',
-          role: 'user',
-          contentPreview: 'Hello World',
-          clientId: 'test-client-id',
-          timestamp: expect.any(Number),
-        },
-      )
-    })
-
-    it('should truncate content preview to 100 characters', () => {
-      const longContent = 'a'.repeat(150)
-      const uiMessage: UIMessage = {
-        id: 'msg-1',
+      expect(aiEventClient.emit).toHaveBeenCalledWith('text:message:created', {
+        streamId: undefined,
+        messageId: 'msg-1',
         role: 'user',
-        parts: [{ type: 'text', content: longContent }],
-        createdAt: new Date(),
-      }
-
-      emitter.messageAppended(uiMessage)
-
-      const call = (aiEventClient.emit as any).mock.calls[0]
-      expect(call[1].contentPreview).toHaveLength(100)
+        content: 'Hello World',
+        parts: uiMessage.parts,
+        clientId: 'test-client-id',
+        source: 'client',
+        timestamp: expect.any(Number),
+      })
     })
 
     it('should handle message with no text parts', () => {
@@ -251,27 +174,46 @@ describe('events', () => {
 
       emitter.messageAppended(uiMessage)
 
-      expect(aiEventClient.emit).toHaveBeenCalledWith(
-        'client:message-appended',
+      expect(aiEventClient.emit).toHaveBeenCalledWith('text:message:created', {
+        streamId: undefined,
+        messageId: 'msg-1',
+        role: 'assistant',
+        content: '',
+        parts: uiMessage.parts,
+        clientId: 'test-client-id',
+        source: 'client',
+        timestamp: expect.any(Number),
+      })
+    })
+
+    it('should emit text:message:created and text:message:user for sent messages', () => {
+      emitter.messageSent('msg-1', 'Hello world')
+
+      expect(aiEventClient.emit).toHaveBeenCalledTimes(2)
+      expect(aiEventClient.emit).toHaveBeenNthCalledWith(
+        1,
+        'text:message:created',
         {
           messageId: 'msg-1',
-          role: 'assistant',
-          contentPreview: '',
+          role: 'user',
+          content: 'Hello world',
           clientId: 'test-client-id',
+          source: 'client',
           timestamp: expect.any(Number),
         },
       )
-    })
-
-    it('should emit client:message-sent event', () => {
-      emitter.messageSent('msg-1', 'Hello world')
-
-      expect(aiEventClient.emit).toHaveBeenCalledWith('client:message-sent', {
-        messageId: 'msg-1',
-        content: 'Hello world',
-        clientId: 'test-client-id',
-        timestamp: expect.any(Number),
-      })
+      expect(aiEventClient.emit).toHaveBeenNthCalledWith(
+        2,
+        'text:message:user',
+        {
+          messageId: 'msg-1',
+          role: 'user',
+          content: 'Hello world',
+          clientId: 'test-client-id',
+          source: 'client',
+          timestamp: expect.any(Number),
+        },
+      )
     })
 
     it('should emit client:reloaded event', () => {
@@ -280,6 +222,7 @@ describe('events', () => {
       expect(aiEventClient.emit).toHaveBeenCalledWith('client:reloaded', {
         fromMessageIndex: 3,
         clientId: 'test-client-id',
+        source: 'client',
         timestamp: expect.any(Number),
       })
     })
@@ -289,23 +232,25 @@ describe('events', () => {
 
       expect(aiEventClient.emit).toHaveBeenCalledWith('client:stopped', {
         clientId: 'test-client-id',
+        source: 'client',
         timestamp: expect.any(Number),
       })
     })
 
-    it('should emit client:messages-cleared event', () => {
+    it('should emit client:messages:cleared event', () => {
       emitter.messagesCleared()
 
       expect(aiEventClient.emit).toHaveBeenCalledWith(
-        'client:messages-cleared',
+        'client:messages:cleared',
         {
           clientId: 'test-client-id',
+          source: 'client',
           timestamp: expect.any(Number),
         },
       )
     })
 
-    it('should emit tool:result-added event', () => {
+    it('should emit tools:result:added event', () => {
       emitter.toolResultAdded(
         'call-1',
         'get_weather',
@@ -313,26 +258,28 @@ describe('events', () => {
         'output-available',
       )
 
-      expect(aiEventClient.emit).toHaveBeenCalledWith('tool:result-added', {
+      expect(aiEventClient.emit).toHaveBeenCalledWith('tools:result:added', {
         toolCallId: 'call-1',
         toolName: 'get_weather',
         output: { temp: 72 },
         state: 'output-available',
         clientId: 'test-client-id',
+        source: 'client',
         timestamp: expect.any(Number),
       })
     })
 
-    it('should emit tool:approval-responded event', () => {
+    it('should emit tools:approval:responded event', () => {
       emitter.toolApprovalResponded('approval-1', 'call-1', true)
 
       expect(aiEventClient.emit).toHaveBeenCalledWith(
-        'tool:approval-responded',
+        'tools:approval:responded',
         {
           approvalId: 'approval-1',
           toolCallId: 'call-1',
           approved: true,
           clientId: 'test-client-id',
+          source: 'client',
           timestamp: expect.any(Number),
         },
       )

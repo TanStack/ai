@@ -1,6 +1,6 @@
 {
   "name": "@tanstack/smoke-tests-e2e",
-  "version": "0.0.8",
+  "version": "0.0.17",
   "description": "E2E tests for TanStack AI chat",
   "private": true,
   "type": "module",
@@ -18,14 +18,15 @@
     "@tanstack/ai-client": "workspace:*",
     "@tanstack/ai-openai": "workspace:*",
     "@tanstack/ai-react": "workspace:*",
-    "@tanstack/nitro-v2-vite-plugin": "^1.141.0",
-    "@tanstack/react-router": "^1.141.1",
-    "@tanstack/react-start": "^1.141.1",
-    "@tanstack/router-plugin": "^1.139.7",
+    "@tanstack/nitro-v2-vite-plugin": "^1.154.7",
+    "@tanstack/react-router": "^1.158.4",
+    "@tanstack/react-start": "^1.159.0",
+    "@tanstack/router-plugin": "^1.158.4",
+    "@tanstack/tests-adapters": "workspace:*",
     "react": "^19.2.3",
     "react-dom": "^19.2.3",
     "tailwindcss": "^4.1.18",
-    "vite-tsconfig-paths": "^5.1.4"
+    "zod": "^4.2.0"
   },
   "devDependencies": {
     "@playwright/test": "^1.57.0",
@@ -34,6 +35,7 @@
     "@types/react-dom": "^19.2.3",
     "@vitejs/plugin-react": "^5.1.2",
     "typescript": "5.9.3",
-    "vite": "^7.2.7"
+    "vite": "^7.2.7",
+    "vite-tsconfig-paths": "^5.1.4"
   }
 }

@@ -6,7 +6,13 @@ import remarkGfm from 'remark-gfm'
 
 import type { Recipe } from './api.structured'
 
-type Provider = 'openai' | 'anthropic' | 'gemini' | 'ollama'
+type Provider =
+  | 'openai'
+  | 'anthropic'
+  | 'gemini'
+  | 'ollama'
+  | 'grok'
+  | 'openrouter'
 type Mode = 'structured' | 'oneshot'
 
 interface StructuredProvider {
@@ -18,7 +24,9 @@ const PROVIDERS: Array<StructuredProvider> = [
   { id: 'openai', name: 'OpenAI (GPT-4o)' },
   { id: 'anthropic', name: 'Anthropic (Claude Sonnet)' },
   { id: 'gemini', name: 'Gemini (2.0 Flash)' },
+  { id: 'grok', name: 'Grok (Grok 3 Mini)' },
   { id: 'ollama', name: 'Ollama (Mistral 7B)' },
+  { id: 'openrouter', name: 'OpenRouter (GPT-4o)' },
 ]
 
 const SAMPLE_RECIPES = [

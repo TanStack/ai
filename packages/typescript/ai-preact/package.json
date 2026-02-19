@@ -1,6 +1,6 @@
 {
   "name": "@tanstack/ai-preact",
-  "version": "0.1.1",
+  "version": "0.5.4",
   "description": "Preact hooks for TanStack AI",
   "author": "",
   "license": "MIT",

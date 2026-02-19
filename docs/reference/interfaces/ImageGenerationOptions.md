@@ -3,9 +3,9 @@ id: ImageGenerationOptions
 title: ImageGenerationOptions
 ---
 
-# Interface: ImageGenerationOptions\<TProviderOptions\>
+# Interface: ImageGenerationOptions\<TProviderOptions, TSize\>
 
-Defined in: [types.ts:792](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L792)
+Defined in: [types.ts:968](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L968)
 
 Options for image generation.
 These are the common options supported across providers.
@@ -16,6 +16,10 @@ These are the common options supported across providers.
 
 `TProviderOptions` *extends* `object` = `object`
 
+### TSize
+
+`TSize` *extends* `string` = `string`
+
 ## Properties
 
 ### model
@@ -24,7 +28,7 @@ These are the common options supported across providers.
 model: string;
 ```
 
-Defined in: [types.ts:796](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L796)
+Defined in: [types.ts:973](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L973)
 
 The model to use for image generation
 
@@ -36,7 +40,7 @@ The model to use for image generation
 optional modelOptions: TProviderOptions;
 ```
 
-Defined in: [types.ts:804](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L804)
+Defined in: [types.ts:981](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L981)
 
 Model-specific options for image generation
 
@@ -48,7 +52,7 @@ Model-specific options for image generation
 optional numberOfImages: number;
 ```
 
-Defined in: [types.ts:800](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L800)
+Defined in: [types.ts:977](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L977)
 
 Number of images to generate (default: 1)
 
@@ -60,7 +64,7 @@ Number of images to generate (default: 1)
 prompt: string;
 ```
 
-Defined in: [types.ts:798](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L798)
+Defined in: [types.ts:975](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L975)
 
 Text description of the desired image(s)
 
@@ -69,9 +73,9 @@ Text description of the desired image(s)
 ### size?
 
 ```ts
-optional size: string;
+optional size: TSize;
 ```
 
-Defined in: [types.ts:802](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L802)
+Defined in: [types.ts:979](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L979)
 
 Image size in WIDTHxHEIGHT format (e.g., "1024x1024")

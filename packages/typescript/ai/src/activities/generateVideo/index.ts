@@ -7,6 +7,7 @@
  * @experimental Video generation is an experimental feature and may change.
  */
 
+import { aiEventClient } from '../../event-client.js'
 import type { VideoAdapter } from './adapter'
 import type {
   VideoJobResult,
@@ -29,12 +30,26 @@ export const kind = 'video' as const
  * Extract provider options from a VideoAdapter via ~types.
  */
 export type VideoProviderOptions<TAdapter> =
-  TAdapter extends VideoAdapter<any, any>
+  TAdapter extends VideoAdapter<any, any, any, any>
     ? TAdapter['~types']['providerOptions']
     : object
 
+/**
+ * Extract the size type for a VideoAdapter's model via ~types.
+ */
+export type VideoSizeForAdapter<TAdapter> =
+  TAdapter extends VideoAdapter<infer TModel, any, any, infer TSizeMap>
+    ? TModel extends keyof TSizeMap
+      ? TSizeMap[TModel]
+      : string
+    : string
+
 // ===========================
 // Activity Options Types
+
+function createId(prefix: string): string {
+  return `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`
+}
 // ===========================
 
 /**
@@ -42,7 +57,7 @@ export type VideoProviderOptions<TAdapter> =
  * The model is extracted from the adapter's model property.
  */
 interface VideoActivityBaseOptions<
-  TAdapter extends VideoAdapter<string, object>,
+  TAdapter extends VideoAdapter<string, any, any, any>,
 > {
   /** The video adapter to use (must be created with a model) */
   adapter: TAdapter & { kind: typeof kind }
@@ -54,20 +69,24 @@ interface VideoActivityBaseOptions<
  *
  * @experimental Video generation is an experimental feature and may change.
  */
-export interface VideoCreateOptions<
-  TAdapter extends VideoAdapter<string, object>,
-> extends VideoActivityBaseOptions<TAdapter> {
+export type VideoCreateOptions<
+  TAdapter extends VideoAdapter<string, any, any, any>,
+> = VideoActivityBaseOptions<TAdapter> & {
   /** Request type - create a new job (default if not specified) */
   request?: 'create'
   /** Text description of the desired video */
   prompt: string
-  /** Video size in WIDTHxHEIGHT format (e.g., "1280x720") */
-  size?: string
+  /** Video size — format depends on the provider (e.g., "16:9", "1280x720") */
+  size?: VideoSizeForAdapter<TAdapter>
   /** Video duration in seconds */
   duration?: number
-  /** Provider-specific options for video generation */
-  modelOptions?: VideoProviderOptions<TAdapter>
-}
+} & ({} extends VideoProviderOptions<TAdapter>
+    ? {
+        /** Provider-specific options for video generation */ modelOptions?: VideoProviderOptions<TAdapter>
+      }
+    : {
+        /** Provider-specific options for video generation */ modelOptions: VideoProviderOptions<TAdapter>
+      })
 
 /**
  * Options for polling the status of a video generation job.
@@ -75,7 +94,7 @@ export interface VideoCreateOptions<
  * @experimental Video generation is an experimental feature and may change.
  */
 export interface VideoStatusOptions<
-  TAdapter extends VideoAdapter<string, object>,
+  TAdapter extends VideoAdapter<string, any, any, any>,
 > extends VideoActivityBaseOptions<TAdapter> {
   /** Request type - get job status */
   request: 'status'
@@ -89,7 +108,7 @@ export interface VideoStatusOptions<
  * @experimental Video generation is an experimental feature and may change.
  */
 export interface VideoUrlOptions<
-  TAdapter extends VideoAdapter<string, object>,
+  TAdapter extends VideoAdapter<string, any, any, any>,
 > extends VideoActivityBaseOptions<TAdapter> {
   /** Request type - get video URL */
   request: 'url'
@@ -104,7 +123,7 @@ export interface VideoUrlOptions<
  * @experimental Video generation is an experimental feature and may change.
  */
 export type VideoActivityOptions<
-  TAdapter extends VideoAdapter<string, object>,
+  TAdapter extends VideoAdapter<string, any, any, any>,
   TRequest extends 'create' | 'status' | 'url' = 'create',
 > = TRequest extends 'status'
   ? VideoStatusOptions<TAdapter>
@@ -156,7 +175,7 @@ export type VideoActivityResult<
  * ```
  */
 export async function generateVideo<
-  TAdapter extends VideoAdapter<string, object>,
+  TAdapter extends VideoAdapter<string, any, any, any>,
 >(options: VideoCreateOptions<TAdapter>): Promise<VideoJobResult> {
   const { adapter, prompt, size, duration, modelOptions } = options
   const model = adapter.model
@@ -196,7 +215,7 @@ export async function generateVideo<
  * ```
  */
 export async function getVideoJobStatus<
-  TAdapter extends VideoAdapter<string, object>,
+  TAdapter extends VideoAdapter<string, any, any, any>,
 >(options: {
   adapter: TAdapter & { kind: typeof kind }
   jobId: string
@@ -207,6 +226,17 @@ export async function getVideoJobStatus<
   error?: string
 }> {
   const { adapter, jobId } = options
+  const requestId = createId('video-status')
+  const startTime = Date.now()
+
+  aiEventClient.emit('video:request:started', {
+    requestId,
+    provider: adapter.name,
+    model: adapter.model,
+    requestType: 'status',
+    jobId,
+    timestamp: startTime,
+  })
 
   // Get status first
   const statusResult = await adapter.getVideoStatus(jobId)
@@ -215,12 +245,37 @@ export async function getVideoJobStatus<
   if (statusResult.status === 'completed') {
     try {
       const urlResult = await adapter.getVideoUrl(jobId)
+      aiEventClient.emit('video:request:completed', {
+        requestId,
+        provider: adapter.name,
+        model: adapter.model,
+        requestType: 'status',
+        jobId,
+        status: statusResult.status,
+        progress: statusResult.progress,
+        url: urlResult.url,
+        duration: Date.now() - startTime,
+        timestamp: Date.now(),
+      })
       return {
         status: statusResult.status,
         progress: statusResult.progress,
         url: urlResult.url,
       }
     } catch (error) {
+      aiEventClient.emit('video:request:completed', {
+        requestId,
+        provider: adapter.name,
+        model: adapter.model,
+        requestType: 'status',
+        jobId,
+        status: statusResult.status,
+        progress: statusResult.progress,
+        error:
+          error instanceof Error ? error.message : 'Failed to get video URL',
+        duration: Date.now() - startTime,
+        timestamp: Date.now(),
+      })
       // If URL fetch fails, still return status
       return {
         status: statusResult.status,
@@ -230,6 +285,19 @@ export async function getVideoJobStatus<
       }
     }
   }
+
+  aiEventClient.emit('video:request:completed', {
+    requestId,
+    provider: adapter.name,
+    model: adapter.model,
+    requestType: 'status',
+    jobId,
+    status: statusResult.status,
+    progress: statusResult.progress,
+    error: statusResult.error,
+    duration: Date.now() - startTime,
+    timestamp: Date.now(),
+  })
 
   // Return status for non-completed jobs
   return {
@@ -247,7 +315,7 @@ export async function getVideoJobStatus<
  * Create typed options for the generateVideo() function without executing.
  */
 export function createVideoOptions<
-  TAdapter extends VideoAdapter<string, object>,
+  TAdapter extends VideoAdapter<string, any, any, any>,
 >(options: VideoCreateOptions<TAdapter>): VideoCreateOptions<TAdapter> {
   return options
 }

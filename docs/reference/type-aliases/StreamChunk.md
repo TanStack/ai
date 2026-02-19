@@ -6,17 +6,10 @@ title: StreamChunk
 # Type Alias: StreamChunk
 
 ```ts
-type StreamChunk = 
-  | ContentStreamChunk
-  | ToolCallStreamChunk
-  | ToolResultStreamChunk
-  | DoneStreamChunk
-  | ErrorStreamChunk
-  | ApprovalRequestedStreamChunk
-  | ToolInputAvailableStreamChunk
-  | ThinkingStreamChunk;
+type StreamChunk = AGUIEvent;
 ```
 
-Defined in: [types.ts:740](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L740)
+Defined in: [types.ts:924](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L924)
 
-Chunk returned by the sdk during streaming chat completions.
+Chunk returned by the SDK during streaming chat completions.
+Uses the AG-UI protocol event format.

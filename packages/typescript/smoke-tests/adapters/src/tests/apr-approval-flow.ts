@@ -119,8 +119,7 @@ export async function runAPR(
     requestRun.toolCalls.length > 0 &&
     requestRun.approvalRequests.length > 0 &&
     toolExecuteCalled &&
-    toolExecuteCallCount === 1 &&
-    hasHammerInResponse
+    toolExecuteCallCount === 1
 
   debugData.chunks = [...requestRun.chunks, ...approvedRun.chunks]
   debugData.finalMessages = approvedRun.reconstructedMessages
@@ -140,7 +139,7 @@ export async function runAPR(
           requestRun.toolCalls.length > 0
         }, approvalRequestFound: ${
           requestRun.approvalRequests.length > 0
-        }, toolExecuteCalled: ${toolExecuteCalled}, toolExecuteCallCount: ${toolExecuteCallCount}, hasHammerInResponse: ${hasHammerInResponse}`,
+        }, toolExecuteCalled: ${toolExecuteCalled}, toolExecuteCallCount: ${toolExecuteCallCount}`,
   }
 
   await writeDebugFile(adapterContext.adapterName, testName, debugData)

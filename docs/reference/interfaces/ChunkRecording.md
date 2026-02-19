@@ -22,7 +22,7 @@ Defined in: [activities/chat/stream/types.ts:78](https://github.com/TanStack/ai/
 #### chunk
 
 ```ts
-chunk: StreamChunk;
+chunk: AGUIEvent;
 ```
 
 #### index

@@ -2,7 +2,13 @@ import { useState } from 'react'
 import { createFileRoute } from '@tanstack/react-router'
 import { FileText, Loader2, Zap } from 'lucide-react'
 
-type Provider = 'openai' | 'anthropic' | 'gemini' | 'ollama'
+type Provider =
+  | 'openai'
+  | 'anthropic'
+  | 'gemini'
+  | 'ollama'
+  | 'grok'
+  | 'openrouter'
 
 interface SummarizeProvider {
   id: Provider
@@ -13,7 +19,9 @@ const PROVIDERS: Array<SummarizeProvider> = [
   { id: 'openai', name: 'OpenAI (GPT-4o Mini)' },
   { id: 'anthropic', name: 'Anthropic (Claude Sonnet)' },
   { id: 'gemini', name: 'Gemini (2.0 Flash)' },
+  { id: 'grok', name: 'Grok (Grok 3 Mini)' },
   { id: 'ollama', name: 'Ollama (Mistral 7B)' },
+  { id: 'openrouter', name: 'OpenRouter (GPT-4o Mini)' },
 ]
 
 const SAMPLE_TEXT = `Artificial intelligence (AI) is intelligence demonstrated by machines, as opposed to natural intelligence displayed by animals including humans. AI research has been defined as the field of study of intelligent agents, which refers to any system that perceives its environment and takes actions that maximize its chance of achieving its goals.
@@ -61,6 +69,7 @@ function SummarizePage() {
         const reader = response.body?.getReader()
         const decoder = new TextDecoder()
         let chunks = 0
+        let accumulatedSummary = ''
 
         if (!reader) {
           throw new Error('No response body')
@@ -83,10 +92,17 @@ function SummarizePage() {
                 if (parsed.type === 'error') {
                   throw new Error(parsed.error)
                 }
-                if (parsed.type === 'content' && parsed.content) {
+                // Handle TEXT_MESSAGE_CONTENT chunks from the summarize stream
+                if (parsed.type === 'TEXT_MESSAGE_CONTENT') {
                   chunks++
                   setChunkCount(chunks)
-                  setSummary(parsed.content)
+                  // Accumulate delta or use content if provided
+                  if (parsed.delta) {
+                    accumulatedSummary += parsed.delta
+                  } else if (parsed.content) {
+                    accumulatedSummary = parsed.content
+                  }
+                  setSummary(accumulatedSummary)
                   setUsedProvider(parsed.provider)
                   setUsedModel(parsed.model)
                 }

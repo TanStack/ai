@@ -1,6 +1,7 @@
 import { GoogleGenAI } from '@google/genai'
+import type { GoogleGenAIOptions } from '@google/genai'
 
-export interface GeminiClientConfig {
+export interface GeminiClientConfig extends GoogleGenAIOptions {
   apiKey: string
 }
 
@@ -9,6 +10,7 @@ export interface GeminiClientConfig {
  */
 export function createGeminiClient(config: GeminiClientConfig): GoogleGenAI {
   return new GoogleGenAI({
+    ...config,
     apiKey: config.apiKey,
   })
 }

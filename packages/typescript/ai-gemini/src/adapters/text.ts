@@ -16,6 +16,7 @@ import type {
   StructuredOutputResult,
 } from '@tanstack/ai/adapters'
 import type {
+  Content,
   GenerateContentParameters,
   GenerateContentResponse,
   GoogleGenAI,
@@ -30,13 +31,7 @@ import type {
   TextOptions,
 } from '@tanstack/ai'
 import type { ExternalTextProviderOptions } from '../text/text-provider-options'
-import type {
-  GeminiAudioMetadata,
-  GeminiDocumentMetadata,
-  GeminiImageMetadata,
-  GeminiMessageMetadataByModality,
-  GeminiVideoMetadata,
-} from '../message-types'
+import type { GeminiMessageMetadataByModality } from '../message-types'
 import type { GeminiClientConfig } from '../utils'
 
 /**
@@ -115,8 +110,7 @@ export class GeminiTextAdapter<
     } catch (error) {
       const timestamp = Date.now()
       yield {
-        type: 'error',
-        id: generateId(this.name),
+        type: 'RUN_ERROR',
         model: options.model,
         timestamp,
         error: {
@@ -201,37 +195,83 @@ export class GeminiTextAdapter<
   ): AsyncIterable<StreamChunk> {
     const timestamp = Date.now()
     let accumulatedContent = ''
+    let accumulatedThinking = ''
     const toolCallMap = new Map<
       string,
-      { name: string; args: string; index: number }
+      { name: string; args: string; index: number; started: boolean }
     >()
     let nextToolIndex = 0
 
+    // AG-UI lifecycle tracking
+    const runId = generateId(this.name)
+    const messageId = generateId(this.name)
+    let stepId: string | null = null
+    let hasEmittedRunStarted = false
+    let hasEmittedTextMessageStart = false
+    let hasEmittedStepStarted = false
+
     for await (const chunk of result) {
+      // Emit RUN_STARTED on first chunk
+      if (!hasEmittedRunStarted) {
+        hasEmittedRunStarted = true
+        yield {
+          type: 'RUN_STARTED',
+          runId,
+          model,
+          timestamp,
+        }
+      }
+
       if (chunk.candidates?.[0]?.content?.parts) {
         const parts = chunk.candidates[0].content.parts
 
         for (const part of parts) {
           if (part.text) {
             if (part.thought) {
+              // Emit STEP_STARTED on first thinking content
+              if (!hasEmittedStepStarted) {
+                hasEmittedStepStarted = true
+                stepId = generateId(this.name)
+                yield {
+                  type: 'STEP_STARTED',
+                  stepId,
+                  model,
+                  timestamp,
+                  stepType: 'thinking',
+                }
+              }
+
+              accumulatedThinking += part.text
               yield {
-                type: 'thinking',
-                content: part.text,
-                delta: part.text,
-                id: generateId(this.name),
+                type: 'STEP_FINISHED',
+                stepId: stepId || generateId(this.name),
                 model,
                 timestamp,
+                delta: part.text,
+                content: accumulatedThinking,
               }
-            } else {
+            } else if (part.text.trim()) {
+              // Skip whitespace-only text parts (e.g. "\n" during auto-continuation)
+              // Emit TEXT_MESSAGE_START on first text content
+              if (!hasEmittedTextMessageStart) {
+                hasEmittedTextMessageStart = true
+                yield {
+                  type: 'TEXT_MESSAGE_START',
+                  messageId,
+                  model,
+                  timestamp,
+                  role: 'assistant',
+                }
+              }
+
               accumulatedContent += part.text
               yield {
-                type: 'content',
-                id: generateId(this.name),
+                type: 'TEXT_MESSAGE_CONTENT',
+                messageId,
                 model,
                 timestamp,
                 delta: part.text,
                 content: accumulatedContent,
-                role: 'assistant',
               }
             }
           }
@@ -252,6 +292,7 @@ export class GeminiTextAdapter<
                     ? functionArgs
                     : JSON.stringify(functionArgs),
                 index: nextToolIndex++,
+                started: false,
               }
               toolCallMap.set(toolCallId, toolCallData)
             } else {
@@ -271,33 +312,52 @@ export class GeminiTextAdapter<
               }
             }
 
+            // Emit TOOL_CALL_START if not already started
+            if (!toolCallData.started) {
+              toolCallData.started = true
+              yield {
+                type: 'TOOL_CALL_START',
+                toolCallId,
+                toolName: toolCallData.name,
+                model,
+                timestamp,
+                index: toolCallData.index,
+              }
+            }
+
+            // Emit TOOL_CALL_ARGS
             yield {
-              type: 'tool_call',
-              id: generateId(this.name),
+              type: 'TOOL_CALL_ARGS',
+              toolCallId,
               model,
               timestamp,
-              toolCall: {
-                id: toolCallId,
-                type: 'function',
-                function: {
-                  name: toolCallData.name,
-                  arguments: toolCallData.args,
-                },
-              },
-              index: toolCallData.index,
+              delta: toolCallData.args,
+              args: toolCallData.args,
             }
           }
         }
-      } else if (chunk.data) {
+      } else if (chunk.data && chunk.data.trim()) {
+        // Skip whitespace-only data (e.g. "\n" during auto-continuation)
+        // Emit TEXT_MESSAGE_START on first text content
+        if (!hasEmittedTextMessageStart) {
+          hasEmittedTextMessageStart = true
+          yield {
+            type: 'TEXT_MESSAGE_START',
+            messageId,
+            model,
+            timestamp,
+            role: 'assistant',
+          }
+        }
+
         accumulatedContent += chunk.data
         yield {
-          type: 'content',
-          id: generateId(this.name),
+          type: 'TEXT_MESSAGE_CONTENT',
+          messageId,
           model,
           timestamp,
           delta: chunk.data,
           content: accumulatedContent,
-          role: 'assistant',
         }
       }
 
@@ -314,53 +374,103 @@ export class GeminiTextAdapter<
                   `${functionCall.name}_${Date.now()}_${nextToolIndex}`
                 const functionArgs = functionCall.args || {}
 
+                const argsString =
+                  typeof functionArgs === 'string'
+                    ? functionArgs
+                    : JSON.stringify(functionArgs)
+
                 toolCallMap.set(toolCallId, {
                   name: functionCall.name || '',
-                  args:
-                    typeof functionArgs === 'string'
-                      ? functionArgs
-                      : JSON.stringify(functionArgs),
+                  args: argsString,
                   index: nextToolIndex++,
+                  started: true,
                 })
 
+                // Emit TOOL_CALL_START
                 yield {
-                  type: 'tool_call',
-                  id: generateId(this.name),
+                  type: 'TOOL_CALL_START',
+                  toolCallId,
+                  toolName: functionCall.name || '',
                   model,
                   timestamp,
-                  toolCall: {
-                    id: toolCallId,
-                    type: 'function',
-                    function: {
-                      name: functionCall.name || '',
-                      arguments:
-                        typeof functionArgs === 'string'
-                          ? functionArgs
-                          : JSON.stringify(functionArgs),
-                    },
-                  },
                   index: nextToolIndex - 1,
+                }
+
+                // Emit TOOL_CALL_END with parsed input
+                let parsedInput: unknown = {}
+                try {
+                  parsedInput =
+                    typeof functionArgs === 'string'
+                      ? JSON.parse(functionArgs)
+                      : functionArgs
+                } catch {
+                  parsedInput = {}
+                }
+
+                yield {
+                  type: 'TOOL_CALL_END',
+                  toolCallId,
+                  toolName: functionCall.name || '',
+                  model,
+                  timestamp,
+                  input: parsedInput,
                 }
               }
             }
           }
         }
+
+        // Emit TOOL_CALL_END for all tracked tool calls
+        for (const [toolCallId, toolCallData] of toolCallMap.entries()) {
+          let parsedInput: unknown = {}
+          try {
+            parsedInput = JSON.parse(toolCallData.args)
+          } catch {
+            parsedInput = {}
+          }
+
+          yield {
+            type: 'TOOL_CALL_END',
+            toolCallId,
+            toolName: toolCallData.name,
+            model,
+            timestamp,
+            input: parsedInput,
+          }
+        }
+
+        // Reset so a new TEXT_MESSAGE_START is emitted if text follows tool calls
+        if (toolCallMap.size > 0) {
+          hasEmittedTextMessageStart = false
+        }
+
         if (finishReason === FinishReason.MAX_TOKENS) {
           yield {
-            type: 'error',
-            id: generateId(this.name),
+            type: 'RUN_ERROR',
+            runId,
             model,
             timestamp,
             error: {
               message:
                 'The response was cut off because the maximum token limit was reached.',
+              code: 'max_tokens',
             },
           }
         }
 
+        // Emit TEXT_MESSAGE_END if we had text content
+        if (hasEmittedTextMessageStart) {
+          yield {
+            type: 'TEXT_MESSAGE_END',
+            messageId,
+            model,
+            timestamp,
+          }
+        }
+
         yield {
-          type: 'done',
-          id: generateId(this.name),
+          type: 'RUN_FINISHED',
+          runId,
           model,
           timestamp,
           finishReason: toolCallMap.size > 0 ? 'tool_calls' : 'stop',
@@ -377,20 +487,6 @@ export class GeminiTextAdapter<
   }
 
   private convertContentPartToGemini(part: ContentPart): Part {
-    const getDefaultFileType = (
-      part: 'image' | 'audio' | 'video' | 'document',
-    ) => {
-      switch (part) {
-        case 'image':
-          return 'image/jpeg'
-        case 'audio':
-          return 'audio/mp3'
-        case 'video':
-          return 'video/mp4'
-        case 'document':
-          return 'application/pdf'
-      }
-    }
     switch (part.type) {
       case 'text':
         return { text: part.content }
@@ -398,24 +494,26 @@ export class GeminiTextAdapter<
       case 'audio':
       case 'video':
       case 'document': {
-        const metadata = part.metadata as
-          | GeminiDocumentMetadata
-          | GeminiImageMetadata
-          | GeminiVideoMetadata
-          | GeminiAudioMetadata
-          | undefined
         if (part.source.type === 'data') {
           return {
             inlineData: {
               data: part.source.value,
-              mimeType: metadata?.mimeType ?? getDefaultFileType(part.type),
+              mimeType: part.source.mimeType,
             },
           }
         } else {
+          // For URL sources, use provided mimeType or fall back to reasonable defaults
+          const defaultMimeType = {
+            image: 'image/jpeg',
+            audio: 'audio/mp3',
+            video: 'video/mp4',
+            document: 'application/pdf',
+          }[part.type]
+
           return {
             fileData: {
               fileUri: part.source.value,
-              mimeType: metadata?.mimeType ?? getDefaultFileType(part.type),
+              mimeType: part.source.mimeType ?? defaultMimeType,
             },
           }
         }
@@ -432,7 +530,7 @@ export class GeminiTextAdapter<
   private formatMessages(
     messages: Array<ModelMessage>,
   ): GenerateContentParameters['contents'] {
-    return messages.map((msg) => {
+    const formatted = messages.map((msg) => {
       const role: 'user' | 'model' = msg.role === 'assistant' ? 'model' : 'user'
       const parts: Array<Part> = []
 
@@ -486,6 +584,67 @@ export class GeminiTextAdapter<
         parts: parts.length > 0 ? parts : [{ text: '' }],
       }
     })
+
+    // Post-process: Gemini requires strictly alternating user/model roles.
+    // Tool results are mapped to role:'user', which can create consecutive
+    // user messages when followed by a new user message. Merge them.
+    return this.mergeConsecutiveSameRoleMessages(formatted)
+  }
+
+  /**
+   * Merge consecutive messages of the same role into a single message.
+   * Gemini's API requires strictly alternating user/model roles.
+   * Tool results are mapped to role:'user', which can collide with actual
+   * user messages in multi-turn conversations.
+   *
+   * Also filters out empty model messages (e.g., from a previous failed request)
+   * and deduplicates functionResponse parts with the same name (tool call ID).
+   */
+  private mergeConsecutiveSameRoleMessages(
+    messages: Array<Content>,
+  ): Array<Content> {
+    const merged: Array<Content> = []
+
+    for (const msg of messages) {
+      const parts = msg.parts || []
+
+      // Skip empty model messages (no parts or only empty text)
+      if (msg.role === 'model') {
+        const hasContent =
+          parts.length > 0 &&
+          !parts.every(
+            (p) => 'text' in p && (p as { text: string }).text === '',
+          )
+        if (!hasContent) {
+          continue
+        }
+      }
+
+      const prev = merged[merged.length - 1]
+      if (prev && prev.role === msg.role) {
+        // Merge parts arrays
+        prev.parts = [...(prev.parts || []), ...parts]
+      } else {
+        merged.push({ ...msg, parts: [...parts] })
+      }
+    }
+
+    // Deduplicate functionResponse parts with the same name (tool call ID)
+    for (const msg of merged) {
+      if (!msg.parts) continue
+      const seenFunctionResponseNames = new Set<string>()
+      msg.parts = msg.parts.filter((part) => {
+        if ('functionResponse' in part && part.functionResponse?.name) {
+          if (seenFunctionResponseNames.has(part.functionResponse.name)) {
+            return false
+          }
+          seenFunctionResponseNames.add(part.functionResponse.name)
+        }
+        return true
+      })
+    }
+
+    return merged
   }
 
   private mapCommonOptionsToGemini(

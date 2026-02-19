@@ -27,7 +27,6 @@ export {
   createGrokImage,
   grokImage,
   type GrokImageConfig,
-  type GrokImageModel,
 } from './adapters/image'
 export type {
   GrokImageProviderOptions,
@@ -43,6 +42,8 @@ export type {
   GrokModelInputModalitiesByName,
   ResolveProviderOptions,
   ResolveInputModalities,
+  GrokChatModel,
+  GrokImageModel,
 } from './model-meta'
 export { GROK_CHAT_MODELS, GROK_IMAGE_MODELS } from './model-meta'
 export type {

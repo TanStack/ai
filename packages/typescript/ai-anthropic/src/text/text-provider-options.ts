@@ -92,6 +92,42 @@ Must be ≥1024 and less than max_tokens
       }
 }
 
+export interface AnthropicAdaptiveThinkingOptions {
+  /**
+   * Configuration for Claude's adaptive thinking (Opus 4.6+).
+   *
+   * In adaptive mode, Claude dynamically decides when and how much to think.
+   * Use the effort parameter to control thinking depth.
+   * `thinking: {type: "enabled"}` with `budget_tokens` is deprecated on Opus 4.6.
+   */
+  thinking?:
+    | {
+        type: 'adaptive'
+      }
+    | {
+        /**
+         * @deprecated Use `type: 'adaptive'` with the effort parameter on Opus 4.6+.
+         */
+        budget_tokens: number
+        type: 'enabled'
+      }
+    | {
+        type: 'disabled'
+      }
+}
+
+export interface AnthropicEffortOptions {
+  /**
+   * Controls the thinking depth for adaptive thinking mode (Opus 4.6+).
+   *
+   * - `max`: Absolute highest capability
+   * - `high`: Default - Claude will almost always think
+   * - `medium`: Balanced cost-quality
+   * - `low`: May skip thinking for simpler problems
+   */
+  effort?: 'max' | 'high' | 'medium' | 'low'
+}
+
 export interface AnthropicToolChoiceOptions {
   tool_choice?: BetaToolChoiceAny | BetaToolChoiceTool | BetaToolChoiceAuto
 }
@@ -115,7 +151,9 @@ export type ExternalTextProviderOptions = AnthropicContainerOptions &
   AnthropicStopSequencesOptions &
   AnthropicThinkingOptions &
   AnthropicToolChoiceOptions &
-  AnthropicSamplingOptions
+  AnthropicSamplingOptions &
+  Partial<AnthropicAdaptiveThinkingOptions> &
+  Partial<AnthropicEffortOptions>
 
 export interface InternalTextProviderOptions extends ExternalTextProviderOptions {
   model: string

@@ -3,8 +3,8 @@ import {
   createOpenAIClient,
   generateId,
   getOpenAIApiKeyFromEnv,
-} from '../utils'
-import type { OPENAI_TRANSCRIPTION_MODELS } from '../model-meta'
+} from '../utils/client'
+import type { OpenAITranscriptionModel } from '../model-meta'
 import type { OpenAITranscriptionProviderOptions } from '../audio/transcription-provider-options'
 import type {
   TranscriptionOptions,
@@ -12,16 +12,12 @@ import type {
   TranscriptionSegment,
 } from '@tanstack/ai'
 import type OpenAI_SDK from 'openai'
-import type { OpenAIClientConfig } from '../utils'
+import type { OpenAIClientConfig } from '../utils/client'
 
 /**
  * Configuration for OpenAI Transcription adapter
  */
 export interface OpenAITranscriptionConfig extends OpenAIClientConfig {}
-
-/** Model type for OpenAI Transcription */
-export type OpenAITranscriptionModel =
-  (typeof OPENAI_TRANSCRIPTION_MODELS)[number]
 
 /**
  * OpenAI Transcription (Speech-to-Text) Adapter

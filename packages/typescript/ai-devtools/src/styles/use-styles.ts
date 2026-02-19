@@ -680,6 +680,54 @@ const stylesFactory = (theme: 'light' | 'dark') => {
         white-space: pre-wrap;
         word-break: break-word;
       `,
+      collapsibleSection: css`
+        margin-top: ${size[2]};
+        border: 1px solid ${t(colors.gray[200], colors.darkGray[700])};
+        border-radius: ${border.radius.md};
+        overflow: hidden;
+      `,
+      collapsibleSummary: css`
+        cursor: pointer;
+        padding: ${size[2]} ${size[3]};
+        background: ${t(colors.gray[100], colors.darkGray[800])};
+        font-size: ${fontSize.xs};
+        font-weight: ${font.weight.medium};
+        color: ${t(colors.gray[700], colors.gray[300])};
+        user-select: none;
+        &:hover {
+          background: ${t(colors.gray[200], colors.darkGray[700])};
+        }
+      `,
+      collapsibleContent: css`
+        padding: ${size[3]};
+        background: ${t(colors.gray[50], colors.darkGray[900])};
+        font-size: ${fontSize.xs};
+        max-height: 300px;
+        overflow-y: auto;
+      `,
+      systemPromptItem: css`
+        display: flex;
+        gap: ${size[2]};
+        padding: ${size[2]};
+        margin-bottom: ${size[2]};
+        background: ${t(colors.gray[100], colors.darkGray[800])};
+        border-radius: ${border.radius.sm};
+        &:last-child {
+          margin-bottom: 0;
+        }
+      `,
+      systemPromptIndex: css`
+        font-weight: ${font.weight.semibold};
+        color: ${colors.purple[400]};
+        font-size: 10px;
+        flex-shrink: 0;
+      `,
+      systemPromptText: css`
+        color: ${t(colors.gray[700], colors.gray[300])};
+        white-space: pre-wrap;
+        word-break: break-word;
+        line-height: 1.4;
+      `,
       tabsContainer: css`
         display: flex;
         gap: ${size[2]};
@@ -691,10 +739,26 @@ const stylesFactory = (theme: 'light' | 'dark') => {
         color: ${colors.white};
         border-color: ${colors.pink[400]};
       `,
+      tabButtonPulse: css`
+        position: relative;
+        animation: activityPulse 1.4s ease-in-out infinite;
+        @keyframes activityPulse {
+          0% {
+            box-shadow: 0 0 0 0 ${colors.pink[400]}55;
+          }
+          70% {
+            box-shadow: 0 0 0 8px ${colors.pink[400]}00;
+          }
+          100% {
+            box-shadow: 0 0 0 0 ${colors.pink[400]}00;
+          }
+        }
+      `,
       contentArea: css`
         flex: 1;
         overflow: auto;
         padding: ${size[3]};
+        padding-bottom: ${size[6]};
       `,
       emptyMessages: css`
         padding: ${size[6]};
@@ -712,7 +776,7 @@ const stylesFactory = (theme: 'light' | 'dark') => {
         overflow: hidden;
       `,
       messageCardUser: css`
-        padding: ${size[4]};
+        padding: ${size[3]};
         border: 1.5px solid oklch(0.45 0.12 260);
       `,
       messageCardAssistant: css`

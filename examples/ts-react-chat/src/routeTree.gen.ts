@@ -53,7 +53,7 @@ export interface FileRoutesByFullPath {
   '/api/realtime-token': typeof ApiRealtimeTokenRoute
   '/api/tanchat': typeof ApiTanchatRoute
   '/example/guitars/$guitarId': typeof ExampleGuitarsGuitarIdRoute
-  '/example/guitars': typeof ExampleGuitarsIndexRoute
+  '/example/guitars/': typeof ExampleGuitarsIndexRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -80,7 +80,7 @@ export interface FileRouteTypes {
     | '/api/realtime-token'
     | '/api/tanchat'
     | '/example/guitars/$guitarId'
-    | '/example/guitars'
+    | '/example/guitars/'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -141,7 +141,7 @@ declare module '@tanstack/react-router' {
     '/example/guitars/': {
       id: '/example/guitars/'
       path: '/example/guitars'
-      fullPath: '/example/guitars'
+      fullPath: '/example/guitars/'
       preLoaderRoute: typeof ExampleGuitarsIndexRouteImport
       parentRoute: typeof rootRouteImport
     }

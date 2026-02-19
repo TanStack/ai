@@ -84,75 +84,34 @@ class Tool:
 
 
 # ============================================================================
-# Stream Chunk Types
+# AG-UI Protocol Event Types
 # ============================================================================
 
+"""
+AG-UI (Agent-User Interaction) Protocol event types.
+Based on the AG-UI specification for agent-user interaction.
+@see https://docs.ag-ui.com/concepts/events
+"""
 
-StreamChunkType = Literal[
-    "content",
-    "thinking",
-    "tool_call",
-    "tool-input-available",
-    "approval-requested",
-    "tool_result",
-    "done",
-    "error",
+AGUIEventType = Literal[
+    "RUN_STARTED",
+    "RUN_FINISHED",
+    "RUN_ERROR",
+    "TEXT_MESSAGE_START",
+    "TEXT_MESSAGE_CONTENT",
+    "TEXT_MESSAGE_END",
+    "TOOL_CALL_START",
+    "TOOL_CALL_ARGS",
+    "TOOL_CALL_END",
+    "STEP_STARTED",
+    "STEP_FINISHED",
+    "STATE_SNAPSHOT",
+    "STATE_DELTA",
+    "CUSTOM",
 ]
 
-
-class BaseStreamChunk(TypedDict):
-    """Base structure for all stream chunks."""
-
-    type: StreamChunkType
-    id: str
-    model: str
-    timestamp: int  # Unix timestamp in milliseconds
-
-
-class ContentStreamChunk(BaseStreamChunk):
-    """Emitted when the model generates text content."""
-
-    delta: str  # The incremental content token
-    content: str  # Full accumulated content so far
-    role: Optional[Literal["assistant"]]
-
-
-class ThinkingStreamChunk(BaseStreamChunk):
-    """Emitted when the model exposes its reasoning process."""
-
-    delta: Optional[str]  # The incremental thinking token
-    content: str  # Full accumulated thinking content so far
-
-
-class ToolCallStreamChunk(BaseStreamChunk):
-    """Emitted when the model decides to call a tool/function."""
-
-    toolCall: ToolCall
-    index: int  # Index of this tool call (for parallel calls)
-
-
-class ToolInputAvailableStreamChunk(BaseStreamChunk):
-    """Emitted when tool inputs are complete and ready for client-side execution."""
-
-    toolCallId: str
-    toolName: str
-    input: Any  # Parsed tool arguments
-
-
-class ApprovalRequestedStreamChunk(BaseStreamChunk):
-    """Emitted when a tool requires user approval before execution."""
-
-    toolCallId: str
-    toolName: str
-    input: Any
-    approval: Dict[str, Any]  # Contains 'id' and 'needsApproval'
-
-
-class ToolResultStreamChunk(BaseStreamChunk):
-    """Emitted when a tool execution completes."""
-
-    toolCallId: str
-    content: str  # Result of the tool execution (JSON stringified)
+# Stream chunk/event types (AG-UI protocol)
+StreamChunkType = AGUIEventType
 
 
 class UsageInfo(TypedDict, total=False):
@@ -163,13 +122,6 @@ class UsageInfo(TypedDict, total=False):
     totalTokens: int
 
 
-class DoneStreamChunk(BaseStreamChunk):
-    """Emitted when the stream completes successfully."""
-
-    finishReason: Optional[Literal["stop", "length", "content_filter", "tool_calls"]]
-    usage: Optional[UsageInfo]
-
-
 class ErrorInfo(TypedDict, total=False):
     """Error information."""
 
@@ -177,23 +129,185 @@ class ErrorInfo(TypedDict, total=False):
     code: Optional[str]
 
 
-class ErrorStreamChunk(BaseStreamChunk):
-    """Emitted when an error occurs during streaming."""
+# ============================================================================
+# AG-UI Event Interfaces
+# ============================================================================
 
+
+class BaseAGUIEvent(TypedDict, total=False):
+    """Base structure for AG-UI events."""
+
+    type: AGUIEventType
+    timestamp: int  # Unix timestamp in milliseconds
+    model: Optional[str]
+    rawEvent: Optional[Any]
+
+
+class RunStartedEvent(TypedDict):
+    """Emitted when a run starts. This is the first event in any streaming response."""
+
+    type: Literal["RUN_STARTED"]
+    runId: str
+    timestamp: int
+    model: Optional[str]
+    threadId: Optional[str]
+
+
+class RunFinishedEvent(TypedDict, total=False):
+    """Emitted when a run completes successfully."""
+
+    type: Literal["RUN_FINISHED"]
+    runId: str
+    timestamp: int
+    model: Optional[str]
+    finishReason: Optional[Literal["stop", "length", "content_filter", "tool_calls"]]
+    usage: Optional[UsageInfo]
+
+
+class RunErrorEvent(TypedDict, total=False):
+    """Emitted when an error occurs during a run."""
+
+    type: Literal["RUN_ERROR"]
+    runId: Optional[str]
+    timestamp: int
+    model: Optional[str]
     error: ErrorInfo
 
 
-# Union type for all stream chunks
-StreamChunk = Union[
-    ContentStreamChunk,
-    ThinkingStreamChunk,
-    ToolCallStreamChunk,
-    ToolInputAvailableStreamChunk,
-    ApprovalRequestedStreamChunk,
-    ToolResultStreamChunk,
-    DoneStreamChunk,
-    ErrorStreamChunk,
+class TextMessageStartEvent(TypedDict):
+    """Emitted when a text message starts."""
+
+    type: Literal["TEXT_MESSAGE_START"]
+    messageId: str
+    timestamp: int
+    model: Optional[str]
+    role: Literal["assistant"]
+
+
+class TextMessageContentEvent(TypedDict, total=False):
+    """Emitted when text content is generated (streaming tokens)."""
+
+    type: Literal["TEXT_MESSAGE_CONTENT"]
+    messageId: str
+    timestamp: int
+    model: Optional[str]
+    delta: str
+    content: Optional[str]
+
+
+class TextMessageEndEvent(TypedDict):
+    """Emitted when a text message completes."""
+
+    type: Literal["TEXT_MESSAGE_END"]
+    messageId: str
+    timestamp: int
+    model: Optional[str]
+
+
+class ToolCallStartEvent(TypedDict, total=False):
+    """Emitted when a tool call starts."""
+
+    type: Literal["TOOL_CALL_START"]
+    toolCallId: str
+    toolName: str
+    timestamp: int
+    model: Optional[str]
+    index: Optional[int]
+
+
+class ToolCallArgsEvent(TypedDict, total=False):
+    """Emitted when tool call arguments are streaming."""
+
+    type: Literal["TOOL_CALL_ARGS"]
+    toolCallId: str
+    timestamp: int
+    model: Optional[str]
+    delta: str
+    args: Optional[str]
+
+
+class ToolCallEndEvent(TypedDict, total=False):
+    """Emitted when a tool call completes."""
+
+    type: Literal["TOOL_CALL_END"]
+    toolCallId: str
+    toolName: str
+    timestamp: int
+    model: Optional[str]
+    input: Optional[Any]
+    result: Optional[str]
+
+
+class StepStartedEvent(TypedDict, total=False):
+    """Emitted when a thinking/reasoning step starts."""
+
+    type: Literal["STEP_STARTED"]
+    stepId: str
+    timestamp: int
+    model: Optional[str]
+    stepType: Optional[str]
+
+
+class StepFinishedEvent(TypedDict, total=False):
+    """Emitted when a thinking/reasoning step finishes."""
+
+    type: Literal["STEP_FINISHED"]
+    stepId: str
+    timestamp: int
+    model: Optional[str]
+    delta: Optional[str]
+    content: Optional[str]
+
+
+class StateSnapshotEvent(TypedDict):
+    """Emitted to provide a full state snapshot."""
+
+    type: Literal["STATE_SNAPSHOT"]
+    timestamp: int
+    model: Optional[str]
+    state: Dict[str, Any]
+
+
+class StateDeltaEvent(TypedDict):
+    """Emitted to provide an incremental state update."""
+
+    type: Literal["STATE_DELTA"]
+    timestamp: int
+    model: Optional[str]
+    delta: Dict[str, Any]
+
+
+class CustomEvent(TypedDict, total=False):
+    """Custom event for extensibility."""
+
+    type: Literal["CUSTOM"]
+    timestamp: int
+    model: Optional[str]
+    name: str
+    data: Optional[Any]
+
+
+# Union of all AG-UI events
+AGUIEvent = Union[
+    RunStartedEvent,
+    RunFinishedEvent,
+    RunErrorEvent,
+    TextMessageStartEvent,
+    TextMessageContentEvent,
+    TextMessageEndEvent,
+    ToolCallStartEvent,
+    ToolCallArgsEvent,
+    ToolCallEndEvent,
+    StepStartedEvent,
+    StepFinishedEvent,
+    StateSnapshotEvent,
+    StateDeltaEvent,
+    CustomEvent,
 ]
+
+
+# Stream chunks use AG-UI event format
+StreamChunk = AGUIEvent
 
 
 # ============================================================================

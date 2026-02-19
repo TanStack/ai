@@ -24,7 +24,7 @@ First, create an API route that handles chat requests. Here's a simplified examp
 
 ```typescript
 import { chat, toServerSentEventsResponse } from "@tanstack/ai";
-import { openai } from "@tanstack/ai-openai";
+import { openaiText } from "@tanstack/ai-openai";
 import { createFileRoute } from "@tanstack/react-router";
 
 export const Route = createFileRoute("/api/chat")({
@@ -49,9 +49,8 @@ export const Route = createFileRoute("/api/chat")({
         try {
           // Create a streaming chat response
           const stream = chat({
-            adapter: openai(),
+            adapter: openaiText("gpt-5.2"),
             messages,
-            model: "gpt-5.2",
             conversationId,
           });
 

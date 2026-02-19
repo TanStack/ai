@@ -39,27 +39,37 @@ from .types import (
     ModelMessage,
     ChatOptions,
     AIAdapterConfig,
-    # Stream chunk types
+    # AG-UI Event types
+    AGUIEventType,
+    AGUIEvent,
+    RunStartedEvent,
+    RunFinishedEvent,
+    RunErrorEvent,
+    TextMessageStartEvent,
+    TextMessageContentEvent,
+    TextMessageEndEvent,
+    ToolCallStartEvent,
+    ToolCallArgsEvent,
+    ToolCallEndEvent,
+    StepStartedEvent,
+    StepFinishedEvent,
+    StateSnapshotEvent,
+    StateDeltaEvent,
+    CustomEvent,
     StreamChunk,
-    ContentStreamChunk,
-    ThinkingStreamChunk,
-    ToolCallStreamChunk,
-    ToolInputAvailableStreamChunk,
-    ApprovalRequestedStreamChunk,
-    ToolResultStreamChunk,
-    DoneStreamChunk,
-    ErrorStreamChunk,
     # Agent loop types
     AgentLoopState,
     AgentLoopStrategy,
     # Other types
+    UsageInfo,
+    ErrorInfo,
     SummarizationOptions,
     SummarizationResult,
     EmbeddingOptions,
     EmbeddingResult,
 )
 
-# Legacy utilities (for backward compatibility)
+# Utilities
 from .converter import StreamChunkConverter
 from .message_formatters import format_messages_for_anthropic, format_messages_for_openai
 from .sse import format_sse_chunk, format_sse_done, format_sse_error, stream_chunks_to_sse
@@ -83,28 +93,41 @@ __all__ = [
     "max_iterations",
     "until_finish_reason",
     "combine_strategies",
-    # Types
+    # AG-UI Event Types
+    "AGUIEventType",
+    "AGUIEvent",
+    "RunStartedEvent",
+    "RunFinishedEvent",
+    "RunErrorEvent",
+    "TextMessageStartEvent",
+    "TextMessageContentEvent",
+    "TextMessageEndEvent",
+    "ToolCallStartEvent",
+    "ToolCallArgsEvent",
+    "ToolCallEndEvent",
+    "StepStartedEvent",
+    "StepFinishedEvent",
+    "StateSnapshotEvent",
+    "StateDeltaEvent",
+    "CustomEvent",
+    "StreamChunk",
+    # Core Types
     "Tool",
     "ToolCall",
     "ModelMessage",
     "ChatOptions",
     "AIAdapterConfig",
-    "StreamChunk",
-    "ContentStreamChunk",
-    "ThinkingStreamChunk",
-    "ToolCallStreamChunk",
-    "ToolInputAvailableStreamChunk",
-    "ApprovalRequestedStreamChunk",
-    "ToolResultStreamChunk",
-    "DoneStreamChunk",
-    "ErrorStreamChunk",
+    "UsageInfo",
+    "ErrorInfo",
+    # Agent Loop Types
     "AgentLoopState",
     "AgentLoopStrategy",
+    # Other Types
     "SummarizationOptions",
     "SummarizationResult",
     "EmbeddingOptions",
     "EmbeddingResult",
-    # Legacy utilities
+    # Utilities
     "StreamChunkConverter",
     "format_messages_for_anthropic",
     "format_messages_for_openai",

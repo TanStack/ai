@@ -13,14 +13,14 @@ Defined in: [stream-to-response.ts:23](https://github.com/TanStack/ai/blob/main/
 
 Collect all text content from a StreamChunk async iterable and return as a string.
 
-This function consumes the entire stream, accumulating content from 'content' type chunks,
+This function consumes the entire stream, accumulating content from TEXT_MESSAGE_CONTENT events,
 and returns the final concatenated text.
 
 ## Parameters
 
 ### stream
 
-`AsyncIterable`\<[`StreamChunk`](../type-aliases/StreamChunk.md)\>
+`AsyncIterable`\<[`AGUIEvent`](../type-aliases/AGUIEvent.md)\>
 
 AsyncIterable of StreamChunks from chat()
 
@@ -35,7 +35,7 @@ Promise<string> - The accumulated text content
 ```typescript
 const stream = chat({
   adapter: openaiText(),
-  model: 'gpt-5.2',
+  model: 'gpt-4o',
   messages: [{ role: 'user', content: 'Hello!' }]
 });
 const text = await streamToText(stream);

@@ -3,6 +3,7 @@
   "ignoreDependencies": ["@faker-js/faker"],
   "ignoreWorkspaces": ["examples/**", "testing/**", "**/smoke-tests/**"],
   "ignore": [
+    "scripts/**",
     "packages/typescript/ai-openai/live-tests/**",
     "packages/typescript/ai-openai/src/**/*.test.ts",
     "packages/typescript/ai-openai/src/audio/audio-provider-options.ts",

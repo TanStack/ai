@@ -1,4 +1,5 @@
 import { aiEventClient } from '@tanstack/ai/event-client'
+import type { ContentPart } from '@tanstack/ai'
 import type { UIMessage } from './types'
 
 /**
@@ -17,7 +18,7 @@ export abstract class ChatClientEventEmitter {
    */
   protected abstract emitEvent(
     eventName: string,
-    data?: Record<string, any>,
+    data?: Record<string, unknown>,
   ): void
 
   /**
@@ -33,14 +34,14 @@ export abstract class ChatClientEventEmitter {
    * Emit loading state changed event
    */
   loadingChanged(isLoading: boolean): void {
-    this.emitEvent('client:loading-changed', { isLoading })
+    this.emitEvent('client:loading:changed', { isLoading })
   }
 
   /**
    * Emit error state changed event
    */
   errorChanged(error: string | null): void {
-    this.emitEvent('client:error-changed', {
+    this.emitEvent('client:error:changed', {
       error,
     })
   }
@@ -49,12 +50,8 @@ export abstract class ChatClientEventEmitter {
    * Emit text update events (combines processor and client events)
    */
   textUpdated(streamId: string, messageId: string, content: string): void {
-    this.emitEvent('processor:text-updated', {
+    this.emitEvent('text:chunk:content', {
       streamId,
-      content,
-    })
-
-    this.emitEvent('client:assistant-message-updated', {
       messageId,
       content,
     })
@@ -71,15 +68,8 @@ export abstract class ChatClientEventEmitter {
     state: string,
     args: string,
   ): void {
-    this.emitEvent('processor:tool-call-state-changed', {
+    this.emitEvent('tools:call:updated', {
       streamId,
-      toolCallId,
-      toolName,
-      state,
-      arguments: args,
-    })
-
-    this.emitEvent('client:tool-call-updated', {
       messageId,
       toolCallId,
       toolName,
@@ -91,22 +81,6 @@ export abstract class ChatClientEventEmitter {
   /**
    * Emit tool result state change event
    */
-  toolResultStateChanged(
-    streamId: string,
-    toolCallId: string,
-    content: string,
-    state: string,
-    error?: string,
-  ): void {
-    this.emitEvent('processor:tool-result-state-changed', {
-      streamId,
-      toolCallId,
-      content,
-      state,
-      error,
-    })
-  }
-
   /**
    * Emit thinking update event
    */
@@ -116,7 +90,7 @@ export abstract class ChatClientEventEmitter {
     content: string,
     delta?: string,
   ): void {
-    this.emitEvent('stream:chunk:thinking', {
+    this.emitEvent('text:chunk:thinking', {
       streamId,
       messageId,
       content,
@@ -128,13 +102,15 @@ export abstract class ChatClientEventEmitter {
    * Emit approval requested event
    */
   approvalRequested(
+    streamId: string,
     messageId: string,
     toolCallId: string,
     toolName: string,
-    input: any,
+    input: unknown,
     approvalId: string,
   ): void {
-    this.emitEvent('client:approval-requested', {
+    this.emitEvent('tools:approval:requested', {
+      streamId,
       messageId,
       toolCallId,
       toolName,
@@ -146,27 +122,52 @@ export abstract class ChatClientEventEmitter {
   /**
    * Emit message appended event
    */
-  messageAppended(uiMessage: UIMessage): void {
-    const contentPreview = uiMessage.parts
-      .filter((p) => p.type === 'text')
-      .map((p) => (p as any).content)
+  messageAppended(uiMessage: UIMessage, streamId?: string): void {
+    const content = uiMessage.parts
+      .filter((part) => part.type === 'text')
+      .map((part) => part.content)
       .join(' ')
-      .substring(0, 100)
 
-    this.emitEvent('client:message-appended', {
+    this.emitEvent('text:message:created', {
+      streamId,
       messageId: uiMessage.id,
       role: uiMessage.role,
-      contentPreview,
+      content,
+      parts: uiMessage.parts,
     })
   }
 
   /**
-   * Emit message sent event
+   * Emit message sent event.
+   * Supports both simple string content and multimodal content arrays.
+   *
+   * @param messageId - The ID of the sent message
+   * @param content - The message content (string or array of ContentPart for multimodal)
    */
-  messageSent(messageId: string, content: string): void {
-    this.emitEvent('client:message-sent', {
+  messageSent(messageId: string, content: string | Array<ContentPart>): void {
+    // For text content, extract it; for multimodal, provide the array
+    const textContent =
+      typeof content === 'string'
+        ? content
+        : content
+            .filter((part) => part.type === 'text')
+            .map((part) => (part as { type: 'text'; content: string }).content)
+            .join('')
+
+    this.emitEvent('text:message:created', {
       messageId,
-      content,
+      role: 'user',
+      content: textContent,
+      // Include full content for multimodal messages
+      ...(Array.isArray(content) && { parts: content }),
+    })
+
+    this.emitEvent('text:message:user', {
+      messageId,
+      role: 'user',
+      content: textContent,
+      // Include full content for multimodal messages
+      ...(Array.isArray(content) && { parts: content }),
     })
   }
 
@@ -178,7 +179,6 @@ export abstract class ChatClientEventEmitter {
       fromMessageIndex,
     })
   }
-
   /**
    * Emit stopped event
    */
@@ -190,7 +190,7 @@ export abstract class ChatClientEventEmitter {
    * Emit messages cleared event
    */
   messagesCleared(): void {
-    this.emitEvent('client:messages-cleared')
+    this.emitEvent('client:messages:cleared')
   }
 
   /**
@@ -199,10 +199,10 @@ export abstract class ChatClientEventEmitter {
   toolResultAdded(
     toolCallId: string,
     toolName: string,
-    output: any,
+    output: unknown,
     state: string,
   ): void {
-    this.emitEvent('tool:result-added', {
+    this.emitEvent('tools:result:added', {
       toolCallId,
       toolName,
       output,
@@ -218,7 +218,7 @@ export abstract class ChatClientEventEmitter {
     toolCallId: string,
     approved: boolean,
   ): void {
-    this.emitEvent('tool:approval-responded', {
+    this.emitEvent('tools:approval:responded', {
       approvalId,
       toolCallId,
       approved,
@@ -235,14 +235,19 @@ export class DefaultChatClientEventEmitter extends ChatClientEventEmitter {
    */
   protected emitEvent(eventName: string, data?: Record<string, any>): void {
     // For client:* and tool:* events, automatically add clientId and timestamp
-    if (eventName.startsWith('client:') || eventName.startsWith('tool:')) {
+    if (
+      eventName.startsWith('client:') ||
+      eventName.startsWith('tools:') ||
+      eventName.startsWith('text:')
+    ) {
       aiEventClient.emit(eventName as any, {
         ...data,
         clientId: this.clientId,
+        source: 'client',
         timestamp: Date.now(),
       })
     } else {
-      // For other events (e.g., processor:*), just add timestamp
+      // For other events, just add timestamp
       aiEventClient.emit(eventName as any, {
         ...data,
         timestamp: Date.now(),

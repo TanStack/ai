@@ -1,4 +1,3 @@
-import { convertMessagesToModelMessages } from '@tanstack/ai'
 import type { ModelMessage, StreamChunk, UIMessage } from '@tanstack/ai'
 
 /**
@@ -138,16 +137,15 @@ export function fetchServerSentEvents(
       const resolvedOptions =
         typeof options === 'function' ? await options() : options
 
-      const modelMessages = convertMessagesToModelMessages(messages)
-
       const requestHeaders: Record<string, string> = {
         'Content-Type': 'application/json',
         ...mergeHeaders(resolvedOptions.headers),
       }
 
-      // Merge body from options with messages and data
+      // Send messages as-is (UIMessages with parts preserved)
+      // Server-side TextEngine handles conversion to ModelMessages
       const requestBody = {
-        messages: modelMessages,
+        messages,
         data,
         ...resolvedOptions.body,
       }
@@ -238,17 +236,15 @@ export function fetchHttpStream(
       const resolvedOptions =
         typeof options === 'function' ? await options() : options
 
-      // Convert UIMessages to ModelMessages if needed
-      const modelMessages = convertMessagesToModelMessages(messages)
-
       const requestHeaders: Record<string, string> = {
         'Content-Type': 'application/json',
         ...mergeHeaders(resolvedOptions.headers),
       }
 
-      // Merge body from options with messages and data
+      // Send messages as-is (UIMessages with parts preserved)
+      // Server-side TextEngine handles conversion to ModelMessages
       const requestBody = {
-        messages: modelMessages,
+        messages,
         data,
         ...resolvedOptions.body,
       }
@@ -302,14 +298,15 @@ export function fetchHttpStream(
  */
 export function stream(
   streamFactory: (
-    messages: Array<ModelMessage>,
+    messages: Array<UIMessage> | Array<ModelMessage>,
     data?: Record<string, any>,
   ) => AsyncIterable<StreamChunk>,
 ): ConnectionAdapter {
   return {
     async *connect(messages, data) {
-      const modelMessages = convertMessagesToModelMessages(messages)
-      yield* streamFactory(modelMessages, data)
+      // Pass messages as-is (UIMessages with parts preserved)
+      // Server-side chat() handles conversion to ModelMessages
+      yield* streamFactory(messages, data)
     },
   }
 }
@@ -332,16 +329,15 @@ export function stream(
  */
 export function rpcStream(
   rpcCall: (
-    messages: Array<ModelMessage>,
+    messages: Array<UIMessage> | Array<ModelMessage>,
     data?: Record<string, any>,
   ) => AsyncIterable<StreamChunk>,
 ): ConnectionAdapter {
   return {
     async *connect(messages, data) {
-      const modelMessages = convertMessagesToModelMessages(messages)
-      // Simply yield from the RPC call
-      // The RPC layer handles WebSocket transport
-      yield* rpcCall(modelMessages, data)
+      // Pass messages as-is (UIMessages with parts preserved)
+      // Server-side chat() handles conversion to ModelMessages
+      yield* rpcCall(messages, data)
     },
   }
 }
