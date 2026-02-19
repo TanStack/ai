@@ -1,7 +1,14 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { RealtimeClient } from '@tanstack/ai-client'
-import type { RealtimeMessage, RealtimeMode, RealtimeStatus } from '@tanstack/ai'
-import type { UseRealtimeChatOptions, UseRealtimeChatReturn } from './realtime-types'
+import type {
+  RealtimeMessage,
+  RealtimeMode,
+  RealtimeStatus,
+} from '@tanstack/ai'
+import type {
+  UseRealtimeChatOptions,
+  UseRealtimeChatReturn,
+} from './realtime-types'
 
 // Empty frequency data for when client is not connected
 const emptyFrequencyData = new Uint8Array(128)
@@ -54,8 +61,12 @@ export function useRealtimeChat(
   const [status, setStatus] = useState<RealtimeStatus>('idle')
   const [mode, setMode] = useState<RealtimeMode>('idle')
   const [messages, setMessages] = useState<Array<RealtimeMessage>>([])
-  const [pendingUserTranscript, setPendingUserTranscript] = useState<string | null>(null)
-  const [pendingAssistantTranscript, setPendingAssistantTranscript] = useState<string | null>(null)
+  const [pendingUserTranscript, setPendingUserTranscript] = useState<
+    string | null
+  >(null)
+  const [pendingAssistantTranscript, setPendingAssistantTranscript] = useState<
+    string | null
+  >(null)
   const [error, setError] = useState<Error | null>(null)
   const [inputLevel, setInputLevel] = useState(0)
   const [outputLevel, setOutputLevel] = useState(0)
@@ -181,19 +192,27 @@ export function useRealtimeChat(
 
   // Audio visualization
   const getInputFrequencyData = useCallback(() => {
-    return clientRef.current?.audio?.getInputFrequencyData() ?? emptyFrequencyData
+    return (
+      clientRef.current?.audio?.getInputFrequencyData() ?? emptyFrequencyData
+    )
   }, [])
 
   const getOutputFrequencyData = useCallback(() => {
-    return clientRef.current?.audio?.getOutputFrequencyData() ?? emptyFrequencyData
+    return (
+      clientRef.current?.audio?.getOutputFrequencyData() ?? emptyFrequencyData
+    )
   }, [])
 
   const getInputTimeDomainData = useCallback(() => {
-    return clientRef.current?.audio?.getInputTimeDomainData() ?? emptyTimeDomainData
+    return (
+      clientRef.current?.audio?.getInputTimeDomainData() ?? emptyTimeDomainData
+    )
   }, [])
 
   const getOutputTimeDomainData = useCallback(() => {
-    return clientRef.current?.audio?.getOutputTimeDomainData() ?? emptyTimeDomainData
+    return (
+      clientRef.current?.audio?.getOutputTimeDomainData() ?? emptyTimeDomainData
+    )
   }, [])
 
   // VAD mode control

@@ -126,11 +126,12 @@ export function openaiRealtimeToken(
           voice: sessionData.voice,
           instructions: sessionData.instructions,
           tools,
-          vadMode: sessionData.turn_detection?.type === 'semantic_vad'
-            ? 'semantic'
-            : sessionData.turn_detection?.type === 'server_vad'
-              ? 'server'
-              : 'manual',
+          vadMode:
+            sessionData.turn_detection?.type === 'semantic_vad'
+              ? 'semantic'
+              : sessionData.turn_detection?.type === 'server_vad'
+                ? 'server'
+                : 'manual',
           vadConfig: sessionData.turn_detection
             ? {
                 threshold: sessionData.turn_detection.threshold,

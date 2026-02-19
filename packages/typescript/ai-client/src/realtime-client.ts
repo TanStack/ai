@@ -61,7 +61,7 @@ export class RealtimeClient {
   constructor(options: RealtimeClientOptions) {
     this.instanceId = ++clientIdCounter
     console.log(`[RealtimeClient #${this.instanceId}] Created`)
-    
+
     this.options = {
       autoPlayback: true,
       autoCapture: true,
@@ -102,7 +102,10 @@ export class RealtimeClient {
 
       // Connect via adapter
       this.connection = await this.options.adapter.connect(this.token)
-      console.log(`[RealtimeClient #${this.instanceId}] Connection established:`, !!this.connection)
+      console.log(
+        `[RealtimeClient #${this.instanceId}] Connection established:`,
+        !!this.connection,
+      )
 
       // Subscribe to connection events
       this.subscribeToConnectionEvents()
@@ -251,7 +254,10 @@ export class RealtimeClient {
 
   /** Get audio visualization data */
   get audio(): AudioVisualization | null {
-    console.log(`[RealtimeClient #${this.instanceId}] audio getter, connection:`, !!this.connection)
+    console.log(
+      `[RealtimeClient #${this.instanceId}] audio getter, connection:`,
+      !!this.connection,
+    )
     return this.connection?.getAudioVisualization() ?? null
   }
 
@@ -381,25 +387,28 @@ export class RealtimeClient {
 
     // Tool calls
     this.unsubscribers.push(
-      this.connection.on('tool_call', async ({ toolCallId, toolName, input }) => {
-        const tool = this.clientTools.get(toolName)
-        if (tool?.execute) {
-          try {
-            const output = await tool.execute(input)
-            this.connection?.sendToolResult(
-              toolCallId,
-              typeof output === 'string' ? output : JSON.stringify(output),
-            )
-          } catch (error) {
-            const errMsg =
-              error instanceof Error ? error.message : String(error)
-            this.connection?.sendToolResult(
-              toolCallId,
-              JSON.stringify({ error: errMsg }),
-            )
+      this.connection.on(
+        'tool_call',
+        async ({ toolCallId, toolName, input }) => {
+          const tool = this.clientTools.get(toolName)
+          if (tool?.execute) {
+            try {
+              const output = await tool.execute(input)
+              this.connection?.sendToolResult(
+                toolCallId,
+                typeof output === 'string' ? output : JSON.stringify(output),
+              )
+            } catch (error) {
+              const errMsg =
+                error instanceof Error ? error.message : String(error)
+              this.connection?.sendToolResult(
+                toolCallId,
+                JSON.stringify({ error: errMsg }),
+              )
+            }
           }
-        }
-      }),
+        },
+      ),
     )
 
     // Message complete

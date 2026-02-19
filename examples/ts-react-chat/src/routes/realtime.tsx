@@ -14,11 +14,11 @@ const PROVIDER_OPTIONS: Array<{ value: Provider; label: string }> = [
 ]
 
 // Sparkline component to visualize audio waveform
-function AudioSparkline({ 
-  getData, 
+function AudioSparkline({
+  getData,
   color,
   label,
-}: { 
+}: {
   getData: () => Uint8Array
   color: string
   label: string
@@ -49,20 +49,20 @@ function AudioSparkline({
 
       // Sample the data to fit the canvas width
       const step = Math.max(1, Math.floor(data.length / width))
-      
+
       for (let i = 0; i < width; i++) {
         const dataIndex = Math.min(i * step, data.length - 1)
         const value = data[dataIndex] ?? 128
         // Convert 0-255 to canvas height (128 is center/silence)
-        const y = height - ((value / 255) * height)
-        
+        const y = height - (value / 255) * height
+
         if (i === 0) {
           ctx!.moveTo(i, y)
         } else {
           ctx!.lineTo(i, y)
         }
       }
-      
+
       ctx!.stroke()
 
       // Draw center line (silence level)
@@ -89,10 +89,10 @@ function AudioSparkline({
   return (
     <div className="flex items-center gap-2">
       <span className="text-xs text-gray-500 w-12">{label}</span>
-      <canvas 
-        ref={canvasRef} 
-        width={200} 
-        height={40} 
+      <canvas
+        ref={canvasRef}
+        width={200}
+        height={40}
         className="rounded border border-gray-700"
       />
     </div>
@@ -105,7 +105,8 @@ function RealtimePage() {
   const messagesEndRef = useRef<HTMLDivElement>(null)
 
   // Get the appropriate adapter based on provider
-  const adapter = provider === 'openai' ? openaiRealtime() : elevenlabsRealtime()
+  const adapter =
+    provider === 'openai' ? openaiRealtime() : elevenlabsRealtime()
 
   const {
     status,
@@ -284,7 +285,8 @@ function RealtimePage() {
                 Click "Start Conversation" to begin talking with the AI
               </p>
               <p className="text-xs mt-2 text-gray-600">
-                Try asking: "What time is it?" or "What's the weather in San Francisco?"
+                Try asking: "What time is it?" or "What's the weather in San
+                Francisco?"
               </p>
             </div>
           )}
@@ -388,9 +390,9 @@ function RealtimePage() {
                 <span className="text-xs text-gray-500 w-10 text-right">
                   {Math.round(inputLevel * 100)}%
                 </span>
-                <AudioSparkline 
-                  getData={getInputTimeDomainData} 
-                  color="#22c55e" 
+                <AudioSparkline
+                  getData={getInputTimeDomainData}
+                  color="#22c55e"
                   label="Input"
                 />
               </div>
@@ -406,9 +408,9 @@ function RealtimePage() {
                 <span className="text-xs text-gray-500 w-10 text-right">
                   {Math.round(outputLevel * 100)}%
                 </span>
-                <AudioSparkline 
-                  getData={getOutputTimeDomainData} 
-                  color="#3b82f6" 
+                <AudioSparkline
+                  getData={getOutputTimeDomainData}
+                  color="#3b82f6"
                   label="Output"
                 />
               </div>

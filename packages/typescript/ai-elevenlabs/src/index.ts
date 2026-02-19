@@ -2,10 +2,7 @@
 // ElevenLabs Realtime (Voice) Adapters
 // ============================================================================
 
-export {
-  elevenlabsRealtimeToken,
-  elevenlabsRealtime,
-} from './realtime/index'
+export { elevenlabsRealtimeToken, elevenlabsRealtime } from './realtime/index'
 
 export type {
   ElevenLabsRealtimeTokenOptions,

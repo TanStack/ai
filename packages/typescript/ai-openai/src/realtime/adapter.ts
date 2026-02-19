@@ -8,10 +8,7 @@ import type {
   RealtimeStatus,
   RealtimeToken,
 } from '@tanstack/ai'
-import type {
-  RealtimeAdapter,
-  RealtimeConnection,
-} from '@tanstack/ai-client'
+import type { RealtimeAdapter, RealtimeConnection } from '@tanstack/ai-client'
 import type { OpenAIRealtimeOptions } from './types'
 
 const OPENAI_REALTIME_URL = 'https://api.openai.com/v1/realtime'
@@ -175,7 +172,10 @@ async function createWebRTCConnection(
   await pc.setRemoteDescription({ type: 'answer', sdp: answerSdp })
 
   // Set up input audio analysis now that we have the stream
-  console.log('[Realtime] Setting up input audio analysis, localStream:', localStream)
+  console.log(
+    '[Realtime] Setting up input audio analysis, localStream:',
+    localStream,
+  )
   setupInputAudioAnalysis(localStream)
   console.log('[Realtime] Input analyser created:', inputAnalyser)
 
@@ -224,7 +224,11 @@ async function createWebRTCConnection(
 
       case 'response.audio_transcript.delta': {
         const delta = event.delta as string
-        emit('transcript', { role: 'assistant', transcript: delta, isFinal: false })
+        emit('transcript', {
+          role: 'assistant',
+          transcript: delta,
+          isFinal: false,
+        })
         break
       }
 
@@ -264,8 +268,10 @@ async function createWebRTCConnection(
         // Emit message complete if we have a current message
         if (currentMessageId) {
           const response = event.response as Record<string, unknown>
-          const output = response.output as Array<Record<string, unknown>> | undefined
-          
+          const output = response.output as
+            | Array<Record<string, unknown>>
+            | undefined
+
           const message: RealtimeMessage = {
             id: currentMessageId,
             role: 'assistant',
@@ -511,14 +517,19 @@ async function createWebRTCConnection(
 
     getAudioVisualization(): AudioVisualization {
       // Log analyser state for debugging
-      console.log('[Realtime] getAudioVisualization called, inputAnalyser:', !!inputAnalyser, 'outputAnalyser:', !!outputAnalyser)
-      
+      console.log(
+        '[Realtime] getAudioVisualization called, inputAnalyser:',
+        !!inputAnalyser,
+        'outputAnalyser:',
+        !!outputAnalyser,
+      )
+
       // Helper to calculate audio level from time domain data
       // Uses peak amplitude which is more responsive for voice audio meters
       function calculateLevel(analyser: AnalyserNode): number {
         const data = new Uint8Array(analyser.fftSize)
         analyser.getByteTimeDomainData(data)
-        
+
         // Find peak deviation from center (128 is silence)
         // This is more responsive than RMS for voice level meters
         let maxDeviation = 0
@@ -528,7 +539,7 @@ async function createWebRTCConnection(
             maxDeviation = deviation
           }
         }
-        
+
         // Normalize to 0-1 range (max deviation is 128)
         // Scale by 1.5x so that ~66% amplitude reads as full scale
         // This provides good visual feedback without pegging too early

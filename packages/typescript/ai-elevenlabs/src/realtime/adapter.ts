@@ -51,7 +51,9 @@ async function createElevenLabsConnection(
   _options: ElevenLabsRealtimeOptions,
 ): Promise<RealtimeConnection> {
   const eventHandlers = new Map<RealtimeEvent, Set<RealtimeEventHandler<any>>>()
-  let conversation: Awaited<ReturnType<typeof Conversation.startSession>> | null = null
+  let conversation: Awaited<
+    ReturnType<typeof Conversation.startSession>
+  > | null = null
   let messageIdCounter = 0
 
   // Empty arrays for when visualization isn't available

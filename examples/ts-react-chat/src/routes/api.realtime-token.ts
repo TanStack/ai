@@ -13,9 +13,13 @@ import * as z from 'zod'
 type Provider = 'openai' | 'elevenlabs'
 
 // Convert tool definitions to OpenAI's format using Zod's native toJSONSchema
-function toolDefToOpenAI(toolDef: { name: string; description: string; inputSchema?: unknown }) {
+function toolDefToOpenAI(toolDef: {
+  name: string
+  description: string
+  inputSchema?: unknown
+}) {
   let parameters: Record<string, unknown> = { type: 'object', properties: {} }
-  
+
   if (toolDef.inputSchema) {
     // Use Zod's native toJSONSchema for Zod v4+
     const jsonSchema = z.toJSONSchema(toolDef.inputSchema as z.ZodType)
@@ -23,7 +27,7 @@ function toolDefToOpenAI(toolDef: { name: string; description: string; inputSche
     const { $schema, ...rest } = jsonSchema as Record<string, unknown>
     parameters = rest
   }
-  
+
   return {
     type: 'function' as const,
     name: toolDef.name,
@@ -85,7 +89,8 @@ Be friendly and engaging!`,
             if (!agentId) {
               return new Response(
                 JSON.stringify({
-                  error: 'ElevenLabs agent ID is required. Set ELEVENLABS_AGENT_ID or pass agentId in request body.',
+                  error:
+                    'ElevenLabs agent ID is required. Set ELEVENLABS_AGENT_ID or pass agentId in request body.',
                 }),
                 {
                   status: 400,

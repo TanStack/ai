@@ -31,7 +31,7 @@ import { RealtimeClient } from '@tanstack/ai-client'
 import { elevenlabsRealtime } from '@tanstack/ai-elevenlabs'
 
 const client = new RealtimeClient({
-  getToken: () => fetch('/api/realtime-token').then(r => r.json()),
+  getToken: () => fetch('/api/realtime-token').then((r) => r.json()),
   adapter: elevenlabsRealtime(),
 })
 

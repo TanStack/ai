@@ -105,10 +105,7 @@ export type { OpenAIClientConfig } from './utils/client'
 // Realtime (Voice) Adapters
 // ============================================================================
 
-export {
-  openaiRealtimeToken,
-  openaiRealtime,
-} from './realtime/index'
+export { openaiRealtimeToken, openaiRealtime } from './realtime/index'
 
 export type {
   OpenAIRealtimeVoice,
