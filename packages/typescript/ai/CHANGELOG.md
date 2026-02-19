@@ -1,5 +1,11 @@
 # @tanstack/ai
 
+## 0.5.1
+
+### Patch Changes
+
+- Fix CI ([#295](https://github.com/TanStack/ai/pull/295))
+
 ## 0.5.0
 
 ### Minor Changes

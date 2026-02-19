@@ -19,7 +19,6 @@ export {
   type AnthropicSummarizeConfig,
   type AnthropicSummarizeProviderOptions,
 } from './adapters/summarize'
-export { ANTHROPIC_MODELS } from './model-meta'
 // ============================================================================
 // Type Exports
 // ============================================================================
@@ -29,6 +28,7 @@ export type {
   AnthropicModelInputModalitiesByName,
   AnthropicChatModel,
 } from './model-meta'
+export { ANTHROPIC_MODELS } from './model-meta'
 export type {
   AnthropicTextMetadata,
   AnthropicImageMetadata,
