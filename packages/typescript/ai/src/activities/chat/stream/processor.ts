@@ -807,8 +807,8 @@ export class StreamProcessor {
     chunk: Extract<StreamChunk, { type: 'CUSTOM' }>,
   ): void {
     // Handle client tool input availability - trigger client-side execution
-    if (chunk.name === 'tool-input-available' && chunk.data) {
-      const { toolCallId, toolName, input } = chunk.data as {
+    if (chunk.name === 'tool-input-available' && chunk.value) {
+      const { toolCallId, toolName, input } = chunk.value as {
         toolCallId: string
         toolName: string
         input: any
@@ -823,8 +823,8 @@ export class StreamProcessor {
     }
 
     // Handle approval requests
-    if (chunk.name === 'approval-requested' && chunk.data) {
-      const { toolCallId, toolName, input, approval } = chunk.data as {
+    if (chunk.name === 'approval-requested' && chunk.value) {
+      const { toolCallId, toolName, input, approval } = chunk.value as {
         toolCallId: string
         toolName: string
         input: any

@@ -833,7 +833,7 @@ class TextEngine<
         timestamp: Date.now(),
         model: finishEvent.model,
         name: 'approval-requested',
-        data: {
+        value: {
           toolCallId: approval.toolCallId,
           toolName: approval.toolName,
           input: approval.input,
@@ -870,7 +870,7 @@ class TextEngine<
         timestamp: Date.now(),
         model: finishEvent.model,
         name: 'tool-input-available',
-        data: {
+        value: {
           toolCallId: clientTool.toolCallId,
           toolName: clientTool.toolName,
           input: clientTool.input,

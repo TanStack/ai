@@ -55,9 +55,9 @@ describe('Approval Flow Tests', () => {
       expect(approvalChunks.length).toBe(1)
 
       const approvalChunk = approvalChunks[0] as any
-      expect(approvalChunk.data.toolName).toBe('delete_file')
-      expect(approvalChunk.data.input).toEqual({ path: '/tmp/important.txt' })
-      expect(approvalChunk.data.approval.needsApproval).toBe(true)
+      expect(approvalChunk.value.toolName).toBe('delete_file')
+      expect(approvalChunk.value.input).toEqual({ path: '/tmp/important.txt' })
+      expect(approvalChunk.value.approval.needsApproval).toBe(true)
 
       // Tool should NOT be executed yet (waiting for approval)
       expect(executeFn).not.toHaveBeenCalled()
@@ -373,7 +373,7 @@ describe('Approval Flow Tests', () => {
         (c: any) => c.type === 'CUSTOM' && c.name === 'approval-requested',
       )
       expect(approvalChunks.length).toBe(1)
-      expect((approvalChunks[0] as any).data.toolName).toBe('delete_item')
+      expect((approvalChunks[0] as any).value.toolName).toBe('delete_item')
 
       // Check tool should have been executed (verify via mock call)
       expect(checkExecute).toHaveBeenCalledWith({ id: '123' })

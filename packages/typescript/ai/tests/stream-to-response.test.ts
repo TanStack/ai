@@ -662,7 +662,7 @@ describe('SSE Round-Trip (Encode → Decode)', () => {
         model: 'test',
         timestamp: Date.now(),
         name: 'tool-input-available',
-        data: {
+        value: {
           toolCallId: 'tc-1',
           toolName: 'get_weather',
           input: { city: 'NYC', units: 'fahrenheit' },
@@ -673,7 +673,7 @@ describe('SSE Round-Trip (Encode → Decode)', () => {
         model: 'test',
         timestamp: Date.now(),
         name: 'approval-requested',
-        data: {
+        value: {
           toolCallId: 'tc-2',
           toolName: 'delete_file',
           input: { path: '/tmp/file.txt' },
@@ -690,13 +690,13 @@ describe('SSE Round-Trip (Encode → Decode)', () => {
     // Verify tool-input-available
     expect(parsedChunks[0]?.type).toBe('CUSTOM')
     expect((parsedChunks[0] as any)?.name).toBe('tool-input-available')
-    expect((parsedChunks[0] as any)?.data?.toolCallId).toBe('tc-1')
-    expect((parsedChunks[0] as any)?.data?.input?.city).toBe('NYC')
+    expect((parsedChunks[0] as any)?.value?.toolCallId).toBe('tc-1')
+    expect((parsedChunks[0] as any)?.value?.input?.city).toBe('NYC')
 
     // Verify approval-requested
     expect(parsedChunks[1]?.type).toBe('CUSTOM')
     expect((parsedChunks[1] as any)?.name).toBe('approval-requested')
-    expect((parsedChunks[1] as any)?.data?.approval?.id).toBe('approval-1')
+    expect((parsedChunks[1] as any)?.value?.approval?.id).toBe('approval-1')
   })
 
   it('should preserve TEXT_MESSAGE_START/END events', async () => {
@@ -787,7 +787,7 @@ describe('SSE Round-Trip (Encode → Decode)', () => {
         model: 'test',
         timestamp: Date.now(),
         name: 'tool-input-available',
-        data: {
+        value: {
           toolCallId: 'tc-1',
           toolName: 'search',
           input: { query: 'test' },

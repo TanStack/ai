@@ -191,7 +191,7 @@ export function createToolCallChunks(
         model,
         timestamp: Date.now(),
         name: 'tool-input-available',
-        data: {
+        value: {
           toolCallId: toolCall.id,
           toolName: toolCall.name,
           input: parsedInput,

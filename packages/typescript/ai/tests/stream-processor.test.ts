@@ -67,7 +67,7 @@ const ev = {
     chunk('RUN_ERROR', { runId, error: { message } }),
   stepFinished: (delta: string, stepId = 'step-1') =>
     chunk('STEP_FINISHED', { stepId, delta }),
-  custom: (name: string, data?: unknown) => chunk('CUSTOM', { name, data }),
+  custom: (name: string, value?: unknown) => chunk('CUSTOM', { name, value }),
 }
 
 /** Events object with vi.fn() mocks for assertions. */
@@ -951,7 +951,7 @@ describe('StreamProcessor', () => {
       })
     })
 
-    it('should not fire onToolCall for CUSTOM events with no data', () => {
+    it('should not fire onToolCall for CUSTOM events with no value', () => {
       const events = spyEvents()
       const processor = new StreamProcessor({ events })
       processor.prepareAssistantMessage()
@@ -1067,7 +1067,7 @@ describe('StreamProcessor', () => {
       expect(toolCallPart.approval?.approved).toBe(false)
     })
 
-    it('should not fire onApprovalRequest for approval-requested without data', () => {
+    it('should not fire onApprovalRequest for approval-requested without value', () => {
       const events = spyEvents()
       const processor = new StreamProcessor({ events })
       processor.prepareAssistantMessage()

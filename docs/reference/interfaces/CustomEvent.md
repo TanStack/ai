@@ -15,15 +15,15 @@ Custom event for extensibility.
 
 ## Properties
 
-### data?
+### value?
 
 ```ts
-optional data: unknown;
+optional value: unknown;
 ```
 
 Defined in: [types.ts:898](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L898)
 
-Custom event data
+Custom event value
 
 ***
 
