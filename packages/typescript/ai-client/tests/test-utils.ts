@@ -143,6 +143,36 @@ export function createTextChunks(
 }
 
 /**
+ * Helper to create custom event chunks
+ */
+export function createCustomEventChunks(
+  events: Array<{ name: string; data?: unknown }>,
+  model: string = 'test',
+): Array<StreamChunk> {
+  const chunks: Array<StreamChunk> = []
+
+  for (const event of events) {
+    chunks.push({
+      type: 'CUSTOM',
+      model,
+      timestamp: Date.now(),
+      name: event.name,
+      data: event.data,
+    })
+  }
+
+  chunks.push({
+    type: 'RUN_FINISHED',
+    runId: 'run-1',
+    model,
+    timestamp: Date.now(),
+    finishReason: 'stop',
+  })
+
+  return chunks
+}
+
+/**
  * Helper to create tool call chunks (AG-UI format)
  * Optionally includes tool-input-available chunks to trigger onToolCall
  */

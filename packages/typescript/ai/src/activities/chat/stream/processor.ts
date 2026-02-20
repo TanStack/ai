@@ -73,6 +73,13 @@ export interface StreamProcessorEvents {
     approvalId: string
   }) => void
 
+  // Custom events from server-side tools
+  onCustomEvent?: (
+    eventType: string,
+    data: unknown,
+    context: { toolCallId?: string },
+  ) => void
+
   // Granular events for UI optimization (character-by-character, state tracking)
   onTextUpdate?: (messageId: string, content: string) => void
   onToolCallStateChange?: (
@@ -820,6 +827,8 @@ export class StreamProcessor {
         toolName,
         input,
       })
+
+      return
     }
 
     // Handle approval requests
@@ -849,7 +858,14 @@ export class StreamProcessor {
         input,
         approvalId: approval.id,
       })
+
+      return
     }
+
+    // Forward all other custom events to the callback
+    this.events.onCustomEvent?.(chunk.name, chunk.data, {
+      toolCallId: (chunk.data as any)?.toolCallId,
+    })
   }
 
   /**

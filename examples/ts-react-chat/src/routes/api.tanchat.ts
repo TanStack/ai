@@ -50,13 +50,24 @@ Step 1: Call getGuitars()
 Step 2: Call recommendGuitar(id: "6") 
 Step 3: Done - do NOT add any text after calling recommendGuitar
 `
-const addToCartToolServer = addToCartToolDef.server((args) => ({
-  success: true,
-  cartId: 'CART_' + Date.now(),
-  guitarId: args.guitarId,
-  quantity: args.quantity,
-  totalItems: args.quantity,
-}))
+const addToCartToolServer = addToCartToolDef.server((args, context) => {
+  context?.emitCustomEvent('tool:progress', {
+    tool: 'addToCart',
+    message: `Adding ${args.quantity}x guitar ${args.guitarId} to cart`,
+  })
+  const cartId = 'CART_' + Date.now()
+  context?.emitCustomEvent('tool:progress', {
+    tool: 'addToCart',
+    message: `Cart ${cartId} created successfully`,
+  })
+  return {
+    success: true,
+    cartId,
+    guitarId: args.guitarId,
+    quantity: args.quantity,
+    totalItems: args.quantity,
+  }
+})
 
 export const Route = createFileRoute('/api/tanchat')({
   server: {

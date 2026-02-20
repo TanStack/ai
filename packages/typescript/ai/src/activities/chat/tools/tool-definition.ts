@@ -4,6 +4,7 @@ import type {
   JSONSchema,
   SchemaInput,
   Tool,
+  ToolExecutionContext,
 } from '../../../types'
 
 /**
@@ -112,6 +113,7 @@ export interface ToolDefinition<
   server: (
     execute: (
       args: InferSchemaType<TInput>,
+      context?: ToolExecutionContext,
     ) => Promise<InferSchemaType<TOutput>> | InferSchemaType<TOutput>,
   ) => ServerTool<TInput, TOutput, TName>
 
@@ -193,6 +195,7 @@ export function toolDefinition<
     server(
       execute: (
         args: InferSchemaType<TInput>,
+        context?: ToolExecutionContext,
       ) => Promise<InferSchemaType<TOutput>> | InferSchemaType<TOutput>,
     ): ServerTool<TInput, TOutput, TName> {
       return {
