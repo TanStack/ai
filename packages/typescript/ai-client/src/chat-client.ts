@@ -40,6 +40,8 @@ export class ChatClient {
   private pendingToolExecutions: Map<string, Promise<void>> = new Map()
   // Flag to deduplicate continuation checks during action draining
   private continuationPending = false
+  // Re-entrancy guard for drainPostStreamActions
+  private draining = false
 
   private callbacksRef: {
     current: {
@@ -619,9 +621,15 @@ export class ChatClient {
    * Drain and execute all queued post-stream actions
    */
   private async drainPostStreamActions(): Promise<void> {
-    while (this.postStreamActions.length > 0) {
-      const action = this.postStreamActions.shift()!
-      await action()
+    if (this.draining) return
+    this.draining = true
+    try {
+      while (this.postStreamActions.length > 0) {
+        const action = this.postStreamActions.shift()!
+        await action()
+      }
+    } finally {
+      this.draining = false
     }
   }
 
@@ -631,6 +639,12 @@ export class ChatClient {
   private async checkForContinuation(): Promise<void> {
     // Prevent duplicate continuation attempts
     if (this.continuationPending || this.isLoading) {
+      return
+    }
+
+    const messages = this.processor.getMessages()
+    const lastPart = messages.at(-1)?.parts.at(-1)
+    if (lastPart?.type !== 'tool-result') {
       return
     }
 
