@@ -240,6 +240,20 @@ export interface ChatClientOptions<
   onStatusChange?: (status: ChatClientState) => void
 
   /**
+   * Callback when a custom event is received from a server-side tool.
+   * Custom events are emitted by tools using `context.emitCustomEvent()` during execution.
+   *
+   * @param eventType - The name of the custom event
+   * @param data - The event payload data
+   * @param context - Additional context including the toolCallId that emitted the event
+   */
+  onCustomEvent?: (
+    eventType: string,
+    data: unknown,
+    context: { toolCallId?: string },
+  ) => void
+
+  /**
    * Client-side tools with execution logic
    * When provided, tools with execute functions will be called automatically
    */
