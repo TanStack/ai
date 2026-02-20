@@ -330,7 +330,10 @@ describe('chat()', () => {
 
       // Tool was executed
       expect(executeSpy).toHaveBeenCalledTimes(1)
-      expect(executeSpy).toHaveBeenCalledWith({ city: 'NYC' })
+      expect(executeSpy).toHaveBeenCalledWith(
+        { city: 'NYC' },
+        expect.objectContaining({ toolCallId: 'call_1' }),
+      )
 
       // A TOOL_CALL_END chunk with result should have been yielded
       const toolEndChunks = chunks.filter(

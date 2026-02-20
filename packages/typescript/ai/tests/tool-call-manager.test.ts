@@ -416,13 +416,25 @@ describe('executeToolCalls', () => {
     }
   }
 
+  /** Helper to drain the async generator from executeToolCalls and return its result */
+  async function drainExecuteToolCalls(
+    ...args: Parameters<typeof executeToolCalls>
+  ) {
+    const gen = executeToolCalls(...args)
+    let next = await gen.next()
+    while (!next.done) {
+      next = await gen.next()
+    }
+    return next.value
+  }
+
   describe('client tool with needsApproval', () => {
     it('should request approval when no approval decision exists', async () => {
       const toolCalls = [
         makeToolCall('call_1', 'delete_local_data', '{"key":"myKey"}'),
       ]
 
-      const result = await executeToolCalls(
+      const result = await drainExecuteToolCalls(
         toolCalls,
         [clientToolWithApproval],
         new Map(),
@@ -442,7 +454,7 @@ describe('executeToolCalls', () => {
       ]
       const approvals = new Map([['approval_call_1', true]])
 
-      const result = await executeToolCalls(
+      const result = await drainExecuteToolCalls(
         toolCalls,
         [clientToolWithApproval],
         approvals,
@@ -464,7 +476,7 @@ describe('executeToolCalls', () => {
       const approvals = new Map([['approval_call_1', true]])
       const clientResults = new Map([['call_1', { deleted: true }]])
 
-      const result = await executeToolCalls(
+      const result = await drainExecuteToolCalls(
         toolCalls,
         [clientToolWithApproval],
         approvals,
@@ -484,7 +496,7 @@ describe('executeToolCalls', () => {
       ]
       const approvals = new Map([['approval_call_1', false]])
 
-      const result = await executeToolCalls(
+      const result = await drainExecuteToolCalls(
         toolCalls,
         [clientToolWithApproval],
         approvals,
@@ -522,7 +534,7 @@ describe('executeToolCalls', () => {
         ],
       ])
 
-      const result = await executeToolCalls(
+      const result = await drainExecuteToolCalls(
         toolCalls,
         [clientToolWithApproval],
         approvals,
@@ -547,7 +559,7 @@ describe('executeToolCalls', () => {
         makeToolCall('call_1', 'get_local_data', '{"key":"myKey"}'),
       ]
 
-      const result = await executeToolCalls(
+      const result = await drainExecuteToolCalls(
         toolCalls,
         [clientToolWithoutApproval],
         new Map(),
@@ -565,7 +577,7 @@ describe('executeToolCalls', () => {
       ]
       const clientResults = new Map([['call_1', { value: 'stored_data' }]])
 
-      const result = await executeToolCalls(
+      const result = await drainExecuteToolCalls(
         toolCalls,
         [clientToolWithoutApproval],
         new Map(),
@@ -584,7 +596,7 @@ describe('executeToolCalls', () => {
         makeToolCall('call_1', 'delete_record', '{"id":"rec_123"}'),
       ]
 
-      const result = await executeToolCalls(
+      const result = await drainExecuteToolCalls(
         toolCalls,
         [serverToolWithApproval],
         new Map(),
@@ -602,7 +614,7 @@ describe('executeToolCalls', () => {
       ]
       const approvals = new Map([['approval_call_1', true]])
 
-      const result = await executeToolCalls(
+      const result = await drainExecuteToolCalls(
         toolCalls,
         [serverToolWithApproval],
         approvals,
@@ -611,9 +623,10 @@ describe('executeToolCalls', () => {
 
       expect(result.results).toHaveLength(1)
       expect(result.results[0]?.result).toEqual({ deleted: true })
-      expect(serverToolWithApproval.execute).toHaveBeenCalledWith({
-        id: 'rec_123',
-      })
+      expect(serverToolWithApproval.execute).toHaveBeenCalledWith(
+        { id: 'rec_123' },
+        expect.objectContaining({ toolCallId: 'call_1' }),
+      )
     })
   })
 
@@ -628,7 +641,7 @@ describe('executeToolCalls', () => {
 
       const toolCalls = [makeToolCall('call_1', 'simple_tool', '')]
 
-      const result = await executeToolCalls(
+      const result = await drainExecuteToolCalls(
         toolCalls,
         [tool],
         new Map(),
@@ -636,7 +649,10 @@ describe('executeToolCalls', () => {
       )
 
       expect(result.results).toHaveLength(1)
-      expect(tool.execute).toHaveBeenCalledWith({})
+      expect(tool.execute).toHaveBeenCalledWith(
+        {},
+        expect.objectContaining({ toolCallId: 'call_1' }),
+      )
     })
   })
 })

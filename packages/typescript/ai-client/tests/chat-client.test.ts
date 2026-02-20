@@ -5,6 +5,7 @@ import {
   createTextChunks,
   createThinkingChunks,
   createToolCallChunks,
+  createCustomEventChunks,
 } from './test-utils'
 import type { UIMessage } from '../src/types'
 
@@ -899,6 +900,197 @@ describe('ChatClient', () => {
       // The event should include the text content extracted from multimodal content
       const userMessageEvent = userMessageCreatedCalls[0]
       expect((userMessageEvent?.[1] as any)?.content).toBe('What is this?')
+    })
+  })
+
+  describe('custom events', () => {
+    it('should call onCustomEvent callback for arbitrary custom events', async () => {
+      const chunks = createCustomEventChunks([
+        { name: 'progress-update', data: { progress: 50, step: 'processing' } },
+        {
+          name: 'tool-status',
+          data: { toolCallId: 'tc-1', status: 'running' },
+        },
+      ])
+      const adapter = createMockConnectionAdapter({ chunks })
+
+      const onCustomEvent = vi.fn()
+      const client = new ChatClient({ connection: adapter, onCustomEvent })
+
+      await client.sendMessage('Hello')
+
+      expect(onCustomEvent).toHaveBeenCalledTimes(2)
+      expect(onCustomEvent).toHaveBeenNthCalledWith(
+        1,
+        'progress-update',
+        { progress: 50, step: 'processing' },
+        { toolCallId: undefined },
+      )
+      expect(onCustomEvent).toHaveBeenNthCalledWith(
+        2,
+        'tool-status',
+        { toolCallId: 'tc-1', status: 'running' },
+        { toolCallId: 'tc-1' },
+      )
+    })
+
+    it('should extract toolCallId from custom event data and pass in context', async () => {
+      const chunks = createCustomEventChunks([
+        {
+          name: 'external-api-call',
+          data: {
+            toolCallId: 'tc-123',
+            url: 'https://api.example.com',
+            method: 'POST',
+          },
+        },
+      ])
+      const adapter = createMockConnectionAdapter({ chunks })
+
+      const onCustomEvent = vi.fn()
+      const client = new ChatClient({ connection: adapter, onCustomEvent })
+
+      await client.sendMessage('Test')
+
+      expect(onCustomEvent).toHaveBeenCalledWith(
+        'external-api-call',
+        {
+          toolCallId: 'tc-123',
+          url: 'https://api.example.com',
+          method: 'POST',
+        },
+        { toolCallId: 'tc-123' },
+      )
+    })
+
+    it('should handle custom events with no data', async () => {
+      const chunks = createCustomEventChunks([{ name: 'simple-notification' }])
+      const adapter = createMockConnectionAdapter({ chunks })
+
+      const onCustomEvent = vi.fn()
+      const client = new ChatClient({ connection: adapter, onCustomEvent })
+
+      await client.sendMessage('Test')
+
+      expect(onCustomEvent).toHaveBeenCalledWith(
+        'simple-notification',
+        undefined,
+        { toolCallId: undefined },
+      )
+    })
+
+    it('should NOT call onCustomEvent for system events like tool-input-available', async () => {
+      const chunks = createToolCallChunks([
+        { id: 'tc-1', name: 'testTool', arguments: '{}' },
+      ])
+      const adapter = createMockConnectionAdapter({ chunks })
+
+      const onCustomEvent = vi.fn()
+      const client = new ChatClient({ connection: adapter, onCustomEvent })
+
+      await client.sendMessage('Test tool call')
+
+      // Should not have been called for tool-input-available system event
+      expect(onCustomEvent).not.toHaveBeenCalled()
+    })
+
+    it('should work when onCustomEvent is not provided', async () => {
+      const chunks = createCustomEventChunks([
+        { name: 'some-event', data: { info: 'test' } },
+      ])
+      const adapter = createMockConnectionAdapter({ chunks })
+
+      const client = new ChatClient({ connection: adapter })
+
+      // Should not throw error when onCustomEvent is undefined
+      await expect(client.sendMessage('Test')).resolves.not.toThrow()
+    })
+
+    it('should allow updating onCustomEvent via updateOptions', async () => {
+      const chunks = createCustomEventChunks([
+        { name: 'test-event', data: { value: 42 } },
+      ])
+      const adapter = createMockConnectionAdapter({ chunks })
+
+      const client = new ChatClient({ connection: adapter })
+
+      const onCustomEvent = vi.fn()
+      client.updateOptions({ onCustomEvent })
+
+      await client.sendMessage('Test')
+
+      expect(onCustomEvent).toHaveBeenCalledWith(
+        'test-event',
+        { value: 42 },
+        { toolCallId: undefined },
+      )
+    })
+
+    it('should handle multiple different custom events in sequence', async () => {
+      const chunks = createCustomEventChunks([
+        { name: 'step-1', data: { stage: 'init' } },
+        { name: 'step-2', data: { stage: 'process', toolCallId: 'tc-1' } },
+        { name: 'step-3', data: { stage: 'complete' } },
+      ])
+      const adapter = createMockConnectionAdapter({ chunks })
+
+      const onCustomEvent = vi.fn()
+      const client = new ChatClient({ connection: adapter, onCustomEvent })
+
+      await client.sendMessage('Multi-step process')
+
+      expect(onCustomEvent).toHaveBeenCalledTimes(3)
+      expect(onCustomEvent).toHaveBeenNthCalledWith(
+        1,
+        'step-1',
+        { stage: 'init' },
+        { toolCallId: undefined },
+      )
+      expect(onCustomEvent).toHaveBeenNthCalledWith(
+        2,
+        'step-2',
+        { stage: 'process', toolCallId: 'tc-1' },
+        { toolCallId: 'tc-1' },
+      )
+      expect(onCustomEvent).toHaveBeenNthCalledWith(
+        3,
+        'step-3',
+        { stage: 'complete' },
+        { toolCallId: undefined },
+      )
+    })
+
+    it('should preserve event data exactly as received from stream', async () => {
+      const complexEventData = {
+        nested: { object: { with: 'values' } },
+        array: [1, 2, 3],
+        null_value: null,
+        boolean: true,
+        number: 42,
+      }
+
+      const chunks = createCustomEventChunks([
+        { name: 'complex-data-event', data: complexEventData },
+      ])
+      const adapter = createMockConnectionAdapter({ chunks })
+
+      const onCustomEvent = vi.fn()
+      const client = new ChatClient({ connection: adapter, onCustomEvent })
+
+      await client.sendMessage('Complex data test')
+
+      expect(onCustomEvent).toHaveBeenCalledWith(
+        'complex-data-event',
+        complexEventData,
+        { toolCallId: undefined },
+      )
+
+      // Verify the data object is preserved exactly
+      const actualData = onCustomEvent.mock.calls[0]?.[1]
+      expect(actualData).toEqual(complexEventData)
+      expect(actualData.nested.object.with).toBe('values')
+      expect(actualData.array).toEqual([1, 2, 3])
+      expect(actualData.null_value).toBeNull()
     })
   })
 })

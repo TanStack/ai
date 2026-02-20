@@ -1,5 +1,6 @@
 import { isStandardSchema, parseWithStandardSchema } from './schema-converter'
 import type {
+  CustomEvent,
   ModelMessage,
   RunFinishedEvent,
   Tool,
@@ -7,6 +8,7 @@ import type {
   ToolCallArgsEvent,
   ToolCallEndEvent,
   ToolCallStartEvent,
+  ToolExecutionContext,
 } from '../../../types'
 
 /**
@@ -250,7 +252,46 @@ interface ExecuteToolCallsResult {
 }
 
 /**
- * Execute tool calls based on their configuration
+ * Helper that runs a tool execution promise while polling for pending custom events.
+ * Yields any custom events that are emitted during execution, then returns the
+ * execution result.
+ */
+async function* executeWithEventPolling<T>(
+  executionPromise: Promise<T>,
+  pendingEvents: Array<CustomEvent>,
+): AsyncGenerator<CustomEvent, T, void> {
+  // Use an object to track mutable state across the async boundary
+  const state = { done: false, result: undefined as T }
+  const executionWithFlag = executionPromise.then((r) => {
+    state.done = true
+    state.result = r
+    return r
+  })
+
+  while (!state.done) {
+    // Wait for either the execution to complete or a short timeout
+    await Promise.race([
+      executionWithFlag,
+      new Promise((resolve) => setTimeout(resolve, 10)),
+    ])
+
+    // Flush any pending events
+    while (pendingEvents.length > 0) {
+      yield pendingEvents.shift()!
+    }
+  }
+
+  // Final flush in case events were emitted right at completion
+  while (pendingEvents.length > 0) {
+    yield pendingEvents.shift()!
+  }
+
+  return state.result
+}
+
+/**
+ * Execute tool calls based on their configuration.
+ * Yields CustomEvent chunks during tool execution for real-time progress updates.
  *
  * Handles three cases:
  * 1. Client tools (no execute) - request client to execute
@@ -261,13 +302,18 @@ interface ExecuteToolCallsResult {
  * @param tools - Available tools with their configurations
  * @param approvals - Map of approval decisions (approval.id -> approved boolean)
  * @param clientResults - Map of client-side execution results (toolCallId -> result)
+ * @param createCustomEventChunk - Factory to create CustomEvent chunks (optional)
  */
-export async function executeToolCalls(
+export async function* executeToolCalls(
   toolCalls: Array<ToolCall>,
   tools: ReadonlyArray<Tool>,
   approvals: Map<string, boolean> = new Map(),
   clientResults: Map<string, any> = new Map(),
-): Promise<ExecuteToolCallsResult> {
+  createCustomEventChunk?: (
+    eventName: string,
+    data: Record<string, any>,
+  ) => CustomEvent,
+): AsyncGenerator<CustomEvent, ExecuteToolCallsResult, void> {
   const results: Array<ToolResult> = []
   const needsApproval: Array<ApprovalRequest> = []
   const needsClientExecution: Array<ClientToolRequest> = []
@@ -323,6 +369,29 @@ export async function executeToolCalls(
           state: 'output-error',
         })
         continue
+      }
+    }
+
+    // Create a ToolExecutionContext for this tool call with event emission
+    const pendingEvents: Array<CustomEvent> = []
+    const context: ToolExecutionContext = {
+      toolCallId: toolCall.id,
+      emitCustomEvent: (eventName: string, data: Record<string, any>) => {
+        if (createCustomEventChunk) {
+          pendingEvents.push(
+            createCustomEventChunk(eventName, {
+              ...data,
+              toolCallId: toolCall.id,
+            }),
+          )
+        }
+      },
+    }
+
+    // Helper to flush any pending events
+    function* flushEvents(): Generator<CustomEvent> {
+      while (pendingEvents.length > 0) {
+        yield pendingEvents.shift()!
       }
     }
 
@@ -402,8 +471,15 @@ export async function executeToolCalls(
           // Execute after approval
           const startTime = Date.now()
           try {
-            let result = await tool.execute(input)
+            const executionPromise = Promise.resolve(
+              tool.execute(input, context),
+            )
+            let result = yield* executeWithEventPolling(
+              executionPromise,
+              pendingEvents,
+            )
             const duration = Date.now() - startTime
+            yield* flushEvents()
 
             // Validate output against outputSchema if provided (for Standard Schema compliant schemas)
             if (
@@ -426,6 +502,7 @@ export async function executeToolCalls(
             })
           } catch (error: unknown) {
             const duration = Date.now() - startTime
+            yield* flushEvents()
             const message =
               error instanceof Error ? error.message : 'Unknown error'
             results.push({
@@ -460,8 +537,13 @@ export async function executeToolCalls(
     // CASE 3: Normal server tool - execute immediately
     const startTime = Date.now()
     try {
-      let result = await tool.execute(input)
+      const executionPromise = Promise.resolve(tool.execute(input, context))
+      let result = yield* executeWithEventPolling(
+        executionPromise,
+        pendingEvents,
+      )
       const duration = Date.now() - startTime
+      yield* flushEvents()
 
       // Validate output against outputSchema if provided (for Standard Schema compliant schemas)
       if (
@@ -482,6 +564,7 @@ export async function executeToolCalls(
       })
     } catch (error: unknown) {
       const duration = Date.now() - startTime
+      yield* flushEvents()
       const message = error instanceof Error ? error.message : 'Unknown error'
       results.push({
         toolCallId: toolCall.id,
