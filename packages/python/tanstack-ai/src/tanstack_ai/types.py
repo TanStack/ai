@@ -284,7 +284,7 @@ class CustomEvent(TypedDict, total=False):
     timestamp: int
     model: Optional[str]
     name: str
-    data: Optional[Any]
+    value: Optional[Any]
 
 
 # Union of all AG-UI events

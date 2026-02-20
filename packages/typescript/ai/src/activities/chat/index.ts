@@ -842,7 +842,7 @@ class TextEngine<
         timestamp: Date.now(),
         model: finishEvent.model,
         name: 'approval-requested',
-        data: {
+        value: {
           toolCallId: approval.toolCallId,
           toolName: approval.toolName,
           input: approval.input,
@@ -879,7 +879,7 @@ class TextEngine<
         timestamp: Date.now(),
         model: finishEvent.model,
         name: 'tool-input-available',
-        data: {
+        value: {
           toolCallId: clientTool.toolCallId,
           toolName: clientTool.toolName,
           input: clientTool.input,
@@ -1094,14 +1094,14 @@ class TextEngine<
 
   private createCustomEventChunk(
     eventName: string,
-    data: Record<string, any>,
+    value: Record<string, any>,
   ): CustomEvent {
     return {
       type: 'CUSTOM',
       timestamp: Date.now(),
       model: this.params.model,
       name: eventName,
-      data,
+      value,
     }
   }
 

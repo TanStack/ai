@@ -922,8 +922,8 @@ export interface CustomEvent extends BaseAGUIEvent {
   type: 'CUSTOM'
   /** Custom event name */
   name: string
-  /** Custom event data */
-  data?: unknown
+  /** Custom event value */
+  value?: unknown
 }
 
 /**
