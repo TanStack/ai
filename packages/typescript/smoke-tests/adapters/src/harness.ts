@@ -289,11 +289,11 @@ export async function captureStream(opts: {
     // AG-UI CUSTOM events (approval requests, tool inputs, etc.)
     else if (chunk.type === 'CUSTOM') {
       chunkData.name = chunk.name
-      chunkData.data = chunk.data
+      chunkData.value = chunk.value
 
       // Handle approval-requested CUSTOM events
-      if (chunk.name === 'approval-requested' && chunk.data) {
-        const data = chunk.data as {
+      if (chunk.name === 'approval-requested' && chunk.value) {
+        const data = chunk.value as {
           toolCallId: string
           toolName: string
           input: any
