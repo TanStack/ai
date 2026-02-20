@@ -1,10 +1,10 @@
 ---
-'@tanstack/tests-adapters': major
-'@tanstack/ai-client': major
-'@tanstack/ai': major
+'@tanstack/tests-adapters': patch
+'@tanstack/ai-client': patch
+'@tanstack/ai': patch
 ---
 
-BREAKING: Refactor CustomEvent property from 'data' to 'value' for AG-UI compliance
+Refactor CustomEvent property from 'data' to 'value' for AG-UI compliance
 
 ## What Changed
 The `CustomEvent` interface and class now use a `value` property instead of `data` to align with the AG-UI specification for custom events.
