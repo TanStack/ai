@@ -7,9 +7,11 @@
 Refactor CustomEvent property from 'data' to 'value' for AG-UI compliance
 
 ## What Changed
+
 The `CustomEvent` interface and class now use a `value` property instead of `data` to align with the AG-UI specification for custom events.
 
 ### TypeScript
+
 ```typescript
 // Before
 interface CustomEvent {
@@ -27,6 +29,7 @@ interface CustomEvent {
 ```
 
 ### Python
+
 ```python
 # Before
 class CustomEvent:
@@ -40,6 +43,7 @@ class CustomEvent:
 ```
 
 ## Migration Guide
+
 Update any code that accesses the `data` property on CustomEvent objects:
 
 ```typescript
@@ -55,6 +59,7 @@ if (chunk.type === 'CUSTOM' && chunk.value) {
 ```
 
 This affects:
+
 - Custom event handlers that access event data
 - Test utilities that create or verify CustomEvent objects
 - Stream processing code that handles CUSTOM event types
