@@ -70,6 +70,13 @@ export {
   combineStrategies,
 } from './activities/chat/agent-loop-strategies'
 
+// Tool registry
+export {
+  createToolRegistry,
+  createFrozenRegistry,
+  type ToolRegistry,
+} from './tool-registry'
+
 // All types
 export * from './types'
 

@@ -1,0 +1,39 @@
+{
+  "name": "@tanstack/ai-code-mode-cli-test",
+  "version": "0.0.1",
+  "private": true,
+  "description": "CLI test for Code Mode - mirrors ts-code-mode-web tool setup for isolated debugging",
+  "type": "module",
+  "scripts": {
+    "test:cli": "npx tsx cli-test.ts",
+    "test:cli:anthropic": "npx tsx cli-test.ts --provider=anthropic",
+    "test:cli:openai": "npx tsx cli-test.ts --provider=openai",
+    "test:cli:gemini": "npx tsx cli-test.ts --provider=gemini",
+    "test:cli:verbose": "npx tsx cli-test.ts --verbose"
+  },
+  "dependencies": {
+    "@tanstack/ai": "workspace:*",
+    "@tanstack/ai-anthropic": "workspace:*",
+    "@tanstack/ai-code-mode": "workspace:*",
+    "@tanstack/ai-gemini": "workspace:*",
+    "@tanstack/ai-isolate-node": "workspace:*",
+    "@tanstack/ai-openai": "workspace:*",
+    "dotenv": "^17.2.3",
+    "tsx": "^4.20.6",
+    "zod": "^4.2.0"
+  }
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+

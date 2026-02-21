@@ -11,6 +11,7 @@ export type TabType =
   | 'speech'
   | 'transcription'
   | 'video'
+  | 'code-mode'
 
 interface ConversationTabsProps {
   conversation: Conversation
@@ -90,6 +91,8 @@ export const ConversationTabs: Component<ConversationTabsProps> = (props) => {
   const hasTranscription = () =>
     conv().hasTranscription || transcriptionCount() > 0
   const hasVideo = () => conv().hasVideo || videoCount() > 0
+  const codeModeSessionCount = () => conv().codeModeSessions?.length ?? 0
+  const hasCodeMode = () => codeModeSessionCount() > 0
 
   // Count how many tabs would be visible
   const visibleTabCount = () => {
@@ -101,6 +104,7 @@ export const ConversationTabs: Component<ConversationTabsProps> = (props) => {
     if (hasSpeech()) count++
     if (hasTranscription()) count++
     if (hasVideo()) count++
+    if (hasCodeMode()) count++
     return count
   }
 
@@ -200,6 +204,18 @@ export const ConversationTabs: Component<ConversationTabsProps> = (props) => {
           onClick={() => props.onTabChange('video')}
         >
           🎬 Video ({videoCount()})
+        </button>
+      </Show>
+      <Show when={hasCodeMode()}>
+        <button
+          class={`${styles().actionButton} ${
+            props.activeTab === 'code-mode'
+              ? styles().conversationDetails.tabButtonActive
+              : ''
+          }`}
+          onClick={() => props.onTabChange('code-mode')}
+        >
+          🖥️ Code Mode ({codeModeSessionCount()})
         </button>
       </Show>
     </div>

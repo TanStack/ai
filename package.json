@@ -10,7 +10,10 @@
   "pnpm": {
     "overrides": {
       "abbrev": "^3.0.0"
-    }
+    },
+    "ignoredBuiltDependencies": [
+      "isolated-vm"
+    ]
   },
   "scripts": {
     "clean": "pnpm --filter \"./packages/**\" run clean",

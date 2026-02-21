@@ -117,6 +117,50 @@ export interface ActivityEvent {
   payload: unknown
 }
 
+// ============================================================================
+// Code Mode Types
+// ============================================================================
+
+export interface CodeModeToolCall {
+  toolName: string
+  input: unknown
+  output?: unknown
+  error?: string
+  duration?: number
+  timestamp: number
+}
+
+export interface CodeModeIteration {
+  iterationNumber: number
+  llmResponse?: string
+  extractedCode?: string
+  toolCalls: Array<CodeModeToolCall>
+  executionResult?: {
+    success: boolean
+    value?: unknown
+    error?: { name: string; message: string } | string
+    duration?: number
+    logs?: Array<string>
+  }
+  timestamp: number
+}
+
+export interface CodeModeSession {
+  id: string
+  task: string
+  model: string
+  iterations: Array<CodeModeIteration>
+  status: 'running' | 'completed' | 'error'
+  success?: boolean
+  finalValue?: unknown
+  error?: { name: string; message: string } | string
+  duration?: number
+  toolNames?: Array<string>
+  maxIterations?: number
+  startedAt: number
+  completedAt?: number
+}
+
 export interface Conversation {
   id: string
   type: 'client' | 'server'
@@ -147,6 +191,8 @@ export interface Conversation {
   speechEvents?: Array<ActivityEvent>
   transcriptionEvents?: Array<ActivityEvent>
   videoEvents?: Array<ActivityEvent>
+  /** Code Mode sessions in this conversation */
+  codeModeSessions?: Array<CodeModeSession>
 }
 
 interface AIStoreState {
