@@ -906,7 +906,10 @@ describe('ChatClient', () => {
   describe('custom events', () => {
     it('should call onCustomEvent callback for arbitrary custom events', async () => {
       const chunks = createCustomEventChunks([
-        { name: 'progress-update', value: { progress: 50, step: 'processing' } },
+        {
+          name: 'progress-update',
+          value: { progress: 50, step: 'processing' },
+        },
         {
           name: 'tool-status',
           value: { toolCallId: 'tc-1', status: 'running' },
