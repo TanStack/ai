@@ -827,7 +827,6 @@ export class StreamProcessor {
         toolName,
         input,
       })
-
       return
     }
 
@@ -858,14 +857,17 @@ export class StreamProcessor {
         input,
         approvalId: approval.id,
       })
-
       return
     }
 
-    // Forward all other custom events to the callback
-    this.events.onCustomEvent?.(chunk.name, chunk.value, {
-      toolCallId: (chunk.value as any)?.toolCallId,
-    })
+    // Forward non-system custom events to onCustomEvent callback
+    if (this.events.onCustomEvent) {
+      const toolCallId =
+        chunk.value && typeof chunk.value === 'object'
+          ? (chunk.value as any).toolCallId
+          : undefined
+      this.events.onCustomEvent(chunk.name, chunk.value, { toolCallId })
+    }
   }
 
   /**

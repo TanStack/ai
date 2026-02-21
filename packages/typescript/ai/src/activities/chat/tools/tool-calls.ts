@@ -311,7 +311,7 @@ export async function* executeToolCalls(
   clientResults: Map<string, any> = new Map(),
   createCustomEventChunk?: (
     eventName: string,
-    data: Record<string, any>,
+    value: Record<string, any>,
   ) => CustomEvent,
 ): AsyncGenerator<CustomEvent, ExecuteToolCallsResult, void> {
   const results: Array<ToolResult> = []
@@ -376,11 +376,11 @@ export async function* executeToolCalls(
     const pendingEvents: Array<CustomEvent> = []
     const context: ToolExecutionContext = {
       toolCallId: toolCall.id,
-      emitCustomEvent: (eventName: string, data: Record<string, any>) => {
+      emitCustomEvent: (eventName: string, value: Record<string, any>) => {
         if (createCustomEventChunk) {
           pendingEvents.push(
             createCustomEventChunk(eventName, {
-              ...data,
+              ...value,
               toolCallId: toolCall.id,
             }),
           )

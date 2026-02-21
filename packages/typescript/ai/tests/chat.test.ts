@@ -476,10 +476,10 @@ describe('chat()', () => {
       )
       expect(customChunks).toHaveLength(1)
 
-      const data = (customChunks[0] as any).data
-      expect(data.toolCallId).toBe('call_1')
-      expect(data.toolName).toBe('clientSearch')
-      expect(data.input).toEqual({ query: 'test' })
+      const value = (customChunks[0] as any).value
+      expect(value.toolCallId).toBe('call_1')
+      expect(value.toolName).toBe('clientSearch')
+      expect(value.input).toEqual({ query: 'test' })
     })
   })
 
@@ -515,10 +515,10 @@ describe('chat()', () => {
       )
       expect(approvalChunks).toHaveLength(1)
 
-      const data = (approvalChunks[0] as any).data
-      expect(data.toolCallId).toBe('call_1')
-      expect(data.toolName).toBe('dangerousTool')
-      expect(data.approval.needsApproval).toBe(true)
+      const value = (approvalChunks[0] as any).value
+      expect(value.toolCallId).toBe('call_1')
+      expect(value.toolName).toBe('dangerousTool')
+      expect(value.approval.needsApproval).toBe(true)
     })
 
     it('should yield CUSTOM approval-requested for client tools with needsApproval', async () => {
