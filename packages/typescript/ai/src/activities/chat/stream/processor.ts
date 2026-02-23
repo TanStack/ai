@@ -75,6 +75,13 @@ export interface StreamProcessorEvents {
     approvalId: string
   }) => void
 
+  // Custom events from server-side tools
+  onCustomEvent?: (
+    eventType: string,
+    data: unknown,
+    context: { toolCallId?: string },
+  ) => void
+
   // Granular events for UI optimization (character-by-character, state tracking)
   onTextUpdate?: (messageId: string, content: string) => void
   onToolCallStateChange?: (
@@ -1053,8 +1060,8 @@ export class StreamProcessor {
     const messageId = this.getActiveAssistantMessageId()
 
     // Handle client tool input availability - trigger client-side execution
-    if (chunk.name === 'tool-input-available' && chunk.data) {
-      const { toolCallId, toolName, input } = chunk.data as {
+    if (chunk.name === 'tool-input-available' && chunk.value) {
+      const { toolCallId, toolName, input } = chunk.value as {
         toolCallId: string
         toolName: string
         input: any
@@ -1066,11 +1073,12 @@ export class StreamProcessor {
         toolName,
         input,
       })
+      return
     }
 
     // Handle approval requests
-    if (chunk.name === 'approval-requested' && chunk.data) {
-      const { toolCallId, toolName, input, approval } = chunk.data as {
+    if (chunk.name === 'approval-requested' && chunk.value) {
+      const { toolCallId, toolName, input, approval } = chunk.value as {
         toolCallId: string
         toolName: string
         input: any
@@ -1095,6 +1103,16 @@ export class StreamProcessor {
         input,
         approvalId: approval.id,
       })
+      return
+    }
+
+    // Forward non-system custom events to onCustomEvent callback
+    if (this.events.onCustomEvent) {
+      const toolCallId =
+        chunk.value && typeof chunk.value === 'object'
+          ? (chunk.value as any).toolCallId
+          : undefined
+      this.events.onCustomEvent(chunk.name, chunk.value, { toolCallId })
     }
   }
 

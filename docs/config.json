@@ -155,6 +155,10 @@
         {
           "label": "Grok (xAI)",
           "to": "adapters/grok"
+        },
+        {
+          "label": "Fal",
+          "to": "adapters/fal"
         }
       ]
     },
@@ -168,6 +172,10 @@
         {
           "label": "Cencori",
           "to": "community-adapters/cencori"
+        },
+        {
+          "label": "Cloudflare",
+          "to": "community-adapters/cloudflare"
         },
         {
           "label": "Decart",

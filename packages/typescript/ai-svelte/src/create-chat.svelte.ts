@@ -67,6 +67,7 @@ export function createChat<TTools extends ReadonlyArray<AnyClientTool> = any>(
       options.onError?.(err)
     },
     tools: options.tools,
+    onCustomEvent: options.onCustomEvent,
     streamProcessor: options.streamProcessor,
     onMessagesChange: (newMessages: Array<UIMessage<TTools>>) => {
       messages = newMessages

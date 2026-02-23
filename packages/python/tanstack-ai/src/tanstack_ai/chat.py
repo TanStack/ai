@@ -386,7 +386,7 @@ class ChatEngine:
                 "timestamp": int(time.time() * 1000),
                 "model": finish_event.get("model"),
                 "name": "approval-requested",
-                "data": {
+                "value": {
                     "toolCallId": approval.tool_call_id,
                     "toolName": approval.tool_name,
                     "input": approval.input,
@@ -410,7 +410,7 @@ class ChatEngine:
                 "timestamp": int(time.time() * 1000),
                 "model": finish_event.get("model"),
                 "name": "tool-input-available",
-                "data": {
+                "value": {
                     "toolCallId": client_tool.tool_call_id,
                     "toolName": client_tool.tool_name,
                     "input": client_tool.input,

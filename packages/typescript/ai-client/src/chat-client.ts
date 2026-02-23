@@ -59,6 +59,11 @@ export class ChatClient {
       onLoadingChange: (isLoading: boolean) => void
       onErrorChange: (error: Error | undefined) => void
       onStatusChange: (status: ChatClientState) => void
+      onCustomEvent: (
+        eventType: string,
+        data: unknown,
+        context: { toolCallId?: string },
+      ) => void
     }
   }
 
@@ -86,6 +91,7 @@ export class ChatClient {
         onLoadingChange: options.onLoadingChange || (() => {}),
         onErrorChange: options.onErrorChange || (() => {}),
         onStatusChange: options.onStatusChange || (() => {}),
+        onCustomEvent: options.onCustomEvent || (() => {}),
       },
     }
 
@@ -220,6 +226,13 @@ export class ChatClient {
               args.approvalId,
             )
           }
+        },
+        onCustomEvent: (
+          eventType: string,
+          data: unknown,
+          context: { toolCallId?: string },
+        ) => {
+          this.callbacksRef.current.onCustomEvent(eventType, data, context)
         },
       },
     })
@@ -775,6 +788,11 @@ export class ChatClient {
     onChunk?: (chunk: StreamChunk) => void
     onFinish?: (message: UIMessage) => void
     onError?: (error: Error) => void
+    onCustomEvent?: (
+      eventType: string,
+      data: unknown,
+      context: { toolCallId?: string },
+    ) => void
   }): void {
     if (options.connection !== undefined) {
       // Cancel any in-flight stream to avoid hanging on stale processing promises
@@ -805,6 +823,9 @@ export class ChatClient {
     }
     if (options.onError !== undefined) {
       this.callbacksRef.current.onError = options.onError
+    }
+    if (options.onCustomEvent !== undefined) {
+      this.callbacksRef.current.onCustomEvent = options.onCustomEvent
     }
   }
 }

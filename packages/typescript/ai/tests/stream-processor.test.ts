@@ -67,7 +67,7 @@ const ev = {
     chunk('RUN_ERROR', { runId, error: { message } }),
   stepFinished: (delta: string, stepId = 'step-1') =>
     chunk('STEP_FINISHED', { stepId, delta }),
-  custom: (name: string, data?: unknown) => chunk('CUSTOM', { name, data }),
+  custom: (name: string, value?: unknown) => chunk('CUSTOM', { name, value }),
 }
 
 /** Events object with vi.fn() mocks for assertions. */
@@ -85,6 +85,7 @@ function spyEvents(): MockedEvents {
     onError: vi.fn(),
     onToolCall: vi.fn(),
     onApprovalRequest: vi.fn(),
+    onCustomEvent: vi.fn(),
     onTextUpdate: vi.fn(),
     onToolCallStateChange: vi.fn(),
     onThinkingUpdate: vi.fn(),
@@ -1074,6 +1075,143 @@ describe('StreamProcessor', () => {
 
       processor.processChunk(ev.custom('approval-requested'))
       expect(events.onApprovalRequest).not.toHaveBeenCalled()
+    })
+  })
+
+  // ==========================================================================
+  // Custom event dispatch
+  // ==========================================================================
+  describe('custom event dispatch', () => {
+    it('should forward arbitrary custom events to onCustomEvent callback', () => {
+      const events = spyEvents()
+      const processor = new StreamProcessor({ events })
+      processor.prepareAssistantMessage()
+
+      const customData = { progress: 50, message: 'Processing...' }
+      processor.processChunk(ev.custom('my-custom-event', customData))
+
+      expect(events.onCustomEvent).toHaveBeenCalledTimes(1)
+      expect(events.onCustomEvent).toHaveBeenCalledWith(
+        'my-custom-event',
+        customData,
+        { toolCallId: undefined },
+      )
+    })
+
+    it('should extract toolCallId from custom event data and include in context', () => {
+      const events = spyEvents()
+      const processor = new StreamProcessor({ events })
+      processor.prepareAssistantMessage()
+
+      const customData = { toolCallId: 'tc-1', status: 'in-progress' }
+      processor.processChunk(ev.custom('tool-progress', customData))
+
+      expect(events.onCustomEvent).toHaveBeenCalledWith(
+        'tool-progress',
+        customData,
+        { toolCallId: 'tc-1' },
+      )
+    })
+
+    it('should handle custom events with no data', () => {
+      const events = spyEvents()
+      const processor = new StreamProcessor({ events })
+      processor.prepareAssistantMessage()
+
+      processor.processChunk(ev.custom('simple-event'))
+
+      expect(events.onCustomEvent).toHaveBeenCalledWith(
+        'simple-event',
+        undefined,
+        { toolCallId: undefined },
+      )
+    })
+
+    it('should NOT forward system custom events (tool-input-available) to onCustomEvent', () => {
+      const events = spyEvents()
+      const processor = new StreamProcessor({ events })
+      processor.prepareAssistantMessage()
+
+      // Create a tool call first
+      processor.processChunk(ev.toolStart('tc-1', 'clientTool'))
+      processor.processChunk(ev.toolEnd('tc-1', 'clientTool', { input: {} }))
+
+      processor.processChunk(
+        ev.custom('tool-input-available', {
+          toolCallId: 'tc-1',
+          toolName: 'clientTool',
+          input: {},
+        }),
+      )
+
+      // Should fire onToolCall but NOT onCustomEvent
+      expect(events.onToolCall).toHaveBeenCalledTimes(1)
+      expect(events.onCustomEvent).not.toHaveBeenCalled()
+    })
+
+    it('should NOT forward system custom events (approval-requested) to onCustomEvent', () => {
+      const events = spyEvents()
+      const processor = new StreamProcessor({ events })
+      processor.prepareAssistantMessage()
+
+      // Create a tool call first
+      processor.processChunk(ev.toolStart('tc-1', 'dangerousTool'))
+      processor.processChunk(ev.toolEnd('tc-1', 'dangerousTool', { input: {} }))
+
+      processor.processChunk(
+        ev.custom('approval-requested', {
+          toolCallId: 'tc-1',
+          toolName: 'dangerousTool',
+          input: {},
+          approval: { id: 'approval-1', needsApproval: true },
+        }),
+      )
+
+      // Should fire onApprovalRequest but NOT onCustomEvent
+      expect(events.onApprovalRequest).toHaveBeenCalledTimes(1)
+      expect(events.onCustomEvent).not.toHaveBeenCalled()
+    })
+
+    it('should work when onCustomEvent handler is not provided', () => {
+      // No events object provided - should not throw
+      const processor = new StreamProcessor()
+      processor.prepareAssistantMessage()
+
+      expect(() => {
+        processor.processChunk(ev.custom('test-event', { data: 'test' }))
+      }).not.toThrow()
+    })
+
+    it('should handle multiple different custom events in sequence', () => {
+      const events = spyEvents()
+      const processor = new StreamProcessor({ events })
+      processor.prepareAssistantMessage()
+
+      processor.processChunk(ev.custom('event-1', { step: 1 }))
+      processor.processChunk(ev.custom('event-2', { step: 2 }))
+      processor.processChunk(
+        ev.custom('event-3', { step: 3, toolCallId: 'tc-1' }),
+      )
+
+      expect(events.onCustomEvent).toHaveBeenCalledTimes(3)
+      expect(events.onCustomEvent).toHaveBeenNthCalledWith(
+        1,
+        'event-1',
+        { step: 1 },
+        { toolCallId: undefined },
+      )
+      expect(events.onCustomEvent).toHaveBeenNthCalledWith(
+        2,
+        'event-2',
+        { step: 2 },
+        { toolCallId: undefined },
+      )
+      expect(events.onCustomEvent).toHaveBeenNthCalledWith(
+        3,
+        'event-3',
+        { step: 3, toolCallId: 'tc-1' },
+        { toolCallId: 'tc-1' },
+      )
     })
   })
 

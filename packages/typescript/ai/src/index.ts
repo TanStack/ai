@@ -114,3 +114,7 @@ export type {
   ToolResultState,
   JSONParser,
 } from './activities/chat/stream/index'
+
+// Adapter extension utilities
+export { createModel, extendAdapter } from './extend-adapter'
+export type { ExtendedModelDef } from './extend-adapter'

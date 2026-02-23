@@ -345,6 +345,34 @@ export type ConstrainedModelMessage<
 }
 
 /**
+ * Context passed to tool execute functions, providing capabilities like
+ * emitting custom events during execution.
+ */
+export interface ToolExecutionContext {
+  /** The ID of the tool call being executed */
+  toolCallId?: string
+  /**
+   * Emit a custom event during tool execution.
+   * Events are streamed to the client in real-time as AG-UI CUSTOM events.
+   *
+   * @param eventName - Name of the custom event
+   * @param value - Event payload value
+   *
+   * @example
+   * ```ts
+   * const tool = toolDefinition({ ... }).server(async (args, context) => {
+   *   context?.emitCustomEvent('progress', { step: 1, total: 3 })
+   *   // ... do work ...
+   *   context?.emitCustomEvent('progress', { step: 2, total: 3 })
+   *   // ... do more work ...
+   *   return result
+   * })
+   * ```
+   */
+  emitCustomEvent: (eventName: string, value: Record<string, any>) => void
+}
+
+/**
  * Tool/Function definition for function calling.
  *
  * Tools allow the model to interact with external systems, APIs, or perform computations.
@@ -460,7 +488,7 @@ export interface Tool<
    *   return weather; // Can return object or string
    * }
    */
-  execute?: (args: any) => Promise<any> | any
+  execute?: (args: any, context?: ToolExecutionContext) => Promise<any> | any
 
   /** If true, tool execution requires user approval before running. Works with both server and client tools. */
   needsApproval?: boolean
@@ -910,8 +938,8 @@ export interface CustomEvent extends BaseAGUIEvent {
   type: 'CUSTOM'
   /** Custom event name */
   name: string
-  /** Custom event data */
-  data?: unknown
+  /** Custom event value */
+  value?: unknown
 }
 
 /**
@@ -984,6 +1012,7 @@ export interface SummarizationResult {
  */
 export interface ImageGenerationOptions<
   TProviderOptions extends object = object,
+  TSize extends string = string,
 > {
   /** The model to use for image generation */
   model: string
@@ -992,7 +1021,7 @@ export interface ImageGenerationOptions<
   /** Number of images to generate (default: 1) */
   numberOfImages?: number
   /** Image size in WIDTHxHEIGHT format (e.g., "1024x1024") */
-  size?: string
+  size?: TSize
   /** Model-specific options for image generation */
   modelOptions?: TProviderOptions
 }
@@ -1039,13 +1068,14 @@ export interface ImageGenerationResult {
  */
 export interface VideoGenerationOptions<
   TProviderOptions extends object = object,
+  TSize extends string = string,
 > {
   /** The model to use for video generation */
   model: string
   /** Text description of the desired video */
   prompt: string
-  /** Video size in WIDTHxHEIGHT format (e.g., "1280x720") */
-  size?: string
+  /** Video size — format depends on the provider (e.g., "16:9", "1280x720") */
+  size?: TSize
   /** Video duration in seconds */
   duration?: number
   /** Model-specific options for video generation */

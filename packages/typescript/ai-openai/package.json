@@ -1,6 +1,6 @@
 {
   "name": "@tanstack/ai-openai",
-  "version": "0.4.0",
+  "version": "0.5.0",
   "description": "OpenAI adapter for TanStack AI",
   "author": "",
   "license": "MIT",
