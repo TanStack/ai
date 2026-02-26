@@ -1,5 +1,14 @@
 # @tanstack/ai-openrouter
 
+## 1.0.0
+
+### Patch Changes
+
+- fix incorrect modelOptions ([#317](https://github.com/TanStack/ai/pull/317))
+
+- Updated dependencies [[`5aa6acc`](https://github.com/TanStack/ai/commit/5aa6acc1a4faea5346f750322e80984abf2d7059), [`1f800aa`](https://github.com/TanStack/ai/commit/1f800aacf57081f37a075bc8d08ff397cb33cbe9)]:
+  - @tanstack/ai@0.6.0
+
 ## 0.5.1
 
 ### Patch Changes

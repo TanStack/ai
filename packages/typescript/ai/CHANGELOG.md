@@ -1,5 +1,17 @@
 # @tanstack/ai
 
+## 0.6.0
+
+### Minor Changes
+
+- feat: add custom event dispatch support for tools ([#293](https://github.com/TanStack/ai/pull/293))
+
+  Tools can now emit custom events during execution via `dispatchEvent()`. Custom events are streamed to clients as `custom_event` stream chunks and surfaced through the client chat hook's `onCustomEvent` callback. This enables tools to send progress updates, intermediate results, or any structured data back to the UI during long-running operations.
+
+### Patch Changes
+
+- Refactor CustomEvent property from 'data' to 'value' for AG-UI compliance ([#307](https://github.com/TanStack/ai/pull/307))
+
 ## 0.5.1
 
 ### Patch Changes
