@@ -46,21 +46,18 @@ export type ExecuteTypescriptOutput = z.infer<typeof executeTypescriptOutputSche
  *
  * @example
  * ```typescript
- * import { createCodeModeTool, createCodeModeSystemPrompt } from '@tanstack/ai-code-mode'
+ * import { createCodeModeToolAndPrompt } from '@tanstack/ai-code-mode'
  * import { createNodeIsolateDriver } from '@tanstack/ai-isolate-node'
  *
- * const config = {
+ * const { tool, systemPrompt } = createCodeModeToolAndPrompt({
  *   driver: createNodeIsolateDriver(),
  *   tools: [weatherTool, dbTool],  // Become external_fetchWeather, external_dbQuery
  *   timeout: 30000,
- * }
+ * })
  *
- * const executeTypescript = createCodeModeTool(config)
- *
- * // Use in a chat with other tools
  * chat({
- *   systemPrompts: [myPrompt, createCodeModeSystemPrompt(config)],
- *   tools: [executeTypescript, searchTool, emailTool],
+ *   systemPrompts: [myPrompt, systemPrompt],
+ *   tools: [tool, searchTool, emailTool],
  *   messages,
  * })
  * ```

@@ -1,9 +1,6 @@
 import { createFileRoute } from '@tanstack/react-router'
 import { chat, maxIterations, toServerSentEventsStream } from '@tanstack/ai'
-import {
-  createCodeModeSystemPrompt,
-  createCodeModeTool,
-} from '@tanstack/ai-code-mode'
+import { createCodeModeToolAndPrompt } from '@tanstack/ai-code-mode'
 import { anthropicText } from '@tanstack/ai-anthropic'
 import { openaiText } from '@tanstack/ai-openai'
 import { geminiText } from '@tanstack/ai-gemini'
@@ -43,30 +40,20 @@ const allAudioTools = [
 ]
 
 // Lazy initialization to avoid loading native modules at module load time
-let audioCodeModeConfig: Awaited<ReturnType<typeof createAudioCodeModeConfig>> | null = null
-let executeTypescript: ReturnType<typeof createCodeModeTool> | null = null
-let codeModeSystemPrompt: string | null = null
-
-async function createAudioCodeModeConfig() {
-  const { createNodeIsolateDriver } = await import('@tanstack/ai-isolate-node')
-  return {
-    driver: createNodeIsolateDriver(),
-    tools: allAudioTools,
-    timeout: 120000, // 2 minutes for audio processing
-    memoryLimit: 256, // More memory for audio data
-  }
-}
+let codeModeCache: { tool: ReturnType<typeof createCodeModeToolAndPrompt>['tool']; systemPrompt: string } | null = null
 
 async function getAudioCodeModeTools() {
-  if (!audioCodeModeConfig) {
-    audioCodeModeConfig = await createAudioCodeModeConfig()
-    executeTypescript = createCodeModeTool(audioCodeModeConfig)
-    codeModeSystemPrompt = createCodeModeSystemPrompt(audioCodeModeConfig)
+  if (!codeModeCache) {
+    const { createNodeIsolateDriver } = await import('@tanstack/ai-isolate-node')
+    const { tool, systemPrompt } = createCodeModeToolAndPrompt({
+      driver: createNodeIsolateDriver(),
+      tools: allAudioTools,
+      timeout: 120000, // 2 minutes for audio processing
+      memoryLimit: 256, // More memory for audio data
+    })
+    codeModeCache = { tool, systemPrompt }
   }
-  return {
-    executeTypescript: executeTypescript!,
-    codeModeSystemPrompt: codeModeSystemPrompt!,
-  }
+  return codeModeCache
 }
 
 export const Route = createFileRoute('/api/audio')({
@@ -86,17 +73,16 @@ export const Route = createFileRoute('/api/audio')({
         const model: string | undefined = data?.model
 
         const adapter = getAdapter(provider, model)
-        const { executeTypescript, codeModeSystemPrompt } =
-          await getAudioCodeModeTools()
+        const { tool, systemPrompt } = await getAudioCodeModeTools()
 
         try {
           const stream = chat({
             adapter,
             messages,
-            tools: [executeTypescript],
+            tools: [tool],
             systemPrompts: [
               AUDIO_WORKBENCH_SYSTEM_PROMPT,
-              codeModeSystemPrompt,
+              systemPrompt,
             ],
             agentLoopStrategy: maxIterations(15),
             abortController,

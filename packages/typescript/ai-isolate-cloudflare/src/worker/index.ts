@@ -39,7 +39,7 @@ interface Env {
 
 /**
  * Generate tool wrapper code that collects calls or returns cached results
- * Tools are prefixed with tool_ to make them easy to identify in LLM-generated code
+ * Function names match the binding keys (e.g., external_fetchWeather)
  */
 function generateToolWrappers(
   tools: Array<ToolSchema>,
@@ -51,7 +51,7 @@ function generateToolWrappers(
     if (toolResults) {
       // We have results - create functions that return cached results
       wrappers.push(`
-        async function tool_${tool.name}(input) {
+        async function ${tool.name}(input) {
           const callId = '${tool.name}_' + JSON.stringify(input);
           const result = __toolResults[callId];
           if (!result) {
@@ -66,7 +66,7 @@ function generateToolWrappers(
     } else {
       // First pass - collect tool calls
       wrappers.push(`
-        async function tool_${tool.name}(input) {
+        async function ${tool.name}(input) {
           const callId = '${tool.name}_' + JSON.stringify(input);
           __pendingToolCalls.push({
             id: callId,

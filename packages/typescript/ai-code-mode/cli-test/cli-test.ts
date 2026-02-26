@@ -23,10 +23,7 @@ config({ path: resolve(__dirname, '.env.local') })
 
 import { chat, maxIterations } from '@tanstack/ai'
 import type { StreamChunk, AnyTextAdapter } from '@tanstack/ai'
-import {
-  createCodeModeSystemPrompt,
-  createCodeModeTool,
-} from '@tanstack/ai-code-mode'
+import { createCodeModeToolAndPrompt } from '@tanstack/ai-code-mode'
 import { createNodeIsolateDriver } from '@tanstack/ai-isolate-node'
 import { anthropicText } from '@tanstack/ai-anthropic'
 import { openaiText } from '@tanstack/ai-openai'
@@ -182,8 +179,8 @@ logDebug('Code Mode config:', {
   memoryLimit: codeModeConfig.memoryLimit,
 })
 
-const executeTypescript = createCodeModeTool(codeModeConfig)
-const codeModeSystemPrompt = createCodeModeSystemPrompt(codeModeConfig)
+const { tool: executeTypescript, systemPrompt: codeModeSystemPrompt } =
+  createCodeModeToolAndPrompt(codeModeConfig)
 
 logSuccess('Code Mode tool created successfully')
 

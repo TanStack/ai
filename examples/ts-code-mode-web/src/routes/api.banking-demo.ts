@@ -1,9 +1,6 @@
 import { createFileRoute } from '@tanstack/react-router'
 import { chat, maxIterations, toServerSentEventsStream } from '@tanstack/ai'
-import {
-  createCodeModeSystemPrompt,
-  createCodeModeTool,
-} from '@tanstack/ai-code-mode'
+import { createCodeModeToolAndPrompt } from '@tanstack/ai-code-mode'
 import { anthropicText } from '@tanstack/ai-anthropic'
 import { openaiText } from '@tanstack/ai-openai'
 import { geminiText } from '@tanstack/ai-gemini'
@@ -182,31 +179,21 @@ You can add new components to the root level or nest them inside existing contai
 `
 
 // Lazy initialization
-let codeModeConfigCache: Awaited<ReturnType<typeof createCodeModeConfig>> | null = null
-let executeTypescriptCache: ReturnType<typeof createCodeModeTool> | null = null
-let codeModeSystemPromptCache: string | null = null
-
-async function createCodeModeConfig() {
-  const { createNodeIsolateDriver } = await import('@tanstack/ai-isolate-node')
-  return {
-    driver: createNodeIsolateDriver(),
-    tools: allTools,
-    timeout: 60000,
-    memoryLimit: 128,
-    getSkillBindings: async () => createReportBindings(),
-  }
-}
+let codeModeCache: { tool: ReturnType<typeof createCodeModeToolAndPrompt>['tool']; systemPrompt: string } | null = null
 
 async function getCodeModeTools() {
-  if (!codeModeConfigCache) {
-    codeModeConfigCache = await createCodeModeConfig()
-    executeTypescriptCache = createCodeModeTool(codeModeConfigCache)
-    codeModeSystemPromptCache = createCodeModeSystemPrompt(codeModeConfigCache)
+  if (!codeModeCache) {
+    const { createNodeIsolateDriver } = await import('@tanstack/ai-isolate-node')
+    const { tool, systemPrompt } = createCodeModeToolAndPrompt({
+      driver: createNodeIsolateDriver(),
+      tools: allTools,
+      timeout: 60000,
+      memoryLimit: 128,
+      getSkillBindings: async () => createReportBindings(),
+    })
+    codeModeCache = { tool, systemPrompt }
   }
-  return {
-    executeTypescript: executeTypescriptCache!,
-    codeModeSystemPrompt: codeModeSystemPromptCache!,
-  }
+  return codeModeCache
 }
 
 export const Route = createFileRoute('/api/banking-demo' as any)({
@@ -226,22 +213,21 @@ export const Route = createFileRoute('/api/banking-demo' as any)({
         const model: string | undefined = data?.model
 
         const adapter = getAdapter(provider, model)
-        const { executeTypescript, codeModeSystemPrompt } =
-          await getCodeModeTools()
+        const { tool, systemPrompt } = await getCodeModeTools()
 
         // Filter out report creation tools - we don't want the LLM to create new reports
         const filteredReportTools = reportTools.filter(
-          (tool) => tool.name !== 'new_report' && tool.name !== 'delete_report'
+          (t) => t.name !== 'new_report' && t.name !== 'delete_report'
         )
 
         try {
           const stream = chat({
             adapter,
             messages,
-            tools: [executeTypescript, ...filteredReportTools],
+            tools: [tool, ...filteredReportTools],
             systemPrompts: [
               CODE_MODE_SYSTEM_PROMPT,
-              codeModeSystemPrompt,
+              systemPrompt,
               BANKING_DEMO_SYSTEM_PROMPT,
             ],
             agentLoopStrategy: maxIterations(20),

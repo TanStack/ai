@@ -43,7 +43,6 @@
     "wasm"
   ],
   "dependencies": {
-    "@tanstack/ai-code-mode": "workspace:*",
     "quickjs-emscripten": "^0.31.0"
   },
   "peerDependencies": {

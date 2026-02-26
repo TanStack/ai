@@ -34,7 +34,7 @@ export interface IsolateConfig {
   timeout?: number
 
   /**
-   * Memory limit in bytes (default: 128MB)
+   * Memory limit in MB (default: 128)
    */
   memoryLimit?: number
 }

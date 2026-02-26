@@ -1,9 +1,6 @@
 import { createFileRoute } from '@tanstack/react-router'
 import { chat, maxIterations, toServerSentEventsStream } from '@tanstack/ai'
-import {
-  createCodeModeSystemPrompt,
-  createCodeModeTool,
-} from '@tanstack/ai-code-mode'
+import { createCodeModeToolAndPrompt } from '@tanstack/ai-code-mode'
 import { anthropicText } from '@tanstack/ai-anthropic'
 import { openaiText } from '@tanstack/ai-openai'
 import { geminiText } from '@tanstack/ai-gemini'
@@ -32,33 +29,21 @@ function getAdapter(provider: Provider, model?: string): AnyTextAdapter {
 
 // Lazy initialization to avoid loading native modules at module load time
 // This is necessary for RSC compatibility with Vite's module runner
-let codeModeConfigCache: Awaited<ReturnType<typeof createCodeModeConfig>> | null = null
-let executeTypescriptCache: ReturnType<typeof createCodeModeTool> | null = null
-let codeModeSystemPromptCache: string | null = null
-
-async function createCodeModeConfig() {
-  // Dynamic import of native module
-  const { createNodeIsolateDriver } = await import('@tanstack/ai-isolate-node')
-  return {
-    driver: createNodeIsolateDriver(),
-    tools: allTools,
-    timeout: 60000,
-    memoryLimit: 128,
-    // Add report bindings to the sandbox
-    getSkillBindings: async () => createReportBindings(),
-  }
-}
+let codeModeCache: { tool: ReturnType<typeof createCodeModeToolAndPrompt>['tool']; systemPrompt: string } | null = null
 
 async function getCodeModeTools() {
-  if (!codeModeConfigCache) {
-    codeModeConfigCache = await createCodeModeConfig()
-    executeTypescriptCache = createCodeModeTool(codeModeConfigCache)
-    codeModeSystemPromptCache = createCodeModeSystemPrompt(codeModeConfigCache)
+  if (!codeModeCache) {
+    const { createNodeIsolateDriver } = await import('@tanstack/ai-isolate-node')
+    const { tool, systemPrompt } = createCodeModeToolAndPrompt({
+      driver: createNodeIsolateDriver(),
+      tools: allTools,
+      timeout: 60000,
+      memoryLimit: 128,
+      getSkillBindings: async () => createReportBindings(),
+    })
+    codeModeCache = { tool, systemPrompt }
   }
-  return {
-    executeTypescript: executeTypescriptCache!,
-    codeModeSystemPrompt: codeModeSystemPromptCache!,
-  }
+  return codeModeCache
 }
 
 export const Route = createFileRoute('/api/reports' as any)({
@@ -78,17 +63,16 @@ export const Route = createFileRoute('/api/reports' as any)({
         const model: string | undefined = data?.model
 
         const adapter = getAdapter(provider, model)
-        const { executeTypescript, codeModeSystemPrompt } =
-          await getCodeModeTools()
+        const { tool, systemPrompt } = await getCodeModeTools()
 
         try {
           const stream = chat({
             adapter,
             messages,
-            tools: [executeTypescript, ...reportTools],
+            tools: [tool, ...reportTools],
             systemPrompts: [
               CODE_MODE_SYSTEM_PROMPT,
-              codeModeSystemPrompt,
+              systemPrompt,
               REPORTS_SYSTEM_PROMPT,
             ],
             agentLoopStrategy: maxIterations(20),

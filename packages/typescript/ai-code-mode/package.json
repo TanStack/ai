@@ -32,7 +32,7 @@
     "lint:fix": "eslint ./src --fix",
     "test:build": "publint --strict",
     "test:eslint": "eslint ./src",
-    "test:lib": "vitest --passWithNoTests",
+    "test:lib": "vitest",
     "test:lib:dev": "pnpm test:lib --watch",
     "test:types": "tsc"
   },
@@ -45,7 +45,6 @@
     "isolate"
   ],
   "dependencies": {
-    "@tanstack/ai": "workspace:*",
     "esbuild": "^0.25.0"
   },
   "peerDependencies": {

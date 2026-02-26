@@ -1,10 +1,7 @@
 import { createFileRoute } from '@tanstack/react-router'
 import { chat, maxIterations, toServerSentEventsStream } from '@tanstack/ai'
 import type { StreamChunk } from '@tanstack/ai'
-import {
-  createCodeModeSystemPrompt,
-  createCodeModeTool,
-} from '@tanstack/ai-code-mode'
+import { createCodeModeToolAndPrompt } from '@tanstack/ai-code-mode'
 import { anthropicText } from '@tanstack/ai-anthropic'
 import { openaiText } from '@tanstack/ai-openai'
 import { geminiText } from '@tanstack/ai-gemini'
@@ -34,27 +31,20 @@ function getAdapter(provider: Provider, model?: string): AnyTextAdapter {
 }
 
 // Lazy initialization to avoid loading native modules at module load time
-let codeModeConfig: Awaited<ReturnType<typeof createCodeModeConfig>> | null = null
-let executeTypescript: ReturnType<typeof createCodeModeTool> | null = null
-let codeModeSystemPrompt: string | null = null
-
-async function createCodeModeConfig() {
-  const { createNodeIsolateDriver } = await import('@tanstack/ai-isolate-node')
-  return {
-    driver: createNodeIsolateDriver(),
-    tools: allTools,
-    timeout: 60000,
-    memoryLimit: 128,
-  }
-}
+let codeModeCache: { tool: ReturnType<typeof createCodeModeToolAndPrompt>['tool']; systemPrompt: string } | null = null
 
 async function getCodeModeTools() {
-  if (!codeModeConfig) {
-    codeModeConfig = await createCodeModeConfig()
-    executeTypescript = createCodeModeTool(codeModeConfig)
-    codeModeSystemPrompt = createCodeModeSystemPrompt(codeModeConfig)
+  if (!codeModeCache) {
+    const { createNodeIsolateDriver } = await import('@tanstack/ai-isolate-node')
+    const { tool, systemPrompt } = createCodeModeToolAndPrompt({
+      driver: createNodeIsolateDriver(),
+      tools: allTools,
+      timeout: 60000,
+      memoryLimit: 128,
+    })
+    codeModeCache = { tool, systemPrompt }
   }
-  return { executeTypescript: executeTypescript!, codeModeSystemPrompt: codeModeSystemPrompt! }
+  return codeModeCache
 }
 
 export const Route = createFileRoute('/api/structured-output')({
@@ -88,7 +78,7 @@ ${formatPromptAddition}
 IMPORTANT: After completing your analysis using execute_typescript, your final structured output will be extracted automatically. Focus on thorough analysis first, then the system will format your insights according to the selected format.`
 
         try {
-          const { executeTypescript, codeModeSystemPrompt } = await getCodeModeTools()
+          const { tool, systemPrompt } = await getCodeModeTools()
 
           // Phase 1: Run the agentic loop with Code Mode (streaming)
           // Phase 2: Get structured output (non-streaming, appended at end)
@@ -97,8 +87,8 @@ IMPORTANT: After completing your analysis using execute_typescript, your final s
           const combinedStream = createTwoPhaseStream({
             adapter,
             messages,
-            systemPrompts: [structuredOutputSystemPrompt, codeModeSystemPrompt],
-            tools: [executeTypescript],
+            systemPrompts: [structuredOutputSystemPrompt, systemPrompt],
+            tools: [tool],
             outputSchema,
             outputFormat,
             abortController,
@@ -143,7 +133,7 @@ interface TwoPhaseStreamOptions {
   adapter: AnyTextAdapter
   messages: Array<{ role: 'user' | 'assistant' | 'tool'; content: string }>
   systemPrompts: Array<string>
-  tools: Array<ReturnType<typeof createCodeModeTool>>
+  tools: Array<ReturnType<typeof createCodeModeToolAndPrompt>['tool']>
   outputSchema: ReturnType<typeof getSchemaForFormat>
   outputFormat: OutputFormat
   abortController: AbortController

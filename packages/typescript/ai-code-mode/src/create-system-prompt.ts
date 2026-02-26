@@ -10,21 +10,17 @@ import type { CodeModeToolConfig } from './types'
  *
  * @example
  * ```typescript
- * import { createCodeModeTool, createCodeModeSystemPrompt } from '@tanstack/ai-code-mode'
+ * import { createCodeModeToolAndPrompt } from '@tanstack/ai-code-mode'
+ * import { createNodeIsolateDriver } from '@tanstack/ai-isolate-node'
  *
- * const config = {
+ * const { tool, systemPrompt } = createCodeModeToolAndPrompt({
  *   driver: createNodeIsolateDriver(),
  *   tools: [weatherTool, dbTool],
- * }
- *
- * const executeTypescript = createCodeModeTool(config)
+ * })
  *
  * chat({
- *   systemPrompts: [
- *     'You are a helpful assistant.',
- *     createCodeModeSystemPrompt(config),
- *   ],
- *   tools: [executeTypescript, ...otherTools],
+ *   systemPrompts: ['You are a helpful assistant.', systemPrompt],
+ *   tools: [tool, ...otherTools],
  * })
  * ```
  */

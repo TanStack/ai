@@ -131,9 +131,9 @@ export function createQuickJSIsolateDriver(
         toolFn.dispose()
 
         // Create wrapper that parses input and output
-        // Tools are prefixed with tool_ to make them easy to identify in LLM-generated code
+        // Function names match the binding keys (e.g., external_fetchWeather)
         const wrapperCode = `
-          async function tool_${name}(input) {
+          async function ${name}(input) {
             const resultJson = await __${name}_impl(JSON.stringify(input));
             const result = JSON.parse(resultJson);
             if (!result.success) {
@@ -146,7 +146,7 @@ export function createQuickJSIsolateDriver(
         if (wrapperResult.error) {
           const errorStr = vm.dump(wrapperResult.error)
           wrapperResult.error.dispose()
-          throw new Error(`Failed to create wrapper for tool_${name}: ${errorStr}`)
+          throw new Error(`Failed to create wrapper for ${name}: ${errorStr}`)
         }
         wrapperResult.value.dispose()
       }
