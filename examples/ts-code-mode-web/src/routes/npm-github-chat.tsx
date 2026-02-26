@@ -13,13 +13,23 @@ import rehypeRaw from 'rehype-raw'
 import rehypeSanitize from 'rehype-sanitize'
 import rehypeHighlight from 'rehype-highlight'
 import remarkGfm from 'remark-gfm'
+import { parsePartialJSON } from '@tanstack/ai'
 import { fetchServerSentEvents, useChat } from '@tanstack/ai-react'
 import type { UIMessage } from '@tanstack/ai-react'
-import { Header, NoCodeMetrics } from '@/components'
+import type { VMEvent, IsolateVM } from '@/components'
+import {
+  CodeBlock,
+  ExecutionResult,
+  JavaScriptVM,
+  ToolSidebar,
+  Header,
+  NoCodeMetrics,
+} from '@/components'
+import { NpmDataSidebar } from '@/components/NpmDataSidebar'
 import { exportConversationToPdfTool } from '@/lib/tools/export-pdf-tool'
 
-export const Route = createFileRoute('/no-code')({
-  component: NoCodePage,
+export const Route = createFileRoute('/npm-github-chat')({
+  component: CodeModePage,
 })
 
 type Provider = 'anthropic' | 'openai' | 'gemini'
@@ -66,178 +76,9 @@ const PROMPT_SUGGESTIONS = [
   },
   {
     label: '🔍 TanStack Query Stats',
-    prompt: 'Get the GitHub stats and NPM downloads for @tanstack/query',
+    prompt: 'Get me the GitHub stats and NPM downloads for @tanstack/query',
   },
 ]
-
-type ToolCategory = 'github' | 'npm' | 'utility' | 'system'
-
-interface ToolMeta {
-  name: string
-  description: string
-  category: ToolCategory
-}
-
-const TOOL_METADATA: Array<ToolMeta> = [
-  {
-    name: 'getStarredRepos',
-    description:
-      'Fetch GitHub starred repositories for a user. Returns repos with star counts, languages, and activity dates.',
-    category: 'github',
-  },
-  {
-    name: 'getRepoDetails',
-    description:
-      'Get detailed information about a specific GitHub repository including stars, forks, issues, and license.',
-    category: 'github',
-  },
-  {
-    name: 'getRepoReleases',
-    description:
-      'Get releases for a repository including version tags, release notes, and publish dates.',
-    category: 'github',
-  },
-  {
-    name: 'getRepoContributors',
-    description:
-      'Get top contributors for a repository with their contribution counts.',
-    category: 'github',
-  },
-  {
-    name: 'searchRepositories',
-    description:
-      'Search GitHub repositories by query. Supports language filters, sorting by stars/forks/updated.',
-    category: 'github',
-  },
-  {
-    name: 'getNpmPackageInfo',
-    description:
-      'Get NPM package metadata including description, version history, maintainers, and keywords.',
-    category: 'npm',
-  },
-  {
-    name: 'createNPMComparison',
-    description:
-      'Create a comparison session and return the first comparison ID.',
-    category: 'npm',
-  },
-  {
-    name: 'addToNPMComparison',
-    description:
-      'Add a single package to a comparison and return a new comparison ID.',
-    category: 'npm',
-  },
-  {
-    name: 'executeNPMComparison',
-    description: 'Execute a comparison using the final comparison ID.',
-    category: 'npm',
-  },
-  {
-    name: 'getCurrentDate',
-    description:
-      'Get the current date and time. Useful for calculating relative date ranges.',
-    category: 'utility',
-  },
-  {
-    name: 'calculateStats',
-    description:
-      'Calculate statistics (mean, median, min, max, stdDev, sum) for an array of numbers.',
-    category: 'utility',
-  },
-  {
-    name: 'formatDateRange',
-    description:
-      'Calculate a date range going back from today. Returns start and end dates formatted for API calls.',
-    category: 'utility',
-  },
-  {
-    name: 'export_conversation_to_pdf',
-    description:
-      'Export the current conversation to a PDF file. The PDF will be downloaded automatically.',
-    category: 'system',
-  },
-]
-
-const TOOL_CATEGORY_CONFIG: Record<
-  ToolCategory,
-  { label: string; dotColor: string }
-> = {
-  github: { label: 'GitHub', dotColor: 'bg-gray-500' },
-  npm: { label: 'NPM', dotColor: 'bg-red-500' },
-  utility: { label: 'Utility', dotColor: 'bg-blue-500' },
-  system: { label: 'System', dotColor: 'bg-cyan-500' },
-}
-
-function ToolSidebar({ toolCounts }: { toolCounts: Map<string, number> }) {
-  const toolsByCategory = useMemo(() => {
-    return TOOL_METADATA.reduce(
-      (acc, tool) => {
-        if (!acc[tool.category]) {
-          acc[tool.category] = []
-        }
-        acc[tool.category].push(tool)
-        return acc
-      },
-      {} as Record<ToolCategory, Array<ToolMeta>>,
-    )
-  }, [])
-
-  const totalCalls = Array.from(toolCounts.values()).reduce((a, b) => a + b, 0)
-
-  return (
-    <aside className="w-96 border-r border-cyan-500/20 bg-gray-800/50 overflow-y-auto">
-      <div className="p-4 space-y-6">
-        <div className="flex items-center justify-between">
-          <h2 className="text-sm font-semibold uppercase tracking-wide text-cyan-300">
-            Available Tools
-          </h2>
-          {totalCalls > 0 && (
-            <span className="text-xs font-mono px-2 py-0.5 rounded-full bg-cyan-500/20 text-cyan-300">
-              {totalCalls}
-            </span>
-          )}
-        </div>
-
-        {Object.entries(toolsByCategory).map(([category, tools]) => {
-          const config = TOOL_CATEGORY_CONFIG[category as ToolCategory]
-          return (
-            <section key={category} className="space-y-2">
-              <h3 className="text-xs font-medium text-gray-400 flex items-center gap-2">
-                <span className={`w-2 h-2 rounded-full ${config.dotColor}`} />
-                {config.label}
-              </h3>
-              <div className="space-y-2">
-                {tools.map((tool) => {
-                  const count = toolCounts.get(tool.name) || 0
-                  return (
-                    <div
-                      key={tool.name}
-                      className="rounded border border-gray-700 bg-gray-800/50 px-3 py-2"
-                    >
-                      <div className="flex items-center justify-between">
-                        <code className="text-xs font-mono text-pink-400">
-                          {tool.name}
-                        </code>
-                        {count > 0 && (
-                          <span className="text-xs font-mono px-1.5 py-0.5 rounded-full bg-pink-500/20 text-pink-300 font-medium">
-                            {count}
-                          </span>
-                        )}
-                      </div>
-                      <p className="text-[10px] text-gray-500 mt-1">
-                        {tool.description}
-                      </p>
-                    </div>
-                  )
-                })}
-              </div>
-            </section>
-          )
-        })}
-      </div>
-    </aside>
-  )
-}
 
 // Generic tool call display component
 function ToolCallDisplay({
@@ -253,8 +94,10 @@ function ToolCallDisplay({
   state: string
   hasResult?: boolean
 }) {
+  // ToolCallState: 'awaiting-input' | 'input-streaming' | 'input-complete' | 'approval-requested' | 'approval-responded'
   const isInputStreaming = state === 'input-streaming'
   const isInputComplete = state === 'input-complete'
+  // Consider complete if we have output OR a tool-result part exists
   const hasOutput = output !== undefined || hasResult
   const isExecuting = isInputComplete && !hasOutput
   const isRunning = isInputStreaming || isExecuting
@@ -263,18 +106,21 @@ function ToolCallDisplay({
   const [outputOpen, setOutputOpen] = useState(isRunning)
   const [userControlledInput, setUserControlledInput] = useState(false)
   const [userControlledOutput, setUserControlledOutput] = useState(false)
+  const prevStateRef = useRef(state)
   const prevOutputRef = useRef(output)
 
+  // Auto-collapse when execution completes (output becomes available)
   useEffect(() => {
     const hadNoOutput = prevOutputRef.current === undefined
-    const hasOutputNow = output !== undefined
+    const hasOutput = output !== undefined
 
-    if (hadNoOutput && hasOutputNow) {
+    if (hadNoOutput && hasOutput) {
       if (!userControlledInput) setInputOpen(false)
       if (!userControlledOutput) setOutputOpen(false)
     }
+    prevStateRef.current = state
     prevOutputRef.current = output
-  }, [output, userControlledInput, userControlledOutput])
+  }, [state, output, userControlledInput, userControlledOutput])
 
   let parsedArgs: unknown
   try {
@@ -285,6 +131,7 @@ function ToolCallDisplay({
 
   return (
     <div className="mt-3 rounded-lg border border-amber-500/30 bg-amber-900/10 overflow-hidden">
+      {/* Header */}
       <div className="flex items-center gap-2 px-3 py-2 bg-amber-900/20 text-amber-300 text-sm">
         {isRunning ? (
           <div className="w-4 h-4 border-2 border-amber-400 border-t-transparent rounded-full animate-spin" />
@@ -299,6 +146,7 @@ function ToolCallDisplay({
         )}
       </div>
 
+      {/* Input section */}
       <div className="border-t border-amber-500/20">
         <button
           onClick={() => {
@@ -319,6 +167,7 @@ function ToolCallDisplay({
         )}
       </div>
 
+      {/* Output section - show when executing or has output */}
       {(isExecuting || output !== undefined) && (
         <div className="border-t border-amber-500/20">
           <button
@@ -360,7 +209,13 @@ function ToolCallDisplay({
   )
 }
 
-function Messages({ messages }: { messages: Array<UIMessage> }) {
+function Messages({
+  messages,
+  toolCallEvents,
+}: {
+  messages: Array<UIMessage>
+  toolCallEvents: Map<string, Array<VMEvent>>
+}) {
   const messagesContainerRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
@@ -388,16 +243,18 @@ function Messages({ messages }: { messages: Array<UIMessage> }) {
       }}
     >
       {messages.map((message) => {
+        // Build a map of tool results by toolCallId for quick lookup
+        // This handles the case where results come as separate tool-result parts
         const toolResults = new Map<
           string,
           { content: string; state: string; error?: string }
         >()
-        for (const part of message.parts) {
-          if (part.type === 'tool-result') {
-            toolResults.set(part.toolCallId, {
-              content: part.content,
-              state: part.state,
-              error: part.error,
+        for (const p of message.parts) {
+          if (p.type === 'tool-result') {
+            toolResults.set(p.toolCallId, {
+              content: p.content,
+              state: p.state,
+              error: p.error,
             })
           }
         }
@@ -423,6 +280,7 @@ function Messages({ messages }: { messages: Array<UIMessage> }) {
               )}
               <div className="flex-1 min-w-0">
                 {message.parts.map((part, index) => {
+                  // Text content
                   if (part.type === 'text' && part.content) {
                     return (
                       <div key={`text-${index}`} className="markdown-content">
@@ -440,7 +298,105 @@ function Messages({ messages }: { messages: Array<UIMessage> }) {
                     )
                   }
 
+                  // Tool call - execute_typescript (special display)
+                  if (
+                    part.type === 'tool-call' &&
+                    part.name === 'execute_typescript'
+                  ) {
+                    // Parse the code from arguments (supports partial JSON during streaming)
+                    let code = ''
+                    const parsedArgs = parsePartialJSON(part.arguments)
+                    if (parsedArgs?.typescriptCode) {
+                      code = parsedArgs.typescriptCode
+                    }
+
+                    // Check for tool result (either from part.output or from tool-result parts)
+                    const toolResult = toolResults.get(part.id)
+                    const hasOutput =
+                      part.output !== undefined || toolResult !== undefined
+
+                    // Parse the output - could be from part.output or from tool-result content
+                    let parsedOutput = part.output
+                    if (!parsedOutput && toolResult?.content) {
+                      try {
+                        parsedOutput = JSON.parse(toolResult.content)
+                      } catch {
+                        parsedOutput = { result: toolResult.content }
+                      }
+                    }
+
+                    // Determine status based on tool call state
+                    // ToolCallState: 'awaiting-input' | 'input-streaming' | 'input-complete' | 'approval-requested' | 'approval-responded'
+                    const isAwaitingInput = part.state === 'awaiting-input'
+                    const isInputStreaming = part.state === 'input-streaming'
+                    const isInputComplete = part.state === 'input-complete'
+                    const isStillGenerating =
+                      isAwaitingInput || isInputStreaming
+                    const isExecuting = isInputComplete && !hasOutput
+                    const hasError =
+                      parsedOutput?.success === false ||
+                      toolResult?.error !== undefined
+
+                    // Code block status: running while streaming input or executing
+                    // Only show success/error when we have actual output
+                    const codeStatus =
+                      isStillGenerating || isExecuting
+                        ? 'running'
+                        : hasError
+                          ? 'error'
+                          : 'success'
+
+                    // Execution result status
+                    const executionStatus = isExecuting
+                      ? 'running'
+                      : hasError
+                        ? 'error'
+                        : 'success'
+
+                    // Get events for this tool call
+                    const events = toolCallEvents.get(part.id) || []
+
+                    return (
+                      <div key={part.id} className="mt-3 space-y-2">
+                        {/* Show spinner while waiting for code, CodeBlock once we have code */}
+                        {!code && isStillGenerating ? (
+                          <div className="rounded-lg border border-blue-700 bg-blue-900/30 overflow-hidden">
+                            <div className="flex items-center gap-3 px-4 py-3">
+                              <div className="w-5 h-5 border-2 border-blue-400 border-t-transparent rounded-full animate-spin" />
+                              <span className="text-blue-300 font-medium">
+                                LLM is generating the TypeScript code...
+                              </span>
+                            </div>
+                          </div>
+                        ) : (
+                          <CodeBlock code={code} status={codeStatus} />
+                        )}
+                        {/* Show JavaScript VM when input is complete (executing or has output) */}
+                        {isInputComplete &&
+                          (events.length > 0 || isExecuting) && (
+                            <JavaScriptVM
+                              events={events}
+                              isExecuting={isExecuting}
+                            />
+                          )}
+                        {/* Show ExecutionResult when input is complete (executing or has output) */}
+                        {isInputComplete && (
+                          <ExecutionResult
+                            status={executionStatus}
+                            result={parsedOutput?.result}
+                            error={
+                              parsedOutput?.error?.message || toolResult?.error
+                            }
+                            logs={parsedOutput?.logs}
+                          />
+                        )}
+                      </div>
+                    )
+                  }
+
+                  // Other tool calls - generic display
                   if (part.type === 'tool-call') {
+                    // Check for tool result
                     const toolResult = toolResults.get(part.id)
                     const effectiveOutput =
                       part.output ??
@@ -466,6 +422,7 @@ function Messages({ messages }: { messages: Array<UIMessage> }) {
                     )
                   }
 
+                  // Skip tool-result parts (we handle them above via the map)
                   if (part.type === 'tool-result') {
                     return null
                   }
@@ -481,13 +438,45 @@ function Messages({ messages }: { messages: Array<UIMessage> }) {
   )
 }
 
-function NoCodePage() {
+// Calculate context sizes for the chat metrics
+function calculateActualSize(messages: Array<UIMessage>): number {
+  return new TextEncoder().encode(JSON.stringify(messages)).length
+}
+
+function CodeModePage() {
   const [selectedModel, setSelectedModel] = useState<ModelOption>(
     MODEL_OPTIONS[0],
   )
+  const [selectedVM, setSelectedVM] = useState<IsolateVM>('node')
+  const [chatLayout, setChatLayout] = useState<
+    'tools-data' | 'full' | 'tools' | 'data'
+  >('tools-data')
+  // Track events per tool call
+  const [toolCallEvents, setToolCallEvents] = useState<
+    Map<string, Array<VMEvent>>
+  >(new Map())
+  // Track invocation counts for VM tools (external_* functions)
+  const [toolInvocationCounts, setToolInvocationCounts] = useState<
+    Map<string, number>
+  >(new Map())
+  const [llmCallCount, setLlmCallCount] = useState(0)
+  const [totalContextBytes, setTotalContextBytes] = useState(0)
+  const [averageContextBytes, setAverageContextBytes] = useState(0)
+  const [totalTimeMs, setTotalTimeMs] = useState<number | null>(null)
+  const eventIdCounter = useRef(0)
   const [isExporting, setIsExporting] = useState(false)
-  const [isChatExpanded, setIsChatExpanded] = useState(false)
+  // Track NPM data components
+  const [npmDataComponents, setNpmDataComponents] = useState<
+    Array<{
+      id: string
+      type: string
+      data: any
+      timestamp: number
+    }>
+  >([])
+  const npmDataIdCounter = useRef(0)
 
+  // Ref to hold current messages for the client tool to access
   const messagesRef = useRef<Array<UIMessage>>([])
 
   const body = useMemo(
@@ -498,9 +487,124 @@ function NoCodePage() {
     [selectedModel.provider, selectedModel.model],
   )
 
+  const handleCustomEvent = useCallback(
+    (
+      eventType: string,
+      data: unknown,
+      context: { toolCallId?: string },
+    ) => {
+      const toolCallId = context.toolCallId
+
+      // Handle npm:data events - store JSON data for sidebar display
+      if (eventType === 'npm:data') {
+        const npmData = data as {
+          componentType: string
+          toolName?: string
+          data: any
+        }
+        setNpmDataComponents((prev) => [
+          {
+            id: `npm-${npmDataIdCounter.current++}`,
+            type: npmData.componentType,
+            data: npmData.data,
+            timestamp: Date.now(),
+          },
+          ...prev,
+        ])
+        return
+      }
+
+      if (eventType === 'code_mode:llm_call') {
+        let count: number | undefined
+        let nextTotalContextBytes: number | undefined
+        let nextAverageContextBytes: number | undefined
+        if (data && typeof data === 'object' && 'count' in data) {
+          const rawCount = (data as { count?: unknown }).count
+          if (typeof rawCount === 'number') {
+            count = rawCount
+          }
+        }
+        if (data && typeof data === 'object' && 'totalContextBytes' in data) {
+          const rawTotal = (data as { totalContextBytes?: unknown })
+            .totalContextBytes
+          if (typeof rawTotal === 'number') {
+            nextTotalContextBytes = rawTotal
+          }
+        }
+        if (data && typeof data === 'object' && 'averageContextBytes' in data) {
+          const rawAverage = (data as { averageContextBytes?: unknown })
+            .averageContextBytes
+          if (typeof rawAverage === 'number') {
+            nextAverageContextBytes = rawAverage
+          }
+        }
+        setLlmCallCount((prev) =>
+          typeof count === 'number' ? Math.max(prev, count) : prev + 1,
+        )
+        if (typeof nextTotalContextBytes === 'number') {
+          setTotalContextBytes(nextTotalContextBytes)
+        }
+        if (typeof nextAverageContextBytes === 'number') {
+          setAverageContextBytes(nextAverageContextBytes)
+        }
+        return
+      }
+
+      if (eventType === 'code_mode:chat_start') {
+        setTotalTimeMs(null)
+        return
+      }
+
+      if (eventType === 'code_mode:chat_end') {
+        if (data && typeof data === 'object' && 'durationMs' in data) {
+          const rawDuration = (data as { durationMs?: unknown }).durationMs
+          if (typeof rawDuration === 'number') {
+            setTotalTimeMs(rawDuration)
+          }
+        }
+        return
+      }
+
+      if (!toolCallId) {
+        // Events without toolCallId are ignored (shouldn't happen with code mode)
+        return
+      }
+
+      const event: VMEvent = {
+        id: `event-${eventIdCounter.current++}`,
+        eventType,
+        data,
+        timestamp: Date.now(),
+      }
+
+      setToolCallEvents((prev) => {
+        const newMap = new Map(prev)
+        const events = newMap.get(toolCallId) || []
+        newMap.set(toolCallId, [...events, event])
+        return newMap
+      })
+
+      // Track invocation counts for external_* calls
+      if (eventType === 'code_mode:external_call') {
+        const functionName = (data as { function?: string })?.function
+        if (functionName) {
+          setToolInvocationCounts((prev) => {
+            const newMap = new Map(prev)
+            newMap.set(functionName, (prev.get(functionName) || 0) + 1)
+            return newMap
+          })
+        }
+      }
+    },
+    [],
+  )
+
+  // Create the client tool with execute function that uses messagesRef
   const exportPdfClientTool = useMemo(
     () =>
       exportConversationToPdfTool.client(async (args) => {
+        console.log('exportPdfClientTool', args)
+
         const currentMessages = messagesRef.current
         if (currentMessages.length === 0) {
           return {
@@ -526,10 +630,12 @@ function NoCodePage() {
             throw new Error(error.error || 'Failed to generate PDF')
           }
 
+          // Get the blob and trigger download
           const blob = await response.blob()
           const url = window.URL.createObjectURL(blob)
           const a = document.createElement('a')
           a.href = url
+          // Extract filename from Content-Disposition header or use default
           const contentDisposition = response.headers.get('Content-Disposition')
           const filenameMatch = contentDisposition?.match(/filename="(.+)"/)
           const filename = filenameMatch?.[1] || 'conversation.pdf'
@@ -556,85 +662,36 @@ function NoCodePage() {
     [],
   )
 
-  const [llmCallCount, setLlmCallCount] = useState(0)
-  const [totalTimeMs, setTotalTimeMs] = useState<number | null>(null)
-  const [totalContextBytes, setTotalContextBytes] = useState(0)
-  const [averageContextBytes, setAverageContextBytes] = useState(0)
   const { messages, sendMessage, isLoading, stop } = useChat({
-    connection: fetchServerSentEvents('/api/no-code'),
+    connection: fetchServerSentEvents('/api/codemode'),
     body,
+    onCustomEvent: handleCustomEvent,
     tools: [exportPdfClientTool],
-    onCustomEvent: useCallback(
-      (eventType: string, data: unknown, _context: { toolCallId?: string }) => {
-        if (eventType === 'no_code:llm_call') {
-          let count: number | undefined
-          let nextTotalContextBytes: number | undefined
-          let nextAverageContextBytes: number | undefined
-          if (data && typeof data === 'object' && 'count' in data) {
-            const rawCount = (data as { count?: unknown }).count
-            if (typeof rawCount === 'number') {
-              count = rawCount
-            }
-          }
-          if (data && typeof data === 'object' && 'totalContextBytes' in data) {
-            const rawTotal = (data as { totalContextBytes?: unknown })
-              .totalContextBytes
-            if (typeof rawTotal === 'number') {
-              nextTotalContextBytes = rawTotal
-            }
-          }
-          if (
-            data &&
-            typeof data === 'object' &&
-            'averageContextBytes' in data
-          ) {
-            const rawAverage = (data as { averageContextBytes?: unknown })
-              .averageContextBytes
-            if (typeof rawAverage === 'number') {
-              nextAverageContextBytes = rawAverage
-            }
-          }
-          setLlmCallCount((prev) => (count ? Math.max(prev, count) : prev + 1))
-          if (typeof nextTotalContextBytes === 'number') {
-            setTotalContextBytes(nextTotalContextBytes)
-          }
-          if (typeof nextAverageContextBytes === 'number') {
-            setAverageContextBytes(nextAverageContextBytes)
-          }
-          return
-        }
-
-        if (eventType === 'no_code:chat_start') {
-          setTotalTimeMs(null)
-          return
-        }
-
-        if (eventType === 'no_code:chat_end') {
-          if (data && typeof data === 'object' && 'durationMs' in data) {
-            const rawDuration = (data as { durationMs?: unknown }).durationMs
-            if (typeof rawDuration === 'number') {
-              setTotalTimeMs(rawDuration)
-            }
-          }
-        }
-      },
-      [],
-    ),
   })
 
+  // Keep messagesRef in sync with messages
   useEffect(() => {
     messagesRef.current = messages
   }, [messages])
 
   const [input, setInput] = useState('')
-  const chatWidthClass = isChatExpanded ? 'max-w-none' : 'max-w-4xl'
-
-  const messageBytes = useMemo(
-    () => new TextEncoder().encode(JSON.stringify(messages)).length,
-    [messages],
+  const chatLayoutOptions = [
+    { id: 'tools-data', label: 'Show tools & data' },
+    { id: 'full', label: 'Full width chat' },
+    { id: 'tools', label: 'Show tools' },
+    { id: 'data', label: 'Show data' },
+  ] as const
+  const chatWidthClass = chatLayout === 'full' ? 'max-w-none' : 'max-w-4xl'
+  const showTools = chatLayout === 'tools-data' || chatLayout === 'tools'
+  const showData = chatLayout === 'tools-data' || chatLayout === 'data'
+  const chatLayoutIndex = chatLayoutOptions.findIndex(
+    (option) => option.id === chatLayout,
   )
+  const nextChatLayoutIndex = (chatLayoutIndex + 1) % chatLayoutOptions.length
+  const nextChatLayout = chatLayoutOptions[nextChatLayoutIndex]
 
-  const toolCounts = useMemo(() => {
+  // Compute LLM tool call counts from messages
+  const llmToolCounts = useMemo(() => {
     const counts = new Map<string, number>()
     for (const message of messages) {
       for (const part of message.parts) {
@@ -646,7 +703,10 @@ function NoCodePage() {
     return counts
   }, [messages])
 
-  const exportConversationToPdf = async () => {
+  const messageBytes = useMemo(() => calculateActualSize(messages), [messages])
+
+  // Manual export function for the UI button
+  const exportConversationToPdf = useCallback(async () => {
     if (messages.length === 0) return
 
     setIsExporting(true)
@@ -664,10 +724,12 @@ function NoCodePage() {
         throw new Error(error.error || 'Failed to generate PDF')
       }
 
+      // Get the blob and trigger download
       const blob = await response.blob()
       const url = window.URL.createObjectURL(blob)
       const a = document.createElement('a')
       a.href = url
+      // Extract filename from Content-Disposition header or use default
       const contentDisposition = response.headers.get('Content-Disposition')
       const filenameMatch = contentDisposition?.match(/filename="(.+)"/)
       a.download = filenameMatch?.[1] || 'conversation.pdf'
@@ -681,10 +743,11 @@ function NoCodePage() {
     } finally {
       setIsExporting(false)
     }
-  }
+  }, [messages])
 
   return (
     <div className="flex flex-col h-screen bg-gray-900">
+      {/* Header */}
       <Header>
         <NoCodeMetrics
           totalBytes={messageBytes}
@@ -694,6 +757,8 @@ function NoCodePage() {
           totalTimeMs={totalTimeMs ?? undefined}
           model={selectedModel.model}
         />
+
+        {/* Model Selector */}
         <select
           value={MODEL_OPTIONS.findIndex(
             (opt) =>
@@ -714,6 +779,7 @@ function NoCodePage() {
           ))}
         </select>
 
+        {/* Export PDF Button */}
         <button
           onClick={exportConversationToPdf}
           disabled={messages.length === 0 || isExporting || isLoading}
@@ -732,27 +798,41 @@ function NoCodePage() {
       </Header>
 
       <div className="flex flex-1 overflow-hidden">
-        {!isChatExpanded && <ToolSidebar toolCounts={toolCounts} />}
+        {/* Left Sidebar */}
+        {showTools && (
+          <ToolSidebar
+            selectedVM={selectedVM}
+            onVMChange={setSelectedVM}
+            toolInvocationCounts={toolInvocationCounts}
+            llmToolCounts={llmToolCounts}
+            llmCallCount={llmCallCount}
+            totalContextBytes={totalContextBytes}
+            averageContextBytes={averageContextBytes}
+          />
+        )}
 
+        {/* Chat area */}
         <div className="flex-1 flex flex-col min-w-0">
+          {/* Messages */}
           <div className="flex-1 flex flex-col overflow-hidden">
             <div className="border-b border-cyan-500/10 bg-gray-900/80 backdrop-blur-sm">
               <div className={`${chatWidthClass} mx-auto w-full px-4 py-2`}>
                 <button
-                  onClick={() => setIsChatExpanded((prev) => !prev)}
+                  onClick={() => setChatLayout(nextChatLayout.id)}
                   className="inline-flex items-center gap-2 rounded-md border border-cyan-500/30 bg-gray-800/60 px-3 py-1.5 text-xs text-cyan-200 hover:bg-gray-800/90 hover:border-cyan-500/50 transition-colors"
                 >
-                  {isChatExpanded ? 'Show tools' : 'Full width chat'}
+                  {nextChatLayout.label}
                 </button>
               </div>
             </div>
             <div
               className={`flex-1 flex flex-col h-full ${chatWidthClass} mx-auto w-full overflow-hidden`}
             >
-              <Messages messages={messages} />
+              <Messages messages={messages} toolCallEvents={toolCallEvents} />
             </div>
           </div>
 
+          {/* Input area */}
           <div className="border-t border-cyan-500/10 bg-gray-900/80 backdrop-blur-sm">
             <div className={`${chatWidthClass} mx-auto px-4 py-3 space-y-3`}>
               {isLoading && (
@@ -803,6 +883,7 @@ function NoCodePage() {
                 </button>
               </div>
 
+              {/* Prompt suggestions */}
               <div className="flex flex-wrap gap-2">
                 <div className="flex items-center gap-1.5 text-xs text-gray-500">
                   <Sparkles className="w-3 h-3" />
@@ -826,6 +907,9 @@ function NoCodePage() {
             </div>
           </div>
         </div>
+
+        {/* Right Sidebar - NPM Data */}
+        {showData && <NpmDataSidebar components={npmDataComponents} />}
       </div>
     </div>
   )

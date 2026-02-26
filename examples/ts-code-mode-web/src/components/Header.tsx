@@ -1,17 +1,13 @@
 import { Link } from '@tanstack/react-router'
 import {
   Code2,
-  Home,
   Menu,
   Sparkles,
   FileJson,
-  Volume2,
-  LayoutDashboard,
   X,
   FileText,
   FileCode2,
   Landmark,
-  PenTool,
   ShoppingBag,
 } from 'lucide-react'
 import { useState } from 'react'
@@ -67,35 +63,23 @@ export default function Header({ children }: HeaderProps) {
             className="flex items-center gap-3 p-3 rounded-lg hover:bg-gray-800 transition-colors mb-2"
             activeProps={{
               className:
-                'flex items-center gap-3 p-3 rounded-lg bg-cyan-600 hover:bg-cyan-700 transition-colors mb-2',
-            }}
-          >
-            <Home size={20} />
-            <span className="font-medium">Code Mode Chat</span>
-          </Link>
-          <Link
-            to="/no-code"
-            onClick={() => setIsOpen(false)}
-            className="flex items-center gap-3 p-3 rounded-lg hover:bg-gray-800 transition-colors mb-2"
-            activeProps={{
-              className:
-                'flex items-center gap-3 p-3 rounded-lg bg-teal-600 hover:bg-teal-700 transition-colors mb-2',
-            }}
-          >
-            <FileCode2 size={20} />
-            <span className="font-medium">No-Code Chat</span>
-          </Link>
-          <Link
-            to="/product-demo"
-            onClick={() => setIsOpen(false)}
-            className="flex items-center gap-3 p-3 rounded-lg hover:bg-gray-800 transition-colors mb-2"
-            activeProps={{
-              className:
                 'flex items-center gap-3 p-3 rounded-lg bg-amber-600 hover:bg-amber-700 transition-colors mb-2',
             }}
           >
             <ShoppingBag size={20} />
             <span className="font-medium">Product Demo</span>
+          </Link>
+          <Link
+            to="/npm-github-chat"
+            onClick={() => setIsOpen(false)}
+            className="flex items-center gap-3 p-3 rounded-lg hover:bg-gray-800 transition-colors mb-2"
+            activeProps={{
+              className:
+                'flex items-center gap-3 p-3 rounded-lg bg-cyan-600 hover:bg-cyan-700 transition-colors mb-2',
+            }}
+          >
+            <FileCode2 size={20} />
+            <span className="font-medium">NPM-GitHub Chat</span>
           </Link>
           <Link
             to="/skills"
@@ -119,7 +103,7 @@ export default function Header({ children }: HeaderProps) {
             }}
           >
             <FileText size={20} />
-            <span className="font-medium">Reporting Agent</span>
+            <span className="font-medium">Dynamic Reports</span>
           </Link>
           <Link
             to="/structured-output"
@@ -134,30 +118,6 @@ export default function Header({ children }: HeaderProps) {
             <span className="font-medium">Structured Output</span>
           </Link>
           <Link
-            to="/audio"
-            onClick={() => setIsOpen(false)}
-            className="flex items-center gap-3 p-3 rounded-lg hover:bg-gray-800 transition-colors mb-2"
-            activeProps={{
-              className:
-                'flex items-center gap-3 p-3 rounded-lg bg-emerald-600 hover:bg-emerald-700 transition-colors mb-2',
-            }}
-          >
-            <Volume2 size={20} />
-            <span className="font-medium">Audio Workbench</span>
-          </Link>
-          <Link
-            to="/reports/demo"
-            onClick={() => setIsOpen(false)}
-            className="flex items-center gap-3 p-3 rounded-lg hover:bg-gray-800 transition-colors mb-2"
-            activeProps={{
-              className:
-                'flex items-center gap-3 p-3 rounded-lg bg-orange-600 hover:bg-orange-700 transition-colors mb-2',
-            }}
-          >
-            <LayoutDashboard size={20} />
-            <span className="font-medium">Reports Demo</span>
-          </Link>
-          <Link
             to="/banking-demo"
             onClick={() => setIsOpen(false)}
             className="flex items-center gap-3 p-3 rounded-lg hover:bg-gray-800 transition-colors mb-2"
@@ -167,19 +127,7 @@ export default function Header({ children }: HeaderProps) {
             }}
           >
             <Landmark size={20} />
-            <span className="font-medium">Banking Demo</span>
-          </Link>
-          <Link
-            to="/excalidraw-demo"
-            onClick={() => setIsOpen(false)}
-            className="flex items-center gap-3 p-3 rounded-lg hover:bg-gray-800 transition-colors mb-2"
-            activeProps={{
-              className:
-                'flex items-center gap-3 p-3 rounded-lg bg-violet-600 hover:bg-violet-700 transition-colors mb-2',
-            }}
-          >
-            <PenTool size={20} />
-            <span className="font-medium">Excalidraw Demo</span>
+            <span className="font-medium">Dynamic UI</span>
           </Link>
         </nav>
 

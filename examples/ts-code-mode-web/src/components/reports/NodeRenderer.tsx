@@ -22,7 +22,6 @@ import {
   Placeholder,
   ErrorDisplay,
   Empty,
-  ExcalidrawCanvas,
 } from './primitives'
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -46,7 +45,6 @@ const componentMap: Record<ComponentType, React.ComponentType<any>> = {
   placeholder: Placeholder,
   error: ErrorDisplay,
   empty: Empty,
-  excalidraw: ExcalidrawCanvas,
 }
 
 const nodeVariants = {

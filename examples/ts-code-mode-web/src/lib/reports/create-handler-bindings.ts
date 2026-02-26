@@ -2,11 +2,6 @@ import { z } from 'zod'
 import { convertSchemaToJsonSchema } from '@tanstack/ai'
 import type { ToolBinding } from '@tanstack/ai-code-mode'
 import type { BindingSignalMetadata, Report, UIEffect, UIUpdate } from './types'
-import {
-  createExcalidrawBindings,
-  getExcalidrawInvalidatedSignals,
-} from './create-excalidraw-bindings'
-import { getExcalidrawElements, setExcalidrawElements } from './report-storage'
 
 export interface HandlerBindingContext {
   report: Report
@@ -47,10 +42,7 @@ export const BINDING_SIGNAL_METADATA: Record<string, BindingSignalMetadata> = {
  * Get the signals that a binding invalidates when called.
  */
 export function getInvalidatedSignals(bindingName: string): string[] {
-  // Check both banking and excalidraw signal metadata
-  const bankingInvalidates = BINDING_SIGNAL_METADATA[bindingName]?.invalidates || []
-  const excalidrawInvalidates = getExcalidrawInvalidatedSignals(bindingName)
-  return [...bankingInvalidates, ...excalidrawInvalidates]
+  return BINDING_SIGNAL_METADATA[bindingName]?.invalidates || []
 }
 
 /**
@@ -85,15 +77,6 @@ export function createHandlerBindings(
 ): Record<string, ToolBinding> {
   // Helper to track binding calls
   const track = (name: string) => context?.onBindingCall?.(name)
-
-  // Create excalidraw bindings if reportId is provided
-  const excalidrawBindings = reportId
-    ? createExcalidrawBindings({
-        getElements: () => getExcalidrawElements(reportId, canvasId),
-        setElements: (elements) => setExcalidrawElements(reportId, canvasId, elements),
-        onBindingCall: track,
-      })
-    : {}
 
   return {
     external_ui_toast: createBinding(
@@ -206,8 +189,6 @@ export function createHandlerBindings(
         return getMockTransactions(parsed.limit ?? 10)
       },
     ),
-    // Include excalidraw bindings for diagram manipulation
-    ...excalidrawBindings,
   }
 }
 

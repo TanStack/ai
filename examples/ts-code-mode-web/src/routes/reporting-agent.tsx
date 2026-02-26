@@ -426,7 +426,7 @@ function EmptyState() {
     <div className="flex-1 flex items-center justify-center text-gray-500 p-8">
       <div className="text-center max-w-md">
         <Sparkles size={48} className="mx-auto mb-4 text-purple-400/50" />
-        <p className="text-xl font-medium mb-3 text-white">Reporting Agent</p>
+        <p className="text-xl font-medium mb-3 text-white">Dynamic Reports</p>
         <p className="text-sm text-gray-400">
           Ask the AI to create reports, compare packages, or analyze data.
         </p>

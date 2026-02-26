@@ -10,8 +10,6 @@ export interface ServerReportState extends ReportState {
   signalRegistry: SignalRegistry
   sseController?: ReadableStreamDefaultController<Uint8Array>
   watchers: Map<string, WatcherSubscription>
-  /** Excalidraw elements storage, keyed by component ID */
-  excalidrawElements: Map<string, unknown[]>
 }
 
 const reportStateStore = new Map<string, ServerReportState>()
@@ -22,7 +20,6 @@ export function createReportState(report: Report): ServerReportState {
     ...baseState,
     signalRegistry: createSignalRegistry(),
     watchers: new Map(),
-    excalidrawElements: new Map(),
   }
   reportStateStore.set(report.id, state)
   return state
@@ -58,32 +55,6 @@ export function getSSEController(
   reportId: string,
 ): ReadableStreamDefaultController<Uint8Array> | undefined {
   return reportStateStore.get(reportId)?.sseController
-}
-
-// ============================================================================
-// Excalidraw Elements Management
-// ============================================================================
-
-export function getExcalidrawElements(
-  reportId: string,
-  componentId: string,
-): unknown[] {
-  const state = reportStateStore.get(reportId)
-  return state?.excalidrawElements.get(componentId) || []
-}
-
-export function setExcalidrawElements(
-  reportId: string,
-  componentId: string,
-  elements: unknown[],
-): boolean {
-  const state = reportStateStore.get(reportId)
-  if (!state) {
-    console.warn(`[report-storage] Report not found: ${reportId}`)
-    return false
-  }
-  state.excalidrawElements.set(componentId, elements)
-  return true
 }
 
 // ============================================================================
@@ -164,7 +135,6 @@ export function applyReportUIEvent(reportId: string, event: UIEvent): boolean {
     signalRegistry: state.signalRegistry,
     sseController: state.sseController,
     watchers: state.watchers,
-    excalidrawElements: state.excalidrawElements,
   })
   return true
 }
@@ -184,7 +154,6 @@ export function applyReportUIUpdates(
     signalRegistry: state.signalRegistry,
     sseController: state.sseController,
     watchers: state.watchers,
-    excalidrawElements: state.excalidrawElements,
   })
   return true
 }

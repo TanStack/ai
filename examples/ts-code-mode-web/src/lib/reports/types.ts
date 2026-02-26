@@ -48,8 +48,6 @@ export type ComponentType =
   | 'placeholder'
   | 'error'
   | 'empty'
-  // Interactive
-  | 'excalidraw'
 
 // Event Protocol
 export type UIEvent =
@@ -269,17 +267,6 @@ export interface EmptyProps {
   icon?: string
 }
 
-export interface ExcalidrawProps {
-  id: string
-  parentId?: string
-  elements?: unknown[] // ExcalidrawElement[] from @excalidraw/excalidraw
-  width?: string | number
-  height?: number
-  viewModeEnabled?: boolean
-  gridModeEnabled?: boolean
-  theme?: 'light' | 'dark'
-}
-
 // Helper type for component props lookup
 export type ComponentPropsMap = {
   vbox: VBoxProps
@@ -301,7 +288,6 @@ export type ComponentPropsMap = {
   placeholder: PlaceholderProps
   error: ErrorDisplayProps
   empty: EmptyProps
-  excalidraw: ExcalidrawProps
 }
 
 // ============================================================================

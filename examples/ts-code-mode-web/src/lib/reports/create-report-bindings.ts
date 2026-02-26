@@ -6,7 +6,7 @@ import {
   type ToolExecutionContext,
 } from '@tanstack/ai-code-mode'
 import type { UIEvent, ComponentType, WatcherSubscription } from './types'
-import { applyReportUIEvent, getSignalRegistry, addWatcher, removeWatcher, getAllWatchers, setExcalidrawElements } from './report-storage'
+import { applyReportUIEvent, getSignalRegistry, addWatcher, removeWatcher, getAllWatchers } from './report-storage'
 import { createHandlerBindings } from './create-handler-bindings'
 
 // Common schemas for subscription support
@@ -840,92 +840,6 @@ const emptyBinding = createReportBinding(
 )
 
 // ============================================================================
-// Excalidraw Binding
-// ============================================================================
-
-const excalidrawBindingSchema = z.object({
-  reportId: z.string().describe('ID of the report to add to'),
-  id: z.string().describe('Unique ID for this Excalidraw canvas'),
-  parentId: z.string().optional().describe('Parent component ID'),
-  width: z.union([z.string(), z.number()]).optional().default('100%').describe('Canvas width'),
-  height: z.number().optional().default(500).describe('Canvas height in pixels'),
-  elements: z.array(z.unknown()).optional().default([]).describe('Initial Excalidraw elements'),
-  viewModeEnabled: z.boolean().optional().default(false).describe('Enable view-only mode'),
-  gridModeEnabled: z.boolean().optional().default(false).describe('Show grid'),
-  theme: z.enum(['light', 'dark']).optional().default('light').describe('Theme'),
-  subscriptions: subscriptionsSchema,
-  dataSource: dataSourceSchema,
-})
-
-const excalidrawBinding: ToolBinding = {
-  name: 'external_report_excalidraw',
-  description: 'Create an interactive Excalidraw canvas for diagrams. Supports subscriptions for reactive updates.',
-  inputSchema: convertSchemaToJsonSchema(excalidrawBindingSchema) || { type: 'object', properties: {} },
-  outputSchema: convertSchemaToJsonSchema(z.object({ success: z.boolean(), componentId: z.string().optional() })),
-  execute: async (args, context) => {
-    const parsed = excalidrawBindingSchema.parse(args)
-    const { reportId, parentId, subscriptions, dataSource, elements } = parsed
-    const id = parsed.id
-    const emitCustomEvent = context?.emitCustomEvent || (() => {})
-
-    // Store initial elements in report storage
-    if (elements && elements.length > 0) {
-      setExcalidrawElements(reportId, id, elements)
-    }
-
-    // Validate dataSource if provided
-    let validatedDataSource: string | undefined
-    if (dataSource) {
-      const { validateHandler } = await import('./validate-handler')
-      const validation = await validateHandler(
-        dataSource,
-        handlerBindingTypes,
-        allowedHandlerBindings,
-      )
-      if (!validation.valid) {
-        return {
-          success: false,
-          error: `dataSource validation failed: ${validation.error}`,
-        }
-      }
-      validatedDataSource = validation.strippedCode || dataSource
-    }
-
-    // Register subscriptions with the signal registry
-    if (subscriptions && subscriptions.length > 0) {
-      const registry = getSignalRegistry(reportId)
-      if (registry) {
-        for (const signal of subscriptions) {
-          registry.subscribe(id, signal)
-        }
-      }
-    }
-
-    const event: UIEvent = {
-      op: 'add',
-      id,
-      type: 'excalidraw',
-      parentId,
-      props: {
-        width: parsed.width,
-        height: parsed.height,
-        elements: elements || [],
-        viewModeEnabled: parsed.viewModeEnabled,
-        gridModeEnabled: parsed.gridModeEnabled,
-        theme: parsed.theme,
-      },
-      subscriptions,
-      dataSource: validatedDataSource,
-    }
-
-    emitCustomEvent('report:ui', { reportId, event })
-    applyReportUIEvent(reportId, event)
-
-    return { success: true, componentId: id }
-  },
-}
-
-// ============================================================================
 // Operation Bindings
 // ============================================================================
 
@@ -1162,8 +1076,6 @@ export const reportBindings: Record<string, ToolBinding> = {
   external_report_placeholder: placeholderBinding,
   external_report_error: errorBinding,
   external_report_empty: emptyBinding,
-  // Interactive
-  external_report_excalidraw: excalidrawBinding,
   // Operations
   external_report_update: updateBinding,
   external_report_remove: removeBinding,

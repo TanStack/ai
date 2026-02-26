@@ -12,14 +12,10 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as StructuredOutputRouteImport } from './routes/structured-output'
 import { Route as SkillsRouteImport } from './routes/skills'
 import { Route as ReportingAgentRouteImport } from './routes/reporting-agent'
-import { Route as ProductDemoRouteImport } from './routes/product-demo'
-import { Route as NoCodeRouteImport } from './routes/no-code'
-import { Route as ExcalidrawDemoRouteImport } from './routes/excalidraw-demo'
+import { Route as NpmGithubChatRouteImport } from './routes/npm-github-chat'
 import { Route as BankingDemoRouteImport } from './routes/banking-demo'
-import { Route as AudioRouteImport } from './routes/audio'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as ReportsIndexRouteImport } from './routes/reports/index'
-import { Route as ReportsDemoRouteImport } from './routes/reports/demo'
 import { Route as ApiStructuredOutputRouteImport } from './routes/api.structured-output'
 import { Route as ApiSkillsRouteImport } from './routes/api.skills'
 import { Route as ApiReportsRouteImport } from './routes/api.reports'
@@ -28,17 +24,12 @@ import { Route as ApiReportEventRouteImport } from './routes/api.report-event'
 import { Route as ApiReportDemoRouteImport } from './routes/api.report-demo'
 import { Route as ApiProductRegularRouteImport } from './routes/api.product-regular'
 import { Route as ApiProductCodemodeRouteImport } from './routes/api.product-codemode'
-import { Route as ApiNoCodeRouteImport } from './routes/api.no-code'
 import { Route as ApiInvalidateRouteImport } from './routes/api.invalidate'
 import { Route as ApiGeneratePdfRouteImport } from './routes/api.generate-pdf'
-import { Route as ApiExcalidrawInitRouteImport } from './routes/api.excalidraw-init'
-import { Route as ApiExcalidrawDemoRouteImport } from './routes/api.excalidraw-demo'
 import { Route as ApiCodemodeSkillsRouteImport } from './routes/api.codemode-skills'
 import { Route as ApiCodemodeRouteImport } from './routes/api.codemode'
 import { Route as ApiBankingInitRouteImport } from './routes/api.banking-init'
 import { Route as ApiBankingDemoRouteImport } from './routes/api.banking-demo'
-import { Route as ApiAudioResolveRouteImport } from './routes/api.audio-resolve'
-import { Route as ApiAudioRouteImport } from './routes/api.audio'
 
 const StructuredOutputRoute = StructuredOutputRouteImport.update({
   id: '/structured-output',
@@ -55,29 +46,14 @@ const ReportingAgentRoute = ReportingAgentRouteImport.update({
   path: '/reporting-agent',
   getParentRoute: () => rootRouteImport,
 } as any)
-const ProductDemoRoute = ProductDemoRouteImport.update({
-  id: '/product-demo',
-  path: '/product-demo',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const NoCodeRoute = NoCodeRouteImport.update({
-  id: '/no-code',
-  path: '/no-code',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const ExcalidrawDemoRoute = ExcalidrawDemoRouteImport.update({
-  id: '/excalidraw-demo',
-  path: '/excalidraw-demo',
+const NpmGithubChatRoute = NpmGithubChatRouteImport.update({
+  id: '/npm-github-chat',
+  path: '/npm-github-chat',
   getParentRoute: () => rootRouteImport,
 } as any)
 const BankingDemoRoute = BankingDemoRouteImport.update({
   id: '/banking-demo',
   path: '/banking-demo',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const AudioRoute = AudioRouteImport.update({
-  id: '/audio',
-  path: '/audio',
   getParentRoute: () => rootRouteImport,
 } as any)
 const IndexRoute = IndexRouteImport.update({
@@ -88,11 +64,6 @@ const IndexRoute = IndexRouteImport.update({
 const ReportsIndexRoute = ReportsIndexRouteImport.update({
   id: '/reports/',
   path: '/reports/',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const ReportsDemoRoute = ReportsDemoRouteImport.update({
-  id: '/reports/demo',
-  path: '/reports/demo',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiStructuredOutputRoute = ApiStructuredOutputRouteImport.update({
@@ -135,11 +106,6 @@ const ApiProductCodemodeRoute = ApiProductCodemodeRouteImport.update({
   path: '/api/product-codemode',
   getParentRoute: () => rootRouteImport,
 } as any)
-const ApiNoCodeRoute = ApiNoCodeRouteImport.update({
-  id: '/api/no-code',
-  path: '/api/no-code',
-  getParentRoute: () => rootRouteImport,
-} as any)
 const ApiInvalidateRoute = ApiInvalidateRouteImport.update({
   id: '/api/invalidate',
   path: '/api/invalidate',
@@ -148,16 +114,6 @@ const ApiInvalidateRoute = ApiInvalidateRouteImport.update({
 const ApiGeneratePdfRoute = ApiGeneratePdfRouteImport.update({
   id: '/api/generate-pdf',
   path: '/api/generate-pdf',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const ApiExcalidrawInitRoute = ApiExcalidrawInitRouteImport.update({
-  id: '/api/excalidraw-init',
-  path: '/api/excalidraw-init',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const ApiExcalidrawDemoRoute = ApiExcalidrawDemoRouteImport.update({
-  id: '/api/excalidraw-demo',
-  path: '/api/excalidraw-demo',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiCodemodeSkillsRoute = ApiCodemodeSkillsRouteImport.update({
@@ -180,38 +136,20 @@ const ApiBankingDemoRoute = ApiBankingDemoRouteImport.update({
   path: '/api/banking-demo',
   getParentRoute: () => rootRouteImport,
 } as any)
-const ApiAudioResolveRoute = ApiAudioResolveRouteImport.update({
-  id: '/api/audio-resolve',
-  path: '/api/audio-resolve',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const ApiAudioRoute = ApiAudioRouteImport.update({
-  id: '/api/audio',
-  path: '/api/audio',
-  getParentRoute: () => rootRouteImport,
-} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
-  '/audio': typeof AudioRoute
   '/banking-demo': typeof BankingDemoRoute
-  '/excalidraw-demo': typeof ExcalidrawDemoRoute
-  '/no-code': typeof NoCodeRoute
-  '/product-demo': typeof ProductDemoRoute
+  '/npm-github-chat': typeof NpmGithubChatRoute
   '/reporting-agent': typeof ReportingAgentRoute
   '/skills': typeof SkillsRoute
   '/structured-output': typeof StructuredOutputRoute
-  '/api/audio': typeof ApiAudioRoute
-  '/api/audio-resolve': typeof ApiAudioResolveRoute
   '/api/banking-demo': typeof ApiBankingDemoRoute
   '/api/banking-init': typeof ApiBankingInitRoute
   '/api/codemode': typeof ApiCodemodeRoute
   '/api/codemode-skills': typeof ApiCodemodeSkillsRoute
-  '/api/excalidraw-demo': typeof ApiExcalidrawDemoRoute
-  '/api/excalidraw-init': typeof ApiExcalidrawInitRoute
   '/api/generate-pdf': typeof ApiGeneratePdfRoute
   '/api/invalidate': typeof ApiInvalidateRoute
-  '/api/no-code': typeof ApiNoCodeRoute
   '/api/product-codemode': typeof ApiProductCodemodeRoute
   '/api/product-regular': typeof ApiProductRegularRoute
   '/api/report-demo': typeof ApiReportDemoRoute
@@ -220,30 +158,21 @@ export interface FileRoutesByFullPath {
   '/api/reports': typeof ApiReportsRoute
   '/api/skills': typeof ApiSkillsRoute
   '/api/structured-output': typeof ApiStructuredOutputRoute
-  '/reports/demo': typeof ReportsDemoRoute
   '/reports/': typeof ReportsIndexRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
-  '/audio': typeof AudioRoute
   '/banking-demo': typeof BankingDemoRoute
-  '/excalidraw-demo': typeof ExcalidrawDemoRoute
-  '/no-code': typeof NoCodeRoute
-  '/product-demo': typeof ProductDemoRoute
+  '/npm-github-chat': typeof NpmGithubChatRoute
   '/reporting-agent': typeof ReportingAgentRoute
   '/skills': typeof SkillsRoute
   '/structured-output': typeof StructuredOutputRoute
-  '/api/audio': typeof ApiAudioRoute
-  '/api/audio-resolve': typeof ApiAudioResolveRoute
   '/api/banking-demo': typeof ApiBankingDemoRoute
   '/api/banking-init': typeof ApiBankingInitRoute
   '/api/codemode': typeof ApiCodemodeRoute
   '/api/codemode-skills': typeof ApiCodemodeSkillsRoute
-  '/api/excalidraw-demo': typeof ApiExcalidrawDemoRoute
-  '/api/excalidraw-init': typeof ApiExcalidrawInitRoute
   '/api/generate-pdf': typeof ApiGeneratePdfRoute
   '/api/invalidate': typeof ApiInvalidateRoute
-  '/api/no-code': typeof ApiNoCodeRoute
   '/api/product-codemode': typeof ApiProductCodemodeRoute
   '/api/product-regular': typeof ApiProductRegularRoute
   '/api/report-demo': typeof ApiReportDemoRoute
@@ -252,31 +181,22 @@ export interface FileRoutesByTo {
   '/api/reports': typeof ApiReportsRoute
   '/api/skills': typeof ApiSkillsRoute
   '/api/structured-output': typeof ApiStructuredOutputRoute
-  '/reports/demo': typeof ReportsDemoRoute
   '/reports': typeof ReportsIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
-  '/audio': typeof AudioRoute
   '/banking-demo': typeof BankingDemoRoute
-  '/excalidraw-demo': typeof ExcalidrawDemoRoute
-  '/no-code': typeof NoCodeRoute
-  '/product-demo': typeof ProductDemoRoute
+  '/npm-github-chat': typeof NpmGithubChatRoute
   '/reporting-agent': typeof ReportingAgentRoute
   '/skills': typeof SkillsRoute
   '/structured-output': typeof StructuredOutputRoute
-  '/api/audio': typeof ApiAudioRoute
-  '/api/audio-resolve': typeof ApiAudioResolveRoute
   '/api/banking-demo': typeof ApiBankingDemoRoute
   '/api/banking-init': typeof ApiBankingInitRoute
   '/api/codemode': typeof ApiCodemodeRoute
   '/api/codemode-skills': typeof ApiCodemodeSkillsRoute
-  '/api/excalidraw-demo': typeof ApiExcalidrawDemoRoute
-  '/api/excalidraw-init': typeof ApiExcalidrawInitRoute
   '/api/generate-pdf': typeof ApiGeneratePdfRoute
   '/api/invalidate': typeof ApiInvalidateRoute
-  '/api/no-code': typeof ApiNoCodeRoute
   '/api/product-codemode': typeof ApiProductCodemodeRoute
   '/api/product-regular': typeof ApiProductRegularRoute
   '/api/report-demo': typeof ApiReportDemoRoute
@@ -285,32 +205,23 @@ export interface FileRoutesById {
   '/api/reports': typeof ApiReportsRoute
   '/api/skills': typeof ApiSkillsRoute
   '/api/structured-output': typeof ApiStructuredOutputRoute
-  '/reports/demo': typeof ReportsDemoRoute
   '/reports/': typeof ReportsIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
-    | '/audio'
     | '/banking-demo'
-    | '/excalidraw-demo'
-    | '/no-code'
-    | '/product-demo'
+    | '/npm-github-chat'
     | '/reporting-agent'
     | '/skills'
     | '/structured-output'
-    | '/api/audio'
-    | '/api/audio-resolve'
     | '/api/banking-demo'
     | '/api/banking-init'
     | '/api/codemode'
     | '/api/codemode-skills'
-    | '/api/excalidraw-demo'
-    | '/api/excalidraw-init'
     | '/api/generate-pdf'
     | '/api/invalidate'
-    | '/api/no-code'
     | '/api/product-codemode'
     | '/api/product-regular'
     | '/api/report-demo'
@@ -319,30 +230,21 @@ export interface FileRouteTypes {
     | '/api/reports'
     | '/api/skills'
     | '/api/structured-output'
-    | '/reports/demo'
     | '/reports/'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
-    | '/audio'
     | '/banking-demo'
-    | '/excalidraw-demo'
-    | '/no-code'
-    | '/product-demo'
+    | '/npm-github-chat'
     | '/reporting-agent'
     | '/skills'
     | '/structured-output'
-    | '/api/audio'
-    | '/api/audio-resolve'
     | '/api/banking-demo'
     | '/api/banking-init'
     | '/api/codemode'
     | '/api/codemode-skills'
-    | '/api/excalidraw-demo'
-    | '/api/excalidraw-init'
     | '/api/generate-pdf'
     | '/api/invalidate'
-    | '/api/no-code'
     | '/api/product-codemode'
     | '/api/product-regular'
     | '/api/report-demo'
@@ -351,30 +253,21 @@ export interface FileRouteTypes {
     | '/api/reports'
     | '/api/skills'
     | '/api/structured-output'
-    | '/reports/demo'
     | '/reports'
   id:
     | '__root__'
     | '/'
-    | '/audio'
     | '/banking-demo'
-    | '/excalidraw-demo'
-    | '/no-code'
-    | '/product-demo'
+    | '/npm-github-chat'
     | '/reporting-agent'
     | '/skills'
     | '/structured-output'
-    | '/api/audio'
-    | '/api/audio-resolve'
     | '/api/banking-demo'
     | '/api/banking-init'
     | '/api/codemode'
     | '/api/codemode-skills'
-    | '/api/excalidraw-demo'
-    | '/api/excalidraw-init'
     | '/api/generate-pdf'
     | '/api/invalidate'
-    | '/api/no-code'
     | '/api/product-codemode'
     | '/api/product-regular'
     | '/api/report-demo'
@@ -383,31 +276,22 @@ export interface FileRouteTypes {
     | '/api/reports'
     | '/api/skills'
     | '/api/structured-output'
-    | '/reports/demo'
     | '/reports/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
-  AudioRoute: typeof AudioRoute
   BankingDemoRoute: typeof BankingDemoRoute
-  ExcalidrawDemoRoute: typeof ExcalidrawDemoRoute
-  NoCodeRoute: typeof NoCodeRoute
-  ProductDemoRoute: typeof ProductDemoRoute
+  NpmGithubChatRoute: typeof NpmGithubChatRoute
   ReportingAgentRoute: typeof ReportingAgentRoute
   SkillsRoute: typeof SkillsRoute
   StructuredOutputRoute: typeof StructuredOutputRoute
-  ApiAudioRoute: typeof ApiAudioRoute
-  ApiAudioResolveRoute: typeof ApiAudioResolveRoute
   ApiBankingDemoRoute: typeof ApiBankingDemoRoute
   ApiBankingInitRoute: typeof ApiBankingInitRoute
   ApiCodemodeRoute: typeof ApiCodemodeRoute
   ApiCodemodeSkillsRoute: typeof ApiCodemodeSkillsRoute
-  ApiExcalidrawDemoRoute: typeof ApiExcalidrawDemoRoute
-  ApiExcalidrawInitRoute: typeof ApiExcalidrawInitRoute
   ApiGeneratePdfRoute: typeof ApiGeneratePdfRoute
   ApiInvalidateRoute: typeof ApiInvalidateRoute
-  ApiNoCodeRoute: typeof ApiNoCodeRoute
   ApiProductCodemodeRoute: typeof ApiProductCodemodeRoute
   ApiProductRegularRoute: typeof ApiProductRegularRoute
   ApiReportDemoRoute: typeof ApiReportDemoRoute
@@ -416,7 +300,6 @@ export interface RootRouteChildren {
   ApiReportsRoute: typeof ApiReportsRoute
   ApiSkillsRoute: typeof ApiSkillsRoute
   ApiStructuredOutputRoute: typeof ApiStructuredOutputRoute
-  ReportsDemoRoute: typeof ReportsDemoRoute
   ReportsIndexRoute: typeof ReportsIndexRoute
 }
 
@@ -443,25 +326,11 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ReportingAgentRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/product-demo': {
-      id: '/product-demo'
-      path: '/product-demo'
-      fullPath: '/product-demo'
-      preLoaderRoute: typeof ProductDemoRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/no-code': {
-      id: '/no-code'
-      path: '/no-code'
-      fullPath: '/no-code'
-      preLoaderRoute: typeof NoCodeRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/excalidraw-demo': {
-      id: '/excalidraw-demo'
-      path: '/excalidraw-demo'
-      fullPath: '/excalidraw-demo'
-      preLoaderRoute: typeof ExcalidrawDemoRouteImport
+    '/npm-github-chat': {
+      id: '/npm-github-chat'
+      path: '/npm-github-chat'
+      fullPath: '/npm-github-chat'
+      preLoaderRoute: typeof NpmGithubChatRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/banking-demo': {
@@ -469,13 +338,6 @@ declare module '@tanstack/react-router' {
       path: '/banking-demo'
       fullPath: '/banking-demo'
       preLoaderRoute: typeof BankingDemoRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/audio': {
-      id: '/audio'
-      path: '/audio'
-      fullPath: '/audio'
-      preLoaderRoute: typeof AudioRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/': {
@@ -490,13 +352,6 @@ declare module '@tanstack/react-router' {
       path: '/reports'
       fullPath: '/reports/'
       preLoaderRoute: typeof ReportsIndexRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/reports/demo': {
-      id: '/reports/demo'
-      path: '/reports/demo'
-      fullPath: '/reports/demo'
-      preLoaderRoute: typeof ReportsDemoRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/structured-output': {
@@ -555,13 +410,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiProductCodemodeRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/api/no-code': {
-      id: '/api/no-code'
-      path: '/api/no-code'
-      fullPath: '/api/no-code'
-      preLoaderRoute: typeof ApiNoCodeRouteImport
-      parentRoute: typeof rootRouteImport
-    }
     '/api/invalidate': {
       id: '/api/invalidate'
       path: '/api/invalidate'
@@ -574,20 +422,6 @@ declare module '@tanstack/react-router' {
       path: '/api/generate-pdf'
       fullPath: '/api/generate-pdf'
       preLoaderRoute: typeof ApiGeneratePdfRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/api/excalidraw-init': {
-      id: '/api/excalidraw-init'
-      path: '/api/excalidraw-init'
-      fullPath: '/api/excalidraw-init'
-      preLoaderRoute: typeof ApiExcalidrawInitRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/api/excalidraw-demo': {
-      id: '/api/excalidraw-demo'
-      path: '/api/excalidraw-demo'
-      fullPath: '/api/excalidraw-demo'
-      preLoaderRoute: typeof ApiExcalidrawDemoRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/codemode-skills': {
@@ -618,44 +452,22 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiBankingDemoRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/api/audio-resolve': {
-      id: '/api/audio-resolve'
-      path: '/api/audio-resolve'
-      fullPath: '/api/audio-resolve'
-      preLoaderRoute: typeof ApiAudioResolveRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/api/audio': {
-      id: '/api/audio'
-      path: '/api/audio'
-      fullPath: '/api/audio'
-      preLoaderRoute: typeof ApiAudioRouteImport
-      parentRoute: typeof rootRouteImport
-    }
   }
 }
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
-  AudioRoute: AudioRoute,
   BankingDemoRoute: BankingDemoRoute,
-  ExcalidrawDemoRoute: ExcalidrawDemoRoute,
-  NoCodeRoute: NoCodeRoute,
-  ProductDemoRoute: ProductDemoRoute,
+  NpmGithubChatRoute: NpmGithubChatRoute,
   ReportingAgentRoute: ReportingAgentRoute,
   SkillsRoute: SkillsRoute,
   StructuredOutputRoute: StructuredOutputRoute,
-  ApiAudioRoute: ApiAudioRoute,
-  ApiAudioResolveRoute: ApiAudioResolveRoute,
   ApiBankingDemoRoute: ApiBankingDemoRoute,
   ApiBankingInitRoute: ApiBankingInitRoute,
   ApiCodemodeRoute: ApiCodemodeRoute,
   ApiCodemodeSkillsRoute: ApiCodemodeSkillsRoute,
-  ApiExcalidrawDemoRoute: ApiExcalidrawDemoRoute,
-  ApiExcalidrawInitRoute: ApiExcalidrawInitRoute,
   ApiGeneratePdfRoute: ApiGeneratePdfRoute,
   ApiInvalidateRoute: ApiInvalidateRoute,
-  ApiNoCodeRoute: ApiNoCodeRoute,
   ApiProductCodemodeRoute: ApiProductCodemodeRoute,
   ApiProductRegularRoute: ApiProductRegularRoute,
   ApiReportDemoRoute: ApiReportDemoRoute,
@@ -664,7 +476,6 @@ const rootRouteChildren: RootRouteChildren = {
   ApiReportsRoute: ApiReportsRoute,
   ApiSkillsRoute: ApiSkillsRoute,
   ApiStructuredOutputRoute: ApiStructuredOutputRoute,
-  ReportsDemoRoute: ReportsDemoRoute,
   ReportsIndexRoute: ReportsIndexRoute,
 }
 export const routeTree = rootRouteImport

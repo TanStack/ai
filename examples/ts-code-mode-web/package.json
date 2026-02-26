@@ -9,7 +9,6 @@
     "test": "exit 0"
   },
   "dependencies": {
-    "@excalidraw/excalidraw": "^0.18.0",
     "@radix-ui/react-collapsible": "^1.1.2",
     "@tailwindcss/vite": "^4.1.18",
     "@tanstack/ai": "workspace:*",
